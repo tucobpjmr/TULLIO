@@ -782,7 +782,7 @@ const getVisibleTasks = (tasks, userId) => tasks.filter(t => canViewTask(t, user
 // Wrapper riusabile: swipe verso destra rivela 3 bottoni (Completato / Cestino / Inoltra).
 // Soglia 40% larghezza card → si "blocca aperto". Tap fuori chiude.
 // Su desktop è trasparente. Disabilitato anche se l'utente non può editare la task.
-const SwipeActions = ({ task, dispatch, children, disabled = false }) => {
+const SwipeActions = ({ task, dispatch, children, disabled = false, currentUserId }) => {
   const { isDesktop } = useViewport();
   const [offset, setOffset] = useState(0);          // px di traslazione attuale
   const [opened, setOpened] = useState(false);      // stato "aperto" (bottoni visibili)
@@ -796,8 +796,9 @@ const SwipeActions = ({ task, dispatch, children, disabled = false }) => {
   const OPEN_WIDTH = 210; // larghezza pannello bottoni rivelato (3 bottoni × 70)
 
   // Disabilita su desktop / disabilitato esplicitamente / no permessi di edit (v0.8)
-  // Leggo il currentUserId dal globale (sincronizzato dal reducer).
-  const canEdit = canEditTask(task, CURRENT_USER);
+  // currentUserId arriva come prop dal context React; fallback al globale per
+  // chiamate legacy non ancora migrate (evita stale closure su switch utente).
+  const canEdit = canEditTask(task, currentUserId || CURRENT_USER);
   const swipeEnabled = !isDesktop && !disabled && canEdit;
 
   // tap fuori per chiudere
@@ -2651,7 +2652,7 @@ const BulkTaskCreator = ({ existingTasks, onCreate, onClose }) => {
 };
 
 // ─── AI DAY PLANNER ────────────────────────────────────────────────────────
-const AIDayPlanner = ({ tasks, onClose }) => {
+const AIDayPlanner = ({ tasks, onClose, currentUserId }) => {
   const [loading, setLoading] = useState(true);
   const [plan, setPlan] = useState(null);
   const [error, setError] = useState(null);
@@ -2659,16 +2660,18 @@ const AIDayPlanner = ({ tasks, onClose }) => {
   useEffect(() => {
     let cancelled = false;
     const today = new Date();
+    const uid = currentUserId || CURRENT_USER;
+    const me = getMember(uid);
 
-    // I task attivi assegnati a Marco
+    // I task attivi assegnati all'utente loggato
     const myTasks = tasks.filter(t =>
-      t.assignees?.includes(CURRENT_USER) && t.status !== "done"
+      t.assignees?.includes(uid) && t.status !== "done"
     );
 
     // Task di altri operatori: scaduti, oppure urgenti e ancora in "todo"
     // (proxy ragionevole per "non visti / non presi in carico")
     const othersNeglected = tasks.filter(t => {
-      if (!t.assignees || t.assignees.includes(CURRENT_USER)) return false;
+      if (!t.assignees || t.assignees.includes(uid)) return false;
       if (t.status === "done") return false;
       const urgent = t.priority === "critical" || t.priority === "high";
       const overdue = isOverdue(t);
@@ -2689,7 +2692,7 @@ const AIDayPlanner = ({ tasks, onClose }) => {
       category: t.category,
     });
 
-    const prompt = `Sei un assistente operativo per un'agenzia viaggi. Pianifica oggi (${today.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}) per Marco Ferretti (Manager).
+    const prompt = `Sei un assistente operativo per un'agenzia viaggi. Pianifica oggi (${today.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}) per ${me?.name || "l'operatore"} (${me?.role || "Agente"}).
 
 MIEI TASK ATTIVI:
 ${JSON.stringify(myTasks.map(compact))}
@@ -2712,7 +2715,13 @@ Regole:
 - Per i campi "taskId" usa esattamente gli id forniti.
 - Massimo 2 "tips", brevi.`;
 
-    fetch("https://api.anthropic.com/v1/messages", {
+    // L'endpoint è configurabile via VITE_AI_ENDPOINT per puntare a un proxy
+    // server-side che inietta x-api-key (la chiave NON deve mai stare nel client).
+    // Se non configurato, ricade sul default e fallirà su CORS — segnaliamo
+    // l'errore in modo chiaro all'utente invece di crashare.
+    const endpoint = import.meta.env?.VITE_AI_ENDPOINT || "/api/ai/plan-day";
+
+    fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -2729,14 +2738,19 @@ Regole:
         if (cancelled) return;
         const text = (data.content || []).map(b => b.text || "").join("").trim();
         const clean = text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
-        const parsed = JSON.parse(clean);
+        let parsed;
+        try {
+          parsed = JSON.parse(clean);
+        } catch {
+          throw new Error("Risposta AI non in formato JSON valido. Riprova.");
+        }
         setPlan(parsed);
       })
       .catch(e => { if (!cancelled) setError(e.message || String(e)); })
       .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
-  }, [tasks]);
+  }, [tasks, currentUserId]);
 
   const findTask = (id) => tasks.find(t => t.id === id);
   const sevColor = { alta: "var(--danger)", media: "var(--warning)" };
@@ -3246,7 +3260,7 @@ const NoticeEditorModal = ({ notice, onClose, onSave }) => {
 };
 
 // ─── PERSONAL QUEUE (le mie task — v0.8) ───────────────────────────────────
-const PersonalQueue = ({ tasks, dispatch, me }) => {
+const PersonalQueue = ({ tasks, dispatch, me, currentUserId }) => {
   const { isMobile } = useViewport();
   const empty = tasks.length === 0;
   return (
@@ -3340,7 +3354,7 @@ const PersonalQueue = ({ tasks, dispatch, me }) => {
               </div>
             );
             return (
-              <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+              <SwipeActions key={t.id} task={t} dispatch={dispatch} currentUserId={uid}>
                 {card}
               </SwipeActions>
             );
@@ -3462,7 +3476,7 @@ const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
 };
 
 // ─── UNASSIGNED QUEUE (coda globale) ───────────────────────────────────────
-const UnassignedQueue = ({ tasks, dispatch, onTake }) => {
+const UnassignedQueue = ({ tasks, dispatch, onTake, currentUserId }) => {
   const { isMobile } = useViewport();
   const empty = tasks.length === 0;
 
@@ -3584,7 +3598,7 @@ const UnassignedQueue = ({ tasks, dispatch, onTake }) => {
               </div>
             );
             return (
-              <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+              <SwipeActions key={t.id} task={t} dispatch={dispatch} currentUserId={uid}>
                 {card}
               </SwipeActions>
             );
@@ -3628,7 +3642,7 @@ const QueueTab = ({ active, onClick, icon, label, count, isMobile, dangerCount }
 };
 
 // ─── OVERDUE QUEUE (task scaduti visibili) ────────────────────────────────
-const OverdueQueue = ({ tasks, dispatch }) => {
+const OverdueQueue = ({ tasks, dispatch, currentUserId }) => {
   const { isMobile } = useViewport();
   const empty = tasks.length === 0;
   return (
@@ -3722,7 +3736,7 @@ const OverdueQueue = ({ tasks, dispatch }) => {
               </div>
             );
             return (
-              <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+              <SwipeActions key={t.id} task={t} dispatch={dispatch} currentUserId={uid}>
                 {card}
               </SwipeActions>
             );
@@ -3873,13 +3887,13 @@ const Dashboard = ({ state, dispatch, onOpenChat }) => {
 
       {/* ─── SEZIONE CODA FILTRATA ─── */}
       {activeQueue === "personal" && (
-        <PersonalQueue tasks={personalQueue} dispatch={dispatch} me={me} />
+        <PersonalQueue tasks={personalQueue} dispatch={dispatch} me={me} currentUserId={uid} />
       )}
       {activeQueue === "global" && showGlobalQueue && (
-        <UnassignedQueue tasks={unassigned} dispatch={dispatch} onTake={takeOwnership} />
+        <UnassignedQueue tasks={unassigned} dispatch={dispatch} onTake={takeOwnership} currentUserId={uid} />
       )}
       {activeQueue === "overdue" && (
-        <OverdueQueue tasks={overdueTasks} dispatch={dispatch} />
+        <OverdueQueue tasks={overdueTasks} dispatch={dispatch} currentUserId={uid} />
       )}
       {activeQueue === "urgent" && showUrgentOthers && (
         <UrgentOthersQueue tasks={urgentOthers} dispatch={dispatch} onOpenChat={onOpenChat} uid={uid} />
@@ -3941,7 +3955,7 @@ const Dashboard = ({ state, dispatch, onOpenChat }) => {
         </div>
       </div>
 
-      {showAIPlanner && <AIDayPlanner tasks={tasks} onClose={() => setShowAIPlanner(false)} />}
+      {showAIPlanner && <AIDayPlanner tasks={tasks} onClose={() => setShowAIPlanner(false)} currentUserId={uid} />}
     </div>
   );
 };
@@ -4060,18 +4074,22 @@ const QuickAddTask = ({ onAdd, onClose }) => {
 };
 
 // ─── TASK DETAIL SLIDE-OVER ────────────────────────────────────────────────
-const TaskSlideOver = ({ task, dispatch }) => {
+const TaskSlideOver = ({ task, dispatch, currentUserId }) => {
   const { isMobile } = useViewport();
   const [newComment, setNewComment] = useState("");
 
   if (!task) return null;
+
+  const me = getMember(currentUserId);
+  const myName = me?.name || "Operatore";
+  const myAvatar = me?.avatar || "??";
 
   const handleComment = () => {
     if (!newComment.trim()) return;
     dispatch({
       type: "ADD_COMMENT", payload: {
         taskId: task.id,
-        comment: { user: "Marco Ferretti", text: newComment, time: new Date().toISOString() }
+        comment: { user: myName, text: newComment, time: new Date().toISOString() }
       }
     });
     setNewComment("");
@@ -4227,7 +4245,7 @@ const TaskSlideOver = ({ task, dispatch }) => {
                   width: 28, height: 28, borderRadius: "50%", background: "var(--gold)",
                   fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center",
                   justifyContent: "center", color: "var(--navy)", flexShrink: 0
-                }}>MF</div>
+                }}>{myAvatar}</div>
                 <div style={{ flex: 1, display: "flex", gap: 6 }}>
                   <input
                     value={newComment}
@@ -4445,7 +4463,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
                   </div>
                 );
                 return (
-                  <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+                  <SwipeActions key={t.id} task={t} dispatch={dispatch} currentUserId={uid}>
                     {row}
                   </SwipeActions>
                 );
@@ -7017,7 +7035,7 @@ function VoyageDeskInner() {
         <BottomNav state={state} dispatch={dispatch} />
 
         {/* Slide-over */}
-        {state.selectedTask && <TaskSlideOver task={state.selectedTask} dispatch={dispatch} />}
+        {state.selectedTask && <TaskSlideOver task={state.selectedTask} dispatch={dispatch} currentUserId={state.currentUserId} />}
 
         {/* Chat Panel */}
         <ChatPanel

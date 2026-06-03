@@ -1,0 +1,8 @@
+Titolo,Categoria,Priorità,Cliente,Scadenza,Assegnato,Ore,Descrizione
+Conferma voli Atene gruppo Bianchi,booking,critical,Coppia Bianchi,2026-06-15,sofia,2,Volo Aegean + check-in online
+Prenotazione hotel Santorini,hotel,high,Coppia Bianchi,2026-06-12,sofia,1.5,Hotel vista caldera 5 stelle
+Visto Egitto - Famiglia Ricci,visa,critical,Famiglia Ricci,2026-06-20,roberto,3,Visto turistico per 4 persone
+Newsletter mensile Luglio,marketing,medium,,2026-06-25,luca,4,Tema vacanze last minute
+Polizza viaggio Marocco - Conti,admin,medium,Famiglia Conti,2026-06-18,roberto,1,Allianz copertura medica + annullamento
+Itinerario tour Patagonia,itinerary,high,Coppia Verdi,2026-07-01,sofia,6,14 giorni Argentina + Cile
+Transfer aeroporto MXP - Verdi,supplier,medium,Coppia Verdi,2026-07-05,giulia,1,NCC privato volo LATAM 8023

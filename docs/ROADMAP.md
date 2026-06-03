@@ -9,6 +9,15 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 
 ---
 
+## 📍 Punto di partenza (post v0.9.1)
+
+- App ora gira fuori da claude.ai artifacts (progetto Vite con `package.json`, `vite.config.js`, `index.html`, `src/main.jsx`).
+- **Persistenza `localStorage`** attiva (state + chat con versioning + reset da Admin). Dati sopravvivono al refresh.
+- File `VoyageDesk.jsx` ancora monolitico (~7180 righe) — splitting in moduli è il prossimo step della traccia tecnica.
+- Tutto il resto invariato rispetto al punto di partenza post v0.8 sotto.
+
+---
+
 ## 📍 Punto di partenza (post v0.8)
 
 - App stabile e validata sintatticamente (Babel) a **6617 righe**.
@@ -141,7 +150,7 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 |---|---|---|---|---|
 | Chat `useState` → `useReducer` | ⬜ | 🟡 | S–M | Fattibile in Opzione A |
 | `TEAM`/`CATEGORIES`/`CURRENT_USER` da `let` mutabile a Context puro | ⬜ | ⚪ | M | Funzionale oggi, ma più pulito |
-| Persistenza dati (localStorage o backend mock) | ⬜ | 🔴 | L | ⚙️**B** |
+| Persistenza dati (localStorage) | ✅ | — | — | Completata v0.9.1 — `loadPersistedState`/`savePersistedState`. Backend reale ancora da fare. |
 | Separazione in più file | ⬜ | 🟡 | M | ⚙️**B** |
 | TypeScript | ⬜ | ⚪ | L | Dopo refactor multi-file ⚙️**B** |
 | Test unitari (Vitest) | ⬜ | ⚪ | M | Dopo TypeScript ⚙️**B** |

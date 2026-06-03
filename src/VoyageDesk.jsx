@@ -6564,6 +6564,26 @@ const AdminIOTab = ({ state, dispatch }) => {
           ⚠️ Il ripristino sovrascrive completamente i dati correnti. Esporta prima un backup di sicurezza.
         </div>
       </div>
+
+      {/* Reset dati persistiti */}
+      <div style={cardStyle}>
+        <h3 style={cardH}>🧹 Reset dati locali (localStorage)</h3>
+        <p style={cardP}>
+          Cancella i dati salvati nel browser e ricarica la pagina con i <b>dati demo iniziali</b>.
+          Utile per ripartire da zero o sbloccare uno stato corrotto.
+        </p>
+        <button
+          onClick={() => {
+            if (!window.confirm("Cancellare tutti i dati locali e ricaricare con i dati demo? L'azione non è reversibile.")) return;
+            clearPersistedAll();
+            window.location.reload();
+          }}
+          style={btnDanger}
+        >🧨 Cancella dati locali e ricarica</button>
+        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 10 }}>
+          Esporta prima un backup JSON se vuoi conservare lo stato corrente.
+        </div>
+      </div>
     </div>
   );
 };
@@ -6938,6 +6958,103 @@ const btnWarning = { padding: "8px 12px", borderRadius: 6, border: "1px solid va
 const modalOverlay = { position: "fixed", inset: 0, background: "rgba(15,32,68,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 600, padding: 16 };
 const modalCard = { background: "#fff", borderRadius: 12, padding: 24, width: "90%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" };
 
+// ─── PERSISTENZA (localStorage) ────────────────────────────────────────────
+// v0.9.1 — l'app gira fuori da claude.ai artifacts: si salva su localStorage.
+// Versioning: bumpare PERSIST_VERSION se cambia la shape dello state persistito.
+const PERSIST_VERSION = 1;
+const PERSIST_KEY_STATE = "voyagedesk:state:v1";
+const PERSIST_KEY_CHAT = "voyagedesk:chat:v1";
+// Campi UI volatili: non finiscono in localStorage, tornano ai default al refresh.
+const PERSIST_OMIT = ["toast", "lastAction", "selectedTask", "showNotif", "searchQuery", "filters"];
+
+const _hasStorage = () => typeof window !== "undefined" && !!window.localStorage;
+
+const loadPersistedState = (fallback) => {
+  if (!_hasStorage()) return fallback;
+  try {
+    const raw = window.localStorage.getItem(PERSIST_KEY_STATE);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    if (!parsed || parsed.version !== PERSIST_VERSION || !parsed.state) return fallback;
+    const merged = { ...fallback, ...parsed.state };
+    // Riallinea i `let` mutabili usati dagli helper (TEAM/CATEGORIES/CURRENT_USER)
+    if (Array.isArray(merged.team)) _syncTeam(merged.team);
+    if (merged.categories && typeof merged.categories === "object") _syncCategories(merged.categories);
+    if (typeof merged.currentUserId === "string" && getMember(merged.currentUserId)) {
+      _syncCurrentUser(merged.currentUserId);
+    } else {
+      merged.currentUserId = fallback.currentUserId;
+      _syncCurrentUser(fallback.currentUserId);
+    }
+    // Reset campi volatili
+    for (const k of PERSIST_OMIT) merged[k] = fallback[k];
+    return merged;
+  } catch (e) {
+    console.warn("[VoyageDesk] hydrate state failed:", e);
+    return fallback;
+  }
+};
+
+const savePersistedState = (state) => {
+  if (!_hasStorage()) return null;
+  try {
+    const toPersist = {};
+    for (const k of Object.keys(state)) {
+      if (!PERSIST_OMIT.includes(k)) toPersist[k] = state[k];
+    }
+    window.localStorage.setItem(
+      PERSIST_KEY_STATE,
+      JSON.stringify({ version: PERSIST_VERSION, savedAt: new Date().toISOString(), state: toPersist })
+    );
+    return null;
+  } catch (e) {
+    console.warn("[VoyageDesk] persist state failed:", e);
+    return e;
+  }
+};
+
+const loadPersistedChat = (fallbackConv, fallbackMsg) => {
+  const fallback = { conversations: fallbackConv, messages: fallbackMsg };
+  if (!_hasStorage()) return fallback;
+  try {
+    const raw = window.localStorage.getItem(PERSIST_KEY_CHAT);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    if (!parsed || parsed.version !== PERSIST_VERSION) return fallback;
+    return {
+      conversations: Array.isArray(parsed.conversations) ? parsed.conversations : fallbackConv,
+      messages: parsed.messages && typeof parsed.messages === "object" ? parsed.messages : fallbackMsg,
+    };
+  } catch (e) {
+    console.warn("[VoyageDesk] hydrate chat failed:", e);
+    return fallback;
+  }
+};
+
+const savePersistedChat = (conversations, messages) => {
+  if (!_hasStorage()) return null;
+  try {
+    window.localStorage.setItem(
+      PERSIST_KEY_CHAT,
+      JSON.stringify({ version: PERSIST_VERSION, conversations, messages })
+    );
+    return null;
+  } catch (e) {
+    console.warn("[VoyageDesk] persist chat failed:", e);
+    return e;
+  }
+};
+
+const clearPersistedAll = () => {
+  if (!_hasStorage()) return;
+  try {
+    window.localStorage.removeItem(PERSIST_KEY_STATE);
+    window.localStorage.removeItem(PERSIST_KEY_CHAT);
+  } catch (e) {
+    console.warn("[VoyageDesk] clear persist failed:", e);
+  }
+};
+
 // ─── ROOT APP ──────────────────────────────────────────────────────────────
 export default function VoyageDesk() {
   return (
@@ -6949,13 +7066,30 @@ export default function VoyageDesk() {
 
 function VoyageDeskInner() {
   const { isDesktop } = useViewport();
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const [state, dispatch] = useReducer(reducer, initialState, loadPersistedState);
   const [showFABModal, setShowFABModal] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [chatIntent, setChatIntent] = useState(null); // { toUser, taskLink } per aprire chat preconfezionata
   const [showBulkModal, setShowBulkModal] = useState(false);
-  const [conversations, setConversations] = useState(initialConversations);
-  const [messages, setMessages] = useState(initialMessages);
+  // Hydrate chat una volta sola (lazy init): evita race fra i due useState.
+  const _hydratedChat = useRef(null);
+  if (_hydratedChat.current === null) {
+    _hydratedChat.current = loadPersistedChat(initialConversations, initialMessages);
+  }
+  const [conversations, setConversations] = useState(_hydratedChat.current.conversations);
+  const [messages, setMessages] = useState(_hydratedChat.current.messages);
+
+  // Persistenza state app: debounce 300ms per evitare write su ogni keystroke.
+  useEffect(() => {
+    const id = setTimeout(() => savePersistedState(state), 300);
+    return () => clearTimeout(id);
+  }, [state]);
+
+  // Persistenza chat (conversazioni + messaggi)
+  useEffect(() => {
+    const id = setTimeout(() => savePersistedChat(conversations, messages), 300);
+    return () => clearTimeout(id);
+  }, [conversations, messages]);
 
   // Conta non letti totali per badge topbar (dallo stato vivo della chat)
   const unreadChat = conversations.reduce(

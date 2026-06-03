@@ -10,7 +10,7 @@ Applicazione gestionale per agenzie viaggi/tour operator. Gestisce task operativ
 - **Stato locale chat**: useState (può essere migrato a reducer in futuro)
 - **DnD**: HTML5 Drag & Drop API nativo (disabilitato su mobile — vedi sezione Responsive)
 - **Routing**: state-based switch (no react-router)
-- **Persistenza**: nessuna (tutto in memoria)
+- **Persistenza**: `localStorage` (chiavi `voyagedesk:state:v1` per app, `voyagedesk:chat:v1` per chat). Hydrate via `loadPersistedState` in lazy init di `useReducer`; save debounced 300ms su `useEffect([state])`. Reset disponibile in Admin → Import/Export. Backend reale ancora da implementare.
 - **Font**: Playfair Display (display) + DM Sans (UI body) via Google Fonts
 - **Lingua UI**: italiano
 - **Dipendenze esterne**: solo SheetJS (`xlsx`) per import CSV/Excel ed export Excel — eccezione documentata al "no libs"
@@ -274,8 +274,8 @@ Il codice è organizzato in **sezioni delimitate da commenti `─── TITOLO �
 
 ## ⚠️ Vincoli importanti
 
-1. **Single-file artifact**: tutto deve restare in `VoyageDesk.jsx` come default export.
-2. **NO localStorage/sessionStorage**: i dati restano in memoria (vincolo Claude.ai Artifacts).
+1. **Single-file**: tutto resta in `VoyageDesk.jsx` come default export (splitting in moduli previsto in roadmap, non ancora fatto).
+2. **Persistenza locale** (v0.9.1): state app e chat salvati su `localStorage`. Aggiungere nuovi campi state al reducer; per UI volatili includerli in `PERSIST_OMIT`. Backend remoto ancora da fare.
 3. **NO librerie esterne oltre a React core**, **eccezione**: `xlsx` (SheetJS) per import/export.
 4. **Responsive completo** (v0.6): target da 320px in su.
 5. **Accessibilità**: HTML semantico, ARIA labels dove possibile.

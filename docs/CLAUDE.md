@@ -34,11 +34,11 @@ Agisci come sviluppatore full-stack specializzato in sistemi gestionali per trav
 - **Sync globale**: TEAM/CATEGORIES/CURRENT_USER sono `let` mutabili sincronizzati via `_syncTeam`/`_syncCategories`/`_syncCurrentUser`
 
 ### Cosa NON fare
-- Non usare localStorage/sessionStorage (vincolo artifact, da rimuovere post-migrazione Vite)
 - Non aggiungere librerie CSS/UI esterne
 - Non rompere funzionalità esistenti
 - Non rimuovere commenti delimitatore sezione
 - Non usare drag&drop su mobile (usare SwipeActions)
+- Non bypassare la persistenza: lo state passa già per `useReducer` con lazy init `loadPersistedState`. Per nuove slice di state che vuoi persistere, aggiungile al reducer; per quelle volatili UI, aggiungile a `PERSIST_OMIT`.
 
 ## Palette colori
 
@@ -217,9 +217,9 @@ VoyageDesk (export default, ViewportProvider wrapper)
 ## Roadmap prossimi step
 
 ### Priorità 1 — Migrazione a progetto Vite
-- [ ] Creare progetto Vite + React
+- [x] Creare progetto Vite + React
 - [ ] Splittare `VoyageDesk.jsx` in moduli (componenti, reducer, utils, mock-data, styles)
-- [ ] Aggiungere persistenza (localStorage iniziale, poi backend)
+- [x] Aggiungere persistenza (localStorage in `loadPersistedState` / `savePersistedState`). Backend ancora da fare.
 
 ### Priorità 2 — Modello dati completo
 - [ ] Anagrafica Clienti (CRM base)
@@ -240,8 +240,9 @@ Vedi `docs/ROADMAP.md` per il dettaglio completo con dipendenze e stime.
 ## Note tecniche importanti
 
 1. **Architettura root**: `VoyageDesk` wrappa `VoyageDeskInner` dentro `<ViewportProvider>`. Tutti i componenti con `useViewport()` devono essere dentro questo provider.
-2. **TEAM/CATEGORIES/CURRENT_USER** sono `let` mutabili — pattern ibrido con sync nel reducer. Funziona ma è da migrare a Context puro.
+2. **TEAM/CATEGORIES/CURRENT_USER** sono `let` mutabili — pattern ibrido con sync nel reducer. Funziona ma è da migrare a Context puro. `loadPersistedState` riallinea questi globali alla hydration.
 3. **Chat e AI**: usano `fetch` su `https://api.anthropic.com/v1/messages` — funziona solo in ambiente Claude.ai artifacts. Per dev locale, mockare o usare API key.
 4. **activityLog**: max 100 entry, poi taglia le più vecchie.
 5. **Backup JSON**: Admin → Import/Export include tutto lo stato persistente. Ripristino sovrascrive.
 6. **DnD**: disabilitato su mobile. Usare SwipeActions per azioni rapide.
+7. **Persistenza (v0.9.1)**: state e chat su `localStorage` (chiavi `voyagedesk:state:v1`, `voyagedesk:chat:v1`). `PERSIST_OMIT` lista i campi UI volatili. `PERSIST_VERSION` bumpabile per invalidare payload obsoleti. Reset disponibile in Admin → Import/Export.

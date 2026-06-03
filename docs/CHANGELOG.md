@@ -1,5 +1,44 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9.1 — Persistenza localStorage (sessione 9)
+
+> Primo step della migrazione a progetto reale post-handoff: i dati non si perdono più al refresh. Sblocca uso reale dell'app come single-user demo locale.
+
+### 💾 Stato persistito su `localStorage`
+- **Hydrate al mount**: `useReducer(reducer, initialState, loadPersistedState)`. Se trova lo state salvato (versione compatibile), lo unisce ai default; altrimenti parte da `INITIAL_TASKS`/`INITIAL_NOTICES`/`TEAM`/`CATEGORIES` come prima.
+- **Save al cambio**: `useEffect([state])` con debounce 300ms → `localStorage.setItem`.
+- **Chiavi**: `voyagedesk:state:v1` (app) + `voyagedesk:chat:v1` (conversazioni e messaggi).
+- **Versioning**: costante `PERSIST_VERSION = 1`. Bumpando si invalidano automaticamente i payload vecchi.
+
+### 📦 Cosa viene salvato
+- `tasks`, `team`, `categories`, `notices`, `agencyName`, `activityLog`, `currentUserId`, `activeView`, `sidebarCollapsed`.
+- Chat: `conversations` + `messages` (inclusi vocali con waveform — attenzione: i base64 pesano).
+
+### 🚫 Cosa NON viene salvato (campi UI volatili)
+- `toast`, `lastAction`, `selectedTask`, `showNotif`, `searchQuery`, `filters` — tornano ai default al refresh.
+
+### 🔄 Resync globali alla hydration
+- `TEAM`, `CATEGORIES`, `CURRENT_USER` (i `let` mutabili usati dagli helper) vengono riallineati allo stato persistito via `_syncTeam`/`_syncCategories`/`_syncCurrentUser`, prima che qualsiasi componente leggi i riferimenti.
+- Se l'`currentUserId` salvato non esiste più nel TEAM, fallback al default.
+
+### 🧹 Reset dati locali
+- Nuovo riquadro in **Admin → Import/Export**: bottone "Cancella dati locali e ricarica" che fa `removeItem` su entrambe le chiavi + `location.reload()`. Conferma `window.confirm` obbligatoria.
+- Esistente "Esporta backup JSON" resta il modo consigliato per fare un salvataggio prima del reset.
+
+### 🛡️ Robustezza
+- Tutto in try/catch: errori di parse, quota superata o storage non disponibile → log su console + fallback ai default, niente schermata bianca.
+- Funziona anche in SSR / ambienti senza `window.localStorage`.
+
+### 📈 Metriche
+- File: 7071 → **~7180 righe** (+~110, solo helper + admin card).
+- Componenti nuovi: 0 (solo logica + un riquadro nel tab Admin IO).
+
+### ⚠️ Note migrazione
+- Rimosso il vincolo "no localStorage" dalla `CLAUDE.md` (era legato a claude.ai artifacts, ora in Vite).
+- Roadmap: spuntato il punto **Persistenza** nella traccia tecnica.
+
+---
+
 ## v0.9-dev — Ristrutturazione UI + Profilo + Handoff (sessione 8)
 
 > Semplificazione interfaccia, unificazione viste, nuovo profilo utente, preparazione per migrazione a progetto Vite.

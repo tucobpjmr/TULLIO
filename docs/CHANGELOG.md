@@ -1,5 +1,33 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9.2 — Fix incrementali roadmap (sessione 10)
+
+> Bundle di tre fix 🟡 dalla roadmap "Migliorie incrementali post-v0.5/v0.8": badge contatori su Sidebar/BottomNav, editor multi-assegnatari in `TaskSlideOver`, commento firmato con l'utente loggato.
+
+### 🔔 Badge nav contatori
+- Nuovo helper **`getNavBadges(state)`** + componente **`NavBadge`** (variante `dot` per icona compatta, `inline` per sidebar espansa).
+- **Voce Admin** → numero agenti con `pending: true`. Visibile solo ad admin (gli altri ruoli non vedono la voce).
+- **Voce Dashboard** → numero task in coda globale (`assignees: []` non cestinati). Nascosto per Driver (che non vede la coda globale).
+- Stile: pillola dorata `var(--gold)` con testo navy, bordo navy-dark per stacco sul fondo scuro. Mostrata solo se `count > 0`. Limite display `99+`.
+- Integrato in **Sidebar** (sia collassata con dot sull'icona, sia espansa con badge inline a destra della label) e **BottomNav** (dot sull'icona).
+
+### 👥 Editor multi-assegnatari in TaskSlideOver
+- Nuovo bottone **"✎ modifica"** accanto a label ASSEGNATI, visibile solo se `canEditTask(task, CURRENT_USER)`.
+- Edit mode: chip per ogni agente di `getAssignableTeam()` (toggle), colore agente quando attivo + ✓.
+- **Salva** → `UPDATE_TASK` con il nuovo array `assignees`. **Annulla** → ripristina bozza dal task.
+- `useEffect([task.id])` resetta editor + bozza al cambio task aperto (evita stale state se si chiude lo slide-over e se ne apre un altro).
+
+### 🐛 Commento firmato dall'utente reale
+- Prima: ogni commento era hard-coded come "Marco Ferretti" (residuo single-user pre-v0.8).
+- Ora: usa `getMember(CURRENT_USER)?.name` → ogni utente firma con il proprio nome. Coerente con UserSwitcher.
+
+### 📈 Metriche
+- File: 7205 → ~7290 righe (+~85).
+- Componenti nuovi: 1 (`NavBadge`).
+- Helper nuovi: 1 (`getNavBadges`).
+
+---
+
 ## v0.9.1 — Persistenza localStorage (sessione 9)
 
 > Primo step della migrazione a progetto reale post-handoff: i dati non si perdono più al refresh. Sblocca uso reale dell'app come single-user demo locale.

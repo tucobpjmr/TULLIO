@@ -1946,11 +1946,53 @@ const getNavItemsForUser = (userId) => {
   return NAV_ITEMS.filter(it => !it.roles || it.roles.includes(role));
 };
 
+// Calcola i contatori da mostrare come badge sulle voci nav.
+// `dashboard` → task in coda globale (assignees=[] e non cestinati).
+// `admin` → agenti in attesa di approvazione (pending=true).
+// Driver: nessun badge dashboard (non vede la coda globale).
+const getNavBadges = (state) => {
+  const uid = state.currentUserId;
+  const role = getRoleType(uid);
+  const queue = role === "driver"
+    ? 0
+    : state.tasks.filter(t => !t.deletedAt && (!t.assignees || t.assignees.length === 0)).length;
+  const pending = role === "admin"
+    ? (state.team || []).filter(m => m.pending).length
+    : 0;
+  return { dashboard: queue, admin: pending };
+};
+
+// Badge contatore riusabile (pillola dorata, mostrato solo se count > 0)
+const NavBadge = ({ count, variant = "dot" }) => {
+  if (!count) return null;
+  const text = count > 99 ? "99+" : String(count);
+  if (variant === "dot") {
+    return (
+      <span style={{
+        position: "absolute", top: -4, right: -6,
+        minWidth: 16, height: 16, padding: "0 4px",
+        borderRadius: 999, background: "var(--gold)", color: "var(--navy)",
+        fontSize: 9, fontWeight: 700, lineHeight: "16px", textAlign: "center",
+        border: "1.5px solid var(--navy-dark)", boxSizing: "content-box",
+      }}>{text}</span>
+    );
+  }
+  // inline (per sidebar espansa: dopo la label)
+  return (
+    <span style={{
+      marginLeft: "auto", minWidth: 18, padding: "1px 6px", borderRadius: 999,
+      background: "var(--gold)", color: "var(--navy)", fontSize: 10, fontWeight: 700,
+      lineHeight: 1.4, textAlign: "center",
+    }}>{text}</span>
+  );
+};
+
 const Sidebar = ({ state, dispatch }) => {
   const { isDesktop } = useViewport();
   if (!isDesktop) return null;
   const col = state.sidebarCollapsed;
   const navItems = getNavItemsForUser(state.currentUserId);
+  const badges = getNavBadges(state);
   return (
     <div style={{
       width: col ? 60 : 210, background: "var(--navy-dark)", color: "#fff",
@@ -1970,6 +2012,7 @@ const Sidebar = ({ state, dispatch }) => {
       <div style={{ marginTop: 48, padding: col ? "0 8px" : "0 12px", display: "flex", flexDirection: "column", gap: 2 }}>
         {navItems.map(item => {
           const active = state.activeView === item.id;
+          const badge = badges[item.id] || 0;
           return (
             <button key={item.id} onClick={() => dispatch({ type: "SET_VIEW", payload: item.id })} style={{
               display: "flex", alignItems: "center", gap: 10,
@@ -1981,8 +2024,12 @@ const Sidebar = ({ state, dispatch }) => {
               transition: "all 0.2s", textAlign: "left",
               borderLeft: active ? "2px solid var(--gold)" : "2px solid transparent",
             }}>
-              <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
+              <span style={{ position: "relative", fontSize: 16, flexShrink: 0, display: "inline-flex" }}>
+                {item.icon}
+                {col && <NavBadge count={badge} variant="dot" />}
+              </span>
               {!col && <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>{item.label}</span>}
+              {!col && <NavBadge count={badge} variant="inline" />}
             </button>
           );
         })}
@@ -2013,10 +2060,12 @@ const Sidebar = ({ state, dispatch }) => {
 // ─── BOTTOM NAV (mobile/tablet) ────────────────────────────────────────────
 const BottomNav = ({ state, dispatch }) => {
   const navItems = getNavItemsForUser(state.currentUserId);
+  const badges = getNavBadges(state);
   return (
     <nav className="vd-bottom-nav" aria-label="Navigazione principale">
       {navItems.map(item => {
         const active = state.activeView === item.id;
+        const badge = badges[item.id] || 0;
         return (
           <button
             key={item.id}
@@ -2032,7 +2081,10 @@ const BottomNav = ({ state, dispatch }) => {
               transition: "color 0.2s",
             }}
           >
-            <span style={{ fontSize: 19, lineHeight: 1 }}>{item.icon}</span>
+            <span style={{ position: "relative", fontSize: 19, lineHeight: 1, display: "inline-flex" }}>
+              {item.icon}
+              <NavBadge count={badge} variant="dot" />
+            </span>
             <span style={{ fontSize: 9, fontWeight: active ? 700 : 500, whiteSpace: "nowrap" }}>
               {item.label.split(" ")[0]}
             </span>
@@ -4063,15 +4115,25 @@ const QuickAddTask = ({ onAdd, onClose }) => {
 const TaskSlideOver = ({ task, dispatch }) => {
   const { isMobile } = useViewport();
   const [newComment, setNewComment] = useState("");
+  const [editingAssignees, setEditingAssignees] = useState(false);
+  const [draftAssignees, setDraftAssignees] = useState(task?.assignees || []);
+  const canEdit = task ? canEditTask(task, CURRENT_USER) : false;
+
+  // Resetta la bozza se cambia il task aperto o se l'editor viene chiuso
+  useEffect(() => {
+    setDraftAssignees(task?.assignees || []);
+    setEditingAssignees(false);
+  }, [task?.id]);
 
   if (!task) return null;
 
   const handleComment = () => {
     if (!newComment.trim()) return;
+    const me = getMember(CURRENT_USER);
     dispatch({
       type: "ADD_COMMENT", payload: {
         taskId: task.id,
-        comment: { user: "Marco Ferretti", text: newComment, time: new Date().toISOString() }
+        comment: { user: me?.name || "Utente", text: newComment, time: new Date().toISOString() }
       }
     });
     setNewComment("");
@@ -4085,6 +4147,22 @@ const TaskSlideOver = ({ task, dispatch }) => {
     if (window.confirm(`Spostare nel cestino "${task.title}"?`)) {
       dispatch({ type: "DELETE_TASK", payload: task.id });
     }
+  };
+
+  const toggleDraftAssignee = (id) => {
+    setDraftAssignees(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const saveAssignees = () => {
+    dispatch({ type: "UPDATE_TASK", payload: { id: task.id, assignees: draftAssignees } });
+    setEditingAssignees(false);
+  };
+
+  const cancelAssigneeEdit = () => {
+    setDraftAssignees(task.assignees || []);
+    setEditingAssignees(false);
   };
 
   return (
@@ -4149,19 +4227,74 @@ const TaskSlideOver = ({ task, dispatch }) => {
           {/* Meta */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>ASSEGNATI</div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {task.assignees?.map(id => {
-                  const m = getMember(id);
-                  return m ? (
-                    <div key={id} style={{ display: "flex", alignItems: "center", gap: 5, background: "var(--surface2)", padding: "4px 8px", borderRadius: 99 }}>
-                      <Avatar memberId={id} size={20} />
-                      <span style={{ fontSize: 12 }}>{m.name.split(" ")[0]}</span>
-                    </div>
-                  ) : null;
-                })}
-                {!task.assignees?.length && <span style={{ fontSize: 13, color: "var(--text-muted)" }}>Non assegnato</span>}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)" }}>ASSEGNATI</span>
+                {canEdit && !editingAssignees && (
+                  <button
+                    onClick={() => setEditingAssignees(true)}
+                    title="Modifica assegnatari"
+                    style={{
+                      background: "none", border: "none", cursor: "pointer",
+                      color: "var(--navy)", fontSize: 11, fontWeight: 600, padding: 0,
+                    }}
+                  >✎ modifica</button>
+                )}
               </div>
+
+              {!editingAssignees && (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {task.assignees?.map(id => {
+                    const m = getMember(id);
+                    return m ? (
+                      <div key={id} style={{ display: "flex", alignItems: "center", gap: 5, background: "var(--surface2)", padding: "4px 8px", borderRadius: 99 }}>
+                        <Avatar memberId={id} size={20} />
+                        <span style={{ fontSize: 12 }}>{m.name.split(" ")[0]}</span>
+                      </div>
+                    ) : null;
+                  })}
+                  {!task.assignees?.length && <span style={{ fontSize: 13, color: "var(--text-muted)" }}>Non assegnato</span>}
+                </div>
+              )}
+
+              {editingAssignees && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {getAssignableTeam().map(m => {
+                      const on = draftAssignees.includes(m.id);
+                      return (
+                        <button
+                          key={m.id}
+                          onClick={() => toggleDraftAssignee(m.id)}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 5,
+                            background: on ? m.color : "var(--surface2)",
+                            color: on ? "#fff" : "var(--text)",
+                            border: on ? "1px solid " + m.color : "1px solid var(--border)",
+                            padding: "4px 9px", borderRadius: 99, cursor: "pointer",
+                            fontSize: 12, fontFamily: "inherit", transition: "all 0.15s",
+                          }}
+                        >
+                          <Avatar memberId={m.id} size={18} />
+                          <span>{m.name.split(" ")[0]}</span>
+                          {on && <span style={{ marginLeft: 2, fontSize: 10 }}>✓</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button onClick={saveAssignees} style={{
+                      padding: "6px 12px", borderRadius: 6, border: "none",
+                      background: "var(--navy)", color: "#fff", cursor: "pointer",
+                      fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                    }}>Salva</button>
+                    <button onClick={cancelAssigneeEdit} style={{
+                      padding: "6px 12px", borderRadius: 6, border: "1px solid var(--border)",
+                      background: "transparent", color: "var(--text)", cursor: "pointer",
+                      fontSize: 12, fontFamily: "inherit",
+                    }}>Annulla</button>
+                  </div>
+                </div>
+              )}
             </div>
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>CLIENTE</div>

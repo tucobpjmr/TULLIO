@@ -9,11 +9,14 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 
 ---
 
-## 📍 Punto di partenza (post v0.9.1)
+## 📍 Punto di partenza (post v0.9.2)
 
 - App ora gira fuori da claude.ai artifacts (progetto Vite con `package.json`, `vite.config.js`, `index.html`, `src/main.jsx`).
 - **Persistenza `localStorage`** attiva (state + chat con versioning + reset da Admin). Dati sopravvivono al refresh.
-- File `VoyageDesk.jsx` ancora monolitico (~7180 righe) — splitting in moduli è il prossimo step della traccia tecnica.
+- **Badge nav contatori** su voce Admin (agenti pending) e Dashboard (coda globale).
+- **Editor multi-assegnatari** disponibile da `TaskSlideOver`.
+- Commenti firmati con l'utente loggato (non più hard-coded "Marco Ferretti").
+- File `VoyageDesk.jsx` ancora monolitico (~7290 righe) — splitting in moduli è il prossimo step della traccia tecnica.
 - Tutto il resto invariato rispetto al punto di partenza post v0.8 sotto.
 
 ---
@@ -108,8 +111,8 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 
 | Idea | Stato | Priorità | Note |
 |---|---|---|---|
-| Badge sulla voce sidebar/bottom-nav **Admin** con conteggio agenti pending | ⬜ | 🟡 | |
-| Badge sulla voce sidebar/bottom-nav **Dashboard** con conteggio coda globale | ⬜ | 🟡 | |
+| Badge sulla voce sidebar/bottom-nav **Admin** con conteggio agenti pending | ✅ | — | Completato in v0.9.2 |
+| Badge sulla voce sidebar/bottom-nav **Dashboard** con conteggio coda globale | ✅ | — | Completato in v0.9.2 |
 | Toast personalizzato "Hai preso in carico: \[titolo\]" | ⬜ | ⚪ | |
 | Auto-move in "In Corso" al "Prendi in carico" | ⬜ | ⚪ | |
 | Notifica al manager se un task resta in coda > N ore | ⬜ | 🟡 | Dipende da notifiche reali |
@@ -118,7 +121,7 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 | Bacheca: avvisi con scadenza automatica | ⬜ | ⚪ | |
 | Bacheca: reazioni emoji sui post-it | ⬜ | ⚪ | |
 | Bacheca: tag/categorie filtrabili | ⬜ | ⚪ | |
-| Modifica assegnatari da `TaskSlideOver` | ⬜ | 🟡 | |
+| Modifica assegnatari da `TaskSlideOver` | ✅ | — | Completato in v0.9.2 |
 | Permessi granulari per ruolo | ✅ | — | Completato in v0.8 |
 | Export Log attività in CSV | ⬜ | ⚪ | |
 

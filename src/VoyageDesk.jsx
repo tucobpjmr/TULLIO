@@ -792,6 +792,10 @@ const SwipeActions = ({ task, dispatch, children, disabled = false, currentUserI
   const startY = useRef(null);
   const tracking = useRef(false);
   const containerWidth = useRef(0);
+  const pendingTimer = useRef(null);
+
+  // Cancella eventuale timer di "closeAndDo" se il componente viene smontato.
+  useEffect(() => () => { if (pendingTimer.current) clearTimeout(pendingTimer.current); }, []);
 
   const OPEN_WIDTH = 210; // larghezza pannello bottoni rivelato (3 bottoni × 70)
 
@@ -871,7 +875,8 @@ const SwipeActions = ({ task, dispatch, children, disabled = false, currentUserI
     setOpened(false);
     setOffset(0);
     setShowForward(false);
-    setTimeout(fn, 50);
+    if (pendingTimer.current) clearTimeout(pendingTimer.current);
+    pendingTimer.current = setTimeout(() => { pendingTimer.current = null; fn(); }, 50);
   };
 
   const handleComplete = (e) => {
@@ -2220,7 +2225,7 @@ const DuplicateTab = ({ tasks, onCreate, onClose }) => {
         </div>
         <div>
           <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>OFFSET SCADENZA (giorni)</div>
-          <input type="number" value={dayOffset} onChange={e => setDayOffset(parseInt(e.target.value) || 0)} style={bulkInputStyle} />
+          <input type="number" value={dayOffset} onChange={e => setDayOffset(parseInt(e.target.value, 10) || 0)} style={bulkInputStyle} />
         </div>
       </div>
 
@@ -2358,7 +2363,7 @@ const ImportTab = ({ onCreate, onClose }) => {
         assignees: assignee ? [assignee] : [],
         client: mapping.client ? (String(r[mapping.client] || "").trim() || null) : null,
         dueDate: mapping.dueDate ? normDate(r[mapping.dueDate]) : null,
-        estimatedHours: mapping.estimatedHours ? (parseFloat(r[mapping.estimatedHours]) || 1) : 1,
+        estimatedHours: mapping.estimatedHours ? (parseFloat(String(r[mapping.estimatedHours] ?? "").replace(",", ".")) || 1) : 1,
         description: mapping.description ? String(r[mapping.description] || "").trim() : "",
         comments: [],
       };
@@ -2436,7 +2441,7 @@ const ImportTab = ({ onCreate, onClose }) => {
                 </thead>
                 <tbody>
                   {rows.slice(0, 5).map((r, i) => (
-                    <tr key={i}>{columns.map(c => (
+                    <tr key={`prev-row-${i}`}>{columns.map(c => (
                       <td key={c} style={{ padding: "6px 10px", borderBottom: "1px solid var(--border)", whiteSpace: "nowrap", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }}>
                         {String(r[c] || "")}
                       </td>
@@ -2558,7 +2563,7 @@ const TemplateTab = ({ onCreate, onClose }) => {
               </div>
               <div style={{ maxHeight: 240, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 8 }}>
                 {previewTasks.map((t, idx) => (
-                  <div key={idx} style={{
+                  <div key={`prev-task-${idx}-${t.title || ""}`} style={{
                     padding: "8px 12px", borderBottom: idx === previewTasks.length - 1 ? "none" : "1px solid var(--border)",
                     display: "flex", alignItems: "center", gap: 10, fontSize: 12,
                   }}>
@@ -2838,7 +2843,7 @@ Regole:
                     {plan.schedule.map((s, i) => {
                       const t = findTask(s.taskId);
                       return (
-                        <div key={i} style={{
+                        <div key={`sch-${i}-${s.taskId || ""}`} style={{
                           display: "flex", gap: 12, padding: "10px 12px",
                           border: "1px solid var(--border)", borderRadius: 10, background: "#fff",
                         }}>
@@ -2885,7 +2890,7 @@ Regole:
                       const t = findTask(a.taskId);
                       const color = sevColor[a.severity] || "var(--warning)";
                       return (
-                        <div key={i} style={{
+                        <div key={`alert-${i}-${a.taskId || ""}`} style={{
                           background: color + "12", border: `1px solid ${color}40`,
                           borderRadius: 10, padding: "10px 12px",
                         }}>
@@ -2922,7 +2927,7 @@ Regole:
                     ✨ CONSIGLI
                   </div>
                   <ul style={{ paddingLeft: 18, fontSize: 12.5, lineHeight: 1.6, color: "var(--text)" }}>
-                    {plan.tips.map((tip, i) => <li key={i}>{tip}</li>)}
+                    {plan.tips.map((tip, i) => <li key={`tip-${i}`}>{tip}</li>)}
                   </ul>
                 </div>
               )}
@@ -4221,7 +4226,7 @@ const TaskSlideOver = ({ task, dispatch, currentUserId }) => {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {(task.comments || []).map((c, i) => (
-                <div key={i} style={{ display: "flex", gap: 10 }}>
+                <div key={`cmt-${c.time || i}-${i}`} style={{ display: "flex", gap: 10 }}>
                   <div style={{
                     width: 28, height: 28, borderRadius: "50%", background: "var(--navy)",
                     fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center",
@@ -4277,6 +4282,9 @@ const CalendarPlanner = ({ state, dispatch }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState(null);
+  // Memoizzato per mount: serve solo per confronti "isToday"; evita re-render
+  // a cascata causati da new Date() ricreato in ogni render.
+  const todayStr = useMemo(() => new Date().toDateString(), []);
   const uid = state.currentUserId;
 
   // ── Month helpers ──
@@ -4479,9 +4487,9 @@ const CalendarPlanner = ({ state, dispatch }) => {
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(7, 60vw)" : "repeat(7, 1fr)", gap: 10 }}>
             {weekDays.map((day, i) => {
               const dayTasks = getTasksForDay(day);
-              const isToday = day.toDateString() === new Date().toDateString();
+              const isToday = day.toDateString() === todayStr;
               return (
-                <div key={i} style={{
+                <div key={day.toISOString()} style={{
                   background: isToday ? "var(--navy)" : "#fff",
                   borderRadius: 10, border: `1px solid ${isToday ? "transparent" : "var(--border)"}`,
                   overflow: "hidden", scrollSnapAlign: isMobile ? "start" : "none",
@@ -4530,9 +4538,9 @@ const CalendarPlanner = ({ state, dispatch }) => {
               <tr>
                 <th style={{ textAlign: "left", padding: "8px 12px", background: "var(--surface2)", borderRadius: "8px 0 0 0", fontWeight: 600, fontSize: 11, color: "var(--text-muted)", width: 150 }}>Agente</th>
                 {agentWeekDays.map((d, i) => (
-                  <th key={i} style={{
+                  <th key={`hdr-${d.toISOString()}`} style={{
                     padding: "8px 6px", background: "var(--surface2)", fontSize: 11, fontWeight: 600,
-                    color: d.toDateString() === new Date().toDateString() ? "var(--gold)" : "var(--text-muted)",
+                    color: d.toDateString() === todayStr ? "var(--gold)" : "var(--text-muted)",
                     textAlign: "center", minWidth: 70
                   }}>
                     {dayNames[i]}<br />{d.getDate()}
@@ -4550,13 +4558,13 @@ const CalendarPlanner = ({ state, dispatch }) => {
                       <span style={{ fontWeight: 500 }}>{m.name.split(" ")[0]}</span>
                     </div>
                   </td>
-                  {agentWeekDays.map((day, i) => {
+                  {agentWeekDays.map((day) => {
                     const count = state.tasks.filter(t =>
                       isActiveTask(t) && t.assignees?.includes(m.id) && t.dueDate &&
                       new Date(t.dueDate).toDateString() === day.toDateString()
                     ).length;
                     return (
-                      <td key={i} style={{
+                      <td key={`${m.id}-${day.toISOString()}`} style={{
                         padding: "8px 6px", textAlign: "center", borderBottom: "1px solid var(--border)",
                         background: count > 0 ? m.color + "12" : "transparent",
                       }}>
@@ -5147,16 +5155,18 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
     }));
   }, [conv.id]);
 
-  // Simulate someone typing
+  // Simulate someone typing — dipendiamo dall'ultimo messaggio (id+sender)
+  // invece di msgs.length per evitare stale closure se l'ultimo msg viene
+  // sostituito senza variazioni di lunghezza (es. edit/reactions).
+  const lastMsg = msgs[msgs.length - 1];
   useEffect(() => {
-    if (msgs.length === 0) return;
-    const last = msgs[msgs.length - 1];
-    if (last.sender === CURRENT_USER) {
+    if (!lastMsg) return;
+    if (lastMsg.sender === CURRENT_USER) {
       const timer = setTimeout(() => setTyping(true), 800);
       const stop = setTimeout(() => setTyping(false), 3500);
       return () => { clearTimeout(timer); clearTimeout(stop); };
     }
-  }, [msgs.length]);
+  }, [lastMsg?.id, lastMsg?.sender]);
 
   const sendText = () => {
     if (!input.trim()) return;
@@ -6285,7 +6295,7 @@ const AdminTeamTab = ({ state, dispatch }) => {
               <input value={draft.role} onChange={e => setDraft({...draft, role: e.target.value})}
                 placeholder="Ruolo" style={fieldStyle} />
               <input type="number" min="1" max="50" value={draft.capacity}
-                onChange={e => setDraft({...draft, capacity: parseInt(e.target.value) || 1})}
+                onChange={e => setDraft({...draft, capacity: Math.max(1, Math.min(50, parseInt(e.target.value, 10) || 1))})}
                 placeholder="Cap" style={fieldStyle} />
               <input type="color" value={draft.color} onChange={e => setDraft({...draft, color: e.target.value})}
                 style={{ ...fieldStyle, padding: 2, height: 32 }} />
@@ -6427,7 +6437,7 @@ const AddTeamMemberModal = ({ onClose, dispatch, existingIds }) => {
             <div>
               <label style={labelStyle}>Capacità task</label>
               <input type="number" min="1" max="50" value={capacity}
-                onChange={e => setCapacity(parseInt(e.target.value) || 8)} style={fieldStyle} />
+                onChange={e => setCapacity(Math.max(1, Math.min(50, parseInt(e.target.value, 10) || 8)))} style={fieldStyle} />
             </div>
             <div>
               <label style={labelStyle}>Colore</label>
@@ -6452,6 +6462,17 @@ const AddTeamMemberModal = ({ onClose, dispatch, existingIds }) => {
 const AdminIOTab = ({ state, dispatch }) => {
   const [includeTrashed, setIncludeTrashed] = useState(false);
   const fileInputRef = useRef(null);
+  // Tiene gli (url, timerId) in volo: cleanup garantito on-unmount per evitare
+  // leak di blob se l'utente avvia molti export ravvicinati.
+  const pendingUrls = useRef([]);
+
+  useEffect(() => () => {
+    pendingUrls.current.forEach(({ url, timer }) => {
+      clearTimeout(timer);
+      URL.revokeObjectURL(url);
+    });
+    pendingUrls.current = [];
+  }, []);
 
   const tasksToExport = () => includeTrashed ? state.tasks : state.tasks.filter(t => !t.deletedAt);
 
@@ -6461,7 +6482,12 @@ const AdminIOTab = ({ state, dispatch }) => {
     a.href = url; a.download = filename;
     document.body.appendChild(a); a.click();
     document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 500);
+    const entry = { url, timer: null };
+    entry.timer = setTimeout(() => {
+      URL.revokeObjectURL(url);
+      pendingUrls.current = pendingUrls.current.filter(e => e !== entry);
+    }, 500);
+    pendingUrls.current.push(entry);
   };
 
   const escapeCSV = (val) => {

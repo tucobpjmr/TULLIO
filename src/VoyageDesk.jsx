@@ -4817,8 +4817,10 @@ const Team = ({ state, dispatch }) => {
 // ─── CHAT: MOCK DATA ───────────────────────────────────────────────────────
 // CURRENT_USER è dichiarato in cima al file (sezione MOCK DATA)
 
-// Context per condividere tasks/dispatch (per messaggi con taskLink — v0.8)
-const ChatContext = createContext({ tasks: [], dispatch: () => {} });
+// Context per condividere tasks/dispatch e azioni globali con i sotto-componenti chat.
+// `dispatch` serve al chip task-link nei messaggi per aprire il TaskSlideOver.
+// `onCloseChat` permette al chip di chiudere il pannello chat dopo aver navigato.
+const ChatContext = createContext({ tasks: [], dispatch: () => {}, onCloseChat: () => {}, currentUserId: null });
 
 const initialConversations = [
   {
@@ -5021,6 +5023,52 @@ const VoicePlayer = ({ duration, waveform, isMine }) => {
 };
 
 // ─── CHAT: MESSAGE ─────────────────────────────────────────────────────────
+// Chip cliccabile renderizzato sotto il contenuto di un messaggio testuale con `taskRef`.
+// Click → apre il TaskSlideOver e chiude il pannello chat (così lo slide-over non è coperto).
+// Se il task non esiste più (cestinato/purgato), il chip diventa disabilitato.
+const TaskLinkChip = ({ taskRef, isMine }) => {
+  const { tasks, dispatch, onCloseChat } = useContext(ChatContext);
+  const task = tasks.find(t => t.id === taskRef.id);
+  const available = !!task && !task.deletedAt && canViewTask(task, CURRENT_USER);
+
+  const handleClick = () => {
+    if (!available) return;
+    dispatch({ type: "SET_SELECTED_TASK", payload: task });
+    if (onCloseChat) onCloseChat();
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={!available}
+      title={available ? "Apri task" : "Task non disponibile"}
+      style={{
+        marginTop: 8, display: "flex", alignItems: "center", gap: 8,
+        padding: "8px 10px", borderRadius: 10,
+        background: isMine ? "rgba(255,255,255,0.12)" : "var(--surface2)",
+        border: `1px solid ${isMine ? "rgba(255,255,255,0.18)" : "var(--border)"}`,
+        cursor: available ? "pointer" : "not-allowed",
+        opacity: available ? 1 : 0.55,
+        color: isMine ? "#fff" : "var(--text)",
+        fontFamily: "inherit", textAlign: "left", width: "100%", boxSizing: "border-box",
+      }}
+    >
+      <span style={{ fontSize: 16, flexShrink: 0 }}>🔗</span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: "block", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {taskRef.title}
+        </span>
+        {(taskRef.dueDate || !available) && (
+          <span style={{ display: "block", fontSize: 10.5, opacity: 0.75, marginTop: 1 }}>
+            {!available ? "Task non disponibile" : `📅 ${formatDate(taskRef.dueDate)}`}
+          </span>
+        )}
+      </span>
+      {available && <span style={{ fontSize: 12, opacity: 0.85, flexShrink: 0 }}>→</span>}
+    </button>
+  );
+};
+
 const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onContextMenu }) => {
   const [showReactions, setShowReactions] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -5090,9 +5138,12 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
           )}
 
           {/* Content */}
-          {msg.type === "text" && (
+          {msg.type === "text" && msg.text && (
             <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}>{msg.text}</div>
           )}
+
+          {/* Task link chip (v0.9.3) — apre TaskSlideOver */}
+          {msg.taskRef && <TaskLinkChip taskRef={msg.taskRef} isMine={isMine} />}
 
           {msg.type === "voice" && (
             <VoicePlayer duration={msg.duration} waveform={msg.waveform} isMine={isMine} />
@@ -5227,21 +5278,24 @@ const VoiceRecorder = ({ onSend, onCancel }) => {
 };
 
 // ─── CHAT: CONVERSATION VIEW ───────────────────────────────────────────────
-const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, onInitialInputConsumed }) => {
+const ConversationView = ({ conv, messages, setMessages, onBack, initialAttachedTask, onAttachedTaskConsumed }) => {
   const [input, setInput] = useState("");
   const [recording, setRecording] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const [showAttach, setShowAttach] = useState(false);
   const [typing, setTyping] = useState(false);
+  // v0.9.3: task agganciata (dall'intent "contatta agente" o futuro picker).
+  // Se presente, viene scritta come `taskRef` nel prossimo messaggio testuale.
+  const [attachedTask, setAttachedTask] = useState(null);
   const scrollRef = useRef(null);
 
-  // Se è arrivato un prefill (es. da "contatta agente" su urgenti altrui), popolalo
+  // Se l'intent porta un task, mostralo come preview agganciata sopra l'input.
   useEffect(() => {
-    if (initialInput) {
-      setInput(initialInput);
-      if (onInitialInputConsumed) onInitialInputConsumed();
+    if (initialAttachedTask) {
+      setAttachedTask(initialAttachedTask);
+      if (onAttachedTaskConsumed) onAttachedTaskConsumed();
     }
-  }, [initialInput]);
+  }, [initialAttachedTask]);
 
   const msgs = messages[conv.id] || [];
 
@@ -5274,16 +5328,22 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
   }, [msgs.length]);
 
   const sendText = () => {
-    if (!input.trim()) return;
+    const trimmed = input.trim();
+    // Permetti l'invio di un messaggio "solo task" se c'è un task agganciato.
+    if (!trimmed && !attachedTask) return;
     const newMsg = {
       id: "m" + Date.now(), sender: CURRENT_USER, type: "text",
-      text: input.trim(), time: new Date().toISOString(),
+      text: trimmed, time: new Date().toISOString(),
       readBy: [CURRENT_USER],
       replyTo: replyingTo?.id,
+      taskRef: attachedTask
+        ? { id: attachedTask.id, title: attachedTask.title, dueDate: attachedTask.dueDate || null }
+        : undefined,
     };
     setMessages(prev => ({ ...prev, [conv.id]: [...(prev[conv.id] || []), newMsg] }));
     setInput("");
     setReplyingTo(null);
+    setAttachedTask(null);
   };
 
   const sendVoice = (duration) => {
@@ -5436,6 +5496,29 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
         </div>
       )}
 
+      {/* Attached task preview (v0.9.3) */}
+      {attachedTask && (
+        <div style={{
+          padding: "8px 14px", background: "var(--surface)", borderTop: "1px solid var(--border)",
+          display: "flex", alignItems: "center", gap: 10,
+        }}>
+          <div style={{ width: 3, alignSelf: "stretch", background: "var(--navy)", borderRadius: 2 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--navy)" }}>
+              🔗 Task agganciato
+            </div>
+            <div style={{ fontSize: 12, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {attachedTask.title}
+              {attachedTask.dueDate && <span style={{ color: "var(--text-muted)" }}> · 📅 {formatDate(attachedTask.dueDate)}</span>}
+            </div>
+          </div>
+          <button onClick={() => setAttachedTask(null)} title="Rimuovi task agganciato" style={{
+            background: "none", border: "none", cursor: "pointer",
+            fontSize: 16, color: "var(--text-muted)",
+          }}>✕</button>
+        </div>
+      )}
+
       {/* Input */}
       <div style={{
         padding: "10px 12px", background: "#fff", borderTop: "1px solid var(--border)",
@@ -5490,7 +5573,7 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
               }}
             />
 
-            {input.trim() ? (
+            {(input.trim() || attachedTask) ? (
               <button onClick={sendText} style={{
                 background: "var(--navy)", color: "#fff", border: "none",
                 borderRadius: "50%", width: 36, height: 36, cursor: "pointer",
@@ -5808,11 +5891,13 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
 };
 
 // ─── CHAT: MAIN PANEL ──────────────────────────────────────────────────────
-const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, currentUserId }) => {
+const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, currentUserId, dispatch }) => {
   const { isMobile } = useViewport();
   const [activeConv, setActiveConv] = useState(null);
   const [newMode, setNewMode] = useState(false);
-  const [prefillText, setPrefillText] = useState("");
+  // v0.9.3: invece di sputare testo nell'input, passiamo l'oggetto task così
+  // ConversationView mostra un chip "task agganciata" e attacca taskRef al messaggio.
+  const [prefillTask, setPrefillTask] = useState(null);
 
   // Gestione intent: apertura chat verso utente specifico con link a task
   useEffect(() => {
@@ -5835,13 +5920,11 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
     }
     setActiveConv(direct);
     setNewMode(false);
-    // Precompila il messaggio con riferimento al task
+    // Aggancia il task: la ConversationView mostra la preview e lo attacca al
+    // prossimo messaggio inviato come `taskRef`.
     if (intent.taskLink) {
       const t = (tasks || []).find(x => x.id === intent.taskLink);
-      if (t) {
-        const text = `🔗 Riferimento task: "${t.title}"\n📅 Scadenza: ${formatDate(t.dueDate)} ${formatTime(t.dueDate)}\n\n`;
-        setPrefillText(text);
-      }
+      if (t) setPrefillTask({ id: t.id, title: t.title, dueDate: t.dueDate });
     }
   }, [open, intent, currentUserId]);
 
@@ -5854,7 +5937,12 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
   };
 
   return (
-    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER }}>
+    <ChatContext.Provider value={{
+      tasks: tasks || [],
+      currentUserId: currentUserId || CURRENT_USER,
+      dispatch: dispatch || (() => {}),
+      onCloseChat: onClose,
+    }}>
     <>
       <div onClick={onClose} style={{
         position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: 700,
@@ -5903,9 +5991,9 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
               conv={activeConv}
               messages={messages}
               setMessages={setMessages}
-              onBack={() => { setActiveConv(null); setPrefillText(""); }}
-              initialInput={prefillText}
-              onInitialInputConsumed={() => setPrefillText("")}
+              onBack={() => { setActiveConv(null); setPrefillTask(null); }}
+              initialAttachedTask={prefillTask}
+              onAttachedTaskConsumed={() => setPrefillTask(null)}
             />
           ) : (
             <ConversationList
@@ -7297,6 +7385,7 @@ function VoyageDeskInner() {
           intent={chatIntent}
           tasks={state.tasks}
           currentUserId={state.currentUserId}
+          dispatch={dispatch}
         />
 
         {/* FAB principale (singolo task) + FAB secondario (bulk) */}

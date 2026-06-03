@@ -1,5 +1,39 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9.3 — Task link cliccabile in chat (sessione 11)
+
+> Promosso il "task link" della chat da testo precompilato a chip interattivo. Click → apre `TaskSlideOver` e chiude la chat. Completa il punto 🟡 "Task link cliccabile nella chat (apre TaskSlideOver)" della roadmap post-v0.8.
+
+### 🔗 Task agganciato al messaggio
+- Nuovo campo opzionale **`taskRef`** sui messaggi testuali: `{ id, title, dueDate }`. I messaggi senza `taskRef` restano invariati.
+- Nuovo componente **`TaskLinkChip`** renderizzato sotto il testo della bubble. Stile coerente con i due lati (mine: navy/oro, others: surface2).
+- Click sul chip → `dispatch({ type: "SET_SELECTED_TASK", payload: task })` + `onCloseChat()` (così lo slide-over non resta coperto dalla chat).
+- **Permessi rispettati**: il chip controlla `canViewTask(task, CURRENT_USER)` e si disabilita ("Task non disponibile") se l'utente non può aprirlo o se il task è stato cestinato/purgato.
+
+### 📎 Preview "Task agganciato" sopra l'input
+- Quando arriva un intent con `taskLink`, `ConversationView` mostra una preview tipo reply (bordo navy, "🔗 Task agganciato" + titolo + data) sopra l'input.
+- ✕ rimuove l'aggancio prima dell'invio.
+- Send → `taskRef` viene scritto nel messaggio inviato. Permesso anche l'invio "solo task" senza testo (utile se basta condividere il riferimento).
+- Bottone invio compare anche con testo vuoto se c'è un task agganciato (prima compariva il microfono).
+
+### 🧹 Refactor intent → prefillTask
+- `ChatPanel` non sputa più una stringa fissa (`🔗 Riferimento task: "…"\n📅 Scadenza: …`) nell'input: ora passa un oggetto `prefillTask` a `ConversationView` via prop `initialAttachedTask`. L'esperienza utente è "qui sotto c'è il riferimento, scrivi il tuo messaggio".
+- Vecchi prop `initialInput`/`onInitialInputConsumed` rimossi.
+
+### 🧩 ChatContext esteso
+- Ora propaga anche **`dispatch`** e **`onCloseChat`** (oltre a tasks/currentUserId). Sblocca i sotto-componenti chat dal poter fare azioni globali in modo type-safe-by-convention.
+- `ChatPanel` riceve `dispatch` come nuova prop da `VoyageDeskInner`.
+
+### 📦 Persistenza
+- `taskRef` viene salvato in `localStorage` (sotto `voyagedesk:chat:v1`) come parte del messaggio. Compatibile con `PERSIST_VERSION = 1`.
+
+### 📈 Metriche
+- File: 7338 → ~7395 righe (+~55).
+- Componenti nuovi: 1 (`TaskLinkChip`).
+- Schema chat: campo opzionale `taskRef`.
+
+---
+
 ## v0.9.2 — Fix incrementali roadmap (sessione 10)
 
 > Bundle di tre fix 🟡 dalla roadmap "Migliorie incrementali post-v0.5/v0.8": badge contatori su Sidebar/BottomNav, editor multi-assegnatari in `TaskSlideOver`, commento firmato con l'utente loggato.

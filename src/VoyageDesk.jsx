@@ -689,6 +689,20 @@ const formatTime = iso => {
   return new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
 };
 const isOverdue = task => task.status !== "done" && task.dueDate && new Date(task.dueDate) < new Date();
+// Helper a11y: rende un <div onClick> attivabile da tastiera (Enter/Space)
+// e leggibile dagli screen reader come pulsante.
+const clickableProps = (handler, ariaLabel) => ({
+  role: "button",
+  tabIndex: 0,
+  "aria-label": ariaLabel,
+  onClick: handler,
+  onKeyDown: (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      handler(e);
+    }
+  },
+});
 const getDayKey = iso => iso ? new Date(iso).toDateString() : null;
 const isActiveTask = t => !t.deletedAt;
 const getActiveTasks = tasks => tasks.filter(isActiveTask);
@@ -782,7 +796,7 @@ const getVisibleTasks = (tasks, userId) => tasks.filter(t => canViewTask(t, user
 // Wrapper riusabile: swipe verso destra rivela 3 bottoni (Completato / Cestino / Inoltra).
 // Soglia 40% larghezza card → si "blocca aperto". Tap fuori chiude.
 // Su desktop è trasparente. Disabilitato anche se l'utente non può editare la task.
-const SwipeActions = ({ task, dispatch, children, disabled = false }) => {
+const SwipeActions = ({ task, dispatch, children, disabled = false, currentUserId }) => {
   const { isDesktop } = useViewport();
   const [offset, setOffset] = useState(0);          // px di traslazione attuale
   const [opened, setOpened] = useState(false);      // stato "aperto" (bottoni visibili)
@@ -792,12 +806,17 @@ const SwipeActions = ({ task, dispatch, children, disabled = false }) => {
   const startY = useRef(null);
   const tracking = useRef(false);
   const containerWidth = useRef(0);
+  const pendingTimer = useRef(null);
+
+  // Cancella eventuale timer di "closeAndDo" se il componente viene smontato.
+  useEffect(() => () => { if (pendingTimer.current) clearTimeout(pendingTimer.current); }, []);
 
   const OPEN_WIDTH = 210; // larghezza pannello bottoni rivelato (3 bottoni × 70)
 
   // Disabilita su desktop / disabilitato esplicitamente / no permessi di edit (v0.8)
-  // Leggo il currentUserId dal globale (sincronizzato dal reducer).
-  const canEdit = canEditTask(task, CURRENT_USER);
+  // currentUserId arriva come prop dal context React; fallback al globale per
+  // chiamate legacy non ancora migrate (evita stale closure su switch utente).
+  const canEdit = canEditTask(task, currentUserId || CURRENT_USER);
   const swipeEnabled = !isDesktop && !disabled && canEdit;
 
   // tap fuori per chiudere
@@ -870,7 +889,8 @@ const SwipeActions = ({ task, dispatch, children, disabled = false }) => {
     setOpened(false);
     setOffset(0);
     setShowForward(false);
-    setTimeout(fn, 50);
+    if (pendingTimer.current) clearTimeout(pendingTimer.current);
+    pendingTimer.current = setTimeout(() => { pendingTimer.current = null; fn(); }, 50);
   };
 
   const handleComplete = (e) => {
@@ -1294,7 +1314,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
             {Object.entries(CATEGORIES).map(([key, c]) => {
               const active = cats.includes(key);
               return (
-                <div key={key} onClick={() => toggle(cats, setCats, key)} style={chipBase(active, c.color)}>
+                <div key={key} {...clickableProps(() => toggle(cats, setCats, key), `Filtro categoria ${c.label}`)} style={chipBase(active, c.color)}>
                   <span>{c.icon}</span>{c.label}
                 </div>
               );
@@ -1308,7 +1328,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
             {STATUSES.map(s => {
               const active = stats.includes(s);
               return (
-                <div key={s} onClick={() => toggle(stats, setStats, s)} style={chipBase(active, STATUS_COLORS[s])}>
+                <div key={s} {...clickableProps(() => toggle(stats, setStats, s), `Filtro stato ${STATUS_LABELS[s]}`)} style={chipBase(active, STATUS_COLORS[s])}>
                   {STATUS_LABELS[s]}
                 </div>
               );
@@ -1322,7 +1342,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
             {TEAM.filter(m => !m.pending).map(m => {
               const active = agents.includes(m.id);
               return (
-                <div key={m.id} onClick={() => toggle(agents, setAgents, m.id)} style={chipBase(active, m.color)}>
+                <div key={m.id} {...clickableProps(() => toggle(agents, setAgents, m.id), `Filtro agente ${m.name}`)} style={chipBase(active, m.color)}>
                   <span style={{
                     width: 16, height: 16, borderRadius: "50%",
                     background: active ? "rgba(255,255,255,0.25)" : m.color,
@@ -2219,7 +2239,7 @@ const DuplicateTab = ({ tasks, onCreate, onClose }) => {
         </div>
         <div>
           <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>OFFSET SCADENZA (giorni)</div>
-          <input type="number" value={dayOffset} onChange={e => setDayOffset(parseInt(e.target.value) || 0)} style={bulkInputStyle} />
+          <input type="number" value={dayOffset} onChange={e => setDayOffset(parseInt(e.target.value, 10) || 0)} style={bulkInputStyle} />
         </div>
       </div>
 
@@ -2357,7 +2377,7 @@ const ImportTab = ({ onCreate, onClose }) => {
         assignees: assignee ? [assignee] : [],
         client: mapping.client ? (String(r[mapping.client] || "").trim() || null) : null,
         dueDate: mapping.dueDate ? normDate(r[mapping.dueDate]) : null,
-        estimatedHours: mapping.estimatedHours ? (parseFloat(r[mapping.estimatedHours]) || 1) : 1,
+        estimatedHours: mapping.estimatedHours ? (parseFloat(String(r[mapping.estimatedHours] ?? "").replace(",", ".")) || 1) : 1,
         description: mapping.description ? String(r[mapping.description] || "").trim() : "",
         comments: [],
       };
@@ -2435,7 +2455,7 @@ const ImportTab = ({ onCreate, onClose }) => {
                 </thead>
                 <tbody>
                   {rows.slice(0, 5).map((r, i) => (
-                    <tr key={i}>{columns.map(c => (
+                    <tr key={`prev-row-${i}`}>{columns.map(c => (
                       <td key={c} style={{ padding: "6px 10px", borderBottom: "1px solid var(--border)", whiteSpace: "nowrap", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }}>
                         {String(r[c] || "")}
                       </td>
@@ -2504,7 +2524,7 @@ const TemplateTab = ({ onCreate, onClose }) => {
       {!selectedId ? (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {TASK_TEMPLATES.map(t => (
-            <div key={t.id} onClick={() => setSelectedId(t.id)} className="hover-lift" style={{
+            <div key={t.id} {...clickableProps(() => setSelectedId(t.id), `Seleziona task ${t.title}`)} className="hover-lift" style={{
               padding: "16px 18px", borderRadius: 12, border: "1px solid var(--border)",
               cursor: "pointer", background: "#fff",
             }}>
@@ -2557,7 +2577,7 @@ const TemplateTab = ({ onCreate, onClose }) => {
               </div>
               <div style={{ maxHeight: 240, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 8 }}>
                 {previewTasks.map((t, idx) => (
-                  <div key={idx} style={{
+                  <div key={`prev-task-${idx}-${t.title || ""}`} style={{
                     padding: "8px 12px", borderBottom: idx === previewTasks.length - 1 ? "none" : "1px solid var(--border)",
                     display: "flex", alignItems: "center", gap: 10, fontSize: 12,
                   }}>
@@ -2651,7 +2671,7 @@ const BulkTaskCreator = ({ existingTasks, onCreate, onClose }) => {
 };
 
 // ─── AI DAY PLANNER ────────────────────────────────────────────────────────
-const AIDayPlanner = ({ tasks, onClose }) => {
+const AIDayPlanner = ({ tasks, onClose, currentUserId }) => {
   const [loading, setLoading] = useState(true);
   const [plan, setPlan] = useState(null);
   const [error, setError] = useState(null);
@@ -2659,16 +2679,18 @@ const AIDayPlanner = ({ tasks, onClose }) => {
   useEffect(() => {
     let cancelled = false;
     const today = new Date();
+    const uid = currentUserId || CURRENT_USER;
+    const me = getMember(uid);
 
-    // I task attivi assegnati a Marco
+    // I task attivi assegnati all'utente loggato
     const myTasks = tasks.filter(t =>
-      t.assignees?.includes(CURRENT_USER) && t.status !== "done"
+      t.assignees?.includes(uid) && t.status !== "done"
     );
 
     // Task di altri operatori: scaduti, oppure urgenti e ancora in "todo"
     // (proxy ragionevole per "non visti / non presi in carico")
     const othersNeglected = tasks.filter(t => {
-      if (!t.assignees || t.assignees.includes(CURRENT_USER)) return false;
+      if (!t.assignees || t.assignees.includes(uid)) return false;
       if (t.status === "done") return false;
       const urgent = t.priority === "critical" || t.priority === "high";
       const overdue = isOverdue(t);
@@ -2689,7 +2711,7 @@ const AIDayPlanner = ({ tasks, onClose }) => {
       category: t.category,
     });
 
-    const prompt = `Sei un assistente operativo per un'agenzia viaggi. Pianifica oggi (${today.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}) per Marco Ferretti (Manager).
+    const prompt = `Sei un assistente operativo per un'agenzia viaggi. Pianifica oggi (${today.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}) per ${me?.name || "l'operatore"} (${me?.role || "Agente"}).
 
 MIEI TASK ATTIVI:
 ${JSON.stringify(myTasks.map(compact))}
@@ -2712,7 +2734,13 @@ Regole:
 - Per i campi "taskId" usa esattamente gli id forniti.
 - Massimo 2 "tips", brevi.`;
 
-    fetch("https://api.anthropic.com/v1/messages", {
+    // L'endpoint è configurabile via VITE_AI_ENDPOINT per puntare a un proxy
+    // server-side che inietta x-api-key (la chiave NON deve mai stare nel client).
+    // Se non configurato, ricade sul default e fallirà su CORS — segnaliamo
+    // l'errore in modo chiaro all'utente invece di crashare.
+    const endpoint = import.meta.env?.VITE_AI_ENDPOINT || "/api/ai/plan-day";
+
+    fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -2729,14 +2757,19 @@ Regole:
         if (cancelled) return;
         const text = (data.content || []).map(b => b.text || "").join("").trim();
         const clean = text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
-        const parsed = JSON.parse(clean);
+        let parsed;
+        try {
+          parsed = JSON.parse(clean);
+        } catch {
+          throw new Error("Risposta AI non in formato JSON valido. Riprova.");
+        }
         setPlan(parsed);
       })
       .catch(e => { if (!cancelled) setError(e.message || String(e)); })
       .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
-  }, [tasks]);
+  }, [tasks, currentUserId]);
 
   const findTask = (id) => tasks.find(t => t.id === id);
   const sevColor = { alta: "var(--danger)", media: "var(--warning)" };
@@ -2824,7 +2857,7 @@ Regole:
                     {plan.schedule.map((s, i) => {
                       const t = findTask(s.taskId);
                       return (
-                        <div key={i} style={{
+                        <div key={`sch-${i}-${s.taskId || ""}`} style={{
                           display: "flex", gap: 12, padding: "10px 12px",
                           border: "1px solid var(--border)", borderRadius: 10, background: "#fff",
                         }}>
@@ -2871,7 +2904,7 @@ Regole:
                       const t = findTask(a.taskId);
                       const color = sevColor[a.severity] || "var(--warning)";
                       return (
-                        <div key={i} style={{
+                        <div key={`alert-${i}-${a.taskId || ""}`} style={{
                           background: color + "12", border: `1px solid ${color}40`,
                           borderRadius: 10, padding: "10px 12px",
                         }}>
@@ -2908,7 +2941,7 @@ Regole:
                     ✨ CONSIGLI
                   </div>
                   <ul style={{ paddingLeft: 18, fontSize: 12.5, lineHeight: 1.6, color: "var(--text)" }}>
-                    {plan.tips.map((tip, i) => <li key={i}>{tip}</li>)}
+                    {plan.tips.map((tip, i) => <li key={`tip-${i}`}>{tip}</li>)}
                   </ul>
                 </div>
               )}
@@ -3246,7 +3279,7 @@ const NoticeEditorModal = ({ notice, onClose, onSave }) => {
 };
 
 // ─── PERSONAL QUEUE (le mie task — v0.8) ───────────────────────────────────
-const PersonalQueue = ({ tasks, dispatch, me }) => {
+const PersonalQueue = ({ tasks, dispatch, me, currentUserId }) => {
   const { isMobile } = useViewport();
   const empty = tasks.length === 0;
   return (
@@ -3310,7 +3343,7 @@ const PersonalQueue = ({ tasks, dispatch, me }) => {
                   cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
                   borderLeft: `3px solid ${prio.color}`,
                 }}
-                onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
+                {...clickableProps(() => dispatch({ type: "SET_SELECTED_TASK", payload: t }), `Apri task ${t.title}`)}
                 onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.08)"; }}
                 onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
               >
@@ -3340,7 +3373,7 @@ const PersonalQueue = ({ tasks, dispatch, me }) => {
               </div>
             );
             return (
-              <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+              <SwipeActions key={t.id} task={t} dispatch={dispatch} currentUserId={uid}>
                 {card}
               </SwipeActions>
             );
@@ -3419,7 +3452,7 @@ const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
               </div>
 
               <div
-                onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
+                {...clickableProps(() => dispatch({ type: "SET_SELECTED_TASK", payload: t }), `Apri task ${t.title}`)}
                 style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", lineHeight: 1.35, cursor: "pointer" }}
               >
                 {t.title}
@@ -3462,7 +3495,7 @@ const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
 };
 
 // ─── UNASSIGNED QUEUE (coda globale) ───────────────────────────────────────
-const UnassignedQueue = ({ tasks, dispatch, onTake }) => {
+const UnassignedQueue = ({ tasks, dispatch, onTake, currentUserId }) => {
   const { isMobile } = useViewport();
   const empty = tasks.length === 0;
 
@@ -3527,7 +3560,7 @@ const UnassignedQueue = ({ tasks, dispatch, onTake }) => {
                   padding: 12, display: "flex", flexDirection: "column", gap: 10,
                   cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
                 }}
-                onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
+                {...clickableProps(() => dispatch({ type: "SET_SELECTED_TASK", payload: t }), `Apri task ${t.title}`)}
                 onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.08)"; }}
                 onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
               >
@@ -3584,7 +3617,7 @@ const UnassignedQueue = ({ tasks, dispatch, onTake }) => {
               </div>
             );
             return (
-              <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+              <SwipeActions key={t.id} task={t} dispatch={dispatch} currentUserId={uid}>
                 {card}
               </SwipeActions>
             );
@@ -3628,7 +3661,7 @@ const QueueTab = ({ active, onClick, icon, label, count, isMobile, dangerCount }
 };
 
 // ─── OVERDUE QUEUE (task scaduti visibili) ────────────────────────────────
-const OverdueQueue = ({ tasks, dispatch }) => {
+const OverdueQueue = ({ tasks, dispatch, currentUserId }) => {
   const { isMobile } = useViewport();
   const empty = tasks.length === 0;
   return (
@@ -3690,7 +3723,7 @@ const OverdueQueue = ({ tasks, dispatch }) => {
                   cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
                   borderLeft: `3px solid ${prio.color}`,
                 }}
-                onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
+                {...clickableProps(() => dispatch({ type: "SET_SELECTED_TASK", payload: t }), `Apri task ${t.title}`)}
                 onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.08)"; }}
                 onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
               >
@@ -3722,7 +3755,7 @@ const OverdueQueue = ({ tasks, dispatch }) => {
               </div>
             );
             return (
-              <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+              <SwipeActions key={t.id} task={t} dispatch={dispatch} currentUserId={uid}>
                 {card}
               </SwipeActions>
             );
@@ -3873,13 +3906,13 @@ const Dashboard = ({ state, dispatch, onOpenChat }) => {
 
       {/* ─── SEZIONE CODA FILTRATA ─── */}
       {activeQueue === "personal" && (
-        <PersonalQueue tasks={personalQueue} dispatch={dispatch} me={me} />
+        <PersonalQueue tasks={personalQueue} dispatch={dispatch} me={me} currentUserId={uid} />
       )}
       {activeQueue === "global" && showGlobalQueue && (
-        <UnassignedQueue tasks={unassigned} dispatch={dispatch} onTake={takeOwnership} />
+        <UnassignedQueue tasks={unassigned} dispatch={dispatch} onTake={takeOwnership} currentUserId={uid} />
       )}
       {activeQueue === "overdue" && (
-        <OverdueQueue tasks={overdueTasks} dispatch={dispatch} />
+        <OverdueQueue tasks={overdueTasks} dispatch={dispatch} currentUserId={uid} />
       )}
       {activeQueue === "urgent" && showUrgentOthers && (
         <UrgentOthersQueue tasks={urgentOthers} dispatch={dispatch} onOpenChat={onOpenChat} uid={uid} />
@@ -3891,7 +3924,7 @@ const Dashboard = ({ state, dispatch, onOpenChat }) => {
           <div className="playfair" style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>Scadenze Prossime</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {next7.map(t => (
-              <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
+              <div key={t.id} {...clickableProps(() => dispatch({ type: "SET_SELECTED_TASK", payload: t }), `Apri task ${t.title}`)}
                 style={{
                   display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
                   borderRadius: 8, cursor: "pointer", transition: "background 0.15s",
@@ -3941,7 +3974,7 @@ const Dashboard = ({ state, dispatch, onOpenChat }) => {
         </div>
       </div>
 
-      {showAIPlanner && <AIDayPlanner tasks={tasks} onClose={() => setShowAIPlanner(false)} />}
+      {showAIPlanner && <AIDayPlanner tasks={tasks} onClose={() => setShowAIPlanner(false)} currentUserId={uid} />}
     </div>
   );
 };
@@ -3956,6 +3989,13 @@ const QuickAddTask = ({ onAdd, onClose }) => {
     title: "", category: firstCatKey, priority: "medium",
     status: "todo", assignees: [], dueDate: "", client: "", description: ""
   });
+  // YYYY-MM-DDTHH:MM dell'istante corrente — vincolo `min` per l'input datetime-local
+  // (evita scadenze nel passato per errore; restano modificabili a mano se serve via Modifica task).
+  const minDueDate = useMemo(() => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+  }, []);
 
   const handleSubmit = () => {
     if (!form.title.trim()) return;
@@ -4029,7 +4069,7 @@ const QuickAddTask = ({ onAdd, onClose }) => {
             </div>
             <div>
               <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>SCADENZA</label>
-              <input type="datetime-local" {...inp("dueDate")} />
+              <input type="datetime-local" min={minDueDate} {...inp("dueDate")} />
             </div>
           </div>
 
@@ -4060,18 +4100,22 @@ const QuickAddTask = ({ onAdd, onClose }) => {
 };
 
 // ─── TASK DETAIL SLIDE-OVER ────────────────────────────────────────────────
-const TaskSlideOver = ({ task, dispatch }) => {
+const TaskSlideOver = ({ task, dispatch, currentUserId }) => {
   const { isMobile } = useViewport();
   const [newComment, setNewComment] = useState("");
 
   if (!task) return null;
+
+  const me = getMember(currentUserId);
+  const myName = me?.name || "Operatore";
+  const myAvatar = me?.avatar || "??";
 
   const handleComment = () => {
     if (!newComment.trim()) return;
     dispatch({
       type: "ADD_COMMENT", payload: {
         taskId: task.id,
-        comment: { user: "Marco Ferretti", text: newComment, time: new Date().toISOString() }
+        comment: { user: myName, text: newComment, time: new Date().toISOString() }
       }
     });
     setNewComment("");
@@ -4082,7 +4126,7 @@ const TaskSlideOver = ({ task, dispatch }) => {
   };
 
   const handleDelete = () => {
-    if (window.confirm(`Spostare nel cestino "${task.title}"?`)) {
+    if (window.confirm(`Spostare nel cestino "${task.title}"?\n\nIl task potrà essere ripristinato dal Cestino in qualsiasi momento.`)) {
       dispatch({ type: "DELETE_TASK", payload: task.id });
     }
   };
@@ -4203,7 +4247,7 @@ const TaskSlideOver = ({ task, dispatch }) => {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {(task.comments || []).map((c, i) => (
-                <div key={i} style={{ display: "flex", gap: 10 }}>
+                <div key={`cmt-${c.time || i}-${i}`} style={{ display: "flex", gap: 10 }}>
                   <div style={{
                     width: 28, height: 28, borderRadius: "50%", background: "var(--navy)",
                     fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center",
@@ -4227,7 +4271,7 @@ const TaskSlideOver = ({ task, dispatch }) => {
                   width: 28, height: 28, borderRadius: "50%", background: "var(--gold)",
                   fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center",
                   justifyContent: "center", color: "var(--navy)", flexShrink: 0
-                }}>MF</div>
+                }}>{myAvatar}</div>
                 <div style={{ flex: 1, display: "flex", gap: 6 }}>
                   <input
                     value={newComment}
@@ -4259,6 +4303,9 @@ const CalendarPlanner = ({ state, dispatch }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState(null);
+  // Memoizzato per mount: serve solo per confronti "isToday"; evita re-render
+  // a cascata causati da new Date() ricreato in ogni render.
+  const todayStr = useMemo(() => new Date().toDateString(), []);
   const uid = state.currentUserId;
 
   // ── Month helpers ──
@@ -4371,7 +4418,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
               const dayTasks = getTasksForCalDay(day);
               const isToday = today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
               return (
-                <div key={day} onClick={() => setSelectedDay(selectedDay === day ? null : day)} style={{
+                <div key={day} {...clickableProps(() => setSelectedDay(selectedDay === day ? null : day), `Giorno ${day}`)} style={{
                   minHeight: isMobile ? 52 : 100, borderRight: "1px solid var(--border)", borderBottom: "1px solid var(--border)",
                   padding: isMobile ? "5px 3px" : "8px 6px", cursor: dayTasks.length ? "pointer" : "default",
                   background: selectedDay === day ? "rgba(212,168,67,0.08)" : "#fff",
@@ -4394,7 +4441,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                       {dayTasks.slice(0, 3).map(t => (
-                        <div key={t.id} onClick={e => { e.stopPropagation(); dispatch({ type: "SET_SELECTED_TASK", payload: t }); }} style={{
+                        <div key={t.id} {...clickableProps((e) => { e?.stopPropagation?.(); dispatch({ type: "SET_SELECTED_TASK", payload: t }); }, `Apri task ${t.title}`)} style={{
                           fontSize: 10, fontWeight: 500, padding: "1px 5px", borderRadius: 3,
                           background: CATEGORIES[t.category]?.color + "20",
                           color: CATEGORIES[t.category]?.color,
@@ -4427,7 +4474,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {dayTasks.map(t => {
                 const row = (
-                  <div onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                  <div {...clickableProps(() => dispatch({ type: "SET_SELECTED_TASK", payload: t }), `Apri task ${t.title}`)} style={{
                     display: "flex", alignItems: "center", gap: 12, padding: "8px 12px",
                     borderRadius: 8, border: "1px solid var(--border)", cursor: "pointer",
                     transition: "background 0.15s", background: "#fff",
@@ -4445,7 +4492,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
                   </div>
                 );
                 return (
-                  <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+                  <SwipeActions key={t.id} task={t} dispatch={dispatch} currentUserId={uid}>
                     {row}
                   </SwipeActions>
                 );
@@ -4461,9 +4508,9 @@ const CalendarPlanner = ({ state, dispatch }) => {
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(7, 60vw)" : "repeat(7, 1fr)", gap: 10 }}>
             {weekDays.map((day, i) => {
               const dayTasks = getTasksForDay(day);
-              const isToday = day.toDateString() === new Date().toDateString();
+              const isToday = day.toDateString() === todayStr;
               return (
-                <div key={i} style={{
+                <div key={day.toISOString()} style={{
                   background: isToday ? "var(--navy)" : "#fff",
                   borderRadius: 10, border: `1px solid ${isToday ? "transparent" : "var(--border)"}`,
                   overflow: "hidden", scrollSnapAlign: isMobile ? "start" : "none",
@@ -4483,7 +4530,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
                     {dayTasks.length === 0 ? (
                       <div style={{ fontSize: 10, color: isToday ? "rgba(255,255,255,0.4)" : "var(--text-muted)", textAlign: "center", marginTop: 20 }}>Nessun task</div>
                     ) : dayTasks.slice(0, 6).map(t => (
-                      <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                      <div key={t.id} {...clickableProps(() => dispatch({ type: "SET_SELECTED_TASK", payload: t }), `Apri task ${t.title}`)} style={{
                         background: isToday ? "rgba(255,255,255,0.12)" : CATEGORIES[t.category]?.color + "18",
                         borderLeft: `3px solid ${CATEGORIES[t.category]?.color}`,
                         borderRadius: "0 4px 4px 0", padding: "4px 6px", cursor: "pointer",
@@ -4512,9 +4559,9 @@ const CalendarPlanner = ({ state, dispatch }) => {
               <tr>
                 <th style={{ textAlign: "left", padding: "8px 12px", background: "var(--surface2)", borderRadius: "8px 0 0 0", fontWeight: 600, fontSize: 11, color: "var(--text-muted)", width: 150 }}>Agente</th>
                 {agentWeekDays.map((d, i) => (
-                  <th key={i} style={{
+                  <th key={`hdr-${d.toISOString()}`} style={{
                     padding: "8px 6px", background: "var(--surface2)", fontSize: 11, fontWeight: 600,
-                    color: d.toDateString() === new Date().toDateString() ? "var(--gold)" : "var(--text-muted)",
+                    color: d.toDateString() === todayStr ? "var(--gold)" : "var(--text-muted)",
                     textAlign: "center", minWidth: 70
                   }}>
                     {dayNames[i]}<br />{d.getDate()}
@@ -4532,13 +4579,13 @@ const CalendarPlanner = ({ state, dispatch }) => {
                       <span style={{ fontWeight: 500 }}>{m.name.split(" ")[0]}</span>
                     </div>
                   </td>
-                  {agentWeekDays.map((day, i) => {
+                  {agentWeekDays.map((day) => {
                     const count = state.tasks.filter(t =>
                       isActiveTask(t) && t.assignees?.includes(m.id) && t.dueDate &&
                       new Date(t.dueDate).toDateString() === day.toDateString()
                     ).length;
                     return (
-                      <td key={i} style={{
+                      <td key={`${m.id}-${day.toISOString()}`} style={{
                         padding: "8px 6px", textAlign: "center", borderBottom: "1px solid var(--border)",
                         background: count > 0 ? m.color + "12" : "transparent",
                       }}>
@@ -4592,7 +4639,7 @@ const Team = ({ state, dispatch }) => {
           const isSelected = selectedMember === m.id;
 
           return (
-            <div key={m.id} className="hover-lift" onClick={() => setSelectedMember(isSelected ? null : m.id)} style={{
+            <div key={m.id} className="hover-lift" {...clickableProps(() => setSelectedMember(isSelected ? null : m.id), `Apri profilo ${m.name}`)} style={{
               background: "#fff", borderRadius: 12, padding: "20px 16px",
               boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: `2px solid ${isSelected ? m.color : "var(--border)"}`,
               cursor: "pointer", textAlign: "center", transition: "all 0.2s",
@@ -4654,7 +4701,7 @@ const Team = ({ state, dispatch }) => {
                   Nessun task trovato per questo filtro
                 </div>
               ) : filtered.map(t => (
-                <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                <div key={t.id} {...clickableProps(() => dispatch({ type: "SET_SELECTED_TASK", payload: t }), `Apri task ${t.title}`)} style={{
                   display: "flex", alignItems: "center", gap: 12, padding: "10px 14px",
                   borderRadius: 8, border: "1px solid var(--border)", cursor: "pointer",
                   transition: "background 0.15s"
@@ -5129,16 +5176,18 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
     }));
   }, [conv.id]);
 
-  // Simulate someone typing
+  // Simulate someone typing — dipendiamo dall'ultimo messaggio (id+sender)
+  // invece di msgs.length per evitare stale closure se l'ultimo msg viene
+  // sostituito senza variazioni di lunghezza (es. edit/reactions).
+  const lastMsg = msgs[msgs.length - 1];
   useEffect(() => {
-    if (msgs.length === 0) return;
-    const last = msgs[msgs.length - 1];
-    if (last.sender === CURRENT_USER) {
+    if (!lastMsg) return;
+    if (lastMsg.sender === CURRENT_USER) {
       const timer = setTimeout(() => setTyping(true), 800);
       const stop = setTimeout(() => setTyping(false), 3500);
       return () => { clearTimeout(timer); clearTimeout(stop); };
     }
-  }, [msgs.length]);
+  }, [lastMsg?.id, lastMsg?.sender]);
 
   const sendText = () => {
     if (!input.trim()) return;
@@ -5447,7 +5496,7 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
           const otherUser = c.type === "direct" ? c.participants.find(p => p !== CURRENT_USER) : null;
 
           return (
-            <div key={c.id} onClick={() => onSelect(c)} style={{
+            <div key={c.id} {...clickableProps(() => onSelect(c), `Apri conversazione ${c.name || ""}`)} style={{
               padding: "10px 14px", display: "flex", gap: 10, alignItems: "center",
               borderBottom: "1px solid var(--border)", cursor: "pointer",
               transition: "background 0.15s",
@@ -5596,7 +5645,7 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
               MEMBRI DEL TEAM
             </div>
             {available.map(m => (
-              <div key={m.id} onClick={() => createDirect(m.id)} style={{
+              <div key={m.id} {...clickableProps(() => createDirect(m.id), `Avvia chat con ${m.name}`)} style={{
                 padding: "10px 14px", display: "flex", gap: 10, alignItems: "center",
                 cursor: "pointer", transition: "background 0.15s",
               }}
@@ -6267,7 +6316,7 @@ const AdminTeamTab = ({ state, dispatch }) => {
               <input value={draft.role} onChange={e => setDraft({...draft, role: e.target.value})}
                 placeholder="Ruolo" style={fieldStyle} />
               <input type="number" min="1" max="50" value={draft.capacity}
-                onChange={e => setDraft({...draft, capacity: parseInt(e.target.value) || 1})}
+                onChange={e => setDraft({...draft, capacity: Math.max(1, Math.min(50, parseInt(e.target.value, 10) || 1))})}
                 placeholder="Cap" style={fieldStyle} />
               <input type="color" value={draft.color} onChange={e => setDraft({...draft, color: e.target.value})}
                 style={{ ...fieldStyle, padding: 2, height: 32 }} />
@@ -6409,7 +6458,7 @@ const AddTeamMemberModal = ({ onClose, dispatch, existingIds }) => {
             <div>
               <label style={labelStyle}>Capacità task</label>
               <input type="number" min="1" max="50" value={capacity}
-                onChange={e => setCapacity(parseInt(e.target.value) || 8)} style={fieldStyle} />
+                onChange={e => setCapacity(Math.max(1, Math.min(50, parseInt(e.target.value, 10) || 8)))} style={fieldStyle} />
             </div>
             <div>
               <label style={labelStyle}>Colore</label>
@@ -6434,6 +6483,17 @@ const AddTeamMemberModal = ({ onClose, dispatch, existingIds }) => {
 const AdminIOTab = ({ state, dispatch }) => {
   const [includeTrashed, setIncludeTrashed] = useState(false);
   const fileInputRef = useRef(null);
+  // Tiene gli (url, timerId) in volo: cleanup garantito on-unmount per evitare
+  // leak di blob se l'utente avvia molti export ravvicinati.
+  const pendingUrls = useRef([]);
+
+  useEffect(() => () => {
+    pendingUrls.current.forEach(({ url, timer }) => {
+      clearTimeout(timer);
+      URL.revokeObjectURL(url);
+    });
+    pendingUrls.current = [];
+  }, []);
 
   const tasksToExport = () => includeTrashed ? state.tasks : state.tasks.filter(t => !t.deletedAt);
 
@@ -6443,7 +6503,12 @@ const AdminIOTab = ({ state, dispatch }) => {
     a.href = url; a.download = filename;
     document.body.appendChild(a); a.click();
     document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 500);
+    const entry = { url, timer: null };
+    entry.timer = setTimeout(() => {
+      URL.revokeObjectURL(url);
+      pendingUrls.current = pendingUrls.current.filter(e => e !== entry);
+    }, 500);
+    pendingUrls.current.push(entry);
   };
 
   const escapeCSV = (val) => {
@@ -7017,7 +7082,7 @@ function VoyageDeskInner() {
         <BottomNav state={state} dispatch={dispatch} />
 
         {/* Slide-over */}
-        {state.selectedTask && <TaskSlideOver task={state.selectedTask} dispatch={dispatch} />}
+        {state.selectedTask && <TaskSlideOver task={state.selectedTask} dispatch={dispatch} currentUserId={state.currentUserId} />}
 
         {/* Chat Panel */}
         <ChatPanel

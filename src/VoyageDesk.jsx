@@ -689,6 +689,20 @@ const formatTime = iso => {
   return new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
 };
 const isOverdue = task => task.status !== "done" && task.dueDate && new Date(task.dueDate) < new Date();
+// Helper a11y: rende un <div onClick> attivabile da tastiera (Enter/Space)
+// e leggibile dagli screen reader come pulsante.
+const clickableProps = (handler, ariaLabel) => ({
+  role: "button",
+  tabIndex: 0,
+  "aria-label": ariaLabel,
+  onClick: handler,
+  onKeyDown: (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      handler(e);
+    }
+  },
+});
 const getDayKey = iso => iso ? new Date(iso).toDateString() : null;
 const isActiveTask = t => !t.deletedAt;
 const getActiveTasks = tasks => tasks.filter(isActiveTask);
@@ -1300,7 +1314,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
             {Object.entries(CATEGORIES).map(([key, c]) => {
               const active = cats.includes(key);
               return (
-                <div key={key} onClick={() => toggle(cats, setCats, key)} style={chipBase(active, c.color)}>
+                <div key={key} {...clickableProps(() => toggle(cats, setCats, key), `Filtro categoria ${c.label}`)} style={chipBase(active, c.color)}>
                   <span>{c.icon}</span>{c.label}
                 </div>
               );
@@ -1314,7 +1328,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
             {STATUSES.map(s => {
               const active = stats.includes(s);
               return (
-                <div key={s} onClick={() => toggle(stats, setStats, s)} style={chipBase(active, STATUS_COLORS[s])}>
+                <div key={s} {...clickableProps(() => toggle(stats, setStats, s), `Filtro stato ${STATUS_LABELS[s]}`)} style={chipBase(active, STATUS_COLORS[s])}>
                   {STATUS_LABELS[s]}
                 </div>
               );
@@ -1328,7 +1342,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
             {TEAM.filter(m => !m.pending).map(m => {
               const active = agents.includes(m.id);
               return (
-                <div key={m.id} onClick={() => toggle(agents, setAgents, m.id)} style={chipBase(active, m.color)}>
+                <div key={m.id} {...clickableProps(() => toggle(agents, setAgents, m.id), `Filtro agente ${m.name}`)} style={chipBase(active, m.color)}>
                   <span style={{
                     width: 16, height: 16, borderRadius: "50%",
                     background: active ? "rgba(255,255,255,0.25)" : m.color,
@@ -2510,7 +2524,7 @@ const TemplateTab = ({ onCreate, onClose }) => {
       {!selectedId ? (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {TASK_TEMPLATES.map(t => (
-            <div key={t.id} onClick={() => setSelectedId(t.id)} className="hover-lift" style={{
+            <div key={t.id} {...clickableProps(() => setSelectedId(t.id), `Seleziona task ${t.title}`)} className="hover-lift" style={{
               padding: "16px 18px", borderRadius: 12, border: "1px solid var(--border)",
               cursor: "pointer", background: "#fff",
             }}>
@@ -3329,7 +3343,7 @@ const PersonalQueue = ({ tasks, dispatch, me, currentUserId }) => {
                   cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
                   borderLeft: `3px solid ${prio.color}`,
                 }}
-                onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
+                {...clickableProps(() => dispatch({ type: "SET_SELECTED_TASK", payload: t }), `Apri task ${t.title}`)}
                 onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.08)"; }}
                 onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
               >
@@ -3438,7 +3452,7 @@ const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
               </div>
 
               <div
-                onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
+                {...clickableProps(() => dispatch({ type: "SET_SELECTED_TASK", payload: t }), `Apri task ${t.title}`)}
                 style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", lineHeight: 1.35, cursor: "pointer" }}
               >
                 {t.title}
@@ -3546,7 +3560,7 @@ const UnassignedQueue = ({ tasks, dispatch, onTake, currentUserId }) => {
                   padding: 12, display: "flex", flexDirection: "column", gap: 10,
                   cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
                 }}
-                onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
+                {...clickableProps(() => dispatch({ type: "SET_SELECTED_TASK", payload: t }), `Apri task ${t.title}`)}
                 onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.08)"; }}
                 onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
               >
@@ -3709,7 +3723,7 @@ const OverdueQueue = ({ tasks, dispatch, currentUserId }) => {
                   cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
                   borderLeft: `3px solid ${prio.color}`,
                 }}
-                onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
+                {...clickableProps(() => dispatch({ type: "SET_SELECTED_TASK", payload: t }), `Apri task ${t.title}`)}
                 onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.08)"; }}
                 onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
               >
@@ -3910,7 +3924,7 @@ const Dashboard = ({ state, dispatch, onOpenChat }) => {
           <div className="playfair" style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>Scadenze Prossime</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {next7.map(t => (
-              <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
+              <div key={t.id} {...clickableProps(() => dispatch({ type: "SET_SELECTED_TASK", payload: t }), `Apri task ${t.title}`)}
                 style={{
                   display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
                   borderRadius: 8, cursor: "pointer", transition: "background 0.15s",
@@ -3975,6 +3989,13 @@ const QuickAddTask = ({ onAdd, onClose }) => {
     title: "", category: firstCatKey, priority: "medium",
     status: "todo", assignees: [], dueDate: "", client: "", description: ""
   });
+  // YYYY-MM-DDTHH:MM dell'istante corrente — vincolo `min` per l'input datetime-local
+  // (evita scadenze nel passato per errore; restano modificabili a mano se serve via Modifica task).
+  const minDueDate = useMemo(() => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+  }, []);
 
   const handleSubmit = () => {
     if (!form.title.trim()) return;
@@ -4048,7 +4069,7 @@ const QuickAddTask = ({ onAdd, onClose }) => {
             </div>
             <div>
               <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>SCADENZA</label>
-              <input type="datetime-local" {...inp("dueDate")} />
+              <input type="datetime-local" min={minDueDate} {...inp("dueDate")} />
             </div>
           </div>
 
@@ -4105,7 +4126,7 @@ const TaskSlideOver = ({ task, dispatch, currentUserId }) => {
   };
 
   const handleDelete = () => {
-    if (window.confirm(`Spostare nel cestino "${task.title}"?`)) {
+    if (window.confirm(`Spostare nel cestino "${task.title}"?\n\nIl task potrà essere ripristinato dal Cestino in qualsiasi momento.`)) {
       dispatch({ type: "DELETE_TASK", payload: task.id });
     }
   };
@@ -4397,7 +4418,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
               const dayTasks = getTasksForCalDay(day);
               const isToday = today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
               return (
-                <div key={day} onClick={() => setSelectedDay(selectedDay === day ? null : day)} style={{
+                <div key={day} {...clickableProps(() => setSelectedDay(selectedDay === day ? null : day), `Giorno ${day}`)} style={{
                   minHeight: isMobile ? 52 : 100, borderRight: "1px solid var(--border)", borderBottom: "1px solid var(--border)",
                   padding: isMobile ? "5px 3px" : "8px 6px", cursor: dayTasks.length ? "pointer" : "default",
                   background: selectedDay === day ? "rgba(212,168,67,0.08)" : "#fff",
@@ -4420,7 +4441,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                       {dayTasks.slice(0, 3).map(t => (
-                        <div key={t.id} onClick={e => { e.stopPropagation(); dispatch({ type: "SET_SELECTED_TASK", payload: t }); }} style={{
+                        <div key={t.id} {...clickableProps((e) => { e?.stopPropagation?.(); dispatch({ type: "SET_SELECTED_TASK", payload: t }); }, `Apri task ${t.title}`)} style={{
                           fontSize: 10, fontWeight: 500, padding: "1px 5px", borderRadius: 3,
                           background: CATEGORIES[t.category]?.color + "20",
                           color: CATEGORIES[t.category]?.color,
@@ -4453,7 +4474,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {dayTasks.map(t => {
                 const row = (
-                  <div onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                  <div {...clickableProps(() => dispatch({ type: "SET_SELECTED_TASK", payload: t }), `Apri task ${t.title}`)} style={{
                     display: "flex", alignItems: "center", gap: 12, padding: "8px 12px",
                     borderRadius: 8, border: "1px solid var(--border)", cursor: "pointer",
                     transition: "background 0.15s", background: "#fff",
@@ -4509,7 +4530,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
                     {dayTasks.length === 0 ? (
                       <div style={{ fontSize: 10, color: isToday ? "rgba(255,255,255,0.4)" : "var(--text-muted)", textAlign: "center", marginTop: 20 }}>Nessun task</div>
                     ) : dayTasks.slice(0, 6).map(t => (
-                      <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                      <div key={t.id} {...clickableProps(() => dispatch({ type: "SET_SELECTED_TASK", payload: t }), `Apri task ${t.title}`)} style={{
                         background: isToday ? "rgba(255,255,255,0.12)" : CATEGORIES[t.category]?.color + "18",
                         borderLeft: `3px solid ${CATEGORIES[t.category]?.color}`,
                         borderRadius: "0 4px 4px 0", padding: "4px 6px", cursor: "pointer",
@@ -4618,7 +4639,7 @@ const Team = ({ state, dispatch }) => {
           const isSelected = selectedMember === m.id;
 
           return (
-            <div key={m.id} className="hover-lift" onClick={() => setSelectedMember(isSelected ? null : m.id)} style={{
+            <div key={m.id} className="hover-lift" {...clickableProps(() => setSelectedMember(isSelected ? null : m.id), `Apri profilo ${m.name}`)} style={{
               background: "#fff", borderRadius: 12, padding: "20px 16px",
               boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: `2px solid ${isSelected ? m.color : "var(--border)"}`,
               cursor: "pointer", textAlign: "center", transition: "all 0.2s",
@@ -4680,7 +4701,7 @@ const Team = ({ state, dispatch }) => {
                   Nessun task trovato per questo filtro
                 </div>
               ) : filtered.map(t => (
-                <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                <div key={t.id} {...clickableProps(() => dispatch({ type: "SET_SELECTED_TASK", payload: t }), `Apri task ${t.title}`)} style={{
                   display: "flex", alignItems: "center", gap: 12, padding: "10px 14px",
                   borderRadius: 8, border: "1px solid var(--border)", cursor: "pointer",
                   transition: "background 0.15s"
@@ -5475,7 +5496,7 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
           const otherUser = c.type === "direct" ? c.participants.find(p => p !== CURRENT_USER) : null;
 
           return (
-            <div key={c.id} onClick={() => onSelect(c)} style={{
+            <div key={c.id} {...clickableProps(() => onSelect(c), `Apri conversazione ${c.name || ""}`)} style={{
               padding: "10px 14px", display: "flex", gap: 10, alignItems: "center",
               borderBottom: "1px solid var(--border)", cursor: "pointer",
               transition: "background 0.15s",
@@ -5624,7 +5645,7 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
               MEMBRI DEL TEAM
             </div>
             {available.map(m => (
-              <div key={m.id} onClick={() => createDirect(m.id)} style={{
+              <div key={m.id} {...clickableProps(() => createDirect(m.id), `Avvia chat con ${m.name}`)} style={{
                 padding: "10px 14px", display: "flex", gap: 10, alignItems: "center",
                 cursor: "pointer", transition: "background 0.15s",
               }}

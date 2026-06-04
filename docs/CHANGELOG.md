@@ -1,5 +1,66 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9.10 — Chiusura Fase 2 (sessione 18)
+
+> Chiude la **Fase 2 — Operatività quotidiana**: overdue automatici, presence status mock, vista giornaliera Calendario, export iCal. Prepara handoff per nuova sessione Claude Code.
+
+### ⏰ Notifiche overdue automatiche
+- Nuova action **`SCAN_OVERDUE_NOTIFICATIONS`**: idempotente, scansiona task scaduti assegnati all'utente corrente e crea notifiche `type: "overdue"`. Chiave deduplica `overdue-{taskId}-{YYYY-MM-DD}` evita duplicati nella stessa giornata.
+- Trigger automatico in `VoyageDeskInner` via `useEffect([state.currentUserId])`: al mount e al cambio utente.
+
+### 🟢 Presence status mock
+- Nuovo campo `team.member.status`: `"online" | "busy" | "away" | "offline"`. Default sui mock: marco/sofia/roberto online, luca busy, giulia away, elena/matteo offline.
+- Nuove costanti **`PRESENCE_STATES`** con label + color per ogni stato.
+- Action **`SET_USER_STATUS`** (payload `{ status, userId? }`). Default target = utente corrente.
+- **`Avatar`** esteso con prop opzionale `showPresence` → pallino colorato in basso-destra (verde/rosso/oro/grigio).
+- Selettore stato nel dropdown `UserSwitcher` (chip toggleabili sotto "IL MIO STATO").
+- Header `ConversationView` ora mostra lo stato reale dell'altro partecipante (era hard-coded "● Online").
+- `ConversationList`: pallino verde hard-coded sostituito dal vero `showPresence`.
+
+### 🗓 Vista Giorno Calendario
+- Terza modalità accanto a Mese / Settimana: **`viewMode === "day"`**.
+- Stato locale `dayOffset` (0 = oggi, ± per navigazione). Nav buttons ← Oggi → e toggle visto "🗓 Giorno".
+- Layout:
+  - Header navy con label "OGGI" / "DOMANI" / nome giorno + data piena + contatore task.
+  - Strip "Fuori orario" sopra la griglia per task < 06:00 o ≥ 22:00.
+  - Time-grid orario 06-22 con cella `(ora, task)`: blocchi con orario tabular-nums, icona categoria, titolo, assegnatari, priorità, stato.
+  - **Now-line rossa** + dot se è oggi e l'ora corrente è nel range.
+
+### 📥 Export iCal (.ics)
+- Nuovo bottone "📥 iCal" nell'header Calendario (visibile in tutte le modalità).
+- Esporta tutte le task con `dueDate` assegnate all'utente corrente in formato VCALENDAR 2.0 (compatibile Google/Apple Calendar/Outlook).
+- Durata evento = `estimatedHours` (default 1h). Categoria + cliente nel campo DESCRIPTION.
+- Filename: `voyagedesk-{userId}-{YYYY-MM-DD}.ics`.
+
+### 📦 Handoff documentazione
+- Nuovo file **`docs/HANDOFF.md`** per sessione Claude Code successiva: stato corrente, branch/PR, file chiave, convenzioni, prossimi step Fase 3, gotchas.
+
+### 📈 Metriche
+- File: 10420 → ~10720 righe (+~300).
+- Componenti nuovi: 0 (estensioni di Avatar e CalendarPlanner).
+- Helper nuovi: 1 (`exportIcal` + `_icsEscape` + `_icsDate`).
+- Action nuove: 2 (`SCAN_OVERDUE_NOTIFICATIONS`, `SET_USER_STATUS`).
+
+### ✅ Fase 2 chiusa
+- [x] Notifiche reali — v0.9.9
+- [x] Notifiche schedulate (overdue auto) — v0.9.10
+- [x] Dark mode — v0.9.9
+- [x] Estensioni chat: task link cliccabile — v0.9.3
+- [x] Estensioni chat: ricerca nei messaggi — v0.9.9
+- [x] Estensioni chat: presence online/busy/away — v0.9.10
+- [x] Calendario: vista settimanale ridisegnata — v0.9.6
+- [x] Calendario: vista giornaliera — v0.9.10
+- [x] Calendario: export iCal — v0.9.10
+- [ ] Stretch goal: rich preview pratiche in chat (rimandato a Fase 3 quando ci sarà più carne sulla chat)
+- [ ] Stretch goal: template messaggi in Admin (rimandato)
+
+### 🔜 Prossimo focus (Fase 3)
+- **Modulo finanziario** — KPI/grafici da `state.practices` (ricavo/costo/margine), fatture/scadenze.
+- **Report & Analytics** — estendere `AdminStatsTab` con margini, trend temporali, export PDF.
+- **Traccia tecnica** — splittare `VoyageDesk.jsx` (~10720 righe) per sbloccare TypeScript + test.
+
+---
+
 ## v0.9.9 — Notifiche reali + Dark mode + Ricerca chat (sessione 17, Fase 2)
 
 > Inizia la Fase 2 — Operatività quotidiana. Tre fix dalla roadmap: notifiche reattive collegate ad azioni (sostituiscono l'array statico), dark mode con CSS var override, ricerca chat estesa al testo dei messaggi.

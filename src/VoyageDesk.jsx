@@ -147,13 +147,13 @@ const _syncCurrentUser = (id) => { CURRENT_USER = id; };
 // Sono `let` perché getMember e altre utility leggono il riferimento corrente.
 // Il reducer aggiorna sia state.team/state.categories sia questi array in-place.
 let TEAM = [
-  { id: "marco", name: "Marco Ferretti", role: "Manager", avatar: "MF", color: "#0F2044", capacity: 12, active: true, pending: false },
-  { id: "sofia", name: "Sofia Conti", role: "Senior Agent", avatar: "SC", color: "#2D7A4F", capacity: 10, active: true, pending: false },
-  { id: "luca", name: "Luca Moretti", role: "Junior Agent", avatar: "LM", color: "#C8832A", capacity: 8, active: true, pending: false },
-  { id: "giulia", name: "Giulia Ricci", role: "Driver", avatar: "GR", color: "#7B4F9E", capacity: 6, active: true, pending: false },
-  { id: "roberto", name: "Roberto Esposito", role: "Admin", avatar: "RE", color: "#C0392B", capacity: 9, active: true, pending: false },
-  { id: "elena", name: "Elena Marini", role: "Junior Agent", avatar: "EM", color: "#0EA5E9", capacity: 8, active: false, pending: true },
-  { id: "matteo", name: "Matteo De Luca", role: "Senior Agent", avatar: "MD", color: "#DB2777", capacity: 10, active: false, pending: true },
+  { id: "marco", name: "Marco Ferretti", role: "Manager", avatar: "MF", color: "#0F2044", capacity: 12, active: true, pending: false, status: "online" },
+  { id: "sofia", name: "Sofia Conti", role: "Senior Agent", avatar: "SC", color: "#2D7A4F", capacity: 10, active: true, pending: false, status: "online" },
+  { id: "luca", name: "Luca Moretti", role: "Junior Agent", avatar: "LM", color: "#C8832A", capacity: 8, active: true, pending: false, status: "busy" },
+  { id: "giulia", name: "Giulia Ricci", role: "Driver", avatar: "GR", color: "#7B4F9E", capacity: 6, active: true, pending: false, status: "away" },
+  { id: "roberto", name: "Roberto Esposito", role: "Admin", avatar: "RE", color: "#C0392B", capacity: 9, active: true, pending: false, status: "online" },
+  { id: "elena", name: "Elena Marini", role: "Junior Agent", avatar: "EM", color: "#0EA5E9", capacity: 8, active: false, pending: true, status: "offline" },
+  { id: "matteo", name: "Matteo De Luca", role: "Senior Agent", avatar: "MD", color: "#DB2777", capacity: 10, active: false, pending: true, status: "offline" },
 ];
 
 let CATEGORIES = {
@@ -1084,6 +1084,40 @@ function baseReducer(state, action) {
       const notifications = (state.notifications || []).filter(n => !(n.recipientId === uid && n.read));
       return { ...state, notifications, toast: { message: `${before} notifiche rimosse`, type: "success" } };
     }
+    case "SCAN_OVERDUE_NOTIFICATIONS": {
+      // v0.9.10: idempotente. Scansiona task scaduti assegnati all'utente e crea
+      // una notifica "overdue" per ognuno, una sola volta al giorno.
+      // Chiave deduplica: `overdue-{taskId}-{YYYY-MM-DD}`.
+      const today = new Date().toISOString().slice(0, 10);
+      const existing = new Set((state.notifications || []).map(n => n.id));
+      const newOnes = [];
+      for (const t of (state.tasks || [])) {
+        if (t.deletedAt || t.status === "done" || !t.dueDate) continue;
+        if (new Date(t.dueDate) >= new Date()) continue; // non scaduta
+        if (!(t.assignees || []).includes(uid)) continue;
+        const id = `overdue-${t.id}-${today}`;
+        if (existing.has(id)) continue;
+        newOnes.push({
+          id, type: "overdue",
+          text: `Task scaduto: ${t.title}`,
+          recipientId: uid,
+          relatedType: "task", relatedId: t.id,
+          time: new Date().toISOString(), read: false,
+        });
+      }
+      if (newOnes.length === 0) return state;
+      const notifications = [...newOnes, ...(state.notifications || [])].slice(0, 200);
+      return { ...state, notifications };
+    }
+    case "SET_USER_STATUS": {
+      // v0.9.10: l'utente cambia il proprio stato presence (online|busy|away|offline)
+      const target = action.payload?.userId || uid;
+      const status = action.payload?.status;
+      if (!status) return state;
+      const team = state.team.map(m => m.id === target ? { ...m, status } : m);
+      _syncTeam(team);
+      return { ...state, team };
+    }
 
     case "CLEAR_TOAST": return { ...state, toast: null };
     case "UNDO_LAST_ACTION": {
@@ -1705,24 +1739,45 @@ const SwipeActions = ({ task, dispatch, children, disabled = false }) => {
 };
 
 // ─── AVATAR ────────────────────────────────────────────────────────────────
-const Avatar = ({ memberId, size = 28 }) => {
+// v0.9.10: stati presence per la chat. "online" è il default per i mock,
+// e l'utente può cambiarli dal menu UserSwitcher.
+const PRESENCE_STATES = {
+  online: { label: "Online", color: "#2D7A4F" },
+  busy: { label: "Occupato", color: "#C0392B" },
+  away: { label: "Assente", color: "#C8832A" },
+  offline: { label: "Offline", color: "#9999AA" },
+};
+
+const Avatar = ({ memberId, size = 28, showPresence = false }) => {
   const m = getMember(memberId);
   if (!m) return null;
-  if (m.photoUrl) {
-    return (
-      <img src={m.photoUrl} alt={m.name} title={m.name} style={{
-        width: size, height: size, borderRadius: "50%",
-        objectFit: "cover", flexShrink: 0, border: "2px solid white",
-      }} />
-    );
-  }
-  return (
+  // Pallino presence (v0.9.10): visibile se showPresence prop true
+  const presence = PRESENCE_STATES[m.status] || PRESENCE_STATES.online;
+  const dotSize = Math.max(8, Math.round(size * 0.28));
+  const inner = m.photoUrl ? (
+    <img src={m.photoUrl} alt={m.name} title={m.name} style={{
+      width: size, height: size, borderRadius: "50%",
+      objectFit: "cover", flexShrink: 0, border: "2px solid white",
+    }} />
+  ) : (
     <div style={{
       width: size, height: size, borderRadius: "50%", background: m.color,
       display: "flex", alignItems: "center", justifyContent: "center",
       fontSize: size * 0.36, fontWeight: 600, color: "#fff",
       flexShrink: 0, border: "2px solid white",
     }} title={m.name}>{m.avatar}</div>
+  );
+  if (!showPresence) return inner;
+  return (
+    <div style={{ position: "relative", display: "inline-flex", flexShrink: 0 }} title={`${m.name} · ${presence.label}`}>
+      {inner}
+      <span style={{
+        position: "absolute", bottom: 0, right: 0,
+        width: dotSize, height: dotSize, borderRadius: "50%",
+        background: presence.color, border: "2px solid #fff",
+        boxSizing: "content-box",
+      }} />
+    </div>
   );
 };
 
@@ -2570,7 +2625,6 @@ const UserSwitcher = ({ state, dispatch }) => {
               padding: "10px 10px", background: "transparent",
               border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontSize: 13,
               color: "var(--navy)", textAlign: "left",
-              borderBottom: "1px solid var(--border)", marginBottom: 4,
             }}
             onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
             onMouseLeave={e => e.currentTarget.style.background = "transparent"}
@@ -2585,6 +2639,35 @@ const UserSwitcher = ({ state, dispatch }) => {
               letterSpacing: 0.5,
             }}>{(state.theme || "light").toUpperCase()}</span>
           </button>
+
+          {/* Stato presence (v0.9.10) */}
+          <div style={{ padding: "8px 10px 4px", borderBottom: "1px solid var(--border)", marginBottom: 4 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 6 }}>
+              IL MIO STATO
+            </div>
+            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+              {Object.entries(PRESENCE_STATES).map(([k, v]) => {
+                const on = (curr.status || "online") === k;
+                return (
+                  <button
+                    key={k}
+                    onClick={() => dispatch({ type: "SET_USER_STATUS", payload: { status: k } })}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 5,
+                      padding: "4px 8px", borderRadius: 999,
+                      background: on ? v.color : "transparent",
+                      color: on ? "#fff" : "var(--text)",
+                      border: `1px solid ${on ? v.color : "var(--border)"}`,
+                      cursor: "pointer", fontSize: 11, fontWeight: 600, fontFamily: "inherit",
+                    }}
+                  >
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: on ? "#fff" : v.color }} />
+                    {v.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", padding: "8px 10px 4px", letterSpacing: 1 }}>
             ACCEDI COME (DEMO MULTI-RUOLO)
@@ -5613,16 +5696,67 @@ const TaskSlideOver = ({ task, dispatch, clients, suppliers, practices }) => {
   );
 };
 
-// ─── CALENDAR PLANNER (unificato: mese + settimana + distribuzione agenti) ──
-// v0.9.6: vista settimanale ridisegnata — desktop time-grid orario, mobile day-tab + lista
+// ─── CALENDAR PLANNER (unificato: mese + settimana + giorno + distribuzione agenti) ──
+// v0.9.6: vista settimanale ridisegnata. v0.9.10: aggiunta vista Giorno + iCal export.
 const WEEK_START_HOUR = 6;   // 06:00 prima riga
 const WEEK_END_HOUR = 22;    // 22:00 esclusa (ultima riga è 21:00)
 const WEEK_HOUR_COUNT = WEEK_END_HOUR - WEEK_START_HOUR;
 const WEEK_ROW_HEIGHT = 56;  // px per ora (desktop)
 
+// v0.9.10: esporta le task dell'utente in formato iCal (.ics).
+// Solo task con dueDate, non cestinate, assegnate all'utente o in coda globale.
+const _icsEscape = (s) => String(s || "").replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
+const _icsDate = (iso) => {
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
+};
+const exportIcal = (tasks, userId) => {
+  const mine = (tasks || []).filter(t => !t.deletedAt && t.dueDate && (t.assignees || []).includes(userId));
+  const now = _icsDate(new Date().toISOString());
+  const me = TEAM.find(m => m.id === userId);
+  const calName = `VoyageDesk — ${me?.name || userId}`;
+  const events = mine.map(t => {
+    const start = _icsDate(t.dueDate);
+    // Durata di default = estimatedHours (in millisecondi) oppure 1h
+    const endDate = new Date(new Date(t.dueDate).getTime() + (Number(t.estimatedHours) || 1) * 3600 * 1000);
+    const end = _icsDate(endDate.toISOString());
+    const cat = CATEGORIES[t.category]?.label || t.category;
+    return [
+      "BEGIN:VEVENT",
+      `UID:${t.id}@voyagedesk`,
+      `DTSTAMP:${now}`,
+      `DTSTART:${start}`,
+      `DTEND:${end}`,
+      `SUMMARY:${_icsEscape(t.title)}`,
+      `DESCRIPTION:${_icsEscape(`[${cat}] ${t.description || ""}${t.client ? ` — Cliente: ${t.client}` : ""}`)}`,
+      `CATEGORIES:${_icsEscape(cat)}`,
+      "END:VEVENT",
+    ].join("\r\n");
+  });
+  const ics = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//VoyageDesk//IT",
+    `X-WR-CALNAME:${_icsEscape(calName)}`,
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    ...events,
+    "END:VCALENDAR",
+  ].join("\r\n");
+  const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `voyagedesk-${userId}-${new Date().toISOString().slice(0, 10)}.ics`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 500);
+};
+
 const CalendarPlanner = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
-  const [viewMode, setViewMode] = useState("month"); // "month" | "week"
+  const [viewMode, setViewMode] = useState("month"); // "month" | "week" | "day" (v0.9.10)
+  const [dayOffset, setDayOffset] = useState(0); // v0.9.10: 0 = oggi, ±n giorni
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState(null);
@@ -5729,15 +5863,20 @@ const CalendarPlanner = ({ state, dispatch }) => {
   return (
     <div className="fade-in" style={{ padding: isMobile ? 16 : 28, display: "flex", flexDirection: "column", gap: isMobile ? 16 : 22 }}>
 
-      {/* ─── Header con toggle + navigazione ─── */}
+      {/* ─── Header con toggle + navigazione + export ─── */}
       <div className="vd-row-wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div className="playfair" style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, textTransform: viewMode === "month" ? "capitalize" : "none" }}>
-            {viewMode === "month" ? monthName : "Settimana"}
+            {viewMode === "month" ? monthName : viewMode === "week" ? "Settimana" : "Giorno"}
           </div>
           {viewMode === "week" && (
             <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
               {weekDays[0].toLocaleDateString("it-IT", { day: "numeric", month: "short" })} — {weekDays[6].toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" })}
+            </div>
+          )}
+          {viewMode === "day" && (
+            <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
+              {(() => { const d = new Date(); d.setDate(d.getDate() + dayOffset); return d.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" }); })()}
             </div>
           )}
         </div>
@@ -5746,22 +5885,46 @@ const CalendarPlanner = ({ state, dispatch }) => {
           <div style={{ display: "flex", gap: 4, background: "var(--surface2)", borderRadius: 10, padding: 3 }}>
             {toggleBtn("month", isMobile ? "Mese" : "📅 Mese")}
             {toggleBtn("week", isMobile ? "Sett." : "📆 Settimana")}
+            {toggleBtn("day", isMobile ? "Giorno" : "🗓 Giorno")}
           </div>
           {/* Nav buttons */}
           <div style={{ display: "flex", gap: 4 }}>
-            <button onClick={() => viewMode === "month" ? setCurrentMonth(new Date(year, month - 1)) : setWeekOffset(w => w - 1)} style={{
+            <button onClick={() => {
+              if (viewMode === "month") setCurrentMonth(new Date(year, month - 1));
+              else if (viewMode === "week") setWeekOffset(w => w - 1);
+              else setDayOffset(o => o - 1);
+            }} style={{
               background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
               width: 34, height: 34, cursor: "pointer", fontSize: 14
             }}>←</button>
-            <button onClick={() => { viewMode === "month" ? setCurrentMonth(new Date()) : setWeekOffset(0); setSelectedDay(null); }} style={{
+            <button onClick={() => {
+              if (viewMode === "month") setCurrentMonth(new Date());
+              else if (viewMode === "week") setWeekOffset(0);
+              else setDayOffset(0);
+              setSelectedDay(null);
+            }} style={{
               background: "var(--gold)", color: "var(--navy)", border: "none",
               borderRadius: 8, padding: "0 14px", height: 34, cursor: "pointer", fontSize: 12, fontWeight: 700
             }}>Oggi</button>
-            <button onClick={() => viewMode === "month" ? setCurrentMonth(new Date(year, month + 1)) : setWeekOffset(w => w + 1)} style={{
+            <button onClick={() => {
+              if (viewMode === "month") setCurrentMonth(new Date(year, month + 1));
+              else if (viewMode === "week") setWeekOffset(w => w + 1);
+              else setDayOffset(o => o + 1);
+            }} style={{
               background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
               width: 34, height: 34, cursor: "pointer", fontSize: 14
             }}>→</button>
           </div>
+          {/* iCal export (v0.9.10) */}
+          <button
+            onClick={() => exportIcal(state.tasks, uid)}
+            title="Esporta le mie task in formato iCal (.ics)"
+            style={{
+              background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
+              padding: "0 10px", height: 34, cursor: "pointer", fontSize: 12, fontWeight: 600,
+              color: "var(--navy)", fontFamily: "inherit",
+            }}
+          >📥 iCal</button>
         </div>
       </div>
 
@@ -6119,6 +6282,137 @@ const CalendarPlanner = ({ state, dispatch }) => {
           </div>
         </div>
       )}
+
+      {/* ─── VISTA GIORNO (v0.9.10) ─── */}
+      {viewMode === "day" && (() => {
+        const dayDate = new Date(); dayDate.setDate(dayDate.getDate() + dayOffset); dayDate.setHours(0, 0, 0, 0);
+        const isToday = dayOffset === 0;
+        const dayTasks = state.tasks
+          .filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate)
+          .filter(t => new Date(t.dueDate).toDateString() === dayDate.toDateString())
+          .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+        const inHourRange = (t) => {
+          const h = new Date(t.dueDate).getHours();
+          return h >= WEEK_START_HOUR && h < WEEK_END_HOUR;
+        };
+        const offHourTasks = dayTasks.filter(t => !inHourRange(t));
+        // "now line" se è oggi e l'ora corrente è nel range
+        const now = new Date();
+        const nowTop = isToday
+          ? (now.getHours() + now.getMinutes() / 60 - WEEK_START_HOUR) * WEEK_ROW_HEIGHT
+          : null;
+        const showNowLine = nowTop !== null && nowTop >= 0 && nowTop < WEEK_HOUR_COUNT * WEEK_ROW_HEIGHT;
+
+        return (
+          <div style={{
+            background: "#fff", borderRadius: 12, border: "1px solid var(--border)",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden",
+          }}>
+            {/* Header giorno */}
+            <div style={{ padding: "14px 18px", background: "var(--navy)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>
+                  {isToday ? "OGGI" : dayDate.toLocaleDateString("it-IT", { weekday: "long" })}
+                </div>
+                <div style={{ fontSize: 24, fontWeight: 700, marginTop: 2 }}>
+                  {dayDate.toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}
+                </div>
+              </div>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.85)" }}>
+                <b style={{ fontSize: 18 }}>{dayTasks.length}</b> {dayTasks.length === 1 ? "task" : "task"} totali
+              </div>
+            </div>
+
+            {/* Strip fuori orario */}
+            {offHourTasks.length > 0 && (
+              <div style={{ padding: "10px 18px", background: "var(--surface2)", borderBottom: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 4 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Fuori orario</div>
+                {offHourTasks.map(t => {
+                  const cat = CATEGORIES[t.category] || { color: "#6B7280", icon: "📋" };
+                  return (
+                    <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                      background: cat.color + "18", borderLeft: `3px solid ${cat.color}`,
+                      padding: "5px 10px", borderRadius: "0 6px 6px 0", cursor: "pointer",
+                      fontSize: 12, display: "flex", gap: 8, alignItems: "center",
+                    }}>
+                      <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700, color: cat.color }}>{formatTime(t.dueDate)}</span>
+                      <span>{cat.icon}</span>
+                      <span style={{ flex: 1 }}>{t.title}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Time-grid orario per il giorno */}
+            <div style={{ position: "relative" }}>
+              {showNowLine && (
+                <div style={{
+                  position: "absolute", left: 70, right: 0, top: nowTop,
+                  height: 2, background: "var(--danger)", zIndex: 5, pointerEvents: "none",
+                }}>
+                  <div style={{
+                    position: "absolute", left: -6, top: -5, width: 12, height: 12, borderRadius: "50%",
+                    background: "var(--danger)", border: "2px solid #fff",
+                  }} />
+                </div>
+              )}
+              {Array.from({ length: WEEK_HOUR_COUNT }, (_, hi) => {
+                const hour = WEEK_START_HOUR + hi;
+                const tasksHere = dayTasks.filter(t => new Date(t.dueDate).getHours() === hour);
+                return (
+                  <div key={hour} style={{
+                    display: "grid", gridTemplateColumns: "70px 1fr",
+                    minHeight: WEEK_ROW_HEIGHT, borderTop: "1px solid var(--surface3)",
+                  }}>
+                    <div style={{
+                      fontSize: 12, color: "var(--text-muted)", padding: "8px 10px",
+                      textAlign: "right", borderRight: "1px solid var(--border)",
+                      fontVariantNumeric: "tabular-nums",
+                    }}>{String(hour).padStart(2, "0")}:00</div>
+                    <div style={{
+                      padding: "6px 12px", display: "flex", flexDirection: "column", gap: 4,
+                    }}>
+                      {tasksHere.map(t => {
+                        const cat = CATEGORIES[t.category] || { color: "#6B7280", icon: "📋", label: t.category };
+                        const prio = PRIORITIES[t.priority];
+                        return (
+                          <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                            background: cat.color + "1a", borderLeft: `3px solid ${cat.color}`,
+                            borderRadius: "0 6px 6px 0", padding: "8px 12px", cursor: "pointer",
+                            display: "flex", gap: 10, alignItems: "center",
+                            transition: "background 0.15s",
+                          }}
+                            onMouseEnter={e => { e.currentTarget.style.background = cat.color + "30"; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = cat.color + "1a"; }}
+                          >
+                            <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700, color: cat.color, fontSize: 13, minWidth: 44 }}>
+                              {formatTime(t.dueDate)}
+                            </span>
+                            <span style={{ fontSize: 18, flexShrink: 0 }}>{cat.icon}</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{t.title}</div>
+                              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                {t.client && <span>👤 {t.client}</span>}
+                                {(t.assignees || []).slice(0, 3).map(aid => {
+                                  const m = getMember(aid); if (!m) return null;
+                                  return <span key={aid}>{m.name.split(" ")[0]}</span>;
+                                })}
+                              </div>
+                            </div>
+                            <PriorityBadge priority={t.priority} />
+                            <StatusBadge status={t.status} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ─── DISTRIBUZIONE AGENTI (sempre visibile) ─── */}
       <div style={{ background: "#fff", borderRadius: 12, padding: isMobile ? "14px 12px" : "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
@@ -8312,7 +8606,7 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialAttached
         }}>←</button>
 
         {conv.type === "direct" ? (
-          <Avatar memberId={otherTypingMember} size={36} />
+          <Avatar memberId={otherTypingMember} size={36} showPresence />
         ) : (
           <div style={{
             width: 36, height: 36, borderRadius: "50%", background: "var(--gold)",
@@ -8334,7 +8628,10 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialAttached
                 <span style={{ animation: "typing 1s infinite", animationDelay: "0.4s", display: "inline-block" }}>.</span>
               </span>
             ) : conv.type === "direct" ? (
-              <>● Online</>
+              (() => {
+                const presence = PRESENCE_STATES[otherMember?.status] || PRESENCE_STATES.online;
+                return <span style={{ color: presence.color }}>● {presence.label}</span>;
+              })()
             ) : (
               `${conv.participants.length} membri`
             )}
@@ -8596,13 +8893,7 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
               onMouseLeave={e => e.currentTarget.style.background = unread > 0 ? "rgba(212,168,67,0.05)" : "transparent"}
             >
               {c.type === "direct" ? (
-                <div style={{ position: "relative", flexShrink: 0 }}>
-                  <Avatar memberId={otherUser} size={42} />
-                  <div style={{
-                    position: "absolute", bottom: 0, right: 0, width: 11, height: 11,
-                    borderRadius: "50%", background: "var(--success)", border: "2px solid #fff",
-                  }} />
-                </div>
+                <Avatar memberId={otherUser} size={42} showPresence />
               ) : (
                 <div style={{
                   width: 42, height: 42, borderRadius: "50%", background: "var(--gold)",
@@ -10284,6 +10575,12 @@ function VoyageDeskInner() {
     if (typeof document === "undefined") return;
     document.documentElement.dataset.theme = state.theme === "dark" ? "dark" : "light";
   }, [state.theme]);
+
+  // v0.9.10: scan overdue task → genera notifiche idempotenti. Re-run quando
+  // cambia l'utente loggato (le notifiche sono per-recipientId).
+  useEffect(() => {
+    dispatch({ type: "SCAN_OVERDUE_NOTIFICATIONS" });
+  }, [state.currentUserId]);
 
   // Quando l'utente cambia, se la view corrente non è permessa il reducer la riporta a dashboard.
   // Inoltre chiudo eventuali pannelli aperti.

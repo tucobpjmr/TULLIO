@@ -191,6 +191,11 @@ Famiglia Rossi (Maldive), Coppia Bianchi (Giappone), Azienda TechCorp (Incentive
 `MARK_NOTIFICATION_READ`, `MARK_ALL_NOTIFICATIONS_READ`, `CLEAR_READ_NOTIFICATIONS`, `SET_THEME` (payload `"light"|"dark"|"toggle"`).
 Le notifiche sono generate automaticamente dal wrapper reducer in `generateNotifications(prevState, nextState, action)`. Per aggiungere nuovi trigger, estendere quella funzione (non serve una nuova action).
 
+### Presence & Overdue (v0.9.10)
+`SET_USER_STATUS` (payload `{ status: "online"|"busy"|"away"|"offline", userId? }` — default `userId = currentUserId`),
+`SCAN_OVERDUE_NOTIFICATIONS` (idempotente, una volta al giorno per task).
+Lo `SCAN_OVERDUE_NOTIFICATIONS` viene triggerato da `useEffect([state.currentUserId])` in `VoyageDeskInner`.
+
 ### Bacheca
 `ADD_NOTICE`, `UPDATE_NOTICE`, `DELETE_NOTICE`, `TOGGLE_PIN_NOTICE`
 
@@ -292,17 +297,18 @@ VoyageDesk (export default, ViewportProvider wrapper)
 - [x] Anagrafica Fornitori — v0.9.7
 - [x] Pratiche di viaggio — v0.9.8
 
-### Fase 2 — Operatività (in corso)
+### Fase 2 — Operatività ✅ (chiusa in v0.9.10)
 - [x] Notifiche reali — v0.9.9
+- [x] Notifiche schedulate (overdue auto) — v0.9.10
 - [x] Dark mode — v0.9.9
 - [x] Ricerca chat (testo messaggi) — v0.9.9
-- [ ] Notifiche schedulate (overdue auto)
-- [ ] Estensioni chat avanzate (online/occupato, rich preview)
-- [ ] Calendario residuo (iCal mock, vista giornaliera)
+- [x] Presence status online/busy/away/offline — v0.9.10
+- [x] Calendario settimana — v0.9.6
+- [x] Calendario giorno + iCal export — v0.9.10
 
 ### Prossimo focus
-- **Fase 3**: Modulo finanziario (ora che le Pratiche hanno riepilogo economico).
-- **Traccia tecnica**: splittare `VoyageDesk.jsx` (~10350 righe).
+- **Fase 3**: Modulo finanziario, Report & Analytics avanzati, Catalogo destinazioni.
+- **Traccia tecnica**: splittare `VoyageDesk.jsx` (~10720 righe).
 
 ### Priorità 3 — Operatività
 - [ ] Notifiche reali (collegate ad azioni)

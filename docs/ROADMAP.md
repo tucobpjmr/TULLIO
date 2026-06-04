@@ -9,24 +9,22 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 
 ---
 
-## 📍 Punto di partenza (post v0.9.9)
+## 📍 Punto di partenza (post v0.9.10)
 
-- App gira su Vite (progetto reale, non più artifact).
+- App su Vite (no più artifact).
 - **Persistenza `localStorage`** (state + chat versionati + reset).
-- **🎉 Fase 1 — Modello dati 100%**: anagrafiche Clienti + Fornitori + **Pratiche di viaggio** (`PR-YYYY-NNN`, 5 stati, riepilogo economico, timeline). Task collegati via `clientId`+`supplierId`+`practiceId`. Picker triplo + auto-suggest cliente da pratica. Filtro numero pratica nella ricerca avanzata.
-- **🚀 Fase 2 — Operatività iniziata**:
-  - **Notifiche reali** ✅ v0.9.9 — generate automaticamente nel wrapper reducer (assignment, comment, status, pending, practice). Pannello con filtri + segna tutte lette.
-  - **Dark mode** ✅ v0.9.9 — toggle in UserSwitcher.
-  - **Ricerca chat** estesa al testo messaggi ✅ v0.9.9.
-- **Vista settimanale Calendario**: time-grid orario (desktop) + day-tab/lista (mobile) con now-line.
-- **Agenda Driver** transfer-oriented.
-- **Editor assegnatari** da TaskSlideOver.
-- **Badge nav** contatori (Admin pending, Dashboard coda globale).
-- File `VoyageDesk.jsx` monolitico (~10350 righe) — splitting in moduli è il prossimo step della traccia tecnica.
+- **🎉 Fase 1 — Modello dati 100%**: Clienti + Fornitori + Pratiche (`PR-YYYY-NNN`, 5 stati, economia, timeline). Collegamenti `clientId`+`supplierId`+`practiceId`. Picker triplo, auto-suggest cliente da pratica. Filtro numero pratica.
+- **🎉 Fase 2 — Operatività 100%**:
+  - **Notifiche reali** + **overdue automatici** (sweep al mount/cambio utente).
+  - **Dark mode** con CSS vars override.
+  - **Chat avanzata**: task link cliccabile, ricerca nei messaggi, presence status online/busy/away/offline mock.
+  - **Calendario completo**: Mese (esistente) + Settimana (v0.9.6) + **Giorno** (v0.9.10) + **export iCal** (.ics download).
+- **Editor assegnatari** da TaskSlideOver, **agenda Driver** transfer-oriented, **badge nav** contatori.
+- File `VoyageDesk.jsx` monolitico (~10720 righe) — splitting è il primo step della traccia tecnica.
 
-**Restano in Fase 2:** Calendario avanzato residuo (iCal mock, vista giornaliera), estensioni chat avanzate (stato online/occupato, rich preview pratiche), notifiche schedulate (overdue automatici).
+**Restano in Fase 3:** Modulo finanziario, Report & Analytics avanzati, Catalogo destinazioni.
 
-**Restano in Fase 3:** Modulo finanziario (sfruttando il riepilogo economico delle Pratiche), Report & Analytics avanzati.
+**Traccia tecnica:** splittare il file, TypeScript, test unitari, backend reale.
 
 ---
 
@@ -84,8 +82,8 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 | Modulo | Stato | Priorità | Sforzo | Note |
 |---|---|---|---|---|
 | Notifiche reali | ✅ | — | M | Completato in v0.9.9 — schema `recipientId`-aware, generazione automatica nel wrapper reducer (assignment, comment, status, pending, practice status), pannello con filtri + segna tutte lette + pulisci lette. Scadenze auto-generate (overdue check schedulato) rimandate. |
-| Calendario avanzato | ⬜ | 🟡 | M | Viste settimanale/giornaliera, eventi multipli, iCal (mock) |
-| Estensioni chat (base) | 🔶 | 🟡 | S–M | Task link cliccabile ✅ v0.9.3. Ricerca estesa al testo messaggi ✅ v0.9.9. Da fare: stato online/occupato, rich preview pratiche. |
+| Calendario avanzato | ✅ | — | M | Settimana (v0.9.6) + Giorno (v0.9.10) + iCal export (v0.9.10). Eventi multipli rimandati se serviranno. |
+| Estensioni chat (base) | ✅ | — | S–M | Task link cliccabile ✅ v0.9.3. Ricerca estesa ✅ v0.9.9. Presence online/busy/away/offline ✅ v0.9.10. Rich preview pratiche rimandato. |
 | Impostazioni agenzia | 🔶 | 🟡 | S | Gestione categorie e nome agenzia già in Admin. Manca: template messaggi, profilo utente, preferenze UI |
 | Ricerca globale estesa | ✅ | — | — | Completata in v0.5. |
 | Responsive (mobile/tablet/desktop) | ✅ | — | — | Completato in v0.6. |

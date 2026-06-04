@@ -2,15 +2,15 @@
 
 Sistema gestionale per agenzie viaggi e tour operator.
 
-## Stato attuale — v0.9.9
+## Stato attuale — v0.9.10
 
-App single-file React (~10350 righe) con persistenza locale via `localStorage`. **🎉 Fase 1 modello dati 100%** (Clienti + Fornitori + Pratiche di viaggio). **🚀 Fase 2 iniziata** con:
+App single-file React (~10720 righe) con persistenza locale via `localStorage`.
 
-- **Notifiche reali** generate dal wrapper reducer (assegnazioni, commenti, cambi stato, pending, pratiche). Pannello con filtri + segna tutte lette.
-- **Dark mode** con toggle in UserSwitcher, override CSS var.
-- **Ricerca chat** estesa al testo dei messaggi.
+**🎉 Fase 1 modello dati 100%** — Clienti + Fornitori + Pratiche di viaggio.
 
-Plus dalle versioni precedenti: vista settimanale Calendario time-grid desktop + day-tab/lista mobile con now-line, badge contatori nav, editor multi-assegnatari, task link cliccabile in chat, agenda Driver, ricerca avanzata con filtro numero pratica.
+**🎉 Fase 2 operatività 100%** — Notifiche reali + overdue automatici, dark mode, chat avanzata (task link, ricerca testo, presence status), calendario completo (mese/settimana/giorno + export iCal).
+
+Per riprendere lo sviluppo da una nuova sessione Claude Code, leggere prima [`docs/HANDOFF.md`](docs/HANDOFF.md).
 
 ### Feature completate
 

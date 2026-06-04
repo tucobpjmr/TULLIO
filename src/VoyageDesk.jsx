@@ -179,35 +179,35 @@ const d = (daysOffset, h = 10, m = 0) => {
 };
 
 const INITIAL_TASKS = [
-  { id: "t1", title: "Confermare voli Maldive - Famiglia Rossi", category: "booking", priority: "critical", status: "inprogress", assignees: ["sofia"], client: "Famiglia Rossi", dueDate: d(1, 17, 0), estimatedHours: 2, description: "Verificare disponibilità posti business class e confermare prenotazione. Contattare Emirates per upgrade disponibili.", comments: [{ user: "Marco Ferretti", text: "Priorità massima, cliente VIP", time: d(-1) }] },
-  { id: "t2", title: "Visto Giappone - Coppia Bianchi", category: "visa", priority: "critical", status: "todo", assignees: ["roberto"], client: "Coppia Bianchi", dueDate: d(2, 9, 0), estimatedHours: 3, description: "Raccogliere documentazione per visto turistico Giappone. Luna di miele prevista per il mese prossimo.", comments: [] },
-  { id: "t3", title: "Hotel Overwater Bungalow - Maldive", category: "hotel", priority: "high", status: "inprogress", assignees: ["sofia", "luca"], client: "Famiglia Rossi", dueDate: d(3, 12, 0), estimatedHours: 1.5, description: "Contattare Four Seasons Kuda Huraa per disponibilità bungalow sull'acqua. Budget: 1500€/notte.", comments: [{ user: "Sofia Conti", text: "Four Seasons ha confermato 2 bungalow disponibili", time: d(-2) }] },
-  { id: "t4", title: "Proposta incentive travel TechCorp", category: "itinerary", priority: "high", status: "awaiting_client", assignees: ["marco"], client: "Azienda TechCorp", dueDate: d(4, 14, 0), estimatedHours: 5, description: "Preparare proposta dettagliata per viaggio incentive 50 persone. Destinazioni candidate: Dubrovnik, Marrakech, Lisbona.", comments: [{ user: "Marco Ferretti", text: "Proposta inviata, attesa risposta", time: d(-1) }] },
-  { id: "t5", title: "Pagamento acconto Famiglia Rossi", category: "payment", priority: "high", status: "todo", assignees: ["roberto"], client: "Famiglia Rossi", dueDate: d(0, 16, 0), estimatedHours: 0.5, description: "Richiedere acconto del 30% per prenotazione Maldive. Totale viaggio: 12.400€.", comments: [] },
-  { id: "t6", title: "Transfer aeroporto - Coppia Bianchi", category: "supplier", priority: "medium", status: "todo", assignees: ["giulia"], client: "Coppia Bianchi", dueDate: d(5, 8, 0), estimatedHours: 1, description: "Organizzare transfer NCC per partenza verso MXP. Volo KL 1656 ore 11:30.", comments: [] },
-  { id: "t7", title: "Newsletter Giugno - Offerte Estate", category: "marketing", priority: "medium", status: "inprogress", assignees: ["luca"], client: null, dueDate: d(6, 18, 0), estimatedHours: 4, description: "Creare newsletter mensile con offerte last minute estate 2025. Target: 2.400 contatti.", comments: [{ user: "Luca Moretti", text: "Bozza al 60%, aggiungo le foto Grecia", time: d(0) }] },
-  { id: "t8", title: "Contratto con nuovo fornitore bus", category: "supplier", priority: "medium", status: "awaiting_supplier", assignees: ["marco", "roberto"], client: null, dueDate: d(7, 10, 0), estimatedHours: 2, description: "Finalizzare accordo quadro con Autoservizi Meridionali per trasporti gruppi 2025/2026.", comments: [] },
-  { id: "t9", title: "Itinerario dettagliato Giappone 14 giorni", category: "itinerary", priority: "high", status: "inprogress", assignees: ["sofia"], client: "Coppia Bianchi", dueDate: d(3, 11, 0), estimatedHours: 6, description: "Strutturare itinerario Tokyo-Kyoto-Osaka-Hiroshima. Inserire esperienze di nicchia: cerimonia del tè, tempio Fushimi Inari alba.", comments: [{ user: "Sofia Conti", text: "Aggiunto ryokan a Kyoto su richiesta della coppia", time: d(-1) }] },
-  { id: "t10", title: "Aggiornare sito web pacchetti autunno", category: "marketing", priority: "low", status: "todo", assignees: ["luca"], client: null, dueDate: d(10, 17, 0), estimatedHours: 3, description: "Pubblicare nuovi pacchetti autunno: Foliage Canada, Halloween New York, Dolomiti.", comments: [] },
-  { id: "t11", title: "Check-in online TechCorp - voli Barcelona", category: "booking", priority: "high", status: "done", assignees: ["sofia"], client: "Azienda TechCorp", dueDate: d(-1, 9, 0), estimatedHours: 1, description: "Completare check-in online per 50 partecipanti. Assegnare posti preferenziali ai manager.", comments: [{ user: "Sofia Conti", text: "Check-in completato ✓ Tutti i posti assegnati", time: d(-1) }] },
-  { id: "t12", title: "Richiesta polizza assicurativa viaggio", category: "admin", priority: "medium", status: "done", assignees: ["roberto"], client: "Famiglia Rossi", dueDate: d(-2, 15, 0), estimatedHours: 0.5, description: "Polizza annullamento + medica per 4 persone. Confrontare Allianz, Generali, AXA.", comments: [{ user: "Roberto Esposito", text: "Polizza Allianz emessa, €342 totale", time: d(-2) }] },
-  { id: "t13", title: "Followup chiamata TechCorp - decisione destinazione", category: "client", priority: "critical", status: "awaiting_client", assignees: ["marco"], client: "Azienda TechCorp", dueDate: d(1, 10, 30), estimatedHours: 1, description: "Chiamata con HR Director TechCorp per confermare destinazione incentive. Budget approvato 85.000€.", comments: [] },
-  { id: "t14", title: "Prenotare ryokan Kyoto - Bianchi", category: "hotel", priority: "high", status: "inprogress", assignees: ["sofia"], client: "Coppia Bianchi", dueDate: d(2, 16, 0), estimatedHours: 2, description: "Prenotare Tawaraya Ryokan o Hiiragiya per 2 notti. Suite tradizionale con vista giardino zen.", comments: [] },
-  { id: "t15", title: "Fattura acconto TechCorp", category: "payment", priority: "medium", status: "todo", assignees: ["roberto"], client: "Azienda TechCorp", dueDate: d(4, 11, 0), estimatedHours: 0.5, description: "Emettere fattura acconto 50% per evento incentive. Importo: 42.500€ + IVA.", comments: [] },
-  { id: "t16", title: "Aggiornamento CRM clienti Q2", category: "admin", priority: "low", status: "todo", assignees: ["roberto", "luca"], client: null, dueDate: d(14, 17, 0), estimatedHours: 4, description: "Aggiornare schede clienti con dati viaggi 2025. Aggiungere preferenze e note speciali.", comments: [] },
-  { id: "t17", title: "Transfer hotel-aeroporto Bianchi Malpensa", category: "supplier", priority: "medium", status: "todo", assignees: ["giulia"], client: "Coppia Bianchi", dueDate: d(8, 6, 0), estimatedHours: 0.5, description: "NCC privato per 2 persone + bagagli. Partenza alle 06:45, volo ANA 785.", comments: [] },
-  { id: "t18", title: "Social media post - Maldive promo", category: "marketing", priority: "low", status: "done", assignees: ["luca"], client: null, dueDate: d(-3, 17, 0), estimatedHours: 1.5, description: "Post Instagram + Facebook con foto Maldive stagione monsoni. CTA: richiedi preventivo.", comments: [{ user: "Luca Moretti", text: "Post pubblicato, +156 interazioni in 24h", time: d(-3) }] },
-  { id: "t19", title: "Documenti sanitari Maldive - Rossi", category: "visa", priority: "high", status: "done", assignees: ["roberto"], client: "Famiglia Rossi", dueDate: d(-1, 12, 0), estimatedHours: 1, description: "Verificare requisiti sanitari entrata Maldive. Raccogliere certificati vaccinazione richiesti.", comments: [{ user: "Roberto Esposito", text: "Non richieste vaccinazioni specifiche, documentazione OK", time: d(-1) }] },
-  { id: "t20", title: "Presentazione corporate travel policy TechCorp", category: "client", priority: "medium", status: "awaiting_client", assignees: ["marco", "sofia"], client: "Azienda TechCorp", dueDate: d(5, 15, 0), estimatedHours: 3, description: "Preparare slide con policy viaggi corporate, livelli classe, hotel preferred, tool di prenotazione.", comments: [] },
-  { id: "t21", title: "Escursioni snorkeling Maldive", category: "booking", priority: "medium", status: "inprogress", assignees: ["luca"], client: "Famiglia Rossi", dueDate: d(6, 10, 0), estimatedHours: 1.5, description: "Prenotare 3 escursioni snorkeling e 1 sessione di immersione guidata con istruttore certificato.", comments: [] },
-  { id: "t22", title: "Revisione contratti stagione invernale", category: "admin", priority: "low", status: "todo", assignees: ["marco"], client: null, dueDate: d(20, 10, 0), estimatedHours: 5, description: "Revisione annuale contratti fornitori: tour operator, hotel chains, compagnie aeree.", comments: [] },
+  { id: "t1", title: "Confermare voli Maldive - Famiglia Rossi", category: "booking", priority: "critical", status: "inprogress", assignees: ["sofia"], client: "Famiglia Rossi", clientId: "cl-rossi", dueDate: d(1, 17, 0), estimatedHours: 2, description: "Verificare disponibilità posti business class e confermare prenotazione. Contattare Emirates per upgrade disponibili.", comments: [{ user: "Marco Ferretti", text: "Priorità massima, cliente VIP", time: d(-1) }] },
+  { id: "t2", title: "Visto Giappone - Coppia Bianchi", category: "visa", priority: "critical", status: "todo", assignees: ["roberto"], client: "Coppia Bianchi", clientId: "cl-bianchi", dueDate: d(2, 9, 0), estimatedHours: 3, description: "Raccogliere documentazione per visto turistico Giappone. Luna di miele prevista per il mese prossimo.", comments: [] },
+  { id: "t3", title: "Hotel Overwater Bungalow - Maldive", category: "hotel", priority: "high", status: "inprogress", assignees: ["sofia", "luca"], client: "Famiglia Rossi", clientId: "cl-rossi", dueDate: d(3, 12, 0), estimatedHours: 1.5, description: "Contattare Four Seasons Kuda Huraa per disponibilità bungalow sull'acqua. Budget: 1500€/notte.", comments: [{ user: "Sofia Conti", text: "Four Seasons ha confermato 2 bungalow disponibili", time: d(-2) }] },
+  { id: "t4", title: "Proposta incentive travel TechCorp", category: "itinerary", priority: "high", status: "awaiting_client", assignees: ["marco"], client: "Azienda TechCorp", clientId: "cl-techcorp", dueDate: d(4, 14, 0), estimatedHours: 5, description: "Preparare proposta dettagliata per viaggio incentive 50 persone. Destinazioni candidate: Dubrovnik, Marrakech, Lisbona.", comments: [{ user: "Marco Ferretti", text: "Proposta inviata, attesa risposta", time: d(-1) }] },
+  { id: "t5", title: "Pagamento acconto Famiglia Rossi", category: "payment", priority: "high", status: "todo", assignees: ["roberto"], client: "Famiglia Rossi", clientId: "cl-rossi", dueDate: d(0, 16, 0), estimatedHours: 0.5, description: "Richiedere acconto del 30% per prenotazione Maldive. Totale viaggio: 12.400€.", comments: [] },
+  { id: "t6", title: "Transfer aeroporto - Coppia Bianchi", category: "supplier", priority: "medium", status: "todo", assignees: ["giulia"], client: "Coppia Bianchi", clientId: "cl-bianchi", dueDate: d(5, 8, 0), estimatedHours: 1, description: "Organizzare transfer NCC per partenza verso MXP. Volo KL 1656 ore 11:30.", comments: [] },
+  { id: "t7", title: "Newsletter Giugno - Offerte Estate", category: "marketing", priority: "medium", status: "inprogress", assignees: ["luca"], client: null, clientId: null, dueDate: d(6, 18, 0), estimatedHours: 4, description: "Creare newsletter mensile con offerte last minute estate 2025. Target: 2.400 contatti.", comments: [{ user: "Luca Moretti", text: "Bozza al 60%, aggiungo le foto Grecia", time: d(0) }] },
+  { id: "t8", title: "Contratto con nuovo fornitore bus", category: "supplier", priority: "medium", status: "awaiting_supplier", assignees: ["marco", "roberto"], client: null, clientId: null, dueDate: d(7, 10, 0), estimatedHours: 2, description: "Finalizzare accordo quadro con Autoservizi Meridionali per trasporti gruppi 2025/2026.", comments: [] },
+  { id: "t9", title: "Itinerario dettagliato Giappone 14 giorni", category: "itinerary", priority: "high", status: "inprogress", assignees: ["sofia"], client: "Coppia Bianchi", clientId: "cl-bianchi", dueDate: d(3, 11, 0), estimatedHours: 6, description: "Strutturare itinerario Tokyo-Kyoto-Osaka-Hiroshima. Inserire esperienze di nicchia: cerimonia del tè, tempio Fushimi Inari alba.", comments: [{ user: "Sofia Conti", text: "Aggiunto ryokan a Kyoto su richiesta della coppia", time: d(-1) }] },
+  { id: "t10", title: "Aggiornare sito web pacchetti autunno", category: "marketing", priority: "low", status: "todo", assignees: ["luca"], client: null, clientId: null, dueDate: d(10, 17, 0), estimatedHours: 3, description: "Pubblicare nuovi pacchetti autunno: Foliage Canada, Halloween New York, Dolomiti.", comments: [] },
+  { id: "t11", title: "Check-in online TechCorp - voli Barcelona", category: "booking", priority: "high", status: "done", assignees: ["sofia"], client: "Azienda TechCorp", clientId: "cl-techcorp", dueDate: d(-1, 9, 0), estimatedHours: 1, description: "Completare check-in online per 50 partecipanti. Assegnare posti preferenziali ai manager.", comments: [{ user: "Sofia Conti", text: "Check-in completato ✓ Tutti i posti assegnati", time: d(-1) }] },
+  { id: "t12", title: "Richiesta polizza assicurativa viaggio", category: "admin", priority: "medium", status: "done", assignees: ["roberto"], client: "Famiglia Rossi", clientId: "cl-rossi", dueDate: d(-2, 15, 0), estimatedHours: 0.5, description: "Polizza annullamento + medica per 4 persone. Confrontare Allianz, Generali, AXA.", comments: [{ user: "Roberto Esposito", text: "Polizza Allianz emessa, €342 totale", time: d(-2) }] },
+  { id: "t13", title: "Followup chiamata TechCorp - decisione destinazione", category: "client", priority: "critical", status: "awaiting_client", assignees: ["marco"], client: "Azienda TechCorp", clientId: "cl-techcorp", dueDate: d(1, 10, 30), estimatedHours: 1, description: "Chiamata con HR Director TechCorp per confermare destinazione incentive. Budget approvato 85.000€.", comments: [] },
+  { id: "t14", title: "Prenotare ryokan Kyoto - Bianchi", category: "hotel", priority: "high", status: "inprogress", assignees: ["sofia"], client: "Coppia Bianchi", clientId: "cl-bianchi", dueDate: d(2, 16, 0), estimatedHours: 2, description: "Prenotare Tawaraya Ryokan o Hiiragiya per 2 notti. Suite tradizionale con vista giardino zen.", comments: [] },
+  { id: "t15", title: "Fattura acconto TechCorp", category: "payment", priority: "medium", status: "todo", assignees: ["roberto"], client: "Azienda TechCorp", clientId: "cl-techcorp", dueDate: d(4, 11, 0), estimatedHours: 0.5, description: "Emettere fattura acconto 50% per evento incentive. Importo: 42.500€ + IVA.", comments: [] },
+  { id: "t16", title: "Aggiornamento CRM clienti Q2", category: "admin", priority: "low", status: "todo", assignees: ["roberto", "luca"], client: null, clientId: null, dueDate: d(14, 17, 0), estimatedHours: 4, description: "Aggiornare schede clienti con dati viaggi 2025. Aggiungere preferenze e note speciali.", comments: [] },
+  { id: "t17", title: "Transfer hotel-aeroporto Bianchi Malpensa", category: "supplier", priority: "medium", status: "todo", assignees: ["giulia"], client: "Coppia Bianchi", clientId: "cl-bianchi", dueDate: d(8, 6, 0), estimatedHours: 0.5, description: "NCC privato per 2 persone + bagagli. Partenza alle 06:45, volo ANA 785.", comments: [] },
+  { id: "t18", title: "Social media post - Maldive promo", category: "marketing", priority: "low", status: "done", assignees: ["luca"], client: null, clientId: null, dueDate: d(-3, 17, 0), estimatedHours: 1.5, description: "Post Instagram + Facebook con foto Maldive stagione monsoni. CTA: richiedi preventivo.", comments: [{ user: "Luca Moretti", text: "Post pubblicato, +156 interazioni in 24h", time: d(-3) }] },
+  { id: "t19", title: "Documenti sanitari Maldive - Rossi", category: "visa", priority: "high", status: "done", assignees: ["roberto"], client: "Famiglia Rossi", clientId: "cl-rossi", dueDate: d(-1, 12, 0), estimatedHours: 1, description: "Verificare requisiti sanitari entrata Maldive. Raccogliere certificati vaccinazione richiesti.", comments: [{ user: "Roberto Esposito", text: "Non richieste vaccinazioni specifiche, documentazione OK", time: d(-1) }] },
+  { id: "t20", title: "Presentazione corporate travel policy TechCorp", category: "client", priority: "medium", status: "awaiting_client", assignees: ["marco", "sofia"], client: "Azienda TechCorp", clientId: "cl-techcorp", dueDate: d(5, 15, 0), estimatedHours: 3, description: "Preparare slide con policy viaggi corporate, livelli classe, hotel preferred, tool di prenotazione.", comments: [] },
+  { id: "t21", title: "Escursioni snorkeling Maldive", category: "booking", priority: "medium", status: "inprogress", assignees: ["luca"], client: "Famiglia Rossi", clientId: "cl-rossi", dueDate: d(6, 10, 0), estimatedHours: 1.5, description: "Prenotare 3 escursioni snorkeling e 1 sessione di immersione guidata con istruttore certificato.", comments: [] },
+  { id: "t22", title: "Revisione contratti stagione invernale", category: "admin", priority: "low", status: "todo", assignees: ["marco"], client: null, clientId: null, dueDate: d(20, 10, 0), estimatedHours: 5, description: "Revisione annuale contratti fornitori: tour operator, hotel chains, compagnie aeree.", comments: [] },
   // ─── Coda globale: task non assegnati (in attesa che qualcuno li prenda in carico) ───
-  { id: "t23", title: "Nuova richiesta crociera Caraibi - Famiglia Marchetti", category: "client", priority: "high", status: "todo", assignees: [], client: "Famiglia Marchetti", dueDate: d(2, 11, 0), estimatedHours: 1, description: "Richiesta arrivata via form sito: crociera 7 notti per 4 persone, partenza Miami. Da contattare entro 48h.", comments: [] },
-  { id: "t24", title: "Blocco urgente Hotel Atene per gruppo studenti", category: "hotel", priority: "critical", status: "todo", assignees: [], client: "Liceo Manzoni", dueDate: d(1, 12, 0), estimatedHours: 2, description: "30 camere a Plaka per fine Maggio. Tariffa già negoziata, serve solo conferma e invio rooming list.", comments: [] },
-  { id: "t25", title: "Preventivo viaggio nozze Vietnam - Sposi Conte", category: "itinerary", priority: "medium", status: "todo", assignees: [], client: "Sposi Conte", dueDate: d(5, 17, 0), estimatedHours: 3, description: "14 giorni Vietnam classico: Hanoi - Halong - Hoi An - Saigon. Budget medio-alto, esperienze locali.", comments: [] },
+  { id: "t23", title: "Nuova richiesta crociera Caraibi - Famiglia Marchetti", category: "client", priority: "high", status: "todo", assignees: [], client: "Famiglia Marchetti", clientId: "cl-marchetti", dueDate: d(2, 11, 0), estimatedHours: 1, description: "Richiesta arrivata via form sito: crociera 7 notti per 4 persone, partenza Miami. Da contattare entro 48h.", comments: [] },
+  { id: "t24", title: "Blocco urgente Hotel Atene per gruppo studenti", category: "hotel", priority: "critical", status: "todo", assignees: [], client: "Liceo Manzoni", clientId: "cl-manzoni", dueDate: d(1, 12, 0), estimatedHours: 2, description: "30 camere a Plaka per fine Maggio. Tariffa già negoziata, serve solo conferma e invio rooming list.", comments: [] },
+  { id: "t25", title: "Preventivo viaggio nozze Vietnam - Sposi Conte", category: "itinerary", priority: "medium", status: "todo", assignees: [], client: "Sposi Conte", clientId: "cl-conte", dueDate: d(5, 17, 0), estimatedHours: 3, description: "14 giorni Vietnam classico: Hanoi - Halong - Hoi An - Saigon. Budget medio-alto, esperienze locali.", comments: [] },
   // ─── Task Transfer assegnati a Giulia (Driver) ───
-  { id: "t26", title: "Transfer Linate → Hotel Principe - Famiglia Rossi", category: "transfer", priority: "high", status: "todo", assignees: ["giulia"], client: "Famiglia Rossi", dueDate: d(1, 14, 30), estimatedHours: 1, description: "Pickup arrivo volo AZ1234 ore 14:00, 4 pax + 6 bagagli. Van 8 posti.", comments: [] },
-  { id: "t27", title: "Transfer Hotel → Stazione Centrale - Coppia Bianchi", category: "transfer", priority: "medium", status: "inprogress", assignees: ["giulia"], client: "Coppia Bianchi", dueDate: d(3, 9, 0), estimatedHours: 0.5, description: "Pickup hotel ore 09:00, treno Frecciarossa 9:55 per Roma. 2 pax + 3 bagagli.", comments: [] },
+  { id: "t26", title: "Transfer Linate → Hotel Principe - Famiglia Rossi", category: "transfer", priority: "high", status: "todo", assignees: ["giulia"], client: "Famiglia Rossi", clientId: "cl-rossi", dueDate: d(1, 14, 30), estimatedHours: 1, description: "Pickup arrivo volo AZ1234 ore 14:00, 4 pax + 6 bagagli. Van 8 posti.", comments: [] },
+  { id: "t27", title: "Transfer Hotel → Stazione Centrale - Coppia Bianchi", category: "transfer", priority: "medium", status: "inprogress", assignees: ["giulia"], client: "Coppia Bianchi", clientId: "cl-bianchi", dueDate: d(3, 9, 0), estimatedHours: 0.5, description: "Pickup hotel ore 09:00, treno Frecciarossa 9:55 per Roma. 2 pax + 3 bagagli.", comments: [] },
 ];
 
 const NOTIFICATIONS = [
@@ -218,6 +218,68 @@ const NOTIFICATIONS = [
   { id: "n5", type: "comment", title: "Luca ha aggiornato: Newsletter Giugno", time: "4 ore fa", read: true },
   { id: "n6", type: "deadline", title: "Scadenza oggi: Pagamento acconto Famiglia Rossi", time: "8 ore fa", read: true },
 ];
+
+// ─── CLIENTI (CRM base v0.9.5) ─────────────────────────────────────────────
+// Tipologia cliente: cambia icona + colore in lista e nei chip.
+const CLIENT_TYPES = {
+  famiglia: { label: "Famiglia", icon: "👨‍👩‍👧", color: "#3B82F6", bg: "#EFF6FF" },
+  coppia: { label: "Coppia", icon: "💑", color: "#EC4899", bg: "#FDF2F8" },
+  azienda: { label: "Azienda", icon: "🏢", color: "#0F2044", bg: "#EEF2FF" },
+  gruppo: { label: "Gruppo", icon: "👥", color: "#10B981", bg: "#ECFDF5" },
+  individuale: { label: "Individuale", icon: "👤", color: "#6B7280", bg: "#F9FAFB" },
+};
+
+const _clientStamp = (daysAgo) => new Date(Date.now() - daysAgo * 86400000).toISOString();
+
+const INITIAL_CLIENTS = [
+  {
+    id: "cl-rossi", name: "Famiglia Rossi", type: "famiglia",
+    contactPerson: "Marco Rossi", email: "marco.rossi@example.com", phone: "+39 333 1234567",
+    notes: "Cliente VIP. Adora destinazioni esotiche, budget alto. Preferenze: business class, esperienze esclusive.",
+    createdAt: _clientStamp(120), updatedAt: _clientStamp(2), deletedAt: null,
+  },
+  {
+    id: "cl-bianchi", name: "Coppia Bianchi", type: "coppia",
+    contactPerson: "Giulia Bianchi", email: "g.bianchi@example.com", phone: "+39 339 7654321",
+    notes: "Luna di miele. Prima volta in Giappone. Interessati a esperienze culturali autentiche (ryokan, tè).",
+    createdAt: _clientStamp(80), updatedAt: _clientStamp(5), deletedAt: null,
+  },
+  {
+    id: "cl-techcorp", name: "Azienda TechCorp", type: "azienda",
+    contactPerson: "Anna Verdi (HR Director)", email: "hr@techcorp.it", phone: "+39 02 12345678",
+    notes: "Incentive 50 persone, budget 85.000€. Approvazione interna richiesta su destinazione. Preferenze: Dubrovnik, Marrakech, Lisbona.",
+    createdAt: _clientStamp(60), updatedAt: _clientStamp(1), deletedAt: null,
+  },
+  {
+    id: "cl-marchetti", name: "Famiglia Marchetti", type: "famiglia",
+    contactPerson: "Stefano Marchetti", email: "marchetti.family@example.com", phone: "+39 320 9988776",
+    notes: "Richiesta arrivata da form sito. Crociera Caraibi 7 notti per 4 persone, partenza Miami. Da contattare entro 48h.",
+    createdAt: _clientStamp(3), updatedAt: _clientStamp(3), deletedAt: null,
+  },
+  {
+    id: "cl-manzoni", name: "Liceo Manzoni", type: "gruppo",
+    contactPerson: "Prof. Ruggeri", email: "ruggeri@liceomanzoni.it", phone: "+39 011 5556677",
+    notes: "Gruppo 30 studenti + 3 docenti. Viaggio istruzione Atene fine Maggio. Tariffa hotel Plaka già negoziata.",
+    createdAt: _clientStamp(45), updatedAt: _clientStamp(7), deletedAt: null,
+  },
+  {
+    id: "cl-conte", name: "Sposi Conte", type: "coppia",
+    contactPerson: "Davide Conte", email: "davide.conte@example.com", phone: "+39 348 1122334",
+    notes: "Viaggio nozze Vietnam classico, 14 giorni: Hanoi - Halong - Hoi An - Saigon. Budget medio-alto, esperienze locali.",
+    createdAt: _clientStamp(20), updatedAt: _clientStamp(4), deletedAt: null,
+  },
+];
+
+// Mappa nomi cliente legacy (campo `task.client` testo) → ID anagrafica clienti.
+// Usato per migrare al volo: se task.clientId è assente ma `task.client` matcha un nome noto, risolviamo.
+const _LEGACY_CLIENT_NAME_TO_ID = {
+  "Famiglia Rossi": "cl-rossi",
+  "Coppia Bianchi": "cl-bianchi",
+  "Azienda TechCorp": "cl-techcorp",
+  "Famiglia Marchetti": "cl-marchetti",
+  "Liceo Manzoni": "cl-manzoni",
+  "Sposi Conte": "cl-conte",
+};
 
 // ─── TASK TEMPLATES ────────────────────────────────────────────────────────
 const TASK_TEMPLATES = [
@@ -301,6 +363,7 @@ const LOGGED_ACTIONS = new Set([
   "ADD_CATEGORY", "UPDATE_CATEGORY", "REMOVE_CATEGORY",
   "RESTORE_BACKUP",
   "ADD_NOTICE", "UPDATE_NOTICE", "DELETE_NOTICE",
+  "ADD_CLIENT", "UPDATE_CLIENT", "DELETE_CLIENT",
 ]);
 
 const buildLogEntry = (action, state) => {
@@ -329,6 +392,12 @@ const buildLogEntry = (action, state) => {
     ADD_NOTICE: () => `Pubblicato avviso in bacheca`,
     UPDATE_NOTICE: () => `Modificato avviso in bacheca`,
     DELETE_NOTICE: () => `Rimosso avviso dalla bacheca`,
+    ADD_CLIENT: () => `Aggiunto cliente "${action.payload.name}"`,
+    UPDATE_CLIENT: () => `Modificato cliente "${action.payload.name || action.payload.id}"`,
+    DELETE_CLIENT: () => {
+      const cl = (state.clients || []).find(c => c.id === action.payload);
+      return `Cliente "${cl?.name || action.payload}" nel cestino`;
+    },
   };
   return { id: `log-${stamp}-${Math.random().toString(36).slice(2,7)}`, time: stamp, type: t, text: (map[t] || (() => t))() };
 };
@@ -344,6 +413,10 @@ function baseReducer(state, action) {
       if (action.payload === "admin" && !canAccessAdmin(uid)) {
         return _denied("Non hai i permessi per accedere all'Admin");
       }
+      // Driver non vede la vista Clienti
+      if (action.payload === "clients" && !canViewClients(uid)) {
+        return _denied("Non hai i permessi per accedere ai Clienti");
+      }
       return { ...state, activeView: action.payload };
     }
     case "SET_SELECTED_TASK": {
@@ -353,20 +426,25 @@ function baseReducer(state, action) {
       }
       return { ...state, selectedTask: action.payload };
     }
+    case "SET_SELECTED_CLIENT": {
+      // Aperto/chiuso da Clienti view (e da chip cliente in TaskSlideOver)
+      return { ...state, selectedClient: action.payload };
+    }
     case "SET_CURRENT_USER": {
       const newId = action.payload;
       const m = getMember(newId);
       if (!m) return state;
       _syncCurrentUser(newId);
       // Se l'utente non può più accedere alla view corrente, riporta a dashboard
-      const activeView = (state.activeView === "admin" && !canAccessAdmin(newId))
-        ? "dashboard"
-        : state.activeView;
+      let activeView = state.activeView;
+      if (activeView === "admin" && !canAccessAdmin(newId)) activeView = "dashboard";
+      if (activeView === "clients" && !canViewClients(newId)) activeView = "dashboard";
       return {
         ...state,
         currentUserId: newId,
         activeView,
         selectedTask: null,
+        selectedClient: null,
         toast: { message: `Ora stai usando l'app come ${m.name} (${m.role})`, type: "success" },
       };
     }
@@ -517,7 +595,7 @@ function baseReducer(state, action) {
       return { ...state, agencyName: action.payload };
     }
     case "RESTORE_BACKUP": {
-      const { tasks, team, categories, agencyName, notices } = action.payload;
+      const { tasks, team, categories, agencyName, notices, clients } = action.payload;
       if (team) _syncTeam(team);
       if (categories) _syncCategories(categories);
       return {
@@ -527,6 +605,7 @@ function baseReducer(state, action) {
         categories: categories ?? state.categories,
         agencyName: agencyName ?? state.agencyName,
         notices: notices ?? state.notices,
+        clients: clients ?? state.clients,
         toast: { message: "Backup ripristinato con successo!", type: "success" }
       };
     }
@@ -556,6 +635,32 @@ function baseReducer(state, action) {
         n.id === action.payload ? { ...n, pinned: !n.pinned } : n
       );
       return { ...state, notices };
+    }
+
+    // ─── CLIENTI (v0.9.5) ───
+    case "ADD_CLIENT": {
+      if (!canManageClients(uid)) return _denied("Non puoi gestire i clienti");
+      const now = new Date().toISOString();
+      const client = { createdAt: now, updatedAt: now, deletedAt: null, ...action.payload };
+      const clients = [client, ...(state.clients || [])];
+      return { ...state, clients, toast: { message: `Cliente "${client.name}" aggiunto`, type: "success" } };
+    }
+    case "UPDATE_CLIENT": {
+      if (!canManageClients(uid)) return _denied("Non puoi gestire i clienti");
+      const now = new Date().toISOString();
+      const clients = (state.clients || []).map(c =>
+        c.id === action.payload.id ? { ...c, ...action.payload, updatedAt: now } : c
+      );
+      return { ...state, clients, toast: { message: "Cliente aggiornato", type: "success" } };
+    }
+    case "DELETE_CLIENT": {
+      if (!canManageClients(uid)) return _denied("Non puoi gestire i clienti");
+      // Soft-delete: i task collegati restano (mantengono il nome legacy nel campo `client`),
+      // ma il riferimento `clientId` resta utile se il cliente viene ripristinato in futuro.
+      const clients = (state.clients || []).map(c =>
+        c.id === action.payload ? { ...c, deletedAt: new Date().toISOString() } : c
+      );
+      return { ...state, clients, toast: { message: "Cliente rimosso", type: "success" } };
     }
 
     case "CLEAR_TOAST": return { ...state, toast: null };
@@ -661,11 +766,13 @@ const initialState = {
   tasks: INITIAL_TASKS,
   team: TEAM,
   categories: CATEGORIES,
+  clients: INITIAL_CLIENTS, // v0.9.5: anagrafica clienti CRM
   agencyName: "VoyageDesk",
   notices: INITIAL_NOTICES,
   activityLog: [],
   activeView: "dashboard",
   selectedTask: null,
+  selectedClient: null, // v0.9.5: cliente aperto in scheda modificabile
   toast: null,
   searchQuery: "",
   showNotif: false,
@@ -693,6 +800,26 @@ const getDayKey = iso => iso ? new Date(iso).toDateString() : null;
 const isActiveTask = t => !t.deletedAt;
 const getActiveTasks = tasks => tasks.filter(isActiveTask);
 const getTrashedTasks = tasks => tasks.filter(t => t.deletedAt);
+
+// ─── CLIENTI: utils (v0.9.5) ───
+// `clients` arriva da state.clients in scope chiamante — qui i lookup operano su un array.
+const getClient = (clients, id) => (clients || []).find(c => c?.id === id);
+// Restituisce il nome visualizzabile dato un task: prima cerca clientId nella anagrafica,
+// poi fallback sul campo legacy `task.client` (testo), poi su una stringa vuota.
+const getTaskClientName = (task, clients) => {
+  if (!task) return "";
+  const byId = task.clientId ? getClient(clients, task.clientId) : null;
+  if (byId) return byId.name;
+  return task.client || "";
+};
+// Risolve via mappa legacy: se un task ha solo il vecchio campo `client` testo
+// e il nome è uno noto, ne ricaviamo l'ID. Utile in pochi punti di compatibilità.
+const resolveLegacyClientId = (task) => {
+  if (!task) return null;
+  if (task.clientId) return task.clientId;
+  if (task.client && _LEGACY_CLIENT_NAME_TO_ID[task.client]) return _LEGACY_CLIENT_NAME_TO_ID[task.client];
+  return null;
+};
 
 // ─── PERMESSI (v0.8) ──────────────────────────────────────────────────────
 // Ruoli logici derivati dal campo `role` del team member.
@@ -766,6 +893,12 @@ const canCreateTaskCategory = (category, userId) => {
 
 // Può accedere all'Admin?
 const canAccessAdmin = (userId) => isAdmin(userId);
+
+// Può gestire l'anagrafica clienti (CRUD)? (v0.9.5)
+// Driver no: vede solo i clienti delle proprie transfer task in read-only via TaskSlideOver.
+const canManageClients = (userId) => !isDriver(userId);
+// Può vedere la vista Clienti? (v0.9.5)
+const canViewClients = (userId) => !isDriver(userId);
 
 // Categorie selezionabili nei form per questo utente
 const getAvailableCategories = (userId) => {
@@ -1935,6 +2068,7 @@ const NotificationsPanel = ({ dispatch }) => {
 const NAV_ITEMS = [
   { id: "dashboard", icon: "📊", label: "Dashboard", roles: ["admin", "manager", "agent", "driver"] },
   { id: "calendar", icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
+  { id: "clients", icon: "🧳", label: "Clienti", roles: ["admin", "manager", "agent"] }, // v0.9.5
   { id: "team", icon: "👥", label: "Team", roles: ["admin", "manager", "agent"] },
   { id: "trash", icon: "🗑️", label: "Cestino", roles: ["admin"] },
   { id: "admin", icon: "⚙️", label: "Admin", roles: ["admin"] },
@@ -4169,22 +4303,35 @@ const Dashboard = ({ state, dispatch, onOpenChat }) => {
 };
 
 // ─── QUICK ADD TASK FORM ───────────────────────────────────────────────────
-const QuickAddTask = ({ onAdd, onClose }) => {
+const QuickAddTask = ({ onAdd, onClose, clients, dispatch }) => {
   // Categorie filtrate per il ruolo dell'utente loggato (v0.8)
   const availableCats = getAvailableCategories(CURRENT_USER);
   const firstCatKey = Object.keys(availableCats)[0] || "booking";
 
   const [form, setForm] = useState({
     title: "", category: firstCatKey, priority: "medium",
-    status: "todo", assignees: [], dueDate: "", client: "", description: ""
+    status: "todo", assignees: [], dueDate: "", clientId: "", description: ""
   });
+  const [showClientCreate, setShowClientCreate] = useState(false);
+
+  // Clienti attivi ordinati alfabeticamente per il picker (v0.9.5)
+  const activeClients = (clients || [])
+    .filter(c => !c.deletedAt)
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const handleSubmit = () => {
     if (!form.title.trim()) return;
+    const selected = activeClients.find(c => c.id === form.clientId);
     onAdd({
       id: "t" + Date.now(),
-      ...form,
-      client: form.client.trim() || null,
+      title: form.title,
+      category: form.category,
+      priority: form.priority,
+      status: form.status,
+      assignees: form.assignees,
+      clientId: selected?.id || null,
+      client: selected?.name || null,
+      description: form.description,
       comments: [],
       estimatedHours: 1,
       dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
@@ -4257,7 +4404,31 @@ const QuickAddTask = ({ onAdd, onClose }) => {
 
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>CLIENTE</label>
-            <input {...inp("client")} placeholder="Es. Famiglia Rossi..." />
+            <div style={{ display: "flex", gap: 6 }}>
+              <select
+                value={form.clientId}
+                onChange={e => setForm(p => ({ ...p, clientId: e.target.value }))}
+                style={{ ...inp("category").style, cursor: "pointer", flex: 1 }}
+              >
+                <option value="">— Nessuno —</option>
+                {activeClients.map(c => {
+                  const type = CLIENT_TYPES[c.type] || CLIENT_TYPES.individuale;
+                  return <option key={c.id} value={c.id}>{type.icon} {c.name}</option>;
+                })}
+              </select>
+              {canManageClients(CURRENT_USER) && (
+                <button
+                  type="button"
+                  onClick={() => setShowClientCreate(true)}
+                  title="Crea nuovo cliente"
+                  style={{
+                    padding: "0 12px", borderRadius: 8, border: "1px solid var(--navy)",
+                    background: "#fff", color: "var(--navy)", cursor: "pointer",
+                    fontSize: 13, fontWeight: 600, fontFamily: "inherit", whiteSpace: "nowrap",
+                  }}
+                >+ Nuovo</button>
+              )}
+            </div>
           </div>
 
           <div>
@@ -4277,17 +4448,30 @@ const QuickAddTask = ({ onAdd, onClose }) => {
           }}>✓ Crea Task</button>
         </div>
       </div>
+
+      {/* Modale "Nuovo cliente" inline (v0.9.5) — pre-seleziona il cliente appena creato */}
+      {showClientCreate && (
+        <ClientEditModal
+          client={null}
+          onClose={() => setShowClientCreate(false)}
+          dispatch={dispatch}
+          canManage={true}
+          onCreated={(c) => setForm(p => ({ ...p, clientId: c.id }))}
+        />
+      )}
     </div>
   );
 };
 
 // ─── TASK DETAIL SLIDE-OVER ────────────────────────────────────────────────
-const TaskSlideOver = ({ task, dispatch }) => {
+const TaskSlideOver = ({ task, dispatch, clients }) => {
   const { isMobile } = useViewport();
   const [newComment, setNewComment] = useState("");
   const [editingAssignees, setEditingAssignees] = useState(false);
   const [draftAssignees, setDraftAssignees] = useState(task?.assignees || []);
   const canEdit = task ? canEditTask(task, CURRENT_USER) : false;
+  // v0.9.5: risolvi il cliente dall'anagrafica via clientId o mappa legacy
+  const linkedClient = task ? getClient(clients || [], resolveLegacyClientId(task)) : null;
 
   // Resetta la bozza se cambia il task aperto o se l'editor viene chiuso
   useEffect(() => {
@@ -4468,9 +4652,30 @@ const TaskSlideOver = ({ task, dispatch }) => {
             </div>
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>CLIENTE</div>
-              <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>
-                {task.client || <span style={{ color: "var(--text-muted)" }}>—</span>}
-              </div>
+              {linkedClient ? (
+                <button
+                  onClick={() => dispatch({ type: "SET_SELECTED_CLIENT", payload: linkedClient })}
+                  title="Apri scheda cliente"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    padding: "5px 10px", borderRadius: 99,
+                    background: (CLIENT_TYPES[linkedClient.type] || CLIENT_TYPES.individuale).bg,
+                    color: (CLIENT_TYPES[linkedClient.type] || CLIENT_TYPES.individuale).color,
+                    border: "1px solid transparent", cursor: "pointer",
+                    fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                  }}
+                >
+                  <span>{(CLIENT_TYPES[linkedClient.type] || CLIENT_TYPES.individuale).icon}</span>
+                  {linkedClient.name}
+                  <span style={{ fontSize: 10, opacity: 0.7 }}>→</span>
+                </button>
+              ) : task.client ? (
+                <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>
+                  {task.client}
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: "var(--text-muted)" }}>—</div>
+              )}
             </div>
           </div>
 
@@ -4980,6 +5185,361 @@ const Team = ({ state, dispatch }) => {
           </div>
         );
       })()}
+    </div>
+  );
+};
+
+// ─── CLIENTI: vista lista + modal CRUD (v0.9.5) ────────────────────────────
+const ClientsView = ({ state, dispatch }) => {
+  const { isMobile } = useViewport();
+  const uid = state.currentUserId;
+  const canManage = canManageClients(uid);
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [showTrashed, setShowTrashed] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+
+  const clientsAll = state.clients || [];
+  const activeClients = clientsAll.filter(c => showTrashed ? !!c.deletedAt : !c.deletedAt);
+
+  // Conteggio task attivi collegati per cliente (anche via mappa legacy)
+  const taskCountByClient = useMemo(() => {
+    const map = new Map();
+    (state.tasks || []).forEach(t => {
+      if (t.deletedAt) return;
+      const cid = resolveLegacyClientId(t);
+      if (!cid) return;
+      map.set(cid, (map.get(cid) || 0) + 1);
+    });
+    return map;
+  }, [state.tasks]);
+
+  const filtered = activeClients.filter(c => {
+    if (typeFilter !== "all" && c.type !== typeFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      const hay = `${c.name} ${c.contactPerson || ""} ${c.email || ""} ${c.phone || ""} ${c.notes || ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  }).sort((a, b) => a.name.localeCompare(b.name));
+
+  return (
+    <div className="fade-in" style={{ padding: isMobile ? 16 : 28, display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
+      {/* Header */}
+      <div className="vd-row-wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
+        <div>
+          <div className="playfair" style={{ fontSize: isMobile ? 21 : 26, fontWeight: 700 }}>
+            🧳 Clienti
+          </div>
+          <div style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 2 }}>
+            {clientsAll.filter(c => !c.deletedAt).length} clienti attivi · {filtered.length} in elenco
+          </div>
+        </div>
+        {canManage && !showTrashed && (
+          <button onClick={() => setShowNew(true)} style={{
+            background: "var(--navy)", color: "#fff", border: "none",
+            padding: "10px 16px", borderRadius: 8, cursor: "pointer",
+            fontSize: 13, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6,
+          }}>+ Nuovo cliente</button>
+        )}
+      </div>
+
+      {/* Toolbar */}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Cerca per nome, referente, email, note…"
+          style={{
+            flex: "1 1 240px", border: "1px solid var(--border)", borderRadius: 8,
+            padding: "9px 12px", fontSize: 13, fontFamily: "inherit", outline: "none",
+          }}
+        />
+        <select
+          value={typeFilter}
+          onChange={e => setTypeFilter(e.target.value)}
+          style={{
+            border: "1px solid var(--border)", borderRadius: 8, padding: "9px 12px",
+            fontSize: 13, fontFamily: "inherit", background: "#fff", cursor: "pointer",
+          }}
+        >
+          <option value="all">Tutti i tipi</option>
+          {Object.entries(CLIENT_TYPES).map(([k, v]) => (
+            <option key={k} value={k}>{v.icon} {v.label}</option>
+          ))}
+        </select>
+        <label style={{ fontSize: 12, color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+          <input type="checkbox" checked={showTrashed} onChange={e => setShowTrashed(e.target.checked)} />
+          Mostra rimossi
+        </label>
+      </div>
+
+      {/* Grid */}
+      {filtered.length === 0 ? (
+        <div style={{
+          padding: "40px 20px", textAlign: "center", color: "var(--text-muted)",
+          fontSize: 13, background: "#fff", borderRadius: 10, border: "1px dashed var(--border)",
+        }}>
+          {search || typeFilter !== "all"
+            ? "Nessun cliente corrisponde ai filtri."
+            : showTrashed
+              ? "Nessun cliente rimosso."
+              : 'Ancora nessun cliente. Premi "Nuovo cliente" per crearne uno.'}
+        </div>
+      ) : (
+        <div className="vd-grid-3col" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+          {filtered.map(c => {
+            const type = CLIENT_TYPES[c.type] || CLIENT_TYPES.individuale;
+            const taskCount = taskCountByClient.get(c.id) || 0;
+            return (
+              <div
+                key={c.id}
+                onClick={() => dispatch({ type: "SET_SELECTED_CLIENT", payload: c })}
+                style={{
+                  background: "#fff", borderRadius: 10, padding: 14, cursor: "pointer",
+                  border: "1px solid var(--border)", borderLeft: `3px solid ${type.color}`,
+                  display: "flex", flexDirection: "column", gap: 8,
+                  transition: "transform 0.15s, box-shadow 0.15s",
+                  opacity: c.deletedAt ? 0.6 : 1,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.08)"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <span style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    padding: "3px 8px", borderRadius: 999,
+                    background: type.bg, color: type.color,
+                    fontSize: 11, fontWeight: 600,
+                  }}>
+                    <span>{type.icon}</span> {type.label}
+                  </span>
+                  {taskCount > 0 && (
+                    <span style={{
+                      background: "var(--surface2)", color: "var(--text-muted)",
+                      padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 600,
+                    }} title={`${taskCount} task attivi collegati`}>📋 {taskCount}</span>
+                  )}
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", lineHeight: 1.3 }}>
+                  {c.name}
+                </div>
+                {c.contactPerson && (
+                  <div style={{ fontSize: 12, color: "var(--text-muted)" }}>👤 {c.contactPerson}</div>
+                )}
+                {(c.email || c.phone) && (
+                  <div style={{ display: "flex", gap: 10, fontSize: 11, color: "var(--text-muted)", flexWrap: "wrap" }}>
+                    {c.email && <span style={{ wordBreak: "break-all" }}>✉️ {c.email}</span>}
+                    {c.phone && <span>☎️ {c.phone}</span>}
+                  </div>
+                )}
+                {c.notes && (
+                  <div style={{
+                    fontSize: 12, color: "var(--text-muted)", marginTop: 4, lineHeight: 1.45,
+                    display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+                  }}>{c.notes}</div>
+                )}
+                {c.deletedAt && (
+                  <div style={{ fontSize: 10, color: "var(--danger)", fontStyle: "italic" }}>
+                    Rimosso il {formatDate(c.deletedAt)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Modale "Nuovo cliente" — locale alla vista (entry point dedicato).
+          La modale di modifica è renderizzata a livello root (vedi VoyageDeskInner)
+          così può essere aperta anche da chip cliente nel TaskSlideOver. */}
+      {showNew && canManage && (
+        <ClientEditModal
+          client={null}
+          onClose={() => setShowNew(false)}
+          dispatch={dispatch}
+          canManage={canManage}
+        />
+      )}
+    </div>
+  );
+};
+
+// Modale creazione/modifica/lettura di un cliente.
+// - client === null → modalità creazione.
+// - canManage === false → modalità sola lettura (utile per quando viene aperto da TaskSlideOver).
+// - onCreated(newClient) → callback opzionale per pre-selezionare un cliente appena creato
+//   dal picker in QuickAddTask.
+const ClientEditModal = ({ client, onClose, dispatch, canManage, taskCount = 0, onCreated }) => {
+  const isNew = !client;
+  const [form, setForm] = useState({
+    name: client?.name || "",
+    type: client?.type || "famiglia",
+    contactPerson: client?.contactPerson || "",
+    email: client?.email || "",
+    phone: client?.phone || "",
+    notes: client?.notes || "",
+  });
+
+  const handleSave = () => {
+    if (!form.name.trim()) return;
+    const payload = {
+      name: form.name.trim(),
+      type: form.type,
+      contactPerson: form.contactPerson.trim() || null,
+      email: form.email.trim() || null,
+      phone: form.phone.trim() || null,
+      notes: form.notes.trim(),
+    };
+    if (isNew) {
+      const newClient = { id: `cl-${Date.now()}`, ...payload };
+      dispatch({ type: "ADD_CLIENT", payload: newClient });
+      if (onCreated) onCreated(newClient);
+    } else {
+      dispatch({ type: "UPDATE_CLIENT", payload: { id: client.id, ...payload } });
+    }
+    onClose();
+  };
+
+  const handleDelete = () => {
+    if (!client) return;
+    const hint = taskCount > 0
+      ? `\n\n${taskCount} task collegati continueranno a mostrare il nome del cliente (campo legacy).`
+      : "";
+    if (!window.confirm(`Rimuovere "${client.name}" dall'anagrafica clienti?${hint}`)) return;
+    dispatch({ type: "DELETE_CLIENT", payload: client.id });
+    onClose();
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid var(--border)",
+    fontSize: 13, fontFamily: "inherit", boxSizing: "border-box", background: "#fff", outline: "none",
+  };
+  const labelStyle = { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, display: "block", marginBottom: 4 };
+  const readOnly = !canManage || !!client?.deletedAt;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(15,32,68,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 700, padding: 16 }}>
+      <div className="slide-up" style={{
+        background: "#fff", borderRadius: 12, padding: 24, width: 560, maxWidth: "100%",
+        maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, gap: 10 }}>
+          <div style={{ minWidth: 0 }}>
+            <div className="playfair" style={{ fontSize: 20, fontWeight: 700, color: "var(--navy)" }}>
+              {isNew ? "Nuovo cliente" : client.name}
+            </div>
+            {!isNew && (
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {taskCount > 0 && <span>📋 {taskCount} task collegati</span>}
+                <span>Creato il {formatDate(client.createdAt)}</span>
+                {client.updatedAt && client.updatedAt !== client.createdAt && <span>Aggiornato il {formatDate(client.updatedAt)}</span>}
+                {client.deletedAt && <span style={{ color: "var(--danger)" }}>· Rimosso</span>}
+              </div>
+            )}
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "var(--text-muted)", flexShrink: 0 }}>✕</button>
+        </div>
+
+        <div style={{ display: "grid", gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Nome *</label>
+            <input
+              value={form.name}
+              onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+              disabled={readOnly}
+              placeholder="Es. Famiglia Rossi"
+              style={inputStyle}
+            />
+          </div>
+
+          <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Tipologia</label>
+              <select
+                value={form.type}
+                onChange={e => setForm(p => ({ ...p, type: e.target.value }))}
+                disabled={readOnly}
+                style={{ ...inputStyle, cursor: readOnly ? "default" : "pointer" }}
+              >
+                {Object.entries(CLIENT_TYPES).map(([k, v]) => (
+                  <option key={k} value={k}>{v.icon} {v.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Referente</label>
+              <input
+                value={form.contactPerson}
+                onChange={e => setForm(p => ({ ...p, contactPerson: e.target.value }))}
+                disabled={readOnly}
+                placeholder="Persona di contatto"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Email</label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+                disabled={readOnly}
+                placeholder="cliente@example.com"
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Telefono</label>
+              <input
+                value={form.phone}
+                onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
+                disabled={readOnly}
+                placeholder="+39 333 1234567"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Note</label>
+            <textarea
+              value={form.notes}
+              onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+              disabled={readOnly}
+              rows={5}
+              placeholder="Preferenze, budget, allergie, dettagli operativi…"
+              style={{ ...inputStyle, resize: "vertical" }}
+            />
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "space-between", marginTop: 20, flexWrap: "wrap" }}>
+          {!isNew && canManage && !client?.deletedAt && (
+            <button onClick={handleDelete} style={{
+              padding: "9px 16px", borderRadius: 8, border: "1px solid var(--danger)",
+              background: "transparent", color: "var(--danger)", cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+            }}>🗑 Rimuovi cliente</button>
+          )}
+          <div style={{ display: "flex", gap: 10, marginLeft: "auto" }}>
+            <button onClick={onClose} style={{
+              padding: "9px 18px", borderRadius: 8, border: "1px solid var(--border)",
+              background: "transparent", cursor: "pointer", fontSize: 13, fontWeight: 500, fontFamily: "inherit",
+            }}>{readOnly ? "Chiudi" : "Annulla"}</button>
+            {!readOnly && (
+              <button onClick={handleSave} disabled={!form.name.trim()} style={{
+                padding: "9px 20px", borderRadius: 8, border: "none",
+                background: form.name.trim() ? "var(--navy)" : "var(--text-light)",
+                color: "#fff", cursor: form.name.trim() ? "pointer" : "not-allowed",
+                fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+              }}>{isNew ? "✓ Crea cliente" : "💾 Salva"}</button>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -6876,13 +7436,14 @@ const AdminIOTab = ({ state, dispatch }) => {
 
   const exportBackup = () => {
     const backup = {
-      version: "0.5",
+      version: "0.9.5", // bump: aggiunto `clients` (v0.9.5)
       exportedAt: new Date().toISOString(),
       agencyName: state.agencyName,
       tasks: state.tasks,
       team: state.team,
       categories: state.categories,
       notices: state.notices,
+      clients: state.clients,
     };
     downloadFile(
       new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }),
@@ -7356,7 +7917,7 @@ const PERSIST_VERSION = 1;
 const PERSIST_KEY_STATE = "voyagedesk:state:v1";
 const PERSIST_KEY_CHAT = "voyagedesk:chat:v1";
 // Campi UI volatili: non finiscono in localStorage, tornano ai default al refresh.
-const PERSIST_OMIT = ["toast", "lastAction", "selectedTask", "showNotif", "searchQuery", "filters"];
+const PERSIST_OMIT = ["toast", "lastAction", "selectedTask", "selectedClient", "showNotif", "searchQuery", "filters"];
 
 const _hasStorage = () => typeof window !== "undefined" && !!window.localStorage;
 
@@ -7519,6 +8080,7 @@ function VoyageDeskInner() {
     switch (state.activeView) {
       case "dashboard": return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
       case "calendar": return <CalendarPlanner state={state} dispatch={dispatch} />;
+      case "clients": return <ClientsView state={state} dispatch={dispatch} />;
       case "team": return <Team state={state} dispatch={dispatch} />;
       case "trash": return <Trash state={state} dispatch={dispatch} />;
       case "admin": return <AdminView state={state} dispatch={dispatch} />;
@@ -7542,7 +8104,18 @@ function VoyageDeskInner() {
         <BottomNav state={state} dispatch={dispatch} />
 
         {/* Slide-over */}
-        {state.selectedTask && <TaskSlideOver task={state.selectedTask} dispatch={dispatch} />}
+        {state.selectedTask && <TaskSlideOver task={state.selectedTask} dispatch={dispatch} clients={state.clients} />}
+
+        {/* Modale scheda cliente — disponibile da qualunque vista (TaskSlideOver, Clienti) */}
+        {state.selectedClient && (
+          <ClientEditModal
+            client={state.selectedClient}
+            onClose={() => dispatch({ type: "SET_SELECTED_CLIENT", payload: null })}
+            dispatch={dispatch}
+            canManage={canManageClients(state.currentUserId)}
+            taskCount={(state.tasks || []).filter(t => !t.deletedAt && resolveLegacyClientId(t) === state.selectedClient.id).length}
+          />
+        )}
 
         {/* Chat Panel */}
         <ChatPanel
@@ -7578,7 +8151,14 @@ function VoyageDeskInner() {
             <FAB onClick={() => setShowFABModal(true)} />
           </>
         )}
-        {showFABModal && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} />}
+        {showFABModal && (
+          <QuickAddTask
+            onAdd={t => dispatch({ type: "ADD_TASK", payload: t })}
+            onClose={() => setShowFABModal(false)}
+            clients={state.clients}
+            dispatch={dispatch}
+          />
+        )}
 
         {/* Bulk Task Creator */}
         {showBulkModal && (

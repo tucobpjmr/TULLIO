@@ -1,5 +1,67 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9.5 — Anagrafica Clienti CRM (sessione 13)
+
+> Primo step della **Fase 1 — Modello dati completo** (post-handoff). Introduce l'entità Cliente, la vista dedicata, il picker nei form e il collegamento dei task tramite `clientId`.
+
+### 🧳 Modello dati Client
+- Nuovo schema `Client`: `{ id, name, type, contactPerson, email, phone, notes, createdAt, updatedAt, deletedAt }`.
+- `CLIENT_TYPES`: 5 tipologie (`famiglia`, `coppia`, `azienda`, `gruppo`, `individuale`) con icona + colore + bg.
+- `INITIAL_CLIENTS`: 6 anagrafiche demo coerenti coi clienti già citati nei task (Rossi, Bianchi, TechCorp, Marchetti, Liceo Manzoni, Sposi Conte).
+- Schema Task esteso con campo opzionale **`clientId: string|null`**. Il vecchio campo `client` (testo) resta come fallback display (backward-compat).
+- Mappa legacy `_LEGACY_CLIENT_NAME_TO_ID` + helper `resolveLegacyClientId(task)` per i task pre-v0.9.5 senza `clientId` ma con nome cliente riconoscibile.
+
+### 🔁 Reducer
+- Nuovo slice `state.clients` (con persistenza localStorage automatica via lazy init merge).
+- Nuovo slice volatile `state.selectedClient` (in `PERSIST_OMIT`, ripristinato a `null` al refresh).
+- Nuove azioni: **`ADD_CLIENT`**, **`UPDATE_CLIENT`**, **`DELETE_CLIENT`** (soft-delete), **`SET_SELECTED_CLIENT`**.
+- `RESTORE_BACKUP` esteso per includere `clients`.
+- Tutte loggate in `activityLog` con messaggi dedicati.
+
+### 🔐 Permessi
+- Nuovi helper: `canManageClients(uid)` e `canViewClients(uid)` → `!isDriver(uid)`. Driver: nessun accesso alla vista Clienti, ma vede comunque il chip cliente in `TaskSlideOver` (read-only via `canManage=false`).
+- `SET_VIEW("clients")` e `SET_CURRENT_USER` aggiornati per il check + redirect.
+
+### 🧭 Vista Clienti
+- Nuovo `NAV_ITEMS` entry: `{ id: "clients", icon: "🧳", label: "Clienti", roles: ["admin","manager","agent"] }`. Visibile in Sidebar e BottomNav per i ruoli non-Driver.
+- Nuovo componente **`ClientsView`**:
+  - Header con conteggio attivi/in elenco + bottone "+ Nuovo cliente" (solo se `canManage`).
+  - Toolbar: search testuale (nome/referente/email/telefono/note), filtro tipologia, toggle "Mostra rimossi".
+  - Griglia 3 col con card cliente: chip tipologia, badge "📋 N task collegati", nome, referente, email/telefono, anteprima note (2 righe), banner "Rimosso il …" per soft-deleted.
+
+### 🪟 Modale `ClientEditModal`
+- Modalità: creazione (`client === null`), modifica, sola lettura (read-only via `canManage=false` o `client.deletedAt`).
+- Campi: nome (obbligatorio), tipologia, referente, email, telefono, note.
+- Footer: bottone "🗑 Rimuovi cliente" a sx (solo se modifica + non rimosso + canManage) + Annulla/Salva a dx.
+- Renderizzata a livello **root** (in `VoyageDeskInner`) per essere aperta anche da TaskSlideOver senza dover navigare alla vista Clienti.
+- Callback opzionale `onCreated(newClient)` per pre-selezionare il cliente appena creato in altri form.
+
+### 🔗 Integrazione TaskSlideOver
+- Sezione "CLIENTE" ora mostra:
+  - Se `resolveLegacyClientId(task)` → chip colorato per tipologia con icona + nome + freccia. Click → apre `ClientEditModal`.
+  - Altrimenti se solo testo legacy → vecchia chip surface.
+  - Altrimenti `—`.
+
+### ➕ Picker cliente in QuickAddTask
+- Vecchio input testo libero rimpiazzato da **select** con clienti attivi (ordinati alfabeticamente, prefissati dall'icona di tipologia) + opzione `— Nessuno —`.
+- Bottone **"+ Nuovo"** affianco al select: apre `ClientEditModal` inline e pre-seleziona il cliente appena creato via `onCreated`.
+- Salvataggio task: scrive sia `clientId` che `client` (nome risolto) per consistenza retro-compatibile.
+
+### 💾 Backup
+- `exportBackup` esteso con `clients` e version bumpato a `"0.9.5"`.
+
+### 📈 Metriche
+- File: 7597 → ~7980 righe (+~380).
+- Componenti nuovi: 2 (`ClientsView`, `ClientEditModal`).
+- Helper nuovi: 4 (`getClient`, `getTaskClientName`, `resolveLegacyClientId`, `canManageClients`).
+- Mock data: 6 clienti + costanti tipologie.
+
+### ⚠️ Note migrazione
+- I task persistiti pre-v0.9.5 non hanno `clientId`. `resolveLegacyClientId` fa la mappatura on-the-fly dai nomi noti, quindi i chip cliente in TaskSlideOver funzionano anche su state legacy. Per i nomi sconosciuti, mostra il testo libero come prima.
+- Hydration: se il payload localStorage non ha `clients`, fallback a `INITIAL_CLIENTS`. Non c'è bisogno di bumpare `PERSIST_VERSION` (le voci nuove vengono mergeate sui default).
+
+---
+
 ## v0.9.4 — Agenda Driver transfer-oriented (sessione 12)
 
 > Chiude il punto 🟡 "Coda personale Driver con filtro data/ora (tipo agenda giornaliera)" della roadmap post-v0.8. Giulia (e ogni altro Driver) ora vede le proprie corse organizzate come agenda con orario in evidenza.

@@ -68,12 +68,27 @@ Navigazione: Desktop → Sidebar collassabile. Tablet/Mobile → BottomNav.
 {
   id, title, category, priority, status,
   assignees: [memberId],     // [] = coda globale
-  client: string|null,
+  client: string|null,       // nome legacy/free-text (display fallback)
+  clientId: string|null,     // v0.9.5: riferimento ad anagrafica clienti
   dueDate: ISO|null,
   estimatedHours: number,
   description: string,
   comments: [{ user, text, time }],
   deletedAt: ISO|null        // soft-delete
+}
+```
+
+### Client (v0.9.5)
+```js
+{
+  id: "cl-xxx",
+  name: string,              // obbligatorio
+  type: "famiglia"|"coppia"|"azienda"|"gruppo"|"individuale",
+  contactPerson: string|null,
+  email: string|null,
+  phone: string|null,
+  notes: string,
+  createdAt: ISO, updatedAt: ISO, deletedAt: ISO|null   // soft-delete
 }
 ```
 
@@ -124,6 +139,9 @@ Famiglia Rossi (Maldive), Coppia Bianchi (Giappone), Azienda TechCorp (Incentive
 
 ### Admin Backup/Settings (ADMIN_ONLY)
 `SET_AGENCY_NAME`, `RESTORE_BACKUP`, `CLEAR_ACTIVITY_LOG`
+
+### Clienti (v0.9.5 — non admin-only, ma bloccate al Driver)
+`ADD_CLIENT`, `UPDATE_CLIENT`, `DELETE_CLIENT`, `SET_SELECTED_CLIENT`
 
 ### Bacheca
 `ADD_NOTICE`, `UPDATE_NOTICE`, `DELETE_NOTICE`, `TOGGLE_PIN_NOTICE`
@@ -222,7 +240,7 @@ VoyageDesk (export default, ViewportProvider wrapper)
 - [x] Aggiungere persistenza (localStorage in `loadPersistedState` / `savePersistedState`). Backend ancora da fare.
 
 ### Priorità 2 — Modello dati completo
-- [ ] Anagrafica Clienti (CRM base)
+- [x] Anagrafica Clienti (CRM base) — v0.9.5
 - [ ] Anagrafica Fornitori
 - [ ] Pratiche di viaggio (aggrega task + clienti + fornitori)
 

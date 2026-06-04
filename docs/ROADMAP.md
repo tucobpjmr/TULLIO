@@ -9,7 +9,7 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 
 ---
 
-## 📍 Punto di partenza (post v0.9.4)
+## 📍 Punto di partenza (post v0.9.5)
 
 - App ora gira fuori da claude.ai artifacts (progetto Vite con `package.json`, `vite.config.js`, `index.html`, `src/main.jsx`).
 - **Persistenza `localStorage`** attiva (state + chat con versioning + reset da Admin). Dati sopravvivono al refresh.
@@ -17,8 +17,9 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 - **Editor multi-assegnatari** disponibile da `TaskSlideOver`.
 - **Task link cliccabile in chat**: chip `TaskLinkChip` apre `TaskSlideOver`, intent "contatta agente" agganciata come preview sopra l'input.
 - **Agenda Driver transfer-oriented** in `PersonalQueue`: chip Oggi/Domani/Tutte, raggruppata per giorno con orario in evidenza.
+- **Anagrafica Clienti CRM**: entità `Client` con tipologie, vista dedicata, modale CRUD, picker in QuickAddTask, chip cliente cliccabile in TaskSlideOver. Task legati via `clientId` (con mappa legacy per i task pre-v0.9.5).
 - Commenti firmati con l'utente loggato (non più hard-coded "Marco Ferretti").
-- File `VoyageDesk.jsx` ancora monolitico (~7580 righe) — splitting in moduli è il prossimo step della traccia tecnica.
+- File `VoyageDesk.jsx` ancora monolitico (~7980 righe) — splitting in moduli è il prossimo step della traccia tecnica.
 - Tutto il resto invariato rispetto al punto di partenza post v0.8 sotto.
 
 ---
@@ -61,7 +62,7 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 | Modulo | Stato | Priorità | Sforzo | Dipende da |
 |---|---|---|---|---|
-| Anagrafica Clienti (CRM base) | ⬜ | 🔴 | M | — |
+| Anagrafica Clienti (CRM base) | ✅ | — | M | Completato in v0.9.5 — entità Client, vista dedicata, modale CRUD, picker in QuickAddTask, chip cliente in TaskSlideOver |
 | Anagrafica Fornitori | ⬜ | 🔴 | M | — |
 | Pratiche di viaggio | ⬜ | 🔴 | L | Clienti + Fornitori |
 | Collegamento Task ↔ Cliente ↔ Pratica | ⬜ | 🔴 | M | i tre sopra |

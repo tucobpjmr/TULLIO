@@ -187,6 +187,10 @@ Famiglia Rossi (Maldive), Coppia Bianchi (Giappone), Azienda TechCorp (Incentive
 ### Pratiche (v0.9.8 — stessa regola, bloccate al Driver)
 `ADD_PRACTICE`, `UPDATE_PRACTICE`, `DELETE_PRACTICE`, `SET_SELECTED_PRACTICE`, `CHANGE_PRACTICE_STATUS`
 
+### Notifiche & Tema (v0.9.9)
+`MARK_NOTIFICATION_READ`, `MARK_ALL_NOTIFICATIONS_READ`, `CLEAR_READ_NOTIFICATIONS`, `SET_THEME` (payload `"light"|"dark"|"toggle"`).
+Le notifiche sono generate automaticamente dal wrapper reducer in `generateNotifications(prevState, nextState, action)`. Per aggiungere nuovi trigger, estendere quella funzione (non serve una nuova action).
+
 ### Bacheca
 `ADD_NOTICE`, `UPDATE_NOTICE`, `DELETE_NOTICE`, `TOGGLE_PIN_NOTICE`
 
@@ -288,10 +292,17 @@ VoyageDesk (export default, ViewportProvider wrapper)
 - [x] Anagrafica Fornitori — v0.9.7
 - [x] Pratiche di viaggio — v0.9.8
 
+### Fase 2 — Operatività (in corso)
+- [x] Notifiche reali — v0.9.9
+- [x] Dark mode — v0.9.9
+- [x] Ricerca chat (testo messaggi) — v0.9.9
+- [ ] Notifiche schedulate (overdue auto)
+- [ ] Estensioni chat avanzate (online/occupato, rich preview)
+- [ ] Calendario residuo (iCal mock, vista giornaliera)
+
 ### Prossimo focus
-- **Fase 2**: Notifiche reali, estensioni chat avanzate, dark mode.
 - **Fase 3**: Modulo finanziario (ora che le Pratiche hanno riepilogo economico).
-- **Traccia tecnica**: splittare `VoyageDesk.jsx` (~9700 righe).
+- **Traccia tecnica**: splittare `VoyageDesk.jsx` (~10350 righe).
 
 ### Priorità 3 — Operatività
 - [ ] Notifiche reali (collegate ad azioni)

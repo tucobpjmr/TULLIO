@@ -1,5 +1,63 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9.9 — Notifiche reali + Dark mode + Ricerca chat (sessione 17, Fase 2)
+
+> Inizia la Fase 2 — Operatività quotidiana. Tre fix dalla roadmap: notifiche reattive collegate ad azioni (sostituiscono l'array statico), dark mode con CSS var override, ricerca chat estesa al testo dei messaggi.
+
+### 🔔 Notifiche reali
+- Schema strutturato: `{ id, type, text, recipientId, relatedType, relatedId, time, read }`. Ogni notifica è indirizzata a un utente specifico (`recipientId`) e può linkare a un'entità (`task`|`practice`|`team`).
+- Nuovo `NOTIF_TYPES`: `assigned`, `comment`, `overdue`, `deadline`, `pending`, `status`, `practice` — ognuno con icona dedicata.
+- **Generazione automatica nel wrapper reducer** (`generateNotifications`): produce notifiche quando le azioni hanno impatto su altri utenti:
+  - `ADD_TASK` / `UPDATE_TASK` (assignees aggiunti) → notifica "ti ha assegnato" agli assegnatari diversi da me.
+  - `ADD_COMMENT` → notifica "ha commentato" agli assegnatari della task (escluso me).
+  - `MOVE_TASK` → notifica "ha spostato in X" agli assegnatari.
+  - `ADD_TEAM_MEMBER` con `pending: true` → notifica "Nuova richiesta agente" a tutti gli admin.
+  - `CHANGE_PRACTICE_STATUS` → notifica "PR-X: stato → Y" agli assegnatari di task collegati alla pratica.
+- Cap a 200 notifiche totali (le più vecchie tagliate).
+- `INITIAL_NOTIFICATIONS`: 9 demo distribuite tra Marco, Sofia, Roberto, Luca, Giulia.
+
+### 🔁 Reducer
+- Slice `state.notifications` (persistita).
+- Nuove actions: **`MARK_NOTIFICATION_READ`**, **`MARK_ALL_NOTIFICATIONS_READ`** (solo le mie), **`CLEAR_READ_NOTIFICATIONS`** (solo le mie lette).
+- `RESTORE_BACKUP` esteso con `notifications` e `theme`.
+
+### 🪟 NotificationsPanel ridisegnato
+- Filtra per `recipientId === currentUserId` (vedo solo le mie).
+- Chip filtro **Tutte / Non lette** con contatore.
+- Azioni header: **✓ Tutte lette** + **🧹 Pulisci lette**.
+- Click su una notifica → naviga all'entità correlata (`SET_SELECTED_TASK` / `SET_SELECTED_PRACTICE` / `SET_VIEW("admin")` per team) + marca come letta + chiude il pannello.
+- Tempo relativo umanizzato: "ora", "5 min fa", "2h fa", "ieri", "3 giorni fa", data secca.
+- Empty state dedicato per "tutte" vs "solo non lette".
+
+### 🌙 Dark mode
+- Nuovo `state.theme` (`"light" | "dark"`), persistito via localStorage.
+- Nuova action **`SET_THEME`** (payload `"light"|"dark"|"toggle"`).
+- Override CSS variables via `html[data-theme="dark"]` in FontLoader: surface scuro, text chiaro, navy/gold leggermente più luminosi per leggibilità.
+- `useEffect([state.theme])` in `VoyageDeskInner` setta `document.documentElement.dataset.theme`.
+- Toggle nel dropdown UserSwitcher: bottone "🌙 Tema scuro" / "☀️ Tema chiaro" con badge LIGHT/DARK.
+- Tutte le componenti che già usano `var(--*)` si adattano automaticamente. Le tinte hex inline (poche, in genere su sfondo navy) restano statiche per coerenza.
+
+### 🔍 Ricerca chat estesa ai messaggi
+- `ConversationList`: lo stesso input ora cerca sia nel nome conversazione che nel testo dei messaggi.
+- Quando il match è su un messaggio (non sul nome), sotto la riga della conversazione compare uno **snippet match** con icona 🔍, nome mittente (colorato) e testo troncato a 80 char.
+- Placeholder aggiornato: "Cerca in conversazioni e messaggi…".
+
+### 💾 Backup
+- `exportBackup` esteso con `notifications` + `theme`, version → `"0.9.9"`.
+
+### 📈 Metriche
+- File: 10057 → ~10350 righe (+~290).
+- Componenti nuovi: 0 (riscrittura di `NotificationsPanel`).
+- Helper nuovi: 2 (`generateNotifications`, `formatRelativeTime`).
+- Action nuove: 4 (`SET_THEME`, `MARK_NOTIFICATION_READ`, `MARK_ALL_NOTIFICATIONS_READ`, `CLEAR_READ_NOTIFICATIONS`).
+
+### ⚠️ Note
+- Le notifiche generate dal wrapper non sono "globali": sono visibili solo al destinatario. Switchando utente nella mock multi-tenant si vedono le sue.
+- Eventuali notifiche da regole derivate (es. "task scaduto da > N ore") richiedono uno scheduler/cron lato client: rimandate.
+- Persistenza chat (vocali base64): occhio alla quota localStorage in casi reali.
+
+---
+
 ## v0.9.8 — Pratiche di viaggio — chiude Fase 1 (sessione 16)
 
 > **Fase 1 — Modello dati completo: 100%**. Le Pratiche di viaggio aggregano task + cliente + fornitori in un'entità centrale con numerazione progressiva, stati, riepilogo economico e timeline eventi. Sblocca il filtro "numero pratica" nella Ricerca avanzata.

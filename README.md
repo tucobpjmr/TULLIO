@@ -2,9 +2,15 @@
 
 Sistema gestionale per agenzie viaggi e tour operator.
 
-## Stato attuale — v0.9.8
+## Stato attuale — v0.9.9
 
-App single-file React (~9700 righe) con persistenza locale via `localStorage`. **🎉 Fase 1 modello dati completa al 100%**: Clienti + Fornitori + **Pratiche di viaggio** (entità centrale con numerazione `PR-YYYY-NNN`, 5 stati, riepilogo economico, timeline eventi). Picker triplo nel form task con auto-suggest cliente da pratica. Ricerca avanzata estesa col filtro numero pratica. Vista settimanale Calendario time-grid desktop + day-tab/lista mobile con now-line. Badge contatori su nav, editor multi-assegnatari, task link cliccabile in chat, agenda Driver con filtri data.
+App single-file React (~10350 righe) con persistenza locale via `localStorage`. **🎉 Fase 1 modello dati 100%** (Clienti + Fornitori + Pratiche di viaggio). **🚀 Fase 2 iniziata** con:
+
+- **Notifiche reali** generate dal wrapper reducer (assegnazioni, commenti, cambi stato, pending, pratiche). Pannello con filtri + segna tutte lette.
+- **Dark mode** con toggle in UserSwitcher, override CSS var.
+- **Ricerca chat** estesa al testo dei messaggi.
+
+Plus dalle versioni precedenti: vista settimanale Calendario time-grid desktop + day-tab/lista mobile con now-line, badge contatori nav, editor multi-assegnatari, task link cliccabile in chat, agenda Driver, ricerca avanzata con filtro numero pratica.
 
 ### Feature completate
 

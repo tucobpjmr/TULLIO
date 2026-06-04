@@ -25,7 +25,29 @@ const FontLoader = () => (
       --text-light: #9999AA;
       --border: #E0DDD5;
     }
-    body { font-family: 'DM Sans', sans-serif; background: var(--surface); color: var(--text); }
+    /* Dark mode v0.9.9: override CSS vars su data-theme="dark" applicato a <html>.
+       I componenti che già usano var(...) si adattano automaticamente; quelli con
+       colori hex inline ("#fff", "white") restano statici ma in genere sono pochi
+       (tipicamente per testo su sfondo navy che resta navy in entrambi i temi). */
+    html[data-theme="dark"] {
+      --navy: #1a3060;
+      --navy-light: #243d7a;
+      --navy-dark: #0a1530;
+      --gold: #D4A843;
+      --gold-light: #f0d480;
+      --gold-dark: #b8902e;
+      --surface: #15171f;
+      --surface2: #1f222d;
+      --surface3: #2a2e3b;
+      --success: #4dab78;
+      --warning: #e5a35a;
+      --danger: #e0584b;
+      --text: #e8e8ee;
+      --text-muted: #a4a4b8;
+      --text-light: #7a7a8e;
+      --border: #353a48;
+    }
+    body { font-family: 'DM Sans', sans-serif; background: var(--surface); color: var(--text); transition: background 0.2s, color 0.2s; }
     .playfair { font-family: 'Playfair Display', serif; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -210,13 +232,37 @@ const INITIAL_TASKS = [
   { id: "t27", title: "Transfer Hotel → Stazione Centrale - Coppia Bianchi", category: "transfer", priority: "medium", status: "inprogress", assignees: ["giulia"], client: "Coppia Bianchi", clientId: "cl-bianchi", practiceId: "pr-002", dueDate: d(3, 9, 0), estimatedHours: 0.5, description: "Pickup hotel ore 09:00, treno Frecciarossa 9:55 per Roma. 2 pax + 3 bagagli.", comments: [] },
 ];
 
-const NOTIFICATIONS = [
-  { id: "n1", type: "overdue", title: "Task scaduto: Visto Giappone - Coppia Bianchi", time: "5 min fa", read: false },
-  { id: "n2", type: "assigned", title: "Nuovo task assegnato: Newsletter Giugno", time: "1 ora fa", read: false },
-  { id: "n3", type: "comment", title: "Sofia ha commentato su Hotel Overwater Bungalow", time: "2 ore fa", read: false },
-  { id: "n4", type: "deadline", title: "Scadenza domani: Conferma voli Maldive", time: "3 ore fa", read: true },
-  { id: "n5", type: "comment", title: "Luca ha aggiornato: Newsletter Giugno", time: "4 ore fa", read: true },
-  { id: "n6", type: "deadline", title: "Scadenza oggi: Pagamento acconto Famiglia Rossi", time: "8 ore fa", read: true },
+// ─── NOTIFICHE (v0.9.9) ────────────────────────────────────────────────────
+// Schema strutturato: ogni notifica ha un destinatario (recipientId) e può linkare
+// a un'entità correlata (task/practice/team) per la navigazione al click.
+// I tipi (NOTIF_TYPES) controllano l'icona mostrata nel pannello.
+const NOTIF_TYPES = {
+  assigned: { icon: "📋", label: "Assegnazione" },
+  comment: { icon: "💬", label: "Commento" },
+  overdue: { icon: "⚠️", label: "Scaduto" },
+  deadline: { icon: "📅", label: "Scadenza" },
+  pending: { icon: "🙋", label: "Richiesta agente" },
+  status: { icon: "🔄", label: "Cambio stato" },
+  practice: { icon: "📂", label: "Pratica" },
+};
+
+const _notifStamp = (minutesAgo) => new Date(Date.now() - minutesAgo * 60 * 1000).toISOString();
+
+const INITIAL_NOTIFICATIONS = [
+  // Marco (utente di default)
+  { id: "n1", type: "deadline", text: "Scadenza domani: Conferma voli Maldive - Famiglia Rossi", recipientId: "marco", relatedType: "task", relatedId: "t1", time: _notifStamp(180), read: false },
+  { id: "n2", type: "comment", text: "Sofia ha commentato: Hotel Overwater Bungalow - Maldive", recipientId: "marco", relatedType: "task", relatedId: "t3", time: _notifStamp(120), read: false },
+  { id: "n3", type: "comment", text: "Sofia ha aggiunto una nota su PR-2026-001", recipientId: "marco", relatedType: "practice", relatedId: "pr-001", time: _notifStamp(45), read: false },
+  // Sofia
+  { id: "n4", type: "assigned", text: "Marco ti ha assegnato: Itinerario Giappone 14 giorni", recipientId: "sofia", relatedType: "task", relatedId: "t9", time: _notifStamp(60), read: false },
+  { id: "n5", type: "deadline", text: "Scadenza oggi: Pagamento acconto Famiglia Rossi", recipientId: "sofia", relatedType: "task", relatedId: "t5", time: _notifStamp(15), read: false },
+  // Roberto (admin)
+  { id: "n6", type: "pending", text: "Nuova richiesta agente: Elena Marini", recipientId: "roberto", relatedType: "team", relatedId: "elena", time: _notifStamp(240), read: false },
+  { id: "n7", type: "pending", text: "Nuova richiesta agente: Matteo De Luca", recipientId: "roberto", relatedType: "team", relatedId: "matteo", time: _notifStamp(300), read: true },
+  // Luca
+  { id: "n8", type: "assigned", text: "Marco ti ha assegnato: Newsletter Giugno - Offerte Estate", recipientId: "luca", relatedType: "task", relatedId: "t7", time: _notifStamp(480), read: false },
+  // Giulia (driver)
+  { id: "n9", type: "deadline", text: "Transfer di oggi: Linate → Hotel Principe", recipientId: "giulia", relatedType: "task", relatedId: "t26", time: _notifStamp(90), read: false },
 ];
 
 // ─── CLIENTI (CRM base v0.9.5) ─────────────────────────────────────────────
@@ -848,7 +894,7 @@ function baseReducer(state, action) {
       return { ...state, agencyName: action.payload };
     }
     case "RESTORE_BACKUP": {
-      const { tasks, team, categories, agencyName, notices, clients, suppliers, practices } = action.payload;
+      const { tasks, team, categories, agencyName, notices, clients, suppliers, practices, notifications, theme } = action.payload;
       if (team) _syncTeam(team);
       if (categories) _syncCategories(categories);
       return {
@@ -861,6 +907,8 @@ function baseReducer(state, action) {
         clients: clients ?? state.clients,
         suppliers: suppliers ?? state.suppliers,
         practices: practices ?? state.practices,
+        notifications: notifications ?? state.notifications,
+        theme: theme ?? state.theme,
         toast: { message: "Backup ripristinato con successo!", type: "success" }
       };
     }
@@ -1008,6 +1056,35 @@ function baseReducer(state, action) {
       return { ...state, selectedPractice: action.payload };
     }
 
+    // ─── TEMA (v0.9.9) ───
+    case "SET_THEME": {
+      // payload: "light" | "dark" | "toggle"
+      const current = state.theme || "light";
+      const next = action.payload === "toggle" ? (current === "light" ? "dark" : "light") : action.payload;
+      return { ...state, theme: next };
+    }
+
+    // ─── NOTIFICHE (v0.9.9) ───
+    case "MARK_NOTIFICATION_READ": {
+      const notifications = (state.notifications || []).map(n =>
+        n.id === action.payload ? { ...n, read: true } : n
+      );
+      return { ...state, notifications };
+    }
+    case "MARK_ALL_NOTIFICATIONS_READ": {
+      // Marca come lette solo le notifiche dell'utente corrente
+      const notifications = (state.notifications || []).map(n =>
+        n.recipientId === uid ? { ...n, read: true } : n
+      );
+      return { ...state, notifications, toast: { message: "Notifiche segnate come lette", type: "success" } };
+    }
+    case "CLEAR_READ_NOTIFICATIONS": {
+      // Rimuove le notifiche già lette dell'utente corrente
+      const before = (state.notifications || []).filter(n => n.recipientId === uid && n.read).length;
+      const notifications = (state.notifications || []).filter(n => !(n.recipientId === uid && n.read));
+      return { ...state, notifications, toast: { message: `${before} notifiche rimosse`, type: "success" } };
+    }
+
     case "CLEAR_TOAST": return { ...state, toast: null };
     case "UNDO_LAST_ACTION": {
       const la = state.lastAction;
@@ -1060,19 +1137,121 @@ const ADMIN_ONLY_ACTIONS = new Set([
   "SET_AGENCY_NAME", "RESTORE_BACKUP", "CLEAR_ACTIVITY_LOG",
 ]);
 
+// Genera notifiche automatiche in base all'azione e allo stato precedente/successivo. (v0.9.9)
+// Le notifiche vengono solo create per destinatari diversi dall'utente corrente
+// (non ha senso notificare a se stessi le proprie azioni). Cap a 200 totali.
+function generateNotifications(prevState, nextState, action) {
+  const me = prevState.currentUserId;
+  const meName = TEAM.find(m => m.id === me)?.name?.split(" ")[0] || "Qualcuno";
+  const now = new Date().toISOString();
+  const out = [];
+  const _id = (suffix) => `n-${Date.now()}-${suffix}-${Math.random().toString(36).slice(2, 5)}`;
+  const _mk = (type, recipientId, text, relatedType, relatedId) => ({
+    id: _id(recipientId), type, text, recipientId,
+    relatedType: relatedType || null, relatedId: relatedId || null,
+    time: now, read: false,
+  });
+
+  if (action.type === "ADD_TASK") {
+    const task = action.payload;
+    for (const aid of (task.assignees || [])) {
+      if (aid !== me) {
+        out.push(_mk("assigned", aid, `${meName} ti ha assegnato: ${task.title}`, "task", task.id));
+      }
+    }
+  }
+
+  if (action.type === "UPDATE_TASK") {
+    const prevTask = (prevState.tasks || []).find(t => t.id === action.payload.id);
+    if (prevTask && Array.isArray(action.payload.assignees)) {
+      const prevA = prevTask.assignees || [];
+      const newlyAdded = action.payload.assignees.filter(a => !prevA.includes(a));
+      for (const aid of newlyAdded) {
+        if (aid !== me) {
+          out.push(_mk("assigned", aid, `${meName} ti ha assegnato: ${prevTask.title}`, "task", prevTask.id));
+        }
+      }
+    }
+  }
+
+  if (action.type === "ADD_COMMENT") {
+    const task = (prevState.tasks || []).find(t => t.id === action.payload.taskId);
+    if (task) {
+      const recipients = (task.assignees || []).filter(a => a !== me);
+      for (const aid of recipients) {
+        out.push(_mk("comment", aid, `${meName} ha commentato: ${task.title}`, "task", task.id));
+      }
+    }
+  }
+
+  if (action.type === "MOVE_TASK") {
+    // Notifica gli assegnatari (esclusi me) di un cambio status significativo
+    const task = (nextState.tasks || []).find(t => t.id === action.payload.taskId);
+    if (task) {
+      const statusLabel = STATUS_LABELS[action.payload.newStatus] || action.payload.newStatus;
+      const recipients = (task.assignees || []).filter(a => a !== me);
+      for (const aid of recipients) {
+        out.push(_mk("status", aid, `${meName} ha spostato "${task.title}" in ${statusLabel}`, "task", task.id));
+      }
+    }
+  }
+
+  if (action.type === "ADD_TEAM_MEMBER" && action.payload.pending) {
+    // Notifica tutti gli admin attivi (escluso il creatore se admin)
+    const admins = TEAM.filter(m => getRoleType(m.id) === "admin" && m.id !== me && !m.pending);
+    for (const a of admins) {
+      out.push(_mk("pending", a.id, `Nuova richiesta agente: ${action.payload.name}`, "team", action.payload.id));
+    }
+  }
+
+  if (action.type === "CHANGE_PRACTICE_STATUS") {
+    // Notifica gli assegnatari dei task collegati alla pratica
+    const practice = (nextState.practices || []).find(p => p.id === action.payload.id);
+    if (practice) {
+      const linkedTasks = (nextState.tasks || []).filter(t => !t.deletedAt && t.practiceId === practice.id);
+      const recipientSet = new Set();
+      for (const t of linkedTasks) {
+        for (const a of (t.assignees || [])) {
+          if (a !== me) recipientSet.add(a);
+        }
+      }
+      const newLabel = PRACTICE_STATUSES[action.payload.status]?.label || action.payload.status;
+      for (const aid of recipientSet) {
+        out.push(_mk("practice", aid, `${practice.number}: stato → ${newLabel}`, "practice", practice.id));
+      }
+    }
+  }
+
+  return out;
+}
+
 // Wrapper che aggiunge automaticamente al log le azioni rilevanti
+// e genera notifiche per azioni con impatto su altri utenti (v0.9.9).
 function reducer(state, action) {
   // Pre-check permessi Admin (centralizzato — non sporca i singoli case)
   if (ADMIN_ONLY_ACTIONS.has(action.type) && !isAdmin(state.currentUserId)) {
     return { ...state, toast: { message: "Solo Admin può eseguire questa azione", type: "error" } };
   }
   const next = baseReducer(state, action);
-  if (LOGGED_ACTIONS.has(action.type) && next !== state) {
+  if (next === state) return next;
+
+  let result = next;
+
+  // Activity log
+  if (LOGGED_ACTIONS.has(action.type)) {
     const entry = buildLogEntry(action, state);
-    const activityLog = [entry, ...(next.activityLog || [])].slice(0, 100);
-    return { ...next, activityLog };
+    const activityLog = [entry, ...(result.activityLog || [])].slice(0, 100);
+    result = { ...result, activityLog };
   }
-  return next;
+
+  // Notifiche generate (v0.9.9)
+  const newNotifs = generateNotifications(state, result, action);
+  if (newNotifs.length > 0) {
+    const notifications = [...newNotifs, ...(result.notifications || [])].slice(0, 200);
+    result = { ...result, notifications };
+  }
+
+  return result;
 }
 
 const NOTICE_COLORS = ["#FEF3C7", "#FCE7F3", "#D1FAE5", "#DBEAFE", "#E9D5FF"]; // giallo, rosa, verde, azzurro, lilla
@@ -1116,6 +1295,8 @@ const initialState = {
   practices: INITIAL_PRACTICES, // v0.9.8: pratiche di viaggio
   agencyName: "VoyageDesk",
   notices: INITIAL_NOTICES,
+  notifications: INITIAL_NOTIFICATIONS, // v0.9.9: notifiche reali per-utente
+  theme: "light", // v0.9.9: "light" | "dark", persistita
   activityLog: [],
   activeView: "dashboard",
   selectedTask: null,
@@ -1954,8 +2135,12 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, practices }) => {
 
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
 const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
+  // v0.9.9: badge notifiche legato a state.notifications filtrate per utente corrente
+  const myUnreadNotifs = (state.notifications || []).filter(
+    n => n.recipientId === state.currentUserId && !n.read
+  ).length;
   const { isMobile } = useViewport();
-  const unread = NOTIFICATIONS.filter(n => !n.read).length;
+  const unread = myUnreadNotifs;
   const [advOpen, setAdvOpen] = useState(false);
   return (
     <div style={{
@@ -2045,7 +2230,7 @@ const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
             color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center"
           }}>{unread}</span>}
         </button>
-        {state.showNotif && <NotificationsPanel dispatch={dispatch} />}
+        {state.showNotif && <NotificationsPanel state={state} dispatch={dispatch} />}
       </div>
 
       {/* User switcher (v0.8) */}
@@ -2368,13 +2553,37 @@ const UserSwitcher = ({ state, dispatch }) => {
               width: "100%", display: "flex", alignItems: "center", gap: 10,
               padding: "10px 10px", background: "transparent",
               border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontSize: 13,
-              color: "var(--navy)", textAlign: "left", borderBottom: "1px solid var(--border)", marginBottom: 4,
+              color: "var(--navy)", textAlign: "left",
             }}
             onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
             onMouseLeave={e => e.currentTarget.style.background = "transparent"}
           >
             <span style={{ fontSize: 16 }}>👤</span>
             <span style={{ fontWeight: 600 }}>Modifica profilo</span>
+          </button>
+
+          {/* Toggle dark mode (v0.9.9) */}
+          <button
+            onClick={() => dispatch({ type: "SET_THEME", payload: "toggle" })}
+            style={{
+              width: "100%", display: "flex", alignItems: "center", gap: 10,
+              padding: "10px 10px", background: "transparent",
+              border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontSize: 13,
+              color: "var(--navy)", textAlign: "left",
+              borderBottom: "1px solid var(--border)", marginBottom: 4,
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+          >
+            <span style={{ fontSize: 16 }}>{state.theme === "dark" ? "☀️" : "🌙"}</span>
+            <span style={{ fontWeight: 600, flex: 1 }}>
+              {state.theme === "dark" ? "Tema chiaro" : "Tema scuro"}
+            </span>
+            <span style={{
+              fontSize: 9, fontWeight: 700, color: "var(--text-muted)",
+              padding: "2px 6px", background: "var(--surface2)", borderRadius: 99,
+              letterSpacing: 0.5,
+            }}>{(state.theme || "light").toUpperCase()}</span>
           </button>
 
           <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", padding: "8px 10px 4px", letterSpacing: 1 }}>
@@ -2422,39 +2631,153 @@ const UserSwitcher = ({ state, dispatch }) => {
 };
 
 // ─── NOTIFICATIONS PANEL ───────────────────────────────────────────────────
-const NotificationsPanel = ({ dispatch }) => {
+// Formatta "5 min fa" / "2h fa" / "ieri" / "3 giorni fa"
+const formatRelativeTime = (iso) => {
+  if (!iso) return "";
+  const diff = Math.max(0, Date.now() - new Date(iso).getTime());
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "ora";
+  if (min < 60) return `${min} min fa`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h}h fa`;
+  const days = Math.floor(h / 24);
+  if (days === 1) return "ieri";
+  if (days < 7) return `${days} giorni fa`;
+  return new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "short" });
+};
+
+// v0.9.9: pannello notifiche reattivo allo state.
+// Filtra per recipientId = currentUserId, click → naviga all'entità correlata + segna come letta.
+const NotificationsPanel = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
-  const icons = { overdue: "⚠️", assigned: "📋", comment: "💬", deadline: "📅" };
+  const [filter, setFilter] = useState("all"); // all | unread
+
+  const myNotifs = (state.notifications || [])
+    .filter(n => n.recipientId === state.currentUserId)
+    .filter(n => filter === "unread" ? !n.read : true)
+    .sort((a, b) => new Date(b.time) - new Date(a.time));
+
+  const unreadCount = (state.notifications || []).filter(n => n.recipientId === state.currentUserId && !n.read).length;
+  const readCount = (state.notifications || []).filter(n => n.recipientId === state.currentUserId && n.read).length;
+
+  const handleClick = (n) => {
+    // Naviga all'entità collegata, se possibile
+    if (n.relatedType === "task" && n.relatedId) {
+      const task = (state.tasks || []).find(t => t.id === n.relatedId);
+      if (task) dispatch({ type: "SET_SELECTED_TASK", payload: task });
+    } else if (n.relatedType === "practice" && n.relatedId) {
+      const pr = (state.practices || []).find(p => p.id === n.relatedId);
+      if (pr) dispatch({ type: "SET_SELECTED_PRACTICE", payload: pr });
+    } else if (n.relatedType === "team") {
+      // Vai alla vista Admin → Team se possibile, altrimenti chiudi e basta
+      if (canAccessAdmin(state.currentUserId)) {
+        dispatch({ type: "SET_VIEW", payload: "admin" });
+      }
+    }
+    if (!n.read) dispatch({ type: "MARK_NOTIFICATION_READ", payload: n.id });
+    dispatch({ type: "TOGGLE_NOTIF" });
+  };
+
   return (
     <div className="slide-right" style={{
       position: isMobile ? "fixed" : "absolute",
       top: isMobile ? 56 : "calc(100% + 8px)",
       right: isMobile ? 12 : 0,
       left: isMobile ? 12 : "auto",
-      width: isMobile ? "auto" : "min(360px, calc(100vw - 24px))",
+      width: isMobile ? "auto" : "min(380px, calc(100vw - 24px))",
       background: "#fff", borderRadius: 12, boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
       border: "1px solid var(--border)", overflow: "hidden", zIndex: 200,
+      display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 80px)",
     }}>
-      <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div className="playfair" style={{ fontWeight: 600, fontSize: 15 }}>Notifiche</div>
-        <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
+      {/* Header */}
+      <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          <div className="playfair" style={{ fontWeight: 700, fontSize: 16, color: "var(--navy)" }}>Notifiche</div>
+          {unreadCount > 0 && <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>{unreadCount} da leggere</span>}
+        </div>
+        <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--text-muted)" }}>✕</button>
       </div>
-      <div style={{ maxHeight: 420, overflowY: "auto" }}>
-        {NOTIFICATIONS.map(n => (
-          <div key={n.id} style={{
-            padding: "12px 16px", display: "flex", gap: 10, alignItems: "flex-start",
-            background: n.read ? "transparent" : "rgba(212,168,67,0.07)",
-            borderBottom: "1px solid var(--border)",
-            transition: "background 0.2s", cursor: "default",
-          }}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>{icons[n.type]}</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: n.read ? 400 : 600 }}>{n.title}</div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{n.time}</div>
-            </div>
-            {!n.read && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--gold)", flexShrink: 0, marginTop: 4 }} />}
+
+      {/* Filter chips + actions */}
+      <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", flexShrink: 0 }}>
+        <div style={{ display: "flex", gap: 4 }}>
+          {[
+            { id: "all", label: "Tutte" },
+            { id: "unread", label: `Non lette${unreadCount > 0 ? ` (${unreadCount})` : ""}` },
+          ].map(opt => (
+            <button
+              key={opt.id}
+              onClick={() => setFilter(opt.id)}
+              style={{
+                padding: "4px 10px", borderRadius: 99, border: "1px solid var(--border)",
+                background: filter === opt.id ? "var(--navy)" : "#fff",
+                color: filter === opt.id ? "#fff" : "var(--text)",
+                fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+              }}
+            >{opt.label}</button>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 4 }}>
+          {unreadCount > 0 && (
+            <button
+              onClick={() => dispatch({ type: "MARK_ALL_NOTIFICATIONS_READ" })}
+              title="Segna tutte come lette"
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                fontSize: 11, color: "var(--navy)", fontWeight: 600, padding: "4px 6px", fontFamily: "inherit",
+              }}
+            >✓ Tutte lette</button>
+          )}
+          {readCount > 0 && (
+            <button
+              onClick={() => dispatch({ type: "CLEAR_READ_NOTIFICATIONS" })}
+              title="Cancella le notifiche lette"
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                fontSize: 11, color: "var(--text-muted)", fontWeight: 500, padding: "4px 6px", fontFamily: "inherit",
+              }}
+            >🧹 Pulisci lette</button>
+          )}
+        </div>
+      </div>
+
+      {/* List */}
+      <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+        {myNotifs.length === 0 ? (
+          <div style={{ padding: "32px 16px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>🎉</div>
+            {filter === "unread" ? "Nessuna notifica da leggere." : "Nessuna notifica."}
           </div>
-        ))}
+        ) : (
+          myNotifs.map(n => {
+            const meta = NOTIF_TYPES[n.type] || NOTIF_TYPES.assigned;
+            return (
+              <div
+                key={n.id}
+                onClick={() => handleClick(n)}
+                style={{
+                  padding: "12px 16px", display: "flex", gap: 10, alignItems: "flex-start",
+                  background: n.read ? "transparent" : "rgba(212,168,67,0.08)",
+                  borderBottom: "1px solid var(--border)",
+                  transition: "background 0.2s", cursor: "pointer",
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = n.read ? "var(--surface)" : "rgba(212,168,67,0.15)"}
+                onMouseLeave={e => e.currentTarget.style.background = n.read ? "transparent" : "rgba(212,168,67,0.08)"}
+              >
+                <span style={{ fontSize: 18, flexShrink: 0 }}>{meta.icon}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: n.read ? 400 : 600, color: "var(--text)", lineHeight: 1.35 }}>
+                    {n.text}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>
+                    {formatRelativeTime(n.time)}
+                  </div>
+                </div>
+                {!n.read && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--gold)", flexShrink: 0, marginTop: 6 }} />}
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );
@@ -8190,13 +8513,26 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
     return new Date(lastB.time) - new Date(lastA.time);
   });
 
+  // v0.9.9: ricerca estesa anche al testo dei messaggi (oltre al nome conversazione).
+  // Quando il match avviene su un messaggio, mostriamo lo snippet come anteprima.
+  const searchLower = search.toLowerCase().trim();
   const filtered = sorted.filter(c => {
     if (filter === "direct" && c.type !== "direct") return false;
     if (filter === "group" && c.type !== "group") return false;
     if (filter === "unread" && getUnreadCount(messages, c.id) === 0) return false;
-    if (search && !getConversationName(c).toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
+    if (!searchLower) return true;
+    if (getConversationName(c).toLowerCase().includes(searchLower)) return true;
+    // Match anche su testo dei messaggi
+    const msgs = messages[c.id] || [];
+    return msgs.some(m => m.type === "text" && (m.text || "").toLowerCase().includes(searchLower));
   });
+
+  // Trova il primo messaggio matchato (per anteprima snippet)
+  const findMatchedMessage = (conv) => {
+    if (!searchLower) return null;
+    const msgs = messages[conv.id] || [];
+    return msgs.find(m => m.type === "text" && (m.text || "").toLowerCase().includes(searchLower)) || null;
+  };
 
   const totalUnread = conversations.reduce((acc, c) => acc + getUnreadCount(messages, c.id), 0);
 
@@ -8209,7 +8545,7 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Cerca conversazione..."
+            placeholder="Cerca in conversazioni e messaggi..."
             style={{
               width: "100%", border: "1px solid var(--border)", borderRadius: 8,
               padding: "8px 12px 8px 34px", fontSize: 13, fontFamily: "inherit",
@@ -8243,6 +8579,11 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
           const unread = getUnreadCount(messages, c.id);
           const lastSender = last ? getMember(last.sender) : null;
           const otherUser = c.type === "direct" ? c.participants.find(p => p !== CURRENT_USER) : null;
+          // v0.9.9: snippet del messaggio matchato (solo se ricerca attiva e match su testo, non sul nome)
+          const matched = searchLower && !getConversationName(c).toLowerCase().includes(searchLower)
+            ? findMatchedMessage(c)
+            : null;
+          const matchedSender = matched ? getMember(matched.sender) : null;
 
           return (
             <div key={c.id} onClick={() => onSelect(c)} style={{
@@ -8309,6 +8650,19 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
                     }}>{unread}</div>
                   )}
                 </div>
+
+                {/* Snippet match v0.9.9 */}
+                {matched && (
+                  <div style={{
+                    marginTop: 4, padding: "4px 8px", borderRadius: 6,
+                    background: "rgba(212,168,67,0.12)", borderLeft: "2px solid var(--gold)",
+                    fontSize: 11, color: "var(--text-muted)", lineHeight: 1.4,
+                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  }}>
+                    🔍 <b style={{ color: matchedSender?.color || "var(--navy)" }}>{matchedSender?.name?.split(" ")[0] || "?"}:</b>{" "}
+                    {(matched.text || "").length > 80 ? (matched.text || "").slice(0, 80) + "…" : matched.text}
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -9288,7 +9642,7 @@ const AdminIOTab = ({ state, dispatch }) => {
 
   const exportBackup = () => {
     const backup = {
-      version: "0.9.8", // bump: aggiunto `practices` (v0.9.8) — chiude Fase 1
+      version: "0.9.9", // bump: aggiunte `notifications` e `theme` (v0.9.9 — Fase 2 inizia)
       exportedAt: new Date().toISOString(),
       agencyName: state.agencyName,
       tasks: state.tasks,
@@ -9298,6 +9652,8 @@ const AdminIOTab = ({ state, dispatch }) => {
       clients: state.clients,
       suppliers: state.suppliers,
       practices: state.practices,
+      notifications: state.notifications,
+      theme: state.theme,
     };
     downloadFile(
       new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }),
@@ -9921,6 +10277,13 @@ function VoyageDeskInner() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
+
+  // v0.9.9: applica il tema corrente all'attributo data-theme su <html>.
+  // Il CSS in FontLoader override le var(--*) quando data-theme="dark".
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.documentElement.dataset.theme = state.theme === "dark" ? "dark" : "light";
+  }, [state.theme]);
 
   // Quando l'utente cambia, se la view corrente non è permessa il reducer la riporta a dashboard.
   // Inoltre chiudo eventuali pannelli aperti.

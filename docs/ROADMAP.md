@@ -9,21 +9,24 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 
 ---
 
-## 📍 Punto di partenza (post v0.9.8)
+## 📍 Punto di partenza (post v0.9.9)
 
-- App ora gira fuori da claude.ai artifacts (progetto Vite con `package.json`, `vite.config.js`, `index.html`, `src/main.jsx`).
-- **Persistenza `localStorage`** attiva (state + chat con versioning + reset da Admin). Dati sopravvivono al refresh.
-- **Badge nav contatori** su voce Admin (agenti pending) e Dashboard (coda globale).
-- **Editor multi-assegnatari** disponibile da `TaskSlideOver`.
-- **Task link cliccabile in chat**: chip `TaskLinkChip` apre `TaskSlideOver`, intent "contatta agente" agganciata come preview sopra l'input.
-- **Agenda Driver transfer-oriented** in `PersonalQueue`.
-- **Modello dati completo (Fase 1 ✅ 100%)**: anagrafiche Clienti + Fornitori + **Pratiche di viaggio** con numerazione `PR-YYYY-NNN`, 5 stati, riepilogo economico (ricavo/costo/margine/% incassato), timeline eventi. Task collegati via `clientId`+`practiceId`. Picker triplo in QuickAddTask con auto-suggest cliente da pratica.
-- **Ricerca avanzata** estesa col filtro "numero pratica".
-- **Vista settimanale Calendario**: time-grid orario su desktop con now-line; day-tab + lista verticale su mobile.
-- Commenti firmati con l'utente loggato (non più hard-coded "Marco Ferretti").
-- File `VoyageDesk.jsx` ancora monolitico (~9700 righe) — splitting in moduli è il prossimo step della traccia tecnica.
+- App gira su Vite (progetto reale, non più artifact).
+- **Persistenza `localStorage`** (state + chat versionati + reset).
+- **🎉 Fase 1 — Modello dati 100%**: anagrafiche Clienti + Fornitori + **Pratiche di viaggio** (`PR-YYYY-NNN`, 5 stati, riepilogo economico, timeline). Task collegati via `clientId`+`supplierId`+`practiceId`. Picker triplo + auto-suggest cliente da pratica. Filtro numero pratica nella ricerca avanzata.
+- **🚀 Fase 2 — Operatività iniziata**:
+  - **Notifiche reali** ✅ v0.9.9 — generate automaticamente nel wrapper reducer (assignment, comment, status, pending, practice). Pannello con filtri + segna tutte lette.
+  - **Dark mode** ✅ v0.9.9 — toggle in UserSwitcher.
+  - **Ricerca chat** estesa al testo messaggi ✅ v0.9.9.
+- **Vista settimanale Calendario**: time-grid orario (desktop) + day-tab/lista (mobile) con now-line.
+- **Agenda Driver** transfer-oriented.
+- **Editor assegnatari** da TaskSlideOver.
+- **Badge nav** contatori (Admin pending, Dashboard coda globale).
+- File `VoyageDesk.jsx` monolitico (~10350 righe) — splitting in moduli è il prossimo step della traccia tecnica.
 
-**🎉 Fase 1 completa al 100%** — Clienti ✅, Fornitori ✅, Pratiche ✅, Collegamenti task ✅. Si apre la strada al **Modulo finanziario** (Fase 3) e alle **Notifiche reali** (Fase 2).
+**Restano in Fase 2:** Calendario avanzato residuo (iCal mock, vista giornaliera), estensioni chat avanzate (stato online/occupato, rich preview pratiche), notifiche schedulate (overdue automatici).
+
+**Restano in Fase 3:** Modulo finanziario (sfruttando il riepilogo economico delle Pratiche), Report & Analytics avanzati.
 
 ---
 
@@ -80,9 +83,9 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 | Modulo | Stato | Priorità | Sforzo | Note |
 |---|---|---|---|---|
-| Notifiche reali | ⬜ | 🔴 | M | Collegate ad azioni (scadenze, assegnazioni, commenti, pending, coda > N ore); filtri + "segna tutte lette" |
+| Notifiche reali | ✅ | — | M | Completato in v0.9.9 — schema `recipientId`-aware, generazione automatica nel wrapper reducer (assignment, comment, status, pending, practice status), pannello con filtri + segna tutte lette + pulisci lette. Scadenze auto-generate (overdue check schedulato) rimandate. |
 | Calendario avanzato | ⬜ | 🟡 | M | Viste settimanale/giornaliera, eventi multipli, iCal (mock) |
-| Estensioni chat (base) | ⬜ | 🟡 | S–M | Ricerca nelle conversazioni, stato online/occupato, rich preview di task/pratiche, **task link cliccabile** nel messaggio |
+| Estensioni chat (base) | 🔶 | 🟡 | S–M | Task link cliccabile ✅ v0.9.3. Ricerca estesa al testo messaggi ✅ v0.9.9. Da fare: stato online/occupato, rich preview pratiche. |
 | Impostazioni agenzia | 🔶 | 🟡 | S | Gestione categorie e nome agenzia già in Admin. Manca: template messaggi, profilo utente, preferenze UI |
 | Ricerca globale estesa | ✅ | — | — | Completata in v0.5. |
 | Responsive (mobile/tablet/desktop) | ✅ | — | — | Completato in v0.6. |
@@ -138,7 +141,7 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 | Vista settimanale Calendario | ✅ | — | Completato in v0.9.6 — time-grid orario desktop, day-tab+lista mobile, now-line |
 | Comprimi automaticamente Sidebar desktop tra 1024–1280px | ⬜ | ⚪ | |
 | Skeleton loading su prime render | ⬜ | ⚪ | |
-| Dark mode | ⬜ | ⚪ | CSS variables pronte |
+| Dark mode | ✅ | — | Completato in v0.9.9 — toggle in UserSwitcher, override CSS vars via `html[data-theme="dark"]`, persistito |
 | Test responsive automatici (Playwright) | ⬜ | ⚪ | ⚙️**B** |
 
 ## ✨ Migliorie incrementali emerse (post v0.8)

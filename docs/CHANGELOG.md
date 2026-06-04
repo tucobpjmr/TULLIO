@@ -1,5 +1,32 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9.4 — Agenda Driver transfer-oriented (sessione 12)
+
+> Chiude il punto 🟡 "Coda personale Driver con filtro data/ora (tipo agenda giornaliera)" della roadmap post-v0.8. Giulia (e ogni altro Driver) ora vede le proprie corse organizzate come agenda con orario in evidenza.
+
+### 🚐 Modalità agenda per Driver
+- **`PersonalQueue`** ora rileva `getRoleType(me.id) === "driver"` e mostra una vista alternativa:
+  - **Layout agenda** raggruppato per giorno: header sezione "Oggi · gio 14 dic" / "Domani · ven 15 dic" / "lun 16 dic" + contatore corse del giorno.
+  - **Card a row** con riquadro orario a sinistra (`formatTime` in font grande, "ORARIO" sotto) e dettagli a destra.
+  - Card singola colonna (più leggibile in mobile, vista transfer-oriented).
+  - L'icona 📅 ridondante è stata rimossa dalle card driver — l'orario è già grande a sinistra.
+
+### 🗓️ Filtri data
+- **Chip filtro** sopra l'agenda: **Oggi · Domani · Tutte**, con conteggio per chip.
+- Default `today`. Stato locale al componente (non persistito).
+- Filtraggio puro per intervalli `[startOfDay, startOfDay+1)`; task senza `dueDate` esclusi dai filtri Oggi/Domani.
+
+### 🔁 Backward-compat
+- Per Admin/Manager/Agent il rendering resta identico (grid auto-fill 280px, etichetta "La mia coda — task assegnate a me"). Nessuna regressione.
+- Card driver e card non-driver condividono lo stesso `renderCard(t, opts)` per coerenza visiva e per non duplicare il markup.
+
+### 📈 Metriche
+- File: 7427 → ~7580 righe (+~150).
+- Componenti nuovi: 0 (solo evoluzione di `PersonalQueue`).
+- Stato locale nuovo: `dayFilter` ("today" | "tomorrow" | "all").
+
+---
+
 ## v0.9.3 — Task link cliccabile in chat (sessione 11)
 
 > Promosso il "task link" della chat da testo precompilato a chip interattivo. Click → apre `TaskSlideOver` e chiude la chat. Completa il punto 🟡 "Task link cliccabile nella chat (apre TaskSlideOver)" della roadmap post-v0.8.

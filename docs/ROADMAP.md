@@ -9,15 +9,16 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 
 ---
 
-## 📍 Punto di partenza (post v0.9.3)
+## 📍 Punto di partenza (post v0.9.4)
 
 - App ora gira fuori da claude.ai artifacts (progetto Vite con `package.json`, `vite.config.js`, `index.html`, `src/main.jsx`).
 - **Persistenza `localStorage`** attiva (state + chat con versioning + reset da Admin). Dati sopravvivono al refresh.
 - **Badge nav contatori** su voce Admin (agenti pending) e Dashboard (coda globale).
 - **Editor multi-assegnatari** disponibile da `TaskSlideOver`.
 - **Task link cliccabile in chat**: chip `TaskLinkChip` apre `TaskSlideOver`, intent "contatta agente" agganciata come preview sopra l'input.
+- **Agenda Driver transfer-oriented** in `PersonalQueue`: chip Oggi/Domani/Tutte, raggruppata per giorno con orario in evidenza.
 - Commenti firmati con l'utente loggato (non più hard-coded "Marco Ferretti").
-- File `VoyageDesk.jsx` ancora monolitico (~7395 righe) — splitting in moduli è il prossimo step della traccia tecnica.
+- File `VoyageDesk.jsx` ancora monolitico (~7580 righe) — splitting in moduli è il prossimo step della traccia tecnica.
 - Tutto il resto invariato rispetto al punto di partenza post v0.8 sotto.
 
 ---
@@ -142,7 +143,7 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 |---|---|---|---|
 | Task link cliccabile nella chat (apre TaskSlideOver) | ✅ | — | Completato in v0.9.3 — chip `TaskLinkChip` con check `canViewTask` |
 | Permessi granulari per sub-ruolo (Senior vs Junior) | ⬜ | ⚪ | Oggi trattati identicamente come "agent" |
-| Coda personale Driver: filtro per data/ora (tipo agenda giornaliera) | ⬜ | 🟡 | Giulia ha bisogno di una vista transfer-oriented |
+| Coda personale Driver: filtro per data/ora (tipo agenda giornaliera) | ✅ | — | Completato in v0.9.4 — chip Oggi/Domani/Tutte, agenda raggruppata per giorno, orario in evidenza |
 | Indicatore visivo "read-only" sulle card urgenti altrui | ⬜ | ⚪ | Lucchetto o bordo tratteggiato |
 | Notifica in-app al cambio utente (rollback automatico dopo X secondi?) | ⬜ | ⚪ | Per evitare che qualcuno lasci l'app loggato come Admin |
 

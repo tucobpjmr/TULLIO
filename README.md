@@ -2,9 +2,9 @@
 
 Sistema gestionale per agenzie viaggi e tour operator.
 
-## Stato attuale — v0.9.3
+## Stato attuale — v0.9.4
 
-App single-file React (~7395 righe) con persistenza locale via `localStorage` (state app + chat). Dati conservati tra refresh, reset disponibile dal pannello Admin. Badge contatori su nav, editor multi-assegnatari da TaskSlideOver, task link cliccabile nei messaggi chat.
+App single-file React (~7580 righe) con persistenza locale via `localStorage` (state app + chat). Dati conservati tra refresh, reset disponibile dal pannello Admin. Badge contatori su nav, editor multi-assegnatari da TaskSlideOver, task link cliccabile nei messaggi chat, agenda Driver con filtri data e orario in evidenza.
 
 ### Feature completate
 

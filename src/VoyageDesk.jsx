@@ -3298,8 +3298,154 @@ const NoticeEditorModal = ({ notice, onClose, onSave }) => {
 };
 
 // ─── PERSONAL QUEUE (le mie task — v0.8) ───────────────────────────────────
+// v0.9.4: per Driver mostra agenda transfer-oriented (chip Oggi/Domani/Tutte,
+// raggruppata per giorno con orario in evidenza). Per altri ruoli resta la
+// griglia auto-fill già presente da v0.8.
 const PersonalQueue = ({ tasks, dispatch, me }) => {
   const { isMobile } = useViewport();
+  const driverMode = me && getRoleType(me.id) === "driver";
+  const [dayFilter, setDayFilter] = useState("today");
+
+  // Conteggi per chip filtro (sempre calcolati per Driver, indipendenti dal filter attivo)
+  const driverCounts = useMemo(() => {
+    if (!driverMode) return null;
+    const startToday = new Date(); startToday.setHours(0, 0, 0, 0);
+    const startTomorrow = new Date(startToday); startTomorrow.setDate(startTomorrow.getDate() + 1);
+    const startDayAfter = new Date(startToday); startDayAfter.setDate(startToday.getDate() + 2);
+    let today = 0, tomorrow = 0;
+    tasks.forEach(t => {
+      if (!t.dueDate) return;
+      const d = new Date(t.dueDate);
+      if (d >= startToday && d < startTomorrow) today++;
+      else if (d >= startTomorrow && d < startDayAfter) tomorrow++;
+    });
+    return { today, tomorrow, all: tasks.length };
+  }, [tasks, driverMode]);
+
+  // Task filtrate per il filtro giorno attivo (solo Driver)
+  const filtered = useMemo(() => {
+    if (!driverMode || dayFilter === "all") return tasks;
+    const startToday = new Date(); startToday.setHours(0, 0, 0, 0);
+    const startTomorrow = new Date(startToday); startTomorrow.setDate(startTomorrow.getDate() + 1);
+    const startDayAfter = new Date(startToday); startDayAfter.setDate(startToday.getDate() + 2);
+    return tasks.filter(t => {
+      if (!t.dueDate) return false;
+      const d = new Date(t.dueDate);
+      if (dayFilter === "today") return d >= startToday && d < startTomorrow;
+      if (dayFilter === "tomorrow") return d >= startTomorrow && d < startDayAfter;
+      return false;
+    });
+  }, [tasks, dayFilter, driverMode]);
+
+  // Raggruppa per giorno per la vista agenda (driver-only)
+  const grouped = useMemo(() => {
+    if (!driverMode) return null;
+    const map = new Map();
+    filtered.forEach(t => {
+      const key = t.dueDate ? getDayKey(t.dueDate) : "__none__";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(t);
+    });
+    return Array.from(map.entries())
+      .sort(([a], [b]) => {
+        if (a === "__none__") return 1;
+        if (b === "__none__") return -1;
+        return new Date(a) - new Date(b);
+      })
+      .map(([key, list]) => ({
+        key,
+        date: key === "__none__" ? null : new Date(key),
+        tasks: list,
+      }));
+  }, [filtered, driverMode]);
+
+  // Label "Oggi · gio 14 dic" / "Domani · ven 15 dic" / "lun 16 dic"
+  const formatAgendaDay = (date) => {
+    if (!date) return "Senza data";
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+    const d = new Date(date); d.setHours(0, 0, 0, 0);
+    const datePart = d.toLocaleDateString("it-IT", { weekday: "short", day: "2-digit", month: "short" });
+    if (d.getTime() === today.getTime()) return `Oggi · ${datePart}`;
+    if (d.getTime() === tomorrow.getTime()) return `Domani · ${datePart}`;
+    return datePart;
+  };
+
+  const renderCard = (t, opts = {}) => {
+    const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
+    const prio = PRIORITIES[t.priority];
+    const overdue = isOverdue(t);
+    const urgent = isUrgent(t);
+    const card = (
+      <div
+        style={{
+          background: "#fff", borderRadius: 10,
+          border: `1px solid ${overdue ? "rgba(192,57,43,0.4)" : urgent ? "rgba(200,131,42,0.4)" : "var(--border)"}`,
+          padding: 12, display: "flex", flexDirection: opts.driver ? "row" : "column",
+          gap: opts.driver ? 12 : 8,
+          cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
+          borderLeft: `3px solid ${prio.color}`,
+          alignItems: opts.driver ? "stretch" : "stretch",
+        }}
+        onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
+        onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.08)"; }}
+        onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
+      >
+        {opts.driver && t.dueDate && (
+          <div style={{
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            minWidth: 62, padding: "4px 8px", borderRight: "1px solid var(--surface3)",
+            background: overdue ? "rgba(192,57,43,0.05)" : "var(--surface)",
+            borderRadius: 6,
+          }}>
+            <div style={{
+              fontSize: 19, fontWeight: 700, lineHeight: 1, color: overdue ? "var(--danger)" : "var(--navy)",
+              fontVariantNumeric: "tabular-nums",
+            }}>{formatTime(t.dueDate)}</div>
+            <div style={{ fontSize: 9, color: "var(--text-muted)", marginTop: 3, letterSpacing: 0.5 }}>
+              ORARIO
+            </div>
+          </div>
+        )}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <div style={{
+              display: "inline-flex", alignItems: "center", gap: 5,
+              padding: "3px 8px", borderRadius: 999,
+              background: cat.bg, color: cat.color,
+              fontSize: 11, fontWeight: 600,
+            }}>
+              <span>{cat.icon}</span> {cat.label}
+            </div>
+            <StatusBadge status={t.status} />
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", lineHeight: 1.35 }}>
+            {t.title}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, fontSize: 11, color: "var(--text-muted)" }}>
+            {t.client && <span>👤 {t.client}</span>}
+            {t.dueDate && !opts.driver && (
+              <span style={{ color: overdue ? "var(--danger)" : urgent ? "var(--warning)" : "var(--text-muted)", fontWeight: (overdue || urgent) ? 700 : 400 }}>
+                📅 {formatDate(t.dueDate)}{overdue ? " ⚠ scaduto" : urgent ? " ⏱ < 24h" : ""}
+              </span>
+            )}
+            {t.dueDate && opts.driver && (overdue || urgent) && (
+              <span style={{ color: overdue ? "var(--danger)" : "var(--warning)", fontWeight: 700 }}>
+                {overdue ? "⚠ scaduto" : "⏱ < 24h"}
+              </span>
+            )}
+            {t.estimatedHours > 0 && <span>⏱️ {t.estimatedHours}h</span>}
+          </div>
+        </div>
+      </div>
+    );
+    return (
+      <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+        {card}
+      </SwipeActions>
+    );
+  };
+
   const empty = tasks.length === 0;
   return (
     <div style={{
@@ -3319,10 +3465,12 @@ const PersonalQueue = ({ tasks, dispatch, me }) => {
           }}>{me?.avatar || "?"}</div>
           <div>
             <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)" }}>
-              La mia coda — task assegnate a me
+              {driverMode ? "Le mie corse — agenda" : "La mia coda — task assegnate a me"}
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-              Ordinate per scadenza • clicca una card per i dettagli
+              {driverMode
+                ? "Filtra per giorno • orario in evidenza • clicca per i dettagli"
+                : "Ordinate per scadenza • clicca una card per i dettagli"}
             </div>
           </div>
         </div>
@@ -3331,9 +3479,44 @@ const PersonalQueue = ({ tasks, dispatch, me }) => {
             background: "var(--navy)", color: "#fff",
             padding: "4px 12px", borderRadius: 999,
             fontSize: 13, fontWeight: 700,
-          }}>{tasks.length} {tasks.length === 1 ? "task" : "task"}</div>
+          }}>{driverMode ? filtered.length : tasks.length} {(driverMode ? filtered.length : tasks.length) === 1 ? "task" : "task"}</div>
         )}
       </div>
+
+      {/* Driver: chip filtro giorno */}
+      {driverMode && !empty && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+          {[
+            { id: "today", label: "Oggi", count: driverCounts.today },
+            { id: "tomorrow", label: "Domani", count: driverCounts.tomorrow },
+            { id: "all", label: "Tutte", count: driverCounts.all },
+          ].map(opt => {
+            const on = dayFilter === opt.id;
+            return (
+              <button
+                key={opt.id}
+                onClick={() => setDayFilter(opt.id)}
+                style={{
+                  padding: "6px 12px", borderRadius: 999,
+                  border: `1px solid ${on ? "var(--navy)" : "var(--border)"}`,
+                  background: on ? "var(--navy)" : "#fff",
+                  color: on ? "#fff" : "var(--text)",
+                  cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  transition: "background 0.15s",
+                }}
+              >
+                {opt.label}
+                <span style={{
+                  background: on ? "rgba(255,255,255,0.2)" : "var(--surface2)",
+                  color: on ? "#fff" : "var(--text-muted)",
+                  padding: "1px 7px", borderRadius: 99, fontSize: 10.5, fontWeight: 700,
+                }}>{opt.count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {empty ? (
         <div style={{
@@ -3341,62 +3524,49 @@ const PersonalQueue = ({ tasks, dispatch, me }) => {
           color: "var(--text-muted)", fontSize: 13,
         }}>
           <span style={{ fontSize: 18 }}>🎉</span>
-          Nessuna task aperta a tuo nome. Buon lavoro!
+          {driverMode
+            ? "Nessuna corsa assegnata. Buon riposo!"
+            : "Nessuna task aperta a tuo nome. Buon lavoro!"}
         </div>
+      ) : driverMode ? (
+        grouped.length === 0 ? (
+          <div style={{
+            padding: "14px 0 4px", display: "flex", alignItems: "center", gap: 10,
+            color: "var(--text-muted)", fontSize: 13,
+          }}>
+            <span style={{ fontSize: 18 }}>🗓️</span>
+            Nessuna corsa per il filtro selezionato.
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {grouped.map(group => (
+              <section key={group.key}>
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  fontSize: 11, fontWeight: 700, color: "var(--text-muted)",
+                  textTransform: "uppercase", letterSpacing: 1, marginBottom: 8,
+                  paddingBottom: 6, borderBottom: "1px solid var(--surface3)",
+                }}>
+                  <span style={{ color: "var(--navy)" }}>{formatAgendaDay(group.date)}</span>
+                  <span style={{
+                    background: "var(--surface2)", padding: "1px 7px", borderRadius: 99,
+                    fontSize: 10, fontWeight: 700, color: "var(--text-muted)",
+                    letterSpacing: 0,
+                  }}>{group.tasks.length}</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {group.tasks.map(t => renderCard(t, { driver: true }))}
+                </div>
+              </section>
+            ))}
+          </div>
+        )
       ) : (
         <div style={{
           display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))",
           gap: 10,
         }}>
-          {tasks.map(t => {
-            const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
-            const prio = PRIORITIES[t.priority];
-            const overdue = isOverdue(t);
-            const urgent = isUrgent(t);
-            const card = (
-              <div
-                style={{
-                  background: "#fff", borderRadius: 10,
-                  border: `1px solid ${overdue ? "rgba(192,57,43,0.4)" : urgent ? "rgba(200,131,42,0.4)" : "var(--border)"}`,
-                  padding: 12, display: "flex", flexDirection: "column", gap: 8,
-                  cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
-                  borderLeft: `3px solid ${prio.color}`,
-                }}
-                onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
-                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.08)"; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                  <div style={{
-                    display: "inline-flex", alignItems: "center", gap: 5,
-                    padding: "3px 8px", borderRadius: 999,
-                    background: cat.bg, color: cat.color,
-                    fontSize: 11, fontWeight: 600,
-                  }}>
-                    <span>{cat.icon}</span> {cat.label}
-                  </div>
-                  <StatusBadge status={t.status} />
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", lineHeight: 1.35 }}>
-                  {t.title}
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 10, fontSize: 11, color: "var(--text-muted)" }}>
-                  {t.client && <span>👤 {t.client}</span>}
-                  {t.dueDate && (
-                    <span style={{ color: overdue ? "var(--danger)" : urgent ? "var(--warning)" : "var(--text-muted)", fontWeight: (overdue || urgent) ? 700 : 400 }}>
-                      📅 {formatDate(t.dueDate)}{overdue ? " ⚠ scaduto" : urgent ? " ⏱ < 24h" : ""}
-                    </span>
-                  )}
-                  {t.estimatedHours > 0 && <span>⏱️ {t.estimatedHours}h</span>}
-                </div>
-              </div>
-            );
-            return (
-              <SwipeActions key={t.id} task={t} dispatch={dispatch}>
-                {card}
-              </SwipeActions>
-            );
-          })}
+          {tasks.map(t => renderCard(t))}
         </div>
       )}
     </div>

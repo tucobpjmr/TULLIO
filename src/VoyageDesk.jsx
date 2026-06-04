@@ -4761,12 +4761,21 @@ const TaskSlideOver = ({ task, dispatch, clients }) => {
 };
 
 // ─── CALENDAR PLANNER (unificato: mese + settimana + distribuzione agenti) ──
+// v0.9.6: vista settimanale ridisegnata — desktop time-grid orario, mobile day-tab + lista
+const WEEK_START_HOUR = 6;   // 06:00 prima riga
+const WEEK_END_HOUR = 22;    // 22:00 esclusa (ultima riga è 21:00)
+const WEEK_HOUR_COUNT = WEEK_END_HOUR - WEEK_START_HOUR;
+const WEEK_ROW_HEIGHT = 56;  // px per ora (desktop)
+
 const CalendarPlanner = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
   const [viewMode, setViewMode] = useState("month"); // "month" | "week"
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState(null);
+  // v0.9.6: indice del giorno selezionato in vista settimana mobile.
+  // Quando si cambia settimana, riallineiamo all'eventuale "oggi" della nuova settimana.
+  const [weekDayIdx, setWeekDayIdx] = useState(0);
   const uid = state.currentUserId;
 
   // ── Month helpers ──
@@ -4797,14 +4806,57 @@ const CalendarPlanner = ({ state, dispatch }) => {
   const weekDays = getWeekDays(weekOffset);
   const dayNames = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
-  const getTasksForDay = (day) =>
-    state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && new Date(t.dueDate).toDateString() === day.toDateString());
-
   // ── Distribuzione agenti (settimana corrente in vista week, settimana del mese selezionato in vista month) ──
   const agentWeekDays = viewMode === "week" ? weekDays : (() => {
     // In vista mese, usiamo la settimana corrente
     return getWeekDays(0);
   })();
+
+  // ── Vista settimana v2 (v0.9.6) ──
+  // Quando cambia weekOffset, prova a riallineare il giorno mobile a "oggi" se è nella nuova settimana.
+  useEffect(() => {
+    const todayInWeek = weekDays.findIndex(d => d.toDateString() === new Date().toDateString());
+    setWeekDayIdx(todayInWeek >= 0 ? todayInWeek : 0);
+    // weekDays è ricalcolato a ogni render: useEffect su weekOffset basta
+  }, [weekOffset]);
+
+  // Task di un giorno *e* ora specifici (start = ora intera). Senza dueDate → esclusi.
+  const getTasksForDayHour = (day, hour) =>
+    state.tasks.filter(t => {
+      if (!isActiveTask(t) || !canViewTask(t, uid) || !t.dueDate) return false;
+      const td = new Date(t.dueDate);
+      return td.toDateString() === day.toDateString() && td.getHours() === hour;
+    });
+
+  // Task all-day di un giorno (con dueDate ma fuori dal range orario visualizzato).
+  // Pratico per task notturni o senza orario significativo.
+  const getOffHourTasks = (day) =>
+    state.tasks.filter(t => {
+      if (!isActiveTask(t) || !canViewTask(t, uid) || !t.dueDate) return false;
+      const td = new Date(t.dueDate);
+      if (td.toDateString() !== day.toDateString()) return false;
+      const h = td.getHours();
+      return h < WEEK_START_HOUR || h >= WEEK_END_HOUR;
+    });
+
+  // Posizione "now line" rispetto alla griglia (null se oggi non è in questa settimana o fuori range)
+  const nowLine = (() => {
+    const now = new Date();
+    const idx = weekDays.findIndex(d => d.toDateString() === now.toDateString());
+    if (idx < 0) return null;
+    const h = now.getHours() + now.getMinutes() / 60;
+    if (h < WEEK_START_HOUR || h >= WEEK_END_HOUR) return null;
+    return { dayIdx: idx, top: (h - WEEK_START_HOUR) * WEEK_ROW_HEIGHT };
+  })();
+
+  // Per la vista mobile: task del giorno selezionato ordinati per orario
+  const selectedDayDate = weekDays[Math.max(0, Math.min(6, weekDayIdx))];
+  const selectedDayTasksSorted = selectedDayDate
+    ? state.tasks
+        .filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate &&
+          new Date(t.dueDate).toDateString() === selectedDayDate.toDateString())
+        .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
+    : [];
 
   // ── Toggle style ──
   const toggleBtn = (mode, label) => (
@@ -4963,50 +5015,254 @@ const CalendarPlanner = ({ state, dispatch }) => {
         );
       })()}
 
-      {/* ─── VISTA SETTIMANA ─── */}
-      {viewMode === "week" && (
-        <div style={{ overflowX: isMobile ? "auto" : "visible", scrollSnapType: isMobile ? "x mandatory" : "none" }}>
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(7, 60vw)" : "repeat(7, 1fr)", gap: 10 }}>
+      {/* ─── VISTA SETTIMANA — DESKTOP: time-grid orario ─── */}
+      {viewMode === "week" && !isMobile && (
+        <div style={{
+          background: "#fff", borderRadius: 12, border: "1px solid var(--border)",
+          boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden",
+        }}>
+          {/* Header giorni */}
+          <div style={{ display: "grid", gridTemplateColumns: "62px repeat(7, 1fr)", background: "var(--navy)" }}>
+            <div style={{ padding: "10px 6px", fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: 1, textAlign: "center" }}>Ora</div>
             {weekDays.map((day, i) => {
-              const dayTasks = getTasksForDay(day);
               const isToday = day.toDateString() === new Date().toDateString();
               return (
                 <div key={i} style={{
-                  background: isToday ? "var(--navy)" : "#fff",
-                  borderRadius: 10, border: `1px solid ${isToday ? "transparent" : "var(--border)"}`,
-                  overflow: "hidden", scrollSnapAlign: isMobile ? "start" : "none",
+                  padding: "10px 6px", textAlign: "center",
+                  background: isToday ? "var(--gold)" : "transparent",
+                  color: isToday ? "var(--navy)" : "rgba(255,255,255,0.85)",
+                  borderLeft: "1px solid rgba(255,255,255,0.08)",
                 }}>
-                  {/* Day header */}
-                  <div style={{
-                    padding: "10px 10px 6px",
-                    background: isToday ? "var(--gold)" : "var(--surface2)",
-                    textAlign: "center"
-                  }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: isToday ? "var(--navy)" : "var(--text-muted)" }}>{dayNames[i]}</div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: isToday ? "var(--navy)" : "var(--text)" }}>
-                      {day.getDate()}
-                    </div>
-                  </div>
-                  <div style={{ padding: "8px 6px", display: "flex", flexDirection: "column", gap: 4, minHeight: 160 }}>
-                    {dayTasks.length === 0 ? (
-                      <div style={{ fontSize: 10, color: isToday ? "rgba(255,255,255,0.4)" : "var(--text-muted)", textAlign: "center", marginTop: 20 }}>Nessun task</div>
-                    ) : dayTasks.slice(0, 6).map(t => (
-                      <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
-                        background: isToday ? "rgba(255,255,255,0.12)" : CATEGORIES[t.category]?.color + "18",
-                        borderLeft: `3px solid ${CATEGORIES[t.category]?.color}`,
-                        borderRadius: "0 4px 4px 0", padding: "4px 6px", cursor: "pointer",
-                        fontSize: 10, fontWeight: 500, lineHeight: 1.3,
-                        color: isToday ? "#fff" : "var(--text)",
-                      }}>
-                        {CATEGORIES[t.category]?.icon} {t.title.slice(0, 30)}{t.title.length > 30 ? "…" : ""}
-                        <div style={{ fontSize: 9, color: isToday ? "rgba(255,255,255,0.5)" : "var(--text-muted)", marginTop: 1 }}>{formatTime(t.dueDate)}</div>
-                      </div>
-                    ))}
-                    {dayTasks.length > 6 && <div style={{ fontSize: 10, color: isToday ? "rgba(255,255,255,0.4)" : "var(--text-muted)", textAlign: "center" }}>+{dayTasks.length - 6} altri</div>}
-                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.8 }}>{dayNames[i]}</div>
+                  <div style={{ fontSize: 18, fontWeight: 700 }}>{day.getDate()}</div>
                 </div>
               );
             })}
+          </div>
+
+          {/* Strip "all-day" / fuori orario, se ci sono task notturni o senza orario significativo */}
+          {weekDays.some(d => getOffHourTasks(d).length > 0) && (
+            <div style={{
+              display: "grid", gridTemplateColumns: "62px repeat(7, 1fr)",
+              background: "var(--surface2)", borderBottom: "1px solid var(--border)",
+            }}>
+              <div style={{
+                padding: "6px 6px", fontSize: 9, fontWeight: 600, color: "var(--text-muted)",
+                textAlign: "center", borderRight: "1px solid var(--border)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>FUORI ORARIO</div>
+              {weekDays.map((day, i) => {
+                const offTasks = getOffHourTasks(day);
+                return (
+                  <div key={i} style={{
+                    padding: "4px 4px", borderLeft: i === 0 ? "none" : "1px solid var(--border)",
+                    display: "flex", flexDirection: "column", gap: 2,
+                  }}>
+                    {offTasks.map(t => {
+                      const cat = CATEGORIES[t.category] || { color: "#6B7280", icon: "📋" };
+                      return (
+                        <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} title={t.title} style={{
+                          background: cat.color + "18", borderLeft: `3px solid ${cat.color}`,
+                          padding: "3px 6px", borderRadius: "0 4px 4px 0", cursor: "pointer",
+                          fontSize: 10, color: "var(--text)", whiteSpace: "nowrap",
+                          overflow: "hidden", textOverflow: "ellipsis",
+                        }}>{cat.icon} {t.title}</div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Griglia oraria */}
+          <div style={{ position: "relative" }}>
+            {/* Now line: assoluta sopra tutto */}
+            {nowLine && (
+              <div style={{
+                position: "absolute", left: 62, right: 0, top: nowLine.top,
+                height: 2, background: "var(--danger)", zIndex: 5,
+                pointerEvents: "none",
+              }}>
+                <div style={{
+                  position: "absolute", left: `calc(${(100 / 7) * nowLine.dayIdx}% - 6px)`,
+                  top: -5, width: 12, height: 12, borderRadius: "50%",
+                  background: "var(--danger)", border: "2px solid #fff",
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
+                }} />
+              </div>
+            )}
+
+            {/* Righe orarie */}
+            {Array.from({ length: WEEK_HOUR_COUNT }, (_, hi) => {
+              const hour = WEEK_START_HOUR + hi;
+              return (
+                <div key={hour} style={{
+                  display: "grid", gridTemplateColumns: "62px repeat(7, 1fr)",
+                  height: WEEK_ROW_HEIGHT, borderTop: "1px solid var(--surface3)",
+                }}>
+                  {/* Etichetta ora */}
+                  <div style={{
+                    fontSize: 11, color: "var(--text-muted)", padding: "3px 8px",
+                    textAlign: "right", borderRight: "1px solid var(--border)",
+                    fontVariantNumeric: "tabular-nums",
+                  }}>{String(hour).padStart(2, "0")}:00</div>
+
+                  {weekDays.map((day, di) => {
+                    const tasks = getTasksForDayHour(day, hour);
+                    const isToday = day.toDateString() === new Date().toDateString();
+                    return (
+                      <div key={di} style={{
+                        borderLeft: di === 0 ? "none" : "1px solid var(--surface3)",
+                        padding: "3px 4px",
+                        display: "flex", flexDirection: "column", gap: 2,
+                        background: isToday ? "rgba(212,168,67,0.04)" : "transparent",
+                        overflow: "hidden",
+                      }}>
+                        {tasks.map(t => {
+                          const cat = CATEGORIES[t.category] || { color: "#6B7280", icon: "📋" };
+                          const prio = PRIORITIES[t.priority] || { color: "#6B7280" };
+                          return (
+                            <div
+                              key={t.id}
+                              onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
+                              title={`${t.title} — ${formatTime(t.dueDate)}`}
+                              style={{
+                                background: cat.color + "1a",
+                                borderLeft: `3px solid ${cat.color}`,
+                                borderRadius: "0 4px 4px 0",
+                                padding: "3px 6px", cursor: "pointer",
+                                fontSize: 11, lineHeight: 1.25,
+                                color: "var(--text)", display: "flex", gap: 4, alignItems: "baseline",
+                                overflow: "hidden",
+                              }}
+                              onMouseEnter={e => { e.currentTarget.style.background = cat.color + "30"; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = cat.color + "1a"; }}
+                            >
+                              <span style={{ fontSize: 10, fontWeight: 700, color: cat.color, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
+                                {formatTime(t.dueDate)}
+                              </span>
+                              <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontWeight: 500 }}>
+                                {cat.icon} {t.title}
+                              </span>
+                              <span style={{ width: 5, height: 5, borderRadius: "50%", background: prio.color, flexShrink: 0 }} title={prio.label} />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ─── VISTA SETTIMANA — MOBILE: day tabs + lista verticale ─── */}
+      {viewMode === "week" && isMobile && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {/* Tab strip giorni con scroll snap */}
+          <div style={{
+            display: "flex", gap: 6, overflowX: "auto", paddingBottom: 6,
+            scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch",
+          }}>
+            {weekDays.map((day, i) => {
+              const isToday = day.toDateString() === new Date().toDateString();
+              const isActive = i === weekDayIdx;
+              const count = state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate &&
+                new Date(t.dueDate).toDateString() === day.toDateString()).length;
+              return (
+                <button
+                  key={i}
+                  onClick={() => setWeekDayIdx(i)}
+                  style={{
+                    flex: "0 0 auto", minWidth: 64, padding: "8px 10px",
+                    borderRadius: 10, border: "none", cursor: "pointer",
+                    background: isActive ? "var(--navy)" : isToday ? "var(--gold)" : "#fff",
+                    color: isActive ? "#fff" : "var(--navy)",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                    fontFamily: "inherit", display: "flex", flexDirection: "column",
+                    alignItems: "center", gap: 2, scrollSnapAlign: "start",
+                    transition: "background 0.15s",
+                  }}
+                >
+                  <span style={{ fontSize: 10, fontWeight: 600, opacity: isActive ? 0.7 : 0.6, textTransform: "uppercase", letterSpacing: 0.5 }}>{dayNames[i]}</span>
+                  <span style={{ fontSize: 17, fontWeight: 700 }}>{day.getDate()}</span>
+                  {count > 0 && (
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 99,
+                      background: isActive ? "var(--gold)" : "var(--surface2)",
+                      color: isActive ? "var(--navy)" : "var(--text-muted)",
+                      marginTop: 1,
+                    }}>{count}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Lista task del giorno */}
+          <div style={{
+            background: "#fff", borderRadius: 12, padding: "14px 12px",
+            border: "1px solid var(--border)", boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
+          }}>
+            <div className="playfair" style={{ fontSize: 15, fontWeight: 700, marginBottom: 10, color: "var(--navy)" }}>
+              {selectedDayDate?.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
+              {selectedDayDate?.toDateString() === new Date().toDateString() && (
+                <span style={{ marginLeft: 8, fontSize: 10, padding: "2px 7px", borderRadius: 99, background: "var(--gold)", color: "var(--navy)" }}>OGGI</span>
+              )}
+            </div>
+            {selectedDayTasksSorted.length === 0 ? (
+              <div style={{ padding: "20px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+                🗓️ Nessun task per questo giorno.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {selectedDayTasksSorted.map(t => {
+                  const cat = CATEGORIES[t.category] || { color: "#6B7280", icon: "📋", label: t.category };
+                  const prio = PRIORITIES[t.priority];
+                  const card = (
+                    <div
+                      onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
+                      style={{
+                        display: "flex", gap: 10, padding: 10, borderRadius: 10,
+                        background: "#fff", border: "1px solid var(--border)",
+                        borderLeft: `3px solid ${prio.color}`,
+                        cursor: "pointer", alignItems: "stretch",
+                      }}
+                    >
+                      <div style={{
+                        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                        minWidth: 54, padding: "2px 6px", borderRight: "1px solid var(--surface3)",
+                        background: "var(--surface)", borderRadius: 6,
+                      }}>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: cat.color, fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>
+                          {formatTime(t.dueDate)}
+                        </div>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                          <span style={{
+                            display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600,
+                            padding: "2px 7px", borderRadius: 99,
+                            background: cat.bg || (cat.color + "18"), color: cat.color,
+                          }}>{cat.icon} {cat.label}</span>
+                          <StatusBadge status={t.status} />
+                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", lineHeight: 1.3 }}>{t.title}</div>
+                        {t.client && <div style={{ fontSize: 11, color: "var(--text-muted)" }}>👤 {t.client}</div>}
+                      </div>
+                    </div>
+                  );
+                  return (
+                    <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+                      {card}
+                    </SwipeActions>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}

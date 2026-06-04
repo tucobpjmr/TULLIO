@@ -1,5 +1,35 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9.6 — Vista settimana Calendario ridisegnata (sessione 14)
+
+> Chiude il punto 🟡 "Vista settimanale Calendario migliorata" della roadmap post-v0.6. La vecchia griglia card-per-giorno (con scroll orizzontale su mobile) è stata rimpiazzata da due layout dedicati: **time-grid orario** su desktop e **day-tab + lista verticale** su mobile.
+
+### 🕐 Desktop — Time-grid orario
+- Griglia oraria da **06:00 a 22:00** (16 righe da 56px), 7 colonne giorno + 1 colonna etichetta ora.
+- Task posizionati nella cella `(giorno, ora di inizio)`. Ogni blocco mostra ora (tabular-nums), icona categoria, titolo troncato e pallino priorità.
+- **"Now line" rossa** orizzontale + dot quando "oggi" è in settimana visualizzata e l'ora corrente è nel range — assoluta sopra la griglia.
+- **Riga "FUORI ORARIO"** sopra la griglia: visibile solo se ci sono task con orario notturno/precoce; ospita pillole compatte per non perderli.
+- Sfondo colonna "oggi" tinto in oro tenue per orientamento immediato.
+
+### 📱 Mobile — Day-tab + lista
+- **Tab strip orizzontale** con scroll-snap (un bottone per giorno: nome corto + numero + badge conteggio task). Bottone "oggi" colorato oro, attivo navy.
+- Sotto: **lista verticale del giorno selezionato**, ordinata per `dueDate`, con orario a sinistra grande (`tabular-nums` 16px), categoria/stato a destra. Niente più scroll orizzontale fra le colonne.
+- `SwipeActions` riattivati sulle card mobile (Fatto/Cestino/Inoltra).
+- Heading dinamico: "lunedì 14 dicembre" + badge OGGI quando opportuno.
+
+### 🔁 Sincronizzazione
+- Quando l'utente cambia settimana via ← / → (mobile), il tab si riallinea a "oggi" se è nella nuova settimana, altrimenti al primo giorno. Implementato con `useEffect([weekOffset])`.
+
+### 🧹 Cleanup
+- Rimosso helper `getTasksForDay` (non più referenziato).
+- Costanti time-grid esportate a livello modulo: `WEEK_START_HOUR`, `WEEK_END_HOUR`, `WEEK_HOUR_COUNT`, `WEEK_ROW_HEIGHT`.
+
+### 📈 Metriche
+- File: 8177 → ~8390 righe (+~210).
+- Componenti nuovi: 0 (riscrittura inline del blocco settimana in `CalendarPlanner`).
+
+---
+
 ## v0.9.5 — Anagrafica Clienti CRM (sessione 13)
 
 > Primo step della **Fase 1 — Modello dati completo** (post-handoff). Introduce l'entità Cliente, la vista dedicata, il picker nei form e il collegamento dei task tramite `clientId`.

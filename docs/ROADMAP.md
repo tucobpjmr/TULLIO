@@ -9,7 +9,7 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 
 ---
 
-## 📍 Punto di partenza (post v0.9.5)
+## 📍 Punto di partenza (post v0.9.6)
 
 - App ora gira fuori da claude.ai artifacts (progetto Vite con `package.json`, `vite.config.js`, `index.html`, `src/main.jsx`).
 - **Persistenza `localStorage`** attiva (state + chat con versioning + reset da Admin). Dati sopravvivono al refresh.
@@ -18,8 +18,9 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 - **Task link cliccabile in chat**: chip `TaskLinkChip` apre `TaskSlideOver`, intent "contatta agente" agganciata come preview sopra l'input.
 - **Agenda Driver transfer-oriented** in `PersonalQueue`: chip Oggi/Domani/Tutte, raggruppata per giorno con orario in evidenza.
 - **Anagrafica Clienti CRM**: entità `Client` con tipologie, vista dedicata, modale CRUD, picker in QuickAddTask, chip cliente cliccabile in TaskSlideOver. Task legati via `clientId` (con mappa legacy per i task pre-v0.9.5).
+- **Vista settimanale Calendario**: time-grid orario su desktop con now-line; day-tab + lista verticale su mobile.
 - Commenti firmati con l'utente loggato (non più hard-coded "Marco Ferretti").
-- File `VoyageDesk.jsx` ancora monolitico (~7980 righe) — splitting in moduli è il prossimo step della traccia tecnica.
+- File `VoyageDesk.jsx` ancora monolitico (~8390 righe) — splitting in moduli è il prossimo step della traccia tecnica.
 - Tutto il resto invariato rispetto al punto di partenza post v0.8 sotto.
 
 ---
@@ -132,7 +133,7 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 
 | Idea | Stato | Priorità | Note |
 |---|---|---|---|
-| Vista settimanale Calendario | ⬜ | 🟡 | Utile specialmente su mobile |
+| Vista settimanale Calendario | ✅ | — | Completato in v0.9.6 — time-grid orario desktop, day-tab+lista mobile, now-line |
 | Comprimi automaticamente Sidebar desktop tra 1024–1280px | ⬜ | ⚪ | |
 | Skeleton loading su prime render | ⬜ | ⚪ | |
 | Dark mode | ⬜ | ⚪ | CSS variables pronte |

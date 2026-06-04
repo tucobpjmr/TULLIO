@@ -92,6 +92,22 @@ Navigazione: Desktop → Sidebar collassabile. Tablet/Mobile → BottomNav.
 }
 ```
 
+### Supplier (v0.9.7)
+```js
+{
+  id: "sp-xxx",
+  name: string,              // obbligatorio
+  type: "hotel"|"transport"|"airline"|"insurance"|"tour-operator"|"visa"|"other",
+  contactPerson: string|null,
+  email: string|null,
+  phone: string|null,
+  address: string|null,
+  services: string,          // descrizione servizi offerti
+  notes: string,             // accordi commerciali, scadenze contrattuali
+  createdAt: ISO, updatedAt: ISO, deletedAt: ISO|null   // soft-delete
+}
+```
+
 ### Team member
 ```js
 {
@@ -142,6 +158,9 @@ Famiglia Rossi (Maldive), Coppia Bianchi (Giappone), Azienda TechCorp (Incentive
 
 ### Clienti (v0.9.5 — non admin-only, ma bloccate al Driver)
 `ADD_CLIENT`, `UPDATE_CLIENT`, `DELETE_CLIENT`, `SET_SELECTED_CLIENT`
+
+### Fornitori (v0.9.7 — stessa regola dei Clienti, bloccate al Driver)
+`ADD_SUPPLIER`, `UPDATE_SUPPLIER`, `DELETE_SUPPLIER`, `SET_SELECTED_SUPPLIER`
 
 ### Bacheca
 `ADD_NOTICE`, `UPDATE_NOTICE`, `DELETE_NOTICE`, `TOGGLE_PIN_NOTICE`
@@ -241,7 +260,7 @@ VoyageDesk (export default, ViewportProvider wrapper)
 
 ### Priorità 2 — Modello dati completo
 - [x] Anagrafica Clienti (CRM base) — v0.9.5
-- [ ] Anagrafica Fornitori
+- [x] Anagrafica Fornitori — v0.9.7
 - [ ] Pratiche di viaggio (aggrega task + clienti + fornitori)
 
 ### Priorità 3 — Operatività

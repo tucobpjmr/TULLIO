@@ -179,25 +179,25 @@ const d = (daysOffset, h = 10, m = 0) => {
 };
 
 const INITIAL_TASKS = [
-  { id: "t1", title: "Confermare voli Maldive - Famiglia Rossi", category: "booking", priority: "critical", status: "inprogress", assignees: ["sofia"], client: "Famiglia Rossi", clientId: "cl-rossi", dueDate: d(1, 17, 0), estimatedHours: 2, description: "Verificare disponibilità posti business class e confermare prenotazione. Contattare Emirates per upgrade disponibili.", comments: [{ user: "Marco Ferretti", text: "Priorità massima, cliente VIP", time: d(-1) }] },
-  { id: "t2", title: "Visto Giappone - Coppia Bianchi", category: "visa", priority: "critical", status: "todo", assignees: ["roberto"], client: "Coppia Bianchi", clientId: "cl-bianchi", dueDate: d(2, 9, 0), estimatedHours: 3, description: "Raccogliere documentazione per visto turistico Giappone. Luna di miele prevista per il mese prossimo.", comments: [] },
-  { id: "t3", title: "Hotel Overwater Bungalow - Maldive", category: "hotel", priority: "high", status: "inprogress", assignees: ["sofia", "luca"], client: "Famiglia Rossi", clientId: "cl-rossi", dueDate: d(3, 12, 0), estimatedHours: 1.5, description: "Contattare Four Seasons Kuda Huraa per disponibilità bungalow sull'acqua. Budget: 1500€/notte.", comments: [{ user: "Sofia Conti", text: "Four Seasons ha confermato 2 bungalow disponibili", time: d(-2) }] },
+  { id: "t1", title: "Confermare voli Maldive - Famiglia Rossi", category: "booking", priority: "critical", status: "inprogress", assignees: ["sofia"], client: "Famiglia Rossi", clientId: "cl-rossi", supplierId: "sp-emirates", dueDate: d(1, 17, 0), estimatedHours: 2, description: "Verificare disponibilità posti business class e confermare prenotazione. Contattare Emirates per upgrade disponibili.", comments: [{ user: "Marco Ferretti", text: "Priorità massima, cliente VIP", time: d(-1) }] },
+  { id: "t2", title: "Visto Giappone - Coppia Bianchi", category: "visa", priority: "critical", status: "todo", assignees: ["roberto"], client: "Coppia Bianchi", clientId: "cl-bianchi", supplierId: "sp-visti", dueDate: d(2, 9, 0), estimatedHours: 3, description: "Raccogliere documentazione per visto turistico Giappone. Luna di miele prevista per il mese prossimo.", comments: [] },
+  { id: "t3", title: "Hotel Overwater Bungalow - Maldive", category: "hotel", priority: "high", status: "inprogress", assignees: ["sofia", "luca"], client: "Famiglia Rossi", clientId: "cl-rossi", supplierId: "sp-fourseasons", dueDate: d(3, 12, 0), estimatedHours: 1.5, description: "Contattare Four Seasons Kuda Huraa per disponibilità bungalow sull'acqua. Budget: 1500€/notte.", comments: [{ user: "Sofia Conti", text: "Four Seasons ha confermato 2 bungalow disponibili", time: d(-2) }] },
   { id: "t4", title: "Proposta incentive travel TechCorp", category: "itinerary", priority: "high", status: "awaiting_client", assignees: ["marco"], client: "Azienda TechCorp", clientId: "cl-techcorp", dueDate: d(4, 14, 0), estimatedHours: 5, description: "Preparare proposta dettagliata per viaggio incentive 50 persone. Destinazioni candidate: Dubrovnik, Marrakech, Lisbona.", comments: [{ user: "Marco Ferretti", text: "Proposta inviata, attesa risposta", time: d(-1) }] },
   { id: "t5", title: "Pagamento acconto Famiglia Rossi", category: "payment", priority: "high", status: "todo", assignees: ["roberto"], client: "Famiglia Rossi", clientId: "cl-rossi", dueDate: d(0, 16, 0), estimatedHours: 0.5, description: "Richiedere acconto del 30% per prenotazione Maldive. Totale viaggio: 12.400€.", comments: [] },
-  { id: "t6", title: "Transfer aeroporto - Coppia Bianchi", category: "supplier", priority: "medium", status: "todo", assignees: ["giulia"], client: "Coppia Bianchi", clientId: "cl-bianchi", dueDate: d(5, 8, 0), estimatedHours: 1, description: "Organizzare transfer NCC per partenza verso MXP. Volo KL 1656 ore 11:30.", comments: [] },
+  { id: "t6", title: "Transfer aeroporto - Coppia Bianchi", category: "supplier", priority: "medium", status: "todo", assignees: ["giulia"], client: "Coppia Bianchi", clientId: "cl-bianchi", supplierId: "sp-ncc", dueDate: d(5, 8, 0), estimatedHours: 1, description: "Organizzare transfer NCC per partenza verso MXP. Volo KL 1656 ore 11:30.", comments: [] },
   { id: "t7", title: "Newsletter Giugno - Offerte Estate", category: "marketing", priority: "medium", status: "inprogress", assignees: ["luca"], client: null, clientId: null, dueDate: d(6, 18, 0), estimatedHours: 4, description: "Creare newsletter mensile con offerte last minute estate 2025. Target: 2.400 contatti.", comments: [{ user: "Luca Moretti", text: "Bozza al 60%, aggiungo le foto Grecia", time: d(0) }] },
-  { id: "t8", title: "Contratto con nuovo fornitore bus", category: "supplier", priority: "medium", status: "awaiting_supplier", assignees: ["marco", "roberto"], client: null, clientId: null, dueDate: d(7, 10, 0), estimatedHours: 2, description: "Finalizzare accordo quadro con Autoservizi Meridionali per trasporti gruppi 2025/2026.", comments: [] },
+  { id: "t8", title: "Contratto con nuovo fornitore bus", category: "supplier", priority: "medium", status: "awaiting_supplier", assignees: ["marco", "roberto"], client: null, clientId: null, supplierId: "sp-ncc", dueDate: d(7, 10, 0), estimatedHours: 2, description: "Finalizzare accordo quadro con Autoservizi Meridionali per trasporti gruppi 2025/2026.", comments: [] },
   { id: "t9", title: "Itinerario dettagliato Giappone 14 giorni", category: "itinerary", priority: "high", status: "inprogress", assignees: ["sofia"], client: "Coppia Bianchi", clientId: "cl-bianchi", dueDate: d(3, 11, 0), estimatedHours: 6, description: "Strutturare itinerario Tokyo-Kyoto-Osaka-Hiroshima. Inserire esperienze di nicchia: cerimonia del tè, tempio Fushimi Inari alba.", comments: [{ user: "Sofia Conti", text: "Aggiunto ryokan a Kyoto su richiesta della coppia", time: d(-1) }] },
   { id: "t10", title: "Aggiornare sito web pacchetti autunno", category: "marketing", priority: "low", status: "todo", assignees: ["luca"], client: null, clientId: null, dueDate: d(10, 17, 0), estimatedHours: 3, description: "Pubblicare nuovi pacchetti autunno: Foliage Canada, Halloween New York, Dolomiti.", comments: [] },
   { id: "t11", title: "Check-in online TechCorp - voli Barcelona", category: "booking", priority: "high", status: "done", assignees: ["sofia"], client: "Azienda TechCorp", clientId: "cl-techcorp", dueDate: d(-1, 9, 0), estimatedHours: 1, description: "Completare check-in online per 50 partecipanti. Assegnare posti preferenziali ai manager.", comments: [{ user: "Sofia Conti", text: "Check-in completato ✓ Tutti i posti assegnati", time: d(-1) }] },
-  { id: "t12", title: "Richiesta polizza assicurativa viaggio", category: "admin", priority: "medium", status: "done", assignees: ["roberto"], client: "Famiglia Rossi", clientId: "cl-rossi", dueDate: d(-2, 15, 0), estimatedHours: 0.5, description: "Polizza annullamento + medica per 4 persone. Confrontare Allianz, Generali, AXA.", comments: [{ user: "Roberto Esposito", text: "Polizza Allianz emessa, €342 totale", time: d(-2) }] },
+  { id: "t12", title: "Richiesta polizza assicurativa viaggio", category: "admin", priority: "medium", status: "done", assignees: ["roberto"], client: "Famiglia Rossi", clientId: "cl-rossi", supplierId: "sp-allianz", dueDate: d(-2, 15, 0), estimatedHours: 0.5, description: "Polizza annullamento + medica per 4 persone. Confrontare Allianz, Generali, AXA.", comments: [{ user: "Roberto Esposito", text: "Polizza Allianz emessa, €342 totale", time: d(-2) }] },
   { id: "t13", title: "Followup chiamata TechCorp - decisione destinazione", category: "client", priority: "critical", status: "awaiting_client", assignees: ["marco"], client: "Azienda TechCorp", clientId: "cl-techcorp", dueDate: d(1, 10, 30), estimatedHours: 1, description: "Chiamata con HR Director TechCorp per confermare destinazione incentive. Budget approvato 85.000€.", comments: [] },
-  { id: "t14", title: "Prenotare ryokan Kyoto - Bianchi", category: "hotel", priority: "high", status: "inprogress", assignees: ["sofia"], client: "Coppia Bianchi", clientId: "cl-bianchi", dueDate: d(2, 16, 0), estimatedHours: 2, description: "Prenotare Tawaraya Ryokan o Hiiragiya per 2 notti. Suite tradizionale con vista giardino zen.", comments: [] },
+  { id: "t14", title: "Prenotare ryokan Kyoto - Bianchi", category: "hotel", priority: "high", status: "inprogress", assignees: ["sofia"], client: "Coppia Bianchi", clientId: "cl-bianchi", supplierId: "sp-ryokan", dueDate: d(2, 16, 0), estimatedHours: 2, description: "Prenotare Tawaraya Ryokan o Hiiragiya per 2 notti. Suite tradizionale con vista giardino zen.", comments: [] },
   { id: "t15", title: "Fattura acconto TechCorp", category: "payment", priority: "medium", status: "todo", assignees: ["roberto"], client: "Azienda TechCorp", clientId: "cl-techcorp", dueDate: d(4, 11, 0), estimatedHours: 0.5, description: "Emettere fattura acconto 50% per evento incentive. Importo: 42.500€ + IVA.", comments: [] },
   { id: "t16", title: "Aggiornamento CRM clienti Q2", category: "admin", priority: "low", status: "todo", assignees: ["roberto", "luca"], client: null, clientId: null, dueDate: d(14, 17, 0), estimatedHours: 4, description: "Aggiornare schede clienti con dati viaggi 2025. Aggiungere preferenze e note speciali.", comments: [] },
-  { id: "t17", title: "Transfer hotel-aeroporto Bianchi Malpensa", category: "supplier", priority: "medium", status: "todo", assignees: ["giulia"], client: "Coppia Bianchi", clientId: "cl-bianchi", dueDate: d(8, 6, 0), estimatedHours: 0.5, description: "NCC privato per 2 persone + bagagli. Partenza alle 06:45, volo ANA 785.", comments: [] },
+  { id: "t17", title: "Transfer hotel-aeroporto Bianchi Malpensa", category: "supplier", priority: "medium", status: "todo", assignees: ["giulia"], client: "Coppia Bianchi", clientId: "cl-bianchi", supplierId: "sp-ncc", dueDate: d(8, 6, 0), estimatedHours: 0.5, description: "NCC privato per 2 persone + bagagli. Partenza alle 06:45, volo ANA 785.", comments: [] },
   { id: "t18", title: "Social media post - Maldive promo", category: "marketing", priority: "low", status: "done", assignees: ["luca"], client: null, clientId: null, dueDate: d(-3, 17, 0), estimatedHours: 1.5, description: "Post Instagram + Facebook con foto Maldive stagione monsoni. CTA: richiedi preventivo.", comments: [{ user: "Luca Moretti", text: "Post pubblicato, +156 interazioni in 24h", time: d(-3) }] },
-  { id: "t19", title: "Documenti sanitari Maldive - Rossi", category: "visa", priority: "high", status: "done", assignees: ["roberto"], client: "Famiglia Rossi", clientId: "cl-rossi", dueDate: d(-1, 12, 0), estimatedHours: 1, description: "Verificare requisiti sanitari entrata Maldive. Raccogliere certificati vaccinazione richiesti.", comments: [{ user: "Roberto Esposito", text: "Non richieste vaccinazioni specifiche, documentazione OK", time: d(-1) }] },
+  { id: "t19", title: "Documenti sanitari Maldive - Rossi", category: "visa", priority: "high", status: "done", assignees: ["roberto"], client: "Famiglia Rossi", clientId: "cl-rossi", supplierId: "sp-visti", dueDate: d(-1, 12, 0), estimatedHours: 1, description: "Verificare requisiti sanitari entrata Maldive. Raccogliere certificati vaccinazione richiesti.", comments: [{ user: "Roberto Esposito", text: "Non richieste vaccinazioni specifiche, documentazione OK", time: d(-1) }] },
   { id: "t20", title: "Presentazione corporate travel policy TechCorp", category: "client", priority: "medium", status: "awaiting_client", assignees: ["marco", "sofia"], client: "Azienda TechCorp", clientId: "cl-techcorp", dueDate: d(5, 15, 0), estimatedHours: 3, description: "Preparare slide con policy viaggi corporate, livelli classe, hotel preferred, tool di prenotazione.", comments: [] },
   { id: "t21", title: "Escursioni snorkeling Maldive", category: "booking", priority: "medium", status: "inprogress", assignees: ["luca"], client: "Famiglia Rossi", clientId: "cl-rossi", dueDate: d(6, 10, 0), estimatedHours: 1.5, description: "Prenotare 3 escursioni snorkeling e 1 sessione di immersione guidata con istruttore certificato.", comments: [] },
   { id: "t22", title: "Revisione contratti stagione invernale", category: "admin", priority: "low", status: "todo", assignees: ["marco"], client: null, clientId: null, dueDate: d(20, 10, 0), estimatedHours: 5, description: "Revisione annuale contratti fornitori: tour operator, hotel chains, compagnie aeree.", comments: [] },
@@ -280,6 +280,69 @@ const _LEGACY_CLIENT_NAME_TO_ID = {
   "Liceo Manzoni": "cl-manzoni",
   "Sposi Conte": "cl-conte",
 };
+
+// ─── FORNITORI (v0.9.7) ────────────────────────────────────────────────────
+// Tipologie fornitori coerenti con le esigenze di un'agenzia / tour operator.
+const SUPPLIER_TYPES = {
+  hotel: { label: "Hotel / Resort", icon: "🏨", color: "#8B5CF6", bg: "#F5F3FF" },
+  transport: { label: "Trasporti / NCC", icon: "🚐", color: "#7B4F9E", bg: "#F3F0F9" },
+  airline: { label: "Compagnia aerea", icon: "✈️", color: "#3B82F6", bg: "#EFF6FF" },
+  insurance: { label: "Assicurazioni", icon: "🛡️", color: "#10B981", bg: "#ECFDF5" },
+  "tour-operator": { label: "Tour operator", icon: "🌍", color: "#F97316", bg: "#FFF7ED" },
+  visa: { label: "Visti / Consolato", icon: "🛂", color: "#EF4444", bg: "#FEF2F2" },
+  other: { label: "Altro", icon: "🤝", color: "#6B7280", bg: "#F9FAFB" },
+};
+
+const INITIAL_SUPPLIERS = [
+  {
+    id: "sp-fourseasons", name: "Four Seasons Resort Maldives Kuda Huraa", type: "hotel",
+    contactPerson: "Reservations Office", email: "reservations.kudahuraa@fourseasons.com", phone: "+960 664 4888",
+    address: "North Malé Atoll, Maldive",
+    services: "Overwater bungalow, beach villas, all-inclusive packages",
+    notes: "Partner preferito per Maldive VIP. Tariffe nette concordate per Marzo-Maggio.",
+    createdAt: _clientStamp(180), updatedAt: _clientStamp(10), deletedAt: null,
+  },
+  {
+    id: "sp-emirates", name: "Emirates", type: "airline",
+    contactPerson: "Trade Sales Italy", email: "trade.italy@emirates.com", phone: "+39 02 36046000",
+    address: "Via Larga 23, 20122 Milano",
+    services: "Voli business/first class, upgrade su disponibilità",
+    notes: "Tariffe IATA + commissione standard. Codice agenzia attivo.",
+    createdAt: _clientStamp(200), updatedAt: _clientStamp(15), deletedAt: null,
+  },
+  {
+    id: "sp-ncc", name: "Autoservizi Meridionali NCC", type: "transport",
+    contactPerson: "Antonio Russo", email: "antonio@autosrvmer.it", phone: "+39 02 8765432",
+    address: "Via dei Mercati 8, 20149 Milano",
+    services: "Transfer privati MXP/LIN, van 8-16 posti, autisti multilingua",
+    notes: "Accordo quadro 2025/2026 in chiusura. Tariffe scontate per gruppi >8 pax.",
+    createdAt: _clientStamp(90), updatedAt: _clientStamp(3), deletedAt: null,
+  },
+  {
+    id: "sp-allianz", name: "Allianz Global Assistance", type: "insurance",
+    contactPerson: "Customer Care B2B", email: "agenzie@allianz-assistance.it", phone: "+39 02 26609300",
+    address: "Via Cordusio 4, 20123 Milano",
+    services: "Polizze annullamento, medico/bagaglio, multi-rischio",
+    notes: "Login portale agenzie attivo. Emissione immediata fino a 200k€ assicurati.",
+    createdAt: _clientStamp(150), updatedAt: _clientStamp(8), deletedAt: null,
+  },
+  {
+    id: "sp-ryokan", name: "Tawaraya Ryokan", type: "hotel",
+    contactPerson: "Yumiko Sato", email: "info@tawarayaryokan.com", phone: "+81 75 211 5566",
+    address: "Fuyacho-dori, Anekoji-agaru, Nakagyo-ku, Kyoto",
+    services: "Ryokan tradizionale, kaiseki, vista giardino zen",
+    notes: "Prenotare con almeno 60 giorni di anticipo. Comunicazione via email in inglese.",
+    createdAt: _clientStamp(110), updatedAt: _clientStamp(6), deletedAt: null,
+  },
+  {
+    id: "sp-visti", name: "Visti Express Italia", type: "visa",
+    contactPerson: "Marina Bellucci", email: "info@vistiexpress.it", phone: "+39 06 4555888",
+    address: "Via Cavour 76, 00184 Roma",
+    services: "Visti turistici/business per Giappone, Cina, USA, Russia. Gestione completa pratica.",
+    notes: "Tempi medi 7-10 gg lavorativi. Fee fissa + spese consolari.",
+    createdAt: _clientStamp(60), updatedAt: _clientStamp(2), deletedAt: null,
+  },
+];
 
 // ─── TASK TEMPLATES ────────────────────────────────────────────────────────
 const TASK_TEMPLATES = [
@@ -364,6 +427,7 @@ const LOGGED_ACTIONS = new Set([
   "RESTORE_BACKUP",
   "ADD_NOTICE", "UPDATE_NOTICE", "DELETE_NOTICE",
   "ADD_CLIENT", "UPDATE_CLIENT", "DELETE_CLIENT",
+  "ADD_SUPPLIER", "UPDATE_SUPPLIER", "DELETE_SUPPLIER",
 ]);
 
 const buildLogEntry = (action, state) => {
@@ -398,6 +462,12 @@ const buildLogEntry = (action, state) => {
       const cl = (state.clients || []).find(c => c.id === action.payload);
       return `Cliente "${cl?.name || action.payload}" nel cestino`;
     },
+    ADD_SUPPLIER: () => `Aggiunto fornitore "${action.payload.name}"`,
+    UPDATE_SUPPLIER: () => `Modificato fornitore "${action.payload.name || action.payload.id}"`,
+    DELETE_SUPPLIER: () => {
+      const sp = (state.suppliers || []).find(s => s.id === action.payload);
+      return `Fornitore "${sp?.name || action.payload}" nel cestino`;
+    },
   };
   return { id: `log-${stamp}-${Math.random().toString(36).slice(2,7)}`, time: stamp, type: t, text: (map[t] || (() => t))() };
 };
@@ -417,6 +487,10 @@ function baseReducer(state, action) {
       if (action.payload === "clients" && !canViewClients(uid)) {
         return _denied("Non hai i permessi per accedere ai Clienti");
       }
+      // Driver non vede la vista Fornitori (v0.9.7)
+      if (action.payload === "suppliers" && !canViewSuppliers(uid)) {
+        return _denied("Non hai i permessi per accedere ai Fornitori");
+      }
       return { ...state, activeView: action.payload };
     }
     case "SET_SELECTED_TASK": {
@@ -430,6 +504,10 @@ function baseReducer(state, action) {
       // Aperto/chiuso da Clienti view (e da chip cliente in TaskSlideOver)
       return { ...state, selectedClient: action.payload };
     }
+    case "SET_SELECTED_SUPPLIER": {
+      // Aperto/chiuso da Fornitori view (e da chip fornitore in TaskSlideOver) — v0.9.7
+      return { ...state, selectedSupplier: action.payload };
+    }
     case "SET_CURRENT_USER": {
       const newId = action.payload;
       const m = getMember(newId);
@@ -439,12 +517,14 @@ function baseReducer(state, action) {
       let activeView = state.activeView;
       if (activeView === "admin" && !canAccessAdmin(newId)) activeView = "dashboard";
       if (activeView === "clients" && !canViewClients(newId)) activeView = "dashboard";
+      if (activeView === "suppliers" && !canViewSuppliers(newId)) activeView = "dashboard";
       return {
         ...state,
         currentUserId: newId,
         activeView,
         selectedTask: null,
         selectedClient: null,
+        selectedSupplier: null,
         toast: { message: `Ora stai usando l'app come ${m.name} (${m.role})`, type: "success" },
       };
     }
@@ -595,7 +675,7 @@ function baseReducer(state, action) {
       return { ...state, agencyName: action.payload };
     }
     case "RESTORE_BACKUP": {
-      const { tasks, team, categories, agencyName, notices, clients } = action.payload;
+      const { tasks, team, categories, agencyName, notices, clients, suppliers } = action.payload;
       if (team) _syncTeam(team);
       if (categories) _syncCategories(categories);
       return {
@@ -606,6 +686,7 @@ function baseReducer(state, action) {
         agencyName: agencyName ?? state.agencyName,
         notices: notices ?? state.notices,
         clients: clients ?? state.clients,
+        suppliers: suppliers ?? state.suppliers,
         toast: { message: "Backup ripristinato con successo!", type: "success" }
       };
     }
@@ -661,6 +742,30 @@ function baseReducer(state, action) {
         c.id === action.payload ? { ...c, deletedAt: new Date().toISOString() } : c
       );
       return { ...state, clients, toast: { message: "Cliente rimosso", type: "success" } };
+    }
+
+    // ─── FORNITORI (v0.9.7) ───
+    case "ADD_SUPPLIER": {
+      if (!canManageSuppliers(uid)) return _denied("Non puoi gestire i fornitori");
+      const now = new Date().toISOString();
+      const supplier = { createdAt: now, updatedAt: now, deletedAt: null, ...action.payload };
+      const suppliers = [supplier, ...(state.suppliers || [])];
+      return { ...state, suppliers, toast: { message: `Fornitore "${supplier.name}" aggiunto`, type: "success" } };
+    }
+    case "UPDATE_SUPPLIER": {
+      if (!canManageSuppliers(uid)) return _denied("Non puoi gestire i fornitori");
+      const now = new Date().toISOString();
+      const suppliers = (state.suppliers || []).map(s =>
+        s.id === action.payload.id ? { ...s, ...action.payload, updatedAt: now } : s
+      );
+      return { ...state, suppliers, toast: { message: "Fornitore aggiornato", type: "success" } };
+    }
+    case "DELETE_SUPPLIER": {
+      if (!canManageSuppliers(uid)) return _denied("Non puoi gestire i fornitori");
+      const suppliers = (state.suppliers || []).map(s =>
+        s.id === action.payload ? { ...s, deletedAt: new Date().toISOString() } : s
+      );
+      return { ...state, suppliers, toast: { message: "Fornitore rimosso", type: "success" } };
     }
 
     case "CLEAR_TOAST": return { ...state, toast: null };
@@ -767,12 +872,14 @@ const initialState = {
   team: TEAM,
   categories: CATEGORIES,
   clients: INITIAL_CLIENTS, // v0.9.5: anagrafica clienti CRM
+  suppliers: INITIAL_SUPPLIERS, // v0.9.7: anagrafica fornitori
   agencyName: "VoyageDesk",
   notices: INITIAL_NOTICES,
   activityLog: [],
   activeView: "dashboard",
   selectedTask: null,
   selectedClient: null, // v0.9.5: cliente aperto in scheda modificabile
+  selectedSupplier: null, // v0.9.7: fornitore aperto in scheda modificabile
   toast: null,
   searchQuery: "",
   showNotif: false,
@@ -820,6 +927,9 @@ const resolveLegacyClientId = (task) => {
   if (task.client && _LEGACY_CLIENT_NAME_TO_ID[task.client]) return _LEGACY_CLIENT_NAME_TO_ID[task.client];
   return null;
 };
+
+// ─── FORNITORI: utils (v0.9.7) ───
+const getSupplier = (suppliers, id) => (suppliers || []).find(s => s?.id === id);
 
 // ─── PERMESSI (v0.8) ──────────────────────────────────────────────────────
 // Ruoli logici derivati dal campo `role` del team member.
@@ -899,6 +1009,11 @@ const canAccessAdmin = (userId) => isAdmin(userId);
 const canManageClients = (userId) => !isDriver(userId);
 // Può vedere la vista Clienti? (v0.9.5)
 const canViewClients = (userId) => !isDriver(userId);
+
+// Può gestire l'anagrafica fornitori (CRUD)? (v0.9.7)
+// Stessa regola dei clienti: tutti tranne Driver.
+const canManageSuppliers = (userId) => !isDriver(userId);
+const canViewSuppliers = (userId) => !isDriver(userId);
 
 // Categorie selezionabili nei form per questo utente
 const getAvailableCategories = (userId) => {
@@ -2069,6 +2184,7 @@ const NAV_ITEMS = [
   { id: "dashboard", icon: "📊", label: "Dashboard", roles: ["admin", "manager", "agent", "driver"] },
   { id: "calendar", icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
   { id: "clients", icon: "🧳", label: "Clienti", roles: ["admin", "manager", "agent"] }, // v0.9.5
+  { id: "suppliers", icon: "🤝", label: "Fornitori", roles: ["admin", "manager", "agent"] }, // v0.9.7
   { id: "team", icon: "👥", label: "Team", roles: ["admin", "manager", "agent"] },
   { id: "trash", icon: "🗑️", label: "Cestino", roles: ["admin"] },
   { id: "admin", icon: "⚙️", label: "Admin", roles: ["admin"] },
@@ -4303,25 +4419,31 @@ const Dashboard = ({ state, dispatch, onOpenChat }) => {
 };
 
 // ─── QUICK ADD TASK FORM ───────────────────────────────────────────────────
-const QuickAddTask = ({ onAdd, onClose, clients, dispatch }) => {
+const QuickAddTask = ({ onAdd, onClose, clients, suppliers, dispatch }) => {
   // Categorie filtrate per il ruolo dell'utente loggato (v0.8)
   const availableCats = getAvailableCategories(CURRENT_USER);
   const firstCatKey = Object.keys(availableCats)[0] || "booking";
 
   const [form, setForm] = useState({
     title: "", category: firstCatKey, priority: "medium",
-    status: "todo", assignees: [], dueDate: "", clientId: "", description: ""
+    status: "todo", assignees: [], dueDate: "",
+    clientId: "", supplierId: "", description: ""
   });
   const [showClientCreate, setShowClientCreate] = useState(false);
+  const [showSupplierCreate, setShowSupplierCreate] = useState(false);
 
-  // Clienti attivi ordinati alfabeticamente per il picker (v0.9.5)
+  // Anagrafiche attive ordinate alfabeticamente per i picker (v0.9.5/v0.9.7)
   const activeClients = (clients || [])
     .filter(c => !c.deletedAt)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const activeSuppliers = (suppliers || [])
+    .filter(s => !s.deletedAt)
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const handleSubmit = () => {
     if (!form.title.trim()) return;
-    const selected = activeClients.find(c => c.id === form.clientId);
+    const selectedClient = activeClients.find(c => c.id === form.clientId);
+    const selectedSupplier = activeSuppliers.find(s => s.id === form.supplierId);
     onAdd({
       id: "t" + Date.now(),
       title: form.title,
@@ -4329,8 +4451,9 @@ const QuickAddTask = ({ onAdd, onClose, clients, dispatch }) => {
       priority: form.priority,
       status: form.status,
       assignees: form.assignees,
-      clientId: selected?.id || null,
-      client: selected?.name || null,
+      clientId: selectedClient?.id || null,
+      client: selectedClient?.name || null,
+      supplierId: selectedSupplier?.id || null,
       description: form.description,
       comments: [],
       estimatedHours: 1,
@@ -4432,6 +4555,35 @@ const QuickAddTask = ({ onAdd, onClose, clients, dispatch }) => {
           </div>
 
           <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>FORNITORE</label>
+            <div style={{ display: "flex", gap: 6 }}>
+              <select
+                value={form.supplierId}
+                onChange={e => setForm(p => ({ ...p, supplierId: e.target.value }))}
+                style={{ ...inp("category").style, cursor: "pointer", flex: 1 }}
+              >
+                <option value="">— Nessuno —</option>
+                {activeSuppliers.map(s => {
+                  const type = SUPPLIER_TYPES[s.type] || SUPPLIER_TYPES.other;
+                  return <option key={s.id} value={s.id}>{type.icon} {s.name}</option>;
+                })}
+              </select>
+              {canManageSuppliers(CURRENT_USER) && (
+                <button
+                  type="button"
+                  onClick={() => setShowSupplierCreate(true)}
+                  title="Crea nuovo fornitore"
+                  style={{
+                    padding: "0 12px", borderRadius: 8, border: "1px solid var(--navy)",
+                    background: "#fff", color: "var(--navy)", cursor: "pointer",
+                    fontSize: 13, fontWeight: 600, fontFamily: "inherit", whiteSpace: "nowrap",
+                  }}
+                >+ Nuovo</button>
+              )}
+            </div>
+          </div>
+
+          <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>DESCRIZIONE</label>
             <textarea {...inp("description")} rows={3} placeholder="Dettagli del task..." style={{ ...inp("description").style, resize: "vertical" }} />
           </div>
@@ -4459,12 +4611,23 @@ const QuickAddTask = ({ onAdd, onClose, clients, dispatch }) => {
           onCreated={(c) => setForm(p => ({ ...p, clientId: c.id }))}
         />
       )}
+
+      {/* Modale "Nuovo fornitore" inline (v0.9.7) — analoga a sopra */}
+      {showSupplierCreate && (
+        <SupplierEditModal
+          supplier={null}
+          onClose={() => setShowSupplierCreate(false)}
+          dispatch={dispatch}
+          canManage={true}
+          onCreated={(s) => setForm(p => ({ ...p, supplierId: s.id }))}
+        />
+      )}
     </div>
   );
 };
 
 // ─── TASK DETAIL SLIDE-OVER ────────────────────────────────────────────────
-const TaskSlideOver = ({ task, dispatch, clients }) => {
+const TaskSlideOver = ({ task, dispatch, clients, suppliers }) => {
   const { isMobile } = useViewport();
   const [newComment, setNewComment] = useState("");
   const [editingAssignees, setEditingAssignees] = useState(false);
@@ -4472,6 +4635,8 @@ const TaskSlideOver = ({ task, dispatch, clients }) => {
   const canEdit = task ? canEditTask(task, CURRENT_USER) : false;
   // v0.9.5: risolvi il cliente dall'anagrafica via clientId o mappa legacy
   const linkedClient = task ? getClient(clients || [], resolveLegacyClientId(task)) : null;
+  // v0.9.7: risolvi il fornitore dall'anagrafica via supplierId
+  const linkedSupplier = task ? getSupplier(suppliers || [], task.supplierId) : null;
 
   // Resetta la bozza se cambia il task aperto o se l'editor viene chiuso
   useEffect(() => {
@@ -4678,6 +4843,29 @@ const TaskSlideOver = ({ task, dispatch, clients }) => {
               )}
             </div>
           </div>
+
+          {/* FORNITORE (v0.9.7) — visibile solo se il task ha supplierId */}
+          {linkedSupplier && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>FORNITORE</div>
+              <button
+                onClick={() => dispatch({ type: "SET_SELECTED_SUPPLIER", payload: linkedSupplier })}
+                title="Apri scheda fornitore"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "5px 10px", borderRadius: 99,
+                  background: (SUPPLIER_TYPES[linkedSupplier.type] || SUPPLIER_TYPES.other).bg,
+                  color: (SUPPLIER_TYPES[linkedSupplier.type] || SUPPLIER_TYPES.other).color,
+                  border: "1px solid transparent", cursor: "pointer",
+                  fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                }}
+              >
+                <span>{(SUPPLIER_TYPES[linkedSupplier.type] || SUPPLIER_TYPES.other).icon}</span>
+                {linkedSupplier.name}
+                <span style={{ fontSize: 10, opacity: 0.7 }}>→</span>
+              </button>
+            </div>
+          )}
 
           {/* ORE */}
           {task.estimatedHours && (
@@ -5792,6 +5980,383 @@ const ClientEditModal = ({ client, onClose, dispatch, canManage, taskCount = 0, 
                 color: "#fff", cursor: form.name.trim() ? "pointer" : "not-allowed",
                 fontSize: 13, fontWeight: 600, fontFamily: "inherit",
               }}>{isNew ? "✓ Crea cliente" : "💾 Salva"}</button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── FORNITORI: vista lista + modal CRUD (v0.9.7) ──────────────────────────
+// Stretto mirror di ClientsView per consistenza UX.
+const SuppliersView = ({ state, dispatch }) => {
+  const { isMobile } = useViewport();
+  const uid = state.currentUserId;
+  const canManage = canManageSuppliers(uid);
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [showTrashed, setShowTrashed] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+
+  const suppliersAll = state.suppliers || [];
+  const activeSuppliers = suppliersAll.filter(s => showTrashed ? !!s.deletedAt : !s.deletedAt);
+
+  // Conteggio task attivi collegati per fornitore
+  const taskCountBySupplier = useMemo(() => {
+    const map = new Map();
+    (state.tasks || []).forEach(t => {
+      if (t.deletedAt || !t.supplierId) return;
+      map.set(t.supplierId, (map.get(t.supplierId) || 0) + 1);
+    });
+    return map;
+  }, [state.tasks]);
+
+  const filtered = activeSuppliers.filter(s => {
+    if (typeFilter !== "all" && s.type !== typeFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      const hay = `${s.name} ${s.contactPerson || ""} ${s.email || ""} ${s.phone || ""} ${s.services || ""} ${s.notes || ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  }).sort((a, b) => a.name.localeCompare(b.name));
+
+  return (
+    <div className="fade-in" style={{ padding: isMobile ? 16 : 28, display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
+      {/* Header */}
+      <div className="vd-row-wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
+        <div>
+          <div className="playfair" style={{ fontSize: isMobile ? 21 : 26, fontWeight: 700 }}>
+            🤝 Fornitori
+          </div>
+          <div style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 2 }}>
+            {suppliersAll.filter(s => !s.deletedAt).length} fornitori attivi · {filtered.length} in elenco
+          </div>
+        </div>
+        {canManage && !showTrashed && (
+          <button onClick={() => setShowNew(true)} style={{
+            background: "var(--navy)", color: "#fff", border: "none",
+            padding: "10px 16px", borderRadius: 8, cursor: "pointer",
+            fontSize: 13, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6,
+          }}>+ Nuovo fornitore</button>
+        )}
+      </div>
+
+      {/* Toolbar */}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Cerca per nome, referente, servizi, note…"
+          style={{
+            flex: "1 1 240px", border: "1px solid var(--border)", borderRadius: 8,
+            padding: "9px 12px", fontSize: 13, fontFamily: "inherit", outline: "none",
+          }}
+        />
+        <select
+          value={typeFilter}
+          onChange={e => setTypeFilter(e.target.value)}
+          style={{
+            border: "1px solid var(--border)", borderRadius: 8, padding: "9px 12px",
+            fontSize: 13, fontFamily: "inherit", background: "#fff", cursor: "pointer",
+          }}
+        >
+          <option value="all">Tutti i tipi</option>
+          {Object.entries(SUPPLIER_TYPES).map(([k, v]) => (
+            <option key={k} value={k}>{v.icon} {v.label}</option>
+          ))}
+        </select>
+        <label style={{ fontSize: 12, color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+          <input type="checkbox" checked={showTrashed} onChange={e => setShowTrashed(e.target.checked)} />
+          Mostra rimossi
+        </label>
+      </div>
+
+      {/* Grid */}
+      {filtered.length === 0 ? (
+        <div style={{
+          padding: "40px 20px", textAlign: "center", color: "var(--text-muted)",
+          fontSize: 13, background: "#fff", borderRadius: 10, border: "1px dashed var(--border)",
+        }}>
+          {search || typeFilter !== "all"
+            ? "Nessun fornitore corrisponde ai filtri."
+            : showTrashed
+              ? "Nessun fornitore rimosso."
+              : 'Ancora nessun fornitore. Premi "Nuovo fornitore" per crearne uno.'}
+        </div>
+      ) : (
+        <div className="vd-grid-3col" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+          {filtered.map(s => {
+            const type = SUPPLIER_TYPES[s.type] || SUPPLIER_TYPES.other;
+            const taskCount = taskCountBySupplier.get(s.id) || 0;
+            return (
+              <div
+                key={s.id}
+                onClick={() => dispatch({ type: "SET_SELECTED_SUPPLIER", payload: s })}
+                style={{
+                  background: "#fff", borderRadius: 10, padding: 14, cursor: "pointer",
+                  border: "1px solid var(--border)", borderLeft: `3px solid ${type.color}`,
+                  display: "flex", flexDirection: "column", gap: 8,
+                  transition: "transform 0.15s, box-shadow 0.15s",
+                  opacity: s.deletedAt ? 0.6 : 1,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.08)"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <span style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    padding: "3px 8px", borderRadius: 999,
+                    background: type.bg, color: type.color,
+                    fontSize: 11, fontWeight: 600,
+                  }}>
+                    <span>{type.icon}</span> {type.label}
+                  </span>
+                  {taskCount > 0 && (
+                    <span style={{
+                      background: "var(--surface2)", color: "var(--text-muted)",
+                      padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 600,
+                    }} title={`${taskCount} task attivi collegati`}>📋 {taskCount}</span>
+                  )}
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", lineHeight: 1.3 }}>
+                  {s.name}
+                </div>
+                {s.contactPerson && (
+                  <div style={{ fontSize: 12, color: "var(--text-muted)" }}>👤 {s.contactPerson}</div>
+                )}
+                {(s.email || s.phone) && (
+                  <div style={{ display: "flex", gap: 10, fontSize: 11, color: "var(--text-muted)", flexWrap: "wrap" }}>
+                    {s.email && <span style={{ wordBreak: "break-all" }}>✉️ {s.email}</span>}
+                    {s.phone && <span>☎️ {s.phone}</span>}
+                  </div>
+                )}
+                {s.services && (
+                  <div style={{
+                    fontSize: 12, color: "var(--text)", marginTop: 4, lineHeight: 1.45,
+                    display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+                    background: "var(--surface)", padding: "6px 8px", borderRadius: 6,
+                  }}>{s.services}</div>
+                )}
+                {s.deletedAt && (
+                  <div style={{ fontSize: 10, color: "var(--danger)", fontStyle: "italic" }}>
+                    Rimosso il {formatDate(s.deletedAt)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Modale "Nuovo fornitore" — locale alla vista */}
+      {showNew && canManage && (
+        <SupplierEditModal
+          supplier={null}
+          onClose={() => setShowNew(false)}
+          dispatch={dispatch}
+          canManage={canManage}
+        />
+      )}
+    </div>
+  );
+};
+
+// Modale creazione/modifica/lettura di un fornitore.
+// Mirror di ClientEditModal.
+const SupplierEditModal = ({ supplier, onClose, dispatch, canManage, taskCount = 0, onCreated }) => {
+  const isNew = !supplier;
+  const [form, setForm] = useState({
+    name: supplier?.name || "",
+    type: supplier?.type || "hotel",
+    contactPerson: supplier?.contactPerson || "",
+    email: supplier?.email || "",
+    phone: supplier?.phone || "",
+    address: supplier?.address || "",
+    services: supplier?.services || "",
+    notes: supplier?.notes || "",
+  });
+
+  const handleSave = () => {
+    if (!form.name.trim()) return;
+    const payload = {
+      name: form.name.trim(),
+      type: form.type,
+      contactPerson: form.contactPerson.trim() || null,
+      email: form.email.trim() || null,
+      phone: form.phone.trim() || null,
+      address: form.address.trim() || null,
+      services: form.services.trim(),
+      notes: form.notes.trim(),
+    };
+    if (isNew) {
+      const newSupplier = { id: `sp-${Date.now()}`, ...payload };
+      dispatch({ type: "ADD_SUPPLIER", payload: newSupplier });
+      if (onCreated) onCreated(newSupplier);
+    } else {
+      dispatch({ type: "UPDATE_SUPPLIER", payload: { id: supplier.id, ...payload } });
+    }
+    onClose();
+  };
+
+  const handleDelete = () => {
+    if (!supplier) return;
+    const hint = taskCount > 0
+      ? `\n\n${taskCount} task collegati continueranno a esistere senza riferimento fornitore.`
+      : "";
+    if (!window.confirm(`Rimuovere "${supplier.name}" dall'anagrafica fornitori?${hint}`)) return;
+    dispatch({ type: "DELETE_SUPPLIER", payload: supplier.id });
+    onClose();
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid var(--border)",
+    fontSize: 13, fontFamily: "inherit", boxSizing: "border-box", background: "#fff", outline: "none",
+  };
+  const labelStyle = { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, display: "block", marginBottom: 4 };
+  const readOnly = !canManage || !!supplier?.deletedAt;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(15,32,68,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 700, padding: 16 }}>
+      <div className="slide-up" style={{
+        background: "#fff", borderRadius: 12, padding: 24, width: 580, maxWidth: "100%",
+        maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, gap: 10 }}>
+          <div style={{ minWidth: 0 }}>
+            <div className="playfair" style={{ fontSize: 20, fontWeight: 700, color: "var(--navy)" }}>
+              {isNew ? "Nuovo fornitore" : supplier.name}
+            </div>
+            {!isNew && (
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {taskCount > 0 && <span>📋 {taskCount} task collegati</span>}
+                <span>Creato il {formatDate(supplier.createdAt)}</span>
+                {supplier.updatedAt && supplier.updatedAt !== supplier.createdAt && <span>Aggiornato il {formatDate(supplier.updatedAt)}</span>}
+                {supplier.deletedAt && <span style={{ color: "var(--danger)" }}>· Rimosso</span>}
+              </div>
+            )}
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "var(--text-muted)", flexShrink: 0 }}>✕</button>
+        </div>
+
+        <div style={{ display: "grid", gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Nome / Ragione sociale *</label>
+            <input
+              value={form.name}
+              onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+              disabled={readOnly}
+              placeholder="Es. Autoservizi Meridionali NCC"
+              style={inputStyle}
+            />
+          </div>
+
+          <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Tipologia</label>
+              <select
+                value={form.type}
+                onChange={e => setForm(p => ({ ...p, type: e.target.value }))}
+                disabled={readOnly}
+                style={{ ...inputStyle, cursor: readOnly ? "default" : "pointer" }}
+              >
+                {Object.entries(SUPPLIER_TYPES).map(([k, v]) => (
+                  <option key={k} value={k}>{v.icon} {v.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Referente</label>
+              <input
+                value={form.contactPerson}
+                onChange={e => setForm(p => ({ ...p, contactPerson: e.target.value }))}
+                disabled={readOnly}
+                placeholder="Persona di contatto"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Email</label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+                disabled={readOnly}
+                placeholder="fornitore@example.com"
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Telefono</label>
+              <input
+                value={form.phone}
+                onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
+                disabled={readOnly}
+                placeholder="+39 02 1234567"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Indirizzo</label>
+            <input
+              value={form.address}
+              onChange={e => setForm(p => ({ ...p, address: e.target.value }))}
+              disabled={readOnly}
+              placeholder="Via, città, paese"
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Servizi offerti</label>
+            <textarea
+              value={form.services}
+              onChange={e => setForm(p => ({ ...p, services: e.target.value }))}
+              disabled={readOnly}
+              rows={2}
+              placeholder="Es. Hotel categoria 5*, transfer NCC, polizze annullamento…"
+              style={{ ...inputStyle, resize: "vertical" }}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Note operative</label>
+            <textarea
+              value={form.notes}
+              onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+              disabled={readOnly}
+              rows={4}
+              placeholder="Accordi commerciali, contatti operativi, scadenze contrattuali…"
+              style={{ ...inputStyle, resize: "vertical" }}
+            />
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "space-between", marginTop: 20, flexWrap: "wrap" }}>
+          {!isNew && canManage && !supplier?.deletedAt && (
+            <button onClick={handleDelete} style={{
+              padding: "9px 16px", borderRadius: 8, border: "1px solid var(--danger)",
+              background: "transparent", color: "var(--danger)", cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+            }}>🗑 Rimuovi fornitore</button>
+          )}
+          <div style={{ display: "flex", gap: 10, marginLeft: "auto" }}>
+            <button onClick={onClose} style={{
+              padding: "9px 18px", borderRadius: 8, border: "1px solid var(--border)",
+              background: "transparent", cursor: "pointer", fontSize: 13, fontWeight: 500, fontFamily: "inherit",
+            }}>{readOnly ? "Chiudi" : "Annulla"}</button>
+            {!readOnly && (
+              <button onClick={handleSave} disabled={!form.name.trim()} style={{
+                padding: "9px 20px", borderRadius: 8, border: "none",
+                background: form.name.trim() ? "var(--navy)" : "var(--text-light)",
+                color: "#fff", cursor: form.name.trim() ? "pointer" : "not-allowed",
+                fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+              }}>{isNew ? "✓ Crea fornitore" : "💾 Salva"}</button>
             )}
           </div>
         </div>
@@ -7692,7 +8257,7 @@ const AdminIOTab = ({ state, dispatch }) => {
 
   const exportBackup = () => {
     const backup = {
-      version: "0.9.5", // bump: aggiunto `clients` (v0.9.5)
+      version: "0.9.7", // bump: aggiunto `suppliers` (v0.9.7)
       exportedAt: new Date().toISOString(),
       agencyName: state.agencyName,
       tasks: state.tasks,
@@ -7700,6 +8265,7 @@ const AdminIOTab = ({ state, dispatch }) => {
       categories: state.categories,
       notices: state.notices,
       clients: state.clients,
+      suppliers: state.suppliers,
     };
     downloadFile(
       new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }),
@@ -8173,7 +8739,7 @@ const PERSIST_VERSION = 1;
 const PERSIST_KEY_STATE = "voyagedesk:state:v1";
 const PERSIST_KEY_CHAT = "voyagedesk:chat:v1";
 // Campi UI volatili: non finiscono in localStorage, tornano ai default al refresh.
-const PERSIST_OMIT = ["toast", "lastAction", "selectedTask", "selectedClient", "showNotif", "searchQuery", "filters"];
+const PERSIST_OMIT = ["toast", "lastAction", "selectedTask", "selectedClient", "selectedSupplier", "showNotif", "searchQuery", "filters"];
 
 const _hasStorage = () => typeof window !== "undefined" && !!window.localStorage;
 
@@ -8337,6 +8903,7 @@ function VoyageDeskInner() {
       case "dashboard": return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
       case "calendar": return <CalendarPlanner state={state} dispatch={dispatch} />;
       case "clients": return <ClientsView state={state} dispatch={dispatch} />;
+      case "suppliers": return <SuppliersView state={state} dispatch={dispatch} />;
       case "team": return <Team state={state} dispatch={dispatch} />;
       case "trash": return <Trash state={state} dispatch={dispatch} />;
       case "admin": return <AdminView state={state} dispatch={dispatch} />;
@@ -8360,7 +8927,7 @@ function VoyageDeskInner() {
         <BottomNav state={state} dispatch={dispatch} />
 
         {/* Slide-over */}
-        {state.selectedTask && <TaskSlideOver task={state.selectedTask} dispatch={dispatch} clients={state.clients} />}
+        {state.selectedTask && <TaskSlideOver task={state.selectedTask} dispatch={dispatch} clients={state.clients} suppliers={state.suppliers} />}
 
         {/* Modale scheda cliente — disponibile da qualunque vista (TaskSlideOver, Clienti) */}
         {state.selectedClient && (
@@ -8370,6 +8937,17 @@ function VoyageDeskInner() {
             dispatch={dispatch}
             canManage={canManageClients(state.currentUserId)}
             taskCount={(state.tasks || []).filter(t => !t.deletedAt && resolveLegacyClientId(t) === state.selectedClient.id).length}
+          />
+        )}
+
+        {/* Modale scheda fornitore — analoga alla cliente (v0.9.7) */}
+        {state.selectedSupplier && (
+          <SupplierEditModal
+            supplier={state.selectedSupplier}
+            onClose={() => dispatch({ type: "SET_SELECTED_SUPPLIER", payload: null })}
+            dispatch={dispatch}
+            canManage={canManageSuppliers(state.currentUserId)}
+            taskCount={(state.tasks || []).filter(t => !t.deletedAt && t.supplierId === state.selectedSupplier.id).length}
           />
         )}
 
@@ -8412,6 +8990,7 @@ function VoyageDeskInner() {
             onAdd={t => dispatch({ type: "ADD_TASK", payload: t })}
             onClose={() => setShowFABModal(false)}
             clients={state.clients}
+            suppliers={state.suppliers}
             dispatch={dispatch}
           />
         )}

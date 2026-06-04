@@ -1,5 +1,64 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9.7 — Anagrafica Fornitori (sessione 15)
+
+> Secondo step della **Fase 1 — Modello dati completo**. Mirror stretto del pattern Clienti per consistenza UX, prepara il terreno per Pratiche di viaggio (entità centrale che aggregherà task + clienti + fornitori).
+
+### 🤝 Modello dati Supplier
+- Nuovo schema `Supplier`: `{ id, name, type, contactPerson, email, phone, address, services, notes, createdAt, updatedAt, deletedAt }`.
+- `SUPPLIER_TYPES`: 7 tipologie (`hotel`, `transport`, `airline`, `insurance`, `tour-operator`, `visa`, `other`) con icona + colore + bg.
+- `INITIAL_SUPPLIERS`: 6 fornitori demo coerenti coi task esistenti (Four Seasons Maldives, Emirates, NCC Autoservizi Meridionali, Allianz Travel, Tawaraya Ryokan, Visti Express).
+- Schema Task esteso con campo opzionale **`supplierId: string|null`**. Pre-popolato su 8 task demo (t1, t2, t3, t6, t8, t12, t14, t17, t19).
+
+### 🔁 Reducer
+- Nuovo slice `state.suppliers` (persistenza automatica via lazy init merge).
+- Nuovo slice volatile `state.selectedSupplier` (in `PERSIST_OMIT`).
+- Nuove azioni: **`ADD_SUPPLIER`**, **`UPDATE_SUPPLIER`**, **`DELETE_SUPPLIER`** (soft-delete), **`SET_SELECTED_SUPPLIER`**.
+- `RESTORE_BACKUP` esteso per includere `suppliers`.
+- Tutte loggate in `activityLog`.
+
+### 🔐 Permessi
+- Nuovi helper `canManageSuppliers(uid)` / `canViewSuppliers(uid)` → `!isDriver(uid)`. Stessa regola dei clienti.
+- `SET_VIEW("suppliers")` e `SET_CURRENT_USER` aggiornati per check + redirect.
+
+### 🧭 Vista Fornitori
+- Nuova voce NAV: `{ id: "suppliers", icon: "🤝", label: "Fornitori", roles: ["admin","manager","agent"] }`.
+- **`SuppliersView`**: header con conteggio attivi/in elenco + bottone "+ Nuovo fornitore", toolbar (search testuale, filtro tipologia, toggle rimossi), griglia 3 col con card.
+- Card: chip tipologia, badge "📋 N task collegati", nome, referente, email/telefono, anteprima servizi (2 righe), banner "Rimosso il …" per soft-deleted.
+
+### 🪟 Modale `SupplierEditModal`
+- Modalità: creazione (`supplier === null`), modifica, sola lettura (`canManage=false` o `deletedAt`).
+- Campi: nome (obbligatorio), tipologia, referente, email, telefono, **indirizzo**, **servizi offerti**, note operative.
+- Footer: "🗑 Rimuovi fornitore" + Annulla/Salva.
+- Renderizzata a livello **root** (apribile da TaskSlideOver e Fornitori).
+- Callback opzionale `onCreated(newSupplier)` per pre-selezione inline (usato da QuickAddTask).
+
+### 🔗 Integrazione TaskSlideOver
+- Nuova sezione "FORNITORE" (sotto CLIENTE, sopra ORE STIMATE) visibile solo se `task.supplierId` risolve in anagrafica.
+- Chip colorato per tipologia con icona + nome + freccia. Click → apre `SupplierEditModal`.
+
+### ➕ Picker fornitore in QuickAddTask
+- Nuovo select FORNITORE parallelo a CLIENTE, con clienti e fornitori attivi ordinati alfabeticamente.
+- Bottone **"+ Nuovo"** apre `SupplierEditModal` inline e pre-seleziona il nuovo fornitore.
+
+### 💾 Backup
+- `exportBackup` esteso con `suppliers`, version bumpata a `"0.9.7"`.
+
+### 📈 Metriche
+- File: 8433 → ~8900 righe (+~470).
+- Componenti nuovi: 2 (`SuppliersView`, `SupplierEditModal`).
+- Helper nuovi: 1 (`getSupplier`).
+- Mock data: 6 fornitori + costanti tipologie.
+
+### ⚠️ Note migrazione
+- I task persistiti pre-v0.9.7 non hanno `supplierId`: il chip FORNITORE semplicemente non viene renderizzato. Nessuna mappa legacy necessaria (campo nuovo, non era mai esistito come testo).
+- Hydration: se il payload localStorage non ha `suppliers`, fallback a `INITIAL_SUPPLIERS`. `PERSIST_VERSION` invariato.
+
+### 🔜 Prossimo step Fase 1
+- **Pratiche di viaggio** (effort L): entità che aggrega tasks + clienti + fornitori in una numerazione progressiva `PR-YYYY-NNN`, con stati e riepilogo economico.
+
+---
+
 ## v0.9.6 — Vista settimana Calendario ridisegnata (sessione 14)
 
 > Chiude il punto 🟡 "Vista settimanale Calendario migliorata" della roadmap post-v0.6. La vecchia griglia card-per-giorno (con scroll orizzontale su mobile) è stata rimpiazzata da due layout dedicati: **time-grid orario** su desktop e **day-tab + lista verticale** su mobile.

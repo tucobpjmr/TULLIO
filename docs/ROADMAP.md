@@ -9,7 +9,7 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 
 ---
 
-## 📍 Punto di partenza (post v0.9.6)
+## 📍 Punto di partenza (post v0.9.7)
 
 - App ora gira fuori da claude.ai artifacts (progetto Vite con `package.json`, `vite.config.js`, `index.html`, `src/main.jsx`).
 - **Persistenza `localStorage`** attiva (state + chat con versioning + reset da Admin). Dati sopravvivono al refresh.
@@ -17,11 +17,13 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 - **Editor multi-assegnatari** disponibile da `TaskSlideOver`.
 - **Task link cliccabile in chat**: chip `TaskLinkChip` apre `TaskSlideOver`, intent "contatta agente" agganciata come preview sopra l'input.
 - **Agenda Driver transfer-oriented** in `PersonalQueue`: chip Oggi/Domani/Tutte, raggruppata per giorno con orario in evidenza.
-- **Anagrafica Clienti CRM**: entità `Client` con tipologie, vista dedicata, modale CRUD, picker in QuickAddTask, chip cliente cliccabile in TaskSlideOver. Task legati via `clientId` (con mappa legacy per i task pre-v0.9.5).
+- **Anagrafica Clienti CRM** + **Anagrafica Fornitori**: entità `Client` e `Supplier` con tipologie, viste dedicate, modali CRUD, picker doppi (cliente+fornitore) in QuickAddTask, chip cliccabili in TaskSlideOver.
 - **Vista settimanale Calendario**: time-grid orario su desktop con now-line; day-tab + lista verticale su mobile.
 - Commenti firmati con l'utente loggato (non più hard-coded "Marco Ferretti").
-- File `VoyageDesk.jsx` ancora monolitico (~8390 righe) — splitting in moduli è il prossimo step della traccia tecnica.
+- File `VoyageDesk.jsx` ancora monolitico (~8900 righe) — splitting in moduli è il prossimo step della traccia tecnica.
 - Tutto il resto invariato rispetto al punto di partenza post v0.8 sotto.
+
+**Fase 1 completa al 67%** (Clienti ✅, Fornitori ✅, Pratiche ⬜). Le Pratiche di viaggio sono l'entità centrale che chiude la fase.
 
 ---
 
@@ -64,7 +66,7 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 | Modulo | Stato | Priorità | Sforzo | Dipende da |
 |---|---|---|---|---|
 | Anagrafica Clienti (CRM base) | ✅ | — | M | Completato in v0.9.5 — entità Client, vista dedicata, modale CRUD, picker in QuickAddTask, chip cliente in TaskSlideOver |
-| Anagrafica Fornitori | ⬜ | 🔴 | M | — |
+| Anagrafica Fornitori | ✅ | — | M | Completato in v0.9.7 — entità Supplier mirror di Client, vista dedicata, modale CRUD, picker in QuickAddTask, chip in TaskSlideOver |
 | Pratiche di viaggio | ⬜ | 🔴 | L | Clienti + Fornitori |
 | Collegamento Task ↔ Cliente ↔ Pratica | ⬜ | 🔴 | M | i tre sopra |
 

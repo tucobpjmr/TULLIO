@@ -1,5 +1,97 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9.8 — Pratiche di viaggio — chiude Fase 1 (sessione 16)
+
+> **Fase 1 — Modello dati completo: 100%**. Le Pratiche di viaggio aggregano task + cliente + fornitori in un'entità centrale con numerazione progressiva, stati, riepilogo economico e timeline eventi. Sblocca il filtro "numero pratica" nella Ricerca avanzata.
+
+### 📂 Modello dati Practice
+- Nuovo schema `Practice`:
+  ```js
+  {
+    id, number,              // "PR-YYYY-NNN" auto-progressive
+    title, status,           // draft|confirmed|in_progress|completed|cancelled
+    clientId, supplierIds: [],
+    destination,
+    departureDate, returnDate,
+    totalValue, cost, paid,  // riepilogo economico (€)
+    notes,
+    events: [{ time, type, text, userId }],  // timeline
+    createdAt, updatedAt, deletedAt
+  }
+  ```
+- `PRACTICE_STATUSES`: 5 stati con icona + colore + bg (draft 📝, confirmed ✅, in_progress 🚀, completed 🏁, cancelled ❌).
+- `generatePracticeNumber(existing)`: scansiona le pratiche dell'anno corrente e genera il successivo `PR-YYYY-NNN`.
+- Helper `getPractice`, `getPracticeTasks`, `getPracticeMargin`, `getPracticePaidPct`.
+- `INITIAL_PRACTICES`: 6 pratiche demo che aggregano i 27 task esistenti via nuovo campo `task.practiceId`.
+
+### 🔁 Reducer
+- Slice `state.practices` + `selectedPractice` volatile (PERSIST_OMIT).
+- Actions: **`ADD_PRACTICE`**, **`UPDATE_PRACTICE`**, **`DELETE_PRACTICE`** (soft-delete), **`SET_SELECTED_PRACTICE`**, **`CHANGE_PRACTICE_STATUS`** (logga evento timeline).
+- `ADD_PRACTICE` auto-genera il `number` se assente, e crea l'evento "Pratica creata" nella timeline.
+- `RESTORE_BACKUP` esteso con `practices`.
+
+### 🔐 Permessi
+- `canManagePractices(uid)` / `canViewPractices(uid)` → `!isDriver(uid)`.
+- `SET_VIEW("practices")` + `SET_CURRENT_USER` con check + redirect.
+
+### 🧭 Vista Pratiche
+- Nuova voce NAV `📂 Pratiche` (admin/manager/agent).
+- **`PracticesView`**:
+  - Header + KPI 4-card (totale, ricavo, margine €+%, incassato €+%).
+  - Toolbar: search testuale, filtro stato, filtro cliente, toggle rimosse.
+  - Griglia 2-col responsive con card pratica: numero, badge stato, titolo, cliente, destinazione, date partenza/rientro, conteggi task/fornitori, ricavo, margine (verde/rosso), progress bar "% incassato".
+  - Default sort: per data partenza ASC con null in coda.
+
+### 🪟 Modale `PracticeEditModal` (5 sezioni)
+1. **Generale** — titolo, cliente, stato, destinazione, partenza/rientro, note.
+2. **💰 Riepilogo economico** — ricavo / costo / incassato → margine calcolato live + marginalità % + % incassato.
+3. **🤝 Fornitori collegati** — multi-select via chip toggleabili sui fornitori attivi (colorati per tipologia, ✓ se attivo).
+4. **📋 Task collegati** — lista derivata da `getPracticeTasks`, click → apre `TaskSlideOver` chiudendo la modale.
+5. **🕰️ Timeline** — eventi cronologici (created/status/payment/note) con icona, autore, data. Input per aggiungere nota inline.
+- Cambio stato dispatcha `CHANGE_PRACTICE_STATUS` → logga automaticamente l'evento timeline.
+- Modale **a livello root** in `VoyageDeskInner` (apribile da qualsiasi vista).
+- Header con numero `PR-YYYY-NNN` + badge stato + timestamp creazione/aggiornamento.
+
+### 🔗 Integrazione TaskSlideOver
+- Nuova sezione **PRATICA** (sopra FORNITORE): bottone full-width navy con numero + titolo, click → apre `PracticeEditModal`.
+- Visibile solo se `task.practiceId` risolve in anagrafica.
+
+### ➕ Picker pratica in QuickAddTask
+- Nuovo select PRATICA in cima ai picker entità (sopra Cliente).
+- **Cliente auto-suggested**: se l'utente seleziona una pratica con `clientId` impostato e il form non ha ancora un cliente, lo pre-compila automaticamente.
+- Pratiche annullate filtrate dal picker.
+
+### 🔍 Ricerca avanzata: filtro numero pratica
+- Nuovo input "📂 Numero pratica" subito sotto "Parola chiave". Accetta match parziale case-insensitive (es. `001` matcha `PR-2026-001`).
+- Tasks senza `practiceId` esclusi quando il filtro è attivo.
+
+### 💾 Backup
+- `exportBackup` esteso con `practices`, version → `"0.9.8"`.
+
+### 📈 Metriche
+- File: 9012 → ~9700 righe (+~690).
+- Componenti nuovi: 3 (`PracticesView`, `PracticeEditModal`, `PracticeStatusBadge`).
+- Helper nuovi: 5 (`generatePracticeNumber`, `getPractice`, `getPracticeTasks`, `getPracticeMargin`, `getPracticePaidPct`, `formatEur`).
+- Mock data: 6 pratiche + 16 task collegati via `practiceId`.
+
+### ⚠️ Note migrazione
+- Task persistiti pre-v0.9.8 senza `practiceId`: il chip PRATICA semplicemente non viene renderizzato.
+- Hydration: se localStorage non ha `practices`, fallback a `INITIAL_PRACTICES`.
+- `PERSIST_VERSION` invariato — il merge dei default copre i campi nuovi.
+
+### ✅ Fase 1 completa
+- [x] Anagrafica Clienti (v0.9.5)
+- [x] Anagrafica Fornitori (v0.9.7)
+- [x] **Pratiche di viaggio** (v0.9.8)
+- [x] Collegamento Task ↔ Cliente ↔ Pratica (via `clientId` + `practiceId` su task)
+
+### 🔜 Prossimo focus
+- **Fase 2** — Notifiche reali (collegate ad azioni), Calendario avanzato residuo, estensioni chat.
+- **Fase 3** — Modulo finanziario (ora che ci sono Pratiche con riepilogo economico).
+- **Traccia tecnica** — splittare `VoyageDesk.jsx` (ora ~9700 righe).
+
+---
+
 ## v0.9.7 — Anagrafica Fornitori (sessione 15)
 
 > Secondo step della **Fase 1 — Modello dati completo**. Mirror stretto del pattern Clienti per consistenza UX, prepara il terreno per Pratiche di viaggio (entità centrale che aggregherà task + clienti + fornitori).

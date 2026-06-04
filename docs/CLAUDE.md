@@ -108,6 +108,28 @@ Navigazione: Desktop → Sidebar collassabile. Tablet/Mobile → BottomNav.
 }
 ```
 
+### Practice (v0.9.8) — chiude Fase 1
+```js
+{
+  id: "pr-xxx",
+  number: "PR-YYYY-NNN",     // auto-progressive via generatePracticeNumber()
+  title: string,             // obbligatorio
+  clientId: string|null,
+  supplierIds: [string],     // multi-fornitori
+  status: "draft"|"confirmed"|"in_progress"|"completed"|"cancelled",
+  destination: string,
+  departureDate: ISO|null, returnDate: ISO|null,
+  totalValue: number,        // ricavo €
+  cost: number,              // costo fornitori €
+  paid: number,              // incassato €
+  notes: string,
+  events: [{ time, type, text, userId }],  // timeline: created|status|payment|note
+  createdAt: ISO, updatedAt: ISO, deletedAt: ISO|null
+}
+```
+
+Task schema esteso con `practiceId: string|null` (oltre a `clientId` e `supplierId`).
+
 ### Team member
 ```js
 {
@@ -161,6 +183,9 @@ Famiglia Rossi (Maldive), Coppia Bianchi (Giappone), Azienda TechCorp (Incentive
 
 ### Fornitori (v0.9.7 — stessa regola dei Clienti, bloccate al Driver)
 `ADD_SUPPLIER`, `UPDATE_SUPPLIER`, `DELETE_SUPPLIER`, `SET_SELECTED_SUPPLIER`
+
+### Pratiche (v0.9.8 — stessa regola, bloccate al Driver)
+`ADD_PRACTICE`, `UPDATE_PRACTICE`, `DELETE_PRACTICE`, `SET_SELECTED_PRACTICE`, `CHANGE_PRACTICE_STATUS`
 
 ### Bacheca
 `ADD_NOTICE`, `UPDATE_NOTICE`, `DELETE_NOTICE`, `TOGGLE_PIN_NOTICE`
@@ -258,10 +283,15 @@ VoyageDesk (export default, ViewportProvider wrapper)
 - [ ] Splittare `VoyageDesk.jsx` in moduli (componenti, reducer, utils, mock-data, styles)
 - [x] Aggiungere persistenza (localStorage in `loadPersistedState` / `savePersistedState`). Backend ancora da fare.
 
-### Priorità 2 — Modello dati completo
+### Priorità 2 — Modello dati completo ✅ (chiusa in v0.9.8)
 - [x] Anagrafica Clienti (CRM base) — v0.9.5
 - [x] Anagrafica Fornitori — v0.9.7
-- [ ] Pratiche di viaggio (aggrega task + clienti + fornitori)
+- [x] Pratiche di viaggio — v0.9.8
+
+### Prossimo focus
+- **Fase 2**: Notifiche reali, estensioni chat avanzate, dark mode.
+- **Fase 3**: Modulo finanziario (ora che le Pratiche hanno riepilogo economico).
+- **Traccia tecnica**: splittare `VoyageDesk.jsx` (~9700 righe).
 
 ### Priorità 3 — Operatività
 - [ ] Notifiche reali (collegate ad azioni)

@@ -179,35 +179,35 @@ const d = (daysOffset, h = 10, m = 0) => {
 };
 
 const INITIAL_TASKS = [
-  { id: "t1", title: "Confermare voli Maldive - Famiglia Rossi", category: "booking", priority: "critical", status: "inprogress", assignees: ["sofia"], client: "Famiglia Rossi", clientId: "cl-rossi", supplierId: "sp-emirates", dueDate: d(1, 17, 0), estimatedHours: 2, description: "Verificare disponibilità posti business class e confermare prenotazione. Contattare Emirates per upgrade disponibili.", comments: [{ user: "Marco Ferretti", text: "Priorità massima, cliente VIP", time: d(-1) }] },
-  { id: "t2", title: "Visto Giappone - Coppia Bianchi", category: "visa", priority: "critical", status: "todo", assignees: ["roberto"], client: "Coppia Bianchi", clientId: "cl-bianchi", supplierId: "sp-visti", dueDate: d(2, 9, 0), estimatedHours: 3, description: "Raccogliere documentazione per visto turistico Giappone. Luna di miele prevista per il mese prossimo.", comments: [] },
-  { id: "t3", title: "Hotel Overwater Bungalow - Maldive", category: "hotel", priority: "high", status: "inprogress", assignees: ["sofia", "luca"], client: "Famiglia Rossi", clientId: "cl-rossi", supplierId: "sp-fourseasons", dueDate: d(3, 12, 0), estimatedHours: 1.5, description: "Contattare Four Seasons Kuda Huraa per disponibilità bungalow sull'acqua. Budget: 1500€/notte.", comments: [{ user: "Sofia Conti", text: "Four Seasons ha confermato 2 bungalow disponibili", time: d(-2) }] },
-  { id: "t4", title: "Proposta incentive travel TechCorp", category: "itinerary", priority: "high", status: "awaiting_client", assignees: ["marco"], client: "Azienda TechCorp", clientId: "cl-techcorp", dueDate: d(4, 14, 0), estimatedHours: 5, description: "Preparare proposta dettagliata per viaggio incentive 50 persone. Destinazioni candidate: Dubrovnik, Marrakech, Lisbona.", comments: [{ user: "Marco Ferretti", text: "Proposta inviata, attesa risposta", time: d(-1) }] },
-  { id: "t5", title: "Pagamento acconto Famiglia Rossi", category: "payment", priority: "high", status: "todo", assignees: ["roberto"], client: "Famiglia Rossi", clientId: "cl-rossi", dueDate: d(0, 16, 0), estimatedHours: 0.5, description: "Richiedere acconto del 30% per prenotazione Maldive. Totale viaggio: 12.400€.", comments: [] },
-  { id: "t6", title: "Transfer aeroporto - Coppia Bianchi", category: "supplier", priority: "medium", status: "todo", assignees: ["giulia"], client: "Coppia Bianchi", clientId: "cl-bianchi", supplierId: "sp-ncc", dueDate: d(5, 8, 0), estimatedHours: 1, description: "Organizzare transfer NCC per partenza verso MXP. Volo KL 1656 ore 11:30.", comments: [] },
+  { id: "t1", title: "Confermare voli Maldive - Famiglia Rossi", category: "booking", priority: "critical", status: "inprogress", assignees: ["sofia"], client: "Famiglia Rossi", clientId: "cl-rossi", supplierId: "sp-emirates", practiceId: "pr-001", dueDate: d(1, 17, 0), estimatedHours: 2, description: "Verificare disponibilità posti business class e confermare prenotazione. Contattare Emirates per upgrade disponibili.", comments: [{ user: "Marco Ferretti", text: "Priorità massima, cliente VIP", time: d(-1) }] },
+  { id: "t2", title: "Visto Giappone - Coppia Bianchi", category: "visa", priority: "critical", status: "todo", assignees: ["roberto"], client: "Coppia Bianchi", clientId: "cl-bianchi", supplierId: "sp-visti", practiceId: "pr-002", dueDate: d(2, 9, 0), estimatedHours: 3, description: "Raccogliere documentazione per visto turistico Giappone. Luna di miele prevista per il mese prossimo.", comments: [] },
+  { id: "t3", title: "Hotel Overwater Bungalow - Maldive", category: "hotel", priority: "high", status: "inprogress", assignees: ["sofia", "luca"], client: "Famiglia Rossi", clientId: "cl-rossi", supplierId: "sp-fourseasons", practiceId: "pr-001", dueDate: d(3, 12, 0), estimatedHours: 1.5, description: "Contattare Four Seasons Kuda Huraa per disponibilità bungalow sull'acqua. Budget: 1500€/notte.", comments: [{ user: "Sofia Conti", text: "Four Seasons ha confermato 2 bungalow disponibili", time: d(-2) }] },
+  { id: "t4", title: "Proposta incentive travel TechCorp", category: "itinerary", priority: "high", status: "awaiting_client", assignees: ["marco"], client: "Azienda TechCorp", clientId: "cl-techcorp", practiceId: "pr-003", dueDate: d(4, 14, 0), estimatedHours: 5, description: "Preparare proposta dettagliata per viaggio incentive 50 persone. Destinazioni candidate: Dubrovnik, Marrakech, Lisbona.", comments: [{ user: "Marco Ferretti", text: "Proposta inviata, attesa risposta", time: d(-1) }] },
+  { id: "t5", title: "Pagamento acconto Famiglia Rossi", category: "payment", priority: "high", status: "todo", assignees: ["roberto"], client: "Famiglia Rossi", clientId: "cl-rossi", practiceId: "pr-001", dueDate: d(0, 16, 0), estimatedHours: 0.5, description: "Richiedere acconto del 30% per prenotazione Maldive. Totale viaggio: 12.400€.", comments: [] },
+  { id: "t6", title: "Transfer aeroporto - Coppia Bianchi", category: "supplier", priority: "medium", status: "todo", assignees: ["giulia"], client: "Coppia Bianchi", clientId: "cl-bianchi", supplierId: "sp-ncc", practiceId: "pr-002", dueDate: d(5, 8, 0), estimatedHours: 1, description: "Organizzare transfer NCC per partenza verso MXP. Volo KL 1656 ore 11:30.", comments: [] },
   { id: "t7", title: "Newsletter Giugno - Offerte Estate", category: "marketing", priority: "medium", status: "inprogress", assignees: ["luca"], client: null, clientId: null, dueDate: d(6, 18, 0), estimatedHours: 4, description: "Creare newsletter mensile con offerte last minute estate 2025. Target: 2.400 contatti.", comments: [{ user: "Luca Moretti", text: "Bozza al 60%, aggiungo le foto Grecia", time: d(0) }] },
   { id: "t8", title: "Contratto con nuovo fornitore bus", category: "supplier", priority: "medium", status: "awaiting_supplier", assignees: ["marco", "roberto"], client: null, clientId: null, supplierId: "sp-ncc", dueDate: d(7, 10, 0), estimatedHours: 2, description: "Finalizzare accordo quadro con Autoservizi Meridionali per trasporti gruppi 2025/2026.", comments: [] },
-  { id: "t9", title: "Itinerario dettagliato Giappone 14 giorni", category: "itinerary", priority: "high", status: "inprogress", assignees: ["sofia"], client: "Coppia Bianchi", clientId: "cl-bianchi", dueDate: d(3, 11, 0), estimatedHours: 6, description: "Strutturare itinerario Tokyo-Kyoto-Osaka-Hiroshima. Inserire esperienze di nicchia: cerimonia del tè, tempio Fushimi Inari alba.", comments: [{ user: "Sofia Conti", text: "Aggiunto ryokan a Kyoto su richiesta della coppia", time: d(-1) }] },
+  { id: "t9", title: "Itinerario dettagliato Giappone 14 giorni", category: "itinerary", priority: "high", status: "inprogress", assignees: ["sofia"], client: "Coppia Bianchi", clientId: "cl-bianchi", practiceId: "pr-002", dueDate: d(3, 11, 0), estimatedHours: 6, description: "Strutturare itinerario Tokyo-Kyoto-Osaka-Hiroshima. Inserire esperienze di nicchia: cerimonia del tè, tempio Fushimi Inari alba.", comments: [{ user: "Sofia Conti", text: "Aggiunto ryokan a Kyoto su richiesta della coppia", time: d(-1) }] },
   { id: "t10", title: "Aggiornare sito web pacchetti autunno", category: "marketing", priority: "low", status: "todo", assignees: ["luca"], client: null, clientId: null, dueDate: d(10, 17, 0), estimatedHours: 3, description: "Pubblicare nuovi pacchetti autunno: Foliage Canada, Halloween New York, Dolomiti.", comments: [] },
-  { id: "t11", title: "Check-in online TechCorp - voli Barcelona", category: "booking", priority: "high", status: "done", assignees: ["sofia"], client: "Azienda TechCorp", clientId: "cl-techcorp", dueDate: d(-1, 9, 0), estimatedHours: 1, description: "Completare check-in online per 50 partecipanti. Assegnare posti preferenziali ai manager.", comments: [{ user: "Sofia Conti", text: "Check-in completato ✓ Tutti i posti assegnati", time: d(-1) }] },
-  { id: "t12", title: "Richiesta polizza assicurativa viaggio", category: "admin", priority: "medium", status: "done", assignees: ["roberto"], client: "Famiglia Rossi", clientId: "cl-rossi", supplierId: "sp-allianz", dueDate: d(-2, 15, 0), estimatedHours: 0.5, description: "Polizza annullamento + medica per 4 persone. Confrontare Allianz, Generali, AXA.", comments: [{ user: "Roberto Esposito", text: "Polizza Allianz emessa, €342 totale", time: d(-2) }] },
-  { id: "t13", title: "Followup chiamata TechCorp - decisione destinazione", category: "client", priority: "critical", status: "awaiting_client", assignees: ["marco"], client: "Azienda TechCorp", clientId: "cl-techcorp", dueDate: d(1, 10, 30), estimatedHours: 1, description: "Chiamata con HR Director TechCorp per confermare destinazione incentive. Budget approvato 85.000€.", comments: [] },
-  { id: "t14", title: "Prenotare ryokan Kyoto - Bianchi", category: "hotel", priority: "high", status: "inprogress", assignees: ["sofia"], client: "Coppia Bianchi", clientId: "cl-bianchi", supplierId: "sp-ryokan", dueDate: d(2, 16, 0), estimatedHours: 2, description: "Prenotare Tawaraya Ryokan o Hiiragiya per 2 notti. Suite tradizionale con vista giardino zen.", comments: [] },
-  { id: "t15", title: "Fattura acconto TechCorp", category: "payment", priority: "medium", status: "todo", assignees: ["roberto"], client: "Azienda TechCorp", clientId: "cl-techcorp", dueDate: d(4, 11, 0), estimatedHours: 0.5, description: "Emettere fattura acconto 50% per evento incentive. Importo: 42.500€ + IVA.", comments: [] },
+  { id: "t11", title: "Check-in online TechCorp - voli Barcelona", category: "booking", priority: "high", status: "done", assignees: ["sofia"], client: "Azienda TechCorp", clientId: "cl-techcorp", practiceId: "pr-003", dueDate: d(-1, 9, 0), estimatedHours: 1, description: "Completare check-in online per 50 partecipanti. Assegnare posti preferenziali ai manager.", comments: [{ user: "Sofia Conti", text: "Check-in completato ✓ Tutti i posti assegnati", time: d(-1) }] },
+  { id: "t12", title: "Richiesta polizza assicurativa viaggio", category: "admin", priority: "medium", status: "done", assignees: ["roberto"], client: "Famiglia Rossi", clientId: "cl-rossi", supplierId: "sp-allianz", practiceId: "pr-001", dueDate: d(-2, 15, 0), estimatedHours: 0.5, description: "Polizza annullamento + medica per 4 persone. Confrontare Allianz, Generali, AXA.", comments: [{ user: "Roberto Esposito", text: "Polizza Allianz emessa, €342 totale", time: d(-2) }] },
+  { id: "t13", title: "Followup chiamata TechCorp - decisione destinazione", category: "client", priority: "critical", status: "awaiting_client", assignees: ["marco"], client: "Azienda TechCorp", clientId: "cl-techcorp", practiceId: "pr-003", dueDate: d(1, 10, 30), estimatedHours: 1, description: "Chiamata con HR Director TechCorp per confermare destinazione incentive. Budget approvato 85.000€.", comments: [] },
+  { id: "t14", title: "Prenotare ryokan Kyoto - Bianchi", category: "hotel", priority: "high", status: "inprogress", assignees: ["sofia"], client: "Coppia Bianchi", clientId: "cl-bianchi", supplierId: "sp-ryokan", practiceId: "pr-002", dueDate: d(2, 16, 0), estimatedHours: 2, description: "Prenotare Tawaraya Ryokan o Hiiragiya per 2 notti. Suite tradizionale con vista giardino zen.", comments: [] },
+  { id: "t15", title: "Fattura acconto TechCorp", category: "payment", priority: "medium", status: "todo", assignees: ["roberto"], client: "Azienda TechCorp", clientId: "cl-techcorp", practiceId: "pr-003", dueDate: d(4, 11, 0), estimatedHours: 0.5, description: "Emettere fattura acconto 50% per evento incentive. Importo: 42.500€ + IVA.", comments: [] },
   { id: "t16", title: "Aggiornamento CRM clienti Q2", category: "admin", priority: "low", status: "todo", assignees: ["roberto", "luca"], client: null, clientId: null, dueDate: d(14, 17, 0), estimatedHours: 4, description: "Aggiornare schede clienti con dati viaggi 2025. Aggiungere preferenze e note speciali.", comments: [] },
-  { id: "t17", title: "Transfer hotel-aeroporto Bianchi Malpensa", category: "supplier", priority: "medium", status: "todo", assignees: ["giulia"], client: "Coppia Bianchi", clientId: "cl-bianchi", supplierId: "sp-ncc", dueDate: d(8, 6, 0), estimatedHours: 0.5, description: "NCC privato per 2 persone + bagagli. Partenza alle 06:45, volo ANA 785.", comments: [] },
+  { id: "t17", title: "Transfer hotel-aeroporto Bianchi Malpensa", category: "supplier", priority: "medium", status: "todo", assignees: ["giulia"], client: "Coppia Bianchi", clientId: "cl-bianchi", supplierId: "sp-ncc", practiceId: "pr-002", dueDate: d(8, 6, 0), estimatedHours: 0.5, description: "NCC privato per 2 persone + bagagli. Partenza alle 06:45, volo ANA 785.", comments: [] },
   { id: "t18", title: "Social media post - Maldive promo", category: "marketing", priority: "low", status: "done", assignees: ["luca"], client: null, clientId: null, dueDate: d(-3, 17, 0), estimatedHours: 1.5, description: "Post Instagram + Facebook con foto Maldive stagione monsoni. CTA: richiedi preventivo.", comments: [{ user: "Luca Moretti", text: "Post pubblicato, +156 interazioni in 24h", time: d(-3) }] },
-  { id: "t19", title: "Documenti sanitari Maldive - Rossi", category: "visa", priority: "high", status: "done", assignees: ["roberto"], client: "Famiglia Rossi", clientId: "cl-rossi", supplierId: "sp-visti", dueDate: d(-1, 12, 0), estimatedHours: 1, description: "Verificare requisiti sanitari entrata Maldive. Raccogliere certificati vaccinazione richiesti.", comments: [{ user: "Roberto Esposito", text: "Non richieste vaccinazioni specifiche, documentazione OK", time: d(-1) }] },
-  { id: "t20", title: "Presentazione corporate travel policy TechCorp", category: "client", priority: "medium", status: "awaiting_client", assignees: ["marco", "sofia"], client: "Azienda TechCorp", clientId: "cl-techcorp", dueDate: d(5, 15, 0), estimatedHours: 3, description: "Preparare slide con policy viaggi corporate, livelli classe, hotel preferred, tool di prenotazione.", comments: [] },
-  { id: "t21", title: "Escursioni snorkeling Maldive", category: "booking", priority: "medium", status: "inprogress", assignees: ["luca"], client: "Famiglia Rossi", clientId: "cl-rossi", dueDate: d(6, 10, 0), estimatedHours: 1.5, description: "Prenotare 3 escursioni snorkeling e 1 sessione di immersione guidata con istruttore certificato.", comments: [] },
+  { id: "t19", title: "Documenti sanitari Maldive - Rossi", category: "visa", priority: "high", status: "done", assignees: ["roberto"], client: "Famiglia Rossi", clientId: "cl-rossi", supplierId: "sp-visti", practiceId: "pr-001", dueDate: d(-1, 12, 0), estimatedHours: 1, description: "Verificare requisiti sanitari entrata Maldive. Raccogliere certificati vaccinazione richiesti.", comments: [{ user: "Roberto Esposito", text: "Non richieste vaccinazioni specifiche, documentazione OK", time: d(-1) }] },
+  { id: "t20", title: "Presentazione corporate travel policy TechCorp", category: "client", priority: "medium", status: "awaiting_client", assignees: ["marco", "sofia"], client: "Azienda TechCorp", clientId: "cl-techcorp", practiceId: "pr-003", dueDate: d(5, 15, 0), estimatedHours: 3, description: "Preparare slide con policy viaggi corporate, livelli classe, hotel preferred, tool di prenotazione.", comments: [] },
+  { id: "t21", title: "Escursioni snorkeling Maldive", category: "booking", priority: "medium", status: "inprogress", assignees: ["luca"], client: "Famiglia Rossi", clientId: "cl-rossi", practiceId: "pr-001", dueDate: d(6, 10, 0), estimatedHours: 1.5, description: "Prenotare 3 escursioni snorkeling e 1 sessione di immersione guidata con istruttore certificato.", comments: [] },
   { id: "t22", title: "Revisione contratti stagione invernale", category: "admin", priority: "low", status: "todo", assignees: ["marco"], client: null, clientId: null, dueDate: d(20, 10, 0), estimatedHours: 5, description: "Revisione annuale contratti fornitori: tour operator, hotel chains, compagnie aeree.", comments: [] },
   // ─── Coda globale: task non assegnati (in attesa che qualcuno li prenda in carico) ───
-  { id: "t23", title: "Nuova richiesta crociera Caraibi - Famiglia Marchetti", category: "client", priority: "high", status: "todo", assignees: [], client: "Famiglia Marchetti", clientId: "cl-marchetti", dueDate: d(2, 11, 0), estimatedHours: 1, description: "Richiesta arrivata via form sito: crociera 7 notti per 4 persone, partenza Miami. Da contattare entro 48h.", comments: [] },
-  { id: "t24", title: "Blocco urgente Hotel Atene per gruppo studenti", category: "hotel", priority: "critical", status: "todo", assignees: [], client: "Liceo Manzoni", clientId: "cl-manzoni", dueDate: d(1, 12, 0), estimatedHours: 2, description: "30 camere a Plaka per fine Maggio. Tariffa già negoziata, serve solo conferma e invio rooming list.", comments: [] },
-  { id: "t25", title: "Preventivo viaggio nozze Vietnam - Sposi Conte", category: "itinerary", priority: "medium", status: "todo", assignees: [], client: "Sposi Conte", clientId: "cl-conte", dueDate: d(5, 17, 0), estimatedHours: 3, description: "14 giorni Vietnam classico: Hanoi - Halong - Hoi An - Saigon. Budget medio-alto, esperienze locali.", comments: [] },
+  { id: "t23", title: "Nuova richiesta crociera Caraibi - Famiglia Marchetti", category: "client", priority: "high", status: "todo", assignees: [], client: "Famiglia Marchetti", clientId: "cl-marchetti", practiceId: "pr-004", dueDate: d(2, 11, 0), estimatedHours: 1, description: "Richiesta arrivata via form sito: crociera 7 notti per 4 persone, partenza Miami. Da contattare entro 48h.", comments: [] },
+  { id: "t24", title: "Blocco urgente Hotel Atene per gruppo studenti", category: "hotel", priority: "critical", status: "todo", assignees: [], client: "Liceo Manzoni", clientId: "cl-manzoni", practiceId: "pr-005", dueDate: d(1, 12, 0), estimatedHours: 2, description: "30 camere a Plaka per fine Maggio. Tariffa già negoziata, serve solo conferma e invio rooming list.", comments: [] },
+  { id: "t25", title: "Preventivo viaggio nozze Vietnam - Sposi Conte", category: "itinerary", priority: "medium", status: "todo", assignees: [], client: "Sposi Conte", clientId: "cl-conte", practiceId: "pr-006", dueDate: d(5, 17, 0), estimatedHours: 3, description: "14 giorni Vietnam classico: Hanoi - Halong - Hoi An - Saigon. Budget medio-alto, esperienze locali.", comments: [] },
   // ─── Task Transfer assegnati a Giulia (Driver) ───
-  { id: "t26", title: "Transfer Linate → Hotel Principe - Famiglia Rossi", category: "transfer", priority: "high", status: "todo", assignees: ["giulia"], client: "Famiglia Rossi", clientId: "cl-rossi", dueDate: d(1, 14, 30), estimatedHours: 1, description: "Pickup arrivo volo AZ1234 ore 14:00, 4 pax + 6 bagagli. Van 8 posti.", comments: [] },
-  { id: "t27", title: "Transfer Hotel → Stazione Centrale - Coppia Bianchi", category: "transfer", priority: "medium", status: "inprogress", assignees: ["giulia"], client: "Coppia Bianchi", clientId: "cl-bianchi", dueDate: d(3, 9, 0), estimatedHours: 0.5, description: "Pickup hotel ore 09:00, treno Frecciarossa 9:55 per Roma. 2 pax + 3 bagagli.", comments: [] },
+  { id: "t26", title: "Transfer Linate → Hotel Principe - Famiglia Rossi", category: "transfer", priority: "high", status: "todo", assignees: ["giulia"], client: "Famiglia Rossi", clientId: "cl-rossi", practiceId: "pr-001", dueDate: d(1, 14, 30), estimatedHours: 1, description: "Pickup arrivo volo AZ1234 ore 14:00, 4 pax + 6 bagagli. Van 8 posti.", comments: [] },
+  { id: "t27", title: "Transfer Hotel → Stazione Centrale - Coppia Bianchi", category: "transfer", priority: "medium", status: "inprogress", assignees: ["giulia"], client: "Coppia Bianchi", clientId: "cl-bianchi", practiceId: "pr-002", dueDate: d(3, 9, 0), estimatedHours: 0.5, description: "Pickup hotel ore 09:00, treno Frecciarossa 9:55 per Roma. 2 pax + 3 bagagli.", comments: [] },
 ];
 
 const NOTIFICATIONS = [
@@ -344,6 +344,157 @@ const INITIAL_SUPPLIERS = [
   },
 ];
 
+// ─── PRATICHE DI VIAGGIO (v0.9.8) ──────────────────────────────────────────
+// Entità centrale che aggrega task + cliente + fornitori + economia per un singolo viaggio.
+// Numerazione progressiva PR-YYYY-NNN auto-generata alla creazione.
+const PRACTICE_STATUSES = {
+  draft: { label: "Bozza", icon: "📝", color: "#6B7280", bg: "#F3F4F6" },
+  confirmed: { label: "Confermata", icon: "✅", color: "#3B82F6", bg: "#EFF6FF" },
+  in_progress: { label: "In corso", icon: "🚀", color: "#C8832A", bg: "#FEF3C7" },
+  completed: { label: "Completata", icon: "🏁", color: "#2D7A4F", bg: "#D1FAE5" },
+  cancelled: { label: "Annullata", icon: "❌", color: "#C0392B", bg: "#FEE2E2" },
+};
+const PRACTICE_STATUS_ORDER = ["draft", "confirmed", "in_progress", "completed", "cancelled"];
+
+// Genera il prossimo numero pratica del formato PR-YYYY-NNN basandosi sulle pratiche esistenti.
+// Tiene conto dell'anno corrente: se non esistono pratiche dell'anno, NNN=001.
+const generatePracticeNumber = (existing) => {
+  const year = new Date().getFullYear();
+  const prefix = `PR-${year}-`;
+  const maxNum = (existing || []).reduce((max, p) => {
+    if (!p?.number?.startsWith(prefix)) return max;
+    const n = parseInt(p.number.slice(prefix.length), 10);
+    return isNaN(n) ? max : Math.max(max, n);
+  }, 0);
+  return `${prefix}${String(maxNum + 1).padStart(3, "0")}`;
+};
+
+// Calcola il margine: ricavo - costo. Se mancano valori, ritorna 0.
+const getPracticeMargin = (p) => {
+  const revenue = Number(p?.totalValue) || 0;
+  const cost = Number(p?.cost) || 0;
+  return revenue - cost;
+};
+const getPracticePaidPct = (p) => {
+  const revenue = Number(p?.totalValue) || 0;
+  const paid = Number(p?.paid) || 0;
+  if (revenue <= 0) return 0;
+  return Math.min(100, Math.round((paid / revenue) * 100));
+};
+
+const _practiceStamp = (daysAgo) => new Date(Date.now() - daysAgo * 86400000).toISOString();
+const _futureDate = (daysAhead, h = 10) => {
+  const d = new Date(); d.setDate(d.getDate() + daysAhead); d.setHours(h, 0, 0, 0); return d.toISOString();
+};
+
+const INITIAL_PRACTICES = [
+  {
+    id: "pr-001", number: "PR-2026-001",
+    title: "Maldive 7 notti overwater - Famiglia Rossi",
+    clientId: "cl-rossi",
+    supplierIds: ["sp-fourseasons", "sp-emirates", "sp-allianz"],
+    status: "in_progress",
+    destination: "Maldive — Atollo di Malé Nord",
+    departureDate: _futureDate(15, 11),
+    returnDate: _futureDate(22, 14),
+    totalValue: 12400, cost: 8200, paid: 3720,
+    notes: "Cliente VIP. 4 pax: Marco + moglie + 2 figli. Volo Emirates business class, 7 notti overwater bungalow Four Seasons Kuda Huraa con prima colazione. Polizza annullamento Allianz emessa.",
+    events: [
+      { time: _practiceStamp(90), type: "created", text: "Pratica creata", userId: "marco" },
+      { time: _practiceStamp(85), type: "status", text: "Stato: Bozza → Confermata", userId: "marco" },
+      { time: _practiceStamp(60), type: "payment", text: "Acconto 30% ricevuto (€3.720)", userId: "roberto" },
+      { time: _practiceStamp(45), type: "status", text: "Stato: Confermata → In corso", userId: "marco" },
+      { time: _practiceStamp(2), type: "note", text: "Confermati 2 overwater bungalow, prima colazione inclusa", userId: "sofia" },
+    ],
+    createdAt: _practiceStamp(90), updatedAt: _practiceStamp(2), deletedAt: null,
+  },
+  {
+    id: "pr-002", number: "PR-2026-002",
+    title: "Luna di miele Giappone 14 giorni - Coppia Bianchi",
+    clientId: "cl-bianchi",
+    supplierIds: ["sp-ryokan", "sp-visti", "sp-ncc"],
+    status: "confirmed",
+    destination: "Giappone — Tokyo, Kyoto, Osaka, Hiroshima",
+    departureDate: _futureDate(45, 7),
+    returnDate: _futureDate(59, 22),
+    totalValue: 9800, cost: 6400, paid: 1960,
+    notes: "Luna di miele. Itinerario classico Tokyo-Kyoto-Osaka-Hiroshima. 2 notti ryokan tradizionale Tawaraya a Kyoto. Cerimonia del tè e visita tempio Fushimi Inari all'alba richieste.",
+    events: [
+      { time: _practiceStamp(75), type: "created", text: "Pratica creata", userId: "marco" },
+      { time: _practiceStamp(50), type: "status", text: "Stato: Bozza → Confermata", userId: "marco" },
+      { time: _practiceStamp(48), type: "payment", text: "Acconto 20% ricevuto (€1.960)", userId: "roberto" },
+      { time: _practiceStamp(5), type: "note", text: "Richiesta aggiuntiva: transfer aeroporto al rientro", userId: "sofia" },
+    ],
+    createdAt: _practiceStamp(75), updatedAt: _practiceStamp(5), deletedAt: null,
+  },
+  {
+    id: "pr-003", number: "PR-2026-003",
+    title: "Incentive travel 50 persone - TechCorp",
+    clientId: "cl-techcorp",
+    supplierIds: ["sp-emirates"],
+    status: "draft",
+    destination: "Da definire — candidate: Dubrovnik, Marrakech, Lisbona",
+    departureDate: _futureDate(120, 9),
+    returnDate: _futureDate(124, 18),
+    totalValue: 85000, cost: 0, paid: 0,
+    notes: "Incentive aziendale 50 persone. Budget approvato 85.000€. Destinazione da confermare con HR Director TechCorp. Hotel 4* con sale meeting, programma esperienziale incluso.",
+    events: [
+      { time: _practiceStamp(55), type: "created", text: "Pratica creata in bozza", userId: "marco" },
+      { time: _practiceStamp(40), type: "note", text: "Proposta dettagliata inviata al cliente", userId: "marco" },
+      { time: _practiceStamp(1), type: "note", text: "In attesa conferma destinazione da HR Director", userId: "marco" },
+    ],
+    createdAt: _practiceStamp(55), updatedAt: _practiceStamp(1), deletedAt: null,
+  },
+  {
+    id: "pr-004", number: "PR-2026-004",
+    title: "Crociera Caraibi 7 notti - Famiglia Marchetti",
+    clientId: "cl-marchetti",
+    supplierIds: [],
+    status: "draft",
+    destination: "Caraibi — partenza Miami",
+    departureDate: null, returnDate: null,
+    totalValue: 0, cost: 0, paid: 0,
+    notes: "Richiesta arrivata via form sito. Crociera 7 notti per 4 persone, partenza Miami. Da contattare entro 48h per qualifica richiesta.",
+    events: [
+      { time: _practiceStamp(3), type: "created", text: "Pratica creata da richiesta web", userId: "marco" },
+    ],
+    createdAt: _practiceStamp(3), updatedAt: _practiceStamp(3), deletedAt: null,
+  },
+  {
+    id: "pr-005", number: "PR-2026-005",
+    title: "Viaggio istruzione Atene - Liceo Manzoni",
+    clientId: "cl-manzoni",
+    supplierIds: [],
+    status: "draft",
+    destination: "Atene, Grecia",
+    departureDate: _futureDate(60, 6),
+    returnDate: _futureDate(64, 23),
+    totalValue: 18900, cost: 0, paid: 0,
+    notes: "30 studenti + 3 docenti. Hotel Plaka 3*, tariffa già negoziata. Serve solo conferma e invio rooming list. Visite guidate: Acropoli, Museo Archeologico, Capo Sounio.",
+    events: [
+      { time: _practiceStamp(50), type: "created", text: "Pratica creata", userId: "marco" },
+      { time: _practiceStamp(30), type: "note", text: "Tariffa hotel negoziata con Aegean Hotels Group", userId: "roberto" },
+    ],
+    createdAt: _practiceStamp(50), updatedAt: _practiceStamp(30), deletedAt: null,
+  },
+  {
+    id: "pr-006", number: "PR-2026-006",
+    title: "Viaggio nozze Vietnam 14 giorni - Sposi Conte",
+    clientId: "cl-conte",
+    supplierIds: [],
+    status: "draft",
+    destination: "Vietnam — Hanoi, Halong, Hoi An, Saigon",
+    departureDate: _futureDate(150, 8),
+    returnDate: _futureDate(164, 20),
+    totalValue: 0, cost: 0, paid: 0,
+    notes: "Vietnam classico, 14 giorni. Budget medio-alto, esperienze locali (crociera Halong, lezioni cucina, cyclo Hue). Preventivo da preparare.",
+    events: [
+      { time: _practiceStamp(20), type: "created", text: "Pratica creata", userId: "marco" },
+    ],
+    createdAt: _practiceStamp(20), updatedAt: _practiceStamp(20), deletedAt: null,
+  },
+];
+
 // ─── TASK TEMPLATES ────────────────────────────────────────────────────────
 const TASK_TEMPLATES = [
   {
@@ -428,6 +579,7 @@ const LOGGED_ACTIONS = new Set([
   "ADD_NOTICE", "UPDATE_NOTICE", "DELETE_NOTICE",
   "ADD_CLIENT", "UPDATE_CLIENT", "DELETE_CLIENT",
   "ADD_SUPPLIER", "UPDATE_SUPPLIER", "DELETE_SUPPLIER",
+  "ADD_PRACTICE", "UPDATE_PRACTICE", "DELETE_PRACTICE", "CHANGE_PRACTICE_STATUS",
 ]);
 
 const buildLogEntry = (action, state) => {
@@ -468,6 +620,20 @@ const buildLogEntry = (action, state) => {
       const sp = (state.suppliers || []).find(s => s.id === action.payload);
       return `Fornitore "${sp?.name || action.payload}" nel cestino`;
     },
+    ADD_PRACTICE: () => `Creata pratica ${action.payload.number} — ${action.payload.title}`,
+    UPDATE_PRACTICE: () => {
+      const pr = (state.practices || []).find(p => p.id === action.payload.id);
+      return `Aggiornata pratica ${pr?.number || action.payload.id}`;
+    },
+    DELETE_PRACTICE: () => {
+      const pr = (state.practices || []).find(p => p.id === action.payload);
+      return `Pratica ${pr?.number || action.payload} nel cestino`;
+    },
+    CHANGE_PRACTICE_STATUS: () => {
+      const pr = (state.practices || []).find(p => p.id === action.payload.id);
+      const newLabel = PRACTICE_STATUSES[action.payload.status]?.label || action.payload.status;
+      return `Pratica ${pr?.number || action.payload.id}: stato → ${newLabel}`;
+    },
   };
   return { id: `log-${stamp}-${Math.random().toString(36).slice(2,7)}`, time: stamp, type: t, text: (map[t] || (() => t))() };
 };
@@ -491,6 +657,10 @@ function baseReducer(state, action) {
       if (action.payload === "suppliers" && !canViewSuppliers(uid)) {
         return _denied("Non hai i permessi per accedere ai Fornitori");
       }
+      // Driver non vede la vista Pratiche (v0.9.8)
+      if (action.payload === "practices" && !canViewPractices(uid)) {
+        return _denied("Non hai i permessi per accedere alle Pratiche");
+      }
       return { ...state, activeView: action.payload };
     }
     case "SET_SELECTED_TASK": {
@@ -508,6 +678,7 @@ function baseReducer(state, action) {
       // Aperto/chiuso da Fornitori view (e da chip fornitore in TaskSlideOver) — v0.9.7
       return { ...state, selectedSupplier: action.payload };
     }
+    // SET_SELECTED_PRACTICE è definito sotto in CRUD pratiche (v0.9.8)
     case "SET_CURRENT_USER": {
       const newId = action.payload;
       const m = getMember(newId);
@@ -518,6 +689,7 @@ function baseReducer(state, action) {
       if (activeView === "admin" && !canAccessAdmin(newId)) activeView = "dashboard";
       if (activeView === "clients" && !canViewClients(newId)) activeView = "dashboard";
       if (activeView === "suppliers" && !canViewSuppliers(newId)) activeView = "dashboard";
+      if (activeView === "practices" && !canViewPractices(newId)) activeView = "dashboard";
       return {
         ...state,
         currentUserId: newId,
@@ -525,6 +697,7 @@ function baseReducer(state, action) {
         selectedTask: null,
         selectedClient: null,
         selectedSupplier: null,
+        selectedPractice: null,
         toast: { message: `Ora stai usando l'app come ${m.name} (${m.role})`, type: "success" },
       };
     }
@@ -675,7 +848,7 @@ function baseReducer(state, action) {
       return { ...state, agencyName: action.payload };
     }
     case "RESTORE_BACKUP": {
-      const { tasks, team, categories, agencyName, notices, clients, suppliers } = action.payload;
+      const { tasks, team, categories, agencyName, notices, clients, suppliers, practices } = action.payload;
       if (team) _syncTeam(team);
       if (categories) _syncCategories(categories);
       return {
@@ -687,6 +860,7 @@ function baseReducer(state, action) {
         notices: notices ?? state.notices,
         clients: clients ?? state.clients,
         suppliers: suppliers ?? state.suppliers,
+        practices: practices ?? state.practices,
         toast: { message: "Backup ripristinato con successo!", type: "success" }
       };
     }
@@ -766,6 +940,72 @@ function baseReducer(state, action) {
         s.id === action.payload ? { ...s, deletedAt: new Date().toISOString() } : s
       );
       return { ...state, suppliers, toast: { message: "Fornitore rimosso", type: "success" } };
+    }
+
+    // ─── PRATICHE (v0.9.8) ───
+    case "ADD_PRACTICE": {
+      if (!canManagePractices(uid)) return _denied("Non puoi gestire le pratiche");
+      const now = new Date().toISOString();
+      // Auto-generate number if not provided
+      const number = action.payload.number || generatePracticeNumber(state.practices || []);
+      const me = getMember(uid);
+      const events = [
+        { time: now, type: "created", text: `Pratica creata`, userId: uid },
+        ...(action.payload.events || []),
+      ];
+      const practice = {
+        createdAt: now, updatedAt: now, deletedAt: null,
+        supplierIds: [],
+        totalValue: 0, cost: 0, paid: 0,
+        events,
+        ...action.payload,
+        number, // sovrascrive ultimo per non perdere il numero generato
+      };
+      return { ...state, practices: [practice, ...(state.practices || [])], toast: { message: `Pratica ${number} creata`, type: "success" } };
+    }
+    case "UPDATE_PRACTICE": {
+      if (!canManagePractices(uid)) return _denied("Non puoi gestire le pratiche");
+      const now = new Date().toISOString();
+      const practices = (state.practices || []).map(p =>
+        p.id === action.payload.id ? { ...p, ...action.payload, updatedAt: now } : p
+      );
+      const selectedPractice = state.selectedPractice?.id === action.payload.id
+        ? practices.find(p => p.id === action.payload.id)
+        : state.selectedPractice;
+      return { ...state, practices, selectedPractice, toast: { message: "Pratica aggiornata", type: "success" } };
+    }
+    case "CHANGE_PRACTICE_STATUS": {
+      // Variante di UPDATE_PRACTICE che logga un evento timeline nel payload stesso.
+      if (!canManagePractices(uid)) return _denied("Non puoi gestire le pratiche");
+      const now = new Date().toISOString();
+      const target = (state.practices || []).find(p => p.id === action.payload.id);
+      if (!target) return state;
+      const oldLabel = PRACTICE_STATUSES[target.status]?.label || target.status;
+      const newLabel = PRACTICE_STATUSES[action.payload.status]?.label || action.payload.status;
+      const newEvent = {
+        time: now, type: "status",
+        text: `Stato: ${oldLabel} → ${newLabel}`,
+        userId: uid,
+      };
+      const practices = (state.practices || []).map(p =>
+        p.id === action.payload.id
+          ? { ...p, status: action.payload.status, updatedAt: now, events: [...(p.events || []), newEvent] }
+          : p
+      );
+      const selectedPractice = state.selectedPractice?.id === action.payload.id
+        ? practices.find(p => p.id === action.payload.id)
+        : state.selectedPractice;
+      return { ...state, practices, selectedPractice, toast: { message: `Stato → ${newLabel}`, type: "success" } };
+    }
+    case "DELETE_PRACTICE": {
+      if (!canManagePractices(uid)) return _denied("Non puoi gestire le pratiche");
+      const practices = (state.practices || []).map(p =>
+        p.id === action.payload ? { ...p, deletedAt: new Date().toISOString() } : p
+      );
+      return { ...state, practices, toast: { message: "Pratica rimossa", type: "success" } };
+    }
+    case "SET_SELECTED_PRACTICE": {
+      return { ...state, selectedPractice: action.payload };
     }
 
     case "CLEAR_TOAST": return { ...state, toast: null };
@@ -873,6 +1113,7 @@ const initialState = {
   categories: CATEGORIES,
   clients: INITIAL_CLIENTS, // v0.9.5: anagrafica clienti CRM
   suppliers: INITIAL_SUPPLIERS, // v0.9.7: anagrafica fornitori
+  practices: INITIAL_PRACTICES, // v0.9.8: pratiche di viaggio
   agencyName: "VoyageDesk",
   notices: INITIAL_NOTICES,
   activityLog: [],
@@ -880,6 +1121,7 @@ const initialState = {
   selectedTask: null,
   selectedClient: null, // v0.9.5: cliente aperto in scheda modificabile
   selectedSupplier: null, // v0.9.7: fornitore aperto in scheda modificabile
+  selectedPractice: null, // v0.9.8: pratica aperta in scheda modificabile
   toast: null,
   searchQuery: "",
   showNotif: false,
@@ -930,6 +1172,12 @@ const resolveLegacyClientId = (task) => {
 
 // ─── FORNITORI: utils (v0.9.7) ───
 const getSupplier = (suppliers, id) => (suppliers || []).find(s => s?.id === id);
+
+// ─── PRATICHE: utils (v0.9.8) ───
+const getPractice = (practices, id) => (practices || []).find(p => p?.id === id);
+// Task collegati a una pratica (esclusi quelli cestinati)
+const getPracticeTasks = (tasks, practiceId) =>
+  (tasks || []).filter(t => !t.deletedAt && t.practiceId === practiceId);
 
 // ─── PERMESSI (v0.8) ──────────────────────────────────────────────────────
 // Ruoli logici derivati dal campo `role` del team member.
@@ -1014,6 +1262,11 @@ const canViewClients = (userId) => !isDriver(userId);
 // Stessa regola dei clienti: tutti tranne Driver.
 const canManageSuppliers = (userId) => !isDriver(userId);
 const canViewSuppliers = (userId) => !isDriver(userId);
+
+// Può gestire le pratiche di viaggio (CRUD)? (v0.9.8)
+// Stessa regola: tutti tranne Driver. Driver vede in TaskSlideOver solo il chip pratica.
+const canManagePractices = (userId) => !isDriver(userId);
+const canViewPractices = (userId) => !isDriver(userId);
 
 // Categorie selezionabili nei form per questo utente
 const getAvailableCategories = (userId) => {
@@ -1365,9 +1618,10 @@ const Toast = ({ toast, dispatch }) => {
 };
 
 // ─── ADVANCED SEARCH PANEL ─────────────────────────────────────────────────
-const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
+const AdvancedSearchPanel = ({ tasks, dispatch, onClose, practices }) => {
   const { isMobile } = useViewport();
   const [keyword, setKeyword] = useState("");
+  const [practiceNumber, setPracticeNumber] = useState(""); // v0.9.8: filtro numero pratica
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [cats, setCats] = useState([]);
@@ -1399,17 +1653,19 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
   };
 
   const resetAll = () => {
-    setKeyword(""); setDateFrom(""); setDateTo("");
+    setKeyword(""); setPracticeNumber(""); setDateFrom(""); setDateTo("");
     setCats([]); setStats([]); setAgents([]); setIncludeTrashed(false);
   };
 
-  const hasFilters = keyword.trim() || dateFrom || dateTo || cats.length || stats.length || agents.length || includeTrashed;
+  const hasFilters = keyword.trim() || practiceNumber.trim() || dateFrom || dateTo || cats.length || stats.length || agents.length || includeTrashed;
 
   const results = useMemo(() => {
     if (!hasFilters) return [];
     const k = keyword.trim().toLowerCase();
     const from = dateFrom ? new Date(dateFrom) : null;
     const to = dateTo ? (() => { const d = new Date(dateTo); d.setHours(23,59,59,999); return d; })() : null;
+
+    const pnQuery = practiceNumber.trim().toLowerCase();
 
     return tasks.filter(t => {
       if (!includeTrashed && t.deletedAt) return false;
@@ -1423,6 +1679,12 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
       if (to) {
         if (!t.dueDate) return false;
         if (new Date(t.dueDate) > to) return false;
+      }
+      if (pnQuery) {
+        // v0.9.8: match per numero pratica (sostringa, case-insensitive)
+        const pr = (practices || []).find(p => p.id === t.practiceId);
+        if (!pr) return false;
+        if (!pr.number.toLowerCase().includes(pnQuery)) return false;
       }
       if (k) {
         const hay = [
@@ -1440,7 +1702,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
       if (!b.dueDate) return -1;
       return new Date(a.dueDate) - new Date(b.dueDate);
     });
-  }, [tasks, keyword, dateFrom, dateTo, cats, stats, agents, includeTrashed, hasFilters]);
+  }, [tasks, keyword, practiceNumber, dateFrom, dateTo, cats, stats, agents, includeTrashed, hasFilters, practices]);
 
   const openTask = (t) => {
     dispatch({ type: "SET_SELECTED_TASK", payload: t });
@@ -1510,6 +1772,24 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
               width: "100%", padding: "8px 12px", borderRadius: 8,
               border: "1px solid var(--border)", fontSize: 13, outline: "none",
               fontFamily: "inherit", boxSizing: "border-box",
+            }}
+            onFocus={e => e.target.style.borderColor = "var(--gold)"}
+            onBlur={e => e.target.style.borderColor = "var(--border)"}
+          />
+        </div>
+
+        {/* Numero pratica (v0.9.8) */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={sectionTitle}>📂 Numero pratica</div>
+          <input
+            value={practiceNumber}
+            onChange={e => setPracticeNumber(e.target.value)}
+            placeholder="Es. PR-2026-001 (anche parziale: 001)"
+            style={{
+              width: "100%", padding: "8px 12px", borderRadius: 8,
+              border: "1px solid var(--border)", fontSize: 13, outline: "none",
+              fontFamily: "inherit", boxSizing: "border-box",
+              fontVariantNumeric: "tabular-nums",
             }}
             onFocus={e => e.target.style.borderColor = "var(--gold)"}
             onBlur={e => e.target.style.borderColor = "var(--border)"}
@@ -1727,6 +2007,7 @@ const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
         {advOpen && (
           <AdvancedSearchPanel
             tasks={state.tasks}
+            practices={state.practices}
             dispatch={dispatch}
             onClose={() => setAdvOpen(false)}
           />
@@ -2183,6 +2464,7 @@ const NotificationsPanel = ({ dispatch }) => {
 const NAV_ITEMS = [
   { id: "dashboard", icon: "📊", label: "Dashboard", roles: ["admin", "manager", "agent", "driver"] },
   { id: "calendar", icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
+  { id: "practices", icon: "📂", label: "Pratiche", roles: ["admin", "manager", "agent"] }, // v0.9.8
   { id: "clients", icon: "🧳", label: "Clienti", roles: ["admin", "manager", "agent"] }, // v0.9.5
   { id: "suppliers", icon: "🤝", label: "Fornitori", roles: ["admin", "manager", "agent"] }, // v0.9.7
   { id: "team", icon: "👥", label: "Team", roles: ["admin", "manager", "agent"] },
@@ -4419,7 +4701,7 @@ const Dashboard = ({ state, dispatch, onOpenChat }) => {
 };
 
 // ─── QUICK ADD TASK FORM ───────────────────────────────────────────────────
-const QuickAddTask = ({ onAdd, onClose, clients, suppliers, dispatch }) => {
+const QuickAddTask = ({ onAdd, onClose, clients, suppliers, practices, dispatch }) => {
   // Categorie filtrate per il ruolo dell'utente loggato (v0.8)
   const availableCats = getAvailableCategories(CURRENT_USER);
   const firstCatKey = Object.keys(availableCats)[0] || "booking";
@@ -4427,23 +4709,39 @@ const QuickAddTask = ({ onAdd, onClose, clients, suppliers, dispatch }) => {
   const [form, setForm] = useState({
     title: "", category: firstCatKey, priority: "medium",
     status: "todo", assignees: [], dueDate: "",
-    clientId: "", supplierId: "", description: ""
+    clientId: "", supplierId: "", practiceId: "", description: ""
   });
   const [showClientCreate, setShowClientCreate] = useState(false);
   const [showSupplierCreate, setShowSupplierCreate] = useState(false);
 
-  // Anagrafiche attive ordinate alfabeticamente per i picker (v0.9.5/v0.9.7)
+  // Anagrafiche attive ordinate alfabeticamente per i picker (v0.9.5/v0.9.7/v0.9.8)
   const activeClients = (clients || [])
     .filter(c => !c.deletedAt)
     .sort((a, b) => a.name.localeCompare(b.name));
   const activeSuppliers = (suppliers || [])
     .filter(s => !s.deletedAt)
     .sort((a, b) => a.name.localeCompare(b.name));
+  // Pratiche non cestinate e non annullate, ordinate per numero discendente (più recenti prima)
+  const activePractices = (practices || [])
+    .filter(p => !p.deletedAt && p.status !== "cancelled")
+    .sort((a, b) => b.number.localeCompare(a.number));
+
+  // Quando l'utente sceglie una pratica, pre-suggerisci il cliente collegato (se non già impostato)
+  const handlePracticeChange = (e) => {
+    const pid = e.target.value;
+    const pr = activePractices.find(p => p.id === pid);
+    setForm(p => ({
+      ...p,
+      practiceId: pid,
+      clientId: !p.clientId && pr?.clientId ? pr.clientId : p.clientId,
+    }));
+  };
 
   const handleSubmit = () => {
     if (!form.title.trim()) return;
     const selectedClient = activeClients.find(c => c.id === form.clientId);
     const selectedSupplier = activeSuppliers.find(s => s.id === form.supplierId);
+    const selectedPractice = activePractices.find(p => p.id === form.practiceId);
     onAdd({
       id: "t" + Date.now(),
       title: form.title,
@@ -4454,6 +4752,7 @@ const QuickAddTask = ({ onAdd, onClose, clients, suppliers, dispatch }) => {
       clientId: selectedClient?.id || null,
       client: selectedClient?.name || null,
       supplierId: selectedSupplier?.id || null,
+      practiceId: selectedPractice?.id || null,
       description: form.description,
       comments: [],
       estimatedHours: 1,
@@ -4523,6 +4822,22 @@ const QuickAddTask = ({ onAdd, onClose, clients, suppliers, dispatch }) => {
               <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>SCADENZA</label>
               <input type="datetime-local" {...inp("dueDate")} />
             </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>PRATICA</label>
+            <select
+              value={form.practiceId}
+              onChange={handlePracticeChange}
+              style={{ ...inp("category").style, cursor: "pointer" }}
+            >
+              <option value="">— Nessuna —</option>
+              {activePractices.map(p => (
+                <option key={p.id} value={p.id}>
+                  {PRACTICE_STATUSES[p.status]?.icon} {p.number} — {p.title}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -4627,7 +4942,7 @@ const QuickAddTask = ({ onAdd, onClose, clients, suppliers, dispatch }) => {
 };
 
 // ─── TASK DETAIL SLIDE-OVER ────────────────────────────────────────────────
-const TaskSlideOver = ({ task, dispatch, clients, suppliers }) => {
+const TaskSlideOver = ({ task, dispatch, clients, suppliers, practices }) => {
   const { isMobile } = useViewport();
   const [newComment, setNewComment] = useState("");
   const [editingAssignees, setEditingAssignees] = useState(false);
@@ -4637,6 +4952,8 @@ const TaskSlideOver = ({ task, dispatch, clients, suppliers }) => {
   const linkedClient = task ? getClient(clients || [], resolveLegacyClientId(task)) : null;
   // v0.9.7: risolvi il fornitore dall'anagrafica via supplierId
   const linkedSupplier = task ? getSupplier(suppliers || [], task.supplierId) : null;
+  // v0.9.8: risolvi la pratica dall'anagrafica via practiceId
+  const linkedPractice = task ? getPractice(practices || [], task.practiceId) : null;
 
   // Resetta la bozza se cambia il task aperto o se l'editor viene chiuso
   useEffect(() => {
@@ -4843,6 +5160,31 @@ const TaskSlideOver = ({ task, dispatch, clients, suppliers }) => {
               )}
             </div>
           </div>
+
+          {/* PRATICA (v0.9.8) — visibile solo se il task è collegato a una pratica */}
+          {linkedPractice && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>PRATICA</div>
+              <button
+                onClick={() => dispatch({ type: "SET_SELECTED_PRACTICE", payload: linkedPractice })}
+                title="Apri scheda pratica"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 8,
+                  padding: "6px 12px", borderRadius: 8,
+                  background: (PRACTICE_STATUSES[linkedPractice.status] || PRACTICE_STATUSES.draft).bg,
+                  color: (PRACTICE_STATUSES[linkedPractice.status] || PRACTICE_STATUSES.draft).color,
+                  border: `1px solid ${(PRACTICE_STATUSES[linkedPractice.status] || PRACTICE_STATUSES.draft).color}30`,
+                  cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                  textAlign: "left",
+                }}
+              >
+                <span style={{ fontVariantNumeric: "tabular-nums" }}>📂 {linkedPractice.number}</span>
+                <span style={{ opacity: 0.85 }}>·</span>
+                <span style={{ fontWeight: 500 }}>{linkedPractice.title}</span>
+                <span style={{ fontSize: 10, opacity: 0.7, marginLeft: "auto" }}>→</span>
+              </button>
+            </div>
+          )}
 
           {/* FORNITORE (v0.9.7) — visibile solo se il task ha supplierId */}
           {linkedSupplier && (
@@ -6357,6 +6699,695 @@ const SupplierEditModal = ({ supplier, onClose, dispatch, canManage, taskCount =
                 color: "#fff", cursor: form.name.trim() ? "pointer" : "not-allowed",
                 fontSize: 13, fontWeight: 600, fontFamily: "inherit",
               }}>{isNew ? "✓ Crea fornitore" : "💾 Salva"}</button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── PRATICHE: badge stato (v0.9.8) ────────────────────────────────────────
+const PracticeStatusBadge = ({ status, size = "md" }) => {
+  const s = PRACTICE_STATUSES[status] || PRACTICE_STATUSES.draft;
+  const isSm = size === "sm";
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      padding: isSm ? "2px 7px" : "3px 9px", borderRadius: 999,
+      background: s.bg, color: s.color,
+      fontSize: isSm ? 10 : 11, fontWeight: 600,
+    }}>{s.icon} {s.label}</span>
+  );
+};
+
+// Formatter euro coerente con il resto dell'app
+const formatEur = (n) => {
+  const v = Number(n) || 0;
+  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+};
+
+// ─── PRATICHE: vista lista (v0.9.8) ─────────────────────────────────────────
+const PracticesView = ({ state, dispatch }) => {
+  const { isMobile } = useViewport();
+  const uid = state.currentUserId;
+  const canManage = canManagePractices(uid);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [clientFilter, setClientFilter] = useState("all");
+  const [showTrashed, setShowTrashed] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+
+  const practicesAll = state.practices || [];
+  const activePractices = practicesAll.filter(p => showTrashed ? !!p.deletedAt : !p.deletedAt);
+  const activeClients = (state.clients || []).filter(c => !c.deletedAt).sort((a, b) => a.name.localeCompare(b.name));
+
+  // Conteggio task attivi per pratica
+  const taskCountByPractice = useMemo(() => {
+    const map = new Map();
+    (state.tasks || []).forEach(t => {
+      if (t.deletedAt || !t.practiceId) return;
+      map.set(t.practiceId, (map.get(t.practiceId) || 0) + 1);
+    });
+    return map;
+  }, [state.tasks]);
+
+  const filtered = activePractices.filter(p => {
+    if (statusFilter !== "all" && p.status !== statusFilter) return false;
+    if (clientFilter !== "all" && p.clientId !== clientFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      const hay = `${p.number} ${p.title} ${p.destination || ""} ${p.notes || ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  }).sort((a, b) => {
+    // Sort: per data partenza ascendente con null in coda, poi per numero
+    if (a.departureDate && b.departureDate) return new Date(a.departureDate) - new Date(b.departureDate);
+    if (a.departureDate) return -1;
+    if (b.departureDate) return 1;
+    return b.number.localeCompare(a.number);
+  });
+
+  // Totali KPI
+  const kpi = useMemo(() => {
+    const valid = activePractices.filter(p => p.status !== "cancelled");
+    const totRevenue = valid.reduce((s, p) => s + (Number(p.totalValue) || 0), 0);
+    const totCost = valid.reduce((s, p) => s + (Number(p.cost) || 0), 0);
+    const totPaid = valid.reduce((s, p) => s + (Number(p.paid) || 0), 0);
+    return {
+      count: activePractices.length,
+      inProgress: activePractices.filter(p => p.status === "in_progress").length,
+      revenue: totRevenue, cost: totCost, margin: totRevenue - totCost, paid: totPaid,
+    };
+  }, [activePractices]);
+
+  return (
+    <div className="fade-in" style={{ padding: isMobile ? 16 : 28, display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
+      {/* Header */}
+      <div className="vd-row-wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
+        <div>
+          <div className="playfair" style={{ fontSize: isMobile ? 21 : 26, fontWeight: 700 }}>
+            📂 Pratiche di viaggio
+          </div>
+          <div style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 2 }}>
+            {practicesAll.filter(p => !p.deletedAt).length} pratiche attive · {filtered.length} in elenco
+          </div>
+        </div>
+        {canManage && !showTrashed && (
+          <button onClick={() => setShowNew(true)} style={{
+            background: "var(--navy)", color: "#fff", border: "none",
+            padding: "10px 16px", borderRadius: 8, cursor: "pointer",
+            fontSize: 13, fontWeight: 600,
+          }}>+ Nuova pratica</button>
+        )}
+      </div>
+
+      {/* KPI */}
+      <div className="vd-grid-kpi" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+        {[
+          { label: "Totale pratiche", value: kpi.count, sub: `${kpi.inProgress} in corso`, color: "var(--navy)" },
+          { label: "Ricavo", value: formatEur(kpi.revenue), sub: "non annullate", color: "var(--navy)" },
+          { label: "Margine", value: formatEur(kpi.margin), sub: `Costo ${formatEur(kpi.cost)}`, color: kpi.margin >= 0 ? "var(--success)" : "var(--danger)" },
+          { label: "Incassato", value: formatEur(kpi.paid), sub: kpi.revenue > 0 ? `${Math.round((kpi.paid / kpi.revenue) * 100)}% del ricavo` : "—", color: "var(--gold-dark)" },
+        ].map((k, i) => (
+          <div key={i} style={{ background: "#fff", borderRadius: 10, padding: 14, border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1 }}>{k.label}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: k.color, marginTop: 4 }}>{k.value}</div>
+            {k.sub && <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{k.sub}</div>}
+          </div>
+        ))}
+      </div>
+
+      {/* Toolbar */}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Cerca per numero, titolo, destinazione, note…"
+          style={{
+            flex: "1 1 240px", border: "1px solid var(--border)", borderRadius: 8,
+            padding: "9px 12px", fontSize: 13, fontFamily: "inherit", outline: "none",
+          }}
+        />
+        <select
+          value={statusFilter}
+          onChange={e => setStatusFilter(e.target.value)}
+          style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "9px 12px", fontSize: 13, fontFamily: "inherit", background: "#fff", cursor: "pointer" }}
+        >
+          <option value="all">Tutti gli stati</option>
+          {PRACTICE_STATUS_ORDER.map(k => (
+            <option key={k} value={k}>{PRACTICE_STATUSES[k].icon} {PRACTICE_STATUSES[k].label}</option>
+          ))}
+        </select>
+        <select
+          value={clientFilter}
+          onChange={e => setClientFilter(e.target.value)}
+          style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "9px 12px", fontSize: 13, fontFamily: "inherit", background: "#fff", cursor: "pointer", maxWidth: 220 }}
+        >
+          <option value="all">Tutti i clienti</option>
+          {activeClients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <label style={{ fontSize: 12, color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+          <input type="checkbox" checked={showTrashed} onChange={e => setShowTrashed(e.target.checked)} />
+          Mostra rimosse
+        </label>
+      </div>
+
+      {/* Grid */}
+      {filtered.length === 0 ? (
+        <div style={{
+          padding: "40px 20px", textAlign: "center", color: "var(--text-muted)",
+          fontSize: 13, background: "#fff", borderRadius: 10, border: "1px dashed var(--border)",
+        }}>
+          {search || statusFilter !== "all" || clientFilter !== "all"
+            ? "Nessuna pratica corrisponde ai filtri."
+            : showTrashed
+              ? "Nessuna pratica rimossa."
+              : 'Ancora nessuna pratica. Premi "Nuova pratica" per crearne una.'}
+        </div>
+      ) : (
+        <div className="vd-grid-2col" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
+          {filtered.map(p => {
+            const status = PRACTICE_STATUSES[p.status] || PRACTICE_STATUSES.draft;
+            const client = getClient(state.clients, p.clientId);
+            const tCount = taskCountByPractice.get(p.id) || 0;
+            const margin = getPracticeMargin(p);
+            const paidPct = getPracticePaidPct(p);
+            return (
+              <div
+                key={p.id}
+                onClick={() => dispatch({ type: "SET_SELECTED_PRACTICE", payload: p })}
+                style={{
+                  background: "#fff", borderRadius: 10, padding: 14, cursor: "pointer",
+                  border: "1px solid var(--border)", borderLeft: `4px solid ${status.color}`,
+                  display: "flex", flexDirection: "column", gap: 8,
+                  transition: "transform 0.15s, box-shadow 0.15s",
+                  opacity: p.deletedAt ? 0.6 : 1,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.08)"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5, fontVariantNumeric: "tabular-nums" }}>
+                      {p.number}
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", lineHeight: 1.3, marginTop: 2 }}>
+                      {p.title}
+                    </div>
+                  </div>
+                  <PracticeStatusBadge status={p.status} />
+                </div>
+
+                {(client || p.destination) && (
+                  <div style={{ fontSize: 12, color: "var(--text-muted)", display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    {client && <span>🧳 {client.name}</span>}
+                    {p.destination && <span>📍 {p.destination}</span>}
+                  </div>
+                )}
+
+                {(p.departureDate || p.returnDate) && (
+                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                    📅 {p.departureDate ? formatDate(p.departureDate) : "—"} → {p.returnDate ? formatDate(p.returnDate) : "—"}
+                  </div>
+                )}
+
+                <div style={{ display: "flex", gap: 12, fontSize: 11, flexWrap: "wrap", marginTop: 2 }}>
+                  <span style={{ color: "var(--text-muted)" }}>📋 <b style={{ color: "var(--text)" }}>{tCount}</b> task</span>
+                  <span style={{ color: "var(--text-muted)" }}>🤝 <b style={{ color: "var(--text)" }}>{(p.supplierIds || []).length}</b> fornitori</span>
+                  {p.totalValue > 0 && (
+                    <>
+                      <span style={{ color: "var(--text-muted)" }}>💰 <b style={{ color: "var(--text)" }}>{formatEur(p.totalValue)}</b></span>
+                      <span style={{ color: margin >= 0 ? "var(--success)" : "var(--danger)", fontWeight: 700 }}>
+                        Margine {formatEur(margin)}
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                {p.totalValue > 0 && (
+                  <div style={{ marginTop: 4 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-muted)", marginBottom: 3 }}>
+                      <span>Incassato</span>
+                      <span style={{ fontWeight: 600 }}>{formatEur(p.paid)} / {formatEur(p.totalValue)} ({paidPct}%)</span>
+                    </div>
+                    <div style={{ height: 5, background: "var(--surface2)", borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{
+                        width: `${paidPct}%`, height: "100%",
+                        background: paidPct >= 100 ? "var(--success)" : paidPct >= 50 ? "var(--gold)" : "var(--warning)",
+                        transition: "width 0.3s",
+                      }} />
+                    </div>
+                  </div>
+                )}
+
+                {p.deletedAt && (
+                  <div style={{ fontSize: 10, color: "var(--danger)", fontStyle: "italic" }}>
+                    Rimossa il {formatDate(p.deletedAt)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Modale "Nuova pratica" locale */}
+      {showNew && canManage && (
+        <PracticeEditModal
+          practice={null}
+          onClose={() => setShowNew(false)}
+          dispatch={dispatch}
+          state={state}
+          canManage={canManage}
+        />
+      )}
+    </div>
+  );
+};
+
+// Modale creazione/modifica pratica.
+// Sezioni: Generale · Economico · Fornitori · Task collegati · Timeline.
+const PracticeEditModal = ({ practice, onClose, dispatch, state, canManage, onCreated }) => {
+  const isNew = !practice;
+  const [form, setForm] = useState({
+    title: practice?.title || "",
+    clientId: practice?.clientId || "",
+    status: practice?.status || "draft",
+    destination: practice?.destination || "",
+    departureDate: practice?.departureDate ? practice.departureDate.slice(0, 16) : "",
+    returnDate: practice?.returnDate ? practice.returnDate.slice(0, 16) : "",
+    totalValue: practice?.totalValue ?? 0,
+    cost: practice?.cost ?? 0,
+    paid: practice?.paid ?? 0,
+    supplierIds: practice?.supplierIds || [],
+    notes: practice?.notes || "",
+  });
+  const [newEventText, setNewEventText] = useState("");
+
+  const activeClients = (state.clients || []).filter(c => !c.deletedAt).sort((a, b) => a.name.localeCompare(b.name));
+  const activeSuppliers = (state.suppliers || []).filter(s => !s.deletedAt).sort((a, b) => a.name.localeCompare(b.name));
+  const linkedTasks = practice ? getPracticeTasks(state.tasks, practice.id) : [];
+
+  const toggleSupplier = (sid) => {
+    setForm(p => ({
+      ...p,
+      supplierIds: p.supplierIds.includes(sid)
+        ? p.supplierIds.filter(x => x !== sid)
+        : [...p.supplierIds, sid],
+    }));
+  };
+
+  const handleSave = () => {
+    if (!form.title.trim()) return;
+    const payload = {
+      title: form.title.trim(),
+      clientId: form.clientId || null,
+      status: form.status,
+      destination: form.destination.trim(),
+      departureDate: form.departureDate ? new Date(form.departureDate).toISOString() : null,
+      returnDate: form.returnDate ? new Date(form.returnDate).toISOString() : null,
+      totalValue: Number(form.totalValue) || 0,
+      cost: Number(form.cost) || 0,
+      paid: Number(form.paid) || 0,
+      supplierIds: form.supplierIds,
+      notes: form.notes.trim(),
+    };
+    if (isNew) {
+      const id = `pr-${Date.now()}`;
+      const newPractice = { id, ...payload };
+      dispatch({ type: "ADD_PRACTICE", payload: newPractice });
+      if (onCreated) onCreated({ ...newPractice, number: generatePracticeNumber(state.practices || []) });
+    } else {
+      dispatch({ type: "UPDATE_PRACTICE", payload: { id: practice.id, ...payload } });
+    }
+    onClose();
+  };
+
+  const handleStatusChange = (e) => {
+    const newStatus = e.target.value;
+    setForm(p => ({ ...p, status: newStatus }));
+    // Su pratica esistente: dispatcha subito CHANGE_PRACTICE_STATUS (logga evento)
+    if (!isNew && practice && newStatus !== practice.status) {
+      dispatch({ type: "CHANGE_PRACTICE_STATUS", payload: { id: practice.id, status: newStatus } });
+    }
+  };
+
+  const handleDelete = () => {
+    if (!practice) return;
+    const hint = linkedTasks.length > 0
+      ? `\n\n${linkedTasks.length} task collegati continueranno a esistere con il riferimento alla pratica.`
+      : "";
+    if (!window.confirm(`Rimuovere la pratica ${practice.number} dall'anagrafica?${hint}`)) return;
+    dispatch({ type: "DELETE_PRACTICE", payload: practice.id });
+    onClose();
+  };
+
+  const handleAddEvent = () => {
+    if (!newEventText.trim() || !practice) return;
+    const event = {
+      time: new Date().toISOString(), type: "note",
+      text: newEventText.trim(), userId: CURRENT_USER,
+    };
+    dispatch({
+      type: "UPDATE_PRACTICE",
+      payload: { id: practice.id, events: [...(practice.events || []), event] },
+    });
+    setNewEventText("");
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid var(--border)",
+    fontSize: 13, fontFamily: "inherit", boxSizing: "border-box", background: "#fff", outline: "none",
+  };
+  const labelStyle = { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, display: "block", marginBottom: 4 };
+  const sectionH = { fontSize: 12, fontWeight: 700, color: "var(--navy)", textTransform: "uppercase", letterSpacing: 1, marginTop: 18, marginBottom: 10, paddingBottom: 6, borderBottom: "1px solid var(--surface3)" };
+  const readOnly = !canManage || !!practice?.deletedAt;
+  const margin = isNew ? 0 : getPracticeMargin({ totalValue: form.totalValue, cost: form.cost });
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(15,32,68,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 700, padding: 16 }}>
+      <div className="slide-up" style={{
+        background: "#fff", borderRadius: 12, padding: 24, width: 720, maxWidth: "100%",
+        maxHeight: "92vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+      }}>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, gap: 10 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            {isNew ? (
+              <div className="playfair" style={{ fontSize: 22, fontWeight: 700, color: "var(--navy)" }}>
+                Nuova pratica
+              </div>
+            ) : (
+              <>
+                <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, fontVariantNumeric: "tabular-nums" }}>
+                    {practice.number}
+                  </span>
+                  <PracticeStatusBadge status={practice.status} />
+                </div>
+                <div className="playfair" style={{ fontSize: 20, fontWeight: 700, color: "var(--navy)", marginTop: 4, lineHeight: 1.3 }}>
+                  {practice.title}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <span>Creata il {formatDate(practice.createdAt)}</span>
+                  {practice.updatedAt && practice.updatedAt !== practice.createdAt && <span>Aggiornata il {formatDate(practice.updatedAt)}</span>}
+                  {practice.deletedAt && <span style={{ color: "var(--danger)" }}>· Rimossa</span>}
+                </div>
+              </>
+            )}
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "var(--text-muted)", flexShrink: 0 }}>✕</button>
+        </div>
+
+        {/* Sezione Generale */}
+        <div style={sectionH}>Generale</div>
+        <div style={{ display: "grid", gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Titolo pratica *</label>
+            <input
+              value={form.title}
+              onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
+              disabled={readOnly}
+              placeholder="Es. Maldive 7 notti overwater - Famiglia Rossi"
+              style={inputStyle}
+            />
+          </div>
+          <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Cliente</label>
+              <select
+                value={form.clientId}
+                onChange={e => setForm(p => ({ ...p, clientId: e.target.value }))}
+                disabled={readOnly}
+                style={{ ...inputStyle, cursor: readOnly ? "default" : "pointer" }}
+              >
+                <option value="">— Nessuno —</option>
+                {activeClients.map(c => {
+                  const type = CLIENT_TYPES[c.type] || CLIENT_TYPES.individuale;
+                  return <option key={c.id} value={c.id}>{type.icon} {c.name}</option>;
+                })}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Stato</label>
+              <select
+                value={form.status}
+                onChange={handleStatusChange}
+                disabled={readOnly}
+                style={{ ...inputStyle, cursor: readOnly ? "default" : "pointer" }}
+              >
+                {PRACTICE_STATUS_ORDER.map(k => (
+                  <option key={k} value={k}>{PRACTICE_STATUSES[k].icon} {PRACTICE_STATUSES[k].label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label style={labelStyle}>Destinazione</label>
+            <input
+              value={form.destination}
+              onChange={e => setForm(p => ({ ...p, destination: e.target.value }))}
+              disabled={readOnly}
+              placeholder="Es. Maldive — Atollo di Malé Nord"
+              style={inputStyle}
+            />
+          </div>
+          <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Partenza</label>
+              <input
+                type="datetime-local"
+                value={form.departureDate}
+                onChange={e => setForm(p => ({ ...p, departureDate: e.target.value }))}
+                disabled={readOnly}
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Rientro</label>
+              <input
+                type="datetime-local"
+                value={form.returnDate}
+                onChange={e => setForm(p => ({ ...p, returnDate: e.target.value }))}
+                disabled={readOnly}
+                style={inputStyle}
+              />
+            </div>
+          </div>
+          <div>
+            <label style={labelStyle}>Note</label>
+            <textarea
+              value={form.notes}
+              onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+              disabled={readOnly}
+              rows={3}
+              placeholder="Dettagli operativi, preferenze cliente, vincoli…"
+              style={{ ...inputStyle, resize: "vertical" }}
+            />
+          </div>
+        </div>
+
+        {/* Sezione Economico */}
+        <div style={sectionH}>💰 Riepilogo economico</div>
+        <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Ricavo totale (€)</label>
+            <input
+              type="number" min="0" step="0.01"
+              value={form.totalValue}
+              onChange={e => setForm(p => ({ ...p, totalValue: e.target.value }))}
+              disabled={readOnly}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Costo fornitori (€)</label>
+            <input
+              type="number" min="0" step="0.01"
+              value={form.cost}
+              onChange={e => setForm(p => ({ ...p, cost: e.target.value }))}
+              disabled={readOnly}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Incassato (€)</label>
+            <input
+              type="number" min="0" step="0.01"
+              value={form.paid}
+              onChange={e => setForm(p => ({ ...p, paid: e.target.value }))}
+              disabled={readOnly}
+              style={inputStyle}
+            />
+          </div>
+        </div>
+        <div style={{ marginTop: 10, padding: 10, background: "var(--surface)", borderRadius: 8, display: "flex", gap: 18, flexWrap: "wrap", fontSize: 12 }}>
+          <div>
+            <span style={{ color: "var(--text-muted)" }}>Margine: </span>
+            <b style={{ color: margin >= 0 ? "var(--success)" : "var(--danger)", fontSize: 14 }}>{formatEur(margin)}</b>
+          </div>
+          {Number(form.totalValue) > 0 && (
+            <div>
+              <span style={{ color: "var(--text-muted)" }}>Marginalità: </span>
+              <b style={{ color: "var(--navy)" }}>{Math.round((margin / Number(form.totalValue)) * 100)}%</b>
+            </div>
+          )}
+          {Number(form.totalValue) > 0 && (
+            <div>
+              <span style={{ color: "var(--text-muted)" }}>% Incassato: </span>
+              <b style={{ color: "var(--gold-dark)" }}>{Math.round((Number(form.paid) / Number(form.totalValue)) * 100)}%</b>
+            </div>
+          )}
+        </div>
+
+        {/* Sezione Fornitori */}
+        <div style={sectionH}>🤝 Fornitori collegati ({form.supplierIds.length})</div>
+        {activeSuppliers.length === 0 ? (
+          <div style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>
+            Nessun fornitore in anagrafica. Creane uno dalla vista Fornitori.
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {activeSuppliers.map(s => {
+              const type = SUPPLIER_TYPES[s.type] || SUPPLIER_TYPES.other;
+              const on = form.supplierIds.includes(s.id);
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => !readOnly && toggleSupplier(s.id)}
+                  disabled={readOnly}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    padding: "5px 10px", borderRadius: 99,
+                    background: on ? type.color : type.bg,
+                    color: on ? "#fff" : type.color,
+                    border: `1px solid ${on ? type.color : "var(--border)"}`,
+                    cursor: readOnly ? "default" : "pointer",
+                    fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  <span>{type.icon}</span>
+                  {s.name}
+                  {on && <span style={{ fontSize: 10 }}>✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Sezione Task collegati (solo per pratica esistente) */}
+        {!isNew && (
+          <>
+            <div style={sectionH}>📋 Task collegati ({linkedTasks.length})</div>
+            {linkedTasks.length === 0 ? (
+              <div style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>
+                Nessun task collegato ancora. Quando crei un task, scegli questa pratica dal picker.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {linkedTasks.map(t => {
+                  const cat = CATEGORIES[t.category] || { color: "#6B7280", icon: "📋", label: t.category };
+                  return (
+                    <div
+                      key={t.id}
+                      onClick={() => { onClose(); dispatch({ type: "SET_SELECTED_TASK", payload: t }); }}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
+                        background: "var(--surface)", borderRadius: 8, cursor: "pointer",
+                        border: "1px solid var(--border)",
+                        borderLeft: `3px solid ${cat.color}`,
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "var(--surface2)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "var(--surface)"; }}
+                    >
+                      <span style={{ fontSize: 16, flexShrink: 0 }}>{cat.icon}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {t.title}
+                        </div>
+                        <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 2 }}>
+                          {cat.label}
+                          {t.dueDate && <> · 📅 {formatDate(t.dueDate)} {formatTime(t.dueDate)}</>}
+                        </div>
+                      </div>
+                      <StatusBadge status={t.status} />
+                      <PriorityBadge priority={t.priority} />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Sezione Timeline eventi (solo per pratica esistente) */}
+        {!isNew && (
+          <>
+            <div style={sectionH}>🕰️ Timeline ({(practice.events || []).length})</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 250, overflowY: "auto" }}>
+              {(practice.events || []).slice().reverse().map((ev, i) => {
+                const u = getMember(ev.userId);
+                const eventIcons = { created: "✨", status: "🔄", payment: "💰", note: "📝" };
+                return (
+                  <div key={i} style={{ display: "flex", gap: 8, padding: 8, background: "var(--surface)", borderRadius: 6, fontSize: 12 }}>
+                    <span style={{ fontSize: 14, flexShrink: 0 }}>{eventIcons[ev.type] || "•"}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ color: "var(--text)" }}>{ev.text}</div>
+                      <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 2 }}>
+                        {u?.name || ev.userId} · {formatDate(ev.time)} {formatTime(ev.time)}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {!readOnly && (
+              <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                <input
+                  value={newEventText}
+                  onChange={e => setNewEventText(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleAddEvent()}
+                  placeholder="Aggiungi nota timeline…"
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                <button
+                  onClick={handleAddEvent}
+                  disabled={!newEventText.trim()}
+                  style={{
+                    padding: "0 14px", borderRadius: 6, border: "none",
+                    background: newEventText.trim() ? "var(--navy)" : "var(--text-light)",
+                    color: "#fff", cursor: newEventText.trim() ? "pointer" : "not-allowed",
+                    fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+                  }}
+                >Aggiungi</button>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Footer */}
+        <div style={{ display: "flex", gap: 10, justifyContent: "space-between", marginTop: 22, flexWrap: "wrap" }}>
+          {!isNew && canManage && !practice?.deletedAt && (
+            <button onClick={handleDelete} style={{
+              padding: "9px 16px", borderRadius: 8, border: "1px solid var(--danger)",
+              background: "transparent", color: "var(--danger)", cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+            }}>🗑 Rimuovi pratica</button>
+          )}
+          <div style={{ display: "flex", gap: 10, marginLeft: "auto" }}>
+            <button onClick={onClose} style={{
+              padding: "9px 18px", borderRadius: 8, border: "1px solid var(--border)",
+              background: "transparent", cursor: "pointer", fontSize: 13, fontWeight: 500, fontFamily: "inherit",
+            }}>{readOnly ? "Chiudi" : "Annulla"}</button>
+            {!readOnly && (
+              <button onClick={handleSave} disabled={!form.title.trim()} style={{
+                padding: "9px 20px", borderRadius: 8, border: "none",
+                background: form.title.trim() ? "var(--navy)" : "var(--text-light)",
+                color: "#fff", cursor: form.title.trim() ? "pointer" : "not-allowed",
+                fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+              }}>{isNew ? "✓ Crea pratica" : "💾 Salva"}</button>
             )}
           </div>
         </div>
@@ -8257,7 +9288,7 @@ const AdminIOTab = ({ state, dispatch }) => {
 
   const exportBackup = () => {
     const backup = {
-      version: "0.9.7", // bump: aggiunto `suppliers` (v0.9.7)
+      version: "0.9.8", // bump: aggiunto `practices` (v0.9.8) — chiude Fase 1
       exportedAt: new Date().toISOString(),
       agencyName: state.agencyName,
       tasks: state.tasks,
@@ -8266,6 +9297,7 @@ const AdminIOTab = ({ state, dispatch }) => {
       notices: state.notices,
       clients: state.clients,
       suppliers: state.suppliers,
+      practices: state.practices,
     };
     downloadFile(
       new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }),
@@ -8739,7 +9771,7 @@ const PERSIST_VERSION = 1;
 const PERSIST_KEY_STATE = "voyagedesk:state:v1";
 const PERSIST_KEY_CHAT = "voyagedesk:chat:v1";
 // Campi UI volatili: non finiscono in localStorage, tornano ai default al refresh.
-const PERSIST_OMIT = ["toast", "lastAction", "selectedTask", "selectedClient", "selectedSupplier", "showNotif", "searchQuery", "filters"];
+const PERSIST_OMIT = ["toast", "lastAction", "selectedTask", "selectedClient", "selectedSupplier", "selectedPractice", "showNotif", "searchQuery", "filters"];
 
 const _hasStorage = () => typeof window !== "undefined" && !!window.localStorage;
 
@@ -8904,6 +9936,7 @@ function VoyageDeskInner() {
       case "calendar": return <CalendarPlanner state={state} dispatch={dispatch} />;
       case "clients": return <ClientsView state={state} dispatch={dispatch} />;
       case "suppliers": return <SuppliersView state={state} dispatch={dispatch} />;
+      case "practices": return <PracticesView state={state} dispatch={dispatch} />;
       case "team": return <Team state={state} dispatch={dispatch} />;
       case "trash": return <Trash state={state} dispatch={dispatch} />;
       case "admin": return <AdminView state={state} dispatch={dispatch} />;
@@ -8927,7 +9960,7 @@ function VoyageDeskInner() {
         <BottomNav state={state} dispatch={dispatch} />
 
         {/* Slide-over */}
-        {state.selectedTask && <TaskSlideOver task={state.selectedTask} dispatch={dispatch} clients={state.clients} suppliers={state.suppliers} />}
+        {state.selectedTask && <TaskSlideOver task={state.selectedTask} dispatch={dispatch} clients={state.clients} suppliers={state.suppliers} practices={state.practices} />}
 
         {/* Modale scheda cliente — disponibile da qualunque vista (TaskSlideOver, Clienti) */}
         {state.selectedClient && (
@@ -8948,6 +9981,17 @@ function VoyageDeskInner() {
             dispatch={dispatch}
             canManage={canManageSuppliers(state.currentUserId)}
             taskCount={(state.tasks || []).filter(t => !t.deletedAt && t.supplierId === state.selectedSupplier.id).length}
+          />
+        )}
+
+        {/* Modale scheda pratica — disponibile da qualunque vista (TaskSlideOver, Pratiche) — v0.9.8 */}
+        {state.selectedPractice && (
+          <PracticeEditModal
+            practice={state.selectedPractice}
+            onClose={() => dispatch({ type: "SET_SELECTED_PRACTICE", payload: null })}
+            dispatch={dispatch}
+            state={state}
+            canManage={canManagePractices(state.currentUserId)}
           />
         )}
 
@@ -8991,6 +10035,7 @@ function VoyageDeskInner() {
             onClose={() => setShowFABModal(false)}
             clients={state.clients}
             suppliers={state.suppliers}
+            practices={state.practices}
             dispatch={dispatch}
           />
         )}

@@ -34,11 +34,11 @@ Agisci come sviluppatore full-stack specializzato in sistemi gestionali per trav
 - **Sync globale**: TEAM/CATEGORIES/CURRENT_USER sono `let` mutabili sincronizzati via `_syncTeam`/`_syncCategories`/`_syncCurrentUser`
 
 ### Cosa NON fare
-- Non usare localStorage/sessionStorage (vincolo artifact, da rimuovere post-migrazione Vite)
 - Non aggiungere librerie CSS/UI esterne
 - Non rompere funzionalità esistenti
 - Non rimuovere commenti delimitatore sezione
 - Non usare drag&drop su mobile (usare SwipeActions)
+- Non bypassare la persistenza: lo state passa già per `useReducer` con lazy init `loadPersistedState`. Per nuove slice di state che vuoi persistere, aggiungile al reducer; per quelle volatili UI, aggiungile a `PERSIST_OMIT`.
 
 ## Palette colori
 
@@ -68,7 +68,8 @@ Navigazione: Desktop → Sidebar collassabile. Tablet/Mobile → BottomNav.
 {
   id, title, category, priority, status,
   assignees: [memberId],     // [] = coda globale
-  client: string|null,
+  client: string|null,       // nome legacy/free-text (display fallback)
+  clientId: string|null,     // v0.9.5: riferimento ad anagrafica clienti
   dueDate: ISO|null,
   estimatedHours: number,
   description: string,
@@ -76,6 +77,58 @@ Navigazione: Desktop → Sidebar collassabile. Tablet/Mobile → BottomNav.
   deletedAt: ISO|null        // soft-delete
 }
 ```
+
+### Client (v0.9.5)
+```js
+{
+  id: "cl-xxx",
+  name: string,              // obbligatorio
+  type: "famiglia"|"coppia"|"azienda"|"gruppo"|"individuale",
+  contactPerson: string|null,
+  email: string|null,
+  phone: string|null,
+  notes: string,
+  createdAt: ISO, updatedAt: ISO, deletedAt: ISO|null   // soft-delete
+}
+```
+
+### Supplier (v0.9.7)
+```js
+{
+  id: "sp-xxx",
+  name: string,              // obbligatorio
+  type: "hotel"|"transport"|"airline"|"insurance"|"tour-operator"|"visa"|"other",
+  contactPerson: string|null,
+  email: string|null,
+  phone: string|null,
+  address: string|null,
+  services: string,          // descrizione servizi offerti
+  notes: string,             // accordi commerciali, scadenze contrattuali
+  createdAt: ISO, updatedAt: ISO, deletedAt: ISO|null   // soft-delete
+}
+```
+
+### Practice (v0.9.8) — chiude Fase 1
+```js
+{
+  id: "pr-xxx",
+  number: "PR-YYYY-NNN",     // auto-progressive via generatePracticeNumber()
+  title: string,             // obbligatorio
+  clientId: string|null,
+  supplierIds: [string],     // multi-fornitori
+  status: "draft"|"confirmed"|"in_progress"|"completed"|"cancelled",
+  destination: string,
+  departureDate: ISO|null, returnDate: ISO|null,
+  totalValue: number,        // ricavo €
+  cost: number,              // costo fornitori €
+  paid: number,              // incassato €
+  notes: string,
+  events: [{ time, type, text, userId }],  // timeline: created|status|payment|note
+  createdAt: ISO, updatedAt: ISO, deletedAt: ISO|null
+}
+```
+
+Task schema esteso con `practiceId: string|null` (oltre a `clientId` e `supplierId`).
 
 ### Team member
 ```js
@@ -124,6 +177,24 @@ Famiglia Rossi (Maldive), Coppia Bianchi (Giappone), Azienda TechCorp (Incentive
 
 ### Admin Backup/Settings (ADMIN_ONLY)
 `SET_AGENCY_NAME`, `RESTORE_BACKUP`, `CLEAR_ACTIVITY_LOG`
+
+### Clienti (v0.9.5 — non admin-only, ma bloccate al Driver)
+`ADD_CLIENT`, `UPDATE_CLIENT`, `DELETE_CLIENT`, `SET_SELECTED_CLIENT`
+
+### Fornitori (v0.9.7 — stessa regola dei Clienti, bloccate al Driver)
+`ADD_SUPPLIER`, `UPDATE_SUPPLIER`, `DELETE_SUPPLIER`, `SET_SELECTED_SUPPLIER`
+
+### Pratiche (v0.9.8 — stessa regola, bloccate al Driver)
+`ADD_PRACTICE`, `UPDATE_PRACTICE`, `DELETE_PRACTICE`, `SET_SELECTED_PRACTICE`, `CHANGE_PRACTICE_STATUS`
+
+### Notifiche & Tema (v0.9.9)
+`MARK_NOTIFICATION_READ`, `MARK_ALL_NOTIFICATIONS_READ`, `CLEAR_READ_NOTIFICATIONS`, `SET_THEME` (payload `"light"|"dark"|"toggle"`).
+Le notifiche sono generate automaticamente dal wrapper reducer in `generateNotifications(prevState, nextState, action)`. Per aggiungere nuovi trigger, estendere quella funzione (non serve una nuova action).
+
+### Presence & Overdue (v0.9.10)
+`SET_USER_STATUS` (payload `{ status: "online"|"busy"|"away"|"offline", userId? }` — default `userId = currentUserId`),
+`SCAN_OVERDUE_NOTIFICATIONS` (idempotente, una volta al giorno per task).
+Lo `SCAN_OVERDUE_NOTIFICATIONS` viene triggerato da `useEffect([state.currentUserId])` in `VoyageDeskInner`.
 
 ### Bacheca
 `ADD_NOTICE`, `UPDATE_NOTICE`, `DELETE_NOTICE`, `TOGGLE_PIN_NOTICE`
@@ -217,14 +288,27 @@ VoyageDesk (export default, ViewportProvider wrapper)
 ## Roadmap prossimi step
 
 ### Priorità 1 — Migrazione a progetto Vite
-- [ ] Creare progetto Vite + React
+- [x] Creare progetto Vite + React
 - [ ] Splittare `VoyageDesk.jsx` in moduli (componenti, reducer, utils, mock-data, styles)
-- [ ] Aggiungere persistenza (localStorage iniziale, poi backend)
+- [x] Aggiungere persistenza (localStorage in `loadPersistedState` / `savePersistedState`). Backend ancora da fare.
 
-### Priorità 2 — Modello dati completo
-- [ ] Anagrafica Clienti (CRM base)
-- [ ] Anagrafica Fornitori
-- [ ] Pratiche di viaggio (aggrega task + clienti + fornitori)
+### Priorità 2 — Modello dati completo ✅ (chiusa in v0.9.8)
+- [x] Anagrafica Clienti (CRM base) — v0.9.5
+- [x] Anagrafica Fornitori — v0.9.7
+- [x] Pratiche di viaggio — v0.9.8
+
+### Fase 2 — Operatività ✅ (chiusa in v0.9.10)
+- [x] Notifiche reali — v0.9.9
+- [x] Notifiche schedulate (overdue auto) — v0.9.10
+- [x] Dark mode — v0.9.9
+- [x] Ricerca chat (testo messaggi) — v0.9.9
+- [x] Presence status online/busy/away/offline — v0.9.10
+- [x] Calendario settimana — v0.9.6
+- [x] Calendario giorno + iCal export — v0.9.10
+
+### Prossimo focus
+- **Fase 3**: Modulo finanziario, Report & Analytics avanzati, Catalogo destinazioni.
+- **Traccia tecnica**: splittare `VoyageDesk.jsx` (~10720 righe).
 
 ### Priorità 3 — Operatività
 - [ ] Notifiche reali (collegate ad azioni)
@@ -240,8 +324,9 @@ Vedi `docs/ROADMAP.md` per il dettaglio completo con dipendenze e stime.
 ## Note tecniche importanti
 
 1. **Architettura root**: `VoyageDesk` wrappa `VoyageDeskInner` dentro `<ViewportProvider>`. Tutti i componenti con `useViewport()` devono essere dentro questo provider.
-2. **TEAM/CATEGORIES/CURRENT_USER** sono `let` mutabili — pattern ibrido con sync nel reducer. Funziona ma è da migrare a Context puro.
+2. **TEAM/CATEGORIES/CURRENT_USER** sono `let` mutabili — pattern ibrido con sync nel reducer. Funziona ma è da migrare a Context puro. `loadPersistedState` riallinea questi globali alla hydration.
 3. **Chat e AI**: usano `fetch` su `https://api.anthropic.com/v1/messages` — funziona solo in ambiente Claude.ai artifacts. Per dev locale, mockare o usare API key.
 4. **activityLog**: max 100 entry, poi taglia le più vecchie.
 5. **Backup JSON**: Admin → Import/Export include tutto lo stato persistente. Ripristino sovrascrive.
 6. **DnD**: disabilitato su mobile. Usare SwipeActions per azioni rapide.
+7. **Persistenza (v0.9.1)**: state e chat su `localStorage` (chiavi `voyagedesk:state:v1`, `voyagedesk:chat:v1`). `PERSIST_OMIT` lista i campi UI volatili. `PERSIST_VERSION` bumpabile per invalidare payload obsoleti. Reset disponibile in Admin → Import/Export.

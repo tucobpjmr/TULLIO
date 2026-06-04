@@ -2,9 +2,15 @@
 
 Sistema gestionale per agenzie viaggi e tour operator.
 
-## Stato attuale — v0.9-dev
+## Stato attuale — v0.9.10
 
-App single-file React (~7071 righe) con tutte le feature operative funzionanti in memoria (no persistenza).
+App single-file React (~10720 righe) con persistenza locale via `localStorage`.
+
+**🎉 Fase 1 modello dati 100%** — Clienti + Fornitori + Pratiche di viaggio.
+
+**🎉 Fase 2 operatività 100%** — Notifiche reali + overdue automatici, dark mode, chat avanzata (task link, ricerca testo, presence status), calendario completo (mese/settimana/giorno + export iCal).
+
+Per riprendere lo sviluppo da una nuova sessione Claude Code, leggere prima [`docs/HANDOFF.md`](docs/HANDOFF.md).
 
 ### Feature completate
 
@@ -23,6 +29,7 @@ App single-file React (~7071 righe) con tutte le feature operative funzionanti i
 - **Profilo personale** — modifica nome, avatar (emoji/foto), email, telefono
 - **Responsive** — desktop + tablet + mobile (320px+), SwipeActions, BottomNav
 - **Ricerca avanzata** — filtri keyword, date, categoria, stato, agente
+- **Persistenza locale** — stato app + chat su `localStorage` con versioning; reset disponibile in Admin → Import/Export
 
 ### Stack
 

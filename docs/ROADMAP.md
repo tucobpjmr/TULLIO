@@ -9,6 +9,25 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 
 ---
 
+## 📍 Punto di partenza (post v0.9.10)
+
+- App su Vite (no più artifact).
+- **Persistenza `localStorage`** (state + chat versionati + reset).
+- **🎉 Fase 1 — Modello dati 100%**: Clienti + Fornitori + Pratiche (`PR-YYYY-NNN`, 5 stati, economia, timeline). Collegamenti `clientId`+`supplierId`+`practiceId`. Picker triplo, auto-suggest cliente da pratica. Filtro numero pratica.
+- **🎉 Fase 2 — Operatività 100%**:
+  - **Notifiche reali** + **overdue automatici** (sweep al mount/cambio utente).
+  - **Dark mode** con CSS vars override.
+  - **Chat avanzata**: task link cliccabile, ricerca nei messaggi, presence status online/busy/away/offline mock.
+  - **Calendario completo**: Mese (esistente) + Settimana (v0.9.6) + **Giorno** (v0.9.10) + **export iCal** (.ics download).
+- **Editor assegnatari** da TaskSlideOver, **agenda Driver** transfer-oriented, **badge nav** contatori.
+- File `VoyageDesk.jsx` monolitico (~10720 righe) — splitting è il primo step della traccia tecnica.
+
+**Restano in Fase 3:** Modulo finanziario, Report & Analytics avanzati, Catalogo destinazioni.
+
+**Traccia tecnica:** splittare il file, TypeScript, test unitari, backend reale.
+
+---
+
 ## 📍 Punto di partenza (post v0.8)
 
 - App stabile e validata sintatticamente (Babel) a **6617 righe**.
@@ -47,14 +66,14 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 | Modulo | Stato | Priorità | Sforzo | Dipende da |
 |---|---|---|---|---|
-| Anagrafica Clienti (CRM base) | ⬜ | 🔴 | M | — |
-| Anagrafica Fornitori | ⬜ | 🔴 | M | — |
-| Pratiche di viaggio | ⬜ | 🔴 | L | Clienti + Fornitori |
-| Collegamento Task ↔ Cliente ↔ Pratica | ⬜ | 🔴 | M | i tre sopra |
+| Anagrafica Clienti (CRM base) | ✅ | — | M | Completato in v0.9.5 — entità Client, vista dedicata, modale CRUD, picker in QuickAddTask, chip cliente in TaskSlideOver |
+| Anagrafica Fornitori | ✅ | — | M | Completato in v0.9.7 — entità Supplier mirror di Client, vista dedicata, modale CRUD, picker in QuickAddTask, chip in TaskSlideOver |
+| Pratiche di viaggio | ✅ | — | L | Completato in v0.9.8 — `PR-YYYY-NNN` auto-numbering, 5 stati, riepilogo economico, timeline eventi, modale 5-sezioni |
+| Collegamento Task ↔ Cliente ↔ Pratica | ✅ | — | M | Completato in v0.9.8 — campi `clientId`+`practiceId` su task, picker QuickAddTask con auto-suggest cliente da pratica |
 
 **Dettaglio Pratiche** — modulo centrale: aggrega task, documenti, pagamenti e fornitori di un singolo viaggio; numerazione progressiva (`PR-2026-001`), stati (Bozza → Confermata → In corso → Completata/Annullata), riepilogo economico, timeline eventi.
 
-> Dopo questa fase, aggiungere il filtro **numero di pratica** nella Ricerca avanzata.
+> ~~Dopo questa fase, aggiungere il filtro **numero di pratica** nella Ricerca avanzata.~~ ✅ Fatto in v0.9.8.
 
 ---
 
@@ -62,9 +81,9 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 | Modulo | Stato | Priorità | Sforzo | Note |
 |---|---|---|---|---|
-| Notifiche reali | ⬜ | 🔴 | M | Collegate ad azioni (scadenze, assegnazioni, commenti, pending, coda > N ore); filtri + "segna tutte lette" |
-| Calendario avanzato | ⬜ | 🟡 | M | Viste settimanale/giornaliera, eventi multipli, iCal (mock) |
-| Estensioni chat (base) | ⬜ | 🟡 | S–M | Ricerca nelle conversazioni, stato online/occupato, rich preview di task/pratiche, **task link cliccabile** nel messaggio |
+| Notifiche reali | ✅ | — | M | Completato in v0.9.9 — schema `recipientId`-aware, generazione automatica nel wrapper reducer (assignment, comment, status, pending, practice status), pannello con filtri + segna tutte lette + pulisci lette. Scadenze auto-generate (overdue check schedulato) rimandate. |
+| Calendario avanzato | ✅ | — | M | Settimana (v0.9.6) + Giorno (v0.9.10) + iCal export (v0.9.10). Eventi multipli rimandati se serviranno. |
+| Estensioni chat (base) | ✅ | — | S–M | Task link cliccabile ✅ v0.9.3. Ricerca estesa ✅ v0.9.9. Presence online/busy/away/offline ✅ v0.9.10. Rich preview pratiche rimandato. |
 | Impostazioni agenzia | 🔶 | 🟡 | S | Gestione categorie e nome agenzia già in Admin. Manca: template messaggi, profilo utente, preferenze UI |
 | Ricerca globale estesa | ✅ | — | — | Completata in v0.5. |
 | Responsive (mobile/tablet/desktop) | ✅ | — | — | Completato in v0.6. |
@@ -99,8 +118,8 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 
 | Idea | Stato | Priorità | Note |
 |---|---|---|---|
-| Badge sulla voce sidebar/bottom-nav **Admin** con conteggio agenti pending | ⬜ | 🟡 | |
-| Badge sulla voce sidebar/bottom-nav **Dashboard** con conteggio coda globale | ⬜ | 🟡 | |
+| Badge sulla voce sidebar/bottom-nav **Admin** con conteggio agenti pending | ✅ | — | Completato in v0.9.2 |
+| Badge sulla voce sidebar/bottom-nav **Dashboard** con conteggio coda globale | ✅ | — | Completato in v0.9.2 |
 | Toast personalizzato "Hai preso in carico: \[titolo\]" | ⬜ | ⚪ | |
 | Auto-move in "In Corso" al "Prendi in carico" | ⬜ | ⚪ | |
 | Notifica al manager se un task resta in coda > N ore | ⬜ | 🟡 | Dipende da notifiche reali |
@@ -109,7 +128,7 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 | Bacheca: avvisi con scadenza automatica | ⬜ | ⚪ | |
 | Bacheca: reazioni emoji sui post-it | ⬜ | ⚪ | |
 | Bacheca: tag/categorie filtrabili | ⬜ | ⚪ | |
-| Modifica assegnatari da `TaskSlideOver` | ⬜ | 🟡 | |
+| Modifica assegnatari da `TaskSlideOver` | ✅ | — | Completato in v0.9.2 |
 | Permessi granulari per ruolo | ✅ | — | Completato in v0.8 |
 | Export Log attività in CSV | ⬜ | ⚪ | |
 
@@ -117,19 +136,19 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 
 | Idea | Stato | Priorità | Note |
 |---|---|---|---|
-| Vista settimanale Calendario | ⬜ | 🟡 | Utile specialmente su mobile |
+| Vista settimanale Calendario | ✅ | — | Completato in v0.9.6 — time-grid orario desktop, day-tab+lista mobile, now-line |
 | Comprimi automaticamente Sidebar desktop tra 1024–1280px | ⬜ | ⚪ | |
 | Skeleton loading su prime render | ⬜ | ⚪ | |
-| Dark mode | ⬜ | ⚪ | CSS variables pronte |
+| Dark mode | ✅ | — | Completato in v0.9.9 — toggle in UserSwitcher, override CSS vars via `html[data-theme="dark"]`, persistito |
 | Test responsive automatici (Playwright) | ⬜ | ⚪ | ⚙️**B** |
 
 ## ✨ Migliorie incrementali emerse (post v0.8)
 
 | Idea | Stato | Priorità | Note |
 |---|---|---|---|
-| Task link cliccabile nella chat (apre TaskSlideOver) | ⬜ | 🟡 | Oggi è testo precompilato, non interattivo |
+| Task link cliccabile nella chat (apre TaskSlideOver) | ✅ | — | Completato in v0.9.3 — chip `TaskLinkChip` con check `canViewTask` |
 | Permessi granulari per sub-ruolo (Senior vs Junior) | ⬜ | ⚪ | Oggi trattati identicamente come "agent" |
-| Coda personale Driver: filtro per data/ora (tipo agenda giornaliera) | ⬜ | 🟡 | Giulia ha bisogno di una vista transfer-oriented |
+| Coda personale Driver: filtro per data/ora (tipo agenda giornaliera) | ✅ | — | Completato in v0.9.4 — chip Oggi/Domani/Tutte, agenda raggruppata per giorno, orario in evidenza |
 | Indicatore visivo "read-only" sulle card urgenti altrui | ⬜ | ⚪ | Lucchetto o bordo tratteggiato |
 | Notifica in-app al cambio utente (rollback automatico dopo X secondi?) | ⬜ | ⚪ | Per evitare che qualcuno lasci l'app loggato come Admin |
 
@@ -141,7 +160,7 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 |---|---|---|---|---|
 | Chat `useState` → `useReducer` | ⬜ | 🟡 | S–M | Fattibile in Opzione A |
 | `TEAM`/`CATEGORIES`/`CURRENT_USER` da `let` mutabile a Context puro | ⬜ | ⚪ | M | Funzionale oggi, ma più pulito |
-| Persistenza dati (localStorage o backend mock) | ⬜ | 🔴 | L | ⚙️**B** |
+| Persistenza dati (localStorage) | ✅ | — | — | Completata v0.9.1 — `loadPersistedState`/`savePersistedState`. Backend reale ancora da fare. |
 | Separazione in più file | ⬜ | 🟡 | M | ⚙️**B** |
 | TypeScript | ⬜ | ⚪ | L | Dopo refactor multi-file ⚙️**B** |
 | Test unitari (Vitest) | ⬜ | ⚪ | M | Dopo TypeScript ⚙️**B** |

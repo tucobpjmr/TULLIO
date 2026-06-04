@@ -1,5 +1,495 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9.10 — Chiusura Fase 2 (sessione 18)
+
+> Chiude la **Fase 2 — Operatività quotidiana**: overdue automatici, presence status mock, vista giornaliera Calendario, export iCal. Prepara handoff per nuova sessione Claude Code.
+
+### ⏰ Notifiche overdue automatiche
+- Nuova action **`SCAN_OVERDUE_NOTIFICATIONS`**: idempotente, scansiona task scaduti assegnati all'utente corrente e crea notifiche `type: "overdue"`. Chiave deduplica `overdue-{taskId}-{YYYY-MM-DD}` evita duplicati nella stessa giornata.
+- Trigger automatico in `VoyageDeskInner` via `useEffect([state.currentUserId])`: al mount e al cambio utente.
+
+### 🟢 Presence status mock
+- Nuovo campo `team.member.status`: `"online" | "busy" | "away" | "offline"`. Default sui mock: marco/sofia/roberto online, luca busy, giulia away, elena/matteo offline.
+- Nuove costanti **`PRESENCE_STATES`** con label + color per ogni stato.
+- Action **`SET_USER_STATUS`** (payload `{ status, userId? }`). Default target = utente corrente.
+- **`Avatar`** esteso con prop opzionale `showPresence` → pallino colorato in basso-destra (verde/rosso/oro/grigio).
+- Selettore stato nel dropdown `UserSwitcher` (chip toggleabili sotto "IL MIO STATO").
+- Header `ConversationView` ora mostra lo stato reale dell'altro partecipante (era hard-coded "● Online").
+- `ConversationList`: pallino verde hard-coded sostituito dal vero `showPresence`.
+
+### 🗓 Vista Giorno Calendario
+- Terza modalità accanto a Mese / Settimana: **`viewMode === "day"`**.
+- Stato locale `dayOffset` (0 = oggi, ± per navigazione). Nav buttons ← Oggi → e toggle visto "🗓 Giorno".
+- Layout:
+  - Header navy con label "OGGI" / "DOMANI" / nome giorno + data piena + contatore task.
+  - Strip "Fuori orario" sopra la griglia per task < 06:00 o ≥ 22:00.
+  - Time-grid orario 06-22 con cella `(ora, task)`: blocchi con orario tabular-nums, icona categoria, titolo, assegnatari, priorità, stato.
+  - **Now-line rossa** + dot se è oggi e l'ora corrente è nel range.
+
+### 📥 Export iCal (.ics)
+- Nuovo bottone "📥 iCal" nell'header Calendario (visibile in tutte le modalità).
+- Esporta tutte le task con `dueDate` assegnate all'utente corrente in formato VCALENDAR 2.0 (compatibile Google/Apple Calendar/Outlook).
+- Durata evento = `estimatedHours` (default 1h). Categoria + cliente nel campo DESCRIPTION.
+- Filename: `voyagedesk-{userId}-{YYYY-MM-DD}.ics`.
+
+### 📦 Handoff documentazione
+- Nuovo file **`docs/HANDOFF.md`** per sessione Claude Code successiva: stato corrente, branch/PR, file chiave, convenzioni, prossimi step Fase 3, gotchas.
+
+### 📈 Metriche
+- File: 10420 → ~10720 righe (+~300).
+- Componenti nuovi: 0 (estensioni di Avatar e CalendarPlanner).
+- Helper nuovi: 1 (`exportIcal` + `_icsEscape` + `_icsDate`).
+- Action nuove: 2 (`SCAN_OVERDUE_NOTIFICATIONS`, `SET_USER_STATUS`).
+
+### ✅ Fase 2 chiusa
+- [x] Notifiche reali — v0.9.9
+- [x] Notifiche schedulate (overdue auto) — v0.9.10
+- [x] Dark mode — v0.9.9
+- [x] Estensioni chat: task link cliccabile — v0.9.3
+- [x] Estensioni chat: ricerca nei messaggi — v0.9.9
+- [x] Estensioni chat: presence online/busy/away — v0.9.10
+- [x] Calendario: vista settimanale ridisegnata — v0.9.6
+- [x] Calendario: vista giornaliera — v0.9.10
+- [x] Calendario: export iCal — v0.9.10
+- [ ] Stretch goal: rich preview pratiche in chat (rimandato a Fase 3 quando ci sarà più carne sulla chat)
+- [ ] Stretch goal: template messaggi in Admin (rimandato)
+
+### 🔜 Prossimo focus (Fase 3)
+- **Modulo finanziario** — KPI/grafici da `state.practices` (ricavo/costo/margine), fatture/scadenze.
+- **Report & Analytics** — estendere `AdminStatsTab` con margini, trend temporali, export PDF.
+- **Traccia tecnica** — splittare `VoyageDesk.jsx` (~10720 righe) per sbloccare TypeScript + test.
+
+---
+
+## v0.9.9 — Notifiche reali + Dark mode + Ricerca chat (sessione 17, Fase 2)
+
+> Inizia la Fase 2 — Operatività quotidiana. Tre fix dalla roadmap: notifiche reattive collegate ad azioni (sostituiscono l'array statico), dark mode con CSS var override, ricerca chat estesa al testo dei messaggi.
+
+### 🔔 Notifiche reali
+- Schema strutturato: `{ id, type, text, recipientId, relatedType, relatedId, time, read }`. Ogni notifica è indirizzata a un utente specifico (`recipientId`) e può linkare a un'entità (`task`|`practice`|`team`).
+- Nuovo `NOTIF_TYPES`: `assigned`, `comment`, `overdue`, `deadline`, `pending`, `status`, `practice` — ognuno con icona dedicata.
+- **Generazione automatica nel wrapper reducer** (`generateNotifications`): produce notifiche quando le azioni hanno impatto su altri utenti:
+  - `ADD_TASK` / `UPDATE_TASK` (assignees aggiunti) → notifica "ti ha assegnato" agli assegnatari diversi da me.
+  - `ADD_COMMENT` → notifica "ha commentato" agli assegnatari della task (escluso me).
+  - `MOVE_TASK` → notifica "ha spostato in X" agli assegnatari.
+  - `ADD_TEAM_MEMBER` con `pending: true` → notifica "Nuova richiesta agente" a tutti gli admin.
+  - `CHANGE_PRACTICE_STATUS` → notifica "PR-X: stato → Y" agli assegnatari di task collegati alla pratica.
+- Cap a 200 notifiche totali (le più vecchie tagliate).
+- `INITIAL_NOTIFICATIONS`: 9 demo distribuite tra Marco, Sofia, Roberto, Luca, Giulia.
+
+### 🔁 Reducer
+- Slice `state.notifications` (persistita).
+- Nuove actions: **`MARK_NOTIFICATION_READ`**, **`MARK_ALL_NOTIFICATIONS_READ`** (solo le mie), **`CLEAR_READ_NOTIFICATIONS`** (solo le mie lette).
+- `RESTORE_BACKUP` esteso con `notifications` e `theme`.
+
+### 🪟 NotificationsPanel ridisegnato
+- Filtra per `recipientId === currentUserId` (vedo solo le mie).
+- Chip filtro **Tutte / Non lette** con contatore.
+- Azioni header: **✓ Tutte lette** + **🧹 Pulisci lette**.
+- Click su una notifica → naviga all'entità correlata (`SET_SELECTED_TASK` / `SET_SELECTED_PRACTICE` / `SET_VIEW("admin")` per team) + marca come letta + chiude il pannello.
+- Tempo relativo umanizzato: "ora", "5 min fa", "2h fa", "ieri", "3 giorni fa", data secca.
+- Empty state dedicato per "tutte" vs "solo non lette".
+
+### 🌙 Dark mode
+- Nuovo `state.theme` (`"light" | "dark"`), persistito via localStorage.
+- Nuova action **`SET_THEME`** (payload `"light"|"dark"|"toggle"`).
+- Override CSS variables via `html[data-theme="dark"]` in FontLoader: surface scuro, text chiaro, navy/gold leggermente più luminosi per leggibilità.
+- `useEffect([state.theme])` in `VoyageDeskInner` setta `document.documentElement.dataset.theme`.
+- Toggle nel dropdown UserSwitcher: bottone "🌙 Tema scuro" / "☀️ Tema chiaro" con badge LIGHT/DARK.
+- Tutte le componenti che già usano `var(--*)` si adattano automaticamente. Le tinte hex inline (poche, in genere su sfondo navy) restano statiche per coerenza.
+
+### 🔍 Ricerca chat estesa ai messaggi
+- `ConversationList`: lo stesso input ora cerca sia nel nome conversazione che nel testo dei messaggi.
+- Quando il match è su un messaggio (non sul nome), sotto la riga della conversazione compare uno **snippet match** con icona 🔍, nome mittente (colorato) e testo troncato a 80 char.
+- Placeholder aggiornato: "Cerca in conversazioni e messaggi…".
+
+### 💾 Backup
+- `exportBackup` esteso con `notifications` + `theme`, version → `"0.9.9"`.
+
+### 📈 Metriche
+- File: 10057 → ~10350 righe (+~290).
+- Componenti nuovi: 0 (riscrittura di `NotificationsPanel`).
+- Helper nuovi: 2 (`generateNotifications`, `formatRelativeTime`).
+- Action nuove: 4 (`SET_THEME`, `MARK_NOTIFICATION_READ`, `MARK_ALL_NOTIFICATIONS_READ`, `CLEAR_READ_NOTIFICATIONS`).
+
+### ⚠️ Note
+- Le notifiche generate dal wrapper non sono "globali": sono visibili solo al destinatario. Switchando utente nella mock multi-tenant si vedono le sue.
+- Eventuali notifiche da regole derivate (es. "task scaduto da > N ore") richiedono uno scheduler/cron lato client: rimandate.
+- Persistenza chat (vocali base64): occhio alla quota localStorage in casi reali.
+
+---
+
+## v0.9.8 — Pratiche di viaggio — chiude Fase 1 (sessione 16)
+
+> **Fase 1 — Modello dati completo: 100%**. Le Pratiche di viaggio aggregano task + cliente + fornitori in un'entità centrale con numerazione progressiva, stati, riepilogo economico e timeline eventi. Sblocca il filtro "numero pratica" nella Ricerca avanzata.
+
+### 📂 Modello dati Practice
+- Nuovo schema `Practice`:
+  ```js
+  {
+    id, number,              // "PR-YYYY-NNN" auto-progressive
+    title, status,           // draft|confirmed|in_progress|completed|cancelled
+    clientId, supplierIds: [],
+    destination,
+    departureDate, returnDate,
+    totalValue, cost, paid,  // riepilogo economico (€)
+    notes,
+    events: [{ time, type, text, userId }],  // timeline
+    createdAt, updatedAt, deletedAt
+  }
+  ```
+- `PRACTICE_STATUSES`: 5 stati con icona + colore + bg (draft 📝, confirmed ✅, in_progress 🚀, completed 🏁, cancelled ❌).
+- `generatePracticeNumber(existing)`: scansiona le pratiche dell'anno corrente e genera il successivo `PR-YYYY-NNN`.
+- Helper `getPractice`, `getPracticeTasks`, `getPracticeMargin`, `getPracticePaidPct`.
+- `INITIAL_PRACTICES`: 6 pratiche demo che aggregano i 27 task esistenti via nuovo campo `task.practiceId`.
+
+### 🔁 Reducer
+- Slice `state.practices` + `selectedPractice` volatile (PERSIST_OMIT).
+- Actions: **`ADD_PRACTICE`**, **`UPDATE_PRACTICE`**, **`DELETE_PRACTICE`** (soft-delete), **`SET_SELECTED_PRACTICE`**, **`CHANGE_PRACTICE_STATUS`** (logga evento timeline).
+- `ADD_PRACTICE` auto-genera il `number` se assente, e crea l'evento "Pratica creata" nella timeline.
+- `RESTORE_BACKUP` esteso con `practices`.
+
+### 🔐 Permessi
+- `canManagePractices(uid)` / `canViewPractices(uid)` → `!isDriver(uid)`.
+- `SET_VIEW("practices")` + `SET_CURRENT_USER` con check + redirect.
+
+### 🧭 Vista Pratiche
+- Nuova voce NAV `📂 Pratiche` (admin/manager/agent).
+- **`PracticesView`**:
+  - Header + KPI 4-card (totale, ricavo, margine €+%, incassato €+%).
+  - Toolbar: search testuale, filtro stato, filtro cliente, toggle rimosse.
+  - Griglia 2-col responsive con card pratica: numero, badge stato, titolo, cliente, destinazione, date partenza/rientro, conteggi task/fornitori, ricavo, margine (verde/rosso), progress bar "% incassato".
+  - Default sort: per data partenza ASC con null in coda.
+
+### 🪟 Modale `PracticeEditModal` (5 sezioni)
+1. **Generale** — titolo, cliente, stato, destinazione, partenza/rientro, note.
+2. **💰 Riepilogo economico** — ricavo / costo / incassato → margine calcolato live + marginalità % + % incassato.
+3. **🤝 Fornitori collegati** — multi-select via chip toggleabili sui fornitori attivi (colorati per tipologia, ✓ se attivo).
+4. **📋 Task collegati** — lista derivata da `getPracticeTasks`, click → apre `TaskSlideOver` chiudendo la modale.
+5. **🕰️ Timeline** — eventi cronologici (created/status/payment/note) con icona, autore, data. Input per aggiungere nota inline.
+- Cambio stato dispatcha `CHANGE_PRACTICE_STATUS` → logga automaticamente l'evento timeline.
+- Modale **a livello root** in `VoyageDeskInner` (apribile da qualsiasi vista).
+- Header con numero `PR-YYYY-NNN` + badge stato + timestamp creazione/aggiornamento.
+
+### 🔗 Integrazione TaskSlideOver
+- Nuova sezione **PRATICA** (sopra FORNITORE): bottone full-width navy con numero + titolo, click → apre `PracticeEditModal`.
+- Visibile solo se `task.practiceId` risolve in anagrafica.
+
+### ➕ Picker pratica in QuickAddTask
+- Nuovo select PRATICA in cima ai picker entità (sopra Cliente).
+- **Cliente auto-suggested**: se l'utente seleziona una pratica con `clientId` impostato e il form non ha ancora un cliente, lo pre-compila automaticamente.
+- Pratiche annullate filtrate dal picker.
+
+### 🔍 Ricerca avanzata: filtro numero pratica
+- Nuovo input "📂 Numero pratica" subito sotto "Parola chiave". Accetta match parziale case-insensitive (es. `001` matcha `PR-2026-001`).
+- Tasks senza `practiceId` esclusi quando il filtro è attivo.
+
+### 💾 Backup
+- `exportBackup` esteso con `practices`, version → `"0.9.8"`.
+
+### 📈 Metriche
+- File: 9012 → ~9700 righe (+~690).
+- Componenti nuovi: 3 (`PracticesView`, `PracticeEditModal`, `PracticeStatusBadge`).
+- Helper nuovi: 5 (`generatePracticeNumber`, `getPractice`, `getPracticeTasks`, `getPracticeMargin`, `getPracticePaidPct`, `formatEur`).
+- Mock data: 6 pratiche + 16 task collegati via `practiceId`.
+
+### ⚠️ Note migrazione
+- Task persistiti pre-v0.9.8 senza `practiceId`: il chip PRATICA semplicemente non viene renderizzato.
+- Hydration: se localStorage non ha `practices`, fallback a `INITIAL_PRACTICES`.
+- `PERSIST_VERSION` invariato — il merge dei default copre i campi nuovi.
+
+### ✅ Fase 1 completa
+- [x] Anagrafica Clienti (v0.9.5)
+- [x] Anagrafica Fornitori (v0.9.7)
+- [x] **Pratiche di viaggio** (v0.9.8)
+- [x] Collegamento Task ↔ Cliente ↔ Pratica (via `clientId` + `practiceId` su task)
+
+### 🔜 Prossimo focus
+- **Fase 2** — Notifiche reali (collegate ad azioni), Calendario avanzato residuo, estensioni chat.
+- **Fase 3** — Modulo finanziario (ora che ci sono Pratiche con riepilogo economico).
+- **Traccia tecnica** — splittare `VoyageDesk.jsx` (ora ~9700 righe).
+
+---
+
+## v0.9.7 — Anagrafica Fornitori (sessione 15)
+
+> Secondo step della **Fase 1 — Modello dati completo**. Mirror stretto del pattern Clienti per consistenza UX, prepara il terreno per Pratiche di viaggio (entità centrale che aggregherà task + clienti + fornitori).
+
+### 🤝 Modello dati Supplier
+- Nuovo schema `Supplier`: `{ id, name, type, contactPerson, email, phone, address, services, notes, createdAt, updatedAt, deletedAt }`.
+- `SUPPLIER_TYPES`: 7 tipologie (`hotel`, `transport`, `airline`, `insurance`, `tour-operator`, `visa`, `other`) con icona + colore + bg.
+- `INITIAL_SUPPLIERS`: 6 fornitori demo coerenti coi task esistenti (Four Seasons Maldives, Emirates, NCC Autoservizi Meridionali, Allianz Travel, Tawaraya Ryokan, Visti Express).
+- Schema Task esteso con campo opzionale **`supplierId: string|null`**. Pre-popolato su 8 task demo (t1, t2, t3, t6, t8, t12, t14, t17, t19).
+
+### 🔁 Reducer
+- Nuovo slice `state.suppliers` (persistenza automatica via lazy init merge).
+- Nuovo slice volatile `state.selectedSupplier` (in `PERSIST_OMIT`).
+- Nuove azioni: **`ADD_SUPPLIER`**, **`UPDATE_SUPPLIER`**, **`DELETE_SUPPLIER`** (soft-delete), **`SET_SELECTED_SUPPLIER`**.
+- `RESTORE_BACKUP` esteso per includere `suppliers`.
+- Tutte loggate in `activityLog`.
+
+### 🔐 Permessi
+- Nuovi helper `canManageSuppliers(uid)` / `canViewSuppliers(uid)` → `!isDriver(uid)`. Stessa regola dei clienti.
+- `SET_VIEW("suppliers")` e `SET_CURRENT_USER` aggiornati per check + redirect.
+
+### 🧭 Vista Fornitori
+- Nuova voce NAV: `{ id: "suppliers", icon: "🤝", label: "Fornitori", roles: ["admin","manager","agent"] }`.
+- **`SuppliersView`**: header con conteggio attivi/in elenco + bottone "+ Nuovo fornitore", toolbar (search testuale, filtro tipologia, toggle rimossi), griglia 3 col con card.
+- Card: chip tipologia, badge "📋 N task collegati", nome, referente, email/telefono, anteprima servizi (2 righe), banner "Rimosso il …" per soft-deleted.
+
+### 🪟 Modale `SupplierEditModal`
+- Modalità: creazione (`supplier === null`), modifica, sola lettura (`canManage=false` o `deletedAt`).
+- Campi: nome (obbligatorio), tipologia, referente, email, telefono, **indirizzo**, **servizi offerti**, note operative.
+- Footer: "🗑 Rimuovi fornitore" + Annulla/Salva.
+- Renderizzata a livello **root** (apribile da TaskSlideOver e Fornitori).
+- Callback opzionale `onCreated(newSupplier)` per pre-selezione inline (usato da QuickAddTask).
+
+### 🔗 Integrazione TaskSlideOver
+- Nuova sezione "FORNITORE" (sotto CLIENTE, sopra ORE STIMATE) visibile solo se `task.supplierId` risolve in anagrafica.
+- Chip colorato per tipologia con icona + nome + freccia. Click → apre `SupplierEditModal`.
+
+### ➕ Picker fornitore in QuickAddTask
+- Nuovo select FORNITORE parallelo a CLIENTE, con clienti e fornitori attivi ordinati alfabeticamente.
+- Bottone **"+ Nuovo"** apre `SupplierEditModal` inline e pre-seleziona il nuovo fornitore.
+
+### 💾 Backup
+- `exportBackup` esteso con `suppliers`, version bumpata a `"0.9.7"`.
+
+### 📈 Metriche
+- File: 8433 → ~8900 righe (+~470).
+- Componenti nuovi: 2 (`SuppliersView`, `SupplierEditModal`).
+- Helper nuovi: 1 (`getSupplier`).
+- Mock data: 6 fornitori + costanti tipologie.
+
+### ⚠️ Note migrazione
+- I task persistiti pre-v0.9.7 non hanno `supplierId`: il chip FORNITORE semplicemente non viene renderizzato. Nessuna mappa legacy necessaria (campo nuovo, non era mai esistito come testo).
+- Hydration: se il payload localStorage non ha `suppliers`, fallback a `INITIAL_SUPPLIERS`. `PERSIST_VERSION` invariato.
+
+### 🔜 Prossimo step Fase 1
+- **Pratiche di viaggio** (effort L): entità che aggrega tasks + clienti + fornitori in una numerazione progressiva `PR-YYYY-NNN`, con stati e riepilogo economico.
+
+---
+
+## v0.9.6 — Vista settimana Calendario ridisegnata (sessione 14)
+
+> Chiude il punto 🟡 "Vista settimanale Calendario migliorata" della roadmap post-v0.6. La vecchia griglia card-per-giorno (con scroll orizzontale su mobile) è stata rimpiazzata da due layout dedicati: **time-grid orario** su desktop e **day-tab + lista verticale** su mobile.
+
+### 🕐 Desktop — Time-grid orario
+- Griglia oraria da **06:00 a 22:00** (16 righe da 56px), 7 colonne giorno + 1 colonna etichetta ora.
+- Task posizionati nella cella `(giorno, ora di inizio)`. Ogni blocco mostra ora (tabular-nums), icona categoria, titolo troncato e pallino priorità.
+- **"Now line" rossa** orizzontale + dot quando "oggi" è in settimana visualizzata e l'ora corrente è nel range — assoluta sopra la griglia.
+- **Riga "FUORI ORARIO"** sopra la griglia: visibile solo se ci sono task con orario notturno/precoce; ospita pillole compatte per non perderli.
+- Sfondo colonna "oggi" tinto in oro tenue per orientamento immediato.
+
+### 📱 Mobile — Day-tab + lista
+- **Tab strip orizzontale** con scroll-snap (un bottone per giorno: nome corto + numero + badge conteggio task). Bottone "oggi" colorato oro, attivo navy.
+- Sotto: **lista verticale del giorno selezionato**, ordinata per `dueDate`, con orario a sinistra grande (`tabular-nums` 16px), categoria/stato a destra. Niente più scroll orizzontale fra le colonne.
+- `SwipeActions` riattivati sulle card mobile (Fatto/Cestino/Inoltra).
+- Heading dinamico: "lunedì 14 dicembre" + badge OGGI quando opportuno.
+
+### 🔁 Sincronizzazione
+- Quando l'utente cambia settimana via ← / → (mobile), il tab si riallinea a "oggi" se è nella nuova settimana, altrimenti al primo giorno. Implementato con `useEffect([weekOffset])`.
+
+### 🧹 Cleanup
+- Rimosso helper `getTasksForDay` (non più referenziato).
+- Costanti time-grid esportate a livello modulo: `WEEK_START_HOUR`, `WEEK_END_HOUR`, `WEEK_HOUR_COUNT`, `WEEK_ROW_HEIGHT`.
+
+### 📈 Metriche
+- File: 8177 → ~8390 righe (+~210).
+- Componenti nuovi: 0 (riscrittura inline del blocco settimana in `CalendarPlanner`).
+
+---
+
+## v0.9.5 — Anagrafica Clienti CRM (sessione 13)
+
+> Primo step della **Fase 1 — Modello dati completo** (post-handoff). Introduce l'entità Cliente, la vista dedicata, il picker nei form e il collegamento dei task tramite `clientId`.
+
+### 🧳 Modello dati Client
+- Nuovo schema `Client`: `{ id, name, type, contactPerson, email, phone, notes, createdAt, updatedAt, deletedAt }`.
+- `CLIENT_TYPES`: 5 tipologie (`famiglia`, `coppia`, `azienda`, `gruppo`, `individuale`) con icona + colore + bg.
+- `INITIAL_CLIENTS`: 6 anagrafiche demo coerenti coi clienti già citati nei task (Rossi, Bianchi, TechCorp, Marchetti, Liceo Manzoni, Sposi Conte).
+- Schema Task esteso con campo opzionale **`clientId: string|null`**. Il vecchio campo `client` (testo) resta come fallback display (backward-compat).
+- Mappa legacy `_LEGACY_CLIENT_NAME_TO_ID` + helper `resolveLegacyClientId(task)` per i task pre-v0.9.5 senza `clientId` ma con nome cliente riconoscibile.
+
+### 🔁 Reducer
+- Nuovo slice `state.clients` (con persistenza localStorage automatica via lazy init merge).
+- Nuovo slice volatile `state.selectedClient` (in `PERSIST_OMIT`, ripristinato a `null` al refresh).
+- Nuove azioni: **`ADD_CLIENT`**, **`UPDATE_CLIENT`**, **`DELETE_CLIENT`** (soft-delete), **`SET_SELECTED_CLIENT`**.
+- `RESTORE_BACKUP` esteso per includere `clients`.
+- Tutte loggate in `activityLog` con messaggi dedicati.
+
+### 🔐 Permessi
+- Nuovi helper: `canManageClients(uid)` e `canViewClients(uid)` → `!isDriver(uid)`. Driver: nessun accesso alla vista Clienti, ma vede comunque il chip cliente in `TaskSlideOver` (read-only via `canManage=false`).
+- `SET_VIEW("clients")` e `SET_CURRENT_USER` aggiornati per il check + redirect.
+
+### 🧭 Vista Clienti
+- Nuovo `NAV_ITEMS` entry: `{ id: "clients", icon: "🧳", label: "Clienti", roles: ["admin","manager","agent"] }`. Visibile in Sidebar e BottomNav per i ruoli non-Driver.
+- Nuovo componente **`ClientsView`**:
+  - Header con conteggio attivi/in elenco + bottone "+ Nuovo cliente" (solo se `canManage`).
+  - Toolbar: search testuale (nome/referente/email/telefono/note), filtro tipologia, toggle "Mostra rimossi".
+  - Griglia 3 col con card cliente: chip tipologia, badge "📋 N task collegati", nome, referente, email/telefono, anteprima note (2 righe), banner "Rimosso il …" per soft-deleted.
+
+### 🪟 Modale `ClientEditModal`
+- Modalità: creazione (`client === null`), modifica, sola lettura (read-only via `canManage=false` o `client.deletedAt`).
+- Campi: nome (obbligatorio), tipologia, referente, email, telefono, note.
+- Footer: bottone "🗑 Rimuovi cliente" a sx (solo se modifica + non rimosso + canManage) + Annulla/Salva a dx.
+- Renderizzata a livello **root** (in `VoyageDeskInner`) per essere aperta anche da TaskSlideOver senza dover navigare alla vista Clienti.
+- Callback opzionale `onCreated(newClient)` per pre-selezionare il cliente appena creato in altri form.
+
+### 🔗 Integrazione TaskSlideOver
+- Sezione "CLIENTE" ora mostra:
+  - Se `resolveLegacyClientId(task)` → chip colorato per tipologia con icona + nome + freccia. Click → apre `ClientEditModal`.
+  - Altrimenti se solo testo legacy → vecchia chip surface.
+  - Altrimenti `—`.
+
+### ➕ Picker cliente in QuickAddTask
+- Vecchio input testo libero rimpiazzato da **select** con clienti attivi (ordinati alfabeticamente, prefissati dall'icona di tipologia) + opzione `— Nessuno —`.
+- Bottone **"+ Nuovo"** affianco al select: apre `ClientEditModal` inline e pre-seleziona il cliente appena creato via `onCreated`.
+- Salvataggio task: scrive sia `clientId` che `client` (nome risolto) per consistenza retro-compatibile.
+
+### 💾 Backup
+- `exportBackup` esteso con `clients` e version bumpato a `"0.9.5"`.
+
+### 📈 Metriche
+- File: 7597 → ~7980 righe (+~380).
+- Componenti nuovi: 2 (`ClientsView`, `ClientEditModal`).
+- Helper nuovi: 4 (`getClient`, `getTaskClientName`, `resolveLegacyClientId`, `canManageClients`).
+- Mock data: 6 clienti + costanti tipologie.
+
+### ⚠️ Note migrazione
+- I task persistiti pre-v0.9.5 non hanno `clientId`. `resolveLegacyClientId` fa la mappatura on-the-fly dai nomi noti, quindi i chip cliente in TaskSlideOver funzionano anche su state legacy. Per i nomi sconosciuti, mostra il testo libero come prima.
+- Hydration: se il payload localStorage non ha `clients`, fallback a `INITIAL_CLIENTS`. Non c'è bisogno di bumpare `PERSIST_VERSION` (le voci nuove vengono mergeate sui default).
+
+---
+
+## v0.9.4 — Agenda Driver transfer-oriented (sessione 12)
+
+> Chiude il punto 🟡 "Coda personale Driver con filtro data/ora (tipo agenda giornaliera)" della roadmap post-v0.8. Giulia (e ogni altro Driver) ora vede le proprie corse organizzate come agenda con orario in evidenza.
+
+### 🚐 Modalità agenda per Driver
+- **`PersonalQueue`** ora rileva `getRoleType(me.id) === "driver"` e mostra una vista alternativa:
+  - **Layout agenda** raggruppato per giorno: header sezione "Oggi · gio 14 dic" / "Domani · ven 15 dic" / "lun 16 dic" + contatore corse del giorno.
+  - **Card a row** con riquadro orario a sinistra (`formatTime` in font grande, "ORARIO" sotto) e dettagli a destra.
+  - Card singola colonna (più leggibile in mobile, vista transfer-oriented).
+  - L'icona 📅 ridondante è stata rimossa dalle card driver — l'orario è già grande a sinistra.
+
+### 🗓️ Filtri data
+- **Chip filtro** sopra l'agenda: **Oggi · Domani · Tutte**, con conteggio per chip.
+- Default `today`. Stato locale al componente (non persistito).
+- Filtraggio puro per intervalli `[startOfDay, startOfDay+1)`; task senza `dueDate` esclusi dai filtri Oggi/Domani.
+
+### 🔁 Backward-compat
+- Per Admin/Manager/Agent il rendering resta identico (grid auto-fill 280px, etichetta "La mia coda — task assegnate a me"). Nessuna regressione.
+- Card driver e card non-driver condividono lo stesso `renderCard(t, opts)` per coerenza visiva e per non duplicare il markup.
+
+### 📈 Metriche
+- File: 7427 → ~7580 righe (+~150).
+- Componenti nuovi: 0 (solo evoluzione di `PersonalQueue`).
+- Stato locale nuovo: `dayFilter` ("today" | "tomorrow" | "all").
+
+---
+
+## v0.9.3 — Task link cliccabile in chat (sessione 11)
+
+> Promosso il "task link" della chat da testo precompilato a chip interattivo. Click → apre `TaskSlideOver` e chiude la chat. Completa il punto 🟡 "Task link cliccabile nella chat (apre TaskSlideOver)" della roadmap post-v0.8.
+
+### 🔗 Task agganciato al messaggio
+- Nuovo campo opzionale **`taskRef`** sui messaggi testuali: `{ id, title, dueDate }`. I messaggi senza `taskRef` restano invariati.
+- Nuovo componente **`TaskLinkChip`** renderizzato sotto il testo della bubble. Stile coerente con i due lati (mine: navy/oro, others: surface2).
+- Click sul chip → `dispatch({ type: "SET_SELECTED_TASK", payload: task })` + `onCloseChat()` (così lo slide-over non resta coperto dalla chat).
+- **Permessi rispettati**: il chip controlla `canViewTask(task, CURRENT_USER)` e si disabilita ("Task non disponibile") se l'utente non può aprirlo o se il task è stato cestinato/purgato.
+
+### 📎 Preview "Task agganciato" sopra l'input
+- Quando arriva un intent con `taskLink`, `ConversationView` mostra una preview tipo reply (bordo navy, "🔗 Task agganciato" + titolo + data) sopra l'input.
+- ✕ rimuove l'aggancio prima dell'invio.
+- Send → `taskRef` viene scritto nel messaggio inviato. Permesso anche l'invio "solo task" senza testo (utile se basta condividere il riferimento).
+- Bottone invio compare anche con testo vuoto se c'è un task agganciato (prima compariva il microfono).
+
+### 🧹 Refactor intent → prefillTask
+- `ChatPanel` non sputa più una stringa fissa (`🔗 Riferimento task: "…"\n📅 Scadenza: …`) nell'input: ora passa un oggetto `prefillTask` a `ConversationView` via prop `initialAttachedTask`. L'esperienza utente è "qui sotto c'è il riferimento, scrivi il tuo messaggio".
+- Vecchi prop `initialInput`/`onInitialInputConsumed` rimossi.
+
+### 🧩 ChatContext esteso
+- Ora propaga anche **`dispatch`** e **`onCloseChat`** (oltre a tasks/currentUserId). Sblocca i sotto-componenti chat dal poter fare azioni globali in modo type-safe-by-convention.
+- `ChatPanel` riceve `dispatch` come nuova prop da `VoyageDeskInner`.
+
+### 📦 Persistenza
+- `taskRef` viene salvato in `localStorage` (sotto `voyagedesk:chat:v1`) come parte del messaggio. Compatibile con `PERSIST_VERSION = 1`.
+
+### 📈 Metriche
+- File: 7338 → ~7395 righe (+~55).
+- Componenti nuovi: 1 (`TaskLinkChip`).
+- Schema chat: campo opzionale `taskRef`.
+
+---
+
+## v0.9.2 — Fix incrementali roadmap (sessione 10)
+
+> Bundle di tre fix 🟡 dalla roadmap "Migliorie incrementali post-v0.5/v0.8": badge contatori su Sidebar/BottomNav, editor multi-assegnatari in `TaskSlideOver`, commento firmato con l'utente loggato.
+
+### 🔔 Badge nav contatori
+- Nuovo helper **`getNavBadges(state)`** + componente **`NavBadge`** (variante `dot` per icona compatta, `inline` per sidebar espansa).
+- **Voce Admin** → numero agenti con `pending: true`. Visibile solo ad admin (gli altri ruoli non vedono la voce).
+- **Voce Dashboard** → numero task in coda globale (`assignees: []` non cestinati). Nascosto per Driver (che non vede la coda globale).
+- Stile: pillola dorata `var(--gold)` con testo navy, bordo navy-dark per stacco sul fondo scuro. Mostrata solo se `count > 0`. Limite display `99+`.
+- Integrato in **Sidebar** (sia collassata con dot sull'icona, sia espansa con badge inline a destra della label) e **BottomNav** (dot sull'icona).
+
+### 👥 Editor multi-assegnatari in TaskSlideOver
+- Nuovo bottone **"✎ modifica"** accanto a label ASSEGNATI, visibile solo se `canEditTask(task, CURRENT_USER)`.
+- Edit mode: chip per ogni agente di `getAssignableTeam()` (toggle), colore agente quando attivo + ✓.
+- **Salva** → `UPDATE_TASK` con il nuovo array `assignees`. **Annulla** → ripristina bozza dal task.
+- `useEffect([task.id])` resetta editor + bozza al cambio task aperto (evita stale state se si chiude lo slide-over e se ne apre un altro).
+
+### 🐛 Commento firmato dall'utente reale
+- Prima: ogni commento era hard-coded come "Marco Ferretti" (residuo single-user pre-v0.8).
+- Ora: usa `getMember(CURRENT_USER)?.name` → ogni utente firma con il proprio nome. Coerente con UserSwitcher.
+
+### 📈 Metriche
+- File: 7205 → ~7290 righe (+~85).
+- Componenti nuovi: 1 (`NavBadge`).
+- Helper nuovi: 1 (`getNavBadges`).
+
+---
+
+## v0.9.1 — Persistenza localStorage (sessione 9)
+
+> Primo step della migrazione a progetto reale post-handoff: i dati non si perdono più al refresh. Sblocca uso reale dell'app come single-user demo locale.
+
+### 💾 Stato persistito su `localStorage`
+- **Hydrate al mount**: `useReducer(reducer, initialState, loadPersistedState)`. Se trova lo state salvato (versione compatibile), lo unisce ai default; altrimenti parte da `INITIAL_TASKS`/`INITIAL_NOTICES`/`TEAM`/`CATEGORIES` come prima.
+- **Save al cambio**: `useEffect([state])` con debounce 300ms → `localStorage.setItem`.
+- **Chiavi**: `voyagedesk:state:v1` (app) + `voyagedesk:chat:v1` (conversazioni e messaggi).
+- **Versioning**: costante `PERSIST_VERSION = 1`. Bumpando si invalidano automaticamente i payload vecchi.
+
+### 📦 Cosa viene salvato
+- `tasks`, `team`, `categories`, `notices`, `agencyName`, `activityLog`, `currentUserId`, `activeView`, `sidebarCollapsed`.
+- Chat: `conversations` + `messages` (inclusi vocali con waveform — attenzione: i base64 pesano).
+
+### 🚫 Cosa NON viene salvato (campi UI volatili)
+- `toast`, `lastAction`, `selectedTask`, `showNotif`, `searchQuery`, `filters` — tornano ai default al refresh.
+
+### 🔄 Resync globali alla hydration
+- `TEAM`, `CATEGORIES`, `CURRENT_USER` (i `let` mutabili usati dagli helper) vengono riallineati allo stato persistito via `_syncTeam`/`_syncCategories`/`_syncCurrentUser`, prima che qualsiasi componente leggi i riferimenti.
+- Se l'`currentUserId` salvato non esiste più nel TEAM, fallback al default.
+
+### 🧹 Reset dati locali
+- Nuovo riquadro in **Admin → Import/Export**: bottone "Cancella dati locali e ricarica" che fa `removeItem` su entrambe le chiavi + `location.reload()`. Conferma `window.confirm` obbligatoria.
+- Esistente "Esporta backup JSON" resta il modo consigliato per fare un salvataggio prima del reset.
+
+### 🛡️ Robustezza
+- Tutto in try/catch: errori di parse, quota superata o storage non disponibile → log su console + fallback ai default, niente schermata bianca.
+- Funziona anche in SSR / ambienti senza `window.localStorage`.
+
+### 📈 Metriche
+- File: 7071 → **~7180 righe** (+~110, solo helper + admin card).
+- Componenti nuovi: 0 (solo logica + un riquadro nel tab Admin IO).
+
+### ⚠️ Note migrazione
+- Rimosso il vincolo "no localStorage" dalla `CLAUDE.md` (era legato a claude.ai artifacts, ora in Vite).
+- Roadmap: spuntato il punto **Persistenza** nella traccia tecnica.
+
+---
+
 ## v0.9-dev — Ristrutturazione UI + Profilo + Handoff (sessione 8)
 
 > Semplificazione interfaccia, unificazione viste, nuovo profilo utente, preparazione per migrazione a progetto Vite.

@@ -25,7 +25,29 @@ const FontLoader = () => (
       --text-light: #9999AA;
       --border: #E0DDD5;
     }
-    body { font-family: 'DM Sans', sans-serif; background: var(--surface); color: var(--text); }
+    /* Dark mode v0.9.9: override CSS vars su data-theme="dark" applicato a <html>.
+       I componenti che già usano var(...) si adattano automaticamente; quelli con
+       colori hex inline ("#fff", "white") restano statici ma in genere sono pochi
+       (tipicamente per testo su sfondo navy che resta navy in entrambi i temi). */
+    html[data-theme="dark"] {
+      --navy: #1a3060;
+      --navy-light: #243d7a;
+      --navy-dark: #0a1530;
+      --gold: #D4A843;
+      --gold-light: #f0d480;
+      --gold-dark: #b8902e;
+      --surface: #15171f;
+      --surface2: #1f222d;
+      --surface3: #2a2e3b;
+      --success: #4dab78;
+      --warning: #e5a35a;
+      --danger: #e0584b;
+      --text: #e8e8ee;
+      --text-muted: #a4a4b8;
+      --text-light: #7a7a8e;
+      --border: #353a48;
+    }
+    body { font-family: 'DM Sans', sans-serif; background: var(--surface); color: var(--text); transition: background 0.2s, color 0.2s; }
     .playfair { font-family: 'Playfair Display', serif; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -125,13 +147,13 @@ const _syncCurrentUser = (id) => { CURRENT_USER = id; };
 // Sono `let` perché getMember e altre utility leggono il riferimento corrente.
 // Il reducer aggiorna sia state.team/state.categories sia questi array in-place.
 let TEAM = [
-  { id: "marco", name: "Marco Ferretti", role: "Manager", avatar: "MF", color: "#0F2044", capacity: 12, active: true, pending: false },
-  { id: "sofia", name: "Sofia Conti", role: "Senior Agent", avatar: "SC", color: "#2D7A4F", capacity: 10, active: true, pending: false },
-  { id: "luca", name: "Luca Moretti", role: "Junior Agent", avatar: "LM", color: "#C8832A", capacity: 8, active: true, pending: false },
-  { id: "giulia", name: "Giulia Ricci", role: "Driver", avatar: "GR", color: "#7B4F9E", capacity: 6, active: true, pending: false },
-  { id: "roberto", name: "Roberto Esposito", role: "Admin", avatar: "RE", color: "#C0392B", capacity: 9, active: true, pending: false },
-  { id: "elena", name: "Elena Marini", role: "Junior Agent", avatar: "EM", color: "#0EA5E9", capacity: 8, active: false, pending: true },
-  { id: "matteo", name: "Matteo De Luca", role: "Senior Agent", avatar: "MD", color: "#DB2777", capacity: 10, active: false, pending: true },
+  { id: "marco", name: "Marco Ferretti", role: "Manager", avatar: "MF", color: "#0F2044", capacity: 12, active: true, pending: false, status: "online" },
+  { id: "sofia", name: "Sofia Conti", role: "Senior Agent", avatar: "SC", color: "#2D7A4F", capacity: 10, active: true, pending: false, status: "online" },
+  { id: "luca", name: "Luca Moretti", role: "Junior Agent", avatar: "LM", color: "#C8832A", capacity: 8, active: true, pending: false, status: "busy" },
+  { id: "giulia", name: "Giulia Ricci", role: "Driver", avatar: "GR", color: "#7B4F9E", capacity: 6, active: true, pending: false, status: "away" },
+  { id: "roberto", name: "Roberto Esposito", role: "Admin", avatar: "RE", color: "#C0392B", capacity: 9, active: true, pending: false, status: "online" },
+  { id: "elena", name: "Elena Marini", role: "Junior Agent", avatar: "EM", color: "#0EA5E9", capacity: 8, active: false, pending: true, status: "offline" },
+  { id: "matteo", name: "Matteo De Luca", role: "Senior Agent", avatar: "MD", color: "#DB2777", capacity: 10, active: false, pending: true, status: "offline" },
 ];
 
 let CATEGORIES = {
@@ -179,44 +201,344 @@ const d = (daysOffset, h = 10, m = 0) => {
 };
 
 const INITIAL_TASKS = [
-  { id: "t1", title: "Confermare voli Maldive - Famiglia Rossi", category: "booking", priority: "critical", status: "inprogress", assignees: ["sofia"], client: "Famiglia Rossi", dueDate: d(1, 17, 0), estimatedHours: 2, description: "Verificare disponibilità posti business class e confermare prenotazione. Contattare Emirates per upgrade disponibili.", comments: [{ user: "Marco Ferretti", text: "Priorità massima, cliente VIP", time: d(-1) }] },
-  { id: "t2", title: "Visto Giappone - Coppia Bianchi", category: "visa", priority: "critical", status: "todo", assignees: ["roberto"], client: "Coppia Bianchi", dueDate: d(2, 9, 0), estimatedHours: 3, description: "Raccogliere documentazione per visto turistico Giappone. Luna di miele prevista per il mese prossimo.", comments: [] },
-  { id: "t3", title: "Hotel Overwater Bungalow - Maldive", category: "hotel", priority: "high", status: "inprogress", assignees: ["sofia", "luca"], client: "Famiglia Rossi", dueDate: d(3, 12, 0), estimatedHours: 1.5, description: "Contattare Four Seasons Kuda Huraa per disponibilità bungalow sull'acqua. Budget: 1500€/notte.", comments: [{ user: "Sofia Conti", text: "Four Seasons ha confermato 2 bungalow disponibili", time: d(-2) }] },
-  { id: "t4", title: "Proposta incentive travel TechCorp", category: "itinerary", priority: "high", status: "awaiting_client", assignees: ["marco"], client: "Azienda TechCorp", dueDate: d(4, 14, 0), estimatedHours: 5, description: "Preparare proposta dettagliata per viaggio incentive 50 persone. Destinazioni candidate: Dubrovnik, Marrakech, Lisbona.", comments: [{ user: "Marco Ferretti", text: "Proposta inviata, attesa risposta", time: d(-1) }] },
-  { id: "t5", title: "Pagamento acconto Famiglia Rossi", category: "payment", priority: "high", status: "todo", assignees: ["roberto"], client: "Famiglia Rossi", dueDate: d(0, 16, 0), estimatedHours: 0.5, description: "Richiedere acconto del 30% per prenotazione Maldive. Totale viaggio: 12.400€.", comments: [] },
-  { id: "t6", title: "Transfer aeroporto - Coppia Bianchi", category: "supplier", priority: "medium", status: "todo", assignees: ["giulia"], client: "Coppia Bianchi", dueDate: d(5, 8, 0), estimatedHours: 1, description: "Organizzare transfer NCC per partenza verso MXP. Volo KL 1656 ore 11:30.", comments: [] },
-  { id: "t7", title: "Newsletter Giugno - Offerte Estate", category: "marketing", priority: "medium", status: "inprogress", assignees: ["luca"], client: null, dueDate: d(6, 18, 0), estimatedHours: 4, description: "Creare newsletter mensile con offerte last minute estate 2025. Target: 2.400 contatti.", comments: [{ user: "Luca Moretti", text: "Bozza al 60%, aggiungo le foto Grecia", time: d(0) }] },
-  { id: "t8", title: "Contratto con nuovo fornitore bus", category: "supplier", priority: "medium", status: "awaiting_supplier", assignees: ["marco", "roberto"], client: null, dueDate: d(7, 10, 0), estimatedHours: 2, description: "Finalizzare accordo quadro con Autoservizi Meridionali per trasporti gruppi 2025/2026.", comments: [] },
-  { id: "t9", title: "Itinerario dettagliato Giappone 14 giorni", category: "itinerary", priority: "high", status: "inprogress", assignees: ["sofia"], client: "Coppia Bianchi", dueDate: d(3, 11, 0), estimatedHours: 6, description: "Strutturare itinerario Tokyo-Kyoto-Osaka-Hiroshima. Inserire esperienze di nicchia: cerimonia del tè, tempio Fushimi Inari alba.", comments: [{ user: "Sofia Conti", text: "Aggiunto ryokan a Kyoto su richiesta della coppia", time: d(-1) }] },
-  { id: "t10", title: "Aggiornare sito web pacchetti autunno", category: "marketing", priority: "low", status: "todo", assignees: ["luca"], client: null, dueDate: d(10, 17, 0), estimatedHours: 3, description: "Pubblicare nuovi pacchetti autunno: Foliage Canada, Halloween New York, Dolomiti.", comments: [] },
-  { id: "t11", title: "Check-in online TechCorp - voli Barcelona", category: "booking", priority: "high", status: "done", assignees: ["sofia"], client: "Azienda TechCorp", dueDate: d(-1, 9, 0), estimatedHours: 1, description: "Completare check-in online per 50 partecipanti. Assegnare posti preferenziali ai manager.", comments: [{ user: "Sofia Conti", text: "Check-in completato ✓ Tutti i posti assegnati", time: d(-1) }] },
-  { id: "t12", title: "Richiesta polizza assicurativa viaggio", category: "admin", priority: "medium", status: "done", assignees: ["roberto"], client: "Famiglia Rossi", dueDate: d(-2, 15, 0), estimatedHours: 0.5, description: "Polizza annullamento + medica per 4 persone. Confrontare Allianz, Generali, AXA.", comments: [{ user: "Roberto Esposito", text: "Polizza Allianz emessa, €342 totale", time: d(-2) }] },
-  { id: "t13", title: "Followup chiamata TechCorp - decisione destinazione", category: "client", priority: "critical", status: "awaiting_client", assignees: ["marco"], client: "Azienda TechCorp", dueDate: d(1, 10, 30), estimatedHours: 1, description: "Chiamata con HR Director TechCorp per confermare destinazione incentive. Budget approvato 85.000€.", comments: [] },
-  { id: "t14", title: "Prenotare ryokan Kyoto - Bianchi", category: "hotel", priority: "high", status: "inprogress", assignees: ["sofia"], client: "Coppia Bianchi", dueDate: d(2, 16, 0), estimatedHours: 2, description: "Prenotare Tawaraya Ryokan o Hiiragiya per 2 notti. Suite tradizionale con vista giardino zen.", comments: [] },
-  { id: "t15", title: "Fattura acconto TechCorp", category: "payment", priority: "medium", status: "todo", assignees: ["roberto"], client: "Azienda TechCorp", dueDate: d(4, 11, 0), estimatedHours: 0.5, description: "Emettere fattura acconto 50% per evento incentive. Importo: 42.500€ + IVA.", comments: [] },
-  { id: "t16", title: "Aggiornamento CRM clienti Q2", category: "admin", priority: "low", status: "todo", assignees: ["roberto", "luca"], client: null, dueDate: d(14, 17, 0), estimatedHours: 4, description: "Aggiornare schede clienti con dati viaggi 2025. Aggiungere preferenze e note speciali.", comments: [] },
-  { id: "t17", title: "Transfer hotel-aeroporto Bianchi Malpensa", category: "supplier", priority: "medium", status: "todo", assignees: ["giulia"], client: "Coppia Bianchi", dueDate: d(8, 6, 0), estimatedHours: 0.5, description: "NCC privato per 2 persone + bagagli. Partenza alle 06:45, volo ANA 785.", comments: [] },
-  { id: "t18", title: "Social media post - Maldive promo", category: "marketing", priority: "low", status: "done", assignees: ["luca"], client: null, dueDate: d(-3, 17, 0), estimatedHours: 1.5, description: "Post Instagram + Facebook con foto Maldive stagione monsoni. CTA: richiedi preventivo.", comments: [{ user: "Luca Moretti", text: "Post pubblicato, +156 interazioni in 24h", time: d(-3) }] },
-  { id: "t19", title: "Documenti sanitari Maldive - Rossi", category: "visa", priority: "high", status: "done", assignees: ["roberto"], client: "Famiglia Rossi", dueDate: d(-1, 12, 0), estimatedHours: 1, description: "Verificare requisiti sanitari entrata Maldive. Raccogliere certificati vaccinazione richiesti.", comments: [{ user: "Roberto Esposito", text: "Non richieste vaccinazioni specifiche, documentazione OK", time: d(-1) }] },
-  { id: "t20", title: "Presentazione corporate travel policy TechCorp", category: "client", priority: "medium", status: "awaiting_client", assignees: ["marco", "sofia"], client: "Azienda TechCorp", dueDate: d(5, 15, 0), estimatedHours: 3, description: "Preparare slide con policy viaggi corporate, livelli classe, hotel preferred, tool di prenotazione.", comments: [] },
-  { id: "t21", title: "Escursioni snorkeling Maldive", category: "booking", priority: "medium", status: "inprogress", assignees: ["luca"], client: "Famiglia Rossi", dueDate: d(6, 10, 0), estimatedHours: 1.5, description: "Prenotare 3 escursioni snorkeling e 1 sessione di immersione guidata con istruttore certificato.", comments: [] },
-  { id: "t22", title: "Revisione contratti stagione invernale", category: "admin", priority: "low", status: "todo", assignees: ["marco"], client: null, dueDate: d(20, 10, 0), estimatedHours: 5, description: "Revisione annuale contratti fornitori: tour operator, hotel chains, compagnie aeree.", comments: [] },
+  { id: "t1", title: "Confermare voli Maldive - Famiglia Rossi", category: "booking", priority: "critical", status: "inprogress", assignees: ["sofia"], client: "Famiglia Rossi", clientId: "cl-rossi", supplierId: "sp-emirates", practiceId: "pr-001", dueDate: d(1, 17, 0), estimatedHours: 2, description: "Verificare disponibilità posti business class e confermare prenotazione. Contattare Emirates per upgrade disponibili.", comments: [{ user: "Marco Ferretti", text: "Priorità massima, cliente VIP", time: d(-1) }] },
+  { id: "t2", title: "Visto Giappone - Coppia Bianchi", category: "visa", priority: "critical", status: "todo", assignees: ["roberto"], client: "Coppia Bianchi", clientId: "cl-bianchi", supplierId: "sp-visti", practiceId: "pr-002", dueDate: d(2, 9, 0), estimatedHours: 3, description: "Raccogliere documentazione per visto turistico Giappone. Luna di miele prevista per il mese prossimo.", comments: [] },
+  { id: "t3", title: "Hotel Overwater Bungalow - Maldive", category: "hotel", priority: "high", status: "inprogress", assignees: ["sofia", "luca"], client: "Famiglia Rossi", clientId: "cl-rossi", supplierId: "sp-fourseasons", practiceId: "pr-001", dueDate: d(3, 12, 0), estimatedHours: 1.5, description: "Contattare Four Seasons Kuda Huraa per disponibilità bungalow sull'acqua. Budget: 1500€/notte.", comments: [{ user: "Sofia Conti", text: "Four Seasons ha confermato 2 bungalow disponibili", time: d(-2) }] },
+  { id: "t4", title: "Proposta incentive travel TechCorp", category: "itinerary", priority: "high", status: "awaiting_client", assignees: ["marco"], client: "Azienda TechCorp", clientId: "cl-techcorp", practiceId: "pr-003", dueDate: d(4, 14, 0), estimatedHours: 5, description: "Preparare proposta dettagliata per viaggio incentive 50 persone. Destinazioni candidate: Dubrovnik, Marrakech, Lisbona.", comments: [{ user: "Marco Ferretti", text: "Proposta inviata, attesa risposta", time: d(-1) }] },
+  { id: "t5", title: "Pagamento acconto Famiglia Rossi", category: "payment", priority: "high", status: "todo", assignees: ["roberto"], client: "Famiglia Rossi", clientId: "cl-rossi", practiceId: "pr-001", dueDate: d(0, 16, 0), estimatedHours: 0.5, description: "Richiedere acconto del 30% per prenotazione Maldive. Totale viaggio: 12.400€.", comments: [] },
+  { id: "t6", title: "Transfer aeroporto - Coppia Bianchi", category: "supplier", priority: "medium", status: "todo", assignees: ["giulia"], client: "Coppia Bianchi", clientId: "cl-bianchi", supplierId: "sp-ncc", practiceId: "pr-002", dueDate: d(5, 8, 0), estimatedHours: 1, description: "Organizzare transfer NCC per partenza verso MXP. Volo KL 1656 ore 11:30.", comments: [] },
+  { id: "t7", title: "Newsletter Giugno - Offerte Estate", category: "marketing", priority: "medium", status: "inprogress", assignees: ["luca"], client: null, clientId: null, dueDate: d(6, 18, 0), estimatedHours: 4, description: "Creare newsletter mensile con offerte last minute estate 2025. Target: 2.400 contatti.", comments: [{ user: "Luca Moretti", text: "Bozza al 60%, aggiungo le foto Grecia", time: d(0) }] },
+  { id: "t8", title: "Contratto con nuovo fornitore bus", category: "supplier", priority: "medium", status: "awaiting_supplier", assignees: ["marco", "roberto"], client: null, clientId: null, supplierId: "sp-ncc", dueDate: d(7, 10, 0), estimatedHours: 2, description: "Finalizzare accordo quadro con Autoservizi Meridionali per trasporti gruppi 2025/2026.", comments: [] },
+  { id: "t9", title: "Itinerario dettagliato Giappone 14 giorni", category: "itinerary", priority: "high", status: "inprogress", assignees: ["sofia"], client: "Coppia Bianchi", clientId: "cl-bianchi", practiceId: "pr-002", dueDate: d(3, 11, 0), estimatedHours: 6, description: "Strutturare itinerario Tokyo-Kyoto-Osaka-Hiroshima. Inserire esperienze di nicchia: cerimonia del tè, tempio Fushimi Inari alba.", comments: [{ user: "Sofia Conti", text: "Aggiunto ryokan a Kyoto su richiesta della coppia", time: d(-1) }] },
+  { id: "t10", title: "Aggiornare sito web pacchetti autunno", category: "marketing", priority: "low", status: "todo", assignees: ["luca"], client: null, clientId: null, dueDate: d(10, 17, 0), estimatedHours: 3, description: "Pubblicare nuovi pacchetti autunno: Foliage Canada, Halloween New York, Dolomiti.", comments: [] },
+  { id: "t11", title: "Check-in online TechCorp - voli Barcelona", category: "booking", priority: "high", status: "done", assignees: ["sofia"], client: "Azienda TechCorp", clientId: "cl-techcorp", practiceId: "pr-003", dueDate: d(-1, 9, 0), estimatedHours: 1, description: "Completare check-in online per 50 partecipanti. Assegnare posti preferenziali ai manager.", comments: [{ user: "Sofia Conti", text: "Check-in completato ✓ Tutti i posti assegnati", time: d(-1) }] },
+  { id: "t12", title: "Richiesta polizza assicurativa viaggio", category: "admin", priority: "medium", status: "done", assignees: ["roberto"], client: "Famiglia Rossi", clientId: "cl-rossi", supplierId: "sp-allianz", practiceId: "pr-001", dueDate: d(-2, 15, 0), estimatedHours: 0.5, description: "Polizza annullamento + medica per 4 persone. Confrontare Allianz, Generali, AXA.", comments: [{ user: "Roberto Esposito", text: "Polizza Allianz emessa, €342 totale", time: d(-2) }] },
+  { id: "t13", title: "Followup chiamata TechCorp - decisione destinazione", category: "client", priority: "critical", status: "awaiting_client", assignees: ["marco"], client: "Azienda TechCorp", clientId: "cl-techcorp", practiceId: "pr-003", dueDate: d(1, 10, 30), estimatedHours: 1, description: "Chiamata con HR Director TechCorp per confermare destinazione incentive. Budget approvato 85.000€.", comments: [] },
+  { id: "t14", title: "Prenotare ryokan Kyoto - Bianchi", category: "hotel", priority: "high", status: "inprogress", assignees: ["sofia"], client: "Coppia Bianchi", clientId: "cl-bianchi", supplierId: "sp-ryokan", practiceId: "pr-002", dueDate: d(2, 16, 0), estimatedHours: 2, description: "Prenotare Tawaraya Ryokan o Hiiragiya per 2 notti. Suite tradizionale con vista giardino zen.", comments: [] },
+  { id: "t15", title: "Fattura acconto TechCorp", category: "payment", priority: "medium", status: "todo", assignees: ["roberto"], client: "Azienda TechCorp", clientId: "cl-techcorp", practiceId: "pr-003", dueDate: d(4, 11, 0), estimatedHours: 0.5, description: "Emettere fattura acconto 50% per evento incentive. Importo: 42.500€ + IVA.", comments: [] },
+  { id: "t16", title: "Aggiornamento CRM clienti Q2", category: "admin", priority: "low", status: "todo", assignees: ["roberto", "luca"], client: null, clientId: null, dueDate: d(14, 17, 0), estimatedHours: 4, description: "Aggiornare schede clienti con dati viaggi 2025. Aggiungere preferenze e note speciali.", comments: [] },
+  { id: "t17", title: "Transfer hotel-aeroporto Bianchi Malpensa", category: "supplier", priority: "medium", status: "todo", assignees: ["giulia"], client: "Coppia Bianchi", clientId: "cl-bianchi", supplierId: "sp-ncc", practiceId: "pr-002", dueDate: d(8, 6, 0), estimatedHours: 0.5, description: "NCC privato per 2 persone + bagagli. Partenza alle 06:45, volo ANA 785.", comments: [] },
+  { id: "t18", title: "Social media post - Maldive promo", category: "marketing", priority: "low", status: "done", assignees: ["luca"], client: null, clientId: null, dueDate: d(-3, 17, 0), estimatedHours: 1.5, description: "Post Instagram + Facebook con foto Maldive stagione monsoni. CTA: richiedi preventivo.", comments: [{ user: "Luca Moretti", text: "Post pubblicato, +156 interazioni in 24h", time: d(-3) }] },
+  { id: "t19", title: "Documenti sanitari Maldive - Rossi", category: "visa", priority: "high", status: "done", assignees: ["roberto"], client: "Famiglia Rossi", clientId: "cl-rossi", supplierId: "sp-visti", practiceId: "pr-001", dueDate: d(-1, 12, 0), estimatedHours: 1, description: "Verificare requisiti sanitari entrata Maldive. Raccogliere certificati vaccinazione richiesti.", comments: [{ user: "Roberto Esposito", text: "Non richieste vaccinazioni specifiche, documentazione OK", time: d(-1) }] },
+  { id: "t20", title: "Presentazione corporate travel policy TechCorp", category: "client", priority: "medium", status: "awaiting_client", assignees: ["marco", "sofia"], client: "Azienda TechCorp", clientId: "cl-techcorp", practiceId: "pr-003", dueDate: d(5, 15, 0), estimatedHours: 3, description: "Preparare slide con policy viaggi corporate, livelli classe, hotel preferred, tool di prenotazione.", comments: [] },
+  { id: "t21", title: "Escursioni snorkeling Maldive", category: "booking", priority: "medium", status: "inprogress", assignees: ["luca"], client: "Famiglia Rossi", clientId: "cl-rossi", practiceId: "pr-001", dueDate: d(6, 10, 0), estimatedHours: 1.5, description: "Prenotare 3 escursioni snorkeling e 1 sessione di immersione guidata con istruttore certificato.", comments: [] },
+  { id: "t22", title: "Revisione contratti stagione invernale", category: "admin", priority: "low", status: "todo", assignees: ["marco"], client: null, clientId: null, dueDate: d(20, 10, 0), estimatedHours: 5, description: "Revisione annuale contratti fornitori: tour operator, hotel chains, compagnie aeree.", comments: [] },
   // ─── Coda globale: task non assegnati (in attesa che qualcuno li prenda in carico) ───
-  { id: "t23", title: "Nuova richiesta crociera Caraibi - Famiglia Marchetti", category: "client", priority: "high", status: "todo", assignees: [], client: "Famiglia Marchetti", dueDate: d(2, 11, 0), estimatedHours: 1, description: "Richiesta arrivata via form sito: crociera 7 notti per 4 persone, partenza Miami. Da contattare entro 48h.", comments: [] },
-  { id: "t24", title: "Blocco urgente Hotel Atene per gruppo studenti", category: "hotel", priority: "critical", status: "todo", assignees: [], client: "Liceo Manzoni", dueDate: d(1, 12, 0), estimatedHours: 2, description: "30 camere a Plaka per fine Maggio. Tariffa già negoziata, serve solo conferma e invio rooming list.", comments: [] },
-  { id: "t25", title: "Preventivo viaggio nozze Vietnam - Sposi Conte", category: "itinerary", priority: "medium", status: "todo", assignees: [], client: "Sposi Conte", dueDate: d(5, 17, 0), estimatedHours: 3, description: "14 giorni Vietnam classico: Hanoi - Halong - Hoi An - Saigon. Budget medio-alto, esperienze locali.", comments: [] },
+  { id: "t23", title: "Nuova richiesta crociera Caraibi - Famiglia Marchetti", category: "client", priority: "high", status: "todo", assignees: [], client: "Famiglia Marchetti", clientId: "cl-marchetti", practiceId: "pr-004", dueDate: d(2, 11, 0), estimatedHours: 1, description: "Richiesta arrivata via form sito: crociera 7 notti per 4 persone, partenza Miami. Da contattare entro 48h.", comments: [] },
+  { id: "t24", title: "Blocco urgente Hotel Atene per gruppo studenti", category: "hotel", priority: "critical", status: "todo", assignees: [], client: "Liceo Manzoni", clientId: "cl-manzoni", practiceId: "pr-005", dueDate: d(1, 12, 0), estimatedHours: 2, description: "30 camere a Plaka per fine Maggio. Tariffa già negoziata, serve solo conferma e invio rooming list.", comments: [] },
+  { id: "t25", title: "Preventivo viaggio nozze Vietnam - Sposi Conte", category: "itinerary", priority: "medium", status: "todo", assignees: [], client: "Sposi Conte", clientId: "cl-conte", practiceId: "pr-006", dueDate: d(5, 17, 0), estimatedHours: 3, description: "14 giorni Vietnam classico: Hanoi - Halong - Hoi An - Saigon. Budget medio-alto, esperienze locali.", comments: [] },
   // ─── Task Transfer assegnati a Giulia (Driver) ───
-  { id: "t26", title: "Transfer Linate → Hotel Principe - Famiglia Rossi", category: "transfer", priority: "high", status: "todo", assignees: ["giulia"], client: "Famiglia Rossi", dueDate: d(1, 14, 30), estimatedHours: 1, description: "Pickup arrivo volo AZ1234 ore 14:00, 4 pax + 6 bagagli. Van 8 posti.", comments: [] },
-  { id: "t27", title: "Transfer Hotel → Stazione Centrale - Coppia Bianchi", category: "transfer", priority: "medium", status: "inprogress", assignees: ["giulia"], client: "Coppia Bianchi", dueDate: d(3, 9, 0), estimatedHours: 0.5, description: "Pickup hotel ore 09:00, treno Frecciarossa 9:55 per Roma. 2 pax + 3 bagagli.", comments: [] },
+  { id: "t26", title: "Transfer Linate → Hotel Principe - Famiglia Rossi", category: "transfer", priority: "high", status: "todo", assignees: ["giulia"], client: "Famiglia Rossi", clientId: "cl-rossi", practiceId: "pr-001", dueDate: d(1, 14, 30), estimatedHours: 1, description: "Pickup arrivo volo AZ1234 ore 14:00, 4 pax + 6 bagagli. Van 8 posti.", comments: [] },
+  { id: "t27", title: "Transfer Hotel → Stazione Centrale - Coppia Bianchi", category: "transfer", priority: "medium", status: "inprogress", assignees: ["giulia"], client: "Coppia Bianchi", clientId: "cl-bianchi", practiceId: "pr-002", dueDate: d(3, 9, 0), estimatedHours: 0.5, description: "Pickup hotel ore 09:00, treno Frecciarossa 9:55 per Roma. 2 pax + 3 bagagli.", comments: [] },
 ];
 
-const NOTIFICATIONS = [
-  { id: "n1", type: "overdue", title: "Task scaduto: Visto Giappone - Coppia Bianchi", time: "5 min fa", read: false },
-  { id: "n2", type: "assigned", title: "Nuovo task assegnato: Newsletter Giugno", time: "1 ora fa", read: false },
-  { id: "n3", type: "comment", title: "Sofia ha commentato su Hotel Overwater Bungalow", time: "2 ore fa", read: false },
-  { id: "n4", type: "deadline", title: "Scadenza domani: Conferma voli Maldive", time: "3 ore fa", read: true },
-  { id: "n5", type: "comment", title: "Luca ha aggiornato: Newsletter Giugno", time: "4 ore fa", read: true },
-  { id: "n6", type: "deadline", title: "Scadenza oggi: Pagamento acconto Famiglia Rossi", time: "8 ore fa", read: true },
+// ─── NOTIFICHE (v0.9.9) ────────────────────────────────────────────────────
+// Schema strutturato: ogni notifica ha un destinatario (recipientId) e può linkare
+// a un'entità correlata (task/practice/team) per la navigazione al click.
+// I tipi (NOTIF_TYPES) controllano l'icona mostrata nel pannello.
+const NOTIF_TYPES = {
+  assigned: { icon: "📋", label: "Assegnazione" },
+  comment: { icon: "💬", label: "Commento" },
+  overdue: { icon: "⚠️", label: "Scaduto" },
+  deadline: { icon: "📅", label: "Scadenza" },
+  pending: { icon: "🙋", label: "Richiesta agente" },
+  status: { icon: "🔄", label: "Cambio stato" },
+  practice: { icon: "📂", label: "Pratica" },
+};
+
+const _notifStamp = (minutesAgo) => new Date(Date.now() - minutesAgo * 60 * 1000).toISOString();
+
+const INITIAL_NOTIFICATIONS = [
+  // Marco (utente di default)
+  { id: "n1", type: "deadline", text: "Scadenza domani: Conferma voli Maldive - Famiglia Rossi", recipientId: "marco", relatedType: "task", relatedId: "t1", time: _notifStamp(180), read: false },
+  { id: "n2", type: "comment", text: "Sofia ha commentato: Hotel Overwater Bungalow - Maldive", recipientId: "marco", relatedType: "task", relatedId: "t3", time: _notifStamp(120), read: false },
+  { id: "n3", type: "comment", text: "Sofia ha aggiunto una nota su PR-2026-001", recipientId: "marco", relatedType: "practice", relatedId: "pr-001", time: _notifStamp(45), read: false },
+  // Sofia
+  { id: "n4", type: "assigned", text: "Marco ti ha assegnato: Itinerario Giappone 14 giorni", recipientId: "sofia", relatedType: "task", relatedId: "t9", time: _notifStamp(60), read: false },
+  { id: "n5", type: "deadline", text: "Scadenza oggi: Pagamento acconto Famiglia Rossi", recipientId: "sofia", relatedType: "task", relatedId: "t5", time: _notifStamp(15), read: false },
+  // Roberto (admin)
+  { id: "n6", type: "pending", text: "Nuova richiesta agente: Elena Marini", recipientId: "roberto", relatedType: "team", relatedId: "elena", time: _notifStamp(240), read: false },
+  { id: "n7", type: "pending", text: "Nuova richiesta agente: Matteo De Luca", recipientId: "roberto", relatedType: "team", relatedId: "matteo", time: _notifStamp(300), read: true },
+  // Luca
+  { id: "n8", type: "assigned", text: "Marco ti ha assegnato: Newsletter Giugno - Offerte Estate", recipientId: "luca", relatedType: "task", relatedId: "t7", time: _notifStamp(480), read: false },
+  // Giulia (driver)
+  { id: "n9", type: "deadline", text: "Transfer di oggi: Linate → Hotel Principe", recipientId: "giulia", relatedType: "task", relatedId: "t26", time: _notifStamp(90), read: false },
+];
+
+// ─── CLIENTI (CRM base v0.9.5) ─────────────────────────────────────────────
+// Tipologia cliente: cambia icona + colore in lista e nei chip.
+const CLIENT_TYPES = {
+  famiglia: { label: "Famiglia", icon: "👨‍👩‍👧", color: "#3B82F6", bg: "#EFF6FF" },
+  coppia: { label: "Coppia", icon: "💑", color: "#EC4899", bg: "#FDF2F8" },
+  azienda: { label: "Azienda", icon: "🏢", color: "#0F2044", bg: "#EEF2FF" },
+  gruppo: { label: "Gruppo", icon: "👥", color: "#10B981", bg: "#ECFDF5" },
+  individuale: { label: "Individuale", icon: "👤", color: "#6B7280", bg: "#F9FAFB" },
+};
+
+const _clientStamp = (daysAgo) => new Date(Date.now() - daysAgo * 86400000).toISOString();
+
+const INITIAL_CLIENTS = [
+  {
+    id: "cl-rossi", name: "Famiglia Rossi", type: "famiglia",
+    contactPerson: "Marco Rossi", email: "marco.rossi@example.com", phone: "+39 333 1234567",
+    notes: "Cliente VIP. Adora destinazioni esotiche, budget alto. Preferenze: business class, esperienze esclusive.",
+    createdAt: _clientStamp(120), updatedAt: _clientStamp(2), deletedAt: null,
+  },
+  {
+    id: "cl-bianchi", name: "Coppia Bianchi", type: "coppia",
+    contactPerson: "Giulia Bianchi", email: "g.bianchi@example.com", phone: "+39 339 7654321",
+    notes: "Luna di miele. Prima volta in Giappone. Interessati a esperienze culturali autentiche (ryokan, tè).",
+    createdAt: _clientStamp(80), updatedAt: _clientStamp(5), deletedAt: null,
+  },
+  {
+    id: "cl-techcorp", name: "Azienda TechCorp", type: "azienda",
+    contactPerson: "Anna Verdi (HR Director)", email: "hr@techcorp.it", phone: "+39 02 12345678",
+    notes: "Incentive 50 persone, budget 85.000€. Approvazione interna richiesta su destinazione. Preferenze: Dubrovnik, Marrakech, Lisbona.",
+    createdAt: _clientStamp(60), updatedAt: _clientStamp(1), deletedAt: null,
+  },
+  {
+    id: "cl-marchetti", name: "Famiglia Marchetti", type: "famiglia",
+    contactPerson: "Stefano Marchetti", email: "marchetti.family@example.com", phone: "+39 320 9988776",
+    notes: "Richiesta arrivata da form sito. Crociera Caraibi 7 notti per 4 persone, partenza Miami. Da contattare entro 48h.",
+    createdAt: _clientStamp(3), updatedAt: _clientStamp(3), deletedAt: null,
+  },
+  {
+    id: "cl-manzoni", name: "Liceo Manzoni", type: "gruppo",
+    contactPerson: "Prof. Ruggeri", email: "ruggeri@liceomanzoni.it", phone: "+39 011 5556677",
+    notes: "Gruppo 30 studenti + 3 docenti. Viaggio istruzione Atene fine Maggio. Tariffa hotel Plaka già negoziata.",
+    createdAt: _clientStamp(45), updatedAt: _clientStamp(7), deletedAt: null,
+  },
+  {
+    id: "cl-conte", name: "Sposi Conte", type: "coppia",
+    contactPerson: "Davide Conte", email: "davide.conte@example.com", phone: "+39 348 1122334",
+    notes: "Viaggio nozze Vietnam classico, 14 giorni: Hanoi - Halong - Hoi An - Saigon. Budget medio-alto, esperienze locali.",
+    createdAt: _clientStamp(20), updatedAt: _clientStamp(4), deletedAt: null,
+  },
+];
+
+// Mappa nomi cliente legacy (campo `task.client` testo) → ID anagrafica clienti.
+// Usato per migrare al volo: se task.clientId è assente ma `task.client` matcha un nome noto, risolviamo.
+const _LEGACY_CLIENT_NAME_TO_ID = {
+  "Famiglia Rossi": "cl-rossi",
+  "Coppia Bianchi": "cl-bianchi",
+  "Azienda TechCorp": "cl-techcorp",
+  "Famiglia Marchetti": "cl-marchetti",
+  "Liceo Manzoni": "cl-manzoni",
+  "Sposi Conte": "cl-conte",
+};
+
+// ─── FORNITORI (v0.9.7) ────────────────────────────────────────────────────
+// Tipologie fornitori coerenti con le esigenze di un'agenzia / tour operator.
+const SUPPLIER_TYPES = {
+  hotel: { label: "Hotel / Resort", icon: "🏨", color: "#8B5CF6", bg: "#F5F3FF" },
+  transport: { label: "Trasporti / NCC", icon: "🚐", color: "#7B4F9E", bg: "#F3F0F9" },
+  airline: { label: "Compagnia aerea", icon: "✈️", color: "#3B82F6", bg: "#EFF6FF" },
+  insurance: { label: "Assicurazioni", icon: "🛡️", color: "#10B981", bg: "#ECFDF5" },
+  "tour-operator": { label: "Tour operator", icon: "🌍", color: "#F97316", bg: "#FFF7ED" },
+  visa: { label: "Visti / Consolato", icon: "🛂", color: "#EF4444", bg: "#FEF2F2" },
+  other: { label: "Altro", icon: "🤝", color: "#6B7280", bg: "#F9FAFB" },
+};
+
+const INITIAL_SUPPLIERS = [
+  {
+    id: "sp-fourseasons", name: "Four Seasons Resort Maldives Kuda Huraa", type: "hotel",
+    contactPerson: "Reservations Office", email: "reservations.kudahuraa@fourseasons.com", phone: "+960 664 4888",
+    address: "North Malé Atoll, Maldive",
+    services: "Overwater bungalow, beach villas, all-inclusive packages",
+    notes: "Partner preferito per Maldive VIP. Tariffe nette concordate per Marzo-Maggio.",
+    createdAt: _clientStamp(180), updatedAt: _clientStamp(10), deletedAt: null,
+  },
+  {
+    id: "sp-emirates", name: "Emirates", type: "airline",
+    contactPerson: "Trade Sales Italy", email: "trade.italy@emirates.com", phone: "+39 02 36046000",
+    address: "Via Larga 23, 20122 Milano",
+    services: "Voli business/first class, upgrade su disponibilità",
+    notes: "Tariffe IATA + commissione standard. Codice agenzia attivo.",
+    createdAt: _clientStamp(200), updatedAt: _clientStamp(15), deletedAt: null,
+  },
+  {
+    id: "sp-ncc", name: "Autoservizi Meridionali NCC", type: "transport",
+    contactPerson: "Antonio Russo", email: "antonio@autosrvmer.it", phone: "+39 02 8765432",
+    address: "Via dei Mercati 8, 20149 Milano",
+    services: "Transfer privati MXP/LIN, van 8-16 posti, autisti multilingua",
+    notes: "Accordo quadro 2025/2026 in chiusura. Tariffe scontate per gruppi >8 pax.",
+    createdAt: _clientStamp(90), updatedAt: _clientStamp(3), deletedAt: null,
+  },
+  {
+    id: "sp-allianz", name: "Allianz Global Assistance", type: "insurance",
+    contactPerson: "Customer Care B2B", email: "agenzie@allianz-assistance.it", phone: "+39 02 26609300",
+    address: "Via Cordusio 4, 20123 Milano",
+    services: "Polizze annullamento, medico/bagaglio, multi-rischio",
+    notes: "Login portale agenzie attivo. Emissione immediata fino a 200k€ assicurati.",
+    createdAt: _clientStamp(150), updatedAt: _clientStamp(8), deletedAt: null,
+  },
+  {
+    id: "sp-ryokan", name: "Tawaraya Ryokan", type: "hotel",
+    contactPerson: "Yumiko Sato", email: "info@tawarayaryokan.com", phone: "+81 75 211 5566",
+    address: "Fuyacho-dori, Anekoji-agaru, Nakagyo-ku, Kyoto",
+    services: "Ryokan tradizionale, kaiseki, vista giardino zen",
+    notes: "Prenotare con almeno 60 giorni di anticipo. Comunicazione via email in inglese.",
+    createdAt: _clientStamp(110), updatedAt: _clientStamp(6), deletedAt: null,
+  },
+  {
+    id: "sp-visti", name: "Visti Express Italia", type: "visa",
+    contactPerson: "Marina Bellucci", email: "info@vistiexpress.it", phone: "+39 06 4555888",
+    address: "Via Cavour 76, 00184 Roma",
+    services: "Visti turistici/business per Giappone, Cina, USA, Russia. Gestione completa pratica.",
+    notes: "Tempi medi 7-10 gg lavorativi. Fee fissa + spese consolari.",
+    createdAt: _clientStamp(60), updatedAt: _clientStamp(2), deletedAt: null,
+  },
+];
+
+// ─── PRATICHE DI VIAGGIO (v0.9.8) ──────────────────────────────────────────
+// Entità centrale che aggrega task + cliente + fornitori + economia per un singolo viaggio.
+// Numerazione progressiva PR-YYYY-NNN auto-generata alla creazione.
+const PRACTICE_STATUSES = {
+  draft: { label: "Bozza", icon: "📝", color: "#6B7280", bg: "#F3F4F6" },
+  confirmed: { label: "Confermata", icon: "✅", color: "#3B82F6", bg: "#EFF6FF" },
+  in_progress: { label: "In corso", icon: "🚀", color: "#C8832A", bg: "#FEF3C7" },
+  completed: { label: "Completata", icon: "🏁", color: "#2D7A4F", bg: "#D1FAE5" },
+  cancelled: { label: "Annullata", icon: "❌", color: "#C0392B", bg: "#FEE2E2" },
+};
+const PRACTICE_STATUS_ORDER = ["draft", "confirmed", "in_progress", "completed", "cancelled"];
+
+// Genera il prossimo numero pratica del formato PR-YYYY-NNN basandosi sulle pratiche esistenti.
+// Tiene conto dell'anno corrente: se non esistono pratiche dell'anno, NNN=001.
+const generatePracticeNumber = (existing) => {
+  const year = new Date().getFullYear();
+  const prefix = `PR-${year}-`;
+  const maxNum = (existing || []).reduce((max, p) => {
+    if (!p?.number?.startsWith(prefix)) return max;
+    const n = parseInt(p.number.slice(prefix.length), 10);
+    return isNaN(n) ? max : Math.max(max, n);
+  }, 0);
+  return `${prefix}${String(maxNum + 1).padStart(3, "0")}`;
+};
+
+// Calcola il margine: ricavo - costo. Se mancano valori, ritorna 0.
+const getPracticeMargin = (p) => {
+  const revenue = Number(p?.totalValue) || 0;
+  const cost = Number(p?.cost) || 0;
+  return revenue - cost;
+};
+const getPracticePaidPct = (p) => {
+  const revenue = Number(p?.totalValue) || 0;
+  const paid = Number(p?.paid) || 0;
+  if (revenue <= 0) return 0;
+  return Math.min(100, Math.round((paid / revenue) * 100));
+};
+
+const _practiceStamp = (daysAgo) => new Date(Date.now() - daysAgo * 86400000).toISOString();
+const _futureDate = (daysAhead, h = 10) => {
+  const d = new Date(); d.setDate(d.getDate() + daysAhead); d.setHours(h, 0, 0, 0); return d.toISOString();
+};
+
+const INITIAL_PRACTICES = [
+  {
+    id: "pr-001", number: "PR-2026-001",
+    title: "Maldive 7 notti overwater - Famiglia Rossi",
+    clientId: "cl-rossi",
+    supplierIds: ["sp-fourseasons", "sp-emirates", "sp-allianz"],
+    status: "in_progress",
+    destination: "Maldive — Atollo di Malé Nord",
+    departureDate: _futureDate(15, 11),
+    returnDate: _futureDate(22, 14),
+    totalValue: 12400, cost: 8200, paid: 3720,
+    notes: "Cliente VIP. 4 pax: Marco + moglie + 2 figli. Volo Emirates business class, 7 notti overwater bungalow Four Seasons Kuda Huraa con prima colazione. Polizza annullamento Allianz emessa.",
+    events: [
+      { time: _practiceStamp(90), type: "created", text: "Pratica creata", userId: "marco" },
+      { time: _practiceStamp(85), type: "status", text: "Stato: Bozza → Confermata", userId: "marco" },
+      { time: _practiceStamp(60), type: "payment", text: "Acconto 30% ricevuto (€3.720)", userId: "roberto" },
+      { time: _practiceStamp(45), type: "status", text: "Stato: Confermata → In corso", userId: "marco" },
+      { time: _practiceStamp(2), type: "note", text: "Confermati 2 overwater bungalow, prima colazione inclusa", userId: "sofia" },
+    ],
+    createdAt: _practiceStamp(90), updatedAt: _practiceStamp(2), deletedAt: null,
+  },
+  {
+    id: "pr-002", number: "PR-2026-002",
+    title: "Luna di miele Giappone 14 giorni - Coppia Bianchi",
+    clientId: "cl-bianchi",
+    supplierIds: ["sp-ryokan", "sp-visti", "sp-ncc"],
+    status: "confirmed",
+    destination: "Giappone — Tokyo, Kyoto, Osaka, Hiroshima",
+    departureDate: _futureDate(45, 7),
+    returnDate: _futureDate(59, 22),
+    totalValue: 9800, cost: 6400, paid: 1960,
+    notes: "Luna di miele. Itinerario classico Tokyo-Kyoto-Osaka-Hiroshima. 2 notti ryokan tradizionale Tawaraya a Kyoto. Cerimonia del tè e visita tempio Fushimi Inari all'alba richieste.",
+    events: [
+      { time: _practiceStamp(75), type: "created", text: "Pratica creata", userId: "marco" },
+      { time: _practiceStamp(50), type: "status", text: "Stato: Bozza → Confermata", userId: "marco" },
+      { time: _practiceStamp(48), type: "payment", text: "Acconto 20% ricevuto (€1.960)", userId: "roberto" },
+      { time: _practiceStamp(5), type: "note", text: "Richiesta aggiuntiva: transfer aeroporto al rientro", userId: "sofia" },
+    ],
+    createdAt: _practiceStamp(75), updatedAt: _practiceStamp(5), deletedAt: null,
+  },
+  {
+    id: "pr-003", number: "PR-2026-003",
+    title: "Incentive travel 50 persone - TechCorp",
+    clientId: "cl-techcorp",
+    supplierIds: ["sp-emirates"],
+    status: "draft",
+    destination: "Da definire — candidate: Dubrovnik, Marrakech, Lisbona",
+    departureDate: _futureDate(120, 9),
+    returnDate: _futureDate(124, 18),
+    totalValue: 85000, cost: 0, paid: 0,
+    notes: "Incentive aziendale 50 persone. Budget approvato 85.000€. Destinazione da confermare con HR Director TechCorp. Hotel 4* con sale meeting, programma esperienziale incluso.",
+    events: [
+      { time: _practiceStamp(55), type: "created", text: "Pratica creata in bozza", userId: "marco" },
+      { time: _practiceStamp(40), type: "note", text: "Proposta dettagliata inviata al cliente", userId: "marco" },
+      { time: _practiceStamp(1), type: "note", text: "In attesa conferma destinazione da HR Director", userId: "marco" },
+    ],
+    createdAt: _practiceStamp(55), updatedAt: _practiceStamp(1), deletedAt: null,
+  },
+  {
+    id: "pr-004", number: "PR-2026-004",
+    title: "Crociera Caraibi 7 notti - Famiglia Marchetti",
+    clientId: "cl-marchetti",
+    supplierIds: [],
+    status: "draft",
+    destination: "Caraibi — partenza Miami",
+    departureDate: null, returnDate: null,
+    totalValue: 0, cost: 0, paid: 0,
+    notes: "Richiesta arrivata via form sito. Crociera 7 notti per 4 persone, partenza Miami. Da contattare entro 48h per qualifica richiesta.",
+    events: [
+      { time: _practiceStamp(3), type: "created", text: "Pratica creata da richiesta web", userId: "marco" },
+    ],
+    createdAt: _practiceStamp(3), updatedAt: _practiceStamp(3), deletedAt: null,
+  },
+  {
+    id: "pr-005", number: "PR-2026-005",
+    title: "Viaggio istruzione Atene - Liceo Manzoni",
+    clientId: "cl-manzoni",
+    supplierIds: [],
+    status: "draft",
+    destination: "Atene, Grecia",
+    departureDate: _futureDate(60, 6),
+    returnDate: _futureDate(64, 23),
+    totalValue: 18900, cost: 0, paid: 0,
+    notes: "30 studenti + 3 docenti. Hotel Plaka 3*, tariffa già negoziata. Serve solo conferma e invio rooming list. Visite guidate: Acropoli, Museo Archeologico, Capo Sounio.",
+    events: [
+      { time: _practiceStamp(50), type: "created", text: "Pratica creata", userId: "marco" },
+      { time: _practiceStamp(30), type: "note", text: "Tariffa hotel negoziata con Aegean Hotels Group", userId: "roberto" },
+    ],
+    createdAt: _practiceStamp(50), updatedAt: _practiceStamp(30), deletedAt: null,
+  },
+  {
+    id: "pr-006", number: "PR-2026-006",
+    title: "Viaggio nozze Vietnam 14 giorni - Sposi Conte",
+    clientId: "cl-conte",
+    supplierIds: [],
+    status: "draft",
+    destination: "Vietnam — Hanoi, Halong, Hoi An, Saigon",
+    departureDate: _futureDate(150, 8),
+    returnDate: _futureDate(164, 20),
+    totalValue: 0, cost: 0, paid: 0,
+    notes: "Vietnam classico, 14 giorni. Budget medio-alto, esperienze locali (crociera Halong, lezioni cucina, cyclo Hue). Preventivo da preparare.",
+    events: [
+      { time: _practiceStamp(20), type: "created", text: "Pratica creata", userId: "marco" },
+    ],
+    createdAt: _practiceStamp(20), updatedAt: _practiceStamp(20), deletedAt: null,
+  },
 ];
 
 // ─── TASK TEMPLATES ────────────────────────────────────────────────────────
@@ -301,6 +623,9 @@ const LOGGED_ACTIONS = new Set([
   "ADD_CATEGORY", "UPDATE_CATEGORY", "REMOVE_CATEGORY",
   "RESTORE_BACKUP",
   "ADD_NOTICE", "UPDATE_NOTICE", "DELETE_NOTICE",
+  "ADD_CLIENT", "UPDATE_CLIENT", "DELETE_CLIENT",
+  "ADD_SUPPLIER", "UPDATE_SUPPLIER", "DELETE_SUPPLIER",
+  "ADD_PRACTICE", "UPDATE_PRACTICE", "DELETE_PRACTICE", "CHANGE_PRACTICE_STATUS",
 ]);
 
 const buildLogEntry = (action, state) => {
@@ -329,6 +654,32 @@ const buildLogEntry = (action, state) => {
     ADD_NOTICE: () => `Pubblicato avviso in bacheca`,
     UPDATE_NOTICE: () => `Modificato avviso in bacheca`,
     DELETE_NOTICE: () => `Rimosso avviso dalla bacheca`,
+    ADD_CLIENT: () => `Aggiunto cliente "${action.payload.name}"`,
+    UPDATE_CLIENT: () => `Modificato cliente "${action.payload.name || action.payload.id}"`,
+    DELETE_CLIENT: () => {
+      const cl = (state.clients || []).find(c => c.id === action.payload);
+      return `Cliente "${cl?.name || action.payload}" nel cestino`;
+    },
+    ADD_SUPPLIER: () => `Aggiunto fornitore "${action.payload.name}"`,
+    UPDATE_SUPPLIER: () => `Modificato fornitore "${action.payload.name || action.payload.id}"`,
+    DELETE_SUPPLIER: () => {
+      const sp = (state.suppliers || []).find(s => s.id === action.payload);
+      return `Fornitore "${sp?.name || action.payload}" nel cestino`;
+    },
+    ADD_PRACTICE: () => `Creata pratica ${action.payload.number} — ${action.payload.title}`,
+    UPDATE_PRACTICE: () => {
+      const pr = (state.practices || []).find(p => p.id === action.payload.id);
+      return `Aggiornata pratica ${pr?.number || action.payload.id}`;
+    },
+    DELETE_PRACTICE: () => {
+      const pr = (state.practices || []).find(p => p.id === action.payload);
+      return `Pratica ${pr?.number || action.payload} nel cestino`;
+    },
+    CHANGE_PRACTICE_STATUS: () => {
+      const pr = (state.practices || []).find(p => p.id === action.payload.id);
+      const newLabel = PRACTICE_STATUSES[action.payload.status]?.label || action.payload.status;
+      return `Pratica ${pr?.number || action.payload.id}: stato → ${newLabel}`;
+    },
   };
   return { id: `log-${stamp}-${Math.random().toString(36).slice(2,7)}`, time: stamp, type: t, text: (map[t] || (() => t))() };
 };
@@ -344,6 +695,18 @@ function baseReducer(state, action) {
       if (action.payload === "admin" && !canAccessAdmin(uid)) {
         return _denied("Non hai i permessi per accedere all'Admin");
       }
+      // Driver non vede la vista Clienti
+      if (action.payload === "clients" && !canViewClients(uid)) {
+        return _denied("Non hai i permessi per accedere ai Clienti");
+      }
+      // Driver non vede la vista Fornitori (v0.9.7)
+      if (action.payload === "suppliers" && !canViewSuppliers(uid)) {
+        return _denied("Non hai i permessi per accedere ai Fornitori");
+      }
+      // Driver non vede la vista Pratiche (v0.9.8)
+      if (action.payload === "practices" && !canViewPractices(uid)) {
+        return _denied("Non hai i permessi per accedere alle Pratiche");
+      }
       return { ...state, activeView: action.payload };
     }
     case "SET_SELECTED_TASK": {
@@ -353,20 +716,34 @@ function baseReducer(state, action) {
       }
       return { ...state, selectedTask: action.payload };
     }
+    case "SET_SELECTED_CLIENT": {
+      // Aperto/chiuso da Clienti view (e da chip cliente in TaskSlideOver)
+      return { ...state, selectedClient: action.payload };
+    }
+    case "SET_SELECTED_SUPPLIER": {
+      // Aperto/chiuso da Fornitori view (e da chip fornitore in TaskSlideOver) — v0.9.7
+      return { ...state, selectedSupplier: action.payload };
+    }
+    // SET_SELECTED_PRACTICE è definito sotto in CRUD pratiche (v0.9.8)
     case "SET_CURRENT_USER": {
       const newId = action.payload;
       const m = getMember(newId);
       if (!m) return state;
       _syncCurrentUser(newId);
       // Se l'utente non può più accedere alla view corrente, riporta a dashboard
-      const activeView = (state.activeView === "admin" && !canAccessAdmin(newId))
-        ? "dashboard"
-        : state.activeView;
+      let activeView = state.activeView;
+      if (activeView === "admin" && !canAccessAdmin(newId)) activeView = "dashboard";
+      if (activeView === "clients" && !canViewClients(newId)) activeView = "dashboard";
+      if (activeView === "suppliers" && !canViewSuppliers(newId)) activeView = "dashboard";
+      if (activeView === "practices" && !canViewPractices(newId)) activeView = "dashboard";
       return {
         ...state,
         currentUserId: newId,
         activeView,
         selectedTask: null,
+        selectedClient: null,
+        selectedSupplier: null,
+        selectedPractice: null,
         toast: { message: `Ora stai usando l'app come ${m.name} (${m.role})`, type: "success" },
       };
     }
@@ -517,7 +894,7 @@ function baseReducer(state, action) {
       return { ...state, agencyName: action.payload };
     }
     case "RESTORE_BACKUP": {
-      const { tasks, team, categories, agencyName, notices } = action.payload;
+      const { tasks, team, categories, agencyName, notices, clients, suppliers, practices, notifications, theme } = action.payload;
       if (team) _syncTeam(team);
       if (categories) _syncCategories(categories);
       return {
@@ -527,6 +904,11 @@ function baseReducer(state, action) {
         categories: categories ?? state.categories,
         agencyName: agencyName ?? state.agencyName,
         notices: notices ?? state.notices,
+        clients: clients ?? state.clients,
+        suppliers: suppliers ?? state.suppliers,
+        practices: practices ?? state.practices,
+        notifications: notifications ?? state.notifications,
+        theme: theme ?? state.theme,
         toast: { message: "Backup ripristinato con successo!", type: "success" }
       };
     }
@@ -556,6 +938,185 @@ function baseReducer(state, action) {
         n.id === action.payload ? { ...n, pinned: !n.pinned } : n
       );
       return { ...state, notices };
+    }
+
+    // ─── CLIENTI (v0.9.5) ───
+    case "ADD_CLIENT": {
+      if (!canManageClients(uid)) return _denied("Non puoi gestire i clienti");
+      const now = new Date().toISOString();
+      const client = { createdAt: now, updatedAt: now, deletedAt: null, ...action.payload };
+      const clients = [client, ...(state.clients || [])];
+      return { ...state, clients, toast: { message: `Cliente "${client.name}" aggiunto`, type: "success" } };
+    }
+    case "UPDATE_CLIENT": {
+      if (!canManageClients(uid)) return _denied("Non puoi gestire i clienti");
+      const now = new Date().toISOString();
+      const clients = (state.clients || []).map(c =>
+        c.id === action.payload.id ? { ...c, ...action.payload, updatedAt: now } : c
+      );
+      return { ...state, clients, toast: { message: "Cliente aggiornato", type: "success" } };
+    }
+    case "DELETE_CLIENT": {
+      if (!canManageClients(uid)) return _denied("Non puoi gestire i clienti");
+      // Soft-delete: i task collegati restano (mantengono il nome legacy nel campo `client`),
+      // ma il riferimento `clientId` resta utile se il cliente viene ripristinato in futuro.
+      const clients = (state.clients || []).map(c =>
+        c.id === action.payload ? { ...c, deletedAt: new Date().toISOString() } : c
+      );
+      return { ...state, clients, toast: { message: "Cliente rimosso", type: "success" } };
+    }
+
+    // ─── FORNITORI (v0.9.7) ───
+    case "ADD_SUPPLIER": {
+      if (!canManageSuppliers(uid)) return _denied("Non puoi gestire i fornitori");
+      const now = new Date().toISOString();
+      const supplier = { createdAt: now, updatedAt: now, deletedAt: null, ...action.payload };
+      const suppliers = [supplier, ...(state.suppliers || [])];
+      return { ...state, suppliers, toast: { message: `Fornitore "${supplier.name}" aggiunto`, type: "success" } };
+    }
+    case "UPDATE_SUPPLIER": {
+      if (!canManageSuppliers(uid)) return _denied("Non puoi gestire i fornitori");
+      const now = new Date().toISOString();
+      const suppliers = (state.suppliers || []).map(s =>
+        s.id === action.payload.id ? { ...s, ...action.payload, updatedAt: now } : s
+      );
+      return { ...state, suppliers, toast: { message: "Fornitore aggiornato", type: "success" } };
+    }
+    case "DELETE_SUPPLIER": {
+      if (!canManageSuppliers(uid)) return _denied("Non puoi gestire i fornitori");
+      const suppliers = (state.suppliers || []).map(s =>
+        s.id === action.payload ? { ...s, deletedAt: new Date().toISOString() } : s
+      );
+      return { ...state, suppliers, toast: { message: "Fornitore rimosso", type: "success" } };
+    }
+
+    // ─── PRATICHE (v0.9.8) ───
+    case "ADD_PRACTICE": {
+      if (!canManagePractices(uid)) return _denied("Non puoi gestire le pratiche");
+      const now = new Date().toISOString();
+      // Auto-generate number if not provided
+      const number = action.payload.number || generatePracticeNumber(state.practices || []);
+      const me = getMember(uid);
+      const events = [
+        { time: now, type: "created", text: `Pratica creata`, userId: uid },
+        ...(action.payload.events || []),
+      ];
+      const practice = {
+        createdAt: now, updatedAt: now, deletedAt: null,
+        supplierIds: [],
+        totalValue: 0, cost: 0, paid: 0,
+        events,
+        ...action.payload,
+        number, // sovrascrive ultimo per non perdere il numero generato
+      };
+      return { ...state, practices: [practice, ...(state.practices || [])], toast: { message: `Pratica ${number} creata`, type: "success" } };
+    }
+    case "UPDATE_PRACTICE": {
+      if (!canManagePractices(uid)) return _denied("Non puoi gestire le pratiche");
+      const now = new Date().toISOString();
+      const practices = (state.practices || []).map(p =>
+        p.id === action.payload.id ? { ...p, ...action.payload, updatedAt: now } : p
+      );
+      const selectedPractice = state.selectedPractice?.id === action.payload.id
+        ? practices.find(p => p.id === action.payload.id)
+        : state.selectedPractice;
+      return { ...state, practices, selectedPractice, toast: { message: "Pratica aggiornata", type: "success" } };
+    }
+    case "CHANGE_PRACTICE_STATUS": {
+      // Variante di UPDATE_PRACTICE che logga un evento timeline nel payload stesso.
+      if (!canManagePractices(uid)) return _denied("Non puoi gestire le pratiche");
+      const now = new Date().toISOString();
+      const target = (state.practices || []).find(p => p.id === action.payload.id);
+      if (!target) return state;
+      const oldLabel = PRACTICE_STATUSES[target.status]?.label || target.status;
+      const newLabel = PRACTICE_STATUSES[action.payload.status]?.label || action.payload.status;
+      const newEvent = {
+        time: now, type: "status",
+        text: `Stato: ${oldLabel} → ${newLabel}`,
+        userId: uid,
+      };
+      const practices = (state.practices || []).map(p =>
+        p.id === action.payload.id
+          ? { ...p, status: action.payload.status, updatedAt: now, events: [...(p.events || []), newEvent] }
+          : p
+      );
+      const selectedPractice = state.selectedPractice?.id === action.payload.id
+        ? practices.find(p => p.id === action.payload.id)
+        : state.selectedPractice;
+      return { ...state, practices, selectedPractice, toast: { message: `Stato → ${newLabel}`, type: "success" } };
+    }
+    case "DELETE_PRACTICE": {
+      if (!canManagePractices(uid)) return _denied("Non puoi gestire le pratiche");
+      const practices = (state.practices || []).map(p =>
+        p.id === action.payload ? { ...p, deletedAt: new Date().toISOString() } : p
+      );
+      return { ...state, practices, toast: { message: "Pratica rimossa", type: "success" } };
+    }
+    case "SET_SELECTED_PRACTICE": {
+      return { ...state, selectedPractice: action.payload };
+    }
+
+    // ─── TEMA (v0.9.9) ───
+    case "SET_THEME": {
+      // payload: "light" | "dark" | "toggle"
+      const current = state.theme || "light";
+      const next = action.payload === "toggle" ? (current === "light" ? "dark" : "light") : action.payload;
+      return { ...state, theme: next };
+    }
+
+    // ─── NOTIFICHE (v0.9.9) ───
+    case "MARK_NOTIFICATION_READ": {
+      const notifications = (state.notifications || []).map(n =>
+        n.id === action.payload ? { ...n, read: true } : n
+      );
+      return { ...state, notifications };
+    }
+    case "MARK_ALL_NOTIFICATIONS_READ": {
+      // Marca come lette solo le notifiche dell'utente corrente
+      const notifications = (state.notifications || []).map(n =>
+        n.recipientId === uid ? { ...n, read: true } : n
+      );
+      return { ...state, notifications, toast: { message: "Notifiche segnate come lette", type: "success" } };
+    }
+    case "CLEAR_READ_NOTIFICATIONS": {
+      // Rimuove le notifiche già lette dell'utente corrente
+      const before = (state.notifications || []).filter(n => n.recipientId === uid && n.read).length;
+      const notifications = (state.notifications || []).filter(n => !(n.recipientId === uid && n.read));
+      return { ...state, notifications, toast: { message: `${before} notifiche rimosse`, type: "success" } };
+    }
+    case "SCAN_OVERDUE_NOTIFICATIONS": {
+      // v0.9.10: idempotente. Scansiona task scaduti assegnati all'utente e crea
+      // una notifica "overdue" per ognuno, una sola volta al giorno.
+      // Chiave deduplica: `overdue-{taskId}-{YYYY-MM-DD}`.
+      const today = new Date().toISOString().slice(0, 10);
+      const existing = new Set((state.notifications || []).map(n => n.id));
+      const newOnes = [];
+      for (const t of (state.tasks || [])) {
+        if (t.deletedAt || t.status === "done" || !t.dueDate) continue;
+        if (new Date(t.dueDate) >= new Date()) continue; // non scaduta
+        if (!(t.assignees || []).includes(uid)) continue;
+        const id = `overdue-${t.id}-${today}`;
+        if (existing.has(id)) continue;
+        newOnes.push({
+          id, type: "overdue",
+          text: `Task scaduto: ${t.title}`,
+          recipientId: uid,
+          relatedType: "task", relatedId: t.id,
+          time: new Date().toISOString(), read: false,
+        });
+      }
+      if (newOnes.length === 0) return state;
+      const notifications = [...newOnes, ...(state.notifications || [])].slice(0, 200);
+      return { ...state, notifications };
+    }
+    case "SET_USER_STATUS": {
+      // v0.9.10: l'utente cambia il proprio stato presence (online|busy|away|offline)
+      const target = action.payload?.userId || uid;
+      const status = action.payload?.status;
+      if (!status) return state;
+      const team = state.team.map(m => m.id === target ? { ...m, status } : m);
+      _syncTeam(team);
+      return { ...state, team };
     }
 
     case "CLEAR_TOAST": return { ...state, toast: null };
@@ -610,19 +1171,121 @@ const ADMIN_ONLY_ACTIONS = new Set([
   "SET_AGENCY_NAME", "RESTORE_BACKUP", "CLEAR_ACTIVITY_LOG",
 ]);
 
+// Genera notifiche automatiche in base all'azione e allo stato precedente/successivo. (v0.9.9)
+// Le notifiche vengono solo create per destinatari diversi dall'utente corrente
+// (non ha senso notificare a se stessi le proprie azioni). Cap a 200 totali.
+function generateNotifications(prevState, nextState, action) {
+  const me = prevState.currentUserId;
+  const meName = TEAM.find(m => m.id === me)?.name?.split(" ")[0] || "Qualcuno";
+  const now = new Date().toISOString();
+  const out = [];
+  const _id = (suffix) => `n-${Date.now()}-${suffix}-${Math.random().toString(36).slice(2, 5)}`;
+  const _mk = (type, recipientId, text, relatedType, relatedId) => ({
+    id: _id(recipientId), type, text, recipientId,
+    relatedType: relatedType || null, relatedId: relatedId || null,
+    time: now, read: false,
+  });
+
+  if (action.type === "ADD_TASK") {
+    const task = action.payload;
+    for (const aid of (task.assignees || [])) {
+      if (aid !== me) {
+        out.push(_mk("assigned", aid, `${meName} ti ha assegnato: ${task.title}`, "task", task.id));
+      }
+    }
+  }
+
+  if (action.type === "UPDATE_TASK") {
+    const prevTask = (prevState.tasks || []).find(t => t.id === action.payload.id);
+    if (prevTask && Array.isArray(action.payload.assignees)) {
+      const prevA = prevTask.assignees || [];
+      const newlyAdded = action.payload.assignees.filter(a => !prevA.includes(a));
+      for (const aid of newlyAdded) {
+        if (aid !== me) {
+          out.push(_mk("assigned", aid, `${meName} ti ha assegnato: ${prevTask.title}`, "task", prevTask.id));
+        }
+      }
+    }
+  }
+
+  if (action.type === "ADD_COMMENT") {
+    const task = (prevState.tasks || []).find(t => t.id === action.payload.taskId);
+    if (task) {
+      const recipients = (task.assignees || []).filter(a => a !== me);
+      for (const aid of recipients) {
+        out.push(_mk("comment", aid, `${meName} ha commentato: ${task.title}`, "task", task.id));
+      }
+    }
+  }
+
+  if (action.type === "MOVE_TASK") {
+    // Notifica gli assegnatari (esclusi me) di un cambio status significativo
+    const task = (nextState.tasks || []).find(t => t.id === action.payload.taskId);
+    if (task) {
+      const statusLabel = STATUS_LABELS[action.payload.newStatus] || action.payload.newStatus;
+      const recipients = (task.assignees || []).filter(a => a !== me);
+      for (const aid of recipients) {
+        out.push(_mk("status", aid, `${meName} ha spostato "${task.title}" in ${statusLabel}`, "task", task.id));
+      }
+    }
+  }
+
+  if (action.type === "ADD_TEAM_MEMBER" && action.payload.pending) {
+    // Notifica tutti gli admin attivi (escluso il creatore se admin)
+    const admins = TEAM.filter(m => getRoleType(m.id) === "admin" && m.id !== me && !m.pending);
+    for (const a of admins) {
+      out.push(_mk("pending", a.id, `Nuova richiesta agente: ${action.payload.name}`, "team", action.payload.id));
+    }
+  }
+
+  if (action.type === "CHANGE_PRACTICE_STATUS") {
+    // Notifica gli assegnatari dei task collegati alla pratica
+    const practice = (nextState.practices || []).find(p => p.id === action.payload.id);
+    if (practice) {
+      const linkedTasks = (nextState.tasks || []).filter(t => !t.deletedAt && t.practiceId === practice.id);
+      const recipientSet = new Set();
+      for (const t of linkedTasks) {
+        for (const a of (t.assignees || [])) {
+          if (a !== me) recipientSet.add(a);
+        }
+      }
+      const newLabel = PRACTICE_STATUSES[action.payload.status]?.label || action.payload.status;
+      for (const aid of recipientSet) {
+        out.push(_mk("practice", aid, `${practice.number}: stato → ${newLabel}`, "practice", practice.id));
+      }
+    }
+  }
+
+  return out;
+}
+
 // Wrapper che aggiunge automaticamente al log le azioni rilevanti
+// e genera notifiche per azioni con impatto su altri utenti (v0.9.9).
 function reducer(state, action) {
   // Pre-check permessi Admin (centralizzato — non sporca i singoli case)
   if (ADMIN_ONLY_ACTIONS.has(action.type) && !isAdmin(state.currentUserId)) {
     return { ...state, toast: { message: "Solo Admin può eseguire questa azione", type: "error" } };
   }
   const next = baseReducer(state, action);
-  if (LOGGED_ACTIONS.has(action.type) && next !== state) {
+  if (next === state) return next;
+
+  let result = next;
+
+  // Activity log
+  if (LOGGED_ACTIONS.has(action.type)) {
     const entry = buildLogEntry(action, state);
-    const activityLog = [entry, ...(next.activityLog || [])].slice(0, 100);
-    return { ...next, activityLog };
+    const activityLog = [entry, ...(result.activityLog || [])].slice(0, 100);
+    result = { ...result, activityLog };
   }
-  return next;
+
+  // Notifiche generate (v0.9.9)
+  const newNotifs = generateNotifications(state, result, action);
+  if (newNotifs.length > 0) {
+    const notifications = [...newNotifs, ...(result.notifications || [])].slice(0, 200);
+    result = { ...result, notifications };
+  }
+
+  return result;
 }
 
 const NOTICE_COLORS = ["#FEF3C7", "#FCE7F3", "#D1FAE5", "#DBEAFE", "#E9D5FF"]; // giallo, rosa, verde, azzurro, lilla
@@ -661,11 +1324,19 @@ const initialState = {
   tasks: INITIAL_TASKS,
   team: TEAM,
   categories: CATEGORIES,
+  clients: INITIAL_CLIENTS, // v0.9.5: anagrafica clienti CRM
+  suppliers: INITIAL_SUPPLIERS, // v0.9.7: anagrafica fornitori
+  practices: INITIAL_PRACTICES, // v0.9.8: pratiche di viaggio
   agencyName: "VoyageDesk",
   notices: INITIAL_NOTICES,
+  notifications: INITIAL_NOTIFICATIONS, // v0.9.9: notifiche reali per-utente
+  theme: "light", // v0.9.9: "light" | "dark", persistita
   activityLog: [],
   activeView: "dashboard",
   selectedTask: null,
+  selectedClient: null, // v0.9.5: cliente aperto in scheda modificabile
+  selectedSupplier: null, // v0.9.7: fornitore aperto in scheda modificabile
+  selectedPractice: null, // v0.9.8: pratica aperta in scheda modificabile
   toast: null,
   searchQuery: "",
   showNotif: false,
@@ -693,6 +1364,35 @@ const getDayKey = iso => iso ? new Date(iso).toDateString() : null;
 const isActiveTask = t => !t.deletedAt;
 const getActiveTasks = tasks => tasks.filter(isActiveTask);
 const getTrashedTasks = tasks => tasks.filter(t => t.deletedAt);
+
+// ─── CLIENTI: utils (v0.9.5) ───
+// `clients` arriva da state.clients in scope chiamante — qui i lookup operano su un array.
+const getClient = (clients, id) => (clients || []).find(c => c?.id === id);
+// Restituisce il nome visualizzabile dato un task: prima cerca clientId nella anagrafica,
+// poi fallback sul campo legacy `task.client` (testo), poi su una stringa vuota.
+const getTaskClientName = (task, clients) => {
+  if (!task) return "";
+  const byId = task.clientId ? getClient(clients, task.clientId) : null;
+  if (byId) return byId.name;
+  return task.client || "";
+};
+// Risolve via mappa legacy: se un task ha solo il vecchio campo `client` testo
+// e il nome è uno noto, ne ricaviamo l'ID. Utile in pochi punti di compatibilità.
+const resolveLegacyClientId = (task) => {
+  if (!task) return null;
+  if (task.clientId) return task.clientId;
+  if (task.client && _LEGACY_CLIENT_NAME_TO_ID[task.client]) return _LEGACY_CLIENT_NAME_TO_ID[task.client];
+  return null;
+};
+
+// ─── FORNITORI: utils (v0.9.7) ───
+const getSupplier = (suppliers, id) => (suppliers || []).find(s => s?.id === id);
+
+// ─── PRATICHE: utils (v0.9.8) ───
+const getPractice = (practices, id) => (practices || []).find(p => p?.id === id);
+// Task collegati a una pratica (esclusi quelli cestinati)
+const getPracticeTasks = (tasks, practiceId) =>
+  (tasks || []).filter(t => !t.deletedAt && t.practiceId === practiceId);
 
 // ─── PERMESSI (v0.8) ──────────────────────────────────────────────────────
 // Ruoli logici derivati dal campo `role` del team member.
@@ -766,6 +1466,22 @@ const canCreateTaskCategory = (category, userId) => {
 
 // Può accedere all'Admin?
 const canAccessAdmin = (userId) => isAdmin(userId);
+
+// Può gestire l'anagrafica clienti (CRUD)? (v0.9.5)
+// Driver no: vede solo i clienti delle proprie transfer task in read-only via TaskSlideOver.
+const canManageClients = (userId) => !isDriver(userId);
+// Può vedere la vista Clienti? (v0.9.5)
+const canViewClients = (userId) => !isDriver(userId);
+
+// Può gestire l'anagrafica fornitori (CRUD)? (v0.9.7)
+// Stessa regola dei clienti: tutti tranne Driver.
+const canManageSuppliers = (userId) => !isDriver(userId);
+const canViewSuppliers = (userId) => !isDriver(userId);
+
+// Può gestire le pratiche di viaggio (CRUD)? (v0.9.8)
+// Stessa regola: tutti tranne Driver. Driver vede in TaskSlideOver solo il chip pratica.
+const canManagePractices = (userId) => !isDriver(userId);
+const canViewPractices = (userId) => !isDriver(userId);
 
 // Categorie selezionabili nei form per questo utente
 const getAvailableCategories = (userId) => {
@@ -1023,24 +1739,45 @@ const SwipeActions = ({ task, dispatch, children, disabled = false }) => {
 };
 
 // ─── AVATAR ────────────────────────────────────────────────────────────────
-const Avatar = ({ memberId, size = 28 }) => {
+// v0.9.10: stati presence per la chat. "online" è il default per i mock,
+// e l'utente può cambiarli dal menu UserSwitcher.
+const PRESENCE_STATES = {
+  online: { label: "Online", color: "#2D7A4F" },
+  busy: { label: "Occupato", color: "#C0392B" },
+  away: { label: "Assente", color: "#C8832A" },
+  offline: { label: "Offline", color: "#9999AA" },
+};
+
+const Avatar = ({ memberId, size = 28, showPresence = false }) => {
   const m = getMember(memberId);
   if (!m) return null;
-  if (m.photoUrl) {
-    return (
-      <img src={m.photoUrl} alt={m.name} title={m.name} style={{
-        width: size, height: size, borderRadius: "50%",
-        objectFit: "cover", flexShrink: 0, border: "2px solid white",
-      }} />
-    );
-  }
-  return (
+  // Pallino presence (v0.9.10): visibile se showPresence prop true
+  const presence = PRESENCE_STATES[m.status] || PRESENCE_STATES.online;
+  const dotSize = Math.max(8, Math.round(size * 0.28));
+  const inner = m.photoUrl ? (
+    <img src={m.photoUrl} alt={m.name} title={m.name} style={{
+      width: size, height: size, borderRadius: "50%",
+      objectFit: "cover", flexShrink: 0, border: "2px solid white",
+    }} />
+  ) : (
     <div style={{
       width: size, height: size, borderRadius: "50%", background: m.color,
       display: "flex", alignItems: "center", justifyContent: "center",
       fontSize: size * 0.36, fontWeight: 600, color: "#fff",
       flexShrink: 0, border: "2px solid white",
     }} title={m.name}>{m.avatar}</div>
+  );
+  if (!showPresence) return inner;
+  return (
+    <div style={{ position: "relative", display: "inline-flex", flexShrink: 0 }} title={`${m.name} · ${presence.label}`}>
+      {inner}
+      <span style={{
+        position: "absolute", bottom: 0, right: 0,
+        width: dotSize, height: dotSize, borderRadius: "50%",
+        background: presence.color, border: "2px solid #fff",
+        boxSizing: "content-box",
+      }} />
+    </div>
   );
 };
 
@@ -1117,9 +1854,10 @@ const Toast = ({ toast, dispatch }) => {
 };
 
 // ─── ADVANCED SEARCH PANEL ─────────────────────────────────────────────────
-const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
+const AdvancedSearchPanel = ({ tasks, dispatch, onClose, practices }) => {
   const { isMobile } = useViewport();
   const [keyword, setKeyword] = useState("");
+  const [practiceNumber, setPracticeNumber] = useState(""); // v0.9.8: filtro numero pratica
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [cats, setCats] = useState([]);
@@ -1151,17 +1889,19 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
   };
 
   const resetAll = () => {
-    setKeyword(""); setDateFrom(""); setDateTo("");
+    setKeyword(""); setPracticeNumber(""); setDateFrom(""); setDateTo("");
     setCats([]); setStats([]); setAgents([]); setIncludeTrashed(false);
   };
 
-  const hasFilters = keyword.trim() || dateFrom || dateTo || cats.length || stats.length || agents.length || includeTrashed;
+  const hasFilters = keyword.trim() || practiceNumber.trim() || dateFrom || dateTo || cats.length || stats.length || agents.length || includeTrashed;
 
   const results = useMemo(() => {
     if (!hasFilters) return [];
     const k = keyword.trim().toLowerCase();
     const from = dateFrom ? new Date(dateFrom) : null;
     const to = dateTo ? (() => { const d = new Date(dateTo); d.setHours(23,59,59,999); return d; })() : null;
+
+    const pnQuery = practiceNumber.trim().toLowerCase();
 
     return tasks.filter(t => {
       if (!includeTrashed && t.deletedAt) return false;
@@ -1175,6 +1915,12 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
       if (to) {
         if (!t.dueDate) return false;
         if (new Date(t.dueDate) > to) return false;
+      }
+      if (pnQuery) {
+        // v0.9.8: match per numero pratica (sostringa, case-insensitive)
+        const pr = (practices || []).find(p => p.id === t.practiceId);
+        if (!pr) return false;
+        if (!pr.number.toLowerCase().includes(pnQuery)) return false;
       }
       if (k) {
         const hay = [
@@ -1192,7 +1938,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
       if (!b.dueDate) return -1;
       return new Date(a.dueDate) - new Date(b.dueDate);
     });
-  }, [tasks, keyword, dateFrom, dateTo, cats, stats, agents, includeTrashed, hasFilters]);
+  }, [tasks, keyword, practiceNumber, dateFrom, dateTo, cats, stats, agents, includeTrashed, hasFilters, practices]);
 
   const openTask = (t) => {
     dispatch({ type: "SET_SELECTED_TASK", payload: t });
@@ -1262,6 +2008,24 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
               width: "100%", padding: "8px 12px", borderRadius: 8,
               border: "1px solid var(--border)", fontSize: 13, outline: "none",
               fontFamily: "inherit", boxSizing: "border-box",
+            }}
+            onFocus={e => e.target.style.borderColor = "var(--gold)"}
+            onBlur={e => e.target.style.borderColor = "var(--border)"}
+          />
+        </div>
+
+        {/* Numero pratica (v0.9.8) */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={sectionTitle}>📂 Numero pratica</div>
+          <input
+            value={practiceNumber}
+            onChange={e => setPracticeNumber(e.target.value)}
+            placeholder="Es. PR-2026-001 (anche parziale: 001)"
+            style={{
+              width: "100%", padding: "8px 12px", borderRadius: 8,
+              border: "1px solid var(--border)", fontSize: 13, outline: "none",
+              fontFamily: "inherit", boxSizing: "border-box",
+              fontVariantNumeric: "tabular-nums",
             }}
             onFocus={e => e.target.style.borderColor = "var(--gold)"}
             onBlur={e => e.target.style.borderColor = "var(--border)"}
@@ -1426,8 +2190,12 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
 
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
 const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
+  // v0.9.9: badge notifiche legato a state.notifications filtrate per utente corrente
+  const myUnreadNotifs = (state.notifications || []).filter(
+    n => n.recipientId === state.currentUserId && !n.read
+  ).length;
   const { isMobile } = useViewport();
-  const unread = NOTIFICATIONS.filter(n => !n.read).length;
+  const unread = myUnreadNotifs;
   const [advOpen, setAdvOpen] = useState(false);
   return (
     <div style={{
@@ -1479,6 +2247,7 @@ const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
         {advOpen && (
           <AdvancedSearchPanel
             tasks={state.tasks}
+            practices={state.practices}
             dispatch={dispatch}
             onClose={() => setAdvOpen(false)}
           />
@@ -1516,7 +2285,7 @@ const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
             color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center"
           }}>{unread}</span>}
         </button>
-        {state.showNotif && <NotificationsPanel dispatch={dispatch} />}
+        {state.showNotif && <NotificationsPanel state={state} dispatch={dispatch} />}
       </div>
 
       {/* User switcher (v0.8) */}
@@ -1839,7 +2608,7 @@ const UserSwitcher = ({ state, dispatch }) => {
               width: "100%", display: "flex", alignItems: "center", gap: 10,
               padding: "10px 10px", background: "transparent",
               border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontSize: 13,
-              color: "var(--navy)", textAlign: "left", borderBottom: "1px solid var(--border)", marginBottom: 4,
+              color: "var(--navy)", textAlign: "left",
             }}
             onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
             onMouseLeave={e => e.currentTarget.style.background = "transparent"}
@@ -1847,6 +2616,58 @@ const UserSwitcher = ({ state, dispatch }) => {
             <span style={{ fontSize: 16 }}>👤</span>
             <span style={{ fontWeight: 600 }}>Modifica profilo</span>
           </button>
+
+          {/* Toggle dark mode (v0.9.9) */}
+          <button
+            onClick={() => dispatch({ type: "SET_THEME", payload: "toggle" })}
+            style={{
+              width: "100%", display: "flex", alignItems: "center", gap: 10,
+              padding: "10px 10px", background: "transparent",
+              border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontSize: 13,
+              color: "var(--navy)", textAlign: "left",
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+          >
+            <span style={{ fontSize: 16 }}>{state.theme === "dark" ? "☀️" : "🌙"}</span>
+            <span style={{ fontWeight: 600, flex: 1 }}>
+              {state.theme === "dark" ? "Tema chiaro" : "Tema scuro"}
+            </span>
+            <span style={{
+              fontSize: 9, fontWeight: 700, color: "var(--text-muted)",
+              padding: "2px 6px", background: "var(--surface2)", borderRadius: 99,
+              letterSpacing: 0.5,
+            }}>{(state.theme || "light").toUpperCase()}</span>
+          </button>
+
+          {/* Stato presence (v0.9.10) */}
+          <div style={{ padding: "8px 10px 4px", borderBottom: "1px solid var(--border)", marginBottom: 4 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 6 }}>
+              IL MIO STATO
+            </div>
+            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+              {Object.entries(PRESENCE_STATES).map(([k, v]) => {
+                const on = (curr.status || "online") === k;
+                return (
+                  <button
+                    key={k}
+                    onClick={() => dispatch({ type: "SET_USER_STATUS", payload: { status: k } })}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 5,
+                      padding: "4px 8px", borderRadius: 999,
+                      background: on ? v.color : "transparent",
+                      color: on ? "#fff" : "var(--text)",
+                      border: `1px solid ${on ? v.color : "var(--border)"}`,
+                      cursor: "pointer", fontSize: 11, fontWeight: 600, fontFamily: "inherit",
+                    }}
+                  >
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: on ? "#fff" : v.color }} />
+                    {v.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", padding: "8px 10px 4px", letterSpacing: 1 }}>
             ACCEDI COME (DEMO MULTI-RUOLO)
@@ -1893,39 +2714,153 @@ const UserSwitcher = ({ state, dispatch }) => {
 };
 
 // ─── NOTIFICATIONS PANEL ───────────────────────────────────────────────────
-const NotificationsPanel = ({ dispatch }) => {
+// Formatta "5 min fa" / "2h fa" / "ieri" / "3 giorni fa"
+const formatRelativeTime = (iso) => {
+  if (!iso) return "";
+  const diff = Math.max(0, Date.now() - new Date(iso).getTime());
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "ora";
+  if (min < 60) return `${min} min fa`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h}h fa`;
+  const days = Math.floor(h / 24);
+  if (days === 1) return "ieri";
+  if (days < 7) return `${days} giorni fa`;
+  return new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "short" });
+};
+
+// v0.9.9: pannello notifiche reattivo allo state.
+// Filtra per recipientId = currentUserId, click → naviga all'entità correlata + segna come letta.
+const NotificationsPanel = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
-  const icons = { overdue: "⚠️", assigned: "📋", comment: "💬", deadline: "📅" };
+  const [filter, setFilter] = useState("all"); // all | unread
+
+  const myNotifs = (state.notifications || [])
+    .filter(n => n.recipientId === state.currentUserId)
+    .filter(n => filter === "unread" ? !n.read : true)
+    .sort((a, b) => new Date(b.time) - new Date(a.time));
+
+  const unreadCount = (state.notifications || []).filter(n => n.recipientId === state.currentUserId && !n.read).length;
+  const readCount = (state.notifications || []).filter(n => n.recipientId === state.currentUserId && n.read).length;
+
+  const handleClick = (n) => {
+    // Naviga all'entità collegata, se possibile
+    if (n.relatedType === "task" && n.relatedId) {
+      const task = (state.tasks || []).find(t => t.id === n.relatedId);
+      if (task) dispatch({ type: "SET_SELECTED_TASK", payload: task });
+    } else if (n.relatedType === "practice" && n.relatedId) {
+      const pr = (state.practices || []).find(p => p.id === n.relatedId);
+      if (pr) dispatch({ type: "SET_SELECTED_PRACTICE", payload: pr });
+    } else if (n.relatedType === "team") {
+      // Vai alla vista Admin → Team se possibile, altrimenti chiudi e basta
+      if (canAccessAdmin(state.currentUserId)) {
+        dispatch({ type: "SET_VIEW", payload: "admin" });
+      }
+    }
+    if (!n.read) dispatch({ type: "MARK_NOTIFICATION_READ", payload: n.id });
+    dispatch({ type: "TOGGLE_NOTIF" });
+  };
+
   return (
     <div className="slide-right" style={{
       position: isMobile ? "fixed" : "absolute",
       top: isMobile ? 56 : "calc(100% + 8px)",
       right: isMobile ? 12 : 0,
       left: isMobile ? 12 : "auto",
-      width: isMobile ? "auto" : "min(360px, calc(100vw - 24px))",
+      width: isMobile ? "auto" : "min(380px, calc(100vw - 24px))",
       background: "#fff", borderRadius: 12, boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
       border: "1px solid var(--border)", overflow: "hidden", zIndex: 200,
+      display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 80px)",
     }}>
-      <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div className="playfair" style={{ fontWeight: 600, fontSize: 15 }}>Notifiche</div>
-        <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
+      {/* Header */}
+      <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          <div className="playfair" style={{ fontWeight: 700, fontSize: 16, color: "var(--navy)" }}>Notifiche</div>
+          {unreadCount > 0 && <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>{unreadCount} da leggere</span>}
+        </div>
+        <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--text-muted)" }}>✕</button>
       </div>
-      <div style={{ maxHeight: 420, overflowY: "auto" }}>
-        {NOTIFICATIONS.map(n => (
-          <div key={n.id} style={{
-            padding: "12px 16px", display: "flex", gap: 10, alignItems: "flex-start",
-            background: n.read ? "transparent" : "rgba(212,168,67,0.07)",
-            borderBottom: "1px solid var(--border)",
-            transition: "background 0.2s", cursor: "default",
-          }}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>{icons[n.type]}</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: n.read ? 400 : 600 }}>{n.title}</div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{n.time}</div>
-            </div>
-            {!n.read && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--gold)", flexShrink: 0, marginTop: 4 }} />}
+
+      {/* Filter chips + actions */}
+      <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", flexShrink: 0 }}>
+        <div style={{ display: "flex", gap: 4 }}>
+          {[
+            { id: "all", label: "Tutte" },
+            { id: "unread", label: `Non lette${unreadCount > 0 ? ` (${unreadCount})` : ""}` },
+          ].map(opt => (
+            <button
+              key={opt.id}
+              onClick={() => setFilter(opt.id)}
+              style={{
+                padding: "4px 10px", borderRadius: 99, border: "1px solid var(--border)",
+                background: filter === opt.id ? "var(--navy)" : "#fff",
+                color: filter === opt.id ? "#fff" : "var(--text)",
+                fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+              }}
+            >{opt.label}</button>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 4 }}>
+          {unreadCount > 0 && (
+            <button
+              onClick={() => dispatch({ type: "MARK_ALL_NOTIFICATIONS_READ" })}
+              title="Segna tutte come lette"
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                fontSize: 11, color: "var(--navy)", fontWeight: 600, padding: "4px 6px", fontFamily: "inherit",
+              }}
+            >✓ Tutte lette</button>
+          )}
+          {readCount > 0 && (
+            <button
+              onClick={() => dispatch({ type: "CLEAR_READ_NOTIFICATIONS" })}
+              title="Cancella le notifiche lette"
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                fontSize: 11, color: "var(--text-muted)", fontWeight: 500, padding: "4px 6px", fontFamily: "inherit",
+              }}
+            >🧹 Pulisci lette</button>
+          )}
+        </div>
+      </div>
+
+      {/* List */}
+      <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+        {myNotifs.length === 0 ? (
+          <div style={{ padding: "32px 16px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>🎉</div>
+            {filter === "unread" ? "Nessuna notifica da leggere." : "Nessuna notifica."}
           </div>
-        ))}
+        ) : (
+          myNotifs.map(n => {
+            const meta = NOTIF_TYPES[n.type] || NOTIF_TYPES.assigned;
+            return (
+              <div
+                key={n.id}
+                onClick={() => handleClick(n)}
+                style={{
+                  padding: "12px 16px", display: "flex", gap: 10, alignItems: "flex-start",
+                  background: n.read ? "transparent" : "rgba(212,168,67,0.08)",
+                  borderBottom: "1px solid var(--border)",
+                  transition: "background 0.2s", cursor: "pointer",
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = n.read ? "var(--surface)" : "rgba(212,168,67,0.15)"}
+                onMouseLeave={e => e.currentTarget.style.background = n.read ? "transparent" : "rgba(212,168,67,0.08)"}
+              >
+                <span style={{ fontSize: 18, flexShrink: 0 }}>{meta.icon}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: n.read ? 400 : 600, color: "var(--text)", lineHeight: 1.35 }}>
+                    {n.text}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>
+                    {formatRelativeTime(n.time)}
+                  </div>
+                </div>
+                {!n.read && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--gold)", flexShrink: 0, marginTop: 6 }} />}
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );
@@ -1935,6 +2870,9 @@ const NotificationsPanel = ({ dispatch }) => {
 const NAV_ITEMS = [
   { id: "dashboard", icon: "📊", label: "Dashboard", roles: ["admin", "manager", "agent", "driver"] },
   { id: "calendar", icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
+  { id: "practices", icon: "📂", label: "Pratiche", roles: ["admin", "manager", "agent"] }, // v0.9.8
+  { id: "clients", icon: "🧳", label: "Clienti", roles: ["admin", "manager", "agent"] }, // v0.9.5
+  { id: "suppliers", icon: "🤝", label: "Fornitori", roles: ["admin", "manager", "agent"] }, // v0.9.7
   { id: "team", icon: "👥", label: "Team", roles: ["admin", "manager", "agent"] },
   { id: "trash", icon: "🗑️", label: "Cestino", roles: ["admin"] },
   { id: "admin", icon: "⚙️", label: "Admin", roles: ["admin"] },
@@ -1946,11 +2884,53 @@ const getNavItemsForUser = (userId) => {
   return NAV_ITEMS.filter(it => !it.roles || it.roles.includes(role));
 };
 
+// Calcola i contatori da mostrare come badge sulle voci nav.
+// `dashboard` → task in coda globale (assignees=[] e non cestinati).
+// `admin` → agenti in attesa di approvazione (pending=true).
+// Driver: nessun badge dashboard (non vede la coda globale).
+const getNavBadges = (state) => {
+  const uid = state.currentUserId;
+  const role = getRoleType(uid);
+  const queue = role === "driver"
+    ? 0
+    : state.tasks.filter(t => !t.deletedAt && (!t.assignees || t.assignees.length === 0)).length;
+  const pending = role === "admin"
+    ? (state.team || []).filter(m => m.pending).length
+    : 0;
+  return { dashboard: queue, admin: pending };
+};
+
+// Badge contatore riusabile (pillola dorata, mostrato solo se count > 0)
+const NavBadge = ({ count, variant = "dot" }) => {
+  if (!count) return null;
+  const text = count > 99 ? "99+" : String(count);
+  if (variant === "dot") {
+    return (
+      <span style={{
+        position: "absolute", top: -4, right: -6,
+        minWidth: 16, height: 16, padding: "0 4px",
+        borderRadius: 999, background: "var(--gold)", color: "var(--navy)",
+        fontSize: 9, fontWeight: 700, lineHeight: "16px", textAlign: "center",
+        border: "1.5px solid var(--navy-dark)", boxSizing: "content-box",
+      }}>{text}</span>
+    );
+  }
+  // inline (per sidebar espansa: dopo la label)
+  return (
+    <span style={{
+      marginLeft: "auto", minWidth: 18, padding: "1px 6px", borderRadius: 999,
+      background: "var(--gold)", color: "var(--navy)", fontSize: 10, fontWeight: 700,
+      lineHeight: 1.4, textAlign: "center",
+    }}>{text}</span>
+  );
+};
+
 const Sidebar = ({ state, dispatch }) => {
   const { isDesktop } = useViewport();
   if (!isDesktop) return null;
   const col = state.sidebarCollapsed;
   const navItems = getNavItemsForUser(state.currentUserId);
+  const badges = getNavBadges(state);
   return (
     <div style={{
       width: col ? 60 : 210, background: "var(--navy-dark)", color: "#fff",
@@ -1970,6 +2950,7 @@ const Sidebar = ({ state, dispatch }) => {
       <div style={{ marginTop: 48, padding: col ? "0 8px" : "0 12px", display: "flex", flexDirection: "column", gap: 2 }}>
         {navItems.map(item => {
           const active = state.activeView === item.id;
+          const badge = badges[item.id] || 0;
           return (
             <button key={item.id} onClick={() => dispatch({ type: "SET_VIEW", payload: item.id })} style={{
               display: "flex", alignItems: "center", gap: 10,
@@ -1981,8 +2962,12 @@ const Sidebar = ({ state, dispatch }) => {
               transition: "all 0.2s", textAlign: "left",
               borderLeft: active ? "2px solid var(--gold)" : "2px solid transparent",
             }}>
-              <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
+              <span style={{ position: "relative", fontSize: 16, flexShrink: 0, display: "inline-flex" }}>
+                {item.icon}
+                {col && <NavBadge count={badge} variant="dot" />}
+              </span>
               {!col && <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>{item.label}</span>}
+              {!col && <NavBadge count={badge} variant="inline" />}
             </button>
           );
         })}
@@ -2013,10 +2998,12 @@ const Sidebar = ({ state, dispatch }) => {
 // ─── BOTTOM NAV (mobile/tablet) ────────────────────────────────────────────
 const BottomNav = ({ state, dispatch }) => {
   const navItems = getNavItemsForUser(state.currentUserId);
+  const badges = getNavBadges(state);
   return (
     <nav className="vd-bottom-nav" aria-label="Navigazione principale">
       {navItems.map(item => {
         const active = state.activeView === item.id;
+        const badge = badges[item.id] || 0;
         return (
           <button
             key={item.id}
@@ -2032,7 +3019,10 @@ const BottomNav = ({ state, dispatch }) => {
               transition: "color 0.2s",
             }}
           >
-            <span style={{ fontSize: 19, lineHeight: 1 }}>{item.icon}</span>
+            <span style={{ position: "relative", fontSize: 19, lineHeight: 1, display: "inline-flex" }}>
+              {item.icon}
+              <NavBadge count={badge} variant="dot" />
+            </span>
             <span style={{ fontSize: 9, fontWeight: active ? 700 : 500, whiteSpace: "nowrap" }}>
               {item.label.split(" ")[0]}
             </span>
@@ -3246,8 +4236,154 @@ const NoticeEditorModal = ({ notice, onClose, onSave }) => {
 };
 
 // ─── PERSONAL QUEUE (le mie task — v0.8) ───────────────────────────────────
+// v0.9.4: per Driver mostra agenda transfer-oriented (chip Oggi/Domani/Tutte,
+// raggruppata per giorno con orario in evidenza). Per altri ruoli resta la
+// griglia auto-fill già presente da v0.8.
 const PersonalQueue = ({ tasks, dispatch, me }) => {
   const { isMobile } = useViewport();
+  const driverMode = me && getRoleType(me.id) === "driver";
+  const [dayFilter, setDayFilter] = useState("today");
+
+  // Conteggi per chip filtro (sempre calcolati per Driver, indipendenti dal filter attivo)
+  const driverCounts = useMemo(() => {
+    if (!driverMode) return null;
+    const startToday = new Date(); startToday.setHours(0, 0, 0, 0);
+    const startTomorrow = new Date(startToday); startTomorrow.setDate(startTomorrow.getDate() + 1);
+    const startDayAfter = new Date(startToday); startDayAfter.setDate(startToday.getDate() + 2);
+    let today = 0, tomorrow = 0;
+    tasks.forEach(t => {
+      if (!t.dueDate) return;
+      const d = new Date(t.dueDate);
+      if (d >= startToday && d < startTomorrow) today++;
+      else if (d >= startTomorrow && d < startDayAfter) tomorrow++;
+    });
+    return { today, tomorrow, all: tasks.length };
+  }, [tasks, driverMode]);
+
+  // Task filtrate per il filtro giorno attivo (solo Driver)
+  const filtered = useMemo(() => {
+    if (!driverMode || dayFilter === "all") return tasks;
+    const startToday = new Date(); startToday.setHours(0, 0, 0, 0);
+    const startTomorrow = new Date(startToday); startTomorrow.setDate(startTomorrow.getDate() + 1);
+    const startDayAfter = new Date(startToday); startDayAfter.setDate(startToday.getDate() + 2);
+    return tasks.filter(t => {
+      if (!t.dueDate) return false;
+      const d = new Date(t.dueDate);
+      if (dayFilter === "today") return d >= startToday && d < startTomorrow;
+      if (dayFilter === "tomorrow") return d >= startTomorrow && d < startDayAfter;
+      return false;
+    });
+  }, [tasks, dayFilter, driverMode]);
+
+  // Raggruppa per giorno per la vista agenda (driver-only)
+  const grouped = useMemo(() => {
+    if (!driverMode) return null;
+    const map = new Map();
+    filtered.forEach(t => {
+      const key = t.dueDate ? getDayKey(t.dueDate) : "__none__";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(t);
+    });
+    return Array.from(map.entries())
+      .sort(([a], [b]) => {
+        if (a === "__none__") return 1;
+        if (b === "__none__") return -1;
+        return new Date(a) - new Date(b);
+      })
+      .map(([key, list]) => ({
+        key,
+        date: key === "__none__" ? null : new Date(key),
+        tasks: list,
+      }));
+  }, [filtered, driverMode]);
+
+  // Label "Oggi · gio 14 dic" / "Domani · ven 15 dic" / "lun 16 dic"
+  const formatAgendaDay = (date) => {
+    if (!date) return "Senza data";
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+    const d = new Date(date); d.setHours(0, 0, 0, 0);
+    const datePart = d.toLocaleDateString("it-IT", { weekday: "short", day: "2-digit", month: "short" });
+    if (d.getTime() === today.getTime()) return `Oggi · ${datePart}`;
+    if (d.getTime() === tomorrow.getTime()) return `Domani · ${datePart}`;
+    return datePart;
+  };
+
+  const renderCard = (t, opts = {}) => {
+    const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
+    const prio = PRIORITIES[t.priority];
+    const overdue = isOverdue(t);
+    const urgent = isUrgent(t);
+    const card = (
+      <div
+        style={{
+          background: "#fff", borderRadius: 10,
+          border: `1px solid ${overdue ? "rgba(192,57,43,0.4)" : urgent ? "rgba(200,131,42,0.4)" : "var(--border)"}`,
+          padding: 12, display: "flex", flexDirection: opts.driver ? "row" : "column",
+          gap: opts.driver ? 12 : 8,
+          cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
+          borderLeft: `3px solid ${prio.color}`,
+          alignItems: opts.driver ? "stretch" : "stretch",
+        }}
+        onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
+        onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.08)"; }}
+        onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
+      >
+        {opts.driver && t.dueDate && (
+          <div style={{
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            minWidth: 62, padding: "4px 8px", borderRight: "1px solid var(--surface3)",
+            background: overdue ? "rgba(192,57,43,0.05)" : "var(--surface)",
+            borderRadius: 6,
+          }}>
+            <div style={{
+              fontSize: 19, fontWeight: 700, lineHeight: 1, color: overdue ? "var(--danger)" : "var(--navy)",
+              fontVariantNumeric: "tabular-nums",
+            }}>{formatTime(t.dueDate)}</div>
+            <div style={{ fontSize: 9, color: "var(--text-muted)", marginTop: 3, letterSpacing: 0.5 }}>
+              ORARIO
+            </div>
+          </div>
+        )}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <div style={{
+              display: "inline-flex", alignItems: "center", gap: 5,
+              padding: "3px 8px", borderRadius: 999,
+              background: cat.bg, color: cat.color,
+              fontSize: 11, fontWeight: 600,
+            }}>
+              <span>{cat.icon}</span> {cat.label}
+            </div>
+            <StatusBadge status={t.status} />
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", lineHeight: 1.35 }}>
+            {t.title}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, fontSize: 11, color: "var(--text-muted)" }}>
+            {t.client && <span>👤 {t.client}</span>}
+            {t.dueDate && !opts.driver && (
+              <span style={{ color: overdue ? "var(--danger)" : urgent ? "var(--warning)" : "var(--text-muted)", fontWeight: (overdue || urgent) ? 700 : 400 }}>
+                📅 {formatDate(t.dueDate)}{overdue ? " ⚠ scaduto" : urgent ? " ⏱ < 24h" : ""}
+              </span>
+            )}
+            {t.dueDate && opts.driver && (overdue || urgent) && (
+              <span style={{ color: overdue ? "var(--danger)" : "var(--warning)", fontWeight: 700 }}>
+                {overdue ? "⚠ scaduto" : "⏱ < 24h"}
+              </span>
+            )}
+            {t.estimatedHours > 0 && <span>⏱️ {t.estimatedHours}h</span>}
+          </div>
+        </div>
+      </div>
+    );
+    return (
+      <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+        {card}
+      </SwipeActions>
+    );
+  };
+
   const empty = tasks.length === 0;
   return (
     <div style={{
@@ -3267,10 +4403,12 @@ const PersonalQueue = ({ tasks, dispatch, me }) => {
           }}>{me?.avatar || "?"}</div>
           <div>
             <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)" }}>
-              La mia coda — task assegnate a me
+              {driverMode ? "Le mie corse — agenda" : "La mia coda — task assegnate a me"}
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-              Ordinate per scadenza • clicca una card per i dettagli
+              {driverMode
+                ? "Filtra per giorno • orario in evidenza • clicca per i dettagli"
+                : "Ordinate per scadenza • clicca una card per i dettagli"}
             </div>
           </div>
         </div>
@@ -3279,9 +4417,44 @@ const PersonalQueue = ({ tasks, dispatch, me }) => {
             background: "var(--navy)", color: "#fff",
             padding: "4px 12px", borderRadius: 999,
             fontSize: 13, fontWeight: 700,
-          }}>{tasks.length} {tasks.length === 1 ? "task" : "task"}</div>
+          }}>{driverMode ? filtered.length : tasks.length} {(driverMode ? filtered.length : tasks.length) === 1 ? "task" : "task"}</div>
         )}
       </div>
+
+      {/* Driver: chip filtro giorno */}
+      {driverMode && !empty && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+          {[
+            { id: "today", label: "Oggi", count: driverCounts.today },
+            { id: "tomorrow", label: "Domani", count: driverCounts.tomorrow },
+            { id: "all", label: "Tutte", count: driverCounts.all },
+          ].map(opt => {
+            const on = dayFilter === opt.id;
+            return (
+              <button
+                key={opt.id}
+                onClick={() => setDayFilter(opt.id)}
+                style={{
+                  padding: "6px 12px", borderRadius: 999,
+                  border: `1px solid ${on ? "var(--navy)" : "var(--border)"}`,
+                  background: on ? "var(--navy)" : "#fff",
+                  color: on ? "#fff" : "var(--text)",
+                  cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  transition: "background 0.15s",
+                }}
+              >
+                {opt.label}
+                <span style={{
+                  background: on ? "rgba(255,255,255,0.2)" : "var(--surface2)",
+                  color: on ? "#fff" : "var(--text-muted)",
+                  padding: "1px 7px", borderRadius: 99, fontSize: 10.5, fontWeight: 700,
+                }}>{opt.count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {empty ? (
         <div style={{
@@ -3289,62 +4462,49 @@ const PersonalQueue = ({ tasks, dispatch, me }) => {
           color: "var(--text-muted)", fontSize: 13,
         }}>
           <span style={{ fontSize: 18 }}>🎉</span>
-          Nessuna task aperta a tuo nome. Buon lavoro!
+          {driverMode
+            ? "Nessuna corsa assegnata. Buon riposo!"
+            : "Nessuna task aperta a tuo nome. Buon lavoro!"}
         </div>
+      ) : driverMode ? (
+        grouped.length === 0 ? (
+          <div style={{
+            padding: "14px 0 4px", display: "flex", alignItems: "center", gap: 10,
+            color: "var(--text-muted)", fontSize: 13,
+          }}>
+            <span style={{ fontSize: 18 }}>🗓️</span>
+            Nessuna corsa per il filtro selezionato.
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {grouped.map(group => (
+              <section key={group.key}>
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  fontSize: 11, fontWeight: 700, color: "var(--text-muted)",
+                  textTransform: "uppercase", letterSpacing: 1, marginBottom: 8,
+                  paddingBottom: 6, borderBottom: "1px solid var(--surface3)",
+                }}>
+                  <span style={{ color: "var(--navy)" }}>{formatAgendaDay(group.date)}</span>
+                  <span style={{
+                    background: "var(--surface2)", padding: "1px 7px", borderRadius: 99,
+                    fontSize: 10, fontWeight: 700, color: "var(--text-muted)",
+                    letterSpacing: 0,
+                  }}>{group.tasks.length}</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {group.tasks.map(t => renderCard(t, { driver: true }))}
+                </div>
+              </section>
+            ))}
+          </div>
+        )
       ) : (
         <div style={{
           display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))",
           gap: 10,
         }}>
-          {tasks.map(t => {
-            const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
-            const prio = PRIORITIES[t.priority];
-            const overdue = isOverdue(t);
-            const urgent = isUrgent(t);
-            const card = (
-              <div
-                style={{
-                  background: "#fff", borderRadius: 10,
-                  border: `1px solid ${overdue ? "rgba(192,57,43,0.4)" : urgent ? "rgba(200,131,42,0.4)" : "var(--border)"}`,
-                  padding: 12, display: "flex", flexDirection: "column", gap: 8,
-                  cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
-                  borderLeft: `3px solid ${prio.color}`,
-                }}
-                onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
-                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.08)"; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                  <div style={{
-                    display: "inline-flex", alignItems: "center", gap: 5,
-                    padding: "3px 8px", borderRadius: 999,
-                    background: cat.bg, color: cat.color,
-                    fontSize: 11, fontWeight: 600,
-                  }}>
-                    <span>{cat.icon}</span> {cat.label}
-                  </div>
-                  <StatusBadge status={t.status} />
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", lineHeight: 1.35 }}>
-                  {t.title}
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 10, fontSize: 11, color: "var(--text-muted)" }}>
-                  {t.client && <span>👤 {t.client}</span>}
-                  {t.dueDate && (
-                    <span style={{ color: overdue ? "var(--danger)" : urgent ? "var(--warning)" : "var(--text-muted)", fontWeight: (overdue || urgent) ? 700 : 400 }}>
-                      📅 {formatDate(t.dueDate)}{overdue ? " ⚠ scaduto" : urgent ? " ⏱ < 24h" : ""}
-                    </span>
-                  )}
-                  {t.estimatedHours > 0 && <span>⏱️ {t.estimatedHours}h</span>}
-                </div>
-              </div>
-            );
-            return (
-              <SwipeActions key={t.id} task={t} dispatch={dispatch}>
-                {card}
-              </SwipeActions>
-            );
-          })}
+          {tasks.map(t => renderCard(t))}
         </div>
       )}
     </div>
@@ -3947,22 +5107,59 @@ const Dashboard = ({ state, dispatch, onOpenChat }) => {
 };
 
 // ─── QUICK ADD TASK FORM ───────────────────────────────────────────────────
-const QuickAddTask = ({ onAdd, onClose }) => {
+const QuickAddTask = ({ onAdd, onClose, clients, suppliers, practices, dispatch }) => {
   // Categorie filtrate per il ruolo dell'utente loggato (v0.8)
   const availableCats = getAvailableCategories(CURRENT_USER);
   const firstCatKey = Object.keys(availableCats)[0] || "booking";
 
   const [form, setForm] = useState({
     title: "", category: firstCatKey, priority: "medium",
-    status: "todo", assignees: [], dueDate: "", client: "", description: ""
+    status: "todo", assignees: [], dueDate: "",
+    clientId: "", supplierId: "", practiceId: "", description: ""
   });
+  const [showClientCreate, setShowClientCreate] = useState(false);
+  const [showSupplierCreate, setShowSupplierCreate] = useState(false);
+
+  // Anagrafiche attive ordinate alfabeticamente per i picker (v0.9.5/v0.9.7/v0.9.8)
+  const activeClients = (clients || [])
+    .filter(c => !c.deletedAt)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const activeSuppliers = (suppliers || [])
+    .filter(s => !s.deletedAt)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  // Pratiche non cestinate e non annullate, ordinate per numero discendente (più recenti prima)
+  const activePractices = (practices || [])
+    .filter(p => !p.deletedAt && p.status !== "cancelled")
+    .sort((a, b) => b.number.localeCompare(a.number));
+
+  // Quando l'utente sceglie una pratica, pre-suggerisci il cliente collegato (se non già impostato)
+  const handlePracticeChange = (e) => {
+    const pid = e.target.value;
+    const pr = activePractices.find(p => p.id === pid);
+    setForm(p => ({
+      ...p,
+      practiceId: pid,
+      clientId: !p.clientId && pr?.clientId ? pr.clientId : p.clientId,
+    }));
+  };
 
   const handleSubmit = () => {
     if (!form.title.trim()) return;
+    const selectedClient = activeClients.find(c => c.id === form.clientId);
+    const selectedSupplier = activeSuppliers.find(s => s.id === form.supplierId);
+    const selectedPractice = activePractices.find(p => p.id === form.practiceId);
     onAdd({
       id: "t" + Date.now(),
-      ...form,
-      client: form.client.trim() || null,
+      title: form.title,
+      category: form.category,
+      priority: form.priority,
+      status: form.status,
+      assignees: form.assignees,
+      clientId: selectedClient?.id || null,
+      client: selectedClient?.name || null,
+      supplierId: selectedSupplier?.id || null,
+      practiceId: selectedPractice?.id || null,
+      description: form.description,
       comments: [],
       estimatedHours: 1,
       dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
@@ -4034,8 +5231,77 @@ const QuickAddTask = ({ onAdd, onClose }) => {
           </div>
 
           <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>PRATICA</label>
+            <select
+              value={form.practiceId}
+              onChange={handlePracticeChange}
+              style={{ ...inp("category").style, cursor: "pointer" }}
+            >
+              <option value="">— Nessuna —</option>
+              {activePractices.map(p => (
+                <option key={p.id} value={p.id}>
+                  {PRACTICE_STATUSES[p.status]?.icon} {p.number} — {p.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>CLIENTE</label>
-            <input {...inp("client")} placeholder="Es. Famiglia Rossi..." />
+            <div style={{ display: "flex", gap: 6 }}>
+              <select
+                value={form.clientId}
+                onChange={e => setForm(p => ({ ...p, clientId: e.target.value }))}
+                style={{ ...inp("category").style, cursor: "pointer", flex: 1 }}
+              >
+                <option value="">— Nessuno —</option>
+                {activeClients.map(c => {
+                  const type = CLIENT_TYPES[c.type] || CLIENT_TYPES.individuale;
+                  return <option key={c.id} value={c.id}>{type.icon} {c.name}</option>;
+                })}
+              </select>
+              {canManageClients(CURRENT_USER) && (
+                <button
+                  type="button"
+                  onClick={() => setShowClientCreate(true)}
+                  title="Crea nuovo cliente"
+                  style={{
+                    padding: "0 12px", borderRadius: 8, border: "1px solid var(--navy)",
+                    background: "#fff", color: "var(--navy)", cursor: "pointer",
+                    fontSize: 13, fontWeight: 600, fontFamily: "inherit", whiteSpace: "nowrap",
+                  }}
+                >+ Nuovo</button>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>FORNITORE</label>
+            <div style={{ display: "flex", gap: 6 }}>
+              <select
+                value={form.supplierId}
+                onChange={e => setForm(p => ({ ...p, supplierId: e.target.value }))}
+                style={{ ...inp("category").style, cursor: "pointer", flex: 1 }}
+              >
+                <option value="">— Nessuno —</option>
+                {activeSuppliers.map(s => {
+                  const type = SUPPLIER_TYPES[s.type] || SUPPLIER_TYPES.other;
+                  return <option key={s.id} value={s.id}>{type.icon} {s.name}</option>;
+                })}
+              </select>
+              {canManageSuppliers(CURRENT_USER) && (
+                <button
+                  type="button"
+                  onClick={() => setShowSupplierCreate(true)}
+                  title="Crea nuovo fornitore"
+                  style={{
+                    padding: "0 12px", borderRadius: 8, border: "1px solid var(--navy)",
+                    background: "#fff", color: "var(--navy)", cursor: "pointer",
+                    fontSize: 13, fontWeight: 600, fontFamily: "inherit", whiteSpace: "nowrap",
+                  }}
+                >+ Nuovo</button>
+              )}
+            </div>
           </div>
 
           <div>
@@ -4055,23 +5321,61 @@ const QuickAddTask = ({ onAdd, onClose }) => {
           }}>✓ Crea Task</button>
         </div>
       </div>
+
+      {/* Modale "Nuovo cliente" inline (v0.9.5) — pre-seleziona il cliente appena creato */}
+      {showClientCreate && (
+        <ClientEditModal
+          client={null}
+          onClose={() => setShowClientCreate(false)}
+          dispatch={dispatch}
+          canManage={true}
+          onCreated={(c) => setForm(p => ({ ...p, clientId: c.id }))}
+        />
+      )}
+
+      {/* Modale "Nuovo fornitore" inline (v0.9.7) — analoga a sopra */}
+      {showSupplierCreate && (
+        <SupplierEditModal
+          supplier={null}
+          onClose={() => setShowSupplierCreate(false)}
+          dispatch={dispatch}
+          canManage={true}
+          onCreated={(s) => setForm(p => ({ ...p, supplierId: s.id }))}
+        />
+      )}
     </div>
   );
 };
 
 // ─── TASK DETAIL SLIDE-OVER ────────────────────────────────────────────────
-const TaskSlideOver = ({ task, dispatch }) => {
+const TaskSlideOver = ({ task, dispatch, clients, suppliers, practices }) => {
   const { isMobile } = useViewport();
   const [newComment, setNewComment] = useState("");
+  const [editingAssignees, setEditingAssignees] = useState(false);
+  const [draftAssignees, setDraftAssignees] = useState(task?.assignees || []);
+  const canEdit = task ? canEditTask(task, CURRENT_USER) : false;
+  // v0.9.5: risolvi il cliente dall'anagrafica via clientId o mappa legacy
+  const linkedClient = task ? getClient(clients || [], resolveLegacyClientId(task)) : null;
+  // v0.9.7: risolvi il fornitore dall'anagrafica via supplierId
+  const linkedSupplier = task ? getSupplier(suppliers || [], task.supplierId) : null;
+  // v0.9.8: risolvi la pratica dall'anagrafica via practiceId
+  const linkedPractice = task ? getPractice(practices || [], task.practiceId) : null;
+
+  // Resetta la bozza se cambia il task aperto o se l'editor viene chiuso
+  useEffect(() => {
+    setDraftAssignees(task?.assignees || []);
+    setEditingAssignees(false);
+  }, [task?.id]);
 
   if (!task) return null;
 
   const handleComment = () => {
     if (!newComment.trim()) return;
+    const me = getMember(CURRENT_USER);
     dispatch({
       type: "ADD_COMMENT", payload: {
         taskId: task.id,
-        comment: { user: "Marco Ferretti", text: newComment, time: new Date().toISOString() }
+        comment: { user: me?.name || "Utente", text: newComment, time: new Date().toISOString() }
       }
     });
     setNewComment("");
@@ -4085,6 +5389,22 @@ const TaskSlideOver = ({ task, dispatch }) => {
     if (window.confirm(`Spostare nel cestino "${task.title}"?`)) {
       dispatch({ type: "DELETE_TASK", payload: task.id });
     }
+  };
+
+  const toggleDraftAssignee = (id) => {
+    setDraftAssignees(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const saveAssignees = () => {
+    dispatch({ type: "UPDATE_TASK", payload: { id: task.id, assignees: draftAssignees } });
+    setEditingAssignees(false);
+  };
+
+  const cancelAssigneeEdit = () => {
+    setDraftAssignees(task.assignees || []);
+    setEditingAssignees(false);
   };
 
   return (
@@ -4149,27 +5469,151 @@ const TaskSlideOver = ({ task, dispatch }) => {
           {/* Meta */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>ASSEGNATI</div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {task.assignees?.map(id => {
-                  const m = getMember(id);
-                  return m ? (
-                    <div key={id} style={{ display: "flex", alignItems: "center", gap: 5, background: "var(--surface2)", padding: "4px 8px", borderRadius: 99 }}>
-                      <Avatar memberId={id} size={20} />
-                      <span style={{ fontSize: 12 }}>{m.name.split(" ")[0]}</span>
-                    </div>
-                  ) : null;
-                })}
-                {!task.assignees?.length && <span style={{ fontSize: 13, color: "var(--text-muted)" }}>Non assegnato</span>}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)" }}>ASSEGNATI</span>
+                {canEdit && !editingAssignees && (
+                  <button
+                    onClick={() => setEditingAssignees(true)}
+                    title="Modifica assegnatari"
+                    style={{
+                      background: "none", border: "none", cursor: "pointer",
+                      color: "var(--navy)", fontSize: 11, fontWeight: 600, padding: 0,
+                    }}
+                  >✎ modifica</button>
+                )}
               </div>
+
+              {!editingAssignees && (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {task.assignees?.map(id => {
+                    const m = getMember(id);
+                    return m ? (
+                      <div key={id} style={{ display: "flex", alignItems: "center", gap: 5, background: "var(--surface2)", padding: "4px 8px", borderRadius: 99 }}>
+                        <Avatar memberId={id} size={20} />
+                        <span style={{ fontSize: 12 }}>{m.name.split(" ")[0]}</span>
+                      </div>
+                    ) : null;
+                  })}
+                  {!task.assignees?.length && <span style={{ fontSize: 13, color: "var(--text-muted)" }}>Non assegnato</span>}
+                </div>
+              )}
+
+              {editingAssignees && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {getAssignableTeam().map(m => {
+                      const on = draftAssignees.includes(m.id);
+                      return (
+                        <button
+                          key={m.id}
+                          onClick={() => toggleDraftAssignee(m.id)}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 5,
+                            background: on ? m.color : "var(--surface2)",
+                            color: on ? "#fff" : "var(--text)",
+                            border: on ? "1px solid " + m.color : "1px solid var(--border)",
+                            padding: "4px 9px", borderRadius: 99, cursor: "pointer",
+                            fontSize: 12, fontFamily: "inherit", transition: "all 0.15s",
+                          }}
+                        >
+                          <Avatar memberId={m.id} size={18} />
+                          <span>{m.name.split(" ")[0]}</span>
+                          {on && <span style={{ marginLeft: 2, fontSize: 10 }}>✓</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button onClick={saveAssignees} style={{
+                      padding: "6px 12px", borderRadius: 6, border: "none",
+                      background: "var(--navy)", color: "#fff", cursor: "pointer",
+                      fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                    }}>Salva</button>
+                    <button onClick={cancelAssigneeEdit} style={{
+                      padding: "6px 12px", borderRadius: 6, border: "1px solid var(--border)",
+                      background: "transparent", color: "var(--text)", cursor: "pointer",
+                      fontSize: 12, fontFamily: "inherit",
+                    }}>Annulla</button>
+                  </div>
+                </div>
+              )}
             </div>
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>CLIENTE</div>
-              <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>
-                {task.client || <span style={{ color: "var(--text-muted)" }}>—</span>}
-              </div>
+              {linkedClient ? (
+                <button
+                  onClick={() => dispatch({ type: "SET_SELECTED_CLIENT", payload: linkedClient })}
+                  title="Apri scheda cliente"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    padding: "5px 10px", borderRadius: 99,
+                    background: (CLIENT_TYPES[linkedClient.type] || CLIENT_TYPES.individuale).bg,
+                    color: (CLIENT_TYPES[linkedClient.type] || CLIENT_TYPES.individuale).color,
+                    border: "1px solid transparent", cursor: "pointer",
+                    fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                  }}
+                >
+                  <span>{(CLIENT_TYPES[linkedClient.type] || CLIENT_TYPES.individuale).icon}</span>
+                  {linkedClient.name}
+                  <span style={{ fontSize: 10, opacity: 0.7 }}>→</span>
+                </button>
+              ) : task.client ? (
+                <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>
+                  {task.client}
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: "var(--text-muted)" }}>—</div>
+              )}
             </div>
           </div>
+
+          {/* PRATICA (v0.9.8) — visibile solo se il task è collegato a una pratica */}
+          {linkedPractice && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>PRATICA</div>
+              <button
+                onClick={() => dispatch({ type: "SET_SELECTED_PRACTICE", payload: linkedPractice })}
+                title="Apri scheda pratica"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 8,
+                  padding: "6px 12px", borderRadius: 8,
+                  background: (PRACTICE_STATUSES[linkedPractice.status] || PRACTICE_STATUSES.draft).bg,
+                  color: (PRACTICE_STATUSES[linkedPractice.status] || PRACTICE_STATUSES.draft).color,
+                  border: `1px solid ${(PRACTICE_STATUSES[linkedPractice.status] || PRACTICE_STATUSES.draft).color}30`,
+                  cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                  textAlign: "left",
+                }}
+              >
+                <span style={{ fontVariantNumeric: "tabular-nums" }}>📂 {linkedPractice.number}</span>
+                <span style={{ opacity: 0.85 }}>·</span>
+                <span style={{ fontWeight: 500 }}>{linkedPractice.title}</span>
+                <span style={{ fontSize: 10, opacity: 0.7, marginLeft: "auto" }}>→</span>
+              </button>
+            </div>
+          )}
+
+          {/* FORNITORE (v0.9.7) — visibile solo se il task ha supplierId */}
+          {linkedSupplier && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>FORNITORE</div>
+              <button
+                onClick={() => dispatch({ type: "SET_SELECTED_SUPPLIER", payload: linkedSupplier })}
+                title="Apri scheda fornitore"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "5px 10px", borderRadius: 99,
+                  background: (SUPPLIER_TYPES[linkedSupplier.type] || SUPPLIER_TYPES.other).bg,
+                  color: (SUPPLIER_TYPES[linkedSupplier.type] || SUPPLIER_TYPES.other).color,
+                  border: "1px solid transparent", cursor: "pointer",
+                  fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                }}
+              >
+                <span>{(SUPPLIER_TYPES[linkedSupplier.type] || SUPPLIER_TYPES.other).icon}</span>
+                {linkedSupplier.name}
+                <span style={{ fontSize: 10, opacity: 0.7 }}>→</span>
+              </button>
+            </div>
+          )}
 
           {/* ORE */}
           {task.estimatedHours && (
@@ -4252,13 +5696,73 @@ const TaskSlideOver = ({ task, dispatch }) => {
   );
 };
 
-// ─── CALENDAR PLANNER (unificato: mese + settimana + distribuzione agenti) ──
+// ─── CALENDAR PLANNER (unificato: mese + settimana + giorno + distribuzione agenti) ──
+// v0.9.6: vista settimanale ridisegnata. v0.9.10: aggiunta vista Giorno + iCal export.
+const WEEK_START_HOUR = 6;   // 06:00 prima riga
+const WEEK_END_HOUR = 22;    // 22:00 esclusa (ultima riga è 21:00)
+const WEEK_HOUR_COUNT = WEEK_END_HOUR - WEEK_START_HOUR;
+const WEEK_ROW_HEIGHT = 56;  // px per ora (desktop)
+
+// v0.9.10: esporta le task dell'utente in formato iCal (.ics).
+// Solo task con dueDate, non cestinate, assegnate all'utente o in coda globale.
+const _icsEscape = (s) => String(s || "").replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
+const _icsDate = (iso) => {
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
+};
+const exportIcal = (tasks, userId) => {
+  const mine = (tasks || []).filter(t => !t.deletedAt && t.dueDate && (t.assignees || []).includes(userId));
+  const now = _icsDate(new Date().toISOString());
+  const me = TEAM.find(m => m.id === userId);
+  const calName = `VoyageDesk — ${me?.name || userId}`;
+  const events = mine.map(t => {
+    const start = _icsDate(t.dueDate);
+    // Durata di default = estimatedHours (in millisecondi) oppure 1h
+    const endDate = new Date(new Date(t.dueDate).getTime() + (Number(t.estimatedHours) || 1) * 3600 * 1000);
+    const end = _icsDate(endDate.toISOString());
+    const cat = CATEGORIES[t.category]?.label || t.category;
+    return [
+      "BEGIN:VEVENT",
+      `UID:${t.id}@voyagedesk`,
+      `DTSTAMP:${now}`,
+      `DTSTART:${start}`,
+      `DTEND:${end}`,
+      `SUMMARY:${_icsEscape(t.title)}`,
+      `DESCRIPTION:${_icsEscape(`[${cat}] ${t.description || ""}${t.client ? ` — Cliente: ${t.client}` : ""}`)}`,
+      `CATEGORIES:${_icsEscape(cat)}`,
+      "END:VEVENT",
+    ].join("\r\n");
+  });
+  const ics = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//VoyageDesk//IT",
+    `X-WR-CALNAME:${_icsEscape(calName)}`,
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    ...events,
+    "END:VCALENDAR",
+  ].join("\r\n");
+  const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `voyagedesk-${userId}-${new Date().toISOString().slice(0, 10)}.ics`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 500);
+};
+
 const CalendarPlanner = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
-  const [viewMode, setViewMode] = useState("month"); // "month" | "week"
+  const [viewMode, setViewMode] = useState("month"); // "month" | "week" | "day" (v0.9.10)
+  const [dayOffset, setDayOffset] = useState(0); // v0.9.10: 0 = oggi, ±n giorni
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState(null);
+  // v0.9.6: indice del giorno selezionato in vista settimana mobile.
+  // Quando si cambia settimana, riallineiamo all'eventuale "oggi" della nuova settimana.
+  const [weekDayIdx, setWeekDayIdx] = useState(0);
   const uid = state.currentUserId;
 
   // ── Month helpers ──
@@ -4289,14 +5793,57 @@ const CalendarPlanner = ({ state, dispatch }) => {
   const weekDays = getWeekDays(weekOffset);
   const dayNames = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
-  const getTasksForDay = (day) =>
-    state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && new Date(t.dueDate).toDateString() === day.toDateString());
-
   // ── Distribuzione agenti (settimana corrente in vista week, settimana del mese selezionato in vista month) ──
   const agentWeekDays = viewMode === "week" ? weekDays : (() => {
     // In vista mese, usiamo la settimana corrente
     return getWeekDays(0);
   })();
+
+  // ── Vista settimana v2 (v0.9.6) ──
+  // Quando cambia weekOffset, prova a riallineare il giorno mobile a "oggi" se è nella nuova settimana.
+  useEffect(() => {
+    const todayInWeek = weekDays.findIndex(d => d.toDateString() === new Date().toDateString());
+    setWeekDayIdx(todayInWeek >= 0 ? todayInWeek : 0);
+    // weekDays è ricalcolato a ogni render: useEffect su weekOffset basta
+  }, [weekOffset]);
+
+  // Task di un giorno *e* ora specifici (start = ora intera). Senza dueDate → esclusi.
+  const getTasksForDayHour = (day, hour) =>
+    state.tasks.filter(t => {
+      if (!isActiveTask(t) || !canViewTask(t, uid) || !t.dueDate) return false;
+      const td = new Date(t.dueDate);
+      return td.toDateString() === day.toDateString() && td.getHours() === hour;
+    });
+
+  // Task all-day di un giorno (con dueDate ma fuori dal range orario visualizzato).
+  // Pratico per task notturni o senza orario significativo.
+  const getOffHourTasks = (day) =>
+    state.tasks.filter(t => {
+      if (!isActiveTask(t) || !canViewTask(t, uid) || !t.dueDate) return false;
+      const td = new Date(t.dueDate);
+      if (td.toDateString() !== day.toDateString()) return false;
+      const h = td.getHours();
+      return h < WEEK_START_HOUR || h >= WEEK_END_HOUR;
+    });
+
+  // Posizione "now line" rispetto alla griglia (null se oggi non è in questa settimana o fuori range)
+  const nowLine = (() => {
+    const now = new Date();
+    const idx = weekDays.findIndex(d => d.toDateString() === now.toDateString());
+    if (idx < 0) return null;
+    const h = now.getHours() + now.getMinutes() / 60;
+    if (h < WEEK_START_HOUR || h >= WEEK_END_HOUR) return null;
+    return { dayIdx: idx, top: (h - WEEK_START_HOUR) * WEEK_ROW_HEIGHT };
+  })();
+
+  // Per la vista mobile: task del giorno selezionato ordinati per orario
+  const selectedDayDate = weekDays[Math.max(0, Math.min(6, weekDayIdx))];
+  const selectedDayTasksSorted = selectedDayDate
+    ? state.tasks
+        .filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate &&
+          new Date(t.dueDate).toDateString() === selectedDayDate.toDateString())
+        .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
+    : [];
 
   // ── Toggle style ──
   const toggleBtn = (mode, label) => (
@@ -4316,15 +5863,20 @@ const CalendarPlanner = ({ state, dispatch }) => {
   return (
     <div className="fade-in" style={{ padding: isMobile ? 16 : 28, display: "flex", flexDirection: "column", gap: isMobile ? 16 : 22 }}>
 
-      {/* ─── Header con toggle + navigazione ─── */}
+      {/* ─── Header con toggle + navigazione + export ─── */}
       <div className="vd-row-wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div className="playfair" style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, textTransform: viewMode === "month" ? "capitalize" : "none" }}>
-            {viewMode === "month" ? monthName : "Settimana"}
+            {viewMode === "month" ? monthName : viewMode === "week" ? "Settimana" : "Giorno"}
           </div>
           {viewMode === "week" && (
             <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
               {weekDays[0].toLocaleDateString("it-IT", { day: "numeric", month: "short" })} — {weekDays[6].toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" })}
+            </div>
+          )}
+          {viewMode === "day" && (
+            <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
+              {(() => { const d = new Date(); d.setDate(d.getDate() + dayOffset); return d.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" }); })()}
             </div>
           )}
         </div>
@@ -4333,22 +5885,46 @@ const CalendarPlanner = ({ state, dispatch }) => {
           <div style={{ display: "flex", gap: 4, background: "var(--surface2)", borderRadius: 10, padding: 3 }}>
             {toggleBtn("month", isMobile ? "Mese" : "📅 Mese")}
             {toggleBtn("week", isMobile ? "Sett." : "📆 Settimana")}
+            {toggleBtn("day", isMobile ? "Giorno" : "🗓 Giorno")}
           </div>
           {/* Nav buttons */}
           <div style={{ display: "flex", gap: 4 }}>
-            <button onClick={() => viewMode === "month" ? setCurrentMonth(new Date(year, month - 1)) : setWeekOffset(w => w - 1)} style={{
+            <button onClick={() => {
+              if (viewMode === "month") setCurrentMonth(new Date(year, month - 1));
+              else if (viewMode === "week") setWeekOffset(w => w - 1);
+              else setDayOffset(o => o - 1);
+            }} style={{
               background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
               width: 34, height: 34, cursor: "pointer", fontSize: 14
             }}>←</button>
-            <button onClick={() => { viewMode === "month" ? setCurrentMonth(new Date()) : setWeekOffset(0); setSelectedDay(null); }} style={{
+            <button onClick={() => {
+              if (viewMode === "month") setCurrentMonth(new Date());
+              else if (viewMode === "week") setWeekOffset(0);
+              else setDayOffset(0);
+              setSelectedDay(null);
+            }} style={{
               background: "var(--gold)", color: "var(--navy)", border: "none",
               borderRadius: 8, padding: "0 14px", height: 34, cursor: "pointer", fontSize: 12, fontWeight: 700
             }}>Oggi</button>
-            <button onClick={() => viewMode === "month" ? setCurrentMonth(new Date(year, month + 1)) : setWeekOffset(w => w + 1)} style={{
+            <button onClick={() => {
+              if (viewMode === "month") setCurrentMonth(new Date(year, month + 1));
+              else if (viewMode === "week") setWeekOffset(w => w + 1);
+              else setDayOffset(o => o + 1);
+            }} style={{
               background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
               width: 34, height: 34, cursor: "pointer", fontSize: 14
             }}>→</button>
           </div>
+          {/* iCal export (v0.9.10) */}
+          <button
+            onClick={() => exportIcal(state.tasks, uid)}
+            title="Esporta le mie task in formato iCal (.ics)"
+            style={{
+              background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
+              padding: "0 10px", height: 34, cursor: "pointer", fontSize: 12, fontWeight: 600,
+              color: "var(--navy)", fontFamily: "inherit",
+            }}
+          >📥 iCal</button>
         </div>
       </div>
 
@@ -4455,53 +6031,388 @@ const CalendarPlanner = ({ state, dispatch }) => {
         );
       })()}
 
-      {/* ─── VISTA SETTIMANA ─── */}
-      {viewMode === "week" && (
-        <div style={{ overflowX: isMobile ? "auto" : "visible", scrollSnapType: isMobile ? "x mandatory" : "none" }}>
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(7, 60vw)" : "repeat(7, 1fr)", gap: 10 }}>
+      {/* ─── VISTA SETTIMANA — DESKTOP: time-grid orario ─── */}
+      {viewMode === "week" && !isMobile && (
+        <div style={{
+          background: "#fff", borderRadius: 12, border: "1px solid var(--border)",
+          boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden",
+        }}>
+          {/* Header giorni */}
+          <div style={{ display: "grid", gridTemplateColumns: "62px repeat(7, 1fr)", background: "var(--navy)" }}>
+            <div style={{ padding: "10px 6px", fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: 1, textAlign: "center" }}>Ora</div>
             {weekDays.map((day, i) => {
-              const dayTasks = getTasksForDay(day);
               const isToday = day.toDateString() === new Date().toDateString();
               return (
                 <div key={i} style={{
-                  background: isToday ? "var(--navy)" : "#fff",
-                  borderRadius: 10, border: `1px solid ${isToday ? "transparent" : "var(--border)"}`,
-                  overflow: "hidden", scrollSnapAlign: isMobile ? "start" : "none",
+                  padding: "10px 6px", textAlign: "center",
+                  background: isToday ? "var(--gold)" : "transparent",
+                  color: isToday ? "var(--navy)" : "rgba(255,255,255,0.85)",
+                  borderLeft: "1px solid rgba(255,255,255,0.08)",
                 }}>
-                  {/* Day header */}
-                  <div style={{
-                    padding: "10px 10px 6px",
-                    background: isToday ? "var(--gold)" : "var(--surface2)",
-                    textAlign: "center"
+                  <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.8 }}>{dayNames[i]}</div>
+                  <div style={{ fontSize: 18, fontWeight: 700 }}>{day.getDate()}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Strip "all-day" / fuori orario, se ci sono task notturni o senza orario significativo */}
+          {weekDays.some(d => getOffHourTasks(d).length > 0) && (
+            <div style={{
+              display: "grid", gridTemplateColumns: "62px repeat(7, 1fr)",
+              background: "var(--surface2)", borderBottom: "1px solid var(--border)",
+            }}>
+              <div style={{
+                padding: "6px 6px", fontSize: 9, fontWeight: 600, color: "var(--text-muted)",
+                textAlign: "center", borderRight: "1px solid var(--border)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>FUORI ORARIO</div>
+              {weekDays.map((day, i) => {
+                const offTasks = getOffHourTasks(day);
+                return (
+                  <div key={i} style={{
+                    padding: "4px 4px", borderLeft: i === 0 ? "none" : "1px solid var(--border)",
+                    display: "flex", flexDirection: "column", gap: 2,
                   }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: isToday ? "var(--navy)" : "var(--text-muted)" }}>{dayNames[i]}</div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: isToday ? "var(--navy)" : "var(--text)" }}>
-                      {day.getDate()}
-                    </div>
+                    {offTasks.map(t => {
+                      const cat = CATEGORIES[t.category] || { color: "#6B7280", icon: "📋" };
+                      return (
+                        <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} title={t.title} style={{
+                          background: cat.color + "18", borderLeft: `3px solid ${cat.color}`,
+                          padding: "3px 6px", borderRadius: "0 4px 4px 0", cursor: "pointer",
+                          fontSize: 10, color: "var(--text)", whiteSpace: "nowrap",
+                          overflow: "hidden", textOverflow: "ellipsis",
+                        }}>{cat.icon} {t.title}</div>
+                      );
+                    })}
                   </div>
-                  <div style={{ padding: "8px 6px", display: "flex", flexDirection: "column", gap: 4, minHeight: 160 }}>
-                    {dayTasks.length === 0 ? (
-                      <div style={{ fontSize: 10, color: isToday ? "rgba(255,255,255,0.4)" : "var(--text-muted)", textAlign: "center", marginTop: 20 }}>Nessun task</div>
-                    ) : dayTasks.slice(0, 6).map(t => (
-                      <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
-                        background: isToday ? "rgba(255,255,255,0.12)" : CATEGORIES[t.category]?.color + "18",
-                        borderLeft: `3px solid ${CATEGORIES[t.category]?.color}`,
-                        borderRadius: "0 4px 4px 0", padding: "4px 6px", cursor: "pointer",
-                        fontSize: 10, fontWeight: 500, lineHeight: 1.3,
-                        color: isToday ? "#fff" : "var(--text)",
+                );
+              })}
+            </div>
+          )}
+
+          {/* Griglia oraria */}
+          <div style={{ position: "relative" }}>
+            {/* Now line: assoluta sopra tutto */}
+            {nowLine && (
+              <div style={{
+                position: "absolute", left: 62, right: 0, top: nowLine.top,
+                height: 2, background: "var(--danger)", zIndex: 5,
+                pointerEvents: "none",
+              }}>
+                <div style={{
+                  position: "absolute", left: `calc(${(100 / 7) * nowLine.dayIdx}% - 6px)`,
+                  top: -5, width: 12, height: 12, borderRadius: "50%",
+                  background: "var(--danger)", border: "2px solid #fff",
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
+                }} />
+              </div>
+            )}
+
+            {/* Righe orarie */}
+            {Array.from({ length: WEEK_HOUR_COUNT }, (_, hi) => {
+              const hour = WEEK_START_HOUR + hi;
+              return (
+                <div key={hour} style={{
+                  display: "grid", gridTemplateColumns: "62px repeat(7, 1fr)",
+                  height: WEEK_ROW_HEIGHT, borderTop: "1px solid var(--surface3)",
+                }}>
+                  {/* Etichetta ora */}
+                  <div style={{
+                    fontSize: 11, color: "var(--text-muted)", padding: "3px 8px",
+                    textAlign: "right", borderRight: "1px solid var(--border)",
+                    fontVariantNumeric: "tabular-nums",
+                  }}>{String(hour).padStart(2, "0")}:00</div>
+
+                  {weekDays.map((day, di) => {
+                    const tasks = getTasksForDayHour(day, hour);
+                    const isToday = day.toDateString() === new Date().toDateString();
+                    return (
+                      <div key={di} style={{
+                        borderLeft: di === 0 ? "none" : "1px solid var(--surface3)",
+                        padding: "3px 4px",
+                        display: "flex", flexDirection: "column", gap: 2,
+                        background: isToday ? "rgba(212,168,67,0.04)" : "transparent",
+                        overflow: "hidden",
                       }}>
-                        {CATEGORIES[t.category]?.icon} {t.title.slice(0, 30)}{t.title.length > 30 ? "…" : ""}
-                        <div style={{ fontSize: 9, color: isToday ? "rgba(255,255,255,0.5)" : "var(--text-muted)", marginTop: 1 }}>{formatTime(t.dueDate)}</div>
+                        {tasks.map(t => {
+                          const cat = CATEGORIES[t.category] || { color: "#6B7280", icon: "📋" };
+                          const prio = PRIORITIES[t.priority] || { color: "#6B7280" };
+                          return (
+                            <div
+                              key={t.id}
+                              onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
+                              title={`${t.title} — ${formatTime(t.dueDate)}`}
+                              style={{
+                                background: cat.color + "1a",
+                                borderLeft: `3px solid ${cat.color}`,
+                                borderRadius: "0 4px 4px 0",
+                                padding: "3px 6px", cursor: "pointer",
+                                fontSize: 11, lineHeight: 1.25,
+                                color: "var(--text)", display: "flex", gap: 4, alignItems: "baseline",
+                                overflow: "hidden",
+                              }}
+                              onMouseEnter={e => { e.currentTarget.style.background = cat.color + "30"; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = cat.color + "1a"; }}
+                            >
+                              <span style={{ fontSize: 10, fontWeight: 700, color: cat.color, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
+                                {formatTime(t.dueDate)}
+                              </span>
+                              <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontWeight: 500 }}>
+                                {cat.icon} {t.title}
+                              </span>
+                              <span style={{ width: 5, height: 5, borderRadius: "50%", background: prio.color, flexShrink: 0 }} title={prio.label} />
+                            </div>
+                          );
+                        })}
                       </div>
-                    ))}
-                    {dayTasks.length > 6 && <div style={{ fontSize: 10, color: isToday ? "rgba(255,255,255,0.4)" : "var(--text-muted)", textAlign: "center" }}>+{dayTasks.length - 6} altri</div>}
-                  </div>
+                    );
+                  })}
                 </div>
               );
             })}
           </div>
         </div>
       )}
+
+      {/* ─── VISTA SETTIMANA — MOBILE: day tabs + lista verticale ─── */}
+      {viewMode === "week" && isMobile && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {/* Tab strip giorni con scroll snap */}
+          <div style={{
+            display: "flex", gap: 6, overflowX: "auto", paddingBottom: 6,
+            scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch",
+          }}>
+            {weekDays.map((day, i) => {
+              const isToday = day.toDateString() === new Date().toDateString();
+              const isActive = i === weekDayIdx;
+              const count = state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate &&
+                new Date(t.dueDate).toDateString() === day.toDateString()).length;
+              return (
+                <button
+                  key={i}
+                  onClick={() => setWeekDayIdx(i)}
+                  style={{
+                    flex: "0 0 auto", minWidth: 64, padding: "8px 10px",
+                    borderRadius: 10, border: "none", cursor: "pointer",
+                    background: isActive ? "var(--navy)" : isToday ? "var(--gold)" : "#fff",
+                    color: isActive ? "#fff" : "var(--navy)",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                    fontFamily: "inherit", display: "flex", flexDirection: "column",
+                    alignItems: "center", gap: 2, scrollSnapAlign: "start",
+                    transition: "background 0.15s",
+                  }}
+                >
+                  <span style={{ fontSize: 10, fontWeight: 600, opacity: isActive ? 0.7 : 0.6, textTransform: "uppercase", letterSpacing: 0.5 }}>{dayNames[i]}</span>
+                  <span style={{ fontSize: 17, fontWeight: 700 }}>{day.getDate()}</span>
+                  {count > 0 && (
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 99,
+                      background: isActive ? "var(--gold)" : "var(--surface2)",
+                      color: isActive ? "var(--navy)" : "var(--text-muted)",
+                      marginTop: 1,
+                    }}>{count}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Lista task del giorno */}
+          <div style={{
+            background: "#fff", borderRadius: 12, padding: "14px 12px",
+            border: "1px solid var(--border)", boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
+          }}>
+            <div className="playfair" style={{ fontSize: 15, fontWeight: 700, marginBottom: 10, color: "var(--navy)" }}>
+              {selectedDayDate?.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
+              {selectedDayDate?.toDateString() === new Date().toDateString() && (
+                <span style={{ marginLeft: 8, fontSize: 10, padding: "2px 7px", borderRadius: 99, background: "var(--gold)", color: "var(--navy)" }}>OGGI</span>
+              )}
+            </div>
+            {selectedDayTasksSorted.length === 0 ? (
+              <div style={{ padding: "20px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+                🗓️ Nessun task per questo giorno.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {selectedDayTasksSorted.map(t => {
+                  const cat = CATEGORIES[t.category] || { color: "#6B7280", icon: "📋", label: t.category };
+                  const prio = PRIORITIES[t.priority];
+                  const card = (
+                    <div
+                      onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
+                      style={{
+                        display: "flex", gap: 10, padding: 10, borderRadius: 10,
+                        background: "#fff", border: "1px solid var(--border)",
+                        borderLeft: `3px solid ${prio.color}`,
+                        cursor: "pointer", alignItems: "stretch",
+                      }}
+                    >
+                      <div style={{
+                        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                        minWidth: 54, padding: "2px 6px", borderRight: "1px solid var(--surface3)",
+                        background: "var(--surface)", borderRadius: 6,
+                      }}>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: cat.color, fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>
+                          {formatTime(t.dueDate)}
+                        </div>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                          <span style={{
+                            display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600,
+                            padding: "2px 7px", borderRadius: 99,
+                            background: cat.bg || (cat.color + "18"), color: cat.color,
+                          }}>{cat.icon} {cat.label}</span>
+                          <StatusBadge status={t.status} />
+                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", lineHeight: 1.3 }}>{t.title}</div>
+                        {t.client && <div style={{ fontSize: 11, color: "var(--text-muted)" }}>👤 {t.client}</div>}
+                      </div>
+                    </div>
+                  );
+                  return (
+                    <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+                      {card}
+                    </SwipeActions>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── VISTA GIORNO (v0.9.10) ─── */}
+      {viewMode === "day" && (() => {
+        const dayDate = new Date(); dayDate.setDate(dayDate.getDate() + dayOffset); dayDate.setHours(0, 0, 0, 0);
+        const isToday = dayOffset === 0;
+        const dayTasks = state.tasks
+          .filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate)
+          .filter(t => new Date(t.dueDate).toDateString() === dayDate.toDateString())
+          .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+        const inHourRange = (t) => {
+          const h = new Date(t.dueDate).getHours();
+          return h >= WEEK_START_HOUR && h < WEEK_END_HOUR;
+        };
+        const offHourTasks = dayTasks.filter(t => !inHourRange(t));
+        // "now line" se è oggi e l'ora corrente è nel range
+        const now = new Date();
+        const nowTop = isToday
+          ? (now.getHours() + now.getMinutes() / 60 - WEEK_START_HOUR) * WEEK_ROW_HEIGHT
+          : null;
+        const showNowLine = nowTop !== null && nowTop >= 0 && nowTop < WEEK_HOUR_COUNT * WEEK_ROW_HEIGHT;
+
+        return (
+          <div style={{
+            background: "#fff", borderRadius: 12, border: "1px solid var(--border)",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden",
+          }}>
+            {/* Header giorno */}
+            <div style={{ padding: "14px 18px", background: "var(--navy)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>
+                  {isToday ? "OGGI" : dayDate.toLocaleDateString("it-IT", { weekday: "long" })}
+                </div>
+                <div style={{ fontSize: 24, fontWeight: 700, marginTop: 2 }}>
+                  {dayDate.toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}
+                </div>
+              </div>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.85)" }}>
+                <b style={{ fontSize: 18 }}>{dayTasks.length}</b> {dayTasks.length === 1 ? "task" : "task"} totali
+              </div>
+            </div>
+
+            {/* Strip fuori orario */}
+            {offHourTasks.length > 0 && (
+              <div style={{ padding: "10px 18px", background: "var(--surface2)", borderBottom: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 4 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Fuori orario</div>
+                {offHourTasks.map(t => {
+                  const cat = CATEGORIES[t.category] || { color: "#6B7280", icon: "📋" };
+                  return (
+                    <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                      background: cat.color + "18", borderLeft: `3px solid ${cat.color}`,
+                      padding: "5px 10px", borderRadius: "0 6px 6px 0", cursor: "pointer",
+                      fontSize: 12, display: "flex", gap: 8, alignItems: "center",
+                    }}>
+                      <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700, color: cat.color }}>{formatTime(t.dueDate)}</span>
+                      <span>{cat.icon}</span>
+                      <span style={{ flex: 1 }}>{t.title}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Time-grid orario per il giorno */}
+            <div style={{ position: "relative" }}>
+              {showNowLine && (
+                <div style={{
+                  position: "absolute", left: 70, right: 0, top: nowTop,
+                  height: 2, background: "var(--danger)", zIndex: 5, pointerEvents: "none",
+                }}>
+                  <div style={{
+                    position: "absolute", left: -6, top: -5, width: 12, height: 12, borderRadius: "50%",
+                    background: "var(--danger)", border: "2px solid #fff",
+                  }} />
+                </div>
+              )}
+              {Array.from({ length: WEEK_HOUR_COUNT }, (_, hi) => {
+                const hour = WEEK_START_HOUR + hi;
+                const tasksHere = dayTasks.filter(t => new Date(t.dueDate).getHours() === hour);
+                return (
+                  <div key={hour} style={{
+                    display: "grid", gridTemplateColumns: "70px 1fr",
+                    minHeight: WEEK_ROW_HEIGHT, borderTop: "1px solid var(--surface3)",
+                  }}>
+                    <div style={{
+                      fontSize: 12, color: "var(--text-muted)", padding: "8px 10px",
+                      textAlign: "right", borderRight: "1px solid var(--border)",
+                      fontVariantNumeric: "tabular-nums",
+                    }}>{String(hour).padStart(2, "0")}:00</div>
+                    <div style={{
+                      padding: "6px 12px", display: "flex", flexDirection: "column", gap: 4,
+                    }}>
+                      {tasksHere.map(t => {
+                        const cat = CATEGORIES[t.category] || { color: "#6B7280", icon: "📋", label: t.category };
+                        const prio = PRIORITIES[t.priority];
+                        return (
+                          <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                            background: cat.color + "1a", borderLeft: `3px solid ${cat.color}`,
+                            borderRadius: "0 6px 6px 0", padding: "8px 12px", cursor: "pointer",
+                            display: "flex", gap: 10, alignItems: "center",
+                            transition: "background 0.15s",
+                          }}
+                            onMouseEnter={e => { e.currentTarget.style.background = cat.color + "30"; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = cat.color + "1a"; }}
+                          >
+                            <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700, color: cat.color, fontSize: 13, minWidth: 44 }}>
+                              {formatTime(t.dueDate)}
+                            </span>
+                            <span style={{ fontSize: 18, flexShrink: 0 }}>{cat.icon}</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{t.title}</div>
+                              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                {t.client && <span>👤 {t.client}</span>}
+                                {(t.assignees || []).slice(0, 3).map(aid => {
+                                  const m = getMember(aid); if (!m) return null;
+                                  return <span key={aid}>{m.name.split(" ")[0]}</span>;
+                                })}
+                              </div>
+                            </div>
+                            <PriorityBadge priority={t.priority} />
+                            <StatusBadge status={t.status} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ─── DISTRIBUZIONE AGENTI (sempre visibile) ─── */}
       <div style={{ background: "#fff", borderRadius: 12, padding: isMobile ? "14px 12px" : "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
@@ -4681,11 +6592,1434 @@ const Team = ({ state, dispatch }) => {
   );
 };
 
+// ─── CLIENTI: vista lista + modal CRUD (v0.9.5) ────────────────────────────
+const ClientsView = ({ state, dispatch }) => {
+  const { isMobile } = useViewport();
+  const uid = state.currentUserId;
+  const canManage = canManageClients(uid);
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [showTrashed, setShowTrashed] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+
+  const clientsAll = state.clients || [];
+  const activeClients = clientsAll.filter(c => showTrashed ? !!c.deletedAt : !c.deletedAt);
+
+  // Conteggio task attivi collegati per cliente (anche via mappa legacy)
+  const taskCountByClient = useMemo(() => {
+    const map = new Map();
+    (state.tasks || []).forEach(t => {
+      if (t.deletedAt) return;
+      const cid = resolveLegacyClientId(t);
+      if (!cid) return;
+      map.set(cid, (map.get(cid) || 0) + 1);
+    });
+    return map;
+  }, [state.tasks]);
+
+  const filtered = activeClients.filter(c => {
+    if (typeFilter !== "all" && c.type !== typeFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      const hay = `${c.name} ${c.contactPerson || ""} ${c.email || ""} ${c.phone || ""} ${c.notes || ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  }).sort((a, b) => a.name.localeCompare(b.name));
+
+  return (
+    <div className="fade-in" style={{ padding: isMobile ? 16 : 28, display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
+      {/* Header */}
+      <div className="vd-row-wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
+        <div>
+          <div className="playfair" style={{ fontSize: isMobile ? 21 : 26, fontWeight: 700 }}>
+            🧳 Clienti
+          </div>
+          <div style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 2 }}>
+            {clientsAll.filter(c => !c.deletedAt).length} clienti attivi · {filtered.length} in elenco
+          </div>
+        </div>
+        {canManage && !showTrashed && (
+          <button onClick={() => setShowNew(true)} style={{
+            background: "var(--navy)", color: "#fff", border: "none",
+            padding: "10px 16px", borderRadius: 8, cursor: "pointer",
+            fontSize: 13, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6,
+          }}>+ Nuovo cliente</button>
+        )}
+      </div>
+
+      {/* Toolbar */}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Cerca per nome, referente, email, note…"
+          style={{
+            flex: "1 1 240px", border: "1px solid var(--border)", borderRadius: 8,
+            padding: "9px 12px", fontSize: 13, fontFamily: "inherit", outline: "none",
+          }}
+        />
+        <select
+          value={typeFilter}
+          onChange={e => setTypeFilter(e.target.value)}
+          style={{
+            border: "1px solid var(--border)", borderRadius: 8, padding: "9px 12px",
+            fontSize: 13, fontFamily: "inherit", background: "#fff", cursor: "pointer",
+          }}
+        >
+          <option value="all">Tutti i tipi</option>
+          {Object.entries(CLIENT_TYPES).map(([k, v]) => (
+            <option key={k} value={k}>{v.icon} {v.label}</option>
+          ))}
+        </select>
+        <label style={{ fontSize: 12, color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+          <input type="checkbox" checked={showTrashed} onChange={e => setShowTrashed(e.target.checked)} />
+          Mostra rimossi
+        </label>
+      </div>
+
+      {/* Grid */}
+      {filtered.length === 0 ? (
+        <div style={{
+          padding: "40px 20px", textAlign: "center", color: "var(--text-muted)",
+          fontSize: 13, background: "#fff", borderRadius: 10, border: "1px dashed var(--border)",
+        }}>
+          {search || typeFilter !== "all"
+            ? "Nessun cliente corrisponde ai filtri."
+            : showTrashed
+              ? "Nessun cliente rimosso."
+              : 'Ancora nessun cliente. Premi "Nuovo cliente" per crearne uno.'}
+        </div>
+      ) : (
+        <div className="vd-grid-3col" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+          {filtered.map(c => {
+            const type = CLIENT_TYPES[c.type] || CLIENT_TYPES.individuale;
+            const taskCount = taskCountByClient.get(c.id) || 0;
+            return (
+              <div
+                key={c.id}
+                onClick={() => dispatch({ type: "SET_SELECTED_CLIENT", payload: c })}
+                style={{
+                  background: "#fff", borderRadius: 10, padding: 14, cursor: "pointer",
+                  border: "1px solid var(--border)", borderLeft: `3px solid ${type.color}`,
+                  display: "flex", flexDirection: "column", gap: 8,
+                  transition: "transform 0.15s, box-shadow 0.15s",
+                  opacity: c.deletedAt ? 0.6 : 1,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.08)"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <span style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    padding: "3px 8px", borderRadius: 999,
+                    background: type.bg, color: type.color,
+                    fontSize: 11, fontWeight: 600,
+                  }}>
+                    <span>{type.icon}</span> {type.label}
+                  </span>
+                  {taskCount > 0 && (
+                    <span style={{
+                      background: "var(--surface2)", color: "var(--text-muted)",
+                      padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 600,
+                    }} title={`${taskCount} task attivi collegati`}>📋 {taskCount}</span>
+                  )}
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", lineHeight: 1.3 }}>
+                  {c.name}
+                </div>
+                {c.contactPerson && (
+                  <div style={{ fontSize: 12, color: "var(--text-muted)" }}>👤 {c.contactPerson}</div>
+                )}
+                {(c.email || c.phone) && (
+                  <div style={{ display: "flex", gap: 10, fontSize: 11, color: "var(--text-muted)", flexWrap: "wrap" }}>
+                    {c.email && <span style={{ wordBreak: "break-all" }}>✉️ {c.email}</span>}
+                    {c.phone && <span>☎️ {c.phone}</span>}
+                  </div>
+                )}
+                {c.notes && (
+                  <div style={{
+                    fontSize: 12, color: "var(--text-muted)", marginTop: 4, lineHeight: 1.45,
+                    display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+                  }}>{c.notes}</div>
+                )}
+                {c.deletedAt && (
+                  <div style={{ fontSize: 10, color: "var(--danger)", fontStyle: "italic" }}>
+                    Rimosso il {formatDate(c.deletedAt)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Modale "Nuovo cliente" — locale alla vista (entry point dedicato).
+          La modale di modifica è renderizzata a livello root (vedi VoyageDeskInner)
+          così può essere aperta anche da chip cliente nel TaskSlideOver. */}
+      {showNew && canManage && (
+        <ClientEditModal
+          client={null}
+          onClose={() => setShowNew(false)}
+          dispatch={dispatch}
+          canManage={canManage}
+        />
+      )}
+    </div>
+  );
+};
+
+// Modale creazione/modifica/lettura di un cliente.
+// - client === null → modalità creazione.
+// - canManage === false → modalità sola lettura (utile per quando viene aperto da TaskSlideOver).
+// - onCreated(newClient) → callback opzionale per pre-selezionare un cliente appena creato
+//   dal picker in QuickAddTask.
+const ClientEditModal = ({ client, onClose, dispatch, canManage, taskCount = 0, onCreated }) => {
+  const isNew = !client;
+  const [form, setForm] = useState({
+    name: client?.name || "",
+    type: client?.type || "famiglia",
+    contactPerson: client?.contactPerson || "",
+    email: client?.email || "",
+    phone: client?.phone || "",
+    notes: client?.notes || "",
+  });
+
+  const handleSave = () => {
+    if (!form.name.trim()) return;
+    const payload = {
+      name: form.name.trim(),
+      type: form.type,
+      contactPerson: form.contactPerson.trim() || null,
+      email: form.email.trim() || null,
+      phone: form.phone.trim() || null,
+      notes: form.notes.trim(),
+    };
+    if (isNew) {
+      const newClient = { id: `cl-${Date.now()}`, ...payload };
+      dispatch({ type: "ADD_CLIENT", payload: newClient });
+      if (onCreated) onCreated(newClient);
+    } else {
+      dispatch({ type: "UPDATE_CLIENT", payload: { id: client.id, ...payload } });
+    }
+    onClose();
+  };
+
+  const handleDelete = () => {
+    if (!client) return;
+    const hint = taskCount > 0
+      ? `\n\n${taskCount} task collegati continueranno a mostrare il nome del cliente (campo legacy).`
+      : "";
+    if (!window.confirm(`Rimuovere "${client.name}" dall'anagrafica clienti?${hint}`)) return;
+    dispatch({ type: "DELETE_CLIENT", payload: client.id });
+    onClose();
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid var(--border)",
+    fontSize: 13, fontFamily: "inherit", boxSizing: "border-box", background: "#fff", outline: "none",
+  };
+  const labelStyle = { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, display: "block", marginBottom: 4 };
+  const readOnly = !canManage || !!client?.deletedAt;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(15,32,68,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 700, padding: 16 }}>
+      <div className="slide-up" style={{
+        background: "#fff", borderRadius: 12, padding: 24, width: 560, maxWidth: "100%",
+        maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, gap: 10 }}>
+          <div style={{ minWidth: 0 }}>
+            <div className="playfair" style={{ fontSize: 20, fontWeight: 700, color: "var(--navy)" }}>
+              {isNew ? "Nuovo cliente" : client.name}
+            </div>
+            {!isNew && (
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {taskCount > 0 && <span>📋 {taskCount} task collegati</span>}
+                <span>Creato il {formatDate(client.createdAt)}</span>
+                {client.updatedAt && client.updatedAt !== client.createdAt && <span>Aggiornato il {formatDate(client.updatedAt)}</span>}
+                {client.deletedAt && <span style={{ color: "var(--danger)" }}>· Rimosso</span>}
+              </div>
+            )}
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "var(--text-muted)", flexShrink: 0 }}>✕</button>
+        </div>
+
+        <div style={{ display: "grid", gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Nome *</label>
+            <input
+              value={form.name}
+              onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+              disabled={readOnly}
+              placeholder="Es. Famiglia Rossi"
+              style={inputStyle}
+            />
+          </div>
+
+          <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Tipologia</label>
+              <select
+                value={form.type}
+                onChange={e => setForm(p => ({ ...p, type: e.target.value }))}
+                disabled={readOnly}
+                style={{ ...inputStyle, cursor: readOnly ? "default" : "pointer" }}
+              >
+                {Object.entries(CLIENT_TYPES).map(([k, v]) => (
+                  <option key={k} value={k}>{v.icon} {v.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Referente</label>
+              <input
+                value={form.contactPerson}
+                onChange={e => setForm(p => ({ ...p, contactPerson: e.target.value }))}
+                disabled={readOnly}
+                placeholder="Persona di contatto"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Email</label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+                disabled={readOnly}
+                placeholder="cliente@example.com"
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Telefono</label>
+              <input
+                value={form.phone}
+                onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
+                disabled={readOnly}
+                placeholder="+39 333 1234567"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Note</label>
+            <textarea
+              value={form.notes}
+              onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+              disabled={readOnly}
+              rows={5}
+              placeholder="Preferenze, budget, allergie, dettagli operativi…"
+              style={{ ...inputStyle, resize: "vertical" }}
+            />
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "space-between", marginTop: 20, flexWrap: "wrap" }}>
+          {!isNew && canManage && !client?.deletedAt && (
+            <button onClick={handleDelete} style={{
+              padding: "9px 16px", borderRadius: 8, border: "1px solid var(--danger)",
+              background: "transparent", color: "var(--danger)", cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+            }}>🗑 Rimuovi cliente</button>
+          )}
+          <div style={{ display: "flex", gap: 10, marginLeft: "auto" }}>
+            <button onClick={onClose} style={{
+              padding: "9px 18px", borderRadius: 8, border: "1px solid var(--border)",
+              background: "transparent", cursor: "pointer", fontSize: 13, fontWeight: 500, fontFamily: "inherit",
+            }}>{readOnly ? "Chiudi" : "Annulla"}</button>
+            {!readOnly && (
+              <button onClick={handleSave} disabled={!form.name.trim()} style={{
+                padding: "9px 20px", borderRadius: 8, border: "none",
+                background: form.name.trim() ? "var(--navy)" : "var(--text-light)",
+                color: "#fff", cursor: form.name.trim() ? "pointer" : "not-allowed",
+                fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+              }}>{isNew ? "✓ Crea cliente" : "💾 Salva"}</button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── FORNITORI: vista lista + modal CRUD (v0.9.7) ──────────────────────────
+// Stretto mirror di ClientsView per consistenza UX.
+const SuppliersView = ({ state, dispatch }) => {
+  const { isMobile } = useViewport();
+  const uid = state.currentUserId;
+  const canManage = canManageSuppliers(uid);
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [showTrashed, setShowTrashed] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+
+  const suppliersAll = state.suppliers || [];
+  const activeSuppliers = suppliersAll.filter(s => showTrashed ? !!s.deletedAt : !s.deletedAt);
+
+  // Conteggio task attivi collegati per fornitore
+  const taskCountBySupplier = useMemo(() => {
+    const map = new Map();
+    (state.tasks || []).forEach(t => {
+      if (t.deletedAt || !t.supplierId) return;
+      map.set(t.supplierId, (map.get(t.supplierId) || 0) + 1);
+    });
+    return map;
+  }, [state.tasks]);
+
+  const filtered = activeSuppliers.filter(s => {
+    if (typeFilter !== "all" && s.type !== typeFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      const hay = `${s.name} ${s.contactPerson || ""} ${s.email || ""} ${s.phone || ""} ${s.services || ""} ${s.notes || ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  }).sort((a, b) => a.name.localeCompare(b.name));
+
+  return (
+    <div className="fade-in" style={{ padding: isMobile ? 16 : 28, display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
+      {/* Header */}
+      <div className="vd-row-wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
+        <div>
+          <div className="playfair" style={{ fontSize: isMobile ? 21 : 26, fontWeight: 700 }}>
+            🤝 Fornitori
+          </div>
+          <div style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 2 }}>
+            {suppliersAll.filter(s => !s.deletedAt).length} fornitori attivi · {filtered.length} in elenco
+          </div>
+        </div>
+        {canManage && !showTrashed && (
+          <button onClick={() => setShowNew(true)} style={{
+            background: "var(--navy)", color: "#fff", border: "none",
+            padding: "10px 16px", borderRadius: 8, cursor: "pointer",
+            fontSize: 13, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6,
+          }}>+ Nuovo fornitore</button>
+        )}
+      </div>
+
+      {/* Toolbar */}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Cerca per nome, referente, servizi, note…"
+          style={{
+            flex: "1 1 240px", border: "1px solid var(--border)", borderRadius: 8,
+            padding: "9px 12px", fontSize: 13, fontFamily: "inherit", outline: "none",
+          }}
+        />
+        <select
+          value={typeFilter}
+          onChange={e => setTypeFilter(e.target.value)}
+          style={{
+            border: "1px solid var(--border)", borderRadius: 8, padding: "9px 12px",
+            fontSize: 13, fontFamily: "inherit", background: "#fff", cursor: "pointer",
+          }}
+        >
+          <option value="all">Tutti i tipi</option>
+          {Object.entries(SUPPLIER_TYPES).map(([k, v]) => (
+            <option key={k} value={k}>{v.icon} {v.label}</option>
+          ))}
+        </select>
+        <label style={{ fontSize: 12, color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+          <input type="checkbox" checked={showTrashed} onChange={e => setShowTrashed(e.target.checked)} />
+          Mostra rimossi
+        </label>
+      </div>
+
+      {/* Grid */}
+      {filtered.length === 0 ? (
+        <div style={{
+          padding: "40px 20px", textAlign: "center", color: "var(--text-muted)",
+          fontSize: 13, background: "#fff", borderRadius: 10, border: "1px dashed var(--border)",
+        }}>
+          {search || typeFilter !== "all"
+            ? "Nessun fornitore corrisponde ai filtri."
+            : showTrashed
+              ? "Nessun fornitore rimosso."
+              : 'Ancora nessun fornitore. Premi "Nuovo fornitore" per crearne uno.'}
+        </div>
+      ) : (
+        <div className="vd-grid-3col" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+          {filtered.map(s => {
+            const type = SUPPLIER_TYPES[s.type] || SUPPLIER_TYPES.other;
+            const taskCount = taskCountBySupplier.get(s.id) || 0;
+            return (
+              <div
+                key={s.id}
+                onClick={() => dispatch({ type: "SET_SELECTED_SUPPLIER", payload: s })}
+                style={{
+                  background: "#fff", borderRadius: 10, padding: 14, cursor: "pointer",
+                  border: "1px solid var(--border)", borderLeft: `3px solid ${type.color}`,
+                  display: "flex", flexDirection: "column", gap: 8,
+                  transition: "transform 0.15s, box-shadow 0.15s",
+                  opacity: s.deletedAt ? 0.6 : 1,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.08)"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <span style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    padding: "3px 8px", borderRadius: 999,
+                    background: type.bg, color: type.color,
+                    fontSize: 11, fontWeight: 600,
+                  }}>
+                    <span>{type.icon}</span> {type.label}
+                  </span>
+                  {taskCount > 0 && (
+                    <span style={{
+                      background: "var(--surface2)", color: "var(--text-muted)",
+                      padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 600,
+                    }} title={`${taskCount} task attivi collegati`}>📋 {taskCount}</span>
+                  )}
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", lineHeight: 1.3 }}>
+                  {s.name}
+                </div>
+                {s.contactPerson && (
+                  <div style={{ fontSize: 12, color: "var(--text-muted)" }}>👤 {s.contactPerson}</div>
+                )}
+                {(s.email || s.phone) && (
+                  <div style={{ display: "flex", gap: 10, fontSize: 11, color: "var(--text-muted)", flexWrap: "wrap" }}>
+                    {s.email && <span style={{ wordBreak: "break-all" }}>✉️ {s.email}</span>}
+                    {s.phone && <span>☎️ {s.phone}</span>}
+                  </div>
+                )}
+                {s.services && (
+                  <div style={{
+                    fontSize: 12, color: "var(--text)", marginTop: 4, lineHeight: 1.45,
+                    display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+                    background: "var(--surface)", padding: "6px 8px", borderRadius: 6,
+                  }}>{s.services}</div>
+                )}
+                {s.deletedAt && (
+                  <div style={{ fontSize: 10, color: "var(--danger)", fontStyle: "italic" }}>
+                    Rimosso il {formatDate(s.deletedAt)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Modale "Nuovo fornitore" — locale alla vista */}
+      {showNew && canManage && (
+        <SupplierEditModal
+          supplier={null}
+          onClose={() => setShowNew(false)}
+          dispatch={dispatch}
+          canManage={canManage}
+        />
+      )}
+    </div>
+  );
+};
+
+// Modale creazione/modifica/lettura di un fornitore.
+// Mirror di ClientEditModal.
+const SupplierEditModal = ({ supplier, onClose, dispatch, canManage, taskCount = 0, onCreated }) => {
+  const isNew = !supplier;
+  const [form, setForm] = useState({
+    name: supplier?.name || "",
+    type: supplier?.type || "hotel",
+    contactPerson: supplier?.contactPerson || "",
+    email: supplier?.email || "",
+    phone: supplier?.phone || "",
+    address: supplier?.address || "",
+    services: supplier?.services || "",
+    notes: supplier?.notes || "",
+  });
+
+  const handleSave = () => {
+    if (!form.name.trim()) return;
+    const payload = {
+      name: form.name.trim(),
+      type: form.type,
+      contactPerson: form.contactPerson.trim() || null,
+      email: form.email.trim() || null,
+      phone: form.phone.trim() || null,
+      address: form.address.trim() || null,
+      services: form.services.trim(),
+      notes: form.notes.trim(),
+    };
+    if (isNew) {
+      const newSupplier = { id: `sp-${Date.now()}`, ...payload };
+      dispatch({ type: "ADD_SUPPLIER", payload: newSupplier });
+      if (onCreated) onCreated(newSupplier);
+    } else {
+      dispatch({ type: "UPDATE_SUPPLIER", payload: { id: supplier.id, ...payload } });
+    }
+    onClose();
+  };
+
+  const handleDelete = () => {
+    if (!supplier) return;
+    const hint = taskCount > 0
+      ? `\n\n${taskCount} task collegati continueranno a esistere senza riferimento fornitore.`
+      : "";
+    if (!window.confirm(`Rimuovere "${supplier.name}" dall'anagrafica fornitori?${hint}`)) return;
+    dispatch({ type: "DELETE_SUPPLIER", payload: supplier.id });
+    onClose();
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid var(--border)",
+    fontSize: 13, fontFamily: "inherit", boxSizing: "border-box", background: "#fff", outline: "none",
+  };
+  const labelStyle = { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, display: "block", marginBottom: 4 };
+  const readOnly = !canManage || !!supplier?.deletedAt;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(15,32,68,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 700, padding: 16 }}>
+      <div className="slide-up" style={{
+        background: "#fff", borderRadius: 12, padding: 24, width: 580, maxWidth: "100%",
+        maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, gap: 10 }}>
+          <div style={{ minWidth: 0 }}>
+            <div className="playfair" style={{ fontSize: 20, fontWeight: 700, color: "var(--navy)" }}>
+              {isNew ? "Nuovo fornitore" : supplier.name}
+            </div>
+            {!isNew && (
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {taskCount > 0 && <span>📋 {taskCount} task collegati</span>}
+                <span>Creato il {formatDate(supplier.createdAt)}</span>
+                {supplier.updatedAt && supplier.updatedAt !== supplier.createdAt && <span>Aggiornato il {formatDate(supplier.updatedAt)}</span>}
+                {supplier.deletedAt && <span style={{ color: "var(--danger)" }}>· Rimosso</span>}
+              </div>
+            )}
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "var(--text-muted)", flexShrink: 0 }}>✕</button>
+        </div>
+
+        <div style={{ display: "grid", gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Nome / Ragione sociale *</label>
+            <input
+              value={form.name}
+              onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+              disabled={readOnly}
+              placeholder="Es. Autoservizi Meridionali NCC"
+              style={inputStyle}
+            />
+          </div>
+
+          <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Tipologia</label>
+              <select
+                value={form.type}
+                onChange={e => setForm(p => ({ ...p, type: e.target.value }))}
+                disabled={readOnly}
+                style={{ ...inputStyle, cursor: readOnly ? "default" : "pointer" }}
+              >
+                {Object.entries(SUPPLIER_TYPES).map(([k, v]) => (
+                  <option key={k} value={k}>{v.icon} {v.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Referente</label>
+              <input
+                value={form.contactPerson}
+                onChange={e => setForm(p => ({ ...p, contactPerson: e.target.value }))}
+                disabled={readOnly}
+                placeholder="Persona di contatto"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Email</label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+                disabled={readOnly}
+                placeholder="fornitore@example.com"
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Telefono</label>
+              <input
+                value={form.phone}
+                onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
+                disabled={readOnly}
+                placeholder="+39 02 1234567"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Indirizzo</label>
+            <input
+              value={form.address}
+              onChange={e => setForm(p => ({ ...p, address: e.target.value }))}
+              disabled={readOnly}
+              placeholder="Via, città, paese"
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Servizi offerti</label>
+            <textarea
+              value={form.services}
+              onChange={e => setForm(p => ({ ...p, services: e.target.value }))}
+              disabled={readOnly}
+              rows={2}
+              placeholder="Es. Hotel categoria 5*, transfer NCC, polizze annullamento…"
+              style={{ ...inputStyle, resize: "vertical" }}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Note operative</label>
+            <textarea
+              value={form.notes}
+              onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+              disabled={readOnly}
+              rows={4}
+              placeholder="Accordi commerciali, contatti operativi, scadenze contrattuali…"
+              style={{ ...inputStyle, resize: "vertical" }}
+            />
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "space-between", marginTop: 20, flexWrap: "wrap" }}>
+          {!isNew && canManage && !supplier?.deletedAt && (
+            <button onClick={handleDelete} style={{
+              padding: "9px 16px", borderRadius: 8, border: "1px solid var(--danger)",
+              background: "transparent", color: "var(--danger)", cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+            }}>🗑 Rimuovi fornitore</button>
+          )}
+          <div style={{ display: "flex", gap: 10, marginLeft: "auto" }}>
+            <button onClick={onClose} style={{
+              padding: "9px 18px", borderRadius: 8, border: "1px solid var(--border)",
+              background: "transparent", cursor: "pointer", fontSize: 13, fontWeight: 500, fontFamily: "inherit",
+            }}>{readOnly ? "Chiudi" : "Annulla"}</button>
+            {!readOnly && (
+              <button onClick={handleSave} disabled={!form.name.trim()} style={{
+                padding: "9px 20px", borderRadius: 8, border: "none",
+                background: form.name.trim() ? "var(--navy)" : "var(--text-light)",
+                color: "#fff", cursor: form.name.trim() ? "pointer" : "not-allowed",
+                fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+              }}>{isNew ? "✓ Crea fornitore" : "💾 Salva"}</button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── PRATICHE: badge stato (v0.9.8) ────────────────────────────────────────
+const PracticeStatusBadge = ({ status, size = "md" }) => {
+  const s = PRACTICE_STATUSES[status] || PRACTICE_STATUSES.draft;
+  const isSm = size === "sm";
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      padding: isSm ? "2px 7px" : "3px 9px", borderRadius: 999,
+      background: s.bg, color: s.color,
+      fontSize: isSm ? 10 : 11, fontWeight: 600,
+    }}>{s.icon} {s.label}</span>
+  );
+};
+
+// Formatter euro coerente con il resto dell'app
+const formatEur = (n) => {
+  const v = Number(n) || 0;
+  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+};
+
+// ─── PRATICHE: vista lista (v0.9.8) ─────────────────────────────────────────
+const PracticesView = ({ state, dispatch }) => {
+  const { isMobile } = useViewport();
+  const uid = state.currentUserId;
+  const canManage = canManagePractices(uid);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [clientFilter, setClientFilter] = useState("all");
+  const [showTrashed, setShowTrashed] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+
+  const practicesAll = state.practices || [];
+  const activePractices = practicesAll.filter(p => showTrashed ? !!p.deletedAt : !p.deletedAt);
+  const activeClients = (state.clients || []).filter(c => !c.deletedAt).sort((a, b) => a.name.localeCompare(b.name));
+
+  // Conteggio task attivi per pratica
+  const taskCountByPractice = useMemo(() => {
+    const map = new Map();
+    (state.tasks || []).forEach(t => {
+      if (t.deletedAt || !t.practiceId) return;
+      map.set(t.practiceId, (map.get(t.practiceId) || 0) + 1);
+    });
+    return map;
+  }, [state.tasks]);
+
+  const filtered = activePractices.filter(p => {
+    if (statusFilter !== "all" && p.status !== statusFilter) return false;
+    if (clientFilter !== "all" && p.clientId !== clientFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      const hay = `${p.number} ${p.title} ${p.destination || ""} ${p.notes || ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  }).sort((a, b) => {
+    // Sort: per data partenza ascendente con null in coda, poi per numero
+    if (a.departureDate && b.departureDate) return new Date(a.departureDate) - new Date(b.departureDate);
+    if (a.departureDate) return -1;
+    if (b.departureDate) return 1;
+    return b.number.localeCompare(a.number);
+  });
+
+  // Totali KPI
+  const kpi = useMemo(() => {
+    const valid = activePractices.filter(p => p.status !== "cancelled");
+    const totRevenue = valid.reduce((s, p) => s + (Number(p.totalValue) || 0), 0);
+    const totCost = valid.reduce((s, p) => s + (Number(p.cost) || 0), 0);
+    const totPaid = valid.reduce((s, p) => s + (Number(p.paid) || 0), 0);
+    return {
+      count: activePractices.length,
+      inProgress: activePractices.filter(p => p.status === "in_progress").length,
+      revenue: totRevenue, cost: totCost, margin: totRevenue - totCost, paid: totPaid,
+    };
+  }, [activePractices]);
+
+  return (
+    <div className="fade-in" style={{ padding: isMobile ? 16 : 28, display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
+      {/* Header */}
+      <div className="vd-row-wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
+        <div>
+          <div className="playfair" style={{ fontSize: isMobile ? 21 : 26, fontWeight: 700 }}>
+            📂 Pratiche di viaggio
+          </div>
+          <div style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 2 }}>
+            {practicesAll.filter(p => !p.deletedAt).length} pratiche attive · {filtered.length} in elenco
+          </div>
+        </div>
+        {canManage && !showTrashed && (
+          <button onClick={() => setShowNew(true)} style={{
+            background: "var(--navy)", color: "#fff", border: "none",
+            padding: "10px 16px", borderRadius: 8, cursor: "pointer",
+            fontSize: 13, fontWeight: 600,
+          }}>+ Nuova pratica</button>
+        )}
+      </div>
+
+      {/* KPI */}
+      <div className="vd-grid-kpi" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+        {[
+          { label: "Totale pratiche", value: kpi.count, sub: `${kpi.inProgress} in corso`, color: "var(--navy)" },
+          { label: "Ricavo", value: formatEur(kpi.revenue), sub: "non annullate", color: "var(--navy)" },
+          { label: "Margine", value: formatEur(kpi.margin), sub: `Costo ${formatEur(kpi.cost)}`, color: kpi.margin >= 0 ? "var(--success)" : "var(--danger)" },
+          { label: "Incassato", value: formatEur(kpi.paid), sub: kpi.revenue > 0 ? `${Math.round((kpi.paid / kpi.revenue) * 100)}% del ricavo` : "—", color: "var(--gold-dark)" },
+        ].map((k, i) => (
+          <div key={i} style={{ background: "#fff", borderRadius: 10, padding: 14, border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1 }}>{k.label}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: k.color, marginTop: 4 }}>{k.value}</div>
+            {k.sub && <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{k.sub}</div>}
+          </div>
+        ))}
+      </div>
+
+      {/* Toolbar */}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Cerca per numero, titolo, destinazione, note…"
+          style={{
+            flex: "1 1 240px", border: "1px solid var(--border)", borderRadius: 8,
+            padding: "9px 12px", fontSize: 13, fontFamily: "inherit", outline: "none",
+          }}
+        />
+        <select
+          value={statusFilter}
+          onChange={e => setStatusFilter(e.target.value)}
+          style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "9px 12px", fontSize: 13, fontFamily: "inherit", background: "#fff", cursor: "pointer" }}
+        >
+          <option value="all">Tutti gli stati</option>
+          {PRACTICE_STATUS_ORDER.map(k => (
+            <option key={k} value={k}>{PRACTICE_STATUSES[k].icon} {PRACTICE_STATUSES[k].label}</option>
+          ))}
+        </select>
+        <select
+          value={clientFilter}
+          onChange={e => setClientFilter(e.target.value)}
+          style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "9px 12px", fontSize: 13, fontFamily: "inherit", background: "#fff", cursor: "pointer", maxWidth: 220 }}
+        >
+          <option value="all">Tutti i clienti</option>
+          {activeClients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <label style={{ fontSize: 12, color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+          <input type="checkbox" checked={showTrashed} onChange={e => setShowTrashed(e.target.checked)} />
+          Mostra rimosse
+        </label>
+      </div>
+
+      {/* Grid */}
+      {filtered.length === 0 ? (
+        <div style={{
+          padding: "40px 20px", textAlign: "center", color: "var(--text-muted)",
+          fontSize: 13, background: "#fff", borderRadius: 10, border: "1px dashed var(--border)",
+        }}>
+          {search || statusFilter !== "all" || clientFilter !== "all"
+            ? "Nessuna pratica corrisponde ai filtri."
+            : showTrashed
+              ? "Nessuna pratica rimossa."
+              : 'Ancora nessuna pratica. Premi "Nuova pratica" per crearne una.'}
+        </div>
+      ) : (
+        <div className="vd-grid-2col" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
+          {filtered.map(p => {
+            const status = PRACTICE_STATUSES[p.status] || PRACTICE_STATUSES.draft;
+            const client = getClient(state.clients, p.clientId);
+            const tCount = taskCountByPractice.get(p.id) || 0;
+            const margin = getPracticeMargin(p);
+            const paidPct = getPracticePaidPct(p);
+            return (
+              <div
+                key={p.id}
+                onClick={() => dispatch({ type: "SET_SELECTED_PRACTICE", payload: p })}
+                style={{
+                  background: "#fff", borderRadius: 10, padding: 14, cursor: "pointer",
+                  border: "1px solid var(--border)", borderLeft: `4px solid ${status.color}`,
+                  display: "flex", flexDirection: "column", gap: 8,
+                  transition: "transform 0.15s, box-shadow 0.15s",
+                  opacity: p.deletedAt ? 0.6 : 1,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.08)"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5, fontVariantNumeric: "tabular-nums" }}>
+                      {p.number}
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", lineHeight: 1.3, marginTop: 2 }}>
+                      {p.title}
+                    </div>
+                  </div>
+                  <PracticeStatusBadge status={p.status} />
+                </div>
+
+                {(client || p.destination) && (
+                  <div style={{ fontSize: 12, color: "var(--text-muted)", display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    {client && <span>🧳 {client.name}</span>}
+                    {p.destination && <span>📍 {p.destination}</span>}
+                  </div>
+                )}
+
+                {(p.departureDate || p.returnDate) && (
+                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                    📅 {p.departureDate ? formatDate(p.departureDate) : "—"} → {p.returnDate ? formatDate(p.returnDate) : "—"}
+                  </div>
+                )}
+
+                <div style={{ display: "flex", gap: 12, fontSize: 11, flexWrap: "wrap", marginTop: 2 }}>
+                  <span style={{ color: "var(--text-muted)" }}>📋 <b style={{ color: "var(--text)" }}>{tCount}</b> task</span>
+                  <span style={{ color: "var(--text-muted)" }}>🤝 <b style={{ color: "var(--text)" }}>{(p.supplierIds || []).length}</b> fornitori</span>
+                  {p.totalValue > 0 && (
+                    <>
+                      <span style={{ color: "var(--text-muted)" }}>💰 <b style={{ color: "var(--text)" }}>{formatEur(p.totalValue)}</b></span>
+                      <span style={{ color: margin >= 0 ? "var(--success)" : "var(--danger)", fontWeight: 700 }}>
+                        Margine {formatEur(margin)}
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                {p.totalValue > 0 && (
+                  <div style={{ marginTop: 4 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-muted)", marginBottom: 3 }}>
+                      <span>Incassato</span>
+                      <span style={{ fontWeight: 600 }}>{formatEur(p.paid)} / {formatEur(p.totalValue)} ({paidPct}%)</span>
+                    </div>
+                    <div style={{ height: 5, background: "var(--surface2)", borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{
+                        width: `${paidPct}%`, height: "100%",
+                        background: paidPct >= 100 ? "var(--success)" : paidPct >= 50 ? "var(--gold)" : "var(--warning)",
+                        transition: "width 0.3s",
+                      }} />
+                    </div>
+                  </div>
+                )}
+
+                {p.deletedAt && (
+                  <div style={{ fontSize: 10, color: "var(--danger)", fontStyle: "italic" }}>
+                    Rimossa il {formatDate(p.deletedAt)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Modale "Nuova pratica" locale */}
+      {showNew && canManage && (
+        <PracticeEditModal
+          practice={null}
+          onClose={() => setShowNew(false)}
+          dispatch={dispatch}
+          state={state}
+          canManage={canManage}
+        />
+      )}
+    </div>
+  );
+};
+
+// Modale creazione/modifica pratica.
+// Sezioni: Generale · Economico · Fornitori · Task collegati · Timeline.
+const PracticeEditModal = ({ practice, onClose, dispatch, state, canManage, onCreated }) => {
+  const isNew = !practice;
+  const [form, setForm] = useState({
+    title: practice?.title || "",
+    clientId: practice?.clientId || "",
+    status: practice?.status || "draft",
+    destination: practice?.destination || "",
+    departureDate: practice?.departureDate ? practice.departureDate.slice(0, 16) : "",
+    returnDate: practice?.returnDate ? practice.returnDate.slice(0, 16) : "",
+    totalValue: practice?.totalValue ?? 0,
+    cost: practice?.cost ?? 0,
+    paid: practice?.paid ?? 0,
+    supplierIds: practice?.supplierIds || [],
+    notes: practice?.notes || "",
+  });
+  const [newEventText, setNewEventText] = useState("");
+
+  const activeClients = (state.clients || []).filter(c => !c.deletedAt).sort((a, b) => a.name.localeCompare(b.name));
+  const activeSuppliers = (state.suppliers || []).filter(s => !s.deletedAt).sort((a, b) => a.name.localeCompare(b.name));
+  const linkedTasks = practice ? getPracticeTasks(state.tasks, practice.id) : [];
+
+  const toggleSupplier = (sid) => {
+    setForm(p => ({
+      ...p,
+      supplierIds: p.supplierIds.includes(sid)
+        ? p.supplierIds.filter(x => x !== sid)
+        : [...p.supplierIds, sid],
+    }));
+  };
+
+  const handleSave = () => {
+    if (!form.title.trim()) return;
+    const payload = {
+      title: form.title.trim(),
+      clientId: form.clientId || null,
+      status: form.status,
+      destination: form.destination.trim(),
+      departureDate: form.departureDate ? new Date(form.departureDate).toISOString() : null,
+      returnDate: form.returnDate ? new Date(form.returnDate).toISOString() : null,
+      totalValue: Number(form.totalValue) || 0,
+      cost: Number(form.cost) || 0,
+      paid: Number(form.paid) || 0,
+      supplierIds: form.supplierIds,
+      notes: form.notes.trim(),
+    };
+    if (isNew) {
+      const id = `pr-${Date.now()}`;
+      const newPractice = { id, ...payload };
+      dispatch({ type: "ADD_PRACTICE", payload: newPractice });
+      if (onCreated) onCreated({ ...newPractice, number: generatePracticeNumber(state.practices || []) });
+    } else {
+      dispatch({ type: "UPDATE_PRACTICE", payload: { id: practice.id, ...payload } });
+    }
+    onClose();
+  };
+
+  const handleStatusChange = (e) => {
+    const newStatus = e.target.value;
+    setForm(p => ({ ...p, status: newStatus }));
+    // Su pratica esistente: dispatcha subito CHANGE_PRACTICE_STATUS (logga evento)
+    if (!isNew && practice && newStatus !== practice.status) {
+      dispatch({ type: "CHANGE_PRACTICE_STATUS", payload: { id: practice.id, status: newStatus } });
+    }
+  };
+
+  const handleDelete = () => {
+    if (!practice) return;
+    const hint = linkedTasks.length > 0
+      ? `\n\n${linkedTasks.length} task collegati continueranno a esistere con il riferimento alla pratica.`
+      : "";
+    if (!window.confirm(`Rimuovere la pratica ${practice.number} dall'anagrafica?${hint}`)) return;
+    dispatch({ type: "DELETE_PRACTICE", payload: practice.id });
+    onClose();
+  };
+
+  const handleAddEvent = () => {
+    if (!newEventText.trim() || !practice) return;
+    const event = {
+      time: new Date().toISOString(), type: "note",
+      text: newEventText.trim(), userId: CURRENT_USER,
+    };
+    dispatch({
+      type: "UPDATE_PRACTICE",
+      payload: { id: practice.id, events: [...(practice.events || []), event] },
+    });
+    setNewEventText("");
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid var(--border)",
+    fontSize: 13, fontFamily: "inherit", boxSizing: "border-box", background: "#fff", outline: "none",
+  };
+  const labelStyle = { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, display: "block", marginBottom: 4 };
+  const sectionH = { fontSize: 12, fontWeight: 700, color: "var(--navy)", textTransform: "uppercase", letterSpacing: 1, marginTop: 18, marginBottom: 10, paddingBottom: 6, borderBottom: "1px solid var(--surface3)" };
+  const readOnly = !canManage || !!practice?.deletedAt;
+  const margin = isNew ? 0 : getPracticeMargin({ totalValue: form.totalValue, cost: form.cost });
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(15,32,68,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 700, padding: 16 }}>
+      <div className="slide-up" style={{
+        background: "#fff", borderRadius: 12, padding: 24, width: 720, maxWidth: "100%",
+        maxHeight: "92vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+      }}>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, gap: 10 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            {isNew ? (
+              <div className="playfair" style={{ fontSize: 22, fontWeight: 700, color: "var(--navy)" }}>
+                Nuova pratica
+              </div>
+            ) : (
+              <>
+                <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, fontVariantNumeric: "tabular-nums" }}>
+                    {practice.number}
+                  </span>
+                  <PracticeStatusBadge status={practice.status} />
+                </div>
+                <div className="playfair" style={{ fontSize: 20, fontWeight: 700, color: "var(--navy)", marginTop: 4, lineHeight: 1.3 }}>
+                  {practice.title}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <span>Creata il {formatDate(practice.createdAt)}</span>
+                  {practice.updatedAt && practice.updatedAt !== practice.createdAt && <span>Aggiornata il {formatDate(practice.updatedAt)}</span>}
+                  {practice.deletedAt && <span style={{ color: "var(--danger)" }}>· Rimossa</span>}
+                </div>
+              </>
+            )}
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "var(--text-muted)", flexShrink: 0 }}>✕</button>
+        </div>
+
+        {/* Sezione Generale */}
+        <div style={sectionH}>Generale</div>
+        <div style={{ display: "grid", gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Titolo pratica *</label>
+            <input
+              value={form.title}
+              onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
+              disabled={readOnly}
+              placeholder="Es. Maldive 7 notti overwater - Famiglia Rossi"
+              style={inputStyle}
+            />
+          </div>
+          <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Cliente</label>
+              <select
+                value={form.clientId}
+                onChange={e => setForm(p => ({ ...p, clientId: e.target.value }))}
+                disabled={readOnly}
+                style={{ ...inputStyle, cursor: readOnly ? "default" : "pointer" }}
+              >
+                <option value="">— Nessuno —</option>
+                {activeClients.map(c => {
+                  const type = CLIENT_TYPES[c.type] || CLIENT_TYPES.individuale;
+                  return <option key={c.id} value={c.id}>{type.icon} {c.name}</option>;
+                })}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Stato</label>
+              <select
+                value={form.status}
+                onChange={handleStatusChange}
+                disabled={readOnly}
+                style={{ ...inputStyle, cursor: readOnly ? "default" : "pointer" }}
+              >
+                {PRACTICE_STATUS_ORDER.map(k => (
+                  <option key={k} value={k}>{PRACTICE_STATUSES[k].icon} {PRACTICE_STATUSES[k].label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label style={labelStyle}>Destinazione</label>
+            <input
+              value={form.destination}
+              onChange={e => setForm(p => ({ ...p, destination: e.target.value }))}
+              disabled={readOnly}
+              placeholder="Es. Maldive — Atollo di Malé Nord"
+              style={inputStyle}
+            />
+          </div>
+          <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Partenza</label>
+              <input
+                type="datetime-local"
+                value={form.departureDate}
+                onChange={e => setForm(p => ({ ...p, departureDate: e.target.value }))}
+                disabled={readOnly}
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Rientro</label>
+              <input
+                type="datetime-local"
+                value={form.returnDate}
+                onChange={e => setForm(p => ({ ...p, returnDate: e.target.value }))}
+                disabled={readOnly}
+                style={inputStyle}
+              />
+            </div>
+          </div>
+          <div>
+            <label style={labelStyle}>Note</label>
+            <textarea
+              value={form.notes}
+              onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+              disabled={readOnly}
+              rows={3}
+              placeholder="Dettagli operativi, preferenze cliente, vincoli…"
+              style={{ ...inputStyle, resize: "vertical" }}
+            />
+          </div>
+        </div>
+
+        {/* Sezione Economico */}
+        <div style={sectionH}>💰 Riepilogo economico</div>
+        <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Ricavo totale (€)</label>
+            <input
+              type="number" min="0" step="0.01"
+              value={form.totalValue}
+              onChange={e => setForm(p => ({ ...p, totalValue: e.target.value }))}
+              disabled={readOnly}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Costo fornitori (€)</label>
+            <input
+              type="number" min="0" step="0.01"
+              value={form.cost}
+              onChange={e => setForm(p => ({ ...p, cost: e.target.value }))}
+              disabled={readOnly}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Incassato (€)</label>
+            <input
+              type="number" min="0" step="0.01"
+              value={form.paid}
+              onChange={e => setForm(p => ({ ...p, paid: e.target.value }))}
+              disabled={readOnly}
+              style={inputStyle}
+            />
+          </div>
+        </div>
+        <div style={{ marginTop: 10, padding: 10, background: "var(--surface)", borderRadius: 8, display: "flex", gap: 18, flexWrap: "wrap", fontSize: 12 }}>
+          <div>
+            <span style={{ color: "var(--text-muted)" }}>Margine: </span>
+            <b style={{ color: margin >= 0 ? "var(--success)" : "var(--danger)", fontSize: 14 }}>{formatEur(margin)}</b>
+          </div>
+          {Number(form.totalValue) > 0 && (
+            <div>
+              <span style={{ color: "var(--text-muted)" }}>Marginalità: </span>
+              <b style={{ color: "var(--navy)" }}>{Math.round((margin / Number(form.totalValue)) * 100)}%</b>
+            </div>
+          )}
+          {Number(form.totalValue) > 0 && (
+            <div>
+              <span style={{ color: "var(--text-muted)" }}>% Incassato: </span>
+              <b style={{ color: "var(--gold-dark)" }}>{Math.round((Number(form.paid) / Number(form.totalValue)) * 100)}%</b>
+            </div>
+          )}
+        </div>
+
+        {/* Sezione Fornitori */}
+        <div style={sectionH}>🤝 Fornitori collegati ({form.supplierIds.length})</div>
+        {activeSuppliers.length === 0 ? (
+          <div style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>
+            Nessun fornitore in anagrafica. Creane uno dalla vista Fornitori.
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {activeSuppliers.map(s => {
+              const type = SUPPLIER_TYPES[s.type] || SUPPLIER_TYPES.other;
+              const on = form.supplierIds.includes(s.id);
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => !readOnly && toggleSupplier(s.id)}
+                  disabled={readOnly}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    padding: "5px 10px", borderRadius: 99,
+                    background: on ? type.color : type.bg,
+                    color: on ? "#fff" : type.color,
+                    border: `1px solid ${on ? type.color : "var(--border)"}`,
+                    cursor: readOnly ? "default" : "pointer",
+                    fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  <span>{type.icon}</span>
+                  {s.name}
+                  {on && <span style={{ fontSize: 10 }}>✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Sezione Task collegati (solo per pratica esistente) */}
+        {!isNew && (
+          <>
+            <div style={sectionH}>📋 Task collegati ({linkedTasks.length})</div>
+            {linkedTasks.length === 0 ? (
+              <div style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>
+                Nessun task collegato ancora. Quando crei un task, scegli questa pratica dal picker.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {linkedTasks.map(t => {
+                  const cat = CATEGORIES[t.category] || { color: "#6B7280", icon: "📋", label: t.category };
+                  return (
+                    <div
+                      key={t.id}
+                      onClick={() => { onClose(); dispatch({ type: "SET_SELECTED_TASK", payload: t }); }}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
+                        background: "var(--surface)", borderRadius: 8, cursor: "pointer",
+                        border: "1px solid var(--border)",
+                        borderLeft: `3px solid ${cat.color}`,
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "var(--surface2)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "var(--surface)"; }}
+                    >
+                      <span style={{ fontSize: 16, flexShrink: 0 }}>{cat.icon}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {t.title}
+                        </div>
+                        <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 2 }}>
+                          {cat.label}
+                          {t.dueDate && <> · 📅 {formatDate(t.dueDate)} {formatTime(t.dueDate)}</>}
+                        </div>
+                      </div>
+                      <StatusBadge status={t.status} />
+                      <PriorityBadge priority={t.priority} />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Sezione Timeline eventi (solo per pratica esistente) */}
+        {!isNew && (
+          <>
+            <div style={sectionH}>🕰️ Timeline ({(practice.events || []).length})</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 250, overflowY: "auto" }}>
+              {(practice.events || []).slice().reverse().map((ev, i) => {
+                const u = getMember(ev.userId);
+                const eventIcons = { created: "✨", status: "🔄", payment: "💰", note: "📝" };
+                return (
+                  <div key={i} style={{ display: "flex", gap: 8, padding: 8, background: "var(--surface)", borderRadius: 6, fontSize: 12 }}>
+                    <span style={{ fontSize: 14, flexShrink: 0 }}>{eventIcons[ev.type] || "•"}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ color: "var(--text)" }}>{ev.text}</div>
+                      <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 2 }}>
+                        {u?.name || ev.userId} · {formatDate(ev.time)} {formatTime(ev.time)}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {!readOnly && (
+              <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                <input
+                  value={newEventText}
+                  onChange={e => setNewEventText(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleAddEvent()}
+                  placeholder="Aggiungi nota timeline…"
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                <button
+                  onClick={handleAddEvent}
+                  disabled={!newEventText.trim()}
+                  style={{
+                    padding: "0 14px", borderRadius: 6, border: "none",
+                    background: newEventText.trim() ? "var(--navy)" : "var(--text-light)",
+                    color: "#fff", cursor: newEventText.trim() ? "pointer" : "not-allowed",
+                    fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+                  }}
+                >Aggiungi</button>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Footer */}
+        <div style={{ display: "flex", gap: 10, justifyContent: "space-between", marginTop: 22, flexWrap: "wrap" }}>
+          {!isNew && canManage && !practice?.deletedAt && (
+            <button onClick={handleDelete} style={{
+              padding: "9px 16px", borderRadius: 8, border: "1px solid var(--danger)",
+              background: "transparent", color: "var(--danger)", cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+            }}>🗑 Rimuovi pratica</button>
+          )}
+          <div style={{ display: "flex", gap: 10, marginLeft: "auto" }}>
+            <button onClick={onClose} style={{
+              padding: "9px 18px", borderRadius: 8, border: "1px solid var(--border)",
+              background: "transparent", cursor: "pointer", fontSize: 13, fontWeight: 500, fontFamily: "inherit",
+            }}>{readOnly ? "Chiudi" : "Annulla"}</button>
+            {!readOnly && (
+              <button onClick={handleSave} disabled={!form.title.trim()} style={{
+                padding: "9px 20px", borderRadius: 8, border: "none",
+                background: form.title.trim() ? "var(--navy)" : "var(--text-light)",
+                color: "#fff", cursor: form.title.trim() ? "pointer" : "not-allowed",
+                fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+              }}>{isNew ? "✓ Crea pratica" : "💾 Salva"}</button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── CHAT: MOCK DATA ───────────────────────────────────────────────────────
 // CURRENT_USER è dichiarato in cima al file (sezione MOCK DATA)
 
-// Context per condividere tasks/dispatch (per messaggi con taskLink — v0.8)
-const ChatContext = createContext({ tasks: [], dispatch: () => {} });
+// Context per condividere tasks/dispatch e azioni globali con i sotto-componenti chat.
+// `dispatch` serve al chip task-link nei messaggi per aprire il TaskSlideOver.
+// `onCloseChat` permette al chip di chiudere il pannello chat dopo aver navigato.
+const ChatContext = createContext({ tasks: [], dispatch: () => {}, onCloseChat: () => {}, currentUserId: null });
 
 const initialConversations = [
   {
@@ -4888,6 +8222,52 @@ const VoicePlayer = ({ duration, waveform, isMine }) => {
 };
 
 // ─── CHAT: MESSAGE ─────────────────────────────────────────────────────────
+// Chip cliccabile renderizzato sotto il contenuto di un messaggio testuale con `taskRef`.
+// Click → apre il TaskSlideOver e chiude il pannello chat (così lo slide-over non è coperto).
+// Se il task non esiste più (cestinato/purgato), il chip diventa disabilitato.
+const TaskLinkChip = ({ taskRef, isMine }) => {
+  const { tasks, dispatch, onCloseChat } = useContext(ChatContext);
+  const task = tasks.find(t => t.id === taskRef.id);
+  const available = !!task && !task.deletedAt && canViewTask(task, CURRENT_USER);
+
+  const handleClick = () => {
+    if (!available) return;
+    dispatch({ type: "SET_SELECTED_TASK", payload: task });
+    if (onCloseChat) onCloseChat();
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={!available}
+      title={available ? "Apri task" : "Task non disponibile"}
+      style={{
+        marginTop: 8, display: "flex", alignItems: "center", gap: 8,
+        padding: "8px 10px", borderRadius: 10,
+        background: isMine ? "rgba(255,255,255,0.12)" : "var(--surface2)",
+        border: `1px solid ${isMine ? "rgba(255,255,255,0.18)" : "var(--border)"}`,
+        cursor: available ? "pointer" : "not-allowed",
+        opacity: available ? 1 : 0.55,
+        color: isMine ? "#fff" : "var(--text)",
+        fontFamily: "inherit", textAlign: "left", width: "100%", boxSizing: "border-box",
+      }}
+    >
+      <span style={{ fontSize: 16, flexShrink: 0 }}>🔗</span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: "block", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {taskRef.title}
+        </span>
+        {(taskRef.dueDate || !available) && (
+          <span style={{ display: "block", fontSize: 10.5, opacity: 0.75, marginTop: 1 }}>
+            {!available ? "Task non disponibile" : `📅 ${formatDate(taskRef.dueDate)}`}
+          </span>
+        )}
+      </span>
+      {available && <span style={{ fontSize: 12, opacity: 0.85, flexShrink: 0 }}>→</span>}
+    </button>
+  );
+};
+
 const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onContextMenu }) => {
   const [showReactions, setShowReactions] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -4957,9 +8337,12 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
           )}
 
           {/* Content */}
-          {msg.type === "text" && (
+          {msg.type === "text" && msg.text && (
             <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}>{msg.text}</div>
           )}
+
+          {/* Task link chip (v0.9.3) — apre TaskSlideOver */}
+          {msg.taskRef && <TaskLinkChip taskRef={msg.taskRef} isMine={isMine} />}
 
           {msg.type === "voice" && (
             <VoicePlayer duration={msg.duration} waveform={msg.waveform} isMine={isMine} />
@@ -5094,21 +8477,24 @@ const VoiceRecorder = ({ onSend, onCancel }) => {
 };
 
 // ─── CHAT: CONVERSATION VIEW ───────────────────────────────────────────────
-const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, onInitialInputConsumed }) => {
+const ConversationView = ({ conv, messages, setMessages, onBack, initialAttachedTask, onAttachedTaskConsumed }) => {
   const [input, setInput] = useState("");
   const [recording, setRecording] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const [showAttach, setShowAttach] = useState(false);
   const [typing, setTyping] = useState(false);
+  // v0.9.3: task agganciata (dall'intent "contatta agente" o futuro picker).
+  // Se presente, viene scritta come `taskRef` nel prossimo messaggio testuale.
+  const [attachedTask, setAttachedTask] = useState(null);
   const scrollRef = useRef(null);
 
-  // Se è arrivato un prefill (es. da "contatta agente" su urgenti altrui), popolalo
+  // Se l'intent porta un task, mostralo come preview agganciata sopra l'input.
   useEffect(() => {
-    if (initialInput) {
-      setInput(initialInput);
-      if (onInitialInputConsumed) onInitialInputConsumed();
+    if (initialAttachedTask) {
+      setAttachedTask(initialAttachedTask);
+      if (onAttachedTaskConsumed) onAttachedTaskConsumed();
     }
-  }, [initialInput]);
+  }, [initialAttachedTask]);
 
   const msgs = messages[conv.id] || [];
 
@@ -5141,16 +8527,22 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
   }, [msgs.length]);
 
   const sendText = () => {
-    if (!input.trim()) return;
+    const trimmed = input.trim();
+    // Permetti l'invio di un messaggio "solo task" se c'è un task agganciato.
+    if (!trimmed && !attachedTask) return;
     const newMsg = {
       id: "m" + Date.now(), sender: CURRENT_USER, type: "text",
-      text: input.trim(), time: new Date().toISOString(),
+      text: trimmed, time: new Date().toISOString(),
       readBy: [CURRENT_USER],
       replyTo: replyingTo?.id,
+      taskRef: attachedTask
+        ? { id: attachedTask.id, title: attachedTask.title, dueDate: attachedTask.dueDate || null }
+        : undefined,
     };
     setMessages(prev => ({ ...prev, [conv.id]: [...(prev[conv.id] || []), newMsg] }));
     setInput("");
     setReplyingTo(null);
+    setAttachedTask(null);
   };
 
   const sendVoice = (duration) => {
@@ -5214,7 +8606,7 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
         }}>←</button>
 
         {conv.type === "direct" ? (
-          <Avatar memberId={otherTypingMember} size={36} />
+          <Avatar memberId={otherTypingMember} size={36} showPresence />
         ) : (
           <div style={{
             width: 36, height: 36, borderRadius: "50%", background: "var(--gold)",
@@ -5236,7 +8628,10 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
                 <span style={{ animation: "typing 1s infinite", animationDelay: "0.4s", display: "inline-block" }}>.</span>
               </span>
             ) : conv.type === "direct" ? (
-              <>● Online</>
+              (() => {
+                const presence = PRESENCE_STATES[otherMember?.status] || PRESENCE_STATES.online;
+                return <span style={{ color: presence.color }}>● {presence.label}</span>;
+              })()
             ) : (
               `${conv.participants.length} membri`
             )}
@@ -5303,6 +8698,29 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
         </div>
       )}
 
+      {/* Attached task preview (v0.9.3) */}
+      {attachedTask && (
+        <div style={{
+          padding: "8px 14px", background: "var(--surface)", borderTop: "1px solid var(--border)",
+          display: "flex", alignItems: "center", gap: 10,
+        }}>
+          <div style={{ width: 3, alignSelf: "stretch", background: "var(--navy)", borderRadius: 2 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--navy)" }}>
+              🔗 Task agganciato
+            </div>
+            <div style={{ fontSize: 12, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {attachedTask.title}
+              {attachedTask.dueDate && <span style={{ color: "var(--text-muted)" }}> · 📅 {formatDate(attachedTask.dueDate)}</span>}
+            </div>
+          </div>
+          <button onClick={() => setAttachedTask(null)} title="Rimuovi task agganciato" style={{
+            background: "none", border: "none", cursor: "pointer",
+            fontSize: 16, color: "var(--text-muted)",
+          }}>✕</button>
+        </div>
+      )}
+
       {/* Input */}
       <div style={{
         padding: "10px 12px", background: "#fff", borderTop: "1px solid var(--border)",
@@ -5357,7 +8775,7 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
               }}
             />
 
-            {input.trim() ? (
+            {(input.trim() || attachedTask) ? (
               <button onClick={sendText} style={{
                 background: "var(--navy)", color: "#fff", border: "none",
                 borderRadius: "50%", width: 36, height: 36, cursor: "pointer",
@@ -5392,13 +8810,26 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
     return new Date(lastB.time) - new Date(lastA.time);
   });
 
+  // v0.9.9: ricerca estesa anche al testo dei messaggi (oltre al nome conversazione).
+  // Quando il match avviene su un messaggio, mostriamo lo snippet come anteprima.
+  const searchLower = search.toLowerCase().trim();
   const filtered = sorted.filter(c => {
     if (filter === "direct" && c.type !== "direct") return false;
     if (filter === "group" && c.type !== "group") return false;
     if (filter === "unread" && getUnreadCount(messages, c.id) === 0) return false;
-    if (search && !getConversationName(c).toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
+    if (!searchLower) return true;
+    if (getConversationName(c).toLowerCase().includes(searchLower)) return true;
+    // Match anche su testo dei messaggi
+    const msgs = messages[c.id] || [];
+    return msgs.some(m => m.type === "text" && (m.text || "").toLowerCase().includes(searchLower));
   });
+
+  // Trova il primo messaggio matchato (per anteprima snippet)
+  const findMatchedMessage = (conv) => {
+    if (!searchLower) return null;
+    const msgs = messages[conv.id] || [];
+    return msgs.find(m => m.type === "text" && (m.text || "").toLowerCase().includes(searchLower)) || null;
+  };
 
   const totalUnread = conversations.reduce((acc, c) => acc + getUnreadCount(messages, c.id), 0);
 
@@ -5411,7 +8842,7 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Cerca conversazione..."
+            placeholder="Cerca in conversazioni e messaggi..."
             style={{
               width: "100%", border: "1px solid var(--border)", borderRadius: 8,
               padding: "8px 12px 8px 34px", fontSize: 13, fontFamily: "inherit",
@@ -5445,6 +8876,11 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
           const unread = getUnreadCount(messages, c.id);
           const lastSender = last ? getMember(last.sender) : null;
           const otherUser = c.type === "direct" ? c.participants.find(p => p !== CURRENT_USER) : null;
+          // v0.9.9: snippet del messaggio matchato (solo se ricerca attiva e match su testo, non sul nome)
+          const matched = searchLower && !getConversationName(c).toLowerCase().includes(searchLower)
+            ? findMatchedMessage(c)
+            : null;
+          const matchedSender = matched ? getMember(matched.sender) : null;
 
           return (
             <div key={c.id} onClick={() => onSelect(c)} style={{
@@ -5457,13 +8893,7 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
               onMouseLeave={e => e.currentTarget.style.background = unread > 0 ? "rgba(212,168,67,0.05)" : "transparent"}
             >
               {c.type === "direct" ? (
-                <div style={{ position: "relative", flexShrink: 0 }}>
-                  <Avatar memberId={otherUser} size={42} />
-                  <div style={{
-                    position: "absolute", bottom: 0, right: 0, width: 11, height: 11,
-                    borderRadius: "50%", background: "var(--success)", border: "2px solid #fff",
-                  }} />
-                </div>
+                <Avatar memberId={otherUser} size={42} showPresence />
               ) : (
                 <div style={{
                   width: 42, height: 42, borderRadius: "50%", background: "var(--gold)",
@@ -5511,6 +8941,19 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
                     }}>{unread}</div>
                   )}
                 </div>
+
+                {/* Snippet match v0.9.9 */}
+                {matched && (
+                  <div style={{
+                    marginTop: 4, padding: "4px 8px", borderRadius: 6,
+                    background: "rgba(212,168,67,0.12)", borderLeft: "2px solid var(--gold)",
+                    fontSize: 11, color: "var(--text-muted)", lineHeight: 1.4,
+                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  }}>
+                    🔍 <b style={{ color: matchedSender?.color || "var(--navy)" }}>{matchedSender?.name?.split(" ")[0] || "?"}:</b>{" "}
+                    {(matched.text || "").length > 80 ? (matched.text || "").slice(0, 80) + "…" : matched.text}
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -5675,11 +9118,13 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
 };
 
 // ─── CHAT: MAIN PANEL ──────────────────────────────────────────────────────
-const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, currentUserId }) => {
+const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, currentUserId, dispatch }) => {
   const { isMobile } = useViewport();
   const [activeConv, setActiveConv] = useState(null);
   const [newMode, setNewMode] = useState(false);
-  const [prefillText, setPrefillText] = useState("");
+  // v0.9.3: invece di sputare testo nell'input, passiamo l'oggetto task così
+  // ConversationView mostra un chip "task agganciata" e attacca taskRef al messaggio.
+  const [prefillTask, setPrefillTask] = useState(null);
 
   // Gestione intent: apertura chat verso utente specifico con link a task
   useEffect(() => {
@@ -5702,13 +9147,11 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
     }
     setActiveConv(direct);
     setNewMode(false);
-    // Precompila il messaggio con riferimento al task
+    // Aggancia il task: la ConversationView mostra la preview e lo attacca al
+    // prossimo messaggio inviato come `taskRef`.
     if (intent.taskLink) {
       const t = (tasks || []).find(x => x.id === intent.taskLink);
-      if (t) {
-        const text = `🔗 Riferimento task: "${t.title}"\n📅 Scadenza: ${formatDate(t.dueDate)} ${formatTime(t.dueDate)}\n\n`;
-        setPrefillText(text);
-      }
+      if (t) setPrefillTask({ id: t.id, title: t.title, dueDate: t.dueDate });
     }
   }, [open, intent, currentUserId]);
 
@@ -5721,7 +9164,12 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
   };
 
   return (
-    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER }}>
+    <ChatContext.Provider value={{
+      tasks: tasks || [],
+      currentUserId: currentUserId || CURRENT_USER,
+      dispatch: dispatch || (() => {}),
+      onCloseChat: onClose,
+    }}>
     <>
       <div onClick={onClose} style={{
         position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: 700,
@@ -5770,9 +9218,9 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
               conv={activeConv}
               messages={messages}
               setMessages={setMessages}
-              onBack={() => { setActiveConv(null); setPrefillText(""); }}
-              initialInput={prefillText}
-              onInitialInputConsumed={() => setPrefillText("")}
+              onBack={() => { setActiveConv(null); setPrefillTask(null); }}
+              initialAttachedTask={prefillTask}
+              onAttachedTaskConsumed={() => setPrefillTask(null)}
             />
           ) : (
             <ConversationList
@@ -6485,13 +9933,18 @@ const AdminIOTab = ({ state, dispatch }) => {
 
   const exportBackup = () => {
     const backup = {
-      version: "0.5",
+      version: "0.9.9", // bump: aggiunte `notifications` e `theme` (v0.9.9 — Fase 2 inizia)
       exportedAt: new Date().toISOString(),
       agencyName: state.agencyName,
       tasks: state.tasks,
       team: state.team,
       categories: state.categories,
       notices: state.notices,
+      clients: state.clients,
+      suppliers: state.suppliers,
+      practices: state.practices,
+      notifications: state.notifications,
+      theme: state.theme,
     };
     downloadFile(
       new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }),
@@ -6562,6 +10015,26 @@ const AdminIOTab = ({ state, dispatch }) => {
         </div>
         <div style={{ fontSize: 11, color: "var(--danger)", marginTop: 10 }}>
           ⚠️ Il ripristino sovrascrive completamente i dati correnti. Esporta prima un backup di sicurezza.
+        </div>
+      </div>
+
+      {/* Reset dati persistiti */}
+      <div style={cardStyle}>
+        <h3 style={cardH}>🧹 Reset dati locali (localStorage)</h3>
+        <p style={cardP}>
+          Cancella i dati salvati nel browser e ricarica la pagina con i <b>dati demo iniziali</b>.
+          Utile per ripartire da zero o sbloccare uno stato corrotto.
+        </p>
+        <button
+          onClick={() => {
+            if (!window.confirm("Cancellare tutti i dati locali e ricaricare con i dati demo? L'azione non è reversibile.")) return;
+            clearPersistedAll();
+            window.location.reload();
+          }}
+          style={btnDanger}
+        >🧨 Cancella dati locali e ricarica</button>
+        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 10 }}>
+          Esporta prima un backup JSON se vuoi conservare lo stato corrente.
         </div>
       </div>
     </div>
@@ -6938,6 +10411,103 @@ const btnWarning = { padding: "8px 12px", borderRadius: 6, border: "1px solid va
 const modalOverlay = { position: "fixed", inset: 0, background: "rgba(15,32,68,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 600, padding: 16 };
 const modalCard = { background: "#fff", borderRadius: 12, padding: 24, width: "90%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" };
 
+// ─── PERSISTENZA (localStorage) ────────────────────────────────────────────
+// v0.9.1 — l'app gira fuori da claude.ai artifacts: si salva su localStorage.
+// Versioning: bumpare PERSIST_VERSION se cambia la shape dello state persistito.
+const PERSIST_VERSION = 1;
+const PERSIST_KEY_STATE = "voyagedesk:state:v1";
+const PERSIST_KEY_CHAT = "voyagedesk:chat:v1";
+// Campi UI volatili: non finiscono in localStorage, tornano ai default al refresh.
+const PERSIST_OMIT = ["toast", "lastAction", "selectedTask", "selectedClient", "selectedSupplier", "selectedPractice", "showNotif", "searchQuery", "filters"];
+
+const _hasStorage = () => typeof window !== "undefined" && !!window.localStorage;
+
+const loadPersistedState = (fallback) => {
+  if (!_hasStorage()) return fallback;
+  try {
+    const raw = window.localStorage.getItem(PERSIST_KEY_STATE);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    if (!parsed || parsed.version !== PERSIST_VERSION || !parsed.state) return fallback;
+    const merged = { ...fallback, ...parsed.state };
+    // Riallinea i `let` mutabili usati dagli helper (TEAM/CATEGORIES/CURRENT_USER)
+    if (Array.isArray(merged.team)) _syncTeam(merged.team);
+    if (merged.categories && typeof merged.categories === "object") _syncCategories(merged.categories);
+    if (typeof merged.currentUserId === "string" && getMember(merged.currentUserId)) {
+      _syncCurrentUser(merged.currentUserId);
+    } else {
+      merged.currentUserId = fallback.currentUserId;
+      _syncCurrentUser(fallback.currentUserId);
+    }
+    // Reset campi volatili
+    for (const k of PERSIST_OMIT) merged[k] = fallback[k];
+    return merged;
+  } catch (e) {
+    console.warn("[VoyageDesk] hydrate state failed:", e);
+    return fallback;
+  }
+};
+
+const savePersistedState = (state) => {
+  if (!_hasStorage()) return null;
+  try {
+    const toPersist = {};
+    for (const k of Object.keys(state)) {
+      if (!PERSIST_OMIT.includes(k)) toPersist[k] = state[k];
+    }
+    window.localStorage.setItem(
+      PERSIST_KEY_STATE,
+      JSON.stringify({ version: PERSIST_VERSION, savedAt: new Date().toISOString(), state: toPersist })
+    );
+    return null;
+  } catch (e) {
+    console.warn("[VoyageDesk] persist state failed:", e);
+    return e;
+  }
+};
+
+const loadPersistedChat = (fallbackConv, fallbackMsg) => {
+  const fallback = { conversations: fallbackConv, messages: fallbackMsg };
+  if (!_hasStorage()) return fallback;
+  try {
+    const raw = window.localStorage.getItem(PERSIST_KEY_CHAT);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    if (!parsed || parsed.version !== PERSIST_VERSION) return fallback;
+    return {
+      conversations: Array.isArray(parsed.conversations) ? parsed.conversations : fallbackConv,
+      messages: parsed.messages && typeof parsed.messages === "object" ? parsed.messages : fallbackMsg,
+    };
+  } catch (e) {
+    console.warn("[VoyageDesk] hydrate chat failed:", e);
+    return fallback;
+  }
+};
+
+const savePersistedChat = (conversations, messages) => {
+  if (!_hasStorage()) return null;
+  try {
+    window.localStorage.setItem(
+      PERSIST_KEY_CHAT,
+      JSON.stringify({ version: PERSIST_VERSION, conversations, messages })
+    );
+    return null;
+  } catch (e) {
+    console.warn("[VoyageDesk] persist chat failed:", e);
+    return e;
+  }
+};
+
+const clearPersistedAll = () => {
+  if (!_hasStorage()) return;
+  try {
+    window.localStorage.removeItem(PERSIST_KEY_STATE);
+    window.localStorage.removeItem(PERSIST_KEY_CHAT);
+  } catch (e) {
+    console.warn("[VoyageDesk] clear persist failed:", e);
+  }
+};
+
 // ─── ROOT APP ──────────────────────────────────────────────────────────────
 export default function VoyageDesk() {
   return (
@@ -6949,13 +10519,30 @@ export default function VoyageDesk() {
 
 function VoyageDeskInner() {
   const { isDesktop } = useViewport();
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const [state, dispatch] = useReducer(reducer, initialState, loadPersistedState);
   const [showFABModal, setShowFABModal] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [chatIntent, setChatIntent] = useState(null); // { toUser, taskLink } per aprire chat preconfezionata
   const [showBulkModal, setShowBulkModal] = useState(false);
-  const [conversations, setConversations] = useState(initialConversations);
-  const [messages, setMessages] = useState(initialMessages);
+  // Hydrate chat una volta sola (lazy init): evita race fra i due useState.
+  const _hydratedChat = useRef(null);
+  if (_hydratedChat.current === null) {
+    _hydratedChat.current = loadPersistedChat(initialConversations, initialMessages);
+  }
+  const [conversations, setConversations] = useState(_hydratedChat.current.conversations);
+  const [messages, setMessages] = useState(_hydratedChat.current.messages);
+
+  // Persistenza state app: debounce 300ms per evitare write su ogni keystroke.
+  useEffect(() => {
+    const id = setTimeout(() => savePersistedState(state), 300);
+    return () => clearTimeout(id);
+  }, [state]);
+
+  // Persistenza chat (conversazioni + messaggi)
+  useEffect(() => {
+    const id = setTimeout(() => savePersistedChat(conversations, messages), 300);
+    return () => clearTimeout(id);
+  }, [conversations, messages]);
 
   // Conta non letti totali per badge topbar (dallo stato vivo della chat)
   const unreadChat = conversations.reduce(
@@ -6982,6 +10569,19 @@ function VoyageDeskInner() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
+  // v0.9.9: applica il tema corrente all'attributo data-theme su <html>.
+  // Il CSS in FontLoader override le var(--*) quando data-theme="dark".
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.documentElement.dataset.theme = state.theme === "dark" ? "dark" : "light";
+  }, [state.theme]);
+
+  // v0.9.10: scan overdue task → genera notifiche idempotenti. Re-run quando
+  // cambia l'utente loggato (le notifiche sono per-recipientId).
+  useEffect(() => {
+    dispatch({ type: "SCAN_OVERDUE_NOTIFICATIONS" });
+  }, [state.currentUserId]);
+
   // Quando l'utente cambia, se la view corrente non è permessa il reducer la riporta a dashboard.
   // Inoltre chiudo eventuali pannelli aperti.
   useEffect(() => {
@@ -6994,6 +10594,9 @@ function VoyageDeskInner() {
     switch (state.activeView) {
       case "dashboard": return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
       case "calendar": return <CalendarPlanner state={state} dispatch={dispatch} />;
+      case "clients": return <ClientsView state={state} dispatch={dispatch} />;
+      case "suppliers": return <SuppliersView state={state} dispatch={dispatch} />;
+      case "practices": return <PracticesView state={state} dispatch={dispatch} />;
       case "team": return <Team state={state} dispatch={dispatch} />;
       case "trash": return <Trash state={state} dispatch={dispatch} />;
       case "admin": return <AdminView state={state} dispatch={dispatch} />;
@@ -7017,7 +10620,40 @@ function VoyageDeskInner() {
         <BottomNav state={state} dispatch={dispatch} />
 
         {/* Slide-over */}
-        {state.selectedTask && <TaskSlideOver task={state.selectedTask} dispatch={dispatch} />}
+        {state.selectedTask && <TaskSlideOver task={state.selectedTask} dispatch={dispatch} clients={state.clients} suppliers={state.suppliers} practices={state.practices} />}
+
+        {/* Modale scheda cliente — disponibile da qualunque vista (TaskSlideOver, Clienti) */}
+        {state.selectedClient && (
+          <ClientEditModal
+            client={state.selectedClient}
+            onClose={() => dispatch({ type: "SET_SELECTED_CLIENT", payload: null })}
+            dispatch={dispatch}
+            canManage={canManageClients(state.currentUserId)}
+            taskCount={(state.tasks || []).filter(t => !t.deletedAt && resolveLegacyClientId(t) === state.selectedClient.id).length}
+          />
+        )}
+
+        {/* Modale scheda fornitore — analoga alla cliente (v0.9.7) */}
+        {state.selectedSupplier && (
+          <SupplierEditModal
+            supplier={state.selectedSupplier}
+            onClose={() => dispatch({ type: "SET_SELECTED_SUPPLIER", payload: null })}
+            dispatch={dispatch}
+            canManage={canManageSuppliers(state.currentUserId)}
+            taskCount={(state.tasks || []).filter(t => !t.deletedAt && t.supplierId === state.selectedSupplier.id).length}
+          />
+        )}
+
+        {/* Modale scheda pratica — disponibile da qualunque vista (TaskSlideOver, Pratiche) — v0.9.8 */}
+        {state.selectedPractice && (
+          <PracticeEditModal
+            practice={state.selectedPractice}
+            onClose={() => dispatch({ type: "SET_SELECTED_PRACTICE", payload: null })}
+            dispatch={dispatch}
+            state={state}
+            canManage={canManagePractices(state.currentUserId)}
+          />
+        )}
 
         {/* Chat Panel */}
         <ChatPanel
@@ -7030,6 +10666,7 @@ function VoyageDeskInner() {
           intent={chatIntent}
           tasks={state.tasks}
           currentUserId={state.currentUserId}
+          dispatch={dispatch}
         />
 
         {/* FAB principale (singolo task) + FAB secondario (bulk) */}
@@ -7052,7 +10689,16 @@ function VoyageDeskInner() {
             <FAB onClick={() => setShowFABModal(true)} />
           </>
         )}
-        {showFABModal && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} />}
+        {showFABModal && (
+          <QuickAddTask
+            onAdd={t => dispatch({ type: "ADD_TASK", payload: t })}
+            onClose={() => setShowFABModal(false)}
+            clients={state.clients}
+            suppliers={state.suppliers}
+            practices={state.practices}
+            dispatch={dispatch}
+          />
+        )}
 
         {/* Bulk Task Creator */}
         {showBulkModal && (

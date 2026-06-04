@@ -231,10 +231,6 @@ VoyageDesk (export default, ViewportProvider wrapper)
 - [ ] Estensioni chat (task link cliccabile, ricerca conversazioni)
 - [ ] Dark mode
 
-### Priorità 4 — Business
-- [ ] Modulo finanziario (dopo Pratiche)
-- [ ] Report & Analytics avanzati
-
 Vedi `docs/ROADMAP.md` per il dettaglio completo con dipendenze e stime.
 
 ## Note tecniche importanti

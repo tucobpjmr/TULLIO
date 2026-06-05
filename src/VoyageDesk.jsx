@@ -461,13 +461,49 @@ const _clientToPrimaryPracticeId = {
   c1: "p1", c2: "p2", c3: "p3", c5: "p4", c6: "p5",
 };
 
-const NOTIFICATIONS = [
-  { id: "n1", type: "overdue", title: "Task scaduto: Visto Giappone - Coppia Bianchi", time: "5 min fa", read: false },
-  { id: "n2", type: "assigned", title: "Nuovo task assegnato: Newsletter Giugno", time: "1 ora fa", read: false },
-  { id: "n3", type: "comment", title: "Sofia ha commentato su Hotel Overwater Bungalow", time: "2 ore fa", read: false },
-  { id: "n4", type: "deadline", title: "Scadenza domani: Conferma voli Maldive", time: "3 ore fa", read: true },
-  { id: "n5", type: "comment", title: "Luca ha aggiornato: Newsletter Giugno", time: "4 ore fa", read: true },
-  { id: "n6", type: "deadline", title: "Scadenza oggi: Pagamento acconto Famiglia Rossi", time: "8 ore fa", read: true },
+// ─── NOTIFICHE (Fase 2 — Notifiche reali) ─────────────────────────────────
+// Tipologie supportate. Le notifiche `stored` sono generate dal reducer su azioni
+// rilevanti (assign, comment, mention, pending_member). Le `computed` (overdue,
+// queue_long) sono derivate a runtime perché dipendono dal tempo corrente.
+const NOTIFICATION_TYPES = {
+  assigned: { label: "Assegnazioni", icon: "📋", color: "#3B82F6" },
+  comment: { label: "Commenti", icon: "💬", color: "#8B5CF6" },
+  mention: { label: "Menzioni", icon: "🔔", color: "#EC4899" },
+  pending_member: { label: "Agenti pending", icon: "👤", color: "#F59E0B" },
+  overdue: { label: "Scaduti", icon: "⚠️", color: "#C0392B" },
+  queue_long: { label: "Coda > 24h", icon: "⏳", color: "#C8832A" },
+  system: { label: "Sistema", icon: "ℹ️", color: "#6B7280" },
+};
+
+// Soglia per "task fermo in coda globale": dopo N ore avvisa i manager/admin.
+const QUEUE_LONG_HOURS = 24;
+
+// Notifiche seed (mock) — alcune già lette, altre no, indirizzate all'utente default.
+const INITIAL_NOTIFICATIONS = [
+  {
+    id: "n-seed-1", type: "assigned",
+    title: "Nuovo task assegnato",
+    body: "Marco ti ha assegnato: Newsletter Giugno - Offerte Estate",
+    time: new Date(Date.now() - 3600000).toISOString(),
+    read: false, targetUserIds: ["luca"],
+    link: { taskId: "t7" },
+  },
+  {
+    id: "n-seed-2", type: "comment",
+    title: "Nuovo commento sul tuo task",
+    body: "Sofia: \"Four Seasons ha confermato 2 bungalow disponibili\"",
+    time: new Date(Date.now() - 7200000).toISOString(),
+    read: false, targetUserIds: ["sofia", "luca"],
+    link: { taskId: "t3" },
+  },
+  {
+    id: "n-seed-3", type: "system",
+    title: "Benvenuto in VoyageDesk v0.10",
+    body: "Le nuove voci Pratiche, Clienti e Fornitori sono ora disponibili.",
+    time: new Date(Date.now() - 86400000).toISOString(),
+    read: true, targetUserIds: null,
+    link: null,
+  },
 ];
 
 // ─── TASK TEMPLATES ────────────────────────────────────────────────────────
@@ -678,13 +714,45 @@ function baseReducer(state, action) {
         return _denied("Non puoi creare task di questa categoria");
       }
       const tasks = [action.payload, ...state.tasks];
-      return { ...state, tasks, toast: { message: "Task creato con successo!", type: "success" } };
+      // Notifica agli assegnatari (escluso il creatore).
+      const targets = (action.payload.assignees || []).filter(a => a !== uid);
+      const notifications = targets.length > 0
+        ? [
+            buildNotification({
+              type: "assigned",
+              title: "Nuovo task assegnato",
+              body: `${getMember(uid)?.name || "Qualcuno"} ti ha assegnato: ${action.payload.title}`,
+              targetUserIds: targets,
+              link: { taskId: action.payload.id },
+            }),
+            ...(state.notifications || []),
+          ]
+        : (state.notifications || []);
+      return { ...state, tasks, notifications, toast: { message: "Task creato con successo!", type: "success" } };
     }
     case "ADD_TASKS_BULK": {
       const bad = action.payload.find(t => !canCreateTaskCategory(t.category, uid));
       if (bad) return _denied("Alcune task hanno categorie che non puoi creare");
       const tasks = [...action.payload, ...state.tasks];
-      return { ...state, tasks, toast: { message: `${action.payload.length} task creati!`, type: "success" } };
+      // Notifiche bulk: una per ogni nuovo assegnatario (raggruppata se più task).
+      const buckets = {};
+      action.payload.forEach(t => {
+        (t.assignees || []).filter(a => a !== uid).forEach(a => {
+          if (!buckets[a]) buckets[a] = [];
+          buckets[a].push(t);
+        });
+      });
+      const newNotifs = Object.entries(buckets).map(([userId, list]) =>
+        buildNotification({
+          type: "assigned",
+          title: `${list.length} nuovi task assegnati`,
+          body: list.slice(0, 3).map(t => "• " + t.title).join("\n") + (list.length > 3 ? `\n…e altri ${list.length - 3}` : ""),
+          targetUserIds: [userId],
+          link: list.length === 1 ? { taskId: list[0].id } : null,
+        })
+      );
+      const notifications = [...newNotifs, ...(state.notifications || [])];
+      return { ...state, tasks, notifications, toast: { message: `${action.payload.length} task creati!`, type: "success" } };
     }
     case "UPDATE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload.id);
@@ -694,13 +762,31 @@ function baseReducer(state, action) {
       const selectedTask = state.selectedTask?.id === action.payload.id
         ? { ...state.selectedTask, ...action.payload }
         : state.selectedTask;
+      // Notifica ai nuovi assegnatari (diff fra prev.assignees e new).
+      let notifications = state.notifications || [];
+      if (action.payload.assignees) {
+        const prevSet = new Set(prev.assignees || []);
+        const added = action.payload.assignees.filter(a => !prevSet.has(a) && a !== uid);
+        if (added.length > 0) {
+          notifications = [
+            buildNotification({
+              type: "assigned",
+              title: "Task assegnato a te",
+              body: `${getMember(uid)?.name || "Qualcuno"}: ${prev.title}`,
+              targetUserIds: added,
+              link: { taskId: prev.id },
+            }),
+            ...notifications,
+          ];
+        }
+      }
       const toast = action.swipe
         ? { message: action.toastMessage || "Task aggiornato!", type: "success", undoable: true }
         : { message: "Task aggiornato!", type: "success" };
       const lastAction = action.swipe && prev
         ? { type: "UPDATE_TASK", taskId: action.payload.id, prevSnapshot: prev }
         : state.lastAction;
-      return { ...state, tasks, selectedTask, toast, lastAction };
+      return { ...state, tasks, selectedTask, notifications, toast, lastAction };
     }
     case "ADD_COMMENT": {
       const prev = state.tasks.find(t => t.id === action.payload.taskId);
@@ -714,7 +800,22 @@ function baseReducer(state, action) {
       const selectedTask = state.selectedTask?.id === action.payload.taskId
         ? { ...state.selectedTask, comments: [...(state.selectedTask.comments || []), action.payload.comment] }
         : state.selectedTask;
-      return { ...state, tasks, selectedTask };
+      // Notifica agli altri assegnatari (escluso chi ha commentato).
+      const targets = (prev.assignees || []).filter(a => a !== uid);
+      const snippet = (action.payload.comment.text || "").slice(0, 80);
+      const notifications = targets.length > 0
+        ? [
+            buildNotification({
+              type: "comment",
+              title: "Nuovo commento sul task",
+              body: `${action.payload.comment.user || "Qualcuno"}: "${snippet}${snippet.length === 80 ? "…" : ""}"\n📋 ${prev.title}`,
+              targetUserIds: targets,
+              link: { taskId: prev.id },
+            }),
+            ...(state.notifications || []),
+          ]
+        : (state.notifications || []);
+      return { ...state, tasks, selectedTask, notifications };
     }
     case "DELETE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload);
@@ -801,10 +902,33 @@ function baseReducer(state, action) {
 
     // ─── ADMIN: AGENZIA & BACKUP ───
     case "SET_AGENCY_NAME": {
-      return { ...state, agencyName: action.payload };
+      // Backwards compat: aggiorna sia il vecchio campo che il nuovo profilo.
+      return {
+        ...state,
+        agencyName: action.payload,
+        agency: { ...(state.agency || {}), name: action.payload },
+      };
+    }
+    case "UPDATE_AGENCY_SETTINGS": {
+      const agency = { ...(state.agency || {}), ...action.payload };
+      return { ...state, agency, agencyName: agency.name || state.agencyName };
+    }
+    case "ADD_MESSAGE_TEMPLATE": {
+      const tpl = { id: `tpl-${Date.now()}`, ...action.payload };
+      return { ...state, messageTemplates: [...(state.messageTemplates || []), tpl], toast: { message: "Template aggiunto", type: "success" } };
+    }
+    case "UPDATE_MESSAGE_TEMPLATE": {
+      const messageTemplates = (state.messageTemplates || []).map(t =>
+        t.id === action.payload.id ? { ...t, ...action.payload } : t
+      );
+      return { ...state, messageTemplates, toast: { message: "Template aggiornato", type: "success" } };
+    }
+    case "DELETE_MESSAGE_TEMPLATE": {
+      const messageTemplates = (state.messageTemplates || []).filter(t => t.id !== action.payload);
+      return { ...state, messageTemplates, toast: { message: "Template rimosso", type: "success" } };
     }
     case "RESTORE_BACKUP": {
-      const { tasks, team, categories, agencyName, notices, clients, suppliers, practices } = action.payload;
+      const { tasks, team, categories, agencyName, agency, notices, clients, suppliers, practices, notifications, messageTemplates } = action.payload;
       if (team) _syncTeam(team);
       if (categories) _syncCategories(categories);
       return {
@@ -813,10 +937,13 @@ function baseReducer(state, action) {
         team: team ?? state.team,
         categories: categories ?? state.categories,
         agencyName: agencyName ?? state.agencyName,
+        agency: agency ?? state.agency,
         notices: notices ?? state.notices,
         clients: clients ?? state.clients,
         suppliers: suppliers ?? state.suppliers,
         practices: practices ?? state.practices,
+        notifications: notifications ?? state.notifications,
+        messageTemplates: messageTemplates ?? state.messageTemplates,
         toast: { message: "Backup ripristinato con successo!", type: "success" }
       };
     }
@@ -975,6 +1102,30 @@ function baseReducer(state, action) {
       return { ...state, practices };
     }
 
+    // ─── NOTIFICHE (Fase 2) ───
+    case "MARK_NOTIFICATION_READ": {
+      const notifications = (state.notifications || []).map(n =>
+        n.id === action.payload ? { ...n, read: true } : n
+      );
+      return { ...state, notifications };
+    }
+    case "MARK_ALL_NOTIFICATIONS_READ": {
+      // Marca come lette tutte quelle visibili all'utente corrente.
+      const notifications = (state.notifications || []).map(n =>
+        isNotificationForUser(n, uid) ? { ...n, read: true } : n
+      );
+      return { ...state, notifications };
+    }
+    case "DELETE_NOTIFICATION": {
+      const notifications = (state.notifications || []).filter(n => n.id !== action.payload);
+      return { ...state, notifications };
+    }
+    case "ADD_NOTIFICATION": {
+      // Per uso interno o di sistema (push manuale).
+      const notif = buildNotification(action.payload);
+      return { ...state, notifications: [notif, ...(state.notifications || [])] };
+    }
+
     case "CLEAR_TOAST": return { ...state, toast: null };
     case "UNDO_LAST_ACTION": {
       const la = state.lastAction;
@@ -1024,7 +1175,9 @@ const ADMIN_ONLY_ACTIONS = new Set([
   "ADD_TEAM_MEMBER", "UPDATE_TEAM_MEMBER", "APPROVE_TEAM_MEMBER",
   "TOGGLE_TEAM_MEMBER_ACTIVE", "REMOVE_TEAM_MEMBER",
   "ADD_CATEGORY", "UPDATE_CATEGORY", "REMOVE_CATEGORY",
-  "SET_AGENCY_NAME", "RESTORE_BACKUP", "CLEAR_ACTIVITY_LOG",
+  "SET_AGENCY_NAME", "UPDATE_AGENCY_SETTINGS",
+  "ADD_MESSAGE_TEMPLATE", "UPDATE_MESSAGE_TEMPLATE", "DELETE_MESSAGE_TEMPLATE",
+  "RESTORE_BACKUP", "CLEAR_ACTIVITY_LOG",
 ]);
 
 // Wrapper che aggiunge automaticamente al log le azioni rilevanti
@@ -1090,7 +1243,28 @@ const initialState = {
   suppliers: INITIAL_SUPPLIERS,
   practices: INITIAL_PRACTICES,
   agencyName: "VoyageDesk",
+  // ─── PROFILO AGENZIA ESTESO (Fase 2) ───
+  agency: {
+    name: "VoyageDesk",
+    slogan: "Sistema gestionale per agenzie viaggi",
+    email: "info@voyagedesk.it",
+    phone: "+39 02 1234567",
+    address: "Via dei Viaggi 1, Milano",
+    vatId: "IT01234567890",
+    workingHoursStart: 9,
+    workingHoursEnd: 18,
+  },
+  // ─── TEMPLATE MESSAGGI (Fase 2) ───
+  // Snippet riusabili nella chat (ack rapido, follow-up, conferma).
+  messageTemplates: [
+    { id: "tpl-1", label: "Ack rapido", text: "Ricevuto, mi attivo subito 👍" },
+    { id: "tpl-2", label: "Conferma riunione", text: "Confermo la riunione, ci vediamo lì." },
+    { id: "tpl-3", label: "Follow-up cliente", text: "Buongiorno, le invio aggiornamento sulla pratica e resto a disposizione per qualsiasi necessità." },
+    { id: "tpl-4", label: "Attesa documenti", text: "Ho ricevuto la richiesta — sono in attesa di alcuni documenti dal fornitore, ti aggiorno entro fine giornata." },
+    { id: "tpl-5", label: "Pratica chiusa", text: "Pratica chiusa con successo ✅ — grazie per la collaborazione." },
+  ],
   notices: INITIAL_NOTICES,
+  notifications: INITIAL_NOTIFICATIONS,
   activityLog: [],
   activeView: "dashboard",
   selectedTask: null,
@@ -1147,6 +1321,136 @@ const formatMoney = (amount, currency = "EUR") => {
   } catch {
     return `€ ${Math.round(amount)}`;
   }
+};
+
+// ─── PRESENZA (Fase 2 — chat) ──────────────────────────────────────────────
+// Status mock dell'utente. In assenza di backend, derivato dall'id in modo
+// deterministico per coerenza visiva. L'utente loggato è sempre "online".
+const PRESENCE_STATUSES = {
+  online: { color: "#2D7A4F", label: "Online" },
+  busy: { color: "#C8832A", label: "Occupato" },
+  offline: { color: "#9999AA", label: "Offline" },
+};
+const _PRESENCE_MAP = { marco: "online", sofia: "online", luca: "online", roberto: "busy", giulia: "offline" };
+const getPresence = (memberId) => {
+  if (memberId === CURRENT_USER) return "online";
+  return _PRESENCE_MAP[memberId] || "offline";
+};
+
+// ─── HELPER NOTIFICHE (Fase 2) ────────────────────────────────────────────
+// Genera id univoco per una nuova notifica.
+const _nextNotifId = () => `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+// Costruisce una notifica stored (record reducer).
+const buildNotification = ({ type, title, body = null, targetUserIds = null, link = null }) => ({
+  id: _nextNotifId(),
+  type, title, body,
+  time: new Date().toISOString(),
+  read: false,
+  targetUserIds,
+  link,
+});
+
+// Filtra le notifiche stored per l'utente corrente:
+// - targetUserIds null → broadcast (visibili a tutti)
+// - targetUserIds array → solo se contiene l'utente
+const isNotificationForUser = (n, userId) =>
+  !n.targetUserIds || n.targetUserIds.length === 0 || n.targetUserIds.includes(userId);
+
+// Tempo umano relativo ("5 min fa", "1 ora fa", "2 g fa").
+const relativeTime = (iso) => {
+  if (!iso) return "";
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 0) return "ora";
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return "ora";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} min fa`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h} ${h === 1 ? "ora" : "ore"} fa`;
+  const dd = Math.floor(h / 24);
+  if (dd < 30) return `${dd} ${dd === 1 ? "giorno" : "giorni"} fa`;
+  const mo = Math.floor(dd / 30);
+  return `${mo} ${mo === 1 ? "mese" : "mesi"} fa`;
+};
+
+// Notifiche derivate live (overdue, queue_long, pending_member) — non sono stored.
+// Vengono ricalcolate ad ogni render del pannello in base allo stato corrente.
+// Per evitare doppioni, ogni computed ha un id deterministico.
+const buildComputedNotifications = (state, userId) => {
+  const role = getRoleType(userId);
+  const out = [];
+
+  // 1) Overdue tasks visibili all'utente, ma solo i propri (per non spammare).
+  getActiveTasks(state.tasks)
+    .filter(t => t.status !== "done" && isOverdue(t) && isMyTask(t, userId))
+    .forEach(t => {
+      out.push({
+        id: `computed-overdue-${t.id}`,
+        type: "overdue",
+        title: "Task scaduto",
+        body: t.title,
+        time: t.dueDate,
+        read: false, // gli overdue non sono mai "letti": persistono finché esistono
+        link: { taskId: t.id },
+        computed: true,
+      });
+    });
+
+  // 2) Task fermi in coda globale da > QUEUE_LONG_HOURS ore (solo manager/admin).
+  if (role === "manager" || role === "admin") {
+    const cutoff = Date.now() - QUEUE_LONG_HOURS * 3600 * 1000;
+    getActiveTasks(state.tasks)
+      .filter(t => isInGlobalQueue(t) && t.status !== "done")
+      .filter(t => {
+        // Considera "vecchio" se il task ha una dueDate vicina/passata, oppure
+        // se è stato creato prima del cutoff (heuristic: id timestamp).
+        const ts = parseInt((t.id || "").replace(/[^0-9]/g, "")) || 0;
+        return (ts > 0 && ts < cutoff) || (t.dueDate && new Date(t.dueDate).getTime() < Date.now() + 6 * 3600 * 1000);
+      })
+      .slice(0, 5)
+      .forEach(t => {
+        out.push({
+          id: `computed-queue-${t.id}`,
+          type: "queue_long",
+          title: "Task in coda globale da prendere",
+          body: `${t.title} — priorità ${PRIORITIES[t.priority]?.label.toLowerCase() || "—"}`,
+          time: t.dueDate || new Date().toISOString(),
+          read: false,
+          link: { taskId: t.id },
+          computed: true,
+        });
+      });
+  }
+
+  // 3) Membri team in pending — solo per admin.
+  if (role === "admin") {
+    (state.team || []).filter(m => m.pending).forEach(m => {
+      out.push({
+        id: `computed-pending-${m.id}`,
+        type: "pending_member",
+        title: "Richiesta di accesso team",
+        body: `${m.name} (${m.role}) in attesa di approvazione`,
+        time: new Date().toISOString(),
+        read: false,
+        link: { view: "admin" },
+        computed: true,
+      });
+    });
+  }
+
+  return out;
+};
+
+// Unisce stored + computed e applica filtro per utente.
+const getNotificationsForUser = (state, userId) => {
+  const stored = (state.notifications || []).filter(n => isNotificationForUser(n, userId));
+  const computed = buildComputedNotifications(state, userId);
+  // Ordino: non lette prima, poi per tempo decrescente.
+  return [...computed, ...stored].sort((a, b) => {
+    if (a.read !== b.read) return a.read ? 1 : -1;
+    return (b.time || "").localeCompare(a.time || "");
+  });
 };
 
 // ─── PERMESSI (v0.8) ──────────────────────────────────────────────────────
@@ -1941,7 +2245,11 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, practices = [], clients
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
 const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
   const { isMobile } = useViewport();
-  const unread = NOTIFICATIONS.filter(n => !n.read).length;
+  // Conteggio non lette dinamico (stored + computed) per utente corrente.
+  const unread = useMemo(
+    () => getNotificationsForUser(state, state.currentUserId).filter(n => !n.read).length,
+    [state]
+  );
   const [advOpen, setAdvOpen] = useState(false);
   return (
     <div style={{
@@ -2032,7 +2340,7 @@ const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
             color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center"
           }}>{unread}</span>}
         </button>
-        {state.showNotif && <NotificationsPanel dispatch={dispatch} />}
+        {state.showNotif && <NotificationsPanel state={state} dispatch={dispatch} />}
       </div>
 
       {/* User switcher (v0.8) */}
@@ -2408,40 +2716,168 @@ const UserSwitcher = ({ state, dispatch }) => {
   );
 };
 
-// ─── NOTIFICATIONS PANEL ───────────────────────────────────────────────────
-const NotificationsPanel = ({ dispatch }) => {
+// ─── NOTIFICATIONS PANEL (Fase 2 — notifiche reali) ────────────────────────
+const NotificationsPanel = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
-  const icons = { overdue: "⚠️", assigned: "📋", comment: "💬", deadline: "📅" };
+  const uid = state.currentUserId;
+  const [filter, setFilter] = useState("all"); // all | unread | <type>
+
+  const notifications = useMemo(() => getNotificationsForUser(state, uid), [state, uid]);
+
+  const filtered = useMemo(() => {
+    if (filter === "all") return notifications;
+    if (filter === "unread") return notifications.filter(n => !n.read);
+    return notifications.filter(n => n.type === filter);
+  }, [notifications, filter]);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  // Tipi presenti nelle notifiche correnti → mostra solo quei filtri.
+  const presentTypes = useMemo(() => {
+    const s = new Set(notifications.map(n => n.type));
+    return Array.from(s);
+  }, [notifications]);
+
+  const handleClick = (n) => {
+    // Mark as read (solo stored)
+    if (!n.read && !n.computed) {
+      dispatch({ type: "MARK_NOTIFICATION_READ", payload: n.id });
+    }
+    // Navigate
+    if (n.link?.taskId) {
+      const t = state.tasks.find(x => x.id === n.link.taskId);
+      if (t) {
+        dispatch({ type: "SET_SELECTED_TASK", payload: t });
+        dispatch({ type: "TOGGLE_NOTIF" });
+        return;
+      }
+    }
+    if (n.link?.view) {
+      dispatch({ type: "SET_VIEW", payload: n.link.view });
+      dispatch({ type: "TOGGLE_NOTIF" });
+      return;
+    }
+  };
+
+  const handleDelete = (e, n) => {
+    e.stopPropagation();
+    if (n.computed) return; // computed non si cancellano (riappaiono)
+    dispatch({ type: "DELETE_NOTIFICATION", payload: n.id });
+  };
+
   return (
     <div className="slide-right" style={{
       position: isMobile ? "fixed" : "absolute",
       top: isMobile ? 56 : "calc(100% + 8px)",
       right: isMobile ? 12 : 0,
       left: isMobile ? 12 : "auto",
-      width: isMobile ? "auto" : "min(360px, calc(100vw - 24px))",
+      width: isMobile ? "auto" : "min(380px, calc(100vw - 24px))",
       background: "#fff", borderRadius: 12, boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
       border: "1px solid var(--border)", overflow: "hidden", zIndex: 200,
+      display: "flex", flexDirection: "column", maxHeight: isMobile ? "calc(100vh - 80px)" : 540,
     }}>
+      {/* Header */}
       <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div className="playfair" style={{ fontWeight: 600, fontSize: 15 }}>Notifiche</div>
-        <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
+        <div className="playfair" style={{ fontWeight: 600, fontSize: 15 }}>
+          Notifiche {unreadCount > 0 && <span style={{ fontSize: 11, color: "var(--gold-dark)", fontWeight: 700, marginLeft: 6 }}>· {unreadCount} nuove</span>}
+        </div>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          {unreadCount > 0 && (
+            <button
+              onClick={() => dispatch({ type: "MARK_ALL_NOTIFICATIONS_READ" })}
+              title="Segna tutte come lette"
+              style={{
+                background: "transparent", border: "1px solid var(--border)",
+                borderRadius: 6, padding: "4px 10px", fontSize: 11, color: "var(--text-muted)",
+                cursor: "pointer", fontWeight: 600,
+              }}
+            >✓ Tutte lette</button>
+          )}
+          <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
+        </div>
       </div>
-      <div style={{ maxHeight: 420, overflowY: "auto" }}>
-        {NOTIFICATIONS.map(n => (
-          <div key={n.id} style={{
-            padding: "12px 16px", display: "flex", gap: 10, alignItems: "flex-start",
-            background: n.read ? "transparent" : "rgba(212,168,67,0.07)",
-            borderBottom: "1px solid var(--border)",
-            transition: "background 0.2s", cursor: "default",
-          }}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>{icons[n.type]}</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: n.read ? 400 : 600 }}>{n.title}</div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{n.time}</div>
-            </div>
-            {!n.read && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--gold)", flexShrink: 0, marginTop: 4 }} />}
-          </div>
+
+      {/* Filtri */}
+      <div style={{
+        display: "flex", gap: 4, padding: "8px 10px", borderBottom: "1px solid var(--border)",
+        overflowX: "auto", background: "var(--surface)",
+      }}>
+        {[
+          { k: "all", label: `Tutte (${notifications.length})` },
+          { k: "unread", label: `Non lette (${unreadCount})` },
+          ...presentTypes.map(t => ({ k: t, label: `${NOTIFICATION_TYPES[t]?.icon || ""} ${NOTIFICATION_TYPES[t]?.label || t}` })),
+        ].map(opt => (
+          <button key={opt.k} onClick={() => setFilter(opt.k)} style={{
+            padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer",
+            fontSize: 11, fontWeight: 600, whiteSpace: "nowrap",
+            background: filter === opt.k ? "var(--navy)" : "transparent",
+            color: filter === opt.k ? "#fff" : "var(--text-muted)",
+          }}>{opt.label}</button>
         ))}
+      </div>
+
+      {/* Lista */}
+      <div style={{ flex: 1, overflowY: "auto" }}>
+        {filtered.length === 0 ? (
+          <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--text-muted)" }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>🔕</div>
+            <div style={{ fontSize: 13 }}>
+              {notifications.length === 0 ? "Nessuna notifica." : "Nessun risultato per questo filtro."}
+            </div>
+          </div>
+        ) : filtered.map(n => {
+          const meta = NOTIFICATION_TYPES[n.type] || NOTIFICATION_TYPES.system;
+          const clickable = !!(n.link?.taskId || n.link?.view);
+          return (
+            <div
+              key={n.id}
+              onClick={() => clickable && handleClick(n)}
+              style={{
+                padding: "12px 16px", display: "flex", gap: 10, alignItems: "flex-start",
+                background: n.read ? "transparent" : "rgba(212,168,67,0.07)",
+                borderBottom: "1px solid var(--border)",
+                transition: "background 0.15s",
+                cursor: clickable ? "pointer" : "default",
+                position: "relative",
+              }}
+              onMouseEnter={e => { if (clickable) e.currentTarget.style.background = "var(--surface2)"; }}
+              onMouseLeave={e => e.currentTarget.style.background = n.read ? "transparent" : "rgba(212,168,67,0.07)"}
+            >
+              <span style={{
+                fontSize: 16, flexShrink: 0,
+                width: 30, height: 30, borderRadius: "50%",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                background: meta.color + "20",
+              }}>{meta.icon}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: n.read ? 500 : 700, color: "var(--text)" }}>{n.title}</div>
+                {n.body && (
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3, whiteSpace: "pre-wrap", lineHeight: 1.4 }}>{n.body}</div>
+                )}
+                <div style={{ fontSize: 10, color: "var(--text-light)", marginTop: 4, display: "flex", gap: 6, alignItems: "center" }}>
+                  <span>{relativeTime(n.time)}</span>
+                  {n.computed && <span style={{ padding: "1px 5px", background: "var(--surface2)", borderRadius: 4, fontSize: 9, fontWeight: 600 }}>LIVE</span>}
+                </div>
+              </div>
+              {!n.read && !n.computed && (
+                <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--gold)", flexShrink: 0, marginTop: 8 }} />
+              )}
+              {!n.computed && (
+                <button
+                  onClick={(e) => handleDelete(e, n)}
+                  title="Rimuovi"
+                  style={{
+                    position: "absolute", top: 8, right: 10,
+                    background: "transparent", border: "none", cursor: "pointer",
+                    fontSize: 11, color: "var(--text-light)", opacity: 0.5, padding: 2,
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.opacity = 1; e.currentTarget.style.color = "var(--danger)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.opacity = 0.5; e.currentTarget.style.color = "var(--text-light)"; }}
+                >✕</button>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -4854,9 +5290,10 @@ const TaskSlideOver = ({ task, dispatch, clients = [], practices = [] }) => {
 // ─── CALENDAR PLANNER (unificato: mese + settimana + distribuzione agenti) ──
 const CalendarPlanner = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
-  const [viewMode, setViewMode] = useState("month"); // "month" | "week"
+  const [viewMode, setViewMode] = useState("month"); // "month" | "week" | "day"
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [weekOffset, setWeekOffset] = useState(0);
+  const [currentDay, setCurrentDay] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(null);
   const uid = state.currentUserId;
 
@@ -4912,6 +5349,108 @@ const CalendarPlanner = ({ state, dispatch }) => {
     >{label}</button>
   );
 
+  // ── Day view helpers ──
+  const dayHours = Array.from({ length: 14 }, (_, i) => i + 7); // 07:00 → 20:00
+  const dayTitle = currentDay.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const tasksForCurrentDay = useMemo(
+    () => state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && new Date(t.dueDate).toDateString() === currentDay.toDateString())
+      .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate)),
+    [state.tasks, uid, currentDay]
+  );
+
+  // Pratiche attive nella data corrente (per la pista eventi multi-day in day view).
+  const practicesInDay = useMemo(
+    () => (state.practices || []).filter(p => {
+      if (!p.startDate || !p.endDate) return false;
+      const start = new Date(p.startDate);
+      const end = new Date(p.endDate);
+      end.setHours(23, 59, 59);
+      return currentDay >= new Date(start.toDateString()) && currentDay <= end;
+    }),
+    [state.practices, currentDay]
+  );
+
+  // ── iCal export ──
+  // Genera un file .ics minimale (RFC 5545) con i task assegnati all'utente che hanno una dueDate.
+  // Eventi di 1h di default.
+  const exportICal = () => {
+    const me = getMember(uid);
+    const visibleTasks = state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate);
+    const fmt = (d) => {
+      const dt = new Date(d);
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${dt.getUTCFullYear()}${pad(dt.getUTCMonth() + 1)}${pad(dt.getUTCDate())}T${pad(dt.getUTCHours())}${pad(dt.getUTCMinutes())}00Z`;
+    };
+    const esc = (s) => (s || "").replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
+    const lines = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//VoyageDesk//Calendar//IT",
+      "CALSCALE:GREGORIAN",
+      "METHOD:PUBLISH",
+      `X-WR-CALNAME:VoyageDesk — ${esc(me?.name || "Task")}`,
+    ];
+    visibleTasks.forEach(t => {
+      const start = new Date(t.dueDate);
+      const end = new Date(start.getTime() + (t.estimatedHours || 1) * 3600000);
+      const client = t.clientId ? getClient(state.clients, t.clientId)?.name : t.client;
+      const practice = t.practiceId ? getPractice(state.practices, t.practiceId) : null;
+      const descParts = [
+        t.description,
+        client && `Cliente: ${client}`,
+        practice && `Pratica: ${practice.number} — ${practice.title}`,
+        `Stato: ${STATUS_LABELS[t.status]}`,
+        `Priorità: ${PRIORITIES[t.priority]?.label || "—"}`,
+      ].filter(Boolean);
+      lines.push(
+        "BEGIN:VEVENT",
+        `UID:${t.id}@voyagedesk`,
+        `DTSTAMP:${fmt(new Date())}`,
+        `DTSTART:${fmt(start)}`,
+        `DTEND:${fmt(end)}`,
+        `SUMMARY:${esc(`[${CATEGORIES[t.category]?.label || ""}] ${t.title}`)}`,
+        `DESCRIPTION:${esc(descParts.join("\\n"))}`,
+        `CATEGORIES:${esc(CATEGORIES[t.category]?.label || "")}`,
+        "END:VEVENT"
+      );
+    });
+    // Eventi pratica come VEVENT all-day multi-giorno.
+    (state.practices || []).forEach(p => {
+      if (!p.startDate || !p.endDate) return;
+      const start = new Date(p.startDate);
+      const end = new Date(p.endDate);
+      end.setDate(end.getDate() + 1);
+      const pad = (n) => String(n).padStart(2, "0");
+      const dStr = (d) => `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}`;
+      const client = p.clientId ? getClient(state.clients, p.clientId)?.name : null;
+      lines.push(
+        "BEGIN:VEVENT",
+        `UID:practice-${p.id}@voyagedesk`,
+        `DTSTAMP:${fmt(new Date())}`,
+        `DTSTART;VALUE=DATE:${dStr(start)}`,
+        `DTEND;VALUE=DATE:${dStr(end)}`,
+        `SUMMARY:${esc(`📁 ${p.number} — ${p.title}`)}`,
+        `DESCRIPTION:${esc([client && `Cliente: ${client}`, p.destination && `Dest.: ${p.destination}`, `Stato: ${practiceStatusMeta(p.status).label}`].filter(Boolean).join("\\n"))}`,
+        "END:VEVENT"
+      );
+    });
+    lines.push("END:VCALENDAR");
+    const blob = new Blob([lines.join("\r\n")], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `voyagedesk-${new Date().toISOString().slice(0, 10)}.ics`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    dispatch({ type: "ADD_NOTIFICATION", payload: {
+      type: "system", title: "Calendario esportato",
+      body: `File iCal generato con ${visibleTasks.length} task e ${(state.practices || []).length} pratiche.`,
+      targetUserIds: [uid], link: null,
+    }});
+  };
+
   return (
     <div className="fade-in" style={{ padding: isMobile ? 16 : 28, display: "flex", flexDirection: "column", gap: isMobile ? 16 : 22 }}>
 
@@ -4919,7 +5458,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
       <div className="vd-row-wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div className="playfair" style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, textTransform: viewMode === "month" ? "capitalize" : "none" }}>
-            {viewMode === "month" ? monthName : "Settimana"}
+            {viewMode === "month" ? monthName : viewMode === "week" ? "Settimana" : dayTitle}
           </div>
           {viewMode === "week" && (
             <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
@@ -4932,22 +5471,42 @@ const CalendarPlanner = ({ state, dispatch }) => {
           <div style={{ display: "flex", gap: 4, background: "var(--surface2)", borderRadius: 10, padding: 3 }}>
             {toggleBtn("month", isMobile ? "Mese" : "📅 Mese")}
             {toggleBtn("week", isMobile ? "Sett." : "📆 Settimana")}
+            {toggleBtn("day", isMobile ? "Giorno" : "📌 Giorno")}
           </div>
           {/* Nav buttons */}
           <div style={{ display: "flex", gap: 4 }}>
-            <button onClick={() => viewMode === "month" ? setCurrentMonth(new Date(year, month - 1)) : setWeekOffset(w => w - 1)} style={{
+            <button onClick={() => {
+              if (viewMode === "month") setCurrentMonth(new Date(year, month - 1));
+              else if (viewMode === "week") setWeekOffset(w => w - 1);
+              else { const d = new Date(currentDay); d.setDate(d.getDate() - 1); setCurrentDay(d); }
+            }} style={{
               background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
               width: 34, height: 34, cursor: "pointer", fontSize: 14
             }}>←</button>
-            <button onClick={() => { viewMode === "month" ? setCurrentMonth(new Date()) : setWeekOffset(0); setSelectedDay(null); }} style={{
+            <button onClick={() => {
+              if (viewMode === "month") setCurrentMonth(new Date());
+              else if (viewMode === "week") setWeekOffset(0);
+              else setCurrentDay(new Date());
+              setSelectedDay(null);
+            }} style={{
               background: "var(--gold)", color: "var(--navy)", border: "none",
               borderRadius: 8, padding: "0 14px", height: 34, cursor: "pointer", fontSize: 12, fontWeight: 700
             }}>Oggi</button>
-            <button onClick={() => viewMode === "month" ? setCurrentMonth(new Date(year, month + 1)) : setWeekOffset(w => w + 1)} style={{
+            <button onClick={() => {
+              if (viewMode === "month") setCurrentMonth(new Date(year, month + 1));
+              else if (viewMode === "week") setWeekOffset(w => w + 1);
+              else { const d = new Date(currentDay); d.setDate(d.getDate() + 1); setCurrentDay(d); }
+            }} style={{
               background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
               width: 34, height: 34, cursor: "pointer", fontSize: 14
             }}>→</button>
           </div>
+          {/* iCal export */}
+          <button onClick={exportICal} title="Esporta in formato iCal (.ics)" style={{
+            background: "var(--navy)", color: "#fff", border: "none", borderRadius: 8,
+            height: 34, padding: "0 12px", fontSize: 12, fontWeight: 600, cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 5,
+          }}>📥 {!isMobile && "iCal"}</button>
         </div>
       </div>
 
@@ -5098,6 +5657,136 @@ const CalendarPlanner = ({ state, dispatch }) => {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* ─── VISTA GIORNO ─── */}
+      {viewMode === "day" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Pratiche attive oggi (multi-day events) */}
+          {practicesInDay.length > 0 && (
+            <div style={{ background: "#fff", borderRadius: 12, padding: "12px 16px", border: "1px solid var(--border)", boxShadow: "0 2px 10px rgba(0,0,0,0.06)" }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
+                Pratiche attive ({practicesInDay.length})
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {practicesInDay.map(p => {
+                  const sm = practiceStatusMeta(p.status);
+                  const client = getClient(state.clients, p.clientId);
+                  const dayNum = Math.floor((currentDay - new Date(p.startDate)) / 86400000) + 1;
+                  const totalDays = Math.floor((new Date(p.endDate) - new Date(p.startDate)) / 86400000) + 1;
+                  return (
+                    <div key={p.id} onClick={() => dispatch({ type: "SET_VIEW", payload: "practices" })} style={{
+                      display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
+                      borderRadius: 8, cursor: "pointer",
+                      background: sm.bg, borderLeft: `4px solid ${sm.color}`,
+                    }}>
+                      <span style={{ fontSize: 16 }}>📁</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          <span style={{ fontFamily: "monospace", marginRight: 6, opacity: 0.7 }}>{p.number}</span>
+                          {p.title}
+                        </div>
+                        <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 2 }}>
+                          {client?.name} · {p.destination} · Giorno {dayNum}/{totalDays}
+                        </div>
+                      </div>
+                      <PracticeStatusBadge status={p.status} />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Griglia oraria */}
+          <div style={{ background: "#fff", borderRadius: 14, border: "1px solid var(--border)", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden" }}>
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", background: "var(--surface)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>
+                {tasksForCurrentDay.length} {tasksForCurrentDay.length === 1 ? "task" : "task"} · ore 07:00–20:00
+              </div>
+              <input
+                type="date"
+                value={currentDay.toISOString().slice(0, 10)}
+                onChange={e => e.target.value && setCurrentDay(new Date(e.target.value + "T12:00:00"))}
+                style={{
+                  padding: "5px 8px", border: "1px solid var(--border)", borderRadius: 6,
+                  fontSize: 12, fontFamily: "inherit", outline: "none",
+                }}
+              />
+            </div>
+            <div>
+              {dayHours.map(h => {
+                const hourTasks = tasksForCurrentDay.filter(t => new Date(t.dueDate).getHours() === h);
+                const isCurrentHour = new Date().toDateString() === currentDay.toDateString() && new Date().getHours() === h;
+                return (
+                  <div key={h} style={{
+                    display: "grid", gridTemplateColumns: "60px 1fr",
+                    borderBottom: "1px solid var(--border)",
+                    background: isCurrentHour ? "rgba(212,168,67,0.06)" : "transparent",
+                  }}>
+                    <div style={{
+                      padding: "10px 8px", fontSize: 11, color: "var(--text-muted)",
+                      fontFamily: "monospace", borderRight: "1px solid var(--border)",
+                      background: "var(--surface)", textAlign: "right",
+                    }}>{String(h).padStart(2, "0")}:00</div>
+                    <div style={{ padding: "6px 10px", minHeight: 42, display: "flex", flexDirection: "column", gap: 4 }}>
+                      {hourTasks.length === 0 ? (
+                        isCurrentHour && <div style={{ fontSize: 10, color: "var(--gold-dark)", fontStyle: "italic", paddingTop: 2 }}>← Sei qui</div>
+                      ) : hourTasks.map(t => {
+                        const cat = CATEGORIES[t.category];
+                        const prio = PRIORITIES[t.priority];
+                        return (
+                          <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                            display: "flex", alignItems: "center", gap: 8, padding: "6px 10px",
+                            borderRadius: 6, cursor: "pointer",
+                            background: cat?.color + "12",
+                            borderLeft: `3px solid ${prio?.color || cat?.color}`,
+                          }}
+                            onMouseEnter={e => e.currentTarget.style.background = cat?.color + "22"}
+                            onMouseLeave={e => e.currentTarget.style.background = cat?.color + "12"}
+                          >
+                            <span style={{ fontSize: 14 }}>{cat?.icon}</span>
+                            <span style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "monospace", minWidth: 38 }}>
+                              {formatTime(t.dueDate)}
+                            </span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
+                              {t.client && <div style={{ fontSize: 10, color: "var(--text-muted)" }}>👤 {t.client}</div>}
+                            </div>
+                            <StatusBadge status={t.status} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {/* Task senza ora o fuori range */}
+            {(() => {
+              const off = tasksForCurrentDay.filter(t => {
+                const h = new Date(t.dueDate).getHours();
+                return h < 7 || h > 20;
+              });
+              if (off.length === 0) return null;
+              return (
+                <div style={{ padding: "10px 16px", borderTop: "1px solid var(--border)", background: "var(--surface)" }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>Fuori orario lavorativo ({off.length})</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {off.map(t => (
+                      <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                        fontSize: 11, padding: "4px 8px", cursor: "pointer", borderRadius: 4,
+                        background: "#fff", border: "1px solid var(--border)",
+                      }}>
+                        {formatTime(t.dueDate)} — {CATEGORIES[t.category]?.icon} {t.title}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -5283,8 +5972,48 @@ const Team = ({ state, dispatch }) => {
 // ─── CHAT: MOCK DATA ───────────────────────────────────────────────────────
 // CURRENT_USER è dichiarato in cima al file (sezione MOCK DATA)
 
-// Context per condividere tasks/dispatch (per messaggi con taskLink — v0.8)
-const ChatContext = createContext({ tasks: [], dispatch: () => {} });
+// Context per condividere tasks/practices/messageTemplates/dispatch (per messaggi con link cliccabili e picker template)
+const ChatContext = createContext({ tasks: [], practices: [], messageTemplates: [], dispatch: () => {} });
+
+// Parser refs in testo libero. Riconosce:
+//  - Numero pratica: PR-YYYY-NNN
+//  - "Riferimento task: \"...\"" (prefisso usato dai precompilati v0.8)
+// Restituisce { firstPracticeId, firstTaskTitle } per la rich preview.
+const parseMessageRefs = (text, tasks, practices) => {
+  if (!text) return { practiceId: null, taskTitle: null };
+  const prMatch = text.match(/PR-\d{4}-\d{3,}/);
+  let practiceId = null;
+  if (prMatch) {
+    const p = (practices || []).find(x => x.number === prMatch[0]);
+    if (p) practiceId = p.id;
+  }
+  let taskTitle = null;
+  const taskRefMatch = text.match(/Riferimento task:\s*"([^"]+)"/);
+  if (taskRefMatch) taskTitle = taskRefMatch[1];
+  return { practiceId, taskTitle };
+};
+
+// Renderizza testo evidenziando i pattern PR-YYYY-NNN come link cliccabili.
+const renderMessageTextWithLinks = (text, isMine, onPracticeClick) => {
+  if (!text) return null;
+  const parts = text.split(/(PR-\d{4}-\d{3,})/g);
+  return parts.map((part, i) => {
+    if (/^PR-\d{4}-\d{3,}$/.test(part)) {
+      return (
+        <span
+          key={i}
+          onClick={(e) => { e.stopPropagation(); onPracticeClick(part); }}
+          style={{
+            color: isMine ? "var(--gold-light)" : "var(--navy)",
+            fontWeight: 700, cursor: "pointer",
+            textDecoration: "underline", fontFamily: "monospace",
+          }}
+        >{part}</span>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
+};
 
 const initialConversations = [
   {
@@ -5490,10 +6219,25 @@ const VoicePlayer = ({ duration, waveform, isMine }) => {
 const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onContextMenu }) => {
   const [showReactions, setShowReactions] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const { tasks: ctxTasks, practices: ctxPractices, dispatch: ctxDispatch } = useContext(ChatContext);
   const isMine = msg.sender === CURRENT_USER;
   const sender = getMember(msg.sender);
   const showAvatar = !prevMsg || prevMsg.sender !== msg.sender;
   const showName = conv.type === "group" && !isMine && showAvatar;
+
+  // Rich-preview refs (task/practice) estratti dal testo del messaggio
+  const refs = msg.type === "text" ? parseMessageRefs(msg.text, ctxTasks, ctxPractices) : { practiceId: null, taskTitle: null };
+  const refPractice = refs.practiceId ? (ctxPractices || []).find(p => p.id === refs.practiceId) : null;
+  const refTask = refs.taskTitle ? (ctxTasks || []).find(t => t.title === refs.taskTitle) : null;
+
+  const openPracticeByNumber = (number) => {
+    if (!ctxDispatch) return;
+    ctxDispatch({ type: "SET_VIEW", payload: "practices" });
+  };
+  const openTask = (t) => {
+    if (!ctxDispatch || !t) return;
+    ctxDispatch({ type: "SET_SELECTED_TASK", payload: t });
+  };
 
   const replyMsg = msg.replyTo ? allMessages.find(m => m.id === msg.replyTo) : null;
   const replyAuthor = replyMsg ? getMember(replyMsg.sender) : null;
@@ -5557,7 +6301,53 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
 
           {/* Content */}
           {msg.type === "text" && (
-            <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}>{msg.text}</div>
+            <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word", whiteSpace: "pre-wrap" }}>
+              {renderMessageTextWithLinks(msg.text, isMine, openPracticeByNumber)}
+            </div>
+          )}
+
+          {/* Rich preview: task riferito nel messaggio */}
+          {msg.type === "text" && refTask && (
+            <div
+              onClick={(e) => { e.stopPropagation(); openTask(refTask); }}
+              style={{
+                marginTop: 8, padding: "8px 10px", borderRadius: 8,
+                background: isMine ? "rgba(255,255,255,0.12)" : "var(--surface2)",
+                border: `1px solid ${isMine ? "rgba(255,255,255,0.18)" : "var(--border)"}`,
+                cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
+              }}
+            >
+              <span style={{ fontSize: 16 }}>{CATEGORIES[refTask.category]?.icon || "📋"}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11, opacity: 0.7, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 600 }}>Task</div>
+                <div style={{ fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{refTask.title}</div>
+                <div style={{ fontSize: 10, opacity: 0.7 }}>
+                  {STATUS_LABELS[refTask.status]} · {refTask.dueDate ? formatDate(refTask.dueDate) : "no scadenza"}
+                </div>
+              </div>
+              <span style={{ fontSize: 12, opacity: 0.6 }}>→</span>
+            </div>
+          )}
+
+          {/* Rich preview: pratica riferita nel messaggio */}
+          {msg.type === "text" && refPractice && (
+            <div
+              onClick={(e) => { e.stopPropagation(); openPracticeByNumber(refPractice.number); }}
+              style={{
+                marginTop: 8, padding: "8px 10px", borderRadius: 8,
+                background: isMine ? "rgba(255,255,255,0.12)" : "var(--surface2)",
+                border: `1px solid ${isMine ? "rgba(255,255,255,0.18)" : "var(--border)"}`,
+                cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
+              }}
+            >
+              <span style={{ fontSize: 16 }}>📁</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11, opacity: 0.7, fontFamily: "monospace" }}>{refPractice.number}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{refPractice.title}</div>
+                <div style={{ fontSize: 10, opacity: 0.7 }}>{practiceStatusMeta(refPractice.status).label}</div>
+              </div>
+              <span style={{ fontSize: 12, opacity: 0.6 }}>→</span>
+            </div>
           )}
 
           {msg.type === "voice" && (
@@ -5698,8 +6488,15 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
   const [recording, setRecording] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const [showAttach, setShowAttach] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const [typing, setTyping] = useState(false);
   const scrollRef = useRef(null);
+  const { messageTemplates: ctxTemplates } = useContext(ChatContext);
+
+  const insertTemplate = (tpl) => {
+    setInput(prev => prev ? prev + "\n" + tpl.text : tpl.text);
+    setShowTemplates(false);
+  };
 
   // Se è arrivato un prefill (es. da "contatta agente" su urgenti altrui), popolalo
   useEffect(() => {
@@ -5813,7 +6610,15 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
         }}>←</button>
 
         {conv.type === "direct" ? (
-          <Avatar memberId={otherTypingMember} size={36} />
+          <div style={{ position: "relative" }}>
+            <Avatar memberId={otherTypingMember} size={36} />
+            <div style={{
+              position: "absolute", bottom: -1, right: -1, width: 11, height: 11,
+              borderRadius: "50%",
+              background: PRESENCE_STATUSES[getPresence(otherTypingMember)]?.color || "var(--text-light)",
+              border: "2px solid var(--navy)",
+            }} />
+          </div>
         ) : (
           <div style={{
             width: 36, height: 36, borderRadius: "50%", background: "var(--gold)",
@@ -5835,7 +6640,11 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
                 <span style={{ animation: "typing 1s infinite", animationDelay: "0.4s", display: "inline-block" }}>.</span>
               </span>
             ) : conv.type === "direct" ? (
-              <>● Online</>
+              (() => {
+                const p = getPresence(otherTypingMember);
+                const meta = PRESENCE_STATUSES[p];
+                return <span style={{ color: meta?.color || "rgba(255,255,255,0.55)" }}>● {meta?.label}</span>;
+              })()
             ) : (
               `${conv.participants.length} membri`
             )}
@@ -5913,7 +6722,7 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
         ) : (
           <>
             <div style={{ position: "relative" }}>
-              <button onClick={() => setShowAttach(s => !s)} style={{
+              <button onClick={() => { setShowAttach(s => !s); setShowTemplates(false); }} style={{
                 background: "var(--surface2)", border: "none", borderRadius: "50%",
                 width: 36, height: 36, cursor: "pointer", fontSize: 18, flexShrink: 0,
               }}>📎</button>
@@ -5943,6 +6752,42 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
                 </div>
               )}
             </div>
+
+            {/* Template picker */}
+            {(ctxTemplates || []).length > 0 && (
+              <div style={{ position: "relative" }}>
+                <button onClick={() => { setShowTemplates(s => !s); setShowAttach(false); }} title="Template messaggi" style={{
+                  background: "var(--surface2)", border: "none", borderRadius: "50%",
+                  width: 36, height: 36, cursor: "pointer", fontSize: 16, flexShrink: 0,
+                }}>⚡</button>
+                {showTemplates && (
+                  <div className="slide-up" style={{
+                    position: "absolute", bottom: "calc(100% + 8px)", left: 0,
+                    background: "#fff", borderRadius: 12, padding: 8,
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--border)",
+                    display: "flex", flexDirection: "column", gap: 2,
+                    minWidth: 280, maxWidth: 360, maxHeight: 320, overflowY: "auto", zIndex: 100,
+                  }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, padding: "4px 10px" }}>
+                      Template ({ctxTemplates.length})
+                    </div>
+                    {ctxTemplates.map(tpl => (
+                      <button key={tpl.id} onClick={() => insertTemplate(tpl)} style={{
+                        padding: "8px 12px", border: "none", background: "transparent",
+                        borderRadius: 8, cursor: "pointer", fontSize: 13, textAlign: "left",
+                        display: "flex", flexDirection: "column", gap: 2,
+                      }}
+                        onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                      >
+                        <div style={{ fontSize: 12, fontWeight: 700 }}>{tpl.label}</div>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tpl.text}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <input
               value={input}
@@ -5995,7 +6840,14 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
     if (filter === "direct" && c.type !== "direct") return false;
     if (filter === "group" && c.type !== "group") return false;
     if (filter === "unread" && getUnreadCount(messages, c.id) === 0) return false;
-    if (search && !getConversationName(c).toLowerCase().includes(search.toLowerCase())) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      const nameMatch = getConversationName(c).toLowerCase().includes(q);
+      // Ricerca anche dentro i messaggi di testo della conversazione
+      const msgs = messages[c.id] || [];
+      const msgMatch = msgs.some(m => (m.text || "").toLowerCase().includes(q) || (m.fileName || "").toLowerCase().includes(q));
+      if (!nameMatch && !msgMatch) return false;
+    }
     return true;
   });
 
@@ -6056,11 +6908,13 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
               onMouseLeave={e => e.currentTarget.style.background = unread > 0 ? "rgba(212,168,67,0.05)" : "transparent"}
             >
               {c.type === "direct" ? (
-                <div style={{ position: "relative", flexShrink: 0 }}>
+                <div style={{ position: "relative", flexShrink: 0 }} title={PRESENCE_STATUSES[getPresence(otherUser)]?.label}>
                   <Avatar memberId={otherUser} size={42} />
                   <div style={{
                     position: "absolute", bottom: 0, right: 0, width: 11, height: 11,
-                    borderRadius: "50%", background: "var(--success)", border: "2px solid #fff",
+                    borderRadius: "50%",
+                    background: PRESENCE_STATUSES[getPresence(otherUser)]?.color || "var(--text-light)",
+                    border: "2px solid #fff",
                   }} />
                 </div>
               ) : (
@@ -6274,7 +7128,7 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
 };
 
 // ─── CHAT: MAIN PANEL ──────────────────────────────────────────────────────
-const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, currentUserId }) => {
+const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, practices, messageTemplates, dispatch, currentUserId }) => {
   const { isMobile } = useViewport();
   const [activeConv, setActiveConv] = useState(null);
   const [newMode, setNewMode] = useState(false);
@@ -6320,7 +7174,7 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
   };
 
   return (
-    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER }}>
+    <ChatContext.Provider value={{ tasks: tasks || [], practices: practices || [], messageTemplates: messageTemplates || [], dispatch, currentUserId: currentUserId || CURRENT_USER }}>
     <>
       <div onClick={onClose} style={{
         position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: 700,
@@ -6768,6 +7622,7 @@ const AdminView = ({ state, dispatch }) => {
 
   const tabs = [
     { id: "team", icon: "👥", label: "Team" },
+    { id: "settings", icon: "🏢", label: "Impostazioni" },
     { id: "io", icon: "📤", label: "Import / Export" },
     { id: "stats", icon: "📊", label: "Sistema" },
     { id: "cats", icon: "🏷️", label: "Categorie" },
@@ -6815,6 +7670,7 @@ const AdminView = ({ state, dispatch }) => {
       {/* Tab content */}
       <div className="fade-in" key={tab}>
         {tab === "team" && <AdminTeamTab state={state} dispatch={dispatch} />}
+        {tab === "settings" && <AdminSettingsTab state={state} dispatch={dispatch} />}
         {tab === "io" && <AdminIOTab state={state} dispatch={dispatch} />}
         {tab === "stats" && <AdminStatsTab state={state} />}
         {tab === "cats" && <AdminCategoriesTab state={state} dispatch={dispatch} />}
@@ -7094,6 +7950,9 @@ const AdminIOTab = ({ state, dispatch }) => {
       clients: state.clients,
       suppliers: state.suppliers,
       practices: state.practices,
+      notifications: state.notifications,
+      agency: state.agency,
+      messageTemplates: state.messageTemplates,
     };
     downloadFile(
       new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }),
@@ -7274,6 +8133,178 @@ const AdminStatsTab = ({ state }) => {
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{c.label}</div>
                 <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{c.count} task</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── ADMIN TAB: IMPOSTAZIONI (Fase 2) ──────────────────────────────────────
+const AdminSettingsTab = ({ state, dispatch }) => {
+  const a = state.agency || { name: state.agencyName };
+  const [agency, setAgency] = useState({
+    name: a.name || "",
+    slogan: a.slogan || "",
+    email: a.email || "",
+    phone: a.phone || "",
+    address: a.address || "",
+    vatId: a.vatId || "",
+    workingHoursStart: a.workingHoursStart || 9,
+    workingHoursEnd: a.workingHoursEnd || 18,
+  });
+  const [editingTpl, setEditingTpl] = useState(null); // null | tpl | "new"
+  const [tplForm, setTplForm] = useState({ label: "", text: "" });
+
+  const setA = (k, v) => setAgency(f => ({ ...f, [k]: v }));
+  const saveAgency = () => {
+    dispatch({ type: "UPDATE_AGENCY_SETTINGS", payload: {
+      ...agency,
+      workingHoursStart: parseInt(agency.workingHoursStart, 10),
+      workingHoursEnd: parseInt(agency.workingHoursEnd, 10),
+    }});
+  };
+
+  const saveTemplate = (e) => {
+    e?.preventDefault?.();
+    if (!tplForm.label.trim() || !tplForm.text.trim()) return;
+    if (editingTpl && editingTpl !== "new") {
+      dispatch({ type: "UPDATE_MESSAGE_TEMPLATE", payload: { id: editingTpl.id, ...tplForm } });
+    } else {
+      dispatch({ type: "ADD_MESSAGE_TEMPLATE", payload: tplForm });
+    }
+    setEditingTpl(null);
+    setTplForm({ label: "", text: "" });
+  };
+
+  const startEdit = (tpl) => {
+    setEditingTpl(tpl);
+    setTplForm({ label: tpl.label, text: tpl.text });
+  };
+  const startNew = () => {
+    setEditingTpl("new");
+    setTplForm({ label: "", text: "" });
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "9px 12px", border: "1px solid var(--border)",
+    borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff",
+    outline: "none", boxSizing: "border-box",
+  };
+  const labelStyle = { fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, display: "block" };
+
+  return (
+    <div style={{ display: "grid", gap: 20 }}>
+      {/* Profilo agenzia */}
+      <div style={cardStyle}>
+        <h3 style={cardH}>🏢 Profilo agenzia</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <div>
+            <label style={labelStyle}>Nome agenzia *</label>
+            <input style={inputStyle} value={agency.name} onChange={e => setA("name", e.target.value)} />
+          </div>
+          <div>
+            <label style={labelStyle}>Slogan</label>
+            <input style={inputStyle} value={agency.slogan} onChange={e => setA("slogan", e.target.value)} />
+          </div>
+          <div>
+            <label style={labelStyle}>Email</label>
+            <input style={inputStyle} type="email" value={agency.email} onChange={e => setA("email", e.target.value)} />
+          </div>
+          <div>
+            <label style={labelStyle}>Telefono</label>
+            <input style={inputStyle} value={agency.phone} onChange={e => setA("phone", e.target.value)} />
+          </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>Indirizzo</label>
+            <input style={inputStyle} value={agency.address} onChange={e => setA("address", e.target.value)} />
+          </div>
+          <div>
+            <label style={labelStyle}>P.IVA</label>
+            <input style={inputStyle} value={agency.vatId} onChange={e => setA("vatId", e.target.value)} />
+          </div>
+          <div>
+            <label style={labelStyle}>Orario lavorativo</label>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input style={{ ...inputStyle, width: 70 }} type="number" min={0} max={23} value={agency.workingHoursStart} onChange={e => setA("workingHoursStart", e.target.value)} />
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>—</span>
+              <input style={{ ...inputStyle, width: 70 }} type="number" min={0} max={23} value={agency.workingHoursEnd} onChange={e => setA("workingHoursEnd", e.target.value)} />
+            </div>
+          </div>
+        </div>
+        <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
+          <button onClick={saveAgency} style={{
+            padding: "9px 20px", borderRadius: 8, border: "none",
+            background: "var(--navy)", color: "#fff", cursor: "pointer",
+            fontSize: 13, fontWeight: 700,
+          }}>💾 Salva profilo</button>
+        </div>
+      </div>
+
+      {/* Template messaggi */}
+      <div style={cardStyle}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <h3 style={{ ...cardH, marginBottom: 0 }}>💬 Template messaggi chat</h3>
+          <button onClick={startNew} style={{
+            padding: "8px 14px", borderRadius: 8, border: "none",
+            background: "var(--navy)", color: "#fff", cursor: "pointer",
+            fontSize: 12, fontWeight: 700,
+          }}>+ Nuovo template</button>
+        </div>
+        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}>
+          Snippet riusabili nella chat. Disponibili come picker rapido nell'input messaggio.
+        </div>
+
+        {editingTpl && (
+          <form onSubmit={saveTemplate} style={{
+            background: "var(--surface2)", borderRadius: 8, padding: 14,
+            marginBottom: 14, display: "flex", flexDirection: "column", gap: 10,
+          }}>
+            <div>
+              <label style={labelStyle}>Etichetta</label>
+              <input style={inputStyle} value={tplForm.label} onChange={e => setTplForm(f => ({ ...f, label: e.target.value }))} placeholder="Es. Conferma riunione" autoFocus />
+            </div>
+            <div>
+              <label style={labelStyle}>Testo</label>
+              <textarea style={{ ...inputStyle, minHeight: 70, resize: "vertical", fontFamily: "inherit" }} value={tplForm.text} onChange={e => setTplForm(f => ({ ...f, text: e.target.value }))} placeholder="Testo del messaggio…" />
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button type="button" onClick={() => { setEditingTpl(null); setTplForm({ label: "", text: "" }); }} style={{
+                padding: "8px 14px", borderRadius: 6, border: "1px solid var(--border)",
+                background: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--text-muted)",
+              }}>Annulla</button>
+              <button type="submit" style={{
+                padding: "8px 16px", borderRadius: 6, border: "none",
+                background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700,
+              }}>{editingTpl === "new" ? "Crea" : "Salva"}</button>
+            </div>
+          </form>
+        )}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {(state.messageTemplates || []).length === 0 && (
+            <div style={{ fontSize: 12, color: "var(--text-light)", fontStyle: "italic", padding: 8 }}>Nessun template ancora.</div>
+          )}
+          {(state.messageTemplates || []).map(t => (
+            <div key={t.id} style={{
+              display: "flex", alignItems: "flex-start", gap: 12, padding: "10px 12px",
+              border: "1px solid var(--border)", borderRadius: 8, background: "#fff",
+            }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>{t.label}</div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)", whiteSpace: "pre-wrap", lineHeight: 1.4 }}>{t.text}</div>
+              </div>
+              <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                <button onClick={() => startEdit(t)} title="Modifica" style={{
+                  background: "transparent", border: "1px solid var(--border)", borderRadius: 6,
+                  padding: "4px 8px", cursor: "pointer", fontSize: 12,
+                }}>✏️</button>
+                <button onClick={() => { if (confirm(`Rimuovere il template "${t.label}"?`)) dispatch({ type: "DELETE_MESSAGE_TEMPLATE", payload: t.id }); }} title="Elimina" style={{
+                  background: "transparent", border: "1px solid var(--border)", borderRadius: 6,
+                  padding: "4px 8px", cursor: "pointer", fontSize: 12,
+                }}>🗑️</button>
               </div>
             </div>
           ))}
@@ -9380,6 +10411,9 @@ function VoyageDeskInner() {
           setMessages={setMessages}
           intent={chatIntent}
           tasks={state.tasks}
+          practices={state.practices || []}
+          messageTemplates={state.messageTemplates || []}
+          dispatch={dispatch}
           currentUserId={state.currentUserId}
         />
 

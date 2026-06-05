@@ -1,5 +1,41 @@
 # CHANGELOG — VoyageDesk
 
+## v0.11-dev — Roadmap Fase 2 completa: Notifiche reali + Calendario avanzato + Chat estensioni + Impostazioni agenzia
+
+### 🔔 Notifiche reali
+- Notifiche stored in `state.notifications` (sostituito mock statico globale).
+- Auto-generate dal reducer su azioni: `ADD_TASK`, `ADD_TASKS_BULK`, `UPDATE_TASK` (nuovi assegnatari), `ADD_COMMENT`.
+- Notifiche computed live (derivate, non stored): `overdue` (proprie task scadute), `queue_long` (task in coda globale da > 24h — solo manager/admin), `pending_member` (solo admin).
+- Filtro per utente (`targetUserIds: null` = broadcast, array = solo membri specifici).
+- `NotificationsPanel` riscritto: filtri tab (Tutte / Non lette / per tipo), click → naviga al task o vista; "Tutte lette"; rimozione singola (solo stored); badge "LIVE" sulle computed.
+- Badge counter Topbar dinamico (unread per utente corrente, include computed).
+- Nuove action: `MARK_NOTIFICATION_READ`, `MARK_ALL_NOTIFICATIONS_READ`, `DELETE_NOTIFICATION`, `ADD_NOTIFICATION`.
+
+### 📅 Calendario avanzato
+- Nuova **vista Giorno** (📌): griglia oraria 07:00–20:00, slot 1h, evidenziazione ora corrente, pannello pratiche attive multi-day in alto con conteggio giorno N/totale, sezione "fuori orario" per task con ora < 7 o > 20.
+- Date picker integrato per saltare a un giorno specifico.
+- Navigazione header esteso (← Oggi → su Mese/Settimana/Giorno).
+- **Export iCal (.ics)** — bottone 📥 nell'header: genera file RFC 5545 con task assegnati (VEVENT con ora e durata stimata) + pratiche come VEVENT all-day multi-giorno; download diretto. Push notifica conferma all'utente.
+
+### 💬 Estensioni chat (base)
+- **Pattern PR-YYYY-NNN cliccabile** in qualsiasi testo messaggio: rendering inline come link sottolineato che apre la vista Pratiche.
+- **Rich preview** sotto il bubble messaggio quando il testo contiene "Riferimento task: \"…\"" (formato dei precompilati v0.8) o un numero pratica riconosciuto.
+- **Ricerca conversazioni estesa**: il match cerca ora anche dentro il testo dei messaggi e nei nomi file, non solo nel nome conversazione.
+- **Stato presenza** (online/busy/offline) deterministico per mock: pallino colorato su avatar in ConversationList e header ConversationView, testo status sotto il nome.
+- `ChatContext` esteso con `practices`, `messageTemplates`, `dispatch`.
+
+### 🏢 Impostazioni agenzia
+- Nuovo state `agency` (oggetto): name, slogan, email, phone, address, vatId, workingHoursStart, workingHoursEnd. Backward-compatible col vecchio `agencyName`.
+- Nuovo tab Admin **🏢 Impostazioni**: form profilo agenzia + CRUD template messaggi.
+- **Template messaggi**: 5 seed (Ack rapido, Conferma riunione, Follow-up cliente, Attesa documenti, Pratica chiusa). CRUD completo da Admin.
+- **Picker template ⚡** nell'input chat: dropdown rapido per inserire testo nel messaggio in composizione.
+- Backup/restore esteso a `agency`, `messageTemplates`.
+
+### File toccati
+- `src/VoyageDesk.jsx` — da 9422 a 10456 righe.
+
+---
+
 ## v0.10-dev — Roadmap Fase 1 completa: Clienti + Fornitori + Pratiche + Collegamenti
 
 ### 🤝 Anagrafica Fornitori (Step 2)

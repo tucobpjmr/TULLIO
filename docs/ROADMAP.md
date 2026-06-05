@@ -62,10 +62,10 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 | Modulo | Stato | Priorità | Sforzo | Note |
 |---|---|---|---|---|
-| Notifiche reali | ⬜ | 🔴 | M | Collegate ad azioni (scadenze, assegnazioni, commenti, pending, coda > N ore); filtri + "segna tutte lette" |
-| Calendario avanzato | ⬜ | 🟡 | M | Viste settimanale/giornaliera, eventi multipli, iCal (mock) |
-| Estensioni chat (base) | ⬜ | 🟡 | S–M | Ricerca nelle conversazioni, stato online/occupato, rich preview di task/pratiche, **task link cliccabile** nel messaggio |
-| Impostazioni agenzia | 🔶 | 🟡 | S | Gestione categorie e nome agenzia già in Admin. Manca: template messaggi, profilo utente, preferenze UI |
+| Notifiche reali | ✅ | 🔴 | M | Notifiche stored generate da reducer (assigned/comment/bulk) + computed live (overdue, queue_long, pending_member); filtri tipo + "segna tutte lette" + click navigation |
+| Calendario avanzato | ✅ | 🟡 | M | Vista Giorno (griglia oraria 07-20 + pratiche multi-day) + export iCal (.ics) |
+| Estensioni chat (base) | ✅ | 🟡 | S–M | Ricerca dentro i messaggi, stato online/occupato/offline su avatar+header, link `PR-YYYY-NNN` cliccabile, rich preview task/pratica, picker template ⚡ |
+| Impostazioni agenzia | ✅ | 🟡 | S | Tab Admin "Impostazioni" con profilo agenzia esteso + CRUD template messaggi |
 | Ricerca globale estesa | ✅ | — | — | Completata in v0.5. |
 | Responsive (mobile/tablet/desktop) | ✅ | — | — | Completato in v0.6. |
 | SwipeActions mobile | ✅ | — | — | Completato in v0.7. |

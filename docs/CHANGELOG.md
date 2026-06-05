@@ -1,5 +1,42 @@
 # CHANGELOG — VoyageDesk
 
+## v0.10-dev — Roadmap Fase 1 completa: Clienti + Fornitori + Pratiche + Collegamenti
+
+### 🤝 Anagrafica Fornitori (Step 2)
+- Modello `Supplier` con `type` (hotel/airline/ground/insurance/tour_operator/restaurant/guide/other), contatti, indirizzo, `rating` (0-5★), `tags[]`, `notes`, audit fields.
+- 7 fornitori mock seed (Four Seasons, Emirates, NCC, Allianz, Tawaraya, ecc.).
+- `SuppliersView` con ricerca, filtro tipologia (select), griglia card responsive con badge tipologia colorato e RatingStars.
+- `SupplierDetailPanel`: contatti cliccabili, lista pratiche collegate, sezione note.
+- `SupplierEditorModal`: form completo con select tipologia/rating.
+- Reducer `ADD/UPDATE/DELETE_SUPPLIER`. Su delete il fornitore viene rimosso dai `supplierIds` delle pratiche.
+- Nuova voce nav 🤝 Fornitori (esclusa per Driver).
+
+### 📁 Pratiche di viaggio (Step 3)
+- Modello `Practice`: `id`, `number` (formato `PR-YYYY-NNN`, generato auto), `title`, `clientId`, `status` (draft/confirmed/in_progress/completed/cancelled), `destination`, `startDate`, `endDate`, `paxCount`, `budget`, `paidAmount`, `currency`, `supplierIds[]`, `notes`, `events[]` (timeline), audit fields.
+- Helper `buildPracticeNumber` genera il prossimo numero progressivo dell'anno.
+- 5 pratiche mock seed coerenti con clienti e fornitori esistenti.
+- `PracticesView`: header con conteggi per stato, tab filtro stato colorati, ricerca testuale (numero/titolo/destinazione/cliente), filtro per cliente.
+- Card pratica: numero progressivo, badge stato, cliente, destinazione, date, barra progresso pagamenti, conteggi pax/task/fornitori.
+- `PracticeDetail`: header gradient con stato + cliente + pax, riepilogo economico (budget/incassato/saldo + % pagato), fornitori chip, task collegati (aperti + completati), timeline eventi cronologica con icone per tipo.
+- `PracticeEditorModal`: form completo (cliente dropdown, stato, destinazione, date, pax, budget/incassato/valuta, multi-select fornitori, note).
+- Reducer `ADD/UPDATE/DELETE_PRACTICE` + `ADD_PRACTICE_EVENT`. Cambio stato accoda evento timeline automaticamente.
+- Nuova voce nav 📁 Pratiche (esclusa per Driver).
+
+### 🔗 Collegamento Task ↔ Cliente ↔ Pratica (Step 4)
+- `Task.clientId` e `Task.practiceId` come FK opzionali (popolati retroattivamente sui seed dalla stringa storica `Task.client`).
+- `QuickAddTask`: sostituito input "Cliente" libero con due dropdown — Cliente e Pratica (filtrata per cliente selezionato). Eredita `clientId` dalla pratica se non selezionato; mantiene il campo legacy `client` in sync con il nome.
+- `TaskSlideOver`: cliente come pulsante navigabile a vista Clienti; nuovo blocco "Pratica" con badge stato, cliccabile per andare a Pratiche.
+- `AdvancedSearchPanel`: nuovo filtro "Pratica" (input numero + chips multi-select) e ricerca keyword estesa a nome cliente e numero/titolo pratica.
+- `UPDATE_CLIENT` propaga il nuovo nome sia sui task collegati (`Task.client` stringa) che sui task indirettamente collegati alle pratiche.
+- `DELETE_CLIENT` scollega anche le pratiche associate (clientId → null).
+- `DELETE_PRACTICE` scollega i task associati (practiceId → null) senza eliminarli.
+- Backup JSON ora include `clients`/`suppliers`/`practices`; `RESTORE_BACKUP` li ripristina.
+
+### File toccati
+- `src/VoyageDesk.jsx` — da 7775 a 9422 righe.
+
+---
+
 ## v0.10-dev — Roadmap Fase 1, Step 1: Anagrafica Clienti (CRM base)
 
 > Primo modulo della Fase 1 del modello dati. Aggiunge l'entità Cliente come anagrafica autonoma, fondamento per Pratiche e collegamenti futuri.

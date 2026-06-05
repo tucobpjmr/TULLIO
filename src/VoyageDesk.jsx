@@ -269,6 +269,198 @@ const INITIAL_CLIENTS = [
 // Usata solo per popolare retroattivamente Task.clientId nei task seed.
 const _clientNameToId = INITIAL_CLIENTS.reduce((acc, c) => { acc[c.name] = c.id; return acc; }, {});
 
+// ─── FORNITORI (Fase 1) ────────────────────────────────────────────────────
+// type: classifica il fornitore. Usato per filtri e icone.
+const SUPPLIER_TYPES = {
+  hotel: { label: "Hotel", icon: "🏨", color: "#8B5CF6" },
+  airline: { label: "Compagnia aerea", icon: "✈️", color: "#3B82F6" },
+  ground: { label: "Trasporti / NCC", icon: "🚐", color: "#7B4F9E" },
+  insurance: { label: "Assicurazioni", icon: "🛡️", color: "#10B981" },
+  tour_operator: { label: "Tour Operator", icon: "🌍", color: "#F97316" },
+  restaurant: { label: "Ristorazione", icon: "🍽️", color: "#EC4899" },
+  guide: { label: "Guide / Esperienze", icon: "🗺️", color: "#06B6D4" },
+  other: { label: "Altro", icon: "🤝", color: "#6B7280" },
+};
+
+const INITIAL_SUPPLIERS = [
+  {
+    id: "s1", type: "hotel", name: "Four Seasons Kuda Huraa", contactPerson: "Mr. Aakash Singh",
+    email: "reservations.maldives@fourseasons.com", phone: "+960 664 4888",
+    address: "North Malé Atoll", city: "Malé", country: "Maldive",
+    taxId: null, rating: 5, tags: ["lusso", "bungalow", "preferito"],
+    notes: "Tariffe nette confermate per stagione 2026. Contatto diretto via mail.",
+    createdAt: d(-240), updatedAt: d(-20), createdBy: "sofia",
+  },
+  {
+    id: "s2", type: "airline", name: "Emirates", contactPerson: "Booking Center Italia",
+    email: "italy.salesdesk@emirates.com", phone: "+39 02 6789 1234",
+    address: null, city: "Dubai", country: "EAU",
+    taxId: null, rating: 4, tags: ["business class", "long haul"],
+    notes: "Account corporate attivo. Upgrade business spesso disponibili last minute.",
+    createdAt: d(-300), updatedAt: d(-15), createdBy: "marco",
+  },
+  {
+    id: "s3", type: "ground", name: "Autoservizi Meridionali", contactPerson: "Sig. Antonio Russo",
+    email: "info@autoserv-meridionali.it", phone: "+39 081 5556677",
+    address: "Via dei Trasporti 7", city: "Napoli", country: "Italia",
+    taxId: "IT05544332211", rating: 4, tags: ["bus", "gruppi"],
+    notes: "In trattativa accordo quadro 2025/2026 per gruppi 30+ pax.",
+    createdAt: d(-60), updatedAt: d(-3), createdBy: "marco",
+  },
+  {
+    id: "s4", type: "ground", name: "NCC Premium Milano", contactPerson: "Andrea Colombo",
+    email: "ordini@nccpremium.it", phone: "+39 02 998877",
+    address: "Via Lombardia 33", city: "Milano", country: "Italia",
+    taxId: "IT01122334455", rating: 5, tags: ["NCC", "van", "preferito"],
+    notes: "Van 8 posti e berline. Disponibilità H24, prenotazione via app.",
+    createdAt: d(-150), updatedAt: d(-7), createdBy: "giulia",
+  },
+  {
+    id: "s5", type: "insurance", name: "Allianz Global Assistance", contactPerson: "Backoffice agenzie",
+    email: "agenzie@allianz-assistance.it", phone: "+39 02 26 60 90 0",
+    address: "Corso Italia 23", city: "Milano", country: "Italia",
+    taxId: "IT00871250159", rating: 4, tags: ["annullamento", "medica"],
+    notes: "Convenzione attiva, codice agenzia VDESK01. Quotazioni online.",
+    createdAt: d(-400), updatedAt: d(-30), createdBy: "roberto",
+  },
+  {
+    id: "s6", type: "hotel", name: "Tawaraya Ryokan", contactPerson: "Reservations Desk",
+    email: "info@tawaraya-ryokan.com", phone: "+81 75 211 5566",
+    address: "Fuyacho Oike", city: "Kyoto", country: "Giappone",
+    taxId: null, rating: 5, tags: ["ryokan", "tradizionale"],
+    notes: "Ryokan storico, prenotazioni almeno 60 gg in anticipo. Cucina kaiseki inclusa.",
+    createdAt: d(-90), updatedAt: d(-10), createdBy: "sofia",
+  },
+  {
+    id: "s7", type: "tour_operator", name: "Aegean Hotels Group", contactPerson: "Markos Papadopoulos",
+    email: "sales@aegeanhotels.gr", phone: "+30 210 9988776",
+    address: "Athinas 5", city: "Atene", country: "Grecia",
+    taxId: "EL123456789", rating: 4, tags: ["DMC", "Grecia"],
+    notes: "Allotment Atene+isole. Tariffe nette 2026 confermate.",
+    createdAt: d(-200), updatedAt: d(-12), createdBy: "roberto",
+  },
+];
+
+// ─── PRATICHE (Fase 1) ─────────────────────────────────────────────────────
+// Stati: draft (bozza) → confirmed (confermata) → in_progress → completed (o cancelled).
+const PRACTICE_STATUSES = {
+  draft: { label: "Bozza", color: "#6B7280", bg: "#F3F4F6" },
+  confirmed: { label: "Confermata", color: "#3B82F6", bg: "#EFF6FF" },
+  in_progress: { label: "In corso", color: "#C8832A", bg: "#FEF3C7" },
+  completed: { label: "Completata", color: "#2D7A4F", bg: "#D1FAE5" },
+  cancelled: { label: "Annullata", color: "#C0392B", bg: "#FEE2E2" },
+};
+
+// Genera il prossimo numero pratica nel formato PR-YYYY-NNN, considerando l'anno corrente
+// e il massimo progressivo già usato.
+const buildPracticeNumber = (practices, year) => {
+  const y = year || new Date().getFullYear();
+  const prefix = `PR-${y}-`;
+  const existing = (practices || [])
+    .map(p => p.number)
+    .filter(n => n && n.startsWith(prefix))
+    .map(n => parseInt(n.slice(prefix.length), 10))
+    .filter(n => !isNaN(n));
+  const next = (existing.length ? Math.max(...existing) : 0) + 1;
+  return `${prefix}${String(next).padStart(3, "0")}`;
+};
+
+const INITIAL_PRACTICES = [
+  {
+    id: "p1", number: "PR-2026-001",
+    title: "Maldive Luxury — Famiglia Rossi",
+    clientId: "c1", status: "in_progress",
+    startDate: d(45, 12, 0), endDate: d(55, 12, 0),
+    destination: "Malé / Kuda Huraa, Maldive",
+    paxCount: 4,
+    budget: 12400, paidAmount: 3720,
+    currency: "EUR",
+    supplierIds: ["s1", "s2", "s5"],
+    notes: "Cliente VIP. Tutto business class, bungalow overwater, polizza top.",
+    events: [
+      { time: d(-30), type: "created", text: "Pratica creata da Marco" },
+      { time: d(-25), type: "status", text: "Stato → Confermata" },
+      { time: d(-2), type: "payment", text: "Acconto 30% incassato (€3.720)" },
+      { time: d(-1), type: "status", text: "Stato → In corso" },
+    ],
+    createdAt: d(-30), updatedAt: d(-1), createdBy: "marco",
+  },
+  {
+    id: "p2", number: "PR-2026-002",
+    title: "Honeymoon Giappone — Coppia Bianchi",
+    clientId: "c2", status: "confirmed",
+    startDate: d(60, 11, 30), endDate: d(74, 11, 30),
+    destination: "Tokyo → Kyoto → Osaka → Hiroshima",
+    paxCount: 2,
+    budget: 9800, paidAmount: 0,
+    currency: "EUR",
+    supplierIds: ["s2", "s6", "s5"],
+    notes: "Luna di miele, esperienze: cerimonia tè, ryokan Kyoto, alba Fushimi Inari.",
+    events: [
+      { time: d(-20), type: "created", text: "Pratica creata da Sofia" },
+      { time: d(-12), type: "status", text: "Stato → Confermata" },
+    ],
+    createdAt: d(-20), updatedAt: d(-12), createdBy: "sofia",
+  },
+  {
+    id: "p3", number: "PR-2026-003",
+    title: "Incentive 50 pax — Azienda TechCorp",
+    clientId: "c3", status: "draft",
+    startDate: d(120, 9, 0), endDate: d(125, 18, 0),
+    destination: "Da definire (Dubrovnik / Marrakech / Lisbona)",
+    paxCount: 50,
+    budget: 85000, paidAmount: 0,
+    currency: "EUR",
+    supplierIds: [],
+    notes: "Budget approvato 85k€. In attesa decisione destinazione.",
+    events: [
+      { time: d(-7), type: "created", text: "Pratica creata da Marco" },
+    ],
+    createdAt: d(-7), updatedAt: d(-3), createdBy: "marco",
+  },
+  {
+    id: "p4", number: "PR-2026-004",
+    title: "Gruppo studenti Atene — Liceo Manzoni",
+    clientId: "c5", status: "in_progress",
+    startDate: d(20, 9, 0), endDate: d(25, 20, 0),
+    destination: "Atene + Plaka, Grecia",
+    paxCount: 30,
+    budget: 28500, paidAmount: 14250,
+    currency: "EUR",
+    supplierIds: ["s7", "s5"],
+    notes: "30 camere a Plaka, rooming list in elaborazione. Polizza gruppo.",
+    events: [
+      { time: d(-60), type: "created", text: "Pratica creata da Sofia" },
+      { time: d(-50), type: "status", text: "Stato → Confermata" },
+      { time: d(-15), type: "payment", text: "Acconto 50% incassato (€14.250)" },
+      { time: d(-10), type: "status", text: "Stato → In corso" },
+    ],
+    createdAt: d(-60), updatedAt: d(-10), createdBy: "sofia",
+  },
+  {
+    id: "p5", number: "PR-2026-005",
+    title: "Preventivo Vietnam — Sposi Conte",
+    clientId: "c6", status: "draft",
+    startDate: d(180, 12, 0), endDate: d(194, 12, 0),
+    destination: "Vietnam classico (Hanoi → Halong → Hoi An → Saigon)",
+    paxCount: 2,
+    budget: 7200, paidAmount: 0,
+    currency: "EUR",
+    supplierIds: [],
+    notes: "14 giorni, fascia medio-alta. Da preparare proposta dettagliata.",
+    events: [
+      { time: d(-10), type: "created", text: "Pratica creata da Marco" },
+    ],
+    createdAt: d(-10), updatedAt: d(-3), createdBy: "marco",
+  },
+];
+
+// Mappa "client → id pratica primaria" per popolare retroattivamente Task.practiceId
+// nei task seed in modo deterministico (un cliente → una pratica primaria nei mock).
+const _clientToPrimaryPracticeId = {
+  c1: "p1", c2: "p2", c3: "p3", c5: "p4", c6: "p5",
+};
+
 const NOTIFICATIONS = [
   { id: "n1", type: "overdue", title: "Task scaduto: Visto Giappone - Coppia Bianchi", time: "5 min fa", read: false },
   { id: "n2", type: "assigned", title: "Nuovo task assegnato: Newsletter Giugno", time: "1 ora fa", read: false },
@@ -361,6 +553,8 @@ const LOGGED_ACTIONS = new Set([
   "RESTORE_BACKUP",
   "ADD_NOTICE", "UPDATE_NOTICE", "DELETE_NOTICE",
   "ADD_CLIENT", "UPDATE_CLIENT", "DELETE_CLIENT",
+  "ADD_SUPPLIER", "UPDATE_SUPPLIER", "DELETE_SUPPLIER",
+  "ADD_PRACTICE", "UPDATE_PRACTICE", "DELETE_PRACTICE",
 ]);
 
 const buildLogEntry = (action, state) => {
@@ -395,6 +589,21 @@ const buildLogEntry = (action, state) => {
       const c = state.clients?.find(x => x.id === action.payload);
       return `Eliminato cliente "${c?.name || action.payload}"`;
     },
+    ADD_SUPPLIER: () => `Aggiunto fornitore "${action.payload.name}"`,
+    UPDATE_SUPPLIER: () => `Modificato fornitore "${action.payload.name || action.payload.id}"`,
+    DELETE_SUPPLIER: () => {
+      const s = state.suppliers?.find(x => x.id === action.payload);
+      return `Eliminato fornitore "${s?.name || action.payload}"`;
+    },
+    ADD_PRACTICE: () => `Creata pratica "${action.payload.number || action.payload.title}"`,
+    UPDATE_PRACTICE: () => {
+      const p = state.practices?.find(x => x.id === action.payload.id);
+      return `Aggiornata pratica "${p?.number || action.payload.id}"`;
+    },
+    DELETE_PRACTICE: () => {
+      const p = state.practices?.find(x => x.id === action.payload);
+      return `Eliminata pratica "${p?.number || action.payload}"`;
+    },
   };
   return { id: `log-${stamp}-${Math.random().toString(36).slice(2,7)}`, time: stamp, type: t, text: (map[t] || (() => t))() };
 };
@@ -410,9 +619,15 @@ function baseReducer(state, action) {
       if (action.payload === "admin" && !canAccessAdmin(uid)) {
         return _denied("Non hai i permessi per accedere all'Admin");
       }
-      // Driver non vede la vista Clienti
+      // Driver non vede Clienti / Fornitori / Pratiche
       if (action.payload === "clients" && !canViewClients(uid)) {
         return _denied("Non hai i permessi per accedere ai Clienti");
+      }
+      if (action.payload === "suppliers" && !canViewSuppliers(uid)) {
+        return _denied("Non hai i permessi per accedere ai Fornitori");
+      }
+      if (action.payload === "practices" && !canViewPractices(uid)) {
+        return _denied("Non hai i permessi per accedere alle Pratiche");
       }
       return { ...state, activeView: action.payload };
     }
@@ -432,6 +647,8 @@ function baseReducer(state, action) {
       let activeView = state.activeView;
       if (activeView === "admin" && !canAccessAdmin(newId)) activeView = "dashboard";
       if (activeView === "clients" && !canViewClients(newId)) activeView = "dashboard";
+      if (activeView === "suppliers" && !canViewSuppliers(newId)) activeView = "dashboard";
+      if (activeView === "practices" && !canViewPractices(newId)) activeView = "dashboard";
       return {
         ...state,
         currentUserId: newId,
@@ -587,7 +804,7 @@ function baseReducer(state, action) {
       return { ...state, agencyName: action.payload };
     }
     case "RESTORE_BACKUP": {
-      const { tasks, team, categories, agencyName, notices } = action.payload;
+      const { tasks, team, categories, agencyName, notices, clients, suppliers, practices } = action.payload;
       if (team) _syncTeam(team);
       if (categories) _syncCategories(categories);
       return {
@@ -597,6 +814,9 @@ function baseReducer(state, action) {
         categories: categories ?? state.categories,
         agencyName: agencyName ?? state.agencyName,
         notices: notices ?? state.notices,
+        clients: clients ?? state.clients,
+        suppliers: suppliers ?? state.suppliers,
+        practices: practices ?? state.practices,
         toast: { message: "Backup ripristinato con successo!", type: "success" }
       };
     }
@@ -661,7 +881,98 @@ function baseReducer(state, action) {
       // Scollego i task associati (clientId → null) ma mantengo la stringa `client` per storico.
       const clients = (state.clients || []).filter(c => c.id !== action.payload);
       const tasks = state.tasks.map(t => t.clientId === action.payload ? { ...t, clientId: null } : t);
-      return { ...state, clients, tasks, toast: { message: `Cliente "${target.name}" eliminato`, type: "success" } };
+      // Le pratiche associate restano (la pratica vive di vita propria) ma il riferimento client
+      // diventa null per evitare reference dangling.
+      const practices = (state.practices || []).map(p =>
+        p.clientId === action.payload ? { ...p, clientId: null } : p
+      );
+      return { ...state, clients, tasks, practices, toast: { message: `Cliente "${target.name}" eliminato`, type: "success" } };
+    }
+
+    // ─── FORNITORI (Fase 1) ───
+    case "ADD_SUPPLIER": {
+      if (!canManageSuppliers(uid)) return _denied("Non puoi creare fornitori");
+      const stamp = new Date().toISOString();
+      const supplier = {
+        ...action.payload,
+        createdAt: action.payload.createdAt || stamp,
+        updatedAt: stamp,
+        createdBy: action.payload.createdBy || uid,
+      };
+      const suppliers = [supplier, ...(state.suppliers || [])];
+      return { ...state, suppliers, toast: { message: `Fornitore "${supplier.name}" creato`, type: "success" } };
+    }
+    case "UPDATE_SUPPLIER": {
+      if (!canManageSuppliers(uid)) return _denied("Non puoi modificare i fornitori");
+      const stamp = new Date().toISOString();
+      const suppliers = (state.suppliers || []).map(s =>
+        s.id === action.payload.id ? { ...s, ...action.payload, updatedAt: stamp } : s
+      );
+      return { ...state, suppliers, toast: { message: "Fornitore aggiornato", type: "success" } };
+    }
+    case "DELETE_SUPPLIER": {
+      if (!canDeleteSupplier(uid)) return _denied("Solo Admin può eliminare un fornitore");
+      const target = (state.suppliers || []).find(s => s.id === action.payload);
+      if (!target) return state;
+      const suppliers = (state.suppliers || []).filter(s => s.id !== action.payload);
+      // Rimuovi il riferimento dalle pratiche.
+      const practices = (state.practices || []).map(p => ({
+        ...p,
+        supplierIds: (p.supplierIds || []).filter(id => id !== action.payload),
+      }));
+      return { ...state, suppliers, practices, toast: { message: `Fornitore "${target.name}" eliminato`, type: "success" } };
+    }
+
+    // ─── PRATICHE (Fase 1) ───
+    case "ADD_PRACTICE": {
+      if (!canManagePractices(uid)) return _denied("Non puoi creare pratiche");
+      const stamp = new Date().toISOString();
+      const number = action.payload.number || buildPracticeNumber(state.practices, new Date().getFullYear());
+      const practice = {
+        ...action.payload,
+        number,
+        events: action.payload.events || [{ time: stamp, type: "created", text: `Pratica creata da ${getMember(uid)?.name || uid}` }],
+        createdAt: action.payload.createdAt || stamp,
+        updatedAt: stamp,
+        createdBy: action.payload.createdBy || uid,
+      };
+      const practices = [practice, ...(state.practices || [])];
+      return { ...state, practices, toast: { message: `Pratica ${practice.number} creata`, type: "success" } };
+    }
+    case "UPDATE_PRACTICE": {
+      if (!canManagePractices(uid)) return _denied("Non puoi modificare le pratiche");
+      const stamp = new Date().toISOString();
+      const prev = (state.practices || []).find(p => p.id === action.payload.id);
+      if (!prev) return state;
+      // Se cambia lo stato, aggiungi un evento timeline.
+      const events = [...(prev.events || [])];
+      if (action.payload.status && action.payload.status !== prev.status) {
+        events.push({ time: stamp, type: "status", text: `Stato → ${practiceStatusMeta(action.payload.status).label}` });
+      }
+      const practices = (state.practices || []).map(p =>
+        p.id === action.payload.id ? { ...p, ...action.payload, events, updatedAt: stamp } : p
+      );
+      return { ...state, practices, toast: { message: "Pratica aggiornata", type: "success" } };
+    }
+    case "DELETE_PRACTICE": {
+      if (!canDeletePractice(uid)) return _denied("Solo Admin può eliminare una pratica");
+      const target = (state.practices || []).find(p => p.id === action.payload);
+      if (!target) return state;
+      const practices = (state.practices || []).filter(p => p.id !== action.payload);
+      // Scollega i task associati ma non eliminarli.
+      const tasks = state.tasks.map(t => t.practiceId === action.payload ? { ...t, practiceId: null } : t);
+      return { ...state, practices, tasks, toast: { message: `Pratica ${target.number} eliminata`, type: "success" } };
+    }
+    case "ADD_PRACTICE_EVENT": {
+      // Aggiunta libera di un evento timeline (es. nota, pagamento manuale).
+      if (!canManagePractices(uid)) return _denied();
+      const stamp = new Date().toISOString();
+      const practices = (state.practices || []).map(p =>
+        p.id === action.payload.practiceId
+          ? { ...p, events: [...(p.events || []), { time: stamp, type: action.payload.type || "note", text: action.payload.text }], updatedAt: stamp }
+          : p
+      );
+      return { ...state, practices };
     }
 
     case "CLEAR_TOAST": return { ...state, toast: null };
@@ -763,18 +1074,21 @@ const INITIAL_NOTICES = [
   },
 ];
 
-// Popola Task.clientId nei seed in base alla stringa Task.client (matching per nome).
+// Popola Task.clientId + Task.practiceId nei seed in base alla stringa Task.client.
 // Mantiene la retrocompatibilità: i task continuano ad avere il campo `client` (stringa libera).
-const _INITIAL_TASKS_WITH_CLIENT_ID = INITIAL_TASKS.map(t => ({
-  ...t,
-  clientId: t.client ? (_clientNameToId[t.client] || null) : null,
-}));
+const _INITIAL_TASKS_WITH_CLIENT_ID = INITIAL_TASKS.map(t => {
+  const clientId = t.client ? (_clientNameToId[t.client] || null) : null;
+  const practiceId = clientId ? (_clientToPrimaryPracticeId[clientId] || null) : null;
+  return { ...t, clientId, practiceId };
+});
 
 const initialState = {
   tasks: _INITIAL_TASKS_WITH_CLIENT_ID,
   team: TEAM,
   categories: CATEGORIES,
   clients: INITIAL_CLIENTS,
+  suppliers: INITIAL_SUPPLIERS,
+  practices: INITIAL_PRACTICES,
   agencyName: "VoyageDesk",
   notices: INITIAL_NOTICES,
   activityLog: [],
@@ -808,15 +1122,32 @@ const isActiveTask = t => !t.deletedAt;
 const getActiveTasks = tasks => tasks.filter(isActiveTask);
 const getTrashedTasks = tasks => tasks.filter(t => t.deletedAt);
 
-// ─── HELPER CLIENTI (Fase 1) ──────────────────────────────────────────
-// Trova un cliente per id nello state (no fallback su mock globali: clients è già in state).
+// ─── HELPER CLIENTI / FORNITORI / PRATICHE (Fase 1) ──────────────────
 const getClient = (clients, id) => (clients || []).find(c => c.id === id) || null;
-// Conta i task attivi associati ad un cliente.
 const getClientTaskCount = (tasks, clientId) =>
   getActiveTasks(tasks).filter(t => t.clientId === clientId).length;
-// Riconosce per label se un cliente è azienda o privato (icona).
 const clientTypeIcon = (type) => type === "company" ? "🏢" : "👨‍👩‍👧";
 const clientTypeLabel = (type) => type === "company" ? "Azienda" : "Privato";
+
+const getSupplier = (suppliers, id) => (suppliers || []).find(s => s.id === id) || null;
+const supplierTypeMeta = (type) => SUPPLIER_TYPES[type] || SUPPLIER_TYPES.other;
+// Pratiche che includono questo fornitore.
+const getSupplierPracticeCount = (practices, supplierId) =>
+  (practices || []).filter(p => (p.supplierIds || []).includes(supplierId)).length;
+
+const getPractice = (practices, id) => (practices || []).find(p => p.id === id) || null;
+const getPracticeTasks = (tasks, practiceId) =>
+  getActiveTasks(tasks).filter(t => t.practiceId === practiceId);
+const practiceStatusMeta = (status) => PRACTICE_STATUSES[status] || PRACTICE_STATUSES.draft;
+// Formatta importo in valuta (default EUR).
+const formatMoney = (amount, currency = "EUR") => {
+  if (amount === null || amount === undefined || isNaN(amount)) return "—";
+  try {
+    return new Intl.NumberFormat("it-IT", { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
+  } catch {
+    return `€ ${Math.round(amount)}`;
+  }
+};
 
 // ─── PERMESSI (v0.8) ──────────────────────────────────────────────────────
 // Ruoli logici derivati dal campo `role` del team member.
@@ -891,13 +1222,22 @@ const canCreateTaskCategory = (category, userId) => {
 // Può accedere all'Admin?
 const canAccessAdmin = (userId) => isAdmin(userId);
 
-// ─── PERMESSI CLIENTI (Fase 1) ──────────────────────────────────────────
+// ─── PERMESSI CLIENTI / FORNITORI / PRATICHE (Fase 1) ───────────────────
 // Driver non vede i clienti (focus operativo sul transfer). Tutti gli altri sì.
 const canViewClients = (userId) => !isDriver(userId);
-// Solo admin/manager/agent possono creare/modificare/eliminare clienti.
 const canManageClients = (userId) => !isDriver(userId);
-// Solo Admin può eliminare definitivamente un cliente.
 const canDeleteClient = (userId) => isAdmin(userId);
+
+// Fornitori: stesso schema di clienti.
+const canViewSuppliers = (userId) => !isDriver(userId);
+const canManageSuppliers = (userId) => !isDriver(userId);
+const canDeleteSupplier = (userId) => isAdmin(userId);
+
+// Pratiche: Driver non le vede. Tutti gli altri possono creare/modificare;
+// l'eliminazione (anche solo della pratica, non dei task) è riservata ad Admin.
+const canViewPractices = (userId) => !isDriver(userId);
+const canManagePractices = (userId) => !isDriver(userId);
+const canDeletePractice = (userId) => isAdmin(userId);
 
 // Categorie selezionabili nei form per questo utente
 const getAvailableCategories = (userId) => {
@@ -1249,7 +1589,7 @@ const Toast = ({ toast, dispatch }) => {
 };
 
 // ─── ADVANCED SEARCH PANEL ─────────────────────────────────────────────────
-const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
+const AdvancedSearchPanel = ({ tasks, dispatch, onClose, practices = [], clients = [] }) => {
   const { isMobile } = useViewport();
   const [keyword, setKeyword] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -1257,6 +1597,8 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
   const [cats, setCats] = useState([]);
   const [stats, setStats] = useState([]);
   const [agents, setAgents] = useState([]);
+  const [practiceIds, setPracticeIds] = useState([]);
+  const [practiceNumber, setPracticeNumber] = useState("");
   const [includeTrashed, setIncludeTrashed] = useState(false);
 
   const panelRef = useRef(null);
@@ -1284,14 +1626,17 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
 
   const resetAll = () => {
     setKeyword(""); setDateFrom(""); setDateTo("");
-    setCats([]); setStats([]); setAgents([]); setIncludeTrashed(false);
+    setCats([]); setStats([]); setAgents([]);
+    setPracticeIds([]); setPracticeNumber("");
+    setIncludeTrashed(false);
   };
 
-  const hasFilters = keyword.trim() || dateFrom || dateTo || cats.length || stats.length || agents.length || includeTrashed;
+  const hasFilters = keyword.trim() || dateFrom || dateTo || cats.length || stats.length || agents.length || practiceIds.length || practiceNumber.trim() || includeTrashed;
 
   const results = useMemo(() => {
     if (!hasFilters) return [];
     const k = keyword.trim().toLowerCase();
+    const pn = practiceNumber.trim().toLowerCase();
     const from = dateFrom ? new Date(dateFrom) : null;
     const to = dateTo ? (() => { const d = new Date(dateTo); d.setHours(23,59,59,999); return d; })() : null;
 
@@ -1300,6 +1645,11 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
       if (cats.length && !cats.includes(t.category)) return false;
       if (stats.length && !stats.includes(t.status)) return false;
       if (agents.length && !(t.assignees || []).some(a => agents.includes(a))) return false;
+      if (practiceIds.length && !practiceIds.includes(t.practiceId)) return false;
+      if (pn) {
+        const p = practices.find(x => x.id === t.practiceId);
+        if (!p || !(p.number || "").toLowerCase().includes(pn)) return false;
+      }
       if (from) {
         if (!t.dueDate) return false;
         if (new Date(t.dueDate) < from) return false;
@@ -1309,10 +1659,15 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
         if (new Date(t.dueDate) > to) return false;
       }
       if (k) {
+        const p = practices.find(x => x.id === t.practiceId);
+        const c = clients.find(x => x.id === t.clientId);
         const hay = [
           t.title || "",
           t.description || "",
           t.client || "",
+          c?.name || "",
+          p?.number || "",
+          p?.title || "",
           ...(t.comments || []).map(c => c.text || ""),
         ].join(" ").toLowerCase();
         if (!hay.includes(k)) return false;
@@ -1324,7 +1679,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
       if (!b.dueDate) return -1;
       return new Date(a.dueDate) - new Date(b.dueDate);
     });
-  }, [tasks, keyword, dateFrom, dateTo, cats, stats, agents, includeTrashed, hasFilters]);
+  }, [tasks, keyword, dateFrom, dateTo, cats, stats, agents, practiceIds, practiceNumber, includeTrashed, hasFilters, practices, clients]);
 
   const openTask = (t) => {
     dispatch({ type: "SET_SELECTED_TASK", payload: t });
@@ -1466,6 +1821,33 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
               );
             })}
           </div>
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <div style={sectionTitle}>Pratica</div>
+          <input
+            value={practiceNumber}
+            onChange={e => setPracticeNumber(e.target.value)}
+            placeholder="Numero pratica (es. PR-2026-001)…"
+            style={{
+              width: "100%", padding: "7px 10px", borderRadius: 6,
+              border: "1px solid var(--border)", fontSize: 12, outline: "none",
+              fontFamily: "monospace", boxSizing: "border-box", marginBottom: 8,
+            }}
+          />
+          {practices.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {practices.slice(0, 12).map(p => {
+                const active = practiceIds.includes(p.id);
+                const sm = practiceStatusMeta(p.status);
+                return (
+                  <div key={p.id} onClick={() => toggle(practiceIds, setPracticeIds, p.id)} style={chipBase(active, sm.color)}>
+                    <span style={{ fontFamily: "monospace", fontSize: 10 }}>{p.number}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "var(--text)" }}>
@@ -1613,6 +1995,8 @@ const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
             tasks={state.tasks}
             dispatch={dispatch}
             onClose={() => setAdvOpen(false)}
+            practices={state.practices || []}
+            clients={state.clients || []}
           />
         )}
       </div>
@@ -2067,7 +2451,9 @@ const NotificationsPanel = ({ dispatch }) => {
 const NAV_ITEMS = [
   { id: "dashboard", icon: "📊", label: "Dashboard", roles: ["admin", "manager", "agent", "driver"] },
   { id: "calendar", icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
+  { id: "practices", icon: "📁", label: "Pratiche", roles: ["admin", "manager", "agent"] },
   { id: "clients", icon: "🧳", label: "Clienti", roles: ["admin", "manager", "agent"] },
+  { id: "suppliers", icon: "🤝", label: "Fornitori", roles: ["admin", "manager", "agent"] },
   { id: "team", icon: "👥", label: "Team", roles: ["admin", "manager", "agent"] },
   { id: "trash", icon: "🗑️", label: "Cestino", roles: ["admin"] },
   { id: "admin", icon: "⚙️", label: "Admin", roles: ["admin"] },
@@ -4080,22 +4466,47 @@ const Dashboard = ({ state, dispatch, onOpenChat }) => {
 };
 
 // ─── QUICK ADD TASK FORM ───────────────────────────────────────────────────
-const QuickAddTask = ({ onAdd, onClose }) => {
+const QuickAddTask = ({ onAdd, onClose, clients = [], practices = [] }) => {
   // Categorie filtrate per il ruolo dell'utente loggato (v0.8)
   const availableCats = getAvailableCategories(CURRENT_USER);
   const firstCatKey = Object.keys(availableCats)[0] || "booking";
 
   const [form, setForm] = useState({
     title: "", category: firstCatKey, priority: "medium",
-    status: "todo", assignees: [], dueDate: "", client: "", description: ""
+    status: "todo", assignees: [], dueDate: "", clientId: "", practiceId: "", description: ""
   });
+
+  // Pratiche disponibili: tutte se nessun cliente selezionato, filtrate per clientId altrimenti.
+  const availablePractices = useMemo(
+    () => form.clientId ? practices.filter(p => p.clientId === form.clientId) : practices,
+    [form.clientId, practices]
+  );
+
+  // Se cambio cliente e la pratica selezionata non appartiene più, la deseleziono.
+  useEffect(() => {
+    if (form.practiceId && !availablePractices.some(p => p.id === form.practiceId)) {
+      setForm(p => ({ ...p, practiceId: "" }));
+    }
+  }, [form.practiceId, availablePractices]);
 
   const handleSubmit = () => {
     if (!form.title.trim()) return;
+    const client = clients.find(c => c.id === form.clientId);
+    const practice = practices.find(p => p.id === form.practiceId);
+    // Se selezionata una pratica e non un cliente, eredita il clientId della pratica.
+    const finalClientId = form.clientId || practice?.clientId || null;
+    const finalClient = client || clients.find(c => c.id === finalClientId);
     onAdd({
       id: "t" + Date.now(),
-      ...form,
-      client: form.client.trim() || null,
+      title: form.title,
+      category: form.category,
+      priority: form.priority,
+      status: form.status,
+      assignees: form.assignees,
+      description: form.description,
+      clientId: finalClientId,
+      practiceId: form.practiceId || null,
+      client: finalClient?.name || null, // stringa legacy in sync
       comments: [],
       estimatedHours: 1,
       dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
@@ -4166,9 +4577,25 @@ const QuickAddTask = ({ onAdd, onClose }) => {
             </div>
           </div>
 
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>CLIENTE</label>
-            <input {...inp("client")} placeholder="Es. Famiglia Rossi..." />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>CLIENTE</label>
+              <select {...inp("clientId")} style={{ ...inp("clientId").style, cursor: "pointer" }}>
+                <option value="">— Nessun cliente —</option>
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>{clientTypeIcon(c.type)} {c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>PRATICA</label>
+              <select {...inp("practiceId")} style={{ ...inp("practiceId").style, cursor: "pointer" }}>
+                <option value="">— Nessuna pratica —</option>
+                {availablePractices.map(p => (
+                  <option key={p.id} value={p.id}>{p.number} — {p.title}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div>
@@ -4193,11 +4620,14 @@ const QuickAddTask = ({ onAdd, onClose }) => {
 };
 
 // ─── TASK DETAIL SLIDE-OVER ────────────────────────────────────────────────
-const TaskSlideOver = ({ task, dispatch }) => {
+const TaskSlideOver = ({ task, dispatch, clients = [], practices = [] }) => {
   const { isMobile } = useViewport();
   const [newComment, setNewComment] = useState("");
 
   if (!task) return null;
+
+  const linkedClient = task.clientId ? getClient(clients, task.clientId) : null;
+  const linkedPractice = task.practiceId ? getPractice(practices, task.practiceId) : null;
 
   const handleComment = () => {
     if (!newComment.trim()) return;
@@ -4298,11 +4728,47 @@ const TaskSlideOver = ({ task, dispatch }) => {
             </div>
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>CLIENTE</div>
-              <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>
-                {task.client || <span style={{ color: "var(--text-muted)" }}>—</span>}
-              </div>
+              {linkedClient ? (
+                <button
+                  onClick={() => { dispatch({ type: "SET_SELECTED_TASK", payload: null }); dispatch({ type: "SET_VIEW", payload: "clients" }); }}
+                  style={{
+                    fontSize: 13, padding: "4px 10px", background: "var(--surface2)",
+                    border: "1px solid var(--border)", borderRadius: 8, cursor: "pointer",
+                    color: "var(--navy)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4,
+                  }}
+                  title="Vai a Clienti"
+                >{clientTypeIcon(linkedClient.type)} {linkedClient.name}</button>
+              ) : (
+                <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>
+                  {task.client || <span style={{ color: "var(--text-muted)" }}>—</span>}
+                </div>
+              )}
             </div>
           </div>
+
+          {/* PRATICA collegata */}
+          {linkedPractice && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>PRATICA</div>
+              <button
+                onClick={() => { dispatch({ type: "SET_SELECTED_TASK", payload: null }); dispatch({ type: "SET_VIEW", payload: "practices" }); }}
+                style={{
+                  width: "100%", textAlign: "left",
+                  padding: "10px 12px", background: "var(--surface2)",
+                  border: "1px solid var(--border)", borderRadius: 8, cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 10,
+                }}
+                title="Vai a Pratiche"
+              >
+                <span style={{ fontSize: 18 }}>📁</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "monospace" }}>{linkedPractice.number}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--navy)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{linkedPractice.title}</div>
+                </div>
+                <PracticeStatusBadge status={linkedPractice.status} />
+              </button>
+            </div>
+          )}
 
           {/* ORE */}
           {task.estimatedHours && (
@@ -6618,13 +7084,16 @@ const AdminIOTab = ({ state, dispatch }) => {
 
   const exportBackup = () => {
     const backup = {
-      version: "0.5",
+      version: "0.10",
       exportedAt: new Date().toISOString(),
       agencyName: state.agencyName,
       tasks: state.tasks,
       team: state.team,
       categories: state.categories,
       notices: state.notices,
+      clients: state.clients,
+      suppliers: state.suppliers,
+      practices: state.practices,
     };
     downloadFile(
       new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }),
@@ -7641,6 +8110,1182 @@ const ClientsView = ({ state, dispatch }) => {
   );
 };
 
+// ─── FORNITORI (Fase 1) ────────────────────────────────────────────────────
+const SupplierAvatar = ({ supplier, size = 38 }) => {
+  if (!supplier) return null;
+  const meta = supplierTypeMeta(supplier.type);
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: "50%",
+      background: meta.color, color: "#fff",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: Math.round(size * 0.45), flexShrink: 0,
+      border: "2px solid #fff", boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
+    }}>{meta.icon}</div>
+  );
+};
+
+const RatingStars = ({ value }) => {
+  const v = Math.max(0, Math.min(5, parseInt(value, 10) || 0));
+  if (!v) return null;
+  return (
+    <div style={{ display: "flex", gap: 1, fontSize: 11, color: "#D4A843" }}>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <span key={i} style={{ opacity: i < v ? 1 : 0.2 }}>★</span>
+      ))}
+    </div>
+  );
+};
+
+const SupplierEditorModal = ({ supplier, onSave, onClose }) => {
+  const isEdit = !!supplier;
+  const [form, setForm] = useState({
+    type: supplier?.type || "hotel",
+    name: supplier?.name || "",
+    contactPerson: supplier?.contactPerson || "",
+    email: supplier?.email || "",
+    phone: supplier?.phone || "",
+    address: supplier?.address || "",
+    city: supplier?.city || "",
+    country: supplier?.country || "Italia",
+    taxId: supplier?.taxId || "",
+    rating: supplier?.rating || 0,
+    tags: (supplier?.tags || []).join(", "),
+    notes: supplier?.notes || "",
+  });
+  const [error, setError] = useState("");
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const submit = (e) => {
+    e?.preventDefault?.();
+    if (!form.name.trim()) { setError("Il nome è obbligatorio"); return; }
+    const payload = {
+      id: supplier?.id || `s-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      type: form.type,
+      name: form.name.trim(),
+      contactPerson: form.contactPerson.trim() || null,
+      email: form.email.trim() || null,
+      phone: form.phone.trim() || null,
+      address: form.address.trim() || null,
+      city: form.city.trim() || null,
+      country: form.country.trim() || null,
+      taxId: form.taxId.trim() || null,
+      rating: parseInt(form.rating, 10) || 0,
+      tags: form.tags.split(",").map(t => t.trim()).filter(Boolean),
+      notes: form.notes.trim() || null,
+    };
+    if (supplier) { payload.createdAt = supplier.createdAt; payload.createdBy = supplier.createdBy; }
+    onSave(payload);
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "10px 12px", border: "1px solid var(--border)",
+    borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff",
+    color: "var(--text)", outline: "none", boxSizing: "border-box",
+  };
+  const labelStyle = { fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, display: "block" };
+
+  return (
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, background: "rgba(15,32,68,0.5)", zIndex: 1000,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+    }}>
+      <form onClick={e => e.stopPropagation()} onSubmit={submit} className="slide-up" style={{
+        background: "#fff", borderRadius: 14, padding: 24, width: "100%", maxWidth: 560,
+        maxHeight: "92vh", overflowY: "auto", boxShadow: "0 12px 40px rgba(0,0,0,0.25)",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+          <div className="playfair" style={{ fontSize: 18, fontWeight: 700 }}>
+            {isEdit ? "Modifica fornitore" : "Nuovo fornitore"}
+          </div>
+          <button type="button" onClick={onClose} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 20, color: "var(--text-muted)" }}>✕</button>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Tipologia *</label>
+            <select style={inputStyle} value={form.type} onChange={e => set("type", e.target.value)}>
+              {Object.entries(SUPPLIER_TYPES).map(([k, v]) => (
+                <option key={k} value={k}>{v.icon} {v.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Ragione sociale *</label>
+            <input style={inputStyle} value={form.name} onChange={e => set("name", e.target.value)} autoFocus placeholder="Es. Four Seasons Hotels" />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Referente</label>
+            <input style={inputStyle} value={form.contactPerson} onChange={e => set("contactPerson", e.target.value)} placeholder="Es. Mario Rossi (Sales Manager)" />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Email</label>
+              <input style={inputStyle} type="email" value={form.email} onChange={e => set("email", e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>Telefono</label>
+              <input style={inputStyle} value={form.phone} onChange={e => set("phone", e.target.value)} />
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Indirizzo</label>
+            <input style={inputStyle} value={form.address} onChange={e => set("address", e.target.value)} />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Città</label>
+              <input style={inputStyle} value={form.city} onChange={e => set("city", e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>Paese</label>
+              <input style={inputStyle} value={form.country} onChange={e => set("country", e.target.value)} />
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Partita IVA / Tax ID</label>
+              <input style={inputStyle} value={form.taxId} onChange={e => set("taxId", e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>Rating</label>
+              <select style={inputStyle} value={form.rating} onChange={e => set("rating", e.target.value)}>
+                <option value={0}>—</option>
+                <option value={1}>★</option>
+                <option value={2}>★★</option>
+                <option value={3}>★★★</option>
+                <option value={4}>★★★★</option>
+                <option value={5}>★★★★★</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Tag (separati da virgola)</label>
+            <input style={inputStyle} value={form.tags} onChange={e => set("tags", e.target.value)} placeholder="preferito, lusso, gruppi" />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Note</label>
+            <textarea style={{ ...inputStyle, minHeight: 70, resize: "vertical", fontFamily: "inherit" }} value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Termini di pagamento, contatto operativo, allotment…" />
+          </div>
+        </div>
+
+        {error && <div style={{ color: "var(--danger)", fontSize: 12, marginTop: 12 }}>{error}</div>}
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 22 }}>
+          <button type="button" onClick={onClose} style={{
+            padding: "10px 18px", borderRadius: 8, border: "1px solid var(--border)",
+            background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--text-muted)",
+          }}>Annulla</button>
+          <button type="submit" style={{
+            padding: "10px 20px", borderRadius: 8, border: "none",
+            background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700,
+          }}>{isEdit ? "Salva modifiche" : "Crea fornitore"}</button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+const SupplierDetailPanel = ({ supplier, practices, dispatch, onEdit, onDelete, onClose, canEdit, canDelete }) => {
+  const { isMobile } = useViewport();
+  const meta = supplierTypeMeta(supplier.type);
+  const related = (practices || []).filter(p => (p.supplierIds || []).includes(supplier.id));
+
+  const wrapStyle = isMobile
+    ? { position: "fixed", inset: 0, background: "rgba(15,32,68,0.5)", zIndex: 900, display: "flex", alignItems: "flex-end", justifyContent: "center" }
+    : { background: "#fff", borderRadius: 12, border: "1px solid var(--border)", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden", position: "sticky", top: 16 };
+
+  const inner = (
+    <div onClick={e => e.stopPropagation()} className={isMobile ? "slide-up" : "fade-in"} style={{
+      background: "#fff", width: "100%",
+      maxHeight: isMobile ? "85vh" : "calc(100vh - 80px)",
+      overflowY: "auto",
+      borderTopLeftRadius: isMobile ? 16 : 12, borderTopRightRadius: isMobile ? 16 : 12,
+    }}>
+      <div style={{ padding: "20px 22px", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flex: 1, minWidth: 0 }}>
+            <SupplierAvatar supplier={supplier} size={48} />
+            <div style={{ minWidth: 0 }}>
+              <div className="playfair" style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.2 }}>{supplier.name}</div>
+              <div style={{ fontSize: 11, color: meta.color, fontWeight: 600, marginTop: 3 }}>{meta.icon} {meta.label}</div>
+              {supplier.rating > 0 && <div style={{ marginTop: 6 }}><RatingStars value={supplier.rating} /></div>}
+              {supplier.tags?.length > 0 && (
+                <div style={{ display: "flex", gap: 5, marginTop: 8, flexWrap: "wrap" }}>
+                  {supplier.tags.map(t => <ClientTag key={t}>{t}</ClientTag>)}
+                </div>
+              )}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 18, color: "var(--text-muted)", padding: 4, lineHeight: 1 }}>✕</button>
+        </div>
+      </div>
+
+      <div style={{ padding: "16px 22px", display: "flex", flexDirection: "column", gap: 12 }}>
+        {supplier.contactPerson && (
+          <div style={{ display: "flex", gap: 8, fontSize: 13 }}><span style={{ width: 18 }}>👤</span><span>{supplier.contactPerson}</span></div>
+        )}
+        {supplier.email && (
+          <div style={{ display: "flex", gap: 8, fontSize: 13 }}><span style={{ width: 18 }}>✉️</span>
+            <a href={`mailto:${supplier.email}`} style={{ color: "var(--navy)", textDecoration: "none", wordBreak: "break-all" }}>{supplier.email}</a>
+          </div>
+        )}
+        {supplier.phone && (
+          <div style={{ display: "flex", gap: 8, fontSize: 13 }}><span style={{ width: 18 }}>📞</span>
+            <a href={`tel:${supplier.phone}`} style={{ color: "var(--navy)", textDecoration: "none" }}>{supplier.phone}</a>
+          </div>
+        )}
+        {(supplier.address || supplier.city) && (
+          <div style={{ display: "flex", gap: 8, fontSize: 13 }}><span style={{ width: 18 }}>📍</span>
+            <span>{[supplier.address, supplier.city, supplier.country].filter(Boolean).join(", ")}</span>
+          </div>
+        )}
+        {supplier.taxId && (
+          <div style={{ display: "flex", gap: 8, fontSize: 13, color: "var(--text-muted)" }}><span style={{ width: 18 }}>🆔</span>
+            <span style={{ fontFamily: "monospace" }}>{supplier.taxId}</span>
+          </div>
+        )}
+      </div>
+
+      {supplier.notes && (
+        <div style={{ padding: "0 22px 16px" }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Note</div>
+          <div style={{ fontSize: 13, lineHeight: 1.5, background: "var(--surface2)", padding: "10px 12px", borderRadius: 8, whiteSpace: "pre-wrap" }}>{supplier.notes}</div>
+        </div>
+      )}
+
+      <div style={{ padding: "0 22px 16px" }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>
+          Pratiche collegate ({related.length})
+        </div>
+        {related.length === 0 ? (
+          <div style={{ fontSize: 12, color: "var(--text-light)", fontStyle: "italic" }}>Nessuna pratica usa ancora questo fornitore.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {related.map(p => {
+              const sm = practiceStatusMeta(p.status);
+              return (
+                <div key={p.id} style={{
+                  padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)",
+                  background: "#fff",
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600 }}>{p.number}</div>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, color: sm.color, background: sm.bg }}>{sm.label}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.title}</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {(canEdit || canDelete) && (
+        <div style={{ padding: "12px 22px", borderTop: "1px solid var(--border)", display: "flex", gap: 10, justifyContent: "flex-end", background: "var(--surface)" }}>
+          {canDelete && (
+            <button onClick={() => onDelete(supplier)} style={{
+              padding: "8px 14px", borderRadius: 8, border: "1px solid var(--danger)",
+              background: "#fff", color: "var(--danger)", cursor: "pointer", fontSize: 12, fontWeight: 600,
+            }}>🗑️ Elimina</button>
+          )}
+          {canEdit && (
+            <button onClick={() => onEdit(supplier)} style={{
+              padding: "8px 16px", borderRadius: 8, border: "none",
+              background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700,
+            }}>✏️ Modifica</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  return isMobile ? <div onClick={onClose} style={wrapStyle}>{inner}</div> : <div style={wrapStyle}>{inner}</div>;
+};
+
+const SuppliersView = ({ state, dispatch }) => {
+  const { isMobile, isDesktop } = useViewport();
+  const uid = state.currentUserId;
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [selectedId, setSelectedId] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+
+  const suppliers = state.suppliers || [];
+  const canManage = canManageSuppliers(uid);
+  const canDel = canDeleteSupplier(uid);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return suppliers.filter(s => {
+      if (typeFilter && s.type !== typeFilter) return false;
+      if (!q) return true;
+      return [s.name, s.email, s.phone, s.city, s.contactPerson, ...(s.tags || [])]
+        .some(v => (v || "").toString().toLowerCase().includes(q));
+    }).sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+  }, [suppliers, search, typeFilter]);
+
+  const selected = selectedId ? getSupplier(suppliers, selectedId) : null;
+  useEffect(() => { if (selectedId && !getSupplier(suppliers, selectedId)) setSelectedId(null); }, [suppliers, selectedId]);
+
+  const handleSave = (payload) => {
+    const exists = suppliers.some(s => s.id === payload.id);
+    dispatch({ type: exists ? "UPDATE_SUPPLIER" : "ADD_SUPPLIER", payload });
+    setEditing(null);
+    setSelectedId(payload.id);
+  };
+  const confirmDeleteNow = () => {
+    if (confirmDelete) {
+      dispatch({ type: "DELETE_SUPPLIER", payload: confirmDelete.id });
+      setConfirmDelete(null);
+      setSelectedId(null);
+    }
+  };
+  const showDetailInline = isDesktop && selected;
+
+  return (
+    <div className="fade-in" style={{ padding: isMobile ? 16 : 28 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
+        <div>
+          <div className="playfair" style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700 }}>Fornitori</div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+            {suppliers.length} {suppliers.length === 1 ? "fornitore" : "fornitori"} in rubrica
+          </div>
+        </div>
+        {canManage && (
+          <button onClick={() => setEditing("new")} style={{
+            padding: "10px 18px", borderRadius: 8, border: "none",
+            background: "var(--navy)", color: "#fff", cursor: "pointer",
+            fontSize: 13, fontWeight: 700, boxShadow: "0 4px 14px rgba(15,32,68,0.25)",
+          }}>+ Nuovo fornitore</button>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 200, position: "relative" }}>
+          <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "var(--text-muted)" }}>🔍</span>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Cerca per nome, email, città, tag…"
+            style={{
+              width: "100%", padding: "10px 12px 10px 36px", border: "1px solid var(--border)",
+              borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff",
+              outline: "none", boxSizing: "border-box",
+            }}
+          />
+        </div>
+        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{
+          padding: "10px 12px", border: "1px solid var(--border)", borderRadius: 8,
+          fontSize: 13, fontFamily: "inherit", background: "#fff", outline: "none",
+        }}>
+          <option value="">Tutte le tipologie</option>
+          {Object.entries(SUPPLIER_TYPES).map(([k, v]) => (
+            <option key={k} value={k}>{v.icon} {v.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: showDetailInline ? "minmax(0, 1fr) 380px" : "1fr",
+        gap: 20, alignItems: "flex-start",
+      }}>
+        <div>
+          {filtered.length === 0 ? (
+            <div style={{
+              background: "#fff", border: "1px dashed var(--border)", borderRadius: 12,
+              padding: "60px 20px", textAlign: "center", color: "var(--text-muted)",
+            }}>
+              <div style={{ fontSize: 38, marginBottom: 10 }}>🤝</div>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
+                {suppliers.length === 0 ? "Nessun fornitore ancora" : "Nessun risultato"}
+              </div>
+              <div style={{ fontSize: 12 }}>
+                {suppliers.length === 0
+                  ? "Aggiungi il primo fornitore per organizzare la rubrica operativa."
+                  : "Prova a cambiare ricerca o filtro."}
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
+              {filtered.map(s => {
+                const meta = supplierTypeMeta(s.type);
+                const practiceCount = getSupplierPracticeCount(state.practices, s.id);
+                const isSel = selectedId === s.id;
+                return (
+                  <div key={s.id} className="hover-lift" onClick={() => setSelectedId(isSel ? null : s.id)} style={{
+                    background: "#fff", borderRadius: 12, padding: "14px 16px",
+                    boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
+                    border: `2px solid ${isSel ? meta.color : "var(--border)"}`,
+                    cursor: "pointer", transition: "all 0.15s",
+                    display: "flex", flexDirection: "column", gap: 10,
+                  }}>
+                    <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                      <SupplierAvatar supplier={s} size={40} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
+                        <div style={{ fontSize: 11, color: meta.color, marginTop: 2, fontWeight: 600 }}>{meta.label}</div>
+                      </div>
+                    </div>
+
+                    {s.rating > 0 && <RatingStars value={s.rating} />}
+
+                    {(s.email || s.phone) && (
+                      <div style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 2 }}>
+                        {s.email && <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>✉️ {s.email}</div>}
+                        {s.phone && <div>📞 {s.phone}</div>}
+                      </div>
+                    )}
+
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: "1px solid var(--border)" }}>
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                        {(s.tags || []).slice(0, 2).map(t => <ClientTag key={t}>{t}</ClientTag>)}
+                      </div>
+                      <div style={{
+                        fontSize: 11, fontWeight: 600, color: practiceCount > 0 ? "var(--navy)" : "var(--text-light)",
+                        background: practiceCount > 0 ? "var(--surface2)" : "transparent",
+                        padding: "3px 8px", borderRadius: 99,
+                      }}>📁 {practiceCount}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {selected && (
+          <SupplierDetailPanel
+            supplier={selected}
+            practices={state.practices}
+            dispatch={dispatch}
+            onEdit={(s) => setEditing(s)}
+            onDelete={(s) => setConfirmDelete(s)}
+            onClose={() => setSelectedId(null)}
+            canEdit={canManage}
+            canDelete={canDel}
+          />
+        )}
+      </div>
+
+      {editing && (
+        <SupplierEditorModal
+          supplier={editing === "new" ? null : editing}
+          onSave={handleSave}
+          onClose={() => setEditing(null)}
+        />
+      )}
+
+      {confirmDelete && (
+        <div onClick={() => setConfirmDelete(null)} style={{
+          position: "fixed", inset: 0, background: "rgba(15,32,68,0.5)", zIndex: 1100,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+        }}>
+          <div onClick={e => e.stopPropagation()} className="slide-up" style={{
+            background: "#fff", borderRadius: 14, padding: 24, maxWidth: 420, width: "100%",
+            boxShadow: "0 12px 40px rgba(0,0,0,0.25)",
+          }}>
+            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, marginBottom: 8 }}>Eliminare il fornitore?</div>
+            <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 18, lineHeight: 1.5 }}>
+              "<strong>{confirmDelete.name}</strong>" verrà rimosso dalla rubrica.
+              Le pratiche che lo includevano resteranno ma il riferimento sarà rimosso.
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => setConfirmDelete(null)} style={{
+                padding: "10px 18px", borderRadius: 8, border: "1px solid var(--border)",
+                background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--text-muted)",
+              }}>Annulla</button>
+              <button onClick={confirmDeleteNow} style={{
+                padding: "10px 20px", borderRadius: 8, border: "none",
+                background: "var(--danger)", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700,
+              }}>Elimina</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── PRATICHE DI VIAGGIO (Fase 1) ──────────────────────────────────────────
+// Componente badge stato pratica
+const PracticeStatusBadge = ({ status }) => {
+  const m = practiceStatusMeta(status);
+  return (
+    <span style={{
+      fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 99,
+      color: m.color, background: m.bg, textTransform: "uppercase", letterSpacing: 0.4,
+    }}>{m.label}</span>
+  );
+};
+
+const PracticeEditorModal = ({ practice, clients, suppliers, practices, onSave, onClose }) => {
+  const isEdit = !!practice;
+  const previewNumber = useMemo(
+    () => practice?.number || buildPracticeNumber(practices, new Date().getFullYear()),
+    [practice, practices]
+  );
+  const [form, setForm] = useState({
+    title: practice?.title || "",
+    clientId: practice?.clientId || "",
+    status: practice?.status || "draft",
+    destination: practice?.destination || "",
+    startDate: practice?.startDate ? practice.startDate.slice(0, 10) : "",
+    endDate: practice?.endDate ? practice.endDate.slice(0, 10) : "",
+    paxCount: practice?.paxCount || 1,
+    budget: practice?.budget || 0,
+    paidAmount: practice?.paidAmount || 0,
+    currency: practice?.currency || "EUR",
+    supplierIds: practice?.supplierIds || [],
+    notes: practice?.notes || "",
+  });
+  const [error, setError] = useState("");
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const toggleSupplier = (id) => set("supplierIds",
+    form.supplierIds.includes(id)
+      ? form.supplierIds.filter(x => x !== id)
+      : [...form.supplierIds, id]
+  );
+
+  const submit = (e) => {
+    e?.preventDefault?.();
+    if (!form.title.trim()) { setError("Il titolo della pratica è obbligatorio"); return; }
+    const toIso = (d) => d ? new Date(d + "T12:00:00").toISOString() : null;
+    const payload = {
+      id: practice?.id || `p-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      title: form.title.trim(),
+      clientId: form.clientId || null,
+      status: form.status,
+      destination: form.destination.trim() || null,
+      startDate: toIso(form.startDate),
+      endDate: toIso(form.endDate),
+      paxCount: parseInt(form.paxCount, 10) || 1,
+      budget: parseFloat(form.budget) || 0,
+      paidAmount: parseFloat(form.paidAmount) || 0,
+      currency: form.currency || "EUR",
+      supplierIds: form.supplierIds,
+      notes: form.notes.trim() || null,
+    };
+    if (practice) {
+      payload.number = practice.number;
+      payload.createdAt = practice.createdAt;
+      payload.createdBy = practice.createdBy;
+      payload.events = practice.events;
+    }
+    onSave(payload);
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "10px 12px", border: "1px solid var(--border)",
+    borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff",
+    color: "var(--text)", outline: "none", boxSizing: "border-box",
+  };
+  const labelStyle = { fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, display: "block" };
+
+  return (
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, background: "rgba(15,32,68,0.5)", zIndex: 1000,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+    }}>
+      <form onClick={e => e.stopPropagation()} onSubmit={submit} className="slide-up" style={{
+        background: "#fff", borderRadius: 14, padding: 24, width: "100%", maxWidth: 640,
+        maxHeight: "92vh", overflowY: "auto", boxShadow: "0 12px 40px rgba(0,0,0,0.25)",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <div className="playfair" style={{ fontSize: 18, fontWeight: 700 }}>
+            {isEdit ? "Modifica pratica" : "Nuova pratica"}
+          </div>
+          <button type="button" onClick={onClose} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 20, color: "var(--text-muted)" }}>✕</button>
+        </div>
+        <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 18, fontFamily: "monospace" }}>
+          {previewNumber}{!isEdit && " (anteprima, assegnato al salvataggio)"}
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Titolo pratica *</label>
+            <input style={inputStyle} value={form.title} onChange={e => set("title", e.target.value)} autoFocus placeholder="Es. Honeymoon Giappone — Coppia Bianchi" />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Cliente</label>
+              <select style={inputStyle} value={form.clientId} onChange={e => set("clientId", e.target.value)}>
+                <option value="">— Nessun cliente —</option>
+                {(clients || []).map(c => (
+                  <option key={c.id} value={c.id}>{clientTypeIcon(c.type)} {c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Stato</label>
+              <select style={inputStyle} value={form.status} onChange={e => set("status", e.target.value)}>
+                {Object.entries(PRACTICE_STATUSES).map(([k, v]) => (
+                  <option key={k} value={k}>{v.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Destinazione</label>
+            <input style={inputStyle} value={form.destination} onChange={e => set("destination", e.target.value)} placeholder="Es. Tokyo → Kyoto → Osaka" />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Inizio</label>
+              <input style={inputStyle} type="date" value={form.startDate} onChange={e => set("startDate", e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>Fine</label>
+              <input style={inputStyle} type="date" value={form.endDate} onChange={e => set("endDate", e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>Pax</label>
+              <input style={inputStyle} type="number" min={1} value={form.paxCount} onChange={e => set("paxCount", e.target.value)} />
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Budget totale</label>
+              <input style={inputStyle} type="number" min={0} step="0.01" value={form.budget} onChange={e => set("budget", e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>Incassato</label>
+              <input style={inputStyle} type="number" min={0} step="0.01" value={form.paidAmount} onChange={e => set("paidAmount", e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>Valuta</label>
+              <select style={inputStyle} value={form.currency} onChange={e => set("currency", e.target.value)}>
+                <option value="EUR">EUR</option>
+                <option value="USD">USD</option>
+                <option value="GBP">GBP</option>
+                <option value="CHF">CHF</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Fornitori collegati</label>
+            <div style={{
+              border: "1px solid var(--border)", borderRadius: 8, padding: 8,
+              maxHeight: 140, overflowY: "auto", background: "var(--surface)",
+            }}>
+              {(suppliers || []).length === 0 && (
+                <div style={{ fontSize: 12, color: "var(--text-light)", padding: 8 }}>Nessun fornitore ancora in rubrica.</div>
+              )}
+              {(suppliers || []).map(s => {
+                const meta = supplierTypeMeta(s.type);
+                const checked = form.supplierIds.includes(s.id);
+                return (
+                  <label key={s.id} style={{
+                    display: "flex", alignItems: "center", gap: 8, padding: "6px 8px",
+                    borderRadius: 6, cursor: "pointer", background: checked ? "var(--surface2)" : "transparent",
+                    fontSize: 12,
+                  }}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleSupplier(s.id)} />
+                    <span>{meta.icon}</span>
+                    <span style={{ flex: 1 }}>{s.name}</span>
+                    <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{meta.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Note</label>
+            <textarea style={{ ...inputStyle, minHeight: 70, resize: "vertical", fontFamily: "inherit" }} value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Brief operativo, preferenze, scadenze chiave…" />
+          </div>
+        </div>
+
+        {error && <div style={{ color: "var(--danger)", fontSize: 12, marginTop: 12 }}>{error}</div>}
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 22 }}>
+          <button type="button" onClick={onClose} style={{
+            padding: "10px 18px", borderRadius: 8, border: "1px solid var(--border)",
+            background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--text-muted)",
+          }}>Annulla</button>
+          <button type="submit" style={{
+            padding: "10px 20px", borderRadius: 8, border: "none",
+            background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700,
+          }}>{isEdit ? "Salva modifiche" : "Crea pratica"}</button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+const PracticeDetail = ({ practice, state, dispatch, onEdit, onDelete, onClose, canEdit, canDelete }) => {
+  const { isMobile } = useViewport();
+  const client = getClient(state.clients, practice.clientId);
+  const tasks = useMemo(() => getPracticeTasks(state.tasks, practice.id), [state.tasks, practice.id]);
+  const open = tasks.filter(t => t.status !== "done");
+  const done = tasks.filter(t => t.status === "done");
+  const suppliers = (practice.supplierIds || [])
+    .map(id => getSupplier(state.suppliers, id))
+    .filter(Boolean);
+
+  const balance = (practice.budget || 0) - (practice.paidAmount || 0);
+  const paidPct = practice.budget > 0 ? Math.min(100, Math.round((practice.paidAmount / practice.budget) * 100)) : 0;
+
+  const sortedEvents = useMemo(() => {
+    return [...(practice.events || [])].sort((a, b) => (b.time || "").localeCompare(a.time || ""));
+  }, [practice.events]);
+
+  return (
+    <div className="fade-in" style={{
+      background: "#fff", borderRadius: 12, border: "1px solid var(--border)",
+      boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden",
+    }}>
+      {/* Header */}
+      <div style={{ padding: "20px 22px", borderBottom: "1px solid var(--border)", background: "linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%)", color: "#fff" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, opacity: 0.7, fontFamily: "monospace", letterSpacing: 0.5 }}>{practice.number}</div>
+            <div className="playfair" style={{ fontSize: 18, fontWeight: 700, marginTop: 2 }}>{practice.title}</div>
+            <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <PracticeStatusBadge status={practice.status} />
+              {client && <span style={{ fontSize: 12, opacity: 0.9 }}>{clientTypeIcon(client.type)} {client.name}</span>}
+              {practice.paxCount > 0 && <span style={{ fontSize: 12, opacity: 0.9 }}>👥 {practice.paxCount} pax</span>}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", cursor: "pointer", fontSize: 16, padding: "4px 10px", borderRadius: 6 }}>✕</button>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 18 }}>
+        {practice.destination && (
+          <div style={{ fontSize: 13, display: "flex", gap: 8 }}>
+            <span style={{ width: 18 }}>📍</span>
+            <span>{practice.destination}</span>
+          </div>
+        )}
+        {(practice.startDate || practice.endDate) && (
+          <div style={{ fontSize: 13, display: "flex", gap: 8 }}>
+            <span style={{ width: 18 }}>📅</span>
+            <span>{formatDate(practice.startDate)} → {formatDate(practice.endDate)}</span>
+          </div>
+        )}
+
+        {/* Riepilogo economico */}
+        <div style={{
+          background: "var(--surface2)", borderRadius: 10, padding: "14px 16px",
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>
+            Riepilogo economico
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 10, color: "var(--text-muted)" }}>Budget</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--navy)" }}>{formatMoney(practice.budget, practice.currency)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: "var(--text-muted)" }}>Incassato</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--success)" }}>{formatMoney(practice.paidAmount, practice.currency)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: "var(--text-muted)" }}>Saldo</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: balance > 0 ? "var(--warning)" : "var(--success)" }}>{formatMoney(balance, practice.currency)}</div>
+            </div>
+          </div>
+          {practice.budget > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ height: 6, background: "#fff", borderRadius: 3, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${paidPct}%`, background: "var(--success)", borderRadius: 3, transition: "width 0.6s ease" }} />
+              </div>
+              <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 3 }}>{paidPct}% pagato</div>
+            </div>
+          )}
+        </div>
+
+        {practice.notes && (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Note</div>
+            <div style={{ fontSize: 13, lineHeight: 1.5, background: "var(--surface2)", padding: "10px 12px", borderRadius: 8, whiteSpace: "pre-wrap" }}>{practice.notes}</div>
+          </div>
+        )}
+
+        {/* Fornitori */}
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
+            Fornitori ({suppliers.length})
+          </div>
+          {suppliers.length === 0 ? (
+            <div style={{ fontSize: 12, color: "var(--text-light)", fontStyle: "italic" }}>Nessun fornitore collegato.</div>
+          ) : (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {suppliers.map(s => {
+                const meta = supplierTypeMeta(s.type);
+                return (
+                  <div key={s.id} style={{
+                    display: "flex", alignItems: "center", gap: 6, padding: "6px 10px",
+                    background: "var(--surface)", border: "1px solid var(--border)",
+                    borderRadius: 99, fontSize: 12,
+                  }}>
+                    <span>{meta.icon}</span>
+                    <span>{s.name}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Task collegati */}
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
+            Task collegati ({tasks.length})
+          </div>
+          {tasks.length === 0 ? (
+            <div style={{ fontSize: 12, color: "var(--text-light)", fontStyle: "italic" }}>Nessun task collegato a questa pratica.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {open.map(t => (
+                <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                  display: "flex", alignItems: "center", gap: 8, padding: "8px 10px",
+                  borderRadius: 8, cursor: "pointer", border: "1px solid var(--border)",
+                  background: isOverdue(t) ? "rgba(192,57,43,0.05)" : "#fff",
+                }}>
+                  <span style={{ fontSize: 14 }}>{CATEGORIES[t.category]?.icon}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
+                    <div style={{ fontSize: 10, color: isOverdue(t) ? "var(--danger)" : "var(--text-muted)" }}>
+                      {isOverdue(t) ? "⚠️ Scaduto • " : ""}{formatDate(t.dueDate)}
+                    </div>
+                  </div>
+                  <PriorityBadge priority={t.priority} />
+                </div>
+              ))}
+              {done.length > 0 && (
+                <details style={{ marginTop: 4 }}>
+                  <summary style={{ cursor: "pointer", fontSize: 11, color: "var(--text-muted)", padding: "4px 0" }}>
+                    Completati ({done.length})
+                  </summary>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>
+                    {done.map(t => (
+                      <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                        display: "flex", alignItems: "center", gap: 8, padding: "6px 10px",
+                        borderRadius: 6, cursor: "pointer", fontSize: 12, color: "var(--text-muted)",
+                        textDecoration: "line-through",
+                      }}>
+                        <span>{CATEGORIES[t.category]?.icon}</span>
+                        <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</span>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Timeline eventi */}
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
+            Timeline ({sortedEvents.length})
+          </div>
+          {sortedEvents.length === 0 ? (
+            <div style={{ fontSize: 12, color: "var(--text-light)", fontStyle: "italic" }}>Nessun evento.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, borderLeft: "2px solid var(--border)", paddingLeft: 12 }}>
+              {sortedEvents.map((ev, i) => {
+                const icon = ev.type === "payment" ? "💰" : ev.type === "status" ? "🔁" : ev.type === "created" ? "✨" : "📝";
+                return (
+                  <div key={i} style={{ fontSize: 12, position: "relative" }}>
+                    <div style={{ position: "absolute", left: -19, top: 2, width: 12, height: 12, borderRadius: "50%", background: "#fff", border: "2px solid var(--gold)" }} />
+                    <div style={{ color: "var(--text)" }}>{icon} {ev.text}</div>
+                    <div style={{ color: "var(--text-light)", fontSize: 10, marginTop: 1 }}>{formatDate(ev.time)} {formatTime(ev.time)}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Footer azioni */}
+      {(canEdit || canDelete) && (
+        <div style={{
+          padding: "12px 22px", borderTop: "1px solid var(--border)",
+          display: "flex", gap: 10, justifyContent: "flex-end", background: "var(--surface)",
+        }}>
+          {canDelete && (
+            <button onClick={() => onDelete(practice)} style={{
+              padding: "8px 14px", borderRadius: 8, border: "1px solid var(--danger)",
+              background: "#fff", color: "var(--danger)", cursor: "pointer", fontSize: 12, fontWeight: 600,
+            }}>🗑️ Elimina pratica</button>
+          )}
+          {canEdit && (
+            <button onClick={() => onEdit(practice)} style={{
+              padding: "8px 16px", borderRadius: 8, border: "none",
+              background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700,
+            }}>✏️ Modifica pratica</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PracticesView = ({ state, dispatch }) => {
+  const { isMobile } = useViewport();
+  const uid = state.currentUserId;
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [clientFilter, setClientFilter] = useState("");
+  const [selectedId, setSelectedId] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+
+  const practices = state.practices || [];
+  const canManage = canManagePractices(uid);
+  const canDel = canDeletePractice(uid);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return practices.filter(p => {
+      if (statusFilter && p.status !== statusFilter) return false;
+      if (clientFilter && p.clientId !== clientFilter) return false;
+      if (!q) return true;
+      const client = getClient(state.clients, p.clientId);
+      return [p.number, p.title, p.destination, client?.name]
+        .some(v => (v || "").toString().toLowerCase().includes(q));
+    }).sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+  }, [practices, search, statusFilter, clientFilter, state.clients]);
+
+  const selected = selectedId ? getPractice(practices, selectedId) : null;
+  useEffect(() => { if (selectedId && !getPractice(practices, selectedId)) setSelectedId(null); }, [practices, selectedId]);
+
+  const handleSave = (payload) => {
+    const exists = practices.some(p => p.id === payload.id);
+    dispatch({ type: exists ? "UPDATE_PRACTICE" : "ADD_PRACTICE", payload });
+    setEditing(null);
+    setSelectedId(payload.id);
+  };
+  const confirmDeleteNow = () => {
+    if (confirmDelete) {
+      dispatch({ type: "DELETE_PRACTICE", payload: confirmDelete.id });
+      setConfirmDelete(null);
+      setSelectedId(null);
+    }
+  };
+
+  // Conteggi per ogni stato per le tab in header
+  const statusCounts = useMemo(() => {
+    const counts = { all: practices.length };
+    Object.keys(PRACTICE_STATUSES).forEach(k => { counts[k] = 0; });
+    practices.forEach(p => { counts[p.status] = (counts[p.status] || 0) + 1; });
+    return counts;
+  }, [practices]);
+
+  return (
+    <div className="fade-in" style={{ padding: isMobile ? 16 : 28 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
+        <div>
+          <div className="playfair" style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700 }}>Pratiche di viaggio</div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+            {practices.length} {practices.length === 1 ? "pratica" : "pratiche"} ·{" "}
+            {statusCounts.in_progress || 0} in corso · {statusCounts.confirmed || 0} confermate · {statusCounts.draft || 0} bozze
+          </div>
+        </div>
+        {canManage && (
+          <button onClick={() => setEditing("new")} style={{
+            padding: "10px 18px", borderRadius: 8, border: "none",
+            background: "var(--navy)", color: "#fff", cursor: "pointer",
+            fontSize: 13, fontWeight: 700, boxShadow: "0 4px 14px rgba(15,32,68,0.25)",
+          }}>+ Nuova pratica</button>
+        )}
+      </div>
+
+      {/* Filtri stato tab */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 14, overflowX: "auto", paddingBottom: 4 }}>
+        <button onClick={() => setStatusFilter("")} style={{
+          padding: "8px 14px", borderRadius: 8, border: "none", cursor: "pointer",
+          fontSize: 12, fontWeight: 600, whiteSpace: "nowrap",
+          background: statusFilter === "" ? "var(--navy)" : "#fff",
+          color: statusFilter === "" ? "#fff" : "var(--text-muted)",
+          border: statusFilter === "" ? "1px solid var(--navy)" : "1px solid var(--border)",
+        }}>Tutte ({statusCounts.all})</button>
+        {Object.entries(PRACTICE_STATUSES).map(([k, v]) => (
+          <button key={k} onClick={() => setStatusFilter(k)} style={{
+            padding: "8px 14px", borderRadius: 8, cursor: "pointer", whiteSpace: "nowrap",
+            fontSize: 12, fontWeight: 600,
+            background: statusFilter === k ? v.color : "#fff",
+            color: statusFilter === k ? "#fff" : v.color,
+            border: `1px solid ${statusFilter === k ? v.color : "var(--border)"}`,
+          }}>{v.label} ({statusCounts[k] || 0})</button>
+        ))}
+      </div>
+
+      {/* Toolbar ricerca + filtro cliente */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 200, position: "relative" }}>
+          <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "var(--text-muted)" }}>🔍</span>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Cerca per numero, titolo, destinazione, cliente…"
+            style={{
+              width: "100%", padding: "10px 12px 10px 36px", border: "1px solid var(--border)",
+              borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff",
+              outline: "none", boxSizing: "border-box",
+            }}
+          />
+        </div>
+        <select value={clientFilter} onChange={e => setClientFilter(e.target.value)} style={{
+          padding: "10px 12px", border: "1px solid var(--border)", borderRadius: 8,
+          fontSize: 13, fontFamily: "inherit", background: "#fff", outline: "none",
+          minWidth: 180,
+        }}>
+          <option value="">Tutti i clienti</option>
+          {(state.clients || []).map(c => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Layout: lista + dettaglio sotto (le pratiche sono ricche di dati, preferisco dettaglio sotto su tutti i breakpoint) */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {filtered.length === 0 ? (
+          <div style={{
+            background: "#fff", border: "1px dashed var(--border)", borderRadius: 12,
+            padding: "60px 20px", textAlign: "center", color: "var(--text-muted)",
+          }}>
+            <div style={{ fontSize: 38, marginBottom: 10 }}>📁</div>
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
+              {practices.length === 0 ? "Nessuna pratica ancora" : "Nessun risultato"}
+            </div>
+            <div style={{ fontSize: 12 }}>
+              {practices.length === 0
+                ? "Crea la prima pratica per aggregare task, fornitori e finanziario di un viaggio."
+                : "Prova a cambiare ricerca o filtri."}
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(320px, 1fr))", gap: 12 }}>
+            {filtered.map(p => {
+              const client = getClient(state.clients, p.clientId);
+              const taskCount = getPracticeTasks(state.tasks, p.id).length;
+              const isSel = selectedId === p.id;
+              const sm = practiceStatusMeta(p.status);
+              const paidPct = p.budget > 0 ? Math.min(100, Math.round((p.paidAmount / p.budget) * 100)) : 0;
+              return (
+                <div key={p.id} className="hover-lift" onClick={() => setSelectedId(isSel ? null : p.id)} style={{
+                  background: "#fff", borderRadius: 12, padding: "14px 16px",
+                  boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
+                  border: `2px solid ${isSel ? sm.color : "var(--border)"}`,
+                  cursor: "pointer", transition: "all 0.15s",
+                  display: "flex", flexDirection: "column", gap: 10,
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "monospace", letterSpacing: 0.5 }}>{p.number}</div>
+                      <div style={{ fontWeight: 700, fontSize: 14, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.title}</div>
+                    </div>
+                    <PracticeStatusBadge status={p.status} />
+                  </div>
+
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 3 }}>
+                    {client && <div>👤 {client.name}</div>}
+                    {p.destination && <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>📍 {p.destination}</div>}
+                    {p.startDate && <div>📅 {formatDate(p.startDate)} → {formatDate(p.endDate)}</div>}
+                  </div>
+
+                  {p.budget > 0 && (
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-muted)", marginBottom: 3 }}>
+                        <span>{formatMoney(p.paidAmount, p.currency)} / {formatMoney(p.budget, p.currency)}</span>
+                        <span>{paidPct}%</span>
+                      </div>
+                      <div style={{ height: 4, background: "var(--surface2)", borderRadius: 2, overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${paidPct}%`, background: "var(--success)" }} />
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: "1px solid var(--border)", fontSize: 11, color: "var(--text-muted)" }}>
+                    <span>👥 {p.paxCount || 0} pax</span>
+                    <span>📋 {taskCount} task</span>
+                    <span>🤝 {(p.supplierIds || []).length}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Dettaglio pratica sotto */}
+        {selected && (
+          <PracticeDetail
+            practice={selected}
+            state={state}
+            dispatch={dispatch}
+            onEdit={(p) => setEditing(p)}
+            onDelete={(p) => setConfirmDelete(p)}
+            onClose={() => setSelectedId(null)}
+            canEdit={canManage}
+            canDelete={canDel}
+          />
+        )}
+      </div>
+
+      {editing && (
+        <PracticeEditorModal
+          practice={editing === "new" ? null : editing}
+          clients={state.clients}
+          suppliers={state.suppliers}
+          practices={state.practices}
+          onSave={handleSave}
+          onClose={() => setEditing(null)}
+        />
+      )}
+
+      {confirmDelete && (
+        <div onClick={() => setConfirmDelete(null)} style={{
+          position: "fixed", inset: 0, background: "rgba(15,32,68,0.5)", zIndex: 1100,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+        }}>
+          <div onClick={e => e.stopPropagation()} className="slide-up" style={{
+            background: "#fff", borderRadius: 14, padding: 24, maxWidth: 420, width: "100%",
+            boxShadow: "0 12px 40px rgba(0,0,0,0.25)",
+          }}>
+            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, marginBottom: 8 }}>Eliminare la pratica?</div>
+            <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 18, lineHeight: 1.5 }}>
+              "<strong>{confirmDelete.number} — {confirmDelete.title}</strong>" verrà rimossa.
+              I task collegati non verranno cancellati ma resteranno senza riferimento pratica.
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => setConfirmDelete(null)} style={{
+                padding: "10px 18px", borderRadius: 8, border: "1px solid var(--border)",
+                background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--text-muted)",
+              }}>Annulla</button>
+              <button onClick={confirmDeleteNow} style={{
+                padding: "10px 20px", borderRadius: 8, border: "none",
+                background: "var(--danger)", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700,
+              }}>Elimina</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ─── ROOT APP ──────────────────────────────────────────────────────────────
 export default function VoyageDesk() {
   return (
@@ -7697,7 +9342,9 @@ function VoyageDeskInner() {
     switch (state.activeView) {
       case "dashboard": return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
       case "calendar": return <CalendarPlanner state={state} dispatch={dispatch} />;
+      case "practices": return <PracticesView state={state} dispatch={dispatch} />;
       case "clients": return <ClientsView state={state} dispatch={dispatch} />;
+      case "suppliers": return <SuppliersView state={state} dispatch={dispatch} />;
       case "team": return <Team state={state} dispatch={dispatch} />;
       case "trash": return <Trash state={state} dispatch={dispatch} />;
       case "admin": return <AdminView state={state} dispatch={dispatch} />;
@@ -7721,7 +9368,7 @@ function VoyageDeskInner() {
         <BottomNav state={state} dispatch={dispatch} />
 
         {/* Slide-over */}
-        {state.selectedTask && <TaskSlideOver task={state.selectedTask} dispatch={dispatch} />}
+        {state.selectedTask && <TaskSlideOver task={state.selectedTask} dispatch={dispatch} clients={state.clients || []} practices={state.practices || []} />}
 
         {/* Chat Panel */}
         <ChatPanel
@@ -7756,7 +9403,7 @@ function VoyageDeskInner() {
             <FAB onClick={() => setShowFABModal(true)} />
           </>
         )}
-        {showFABModal && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} />}
+        {showFABModal && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} clients={state.clients || []} practices={state.practices || []} />}
 
         {/* Bulk Task Creator */}
         {showBulkModal && (

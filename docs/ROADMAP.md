@@ -9,35 +9,30 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 
 ---
 
-## 📍 Punto di partenza (post v0.8)
+## 📍 Punto di partenza (post splitting v0.9)
 
-- App stabile e validata sintatticamente (Babel) a **6617 righe**.
+- App **Vite + React 18**, progetto reale multi-file (~35 moduli). ✅ NUOVO v0.9
 - Tutte le viste base: Dashboard, Kanban, Calendar, Team, Planning, Trash, Admin.
 - **Responsive completo** (desktop + tablet + mobile, mobile-first) ✅.
 - **Ricerca avanzata** topbar (🎛️) ✅.
 - **Pannello Admin** con 5 tab ✅.
 - **Coda globale** + **Coda personale** + **Urgenti altrui** in Dashboard ✅.
 - **Bacheca avvisi** sticky notes condivisa ✅.
-- **SwipeActions** mobile (Fatto/Cestino/Inoltra) con undo ✅ NUOVO v0.7.
-- **Sistema permessi** per ruolo (Admin/Manager/Agent/Driver) ✅ NUOVO v0.8.
-- **Multi-utente mock** con UserSwitcher in Topbar ✅ NUOVO v0.8.
-- **Categoria `transfer`** per Driver ✅ NUOVO v0.8.
+- **SwipeActions** mobile (Fatto/Cestino/Inoltra) con undo ✅ v0.7.
+- **Sistema permessi** per ruolo (Admin/Manager/Agent/Driver) ✅ v0.8.
+- **Multi-utente mock** con UserSwitcher in Topbar ✅ v0.8.
+- **Categoria `transfer`** per Driver ✅ v0.8.
 - Chat + AI Day Planner + Bulk Task Creator + Cestino tutti operativi ✅.
-- Chat con `intent` per apertura contestuale (task link) ✅ NUOVO v0.8.
-- TEAM, CATEGORIES e CURRENT_USER gestiti come stato mutabile via reducer.
+- Chat con `intent` per apertura contestuale (task link) ✅ v0.8.
+- TEAM, CATEGORIES e CURRENT_USER gestiti come stato mutabile via `mockData.js`.
 - Dipendenza esterna: SheetJS (`xlsx`) — eccezione documentata.
-- Dati ancora **solo in memoria**, single-file artifact.
+- Dati ancora **solo in memoria** — persistenza pianificata in Fase 2.
 
 ---
 
-## ⚠️ Decisione chiave (ancora aperta)
+## ✅ Decisione chiave — Opzione B adottata (v0.9)
 
-| Opzione | Cosa abiliti | Cosa perdi |
-|---|---|---|
-| **A — Resti su artifact** | Sviluppo rapido, zero setup | Niente persistenza, niente multi-file/TS/test/backend reale |
-| **B — Progetto reale** (Vite + più file) | Persistenza, TS, test, backend, multi-utente reale | Setup iniziale, esci dall'artifact |
-
-👉 La maggior parte delle voci sotto funziona in opzione A. Le voci marcate ⚙️**B** richiedono il passaggio a progetto reale.
+Il progetto è ora un **progetto Vite reale** (Opzione B). Tutte le voci marcate ⚙️**B** sono ora tecnicamente fattibili.
 
 ---
 
@@ -73,19 +68,7 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 ---
 
-## 💰 Fase 3 — Business & finanza
-
-Ha senso **solo dopo le Pratiche** (servono dati reali).
-
-| Modulo | Stato | Priorità | Sforzo | Dipende da |
-|---|---|---|---|---|
-| Modulo finanziario | ⬜ | 🔴 | L | Pratiche |
-| Report & Analytics | 🔶 | 🟡 | M–L | KPI base già in Admin/Sistema. Da estendere con: margini, trend temporali, export PDF |
-| Catalogo destinazioni / pacchetti | ⬜ | 🟡 | M | autonomo |
-
----
-
-## 📈 Fase 4 — Scala & accessi
+## 📈 Fase 3 — Scala & accessi
 
 | Modulo | Stato | Priorità | Sforzo | Note |
 |---|---|---|---|---|
@@ -142,7 +125,7 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 | Chat `useState` → `useReducer` | ⬜ | 🟡 | S–M | Fattibile in Opzione A |
 | `TEAM`/`CATEGORIES`/`CURRENT_USER` da `let` mutabile a Context puro | ⬜ | ⚪ | M | Funzionale oggi, ma più pulito |
 | Persistenza dati (localStorage o backend mock) | ⬜ | 🔴 | L | ⚙️**B** |
-| Separazione in più file | ⬜ | 🟡 | M | ⚙️**B** |
+| Separazione in più file | ✅ | — | — | Completato in v0.9 — branch `claude/file-splitting-LiFlQ` |
 | TypeScript | ⬜ | ⚪ | L | Dopo refactor multi-file ⚙️**B** |
 | Test unitari (Vitest) | ⬜ | ⚪ | M | Dopo TypeScript ⚙️**B** |
 
@@ -150,6 +133,7 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 
 ## ✅ Completato (cronologia)
 
+- **v0.9** — Splitting multi-file: `VoyageDesk.jsx` (7071 righe) → ~35 moduli Vite (hooks, styles, data, context, reducers, utils, components, views, modules/chat). Build: 68 moduli, 0 errori. Rimosso "Fase 3 Business" non implementata dalla documentazione.
 - **v0.8** — Sistema Permessi per Ruolo: helper centralizzati (canViewTask/canEditTask/…), check nel reducer, UserSwitcher in Topbar, Dashboard con 3 code condizionali (PersonalQueue/UnassignedQueue/UrgentOthersQueue), chat con intent per task link, Sidebar/BottomNav filtrate per ruolo, QuickAddTask categorie filtrate, nuova categoria `transfer` 🚐 + 2 task demo. 6617 righe.
 - **v0.7** — SwipeActions mobile: wrapper riusabile, swipe→3 bottoni (Fatto/Cestino/Inoltra), undo con toast 5s, integrato in KanbanCard/UnassignedQueue/Calendar/PersonalQueue. 6048 righe.
 - **v0.6** — Responsive full pass: ViewportProvider/useViewport, classi CSS responsive, BottomNav, tutte le viste adattate, FAB/Toast sopra bottom nav. 5738 righe.
@@ -166,7 +150,6 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 1. **Decidi A o B** (persistenza sì/no).
 2. **Fase 1** — Clienti → Fornitori → Pratiche → collegamenti.
 3. **Notifiche reali** (Fase 2) — sblocca badge, alert su pending/coda, menzioni in bacheca.
-4. **Fase 3** — Finanziario, poi Report avanzati.
-5. **Fase 2 residua** (Calendario avanzato, estensioni chat) + **Fase 4** (multi-utente reale).
-6. Migliorie incrementali post-v0.5/v0.6/v0.8 inserite dove pertinenti.
-7. Traccia tecnica man mano, se in Opzione B.
+4. **Fase 2 residua** (Calendario avanzato, estensioni chat) + **Fase 3** (multi-utente reale).
+5. Migliorie incrementali post-v0.5/v0.6/v0.8 inserite dove pertinenti.
+6. Traccia tecnica man mano, se in Opzione B.

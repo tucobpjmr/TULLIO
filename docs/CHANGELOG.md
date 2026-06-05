@@ -1,5 +1,60 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9-dev — Click-to-contact telefonico nelle task (sessione 9)
+
+> Quick win operativo: i numeri di telefono presenti in descrizione/commenti di una task diventano cliccabili per avviare Chiama / SMS / WhatsApp.
+
+### 📞 Rilevamento numeri di telefono
+- Nuovo helper `linkifyPhones(text)` — regex permissiva (8-15 cifre, con `+`, spazi, trattini, parentesi), validazione finale sul conteggio cifre.
+- Nuovo componente `PhoneChip` (variante `inline` per testo, `block` per la sezione contatti).
+- Nuovo componente `PhoneActions` — popover con 3 azioni:
+  - **📞 Chiama** → `tel:+<digits>`
+  - **💬 SMS** → `sms:+<digits>`
+  - **🟢 WhatsApp** → `https://wa.me/<digits>` (auto-prepend `39` per numeri italiani 10 cifre senza prefisso)
+- Helper `collectPhones(...texts)` per estrazione + dedup.
+
+### 🗂️ Integrazione TaskSlideOver
+- Nuova sezione **CONTATTI** in alto (sopra descrizione) con tutti i numeri trovati in descrizione + commenti, come pill gold cliccabili.
+- Linkificazione inline anche dentro testo descrizione e commenti.
+
+### 🎭 Mock data
+- 3 task demo arricchite con numeri di telefono:
+  - t13 TechCorp: `+39 335 7821934`
+  - t23 Marchetti: `348 4521987`
+  - t26 Rossi: `339 1234567`
+
+---
+
+## v0.9-dev — Estensioni chat avanzate (Fase 4, sessione 9)
+
+> Prima fetta di Fase 4 (Scala & accessi). Backend e auth reali rimandati: questa sessione tocca solo la chat lato client.
+
+### 💬 Reazioni emoji custom
+- `ReactionPicker` con pulsante **+** che apre griglia estesa (70 emoji: cuori multicolore, food, travel, work).
+- Lista quick (8) invariata; picker estesa con grid 10 colonne, scroll verticale.
+
+### 🔗 Task link cliccabile in chat
+- Nuovo campo `taskRef` sui messaggi: ID di un task allegato.
+- Quando si apre la chat da "contatta agente" su urgenti altrui (intent `taskLink`), il task viene caricato come **chip allegata** sopra l'input (non più testo precompilato).
+- Il messaggio inviato mostra una **card cliccabile** con titolo, priorità, scadenza → click apre `TaskSlideOver` e chiude il pannello chat.
+- `ChatContext` esteso con `dispatch` e `onClose` per integrazione col reducer principale.
+
+### 📞 Chiamate audio/video (mock UI)
+- Nuovi pulsanti 📞 e 📹 nell'header `ConversationView`.
+- Componente `CallOverlay` a schermo intero (sopra la conversazione) con:
+  - Stato **ringing** (animazione pulse-ring gold) → auto-accept dopo ~2s.
+  - Stato **active** con timer mm:ss.
+  - Controlli mute microfono, spegni camera (solo video), termina chiamata.
+  - Mini-thumbnail self in basso a destra (modalità video).
+- Solo UI: nessuna integrazione WebRTC, vero traffico audio/video assente.
+
+### 🛠️ Note tecniche
+- Nessuna nuova dipendenza.
+- `ChatContext` ora condivide `{ tasks, currentUserId, dispatch, onClose }`.
+- Nuova keyframe CSS `pulse-ring` in `FontLoader`.
+
+---
+
 ## v0.9-dev — Ristrutturazione UI + Profilo + Handoff (sessione 8)
 
 > Semplificazione interfaccia, unificazione viste, nuovo profilo utente, preparazione per migrazione a progetto Vite.

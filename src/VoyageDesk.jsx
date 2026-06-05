@@ -42,6 +42,7 @@ const FontLoader = () => (
     @keyframes recordPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(192,57,43,0.5); } 50% { box-shadow: 0 0 0 12px rgba(192,57,43,0); } }
     @keyframes wave { 0%,100% { transform: scaleY(0.4); } 50% { transform: scaleY(1); } }
     @keyframes typing { 0%,100% { opacity: 0.3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
+    @keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(212,168,67,0.55); } 70% { box-shadow: 0 0 0 24px rgba(212,168,67,0); } 100% { box-shadow: 0 0 0 0 rgba(212,168,67,0); } }
     .record-pulse { animation: recordPulse 1.5s ease infinite; }
     .fade-in { animation: fadeIn 0.3s ease forwards; }
     .slide-right { animation: slideRight 0.3s ease forwards; }
@@ -191,7 +192,7 @@ const INITIAL_TASKS = [
   { id: "t10", title: "Aggiornare sito web pacchetti autunno", category: "marketing", priority: "low", status: "todo", assignees: ["luca"], client: null, dueDate: d(10, 17, 0), estimatedHours: 3, description: "Pubblicare nuovi pacchetti autunno: Foliage Canada, Halloween New York, Dolomiti.", comments: [] },
   { id: "t11", title: "Check-in online TechCorp - voli Barcelona", category: "booking", priority: "high", status: "done", assignees: ["sofia"], client: "Azienda TechCorp", dueDate: d(-1, 9, 0), estimatedHours: 1, description: "Completare check-in online per 50 partecipanti. Assegnare posti preferenziali ai manager.", comments: [{ user: "Sofia Conti", text: "Check-in completato ✓ Tutti i posti assegnati", time: d(-1) }] },
   { id: "t12", title: "Richiesta polizza assicurativa viaggio", category: "admin", priority: "medium", status: "done", assignees: ["roberto"], client: "Famiglia Rossi", dueDate: d(-2, 15, 0), estimatedHours: 0.5, description: "Polizza annullamento + medica per 4 persone. Confrontare Allianz, Generali, AXA.", comments: [{ user: "Roberto Esposito", text: "Polizza Allianz emessa, €342 totale", time: d(-2) }] },
-  { id: "t13", title: "Followup chiamata TechCorp - decisione destinazione", category: "client", priority: "critical", status: "awaiting_client", assignees: ["marco"], client: "Azienda TechCorp", dueDate: d(1, 10, 30), estimatedHours: 1, description: "Chiamata con HR Director TechCorp per confermare destinazione incentive. Budget approvato 85.000€.", comments: [] },
+  { id: "t13", title: "Followup chiamata TechCorp - decisione destinazione", category: "client", priority: "critical", status: "awaiting_client", assignees: ["marco"], client: "Azienda TechCorp", dueDate: d(1, 10, 30), estimatedHours: 1, description: "Chiamata con HR Director TechCorp (Laura Bianchi, +39 335 7821934) per confermare destinazione incentive. Budget approvato 85.000€.", comments: [] },
   { id: "t14", title: "Prenotare ryokan Kyoto - Bianchi", category: "hotel", priority: "high", status: "inprogress", assignees: ["sofia"], client: "Coppia Bianchi", dueDate: d(2, 16, 0), estimatedHours: 2, description: "Prenotare Tawaraya Ryokan o Hiiragiya per 2 notti. Suite tradizionale con vista giardino zen.", comments: [] },
   { id: "t15", title: "Fattura acconto TechCorp", category: "payment", priority: "medium", status: "todo", assignees: ["roberto"], client: "Azienda TechCorp", dueDate: d(4, 11, 0), estimatedHours: 0.5, description: "Emettere fattura acconto 50% per evento incentive. Importo: 42.500€ + IVA.", comments: [] },
   { id: "t16", title: "Aggiornamento CRM clienti Q2", category: "admin", priority: "low", status: "todo", assignees: ["roberto", "luca"], client: null, dueDate: d(14, 17, 0), estimatedHours: 4, description: "Aggiornare schede clienti con dati viaggi 2025. Aggiungere preferenze e note speciali.", comments: [] },
@@ -202,11 +203,11 @@ const INITIAL_TASKS = [
   { id: "t21", title: "Escursioni snorkeling Maldive", category: "booking", priority: "medium", status: "inprogress", assignees: ["luca"], client: "Famiglia Rossi", dueDate: d(6, 10, 0), estimatedHours: 1.5, description: "Prenotare 3 escursioni snorkeling e 1 sessione di immersione guidata con istruttore certificato.", comments: [] },
   { id: "t22", title: "Revisione contratti stagione invernale", category: "admin", priority: "low", status: "todo", assignees: ["marco"], client: null, dueDate: d(20, 10, 0), estimatedHours: 5, description: "Revisione annuale contratti fornitori: tour operator, hotel chains, compagnie aeree.", comments: [] },
   // ─── Coda globale: task non assegnati (in attesa che qualcuno li prenda in carico) ───
-  { id: "t23", title: "Nuova richiesta crociera Caraibi - Famiglia Marchetti", category: "client", priority: "high", status: "todo", assignees: [], client: "Famiglia Marchetti", dueDate: d(2, 11, 0), estimatedHours: 1, description: "Richiesta arrivata via form sito: crociera 7 notti per 4 persone, partenza Miami. Da contattare entro 48h.", comments: [] },
+  { id: "t23", title: "Nuova richiesta crociera Caraibi - Famiglia Marchetti", category: "client", priority: "high", status: "todo", assignees: [], client: "Famiglia Marchetti", dueDate: d(2, 11, 0), estimatedHours: 1, description: "Richiesta arrivata via form sito: crociera 7 notti per 4 persone, partenza Miami. Da contattare entro 48h al 348 4521987 (Sig. Marchetti).", comments: [] },
   { id: "t24", title: "Blocco urgente Hotel Atene per gruppo studenti", category: "hotel", priority: "critical", status: "todo", assignees: [], client: "Liceo Manzoni", dueDate: d(1, 12, 0), estimatedHours: 2, description: "30 camere a Plaka per fine Maggio. Tariffa già negoziata, serve solo conferma e invio rooming list.", comments: [] },
   { id: "t25", title: "Preventivo viaggio nozze Vietnam - Sposi Conte", category: "itinerary", priority: "medium", status: "todo", assignees: [], client: "Sposi Conte", dueDate: d(5, 17, 0), estimatedHours: 3, description: "14 giorni Vietnam classico: Hanoi - Halong - Hoi An - Saigon. Budget medio-alto, esperienze locali.", comments: [] },
   // ─── Task Transfer assegnati a Giulia (Driver) ───
-  { id: "t26", title: "Transfer Linate → Hotel Principe - Famiglia Rossi", category: "transfer", priority: "high", status: "todo", assignees: ["giulia"], client: "Famiglia Rossi", dueDate: d(1, 14, 30), estimatedHours: 1, description: "Pickup arrivo volo AZ1234 ore 14:00, 4 pax + 6 bagagli. Van 8 posti.", comments: [] },
+  { id: "t26", title: "Transfer Linate → Hotel Principe - Famiglia Rossi", category: "transfer", priority: "high", status: "todo", assignees: ["giulia"], client: "Famiglia Rossi", dueDate: d(1, 14, 30), estimatedHours: 1, description: "Pickup arrivo volo AZ1234 ore 14:00, 4 pax + 6 bagagli. Van 8 posti. Referente cliente: 339 1234567.", comments: [] },
   { id: "t27", title: "Transfer Hotel → Stazione Centrale - Coppia Bianchi", category: "transfer", priority: "medium", status: "inprogress", assignees: ["giulia"], client: "Coppia Bianchi", dueDate: d(3, 9, 0), estimatedHours: 0.5, description: "Pickup hotel ore 09:00, treno Frecciarossa 9:55 per Roma. 2 pax + 3 bagagli.", comments: [] },
 ];
 
@@ -4059,6 +4060,144 @@ const QuickAddTask = ({ onAdd, onClose }) => {
   );
 };
 
+// ─── PHONE ACTIONS (chiama / SMS / WhatsApp) ──────────────────────────────
+// Regex permissiva: cattura sequenze tipo "+39 333 1234567", "333-123-4567",
+// "0245678901", "(02) 4567 8901". Validazione finale: 8-15 cifre.
+const PHONE_RE = /(\+?\d[\d \-.()]{6,18}\d)/g;
+
+const extractDigits = (s) => (s || "").replace(/\D/g, "");
+
+const isValidPhone = (s) => {
+  const d = extractDigits(s);
+  return d.length >= 8 && d.length <= 15;
+};
+
+// Per WhatsApp serve formato internazionale senza '+'. Se il numero non ha
+// prefisso internazionale e sembra italiano (10 cifre, inizia per 3 o 0)
+// prepende "39".
+const toWhatsAppNumber = (raw) => {
+  const d = extractDigits(raw);
+  if (raw.trim().startsWith("+")) return d;
+  if (d.length === 10) return "39" + d;
+  return d;
+};
+
+const PhoneActions = ({ phone, onClose }) => {
+  const digits = extractDigits(phone);
+  const wa = toWhatsAppNumber(phone);
+  const items = [
+    { label: "Chiama", icon: "📞", href: `tel:+${digits}` },
+    { label: "SMS",    icon: "💬", href: `sms:+${digits}` },
+    { label: "WhatsApp", icon: "🟢", href: `https://wa.me/${wa}`, external: true },
+  ];
+  return (
+    <div onClick={e => e.stopPropagation()} style={{
+      position: "absolute", top: "calc(100% + 4px)", left: 0,
+      background: "#fff", borderRadius: 10, padding: 6,
+      boxShadow: "0 10px 30px rgba(0,0,0,0.18)",
+      border: "1px solid var(--border)",
+      display: "flex", flexDirection: "column", gap: 2,
+      minWidth: 180, zIndex: 1000,
+    }}>
+      <div style={{
+        fontSize: 10, color: "var(--text-muted)", padding: "4px 8px",
+        letterSpacing: 0.5, textTransform: "uppercase",
+      }}>{phone.trim()}</div>
+      {items.map(it => (
+        <a
+          key={it.label}
+          href={it.href}
+          target={it.external ? "_blank" : undefined}
+          rel={it.external ? "noopener noreferrer" : undefined}
+          onClick={onClose}
+          style={{
+            display: "flex", alignItems: "center", gap: 10,
+            padding: "8px 10px", borderRadius: 6,
+            textDecoration: "none", color: "var(--text)",
+            fontSize: 13, fontWeight: 500,
+            transition: "background 0.15s",
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+          onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+        >
+          <span style={{ fontSize: 16 }}>{it.icon}</span>
+          <span>{it.label}</span>
+        </a>
+      ))}
+    </div>
+  );
+};
+
+const PhoneChip = ({ phone, variant = "inline" }) => {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [open]);
+
+  const isBlock = variant === "block";
+  return (
+    <span
+      onClick={e => { e.stopPropagation(); setOpen(o => !o); }}
+      style={{
+        position: "relative",
+        display: isBlock ? "inline-flex" : "inline-flex",
+        alignItems: "center", gap: 4,
+        background: isBlock ? "var(--gold)" : "rgba(15,32,68,0.06)",
+        color: isBlock ? "var(--navy)" : "var(--navy)",
+        padding: isBlock ? "6px 10px" : "1px 6px",
+        borderRadius: 99, fontSize: isBlock ? 12 : "inherit",
+        fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
+        border: isBlock ? "none" : "1px solid rgba(15,32,68,0.12)",
+        verticalAlign: "baseline",
+      }}
+      title="Contatta"
+    >
+      <span>📞</span>
+      <span>{phone.trim()}</span>
+      {open && <PhoneActions phone={phone} onClose={() => setOpen(false)} />}
+    </span>
+  );
+};
+
+// Trasforma una stringa in array di nodi React, sostituendo i numeri di
+// telefono con <PhoneChip>. Se non trova niente, restituisce la stringa
+// originale.
+const linkifyPhones = (text) => {
+  if (!text) return text;
+  const re = new RegExp(PHONE_RE);
+  const out = [];
+  let last = 0;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    if (!isValidPhone(m[0])) continue;
+    if (m.index > last) out.push(text.slice(last, m.index));
+    out.push(<PhoneChip key={`p-${m.index}`} phone={m[0]} />);
+    last = m.index + m[0].length;
+  }
+  if (out.length === 0) return text;
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+};
+
+// Estrae tutti i numeri validi (deduplicati sulle cifre) da uno o più testi.
+const collectPhones = (...texts) => {
+  const seen = new Map();
+  for (const txt of texts) {
+    if (!txt) continue;
+    const re = new RegExp(PHONE_RE);
+    let m;
+    while ((m = re.exec(txt)) !== null) {
+      if (!isValidPhone(m[0])) continue;
+      const key = extractDigits(m[0]);
+      if (!seen.has(key)) seen.set(key, m[0].trim());
+    }
+  }
+  return [...seen.values()];
+};
+
 // ─── TASK DETAIL SLIDE-OVER ────────────────────────────────────────────────
 const TaskSlideOver = ({ task, dispatch }) => {
   const { isMobile } = useViewport();
@@ -4179,11 +4318,30 @@ const TaskSlideOver = ({ task, dispatch }) => {
             </div>
           )}
 
+          {/* Contatti rilevati (telefono) */}
+          {(() => {
+            const phones = collectPhones(
+              task.description,
+              ...(task.comments || []).map(c => c.text)
+            );
+            if (phones.length === 0) return null;
+            return (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>
+                  CONTATTI ({phones.length})
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {phones.map((p, i) => <PhoneChip key={i} phone={p} variant="block" />)}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Description */}
           <div>
             <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>DESCRIZIONE</div>
             <div style={{ fontSize: 13, lineHeight: 1.7, color: "var(--text)", background: "var(--surface2)", padding: 12, borderRadius: 8 }}>
-              {task.description || <span style={{ color: "var(--text-muted)" }}>Nessuna descrizione.</span>}
+              {task.description ? linkifyPhones(task.description) : <span style={{ color: "var(--text-muted)" }}>Nessuna descrizione.</span>}
             </div>
           </div>
 
@@ -4216,7 +4374,7 @@ const TaskSlideOver = ({ task, dispatch }) => {
                       <span style={{ fontSize: 12, fontWeight: 600 }}>{c.user}</span>
                       <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{formatDate(c.time)}</span>
                     </div>
-                    <div style={{ fontSize: 13, color: "var(--text)", marginTop: 2, lineHeight: 1.5 }}>{c.text}</div>
+                    <div style={{ fontSize: 13, color: "var(--text)", marginTop: 2, lineHeight: 1.5 }}>{linkifyPhones(c.text)}</div>
                   </div>
                 </div>
               ))}
@@ -4816,25 +4974,49 @@ const getUnreadCount = (msgs, convId) => {
 
 // ─── CHAT: REACTIONS POPOVER ───────────────────────────────────────────────
 const EMOJI_REACTIONS = ["👍", "❤️", "😂", "🔥", "✅", "🎉", "💡", "🙌"];
+const EMOJI_REACTIONS_EXTENDED = [
+  "👍","👎","❤️","🧡","💛","💚","💙","💜","🖤","🤍",
+  "😂","😅","😊","😍","🥰","😘","😎","🤔","😴","😱",
+  "😢","😭","😡","🤯","🥳","🤩","😇","🤝","🙏","👏",
+  "🙌","💪","🔥","✨","⭐","🌟","💯","✅","❌","⚠️",
+  "🎉","🎊","🎁","🎂","🍾","☕","🍕","🍻","🥂","🍰",
+  "💡","📌","📍","📎","📅","⏰","🚀","🛫","🛬","🏝️",
+  "🌍","🌴","🏨","🚐","✈️","🚢","🗺️","🧳","💼","📞",
+];
 
-const ReactionPicker = ({ onPick, onClose }) => (
-  <div onClick={e => e.stopPropagation()} style={{
-    position: "absolute", bottom: "calc(100% + 4px)", left: 0,
-    background: "#fff", borderRadius: 20, padding: "6px 8px",
-    boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--border)",
-    display: "flex", gap: 2, zIndex: 100,
-  }}>
-    {EMOJI_REACTIONS.map(e => (
-      <button key={e} onClick={() => { onPick(e); onClose(); }} style={{
-        background: "none", border: "none", cursor: "pointer",
-        fontSize: 18, padding: 4, borderRadius: 6, transition: "background 0.15s",
-      }}
-        onMouseEnter={ev => ev.currentTarget.style.background = "var(--surface2)"}
-        onMouseLeave={ev => ev.currentTarget.style.background = "transparent"}
-      >{e}</button>
-    ))}
-  </div>
-);
+const ReactionPicker = ({ onPick, onClose }) => {
+  const [expanded, setExpanded] = useState(false);
+  const list = expanded ? EMOJI_REACTIONS_EXTENDED : EMOJI_REACTIONS;
+  return (
+    <div onClick={e => e.stopPropagation()} style={{
+      position: "absolute", bottom: "calc(100% + 4px)", left: 0,
+      background: "#fff", borderRadius: expanded ? 12 : 20, padding: "6px 8px",
+      boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--border)",
+      display: expanded ? "grid" : "flex",
+      gridTemplateColumns: expanded ? "repeat(10, 1fr)" : undefined,
+      gap: 2, zIndex: 100,
+      maxWidth: expanded ? 320 : undefined,
+      maxHeight: expanded ? 220 : undefined, overflowY: expanded ? "auto" : "visible",
+    }}>
+      {list.map(e => (
+        <button key={e} onClick={() => { onPick(e); onClose(); }} style={{
+          background: "none", border: "none", cursor: "pointer",
+          fontSize: 18, padding: 4, borderRadius: 6, transition: "background 0.15s",
+        }}
+          onMouseEnter={ev => ev.currentTarget.style.background = "var(--surface2)"}
+          onMouseLeave={ev => ev.currentTarget.style.background = "transparent"}
+        >{e}</button>
+      ))}
+      {!expanded && (
+        <button onClick={() => setExpanded(true)} title="Altre emoji" style={{
+          background: "var(--surface2)", border: "none", cursor: "pointer",
+          fontSize: 14, padding: "4px 6px", borderRadius: 6, marginLeft: 2,
+          color: "var(--text-muted)", fontWeight: 700,
+        }}>+</button>
+      )}
+    </div>
+  );
+};
 
 // ─── CHAT: VOICE PLAYER ────────────────────────────────────────────────────
 const VoicePlayer = ({ duration, waveform, isMine }) => {
@@ -4891,8 +5073,10 @@ const VoicePlayer = ({ duration, waveform, isMine }) => {
 const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onContextMenu }) => {
   const [showReactions, setShowReactions] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const chatCtx = useContext(ChatContext);
   const isMine = msg.sender === CURRENT_USER;
   const sender = getMember(msg.sender);
+  const refTask = msg.taskRef ? (chatCtx.tasks || []).find(x => x.id === msg.taskRef) : null;
   const showAvatar = !prevMsg || prevMsg.sender !== msg.sender;
   const showName = conv.type === "group" && !isMine && showAvatar;
 
@@ -4957,8 +5141,49 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
           )}
 
           {/* Content */}
-          {msg.type === "text" && (
+          {msg.type === "text" && msg.text && (
             <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}>{msg.text}</div>
+          )}
+
+          {/* Task reference card (cliccabile → apre TaskSlideOver) */}
+          {refTask && (
+            <div
+              onClick={() => {
+                chatCtx.dispatch({ type: "SET_SELECTED_TASK", payload: refTask });
+                if (chatCtx.onClose) chatCtx.onClose();
+              }}
+              onMouseEnter={e => e.currentTarget.style.transform = "translateY(-1px)"}
+              onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
+              style={{
+                marginTop: msg.text ? 8 : 0,
+                background: isMine ? "rgba(255,255,255,0.12)" : "var(--surface2)",
+                border: `1px solid ${isMine ? "rgba(255,255,255,0.2)" : "var(--border)"}`,
+                borderRadius: 10, padding: "8px 10px", cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 8, minWidth: 220,
+                transition: "transform 0.15s",
+              }}
+            >
+              <div style={{
+                width: 32, height: 32, borderRadius: 6,
+                background: "var(--gold)", color: "var(--navy)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 16, flexShrink: 0,
+              }}>🔗</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 10, opacity: 0.7, letterSpacing: 0.5, textTransform: "uppercase" }}>
+                  Task • {refTask.priority}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {refTask.title}
+                </div>
+                {refTask.dueDate && (
+                  <div style={{ fontSize: 11, opacity: 0.8 }}>
+                    📅 {formatDate(refTask.dueDate)} {formatTime(refTask.dueDate)}
+                  </div>
+                )}
+              </div>
+              <div style={{ fontSize: 14, opacity: 0.7 }}>›</div>
+            </div>
           )}
 
           {msg.type === "voice" && (
@@ -5094,13 +5319,16 @@ const VoiceRecorder = ({ onSend, onCancel }) => {
 };
 
 // ─── CHAT: CONVERSATION VIEW ───────────────────────────────────────────────
-const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, onInitialInputConsumed }) => {
+const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, onInitialInputConsumed, initialTaskRef, onInitialTaskRefConsumed }) => {
   const [input, setInput] = useState("");
   const [recording, setRecording] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const [showAttach, setShowAttach] = useState(false);
   const [typing, setTyping] = useState(false);
+  const [pendingTaskRef, setPendingTaskRef] = useState(null);
+  const [call, setCall] = useState(null); // { mode: "audio"|"video", state: "ringing"|"active" }
   const scrollRef = useRef(null);
+  const chatCtx = useContext(ChatContext);
 
   // Se è arrivato un prefill (es. da "contatta agente" su urgenti altrui), popolalo
   useEffect(() => {
@@ -5109,6 +5337,13 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
       if (onInitialInputConsumed) onInitialInputConsumed();
     }
   }, [initialInput]);
+
+  useEffect(() => {
+    if (initialTaskRef) {
+      setPendingTaskRef(initialTaskRef);
+      if (onInitialTaskRefConsumed) onInitialTaskRefConsumed();
+    }
+  }, [initialTaskRef]);
 
   const msgs = messages[conv.id] || [];
 
@@ -5141,16 +5376,18 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
   }, [msgs.length]);
 
   const sendText = () => {
-    if (!input.trim()) return;
+    if (!input.trim() && !pendingTaskRef) return;
     const newMsg = {
       id: "m" + Date.now(), sender: CURRENT_USER, type: "text",
       text: input.trim(), time: new Date().toISOString(),
       readBy: [CURRENT_USER],
       replyTo: replyingTo?.id,
+      taskRef: pendingTaskRef || undefined,
     };
     setMessages(prev => ({ ...prev, [conv.id]: [...(prev[conv.id] || []), newMsg] }));
     setInput("");
     setReplyingTo(null);
+    setPendingTaskRef(null);
   };
 
   const sendVoice = (duration) => {
@@ -5201,7 +5438,7 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
   const otherMember = conv.type === "direct" ? getMember(otherTypingMember) : null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--surface2)" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--surface2)", position: "relative" }}>
       {/* Header */}
       <div style={{
         background: "var(--navy)", padding: "12px 16px", display: "flex",
@@ -5243,11 +5480,35 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
           </div>
         </div>
 
+        <button
+          title="Chiamata audio"
+          onClick={() => setCall({ mode: "audio", state: "ringing" })}
+          style={{
+            background: "rgba(255,255,255,0.1)", border: "none", color: "#fff",
+            width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 14,
+          }}>📞</button>
+        <button
+          title="Videochiamata"
+          onClick={() => setCall({ mode: "video", state: "ringing" })}
+          style={{
+            background: "rgba(255,255,255,0.1)", border: "none", color: "#fff",
+            width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 14,
+          }}>📹</button>
         <button style={{
           background: "rgba(255,255,255,0.1)", border: "none", color: "#fff",
           width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 12,
         }}>⋮</button>
       </div>
+
+      {call && (
+        <CallOverlay
+          conv={conv}
+          mode={call.mode}
+          state={call.state}
+          onAccept={() => setCall(c => ({ ...c, state: "active" }))}
+          onHangup={() => setCall(null)}
+        />
+      )}
 
       {/* Messages */}
       <div ref={scrollRef} style={{
@@ -5280,6 +5541,37 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
           </div>
         )}
       </div>
+
+      {/* Pending task ref chip (verrà inviato col messaggio) */}
+      {pendingTaskRef && (() => {
+        const tref = (chatCtx.tasks || []).find(x => x.id === pendingTaskRef);
+        if (!tref) return null;
+        return (
+          <div style={{
+            padding: "8px 14px", background: "rgba(212,168,67,0.08)",
+            borderTop: "1px solid var(--border)",
+            display: "flex", alignItems: "center", gap: 10,
+          }}>
+            <div style={{
+              fontSize: 14, width: 28, height: 28, borderRadius: 6,
+              background: "var(--gold)", color: "var(--navy)",
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+            }}>🔗</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--gold-dark)" }}>
+                Allega task
+              </div>
+              <div style={{ fontSize: 12, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontWeight: 600 }}>
+                {tref.title}
+              </div>
+            </div>
+            <button onClick={() => setPendingTaskRef(null)} style={{
+              background: "none", border: "none", cursor: "pointer",
+              fontSize: 16, color: "var(--text-muted)",
+            }}>✕</button>
+          </div>
+        );
+      })()}
 
       {/* Reply preview */}
       {replyingTo && (
@@ -5357,7 +5649,7 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
               }}
             />
 
-            {input.trim() ? (
+            {(input.trim() || pendingTaskRef) ? (
               <button onClick={sendText} style={{
                 background: "var(--navy)", color: "#fff", border: "none",
                 borderRadius: "50%", width: 36, height: 36, cursor: "pointer",
@@ -5675,11 +5967,123 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
 };
 
 // ─── CHAT: MAIN PANEL ──────────────────────────────────────────────────────
-const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, currentUserId }) => {
+// ─── CHAT: CALL OVERLAY (mock UI audio/video) ─────────────────────────────
+const CallOverlay = ({ conv, mode, state, onAccept, onHangup }) => {
+  const [muted, setMuted] = useState(false);
+  const [camOff, setCamOff] = useState(false);
+  const [seconds, setSeconds] = useState(0);
+
+  useEffect(() => {
+    if (state !== "active") return;
+    const i = setInterval(() => setSeconds(s => s + 1), 1000);
+    return () => clearInterval(i);
+  }, [state]);
+
+  // Auto-accept dopo 2s per simulare risposta del destinatario
+  useEffect(() => {
+    if (state !== "ringing") return;
+    const t = setTimeout(() => onAccept(), 2200);
+    return () => clearTimeout(t);
+  }, [state]);
+
+  const other = conv.type === "direct"
+    ? conv.participants.find(p => p !== CURRENT_USER)
+    : null;
+  const otherMember = other ? getMember(other) : null;
+  const title = otherMember?.name || getConversationName(conv);
+  const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+
+  return (
+    <div style={{
+      position: "absolute", inset: 0, zIndex: 50,
+      background: mode === "video"
+        ? "linear-gradient(135deg, #08152d 0%, #1a3060 100%)"
+        : "linear-gradient(180deg, var(--navy) 0%, var(--navy-dark) 100%)",
+      display: "flex", flexDirection: "column", alignItems: "center",
+      justifyContent: "space-between", padding: "32px 20px", color: "#fff",
+    }}>
+      <div style={{ textAlign: "center", marginTop: 20 }}>
+        <div style={{ fontSize: 11, letterSpacing: 2, color: "var(--gold-light)", marginBottom: 6 }}>
+          {state === "ringing"
+            ? (mode === "video" ? "VIDEOCHIAMATA IN CORSO…" : "CHIAMATA IN CORSO…")
+            : (mode === "video" ? "VIDEOCHIAMATA" : "CHIAMATA")}
+        </div>
+        <div className="playfair" style={{ fontSize: 22, fontWeight: 700 }}>
+          {title}
+        </div>
+        <div style={{ fontSize: 13, marginTop: 4, color: "rgba(255,255,255,0.7)" }}>
+          {state === "ringing" ? "Squilla…" : fmt(seconds)}
+        </div>
+      </div>
+
+      <div style={{
+        width: mode === "video" ? 160 : 140,
+        height: mode === "video" ? 200 : 140,
+        borderRadius: mode === "video" ? 16 : "50%",
+        background: "rgba(255,255,255,0.08)",
+        border: "2px solid rgba(212,168,67,0.4)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 60, flexShrink: 0,
+        animation: state === "ringing" ? "pulse-ring 1.6s ease-out infinite" : undefined,
+      }}>
+        {otherMember
+          ? (otherMember.photoUrl
+              ? <img src={otherMember.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "inherit" }} />
+              : (otherMember.avatar || "👤"))
+          : (conv.icon || "👥")}
+      </div>
+
+      {mode === "video" && state === "active" && (
+        <div style={{
+          position: "absolute", bottom: 100, right: 20, width: 90, height: 120,
+          background: "#000", borderRadius: 10, border: "1px solid rgba(255,255,255,0.2)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 11, color: "rgba(255,255,255,0.5)",
+        }}>
+          {camOff ? "📵" : "🎥 Tu"}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 14, marginBottom: 8 }}>
+        <button
+          onClick={() => setMuted(m => !m)}
+          title={muted ? "Riattiva microfono" : "Disattiva microfono"}
+          style={{
+            width: 52, height: 52, borderRadius: "50%",
+            background: muted ? "var(--danger)" : "rgba(255,255,255,0.15)",
+            border: "none", color: "#fff", fontSize: 20, cursor: "pointer",
+          }}>{muted ? "🔇" : "🎙️"}</button>
+
+        {mode === "video" && (
+          <button
+            onClick={() => setCamOff(c => !c)}
+            title={camOff ? "Riattiva camera" : "Spegni camera"}
+            style={{
+              width: 52, height: 52, borderRadius: "50%",
+              background: camOff ? "var(--danger)" : "rgba(255,255,255,0.15)",
+              border: "none", color: "#fff", fontSize: 20, cursor: "pointer",
+            }}>{camOff ? "📵" : "📹"}</button>
+        )}
+
+        <button
+          onClick={onHangup}
+          title="Termina chiamata"
+          style={{
+            width: 60, height: 52, borderRadius: 26,
+            background: "var(--danger)", border: "none", color: "#fff",
+            fontSize: 22, cursor: "pointer",
+          }}>📞</button>
+      </div>
+    </div>
+  );
+};
+
+const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, currentUserId, dispatch }) => {
   const { isMobile } = useViewport();
   const [activeConv, setActiveConv] = useState(null);
   const [newMode, setNewMode] = useState(false);
   const [prefillText, setPrefillText] = useState("");
+  const [prefillTaskRef, setPrefillTaskRef] = useState(null);
 
   // Gestione intent: apertura chat verso utente specifico con link a task
   useEffect(() => {
@@ -5702,12 +6106,12 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
     }
     setActiveConv(direct);
     setNewMode(false);
-    // Precompila il messaggio con riferimento al task
+    // Precompila il messaggio con riferimento al task (chip cliccabile)
     if (intent.taskLink) {
       const t = (tasks || []).find(x => x.id === intent.taskLink);
       if (t) {
-        const text = `🔗 Riferimento task: "${t.title}"\n📅 Scadenza: ${formatDate(t.dueDate)} ${formatTime(t.dueDate)}\n\n`;
-        setPrefillText(text);
+        setPrefillTaskRef(t.id);
+        setPrefillText("");
       }
     }
   }, [open, intent, currentUserId]);
@@ -5721,7 +6125,7 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
   };
 
   return (
-    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER }}>
+    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER, dispatch: dispatch || (() => {}), onClose }}>
     <>
       <div onClick={onClose} style={{
         position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: 700,
@@ -5770,9 +6174,11 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
               conv={activeConv}
               messages={messages}
               setMessages={setMessages}
-              onBack={() => { setActiveConv(null); setPrefillText(""); }}
+              onBack={() => { setActiveConv(null); setPrefillText(""); setPrefillTaskRef(null); }}
               initialInput={prefillText}
               onInitialInputConsumed={() => setPrefillText("")}
+              initialTaskRef={prefillTaskRef}
+              onInitialTaskRefConsumed={() => setPrefillTaskRef(null)}
             />
           ) : (
             <ConversationList
@@ -7030,6 +7436,7 @@ function VoyageDeskInner() {
           intent={chatIntent}
           tasks={state.tasks}
           currentUserId={state.currentUserId}
+          dispatch={dispatch}
         />
 
         {/* FAB principale (singolo task) + FAB secondario (bulk) */}

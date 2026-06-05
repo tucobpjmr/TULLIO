@@ -47,10 +47,10 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 | Modulo | Stato | Priorità | Sforzo | Dipende da |
 |---|---|---|---|---|
-| Anagrafica Clienti (CRM base) | ⬜ | 🔴 | M | — |
-| Anagrafica Fornitori | ⬜ | 🔴 | M | — |
-| Pratiche di viaggio | ⬜ | 🔴 | L | Clienti + Fornitori |
-| Collegamento Task ↔ Cliente ↔ Pratica | ⬜ | 🔴 | M | i tre sopra |
+| Anagrafica Clienti (CRM base) | ✅ | 🔴 | M | — |
+| Anagrafica Fornitori | ✅ | 🔴 | M | — |
+| Pratiche di viaggio | ✅ | 🔴 | L | Clienti + Fornitori |
+| Collegamento Task ↔ Cliente ↔ Pratica | ✅ | 🔴 | M | i tre sopra |
 
 **Dettaglio Pratiche** — modulo centrale: aggrega task, documenti, pagamenti e fornitori di un singolo viaggio; numerazione progressiva (`PR-2026-001`), stati (Bozza → Confermata → In corso → Completata/Annullata), riepilogo economico, timeline eventi.
 
@@ -62,10 +62,10 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 | Modulo | Stato | Priorità | Sforzo | Note |
 |---|---|---|---|---|
-| Notifiche reali | ⬜ | 🔴 | M | Collegate ad azioni (scadenze, assegnazioni, commenti, pending, coda > N ore); filtri + "segna tutte lette" |
-| Calendario avanzato | ⬜ | 🟡 | M | Viste settimanale/giornaliera, eventi multipli, iCal (mock) |
-| Estensioni chat (base) | ⬜ | 🟡 | S–M | Ricerca nelle conversazioni, stato online/occupato, rich preview di task/pratiche, **task link cliccabile** nel messaggio |
-| Impostazioni agenzia | 🔶 | 🟡 | S | Gestione categorie e nome agenzia già in Admin. Manca: template messaggi, profilo utente, preferenze UI |
+| Notifiche reali | ✅ | 🔴 | M | Notifiche stored generate da reducer (assigned/comment/bulk) + computed live (overdue, queue_long, pending_member); filtri tipo + "segna tutte lette" + click navigation |
+| Calendario avanzato | ✅ | 🟡 | M | Vista Giorno (griglia oraria 07-20 + pratiche multi-day) + export iCal (.ics) |
+| Estensioni chat (base) | ✅ | 🟡 | S–M | Ricerca dentro i messaggi, stato online/occupato/offline su avatar+header, link `PR-YYYY-NNN` cliccabile, rich preview task/pratica, picker template ⚡ |
+| Impostazioni agenzia | ✅ | 🟡 | S | Tab Admin "Impostazioni" con profilo agenzia esteso + CRUD template messaggi |
 | Ricerca globale estesa | ✅ | — | — | Completata in v0.5. |
 | Responsive (mobile/tablet/desktop) | ✅ | — | — | Completato in v0.6. |
 | SwipeActions mobile | ✅ | — | — | Completato in v0.7. |
@@ -73,19 +73,7 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 ---
 
-## 💰 Fase 3 — Business & finanza
-
-Ha senso **solo dopo le Pratiche** (servono dati reali).
-
-| Modulo | Stato | Priorità | Sforzo | Dipende da |
-|---|---|---|---|---|
-| Modulo finanziario | ⬜ | 🔴 | L | Pratiche |
-| Report & Analytics | 🔶 | 🟡 | M–L | KPI base già in Admin/Sistema. Da estendere con: margini, trend temporali, export PDF |
-| Catalogo destinazioni / pacchetti | ⬜ | 🟡 | M | autonomo |
-
----
-
-## 📈 Fase 4 — Scala & accessi
+## 📈 Fase 3 — Scala & accessi
 
 | Modulo | Stato | Priorità | Sforzo | Note |
 |---|---|---|---|---|
@@ -164,9 +152,8 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 ## ✅ Sequenza consigliata (sintesi aggiornata)
 
 1. **Decidi A o B** (persistenza sì/no).
-2. **Fase 1** — Clienti → Fornitori → Pratiche → collegamenti.
-3. **Notifiche reali** (Fase 2) — sblocca badge, alert su pending/coda, menzioni in bacheca.
-4. **Fase 3** — Finanziario, poi Report avanzati.
-5. **Fase 2 residua** (Calendario avanzato, estensioni chat) + **Fase 4** (multi-utente reale).
-6. Migliorie incrementali post-v0.5/v0.6/v0.8 inserite dove pertinenti.
-7. Traccia tecnica man mano, se in Opzione B.
+2. ✅ **Fase 1** — Clienti → Fornitori → Pratiche → collegamenti.
+3. ✅ **Fase 2** — Notifiche reali, Calendario avanzato, Estensioni chat, Impostazioni agenzia.
+4. **Fase 3** — Multi-utente reale, estensioni chat avanzate, AI Assistant esteso.
+5. Migliorie incrementali post-v0.5/v0.6/v0.8 inserite dove pertinenti.
+6. Traccia tecnica man mano, se in Opzione B.

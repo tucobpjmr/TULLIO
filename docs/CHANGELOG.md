@@ -1,5 +1,111 @@
 # CHANGELOG — VoyageDesk
 
+## v0.11-dev — Roadmap Fase 2 completa: Notifiche reali + Calendario avanzato + Chat estensioni + Impostazioni agenzia
+
+### 🔔 Notifiche reali
+- Notifiche stored in `state.notifications` (sostituito mock statico globale).
+- Auto-generate dal reducer su azioni: `ADD_TASK`, `ADD_TASKS_BULK`, `UPDATE_TASK` (nuovi assegnatari), `ADD_COMMENT`.
+- Notifiche computed live (derivate, non stored): `overdue` (proprie task scadute), `queue_long` (task in coda globale da > 24h — solo manager/admin), `pending_member` (solo admin).
+- Filtro per utente (`targetUserIds: null` = broadcast, array = solo membri specifici).
+- `NotificationsPanel` riscritto: filtri tab (Tutte / Non lette / per tipo), click → naviga al task o vista; "Tutte lette"; rimozione singola (solo stored); badge "LIVE" sulle computed.
+- Badge counter Topbar dinamico (unread per utente corrente, include computed).
+- Nuove action: `MARK_NOTIFICATION_READ`, `MARK_ALL_NOTIFICATIONS_READ`, `DELETE_NOTIFICATION`, `ADD_NOTIFICATION`.
+
+### 📅 Calendario avanzato
+- Nuova **vista Giorno** (📌): griglia oraria 07:00–20:00, slot 1h, evidenziazione ora corrente, pannello pratiche attive multi-day in alto con conteggio giorno N/totale, sezione "fuori orario" per task con ora < 7 o > 20.
+- Date picker integrato per saltare a un giorno specifico.
+- Navigazione header esteso (← Oggi → su Mese/Settimana/Giorno).
+- **Export iCal (.ics)** — bottone 📥 nell'header: genera file RFC 5545 con task assegnati (VEVENT con ora e durata stimata) + pratiche come VEVENT all-day multi-giorno; download diretto. Push notifica conferma all'utente.
+
+### 💬 Estensioni chat (base)
+- **Pattern PR-YYYY-NNN cliccabile** in qualsiasi testo messaggio: rendering inline come link sottolineato che apre la vista Pratiche.
+- **Rich preview** sotto il bubble messaggio quando il testo contiene "Riferimento task: \"…\"" (formato dei precompilati v0.8) o un numero pratica riconosciuto.
+- **Ricerca conversazioni estesa**: il match cerca ora anche dentro il testo dei messaggi e nei nomi file, non solo nel nome conversazione.
+- **Stato presenza** (online/busy/offline) deterministico per mock: pallino colorato su avatar in ConversationList e header ConversationView, testo status sotto il nome.
+- `ChatContext` esteso con `practices`, `messageTemplates`, `dispatch`.
+
+### 🏢 Impostazioni agenzia
+- Nuovo state `agency` (oggetto): name, slogan, email, phone, address, vatId, workingHoursStart, workingHoursEnd. Backward-compatible col vecchio `agencyName`.
+- Nuovo tab Admin **🏢 Impostazioni**: form profilo agenzia + CRUD template messaggi.
+- **Template messaggi**: 5 seed (Ack rapido, Conferma riunione, Follow-up cliente, Attesa documenti, Pratica chiusa). CRUD completo da Admin.
+- **Picker template ⚡** nell'input chat: dropdown rapido per inserire testo nel messaggio in composizione.
+- Backup/restore esteso a `agency`, `messageTemplates`.
+
+### File toccati
+- `src/VoyageDesk.jsx` — da 9422 a 10456 righe.
+
+---
+
+## v0.10-dev — Roadmap Fase 1 completa: Clienti + Fornitori + Pratiche + Collegamenti
+
+### 🤝 Anagrafica Fornitori (Step 2)
+- Modello `Supplier` con `type` (hotel/airline/ground/insurance/tour_operator/restaurant/guide/other), contatti, indirizzo, `rating` (0-5★), `tags[]`, `notes`, audit fields.
+- 7 fornitori mock seed (Four Seasons, Emirates, NCC, Allianz, Tawaraya, ecc.).
+- `SuppliersView` con ricerca, filtro tipologia (select), griglia card responsive con badge tipologia colorato e RatingStars.
+- `SupplierDetailPanel`: contatti cliccabili, lista pratiche collegate, sezione note.
+- `SupplierEditorModal`: form completo con select tipologia/rating.
+- Reducer `ADD/UPDATE/DELETE_SUPPLIER`. Su delete il fornitore viene rimosso dai `supplierIds` delle pratiche.
+- Nuova voce nav 🤝 Fornitori (esclusa per Driver).
+
+### 📁 Pratiche di viaggio (Step 3)
+- Modello `Practice`: `id`, `number` (formato `PR-YYYY-NNN`, generato auto), `title`, `clientId`, `status` (draft/confirmed/in_progress/completed/cancelled), `destination`, `startDate`, `endDate`, `paxCount`, `budget`, `paidAmount`, `currency`, `supplierIds[]`, `notes`, `events[]` (timeline), audit fields.
+- Helper `buildPracticeNumber` genera il prossimo numero progressivo dell'anno.
+- 5 pratiche mock seed coerenti con clienti e fornitori esistenti.
+- `PracticesView`: header con conteggi per stato, tab filtro stato colorati, ricerca testuale (numero/titolo/destinazione/cliente), filtro per cliente.
+- Card pratica: numero progressivo, badge stato, cliente, destinazione, date, barra progresso pagamenti, conteggi pax/task/fornitori.
+- `PracticeDetail`: header gradient con stato + cliente + pax, riepilogo economico (budget/incassato/saldo + % pagato), fornitori chip, task collegati (aperti + completati), timeline eventi cronologica con icone per tipo.
+- `PracticeEditorModal`: form completo (cliente dropdown, stato, destinazione, date, pax, budget/incassato/valuta, multi-select fornitori, note).
+- Reducer `ADD/UPDATE/DELETE_PRACTICE` + `ADD_PRACTICE_EVENT`. Cambio stato accoda evento timeline automaticamente.
+- Nuova voce nav 📁 Pratiche (esclusa per Driver).
+
+### 🔗 Collegamento Task ↔ Cliente ↔ Pratica (Step 4)
+- `Task.clientId` e `Task.practiceId` come FK opzionali (popolati retroattivamente sui seed dalla stringa storica `Task.client`).
+- `QuickAddTask`: sostituito input "Cliente" libero con due dropdown — Cliente e Pratica (filtrata per cliente selezionato). Eredita `clientId` dalla pratica se non selezionato; mantiene il campo legacy `client` in sync con il nome.
+- `TaskSlideOver`: cliente come pulsante navigabile a vista Clienti; nuovo blocco "Pratica" con badge stato, cliccabile per andare a Pratiche.
+- `AdvancedSearchPanel`: nuovo filtro "Pratica" (input numero + chips multi-select) e ricerca keyword estesa a nome cliente e numero/titolo pratica.
+- `UPDATE_CLIENT` propaga il nuovo nome sia sui task collegati (`Task.client` stringa) che sui task indirettamente collegati alle pratiche.
+- `DELETE_CLIENT` scollega anche le pratiche associate (clientId → null).
+- `DELETE_PRACTICE` scollega i task associati (practiceId → null) senza eliminarli.
+- Backup JSON ora include `clients`/`suppliers`/`practices`; `RESTORE_BACKUP` li ripristina.
+
+### File toccati
+- `src/VoyageDesk.jsx` — da 7775 a 9422 righe.
+
+---
+
+## v0.10-dev — Roadmap Fase 1, Step 1: Anagrafica Clienti (CRM base)
+
+> Primo modulo della Fase 1 del modello dati. Aggiunge l'entità Cliente come anagrafica autonoma, fondamento per Pratiche e collegamenti futuri.
+
+### 👤 Nuova entità: Cliente
+- Modello `Client`: `id`, `type` (`private` | `company`), `name`, `contactPerson`, `email`, `phone`, `address`, `city`, `country`, `taxId`, `tags[]`, `notes`, `createdAt`, `updatedAt`, `createdBy`.
+- `INITIAL_CLIENTS` con 6 anagrafiche mock (4 privati + 2 aziende) coerenti con i task seed.
+- `Task.clientId` (FK opzionale) — popolato retroattivamente sui task seed dalla stringa `Task.client` storica.
+- Helper: `getClient(clients, id)`, `getClientTaskCount(tasks, clientId)`, `clientTypeIcon`, `clientTypeLabel`, `clientInitials`, `clientColor`.
+
+### 🧳 Vista Clienti
+- Nuova voce nav `clients` (icona 🧳) in Sidebar e BottomNav (esclusa per ruolo Driver).
+- Componente `ClientsView`: header con conteggi per tipo, ricerca testuale (nome/email/città/tag), filtri tab (Tutti/Privati/Aziende), griglia card responsive.
+- Card cliente con avatar (iniziali o icona azienda), contatti rapidi, tag e badge "numero task collegati".
+- `ClientDetailPanel`: pannello laterale (desktop) o sheet (mobile) con dati di contatto, indirizzo, P.IVA/CF, note, lista task aperti + completati (collassabile).
+- `ClientEditorModal`: form crea/modifica con switch tipo, tutti i campi anagrafici, tag inline (comma-separated).
+
+### ⚙️ Reducer & permessi
+- Nuove action: `ADD_CLIENT`, `UPDATE_CLIENT`, `DELETE_CLIENT` (tutte loggate in `activityLog`).
+- Permessi: `canViewClients` (no Driver), `canManageClients` (no Driver), `canDeleteClient` (solo Admin).
+- `UPDATE_CLIENT` sincronizza `Task.client` (stringa) sui task collegati al cambio nome.
+- `DELETE_CLIENT` scollega i task associati (`clientId → null`) senza eliminarli; il campo storico `client` rimane per riferimento.
+- `SET_VIEW: clients` e `SET_CURRENT_USER` gestiscono il fallback a dashboard per Driver.
+
+### Note di scope
+- Il form di creazione task (QuickAddTask / BulkTaskCreator) non integra ancora la selezione cliente da dropdown: arriverà nello step finale di Fase 1 ("Collegamento Task ↔ Cliente ↔ Pratica").
+- Persistenza ancora in memoria (la Fase 1 prepara il modello dati; la persistenza è separata nella Traccia tecnica trasversale).
+
+### File toccati
+- `src/VoyageDesk.jsx` — da 7071 a ~7775 righe.
+
+---
+
 ## v0.9-dev — Ristrutturazione UI + Profilo + Handoff (sessione 8)
 
 > Semplificazione interfaccia, unificazione viste, nuovo profilo utente, preparazione per migrazione a progetto Vite.

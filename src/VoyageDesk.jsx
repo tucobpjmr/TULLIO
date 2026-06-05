@@ -210,13 +210,300 @@ const INITIAL_TASKS = [
   { id: "t27", title: "Transfer Hotel → Stazione Centrale - Coppia Bianchi", category: "transfer", priority: "medium", status: "inprogress", assignees: ["giulia"], client: "Coppia Bianchi", dueDate: d(3, 9, 0), estimatedHours: 0.5, description: "Pickup hotel ore 09:00, treno Frecciarossa 9:55 per Roma. 2 pax + 3 bagagli.", comments: [] },
 ];
 
-const NOTIFICATIONS = [
-  { id: "n1", type: "overdue", title: "Task scaduto: Visto Giappone - Coppia Bianchi", time: "5 min fa", read: false },
-  { id: "n2", type: "assigned", title: "Nuovo task assegnato: Newsletter Giugno", time: "1 ora fa", read: false },
-  { id: "n3", type: "comment", title: "Sofia ha commentato su Hotel Overwater Bungalow", time: "2 ore fa", read: false },
-  { id: "n4", type: "deadline", title: "Scadenza domani: Conferma voli Maldive", time: "3 ore fa", read: true },
-  { id: "n5", type: "comment", title: "Luca ha aggiornato: Newsletter Giugno", time: "4 ore fa", read: true },
-  { id: "n6", type: "deadline", title: "Scadenza oggi: Pagamento acconto Famiglia Rossi", time: "8 ore fa", read: true },
+// ─── CLIENTI (CRM base — Fase 1) ───────────────────────────────────────────
+// type: "private" (famiglia / coppia / singolo) | "company" (azienda / gruppo)
+// I task referenziano i clienti via Task.clientId (FK), mentre il vecchio campo
+// Task.client (stringa libera) resta per compatibilità ed è popolato in parallelo.
+const INITIAL_CLIENTS = [
+  {
+    id: "c1", type: "private", name: "Famiglia Rossi", contactPerson: "Andrea Rossi",
+    email: "andrea.rossi@email.it", phone: "+39 333 1234567",
+    address: "Via Roma 12", city: "Milano", country: "Italia",
+    taxId: "RSSNDR75A01F205X", tags: ["VIP", "ricorrente"],
+    notes: "Cliente storico, viaggia 2 volte l'anno. Preferenze: business class, hotel 5★, esperienze esclusive.",
+    createdAt: d(-180), updatedAt: d(-30), createdBy: "marco",
+  },
+  {
+    id: "c2", type: "private", name: "Coppia Bianchi", contactPerson: "Marta Bianchi",
+    email: "marta.bianchi@gmail.com", phone: "+39 348 9876543",
+    address: "Corso Italia 88", city: "Roma", country: "Italia",
+    taxId: "BNCMRT88E45H501Y", tags: ["honeymoon"],
+    notes: "Luna di miele in Giappone, prima esperienza in Asia. Sensibili a ryokan e cucina tradizionale.",
+    createdAt: d(-120), updatedAt: d(-10), createdBy: "sofia",
+  },
+  {
+    id: "c3", type: "company", name: "Azienda TechCorp", contactPerson: "Laura Greco (HR Director)",
+    email: "l.greco@techcorp.it", phone: "+39 02 8765432",
+    address: "Via Innovazione 1", city: "Milano", country: "Italia",
+    taxId: "IT01234567890", tags: ["corporate", "incentive"],
+    notes: "Cliente corporate. Eventi incentive annuali, budget medio 80-120k€. Refer: HR.",
+    createdAt: d(-365), updatedAt: d(-5), createdBy: "marco",
+  },
+  {
+    id: "c4", type: "private", name: "Famiglia Marchetti", contactPerson: "Giorgio Marchetti",
+    email: "g.marchetti@libero.it", phone: "+39 339 4567890",
+    address: "Via Garibaldi 5", city: "Firenze", country: "Italia",
+    taxId: "MRCGRG70B12D612K", tags: ["nuovo"],
+    notes: "Lead da form sito. Interesse: crociera Caraibi 4 pax.",
+    createdAt: d(-7), updatedAt: d(-2), createdBy: "marco",
+  },
+  {
+    id: "c5", type: "company", name: "Liceo Manzoni", contactPerson: "Prof. Elena Conti",
+    email: "viaggi@liceomanzoni.edu.it", phone: "+39 02 1234500",
+    address: "Via Manzoni 23", city: "Milano", country: "Italia",
+    taxId: "IT09876543210", tags: ["gruppo", "scolastico"],
+    notes: "Gruppo studenti 30 pax. Viaggio Atene fine maggio, già in fase operativa.",
+    createdAt: d(-90), updatedAt: d(-15), createdBy: "sofia",
+  },
+  {
+    id: "c6", type: "private", name: "Sposi Conte", contactPerson: "Davide Conte",
+    email: "davide.conte@outlook.com", phone: "+39 347 1112233",
+    address: "Via Verdi 9", city: "Napoli", country: "Italia",
+    taxId: "CNTDVD90C15F839Z", tags: ["honeymoon", "preventivo"],
+    notes: "Richiesta preventivo viaggio nozze Vietnam 14gg. Budget medio-alto.",
+    createdAt: d(-14), updatedAt: d(-3), createdBy: "marco",
+  },
+];
+
+// Mappa da `Task.client` (stringa libera storica) → id cliente.
+// Usata solo per popolare retroattivamente Task.clientId nei task seed.
+const _clientNameToId = INITIAL_CLIENTS.reduce((acc, c) => { acc[c.name] = c.id; return acc; }, {});
+
+// ─── FORNITORI (Fase 1) ────────────────────────────────────────────────────
+// type: classifica il fornitore. Usato per filtri e icone.
+const SUPPLIER_TYPES = {
+  hotel: { label: "Hotel", icon: "🏨", color: "#8B5CF6" },
+  airline: { label: "Compagnia aerea", icon: "✈️", color: "#3B82F6" },
+  ground: { label: "Trasporti / NCC", icon: "🚐", color: "#7B4F9E" },
+  insurance: { label: "Assicurazioni", icon: "🛡️", color: "#10B981" },
+  tour_operator: { label: "Tour Operator", icon: "🌍", color: "#F97316" },
+  restaurant: { label: "Ristorazione", icon: "🍽️", color: "#EC4899" },
+  guide: { label: "Guide / Esperienze", icon: "🗺️", color: "#06B6D4" },
+  other: { label: "Altro", icon: "🤝", color: "#6B7280" },
+};
+
+const INITIAL_SUPPLIERS = [
+  {
+    id: "s1", type: "hotel", name: "Four Seasons Kuda Huraa", contactPerson: "Mr. Aakash Singh",
+    email: "reservations.maldives@fourseasons.com", phone: "+960 664 4888",
+    address: "North Malé Atoll", city: "Malé", country: "Maldive",
+    taxId: null, rating: 5, tags: ["lusso", "bungalow", "preferito"],
+    notes: "Tariffe nette confermate per stagione 2026. Contatto diretto via mail.",
+    createdAt: d(-240), updatedAt: d(-20), createdBy: "sofia",
+  },
+  {
+    id: "s2", type: "airline", name: "Emirates", contactPerson: "Booking Center Italia",
+    email: "italy.salesdesk@emirates.com", phone: "+39 02 6789 1234",
+    address: null, city: "Dubai", country: "EAU",
+    taxId: null, rating: 4, tags: ["business class", "long haul"],
+    notes: "Account corporate attivo. Upgrade business spesso disponibili last minute.",
+    createdAt: d(-300), updatedAt: d(-15), createdBy: "marco",
+  },
+  {
+    id: "s3", type: "ground", name: "Autoservizi Meridionali", contactPerson: "Sig. Antonio Russo",
+    email: "info@autoserv-meridionali.it", phone: "+39 081 5556677",
+    address: "Via dei Trasporti 7", city: "Napoli", country: "Italia",
+    taxId: "IT05544332211", rating: 4, tags: ["bus", "gruppi"],
+    notes: "In trattativa accordo quadro 2025/2026 per gruppi 30+ pax.",
+    createdAt: d(-60), updatedAt: d(-3), createdBy: "marco",
+  },
+  {
+    id: "s4", type: "ground", name: "NCC Premium Milano", contactPerson: "Andrea Colombo",
+    email: "ordini@nccpremium.it", phone: "+39 02 998877",
+    address: "Via Lombardia 33", city: "Milano", country: "Italia",
+    taxId: "IT01122334455", rating: 5, tags: ["NCC", "van", "preferito"],
+    notes: "Van 8 posti e berline. Disponibilità H24, prenotazione via app.",
+    createdAt: d(-150), updatedAt: d(-7), createdBy: "giulia",
+  },
+  {
+    id: "s5", type: "insurance", name: "Allianz Global Assistance", contactPerson: "Backoffice agenzie",
+    email: "agenzie@allianz-assistance.it", phone: "+39 02 26 60 90 0",
+    address: "Corso Italia 23", city: "Milano", country: "Italia",
+    taxId: "IT00871250159", rating: 4, tags: ["annullamento", "medica"],
+    notes: "Convenzione attiva, codice agenzia VDESK01. Quotazioni online.",
+    createdAt: d(-400), updatedAt: d(-30), createdBy: "roberto",
+  },
+  {
+    id: "s6", type: "hotel", name: "Tawaraya Ryokan", contactPerson: "Reservations Desk",
+    email: "info@tawaraya-ryokan.com", phone: "+81 75 211 5566",
+    address: "Fuyacho Oike", city: "Kyoto", country: "Giappone",
+    taxId: null, rating: 5, tags: ["ryokan", "tradizionale"],
+    notes: "Ryokan storico, prenotazioni almeno 60 gg in anticipo. Cucina kaiseki inclusa.",
+    createdAt: d(-90), updatedAt: d(-10), createdBy: "sofia",
+  },
+  {
+    id: "s7", type: "tour_operator", name: "Aegean Hotels Group", contactPerson: "Markos Papadopoulos",
+    email: "sales@aegeanhotels.gr", phone: "+30 210 9988776",
+    address: "Athinas 5", city: "Atene", country: "Grecia",
+    taxId: "EL123456789", rating: 4, tags: ["DMC", "Grecia"],
+    notes: "Allotment Atene+isole. Tariffe nette 2026 confermate.",
+    createdAt: d(-200), updatedAt: d(-12), createdBy: "roberto",
+  },
+];
+
+// ─── PRATICHE (Fase 1) ─────────────────────────────────────────────────────
+// Stati: draft (bozza) → confirmed (confermata) → in_progress → completed (o cancelled).
+const PRACTICE_STATUSES = {
+  draft: { label: "Bozza", color: "#6B7280", bg: "#F3F4F6" },
+  confirmed: { label: "Confermata", color: "#3B82F6", bg: "#EFF6FF" },
+  in_progress: { label: "In corso", color: "#C8832A", bg: "#FEF3C7" },
+  completed: { label: "Completata", color: "#2D7A4F", bg: "#D1FAE5" },
+  cancelled: { label: "Annullata", color: "#C0392B", bg: "#FEE2E2" },
+};
+
+// Genera il prossimo numero pratica nel formato PR-YYYY-NNN, considerando l'anno corrente
+// e il massimo progressivo già usato.
+const buildPracticeNumber = (practices, year) => {
+  const y = year || new Date().getFullYear();
+  const prefix = `PR-${y}-`;
+  const existing = (practices || [])
+    .map(p => p.number)
+    .filter(n => n && n.startsWith(prefix))
+    .map(n => parseInt(n.slice(prefix.length), 10))
+    .filter(n => !isNaN(n));
+  const next = (existing.length ? Math.max(...existing) : 0) + 1;
+  return `${prefix}${String(next).padStart(3, "0")}`;
+};
+
+const INITIAL_PRACTICES = [
+  {
+    id: "p1", number: "PR-2026-001",
+    title: "Maldive Luxury — Famiglia Rossi",
+    clientId: "c1", status: "in_progress",
+    startDate: d(45, 12, 0), endDate: d(55, 12, 0),
+    destination: "Malé / Kuda Huraa, Maldive",
+    paxCount: 4,
+    budget: 12400, paidAmount: 3720,
+    currency: "EUR",
+    supplierIds: ["s1", "s2", "s5"],
+    notes: "Cliente VIP. Tutto business class, bungalow overwater, polizza top.",
+    events: [
+      { time: d(-30), type: "created", text: "Pratica creata da Marco" },
+      { time: d(-25), type: "status", text: "Stato → Confermata" },
+      { time: d(-2), type: "payment", text: "Acconto 30% incassato (€3.720)" },
+      { time: d(-1), type: "status", text: "Stato → In corso" },
+    ],
+    createdAt: d(-30), updatedAt: d(-1), createdBy: "marco",
+  },
+  {
+    id: "p2", number: "PR-2026-002",
+    title: "Honeymoon Giappone — Coppia Bianchi",
+    clientId: "c2", status: "confirmed",
+    startDate: d(60, 11, 30), endDate: d(74, 11, 30),
+    destination: "Tokyo → Kyoto → Osaka → Hiroshima",
+    paxCount: 2,
+    budget: 9800, paidAmount: 0,
+    currency: "EUR",
+    supplierIds: ["s2", "s6", "s5"],
+    notes: "Luna di miele, esperienze: cerimonia tè, ryokan Kyoto, alba Fushimi Inari.",
+    events: [
+      { time: d(-20), type: "created", text: "Pratica creata da Sofia" },
+      { time: d(-12), type: "status", text: "Stato → Confermata" },
+    ],
+    createdAt: d(-20), updatedAt: d(-12), createdBy: "sofia",
+  },
+  {
+    id: "p3", number: "PR-2026-003",
+    title: "Incentive 50 pax — Azienda TechCorp",
+    clientId: "c3", status: "draft",
+    startDate: d(120, 9, 0), endDate: d(125, 18, 0),
+    destination: "Da definire (Dubrovnik / Marrakech / Lisbona)",
+    paxCount: 50,
+    budget: 85000, paidAmount: 0,
+    currency: "EUR",
+    supplierIds: [],
+    notes: "Budget approvato 85k€. In attesa decisione destinazione.",
+    events: [
+      { time: d(-7), type: "created", text: "Pratica creata da Marco" },
+    ],
+    createdAt: d(-7), updatedAt: d(-3), createdBy: "marco",
+  },
+  {
+    id: "p4", number: "PR-2026-004",
+    title: "Gruppo studenti Atene — Liceo Manzoni",
+    clientId: "c5", status: "in_progress",
+    startDate: d(20, 9, 0), endDate: d(25, 20, 0),
+    destination: "Atene + Plaka, Grecia",
+    paxCount: 30,
+    budget: 28500, paidAmount: 14250,
+    currency: "EUR",
+    supplierIds: ["s7", "s5"],
+    notes: "30 camere a Plaka, rooming list in elaborazione. Polizza gruppo.",
+    events: [
+      { time: d(-60), type: "created", text: "Pratica creata da Sofia" },
+      { time: d(-50), type: "status", text: "Stato → Confermata" },
+      { time: d(-15), type: "payment", text: "Acconto 50% incassato (€14.250)" },
+      { time: d(-10), type: "status", text: "Stato → In corso" },
+    ],
+    createdAt: d(-60), updatedAt: d(-10), createdBy: "sofia",
+  },
+  {
+    id: "p5", number: "PR-2026-005",
+    title: "Preventivo Vietnam — Sposi Conte",
+    clientId: "c6", status: "draft",
+    startDate: d(180, 12, 0), endDate: d(194, 12, 0),
+    destination: "Vietnam classico (Hanoi → Halong → Hoi An → Saigon)",
+    paxCount: 2,
+    budget: 7200, paidAmount: 0,
+    currency: "EUR",
+    supplierIds: [],
+    notes: "14 giorni, fascia medio-alta. Da preparare proposta dettagliata.",
+    events: [
+      { time: d(-10), type: "created", text: "Pratica creata da Marco" },
+    ],
+    createdAt: d(-10), updatedAt: d(-3), createdBy: "marco",
+  },
+];
+
+// Mappa "client → id pratica primaria" per popolare retroattivamente Task.practiceId
+// nei task seed in modo deterministico (un cliente → una pratica primaria nei mock).
+const _clientToPrimaryPracticeId = {
+  c1: "p1", c2: "p2", c3: "p3", c5: "p4", c6: "p5",
+};
+
+// ─── NOTIFICHE (Fase 2 — Notifiche reali) ─────────────────────────────────
+// Tipologie supportate. Le notifiche `stored` sono generate dal reducer su azioni
+// rilevanti (assign, comment, mention, pending_member). Le `computed` (overdue,
+// queue_long) sono derivate a runtime perché dipendono dal tempo corrente.
+const NOTIFICATION_TYPES = {
+  assigned: { label: "Assegnazioni", icon: "📋", color: "#3B82F6" },
+  comment: { label: "Commenti", icon: "💬", color: "#8B5CF6" },
+  mention: { label: "Menzioni", icon: "🔔", color: "#EC4899" },
+  pending_member: { label: "Agenti pending", icon: "👤", color: "#F59E0B" },
+  overdue: { label: "Scaduti", icon: "⚠️", color: "#C0392B" },
+  queue_long: { label: "Coda > 24h", icon: "⏳", color: "#C8832A" },
+  system: { label: "Sistema", icon: "ℹ️", color: "#6B7280" },
+};
+
+// Soglia per "task fermo in coda globale": dopo N ore avvisa i manager/admin.
+const QUEUE_LONG_HOURS = 24;
+
+// Notifiche seed (mock) — alcune già lette, altre no, indirizzate all'utente default.
+const INITIAL_NOTIFICATIONS = [
+  {
+    id: "n-seed-1", type: "assigned",
+    title: "Nuovo task assegnato",
+    body: "Marco ti ha assegnato: Newsletter Giugno - Offerte Estate",
+    time: new Date(Date.now() - 3600000).toISOString(),
+    read: false, targetUserIds: ["luca"],
+    link: { taskId: "t7" },
+  },
+  {
+    id: "n-seed-2", type: "comment",
+    title: "Nuovo commento sul tuo task",
+    body: "Sofia: \"Four Seasons ha confermato 2 bungalow disponibili\"",
+    time: new Date(Date.now() - 7200000).toISOString(),
+    read: false, targetUserIds: ["sofia", "luca"],
+    link: { taskId: "t3" },
+  },
+  {
+    id: "n-seed-3", type: "system",
+    title: "Benvenuto in VoyageDesk v0.10",
+    body: "Le nuove voci Pratiche, Clienti e Fornitori sono ora disponibili.",
+    time: new Date(Date.now() - 86400000).toISOString(),
+    read: true, targetUserIds: null,
+    link: null,
+  },
 ];
 
 // ─── TASK TEMPLATES ────────────────────────────────────────────────────────
@@ -301,6 +588,9 @@ const LOGGED_ACTIONS = new Set([
   "ADD_CATEGORY", "UPDATE_CATEGORY", "REMOVE_CATEGORY",
   "RESTORE_BACKUP",
   "ADD_NOTICE", "UPDATE_NOTICE", "DELETE_NOTICE",
+  "ADD_CLIENT", "UPDATE_CLIENT", "DELETE_CLIENT",
+  "ADD_SUPPLIER", "UPDATE_SUPPLIER", "DELETE_SUPPLIER",
+  "ADD_PRACTICE", "UPDATE_PRACTICE", "DELETE_PRACTICE",
 ]);
 
 const buildLogEntry = (action, state) => {
@@ -329,6 +619,27 @@ const buildLogEntry = (action, state) => {
     ADD_NOTICE: () => `Pubblicato avviso in bacheca`,
     UPDATE_NOTICE: () => `Modificato avviso in bacheca`,
     DELETE_NOTICE: () => `Rimosso avviso dalla bacheca`,
+    ADD_CLIENT: () => `Aggiunto cliente "${action.payload.name}"`,
+    UPDATE_CLIENT: () => `Modificato cliente "${action.payload.name || action.payload.id}"`,
+    DELETE_CLIENT: () => {
+      const c = state.clients?.find(x => x.id === action.payload);
+      return `Eliminato cliente "${c?.name || action.payload}"`;
+    },
+    ADD_SUPPLIER: () => `Aggiunto fornitore "${action.payload.name}"`,
+    UPDATE_SUPPLIER: () => `Modificato fornitore "${action.payload.name || action.payload.id}"`,
+    DELETE_SUPPLIER: () => {
+      const s = state.suppliers?.find(x => x.id === action.payload);
+      return `Eliminato fornitore "${s?.name || action.payload}"`;
+    },
+    ADD_PRACTICE: () => `Creata pratica "${action.payload.number || action.payload.title}"`,
+    UPDATE_PRACTICE: () => {
+      const p = state.practices?.find(x => x.id === action.payload.id);
+      return `Aggiornata pratica "${p?.number || action.payload.id}"`;
+    },
+    DELETE_PRACTICE: () => {
+      const p = state.practices?.find(x => x.id === action.payload);
+      return `Eliminata pratica "${p?.number || action.payload}"`;
+    },
   };
   return { id: `log-${stamp}-${Math.random().toString(36).slice(2,7)}`, time: stamp, type: t, text: (map[t] || (() => t))() };
 };
@@ -343,6 +654,16 @@ function baseReducer(state, action) {
       // Solo admin può aprire la vista Admin
       if (action.payload === "admin" && !canAccessAdmin(uid)) {
         return _denied("Non hai i permessi per accedere all'Admin");
+      }
+      // Driver non vede Clienti / Fornitori / Pratiche
+      if (action.payload === "clients" && !canViewClients(uid)) {
+        return _denied("Non hai i permessi per accedere ai Clienti");
+      }
+      if (action.payload === "suppliers" && !canViewSuppliers(uid)) {
+        return _denied("Non hai i permessi per accedere ai Fornitori");
+      }
+      if (action.payload === "practices" && !canViewPractices(uid)) {
+        return _denied("Non hai i permessi per accedere alle Pratiche");
       }
       return { ...state, activeView: action.payload };
     }
@@ -359,9 +680,11 @@ function baseReducer(state, action) {
       if (!m) return state;
       _syncCurrentUser(newId);
       // Se l'utente non può più accedere alla view corrente, riporta a dashboard
-      const activeView = (state.activeView === "admin" && !canAccessAdmin(newId))
-        ? "dashboard"
-        : state.activeView;
+      let activeView = state.activeView;
+      if (activeView === "admin" && !canAccessAdmin(newId)) activeView = "dashboard";
+      if (activeView === "clients" && !canViewClients(newId)) activeView = "dashboard";
+      if (activeView === "suppliers" && !canViewSuppliers(newId)) activeView = "dashboard";
+      if (activeView === "practices" && !canViewPractices(newId)) activeView = "dashboard";
       return {
         ...state,
         currentUserId: newId,
@@ -391,13 +714,45 @@ function baseReducer(state, action) {
         return _denied("Non puoi creare task di questa categoria");
       }
       const tasks = [action.payload, ...state.tasks];
-      return { ...state, tasks, toast: { message: "Task creato con successo!", type: "success" } };
+      // Notifica agli assegnatari (escluso il creatore).
+      const targets = (action.payload.assignees || []).filter(a => a !== uid);
+      const notifications = targets.length > 0
+        ? [
+            buildNotification({
+              type: "assigned",
+              title: "Nuovo task assegnato",
+              body: `${getMember(uid)?.name || "Qualcuno"} ti ha assegnato: ${action.payload.title}`,
+              targetUserIds: targets,
+              link: { taskId: action.payload.id },
+            }),
+            ...(state.notifications || []),
+          ]
+        : (state.notifications || []);
+      return { ...state, tasks, notifications, toast: { message: "Task creato con successo!", type: "success" } };
     }
     case "ADD_TASKS_BULK": {
       const bad = action.payload.find(t => !canCreateTaskCategory(t.category, uid));
       if (bad) return _denied("Alcune task hanno categorie che non puoi creare");
       const tasks = [...action.payload, ...state.tasks];
-      return { ...state, tasks, toast: { message: `${action.payload.length} task creati!`, type: "success" } };
+      // Notifiche bulk: una per ogni nuovo assegnatario (raggruppata se più task).
+      const buckets = {};
+      action.payload.forEach(t => {
+        (t.assignees || []).filter(a => a !== uid).forEach(a => {
+          if (!buckets[a]) buckets[a] = [];
+          buckets[a].push(t);
+        });
+      });
+      const newNotifs = Object.entries(buckets).map(([userId, list]) =>
+        buildNotification({
+          type: "assigned",
+          title: `${list.length} nuovi task assegnati`,
+          body: list.slice(0, 3).map(t => "• " + t.title).join("\n") + (list.length > 3 ? `\n…e altri ${list.length - 3}` : ""),
+          targetUserIds: [userId],
+          link: list.length === 1 ? { taskId: list[0].id } : null,
+        })
+      );
+      const notifications = [...newNotifs, ...(state.notifications || [])];
+      return { ...state, tasks, notifications, toast: { message: `${action.payload.length} task creati!`, type: "success" } };
     }
     case "UPDATE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload.id);
@@ -407,13 +762,31 @@ function baseReducer(state, action) {
       const selectedTask = state.selectedTask?.id === action.payload.id
         ? { ...state.selectedTask, ...action.payload }
         : state.selectedTask;
+      // Notifica ai nuovi assegnatari (diff fra prev.assignees e new).
+      let notifications = state.notifications || [];
+      if (action.payload.assignees) {
+        const prevSet = new Set(prev.assignees || []);
+        const added = action.payload.assignees.filter(a => !prevSet.has(a) && a !== uid);
+        if (added.length > 0) {
+          notifications = [
+            buildNotification({
+              type: "assigned",
+              title: "Task assegnato a te",
+              body: `${getMember(uid)?.name || "Qualcuno"}: ${prev.title}`,
+              targetUserIds: added,
+              link: { taskId: prev.id },
+            }),
+            ...notifications,
+          ];
+        }
+      }
       const toast = action.swipe
         ? { message: action.toastMessage || "Task aggiornato!", type: "success", undoable: true }
         : { message: "Task aggiornato!", type: "success" };
       const lastAction = action.swipe && prev
         ? { type: "UPDATE_TASK", taskId: action.payload.id, prevSnapshot: prev }
         : state.lastAction;
-      return { ...state, tasks, selectedTask, toast, lastAction };
+      return { ...state, tasks, selectedTask, notifications, toast, lastAction };
     }
     case "ADD_COMMENT": {
       const prev = state.tasks.find(t => t.id === action.payload.taskId);
@@ -427,7 +800,22 @@ function baseReducer(state, action) {
       const selectedTask = state.selectedTask?.id === action.payload.taskId
         ? { ...state.selectedTask, comments: [...(state.selectedTask.comments || []), action.payload.comment] }
         : state.selectedTask;
-      return { ...state, tasks, selectedTask };
+      // Notifica agli altri assegnatari (escluso chi ha commentato).
+      const targets = (prev.assignees || []).filter(a => a !== uid);
+      const snippet = (action.payload.comment.text || "").slice(0, 80);
+      const notifications = targets.length > 0
+        ? [
+            buildNotification({
+              type: "comment",
+              title: "Nuovo commento sul task",
+              body: `${action.payload.comment.user || "Qualcuno"}: "${snippet}${snippet.length === 80 ? "…" : ""}"\n📋 ${prev.title}`,
+              targetUserIds: targets,
+              link: { taskId: prev.id },
+            }),
+            ...(state.notifications || []),
+          ]
+        : (state.notifications || []);
+      return { ...state, tasks, selectedTask, notifications };
     }
     case "DELETE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload);
@@ -514,10 +902,33 @@ function baseReducer(state, action) {
 
     // ─── ADMIN: AGENZIA & BACKUP ───
     case "SET_AGENCY_NAME": {
-      return { ...state, agencyName: action.payload };
+      // Backwards compat: aggiorna sia il vecchio campo che il nuovo profilo.
+      return {
+        ...state,
+        agencyName: action.payload,
+        agency: { ...(state.agency || {}), name: action.payload },
+      };
+    }
+    case "UPDATE_AGENCY_SETTINGS": {
+      const agency = { ...(state.agency || {}), ...action.payload };
+      return { ...state, agency, agencyName: agency.name || state.agencyName };
+    }
+    case "ADD_MESSAGE_TEMPLATE": {
+      const tpl = { id: `tpl-${Date.now()}`, ...action.payload };
+      return { ...state, messageTemplates: [...(state.messageTemplates || []), tpl], toast: { message: "Template aggiunto", type: "success" } };
+    }
+    case "UPDATE_MESSAGE_TEMPLATE": {
+      const messageTemplates = (state.messageTemplates || []).map(t =>
+        t.id === action.payload.id ? { ...t, ...action.payload } : t
+      );
+      return { ...state, messageTemplates, toast: { message: "Template aggiornato", type: "success" } };
+    }
+    case "DELETE_MESSAGE_TEMPLATE": {
+      const messageTemplates = (state.messageTemplates || []).filter(t => t.id !== action.payload);
+      return { ...state, messageTemplates, toast: { message: "Template rimosso", type: "success" } };
     }
     case "RESTORE_BACKUP": {
-      const { tasks, team, categories, agencyName, notices } = action.payload;
+      const { tasks, team, categories, agencyName, agency, notices, clients, suppliers, practices, notifications, messageTemplates } = action.payload;
       if (team) _syncTeam(team);
       if (categories) _syncCategories(categories);
       return {
@@ -526,7 +937,13 @@ function baseReducer(state, action) {
         team: team ?? state.team,
         categories: categories ?? state.categories,
         agencyName: agencyName ?? state.agencyName,
+        agency: agency ?? state.agency,
         notices: notices ?? state.notices,
+        clients: clients ?? state.clients,
+        suppliers: suppliers ?? state.suppliers,
+        practices: practices ?? state.practices,
+        notifications: notifications ?? state.notifications,
+        messageTemplates: messageTemplates ?? state.messageTemplates,
         toast: { message: "Backup ripristinato con successo!", type: "success" }
       };
     }
@@ -556,6 +973,157 @@ function baseReducer(state, action) {
         n.id === action.payload ? { ...n, pinned: !n.pinned } : n
       );
       return { ...state, notices };
+    }
+
+    // ─── CLIENTI (Fase 1) ───
+    case "ADD_CLIENT": {
+      if (!canManageClients(uid)) return _denied("Non puoi creare clienti");
+      const stamp = new Date().toISOString();
+      const client = {
+        ...action.payload,
+        createdAt: action.payload.createdAt || stamp,
+        updatedAt: stamp,
+        createdBy: action.payload.createdBy || uid,
+      };
+      const clients = [client, ...(state.clients || [])];
+      return { ...state, clients, toast: { message: `Cliente "${client.name}" creato`, type: "success" } };
+    }
+    case "UPDATE_CLIENT": {
+      if (!canManageClients(uid)) return _denied("Non puoi modificare i clienti");
+      const stamp = new Date().toISOString();
+      const clients = (state.clients || []).map(c =>
+        c.id === action.payload.id ? { ...c, ...action.payload, updatedAt: stamp } : c
+      );
+      // Mantieni in sync il campo `client` (stringa) sui task collegati se è cambiato il nome.
+      const updated = clients.find(c => c.id === action.payload.id);
+      const tasks = updated
+        ? state.tasks.map(t => t.clientId === updated.id ? { ...t, client: updated.name } : t)
+        : state.tasks;
+      return { ...state, clients, tasks, toast: { message: "Cliente aggiornato", type: "success" } };
+    }
+    case "DELETE_CLIENT": {
+      if (!canDeleteClient(uid)) return _denied("Solo Admin può eliminare un cliente");
+      const target = (state.clients || []).find(c => c.id === action.payload);
+      if (!target) return state;
+      // Scollego i task associati (clientId → null) ma mantengo la stringa `client` per storico.
+      const clients = (state.clients || []).filter(c => c.id !== action.payload);
+      const tasks = state.tasks.map(t => t.clientId === action.payload ? { ...t, clientId: null } : t);
+      // Le pratiche associate restano (la pratica vive di vita propria) ma il riferimento client
+      // diventa null per evitare reference dangling.
+      const practices = (state.practices || []).map(p =>
+        p.clientId === action.payload ? { ...p, clientId: null } : p
+      );
+      return { ...state, clients, tasks, practices, toast: { message: `Cliente "${target.name}" eliminato`, type: "success" } };
+    }
+
+    // ─── FORNITORI (Fase 1) ───
+    case "ADD_SUPPLIER": {
+      if (!canManageSuppliers(uid)) return _denied("Non puoi creare fornitori");
+      const stamp = new Date().toISOString();
+      const supplier = {
+        ...action.payload,
+        createdAt: action.payload.createdAt || stamp,
+        updatedAt: stamp,
+        createdBy: action.payload.createdBy || uid,
+      };
+      const suppliers = [supplier, ...(state.suppliers || [])];
+      return { ...state, suppliers, toast: { message: `Fornitore "${supplier.name}" creato`, type: "success" } };
+    }
+    case "UPDATE_SUPPLIER": {
+      if (!canManageSuppliers(uid)) return _denied("Non puoi modificare i fornitori");
+      const stamp = new Date().toISOString();
+      const suppliers = (state.suppliers || []).map(s =>
+        s.id === action.payload.id ? { ...s, ...action.payload, updatedAt: stamp } : s
+      );
+      return { ...state, suppliers, toast: { message: "Fornitore aggiornato", type: "success" } };
+    }
+    case "DELETE_SUPPLIER": {
+      if (!canDeleteSupplier(uid)) return _denied("Solo Admin può eliminare un fornitore");
+      const target = (state.suppliers || []).find(s => s.id === action.payload);
+      if (!target) return state;
+      const suppliers = (state.suppliers || []).filter(s => s.id !== action.payload);
+      // Rimuovi il riferimento dalle pratiche.
+      const practices = (state.practices || []).map(p => ({
+        ...p,
+        supplierIds: (p.supplierIds || []).filter(id => id !== action.payload),
+      }));
+      return { ...state, suppliers, practices, toast: { message: `Fornitore "${target.name}" eliminato`, type: "success" } };
+    }
+
+    // ─── PRATICHE (Fase 1) ───
+    case "ADD_PRACTICE": {
+      if (!canManagePractices(uid)) return _denied("Non puoi creare pratiche");
+      const stamp = new Date().toISOString();
+      const number = action.payload.number || buildPracticeNumber(state.practices, new Date().getFullYear());
+      const practice = {
+        ...action.payload,
+        number,
+        events: action.payload.events || [{ time: stamp, type: "created", text: `Pratica creata da ${getMember(uid)?.name || uid}` }],
+        createdAt: action.payload.createdAt || stamp,
+        updatedAt: stamp,
+        createdBy: action.payload.createdBy || uid,
+      };
+      const practices = [practice, ...(state.practices || [])];
+      return { ...state, practices, toast: { message: `Pratica ${practice.number} creata`, type: "success" } };
+    }
+    case "UPDATE_PRACTICE": {
+      if (!canManagePractices(uid)) return _denied("Non puoi modificare le pratiche");
+      const stamp = new Date().toISOString();
+      const prev = (state.practices || []).find(p => p.id === action.payload.id);
+      if (!prev) return state;
+      // Se cambia lo stato, aggiungi un evento timeline.
+      const events = [...(prev.events || [])];
+      if (action.payload.status && action.payload.status !== prev.status) {
+        events.push({ time: stamp, type: "status", text: `Stato → ${practiceStatusMeta(action.payload.status).label}` });
+      }
+      const practices = (state.practices || []).map(p =>
+        p.id === action.payload.id ? { ...p, ...action.payload, events, updatedAt: stamp } : p
+      );
+      return { ...state, practices, toast: { message: "Pratica aggiornata", type: "success" } };
+    }
+    case "DELETE_PRACTICE": {
+      if (!canDeletePractice(uid)) return _denied("Solo Admin può eliminare una pratica");
+      const target = (state.practices || []).find(p => p.id === action.payload);
+      if (!target) return state;
+      const practices = (state.practices || []).filter(p => p.id !== action.payload);
+      // Scollega i task associati ma non eliminarli.
+      const tasks = state.tasks.map(t => t.practiceId === action.payload ? { ...t, practiceId: null } : t);
+      return { ...state, practices, tasks, toast: { message: `Pratica ${target.number} eliminata`, type: "success" } };
+    }
+    case "ADD_PRACTICE_EVENT": {
+      // Aggiunta libera di un evento timeline (es. nota, pagamento manuale).
+      if (!canManagePractices(uid)) return _denied();
+      const stamp = new Date().toISOString();
+      const practices = (state.practices || []).map(p =>
+        p.id === action.payload.practiceId
+          ? { ...p, events: [...(p.events || []), { time: stamp, type: action.payload.type || "note", text: action.payload.text }], updatedAt: stamp }
+          : p
+      );
+      return { ...state, practices };
+    }
+
+    // ─── NOTIFICHE (Fase 2) ───
+    case "MARK_NOTIFICATION_READ": {
+      const notifications = (state.notifications || []).map(n =>
+        n.id === action.payload ? { ...n, read: true } : n
+      );
+      return { ...state, notifications };
+    }
+    case "MARK_ALL_NOTIFICATIONS_READ": {
+      // Marca come lette tutte quelle visibili all'utente corrente.
+      const notifications = (state.notifications || []).map(n =>
+        isNotificationForUser(n, uid) ? { ...n, read: true } : n
+      );
+      return { ...state, notifications };
+    }
+    case "DELETE_NOTIFICATION": {
+      const notifications = (state.notifications || []).filter(n => n.id !== action.payload);
+      return { ...state, notifications };
+    }
+    case "ADD_NOTIFICATION": {
+      // Per uso interno o di sistema (push manuale).
+      const notif = buildNotification(action.payload);
+      return { ...state, notifications: [notif, ...(state.notifications || [])] };
     }
 
     case "CLEAR_TOAST": return { ...state, toast: null };
@@ -607,7 +1175,9 @@ const ADMIN_ONLY_ACTIONS = new Set([
   "ADD_TEAM_MEMBER", "UPDATE_TEAM_MEMBER", "APPROVE_TEAM_MEMBER",
   "TOGGLE_TEAM_MEMBER_ACTIVE", "REMOVE_TEAM_MEMBER",
   "ADD_CATEGORY", "UPDATE_CATEGORY", "REMOVE_CATEGORY",
-  "SET_AGENCY_NAME", "RESTORE_BACKUP", "CLEAR_ACTIVITY_LOG",
+  "SET_AGENCY_NAME", "UPDATE_AGENCY_SETTINGS",
+  "ADD_MESSAGE_TEMPLATE", "UPDATE_MESSAGE_TEMPLATE", "DELETE_MESSAGE_TEMPLATE",
+  "RESTORE_BACKUP", "CLEAR_ACTIVITY_LOG",
 ]);
 
 // Wrapper che aggiunge automaticamente al log le azioni rilevanti
@@ -657,12 +1227,44 @@ const INITIAL_NOTICES = [
   },
 ];
 
+// Popola Task.clientId + Task.practiceId nei seed in base alla stringa Task.client.
+// Mantiene la retrocompatibilità: i task continuano ad avere il campo `client` (stringa libera).
+const _INITIAL_TASKS_WITH_CLIENT_ID = INITIAL_TASKS.map(t => {
+  const clientId = t.client ? (_clientNameToId[t.client] || null) : null;
+  const practiceId = clientId ? (_clientToPrimaryPracticeId[clientId] || null) : null;
+  return { ...t, clientId, practiceId };
+});
+
 const initialState = {
-  tasks: INITIAL_TASKS,
+  tasks: _INITIAL_TASKS_WITH_CLIENT_ID,
   team: TEAM,
   categories: CATEGORIES,
+  clients: INITIAL_CLIENTS,
+  suppliers: INITIAL_SUPPLIERS,
+  practices: INITIAL_PRACTICES,
   agencyName: "VoyageDesk",
+  // ─── PROFILO AGENZIA ESTESO (Fase 2) ───
+  agency: {
+    name: "VoyageDesk",
+    slogan: "Sistema gestionale per agenzie viaggi",
+    email: "info@voyagedesk.it",
+    phone: "+39 02 1234567",
+    address: "Via dei Viaggi 1, Milano",
+    vatId: "IT01234567890",
+    workingHoursStart: 9,
+    workingHoursEnd: 18,
+  },
+  // ─── TEMPLATE MESSAGGI (Fase 2) ───
+  // Snippet riusabili nella chat (ack rapido, follow-up, conferma).
+  messageTemplates: [
+    { id: "tpl-1", label: "Ack rapido", text: "Ricevuto, mi attivo subito 👍" },
+    { id: "tpl-2", label: "Conferma riunione", text: "Confermo la riunione, ci vediamo lì." },
+    { id: "tpl-3", label: "Follow-up cliente", text: "Buongiorno, le invio aggiornamento sulla pratica e resto a disposizione per qualsiasi necessità." },
+    { id: "tpl-4", label: "Attesa documenti", text: "Ho ricevuto la richiesta — sono in attesa di alcuni documenti dal fornitore, ti aggiorno entro fine giornata." },
+    { id: "tpl-5", label: "Pratica chiusa", text: "Pratica chiusa con successo ✅ — grazie per la collaborazione." },
+  ],
   notices: INITIAL_NOTICES,
+  notifications: INITIAL_NOTIFICATIONS,
   activityLog: [],
   activeView: "dashboard",
   selectedTask: null,
@@ -693,6 +1295,163 @@ const getDayKey = iso => iso ? new Date(iso).toDateString() : null;
 const isActiveTask = t => !t.deletedAt;
 const getActiveTasks = tasks => tasks.filter(isActiveTask);
 const getTrashedTasks = tasks => tasks.filter(t => t.deletedAt);
+
+// ─── HELPER CLIENTI / FORNITORI / PRATICHE (Fase 1) ──────────────────
+const getClient = (clients, id) => (clients || []).find(c => c.id === id) || null;
+const getClientTaskCount = (tasks, clientId) =>
+  getActiveTasks(tasks).filter(t => t.clientId === clientId).length;
+const clientTypeIcon = (type) => type === "company" ? "🏢" : "👨‍👩‍👧";
+const clientTypeLabel = (type) => type === "company" ? "Azienda" : "Privato";
+
+const getSupplier = (suppliers, id) => (suppliers || []).find(s => s.id === id) || null;
+const supplierTypeMeta = (type) => SUPPLIER_TYPES[type] || SUPPLIER_TYPES.other;
+// Pratiche che includono questo fornitore.
+const getSupplierPracticeCount = (practices, supplierId) =>
+  (practices || []).filter(p => (p.supplierIds || []).includes(supplierId)).length;
+
+const getPractice = (practices, id) => (practices || []).find(p => p.id === id) || null;
+const getPracticeTasks = (tasks, practiceId) =>
+  getActiveTasks(tasks).filter(t => t.practiceId === practiceId);
+const practiceStatusMeta = (status) => PRACTICE_STATUSES[status] || PRACTICE_STATUSES.draft;
+// Formatta importo in valuta (default EUR).
+const formatMoney = (amount, currency = "EUR") => {
+  if (amount === null || amount === undefined || isNaN(amount)) return "—";
+  try {
+    return new Intl.NumberFormat("it-IT", { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
+  } catch {
+    return `€ ${Math.round(amount)}`;
+  }
+};
+
+// ─── PRESENZA (Fase 2 — chat) ──────────────────────────────────────────────
+// Status mock dell'utente. In assenza di backend, derivato dall'id in modo
+// deterministico per coerenza visiva. L'utente loggato è sempre "online".
+const PRESENCE_STATUSES = {
+  online: { color: "#2D7A4F", label: "Online" },
+  busy: { color: "#C8832A", label: "Occupato" },
+  offline: { color: "#9999AA", label: "Offline" },
+};
+const _PRESENCE_MAP = { marco: "online", sofia: "online", luca: "online", roberto: "busy", giulia: "offline" };
+const getPresence = (memberId) => {
+  if (memberId === CURRENT_USER) return "online";
+  return _PRESENCE_MAP[memberId] || "offline";
+};
+
+// ─── HELPER NOTIFICHE (Fase 2) ────────────────────────────────────────────
+// Genera id univoco per una nuova notifica.
+const _nextNotifId = () => `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+// Costruisce una notifica stored (record reducer).
+const buildNotification = ({ type, title, body = null, targetUserIds = null, link = null }) => ({
+  id: _nextNotifId(),
+  type, title, body,
+  time: new Date().toISOString(),
+  read: false,
+  targetUserIds,
+  link,
+});
+
+// Filtra le notifiche stored per l'utente corrente:
+// - targetUserIds null → broadcast (visibili a tutti)
+// - targetUserIds array → solo se contiene l'utente
+const isNotificationForUser = (n, userId) =>
+  !n.targetUserIds || n.targetUserIds.length === 0 || n.targetUserIds.includes(userId);
+
+// Tempo umano relativo ("5 min fa", "1 ora fa", "2 g fa").
+const relativeTime = (iso) => {
+  if (!iso) return "";
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 0) return "ora";
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return "ora";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} min fa`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h} ${h === 1 ? "ora" : "ore"} fa`;
+  const dd = Math.floor(h / 24);
+  if (dd < 30) return `${dd} ${dd === 1 ? "giorno" : "giorni"} fa`;
+  const mo = Math.floor(dd / 30);
+  return `${mo} ${mo === 1 ? "mese" : "mesi"} fa`;
+};
+
+// Notifiche derivate live (overdue, queue_long, pending_member) — non sono stored.
+// Vengono ricalcolate ad ogni render del pannello in base allo stato corrente.
+// Per evitare doppioni, ogni computed ha un id deterministico.
+const buildComputedNotifications = (state, userId) => {
+  const role = getRoleType(userId);
+  const out = [];
+
+  // 1) Overdue tasks visibili all'utente, ma solo i propri (per non spammare).
+  getActiveTasks(state.tasks)
+    .filter(t => t.status !== "done" && isOverdue(t) && isMyTask(t, userId))
+    .forEach(t => {
+      out.push({
+        id: `computed-overdue-${t.id}`,
+        type: "overdue",
+        title: "Task scaduto",
+        body: t.title,
+        time: t.dueDate,
+        read: false, // gli overdue non sono mai "letti": persistono finché esistono
+        link: { taskId: t.id },
+        computed: true,
+      });
+    });
+
+  // 2) Task fermi in coda globale da > QUEUE_LONG_HOURS ore (solo manager/admin).
+  if (role === "manager" || role === "admin") {
+    const cutoff = Date.now() - QUEUE_LONG_HOURS * 3600 * 1000;
+    getActiveTasks(state.tasks)
+      .filter(t => isInGlobalQueue(t) && t.status !== "done")
+      .filter(t => {
+        // Considera "vecchio" se il task ha una dueDate vicina/passata, oppure
+        // se è stato creato prima del cutoff (heuristic: id timestamp).
+        const ts = parseInt((t.id || "").replace(/[^0-9]/g, "")) || 0;
+        return (ts > 0 && ts < cutoff) || (t.dueDate && new Date(t.dueDate).getTime() < Date.now() + 6 * 3600 * 1000);
+      })
+      .slice(0, 5)
+      .forEach(t => {
+        out.push({
+          id: `computed-queue-${t.id}`,
+          type: "queue_long",
+          title: "Task in coda globale da prendere",
+          body: `${t.title} — priorità ${PRIORITIES[t.priority]?.label.toLowerCase() || "—"}`,
+          time: t.dueDate || new Date().toISOString(),
+          read: false,
+          link: { taskId: t.id },
+          computed: true,
+        });
+      });
+  }
+
+  // 3) Membri team in pending — solo per admin.
+  if (role === "admin") {
+    (state.team || []).filter(m => m.pending).forEach(m => {
+      out.push({
+        id: `computed-pending-${m.id}`,
+        type: "pending_member",
+        title: "Richiesta di accesso team",
+        body: `${m.name} (${m.role}) in attesa di approvazione`,
+        time: new Date().toISOString(),
+        read: false,
+        link: { view: "admin" },
+        computed: true,
+      });
+    });
+  }
+
+  return out;
+};
+
+// Unisce stored + computed e applica filtro per utente.
+const getNotificationsForUser = (state, userId) => {
+  const stored = (state.notifications || []).filter(n => isNotificationForUser(n, userId));
+  const computed = buildComputedNotifications(state, userId);
+  // Ordino: non lette prima, poi per tempo decrescente.
+  return [...computed, ...stored].sort((a, b) => {
+    if (a.read !== b.read) return a.read ? 1 : -1;
+    return (b.time || "").localeCompare(a.time || "");
+  });
+};
 
 // ─── PERMESSI (v0.8) ──────────────────────────────────────────────────────
 // Ruoli logici derivati dal campo `role` del team member.
@@ -766,6 +1525,23 @@ const canCreateTaskCategory = (category, userId) => {
 
 // Può accedere all'Admin?
 const canAccessAdmin = (userId) => isAdmin(userId);
+
+// ─── PERMESSI CLIENTI / FORNITORI / PRATICHE (Fase 1) ───────────────────
+// Driver non vede i clienti (focus operativo sul transfer). Tutti gli altri sì.
+const canViewClients = (userId) => !isDriver(userId);
+const canManageClients = (userId) => !isDriver(userId);
+const canDeleteClient = (userId) => isAdmin(userId);
+
+// Fornitori: stesso schema di clienti.
+const canViewSuppliers = (userId) => !isDriver(userId);
+const canManageSuppliers = (userId) => !isDriver(userId);
+const canDeleteSupplier = (userId) => isAdmin(userId);
+
+// Pratiche: Driver non le vede. Tutti gli altri possono creare/modificare;
+// l'eliminazione (anche solo della pratica, non dei task) è riservata ad Admin.
+const canViewPractices = (userId) => !isDriver(userId);
+const canManagePractices = (userId) => !isDriver(userId);
+const canDeletePractice = (userId) => isAdmin(userId);
 
 // Categorie selezionabili nei form per questo utente
 const getAvailableCategories = (userId) => {
@@ -1117,7 +1893,7 @@ const Toast = ({ toast, dispatch }) => {
 };
 
 // ─── ADVANCED SEARCH PANEL ─────────────────────────────────────────────────
-const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
+const AdvancedSearchPanel = ({ tasks, dispatch, onClose, practices = [], clients = [] }) => {
   const { isMobile } = useViewport();
   const [keyword, setKeyword] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -1125,6 +1901,8 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
   const [cats, setCats] = useState([]);
   const [stats, setStats] = useState([]);
   const [agents, setAgents] = useState([]);
+  const [practiceIds, setPracticeIds] = useState([]);
+  const [practiceNumber, setPracticeNumber] = useState("");
   const [includeTrashed, setIncludeTrashed] = useState(false);
 
   const panelRef = useRef(null);
@@ -1152,14 +1930,17 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
 
   const resetAll = () => {
     setKeyword(""); setDateFrom(""); setDateTo("");
-    setCats([]); setStats([]); setAgents([]); setIncludeTrashed(false);
+    setCats([]); setStats([]); setAgents([]);
+    setPracticeIds([]); setPracticeNumber("");
+    setIncludeTrashed(false);
   };
 
-  const hasFilters = keyword.trim() || dateFrom || dateTo || cats.length || stats.length || agents.length || includeTrashed;
+  const hasFilters = keyword.trim() || dateFrom || dateTo || cats.length || stats.length || agents.length || practiceIds.length || practiceNumber.trim() || includeTrashed;
 
   const results = useMemo(() => {
     if (!hasFilters) return [];
     const k = keyword.trim().toLowerCase();
+    const pn = practiceNumber.trim().toLowerCase();
     const from = dateFrom ? new Date(dateFrom) : null;
     const to = dateTo ? (() => { const d = new Date(dateTo); d.setHours(23,59,59,999); return d; })() : null;
 
@@ -1168,6 +1949,11 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
       if (cats.length && !cats.includes(t.category)) return false;
       if (stats.length && !stats.includes(t.status)) return false;
       if (agents.length && !(t.assignees || []).some(a => agents.includes(a))) return false;
+      if (practiceIds.length && !practiceIds.includes(t.practiceId)) return false;
+      if (pn) {
+        const p = practices.find(x => x.id === t.practiceId);
+        if (!p || !(p.number || "").toLowerCase().includes(pn)) return false;
+      }
       if (from) {
         if (!t.dueDate) return false;
         if (new Date(t.dueDate) < from) return false;
@@ -1177,10 +1963,15 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
         if (new Date(t.dueDate) > to) return false;
       }
       if (k) {
+        const p = practices.find(x => x.id === t.practiceId);
+        const c = clients.find(x => x.id === t.clientId);
         const hay = [
           t.title || "",
           t.description || "",
           t.client || "",
+          c?.name || "",
+          p?.number || "",
+          p?.title || "",
           ...(t.comments || []).map(c => c.text || ""),
         ].join(" ").toLowerCase();
         if (!hay.includes(k)) return false;
@@ -1192,7 +1983,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
       if (!b.dueDate) return -1;
       return new Date(a.dueDate) - new Date(b.dueDate);
     });
-  }, [tasks, keyword, dateFrom, dateTo, cats, stats, agents, includeTrashed, hasFilters]);
+  }, [tasks, keyword, dateFrom, dateTo, cats, stats, agents, practiceIds, practiceNumber, includeTrashed, hasFilters, practices, clients]);
 
   const openTask = (t) => {
     dispatch({ type: "SET_SELECTED_TASK", payload: t });
@@ -1336,6 +2127,33 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
           </div>
         </div>
 
+        <div style={{ marginBottom: 14 }}>
+          <div style={sectionTitle}>Pratica</div>
+          <input
+            value={practiceNumber}
+            onChange={e => setPracticeNumber(e.target.value)}
+            placeholder="Numero pratica (es. PR-2026-001)…"
+            style={{
+              width: "100%", padding: "7px 10px", borderRadius: 6,
+              border: "1px solid var(--border)", fontSize: 12, outline: "none",
+              fontFamily: "monospace", boxSizing: "border-box", marginBottom: 8,
+            }}
+          />
+          {practices.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {practices.slice(0, 12).map(p => {
+                const active = practiceIds.includes(p.id);
+                const sm = practiceStatusMeta(p.status);
+                return (
+                  <div key={p.id} onClick={() => toggle(practiceIds, setPracticeIds, p.id)} style={chipBase(active, sm.color)}>
+                    <span style={{ fontFamily: "monospace", fontSize: 10 }}>{p.number}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "var(--text)" }}>
           <input type="checkbox" checked={includeTrashed} onChange={e => setIncludeTrashed(e.target.checked)} />
           🗑️ Includi task nel cestino
@@ -1427,7 +2245,11 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
 const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
   const { isMobile } = useViewport();
-  const unread = NOTIFICATIONS.filter(n => !n.read).length;
+  // Conteggio non lette dinamico (stored + computed) per utente corrente.
+  const unread = useMemo(
+    () => getNotificationsForUser(state, state.currentUserId).filter(n => !n.read).length,
+    [state]
+  );
   const [advOpen, setAdvOpen] = useState(false);
   return (
     <div style={{
@@ -1481,6 +2303,8 @@ const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
             tasks={state.tasks}
             dispatch={dispatch}
             onClose={() => setAdvOpen(false)}
+            practices={state.practices || []}
+            clients={state.clients || []}
           />
         )}
       </div>
@@ -1516,7 +2340,7 @@ const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
             color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center"
           }}>{unread}</span>}
         </button>
-        {state.showNotif && <NotificationsPanel dispatch={dispatch} />}
+        {state.showNotif && <NotificationsPanel state={state} dispatch={dispatch} />}
       </div>
 
       {/* User switcher (v0.8) */}
@@ -1892,40 +2716,168 @@ const UserSwitcher = ({ state, dispatch }) => {
   );
 };
 
-// ─── NOTIFICATIONS PANEL ───────────────────────────────────────────────────
-const NotificationsPanel = ({ dispatch }) => {
+// ─── NOTIFICATIONS PANEL (Fase 2 — notifiche reali) ────────────────────────
+const NotificationsPanel = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
-  const icons = { overdue: "⚠️", assigned: "📋", comment: "💬", deadline: "📅" };
+  const uid = state.currentUserId;
+  const [filter, setFilter] = useState("all"); // all | unread | <type>
+
+  const notifications = useMemo(() => getNotificationsForUser(state, uid), [state, uid]);
+
+  const filtered = useMemo(() => {
+    if (filter === "all") return notifications;
+    if (filter === "unread") return notifications.filter(n => !n.read);
+    return notifications.filter(n => n.type === filter);
+  }, [notifications, filter]);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  // Tipi presenti nelle notifiche correnti → mostra solo quei filtri.
+  const presentTypes = useMemo(() => {
+    const s = new Set(notifications.map(n => n.type));
+    return Array.from(s);
+  }, [notifications]);
+
+  const handleClick = (n) => {
+    // Mark as read (solo stored)
+    if (!n.read && !n.computed) {
+      dispatch({ type: "MARK_NOTIFICATION_READ", payload: n.id });
+    }
+    // Navigate
+    if (n.link?.taskId) {
+      const t = state.tasks.find(x => x.id === n.link.taskId);
+      if (t) {
+        dispatch({ type: "SET_SELECTED_TASK", payload: t });
+        dispatch({ type: "TOGGLE_NOTIF" });
+        return;
+      }
+    }
+    if (n.link?.view) {
+      dispatch({ type: "SET_VIEW", payload: n.link.view });
+      dispatch({ type: "TOGGLE_NOTIF" });
+      return;
+    }
+  };
+
+  const handleDelete = (e, n) => {
+    e.stopPropagation();
+    if (n.computed) return; // computed non si cancellano (riappaiono)
+    dispatch({ type: "DELETE_NOTIFICATION", payload: n.id });
+  };
+
   return (
     <div className="slide-right" style={{
       position: isMobile ? "fixed" : "absolute",
       top: isMobile ? 56 : "calc(100% + 8px)",
       right: isMobile ? 12 : 0,
       left: isMobile ? 12 : "auto",
-      width: isMobile ? "auto" : "min(360px, calc(100vw - 24px))",
+      width: isMobile ? "auto" : "min(380px, calc(100vw - 24px))",
       background: "#fff", borderRadius: 12, boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
       border: "1px solid var(--border)", overflow: "hidden", zIndex: 200,
+      display: "flex", flexDirection: "column", maxHeight: isMobile ? "calc(100vh - 80px)" : 540,
     }}>
+      {/* Header */}
       <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div className="playfair" style={{ fontWeight: 600, fontSize: 15 }}>Notifiche</div>
-        <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
+        <div className="playfair" style={{ fontWeight: 600, fontSize: 15 }}>
+          Notifiche {unreadCount > 0 && <span style={{ fontSize: 11, color: "var(--gold-dark)", fontWeight: 700, marginLeft: 6 }}>· {unreadCount} nuove</span>}
+        </div>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          {unreadCount > 0 && (
+            <button
+              onClick={() => dispatch({ type: "MARK_ALL_NOTIFICATIONS_READ" })}
+              title="Segna tutte come lette"
+              style={{
+                background: "transparent", border: "1px solid var(--border)",
+                borderRadius: 6, padding: "4px 10px", fontSize: 11, color: "var(--text-muted)",
+                cursor: "pointer", fontWeight: 600,
+              }}
+            >✓ Tutte lette</button>
+          )}
+          <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
+        </div>
       </div>
-      <div style={{ maxHeight: 420, overflowY: "auto" }}>
-        {NOTIFICATIONS.map(n => (
-          <div key={n.id} style={{
-            padding: "12px 16px", display: "flex", gap: 10, alignItems: "flex-start",
-            background: n.read ? "transparent" : "rgba(212,168,67,0.07)",
-            borderBottom: "1px solid var(--border)",
-            transition: "background 0.2s", cursor: "default",
-          }}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>{icons[n.type]}</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: n.read ? 400 : 600 }}>{n.title}</div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{n.time}</div>
-            </div>
-            {!n.read && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--gold)", flexShrink: 0, marginTop: 4 }} />}
-          </div>
+
+      {/* Filtri */}
+      <div style={{
+        display: "flex", gap: 4, padding: "8px 10px", borderBottom: "1px solid var(--border)",
+        overflowX: "auto", background: "var(--surface)",
+      }}>
+        {[
+          { k: "all", label: `Tutte (${notifications.length})` },
+          { k: "unread", label: `Non lette (${unreadCount})` },
+          ...presentTypes.map(t => ({ k: t, label: `${NOTIFICATION_TYPES[t]?.icon || ""} ${NOTIFICATION_TYPES[t]?.label || t}` })),
+        ].map(opt => (
+          <button key={opt.k} onClick={() => setFilter(opt.k)} style={{
+            padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer",
+            fontSize: 11, fontWeight: 600, whiteSpace: "nowrap",
+            background: filter === opt.k ? "var(--navy)" : "transparent",
+            color: filter === opt.k ? "#fff" : "var(--text-muted)",
+          }}>{opt.label}</button>
         ))}
+      </div>
+
+      {/* Lista */}
+      <div style={{ flex: 1, overflowY: "auto" }}>
+        {filtered.length === 0 ? (
+          <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--text-muted)" }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>🔕</div>
+            <div style={{ fontSize: 13 }}>
+              {notifications.length === 0 ? "Nessuna notifica." : "Nessun risultato per questo filtro."}
+            </div>
+          </div>
+        ) : filtered.map(n => {
+          const meta = NOTIFICATION_TYPES[n.type] || NOTIFICATION_TYPES.system;
+          const clickable = !!(n.link?.taskId || n.link?.view);
+          return (
+            <div
+              key={n.id}
+              onClick={() => clickable && handleClick(n)}
+              style={{
+                padding: "12px 16px", display: "flex", gap: 10, alignItems: "flex-start",
+                background: n.read ? "transparent" : "rgba(212,168,67,0.07)",
+                borderBottom: "1px solid var(--border)",
+                transition: "background 0.15s",
+                cursor: clickable ? "pointer" : "default",
+                position: "relative",
+              }}
+              onMouseEnter={e => { if (clickable) e.currentTarget.style.background = "var(--surface2)"; }}
+              onMouseLeave={e => e.currentTarget.style.background = n.read ? "transparent" : "rgba(212,168,67,0.07)"}
+            >
+              <span style={{
+                fontSize: 16, flexShrink: 0,
+                width: 30, height: 30, borderRadius: "50%",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                background: meta.color + "20",
+              }}>{meta.icon}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: n.read ? 500 : 700, color: "var(--text)" }}>{n.title}</div>
+                {n.body && (
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3, whiteSpace: "pre-wrap", lineHeight: 1.4 }}>{n.body}</div>
+                )}
+                <div style={{ fontSize: 10, color: "var(--text-light)", marginTop: 4, display: "flex", gap: 6, alignItems: "center" }}>
+                  <span>{relativeTime(n.time)}</span>
+                  {n.computed && <span style={{ padding: "1px 5px", background: "var(--surface2)", borderRadius: 4, fontSize: 9, fontWeight: 600 }}>LIVE</span>}
+                </div>
+              </div>
+              {!n.read && !n.computed && (
+                <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--gold)", flexShrink: 0, marginTop: 8 }} />
+              )}
+              {!n.computed && (
+                <button
+                  onClick={(e) => handleDelete(e, n)}
+                  title="Rimuovi"
+                  style={{
+                    position: "absolute", top: 8, right: 10,
+                    background: "transparent", border: "none", cursor: "pointer",
+                    fontSize: 11, color: "var(--text-light)", opacity: 0.5, padding: 2,
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.opacity = 1; e.currentTarget.style.color = "var(--danger)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.opacity = 0.5; e.currentTarget.style.color = "var(--text-light)"; }}
+                >✕</button>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -1935,6 +2887,9 @@ const NotificationsPanel = ({ dispatch }) => {
 const NAV_ITEMS = [
   { id: "dashboard", icon: "📊", label: "Dashboard", roles: ["admin", "manager", "agent", "driver"] },
   { id: "calendar", icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
+  { id: "practices", icon: "📁", label: "Pratiche", roles: ["admin", "manager", "agent"] },
+  { id: "clients", icon: "🧳", label: "Clienti", roles: ["admin", "manager", "agent"] },
+  { id: "suppliers", icon: "🤝", label: "Fornitori", roles: ["admin", "manager", "agent"] },
   { id: "team", icon: "👥", label: "Team", roles: ["admin", "manager", "agent"] },
   { id: "trash", icon: "🗑️", label: "Cestino", roles: ["admin"] },
   { id: "admin", icon: "⚙️", label: "Admin", roles: ["admin"] },
@@ -3947,22 +4902,47 @@ const Dashboard = ({ state, dispatch, onOpenChat }) => {
 };
 
 // ─── QUICK ADD TASK FORM ───────────────────────────────────────────────────
-const QuickAddTask = ({ onAdd, onClose }) => {
+const QuickAddTask = ({ onAdd, onClose, clients = [], practices = [] }) => {
   // Categorie filtrate per il ruolo dell'utente loggato (v0.8)
   const availableCats = getAvailableCategories(CURRENT_USER);
   const firstCatKey = Object.keys(availableCats)[0] || "booking";
 
   const [form, setForm] = useState({
     title: "", category: firstCatKey, priority: "medium",
-    status: "todo", assignees: [], dueDate: "", client: "", description: ""
+    status: "todo", assignees: [], dueDate: "", clientId: "", practiceId: "", description: ""
   });
+
+  // Pratiche disponibili: tutte se nessun cliente selezionato, filtrate per clientId altrimenti.
+  const availablePractices = useMemo(
+    () => form.clientId ? practices.filter(p => p.clientId === form.clientId) : practices,
+    [form.clientId, practices]
+  );
+
+  // Se cambio cliente e la pratica selezionata non appartiene più, la deseleziono.
+  useEffect(() => {
+    if (form.practiceId && !availablePractices.some(p => p.id === form.practiceId)) {
+      setForm(p => ({ ...p, practiceId: "" }));
+    }
+  }, [form.practiceId, availablePractices]);
 
   const handleSubmit = () => {
     if (!form.title.trim()) return;
+    const client = clients.find(c => c.id === form.clientId);
+    const practice = practices.find(p => p.id === form.practiceId);
+    // Se selezionata una pratica e non un cliente, eredita il clientId della pratica.
+    const finalClientId = form.clientId || practice?.clientId || null;
+    const finalClient = client || clients.find(c => c.id === finalClientId);
     onAdd({
       id: "t" + Date.now(),
-      ...form,
-      client: form.client.trim() || null,
+      title: form.title,
+      category: form.category,
+      priority: form.priority,
+      status: form.status,
+      assignees: form.assignees,
+      description: form.description,
+      clientId: finalClientId,
+      practiceId: form.practiceId || null,
+      client: finalClient?.name || null, // stringa legacy in sync
       comments: [],
       estimatedHours: 1,
       dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
@@ -4033,9 +5013,25 @@ const QuickAddTask = ({ onAdd, onClose }) => {
             </div>
           </div>
 
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>CLIENTE</label>
-            <input {...inp("client")} placeholder="Es. Famiglia Rossi..." />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>CLIENTE</label>
+              <select {...inp("clientId")} style={{ ...inp("clientId").style, cursor: "pointer" }}>
+                <option value="">— Nessun cliente —</option>
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>{clientTypeIcon(c.type)} {c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>PRATICA</label>
+              <select {...inp("practiceId")} style={{ ...inp("practiceId").style, cursor: "pointer" }}>
+                <option value="">— Nessuna pratica —</option>
+                {availablePractices.map(p => (
+                  <option key={p.id} value={p.id}>{p.number} — {p.title}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div>
@@ -4060,11 +5056,14 @@ const QuickAddTask = ({ onAdd, onClose }) => {
 };
 
 // ─── TASK DETAIL SLIDE-OVER ────────────────────────────────────────────────
-const TaskSlideOver = ({ task, dispatch }) => {
+const TaskSlideOver = ({ task, dispatch, clients = [], practices = [] }) => {
   const { isMobile } = useViewport();
   const [newComment, setNewComment] = useState("");
 
   if (!task) return null;
+
+  const linkedClient = task.clientId ? getClient(clients, task.clientId) : null;
+  const linkedPractice = task.practiceId ? getPractice(practices, task.practiceId) : null;
 
   const handleComment = () => {
     if (!newComment.trim()) return;
@@ -4165,11 +5164,47 @@ const TaskSlideOver = ({ task, dispatch }) => {
             </div>
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>CLIENTE</div>
-              <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>
-                {task.client || <span style={{ color: "var(--text-muted)" }}>—</span>}
-              </div>
+              {linkedClient ? (
+                <button
+                  onClick={() => { dispatch({ type: "SET_SELECTED_TASK", payload: null }); dispatch({ type: "SET_VIEW", payload: "clients" }); }}
+                  style={{
+                    fontSize: 13, padding: "4px 10px", background: "var(--surface2)",
+                    border: "1px solid var(--border)", borderRadius: 8, cursor: "pointer",
+                    color: "var(--navy)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4,
+                  }}
+                  title="Vai a Clienti"
+                >{clientTypeIcon(linkedClient.type)} {linkedClient.name}</button>
+              ) : (
+                <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>
+                  {task.client || <span style={{ color: "var(--text-muted)" }}>—</span>}
+                </div>
+              )}
             </div>
           </div>
+
+          {/* PRATICA collegata */}
+          {linkedPractice && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>PRATICA</div>
+              <button
+                onClick={() => { dispatch({ type: "SET_SELECTED_TASK", payload: null }); dispatch({ type: "SET_VIEW", payload: "practices" }); }}
+                style={{
+                  width: "100%", textAlign: "left",
+                  padding: "10px 12px", background: "var(--surface2)",
+                  border: "1px solid var(--border)", borderRadius: 8, cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 10,
+                }}
+                title="Vai a Pratiche"
+              >
+                <span style={{ fontSize: 18 }}>📁</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "monospace" }}>{linkedPractice.number}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--navy)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{linkedPractice.title}</div>
+                </div>
+                <PracticeStatusBadge status={linkedPractice.status} />
+              </button>
+            </div>
+          )}
 
           {/* ORE */}
           {task.estimatedHours && (
@@ -4255,9 +5290,10 @@ const TaskSlideOver = ({ task, dispatch }) => {
 // ─── CALENDAR PLANNER (unificato: mese + settimana + distribuzione agenti) ──
 const CalendarPlanner = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
-  const [viewMode, setViewMode] = useState("month"); // "month" | "week"
+  const [viewMode, setViewMode] = useState("month"); // "month" | "week" | "day"
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [weekOffset, setWeekOffset] = useState(0);
+  const [currentDay, setCurrentDay] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(null);
   const uid = state.currentUserId;
 
@@ -4313,6 +5349,108 @@ const CalendarPlanner = ({ state, dispatch }) => {
     >{label}</button>
   );
 
+  // ── Day view helpers ──
+  const dayHours = Array.from({ length: 14 }, (_, i) => i + 7); // 07:00 → 20:00
+  const dayTitle = currentDay.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const tasksForCurrentDay = useMemo(
+    () => state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && new Date(t.dueDate).toDateString() === currentDay.toDateString())
+      .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate)),
+    [state.tasks, uid, currentDay]
+  );
+
+  // Pratiche attive nella data corrente (per la pista eventi multi-day in day view).
+  const practicesInDay = useMemo(
+    () => (state.practices || []).filter(p => {
+      if (!p.startDate || !p.endDate) return false;
+      const start = new Date(p.startDate);
+      const end = new Date(p.endDate);
+      end.setHours(23, 59, 59);
+      return currentDay >= new Date(start.toDateString()) && currentDay <= end;
+    }),
+    [state.practices, currentDay]
+  );
+
+  // ── iCal export ──
+  // Genera un file .ics minimale (RFC 5545) con i task assegnati all'utente che hanno una dueDate.
+  // Eventi di 1h di default.
+  const exportICal = () => {
+    const me = getMember(uid);
+    const visibleTasks = state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate);
+    const fmt = (d) => {
+      const dt = new Date(d);
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${dt.getUTCFullYear()}${pad(dt.getUTCMonth() + 1)}${pad(dt.getUTCDate())}T${pad(dt.getUTCHours())}${pad(dt.getUTCMinutes())}00Z`;
+    };
+    const esc = (s) => (s || "").replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
+    const lines = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//VoyageDesk//Calendar//IT",
+      "CALSCALE:GREGORIAN",
+      "METHOD:PUBLISH",
+      `X-WR-CALNAME:VoyageDesk — ${esc(me?.name || "Task")}`,
+    ];
+    visibleTasks.forEach(t => {
+      const start = new Date(t.dueDate);
+      const end = new Date(start.getTime() + (t.estimatedHours || 1) * 3600000);
+      const client = t.clientId ? getClient(state.clients, t.clientId)?.name : t.client;
+      const practice = t.practiceId ? getPractice(state.practices, t.practiceId) : null;
+      const descParts = [
+        t.description,
+        client && `Cliente: ${client}`,
+        practice && `Pratica: ${practice.number} — ${practice.title}`,
+        `Stato: ${STATUS_LABELS[t.status]}`,
+        `Priorità: ${PRIORITIES[t.priority]?.label || "—"}`,
+      ].filter(Boolean);
+      lines.push(
+        "BEGIN:VEVENT",
+        `UID:${t.id}@voyagedesk`,
+        `DTSTAMP:${fmt(new Date())}`,
+        `DTSTART:${fmt(start)}`,
+        `DTEND:${fmt(end)}`,
+        `SUMMARY:${esc(`[${CATEGORIES[t.category]?.label || ""}] ${t.title}`)}`,
+        `DESCRIPTION:${esc(descParts.join("\\n"))}`,
+        `CATEGORIES:${esc(CATEGORIES[t.category]?.label || "")}`,
+        "END:VEVENT"
+      );
+    });
+    // Eventi pratica come VEVENT all-day multi-giorno.
+    (state.practices || []).forEach(p => {
+      if (!p.startDate || !p.endDate) return;
+      const start = new Date(p.startDate);
+      const end = new Date(p.endDate);
+      end.setDate(end.getDate() + 1);
+      const pad = (n) => String(n).padStart(2, "0");
+      const dStr = (d) => `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}`;
+      const client = p.clientId ? getClient(state.clients, p.clientId)?.name : null;
+      lines.push(
+        "BEGIN:VEVENT",
+        `UID:practice-${p.id}@voyagedesk`,
+        `DTSTAMP:${fmt(new Date())}`,
+        `DTSTART;VALUE=DATE:${dStr(start)}`,
+        `DTEND;VALUE=DATE:${dStr(end)}`,
+        `SUMMARY:${esc(`📁 ${p.number} — ${p.title}`)}`,
+        `DESCRIPTION:${esc([client && `Cliente: ${client}`, p.destination && `Dest.: ${p.destination}`, `Stato: ${practiceStatusMeta(p.status).label}`].filter(Boolean).join("\\n"))}`,
+        "END:VEVENT"
+      );
+    });
+    lines.push("END:VCALENDAR");
+    const blob = new Blob([lines.join("\r\n")], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `voyagedesk-${new Date().toISOString().slice(0, 10)}.ics`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    dispatch({ type: "ADD_NOTIFICATION", payload: {
+      type: "system", title: "Calendario esportato",
+      body: `File iCal generato con ${visibleTasks.length} task e ${(state.practices || []).length} pratiche.`,
+      targetUserIds: [uid], link: null,
+    }});
+  };
+
   return (
     <div className="fade-in" style={{ padding: isMobile ? 16 : 28, display: "flex", flexDirection: "column", gap: isMobile ? 16 : 22 }}>
 
@@ -4320,7 +5458,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
       <div className="vd-row-wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div className="playfair" style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, textTransform: viewMode === "month" ? "capitalize" : "none" }}>
-            {viewMode === "month" ? monthName : "Settimana"}
+            {viewMode === "month" ? monthName : viewMode === "week" ? "Settimana" : dayTitle}
           </div>
           {viewMode === "week" && (
             <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
@@ -4333,22 +5471,42 @@ const CalendarPlanner = ({ state, dispatch }) => {
           <div style={{ display: "flex", gap: 4, background: "var(--surface2)", borderRadius: 10, padding: 3 }}>
             {toggleBtn("month", isMobile ? "Mese" : "📅 Mese")}
             {toggleBtn("week", isMobile ? "Sett." : "📆 Settimana")}
+            {toggleBtn("day", isMobile ? "Giorno" : "📌 Giorno")}
           </div>
           {/* Nav buttons */}
           <div style={{ display: "flex", gap: 4 }}>
-            <button onClick={() => viewMode === "month" ? setCurrentMonth(new Date(year, month - 1)) : setWeekOffset(w => w - 1)} style={{
+            <button onClick={() => {
+              if (viewMode === "month") setCurrentMonth(new Date(year, month - 1));
+              else if (viewMode === "week") setWeekOffset(w => w - 1);
+              else { const d = new Date(currentDay); d.setDate(d.getDate() - 1); setCurrentDay(d); }
+            }} style={{
               background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
               width: 34, height: 34, cursor: "pointer", fontSize: 14
             }}>←</button>
-            <button onClick={() => { viewMode === "month" ? setCurrentMonth(new Date()) : setWeekOffset(0); setSelectedDay(null); }} style={{
+            <button onClick={() => {
+              if (viewMode === "month") setCurrentMonth(new Date());
+              else if (viewMode === "week") setWeekOffset(0);
+              else setCurrentDay(new Date());
+              setSelectedDay(null);
+            }} style={{
               background: "var(--gold)", color: "var(--navy)", border: "none",
               borderRadius: 8, padding: "0 14px", height: 34, cursor: "pointer", fontSize: 12, fontWeight: 700
             }}>Oggi</button>
-            <button onClick={() => viewMode === "month" ? setCurrentMonth(new Date(year, month + 1)) : setWeekOffset(w => w + 1)} style={{
+            <button onClick={() => {
+              if (viewMode === "month") setCurrentMonth(new Date(year, month + 1));
+              else if (viewMode === "week") setWeekOffset(w => w + 1);
+              else { const d = new Date(currentDay); d.setDate(d.getDate() + 1); setCurrentDay(d); }
+            }} style={{
               background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
               width: 34, height: 34, cursor: "pointer", fontSize: 14
             }}>→</button>
           </div>
+          {/* iCal export */}
+          <button onClick={exportICal} title="Esporta in formato iCal (.ics)" style={{
+            background: "var(--navy)", color: "#fff", border: "none", borderRadius: 8,
+            height: 34, padding: "0 12px", fontSize: 12, fontWeight: 600, cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 5,
+          }}>📥 {!isMobile && "iCal"}</button>
         </div>
       </div>
 
@@ -4499,6 +5657,136 @@ const CalendarPlanner = ({ state, dispatch }) => {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* ─── VISTA GIORNO ─── */}
+      {viewMode === "day" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Pratiche attive oggi (multi-day events) */}
+          {practicesInDay.length > 0 && (
+            <div style={{ background: "#fff", borderRadius: 12, padding: "12px 16px", border: "1px solid var(--border)", boxShadow: "0 2px 10px rgba(0,0,0,0.06)" }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
+                Pratiche attive ({practicesInDay.length})
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {practicesInDay.map(p => {
+                  const sm = practiceStatusMeta(p.status);
+                  const client = getClient(state.clients, p.clientId);
+                  const dayNum = Math.floor((currentDay - new Date(p.startDate)) / 86400000) + 1;
+                  const totalDays = Math.floor((new Date(p.endDate) - new Date(p.startDate)) / 86400000) + 1;
+                  return (
+                    <div key={p.id} onClick={() => dispatch({ type: "SET_VIEW", payload: "practices" })} style={{
+                      display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
+                      borderRadius: 8, cursor: "pointer",
+                      background: sm.bg, borderLeft: `4px solid ${sm.color}`,
+                    }}>
+                      <span style={{ fontSize: 16 }}>📁</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          <span style={{ fontFamily: "monospace", marginRight: 6, opacity: 0.7 }}>{p.number}</span>
+                          {p.title}
+                        </div>
+                        <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 2 }}>
+                          {client?.name} · {p.destination} · Giorno {dayNum}/{totalDays}
+                        </div>
+                      </div>
+                      <PracticeStatusBadge status={p.status} />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Griglia oraria */}
+          <div style={{ background: "#fff", borderRadius: 14, border: "1px solid var(--border)", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden" }}>
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", background: "var(--surface)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>
+                {tasksForCurrentDay.length} {tasksForCurrentDay.length === 1 ? "task" : "task"} · ore 07:00–20:00
+              </div>
+              <input
+                type="date"
+                value={currentDay.toISOString().slice(0, 10)}
+                onChange={e => e.target.value && setCurrentDay(new Date(e.target.value + "T12:00:00"))}
+                style={{
+                  padding: "5px 8px", border: "1px solid var(--border)", borderRadius: 6,
+                  fontSize: 12, fontFamily: "inherit", outline: "none",
+                }}
+              />
+            </div>
+            <div>
+              {dayHours.map(h => {
+                const hourTasks = tasksForCurrentDay.filter(t => new Date(t.dueDate).getHours() === h);
+                const isCurrentHour = new Date().toDateString() === currentDay.toDateString() && new Date().getHours() === h;
+                return (
+                  <div key={h} style={{
+                    display: "grid", gridTemplateColumns: "60px 1fr",
+                    borderBottom: "1px solid var(--border)",
+                    background: isCurrentHour ? "rgba(212,168,67,0.06)" : "transparent",
+                  }}>
+                    <div style={{
+                      padding: "10px 8px", fontSize: 11, color: "var(--text-muted)",
+                      fontFamily: "monospace", borderRight: "1px solid var(--border)",
+                      background: "var(--surface)", textAlign: "right",
+                    }}>{String(h).padStart(2, "0")}:00</div>
+                    <div style={{ padding: "6px 10px", minHeight: 42, display: "flex", flexDirection: "column", gap: 4 }}>
+                      {hourTasks.length === 0 ? (
+                        isCurrentHour && <div style={{ fontSize: 10, color: "var(--gold-dark)", fontStyle: "italic", paddingTop: 2 }}>← Sei qui</div>
+                      ) : hourTasks.map(t => {
+                        const cat = CATEGORIES[t.category];
+                        const prio = PRIORITIES[t.priority];
+                        return (
+                          <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                            display: "flex", alignItems: "center", gap: 8, padding: "6px 10px",
+                            borderRadius: 6, cursor: "pointer",
+                            background: cat?.color + "12",
+                            borderLeft: `3px solid ${prio?.color || cat?.color}`,
+                          }}
+                            onMouseEnter={e => e.currentTarget.style.background = cat?.color + "22"}
+                            onMouseLeave={e => e.currentTarget.style.background = cat?.color + "12"}
+                          >
+                            <span style={{ fontSize: 14 }}>{cat?.icon}</span>
+                            <span style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "monospace", minWidth: 38 }}>
+                              {formatTime(t.dueDate)}
+                            </span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
+                              {t.client && <div style={{ fontSize: 10, color: "var(--text-muted)" }}>👤 {t.client}</div>}
+                            </div>
+                            <StatusBadge status={t.status} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {/* Task senza ora o fuori range */}
+            {(() => {
+              const off = tasksForCurrentDay.filter(t => {
+                const h = new Date(t.dueDate).getHours();
+                return h < 7 || h > 20;
+              });
+              if (off.length === 0) return null;
+              return (
+                <div style={{ padding: "10px 16px", borderTop: "1px solid var(--border)", background: "var(--surface)" }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>Fuori orario lavorativo ({off.length})</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {off.map(t => (
+                      <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                        fontSize: 11, padding: "4px 8px", cursor: "pointer", borderRadius: 4,
+                        background: "#fff", border: "1px solid var(--border)",
+                      }}>
+                        {formatTime(t.dueDate)} — {CATEGORIES[t.category]?.icon} {t.title}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -4684,8 +5972,48 @@ const Team = ({ state, dispatch }) => {
 // ─── CHAT: MOCK DATA ───────────────────────────────────────────────────────
 // CURRENT_USER è dichiarato in cima al file (sezione MOCK DATA)
 
-// Context per condividere tasks/dispatch (per messaggi con taskLink — v0.8)
-const ChatContext = createContext({ tasks: [], dispatch: () => {} });
+// Context per condividere tasks/practices/messageTemplates/dispatch (per messaggi con link cliccabili e picker template)
+const ChatContext = createContext({ tasks: [], practices: [], messageTemplates: [], dispatch: () => {} });
+
+// Parser refs in testo libero. Riconosce:
+//  - Numero pratica: PR-YYYY-NNN
+//  - "Riferimento task: \"...\"" (prefisso usato dai precompilati v0.8)
+// Restituisce { firstPracticeId, firstTaskTitle } per la rich preview.
+const parseMessageRefs = (text, tasks, practices) => {
+  if (!text) return { practiceId: null, taskTitle: null };
+  const prMatch = text.match(/PR-\d{4}-\d{3,}/);
+  let practiceId = null;
+  if (prMatch) {
+    const p = (practices || []).find(x => x.number === prMatch[0]);
+    if (p) practiceId = p.id;
+  }
+  let taskTitle = null;
+  const taskRefMatch = text.match(/Riferimento task:\s*"([^"]+)"/);
+  if (taskRefMatch) taskTitle = taskRefMatch[1];
+  return { practiceId, taskTitle };
+};
+
+// Renderizza testo evidenziando i pattern PR-YYYY-NNN come link cliccabili.
+const renderMessageTextWithLinks = (text, isMine, onPracticeClick) => {
+  if (!text) return null;
+  const parts = text.split(/(PR-\d{4}-\d{3,})/g);
+  return parts.map((part, i) => {
+    if (/^PR-\d{4}-\d{3,}$/.test(part)) {
+      return (
+        <span
+          key={i}
+          onClick={(e) => { e.stopPropagation(); onPracticeClick(part); }}
+          style={{
+            color: isMine ? "var(--gold-light)" : "var(--navy)",
+            fontWeight: 700, cursor: "pointer",
+            textDecoration: "underline", fontFamily: "monospace",
+          }}
+        >{part}</span>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
+};
 
 const initialConversations = [
   {
@@ -4891,10 +6219,25 @@ const VoicePlayer = ({ duration, waveform, isMine }) => {
 const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onContextMenu }) => {
   const [showReactions, setShowReactions] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const { tasks: ctxTasks, practices: ctxPractices, dispatch: ctxDispatch } = useContext(ChatContext);
   const isMine = msg.sender === CURRENT_USER;
   const sender = getMember(msg.sender);
   const showAvatar = !prevMsg || prevMsg.sender !== msg.sender;
   const showName = conv.type === "group" && !isMine && showAvatar;
+
+  // Rich-preview refs (task/practice) estratti dal testo del messaggio
+  const refs = msg.type === "text" ? parseMessageRefs(msg.text, ctxTasks, ctxPractices) : { practiceId: null, taskTitle: null };
+  const refPractice = refs.practiceId ? (ctxPractices || []).find(p => p.id === refs.practiceId) : null;
+  const refTask = refs.taskTitle ? (ctxTasks || []).find(t => t.title === refs.taskTitle) : null;
+
+  const openPracticeByNumber = (number) => {
+    if (!ctxDispatch) return;
+    ctxDispatch({ type: "SET_VIEW", payload: "practices" });
+  };
+  const openTask = (t) => {
+    if (!ctxDispatch || !t) return;
+    ctxDispatch({ type: "SET_SELECTED_TASK", payload: t });
+  };
 
   const replyMsg = msg.replyTo ? allMessages.find(m => m.id === msg.replyTo) : null;
   const replyAuthor = replyMsg ? getMember(replyMsg.sender) : null;
@@ -4958,7 +6301,53 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
 
           {/* Content */}
           {msg.type === "text" && (
-            <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}>{msg.text}</div>
+            <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word", whiteSpace: "pre-wrap" }}>
+              {renderMessageTextWithLinks(msg.text, isMine, openPracticeByNumber)}
+            </div>
+          )}
+
+          {/* Rich preview: task riferito nel messaggio */}
+          {msg.type === "text" && refTask && (
+            <div
+              onClick={(e) => { e.stopPropagation(); openTask(refTask); }}
+              style={{
+                marginTop: 8, padding: "8px 10px", borderRadius: 8,
+                background: isMine ? "rgba(255,255,255,0.12)" : "var(--surface2)",
+                border: `1px solid ${isMine ? "rgba(255,255,255,0.18)" : "var(--border)"}`,
+                cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
+              }}
+            >
+              <span style={{ fontSize: 16 }}>{CATEGORIES[refTask.category]?.icon || "📋"}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11, opacity: 0.7, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 600 }}>Task</div>
+                <div style={{ fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{refTask.title}</div>
+                <div style={{ fontSize: 10, opacity: 0.7 }}>
+                  {STATUS_LABELS[refTask.status]} · {refTask.dueDate ? formatDate(refTask.dueDate) : "no scadenza"}
+                </div>
+              </div>
+              <span style={{ fontSize: 12, opacity: 0.6 }}>→</span>
+            </div>
+          )}
+
+          {/* Rich preview: pratica riferita nel messaggio */}
+          {msg.type === "text" && refPractice && (
+            <div
+              onClick={(e) => { e.stopPropagation(); openPracticeByNumber(refPractice.number); }}
+              style={{
+                marginTop: 8, padding: "8px 10px", borderRadius: 8,
+                background: isMine ? "rgba(255,255,255,0.12)" : "var(--surface2)",
+                border: `1px solid ${isMine ? "rgba(255,255,255,0.18)" : "var(--border)"}`,
+                cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
+              }}
+            >
+              <span style={{ fontSize: 16 }}>📁</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11, opacity: 0.7, fontFamily: "monospace" }}>{refPractice.number}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{refPractice.title}</div>
+                <div style={{ fontSize: 10, opacity: 0.7 }}>{practiceStatusMeta(refPractice.status).label}</div>
+              </div>
+              <span style={{ fontSize: 12, opacity: 0.6 }}>→</span>
+            </div>
           )}
 
           {msg.type === "voice" && (
@@ -5099,8 +6488,15 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
   const [recording, setRecording] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const [showAttach, setShowAttach] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const [typing, setTyping] = useState(false);
   const scrollRef = useRef(null);
+  const { messageTemplates: ctxTemplates } = useContext(ChatContext);
+
+  const insertTemplate = (tpl) => {
+    setInput(prev => prev ? prev + "\n" + tpl.text : tpl.text);
+    setShowTemplates(false);
+  };
 
   // Se è arrivato un prefill (es. da "contatta agente" su urgenti altrui), popolalo
   useEffect(() => {
@@ -5214,7 +6610,15 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
         }}>←</button>
 
         {conv.type === "direct" ? (
-          <Avatar memberId={otherTypingMember} size={36} />
+          <div style={{ position: "relative" }}>
+            <Avatar memberId={otherTypingMember} size={36} />
+            <div style={{
+              position: "absolute", bottom: -1, right: -1, width: 11, height: 11,
+              borderRadius: "50%",
+              background: PRESENCE_STATUSES[getPresence(otherTypingMember)]?.color || "var(--text-light)",
+              border: "2px solid var(--navy)",
+            }} />
+          </div>
         ) : (
           <div style={{
             width: 36, height: 36, borderRadius: "50%", background: "var(--gold)",
@@ -5236,7 +6640,11 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
                 <span style={{ animation: "typing 1s infinite", animationDelay: "0.4s", display: "inline-block" }}>.</span>
               </span>
             ) : conv.type === "direct" ? (
-              <>● Online</>
+              (() => {
+                const p = getPresence(otherTypingMember);
+                const meta = PRESENCE_STATUSES[p];
+                return <span style={{ color: meta?.color || "rgba(255,255,255,0.55)" }}>● {meta?.label}</span>;
+              })()
             ) : (
               `${conv.participants.length} membri`
             )}
@@ -5314,7 +6722,7 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
         ) : (
           <>
             <div style={{ position: "relative" }}>
-              <button onClick={() => setShowAttach(s => !s)} style={{
+              <button onClick={() => { setShowAttach(s => !s); setShowTemplates(false); }} style={{
                 background: "var(--surface2)", border: "none", borderRadius: "50%",
                 width: 36, height: 36, cursor: "pointer", fontSize: 18, flexShrink: 0,
               }}>📎</button>
@@ -5344,6 +6752,42 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
                 </div>
               )}
             </div>
+
+            {/* Template picker */}
+            {(ctxTemplates || []).length > 0 && (
+              <div style={{ position: "relative" }}>
+                <button onClick={() => { setShowTemplates(s => !s); setShowAttach(false); }} title="Template messaggi" style={{
+                  background: "var(--surface2)", border: "none", borderRadius: "50%",
+                  width: 36, height: 36, cursor: "pointer", fontSize: 16, flexShrink: 0,
+                }}>⚡</button>
+                {showTemplates && (
+                  <div className="slide-up" style={{
+                    position: "absolute", bottom: "calc(100% + 8px)", left: 0,
+                    background: "#fff", borderRadius: 12, padding: 8,
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--border)",
+                    display: "flex", flexDirection: "column", gap: 2,
+                    minWidth: 280, maxWidth: 360, maxHeight: 320, overflowY: "auto", zIndex: 100,
+                  }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, padding: "4px 10px" }}>
+                      Template ({ctxTemplates.length})
+                    </div>
+                    {ctxTemplates.map(tpl => (
+                      <button key={tpl.id} onClick={() => insertTemplate(tpl)} style={{
+                        padding: "8px 12px", border: "none", background: "transparent",
+                        borderRadius: 8, cursor: "pointer", fontSize: 13, textAlign: "left",
+                        display: "flex", flexDirection: "column", gap: 2,
+                      }}
+                        onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                      >
+                        <div style={{ fontSize: 12, fontWeight: 700 }}>{tpl.label}</div>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tpl.text}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <input
               value={input}
@@ -5396,7 +6840,14 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
     if (filter === "direct" && c.type !== "direct") return false;
     if (filter === "group" && c.type !== "group") return false;
     if (filter === "unread" && getUnreadCount(messages, c.id) === 0) return false;
-    if (search && !getConversationName(c).toLowerCase().includes(search.toLowerCase())) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      const nameMatch = getConversationName(c).toLowerCase().includes(q);
+      // Ricerca anche dentro i messaggi di testo della conversazione
+      const msgs = messages[c.id] || [];
+      const msgMatch = msgs.some(m => (m.text || "").toLowerCase().includes(q) || (m.fileName || "").toLowerCase().includes(q));
+      if (!nameMatch && !msgMatch) return false;
+    }
     return true;
   });
 
@@ -5457,11 +6908,13 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
               onMouseLeave={e => e.currentTarget.style.background = unread > 0 ? "rgba(212,168,67,0.05)" : "transparent"}
             >
               {c.type === "direct" ? (
-                <div style={{ position: "relative", flexShrink: 0 }}>
+                <div style={{ position: "relative", flexShrink: 0 }} title={PRESENCE_STATUSES[getPresence(otherUser)]?.label}>
                   <Avatar memberId={otherUser} size={42} />
                   <div style={{
                     position: "absolute", bottom: 0, right: 0, width: 11, height: 11,
-                    borderRadius: "50%", background: "var(--success)", border: "2px solid #fff",
+                    borderRadius: "50%",
+                    background: PRESENCE_STATUSES[getPresence(otherUser)]?.color || "var(--text-light)",
+                    border: "2px solid #fff",
                   }} />
                 </div>
               ) : (
@@ -5675,7 +7128,7 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
 };
 
 // ─── CHAT: MAIN PANEL ──────────────────────────────────────────────────────
-const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, currentUserId }) => {
+const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, practices, messageTemplates, dispatch, currentUserId }) => {
   const { isMobile } = useViewport();
   const [activeConv, setActiveConv] = useState(null);
   const [newMode, setNewMode] = useState(false);
@@ -5721,7 +7174,7 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
   };
 
   return (
-    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER }}>
+    <ChatContext.Provider value={{ tasks: tasks || [], practices: practices || [], messageTemplates: messageTemplates || [], dispatch, currentUserId: currentUserId || CURRENT_USER }}>
     <>
       <div onClick={onClose} style={{
         position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: 700,
@@ -6169,6 +7622,7 @@ const AdminView = ({ state, dispatch }) => {
 
   const tabs = [
     { id: "team", icon: "👥", label: "Team" },
+    { id: "settings", icon: "🏢", label: "Impostazioni" },
     { id: "io", icon: "📤", label: "Import / Export" },
     { id: "stats", icon: "📊", label: "Sistema" },
     { id: "cats", icon: "🏷️", label: "Categorie" },
@@ -6216,6 +7670,7 @@ const AdminView = ({ state, dispatch }) => {
       {/* Tab content */}
       <div className="fade-in" key={tab}>
         {tab === "team" && <AdminTeamTab state={state} dispatch={dispatch} />}
+        {tab === "settings" && <AdminSettingsTab state={state} dispatch={dispatch} />}
         {tab === "io" && <AdminIOTab state={state} dispatch={dispatch} />}
         {tab === "stats" && <AdminStatsTab state={state} />}
         {tab === "cats" && <AdminCategoriesTab state={state} dispatch={dispatch} />}
@@ -6485,13 +7940,19 @@ const AdminIOTab = ({ state, dispatch }) => {
 
   const exportBackup = () => {
     const backup = {
-      version: "0.5",
+      version: "0.10",
       exportedAt: new Date().toISOString(),
       agencyName: state.agencyName,
       tasks: state.tasks,
       team: state.team,
       categories: state.categories,
       notices: state.notices,
+      clients: state.clients,
+      suppliers: state.suppliers,
+      practices: state.practices,
+      notifications: state.notifications,
+      agency: state.agency,
+      messageTemplates: state.messageTemplates,
     };
     downloadFile(
       new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }),
@@ -6672,6 +8133,178 @@ const AdminStatsTab = ({ state }) => {
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{c.label}</div>
                 <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{c.count} task</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── ADMIN TAB: IMPOSTAZIONI (Fase 2) ──────────────────────────────────────
+const AdminSettingsTab = ({ state, dispatch }) => {
+  const a = state.agency || { name: state.agencyName };
+  const [agency, setAgency] = useState({
+    name: a.name || "",
+    slogan: a.slogan || "",
+    email: a.email || "",
+    phone: a.phone || "",
+    address: a.address || "",
+    vatId: a.vatId || "",
+    workingHoursStart: a.workingHoursStart || 9,
+    workingHoursEnd: a.workingHoursEnd || 18,
+  });
+  const [editingTpl, setEditingTpl] = useState(null); // null | tpl | "new"
+  const [tplForm, setTplForm] = useState({ label: "", text: "" });
+
+  const setA = (k, v) => setAgency(f => ({ ...f, [k]: v }));
+  const saveAgency = () => {
+    dispatch({ type: "UPDATE_AGENCY_SETTINGS", payload: {
+      ...agency,
+      workingHoursStart: parseInt(agency.workingHoursStart, 10),
+      workingHoursEnd: parseInt(agency.workingHoursEnd, 10),
+    }});
+  };
+
+  const saveTemplate = (e) => {
+    e?.preventDefault?.();
+    if (!tplForm.label.trim() || !tplForm.text.trim()) return;
+    if (editingTpl && editingTpl !== "new") {
+      dispatch({ type: "UPDATE_MESSAGE_TEMPLATE", payload: { id: editingTpl.id, ...tplForm } });
+    } else {
+      dispatch({ type: "ADD_MESSAGE_TEMPLATE", payload: tplForm });
+    }
+    setEditingTpl(null);
+    setTplForm({ label: "", text: "" });
+  };
+
+  const startEdit = (tpl) => {
+    setEditingTpl(tpl);
+    setTplForm({ label: tpl.label, text: tpl.text });
+  };
+  const startNew = () => {
+    setEditingTpl("new");
+    setTplForm({ label: "", text: "" });
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "9px 12px", border: "1px solid var(--border)",
+    borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff",
+    outline: "none", boxSizing: "border-box",
+  };
+  const labelStyle = { fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, display: "block" };
+
+  return (
+    <div style={{ display: "grid", gap: 20 }}>
+      {/* Profilo agenzia */}
+      <div style={cardStyle}>
+        <h3 style={cardH}>🏢 Profilo agenzia</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <div>
+            <label style={labelStyle}>Nome agenzia *</label>
+            <input style={inputStyle} value={agency.name} onChange={e => setA("name", e.target.value)} />
+          </div>
+          <div>
+            <label style={labelStyle}>Slogan</label>
+            <input style={inputStyle} value={agency.slogan} onChange={e => setA("slogan", e.target.value)} />
+          </div>
+          <div>
+            <label style={labelStyle}>Email</label>
+            <input style={inputStyle} type="email" value={agency.email} onChange={e => setA("email", e.target.value)} />
+          </div>
+          <div>
+            <label style={labelStyle}>Telefono</label>
+            <input style={inputStyle} value={agency.phone} onChange={e => setA("phone", e.target.value)} />
+          </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>Indirizzo</label>
+            <input style={inputStyle} value={agency.address} onChange={e => setA("address", e.target.value)} />
+          </div>
+          <div>
+            <label style={labelStyle}>P.IVA</label>
+            <input style={inputStyle} value={agency.vatId} onChange={e => setA("vatId", e.target.value)} />
+          </div>
+          <div>
+            <label style={labelStyle}>Orario lavorativo</label>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input style={{ ...inputStyle, width: 70 }} type="number" min={0} max={23} value={agency.workingHoursStart} onChange={e => setA("workingHoursStart", e.target.value)} />
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>—</span>
+              <input style={{ ...inputStyle, width: 70 }} type="number" min={0} max={23} value={agency.workingHoursEnd} onChange={e => setA("workingHoursEnd", e.target.value)} />
+            </div>
+          </div>
+        </div>
+        <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
+          <button onClick={saveAgency} style={{
+            padding: "9px 20px", borderRadius: 8, border: "none",
+            background: "var(--navy)", color: "#fff", cursor: "pointer",
+            fontSize: 13, fontWeight: 700,
+          }}>💾 Salva profilo</button>
+        </div>
+      </div>
+
+      {/* Template messaggi */}
+      <div style={cardStyle}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <h3 style={{ ...cardH, marginBottom: 0 }}>💬 Template messaggi chat</h3>
+          <button onClick={startNew} style={{
+            padding: "8px 14px", borderRadius: 8, border: "none",
+            background: "var(--navy)", color: "#fff", cursor: "pointer",
+            fontSize: 12, fontWeight: 700,
+          }}>+ Nuovo template</button>
+        </div>
+        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}>
+          Snippet riusabili nella chat. Disponibili come picker rapido nell'input messaggio.
+        </div>
+
+        {editingTpl && (
+          <form onSubmit={saveTemplate} style={{
+            background: "var(--surface2)", borderRadius: 8, padding: 14,
+            marginBottom: 14, display: "flex", flexDirection: "column", gap: 10,
+          }}>
+            <div>
+              <label style={labelStyle}>Etichetta</label>
+              <input style={inputStyle} value={tplForm.label} onChange={e => setTplForm(f => ({ ...f, label: e.target.value }))} placeholder="Es. Conferma riunione" autoFocus />
+            </div>
+            <div>
+              <label style={labelStyle}>Testo</label>
+              <textarea style={{ ...inputStyle, minHeight: 70, resize: "vertical", fontFamily: "inherit" }} value={tplForm.text} onChange={e => setTplForm(f => ({ ...f, text: e.target.value }))} placeholder="Testo del messaggio…" />
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button type="button" onClick={() => { setEditingTpl(null); setTplForm({ label: "", text: "" }); }} style={{
+                padding: "8px 14px", borderRadius: 6, border: "1px solid var(--border)",
+                background: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--text-muted)",
+              }}>Annulla</button>
+              <button type="submit" style={{
+                padding: "8px 16px", borderRadius: 6, border: "none",
+                background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700,
+              }}>{editingTpl === "new" ? "Crea" : "Salva"}</button>
+            </div>
+          </form>
+        )}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {(state.messageTemplates || []).length === 0 && (
+            <div style={{ fontSize: 12, color: "var(--text-light)", fontStyle: "italic", padding: 8 }}>Nessun template ancora.</div>
+          )}
+          {(state.messageTemplates || []).map(t => (
+            <div key={t.id} style={{
+              display: "flex", alignItems: "flex-start", gap: 12, padding: "10px 12px",
+              border: "1px solid var(--border)", borderRadius: 8, background: "#fff",
+            }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>{t.label}</div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)", whiteSpace: "pre-wrap", lineHeight: 1.4 }}>{t.text}</div>
+              </div>
+              <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                <button onClick={() => startEdit(t)} title="Modifica" style={{
+                  background: "transparent", border: "1px solid var(--border)", borderRadius: 6,
+                  padding: "4px 8px", cursor: "pointer", fontSize: 12,
+                }}>✏️</button>
+                <button onClick={() => { if (confirm(`Rimuovere il template "${t.label}"?`)) dispatch({ type: "DELETE_MESSAGE_TEMPLATE", payload: t.id }); }} title="Elimina" style={{
+                  background: "transparent", border: "1px solid var(--border)", borderRadius: 6,
+                  padding: "4px 8px", cursor: "pointer", fontSize: 12,
+                }}>🗑️</button>
               </div>
             </div>
           ))}
@@ -6938,6 +8571,1752 @@ const btnWarning = { padding: "8px 12px", borderRadius: 6, border: "1px solid va
 const modalOverlay = { position: "fixed", inset: 0, background: "rgba(15,32,68,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 600, padding: 16 };
 const modalCard = { background: "#fff", borderRadius: 12, padding: 24, width: "90%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" };
 
+// ─── CLIENTI (Fase 1 — CRM base) ───────────────────────────────────────────
+// Iniziali per avatar cliente: prende prime due lettere significative.
+const clientInitials = (name) => {
+  if (!name) return "??";
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "??";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+// Colore deterministico in palette navy/gold per avatar cliente (fallback).
+const _CLIENT_COLORS = ["#0F2044", "#2D7A4F", "#C8832A", "#7B4F9E", "#0EA5E9", "#DB2777", "#D4A843"];
+const clientColor = (id) => {
+  const h = (id || "").split("").reduce((a, ch) => a + ch.charCodeAt(0), 0);
+  return _CLIENT_COLORS[h % _CLIENT_COLORS.length];
+};
+
+const ClientAvatar = ({ client, size = 38 }) => {
+  if (!client) return null;
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: "50%",
+      background: clientColor(client.id),
+      color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
+      fontWeight: 700, fontSize: Math.round(size * 0.36), flexShrink: 0,
+      border: "2px solid #fff", boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
+    }}>
+      {client.type === "company" ? "🏢" : clientInitials(client.name)}
+    </div>
+  );
+};
+
+const ClientTag = ({ children }) => (
+  <span style={{
+    fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 99,
+    background: "var(--surface2)", color: "var(--text-muted)",
+    border: "1px solid var(--border)",
+  }}>{children}</span>
+);
+
+// Modale form crea/modifica cliente
+const ClientEditorModal = ({ client, onSave, onClose }) => {
+  const isEdit = !!client;
+  const [form, setForm] = useState({
+    type: client?.type || "private",
+    name: client?.name || "",
+    contactPerson: client?.contactPerson || "",
+    email: client?.email || "",
+    phone: client?.phone || "",
+    address: client?.address || "",
+    city: client?.city || "",
+    country: client?.country || "Italia",
+    taxId: client?.taxId || "",
+    tags: (client?.tags || []).join(", "),
+    notes: client?.notes || "",
+  });
+  const [error, setError] = useState("");
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const submit = (e) => {
+    e?.preventDefault?.();
+    if (!form.name.trim()) {
+      setError("Il nome è obbligatorio");
+      return;
+    }
+    const payload = {
+      id: client?.id || `c-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      type: form.type,
+      name: form.name.trim(),
+      contactPerson: form.contactPerson.trim() || null,
+      email: form.email.trim() || null,
+      phone: form.phone.trim() || null,
+      address: form.address.trim() || null,
+      city: form.city.trim() || null,
+      country: form.country.trim() || null,
+      taxId: form.taxId.trim() || null,
+      tags: form.tags.split(",").map(t => t.trim()).filter(Boolean),
+      notes: form.notes.trim() || null,
+    };
+    if (client) {
+      payload.createdAt = client.createdAt;
+      payload.createdBy = client.createdBy;
+    }
+    onSave(payload);
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "10px 12px", border: "1px solid var(--border)",
+    borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff",
+    color: "var(--text)", outline: "none", boxSizing: "border-box",
+  };
+  const labelStyle = { fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, display: "block" };
+
+  return (
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, background: "rgba(15,32,68,0.5)", zIndex: 1000,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+    }}>
+      <form onClick={e => e.stopPropagation()} onSubmit={submit} className="slide-up" style={{
+        background: "#fff", borderRadius: 14, padding: 24, width: "100%", maxWidth: 560,
+        maxHeight: "92vh", overflowY: "auto", boxShadow: "0 12px 40px rgba(0,0,0,0.25)",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+          <div className="playfair" style={{ fontSize: 18, fontWeight: 700 }}>
+            {isEdit ? "Modifica cliente" : "Nuovo cliente"}
+          </div>
+          <button type="button" onClick={onClose} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 20, color: "var(--text-muted)" }}>✕</button>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          {[{ k: "private", label: "👨‍👩‍👧 Privato" }, { k: "company", label: "🏢 Azienda" }].map(opt => (
+            <button key={opt.k} type="button" onClick={() => set("type", opt.k)} style={{
+              flex: 1, padding: "10px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+              cursor: "pointer",
+              border: `2px solid ${form.type === opt.k ? "var(--navy)" : "var(--border)"}`,
+              background: form.type === opt.k ? "var(--surface2)" : "#fff",
+              color: form.type === opt.k ? "var(--navy)" : "var(--text-muted)",
+            }}>{opt.label}</button>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <label style={labelStyle}>{form.type === "company" ? "Ragione sociale *" : "Nome / Famiglia *"}</label>
+            <input style={inputStyle} value={form.name} onChange={e => set("name", e.target.value)} autoFocus placeholder={form.type === "company" ? "Es. Acme Srl" : "Es. Famiglia Rossi"} />
+          </div>
+
+          <div>
+            <label style={labelStyle}>{form.type === "company" ? "Referente" : "Contatto principale"}</label>
+            <input style={inputStyle} value={form.contactPerson} onChange={e => set("contactPerson", e.target.value)} placeholder={form.type === "company" ? "Es. Mario Bianchi (CEO)" : "Es. Andrea Rossi"} />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Email</label>
+              <input style={inputStyle} type="email" value={form.email} onChange={e => set("email", e.target.value)} placeholder="email@esempio.it" />
+            </div>
+            <div>
+              <label style={labelStyle}>Telefono</label>
+              <input style={inputStyle} value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="+39 333 1234567" />
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Indirizzo</label>
+            <input style={inputStyle} value={form.address} onChange={e => set("address", e.target.value)} placeholder="Via Roma 12" />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Città</label>
+              <input style={inputStyle} value={form.city} onChange={e => set("city", e.target.value)} placeholder="Milano" />
+            </div>
+            <div>
+              <label style={labelStyle}>Paese</label>
+              <input style={inputStyle} value={form.country} onChange={e => set("country", e.target.value)} />
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>{form.type === "company" ? "Partita IVA / Codice Fiscale" : "Codice Fiscale"}</label>
+            <input style={inputStyle} value={form.taxId} onChange={e => set("taxId", e.target.value)} placeholder={form.type === "company" ? "IT01234567890" : "RSSMRA80A01F205X"} />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Tag (separati da virgola)</label>
+            <input style={inputStyle} value={form.tags} onChange={e => set("tags", e.target.value)} placeholder="VIP, honeymoon, corporate" />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Note</label>
+            <textarea style={{ ...inputStyle, minHeight: 80, resize: "vertical", fontFamily: "inherit" }} value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Preferenze, anniversari, allergie, lingua preferita…" />
+          </div>
+        </div>
+
+        {error && <div style={{ color: "var(--danger)", fontSize: 12, marginTop: 12 }}>{error}</div>}
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 22 }}>
+          <button type="button" onClick={onClose} style={{
+            padding: "10px 18px", borderRadius: 8, border: "1px solid var(--border)",
+            background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--text-muted)",
+          }}>Annulla</button>
+          <button type="submit" style={{
+            padding: "10px 20px", borderRadius: 8, border: "none",
+            background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700,
+          }}>{isEdit ? "Salva modifiche" : "Crea cliente"}</button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+// Pannello dettaglio cliente (laterale su desktop, modale su mobile)
+const ClientDetailPanel = ({ client, tasks, dispatch, onEdit, onDelete, onClose, canEdit, canDelete }) => {
+  const { isMobile } = useViewport();
+  const relatedTasks = useMemo(
+    () => getActiveTasks(tasks).filter(t => t.clientId === client.id),
+    [tasks, client.id]
+  );
+  const open = relatedTasks.filter(t => t.status !== "done");
+  const done = relatedTasks.filter(t => t.status === "done");
+
+  const wrapStyle = isMobile
+    ? {
+        position: "fixed", inset: 0, background: "rgba(15,32,68,0.5)", zIndex: 900,
+        display: "flex", alignItems: "flex-end", justifyContent: "center",
+      }
+    : { background: "#fff", borderRadius: 12, border: "1px solid var(--border)", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden", position: "sticky", top: 16 };
+
+  const inner = (
+    <div onClick={e => e.stopPropagation()} className={isMobile ? "slide-up" : "fade-in"} style={{
+      background: "#fff", width: "100%",
+      maxHeight: isMobile ? "85vh" : "calc(100vh - 80px)",
+      overflowY: "auto",
+      borderTopLeftRadius: isMobile ? 16 : 12, borderTopRightRadius: isMobile ? 16 : 12,
+    }}>
+      <div style={{ padding: "20px 22px", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flex: 1, minWidth: 0 }}>
+            <ClientAvatar client={client} size={48} />
+            <div style={{ minWidth: 0 }}>
+              <div className="playfair" style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.2 }}>{client.name}</div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>
+                {clientTypeIcon(client.type)} {clientTypeLabel(client.type)}
+                {client.contactPerson ? ` • ${client.contactPerson}` : ""}
+              </div>
+              {client.tags?.length > 0 && (
+                <div style={{ display: "flex", gap: 5, marginTop: 8, flexWrap: "wrap" }}>
+                  {client.tags.map(t => <ClientTag key={t}>{t}</ClientTag>)}
+                </div>
+              )}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 18, color: "var(--text-muted)", padding: 4, lineHeight: 1 }}>✕</button>
+        </div>
+      </div>
+
+      <div style={{ padding: "16px 22px", display: "flex", flexDirection: "column", gap: 12 }}>
+        {client.email && (
+          <div style={{ display: "flex", gap: 8, fontSize: 13 }}>
+            <span style={{ width: 18 }}>✉️</span>
+            <a href={`mailto:${client.email}`} style={{ color: "var(--navy)", textDecoration: "none", wordBreak: "break-all" }}>{client.email}</a>
+          </div>
+        )}
+        {client.phone && (
+          <div style={{ display: "flex", gap: 8, fontSize: 13 }}>
+            <span style={{ width: 18 }}>📞</span>
+            <a href={`tel:${client.phone}`} style={{ color: "var(--navy)", textDecoration: "none" }}>{client.phone}</a>
+          </div>
+        )}
+        {(client.address || client.city) && (
+          <div style={{ display: "flex", gap: 8, fontSize: 13 }}>
+            <span style={{ width: 18 }}>📍</span>
+            <span>
+              {[client.address, client.city, client.country].filter(Boolean).join(", ")}
+            </span>
+          </div>
+        )}
+        {client.taxId && (
+          <div style={{ display: "flex", gap: 8, fontSize: 13, color: "var(--text-muted)" }}>
+            <span style={{ width: 18 }}>🆔</span>
+            <span style={{ fontFamily: "monospace" }}>{client.taxId}</span>
+          </div>
+        )}
+      </div>
+
+      {client.notes && (
+        <div style={{ padding: "0 22px 16px" }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Note</div>
+          <div style={{ fontSize: 13, lineHeight: 1.5, color: "var(--text)", background: "var(--surface2)", padding: "10px 12px", borderRadius: 8, whiteSpace: "pre-wrap" }}>{client.notes}</div>
+        </div>
+      )}
+
+      <div style={{ padding: "0 22px 16px" }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>
+          Task collegati ({relatedTasks.length})
+        </div>
+        {relatedTasks.length === 0 ? (
+          <div style={{ fontSize: 12, color: "var(--text-light)", fontStyle: "italic", padding: "8px 0" }}>Nessun task ancora collegato a questo cliente.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {open.map(t => (
+              <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                display: "flex", alignItems: "center", gap: 8, padding: "8px 10px",
+                borderRadius: 8, cursor: "pointer", border: "1px solid var(--border)",
+                background: isOverdue(t) ? "rgba(192,57,43,0.05)" : "#fff",
+              }}
+                onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                onMouseLeave={e => e.currentTarget.style.background = isOverdue(t) ? "rgba(192,57,43,0.05)" : "#fff"}
+              >
+                <span style={{ fontSize: 14 }}>{CATEGORIES[t.category]?.icon}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
+                  <div style={{ fontSize: 10, color: isOverdue(t) ? "var(--danger)" : "var(--text-muted)" }}>
+                    {isOverdue(t) ? "⚠️ Scaduto • " : ""}{formatDate(t.dueDate)}
+                  </div>
+                </div>
+                <PriorityBadge priority={t.priority} />
+              </div>
+            ))}
+            {done.length > 0 && (
+              <details style={{ marginTop: 6 }}>
+                <summary style={{ cursor: "pointer", fontSize: 11, color: "var(--text-muted)", padding: "4px 0" }}>
+                  Completati ({done.length})
+                </summary>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>
+                  {done.map(t => (
+                    <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                      display: "flex", alignItems: "center", gap: 8, padding: "6px 10px",
+                      borderRadius: 6, cursor: "pointer", fontSize: 12, color: "var(--text-muted)",
+                      textDecoration: "line-through",
+                    }}>
+                      <span>{CATEGORIES[t.category]?.icon}</span>
+                      <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+          </div>
+        )}
+      </div>
+
+      {(canEdit || canDelete) && (
+        <div style={{
+          padding: "12px 22px", borderTop: "1px solid var(--border)",
+          display: "flex", gap: 10, justifyContent: "flex-end", background: "var(--surface)",
+        }}>
+          {canDelete && (
+            <button onClick={() => onDelete(client)} style={{
+              padding: "8px 14px", borderRadius: 8, border: "1px solid var(--danger)",
+              background: "#fff", color: "var(--danger)", cursor: "pointer", fontSize: 12, fontWeight: 600,
+            }}>🗑️ Elimina</button>
+          )}
+          {canEdit && (
+            <button onClick={() => onEdit(client)} style={{
+              padding: "8px 16px", borderRadius: 8, border: "none",
+              background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700,
+            }}>✏️ Modifica</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  return isMobile ? <div onClick={onClose} style={wrapStyle}>{inner}</div> : <div style={wrapStyle}>{inner}</div>;
+};
+
+const ClientsView = ({ state, dispatch }) => {
+  const { isMobile, isDesktop } = useViewport();
+  const uid = state.currentUserId;
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState(""); // "" | "private" | "company"
+  const [selectedId, setSelectedId] = useState(null);
+  const [editing, setEditing] = useState(null); // null | client | "new"
+  const [confirmDelete, setConfirmDelete] = useState(null);
+
+  const clients = state.clients || [];
+  const canManage = canManageClients(uid);
+  const canDel = canDeleteClient(uid);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return clients
+      .filter(c => {
+        if (typeFilter && c.type !== typeFilter) return false;
+        if (!q) return true;
+        return [c.name, c.email, c.phone, c.city, c.contactPerson, ...(c.tags || [])]
+          .some(v => (v || "").toString().toLowerCase().includes(q));
+      })
+      .sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+  }, [clients, search, typeFilter]);
+
+  const selected = selectedId ? getClient(clients, selectedId) : null;
+  // Se il cliente selezionato è stato eliminato, chiudi il pannello.
+  useEffect(() => {
+    if (selectedId && !getClient(clients, selectedId)) setSelectedId(null);
+  }, [clients, selectedId]);
+
+  const handleSave = (payload) => {
+    const exists = clients.some(c => c.id === payload.id);
+    dispatch({ type: exists ? "UPDATE_CLIENT" : "ADD_CLIENT", payload });
+    setEditing(null);
+    setSelectedId(payload.id);
+  };
+
+  const handleDelete = (client) => setConfirmDelete(client);
+  const confirmDeleteNow = () => {
+    if (confirmDelete) {
+      dispatch({ type: "DELETE_CLIENT", payload: confirmDelete.id });
+      setConfirmDelete(null);
+      setSelectedId(null);
+    }
+  };
+
+  const showDetailInline = isDesktop && selected;
+
+  return (
+    <div className="fade-in" style={{ padding: isMobile ? 16 : 28 }}>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
+        <div>
+          <div className="playfair" style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700 }}>Clienti</div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+            {clients.length} {clients.length === 1 ? "anagrafica" : "anagrafiche"} · {clients.filter(c => c.type === "company").length} aziende · {clients.filter(c => c.type === "private").length} privati
+          </div>
+        </div>
+        {canManage && (
+          <button onClick={() => setEditing("new")} style={{
+            padding: "10px 18px", borderRadius: 8, border: "none",
+            background: "var(--navy)", color: "#fff", cursor: "pointer",
+            fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6,
+            boxShadow: "0 4px 14px rgba(15,32,68,0.25)",
+          }}>+ Nuovo cliente</button>
+        )}
+      </div>
+
+      {/* Toolbar filtri */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 200, position: "relative" }}>
+          <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "var(--text-muted)" }}>🔍</span>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Cerca per nome, email, città, tag…"
+            style={{
+              width: "100%", padding: "10px 12px 10px 36px", border: "1px solid var(--border)",
+              borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff",
+              outline: "none", boxSizing: "border-box",
+            }}
+          />
+        </div>
+        <div style={{ display: "flex", gap: 4, background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: 3 }}>
+          {[{ k: "", label: "Tutti" }, { k: "private", label: "👨‍👩‍👧 Privati" }, { k: "company", label: "🏢 Aziende" }].map(opt => (
+            <button key={opt.k} onClick={() => setTypeFilter(opt.k)} style={{
+              padding: "6px 12px", borderRadius: 6, border: "none", cursor: "pointer",
+              fontSize: 12, fontWeight: 600,
+              background: typeFilter === opt.k ? "var(--navy)" : "transparent",
+              color: typeFilter === opt.k ? "#fff" : "var(--text-muted)",
+            }}>{opt.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Layout: lista + pannello dettaglio */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: showDetailInline ? "minmax(0, 1fr) 380px" : "1fr",
+        gap: 20, alignItems: "flex-start",
+      }}>
+        {/* Lista clienti */}
+        <div>
+          {filtered.length === 0 ? (
+            <div style={{
+              background: "#fff", border: "1px dashed var(--border)", borderRadius: 12,
+              padding: "60px 20px", textAlign: "center", color: "var(--text-muted)",
+            }}>
+              <div style={{ fontSize: 38, marginBottom: 10 }}>🧳</div>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
+                {clients.length === 0 ? "Nessun cliente ancora" : "Nessun risultato"}
+              </div>
+              <div style={{ fontSize: 12 }}>
+                {clients.length === 0
+                  ? "Crea il primo cliente per iniziare a collegare task e pratiche."
+                  : "Prova a cambiare ricerca o filtro."}
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
+              {filtered.map(c => {
+                const taskCount = getClientTaskCount(state.tasks, c.id);
+                const isSel = selectedId === c.id;
+                return (
+                  <div key={c.id} className="hover-lift" onClick={() => setSelectedId(isSel ? null : c.id)} style={{
+                    background: "#fff", borderRadius: 12, padding: "14px 16px",
+                    boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
+                    border: `2px solid ${isSel ? "var(--navy)" : "var(--border)"}`,
+                    cursor: "pointer", transition: "all 0.15s",
+                    display: "flex", flexDirection: "column", gap: 10,
+                  }}>
+                    <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                      <ClientAvatar client={c} size={40} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</div>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {clientTypeIcon(c.type)} {c.contactPerson || (c.city || clientTypeLabel(c.type))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {(c.email || c.phone) && (
+                      <div style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 2 }}>
+                        {c.email && <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>✉️ {c.email}</div>}
+                        {c.phone && <div>📞 {c.phone}</div>}
+                      </div>
+                    )}
+
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: "1px solid var(--border)" }}>
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                        {(c.tags || []).slice(0, 2).map(t => <ClientTag key={t}>{t}</ClientTag>)}
+                      </div>
+                      <div style={{
+                        fontSize: 11, fontWeight: 600, color: taskCount > 0 ? "var(--navy)" : "var(--text-light)",
+                        background: taskCount > 0 ? "var(--surface2)" : "transparent",
+                        padding: "3px 8px", borderRadius: 99,
+                      }}>📋 {taskCount}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Pannello dettaglio (inline su desktop, modale su mobile) */}
+        {selected && (
+          <ClientDetailPanel
+            client={selected}
+            tasks={state.tasks}
+            dispatch={dispatch}
+            onEdit={(c) => setEditing(c)}
+            onDelete={handleDelete}
+            onClose={() => setSelectedId(null)}
+            canEdit={canManage}
+            canDelete={canDel}
+          />
+        )}
+      </div>
+
+      {/* Modale editor */}
+      {editing && (
+        <ClientEditorModal
+          client={editing === "new" ? null : editing}
+          onSave={handleSave}
+          onClose={() => setEditing(null)}
+        />
+      )}
+
+      {/* Conferma eliminazione */}
+      {confirmDelete && (
+        <div onClick={() => setConfirmDelete(null)} style={{
+          position: "fixed", inset: 0, background: "rgba(15,32,68,0.5)", zIndex: 1100,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+        }}>
+          <div onClick={e => e.stopPropagation()} className="slide-up" style={{
+            background: "#fff", borderRadius: 14, padding: 24, maxWidth: 420, width: "100%",
+            boxShadow: "0 12px 40px rgba(0,0,0,0.25)",
+          }}>
+            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, marginBottom: 8 }}>Eliminare il cliente?</div>
+            <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 18, lineHeight: 1.5 }}>
+              "<strong>{confirmDelete.name}</strong>" verrà rimosso dall'anagrafica.
+              I task collegati non verranno cancellati ma resteranno senza riferimento cliente.
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => setConfirmDelete(null)} style={{
+                padding: "10px 18px", borderRadius: 8, border: "1px solid var(--border)",
+                background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--text-muted)",
+              }}>Annulla</button>
+              <button onClick={confirmDeleteNow} style={{
+                padding: "10px 20px", borderRadius: 8, border: "none",
+                background: "var(--danger)", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700,
+              }}>Elimina</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── FORNITORI (Fase 1) ────────────────────────────────────────────────────
+const SupplierAvatar = ({ supplier, size = 38 }) => {
+  if (!supplier) return null;
+  const meta = supplierTypeMeta(supplier.type);
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: "50%",
+      background: meta.color, color: "#fff",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: Math.round(size * 0.45), flexShrink: 0,
+      border: "2px solid #fff", boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
+    }}>{meta.icon}</div>
+  );
+};
+
+const RatingStars = ({ value }) => {
+  const v = Math.max(0, Math.min(5, parseInt(value, 10) || 0));
+  if (!v) return null;
+  return (
+    <div style={{ display: "flex", gap: 1, fontSize: 11, color: "#D4A843" }}>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <span key={i} style={{ opacity: i < v ? 1 : 0.2 }}>★</span>
+      ))}
+    </div>
+  );
+};
+
+const SupplierEditorModal = ({ supplier, onSave, onClose }) => {
+  const isEdit = !!supplier;
+  const [form, setForm] = useState({
+    type: supplier?.type || "hotel",
+    name: supplier?.name || "",
+    contactPerson: supplier?.contactPerson || "",
+    email: supplier?.email || "",
+    phone: supplier?.phone || "",
+    address: supplier?.address || "",
+    city: supplier?.city || "",
+    country: supplier?.country || "Italia",
+    taxId: supplier?.taxId || "",
+    rating: supplier?.rating || 0,
+    tags: (supplier?.tags || []).join(", "),
+    notes: supplier?.notes || "",
+  });
+  const [error, setError] = useState("");
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const submit = (e) => {
+    e?.preventDefault?.();
+    if (!form.name.trim()) { setError("Il nome è obbligatorio"); return; }
+    const payload = {
+      id: supplier?.id || `s-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      type: form.type,
+      name: form.name.trim(),
+      contactPerson: form.contactPerson.trim() || null,
+      email: form.email.trim() || null,
+      phone: form.phone.trim() || null,
+      address: form.address.trim() || null,
+      city: form.city.trim() || null,
+      country: form.country.trim() || null,
+      taxId: form.taxId.trim() || null,
+      rating: parseInt(form.rating, 10) || 0,
+      tags: form.tags.split(",").map(t => t.trim()).filter(Boolean),
+      notes: form.notes.trim() || null,
+    };
+    if (supplier) { payload.createdAt = supplier.createdAt; payload.createdBy = supplier.createdBy; }
+    onSave(payload);
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "10px 12px", border: "1px solid var(--border)",
+    borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff",
+    color: "var(--text)", outline: "none", boxSizing: "border-box",
+  };
+  const labelStyle = { fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, display: "block" };
+
+  return (
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, background: "rgba(15,32,68,0.5)", zIndex: 1000,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+    }}>
+      <form onClick={e => e.stopPropagation()} onSubmit={submit} className="slide-up" style={{
+        background: "#fff", borderRadius: 14, padding: 24, width: "100%", maxWidth: 560,
+        maxHeight: "92vh", overflowY: "auto", boxShadow: "0 12px 40px rgba(0,0,0,0.25)",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+          <div className="playfair" style={{ fontSize: 18, fontWeight: 700 }}>
+            {isEdit ? "Modifica fornitore" : "Nuovo fornitore"}
+          </div>
+          <button type="button" onClick={onClose} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 20, color: "var(--text-muted)" }}>✕</button>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Tipologia *</label>
+            <select style={inputStyle} value={form.type} onChange={e => set("type", e.target.value)}>
+              {Object.entries(SUPPLIER_TYPES).map(([k, v]) => (
+                <option key={k} value={k}>{v.icon} {v.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Ragione sociale *</label>
+            <input style={inputStyle} value={form.name} onChange={e => set("name", e.target.value)} autoFocus placeholder="Es. Four Seasons Hotels" />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Referente</label>
+            <input style={inputStyle} value={form.contactPerson} onChange={e => set("contactPerson", e.target.value)} placeholder="Es. Mario Rossi (Sales Manager)" />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Email</label>
+              <input style={inputStyle} type="email" value={form.email} onChange={e => set("email", e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>Telefono</label>
+              <input style={inputStyle} value={form.phone} onChange={e => set("phone", e.target.value)} />
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Indirizzo</label>
+            <input style={inputStyle} value={form.address} onChange={e => set("address", e.target.value)} />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Città</label>
+              <input style={inputStyle} value={form.city} onChange={e => set("city", e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>Paese</label>
+              <input style={inputStyle} value={form.country} onChange={e => set("country", e.target.value)} />
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Partita IVA / Tax ID</label>
+              <input style={inputStyle} value={form.taxId} onChange={e => set("taxId", e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>Rating</label>
+              <select style={inputStyle} value={form.rating} onChange={e => set("rating", e.target.value)}>
+                <option value={0}>—</option>
+                <option value={1}>★</option>
+                <option value={2}>★★</option>
+                <option value={3}>★★★</option>
+                <option value={4}>★★★★</option>
+                <option value={5}>★★★★★</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Tag (separati da virgola)</label>
+            <input style={inputStyle} value={form.tags} onChange={e => set("tags", e.target.value)} placeholder="preferito, lusso, gruppi" />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Note</label>
+            <textarea style={{ ...inputStyle, minHeight: 70, resize: "vertical", fontFamily: "inherit" }} value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Termini di pagamento, contatto operativo, allotment…" />
+          </div>
+        </div>
+
+        {error && <div style={{ color: "var(--danger)", fontSize: 12, marginTop: 12 }}>{error}</div>}
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 22 }}>
+          <button type="button" onClick={onClose} style={{
+            padding: "10px 18px", borderRadius: 8, border: "1px solid var(--border)",
+            background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--text-muted)",
+          }}>Annulla</button>
+          <button type="submit" style={{
+            padding: "10px 20px", borderRadius: 8, border: "none",
+            background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700,
+          }}>{isEdit ? "Salva modifiche" : "Crea fornitore"}</button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+const SupplierDetailPanel = ({ supplier, practices, dispatch, onEdit, onDelete, onClose, canEdit, canDelete }) => {
+  const { isMobile } = useViewport();
+  const meta = supplierTypeMeta(supplier.type);
+  const related = (practices || []).filter(p => (p.supplierIds || []).includes(supplier.id));
+
+  const wrapStyle = isMobile
+    ? { position: "fixed", inset: 0, background: "rgba(15,32,68,0.5)", zIndex: 900, display: "flex", alignItems: "flex-end", justifyContent: "center" }
+    : { background: "#fff", borderRadius: 12, border: "1px solid var(--border)", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden", position: "sticky", top: 16 };
+
+  const inner = (
+    <div onClick={e => e.stopPropagation()} className={isMobile ? "slide-up" : "fade-in"} style={{
+      background: "#fff", width: "100%",
+      maxHeight: isMobile ? "85vh" : "calc(100vh - 80px)",
+      overflowY: "auto",
+      borderTopLeftRadius: isMobile ? 16 : 12, borderTopRightRadius: isMobile ? 16 : 12,
+    }}>
+      <div style={{ padding: "20px 22px", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flex: 1, minWidth: 0 }}>
+            <SupplierAvatar supplier={supplier} size={48} />
+            <div style={{ minWidth: 0 }}>
+              <div className="playfair" style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.2 }}>{supplier.name}</div>
+              <div style={{ fontSize: 11, color: meta.color, fontWeight: 600, marginTop: 3 }}>{meta.icon} {meta.label}</div>
+              {supplier.rating > 0 && <div style={{ marginTop: 6 }}><RatingStars value={supplier.rating} /></div>}
+              {supplier.tags?.length > 0 && (
+                <div style={{ display: "flex", gap: 5, marginTop: 8, flexWrap: "wrap" }}>
+                  {supplier.tags.map(t => <ClientTag key={t}>{t}</ClientTag>)}
+                </div>
+              )}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 18, color: "var(--text-muted)", padding: 4, lineHeight: 1 }}>✕</button>
+        </div>
+      </div>
+
+      <div style={{ padding: "16px 22px", display: "flex", flexDirection: "column", gap: 12 }}>
+        {supplier.contactPerson && (
+          <div style={{ display: "flex", gap: 8, fontSize: 13 }}><span style={{ width: 18 }}>👤</span><span>{supplier.contactPerson}</span></div>
+        )}
+        {supplier.email && (
+          <div style={{ display: "flex", gap: 8, fontSize: 13 }}><span style={{ width: 18 }}>✉️</span>
+            <a href={`mailto:${supplier.email}`} style={{ color: "var(--navy)", textDecoration: "none", wordBreak: "break-all" }}>{supplier.email}</a>
+          </div>
+        )}
+        {supplier.phone && (
+          <div style={{ display: "flex", gap: 8, fontSize: 13 }}><span style={{ width: 18 }}>📞</span>
+            <a href={`tel:${supplier.phone}`} style={{ color: "var(--navy)", textDecoration: "none" }}>{supplier.phone}</a>
+          </div>
+        )}
+        {(supplier.address || supplier.city) && (
+          <div style={{ display: "flex", gap: 8, fontSize: 13 }}><span style={{ width: 18 }}>📍</span>
+            <span>{[supplier.address, supplier.city, supplier.country].filter(Boolean).join(", ")}</span>
+          </div>
+        )}
+        {supplier.taxId && (
+          <div style={{ display: "flex", gap: 8, fontSize: 13, color: "var(--text-muted)" }}><span style={{ width: 18 }}>🆔</span>
+            <span style={{ fontFamily: "monospace" }}>{supplier.taxId}</span>
+          </div>
+        )}
+      </div>
+
+      {supplier.notes && (
+        <div style={{ padding: "0 22px 16px" }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Note</div>
+          <div style={{ fontSize: 13, lineHeight: 1.5, background: "var(--surface2)", padding: "10px 12px", borderRadius: 8, whiteSpace: "pre-wrap" }}>{supplier.notes}</div>
+        </div>
+      )}
+
+      <div style={{ padding: "0 22px 16px" }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>
+          Pratiche collegate ({related.length})
+        </div>
+        {related.length === 0 ? (
+          <div style={{ fontSize: 12, color: "var(--text-light)", fontStyle: "italic" }}>Nessuna pratica usa ancora questo fornitore.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {related.map(p => {
+              const sm = practiceStatusMeta(p.status);
+              return (
+                <div key={p.id} style={{
+                  padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)",
+                  background: "#fff",
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600 }}>{p.number}</div>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, color: sm.color, background: sm.bg }}>{sm.label}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.title}</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {(canEdit || canDelete) && (
+        <div style={{ padding: "12px 22px", borderTop: "1px solid var(--border)", display: "flex", gap: 10, justifyContent: "flex-end", background: "var(--surface)" }}>
+          {canDelete && (
+            <button onClick={() => onDelete(supplier)} style={{
+              padding: "8px 14px", borderRadius: 8, border: "1px solid var(--danger)",
+              background: "#fff", color: "var(--danger)", cursor: "pointer", fontSize: 12, fontWeight: 600,
+            }}>🗑️ Elimina</button>
+          )}
+          {canEdit && (
+            <button onClick={() => onEdit(supplier)} style={{
+              padding: "8px 16px", borderRadius: 8, border: "none",
+              background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700,
+            }}>✏️ Modifica</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  return isMobile ? <div onClick={onClose} style={wrapStyle}>{inner}</div> : <div style={wrapStyle}>{inner}</div>;
+};
+
+const SuppliersView = ({ state, dispatch }) => {
+  const { isMobile, isDesktop } = useViewport();
+  const uid = state.currentUserId;
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [selectedId, setSelectedId] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+
+  const suppliers = state.suppliers || [];
+  const canManage = canManageSuppliers(uid);
+  const canDel = canDeleteSupplier(uid);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return suppliers.filter(s => {
+      if (typeFilter && s.type !== typeFilter) return false;
+      if (!q) return true;
+      return [s.name, s.email, s.phone, s.city, s.contactPerson, ...(s.tags || [])]
+        .some(v => (v || "").toString().toLowerCase().includes(q));
+    }).sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+  }, [suppliers, search, typeFilter]);
+
+  const selected = selectedId ? getSupplier(suppliers, selectedId) : null;
+  useEffect(() => { if (selectedId && !getSupplier(suppliers, selectedId)) setSelectedId(null); }, [suppliers, selectedId]);
+
+  const handleSave = (payload) => {
+    const exists = suppliers.some(s => s.id === payload.id);
+    dispatch({ type: exists ? "UPDATE_SUPPLIER" : "ADD_SUPPLIER", payload });
+    setEditing(null);
+    setSelectedId(payload.id);
+  };
+  const confirmDeleteNow = () => {
+    if (confirmDelete) {
+      dispatch({ type: "DELETE_SUPPLIER", payload: confirmDelete.id });
+      setConfirmDelete(null);
+      setSelectedId(null);
+    }
+  };
+  const showDetailInline = isDesktop && selected;
+
+  return (
+    <div className="fade-in" style={{ padding: isMobile ? 16 : 28 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
+        <div>
+          <div className="playfair" style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700 }}>Fornitori</div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+            {suppliers.length} {suppliers.length === 1 ? "fornitore" : "fornitori"} in rubrica
+          </div>
+        </div>
+        {canManage && (
+          <button onClick={() => setEditing("new")} style={{
+            padding: "10px 18px", borderRadius: 8, border: "none",
+            background: "var(--navy)", color: "#fff", cursor: "pointer",
+            fontSize: 13, fontWeight: 700, boxShadow: "0 4px 14px rgba(15,32,68,0.25)",
+          }}>+ Nuovo fornitore</button>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 200, position: "relative" }}>
+          <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "var(--text-muted)" }}>🔍</span>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Cerca per nome, email, città, tag…"
+            style={{
+              width: "100%", padding: "10px 12px 10px 36px", border: "1px solid var(--border)",
+              borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff",
+              outline: "none", boxSizing: "border-box",
+            }}
+          />
+        </div>
+        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{
+          padding: "10px 12px", border: "1px solid var(--border)", borderRadius: 8,
+          fontSize: 13, fontFamily: "inherit", background: "#fff", outline: "none",
+        }}>
+          <option value="">Tutte le tipologie</option>
+          {Object.entries(SUPPLIER_TYPES).map(([k, v]) => (
+            <option key={k} value={k}>{v.icon} {v.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: showDetailInline ? "minmax(0, 1fr) 380px" : "1fr",
+        gap: 20, alignItems: "flex-start",
+      }}>
+        <div>
+          {filtered.length === 0 ? (
+            <div style={{
+              background: "#fff", border: "1px dashed var(--border)", borderRadius: 12,
+              padding: "60px 20px", textAlign: "center", color: "var(--text-muted)",
+            }}>
+              <div style={{ fontSize: 38, marginBottom: 10 }}>🤝</div>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
+                {suppliers.length === 0 ? "Nessun fornitore ancora" : "Nessun risultato"}
+              </div>
+              <div style={{ fontSize: 12 }}>
+                {suppliers.length === 0
+                  ? "Aggiungi il primo fornitore per organizzare la rubrica operativa."
+                  : "Prova a cambiare ricerca o filtro."}
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
+              {filtered.map(s => {
+                const meta = supplierTypeMeta(s.type);
+                const practiceCount = getSupplierPracticeCount(state.practices, s.id);
+                const isSel = selectedId === s.id;
+                return (
+                  <div key={s.id} className="hover-lift" onClick={() => setSelectedId(isSel ? null : s.id)} style={{
+                    background: "#fff", borderRadius: 12, padding: "14px 16px",
+                    boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
+                    border: `2px solid ${isSel ? meta.color : "var(--border)"}`,
+                    cursor: "pointer", transition: "all 0.15s",
+                    display: "flex", flexDirection: "column", gap: 10,
+                  }}>
+                    <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                      <SupplierAvatar supplier={s} size={40} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
+                        <div style={{ fontSize: 11, color: meta.color, marginTop: 2, fontWeight: 600 }}>{meta.label}</div>
+                      </div>
+                    </div>
+
+                    {s.rating > 0 && <RatingStars value={s.rating} />}
+
+                    {(s.email || s.phone) && (
+                      <div style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 2 }}>
+                        {s.email && <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>✉️ {s.email}</div>}
+                        {s.phone && <div>📞 {s.phone}</div>}
+                      </div>
+                    )}
+
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: "1px solid var(--border)" }}>
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                        {(s.tags || []).slice(0, 2).map(t => <ClientTag key={t}>{t}</ClientTag>)}
+                      </div>
+                      <div style={{
+                        fontSize: 11, fontWeight: 600, color: practiceCount > 0 ? "var(--navy)" : "var(--text-light)",
+                        background: practiceCount > 0 ? "var(--surface2)" : "transparent",
+                        padding: "3px 8px", borderRadius: 99,
+                      }}>📁 {practiceCount}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {selected && (
+          <SupplierDetailPanel
+            supplier={selected}
+            practices={state.practices}
+            dispatch={dispatch}
+            onEdit={(s) => setEditing(s)}
+            onDelete={(s) => setConfirmDelete(s)}
+            onClose={() => setSelectedId(null)}
+            canEdit={canManage}
+            canDelete={canDel}
+          />
+        )}
+      </div>
+
+      {editing && (
+        <SupplierEditorModal
+          supplier={editing === "new" ? null : editing}
+          onSave={handleSave}
+          onClose={() => setEditing(null)}
+        />
+      )}
+
+      {confirmDelete && (
+        <div onClick={() => setConfirmDelete(null)} style={{
+          position: "fixed", inset: 0, background: "rgba(15,32,68,0.5)", zIndex: 1100,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+        }}>
+          <div onClick={e => e.stopPropagation()} className="slide-up" style={{
+            background: "#fff", borderRadius: 14, padding: 24, maxWidth: 420, width: "100%",
+            boxShadow: "0 12px 40px rgba(0,0,0,0.25)",
+          }}>
+            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, marginBottom: 8 }}>Eliminare il fornitore?</div>
+            <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 18, lineHeight: 1.5 }}>
+              "<strong>{confirmDelete.name}</strong>" verrà rimosso dalla rubrica.
+              Le pratiche che lo includevano resteranno ma il riferimento sarà rimosso.
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => setConfirmDelete(null)} style={{
+                padding: "10px 18px", borderRadius: 8, border: "1px solid var(--border)",
+                background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--text-muted)",
+              }}>Annulla</button>
+              <button onClick={confirmDeleteNow} style={{
+                padding: "10px 20px", borderRadius: 8, border: "none",
+                background: "var(--danger)", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700,
+              }}>Elimina</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── PRATICHE DI VIAGGIO (Fase 1) ──────────────────────────────────────────
+// Componente badge stato pratica
+const PracticeStatusBadge = ({ status }) => {
+  const m = practiceStatusMeta(status);
+  return (
+    <span style={{
+      fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 99,
+      color: m.color, background: m.bg, textTransform: "uppercase", letterSpacing: 0.4,
+    }}>{m.label}</span>
+  );
+};
+
+const PracticeEditorModal = ({ practice, clients, suppliers, practices, onSave, onClose }) => {
+  const isEdit = !!practice;
+  const previewNumber = useMemo(
+    () => practice?.number || buildPracticeNumber(practices, new Date().getFullYear()),
+    [practice, practices]
+  );
+  const [form, setForm] = useState({
+    title: practice?.title || "",
+    clientId: practice?.clientId || "",
+    status: practice?.status || "draft",
+    destination: practice?.destination || "",
+    startDate: practice?.startDate ? practice.startDate.slice(0, 10) : "",
+    endDate: practice?.endDate ? practice.endDate.slice(0, 10) : "",
+    paxCount: practice?.paxCount || 1,
+    budget: practice?.budget || 0,
+    paidAmount: practice?.paidAmount || 0,
+    currency: practice?.currency || "EUR",
+    supplierIds: practice?.supplierIds || [],
+    notes: practice?.notes || "",
+  });
+  const [error, setError] = useState("");
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const toggleSupplier = (id) => set("supplierIds",
+    form.supplierIds.includes(id)
+      ? form.supplierIds.filter(x => x !== id)
+      : [...form.supplierIds, id]
+  );
+
+  const submit = (e) => {
+    e?.preventDefault?.();
+    if (!form.title.trim()) { setError("Il titolo della pratica è obbligatorio"); return; }
+    const toIso = (d) => d ? new Date(d + "T12:00:00").toISOString() : null;
+    const payload = {
+      id: practice?.id || `p-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      title: form.title.trim(),
+      clientId: form.clientId || null,
+      status: form.status,
+      destination: form.destination.trim() || null,
+      startDate: toIso(form.startDate),
+      endDate: toIso(form.endDate),
+      paxCount: parseInt(form.paxCount, 10) || 1,
+      budget: parseFloat(form.budget) || 0,
+      paidAmount: parseFloat(form.paidAmount) || 0,
+      currency: form.currency || "EUR",
+      supplierIds: form.supplierIds,
+      notes: form.notes.trim() || null,
+    };
+    if (practice) {
+      payload.number = practice.number;
+      payload.createdAt = practice.createdAt;
+      payload.createdBy = practice.createdBy;
+      payload.events = practice.events;
+    }
+    onSave(payload);
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "10px 12px", border: "1px solid var(--border)",
+    borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff",
+    color: "var(--text)", outline: "none", boxSizing: "border-box",
+  };
+  const labelStyle = { fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, display: "block" };
+
+  return (
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, background: "rgba(15,32,68,0.5)", zIndex: 1000,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+    }}>
+      <form onClick={e => e.stopPropagation()} onSubmit={submit} className="slide-up" style={{
+        background: "#fff", borderRadius: 14, padding: 24, width: "100%", maxWidth: 640,
+        maxHeight: "92vh", overflowY: "auto", boxShadow: "0 12px 40px rgba(0,0,0,0.25)",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <div className="playfair" style={{ fontSize: 18, fontWeight: 700 }}>
+            {isEdit ? "Modifica pratica" : "Nuova pratica"}
+          </div>
+          <button type="button" onClick={onClose} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 20, color: "var(--text-muted)" }}>✕</button>
+        </div>
+        <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 18, fontFamily: "monospace" }}>
+          {previewNumber}{!isEdit && " (anteprima, assegnato al salvataggio)"}
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Titolo pratica *</label>
+            <input style={inputStyle} value={form.title} onChange={e => set("title", e.target.value)} autoFocus placeholder="Es. Honeymoon Giappone — Coppia Bianchi" />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Cliente</label>
+              <select style={inputStyle} value={form.clientId} onChange={e => set("clientId", e.target.value)}>
+                <option value="">— Nessun cliente —</option>
+                {(clients || []).map(c => (
+                  <option key={c.id} value={c.id}>{clientTypeIcon(c.type)} {c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Stato</label>
+              <select style={inputStyle} value={form.status} onChange={e => set("status", e.target.value)}>
+                {Object.entries(PRACTICE_STATUSES).map(([k, v]) => (
+                  <option key={k} value={k}>{v.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Destinazione</label>
+            <input style={inputStyle} value={form.destination} onChange={e => set("destination", e.target.value)} placeholder="Es. Tokyo → Kyoto → Osaka" />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Inizio</label>
+              <input style={inputStyle} type="date" value={form.startDate} onChange={e => set("startDate", e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>Fine</label>
+              <input style={inputStyle} type="date" value={form.endDate} onChange={e => set("endDate", e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>Pax</label>
+              <input style={inputStyle} type="number" min={1} value={form.paxCount} onChange={e => set("paxCount", e.target.value)} />
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Budget totale</label>
+              <input style={inputStyle} type="number" min={0} step="0.01" value={form.budget} onChange={e => set("budget", e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>Incassato</label>
+              <input style={inputStyle} type="number" min={0} step="0.01" value={form.paidAmount} onChange={e => set("paidAmount", e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>Valuta</label>
+              <select style={inputStyle} value={form.currency} onChange={e => set("currency", e.target.value)}>
+                <option value="EUR">EUR</option>
+                <option value="USD">USD</option>
+                <option value="GBP">GBP</option>
+                <option value="CHF">CHF</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Fornitori collegati</label>
+            <div style={{
+              border: "1px solid var(--border)", borderRadius: 8, padding: 8,
+              maxHeight: 140, overflowY: "auto", background: "var(--surface)",
+            }}>
+              {(suppliers || []).length === 0 && (
+                <div style={{ fontSize: 12, color: "var(--text-light)", padding: 8 }}>Nessun fornitore ancora in rubrica.</div>
+              )}
+              {(suppliers || []).map(s => {
+                const meta = supplierTypeMeta(s.type);
+                const checked = form.supplierIds.includes(s.id);
+                return (
+                  <label key={s.id} style={{
+                    display: "flex", alignItems: "center", gap: 8, padding: "6px 8px",
+                    borderRadius: 6, cursor: "pointer", background: checked ? "var(--surface2)" : "transparent",
+                    fontSize: 12,
+                  }}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleSupplier(s.id)} />
+                    <span>{meta.icon}</span>
+                    <span style={{ flex: 1 }}>{s.name}</span>
+                    <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{meta.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Note</label>
+            <textarea style={{ ...inputStyle, minHeight: 70, resize: "vertical", fontFamily: "inherit" }} value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Brief operativo, preferenze, scadenze chiave…" />
+          </div>
+        </div>
+
+        {error && <div style={{ color: "var(--danger)", fontSize: 12, marginTop: 12 }}>{error}</div>}
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 22 }}>
+          <button type="button" onClick={onClose} style={{
+            padding: "10px 18px", borderRadius: 8, border: "1px solid var(--border)",
+            background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--text-muted)",
+          }}>Annulla</button>
+          <button type="submit" style={{
+            padding: "10px 20px", borderRadius: 8, border: "none",
+            background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700,
+          }}>{isEdit ? "Salva modifiche" : "Crea pratica"}</button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+const PracticeDetail = ({ practice, state, dispatch, onEdit, onDelete, onClose, canEdit, canDelete }) => {
+  const { isMobile } = useViewport();
+  const client = getClient(state.clients, practice.clientId);
+  const tasks = useMemo(() => getPracticeTasks(state.tasks, practice.id), [state.tasks, practice.id]);
+  const open = tasks.filter(t => t.status !== "done");
+  const done = tasks.filter(t => t.status === "done");
+  const suppliers = (practice.supplierIds || [])
+    .map(id => getSupplier(state.suppliers, id))
+    .filter(Boolean);
+
+  const balance = (practice.budget || 0) - (practice.paidAmount || 0);
+  const paidPct = practice.budget > 0 ? Math.min(100, Math.round((practice.paidAmount / practice.budget) * 100)) : 0;
+
+  const sortedEvents = useMemo(() => {
+    return [...(practice.events || [])].sort((a, b) => (b.time || "").localeCompare(a.time || ""));
+  }, [practice.events]);
+
+  return (
+    <div className="fade-in" style={{
+      background: "#fff", borderRadius: 12, border: "1px solid var(--border)",
+      boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden",
+    }}>
+      {/* Header */}
+      <div style={{ padding: "20px 22px", borderBottom: "1px solid var(--border)", background: "linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%)", color: "#fff" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, opacity: 0.7, fontFamily: "monospace", letterSpacing: 0.5 }}>{practice.number}</div>
+            <div className="playfair" style={{ fontSize: 18, fontWeight: 700, marginTop: 2 }}>{practice.title}</div>
+            <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <PracticeStatusBadge status={practice.status} />
+              {client && <span style={{ fontSize: 12, opacity: 0.9 }}>{clientTypeIcon(client.type)} {client.name}</span>}
+              {practice.paxCount > 0 && <span style={{ fontSize: 12, opacity: 0.9 }}>👥 {practice.paxCount} pax</span>}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", cursor: "pointer", fontSize: 16, padding: "4px 10px", borderRadius: 6 }}>✕</button>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 18 }}>
+        {practice.destination && (
+          <div style={{ fontSize: 13, display: "flex", gap: 8 }}>
+            <span style={{ width: 18 }}>📍</span>
+            <span>{practice.destination}</span>
+          </div>
+        )}
+        {(practice.startDate || practice.endDate) && (
+          <div style={{ fontSize: 13, display: "flex", gap: 8 }}>
+            <span style={{ width: 18 }}>📅</span>
+            <span>{formatDate(practice.startDate)} → {formatDate(practice.endDate)}</span>
+          </div>
+        )}
+
+        {/* Riepilogo economico */}
+        <div style={{
+          background: "var(--surface2)", borderRadius: 10, padding: "14px 16px",
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>
+            Riepilogo economico
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 10, color: "var(--text-muted)" }}>Budget</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--navy)" }}>{formatMoney(practice.budget, practice.currency)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: "var(--text-muted)" }}>Incassato</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--success)" }}>{formatMoney(practice.paidAmount, practice.currency)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: "var(--text-muted)" }}>Saldo</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: balance > 0 ? "var(--warning)" : "var(--success)" }}>{formatMoney(balance, practice.currency)}</div>
+            </div>
+          </div>
+          {practice.budget > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ height: 6, background: "#fff", borderRadius: 3, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${paidPct}%`, background: "var(--success)", borderRadius: 3, transition: "width 0.6s ease" }} />
+              </div>
+              <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 3 }}>{paidPct}% pagato</div>
+            </div>
+          )}
+        </div>
+
+        {practice.notes && (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Note</div>
+            <div style={{ fontSize: 13, lineHeight: 1.5, background: "var(--surface2)", padding: "10px 12px", borderRadius: 8, whiteSpace: "pre-wrap" }}>{practice.notes}</div>
+          </div>
+        )}
+
+        {/* Fornitori */}
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
+            Fornitori ({suppliers.length})
+          </div>
+          {suppliers.length === 0 ? (
+            <div style={{ fontSize: 12, color: "var(--text-light)", fontStyle: "italic" }}>Nessun fornitore collegato.</div>
+          ) : (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {suppliers.map(s => {
+                const meta = supplierTypeMeta(s.type);
+                return (
+                  <div key={s.id} style={{
+                    display: "flex", alignItems: "center", gap: 6, padding: "6px 10px",
+                    background: "var(--surface)", border: "1px solid var(--border)",
+                    borderRadius: 99, fontSize: 12,
+                  }}>
+                    <span>{meta.icon}</span>
+                    <span>{s.name}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Task collegati */}
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
+            Task collegati ({tasks.length})
+          </div>
+          {tasks.length === 0 ? (
+            <div style={{ fontSize: 12, color: "var(--text-light)", fontStyle: "italic" }}>Nessun task collegato a questa pratica.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {open.map(t => (
+                <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                  display: "flex", alignItems: "center", gap: 8, padding: "8px 10px",
+                  borderRadius: 8, cursor: "pointer", border: "1px solid var(--border)",
+                  background: isOverdue(t) ? "rgba(192,57,43,0.05)" : "#fff",
+                }}>
+                  <span style={{ fontSize: 14 }}>{CATEGORIES[t.category]?.icon}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
+                    <div style={{ fontSize: 10, color: isOverdue(t) ? "var(--danger)" : "var(--text-muted)" }}>
+                      {isOverdue(t) ? "⚠️ Scaduto • " : ""}{formatDate(t.dueDate)}
+                    </div>
+                  </div>
+                  <PriorityBadge priority={t.priority} />
+                </div>
+              ))}
+              {done.length > 0 && (
+                <details style={{ marginTop: 4 }}>
+                  <summary style={{ cursor: "pointer", fontSize: 11, color: "var(--text-muted)", padding: "4px 0" }}>
+                    Completati ({done.length})
+                  </summary>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>
+                    {done.map(t => (
+                      <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                        display: "flex", alignItems: "center", gap: 8, padding: "6px 10px",
+                        borderRadius: 6, cursor: "pointer", fontSize: 12, color: "var(--text-muted)",
+                        textDecoration: "line-through",
+                      }}>
+                        <span>{CATEGORIES[t.category]?.icon}</span>
+                        <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</span>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Timeline eventi */}
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
+            Timeline ({sortedEvents.length})
+          </div>
+          {sortedEvents.length === 0 ? (
+            <div style={{ fontSize: 12, color: "var(--text-light)", fontStyle: "italic" }}>Nessun evento.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, borderLeft: "2px solid var(--border)", paddingLeft: 12 }}>
+              {sortedEvents.map((ev, i) => {
+                const icon = ev.type === "payment" ? "💰" : ev.type === "status" ? "🔁" : ev.type === "created" ? "✨" : "📝";
+                return (
+                  <div key={i} style={{ fontSize: 12, position: "relative" }}>
+                    <div style={{ position: "absolute", left: -19, top: 2, width: 12, height: 12, borderRadius: "50%", background: "#fff", border: "2px solid var(--gold)" }} />
+                    <div style={{ color: "var(--text)" }}>{icon} {ev.text}</div>
+                    <div style={{ color: "var(--text-light)", fontSize: 10, marginTop: 1 }}>{formatDate(ev.time)} {formatTime(ev.time)}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Footer azioni */}
+      {(canEdit || canDelete) && (
+        <div style={{
+          padding: "12px 22px", borderTop: "1px solid var(--border)",
+          display: "flex", gap: 10, justifyContent: "flex-end", background: "var(--surface)",
+        }}>
+          {canDelete && (
+            <button onClick={() => onDelete(practice)} style={{
+              padding: "8px 14px", borderRadius: 8, border: "1px solid var(--danger)",
+              background: "#fff", color: "var(--danger)", cursor: "pointer", fontSize: 12, fontWeight: 600,
+            }}>🗑️ Elimina pratica</button>
+          )}
+          {canEdit && (
+            <button onClick={() => onEdit(practice)} style={{
+              padding: "8px 16px", borderRadius: 8, border: "none",
+              background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700,
+            }}>✏️ Modifica pratica</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PracticesView = ({ state, dispatch }) => {
+  const { isMobile } = useViewport();
+  const uid = state.currentUserId;
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [clientFilter, setClientFilter] = useState("");
+  const [selectedId, setSelectedId] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+
+  const practices = state.practices || [];
+  const canManage = canManagePractices(uid);
+  const canDel = canDeletePractice(uid);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return practices.filter(p => {
+      if (statusFilter && p.status !== statusFilter) return false;
+      if (clientFilter && p.clientId !== clientFilter) return false;
+      if (!q) return true;
+      const client = getClient(state.clients, p.clientId);
+      return [p.number, p.title, p.destination, client?.name]
+        .some(v => (v || "").toString().toLowerCase().includes(q));
+    }).sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+  }, [practices, search, statusFilter, clientFilter, state.clients]);
+
+  const selected = selectedId ? getPractice(practices, selectedId) : null;
+  useEffect(() => { if (selectedId && !getPractice(practices, selectedId)) setSelectedId(null); }, [practices, selectedId]);
+
+  const handleSave = (payload) => {
+    const exists = practices.some(p => p.id === payload.id);
+    dispatch({ type: exists ? "UPDATE_PRACTICE" : "ADD_PRACTICE", payload });
+    setEditing(null);
+    setSelectedId(payload.id);
+  };
+  const confirmDeleteNow = () => {
+    if (confirmDelete) {
+      dispatch({ type: "DELETE_PRACTICE", payload: confirmDelete.id });
+      setConfirmDelete(null);
+      setSelectedId(null);
+    }
+  };
+
+  // Conteggi per ogni stato per le tab in header
+  const statusCounts = useMemo(() => {
+    const counts = { all: practices.length };
+    Object.keys(PRACTICE_STATUSES).forEach(k => { counts[k] = 0; });
+    practices.forEach(p => { counts[p.status] = (counts[p.status] || 0) + 1; });
+    return counts;
+  }, [practices]);
+
+  return (
+    <div className="fade-in" style={{ padding: isMobile ? 16 : 28 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
+        <div>
+          <div className="playfair" style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700 }}>Pratiche di viaggio</div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+            {practices.length} {practices.length === 1 ? "pratica" : "pratiche"} ·{" "}
+            {statusCounts.in_progress || 0} in corso · {statusCounts.confirmed || 0} confermate · {statusCounts.draft || 0} bozze
+          </div>
+        </div>
+        {canManage && (
+          <button onClick={() => setEditing("new")} style={{
+            padding: "10px 18px", borderRadius: 8, border: "none",
+            background: "var(--navy)", color: "#fff", cursor: "pointer",
+            fontSize: 13, fontWeight: 700, boxShadow: "0 4px 14px rgba(15,32,68,0.25)",
+          }}>+ Nuova pratica</button>
+        )}
+      </div>
+
+      {/* Filtri stato tab */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 14, overflowX: "auto", paddingBottom: 4 }}>
+        <button onClick={() => setStatusFilter("")} style={{
+          padding: "8px 14px", borderRadius: 8, border: "none", cursor: "pointer",
+          fontSize: 12, fontWeight: 600, whiteSpace: "nowrap",
+          background: statusFilter === "" ? "var(--navy)" : "#fff",
+          color: statusFilter === "" ? "#fff" : "var(--text-muted)",
+          border: statusFilter === "" ? "1px solid var(--navy)" : "1px solid var(--border)",
+        }}>Tutte ({statusCounts.all})</button>
+        {Object.entries(PRACTICE_STATUSES).map(([k, v]) => (
+          <button key={k} onClick={() => setStatusFilter(k)} style={{
+            padding: "8px 14px", borderRadius: 8, cursor: "pointer", whiteSpace: "nowrap",
+            fontSize: 12, fontWeight: 600,
+            background: statusFilter === k ? v.color : "#fff",
+            color: statusFilter === k ? "#fff" : v.color,
+            border: `1px solid ${statusFilter === k ? v.color : "var(--border)"}`,
+          }}>{v.label} ({statusCounts[k] || 0})</button>
+        ))}
+      </div>
+
+      {/* Toolbar ricerca + filtro cliente */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 200, position: "relative" }}>
+          <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "var(--text-muted)" }}>🔍</span>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Cerca per numero, titolo, destinazione, cliente…"
+            style={{
+              width: "100%", padding: "10px 12px 10px 36px", border: "1px solid var(--border)",
+              borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff",
+              outline: "none", boxSizing: "border-box",
+            }}
+          />
+        </div>
+        <select value={clientFilter} onChange={e => setClientFilter(e.target.value)} style={{
+          padding: "10px 12px", border: "1px solid var(--border)", borderRadius: 8,
+          fontSize: 13, fontFamily: "inherit", background: "#fff", outline: "none",
+          minWidth: 180,
+        }}>
+          <option value="">Tutti i clienti</option>
+          {(state.clients || []).map(c => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Layout: lista + dettaglio sotto (le pratiche sono ricche di dati, preferisco dettaglio sotto su tutti i breakpoint) */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {filtered.length === 0 ? (
+          <div style={{
+            background: "#fff", border: "1px dashed var(--border)", borderRadius: 12,
+            padding: "60px 20px", textAlign: "center", color: "var(--text-muted)",
+          }}>
+            <div style={{ fontSize: 38, marginBottom: 10 }}>📁</div>
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
+              {practices.length === 0 ? "Nessuna pratica ancora" : "Nessun risultato"}
+            </div>
+            <div style={{ fontSize: 12 }}>
+              {practices.length === 0
+                ? "Crea la prima pratica per aggregare task, fornitori e finanziario di un viaggio."
+                : "Prova a cambiare ricerca o filtri."}
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(320px, 1fr))", gap: 12 }}>
+            {filtered.map(p => {
+              const client = getClient(state.clients, p.clientId);
+              const taskCount = getPracticeTasks(state.tasks, p.id).length;
+              const isSel = selectedId === p.id;
+              const sm = practiceStatusMeta(p.status);
+              const paidPct = p.budget > 0 ? Math.min(100, Math.round((p.paidAmount / p.budget) * 100)) : 0;
+              return (
+                <div key={p.id} className="hover-lift" onClick={() => setSelectedId(isSel ? null : p.id)} style={{
+                  background: "#fff", borderRadius: 12, padding: "14px 16px",
+                  boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
+                  border: `2px solid ${isSel ? sm.color : "var(--border)"}`,
+                  cursor: "pointer", transition: "all 0.15s",
+                  display: "flex", flexDirection: "column", gap: 10,
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "monospace", letterSpacing: 0.5 }}>{p.number}</div>
+                      <div style={{ fontWeight: 700, fontSize: 14, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.title}</div>
+                    </div>
+                    <PracticeStatusBadge status={p.status} />
+                  </div>
+
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 3 }}>
+                    {client && <div>👤 {client.name}</div>}
+                    {p.destination && <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>📍 {p.destination}</div>}
+                    {p.startDate && <div>📅 {formatDate(p.startDate)} → {formatDate(p.endDate)}</div>}
+                  </div>
+
+                  {p.budget > 0 && (
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-muted)", marginBottom: 3 }}>
+                        <span>{formatMoney(p.paidAmount, p.currency)} / {formatMoney(p.budget, p.currency)}</span>
+                        <span>{paidPct}%</span>
+                      </div>
+                      <div style={{ height: 4, background: "var(--surface2)", borderRadius: 2, overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${paidPct}%`, background: "var(--success)" }} />
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: "1px solid var(--border)", fontSize: 11, color: "var(--text-muted)" }}>
+                    <span>👥 {p.paxCount || 0} pax</span>
+                    <span>📋 {taskCount} task</span>
+                    <span>🤝 {(p.supplierIds || []).length}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Dettaglio pratica sotto */}
+        {selected && (
+          <PracticeDetail
+            practice={selected}
+            state={state}
+            dispatch={dispatch}
+            onEdit={(p) => setEditing(p)}
+            onDelete={(p) => setConfirmDelete(p)}
+            onClose={() => setSelectedId(null)}
+            canEdit={canManage}
+            canDelete={canDel}
+          />
+        )}
+      </div>
+
+      {editing && (
+        <PracticeEditorModal
+          practice={editing === "new" ? null : editing}
+          clients={state.clients}
+          suppliers={state.suppliers}
+          practices={state.practices}
+          onSave={handleSave}
+          onClose={() => setEditing(null)}
+        />
+      )}
+
+      {confirmDelete && (
+        <div onClick={() => setConfirmDelete(null)} style={{
+          position: "fixed", inset: 0, background: "rgba(15,32,68,0.5)", zIndex: 1100,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+        }}>
+          <div onClick={e => e.stopPropagation()} className="slide-up" style={{
+            background: "#fff", borderRadius: 14, padding: 24, maxWidth: 420, width: "100%",
+            boxShadow: "0 12px 40px rgba(0,0,0,0.25)",
+          }}>
+            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, marginBottom: 8 }}>Eliminare la pratica?</div>
+            <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 18, lineHeight: 1.5 }}>
+              "<strong>{confirmDelete.number} — {confirmDelete.title}</strong>" verrà rimossa.
+              I task collegati non verranno cancellati ma resteranno senza riferimento pratica.
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => setConfirmDelete(null)} style={{
+                padding: "10px 18px", borderRadius: 8, border: "1px solid var(--border)",
+                background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--text-muted)",
+              }}>Annulla</button>
+              <button onClick={confirmDeleteNow} style={{
+                padding: "10px 20px", borderRadius: 8, border: "none",
+                background: "var(--danger)", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700,
+              }}>Elimina</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ─── ROOT APP ──────────────────────────────────────────────────────────────
 export default function VoyageDesk() {
   return (
@@ -6994,6 +10373,9 @@ function VoyageDeskInner() {
     switch (state.activeView) {
       case "dashboard": return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
       case "calendar": return <CalendarPlanner state={state} dispatch={dispatch} />;
+      case "practices": return <PracticesView state={state} dispatch={dispatch} />;
+      case "clients": return <ClientsView state={state} dispatch={dispatch} />;
+      case "suppliers": return <SuppliersView state={state} dispatch={dispatch} />;
       case "team": return <Team state={state} dispatch={dispatch} />;
       case "trash": return <Trash state={state} dispatch={dispatch} />;
       case "admin": return <AdminView state={state} dispatch={dispatch} />;
@@ -7017,7 +10399,7 @@ function VoyageDeskInner() {
         <BottomNav state={state} dispatch={dispatch} />
 
         {/* Slide-over */}
-        {state.selectedTask && <TaskSlideOver task={state.selectedTask} dispatch={dispatch} />}
+        {state.selectedTask && <TaskSlideOver task={state.selectedTask} dispatch={dispatch} clients={state.clients || []} practices={state.practices || []} />}
 
         {/* Chat Panel */}
         <ChatPanel
@@ -7029,6 +10411,9 @@ function VoyageDeskInner() {
           setMessages={setMessages}
           intent={chatIntent}
           tasks={state.tasks}
+          practices={state.practices || []}
+          messageTemplates={state.messageTemplates || []}
+          dispatch={dispatch}
           currentUserId={state.currentUserId}
         />
 
@@ -7052,7 +10437,7 @@ function VoyageDeskInner() {
             <FAB onClick={() => setShowFABModal(true)} />
           </>
         )}
-        {showFABModal && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} />}
+        {showFABModal && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} clients={state.clients || []} practices={state.practices || []} />}
 
         {/* Bulk Task Creator */}
         {showBulkModal && (

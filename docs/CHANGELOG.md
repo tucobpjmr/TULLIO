@@ -1,5 +1,30 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9-dev — Click-to-contact telefonico nelle task (sessione 9)
+
+> Quick win operativo: i numeri di telefono presenti in descrizione/commenti di una task diventano cliccabili per avviare Chiama / SMS / WhatsApp.
+
+### 📞 Rilevamento numeri di telefono
+- Nuovo helper `linkifyPhones(text)` — regex permissiva (8-15 cifre, con `+`, spazi, trattini, parentesi), validazione finale sul conteggio cifre.
+- Nuovo componente `PhoneChip` (variante `inline` per testo, `block` per la sezione contatti).
+- Nuovo componente `PhoneActions` — popover con 3 azioni:
+  - **📞 Chiama** → `tel:+<digits>`
+  - **💬 SMS** → `sms:+<digits>`
+  - **🟢 WhatsApp** → `https://wa.me/<digits>` (auto-prepend `39` per numeri italiani 10 cifre senza prefisso)
+- Helper `collectPhones(...texts)` per estrazione + dedup.
+
+### 🗂️ Integrazione TaskSlideOver
+- Nuova sezione **CONTATTI** in alto (sopra descrizione) con tutti i numeri trovati in descrizione + commenti, come pill gold cliccabili.
+- Linkificazione inline anche dentro testo descrizione e commenti.
+
+### 🎭 Mock data
+- 3 task demo arricchite con numeri di telefono:
+  - t13 TechCorp: `+39 335 7821934`
+  - t23 Marchetti: `348 4521987`
+  - t26 Rossi: `339 1234567`
+
+---
+
 ## v0.9-dev — Estensioni chat avanzate (Fase 4, sessione 9)
 
 > Prima fetta di Fase 4 (Scala & accessi). Backend e auth reali rimandati: questa sessione tocca solo la chat lato client.

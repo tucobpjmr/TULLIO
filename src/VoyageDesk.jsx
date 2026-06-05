@@ -192,7 +192,7 @@ const INITIAL_TASKS = [
   { id: "t10", title: "Aggiornare sito web pacchetti autunno", category: "marketing", priority: "low", status: "todo", assignees: ["luca"], client: null, dueDate: d(10, 17, 0), estimatedHours: 3, description: "Pubblicare nuovi pacchetti autunno: Foliage Canada, Halloween New York, Dolomiti.", comments: [] },
   { id: "t11", title: "Check-in online TechCorp - voli Barcelona", category: "booking", priority: "high", status: "done", assignees: ["sofia"], client: "Azienda TechCorp", dueDate: d(-1, 9, 0), estimatedHours: 1, description: "Completare check-in online per 50 partecipanti. Assegnare posti preferenziali ai manager.", comments: [{ user: "Sofia Conti", text: "Check-in completato ✓ Tutti i posti assegnati", time: d(-1) }] },
   { id: "t12", title: "Richiesta polizza assicurativa viaggio", category: "admin", priority: "medium", status: "done", assignees: ["roberto"], client: "Famiglia Rossi", dueDate: d(-2, 15, 0), estimatedHours: 0.5, description: "Polizza annullamento + medica per 4 persone. Confrontare Allianz, Generali, AXA.", comments: [{ user: "Roberto Esposito", text: "Polizza Allianz emessa, €342 totale", time: d(-2) }] },
-  { id: "t13", title: "Followup chiamata TechCorp - decisione destinazione", category: "client", priority: "critical", status: "awaiting_client", assignees: ["marco"], client: "Azienda TechCorp", dueDate: d(1, 10, 30), estimatedHours: 1, description: "Chiamata con HR Director TechCorp per confermare destinazione incentive. Budget approvato 85.000€.", comments: [] },
+  { id: "t13", title: "Followup chiamata TechCorp - decisione destinazione", category: "client", priority: "critical", status: "awaiting_client", assignees: ["marco"], client: "Azienda TechCorp", dueDate: d(1, 10, 30), estimatedHours: 1, description: "Chiamata con HR Director TechCorp (Laura Bianchi, +39 335 7821934) per confermare destinazione incentive. Budget approvato 85.000€.", comments: [] },
   { id: "t14", title: "Prenotare ryokan Kyoto - Bianchi", category: "hotel", priority: "high", status: "inprogress", assignees: ["sofia"], client: "Coppia Bianchi", dueDate: d(2, 16, 0), estimatedHours: 2, description: "Prenotare Tawaraya Ryokan o Hiiragiya per 2 notti. Suite tradizionale con vista giardino zen.", comments: [] },
   { id: "t15", title: "Fattura acconto TechCorp", category: "payment", priority: "medium", status: "todo", assignees: ["roberto"], client: "Azienda TechCorp", dueDate: d(4, 11, 0), estimatedHours: 0.5, description: "Emettere fattura acconto 50% per evento incentive. Importo: 42.500€ + IVA.", comments: [] },
   { id: "t16", title: "Aggiornamento CRM clienti Q2", category: "admin", priority: "low", status: "todo", assignees: ["roberto", "luca"], client: null, dueDate: d(14, 17, 0), estimatedHours: 4, description: "Aggiornare schede clienti con dati viaggi 2025. Aggiungere preferenze e note speciali.", comments: [] },
@@ -203,11 +203,11 @@ const INITIAL_TASKS = [
   { id: "t21", title: "Escursioni snorkeling Maldive", category: "booking", priority: "medium", status: "inprogress", assignees: ["luca"], client: "Famiglia Rossi", dueDate: d(6, 10, 0), estimatedHours: 1.5, description: "Prenotare 3 escursioni snorkeling e 1 sessione di immersione guidata con istruttore certificato.", comments: [] },
   { id: "t22", title: "Revisione contratti stagione invernale", category: "admin", priority: "low", status: "todo", assignees: ["marco"], client: null, dueDate: d(20, 10, 0), estimatedHours: 5, description: "Revisione annuale contratti fornitori: tour operator, hotel chains, compagnie aeree.", comments: [] },
   // ─── Coda globale: task non assegnati (in attesa che qualcuno li prenda in carico) ───
-  { id: "t23", title: "Nuova richiesta crociera Caraibi - Famiglia Marchetti", category: "client", priority: "high", status: "todo", assignees: [], client: "Famiglia Marchetti", dueDate: d(2, 11, 0), estimatedHours: 1, description: "Richiesta arrivata via form sito: crociera 7 notti per 4 persone, partenza Miami. Da contattare entro 48h.", comments: [] },
+  { id: "t23", title: "Nuova richiesta crociera Caraibi - Famiglia Marchetti", category: "client", priority: "high", status: "todo", assignees: [], client: "Famiglia Marchetti", dueDate: d(2, 11, 0), estimatedHours: 1, description: "Richiesta arrivata via form sito: crociera 7 notti per 4 persone, partenza Miami. Da contattare entro 48h al 348 4521987 (Sig. Marchetti).", comments: [] },
   { id: "t24", title: "Blocco urgente Hotel Atene per gruppo studenti", category: "hotel", priority: "critical", status: "todo", assignees: [], client: "Liceo Manzoni", dueDate: d(1, 12, 0), estimatedHours: 2, description: "30 camere a Plaka per fine Maggio. Tariffa già negoziata, serve solo conferma e invio rooming list.", comments: [] },
   { id: "t25", title: "Preventivo viaggio nozze Vietnam - Sposi Conte", category: "itinerary", priority: "medium", status: "todo", assignees: [], client: "Sposi Conte", dueDate: d(5, 17, 0), estimatedHours: 3, description: "14 giorni Vietnam classico: Hanoi - Halong - Hoi An - Saigon. Budget medio-alto, esperienze locali.", comments: [] },
   // ─── Task Transfer assegnati a Giulia (Driver) ───
-  { id: "t26", title: "Transfer Linate → Hotel Principe - Famiglia Rossi", category: "transfer", priority: "high", status: "todo", assignees: ["giulia"], client: "Famiglia Rossi", dueDate: d(1, 14, 30), estimatedHours: 1, description: "Pickup arrivo volo AZ1234 ore 14:00, 4 pax + 6 bagagli. Van 8 posti.", comments: [] },
+  { id: "t26", title: "Transfer Linate → Hotel Principe - Famiglia Rossi", category: "transfer", priority: "high", status: "todo", assignees: ["giulia"], client: "Famiglia Rossi", dueDate: d(1, 14, 30), estimatedHours: 1, description: "Pickup arrivo volo AZ1234 ore 14:00, 4 pax + 6 bagagli. Van 8 posti. Referente cliente: 339 1234567.", comments: [] },
   { id: "t27", title: "Transfer Hotel → Stazione Centrale - Coppia Bianchi", category: "transfer", priority: "medium", status: "inprogress", assignees: ["giulia"], client: "Coppia Bianchi", dueDate: d(3, 9, 0), estimatedHours: 0.5, description: "Pickup hotel ore 09:00, treno Frecciarossa 9:55 per Roma. 2 pax + 3 bagagli.", comments: [] },
 ];
 
@@ -4060,6 +4060,144 @@ const QuickAddTask = ({ onAdd, onClose }) => {
   );
 };
 
+// ─── PHONE ACTIONS (chiama / SMS / WhatsApp) ──────────────────────────────
+// Regex permissiva: cattura sequenze tipo "+39 333 1234567", "333-123-4567",
+// "0245678901", "(02) 4567 8901". Validazione finale: 8-15 cifre.
+const PHONE_RE = /(\+?\d[\d \-.()]{6,18}\d)/g;
+
+const extractDigits = (s) => (s || "").replace(/\D/g, "");
+
+const isValidPhone = (s) => {
+  const d = extractDigits(s);
+  return d.length >= 8 && d.length <= 15;
+};
+
+// Per WhatsApp serve formato internazionale senza '+'. Se il numero non ha
+// prefisso internazionale e sembra italiano (10 cifre, inizia per 3 o 0)
+// prepende "39".
+const toWhatsAppNumber = (raw) => {
+  const d = extractDigits(raw);
+  if (raw.trim().startsWith("+")) return d;
+  if (d.length === 10) return "39" + d;
+  return d;
+};
+
+const PhoneActions = ({ phone, onClose }) => {
+  const digits = extractDigits(phone);
+  const wa = toWhatsAppNumber(phone);
+  const items = [
+    { label: "Chiama", icon: "📞", href: `tel:+${digits}` },
+    { label: "SMS",    icon: "💬", href: `sms:+${digits}` },
+    { label: "WhatsApp", icon: "🟢", href: `https://wa.me/${wa}`, external: true },
+  ];
+  return (
+    <div onClick={e => e.stopPropagation()} style={{
+      position: "absolute", top: "calc(100% + 4px)", left: 0,
+      background: "#fff", borderRadius: 10, padding: 6,
+      boxShadow: "0 10px 30px rgba(0,0,0,0.18)",
+      border: "1px solid var(--border)",
+      display: "flex", flexDirection: "column", gap: 2,
+      minWidth: 180, zIndex: 1000,
+    }}>
+      <div style={{
+        fontSize: 10, color: "var(--text-muted)", padding: "4px 8px",
+        letterSpacing: 0.5, textTransform: "uppercase",
+      }}>{phone.trim()}</div>
+      {items.map(it => (
+        <a
+          key={it.label}
+          href={it.href}
+          target={it.external ? "_blank" : undefined}
+          rel={it.external ? "noopener noreferrer" : undefined}
+          onClick={onClose}
+          style={{
+            display: "flex", alignItems: "center", gap: 10,
+            padding: "8px 10px", borderRadius: 6,
+            textDecoration: "none", color: "var(--text)",
+            fontSize: 13, fontWeight: 500,
+            transition: "background 0.15s",
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+          onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+        >
+          <span style={{ fontSize: 16 }}>{it.icon}</span>
+          <span>{it.label}</span>
+        </a>
+      ))}
+    </div>
+  );
+};
+
+const PhoneChip = ({ phone, variant = "inline" }) => {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [open]);
+
+  const isBlock = variant === "block";
+  return (
+    <span
+      onClick={e => { e.stopPropagation(); setOpen(o => !o); }}
+      style={{
+        position: "relative",
+        display: isBlock ? "inline-flex" : "inline-flex",
+        alignItems: "center", gap: 4,
+        background: isBlock ? "var(--gold)" : "rgba(15,32,68,0.06)",
+        color: isBlock ? "var(--navy)" : "var(--navy)",
+        padding: isBlock ? "6px 10px" : "1px 6px",
+        borderRadius: 99, fontSize: isBlock ? 12 : "inherit",
+        fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
+        border: isBlock ? "none" : "1px solid rgba(15,32,68,0.12)",
+        verticalAlign: "baseline",
+      }}
+      title="Contatta"
+    >
+      <span>📞</span>
+      <span>{phone.trim()}</span>
+      {open && <PhoneActions phone={phone} onClose={() => setOpen(false)} />}
+    </span>
+  );
+};
+
+// Trasforma una stringa in array di nodi React, sostituendo i numeri di
+// telefono con <PhoneChip>. Se non trova niente, restituisce la stringa
+// originale.
+const linkifyPhones = (text) => {
+  if (!text) return text;
+  const re = new RegExp(PHONE_RE);
+  const out = [];
+  let last = 0;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    if (!isValidPhone(m[0])) continue;
+    if (m.index > last) out.push(text.slice(last, m.index));
+    out.push(<PhoneChip key={`p-${m.index}`} phone={m[0]} />);
+    last = m.index + m[0].length;
+  }
+  if (out.length === 0) return text;
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+};
+
+// Estrae tutti i numeri validi (deduplicati sulle cifre) da uno o più testi.
+const collectPhones = (...texts) => {
+  const seen = new Map();
+  for (const txt of texts) {
+    if (!txt) continue;
+    const re = new RegExp(PHONE_RE);
+    let m;
+    while ((m = re.exec(txt)) !== null) {
+      if (!isValidPhone(m[0])) continue;
+      const key = extractDigits(m[0]);
+      if (!seen.has(key)) seen.set(key, m[0].trim());
+    }
+  }
+  return [...seen.values()];
+};
+
 // ─── TASK DETAIL SLIDE-OVER ────────────────────────────────────────────────
 const TaskSlideOver = ({ task, dispatch }) => {
   const { isMobile } = useViewport();
@@ -4180,11 +4318,30 @@ const TaskSlideOver = ({ task, dispatch }) => {
             </div>
           )}
 
+          {/* Contatti rilevati (telefono) */}
+          {(() => {
+            const phones = collectPhones(
+              task.description,
+              ...(task.comments || []).map(c => c.text)
+            );
+            if (phones.length === 0) return null;
+            return (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>
+                  CONTATTI ({phones.length})
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {phones.map((p, i) => <PhoneChip key={i} phone={p} variant="block" />)}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Description */}
           <div>
             <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>DESCRIZIONE</div>
             <div style={{ fontSize: 13, lineHeight: 1.7, color: "var(--text)", background: "var(--surface2)", padding: 12, borderRadius: 8 }}>
-              {task.description || <span style={{ color: "var(--text-muted)" }}>Nessuna descrizione.</span>}
+              {task.description ? linkifyPhones(task.description) : <span style={{ color: "var(--text-muted)" }}>Nessuna descrizione.</span>}
             </div>
           </div>
 
@@ -4217,7 +4374,7 @@ const TaskSlideOver = ({ task, dispatch }) => {
                       <span style={{ fontSize: 12, fontWeight: 600 }}>{c.user}</span>
                       <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{formatDate(c.time)}</span>
                     </div>
-                    <div style={{ fontSize: 13, color: "var(--text)", marginTop: 2, lineHeight: 1.5 }}>{c.text}</div>
+                    <div style={{ fontSize: 13, color: "var(--text)", marginTop: 2, lineHeight: 1.5 }}>{linkifyPhones(c.text)}</div>
                   </div>
                 </div>
               ))}

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useViewport } from "../hooks/useViewport.js";
+import { useViewport } from "../hooks/useViewport.jsx";
 import { NOTICE_COLORS, CURRENT_USER } from "../data/mockData.js";
 import { getMember } from "../utils/core.js";
 

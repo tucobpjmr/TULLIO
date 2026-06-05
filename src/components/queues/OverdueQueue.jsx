@@ -1,4 +1,4 @@
-import { useViewport } from "../../hooks/useViewport.js";
+import { useViewport } from "../../hooks/useViewport.jsx";
 import { CATEGORIES, PRIORITIES } from "../../data/mockData.js";
 import { getMember, formatDate } from "../../utils/core.js";
 import SwipeActions from "../SwipeActions.jsx";

@@ -1,4 +1,4 @@
-import { useViewport } from "../../hooks/useViewport.js";
+import { useViewport } from "../../hooks/useViewport.jsx";
 import { getAssignableTeam } from "../../utils/core.js";
 import { getNavItemsForUser } from "../../utils/permissions.js";
 

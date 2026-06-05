@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useViewport } from "../hooks/useViewport.js";
+import { useViewport } from "../hooks/useViewport.jsx";
 
 // ─── TOAST ─────────────────────────────────────────────────────────────────
 const Toast = ({ toast, dispatch }) => {

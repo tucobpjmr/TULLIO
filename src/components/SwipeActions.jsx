@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useViewport } from "../hooks/useViewport.js";
+import { useViewport } from "../hooks/useViewport.jsx";
 import { CURRENT_USER } from "../data/mockData.js";
 import { getAssignableTeam, getMember } from "../utils/core.js";
 import { canEditTask } from "../utils/permissions.js";

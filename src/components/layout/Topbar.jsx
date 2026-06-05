@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useViewport } from "../../hooks/useViewport.js";
+import { useViewport } from "../../hooks/useViewport.jsx";
 import { NOTIFICATIONS } from "../../data/mockData.js";
 import AdvancedSearchPanel from "../search/AdvancedSearchPanel.jsx";
 import NotificationsPanel from "../NotificationsPanel.jsx";

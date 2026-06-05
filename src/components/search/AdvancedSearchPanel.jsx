@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import { useViewport } from "../../hooks/useViewport.js";
+import { useViewport } from "../../hooks/useViewport.jsx";
 import { CATEGORIES, PRIORITIES, STATUSES, STATUS_COLORS, STATUS_LABELS, TEAM } from "../../data/mockData.js";
 import { isOverdue, formatDate } from "../../utils/core.js";
 import Avatar from "../primitives/Avatar.jsx";

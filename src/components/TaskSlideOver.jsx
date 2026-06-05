@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useViewport } from "../hooks/useViewport.js";
+import { useViewport } from "../hooks/useViewport.jsx";
 import { STATUSES, STATUS_LABELS } from "../data/mockData.js";
 import { getMember, formatDate, formatTime, isOverdue } from "../utils/core.js";
 import Avatar from "./primitives/Avatar.jsx";

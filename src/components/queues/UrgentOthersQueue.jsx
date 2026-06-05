@@ -1,4 +1,4 @@
-import { useViewport } from "../../hooks/useViewport.js";
+import { useViewport } from "../../hooks/useViewport.jsx";
 import { CATEGORIES, PRIORITIES } from "../../data/mockData.js";
 import { getMember, formatDate, formatTime } from "../../utils/core.js";
 import Avatar from "../primitives/Avatar.jsx";

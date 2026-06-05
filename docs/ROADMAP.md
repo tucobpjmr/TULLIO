@@ -47,7 +47,7 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 | Modulo | Stato | Priorità | Sforzo | Dipende da |
 |---|---|---|---|---|
-| Anagrafica Clienti (CRM base) | ⬜ | 🔴 | M | — |
+| Anagrafica Clienti (CRM base) | ✅ | 🔴 | M | — |
 | Anagrafica Fornitori | ⬜ | 🔴 | M | — |
 | Pratiche di viaggio | ⬜ | 🔴 | L | Clienti + Fornitori |
 | Collegamento Task ↔ Cliente ↔ Pratica | ⬜ | 🔴 | M | i tre sopra |

@@ -210,6 +210,65 @@ const INITIAL_TASKS = [
   { id: "t27", title: "Transfer Hotel → Stazione Centrale - Coppia Bianchi", category: "transfer", priority: "medium", status: "inprogress", assignees: ["giulia"], client: "Coppia Bianchi", dueDate: d(3, 9, 0), estimatedHours: 0.5, description: "Pickup hotel ore 09:00, treno Frecciarossa 9:55 per Roma. 2 pax + 3 bagagli.", comments: [] },
 ];
 
+// ─── CLIENTI (CRM base — Fase 1) ───────────────────────────────────────────
+// type: "private" (famiglia / coppia / singolo) | "company" (azienda / gruppo)
+// I task referenziano i clienti via Task.clientId (FK), mentre il vecchio campo
+// Task.client (stringa libera) resta per compatibilità ed è popolato in parallelo.
+const INITIAL_CLIENTS = [
+  {
+    id: "c1", type: "private", name: "Famiglia Rossi", contactPerson: "Andrea Rossi",
+    email: "andrea.rossi@email.it", phone: "+39 333 1234567",
+    address: "Via Roma 12", city: "Milano", country: "Italia",
+    taxId: "RSSNDR75A01F205X", tags: ["VIP", "ricorrente"],
+    notes: "Cliente storico, viaggia 2 volte l'anno. Preferenze: business class, hotel 5★, esperienze esclusive.",
+    createdAt: d(-180), updatedAt: d(-30), createdBy: "marco",
+  },
+  {
+    id: "c2", type: "private", name: "Coppia Bianchi", contactPerson: "Marta Bianchi",
+    email: "marta.bianchi@gmail.com", phone: "+39 348 9876543",
+    address: "Corso Italia 88", city: "Roma", country: "Italia",
+    taxId: "BNCMRT88E45H501Y", tags: ["honeymoon"],
+    notes: "Luna di miele in Giappone, prima esperienza in Asia. Sensibili a ryokan e cucina tradizionale.",
+    createdAt: d(-120), updatedAt: d(-10), createdBy: "sofia",
+  },
+  {
+    id: "c3", type: "company", name: "Azienda TechCorp", contactPerson: "Laura Greco (HR Director)",
+    email: "l.greco@techcorp.it", phone: "+39 02 8765432",
+    address: "Via Innovazione 1", city: "Milano", country: "Italia",
+    taxId: "IT01234567890", tags: ["corporate", "incentive"],
+    notes: "Cliente corporate. Eventi incentive annuali, budget medio 80-120k€. Refer: HR.",
+    createdAt: d(-365), updatedAt: d(-5), createdBy: "marco",
+  },
+  {
+    id: "c4", type: "private", name: "Famiglia Marchetti", contactPerson: "Giorgio Marchetti",
+    email: "g.marchetti@libero.it", phone: "+39 339 4567890",
+    address: "Via Garibaldi 5", city: "Firenze", country: "Italia",
+    taxId: "MRCGRG70B12D612K", tags: ["nuovo"],
+    notes: "Lead da form sito. Interesse: crociera Caraibi 4 pax.",
+    createdAt: d(-7), updatedAt: d(-2), createdBy: "marco",
+  },
+  {
+    id: "c5", type: "company", name: "Liceo Manzoni", contactPerson: "Prof. Elena Conti",
+    email: "viaggi@liceomanzoni.edu.it", phone: "+39 02 1234500",
+    address: "Via Manzoni 23", city: "Milano", country: "Italia",
+    taxId: "IT09876543210", tags: ["gruppo", "scolastico"],
+    notes: "Gruppo studenti 30 pax. Viaggio Atene fine maggio, già in fase operativa.",
+    createdAt: d(-90), updatedAt: d(-15), createdBy: "sofia",
+  },
+  {
+    id: "c6", type: "private", name: "Sposi Conte", contactPerson: "Davide Conte",
+    email: "davide.conte@outlook.com", phone: "+39 347 1112233",
+    address: "Via Verdi 9", city: "Napoli", country: "Italia",
+    taxId: "CNTDVD90C15F839Z", tags: ["honeymoon", "preventivo"],
+    notes: "Richiesta preventivo viaggio nozze Vietnam 14gg. Budget medio-alto.",
+    createdAt: d(-14), updatedAt: d(-3), createdBy: "marco",
+  },
+];
+
+// Mappa da `Task.client` (stringa libera storica) → id cliente.
+// Usata solo per popolare retroattivamente Task.clientId nei task seed.
+const _clientNameToId = INITIAL_CLIENTS.reduce((acc, c) => { acc[c.name] = c.id; return acc; }, {});
+
 const NOTIFICATIONS = [
   { id: "n1", type: "overdue", title: "Task scaduto: Visto Giappone - Coppia Bianchi", time: "5 min fa", read: false },
   { id: "n2", type: "assigned", title: "Nuovo task assegnato: Newsletter Giugno", time: "1 ora fa", read: false },
@@ -301,6 +360,7 @@ const LOGGED_ACTIONS = new Set([
   "ADD_CATEGORY", "UPDATE_CATEGORY", "REMOVE_CATEGORY",
   "RESTORE_BACKUP",
   "ADD_NOTICE", "UPDATE_NOTICE", "DELETE_NOTICE",
+  "ADD_CLIENT", "UPDATE_CLIENT", "DELETE_CLIENT",
 ]);
 
 const buildLogEntry = (action, state) => {
@@ -329,6 +389,12 @@ const buildLogEntry = (action, state) => {
     ADD_NOTICE: () => `Pubblicato avviso in bacheca`,
     UPDATE_NOTICE: () => `Modificato avviso in bacheca`,
     DELETE_NOTICE: () => `Rimosso avviso dalla bacheca`,
+    ADD_CLIENT: () => `Aggiunto cliente "${action.payload.name}"`,
+    UPDATE_CLIENT: () => `Modificato cliente "${action.payload.name || action.payload.id}"`,
+    DELETE_CLIENT: () => {
+      const c = state.clients?.find(x => x.id === action.payload);
+      return `Eliminato cliente "${c?.name || action.payload}"`;
+    },
   };
   return { id: `log-${stamp}-${Math.random().toString(36).slice(2,7)}`, time: stamp, type: t, text: (map[t] || (() => t))() };
 };
@@ -343,6 +409,10 @@ function baseReducer(state, action) {
       // Solo admin può aprire la vista Admin
       if (action.payload === "admin" && !canAccessAdmin(uid)) {
         return _denied("Non hai i permessi per accedere all'Admin");
+      }
+      // Driver non vede la vista Clienti
+      if (action.payload === "clients" && !canViewClients(uid)) {
+        return _denied("Non hai i permessi per accedere ai Clienti");
       }
       return { ...state, activeView: action.payload };
     }
@@ -359,9 +429,9 @@ function baseReducer(state, action) {
       if (!m) return state;
       _syncCurrentUser(newId);
       // Se l'utente non può più accedere alla view corrente, riporta a dashboard
-      const activeView = (state.activeView === "admin" && !canAccessAdmin(newId))
-        ? "dashboard"
-        : state.activeView;
+      let activeView = state.activeView;
+      if (activeView === "admin" && !canAccessAdmin(newId)) activeView = "dashboard";
+      if (activeView === "clients" && !canViewClients(newId)) activeView = "dashboard";
       return {
         ...state,
         currentUserId: newId,
@@ -558,6 +628,42 @@ function baseReducer(state, action) {
       return { ...state, notices };
     }
 
+    // ─── CLIENTI (Fase 1) ───
+    case "ADD_CLIENT": {
+      if (!canManageClients(uid)) return _denied("Non puoi creare clienti");
+      const stamp = new Date().toISOString();
+      const client = {
+        ...action.payload,
+        createdAt: action.payload.createdAt || stamp,
+        updatedAt: stamp,
+        createdBy: action.payload.createdBy || uid,
+      };
+      const clients = [client, ...(state.clients || [])];
+      return { ...state, clients, toast: { message: `Cliente "${client.name}" creato`, type: "success" } };
+    }
+    case "UPDATE_CLIENT": {
+      if (!canManageClients(uid)) return _denied("Non puoi modificare i clienti");
+      const stamp = new Date().toISOString();
+      const clients = (state.clients || []).map(c =>
+        c.id === action.payload.id ? { ...c, ...action.payload, updatedAt: stamp } : c
+      );
+      // Mantieni in sync il campo `client` (stringa) sui task collegati se è cambiato il nome.
+      const updated = clients.find(c => c.id === action.payload.id);
+      const tasks = updated
+        ? state.tasks.map(t => t.clientId === updated.id ? { ...t, client: updated.name } : t)
+        : state.tasks;
+      return { ...state, clients, tasks, toast: { message: "Cliente aggiornato", type: "success" } };
+    }
+    case "DELETE_CLIENT": {
+      if (!canDeleteClient(uid)) return _denied("Solo Admin può eliminare un cliente");
+      const target = (state.clients || []).find(c => c.id === action.payload);
+      if (!target) return state;
+      // Scollego i task associati (clientId → null) ma mantengo la stringa `client` per storico.
+      const clients = (state.clients || []).filter(c => c.id !== action.payload);
+      const tasks = state.tasks.map(t => t.clientId === action.payload ? { ...t, clientId: null } : t);
+      return { ...state, clients, tasks, toast: { message: `Cliente "${target.name}" eliminato`, type: "success" } };
+    }
+
     case "CLEAR_TOAST": return { ...state, toast: null };
     case "UNDO_LAST_ACTION": {
       const la = state.lastAction;
@@ -657,10 +763,18 @@ const INITIAL_NOTICES = [
   },
 ];
 
+// Popola Task.clientId nei seed in base alla stringa Task.client (matching per nome).
+// Mantiene la retrocompatibilità: i task continuano ad avere il campo `client` (stringa libera).
+const _INITIAL_TASKS_WITH_CLIENT_ID = INITIAL_TASKS.map(t => ({
+  ...t,
+  clientId: t.client ? (_clientNameToId[t.client] || null) : null,
+}));
+
 const initialState = {
-  tasks: INITIAL_TASKS,
+  tasks: _INITIAL_TASKS_WITH_CLIENT_ID,
   team: TEAM,
   categories: CATEGORIES,
+  clients: INITIAL_CLIENTS,
   agencyName: "VoyageDesk",
   notices: INITIAL_NOTICES,
   activityLog: [],
@@ -693,6 +807,16 @@ const getDayKey = iso => iso ? new Date(iso).toDateString() : null;
 const isActiveTask = t => !t.deletedAt;
 const getActiveTasks = tasks => tasks.filter(isActiveTask);
 const getTrashedTasks = tasks => tasks.filter(t => t.deletedAt);
+
+// ─── HELPER CLIENTI (Fase 1) ──────────────────────────────────────────
+// Trova un cliente per id nello state (no fallback su mock globali: clients è già in state).
+const getClient = (clients, id) => (clients || []).find(c => c.id === id) || null;
+// Conta i task attivi associati ad un cliente.
+const getClientTaskCount = (tasks, clientId) =>
+  getActiveTasks(tasks).filter(t => t.clientId === clientId).length;
+// Riconosce per label se un cliente è azienda o privato (icona).
+const clientTypeIcon = (type) => type === "company" ? "🏢" : "👨‍👩‍👧";
+const clientTypeLabel = (type) => type === "company" ? "Azienda" : "Privato";
 
 // ─── PERMESSI (v0.8) ──────────────────────────────────────────────────────
 // Ruoli logici derivati dal campo `role` del team member.
@@ -766,6 +890,14 @@ const canCreateTaskCategory = (category, userId) => {
 
 // Può accedere all'Admin?
 const canAccessAdmin = (userId) => isAdmin(userId);
+
+// ─── PERMESSI CLIENTI (Fase 1) ──────────────────────────────────────────
+// Driver non vede i clienti (focus operativo sul transfer). Tutti gli altri sì.
+const canViewClients = (userId) => !isDriver(userId);
+// Solo admin/manager/agent possono creare/modificare/eliminare clienti.
+const canManageClients = (userId) => !isDriver(userId);
+// Solo Admin può eliminare definitivamente un cliente.
+const canDeleteClient = (userId) => isAdmin(userId);
 
 // Categorie selezionabili nei form per questo utente
 const getAvailableCategories = (userId) => {
@@ -1935,6 +2067,7 @@ const NotificationsPanel = ({ dispatch }) => {
 const NAV_ITEMS = [
   { id: "dashboard", icon: "📊", label: "Dashboard", roles: ["admin", "manager", "agent", "driver"] },
   { id: "calendar", icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
+  { id: "clients", icon: "🧳", label: "Clienti", roles: ["admin", "manager", "agent"] },
   { id: "team", icon: "👥", label: "Team", roles: ["admin", "manager", "agent"] },
   { id: "trash", icon: "🗑️", label: "Cestino", roles: ["admin"] },
   { id: "admin", icon: "⚙️", label: "Admin", roles: ["admin"] },
@@ -6938,6 +7071,576 @@ const btnWarning = { padding: "8px 12px", borderRadius: 6, border: "1px solid va
 const modalOverlay = { position: "fixed", inset: 0, background: "rgba(15,32,68,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 600, padding: 16 };
 const modalCard = { background: "#fff", borderRadius: 12, padding: 24, width: "90%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" };
 
+// ─── CLIENTI (Fase 1 — CRM base) ───────────────────────────────────────────
+// Iniziali per avatar cliente: prende prime due lettere significative.
+const clientInitials = (name) => {
+  if (!name) return "??";
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "??";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+// Colore deterministico in palette navy/gold per avatar cliente (fallback).
+const _CLIENT_COLORS = ["#0F2044", "#2D7A4F", "#C8832A", "#7B4F9E", "#0EA5E9", "#DB2777", "#D4A843"];
+const clientColor = (id) => {
+  const h = (id || "").split("").reduce((a, ch) => a + ch.charCodeAt(0), 0);
+  return _CLIENT_COLORS[h % _CLIENT_COLORS.length];
+};
+
+const ClientAvatar = ({ client, size = 38 }) => {
+  if (!client) return null;
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: "50%",
+      background: clientColor(client.id),
+      color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
+      fontWeight: 700, fontSize: Math.round(size * 0.36), flexShrink: 0,
+      border: "2px solid #fff", boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
+    }}>
+      {client.type === "company" ? "🏢" : clientInitials(client.name)}
+    </div>
+  );
+};
+
+const ClientTag = ({ children }) => (
+  <span style={{
+    fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 99,
+    background: "var(--surface2)", color: "var(--text-muted)",
+    border: "1px solid var(--border)",
+  }}>{children}</span>
+);
+
+// Modale form crea/modifica cliente
+const ClientEditorModal = ({ client, onSave, onClose }) => {
+  const isEdit = !!client;
+  const [form, setForm] = useState({
+    type: client?.type || "private",
+    name: client?.name || "",
+    contactPerson: client?.contactPerson || "",
+    email: client?.email || "",
+    phone: client?.phone || "",
+    address: client?.address || "",
+    city: client?.city || "",
+    country: client?.country || "Italia",
+    taxId: client?.taxId || "",
+    tags: (client?.tags || []).join(", "),
+    notes: client?.notes || "",
+  });
+  const [error, setError] = useState("");
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const submit = (e) => {
+    e?.preventDefault?.();
+    if (!form.name.trim()) {
+      setError("Il nome è obbligatorio");
+      return;
+    }
+    const payload = {
+      id: client?.id || `c-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      type: form.type,
+      name: form.name.trim(),
+      contactPerson: form.contactPerson.trim() || null,
+      email: form.email.trim() || null,
+      phone: form.phone.trim() || null,
+      address: form.address.trim() || null,
+      city: form.city.trim() || null,
+      country: form.country.trim() || null,
+      taxId: form.taxId.trim() || null,
+      tags: form.tags.split(",").map(t => t.trim()).filter(Boolean),
+      notes: form.notes.trim() || null,
+    };
+    if (client) {
+      payload.createdAt = client.createdAt;
+      payload.createdBy = client.createdBy;
+    }
+    onSave(payload);
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "10px 12px", border: "1px solid var(--border)",
+    borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff",
+    color: "var(--text)", outline: "none", boxSizing: "border-box",
+  };
+  const labelStyle = { fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, display: "block" };
+
+  return (
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, background: "rgba(15,32,68,0.5)", zIndex: 1000,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+    }}>
+      <form onClick={e => e.stopPropagation()} onSubmit={submit} className="slide-up" style={{
+        background: "#fff", borderRadius: 14, padding: 24, width: "100%", maxWidth: 560,
+        maxHeight: "92vh", overflowY: "auto", boxShadow: "0 12px 40px rgba(0,0,0,0.25)",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+          <div className="playfair" style={{ fontSize: 18, fontWeight: 700 }}>
+            {isEdit ? "Modifica cliente" : "Nuovo cliente"}
+          </div>
+          <button type="button" onClick={onClose} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 20, color: "var(--text-muted)" }}>✕</button>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          {[{ k: "private", label: "👨‍👩‍👧 Privato" }, { k: "company", label: "🏢 Azienda" }].map(opt => (
+            <button key={opt.k} type="button" onClick={() => set("type", opt.k)} style={{
+              flex: 1, padding: "10px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+              cursor: "pointer",
+              border: `2px solid ${form.type === opt.k ? "var(--navy)" : "var(--border)"}`,
+              background: form.type === opt.k ? "var(--surface2)" : "#fff",
+              color: form.type === opt.k ? "var(--navy)" : "var(--text-muted)",
+            }}>{opt.label}</button>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <label style={labelStyle}>{form.type === "company" ? "Ragione sociale *" : "Nome / Famiglia *"}</label>
+            <input style={inputStyle} value={form.name} onChange={e => set("name", e.target.value)} autoFocus placeholder={form.type === "company" ? "Es. Acme Srl" : "Es. Famiglia Rossi"} />
+          </div>
+
+          <div>
+            <label style={labelStyle}>{form.type === "company" ? "Referente" : "Contatto principale"}</label>
+            <input style={inputStyle} value={form.contactPerson} onChange={e => set("contactPerson", e.target.value)} placeholder={form.type === "company" ? "Es. Mario Bianchi (CEO)" : "Es. Andrea Rossi"} />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Email</label>
+              <input style={inputStyle} type="email" value={form.email} onChange={e => set("email", e.target.value)} placeholder="email@esempio.it" />
+            </div>
+            <div>
+              <label style={labelStyle}>Telefono</label>
+              <input style={inputStyle} value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="+39 333 1234567" />
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Indirizzo</label>
+            <input style={inputStyle} value={form.address} onChange={e => set("address", e.target.value)} placeholder="Via Roma 12" />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Città</label>
+              <input style={inputStyle} value={form.city} onChange={e => set("city", e.target.value)} placeholder="Milano" />
+            </div>
+            <div>
+              <label style={labelStyle}>Paese</label>
+              <input style={inputStyle} value={form.country} onChange={e => set("country", e.target.value)} />
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>{form.type === "company" ? "Partita IVA / Codice Fiscale" : "Codice Fiscale"}</label>
+            <input style={inputStyle} value={form.taxId} onChange={e => set("taxId", e.target.value)} placeholder={form.type === "company" ? "IT01234567890" : "RSSMRA80A01F205X"} />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Tag (separati da virgola)</label>
+            <input style={inputStyle} value={form.tags} onChange={e => set("tags", e.target.value)} placeholder="VIP, honeymoon, corporate" />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Note</label>
+            <textarea style={{ ...inputStyle, minHeight: 80, resize: "vertical", fontFamily: "inherit" }} value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Preferenze, anniversari, allergie, lingua preferita…" />
+          </div>
+        </div>
+
+        {error && <div style={{ color: "var(--danger)", fontSize: 12, marginTop: 12 }}>{error}</div>}
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 22 }}>
+          <button type="button" onClick={onClose} style={{
+            padding: "10px 18px", borderRadius: 8, border: "1px solid var(--border)",
+            background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--text-muted)",
+          }}>Annulla</button>
+          <button type="submit" style={{
+            padding: "10px 20px", borderRadius: 8, border: "none",
+            background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700,
+          }}>{isEdit ? "Salva modifiche" : "Crea cliente"}</button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+// Pannello dettaglio cliente (laterale su desktop, modale su mobile)
+const ClientDetailPanel = ({ client, tasks, dispatch, onEdit, onDelete, onClose, canEdit, canDelete }) => {
+  const { isMobile } = useViewport();
+  const relatedTasks = useMemo(
+    () => getActiveTasks(tasks).filter(t => t.clientId === client.id),
+    [tasks, client.id]
+  );
+  const open = relatedTasks.filter(t => t.status !== "done");
+  const done = relatedTasks.filter(t => t.status === "done");
+
+  const wrapStyle = isMobile
+    ? {
+        position: "fixed", inset: 0, background: "rgba(15,32,68,0.5)", zIndex: 900,
+        display: "flex", alignItems: "flex-end", justifyContent: "center",
+      }
+    : { background: "#fff", borderRadius: 12, border: "1px solid var(--border)", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden", position: "sticky", top: 16 };
+
+  const inner = (
+    <div onClick={e => e.stopPropagation()} className={isMobile ? "slide-up" : "fade-in"} style={{
+      background: "#fff", width: "100%",
+      maxHeight: isMobile ? "85vh" : "calc(100vh - 80px)",
+      overflowY: "auto",
+      borderTopLeftRadius: isMobile ? 16 : 12, borderTopRightRadius: isMobile ? 16 : 12,
+    }}>
+      <div style={{ padding: "20px 22px", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flex: 1, minWidth: 0 }}>
+            <ClientAvatar client={client} size={48} />
+            <div style={{ minWidth: 0 }}>
+              <div className="playfair" style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.2 }}>{client.name}</div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>
+                {clientTypeIcon(client.type)} {clientTypeLabel(client.type)}
+                {client.contactPerson ? ` • ${client.contactPerson}` : ""}
+              </div>
+              {client.tags?.length > 0 && (
+                <div style={{ display: "flex", gap: 5, marginTop: 8, flexWrap: "wrap" }}>
+                  {client.tags.map(t => <ClientTag key={t}>{t}</ClientTag>)}
+                </div>
+              )}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 18, color: "var(--text-muted)", padding: 4, lineHeight: 1 }}>✕</button>
+        </div>
+      </div>
+
+      <div style={{ padding: "16px 22px", display: "flex", flexDirection: "column", gap: 12 }}>
+        {client.email && (
+          <div style={{ display: "flex", gap: 8, fontSize: 13 }}>
+            <span style={{ width: 18 }}>✉️</span>
+            <a href={`mailto:${client.email}`} style={{ color: "var(--navy)", textDecoration: "none", wordBreak: "break-all" }}>{client.email}</a>
+          </div>
+        )}
+        {client.phone && (
+          <div style={{ display: "flex", gap: 8, fontSize: 13 }}>
+            <span style={{ width: 18 }}>📞</span>
+            <a href={`tel:${client.phone}`} style={{ color: "var(--navy)", textDecoration: "none" }}>{client.phone}</a>
+          </div>
+        )}
+        {(client.address || client.city) && (
+          <div style={{ display: "flex", gap: 8, fontSize: 13 }}>
+            <span style={{ width: 18 }}>📍</span>
+            <span>
+              {[client.address, client.city, client.country].filter(Boolean).join(", ")}
+            </span>
+          </div>
+        )}
+        {client.taxId && (
+          <div style={{ display: "flex", gap: 8, fontSize: 13, color: "var(--text-muted)" }}>
+            <span style={{ width: 18 }}>🆔</span>
+            <span style={{ fontFamily: "monospace" }}>{client.taxId}</span>
+          </div>
+        )}
+      </div>
+
+      {client.notes && (
+        <div style={{ padding: "0 22px 16px" }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Note</div>
+          <div style={{ fontSize: 13, lineHeight: 1.5, color: "var(--text)", background: "var(--surface2)", padding: "10px 12px", borderRadius: 8, whiteSpace: "pre-wrap" }}>{client.notes}</div>
+        </div>
+      )}
+
+      <div style={{ padding: "0 22px 16px" }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>
+          Task collegati ({relatedTasks.length})
+        </div>
+        {relatedTasks.length === 0 ? (
+          <div style={{ fontSize: 12, color: "var(--text-light)", fontStyle: "italic", padding: "8px 0" }}>Nessun task ancora collegato a questo cliente.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {open.map(t => (
+              <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                display: "flex", alignItems: "center", gap: 8, padding: "8px 10px",
+                borderRadius: 8, cursor: "pointer", border: "1px solid var(--border)",
+                background: isOverdue(t) ? "rgba(192,57,43,0.05)" : "#fff",
+              }}
+                onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                onMouseLeave={e => e.currentTarget.style.background = isOverdue(t) ? "rgba(192,57,43,0.05)" : "#fff"}
+              >
+                <span style={{ fontSize: 14 }}>{CATEGORIES[t.category]?.icon}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
+                  <div style={{ fontSize: 10, color: isOverdue(t) ? "var(--danger)" : "var(--text-muted)" }}>
+                    {isOverdue(t) ? "⚠️ Scaduto • " : ""}{formatDate(t.dueDate)}
+                  </div>
+                </div>
+                <PriorityBadge priority={t.priority} />
+              </div>
+            ))}
+            {done.length > 0 && (
+              <details style={{ marginTop: 6 }}>
+                <summary style={{ cursor: "pointer", fontSize: 11, color: "var(--text-muted)", padding: "4px 0" }}>
+                  Completati ({done.length})
+                </summary>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>
+                  {done.map(t => (
+                    <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                      display: "flex", alignItems: "center", gap: 8, padding: "6px 10px",
+                      borderRadius: 6, cursor: "pointer", fontSize: 12, color: "var(--text-muted)",
+                      textDecoration: "line-through",
+                    }}>
+                      <span>{CATEGORIES[t.category]?.icon}</span>
+                      <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+          </div>
+        )}
+      </div>
+
+      {(canEdit || canDelete) && (
+        <div style={{
+          padding: "12px 22px", borderTop: "1px solid var(--border)",
+          display: "flex", gap: 10, justifyContent: "flex-end", background: "var(--surface)",
+        }}>
+          {canDelete && (
+            <button onClick={() => onDelete(client)} style={{
+              padding: "8px 14px", borderRadius: 8, border: "1px solid var(--danger)",
+              background: "#fff", color: "var(--danger)", cursor: "pointer", fontSize: 12, fontWeight: 600,
+            }}>🗑️ Elimina</button>
+          )}
+          {canEdit && (
+            <button onClick={() => onEdit(client)} style={{
+              padding: "8px 16px", borderRadius: 8, border: "none",
+              background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700,
+            }}>✏️ Modifica</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  return isMobile ? <div onClick={onClose} style={wrapStyle}>{inner}</div> : <div style={wrapStyle}>{inner}</div>;
+};
+
+const ClientsView = ({ state, dispatch }) => {
+  const { isMobile, isDesktop } = useViewport();
+  const uid = state.currentUserId;
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState(""); // "" | "private" | "company"
+  const [selectedId, setSelectedId] = useState(null);
+  const [editing, setEditing] = useState(null); // null | client | "new"
+  const [confirmDelete, setConfirmDelete] = useState(null);
+
+  const clients = state.clients || [];
+  const canManage = canManageClients(uid);
+  const canDel = canDeleteClient(uid);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return clients
+      .filter(c => {
+        if (typeFilter && c.type !== typeFilter) return false;
+        if (!q) return true;
+        return [c.name, c.email, c.phone, c.city, c.contactPerson, ...(c.tags || [])]
+          .some(v => (v || "").toString().toLowerCase().includes(q));
+      })
+      .sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+  }, [clients, search, typeFilter]);
+
+  const selected = selectedId ? getClient(clients, selectedId) : null;
+  // Se il cliente selezionato è stato eliminato, chiudi il pannello.
+  useEffect(() => {
+    if (selectedId && !getClient(clients, selectedId)) setSelectedId(null);
+  }, [clients, selectedId]);
+
+  const handleSave = (payload) => {
+    const exists = clients.some(c => c.id === payload.id);
+    dispatch({ type: exists ? "UPDATE_CLIENT" : "ADD_CLIENT", payload });
+    setEditing(null);
+    setSelectedId(payload.id);
+  };
+
+  const handleDelete = (client) => setConfirmDelete(client);
+  const confirmDeleteNow = () => {
+    if (confirmDelete) {
+      dispatch({ type: "DELETE_CLIENT", payload: confirmDelete.id });
+      setConfirmDelete(null);
+      setSelectedId(null);
+    }
+  };
+
+  const showDetailInline = isDesktop && selected;
+
+  return (
+    <div className="fade-in" style={{ padding: isMobile ? 16 : 28 }}>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
+        <div>
+          <div className="playfair" style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700 }}>Clienti</div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+            {clients.length} {clients.length === 1 ? "anagrafica" : "anagrafiche"} · {clients.filter(c => c.type === "company").length} aziende · {clients.filter(c => c.type === "private").length} privati
+          </div>
+        </div>
+        {canManage && (
+          <button onClick={() => setEditing("new")} style={{
+            padding: "10px 18px", borderRadius: 8, border: "none",
+            background: "var(--navy)", color: "#fff", cursor: "pointer",
+            fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6,
+            boxShadow: "0 4px 14px rgba(15,32,68,0.25)",
+          }}>+ Nuovo cliente</button>
+        )}
+      </div>
+
+      {/* Toolbar filtri */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 200, position: "relative" }}>
+          <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "var(--text-muted)" }}>🔍</span>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Cerca per nome, email, città, tag…"
+            style={{
+              width: "100%", padding: "10px 12px 10px 36px", border: "1px solid var(--border)",
+              borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff",
+              outline: "none", boxSizing: "border-box",
+            }}
+          />
+        </div>
+        <div style={{ display: "flex", gap: 4, background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: 3 }}>
+          {[{ k: "", label: "Tutti" }, { k: "private", label: "👨‍👩‍👧 Privati" }, { k: "company", label: "🏢 Aziende" }].map(opt => (
+            <button key={opt.k} onClick={() => setTypeFilter(opt.k)} style={{
+              padding: "6px 12px", borderRadius: 6, border: "none", cursor: "pointer",
+              fontSize: 12, fontWeight: 600,
+              background: typeFilter === opt.k ? "var(--navy)" : "transparent",
+              color: typeFilter === opt.k ? "#fff" : "var(--text-muted)",
+            }}>{opt.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Layout: lista + pannello dettaglio */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: showDetailInline ? "minmax(0, 1fr) 380px" : "1fr",
+        gap: 20, alignItems: "flex-start",
+      }}>
+        {/* Lista clienti */}
+        <div>
+          {filtered.length === 0 ? (
+            <div style={{
+              background: "#fff", border: "1px dashed var(--border)", borderRadius: 12,
+              padding: "60px 20px", textAlign: "center", color: "var(--text-muted)",
+            }}>
+              <div style={{ fontSize: 38, marginBottom: 10 }}>🧳</div>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
+                {clients.length === 0 ? "Nessun cliente ancora" : "Nessun risultato"}
+              </div>
+              <div style={{ fontSize: 12 }}>
+                {clients.length === 0
+                  ? "Crea il primo cliente per iniziare a collegare task e pratiche."
+                  : "Prova a cambiare ricerca o filtro."}
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
+              {filtered.map(c => {
+                const taskCount = getClientTaskCount(state.tasks, c.id);
+                const isSel = selectedId === c.id;
+                return (
+                  <div key={c.id} className="hover-lift" onClick={() => setSelectedId(isSel ? null : c.id)} style={{
+                    background: "#fff", borderRadius: 12, padding: "14px 16px",
+                    boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
+                    border: `2px solid ${isSel ? "var(--navy)" : "var(--border)"}`,
+                    cursor: "pointer", transition: "all 0.15s",
+                    display: "flex", flexDirection: "column", gap: 10,
+                  }}>
+                    <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                      <ClientAvatar client={c} size={40} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</div>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {clientTypeIcon(c.type)} {c.contactPerson || (c.city || clientTypeLabel(c.type))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {(c.email || c.phone) && (
+                      <div style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 2 }}>
+                        {c.email && <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>✉️ {c.email}</div>}
+                        {c.phone && <div>📞 {c.phone}</div>}
+                      </div>
+                    )}
+
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: "1px solid var(--border)" }}>
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                        {(c.tags || []).slice(0, 2).map(t => <ClientTag key={t}>{t}</ClientTag>)}
+                      </div>
+                      <div style={{
+                        fontSize: 11, fontWeight: 600, color: taskCount > 0 ? "var(--navy)" : "var(--text-light)",
+                        background: taskCount > 0 ? "var(--surface2)" : "transparent",
+                        padding: "3px 8px", borderRadius: 99,
+                      }}>📋 {taskCount}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Pannello dettaglio (inline su desktop, modale su mobile) */}
+        {selected && (
+          <ClientDetailPanel
+            client={selected}
+            tasks={state.tasks}
+            dispatch={dispatch}
+            onEdit={(c) => setEditing(c)}
+            onDelete={handleDelete}
+            onClose={() => setSelectedId(null)}
+            canEdit={canManage}
+            canDelete={canDel}
+          />
+        )}
+      </div>
+
+      {/* Modale editor */}
+      {editing && (
+        <ClientEditorModal
+          client={editing === "new" ? null : editing}
+          onSave={handleSave}
+          onClose={() => setEditing(null)}
+        />
+      )}
+
+      {/* Conferma eliminazione */}
+      {confirmDelete && (
+        <div onClick={() => setConfirmDelete(null)} style={{
+          position: "fixed", inset: 0, background: "rgba(15,32,68,0.5)", zIndex: 1100,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+        }}>
+          <div onClick={e => e.stopPropagation()} className="slide-up" style={{
+            background: "#fff", borderRadius: 14, padding: 24, maxWidth: 420, width: "100%",
+            boxShadow: "0 12px 40px rgba(0,0,0,0.25)",
+          }}>
+            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, marginBottom: 8 }}>Eliminare il cliente?</div>
+            <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 18, lineHeight: 1.5 }}>
+              "<strong>{confirmDelete.name}</strong>" verrà rimosso dall'anagrafica.
+              I task collegati non verranno cancellati ma resteranno senza riferimento cliente.
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => setConfirmDelete(null)} style={{
+                padding: "10px 18px", borderRadius: 8, border: "1px solid var(--border)",
+                background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--text-muted)",
+              }}>Annulla</button>
+              <button onClick={confirmDeleteNow} style={{
+                padding: "10px 20px", borderRadius: 8, border: "none",
+                background: "var(--danger)", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700,
+              }}>Elimina</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ─── ROOT APP ──────────────────────────────────────────────────────────────
 export default function VoyageDesk() {
   return (
@@ -6994,6 +7697,7 @@ function VoyageDeskInner() {
     switch (state.activeView) {
       case "dashboard": return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
       case "calendar": return <CalendarPlanner state={state} dispatch={dispatch} />;
+      case "clients": return <ClientsView state={state} dispatch={dispatch} />;
       case "team": return <Team state={state} dispatch={dispatch} />;
       case "trash": return <Trash state={state} dispatch={dispatch} />;
       case "admin": return <AdminView state={state} dispatch={dispatch} />;

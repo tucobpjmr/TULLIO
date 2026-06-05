@@ -1,5 +1,38 @@
 # CHANGELOG — VoyageDesk
 
+## v0.10-dev — Roadmap Fase 1, Step 1: Anagrafica Clienti (CRM base)
+
+> Primo modulo della Fase 1 del modello dati. Aggiunge l'entità Cliente come anagrafica autonoma, fondamento per Pratiche e collegamenti futuri.
+
+### 👤 Nuova entità: Cliente
+- Modello `Client`: `id`, `type` (`private` | `company`), `name`, `contactPerson`, `email`, `phone`, `address`, `city`, `country`, `taxId`, `tags[]`, `notes`, `createdAt`, `updatedAt`, `createdBy`.
+- `INITIAL_CLIENTS` con 6 anagrafiche mock (4 privati + 2 aziende) coerenti con i task seed.
+- `Task.clientId` (FK opzionale) — popolato retroattivamente sui task seed dalla stringa `Task.client` storica.
+- Helper: `getClient(clients, id)`, `getClientTaskCount(tasks, clientId)`, `clientTypeIcon`, `clientTypeLabel`, `clientInitials`, `clientColor`.
+
+### 🧳 Vista Clienti
+- Nuova voce nav `clients` (icona 🧳) in Sidebar e BottomNav (esclusa per ruolo Driver).
+- Componente `ClientsView`: header con conteggi per tipo, ricerca testuale (nome/email/città/tag), filtri tab (Tutti/Privati/Aziende), griglia card responsive.
+- Card cliente con avatar (iniziali o icona azienda), contatti rapidi, tag e badge "numero task collegati".
+- `ClientDetailPanel`: pannello laterale (desktop) o sheet (mobile) con dati di contatto, indirizzo, P.IVA/CF, note, lista task aperti + completati (collassabile).
+- `ClientEditorModal`: form crea/modifica con switch tipo, tutti i campi anagrafici, tag inline (comma-separated).
+
+### ⚙️ Reducer & permessi
+- Nuove action: `ADD_CLIENT`, `UPDATE_CLIENT`, `DELETE_CLIENT` (tutte loggate in `activityLog`).
+- Permessi: `canViewClients` (no Driver), `canManageClients` (no Driver), `canDeleteClient` (solo Admin).
+- `UPDATE_CLIENT` sincronizza `Task.client` (stringa) sui task collegati al cambio nome.
+- `DELETE_CLIENT` scollega i task associati (`clientId → null`) senza eliminarli; il campo storico `client` rimane per riferimento.
+- `SET_VIEW: clients` e `SET_CURRENT_USER` gestiscono il fallback a dashboard per Driver.
+
+### Note di scope
+- Il form di creazione task (QuickAddTask / BulkTaskCreator) non integra ancora la selezione cliente da dropdown: arriverà nello step finale di Fase 1 ("Collegamento Task ↔ Cliente ↔ Pratica").
+- Persistenza ancora in memoria (la Fase 1 prepara il modello dati; la persistenza è separata nella Traccia tecnica trasversale).
+
+### File toccati
+- `src/VoyageDesk.jsx` — da 7071 a ~7775 righe.
+
+---
+
 ## v0.9-dev — Ristrutturazione UI + Profilo + Handoff (sessione 8)
 
 > Semplificazione interfaccia, unificazione viste, nuovo profilo utente, preparazione per migrazione a progetto Vite.

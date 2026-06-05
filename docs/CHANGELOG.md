@@ -1,5 +1,35 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9-dev — Estensioni chat avanzate (Fase 4, sessione 9)
+
+> Prima fetta di Fase 4 (Scala & accessi). Backend e auth reali rimandati: questa sessione tocca solo la chat lato client.
+
+### 💬 Reazioni emoji custom
+- `ReactionPicker` con pulsante **+** che apre griglia estesa (70 emoji: cuori multicolore, food, travel, work).
+- Lista quick (8) invariata; picker estesa con grid 10 colonne, scroll verticale.
+
+### 🔗 Task link cliccabile in chat
+- Nuovo campo `taskRef` sui messaggi: ID di un task allegato.
+- Quando si apre la chat da "contatta agente" su urgenti altrui (intent `taskLink`), il task viene caricato come **chip allegata** sopra l'input (non più testo precompilato).
+- Il messaggio inviato mostra una **card cliccabile** con titolo, priorità, scadenza → click apre `TaskSlideOver` e chiude il pannello chat.
+- `ChatContext` esteso con `dispatch` e `onClose` per integrazione col reducer principale.
+
+### 📞 Chiamate audio/video (mock UI)
+- Nuovi pulsanti 📞 e 📹 nell'header `ConversationView`.
+- Componente `CallOverlay` a schermo intero (sopra la conversazione) con:
+  - Stato **ringing** (animazione pulse-ring gold) → auto-accept dopo ~2s.
+  - Stato **active** con timer mm:ss.
+  - Controlli mute microfono, spegni camera (solo video), termina chiamata.
+  - Mini-thumbnail self in basso a destra (modalità video).
+- Solo UI: nessuna integrazione WebRTC, vero traffico audio/video assente.
+
+### 🛠️ Note tecniche
+- Nessuna nuova dipendenza.
+- `ChatContext` ora condivide `{ tasks, currentUserId, dispatch, onClose }`.
+- Nuova keyframe CSS `pulse-ring` in `FontLoader`.
+
+---
+
 ## v0.9-dev — Ristrutturazione UI + Profilo + Handoff (sessione 8)
 
 > Semplificazione interfaccia, unificazione viste, nuovo profilo utente, preparazione per migrazione a progetto Vite.

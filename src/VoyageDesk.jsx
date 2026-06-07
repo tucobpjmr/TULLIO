@@ -605,6 +605,15 @@ function baseReducer(state, action) {
       }
       return state;
     }
+    case "MARK_NOTIF_READ": {
+      const readNotifIds = new Set(state.readNotifIds || []);
+      readNotifIds.add(action.payload);
+      return { ...state, readNotifIds: [...readNotifIds] };
+    }
+    case "MARK_ALL_NOTIF_READ": {
+      const readNotifIds = (action.payload || []);
+      return { ...state, readNotifIds };
+    }
     case "SET_SEARCH": return { ...state, searchQuery: action.payload };
     case "TOGGLE_NOTIF": return { ...state, showNotif: !state.showNotif };
     case "SET_FILTER": return { ...state, filters: { ...state.filters, ...action.payload } };
@@ -784,6 +793,7 @@ const initialState = {
   filters: { assignee: "", category: "", priority: "", status: "", client: "" },
   lastAction: null, // { type, payload, undo: () => state-patch } per swipe-actions undo
   currentUserId: CURRENT_USER, // v0.8: utente loggato (con switcher in Topbar)
+  readNotifIds: [], // ID delle notifiche già lette (generate dinamicamente)
 };
 
 // ─── UTILS ─────────────────────────────────────────────────────────────────
@@ -804,6 +814,66 @@ const getDayKey = iso => iso ? new Date(iso).toDateString() : null;
 const isActiveTask = t => !t.deletedAt;
 const getActiveTasks = tasks => tasks.filter(isActiveTask);
 const getTrashedTasks = tasks => tasks.filter(t => t.deletedAt);
+
+// ─── NOTIFICHE DINAMICHE ──────────────────────────────────────────────────
+// Genera notifiche dal vivo dallo state. Ogni notifica ha un id deterministico
+// basato sul contenuto, così lo stato "letto" persiste tra i re-render.
+const getNotifications = (state) => {
+  const uid = state.currentUserId;
+  const activeTasks = getActiveTasks(state.tasks);
+  const now = new Date();
+  const in24h = new Date(now.getTime() + 86400000);
+  const notifs = [];
+
+  // Task scaduti visibili all'utente
+  activeTasks
+    .filter(t => t.status !== "done" && t.dueDate && new Date(t.dueDate) < now && canViewTask(t, uid))
+    .forEach(t => notifs.push({
+      id: `overdue-${t.id}`,
+      type: "overdue",
+      title: `Task scaduto: ${t.title}`,
+      taskId: t.id,
+      time: formatDate(t.dueDate),
+    }));
+
+  // Task con scadenza nelle prossime 24h (non ancora scaduti)
+  activeTasks
+    .filter(t => t.status !== "done" && t.dueDate && new Date(t.dueDate) >= now && new Date(t.dueDate) <= in24h && canViewTask(t, uid))
+    .forEach(t => notifs.push({
+      id: `deadline-${t.id}`,
+      type: "deadline",
+      title: `Scadenza domani: ${t.title}`,
+      taskId: t.id,
+      time: `entro le ${formatTime(t.dueDate)}`,
+    }));
+
+  // Task in coda globale (non assegnati, > 1h) — visibili a manager/admin
+  if (!isDriver(uid)) {
+    activeTasks
+      .filter(t => t.status !== "done" && (!t.assignees || t.assignees.length === 0))
+      .forEach(t => notifs.push({
+        id: `queue-${t.id}`,
+        type: "queue",
+        title: `In coda: ${t.title}`,
+        taskId: t.id,
+        time: "in attesa di assegnatario",
+      }));
+  }
+
+  // Agenti pending — solo admin
+  if (isAdmin(uid)) {
+    (state.team || TEAM)
+      .filter(m => m.pending)
+      .forEach(m => notifs.push({
+        id: `pending-${m.id}`,
+        type: "pending_team",
+        title: `Nuovo agente in attesa: ${m.name}`,
+        time: "in attesa di approvazione",
+      }));
+  }
+
+  return notifs;
+};
 
 // ─── PERMESSI (v0.8) ──────────────────────────────────────────────────────
 // Ruoli logici derivati dal campo `role` del team member.
@@ -1538,8 +1608,10 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
 const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
   const { isMobile } = useViewport();
-  const unread = NOTIFICATIONS.filter(n => !n.read).length;
   const [advOpen, setAdvOpen] = useState(false);
+  const notifs = getNotifications(state);
+  const readSet = new Set(state.readNotifIds || []);
+  const unread = notifs.filter(n => !readSet.has(n.id)).length;
   return (
     <div style={{
       height: 58, background: "var(--navy)", display: "flex", alignItems: "center",
@@ -1627,7 +1699,7 @@ const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
             color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center"
           }}>{unread}</span>}
         </button>
-        {state.showNotif && <NotificationsPanel dispatch={dispatch} />}
+        {state.showNotif && <NotificationsPanel state={state} dispatch={dispatch} />}
       </div>
 
       {/* User switcher (v0.8) */}
@@ -2004,39 +2076,121 @@ const UserSwitcher = ({ state, dispatch }) => {
 };
 
 // ─── NOTIFICATIONS PANEL ───────────────────────────────────────────────────
-const NotificationsPanel = ({ dispatch }) => {
+const NotificationsPanel = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
-  const icons = { overdue: "⚠️", assigned: "📋", comment: "💬", deadline: "📅" };
+  const [filterUnread, setFilterUnread] = useState(false);
+
+  const icons = { overdue: "⚠️", deadline: "📅", queue: "🌐", pending_team: "👤", assigned: "📋", comment: "💬" };
+  const typeLabel = { overdue: "Scaduto", deadline: "In scadenza", queue: "In coda", pending_team: "Team", assigned: "Assegnato", comment: "Commento" };
+  const typeColor = { overdue: "var(--danger)", deadline: "var(--warning)", queue: "#3B82F6", pending_team: "#8B5CF6", assigned: "var(--navy)", comment: "var(--text-muted)" };
+
+  const notifs = getNotifications(state);
+  const readSet = new Set(state.readNotifIds || []);
+  const unreadCount = notifs.filter(n => !readSet.has(n.id)).length;
+  const visible = filterUnread ? notifs.filter(n => !readSet.has(n.id)) : notifs;
+
+  const markRead = (id) => dispatch({ type: "MARK_NOTIF_READ", payload: id });
+  const markAllRead = () => dispatch({ type: "MARK_ALL_NOTIF_READ", payload: notifs.map(n => n.id) });
+
+  const handleClick = (n) => {
+    markRead(n.id);
+    if (n.taskId) {
+      const task = state.tasks.find(t => t.id === n.taskId);
+      if (task) dispatch({ type: "SET_SELECTED_TASK", payload: task });
+    } else if (n.type === "pending_team") {
+      dispatch({ type: "SET_VIEW", payload: "admin" });
+    }
+    dispatch({ type: "TOGGLE_NOTIF" });
+  };
+
   return (
     <div className="slide-right" style={{
       position: isMobile ? "fixed" : "absolute",
       top: isMobile ? 56 : "calc(100% + 8px)",
       right: isMobile ? 12 : 0,
       left: isMobile ? 12 : "auto",
-      width: isMobile ? "auto" : "min(360px, calc(100vw - 24px))",
+      width: isMobile ? "auto" : "min(380px, calc(100vw - 24px))",
       background: "#fff", borderRadius: 12, boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
       border: "1px solid var(--border)", overflow: "hidden", zIndex: 200,
     }}>
-      <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div className="playfair" style={{ fontWeight: 600, fontSize: 15 }}>Notifiche</div>
-        <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
-      </div>
-      <div style={{ maxHeight: 420, overflowY: "auto" }}>
-        {NOTIFICATIONS.map(n => (
-          <div key={n.id} style={{
-            padding: "12px 16px", display: "flex", gap: 10, alignItems: "flex-start",
-            background: n.read ? "transparent" : "rgba(212,168,67,0.07)",
-            borderBottom: "1px solid var(--border)",
-            transition: "background 0.2s", cursor: "default",
-          }}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>{icons[n.type]}</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: n.read ? 400 : 600 }}>{n.title}</div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{n.time}</div>
-            </div>
-            {!n.read && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--gold)", flexShrink: 0, marginTop: 4 }} />}
+      {/* Header */}
+      <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div className="playfair" style={{ fontWeight: 600, fontSize: 15 }}>Notifiche</div>
+            {unreadCount > 0 && (
+              <span style={{
+                fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 99,
+                background: "var(--danger)", color: "#fff"
+              }}>{unreadCount}</span>
+            )}
           </div>
-        ))}
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            {unreadCount > 0 && (
+              <button onClick={markAllRead} style={{
+                fontSize: 11, fontWeight: 600, color: "var(--navy)",
+                border: "none", cursor: "pointer", padding: "3px 6px", borderRadius: 6,
+                background: "var(--surface2)"
+              }}>✓ Tutte lette</button>
+            )}
+            <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{
+              background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)"
+            }}>✕</button>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          {[["Tutte", false], ["Non lette", true]].map(([label, val]) => (
+            <button key={label} onClick={() => setFilterUnread(val)} style={{
+              fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 20, border: "none",
+              cursor: "pointer", fontFamily: "inherit",
+              background: filterUnread === val ? "var(--navy)" : "var(--surface2)",
+              color: filterUnread === val ? "#fff" : "var(--text-muted)",
+            }}>{label}{val && unreadCount > 0 ? ` (${unreadCount})` : ""}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Lista */}
+      <div style={{ maxHeight: 420, overflowY: "auto" }}>
+        {visible.length === 0 ? (
+          <div style={{ padding: "32px 16px", textAlign: "center", color: "var(--text-muted)" }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>✅</div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>Nessuna notifica{filterUnread ? " non letta" : ""}</div>
+          </div>
+        ) : visible.map(n => {
+          const isRead = readSet.has(n.id);
+          return (
+            <div key={n.id}
+              onClick={() => handleClick(n)}
+              style={{
+                padding: "12px 16px", display: "flex", gap: 10, alignItems: "flex-start",
+                background: isRead ? "transparent" : "rgba(212,168,67,0.06)",
+                borderBottom: "1px solid var(--border)",
+                cursor: n.taskId || n.type === "pending_team" ? "pointer" : "default",
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={e => { if (n.taskId || n.type === "pending_team") e.currentTarget.style.background = "var(--surface2)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = isRead ? "transparent" : "rgba(212,168,67,0.06)"; }}
+            >
+              <span style={{ fontSize: 18, flexShrink: 0 }}>{icons[n.type] || "🔔"}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 99,
+                    color: typeColor[n.type], background: typeColor[n.type] + "18",
+                  }}>{typeLabel[n.type]}</span>
+                </div>
+                <div style={{
+                  fontSize: 13, fontWeight: isRead ? 400 : 600, lineHeight: 1.35,
+                  overflow: "hidden", textOverflow: "ellipsis",
+                  display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical"
+                }}>{n.title}</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>{n.time}</div>
+              </div>
+              {!isRead && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--gold)", flexShrink: 0, marginTop: 5 }} />}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -2063,6 +2217,11 @@ const Sidebar = ({ state, dispatch }) => {
   if (!isDesktop) return null;
   const col = state.sidebarCollapsed;
   const navItems = getNavItemsForUser(state.currentUserId);
+  const activeTasks = getActiveTasks(state.tasks);
+  const queueCount = activeTasks.filter(t => (!t.assignees || t.assignees.length === 0) && t.status !== "done").length;
+  const pendingCount = (state.team || TEAM).filter(m => m.pending).length;
+  const navBadge = { dashboard: queueCount, admin: pendingCount };
+
   return (
     <div style={{
       width: col ? 60 : 210, background: "var(--navy-dark)", color: "#fff",
@@ -2082,6 +2241,7 @@ const Sidebar = ({ state, dispatch }) => {
       <div style={{ marginTop: 48, padding: col ? "0 8px" : "0 12px", display: "flex", flexDirection: "column", gap: 2 }}>
         {navItems.map(item => {
           const active = state.activeView === item.id;
+          const badge = navBadge[item.id];
           return (
             <button key={item.id} onClick={() => dispatch({ type: "SET_VIEW", payload: item.id })} style={{
               display: "flex", alignItems: "center", gap: 10,
@@ -2090,11 +2250,28 @@ const Sidebar = ({ state, dispatch }) => {
               background: active ? "rgba(212,168,67,0.18)" : "transparent",
               color: active ? "var(--gold)" : "rgba(255,255,255,0.6)",
               fontSize: 14, fontWeight: active ? 600 : 400,
-              transition: "all 0.2s", textAlign: "left",
+              transition: "all 0.2s", textAlign: "left", position: "relative",
               borderLeft: active ? "2px solid var(--gold)" : "2px solid transparent",
             }}>
-              <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
-              {!col && <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>{item.label}</span>}
+              <span style={{ fontSize: 16, flexShrink: 0, position: "relative" }}>
+                {item.icon}
+                {badge > 0 && col && (
+                  <span style={{
+                    position: "absolute", top: -5, right: -5, minWidth: 14, height: 14,
+                    borderRadius: 99, background: "var(--danger)", color: "#fff",
+                    fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center",
+                    justifyContent: "center", padding: "0 3px",
+                  }}>{badge}</span>
+                )}
+              </span>
+              {!col && <span style={{ whiteSpace: "nowrap", overflow: "hidden", flex: 1 }}>{item.label}</span>}
+              {!col && badge > 0 && (
+                <span style={{
+                  minWidth: 18, height: 18, borderRadius: 99, background: "var(--danger)", color: "#fff",
+                  fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center",
+                  justifyContent: "center", padding: "0 4px", marginLeft: "auto", flexShrink: 0,
+                }}>{badge}</span>
+              )}
             </button>
           );
         })}
@@ -2125,10 +2302,16 @@ const Sidebar = ({ state, dispatch }) => {
 // ─── BOTTOM NAV (mobile/tablet) ────────────────────────────────────────────
 const BottomNav = ({ state, dispatch }) => {
   const navItems = getNavItemsForUser(state.currentUserId);
+  const activeTasks = getActiveTasks(state.tasks);
+  const queueCount = activeTasks.filter(t => (!t.assignees || t.assignees.length === 0) && t.status !== "done").length;
+  const pendingCount = (state.team || TEAM).filter(m => m.pending).length;
+  const navBadge = { dashboard: queueCount, admin: pendingCount };
+
   return (
     <nav className="vd-bottom-nav" aria-label="Navigazione principale">
       {navItems.map(item => {
         const active = state.activeView === item.id;
+        const badge = navBadge[item.id];
         return (
           <button
             key={item.id}
@@ -2141,10 +2324,20 @@ const BottomNav = ({ state, dispatch }) => {
               background: "transparent", border: "none", cursor: "pointer",
               color: active ? "var(--gold)" : "rgba(255,255,255,0.55)",
               borderTop: active ? "2px solid var(--gold)" : "2px solid transparent",
-              transition: "color 0.2s",
+              transition: "color 0.2s", position: "relative",
             }}
           >
-            <span style={{ fontSize: 19, lineHeight: 1 }}>{item.icon}</span>
+            <span style={{ fontSize: 19, lineHeight: 1, position: "relative" }}>
+              {item.icon}
+              {badge > 0 && (
+                <span style={{
+                  position: "absolute", top: -5, right: -7, minWidth: 14, height: 14,
+                  borderRadius: 99, background: "var(--danger)", color: "#fff",
+                  fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center",
+                  justifyContent: "center", padding: "0 3px",
+                }}>{badge > 9 ? "9+" : badge}</span>
+              )}
+            </span>
             <span style={{ fontSize: 9, fontWeight: active ? 700 : 500, whiteSpace: "nowrap" }}>
               {item.label.split(" ")[0]}
             </span>

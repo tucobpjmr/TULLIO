@@ -62,7 +62,7 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 | Modulo | Stato | Priorità | Sforzo | Note |
 |---|---|---|---|---|
-| Notifiche reali | ⬜ | 🔴 | M | Collegate ad azioni (scadenze, assegnazioni, commenti, pending, coda > N ore); filtri + "segna tutte lette" |
+| Notifiche reali | ✅ | 🔴 | M | Dinamiche dallo state: scaduti, in scadenza 24h, coda globale, pending team. Badge nav. "Segna tutte lette". Click → apre task. |
 | Calendario avanzato | ⬜ | 🟡 | M | Viste settimanale/giornaliera, eventi multipli, iCal (mock) |
 | Estensioni chat (base) | ⬜ | 🟡 | S–M | Ricerca nelle conversazioni, stato online/occupato, rich preview di task/pratiche, **task link cliccabile** nel messaggio |
 | Impostazioni agenzia | 🔶 | 🟡 | S | Gestione categorie e nome agenzia già in Admin. Manca: template messaggi, profilo utente, preferenze UI |
@@ -99,8 +99,8 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 
 | Idea | Stato | Priorità | Note |
 |---|---|---|---|
-| Badge sulla voce sidebar/bottom-nav **Admin** con conteggio agenti pending | ⬜ | 🟡 | |
-| Badge sulla voce sidebar/bottom-nav **Dashboard** con conteggio coda globale | ⬜ | 🟡 | |
+| Badge sulla voce sidebar/bottom-nav **Admin** con conteggio agenti pending | ✅ | — | |
+| Badge sulla voce sidebar/bottom-nav **Dashboard** con conteggio coda globale | ✅ | — | |
 | Toast personalizzato "Hai preso in carico: \[titolo\]" | ⬜ | ⚪ | |
 | Auto-move in "In Corso" al "Prendi in carico" | ⬜ | ⚪ | |
 | Notifica al manager se un task resta in coda > N ore | ⬜ | 🟡 | Dipende da notifiche reali |

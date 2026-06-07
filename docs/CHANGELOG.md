@@ -1,5 +1,38 @@
 # CHANGELOG — VoyageDesk
 
+## v0.12-dev — Notifiche reali + Badge nav (Fase 2, sessione 11)
+
+> Notifiche generate dinamicamente dallo stato dell'app, con badge live su sidebar e bottom-nav. Fine delle notifiche statiche mock.
+
+### 🔔 Notifiche dinamiche
+- **`getNotifications(state)`**: genera notifiche in tempo reale da 4 sorgenti:
+  - `overdue` ⚠️ — task scaduti visibili all'utente corrente
+  - `deadline` 📅 — task con scadenza nelle prossime 24h
+  - `queue` 🌐 — task in coda globale (non assegnati) — visibile a Manager/Admin
+  - `pending_team` 👤 — agenti in attesa di approvazione — solo Admin
+- ID notifiche deterministici (`overdue-{taskId}`, `queue-{taskId}`, ecc.) per persistenza stato "letto".
+- **`state.readNotifIds`**: array degli ID già letti, aggiornato dal reducer.
+- Azioni: `MARK_NOTIF_READ`, `MARK_ALL_NOTIF_READ`.
+
+### 🔔 NotificationsPanel rinnovato
+- Badge rosso con contatore non lette nell'header.
+- Pulsante **"✓ Tutte lette"** visibile solo quando ci sono non lette.
+- Filtro **Tutte / Non lette** con contatore.
+- Badge colorato per tipo (Scaduto, In scadenza, In coda, Team).
+- **Click su notifica** → apre il task direttamente in TaskSlideOver; se è `pending_team` → naviga ad Admin.
+- Stato vuoto con icona ✅ quando non ci sono notifiche (o non lette).
+
+### 🔴 Badge live su navigazione
+- **Sidebar desktop** e **BottomNav mobile**: badge rosso su:
+  - `Dashboard` → conteggio task in coda globale (non assegnati, non completati)
+  - `Admin` → conteggio agenti pending in attesa di approvazione
+- Badge visibile anche con sidebar collassata (sopra l'icona).
+
+### 📈 Metriche
+- File: 7760 → **7900 righe** circa.
+
+---
+
 ## v0.11-dev — Creazione task semplificata + Import clienti (sessione 10)
 
 > Flusso di creazione task ridotto al minimo: cliente + categoria bastano. Aggiunto import anagrafica da CSV/Excel (compatibile easyADV e altri gestionali).

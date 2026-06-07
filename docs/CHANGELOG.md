@@ -1,5 +1,35 @@
 # CHANGELOG — VoyageDesk
 
+## v0.10-dev — Anagrafica Clienti CRM (Fase 1, sessione 9)
+
+> Primo modulo della Fase 1: CRM base per agenzie viaggi. Introduce la gestione completa dell'anagrafica clienti con collegamento ai task esistenti.
+
+### 👤 Nuova vista: Anagrafica Clienti
+- **Voce "Clienti"** aggiunta alla sidebar/bottom-nav (ruoli: Admin, Manager, Agent; Driver escluso).
+- **6 clienti mock pre-caricati** che corrispondono ai clienti referenziati nei task esistenti: Famiglia Rossi, Coppia Bianchi, Azienda TechCorp, Famiglia Marchetti, Liceo Manzoni, Sposi Conte.
+- **Modello dati cliente**: `id`, `name`, `type` (privato/azienda), `email`, `phone`, `address`, `notes`, `tags[]`, `createdAt`, `lastContact`, `totalSpend`.
+
+### 🗂️ ClientiView — funzionalità
+- **Lista clienti** con griglia responsiva; ogni card mostra: nome, tipo, email, telefono, tag, contatore task attivi.
+- **Ricerca full-text** per nome, email, telefono, tag.
+- **Filtro tipo**: Tutti / Privati / Aziende con badge contatore.
+- **Pannello dettaglio** laterale (desktop) / full-screen (mobile): KPI (task attivi, completati, spesa totale), contatti cliccabili (mailto/tel), note con bordo dorato, tag, lista task collegati.
+- **Task collegati**: collega task per `task.client === client.name`; click su task apre `TaskSlideOver`.
+- **CRUD completo**: modal Add/Edit con tutti i campi; conferma eliminazione con avviso (solo Admin); solo Manager/Agent per add/edit.
+- **Azioni reducer**: `ADD_CLIENT`, `UPDATE_CLIENT`, `DELETE_CLIENT` — tutte logate nel log attività Admin.
+
+### 🏗️ Architettura
+- `state.clients` aggiunto a `initialState`.
+- Nuovi componenti: `ClienteEditModal`, `ClientiView`.
+- Azioni logate in `LOGGED_ACTIONS` e descritte in `buildLogEntry`.
+
+### 📈 Metriche
+- File da 7071 → **7641 righe**.
+- Componenti aggiunti: 2 (`ClienteEditModal`, `ClientiView`).
+- Azioni reducer aggiunte: 3 (`ADD_CLIENT`, `UPDATE_CLIENT`, `DELETE_CLIENT`).
+
+---
+
 ## v0.9-dev — Ristrutturazione UI + Profilo + Handoff (sessione 8)
 
 > Semplificazione interfaccia, unificazione viste, nuovo profilo utente, preparazione per migrazione a progetto Vite.

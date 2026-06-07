@@ -301,6 +301,7 @@ const LOGGED_ACTIONS = new Set([
   "ADD_CATEGORY", "UPDATE_CATEGORY", "REMOVE_CATEGORY",
   "RESTORE_BACKUP",
   "ADD_NOTICE", "UPDATE_NOTICE", "DELETE_NOTICE",
+  "ADD_CLIENT", "UPDATE_CLIENT", "DELETE_CLIENT",
 ]);
 
 const buildLogEntry = (action, state) => {
@@ -329,6 +330,9 @@ const buildLogEntry = (action, state) => {
     ADD_NOTICE: () => `Pubblicato avviso in bacheca`,
     UPDATE_NOTICE: () => `Modificato avviso in bacheca`,
     DELETE_NOTICE: () => `Rimosso avviso dalla bacheca`,
+    ADD_CLIENT: () => `Aggiunto cliente "${action.payload.name}"`,
+    UPDATE_CLIENT: () => `Aggiornato cliente "${action.payload.name || action.payload.id}"`,
+    DELETE_CLIENT: () => `Rimosso cliente "${action.payload}"`,
   };
   return { id: `log-${stamp}-${Math.random().toString(36).slice(2,7)}`, time: stamp, type: t, text: (map[t] || (() => t))() };
 };
@@ -558,6 +562,22 @@ function baseReducer(state, action) {
       return { ...state, notices };
     }
 
+    // ─── ANAGRAFICA CLIENTI ───
+    case "ADD_CLIENT": {
+      const clients = [action.payload, ...(state.clients || [])];
+      return { ...state, clients, toast: { message: `Cliente "${action.payload.name}" aggiunto`, type: "success" } };
+    }
+    case "UPDATE_CLIENT": {
+      const clients = (state.clients || []).map(c =>
+        c.id === action.payload.id ? { ...c, ...action.payload } : c
+      );
+      return { ...state, clients, toast: { message: "Cliente aggiornato", type: "success" } };
+    }
+    case "DELETE_CLIENT": {
+      const clients = (state.clients || []).filter(c => c.id !== action.payload);
+      return { ...state, clients, toast: { message: "Cliente rimosso", type: "success" } };
+    }
+
     case "CLEAR_TOAST": return { ...state, toast: null };
     case "UNDO_LAST_ACTION": {
       const la = state.lastAction;
@@ -657,10 +677,93 @@ const INITIAL_NOTICES = [
   },
 ];
 
+// ─── CLIENTI (CRM base) ────────────────────────────────────────────────────
+const INITIAL_CLIENTS = [
+  {
+    id: "cl1",
+    name: "Famiglia Rossi",
+    type: "privato",
+    email: "rossi.famiglia@gmail.com",
+    phone: "+39 02 5678 9012",
+    address: "Via Montenapoleone 8, 20121 Milano",
+    notes: "Cliente VIP da 6 anni. Preferisce business class e resort 5 stelle. Viaggiano 3-4 volte l'anno. Allergia a frutta secca (Antonio Rossi).",
+    tags: ["VIP", "Fidelizzato"],
+    createdAt: new Date(Date.now() - 86400000 * 365 * 2).toISOString(),
+    lastContact: new Date(Date.now() - 86400000 * 3).toISOString(),
+    totalSpend: 48600,
+  },
+  {
+    id: "cl2",
+    name: "Coppia Bianchi",
+    type: "privato",
+    email: "andrea.bianchi@outlook.com",
+    phone: "+39 339 876 5432",
+    address: "Corso Buenos Aires 44, 20124 Milano",
+    notes: "Luna di miele Giappone. Prima volta con noi. Preferiscono esperienze culturali autentiche, ryokan tradizionali. Budget: medio-alto.",
+    tags: ["Nuovi", "Luna di Miele"],
+    createdAt: new Date(Date.now() - 86400000 * 30).toISOString(),
+    lastContact: new Date(Date.now() - 86400000 * 1).toISOString(),
+    totalSpend: 9800,
+  },
+  {
+    id: "cl3",
+    name: "Azienda TechCorp",
+    type: "azienda",
+    email: "hr.travel@techcorp.it",
+    phone: "+39 02 8901 2345",
+    address: "Viale Tunisia 38, 20124 Milano",
+    notes: "Incentive travel annuale per 50 dipendenti. Budget approvato 85.000€. Referente: Dott.ssa Laura Ferrara (HR Director). Decisioni lente ma alta spesa.",
+    tags: ["Corporate", "Incentive", "Key Account"],
+    createdAt: new Date(Date.now() - 86400000 * 180).toISOString(),
+    lastContact: new Date(Date.now() - 86400000 * 1).toISOString(),
+    totalSpend: 127500,
+  },
+  {
+    id: "cl4",
+    name: "Famiglia Marchetti",
+    type: "privato",
+    email: "marchetti.viaggi@libero.it",
+    phone: "+39 335 123 4567",
+    address: "Via Garibaldi 15, 20900 Monza",
+    notes: "Richiesta nuova: crociera Caraibi per 4 persone (2 adulti + 2 bambini 8 e 11 anni). Form sito web. Da contattare per primo appuntamento.",
+    tags: ["Nuovo Contatto", "Famiglia"],
+    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+    lastContact: new Date(Date.now() - 86400000 * 2).toISOString(),
+    totalSpend: 0,
+  },
+  {
+    id: "cl5",
+    name: "Liceo Manzoni",
+    type: "azienda",
+    email: "segreteria@liceomanzoni.edu.it",
+    phone: "+39 02 2345 6789",
+    address: "Via Deledda 14, 20127 Milano",
+    notes: "Viaggio istruzione classi 4° superiore. 30 studenti + 4 accompagnatori. Referente: Prof. Gentile. Budget scolastico, molto price-sensitive.",
+    tags: ["Istruzione", "Gruppi"],
+    createdAt: new Date(Date.now() - 86400000 * 60).toISOString(),
+    lastContact: new Date(Date.now() - 86400000 * 1).toISOString(),
+    totalSpend: 4200,
+  },
+  {
+    id: "cl6",
+    name: "Sposi Conte",
+    type: "privato",
+    email: "conte.nozze@gmail.com",
+    phone: "+39 347 456 7890",
+    address: "Via Solferino 22, 20121 Milano",
+    notes: "Viaggio di nozze Vietnam 14 giorni. Cerimonia il 15 settembre, partenza il 20. Budget dichiarato: medio-alto con esperienze locali. Lui vegetariano.",
+    tags: ["Luna di Miele", "Nuovi"],
+    createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+    lastContact: new Date(Date.now() - 86400000 * 5).toISOString(),
+    totalSpend: 0,
+  },
+];
+
 const initialState = {
   tasks: INITIAL_TASKS,
   team: TEAM,
   categories: CATEGORIES,
+  clients: INITIAL_CLIENTS,
   agencyName: "VoyageDesk",
   notices: INITIAL_NOTICES,
   activityLog: [],
@@ -1935,6 +2038,7 @@ const NotificationsPanel = ({ dispatch }) => {
 const NAV_ITEMS = [
   { id: "dashboard", icon: "📊", label: "Dashboard", roles: ["admin", "manager", "agent", "driver"] },
   { id: "calendar", icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
+  { id: "clienti", icon: "👤", label: "Clienti", roles: ["admin", "manager", "agent"] },
   { id: "team", icon: "👥", label: "Team", roles: ["admin", "manager", "agent"] },
   { id: "trash", icon: "🗑️", label: "Cestino", roles: ["admin"] },
   { id: "admin", icon: "⚙️", label: "Admin", roles: ["admin"] },
@@ -4563,6 +4667,470 @@ const CalendarPlanner = ({ state, dispatch }) => {
     </div>
   );
 };
+// ─── CLIENTI (CRM BASE) ────────────────────────────────────────────────────
+const ClienteEditModal = ({ cliente, onSave, onClose }) => {
+  const { isMobile } = useViewport();
+  const isNew = !cliente?.id;
+  const [form, setForm] = useState({
+    name: cliente?.name || "",
+    type: cliente?.type || "privato",
+    email: cliente?.email || "",
+    phone: cliente?.phone || "",
+    address: cliente?.address || "",
+    notes: cliente?.notes || "",
+    tags: (cliente?.tags || []).join(", "),
+  });
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleSave = () => {
+    if (!form.name.trim()) return;
+    const tags = form.tags.split(",").map(t => t.trim()).filter(Boolean);
+    const now = new Date().toISOString();
+    onSave({
+      ...(isNew ? { id: `cl-${Date.now()}`, createdAt: now, lastContact: now, totalSpend: 0 } : cliente),
+      ...form,
+      tags,
+    });
+  };
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 800,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 16
+    }} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="slide-up" style={{
+        background: "#fff", borderRadius: 16, width: "100%", maxWidth: 520,
+        maxHeight: "90vh", overflowY: "auto", padding: isMobile ? 20 : 28, boxShadow: "0 20px 60px rgba(0,0,0,0.2)"
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
+          <div className="playfair" style={{ fontSize: 18, fontWeight: 700, color: "var(--navy)" }}>
+            {isNew ? "Nuovo Cliente" : "Modifica Cliente"}
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text-muted)", padding: 4 }}>×</button>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+          {["privato", "azienda"].map(t => (
+            <button key={t} onClick={() => set("type", t)} style={{
+              flex: 1, padding: "8px 0", borderRadius: 8, border: `2px solid ${form.type === t ? "var(--navy)" : "var(--border)"}`,
+              background: form.type === t ? "var(--navy)" : "#fff",
+              color: form.type === t ? "#fff" : "var(--text-muted)",
+              fontWeight: 600, fontSize: 13, cursor: "pointer", transition: "all 0.15s", fontFamily: "inherit"
+            }}>
+              {t === "privato" ? "👤 Privato" : "🏢 Azienda"}
+            </button>
+          ))}
+        </div>
+
+        {[
+          { label: "Nome *", key: "name", placeholder: form.type === "privato" ? "Es. Famiglia Rossi" : "Es. TechCorp Srl" },
+          { label: "Email", key: "email", placeholder: "email@esempio.com", type: "email" },
+          { label: "Telefono", key: "phone", placeholder: "+39 333 1234567", type: "tel" },
+          { label: "Indirizzo", key: "address", placeholder: "Via Roma 1, Milano" },
+          { label: "Tag (separati da virgola)", key: "tags", placeholder: "VIP, Fidelizzato, Corporate" },
+        ].map(({ label, key, placeholder, type = "text" }) => (
+          <div key={key} style={{ marginBottom: 14 }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>{label}</label>
+            <input
+              type={type}
+              value={form[key]}
+              onChange={e => set(key, e.target.value)}
+              placeholder={placeholder}
+              style={{
+                width: "100%", padding: "9px 12px", border: "1px solid var(--border)", borderRadius: 8,
+                fontSize: 14, fontFamily: "inherit", outline: "none", background: "var(--surface)",
+              }}
+            />
+          </div>
+        ))}
+
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>Note</label>
+          <textarea
+            value={form.notes}
+            onChange={e => set("notes", e.target.value)}
+            placeholder="Preferenze, note speciali, informazioni utili..."
+            rows={3}
+            style={{
+              width: "100%", padding: "9px 12px", border: "1px solid var(--border)", borderRadius: 8,
+              fontSize: 14, fontFamily: "inherit", outline: "none", resize: "vertical", background: "var(--surface)",
+            }}
+          />
+        </div>
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onClose} style={{
+            flex: 1, padding: "10px 0", border: "1px solid var(--border)", borderRadius: 8,
+            background: "#fff", color: "var(--text-muted)", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit"
+          }}>Annulla</button>
+          <button onClick={handleSave} disabled={!form.name.trim()} style={{
+            flex: 2, padding: "10px 0", border: "none", borderRadius: 8,
+            background: form.name.trim() ? "var(--navy)" : "var(--border)",
+            color: "#fff", fontWeight: 600, fontSize: 13, cursor: form.name.trim() ? "pointer" : "default", fontFamily: "inherit"
+          }}>
+            {isNew ? "Aggiungi Cliente" : "Salva Modifiche"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ClientiView = ({ state, dispatch }) => {
+  const { isMobile, isDesktop } = useViewport();
+  const uid = state.currentUserId;
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("tutti");
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [editClient, setEditClient] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+
+  const canManage = !isDriver(uid);
+
+  const clients = state.clients || [];
+
+  const filtered = clients.filter(c => {
+    const q = search.toLowerCase();
+    const matchSearch = !search ||
+      c.name.toLowerCase().includes(q) ||
+      (c.email || "").toLowerCase().includes(q) ||
+      (c.phone || "").includes(q) ||
+      (c.tags || []).some(t => t.toLowerCase().includes(q));
+    const matchType = typeFilter === "tutti" || c.type === typeFilter;
+    return matchSearch && matchType;
+  });
+
+  const clientTasks = selectedClient
+    ? getActiveTasks(state.tasks).filter(t => t.client === selectedClient.name && canViewTask(t, uid))
+    : [];
+
+  const openAdd = () => { setEditClient(null); setShowModal(true); };
+  const openEdit = (c) => { setEditClient(c); setShowModal(true); };
+
+  const handleSave = (data) => {
+    if (editClient) {
+      dispatch({ type: "UPDATE_CLIENT", payload: data });
+      if (selectedClient?.id === data.id) setSelectedClient(data);
+    } else {
+      dispatch({ type: "ADD_CLIENT", payload: data });
+    }
+    setShowModal(false);
+  };
+
+  const handleDelete = (id) => {
+    dispatch({ type: "DELETE_CLIENT", payload: id });
+    if (selectedClient?.id === id) setSelectedClient(null);
+    setConfirmDelete(null);
+  };
+
+  const typeLabel = { privato: "Privato", azienda: "Azienda" };
+  const typeColor = { privato: { color: "#0F2044", bg: "#EFF6FF" }, azienda: { color: "#C8832A", bg: "#FEF3C7" } };
+
+  const formatSpend = (n) => n > 0 ? `€ ${n.toLocaleString("it-IT")}` : "—";
+
+  const TabBtn = ({ id, label }) => (
+    <button onClick={() => setTypeFilter(id)} style={{
+      padding: "7px 16px", borderRadius: 20, border: "none", cursor: "pointer", fontFamily: "inherit",
+      fontSize: 13, fontWeight: 600, transition: "all 0.15s",
+      background: typeFilter === id ? "var(--navy)" : "var(--surface2)",
+      color: typeFilter === id ? "#fff" : "var(--text-muted)",
+    }}>{label}</button>
+  );
+
+  return (
+    <div className="fade-in vd-pad" style={{ padding: isMobile ? 16 : 28 }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", flexDirection: isMobile ? "column" : "row", gap: 12, marginBottom: 20 }}>
+        <div>
+          <div className="playfair" style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: "var(--navy)" }}>Anagrafica Clienti</div>
+          <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 3 }}>{clients.length} clienti registrati</div>
+        </div>
+        {canManage && (
+          <button onClick={openAdd} style={{
+            display: "flex", alignItems: "center", gap: 6, padding: "9px 18px",
+            background: "var(--navy)", color: "#fff", border: "none", borderRadius: 10,
+            fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit",
+          }}>
+            <span style={{ fontSize: 16 }}>+</span> Nuovo Cliente
+          </button>
+        )}
+      </div>
+
+      {/* Search + filtri tipo */}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 18 }}>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Cerca per nome, email, telefono, tag…"
+          style={{
+            flex: "1 1 220px", padding: "9px 14px", border: "1px solid var(--border)", borderRadius: 10,
+            fontSize: 13, fontFamily: "inherit", outline: "none", background: "#fff",
+          }}
+        />
+        <div style={{ display: "flex", gap: 6 }}>
+          <TabBtn id="tutti" label={`Tutti (${clients.length})`} />
+          <TabBtn id="privato" label={`Privati (${clients.filter(c => c.type === "privato").length})`} />
+          <TabBtn id="azienda" label={`Aziende (${clients.filter(c => c.type === "azienda").length})`} />
+        </div>
+      </div>
+
+      {/* Layout: lista + dettaglio affiancati su desktop */}
+      <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+        {/* Lista clienti */}
+        <div style={{ flex: selectedClient && isDesktop ? "0 0 360px" : 1, minWidth: 0 }}>
+          {filtered.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "48px 20px", color: "var(--text-muted)" }}>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>👤</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>Nessun cliente trovato</div>
+              <div style={{ fontSize: 12, marginTop: 4 }}>{search ? "Prova con un'altra ricerca" : "Aggiungi il primo cliente"}</div>
+            </div>
+          ) : filtered.map(c => {
+            const tasks = getActiveTasks(state.tasks).filter(t => t.client === c.name);
+            const active = tasks.filter(t => t.status !== "done");
+            const isSelected = selectedClient?.id === c.id;
+            const tc = typeColor[c.type] || typeColor.privato;
+
+            return (
+              <div key={c.id} onClick={() => setSelectedClient(isSelected ? null : c)}
+                className="hover-lift"
+                style={{
+                  background: "#fff", borderRadius: 12, padding: "16px 18px", marginBottom: 10,
+                  border: `2px solid ${isSelected ? "var(--navy)" : "var(--border)"}`,
+                  cursor: "pointer", transition: "all 0.15s",
+                  boxShadow: isSelected ? "0 4px 16px rgba(15,32,68,0.12)" : "0 2px 6px rgba(0,0,0,0.04)",
+                }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span style={{ fontWeight: 700, fontSize: 15 }}>{c.name}</span>
+                      <span style={{
+                        fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 99,
+                        background: tc.bg, color: tc.color,
+                      }}>{typeLabel[c.type]}</span>
+                    </div>
+                    {(c.email || c.phone) && (
+                      <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+                        {c.email && <span>✉ {c.email}</span>}
+                        {c.email && c.phone && <span style={{ margin: "0 6px" }}>·</span>}
+                        {c.phone && <span>📞 {c.phone}</span>}
+                      </div>
+                    )}
+                    {(c.tags || []).length > 0 && (
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6 }}>
+                        {c.tags.map(tag => (
+                          <span key={tag} style={{
+                            fontSize: 11, padding: "2px 8px", borderRadius: 99,
+                            background: "var(--surface2)", color: "var(--text-muted)", fontWeight: 500
+                          }}>{tag}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: active.length > 0 ? "var(--navy)" : "var(--text-light)" }}>{active.length}</div>
+                    <div style={{ fontSize: 10, color: "var(--text-muted)" }}>task attivi</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Pannello dettaglio */}
+        {selectedClient && (
+          <div className="slide-up" style={{
+            flex: 1, minWidth: 0, background: "#fff", borderRadius: 14,
+            border: "1px solid var(--border)", overflow: "hidden",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.07)",
+            ...(isMobile ? { position: "fixed", inset: 0, zIndex: 600, overflowY: "auto", borderRadius: 0 } : {}),
+          }}>
+            {/* Header dettaglio */}
+            <div style={{ background: "var(--navy)", padding: "20px 22px", color: "#fff" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div>
+                  <div style={{ fontSize: 11, opacity: 0.65, marginBottom: 4 }}>
+                    {typeLabel[selectedClient.type]} · Cliente dal {formatDate(selectedClient.createdAt)}
+                  </div>
+                  <div className="playfair" style={{ fontSize: 18, fontWeight: 700 }}>{selectedClient.name}</div>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {canManage && (
+                    <>
+                      <button onClick={() => openEdit(selectedClient)} style={{
+                        background: "rgba(255,255,255,0.15)", border: "none", borderRadius: 8,
+                        color: "#fff", padding: "6px 12px", fontSize: 12, cursor: "pointer", fontFamily: "inherit"
+                      }}>✏️ Modifica</button>
+                      {isAdmin(uid) && (
+                        <button onClick={() => setConfirmDelete(selectedClient)} style={{
+                          background: "rgba(192,57,43,0.7)", border: "none", borderRadius: 8,
+                          color: "#fff", padding: "6px 12px", fontSize: 12, cursor: "pointer", fontFamily: "inherit"
+                        }}>🗑</button>
+                      )}
+                    </>
+                  )}
+                  <button onClick={() => setSelectedClient(null)} style={{
+                    background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 8,
+                    color: "#fff", padding: "6px 12px", fontSize: 18, cursor: "pointer"
+                  }}>×</button>
+                </div>
+              </div>
+
+              {/* KPI row */}
+              <div style={{ display: "flex", gap: 16, marginTop: 14 }}>
+                {[
+                  { label: "Task attivi", value: clientTasks.filter(t => t.status !== "done").length },
+                  { label: "Completati", value: clientTasks.filter(t => t.status === "done").length },
+                  { label: "Spesa totale", value: formatSpend(selectedClient.totalSpend) },
+                ].map(({ label, value }) => (
+                  <div key={label} style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 20, fontWeight: 700 }}>{value}</div>
+                    <div style={{ fontSize: 10, opacity: 0.65 }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ padding: "18px 22px", overflowY: "auto", maxHeight: isMobile ? "none" : "calc(100vh - 300px)" }}>
+              {/* Contatti */}
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Contatti</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {selectedClient.email && (
+                    <div style={{ fontSize: 13, display: "flex", gap: 8, alignItems: "center" }}>
+                      <span style={{ color: "var(--text-muted)" }}>✉</span>
+                      <a href={`mailto:${selectedClient.email}`} style={{ color: "var(--navy)", textDecoration: "none" }}>{selectedClient.email}</a>
+                    </div>
+                  )}
+                  {selectedClient.phone && (
+                    <div style={{ fontSize: 13, display: "flex", gap: 8, alignItems: "center" }}>
+                      <span style={{ color: "var(--text-muted)" }}>📞</span>
+                      <a href={`tel:${selectedClient.phone}`} style={{ color: "var(--navy)", textDecoration: "none" }}>{selectedClient.phone}</a>
+                    </div>
+                  )}
+                  {selectedClient.address && (
+                    <div style={{ fontSize: 13, display: "flex", gap: 8, alignItems: "flex-start" }}>
+                      <span style={{ color: "var(--text-muted)" }}>📍</span>
+                      <span>{selectedClient.address}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Note */}
+              {selectedClient.notes && (
+                <div style={{ marginBottom: 18 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Note</div>
+                  <div style={{
+                    fontSize: 13, color: "var(--text)", lineHeight: 1.6,
+                    background: "var(--surface2)", borderRadius: 8, padding: "10px 12px",
+                    borderLeft: "3px solid var(--gold)",
+                  }}>{selectedClient.notes}</div>
+                </div>
+              )}
+
+              {/* Tag */}
+              {(selectedClient.tags || []).length > 0 && (
+                <div style={{ marginBottom: 18 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Tag</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {selectedClient.tags.map(tag => (
+                      <span key={tag} style={{
+                        fontSize: 12, padding: "3px 10px", borderRadius: 99,
+                        background: "var(--surface3)", color: "var(--text-muted)", fontWeight: 500
+                      }}>{tag}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Task collegati */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Task collegati ({clientTasks.length})
+                </div>
+                {clientTasks.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "20px 0", color: "var(--text-muted)", fontSize: 13 }}>
+                    Nessun task attivo per questo cliente
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {clientTasks.map(t => (
+                      <div key={t.id}
+                        onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
+                        style={{
+                          padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)",
+                          cursor: "pointer", transition: "background 0.15s", display: "flex", gap: 10, alignItems: "center"
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                      >
+                        <span style={{ fontSize: 16 }}>{CATEGORIES[t.category]?.icon || "📋"}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</div>
+                          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                            📅 {formatDate(t.dueDate)}
+                            {isOverdue(t) && <span style={{ color: "var(--danger)", fontWeight: 600 }}> · Scaduto</span>}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-end" }}>
+                          <PriorityBadge priority={t.priority} />
+                          <StatusBadge status={t.status} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Modal add/edit */}
+      {showModal && (
+        <ClienteEditModal
+          cliente={editClient}
+          onSave={handleSave}
+          onClose={() => setShowModal(false)}
+        />
+      )}
+
+      {/* Dialog conferma eliminazione */}
+      {confirmDelete && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 900,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 20
+        }}>
+          <div className="slide-up" style={{
+            background: "#fff", borderRadius: 14, padding: 28, maxWidth: 380, width: "100%",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.2)"
+          }}>
+            <div style={{ fontSize: 36, marginBottom: 12, textAlign: "center" }}>⚠️</div>
+            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, textAlign: "center", marginBottom: 8 }}>
+              Elimina cliente
+            </div>
+            <div style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center", marginBottom: 22, lineHeight: 1.5 }}>
+              Vuoi eliminare <strong>{confirmDelete.name}</strong>? I task collegati non verranno eliminati ma perderanno il collegamento all'anagrafica.
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setConfirmDelete(null)} style={{
+                flex: 1, padding: "10px 0", border: "1px solid var(--border)", borderRadius: 8,
+                background: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit"
+              }}>Annulla</button>
+              <button onClick={() => handleDelete(confirmDelete.id)} style={{
+                flex: 1, padding: "10px 0", border: "none", borderRadius: 8,
+                background: "var(--danger)", color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit"
+              }}>Elimina</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Team = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
   const [selectedMember, setSelectedMember] = useState(null);
@@ -6994,6 +7562,7 @@ function VoyageDeskInner() {
     switch (state.activeView) {
       case "dashboard": return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
       case "calendar": return <CalendarPlanner state={state} dispatch={dispatch} />;
+      case "clienti": return <ClientiView state={state} dispatch={dispatch} />;
       case "team": return <Team state={state} dispatch={dispatch} />;
       case "trash": return <Trash state={state} dispatch={dispatch} />;
       case "admin": return <AdminView state={state} dispatch={dispatch} />;

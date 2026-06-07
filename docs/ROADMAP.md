@@ -9,35 +9,38 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 
 ---
 
-## 📍 Punto di partenza (post v0.8)
+## 📍 Punto di partenza (post v0.10-dev / sessione 9)
 
-- App stabile e validata sintatticamente (Babel) a **6617 righe**.
-- Tutte le viste base: Dashboard, Kanban, Calendar, Team, Planning, Trash, Admin.
-- **Responsive completo** (desktop + tablet + mobile, mobile-first) ✅.
-- **Ricerca avanzata** topbar (🎛️) ✅.
-- **Pannello Admin** con 5 tab ✅.
-- **Coda globale** + **Coda personale** + **Urgenti altrui** in Dashboard ✅.
-- **Bacheca avvisi** sticky notes condivisa ✅.
-- **SwipeActions** mobile (Fatto/Cestino/Inoltra) con undo ✅ NUOVO v0.7.
-- **Sistema permessi** per ruolo (Admin/Manager/Agent/Driver) ✅ NUOVO v0.8.
-- **Multi-utente mock** con UserSwitcher in Topbar ✅ NUOVO v0.8.
-- **Categoria `transfer`** per Driver ✅ NUOVO v0.8.
-- Chat + AI Day Planner + Bulk Task Creator + Cestino tutti operativi ✅.
-- Chat con `intent` per apertura contestuale (task link) ✅ NUOVO v0.8.
-- TEAM, CATEGORIES e CURRENT_USER gestiti come stato mutabile via reducer.
-- Dipendenza esterna: SheetJS (`xlsx`) — eccezione documentata.
-- Dati ancora **solo in memoria**, single-file artifact.
+- App a **7127 righe** (monolite `src/VoyageDesk.jsx`). Progetto Vite reale attivo.
+- **Vite + React 18** su GitHub (`tucobpjmr/TULLIO`, branch `claude/trusting-einstein-GQM9K`, PR #6).
+- **Vercel** (team `tooco-s-projects`, progetto `tullio`) — preview auto-deploy su ogni push al branch.
+- **Supabase** (progetto `tullio`, ref `vmxvnxsqfisucugcpqlc`, region `eu-west-1`):
+  - 6 tabelle con RLS: `users`, `tasks`, `comments`, `notices`, `conversations`, `messages`.
+  - 5 utenti seedati (marco/roberto/sofia/luca/giulia, password: `tullio2026`).
+  - Env vars su Vercel già configurate.
+- **Auth Supabase reale** ✅ NUOVO v0.10: LoginScreen, AuthProvider, gate in main.jsx, logout nel dropdown UserSwitcher.
+- **Team reale dal DB** ✅ NUOVO v0.10: `_syncTeam`/`_syncCurrentUser`/`_remapMockIds` — bootstrap pre-render del monolite.
+- Tasks, notices, chat ancora **in memoria** (mock).
+- Decisione presa: **Opzione B (progetto reale)** — persistenza incrementale con Supabase.
+- Tutte le funzionalità v0.1–v0.9 invariate (vedi changelog).
+
+### 🏗️ File infrastruttura aggiunti
+```
+src/lib/supabase.js           — client Supabase condiviso
+src/lib/api.js                — CRUD layer per tutte le entità (pronto, non ancora usato dal reducer)
+src/lib/auth/AuthContext.jsx  — AuthProvider + useAuth hook
+src/lib/auth/LoginScreen.jsx  — schermata login
+src/lib/auth/mapMember.js     — adapter DB row → shape TEAM mock
+```
 
 ---
 
-## ⚠️ Decisione chiave (ancora aperta)
+## ⚠️ Decisione chiave — PRESA
 
-| Opzione | Cosa abiliti | Cosa perdi |
-|---|---|---|
-| **A — Resti su artifact** | Sviluppo rapido, zero setup | Niente persistenza, niente multi-file/TS/test/backend reale |
-| **B — Progetto reale** (Vite + più file) | Persistenza, TS, test, backend, multi-utente reale | Setup iniziale, esci dall'artifact |
-
-👉 La maggior parte delle voci sotto funziona in opzione A. Le voci marcate ⚙️**B** richiedono il passaggio a progetto reale.
+**Scelta: Opzione B — Progetto reale** (Vite + Supabase).
+- Stack: React 18 + Vite 5 + Supabase (auth + postgres + realtime) + Vercel.
+- Persistenza incrementale: entità per entità, UI invariata durante la migrazione.
+- Roadmap split monolite: DOPO la persistenza (per non riscrivere il cablaggio due volte).
 
 ---
 
@@ -89,7 +92,7 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 
 | Modulo | Stato | Priorità | Sforzo | Note |
 |---|---|---|---|---|
-| Multi-utente reale & permessi | 🔶 | 🟡 | L | Matrice permessi ✅ v0.8. Manca login vero e isolamento dati. ⚙️**B** per autenticazione |
+| Multi-utente reale & permessi | 🔶 | 🟡 | L | Auth Supabase ✅ v0.10. Team reale ✅ v0.10. Manca: isolamento dati per RLS su tasks/comments. |
 | Estensioni chat (avanzate) | ⬜ | ⚪ | M | Chiamate audio/video (mock UI), reazioni custom |
 | AI Assistant — estensioni | 🔶 | ⚪ | M | Day planner ✅. Da fare: "Genera preventivo" da testo, suggerimenti assegnazione, auto-categorizzazione |
 
@@ -139,17 +142,40 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 
 | Intervento | Stato | Priorità | Sforzo | Quando |
 |---|---|---|---|---|
-| Chat `useState` → `useReducer` | ⬜ | 🟡 | S–M | Fattibile in Opzione A |
-| `TEAM`/`CATEGORIES`/`CURRENT_USER` da `let` mutabile a Context puro | ⬜ | ⚪ | M | Funzionale oggi, ma più pulito |
-| Persistenza dati (localStorage o backend mock) | ⬜ | 🔴 | L | ⚙️**B** |
-| Separazione in più file | ⬜ | 🟡 | M | ⚙️**B** |
-| TypeScript | ⬜ | ⚪ | L | Dopo refactor multi-file ⚙️**B** |
-| Test unitari (Vitest) | ⬜ | ⚪ | M | Dopo TypeScript ⚙️**B** |
+| Auth Supabase reale | ✅ | — | — | Fatto v0.10 |
+| Team reale dal DB | ✅ | — | — | Fatto v0.10 (step 2a) |
+| Persistenza Tasks su Supabase | ⬜ | 🔴 | M | **Prossimo step (2b)** |
+| Persistenza Notices su Supabase | ⬜ | 🔴 | S | Dopo 2b |
+| Persistenza Comments su Supabase | ⬜ | 🔴 | S | Dopo 2b |
+| Persistenza Conversations/Messages | ⬜ | 🟡 | M | Dopo comments |
+| Realtime sync (subscribeToTable) | ⬜ | 🟡 | S | Dopo persistenza base |
+| Separazione monolite in più file | ⬜ | 🟡 | M | Dopo persistenza completa |
+| Chat `useState` → `useReducer` | ⬜ | 🟡 | S–M | Con lo split |
+| `TEAM`/`CATEGORIES`/`CURRENT_USER` da `let` a Context puro | ⬜ | ⚪ | M | Con lo split |
+| TypeScript | ⬜ | ⚪ | L | Dopo split |
+| Test unitari (Vitest) | ⬜ | ⚪ | M | Dopo TypeScript |
+
+---
+
+## 🔜 Prossimo step: 2b — Tasks su Supabase
+
+**Cosa fare:**
+1. Fix schema DB: `status` default `'da_fare'` → `'todo'` (mismatch con l'app)
+2. Adapter snake_case→camelCase: `due_date`→`dueDate`, `estimated_hours`→`estimatedHours`, `deleted_at`→`deletedAt`, `created_by`→`createdBy`
+3. `assignees`: DB è `uuid[]`, mock è `string[]` — già risolto con `_remapMockIds`. Il reducer al `ADD_TASK` dovrà passare UUID.
+4. `client`: nel DB è `client_id text` (stringa libera per ora, non FK). Riusare così.
+5. `comments`: tabella separata — al load tasks fare fetch parallelo e merge, oppure caricare on-demand all'apertura TaskSlideOver.
+6. Cablare il reducer: le action `ADD_TASK`, `UPDATE_TASK`, `MOVE_TASK`, `DELETE_TASK`, `RESTORE_TASK`, `PURGE_TASK`, `ADD_COMMENT` chiamano `api.js` + aggiornano lo state.
+7. Bootstrap: al mount di `VoyageDeskInner`, se sessione attiva, caricare tasks da Supabase invece dei mock.
+
+**File da toccare:** `src/VoyageDesk.jsx` (reducer cases + effetto bootstrap) + `src/lib/api.js` (già pronto).
 
 ---
 
 ## ✅ Completato (cronologia)
 
+- **v0.10** — Auth Supabase + Team reale (sessione 9): LoginScreen, AuthProvider, gate main.jsx, _syncTeam/_syncCurrentUser/_remapMockIds, makeInitialState lazy, logout nel UserSwitcher, .gitignore, package-lock.json. 7127 righe.
+- **v0.9** — UI Ristrutturazione + Profilo (sessione 8): rimossi KPI/grafico/categoria, 4 tab coda Dashboard, CalendarPlanner unificato, rimosso Kanban, RestoreEditModal, ProfileEditor, fix responsive. 7071 righe.
 - **v0.8** — Sistema Permessi per Ruolo: helper centralizzati (canViewTask/canEditTask/…), check nel reducer, UserSwitcher in Topbar, Dashboard con 3 code condizionali (PersonalQueue/UnassignedQueue/UrgentOthersQueue), chat con intent per task link, Sidebar/BottomNav filtrate per ruolo, QuickAddTask categorie filtrate, nuova categoria `transfer` 🚐 + 2 task demo. 6617 righe.
 - **v0.7** — SwipeActions mobile: wrapper riusabile, swipe→3 bottoni (Fatto/Cestino/Inoltra), undo con toast 5s, integrato in KanbanCard/UnassignedQueue/Calendar/PersonalQueue. 6048 righe.
 - **v0.6** — Responsive full pass: ViewportProvider/useViewport, classi CSS responsive, BottomNav, tutte le viste adattate, FAB/Toast sopra bottom nav. 5738 righe.

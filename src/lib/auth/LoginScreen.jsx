@@ -1,4 +1,4 @@
-// src/auth/LoginScreen.jsx
+// src/lib/auth/LoginScreen.jsx
 import React, { useState } from 'react';
 import { useAuth } from './AuthContext';
 

@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client';
 import VoyageDesk, { _syncTeam, _syncCurrentUser, _remapMockIds } from './VoyageDesk.jsx';
 import { AuthProvider, useAuth } from './lib/auth/AuthContext.jsx';
 import LoginScreen from './lib/auth/LoginScreen.jsx';
-import LogoutButton from './lib/auth/LogoutButton.jsx';
 import { mapMember } from './lib/auth/mapMember.js';
 
 function App() {
@@ -39,12 +38,7 @@ function BootstrappedApp() {
     booted.current = true;
   }
 
-  return (
-    <>
-      <VoyageDesk />
-      <LogoutButton />
-    </>
-  );
+  return <VoyageDesk />;
 }
 
 function SplashScreen({ label }) {

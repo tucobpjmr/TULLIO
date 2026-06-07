@@ -1,6 +1,7 @@
 
 import { useState, useReducer, useContext, createContext, useRef, useEffect, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx";
+import { useAuth } from "./lib/auth/AuthContext.jsx";
 
 // ─── GOOGLE FONTS ──────────────────────────────────────────────────────────
 const FontLoader = () => (
@@ -1810,6 +1811,8 @@ const ProfileEditor = ({ member, dispatch, onClose }) => {
 const UserSwitcher = ({ state, dispatch }) => {
   const [open, setOpen] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const { signOut, user } = useAuth();
   const ref = useRef(null);
   const curr = getMember(state.currentUserId) || { name: "—", role: "—", avatar: "??", color: "#999" };
 
@@ -1914,6 +1917,28 @@ const UserSwitcher = ({ state, dispatch }) => {
               </button>
             );
           })}
+
+          <div style={{ borderTop: "1px solid var(--border)", marginTop: 6, paddingTop: 6 }}>
+            <div style={{ fontSize: 10, color: "var(--text-muted)", padding: "0 10px 6px", lineHeight: 1.3, wordBreak: "break-all" }}>
+              Sessione: {user?.email}
+            </div>
+            <button
+              onClick={async () => { setSigningOut(true); await signOut(); }}
+              disabled={signingOut}
+              style={{
+                width: "100%", display: "flex", alignItems: "center", gap: 10,
+                padding: "10px 10px", background: "transparent",
+                border: "none", borderRadius: 6, cursor: signingOut ? "wait" : "pointer",
+                fontFamily: "inherit", fontSize: 13, color: "var(--danger)",
+                textAlign: "left", fontWeight: 600, opacity: signingOut ? 0.6 : 1,
+              }}
+              onMouseEnter={e => { if (!signingOut) e.currentTarget.style.background = "#FEE2E2"; }}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+            >
+              <span style={{ fontSize: 16 }}>↩</span>
+              <span>{signingOut ? "Disconnessione…" : "Esci dall'account"}</span>
+            </button>
+          </div>
         </div>
       )}
 

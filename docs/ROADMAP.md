@@ -48,9 +48,9 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 | Modulo | Stato | Priorità | Sforzo | Dipende da |
 |---|---|---|---|---|
 | Anagrafica Clienti (CRM base) | ✅ | 🔴 | M | — |
-| Anagrafica Fornitori | ⬜ | 🔴 | M | — |
-| Pratiche di viaggio | ⬜ | 🔴 | L | Clienti + Fornitori |
-| Collegamento Task ↔ Cliente ↔ Pratica | ⬜ | 🔴 | M | i tre sopra |
+| Anagrafica Fornitori | ~~⬜~~ | — | — | Rimossa: non necessaria per il flusso |
+| Pratiche di viaggio | ~~⬜~~ | — | — | Deprioritizzata |
+| Collegamento Task ↔ Cliente ↔ Pratica | ✅ | — | S | Task creati con cliente da anagrafica |
 
 **Dettaglio Pratiche** — modulo centrale: aggrega task, documenti, pagamenti e fornitori di un singolo viaggio; numerazione progressiva (`PR-2026-001`), stati (Bozza → Confermata → In corso → Completata/Annullata), riepilogo economico, timeline eventi.
 

@@ -577,6 +577,14 @@ function baseReducer(state, action) {
       const clients = (state.clients || []).filter(c => c.id !== action.payload);
       return { ...state, clients, toast: { message: "Cliente rimosso", type: "success" } };
     }
+    case "IMPORT_CLIENTS": {
+      const { clients: toImport, skipped } = action.payload;
+      const clients = [...(state.clients || []), ...toImport];
+      const msg = toImport.length > 0
+        ? `${toImport.length} clienti importati${skipped > 0 ? `, ${skipped} già presenti ignorati` : ""}`
+        : `Nessun nuovo cliente: ${skipped} già presenti in anagrafica`;
+      return { ...state, clients, toast: { message: msg, type: toImport.length > 0 ? "success" : "info" } };
+    }
 
     case "CLEAR_TOAST": return { ...state, toast: null };
     case "UNDO_LAST_ACTION": {
@@ -4051,38 +4059,45 @@ const Dashboard = ({ state, dispatch, onOpenChat }) => {
 };
 
 // ─── QUICK ADD TASK FORM ───────────────────────────────────────────────────
-const QuickAddTask = ({ onAdd, onClose }) => {
-  // Categorie filtrate per il ruolo dell'utente loggato (v0.8)
+const QuickAddTask = ({ onAdd, onClose, clients = [] }) => {
   const availableCats = getAvailableCategories(CURRENT_USER);
   const firstCatKey = Object.keys(availableCats)[0] || "booking";
 
   const [form, setForm] = useState({
-    title: "", category: firstCatKey, priority: "medium",
-    status: "todo", assignees: [], dueDate: "", client: "", description: ""
+    category: firstCatKey, priority: "medium",
+    status: "todo", assignees: [], dueDate: "", clientId: "", description: ""
   });
+  const [titleOverride, setTitleOverride] = useState("");
+
+  const selectedClient = clients.find(c => c.id === form.clientId) || null;
+
+  // Titolo auto-generato da categoria + cliente
+  const autoTitle = selectedClient
+    ? `${availableCats[form.category]?.label || form.category} — ${selectedClient.name}`
+    : "";
+  const effectiveTitle = titleOverride || autoTitle;
+
+  const setField = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const selStyle = {
+    width: "100%", border: "1px solid var(--border)", borderRadius: 8,
+    padding: "8px 10px", fontSize: 13, background: "var(--surface)",
+    outline: "none", fontFamily: "inherit", cursor: "pointer",
+  };
 
   const handleSubmit = () => {
-    if (!form.title.trim()) return;
+    if (!effectiveTitle.trim()) return;
     onAdd({
       id: "t" + Date.now(),
       ...form,
-      client: form.client.trim() || null,
+      title: effectiveTitle.trim(),
+      client: selectedClient?.name || null,
       comments: [],
       estimatedHours: 1,
       dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
     });
     onClose();
   };
-
-  const inp = (field) => ({
-    value: form[field],
-    onChange: e => setForm(p => ({ ...p, [field]: e.target.value })),
-    style: {
-      width: "100%", border: "1px solid var(--border)", borderRadius: 8,
-      padding: "8px 10px", fontSize: 13, background: "var(--surface)",
-      outline: "none", fontFamily: "inherit",
-    }
-  });
 
   return (
     <div style={{
@@ -4100,62 +4115,103 @@ const QuickAddTask = ({ onAdd, onClose }) => {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>TITOLO *</label>
-            <input {...inp("title")} placeholder="Descrivi brevemente il task..." />
-          </div>
 
+          {/* Cliente + Categoria: i due campi chiave */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>CATEGORIA</label>
-              <select {...inp("category")} style={{ ...inp("category").style, cursor: "pointer" }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>CLIENTE *</label>
+              <select value={form.clientId} onChange={e => setField("clientId", e.target.value)} style={selStyle}>
+                <option value="">— Seleziona cliente —</option>
+                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>CATEGORIA *</label>
+              <select value={form.category} onChange={e => { setField("category", e.target.value); setTitleOverride(""); }} style={selStyle}>
                 {Object.entries(availableCats).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
               </select>
             </div>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>PRIORITÀ</label>
-              <select {...inp("priority")} style={{ ...inp("priority").style, cursor: "pointer" }}>
-                {Object.entries(PRIORITIES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-              </select>
-            </div>
+          </div>
+
+          {/* Titolo: auto-generato, modificabile */}
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>
+              TITOLO {!autoTitle && "*"}
+              {autoTitle && !titleOverride && (
+                <span style={{ fontWeight: 400, color: "var(--gold-dark)", marginLeft: 6 }}>auto-generato</span>
+              )}
+            </label>
+            <input
+              value={titleOverride || autoTitle}
+              onChange={e => setTitleOverride(e.target.value)}
+              placeholder={autoTitle || "Seleziona cliente e categoria per generare il titolo…"}
+              style={{
+                width: "100%", border: "1px solid var(--border)", borderRadius: 8,
+                padding: "8px 10px", fontSize: 13, background: autoTitle && !titleOverride ? "#fffef5" : "var(--surface)",
+                outline: "none", fontFamily: "inherit",
+              }}
+            />
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>PRIORITÀ</label>
+              <select value={form.priority} onChange={e => setField("priority", e.target.value)} style={selStyle}>
+                {Object.entries(PRIORITIES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </div>
             <div>
               <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>ASSEGNA A</label>
               <select
                 value={form.assignees[0] || ""}
-                onChange={e => setForm(p => ({ ...p, assignees: e.target.value ? [e.target.value] : [] }))}
-                style={{ ...inp("category").style, cursor: "pointer" }}>
+                onChange={e => setField("assignees", e.target.value ? [e.target.value] : [])}
+                style={selStyle}>
                 <option value="">— Non assegnato —</option>
                 {getAssignableTeam().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
             </div>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>SCADENZA</label>
-              <input type="datetime-local" {...inp("dueDate")} />
-            </div>
           </div>
 
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>CLIENTE</label>
-            <input {...inp("client")} placeholder="Es. Famiglia Rossi..." />
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>SCADENZA</label>
+            <input
+              type="datetime-local"
+              value={form.dueDate}
+              onChange={e => setField("dueDate", e.target.value)}
+              style={{
+                width: "100%", border: "1px solid var(--border)", borderRadius: 8,
+                padding: "8px 10px", fontSize: 13, background: "var(--surface)",
+                outline: "none", fontFamily: "inherit",
+              }}
+            />
           </div>
 
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>DESCRIZIONE</label>
-            <textarea {...inp("description")} rows={3} placeholder="Dettagli del task..." style={{ ...inp("description").style, resize: "vertical" }} />
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>NOTE</label>
+            <textarea
+              value={form.description}
+              onChange={e => setField("description", e.target.value)}
+              rows={3}
+              placeholder="Dettagli, istruzioni, riferimenti…"
+              style={{
+                width: "100%", border: "1px solid var(--border)", borderRadius: 8,
+                padding: "8px 10px", fontSize: 13, background: "var(--surface)",
+                outline: "none", fontFamily: "inherit", resize: "vertical",
+              }}
+            />
           </div>
         </div>
 
         <div style={{ display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" }}>
           <button onClick={onClose} style={{
             padding: "9px 18px", borderRadius: 8, border: "1px solid var(--border)",
-            background: "transparent", cursor: "pointer", fontSize: 13, fontWeight: 500
+            background: "transparent", cursor: "pointer", fontSize: 13, fontWeight: 500, fontFamily: "inherit"
           }}>Annulla</button>
-          <button onClick={handleSubmit} style={{
+          <button onClick={handleSubmit} disabled={!effectiveTitle.trim()} style={{
             padding: "9px 20px", borderRadius: 8, border: "none",
-            background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600
+            background: effectiveTitle.trim() ? "var(--navy)" : "var(--border)",
+            color: "#fff", cursor: effectiveTitle.trim() ? "pointer" : "default",
+            fontSize: 13, fontWeight: 600, fontFamily: "inherit"
           }}>✓ Crea Task</button>
         </div>
       </div>
@@ -4786,6 +4842,8 @@ const ClientiView = ({ state, dispatch }) => {
   const [showModal, setShowModal] = useState(false);
   const [editClient, setEditClient] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [importPreview, setImportPreview] = useState(null); // { rows: [...] }
+  const importRef = useRef(null);
 
   const canManage = !isDriver(uid);
 
@@ -4808,6 +4866,66 @@ const ClientiView = ({ state, dispatch }) => {
 
   const openAdd = () => { setEditClient(null); setShowModal(true); };
   const openEdit = (c) => { setEditClient(c); setShowModal(true); };
+
+  // Import CSV/Excel: mappa i nomi colonna più comuni (easyADV, Excel generico, etc.)
+  const parseImportFile = (file) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: "binary" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const raw = XLSX.utils.sheet_to_json(ws, { defval: "" });
+        const normalize = (row) => {
+          const g = (...keys) => {
+            for (const k of keys) {
+              const found = Object.keys(row).find(rk => rk.toLowerCase().replace(/[\s_-]/g, "") === k.toLowerCase().replace(/[\s_-]/g, ""));
+              if (found && row[found]) return String(row[found]).trim();
+            }
+            return "";
+          };
+          const firstName = g("nome", "firstname", "first_name");
+          const lastName = g("cognome", "ragionesociale", "ragione_sociale", "lastname", "surname", "last_name", "name", "nominativo");
+          const name = lastName && firstName ? `${lastName} ${firstName}` : (lastName || firstName || g("cliente", "intestatario", "nominativo"));
+          if (!name) return null;
+          const type = g("tipo", "type", "tipologia").toLowerCase().includes("az") ? "azienda" : "privato";
+          return {
+            id: `cl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            name,
+            type,
+            email: g("email", "mail", "emailaddress", "e-mail"),
+            phone: g("telefono", "cellulare", "phone", "tel", "mobile", "cell"),
+            address: [g("indirizzo", "address", "via"), g("cap"), g("città", "citta", "city"), g("provincia", "prov")].filter(Boolean).join(", "),
+            notes: g("note", "notes", "annotazioni", "memo"),
+            tags: [],
+            createdAt: new Date().toISOString(),
+            lastContact: new Date().toISOString(),
+            totalSpend: 0,
+          };
+        };
+        const rows = raw.map(normalize).filter(Boolean);
+        if (rows.length === 0) {
+          dispatch({ type: "CLEAR_TOAST" });
+          setTimeout(() => dispatch({ type: "ADD_TASK", payload: null }), 0); // just to trigger toast
+          dispatch({ type: "SET_VIEW", payload: state.activeView }); // noop to trigger re-render
+          alert("Nessun cliente riconosciuto nel file. Verifica che ci sia una colonna 'Nome', 'Cognome' o 'Ragione Sociale'.");
+          return;
+        }
+        setImportPreview({ rows });
+      } catch {
+        alert("Impossibile leggere il file. Assicurati sia un CSV o Excel valido.");
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const confirmImport = () => {
+    if (!importPreview) return;
+    const existing = new Set(clients.map(c => c.name.toLowerCase()));
+    const toImport = importPreview.rows.filter(r => !existing.has(r.name.toLowerCase()));
+    const skipped = importPreview.rows.length - toImport.length;
+    dispatch({ type: "IMPORT_CLIENTS", payload: { clients: toImport, skipped } });
+    setImportPreview(null);
+  };
 
   const handleSave = (data) => {
     if (editClient) {
@@ -4848,13 +4966,24 @@ const ClientiView = ({ state, dispatch }) => {
           <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 3 }}>{clients.length} clienti registrati</div>
         </div>
         {canManage && (
-          <button onClick={openAdd} style={{
-            display: "flex", alignItems: "center", gap: 6, padding: "9px 18px",
-            background: "var(--navy)", color: "#fff", border: "none", borderRadius: 10,
-            fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit",
-          }}>
-            <span style={{ fontSize: 16 }}>+</span> Nuovo Cliente
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input ref={importRef} type="file" accept=".csv,.xlsx,.xls" style={{ display: "none" }}
+              onChange={e => { if (e.target.files[0]) { parseImportFile(e.target.files[0]); e.target.value = ""; } }} />
+            <button onClick={() => importRef.current?.click()} style={{
+              display: "flex", alignItems: "center", gap: 6, padding: "9px 14px",
+              background: "#fff", color: "var(--navy)", border: "1px solid var(--border)", borderRadius: 10,
+              fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit",
+            }}>
+              📥 Importa
+            </button>
+            <button onClick={openAdd} style={{
+              display: "flex", alignItems: "center", gap: 6, padding: "9px 18px",
+              background: "var(--navy)", color: "#fff", border: "none", borderRadius: 10,
+              fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit",
+            }}>
+              <span style={{ fontSize: 16 }}>+</span> Nuovo Cliente
+            </button>
+          </div>
         )}
       </div>
 
@@ -5095,6 +5224,69 @@ const ClientiView = ({ state, dispatch }) => {
           onSave={handleSave}
           onClose={() => setShowModal(false)}
         />
+      )}
+
+      {/* Modale anteprima import */}
+      {importPreview && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 900,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 20
+        }}>
+          <div className="slide-up" style={{
+            background: "#fff", borderRadius: 14, width: "100%", maxWidth: 560,
+            maxHeight: "80vh", display: "flex", flexDirection: "column",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.2)"
+          }}>
+            <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--border)" }}>
+              <div className="playfair" style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>
+                Anteprima importazione
+              </div>
+              <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                {importPreview.rows.length} clienti trovati nel file. Verifica prima di confermare.
+              </div>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", padding: "12px 24px" }}>
+              {importPreview.rows.map((c, i) => {
+                const alreadyExists = clients.some(ex => ex.name.toLowerCase() === c.name.toLowerCase());
+                return (
+                  <div key={i} style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "8px 0", borderBottom: "1px solid var(--border)", gap: 10
+                  }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+                        {c.name}
+                        {alreadyExists && (
+                          <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 99, background: "#FEF3C7", color: "#C8832A", fontWeight: 600 }}>già presente</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                        {[c.email, c.phone].filter(Boolean).join(" · ") || "Nessun contatto"}
+                      </div>
+                    </div>
+                    <span style={{
+                      fontSize: 11, padding: "2px 8px", borderRadius: 99,
+                      background: c.type === "azienda" ? "#FEF3C7" : "#EFF6FF",
+                      color: c.type === "azienda" ? "#C8832A" : "#0F2044", fontWeight: 600
+                    }}>{c.type === "azienda" ? "Azienda" : "Privato"}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ padding: "16px 24px", borderTop: "1px solid var(--border)", display: "flex", gap: 10 }}>
+              <button onClick={() => setImportPreview(null)} style={{
+                flex: 1, padding: "10px 0", border: "1px solid var(--border)", borderRadius: 8,
+                background: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit"
+              }}>Annulla</button>
+              <button onClick={confirmImport} style={{
+                flex: 2, padding: "10px 0", border: "none", borderRadius: 8,
+                background: "var(--navy)", color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit"
+              }}>
+                Importa {importPreview.rows.filter(r => !clients.some(ex => ex.name.toLowerCase() === r.name.toLowerCase())).length} nuovi clienti
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Dialog conferma eliminazione */}
@@ -7621,7 +7813,7 @@ function VoyageDeskInner() {
             <FAB onClick={() => setShowFABModal(true)} />
           </>
         )}
-        {showFABModal && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} />}
+        {showFABModal && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} clients={state.clients || []} />}
 
         {/* Bulk Task Creator */}
         {showBulkModal && (

@@ -1,5 +1,38 @@
 # CHANGELOG — VoyageDesk
 
+## v0.11-dev — Creazione task semplificata + Import clienti (sessione 10)
+
+> Flusso di creazione task ridotto al minimo: cliente + categoria bastano. Aggiunto import anagrafica da CSV/Excel (compatibile easyADV e altri gestionali).
+
+### ⚡ QuickAddTask semplificato
+- **Cliente** (dropdown dall'anagrafica) e **Categoria** diventano i due campi obbligatori.
+- **Titolo auto-generato** dalla combinazione `Categoria — Nome Cliente` (es. "Booking — Famiglia Rossi"), con badge "auto-generato" visibile.
+- Titolo rimane modificabile: digitare nel campo sovrascrive il testo automatico.
+- Campi rimossi come obbligatori: il titolo non blocca più il salvataggio se viene auto-generato.
+
+### 📥 Import anagrafica clienti (CSV / Excel)
+- Bottone **"📥 Importa"** nell'header di Anagrafica Clienti.
+- Accetta file `.csv`, `.xlsx`, `.xls` — elaborato lato client con SheetJS (nessun upload su server).
+- **Mapping colonne intelligente**: riconosce automaticamente nomi colonna in italiano e inglese:
+  - Nome/Cognome, Ragione Sociale, Nominativo, Intestatario
+  - Email, Mail, E-mail
+  - Telefono, Cellulare, Cell, Mobile
+  - Indirizzo, Via, CAP, Città, Provincia
+  - Note, Annotazioni, Memo
+- **Modale anteprima**: mostra tutti i clienti trovati con badge "già presente" per i duplicati.
+- I duplicati (stesso nome, case-insensitive) vengono saltati automaticamente al momento dell'import.
+- Toast con conteggio: "N clienti importati, M già presenti ignorati".
+- Azione reducer `IMPORT_CLIENTS` (array di clienti + contatore saltati).
+
+### 🗑️ Rimosso
+- Anagrafica Fornitori: non necessaria per il flusso di lavoro dell'agenzia.
+- Pratiche di viaggio: deprioritizzate dalla roadmap.
+
+### 📈 Metriche
+- File: 7641 → **7760 righe** (netto).
+
+---
+
 ## v0.10-dev — Anagrafica Clienti CRM (Fase 1, sessione 9)
 
 > Primo modulo della Fase 1: CRM base per agenzie viaggi. Introduce la gestione completa dell'anagrafica clienti con collegamento ai task esistenti.

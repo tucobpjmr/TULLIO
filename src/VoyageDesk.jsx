@@ -1956,11 +1956,12 @@ const getNavItemsForUser = (userId) => {
   return NAV_ITEMS.filter(it => !it.roles || it.roles.includes(role));
 };
 
-const Sidebar = ({ state, dispatch }) => {
+const Sidebar = ({ state, dispatch, onOpenBulk }) => {
   const { isDesktop } = useViewport();
   if (!isDesktop) return null;
   const col = state.sidebarCollapsed;
   const navItems = getNavItemsForUser(state.currentUserId);
+  const canBulk = state.activeView !== "trash" && state.activeView !== "admin";
   return (
     <div style={{
       width: col ? 60 : 210, background: "var(--navy-dark)", color: "#fff",
@@ -1996,6 +1997,32 @@ const Sidebar = ({ state, dispatch }) => {
             </button>
           );
         })}
+
+        {canBulk && (
+          <>
+            <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "10px 4px" }} />
+            <button
+              onClick={onOpenBulk}
+              title="Crea più task / Import / Template"
+              aria-label="Crea task multipli"
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: col ? "10px 8px" : "10px 12px",
+                borderRadius: 8, cursor: "pointer",
+                border: "1px solid rgba(212,168,67,0.35)",
+                background: "rgba(212,168,67,0.12)",
+                color: "var(--gold)",
+                fontSize: 14, fontWeight: 600,
+                transition: "all 0.2s", textAlign: "left",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(212,168,67,0.22)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "rgba(212,168,67,0.12)"; }}
+            >
+              <span style={{ fontSize: 16, flexShrink: 0 }}>📑</span>
+              {!col && <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>Crea multipli</span>}
+            </button>
+          </>
+        )}
       </div>
 
       {!col && (
@@ -6554,7 +6581,7 @@ const AdminIOTab = ({ state, dispatch }) => {
       {/* Import task */}
       <div style={cardStyle}>
         <h3 style={cardH}>📥 Importa task</h3>
-        <p style={cardP}>Usa il <b>Bulk Task Creator</b> (FAB navy 📑 in basso a destra) → tab <b>Importa</b> per caricare CSV/Excel con mapping automatico.</p>
+        <p style={cardP}>Usa il <b>Bulk Task Creator</b> (pulsante 📑 <b>Crea multipli</b> nella sidebar; su mobile è il FAB navy in basso a destra) → tab <b>Importa</b> per caricare CSV/Excel con mapping automatico.</p>
         <div style={{ fontSize: 12, color: "var(--text-muted)", padding: 12, background: "var(--surface2)", borderRadius: 8, border: "1px dashed var(--border)" }}>
           💡 Colonne supportate: <code>Titolo, Categoria, Priorità, Cliente, Scadenza, Assegnato, Ore, Descrizione</code><br/>
           Il sistema normalizza automaticamente nomi categoria/priorità in italiano e ID agenti.
@@ -7017,7 +7044,7 @@ function VoyageDeskInner() {
       <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", background: "var(--surface)", fontFamily: "'DM Sans', sans-serif" }}>
         <Topbar state={state} dispatch={dispatch} onOpenChat={() => { setChatIntent(null); setShowChat(true); }} unreadChat={unreadChat} />
         <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-          <Sidebar state={state} dispatch={dispatch} />
+          <Sidebar state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} />
           <main className="vd-main-scroll" style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
             {renderView()}
           </main>
@@ -7042,23 +7069,25 @@ function VoyageDeskInner() {
           currentUserId={state.currentUserId}
         />
 
-        {/* FAB principale (singolo task) + FAB secondario (bulk) */}
+        {/* FAB singolo task (sempre); FAB bulk solo su mobile/tablet — su desktop è nella sidebar */}
         {state.activeView !== "trash" && state.activeView !== "admin" && (
           <>
-            <button
-              onClick={() => setShowBulkModal(true)}
-              title="Crea più task / Import / Template"
-              style={{
-                position: "fixed", bottom: isDesktop ? 32 : 84, right: isDesktop ? 92 : 76, width: 44, height: 44,
-                borderRadius: "50%", background: "var(--navy)", border: "none",
-                boxShadow: "0 6px 20px rgba(15,32,68,0.35)", cursor: "pointer",
-                fontSize: 17, display: "flex", alignItems: "center", justifyContent: "center",
-                color: "#fff", zIndex: 400,
-                transition: "transform 0.2s ease, box-shadow 0.2s ease",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.1)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-            >📑</button>
+            {!isDesktop && (
+              <button
+                onClick={() => setShowBulkModal(true)}
+                title="Crea più task / Import / Template"
+                style={{
+                  position: "fixed", bottom: 84, right: 76, width: 44, height: 44,
+                  borderRadius: "50%", background: "var(--navy)", border: "none",
+                  boxShadow: "0 6px 20px rgba(15,32,68,0.35)", cursor: "pointer",
+                  fontSize: 17, display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "#fff", zIndex: 400,
+                  transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.1)"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
+              >📑</button>
+            )}
             <FAB onClick={() => setShowFABModal(true)} />
           </>
         )}

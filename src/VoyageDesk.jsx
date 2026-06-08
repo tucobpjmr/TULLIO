@@ -301,6 +301,7 @@ const LOGGED_ACTIONS = new Set([
   "ADD_CATEGORY", "UPDATE_CATEGORY", "REMOVE_CATEGORY",
   "RESTORE_BACKUP",
   "ADD_NOTICE", "UPDATE_NOTICE", "DELETE_NOTICE",
+  "ADD_CLIENT", "UPDATE_CLIENT", "DELETE_CLIENT",
 ]);
 
 const buildLogEntry = (action, state) => {
@@ -329,6 +330,9 @@ const buildLogEntry = (action, state) => {
     ADD_NOTICE: () => `Pubblicato avviso in bacheca`,
     UPDATE_NOTICE: () => `Modificato avviso in bacheca`,
     DELETE_NOTICE: () => `Rimosso avviso dalla bacheca`,
+    ADD_CLIENT: () => `Aggiunto cliente "${action.payload.name}"`,
+    UPDATE_CLIENT: () => `Aggiornato cliente "${action.payload.name || action.payload.id}"`,
+    DELETE_CLIENT: () => `Rimosso cliente "${action.payload}"`,
   };
   return { id: `log-${stamp}-${Math.random().toString(36).slice(2,7)}`, time: stamp, type: t, text: (map[t] || (() => t))() };
 };
@@ -558,6 +562,30 @@ function baseReducer(state, action) {
       return { ...state, notices };
     }
 
+    // ─── ANAGRAFICA CLIENTI ───
+    case "ADD_CLIENT": {
+      const clients = [action.payload, ...(state.clients || [])];
+      return { ...state, clients, toast: { message: `Cliente "${action.payload.name}" aggiunto`, type: "success" } };
+    }
+    case "UPDATE_CLIENT": {
+      const clients = (state.clients || []).map(c =>
+        c.id === action.payload.id ? { ...c, ...action.payload } : c
+      );
+      return { ...state, clients, toast: { message: "Cliente aggiornato", type: "success" } };
+    }
+    case "DELETE_CLIENT": {
+      const clients = (state.clients || []).filter(c => c.id !== action.payload);
+      return { ...state, clients, toast: { message: "Cliente rimosso", type: "success" } };
+    }
+    case "IMPORT_CLIENTS": {
+      const { clients: toImport, skipped } = action.payload;
+      const clients = [...(state.clients || []), ...toImport];
+      const msg = toImport.length > 0
+        ? `${toImport.length} clienti importati${skipped > 0 ? `, ${skipped} già presenti ignorati` : ""}`
+        : `Nessun nuovo cliente: ${skipped} già presenti in anagrafica`;
+      return { ...state, clients, toast: { message: msg, type: toImport.length > 0 ? "success" : "info" } };
+    }
+
     case "CLEAR_TOAST": return { ...state, toast: null };
     case "UNDO_LAST_ACTION": {
       const la = state.lastAction;
@@ -576,6 +604,15 @@ function baseReducer(state, action) {
         return { ...state, tasks, selectedTask, toast: { message: "Azione annullata", type: "success" }, lastAction: null };
       }
       return state;
+    }
+    case "MARK_NOTIF_READ": {
+      const readNotifIds = new Set(state.readNotifIds || []);
+      readNotifIds.add(action.payload);
+      return { ...state, readNotifIds: [...readNotifIds] };
+    }
+    case "MARK_ALL_NOTIF_READ": {
+      const readNotifIds = (action.payload || []);
+      return { ...state, readNotifIds };
     }
     case "SET_SEARCH": return { ...state, searchQuery: action.payload };
     case "TOGGLE_NOTIF": return { ...state, showNotif: !state.showNotif };
@@ -657,10 +694,93 @@ const INITIAL_NOTICES = [
   },
 ];
 
+// ─── CLIENTI (CRM base) ────────────────────────────────────────────────────
+const INITIAL_CLIENTS = [
+  {
+    id: "cl1",
+    name: "Famiglia Rossi",
+    type: "privato",
+    email: "rossi.famiglia@gmail.com",
+    phone: "+39 02 5678 9012",
+    address: "Via Montenapoleone 8, 20121 Milano",
+    notes: "Cliente VIP da 6 anni. Preferisce business class e resort 5 stelle. Viaggiano 3-4 volte l'anno. Allergia a frutta secca (Antonio Rossi).",
+    tags: ["VIP", "Fidelizzato"],
+    createdAt: new Date(Date.now() - 86400000 * 365 * 2).toISOString(),
+    lastContact: new Date(Date.now() - 86400000 * 3).toISOString(),
+    totalSpend: 48600,
+  },
+  {
+    id: "cl2",
+    name: "Coppia Bianchi",
+    type: "privato",
+    email: "andrea.bianchi@outlook.com",
+    phone: "+39 339 876 5432",
+    address: "Corso Buenos Aires 44, 20124 Milano",
+    notes: "Luna di miele Giappone. Prima volta con noi. Preferiscono esperienze culturali autentiche, ryokan tradizionali. Budget: medio-alto.",
+    tags: ["Nuovi", "Luna di Miele"],
+    createdAt: new Date(Date.now() - 86400000 * 30).toISOString(),
+    lastContact: new Date(Date.now() - 86400000 * 1).toISOString(),
+    totalSpend: 9800,
+  },
+  {
+    id: "cl3",
+    name: "Azienda TechCorp",
+    type: "azienda",
+    email: "hr.travel@techcorp.it",
+    phone: "+39 02 8901 2345",
+    address: "Viale Tunisia 38, 20124 Milano",
+    notes: "Incentive travel annuale per 50 dipendenti. Budget approvato 85.000€. Referente: Dott.ssa Laura Ferrara (HR Director). Decisioni lente ma alta spesa.",
+    tags: ["Corporate", "Incentive", "Key Account"],
+    createdAt: new Date(Date.now() - 86400000 * 180).toISOString(),
+    lastContact: new Date(Date.now() - 86400000 * 1).toISOString(),
+    totalSpend: 127500,
+  },
+  {
+    id: "cl4",
+    name: "Famiglia Marchetti",
+    type: "privato",
+    email: "marchetti.viaggi@libero.it",
+    phone: "+39 335 123 4567",
+    address: "Via Garibaldi 15, 20900 Monza",
+    notes: "Richiesta nuova: crociera Caraibi per 4 persone (2 adulti + 2 bambini 8 e 11 anni). Form sito web. Da contattare per primo appuntamento.",
+    tags: ["Nuovo Contatto", "Famiglia"],
+    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+    lastContact: new Date(Date.now() - 86400000 * 2).toISOString(),
+    totalSpend: 0,
+  },
+  {
+    id: "cl5",
+    name: "Liceo Manzoni",
+    type: "azienda",
+    email: "segreteria@liceomanzoni.edu.it",
+    phone: "+39 02 2345 6789",
+    address: "Via Deledda 14, 20127 Milano",
+    notes: "Viaggio istruzione classi 4° superiore. 30 studenti + 4 accompagnatori. Referente: Prof. Gentile. Budget scolastico, molto price-sensitive.",
+    tags: ["Istruzione", "Gruppi"],
+    createdAt: new Date(Date.now() - 86400000 * 60).toISOString(),
+    lastContact: new Date(Date.now() - 86400000 * 1).toISOString(),
+    totalSpend: 4200,
+  },
+  {
+    id: "cl6",
+    name: "Sposi Conte",
+    type: "privato",
+    email: "conte.nozze@gmail.com",
+    phone: "+39 347 456 7890",
+    address: "Via Solferino 22, 20121 Milano",
+    notes: "Viaggio di nozze Vietnam 14 giorni. Cerimonia il 15 settembre, partenza il 20. Budget dichiarato: medio-alto con esperienze locali. Lui vegetariano.",
+    tags: ["Luna di Miele", "Nuovi"],
+    createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+    lastContact: new Date(Date.now() - 86400000 * 5).toISOString(),
+    totalSpend: 0,
+  },
+];
+
 const initialState = {
   tasks: INITIAL_TASKS,
   team: TEAM,
   categories: CATEGORIES,
+  clients: INITIAL_CLIENTS,
   agencyName: "VoyageDesk",
   notices: INITIAL_NOTICES,
   activityLog: [],
@@ -673,6 +793,7 @@ const initialState = {
   filters: { assignee: "", category: "", priority: "", status: "", client: "" },
   lastAction: null, // { type, payload, undo: () => state-patch } per swipe-actions undo
   currentUserId: CURRENT_USER, // v0.8: utente loggato (con switcher in Topbar)
+  readNotifIds: [], // ID delle notifiche già lette (generate dinamicamente)
 };
 
 // ─── UTILS ─────────────────────────────────────────────────────────────────
@@ -693,6 +814,66 @@ const getDayKey = iso => iso ? new Date(iso).toDateString() : null;
 const isActiveTask = t => !t.deletedAt;
 const getActiveTasks = tasks => tasks.filter(isActiveTask);
 const getTrashedTasks = tasks => tasks.filter(t => t.deletedAt);
+
+// ─── NOTIFICHE DINAMICHE ──────────────────────────────────────────────────
+// Genera notifiche dal vivo dallo state. Ogni notifica ha un id deterministico
+// basato sul contenuto, così lo stato "letto" persiste tra i re-render.
+const getNotifications = (state) => {
+  const uid = state.currentUserId;
+  const activeTasks = getActiveTasks(state.tasks);
+  const now = new Date();
+  const in24h = new Date(now.getTime() + 86400000);
+  const notifs = [];
+
+  // Task scaduti visibili all'utente
+  activeTasks
+    .filter(t => t.status !== "done" && t.dueDate && new Date(t.dueDate) < now && canViewTask(t, uid))
+    .forEach(t => notifs.push({
+      id: `overdue-${t.id}`,
+      type: "overdue",
+      title: `Task scaduto: ${t.title}`,
+      taskId: t.id,
+      time: formatDate(t.dueDate),
+    }));
+
+  // Task con scadenza nelle prossime 24h (non ancora scaduti)
+  activeTasks
+    .filter(t => t.status !== "done" && t.dueDate && new Date(t.dueDate) >= now && new Date(t.dueDate) <= in24h && canViewTask(t, uid))
+    .forEach(t => notifs.push({
+      id: `deadline-${t.id}`,
+      type: "deadline",
+      title: `Scadenza domani: ${t.title}`,
+      taskId: t.id,
+      time: `entro le ${formatTime(t.dueDate)}`,
+    }));
+
+  // Task in coda globale (non assegnati, > 1h) — visibili a manager/admin
+  if (!isDriver(uid)) {
+    activeTasks
+      .filter(t => t.status !== "done" && (!t.assignees || t.assignees.length === 0))
+      .forEach(t => notifs.push({
+        id: `queue-${t.id}`,
+        type: "queue",
+        title: `In coda: ${t.title}`,
+        taskId: t.id,
+        time: "in attesa di assegnatario",
+      }));
+  }
+
+  // Agenti pending — solo admin
+  if (isAdmin(uid)) {
+    (state.team || TEAM)
+      .filter(m => m.pending)
+      .forEach(m => notifs.push({
+        id: `pending-${m.id}`,
+        type: "pending_team",
+        title: `Nuovo agente in attesa: ${m.name}`,
+        time: "in attesa di approvazione",
+      }));
+  }
+
+  return notifs;
+};
 
 // ─── PERMESSI (v0.8) ──────────────────────────────────────────────────────
 // Ruoli logici derivati dal campo `role` del team member.
@@ -1427,8 +1608,10 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
 const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
   const { isMobile } = useViewport();
-  const unread = NOTIFICATIONS.filter(n => !n.read).length;
   const [advOpen, setAdvOpen] = useState(false);
+  const notifs = getNotifications(state);
+  const readSet = new Set(state.readNotifIds || []);
+  const unread = notifs.filter(n => !readSet.has(n.id)).length;
   return (
     <div style={{
       height: 58, background: "var(--navy)", display: "flex", alignItems: "center",
@@ -1516,7 +1699,7 @@ const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
             color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center"
           }}>{unread}</span>}
         </button>
-        {state.showNotif && <NotificationsPanel dispatch={dispatch} />}
+        {state.showNotif && <NotificationsPanel state={state} dispatch={dispatch} />}
       </div>
 
       {/* User switcher (v0.8) */}
@@ -1893,39 +2076,121 @@ const UserSwitcher = ({ state, dispatch }) => {
 };
 
 // ─── NOTIFICATIONS PANEL ───────────────────────────────────────────────────
-const NotificationsPanel = ({ dispatch }) => {
+const NotificationsPanel = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
-  const icons = { overdue: "⚠️", assigned: "📋", comment: "💬", deadline: "📅" };
+  const [filterUnread, setFilterUnread] = useState(false);
+
+  const icons = { overdue: "⚠️", deadline: "📅", queue: "🌐", pending_team: "👤", assigned: "📋", comment: "💬" };
+  const typeLabel = { overdue: "Scaduto", deadline: "In scadenza", queue: "In coda", pending_team: "Team", assigned: "Assegnato", comment: "Commento" };
+  const typeColor = { overdue: "var(--danger)", deadline: "var(--warning)", queue: "#3B82F6", pending_team: "#8B5CF6", assigned: "var(--navy)", comment: "var(--text-muted)" };
+
+  const notifs = getNotifications(state);
+  const readSet = new Set(state.readNotifIds || []);
+  const unreadCount = notifs.filter(n => !readSet.has(n.id)).length;
+  const visible = filterUnread ? notifs.filter(n => !readSet.has(n.id)) : notifs;
+
+  const markRead = (id) => dispatch({ type: "MARK_NOTIF_READ", payload: id });
+  const markAllRead = () => dispatch({ type: "MARK_ALL_NOTIF_READ", payload: notifs.map(n => n.id) });
+
+  const handleClick = (n) => {
+    markRead(n.id);
+    if (n.taskId) {
+      const task = state.tasks.find(t => t.id === n.taskId);
+      if (task) dispatch({ type: "SET_SELECTED_TASK", payload: task });
+    } else if (n.type === "pending_team") {
+      dispatch({ type: "SET_VIEW", payload: "admin" });
+    }
+    dispatch({ type: "TOGGLE_NOTIF" });
+  };
+
   return (
     <div className="slide-right" style={{
       position: isMobile ? "fixed" : "absolute",
       top: isMobile ? 56 : "calc(100% + 8px)",
       right: isMobile ? 12 : 0,
       left: isMobile ? 12 : "auto",
-      width: isMobile ? "auto" : "min(360px, calc(100vw - 24px))",
+      width: isMobile ? "auto" : "min(380px, calc(100vw - 24px))",
       background: "#fff", borderRadius: 12, boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
       border: "1px solid var(--border)", overflow: "hidden", zIndex: 200,
     }}>
-      <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div className="playfair" style={{ fontWeight: 600, fontSize: 15 }}>Notifiche</div>
-        <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
-      </div>
-      <div style={{ maxHeight: 420, overflowY: "auto" }}>
-        {NOTIFICATIONS.map(n => (
-          <div key={n.id} style={{
-            padding: "12px 16px", display: "flex", gap: 10, alignItems: "flex-start",
-            background: n.read ? "transparent" : "rgba(212,168,67,0.07)",
-            borderBottom: "1px solid var(--border)",
-            transition: "background 0.2s", cursor: "default",
-          }}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>{icons[n.type]}</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: n.read ? 400 : 600 }}>{n.title}</div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{n.time}</div>
-            </div>
-            {!n.read && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--gold)", flexShrink: 0, marginTop: 4 }} />}
+      {/* Header */}
+      <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div className="playfair" style={{ fontWeight: 600, fontSize: 15 }}>Notifiche</div>
+            {unreadCount > 0 && (
+              <span style={{
+                fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 99,
+                background: "var(--danger)", color: "#fff"
+              }}>{unreadCount}</span>
+            )}
           </div>
-        ))}
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            {unreadCount > 0 && (
+              <button onClick={markAllRead} style={{
+                fontSize: 11, fontWeight: 600, color: "var(--navy)",
+                border: "none", cursor: "pointer", padding: "3px 6px", borderRadius: 6,
+                background: "var(--surface2)"
+              }}>✓ Tutte lette</button>
+            )}
+            <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{
+              background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)"
+            }}>✕</button>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          {[["Tutte", false], ["Non lette", true]].map(([label, val]) => (
+            <button key={label} onClick={() => setFilterUnread(val)} style={{
+              fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 20, border: "none",
+              cursor: "pointer", fontFamily: "inherit",
+              background: filterUnread === val ? "var(--navy)" : "var(--surface2)",
+              color: filterUnread === val ? "#fff" : "var(--text-muted)",
+            }}>{label}{val && unreadCount > 0 ? ` (${unreadCount})` : ""}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Lista */}
+      <div style={{ maxHeight: 420, overflowY: "auto" }}>
+        {visible.length === 0 ? (
+          <div style={{ padding: "32px 16px", textAlign: "center", color: "var(--text-muted)" }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>✅</div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>Nessuna notifica{filterUnread ? " non letta" : ""}</div>
+          </div>
+        ) : visible.map(n => {
+          const isRead = readSet.has(n.id);
+          return (
+            <div key={n.id}
+              onClick={() => handleClick(n)}
+              style={{
+                padding: "12px 16px", display: "flex", gap: 10, alignItems: "flex-start",
+                background: isRead ? "transparent" : "rgba(212,168,67,0.06)",
+                borderBottom: "1px solid var(--border)",
+                cursor: n.taskId || n.type === "pending_team" ? "pointer" : "default",
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={e => { if (n.taskId || n.type === "pending_team") e.currentTarget.style.background = "var(--surface2)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = isRead ? "transparent" : "rgba(212,168,67,0.06)"; }}
+            >
+              <span style={{ fontSize: 18, flexShrink: 0 }}>{icons[n.type] || "🔔"}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 99,
+                    color: typeColor[n.type], background: typeColor[n.type] + "18",
+                  }}>{typeLabel[n.type]}</span>
+                </div>
+                <div style={{
+                  fontSize: 13, fontWeight: isRead ? 400 : 600, lineHeight: 1.35,
+                  overflow: "hidden", textOverflow: "ellipsis",
+                  display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical"
+                }}>{n.title}</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>{n.time}</div>
+              </div>
+              {!isRead && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--gold)", flexShrink: 0, marginTop: 5 }} />}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -1935,6 +2200,7 @@ const NotificationsPanel = ({ dispatch }) => {
 const NAV_ITEMS = [
   { id: "dashboard", icon: "📊", label: "Dashboard", roles: ["admin", "manager", "agent", "driver"] },
   { id: "calendar", icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
+  { id: "clienti", icon: "👤", label: "Clienti", roles: ["admin", "manager", "agent"] },
   { id: "team", icon: "👥", label: "Team", roles: ["admin", "manager", "agent"] },
   { id: "trash", icon: "🗑️", label: "Cestino", roles: ["admin"] },
   { id: "admin", icon: "⚙️", label: "Admin", roles: ["admin"] },
@@ -1951,6 +2217,11 @@ const Sidebar = ({ state, dispatch }) => {
   if (!isDesktop) return null;
   const col = state.sidebarCollapsed;
   const navItems = getNavItemsForUser(state.currentUserId);
+  const activeTasks = getActiveTasks(state.tasks);
+  const queueCount = activeTasks.filter(t => (!t.assignees || t.assignees.length === 0) && t.status !== "done").length;
+  const pendingCount = (state.team || TEAM).filter(m => m.pending).length;
+  const navBadge = { dashboard: queueCount, admin: pendingCount };
+
   return (
     <div style={{
       width: col ? 60 : 210, background: "var(--navy-dark)", color: "#fff",
@@ -1970,6 +2241,7 @@ const Sidebar = ({ state, dispatch }) => {
       <div style={{ marginTop: 48, padding: col ? "0 8px" : "0 12px", display: "flex", flexDirection: "column", gap: 2 }}>
         {navItems.map(item => {
           const active = state.activeView === item.id;
+          const badge = navBadge[item.id];
           return (
             <button key={item.id} onClick={() => dispatch({ type: "SET_VIEW", payload: item.id })} style={{
               display: "flex", alignItems: "center", gap: 10,
@@ -1978,11 +2250,28 @@ const Sidebar = ({ state, dispatch }) => {
               background: active ? "rgba(212,168,67,0.18)" : "transparent",
               color: active ? "var(--gold)" : "rgba(255,255,255,0.6)",
               fontSize: 14, fontWeight: active ? 600 : 400,
-              transition: "all 0.2s", textAlign: "left",
+              transition: "all 0.2s", textAlign: "left", position: "relative",
               borderLeft: active ? "2px solid var(--gold)" : "2px solid transparent",
             }}>
-              <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
-              {!col && <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>{item.label}</span>}
+              <span style={{ fontSize: 16, flexShrink: 0, position: "relative" }}>
+                {item.icon}
+                {badge > 0 && col && (
+                  <span style={{
+                    position: "absolute", top: -5, right: -5, minWidth: 14, height: 14,
+                    borderRadius: 99, background: "var(--danger)", color: "#fff",
+                    fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center",
+                    justifyContent: "center", padding: "0 3px",
+                  }}>{badge}</span>
+                )}
+              </span>
+              {!col && <span style={{ whiteSpace: "nowrap", overflow: "hidden", flex: 1 }}>{item.label}</span>}
+              {!col && badge > 0 && (
+                <span style={{
+                  minWidth: 18, height: 18, borderRadius: 99, background: "var(--danger)", color: "#fff",
+                  fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center",
+                  justifyContent: "center", padding: "0 4px", marginLeft: "auto", flexShrink: 0,
+                }}>{badge}</span>
+              )}
             </button>
           );
         })}
@@ -2013,10 +2302,16 @@ const Sidebar = ({ state, dispatch }) => {
 // ─── BOTTOM NAV (mobile/tablet) ────────────────────────────────────────────
 const BottomNav = ({ state, dispatch }) => {
   const navItems = getNavItemsForUser(state.currentUserId);
+  const activeTasks = getActiveTasks(state.tasks);
+  const queueCount = activeTasks.filter(t => (!t.assignees || t.assignees.length === 0) && t.status !== "done").length;
+  const pendingCount = (state.team || TEAM).filter(m => m.pending).length;
+  const navBadge = { dashboard: queueCount, admin: pendingCount };
+
   return (
     <nav className="vd-bottom-nav" aria-label="Navigazione principale">
       {navItems.map(item => {
         const active = state.activeView === item.id;
+        const badge = navBadge[item.id];
         return (
           <button
             key={item.id}
@@ -2029,10 +2324,20 @@ const BottomNav = ({ state, dispatch }) => {
               background: "transparent", border: "none", cursor: "pointer",
               color: active ? "var(--gold)" : "rgba(255,255,255,0.55)",
               borderTop: active ? "2px solid var(--gold)" : "2px solid transparent",
-              transition: "color 0.2s",
+              transition: "color 0.2s", position: "relative",
             }}
           >
-            <span style={{ fontSize: 19, lineHeight: 1 }}>{item.icon}</span>
+            <span style={{ fontSize: 19, lineHeight: 1, position: "relative" }}>
+              {item.icon}
+              {badge > 0 && (
+                <span style={{
+                  position: "absolute", top: -5, right: -7, minWidth: 14, height: 14,
+                  borderRadius: 99, background: "var(--danger)", color: "#fff",
+                  fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center",
+                  justifyContent: "center", padding: "0 3px",
+                }}>{badge > 9 ? "9+" : badge}</span>
+              )}
+            </span>
             <span style={{ fontSize: 9, fontWeight: active ? 700 : 500, whiteSpace: "nowrap" }}>
               {item.label.split(" ")[0]}
             </span>
@@ -3947,38 +4252,45 @@ const Dashboard = ({ state, dispatch, onOpenChat }) => {
 };
 
 // ─── QUICK ADD TASK FORM ───────────────────────────────────────────────────
-const QuickAddTask = ({ onAdd, onClose }) => {
-  // Categorie filtrate per il ruolo dell'utente loggato (v0.8)
+const QuickAddTask = ({ onAdd, onClose, clients = [] }) => {
   const availableCats = getAvailableCategories(CURRENT_USER);
   const firstCatKey = Object.keys(availableCats)[0] || "booking";
 
   const [form, setForm] = useState({
-    title: "", category: firstCatKey, priority: "medium",
-    status: "todo", assignees: [], dueDate: "", client: "", description: ""
+    category: firstCatKey, priority: "medium",
+    status: "todo", assignees: [], dueDate: "", clientId: "", description: ""
   });
+  const [titleOverride, setTitleOverride] = useState("");
+
+  const selectedClient = clients.find(c => c.id === form.clientId) || null;
+
+  // Titolo auto-generato da categoria + cliente
+  const autoTitle = selectedClient
+    ? `${availableCats[form.category]?.label || form.category} — ${selectedClient.name}`
+    : "";
+  const effectiveTitle = titleOverride || autoTitle;
+
+  const setField = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const selStyle = {
+    width: "100%", border: "1px solid var(--border)", borderRadius: 8,
+    padding: "8px 10px", fontSize: 13, background: "var(--surface)",
+    outline: "none", fontFamily: "inherit", cursor: "pointer",
+  };
 
   const handleSubmit = () => {
-    if (!form.title.trim()) return;
+    if (!effectiveTitle.trim()) return;
     onAdd({
       id: "t" + Date.now(),
       ...form,
-      client: form.client.trim() || null,
+      title: effectiveTitle.trim(),
+      client: selectedClient?.name || null,
       comments: [],
       estimatedHours: 1,
       dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
     });
     onClose();
   };
-
-  const inp = (field) => ({
-    value: form[field],
-    onChange: e => setForm(p => ({ ...p, [field]: e.target.value })),
-    style: {
-      width: "100%", border: "1px solid var(--border)", borderRadius: 8,
-      padding: "8px 10px", fontSize: 13, background: "var(--surface)",
-      outline: "none", fontFamily: "inherit",
-    }
-  });
 
   return (
     <div style={{
@@ -3996,62 +4308,103 @@ const QuickAddTask = ({ onAdd, onClose }) => {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>TITOLO *</label>
-            <input {...inp("title")} placeholder="Descrivi brevemente il task..." />
-          </div>
 
+          {/* Cliente + Categoria: i due campi chiave */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>CATEGORIA</label>
-              <select {...inp("category")} style={{ ...inp("category").style, cursor: "pointer" }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>CLIENTE *</label>
+              <select value={form.clientId} onChange={e => setField("clientId", e.target.value)} style={selStyle}>
+                <option value="">— Seleziona cliente —</option>
+                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>CATEGORIA *</label>
+              <select value={form.category} onChange={e => { setField("category", e.target.value); setTitleOverride(""); }} style={selStyle}>
                 {Object.entries(availableCats).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
               </select>
             </div>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>PRIORITÀ</label>
-              <select {...inp("priority")} style={{ ...inp("priority").style, cursor: "pointer" }}>
-                {Object.entries(PRIORITIES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-              </select>
-            </div>
+          </div>
+
+          {/* Titolo: auto-generato, modificabile */}
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>
+              TITOLO {!autoTitle && "*"}
+              {autoTitle && !titleOverride && (
+                <span style={{ fontWeight: 400, color: "var(--gold-dark)", marginLeft: 6 }}>auto-generato</span>
+              )}
+            </label>
+            <input
+              value={titleOverride || autoTitle}
+              onChange={e => setTitleOverride(e.target.value)}
+              placeholder={autoTitle || "Seleziona cliente e categoria per generare il titolo…"}
+              style={{
+                width: "100%", border: "1px solid var(--border)", borderRadius: 8,
+                padding: "8px 10px", fontSize: 13, background: autoTitle && !titleOverride ? "#fffef5" : "var(--surface)",
+                outline: "none", fontFamily: "inherit",
+              }}
+            />
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>PRIORITÀ</label>
+              <select value={form.priority} onChange={e => setField("priority", e.target.value)} style={selStyle}>
+                {Object.entries(PRIORITIES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </div>
             <div>
               <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>ASSEGNA A</label>
               <select
                 value={form.assignees[0] || ""}
-                onChange={e => setForm(p => ({ ...p, assignees: e.target.value ? [e.target.value] : [] }))}
-                style={{ ...inp("category").style, cursor: "pointer" }}>
+                onChange={e => setField("assignees", e.target.value ? [e.target.value] : [])}
+                style={selStyle}>
                 <option value="">— Non assegnato —</option>
                 {getAssignableTeam().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
             </div>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>SCADENZA</label>
-              <input type="datetime-local" {...inp("dueDate")} />
-            </div>
           </div>
 
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>CLIENTE</label>
-            <input {...inp("client")} placeholder="Es. Famiglia Rossi..." />
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>SCADENZA</label>
+            <input
+              type="datetime-local"
+              value={form.dueDate}
+              onChange={e => setField("dueDate", e.target.value)}
+              style={{
+                width: "100%", border: "1px solid var(--border)", borderRadius: 8,
+                padding: "8px 10px", fontSize: 13, background: "var(--surface)",
+                outline: "none", fontFamily: "inherit",
+              }}
+            />
           </div>
 
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>DESCRIZIONE</label>
-            <textarea {...inp("description")} rows={3} placeholder="Dettagli del task..." style={{ ...inp("description").style, resize: "vertical" }} />
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>NOTE</label>
+            <textarea
+              value={form.description}
+              onChange={e => setField("description", e.target.value)}
+              rows={3}
+              placeholder="Dettagli, istruzioni, riferimenti…"
+              style={{
+                width: "100%", border: "1px solid var(--border)", borderRadius: 8,
+                padding: "8px 10px", fontSize: 13, background: "var(--surface)",
+                outline: "none", fontFamily: "inherit", resize: "vertical",
+              }}
+            />
           </div>
         </div>
 
         <div style={{ display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" }}>
           <button onClick={onClose} style={{
             padding: "9px 18px", borderRadius: 8, border: "1px solid var(--border)",
-            background: "transparent", cursor: "pointer", fontSize: 13, fontWeight: 500
+            background: "transparent", cursor: "pointer", fontSize: 13, fontWeight: 500, fontFamily: "inherit"
           }}>Annulla</button>
-          <button onClick={handleSubmit} style={{
+          <button onClick={handleSubmit} disabled={!effectiveTitle.trim()} style={{
             padding: "9px 20px", borderRadius: 8, border: "none",
-            background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600
+            background: effectiveTitle.trim() ? "var(--navy)" : "var(--border)",
+            color: "#fff", cursor: effectiveTitle.trim() ? "pointer" : "default",
+            fontSize: 13, fontWeight: 600, fontFamily: "inherit"
           }}>✓ Crea Task</button>
         </div>
       </div>
@@ -4563,6 +4916,606 @@ const CalendarPlanner = ({ state, dispatch }) => {
     </div>
   );
 };
+// ─── CLIENTI (CRM BASE) ────────────────────────────────────────────────────
+const ClienteEditModal = ({ cliente, onSave, onClose }) => {
+  const { isMobile } = useViewport();
+  const isNew = !cliente?.id;
+  const [form, setForm] = useState({
+    name: cliente?.name || "",
+    type: cliente?.type || "privato",
+    email: cliente?.email || "",
+    phone: cliente?.phone || "",
+    address: cliente?.address || "",
+    notes: cliente?.notes || "",
+    tags: (cliente?.tags || []).join(", "),
+  });
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleSave = () => {
+    if (!form.name.trim()) return;
+    const tags = form.tags.split(",").map(t => t.trim()).filter(Boolean);
+    const now = new Date().toISOString();
+    onSave({
+      ...(isNew ? { id: `cl-${Date.now()}`, createdAt: now, lastContact: now, totalSpend: 0 } : cliente),
+      ...form,
+      tags,
+    });
+  };
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 800,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 16
+    }} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="slide-up" style={{
+        background: "#fff", borderRadius: 16, width: "100%", maxWidth: 520,
+        maxHeight: "90vh", overflowY: "auto", padding: isMobile ? 20 : 28, boxShadow: "0 20px 60px rgba(0,0,0,0.2)"
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
+          <div className="playfair" style={{ fontSize: 18, fontWeight: 700, color: "var(--navy)" }}>
+            {isNew ? "Nuovo Cliente" : "Modifica Cliente"}
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text-muted)", padding: 4 }}>×</button>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+          {["privato", "azienda"].map(t => (
+            <button key={t} onClick={() => set("type", t)} style={{
+              flex: 1, padding: "8px 0", borderRadius: 8, border: `2px solid ${form.type === t ? "var(--navy)" : "var(--border)"}`,
+              background: form.type === t ? "var(--navy)" : "#fff",
+              color: form.type === t ? "#fff" : "var(--text-muted)",
+              fontWeight: 600, fontSize: 13, cursor: "pointer", transition: "all 0.15s", fontFamily: "inherit"
+            }}>
+              {t === "privato" ? "👤 Privato" : "🏢 Azienda"}
+            </button>
+          ))}
+        </div>
+
+        {[
+          { label: "Nome *", key: "name", placeholder: form.type === "privato" ? "Es. Famiglia Rossi" : "Es. TechCorp Srl" },
+          { label: "Email", key: "email", placeholder: "email@esempio.com", type: "email" },
+          { label: "Telefono", key: "phone", placeholder: "+39 333 1234567", type: "tel" },
+          { label: "Indirizzo", key: "address", placeholder: "Via Roma 1, Milano" },
+          { label: "Tag (separati da virgola)", key: "tags", placeholder: "VIP, Fidelizzato, Corporate" },
+        ].map(({ label, key, placeholder, type = "text" }) => (
+          <div key={key} style={{ marginBottom: 14 }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>{label}</label>
+            <input
+              type={type}
+              value={form[key]}
+              onChange={e => set(key, e.target.value)}
+              placeholder={placeholder}
+              style={{
+                width: "100%", padding: "9px 12px", border: "1px solid var(--border)", borderRadius: 8,
+                fontSize: 14, fontFamily: "inherit", outline: "none", background: "var(--surface)",
+              }}
+            />
+          </div>
+        ))}
+
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>Note</label>
+          <textarea
+            value={form.notes}
+            onChange={e => set("notes", e.target.value)}
+            placeholder="Preferenze, note speciali, informazioni utili..."
+            rows={3}
+            style={{
+              width: "100%", padding: "9px 12px", border: "1px solid var(--border)", borderRadius: 8,
+              fontSize: 14, fontFamily: "inherit", outline: "none", resize: "vertical", background: "var(--surface)",
+            }}
+          />
+        </div>
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onClose} style={{
+            flex: 1, padding: "10px 0", border: "1px solid var(--border)", borderRadius: 8,
+            background: "#fff", color: "var(--text-muted)", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit"
+          }}>Annulla</button>
+          <button onClick={handleSave} disabled={!form.name.trim()} style={{
+            flex: 2, padding: "10px 0", border: "none", borderRadius: 8,
+            background: form.name.trim() ? "var(--navy)" : "var(--border)",
+            color: "#fff", fontWeight: 600, fontSize: 13, cursor: form.name.trim() ? "pointer" : "default", fontFamily: "inherit"
+          }}>
+            {isNew ? "Aggiungi Cliente" : "Salva Modifiche"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ClientiView = ({ state, dispatch }) => {
+  const { isMobile, isDesktop } = useViewport();
+  const uid = state.currentUserId;
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("tutti");
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [editClient, setEditClient] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [importPreview, setImportPreview] = useState(null); // { rows: [...] }
+  const importRef = useRef(null);
+
+  const canManage = !isDriver(uid);
+
+  const clients = state.clients || [];
+
+  const filtered = clients.filter(c => {
+    const q = search.toLowerCase();
+    const matchSearch = !search ||
+      c.name.toLowerCase().includes(q) ||
+      (c.email || "").toLowerCase().includes(q) ||
+      (c.phone || "").includes(q) ||
+      (c.tags || []).some(t => t.toLowerCase().includes(q));
+    const matchType = typeFilter === "tutti" || c.type === typeFilter;
+    return matchSearch && matchType;
+  });
+
+  const clientTasks = selectedClient
+    ? getActiveTasks(state.tasks).filter(t => t.client === selectedClient.name && canViewTask(t, uid))
+    : [];
+
+  const openAdd = () => { setEditClient(null); setShowModal(true); };
+  const openEdit = (c) => { setEditClient(c); setShowModal(true); };
+
+  // Import CSV/Excel: mappa i nomi colonna più comuni (easyADV, Excel generico, etc.)
+  const parseImportFile = (file) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: "binary" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const raw = XLSX.utils.sheet_to_json(ws, { defval: "" });
+        const normalize = (row) => {
+          const g = (...keys) => {
+            for (const k of keys) {
+              const found = Object.keys(row).find(rk => rk.toLowerCase().replace(/[\s_-]/g, "") === k.toLowerCase().replace(/[\s_-]/g, ""));
+              if (found && row[found]) return String(row[found]).trim();
+            }
+            return "";
+          };
+          const firstName = g("nome", "firstname", "first_name");
+          const lastName = g("cognome", "ragionesociale", "ragione_sociale", "lastname", "surname", "last_name", "name", "nominativo");
+          const name = lastName && firstName ? `${lastName} ${firstName}` : (lastName || firstName || g("cliente", "intestatario", "nominativo"));
+          if (!name) return null;
+          const type = g("tipo", "type", "tipologia").toLowerCase().includes("az") ? "azienda" : "privato";
+          return {
+            id: `cl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            name,
+            type,
+            email: g("email", "mail", "emailaddress", "e-mail"),
+            phone: g("telefono", "cellulare", "phone", "tel", "mobile", "cell"),
+            address: [g("indirizzo", "address", "via"), g("cap"), g("città", "citta", "city"), g("provincia", "prov")].filter(Boolean).join(", "),
+            notes: g("note", "notes", "annotazioni", "memo"),
+            tags: [],
+            createdAt: new Date().toISOString(),
+            lastContact: new Date().toISOString(),
+            totalSpend: 0,
+          };
+        };
+        const rows = raw.map(normalize).filter(Boolean);
+        if (rows.length === 0) {
+          dispatch({ type: "CLEAR_TOAST" });
+          setTimeout(() => dispatch({ type: "ADD_TASK", payload: null }), 0); // just to trigger toast
+          dispatch({ type: "SET_VIEW", payload: state.activeView }); // noop to trigger re-render
+          alert("Nessun cliente riconosciuto nel file. Verifica che ci sia una colonna 'Nome', 'Cognome' o 'Ragione Sociale'.");
+          return;
+        }
+        setImportPreview({ rows });
+      } catch {
+        alert("Impossibile leggere il file. Assicurati sia un CSV o Excel valido.");
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const confirmImport = () => {
+    if (!importPreview) return;
+    const existing = new Set(clients.map(c => c.name.toLowerCase()));
+    const toImport = importPreview.rows.filter(r => !existing.has(r.name.toLowerCase()));
+    const skipped = importPreview.rows.length - toImport.length;
+    dispatch({ type: "IMPORT_CLIENTS", payload: { clients: toImport, skipped } });
+    setImportPreview(null);
+  };
+
+  const handleSave = (data) => {
+    if (editClient) {
+      dispatch({ type: "UPDATE_CLIENT", payload: data });
+      if (selectedClient?.id === data.id) setSelectedClient(data);
+    } else {
+      dispatch({ type: "ADD_CLIENT", payload: data });
+    }
+    setShowModal(false);
+  };
+
+  const handleDelete = (id) => {
+    dispatch({ type: "DELETE_CLIENT", payload: id });
+    if (selectedClient?.id === id) setSelectedClient(null);
+    setConfirmDelete(null);
+  };
+
+  const typeLabel = { privato: "Privato", azienda: "Azienda" };
+  const typeColor = { privato: { color: "#0F2044", bg: "#EFF6FF" }, azienda: { color: "#C8832A", bg: "#FEF3C7" } };
+
+  const formatSpend = (n) => n > 0 ? `€ ${n.toLocaleString("it-IT")}` : "—";
+
+  const TabBtn = ({ id, label }) => (
+    <button onClick={() => setTypeFilter(id)} style={{
+      padding: "7px 16px", borderRadius: 20, border: "none", cursor: "pointer", fontFamily: "inherit",
+      fontSize: 13, fontWeight: 600, transition: "all 0.15s",
+      background: typeFilter === id ? "var(--navy)" : "var(--surface2)",
+      color: typeFilter === id ? "#fff" : "var(--text-muted)",
+    }}>{label}</button>
+  );
+
+  return (
+    <div className="fade-in vd-pad" style={{ padding: isMobile ? 16 : 28 }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", flexDirection: isMobile ? "column" : "row", gap: 12, marginBottom: 20 }}>
+        <div>
+          <div className="playfair" style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: "var(--navy)" }}>Anagrafica Clienti</div>
+          <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 3 }}>{clients.length} clienti registrati</div>
+        </div>
+        {canManage && (
+          <div style={{ display: "flex", gap: 8 }}>
+            <input ref={importRef} type="file" accept=".csv,.xlsx,.xls" style={{ display: "none" }}
+              onChange={e => { if (e.target.files[0]) { parseImportFile(e.target.files[0]); e.target.value = ""; } }} />
+            <button onClick={() => importRef.current?.click()} style={{
+              display: "flex", alignItems: "center", gap: 6, padding: "9px 14px",
+              background: "#fff", color: "var(--navy)", border: "1px solid var(--border)", borderRadius: 10,
+              fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit",
+            }}>
+              📥 Importa
+            </button>
+            <button onClick={openAdd} style={{
+              display: "flex", alignItems: "center", gap: 6, padding: "9px 18px",
+              background: "var(--navy)", color: "#fff", border: "none", borderRadius: 10,
+              fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit",
+            }}>
+              <span style={{ fontSize: 16 }}>+</span> Nuovo Cliente
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Search + filtri tipo */}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 18 }}>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Cerca per nome, email, telefono, tag…"
+          style={{
+            flex: "1 1 220px", padding: "9px 14px", border: "1px solid var(--border)", borderRadius: 10,
+            fontSize: 13, fontFamily: "inherit", outline: "none", background: "#fff",
+          }}
+        />
+        <div style={{ display: "flex", gap: 6 }}>
+          <TabBtn id="tutti" label={`Tutti (${clients.length})`} />
+          <TabBtn id="privato" label={`Privati (${clients.filter(c => c.type === "privato").length})`} />
+          <TabBtn id="azienda" label={`Aziende (${clients.filter(c => c.type === "azienda").length})`} />
+        </div>
+      </div>
+
+      {/* Layout: lista + dettaglio affiancati su desktop */}
+      <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+        {/* Lista clienti */}
+        <div style={{ flex: selectedClient && isDesktop ? "0 0 360px" : 1, minWidth: 0 }}>
+          {filtered.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "48px 20px", color: "var(--text-muted)" }}>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>👤</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>Nessun cliente trovato</div>
+              <div style={{ fontSize: 12, marginTop: 4 }}>{search ? "Prova con un'altra ricerca" : "Aggiungi il primo cliente"}</div>
+            </div>
+          ) : filtered.map(c => {
+            const tasks = getActiveTasks(state.tasks).filter(t => t.client === c.name);
+            const active = tasks.filter(t => t.status !== "done");
+            const isSelected = selectedClient?.id === c.id;
+            const tc = typeColor[c.type] || typeColor.privato;
+
+            return (
+              <div key={c.id} onClick={() => setSelectedClient(isSelected ? null : c)}
+                className="hover-lift"
+                style={{
+                  background: "#fff", borderRadius: 12, padding: "16px 18px", marginBottom: 10,
+                  border: `2px solid ${isSelected ? "var(--navy)" : "var(--border)"}`,
+                  cursor: "pointer", transition: "all 0.15s",
+                  boxShadow: isSelected ? "0 4px 16px rgba(15,32,68,0.12)" : "0 2px 6px rgba(0,0,0,0.04)",
+                }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span style={{ fontWeight: 700, fontSize: 15 }}>{c.name}</span>
+                      <span style={{
+                        fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 99,
+                        background: tc.bg, color: tc.color,
+                      }}>{typeLabel[c.type]}</span>
+                    </div>
+                    {(c.email || c.phone) && (
+                      <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+                        {c.email && <span>✉ {c.email}</span>}
+                        {c.email && c.phone && <span style={{ margin: "0 6px" }}>·</span>}
+                        {c.phone && <span>📞 {c.phone}</span>}
+                      </div>
+                    )}
+                    {(c.tags || []).length > 0 && (
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6 }}>
+                        {c.tags.map(tag => (
+                          <span key={tag} style={{
+                            fontSize: 11, padding: "2px 8px", borderRadius: 99,
+                            background: "var(--surface2)", color: "var(--text-muted)", fontWeight: 500
+                          }}>{tag}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: active.length > 0 ? "var(--navy)" : "var(--text-light)" }}>{active.length}</div>
+                    <div style={{ fontSize: 10, color: "var(--text-muted)" }}>task attivi</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Pannello dettaglio */}
+        {selectedClient && (
+          <div className="slide-up" style={{
+            flex: 1, minWidth: 0, background: "#fff", borderRadius: 14,
+            border: "1px solid var(--border)", overflow: "hidden",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.07)",
+            ...(isMobile ? { position: "fixed", inset: 0, zIndex: 600, overflowY: "auto", borderRadius: 0 } : {}),
+          }}>
+            {/* Header dettaglio */}
+            <div style={{ background: "var(--navy)", padding: "20px 22px", color: "#fff" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div>
+                  <div style={{ fontSize: 11, opacity: 0.65, marginBottom: 4 }}>
+                    {typeLabel[selectedClient.type]} · Cliente dal {formatDate(selectedClient.createdAt)}
+                  </div>
+                  <div className="playfair" style={{ fontSize: 18, fontWeight: 700 }}>{selectedClient.name}</div>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {canManage && (
+                    <>
+                      <button onClick={() => openEdit(selectedClient)} style={{
+                        background: "rgba(255,255,255,0.15)", border: "none", borderRadius: 8,
+                        color: "#fff", padding: "6px 12px", fontSize: 12, cursor: "pointer", fontFamily: "inherit"
+                      }}>✏️ Modifica</button>
+                      {isAdmin(uid) && (
+                        <button onClick={() => setConfirmDelete(selectedClient)} style={{
+                          background: "rgba(192,57,43,0.7)", border: "none", borderRadius: 8,
+                          color: "#fff", padding: "6px 12px", fontSize: 12, cursor: "pointer", fontFamily: "inherit"
+                        }}>🗑</button>
+                      )}
+                    </>
+                  )}
+                  <button onClick={() => setSelectedClient(null)} style={{
+                    background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 8,
+                    color: "#fff", padding: "6px 12px", fontSize: 18, cursor: "pointer"
+                  }}>×</button>
+                </div>
+              </div>
+
+              {/* KPI row */}
+              <div style={{ display: "flex", gap: 16, marginTop: 14 }}>
+                {[
+                  { label: "Task attivi", value: clientTasks.filter(t => t.status !== "done").length },
+                  { label: "Completati", value: clientTasks.filter(t => t.status === "done").length },
+                  { label: "Spesa totale", value: formatSpend(selectedClient.totalSpend) },
+                ].map(({ label, value }) => (
+                  <div key={label} style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 20, fontWeight: 700 }}>{value}</div>
+                    <div style={{ fontSize: 10, opacity: 0.65 }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ padding: "18px 22px", overflowY: "auto", maxHeight: isMobile ? "none" : "calc(100vh - 300px)" }}>
+              {/* Contatti */}
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Contatti</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {selectedClient.email && (
+                    <div style={{ fontSize: 13, display: "flex", gap: 8, alignItems: "center" }}>
+                      <span style={{ color: "var(--text-muted)" }}>✉</span>
+                      <a href={`mailto:${selectedClient.email}`} style={{ color: "var(--navy)", textDecoration: "none" }}>{selectedClient.email}</a>
+                    </div>
+                  )}
+                  {selectedClient.phone && (
+                    <div style={{ fontSize: 13, display: "flex", gap: 8, alignItems: "center" }}>
+                      <span style={{ color: "var(--text-muted)" }}>📞</span>
+                      <a href={`tel:${selectedClient.phone}`} style={{ color: "var(--navy)", textDecoration: "none" }}>{selectedClient.phone}</a>
+                    </div>
+                  )}
+                  {selectedClient.address && (
+                    <div style={{ fontSize: 13, display: "flex", gap: 8, alignItems: "flex-start" }}>
+                      <span style={{ color: "var(--text-muted)" }}>📍</span>
+                      <span>{selectedClient.address}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Note */}
+              {selectedClient.notes && (
+                <div style={{ marginBottom: 18 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Note</div>
+                  <div style={{
+                    fontSize: 13, color: "var(--text)", lineHeight: 1.6,
+                    background: "var(--surface2)", borderRadius: 8, padding: "10px 12px",
+                    borderLeft: "3px solid var(--gold)",
+                  }}>{selectedClient.notes}</div>
+                </div>
+              )}
+
+              {/* Tag */}
+              {(selectedClient.tags || []).length > 0 && (
+                <div style={{ marginBottom: 18 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Tag</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {selectedClient.tags.map(tag => (
+                      <span key={tag} style={{
+                        fontSize: 12, padding: "3px 10px", borderRadius: 99,
+                        background: "var(--surface3)", color: "var(--text-muted)", fontWeight: 500
+                      }}>{tag}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Task collegati */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Task collegati ({clientTasks.length})
+                </div>
+                {clientTasks.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "20px 0", color: "var(--text-muted)", fontSize: 13 }}>
+                    Nessun task attivo per questo cliente
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {clientTasks.map(t => (
+                      <div key={t.id}
+                        onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
+                        style={{
+                          padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)",
+                          cursor: "pointer", transition: "background 0.15s", display: "flex", gap: 10, alignItems: "center"
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                      >
+                        <span style={{ fontSize: 16 }}>{CATEGORIES[t.category]?.icon || "📋"}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</div>
+                          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                            📅 {formatDate(t.dueDate)}
+                            {isOverdue(t) && <span style={{ color: "var(--danger)", fontWeight: 600 }}> · Scaduto</span>}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-end" }}>
+                          <PriorityBadge priority={t.priority} />
+                          <StatusBadge status={t.status} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Modal add/edit */}
+      {showModal && (
+        <ClienteEditModal
+          cliente={editClient}
+          onSave={handleSave}
+          onClose={() => setShowModal(false)}
+        />
+      )}
+
+      {/* Modale anteprima import */}
+      {importPreview && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 900,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 20
+        }}>
+          <div className="slide-up" style={{
+            background: "#fff", borderRadius: 14, width: "100%", maxWidth: 560,
+            maxHeight: "80vh", display: "flex", flexDirection: "column",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.2)"
+          }}>
+            <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--border)" }}>
+              <div className="playfair" style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>
+                Anteprima importazione
+              </div>
+              <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                {importPreview.rows.length} clienti trovati nel file. Verifica prima di confermare.
+              </div>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", padding: "12px 24px" }}>
+              {importPreview.rows.map((c, i) => {
+                const alreadyExists = clients.some(ex => ex.name.toLowerCase() === c.name.toLowerCase());
+                return (
+                  <div key={i} style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "8px 0", borderBottom: "1px solid var(--border)", gap: 10
+                  }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+                        {c.name}
+                        {alreadyExists && (
+                          <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 99, background: "#FEF3C7", color: "#C8832A", fontWeight: 600 }}>già presente</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                        {[c.email, c.phone].filter(Boolean).join(" · ") || "Nessun contatto"}
+                      </div>
+                    </div>
+                    <span style={{
+                      fontSize: 11, padding: "2px 8px", borderRadius: 99,
+                      background: c.type === "azienda" ? "#FEF3C7" : "#EFF6FF",
+                      color: c.type === "azienda" ? "#C8832A" : "#0F2044", fontWeight: 600
+                    }}>{c.type === "azienda" ? "Azienda" : "Privato"}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ padding: "16px 24px", borderTop: "1px solid var(--border)", display: "flex", gap: 10 }}>
+              <button onClick={() => setImportPreview(null)} style={{
+                flex: 1, padding: "10px 0", border: "1px solid var(--border)", borderRadius: 8,
+                background: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit"
+              }}>Annulla</button>
+              <button onClick={confirmImport} style={{
+                flex: 2, padding: "10px 0", border: "none", borderRadius: 8,
+                background: "var(--navy)", color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit"
+              }}>
+                Importa {importPreview.rows.filter(r => !clients.some(ex => ex.name.toLowerCase() === r.name.toLowerCase())).length} nuovi clienti
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog conferma eliminazione */}
+      {confirmDelete && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 900,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 20
+        }}>
+          <div className="slide-up" style={{
+            background: "#fff", borderRadius: 14, padding: 28, maxWidth: 380, width: "100%",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.2)"
+          }}>
+            <div style={{ fontSize: 36, marginBottom: 12, textAlign: "center" }}>⚠️</div>
+            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, textAlign: "center", marginBottom: 8 }}>
+              Elimina cliente
+            </div>
+            <div style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center", marginBottom: 22, lineHeight: 1.5 }}>
+              Vuoi eliminare <strong>{confirmDelete.name}</strong>? I task collegati non verranno eliminati ma perderanno il collegamento all'anagrafica.
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setConfirmDelete(null)} style={{
+                flex: 1, padding: "10px 0", border: "1px solid var(--border)", borderRadius: 8,
+                background: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit"
+              }}>Annulla</button>
+              <button onClick={() => handleDelete(confirmDelete.id)} style={{
+                flex: 1, padding: "10px 0", border: "none", borderRadius: 8,
+                background: "var(--danger)", color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit"
+              }}>Elimina</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Team = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
   const [selectedMember, setSelectedMember] = useState(null);
@@ -6994,6 +7947,7 @@ function VoyageDeskInner() {
     switch (state.activeView) {
       case "dashboard": return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
       case "calendar": return <CalendarPlanner state={state} dispatch={dispatch} />;
+      case "clienti": return <ClientiView state={state} dispatch={dispatch} />;
       case "team": return <Team state={state} dispatch={dispatch} />;
       case "trash": return <Trash state={state} dispatch={dispatch} />;
       case "admin": return <AdminView state={state} dispatch={dispatch} />;
@@ -7052,7 +8006,7 @@ function VoyageDeskInner() {
             <FAB onClick={() => setShowFABModal(true)} />
           </>
         )}
-        {showFABModal && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} />}
+        {showFABModal && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} clients={state.clients || []} />}
 
         {/* Bulk Task Creator */}
         {showBulkModal && (

@@ -1,5 +1,101 @@
 # CHANGELOG — VoyageDesk
 
+## v0.12-dev — Notifiche reali + Badge nav (Fase 2, sessione 11)
+
+> Notifiche generate dinamicamente dallo stato dell'app, con badge live su sidebar e bottom-nav. Fine delle notifiche statiche mock.
+
+### 🔔 Notifiche dinamiche
+- **`getNotifications(state)`**: genera notifiche in tempo reale da 4 sorgenti:
+  - `overdue` ⚠️ — task scaduti visibili all'utente corrente
+  - `deadline` 📅 — task con scadenza nelle prossime 24h
+  - `queue` 🌐 — task in coda globale (non assegnati) — visibile a Manager/Admin
+  - `pending_team` 👤 — agenti in attesa di approvazione — solo Admin
+- ID notifiche deterministici (`overdue-{taskId}`, `queue-{taskId}`, ecc.) per persistenza stato "letto".
+- **`state.readNotifIds`**: array degli ID già letti, aggiornato dal reducer.
+- Azioni: `MARK_NOTIF_READ`, `MARK_ALL_NOTIF_READ`.
+
+### 🔔 NotificationsPanel rinnovato
+- Badge rosso con contatore non lette nell'header.
+- Pulsante **"✓ Tutte lette"** visibile solo quando ci sono non lette.
+- Filtro **Tutte / Non lette** con contatore.
+- Badge colorato per tipo (Scaduto, In scadenza, In coda, Team).
+- **Click su notifica** → apre il task direttamente in TaskSlideOver; se è `pending_team` → naviga ad Admin.
+- Stato vuoto con icona ✅ quando non ci sono notifiche (o non lette).
+
+### 🔴 Badge live su navigazione
+- **Sidebar desktop** e **BottomNav mobile**: badge rosso su:
+  - `Dashboard` → conteggio task in coda globale (non assegnati, non completati)
+  - `Admin` → conteggio agenti pending in attesa di approvazione
+- Badge visibile anche con sidebar collassata (sopra l'icona).
+
+### 📈 Metriche
+- File: 7760 → **7900 righe** circa.
+
+---
+
+## v0.11-dev — Creazione task semplificata + Import clienti (sessione 10)
+
+> Flusso di creazione task ridotto al minimo: cliente + categoria bastano. Aggiunto import anagrafica da CSV/Excel (compatibile easyADV e altri gestionali).
+
+### ⚡ QuickAddTask semplificato
+- **Cliente** (dropdown dall'anagrafica) e **Categoria** diventano i due campi obbligatori.
+- **Titolo auto-generato** dalla combinazione `Categoria — Nome Cliente` (es. "Booking — Famiglia Rossi"), con badge "auto-generato" visibile.
+- Titolo rimane modificabile: digitare nel campo sovrascrive il testo automatico.
+- Campi rimossi come obbligatori: il titolo non blocca più il salvataggio se viene auto-generato.
+
+### 📥 Import anagrafica clienti (CSV / Excel)
+- Bottone **"📥 Importa"** nell'header di Anagrafica Clienti.
+- Accetta file `.csv`, `.xlsx`, `.xls` — elaborato lato client con SheetJS (nessun upload su server).
+- **Mapping colonne intelligente**: riconosce automaticamente nomi colonna in italiano e inglese:
+  - Nome/Cognome, Ragione Sociale, Nominativo, Intestatario
+  - Email, Mail, E-mail
+  - Telefono, Cellulare, Cell, Mobile
+  - Indirizzo, Via, CAP, Città, Provincia
+  - Note, Annotazioni, Memo
+- **Modale anteprima**: mostra tutti i clienti trovati con badge "già presente" per i duplicati.
+- I duplicati (stesso nome, case-insensitive) vengono saltati automaticamente al momento dell'import.
+- Toast con conteggio: "N clienti importati, M già presenti ignorati".
+- Azione reducer `IMPORT_CLIENTS` (array di clienti + contatore saltati).
+
+### 🗑️ Rimosso
+- Anagrafica Fornitori: non necessaria per il flusso di lavoro dell'agenzia.
+- Pratiche di viaggio: deprioritizzate dalla roadmap.
+
+### 📈 Metriche
+- File: 7641 → **7760 righe** (netto).
+
+---
+
+## v0.10-dev — Anagrafica Clienti CRM (Fase 1, sessione 9)
+
+> Primo modulo della Fase 1: CRM base per agenzie viaggi. Introduce la gestione completa dell'anagrafica clienti con collegamento ai task esistenti.
+
+### 👤 Nuova vista: Anagrafica Clienti
+- **Voce "Clienti"** aggiunta alla sidebar/bottom-nav (ruoli: Admin, Manager, Agent; Driver escluso).
+- **6 clienti mock pre-caricati** che corrispondono ai clienti referenziati nei task esistenti: Famiglia Rossi, Coppia Bianchi, Azienda TechCorp, Famiglia Marchetti, Liceo Manzoni, Sposi Conte.
+- **Modello dati cliente**: `id`, `name`, `type` (privato/azienda), `email`, `phone`, `address`, `notes`, `tags[]`, `createdAt`, `lastContact`, `totalSpend`.
+
+### 🗂️ ClientiView — funzionalità
+- **Lista clienti** con griglia responsiva; ogni card mostra: nome, tipo, email, telefono, tag, contatore task attivi.
+- **Ricerca full-text** per nome, email, telefono, tag.
+- **Filtro tipo**: Tutti / Privati / Aziende con badge contatore.
+- **Pannello dettaglio** laterale (desktop) / full-screen (mobile): KPI (task attivi, completati, spesa totale), contatti cliccabili (mailto/tel), note con bordo dorato, tag, lista task collegati.
+- **Task collegati**: collega task per `task.client === client.name`; click su task apre `TaskSlideOver`.
+- **CRUD completo**: modal Add/Edit con tutti i campi; conferma eliminazione con avviso (solo Admin); solo Manager/Agent per add/edit.
+- **Azioni reducer**: `ADD_CLIENT`, `UPDATE_CLIENT`, `DELETE_CLIENT` — tutte logate nel log attività Admin.
+
+### 🏗️ Architettura
+- `state.clients` aggiunto a `initialState`.
+- Nuovi componenti: `ClienteEditModal`, `ClientiView`.
+- Azioni logate in `LOGGED_ACTIONS` e descritte in `buildLogEntry`.
+
+### 📈 Metriche
+- File da 7071 → **7641 righe**.
+- Componenti aggiunti: 2 (`ClienteEditModal`, `ClientiView`).
+- Azioni reducer aggiunte: 3 (`ADD_CLIENT`, `UPDATE_CLIENT`, `DELETE_CLIENT`).
+
+---
+
 ## v0.9-dev — Ristrutturazione UI + Profilo + Handoff (sessione 8)
 
 > Semplificazione interfaccia, unificazione viste, nuovo profilo utente, preparazione per migrazione a progetto Vite.

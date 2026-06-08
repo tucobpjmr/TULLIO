@@ -229,6 +229,97 @@ const INITIAL_SUPPLIERS = [
   { id: "s7", name: "Allianz Travel", type: "assicurazioni", email: "partner@allianz-travel.it", phone: "+39 02 72160555", address: "Via Sassetti 2, Milano", website: "allianz-travel.it", notes: "Polizze annullamento, mediche, bagaglio. Referente agenzie: Carla Bonfanti. Commissione 20% su polizze vendute. Portale b2b attivo.", createdAt: new Date(Date.now() - 86400000 * 120).toISOString() },
 ];
 
+const INITIAL_PRATICHE = [
+  {
+    id: "PR-2026-001",
+    title: "Vacanza Maldive — Famiglia Rossi",
+    clientId: "cl1",
+    status: "confermata",
+    destination: "Maldive",
+    startDate: new Date(Date.now() + 86400000 * 37).toISOString().slice(0, 10),
+    endDate: new Date(Date.now() + 86400000 * 47).toISOString().slice(0, 10),
+    pax: 4,
+    budget: 15000,
+    revenue: 14800,
+    cost: 10200,
+    taskIds: ["t1", "t3", "t5", "t12", "t21", "t26"],
+    supplierIds: ["s1", "s2", "s7"],
+    notes: "Cliente VIP. Verificare disponibilità upgrade all'arrivo. Richiedere menù bambini all'hotel.",
+    createdAt: new Date(Date.now() - 86400000 * 45).toISOString(),
+    createdBy: "marco",
+    statusHistory: [
+      { status: "bozza", date: new Date(Date.now() - 86400000 * 45).toISOString(), userId: "marco" },
+      { status: "confermata", date: new Date(Date.now() - 86400000 * 30).toISOString(), userId: "sofia" },
+    ],
+  },
+  {
+    id: "PR-2026-002",
+    title: "Luna di Miele Giappone — Coppia Bianchi",
+    clientId: "cl2",
+    status: "in_corso",
+    destination: "Giappone",
+    startDate: new Date(Date.now() - 86400000 * 2).toISOString().slice(0, 10),
+    endDate: new Date(Date.now() + 86400000 * 12).toISOString().slice(0, 10),
+    pax: 2,
+    budget: 8000,
+    revenue: 8500,
+    cost: 5800,
+    taskIds: ["t2", "t9", "t14"],
+    supplierIds: ["s3", "s6"],
+    notes: "Viaggio nozze. Sorpresa petali di rosa in camera — avvisare Tawaraya Ryokan.",
+    createdAt: new Date(Date.now() - 86400000 * 60).toISOString(),
+    createdBy: "sofia",
+    statusHistory: [
+      { status: "bozza", date: new Date(Date.now() - 86400000 * 60).toISOString(), userId: "sofia" },
+      { status: "confermata", date: new Date(Date.now() - 86400000 * 45).toISOString(), userId: "marco" },
+      { status: "in_corso", date: new Date(Date.now() - 86400000 * 2).toISOString(), userId: "marco" },
+    ],
+  },
+  {
+    id: "PR-2026-003",
+    title: "Incentive Aziendale Dubrovnik — TechCorp",
+    clientId: "cl3",
+    status: "confermata",
+    destination: "Dubrovnik, Croazia",
+    startDate: new Date(Date.now() + 86400000 * 104).toISOString().slice(0, 10),
+    endDate: new Date(Date.now() + 86400000 * 108).toISOString().slice(0, 10),
+    pax: 50,
+    budget: 90000,
+    revenue: 92000,
+    cost: 68000,
+    taskIds: ["t4", "t13", "t15", "t20"],
+    supplierIds: ["s4"],
+    notes: "Evento incentive 50 pax. Sala conferenze per 1 giornata + gala dinner ultima sera.",
+    createdAt: new Date(Date.now() - 86400000 * 30).toISOString(),
+    createdBy: "marco",
+    statusHistory: [
+      { status: "bozza", date: new Date(Date.now() - 86400000 * 30).toISOString(), userId: "marco" },
+      { status: "confermata", date: new Date(Date.now() - 86400000 * 10).toISOString(), userId: "roberto" },
+    ],
+  },
+  {
+    id: "PR-2026-004",
+    title: "Viaggio Nozze Vietnam — Sposi Conte",
+    clientId: "cl6",
+    status: "bozza",
+    destination: "Vietnam",
+    startDate: null,
+    endDate: null,
+    pax: 2,
+    budget: 6000,
+    revenue: 0,
+    cost: 0,
+    taskIds: ["t25"],
+    supplierIds: [],
+    notes: "In preventivazione. Richiedono Hanoi - Halong Bay - Hoi An - Saigon. Budget indicativo 6.000€.",
+    createdAt: new Date(Date.now() - 86400000 * 15).toISOString(),
+    createdBy: "sofia",
+    statusHistory: [
+      { status: "bozza", date: new Date(Date.now() - 86400000 * 15).toISOString(), userId: "sofia" },
+    ],
+  },
+];
+
 const NOTIFICATIONS = [
   { id: "n1", type: "overdue", title: "Task scaduto: Visto Giappone - Coppia Bianchi", time: "5 min fa", read: false },
   { id: "n2", type: "assigned", title: "Nuovo task assegnato: Newsletter Giugno", time: "1 ora fa", read: false },
@@ -322,6 +413,7 @@ const LOGGED_ACTIONS = new Set([
   "ADD_NOTICE", "UPDATE_NOTICE", "DELETE_NOTICE",
   "ADD_CLIENT", "UPDATE_CLIENT", "DELETE_CLIENT",
   "ADD_SUPPLIER", "UPDATE_SUPPLIER", "DELETE_SUPPLIER",
+  "ADD_PRATICA", "UPDATE_PRATICA", "DELETE_PRATICA",
 ]);
 
 const buildLogEntry = (action, state) => {
@@ -356,6 +448,9 @@ const buildLogEntry = (action, state) => {
     ADD_SUPPLIER: () => `Aggiunto fornitore "${action.payload.name}"`,
     UPDATE_SUPPLIER: () => `Modificato fornitore "${action.payload.name || action.payload.id}"`,
     DELETE_SUPPLIER: () => `Rimosso fornitore`,
+    ADD_PRATICA: () => `Creata pratica ${action.payload.id} "${action.payload.title}"`,
+    UPDATE_PRATICA: () => `Aggiornata pratica ${action.payload.id}`,
+    DELETE_PRATICA: () => `Eliminata pratica ${action.payload}`,
   };
   return { id: `log-${stamp}-${Math.random().toString(36).slice(2,7)}`, time: stamp, type: t, text: (map[t] || (() => t))() };
 };
@@ -388,7 +483,7 @@ function baseReducer(state, action) {
       // Se l'utente non può più accedere alla view corrente, riporta a dashboard
       const newRole = getRoleType(newId);
       const activeView = (state.activeView === "admin" && !canAccessAdmin(newId))
-        || (["clients", "suppliers"].includes(state.activeView) && newRole === "driver")
+        || (["pratiche", "clients", "suppliers"].includes(state.activeView) && newRole === "driver")
         || (state.activeView === "trash" && newRole !== "admin")
         ? "dashboard"
         : state.activeView;
@@ -547,7 +642,7 @@ function baseReducer(state, action) {
       return { ...state, agencyName: action.payload };
     }
     case "RESTORE_BACKUP": {
-      const { tasks, clients, suppliers, team, categories, agencyName, notices } = action.payload;
+      const { tasks, clients, suppliers, pratiche, team, categories, agencyName, notices } = action.payload;
       if (team) _syncTeam(team);
       if (categories) _syncCategories(categories);
       return {
@@ -555,6 +650,7 @@ function baseReducer(state, action) {
         tasks: tasks ?? state.tasks,
         clients: clients ?? state.clients,
         suppliers: suppliers ?? state.suppliers,
+        pratiche: pratiche ?? state.pratiche,
         team: team ?? state.team,
         categories: categories ?? state.categories,
         agencyName: agencyName ?? state.agencyName,
@@ -613,6 +709,20 @@ function baseReducer(state, action) {
     case "TOGGLE_NOTIF": return { ...state, showNotif: !state.showNotif };
     case "SET_FILTER": return { ...state, filters: { ...state.filters, ...action.payload } };
     case "TOGGLE_SIDEBAR": return { ...state, sidebarCollapsed: !state.sidebarCollapsed };
+
+    // ─── PRATICHE (v0.9) ───
+    case "ADD_PRATICA": {
+      const pratiche = [action.payload, ...(state.pratiche || [])];
+      return { ...state, pratiche, toast: { message: `Pratica ${action.payload.id} creata!`, type: "success" } };
+    }
+    case "UPDATE_PRATICA": {
+      const pratiche = (state.pratiche || []).map(p => p.id === action.payload.id ? { ...p, ...action.payload } : p);
+      return { ...state, pratiche, toast: { message: "Pratica aggiornata!", type: "success" } };
+    }
+    case "DELETE_PRATICA": {
+      const pratiche = (state.pratiche || []).filter(p => p.id !== action.payload);
+      return { ...state, pratiche, toast: { message: "Pratica eliminata", type: "success" } };
+    }
 
     // ─── FORNITORI (v0.9) ───
     case "ADD_SUPPLIER": {
@@ -721,6 +831,7 @@ const initialState = {
   tasks: INITIAL_TASKS,
   clients: INITIAL_CLIENTS,
   suppliers: INITIAL_SUPPLIERS,
+  pratiche: INITIAL_PRATICHE,
   team: TEAM,
   categories: CATEGORIES,
   agencyName: "VoyageDesk",
@@ -1997,6 +2108,7 @@ const NotificationsPanel = ({ dispatch }) => {
 const NAV_ITEMS = [
   { id: "dashboard", icon: "📊", label: "Dashboard", roles: ["admin", "manager", "agent", "driver"] },
   { id: "calendar", icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
+  { id: "pratiche", icon: "📋", label: "Pratiche", roles: ["admin", "manager", "agent"] },
   { id: "clients", icon: "👤", label: "Clienti", roles: ["admin", "manager", "agent"] },
   { id: "suppliers", icon: "🤝", label: "Fornitori", roles: ["admin", "manager", "agent"] },
   { id: "team", icon: "👥", label: "Team", roles: ["admin", "manager", "agent"] },
@@ -6555,6 +6667,7 @@ const AdminIOTab = ({ state, dispatch }) => {
       tasks: state.tasks,
       clients: state.clients || [],
       suppliers: state.suppliers || [],
+      pratiche: state.pratiche || [],
       team: state.team,
       categories: state.categories,
       notices: state.notices,
@@ -7296,6 +7409,502 @@ const ClientiView = ({ state, dispatch }) => {
   );
 };
 
+// ─── PRATICHE DI VIAGGIO (v0.9) ────────────────────────────────────────────
+const PRATICA_STATUSES = {
+  bozza:      { label: "Bozza",      icon: "📝", color: "#6B7280", bg: "#F3F4F6" },
+  confermata: { label: "Confermata", icon: "✅", color: "#D4A843", bg: "#FFFBEB" },
+  in_corso:   { label: "In Corso",   icon: "🚀", color: "#3B82F6", bg: "#EFF6FF" },
+  completata: { label: "Completata", icon: "🏁", color: "#2D7A4F", bg: "#ECFDF5" },
+  annullata:  { label: "Annullata",  icon: "❌", color: "#C0392B", bg: "#FEF2F2" },
+};
+
+const getNextPraticaId = (pratiche) => {
+  const year = new Date().getFullYear();
+  const nums = (pratiche || []).map(p => parseInt((p.id.match(/PR-\d{4}-(\d+)/) || [])[1] || 0)).filter(Boolean);
+  const next = nums.length ? Math.max(...nums) + 1 : 1;
+  return `PR-${year}-${String(next).padStart(3, "0")}`;
+};
+
+const PraticaModal = ({ pratica, clients, onSave, onClose }) => {
+  const isNew = !pratica?.id;
+  const { isMobile } = useViewport();
+  const [form, setForm] = useState(pratica ? { ...pratica } : {
+    title: "", clientId: "", status: "bozza", destination: "",
+    startDate: "", endDate: "", pax: 1,
+    budget: 0, revenue: 0, cost: 0, notes: "",
+  });
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const lbl = { fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, display: "block" };
+  const inp = { width: "100%", padding: "9px 12px", borderRadius: 8, border: "1.5px solid var(--border)", background: "#fff", fontSize: 14, color: "var(--text)", outline: "none", fontFamily: "inherit" };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 900, padding: 16 }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 560, maxHeight: "92vh", overflowY: "auto", padding: isMobile ? 20 : 28, boxShadow: "0 24px 60px rgba(0,0,0,0.22)" }} className="fade-in">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
+          <h2 className="playfair" style={{ fontSize: 20, color: "var(--navy)" }}>{isNew ? "Nuova Pratica" : `Modifica ${pratica.id}`}</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text-muted)" }}>✕</button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div>
+            <label style={lbl}>Titolo pratica *</label>
+            <input value={form.title} onChange={e => set("title", e.target.value)} placeholder="es. Maldive — Famiglia Rossi" style={inp} />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={lbl}>Cliente *</label>
+              <select value={form.clientId} onChange={e => set("clientId", e.target.value)} style={{ ...inp, appearance: "none" }}>
+                <option value="">— Seleziona cliente —</option>
+                {(clients || []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Stato</label>
+              <select value={form.status} onChange={e => set("status", e.target.value)} style={{ ...inp, appearance: "none" }}>
+                {Object.entries(PRATICA_STATUSES).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={lbl}>Destinazione</label>
+              <input value={form.destination} onChange={e => set("destination", e.target.value)} placeholder="es. Maldive" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Partecipanti (pax)</label>
+              <input type="number" min={1} value={form.pax} onChange={e => set("pax", parseInt(e.target.value) || 1)} style={inp} />
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={lbl}>Data partenza</label>
+              <input type="date" value={form.startDate || ""} onChange={e => set("startDate", e.target.value)} style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Data rientro</label>
+              <input type="date" value={form.endDate || ""} onChange={e => set("endDate", e.target.value)} style={inp} />
+            </div>
+          </div>
+          <div style={{ background: "var(--surface2)", borderRadius: 10, padding: "14px 16px" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 10 }}>RIEPILOGO ECONOMICO (€)</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+              {[["budget", "Budget preventivo"], ["revenue", "Ricavi (venduto)"], ["cost", "Costi fornitori"]].map(([k, label]) => (
+                <div key={k}>
+                  <label style={{ ...lbl, fontSize: 11 }}>{label}</label>
+                  <input type="number" min={0} value={form[k]} onChange={e => set(k, parseFloat(e.target.value) || 0)}
+                    style={{ ...inp, padding: "7px 10px", fontSize: 13 }} />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label style={lbl}>Note interne</label>
+            <textarea value={form.notes} onChange={e => set("notes", e.target.value)} rows={3} placeholder="Note operative, richieste speciali..." style={{ ...inp, resize: "vertical" }} />
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 10, marginTop: 22, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ padding: "10px 20px", borderRadius: 8, border: "1.5px solid var(--border)", background: "#fff", color: "var(--text-muted)", cursor: "pointer", fontSize: 14 }}>Annulla</button>
+          <button onClick={() => { if (form.title.trim() && form.clientId) onSave(form); }}
+            disabled={!form.title.trim() || !form.clientId}
+            style={{ padding: "10px 20px", borderRadius: 8, border: "none", background: (form.title.trim() && form.clientId) ? "var(--navy)" : "var(--border)", color: (form.title.trim() && form.clientId) ? "#fff" : "var(--text-muted)", cursor: (form.title.trim() && form.clientId) ? "pointer" : "not-allowed", fontSize: 14, fontWeight: 600 }}>
+            {isNew ? "Crea Pratica" : "Salva Modifiche"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const PraticheView = ({ state, dispatch }) => {
+  const { isMobile, isDesktop } = useViewport();
+  const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [showModal, setShowModal] = useState(false);
+  const [editingPratica, setEditingPratica] = useState(null);
+  const [selectedPratica, setSelectedPratica] = useState(null);
+  const [showTaskPicker, setShowTaskPicker] = useState(false);
+  const [showSupplierPicker, setShowSupplierPicker] = useState(false);
+  const uid = state.currentUserId;
+  const canEdit = getRoleType(uid) !== "driver";
+  const pratiche = state.pratiche || [];
+  const clients = state.clients || [];
+  const suppliers = state.suppliers || [];
+  const activeTasks = getActiveTasks(state.tasks);
+
+  const getClientName = id => clients.find(c => c.id === id)?.name || "—";
+  const getClientObj = id => clients.find(c => c.id === id);
+
+  const filtered = pratiche.filter(p => {
+    const matchSearch = !search || p.title.toLowerCase().includes(search.toLowerCase()) ||
+      p.destination.toLowerCase().includes(search.toLowerCase()) ||
+      getClientName(p.clientId).toLowerCase().includes(search.toLowerCase()) ||
+      p.id.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = filterStatus === "all" || p.status === filterStatus;
+    return matchSearch && matchStatus;
+  });
+
+  const countByStatus = (s) => pratiche.filter(p => p.status === s).length;
+  const margine = (p) => p.revenue - p.cost;
+  const marginePct = (p) => p.revenue > 0 ? Math.round(((p.revenue - p.cost) / p.revenue) * 100) : 0;
+  const durataGiorni = (p) => {
+    if (!p.startDate || !p.endDate) return null;
+    return Math.round((new Date(p.endDate) - new Date(p.startDate)) / 86400000) + 1;
+  };
+
+  const handleSave = (form) => {
+    if (form.id) {
+      dispatch({ type: "UPDATE_PRATICA", payload: form });
+      if (selectedPratica?.id === form.id) setSelectedPratica({ ...selectedPratica, ...form });
+    } else {
+      const newId = getNextPraticaId(pratiche);
+      const newPratica = {
+        ...form, id: newId, taskIds: [], supplierIds: [],
+        createdAt: new Date().toISOString(), createdBy: uid,
+        statusHistory: [{ status: form.status, date: new Date().toISOString(), userId: uid }],
+      };
+      dispatch({ type: "ADD_PRATICA", payload: newPratica });
+    }
+    setShowModal(false);
+    setEditingPratica(null);
+  };
+
+  const handleDelete = (id) => {
+    dispatch({ type: "DELETE_PRATICA", payload: id });
+    if (selectedPratica?.id === id) setSelectedPratica(null);
+  };
+
+  const updateSelected = (patch) => {
+    if (!selectedPratica) return;
+    const updated = { ...selectedPratica, ...patch };
+    dispatch({ type: "UPDATE_PRATICA", payload: updated });
+    setSelectedPratica(updated);
+  };
+
+  const handleStatusChange = (pratica, newStatus) => {
+    const newHistory = [...(pratica.statusHistory || []), { status: newStatus, date: new Date().toISOString(), userId: uid }];
+    const updated = { ...pratica, status: newStatus, statusHistory: newHistory };
+    dispatch({ type: "UPDATE_PRATICA", payload: updated });
+    if (selectedPratica?.id === pratica.id) setSelectedPratica(updated);
+  };
+
+  // Tasks e fornitori della pratica selezionata (live da state)
+  const detail = selectedPratica ? (pratiche.find(p => p.id === selectedPratica.id) || null) : null;
+  const detailTasks = detail ? activeTasks.filter(t => (detail.taskIds || []).includes(t.id)) : [];
+  const detailSuppliers = detail ? suppliers.filter(s => (detail.supplierIds || []).includes(s.id)) : [];
+
+  // Task collegabili (non già nella pratica, dello stesso cliente)
+  const linkableTasks = detail ? activeTasks.filter(t =>
+    !(detail.taskIds || []).includes(t.id) &&
+    (t.client === getClientName(detail.clientId) || !t.client)
+  ) : [];
+  const linkableSuppliers = detail ? suppliers.filter(s => !(detail.supplierIds || []).includes(s.id)) : [];
+
+  const fmt = (n) => n ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n) : "—";
+
+  return (
+    <div style={{ padding: isMobile ? 14 : 28 }} className="fade-in">
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <h1 className="playfair" style={{ fontSize: isMobile ? 22 : 28, color: "var(--navy)", marginBottom: 4 }}>Pratiche di Viaggio</h1>
+          <p style={{ fontSize: 14, color: "var(--text-muted)" }}>{pratiche.length} pratiche totali</p>
+        </div>
+        {canEdit && (
+          <button onClick={() => { setEditingPratica(null); setShowModal(true); }}
+            style={{ padding: "10px 20px", borderRadius: 10, background: "var(--navy)", color: "#fff", border: "none", cursor: "pointer", fontSize: 14, fontWeight: 600, whiteSpace: "nowrap" }}
+            onMouseEnter={e => e.currentTarget.style.background = "var(--navy-light)"}
+            onMouseLeave={e => e.currentTarget.style.background = "var(--navy)"}
+          >+ Nuova Pratica</button>
+        )}
+      </div>
+
+      {/* Status tabs */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+        <button onClick={() => setFilterStatus("all")} style={{ padding: "6px 14px", borderRadius: 20, cursor: "pointer", fontSize: 12, fontWeight: filterStatus === "all" ? 700 : 400, border: filterStatus === "all" ? "1.5px solid var(--navy)" : "1.5px solid var(--border)", background: filterStatus === "all" ? "var(--navy)" : "#fff", color: filterStatus === "all" ? "#fff" : "var(--text-muted)" }}>
+          Tutte <span style={{ marginLeft: 4, background: "rgba(255,255,255,0.2)", borderRadius: 10, padding: "1px 6px" }}>{pratiche.length}</span>
+        </button>
+        {Object.entries(PRATICA_STATUSES).map(([k, v]) => {
+          const cnt = countByStatus(k);
+          if (!cnt && filterStatus !== k) return null;
+          return (
+            <button key={k} onClick={() => setFilterStatus(k)} style={{ padding: "6px 14px", borderRadius: 20, cursor: "pointer", fontSize: 12, fontWeight: filterStatus === k ? 700 : 400, border: filterStatus === k ? `1.5px solid ${v.color}` : "1.5px solid var(--border)", background: filterStatus === k ? v.bg : "#fff", color: filterStatus === k ? v.color : "var(--text-muted)" }}>
+              {v.icon} {v.label} <span style={{ marginLeft: 4, fontWeight: 700 }}>{cnt}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Search */}
+      <div style={{ marginBottom: 18 }}>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca per numero, titolo, cliente, destinazione..."
+          style={{ width: "100%", padding: "9px 14px", borderRadius: 8, border: "1.5px solid var(--border)", fontSize: 14, outline: "none", background: "#fff" }} />
+      </div>
+
+      {/* Main layout */}
+      <div style={{ display: "grid", gridTemplateColumns: detail && isDesktop ? "1fr 420px" : "1fr", gap: 20, alignItems: "start" }}>
+        {/* Pratica cards */}
+        <div>
+          {filtered.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--text-muted)" }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
+              <p style={{ fontSize: 16, fontWeight: 500 }}>{search || filterStatus !== "all" ? "Nessuna pratica trovata" : "Nessuna pratica inserita"}</p>
+              {!search && filterStatus === "all" && canEdit && (
+                <button onClick={() => setShowModal(true)} style={{ marginTop: 16, padding: "10px 20px", borderRadius: 8, background: "var(--navy)", color: "#fff", border: "none", cursor: "pointer", fontSize: 14 }}>Crea la prima pratica</button>
+              )}
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {filtered.map(p => {
+                const st = PRATICA_STATUSES[p.status] || PRATICA_STATUSES.bozza;
+                const isSelected = selectedPratica?.id === p.id;
+                const mg = margine(p);
+                const durata = durataGiorni(p);
+                return (
+                  <div key={p.id} onClick={() => setSelectedPratica(isSelected ? null : p)}
+                    style={{ background: "#fff", borderRadius: 12, padding: "16px 20px", border: isSelected ? "2px solid var(--navy)" : "1.5px solid var(--border)", cursor: "pointer", transition: "all 0.18s", boxShadow: isSelected ? "0 4px 20px rgba(15,32,68,0.12)" : "0 1px 4px rgba(0,0,0,0.05)" }}
+                    onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.borderColor = "var(--navy-light)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.09)"; } }}
+                    onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.05)"; } }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 12, fontWeight: 800, color: "var(--gold-dark)", letterSpacing: 0.5 }}>{p.id}</span>
+                          <span style={{ padding: "2px 8px", borderRadius: 20, fontSize: 11, fontWeight: 600, background: st.bg, color: st.color }}>{st.icon} {st.label}</span>
+                        </div>
+                        <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", lineHeight: 1.3, marginBottom: 4 }}>{p.title}</h3>
+                        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>👤 {getClientName(p.clientId)}</span>
+                          {p.destination && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>📍 {p.destination}</span>}
+                          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>👥 {p.pax} pax</span>
+                          {durata && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>🗓️ {durata}gg</span>}
+                          {p.startDate && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>✈️ {new Date(p.startDate).toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}</span>}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        {p.revenue > 0 && <div style={{ fontSize: 14, fontWeight: 700, color: "var(--navy)" }}>{fmt(p.revenue)}</div>}
+                        {p.revenue > 0 && <div style={{ fontSize: 11, color: mg >= 0 ? "var(--success)" : "var(--danger)", fontWeight: 600 }}>margine {marginePct(p)}%</div>}
+                        {canEdit && (
+                          <div style={{ display: "flex", gap: 2, justifyContent: "flex-end", marginTop: 8 }} onClick={e => e.stopPropagation()}>
+                            <button onClick={() => { setEditingPratica(p); setShowModal(true); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "var(--text-muted)", padding: "4px 5px", borderRadius: 4 }} title="Modifica">✏️</button>
+                            <button onClick={() => handleDelete(p.id)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "var(--danger)", padding: "4px 5px", borderRadius: 4 }} title="Elimina">🗑️</button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {(p.taskIds?.length > 0 || p.supplierIds?.length > 0) && (
+                      <div style={{ display: "flex", gap: 10, marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+                        {p.taskIds?.length > 0 && <span style={{ fontSize: 11, color: "var(--text-muted)" }}>📌 {p.taskIds.length} task</span>}
+                        {p.supplierIds?.length > 0 && <span style={{ fontSize: 11, color: "var(--text-muted)" }}>🤝 {p.supplierIds.length} fornitor{p.supplierIds.length === 1 ? "e" : "i"}</span>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Detail panel */}
+        {detail && (
+          <div style={{ background: "#fff", borderRadius: 14, border: "1.5px solid var(--border)", boxShadow: "0 4px 24px rgba(0,0,0,0.09)", overflow: "hidden" }} className="fade-in">
+            {/* Header panel */}
+            <div style={{ padding: "18px 20px 14px", background: "var(--navy)", color: "#fff" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: "var(--gold)", letterSpacing: 0.5 }}>{detail.id}</span>
+                    {canEdit ? (
+                      <select value={detail.status} onChange={e => handleStatusChange(detail, e.target.value)}
+                        onClick={e => e.stopPropagation()}
+                        style={{ padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", background: PRATICA_STATUSES[detail.status]?.bg, color: PRATICA_STATUSES[detail.status]?.color, appearance: "none" }}>
+                        {Object.entries(PRATICA_STATUSES).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+                      </select>
+                    ) : (
+                      <span style={{ padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: PRATICA_STATUSES[detail.status]?.bg, color: PRATICA_STATUSES[detail.status]?.color }}>{PRATICA_STATUSES[detail.status]?.icon} {PRATICA_STATUSES[detail.status]?.label}</span>
+                    )}
+                  </div>
+                  <h3 className="playfair" style={{ fontSize: 16, lineHeight: 1.3 }}>{detail.title}</h3>
+                </div>
+                <button onClick={() => setSelectedPratica(null)} style={{ background: "rgba(255,255,255,0.12)", border: "none", borderRadius: 6, width: 28, height: 28, cursor: "pointer", color: "#fff", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginLeft: 8 }}>✕</button>
+              </div>
+            </div>
+            <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 18 }}>
+              {/* Info viaggio */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 8 }}>VIAGGIO</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  {[
+                    ["👤 Cliente", getClientName(detail.clientId)],
+                    ["📍 Destinazione", detail.destination || "—"],
+                    ["👥 Partecipanti", `${detail.pax} pax`],
+                    ["📅 Durata", durataGiorni(detail) ? `${durataGiorni(detail)} giorni` : "—"],
+                    ["✈️ Partenza", detail.startDate ? new Date(detail.startDate).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }) : "—"],
+                    ["🏠 Rientro", detail.endDate ? new Date(detail.endDate).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }) : "—"],
+                  ].map(([label, value]) => (
+                    <div key={label} style={{ background: "var(--surface2)", borderRadius: 8, padding: "8px 10px" }}>
+                      <div style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 2 }}>{label}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Riepilogo economico */}
+              {(detail.revenue > 0 || detail.cost > 0 || detail.budget > 0) && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 8 }}>RIEPILOGO ECONOMICO</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {[
+                      { label: "Budget preventivo", value: detail.budget, color: "var(--text-muted)" },
+                      { label: "Ricavi (venduto)", value: detail.revenue, color: "var(--navy)" },
+                      { label: "Costi fornitori", value: detail.cost, color: "var(--warning)" },
+                    ].map(({ label, value, color }) => (
+                      <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 10px", background: "var(--surface2)", borderRadius: 8 }}>
+                        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{label}</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color }}>{fmt(value)}</span>
+                      </div>
+                    ))}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 10px", background: margine(detail) >= 0 ? "#ECFDF5" : "#FEF2F2", borderRadius: 8, border: `1px solid ${margine(detail) >= 0 ? "#2D7A4F" : "var(--danger)"}` }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: margine(detail) >= 0 ? "var(--success)" : "var(--danger)" }}>Margine netto</span>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: margine(detail) >= 0 ? "var(--success)" : "var(--danger)" }}>{fmt(margine(detail))} ({marginePct(detail)}%)</span>
+                    </div>
+                    {detail.revenue > 0 && (
+                      <div style={{ height: 6, background: "var(--surface3)", borderRadius: 3, overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${Math.min(100, Math.max(0, marginePct(detail)))}%`, background: margine(detail) >= 0 ? "var(--success)" : "var(--danger)", borderRadius: 3, transition: "width 0.4s ease" }} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Task collegati */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1 }}>TASK COLLEGATI ({detailTasks.length})</div>
+                  {canEdit && linkableTasks.length > 0 && (
+                    <button onClick={() => setShowTaskPicker(!showTaskPicker)} style={{ background: "none", border: "1px solid var(--border)", borderRadius: 6, padding: "3px 10px", fontSize: 11, cursor: "pointer", color: "var(--navy)" }}>+ Collega</button>
+                  )}
+                </div>
+                {showTaskPicker && (
+                  <div style={{ background: "var(--surface2)", borderRadius: 8, padding: 10, marginBottom: 10, maxHeight: 180, overflowY: "auto" }}>
+                    {linkableTasks.map(t => (
+                      <div key={t.id} onClick={() => { updateSelected({ taskIds: [...(detail.taskIds || []), t.id] }); setShowTaskPicker(false); }}
+                        style={{ padding: "6px 8px", borderRadius: 6, cursor: "pointer", fontSize: 12, display: "flex", gap: 6, alignItems: "center" }}
+                        onMouseEnter={e => e.currentTarget.style.background = "var(--surface3)"}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                        <CategoryChip category={t.category} />
+                        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {detailTasks.length === 0 ? (
+                  <p style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>Nessun task collegato</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {detailTasks.map(t => (
+                      <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "var(--surface2)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                        <div style={{ flex: 1, minWidth: 0, cursor: "pointer" }} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</div>
+                          <div style={{ display: "flex", gap: 4, marginTop: 3 }}><CategoryChip category={t.category} /><StatusBadge status={t.status} /></div>
+                        </div>
+                        {canEdit && (
+                          <button onClick={() => updateSelected({ taskIds: (detail.taskIds || []).filter(id => id !== t.id) })}
+                            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: 14, padding: 2, flexShrink: 0 }} title="Scollega">✕</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Fornitori coinvolti */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1 }}>FORNITORI ({detailSuppliers.length})</div>
+                  {canEdit && linkableSuppliers.length > 0 && (
+                    <button onClick={() => setShowSupplierPicker(!showSupplierPicker)} style={{ background: "none", border: "1px solid var(--border)", borderRadius: 6, padding: "3px 10px", fontSize: 11, cursor: "pointer", color: "var(--navy)" }}>+ Collega</button>
+                  )}
+                </div>
+                {showSupplierPicker && (
+                  <div style={{ background: "var(--surface2)", borderRadius: 8, padding: 10, marginBottom: 10, maxHeight: 160, overflowY: "auto" }}>
+                    {linkableSuppliers.map(s => (
+                      <div key={s.id} onClick={() => { updateSelected({ supplierIds: [...(detail.supplierIds || []), s.id] }); setShowSupplierPicker(false); }}
+                        style={{ padding: "6px 8px", borderRadius: 6, cursor: "pointer", fontSize: 12 }}
+                        onMouseEnter={e => e.currentTarget.style.background = "var(--surface3)"}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                        {SUPPLIER_TYPES[s.type]?.icon} {s.name}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {detailSuppliers.length === 0 ? (
+                  <p style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>Nessun fornitore collegato</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {detailSuppliers.map(s => {
+                      const st = SUPPLIER_TYPES[s.type] || SUPPLIER_TYPES.altro;
+                      return (
+                        <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "var(--surface2)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                          <span style={{ fontSize: 12, padding: "2px 7px", borderRadius: 10, background: st.bg, color: st.color, fontWeight: 600, whiteSpace: "nowrap" }}>{st.icon} {st.label.split(" ")[0]}</span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</span>
+                          {canEdit && (
+                            <button onClick={() => updateSelected({ supplierIds: (detail.supplierIds || []).filter(id => id !== s.id) })}
+                              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: 14, padding: 2, flexShrink: 0 }}>✕</button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Note */}
+              {detail.notes && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 8 }}>NOTE</div>
+                  <p style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.7, background: "var(--surface2)", borderRadius: 8, padding: "10px 12px", whiteSpace: "pre-line" }}>{detail.notes}</p>
+                </div>
+              )}
+
+              {/* Timeline stati */}
+              {detail.statusHistory?.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 8 }}>STORICO STATI</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {[...detail.statusHistory].reverse().map((h, i) => {
+                      const st = PRATICA_STATUSES[h.status] || PRATICA_STATUSES.bozza;
+                      const member = getMember(h.userId);
+                      return (
+                        <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-muted)" }}>
+                          <span style={{ padding: "1px 7px", borderRadius: 10, background: st.bg, color: st.color, fontSize: 10, fontWeight: 600, whiteSpace: "nowrap" }}>{st.icon} {st.label}</span>
+                          <span>{new Date(h.date).toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}</span>
+                          {member && <span>— {member.name.split(" ")[0]}</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {canEdit && (
+                <button onClick={() => { setEditingPratica(detail); setShowModal(true); }}
+                  style={{ width: "100%", padding: "10px", borderRadius: 8, border: "1.5px solid var(--border)", background: "#fff", cursor: "pointer", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}
+                  onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                  onMouseLeave={e => e.currentTarget.style.background = "#fff"}>✏️ Modifica Pratica</button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {showModal && (
+        <PraticaModal pratica={editingPratica} clients={clients} onSave={handleSave} onClose={() => { setShowModal(false); setEditingPratica(null); }} />
+      )}
+    </div>
+  );
+};
+
 // ─── ANAGRAFICA FORNITORI (v0.9) ───────────────────────────────────────────
 const SUPPLIER_TYPES = {
   hotel: { label: "Hotel / Struttura", icon: "🏨", color: "#8B5CF6", bg: "#F5F3FF" },
@@ -7659,6 +8268,7 @@ function VoyageDeskInner() {
     switch (state.activeView) {
       case "dashboard": return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
       case "calendar": return <CalendarPlanner state={state} dispatch={dispatch} />;
+      case "pratiche": return <PraticheView state={state} dispatch={dispatch} />;
       case "clients": return <ClientiView state={state} dispatch={dispatch} />;
       case "suppliers": return <FornitoriView state={state} dispatch={dispatch} />;
       case "team": return <Team state={state} dispatch={dispatch} />;

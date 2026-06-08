@@ -1,5 +1,29 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9 — Pratiche di Viaggio (sessione 9 — terza parte)
+
+> Fase 1 completa: modulo centrale che aggrega task, clienti, fornitori e dati economici.
+
+### 📋 Pratiche di Viaggio
+- Modello dati pratica: `id` (numerazione progressiva PR-YYYY-NNN), `title`, `clientId`, `status`, `destination`, `startDate`, `endDate`, `pax`, `budget`, `revenue`, `cost`, `taskIds`, `supplierIds`, `notes`, `createdAt`, `createdBy`, `statusHistory`.
+- **5 stati**: Bozza 📝, Confermata ✅, In Corso 🚀, Completata 🏁, Annullata ❌.
+- **4 pratiche mock** pre-caricate (Maldive/Rossi, Giappone/Bianchi, Dubrovnik/TechCorp, Vietnam/Conte).
+- Nuova voce nav **"📋 Pratiche"** (prima di Clienti) per admin/manager/agent.
+- **`PraticheView`**: tab filtro per stato con contatori, ricerca full-text, lista card con numero/stato/cliente/destinazione/pax/durata/ricavi/margine%.
+- **Pannello dettaglio** laterale (desktop): stato modificabile inline, griglia info viaggio, riepilogo economico (ricavi/costi/margine con progress bar), task collegati (collega/scollega, apre TaskSlideOver), fornitori coinvolti (collega/scollega), note, timeline storico stati.
+- **`PraticaModal`**: form completo (titolo, cliente, stato, destinazione, date, pax, budget/ricavi/costi, note).
+- Helper `getNextPraticaId()` per numerazione progressiva automatica.
+- Reducer: `ADD_PRATICA`, `UPDATE_PRATICA`, `DELETE_PRATICA` + log attività.
+- Backup JSON include `pratiche` in export/restore.
+- Redirect driver aggiornato per vista `pratiche`.
+
+### 📈 Metriche (sessione 9 completa — Fase 1)
+- File: 7739 → **8349 righe** (+610 pratiche).
+- Componenti aggiunti: 2 (`PraticaModal`, `PraticheView`).
+- **Fase 1 completata**: ✅ Clienti + ✅ Fornitori + ✅ Pratiche.
+
+---
+
 ## v0.9 — Anagrafica Clienti + Fornitori (sessione 9)
 
 > Fase 1: registro fornitori con CRUD, 6 tipologie, pannello dettaglio con task correlati.

@@ -1,6 +1,6 @@
 // src/auth/LoginScreen.jsx
 import React, { useState } from 'react';
-import { useAuth } from './AuthContext';
+import { useAuth } from './AuthContext.jsx';
 
 export default function LoginScreen() {
   const { signIn } = useAuth();

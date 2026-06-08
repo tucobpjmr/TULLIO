@@ -1,9 +1,12 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import VoyageDesk from './VoyageDesk.jsx';
+import { AuthProvider } from './lib/auth/AuthContext.jsx';
+import AppShell from './AppShell.jsx';
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <VoyageDesk />
+    <AuthProvider>
+      <AppShell />
+    </AuthProvider>
   </React.StrictMode>
 );

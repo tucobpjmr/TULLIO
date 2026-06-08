@@ -4,6 +4,7 @@ import { TEAM, CATEGORIES, CURRENT_USER, _syncCurrentUser, INITIAL_TASKS, STATUS
 import { INITIAL_NOTICES } from "../data/taskTemplates.js";
 import { INITIAL_CLIENTS } from "../data/mockClients.js";
 import { INITIAL_SUPPLIERS } from "../data/mockSuppliers.js";
+import { INITIAL_PRATICHE } from "../data/mockPratiche.js";
 import { getMember } from "../utils/helpers.js";
 import { canAccessAdmin, canViewTask, canEditTask, canCreateTaskCategory, isAdmin } from "../utils/permissions.js";
 
@@ -26,6 +27,7 @@ const LOGGED_ACTIONS = new Set([
   "ADD_NOTICE", "UPDATE_NOTICE", "DELETE_NOTICE",
   "ADD_CLIENT", "UPDATE_CLIENT", "DELETE_CLIENT", "RESTORE_CLIENT",
   "ADD_SUPPLIER", "UPDATE_SUPPLIER", "DELETE_SUPPLIER", "RESTORE_SUPPLIER",
+  "ADD_PRATICA", "UPDATE_PRATICA", "DELETE_PRATICA", "RESTORE_PRATICA",
 ]);
 
 const buildLogEntry = (action, state) => {
@@ -62,6 +64,10 @@ const buildLogEntry = (action, state) => {
     UPDATE_SUPPLIER: () => `Modificato fornitore "${action.payload.name || action.payload.id}"`,
     DELETE_SUPPLIER: () => `Fornitore "${state.suppliers?.find(s => s.id === action.payload)?.name || action.payload}" spostato nel cestino`,
     RESTORE_SUPPLIER: () => `Fornitore ripristinato`,
+    ADD_PRATICA: () => `Creata pratica "${action.payload.titolo}"`,
+    UPDATE_PRATICA: () => `Modificata pratica "${action.payload.titolo || action.payload.numero || action.payload.id}"`,
+    DELETE_PRATICA: () => `Pratica "${state.pratiche?.find(p => p.id === action.payload)?.numero || action.payload}" spostata nel cestino`,
+    RESTORE_PRATICA: () => `Pratica ripristinata`,
   };
   return { id: `log-${stamp}-${Math.random().toString(36).slice(2,7)}`, time: stamp, type: t, text: (map[t] || (() => t))() };
 };
@@ -353,6 +359,24 @@ function baseReducer(state, action) {
       return { ...state, suppliers, toast: { message: "Fornitore ripristinato!", type: "success" } };
     }
 
+    // ─── PRATICHE DI VIAGGIO (v1.0) ───
+    case "ADD_PRATICA": {
+      const pratiche = [action.payload, ...(state.pratiche || [])];
+      return { ...state, pratiche, toast: { message: `Pratica "${action.payload.numero}" creata!`, type: "success" } };
+    }
+    case "UPDATE_PRATICA": {
+      const pratiche = (state.pratiche || []).map(p => p.id === action.payload.id ? { ...p, ...action.payload } : p);
+      return { ...state, pratiche, toast: { message: "Pratica aggiornata!", type: "success" } };
+    }
+    case "DELETE_PRATICA": {
+      const pratiche = (state.pratiche || []).map(p => p.id === action.payload ? { ...p, deletedAt: new Date().toISOString() } : p);
+      return { ...state, pratiche, toast: { message: "Pratica spostata nel cestino", type: "success" } };
+    }
+    case "RESTORE_PRATICA": {
+      const pratiche = (state.pratiche || []).map(p => p.id === action.payload ? { ...p, deletedAt: null } : p);
+      return { ...state, pratiche, toast: { message: "Pratica ripristinata!", type: "success" } };
+    }
+
     // ─── PROFILO PERSONALE (non admin-only) ───
     case "UPDATE_OWN_PROFILE": {
       const uid = state.currentUserId;
@@ -405,6 +429,7 @@ export const initialState = {
   clients: INITIAL_CLIENTS,
   selectedClientId: null,
   suppliers: INITIAL_SUPPLIERS,
+  pratiche: INITIAL_PRATICHE,
   activityLog: [],
   activeView: "dashboard",
   selectedTask: null,

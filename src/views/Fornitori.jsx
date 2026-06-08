@@ -170,7 +170,7 @@ const SupplierFormModal = ({ initial, onSave, onClose }) => {
   const { isMobile } = useViewport();
   const [form, setForm] = useState({
     name: "", type: "hotel", contactName: "", email: "", phone: "",
-    address: "", notes: "", tags: [], contractExpiry: "", rating: 3,
+    address: "", notes: "", tags: [], rating: 3,
     ...initial,
     contractExpiry: initial?.contractExpiry ? initial.contractExpiry.slice(0, 10) : "",
   });

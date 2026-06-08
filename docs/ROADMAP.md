@@ -48,7 +48,7 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 | Modulo | Stato | Priorità | Sforzo | Dipende da |
 |---|---|---|---|---|
 | Anagrafica Clienti (CRM base) | ✅ | 🔴 | M | — |
-| Anagrafica Fornitori | ⬜ | 🔴 | M | — |
+| Anagrafica Fornitori | ✅ | 🔴 | M | — |
 | Pratiche di viaggio | ⬜ | 🔴 | L | Clienti + Fornitori |
 | Collegamento Task ↔ Cliente ↔ Pratica | ⬜ | 🔴 | M | i tre sopra |
 
@@ -150,7 +150,7 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 
 ## ✅ Completato (cronologia)
 
-- **v0.9** — Anagrafica Clienti CRM: modello cliente (id/name/type/email/phone/address/notes), 6 mock, ClientiView con griglia/ricerca/filtri/pannello dettaglio/task associati, ClientModal add/edit, ADD/UPDATE/DELETE_CLIENT nel reducer+log, backup v0.9. 7399 righe.
+- **v0.9** — Anagrafica Clienti + Fornitori (Fase 1): ClientiView + FornitoriView, modelli dati completi, 6+7 mock, CRUD completo, pannelli dettaglio con task associati/correlati, backup v0.9. 7739 righe.
 - **v0.8** — Sistema Permessi per Ruolo: helper centralizzati (canViewTask/canEditTask/…), check nel reducer, UserSwitcher in Topbar, Dashboard con 3 code condizionali (PersonalQueue/UnassignedQueue/UrgentOthersQueue), chat con intent per task link, Sidebar/BottomNav filtrate per ruolo, QuickAddTask categorie filtrate, nuova categoria `transfer` 🚐 + 2 task demo. 6617 righe.
 - **v0.7** — SwipeActions mobile: wrapper riusabile, swipe→3 bottoni (Fatto/Cestino/Inoltra), undo con toast 5s, integrato in KanbanCard/UnassignedQueue/Calendar/PersonalQueue. 6048 righe.
 - **v0.6** — Responsive full pass: ViewportProvider/useViewport, classi CSS responsive, BottomNav, tutte le viste adattate, FAB/Toast sopra bottom nav. 5738 righe.

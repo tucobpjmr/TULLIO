@@ -1,6 +1,28 @@
 # CHANGELOG — VoyageDesk
 
-## v0.9 — Anagrafica Clienti CRM (sessione 9)
+## v0.9 — Anagrafica Clienti + Fornitori (sessione 9)
+
+> Fase 1: registro fornitori con CRUD, 6 tipologie, pannello dettaglio con task correlati.
+
+### 🤝 Anagrafica Fornitori
+- Nuovo modello dati `supplier`: `id`, `name`, `type`, `email`, `phone`, `address`, `website`, `notes`, `createdAt`.
+- **6 tipologie**: Hotel/Struttura 🏨, Vettore ✈️, Tour Operator 🗺️, Transfer/NCC 🚐, Assicurazioni 🛡️, Altro 🤝.
+- **7 fornitori mock** pre-caricati (Four Seasons, Emirates, Tawaraya Ryokan, Autoservizi Meridionali, Aegean Hotels, ANA, Allianz Travel).
+- Nuova voce nav **"🤝 Fornitori"** (sidebar + bottom nav) per admin/manager/agent.
+- **`FornitoriView`**: lista a griglia, ricerca per nome/email/note, filtro per tipo.
+- **Pannello dettaglio**: contatti (email/tel/sito cliccabili), note & accordi (con `white-space: pre-line`), task correlati per keyword nel titolo/descrizione.
+- **`SupplierModal`**: griglia 3×2 per selezione tipo, campo sito web aggiuntivo rispetto a ClientModal.
+- Nuove reducer actions: `ADD_SUPPLIER`, `UPDATE_SUPPLIER`, `DELETE_SUPPLIER` (incluse nel log attività).
+- **Backup JSON** include `suppliers` in export/restore.
+- Redirect driver aggiornato: copre anche vista `suppliers`.
+
+### 📈 Metriche (sessione 9 completa)
+- File: 7399 → **7739 righe** (+340 fornitori, +328 clienti, +7071 base = tot. sessione).
+- Componenti aggiunti: 2 (`SupplierModal`, `FornitoriView`).
+
+---
+
+## v0.9 — Anagrafica Clienti CRM (sessione 9 — prima parte)
 
 > Prima implementazione Fase 1: registro clienti completo con CRUD, filtri, pannello dettaglio e collegamento ai task.
 

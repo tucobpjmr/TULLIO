@@ -219,6 +219,16 @@ const INITIAL_CLIENTS = [
   { id: "cl6", name: "Sposi Conte", type: "privato", email: "g.conte@outlook.com", phone: "+39 320 998877", address: "Piazza Navona 2, Roma", notes: "Viaggio nozze Vietnam 14 giorni. Cercano esperienze romantiche, budget medio-alto.", createdAt: new Date(Date.now() - 86400000 * 15).toISOString() },
 ];
 
+const INITIAL_SUPPLIERS = [
+  { id: "s1", name: "Four Seasons Kuda Huraa", type: "hotel", email: "reservations@fourseasons-maldives.com", phone: "+960 664 8888", address: "North Malé Atoll, Maldive", website: "fourseasons.com/maldiveskh", notes: "Partner premium Maldive. Tariffe nette concordate. Referente: Ahmed Rasheed (Reservations Manager). Disponibile upgrade su richiesta per clienti VIP.", createdAt: new Date(Date.now() - 86400000 * 365).toISOString() },
+  { id: "s2", name: "Emirates Airlines", type: "vettore", email: "groups@emirates.com", phone: "+971 4 708 1111", address: "Dubai International Airport, EAU", website: "emirates.com", notes: "Accordo gruppi attivo. Sconto 10% su prenotazioni >10 pax. Referente gruppi: Sara Al-Mansoori. Codice agenzia: IT-VD-2024.", createdAt: new Date(Date.now() - 86400000 * 300).toISOString() },
+  { id: "s3", name: "Tawaraya Ryokan", type: "hotel", email: "info@tawaraya-kyoto.com", phone: "+81 75 211 5566", address: "Fuyacho Anekoji, Nakagyo-ku, Kyoto", website: "tawaraya-kyoto.com", notes: "Ryokan storico fondato nel 1709. Prenotazioni con almeno 3 mesi di anticipo. Solo suite disponibili per gruppi >2 persone.", createdAt: new Date(Date.now() - 86400000 * 200).toISOString() },
+  { id: "s4", name: "Autoservizi Meridionali", type: "transfer", email: "prenotazioni@automeridionali.it", phone: "+39 02 4567890", address: "Via Tibaldi 22, Milano", website: "", notes: "NCC per Milano e hinterland. Flotta: 3 van 8 posti, 2 minibus 16 posti, 1 bus 54 posti. Tariffa oraria 65€/h + sosta. Accordo quadro 2025/2026 in finalizzazione.", createdAt: new Date(Date.now() - 86400000 * 150).toISOString() },
+  { id: "s5", name: "Aegean Hotels Group", type: "hotel", email: "b2b@aegeanhotels.gr", phone: "+30 210 9876543", address: "Leoforos Kifisias 12, Atene", website: "aegeanhotels.gr", notes: "Catena greca con strutture ad Atene, Santorini, Mykonos, Rodi. Tariffe nette 2026 ricevute da Roberto. 15% netto su rack rate per gruppi >20 pax.", createdAt: new Date(Date.now() - 86400000 * 60).toISOString() },
+  { id: "s6", name: "ANA – All Nippon Airways", type: "vettore", email: "groupdesk@ana.co.jp", phone: "+81 3 5757 8800", address: "Shiodome City Center, Tokyo", website: "ana.co.jp", notes: "Voli diretti MXP-NRT. Referente gruppi Italia: Kenji Yamamoto. Prenotazione gruppi min. 10 pax con anticipo 6 mesi.", createdAt: new Date(Date.now() - 86400000 * 90).toISOString() },
+  { id: "s7", name: "Allianz Travel", type: "assicurazioni", email: "partner@allianz-travel.it", phone: "+39 02 72160555", address: "Via Sassetti 2, Milano", website: "allianz-travel.it", notes: "Polizze annullamento, mediche, bagaglio. Referente agenzie: Carla Bonfanti. Commissione 20% su polizze vendute. Portale b2b attivo.", createdAt: new Date(Date.now() - 86400000 * 120).toISOString() },
+];
+
 const NOTIFICATIONS = [
   { id: "n1", type: "overdue", title: "Task scaduto: Visto Giappone - Coppia Bianchi", time: "5 min fa", read: false },
   { id: "n2", type: "assigned", title: "Nuovo task assegnato: Newsletter Giugno", time: "1 ora fa", read: false },
@@ -311,6 +321,7 @@ const LOGGED_ACTIONS = new Set([
   "RESTORE_BACKUP",
   "ADD_NOTICE", "UPDATE_NOTICE", "DELETE_NOTICE",
   "ADD_CLIENT", "UPDATE_CLIENT", "DELETE_CLIENT",
+  "ADD_SUPPLIER", "UPDATE_SUPPLIER", "DELETE_SUPPLIER",
 ]);
 
 const buildLogEntry = (action, state) => {
@@ -342,6 +353,9 @@ const buildLogEntry = (action, state) => {
     ADD_CLIENT: () => `Aggiunto cliente "${action.payload.name}"`,
     UPDATE_CLIENT: () => `Modificato cliente "${action.payload.name || action.payload.id}"`,
     DELETE_CLIENT: () => `Rimosso cliente`,
+    ADD_SUPPLIER: () => `Aggiunto fornitore "${action.payload.name}"`,
+    UPDATE_SUPPLIER: () => `Modificato fornitore "${action.payload.name || action.payload.id}"`,
+    DELETE_SUPPLIER: () => `Rimosso fornitore`,
   };
   return { id: `log-${stamp}-${Math.random().toString(36).slice(2,7)}`, time: stamp, type: t, text: (map[t] || (() => t))() };
 };
@@ -374,7 +388,7 @@ function baseReducer(state, action) {
       // Se l'utente non può più accedere alla view corrente, riporta a dashboard
       const newRole = getRoleType(newId);
       const activeView = (state.activeView === "admin" && !canAccessAdmin(newId))
-        || (state.activeView === "clients" && newRole === "driver")
+        || (["clients", "suppliers"].includes(state.activeView) && newRole === "driver")
         || (state.activeView === "trash" && newRole !== "admin")
         ? "dashboard"
         : state.activeView;
@@ -533,13 +547,14 @@ function baseReducer(state, action) {
       return { ...state, agencyName: action.payload };
     }
     case "RESTORE_BACKUP": {
-      const { tasks, clients, team, categories, agencyName, notices } = action.payload;
+      const { tasks, clients, suppliers, team, categories, agencyName, notices } = action.payload;
       if (team) _syncTeam(team);
       if (categories) _syncCategories(categories);
       return {
         ...state,
         tasks: tasks ?? state.tasks,
         clients: clients ?? state.clients,
+        suppliers: suppliers ?? state.suppliers,
         team: team ?? state.team,
         categories: categories ?? state.categories,
         agencyName: agencyName ?? state.agencyName,
@@ -598,6 +613,20 @@ function baseReducer(state, action) {
     case "TOGGLE_NOTIF": return { ...state, showNotif: !state.showNotif };
     case "SET_FILTER": return { ...state, filters: { ...state.filters, ...action.payload } };
     case "TOGGLE_SIDEBAR": return { ...state, sidebarCollapsed: !state.sidebarCollapsed };
+
+    // ─── FORNITORI (v0.9) ───
+    case "ADD_SUPPLIER": {
+      const suppliers = [action.payload, ...(state.suppliers || [])];
+      return { ...state, suppliers, toast: { message: `Fornitore "${action.payload.name}" aggiunto!`, type: "success" } };
+    }
+    case "UPDATE_SUPPLIER": {
+      const suppliers = (state.suppliers || []).map(s => s.id === action.payload.id ? { ...s, ...action.payload } : s);
+      return { ...state, suppliers, toast: { message: "Fornitore aggiornato!", type: "success" } };
+    }
+    case "DELETE_SUPPLIER": {
+      const suppliers = (state.suppliers || []).filter(s => s.id !== action.payload);
+      return { ...state, suppliers, toast: { message: "Fornitore rimosso", type: "success" } };
+    }
 
     // ─── CLIENTI (v0.9) ───
     case "ADD_CLIENT": {
@@ -691,6 +720,7 @@ const INITIAL_NOTICES = [
 const initialState = {
   tasks: INITIAL_TASKS,
   clients: INITIAL_CLIENTS,
+  suppliers: INITIAL_SUPPLIERS,
   team: TEAM,
   categories: CATEGORIES,
   agencyName: "VoyageDesk",
@@ -1968,6 +1998,7 @@ const NAV_ITEMS = [
   { id: "dashboard", icon: "📊", label: "Dashboard", roles: ["admin", "manager", "agent", "driver"] },
   { id: "calendar", icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
   { id: "clients", icon: "👤", label: "Clienti", roles: ["admin", "manager", "agent"] },
+  { id: "suppliers", icon: "🤝", label: "Fornitori", roles: ["admin", "manager", "agent"] },
   { id: "team", icon: "👥", label: "Team", roles: ["admin", "manager", "agent"] },
   { id: "trash", icon: "🗑️", label: "Cestino", roles: ["admin"] },
   { id: "admin", icon: "⚙️", label: "Admin", roles: ["admin"] },
@@ -6523,6 +6554,7 @@ const AdminIOTab = ({ state, dispatch }) => {
       agencyName: state.agencyName,
       tasks: state.tasks,
       clients: state.clients || [],
+      suppliers: state.suppliers || [],
       team: state.team,
       categories: state.categories,
       notices: state.notices,
@@ -7264,6 +7296,313 @@ const ClientiView = ({ state, dispatch }) => {
   );
 };
 
+// ─── ANAGRAFICA FORNITORI (v0.9) ───────────────────────────────────────────
+const SUPPLIER_TYPES = {
+  hotel: { label: "Hotel / Struttura", icon: "🏨", color: "#8B5CF6", bg: "#F5F3FF" },
+  vettore: { label: "Vettore", icon: "✈️", color: "#3B82F6", bg: "#EFF6FF" },
+  tour_operator: { label: "Tour Operator", icon: "🗺️", color: "#F97316", bg: "#FFF7ED" },
+  transfer: { label: "Transfer / NCC", icon: "🚐", color: "#7B4F9E", bg: "#F3F0F9" },
+  assicurazioni: { label: "Assicurazioni", icon: "🛡️", color: "#10B981", bg: "#ECFDF5" },
+  altro: { label: "Altro", icon: "🤝", color: "#6B7280", bg: "#F9FAFB" },
+};
+
+const SupplierModal = ({ supplier, onSave, onClose }) => {
+  const isNew = !supplier?.id;
+  const [form, setForm] = useState(supplier ? { ...supplier } : {
+    name: "", type: "hotel", email: "", phone: "", address: "", website: "", notes: "",
+  });
+  const { isMobile } = useViewport();
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const labelStyle = { fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, display: "block" };
+  const inputStyle = { width: "100%", padding: "9px 12px", borderRadius: 8, border: "1.5px solid var(--border)", background: "#fff", fontSize: 14, color: "var(--text)", outline: "none", fontFamily: "inherit" };
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 900, padding: 16 }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto", padding: isMobile ? 20 : 28, boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }} className="fade-in">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+          <h2 className="playfair" style={{ fontSize: 20, color: "var(--navy)" }}>{isNew ? "Nuovo Fornitore" : "Modifica Fornitore"}</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text-muted)" }}>✕</button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div>
+            <label style={labelStyle}>Nome / Ragione Sociale *</label>
+            <input value={form.name} onChange={e => set("name", e.target.value)} placeholder="es. Four Seasons Kuda Huraa" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Tipo fornitore</label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+              {Object.entries(SUPPLIER_TYPES).map(([k, v]) => (
+                <button key={k} onClick={() => set("type", k)} style={{
+                  padding: "7px 6px", borderRadius: 8, cursor: "pointer", fontSize: 11,
+                  border: form.type === k ? `2px solid ${v.color}` : "2px solid var(--border)",
+                  background: form.type === k ? v.bg : "#fff",
+                  color: form.type === k ? v.color : "var(--text-muted)",
+                  fontWeight: form.type === k ? 700 : 400, transition: "all 0.15s", textAlign: "center",
+                }}>{v.icon}<br />{v.label}</button>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Email</label>
+              <input value={form.email} onChange={e => set("email", e.target.value)} type="email" placeholder="info@fornitore.it" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Telefono</label>
+              <input value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="+39 02 000000" style={inputStyle} />
+            </div>
+          </div>
+          <div>
+            <label style={labelStyle}>Indirizzo</label>
+            <input value={form.address} onChange={e => set("address", e.target.value)} placeholder="Via Roma 1, Milano" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Sito web</label>
+            <input value={form.website} onChange={e => set("website", e.target.value)} placeholder="www.fornitore.com" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Note interne (tariffe, referenti, accordi)</label>
+            <textarea value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Referente: ...\nTariffe: ...\nNote accordo: ..." rows={4} style={{ ...inputStyle, resize: "vertical" }} />
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 10, marginTop: 24, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ padding: "10px 20px", borderRadius: 8, border: "1.5px solid var(--border)", background: "#fff", color: "var(--text-muted)", cursor: "pointer", fontSize: 14 }}>Annulla</button>
+          <button onClick={() => { if (form.name.trim()) onSave(form); }} disabled={!form.name.trim()} style={{
+            padding: "10px 20px", borderRadius: 8, border: "none",
+            background: form.name.trim() ? "var(--navy)" : "var(--border)",
+            color: form.name.trim() ? "#fff" : "var(--text-muted)",
+            cursor: form.name.trim() ? "pointer" : "not-allowed", fontSize: 14, fontWeight: 600,
+          }}>{isNew ? "Crea Fornitore" : "Salva Modifiche"}</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const FornitoriView = ({ state, dispatch }) => {
+  const { isMobile, isDesktop } = useViewport();
+  const [search, setSearch] = useState("");
+  const [filterType, setFilterType] = useState("all");
+  const [showModal, setShowModal] = useState(false);
+  const [editingSupplier, setEditingSupplier] = useState(null);
+  const [selectedSupplier, setSelectedSupplier] = useState(null);
+  const uid = state.currentUserId;
+  const canEdit = getRoleType(uid) !== "driver";
+  const suppliers = state.suppliers || [];
+  const activeTasks = getActiveTasks(state.tasks);
+
+  // Trova task collegati a un fornitore per nome (categoria supplier/transfer + match nel titolo/descrizione)
+  const getSupplierTasks = (name) =>
+    activeTasks.filter(t =>
+      (t.category === "supplier" || t.category === "transfer" || t.category === "hotel" || t.category === "booking") &&
+      ((t.title || "").toLowerCase().includes(name.toLowerCase().split(" ")[0]) ||
+       (t.description || "").toLowerCase().includes(name.toLowerCase().split(" ")[0]))
+    );
+
+  const filtered = suppliers.filter(s => {
+    const matchSearch = !search || s.name.toLowerCase().includes(search.toLowerCase()) ||
+      (s.email || "").toLowerCase().includes(search.toLowerCase()) ||
+      (s.notes || "").toLowerCase().includes(search.toLowerCase());
+    const matchType = filterType === "all" || s.type === filterType;
+    return matchSearch && matchType;
+  });
+
+  const handleSave = (form) => {
+    if (form.id) {
+      dispatch({ type: "UPDATE_SUPPLIER", payload: form });
+    } else {
+      dispatch({ type: "ADD_SUPPLIER", payload: { ...form, id: `s${Date.now()}`, createdAt: new Date().toISOString() } });
+    }
+    setShowModal(false);
+    setEditingSupplier(null);
+  };
+
+  const handleDelete = (supplierId) => {
+    dispatch({ type: "DELETE_SUPPLIER", payload: supplierId });
+    if (selectedSupplier?.id === supplierId) setSelectedSupplier(null);
+  };
+
+  const detail = selectedSupplier ? (suppliers.find(s => s.id === selectedSupplier.id) || null) : null;
+
+  return (
+    <div style={{ padding: isMobile ? 14 : 28 }} className="fade-in">
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <h1 className="playfair" style={{ fontSize: isMobile ? 22 : 28, color: "var(--navy)", marginBottom: 4 }}>Anagrafica Fornitori</h1>
+          <p style={{ fontSize: 14, color: "var(--text-muted)" }}>{suppliers.length} {suppliers.length === 1 ? "fornitore" : "fornitori"} totali</p>
+        </div>
+        {canEdit && (
+          <button onClick={() => { setEditingSupplier(null); setShowModal(true); }}
+            style={{ padding: "10px 20px", borderRadius: 10, background: "var(--navy)", color: "#fff", border: "none", cursor: "pointer", fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}
+            onMouseEnter={e => e.currentTarget.style.background = "var(--navy-light)"}
+            onMouseLeave={e => e.currentTarget.style.background = "var(--navy)"}
+          >+ Nuovo Fornitore</button>
+        )}
+      </div>
+
+      {/* Search + Filter bar */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca per nome, email o note..."
+          style={{ flex: 1, minWidth: 180, padding: "9px 14px", borderRadius: 8, border: "1.5px solid var(--border)", fontSize: 14, outline: "none", background: "#fff" }} />
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {[["all", "Tutti"], ...Object.entries(SUPPLIER_TYPES).map(([k, v]) => [k, v.icon + " " + v.label.split(" ")[0]])].map(([k, label]) => (
+            <button key={k} onClick={() => setFilterType(k)} style={{
+              padding: "8px 12px", borderRadius: 8, cursor: "pointer", fontSize: 12,
+              border: filterType === k ? "1.5px solid var(--navy)" : "1.5px solid var(--border)",
+              background: filterType === k ? "var(--navy)" : "#fff",
+              color: filterType === k ? "#fff" : "var(--text-muted)",
+              fontWeight: filterType === k ? 600 : 400, transition: "all 0.15s", whiteSpace: "nowrap",
+            }}>{label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Main layout */}
+      <div style={{ display: "grid", gridTemplateColumns: detail && isDesktop ? "1fr 400px" : "1fr", gap: 20, alignItems: "start" }}>
+        {/* Supplier cards */}
+        <div>
+          {filtered.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--text-muted)" }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>🤝</div>
+              <p style={{ fontSize: 16, fontWeight: 500 }}>{search || filterType !== "all" ? "Nessun fornitore trovato" : "Nessun fornitore inserito"}</p>
+              {!search && filterType === "all" && canEdit && (
+                <button onClick={() => setShowModal(true)} style={{ marginTop: 16, padding: "10px 20px", borderRadius: 8, background: "var(--navy)", color: "#fff", border: "none", cursor: "pointer", fontSize: 14 }}>Aggiungi il primo fornitore</button>
+              )}
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(290px, 1fr))", gap: 14 }}>
+              {filtered.map(supplier => {
+                const type = SUPPLIER_TYPES[supplier.type] || SUPPLIER_TYPES.altro;
+                const isSelected = selectedSupplier?.id === supplier.id;
+                const taskCount = getSupplierTasks(supplier.name).length;
+                return (
+                  <div key={supplier.id} onClick={() => setSelectedSupplier(isSelected ? null : supplier)}
+                    style={{
+                      background: "#fff", borderRadius: 12, padding: "16px 18px",
+                      border: isSelected ? "2px solid var(--navy)" : "1.5px solid var(--border)",
+                      cursor: "pointer", transition: "all 0.18s",
+                      boxShadow: isSelected ? "0 4px 20px rgba(15,32,68,0.12)" : "0 1px 4px rgba(0,0,0,0.05)",
+                    }}
+                    onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.borderColor = "var(--navy-light)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.09)"; } }}
+                    onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.05)"; } }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ marginBottom: 5 }}>
+                          <span style={{ padding: "2px 8px", borderRadius: 20, fontSize: 11, fontWeight: 600, background: type.bg, color: type.color }}>{type.icon} {type.label}</span>
+                        </div>
+                        <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{supplier.name}</h3>
+                      </div>
+                      {canEdit && (
+                        <div style={{ display: "flex", gap: 2, marginLeft: 8 }} onClick={e => e.stopPropagation()}>
+                          <button onClick={() => { setEditingSupplier(supplier); setShowModal(true); }}
+                            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, color: "var(--text-muted)", padding: "4px 5px", borderRadius: 4 }} title="Modifica">✏️</button>
+                          <button onClick={() => handleDelete(supplier.id)}
+                            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, color: "var(--danger)", padding: "4px 5px", borderRadius: 4 }} title="Elimina">🗑️</button>
+                        </div>
+                      )}
+                    </div>
+                    {(supplier.email || supplier.phone) && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 8 }}>
+                        {supplier.email && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>✉️ {supplier.email}</span>}
+                        {supplier.phone && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>📞 {supplier.phone}</span>}
+                        {supplier.website && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>🌐 {supplier.website}</span>}
+                      </div>
+                    )}
+                    {supplier.notes && (
+                      <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.5 }}>{supplier.notes}</p>
+                    )}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
+                      <span style={{ fontSize: 12, padding: "3px 10px", borderRadius: 20, background: taskCount > 0 ? "#F5F3FF" : "var(--surface3)", color: taskCount > 0 ? "#8B5CF6" : "var(--text-muted)", fontWeight: 600 }}>
+                        {taskCount} task correlat{taskCount === 1 ? "o" : "i"}
+                      </span>
+                      {supplier.address && <span style={{ fontSize: 11, color: "var(--text-light)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 130 }}>📍 {supplier.address}</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Detail panel */}
+        {detail && (
+          <div style={{ background: "#fff", borderRadius: 14, border: "1.5px solid var(--border)", boxShadow: "0 4px 20px rgba(0,0,0,0.08)", overflow: "hidden" }} className="fade-in">
+            <div style={{ padding: "18px 20px 14px", borderBottom: "1px solid var(--border)", background: "var(--navy-dark)", color: "#fff" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 3 }}>
+                    {SUPPLIER_TYPES[detail.type]?.icon} {SUPPLIER_TYPES[detail.type]?.label}
+                  </div>
+                  <h3 className="playfair" style={{ fontSize: 17, lineHeight: 1.3 }}>{detail.name}</h3>
+                </div>
+                <button onClick={() => setSelectedSupplier(null)} style={{ background: "rgba(255,255,255,0.12)", border: "none", borderRadius: 6, width: 28, height: 28, cursor: "pointer", color: "#fff", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✕</button>
+              </div>
+            </div>
+            <div style={{ padding: 20 }}>
+              {(detail.email || detail.phone || detail.address || detail.website) && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 8 }}>CONTATTI</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                    {detail.email && <div style={{ fontSize: 13 }}>✉️ <a href={`mailto:${detail.email}`} style={{ color: "var(--navy)", textDecoration: "none" }}>{detail.email}</a></div>}
+                    {detail.phone && <div style={{ fontSize: 13, color: "var(--text)" }}>📞 {detail.phone}</div>}
+                    {detail.website && <div style={{ fontSize: 13 }}>🌐 <a href={detail.website.startsWith("http") ? detail.website : `https://${detail.website}`} target="_blank" rel="noreferrer" style={{ color: "var(--navy)", textDecoration: "none" }}>{detail.website}</a></div>}
+                    {detail.address && <div style={{ fontSize: 13, color: "var(--text)" }}>📍 {detail.address}</div>}
+                  </div>
+                </div>
+              )}
+              {detail.notes && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 8 }}>NOTE & ACCORDI</div>
+                  <p style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.7, background: "var(--surface2)", borderRadius: 8, padding: "10px 12px", whiteSpace: "pre-line" }}>{detail.notes}</p>
+                </div>
+              )}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 8 }}>TASK CORRELATI</div>
+                {(() => {
+                  const tasks = getSupplierTasks(detail.name);
+                  if (tasks.length === 0) return <p style={{ fontSize: 13, color: "var(--text-muted)", fontStyle: "italic" }}>Nessun task correlato trovato</p>;
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {tasks.map(t => (
+                        <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
+                          style={{ padding: "10px 12px", borderRadius: 8, background: "var(--surface2)", border: "1px solid var(--border)", cursor: "pointer", transition: "background 0.15s" }}
+                          onMouseEnter={e => e.currentTarget.style.background = "var(--surface3)"}
+                          onMouseLeave={e => e.currentTarget.style.background = "var(--surface2)"}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", flex: 1 }}>{t.title}</span>
+                            <StatusBadge status={t.status} />
+                          </div>
+                          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
+                            <CategoryChip category={t.category} />
+                            <PriorityBadge priority={t.priority} />
+                            {t.dueDate && <span style={{ fontSize: 11, color: isOverdue(t) ? "var(--danger)" : "var(--text-muted)", fontWeight: isOverdue(t) ? 600 : 400 }}>📅 {formatDate(t.dueDate)}</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+              {canEdit && (
+                <button onClick={() => { setEditingSupplier(detail); setShowModal(true); }}
+                  style={{ marginTop: 16, width: "100%", padding: "10px", borderRadius: 8, border: "1.5px solid var(--border)", background: "#fff", cursor: "pointer", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}
+                  onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                  onMouseLeave={e => e.currentTarget.style.background = "#fff"}>✏️ Modifica Fornitore</button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {showModal && (
+        <SupplierModal supplier={editingSupplier} onSave={handleSave} onClose={() => { setShowModal(false); setEditingSupplier(null); }} />
+      )}
+    </div>
+  );
+};
+
 // ─── ROOT APP ──────────────────────────────────────────────────────────────
 export default function VoyageDesk() {
   return (
@@ -7321,6 +7660,7 @@ function VoyageDeskInner() {
       case "dashboard": return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
       case "calendar": return <CalendarPlanner state={state} dispatch={dispatch} />;
       case "clients": return <ClientiView state={state} dispatch={dispatch} />;
+      case "suppliers": return <FornitoriView state={state} dispatch={dispatch} />;
       case "team": return <Team state={state} dispatch={dispatch} />;
       case "trash": return <Trash state={state} dispatch={dispatch} />;
       case "admin": return <AdminView state={state} dispatch={dispatch} />;

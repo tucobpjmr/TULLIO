@@ -686,7 +686,23 @@ const initialState = {
 };
 
 // ─── UTILS ─────────────────────────────────────────────────────────────────
+// Fallback "membro sconosciuto" — usato quando getMember non trova un id
+// (es. utente rimosso dal team mentre l'app è aperta).
+// Definito una volta sola con tutti i campi del member shape così chi lo
+// consuma non deve preoccuparsi di properties mancanti (photoUrl ecc.).
+const UNKNOWN_MEMBER = Object.freeze({
+  id: null,
+  name: "—",
+  role: "—",
+  avatar: "??",
+  color: "#999",
+  photoUrl: null,
+  capacity: 0,
+  active: false,
+  pending: false,
+});
 const getMember = id => TEAM.find(m => m.id === id);
+const getMemberOrUnknown = id => getMember(id) || UNKNOWN_MEMBER;
 // Agenti selezionabili come assegnatari (attivi e non in attesa di approvazione)
 const getAssignableTeam = () => TEAM.filter(m => m.active !== false && !m.pending);
 const formatDate = iso => {
@@ -1821,7 +1837,7 @@ const UserSwitcher = ({ state, dispatch }) => {
   const [open, setOpen] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const ref = useRef(null);
-  const curr = getMember(state.currentUserId) || { name: "—", role: "—", avatar: "??", color: "#999" };
+  const curr = getMemberOrUnknown(state.currentUserId);
 
   useEffect(() => {
     if (!open) return;
@@ -5276,7 +5292,7 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
           <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 11 }}>
             {typing ? (
               <span style={{ color: "var(--gold-light)" }}>
-                {conv.type === "group" ? `${getMember(otherTypingMember)?.name.split(" ")[0]} sta scrivendo` : "sta scrivendo"}
+                {conv.type === "group" ? `${getMember(otherTypingMember)?.name?.split(" ")[0] || "Qualcuno"} sta scrivendo` : "sta scrivendo"}
                 <span style={{ animation: "typing 1s infinite", animationDelay: "0s", display: "inline-block" }}>.</span>
                 <span style={{ animation: "typing 1s infinite", animationDelay: "0.2s", display: "inline-block" }}>.</span>
                 <span style={{ animation: "typing 1s infinite", animationDelay: "0.4s", display: "inline-block" }}>.</span>
@@ -5541,7 +5557,7 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
                         {last.sender === CURRENT_USER && <span style={{ color: "var(--text-muted)" }}>Tu: </span>}
                         {c.type === "group" && last.sender !== CURRENT_USER && (
                           <span style={{ color: lastSender?.color, fontWeight: 600 }}>
-                            {lastSender?.name.split(" ")[0]}:{" "}
+                            {lastSender?.name?.split(" ")[0]}:{" "}
                           </span>
                         )}
                         {last.type === "voice" ? "🎙️ Messaggio vocale" :

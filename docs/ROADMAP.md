@@ -63,7 +63,7 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 | Modulo | Stato | Priorità | Sforzo | Note |
 |---|---|---|---|---|
 | Notifiche reali | ✅ | — | — | Completate in v0.9. Iniettate da ADD_TASK/ADD_COMMENT/APPROVE; filtri + "segna tutte lette"; badge nav. |
-| Calendario avanzato | ⬜ | 🟡 | M | Viste settimanale/giornaliera, eventi multipli, iCal (mock) |
+| Calendario avanzato | ✅ | — | — | Completato in v0.9. Viste mese/settimana/giorno, timeline oraria, export iCal mock, drill-down settimana→giorno. |
 | Estensioni chat (base) | ⬜ | 🟡 | S–M | Ricerca nelle conversazioni, stato online/occupato, rich preview di task/pratiche, **task link cliccabile** nel messaggio |
 | Impostazioni agenzia | 🔶 | 🟡 | S | Gestione categorie e nome agenzia già in Admin. Manca: template messaggi, profilo utente, preferenze UI |
 | Ricerca globale estesa | ✅ | — | — | Completata in v0.5. |
@@ -117,7 +117,7 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 
 | Idea | Stato | Priorità | Note |
 |---|---|---|---|
-| Vista settimanale Calendario | ⬜ | 🟡 | Utile specialmente su mobile |
+| Vista settimanale Calendario | ✅ | — | Completato in v0.9 (week + day view) |
 | Comprimi automaticamente Sidebar desktop tra 1024–1280px | ⬜ | ⚪ | |
 | Skeleton loading su prime render | ⬜ | ⚪ | |
 | Dark mode | ⬜ | ⚪ | CSS variables pronte |

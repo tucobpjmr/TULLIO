@@ -1,5 +1,25 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9 — Calendario Avanzato (sessione 9 — quinta parte)
+
+> Fase 2 procede: terzo viewmode "Giorno" + export iCal + drill-down dalla settimana.
+
+### 🗓️ Calendario avanzato
+- **Vista Giorno** (nuova): toggle "🗓️ Giorno" in header. Timeline oraria 08:00 → 20:00 con grid label/contenuto, task posizionati per ora di scadenza, badge counter task totali, multi-assignee avatar overlap, "fuori orario" sezione per task pre-8 o post-20, empty state amichevole.
+- **Drill-down**: click sull'header giorno in vista Settimana → switcha a vista Giorno con `dayOffset` calcolato.
+- **Navigazione Giorno**: ← → / Oggi con `dayOffset` (giorni rispetto a oggi).
+- **Export iCal** (mock): bottone "📤 iCal" esporta i task della vista corrente come `.ics` (RFC 5545 minimo: DTSTART/DTEND/SUMMARY/DESCRIPTION/LOCATION/PRIORITY). Filename `voyagedesk-<view>-<date>.ics`.
+  - Mese → tutti task del mese
+  - Settimana → tutti task della settimana
+  - Giorno → tutti task del giorno selezionato
+- Helpers nuovi: `toICalDate(iso)`, `escapeICalText(s)`, `exportTasksToICal(tasks, filename)`.
+- SwipeActions integrato anche in vista Giorno.
+
+### 📈 Metriche
+- File: ~8540 → ~8720 righe (+180).
+
+---
+
 ## v0.9 — Notifiche Reali (sessione 9 — quarta parte)
 
 > Fase 2 iniziata: sistema notifiche dinamico collegato alle azioni del reducer + badge sulla navigazione.

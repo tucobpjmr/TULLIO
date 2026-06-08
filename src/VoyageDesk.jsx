@@ -4620,13 +4620,64 @@ const TaskSlideOver = ({ task, dispatch }) => {
 };
 
 // ─── CALENDAR PLANNER (unificato: mese + settimana + distribuzione agenti) ──
+// ─── ICAL export helper (mock) ─────────────────────────────────────────────
+const toICalDate = (iso) => {
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
+};
+
+const escapeICalText = (s) => String(s || "").replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+
+const exportTasksToICal = (tasks, filename = "voyagedesk-calendar.ics") => {
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//VoyageDesk//Calendar Export//IT",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+  ];
+  tasks.forEach(t => {
+    if (!t.dueDate) return;
+    const start = new Date(t.dueDate);
+    const end = new Date(start.getTime() + ((t.estimatedHours || 1) * 3600 * 1000));
+    lines.push("BEGIN:VEVENT");
+    lines.push(`UID:${t.id}@voyagedesk`);
+    lines.push(`DTSTAMP:${toICalDate(new Date().toISOString())}`);
+    lines.push(`DTSTART:${toICalDate(start.toISOString())}`);
+    lines.push(`DTEND:${toICalDate(end.toISOString())}`);
+    lines.push(`SUMMARY:${escapeICalText((CATEGORIES[t.category]?.icon || "") + " " + t.title)}`);
+    if (t.description) lines.push(`DESCRIPTION:${escapeICalText(t.description)}`);
+    if (t.client) lines.push(`LOCATION:${escapeICalText(t.client)}`);
+    lines.push(`PRIORITY:${t.priority === "critical" ? 1 : t.priority === "high" ? 3 : t.priority === "medium" ? 5 : 7}`);
+    lines.push("END:VEVENT");
+  });
+  lines.push("END:VCALENDAR");
+  const blob = new Blob([lines.join("\r\n")], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 200);
+};
+
 const CalendarPlanner = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
-  const [viewMode, setViewMode] = useState("month"); // "month" | "week"
+  const [viewMode, setViewMode] = useState("month"); // "month" | "week" | "day"
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [weekOffset, setWeekOffset] = useState(0);
+  const [dayOffset, setDayOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState(null);
   const uid = state.currentUserId;
+
+  // ── Day helpers ──
+  const currentDay = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + dayOffset);
+    return d;
+  })();
+  const dayHours = Array.from({ length: 13 }, (_, i) => 8 + i); // 08:00 → 20:00
 
   // ── Month helpers ──
   const year = currentMonth.getFullYear();
@@ -4685,37 +4736,81 @@ const CalendarPlanner = ({ state, dispatch }) => {
 
       {/* ─── Header con toggle + navigazione ─── */}
       <div className="vd-row-wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <div className="playfair" style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, textTransform: viewMode === "month" ? "capitalize" : "none" }}>
-            {viewMode === "month" ? monthName : "Settimana"}
+            {viewMode === "month" ? monthName : viewMode === "week" ? "Settimana" : currentDay.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
           </div>
           {viewMode === "week" && (
             <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
               {weekDays[0].toLocaleDateString("it-IT", { day: "numeric", month: "short" })} — {weekDays[6].toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" })}
             </div>
           )}
+          {viewMode === "day" && (
+            <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
+              {currentDay.toLocaleDateString("it-IT", { year: "numeric" })}
+            </div>
+          )}
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
           {/* View toggle */}
           <div style={{ display: "flex", gap: 4, background: "var(--surface2)", borderRadius: 10, padding: 3 }}>
-            {toggleBtn("month", isMobile ? "Mese" : "📅 Mese")}
-            {toggleBtn("week", isMobile ? "Sett." : "📆 Settimana")}
+            {toggleBtn("month", isMobile ? "M" : "📅 Mese")}
+            {toggleBtn("week", isMobile ? "S" : "📆 Settimana")}
+            {toggleBtn("day", isMobile ? "G" : "🗓️ Giorno")}
           </div>
           {/* Nav buttons */}
           <div style={{ display: "flex", gap: 4 }}>
-            <button onClick={() => viewMode === "month" ? setCurrentMonth(new Date(year, month - 1)) : setWeekOffset(w => w - 1)} style={{
+            <button onClick={() => {
+              if (viewMode === "month") setCurrentMonth(new Date(year, month - 1));
+              else if (viewMode === "week") setWeekOffset(w => w - 1);
+              else setDayOffset(d => d - 1);
+            }} style={{
               background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
               width: 34, height: 34, cursor: "pointer", fontSize: 14
             }}>←</button>
-            <button onClick={() => { viewMode === "month" ? setCurrentMonth(new Date()) : setWeekOffset(0); setSelectedDay(null); }} style={{
+            <button onClick={() => {
+              if (viewMode === "month") setCurrentMonth(new Date());
+              else if (viewMode === "week") setWeekOffset(0);
+              else setDayOffset(0);
+              setSelectedDay(null);
+            }} style={{
               background: "var(--gold)", color: "var(--navy)", border: "none",
               borderRadius: 8, padding: "0 14px", height: 34, cursor: "pointer", fontSize: 12, fontWeight: 700
             }}>Oggi</button>
-            <button onClick={() => viewMode === "month" ? setCurrentMonth(new Date(year, month + 1)) : setWeekOffset(w => w + 1)} style={{
+            <button onClick={() => {
+              if (viewMode === "month") setCurrentMonth(new Date(year, month + 1));
+              else if (viewMode === "week") setWeekOffset(w => w + 1);
+              else setDayOffset(d => d + 1);
+            }} style={{
               background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
               width: 34, height: 34, cursor: "pointer", fontSize: 14
             }}>→</button>
           </div>
+          {/* iCal export */}
+          <button
+            onClick={() => {
+              let toExport = [];
+              if (viewMode === "month") {
+                toExport = state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && new Date(t.dueDate).getMonth() === month && new Date(t.dueDate).getFullYear() === year);
+              } else if (viewMode === "week") {
+                const keys = new Set(weekDays.map(d => d.toDateString()));
+                toExport = state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && keys.has(new Date(t.dueDate).toDateString()));
+              } else {
+                toExport = state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && new Date(t.dueDate).toDateString() === currentDay.toDateString());
+              }
+              if (toExport.length === 0) {
+                alert("Nessun task da esportare in questa vista");
+                return;
+              }
+              exportTasksToICal(toExport, `voyagedesk-${viewMode}-${new Date().toISOString().slice(0, 10)}.ics`);
+            }}
+            title="Esporta vista corrente in formato iCal (.ics)"
+            style={{
+              background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
+              padding: "0 12px", height: 34, cursor: "pointer", fontSize: 12, fontWeight: 600,
+              color: "var(--navy)", display: "flex", alignItems: "center", gap: 6,
+            }}
+          >📤 {isMobile ? "" : "iCal"}</button>
         </div>
       </div>
 
@@ -4829,17 +4924,24 @@ const CalendarPlanner = ({ state, dispatch }) => {
             {weekDays.map((day, i) => {
               const dayTasks = getTasksForDay(day);
               const isToday = day.toDateString() === new Date().toDateString();
+              const handleHeaderClick = () => {
+                const diff = Math.round((day - new Date(new Date().toDateString())) / 86400000);
+                setDayOffset(diff);
+                setViewMode("day");
+              };
               return (
                 <div key={i} style={{
                   background: isToday ? "var(--navy)" : "#fff",
                   borderRadius: 10, border: `1px solid ${isToday ? "transparent" : "var(--border)"}`,
                   overflow: "hidden", scrollSnapAlign: isMobile ? "start" : "none",
-                }}>
-                  {/* Day header */}
-                  <div style={{
+                }}
+                  onClick={(e) => { if (e.target === e.currentTarget) handleHeaderClick(); }}
+                >
+                  {/* Day header — click → vista giorno */}
+                  <div onClick={handleHeaderClick} title="Apri vista giornaliera" style={{
                     padding: "10px 10px 6px",
                     background: isToday ? "var(--gold)" : "var(--surface2)",
-                    textAlign: "center"
+                    textAlign: "center", cursor: "pointer",
                   }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: isToday ? "var(--navy)" : "var(--text-muted)" }}>{dayNames[i]}</div>
                     <div style={{ fontSize: 20, fontWeight: 700, color: isToday ? "var(--navy)" : "var(--text)" }}>
@@ -4869,6 +4971,140 @@ const CalendarPlanner = ({ state, dispatch }) => {
           </div>
         </div>
       )}
+
+      {/* ─── VISTA GIORNO (timeline oraria) ─── */}
+      {viewMode === "day" && (() => {
+        const dayTasks = getTasksForDay(currentDay).sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+        const isToday = currentDay.toDateString() === new Date().toDateString();
+        const tasksByHour = {};
+        const unscheduled = [];
+        dayTasks.forEach(t => {
+          const h = new Date(t.dueDate).getHours();
+          if (h < 8 || h > 20) unscheduled.push(t);
+          else { tasksByHour[h] = tasksByHour[h] || []; tasksByHour[h].push(t); }
+        });
+        return (
+          <div className="slide-up" style={{ background: "#fff", borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)", overflow: "hidden" }}>
+            {/* Day header bar */}
+            <div style={{
+              padding: isMobile ? "12px 14px" : "16px 20px",
+              background: isToday ? "var(--gold)" : "var(--navy)",
+              color: isToday ? "var(--navy)" : "#fff",
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+            }}>
+              <div>
+                <div className="playfair" style={{ fontSize: isMobile ? 17 : 20, fontWeight: 700, textTransform: "capitalize" }}>
+                  {currentDay.toLocaleDateString("it-IT", { weekday: "long" })}
+                </div>
+                <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>
+                  {currentDay.toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}
+                </div>
+              </div>
+              <div style={{
+                background: isToday ? "rgba(15,32,68,0.15)" : "rgba(255,255,255,0.15)",
+                borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700,
+              }}>
+                {dayTasks.length} {dayTasks.length === 1 ? "task" : "task"}
+              </div>
+            </div>
+            {/* Time slots */}
+            <div>
+              {dayHours.map(h => {
+                const slotTasks = tasksByHour[h] || [];
+                return (
+                  <div key={h} style={{
+                    display: "grid",
+                    gridTemplateColumns: isMobile ? "60px 1fr" : "80px 1fr",
+                    borderBottom: "1px solid var(--border)",
+                    minHeight: 64,
+                  }}>
+                    <div style={{
+                      padding: "10px 8px",
+                      background: "var(--surface2)",
+                      borderRight: "1px solid var(--border)",
+                      fontSize: 11, fontWeight: 700, color: "var(--text-muted)",
+                      textAlign: "center", letterSpacing: 0.5,
+                    }}>
+                      {String(h).padStart(2, "0")}:00
+                    </div>
+                    <div style={{ padding: 8, display: "flex", flexDirection: "column", gap: 6, justifyContent: slotTasks.length ? "flex-start" : "center" }}>
+                      {slotTasks.length === 0 ? (
+                        <div style={{ fontSize: 10, color: "var(--text-light)", fontStyle: "italic" }}>—</div>
+                      ) : slotTasks.map(t => {
+                        const overdue = isOverdue(t);
+                        return (
+                          <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+                            <div onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                              background: CATEGORIES[t.category]?.color + "15",
+                              borderLeft: `4px solid ${CATEGORIES[t.category]?.color}`,
+                              borderRadius: "0 6px 6px 0", padding: "8px 10px",
+                              cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
+                              opacity: t.status === "done" ? 0.6 : 1,
+                            }}
+                              onMouseEnter={e => e.currentTarget.style.background = CATEGORIES[t.category]?.color + "25"}
+                              onMouseLeave={e => e.currentTarget.style.background = CATEGORIES[t.category]?.color + "15"}
+                            >
+                              <span style={{ fontSize: 16 }}>{CATEGORIES[t.category]?.icon}</span>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {t.title} {overdue && <span style={{ color: "var(--danger)", fontSize: 11 }}>⚠️</span>}
+                                </div>
+                                <div style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", gap: 8, marginTop: 2 }}>
+                                  <span>{formatTime(t.dueDate)}</span>
+                                  {t.client && <span>• {t.client}</span>}
+                                  {t.estimatedHours > 0 && <span>• {t.estimatedHours}h</span>}
+                                </div>
+                              </div>
+                              <PriorityBadge priority={t.priority} />
+                              {t.assignees?.length > 0 && (
+                                <div style={{ display: "flex", marginLeft: 4 }}>
+                                  {t.assignees.slice(0, 3).map((aid, idx) => (
+                                    <div key={aid} style={{ marginLeft: idx === 0 ? 0 : -8, border: "2px solid #fff", borderRadius: "50%" }}>
+                                      <Avatar memberId={aid} size={22} />
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </SwipeActions>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+              {/* Unscheduled (orari fuori 8-20) */}
+              {unscheduled.length > 0 && (
+                <div style={{ padding: "14px 18px", background: "var(--surface)" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", marginBottom: 8, letterSpacing: 0.5 }}>
+                    FUORI ORARIO ({unscheduled.length})
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {unscheduled.map(t => (
+                      <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                        background: "#fff", border: "1px solid var(--border)",
+                        borderRadius: 8, padding: "8px 12px", cursor: "pointer",
+                        display: "flex", alignItems: "center", gap: 8,
+                      }}>
+                        <span style={{ fontSize: 14 }}>{CATEGORIES[t.category]?.icon}</span>
+                        <div style={{ flex: 1, fontSize: 12 }}>{t.title}</div>
+                        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{formatTime(t.dueDate)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {dayTasks.length === 0 && (
+                <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--text-muted)" }}>
+                  <div style={{ fontSize: 32, marginBottom: 8 }}>🌤️</div>
+                  <div style={{ fontSize: 14, fontWeight: 500 }}>Nessun task programmato</div>
+                  <div style={{ fontSize: 12, marginTop: 4 }}>Goditi la giornata!</div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ─── DISTRIBUZIONE AGENTI (sempre visibile) ─── */}
       <div style={{ background: "#fff", borderRadius: 12, padding: isMobile ? "14px 12px" : "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>

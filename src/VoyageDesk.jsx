@@ -2048,8 +2048,9 @@ const Sidebar = ({ state, dispatch, onOpenBulk }) => {
 };
 
 // ─── BOTTOM NAV (mobile/tablet) ────────────────────────────────────────────
-const BottomNav = ({ state, dispatch }) => {
+const BottomNav = ({ state, dispatch, onOpenBulk }) => {
   const navItems = getNavItemsForUser(state.currentUserId);
+  const canBulk = state.activeView !== "trash" && state.activeView !== "admin";
   return (
     <nav className="vd-bottom-nav" aria-label="Navigazione principale">
       {navItems.map(item => {
@@ -2076,6 +2077,24 @@ const BottomNav = ({ state, dispatch }) => {
           </button>
         );
       })}
+      {canBulk && (
+        <button
+          onClick={onOpenBulk}
+          aria-label="Crea task multipli"
+          title="Crea più task / Import / Template"
+          style={{
+            flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
+            justifyContent: "center", gap: 3, padding: "6px 2px",
+            background: "transparent", border: "none", cursor: "pointer",
+            color: "var(--gold)",
+            borderTop: "2px solid transparent",
+            transition: "color 0.2s",
+          }}
+        >
+          <span style={{ fontSize: 19, lineHeight: 1 }}>📑</span>
+          <span style={{ fontSize: 9, fontWeight: 700, whiteSpace: "nowrap" }}>Multipli</span>
+        </button>
+      )}
     </nav>
   );
 };
@@ -6581,7 +6600,7 @@ const AdminIOTab = ({ state, dispatch }) => {
       {/* Import task */}
       <div style={cardStyle}>
         <h3 style={cardH}>📥 Importa task</h3>
-        <p style={cardP}>Usa il <b>Bulk Task Creator</b> (pulsante 📑 <b>Crea multipli</b> nella sidebar; su mobile è il FAB navy in basso a destra) → tab <b>Importa</b> per caricare CSV/Excel con mapping automatico.</p>
+        <p style={cardP}>Usa il <b>Bulk Task Creator</b> (pulsante 📑 <b>Multipli</b> nella sidebar su desktop, nella bottom bar su mobile) → tab <b>Importa</b> per caricare CSV/Excel con mapping automatico.</p>
         <div style={{ fontSize: 12, color: "var(--text-muted)", padding: 12, background: "var(--surface2)", borderRadius: 8, border: "1px dashed var(--border)" }}>
           💡 Colonne supportate: <code>Titolo, Categoria, Priorità, Cliente, Scadenza, Assegnato, Ore, Descrizione</code><br/>
           Il sistema normalizza automaticamente nomi categoria/priorità in italiano e ID agenti.
@@ -6985,7 +7004,6 @@ export default function VoyageDesk() {
 }
 
 function VoyageDeskInner() {
-  const { isDesktop } = useViewport();
   const [state, dispatch] = useReducer(reducer, initialState);
   const [showFABModal, setShowFABModal] = useState(false);
   const [showChat, setShowChat] = useState(false);
@@ -7051,7 +7069,7 @@ function VoyageDeskInner() {
         </div>
 
         {/* Bottom nav mobile/tablet */}
-        <BottomNav state={state} dispatch={dispatch} />
+        <BottomNav state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} />
 
         {/* Slide-over */}
         {state.selectedTask && <TaskSlideOver task={state.selectedTask} dispatch={dispatch} />}
@@ -7069,27 +7087,9 @@ function VoyageDeskInner() {
           currentUserId={state.currentUserId}
         />
 
-        {/* FAB singolo task (sempre); FAB bulk solo su mobile/tablet — su desktop è nella sidebar */}
+        {/* FAB singolo task — bulk è nella sidebar (desktop) o nella bottom bar (mobile) */}
         {state.activeView !== "trash" && state.activeView !== "admin" && (
-          <>
-            {!isDesktop && (
-              <button
-                onClick={() => setShowBulkModal(true)}
-                title="Crea più task / Import / Template"
-                style={{
-                  position: "fixed", bottom: 84, right: 76, width: 44, height: 44,
-                  borderRadius: "50%", background: "var(--navy)", border: "none",
-                  boxShadow: "0 6px 20px rgba(15,32,68,0.35)", cursor: "pointer",
-                  fontSize: 17, display: "flex", alignItems: "center", justifyContent: "center",
-                  color: "#fff", zIndex: 400,
-                  transition: "transform 0.2s ease, box-shadow 0.2s ease",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.1)"; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              >📑</button>
-            )}
-            <FAB onClick={() => setShowFABModal(true)} />
-          </>
+          <FAB onClick={() => setShowFABModal(true)} />
         )}
         {showFABModal && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} />}
 

@@ -1142,21 +1142,28 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
   const panelRef = useRef(null);
   const keywordRef = useRef(null);
 
+  // Stabilizziamo onClose con un ref: i listener si attaccano una sola volta
+  // al mount (dep array vuoto) e leggono la versione corrente di onClose.
+  // Se mettessimo [onClose] nel dep array, un genitore che passa una arrow
+  // inline causerebbe detach/attach ad ogni suo render.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
   useEffect(() => { keywordRef.current?.focus(); }, []);
 
   useEffect(() => {
     const handler = (e) => {
-      if (panelRef.current && !panelRef.current.contains(e.target)) onClose();
+      if (panelRef.current && !panelRef.current.contains(e.target)) onCloseRef.current?.();
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [onClose]);
+  }, []);
 
   useEffect(() => {
-    const handler = (e) => { if (e.key === "Escape") onClose(); };
+    const handler = (e) => { if (e.key === "Escape") onCloseRef.current?.(); };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [onClose]);
+  }, []);
 
   const toggle = (arr, setArr, val) => {
     setArr(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]);
@@ -2569,7 +2576,7 @@ const TemplateTab = ({ onCreate, onClose }) => {
               </div>
               <div style={{ maxHeight: 240, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 8 }}>
                 {previewTasks.map((t, idx) => (
-                  <div key={idx} style={{
+                  <div key={t.id || idx} style={{
                     padding: "8px 12px", borderBottom: idx === previewTasks.length - 1 ? "none" : "1px solid var(--border)",
                     display: "flex", alignItems: "center", gap: 10, fontSize: 12,
                   }}>
@@ -4220,7 +4227,7 @@ const TaskSlideOver = ({ task, dispatch }) => {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {(task.comments || []).map((c, i) => (
-                <div key={i} style={{ display: "flex", gap: 10 }}>
+                <div key={c.time ? `${c.user}-${c.time}` : i} style={{ display: "flex", gap: 10 }}>
                   <div style={{
                     width: 28, height: 28, borderRadius: "50%", background: "var(--navy)",
                     fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center",
@@ -4476,11 +4483,11 @@ const CalendarPlanner = ({ state, dispatch }) => {
       {viewMode === "week" && (
         <div style={{ overflowX: isMobile ? "auto" : "visible", scrollSnapType: isMobile ? "x mandatory" : "none" }}>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(7, 60vw)" : "repeat(7, 1fr)", gap: 10 }}>
-            {weekDays.map((day, i) => {
+            {weekDays.map((day) => {
               const dayTasks = getTasksForDay(day);
               const isToday = day.toDateString() === new Date().toDateString();
               return (
-                <div key={i} style={{
+                <div key={day.toISOString()} style={{
                   background: isToday ? "var(--navy)" : "#fff",
                   borderRadius: 10, border: `1px solid ${isToday ? "transparent" : "var(--border)"}`,
                   overflow: "hidden", scrollSnapAlign: isMobile ? "start" : "none",
@@ -4528,8 +4535,8 @@ const CalendarPlanner = ({ state, dispatch }) => {
             <thead>
               <tr>
                 <th style={{ textAlign: "left", padding: "8px 12px", background: "var(--surface2)", borderRadius: "8px 0 0 0", fontWeight: 600, fontSize: 11, color: "var(--text-muted)", width: 150 }}>Agente</th>
-                {agentWeekDays.map((d, i) => (
-                  <th key={i} style={{
+                {agentWeekDays.map((d) => (
+                  <th key={d.toISOString()} style={{
                     padding: "8px 6px", background: "var(--surface2)", fontSize: 11, fontWeight: 600,
                     color: d.toDateString() === new Date().toDateString() ? "var(--gold)" : "var(--text-muted)",
                     textAlign: "center", minWidth: 70
@@ -4549,13 +4556,13 @@ const CalendarPlanner = ({ state, dispatch }) => {
                       <span style={{ fontWeight: 500 }}>{m.name.split(" ")[0]}</span>
                     </div>
                   </td>
-                  {agentWeekDays.map((day, i) => {
+                  {agentWeekDays.map((day) => {
                     const count = state.tasks.filter(t =>
                       isActiveTask(t) && t.assignees?.includes(m.id) && t.dueDate &&
                       new Date(t.dueDate).toDateString() === day.toDateString()
                     ).length;
                     return (
-                      <td key={i} style={{
+                      <td key={day.toISOString()} style={{
                         padding: "8px 6px", textAlign: "center", borderBottom: "1px solid var(--border)",
                         background: count > 0 ? m.color + "12" : "transparent",
                       }}>

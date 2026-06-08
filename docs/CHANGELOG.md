@@ -1,5 +1,30 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9 — Notifiche Reali (sessione 9 — quarta parte)
+
+> Fase 2 iniziata: sistema notifiche dinamico collegato alle azioni del reducer + badge sulla navigazione.
+
+### 🔔 Notifiche reali
+- **Nuovo modello dinamico**: `notifications` array in `initialState`, sostituisce array statico. Tipi: `overdue`, `assigned`, `comment`, `pending`, `queue`, `pratica`.
+- **Helpers reducer**: `_makeNotif(type, title, extras)` e `_addNotif(state, notif)` con cap automatico a 100 entry.
+- **Generazione iniziale** (`generateInitialNotifications`): seed da task scaduti, task in coda globale, agenti pending → cronologicamente ordinato.
+- **Inietta automaticamente notifiche** nelle azioni:
+  - `ADD_TASK` con `assignees.length > 0` → `assigned`
+  - `ADD_COMMENT` → `comment`
+  - `APPROVE_TEAM_MEMBER` → `pending` (in approvazione)
+- **`NotificationsPanel` rifatto** con: 6 filtri (Tutte/Non lette/Scadute/Assegnate/Commenti/Team) con contatori, "✓ Tutte lette", dismiss singolo, dismiss read in blocco, click → naviga (apre TaskSlideOver o SET_VIEW), timestamp relativi ("5 min fa", "2 ore fa", "ieri").
+- **Badge nav**: helper `getNavBadgeCount(navId, state)` calcola badge per voci nav.
+  - **Dashboard**: pallino rosso con conteggio task in coda globale (max 99+).
+  - **Admin**: pallino rosso con conteggio agenti pending (max 9+).
+  - Visibili sia in **Sidebar** (desktop, sia espansa che collassata) sia in **BottomNav** (mobile/tablet).
+- Nuove reducer actions: `MARK_NOTIF_READ`, `MARK_ALL_NOTIF_READ`, `DISMISS_NOTIF`, `DISMISS_READ_NOTIFS`.
+
+### 📈 Metriche (sessione 9 — quarta parte)
+- File: 8349 → **~8540 righe** (+191 notifiche).
+- **Fase 2 iniziata**: ✅ Notifiche reali.
+
+---
+
 ## v0.9 — Pratiche di Viaggio (sessione 9 — terza parte)
 
 > Fase 1 completa: modulo centrale che aggrega task, clienti, fornitori e dati economici.

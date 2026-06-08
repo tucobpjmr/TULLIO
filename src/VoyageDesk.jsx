@@ -320,14 +320,28 @@ const INITIAL_PRATICHE = [
   },
 ];
 
-const NOTIFICATIONS = [
-  { id: "n1", type: "overdue", title: "Task scaduto: Visto Giappone - Coppia Bianchi", time: "5 min fa", read: false },
-  { id: "n2", type: "assigned", title: "Nuovo task assegnato: Newsletter Giugno", time: "1 ora fa", read: false },
-  { id: "n3", type: "comment", title: "Sofia ha commentato su Hotel Overwater Bungalow", time: "2 ore fa", read: false },
-  { id: "n4", type: "deadline", title: "Scadenza domani: Conferma voli Maldive", time: "3 ore fa", read: true },
-  { id: "n5", type: "comment", title: "Luca ha aggiornato: Newsletter Giugno", time: "4 ore fa", read: true },
-  { id: "n6", type: "deadline", title: "Scadenza oggi: Pagamento acconto Famiglia Rossi", time: "8 ore fa", read: true },
-];
+// Notifiche generate dinamicamente dallo stato iniziale (v0.9)
+const generateInitialNotifications = () => {
+  const notifs = [];
+  const now = new Date();
+  const _od = t => t.status !== "done" && !t.deletedAt && t.dueDate && new Date(t.dueDate) < now;
+  let seq = 1;
+  const mkId = () => `ni-${seq++}`;
+  INITIAL_TASKS.filter(t => _od(t)).forEach(t => {
+    notifs.push({ id: mkId(), type: "overdue", title: `Task scaduto: "${t.title}"`, taskId: t.id, time: new Date(t.dueDate).toISOString(), read: false });
+  });
+  TEAM.filter(m => m.pending).forEach(m => {
+    notifs.push({ id: mkId(), type: "pending", title: `Richiesta accesso: ${m.name} (${m.role})`, memberId: m.id, time: new Date(now - 3600000 * 3).toISOString(), read: false });
+  });
+  INITIAL_TASKS.filter(t => !t.deletedAt && (!t.assignees || !t.assignees.length) && t.status !== "done").slice(0, 2).forEach(t => {
+    notifs.push({ id: mkId(), type: "queue", title: `Task in coda senza assegnatario: "${t.title}"`, taskId: t.id, time: new Date(now - 3600000 * 1).toISOString(), read: true });
+  });
+  INITIAL_TASKS.filter(t => !t.deletedAt && t.comments?.length > 0).slice(0, 2).forEach(t => {
+    const c = t.comments[t.comments.length - 1];
+    notifs.push({ id: mkId(), type: "comment", title: `${c.user} ha commentato su "${t.title}"`, taskId: t.id, time: c.time, read: true });
+  });
+  return notifs.sort((a, b) => new Date(b.time) - new Date(a.time));
+};
 
 // ─── TASK TEMPLATES ────────────────────────────────────────────────────────
 const TASK_TEMPLATES = [
@@ -455,6 +469,14 @@ const buildLogEntry = (action, state) => {
   return { id: `log-${stamp}-${Math.random().toString(36).slice(2,7)}`, time: stamp, type: t, text: (map[t] || (() => t))() };
 };
 
+const _makeNotif = (type, title, extras = {}) => ({
+  id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  type, title, time: new Date().toISOString(), read: false, ...extras,
+});
+const _addNotif = (state, notif) => ({
+  notifications: [notif, ...(state.notifications || [])].slice(0, 100),
+});
+
 function baseReducer(state, action) {
   const uid = state.currentUserId;
   const _denied = (msg = "Non hai i permessi per questa azione") =>
@@ -516,7 +538,10 @@ function baseReducer(state, action) {
         return _denied("Non puoi creare task di questa categoria");
       }
       const tasks = [action.payload, ...state.tasks];
-      return { ...state, tasks, toast: { message: "Task creato con successo!", type: "success" } };
+      const notifExtras = (action.payload.assignees || []).length > 0
+        ? _addNotif(state, _makeNotif("assigned", `Task assegnato: "${action.payload.title}"`, { taskId: action.payload.id }))
+        : {};
+      return { ...state, tasks, ...notifExtras, toast: { message: "Task creato con successo!", type: "success" } };
     }
     case "ADD_TASKS_BULK": {
       const bad = action.payload.find(t => !canCreateTaskCategory(t.category, uid));
@@ -552,7 +577,8 @@ function baseReducer(state, action) {
       const selectedTask = state.selectedTask?.id === action.payload.taskId
         ? { ...state.selectedTask, comments: [...(state.selectedTask.comments || []), action.payload.comment] }
         : state.selectedTask;
-      return { ...state, tasks, selectedTask };
+      const commentNotif = _makeNotif("comment", `${action.payload.comment.user} ha commentato su "${prev.title}"`, { taskId: action.payload.taskId });
+      return { ...state, tasks, selectedTask, ..._addNotif(state, commentNotif) };
     }
     case "DELETE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload);
@@ -601,9 +627,11 @@ function baseReducer(state, action) {
       return { ...state, team, toast: { message: "Agente aggiornato", type: "success" } };
     }
     case "APPROVE_TEAM_MEMBER": {
+      const approvedMember = getMember(action.payload);
       const team = state.team.map(m => m.id === action.payload ? { ...m, pending: false, active: true } : m);
       _syncTeam(team);
-      return { ...state, team, toast: { message: "Agente approvato e attivato!", type: "success" } };
+      const approveNotif = _makeNotif("pending", `${approvedMember?.name || "Agente"} approvato e attivato nel team`, { memberId: action.payload });
+      return { ...state, team, ..._addNotif(state, approveNotif), toast: { message: "Agente approvato e attivato!", type: "success" } };
     }
     case "TOGGLE_TEAM_MEMBER_ACTIVE": {
       const team = state.team.map(m => m.id === action.payload ? { ...m, active: !m.active } : m);
@@ -684,6 +712,24 @@ function baseReducer(state, action) {
         n.id === action.payload ? { ...n, pinned: !n.pinned } : n
       );
       return { ...state, notices };
+    }
+
+    // ─── NOTIFICHE (v0.9) ───
+    case "MARK_NOTIF_READ": {
+      const notifications = (state.notifications || []).map(n => n.id === action.payload ? { ...n, read: true } : n);
+      return { ...state, notifications };
+    }
+    case "MARK_ALL_NOTIF_READ": {
+      const notifications = (state.notifications || []).map(n => ({ ...n, read: true }));
+      return { ...state, notifications };
+    }
+    case "DISMISS_NOTIF": {
+      const notifications = (state.notifications || []).filter(n => n.id !== action.payload);
+      return { ...state, notifications };
+    }
+    case "DISMISS_READ_NOTIFS": {
+      const notifications = (state.notifications || []).filter(n => !n.read);
+      return { ...state, notifications };
     }
 
     case "CLEAR_TOAST": return { ...state, toast: null };
@@ -836,6 +882,7 @@ const initialState = {
   categories: CATEGORIES,
   agencyName: "VoyageDesk",
   notices: INITIAL_NOTICES,
+  notifications: generateInitialNotifications(),
   activityLog: [],
   activeView: "dashboard",
   selectedTask: null,
@@ -1600,7 +1647,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
 const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
   const { isMobile } = useViewport();
-  const unread = NOTIFICATIONS.filter(n => !n.read).length;
+  const unread = (state.notifications || []).filter(n => !n.read).length;
   const [advOpen, setAdvOpen] = useState(false);
   return (
     <div style={{
@@ -1689,7 +1736,7 @@ const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
             color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center"
           }}>{unread}</span>}
         </button>
-        {state.showNotif && <NotificationsPanel dispatch={dispatch} />}
+        {state.showNotif && <NotificationsPanel state={state} dispatch={dispatch} />}
       </div>
 
       {/* User switcher (v0.8) */}
@@ -2066,39 +2113,138 @@ const UserSwitcher = ({ state, dispatch }) => {
 };
 
 // ─── NOTIFICATIONS PANEL ───────────────────────────────────────────────────
-const NotificationsPanel = ({ dispatch }) => {
+const NOTIF_ICONS = { overdue: "⚠️", assigned: "📋", comment: "💬", pending: "👤", queue: "🌐", pratica: "📋" };
+const NOTIF_COLORS = { overdue: "var(--danger)", assigned: "var(--navy)", comment: "var(--gold-dark)", pending: "#8B5CF6", queue: "#3B82F6", pratica: "var(--navy)" };
+
+const relTime = iso => {
+  if (!iso) return "—";
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 0) return "ora";
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "ora";
+  if (mins < 60) return `${mins} min fa`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs === 1 ? "1 ora fa" : `${hrs} ore fa`;
+  const days = Math.floor(hrs / 24);
+  return days === 1 ? "ieri" : `${days} giorni fa`;
+};
+
+const NOTIF_FILTERS = [
+  { key: "all", label: "Tutte" },
+  { key: "unread", label: "Non lette" },
+  { key: "overdue", label: "⚠️ Scadute" },
+  { key: "assigned", label: "📋 Assegnate" },
+  { key: "comment", label: "💬 Commenti" },
+  { key: "pending", label: "👤 Team" },
+];
+
+const NotificationsPanel = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
-  const icons = { overdue: "⚠️", assigned: "📋", comment: "💬", deadline: "📅" };
+  const [filter, setFilter] = useState("all");
+  const notifications = state.notifications || [];
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const visible = notifications.filter(n => {
+    if (filter === "unread") return !n.read;
+    if (filter === "all") return true;
+    return n.type === filter;
+  });
+
+  const handleClick = (n) => {
+    dispatch({ type: "MARK_NOTIF_READ", payload: n.id });
+    if (n.taskId) {
+      const task = state.tasks.find(t => t.id === n.taskId);
+      if (task) dispatch({ type: "SET_SELECTED_TASK", payload: task });
+    } else if (n.type === "pending") {
+      dispatch({ type: "SET_VIEW", payload: "admin" });
+    } else if (n.type === "queue") {
+      dispatch({ type: "SET_VIEW", payload: "dashboard" });
+    }
+    dispatch({ type: "TOGGLE_NOTIF" });
+  };
+
   return (
     <div className="slide-right" style={{
       position: isMobile ? "fixed" : "absolute",
       top: isMobile ? 56 : "calc(100% + 8px)",
-      right: isMobile ? 12 : 0,
-      left: isMobile ? 12 : "auto",
-      width: isMobile ? "auto" : "min(360px, calc(100vw - 24px))",
+      right: isMobile ? 12 : 0, left: isMobile ? 12 : "auto",
+      width: isMobile ? "auto" : "min(380px, calc(100vw - 24px))",
       background: "#fff", borderRadius: 12, boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
       border: "1px solid var(--border)", overflow: "hidden", zIndex: 200,
     }}>
-      <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div className="playfair" style={{ fontWeight: 600, fontSize: 15 }}>Notifiche</div>
-        <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
-      </div>
-      <div style={{ maxHeight: 420, overflowY: "auto" }}>
-        {NOTIFICATIONS.map(n => (
-          <div key={n.id} style={{
-            padding: "12px 16px", display: "flex", gap: 10, alignItems: "flex-start",
-            background: n.read ? "transparent" : "rgba(212,168,67,0.07)",
-            borderBottom: "1px solid var(--border)",
-            transition: "background 0.2s", cursor: "default",
-          }}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>{icons[n.type]}</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: n.read ? 400 : 600 }}>{n.title}</div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{n.time}</div>
-            </div>
-            {!n.read && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--gold)", flexShrink: 0, marginTop: 4 }} />}
+      {/* Header */}
+      <div style={{ padding: "14px 16px 10px", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span className="playfair" style={{ fontWeight: 600, fontSize: 15 }}>Notifiche</span>
+            {unreadCount > 0 && <span style={{ background: "var(--gold)", color: "var(--navy)", borderRadius: 10, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>{unreadCount}</span>}
           </div>
-        ))}
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            {unreadCount > 0 && (
+              <button onClick={() => dispatch({ type: "MARK_ALL_NOTIF_READ" })}
+                style={{ background: "var(--surface2)", border: "none", cursor: "pointer", fontSize: 11, color: "var(--navy)", fontWeight: 600, padding: "4px 8px", borderRadius: 6 }}>
+                ✓ Tutte lette
+              </button>
+            )}
+            {notifications.some(n => n.read) && (
+              <button onClick={() => dispatch({ type: "DISMISS_READ_NOTIFS" })}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "var(--text-muted)", padding: "4px 8px", borderRadius: 6 }}>
+                🗑️
+              </button>
+            )}
+            <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
+          </div>
+        </div>
+        {/* Filtri */}
+        <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 2 }}>
+          {NOTIF_FILTERS.map(f => {
+            const cnt = f.key === "all" ? notifications.length : f.key === "unread" ? unreadCount : notifications.filter(n => n.type === f.key).length;
+            if (f.key !== "all" && f.key !== "unread" && cnt === 0) return null;
+            return (
+              <button key={f.key} onClick={() => setFilter(f.key)} style={{
+                padding: "4px 10px", borderRadius: 20, cursor: "pointer", fontSize: 11, whiteSpace: "nowrap",
+                border: filter === f.key ? "1.5px solid var(--navy)" : "1.5px solid var(--border)",
+                background: filter === f.key ? "var(--navy)" : "#fff",
+                color: filter === f.key ? "#fff" : "var(--text-muted)",
+                fontWeight: filter === f.key ? 600 : 400,
+              }}>{f.label}{cnt > 0 ? ` (${cnt})` : ""}</button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Lista notifiche */}
+      <div style={{ maxHeight: 400, overflowY: "auto" }}>
+        {visible.length === 0 ? (
+          <div style={{ padding: "32px 16px", textAlign: "center", color: "var(--text-muted)" }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>🔔</div>
+            <div style={{ fontSize: 13 }}>Nessuna notifica{filter !== "all" ? " in questa categoria" : ""}</div>
+          </div>
+        ) : (
+          visible.map(n => (
+            <div key={n.id} onClick={() => handleClick(n)} style={{
+              padding: "11px 16px", display: "flex", gap: 10, alignItems: "flex-start",
+              background: n.read ? "transparent" : "rgba(212,168,67,0.06)",
+              borderBottom: "1px solid var(--border)", cursor: "pointer", transition: "background 0.15s",
+            }}
+              onMouseEnter={e => e.currentTarget.style.background = n.read ? "var(--surface2)" : "rgba(212,168,67,0.1)"}
+              onMouseLeave={e => e.currentTarget.style.background = n.read ? "transparent" : "rgba(212,168,67,0.06)"}>
+              <div style={{ width: 32, height: 32, borderRadius: "50%", background: `${NOTIF_COLORS[n.type]}18`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>
+                {NOTIF_ICONS[n.type] || "🔔"}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: n.read ? 400 : 600, color: "var(--text)", lineHeight: 1.4 }}>{n.title}</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{relTime(n.time)}</div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
+                {!n.read && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--gold)" }} />}
+                <button onClick={e => { e.stopPropagation(); dispatch({ type: "DISMISS_NOTIF", payload: n.id }); }}
+                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "var(--text-light)", padding: 2, lineHeight: 1 }}
+                  title="Rimuovi">✕</button>
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
@@ -2120,6 +2266,16 @@ const NAV_ITEMS = [
 const getNavItemsForUser = (userId) => {
   const role = getRoleType(userId);
   return NAV_ITEMS.filter(it => !it.roles || it.roles.includes(role));
+};
+
+const getNavBadgeCount = (navId, state) => {
+  if (navId === "admin") {
+    return (state.team || []).filter(m => m.pending).length;
+  }
+  if (navId === "dashboard") {
+    return getActiveTasks(state.tasks || []).filter(t => isInGlobalQueue(t)).length;
+  }
+  return 0;
 };
 
 const Sidebar = ({ state, dispatch }) => {
@@ -2146,6 +2302,7 @@ const Sidebar = ({ state, dispatch }) => {
       <div style={{ marginTop: 48, padding: col ? "0 8px" : "0 12px", display: "flex", flexDirection: "column", gap: 2 }}>
         {navItems.map(item => {
           const active = state.activeView === item.id;
+          const badge = getNavBadgeCount(item.id, state);
           return (
             <button key={item.id} onClick={() => dispatch({ type: "SET_VIEW", payload: item.id })} style={{
               display: "flex", alignItems: "center", gap: 10,
@@ -2156,9 +2313,30 @@ const Sidebar = ({ state, dispatch }) => {
               fontSize: 14, fontWeight: active ? 600 : 400,
               transition: "all 0.2s", textAlign: "left",
               borderLeft: active ? "2px solid var(--gold)" : "2px solid transparent",
+              position: "relative",
             }}>
-              <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
-              {!col && <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>{item.label}</span>}
+              <span style={{ fontSize: 16, flexShrink: 0, position: "relative" }}>
+                {item.icon}
+                {col && badge > 0 && (
+                  <span style={{
+                    position: "absolute", top: -4, right: -6,
+                    background: "var(--danger)", color: "#fff",
+                    fontSize: 9, fontWeight: 700,
+                    minWidth: 14, height: 14, padding: "0 3px",
+                    borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center",
+                    border: "1.5px solid var(--navy-dark)",
+                  }}>{badge > 9 ? "9+" : badge}</span>
+                )}
+              </span>
+              {!col && <span style={{ whiteSpace: "nowrap", overflow: "hidden", flex: 1 }}>{item.label}</span>}
+              {!col && badge > 0 && (
+                <span style={{
+                  background: "var(--danger)", color: "#fff",
+                  fontSize: 10, fontWeight: 700,
+                  minWidth: 18, height: 18, padding: "0 5px",
+                  borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center",
+                }}>{badge > 99 ? "99+" : badge}</span>
+              )}
             </button>
           );
         })}
@@ -2193,6 +2371,7 @@ const BottomNav = ({ state, dispatch }) => {
     <nav className="vd-bottom-nav" aria-label="Navigazione principale">
       {navItems.map(item => {
         const active = state.activeView === item.id;
+        const badge = getNavBadgeCount(item.id, state);
         return (
           <button
             key={item.id}
@@ -2201,14 +2380,26 @@ const BottomNav = ({ state, dispatch }) => {
             aria-current={active ? "page" : undefined}
             style={{
               flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
-              justifyContent: "center", gap: 3, padding: "6px 2px",
+              justifyContent: "center", gap: 3, padding: "6px 2px", position: "relative",
               background: "transparent", border: "none", cursor: "pointer",
               color: active ? "var(--gold)" : "rgba(255,255,255,0.55)",
               borderTop: active ? "2px solid var(--gold)" : "2px solid transparent",
               transition: "color 0.2s",
             }}
           >
-            <span style={{ fontSize: 19, lineHeight: 1 }}>{item.icon}</span>
+            <span style={{ fontSize: 19, lineHeight: 1, position: "relative" }}>
+              {item.icon}
+              {badge > 0 && (
+                <span style={{
+                  position: "absolute", top: -4, right: -8,
+                  background: "var(--danger)", color: "#fff",
+                  fontSize: 9, fontWeight: 700,
+                  minWidth: 15, height: 15, padding: "0 4px",
+                  borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center",
+                  border: "1.5px solid var(--navy-dark)",
+                }}>{badge > 9 ? "9+" : badge}</span>
+              )}
+            </span>
             <span style={{ fontSize: 9, fontWeight: active ? 700 : 500, whiteSpace: "nowrap" }}>
               {item.label.split(" ")[0]}
             </span>

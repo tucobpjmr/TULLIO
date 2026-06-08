@@ -62,7 +62,7 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 | Modulo | Stato | Priorità | Sforzo | Note |
 |---|---|---|---|---|
-| Notifiche reali | ⬜ | 🔴 | M | Collegate ad azioni (scadenze, assegnazioni, commenti, pending, coda > N ore); filtri + "segna tutte lette" |
+| Notifiche reali | ✅ | — | — | Completate in v0.9. Iniettate da ADD_TASK/ADD_COMMENT/APPROVE; filtri + "segna tutte lette"; badge nav. |
 | Calendario avanzato | ⬜ | 🟡 | M | Viste settimanale/giornaliera, eventi multipli, iCal (mock) |
 | Estensioni chat (base) | ⬜ | 🟡 | S–M | Ricerca nelle conversazioni, stato online/occupato, rich preview di task/pratiche, **task link cliccabile** nel messaggio |
 | Impostazioni agenzia | 🔶 | 🟡 | S | Gestione categorie e nome agenzia già in Admin. Manca: template messaggi, profilo utente, preferenze UI |
@@ -99,8 +99,8 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 
 | Idea | Stato | Priorità | Note |
 |---|---|---|---|
-| Badge sulla voce sidebar/bottom-nav **Admin** con conteggio agenti pending | ⬜ | 🟡 | |
-| Badge sulla voce sidebar/bottom-nav **Dashboard** con conteggio coda globale | ⬜ | 🟡 | |
+| Badge sulla voce sidebar/bottom-nav **Admin** con conteggio agenti pending | ✅ | — | Completato in v0.9 |
+| Badge sulla voce sidebar/bottom-nav **Dashboard** con conteggio coda globale | ✅ | — | Completato in v0.9 |
 | Toast personalizzato "Hai preso in carico: \[titolo\]" | ⬜ | ⚪ | |
 | Auto-move in "In Corso" al "Prendi in carico" | ⬜ | ⚪ | |
 | Notifica al manager se un task resta in coda > N ore | ⬜ | 🟡 | Dipende da notifiche reali |
@@ -150,7 +150,7 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 
 ## ✅ Completato (cronologia)
 
-- **v0.9** — Fase 1 completa: Clienti + Fornitori + Pratiche di viaggio. Modelli dati, CRUD, pannelli dettaglio, collegamento task/fornitori/pratiche, riepilogo economico, timeline stati, numerazione PR-YYYY-NNN. 8349 righe.
+- **v0.9** — Fase 1 completa + inizio Fase 2: Clienti + Fornitori + Pratiche di viaggio + **Notifiche reali**. Modelli dati, CRUD, pannelli dettaglio, collegamento task/fornitori/pratiche, riepilogo economico, timeline stati, numerazione PR-YYYY-NNN. Notifiche dinamiche iniettate dal reducer con filtri/dismiss/badge nav (Dashboard coda globale, Admin pending). ~8540 righe.
 - **v0.8** — Sistema Permessi per Ruolo: helper centralizzati (canViewTask/canEditTask/…), check nel reducer, UserSwitcher in Topbar, Dashboard con 3 code condizionali (PersonalQueue/UnassignedQueue/UrgentOthersQueue), chat con intent per task link, Sidebar/BottomNav filtrate per ruolo, QuickAddTask categorie filtrate, nuova categoria `transfer` 🚐 + 2 task demo. 6617 righe.
 - **v0.7** — SwipeActions mobile: wrapper riusabile, swipe→3 bottoni (Fatto/Cestino/Inoltra), undo con toast 5s, integrato in KanbanCard/UnassignedQueue/Calendar/PersonalQueue. 6048 righe.
 - **v0.6** — Responsive full pass: ViewportProvider/useViewport, classi CSS responsive, BottomNav, tutte le viste adattate, FAB/Toast sopra bottom nav. 5738 righe.

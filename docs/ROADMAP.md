@@ -76,13 +76,12 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 ---
 
-## 💰 Fase 3 — Business & finanza
+## 💰 Fase 3 — Business
 
 Ha senso **solo dopo le Pratiche** (servono dati reali).
 
 | Modulo | Stato | Priorità | Sforzo | Dipende da |
 |---|---|---|---|---|
-| Modulo finanziario | ⬜ | 🔴 | L | Pratiche |
 | Report & Analytics | 🔶 | 🟡 | M–L | KPI base già in Admin/Sistema. Da estendere con: margini, trend temporali, export PDF |
 | Catalogo destinazioni / pacchetti | ⬜ | 🟡 | M | autonomo |
 
@@ -169,7 +168,7 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 1. **Decidi A o B** (persistenza sì/no).
 2. **Fase 1** — Clienti → Pratiche → collegamenti.
 3. **Notifiche reali** (Fase 2) — sblocca badge, alert su pending/coda, menzioni in bacheca.
-4. **Fase 3** — Finanziario, poi Report avanzati.
+4. **Fase 3** — Report avanzati + Catalogo destinazioni.
 5. **Fase 2 residua** (Calendario avanzato, estensioni chat) + **Fase 4** (multi-utente reale).
 6. Migliorie incrementali post-v0.5/v0.6/v0.8 inserite dove pertinenti.
 7. Traccia tecnica man mano, se in Opzione B.

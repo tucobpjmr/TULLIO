@@ -1,8 +1,10 @@
 # CLAUDE.md — Istruzioni per Claude Code
 
+> 📌 **Prima di leggere questo file**, apri `docs/HANDOFF.md` — riassume lo stato corrente del lavoro, cosa è stato chiuso di recente e il prossimo step suggerito. Questo file è la guida tecnica permanente (convenzioni, modello dati, helper, permessi).
+
 ## Identità progetto
 
-**VoyageDesk** è un sistema gestionale per agenzie viaggi e tour operator. Attualmente è un single-file React (`src/VoyageDesk.jsx`, ~7071 righe). L'obiettivo immediato è portarlo in un progetto Vite reale per abilitare persistenza, multi-file, TypeScript e test.
+**VoyageDesk** è un sistema gestionale per agenzie viaggi e tour operator. Attualmente è un single-file React (`src/VoyageDesk.jsx`, ~8856 righe), servito da Vite (progetto già migrato). Stato in memoria; persistenza backend è il prossimo grande capitolo tecnico.
 
 ## Ruolo
 
@@ -248,8 +250,8 @@ VoyageDesk (export default, ViewportProvider wrapper)
 - [ ] Dark mode
 
 ### Priorità 4 — Business
-- [ ] Modulo finanziario (dopo Pratiche)
 - [ ] Report & Analytics avanzati
+- [ ] Catalogo destinazioni / pacchetti
 
 Vedi `docs/ROADMAP.md` per il dettaglio completo con dipendenze e stime.
 

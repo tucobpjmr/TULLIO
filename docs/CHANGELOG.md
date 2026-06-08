@@ -40,7 +40,7 @@
 - `initialState.pratiche = PRATICHE`, `_syncPratiche` per mutazione globale (pattern TEAM/CATEGORIES/CLIENTS).
 
 ### 🔜 Step successivo
-- Fase 3 → Modulo Finanziario: estende il riepilogo economico delle pratiche con pagamenti/acconti, scadenze, allegati e report.
+- Fase 3 → Report & Analytics avanzati: trend mensili pratiche, margini per cliente/destinazione, export PDF.
 
 ---
 

@@ -7582,7 +7582,7 @@ const PraticaDetailModal = ({ state, dispatch, pratica, canManage, onEdit, onDel
                 </div>
               </div>
               <div style={{ marginTop: 18, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>
-                <p style={{ margin: "0 0 6px 0" }}><b>Note:</b> il riepilogo è una vista MVP. Il modulo Finanziario di Fase 3 estenderà con pagamenti, acconti, scadenze e report.</p>
+                <p style={{ margin: "0 0 6px 0" }}><b>Note:</b> il riepilogo è una vista MVP. I Report & Analytics di Fase 3 estenderanno con trend mensili, margini per cliente/destinazione ed export PDF.</p>
               </div>
             </div>
           )}

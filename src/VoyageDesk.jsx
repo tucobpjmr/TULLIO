@@ -1,6 +1,9 @@
 
 import { useState, useReducer, useContext, createContext, useRef, useEffect, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx";
+import { useAuth } from './lib/auth/AuthContext.jsx';
+import { useSupabaseData, useAsyncDispatch } from './lib/useSupabaseData.js';
+import { Comments, Clients, Suppliers, Dossiers, DossierSuppliers } from './lib/api.js';
 
 // ─── GOOGLE FONTS ──────────────────────────────────────────────────────────
 const FontLoader = () => (
@@ -340,9 +343,11 @@ function baseReducer(state, action) {
 
   switch (action.type) {
     case "SET_VIEW": {
-      // Solo admin può aprire la vista Admin
       if (action.payload === "admin" && !canAccessAdmin(uid)) {
         return _denied("Non hai i permessi per accedere all'Admin");
+      }
+      if ((action.payload === "clients" || action.payload === "suppliers" || action.payload === "dossiers") && isDriver(uid)) {
+        return _denied("Non hai i permessi per questa sezione");
       }
       return { ...state, activeView: action.payload };
     }
@@ -582,6 +587,34 @@ function baseReducer(state, action) {
     case "SET_FILTER": return { ...state, filters: { ...state.filters, ...action.payload } };
     case "TOGGLE_SIDEBAR": return { ...state, sidebarCollapsed: !state.sidebarCollapsed };
 
+    // ─── SYNC SUPABASE ───
+    case "_LOADING_START": return { ...state, loading: true };
+    case "_LOADING_DONE": return { ...state, loading: false };
+    case "_INIT_ALL": {
+      const { tasks, notices, team, currentUserId: uid } = action.payload;
+      if (team?.length) _syncTeam(team);
+      const finalId = uid || state.currentUserId;
+      _syncCurrentUser(finalId);
+      return { ...state, tasks, notices, team: team || state.team, currentUserId: finalId, loading: false };
+    }
+    case "_INIT_NOTICES": return { ...state, notices: action.payload };
+    case "_RT_TASK_UPSERT": {
+      const exists = state.tasks.some(t => t.id === action.payload.id);
+      const tasks = exists
+        ? state.tasks.map(t => t.id === action.payload.id ? { ...t, ...action.payload } : t)
+        : [...state.tasks, action.payload];
+      const selectedTask = state.selectedTask?.id === action.payload.id
+        ? { ...state.selectedTask, ...action.payload }
+        : state.selectedTask;
+      return { ...state, tasks, selectedTask };
+    }
+    case "_RT_TASK_DELETE": {
+      const tasks = state.tasks.filter(t => t.id !== action.payload);
+      const selectedTask = state.selectedTask?.id === action.payload ? null : state.selectedTask;
+      return { ...state, tasks, selectedTask };
+    }
+    case "_SHOW_TOAST": return { ...state, toast: action.payload };
+
     // ─── PROFILO PERSONALE (non admin-only) ───
     case "UPDATE_OWN_PROFILE": {
       const uid = state.currentUserId;
@@ -658,11 +691,11 @@ const INITIAL_NOTICES = [
 ];
 
 const initialState = {
-  tasks: INITIAL_TASKS,
+  tasks: [],
   team: TEAM,
   categories: CATEGORIES,
   agencyName: "VoyageDesk",
-  notices: INITIAL_NOTICES,
+  notices: [],
   activityLog: [],
   activeView: "dashboard",
   selectedTask: null,
@@ -671,8 +704,9 @@ const initialState = {
   showNotif: false,
   sidebarCollapsed: false,
   filters: { assignee: "", category: "", priority: "", status: "", client: "" },
-  lastAction: null, // { type, payload, undo: () => state-patch } per swipe-actions undo
-  currentUserId: CURRENT_USER, // v0.8: utente loggato (con switcher in Topbar)
+  lastAction: null,
+  currentUserId: CURRENT_USER,
+  loading: true,
 };
 
 // ─── UTILS ─────────────────────────────────────────────────────────────────
@@ -1126,11 +1160,20 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
   const [stats, setStats] = useState([]);
   const [agents, setAgents] = useState([]);
   const [includeTrashed, setIncludeTrashed] = useState(false);
+  const [dossierFilter, setDossierFilter] = useState("");
+  const [dossierSearch, setDossierSearch] = useState("");
+  const [dossiersAll, setDossiersAll] = useState([]);
 
   const panelRef = useRef(null);
   const keywordRef = useRef(null);
 
   useEffect(() => { keywordRef.current?.focus(); }, []);
+
+  useEffect(() => {
+    let active = true;
+    Dossiers.list().then(({ data }) => { if (active && data) setDossiersAll(data); });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     const handler = (e) => {
@@ -1153,9 +1196,10 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
   const resetAll = () => {
     setKeyword(""); setDateFrom(""); setDateTo("");
     setCats([]); setStats([]); setAgents([]); setIncludeTrashed(false);
+    setDossierFilter(""); setDossierSearch("");
   };
 
-  const hasFilters = keyword.trim() || dateFrom || dateTo || cats.length || stats.length || agents.length || includeTrashed;
+  const hasFilters = keyword.trim() || dateFrom || dateTo || cats.length || stats.length || agents.length || includeTrashed || dossierFilter;
 
   const results = useMemo(() => {
     if (!hasFilters) return [];
@@ -1168,6 +1212,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
       if (cats.length && !cats.includes(t.category)) return false;
       if (stats.length && !stats.includes(t.status)) return false;
       if (agents.length && !(t.assignees || []).some(a => agents.includes(a))) return false;
+      if (dossierFilter && t.dossierId !== dossierFilter) return false;
       if (from) {
         if (!t.dueDate) return false;
         if (new Date(t.dueDate) < from) return false;
@@ -1336,6 +1381,55 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
           </div>
         </div>
 
+        <div style={{ marginBottom: 14 }}>
+          <div style={sectionTitle}>Pratica</div>
+          <div style={{ position: "relative" }}>
+            <input
+              value={dossierSearch}
+              onChange={e => setDossierSearch(e.target.value)}
+              placeholder="Cerca per numero o titolo…"
+              style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: "1px solid var(--border)", fontSize: 12, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+              onFocus={e => e.target.style.borderColor = "var(--gold)"}
+              onBlur={e => e.target.style.borderColor = "var(--border)"}
+            />
+          </div>
+          {dossierFilter && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+              {(() => {
+                const d = dossiersAll.find(x => x.id === dossierFilter);
+                return d ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#EFF6FF", border: "1px solid #2563EB", borderRadius: 8, padding: "4px 10px", fontSize: 12, flex: 1 }}>
+                    <span style={{ fontWeight: 700, color: "#2563EB" }}>{d.number}</span>
+                    <span style={{ color: "var(--text)" }}>{d.title}</span>
+                    <button onClick={() => { setDossierFilter(""); setDossierSearch(""); }}
+                      style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "#2563EB", fontSize: 14, lineHeight: 1 }}>✕</button>
+                  </div>
+                ) : null;
+              })()}
+            </div>
+          )}
+          {dossierSearch && !dossierFilter && (
+            <div style={{ border: "1px solid var(--border)", borderRadius: 8, marginTop: 4, maxHeight: 160, overflowY: "auto", background: "#fff" }}>
+              {dossiersAll
+                .filter(d => [d.number, d.title, d.clients?.name].some(v => v?.toLowerCase().includes(dossierSearch.toLowerCase())))
+                .slice(0, 8)
+                .map(d => (
+                  <div key={d.id} onClick={() => { setDossierFilter(d.id); setDossierSearch(""); }}
+                    style={{ padding: "7px 12px", cursor: "pointer", borderBottom: "1px solid var(--border)", fontSize: 12, display: "flex", gap: 8 }}
+                    onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                    onMouseLeave={e => e.currentTarget.style.background = "#fff"}>
+                    <span style={{ fontWeight: 700, color: "var(--navy)", flexShrink: 0 }}>{d.number}</span>
+                    <span style={{ color: "var(--text)" }}>{d.title}</span>
+                    {d.clients?.name && <span style={{ color: "var(--text-muted)", marginLeft: "auto" }}>{d.clients.name}</span>}
+                  </div>
+                ))}
+              {dossiersAll.filter(d => [d.number, d.title, d.clients?.name].some(v => v?.toLowerCase().includes(dossierSearch.toLowerCase()))).length === 0 && (
+                <div style={{ padding: "10px 12px", fontSize: 12, color: "var(--text-muted)" }}>Nessuna pratica trovata</div>
+              )}
+            </div>
+          )}
+        </div>
+
         <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "var(--text)" }}>
           <input type="checkbox" checked={includeTrashed} onChange={e => setIncludeTrashed(e.target.checked)} />
           🗑️ Includi task nel cestino
@@ -1393,9 +1487,9 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
                       {t.deletedAt && <span style={{ color: "var(--danger)", marginRight: 6 }}>🗑️</span>}
                       {t.title}
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, display: "flex", gap: 10 }}>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, display: "flex", gap: 10, flexWrap: "wrap" }}>
                       <span>{STATUS_LABELS[t.status]}</span>
-                      {t.client && <span>• {t.client}</span>}
+                      {t.dossierId && (() => { const d = dossiersAll.find(x => x.id === t.dossierId); return d ? <span style={{ color: "var(--navy)", fontWeight: 600 }}>• 📁 {d.number}</span> : null; })()}
                       {t.dueDate && (
                         <span style={{ color: overdue ? "var(--danger)" : "var(--text-muted)" }}>
                           • {formatDate(t.dueDate)}{overdue ? " (scaduto)" : ""}
@@ -1931,13 +2025,36 @@ const NotificationsPanel = ({ dispatch }) => {
   );
 };
 
+// ─── DOSSIER STATUSES ─────────────────────────────────────────────────────
+const DOSSIER_STATUS = {
+  bozza:      { label: "Bozza",      color: "#6B7280", bg: "#F3F4F6", next: "confermata", nextLabel: "Conferma" },
+  confermata: { label: "Confermata", color: "#2563EB", bg: "#EFF6FF", next: "in_corso",   nextLabel: "Avvia"    },
+  in_corso:   { label: "In Corso",   color: "#059669", bg: "#ECFDF5", next: "completata", nextLabel: "Completa" },
+  completata: { label: "Completata", color: "#2D7A4F", bg: "#D1FAE5", next: null,         nextLabel: null       },
+  annullata:  { label: "Annullata",  color: "#C0392B", bg: "#FEE2E2", next: null,         nextLabel: null       },
+};
+
+// ─── SUPPLIER CATEGORIES ──────────────────────────────────────────────────
+const SUPPLIER_CATEGORIES = {
+  hotel:        { label: "Hotel",         icon: "🏨" },
+  volo:         { label: "Volo",          icon: "✈️" },
+  transfer:     { label: "Transfer",      icon: "🚐" },
+  tour_operator:{ label: "Tour Operator", icon: "🌍" },
+  assicurazione:{ label: "Assicurazione", icon: "🛡️" },
+  crociera:     { label: "Crociera",      icon: "🚢" },
+  altro:        { label: "Altro",         icon: "📦" },
+};
+
 // ─── SIDEBAR ───────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
-  { id: "dashboard", icon: "📊", label: "Dashboard", roles: ["admin", "manager", "agent", "driver"] },
-  { id: "calendar", icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
-  { id: "team", icon: "👥", label: "Team", roles: ["admin", "manager", "agent"] },
-  { id: "trash", icon: "🗑️", label: "Cestino", roles: ["admin"] },
-  { id: "admin", icon: "⚙️", label: "Admin", roles: ["admin"] },
+  { id: "dashboard", icon: "📊", label: "Dashboard",  roles: ["admin","manager","agent","driver"] },
+  { id: "calendar",  icon: "📅", label: "Calendario", roles: ["admin","manager","agent","driver"] },
+  { id: "clients",   icon: "👤", label: "Clienti",    roles: ["admin","manager","agent"] },
+  { id: "suppliers", icon: "🤝", label: "Fornitori",  roles: ["admin","manager","agent"] },
+  { id: "dossiers",  icon: "📁", label: "Pratiche",   roles: ["admin","manager","agent"] },
+  { id: "team",      icon: "👥", label: "Team",       roles: ["admin","manager","agent"] },
+  { id: "trash",     icon: "🗑️", label: "Cestino",    roles: ["admin"] },
+  { id: "admin",     icon: "⚙️", label: "Admin",      roles: ["admin"] },
 ];
 
 // Filtra NAV_ITEMS in base al ruolo dell'utente loggato
@@ -3954,15 +4071,28 @@ const QuickAddTask = ({ onAdd, onClose }) => {
 
   const [form, setForm] = useState({
     title: "", category: firstCatKey, priority: "medium",
-    status: "todo", assignees: [], dueDate: "", client: "", description: ""
+    status: "todo", assignees: [], dueDate: "", client: "", description: "", dossierId: "",
   });
+  const [dossiersList, setDossiersList] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    Dossiers.list().then(({ data }) => { if (active && data) setDossiersList(data); });
+    return () => { active = false; };
+  }, []);
+
+  const handleDossierChange = (dossierId) => {
+    const d = dossiersList.find(x => x.id === dossierId);
+    setForm(p => ({ ...p, dossierId, client: d?.client_id || p.client }));
+  };
 
   const handleSubmit = () => {
     if (!form.title.trim()) return;
     onAdd({
       id: "t" + Date.now(),
       ...form,
-      client: form.client.trim() || null,
+      client: form.client || null,
+      dossierId: form.dossierId || null,
       comments: [],
       estimatedHours: 1,
       dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
@@ -4034,8 +4164,16 @@ const QuickAddTask = ({ onAdd, onClose }) => {
           </div>
 
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>CLIENTE</label>
-            <input {...inp("client")} placeholder="Es. Famiglia Rossi..." />
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>PRATICA (opzionale)</label>
+            <select
+              value={form.dossierId}
+              onChange={e => handleDossierChange(e.target.value)}
+              style={{ ...inp("category").style, cursor: "pointer" }}>
+              <option value="">— Nessuna pratica —</option>
+              {dossiersList.map(d => (
+                <option key={d.id} value={d.id}>{d.number} — {d.title}</option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -4060,20 +4198,56 @@ const QuickAddTask = ({ onAdd, onClose }) => {
 };
 
 // ─── TASK DETAIL SLIDE-OVER ────────────────────────────────────────────────
-const TaskSlideOver = ({ task, dispatch }) => {
+const TaskSlideOver = ({ task, state, dispatch }) => {
   const { isMobile } = useViewport();
+  const { profile } = useAuth();
   const [newComment, setNewComment] = useState("");
+  const [localComments, setLocalComments] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [dossiers, setDossiers] = useState([]);
+  const [linkingDossier, setLinkingDossier] = useState(false);
+  const [pendingDossierId, setPendingDossierId] = useState("");
+
+  useEffect(() => {
+    if (!task?.id) return;
+    let active = true;
+    Comments.listForTask(task.id).then(({ data }) => {
+      if (active && data) {
+        setLocalComments(data.map(r => ({
+          id: r.id,
+          user: r.users?.name || 'Utente',
+          text: r.text,
+          time: r.created_at,
+        })));
+      }
+    });
+    return () => { active = false; };
+  }, [task?.id]);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([Clients.list(), Dossiers.list()]).then(([c, d]) => {
+      if (!active) return;
+      if (c.data) setClients(c.data);
+      if (d.data) setDossiers(d.data);
+    });
+    return () => { active = false; };
+  }, []);
+
+  const clientName = clients.find(c => c.id === task.client)?.name || task.client;
+  const linkedDossier = dossiers.find(d => d.id === task.dossierId);
 
   if (!task) return null;
 
   const handleComment = () => {
     if (!newComment.trim()) return;
-    dispatch({
-      type: "ADD_COMMENT", payload: {
-        taskId: task.id,
-        comment: { user: "Marco Ferretti", text: newComment, time: new Date().toISOString() }
-      }
-    });
+    const comment = {
+      user: profile?.name || getMember(CURRENT_USER)?.name || 'Utente',
+      text: newComment,
+      time: new Date().toISOString(),
+    };
+    setLocalComments(prev => [...prev, comment]);
+    dispatch({ type: "ADD_COMMENT", payload: { taskId: task.id, comment } });
     setNewComment("");
   };
 
@@ -4085,6 +4259,17 @@ const TaskSlideOver = ({ task, dispatch }) => {
     if (window.confirm(`Spostare nel cestino "${task.title}"?`)) {
       dispatch({ type: "DELETE_TASK", payload: task.id });
     }
+  };
+
+  const handleLinkDossier = () => {
+    const d = dossiers.find(x => x.id === pendingDossierId);
+    dispatch({ type: "UPDATE_TASK", payload: {
+      ...task,
+      dossierId: pendingDossierId || null,
+      client: d?.client_id || task.client,
+    }});
+    setLinkingDossier(false);
+    setPendingDossierId("");
   };
 
   return (
@@ -4166,9 +4351,47 @@ const TaskSlideOver = ({ task, dispatch }) => {
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>CLIENTE</div>
               <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>
-                {task.client || <span style={{ color: "var(--text-muted)" }}>—</span>}
+                {clientName || <span style={{ color: "var(--text-muted)" }}>—</span>}
               </div>
             </div>
+          </div>
+
+          {/* Pratica collegata */}
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)" }}>PRATICA COLLEGATA</div>
+              {!linkingDossier && (
+                <button onClick={() => { setLinkingDossier(true); setPendingDossierId(task.dossierId || ""); }}
+                  style={{ background: "none", border: "1px solid var(--border)", borderRadius: 6, padding: "2px 8px", fontSize: 11, cursor: "pointer", color: "var(--text-muted)" }}>
+                  {linkedDossier ? "Cambia" : "Collega"}
+                </button>
+              )}
+            </div>
+            {linkingDossier ? (
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <select value={pendingDossierId} onChange={e => setPendingDossierId(e.target.value)}
+                  style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 8, padding: "6px 10px", fontSize: 12, fontFamily: "inherit", background: "#fff" }}>
+                  <option value="">— Nessuna pratica —</option>
+                  {dossiers.map(d => (
+                    <option key={d.id} value={d.id}>{d.number} — {d.title}</option>
+                  ))}
+                </select>
+                <button onClick={handleLinkDossier} style={{ background: "var(--navy)", color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 12, cursor: "pointer" }}>✓</button>
+                <button onClick={() => setLinkingDossier(false)} style={{ background: "none", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 10px", fontSize: 12, cursor: "pointer" }}>✕</button>
+              </div>
+            ) : linkedDossier ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--surface2)", padding: "6px 10px", borderRadius: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--navy)" }}>{linkedDossier.number}</span>
+                <span style={{ fontSize: 13, flex: 1 }}>{linkedDossier.title}</span>
+                {linkedDossier.status && (
+                  <span style={{ fontSize: 10, fontWeight: 700, background: DOSSIER_STATUS[linkedDossier.status]?.bg, color: DOSSIER_STATUS[linkedDossier.status]?.color, padding: "2px 7px", borderRadius: 99 }}>
+                    {DOSSIER_STATUS[linkedDossier.status]?.label}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div style={{ fontSize: 13, color: "var(--text-muted)" }}>—</div>
+            )}
           </div>
 
           {/* ORE */}
@@ -4199,10 +4422,10 @@ const TaskSlideOver = ({ task, dispatch }) => {
           {/* Comments */}
           <div>
             <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 10 }}>
-              ATTIVITÀ & COMMENTI ({task.comments?.length || 0})
+              ATTIVITÀ & COMMENTI ({localComments.length})
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {(task.comments || []).map((c, i) => (
+              {localComments.map((c, i) => (
                 <div key={i} style={{ display: "flex", gap: 10 }}>
                   <div style={{
                     width: 28, height: 28, borderRadius: "50%", background: "var(--navy)",
@@ -4227,7 +4450,7 @@ const TaskSlideOver = ({ task, dispatch }) => {
                   width: 28, height: 28, borderRadius: "50%", background: "var(--gold)",
                   fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center",
                   justifyContent: "center", color: "var(--navy)", flexShrink: 0
-                }}>MF</div>
+                }}>{profile?.avatar || getMember(CURRENT_USER)?.avatar || 'IO'}</div>
                 <div style={{ flex: 1, display: "flex", gap: 6 }}>
                   <input
                     value={newComment}
@@ -6938,6 +7161,956 @@ const btnWarning = { padding: "8px 12px", borderRadius: 6, border: "1px solid va
 const modalOverlay = { position: "fixed", inset: 0, background: "rgba(15,32,68,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 600, padding: 16 };
 const modalCard = { background: "#fff", borderRadius: 12, padding: 24, width: "90%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" };
 
+// ─── CLIENT SLIDE-OVER ─────────────────────────────────────────────────────
+const ClientSlideOver = ({ client, tasks, onClose, onSaved, onDeleted }) => {
+  const { isMobile } = useViewport();
+  const [editing, setEditing] = useState(!client.id); // new client → edit mode immediately
+  const [form, setForm] = useState({
+    name: client.name || "",
+    email: client.email || "",
+    phone: client.phone || "",
+    city: client.city || "",
+    address: client.address || "",
+    notes: client.notes || "",
+  });
+  const [saving, setSaving] = useState(false);
+
+  const linkedTasks = tasks.filter(t => isActiveTask(t) && (t.client === client.name || t.client === client.id));
+
+  const inp = (f) => ({
+    value: form[f], onChange: e => setForm(p => ({ ...p, [f]: e.target.value })),
+    style: { ...fieldStyle, marginTop: 4 },
+  });
+
+  const handleSave = async () => {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    let result;
+    if (client.id) {
+      const { data } = await Clients.update(client.id, form);
+      result = data;
+    } else {
+      const { data } = await Clients.create(form);
+      result = data;
+    }
+    setSaving(false);
+    if (result) { onSaved(result); setEditing(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm(`Eliminare il cliente "${client.name}"?`)) return;
+    await Clients.remove(client.id);
+    onDeleted(client.id);
+  };
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(15,32,68,0.4)", zIndex:500 }} />
+      <div className="slide-right" style={{
+        position:"fixed", top:0, right:0, width: isMobile ? "100vw" : 480, height:"100vh",
+        background:"#fff", zIndex:600, boxShadow:"-20px 0 60px rgba(0,0,0,0.15)",
+        display:"flex", flexDirection:"column", overflowY:"auto",
+      }}>
+        {/* Header */}
+        <div style={{ background:"var(--navy)", padding:"18px 22px", display:"flex", justifyContent:"space-between", alignItems:"center", flexShrink:0 }}>
+          <div>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>Cliente</div>
+            <div className="playfair" style={{ color:"#fff", fontSize:20, fontWeight:700 }}>
+              {client.id ? client.name : "Nuovo Cliente"}
+            </div>
+            {client.city && <div style={{ fontSize:12, color:"rgba(255,255,255,0.6)", marginTop:2 }}>📍 {client.city}</div>}
+          </div>
+          <div style={{ display:"flex", gap:6 }}>
+            {client.id && !editing && (
+              <>
+                <button onClick={() => setEditing(true)} style={{ background:"rgba(212,168,67,0.2)", border:"none", color:"var(--gold)", padding:"6px 12px", borderRadius:6, cursor:"pointer", fontSize:12, fontWeight:600 }}>✏️ Modifica</button>
+                <button onClick={handleDelete} style={{ background:"rgba(220,38,38,0.15)", border:"none", color:"#fff", width:30, height:30, borderRadius:6, cursor:"pointer", fontSize:13 }}>🗑️</button>
+              </>
+            )}
+            <button onClick={onClose} style={{ background:"rgba(255,255,255,0.1)", border:"none", color:"#fff", width:30, height:30, borderRadius:6, cursor:"pointer", fontSize:14 }}>✕</button>
+          </div>
+        </div>
+
+        <div style={{ padding:"20px 22px", display:"flex", flexDirection:"column", gap:20 }}>
+          {editing ? (
+            /* Form di modifica */
+            <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+              <div><label style={labelStyle}>NOME *</label><input {...inp("name")} placeholder="Nome cliente..." /></div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                <div><label style={labelStyle}>EMAIL</label><input {...inp("email")} type="email" placeholder="email@esempio.it" /></div>
+                <div><label style={labelStyle}>TELEFONO</label><input {...inp("phone")} type="tel" placeholder="+39 ..." /></div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                <div><label style={labelStyle}>CITTÀ</label><input {...inp("city")} placeholder="Milano" /></div>
+                <div><label style={labelStyle}>INDIRIZZO</label><input {...inp("address")} placeholder="Via Roma 1" /></div>
+              </div>
+              <div><label style={labelStyle}>NOTE</label><textarea {...inp("notes")} rows={3} placeholder="Note libere..." style={{ ...fieldStyle, marginTop:4, resize:"vertical" }} /></div>
+              <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:4 }}>
+                <button onClick={() => { setEditing(false); if (!client.id) onClose(); }} style={btnGhost}>Annulla</button>
+                <button onClick={handleSave} disabled={saving || !form.name.trim()} style={{ ...btnPrimary, opacity: saving ? 0.7 : 1 }}>{saving ? "Salvataggio…" : "✓ Salva"}</button>
+              </div>
+            </div>
+          ) : (
+            /* Vista dettaglio */
+            <>
+              <div className="vd-grid-2col" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+                <div>
+                  <div style={sectionH}>EMAIL</div>
+                  <div style={{ fontSize:13 }}>{client.email || <span style={{ color:"var(--text-muted)" }}>—</span>}</div>
+                </div>
+                <div>
+                  <div style={sectionH}>TELEFONO</div>
+                  <div style={{ fontSize:13 }}>{client.phone || <span style={{ color:"var(--text-muted)" }}>—</span>}</div>
+                </div>
+                <div>
+                  <div style={sectionH}>CITTÀ</div>
+                  <div style={{ fontSize:13 }}>{client.city || <span style={{ color:"var(--text-muted)" }}>—</span>}</div>
+                </div>
+                <div>
+                  <div style={sectionH}>INDIRIZZO</div>
+                  <div style={{ fontSize:13 }}>{client.address || <span style={{ color:"var(--text-muted)" }}>—</span>}</div>
+                </div>
+              </div>
+              {client.notes && (
+                <div>
+                  <div style={sectionH}>NOTE</div>
+                  <div style={{ fontSize:13, lineHeight:1.6, background:"var(--surface2)", padding:12, borderRadius:8 }}>{client.notes}</div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Task collegati */}
+          {client.id && (
+            <div>
+              <div style={{ ...sectionH, marginBottom:10 }}>TASK COLLEGATI ({linkedTasks.length})</div>
+              {linkedTasks.length === 0
+                ? <div style={{ fontSize:13, color:"var(--text-muted)", fontStyle:"italic" }}>Nessun task associato a questo cliente.</div>
+                : <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                    {linkedTasks.slice(0, 8).map(t => (
+                      <div key={t.id} style={{ display:"flex", alignItems:"center", gap:10, background:"var(--surface2)", borderRadius:8, padding:"8px 12px" }}>
+                        <CategoryChip category={t.category} />
+                        <div style={{ flex:1, fontSize:13, fontWeight:500 }}>{t.title}</div>
+                        <StatusBadge status={t.status} />
+                      </div>
+                    ))}
+                  </div>
+              }
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+};
+
+// ─── CLIENTS VIEW ───────────────────────────────────────────────────────────
+const ClientsView = ({ state }) => {
+  const { isMobile } = useViewport();
+  const [clients, setClients] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState(null); // client obj or {} for new
+
+  useEffect(() => { loadClients(); }, []);
+
+  const loadClients = async () => {
+    setLoading(true);
+    const { data } = await Clients.list();
+    if (data) setClients(data);
+    setLoading(false);
+  };
+
+  const filtered = clients.filter(c =>
+    !search || [c.name, c.email, c.city, c.phone].some(v => v?.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const handleSaved = (updated) => {
+    setClients(prev => {
+      const exists = prev.find(c => c.id === updated.id);
+      return exists ? prev.map(c => c.id === updated.id ? updated : c) : [...prev, updated];
+    });
+    setSelected(updated);
+  };
+
+  const handleDeleted = (id) => {
+    setClients(prev => prev.filter(c => c.id !== id));
+    setSelected(null);
+  };
+
+  return (
+    <div className="vd-pad" style={{ padding:32, maxWidth:1100, margin:"0 auto" }}>
+      {/* Header */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24, flexWrap:"wrap", gap:12 }}>
+        <div>
+          <div className="playfair" style={{ fontSize:26, fontWeight:700, color:"var(--navy)" }}>Anagrafica Clienti</div>
+          <div style={{ fontSize:13, color:"var(--text-muted)", marginTop:3 }}>{clients.length} clienti registrati</div>
+        </div>
+        <button onClick={() => setSelected({})} style={{ ...btnPrimary, padding:"10px 18px", fontSize:13, display:"flex", alignItems:"center", gap:6 }}>
+          + Nuovo Cliente
+        </button>
+      </div>
+
+      {/* Search */}
+      <div style={{ position:"relative", marginBottom:20 }}>
+        <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:"var(--text-muted)", fontSize:14 }}>🔍</span>
+        <input
+          value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="Cerca per nome, email, città..."
+          style={{ ...fieldStyle, paddingLeft:36, width:"100%", boxSizing:"border-box" }}
+        />
+        {search && <button onClick={() => setSearch("")} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:"var(--text-muted)", fontSize:16 }}>✕</button>}
+      </div>
+
+      {/* List */}
+      {loading ? (
+        <div style={{ textAlign:"center", padding:"60px 0", color:"var(--text-muted)" }}>
+          <div style={{ width:36, height:36, border:"3px solid var(--border)", borderTopColor:"var(--navy)", borderRadius:"50%", animation:"spin 0.8s linear infinite", margin:"0 auto 12px" }} />
+          Caricamento clienti…
+        </div>
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign:"center", padding:"60px 0", color:"var(--text-muted)" }}>
+          <div style={{ fontSize:40, marginBottom:12 }}>👤</div>
+          {search ? "Nessun cliente trovato con questi criteri." : "Nessun cliente ancora. Clicca \"+ Nuovo Cliente\" per iniziare."}
+        </div>
+      ) : (
+        <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(300px,1fr))", gap:14 }}>
+          {filtered.map(c => {
+            const taskCount = state.tasks.filter(t => isActiveTask(t) && t.client === c.name).length;
+            return (
+              <div key={c.id} onClick={() => setSelected(c)}
+                className="hover-lift"
+                style={{ background:"#fff", border:"1px solid var(--border)", borderRadius:12, padding:"16px 18px", cursor:"pointer", transition:"all 0.2s" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+                  <div style={{ width:42, height:42, borderRadius:10, background:"var(--navy)", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:700 }}>
+                    {c.name?.split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase()}
+                  </div>
+                  {taskCount > 0 && (
+                    <div style={{ background:"var(--navy)", color:"#fff", borderRadius:99, fontSize:11, fontWeight:700, padding:"2px 9px" }}>{taskCount} task</div>
+                  )}
+                </div>
+                <div style={{ fontWeight:700, fontSize:15, color:"var(--navy)", marginBottom:4 }}>{c.name}</div>
+                <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
+                  {c.email && <div style={{ fontSize:12, color:"var(--text-muted)" }}>📧 {c.email}</div>}
+                  {c.phone && <div style={{ fontSize:12, color:"var(--text-muted)" }}>📞 {c.phone}</div>}
+                  {c.city && <div style={{ fontSize:12, color:"var(--text-muted)" }}>📍 {c.city}</div>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {selected !== null && (
+        <ClientSlideOver
+          client={selected}
+          tasks={state.tasks}
+          onClose={() => setSelected(null)}
+          onSaved={handleSaved}
+          onDeleted={handleDeleted}
+        />
+      )}
+    </div>
+  );
+};
+
+// ─── SUPPLIER SLIDE-OVER ────────────────────────────────────────────────────
+const SupplierSlideOver = ({ supplier, onClose, onSaved, onDeleted }) => {
+  const { isMobile } = useViewport();
+  const [editing, setEditing] = useState(!supplier.id);
+  const [form, setForm] = useState({
+    name: supplier.name || "",
+    category: supplier.category || "altro",
+    email: supplier.email || "",
+    phone: supplier.phone || "",
+    city: supplier.city || "",
+    country: supplier.country || "",
+    address: supplier.address || "",
+    notes: supplier.notes || "",
+  });
+  const [saving, setSaving] = useState(false);
+
+  const inp = (f, type = "text") => ({
+    value: form[f], onChange: e => setForm(p => ({ ...p, [f]: e.target.value })),
+    type, style: { ...fieldStyle, marginTop:4 },
+  });
+
+  const handleSave = async () => {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    let result;
+    if (supplier.id) {
+      const { data } = await Suppliers.update(supplier.id, form);
+      result = data;
+    } else {
+      const { data } = await Suppliers.create(form);
+      result = data;
+    }
+    setSaving(false);
+    if (result) { onSaved(result); setEditing(false); }
+  };
+
+  const catInfo = SUPPLIER_CATEGORIES[form.category] || SUPPLIER_CATEGORIES.altro;
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(15,32,68,0.4)", zIndex:500 }} />
+      <div className="slide-right" style={{
+        position:"fixed", top:0, right:0, width: isMobile ? "100vw" : 480, height:"100vh",
+        background:"#fff", zIndex:600, boxShadow:"-20px 0 60px rgba(0,0,0,0.15)",
+        display:"flex", flexDirection:"column", overflowY:"auto",
+      }}>
+        <div style={{ background:"var(--navy)", padding:"18px 22px", display:"flex", justifyContent:"space-between", alignItems:"center", flexShrink:0 }}>
+          <div>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>Fornitore</div>
+            <div className="playfair" style={{ color:"#fff", fontSize:20, fontWeight:700 }}>
+              {supplier.id ? supplier.name : "Nuovo Fornitore"}
+            </div>
+            {supplier.id && (
+              <div style={{ fontSize:12, color:"rgba(255,255,255,0.6)", marginTop:2 }}>
+                {catInfo.icon} {catInfo.label}{supplier.city ? ` · 📍 ${supplier.city}` : ""}
+              </div>
+            )}
+          </div>
+          <div style={{ display:"flex", gap:6 }}>
+            {supplier.id && !editing && (
+              <>
+                <button onClick={() => setEditing(true)} style={{ background:"rgba(212,168,67,0.2)", border:"none", color:"var(--gold)", padding:"6px 12px", borderRadius:6, cursor:"pointer", fontSize:12, fontWeight:600 }}>✏️ Modifica</button>
+                <button onClick={async () => { if (!window.confirm(`Eliminare "${supplier.name}"?`)) return; await Suppliers.remove(supplier.id); onDeleted(supplier.id); }} style={{ background:"rgba(220,38,38,0.15)", border:"none", color:"#fff", width:30, height:30, borderRadius:6, cursor:"pointer", fontSize:13 }}>🗑️</button>
+              </>
+            )}
+            <button onClick={onClose} style={{ background:"rgba(255,255,255,0.1)", border:"none", color:"#fff", width:30, height:30, borderRadius:6, cursor:"pointer", fontSize:14 }}>✕</button>
+          </div>
+        </div>
+
+        <div style={{ padding:"20px 22px", display:"flex", flexDirection:"column", gap:14 }}>
+          {editing ? (
+            <>
+              <div><label style={labelStyle}>NOME *</label><input {...inp("name")} placeholder="Nome fornitore..." /></div>
+              <div>
+                <label style={labelStyle}>CATEGORIA</label>
+                <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} style={{ ...fieldStyle, marginTop:4, cursor:"pointer" }}>
+                  {Object.entries(SUPPLIER_CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+                </select>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                <div><label style={labelStyle}>EMAIL</label><input {...inp("email","email")} placeholder="email@fornitore.it" /></div>
+                <div><label style={labelStyle}>TELEFONO</label><input {...inp("phone","tel")} placeholder="+39 ..." /></div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                <div><label style={labelStyle}>CITTÀ</label><input {...inp("city")} placeholder="Roma" /></div>
+                <div><label style={labelStyle}>PAESE</label><input {...inp("country")} placeholder="Italia" /></div>
+              </div>
+              <div><label style={labelStyle}>INDIRIZZO</label><input {...inp("address")} placeholder="Via..." /></div>
+              <div><label style={labelStyle}>NOTE</label><textarea {...inp("notes")} rows={3} placeholder="Note su tariffe, contratti..." style={{ ...fieldStyle, marginTop:4, resize:"vertical" }} /></div>
+              <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:4 }}>
+                <button onClick={() => { setEditing(false); if (!supplier.id) onClose(); }} style={btnGhost}>Annulla</button>
+                <button onClick={handleSave} disabled={saving || !form.name.trim()} style={{ ...btnPrimary, opacity: saving ? 0.7 : 1 }}>{saving ? "Salvataggio…" : "✓ Salva"}</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <div style={sectionH}>CATEGORIA</div>
+                <div style={{ display:"inline-flex", alignItems:"center", gap:6, background:"var(--surface2)", padding:"5px 12px", borderRadius:99, fontSize:13, fontWeight:600 }}>
+                  {catInfo.icon} {catInfo.label}
+                </div>
+              </div>
+              <div className="vd-grid-2col" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+                <div><div style={sectionH}>EMAIL</div><div style={{ fontSize:13 }}>{supplier.email || <span style={{ color:"var(--text-muted)" }}>—</span>}</div></div>
+                <div><div style={sectionH}>TELEFONO</div><div style={{ fontSize:13 }}>{supplier.phone || <span style={{ color:"var(--text-muted)" }}>—</span>}</div></div>
+                <div><div style={sectionH}>CITTÀ</div><div style={{ fontSize:13 }}>{supplier.city || <span style={{ color:"var(--text-muted)" }}>—</span>}</div></div>
+                <div><div style={sectionH}>PAESE</div><div style={{ fontSize:13 }}>{supplier.country || <span style={{ color:"var(--text-muted)" }}>—</span>}</div></div>
+              </div>
+              {supplier.address && <div><div style={sectionH}>INDIRIZZO</div><div style={{ fontSize:13 }}>{supplier.address}</div></div>}
+              {supplier.notes && (
+                <div>
+                  <div style={sectionH}>NOTE</div>
+                  <div style={{ fontSize:13, lineHeight:1.6, background:"var(--surface2)", padding:12, borderRadius:8 }}>{supplier.notes}</div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  );
+};
+
+// ─── SUPPLIERS VIEW ─────────────────────────────────────────────────────────
+const SuppliersView = () => {
+  const { isMobile } = useViewport();
+  const [suppliers, setSuppliers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [catFilter, setCatFilter] = useState("");
+  const [selected, setSelected] = useState(null);
+
+  useEffect(() => { loadSuppliers(); }, []);
+
+  const loadSuppliers = async () => {
+    setLoading(true);
+    const { data } = await Suppliers.list();
+    if (data) setSuppliers(data);
+    setLoading(false);
+  };
+
+  const filtered = suppliers.filter(s => {
+    const matchSearch = !search || [s.name, s.city, s.country, s.email].some(v => v?.toLowerCase().includes(search.toLowerCase()));
+    const matchCat = !catFilter || s.category === catFilter;
+    return matchSearch && matchCat;
+  });
+
+  const handleSaved = (updated) => {
+    setSuppliers(prev => {
+      const exists = prev.find(s => s.id === updated.id);
+      return exists ? prev.map(s => s.id === updated.id ? updated : s) : [...prev, updated];
+    });
+    setSelected(updated);
+  };
+
+  const handleDeleted = (id) => {
+    setSuppliers(prev => prev.filter(s => s.id !== id));
+    setSelected(null);
+  };
+
+  return (
+    <div className="vd-pad" style={{ padding:32, maxWidth:1100, margin:"0 auto" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24, flexWrap:"wrap", gap:12 }}>
+        <div>
+          <div className="playfair" style={{ fontSize:26, fontWeight:700, color:"var(--navy)" }}>Anagrafica Fornitori</div>
+          <div style={{ fontSize:13, color:"var(--text-muted)", marginTop:3 }}>{suppliers.length} fornitori registrati</div>
+        </div>
+        <button onClick={() => setSelected({})} style={{ ...btnPrimary, padding:"10px 18px", fontSize:13 }}>+ Nuovo Fornitore</button>
+      </div>
+
+      {/* Filtri */}
+      <div style={{ display:"flex", gap:10, marginBottom:20, flexWrap:"wrap" }}>
+        <div style={{ position:"relative", flex:1, minWidth:200 }}>
+          <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:"var(--text-muted)", fontSize:14 }}>🔍</span>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca fornitore…" style={{ ...fieldStyle, paddingLeft:36, width:"100%", boxSizing:"border-box" }} />
+        </div>
+        <select value={catFilter} onChange={e => setCatFilter(e.target.value)} style={{ ...fieldStyle, width:"auto", cursor:"pointer", minWidth:160 }}>
+          <option value="">Tutte le categorie</option>
+          {Object.entries(SUPPLIER_CATEGORIES).map(([k,v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+        </select>
+      </div>
+
+      {/* Categoria pills */}
+      <div style={{ display:"flex", gap:8, marginBottom:20, flexWrap:"wrap" }}>
+        <button onClick={() => setCatFilter("")} style={{ padding:"5px 14px", borderRadius:99, fontSize:12, fontWeight:600, border:"none", cursor:"pointer", background: !catFilter ? "var(--navy)" : "var(--surface2)", color: !catFilter ? "#fff" : "var(--text-muted)", transition:"all 0.15s" }}>Tutti</button>
+        {Object.entries(SUPPLIER_CATEGORIES).map(([k,v]) => {
+          const count = suppliers.filter(s => s.category === k).length;
+          if (!count) return null;
+          return (
+            <button key={k} onClick={() => setCatFilter(k === catFilter ? "" : k)} style={{ padding:"5px 14px", borderRadius:99, fontSize:12, fontWeight:600, border:"none", cursor:"pointer", background: catFilter === k ? "var(--navy)" : "var(--surface2)", color: catFilter === k ? "#fff" : "var(--text-muted)", display:"flex", alignItems:"center", gap:5, transition:"all 0.15s" }}>
+              {v.icon} {v.label} <span style={{ fontSize:10, opacity:0.7 }}>({count})</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign:"center", padding:"60px 0", color:"var(--text-muted)" }}>
+          <div style={{ width:36, height:36, border:"3px solid var(--border)", borderTopColor:"var(--navy)", borderRadius:"50%", animation:"spin 0.8s linear infinite", margin:"0 auto 12px" }} />
+          Caricamento fornitori…
+        </div>
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign:"center", padding:"60px 0", color:"var(--text-muted)" }}>
+          <div style={{ fontSize:40, marginBottom:12 }}>🤝</div>
+          {search || catFilter ? "Nessun fornitore trovato con questi criteri." : "Nessun fornitore ancora. Clicca \"+ Nuovo Fornitore\" per iniziare."}
+        </div>
+      ) : (
+        <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(300px,1fr))", gap:14 }}>
+          {filtered.map(s => {
+            const cat = SUPPLIER_CATEGORIES[s.category] || SUPPLIER_CATEGORIES.altro;
+            return (
+              <div key={s.id} onClick={() => setSelected(s)} className="hover-lift"
+                style={{ background:"#fff", border:"1px solid var(--border)", borderRadius:12, padding:"16px 18px", cursor:"pointer" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+                  <div style={{ width:42, height:42, borderRadius:10, background:"var(--surface2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>{cat.icon}</div>
+                  <div style={{ background:"var(--surface2)", color:"var(--text-muted)", borderRadius:99, fontSize:11, fontWeight:600, padding:"2px 9px" }}>{cat.label}</div>
+                </div>
+                <div style={{ fontWeight:700, fontSize:15, color:"var(--navy)", marginBottom:4 }}>{s.name}</div>
+                <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
+                  {s.email && <div style={{ fontSize:12, color:"var(--text-muted)" }}>📧 {s.email}</div>}
+                  {s.phone && <div style={{ fontSize:12, color:"var(--text-muted)" }}>📞 {s.phone}</div>}
+                  {(s.city || s.country) && <div style={{ fontSize:12, color:"var(--text-muted)" }}>📍 {[s.city, s.country].filter(Boolean).join(", ")}</div>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {selected !== null && (
+        <SupplierSlideOver
+          supplier={selected}
+          onClose={() => setSelected(null)}
+          onSaved={handleSaved}
+          onDeleted={handleDeleted}
+        />
+      )}
+    </div>
+  );
+};
+
+// ─── DOSSIER SLIDE-OVER ────────────────────────────────────────────────────
+const DossierSlideOver = ({ dossier, tasks, onClose, onSaved, onDeleted, currentUserId }) => {
+  const { isMobile } = useViewport();
+  const isNew = !dossier.id;
+  const [tab, setTab] = useState("details"); // details | tasks | suppliers
+  const [editing, setEditing] = useState(isNew);
+  const [saving, setSaving] = useState(false);
+  const [clients, setClients] = useState([]);
+  const [suppliersList, setSuppliersList] = useState([]);
+  const [dossierSuppliers, setDossierSuppliers] = useState([]);
+  const [addingSupplier, setAddingSupplier] = useState(false);
+  const [newSupplierRow, setNewSupplierRow] = useState({ supplier_id: "", service_type: "", cost: "", notes: "" });
+
+  const [form, setForm] = useState({
+    title: dossier.title || "",
+    client_id: dossier.client_id || "",
+    destination: dossier.destination || "",
+    departure_date: dossier.departure_date || "",
+    return_date: dossier.return_date || "",
+    pax_adults: dossier.pax_adults ?? 1,
+    pax_children: dossier.pax_children ?? 0,
+    budget_total: dossier.budget_total || "",
+    notes: dossier.notes || "",
+  });
+
+  useEffect(() => {
+    Clients.list().then(({ data }) => { if (data) setClients(data); });
+    if (!isNew) {
+      Suppliers.list().then(({ data }) => { if (data) setSuppliersList(data); });
+      DossierSuppliers.list(dossier.id).then(({ data }) => { if (data) setDossierSuppliers(data); });
+    }
+  }, [dossier.id, isNew]);
+
+  const linkedTasks = tasks.filter(t => isActiveTask(t) && t.dossierId === dossier.id);
+  const st = DOSSIER_STATUS[dossier.status] || DOSSIER_STATUS.bozza;
+  const inp = (f, type = "text") => ({
+    value: form[f], onChange: e => setForm(p => ({ ...p, [f]: e.target.value })),
+    type, style: { ...fieldStyle, marginTop: 4 },
+  });
+
+  const handleSave = async () => {
+    if (!form.title.trim()) return;
+    setSaving(true);
+    const payload = {
+      ...form,
+      pax_adults: Number(form.pax_adults) || 0,
+      pax_children: Number(form.pax_children) || 0,
+      budget_total: form.budget_total ? Number(form.budget_total) : null,
+      client_id: form.client_id || null,
+      created_by: currentUserId,
+    };
+    let result;
+    if (dossier.id) {
+      const { data } = await Dossiers.update(dossier.id, payload);
+      result = data;
+    } else {
+      const { data } = await Dossiers.create(payload);
+      result = data;
+    }
+    setSaving(false);
+    if (result) { onSaved(result); setEditing(false); }
+  };
+
+  const handleStatusAdvance = async () => {
+    if (!st.next) return;
+    const { data } = await Dossiers.update(dossier.id, { status: st.next });
+    if (data) onSaved(data);
+  };
+
+  const handleCancel = async () => {
+    if (!window.confirm("Annullare questa pratica?")) return;
+    const { data } = await Dossiers.update(dossier.id, { status: "annullata" });
+    if (data) onSaved(data);
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm(`Eliminare definitivamente la pratica "${dossier.number}"?`)) return;
+    await Dossiers.remove(dossier.id);
+    onDeleted(dossier.id);
+  };
+
+  const handleAddSupplier = async () => {
+    if (!newSupplierRow.supplier_id) return;
+    const { data } = await DossierSuppliers.add({
+      dossier_id: dossier.id,
+      supplier_id: newSupplierRow.supplier_id,
+      service_type: newSupplierRow.service_type || null,
+      cost: newSupplierRow.cost ? Number(newSupplierRow.cost) : null,
+      notes: newSupplierRow.notes || null,
+    });
+    if (data) {
+      setDossierSuppliers(prev => [...prev, data]);
+      setNewSupplierRow({ supplier_id: "", service_type: "", cost: "", notes: "" });
+      setAddingSupplier(false);
+    }
+  };
+
+  const handleRemoveSupplier = async (linkId) => {
+    await DossierSuppliers.remove(linkId);
+    setDossierSuppliers(prev => prev.filter(r => r.id !== linkId));
+  };
+
+  const formatDateShort = (d) => d ? new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+  const clientName = clients.find(c => c.id === (dossier.client_id || form.client_id))?.name || dossier.clients?.name || "";
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,32,68,0.45)", zIndex: 500 }} />
+      <div className="slide-right" style={{
+        position: "fixed", top: 0, right: 0, width: isMobile ? "100vw" : 540, height: "100vh",
+        background: "#fff", zIndex: 600, boxShadow: "-20px 0 60px rgba(0,0,0,0.15)",
+        display: "flex", flexDirection: "column",
+      }}>
+        {/* Header */}
+        <div style={{ background: "var(--navy)", padding: "16px 20px", flexShrink: 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div style={{ flex: 1 }}>
+              {!isNew && (
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", letterSpacing: 1, marginBottom: 3 }}>
+                  {dossier.number}
+                </div>
+              )}
+              <div className="playfair" style={{ color: "#fff", fontSize: 19, fontWeight: 700, lineHeight: 1.3 }}>
+                {isNew ? "Nuova Pratica" : dossier.title}
+              </div>
+              {!isNew && clientName && (
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", marginTop: 3 }}>👤 {clientName}</div>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center" }}>
+              {!isNew && (
+                <div style={{ fontSize: 12, fontWeight: 700, background: st.bg, color: st.color, padding: "3px 10px", borderRadius: 99 }}>
+                  {st.label}
+                </div>
+              )}
+              {!isNew && !editing && <button onClick={() => setEditing(true)} style={{ background: "rgba(212,168,67,0.2)", border: "none", color: "var(--gold)", padding: "5px 10px", borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>✏️</button>}
+              {!isNew && <button onClick={handleDelete} style={{ background: "rgba(220,38,38,0.15)", border: "none", color: "#fca5a5", width: 28, height: 28, borderRadius: 6, cursor: "pointer", fontSize: 12 }}>🗑️</button>}
+              <button onClick={onClose} style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", width: 28, height: 28, borderRadius: 6, cursor: "pointer" }}>✕</button>
+            </div>
+          </div>
+
+          {/* Workflow stati */}
+          {!isNew && !editing && (
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+              {st.next && (
+                <button onClick={handleStatusAdvance} style={{ background: "var(--gold)", color: "var(--navy)", border: "none", padding: "6px 14px", borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 700 }}>
+                  → {st.nextLabel}
+                </button>
+              )}
+              {dossier.status !== "annullata" && dossier.status !== "completata" && (
+                <button onClick={handleCancel} style={{ background: "rgba(192,57,43,0.2)", color: "#fca5a5", border: "none", padding: "6px 12px", borderRadius: 6, cursor: "pointer", fontSize: 12 }}>✕ Annulla</button>
+              )}
+            </div>
+          )}
+
+          {/* Tabs (solo se non in edit mode) */}
+          {!isNew && !editing && (
+            <div style={{ display: "flex", gap: 4, marginTop: 12 }}>
+              {[["details","📋 Dettagli"], ["tasks",`✅ Task (${linkedTasks.length})`], ["suppliers",`🤝 Fornitori (${dossierSuppliers.length})`]].map(([id, label]) => (
+                <button key={id} onClick={() => setTab(id)} style={{
+                  background: tab === id ? "rgba(212,168,67,0.25)" : "rgba(255,255,255,0.07)",
+                  color: tab === id ? "var(--gold)" : "rgba(255,255,255,0.55)",
+                  border: "none", padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: tab === id ? 700 : 400,
+                }}>{label}</button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px 20px" }}>
+          {/* ── FORM CREATE / EDIT ── */}
+          {(isNew || editing) && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div><label style={labelStyle}>TITOLO *</label><input {...inp("title")} placeholder="Es. Viaggio Maldive - Famiglia Rossi" /></div>
+              <div>
+                <label style={labelStyle}>CLIENTE</label>
+                <select value={form.client_id} onChange={e => setForm(p => ({ ...p, client_id: e.target.value }))} style={{ ...fieldStyle, marginTop: 4, cursor: "pointer" }}>
+                  <option value="">— Nessun cliente —</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div><label style={labelStyle}>DESTINAZIONE</label><input {...inp("destination")} placeholder="Es. Maldive, Giappone, Vietnam..." /></div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div><label style={labelStyle}>PARTENZA</label><input {...inp("departure_date", "date")} /></div>
+                <div><label style={labelStyle}>RIENTRO</label><input {...inp("return_date", "date")} /></div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                <div><label style={labelStyle}>ADULTI</label><input {...inp("pax_adults", "number")} min={0} /></div>
+                <div><label style={labelStyle}>BAMBINI</label><input {...inp("pax_children", "number")} min={0} /></div>
+                <div><label style={labelStyle}>BUDGET (€)</label><input {...inp("budget_total", "number")} min={0} placeholder="0.00" /></div>
+              </div>
+              <div><label style={labelStyle}>NOTE</label><textarea {...inp("notes")} rows={3} placeholder="Note interne sulla pratica…" style={{ ...fieldStyle, marginTop: 4, resize: "vertical" }} /></div>
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
+                <button onClick={() => { setEditing(false); if (isNew) onClose(); }} style={btnGhost}>Annulla</button>
+                <button onClick={handleSave} disabled={saving || !form.title.trim()} style={{ ...btnPrimary, opacity: saving ? 0.7 : 1 }}>{saving ? "Salvataggio…" : "✓ Salva"}</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── TAB DETTAGLI ── */}
+          {!isNew && !editing && tab === "details" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+              {dossier.destination && (
+                <div><div style={sectionH}>DESTINAZIONE</div><div style={{ fontSize: 15, fontWeight: 600, color: "var(--navy)" }}>✈️ {dossier.destination}</div></div>
+              )}
+              <div className="vd-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div><div style={sectionH}>PARTENZA</div><div style={{ fontSize: 13 }}>{formatDateShort(dossier.departure_date)}</div></div>
+                <div><div style={sectionH}>RIENTRO</div><div style={{ fontSize: 13 }}>{formatDateShort(dossier.return_date)}</div></div>
+                <div>
+                  <div style={sectionH}>PAX</div>
+                  <div style={{ fontSize: 13 }}>
+                    {dossier.pax_adults > 0 && `${dossier.pax_adults} adulti`}
+                    {dossier.pax_adults > 0 && dossier.pax_children > 0 && " + "}
+                    {dossier.pax_children > 0 && `${dossier.pax_children} bambini`}
+                    {!dossier.pax_adults && !dossier.pax_children && <span style={{ color: "var(--text-muted)" }}>—</span>}
+                  </div>
+                </div>
+                <div>
+                  <div style={sectionH}>BUDGET</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "var(--navy)" }}>
+                    {dossier.budget_total ? `€ ${Number(dossier.budget_total).toLocaleString("it-IT")}` : <span style={{ color: "var(--text-muted)", fontSize: 13, fontWeight: 400 }}>—</span>}
+                  </div>
+                </div>
+              </div>
+              {dossier.notes && (
+                <div><div style={sectionH}>NOTE</div><div style={{ fontSize: 13, lineHeight: 1.6, background: "var(--surface2)", padding: 12, borderRadius: 8 }}>{dossier.notes}</div></div>
+              )}
+              <div>
+                <div style={sectionH}>CREATA</div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{formatDateShort(dossier.created_at)}</div>
+              </div>
+            </div>
+          )}
+
+          {/* ── TAB TASK ── */}
+          {!isNew && !editing && tab === "tasks" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {linkedTasks.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 0", color: "var(--text-muted)" }}>
+                  <div style={{ fontSize: 32, marginBottom: 10 }}>✅</div>
+                  <div style={{ fontSize: 13 }}>Nessun task collegato a questa pratica.</div>
+                  <div style={{ fontSize: 12, marginTop: 6, opacity: 0.7 }}>Crea un task e seleziona questa pratica nel campo "Pratica".</div>
+                </div>
+              ) : linkedTasks.map(t => (
+                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--surface2)", borderRadius: 8, padding: "9px 12px" }}>
+                  <CategoryChip category={t.category} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500 }}>{t.title}</div>
+                    {t.dueDate && <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>📅 {formatDate(t.dueDate)}</div>}
+                  </div>
+                  <StatusBadge status={t.status} />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── TAB FORNITORI ── */}
+          {!isNew && !editing && tab === "suppliers" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {dossierSuppliers.map(row => {
+                const cat = SUPPLIER_CATEGORIES[row.suppliers?.category] || SUPPLIER_CATEGORIES.altro;
+                return (
+                  <div key={row.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--surface2)", borderRadius: 8, padding: "9px 12px" }}>
+                    <span style={{ fontSize: 20 }}>{cat.icon}</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{row.suppliers?.name}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                        {row.service_type && `${row.service_type} · `}
+                        {row.cost ? `€ ${Number(row.cost).toLocaleString("it-IT")}` : ""}
+                        {row.notes && ` · ${row.notes}`}
+                      </div>
+                    </div>
+                    <button onClick={() => handleRemoveSupplier(row.id)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 16, padding: 4 }}>✕</button>
+                  </div>
+                );
+              })}
+
+              {addingSupplier ? (
+                <div style={{ background: "var(--surface2)", borderRadius: 8, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+                  <select value={newSupplierRow.supplier_id} onChange={e => setNewSupplierRow(p => ({ ...p, supplier_id: e.target.value }))} style={{ ...fieldStyle, cursor: "pointer" }}>
+                    <option value="">— Seleziona fornitore —</option>
+                    {suppliersList.map(s => {
+                      const c = SUPPLIER_CATEGORIES[s.category] || SUPPLIER_CATEGORIES.altro;
+                      return <option key={s.id} value={s.id}>{c.icon} {s.name}</option>;
+                    })}
+                  </select>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <input placeholder="Tipo servizio" value={newSupplierRow.service_type} onChange={e => setNewSupplierRow(p => ({ ...p, service_type: e.target.value }))} style={fieldStyle} />
+                    <input placeholder="Costo (€)" type="number" value={newSupplierRow.cost} onChange={e => setNewSupplierRow(p => ({ ...p, cost: e.target.value }))} style={fieldStyle} />
+                  </div>
+                  <input placeholder="Note" value={newSupplierRow.notes} onChange={e => setNewSupplierRow(p => ({ ...p, notes: e.target.value }))} style={fieldStyle} />
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <button onClick={() => setAddingSupplier(false)} style={btnGhost}>Annulla</button>
+                    <button onClick={handleAddSupplier} disabled={!newSupplierRow.supplier_id} style={{ ...btnPrimary, opacity: newSupplierRow.supplier_id ? 1 : 0.5 }}>+ Aggiungi</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setAddingSupplier(true)} style={{ ...btnGhost, alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 6 }}>+ Aggiungi fornitore</button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+};
+
+// ─── DOSSIERS VIEW ──────────────────────────────────────────────────────────
+const DossiersView = ({ state }) => {
+  const { isMobile } = useViewport();
+  const [dossiers, setDossiers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState(null);
+
+  useEffect(() => { loadDossiers(); }, []);
+
+  const loadDossiers = async () => {
+    setLoading(true);
+    const { data } = await Dossiers.list();
+    if (data) setDossiers(data);
+    setLoading(false);
+  };
+
+  const filtered = dossiers.filter(d => {
+    const matchStatus = !statusFilter || d.status === statusFilter;
+    const matchSearch = !search || [d.title, d.number, d.destination, d.clients?.name]
+      .some(v => v?.toLowerCase().includes(search.toLowerCase()));
+    return matchStatus && matchSearch;
+  });
+
+  const handleSaved = (updated) => {
+    setDossiers(prev => {
+      const exists = prev.find(d => d.id === updated.id);
+      return exists ? prev.map(d => d.id === updated.id ? updated : d) : [updated, ...prev];
+    });
+    setSelected(updated);
+  };
+
+  const handleDeleted = (id) => {
+    setDossiers(prev => prev.filter(d => d.id !== id));
+    setSelected(null);
+  };
+
+  const counts = Object.keys(DOSSIER_STATUS).reduce((acc, s) => {
+    acc[s] = dossiers.filter(d => d.status === s).length;
+    return acc;
+  }, {});
+
+  const formatDateShort = (d) => d ? new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "short" }) : null;
+
+  return (
+    <div className="vd-pad" style={{ padding: 32, maxWidth: 1100, margin: "0 auto" }}>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <div className="playfair" style={{ fontSize: 26, fontWeight: 700, color: "var(--navy)" }}>Pratiche di Viaggio</div>
+          <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 3 }}>{dossiers.length} pratiche totali</div>
+        </div>
+        <button onClick={() => setSelected({})} style={{ ...btnPrimary, padding: "10px 18px", fontSize: 13 }}>+ Nuova Pratica</button>
+      </div>
+
+      {/* KPI bar */}
+      <div className="vd-grid-kpi" style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 10, marginBottom: 20 }}>
+        {Object.entries(DOSSIER_STATUS).map(([key, s]) => (
+          <button key={key} onClick={() => setStatusFilter(statusFilter === key ? "" : key)} style={{
+            background: statusFilter === key ? s.bg : "#fff",
+            border: `1px solid ${statusFilter === key ? s.color : "var(--border)"}`,
+            borderRadius: 10, padding: "10px 12px", cursor: "pointer", textAlign: "left",
+            transition: "all 0.15s",
+          }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: s.color }}>{counts[key] || 0}</div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{s.label}</div>
+          </button>
+        ))}
+      </div>
+
+      {/* Ricerca */}
+      <div style={{ position: "relative", marginBottom: 20 }}>
+        <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14 }}>🔍</span>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca per titolo, numero, destinazione, cliente…"
+          style={{ ...fieldStyle, paddingLeft: 36, width: "100%", boxSizing: "border-box" }} />
+        {search && <button onClick={() => setSearch("")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: 16 }}>✕</button>}
+      </div>
+
+      {/* Lista */}
+      {loading ? (
+        <div style={{ textAlign: "center", padding: "60px 0", color: "var(--text-muted)" }}>
+          <div style={{ width: 36, height: 36, border: "3px solid var(--border)", borderTopColor: "var(--navy)", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 12px" }} />
+          Caricamento pratiche…
+        </div>
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "60px 0", color: "var(--text-muted)" }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>📁</div>
+          {search || statusFilter ? "Nessuna pratica trovata con questi criteri." : "Nessuna pratica ancora. Clicca \"+ Nuova Pratica\" per iniziare."}
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {filtered.map(d => {
+            const st = DOSSIER_STATUS[d.status] || DOSSIER_STATUS.bozza;
+            const taskCount = state.tasks.filter(t => isActiveTask(t) && t.dossierId === d.id).length;
+            const pax = [d.pax_adults > 0 && `${d.pax_adults} adulti`, d.pax_children > 0 && `${d.pax_children} bambini`].filter(Boolean).join(" + ");
+            return (
+              <div key={d.id} onClick={() => setSelected(d)} className="hover-lift"
+                style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 12, padding: isMobile ? "14px 14px" : "14px 20px", cursor: "pointer", display: "flex", gap: 16, alignItems: "center" }}>
+                {/* Numero */}
+                <div style={{ flexShrink: 0, width: isMobile ? 0 : 100, overflow: "hidden" }}>
+                  {!isMobile && <div style={{ fontSize: 11, fontWeight: 700, color: "var(--navy)", letterSpacing: 0.5 }}>{d.number}</div>}
+                </div>
+                {/* Info principale */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    {isMobile && <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)" }}>{d.number}</div>}
+                    <div style={{ fontWeight: 700, fontSize: 14, color: "var(--navy)" }}>{d.title}</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 12, marginTop: 4, flexWrap: "wrap" }}>
+                    {d.clients?.name && <div style={{ fontSize: 12, color: "var(--text-muted)" }}>👤 {d.clients.name}</div>}
+                    {d.destination && <div style={{ fontSize: 12, color: "var(--text-muted)" }}>✈️ {d.destination}</div>}
+                    {(d.departure_date || d.return_date) && (
+                      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                        📅 {[formatDateShort(d.departure_date), formatDateShort(d.return_date)].filter(Boolean).join(" → ")}
+                      </div>
+                    )}
+                    {pax && <div style={{ fontSize: 12, color: "var(--text-muted)" }}>👥 {pax}</div>}
+                  </div>
+                </div>
+                {/* Destra */}
+                <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, background: st.bg, color: st.color, padding: "3px 10px", borderRadius: 99, whiteSpace: "nowrap" }}>{st.label}</div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {d.budget_total && <div style={{ fontSize: 12, fontWeight: 600, color: "var(--success)" }}>€ {Number(d.budget_total).toLocaleString("it-IT")}</div>}
+                    {taskCount > 0 && <div style={{ fontSize: 11, color: "var(--text-muted)" }}>✅ {taskCount}</div>}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {selected !== null && (
+        <DossierSlideOver
+          dossier={selected}
+          tasks={state.tasks}
+          currentUserId={state.currentUserId}
+          onClose={() => setSelected(null)}
+          onSaved={handleSaved}
+          onDeleted={handleDeleted}
+        />
+      )}
+    </div>
+  );
+};
+
 // ─── ROOT APP ──────────────────────────────────────────────────────────────
 export default function VoyageDesk() {
   return (
@@ -6949,7 +8122,12 @@ export default function VoyageDesk() {
 
 function VoyageDeskInner() {
   const { isDesktop } = useViewport();
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const { profile } = useAuth();
+  const [state, _dispatch] = useReducer(reducer, initialState);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const dispatch = useAsyncDispatch(_dispatch, stateRef);
+  useSupabaseData(_dispatch, profile?.id);
   const [showFABModal, setShowFABModal] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [chatIntent, setChatIntent] = useState(null); // { toUser, taskLink } per aprire chat preconfezionata
@@ -6992,14 +8170,32 @@ function VoyageDeskInner() {
 
   const renderView = () => {
     switch (state.activeView) {
-      case "dashboard": return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
-      case "calendar": return <CalendarPlanner state={state} dispatch={dispatch} />;
-      case "team": return <Team state={state} dispatch={dispatch} />;
-      case "trash": return <Trash state={state} dispatch={dispatch} />;
-      case "admin": return <AdminView state={state} dispatch={dispatch} />;
-      default: return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
+      case "dashboard":  return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
+      case "calendar":   return <CalendarPlanner state={state} dispatch={dispatch} />;
+      case "clients":    return <ClientsView state={state} dispatch={dispatch} />;
+      case "suppliers":  return <SuppliersView state={state} dispatch={dispatch} />;
+      case "dossiers":   return <DossiersView state={state} dispatch={dispatch} />;
+      case "team":       return <Team state={state} dispatch={dispatch} />;
+      case "trash":      return <Trash state={state} dispatch={dispatch} />;
+      case "admin":      return <AdminView state={state} dispatch={dispatch} />;
+      default:           return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
     }
   };
+
+  if (state.loading) {
+    return (
+      <>
+        <FontLoader />
+        <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--surface)' }}>
+          <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+            <div style={{ width: 40, height: 40, border: '3px solid var(--border)', borderTopColor: 'var(--navy)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' }} />
+            <p style={{ fontSize: 14 }}>Caricamento dati…</p>
+          </div>
+          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -7017,7 +8213,7 @@ function VoyageDeskInner() {
         <BottomNav state={state} dispatch={dispatch} />
 
         {/* Slide-over */}
-        {state.selectedTask && <TaskSlideOver task={state.selectedTask} dispatch={dispatch} />}
+        {state.selectedTask && <TaskSlideOver task={state.selectedTask} state={state} dispatch={dispatch} />}
 
         {/* Chat Panel */}
         <ChatPanel

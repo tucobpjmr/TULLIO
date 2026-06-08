@@ -3,7 +3,7 @@ import { useState, useReducer, useContext, createContext, useRef, useEffect, use
 import * as XLSX from "xlsx";
 import { useAuth } from './lib/auth/AuthContext.jsx';
 import { useSupabaseData, useAsyncDispatch } from './lib/useSupabaseData.js';
-import { Comments, Clients, Suppliers } from './lib/api.js';
+import { Comments, Clients, Suppliers, Dossiers, DossierSuppliers } from './lib/api.js';
 
 // ─── GOOGLE FONTS ──────────────────────────────────────────────────────────
 const FontLoader = () => (
@@ -346,7 +346,7 @@ function baseReducer(state, action) {
       if (action.payload === "admin" && !canAccessAdmin(uid)) {
         return _denied("Non hai i permessi per accedere all'Admin");
       }
-      if ((action.payload === "clients" || action.payload === "suppliers") && isDriver(uid)) {
+      if ((action.payload === "clients" || action.payload === "suppliers" || action.payload === "dossiers") && isDriver(uid)) {
         return _denied("Non hai i permessi per questa sezione");
       }
       return { ...state, activeView: action.payload };
@@ -1965,6 +1965,15 @@ const NotificationsPanel = ({ dispatch }) => {
   );
 };
 
+// ─── DOSSIER STATUSES ─────────────────────────────────────────────────────
+const DOSSIER_STATUS = {
+  bozza:      { label: "Bozza",      color: "#6B7280", bg: "#F3F4F6", next: "confermata", nextLabel: "Conferma" },
+  confermata: { label: "Confermata", color: "#2563EB", bg: "#EFF6FF", next: "in_corso",   nextLabel: "Avvia"    },
+  in_corso:   { label: "In Corso",   color: "#059669", bg: "#ECFDF5", next: "completata", nextLabel: "Completa" },
+  completata: { label: "Completata", color: "#2D7A4F", bg: "#D1FAE5", next: null,         nextLabel: null       },
+  annullata:  { label: "Annullata",  color: "#C0392B", bg: "#FEE2E2", next: null,         nextLabel: null       },
+};
+
 // ─── SUPPLIER CATEGORIES ──────────────────────────────────────────────────
 const SUPPLIER_CATEGORIES = {
   hotel:        { label: "Hotel",         icon: "🏨" },
@@ -1982,6 +1991,7 @@ const NAV_ITEMS = [
   { id: "calendar",  icon: "📅", label: "Calendario", roles: ["admin","manager","agent","driver"] },
   { id: "clients",   icon: "👤", label: "Clienti",    roles: ["admin","manager","agent"] },
   { id: "suppliers", icon: "🤝", label: "Fornitori",  roles: ["admin","manager","agent"] },
+  { id: "dossiers",  icon: "📁", label: "Pratiche",   roles: ["admin","manager","agent"] },
   { id: "team",      icon: "👥", label: "Team",       roles: ["admin","manager","agent"] },
   { id: "trash",     icon: "🗑️", label: "Cestino",    roles: ["admin"] },
   { id: "admin",     icon: "⚙️", label: "Admin",      roles: ["admin"] },
@@ -7498,6 +7508,462 @@ const SuppliersView = () => {
   );
 };
 
+// ─── DOSSIER SLIDE-OVER ────────────────────────────────────────────────────
+const DossierSlideOver = ({ dossier, tasks, onClose, onSaved, onDeleted, currentUserId }) => {
+  const { isMobile } = useViewport();
+  const isNew = !dossier.id;
+  const [tab, setTab] = useState("details"); // details | tasks | suppliers
+  const [editing, setEditing] = useState(isNew);
+  const [saving, setSaving] = useState(false);
+  const [clients, setClients] = useState([]);
+  const [suppliersList, setSuppliersList] = useState([]);
+  const [dossierSuppliers, setDossierSuppliers] = useState([]);
+  const [addingSupplier, setAddingSupplier] = useState(false);
+  const [newSupplierRow, setNewSupplierRow] = useState({ supplier_id: "", service_type: "", cost: "", notes: "" });
+
+  const [form, setForm] = useState({
+    title: dossier.title || "",
+    client_id: dossier.client_id || "",
+    destination: dossier.destination || "",
+    departure_date: dossier.departure_date || "",
+    return_date: dossier.return_date || "",
+    pax_adults: dossier.pax_adults ?? 1,
+    pax_children: dossier.pax_children ?? 0,
+    budget_total: dossier.budget_total || "",
+    notes: dossier.notes || "",
+  });
+
+  useEffect(() => {
+    Clients.list().then(({ data }) => { if (data) setClients(data); });
+    if (!isNew) {
+      Suppliers.list().then(({ data }) => { if (data) setSuppliersList(data); });
+      DossierSuppliers.list(dossier.id).then(({ data }) => { if (data) setDossierSuppliers(data); });
+    }
+  }, [dossier.id, isNew]);
+
+  const linkedTasks = tasks.filter(t => isActiveTask(t) && t.dossierId === dossier.id);
+  const st = DOSSIER_STATUS[dossier.status] || DOSSIER_STATUS.bozza;
+  const inp = (f, type = "text") => ({
+    value: form[f], onChange: e => setForm(p => ({ ...p, [f]: e.target.value })),
+    type, style: { ...fieldStyle, marginTop: 4 },
+  });
+
+  const handleSave = async () => {
+    if (!form.title.trim()) return;
+    setSaving(true);
+    const payload = {
+      ...form,
+      pax_adults: Number(form.pax_adults) || 0,
+      pax_children: Number(form.pax_children) || 0,
+      budget_total: form.budget_total ? Number(form.budget_total) : null,
+      client_id: form.client_id || null,
+      created_by: currentUserId,
+    };
+    let result;
+    if (dossier.id) {
+      const { data } = await Dossiers.update(dossier.id, payload);
+      result = data;
+    } else {
+      const { data } = await Dossiers.create(payload);
+      result = data;
+    }
+    setSaving(false);
+    if (result) { onSaved(result); setEditing(false); }
+  };
+
+  const handleStatusAdvance = async () => {
+    if (!st.next) return;
+    const { data } = await Dossiers.update(dossier.id, { status: st.next });
+    if (data) onSaved(data);
+  };
+
+  const handleCancel = async () => {
+    if (!window.confirm("Annullare questa pratica?")) return;
+    const { data } = await Dossiers.update(dossier.id, { status: "annullata" });
+    if (data) onSaved(data);
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm(`Eliminare definitivamente la pratica "${dossier.number}"?`)) return;
+    await Dossiers.remove(dossier.id);
+    onDeleted(dossier.id);
+  };
+
+  const handleAddSupplier = async () => {
+    if (!newSupplierRow.supplier_id) return;
+    const { data } = await DossierSuppliers.add({
+      dossier_id: dossier.id,
+      supplier_id: newSupplierRow.supplier_id,
+      service_type: newSupplierRow.service_type || null,
+      cost: newSupplierRow.cost ? Number(newSupplierRow.cost) : null,
+      notes: newSupplierRow.notes || null,
+    });
+    if (data) {
+      setDossierSuppliers(prev => [...prev, data]);
+      setNewSupplierRow({ supplier_id: "", service_type: "", cost: "", notes: "" });
+      setAddingSupplier(false);
+    }
+  };
+
+  const handleRemoveSupplier = async (linkId) => {
+    await DossierSuppliers.remove(linkId);
+    setDossierSuppliers(prev => prev.filter(r => r.id !== linkId));
+  };
+
+  const formatDateShort = (d) => d ? new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+  const clientName = clients.find(c => c.id === (dossier.client_id || form.client_id))?.name || dossier.clients?.name || "";
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,32,68,0.45)", zIndex: 500 }} />
+      <div className="slide-right" style={{
+        position: "fixed", top: 0, right: 0, width: isMobile ? "100vw" : 540, height: "100vh",
+        background: "#fff", zIndex: 600, boxShadow: "-20px 0 60px rgba(0,0,0,0.15)",
+        display: "flex", flexDirection: "column",
+      }}>
+        {/* Header */}
+        <div style={{ background: "var(--navy)", padding: "16px 20px", flexShrink: 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div style={{ flex: 1 }}>
+              {!isNew && (
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", letterSpacing: 1, marginBottom: 3 }}>
+                  {dossier.number}
+                </div>
+              )}
+              <div className="playfair" style={{ color: "#fff", fontSize: 19, fontWeight: 700, lineHeight: 1.3 }}>
+                {isNew ? "Nuova Pratica" : dossier.title}
+              </div>
+              {!isNew && clientName && (
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", marginTop: 3 }}>👤 {clientName}</div>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center" }}>
+              {!isNew && (
+                <div style={{ fontSize: 12, fontWeight: 700, background: st.bg, color: st.color, padding: "3px 10px", borderRadius: 99 }}>
+                  {st.label}
+                </div>
+              )}
+              {!isNew && !editing && <button onClick={() => setEditing(true)} style={{ background: "rgba(212,168,67,0.2)", border: "none", color: "var(--gold)", padding: "5px 10px", borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>✏️</button>}
+              {!isNew && <button onClick={handleDelete} style={{ background: "rgba(220,38,38,0.15)", border: "none", color: "#fca5a5", width: 28, height: 28, borderRadius: 6, cursor: "pointer", fontSize: 12 }}>🗑️</button>}
+              <button onClick={onClose} style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", width: 28, height: 28, borderRadius: 6, cursor: "pointer" }}>✕</button>
+            </div>
+          </div>
+
+          {/* Workflow stati */}
+          {!isNew && !editing && (
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+              {st.next && (
+                <button onClick={handleStatusAdvance} style={{ background: "var(--gold)", color: "var(--navy)", border: "none", padding: "6px 14px", borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 700 }}>
+                  → {st.nextLabel}
+                </button>
+              )}
+              {dossier.status !== "annullata" && dossier.status !== "completata" && (
+                <button onClick={handleCancel} style={{ background: "rgba(192,57,43,0.2)", color: "#fca5a5", border: "none", padding: "6px 12px", borderRadius: 6, cursor: "pointer", fontSize: 12 }}>✕ Annulla</button>
+              )}
+            </div>
+          )}
+
+          {/* Tabs (solo se non in edit mode) */}
+          {!isNew && !editing && (
+            <div style={{ display: "flex", gap: 4, marginTop: 12 }}>
+              {[["details","📋 Dettagli"], ["tasks",`✅ Task (${linkedTasks.length})`], ["suppliers",`🤝 Fornitori (${dossierSuppliers.length})`]].map(([id, label]) => (
+                <button key={id} onClick={() => setTab(id)} style={{
+                  background: tab === id ? "rgba(212,168,67,0.25)" : "rgba(255,255,255,0.07)",
+                  color: tab === id ? "var(--gold)" : "rgba(255,255,255,0.55)",
+                  border: "none", padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: tab === id ? 700 : 400,
+                }}>{label}</button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px 20px" }}>
+          {/* ── FORM CREATE / EDIT ── */}
+          {(isNew || editing) && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div><label style={labelStyle}>TITOLO *</label><input {...inp("title")} placeholder="Es. Viaggio Maldive - Famiglia Rossi" /></div>
+              <div>
+                <label style={labelStyle}>CLIENTE</label>
+                <select value={form.client_id} onChange={e => setForm(p => ({ ...p, client_id: e.target.value }))} style={{ ...fieldStyle, marginTop: 4, cursor: "pointer" }}>
+                  <option value="">— Nessun cliente —</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div><label style={labelStyle}>DESTINAZIONE</label><input {...inp("destination")} placeholder="Es. Maldive, Giappone, Vietnam..." /></div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div><label style={labelStyle}>PARTENZA</label><input {...inp("departure_date", "date")} /></div>
+                <div><label style={labelStyle}>RIENTRO</label><input {...inp("return_date", "date")} /></div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                <div><label style={labelStyle}>ADULTI</label><input {...inp("pax_adults", "number")} min={0} /></div>
+                <div><label style={labelStyle}>BAMBINI</label><input {...inp("pax_children", "number")} min={0} /></div>
+                <div><label style={labelStyle}>BUDGET (€)</label><input {...inp("budget_total", "number")} min={0} placeholder="0.00" /></div>
+              </div>
+              <div><label style={labelStyle}>NOTE</label><textarea {...inp("notes")} rows={3} placeholder="Note interne sulla pratica…" style={{ ...fieldStyle, marginTop: 4, resize: "vertical" }} /></div>
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
+                <button onClick={() => { setEditing(false); if (isNew) onClose(); }} style={btnGhost}>Annulla</button>
+                <button onClick={handleSave} disabled={saving || !form.title.trim()} style={{ ...btnPrimary, opacity: saving ? 0.7 : 1 }}>{saving ? "Salvataggio…" : "✓ Salva"}</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── TAB DETTAGLI ── */}
+          {!isNew && !editing && tab === "details" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+              {dossier.destination && (
+                <div><div style={sectionH}>DESTINAZIONE</div><div style={{ fontSize: 15, fontWeight: 600, color: "var(--navy)" }}>✈️ {dossier.destination}</div></div>
+              )}
+              <div className="vd-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div><div style={sectionH}>PARTENZA</div><div style={{ fontSize: 13 }}>{formatDateShort(dossier.departure_date)}</div></div>
+                <div><div style={sectionH}>RIENTRO</div><div style={{ fontSize: 13 }}>{formatDateShort(dossier.return_date)}</div></div>
+                <div>
+                  <div style={sectionH}>PAX</div>
+                  <div style={{ fontSize: 13 }}>
+                    {dossier.pax_adults > 0 && `${dossier.pax_adults} adulti`}
+                    {dossier.pax_adults > 0 && dossier.pax_children > 0 && " + "}
+                    {dossier.pax_children > 0 && `${dossier.pax_children} bambini`}
+                    {!dossier.pax_adults && !dossier.pax_children && <span style={{ color: "var(--text-muted)" }}>—</span>}
+                  </div>
+                </div>
+                <div>
+                  <div style={sectionH}>BUDGET</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "var(--navy)" }}>
+                    {dossier.budget_total ? `€ ${Number(dossier.budget_total).toLocaleString("it-IT")}` : <span style={{ color: "var(--text-muted)", fontSize: 13, fontWeight: 400 }}>—</span>}
+                  </div>
+                </div>
+              </div>
+              {dossier.notes && (
+                <div><div style={sectionH}>NOTE</div><div style={{ fontSize: 13, lineHeight: 1.6, background: "var(--surface2)", padding: 12, borderRadius: 8 }}>{dossier.notes}</div></div>
+              )}
+              <div>
+                <div style={sectionH}>CREATA</div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{formatDateShort(dossier.created_at)}</div>
+              </div>
+            </div>
+          )}
+
+          {/* ── TAB TASK ── */}
+          {!isNew && !editing && tab === "tasks" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {linkedTasks.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 0", color: "var(--text-muted)" }}>
+                  <div style={{ fontSize: 32, marginBottom: 10 }}>✅</div>
+                  <div style={{ fontSize: 13 }}>Nessun task collegato a questa pratica.</div>
+                  <div style={{ fontSize: 12, marginTop: 6, opacity: 0.7 }}>Crea un task e seleziona questa pratica nel campo "Pratica".</div>
+                </div>
+              ) : linkedTasks.map(t => (
+                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--surface2)", borderRadius: 8, padding: "9px 12px" }}>
+                  <CategoryChip category={t.category} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500 }}>{t.title}</div>
+                    {t.dueDate && <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>📅 {formatDate(t.dueDate)}</div>}
+                  </div>
+                  <StatusBadge status={t.status} />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── TAB FORNITORI ── */}
+          {!isNew && !editing && tab === "suppliers" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {dossierSuppliers.map(row => {
+                const cat = SUPPLIER_CATEGORIES[row.suppliers?.category] || SUPPLIER_CATEGORIES.altro;
+                return (
+                  <div key={row.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--surface2)", borderRadius: 8, padding: "9px 12px" }}>
+                    <span style={{ fontSize: 20 }}>{cat.icon}</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{row.suppliers?.name}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                        {row.service_type && `${row.service_type} · `}
+                        {row.cost ? `€ ${Number(row.cost).toLocaleString("it-IT")}` : ""}
+                        {row.notes && ` · ${row.notes}`}
+                      </div>
+                    </div>
+                    <button onClick={() => handleRemoveSupplier(row.id)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 16, padding: 4 }}>✕</button>
+                  </div>
+                );
+              })}
+
+              {addingSupplier ? (
+                <div style={{ background: "var(--surface2)", borderRadius: 8, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+                  <select value={newSupplierRow.supplier_id} onChange={e => setNewSupplierRow(p => ({ ...p, supplier_id: e.target.value }))} style={{ ...fieldStyle, cursor: "pointer" }}>
+                    <option value="">— Seleziona fornitore —</option>
+                    {suppliersList.map(s => {
+                      const c = SUPPLIER_CATEGORIES[s.category] || SUPPLIER_CATEGORIES.altro;
+                      return <option key={s.id} value={s.id}>{c.icon} {s.name}</option>;
+                    })}
+                  </select>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <input placeholder="Tipo servizio" value={newSupplierRow.service_type} onChange={e => setNewSupplierRow(p => ({ ...p, service_type: e.target.value }))} style={fieldStyle} />
+                    <input placeholder="Costo (€)" type="number" value={newSupplierRow.cost} onChange={e => setNewSupplierRow(p => ({ ...p, cost: e.target.value }))} style={fieldStyle} />
+                  </div>
+                  <input placeholder="Note" value={newSupplierRow.notes} onChange={e => setNewSupplierRow(p => ({ ...p, notes: e.target.value }))} style={fieldStyle} />
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <button onClick={() => setAddingSupplier(false)} style={btnGhost}>Annulla</button>
+                    <button onClick={handleAddSupplier} disabled={!newSupplierRow.supplier_id} style={{ ...btnPrimary, opacity: newSupplierRow.supplier_id ? 1 : 0.5 }}>+ Aggiungi</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setAddingSupplier(true)} style={{ ...btnGhost, alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 6 }}>+ Aggiungi fornitore</button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+};
+
+// ─── DOSSIERS VIEW ──────────────────────────────────────────────────────────
+const DossiersView = ({ state }) => {
+  const { isMobile } = useViewport();
+  const [dossiers, setDossiers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState(null);
+
+  useEffect(() => { loadDossiers(); }, []);
+
+  const loadDossiers = async () => {
+    setLoading(true);
+    const { data } = await Dossiers.list();
+    if (data) setDossiers(data);
+    setLoading(false);
+  };
+
+  const filtered = dossiers.filter(d => {
+    const matchStatus = !statusFilter || d.status === statusFilter;
+    const matchSearch = !search || [d.title, d.number, d.destination, d.clients?.name]
+      .some(v => v?.toLowerCase().includes(search.toLowerCase()));
+    return matchStatus && matchSearch;
+  });
+
+  const handleSaved = (updated) => {
+    setDossiers(prev => {
+      const exists = prev.find(d => d.id === updated.id);
+      return exists ? prev.map(d => d.id === updated.id ? updated : d) : [updated, ...prev];
+    });
+    setSelected(updated);
+  };
+
+  const handleDeleted = (id) => {
+    setDossiers(prev => prev.filter(d => d.id !== id));
+    setSelected(null);
+  };
+
+  const counts = Object.keys(DOSSIER_STATUS).reduce((acc, s) => {
+    acc[s] = dossiers.filter(d => d.status === s).length;
+    return acc;
+  }, {});
+
+  const formatDateShort = (d) => d ? new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "short" }) : null;
+
+  return (
+    <div className="vd-pad" style={{ padding: 32, maxWidth: 1100, margin: "0 auto" }}>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <div className="playfair" style={{ fontSize: 26, fontWeight: 700, color: "var(--navy)" }}>Pratiche di Viaggio</div>
+          <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 3 }}>{dossiers.length} pratiche totali</div>
+        </div>
+        <button onClick={() => setSelected({})} style={{ ...btnPrimary, padding: "10px 18px", fontSize: 13 }}>+ Nuova Pratica</button>
+      </div>
+
+      {/* KPI bar */}
+      <div className="vd-grid-kpi" style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 10, marginBottom: 20 }}>
+        {Object.entries(DOSSIER_STATUS).map(([key, s]) => (
+          <button key={key} onClick={() => setStatusFilter(statusFilter === key ? "" : key)} style={{
+            background: statusFilter === key ? s.bg : "#fff",
+            border: `1px solid ${statusFilter === key ? s.color : "var(--border)"}`,
+            borderRadius: 10, padding: "10px 12px", cursor: "pointer", textAlign: "left",
+            transition: "all 0.15s",
+          }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: s.color }}>{counts[key] || 0}</div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{s.label}</div>
+          </button>
+        ))}
+      </div>
+
+      {/* Ricerca */}
+      <div style={{ position: "relative", marginBottom: 20 }}>
+        <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14 }}>🔍</span>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca per titolo, numero, destinazione, cliente…"
+          style={{ ...fieldStyle, paddingLeft: 36, width: "100%", boxSizing: "border-box" }} />
+        {search && <button onClick={() => setSearch("")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: 16 }}>✕</button>}
+      </div>
+
+      {/* Lista */}
+      {loading ? (
+        <div style={{ textAlign: "center", padding: "60px 0", color: "var(--text-muted)" }}>
+          <div style={{ width: 36, height: 36, border: "3px solid var(--border)", borderTopColor: "var(--navy)", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 12px" }} />
+          Caricamento pratiche…
+        </div>
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "60px 0", color: "var(--text-muted)" }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>📁</div>
+          {search || statusFilter ? "Nessuna pratica trovata con questi criteri." : "Nessuna pratica ancora. Clicca \"+ Nuova Pratica\" per iniziare."}
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {filtered.map(d => {
+            const st = DOSSIER_STATUS[d.status] || DOSSIER_STATUS.bozza;
+            const taskCount = state.tasks.filter(t => isActiveTask(t) && t.dossierId === d.id).length;
+            const pax = [d.pax_adults > 0 && `${d.pax_adults} adulti`, d.pax_children > 0 && `${d.pax_children} bambini`].filter(Boolean).join(" + ");
+            return (
+              <div key={d.id} onClick={() => setSelected(d)} className="hover-lift"
+                style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 12, padding: isMobile ? "14px 14px" : "14px 20px", cursor: "pointer", display: "flex", gap: 16, alignItems: "center" }}>
+                {/* Numero */}
+                <div style={{ flexShrink: 0, width: isMobile ? 0 : 100, overflow: "hidden" }}>
+                  {!isMobile && <div style={{ fontSize: 11, fontWeight: 700, color: "var(--navy)", letterSpacing: 0.5 }}>{d.number}</div>}
+                </div>
+                {/* Info principale */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    {isMobile && <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)" }}>{d.number}</div>}
+                    <div style={{ fontWeight: 700, fontSize: 14, color: "var(--navy)" }}>{d.title}</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 12, marginTop: 4, flexWrap: "wrap" }}>
+                    {d.clients?.name && <div style={{ fontSize: 12, color: "var(--text-muted)" }}>👤 {d.clients.name}</div>}
+                    {d.destination && <div style={{ fontSize: 12, color: "var(--text-muted)" }}>✈️ {d.destination}</div>}
+                    {(d.departure_date || d.return_date) && (
+                      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                        📅 {[formatDateShort(d.departure_date), formatDateShort(d.return_date)].filter(Boolean).join(" → ")}
+                      </div>
+                    )}
+                    {pax && <div style={{ fontSize: 12, color: "var(--text-muted)" }}>👥 {pax}</div>}
+                  </div>
+                </div>
+                {/* Destra */}
+                <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, background: st.bg, color: st.color, padding: "3px 10px", borderRadius: 99, whiteSpace: "nowrap" }}>{st.label}</div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {d.budget_total && <div style={{ fontSize: 12, fontWeight: 600, color: "var(--success)" }}>€ {Number(d.budget_total).toLocaleString("it-IT")}</div>}
+                    {taskCount > 0 && <div style={{ fontSize: 11, color: "var(--text-muted)" }}>✅ {taskCount}</div>}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {selected !== null && (
+        <DossierSlideOver
+          dossier={selected}
+          tasks={state.tasks}
+          currentUserId={state.currentUserId}
+          onClose={() => setSelected(null)}
+          onSaved={handleSaved}
+          onDeleted={handleDeleted}
+        />
+      )}
+    </div>
+  );
+};
+
 // ─── ROOT APP ──────────────────────────────────────────────────────────────
 export default function VoyageDesk() {
   return (
@@ -7561,6 +8027,7 @@ function VoyageDeskInner() {
       case "calendar":   return <CalendarPlanner state={state} dispatch={dispatch} />;
       case "clients":    return <ClientsView state={state} dispatch={dispatch} />;
       case "suppliers":  return <SuppliersView state={state} dispatch={dispatch} />;
+      case "dossiers":   return <DossiersView state={state} dispatch={dispatch} />;
       case "team":       return <Team state={state} dispatch={dispatch} />;
       case "trash":      return <Trash state={state} dispatch={dispatch} />;
       case "admin":      return <AdminView state={state} dispatch={dispatch} />;

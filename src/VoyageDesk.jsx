@@ -699,7 +699,29 @@ const formatTime = iso => {
   return new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
 };
 const isOverdue = task => task.status !== "done" && task.dueDate && new Date(task.dueDate) < new Date();
-const getDayKey = iso => iso ? new Date(iso).toDateString() : null;
+
+// ─── DATE HELPERS ─────────────────────────────────────────────────────────
+// Tutti i confronti "giorno" e le chiavi di raggruppamento passano da qui.
+// Lavoriamo sempre nel fuso *locale dell'utente*: il giorno mostrato in UI
+// corrisponde al giorno percepito, non a UTC.
+const _toDate = v => (v instanceof Date ? v : (v ? new Date(v) : null));
+// YYYY-MM-DD locale, sicuro come chiave (evita gli artefatti di toISOString
+// quando l'orario locale è prossimo a mezzanotte e cambia giorno in UTC).
+const formatYMD = v => {
+  const d = _toDate(v);
+  if (!d || Number.isNaN(d.getTime())) return null;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+const sameDay = (a, b) => {
+  const ka = formatYMD(a);
+  const kb = formatYMD(b);
+  return ka !== null && ka === kb;
+};
+const isToday = v => sameDay(v, new Date());
+const getDayKey = iso => formatYMD(iso);
 const isActiveTask = t => !t.deletedAt;
 const getActiveTasks = tasks => tasks.filter(isActiveTask);
 const getTrashedTasks = tasks => tasks.filter(t => t.deletedAt);
@@ -4295,8 +4317,8 @@ const CalendarPlanner = ({ state, dispatch }) => {
   const startOffset = firstDay === 0 ? 6 : firstDay - 1;
 
   const getTasksForCalDay = (day) => {
-    const d = new Date(year, month, day).toDateString();
-    return state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && new Date(t.dueDate).toDateString() === d);
+    const target = new Date(year, month, day);
+    return state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && sameDay(t.dueDate, target));
   };
 
   // ── Week helpers ──
@@ -4314,7 +4336,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
   const dayNames = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
   const getTasksForDay = (day) =>
-    state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && new Date(t.dueDate).toDateString() === day.toDateString());
+    state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && sameDay(t.dueDate, day));
 
   // ── Distribuzione agenti (settimana corrente in vista week, settimana del mese selezionato in vista month) ──
   const agentWeekDays = viewMode === "week" ? weekDays : (() => {
@@ -4393,7 +4415,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
             {Array.from({ length: daysInMonth }, (_, i) => {
               const day = i + 1;
               const dayTasks = getTasksForCalDay(day);
-              const isToday = today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
+              const todayCell = isToday(new Date(year, month, day));
               return (
                 <div key={day} onClick={() => setSelectedDay(selectedDay === day ? null : day)} style={{
                   minHeight: isMobile ? 52 : 100, borderRight: "1px solid var(--border)", borderBottom: "1px solid var(--border)",
@@ -4403,9 +4425,9 @@ const CalendarPlanner = ({ state, dispatch }) => {
                 }}>
                   <div style={{
                     width: isMobile ? 24 : 26, height: isMobile ? 24 : 26, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 13, fontWeight: isToday ? 700 : 400,
-                    background: isToday ? "var(--navy)" : "transparent",
-                    color: isToday ? "#fff" : "var(--text)", marginBottom: 4
+                    fontSize: 13, fontWeight: todayCell ? 700 : 400,
+                    background: todayCell ? "var(--navy)" : "transparent",
+                    color: todayCell ? "#fff" : "var(--text)", marginBottom: 4
                   }}>{day}</div>
                   {isMobile ? (
                     dayTasks.length > 0 && (
@@ -4485,40 +4507,40 @@ const CalendarPlanner = ({ state, dispatch }) => {
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(7, 60vw)" : "repeat(7, 1fr)", gap: 10 }}>
             {weekDays.map((day) => {
               const dayTasks = getTasksForDay(day);
-              const isToday = day.toDateString() === new Date().toDateString();
+              const todayCell = isToday(day);
               return (
                 <div key={day.toISOString()} style={{
-                  background: isToday ? "var(--navy)" : "#fff",
-                  borderRadius: 10, border: `1px solid ${isToday ? "transparent" : "var(--border)"}`,
+                  background: todayCell ? "var(--navy)" : "#fff",
+                  borderRadius: 10, border: `1px solid ${todayCell ? "transparent" : "var(--border)"}`,
                   overflow: "hidden", scrollSnapAlign: isMobile ? "start" : "none",
                 }}>
                   {/* Day header */}
                   <div style={{
                     padding: "10px 10px 6px",
-                    background: isToday ? "var(--gold)" : "var(--surface2)",
+                    background: todayCell ? "var(--gold)" : "var(--surface2)",
                     textAlign: "center"
                   }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: isToday ? "var(--navy)" : "var(--text-muted)" }}>{dayNames[i]}</div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: isToday ? "var(--navy)" : "var(--text)" }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: todayCell ? "var(--navy)" : "var(--text-muted)" }}>{dayNames[i]}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: todayCell ? "var(--navy)" : "var(--text)" }}>
                       {day.getDate()}
                     </div>
                   </div>
                   <div style={{ padding: "8px 6px", display: "flex", flexDirection: "column", gap: 4, minHeight: 160 }}>
                     {dayTasks.length === 0 ? (
-                      <div style={{ fontSize: 10, color: isToday ? "rgba(255,255,255,0.4)" : "var(--text-muted)", textAlign: "center", marginTop: 20 }}>Nessun task</div>
+                      <div style={{ fontSize: 10, color: todayCell ? "rgba(255,255,255,0.4)" : "var(--text-muted)", textAlign: "center", marginTop: 20 }}>Nessun task</div>
                     ) : dayTasks.slice(0, 6).map(t => (
                       <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
-                        background: isToday ? "rgba(255,255,255,0.12)" : CATEGORIES[t.category]?.color + "18",
+                        background: todayCell ? "rgba(255,255,255,0.12)" : CATEGORIES[t.category]?.color + "18",
                         borderLeft: `3px solid ${CATEGORIES[t.category]?.color}`,
                         borderRadius: "0 4px 4px 0", padding: "4px 6px", cursor: "pointer",
                         fontSize: 10, fontWeight: 500, lineHeight: 1.3,
-                        color: isToday ? "#fff" : "var(--text)",
+                        color: todayCell ? "#fff" : "var(--text)",
                       }}>
                         {CATEGORIES[t.category]?.icon} {t.title.slice(0, 30)}{t.title.length > 30 ? "…" : ""}
-                        <div style={{ fontSize: 9, color: isToday ? "rgba(255,255,255,0.5)" : "var(--text-muted)", marginTop: 1 }}>{formatTime(t.dueDate)}</div>
+                        <div style={{ fontSize: 9, color: todayCell ? "rgba(255,255,255,0.5)" : "var(--text-muted)", marginTop: 1 }}>{formatTime(t.dueDate)}</div>
                       </div>
                     ))}
-                    {dayTasks.length > 6 && <div style={{ fontSize: 10, color: isToday ? "rgba(255,255,255,0.4)" : "var(--text-muted)", textAlign: "center" }}>+{dayTasks.length - 6} altri</div>}
+                    {dayTasks.length > 6 && <div style={{ fontSize: 10, color: todayCell ? "rgba(255,255,255,0.4)" : "var(--text-muted)", textAlign: "center" }}>+{dayTasks.length - 6} altri</div>}
                   </div>
                 </div>
               );
@@ -4538,7 +4560,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
                 {agentWeekDays.map((d) => (
                   <th key={d.toISOString()} style={{
                     padding: "8px 6px", background: "var(--surface2)", fontSize: 11, fontWeight: 600,
-                    color: d.toDateString() === new Date().toDateString() ? "var(--gold)" : "var(--text-muted)",
+                    color: isToday(d) ? "var(--gold)" : "var(--text-muted)",
                     textAlign: "center", minWidth: 70
                   }}>
                     {dayNames[i]}<br />{d.getDate()}
@@ -4559,7 +4581,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
                   {agentWeekDays.map((day) => {
                     const count = state.tasks.filter(t =>
                       isActiveTask(t) && t.assignees?.includes(m.id) && t.dueDate &&
-                      new Date(t.dueDate).toDateString() === day.toDateString()
+                      sameDay(t.dueDate, day)
                     ).length;
                     return (
                       <td key={day.toISOString()} style={{
@@ -4575,7 +4597,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
                   <td style={{ padding: "8px 12px", textAlign: "center", borderBottom: "1px solid var(--border)", fontWeight: 700, color: "var(--navy)" }}>
                     {state.tasks.filter(t =>
                       isActiveTask(t) && t.assignees?.includes(m.id) && t.dueDate &&
-                      agentWeekDays.some(d => new Date(t.dueDate).toDateString() === d.toDateString())
+                      agentWeekDays.some(d => sameDay(t.dueDate, d))
                     ).length}
                   </td>
                 </tr>
@@ -4808,9 +4830,9 @@ const formatChatTime = (iso) => {
   const diffMin = Math.floor((now - d) / 60000);
   if (diffMin < 1) return "Adesso";
   if (diffMin < 60) return `${diffMin} min fa`;
-  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+  if (sameDay(d, now)) return d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
   const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
-  if (d.toDateString() === yesterday.toDateString()) return "Ieri";
+  if (sameDay(d, yesterday)) return "Ieri";
   return d.toLocaleDateString("it-IT", { day: "2-digit", month: "short" });
 };
 

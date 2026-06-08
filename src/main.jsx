@@ -5,7 +5,7 @@ import { AuthProvider, useAuth } from './auth/AuthContext.jsx';
 import LoginScreen from './auth/LoginScreen.jsx';
 
 function AuthGate() {
-  const { session, loading } = useAuth();
+  const { session, profile, team, loading } = useAuth();
 
   if (loading) {
     return (
@@ -19,7 +19,14 @@ function AuthGate() {
     );
   }
 
-  return session ? <VoyageDesk /> : <LoginScreen />;
+  if (!session) return <LoginScreen />;
+
+  return (
+    <VoyageDesk
+      initialTeam={team}
+      initialCurrentUserId={profile?.id}
+    />
+  );
 }
 
 createRoot(document.getElementById('root')).render(

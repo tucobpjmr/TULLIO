@@ -657,23 +657,33 @@ const INITIAL_NOTICES = [
   },
 ];
 
-const initialState = {
-  tasks: INITIAL_TASKS,
-  team: TEAM,
-  categories: CATEGORIES,
-  agencyName: "VoyageDesk",
-  notices: INITIAL_NOTICES,
-  activityLog: [],
-  activeView: "dashboard",
-  selectedTask: null,
-  toast: null,
-  searchQuery: "",
-  showNotif: false,
-  sidebarCollapsed: false,
-  filters: { assignee: "", category: "", priority: "", status: "", client: "" },
-  lastAction: null, // { type, payload, undo: () => state-patch } per swipe-actions undo
-  currentUserId: CURRENT_USER, // v0.8: utente loggato (con switcher in Topbar)
-};
+// Factory dell'initial state. Se `team` e/o `currentUserId` sono forniti
+// (es. da Supabase via AuthContext), sincronizza i `let` globali TEAM/CURRENT_USER
+// prima di costruire lo state. Senza argomenti, restituisce lo state mock storico.
+function makeInitialState({ team, currentUserId } = {}) {
+  const hasRealTeam = Array.isArray(team) && team.length > 0;
+  if (hasRealTeam) _syncTeam(team);
+  if (currentUserId) _syncCurrentUser(currentUserId);
+  return {
+    // Quando il team viene dal DB le task in-memory non hanno più assignees validi:
+    // partiamo da vuoto, le task reali arriveranno dal prossimo wire-up Supabase.
+    tasks: hasRealTeam ? [] : INITIAL_TASKS,
+    team: TEAM,
+    categories: CATEGORIES,
+    agencyName: "VoyageDesk",
+    notices: hasRealTeam ? [] : INITIAL_NOTICES,
+    activityLog: [],
+    activeView: "dashboard",
+    selectedTask: null,
+    toast: null,
+    searchQuery: "",
+    showNotif: false,
+    sidebarCollapsed: false,
+    filters: { assignee: "", category: "", priority: "", status: "", client: "" },
+    lastAction: null, // { type, payload, undo: () => state-patch } per swipe-actions undo
+    currentUserId: CURRENT_USER, // v0.8: utente loggato (con switcher in Topbar)
+  };
+}
 
 // ─── UTILS ─────────────────────────────────────────────────────────────────
 const getMember = id => TEAM.find(m => m.id === id);
@@ -6939,17 +6949,24 @@ const modalOverlay = { position: "fixed", inset: 0, background: "rgba(15,32,68,0
 const modalCard = { background: "#fff", borderRadius: 12, padding: 24, width: "90%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" };
 
 // ─── ROOT APP ──────────────────────────────────────────────────────────────
-export default function VoyageDesk() {
+export default function VoyageDesk({ initialTeam, initialCurrentUserId } = {}) {
   return (
     <ViewportProvider>
-      <VoyageDeskInner />
+      <VoyageDeskInner
+        initialTeam={initialTeam}
+        initialCurrentUserId={initialCurrentUserId}
+      />
     </ViewportProvider>
   );
 }
 
-function VoyageDeskInner() {
+function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   const { isDesktop } = useViewport();
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const [state, dispatch] = useReducer(
+    reducer,
+    { team: initialTeam, currentUserId: initialCurrentUserId },
+    makeInitialState
+  );
   const [showFABModal, setShowFABModal] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [chatIntent, setChatIntent] = useState(null); // { toUser, taskLink } per aprire chat preconfezionata

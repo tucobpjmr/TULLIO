@@ -1,8 +1,10 @@
 # CLAUDE.md — Istruzioni per Claude Code
 
+> 📌 **Prima di leggere questo file**, apri `docs/HANDOFF.md` — riassume lo stato corrente del lavoro, cosa è stato chiuso di recente e il prossimo step suggerito. Questo file è la guida tecnica permanente (convenzioni, modello dati, helper, permessi).
+
 ## Identità progetto
 
-**VoyageDesk** è un sistema gestionale per agenzie viaggi e tour operator. Attualmente è un single-file React (`src/VoyageDesk.jsx`, ~7071 righe). L'obiettivo immediato è portarlo in un progetto Vite reale per abilitare persistenza, multi-file, TypeScript e test.
+**VoyageDesk** è un sistema gestionale per agenzie viaggi e tour operator. Attualmente è un single-file React (`src/VoyageDesk.jsx`, ~8856 righe), servito da Vite (progetto già migrato). Stato in memoria; persistenza backend è il prossimo grande capitolo tecnico.
 
 ## Ruolo
 
@@ -116,6 +118,16 @@ Famiglia Rossi (Maldive), Coppia Bianchi (Giappone), Azienda TechCorp (Incentive
 ### Profilo personale (non admin-only)
 `UPDATE_OWN_PROFILE`
 
+### Clienti (CRM base, no Driver)
+`ADD_CLIENT`, `UPDATE_CLIENT`, `DELETE_CLIENT`, `OPEN_CLIENT_DETAIL`, `CONSUME_CLIENT_DETAIL_REQUEST`
+
+### Pratiche di viaggio (no Driver)
+`ADD_PRATICA`, `UPDATE_PRATICA`, `DELETE_PRATICA`, `OPEN_PRATICA_DETAIL`, `CONSUME_PRATICA_DETAIL_REQUEST`
+
+### Notifiche (reali, per-utente)
+`MARK_NOTIF_READ`, `MARK_ALL_NOTIF_READ`, `CLEAR_NOTIF`, `CLEAR_ALL_NOTIF`
+(Generate automaticamente in `ADD_TASK`/`ADD_TASKS_BULK`/`UPDATE_TASK`/`MOVE_TASK`/`ADD_COMMENT`.)
+
 ### Admin Team (ADMIN_ONLY)
 `ADD_TEAM_MEMBER`, `UPDATE_TEAM_MEMBER`, `APPROVE_TEAM_MEMBER`, `TOGGLE_TEAM_MEMBER_ACTIVE`, `REMOVE_TEAM_MEMBER`
 
@@ -154,6 +166,13 @@ isMyTask(task, userId)
 isInGlobalQueue(task)
 getVisibleTasks(tasks, userId)
 getNavItemsForUser(userId)       — NAV_ITEMS filtrati per ruolo
+canViewClients(userId), canManageClients(userId)
+getClient(id, clients?)          — lookup cliente per id
+getTasksByClient(tasks, client)  — task collegati per clientId o per nome legacy
+canViewPratiche(userId), canManagePratiche(userId)
+getPratica(id, pratiche?), getPraticheByClient(pratiche, clientId)
+getTasksByPratica(tasks, praticaId)
+getNextPraticaNumber(pratiche)   — genera PR-AAAA-NNN progressivo per anno corrente
 ```
 
 ## Classi CSS responsive (definite in FontLoader)
@@ -223,8 +242,7 @@ VoyageDesk (export default, ViewportProvider wrapper)
 
 ### Priorità 2 — Modello dati completo
 - [ ] Anagrafica Clienti (CRM base)
-- [ ] Anagrafica Fornitori
-- [ ] Pratiche di viaggio (aggrega task + clienti + fornitori)
+- [ ] Pratiche di viaggio (aggrega task + clienti)
 
 ### Priorità 3 — Operatività
 - [ ] Notifiche reali (collegate ad azioni)
@@ -232,8 +250,8 @@ VoyageDesk (export default, ViewportProvider wrapper)
 - [ ] Dark mode
 
 ### Priorità 4 — Business
-- [ ] Modulo finanziario (dopo Pratiche)
 - [ ] Report & Analytics avanzati
+- [ ] Catalogo destinazioni / pacchetti
 
 Vedi `docs/ROADMAP.md` per il dettaglio completo con dipendenze e stime.
 

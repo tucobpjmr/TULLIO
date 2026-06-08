@@ -4,7 +4,9 @@ Sistema gestionale per agenzie viaggi e tour operator.
 
 ## Stato attuale — v0.9-dev
 
-App single-file React (~7071 righe) con tutte le feature operative funzionanti in memoria (no persistenza).
+App single-file React (~8856 righe) con tutte le feature operative funzionanti in memoria (no persistenza).
+
+👉 **Leggi `docs/HANDOFF.md` prima di iniziare**: è il riassunto sempre aggiornato dello stato del lavoro e del prossimo step suggerito.
 
 ### Feature completate
 
@@ -22,7 +24,10 @@ App single-file React (~7071 righe) con tutte le feature operative funzionanti i
 - **Multi-utente mock** — UserSwitcher in topbar
 - **Profilo personale** — modifica nome, avatar (emoji/foto), email, telefono
 - **Responsive** — desktop + tablet + mobile (320px+), SwipeActions, BottomNav
-- **Ricerca avanzata** — filtri keyword, date, categoria, stato, agente
+- **Ricerca avanzata** — barra di ricerca + filtri avanzati in un unico controllo nella topbar
+- **Anagrafica Clienti (CRM base)** — vista dedicata, CRUD, ricerca, dettaglio con tab Anagrafica/Pratiche/Task
+- **Pratiche di viaggio** — modulo centrale (numero progressivo PR-YYYY-NNN), stati Bozza→Confermata→In corso→Completata/Annullata, riepilogo economico, task collegati
+- **Notifiche reali** — generate dagli eventi del reducer, per-utente, tab Tutte/Non lette, click → apre task
 
 ### Stack
 
@@ -49,10 +54,11 @@ voyagedesk/
 ├── src/
 │   └── VoyageDesk.jsx      # App completa (single-file, da splittare)
 ├── docs/
-│   ├── PROJECT_SPEC.md      # Specifiche tecniche e architettura
+│   ├── HANDOFF.md            # ⭐ Punto di partenza: stato corrente + prossimo step
+│   ├── CLAUDE.md             # Istruzioni per Claude Code (convenzioni, helper, modello dati)
+│   ├── ROADMAP.md            # Piano sviluppo futuro per fasi
 │   ├── CHANGELOG.md          # Storico versioni
-│   ├── ROADMAP.md            # Piano sviluppo futuro
-│   └── CLAUDE.md             # Istruzioni per Claude Code
+│   └── PROJECT_SPEC.md       # Specifiche tecniche e architettura
 ├── test/
 │   └── esempio_import_task.csv
 ├── package.json
@@ -61,9 +67,11 @@ voyagedesk/
 └── README.md
 ```
 
-## Sviluppo con Claude Code
+## Sviluppo con Claude Code (e cowork)
 
-Leggi `docs/CLAUDE.md` prima di qualsiasi modifica. Contiene tutte le convenzioni, i pattern, gli helper disponibili e le istruzioni per Claude Code.
+1. Apri `docs/HANDOFF.md` — è il riassunto sempre aggiornato dello stato del lavoro, di cosa è stato fatto e del prossimo step suggerito.
+2. Poi consulta `docs/CLAUDE.md` per convenzioni di codice, helper utility, modello dati e azioni del reducer disponibili.
+3. `docs/ROADMAP.md` ha il piano per fasi con priorità e dipendenze.
 
 ## Licenza
 

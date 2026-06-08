@@ -1,5 +1,122 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9-dev — Pratiche di viaggio MVP (sessione 11)
+
+> Step centrale di Fase 1: introdotto il modulo Pratiche di viaggio che aggrega titolo, cliente, date, viaggiatori, riepilogo economico e task collegati di un singolo viaggio.
+
+### 📁 Modulo Pratiche
+- Nuova entry `pratiche` in `NAV_ITEMS` (icona 📁) — visibile a Admin/Manager/Agent (no Driver).
+- `PraticheView`: card grid con ricerca testuale (numero, titolo, destinazione, cliente) e filtro per stato.
+- `PraticaEditorModal`: form crea/modifica con numero progressivo auto-generato (`PR-AAAA-NNN`), titolo, cliente (select), stato, destinazione, date partenza/ritorno, viaggiatori, budget/ricavo/costo, note.
+- `PraticaDetailModal` con 3 tab:
+  - **Anagrafica**: cliente cliccabile (apre dettaglio cliente), destinazione, date, viaggiatori, note, timestamp.
+  - **Task collegati**: list dei task con `praticaId` corrispondente; click apre `TaskSlideOver`.
+  - **Economico**: 4 card (Budget, Ricavo, Costo, Margine) con calcolo automatico margine + percentuale.
+- Pulsanti rapidi di cambio stato nel header del dettaglio.
+
+### 🔢 Numerazione progressiva
+- Helper `getNextPraticaNumber(pratiche)` → genera il prossimo numero nel formato `PR-{ANNO_CORRENTE}-NNN` basato sui numeri già usati nello stesso anno.
+
+### 🔗 Collegamento Task ↔ Pratica
+- Nuovo campo opzionale `task.praticaId`.
+- Nuovo componente `PraticaAutocomplete` (specchio di `ClientAutocomplete`): suggerisce le pratiche; se è già selezionato un cliente, ordina prima le sue pratiche.
+- Integrato in `QuickAddTask` (nuovo campo PRATICA) e `BulkTaskCreator` tab Manuale (riga "Collega a una pratica").
+- `TaskSlideOver`: se il task ha `praticaId`, nuova riga PRATICA con chip cliccabile (numero + titolo) che apre il dettaglio pratica.
+- Eliminare una pratica scollega i task (`task.praticaId = null`).
+
+### 🪪 Cliente ⇄ Pratica
+- `ClientDetailModal` ora ha 3 tab: Anagrafica, **Pratiche** (nuovo), Task. Click su una pratica apre il suo dettaglio.
+
+### 🛤️ Cross-view navigation
+- Nuove action `OPEN_PRATICA_DETAIL` (richiede `canViewPratiche`) + `CONSUME_PRATICA_DETAIL_REQUEST`.
+- `PraticheView` consuma `state.praticaDetailRequest` al mount.
+
+### 🧰 Reducer actions
+- `ADD_PRATICA`, `UPDATE_PRATICA`, `DELETE_PRATICA` (no Driver) + log attività.
+
+### 🗃️ Mock & state
+- `PRATICA_STATUSES`: `draft`, `confirmed`, `in_progress`, `completed`, `cancelled` con icona + colore.
+- 6 pratiche mock pre-caricate collegate ai 6 clienti esistenti, con date relative coerenti.
+- `initialState.pratiche = PRATICHE`, `_syncPratiche` per mutazione globale (pattern TEAM/CATEGORIES/CLIENTS).
+
+### 🔜 Step successivo
+- Fase 3 → Report & Analytics avanzati: trend mensili pratiche, margini per cliente/destinazione, export PDF.
+
+---
+
+## v0.9-dev — Notifiche reali (sessione 10)
+
+> Sostituite le notifiche statiche del topbar con un sistema reale persistito nello state, generato automaticamente dagli eventi del reducer.
+
+### 🔔 Stato + generazione automatica
+- Aggiunto `state.notifications` (cap 200). Sostituita la costante statica `NOTIFICATIONS`.
+- Notifiche generate automaticamente nei case del reducer:
+  - **ADD_TASK / ADD_TASKS_BULK** → `assigned` per ciascun assegnatario (escluso l'attore).
+  - **UPDATE_TASK** → `assigned` per assegnatari aggiunti, `unassigned` per quelli rimossi; `status` / `done` se cambia lo stato.
+  - **MOVE_TASK** → `status` / `done` per gli assegnatari attuali (escluso l'attore).
+  - **ADD_COMMENT** → `comment` per gli altri assegnatari del task.
+- Modello: `{ id, type, recipientId, taskId?, text, time, read }` — per-utente (filtrato per `currentUserId`).
+- Helper: `makeNotif`, `appendNotifications`, `getUserNotifications`, `formatRelTime`, dizionario `NOTIFICATION_TYPES` (icona + label).
+
+### 🛠️ Reducer actions nuove
+- `MARK_NOTIF_READ`, `MARK_ALL_NOTIF_READ`, `CLEAR_NOTIF`, `CLEAR_ALL_NOTIF`.
+
+### 🎛️ Panel ridisegnato
+- Tab **Tutte / Non lette** con badge contatore.
+- Tempi relativi (`5 min fa`, `2 h fa`, `1 g fa`).
+- Click su notifica → marca come letta e apre il task (`SET_SELECTED_TASK`) chiudendo il panel.
+- Pulsante ✕ inline per cancellare la singola notifica.
+- Footer con **Segna tutte lette** + **Pulisci**.
+- Cap altezza panel + scroll interno.
+
+### 🎯 Topbar
+- Badge non lette ora dinamico da `state.notifications` (filtrato per `currentUserId`).
+- Al cambio utente (UserSwitcher), il contatore riflette le notifiche destinate al nuovo utente.
+
+### 🌱 Seed iniziale
+- 5 notifiche pre-popolate per l'utente di default (Marco) per dare contesto al primo avvio.
+
+---
+
+## v0.9-dev — Anagrafica Clienti (CRM base) (sessione 9)
+
+> Primo step di Fase 1 della roadmap: anagrafica clienti come fondazione per Fornitori e Pratiche.
+
+### 🪪 Vista Clienti
+- Nuova entry `clients` in `NAV_ITEMS` (icona 🪪) — visibile a Admin/Manager/Agent (no Driver).
+- Componente `ClientsView`: lista a card con ricerca testuale (nome/email/telefono/indirizzo/note) e filtro per tipo cliente (Privato/Azienda/Gruppo).
+- Card mostra: avatar tipo, nome, contatti principali, contatore task collegati, data creazione.
+
+### 📝 Editor cliente
+- `ClientEditorModal` per creare/modificare: nome (obbligatorio), tipo, email, telefono, indirizzo, note.
+
+### 🔍 Dettaglio cliente
+- `ClientDetailModal` con due tab:
+  - **Anagrafica**: tutti i campi + data inserimento.
+  - **Task collegati**: list task che fanno match con il cliente (per `clientId` se presente, oppure per nome legacy del campo `client` testuale). Click su riga apre `TaskSlideOver`.
+- Pulsanti Elimina (con conferma) e Modifica per chi ha i permessi.
+
+### 🔐 Permessi
+- `canViewClients(userId)` e `canManageClients(userId)` — entrambi true tranne per Driver.
+- Reducer: `ADD_CLIENT`/`UPDATE_CLIENT`/`DELETE_CLIENT` validano i permessi, sincronizzano la variabile globale `CLIENTS` (pattern mutabile come TEAM/CATEGORIES) e producono toast.
+
+### 🗃️ Mock & state
+- Nuovo `CLIENT_TYPES`: `private` 👤, `business` 🏢, `group` 👥.
+- 6 clienti mock pre-caricati: Famiglia Rossi, Coppia Bianchi, Azienda TechCorp, Famiglia Marchetti, Liceo Manzoni, Sposi Conte.
+- `initialState.clients = CLIENTS`.
+- `LOGGED_ACTIONS` esteso con le tre azioni cliente.
+
+### 🔜 Step successivo
+- Collegamento bidirezionale Task ↔ Cliente: autocomplete del campo `client` in `QuickAddTask`/`TaskSlideOver`, scrittura di `task.clientId` quando si seleziona un cliente esistente.
+
+### 🔗 Collegamento Task ↔ Cliente (stesso sprint)
+- Nuovo componente riusabile `ClientAutocomplete`: input con dropdown suggerimenti dal lookup `CLIENTS`. Selezione di un cliente esistente → setta `task.client` (testo) + `task.clientId`. Digitazione libera → `clientId = null` (link spezzato). Badge `🪪 LINK` visibile quando il task è collegato a un cliente in anagrafica.
+- Integrato in `QuickAddTask` (campo Cliente) e `BulkTaskCreator` → tab Manuale (cliente comune).
+- `TaskSlideOver`: il blocco Cliente ora rileva l'eventuale cliente collegato (per `task.clientId` o per nome) e lo mostra come **chip cliccabile** colorato per tipo. Click → apre il dettaglio cliente nella vista Clienti.
+- Nuova action `OPEN_CLIENT_DETAIL` (richiede `canViewClients`) + campo `state.clientDetailRequest`. `ClientsView` consuma la richiesta al mount con `CONSUME_CLIENT_DETAIL_REQUEST`.
+
+---
+
 ## v0.9-dev — Ristrutturazione UI + Profilo + Handoff (sessione 8)
 
 > Semplificazione interfaccia, unificazione viste, nuovo profilo utente, preparazione per migrazione a progetto Vite.

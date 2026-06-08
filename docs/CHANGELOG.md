@@ -1,5 +1,42 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9 — Impostazioni Agenzia (sessione 9 — settima parte)
+
+> Fase 2 completata: tab Admin "Impostazioni" con dati agenzia, template messaggi e preferenze UI.
+
+### ⚙️ Impostazioni agenzia (AdminSettingsTab)
+- **Dati Agenzia**: nome, email, telefono, timezone (Europe/Rome di default), indirizzo. Salvataggio in `state.agencySettings` + dispatch `SET_AGENCY_NAME` per il nome (compat con backup esistenti). Bottone "Salva modifiche" disabilitato finché non c'è dirty state.
+- **Template messaggi** (CRUD completo):
+  - 5 template pre-caricati (Conferma prenotazione, Promemoria documenti, Sollecito pagamento, Richiesta info fornitore, Ringraziamento post-viaggio).
+  - Modello: `{ id, name, category, body, createdAt }`.
+  - Variabili supportate: `{{cliente}}`, `{{data}}`, `{{agenzia}}` — risolte runtime nel composer chat.
+  - Editor inline con textarea, category select, action ✏️/🗑️ per ogni template.
+- **Preferenze UI**:
+  - **Densità**: comfortable (default, padding 28px) / compact (padding 18px, gap ridotto) — applicata in Dashboard.
+  - **Vista iniziale**: dashboard/calendar/pratiche/clients — usata come `activeView` di partenza.
+  - **Toggle confirmDestructive**: chiede conferma per cestino/elimina.
+  - **Toggle showWelcomeBanner**: nasconde il banner "Buongiorno" in Dashboard.
+  - Bottone "↻ Ripristina default".
+
+### 💬 Integrazione chat
+- ChatContext esteso con `messageTemplates` + `agencyName`.
+- **Bottone ⚡ nel composer ConversationView**: dropdown con i template, click → applica `applyTemplate(tpl)` con sostituzione variabili automatica:
+  - `{{cliente}}` → nome conversazione gruppo se presente, altrimenti `[nome cliente]`
+  - `{{data}}` → data odierna formattata IT
+  - `{{agenzia}}` → `state.agencyName`
+
+### 🔁 Reducer
+- Nuove actions (tutte **ADMIN_ONLY**): `UPDATE_AGENCY_SETTINGS`, `ADD_MESSAGE_TEMPLATE`, `UPDATE_MESSAGE_TEMPLATE`, `DELETE_MESSAGE_TEMPLATE`, `SET_UI_PREFERENCE`, `RESET_UI_PREFERENCES`.
+- LOGGED_ACTIONS aggiornato con le nuove azioni amministrative.
+- **Backup JSON**: include `agencySettings`, `messageTemplates`, `uiPreferences` in export/restore.
+
+### 📈 Metriche
+- File: ~8920 → ~9210 righe (+290).
+- Tab Admin: 5 → 6 (aggiunta "⚙️ Impostazioni").
+- **Fase 2 completata**: Notifiche reali ✅, Calendario avanzato ✅, Estensioni chat ✅, Impostazioni agenzia ✅.
+
+---
+
 ## v0.9 — Estensioni Chat (sessione 9 — sesta parte)
 
 > Fase 2 procede: task link cliccabili, ricerca full-text nelle conversazioni, stato presenza, rich preview.

@@ -423,6 +423,7 @@ const LOGGED_ACTIONS = new Set([
   "DELETE_TASK", "RESTORE_TASK", "PURGE_TASK", "EMPTY_TRASH",
   "ADD_TEAM_MEMBER", "UPDATE_TEAM_MEMBER", "APPROVE_TEAM_MEMBER", "TOGGLE_TEAM_MEMBER_ACTIVE", "REMOVE_TEAM_MEMBER",
   "ADD_CATEGORY", "UPDATE_CATEGORY", "REMOVE_CATEGORY",
+  "UPDATE_AGENCY_SETTINGS", "ADD_MESSAGE_TEMPLATE", "UPDATE_MESSAGE_TEMPLATE", "DELETE_MESSAGE_TEMPLATE",
   "RESTORE_BACKUP",
   "ADD_NOTICE", "UPDATE_NOTICE", "DELETE_NOTICE",
   "ADD_CLIENT", "UPDATE_CLIENT", "DELETE_CLIENT",
@@ -670,7 +671,7 @@ function baseReducer(state, action) {
       return { ...state, agencyName: action.payload };
     }
     case "RESTORE_BACKUP": {
-      const { tasks, clients, suppliers, pratiche, team, categories, agencyName, notices } = action.payload;
+      const { tasks, clients, suppliers, pratiche, team, categories, agencyName, agencySettings, messageTemplates, uiPreferences, notices } = action.payload;
       if (team) _syncTeam(team);
       if (categories) _syncCategories(categories);
       return {
@@ -682,6 +683,9 @@ function baseReducer(state, action) {
         team: team ?? state.team,
         categories: categories ?? state.categories,
         agencyName: agencyName ?? state.agencyName,
+        agencySettings: agencySettings ?? state.agencySettings,
+        messageTemplates: messageTemplates ?? state.messageTemplates,
+        uiPreferences: uiPreferences ?? state.uiPreferences,
         notices: notices ?? state.notices,
         toast: { message: "Backup ripristinato con successo!", type: "success" }
       };
@@ -730,6 +734,32 @@ function baseReducer(state, action) {
     case "DISMISS_READ_NOTIFS": {
       const notifications = (state.notifications || []).filter(n => !n.read);
       return { ...state, notifications };
+    }
+
+    // ─── IMPOSTAZIONI AGENZIA (v0.9) ───
+    case "UPDATE_AGENCY_SETTINGS": {
+      const agencySettings = { ...(state.agencySettings || {}), ...action.payload };
+      return { ...state, agencySettings, toast: { message: "Dati agenzia aggiornati", type: "success" } };
+    }
+    case "ADD_MESSAGE_TEMPLATE": {
+      const tpl = { id: "tpl-" + Date.now(), createdAt: new Date().toISOString(), ...action.payload };
+      const messageTemplates = [tpl, ...(state.messageTemplates || [])];
+      return { ...state, messageTemplates, toast: { message: `Template "${tpl.name}" creato`, type: "success" } };
+    }
+    case "UPDATE_MESSAGE_TEMPLATE": {
+      const messageTemplates = (state.messageTemplates || []).map(t => t.id === action.payload.id ? { ...t, ...action.payload } : t);
+      return { ...state, messageTemplates, toast: { message: "Template aggiornato", type: "success" } };
+    }
+    case "DELETE_MESSAGE_TEMPLATE": {
+      const messageTemplates = (state.messageTemplates || []).filter(t => t.id !== action.payload);
+      return { ...state, messageTemplates, toast: { message: "Template eliminato", type: "success" } };
+    }
+    case "SET_UI_PREFERENCE": {
+      const uiPreferences = { ...(state.uiPreferences || DEFAULT_UI_PREFERENCES), ...action.payload };
+      return { ...state, uiPreferences };
+    }
+    case "RESET_UI_PREFERENCES": {
+      return { ...state, uiPreferences: { ...DEFAULT_UI_PREFERENCES }, toast: { message: "Preferenze ripristinate", type: "success" } };
     }
 
     case "CLEAR_TOAST": return { ...state, toast: null };
@@ -824,6 +854,7 @@ const ADMIN_ONLY_ACTIONS = new Set([
   "TOGGLE_TEAM_MEMBER_ACTIVE", "REMOVE_TEAM_MEMBER",
   "ADD_CATEGORY", "UPDATE_CATEGORY", "REMOVE_CATEGORY",
   "SET_AGENCY_NAME", "RESTORE_BACKUP", "CLEAR_ACTIVITY_LOG",
+  "UPDATE_AGENCY_SETTINGS", "ADD_MESSAGE_TEMPLATE", "UPDATE_MESSAGE_TEMPLATE", "DELETE_MESSAGE_TEMPLATE",
 ]);
 
 // Wrapper che aggiunge automaticamente al log le azioni rilevanti
@@ -873,6 +904,39 @@ const INITIAL_NOTICES = [
   },
 ];
 
+// ─── MESSAGE TEMPLATES (v0.9) ──────────────────────────────────────────────
+// Template messaggi per chat — corpo con variabili {{cliente}}, {{data}}, {{agenzia}}
+const INITIAL_MESSAGE_TEMPLATES = [
+  {
+    id: "tpl-conferma", name: "Conferma prenotazione", category: "client",
+    body: "Gentile {{cliente}},\nLe confermiamo la prenotazione per la data del {{data}}.\nA presto,\n{{agenzia}}",
+  },
+  {
+    id: "tpl-promemoria", name: "Promemoria documenti", category: "client",
+    body: "Gentile {{cliente}},\nLe ricordiamo di inviarci i documenti richiesti entro il {{data}}.\nGrazie,\n{{agenzia}}",
+  },
+  {
+    id: "tpl-sollecito", name: "Sollecito pagamento", category: "payment",
+    body: "Gentile {{cliente}},\nLe segnaliamo il pagamento ancora in sospeso. La preghiamo di regolarizzare entro il {{data}}.\nCordialmente,\n{{agenzia}}",
+  },
+  {
+    id: "tpl-richiesta-info", name: "Richiesta info fornitore", category: "supplier",
+    body: "Buongiorno,\nVi scriviamo per richiedere disponibilità e tariffe relative alla data del {{data}}.\nIn attesa di riscontro,\n{{agenzia}}",
+  },
+  {
+    id: "tpl-grazie", name: "Ringraziamento post-viaggio", category: "client",
+    body: "Gentile {{cliente}},\nGrazie per aver scelto la nostra agenzia. Speriamo di rivederLa presto!\n{{agenzia}}",
+  },
+];
+
+// Preferenze UI di default
+const DEFAULT_UI_PREFERENCES = {
+  density: "comfortable", // "compact" | "comfortable"
+  defaultView: "dashboard", // landing view dopo login
+  confirmDestructive: true, // mostra conferma per cestino/elimina
+  showWelcomeBanner: true, // banner di benvenuto in dashboard
+};
+
 const initialState = {
   tasks: INITIAL_TASKS,
   clients: INITIAL_CLIENTS,
@@ -881,10 +945,18 @@ const initialState = {
   team: TEAM,
   categories: CATEGORIES,
   agencyName: "VoyageDesk",
+  agencySettings: {
+    email: "info@voyagedesk.it",
+    phone: "+39 06 1234567",
+    address: "Via Roma 1, 00100 Roma",
+    timezone: "Europe/Rome",
+  },
+  messageTemplates: INITIAL_MESSAGE_TEMPLATES,
+  uiPreferences: DEFAULT_UI_PREFERENCES,
   notices: INITIAL_NOTICES,
   notifications: generateInitialNotifications(),
   activityLog: [],
-  activeView: "dashboard",
+  activeView: DEFAULT_UI_PREFERENCES.defaultView,
   selectedTask: null,
   toast: null,
   searchQuery: "",
@@ -4168,20 +4240,29 @@ const Dashboard = ({ state, dispatch, onOpenChat }) => {
   };
 
   const firstName = me?.name?.split(" ")[0] || "ciao";
+  const showBanner = state.uiPreferences?.showWelcomeBanner !== false;
+  const isCompact = state.uiPreferences?.density === "compact";
 
   return (
-    <div className="fade-in" style={{ padding: isMobile ? 16 : 28, display: "flex", flexDirection: "column", gap: isMobile ? 18 : 24, minWidth: 0, overflow: "hidden" }}>
+    <div className="fade-in" style={{
+      padding: isMobile ? 16 : (isCompact ? 18 : 28),
+      display: "flex", flexDirection: "column",
+      gap: isMobile ? 18 : (isCompact ? 14 : 24),
+      minWidth: 0, overflow: "hidden",
+    }}>
       {/* Header */}
       <div className="vd-row-wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
-        <div>
-          <div className="playfair" style={{ fontSize: isMobile ? 21 : 26, fontWeight: 700 }}>
-            Buongiorno, {firstName} ☀️
+        {showBanner ? (
+          <div>
+            <div className="playfair" style={{ fontSize: isMobile ? 21 : 26, fontWeight: 700 }}>
+              Buongiorno, {firstName} ☀️
+            </div>
+            <div style={{ color: "var(--text-muted)", fontSize: 14, marginTop: 2 }}>
+              {new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
+              {role !== "admin" && <span style={{ marginLeft: 8, fontSize: 11, padding: "2px 8px", background: "var(--surface3)", borderRadius: 99, color: "var(--text-muted)", fontWeight: 600, letterSpacing: 0.3 }}>{me?.role}</span>}
+            </div>
           </div>
-          <div style={{ color: "var(--text-muted)", fontSize: 14, marginTop: 2 }}>
-            {new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
-            {role !== "admin" && <span style={{ marginLeft: 8, fontSize: 11, padding: "2px 8px", background: "var(--surface3)", borderRadius: 99, color: "var(--text-muted)", fontWeight: 600, letterSpacing: 0.3 }}>{me?.role}</span>}
-          </div>
-        </div>
+        ) : <div />}
         <button onClick={() => setShowAIPlanner(true)} style={{
           background: "linear-gradient(135deg, var(--gold) 0%, var(--gold-dark) 100%)",
           color: "var(--navy)", border: "none",
@@ -5829,9 +5910,21 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
   const [replyingTo, setReplyingTo] = useState(null);
   const [showAttach, setShowAttach] = useState(false);
   const [showTaskPicker, setShowTaskPicker] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [typing, setTyping] = useState(false);
   const scrollRef = useRef(null);
-  const { tasks: ctxTasks } = useContext(ChatContext);
+  const { tasks: ctxTasks, messageTemplates: ctxTemplates, agencyName: ctxAgencyName } = useContext(ChatContext);
+
+  // Sostituisce variabili {{cliente}}, {{data}}, {{agenzia}} in un template
+  const applyTemplate = (tpl) => {
+    // Cerca cliente nella conversazione (gruppo nominato come cliente, altrimenti placeholder)
+    const clientGuess = conv.type === "group" && conv.name ? conv.name : "";
+    const today = new Date().toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" });
+    return (tpl.body || "")
+      .replace(/\{\{\s*cliente\s*\}\}/gi, clientGuess || "[nome cliente]")
+      .replace(/\{\{\s*data\s*\}\}/gi, today)
+      .replace(/\{\{\s*agenzia\s*\}\}/gi, ctxAgencyName || "");
+  };
 
   // Se è arrivato un prefill (es. da "contatta agente" su urgenti altrui), popolalo
   useEffect(() => {
@@ -6080,6 +6173,46 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
                 </div>
               )}
             </div>
+
+            {(ctxTemplates && ctxTemplates.length > 0) && (
+              <div style={{ position: "relative" }}>
+                <button onClick={() => setShowTemplatePicker(s => !s)} title="Inserisci template" style={{
+                  background: "var(--surface2)", border: "none", borderRadius: "50%",
+                  width: 36, height: 36, cursor: "pointer", fontSize: 16, flexShrink: 0,
+                }}>⚡</button>
+                {showTemplatePicker && (
+                  <div className="slide-up" style={{
+                    position: "absolute", bottom: "calc(100% + 8px)", left: 0,
+                    background: "#fff", borderRadius: 12, padding: 8,
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--border)",
+                    display: "flex", flexDirection: "column", gap: 2, minWidth: 260, maxHeight: 300, overflowY: "auto", zIndex: 100,
+                  }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5, padding: "4px 8px" }}>
+                      TEMPLATE MESSAGGI
+                    </div>
+                    {ctxTemplates.map(tpl => (
+                      <button key={tpl.id} onClick={() => {
+                        setInput(prev => prev ? `${prev}\n${applyTemplate(tpl)}` : applyTemplate(tpl));
+                        setShowTemplatePicker(false);
+                      }} style={{
+                        display: "flex", flexDirection: "column", alignItems: "flex-start",
+                        padding: "8px 10px", border: "none", background: "transparent",
+                        borderRadius: 6, cursor: "pointer", fontSize: 12, textAlign: "left",
+                        gap: 3, fontFamily: "inherit",
+                      }}
+                        onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                      >
+                        <div style={{ fontWeight: 600, fontSize: 12.5 }}>{tpl.name}</div>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" }}>
+                          {(tpl.body || "").slice(0, 60)}…
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div style={{ position: "relative" }}>
               <button onClick={() => setShowTaskPicker(s => !s)} title="Allega task" style={{
@@ -6501,7 +6634,7 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
 };
 
 // ─── CHAT: MAIN PANEL ──────────────────────────────────────────────────────
-const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, currentUserId, dispatch }) => {
+const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, currentUserId, dispatch, messageTemplates, agencyName }) => {
   const { isMobile } = useViewport();
   const [activeConv, setActiveConv] = useState(null);
   const [newMode, setNewMode] = useState(false);
@@ -6546,7 +6679,7 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
   };
 
   return (
-    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER, dispatch, onCloseChat: onClose }}>
+    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER, dispatch, onCloseChat: onClose, messageTemplates: messageTemplates || [], agencyName: agencyName || "" }}>
     <>
       <div onClick={onClose} style={{
         position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: 700,
@@ -6994,6 +7127,7 @@ const AdminView = ({ state, dispatch }) => {
 
   const tabs = [
     { id: "team", icon: "👥", label: "Team" },
+    { id: "settings", icon: "⚙️", label: "Impostazioni" },
     { id: "io", icon: "📤", label: "Import / Export" },
     { id: "stats", icon: "📊", label: "Sistema" },
     { id: "cats", icon: "🏷️", label: "Categorie" },
@@ -7041,6 +7175,7 @@ const AdminView = ({ state, dispatch }) => {
       {/* Tab content */}
       <div className="fade-in" key={tab}>
         {tab === "team" && <AdminTeamTab state={state} dispatch={dispatch} />}
+        {tab === "settings" && <AdminSettingsTab state={state} dispatch={dispatch} />}
         {tab === "io" && <AdminIOTab state={state} dispatch={dispatch} />}
         {tab === "stats" && <AdminStatsTab state={state} />}
         {tab === "cats" && <AdminCategoriesTab state={state} dispatch={dispatch} />}
@@ -7313,12 +7448,15 @@ const AdminIOTab = ({ state, dispatch }) => {
       version: "0.9",
       exportedAt: new Date().toISOString(),
       agencyName: state.agencyName,
+      agencySettings: state.agencySettings,
       tasks: state.tasks,
       clients: state.clients || [],
       suppliers: state.suppliers || [],
       pratiche: state.pratiche || [],
       team: state.team,
       categories: state.categories,
+      messageTemplates: state.messageTemplates || [],
+      uiPreferences: state.uiPreferences || {},
       notices: state.notices,
     };
     downloadFile(
@@ -7747,6 +7885,246 @@ const AdminLogTab = ({ state, dispatch }) => {
           </div>
         )}
       </div>
+    </div>
+  );
+};
+
+// ─── ADMIN TAB: IMPOSTAZIONI (v0.9) ────────────────────────────────────────
+const AdminSettingsTab = ({ state, dispatch }) => {
+  const prefs = state.uiPreferences || DEFAULT_UI_PREFERENCES;
+  const settings = state.agencySettings || {};
+  const templates = state.messageTemplates || [];
+
+  // Dati agenzia draft
+  const [agencyDraft, setAgencyDraft] = useState({
+    name: state.agencyName,
+    email: settings.email || "",
+    phone: settings.phone || "",
+    address: settings.address || "",
+    timezone: settings.timezone || "Europe/Rome",
+  });
+  const [agencyDirty, setAgencyDirty] = useState(false);
+
+  const updateAgency = (patch) => {
+    setAgencyDraft(d => ({ ...d, ...patch }));
+    setAgencyDirty(true);
+  };
+  const saveAgency = () => {
+    if (agencyDraft.name !== state.agencyName) {
+      dispatch({ type: "SET_AGENCY_NAME", payload: agencyDraft.name });
+    }
+    dispatch({ type: "UPDATE_AGENCY_SETTINGS", payload: {
+      email: agencyDraft.email, phone: agencyDraft.phone,
+      address: agencyDraft.address, timezone: agencyDraft.timezone,
+    }});
+    setAgencyDirty(false);
+  };
+
+  // Template editor
+  const [editingTpl, setEditingTpl] = useState(null);
+  const startNewTpl = () => setEditingTpl({ id: null, name: "", category: "client", body: "" });
+  const startEditTpl = (t) => setEditingTpl({ ...t });
+  const saveTpl = () => {
+    if (!editingTpl.name?.trim() || !editingTpl.body?.trim()) return;
+    if (editingTpl.id) {
+      dispatch({ type: "UPDATE_MESSAGE_TEMPLATE", payload: editingTpl });
+    } else {
+      dispatch({ type: "ADD_MESSAGE_TEMPLATE", payload: { name: editingTpl.name, category: editingTpl.category, body: editingTpl.body } });
+    }
+    setEditingTpl(null);
+  };
+  const deleteTpl = (id) => {
+    if (window.confirm("Eliminare questo template?")) {
+      dispatch({ type: "DELETE_MESSAGE_TEMPLATE", payload: id });
+    }
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+
+      {/* ── Dati Agenzia ── */}
+      <div style={cardStyle}>
+        <h3 style={cardH}>🏢 Dati Agenzia</h3>
+        <p style={cardP}>Informazioni anagrafiche utilizzate in template, export e intestazioni documenti.</p>
+        <div className="vd-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Nome agenzia</label>
+            <input value={agencyDraft.name} onChange={e => updateAgency({ name: e.target.value })} style={fieldStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Email</label>
+            <input type="email" value={agencyDraft.email} onChange={e => updateAgency({ email: e.target.value })} style={fieldStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Telefono</label>
+            <input value={agencyDraft.phone} onChange={e => updateAgency({ phone: e.target.value })} style={fieldStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Timezone</label>
+            <select value={agencyDraft.timezone} onChange={e => updateAgency({ timezone: e.target.value })} style={fieldStyle}>
+              <option value="Europe/Rome">Europe/Rome</option>
+              <option value="Europe/London">Europe/London</option>
+              <option value="Europe/Paris">Europe/Paris</option>
+              <option value="Europe/Madrid">Europe/Madrid</option>
+              <option value="America/New_York">America/New_York</option>
+            </select>
+          </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>Indirizzo</label>
+            <input value={agencyDraft.address} onChange={e => updateAgency({ address: e.target.value })} style={fieldStyle} />
+          </div>
+        </div>
+        <div style={{ marginTop: 14, display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button disabled={!agencyDirty} onClick={saveAgency} style={{ ...btnPrimary, opacity: agencyDirty ? 1 : 0.4, cursor: agencyDirty ? "pointer" : "default" }}>
+            💾 Salva modifiche
+          </button>
+        </div>
+      </div>
+
+      {/* ── Template messaggi ── */}
+      <div style={cardStyle}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <h3 style={cardH}>📝 Template messaggi</h3>
+          <button onClick={startNewTpl} style={btnGold}>+ Nuovo template</button>
+        </div>
+        <p style={cardP}>
+          Template testuali per chat e comunicazioni rapide. Variabili supportate:
+          <code style={{ background: "var(--surface2)", padding: "1px 5px", margin: "0 3px", borderRadius: 3, fontSize: 11 }}>{"{{cliente}}"}</code>
+          <code style={{ background: "var(--surface2)", padding: "1px 5px", margin: "0 3px", borderRadius: 3, fontSize: 11 }}>{"{{data}}"}</code>
+          <code style={{ background: "var(--surface2)", padding: "1px 5px", margin: "0 3px", borderRadius: 3, fontSize: 11 }}>{"{{agenzia}}"}</code>
+        </p>
+
+        {editingTpl && (
+          <div style={{ background: "var(--surface2)", borderRadius: 8, padding: 14, marginBottom: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 160px", gap: 10, marginBottom: 10 }}>
+              <input value={editingTpl.name} onChange={e => setEditingTpl({ ...editingTpl, name: e.target.value })} placeholder="Nome template" style={fieldStyle} />
+              <select value={editingTpl.category} onChange={e => setEditingTpl({ ...editingTpl, category: e.target.value })} style={fieldStyle}>
+                {Object.entries(state.categories).map(([k, v]) => (
+                  <option key={k} value={k}>{v.icon} {v.label}</option>
+                ))}
+              </select>
+            </div>
+            <textarea
+              value={editingTpl.body}
+              onChange={e => setEditingTpl({ ...editingTpl, body: e.target.value })}
+              placeholder="Corpo del messaggio…"
+              rows={6}
+              style={{ ...fieldStyle, resize: "vertical", fontFamily: "inherit" }}
+            />
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}>
+              <button onClick={() => setEditingTpl(null)} style={btnGhost}>Annulla</button>
+              <button onClick={saveTpl} style={btnPrimary} disabled={!editingTpl.name?.trim() || !editingTpl.body?.trim()}>💾 Salva</button>
+            </div>
+          </div>
+        )}
+
+        {templates.length === 0 ? (
+          <div style={{ padding: "24px 12px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+            Nessun template configurato. Premi "+ Nuovo template" per crearne uno.
+          </div>
+        ) : (
+          <div style={{ display: "grid", gap: 8 }}>
+            {templates.map(t => {
+              const cat = state.categories[t.category];
+              return (
+                <div key={t.id} style={{
+                  border: "1px solid var(--border)", borderRadius: 8, padding: "10px 12px",
+                  background: "#fff", display: "flex", gap: 12, alignItems: "flex-start",
+                }}>
+                  <span style={{ fontSize: 18 }}>{cat?.icon || "📝"}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13.5 }}>{t.name}</div>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4, whiteSpace: "pre-line", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                      {t.body}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                    <button onClick={() => startEditTpl(t)} style={btnGhost} title="Modifica">✏️</button>
+                    <button onClick={() => deleteTpl(t.id)} style={btnDanger} title="Elimina">🗑️</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Preferenze UI ── */}
+      <div style={cardStyle}>
+        <h3 style={cardH}>🎨 Preferenze UI</h3>
+        <p style={cardP}>Preferenze d'interfaccia. Si applicano all'utente Admin per il momento (preferenze per-utente in roadmap).</p>
+
+        <div style={{ display: "grid", gap: 16 }}>
+          <div>
+            <label style={labelStyle}>Densità interfaccia</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              {[
+                { id: "comfortable", label: "Comoda", icon: "📏" },
+                { id: "compact", label: "Compatta", icon: "📐" },
+              ].map(opt => (
+                <button key={opt.id} onClick={() => dispatch({ type: "SET_UI_PREFERENCE", payload: { density: opt.id } })} style={{
+                  padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                  border: `2px solid ${prefs.density === opt.id ? "var(--gold)" : "var(--border)"}`,
+                  background: prefs.density === opt.id ? "var(--gold)" + "15" : "#fff",
+                  color: "var(--text)", cursor: "pointer", fontFamily: "inherit",
+                  display: "flex", alignItems: "center", gap: 6,
+                }}>{opt.icon} {opt.label}</button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Vista iniziale (dopo login)</label>
+            <select value={prefs.defaultView} onChange={e => dispatch({ type: "SET_UI_PREFERENCE", payload: { defaultView: e.target.value } })} style={{ ...fieldStyle, maxWidth: 260 }}>
+              <option value="dashboard">📊 Dashboard</option>
+              <option value="calendar">📅 Calendario</option>
+              <option value="pratiche">📋 Pratiche</option>
+              <option value="clients">👤 Clienti</option>
+            </select>
+          </div>
+
+          {[
+            { key: "confirmDestructive", label: "Chiedi conferma per azioni distruttive (cestino, elimina)", desc: "Se disattivato, le azioni saranno immediate." },
+            { key: "showWelcomeBanner", label: "Mostra banner di benvenuto in Dashboard", desc: "Banner saluto + breve riepilogo all'apertura." },
+          ].map(opt => (
+            <div key={opt.key} style={{
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              padding: "10px 12px", border: "1px solid var(--border)", borderRadius: 8, gap: 12,
+            }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>{opt.label}</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{opt.desc}</div>
+              </div>
+              <label style={{ position: "relative", display: "inline-block", width: 42, height: 22, flexShrink: 0 }}>
+                <input
+                  type="checkbox"
+                  checked={!!prefs[opt.key]}
+                  onChange={e => dispatch({ type: "SET_UI_PREFERENCE", payload: { [opt.key]: e.target.checked } })}
+                  style={{ opacity: 0, width: 0, height: 0 }}
+                />
+                <span style={{
+                  position: "absolute", cursor: "pointer", inset: 0,
+                  background: prefs[opt.key] ? "var(--success)" : "var(--border)",
+                  borderRadius: 22, transition: "0.2s",
+                }} />
+                <span style={{
+                  position: "absolute", height: 16, width: 16, left: prefs[opt.key] ? 23 : 3, bottom: 3,
+                  background: "#fff", borderRadius: "50%", transition: "0.2s",
+                }} />
+              </label>
+            </div>
+          ))}
+
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button onClick={() => {
+              if (window.confirm("Ripristinare le preferenze UI ai valori di default?")) {
+                dispatch({ type: "RESET_UI_PREFERENCES" });
+              }
+            }} style={btnGhost}>↻ Ripristina default</button>
+          </div>
+        </div>
+      </div>
+
     </div>
   );
 };
@@ -8957,6 +9335,8 @@ function VoyageDeskInner() {
           tasks={state.tasks}
           currentUserId={state.currentUserId}
           dispatch={dispatch}
+          messageTemplates={state.messageTemplates}
+          agencyName={state.agencyName}
         />
 
         {/* FAB principale (singolo task) + FAB secondario (bulk) */}

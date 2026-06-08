@@ -65,7 +65,7 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 | Notifiche reali | ✅ | — | — | Completate in v0.9. Iniettate da ADD_TASK/ADD_COMMENT/APPROVE; filtri + "segna tutte lette"; badge nav. |
 | Calendario avanzato | ✅ | — | — | Completato in v0.9. Viste mese/settimana/giorno, timeline oraria, export iCal mock, drill-down settimana→giorno. |
 | Estensioni chat (base) | ✅ | — | — | Completate in v0.9. Task link cliccabile (`[task:ID]`), rich preview, ricerca full-text con highlight, presence states (online/busy/offline). |
-| Impostazioni agenzia | 🔶 | 🟡 | S | Gestione categorie e nome agenzia già in Admin. Manca: template messaggi, profilo utente, preferenze UI |
+| Impostazioni agenzia | ✅ | — | — | Completate in v0.9. Tab dedicata: dati agenzia, template messaggi (5 pre-caricati, CRUD), preferenze UI (densità, default view, toggle). |
 | Ricerca globale estesa | ✅ | — | — | Completata in v0.5. |
 | Responsive (mobile/tablet/desktop) | ✅ | — | — | Completato in v0.6. |
 | SwipeActions mobile | ✅ | — | — | Completato in v0.7. |

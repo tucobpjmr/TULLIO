@@ -16,9 +16,14 @@ export const Users = {
 };
 
 // ----------------- TASKS -----------------
+// Select riusabile che porta dietro i commenti con il nome dell'autore.
+const TASK_SELECT_WITH_COMMENTS =
+  '*, comments(id, user_id, text, created_at, users(name))';
+
 export const Tasks = {
-  list: ({ includeDeleted = false } = {}) => {
-    const q = supabase.from('tasks').select('*').order('due_date', { ascending: true });
+  list: ({ includeDeleted = false, withComments = false } = {}) => {
+    const select = withComments ? TASK_SELECT_WITH_COMMENTS : '*';
+    const q = supabase.from('tasks').select(select).order('due_date', { ascending: true });
     return includeDeleted ? q : q.is('deleted_at', null);
   },
   get: (id) =>

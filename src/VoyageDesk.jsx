@@ -1,6 +1,8 @@
 
 import { useState, useReducer, useContext, createContext, useRef, useEffect, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx";
+import { Tasks as TasksAPI, Comments as CommentsAPI } from "./lib/api.js";
+import { toDbTask, toDbTaskPatch, fromDbTask, newId, isUuid } from "./lib/mappers.js";
 
 // ─── GOOGLE FONTS ──────────────────────────────────────────────────────────
 const FontLoader = () => (
@@ -369,6 +371,10 @@ function baseReducer(state, action) {
         selectedTask: null,
         toast: { message: `Ora stai usando l'app come ${m.name} (${m.role})`, type: "success" },
       };
+    }
+    case "SET_TASKS": {
+      // Sostituisce in blocco l'array tasks (usato per idratazione iniziale da DB).
+      return { ...state, tasks: Array.isArray(action.payload) ? action.payload : [] };
     }
     case "MOVE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload.taskId);
@@ -6962,11 +6968,101 @@ export default function VoyageDesk({ initialTeam, initialCurrentUserId } = {}) {
 
 function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   const { isDesktop } = useViewport();
-  const [state, dispatch] = useReducer(
+  const [state, rawDispatch] = useReducer(
     reducer,
     { team: initialTeam, currentUserId: initialCurrentUserId },
     makeInitialState
   );
+
+  // Modalità DB: attiva solo se AuthContext ha fornito un team reale.
+  // Senza, l'app resta sui mock (dev/preview senza login).
+  const useSupabase = Array.isArray(initialTeam) && initialTeam.length > 0;
+
+  // Idratazione tasks dal DB al primo mount in modalità Supabase.
+  useEffect(() => {
+    if (!useSupabase) return;
+    let cancelled = false;
+    TasksAPI.list({ withComments: true }).then(({ data, error }) => {
+      if (cancelled) return;
+      if (error) { console.error("[VoyageDesk] Tasks.list", error); return; }
+      rawDispatch({ type: "SET_TASKS", payload: (data || []).map(fromDbTask) });
+    });
+    return () => { cancelled = true; };
+  }, [useSupabase]);
+
+  // currentUserId vivo, per persistere i comments con l'autore giusto.
+  const currentUserIdRef = useRef(state.currentUserId);
+  useEffect(() => { currentUserIdRef.current = state.currentUserId; }, [state.currentUserId]);
+
+  // Wrapper dispatch: applica al reducer (UI istantanea) e poi sincronizza
+  // su Supabase fire-and-forget. Per ADD_TASK normalizza l'id in uuid in
+  // modo coerente tra reducer e DB.
+  const dispatch = useCallback((action) => {
+    if (!useSupabase) { rawDispatch(action); return; }
+
+    let toDispatch = action;
+    let dbOps = null;
+
+    switch (action.type) {
+      case "ADD_TASK": {
+        const id = isUuid(action.payload?.id) ? action.payload.id : newId();
+        const payload = { ...action.payload, id };
+        toDispatch = { ...action, payload };
+        dbOps = () => TasksAPI.create(toDbTask(payload));
+        break;
+      }
+      case "ADD_TASKS_BULK": {
+        const payload = (action.payload || []).map(t => ({
+          ...t, id: isUuid(t?.id) ? t.id : newId(),
+        }));
+        toDispatch = { ...action, payload };
+        dbOps = () => Promise.all(payload.map(t => TasksAPI.create(toDbTask(t))));
+        break;
+      }
+      case "UPDATE_TASK":
+        dbOps = () => TasksAPI.update(action.payload.id, toDbTaskPatch(action.payload));
+        break;
+      case "MOVE_TASK":
+        dbOps = () => TasksAPI.update(action.payload.taskId, { status: action.payload.newStatus });
+        break;
+      case "DELETE_TASK":
+        dbOps = () => TasksAPI.softDelete(action.payload);
+        break;
+      case "RESTORE_TASK":
+        dbOps = () => TasksAPI.restore(action.payload);
+        break;
+      case "PURGE_TASK":
+        dbOps = () => TasksAPI.hardDelete(action.payload);
+        break;
+      case "EMPTY_TRASH": {
+        const ids = state.tasks.filter(t => t.deletedAt).map(t => t.id);
+        dbOps = () => Promise.all(ids.map(id => TasksAPI.hardDelete(id)));
+        break;
+      }
+      case "ADD_COMMENT": {
+        const uid = currentUserIdRef.current;
+        dbOps = () => CommentsAPI.create({
+          task_id: action.payload.taskId,
+          user_id: uid,
+          text: action.payload.comment?.text ?? "",
+        });
+        break;
+      }
+      default:
+        break;
+    }
+
+    rawDispatch(toDispatch);
+    if (dbOps) {
+      Promise.resolve()
+        .then(dbOps)
+        .then((res) => {
+          const err = Array.isArray(res) ? res.find(r => r?.error)?.error : res?.error;
+          if (err) console.error(`[VoyageDesk] sync ${action.type}`, err);
+        })
+        .catch((e) => console.error(`[VoyageDesk] sync ${action.type}`, e));
+    }
+  }, [useSupabase, state.tasks]);
   const [showFABModal, setShowFABModal] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [chatIntent, setChatIntent] = useState(null); // { toUser, taskLink } per aprire chat preconfezionata

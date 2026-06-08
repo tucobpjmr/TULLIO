@@ -84,6 +84,13 @@ export const Messages = {
       .eq('conversation_id', conversation_id)
       .order('created_at', { ascending: true })
       .limit(limit),
+  // Carica TUTTI i messaggi delle conv visibili in un solo round-trip:
+  // l'app raggruppa lato client per conversation_id. Le RLS già limitano
+  // la visibilità ai soli partecipanti.
+  listAll: (limit = 2000) =>
+    supabase.from('messages').select('*')
+      .order('created_at', { ascending: true })
+      .limit(limit),
   send: (m) =>
     supabase.from('messages').insert(m).select().single(),
   remove: (id) =>

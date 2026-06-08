@@ -118,3 +118,78 @@ export function toDbNoticePatch(patch) {
   if ('author' in patch) out.author_id = patch.author ?? null;
   return out;
 }
+
+// ----------------- CONVERSATIONS -----------------
+
+export function fromDbConversation(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    type: row.type,
+    name: row.name ?? null,
+    icon: row.icon ?? null,
+    participants: Array.isArray(row.participants) ? row.participants : [],
+    pinned: !!row.pinned,
+  };
+}
+
+export function toDbConversation(conv) {
+  return {
+    id: isUuid(conv.id) ? conv.id : newId(),
+    type: conv.type,
+    name: conv.name ?? null,
+    icon: conv.icon ?? null,
+    participants: Array.isArray(conv.participants) ? conv.participants : [],
+    pinned: !!conv.pinned,
+  };
+}
+
+// ----------------- MESSAGES -----------------
+
+export function fromDbMessage(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    conversation_id: row.conversation_id,
+    sender: row.sender_id,
+    type: row.type,
+    text: row.text ?? '',
+    fileName: row.file_name ?? null,
+    // fileSize lato DB è bigint (byte), lato UI viene mostrato come stringa
+    // human-readable: non ricostruisco la stringa, lascio i byte e i componenti
+    // continueranno a usare la stringa generata localmente al momento dell'invio.
+    fileSize: row.file_size ?? null,
+    fileType: row.file_type ?? null,
+    duration: row.duration ?? null,
+    waveform: row.waveform ?? null,
+    replyTo: row.reply_to ?? null,
+    taskRef: row.task_ref ?? null,
+    reactions: row.reactions ?? {},
+    readBy: Array.isArray(row.read_by) ? row.read_by : [],
+    time: row.created_at,
+  };
+}
+
+export function toDbMessage(msg, conversationId) {
+  // fileSize lato app è una stringa human-readable ("245 KB") → su DB
+  // (bigint) restiamo null per ora; lo wire-up dei file reali arriverà
+  // quando integreremo lo storage.
+  const fileSizeBytes =
+    typeof msg.fileSize === 'number' ? msg.fileSize : null;
+  return {
+    id: isUuid(msg.id) ? msg.id : newId(),
+    conversation_id: conversationId,
+    sender_id: msg.sender,
+    type: msg.type ?? 'text',
+    text: msg.text ?? null,
+    file_name: msg.fileName ?? null,
+    file_size: fileSizeBytes,
+    file_type: msg.fileType ?? null,
+    duration: msg.duration ?? null,
+    waveform: msg.waveform ?? null,
+    reply_to: msg.replyTo ?? null,
+    task_ref: msg.taskRef ?? null,
+    reactions: msg.reactions ?? {},
+    read_by: Array.isArray(msg.readBy) ? msg.readBy : [],
+  };
+}

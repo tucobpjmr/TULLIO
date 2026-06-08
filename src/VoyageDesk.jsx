@@ -1,10 +1,16 @@
 
 import { useState, useReducer, useContext, createContext, useRef, useEffect, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx";
-import { Tasks as TasksAPI, Comments as CommentsAPI, Notices as NoticesAPI, subscribeToTable } from "./lib/api.js";
+import {
+  Tasks as TasksAPI, Comments as CommentsAPI, Notices as NoticesAPI,
+  Conversations as ConversationsAPI, Messages as MessagesAPI,
+  subscribeToTable,
+} from "./lib/api.js";
 import {
   toDbTask, toDbTaskPatch, fromDbTask,
   toDbNotice, toDbNoticePatch, fromDbNotice,
+  toDbConversation, fromDbConversation,
+  toDbMessage, fromDbMessage,
   newId, isUuid,
 } from "./lib/mappers.js";
 
@@ -7037,6 +7043,47 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     };
   }, [useSupabase]);
 
+  // Idratazione chat (conversations + messages) + realtime.
+  useEffect(() => {
+    if (!useSupabase) return;
+    let cancelled = false;
+
+    const reload = async () => {
+      const [convsRes, msgsRes] = await Promise.all([
+        ConversationsAPI.listMine(),
+        MessagesAPI.listAll(),
+      ]);
+      if (cancelled) return;
+      if (convsRes.error) console.error("[chat] convs.list", convsRes.error);
+      if (msgsRes.error) console.error("[chat] msgs.list", msgsRes.error);
+      const convs = (convsRes.data || []).map(fromDbConversation);
+      const msgsByConv = {};
+      for (const r of msgsRes.data || []) {
+        const m = fromDbMessage(r);
+        (msgsByConv[m.conversation_id] ||= []).push(m);
+      }
+      setConversationsRaw(convs);
+      setMessagesRaw(msgsByConv);
+    };
+
+    reload();
+
+    let timer = null;
+    const debouncedReload = () => {
+      clearTimeout(timer);
+      timer = setTimeout(reload, 200);
+    };
+    const unsubConvs = subscribeToTable("conversations", debouncedReload);
+    const unsubMsgs = subscribeToTable("messages", debouncedReload);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      unsubConvs?.();
+      unsubMsgs?.();
+    };
+  }, [useSupabase]);
+
   // currentUserId vivo, per persistere i comments con l'autore giusto.
   const currentUserIdRef = useRef(state.currentUserId);
   useEffect(() => { currentUserIdRef.current = state.currentUserId; }, [state.currentUserId]);
@@ -7133,8 +7180,88 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   const [showChat, setShowChat] = useState(false);
   const [chatIntent, setChatIntent] = useState(null); // { toUser, taskLink } per aprire chat preconfezionata
   const [showBulkModal, setShowBulkModal] = useState(false);
-  const [conversations, setConversations] = useState(initialConversations);
-  const [messages, setMessages] = useState(initialMessages);
+  // In modalità Supabase partiamo da stato vuoto e idratiamo dal DB.
+  // Senza login i mock restano per smoke-test rapido.
+  const [conversations, setConversationsRaw] = useState(
+    useSupabase ? [] : initialConversations
+  );
+  const [messages, setMessagesRaw] = useState(
+    useSupabase ? {} : initialMessages
+  );
+
+  // Wrapper di setConversations: diff vs prev e persiste create/update(pinned).
+  const setConversations = useCallback((updater) => {
+    setConversationsRaw(prev => {
+      const nextRaw = typeof updater === 'function' ? updater(prev) : updater;
+      if (!useSupabase) return nextRaw;
+      const prevById = new Map(prev.map(c => [c.id, c]));
+      return nextRaw.map(c => {
+        if (!prevById.has(c.id)) {
+          const id = isUuid(c.id) ? c.id : newId();
+          const normalized = { ...c, id };
+          ConversationsAPI.create(toDbConversation(normalized))
+            .then(r => r?.error && console.error('[chat] conv.create', r.error));
+          return normalized;
+        }
+        const prevC = prevById.get(c.id);
+        if (prevC.pinned !== c.pinned || prevC.name !== c.name || prevC.icon !== c.icon) {
+          ConversationsAPI.update(c.id, {
+            pinned: !!c.pinned, name: c.name ?? null, icon: c.icon ?? null,
+          }).then(r => r?.error && console.error('[chat] conv.update', r.error));
+        }
+        return c;
+      });
+    });
+  }, [useSupabase]);
+
+  // Wrapper di setMessages: diff per conv e persiste insert + reactions + readBy.
+  const setMessages = useCallback((updater) => {
+    setMessagesRaw(prev => {
+      const nextRaw = typeof updater === 'function' ? updater(prev) : updater;
+      if (!useSupabase) return nextRaw;
+
+      const eqArr = (a, b) => {
+        if (a === b) return true;
+        if (!Array.isArray(a) || !Array.isArray(b)) return false;
+        if (a.length !== b.length) return false;
+        for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+        return true;
+      };
+      const eqReactions = (a, b) => {
+        const ka = Object.keys(a || {}), kb = Object.keys(b || {});
+        if (ka.length !== kb.length) return false;
+        for (const k of ka) if (!eqArr(a[k], b[k])) return false;
+        return true;
+      };
+
+      const next = {};
+      for (const convId of Object.keys(nextRaw)) {
+        const prevArr = prev[convId] || [];
+        const nextArr = nextRaw[convId] || [];
+        const prevById = new Map(prevArr.map(m => [m.id, m]));
+        next[convId] = nextArr.map(m => {
+          if (!prevById.has(m.id)) {
+            const id = isUuid(m.id) ? m.id : newId();
+            const normalized = { ...m, id };
+            MessagesAPI.send(toDbMessage(normalized, convId))
+              .then(r => r?.error && console.error('[chat] msg.send', r.error));
+            return normalized;
+          }
+          const prevM = prevById.get(m.id);
+          if (!eqReactions(prevM.reactions, m.reactions)) {
+            MessagesAPI.setReactions(m.id, m.reactions || {})
+              .then(r => r?.error && console.error('[chat] msg.reactions', r.error));
+          }
+          if (!eqArr(prevM.readBy, m.readBy)) {
+            MessagesAPI.markRead(m.id, m.readBy || [])
+              .then(r => r?.error && console.error('[chat] msg.readBy', r.error));
+          }
+          return m;
+        });
+      }
+      return next;
+    });
+  }, [useSupabase]);
 
   // Conta non letti totali per badge topbar (dallo stato vivo della chat)
   const unreadChat = conversations.reduce(

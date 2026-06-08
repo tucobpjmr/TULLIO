@@ -1,6 +1,6 @@
-// src/auth/AuthContext.jsx
+// src/lib/auth/AuthContext.jsx
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../supabase';
 
 const AuthContext = createContext(null);
 
@@ -31,6 +31,7 @@ export function AuthProvider({ children }) {
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, s) => {
+      if (!mounted) return;
       setSession(s);
       await loadProfile(s?.user?.id);
     });

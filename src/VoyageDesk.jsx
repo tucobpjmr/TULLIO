@@ -286,6 +286,16 @@ const TASK_TEMPLATES = [
 // ─── CONTEXT & REDUCER ─────────────────────────────────────────────────────
 const AppContext = createContext(null);
 
+// Hook per accedere a currentUserId/team/categories dallo stato del reducer
+// senza dover passare props attraverso N livelli (e senza leggere globali stantii).
+const useAppCtx = () => {
+  const ctx = useContext(AppContext);
+  // Fallback ai globali se un componente viene renderizzato fuori dal provider
+  // (utile in test isolati e finché non migriamo tutti i siti).
+  if (!ctx) return { currentUserId: CURRENT_USER, team: TEAM, categories: CATEGORIES };
+  return ctx;
+};
+
 // Mutazione in-place per mantenere il riferimento alle costanti TEAM/CATEGORIES
 const _syncTeam = (newTeam) => { TEAM.length = 0; newTeam.forEach(m => TEAM.push(m)); };
 const _syncCategories = (newCats) => {
@@ -676,7 +686,23 @@ const initialState = {
 };
 
 // ─── UTILS ─────────────────────────────────────────────────────────────────
+// Fallback "membro sconosciuto" — usato quando getMember non trova un id
+// (es. utente rimosso dal team mentre l'app è aperta).
+// Definito una volta sola con tutti i campi del member shape così chi lo
+// consuma non deve preoccuparsi di properties mancanti (photoUrl ecc.).
+const UNKNOWN_MEMBER = Object.freeze({
+  id: null,
+  name: "—",
+  role: "—",
+  avatar: "??",
+  color: "#999",
+  photoUrl: null,
+  capacity: 0,
+  active: false,
+  pending: false,
+});
 const getMember = id => TEAM.find(m => m.id === id);
+const getMemberOrUnknown = id => getMember(id) || UNKNOWN_MEMBER;
 // Agenti selezionabili come assegnatari (attivi e non in attesa di approvazione)
 const getAssignableTeam = () => TEAM.filter(m => m.active !== false && !m.pending);
 const formatDate = iso => {
@@ -689,7 +715,29 @@ const formatTime = iso => {
   return new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
 };
 const isOverdue = task => task.status !== "done" && task.dueDate && new Date(task.dueDate) < new Date();
-const getDayKey = iso => iso ? new Date(iso).toDateString() : null;
+
+// ─── DATE HELPERS ─────────────────────────────────────────────────────────
+// Tutti i confronti "giorno" e le chiavi di raggruppamento passano da qui.
+// Lavoriamo sempre nel fuso *locale dell'utente*: il giorno mostrato in UI
+// corrisponde al giorno percepito, non a UTC.
+const _toDate = v => (v instanceof Date ? v : (v ? new Date(v) : null));
+// YYYY-MM-DD locale, sicuro come chiave (evita gli artefatti di toISOString
+// quando l'orario locale è prossimo a mezzanotte e cambia giorno in UTC).
+const formatYMD = v => {
+  const d = _toDate(v);
+  if (!d || Number.isNaN(d.getTime())) return null;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+const sameDay = (a, b) => {
+  const ka = formatYMD(a);
+  const kb = formatYMD(b);
+  return ka !== null && ka === kb;
+};
+const isToday = v => sameDay(v, new Date());
+const getDayKey = iso => formatYMD(iso);
 const isActiveTask = t => !t.deletedAt;
 const getActiveTasks = tasks => tasks.filter(isActiveTask);
 const getTrashedTasks = tasks => tasks.filter(t => t.deletedAt);
@@ -795,9 +843,11 @@ const SwipeActions = ({ task, dispatch, children, disabled = false }) => {
 
   const OPEN_WIDTH = 210; // larghezza pannello bottoni rivelato (3 bottoni × 70)
 
-  // Disabilita su desktop / disabilitato esplicitamente / no permessi di edit (v0.8)
-  // Leggo il currentUserId dal globale (sincronizzato dal reducer).
-  const canEdit = canEditTask(task, CURRENT_USER);
+  // Disabilita su desktop / disabilitato esplicitamente / no permessi di edit (v0.8).
+  // currentUserId viene dal context (state vivo) così l'auto-rerender è garantito
+  // quando si cambia utente con lo switcher.
+  const { currentUserId } = useAppCtx();
+  const canEdit = canEditTask(task, currentUserId);
   const swipeEnabled = !isDesktop && !disabled && canEdit;
 
   // tap fuori per chiudere
@@ -1130,21 +1180,28 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
   const panelRef = useRef(null);
   const keywordRef = useRef(null);
 
+  // Stabilizziamo onClose con un ref: i listener si attaccano una sola volta
+  // al mount (dep array vuoto) e leggono la versione corrente di onClose.
+  // Se mettessimo [onClose] nel dep array, un genitore che passa una arrow
+  // inline causerebbe detach/attach ad ogni suo render.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
   useEffect(() => { keywordRef.current?.focus(); }, []);
 
   useEffect(() => {
     const handler = (e) => {
-      if (panelRef.current && !panelRef.current.contains(e.target)) onClose();
+      if (panelRef.current && !panelRef.current.contains(e.target)) onCloseRef.current?.();
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [onClose]);
+  }, []);
 
   useEffect(() => {
-    const handler = (e) => { if (e.key === "Escape") onClose(); };
+    const handler = (e) => { if (e.key === "Escape") onCloseRef.current?.(); };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [onClose]);
+  }, []);
 
   const toggle = (arr, setArr, val) => {
     setArr(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]);
@@ -1780,7 +1837,7 @@ const UserSwitcher = ({ state, dispatch }) => {
   const [open, setOpen] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const ref = useRef(null);
-  const curr = getMember(state.currentUserId) || { name: "—", role: "—", avatar: "??", color: "#999" };
+  const curr = getMemberOrUnknown(state.currentUserId);
 
   useEffect(() => {
     if (!open) return;
@@ -2557,7 +2614,7 @@ const TemplateTab = ({ onCreate, onClose }) => {
               </div>
               <div style={{ maxHeight: 240, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 8 }}>
                 {previewTasks.map((t, idx) => (
-                  <div key={idx} style={{
+                  <div key={t.id || idx} style={{
                     padding: "8px 12px", borderBottom: idx === previewTasks.length - 1 ? "none" : "1px solid var(--border)",
                     display: "flex", alignItems: "center", gap: 10, fontSize: 12,
                   }}>
@@ -2655,20 +2712,21 @@ const AIDayPlanner = ({ tasks, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [plan, setPlan] = useState(null);
   const [error, setError] = useState(null);
+  const { currentUserId } = useAppCtx();
 
   useEffect(() => {
     let cancelled = false;
     const today = new Date();
 
-    // I task attivi assegnati a Marco
+    // I task attivi assegnati all'utente loggato
     const myTasks = tasks.filter(t =>
-      t.assignees?.includes(CURRENT_USER) && t.status !== "done"
+      t.assignees?.includes(currentUserId) && t.status !== "done"
     );
 
     // Task di altri operatori: scaduti, oppure urgenti e ancora in "todo"
     // (proxy ragionevole per "non visti / non presi in carico")
     const othersNeglected = tasks.filter(t => {
-      if (!t.assignees || t.assignees.includes(CURRENT_USER)) return false;
+      if (!t.assignees || t.assignees.includes(currentUserId)) return false;
       if (t.status === "done") return false;
       const urgent = t.priority === "critical" || t.priority === "high";
       const overdue = isOverdue(t);
@@ -2689,7 +2747,9 @@ const AIDayPlanner = ({ tasks, onClose }) => {
       category: t.category,
     });
 
-    const prompt = `Sei un assistente operativo per un'agenzia viaggi. Pianifica oggi (${today.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}) per Marco Ferretti (Manager).
+    const me = getMember(currentUserId);
+    const meLabel = me ? `${me.name} (${me.role})` : "l'utente loggato";
+    const prompt = `Sei un assistente operativo per un'agenzia viaggi. Pianifica oggi (${today.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}) per ${meLabel}.
 
 MIEI TASK ATTIVI:
 ${JSON.stringify(myTasks.map(compact))}
@@ -2712,18 +2772,17 @@ Regole:
 - Per i campi "taskId" usa esattamente gli id forniti.
 - Massimo 2 "tips", brevi.`;
 
-    fetch("https://api.anthropic.com/v1/messages", {
+    fetch("/api/ai-day-planner", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1000,
-        messages: [{ role: "user", content: prompt }],
-      }),
+      body: JSON.stringify({ prompt, maxTokens: 1000 }),
     })
-      .then(r => {
-        if (!r.ok) throw new Error("Errore di rete (HTTP " + r.status + ")");
-        return r.json();
+      .then(async r => {
+        const data = await r.json().catch(() => null);
+        if (!r.ok) {
+          throw new Error(data?.error || ("Errore di rete (HTTP " + r.status + ")"));
+        }
+        return data;
       })
       .then(data => {
         if (cancelled) return;
@@ -2736,7 +2795,7 @@ Regole:
       .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
-  }, [tasks]);
+  }, [tasks, currentUserId]);
 
   const findTask = (id) => tasks.find(t => t.id === id);
   const sevColor = { alta: "var(--danger)", media: "var(--warning)" };
@@ -2936,6 +2995,7 @@ const NoticeBoard = ({ notices, dispatch }) => {
   const [editing, setEditing] = useState(null); // null | { id?, text, color }
   const [creating, setCreating] = useState(false);
   const { isMobile } = useViewport();
+  const { currentUserId } = useAppCtx();
 
   // Pinned in alto, poi per data
   const sorted = [...notices].sort((a, b) => {
@@ -3118,7 +3178,7 @@ const NoticeBoard = ({ notices, dispatch }) => {
                 payload: {
                   id: "n" + Date.now(),
                   ...data,
-                  author: CURRENT_USER,
+                  author: currentUserId,
                   createdAt: new Date().toISOString(),
                   updatedAt: new Date().toISOString(),
                 }
@@ -3948,8 +4008,10 @@ const Dashboard = ({ state, dispatch, onOpenChat }) => {
 
 // ─── QUICK ADD TASK FORM ───────────────────────────────────────────────────
 const QuickAddTask = ({ onAdd, onClose }) => {
-  // Categorie filtrate per il ruolo dell'utente loggato (v0.8)
-  const availableCats = getAvailableCategories(CURRENT_USER);
+  // Categorie filtrate per il ruolo dell'utente loggato (v0.8).
+  // Usiamo il context così il form si aggiorna se l'utente cambia mentre è aperto.
+  const { currentUserId } = useAppCtx();
+  const availableCats = useMemo(() => getAvailableCategories(currentUserId), [currentUserId]);
   const firstCatKey = Object.keys(availableCats)[0] || "booking";
 
   const [form, setForm] = useState({
@@ -4203,7 +4265,7 @@ const TaskSlideOver = ({ task, dispatch }) => {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {(task.comments || []).map((c, i) => (
-                <div key={i} style={{ display: "flex", gap: 10 }}>
+                <div key={c.time ? `${c.user}-${c.time}` : i} style={{ display: "flex", gap: 10 }}>
                   <div style={{
                     width: 28, height: 28, borderRadius: "50%", background: "var(--navy)",
                     fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center",
@@ -4271,8 +4333,8 @@ const CalendarPlanner = ({ state, dispatch }) => {
   const startOffset = firstDay === 0 ? 6 : firstDay - 1;
 
   const getTasksForCalDay = (day) => {
-    const d = new Date(year, month, day).toDateString();
-    return state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && new Date(t.dueDate).toDateString() === d);
+    const target = new Date(year, month, day);
+    return state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && sameDay(t.dueDate, target));
   };
 
   // ── Week helpers ──
@@ -4290,7 +4352,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
   const dayNames = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
   const getTasksForDay = (day) =>
-    state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && new Date(t.dueDate).toDateString() === day.toDateString());
+    state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && sameDay(t.dueDate, day));
 
   // ── Distribuzione agenti (settimana corrente in vista week, settimana del mese selezionato in vista month) ──
   const agentWeekDays = viewMode === "week" ? weekDays : (() => {
@@ -4369,7 +4431,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
             {Array.from({ length: daysInMonth }, (_, i) => {
               const day = i + 1;
               const dayTasks = getTasksForCalDay(day);
-              const isToday = today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
+              const todayCell = isToday(new Date(year, month, day));
               return (
                 <div key={day} onClick={() => setSelectedDay(selectedDay === day ? null : day)} style={{
                   minHeight: isMobile ? 52 : 100, borderRight: "1px solid var(--border)", borderBottom: "1px solid var(--border)",
@@ -4379,9 +4441,9 @@ const CalendarPlanner = ({ state, dispatch }) => {
                 }}>
                   <div style={{
                     width: isMobile ? 24 : 26, height: isMobile ? 24 : 26, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 13, fontWeight: isToday ? 700 : 400,
-                    background: isToday ? "var(--navy)" : "transparent",
-                    color: isToday ? "#fff" : "var(--text)", marginBottom: 4
+                    fontSize: 13, fontWeight: todayCell ? 700 : 400,
+                    background: todayCell ? "var(--navy)" : "transparent",
+                    color: todayCell ? "#fff" : "var(--text)", marginBottom: 4
                   }}>{day}</div>
                   {isMobile ? (
                     dayTasks.length > 0 && (
@@ -4459,42 +4521,42 @@ const CalendarPlanner = ({ state, dispatch }) => {
       {viewMode === "week" && (
         <div style={{ overflowX: isMobile ? "auto" : "visible", scrollSnapType: isMobile ? "x mandatory" : "none" }}>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(7, 60vw)" : "repeat(7, 1fr)", gap: 10 }}>
-            {weekDays.map((day, i) => {
+            {weekDays.map((day) => {
               const dayTasks = getTasksForDay(day);
-              const isToday = day.toDateString() === new Date().toDateString();
+              const todayCell = isToday(day);
               return (
-                <div key={i} style={{
-                  background: isToday ? "var(--navy)" : "#fff",
-                  borderRadius: 10, border: `1px solid ${isToday ? "transparent" : "var(--border)"}`,
+                <div key={day.toISOString()} style={{
+                  background: todayCell ? "var(--navy)" : "#fff",
+                  borderRadius: 10, border: `1px solid ${todayCell ? "transparent" : "var(--border)"}`,
                   overflow: "hidden", scrollSnapAlign: isMobile ? "start" : "none",
                 }}>
                   {/* Day header */}
                   <div style={{
                     padding: "10px 10px 6px",
-                    background: isToday ? "var(--gold)" : "var(--surface2)",
+                    background: todayCell ? "var(--gold)" : "var(--surface2)",
                     textAlign: "center"
                   }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: isToday ? "var(--navy)" : "var(--text-muted)" }}>{dayNames[i]}</div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: isToday ? "var(--navy)" : "var(--text)" }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: todayCell ? "var(--navy)" : "var(--text-muted)" }}>{dayNames[i]}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: todayCell ? "var(--navy)" : "var(--text)" }}>
                       {day.getDate()}
                     </div>
                   </div>
                   <div style={{ padding: "8px 6px", display: "flex", flexDirection: "column", gap: 4, minHeight: 160 }}>
                     {dayTasks.length === 0 ? (
-                      <div style={{ fontSize: 10, color: isToday ? "rgba(255,255,255,0.4)" : "var(--text-muted)", textAlign: "center", marginTop: 20 }}>Nessun task</div>
+                      <div style={{ fontSize: 10, color: todayCell ? "rgba(255,255,255,0.4)" : "var(--text-muted)", textAlign: "center", marginTop: 20 }}>Nessun task</div>
                     ) : dayTasks.slice(0, 6).map(t => (
                       <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
-                        background: isToday ? "rgba(255,255,255,0.12)" : CATEGORIES[t.category]?.color + "18",
+                        background: todayCell ? "rgba(255,255,255,0.12)" : CATEGORIES[t.category]?.color + "18",
                         borderLeft: `3px solid ${CATEGORIES[t.category]?.color}`,
                         borderRadius: "0 4px 4px 0", padding: "4px 6px", cursor: "pointer",
                         fontSize: 10, fontWeight: 500, lineHeight: 1.3,
-                        color: isToday ? "#fff" : "var(--text)",
+                        color: todayCell ? "#fff" : "var(--text)",
                       }}>
                         {CATEGORIES[t.category]?.icon} {t.title.slice(0, 30)}{t.title.length > 30 ? "…" : ""}
-                        <div style={{ fontSize: 9, color: isToday ? "rgba(255,255,255,0.5)" : "var(--text-muted)", marginTop: 1 }}>{formatTime(t.dueDate)}</div>
+                        <div style={{ fontSize: 9, color: todayCell ? "rgba(255,255,255,0.5)" : "var(--text-muted)", marginTop: 1 }}>{formatTime(t.dueDate)}</div>
                       </div>
                     ))}
-                    {dayTasks.length > 6 && <div style={{ fontSize: 10, color: isToday ? "rgba(255,255,255,0.4)" : "var(--text-muted)", textAlign: "center" }}>+{dayTasks.length - 6} altri</div>}
+                    {dayTasks.length > 6 && <div style={{ fontSize: 10, color: todayCell ? "rgba(255,255,255,0.4)" : "var(--text-muted)", textAlign: "center" }}>+{dayTasks.length - 6} altri</div>}
                   </div>
                 </div>
               );
@@ -4511,10 +4573,10 @@ const CalendarPlanner = ({ state, dispatch }) => {
             <thead>
               <tr>
                 <th style={{ textAlign: "left", padding: "8px 12px", background: "var(--surface2)", borderRadius: "8px 0 0 0", fontWeight: 600, fontSize: 11, color: "var(--text-muted)", width: 150 }}>Agente</th>
-                {agentWeekDays.map((d, i) => (
-                  <th key={i} style={{
+                {agentWeekDays.map((d) => (
+                  <th key={d.toISOString()} style={{
                     padding: "8px 6px", background: "var(--surface2)", fontSize: 11, fontWeight: 600,
-                    color: d.toDateString() === new Date().toDateString() ? "var(--gold)" : "var(--text-muted)",
+                    color: isToday(d) ? "var(--gold)" : "var(--text-muted)",
                     textAlign: "center", minWidth: 70
                   }}>
                     {dayNames[i]}<br />{d.getDate()}
@@ -4532,13 +4594,13 @@ const CalendarPlanner = ({ state, dispatch }) => {
                       <span style={{ fontWeight: 500 }}>{m.name.split(" ")[0]}</span>
                     </div>
                   </td>
-                  {agentWeekDays.map((day, i) => {
+                  {agentWeekDays.map((day) => {
                     const count = state.tasks.filter(t =>
                       isActiveTask(t) && t.assignees?.includes(m.id) && t.dueDate &&
-                      new Date(t.dueDate).toDateString() === day.toDateString()
+                      sameDay(t.dueDate, day)
                     ).length;
                     return (
-                      <td key={i} style={{
+                      <td key={day.toISOString()} style={{
                         padding: "8px 6px", textAlign: "center", borderBottom: "1px solid var(--border)",
                         background: count > 0 ? m.color + "12" : "transparent",
                       }}>
@@ -4551,7 +4613,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
                   <td style={{ padding: "8px 12px", textAlign: "center", borderBottom: "1px solid var(--border)", fontWeight: 700, color: "var(--navy)" }}>
                     {state.tasks.filter(t =>
                       isActiveTask(t) && t.assignees?.includes(m.id) && t.dueDate &&
-                      agentWeekDays.some(d => new Date(t.dueDate).toDateString() === d.toDateString())
+                      agentWeekDays.some(d => sameDay(t.dueDate, d))
                     ).length}
                   </td>
                 </tr>
@@ -4784,9 +4846,9 @@ const formatChatTime = (iso) => {
   const diffMin = Math.floor((now - d) / 60000);
   if (diffMin < 1) return "Adesso";
   if (diffMin < 60) return `${diffMin} min fa`;
-  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+  if (sameDay(d, now)) return d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
   const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
-  if (d.toDateString() === yesterday.toDateString()) return "Ieri";
+  if (sameDay(d, yesterday)) return "Ieri";
   return d.toLocaleDateString("it-IT", { day: "2-digit", month: "short" });
 };
 
@@ -5230,7 +5292,7 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
           <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 11 }}>
             {typing ? (
               <span style={{ color: "var(--gold-light)" }}>
-                {conv.type === "group" ? `${getMember(otherTypingMember)?.name.split(" ")[0]} sta scrivendo` : "sta scrivendo"}
+                {conv.type === "group" ? `${getMember(otherTypingMember)?.name?.split(" ")[0] || "Qualcuno"} sta scrivendo` : "sta scrivendo"}
                 <span style={{ animation: "typing 1s infinite", animationDelay: "0s", display: "inline-block" }}>.</span>
                 <span style={{ animation: "typing 1s infinite", animationDelay: "0.2s", display: "inline-block" }}>.</span>
                 <span style={{ animation: "typing 1s infinite", animationDelay: "0.4s", display: "inline-block" }}>.</span>
@@ -5495,7 +5557,7 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
                         {last.sender === CURRENT_USER && <span style={{ color: "var(--text-muted)" }}>Tu: </span>}
                         {c.type === "group" && last.sender !== CURRENT_USER && (
                           <span style={{ color: lastSender?.color, fontWeight: 600 }}>
-                            {lastSender?.name.split(" ")[0]}:{" "}
+                            {lastSender?.name?.split(" ")[0]}:{" "}
                           </span>
                         )}
                         {last.type === "voice" ? "🎙️ Messaggio vocale" :
@@ -7001,8 +7063,15 @@ function VoyageDeskInner() {
     }
   };
 
+  // Espongo gli slice "live" dello stato che servono ai componenti foglia
+  // (currentUserId, team, categories) così evitiamo letture stantie dai globali.
+  const appCtxValue = useMemo(
+    () => ({ currentUserId: state.currentUserId, team: state.team, categories: state.categories }),
+    [state.currentUserId, state.team, state.categories]
+  );
+
   return (
-    <>
+    <AppContext.Provider value={appCtxValue}>
       <FontLoader />
       <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", background: "var(--surface)", fontFamily: "'DM Sans', sans-serif" }}>
         <Topbar state={state} dispatch={dispatch} onOpenChat={() => { setChatIntent(null); setShowChat(true); }} unreadChat={unreadChat} />
@@ -7066,6 +7135,6 @@ function VoyageDeskInner() {
         {/* Toast */}
         <Toast toast={state.toast} dispatch={dispatch} />
       </div>
-    </>
+    </AppContext.Provider>
   );
 }

@@ -1,5 +1,49 @@
 # CHANGELOG — VoyageDesk
 
+## v1.0-dev — Persistenza Supabase + Auth (sessione 9, PR #13)
+
+> Migrazione da dati in-memory a Supabase: autenticazione reale, tutti i dati principali persistiti e sincronizzati in realtime.
+
+### 🔐 Autenticazione reale
+- `src/auth/AuthContext.jsx` — `AuthProvider` con `session`, `profile`, `team`; `signIn`/`signOut` via Supabase Auth.
+- `src/auth/LoginScreen.jsx` — form login email/password, gestione errori.
+- `src/main.jsx` — `AuthGate`: mostra `LoginScreen` senza sessione, `VoyageDesk` con sessione (loading state intermedio).
+
+### 🗃️ Layer dati
+- `src/lib/supabase.js` — client Supabase (env vars Vite).
+- `src/lib/api.js` — CRUD per Users, Tasks, Comments, Notices, Conversations, Messages; `subscribeToTable` helper realtime.
+- `src/lib/mappers.js` — `fromDb`/`toDb` + patch per Task, Comment, Notice, Conversation, Message; helpers `isUuid`/`newId`.
+
+### 📦 VoyageDesk — modalità Supabase
+- `makeInitialState({ team, currentUserId })` — factory che sincronizza i `let` globali TEAM/CURRENT_USER se riceve dati reali dal DB; senza argomenti usa i mock (dev/preview).
+- `VoyageDeskInner` accetta `initialTeam` e `initialCurrentUserId` props.
+- Effect mount: idrata tasks, notices, conversations, messages dal DB.
+- Realtime: subscribe su tasks, comments, notices, conversations, messages con reload debounced 200ms.
+- Dispatch wrapper: persiste fire-and-forget ADD/UPDATE/MOVE/DELETE/PURGE/EMPTY_TRASH per task, ADD_COMMENT, ADD/UPDATE/DELETE/TOGGLE_PIN per notice, create/update per conversation, send/reactions/readBy per messages.
+- `ADD_COMMENT`: autore usa `getMember(CURRENT_USER)?.name` (era hardcoded "Marco Ferretti").
+- Nuovi id normalizzati in UUID per tutte le entità create lato app (era "t"+Date.now()).
+
+### 🗄️ Supabase DB — migrazioni
+- `users_add_capacity_and_avatar` — colonna `capacity int default 10` + avatar iniziali su seed.
+- `enable_realtime_for_app_tables` — tasks, comments, notices in publication.
+- `enable_realtime_for_chat_tables` — conversations, messages in publication.
+
+### 📁 Infrastruttura
+- `.gitignore` aggiunto (node_modules, dist, .env).
+- `package-lock.json` pinnato.
+
+### ⚠️ Caveat noti
+- Errori sync solo in console (nessun toast utente se la persist fallisce).
+- Reload completo a ogni evento realtime (non incrementale).
+- File allegati in chat: `fileSize` su DB è `null` (storage da integrare).
+- `UNDO_LAST_ACTION` opera solo in-memory.
+
+### 📈 Metriche
+- `src/VoyageDesk.jsx`: ~7071 → **~7420 righe** (+349).
+- File aggiunti: 4 (`auth/AuthContext.jsx`, `auth/LoginScreen.jsx`, `lib/supabase.js` già contato, `lib/mappers.js`).
+
+---
+
 ## v0.9-dev — Ristrutturazione UI + Profilo + Handoff (sessione 8)
 
 > Semplificazione interfaccia, unificazione viste, nuovo profilo utente, preparazione per migrazione a progetto Vite.

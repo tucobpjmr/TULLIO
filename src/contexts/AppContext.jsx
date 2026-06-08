@@ -3,6 +3,7 @@ import { createContext } from "react";
 import { TEAM, CATEGORIES, CURRENT_USER, _syncCurrentUser, INITIAL_TASKS, STATUS_LABELS } from "../data/mockData.js";
 import { INITIAL_NOTICES } from "../data/taskTemplates.js";
 import { INITIAL_CLIENTS } from "../data/mockClients.js";
+import { INITIAL_SUPPLIERS } from "../data/mockSuppliers.js";
 import { getMember } from "../utils/helpers.js";
 import { canAccessAdmin, canViewTask, canEditTask, canCreateTaskCategory, isAdmin } from "../utils/permissions.js";
 
@@ -24,6 +25,7 @@ const LOGGED_ACTIONS = new Set([
   "RESTORE_BACKUP",
   "ADD_NOTICE", "UPDATE_NOTICE", "DELETE_NOTICE",
   "ADD_CLIENT", "UPDATE_CLIENT", "DELETE_CLIENT", "RESTORE_CLIENT",
+  "ADD_SUPPLIER", "UPDATE_SUPPLIER", "DELETE_SUPPLIER", "RESTORE_SUPPLIER",
 ]);
 
 const buildLogEntry = (action, state) => {
@@ -56,6 +58,10 @@ const buildLogEntry = (action, state) => {
     UPDATE_CLIENT: () => `Modificato cliente "${action.payload.name || action.payload.id}"`,
     DELETE_CLIENT: () => `Cliente "${state.clients?.find(c => c.id === action.payload)?.name || action.payload}" spostato nel cestino`,
     RESTORE_CLIENT: () => `Cliente ripristinato`,
+    ADD_SUPPLIER: () => `Aggiunto fornitore "${action.payload.name}"`,
+    UPDATE_SUPPLIER: () => `Modificato fornitore "${action.payload.name || action.payload.id}"`,
+    DELETE_SUPPLIER: () => `Fornitore "${state.suppliers?.find(s => s.id === action.payload)?.name || action.payload}" spostato nel cestino`,
+    RESTORE_SUPPLIER: () => `Fornitore ripristinato`,
   };
   return { id: `log-${stamp}-${Math.random().toString(36).slice(2,7)}`, time: stamp, type: t, text: (map[t] || (() => t))() };
 };
@@ -329,6 +335,24 @@ function baseReducer(state, action) {
     case "SET_SELECTED_CLIENT":
       return { ...state, selectedClientId: action.payload };
 
+    // ─── FORNITORI (v1.0) ───
+    case "ADD_SUPPLIER": {
+      const suppliers = [action.payload, ...(state.suppliers || [])];
+      return { ...state, suppliers, toast: { message: `Fornitore "${action.payload.name}" aggiunto!`, type: "success" } };
+    }
+    case "UPDATE_SUPPLIER": {
+      const suppliers = (state.suppliers || []).map(s => s.id === action.payload.id ? { ...s, ...action.payload } : s);
+      return { ...state, suppliers, toast: { message: "Fornitore aggiornato!", type: "success" } };
+    }
+    case "DELETE_SUPPLIER": {
+      const suppliers = (state.suppliers || []).map(s => s.id === action.payload ? { ...s, deletedAt: new Date().toISOString() } : s);
+      return { ...state, suppliers, toast: { message: "Fornitore spostato nel cestino", type: "success" } };
+    }
+    case "RESTORE_SUPPLIER": {
+      const suppliers = (state.suppliers || []).map(s => s.id === action.payload ? { ...s, deletedAt: null } : s);
+      return { ...state, suppliers, toast: { message: "Fornitore ripristinato!", type: "success" } };
+    }
+
     // ─── PROFILO PERSONALE (non admin-only) ───
     case "UPDATE_OWN_PROFILE": {
       const uid = state.currentUserId;
@@ -380,6 +404,7 @@ export const initialState = {
   notices: INITIAL_NOTICES,
   clients: INITIAL_CLIENTS,
   selectedClientId: null,
+  suppliers: INITIAL_SUPPLIERS,
   activityLog: [],
   activeView: "dashboard",
   selectedTask: null,

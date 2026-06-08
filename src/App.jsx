@@ -16,6 +16,7 @@ import Team from "./views/Team.jsx";
 import Trash from "./views/Trash.jsx";
 import AdminView from "./components/admin/AdminView.jsx";
 import Clienti from "./views/Clienti.jsx";
+import Fornitori from "./views/Fornitori.jsx";
 import TaskSlideOver from "./components/tasks/TaskSlideOver.jsx";
 import QuickAddTask from "./components/tasks/QuickAddTask.jsx";
 import BulkTaskCreator from "./components/bulk/BulkTaskCreator.jsx";
@@ -79,6 +80,7 @@ function VoyageDeskInner() {
       case "dashboard": return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
       case "calendar": return <CalendarPlanner state={state} dispatch={dispatch} />;
       case "clients": return <Clienti state={state} dispatch={dispatch} />;
+      case "suppliers": return <Fornitori state={state} dispatch={dispatch} />;
       case "team": return <Team state={state} dispatch={dispatch} />;
       case "trash": return <Trash state={state} dispatch={dispatch} />;
       case "admin": return <AdminView state={state} dispatch={dispatch} />;

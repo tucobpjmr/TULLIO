@@ -119,6 +119,10 @@ Famiglia Rossi (Maldive), Coppia Bianchi (Giappone), Azienda TechCorp (Incentive
 ### Clienti (CRM base, no Driver)
 `ADD_CLIENT`, `UPDATE_CLIENT`, `DELETE_CLIENT`, `OPEN_CLIENT_DETAIL`, `CONSUME_CLIENT_DETAIL_REQUEST`
 
+### Notifiche (reali, per-utente)
+`MARK_NOTIF_READ`, `MARK_ALL_NOTIF_READ`, `CLEAR_NOTIF`, `CLEAR_ALL_NOTIF`
+(Generate automaticamente in `ADD_TASK`/`ADD_TASKS_BULK`/`UPDATE_TASK`/`MOVE_TASK`/`ADD_COMMENT`.)
+
 ### Admin Team (ADMIN_ONLY)
 `ADD_TEAM_MEMBER`, `UPDATE_TEAM_MEMBER`, `APPROVE_TEAM_MEMBER`, `TOGGLE_TEAM_MEMBER_ACTIVE`, `REMOVE_TEAM_MEMBER`
 
@@ -229,8 +233,7 @@ VoyageDesk (export default, ViewportProvider wrapper)
 
 ### Priorità 2 — Modello dati completo
 - [ ] Anagrafica Clienti (CRM base)
-- [ ] Anagrafica Fornitori
-- [ ] Pratiche di viaggio (aggrega task + clienti + fornitori)
+- [ ] Pratiche di viaggio (aggrega task + clienti)
 
 ### Priorità 3 — Operatività
 - [ ] Notifiche reali (collegate ad azioni)

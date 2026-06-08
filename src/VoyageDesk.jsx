@@ -210,14 +210,34 @@ const INITIAL_TASKS = [
   { id: "t27", title: "Transfer Hotel → Stazione Centrale - Coppia Bianchi", category: "transfer", priority: "medium", status: "inprogress", assignees: ["giulia"], client: "Coppia Bianchi", dueDate: d(3, 9, 0), estimatedHours: 0.5, description: "Pickup hotel ore 09:00, treno Frecciarossa 9:55 per Roma. 2 pax + 3 bagagli.", comments: [] },
 ];
 
-const NOTIFICATIONS = [
-  { id: "n1", type: "overdue", title: "Task scaduto: Visto Giappone - Coppia Bianchi", time: "5 min fa", read: false },
-  { id: "n2", type: "assigned", title: "Nuovo task assegnato: Newsletter Giugno", time: "1 ora fa", read: false },
-  { id: "n3", type: "comment", title: "Sofia ha commentato su Hotel Overwater Bungalow", time: "2 ore fa", read: false },
-  { id: "n4", type: "deadline", title: "Scadenza domani: Conferma voli Maldive", time: "3 ore fa", read: true },
-  { id: "n5", type: "comment", title: "Luca ha aggiornato: Newsletter Giugno", time: "4 ore fa", read: true },
-  { id: "n6", type: "deadline", title: "Scadenza oggi: Pagamento acconto Famiglia Rossi", time: "8 ore fa", read: true },
-];
+// Seed di notifiche reali (verranno generate automaticamente dal reducer per gli eventi successivi).
+// Mock iniziale per dare contesto all'utente al primo avvio.
+const NOTIFICATION_TYPES = {
+  assigned:   { icon: "📋", label: "Assegnazione" },
+  unassigned: { icon: "✋", label: "Disassegnazione" },
+  comment:    { icon: "💬", label: "Commento" },
+  status:     { icon: "🔄", label: "Cambio stato" },
+  done:       { icon: "✅", label: "Completato" },
+  deadline:   { icon: "📅", label: "Scadenza" },
+  overdue:    { icon: "⚠️", label: "Scaduto" },
+  client:     { icon: "🪪", label: "Cliente" },
+  notice:     { icon: "📌", label: "Bacheca" },
+};
+
+const _notifId = () => `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+const buildInitialNotifications = () => {
+  const now = Date.now();
+  const at = (m) => new Date(now - m * 60 * 1000).toISOString();
+  // Notifiche pre-popolate per l'utente di default (Marco).
+  return [
+    { id: _notifId(), type: "overdue",  recipientId: "marco", taskId: "t3", text: "Task scaduto: \"Visto Giappone - Coppia Bianchi\"",                    time: at(5),    read: false },
+    { id: _notifId(), type: "assigned", recipientId: "marco", taskId: "t6", text: "Roberto ti ha assegnato \"Newsletter Giugno\"",                          time: at(60),   read: false },
+    { id: _notifId(), type: "comment",  recipientId: "marco", taskId: "t4", text: "Sofia ha commentato su \"Hotel Overwater Bungalow\"",                    time: at(120),  read: false },
+    { id: _notifId(), type: "deadline", recipientId: "marco", taskId: "t1", text: "Scadenza imminente: \"Conferma voli Maldive\"",                          time: at(180),  read: true  },
+    { id: _notifId(), type: "comment",  recipientId: "marco", taskId: "t6", text: "Luca ha aggiornato \"Newsletter Giugno\"",                                time: at(240),  read: true  },
+  ];
+};
 
 // ─── TASK TEMPLATES ────────────────────────────────────────────────────────
 const TASK_TEMPLATES = [
@@ -398,35 +418,57 @@ function baseReducer(state, action) {
       if (!prev) return state;
       if (!canEditTask(prev, uid)) return _denied();
       const prevStatus = prev?.status;
+      const newStatus = action.payload.newStatus;
       const tasks = state.tasks.map(t =>
-        t.id === action.payload.taskId ? { ...t, status: action.payload.newStatus } : t
+        t.id === action.payload.taskId ? { ...t, status: newStatus } : t
       );
       const toast = action.swipe
-        ? { message: `✓ Spostato in "${STATUS_LABELS[action.payload.newStatus]}"`, type: "success", undoable: true }
-        : { message: `Task spostato in "${STATUS_LABELS[action.payload.newStatus]}"`, type: "success" };
+        ? { message: `✓ Spostato in "${STATUS_LABELS[newStatus]}"`, type: "success", undoable: true }
+        : { message: `Task spostato in "${STATUS_LABELS[newStatus]}"`, type: "success" };
       const lastAction = action.swipe
         ? { type: "MOVE_TASK", taskId: action.payload.taskId, prevStatus }
         : state.lastAction;
-      return { ...state, tasks, toast, lastAction };
+      // Notifica gli assegnatari (escluso l'attore) del cambio stato
+      const recipients = (prev.assignees || []).filter(a => a && a !== uid);
+      const actor = getMember(uid)?.name?.split(" ")[0] || "Qualcuno";
+      const type = newStatus === "done" ? "done" : "status";
+      const verbo = newStatus === "done" ? "ha completato" : `ha cambiato lo stato in "${STATUS_LABELS[newStatus]}" su`;
+      const notifs = recipients.map(r => makeNotif(type, r, `${actor} ${verbo} "${prev.title}"`, { taskId: prev.id }));
+      const notifications = appendNotifications(state, notifs);
+      return { ...state, tasks, toast, lastAction, notifications };
     }
     case "ADD_TASK": {
       if (!canCreateTaskCategory(action.payload.category, uid)) {
         return _denied("Non puoi creare task di questa categoria");
       }
       const tasks = [action.payload, ...state.tasks];
-      return { ...state, tasks, toast: { message: "Task creato con successo!", type: "success" } };
+      // Notifica gli assegnatari (escluso l'attore)
+      const recipients = (action.payload.assignees || []).filter(a => a && a !== uid);
+      const actor = getMember(uid)?.name?.split(" ")[0] || "Qualcuno";
+      const notifs = recipients.map(r => makeNotif("assigned", r, `${actor} ti ha assegnato "${action.payload.title}"`, { taskId: action.payload.id }));
+      const notifications = appendNotifications(state, notifs);
+      return { ...state, tasks, toast: { message: "Task creato con successo!", type: "success" }, notifications };
     }
     case "ADD_TASKS_BULK": {
       const bad = action.payload.find(t => !canCreateTaskCategory(t.category, uid));
       if (bad) return _denied("Alcune task hanno categorie che non puoi creare");
       const tasks = [...action.payload, ...state.tasks];
-      return { ...state, tasks, toast: { message: `${action.payload.length} task creati!`, type: "success" } };
+      const actor = getMember(uid)?.name?.split(" ")[0] || "Qualcuno";
+      const notifs = [];
+      action.payload.forEach(t => {
+        (t.assignees || []).filter(a => a && a !== uid).forEach(r =>
+          notifs.push(makeNotif("assigned", r, `${actor} ti ha assegnato "${t.title}"`, { taskId: t.id }))
+        );
+      });
+      const notifications = appendNotifications(state, notifs);
+      return { ...state, tasks, toast: { message: `${action.payload.length} task creati!`, type: "success" }, notifications };
     }
     case "UPDATE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload.id);
       if (!prev) return state;
       if (!canEditTask(prev, uid)) return _denied();
-      const tasks = state.tasks.map(t => t.id === action.payload.id ? { ...t, ...action.payload } : t);
+      const next = { ...prev, ...action.payload };
+      const tasks = state.tasks.map(t => t.id === action.payload.id ? next : t);
       const selectedTask = state.selectedTask?.id === action.payload.id
         ? { ...state.selectedTask, ...action.payload }
         : state.selectedTask;
@@ -436,7 +478,26 @@ function baseReducer(state, action) {
       const lastAction = action.swipe && prev
         ? { type: "UPDATE_TASK", taskId: action.payload.id, prevSnapshot: prev }
         : state.lastAction;
-      return { ...state, tasks, selectedTask, toast, lastAction };
+      // Notifiche: assegnatari aggiunti/rimossi + cambio stato
+      const actor = getMember(uid)?.name?.split(" ")[0] || "Qualcuno";
+      const notifs = [];
+      if (action.payload.assignees !== undefined) {
+        const prevSet = new Set(prev.assignees || []);
+        const nextSet = new Set(next.assignees || []);
+        const added   = (next.assignees || []).filter(a => a && !prevSet.has(a) && a !== uid);
+        const removed = (prev.assignees || []).filter(a => a && !nextSet.has(a) && a !== uid);
+        added.forEach(r => notifs.push(makeNotif("assigned", r, `${actor} ti ha assegnato "${prev.title}"`, { taskId: prev.id })));
+        removed.forEach(r => notifs.push(makeNotif("unassigned", r, `${actor} ti ha rimosso da "${prev.title}"`, { taskId: prev.id })));
+      }
+      if (action.payload.status !== undefined && action.payload.status !== prev.status) {
+        const newStatus = action.payload.status;
+        const recipients = (next.assignees || []).filter(a => a && a !== uid);
+        const type = newStatus === "done" ? "done" : "status";
+        const verbo = newStatus === "done" ? "ha completato" : `ha cambiato lo stato in "${STATUS_LABELS[newStatus]}" su`;
+        recipients.forEach(r => notifs.push(makeNotif(type, r, `${actor} ${verbo} "${prev.title}"`, { taskId: prev.id })));
+      }
+      const notifications = appendNotifications(state, notifs);
+      return { ...state, tasks, selectedTask, toast, lastAction, notifications };
     }
     case "ADD_COMMENT": {
       const prev = state.tasks.find(t => t.id === action.payload.taskId);
@@ -450,7 +511,12 @@ function baseReducer(state, action) {
       const selectedTask = state.selectedTask?.id === action.payload.taskId
         ? { ...state.selectedTask, comments: [...(state.selectedTask.comments || []), action.payload.comment] }
         : state.selectedTask;
-      return { ...state, tasks, selectedTask };
+      // Notifica gli assegnatari (escluso l'attore) del nuovo commento
+      const recipients = (prev.assignees || []).filter(a => a && a !== uid);
+      const actor = getMember(uid)?.name?.split(" ")[0] || "Qualcuno";
+      const notifs = recipients.map(r => makeNotif("comment", r, `${actor} ha commentato su "${prev.title}"`, { taskId: prev.id }));
+      const notifications = appendNotifications(state, notifs);
+      return { ...state, tasks, selectedTask, notifications };
     }
     case "DELETE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload);
@@ -602,6 +668,27 @@ function baseReducer(state, action) {
     }
     case "SET_SEARCH": return { ...state, searchQuery: action.payload };
     case "TOGGLE_NOTIF": return { ...state, showNotif: !state.showNotif };
+
+    case "MARK_NOTIF_READ": {
+      const notifications = (state.notifications || []).map(n =>
+        n.id === action.payload ? { ...n, read: true } : n
+      );
+      return { ...state, notifications };
+    }
+    case "MARK_ALL_NOTIF_READ": {
+      const notifications = (state.notifications || []).map(n =>
+        n.recipientId === uid ? { ...n, read: true } : n
+      );
+      return { ...state, notifications };
+    }
+    case "CLEAR_NOTIF": {
+      const notifications = (state.notifications || []).filter(n => n.id !== action.payload);
+      return { ...state, notifications };
+    }
+    case "CLEAR_ALL_NOTIF": {
+      const notifications = (state.notifications || []).filter(n => n.recipientId !== uid);
+      return { ...state, notifications };
+    }
     case "SET_FILTER": return { ...state, filters: { ...state.filters, ...action.payload } };
     case "TOGGLE_SIDEBAR": return { ...state, sidebarCollapsed: !state.sidebarCollapsed };
 
@@ -729,6 +816,7 @@ const initialState = {
   categories: CATEGORIES,
   clients: CLIENTS,
   clientDetailRequest: null, // id cliente da aprire al render della vista Clienti
+  notifications: buildInitialNotifications(),
   agencyName: "VoyageDesk",
   notices: INITIAL_NOTICES,
   activityLog: [],
@@ -838,6 +926,41 @@ const canAccessAdmin = (userId) => isAdmin(userId);
 // Può gestire (creare/modificare/eliminare) i clienti? Tutti tranne i Driver.
 const canManageClients = (userId) => !isDriver(userId);
 const canViewClients = (userId) => !isDriver(userId);
+
+// ─── HELPER NOTIFICHE ───
+const formatRelTime = (iso) => {
+  if (!iso) return "";
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 60 * 1000) return "ora";
+  const min = Math.floor(diff / 60000);
+  if (min < 60) return `${min} min fa`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h} h fa`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d} g fa`;
+  return formatDate(iso);
+};
+
+const makeNotif = (type, recipientId, text, extras = {}) => ({
+  id: _notifId(),
+  type,
+  recipientId,
+  text,
+  time: new Date().toISOString(),
+  read: false,
+  ...extras,
+});
+
+// Aggiunge notifiche allo state (in testa), cap a 200 per utente totale.
+const appendNotifications = (state, notifs) => {
+  if (!notifs || notifs.length === 0) return state.notifications || [];
+  const list = [...notifs, ...(state.notifications || [])];
+  return list.slice(0, 200);
+};
+
+// Filtra notifiche per l'utente corrente
+const getUserNotifications = (state, userId) =>
+  (state.notifications || []).filter(n => n.recipientId === userId);
 
 // ─── HELPER CLIENTI ───
 const getClient = (id, clients) => (clients || CLIENTS).find(c => c.id === id);
@@ -1505,7 +1628,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword, setKeyword, an
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
 const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
   const { isMobile } = useViewport();
-  const unread = NOTIFICATIONS.filter(n => !n.read).length;
+  const unread = getUserNotifications(state, state.currentUserId).filter(n => !n.read).length;
   const [advOpen, setAdvOpen] = useState(false);
   const searchWrapRef = useRef(null);
   return (
@@ -1611,7 +1734,7 @@ const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
             color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center"
           }}>{unread}</span>}
         </button>
-        {state.showNotif && <NotificationsPanel dispatch={dispatch} />}
+        {state.showNotif && <NotificationsPanel state={state} dispatch={dispatch} />}
       </div>
 
       {/* User switcher (v0.8) */}
@@ -1988,40 +2111,127 @@ const UserSwitcher = ({ state, dispatch }) => {
 };
 
 // ─── NOTIFICATIONS PANEL ───────────────────────────────────────────────────
-const NotificationsPanel = ({ dispatch }) => {
+const NotificationsPanel = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
-  const icons = { overdue: "⚠️", assigned: "📋", comment: "💬", deadline: "📅" };
+  const [filter, setFilter] = useState("all"); // all | unread
+
+  const all = getUserNotifications(state, state.currentUserId)
+    .slice()
+    .sort((a, b) => new Date(b.time) - new Date(a.time));
+  const list = filter === "unread" ? all.filter(n => !n.read) : all;
+  const unreadCount = all.filter(n => !n.read).length;
+
+  const handleClick = (n) => {
+    if (!n.read) dispatch({ type: "MARK_NOTIF_READ", payload: n.id });
+    if (n.taskId) {
+      const task = state.tasks.find(t => t.id === n.taskId);
+      if (task) dispatch({ type: "SET_SELECTED_TASK", payload: task });
+      dispatch({ type: "TOGGLE_NOTIF" });
+    }
+  };
+
+  const tabBtn = (key, label, badge) => (
+    <button onClick={() => setFilter(key)} style={{
+      flex: 1, padding: "8px 10px", border: "none", background: "transparent",
+      fontSize: 12, fontWeight: 600, cursor: "pointer",
+      color: filter === key ? "var(--gold)" : "var(--text-muted)",
+      borderBottom: filter === key ? "2px solid var(--gold)" : "2px solid transparent",
+      display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+    }}>
+      {label}
+      {badge > 0 && (
+        <span style={{
+          background: filter === key ? "var(--gold)" : "var(--text-muted)",
+          color: "#fff", borderRadius: 999, padding: "1px 7px",
+          fontSize: 10, fontWeight: 700,
+        }}>{badge}</span>
+      )}
+    </button>
+  );
+
   return (
     <div className="slide-right" style={{
       position: isMobile ? "fixed" : "absolute",
       top: isMobile ? 56 : "calc(100% + 8px)",
       right: isMobile ? 12 : 0,
       left: isMobile ? 12 : "auto",
-      width: isMobile ? "auto" : "min(360px, calc(100vw - 24px))",
+      width: isMobile ? "auto" : "min(380px, calc(100vw - 24px))",
       background: "#fff", borderRadius: 12, boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
       border: "1px solid var(--border)", overflow: "hidden", zIndex: 200,
+      display: "flex", flexDirection: "column", maxHeight: "min(560px, calc(100vh - 80px))",
     }}>
       <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div className="playfair" style={{ fontWeight: 600, fontSize: 15 }}>Notifiche</div>
+        <div className="playfair" style={{ fontWeight: 600, fontSize: 15 }}>
+          Notifiche {unreadCount > 0 && <span style={{ fontSize: 11, color: "var(--gold)", fontWeight: 700 }}>· {unreadCount} non lette</span>}
+        </div>
         <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
       </div>
-      <div style={{ maxHeight: 420, overflowY: "auto" }}>
-        {NOTIFICATIONS.map(n => (
-          <div key={n.id} style={{
-            padding: "12px 16px", display: "flex", gap: 10, alignItems: "flex-start",
-            background: n.read ? "transparent" : "rgba(212,168,67,0.07)",
-            borderBottom: "1px solid var(--border)",
-            transition: "background 0.2s", cursor: "default",
-          }}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>{icons[n.type]}</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: n.read ? 400 : 600 }}>{n.title}</div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{n.time}</div>
-            </div>
-            {!n.read && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--gold)", flexShrink: 0, marginTop: 4 }} />}
-          </div>
-        ))}
+
+      <div style={{ display: "flex", borderBottom: "1px solid var(--border)" }}>
+        {tabBtn("all", "Tutte", 0)}
+        {tabBtn("unread", "Non lette", unreadCount)}
       </div>
+
+      <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+        {list.length === 0 ? (
+          <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+            {filter === "unread" ? "Nessuna notifica non letta 🎉" : "Nessuna notifica"}
+          </div>
+        ) : (
+          list.map(n => {
+            const t = NOTIFICATION_TYPES[n.type] || { icon: "🔔" };
+            return (
+              <div key={n.id}
+                onClick={() => handleClick(n)}
+                style={{
+                  padding: "12px 16px", display: "flex", gap: 10, alignItems: "flex-start",
+                  background: n.read ? "transparent" : "rgba(212,168,67,0.07)",
+                  borderBottom: "1px solid var(--border)",
+                  transition: "background 0.2s", cursor: n.taskId ? "pointer" : "default",
+                  position: "relative",
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = n.taskId ? "var(--surface2)" : (n.read ? "transparent" : "rgba(212,168,67,0.07)")}
+                onMouseLeave={e => e.currentTarget.style.background = n.read ? "transparent" : "rgba(212,168,67,0.07)"}
+              >
+                <span style={{ fontSize: 18, flexShrink: 0 }}>{t.icon}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: n.read ? 400 : 600, color: "var(--text)", lineHeight: 1.4 }}>{n.text}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{formatRelTime(n.time)}</div>
+                </div>
+                {!n.read && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--gold)", flexShrink: 0, marginTop: 6 }} />}
+                <button
+                  onClick={(e) => { e.stopPropagation(); dispatch({ type: "CLEAR_NOTIF", payload: n.id }); }}
+                  title="Rimuovi"
+                  style={{
+                    background: "transparent", border: "none", color: "var(--text-light)",
+                    cursor: "pointer", fontSize: 12, padding: 2, lineHeight: 1,
+                  }}
+                >✕</button>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {all.length > 0 && (
+        <div style={{ borderTop: "1px solid var(--border)", padding: "10px 16px", display: "flex", justifyContent: "space-between", gap: 10, background: "var(--surface)" }}>
+          <button
+            onClick={() => dispatch({ type: "MARK_ALL_NOTIF_READ" })}
+            disabled={unreadCount === 0}
+            style={{
+              background: "transparent", border: "none", color: unreadCount === 0 ? "var(--text-light)" : "var(--gold-dark)",
+              fontSize: 12, fontWeight: 600, cursor: unreadCount === 0 ? "default" : "pointer", padding: 4,
+            }}
+          >✓ Segna tutte lette</button>
+          <button
+            onClick={() => { if (confirm("Cancellare tutte le notifiche?")) dispatch({ type: "CLEAR_ALL_NOTIF" }); }}
+            style={{
+              background: "transparent", border: "none", color: "var(--text-muted)",
+              fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 4,
+            }}
+          >🗑 Pulisci</button>
+        </div>
+      )}
     </div>
   );
 };

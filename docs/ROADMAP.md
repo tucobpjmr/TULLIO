@@ -43,20 +43,19 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 
 ## 🚀 Fase 1 — Modello dati completo (il cuore gestionale)
 
-Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti e Fornitori prima delle Pratiche.**
+Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti prima delle Pratiche.**
 
 | Modulo | Stato | Priorità | Sforzo | Dipende da |
 |---|---|---|---|---|
 | Anagrafica Clienti (CRM base) | ✅ | 🔴 | M | — |
-| Anagrafica Fornitori | ⬜ | 🔴 | M | — |
-| Pratiche di viaggio | ⬜ | 🔴 | L | Clienti + Fornitori |
-| Collegamento Task ↔ Cliente ↔ Pratica | 🔶 | 🔴 | M | i tre sopra |
+| Pratiche di viaggio | ⬜ | 🔴 | L | Clienti |
+| Collegamento Task ↔ Cliente ↔ Pratica | 🔶 | 🔴 | M | i due sopra |
 
 **Stato Anagrafica Clienti (v0.9-dev)** — vista dedicata `Clienti`, lista con ricerca + filtro per tipo, modale crea/modifica, modale dettaglio con Anagrafica + Task collegati, reducer actions + permessi.
 
 **Stato Collegamento Task ↔ Cliente (v0.9-dev)** — lato Task→Cliente fatto: componente `ClientAutocomplete` riusabile (input con dropdown suggerimenti che setta sia il testo `task.client` sia `task.clientId`) integrato in `QuickAddTask` e `BulkTaskCreator` (tab Manuale). `TaskSlideOver` mostra il cliente come chip cliccabile che apre il dettaglio cliente via nuova action `OPEN_CLIENT_DETAIL` (cross-view, consumata da `ClientsView` tramite `state.clientDetailRequest`). Da fare per il pieno collegamento: pratiche e Task ↔ Pratica (richiede modulo Pratiche).
 
-**Dettaglio Pratiche** — modulo centrale: aggrega task, documenti, pagamenti e fornitori di un singolo viaggio; numerazione progressiva (`PR-2026-001`), stati (Bozza → Confermata → In corso → Completata/Annullata), riepilogo economico, timeline eventi.
+**Dettaglio Pratiche** — modulo centrale: aggrega task, documenti e pagamenti di un singolo viaggio; numerazione progressiva (`PR-2026-001`), stati (Bozza → Confermata → In corso → Completata/Annullata), riepilogo economico, timeline eventi.
 
 > Dopo questa fase, aggiungere il filtro **numero di pratica** nella Ricerca avanzata.
 
@@ -66,7 +65,7 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 | Modulo | Stato | Priorità | Sforzo | Note |
 |---|---|---|---|---|
-| Notifiche reali | ⬜ | 🔴 | M | Collegate ad azioni (scadenze, assegnazioni, commenti, pending, coda > N ore); filtri + "segna tutte lette" |
+| Notifiche reali | 🔶 | 🔴 | M | Collegate ad azioni (scadenze, assegnazioni, commenti, pending, coda > N ore); filtri + "segna tutte lette" |
 | Calendario avanzato | ⬜ | 🟡 | M | Viste settimanale/giornaliera, eventi multipli, iCal (mock) |
 | Estensioni chat (base) | ⬜ | 🟡 | S–M | Ricerca nelle conversazioni, stato online/occupato, rich preview di task/pratiche, **task link cliccabile** nel messaggio |
 | Impostazioni agenzia | 🔶 | 🟡 | S | Gestione categorie e nome agenzia già in Admin. Manca: template messaggi, profilo utente, preferenze UI |
@@ -168,7 +167,7 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 ## ✅ Sequenza consigliata (sintesi aggiornata)
 
 1. **Decidi A o B** (persistenza sì/no).
-2. **Fase 1** — Clienti → Fornitori → Pratiche → collegamenti.
+2. **Fase 1** — Clienti → Pratiche → collegamenti.
 3. **Notifiche reali** (Fase 2) — sblocca badge, alert su pending/coda, menzioni in bacheca.
 4. **Fase 3** — Finanziario, poi Report avanzati.
 5. **Fase 2 residua** (Calendario avanzato, estensioni chat) + **Fase 4** (multi-utente reale).

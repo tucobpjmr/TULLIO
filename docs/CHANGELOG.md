@@ -1,5 +1,39 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9-dev — Notifiche reali (sessione 10)
+
+> Sostituite le notifiche statiche del topbar con un sistema reale persistito nello state, generato automaticamente dagli eventi del reducer.
+
+### 🔔 Stato + generazione automatica
+- Aggiunto `state.notifications` (cap 200). Sostituita la costante statica `NOTIFICATIONS`.
+- Notifiche generate automaticamente nei case del reducer:
+  - **ADD_TASK / ADD_TASKS_BULK** → `assigned` per ciascun assegnatario (escluso l'attore).
+  - **UPDATE_TASK** → `assigned` per assegnatari aggiunti, `unassigned` per quelli rimossi; `status` / `done` se cambia lo stato.
+  - **MOVE_TASK** → `status` / `done` per gli assegnatari attuali (escluso l'attore).
+  - **ADD_COMMENT** → `comment` per gli altri assegnatari del task.
+- Modello: `{ id, type, recipientId, taskId?, text, time, read }` — per-utente (filtrato per `currentUserId`).
+- Helper: `makeNotif`, `appendNotifications`, `getUserNotifications`, `formatRelTime`, dizionario `NOTIFICATION_TYPES` (icona + label).
+
+### 🛠️ Reducer actions nuove
+- `MARK_NOTIF_READ`, `MARK_ALL_NOTIF_READ`, `CLEAR_NOTIF`, `CLEAR_ALL_NOTIF`.
+
+### 🎛️ Panel ridisegnato
+- Tab **Tutte / Non lette** con badge contatore.
+- Tempi relativi (`5 min fa`, `2 h fa`, `1 g fa`).
+- Click su notifica → marca come letta e apre il task (`SET_SELECTED_TASK`) chiudendo il panel.
+- Pulsante ✕ inline per cancellare la singola notifica.
+- Footer con **Segna tutte lette** + **Pulisci**.
+- Cap altezza panel + scroll interno.
+
+### 🎯 Topbar
+- Badge non lette ora dinamico da `state.notifications` (filtrato per `currentUserId`).
+- Al cambio utente (UserSwitcher), il contatore riflette le notifiche destinate al nuovo utente.
+
+### 🌱 Seed iniziale
+- 5 notifiche pre-popolate per l'utente di default (Marco) per dare contesto al primo avvio.
+
+---
+
 ## v0.9-dev — Anagrafica Clienti (CRM base) (sessione 9)
 
 > Primo step di Fase 1 della roadmap: anagrafica clienti come fondazione per Fornitori e Pratiche.

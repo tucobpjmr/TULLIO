@@ -3,7 +3,7 @@ import { useState, useReducer, useContext, createContext, useRef, useEffect, use
 import * as XLSX from "xlsx";
 import { useAuth } from './lib/auth/AuthContext.jsx';
 import { useSupabaseData, useAsyncDispatch } from './lib/useSupabaseData.js';
-import { Comments } from './lib/api.js';
+import { Comments, Clients, Suppliers } from './lib/api.js';
 
 // ─── GOOGLE FONTS ──────────────────────────────────────────────────────────
 const FontLoader = () => (
@@ -343,9 +343,11 @@ function baseReducer(state, action) {
 
   switch (action.type) {
     case "SET_VIEW": {
-      // Solo admin può aprire la vista Admin
       if (action.payload === "admin" && !canAccessAdmin(uid)) {
         return _denied("Non hai i permessi per accedere all'Admin");
+      }
+      if ((action.payload === "clients" || action.payload === "suppliers") && isDriver(uid)) {
+        return _denied("Non hai i permessi per questa sezione");
       }
       return { ...state, activeView: action.payload };
     }
@@ -1963,13 +1965,26 @@ const NotificationsPanel = ({ dispatch }) => {
   );
 };
 
+// ─── SUPPLIER CATEGORIES ──────────────────────────────────────────────────
+const SUPPLIER_CATEGORIES = {
+  hotel:        { label: "Hotel",         icon: "🏨" },
+  volo:         { label: "Volo",          icon: "✈️" },
+  transfer:     { label: "Transfer",      icon: "🚐" },
+  tour_operator:{ label: "Tour Operator", icon: "🌍" },
+  assicurazione:{ label: "Assicurazione", icon: "🛡️" },
+  crociera:     { label: "Crociera",      icon: "🚢" },
+  altro:        { label: "Altro",         icon: "📦" },
+};
+
 // ─── SIDEBAR ───────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
-  { id: "dashboard", icon: "📊", label: "Dashboard", roles: ["admin", "manager", "agent", "driver"] },
-  { id: "calendar", icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
-  { id: "team", icon: "👥", label: "Team", roles: ["admin", "manager", "agent"] },
-  { id: "trash", icon: "🗑️", label: "Cestino", roles: ["admin"] },
-  { id: "admin", icon: "⚙️", label: "Admin", roles: ["admin"] },
+  { id: "dashboard", icon: "📊", label: "Dashboard",  roles: ["admin","manager","agent","driver"] },
+  { id: "calendar",  icon: "📅", label: "Calendario", roles: ["admin","manager","agent","driver"] },
+  { id: "clients",   icon: "👤", label: "Clienti",    roles: ["admin","manager","agent"] },
+  { id: "suppliers", icon: "🤝", label: "Fornitori",  roles: ["admin","manager","agent"] },
+  { id: "team",      icon: "👥", label: "Team",       roles: ["admin","manager","agent"] },
+  { id: "trash",     icon: "🗑️", label: "Cestino",    roles: ["admin"] },
+  { id: "admin",     icon: "⚙️", label: "Admin",      roles: ["admin"] },
 ];
 
 // Filtra NAV_ITEMS in base al ruolo dell'utente loggato
@@ -6989,6 +7004,500 @@ const btnWarning = { padding: "8px 12px", borderRadius: 6, border: "1px solid va
 const modalOverlay = { position: "fixed", inset: 0, background: "rgba(15,32,68,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 600, padding: 16 };
 const modalCard = { background: "#fff", borderRadius: 12, padding: 24, width: "90%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" };
 
+// ─── CLIENT SLIDE-OVER ─────────────────────────────────────────────────────
+const ClientSlideOver = ({ client, tasks, onClose, onSaved, onDeleted }) => {
+  const { isMobile } = useViewport();
+  const [editing, setEditing] = useState(!client.id); // new client → edit mode immediately
+  const [form, setForm] = useState({
+    name: client.name || "",
+    email: client.email || "",
+    phone: client.phone || "",
+    city: client.city || "",
+    address: client.address || "",
+    notes: client.notes || "",
+  });
+  const [saving, setSaving] = useState(false);
+
+  const linkedTasks = tasks.filter(t => isActiveTask(t) && (t.client === client.name || t.client === client.id));
+
+  const inp = (f) => ({
+    value: form[f], onChange: e => setForm(p => ({ ...p, [f]: e.target.value })),
+    style: { ...fieldStyle, marginTop: 4 },
+  });
+
+  const handleSave = async () => {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    let result;
+    if (client.id) {
+      const { data } = await Clients.update(client.id, form);
+      result = data;
+    } else {
+      const { data } = await Clients.create(form);
+      result = data;
+    }
+    setSaving(false);
+    if (result) { onSaved(result); setEditing(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm(`Eliminare il cliente "${client.name}"?`)) return;
+    await Clients.remove(client.id);
+    onDeleted(client.id);
+  };
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(15,32,68,0.4)", zIndex:500 }} />
+      <div className="slide-right" style={{
+        position:"fixed", top:0, right:0, width: isMobile ? "100vw" : 480, height:"100vh",
+        background:"#fff", zIndex:600, boxShadow:"-20px 0 60px rgba(0,0,0,0.15)",
+        display:"flex", flexDirection:"column", overflowY:"auto",
+      }}>
+        {/* Header */}
+        <div style={{ background:"var(--navy)", padding:"18px 22px", display:"flex", justifyContent:"space-between", alignItems:"center", flexShrink:0 }}>
+          <div>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>Cliente</div>
+            <div className="playfair" style={{ color:"#fff", fontSize:20, fontWeight:700 }}>
+              {client.id ? client.name : "Nuovo Cliente"}
+            </div>
+            {client.city && <div style={{ fontSize:12, color:"rgba(255,255,255,0.6)", marginTop:2 }}>📍 {client.city}</div>}
+          </div>
+          <div style={{ display:"flex", gap:6 }}>
+            {client.id && !editing && (
+              <>
+                <button onClick={() => setEditing(true)} style={{ background:"rgba(212,168,67,0.2)", border:"none", color:"var(--gold)", padding:"6px 12px", borderRadius:6, cursor:"pointer", fontSize:12, fontWeight:600 }}>✏️ Modifica</button>
+                <button onClick={handleDelete} style={{ background:"rgba(220,38,38,0.15)", border:"none", color:"#fff", width:30, height:30, borderRadius:6, cursor:"pointer", fontSize:13 }}>🗑️</button>
+              </>
+            )}
+            <button onClick={onClose} style={{ background:"rgba(255,255,255,0.1)", border:"none", color:"#fff", width:30, height:30, borderRadius:6, cursor:"pointer", fontSize:14 }}>✕</button>
+          </div>
+        </div>
+
+        <div style={{ padding:"20px 22px", display:"flex", flexDirection:"column", gap:20 }}>
+          {editing ? (
+            /* Form di modifica */
+            <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+              <div><label style={labelStyle}>NOME *</label><input {...inp("name")} placeholder="Nome cliente..." /></div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                <div><label style={labelStyle}>EMAIL</label><input {...inp("email")} type="email" placeholder="email@esempio.it" /></div>
+                <div><label style={labelStyle}>TELEFONO</label><input {...inp("phone")} type="tel" placeholder="+39 ..." /></div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                <div><label style={labelStyle}>CITTÀ</label><input {...inp("city")} placeholder="Milano" /></div>
+                <div><label style={labelStyle}>INDIRIZZO</label><input {...inp("address")} placeholder="Via Roma 1" /></div>
+              </div>
+              <div><label style={labelStyle}>NOTE</label><textarea {...inp("notes")} rows={3} placeholder="Note libere..." style={{ ...fieldStyle, marginTop:4, resize:"vertical" }} /></div>
+              <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:4 }}>
+                <button onClick={() => { setEditing(false); if (!client.id) onClose(); }} style={btnGhost}>Annulla</button>
+                <button onClick={handleSave} disabled={saving || !form.name.trim()} style={{ ...btnPrimary, opacity: saving ? 0.7 : 1 }}>{saving ? "Salvataggio…" : "✓ Salva"}</button>
+              </div>
+            </div>
+          ) : (
+            /* Vista dettaglio */
+            <>
+              <div className="vd-grid-2col" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+                <div>
+                  <div style={sectionH}>EMAIL</div>
+                  <div style={{ fontSize:13 }}>{client.email || <span style={{ color:"var(--text-muted)" }}>—</span>}</div>
+                </div>
+                <div>
+                  <div style={sectionH}>TELEFONO</div>
+                  <div style={{ fontSize:13 }}>{client.phone || <span style={{ color:"var(--text-muted)" }}>—</span>}</div>
+                </div>
+                <div>
+                  <div style={sectionH}>CITTÀ</div>
+                  <div style={{ fontSize:13 }}>{client.city || <span style={{ color:"var(--text-muted)" }}>—</span>}</div>
+                </div>
+                <div>
+                  <div style={sectionH}>INDIRIZZO</div>
+                  <div style={{ fontSize:13 }}>{client.address || <span style={{ color:"var(--text-muted)" }}>—</span>}</div>
+                </div>
+              </div>
+              {client.notes && (
+                <div>
+                  <div style={sectionH}>NOTE</div>
+                  <div style={{ fontSize:13, lineHeight:1.6, background:"var(--surface2)", padding:12, borderRadius:8 }}>{client.notes}</div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Task collegati */}
+          {client.id && (
+            <div>
+              <div style={{ ...sectionH, marginBottom:10 }}>TASK COLLEGATI ({linkedTasks.length})</div>
+              {linkedTasks.length === 0
+                ? <div style={{ fontSize:13, color:"var(--text-muted)", fontStyle:"italic" }}>Nessun task associato a questo cliente.</div>
+                : <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                    {linkedTasks.slice(0, 8).map(t => (
+                      <div key={t.id} style={{ display:"flex", alignItems:"center", gap:10, background:"var(--surface2)", borderRadius:8, padding:"8px 12px" }}>
+                        <CategoryChip category={t.category} />
+                        <div style={{ flex:1, fontSize:13, fontWeight:500 }}>{t.title}</div>
+                        <StatusBadge status={t.status} />
+                      </div>
+                    ))}
+                  </div>
+              }
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+};
+
+// ─── CLIENTS VIEW ───────────────────────────────────────────────────────────
+const ClientsView = ({ state }) => {
+  const { isMobile } = useViewport();
+  const [clients, setClients] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState(null); // client obj or {} for new
+
+  useEffect(() => { loadClients(); }, []);
+
+  const loadClients = async () => {
+    setLoading(true);
+    const { data } = await Clients.list();
+    if (data) setClients(data);
+    setLoading(false);
+  };
+
+  const filtered = clients.filter(c =>
+    !search || [c.name, c.email, c.city, c.phone].some(v => v?.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const handleSaved = (updated) => {
+    setClients(prev => {
+      const exists = prev.find(c => c.id === updated.id);
+      return exists ? prev.map(c => c.id === updated.id ? updated : c) : [...prev, updated];
+    });
+    setSelected(updated);
+  };
+
+  const handleDeleted = (id) => {
+    setClients(prev => prev.filter(c => c.id !== id));
+    setSelected(null);
+  };
+
+  return (
+    <div className="vd-pad" style={{ padding:32, maxWidth:1100, margin:"0 auto" }}>
+      {/* Header */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24, flexWrap:"wrap", gap:12 }}>
+        <div>
+          <div className="playfair" style={{ fontSize:26, fontWeight:700, color:"var(--navy)" }}>Anagrafica Clienti</div>
+          <div style={{ fontSize:13, color:"var(--text-muted)", marginTop:3 }}>{clients.length} clienti registrati</div>
+        </div>
+        <button onClick={() => setSelected({})} style={{ ...btnPrimary, padding:"10px 18px", fontSize:13, display:"flex", alignItems:"center", gap:6 }}>
+          + Nuovo Cliente
+        </button>
+      </div>
+
+      {/* Search */}
+      <div style={{ position:"relative", marginBottom:20 }}>
+        <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:"var(--text-muted)", fontSize:14 }}>🔍</span>
+        <input
+          value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="Cerca per nome, email, città..."
+          style={{ ...fieldStyle, paddingLeft:36, width:"100%", boxSizing:"border-box" }}
+        />
+        {search && <button onClick={() => setSearch("")} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:"var(--text-muted)", fontSize:16 }}>✕</button>}
+      </div>
+
+      {/* List */}
+      {loading ? (
+        <div style={{ textAlign:"center", padding:"60px 0", color:"var(--text-muted)" }}>
+          <div style={{ width:36, height:36, border:"3px solid var(--border)", borderTopColor:"var(--navy)", borderRadius:"50%", animation:"spin 0.8s linear infinite", margin:"0 auto 12px" }} />
+          Caricamento clienti…
+        </div>
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign:"center", padding:"60px 0", color:"var(--text-muted)" }}>
+          <div style={{ fontSize:40, marginBottom:12 }}>👤</div>
+          {search ? "Nessun cliente trovato con questi criteri." : "Nessun cliente ancora. Clicca \"+ Nuovo Cliente\" per iniziare."}
+        </div>
+      ) : (
+        <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(300px,1fr))", gap:14 }}>
+          {filtered.map(c => {
+            const taskCount = state.tasks.filter(t => isActiveTask(t) && t.client === c.name).length;
+            return (
+              <div key={c.id} onClick={() => setSelected(c)}
+                className="hover-lift"
+                style={{ background:"#fff", border:"1px solid var(--border)", borderRadius:12, padding:"16px 18px", cursor:"pointer", transition:"all 0.2s" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+                  <div style={{ width:42, height:42, borderRadius:10, background:"var(--navy)", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:700 }}>
+                    {c.name?.split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase()}
+                  </div>
+                  {taskCount > 0 && (
+                    <div style={{ background:"var(--navy)", color:"#fff", borderRadius:99, fontSize:11, fontWeight:700, padding:"2px 9px" }}>{taskCount} task</div>
+                  )}
+                </div>
+                <div style={{ fontWeight:700, fontSize:15, color:"var(--navy)", marginBottom:4 }}>{c.name}</div>
+                <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
+                  {c.email && <div style={{ fontSize:12, color:"var(--text-muted)" }}>📧 {c.email}</div>}
+                  {c.phone && <div style={{ fontSize:12, color:"var(--text-muted)" }}>📞 {c.phone}</div>}
+                  {c.city && <div style={{ fontSize:12, color:"var(--text-muted)" }}>📍 {c.city}</div>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {selected !== null && (
+        <ClientSlideOver
+          client={selected}
+          tasks={state.tasks}
+          onClose={() => setSelected(null)}
+          onSaved={handleSaved}
+          onDeleted={handleDeleted}
+        />
+      )}
+    </div>
+  );
+};
+
+// ─── SUPPLIER SLIDE-OVER ────────────────────────────────────────────────────
+const SupplierSlideOver = ({ supplier, onClose, onSaved, onDeleted }) => {
+  const { isMobile } = useViewport();
+  const [editing, setEditing] = useState(!supplier.id);
+  const [form, setForm] = useState({
+    name: supplier.name || "",
+    category: supplier.category || "altro",
+    email: supplier.email || "",
+    phone: supplier.phone || "",
+    city: supplier.city || "",
+    country: supplier.country || "",
+    address: supplier.address || "",
+    notes: supplier.notes || "",
+  });
+  const [saving, setSaving] = useState(false);
+
+  const inp = (f, type = "text") => ({
+    value: form[f], onChange: e => setForm(p => ({ ...p, [f]: e.target.value })),
+    type, style: { ...fieldStyle, marginTop:4 },
+  });
+
+  const handleSave = async () => {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    let result;
+    if (supplier.id) {
+      const { data } = await Suppliers.update(supplier.id, form);
+      result = data;
+    } else {
+      const { data } = await Suppliers.create(form);
+      result = data;
+    }
+    setSaving(false);
+    if (result) { onSaved(result); setEditing(false); }
+  };
+
+  const catInfo = SUPPLIER_CATEGORIES[form.category] || SUPPLIER_CATEGORIES.altro;
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(15,32,68,0.4)", zIndex:500 }} />
+      <div className="slide-right" style={{
+        position:"fixed", top:0, right:0, width: isMobile ? "100vw" : 480, height:"100vh",
+        background:"#fff", zIndex:600, boxShadow:"-20px 0 60px rgba(0,0,0,0.15)",
+        display:"flex", flexDirection:"column", overflowY:"auto",
+      }}>
+        <div style={{ background:"var(--navy)", padding:"18px 22px", display:"flex", justifyContent:"space-between", alignItems:"center", flexShrink:0 }}>
+          <div>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>Fornitore</div>
+            <div className="playfair" style={{ color:"#fff", fontSize:20, fontWeight:700 }}>
+              {supplier.id ? supplier.name : "Nuovo Fornitore"}
+            </div>
+            {supplier.id && (
+              <div style={{ fontSize:12, color:"rgba(255,255,255,0.6)", marginTop:2 }}>
+                {catInfo.icon} {catInfo.label}{supplier.city ? ` · 📍 ${supplier.city}` : ""}
+              </div>
+            )}
+          </div>
+          <div style={{ display:"flex", gap:6 }}>
+            {supplier.id && !editing && (
+              <>
+                <button onClick={() => setEditing(true)} style={{ background:"rgba(212,168,67,0.2)", border:"none", color:"var(--gold)", padding:"6px 12px", borderRadius:6, cursor:"pointer", fontSize:12, fontWeight:600 }}>✏️ Modifica</button>
+                <button onClick={async () => { if (!window.confirm(`Eliminare "${supplier.name}"?`)) return; await Suppliers.remove(supplier.id); onDeleted(supplier.id); }} style={{ background:"rgba(220,38,38,0.15)", border:"none", color:"#fff", width:30, height:30, borderRadius:6, cursor:"pointer", fontSize:13 }}>🗑️</button>
+              </>
+            )}
+            <button onClick={onClose} style={{ background:"rgba(255,255,255,0.1)", border:"none", color:"#fff", width:30, height:30, borderRadius:6, cursor:"pointer", fontSize:14 }}>✕</button>
+          </div>
+        </div>
+
+        <div style={{ padding:"20px 22px", display:"flex", flexDirection:"column", gap:14 }}>
+          {editing ? (
+            <>
+              <div><label style={labelStyle}>NOME *</label><input {...inp("name")} placeholder="Nome fornitore..." /></div>
+              <div>
+                <label style={labelStyle}>CATEGORIA</label>
+                <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} style={{ ...fieldStyle, marginTop:4, cursor:"pointer" }}>
+                  {Object.entries(SUPPLIER_CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+                </select>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                <div><label style={labelStyle}>EMAIL</label><input {...inp("email","email")} placeholder="email@fornitore.it" /></div>
+                <div><label style={labelStyle}>TELEFONO</label><input {...inp("phone","tel")} placeholder="+39 ..." /></div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                <div><label style={labelStyle}>CITTÀ</label><input {...inp("city")} placeholder="Roma" /></div>
+                <div><label style={labelStyle}>PAESE</label><input {...inp("country")} placeholder="Italia" /></div>
+              </div>
+              <div><label style={labelStyle}>INDIRIZZO</label><input {...inp("address")} placeholder="Via..." /></div>
+              <div><label style={labelStyle}>NOTE</label><textarea {...inp("notes")} rows={3} placeholder="Note su tariffe, contratti..." style={{ ...fieldStyle, marginTop:4, resize:"vertical" }} /></div>
+              <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:4 }}>
+                <button onClick={() => { setEditing(false); if (!supplier.id) onClose(); }} style={btnGhost}>Annulla</button>
+                <button onClick={handleSave} disabled={saving || !form.name.trim()} style={{ ...btnPrimary, opacity: saving ? 0.7 : 1 }}>{saving ? "Salvataggio…" : "✓ Salva"}</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <div style={sectionH}>CATEGORIA</div>
+                <div style={{ display:"inline-flex", alignItems:"center", gap:6, background:"var(--surface2)", padding:"5px 12px", borderRadius:99, fontSize:13, fontWeight:600 }}>
+                  {catInfo.icon} {catInfo.label}
+                </div>
+              </div>
+              <div className="vd-grid-2col" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+                <div><div style={sectionH}>EMAIL</div><div style={{ fontSize:13 }}>{supplier.email || <span style={{ color:"var(--text-muted)" }}>—</span>}</div></div>
+                <div><div style={sectionH}>TELEFONO</div><div style={{ fontSize:13 }}>{supplier.phone || <span style={{ color:"var(--text-muted)" }}>—</span>}</div></div>
+                <div><div style={sectionH}>CITTÀ</div><div style={{ fontSize:13 }}>{supplier.city || <span style={{ color:"var(--text-muted)" }}>—</span>}</div></div>
+                <div><div style={sectionH}>PAESE</div><div style={{ fontSize:13 }}>{supplier.country || <span style={{ color:"var(--text-muted)" }}>—</span>}</div></div>
+              </div>
+              {supplier.address && <div><div style={sectionH}>INDIRIZZO</div><div style={{ fontSize:13 }}>{supplier.address}</div></div>}
+              {supplier.notes && (
+                <div>
+                  <div style={sectionH}>NOTE</div>
+                  <div style={{ fontSize:13, lineHeight:1.6, background:"var(--surface2)", padding:12, borderRadius:8 }}>{supplier.notes}</div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  );
+};
+
+// ─── SUPPLIERS VIEW ─────────────────────────────────────────────────────────
+const SuppliersView = () => {
+  const { isMobile } = useViewport();
+  const [suppliers, setSuppliers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [catFilter, setCatFilter] = useState("");
+  const [selected, setSelected] = useState(null);
+
+  useEffect(() => { loadSuppliers(); }, []);
+
+  const loadSuppliers = async () => {
+    setLoading(true);
+    const { data } = await Suppliers.list();
+    if (data) setSuppliers(data);
+    setLoading(false);
+  };
+
+  const filtered = suppliers.filter(s => {
+    const matchSearch = !search || [s.name, s.city, s.country, s.email].some(v => v?.toLowerCase().includes(search.toLowerCase()));
+    const matchCat = !catFilter || s.category === catFilter;
+    return matchSearch && matchCat;
+  });
+
+  const handleSaved = (updated) => {
+    setSuppliers(prev => {
+      const exists = prev.find(s => s.id === updated.id);
+      return exists ? prev.map(s => s.id === updated.id ? updated : s) : [...prev, updated];
+    });
+    setSelected(updated);
+  };
+
+  const handleDeleted = (id) => {
+    setSuppliers(prev => prev.filter(s => s.id !== id));
+    setSelected(null);
+  };
+
+  return (
+    <div className="vd-pad" style={{ padding:32, maxWidth:1100, margin:"0 auto" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24, flexWrap:"wrap", gap:12 }}>
+        <div>
+          <div className="playfair" style={{ fontSize:26, fontWeight:700, color:"var(--navy)" }}>Anagrafica Fornitori</div>
+          <div style={{ fontSize:13, color:"var(--text-muted)", marginTop:3 }}>{suppliers.length} fornitori registrati</div>
+        </div>
+        <button onClick={() => setSelected({})} style={{ ...btnPrimary, padding:"10px 18px", fontSize:13 }}>+ Nuovo Fornitore</button>
+      </div>
+
+      {/* Filtri */}
+      <div style={{ display:"flex", gap:10, marginBottom:20, flexWrap:"wrap" }}>
+        <div style={{ position:"relative", flex:1, minWidth:200 }}>
+          <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:"var(--text-muted)", fontSize:14 }}>🔍</span>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca fornitore…" style={{ ...fieldStyle, paddingLeft:36, width:"100%", boxSizing:"border-box" }} />
+        </div>
+        <select value={catFilter} onChange={e => setCatFilter(e.target.value)} style={{ ...fieldStyle, width:"auto", cursor:"pointer", minWidth:160 }}>
+          <option value="">Tutte le categorie</option>
+          {Object.entries(SUPPLIER_CATEGORIES).map(([k,v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+        </select>
+      </div>
+
+      {/* Categoria pills */}
+      <div style={{ display:"flex", gap:8, marginBottom:20, flexWrap:"wrap" }}>
+        <button onClick={() => setCatFilter("")} style={{ padding:"5px 14px", borderRadius:99, fontSize:12, fontWeight:600, border:"none", cursor:"pointer", background: !catFilter ? "var(--navy)" : "var(--surface2)", color: !catFilter ? "#fff" : "var(--text-muted)", transition:"all 0.15s" }}>Tutti</button>
+        {Object.entries(SUPPLIER_CATEGORIES).map(([k,v]) => {
+          const count = suppliers.filter(s => s.category === k).length;
+          if (!count) return null;
+          return (
+            <button key={k} onClick={() => setCatFilter(k === catFilter ? "" : k)} style={{ padding:"5px 14px", borderRadius:99, fontSize:12, fontWeight:600, border:"none", cursor:"pointer", background: catFilter === k ? "var(--navy)" : "var(--surface2)", color: catFilter === k ? "#fff" : "var(--text-muted)", display:"flex", alignItems:"center", gap:5, transition:"all 0.15s" }}>
+              {v.icon} {v.label} <span style={{ fontSize:10, opacity:0.7 }}>({count})</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign:"center", padding:"60px 0", color:"var(--text-muted)" }}>
+          <div style={{ width:36, height:36, border:"3px solid var(--border)", borderTopColor:"var(--navy)", borderRadius:"50%", animation:"spin 0.8s linear infinite", margin:"0 auto 12px" }} />
+          Caricamento fornitori…
+        </div>
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign:"center", padding:"60px 0", color:"var(--text-muted)" }}>
+          <div style={{ fontSize:40, marginBottom:12 }}>🤝</div>
+          {search || catFilter ? "Nessun fornitore trovato con questi criteri." : "Nessun fornitore ancora. Clicca \"+ Nuovo Fornitore\" per iniziare."}
+        </div>
+      ) : (
+        <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(300px,1fr))", gap:14 }}>
+          {filtered.map(s => {
+            const cat = SUPPLIER_CATEGORIES[s.category] || SUPPLIER_CATEGORIES.altro;
+            return (
+              <div key={s.id} onClick={() => setSelected(s)} className="hover-lift"
+                style={{ background:"#fff", border:"1px solid var(--border)", borderRadius:12, padding:"16px 18px", cursor:"pointer" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+                  <div style={{ width:42, height:42, borderRadius:10, background:"var(--surface2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>{cat.icon}</div>
+                  <div style={{ background:"var(--surface2)", color:"var(--text-muted)", borderRadius:99, fontSize:11, fontWeight:600, padding:"2px 9px" }}>{cat.label}</div>
+                </div>
+                <div style={{ fontWeight:700, fontSize:15, color:"var(--navy)", marginBottom:4 }}>{s.name}</div>
+                <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
+                  {s.email && <div style={{ fontSize:12, color:"var(--text-muted)" }}>📧 {s.email}</div>}
+                  {s.phone && <div style={{ fontSize:12, color:"var(--text-muted)" }}>📞 {s.phone}</div>}
+                  {(s.city || s.country) && <div style={{ fontSize:12, color:"var(--text-muted)" }}>📍 {[s.city, s.country].filter(Boolean).join(", ")}</div>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {selected !== null && (
+        <SupplierSlideOver
+          supplier={selected}
+          onClose={() => setSelected(null)}
+          onSaved={handleSaved}
+          onDeleted={handleDeleted}
+        />
+      )}
+    </div>
+  );
+};
+
 // ─── ROOT APP ──────────────────────────────────────────────────────────────
 export default function VoyageDesk() {
   return (
@@ -7048,12 +7557,14 @@ function VoyageDeskInner() {
 
   const renderView = () => {
     switch (state.activeView) {
-      case "dashboard": return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
-      case "calendar": return <CalendarPlanner state={state} dispatch={dispatch} />;
-      case "team": return <Team state={state} dispatch={dispatch} />;
-      case "trash": return <Trash state={state} dispatch={dispatch} />;
-      case "admin": return <AdminView state={state} dispatch={dispatch} />;
-      default: return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
+      case "dashboard":  return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
+      case "calendar":   return <CalendarPlanner state={state} dispatch={dispatch} />;
+      case "clients":    return <ClientsView state={state} dispatch={dispatch} />;
+      case "suppliers":  return <SuppliersView state={state} dispatch={dispatch} />;
+      case "team":       return <Team state={state} dispatch={dispatch} />;
+      case "trash":      return <Trash state={state} dispatch={dispatch} />;
+      case "admin":      return <AdminView state={state} dispatch={dispatch} />;
+      default:           return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
     }
   };
 

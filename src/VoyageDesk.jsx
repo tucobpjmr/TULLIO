@@ -1160,11 +1160,20 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
   const [stats, setStats] = useState([]);
   const [agents, setAgents] = useState([]);
   const [includeTrashed, setIncludeTrashed] = useState(false);
+  const [dossierFilter, setDossierFilter] = useState("");
+  const [dossierSearch, setDossierSearch] = useState("");
+  const [dossiersAll, setDossiersAll] = useState([]);
 
   const panelRef = useRef(null);
   const keywordRef = useRef(null);
 
   useEffect(() => { keywordRef.current?.focus(); }, []);
+
+  useEffect(() => {
+    let active = true;
+    Dossiers.list().then(({ data }) => { if (active && data) setDossiersAll(data); });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     const handler = (e) => {
@@ -1187,9 +1196,10 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
   const resetAll = () => {
     setKeyword(""); setDateFrom(""); setDateTo("");
     setCats([]); setStats([]); setAgents([]); setIncludeTrashed(false);
+    setDossierFilter(""); setDossierSearch("");
   };
 
-  const hasFilters = keyword.trim() || dateFrom || dateTo || cats.length || stats.length || agents.length || includeTrashed;
+  const hasFilters = keyword.trim() || dateFrom || dateTo || cats.length || stats.length || agents.length || includeTrashed || dossierFilter;
 
   const results = useMemo(() => {
     if (!hasFilters) return [];
@@ -1202,6 +1212,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
       if (cats.length && !cats.includes(t.category)) return false;
       if (stats.length && !stats.includes(t.status)) return false;
       if (agents.length && !(t.assignees || []).some(a => agents.includes(a))) return false;
+      if (dossierFilter && t.dossierId !== dossierFilter) return false;
       if (from) {
         if (!t.dueDate) return false;
         if (new Date(t.dueDate) < from) return false;
@@ -1370,6 +1381,55 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
           </div>
         </div>
 
+        <div style={{ marginBottom: 14 }}>
+          <div style={sectionTitle}>Pratica</div>
+          <div style={{ position: "relative" }}>
+            <input
+              value={dossierSearch}
+              onChange={e => setDossierSearch(e.target.value)}
+              placeholder="Cerca per numero o titolo…"
+              style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: "1px solid var(--border)", fontSize: 12, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+              onFocus={e => e.target.style.borderColor = "var(--gold)"}
+              onBlur={e => e.target.style.borderColor = "var(--border)"}
+            />
+          </div>
+          {dossierFilter && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+              {(() => {
+                const d = dossiersAll.find(x => x.id === dossierFilter);
+                return d ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#EFF6FF", border: "1px solid #2563EB", borderRadius: 8, padding: "4px 10px", fontSize: 12, flex: 1 }}>
+                    <span style={{ fontWeight: 700, color: "#2563EB" }}>{d.number}</span>
+                    <span style={{ color: "var(--text)" }}>{d.title}</span>
+                    <button onClick={() => { setDossierFilter(""); setDossierSearch(""); }}
+                      style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "#2563EB", fontSize: 14, lineHeight: 1 }}>✕</button>
+                  </div>
+                ) : null;
+              })()}
+            </div>
+          )}
+          {dossierSearch && !dossierFilter && (
+            <div style={{ border: "1px solid var(--border)", borderRadius: 8, marginTop: 4, maxHeight: 160, overflowY: "auto", background: "#fff" }}>
+              {dossiersAll
+                .filter(d => [d.number, d.title, d.clients?.name].some(v => v?.toLowerCase().includes(dossierSearch.toLowerCase())))
+                .slice(0, 8)
+                .map(d => (
+                  <div key={d.id} onClick={() => { setDossierFilter(d.id); setDossierSearch(""); }}
+                    style={{ padding: "7px 12px", cursor: "pointer", borderBottom: "1px solid var(--border)", fontSize: 12, display: "flex", gap: 8 }}
+                    onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                    onMouseLeave={e => e.currentTarget.style.background = "#fff"}>
+                    <span style={{ fontWeight: 700, color: "var(--navy)", flexShrink: 0 }}>{d.number}</span>
+                    <span style={{ color: "var(--text)" }}>{d.title}</span>
+                    {d.clients?.name && <span style={{ color: "var(--text-muted)", marginLeft: "auto" }}>{d.clients.name}</span>}
+                  </div>
+                ))}
+              {dossiersAll.filter(d => [d.number, d.title, d.clients?.name].some(v => v?.toLowerCase().includes(dossierSearch.toLowerCase()))).length === 0 && (
+                <div style={{ padding: "10px 12px", fontSize: 12, color: "var(--text-muted)" }}>Nessuna pratica trovata</div>
+              )}
+            </div>
+          )}
+        </div>
+
         <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "var(--text)" }}>
           <input type="checkbox" checked={includeTrashed} onChange={e => setIncludeTrashed(e.target.checked)} />
           🗑️ Includi task nel cestino
@@ -1427,9 +1487,9 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
                       {t.deletedAt && <span style={{ color: "var(--danger)", marginRight: 6 }}>🗑️</span>}
                       {t.title}
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, display: "flex", gap: 10 }}>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, display: "flex", gap: 10, flexWrap: "wrap" }}>
                       <span>{STATUS_LABELS[t.status]}</span>
-                      {t.client && <span>• {t.client}</span>}
+                      {t.dossierId && (() => { const d = dossiersAll.find(x => x.id === t.dossierId); return d ? <span style={{ color: "var(--navy)", fontWeight: 600 }}>• 📁 {d.number}</span> : null; })()}
                       {t.dueDate && (
                         <span style={{ color: overdue ? "var(--danger)" : "var(--text-muted)" }}>
                           • {formatDate(t.dueDate)}{overdue ? " (scaduto)" : ""}
@@ -4011,15 +4071,28 @@ const QuickAddTask = ({ onAdd, onClose }) => {
 
   const [form, setForm] = useState({
     title: "", category: firstCatKey, priority: "medium",
-    status: "todo", assignees: [], dueDate: "", client: "", description: ""
+    status: "todo", assignees: [], dueDate: "", client: "", description: "", dossierId: "",
   });
+  const [dossiersList, setDossiersList] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    Dossiers.list().then(({ data }) => { if (active && data) setDossiersList(data); });
+    return () => { active = false; };
+  }, []);
+
+  const handleDossierChange = (dossierId) => {
+    const d = dossiersList.find(x => x.id === dossierId);
+    setForm(p => ({ ...p, dossierId, client: d?.client_id || p.client }));
+  };
 
   const handleSubmit = () => {
     if (!form.title.trim()) return;
     onAdd({
       id: "t" + Date.now(),
       ...form,
-      client: form.client.trim() || null,
+      client: form.client || null,
+      dossierId: form.dossierId || null,
       comments: [],
       estimatedHours: 1,
       dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
@@ -4091,8 +4164,16 @@ const QuickAddTask = ({ onAdd, onClose }) => {
           </div>
 
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>CLIENTE</label>
-            <input {...inp("client")} placeholder="Es. Famiglia Rossi..." />
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>PRATICA (opzionale)</label>
+            <select
+              value={form.dossierId}
+              onChange={e => handleDossierChange(e.target.value)}
+              style={{ ...inp("category").style, cursor: "pointer" }}>
+              <option value="">— Nessuna pratica —</option>
+              {dossiersList.map(d => (
+                <option key={d.id} value={d.id}>{d.number} — {d.title}</option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -4117,11 +4198,15 @@ const QuickAddTask = ({ onAdd, onClose }) => {
 };
 
 // ─── TASK DETAIL SLIDE-OVER ────────────────────────────────────────────────
-const TaskSlideOver = ({ task, dispatch }) => {
+const TaskSlideOver = ({ task, state, dispatch }) => {
   const { isMobile } = useViewport();
   const { profile } = useAuth();
   const [newComment, setNewComment] = useState("");
   const [localComments, setLocalComments] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [dossiers, setDossiers] = useState([]);
+  const [linkingDossier, setLinkingDossier] = useState(false);
+  const [pendingDossierId, setPendingDossierId] = useState("");
 
   useEffect(() => {
     if (!task?.id) return;
@@ -4138,6 +4223,19 @@ const TaskSlideOver = ({ task, dispatch }) => {
     });
     return () => { active = false; };
   }, [task?.id]);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([Clients.list(), Dossiers.list()]).then(([c, d]) => {
+      if (!active) return;
+      if (c.data) setClients(c.data);
+      if (d.data) setDossiers(d.data);
+    });
+    return () => { active = false; };
+  }, []);
+
+  const clientName = clients.find(c => c.id === task.client)?.name || task.client;
+  const linkedDossier = dossiers.find(d => d.id === task.dossierId);
 
   if (!task) return null;
 
@@ -4161,6 +4259,17 @@ const TaskSlideOver = ({ task, dispatch }) => {
     if (window.confirm(`Spostare nel cestino "${task.title}"?`)) {
       dispatch({ type: "DELETE_TASK", payload: task.id });
     }
+  };
+
+  const handleLinkDossier = () => {
+    const d = dossiers.find(x => x.id === pendingDossierId);
+    dispatch({ type: "UPDATE_TASK", payload: {
+      ...task,
+      dossierId: pendingDossierId || null,
+      client: d?.client_id || task.client,
+    }});
+    setLinkingDossier(false);
+    setPendingDossierId("");
   };
 
   return (
@@ -4242,9 +4351,47 @@ const TaskSlideOver = ({ task, dispatch }) => {
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>CLIENTE</div>
               <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>
-                {task.client || <span style={{ color: "var(--text-muted)" }}>—</span>}
+                {clientName || <span style={{ color: "var(--text-muted)" }}>—</span>}
               </div>
             </div>
+          </div>
+
+          {/* Pratica collegata */}
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)" }}>PRATICA COLLEGATA</div>
+              {!linkingDossier && (
+                <button onClick={() => { setLinkingDossier(true); setPendingDossierId(task.dossierId || ""); }}
+                  style={{ background: "none", border: "1px solid var(--border)", borderRadius: 6, padding: "2px 8px", fontSize: 11, cursor: "pointer", color: "var(--text-muted)" }}>
+                  {linkedDossier ? "Cambia" : "Collega"}
+                </button>
+              )}
+            </div>
+            {linkingDossier ? (
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <select value={pendingDossierId} onChange={e => setPendingDossierId(e.target.value)}
+                  style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 8, padding: "6px 10px", fontSize: 12, fontFamily: "inherit", background: "#fff" }}>
+                  <option value="">— Nessuna pratica —</option>
+                  {dossiers.map(d => (
+                    <option key={d.id} value={d.id}>{d.number} — {d.title}</option>
+                  ))}
+                </select>
+                <button onClick={handleLinkDossier} style={{ background: "var(--navy)", color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 12, cursor: "pointer" }}>✓</button>
+                <button onClick={() => setLinkingDossier(false)} style={{ background: "none", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 10px", fontSize: 12, cursor: "pointer" }}>✕</button>
+              </div>
+            ) : linkedDossier ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--surface2)", padding: "6px 10px", borderRadius: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--navy)" }}>{linkedDossier.number}</span>
+                <span style={{ fontSize: 13, flex: 1 }}>{linkedDossier.title}</span>
+                {linkedDossier.status && (
+                  <span style={{ fontSize: 10, fontWeight: 700, background: DOSSIER_STATUS[linkedDossier.status]?.bg, color: DOSSIER_STATUS[linkedDossier.status]?.color, padding: "2px 7px", borderRadius: 99 }}>
+                    {DOSSIER_STATUS[linkedDossier.status]?.label}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div style={{ fontSize: 13, color: "var(--text-muted)" }}>—</div>
+            )}
           </div>
 
           {/* ORE */}
@@ -8066,7 +8213,7 @@ function VoyageDeskInner() {
         <BottomNav state={state} dispatch={dispatch} />
 
         {/* Slide-over */}
-        {state.selectedTask && <TaskSlideOver task={state.selectedTask} dispatch={dispatch} />}
+        {state.selectedTask && <TaskSlideOver task={state.selectedTask} state={state} dispatch={dispatch} />}
 
         {/* Chat Panel */}
         <ChatPanel

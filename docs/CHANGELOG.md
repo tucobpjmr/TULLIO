@@ -1,5 +1,15 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9 — HANDOFF + Roadmap pulita (sessione 9 — ottava parte)
+
+> Documentazione preparata per il passaggio di consegne. Modulo finanziario rimosso dalla roadmap (scelta di prodotto: info economiche restano embedded nelle Pratiche, ma nessun modulo separato).
+
+- **`docs/HANDOFF.md` creato**: documento completo per ripresa sviluppo (stato, modelli, actions, vincoli, prossimi step).
+- **`docs/ROADMAP.md` riscritto**: rimosso Modulo finanziario, riorganizzata Fase 3 in "Report & catalogo", aggiornati gli stati delle voci completate in v0.9, sequenza consigliata aggiornata post-v0.9.
+- **`docs/CLAUDE.md`** aggiornato: rimosso riferimento al modulo finanziario nella sezione Priorità 4.
+
+---
+
 ## v0.9 — Impostazioni Agenzia (sessione 9 — settima parte)
 
 > Fase 2 completata: tab Admin "Impostazioni" con dati agenzia, template messaggi e preferenze UI.

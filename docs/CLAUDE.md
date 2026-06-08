@@ -232,8 +232,8 @@ VoyageDesk (export default, ViewportProvider wrapper)
 - [ ] Dark mode
 
 ### Priorità 4 — Business
-- [ ] Modulo finanziario (dopo Pratiche)
-- [ ] Report & Analytics avanzati
+- [ ] Report & Analytics avanzati (trend, breakdown, export PDF)
+- [ ] Catalogo destinazioni / pacchetti
 
 Vedi `docs/ROADMAP.md` per il dettaglio completo con dipendenze e stime.
 

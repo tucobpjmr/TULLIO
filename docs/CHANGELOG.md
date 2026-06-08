@@ -1,5 +1,28 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9 — Anagrafica Clienti CRM (sessione 9)
+
+> Prima implementazione Fase 1: registro clienti completo con CRUD, filtri, pannello dettaglio e collegamento ai task.
+
+### 👤 Anagrafica Clienti (CRM base)
+- Nuovo modello dati `client`: `id`, `name`, `type`, `email`, `phone`, `address`, `notes`, `createdAt`.
+- **3 tipi cliente**: Privato 👤, Azienda 🏢, Gruppo 👥 — con badge colorati.
+- **6 clienti mock** pre-caricati con dati completi (conversione dai nomi stringa nei task).
+- Nuova voce nav **"👤 Clienti"** (sidebar + bottom nav) per ruoli admin/manager/agent (Driver non vede la vista).
+- **`ClientiView`**: lista a griglia responsive, ricerca per nome/email, filtro per tipo.
+- **Pannello dettaglio** laterale (desktop): contatti cliccabili, note, elenco task attivi associati con status/categoria/priorità/scadenza. Click su task → apre TaskSlideOver.
+- **`ClientModal`**: modale add/edit con validazione nome obbligatorio.
+- Azioni **admin/manager/agent**: aggiungi, modifica, elimina clienti.
+- Nuove reducer actions: `ADD_CLIENT`, `UPDATE_CLIENT`, `DELETE_CLIENT` (incluse nel log attività).
+- **Backup JSON** aggiornato a versione `0.9`, include array `clients` nell'export/restore.
+- **Redirect** automatico a Dashboard se il Driver viene switchato mentre è nella vista Clienti (o Cestino).
+
+### 📈 Metriche
+- File: 7071 → **7399 righe** (+328).
+- Componenti aggiunti: 2 (`ClientModal`, `ClientiView`).
+
+---
+
 ## v0.9-dev — Ristrutturazione UI + Profilo + Handoff (sessione 8)
 
 > Semplificazione interfaccia, unificazione viste, nuovo profilo utente, preparazione per migrazione a progetto Vite.

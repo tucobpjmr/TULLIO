@@ -210,6 +210,15 @@ const INITIAL_TASKS = [
   { id: "t27", title: "Transfer Hotel → Stazione Centrale - Coppia Bianchi", category: "transfer", priority: "medium", status: "inprogress", assignees: ["giulia"], client: "Coppia Bianchi", dueDate: d(3, 9, 0), estimatedHours: 0.5, description: "Pickup hotel ore 09:00, treno Frecciarossa 9:55 per Roma. 2 pax + 3 bagagli.", comments: [] },
 ];
 
+const INITIAL_CLIENTS = [
+  { id: "cl1", name: "Famiglia Rossi", type: "privato", email: "rossi@email.it", phone: "+39 335 123456", address: "Via Garibaldi 12, Milano", notes: "Cliente VIP. Viaggi di lusso, preferisce business class. Allergia ai crostacei da segnalare agli hotel.", createdAt: new Date(Date.now() - 86400000 * 180).toISOString() },
+  { id: "cl2", name: "Coppia Bianchi", type: "privato", email: "m.bianchi@gmail.com", phone: "+39 347 654321", address: "Corso Roma 5, Torino", notes: "Luna di miele Giappone. Amano esperienze culturali autentiche e ryokan tradizionali.", createdAt: new Date(Date.now() - 86400000 * 90).toISOString() },
+  { id: "cl3", name: "Azienda TechCorp", type: "azienda", email: "hr@techcorp.it", phone: "+39 02 9876543", address: "Viale Innovazione 100, Milano", notes: "Viaggio incentive 50 persone. Budget approvato 85.000€. Riferimento: Dott.ssa Elena Verdi (HR Director).", createdAt: new Date(Date.now() - 86400000 * 60).toISOString() },
+  { id: "cl4", name: "Famiglia Marchetti", type: "privato", email: "marchetti.famiglia@libero.it", phone: "+39 338 112233", address: "Via Dante 7, Bologna", notes: "4 persone, 2 adulti + 2 bambini (8 e 11 anni). Richiedono sistemazioni family-friendly.", createdAt: new Date(Date.now() - 86400000 * 30).toISOString() },
+  { id: "cl5", name: "Liceo Manzoni", type: "gruppo", email: "segreteria@liceomanzoni.edu.it", phone: "+39 02 345678", address: "Via Manzoni 3, Milano", notes: "Gruppo studenti, 30 ragazzi + 4 accompagnatori. Budget contenuto, strutture 3*. Viaggio culturale Grecia.", createdAt: new Date(Date.now() - 86400000 * 45).toISOString() },
+  { id: "cl6", name: "Sposi Conte", type: "privato", email: "g.conte@outlook.com", phone: "+39 320 998877", address: "Piazza Navona 2, Roma", notes: "Viaggio nozze Vietnam 14 giorni. Cercano esperienze romantiche, budget medio-alto.", createdAt: new Date(Date.now() - 86400000 * 15).toISOString() },
+];
+
 const NOTIFICATIONS = [
   { id: "n1", type: "overdue", title: "Task scaduto: Visto Giappone - Coppia Bianchi", time: "5 min fa", read: false },
   { id: "n2", type: "assigned", title: "Nuovo task assegnato: Newsletter Giugno", time: "1 ora fa", read: false },
@@ -301,6 +310,7 @@ const LOGGED_ACTIONS = new Set([
   "ADD_CATEGORY", "UPDATE_CATEGORY", "REMOVE_CATEGORY",
   "RESTORE_BACKUP",
   "ADD_NOTICE", "UPDATE_NOTICE", "DELETE_NOTICE",
+  "ADD_CLIENT", "UPDATE_CLIENT", "DELETE_CLIENT",
 ]);
 
 const buildLogEntry = (action, state) => {
@@ -329,6 +339,9 @@ const buildLogEntry = (action, state) => {
     ADD_NOTICE: () => `Pubblicato avviso in bacheca`,
     UPDATE_NOTICE: () => `Modificato avviso in bacheca`,
     DELETE_NOTICE: () => `Rimosso avviso dalla bacheca`,
+    ADD_CLIENT: () => `Aggiunto cliente "${action.payload.name}"`,
+    UPDATE_CLIENT: () => `Modificato cliente "${action.payload.name || action.payload.id}"`,
+    DELETE_CLIENT: () => `Rimosso cliente`,
   };
   return { id: `log-${stamp}-${Math.random().toString(36).slice(2,7)}`, time: stamp, type: t, text: (map[t] || (() => t))() };
 };
@@ -359,7 +372,10 @@ function baseReducer(state, action) {
       if (!m) return state;
       _syncCurrentUser(newId);
       // Se l'utente non può più accedere alla view corrente, riporta a dashboard
+      const newRole = getRoleType(newId);
       const activeView = (state.activeView === "admin" && !canAccessAdmin(newId))
+        || (state.activeView === "clients" && newRole === "driver")
+        || (state.activeView === "trash" && newRole !== "admin")
         ? "dashboard"
         : state.activeView;
       return {
@@ -517,12 +533,13 @@ function baseReducer(state, action) {
       return { ...state, agencyName: action.payload };
     }
     case "RESTORE_BACKUP": {
-      const { tasks, team, categories, agencyName, notices } = action.payload;
+      const { tasks, clients, team, categories, agencyName, notices } = action.payload;
       if (team) _syncTeam(team);
       if (categories) _syncCategories(categories);
       return {
         ...state,
         tasks: tasks ?? state.tasks,
+        clients: clients ?? state.clients,
         team: team ?? state.team,
         categories: categories ?? state.categories,
         agencyName: agencyName ?? state.agencyName,
@@ -581,6 +598,20 @@ function baseReducer(state, action) {
     case "TOGGLE_NOTIF": return { ...state, showNotif: !state.showNotif };
     case "SET_FILTER": return { ...state, filters: { ...state.filters, ...action.payload } };
     case "TOGGLE_SIDEBAR": return { ...state, sidebarCollapsed: !state.sidebarCollapsed };
+
+    // ─── CLIENTI (v0.9) ───
+    case "ADD_CLIENT": {
+      const clients = [action.payload, ...(state.clients || [])];
+      return { ...state, clients, toast: { message: `Cliente "${action.payload.name}" aggiunto!`, type: "success" } };
+    }
+    case "UPDATE_CLIENT": {
+      const clients = (state.clients || []).map(c => c.id === action.payload.id ? { ...c, ...action.payload } : c);
+      return { ...state, clients, toast: { message: "Cliente aggiornato!", type: "success" } };
+    }
+    case "DELETE_CLIENT": {
+      const clients = (state.clients || []).filter(c => c.id !== action.payload);
+      return { ...state, clients, toast: { message: "Cliente rimosso", type: "success" } };
+    }
 
     // ─── PROFILO PERSONALE (non admin-only) ───
     case "UPDATE_OWN_PROFILE": {
@@ -659,6 +690,7 @@ const INITIAL_NOTICES = [
 
 const initialState = {
   tasks: INITIAL_TASKS,
+  clients: INITIAL_CLIENTS,
   team: TEAM,
   categories: CATEGORIES,
   agencyName: "VoyageDesk",
@@ -1935,6 +1967,7 @@ const NotificationsPanel = ({ dispatch }) => {
 const NAV_ITEMS = [
   { id: "dashboard", icon: "📊", label: "Dashboard", roles: ["admin", "manager", "agent", "driver"] },
   { id: "calendar", icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
+  { id: "clients", icon: "👤", label: "Clienti", roles: ["admin", "manager", "agent"] },
   { id: "team", icon: "👥", label: "Team", roles: ["admin", "manager", "agent"] },
   { id: "trash", icon: "🗑️", label: "Cestino", roles: ["admin"] },
   { id: "admin", icon: "⚙️", label: "Admin", roles: ["admin"] },
@@ -6485,10 +6518,11 @@ const AdminIOTab = ({ state, dispatch }) => {
 
   const exportBackup = () => {
     const backup = {
-      version: "0.5",
+      version: "0.9",
       exportedAt: new Date().toISOString(),
       agencyName: state.agencyName,
       tasks: state.tasks,
+      clients: state.clients || [],
       team: state.team,
       categories: state.categories,
       notices: state.notices,
@@ -6938,6 +6972,298 @@ const btnWarning = { padding: "8px 12px", borderRadius: 6, border: "1px solid va
 const modalOverlay = { position: "fixed", inset: 0, background: "rgba(15,32,68,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 600, padding: 16 };
 const modalCard = { background: "#fff", borderRadius: 12, padding: 24, width: "90%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" };
 
+// ─── ANAGRAFICA CLIENTI (v0.9) ─────────────────────────────────────────────
+const CLIENT_TYPES = {
+  privato: { label: "Privato", icon: "👤", color: "#3B82F6", bg: "#EFF6FF" },
+  azienda: { label: "Azienda", icon: "🏢", color: "#F59E0B", bg: "#FFFBEB" },
+  gruppo: { label: "Gruppo", icon: "👥", color: "#10B981", bg: "#ECFDF5" },
+};
+
+const ClientModal = ({ client, onSave, onClose }) => {
+  const isNew = !client?.id;
+  const [form, setForm] = useState(client ? { ...client } : {
+    name: "", type: "privato", email: "", phone: "", address: "", notes: "",
+  });
+  const { isMobile } = useViewport();
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const labelStyle = { fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, display: "block" };
+  const inputStyle = {
+    width: "100%", padding: "9px 12px", borderRadius: 8,
+    border: "1.5px solid var(--border)", background: "#fff",
+    fontSize: 14, color: "var(--text)", outline: "none", fontFamily: "inherit",
+  };
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 900, padding: 16 }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto", padding: isMobile ? 20 : 28, boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }} className="fade-in">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+          <h2 className="playfair" style={{ fontSize: 20, color: "var(--navy)" }}>{isNew ? "Nuovo Cliente" : "Modifica Cliente"}</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text-muted)" }}>✕</button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div>
+            <label style={labelStyle}>Nome / Ragione Sociale *</label>
+            <input value={form.name} onChange={e => set("name", e.target.value)} placeholder="es. Famiglia Rossi" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Tipo cliente</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              {Object.entries(CLIENT_TYPES).map(([k, v]) => (
+                <button key={k} onClick={() => set("type", k)} style={{
+                  flex: 1, padding: "8px 6px", borderRadius: 8, cursor: "pointer", fontSize: 12,
+                  border: form.type === k ? `2px solid ${v.color}` : "2px solid var(--border)",
+                  background: form.type === k ? v.bg : "#fff",
+                  color: form.type === k ? v.color : "var(--text-muted)",
+                  fontWeight: form.type === k ? 700 : 400, transition: "all 0.15s",
+                }}>{v.icon} {v.label}</button>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Email</label>
+              <input value={form.email} onChange={e => set("email", e.target.value)} type="email" placeholder="email@esempio.it" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Telefono</label>
+              <input value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="+39 333 000000" style={inputStyle} />
+            </div>
+          </div>
+          <div>
+            <label style={labelStyle}>Indirizzo</label>
+            <input value={form.address} onChange={e => set("address", e.target.value)} placeholder="Via Roma 1, Milano" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Note interne</label>
+            <textarea value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Preferenze, note speciali..." rows={3}
+              style={{ ...inputStyle, resize: "vertical" }} />
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 10, marginTop: 24, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ padding: "10px 20px", borderRadius: 8, border: "1.5px solid var(--border)", background: "#fff", color: "var(--text-muted)", cursor: "pointer", fontSize: 14 }}>Annulla</button>
+          <button onClick={() => { if (form.name.trim()) onSave(form); }} disabled={!form.name.trim()} style={{
+            padding: "10px 20px", borderRadius: 8, border: "none",
+            background: form.name.trim() ? "var(--navy)" : "var(--border)",
+            color: form.name.trim() ? "#fff" : "var(--text-muted)",
+            cursor: form.name.trim() ? "pointer" : "not-allowed", fontSize: 14, fontWeight: 600,
+          }}>{isNew ? "Crea Cliente" : "Salva Modifiche"}</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ClientiView = ({ state, dispatch }) => {
+  const { isMobile, isDesktop } = useViewport();
+  const [search, setSearch] = useState("");
+  const [filterType, setFilterType] = useState("all");
+  const [showModal, setShowModal] = useState(false);
+  const [editingClient, setEditingClient] = useState(null);
+  const [selectedClient, setSelectedClient] = useState(null);
+  const uid = state.currentUserId;
+  const canEdit = getRoleType(uid) !== "driver";
+  const clients = state.clients || [];
+  const activeTasks = getActiveTasks(state.tasks);
+  const getClientTasks = name => activeTasks.filter(t => t.client === name);
+
+  const filtered = clients.filter(c => {
+    const matchSearch = !search || c.name.toLowerCase().includes(search.toLowerCase()) || (c.email || "").toLowerCase().includes(search.toLowerCase());
+    const matchType = filterType === "all" || c.type === filterType;
+    return matchSearch && matchType;
+  });
+
+  const handleSave = (form) => {
+    if (form.id) {
+      dispatch({ type: "UPDATE_CLIENT", payload: form });
+    } else {
+      dispatch({ type: "ADD_CLIENT", payload: { ...form, id: `cl${Date.now()}`, createdAt: new Date().toISOString() } });
+    }
+    setShowModal(false);
+    setEditingClient(null);
+  };
+
+  const handleDelete = (clientId) => {
+    dispatch({ type: "DELETE_CLIENT", payload: clientId });
+    if (selectedClient?.id === clientId) setSelectedClient(null);
+  };
+
+  const detail = selectedClient ? (clients.find(c => c.id === selectedClient.id) || null) : null;
+
+  return (
+    <div style={{ padding: isMobile ? 14 : 28 }} className="fade-in">
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <h1 className="playfair" style={{ fontSize: isMobile ? 22 : 28, color: "var(--navy)", marginBottom: 4 }}>Anagrafica Clienti</h1>
+          <p style={{ fontSize: 14, color: "var(--text-muted)" }}>{clients.length} {clients.length === 1 ? "cliente" : "clienti"} totali</p>
+        </div>
+        {canEdit && (
+          <button onClick={() => { setEditingClient(null); setShowModal(true); }}
+            style={{ padding: "10px 20px", borderRadius: 10, background: "var(--navy)", color: "#fff", border: "none", cursor: "pointer", fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}
+            onMouseEnter={e => e.currentTarget.style.background = "var(--navy-light)"}
+            onMouseLeave={e => e.currentTarget.style.background = "var(--navy)"}
+          >+ Nuovo Cliente</button>
+        )}
+      </div>
+
+      {/* Search + Filter bar */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca per nome o email..."
+          style={{ flex: 1, minWidth: 180, padding: "9px 14px", borderRadius: 8, border: "1.5px solid var(--border)", fontSize: 14, outline: "none", background: "#fff" }} />
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {[["all", "Tutti"], ...Object.entries(CLIENT_TYPES).map(([k, v]) => [k, v.label])].map(([k, label]) => (
+            <button key={k} onClick={() => setFilterType(k)} style={{
+              padding: "8px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13,
+              border: filterType === k ? "1.5px solid var(--navy)" : "1.5px solid var(--border)",
+              background: filterType === k ? "var(--navy)" : "#fff",
+              color: filterType === k ? "#fff" : "var(--text-muted)",
+              fontWeight: filterType === k ? 600 : 400, transition: "all 0.15s",
+            }}>{label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Main layout: list + optional detail panel */}
+      <div style={{ display: "grid", gridTemplateColumns: detail && isDesktop ? "1fr 380px" : "1fr", gap: 20, alignItems: "start" }}>
+        {/* Client cards */}
+        <div>
+          {filtered.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--text-muted)" }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>👤</div>
+              <p style={{ fontSize: 16, fontWeight: 500 }}>{search || filterType !== "all" ? "Nessun cliente trovato" : "Nessun cliente inserito"}</p>
+              {!search && filterType === "all" && canEdit && (
+                <button onClick={() => setShowModal(true)} style={{ marginTop: 16, padding: "10px 20px", borderRadius: 8, background: "var(--navy)", color: "#fff", border: "none", cursor: "pointer", fontSize: 14 }}>Aggiungi il primo cliente</button>
+              )}
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}>
+              {filtered.map(client => {
+                const taskCount = getClientTasks(client.name).length;
+                const type = CLIENT_TYPES[client.type] || CLIENT_TYPES.privato;
+                const isSelected = selectedClient?.id === client.id;
+                return (
+                  <div key={client.id} onClick={() => setSelectedClient(isSelected ? null : client)}
+                    style={{
+                      background: "#fff", borderRadius: 12, padding: "16px 18px",
+                      border: isSelected ? "2px solid var(--navy)" : "1.5px solid var(--border)",
+                      cursor: "pointer", transition: "all 0.18s",
+                      boxShadow: isSelected ? "0 4px 20px rgba(15,32,68,0.12)" : "0 1px 4px rgba(0,0,0,0.05)",
+                    }}
+                    onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.borderColor = "var(--navy-light)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.09)"; } }}
+                    onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.05)"; } }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ marginBottom: 5 }}>
+                          <span style={{ padding: "2px 8px", borderRadius: 20, fontSize: 11, fontWeight: 600, background: type.bg, color: type.color }}>{type.icon} {type.label}</span>
+                        </div>
+                        <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{client.name}</h3>
+                      </div>
+                      {canEdit && (
+                        <div style={{ display: "flex", gap: 2, marginLeft: 8 }} onClick={e => e.stopPropagation()}>
+                          <button onClick={() => { setEditingClient(client); setShowModal(true); }}
+                            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, color: "var(--text-muted)", padding: "4px 5px", borderRadius: 4 }} title="Modifica">✏️</button>
+                          <button onClick={() => handleDelete(client.id)}
+                            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, color: "var(--danger)", padding: "4px 5px", borderRadius: 4 }} title="Elimina">🗑️</button>
+                        </div>
+                      )}
+                    </div>
+                    {(client.email || client.phone) && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 8 }}>
+                        {client.email && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>✉️ {client.email}</span>}
+                        {client.phone && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>📞 {client.phone}</span>}
+                      </div>
+                    )}
+                    {client.notes && (
+                      <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.5 }}>{client.notes}</p>
+                    )}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
+                      <span style={{ fontSize: 12, padding: "3px 10px", borderRadius: 20, background: taskCount > 0 ? "#EFF6FF" : "var(--surface3)", color: taskCount > 0 ? "#3B82F6" : "var(--text-muted)", fontWeight: 600 }}>
+                        {taskCount} task{taskCount === 1 ? "" : ""}
+                      </span>
+                      {client.address && <span style={{ fontSize: 11, color: "var(--text-light)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }}>📍 {client.address}</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Detail panel (desktop: sidebar; mobile: rendered below grid) */}
+        {detail && (
+          <div style={{ background: "#fff", borderRadius: 14, border: "1.5px solid var(--border)", boxShadow: "0 4px 20px rgba(0,0,0,0.08)", overflow: "hidden" }} className="fade-in">
+            <div style={{ padding: "18px 20px 14px", borderBottom: "1px solid var(--border)", background: "var(--navy)", color: "#fff" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 3 }}>{CLIENT_TYPES[detail.type]?.icon} {CLIENT_TYPES[detail.type]?.label}</div>
+                  <h3 className="playfair" style={{ fontSize: 18 }}>{detail.name}</h3>
+                </div>
+                <button onClick={() => setSelectedClient(null)} style={{ background: "rgba(255,255,255,0.12)", border: "none", borderRadius: 6, width: 28, height: 28, cursor: "pointer", color: "#fff", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+              </div>
+            </div>
+            <div style={{ padding: 20 }}>
+              {(detail.email || detail.phone || detail.address) && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 8 }}>CONTATTI</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                    {detail.email && <div style={{ fontSize: 13 }}>✉️ <a href={`mailto:${detail.email}`} style={{ color: "var(--navy)", textDecoration: "none" }}>{detail.email}</a></div>}
+                    {detail.phone && <div style={{ fontSize: 13, color: "var(--text)" }}>📞 {detail.phone}</div>}
+                    {detail.address && <div style={{ fontSize: 13, color: "var(--text)" }}>📍 {detail.address}</div>}
+                  </div>
+                </div>
+              )}
+              {detail.notes && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 8 }}>NOTE</div>
+                  <p style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.6, background: "var(--surface2)", borderRadius: 8, padding: "10px 12px" }}>{detail.notes}</p>
+                </div>
+              )}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 8 }}>TASK ASSOCIATI</div>
+                {(() => {
+                  const tasks = getClientTasks(detail.name);
+                  if (tasks.length === 0) return <p style={{ fontSize: 13, color: "var(--text-muted)", fontStyle: "italic" }}>Nessun task attivo per questo cliente</p>;
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {tasks.map(t => (
+                        <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
+                          style={{ padding: "10px 12px", borderRadius: 8, background: "var(--surface2)", border: "1px solid var(--border)", cursor: "pointer", transition: "background 0.15s" }}
+                          onMouseEnter={e => e.currentTarget.style.background = "var(--surface3)"}
+                          onMouseLeave={e => e.currentTarget.style.background = "var(--surface2)"}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", flex: 1 }}>{t.title}</span>
+                            <StatusBadge status={t.status} />
+                          </div>
+                          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
+                            <CategoryChip category={t.category} />
+                            <PriorityBadge priority={t.priority} />
+                            {t.dueDate && <span style={{ fontSize: 11, color: isOverdue(t) ? "var(--danger)" : "var(--text-muted)", fontWeight: isOverdue(t) ? 600 : 400 }}>📅 {formatDate(t.dueDate)}</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+              {canEdit && (
+                <button onClick={() => { setEditingClient(detail); setShowModal(true); }}
+                  style={{ marginTop: 16, width: "100%", padding: "10px", borderRadius: 8, border: "1.5px solid var(--border)", background: "#fff", cursor: "pointer", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}
+                  onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                  onMouseLeave={e => e.currentTarget.style.background = "#fff"}>✏️ Modifica Cliente</button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {showModal && (
+        <ClientModal client={editingClient} onSave={handleSave} onClose={() => { setShowModal(false); setEditingClient(null); }} />
+      )}
+    </div>
+  );
+};
+
 // ─── ROOT APP ──────────────────────────────────────────────────────────────
 export default function VoyageDesk() {
   return (
@@ -6994,6 +7320,7 @@ function VoyageDeskInner() {
     switch (state.activeView) {
       case "dashboard": return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
       case "calendar": return <CalendarPlanner state={state} dispatch={dispatch} />;
+      case "clients": return <ClientiView state={state} dispatch={dispatch} />;
       case "team": return <Team state={state} dispatch={dispatch} />;
       case "trash": return <Trash state={state} dispatch={dispatch} />;
       case "admin": return <AdminView state={state} dispatch={dispatch} />;

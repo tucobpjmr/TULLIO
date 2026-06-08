@@ -47,12 +47,14 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 | Modulo | Stato | Priorità | Sforzo | Dipende da |
 |---|---|---|---|---|
-| Anagrafica Clienti (CRM base) | 🔶 | 🔴 | M | — |
+| Anagrafica Clienti (CRM base) | ✅ | 🔴 | M | — |
 | Anagrafica Fornitori | ⬜ | 🔴 | M | — |
 | Pratiche di viaggio | ⬜ | 🔴 | L | Clienti + Fornitori |
-| Collegamento Task ↔ Cliente ↔ Pratica | ⬜ | 🔴 | M | i tre sopra |
+| Collegamento Task ↔ Cliente ↔ Pratica | 🔶 | 🔴 | M | i tre sopra |
 
-**Stato Anagrafica Clienti (v0.9-dev)** — MVP completato: vista dedicata `Clienti` nella sidebar/bottom-nav, lista con ricerca + filtro per tipo (Privato/Azienda/Gruppo), modale crea/modifica con campi (nome, tipo, email, telefono, indirizzo, note), modale dettaglio con tab Anagrafica + Task collegati (lookup per `clientId` o per nome legacy). Reducer actions `ADD_CLIENT`/`UPDATE_CLIENT`/`DELETE_CLIENT` con check `canManageClients` (no Driver). 6 clienti mock pre-caricati. Da fare nello step successivo: collegamento bidirezionale Task ↔ Cliente (autocomplete del campo `client` nel form task + scrittura `clientId`).
+**Stato Anagrafica Clienti (v0.9-dev)** — vista dedicata `Clienti`, lista con ricerca + filtro per tipo, modale crea/modifica, modale dettaglio con Anagrafica + Task collegati, reducer actions + permessi.
+
+**Stato Collegamento Task ↔ Cliente (v0.9-dev)** — lato Task→Cliente fatto: componente `ClientAutocomplete` riusabile (input con dropdown suggerimenti che setta sia il testo `task.client` sia `task.clientId`) integrato in `QuickAddTask` e `BulkTaskCreator` (tab Manuale). `TaskSlideOver` mostra il cliente come chip cliccabile che apre il dettaglio cliente via nuova action `OPEN_CLIENT_DETAIL` (cross-view, consumata da `ClientsView` tramite `state.clientDetailRequest`). Da fare per il pieno collegamento: pratiche e Task ↔ Pratica (richiede modulo Pratiche).
 
 **Dettaglio Pratiche** — modulo centrale: aggrega task, documenti, pagamenti e fornitori di un singolo viaggio; numerazione progressiva (`PR-2026-001`), stati (Bozza → Confermata → In corso → Completata/Annullata), riepilogo economico, timeline eventi.
 

@@ -31,6 +31,12 @@
 ### 🔜 Step successivo
 - Collegamento bidirezionale Task ↔ Cliente: autocomplete del campo `client` in `QuickAddTask`/`TaskSlideOver`, scrittura di `task.clientId` quando si seleziona un cliente esistente.
 
+### 🔗 Collegamento Task ↔ Cliente (stesso sprint)
+- Nuovo componente riusabile `ClientAutocomplete`: input con dropdown suggerimenti dal lookup `CLIENTS`. Selezione di un cliente esistente → setta `task.client` (testo) + `task.clientId`. Digitazione libera → `clientId = null` (link spezzato). Badge `🪪 LINK` visibile quando il task è collegato a un cliente in anagrafica.
+- Integrato in `QuickAddTask` (campo Cliente) e `BulkTaskCreator` → tab Manuale (cliente comune).
+- `TaskSlideOver`: il blocco Cliente ora rileva l'eventuale cliente collegato (per `task.clientId` o per nome) e lo mostra come **chip cliccabile** colorato per tipo. Click → apre il dettaglio cliente nella vista Clienti.
+- Nuova action `OPEN_CLIENT_DETAIL` (richiede `canViewClients`) + campo `state.clientDetailRequest`. `ClientsView` consuma la richiesta al mount con `CONSUME_CLIENT_DETAIL_REQUEST`.
+
 ---
 
 ## v0.9-dev — Ristrutturazione UI + Profilo + Handoff (sessione 8)

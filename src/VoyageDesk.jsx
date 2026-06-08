@@ -605,6 +605,15 @@ function baseReducer(state, action) {
     case "SET_FILTER": return { ...state, filters: { ...state.filters, ...action.payload } };
     case "TOGGLE_SIDEBAR": return { ...state, sidebarCollapsed: !state.sidebarCollapsed };
 
+    // Apre il dettaglio di un cliente saltando alla vista Clienti
+    case "OPEN_CLIENT_DETAIL": {
+      const cid = action.payload;
+      if (!canViewClients(uid)) return _denied("Non hai accesso all'anagrafica clienti");
+      return { ...state, activeView: "clients", clientDetailRequest: cid, selectedTask: null };
+    }
+    case "CONSUME_CLIENT_DETAIL_REQUEST":
+      return { ...state, clientDetailRequest: null };
+
     // ─── ANAGRAFICA CLIENTI (non admin-only: gestiti da admin/manager/agent) ───
     case "ADD_CLIENT": {
       if (!canManageClients(uid)) return _denied("Solo Admin/Manager/Agent può gestire i clienti");
@@ -719,6 +728,7 @@ const initialState = {
   team: TEAM,
   categories: CATEGORIES,
   clients: CLIENTS,
+  clientDetailRequest: null, // id cliente da aprire al render della vista Clienti
   agencyName: "VoyageDesk",
   notices: INITIAL_NOTICES,
   activityLog: [],
@@ -2199,7 +2209,7 @@ const bulkIconBtnSmall = {
 
 // ─── BULK: MANUAL TAB ──────────────────────────────────────────────────────
 const ManualTab = ({ onCreate, onClose }) => {
-  const [common, setCommon] = useState({ client: "", category: "booking", priority: "medium", assignee: "" });
+  const [common, setCommon] = useState({ client: "", clientId: null, category: "booking", priority: "medium", assignee: "" });
   const emptyRow = () => ({ key: Math.random().toString(36).slice(2), title: "", category: "", priority: "", assignee: "", dueDate: "" });
   const [rows, setRows] = useState([emptyRow(), emptyRow(), emptyRow()]);
 
@@ -2219,6 +2229,7 @@ const ManualTab = ({ onCreate, onClose }) => {
       status: "todo",
       assignees: (r.assignee || common.assignee) ? [r.assignee || common.assignee] : [],
       client: common.client.trim() || null,
+      clientId: common.clientId || null,
       dueDate: r.dueDate ? new Date(r.dueDate).toISOString() : null,
       estimatedHours: 1,
       description: "",
@@ -2235,7 +2246,13 @@ const ManualTab = ({ onCreate, onClose }) => {
           IMPOSTAZIONI COMUNI (usate se la riga non specifica)
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
-          <input value={common.client} onChange={e => setCommon({ ...common, client: e.target.value })} placeholder="Cliente" style={bulkInputStyle} />
+          <ClientAutocomplete
+            value={common.client}
+            clientId={common.clientId}
+            onChange={({ text, clientId }) => setCommon({ ...common, client: text, clientId })}
+            style={bulkInputStyle}
+            placeholder="Cliente"
+          />
           <select value={common.category} onChange={e => setCommon({ ...common, category: e.target.value })} style={bulkInputStyle}>
             {Object.entries(CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
           </select>
@@ -4086,7 +4103,7 @@ const QuickAddTask = ({ onAdd, onClose }) => {
 
   const [form, setForm] = useState({
     title: "", category: firstCatKey, priority: "medium",
-    status: "todo", assignees: [], dueDate: "", client: "", description: ""
+    status: "todo", assignees: [], dueDate: "", client: "", clientId: null, description: ""
   });
 
   const handleSubmit = () => {
@@ -4095,6 +4112,7 @@ const QuickAddTask = ({ onAdd, onClose }) => {
       id: "t" + Date.now(),
       ...form,
       client: form.client.trim() || null,
+      clientId: form.clientId || null,
       comments: [],
       estimatedHours: 1,
       dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
@@ -4167,7 +4185,13 @@ const QuickAddTask = ({ onAdd, onClose }) => {
 
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>CLIENTE</label>
-            <input {...inp("client")} placeholder="Es. Famiglia Rossi..." />
+            <ClientAutocomplete
+              value={form.client}
+              clientId={form.clientId}
+              onChange={({ text, clientId }) => setForm(p => ({ ...p, client: text, clientId }))}
+              style={inp("client").style}
+              placeholder="Es. Famiglia Rossi…"
+            />
           </div>
 
           <div>
@@ -4297,9 +4321,35 @@ const TaskSlideOver = ({ task, dispatch }) => {
             </div>
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>CLIENTE</div>
-              <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>
-                {task.client || <span style={{ color: "var(--text-muted)" }}>—</span>}
-              </div>
+              {(() => {
+                const linked = task.clientId
+                  ? CLIENTS.find(c => c.id === task.clientId)
+                  : (task.client ? CLIENTS.find(c => c.name.toLowerCase() === task.client.toLowerCase()) : null);
+                if (linked) {
+                  const tp = CLIENT_TYPES[linked.type] || CLIENT_TYPES.private;
+                  return (
+                    <button
+                      onClick={() => dispatch({ type: "OPEN_CLIENT_DETAIL", payload: linked.id })}
+                      title="Apri scheda cliente"
+                      style={{
+                        fontSize: 13, padding: "4px 10px", background: tp.bg, color: tp.color,
+                        borderRadius: 8, display: "inline-flex", alignItems: "center", gap: 6,
+                        border: `1px solid ${tp.color}33`, cursor: "pointer", fontWeight: 600,
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      <span>{tp.icon}</span>
+                      <span>{linked.name}</span>
+                      <span style={{ fontSize: 11, opacity: 0.7 }}>→</span>
+                    </button>
+                  );
+                }
+                return (
+                  <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>
+                    {task.client || <span style={{ color: "var(--text-muted)" }}>—</span>}
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
@@ -5940,6 +5990,99 @@ const FAB = ({ onClick }) => {
 };
 
 // ─── CLIENTI (CRM base, v0.9 — Fase 1 roadmap) ─────────────────────────────
+
+// Input con suggerimenti dal lookup CLIENTS. Conserva sia il testo libero sia il clientId.
+// Quando l'utente seleziona un cliente esistente: text=name, clientId=id.
+// Quando digita liberamente: text=quanto digitato, clientId=null (link spezzato).
+const ClientAutocomplete = ({ value, clientId, onChange, placeholder, style, inputProps = {} }) => {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const q = (value || "").toLowerCase().trim();
+  const matches = (q.length ? CLIENTS.filter(c => c.name.toLowerCase().includes(q)) : CLIENTS).slice(0, 6);
+
+  const select = (c) => {
+    onChange({ text: c.name, clientId: c.id });
+    setOpen(false);
+  };
+
+  const onType = (e) => {
+    const v = e.target.value;
+    // Se il testo corrisponde esattamente al nome del cliente collegato manteniamo il link
+    const linked = clientId && CLIENTS.find(c => c.id === clientId)?.name === v;
+    onChange({ text: v, clientId: linked ? clientId : null });
+    setOpen(true);
+  };
+
+  const clear = () => {
+    onChange({ text: "", clientId: null });
+    setOpen(false);
+  };
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative" }}>
+      <input
+        {...inputProps}
+        value={value || ""}
+        onChange={onType}
+        onFocus={() => setOpen(true)}
+        placeholder={placeholder || "Es. Famiglia Rossi…"}
+        style={{ ...style, paddingRight: clientId ? 96 : (value ? 32 : style?.paddingRight) }}
+      />
+      {clientId && (
+        <span title="Cliente collegato all'anagrafica" style={{
+          position: "absolute", right: 30, top: "50%", transform: "translateY(-50%)",
+          fontSize: 10, fontWeight: 700, color: "var(--success)", background: "#E8F4ED",
+          padding: "2px 6px", borderRadius: 4, pointerEvents: "none", letterSpacing: 0.5,
+        }}>🪪 LINK</span>
+      )}
+      {value && (
+        <button type="button" onClick={clear} title="Pulisci" style={{
+          position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
+          background: "transparent", border: "none", color: "var(--text-muted)",
+          cursor: "pointer", fontSize: 14, padding: 2, lineHeight: 1,
+        }}>✕</button>
+      )}
+      {open && matches.length > 0 && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
+          background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
+          maxHeight: 240, overflowY: "auto", zIndex: 50,
+          boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+        }}>
+          {matches.map(c => {
+            const tp = CLIENT_TYPES[c.type] || CLIENT_TYPES.private;
+            return (
+              <div key={c.id} onMouseDown={(e) => { e.preventDefault(); select(c); }} style={{
+                padding: "8px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+                borderBottom: "1px solid var(--border)",
+              }}
+                onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              >
+                <span style={{ fontSize: 16, width: 22, textAlign: "center" }}>{tp.icon}</span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</div>
+                  {c.email && <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.email}</div>}
+                </div>
+                <span style={{ fontSize: 9, fontWeight: 700, color: tp.color, textTransform: "uppercase", letterSpacing: 0.5 }}>{tp.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ClientsView = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
   const uid = state.currentUserId;
@@ -5947,6 +6090,14 @@ const ClientsView = ({ state, dispatch }) => {
   const [typeFilter, setTypeFilter] = useState("");
   const [editing, setEditing] = useState(null);   // null | {} (new) | client
   const [detailId, setDetailId] = useState(null); // currently viewed client id
+
+  // Consuma una richiesta esterna di aprire il dettaglio (es. da TaskSlideOver)
+  useEffect(() => {
+    if (state.clientDetailRequest) {
+      setDetailId(state.clientDetailRequest);
+      dispatch({ type: "CONSUME_CLIENT_DETAIL_REQUEST" });
+    }
+  }, [state.clientDetailRequest, dispatch]);
 
   if (!canViewClients(uid)) {
     return (

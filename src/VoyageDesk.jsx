@@ -2712,18 +2712,17 @@ Regole:
 - Per i campi "taskId" usa esattamente gli id forniti.
 - Massimo 2 "tips", brevi.`;
 
-    fetch("https://api.anthropic.com/v1/messages", {
+    fetch("/api/ai-day-planner", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1000,
-        messages: [{ role: "user", content: prompt }],
-      }),
+      body: JSON.stringify({ prompt, maxTokens: 1000 }),
     })
-      .then(r => {
-        if (!r.ok) throw new Error("Errore di rete (HTTP " + r.status + ")");
-        return r.json();
+      .then(async r => {
+        const data = await r.json().catch(() => null);
+        if (!r.ok) {
+          throw new Error(data?.error || ("Errore di rete (HTTP " + r.status + ")"));
+        }
+        return data;
       })
       .then(data => {
         if (cancelled) return;

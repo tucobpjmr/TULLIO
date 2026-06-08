@@ -1,5 +1,49 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9-dev — Pratiche di viaggio MVP (sessione 11)
+
+> Step centrale di Fase 1: introdotto il modulo Pratiche di viaggio che aggrega titolo, cliente, date, viaggiatori, riepilogo economico e task collegati di un singolo viaggio.
+
+### 📁 Modulo Pratiche
+- Nuova entry `pratiche` in `NAV_ITEMS` (icona 📁) — visibile a Admin/Manager/Agent (no Driver).
+- `PraticheView`: card grid con ricerca testuale (numero, titolo, destinazione, cliente) e filtro per stato.
+- `PraticaEditorModal`: form crea/modifica con numero progressivo auto-generato (`PR-AAAA-NNN`), titolo, cliente (select), stato, destinazione, date partenza/ritorno, viaggiatori, budget/ricavo/costo, note.
+- `PraticaDetailModal` con 3 tab:
+  - **Anagrafica**: cliente cliccabile (apre dettaglio cliente), destinazione, date, viaggiatori, note, timestamp.
+  - **Task collegati**: list dei task con `praticaId` corrispondente; click apre `TaskSlideOver`.
+  - **Economico**: 4 card (Budget, Ricavo, Costo, Margine) con calcolo automatico margine + percentuale.
+- Pulsanti rapidi di cambio stato nel header del dettaglio.
+
+### 🔢 Numerazione progressiva
+- Helper `getNextPraticaNumber(pratiche)` → genera il prossimo numero nel formato `PR-{ANNO_CORRENTE}-NNN` basato sui numeri già usati nello stesso anno.
+
+### 🔗 Collegamento Task ↔ Pratica
+- Nuovo campo opzionale `task.praticaId`.
+- Nuovo componente `PraticaAutocomplete` (specchio di `ClientAutocomplete`): suggerisce le pratiche; se è già selezionato un cliente, ordina prima le sue pratiche.
+- Integrato in `QuickAddTask` (nuovo campo PRATICA) e `BulkTaskCreator` tab Manuale (riga "Collega a una pratica").
+- `TaskSlideOver`: se il task ha `praticaId`, nuova riga PRATICA con chip cliccabile (numero + titolo) che apre il dettaglio pratica.
+- Eliminare una pratica scollega i task (`task.praticaId = null`).
+
+### 🪪 Cliente ⇄ Pratica
+- `ClientDetailModal` ora ha 3 tab: Anagrafica, **Pratiche** (nuovo), Task. Click su una pratica apre il suo dettaglio.
+
+### 🛤️ Cross-view navigation
+- Nuove action `OPEN_PRATICA_DETAIL` (richiede `canViewPratiche`) + `CONSUME_PRATICA_DETAIL_REQUEST`.
+- `PraticheView` consuma `state.praticaDetailRequest` al mount.
+
+### 🧰 Reducer actions
+- `ADD_PRATICA`, `UPDATE_PRATICA`, `DELETE_PRATICA` (no Driver) + log attività.
+
+### 🗃️ Mock & state
+- `PRATICA_STATUSES`: `draft`, `confirmed`, `in_progress`, `completed`, `cancelled` con icona + colore.
+- 6 pratiche mock pre-caricate collegate ai 6 clienti esistenti, con date relative coerenti.
+- `initialState.pratiche = PRATICHE`, `_syncPratiche` per mutazione globale (pattern TEAM/CATEGORIES/CLIENTS).
+
+### 🔜 Step successivo
+- Fase 3 → Modulo Finanziario: estende il riepilogo economico delle pratiche con pagamenti/acconti, scadenze, allegati e report.
+
+---
+
 ## v0.9-dev — Notifiche reali (sessione 10)
 
 > Sostituite le notifiche statiche del topbar con un sistema reale persistito nello state, generato automaticamente dagli eventi del reducer.

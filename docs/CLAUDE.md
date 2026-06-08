@@ -119,6 +119,9 @@ Famiglia Rossi (Maldive), Coppia Bianchi (Giappone), Azienda TechCorp (Incentive
 ### Clienti (CRM base, no Driver)
 `ADD_CLIENT`, `UPDATE_CLIENT`, `DELETE_CLIENT`, `OPEN_CLIENT_DETAIL`, `CONSUME_CLIENT_DETAIL_REQUEST`
 
+### Pratiche di viaggio (no Driver)
+`ADD_PRATICA`, `UPDATE_PRATICA`, `DELETE_PRATICA`, `OPEN_PRATICA_DETAIL`, `CONSUME_PRATICA_DETAIL_REQUEST`
+
 ### Notifiche (reali, per-utente)
 `MARK_NOTIF_READ`, `MARK_ALL_NOTIF_READ`, `CLEAR_NOTIF`, `CLEAR_ALL_NOTIF`
 (Generate automaticamente in `ADD_TASK`/`ADD_TASKS_BULK`/`UPDATE_TASK`/`MOVE_TASK`/`ADD_COMMENT`.)
@@ -164,6 +167,10 @@ getNavItemsForUser(userId)       — NAV_ITEMS filtrati per ruolo
 canViewClients(userId), canManageClients(userId)
 getClient(id, clients?)          — lookup cliente per id
 getTasksByClient(tasks, client)  — task collegati per clientId o per nome legacy
+canViewPratiche(userId), canManagePratiche(userId)
+getPratica(id, pratiche?), getPraticheByClient(pratiche, clientId)
+getTasksByPratica(tasks, praticaId)
+getNextPraticaNumber(pratiche)   — genera PR-AAAA-NNN progressivo per anno corrente
 ```
 
 ## Classi CSS responsive (definite in FontLoader)

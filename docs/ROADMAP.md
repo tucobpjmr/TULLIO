@@ -48,8 +48,8 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 | Modulo | Stato | Priorità | Sforzo | Dipende da |
 |---|---|---|---|---|
 | Anagrafica Clienti (CRM base) | ✅ | 🔴 | M | — |
-| Pratiche di viaggio | ⬜ | 🔴 | L | Clienti |
-| Collegamento Task ↔ Cliente ↔ Pratica | 🔶 | 🔴 | M | i due sopra |
+| Pratiche di viaggio | 🔶 | 🔴 | L | Clienti |
+| Collegamento Task ↔ Cliente ↔ Pratica | ✅ | 🔴 | M | i due sopra |
 
 **Stato Anagrafica Clienti (v0.9-dev)** — vista dedicata `Clienti`, lista con ricerca + filtro per tipo, modale crea/modifica, modale dettaglio con Anagrafica + Task collegati, reducer actions + permessi.
 

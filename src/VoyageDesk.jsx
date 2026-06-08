@@ -321,16 +321,43 @@ let CLIENTS = [
   { id: "cli6", name: "Sposi Conte",        type: "private",  email: "conte.matrimonio@email.it", phone: "+39 333 666 6666", address: "Via Dante 9, Napoli",             notes: "Luna di miele Vietnam. Coppia giovane, primo viaggio in Asia.", createdAt: _agoDays(14) },
 ];
 
+// ─── PRATICHE DI VIAGGIO (v0.9 — Fase 1) ───────────────────────────────────
+const PRATICA_STATUSES = ["draft", "confirmed", "in_progress", "completed", "cancelled"];
+const PRATICA_STATUS_META = {
+  draft:       { label: "Bozza",      icon: "📝", color: "#6B7280", bg: "#F3F4F6" },
+  confirmed:   { label: "Confermata", icon: "✅", color: "#1a3060", bg: "#E4E9F1" },
+  in_progress: { label: "In corso",   icon: "🟢", color: "#2D7A4F", bg: "#E6F1EA" },
+  completed:   { label: "Completata", icon: "🏁", color: "#D4A843", bg: "#FBF4E1" },
+  cancelled:   { label: "Annullata",  icon: "❌", color: "#C0392B", bg: "#FCE9E6" },
+};
+
+const _daysFromNow = (n) => {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  d.setHours(10, 0, 0, 0);
+  return d.toISOString();
+};
+
+let PRATICHE = [
+  { id: "pr1", number: "PR-2026-001", title: "Maldive — Famiglia Rossi",         clientId: "cli1", status: "confirmed",   destination: "Malé, Maldive",          startDate: _daysFromNow(20),  endDate: _daysFromNow(34),  travelers: 4,  budget: 18000, revenue: 19500, cost: 14200, notes: "Resort Overwater Bungalow, voli diretti, transfer privato.",                          createdAt: _agoDays(60), updatedAt: _agoDays(7) },
+  { id: "pr2", number: "PR-2026-002", title: "Giappone — Luna di miele Bianchi", clientId: "cli2", status: "in_progress", destination: "Tokyo + Kyoto + Osaka",  startDate: _daysFromNow(45),  endDate: _daysFromNow(60),  travelers: 2,  budget: 12000, revenue: 13800, cost: 9800,  notes: "Itinerario culturale, ryokan a Kyoto, JR pass 14gg.",                                  createdAt: _agoDays(50), updatedAt: _agoDays(3) },
+  { id: "pr3", number: "PR-2026-003", title: "Incentive TechCorp",                clientId: "cli3", status: "draft",        destination: "Dubai + Ras Al Khaimah", startDate: _daysFromNow(75),  endDate: _daysFromNow(80),  travelers: 25, budget: 95000, revenue: 0,    cost: 0,    notes: "Aspettiamo conferma referente HR su date definitive.",                                createdAt: _agoDays(20), updatedAt: _agoDays(2) },
+  { id: "pr4", number: "PR-2026-004", title: "Caraibi — Famiglia Marchetti",     clientId: "cli4", status: "confirmed",   destination: "Punta Cana",             startDate: _daysFromNow(100), endDate: _daysFromNow(114), travelers: 4,  budget: 14500, revenue: 15200, cost: 11600, notes: "All-inclusive resort, due bambini, animazione.",                                       createdAt: _agoDays(28), updatedAt: _agoDays(5) },
+  { id: "pr5", number: "PR-2026-005", title: "Viaggio studio Liceo Manzoni",     clientId: "cli5", status: "in_progress", destination: "Berlino + Praga",        startDate: _daysFromNow(15),  endDate: _daysFromNow(20),  travelers: 39, budget: 34000, revenue: 36500, cost: 28000, notes: "Gruppo studenti 14-17, due accompagnatori per pullman, hotel 3* centro.",             createdAt: _agoDays(35), updatedAt: _agoDays(1) },
+  { id: "pr6", number: "PR-2026-006", title: "Vietnam — Sposi Conte",            clientId: "cli6", status: "draft",        destination: "Hanoi → Hoi An → HCMC",  startDate: _daysFromNow(85),  endDate: _daysFromNow(101), travelers: 2,  budget: 9500,  revenue: 0,    cost: 0,    notes: "Da definire estensione Phu Quoc nei primi 5 giorni di viaggio.",                       createdAt: _agoDays(10), updatedAt: _agoDays(1) },
+];
+
 // ─── CONTEXT & REDUCER ─────────────────────────────────────────────────────
 const AppContext = createContext(null);
 
-// Mutazione in-place per mantenere il riferimento alle costanti TEAM/CATEGORIES/CLIENTS
+// Mutazione in-place per mantenere il riferimento alle costanti TEAM/CATEGORIES/CLIENTS/PRATICHE
 const _syncTeam = (newTeam) => { TEAM.length = 0; newTeam.forEach(m => TEAM.push(m)); };
 const _syncCategories = (newCats) => {
   Object.keys(CATEGORIES).forEach(k => { delete CATEGORIES[k]; });
   Object.entries(newCats).forEach(([k, v]) => { CATEGORIES[k] = v; });
 };
 const _syncClients = (newClients) => { CLIENTS.length = 0; newClients.forEach(c => CLIENTS.push(c)); };
+const _syncPratiche = (newP) => { PRATICHE.length = 0; newP.forEach(p => PRATICHE.push(p)); };
 
 // Azioni che generano una voce nel log attività
 const LOGGED_ACTIONS = new Set([
@@ -341,6 +368,7 @@ const LOGGED_ACTIONS = new Set([
   "RESTORE_BACKUP",
   "ADD_NOTICE", "UPDATE_NOTICE", "DELETE_NOTICE",
   "ADD_CLIENT", "UPDATE_CLIENT", "DELETE_CLIENT",
+  "ADD_PRATICA", "UPDATE_PRATICA", "DELETE_PRATICA",
 ]);
 
 const buildLogEntry = (action, state) => {
@@ -372,6 +400,9 @@ const buildLogEntry = (action, state) => {
     ADD_CLIENT: () => `Aggiunto cliente "${action.payload.name}"`,
     UPDATE_CLIENT: () => `Modificato cliente "${action.payload.name || action.payload.id}"`,
     DELETE_CLIENT: () => `Eliminato cliente "${state.clients?.find(c => c.id === action.payload)?.name || action.payload}"`,
+    ADD_PRATICA: () => `Creata pratica "${action.payload.number || action.payload.title}"`,
+    UPDATE_PRATICA: () => `Aggiornata pratica "${action.payload.number || action.payload.id}"`,
+    DELETE_PRATICA: () => `Eliminata pratica "${state.pratiche?.find(p => p.id === action.payload)?.number || action.payload}"`,
   };
   return { id: `log-${stamp}-${Math.random().toString(36).slice(2,7)}`, time: stamp, type: t, text: (map[t] || (() => t))() };
 };
@@ -735,6 +766,57 @@ function baseReducer(state, action) {
       return { ...state, clients, toast: { message: `Cliente "${target?.name || ""}" eliminato`, type: "success" } };
     }
 
+    // ─── PRATICHE DI VIAGGIO ───
+    case "ADD_PRATICA": {
+      if (!canManagePratiche(uid)) return _denied("Solo Admin/Manager/Agent può gestire le pratiche");
+      const p = action.payload || {};
+      if (!p.title?.trim()) return _denied("Il titolo della pratica è obbligatorio");
+      if (!p.clientId) return _denied("Una pratica deve essere collegata a un cliente");
+      const now = new Date().toISOString();
+      const newP = {
+        id: `pr-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        number: p.number?.trim() || getNextPraticaNumber(state.pratiche),
+        title: p.title.trim(),
+        clientId: p.clientId,
+        status: PRATICA_STATUSES.includes(p.status) ? p.status : "draft",
+        destination: p.destination?.trim() || "",
+        startDate: p.startDate || null,
+        endDate: p.endDate || null,
+        travelers: typeof p.travelers === "number" ? p.travelers : (parseInt(p.travelers) || 1),
+        budget: typeof p.budget === "number" ? p.budget : (parseFloat(p.budget) || 0),
+        revenue: typeof p.revenue === "number" ? p.revenue : (parseFloat(p.revenue) || 0),
+        cost: typeof p.cost === "number" ? p.cost : (parseFloat(p.cost) || 0),
+        notes: p.notes?.trim() || "",
+        createdAt: now,
+        updatedAt: now,
+      };
+      const pratiche = [newP, ...state.pratiche];
+      _syncPratiche(pratiche);
+      return { ...state, pratiche, toast: { message: `Pratica ${newP.number} creata`, type: "success" } };
+    }
+    case "UPDATE_PRATICA": {
+      if (!canManagePratiche(uid)) return _denied("Solo Admin/Manager/Agent può gestire le pratiche");
+      const p = action.payload;
+      const pratiche = state.pratiche.map(x => x.id === p.id ? { ...x, ...p, updatedAt: new Date().toISOString() } : x);
+      _syncPratiche(pratiche);
+      return { ...state, pratiche, toast: { message: "Pratica aggiornata", type: "success" } };
+    }
+    case "DELETE_PRATICA": {
+      if (!canManagePratiche(uid)) return _denied("Solo Admin/Manager/Agent può gestire le pratiche");
+      const target = state.pratiche.find(p => p.id === action.payload);
+      const pratiche = state.pratiche.filter(p => p.id !== action.payload);
+      _syncPratiche(pratiche);
+      // Sgancia i task dalla pratica eliminata
+      const tasks = state.tasks.map(t => t.praticaId === action.payload ? { ...t, praticaId: null } : t);
+      return { ...state, pratiche, tasks, toast: { message: `Pratica ${target?.number || ""} eliminata`, type: "success" } };
+    }
+    case "OPEN_PRATICA_DETAIL": {
+      if (!canViewPratiche(uid)) return _denied("Non hai accesso alle pratiche");
+      return { ...state, activeView: "pratiche", praticaDetailRequest: action.payload, selectedTask: null };
+    }
+    case "CONSUME_PRATICA_DETAIL_REQUEST":
+      return { ...state, praticaDetailRequest: null };
+
     // ─── PROFILO PERSONALE (non admin-only) ───
     case "UPDATE_OWN_PROFILE": {
       const uid = state.currentUserId;
@@ -816,6 +898,8 @@ const initialState = {
   categories: CATEGORIES,
   clients: CLIENTS,
   clientDetailRequest: null, // id cliente da aprire al render della vista Clienti
+  pratiche: PRATICHE,
+  praticaDetailRequest: null, // id pratica da aprire al render della vista Pratiche
   notifications: buildInitialNotifications(),
   agencyName: "VoyageDesk",
   notices: INITIAL_NOTICES,
@@ -961,6 +1045,28 @@ const appendNotifications = (state, notifs) => {
 // Filtra notifiche per l'utente corrente
 const getUserNotifications = (state, userId) =>
   (state.notifications || []).filter(n => n.recipientId === userId);
+
+// ─── HELPER PRATICHE ───
+const canViewPratiche = (userId) => !isDriver(userId);
+const canManagePratiche = (userId) => !isDriver(userId);
+
+const getPratica = (id, pratiche) => (pratiche || PRATICHE).find(p => p.id === id);
+const getPraticheByClient = (pratiche, clientId) =>
+  (pratiche || PRATICHE).filter(p => p.clientId === clientId);
+const getTasksByPratica = (tasks, praticaId) =>
+  tasks.filter(t => t.praticaId === praticaId);
+
+const getNextPraticaNumber = (pratiche) => {
+  const year = new Date().getFullYear();
+  const prefix = `PR-${year}-`;
+  const used = (pratiche || []).map(p => p.number || "").filter(n => n.startsWith(prefix));
+  let maxN = 0;
+  used.forEach(n => {
+    const m = /(\d+)$/.exec(n);
+    if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
+  });
+  return `${prefix}${String(maxN + 1).padStart(3, "0")}`;
+};
 
 // ─── HELPER CLIENTI ───
 const getClient = (id, clients) => (clients || CLIENTS).find(c => c.id === id);
@@ -2241,6 +2347,7 @@ const NAV_ITEMS = [
   { id: "dashboard", icon: "📊", label: "Dashboard", roles: ["admin", "manager", "agent", "driver"] },
   { id: "calendar", icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
   { id: "clients", icon: "🪪", label: "Clienti", roles: ["admin", "manager", "agent"] },
+  { id: "pratiche", icon: "📁", label: "Pratiche", roles: ["admin", "manager", "agent"] },
   { id: "team", icon: "👥", label: "Team", roles: ["admin", "manager", "agent"] },
   { id: "trash", icon: "🗑️", label: "Cestino", roles: ["admin"] },
   { id: "admin", icon: "⚙️", label: "Admin", roles: ["admin"] },
@@ -2419,7 +2526,7 @@ const bulkIconBtnSmall = {
 
 // ─── BULK: MANUAL TAB ──────────────────────────────────────────────────────
 const ManualTab = ({ onCreate, onClose }) => {
-  const [common, setCommon] = useState({ client: "", clientId: null, category: "booking", priority: "medium", assignee: "" });
+  const [common, setCommon] = useState({ client: "", clientId: null, praticaText: "", praticaId: null, category: "booking", priority: "medium", assignee: "" });
   const emptyRow = () => ({ key: Math.random().toString(36).slice(2), title: "", category: "", priority: "", assignee: "", dueDate: "" });
   const [rows, setRows] = useState([emptyRow(), emptyRow(), emptyRow()]);
 
@@ -2440,6 +2547,7 @@ const ManualTab = ({ onCreate, onClose }) => {
       assignees: (r.assignee || common.assignee) ? [r.assignee || common.assignee] : [],
       client: common.client.trim() || null,
       clientId: common.clientId || null,
+      praticaId: common.praticaId || null,
       dueDate: r.dueDate ? new Date(r.dueDate).toISOString() : null,
       estimatedHours: 1,
       description: "",
@@ -2473,6 +2581,16 @@ const ManualTab = ({ onCreate, onClose }) => {
             <option value="">— Assegna a —</option>
             {getAssignableTeam().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
+        </div>
+        <div style={{ marginTop: 8 }}>
+          <PraticaAutocomplete
+            value={common.praticaText}
+            praticaId={common.praticaId}
+            clientId={common.clientId}
+            onChange={({ text, praticaId }) => setCommon({ ...common, praticaText: text, praticaId })}
+            style={bulkInputStyle}
+            placeholder="Collega a una pratica (opzionale)…"
+          />
         </div>
       </div>
 
@@ -4313,16 +4431,23 @@ const QuickAddTask = ({ onAdd, onClose }) => {
 
   const [form, setForm] = useState({
     title: "", category: firstCatKey, priority: "medium",
-    status: "todo", assignees: [], dueDate: "", client: "", clientId: null, description: ""
+    status: "todo", assignees: [], dueDate: "", client: "", clientId: null,
+    praticaText: "", praticaId: null, description: ""
   });
 
   const handleSubmit = () => {
     if (!form.title.trim()) return;
     onAdd({
       id: "t" + Date.now(),
-      ...form,
+      title: form.title,
+      category: form.category,
+      priority: form.priority,
+      status: form.status,
+      assignees: form.assignees,
+      description: form.description,
       client: form.client.trim() || null,
       clientId: form.clientId || null,
+      praticaId: form.praticaId || null,
       comments: [],
       estimatedHours: 1,
       dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
@@ -4401,6 +4526,18 @@ const QuickAddTask = ({ onAdd, onClose }) => {
               onChange={({ text, clientId }) => setForm(p => ({ ...p, client: text, clientId }))}
               style={inp("client").style}
               placeholder="Es. Famiglia Rossi…"
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>PRATICA</label>
+            <PraticaAutocomplete
+              value={form.praticaText}
+              praticaId={form.praticaId}
+              clientId={form.clientId}
+              onChange={({ text, praticaId }) => setForm(p => ({ ...p, praticaText: text, praticaId }))}
+              style={inp("client").style}
+              placeholder="Collega a una pratica (opzionale)…"
             />
           </div>
 
@@ -4562,6 +4699,32 @@ const TaskSlideOver = ({ task, dispatch }) => {
               })()}
             </div>
           </div>
+
+          {/* PRATICA */}
+          {(() => {
+            const linkedP = task.praticaId ? PRATICHE.find(p => p.id === task.praticaId) : null;
+            if (!linkedP) return null;
+            const meta = PRATICA_STATUS_META[linkedP.status] || PRATICA_STATUS_META.draft;
+            return (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>PRATICA</div>
+                <button
+                  onClick={() => dispatch({ type: "OPEN_PRATICA_DETAIL", payload: linkedP.id })}
+                  title="Apri pratica"
+                  style={{
+                    fontSize: 13, padding: "4px 10px", background: meta.bg, color: meta.color,
+                    borderRadius: 8, display: "inline-flex", alignItems: "center", gap: 8,
+                    border: `1px solid ${meta.color}33`, cursor: "pointer", fontWeight: 600,
+                    fontFamily: "inherit",
+                  }}
+                >
+                  <span style={{ fontFamily: "ui-monospace, monospace", fontWeight: 800 }}>{linkedP.number}</span>
+                  <span style={{ fontWeight: 500 }}>{linkedP.title}</span>
+                  <span style={{ fontSize: 11, opacity: 0.7 }}>→</span>
+                </button>
+              </div>
+            );
+          })()}
 
           {/* ORE */}
           {task.estimatedHours && (
@@ -6468,10 +6631,12 @@ const ClientsView = ({ state, dispatch }) => {
         <ClientDetailModal
           client={detailClient}
           tasks={tasksOfDetail}
+          pratiche={getPraticheByClient(state.pratiche, detailClient.id)}
           canManage={canManage}
           onEdit={() => { setEditing(detailClient); setDetailId(null); }}
           onDelete={() => handleDelete(detailClient.id)}
           onOpenTask={(t) => { dispatch({ type: "SET_SELECTED_TASK", payload: t }); setDetailId(null); }}
+          onOpenPratica={(p) => { dispatch({ type: "OPEN_PRATICA_DETAIL", payload: p.id }); setDetailId(null); }}
           onClose={() => setDetailId(null)}
         />
       )}
@@ -6590,8 +6755,8 @@ const ClientEditorModal = ({ client, onSave, onClose }) => {
   );
 };
 
-// Modale dettaglio cliente (anagrafica + task collegati)
-const ClientDetailModal = ({ client, tasks, canManage, onEdit, onDelete, onOpenTask, onClose }) => {
+// Modale dettaglio cliente (anagrafica + task collegati + pratiche)
+const ClientDetailModal = ({ client, tasks, pratiche = [], canManage, onEdit, onDelete, onOpenTask, onOpenPratica, onClose }) => {
   const [tab, setTab] = useState("info");
   const tp = CLIENT_TYPES[client.type] || CLIENT_TYPES.private;
 
@@ -6639,18 +6804,21 @@ const ClientDetailModal = ({ client, tasks, canManage, onEdit, onDelete, onOpenT
         </div>
 
         <div style={{ display: "flex", borderBottom: "1px solid var(--border)", background: "#fff" }}>
-          <button onClick={() => setTab("info")} style={{
-            flex: 1, padding: "12px 16px", border: "none", background: "transparent",
-            fontSize: 13, fontWeight: 600, cursor: "pointer",
-            color: tab === "info" ? "var(--gold)" : "var(--text-muted)",
-            borderBottom: tab === "info" ? "2px solid var(--gold)" : "2px solid transparent",
-          }}>Anagrafica</button>
-          <button onClick={() => setTab("tasks")} style={{
-            flex: 1, padding: "12px 16px", border: "none", background: "transparent",
-            fontSize: 13, fontWeight: 600, cursor: "pointer",
-            color: tab === "tasks" ? "var(--gold)" : "var(--text-muted)",
-            borderBottom: tab === "tasks" ? "2px solid var(--gold)" : "2px solid transparent",
-          }}>Task collegati ({tasks.length})</button>
+          {[
+            { k: "info",     label: "Anagrafica" },
+            { k: "pratiche", label: `Pratiche (${pratiche.length})` },
+            { k: "tasks",    label: `Task (${tasks.length})` },
+          ].map(({ k, label }) => {
+            const active = tab === k;
+            return (
+              <button key={k} onClick={() => setTab(k)} style={{
+                flex: 1, padding: "12px 16px", border: "none", background: "transparent",
+                fontSize: 13, fontWeight: 600, cursor: "pointer",
+                color: active ? "var(--gold)" : "var(--text-muted)",
+                borderBottom: active ? "2px solid var(--gold)" : "2px solid transparent",
+              }}>{label}</button>
+            );
+          })}
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "10px 22px" }}>
@@ -6661,6 +6829,43 @@ const ClientDetailModal = ({ client, tasks, canManage, onEdit, onDelete, onOpenT
               {infoRow("🏠", "Indirizzo", client.address)}
               {infoRow("📝", "Note", client.notes)}
               {infoRow("📅", "In anagrafica dal", formatDate(client.createdAt))}
+            </div>
+          )}
+          {tab === "pratiche" && (
+            <div style={{ padding: "8px 0" }}>
+              {pratiche.length === 0 ? (
+                <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+                  Nessuna pratica per questo cliente.<br />
+                  <span style={{ fontSize: 11 }}>Apri il modulo Pratiche per crearne una.</span>
+                </div>
+              ) : (
+                pratiche.map(p => {
+                  const meta = PRATICA_STATUS_META[p.status] || PRATICA_STATUS_META.draft;
+                  return (
+                    <div key={p.id} onClick={() => onOpenPratica(p)} style={{
+                      padding: "10px 4px", borderBottom: "1px solid var(--border)",
+                      cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+                    }}
+                      onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                    >
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, color: meta.color, background: meta.bg,
+                        padding: "3px 7px", borderRadius: 4, letterSpacing: 0.5, fontFamily: "ui-monospace, monospace",
+                        whiteSpace: "nowrap", flexShrink: 0,
+                      }}>{p.number}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.title}</div>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                          {p.destination && <span>{p.destination}</span>}
+                          {p.startDate && <span> • {formatDate(p.startDate)}</span>}
+                        </div>
+                      </div>
+                      <PraticaStatusBadge status={p.status} size="sm" />
+                    </div>
+                  );
+                })
+              )}
             </div>
           )}
           {tab === "tasks" && (
@@ -6703,6 +6908,682 @@ const ClientDetailModal = ({ client, tasks, canManage, onEdit, onDelete, onOpenT
                   );
                 })
               )}
+            </div>
+          )}
+        </div>
+
+        {canManage && (
+          <div style={{ padding: "12px 22px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "space-between", gap: 10 }}>
+            <button onClick={onDelete} style={{
+              background: "transparent", border: "1px solid var(--danger)",
+              padding: "8px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+              cursor: "pointer", color: "var(--danger)",
+            }}>🗑️ Elimina</button>
+            <button onClick={onEdit} style={{
+              background: "var(--navy)", border: "none", color: "#fff",
+              padding: "8px 18px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+              cursor: "pointer",
+            }}>✏️ Modifica</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ─── PRATICHE DI VIAGGIO (v0.9 — Fase 1) ───────────────────────────────────
+
+// Input con suggerimenti dalle pratiche. Specchio di ClientAutocomplete.
+const PraticaAutocomplete = ({ value, praticaId, onChange, placeholder, style, clientId }) => {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const q = (value || "").toLowerCase().trim();
+  // Se clientId è dato, suggerisci prima le pratiche di quel cliente
+  let pool = PRATICHE.slice();
+  if (clientId) {
+    pool.sort((a, b) => (a.clientId === clientId ? -1 : 0) - (b.clientId === clientId ? -1 : 0));
+  }
+  const matches = (q.length
+    ? pool.filter(p => `${p.number} ${p.title} ${p.destination}`.toLowerCase().includes(q))
+    : pool
+  ).slice(0, 6);
+
+  const select = (p) => {
+    onChange({ text: `${p.number} — ${p.title}`, praticaId: p.id });
+    setOpen(false);
+  };
+
+  const onType = (e) => {
+    const v = e.target.value;
+    const linkedP = praticaId ? PRATICHE.find(p => p.id === praticaId) : null;
+    const linkedText = linkedP ? `${linkedP.number} — ${linkedP.title}` : null;
+    onChange({ text: v, praticaId: linkedText === v ? praticaId : null });
+    setOpen(true);
+  };
+
+  const clear = () => {
+    onChange({ text: "", praticaId: null });
+    setOpen(false);
+  };
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative" }}>
+      <input
+        value={value || ""}
+        onChange={onType}
+        onFocus={() => setOpen(true)}
+        placeholder={placeholder || "Collega a una pratica…"}
+        style={{ ...style, paddingRight: praticaId ? 96 : (value ? 32 : style?.paddingRight) }}
+      />
+      {praticaId && (
+        <span title="Pratica collegata" style={{
+          position: "absolute", right: 30, top: "50%", transform: "translateY(-50%)",
+          fontSize: 10, fontWeight: 700, color: "var(--gold-dark)", background: "#FBF4E1",
+          padding: "2px 6px", borderRadius: 4, pointerEvents: "none", letterSpacing: 0.5,
+        }}>📁 LINK</span>
+      )}
+      {value && (
+        <button type="button" onClick={clear} title="Pulisci" style={{
+          position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
+          background: "transparent", border: "none", color: "var(--text-muted)",
+          cursor: "pointer", fontSize: 14, padding: 2, lineHeight: 1,
+        }}>✕</button>
+      )}
+      {open && matches.length > 0 && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
+          background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
+          maxHeight: 240, overflowY: "auto", zIndex: 50,
+          boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+        }}>
+          {matches.map(p => {
+            const st = PRATICA_STATUS_META[p.status] || PRATICA_STATUS_META.draft;
+            const client = getClient(p.clientId);
+            return (
+              <div key={p.id} onMouseDown={(e) => { e.preventDefault(); select(p); }} style={{
+                padding: "8px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+                borderBottom: "1px solid var(--border)",
+              }}
+                onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              >
+                <span style={{
+                  fontSize: 10, fontWeight: 700, color: st.color, background: st.bg,
+                  padding: "2px 6px", borderRadius: 4, letterSpacing: 0.5, whiteSpace: "nowrap",
+                }}>{p.number}</span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.title}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {client?.name || "—"} · {p.destination || "—"}
+                  </div>
+                </div>
+                <span style={{ fontSize: 9, fontWeight: 700, color: st.color, textTransform: "uppercase", letterSpacing: 0.5 }}>{st.icon} {st.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Status pill riusabile
+const PraticaStatusBadge = ({ status, size = "md" }) => {
+  const st = PRATICA_STATUS_META[status] || PRATICA_STATUS_META.draft;
+  const px = size === "sm" ? "3px 8px" : "4px 10px";
+  const fs = size === "sm" ? 10 : 11;
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      padding: px, borderRadius: 6, fontSize: fs, fontWeight: 700,
+      background: st.bg, color: st.color, letterSpacing: 0.5,
+      whiteSpace: "nowrap",
+    }}>
+      <span>{st.icon}</span>{st.label}
+    </span>
+  );
+};
+
+const PraticheView = ({ state, dispatch }) => {
+  const { isMobile } = useViewport();
+  const uid = state.currentUserId;
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [editing, setEditing] = useState(null);   // null | {} (new) | pratica
+  const [detailId, setDetailId] = useState(null);
+
+  useEffect(() => {
+    if (state.praticaDetailRequest) {
+      setDetailId(state.praticaDetailRequest);
+      dispatch({ type: "CONSUME_PRATICA_DETAIL_REQUEST" });
+    }
+  }, [state.praticaDetailRequest, dispatch]);
+
+  if (!canViewPratiche(uid)) {
+    return (
+      <div className="fade-in" style={{ padding: 28, textAlign: "center", color: "var(--text-muted)" }}>
+        Non hai accesso alle pratiche di viaggio.
+      </div>
+    );
+  }
+  const canManage = canManagePratiche(uid);
+  const pratiche = state.pratiche || [];
+  const filtered = pratiche.filter(p => {
+    if (statusFilter && p.status !== statusFilter) return false;
+    if (search) {
+      const s = search.toLowerCase();
+      const client = getClient(p.clientId, state.clients);
+      const hay = `${p.number} ${p.title} ${p.destination} ${client?.name || ""}`.toLowerCase();
+      if (!hay.includes(s)) return false;
+    }
+    return true;
+  }).sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+
+  const detailPratica = detailId ? pratiche.find(p => p.id === detailId) : null;
+
+  const handleSave = (data) => {
+    if (data.id) dispatch({ type: "UPDATE_PRATICA", payload: data });
+    else dispatch({ type: "ADD_PRATICA", payload: data });
+    setEditing(null);
+  };
+
+  const handleDelete = (id) => {
+    if (!confirm("Eliminare questa pratica? I task collegati verranno scollegati.")) return;
+    dispatch({ type: "DELETE_PRATICA", payload: id });
+    setDetailId(null);
+  };
+
+  return (
+    <div className="fade-in" style={{ padding: isMobile ? 16 : 28 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18, gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <div className="playfair" style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700 }}>Pratiche di viaggio</div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+            {filtered.length} di {pratiche.length} {pratiche.length === 1 ? "pratica" : "pratiche"}
+          </div>
+        </div>
+        {canManage && (
+          <button onClick={() => setEditing({})} style={{
+            background: "var(--gold)", border: "none", color: "#fff",
+            padding: "9px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+            cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+            boxShadow: "0 4px 12px rgba(212,168,67,0.3)",
+          }}>+ Nuova pratica</button>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 200, position: "relative" }}>
+          <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", fontSize: 13, pointerEvents: "none" }}>🔍</div>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Cerca per numero, titolo, destinazione, cliente…"
+            style={{
+              width: "100%", padding: "9px 12px 9px 36px", borderRadius: 8,
+              border: "1px solid var(--border)", fontSize: 13, outline: "none",
+              fontFamily: "inherit", boxSizing: "border-box", background: "#fff",
+            }}
+          />
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          <button onClick={() => setStatusFilter("")} style={{
+            padding: "6px 12px", borderRadius: 999, fontSize: 12, fontWeight: 600,
+            border: `1px solid ${!statusFilter ? "var(--navy)" : "var(--border)"}`,
+            background: !statusFilter ? "var(--navy)" : "#fff",
+            color: !statusFilter ? "#fff" : "var(--text)",
+            cursor: "pointer",
+          }}>Tutti</button>
+          {PRATICA_STATUSES.map(s => {
+            const meta = PRATICA_STATUS_META[s];
+            const active = statusFilter === s;
+            return (
+              <button key={s} onClick={() => setStatusFilter(active ? "" : s)} style={{
+                padding: "6px 12px", borderRadius: 999, fontSize: 12, fontWeight: 600,
+                border: `1px solid ${active ? meta.color : "var(--border)"}`,
+                background: active ? meta.color : "#fff",
+                color: active ? "#fff" : "var(--text)",
+                cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4,
+              }}>{meta.icon} {meta.label}</button>
+            );
+          })}
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div style={{
+          padding: 48, textAlign: "center", color: "var(--text-muted)",
+          background: "var(--surface)", borderRadius: 12, border: "1px dashed var(--border)",
+        }}>
+          {pratiche.length === 0
+            ? "Nessuna pratica creata. Clicca \"+ Nuova pratica\" per aprire la prima."
+            : "Nessuna pratica corrisponde ai filtri."}
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(310px, 1fr))", gap: 14 }}>
+          {filtered.map(p => {
+            const meta = PRATICA_STATUS_META[p.status] || PRATICA_STATUS_META.draft;
+            const client = getClient(p.clientId, state.clients);
+            const taskCount = getTasksByPratica(state.tasks, p.id).filter(isActiveTask).length;
+            return (
+              <div
+                key={p.id}
+                onClick={() => setDetailId(p.id)}
+                className="hover-lift"
+                style={{
+                  background: "#fff", borderRadius: 12, padding: 16,
+                  border: "1px solid var(--border)", borderLeft: `4px solid ${meta.color}`,
+                  cursor: "pointer", transition: "all 0.2s",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+                  <span style={{
+                    fontSize: 11, fontWeight: 800, color: meta.color,
+                    letterSpacing: 1, fontFamily: "ui-monospace, monospace",
+                  }}>{p.number}</span>
+                  <PraticaStatusBadge status={p.status} size="sm" />
+                </div>
+                <div className="playfair" style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", lineHeight: 1.3, marginBottom: 8 }}>
+                  {p.title}
+                </div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.7 }}>
+                  <div>🪪 {client?.name || <span style={{ color: "var(--danger)" }}>Cliente non trovato</span>}</div>
+                  {p.destination && <div>📍 {p.destination}</div>}
+                  {(p.startDate || p.endDate) && (
+                    <div>📅 {p.startDate ? formatDate(p.startDate) : "?"} → {p.endDate ? formatDate(p.endDate) : "?"}</div>
+                  )}
+                  {p.travelers > 0 && <div>👥 {p.travelers} {p.travelers === 1 ? "viaggiatore" : "viaggiatori"}</div>}
+                </div>
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                    {taskCount > 0 ? `📋 ${taskCount} task` : "Nessun task"}
+                  </span>
+                  <span style={{ fontSize: 11, color: "var(--text-light)" }}>agg. {formatRelTime(p.updatedAt || p.createdAt)}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {editing && (
+        <PraticaEditorModal
+          pratica={editing.id ? editing : null}
+          clients={state.clients}
+          existing={pratiche}
+          onSave={handleSave}
+          onClose={() => setEditing(null)}
+        />
+      )}
+
+      {detailPratica && (
+        <PraticaDetailModal
+          state={state}
+          dispatch={dispatch}
+          pratica={detailPratica}
+          canManage={canManage}
+          onEdit={() => { setEditing(detailPratica); setDetailId(null); }}
+          onDelete={() => handleDelete(detailPratica.id)}
+          onClose={() => setDetailId(null)}
+        />
+      )}
+    </div>
+  );
+};
+
+// Modale crea/modifica pratica
+const PraticaEditorModal = ({ pratica, clients, existing, onSave, onClose }) => {
+  const isEdit = !!pratica;
+  const [number, setNumber] = useState(pratica?.number || getNextPraticaNumber(existing));
+  const [title, setTitle] = useState(pratica?.title || "");
+  const [clientId, setClientId] = useState(pratica?.clientId || "");
+  const [status, setStatus] = useState(pratica?.status || "draft");
+  const [destination, setDestination] = useState(pratica?.destination || "");
+  const [startDate, setStartDate] = useState(pratica?.startDate ? pratica.startDate.slice(0, 10) : "");
+  const [endDate, setEndDate] = useState(pratica?.endDate ? pratica.endDate.slice(0, 10) : "");
+  const [travelers, setTravelers] = useState(pratica?.travelers ?? 1);
+  const [budget, setBudget] = useState(pratica?.budget ?? 0);
+  const [revenue, setRevenue] = useState(pratica?.revenue ?? 0);
+  const [cost, setCost] = useState(pratica?.cost ?? 0);
+  const [notes, setNotes] = useState(pratica?.notes || "");
+
+  useEffect(() => {
+    const handler = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  const canSubmit = title.trim().length > 0 && clientId;
+  const submit = () => {
+    if (!canSubmit) return;
+    const payload = {
+      number: number.trim() || undefined,
+      title: title.trim(),
+      clientId,
+      status,
+      destination: destination.trim(),
+      startDate: startDate ? new Date(startDate).toISOString() : null,
+      endDate: endDate ? new Date(endDate).toISOString() : null,
+      travelers: parseInt(travelers) || 0,
+      budget: parseFloat(budget) || 0,
+      revenue: parseFloat(revenue) || 0,
+      cost: parseFloat(cost) || 0,
+      notes: notes.trim(),
+    };
+    if (isEdit) payload.id = pratica.id;
+    onSave(payload);
+  };
+
+  const fieldStyle = {
+    width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid var(--border)",
+    fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box", background: "#fff",
+  };
+  const labelStyle = { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 5 };
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(15,32,68,0.45)",
+      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 500, padding: 16,
+    }} onClick={onClose}>
+      <div className="slide-up" onClick={e => e.stopPropagation()} style={{
+        background: "#fff", borderRadius: 12, width: "100%", maxWidth: 640,
+        maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+      }}>
+        <div style={{ padding: "18px 22px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div className="playfair" style={{ fontSize: 18, fontWeight: 700, color: "var(--navy)" }}>
+            {isEdit ? "✏️ Modifica pratica" : "📁 Nuova pratica"}
+          </div>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text-muted)" }}>✕</button>
+        </div>
+
+        <div style={{ padding: 22, display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: 12 }} className="vd-grid-collapse">
+            <div>
+              <label style={labelStyle}>Numero pratica</label>
+              <input value={number} onChange={e => setNumber(e.target.value)} style={{ ...fieldStyle, fontFamily: "ui-monospace, monospace", fontWeight: 700 }} />
+            </div>
+            <div>
+              <label style={labelStyle}>Titolo *</label>
+              <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Es. Maldive — Famiglia Rossi" style={fieldStyle} autoFocus />
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="vd-grid-collapse">
+            <div>
+              <label style={labelStyle}>Cliente *</label>
+              <select value={clientId} onChange={e => setClientId(e.target.value)} style={{ ...fieldStyle, cursor: "pointer" }}>
+                <option value="">— Seleziona cliente —</option>
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Stato</label>
+              <select value={status} onChange={e => setStatus(e.target.value)} style={{ ...fieldStyle, cursor: "pointer" }}>
+                {PRATICA_STATUSES.map(s => {
+                  const m = PRATICA_STATUS_META[s];
+                  return <option key={s} value={s}>{m.icon} {m.label}</option>;
+                })}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Destinazione</label>
+            <input value={destination} onChange={e => setDestination(e.target.value)} placeholder="Es. Malé, Maldive" style={fieldStyle} />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 120px", gap: 12 }} className="vd-grid-collapse">
+            <div>
+              <label style={labelStyle}>Partenza</label>
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} style={fieldStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Ritorno</label>
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} style={fieldStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Viaggiatori</label>
+              <input type="number" min={1} value={travelers} onChange={e => setTravelers(e.target.value)} style={fieldStyle} />
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }} className="vd-grid-collapse">
+            <div>
+              <label style={labelStyle}>Budget (€)</label>
+              <input type="number" min={0} value={budget} onChange={e => setBudget(e.target.value)} style={fieldStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Ricavo (€)</label>
+              <input type="number" min={0} value={revenue} onChange={e => setRevenue(e.target.value)} style={fieldStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Costo (€)</label>
+              <input type="number" min={0} value={cost} onChange={e => setCost(e.target.value)} style={fieldStyle} />
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Note</label>
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
+              placeholder="Itinerario, vincoli, accordi…"
+              style={{ ...fieldStyle, resize: "vertical", fontFamily: "inherit" }} />
+          </div>
+        </div>
+
+        <div style={{ padding: "14px 22px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <button onClick={onClose} style={{
+            background: "transparent", border: "1px solid var(--border)",
+            padding: "9px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+            cursor: "pointer", color: "var(--text-muted)",
+          }}>Annulla</button>
+          <button onClick={submit} disabled={!canSubmit} style={{
+            background: "var(--navy)", border: "none", color: "#fff",
+            padding: "9px 20px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+            cursor: canSubmit ? "pointer" : "not-allowed", opacity: canSubmit ? 1 : 0.5,
+          }}>{isEdit ? "Salva modifiche" : "Crea pratica"}</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Modale dettaglio pratica (anagrafica + task + economico)
+const PraticaDetailModal = ({ state, dispatch, pratica, canManage, onEdit, onDelete, onClose }) => {
+  const [tab, setTab] = useState("info");
+  const meta = PRATICA_STATUS_META[pratica.status] || PRATICA_STATUS_META.draft;
+  const client = getClient(pratica.clientId, state.clients);
+  const tasks = getTasksByPratica(state.tasks, pratica.id).filter(isActiveTask);
+  const margin = (pratica.revenue || 0) - (pratica.cost || 0);
+  const marginPct = pratica.revenue > 0 ? (margin / pratica.revenue) * 100 : 0;
+
+  useEffect(() => {
+    const handler = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  const setStatus = (newStatus) => {
+    dispatch({ type: "UPDATE_PRATICA", payload: { id: pratica.id, status: newStatus } });
+  };
+
+  const infoRow = (icon, label, value) => (
+    <div style={{ display: "flex", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--border)", alignItems: "flex-start" }}>
+      <div style={{ fontSize: 16, width: 22, textAlign: "center", flexShrink: 0 }}>{icon}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1 }}>{label}</div>
+        <div style={{ fontSize: 13, color: "var(--text)", marginTop: 2, wordBreak: "break-word" }}>{value || <span style={{ color: "var(--text-light)" }}>—</span>}</div>
+      </div>
+    </div>
+  );
+
+  const money = (n) => (n || 0).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(15,32,68,0.45)",
+      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 500, padding: 16,
+    }} onClick={onClose}>
+      <div className="slide-up" onClick={e => e.stopPropagation()} style={{
+        background: "#fff", borderRadius: 12, width: "100%", maxWidth: 720,
+        maxHeight: "92vh", overflow: "hidden", display: "flex", flexDirection: "column",
+        boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+      }}>
+        <div style={{ padding: "18px 22px", borderBottom: `4px solid ${meta.color}`, background: meta.bg }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 12, fontWeight: 800, color: meta.color, letterSpacing: 1, fontFamily: "ui-monospace, monospace" }}>{pratica.number}</span>
+                <PraticaStatusBadge status={pratica.status} size="sm" />
+              </div>
+              <div className="playfair" style={{ fontSize: 18, fontWeight: 700, color: "var(--navy)", lineHeight: 1.3 }}>{pratica.title}</div>
+            </div>
+            <button onClick={onClose} style={{ background: "transparent", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text-muted)" }}>✕</button>
+          </div>
+          {canManage && (
+            <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap" }}>
+              {PRATICA_STATUSES.map(s => {
+                const m = PRATICA_STATUS_META[s];
+                const active = pratica.status === s;
+                return (
+                  <button key={s} onClick={() => setStatus(s)} style={{
+                    padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700,
+                    border: `1px solid ${active ? m.color : "rgba(0,0,0,0.1)"}`,
+                    background: active ? m.color : "#fff",
+                    color: active ? "#fff" : m.color,
+                    cursor: "pointer",
+                  }}>{m.icon} {m.label}</button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: "flex", borderBottom: "1px solid var(--border)", background: "#fff" }}>
+          {["info", "tasks", "economics"].map(k => {
+            const labels = { info: "Anagrafica", tasks: `Task (${tasks.length})`, economics: "Economico" };
+            const active = tab === k;
+            return (
+              <button key={k} onClick={() => setTab(k)} style={{
+                flex: 1, padding: "12px 16px", border: "none", background: "transparent",
+                fontSize: 13, fontWeight: 600, cursor: "pointer",
+                color: active ? "var(--gold)" : "var(--text-muted)",
+                borderBottom: active ? "2px solid var(--gold)" : "2px solid transparent",
+              }}>{labels[k]}</button>
+            );
+          })}
+        </div>
+
+        <div style={{ flex: 1, overflowY: "auto", padding: "10px 22px" }}>
+          {tab === "info" && (
+            <div>
+              <div style={{ display: "flex", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--border)", alignItems: "flex-start" }}>
+                <div style={{ fontSize: 16, width: 22, textAlign: "center", flexShrink: 0 }}>🪪</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1 }}>Cliente</div>
+                  {client ? (
+                    <button onClick={() => dispatch({ type: "OPEN_CLIENT_DETAIL", payload: client.id })} style={{
+                      background: "transparent", border: "none", padding: 0, marginTop: 2,
+                      fontSize: 13, color: "var(--navy)", fontWeight: 700,
+                      cursor: "pointer", textDecoration: "underline", fontFamily: "inherit",
+                    }}>{client.name} →</button>
+                  ) : (
+                    <div style={{ fontSize: 13, color: "var(--danger)", marginTop: 2 }}>Cliente non trovato</div>
+                  )}
+                </div>
+              </div>
+              {infoRow("📍", "Destinazione", pratica.destination)}
+              {infoRow("📅", "Date viaggio", (pratica.startDate || pratica.endDate)
+                ? `${pratica.startDate ? formatDate(pratica.startDate) : "?"} → ${pratica.endDate ? formatDate(pratica.endDate) : "?"}`
+                : null)}
+              {infoRow("👥", "Viaggiatori", pratica.travelers > 0 ? pratica.travelers : null)}
+              {infoRow("📝", "Note", pratica.notes)}
+              {infoRow("🕒", "Creata / aggiornata", `${formatDate(pratica.createdAt)} · ultimo agg. ${formatRelTime(pratica.updatedAt || pratica.createdAt)}`)}
+            </div>
+          )}
+
+          {tab === "tasks" && (
+            <div style={{ padding: "8px 0" }}>
+              {tasks.length === 0 ? (
+                <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+                  Nessun task collegato a questa pratica.<br />
+                  <span style={{ fontSize: 11 }}>Crea task usando il FAB e collegali a questa pratica dal campo "Pratica".</span>
+                </div>
+              ) : (
+                tasks.map(t => {
+                  const cat = CATEGORIES[t.category];
+                  const prio = PRIORITIES[t.priority];
+                  const overdue = isOverdue(t);
+                  return (
+                    <div key={t.id} onClick={() => { dispatch({ type: "SET_SELECTED_TASK", payload: t }); onClose(); }} style={{
+                      padding: "10px 4px", borderBottom: "1px solid var(--border)",
+                      cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+                    }}
+                      onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                    >
+                      <div style={{
+                        width: 28, height: 28, borderRadius: 6, background: cat?.bg, color: cat?.color,
+                        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0,
+                      }}>{cat?.icon}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                          {STATUS_LABELS[t.status]}
+                          {t.dueDate && (
+                            <span style={{ color: overdue ? "var(--danger)" : "var(--text-muted)" }}> • {formatDate(t.dueDate)}{overdue ? " (scaduto)" : ""}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{
+                        fontSize: 10, fontWeight: 700, padding: "3px 7px", borderRadius: 4,
+                        background: prio?.bg, color: prio?.color, flexShrink: 0,
+                      }}>{prio?.label}</div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+
+          {tab === "economics" && (
+            <div style={{ padding: "16px 0" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }} className="vd-grid-collapse">
+                <div style={{ background: "var(--surface)", padding: 14, borderRadius: 10, border: "1px solid var(--border)" }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1 }}>Budget</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: "var(--text)", marginTop: 4 }}>{money(pratica.budget)}</div>
+                </div>
+                <div style={{ background: "var(--surface)", padding: 14, borderRadius: 10, border: "1px solid var(--border)" }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1 }}>Ricavo</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: "var(--navy)", marginTop: 4 }}>{money(pratica.revenue)}</div>
+                </div>
+                <div style={{ background: "var(--surface)", padding: 14, borderRadius: 10, border: "1px solid var(--border)" }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1 }}>Costo</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: "var(--danger)", marginTop: 4 }}>{money(pratica.cost)}</div>
+                </div>
+                <div style={{
+                  background: margin >= 0 ? "#E6F1EA" : "#FCE9E6",
+                  padding: 14, borderRadius: 10, border: `1px solid ${margin >= 0 ? "var(--success)" : "var(--danger)"}33`,
+                }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1 }}>Margine</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: margin >= 0 ? "var(--success)" : "var(--danger)", marginTop: 4 }}>
+                    {money(margin)} <span style={{ fontSize: 12, fontWeight: 600 }}>({marginPct.toFixed(1)}%)</span>
+                  </div>
+                </div>
+              </div>
+              <div style={{ marginTop: 18, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>
+                <p style={{ margin: "0 0 6px 0" }}><b>Note:</b> il riepilogo è una vista MVP. Il modulo Finanziario di Fase 3 estenderà con pagamenti, acconti, scadenze e report.</p>
+              </div>
             </div>
           )}
         </div>
@@ -7913,6 +8794,7 @@ function VoyageDeskInner() {
       case "dashboard": return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
       case "calendar": return <CalendarPlanner state={state} dispatch={dispatch} />;
       case "clients": return <ClientsView state={state} dispatch={dispatch} />;
+      case "pratiche": return <PraticheView state={state} dispatch={dispatch} />;
       case "team": return <Team state={state} dispatch={dispatch} />;
       case "trash": return <Trash state={state} dispatch={dispatch} />;
       case "admin": return <AdminView state={state} dispatch={dispatch} />;

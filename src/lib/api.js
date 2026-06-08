@@ -59,6 +59,8 @@ export const Notices = {
       .order('created_at', { ascending: false }),
   create: (n) =>
     supabase.from('notices').insert(n).select().single(),
+  update: (id, patch) =>
+    supabase.from('notices').update(patch).eq('id', id).select().single(),
   togglePin: (id, pinned) =>
     supabase.from('notices').update({ pinned }).eq('id', id),
   remove: (id) =>

@@ -1,8 +1,12 @@
 
 import { useState, useReducer, useContext, createContext, useRef, useEffect, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx";
-import { Tasks as TasksAPI, Comments as CommentsAPI } from "./lib/api.js";
-import { toDbTask, toDbTaskPatch, fromDbTask, newId, isUuid } from "./lib/mappers.js";
+import { Tasks as TasksAPI, Comments as CommentsAPI, Notices as NoticesAPI, subscribeToTable } from "./lib/api.js";
+import {
+  toDbTask, toDbTaskPatch, fromDbTask,
+  toDbNotice, toDbNoticePatch, fromDbNotice,
+  newId, isUuid,
+} from "./lib/mappers.js";
 
 // ─── GOOGLE FONTS ──────────────────────────────────────────────────────────
 const FontLoader = () => (
@@ -541,6 +545,9 @@ function baseReducer(state, action) {
     }
 
     // ─── BACHECA AVVISI ───
+    case "SET_NOTICES": {
+      return { ...state, notices: Array.isArray(action.payload) ? action.payload : [] };
+    }
     case "ADD_NOTICE": {
       const notices = [action.payload, ...state.notices];
       return { ...state, notices, toast: { message: "Avviso pubblicato in bacheca", type: "success" } };
@@ -4084,10 +4091,11 @@ const TaskSlideOver = ({ task, dispatch }) => {
 
   const handleComment = () => {
     if (!newComment.trim()) return;
+    const authorName = getMember(CURRENT_USER)?.name || "Utente";
     dispatch({
       type: "ADD_COMMENT", payload: {
         taskId: task.id,
-        comment: { user: "Marco Ferretti", text: newComment, time: new Date().toISOString() }
+        comment: { user: authorName, text: newComment, time: new Date().toISOString() }
       }
     });
     setNewComment("");
@@ -6978,16 +6986,55 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // Senza, l'app resta sui mock (dev/preview senza login).
   const useSupabase = Array.isArray(initialTeam) && initialTeam.length > 0;
 
-  // Idratazione tasks dal DB al primo mount in modalità Supabase.
+  // Idratazione tasks + notices dal DB al primo mount in modalità Supabase,
+  // più subscription realtime: ad ogni evento postgres ricarico la lista
+  // intera (debounced) — semplice e robusto al duplicate dell'eco locale.
   useEffect(() => {
     if (!useSupabase) return;
     let cancelled = false;
-    TasksAPI.list({ withComments: true }).then(({ data, error }) => {
-      if (cancelled) return;
-      if (error) { console.error("[VoyageDesk] Tasks.list", error); return; }
-      rawDispatch({ type: "SET_TASKS", payload: (data || []).map(fromDbTask) });
-    });
-    return () => { cancelled = true; };
+
+    const reloadTasks = () => {
+      TasksAPI.list({ withComments: true }).then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) { console.error("[VoyageDesk] Tasks.list", error); return; }
+        rawDispatch({ type: "SET_TASKS", payload: (data || []).map(fromDbTask) });
+      });
+    };
+    const reloadNotices = () => {
+      NoticesAPI.list().then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) { console.error("[VoyageDesk] Notices.list", error); return; }
+        rawDispatch({ type: "SET_NOTICES", payload: (data || []).map(fromDbNotice) });
+      });
+    };
+
+    reloadTasks();
+    reloadNotices();
+
+    // Debounce: gli eventi arrivano a raffica durante inserimenti bulk.
+    let tasksTimer = null;
+    let noticesTimer = null;
+    const debouncedTasks = () => {
+      clearTimeout(tasksTimer);
+      tasksTimer = setTimeout(reloadTasks, 200);
+    };
+    const debouncedNotices = () => {
+      clearTimeout(noticesTimer);
+      noticesTimer = setTimeout(reloadNotices, 200);
+    };
+
+    const unsubTasks = subscribeToTable("tasks", debouncedTasks);
+    const unsubComments = subscribeToTable("comments", debouncedTasks);
+    const unsubNotices = subscribeToTable("notices", debouncedNotices);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(tasksTimer);
+      clearTimeout(noticesTimer);
+      unsubTasks?.();
+      unsubComments?.();
+      unsubNotices?.();
+    };
   }, [useSupabase]);
 
   // currentUserId vivo, per persistere i comments con l'autore giusto.
@@ -7048,6 +7095,25 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         });
         break;
       }
+      case "ADD_NOTICE": {
+        const id = isUuid(action.payload?.id) ? action.payload.id : newId();
+        const payload = { ...action.payload, id, author: action.payload.author ?? currentUserIdRef.current };
+        toDispatch = { ...action, payload };
+        dbOps = () => NoticesAPI.create(toDbNotice(payload));
+        break;
+      }
+      case "UPDATE_NOTICE":
+        dbOps = () => NoticesAPI.update(action.payload.id, toDbNoticePatch(action.payload));
+        break;
+      case "DELETE_NOTICE":
+        dbOps = () => NoticesAPI.remove(action.payload);
+        break;
+      case "TOGGLE_PIN_NOTICE": {
+        const prev = state.notices.find(n => n.id === action.payload);
+        const pinned = !(prev?.pinned);
+        dbOps = () => NoticesAPI.togglePin(action.payload, pinned);
+        break;
+      }
       default:
         break;
     }
@@ -7062,7 +7128,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         })
         .catch((e) => console.error(`[VoyageDesk] sync ${action.type}`, e));
     }
-  }, [useSupabase, state.tasks]);
+  }, [useSupabase, state.tasks, state.notices]);
   const [showFABModal, setShowFABModal] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [chatIntent, setChatIntent] = useState(null); // { toUser, taskLink } per aprire chat preconfezionata

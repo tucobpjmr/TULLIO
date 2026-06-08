@@ -82,3 +82,39 @@ export function fromDbComment(row) {
     time: row.created_at,
   };
 }
+
+// ----------------- NOTICES -----------------
+
+// DB row → app notice. Il DB non ha updated_at: replico created_at lato app
+// per non rompere i componenti che lo leggono.
+export function fromDbNotice(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    text: row.text,
+    color: row.color ?? null,
+    pinned: !!row.pinned,
+    author: row.author_id ?? null,
+    createdAt: row.created_at ?? null,
+    updatedAt: row.created_at ?? null,
+  };
+}
+
+export function toDbNotice(notice) {
+  return {
+    id: isUuid(notice.id) ? notice.id : newId(),
+    text: notice.text,
+    color: notice.color ?? null,
+    pinned: !!notice.pinned,
+    author_id: notice.author ?? null,
+  };
+}
+
+export function toDbNoticePatch(patch) {
+  const out = {};
+  if ('text' in patch) out.text = patch.text;
+  if ('color' in patch) out.color = patch.color;
+  if ('pinned' in patch) out.pinned = !!patch.pinned;
+  if ('author' in patch) out.author_id = patch.author ?? null;
+  return out;
+}

@@ -2,6 +2,7 @@
 import { createContext } from "react";
 import { TEAM, CATEGORIES, CURRENT_USER, _syncCurrentUser, INITIAL_TASKS, STATUS_LABELS } from "../data/mockData.js";
 import { INITIAL_NOTICES } from "../data/taskTemplates.js";
+import { INITIAL_CLIENTS } from "../data/mockClients.js";
 import { getMember } from "../utils/helpers.js";
 import { canAccessAdmin, canViewTask, canEditTask, canCreateTaskCategory, isAdmin } from "../utils/permissions.js";
 
@@ -22,6 +23,7 @@ const LOGGED_ACTIONS = new Set([
   "ADD_CATEGORY", "UPDATE_CATEGORY", "REMOVE_CATEGORY",
   "RESTORE_BACKUP",
   "ADD_NOTICE", "UPDATE_NOTICE", "DELETE_NOTICE",
+  "ADD_CLIENT", "UPDATE_CLIENT", "DELETE_CLIENT", "RESTORE_CLIENT",
 ]);
 
 const buildLogEntry = (action, state) => {
@@ -50,6 +52,10 @@ const buildLogEntry = (action, state) => {
     ADD_NOTICE: () => `Pubblicato avviso in bacheca`,
     UPDATE_NOTICE: () => `Modificato avviso in bacheca`,
     DELETE_NOTICE: () => `Rimosso avviso dalla bacheca`,
+    ADD_CLIENT: () => `Aggiunto cliente "${action.payload.name}"`,
+    UPDATE_CLIENT: () => `Modificato cliente "${action.payload.name || action.payload.id}"`,
+    DELETE_CLIENT: () => `Cliente "${state.clients?.find(c => c.id === action.payload)?.name || action.payload}" spostato nel cestino`,
+    RESTORE_CLIENT: () => `Cliente ripristinato`,
   };
   return { id: `log-${stamp}-${Math.random().toString(36).slice(2,7)}`, time: stamp, type: t, text: (map[t] || (() => t))() };
 };
@@ -303,6 +309,26 @@ function baseReducer(state, action) {
     case "SET_FILTER": return { ...state, filters: { ...state.filters, ...action.payload } };
     case "TOGGLE_SIDEBAR": return { ...state, sidebarCollapsed: !state.sidebarCollapsed };
 
+    // ─── CLIENTI (v1.0) ───
+    case "ADD_CLIENT": {
+      const clients = [action.payload, ...(state.clients || [])];
+      return { ...state, clients, toast: { message: `Cliente "${action.payload.name}" aggiunto!`, type: "success" } };
+    }
+    case "UPDATE_CLIENT": {
+      const clients = (state.clients || []).map(c => c.id === action.payload.id ? { ...c, ...action.payload } : c);
+      return { ...state, clients, toast: { message: "Cliente aggiornato!", type: "success" } };
+    }
+    case "DELETE_CLIENT": {
+      const clients = (state.clients || []).map(c => c.id === action.payload ? { ...c, deletedAt: new Date().toISOString() } : c);
+      return { ...state, clients, toast: { message: "Cliente spostato nel cestino", type: "success" } };
+    }
+    case "RESTORE_CLIENT": {
+      const clients = (state.clients || []).map(c => c.id === action.payload ? { ...c, deletedAt: null } : c);
+      return { ...state, clients, toast: { message: "Cliente ripristinato!", type: "success" } };
+    }
+    case "SET_SELECTED_CLIENT":
+      return { ...state, selectedClientId: action.payload };
+
     // ─── PROFILO PERSONALE (non admin-only) ───
     case "UPDATE_OWN_PROFILE": {
       const uid = state.currentUserId;
@@ -352,6 +378,8 @@ export const initialState = {
   categories: CATEGORIES,
   agencyName: "VoyageDesk",
   notices: INITIAL_NOTICES,
+  clients: INITIAL_CLIENTS,
+  selectedClientId: null,
   activityLog: [],
   activeView: "dashboard",
   selectedTask: null,
@@ -360,6 +388,6 @@ export const initialState = {
   showNotif: false,
   sidebarCollapsed: false,
   filters: { assignee: "", category: "", priority: "", status: "", client: "" },
-  lastAction: null, // { type, payload, undo: () => state-patch } per swipe-actions undo
-  currentUserId: CURRENT_USER, // v0.8: utente loggato (con switcher in Topbar)
+  lastAction: null,
+  currentUserId: CURRENT_USER,
 };

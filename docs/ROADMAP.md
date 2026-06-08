@@ -47,10 +47,12 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 | Modulo | Stato | Priorità | Sforzo | Dipende da |
 |---|---|---|---|---|
-| Anagrafica Clienti (CRM base) | ⬜ | 🔴 | M | — |
+| Anagrafica Clienti (CRM base) | 🔶 | 🔴 | M | — |
 | Anagrafica Fornitori | ⬜ | 🔴 | M | — |
 | Pratiche di viaggio | ⬜ | 🔴 | L | Clienti + Fornitori |
 | Collegamento Task ↔ Cliente ↔ Pratica | ⬜ | 🔴 | M | i tre sopra |
+
+**Stato Anagrafica Clienti (v0.9-dev)** — MVP completato: vista dedicata `Clienti` nella sidebar/bottom-nav, lista con ricerca + filtro per tipo (Privato/Azienda/Gruppo), modale crea/modifica con campi (nome, tipo, email, telefono, indirizzo, note), modale dettaglio con tab Anagrafica + Task collegati (lookup per `clientId` o per nome legacy). Reducer actions `ADD_CLIENT`/`UPDATE_CLIENT`/`DELETE_CLIENT` con check `canManageClients` (no Driver). 6 clienti mock pre-caricati. Da fare nello step successivo: collegamento bidirezionale Task ↔ Cliente (autocomplete del campo `client` nel form task + scrittura `clientId`).
 
 **Dettaglio Pratiche** — modulo centrale: aggrega task, documenti, pagamenti e fornitori di un singolo viaggio; numerazione progressiva (`PR-2026-001`), stati (Bozza → Confermata → In corso → Completata/Annullata), riepilogo economico, timeline eventi.
 

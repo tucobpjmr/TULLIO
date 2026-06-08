@@ -1,5 +1,38 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9-dev — Anagrafica Clienti (CRM base) (sessione 9)
+
+> Primo step di Fase 1 della roadmap: anagrafica clienti come fondazione per Fornitori e Pratiche.
+
+### 🪪 Vista Clienti
+- Nuova entry `clients` in `NAV_ITEMS` (icona 🪪) — visibile a Admin/Manager/Agent (no Driver).
+- Componente `ClientsView`: lista a card con ricerca testuale (nome/email/telefono/indirizzo/note) e filtro per tipo cliente (Privato/Azienda/Gruppo).
+- Card mostra: avatar tipo, nome, contatti principali, contatore task collegati, data creazione.
+
+### 📝 Editor cliente
+- `ClientEditorModal` per creare/modificare: nome (obbligatorio), tipo, email, telefono, indirizzo, note.
+
+### 🔍 Dettaglio cliente
+- `ClientDetailModal` con due tab:
+  - **Anagrafica**: tutti i campi + data inserimento.
+  - **Task collegati**: list task che fanno match con il cliente (per `clientId` se presente, oppure per nome legacy del campo `client` testuale). Click su riga apre `TaskSlideOver`.
+- Pulsanti Elimina (con conferma) e Modifica per chi ha i permessi.
+
+### 🔐 Permessi
+- `canViewClients(userId)` e `canManageClients(userId)` — entrambi true tranne per Driver.
+- Reducer: `ADD_CLIENT`/`UPDATE_CLIENT`/`DELETE_CLIENT` validano i permessi, sincronizzano la variabile globale `CLIENTS` (pattern mutabile come TEAM/CATEGORIES) e producono toast.
+
+### 🗃️ Mock & state
+- Nuovo `CLIENT_TYPES`: `private` 👤, `business` 🏢, `group` 👥.
+- 6 clienti mock pre-caricati: Famiglia Rossi, Coppia Bianchi, Azienda TechCorp, Famiglia Marchetti, Liceo Manzoni, Sposi Conte.
+- `initialState.clients = CLIENTS`.
+- `LOGGED_ACTIONS` esteso con le tre azioni cliente.
+
+### 🔜 Step successivo
+- Collegamento bidirezionale Task ↔ Cliente: autocomplete del campo `client` in `QuickAddTask`/`TaskSlideOver`, scrittura di `task.clientId` quando si seleziona un cliente esistente.
+
+---
+
 ## v0.9-dev — Ristrutturazione UI + Profilo + Handoff (sessione 8)
 
 > Semplificazione interfaccia, unificazione viste, nuovo profilo utente, preparazione per migrazione a progetto Vite.

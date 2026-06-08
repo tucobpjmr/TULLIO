@@ -116,6 +116,9 @@ Famiglia Rossi (Maldive), Coppia Bianchi (Giappone), Azienda TechCorp (Incentive
 ### Profilo personale (non admin-only)
 `UPDATE_OWN_PROFILE`
 
+### Clienti (CRM base, no Driver)
+`ADD_CLIENT`, `UPDATE_CLIENT`, `DELETE_CLIENT`
+
 ### Admin Team (ADMIN_ONLY)
 `ADD_TEAM_MEMBER`, `UPDATE_TEAM_MEMBER`, `APPROVE_TEAM_MEMBER`, `TOGGLE_TEAM_MEMBER_ACTIVE`, `REMOVE_TEAM_MEMBER`
 
@@ -154,6 +157,9 @@ isMyTask(task, userId)
 isInGlobalQueue(task)
 getVisibleTasks(tasks, userId)
 getNavItemsForUser(userId)       — NAV_ITEMS filtrati per ruolo
+canViewClients(userId), canManageClients(userId)
+getClient(id, clients?)          — lookup cliente per id
+getTasksByClient(tasks, client)  — task collegati per clientId o per nome legacy
 ```
 
 ## Classi CSS responsive (definite in FontLoader)

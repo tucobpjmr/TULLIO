@@ -1,6 +1,9 @@
 
 import { useState, useReducer, useContext, createContext, useRef, useEffect, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx";
+import { useAuth } from './lib/auth/AuthContext.jsx';
+import { useSupabaseData, useAsyncDispatch } from './lib/useSupabaseData.js';
+import { Comments } from './lib/api.js';
 
 // ─── GOOGLE FONTS ──────────────────────────────────────────────────────────
 const FontLoader = () => (
@@ -582,6 +585,34 @@ function baseReducer(state, action) {
     case "SET_FILTER": return { ...state, filters: { ...state.filters, ...action.payload } };
     case "TOGGLE_SIDEBAR": return { ...state, sidebarCollapsed: !state.sidebarCollapsed };
 
+    // ─── SYNC SUPABASE ───
+    case "_LOADING_START": return { ...state, loading: true };
+    case "_LOADING_DONE": return { ...state, loading: false };
+    case "_INIT_ALL": {
+      const { tasks, notices, team, currentUserId: uid } = action.payload;
+      if (team?.length) _syncTeam(team);
+      const finalId = uid || state.currentUserId;
+      _syncCurrentUser(finalId);
+      return { ...state, tasks, notices, team: team || state.team, currentUserId: finalId, loading: false };
+    }
+    case "_INIT_NOTICES": return { ...state, notices: action.payload };
+    case "_RT_TASK_UPSERT": {
+      const exists = state.tasks.some(t => t.id === action.payload.id);
+      const tasks = exists
+        ? state.tasks.map(t => t.id === action.payload.id ? { ...t, ...action.payload } : t)
+        : [...state.tasks, action.payload];
+      const selectedTask = state.selectedTask?.id === action.payload.id
+        ? { ...state.selectedTask, ...action.payload }
+        : state.selectedTask;
+      return { ...state, tasks, selectedTask };
+    }
+    case "_RT_TASK_DELETE": {
+      const tasks = state.tasks.filter(t => t.id !== action.payload);
+      const selectedTask = state.selectedTask?.id === action.payload ? null : state.selectedTask;
+      return { ...state, tasks, selectedTask };
+    }
+    case "_SHOW_TOAST": return { ...state, toast: action.payload };
+
     // ─── PROFILO PERSONALE (non admin-only) ───
     case "UPDATE_OWN_PROFILE": {
       const uid = state.currentUserId;
@@ -658,11 +689,11 @@ const INITIAL_NOTICES = [
 ];
 
 const initialState = {
-  tasks: INITIAL_TASKS,
+  tasks: [],
   team: TEAM,
   categories: CATEGORIES,
   agencyName: "VoyageDesk",
-  notices: INITIAL_NOTICES,
+  notices: [],
   activityLog: [],
   activeView: "dashboard",
   selectedTask: null,
@@ -671,8 +702,9 @@ const initialState = {
   showNotif: false,
   sidebarCollapsed: false,
   filters: { assignee: "", category: "", priority: "", status: "", client: "" },
-  lastAction: null, // { type, payload, undo: () => state-patch } per swipe-actions undo
-  currentUserId: CURRENT_USER, // v0.8: utente loggato (con switcher in Topbar)
+  lastAction: null,
+  currentUserId: CURRENT_USER,
+  loading: true,
 };
 
 // ─── UTILS ─────────────────────────────────────────────────────────────────
@@ -4062,18 +4094,37 @@ const QuickAddTask = ({ onAdd, onClose }) => {
 // ─── TASK DETAIL SLIDE-OVER ────────────────────────────────────────────────
 const TaskSlideOver = ({ task, dispatch }) => {
   const { isMobile } = useViewport();
+  const { profile } = useAuth();
   const [newComment, setNewComment] = useState("");
+  const [localComments, setLocalComments] = useState([]);
+
+  useEffect(() => {
+    if (!task?.id) return;
+    let active = true;
+    Comments.listForTask(task.id).then(({ data }) => {
+      if (active && data) {
+        setLocalComments(data.map(r => ({
+          id: r.id,
+          user: r.users?.name || 'Utente',
+          text: r.text,
+          time: r.created_at,
+        })));
+      }
+    });
+    return () => { active = false; };
+  }, [task?.id]);
 
   if (!task) return null;
 
   const handleComment = () => {
     if (!newComment.trim()) return;
-    dispatch({
-      type: "ADD_COMMENT", payload: {
-        taskId: task.id,
-        comment: { user: "Marco Ferretti", text: newComment, time: new Date().toISOString() }
-      }
-    });
+    const comment = {
+      user: profile?.name || getMember(CURRENT_USER)?.name || 'Utente',
+      text: newComment,
+      time: new Date().toISOString(),
+    };
+    setLocalComments(prev => [...prev, comment]);
+    dispatch({ type: "ADD_COMMENT", payload: { taskId: task.id, comment } });
     setNewComment("");
   };
 
@@ -4199,10 +4250,10 @@ const TaskSlideOver = ({ task, dispatch }) => {
           {/* Comments */}
           <div>
             <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 10 }}>
-              ATTIVITÀ & COMMENTI ({task.comments?.length || 0})
+              ATTIVITÀ & COMMENTI ({localComments.length})
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {(task.comments || []).map((c, i) => (
+              {localComments.map((c, i) => (
                 <div key={i} style={{ display: "flex", gap: 10 }}>
                   <div style={{
                     width: 28, height: 28, borderRadius: "50%", background: "var(--navy)",
@@ -4227,7 +4278,7 @@ const TaskSlideOver = ({ task, dispatch }) => {
                   width: 28, height: 28, borderRadius: "50%", background: "var(--gold)",
                   fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center",
                   justifyContent: "center", color: "var(--navy)", flexShrink: 0
-                }}>MF</div>
+                }}>{profile?.avatar || getMember(CURRENT_USER)?.avatar || 'IO'}</div>
                 <div style={{ flex: 1, display: "flex", gap: 6 }}>
                   <input
                     value={newComment}
@@ -6949,7 +7000,12 @@ export default function VoyageDesk() {
 
 function VoyageDeskInner() {
   const { isDesktop } = useViewport();
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const { profile } = useAuth();
+  const [state, _dispatch] = useReducer(reducer, initialState);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const dispatch = useAsyncDispatch(_dispatch, stateRef);
+  useSupabaseData(_dispatch, profile?.id);
   const [showFABModal, setShowFABModal] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [chatIntent, setChatIntent] = useState(null); // { toUser, taskLink } per aprire chat preconfezionata
@@ -7000,6 +7056,21 @@ function VoyageDeskInner() {
       default: return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
     }
   };
+
+  if (state.loading) {
+    return (
+      <>
+        <FontLoader />
+        <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--surface)' }}>
+          <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+            <div style={{ width: 40, height: 40, border: '3px solid var(--border)', borderTopColor: 'var(--navy)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' }} />
+            <p style={{ fontSize: 14 }}>Caricamento dati…</p>
+          </div>
+          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

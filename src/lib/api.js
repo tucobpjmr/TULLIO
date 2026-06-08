@@ -7,6 +7,8 @@ import { supabase } from './supabase';
 export const Users = {
   list: () =>
     supabase.from('users').select('*').eq('active', true).order('name'),
+  listAll: () =>
+    supabase.from('users').select('*').order('name'),
   get: (id) =>
     supabase.from('users').select('*').eq('id', id).single(),
   updateProfile: (id, patch) =>

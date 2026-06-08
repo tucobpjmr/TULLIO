@@ -1,5 +1,54 @@
 # CHANGELOG — VoyageDesk
 
+## v0.10-dev — Auth Supabase + Persistenza Team (sessione 9)
+
+> Integrazione autenticazione reale Supabase, gate login, team live dal DB, logout nel dropdown utente. Primo step della roadmap persistenza.
+
+### 🔐 Auth Supabase end-to-end
+- **`src/lib/supabase.js`**: client Supabase (VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY).
+- **`src/lib/auth/AuthContext.jsx`**: AuthProvider con session, profile, team, signIn, signOut, refreshTeam. Legge `public.users` al login.
+- **`src/lib/auth/LoginScreen.jsx`**: schermata login dark-mode (email + password). Stile indipendente dall'app.
+- **`src/main.jsx`**: gate auth — mostra LoginScreen se `!session`, SplashScreen durante loading, altrimenti BootstrappedApp.
+
+### 👥 Team reale dal DB (step 2a)
+- **`src/lib/auth/mapMember.js`**: adatta la riga `public.users` Supabase alla shape `TEAM` del monolite (role machine→label, avatar dalle iniziali, capacity hardcoded).
+- **`_syncTeam` / `_syncCurrentUser`**: esportate da `VoyageDesk.jsx` per permettere il bootstrap da `main.jsx`.
+- **`_remapMockIds`**: rimappa gli ID stringa ("marco", "sofia"…) ai UUID Supabase nei mock task/notices/chat, così assignees e conversazioni restano coerenti con il team reale.
+- **`makeInitialState()`**: sostituisce l'oggetto `initialState` statico con una factory lazy — legge TEAM/CURRENT_USER già aggiornati dal bootstrap.
+
+### 🔑 Logout nel dropdown UserSwitcher
+- Voce "↩ Esci dall'account" in fondo al dropdown, con email di sessione visibile.
+- Rimosso il FloatingLogoutButton overlay che copriva notifiche e chat.
+- `UserSwitcher` importa `useAuth` e chiama `signOut()` di Supabase.
+
+### 🛠️ Fix
+- Rinominato `Authconttext.jsx` → `AuthContext.jsx` (typo).
+- Corretti import path in `AuthContext.jsx` (`../lib/supabase` → `../supabase`) e `LoginScreen.jsx`.
+- Aggiunto `.gitignore` (node_modules, dist, .env).
+
+### 🗄️ Supabase (progetto: `tullio`, ref: `vmxvnxsqfisucugcpqlc`, region: `eu-west-1`)
+- 6 tabelle esistenti con RLS: `users`, `tasks`, `comments`, `notices`, `conversations`, `messages`.
+- 5 utenti seedati e confermati, password: `tullio2026`.
+
+| Email | Ruolo |
+|---|---|
+| marco@tullio.local | manager |
+| roberto@tullio.local | admin |
+| sofia@tullio.local | agent |
+| luca@tullio.local | agent |
+| giulia@tullio.local | driver |
+
+### 🌐 Vercel (progetto: `tullio`, team: `tooco-s-projects`)
+- Env vars presenti: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (Production + Preview).
+- Branch di sviluppo: `claude/trusting-einstein-GQM9K`, PR #6.
+- Preview URL: https://tullio-git-claude-trusting-einstein-gqm9k-tooco-s-projects.vercel.app
+
+### 📈 Metriche
+- File: 7071 → **7127 righe** (delta minimo: solo export e factory).
+- File nuovi: `.gitignore`, `package-lock.json`, `src/lib/supabase.js`, `src/lib/auth/AuthContext.jsx`, `src/lib/auth/LoginScreen.jsx`, `src/lib/auth/mapMember.js`, `src/lib/api.js`.
+
+---
+
 ## v0.9-dev — Ristrutturazione UI + Profilo + Handoff (sessione 8)
 
 > Semplificazione interfaccia, unificazione viste, nuovo profilo utente, preparazione per migrazione a progetto Vite.

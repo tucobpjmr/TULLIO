@@ -1,6 +1,7 @@
 
 import { useState, useReducer, useContext, createContext, useRef, useEffect, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx";
+import { useAuth } from "./lib/auth/AuthContext.jsx";
 
 // ─── GOOGLE FONTS ──────────────────────────────────────────────────────────
 const FontLoader = () => (
@@ -119,7 +120,7 @@ const ViewportProvider = ({ children }) => {
 // Utente attualmente loggato. `let` per supportare lo switcher utente (v0.8).
 // Il reducer mantiene in sync state.currentUserId con questo riferimento globale.
 let CURRENT_USER = "marco";
-const _syncCurrentUser = (id) => { CURRENT_USER = id; };
+export const _syncCurrentUser = (id) => { CURRENT_USER = id; };
 
 // TEAM e CATEGORIES sono mutabili (gestiti dall'Admin via reducer).
 // Sono `let` perché getMember e altre utility leggono il riferimento corrente.
@@ -287,7 +288,36 @@ const TASK_TEMPLATES = [
 const AppContext = createContext(null);
 
 // Mutazione in-place per mantenere il riferimento alle costanti TEAM/CATEGORIES
-const _syncTeam = (newTeam) => { TEAM.length = 0; newTeam.forEach(m => TEAM.push(m)); };
+export const _syncTeam = (newTeam) => { TEAM.length = 0; newTeam.forEach(m => TEAM.push(m)); };
+
+// Bootstrap helper (step persistenza 2a): rimappa gli ID stringa dei mock
+// ("marco","sofia"...) ai nuovi UUID Supabase. Da rimuovere quando tasks,
+// notices e chat saranno caricati direttamente dal DB.
+export const _remapMockIds = (idMap) => {
+  const map = (id) => idMap[id] || id;
+  const mapArr = (arr) => (arr || []).map(map);
+
+  INITIAL_TASKS.forEach((t) => {
+    t.assignees = mapArr(t.assignees);
+  });
+  INITIAL_NOTICES.forEach((n) => {
+    if (n.author) n.author = map(n.author);
+  });
+  initialConversations.forEach((c) => {
+    c.participants = mapArr(c.participants);
+  });
+  Object.values(initialMessages).forEach((msgs) => {
+    msgs.forEach((m) => {
+      if (m.sender) m.sender = map(m.sender);
+      if (m.readBy) m.readBy = mapArr(m.readBy);
+      if (m.reactions) {
+        m.reactions = Object.fromEntries(
+          Object.entries(m.reactions).map(([emoji, users]) => [emoji, mapArr(users)])
+        );
+      }
+    });
+  });
+};
 const _syncCategories = (newCats) => {
   Object.keys(CATEGORIES).forEach(k => { delete CATEGORIES[k]; });
   Object.entries(newCats).forEach(([k, v]) => { CATEGORIES[k] = v; });
@@ -657,9 +687,11 @@ const INITIAL_NOTICES = [
   },
 ];
 
-const initialState = {
+// Lazy factory: letto al mount di VoyageDeskInner, così `_syncTeam` e
+// `_syncCurrentUser` invocati prima dal bootstrap auth vengono recepiti.
+const makeInitialState = () => ({
   tasks: INITIAL_TASKS,
-  team: TEAM,
+  team: [...TEAM],
   categories: CATEGORIES,
   agencyName: "VoyageDesk",
   notices: INITIAL_NOTICES,
@@ -673,7 +705,7 @@ const initialState = {
   filters: { assignee: "", category: "", priority: "", status: "", client: "" },
   lastAction: null, // { type, payload, undo: () => state-patch } per swipe-actions undo
   currentUserId: CURRENT_USER, // v0.8: utente loggato (con switcher in Topbar)
-};
+});
 
 // ─── UTILS ─────────────────────────────────────────────────────────────────
 const getMember = id => TEAM.find(m => m.id === id);
@@ -1779,6 +1811,8 @@ const ProfileEditor = ({ member, dispatch, onClose }) => {
 const UserSwitcher = ({ state, dispatch }) => {
   const [open, setOpen] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const { signOut, user } = useAuth();
   const ref = useRef(null);
   const curr = getMember(state.currentUserId) || { name: "—", role: "—", avatar: "??", color: "#999" };
 
@@ -1883,6 +1917,28 @@ const UserSwitcher = ({ state, dispatch }) => {
               </button>
             );
           })}
+
+          <div style={{ borderTop: "1px solid var(--border)", marginTop: 6, paddingTop: 6 }}>
+            <div style={{ fontSize: 10, color: "var(--text-muted)", padding: "0 10px 6px", lineHeight: 1.3, wordBreak: "break-all" }}>
+              Sessione: {user?.email}
+            </div>
+            <button
+              onClick={async () => { setSigningOut(true); await signOut(); }}
+              disabled={signingOut}
+              style={{
+                width: "100%", display: "flex", alignItems: "center", gap: 10,
+                padding: "10px 10px", background: "transparent",
+                border: "none", borderRadius: 6, cursor: signingOut ? "wait" : "pointer",
+                fontFamily: "inherit", fontSize: 13, color: "var(--danger)",
+                textAlign: "left", fontWeight: 600, opacity: signingOut ? 0.6 : 1,
+              }}
+              onMouseEnter={e => { if (!signingOut) e.currentTarget.style.background = "#FEE2E2"; }}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+            >
+              <span style={{ fontSize: 16 }}>↩</span>
+              <span>{signingOut ? "Disconnessione…" : "Esci dall'account"}</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -6949,7 +7005,7 @@ export default function VoyageDesk() {
 
 function VoyageDeskInner() {
   const { isDesktop } = useViewport();
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const [state, dispatch] = useReducer(reducer, null, makeInitialState);
   const [showFABModal, setShowFABModal] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [chatIntent, setChatIntent] = useState(null); // { toUser, taskLink } per aprire chat preconfezionata

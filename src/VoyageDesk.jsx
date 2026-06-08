@@ -286,6 +286,16 @@ const TASK_TEMPLATES = [
 // ─── CONTEXT & REDUCER ─────────────────────────────────────────────────────
 const AppContext = createContext(null);
 
+// Hook per accedere a currentUserId/team/categories dallo stato del reducer
+// senza dover passare props attraverso N livelli (e senza leggere globali stantii).
+const useAppCtx = () => {
+  const ctx = useContext(AppContext);
+  // Fallback ai globali se un componente viene renderizzato fuori dal provider
+  // (utile in test isolati e finché non migriamo tutti i siti).
+  if (!ctx) return { currentUserId: CURRENT_USER, team: TEAM, categories: CATEGORIES };
+  return ctx;
+};
+
 // Mutazione in-place per mantenere il riferimento alle costanti TEAM/CATEGORIES
 const _syncTeam = (newTeam) => { TEAM.length = 0; newTeam.forEach(m => TEAM.push(m)); };
 const _syncCategories = (newCats) => {
@@ -795,9 +805,11 @@ const SwipeActions = ({ task, dispatch, children, disabled = false }) => {
 
   const OPEN_WIDTH = 210; // larghezza pannello bottoni rivelato (3 bottoni × 70)
 
-  // Disabilita su desktop / disabilitato esplicitamente / no permessi di edit (v0.8)
-  // Leggo il currentUserId dal globale (sincronizzato dal reducer).
-  const canEdit = canEditTask(task, CURRENT_USER);
+  // Disabilita su desktop / disabilitato esplicitamente / no permessi di edit (v0.8).
+  // currentUserId viene dal context (state vivo) così l'auto-rerender è garantito
+  // quando si cambia utente con lo switcher.
+  const { currentUserId } = useAppCtx();
+  const canEdit = canEditTask(task, currentUserId);
   const swipeEnabled = !isDesktop && !disabled && canEdit;
 
   // tap fuori per chiudere
@@ -2655,20 +2667,21 @@ const AIDayPlanner = ({ tasks, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [plan, setPlan] = useState(null);
   const [error, setError] = useState(null);
+  const { currentUserId } = useAppCtx();
 
   useEffect(() => {
     let cancelled = false;
     const today = new Date();
 
-    // I task attivi assegnati a Marco
+    // I task attivi assegnati all'utente loggato
     const myTasks = tasks.filter(t =>
-      t.assignees?.includes(CURRENT_USER) && t.status !== "done"
+      t.assignees?.includes(currentUserId) && t.status !== "done"
     );
 
     // Task di altri operatori: scaduti, oppure urgenti e ancora in "todo"
     // (proxy ragionevole per "non visti / non presi in carico")
     const othersNeglected = tasks.filter(t => {
-      if (!t.assignees || t.assignees.includes(CURRENT_USER)) return false;
+      if (!t.assignees || t.assignees.includes(currentUserId)) return false;
       if (t.status === "done") return false;
       const urgent = t.priority === "critical" || t.priority === "high";
       const overdue = isOverdue(t);
@@ -2689,7 +2702,9 @@ const AIDayPlanner = ({ tasks, onClose }) => {
       category: t.category,
     });
 
-    const prompt = `Sei un assistente operativo per un'agenzia viaggi. Pianifica oggi (${today.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}) per Marco Ferretti (Manager).
+    const me = getMember(currentUserId);
+    const meLabel = me ? `${me.name} (${me.role})` : "l'utente loggato";
+    const prompt = `Sei un assistente operativo per un'agenzia viaggi. Pianifica oggi (${today.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}) per ${meLabel}.
 
 MIEI TASK ATTIVI:
 ${JSON.stringify(myTasks.map(compact))}
@@ -2735,7 +2750,7 @@ Regole:
       .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
-  }, [tasks]);
+  }, [tasks, currentUserId]);
 
   const findTask = (id) => tasks.find(t => t.id === id);
   const sevColor = { alta: "var(--danger)", media: "var(--warning)" };
@@ -2935,6 +2950,7 @@ const NoticeBoard = ({ notices, dispatch }) => {
   const [editing, setEditing] = useState(null); // null | { id?, text, color }
   const [creating, setCreating] = useState(false);
   const { isMobile } = useViewport();
+  const { currentUserId } = useAppCtx();
 
   // Pinned in alto, poi per data
   const sorted = [...notices].sort((a, b) => {
@@ -3117,7 +3133,7 @@ const NoticeBoard = ({ notices, dispatch }) => {
                 payload: {
                   id: "n" + Date.now(),
                   ...data,
-                  author: CURRENT_USER,
+                  author: currentUserId,
                   createdAt: new Date().toISOString(),
                   updatedAt: new Date().toISOString(),
                 }
@@ -3947,8 +3963,10 @@ const Dashboard = ({ state, dispatch, onOpenChat }) => {
 
 // ─── QUICK ADD TASK FORM ───────────────────────────────────────────────────
 const QuickAddTask = ({ onAdd, onClose }) => {
-  // Categorie filtrate per il ruolo dell'utente loggato (v0.8)
-  const availableCats = getAvailableCategories(CURRENT_USER);
+  // Categorie filtrate per il ruolo dell'utente loggato (v0.8).
+  // Usiamo il context così il form si aggiorna se l'utente cambia mentre è aperto.
+  const { currentUserId } = useAppCtx();
+  const availableCats = useMemo(() => getAvailableCategories(currentUserId), [currentUserId]);
   const firstCatKey = Object.keys(availableCats)[0] || "booking";
 
   const [form, setForm] = useState({
@@ -7000,8 +7018,15 @@ function VoyageDeskInner() {
     }
   };
 
+  // Espongo gli slice "live" dello stato che servono ai componenti foglia
+  // (currentUserId, team, categories) così evitiamo letture stantie dai globali.
+  const appCtxValue = useMemo(
+    () => ({ currentUserId: state.currentUserId, team: state.team, categories: state.categories }),
+    [state.currentUserId, state.team, state.categories]
+  );
+
   return (
-    <>
+    <AppContext.Provider value={appCtxValue}>
       <FontLoader />
       <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", background: "var(--surface)", fontFamily: "'DM Sans', sans-serif" }}>
         <Topbar state={state} dispatch={dispatch} onOpenChat={() => { setChatIntent(null); setShowChat(true); }} unreadChat={unreadChat} />
@@ -7065,6 +7090,6 @@ function VoyageDeskInner() {
         {/* Toast */}
         <Toast toast={state.toast} dispatch={dispatch} />
       </div>
-    </>
+    </AppContext.Provider>
   );
 }

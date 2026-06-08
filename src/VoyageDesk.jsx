@@ -5335,6 +5335,7 @@ const initialMessages = {
     { id: "m7", sender: "sofia", type: "text", text: "Ti ho mandato il preventivo aggiornato 📎", time: t(44), readBy: ["marco", "sofia"] },
     { id: "m8", sender: "marco", type: "text", text: "Grande, lo guardo nel pomeriggio 👍", time: t(30), readBy: ["marco", "sofia"] },
     { id: "m9", sender: "sofia", type: "text", text: "Una cosa, il cliente chiede transfer privato in idrovolante - lo includiamo?", time: t(5), readBy: ["sofia"] },
+    { id: "m10", sender: "sofia", type: "text", text: "Per il task [task:t1] aspetto la tua conferma 👀", time: t(3), readBy: ["sofia"] },
   ],
   c2: [
     { id: "m1", sender: "roberto", type: "text", text: "Marco, ho emesso la polizza Allianz per la famiglia Rossi", time: t(360), readBy: ["marco", "roberto"] },
@@ -5416,6 +5417,131 @@ const getUnreadCount = (msgs, convId) => {
   const arr = msgs[convId] || [];
   return arr.filter(m => m.sender !== CURRENT_USER && !m.readBy?.includes(CURRENT_USER)).length;
 };
+
+// ─── CHAT: TASK LINK PARSER (v0.9) ─────────────────────────────────────────
+// Parses `[task:tID]` tokens in message text → array of { type: "text"|"taskLink", ... }
+const TASK_LINK_RE = /\[task:([a-zA-Z0-9_-]+)\]/g;
+
+const parseMessageText = (text) => {
+  if (!text) return [{ type: "text", value: "" }];
+  const segments = [];
+  let lastIndex = 0;
+  let match;
+  TASK_LINK_RE.lastIndex = 0;
+  while ((match = TASK_LINK_RE.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ type: "text", value: text.slice(lastIndex, match.index) });
+    }
+    segments.push({ type: "taskLink", taskId: match[1] });
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) {
+    segments.push({ type: "text", value: text.slice(lastIndex) });
+  }
+  return segments;
+};
+
+// Rich preview chip per task link inline o card autonoma
+const TaskLinkChip = ({ taskId, isMine, inline = false }) => {
+  const { tasks, dispatch, onCloseChat } = useContext(ChatContext);
+  const task = (tasks || []).find(t => t.id === taskId);
+  if (!task) {
+    return <span style={{
+      fontSize: 12, padding: "2px 7px", borderRadius: 4,
+      background: isMine ? "rgba(255,255,255,0.12)" : "var(--surface2)",
+      color: isMine ? "rgba(255,255,255,0.7)" : "var(--text-muted)",
+      fontStyle: "italic",
+    }}>🔗 task non trovato</span>;
+  }
+  const handleClick = (e) => {
+    e.stopPropagation();
+    if (dispatch) {
+      dispatch({ type: "SET_SELECTED_TASK", payload: task });
+      if (onCloseChat) onCloseChat();
+    }
+  };
+  const cat = CATEGORIES[task.category];
+  if (inline) {
+    return (
+      <span onClick={handleClick} style={{
+        display: "inline-flex", alignItems: "center", gap: 4,
+        padding: "1px 8px 1px 4px", borderRadius: 12,
+        background: isMine ? "rgba(255,255,255,0.18)" : (cat?.color || "var(--navy)") + "20",
+        color: isMine ? "#fff" : (cat?.color || "var(--navy)"),
+        fontSize: 12, fontWeight: 600, cursor: "pointer",
+        border: `1px solid ${isMine ? "rgba(255,255,255,0.3)" : (cat?.color || "var(--navy)") + "40"}`,
+        whiteSpace: "nowrap", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", verticalAlign: "middle",
+      }} title={`${task.title} — ${formatDate(task.dueDate)}`}>
+        {cat?.icon || "📋"} {task.title.length > 22 ? task.title.slice(0, 22) + "…" : task.title}
+      </span>
+    );
+  }
+  // Rich preview card
+  return (
+    <div onClick={handleClick} style={{
+      marginTop: 6, padding: "8px 10px", borderRadius: 8,
+      background: isMine ? "rgba(255,255,255,0.12)" : "#fff",
+      border: `1px solid ${isMine ? "rgba(255,255,255,0.25)" : "var(--border)"}`,
+      borderLeft: `3px solid ${cat?.color || "var(--navy)"}`,
+      cursor: "pointer", display: "flex", gap: 8, alignItems: "center",
+      maxWidth: 280,
+    }}>
+      <span style={{ fontSize: 18 }}>{cat?.icon || "📋"}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: 12.5, fontWeight: 600,
+          color: isMine ? "#fff" : "var(--text)",
+          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+        }}>{task.title}</div>
+        <div style={{
+          fontSize: 10.5, marginTop: 2,
+          color: isMine ? "rgba(255,255,255,0.75)" : "var(--text-muted)",
+          display: "flex", gap: 6, alignItems: "center",
+        }}>
+          <span>{task.dueDate ? formatDate(task.dueDate) : "Senza data"}</span>
+          {task.client && <span>• {task.client}</span>}
+        </div>
+      </div>
+      <span style={{ fontSize: 11, opacity: 0.6 }}>↗</span>
+    </div>
+  );
+};
+
+// Render testo messaggio con task link inline + eventuali rich preview cards.
+// Strategy: rendi tutto inline; se il messaggio contiene UN solo task link e poco testo,
+// mostra anche la card autonoma sotto come "rich preview".
+const RenderedMessageText = ({ text, isMine }) => {
+  const segments = parseMessageText(text);
+  const taskLinks = segments.filter(s => s.type === "taskLink");
+  const plainText = segments.filter(s => s.type === "text").map(s => s.value).join("").trim();
+  const showCard = taskLinks.length === 1 && plainText.length < 80;
+  return (
+    <>
+      <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}>
+        {segments.map((s, i) =>
+          s.type === "text" ? <span key={i}>{s.value}</span> :
+            <TaskLinkChip key={i} taskId={s.taskId} isMine={isMine} inline />
+        )}
+      </div>
+      {showCard && <TaskLinkChip taskId={taskLinks[0].taskId} isMine={isMine} />}
+    </>
+  );
+};
+
+// ─── CHAT: PRESENCE (v0.9) ─────────────────────────────────────────────────
+// Mock presence: derivato dall'id utente (deterministico, no random) per stabilità UI.
+// In una versione reale, sarebbe sincronizzato via WebSocket.
+const PRESENCE_STATES = {
+  online: { color: "#2D7A4F", label: "Online" },
+  busy: { color: "#C8832A", label: "Occupato" },
+  offline: { color: "#9999AA", label: "Offline" },
+};
+const MOCK_PRESENCE = {
+  marco: "online", sofia: "online", luca: "busy",
+  roberto: "online", giulia: "offline",
+  elena: "offline", matteo: "offline",
+};
+const getPresence = (memberId) => MOCK_PRESENCE[memberId] || "offline";
 
 // ─── CHAT: REACTIONS POPOVER ───────────────────────────────────────────────
 const EMOJI_REACTIONS = ["👍", "❤️", "😂", "🔥", "✅", "🎉", "💡", "🙌"];
@@ -5561,7 +5687,7 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
 
           {/* Content */}
           {msg.type === "text" && (
-            <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}>{msg.text}</div>
+            <RenderedMessageText text={msg.text} isMine={isMine} />
           )}
 
           {msg.type === "voice" && (
@@ -5702,8 +5828,10 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
   const [recording, setRecording] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const [showAttach, setShowAttach] = useState(false);
+  const [showTaskPicker, setShowTaskPicker] = useState(false);
   const [typing, setTyping] = useState(false);
   const scrollRef = useRef(null);
+  const { tasks: ctxTasks } = useContext(ChatContext);
 
   // Se è arrivato un prefill (es. da "contatta agente" su urgenti altrui), popolalo
   useEffect(() => {
@@ -5839,7 +5967,12 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
                 <span style={{ animation: "typing 1s infinite", animationDelay: "0.4s", display: "inline-block" }}>.</span>
               </span>
             ) : conv.type === "direct" ? (
-              <>● Online</>
+              (() => {
+                const other = conv.participants.find(p => p !== CURRENT_USER);
+                const pres = getPresence(other);
+                const ps = PRESENCE_STATES[pres];
+                return <span><span style={{ color: ps.color }}>●</span> {ps.label}</span>;
+              })()
             ) : (
               `${conv.participants.length} membri`
             )}
@@ -5948,6 +6081,56 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
               )}
             </div>
 
+            <div style={{ position: "relative" }}>
+              <button onClick={() => setShowTaskPicker(s => !s)} title="Allega task" style={{
+                background: "var(--surface2)", border: "none", borderRadius: "50%",
+                width: 36, height: 36, cursor: "pointer", fontSize: 16, flexShrink: 0,
+              }}>📋</button>
+              {showTaskPicker && (
+                <div className="slide-up" style={{
+                  position: "absolute", bottom: "calc(100% + 8px)", left: 0,
+                  background: "#fff", borderRadius: 12, padding: 8,
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--border)",
+                  display: "flex", flexDirection: "column", gap: 2, minWidth: 240, maxHeight: 280, overflowY: "auto", zIndex: 100,
+                }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5, padding: "4px 8px" }}>
+                    INSERISCI LINK A TASK
+                  </div>
+                  {(ctxTasks || []).filter(t => isActiveTask(t)).slice(0, 12).map(t => {
+                    const cat = CATEGORIES[t.category];
+                    return (
+                      <button key={t.id} onClick={() => {
+                        setInput(prev => `${prev}${prev && !prev.endsWith(" ") ? " " : ""}[task:${t.id}] `);
+                        setShowTaskPicker(false);
+                      }} style={{
+                        display: "flex", alignItems: "center", gap: 8,
+                        padding: "6px 8px", border: "none", background: "transparent",
+                        borderRadius: 6, cursor: "pointer", fontSize: 12, textAlign: "left",
+                      }}
+                        onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                      >
+                        <span style={{ fontSize: 14 }}>{cat?.icon}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {t.title}
+                          </div>
+                          <div style={{ fontSize: 10, color: "var(--text-muted)" }}>
+                            {t.dueDate ? formatDate(t.dueDate) : "Senza data"}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                  {(!ctxTasks || ctxTasks.length === 0) && (
+                    <div style={{ padding: "12px 8px", fontSize: 12, color: "var(--text-muted)", textAlign: "center" }}>
+                      Nessun task disponibile
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
@@ -5995,13 +6178,39 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
     return new Date(lastB.time) - new Date(lastA.time);
   });
 
+  const searchLower = search.trim().toLowerCase();
+  const matchInMessages = (convId) => {
+    if (!searchLower) return null;
+    const arr = messages[convId] || [];
+    return arr.find(m => m.type === "text" && (m.text || "").toLowerCase().includes(searchLower));
+  };
+
   const filtered = sorted.filter(c => {
     if (filter === "direct" && c.type !== "direct") return false;
     if (filter === "group" && c.type !== "group") return false;
     if (filter === "unread" && getUnreadCount(messages, c.id) === 0) return false;
-    if (search && !getConversationName(c).toLowerCase().includes(search.toLowerCase())) return false;
+    if (searchLower) {
+      const nameMatch = getConversationName(c).toLowerCase().includes(searchLower);
+      const msgMatch = !!matchInMessages(c.id);
+      if (!nameMatch && !msgMatch) return false;
+    }
     return true;
   });
+
+  const highlightMatch = (text) => {
+    if (!searchLower || !text) return text;
+    const idx = text.toLowerCase().indexOf(searchLower);
+    if (idx < 0) return text;
+    return (
+      <>
+        {text.slice(0, idx)}
+        <mark style={{ background: "var(--gold)", color: "var(--navy)", padding: "0 2px", borderRadius: 2 }}>
+          {text.slice(idx, idx + searchLower.length)}
+        </mark>
+        {text.slice(idx + searchLower.length)}
+      </>
+    );
+  };
 
   const totalUnread = conversations.reduce((acc, c) => acc + getUnreadCount(messages, c.id), 0);
 
@@ -6060,11 +6269,11 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
               onMouseLeave={e => e.currentTarget.style.background = unread > 0 ? "rgba(212,168,67,0.05)" : "transparent"}
             >
               {c.type === "direct" ? (
-                <div style={{ position: "relative", flexShrink: 0 }}>
+                <div style={{ position: "relative", flexShrink: 0 }} title={`${getMember(otherUser)?.name} — ${PRESENCE_STATES[getPresence(otherUser)].label}`}>
                   <Avatar memberId={otherUser} size={42} />
                   <div style={{
                     position: "absolute", bottom: 0, right: 0, width: 11, height: 11,
-                    borderRadius: "50%", background: "var(--success)", border: "2px solid #fff",
+                    borderRadius: "50%", background: PRESENCE_STATES[getPresence(otherUser)].color, border: "2px solid #fff",
                   }} />
                 </div>
               ) : (
@@ -6080,7 +6289,7 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
                   <div style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0, flex: 1 }}>
                     {c.pinned && <span style={{ fontSize: 10, color: "var(--gold)" }}>📌</span>}
                     <span style={{ fontSize: 13.5, fontWeight: unread > 0 ? 700 : 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {getConversationName(c)}
+                      {highlightMatch(getConversationName(c))}
                     </span>
                   </div>
                   <span style={{ fontSize: 10, color: "var(--text-muted)", flexShrink: 0 }}>
@@ -6093,19 +6302,33 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
                     fontWeight: unread > 0 ? 500 : 400,
                     whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1, minWidth: 0,
                   }}>
-                    {last ? (
-                      <>
-                        {last.sender === CURRENT_USER && <span style={{ color: "var(--text-muted)" }}>Tu: </span>}
-                        {c.type === "group" && last.sender !== CURRENT_USER && (
-                          <span style={{ color: lastSender?.color, fontWeight: 600 }}>
-                            {lastSender?.name.split(" ")[0]}:{" "}
-                          </span>
-                        )}
-                        {last.type === "voice" ? "🎙️ Messaggio vocale" :
-                          last.type === "file" ? `📎 ${last.fileName}` :
-                            last.text}
-                      </>
-                    ) : "Nessun messaggio"}
+                    {(() => {
+                      const msgMatch = matchInMessages(c.id);
+                      if (msgMatch) {
+                        const matchSender = getMember(msgMatch.sender);
+                        return (
+                          <>
+                            <span style={{ color: matchSender?.color, fontWeight: 600 }}>
+                              {matchSender?.name.split(" ")[0]}:{" "}
+                            </span>
+                            {highlightMatch((msgMatch.text || "").length > 60 ? msgMatch.text.slice(0, 60) + "…" : msgMatch.text)}
+                          </>
+                        );
+                      }
+                      return last ? (
+                        <>
+                          {last.sender === CURRENT_USER && <span style={{ color: "var(--text-muted)" }}>Tu: </span>}
+                          {c.type === "group" && last.sender !== CURRENT_USER && (
+                            <span style={{ color: lastSender?.color, fontWeight: 600 }}>
+                              {lastSender?.name.split(" ")[0]}:{" "}
+                            </span>
+                          )}
+                          {last.type === "voice" ? "🎙️ Messaggio vocale" :
+                            last.type === "file" ? `📎 ${last.fileName}` :
+                              last.text}
+                        </>
+                      ) : "Nessun messaggio";
+                    })()}
                   </div>
                   {unread > 0 && (
                     <div style={{
@@ -6278,7 +6501,7 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
 };
 
 // ─── CHAT: MAIN PANEL ──────────────────────────────────────────────────────
-const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, currentUserId }) => {
+const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, currentUserId, dispatch }) => {
   const { isMobile } = useViewport();
   const [activeConv, setActiveConv] = useState(null);
   const [newMode, setNewMode] = useState(false);
@@ -6305,12 +6528,11 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
     }
     setActiveConv(direct);
     setNewMode(false);
-    // Precompila il messaggio con riferimento al task
+    // Precompila il messaggio con riferimento al task (token parseable [task:ID])
     if (intent.taskLink) {
       const t = (tasks || []).find(x => x.id === intent.taskLink);
       if (t) {
-        const text = `🔗 Riferimento task: "${t.title}"\n📅 Scadenza: ${formatDate(t.dueDate)} ${formatTime(t.dueDate)}\n\n`;
-        setPrefillText(text);
+        setPrefillText(`Ciao! Riguardo a [task:${t.id}] — `);
       }
     }
   }, [open, intent, currentUserId]);
@@ -6324,7 +6546,7 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
   };
 
   return (
-    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER }}>
+    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER, dispatch, onCloseChat: onClose }}>
     <>
       <div onClick={onClose} style={{
         position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: 700,
@@ -8734,6 +8956,7 @@ function VoyageDeskInner() {
           intent={chatIntent}
           tasks={state.tasks}
           currentUserId={state.currentUserId}
+          dispatch={dispatch}
         />
 
         {/* FAB principale (singolo task) + FAB secondario (bulk) */}

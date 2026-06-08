@@ -64,7 +64,7 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 |---|---|---|---|---|
 | Notifiche reali | ✅ | — | — | Completate in v0.9. Iniettate da ADD_TASK/ADD_COMMENT/APPROVE; filtri + "segna tutte lette"; badge nav. |
 | Calendario avanzato | ✅ | — | — | Completato in v0.9. Viste mese/settimana/giorno, timeline oraria, export iCal mock, drill-down settimana→giorno. |
-| Estensioni chat (base) | ⬜ | 🟡 | S–M | Ricerca nelle conversazioni, stato online/occupato, rich preview di task/pratiche, **task link cliccabile** nel messaggio |
+| Estensioni chat (base) | ✅ | — | — | Completate in v0.9. Task link cliccabile (`[task:ID]`), rich preview, ricerca full-text con highlight, presence states (online/busy/offline). |
 | Impostazioni agenzia | 🔶 | 🟡 | S | Gestione categorie e nome agenzia già in Admin. Manca: template messaggi, profilo utente, preferenze UI |
 | Ricerca globale estesa | ✅ | — | — | Completata in v0.5. |
 | Responsive (mobile/tablet/desktop) | ✅ | — | — | Completato in v0.6. |
@@ -127,7 +127,7 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 
 | Idea | Stato | Priorità | Note |
 |---|---|---|---|
-| Task link cliccabile nella chat (apre TaskSlideOver) | ⬜ | 🟡 | Oggi è testo precompilato, non interattivo |
+| Task link cliccabile nella chat (apre TaskSlideOver) | ✅ | — | Completato in v0.9 |
 | Permessi granulari per sub-ruolo (Senior vs Junior) | ⬜ | ⚪ | Oggi trattati identicamente come "agent" |
 | Coda personale Driver: filtro per data/ora (tipo agenda giornaliera) | ⬜ | 🟡 | Giulia ha bisogno di una vista transfer-oriented |
 | Indicatore visivo "read-only" sulle card urgenti altrui | ⬜ | ⚪ | Lucchetto o bordo tratteggiato |

@@ -1,5 +1,24 @@
 # CHANGELOG — VoyageDesk
 
+## v0.9 — Estensioni Chat (sessione 9 — sesta parte)
+
+> Fase 2 procede: task link cliccabili, ricerca full-text nelle conversazioni, stato presenza, rich preview.
+
+### 💬 Estensioni chat (base)
+- **Task link cliccabili**: pattern `[task:ID]` nei messaggi → parsing in segmenti e rendering come chip inline cliccabile (icona categoria + titolo troncato). Click → `SET_SELECTED_TASK` + chiude chat → apre TaskSlideOver.
+- **Rich preview card**: se il messaggio contiene un solo task link e poco testo (<80 char), sotto al testo appare una card con icona/titolo/data/cliente.
+- **Picker task in composer**: bottone 📋 nella barra input apre dropdown con i primi 12 task attivi → click inserisce `[task:ID]` nel testo.
+- **Ricerca full-text**: il box ricerca in ConversationList ora cerca anche dentro i messaggi (non solo nei nomi conversazione). Preview con highlighting `<mark>` giallo del match.
+- **Presence states** (mock deterministico): online (verde), busy (arancione), offline (grigio). Pallino colorato in ConversationList su avatar diretti + label nello status header ConversationView.
+- **Intent chat aggiornato**: `openChatTo({ taskLink })` ora precompila con `[task:ID]` parseable invece di testo statico.
+- Nuovi helper: `parseMessageText`, `TaskLinkChip`, `RenderedMessageText`, `PRESENCE_STATES`, `MOCK_PRESENCE`, `getPresence`.
+- ChatContext esteso con `dispatch` + `onCloseChat`.
+
+### 📈 Metriche
+- File: ~8720 → ~8920 righe (+200).
+
+---
+
 ## v0.9 — Calendario Avanzato (sessione 9 — quinta parte)
 
 > Fase 2 procede: terzo viewmode "Giorno" + export iCal + drill-down dalla settimana.

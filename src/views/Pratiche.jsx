@@ -4,7 +4,6 @@ import { useViewport } from "../contexts/ViewportContext.jsx";
 import { PRATICA_STATI, STATI_SEQUENCE, formatNumeroPratica } from "../data/mockPratiche.js";
 import { getMember, getActiveTasks, formatDate } from "../utils/helpers.js";
 import { CATEGORIES } from "../data/mockData.js";
-import { SUPPLIER_TYPES } from "../data/mockSuppliers.js";
 import CategoryChip from "../components/ui/CategoryChip.jsx";
 import PriorityBadge from "../components/ui/PriorityBadge.jsx";
 import StatusBadge from "../components/ui/StatusBadge.jsx";
@@ -204,7 +203,7 @@ const PraticaFormModal = ({ initial, clients, pratiche, onSave, onClose }) => {
   const { isMobile } = useViewport();
   const [form, setForm] = useState({
     titolo: "", clientId: "", stato: "bozza", destinazione: "",
-    adulti: 2, bambini: 0, budget: 0, note: "",
+    adulti: 2, bambini: 0, budget: 0, numeroOperatore: "", note: "",
     ...initial,
     dataPartenza: initial?.dataPartenza ? initial.dataPartenza.slice(0, 10) : "",
     dataRitorno: initial?.dataRitorno ? initial.dataRitorno.slice(0, 10) : "",
@@ -318,6 +317,13 @@ const PraticaFormModal = ({ initial, clients, pratiche, onSave, onClose }) => {
           </div>
         </div>
 
+        {/* Numero operatore */}
+        <div>
+          <label style={labelStyle}>Numero operatore</label>
+          <input value={form.numeroOperatore} onChange={e => set("numeroOperatore", e.target.value)}
+            placeholder="es. +39 02 1234567" style={fieldStyle} />
+        </div>
+
         {/* Note */}
         <div>
           <label style={labelStyle}>Note</label>
@@ -345,16 +351,12 @@ const PraticaFormModal = ({ initial, clients, pratiche, onSave, onClose }) => {
 };
 
 // ─── PRATICA DETAIL SLIDE-OVER ────────────────────────────────────────────
-const PraticaDetail = ({ pratica, clients, suppliers, tasks, dispatch, onEdit, onClose }) => {
+const PraticaDetail = ({ pratica, clients, tasks, dispatch, onEdit, onClose }) => {
   const { isMobile } = useViewport();
   const client = useMemo(() => clients.find(c => c.id === pratica.clientId), [clients, pratica.clientId]);
   const linkedTasks = useMemo(() =>
     getActiveTasks(tasks).filter(t => pratica.taskIds?.includes(t.id)),
     [tasks, pratica.taskIds]
-  );
-  const linkedSuppliers = useMemo(() =>
-    (suppliers || []).filter(s => pratica.supplierIds?.includes(s.id) && !s.deletedAt),
-    [suppliers, pratica.supplierIds]
   );
   const durata = calcDurata(pratica.dataPartenza, pratica.dataRitorno);
   const cfg = PRATICA_STATI[pratica.stato] || PRATICA_STATI.bozza;
@@ -409,6 +411,7 @@ const PraticaDetail = ({ pratica, clients, suppliers, tasks, dispatch, onEdit, o
               { icon: "🏁", label: "Ritorno", value: formatDate(pratica.dataRitorno) },
               { icon: "⏱️", label: "Durata", value: durata || "—" },
               { icon: "👥", label: "Partecipanti", value: `${pratica.adulti + (pratica.bambini || 0)} pax${pratica.bambini > 0 ? ` (${pratica.bambini} bambini)` : ""}` },
+              ...(pratica.numeroOperatore ? [{ icon: "📞", label: "N° Operatore", value: pratica.numeroOperatore }] : []),
             ].map(({ icon, label, value }) => (
               <div key={label} style={{ background: "var(--surface)", borderRadius: 8, padding: "10px 12px" }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5, marginBottom: 3 }}>{icon} {label.toUpperCase()}</div>
@@ -443,33 +446,6 @@ const PraticaDetail = ({ pratica, clients, suppliers, tasks, dispatch, onEdit, o
                 background: "var(--surface2)", borderRadius: 8, padding: "10px 14px",
                 border: "1px solid var(--border)",
               }}>{pratica.note}</div>
-            </div>
-          )}
-
-          {/* Fornitori */}
-          {linkedSuppliers.length > 0 && (
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5, marginBottom: 8 }}>
-                FORNITORI ({linkedSuppliers.length})
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {linkedSuppliers.map(s => {
-                  const typeCfg = SUPPLIER_TYPES[s.type] || SUPPLIER_TYPES.other;
-                  return (
-                    <div key={s.id} style={{
-                      padding: "8px 12px", borderRadius: 8,
-                      border: "1px solid var(--border)", background: typeCfg.bg,
-                      display: "flex", alignItems: "center", gap: 8,
-                    }}>
-                      <span style={{ fontSize: 16 }}>{typeCfg.icon}</span>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: typeCfg.color }}>{s.name}</div>
-                        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{typeCfg.label}</div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
             </div>
           )}
 
@@ -586,7 +562,7 @@ const Pratiche = ({ state, dispatch }) => {
         payload: {
           ...form, id: genId(),
           numero: getNextNumero(activePratiche),
-          taskIds: [], supplierIds: [],
+          taskIds: [],
           createdAt: new Date().toISOString(),
           createdBy: state.currentUserId,
           deletedAt: null,
@@ -732,7 +708,6 @@ const Pratiche = ({ state, dispatch }) => {
         <PraticaDetail
           pratica={selectedPratica}
           clients={activeClients}
-          suppliers={state.suppliers || []}
           tasks={state.tasks}
           dispatch={dispatch}
           onEdit={openEdit}

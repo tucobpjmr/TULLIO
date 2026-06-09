@@ -5,157 +5,109 @@
 
 ---
 
-## Stato attuale (commit `0fabf81`, PR #13 `claude/cool-darwin-8wdgwv`)
+## Stato attuale (branch `claude/step-e-sync-robustness`, commits E→I sopra `claude/cool-darwin-8wdgwv`)
 
-### Cosa è stato fatto (Fase D — Persistenza dati, 4 sub-step)
+### Cosa è stato fatto nella sessione corrente (Step E → I)
 
-| Sub-step | Branch | Commit | Stato |
-|---|---|---|---|
-| TEAM reale + makeInitialState | claude/cool-darwin-8wdgwv | dc61dd3 | ✅ |
-| Tasks load + CRUD (api.js + mapper) | claude/cool-darwin-8wdgwv | 9889f7f | ✅ |
-| Notices · ADD_COMMENT autore reale · Realtime tasks/notices | claude/cool-darwin-8wdgwv | 62efab7 | ✅ |
-| Conversations + Messages (chat) | claude/cool-darwin-8wdgwv | 0fabf81 | ✅ |
+| Step | Commit | Descrizione | Stato |
+| ---- | ------ | ----------- | ----- |
+| E — Robustezza sync | `7052934` | Toast su errori persist; errori login Supabase localizzati in italiano; loading state ChatPanel | ✅ |
+| F — Notifiche reali | `c6607ec` | Tabella DB + RLS + realtime + trigger `task_assigned`; `NotificationsAPI`; `NotificationsPanel` ridisegnato (titolo da payload, time relativo, markRead); badge sidebar Admin (agenti pending) e Dashboard (coda globale) | ✅ |
+| G — Calendario avanzato | `c05bbd9` | Vista Giorno (slot ore 00–23 + linea ora corrente); Vista Settimana piena (7 colonne × 24h); Export iCal (`.ics` RFC5545) | ✅ |
+| H — Estensioni chat | `a0b9b5e` | Task link cliccabile nei messaggi (parsa `🔗 Riferimento task:` → pill che apre `TaskSlideOver`); ricerca conversazioni estesa (nomi partecipanti + ultimi messaggi); presence online/away/offline con heartbeat 45s + visibilitychange + realtime su `users` | ✅ |
+| I — Quick wins Dashboard | `a3a0c4d` | `takeOwnership`: auto-move "In Corso" se la task era in `todo` + toast custom `Hai preso in carico: [titolo]` | ✅ |
 
-### Architettura risultante
+### Migrazioni Supabase da applicare prima di testare in produzione
+
+Nuovi file in `supabase/migrations/`:
+
+1. `20260609_notifications.sql` — tabella `public.notifications` + RLS per-utente + realtime + trigger `notify_task_assigned` su `INSERT/UPDATE OF assignees`.
+2. `20260609_user_presence.sql` — colonne `status` e `last_seen_at` su `public.users` + policy `users update self presence` + `users` in `supabase_realtime`.
+
+Esecuzione: Dashboard Supabase → SQL Editor, applica nell'ordine indicato.
+
+### Architettura risultante (aggiornata)
 
 ```
 src/
 ├── auth/
-│   ├── AuthContext.jsx     ← AuthProvider (session, profile, team) via Supabase
-│   └── LoginScreen.jsx     ← Login email/password
+│   ├── AuthContext.jsx       ← invariato
+│   └── LoginScreen.jsx       ← + localizeAuthError (Step E)
 ├── lib/
-│   ├── supabase.js         ← createClient (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
-│   ├── api.js              ← CRUD: Users, Tasks, Comments, Notices,
-│   │                          Conversations, Messages, subscribeToTable
-│   └── mappers.js          ← fromDb/toDb per: Task, Comment, Notice,
-│                              Conversation, Message
-├── VoyageDesk.jsx          ← App completa (~7400 righe), single-file
-└── main.jsx                ← AuthProvider + AuthGate → VoyageDesk | LoginScreen
+│   ├── supabase.js
+│   ├── api.js                ← + NotificationsAPI, Users.setPresence
+│   └── mappers.js            ← + fromDbNotification
+├── VoyageDesk.jsx            ← ~+800 righe (E+F+G+H+I)
+└── main.jsx
+supabase/
+└── migrations/
+    ├── 20260609_notifications.sql       ← Step F
+    └── 20260609_user_presence.sql       ← Step H
 ```
-
-### Modalità DB vs mock
-
-`VoyageDeskInner` riceve `initialTeam` e `initialCurrentUserId` da `AuthGate`.
-
-- **Con login** (`initialTeam.length > 0`): `useSupabase = true` → tasks/notices/chat idratati dal DB al mount, dispatch wrapper persiste ogni mutazione fire-and-forget, realtime via `subscribeToTable` + reload completo debounced 200ms.
-- **Senza login** (preview Vercel anonimo): `useSupabase = false` → mock in-memory come prima di questa PR. Utile per smoke test UI.
-
-### Supabase — progetto
-
-- **Ref**: `vmxvnxsqfisucugcpqlc` (nome: "tullio", region: eu-west-1)
-- **Tabelle**: `users`, `tasks`, `comments`, `notices`, `conversations`, `messages`, `clients`, `suppliers`, `dossiers`, `dossier_suppliers`
-- **RLS**: abilitata su tutte. Le policy filtrano per utente loggato.
-- **Realtime publication**: `tasks`, `comments`, `notices`, `conversations`, `messages` in `supabase_realtime`.
-- **Migrazioni applicate**:
-  1. `schema_iniziale_voyagedesk`
-  2. `enable_rls_and_policies`
-  3. `hardening_advisors_fix`
-  4. `fase1_clients_suppliers_dossiers`
-  5. `fix_task_priority_status_to_match_app`
-  6. `users_add_capacity_and_avatar`
-  7. `enable_realtime_for_app_tables`
-  8. `enable_realtime_for_chat_tables`
-- **Utenti seed** (5 righe in `public.users`): Roberto (admin), Marco (manager), Sofia (agent), Luca (agent), Giulia (driver) — email `<nome>@tullio.local`, password da configurare in Supabase Auth.
 
 ---
 
-## Caveat tecnici noti (da risolvere nella prossima sessione)
+## Caveat tecnici residui
 
 | # | Area | Problema | Priorità |
-|---|---|---|---|
-| 1 | Errori sync | Tutti gli errori DB sono solo in console. L'utente non vede nulla se una persist fallisce (es. RLS violation). Da convertire in toast rosso. | 🔴 |
-| 2 | Realtime / Eco | Chi causa l'evento vede lo state ottimistico + un reload subito dopo. Lieve "flash". Migliorabile con origin-tagging per skippare il proprio eco. | 🟡 |
-| 3 | ADD_COMMENT + SET_CURRENT_USER | Il `user` embedded nel commento (mostrato in UI) usa `getMember(CURRENT_USER).name`, ma `CURRENT_USER` è il `let` globale sincronizzato col reducer. Se si switcha utente mentre un commento è in volo, il nome potrebbe desincronizzarsi. Non critico, cosmetic. | 🟡 |
-| 4 | Chat — `markRead` | Viene chiamato a ogni apertura di conversazione per tutti i messaggi non letti. Molte update query, ma idempotenti. Ottimizzabile con un solo upsert per conv. | 🟡 |
-| 5 | Chat — file size | `fileSize` lato app è stringa human-readable ("245 KB"). Su DB (bigint) è scritto `null`. Lo storage file reale non è ancora integrato. | ⚪ |
-| 6 | Reload completo | Su ogni evento realtime si ricarica l'intera lista (non solo la riga modificata). Semplice e robusto ma genera N query in caso di burst. Ok per ora. | ⚪ |
-| 7 | UNDO_LAST_ACTION | L'undo swipe opera solo in-memory (non rollback DB). Accettabile per ora. | ⚪ |
+| --- | --- | --- | --- |
+| 1 | Notifiche — auto-assegnazione | Quando un utente si auto-assegna una task, il trigger `task_assigned` gli notifica comunque. Da escludere via `current_setting('request.jwt.claims', true)::jsonb->>'sub'` nel trigger. | 🟡 |
+| 2 | Notifiche — task_due / comment / queue_stale | Solo `task_assigned` è generato dal DB. Servono trigger su `comments` (mention → notifica), cron per `task_due` (24h prima della scadenza) e `queue_stale` (task in coda da > N ore). | 🟡 |
+| 3 | Presence — heartbeat costoso | `setPresence` ogni 45s × N utenti loggati genera 1 UPDATE per tab aperta. Per ora ok, ma su scala migrabile a Supabase Presence channel. | ⚪ |
+| 4 | Presence — RLS realtime | Subscribe a `users` riceve TUTTI i row, ma le RLS sui `users` filtrano già la SELECT. Verificare che `postgres_changes` rispetti la RLS in lettura. | 🟡 |
+| 5 | Realtime / Eco | Chi causa l'evento vede lo state ottimistico + reload subito dopo (flash). Migliorabile con origin-tagging. | 🟡 |
+| 6 | Chat — `markRead` | Una UPDATE per messaggio non letto. Idempotente ma N query. Ottimizzabile con upsert batch. | 🟡 |
+| 7 | Chat — file size | `fileSize` lato app è stringa human ("245 KB"). DB bigint resta `null`. Storage file reale non integrato. | ⚪ |
+| 8 | Calendario — Distribuzione Agenti | La tabella in fondo a `CalendarPlanner` usa ancora la settimana corrente fissa in vista Giorno. Non bloccante. | ⚪ |
+| 9 | Task link nella chat | Il match per ritrovare la task usa `t.title === link.taskTitle`: se il titolo cambia dopo l'invio del messaggio il link si rompe (pulsante disabled). Migliorabile salvando `task_ref` (campo già su `messages.task_ref`) e usandolo nel parser. | 🟡 |
+| 10 | UNDO_LAST_ACTION | L'undo swipe opera solo in-memory (no rollback DB). Accettabile per ora. | ⚪ |
 
 ---
 
-## Roadmap prossimi step (priorità)
+## Roadmap prossimi step
 
-### 🔴 Step E — Robustezza sync (blocca il test reale in produzione)
+### 🟡 Step J — Notifiche complete (trigger mancanti)
 
-Risolve il caveat #1 (errori silenti). Modifiche contenute:
+1. Trigger DB su `comments`: insert in `notifications` per ogni `assignee` della task quando viene aggiunto un commento (escluso l'autore del commento).
+2. Edge Function / pg_cron giornaliero `notify_task_due` per task in scadenza nelle prossime 24h.
+3. Edge Function / pg_cron orario `notify_queue_stale` per task in coda da > 4 ore.
+4. Mention parser: se il testo del commento contiene `@nome`, generare notifica `mention` invece di `comment`.
 
-1. **Wrapper dispatch**: sostituire `console.error` con `rawDispatch({ type: "SHOW_TOAST", ... })` quando la persist fallisce.
-2. **AuthContext**: gestire l'errore di login con messaggio localizzato (il DB può restituire errori diversi da "Invalid login credentials").
-3. **Loading state chat**: mostrare un mini-spinner nella ChatPanel mentre `messages` è `{}` in modalità Supabase (evita il flash "nessun messaggio").
+### 🟡 Step K — Refactor task link via task_ref
 
-### 🔴 Step F — Notifiche reali
+- Quando `setMessages` invia un messaggio con pattern `🔗 Riferimento task:`, popolare `task_ref` con l'id della task.
+- `MessageTextContent`: lookup per id (più affidabile del match per titolo).
 
-Sblocca badge sidebar, alert pending, menzioni bacheca. Da `ROADMAP.md` Fase 2:
+### 🟡 Step L — Origin-tagging realtime
 
-**Schema DB** (migration da applicare):
-```sql
-create table public.notifications (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid references public.users(id) on delete cascade,
-  type text not null,          -- 'task_assigned'|'task_due'|'comment'|'mention'|'queue_stale'
-  payload jsonb not null default '{}',
-  read boolean not null default false,
-  created_at timestamptz not null default now()
-);
-alter table public.notifications enable row level security;
--- policy: utente vede solo le proprie notifiche
-create policy "own notifications" on public.notifications
-  using (user_id = auth.uid());
-alter publication supabase_realtime add table public.notifications;
-```
+- Generare un `clientId` per tab (UUID in `sessionStorage`).
+- Aggiungere colonna `origin_client` ai tavoli che ricevono realtime.
+- Nel subscribe: skip dei row con `origin_client === my clientId` per evitare l'eco locale.
 
-**Lato app**:
-- `api.js`: `Notifications.listUnread()`, `markRead(id)`, `markAllRead()`.
-- `VoyageDesk.jsx`: nuovo `useState([]) notifications`, effect mount + realtime subscribe.
-- `NotificationsPanel` (già esiste): sostituire array mock con dati reali. Aggiungere badge contatore su icona campanella.
-- Badge sidebar/bottom-nav **Admin** con contatore agenti pending (query `users` dove `pending=true`).
-- Badge sidebar/bottom-nav **Dashboard** con contatore coda globale (tasks dove `assignees = []`).
+### ⚪ Step M — Storage file reali nella chat
 
-**Trigger generazione notifiche** (da implementare via Supabase Edge Function o DB trigger):
-- `task_assigned`: quando `assignees` cambia e include l'utente.
-- `task_due`: cron ogni mattina per scadenze nelle prossime 24h.
-- `comment`: quando viene inserito un commento su una task in cui l'utente è assignee.
-- `queue_stale`: task in coda da > N ore (cron).
+- Bucket `chat-attachments` con policy per-conversazione.
+- Upload → `messages.file_url` + `messages.file_size` numerico.
 
-### 🟡 Step G — Calendario avanzato
+### ⚪ Step N — Code-splitting
 
-Da `ROADMAP.md` Fase 2. Non dipende da Supabase, è UI pura:
-
-- Vista **giornaliera**: colonna ore 00–23, task come blocchi sovrapposti.
-- Vista **settimanale piena**: 7 colonne, eventi multi-slot.
-- **Export iCal** (mock): genera stringa `.ics` e `URL.createObjectURL` per download.
-- Il componente `CalendarPlanner` esiste già con toggle Mese/Settimana e distribuzione agenti.
-
-### 🟡 Step H — Estensioni chat
-
-Da `ROADMAP.md` Fase 2 + migliorie post-v0.8:
-
-1. **Task link cliccabile** nella chat: i messaggi con pattern `🔗 Riferimento task:` oggi sono testo puro. Parsarli nel componente `Message` e renderizzare un bottone che fa `dispatch({ type: "SET_SELECTED_TASK", ... })`.
-2. **Ricerca nelle conversazioni**: input di ricerca nella `ConversationList`, filtro su `name` + `participants` + ultimi messaggi.
-3. **Stato online/occupato**: campo `status` su `users` DB (`online|away|offline`) aggiornato al mount/unmount dell'app; indicatore colorato nell'avatar della chat.
-
-### ⚪ Step I — Quick wins Dashboard (da `ROADMAP.md` migliorie post-v0.8)
-
-- Badge su voce **Admin** in sidebar/bottom-nav con contatore agenti pending.
-- Badge su voce **Dashboard** con contatore coda globale.
-- Toast personalizzato "Hai preso in carico: [titolo]" quando si prende un task dalla coda globale.
-- Auto-move in "In Corso" al "Prendi in carico".
+- Bundle ~1MB monolitico. Dynamic import per le viste (Calendar, Team, Trash, Admin).
 
 ---
 
 ## Come iniziare la nuova sessione
 
 1. Leggi `docs/CLAUDE.md` (convenzioni, pattern, palette, breakpoint).
-2. Leggi `docs/ROADMAP.md` per contesto completo.
-3. Questo file per stato corrente.
-4. Parti da **Step E** (robustezza sync) se vuoi qualcosa di breve ma ad alto impatto, oppure **Step F** (notifiche) se vuoi la prossima feature visibile.
+2. Leggi questo file per lo stato corrente.
+3. `docs/CHANGELOG.md` ha il dettaglio di ogni step E–I.
+4. Parti da **Step J** se vuoi chiudere il loop notifiche, o **Step K** se vuoi un quick win di stabilità sul task link chat.
 
 ### Comandi utili
 
-```bash
-npm install          # installa dipendenze
-npm run dev          # avvia dev server su localhost:5173
-npm run build        # build produzione (verifica sintassi)
+```
+npm install
+npm run dev
+npm run build
 ```
 
 ### Env vars necessarie (`.env` locale)
@@ -169,10 +121,11 @@ Su Vercel sono già configurate nel progetto `tullio`.
 
 ---
 
-## Branch e PR attive
+## Branch e PR
 
-| Branch | PR | Stato |
-|---|---|---|
-| `claude/cool-darwin-8wdgwv` | #13 (draft) | ✅ CI verde, preview Vercel live |
+| Branch | Base | PR |
+| --- | --- | --- |
+| `claude/cool-darwin-8wdgwv` | `main` | #13 (draft) — fase D persistenza |
+| `claude/step-e-sync-robustness` | `claude/cool-darwin-8wdgwv` | da aprire — step E→I |
 
-Per la prossima feature: puoi lavorare su un nuovo branch da `claude/cool-darwin-8wdgwv` (che diventa la nuova base), oppure continuare sulla stessa PR se il reviewr vuole tutto insieme prima del merge.
+Per la nuova sessione: nuovo branch da `claude/step-e-sync-robustness` (che diventa la nuova base), oppure continua su questa se la PR non è ancora stata mergeata.

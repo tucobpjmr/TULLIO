@@ -1,5 +1,64 @@
 # CHANGELOG — VoyageDesk
 
+## v1.1-dev — Robustezza sync + Notifiche + Calendario + Chat estesa + Dashboard (sessione 10)
+
+> Cinque step in cumulativo sopra v1.0-dev. PR da aprire su branch `claude/step-e-sync-robustness`.
+
+### 🛡️ Step E — Robustezza sync
+- Reducer: nuovo case `SHOW_TOAST` come canale unificato per notificare errori dal layer di persistenza.
+- Wrapper dispatch (Supabase): ogni `Promise.catch` ora emette toast rosso con messaggio leggibile invece del solo `console.error`.
+- Idratazioni iniziali `TasksAPI.list`, `NoticesAPI.list`, `ConversationsAPI.listMine`, `MessagesAPI.listAll`: errori convertiti in toast.
+- Persist chat (`setConversations`, `setMessages`): toast su fallimento `conv.create`, `conv.update`, `msg.send`.
+- `LoginScreen.localizeAuthError`: mappa codici Supabase (`invalid_credentials`, `email_not_confirmed`, `user_banned`, `rate_limit`, errori di rete) in messaggi italiani; `try/catch` su `signIn`.
+- `ChatPanel`: nuovo prop `loading` + mini-spinner che evita il flash "nessun messaggio" durante l'idratazione iniziale in modalità Supabase. Stato `chatLoading` setato `false` dopo il primo reload.
+- Nuovo keyframe globale `@keyframes spin`.
+
+### 🔔 Step F — Notifiche reali
+- `supabase/migrations/20260609_notifications.sql`:
+  - tabella `public.notifications` (`id`, `user_id`, `type`, `payload jsonb`, `read`, `created_at`);
+  - indici su `(user_id, read, created_at desc)` e `(created_at desc)`;
+  - RLS: SELECT/UPDATE/DELETE solo per `user_id = auth.uid()`; nessun INSERT lato client (solo trigger server);
+  - `notifications` aggiunta a `supabase_realtime`;
+  - funzione `notify_task_assigned` + trigger `trg_notify_task_assigned` su INSERT/UPDATE OF `assignees` su `public.tasks`: genera una notifica `task_assigned` per ogni nuovo assignee.
+- `src/lib/api.js`: `Notifications.{list, listUnread, markRead, markAllRead, remove}`.
+- `src/lib/mappers.js`: `fromDbNotification` (camelCase, `createdAt`).
+- `src/VoyageDesk.jsx`:
+  - state `notifications` + effect di idratazione + realtime subscribe;
+  - `markNotificationRead` / `markAllNotificationsRead` (ottimistici + toast su errore);
+  - `Topbar` passa `notifications` e gli handler a `NotificationsPanel`;
+  - `NotificationsPanel` ridisegnato: `notifTitle` per type da payload, `notifTime` relativo ("5 min fa"), click su non-lette le marca lette, header con bottone "Segna tutte lette";
+  - `NavBadge` su `Sidebar` e `BottomNav`: Admin = agenti pending, Dashboard = task in coda globale.
+
+### 🗓️ Step G — Calendario avanzato
+- `CalendarPlanner`: `viewMode` esteso a `"day"` e `"week-full"` (oltre a `month` e `week`).
+- **Vista Giorno**: colonna ore 00–23 (slot 44px), eventi posizionati assoluti per `dueDate + estimatedHours`, linea orizzontale dorata per l'ora corrente se è il giorno odierno.
+- **Vista Settimana piena**: griglia 7 giorni × 24 ore con eventi assoluti per giorno/ora; sfondo giallo tenue sulla colonna del giorno corrente.
+- Toggle ordinato: Giorno · Settimana · Sett. piena · Mese.
+- Navigazione prev/today/next: gestisce il `dayDate` in vista Giorno, `currentMonth` in vista Mese, `weekOffset` in vista Settimana/Sett. piena.
+- **Export iCal**: bottone "⤓ iCal" in header. `exportTasksToIcs` costruisce un `.ics` RFC5545 conforme con DTSTART/DTEND su `estimatedHours`, escape caratteri, download via Blob + `URL.createObjectURL`. Filename `voyagedesk-tasks-YYYY-MM-DD.ics`.
+
+### 💬 Step H — Estensioni chat
+- `MessageTextContent`: parser regex `🔗 Riferimento task: "TITLE"
+📅 Scadenza:...
+
+` → rende una pill cliccabile sopra il messaggio. Click → `dispatch({ type: "SET_SELECTED_TASK", payload: t })` apre il `TaskSlideOver`. Disabled se la task non esiste.
+- `ChatContext` espone ora `tasks`, `currentUserId`, `dispatch`, `presenceMap`.
+- `ConversationList.matchesSearch` esteso: filtro su nome conversazione + nomi partecipanti + ultimi 30 messaggi (testo + filename).
+- **Presence online/away/offline**:
+  - `supabase/migrations/20260609_user_presence.sql`: colonne `status` (`online`|`away`|`offline`) e `last_seen_at` su `public.users`, policy `users update self presence`, `users` in `supabase_realtime`.
+  - `Users.setPresence(id, status)`.
+  - `VoyageDeskInner`: state `presenceMap`, heartbeat ogni 45s, `visibilitychange` → `away`, `beforeunload` → `offline`, subscribe realtime a `users`. Tick di re-render ogni 30s per l'ageing.
+  - `computePresence(user)` da `last_seen_at`: <60s online, <5min away, altrimenti offline. Colori: `#2D7A4F` / `#E0A800` / `#94a3b8`.
+  - `ConversationList`: indicatore presenza sull'avatar diretto ora dinamico (era `var(--success)` fisso).
+
+### 🚀 Step I — Quick wins Dashboard
+- `Dashboard.takeOwnership`: se la task era in `todo`, viene automaticamente spostata in `inprogress` insieme all'auto-assegnazione; toast custom `Hai preso in carico: [titolo]` con `swipe: true` (undoable).
+- Badge Admin (agenti pending) e Dashboard (coda globale) già consegnati nello Step F.
+
+---
+
+# CHANGELOG — VoyageDesk
+
 ## v1.0-dev — Persistenza Supabase + Auth (sessione 9, PR #13)
 
 > Migrazione da dati in-memory a Supabase: autenticazione reale, tutti i dati principali persistiti e sincronizzati in realtime.

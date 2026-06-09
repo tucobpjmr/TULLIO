@@ -101,6 +101,27 @@ export const Messages = {
     supabase.from('messages').update({ read_by: readBy }).eq('id', id),
 };
 
+// ----------------- NOTIFICATIONS -----------------
+// Generate solo da trigger DB (vedi migration 20260609_notifications.sql).
+// Le RLS filtrano automaticamente per auth.uid().
+export const Notifications = {
+  list: ({ limit = 50 } = {}) =>
+    supabase.from('notifications').select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit),
+  listUnread: ({ limit = 50 } = {}) =>
+    supabase.from('notifications').select('*')
+      .eq('read', false)
+      .order('created_at', { ascending: false })
+      .limit(limit),
+  markRead: (id) =>
+    supabase.from('notifications').update({ read: true }).eq('id', id),
+  markAllRead: () =>
+    supabase.from('notifications').update({ read: true }).eq('read', false),
+  remove: (id) =>
+    supabase.from('notifications').delete().eq('id', id),
+};
+
 // ----------------- REALTIME -----------------
 export function subscribeToTable(tableName, handler) {
   const channel = supabase

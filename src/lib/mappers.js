@@ -193,3 +193,17 @@ export function toDbMessage(msg, conversationId) {
     read_by: Array.isArray(msg.readBy) ? msg.readBy : [],
   };
 }
+
+// ----------------- NOTIFICATIONS -----------------
+// DB row → app notification. Payload arbitrario per tipo.
+export function fromDbNotification(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    userId: row.user_id,
+    type: row.type,
+    payload: row.payload ?? {},
+    read: !!row.read,
+    createdAt: row.created_at,
+  };
+}

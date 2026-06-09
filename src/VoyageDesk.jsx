@@ -4,6 +4,7 @@ import * as XLSX from "xlsx";
 import {
   Tasks as TasksAPI, Comments as CommentsAPI, Notices as NoticesAPI,
   Conversations as ConversationsAPI, Messages as MessagesAPI,
+  Notifications as NotificationsAPI,
   subscribeToTable,
 } from "./lib/api.js";
 import {
@@ -11,6 +12,7 @@ import {
   toDbNotice, toDbNoticePatch, fromDbNotice,
   toDbConversation, fromDbConversation,
   toDbMessage, fromDbMessage,
+  fromDbNotification,
   newId, isUuid,
 } from "./lib/mappers.js";
 
@@ -1456,9 +1458,11 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
 };
 
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
-const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
+const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notificationsProp, onMarkRead, onMarkAllRead }) => {
   const { isMobile } = useViewport();
-  const unread = NOTIFICATIONS.filter(n => !n.read).length;
+  const useRealNotifs = Array.isArray(notificationsProp) && notificationsProp.length > 0;
+  const notifList = useRealNotifs ? notificationsProp : NOTIFICATIONS;
+  const unread = notifList.filter(n => !n.read).length;
   const [advOpen, setAdvOpen] = useState(false);
   return (
     <div style={{
@@ -1547,7 +1551,13 @@ const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
             color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center"
           }}>{unread}</span>}
         </button>
-        {state.showNotif && <NotificationsPanel dispatch={dispatch} />}
+        {state.showNotif && <NotificationsPanel
+          dispatch={dispatch}
+          notifications={notifList}
+          isReal={useRealNotifs}
+          onMarkRead={onMarkRead}
+          onMarkAllRead={onMarkAllRead}
+        />}
       </div>
 
       {/* User switcher (v0.8) */}
@@ -1924,9 +1934,57 @@ const UserSwitcher = ({ state, dispatch }) => {
 };
 
 // ─── NOTIFICATIONS PANEL ───────────────────────────────────────────────────
-const NotificationsPanel = ({ dispatch }) => {
+// Helpers per il rendering delle notifiche reali (Step F).
+const NOTIF_ICONS = {
+  task_assigned: "📋",
+  task_due: "📅",
+  comment: "💬",
+  mention: "@",
+  queue_stale: "⏳",
+  // Compat con mock
+  overdue: "⚠️", assigned: "📋", deadline: "📅",
+};
+
+function notifTitle(n) {
+  // Notifiche reali (DB): titolo derivato da type + payload
+  if (n.payload) {
+    const p = n.payload || {};
+    switch (n.type) {
+      case "task_assigned":
+        return `Nuovo task assegnato: ${p.task_title ?? "—"}`;
+      case "task_due":
+        return `Scadenza task: ${p.task_title ?? "—"}`;
+      case "comment":
+        return `Nuovo commento su: ${p.task_title ?? "—"}`;
+      case "mention":
+        return `Sei stato menzionato${p.where ? " in " + p.where : ""}`;
+      case "queue_stale":
+        return `Task in coda da troppo tempo`;
+      default:
+        return n.type || "Notifica";
+    }
+  }
+  // Mock legacy
+  return n.title || n.type;
+}
+
+function notifTime(n) {
+  if (n.time) return n.time; // mock
+  if (!n.createdAt) return "";
+  const ms = Date.now() - new Date(n.createdAt).getTime();
+  const min = Math.round(ms / 60000);
+  if (min < 1) return "ora";
+  if (min < 60) return `${min} min fa`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `${h} ${h === 1 ? "ora" : "ore"} fa`;
+  const d = Math.round(h / 24);
+  return `${d} ${d === 1 ? "giorno" : "giorni"} fa`;
+}
+
+const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMarkAllRead }) => {
   const { isMobile } = useViewport();
-  const icons = { overdue: "⚠️", assigned: "📋", comment: "💬", deadline: "📅" };
+  const list = Array.isArray(notifications) ? notifications : NOTIFICATIONS;
+  const hasUnread = list.some(n => !n.read);
   return (
     <div className="slide-right" style={{
       position: isMobile ? "fixed" : "absolute",
@@ -1937,22 +1995,39 @@ const NotificationsPanel = ({ dispatch }) => {
       background: "#fff", borderRadius: 12, boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
       border: "1px solid var(--border)", overflow: "hidden", zIndex: 200,
     }}>
-      <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
         <div className="playfair" style={{ fontWeight: 600, fontSize: 15 }}>Notifiche</div>
-        <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {isReal && hasUnread && (
+            <button onClick={() => onMarkAllRead?.()} style={{
+              background: "transparent", border: "1px solid var(--border)", borderRadius: 6,
+              padding: "4px 8px", cursor: "pointer", fontSize: 11, color: "var(--text-muted)",
+            }}>Segna tutte lette</button>
+          )}
+          <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
+        </div>
       </div>
       <div style={{ maxHeight: 420, overflowY: "auto" }}>
-        {NOTIFICATIONS.map(n => (
-          <div key={n.id} style={{
-            padding: "12px 16px", display: "flex", gap: 10, alignItems: "flex-start",
-            background: n.read ? "transparent" : "rgba(212,168,67,0.07)",
-            borderBottom: "1px solid var(--border)",
-            transition: "background 0.2s", cursor: "default",
-          }}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>{icons[n.type]}</span>
+        {list.length === 0 && (
+          <div style={{ padding: "24px 16px", textAlign: "center", color: "var(--text-muted)", fontSize: 12 }}>
+            Nessuna notifica
+          </div>
+        )}
+        {list.map(n => (
+          <div
+            key={n.id}
+            onClick={() => isReal && !n.read && onMarkRead?.(n.id)}
+            style={{
+              padding: "12px 16px", display: "flex", gap: 10, alignItems: "flex-start",
+              background: n.read ? "transparent" : "rgba(212,168,67,0.07)",
+              borderBottom: "1px solid var(--border)",
+              transition: "background 0.2s", cursor: isReal && !n.read ? "pointer" : "default",
+            }}
+          >
+            <span style={{ fontSize: 18, flexShrink: 0 }}>{NOTIF_ICONS[n.type] || "🔔"}</span>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: n.read ? 400 : 600 }}>{n.title}</div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{n.time}</div>
+              <div style={{ fontSize: 13, fontWeight: n.read ? 400 : 600 }}>{notifTitle(n)}</div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{notifTime(n)}</div>
             </div>
             {!n.read && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--gold)", flexShrink: 0, marginTop: 4 }} />}
           </div>
@@ -1977,11 +2052,43 @@ const getNavItemsForUser = (userId) => {
   return NAV_ITEMS.filter(it => !it.roles || it.roles.includes(role));
 };
 
+// Calcola i contatori per i badge sidebar/bottom-nav (Step F).
+function getNavBadges(state) {
+  const pending = (state.team || []).filter(m => m.pending).length;
+  const queue = (state.tasks || []).filter(
+    t => !t.deletedAt && (!Array.isArray(t.assignees) || t.assignees.length === 0)
+  ).length;
+  return { admin: pending, dashboard: queue };
+}
+
+// Componente helper per renderizzare il badge numerico
+const NavBadge = ({ count, collapsed = false, mobile = false }) => {
+  if (!count) return null;
+  const base = {
+    background: "var(--gold)", color: "var(--navy)", fontWeight: 700,
+    borderRadius: 999, fontSize: 10, padding: "1px 6px", minWidth: 16,
+    height: 16, display: "inline-flex", alignItems: "center", justifyContent: "center",
+    lineHeight: 1,
+  };
+  if (mobile) {
+    return <span style={{
+      ...base, position: "absolute", top: 2, right: "calc(50% - 18px)",
+    }}>{count > 99 ? "99+" : count}</span>;
+  }
+  if (collapsed) {
+    return <span style={{
+      ...base, position: "absolute", top: 4, right: 4,
+    }}>{count > 9 ? "9+" : count}</span>;
+  }
+  return <span style={{ ...base, marginLeft: "auto" }}>{count > 99 ? "99+" : count}</span>;
+};
+
 const Sidebar = ({ state, dispatch }) => {
   const { isDesktop } = useViewport();
   if (!isDesktop) return null;
   const col = state.sidebarCollapsed;
   const navItems = getNavItemsForUser(state.currentUserId);
+  const badges = getNavBadges(state);
   return (
     <div style={{
       width: col ? 60 : 210, background: "var(--navy-dark)", color: "#fff",
@@ -2011,9 +2118,11 @@ const Sidebar = ({ state, dispatch }) => {
               fontSize: 14, fontWeight: active ? 600 : 400,
               transition: "all 0.2s", textAlign: "left",
               borderLeft: active ? "2px solid var(--gold)" : "2px solid transparent",
+              position: "relative",
             }}>
               <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
               {!col && <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>{item.label}</span>}
+              <NavBadge count={badges[item.id] || 0} collapsed={col} />
             </button>
           );
         })}
@@ -2044,10 +2153,12 @@ const Sidebar = ({ state, dispatch }) => {
 // ─── BOTTOM NAV (mobile/tablet) ────────────────────────────────────────────
 const BottomNav = ({ state, dispatch }) => {
   const navItems = getNavItemsForUser(state.currentUserId);
+  const badges = getNavBadges(state);
   return (
     <nav className="vd-bottom-nav" aria-label="Navigazione principale">
       {navItems.map(item => {
         const active = state.activeView === item.id;
+        const badge = badges[item.id] || 0;
         return (
           <button
             key={item.id}
@@ -2060,10 +2171,13 @@ const BottomNav = ({ state, dispatch }) => {
               background: "transparent", border: "none", cursor: "pointer",
               color: active ? "var(--gold)" : "rgba(255,255,255,0.55)",
               borderTop: active ? "2px solid var(--gold)" : "2px solid transparent",
-              transition: "color 0.2s",
+              transition: "color 0.2s", position: "relative",
             }}
           >
-            <span style={{ fontSize: 19, lineHeight: 1 }}>{item.icon}</span>
+            <span style={{ fontSize: 19, lineHeight: 1, position: "relative" }}>
+              {item.icon}
+              <NavBadge count={badge} mobile />
+            </span>
             <span style={{ fontSize: 9, fontWeight: active ? 700 : 500, whiteSpace: "nowrap" }}>
               {item.label.split(" ")[0]}
             </span>
@@ -7071,6 +7185,53 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // Evita il flash "nessun messaggio" mentre l'idratazione è in volo.
   const [chatLoading, setChatLoading] = useState(useSupabase);
 
+  // Notifiche reali (Step F): in modalità Supabase idratiamo + realtime.
+  // Senza login restiamo sui mock NOTIFICATIONS.
+  const [notifications, setNotifications] = useState([]);
+  useEffect(() => {
+    if (!useSupabase) return;
+    let cancelled = false;
+    const reload = () => {
+      NotificationsAPI.list({ limit: 100 }).then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.error("[notifications] list", error);
+          rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Notifiche: caricamento fallito: ${error.message || ""}` } });
+          return;
+        }
+        setNotifications((data || []).map(fromDbNotification));
+      });
+    };
+    reload();
+    let timer = null;
+    const debounced = () => { clearTimeout(timer); timer = setTimeout(reload, 200); };
+    const unsub = subscribeToTable("notifications", debounced);
+    return () => { cancelled = true; clearTimeout(timer); unsub?.(); };
+  }, [useSupabase]);
+
+  const markNotificationRead = useCallback((id) => {
+    if (!useSupabase) return;
+    // Ottimistico
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    NotificationsAPI.markRead(id).then(r => {
+      if (r?.error) {
+        console.error("[notifications] markRead", r.error);
+        rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Notifica: aggiornamento fallito` } });
+      }
+    });
+  }, [useSupabase]);
+
+  const markAllNotificationsRead = useCallback(() => {
+    if (!useSupabase) return;
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    NotificationsAPI.markAllRead().then(r => {
+      if (r?.error) {
+        console.error("[notifications] markAllRead", r.error);
+        rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Notifiche: aggiornamento fallito` } });
+      }
+    });
+  }, [useSupabase]);
+
   // Idratazione chat (conversations + messages) + realtime.
   useEffect(() => {
     if (!useSupabase) { setChatLoading(false); return; }
@@ -7364,7 +7525,15 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     <>
       <FontLoader />
       <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", background: "var(--surface)", fontFamily: "'DM Sans', sans-serif" }}>
-        <Topbar state={state} dispatch={dispatch} onOpenChat={() => { setChatIntent(null); setShowChat(true); }} unreadChat={unreadChat} />
+        <Topbar
+          state={state}
+          dispatch={dispatch}
+          onOpenChat={() => { setChatIntent(null); setShowChat(true); }}
+          unreadChat={unreadChat}
+          notifications={notifications}
+          onMarkRead={markNotificationRead}
+          onMarkAllRead={markAllNotificationsRead}
+        />
         <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
           <Sidebar state={state} dispatch={dispatch} />
           <main className="vd-main-scroll" style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>

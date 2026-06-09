@@ -54,6 +54,7 @@ const FontLoader = () => (
     @keyframes recordPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(192,57,43,0.5); } 50% { box-shadow: 0 0 0 12px rgba(192,57,43,0); } }
     @keyframes wave { 0%,100% { transform: scaleY(0.4); } 50% { transform: scaleY(1); } }
     @keyframes typing { 0%,100% { opacity: 0.3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
+    @keyframes spin { to { transform: rotate(360deg); } }
     .record-pulse { animation: recordPulse 1.5s ease infinite; }
     .fade-in { animation: fadeIn 0.3s ease forwards; }
     .slide-right { animation: slideRight 0.3s ease forwards; }
@@ -577,6 +578,7 @@ function baseReducer(state, action) {
       return { ...state, notices };
     }
 
+    case "SHOW_TOAST": return { ...state, toast: { message: action.payload?.message ?? "", type: action.payload?.type ?? "error" } };
     case "CLEAR_TOAST": return { ...state, toast: null };
     case "UNDO_LAST_ACTION": {
       const la = state.lastAction;
@@ -5705,7 +5707,7 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
 };
 
 // ─── CHAT: MAIN PANEL ──────────────────────────────────────────────────────
-const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, currentUserId }) => {
+const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, currentUserId, loading = false }) => {
   const { isMobile } = useViewport();
   const [activeConv, setActiveConv] = useState(null);
   const [newMode, setNewMode] = useState(false);
@@ -5789,7 +5791,21 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
 
         {/* Body */}
         <div style={{ flex: 1, overflow: "hidden" }}>
-          {newMode ? (
+          {loading ? (
+            <div style={{
+              height: "100%", display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center", gap: 12, color: "var(--navy)",
+            }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: "50%",
+                border: "3px solid rgba(15,32,68,0.15)", borderTopColor: "var(--gold)",
+                animation: "spin 0.8s linear infinite",
+              }} />
+              <div style={{ fontSize: 12, opacity: 0.7, letterSpacing: 1 }}>
+                Caricamento chat…
+              </div>
+            </div>
+          ) : newMode ? (
             <NewConversationView
               onCreate={handleCreate}
               onCancel={() => setNewMode(false)}
@@ -7002,14 +7018,22 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     const reloadTasks = () => {
       TasksAPI.list({ withComments: true }).then(({ data, error }) => {
         if (cancelled) return;
-        if (error) { console.error("[VoyageDesk] Tasks.list", error); return; }
+        if (error) {
+          console.error("[VoyageDesk] Tasks.list", error);
+          rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Caricamento task fallito: ${error.message || ""}` } });
+          return;
+        }
         rawDispatch({ type: "SET_TASKS", payload: (data || []).map(fromDbTask) });
       });
     };
     const reloadNotices = () => {
       NoticesAPI.list().then(({ data, error }) => {
         if (cancelled) return;
-        if (error) { console.error("[VoyageDesk] Notices.list", error); return; }
+        if (error) {
+          console.error("[VoyageDesk] Notices.list", error);
+          rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Caricamento avvisi fallito: ${error.message || ""}` } });
+          return;
+        }
         rawDispatch({ type: "SET_NOTICES", payload: (data || []).map(fromDbNotice) });
       });
     };
@@ -7043,9 +7067,13 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     };
   }, [useSupabase]);
 
+  // Loading state chat: true finché non completa il primo reload da Supabase.
+  // Evita il flash "nessun messaggio" mentre l'idratazione è in volo.
+  const [chatLoading, setChatLoading] = useState(useSupabase);
+
   // Idratazione chat (conversations + messages) + realtime.
   useEffect(() => {
-    if (!useSupabase) return;
+    if (!useSupabase) { setChatLoading(false); return; }
     let cancelled = false;
 
     const reload = async () => {
@@ -7054,8 +7082,14 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         MessagesAPI.listAll(),
       ]);
       if (cancelled) return;
-      if (convsRes.error) console.error("[chat] convs.list", convsRes.error);
-      if (msgsRes.error) console.error("[chat] msgs.list", msgsRes.error);
+      if (convsRes.error) {
+        console.error("[chat] convs.list", convsRes.error);
+        rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Chat: caricamento conversazioni fallito: ${convsRes.error.message || ""}` } });
+      }
+      if (msgsRes.error) {
+        console.error("[chat] msgs.list", msgsRes.error);
+        rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Chat: caricamento messaggi fallito: ${msgsRes.error.message || ""}` } });
+      }
       const convs = (convsRes.data || []).map(fromDbConversation);
       const msgsByConv = {};
       for (const r of msgsRes.data || []) {
@@ -7064,6 +7098,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       }
       setConversationsRaw(convs);
       setMessagesRaw(msgsByConv);
+      setChatLoading(false);
     };
 
     reload();
@@ -7171,9 +7206,27 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         .then(dbOps)
         .then((res) => {
           const err = Array.isArray(res) ? res.find(r => r?.error)?.error : res?.error;
-          if (err) console.error(`[VoyageDesk] sync ${action.type}`, err);
+          if (err) {
+            console.error(`[VoyageDesk] sync ${action.type}`, err);
+            rawDispatch({
+              type: "SHOW_TOAST",
+              payload: {
+                type: "error",
+                message: `Salvataggio fallito: ${err.message || "errore sconosciuto"}`,
+              },
+            });
+          }
         })
-        .catch((e) => console.error(`[VoyageDesk] sync ${action.type}`, e));
+        .catch((e) => {
+          console.error(`[VoyageDesk] sync ${action.type}`, e);
+          rawDispatch({
+            type: "SHOW_TOAST",
+            payload: {
+              type: "error",
+              message: `Salvataggio fallito: ${e?.message || "errore di rete"}`,
+            },
+          });
+        });
     }
   }, [useSupabase, state.tasks, state.notices]);
   const [showFABModal, setShowFABModal] = useState(false);
@@ -7200,14 +7253,14 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           const id = isUuid(c.id) ? c.id : newId();
           const normalized = { ...c, id };
           ConversationsAPI.create(toDbConversation(normalized))
-            .then(r => r?.error && console.error('[chat] conv.create', r.error));
+            .then(r => { if (r?.error) { console.error('[chat] conv.create', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: creazione conversazione fallita: ${r.error.message || ''}` } }); } });
           return normalized;
         }
         const prevC = prevById.get(c.id);
         if (prevC.pinned !== c.pinned || prevC.name !== c.name || prevC.icon !== c.icon) {
           ConversationsAPI.update(c.id, {
             pinned: !!c.pinned, name: c.name ?? null, icon: c.icon ?? null,
-          }).then(r => r?.error && console.error('[chat] conv.update', r.error));
+          }).then(r => { if (r?.error) { console.error('[chat] conv.update', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: aggiornamento conversazione fallito: ${r.error.message || ''}` } }); } });
         }
         return c;
       });
@@ -7244,17 +7297,17 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
             const id = isUuid(m.id) ? m.id : newId();
             const normalized = { ...m, id };
             MessagesAPI.send(toDbMessage(normalized, convId))
-              .then(r => r?.error && console.error('[chat] msg.send', r.error));
+              .then(r => { if (r?.error) { console.error('[chat] msg.send', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: invio messaggio fallito: ${r.error.message || ''}` } }); } });
             return normalized;
           }
           const prevM = prevById.get(m.id);
           if (!eqReactions(prevM.reactions, m.reactions)) {
             MessagesAPI.setReactions(m.id, m.reactions || {})
-              .then(r => r?.error && console.error('[chat] msg.reactions', r.error));
+              .then(r => { if (r?.error) { console.error('[chat] msg.reactions', r.error); } });
           }
           if (!eqArr(prevM.readBy, m.readBy)) {
             MessagesAPI.markRead(m.id, m.readBy || [])
-              .then(r => r?.error && console.error('[chat] msg.readBy', r.error));
+              .then(r => { if (r?.error) { console.error('[chat] msg.readBy', r.error); } });
           }
           return m;
         });
@@ -7336,6 +7389,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           intent={chatIntent}
           tasks={state.tasks}
           currentUserId={state.currentUserId}
+          loading={chatLoading}
         />
 
         {/* FAB principale (singolo task) + FAB secondario (bulk) */}

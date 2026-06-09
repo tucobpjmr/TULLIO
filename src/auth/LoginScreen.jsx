@@ -9,12 +9,39 @@ export default function LoginScreen() {
   const [err, setErr] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  function localizeAuthError(error) {
+    if (!error) return null;
+    const code = error.code || error.error || '';
+    const raw = (error.message || '').toLowerCase();
+    if (code === 'invalid_credentials' || raw.includes('invalid login credentials')) {
+      return 'Email o password non corretti.';
+    }
+    if (code === 'email_not_confirmed' || raw.includes('email not confirmed')) {
+      return 'Email non confermata. Controlla la tua casella.';
+    }
+    if (code === 'user_banned' || raw.includes('banned')) {
+      return 'Utente disabilitato. Contatta un amministratore.';
+    }
+    if (code === 'over_request_rate_limit' || raw.includes('rate limit')) {
+      return 'Troppi tentativi. Riprova tra qualche minuto.';
+    }
+    if (raw.includes('network') || raw.includes('failed to fetch')) {
+      return 'Errore di rete. Verifica la connessione.';
+    }
+    return error.message || 'Accesso non riuscito. Riprova.';
+  }
+
   async function onSubmit(e) {
     e.preventDefault();
     setErr(null); setLoading(true);
-    const { error } = await signIn(email.trim().toLowerCase(), password);
-    setLoading(false);
-    if (error) setErr(error.message);
+    try {
+      const { error } = await signIn(email.trim().toLowerCase(), password);
+      if (error) setErr(localizeAuthError(error));
+    } catch (e) {
+      setErr(localizeAuthError(e));
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

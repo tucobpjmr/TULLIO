@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import {
   Tasks as TasksAPI, Comments as CommentsAPI, Notices as NoticesAPI,
   Conversations as ConversationsAPI, Messages as MessagesAPI,
-  Notifications as NotificationsAPI,
+  Notifications as NotificationsAPI, Users as UsersAPI,
   subscribeToTable,
 } from "./lib/api.js";
 import {
@@ -1980,6 +1980,23 @@ function notifTime(n) {
   const d = Math.round(h / 24);
   return `${d} ${d === 1 ? "giorno" : "giorni"} fa`;
 }
+
+// Presence (Step H): mappa userId → 'online'|'away'|'offline'
+// calcolata dal last_seen_at (online <60s, away <5min, altrimenti offline).
+function computePresence(user) {
+  if (!user || !user.last_seen_at) return 'offline';
+  if (user.status === 'offline') return 'offline';
+  const age = Date.now() - new Date(user.last_seen_at).getTime();
+  if (age < 60 * 1000) return user.status === 'away' ? 'away' : 'online';
+  if (age < 5 * 60 * 1000) return 'away';
+  return 'offline';
+}
+const PRESENCE_COLORS = {
+  online: '#2D7A4F',
+  away: '#E0A800',
+  offline: '#94a3b8',
+};
+
 
 const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMarkAllRead }) => {
   const { isMobile } = useViewport();
@@ -5286,6 +5303,66 @@ const VoicePlayer = ({ duration, waveform, isMine }) => {
   );
 };
 
+// Parsing task link nel testo dei messaggi (Step H).
+// Riconosce il pattern generato da openChatTo+intent.taskLink:
+//   🔗 Riferimento task: "TITLE"\n📅 Scadenza: DATE TIME\n\nRESTO
+// Ritorna { taskTitle, taskDue, rest } o null se non match.
+const TASK_LINK_RE = /^🔗 Riferimento task: "([^"]+)"\n📅 Scadenza:([^\n]*)\n\n([\s\S]*)$/;
+function parseTaskLink(text) {
+  if (typeof text !== "string") return null;
+  const m = TASK_LINK_RE.exec(text);
+  if (!m) return null;
+  return { taskTitle: m[1], taskDue: m[2].trim(), rest: m[3] };
+}
+
+// Renderizza testo del messaggio con eventuale pill task cliccabile.
+const MessageTextContent = ({ text, isMine }) => {
+  const { tasks, dispatch } = useContext(ChatContext);
+  const link = parseTaskLink(text);
+  if (!link) {
+    return <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}>{text}</div>;
+  }
+  // Cerca la task per titolo (best-effort: titoli unici nell'app)
+  const t = (tasks || []).find(x => x.title === link.taskTitle && !x.deletedAt);
+  const handleOpen = (e) => {
+    e.stopPropagation();
+    if (!t) return;
+    dispatch?.({ type: "SET_SELECTED_TASK", payload: t });
+  };
+  return (
+    <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}>
+      <button
+        type="button"
+        onClick={handleOpen}
+        disabled={!t}
+        title={t ? "Apri task" : "Task non disponibile"}
+        style={{
+          display: "block", textAlign: "left", width: "100%",
+          background: isMine ? "rgba(255,255,255,0.12)" : "var(--surface2)",
+          border: isMine ? "1px solid rgba(255,255,255,0.18)" : "1px solid var(--border)",
+          color: "inherit",
+          padding: "6px 10px", borderRadius: 8, marginBottom: link.rest ? 6 : 0,
+          cursor: t ? "pointer" : "not-allowed", opacity: t ? 1 : 0.6,
+          fontFamily: "inherit",
+        }}
+      >
+        <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.7, letterSpacing: 0.5 }}>
+          🔗 RIFERIMENTO TASK
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 600, marginTop: 2 }}>
+          {link.taskTitle}
+        </div>
+        {link.taskDue && (
+          <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>
+            📅 {link.taskDue}
+          </div>
+        )}
+      </button>
+      {link.rest && <div>{link.rest}</div>}
+    </div>
+  );
+};
+
 // ─── CHAT: MESSAGE ─────────────────────────────────────────────────────────
 const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onContextMenu }) => {
   const [showReactions, setShowReactions] = useState(false);
@@ -5357,7 +5434,7 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
 
           {/* Content */}
           {msg.type === "text" && (
-            <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}>{msg.text}</div>
+            <MessageTextContent text={msg.text} isMine={isMine} />
           )}
 
           {msg.type === "voice" && (
@@ -5778,6 +5855,7 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
 
 // ─── CHAT: LIST OF CONVERSATIONS ───────────────────────────────────────────
 const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
+  const { presenceMap } = useContext(ChatContext);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
 
@@ -5791,11 +5869,32 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
     return new Date(lastB.time) - new Date(lastA.time);
   });
 
+  const matchesSearch = (c) => {
+    if (!search) return true;
+    const q = search.toLowerCase().trim();
+    if (!q) return true;
+    // 1) nome conversazione
+    if (getConversationName(c).toLowerCase().includes(q)) return true;
+    // 2) nomi partecipanti
+    const partNames = (c.participants || [])
+      .map(id => getMember(id)?.name || "")
+      .join(" ")
+      .toLowerCase();
+    if (partNames.includes(q)) return true;
+    // 3) ultimi 30 messaggi della conversazione (testo)
+    const msgs = (messages[c.id] || []).slice(-30);
+    for (const m of msgs) {
+      if (m.type === "text" && m.text && m.text.toLowerCase().includes(q)) return true;
+      if (m.type === "file" && m.fileName && m.fileName.toLowerCase().includes(q)) return true;
+    }
+    return false;
+  };
+
   const filtered = sorted.filter(c => {
     if (filter === "direct" && c.type !== "direct") return false;
     if (filter === "group" && c.type !== "group") return false;
     if (filter === "unread" && getUnreadCount(messages, c.id) === 0) return false;
-    if (search && !getConversationName(c).toLowerCase().includes(search.toLowerCase())) return false;
+    if (!matchesSearch(c)) return false;
     return true;
   });
 
@@ -5858,10 +5957,17 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
               {c.type === "direct" ? (
                 <div style={{ position: "relative", flexShrink: 0 }}>
                   <Avatar memberId={otherUser} size={42} />
-                  <div style={{
-                    position: "absolute", bottom: 0, right: 0, width: 11, height: 11,
-                    borderRadius: "50%", background: "var(--success)", border: "2px solid #fff",
-                  }} />
+                  {(() => {
+                    const u = (presenceMap || {})[otherUser];
+                    const p = u ? computePresence(u) : 'offline';
+                    return (
+                      <div title={p} style={{
+                        position: "absolute", bottom: 0, right: 0, width: 11, height: 11,
+                        borderRadius: "50%", background: PRESENCE_COLORS[p],
+                        border: "2px solid #fff",
+                      }} />
+                    );
+                  })()}
                 </div>
               ) : (
                 <div style={{
@@ -6074,7 +6180,7 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
 };
 
 // ─── CHAT: MAIN PANEL ──────────────────────────────────────────────────────
-const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, currentUserId, loading = false }) => {
+const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, currentUserId, dispatch, presenceMap, loading = false }) => {
   const { isMobile } = useViewport();
   const [activeConv, setActiveConv] = useState(null);
   const [newMode, setNewMode] = useState(false);
@@ -6120,7 +6226,7 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
   };
 
   return (
-    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER }}>
+    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {} }}>
     <>
       <div onClick={onClose} style={{
         position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: 700,
@@ -7485,6 +7591,73 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     });
   }, [useSupabase]);
 
+  // Presence (Step H): heartbeat + subscribe a users
+  // Mappa { userId -> rowDB } (per leggere last_seen_at e status).
+  const [presenceMap, setPresenceMap] = useState({});
+  useEffect(() => {
+    if (!useSupabase) return;
+    const myId = initialCurrentUserId;
+    let cancelled = false;
+    let hbTimer = null;
+
+    // Snapshot iniziale di tutti gli utenti
+    const reload = () => {
+      // Non passare per UsersAPI.list (filtra active=true): vogliamo tutti
+      // gli utenti del team. initialTeam è già lo snapshot completo; uso quello
+      // più aggiornamenti via realtime.
+      const map = {};
+      for (const u of initialTeam || []) map[u.id] = u;
+      setPresenceMap(prev => ({ ...map, ...prev }));
+    };
+    reload();
+
+    const beat = (status = 'online') => {
+      if (!myId) return;
+      UsersAPI.setPresence(myId, status).then(r => {
+        if (r?.error) console.warn("[presence] setPresence", r.error);
+        // Aggiorno anche localmente per immediatezza
+        setPresenceMap(prev => ({
+          ...prev,
+          [myId]: { ...(prev[myId] || {}), status, last_seen_at: new Date().toISOString() },
+        }));
+      });
+    };
+    beat('online');
+    hbTimer = setInterval(() => beat('online'), 45 * 1000);
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') beat('away');
+      else beat('online');
+    };
+    const onBeforeUnload = () => beat('offline');
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('beforeunload', onBeforeUnload);
+
+    // Realtime: aggiorna presenceMap quando un altro utente cambia status
+    const unsub = subscribeToTable("users", (payload) => {
+      const row = payload?.new || payload?.record;
+      if (!row || !row.id) return;
+      setPresenceMap(prev => ({ ...prev, [row.id]: { ...(prev[row.id] || {}), ...row } }));
+    });
+
+    // Tick di re-render: ogni 30s ricomputo presenza per ageing
+    const tick = setInterval(() => {
+      if (cancelled) return;
+      setPresenceMap(prev => ({ ...prev })); // shallow rerender
+    }, 30 * 1000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(hbTimer);
+      clearInterval(tick);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      unsub?.();
+      // Best-effort: segnala offline
+      if (myId) UsersAPI.setPresence(myId, 'offline').then(() => {});
+    };
+  }, [useSupabase, initialCurrentUserId, initialTeam]);
+
   // Idratazione chat (conversations + messages) + realtime.
   useEffect(() => {
     if (!useSupabase) { setChatLoading(false); return; }
@@ -7811,6 +7984,8 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           intent={chatIntent}
           tasks={state.tasks}
           currentUserId={state.currentUserId}
+          dispatch={dispatch}
+          presenceMap={presenceMap}
           loading={chatLoading}
         />
 

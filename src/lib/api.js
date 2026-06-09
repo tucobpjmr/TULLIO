@@ -13,6 +13,11 @@ export const Users = {
     supabase.from('users').update(patch).eq('id', id).select().single(),
   setActive: (id, active) =>
     supabase.from('users').update({ active }).eq('id', id),
+  // Step H: presence
+  setPresence: (id, status) =>
+    supabase.from('users').update({
+      status, last_seen_at: new Date().toISOString(),
+    }).eq('id', id),
 };
 
 // ----------------- TASKS -----------------

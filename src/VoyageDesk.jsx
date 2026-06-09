@@ -4399,9 +4399,72 @@ const TaskSlideOver = ({ task, dispatch }) => {
 };
 
 // ─── CALENDAR PLANNER (unificato: mese + settimana + distribuzione agenti) ──
+// ─── iCal export (Step G) ────────────────────────────────────────────────
+function pad2(n) { return String(n).padStart(2, "0"); }
+function icsDate(d) {
+  // YYYYMMDDTHHmmssZ (UTC)
+  const u = new Date(d);
+  return (
+    u.getUTCFullYear() + pad2(u.getUTCMonth() + 1) + pad2(u.getUTCDate()) +
+    "T" + pad2(u.getUTCHours()) + pad2(u.getUTCMinutes()) + pad2(u.getUTCSeconds()) + "Z"
+  );
+}
+function icsEscape(s) {
+  return String(s ?? "")
+    .replace(/\\/g, "\\\\")
+    .replace(/\n/g, "\\n")
+    .replace(/,/g, "\\,")
+    .replace(/;/g, "\\;");
+}
+function buildIcs(tasks) {
+  const now = icsDate(new Date());
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//VoyageDesk//Tasks//IT",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+  ];
+  for (const t of tasks) {
+    if (!t.dueDate) continue;
+    const start = new Date(t.dueDate);
+    const hours = Number(t.estimatedHours) > 0 ? Number(t.estimatedHours) : 1;
+    const end = new Date(start.getTime() + hours * 3600 * 1000);
+    lines.push(
+      "BEGIN:VEVENT",
+      `UID:${t.id}@voyagedesk`,
+      `DTSTAMP:${now}`,
+      `DTSTART:${icsDate(start)}`,
+      `DTEND:${icsDate(end)}`,
+      `SUMMARY:${icsEscape(t.title || "Task")}`,
+      `DESCRIPTION:${icsEscape((t.description || "") + (t.priority ? "\nPriorità: " + t.priority : ""))}`,
+      `CATEGORIES:${icsEscape(t.category || "task")}`,
+      "END:VEVENT"
+    );
+  }
+  lines.push("END:VCALENDAR");
+  return lines.join("\r\n");
+}
+function exportTasksToIcs(allTasks, uid) {
+  const tasks = (allTasks || []).filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate);
+  if (tasks.length === 0) return;
+  const ics = buildIcs(tasks);
+  const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const ts = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `voyagedesk-tasks-${ts}.ics`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 const CalendarPlanner = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
-  const [viewMode, setViewMode] = useState("month"); // "month" | "week"
+  const [viewMode, setViewMode] = useState("month"); // "month" | "week" | "week-full" | "day"
+  const [dayDate, setDayDate] = useState(new Date());
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState(null);
@@ -4466,9 +4529,12 @@ const CalendarPlanner = ({ state, dispatch }) => {
       <div className="vd-row-wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div className="playfair" style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, textTransform: viewMode === "month" ? "capitalize" : "none" }}>
-            {viewMode === "month" ? monthName : "Settimana"}
+            {viewMode === "month" && monthName}
+            {viewMode === "week" && "Settimana"}
+            {viewMode === "week-full" && "Settimana piena"}
+            {viewMode === "day" && dayDate.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
           </div>
-          {viewMode === "week" && (
+          {(viewMode === "week" || viewMode === "week-full") && (
             <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
               {weekDays[0].toLocaleDateString("it-IT", { day: "numeric", month: "short" })} — {weekDays[6].toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" })}
             </div>
@@ -4477,23 +4543,43 @@ const CalendarPlanner = ({ state, dispatch }) => {
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
           {/* View toggle */}
           <div style={{ display: "flex", gap: 4, background: "var(--surface2)", borderRadius: 10, padding: 3 }}>
-            {toggleBtn("month", isMobile ? "Mese" : "📅 Mese")}
+            {toggleBtn("day", isMobile ? "Gior." : "🕒 Giorno")}
             {toggleBtn("week", isMobile ? "Sett." : "📆 Settimana")}
+            {toggleBtn("week-full", isMobile ? "Sett.+" : "🗓️ Sett. piena")}
+            {toggleBtn("month", isMobile ? "Mese" : "📅 Mese")}
           </div>
           {/* Nav buttons */}
           <div style={{ display: "flex", gap: 4 }}>
-            <button onClick={() => viewMode === "month" ? setCurrentMonth(new Date(year, month - 1)) : setWeekOffset(w => w - 1)} style={{
+            <button onClick={() => {
+              if (viewMode === "month") setCurrentMonth(new Date(year, month - 1));
+              else if (viewMode === "day") setDayDate(d => { const x = new Date(d); x.setDate(x.getDate() - 1); return x; });
+              else setWeekOffset(w => w - 1);
+            }} style={{
               background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
               width: 34, height: 34, cursor: "pointer", fontSize: 14
             }}>←</button>
-            <button onClick={() => { viewMode === "month" ? setCurrentMonth(new Date()) : setWeekOffset(0); setSelectedDay(null); }} style={{
+            <button onClick={() => {
+              if (viewMode === "month") setCurrentMonth(new Date());
+              else if (viewMode === "day") setDayDate(new Date());
+              else setWeekOffset(0);
+              setSelectedDay(null);
+            }} style={{
               background: "var(--gold)", color: "var(--navy)", border: "none",
               borderRadius: 8, padding: "0 14px", height: 34, cursor: "pointer", fontSize: 12, fontWeight: 700
             }}>Oggi</button>
-            <button onClick={() => viewMode === "month" ? setCurrentMonth(new Date(year, month + 1)) : setWeekOffset(w => w + 1)} style={{
+            <button onClick={() => {
+              if (viewMode === "month") setCurrentMonth(new Date(year, month + 1));
+              else if (viewMode === "day") setDayDate(d => { const x = new Date(d); x.setDate(x.getDate() + 1); return x; });
+              else setWeekOffset(w => w + 1);
+            }} style={{
               background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
               width: 34, height: 34, cursor: "pointer", fontSize: 14
             }}>→</button>
+            <button onClick={() => exportTasksToIcs(state.tasks, uid)} title="Esporta calendario in iCal (.ics)" style={{
+              background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
+              padding: "0 12px", height: 34, cursor: "pointer", fontSize: 12, fontWeight: 600,
+              color: "var(--navy)",
+            }}>⤓ iCal</button>
           </div>
         </div>
       </div>
@@ -4648,6 +4734,173 @@ const CalendarPlanner = ({ state, dispatch }) => {
           </div>
         </div>
       )}
+
+      {/* ─── VISTA GIORNO (Step G) ─── */}
+      {viewMode === "day" && (() => {
+        const dayTasks = state.tasks
+          .filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate &&
+            new Date(t.dueDate).toDateString() === dayDate.toDateString())
+          .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+        const HOURS = Array.from({ length: 24 }, (_, h) => h);
+        const SLOT_H = 44; // px per ora
+        const isToday = dayDate.toDateString() === new Date().toDateString();
+        const nowMinutes = isToday ? new Date().getHours() * 60 + new Date().getMinutes() : null;
+        return (
+          <div style={{
+            background: "#fff", borderRadius: 14, border: "1px solid var(--border)",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden",
+          }}>
+            <div style={{
+              padding: "10px 14px", background: "var(--surface2)",
+              fontSize: 12, color: "var(--text-muted)", fontWeight: 600,
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+            }}>
+              <span>{dayTasks.length} task in agenda</span>
+              {isToday && <span style={{ color: "var(--gold)" }}>● Oggi</span>}
+            </div>
+            <div style={{ position: "relative", display: "flex", maxHeight: 640, overflowY: "auto" }}>
+              {/* Colonna ore */}
+              <div style={{ width: 56, flexShrink: 0, borderRight: "1px solid var(--border)" }}>
+                {HOURS.map(h => (
+                  <div key={h} style={{
+                    height: SLOT_H, padding: "2px 8px", fontSize: 10, color: "var(--text-muted)",
+                    textAlign: "right", borderBottom: "1px solid var(--surface2)",
+                  }}>{String(h).padStart(2, "0")}:00</div>
+                ))}
+              </div>
+              {/* Colonna eventi */}
+              <div style={{ flex: 1, position: "relative" }}>
+                {HOURS.map(h => (
+                  <div key={h} style={{
+                    height: SLOT_H, borderBottom: "1px solid var(--surface2)",
+                  }} />
+                ))}
+                {/* Linea ora corrente */}
+                {nowMinutes != null && (
+                  <div style={{
+                    position: "absolute", left: 0, right: 0,
+                    top: (nowMinutes / 60) * SLOT_H,
+                    height: 2, background: "var(--gold)", zIndex: 2,
+                  }}>
+                    <div style={{
+                      position: "absolute", left: -4, top: -4, width: 10, height: 10,
+                      borderRadius: "50%", background: "var(--gold)",
+                    }} />
+                  </div>
+                )}
+                {/* Eventi */}
+                {dayTasks.map(t => {
+                  const d = new Date(t.dueDate);
+                  const startMin = d.getHours() * 60 + d.getMinutes();
+                  const hours = Number(t.estimatedHours) > 0 ? Number(t.estimatedHours) : 1;
+                  const top = (startMin / 60) * SLOT_H;
+                  const height = Math.max(28, hours * SLOT_H - 2);
+                  const cat = CATEGORIES[t.category] || {};
+                  return (
+                    <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                      position: "absolute", top, left: 6, right: 6, height,
+                      background: (cat.color || "#94a3b8") + "22",
+                      borderLeft: `3px solid ${cat.color || "#94a3b8"}`,
+                      borderRadius: "0 6px 6px 0", padding: "4px 8px",
+                      cursor: "pointer", overflow: "hidden", fontSize: 12,
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.08)", zIndex: 1,
+                    }}>
+                      <div style={{ fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {cat.icon} {t.title}
+                      </div>
+                      <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 1 }}>
+                        {formatTime(t.dueDate)} · {hours}h
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ─── VISTA SETTIMANA PIENA (Step G) ─── */}
+      {viewMode === "week-full" && (() => {
+        const HOURS = Array.from({ length: 24 }, (_, h) => h);
+        const SLOT_H = 36;
+        const today = new Date().toDateString();
+        return (
+          <div style={{
+            background: "#fff", borderRadius: 14, border: "1px solid var(--border)",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden",
+          }}>
+            {/* Header giorni */}
+            <div style={{ display: "grid", gridTemplateColumns: `56px repeat(7, 1fr)`, background: "var(--surface2)" }}>
+              <div />
+              {weekDays.map((d, i) => {
+                const isToday = d.toDateString() === today;
+                return (
+                  <div key={i} style={{
+                    padding: "8px 4px", textAlign: "center", fontSize: 11,
+                    color: isToday ? "var(--gold)" : "var(--text-muted)",
+                    fontWeight: 600, borderLeft: "1px solid var(--border)",
+                  }}>
+                    {dayNames[i]} {d.getDate()}
+                  </div>
+                );
+              })}
+            </div>
+            {/* Griglia oraria scrollabile */}
+            <div style={{ maxHeight: 560, overflowY: "auto" }}>
+              <div style={{ display: "grid", gridTemplateColumns: `56px repeat(7, 1fr)`, position: "relative" }}>
+                {/* Colonna ore */}
+                <div>
+                  {HOURS.map(h => (
+                    <div key={h} style={{
+                      height: SLOT_H, padding: "2px 6px", fontSize: 9, color: "var(--text-muted)",
+                      textAlign: "right", borderBottom: "1px solid var(--surface2)",
+                    }}>{String(h).padStart(2, "0")}:00</div>
+                  ))}
+                </div>
+                {weekDays.map((day, di) => {
+                  const dayTasks = getTasksForDay(day).sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+                  const isToday = day.toDateString() === today;
+                  return (
+                    <div key={di} style={{
+                      position: "relative", borderLeft: "1px solid var(--border)",
+                      background: isToday ? "rgba(212,168,67,0.04)" : "transparent",
+                    }}>
+                      {HOURS.map(h => (
+                        <div key={h} style={{
+                          height: SLOT_H, borderBottom: "1px solid var(--surface2)",
+                        }} />
+                      ))}
+                      {dayTasks.map(t => {
+                        const d = new Date(t.dueDate);
+                        const startMin = d.getHours() * 60 + d.getMinutes();
+                        const hours = Number(t.estimatedHours) > 0 ? Number(t.estimatedHours) : 1;
+                        const top = (startMin / 60) * SLOT_H;
+                        const height = Math.max(20, hours * SLOT_H - 2);
+                        const cat = CATEGORIES[t.category] || {};
+                        return (
+                          <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                            position: "absolute", top, left: 2, right: 2, height,
+                            background: (cat.color || "#94a3b8") + "22",
+                            borderLeft: `2px solid ${cat.color || "#94a3b8"}`,
+                            borderRadius: "0 4px 4px 0", padding: "2px 5px",
+                            cursor: "pointer", overflow: "hidden", fontSize: 10, lineHeight: 1.2,
+                          }}>
+                            <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {cat.icon} {t.title}
+                            </div>
+                            <div style={{ fontSize: 9, color: "var(--text-muted)" }}>{formatTime(t.dueDate)}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ─── DISTRIBUZIONE AGENTI (sempre visibile) ─── */}
       <div style={{ background: "#fff", borderRadius: 12, padding: isMobile ? "14px 12px" : "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>

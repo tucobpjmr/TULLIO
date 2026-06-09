@@ -3956,9 +3956,15 @@ const Dashboard = ({ state, dispatch, onOpenChat }) => {
     .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
 
   const takeOwnership = (task) => {
+    // Step I: auto-assegna + auto-move "In Corso" se la task è in todo,
+    // più toast personalizzato che cita il titolo.
+    const patch = { id: task.id, assignees: [uid] };
+    if (task.status === "todo") patch.status = "inprogress";
     dispatch({
       type: "UPDATE_TASK",
-      payload: { id: task.id, assignees: [uid] }
+      payload: patch,
+      swipe: true,
+      toastMessage: `Hai preso in carico: ${task.title}`,
     });
   };
 

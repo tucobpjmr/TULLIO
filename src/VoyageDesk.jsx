@@ -54,6 +54,7 @@ const FontLoader = () => (
     @keyframes recordPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(192,57,43,0.5); } 50% { box-shadow: 0 0 0 12px rgba(192,57,43,0); } }
     @keyframes wave { 0%,100% { transform: scaleY(0.4); } 50% { transform: scaleY(1); } }
     @keyframes typing { 0%,100% { opacity: 0.3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
+    @keyframes spin { to { transform: rotate(360deg); } }
     .record-pulse { animation: recordPulse 1.5s ease infinite; }
     .fade-in { animation: fadeIn 0.3s ease forwards; }
     .slide-right { animation: slideRight 0.3s ease forwards; }
@@ -577,6 +578,7 @@ function baseReducer(state, action) {
       return { ...state, notices };
     }
 
+    case "SHOW_TOAST": return { ...state, toast: { message: action.payload.message, type: action.payload.type || "error" } };
     case "CLEAR_TOAST": return { ...state, toast: null };
     case "UNDO_LAST_ACTION": {
       const la = state.lastAction;
@@ -5705,7 +5707,7 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
 };
 
 // ─── CHAT: MAIN PANEL ──────────────────────────────────────────────────────
-const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, currentUserId }) => {
+const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, currentUserId, loading = false }) => {
   const { isMobile } = useViewport();
   const [activeConv, setActiveConv] = useState(null);
   const [newMode, setNewMode] = useState(false);
@@ -5789,7 +5791,23 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
 
         {/* Body */}
         <div style={{ flex: 1, overflow: "hidden" }}>
-          {newMode ? (
+          {loading ? (
+            <div style={{
+              height: "100%", display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center", gap: 12,
+              color: "var(--navy)", opacity: 0.7,
+            }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: "50%",
+                border: "3px solid rgba(15,32,68,0.15)",
+                borderTopColor: "var(--gold)",
+                animation: "spin 0.8s linear infinite",
+              }} />
+              <div style={{ fontSize: 13, letterSpacing: 0.3 }}>
+                Caricamento conversazioni…
+              </div>
+            </div>
+          ) : newMode ? (
             <NewConversationView
               onCreate={handleCreate}
               onCancel={() => setNewMode(false)}
@@ -7064,6 +7082,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       }
       setConversationsRaw(convs);
       setMessagesRaw(msgsByConv);
+      setChatLoading(false);
     };
 
     reload();
@@ -7087,6 +7106,28 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // currentUserId vivo, per persistere i comments con l'autore giusto.
   const currentUserIdRef = useRef(state.currentUserId);
   useEffect(() => { currentUserIdRef.current = state.currentUserId; }, [state.currentUserId]);
+
+  // Etichette localizzate per azioni nei toast d'errore sync.
+  const ACTION_LABELS = {
+    ADD_TASK: "creare il task",
+    ADD_TASKS_BULK: "creare i task",
+    UPDATE_TASK: "aggiornare il task",
+    MOVE_TASK: "spostare il task",
+    DELETE_TASK: "eliminare il task",
+    RESTORE_TASK: "ripristinare il task",
+    PURGE_TASK: "eliminare definitivamente il task",
+    EMPTY_TRASH: "svuotare il cestino",
+    ADD_COMMENT: "salvare il commento",
+    ADD_NOTICE: "pubblicare l'avviso",
+    UPDATE_NOTICE: "aggiornare l'avviso",
+    DELETE_NOTICE: "rimuovere l'avviso",
+    TOGGLE_PIN_NOTICE: "aggiornare il pin dell'avviso",
+  };
+  const showSyncError = useCallback((actionType, err) => {
+    const what = ACTION_LABELS[actionType] || "salvare le modifiche";
+    const detail = err?.message ? ` (${err.message})` : "";
+    rawDispatch({ type: "SHOW_TOAST", payload: { message: `Impossibile ${what}${detail}`, type: "error" } });
+  }, []);
 
   // Wrapper dispatch: applica al reducer (UI istantanea) e poi sincronizza
   // su Supabase fire-and-forget. Per ADD_TASK normalizza l'id in uuid in
@@ -7171,11 +7212,17 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         .then(dbOps)
         .then((res) => {
           const err = Array.isArray(res) ? res.find(r => r?.error)?.error : res?.error;
-          if (err) console.error(`[VoyageDesk] sync ${action.type}`, err);
+          if (err) {
+            console.error(`[VoyageDesk] sync ${action.type}`, err);
+            showSyncError(action.type, err);
+          }
         })
-        .catch((e) => console.error(`[VoyageDesk] sync ${action.type}`, e));
+        .catch((e) => {
+          console.error(`[VoyageDesk] sync ${action.type}`, e);
+          showSyncError(action.type, e);
+        });
     }
-  }, [useSupabase, state.tasks, state.notices]);
+  }, [useSupabase, state.tasks, state.notices, showSyncError]);
   const [showFABModal, setShowFABModal] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [chatIntent, setChatIntent] = useState(null); // { toUser, taskLink } per aprire chat preconfezionata
@@ -7188,6 +7235,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   const [messages, setMessagesRaw] = useState(
     useSupabase ? {} : initialMessages
   );
+  const [chatLoading, setChatLoading] = useState(useSupabase);
 
   // Wrapper di setConversations: diff vs prev e persiste create/update(pinned).
   const setConversations = useCallback((updater) => {
@@ -7200,14 +7248,24 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           const id = isUuid(c.id) ? c.id : newId();
           const normalized = { ...c, id };
           ConversationsAPI.create(toDbConversation(normalized))
-            .then(r => r?.error && console.error('[chat] conv.create', r.error));
+            .then(r => {
+              if (r?.error) {
+                console.error('[chat] conv.create', r.error);
+                rawDispatch({ type: "SHOW_TOAST", payload: { message: `Impossibile creare la conversazione (${r.error.message || 'errore'})`, type: "error" } });
+              }
+            });
           return normalized;
         }
         const prevC = prevById.get(c.id);
         if (prevC.pinned !== c.pinned || prevC.name !== c.name || prevC.icon !== c.icon) {
           ConversationsAPI.update(c.id, {
             pinned: !!c.pinned, name: c.name ?? null, icon: c.icon ?? null,
-          }).then(r => r?.error && console.error('[chat] conv.update', r.error));
+          }).then(r => {
+            if (r?.error) {
+              console.error('[chat] conv.update', r.error);
+              rawDispatch({ type: "SHOW_TOAST", payload: { message: `Impossibile aggiornare la conversazione (${r.error.message || 'errore'})`, type: "error" } });
+            }
+          });
         }
         return c;
       });
@@ -7244,13 +7302,23 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
             const id = isUuid(m.id) ? m.id : newId();
             const normalized = { ...m, id };
             MessagesAPI.send(toDbMessage(normalized, convId))
-              .then(r => r?.error && console.error('[chat] msg.send', r.error));
+              .then(r => {
+                if (r?.error) {
+                  console.error('[chat] msg.send', r.error);
+                  rawDispatch({ type: "SHOW_TOAST", payload: { message: `Impossibile inviare il messaggio (${r.error.message || 'errore'})`, type: "error" } });
+                }
+              });
             return normalized;
           }
           const prevM = prevById.get(m.id);
           if (!eqReactions(prevM.reactions, m.reactions)) {
             MessagesAPI.setReactions(m.id, m.reactions || {})
-              .then(r => r?.error && console.error('[chat] msg.reactions', r.error));
+              .then(r => {
+                if (r?.error) {
+                  console.error('[chat] msg.reactions', r.error);
+                  rawDispatch({ type: "SHOW_TOAST", payload: { message: `Impossibile salvare la reazione (${r.error.message || 'errore'})`, type: "error" } });
+                }
+              });
           }
           if (!eqArr(prevM.readBy, m.readBy)) {
             MessagesAPI.markRead(m.id, m.readBy || [])
@@ -7336,6 +7404,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           intent={chatIntent}
           tasks={state.tasks}
           currentUserId={state.currentUserId}
+          loading={chatLoading}
         />
 
         {/* FAB principale (singolo task) + FAB secondario (bulk) */}

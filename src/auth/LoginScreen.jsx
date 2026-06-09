@@ -14,7 +14,7 @@ export default function LoginScreen() {
     setErr(null); setLoading(true);
     const { error } = await signIn(email.trim().toLowerCase(), password);
     setLoading(false);
-    if (error) setErr(error.message);
+    if (error) setErr(localizeAuthError(error));
   }
 
   return (
@@ -66,6 +66,27 @@ export default function LoginScreen() {
       </form>
     </div>
   );
+}
+
+function localizeAuthError(error) {
+  const msg = (error?.message || '').toLowerCase();
+  const code = error?.code || error?.status;
+  if (msg.includes('invalid login credentials') || msg.includes('invalid_credentials')) {
+    return 'Email o password non validi.';
+  }
+  if (msg.includes('email not confirmed')) {
+    return 'Email non confermata. Controlla la tua casella di posta.';
+  }
+  if (msg.includes('rate limit') || code === 429) {
+    return 'Troppi tentativi. Riprova tra qualche minuto.';
+  }
+  if (msg.includes('user not found')) {
+    return 'Utente non trovato.';
+  }
+  if (msg.includes('network') || msg.includes('failed to fetch')) {
+    return 'Errore di rete. Verifica la connessione e riprova.';
+  }
+  return error?.message || 'Accesso fallito. Riprova.';
 }
 
 const inputStyle = {

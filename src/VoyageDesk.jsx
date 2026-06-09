@@ -1458,7 +1458,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
 };
 
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
-const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notificationsProp, onMarkRead, onMarkAllRead }) => {
+const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notificationsProp, onMarkRead, onMarkAllRead, onOpenTask }) => {
   const { isMobile } = useViewport();
   const useRealNotifs = Array.isArray(notificationsProp) && notificationsProp.length > 0;
   const notifList = useRealNotifs ? notificationsProp : NOTIFICATIONS;
@@ -1557,6 +1557,7 @@ const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notifi
           isReal={useRealNotifs}
           onMarkRead={onMarkRead}
           onMarkAllRead={onMarkAllRead}
+          onOpenTask={onOpenTask}
         />}
       </div>
 
@@ -1957,9 +1958,13 @@ function notifTitle(n) {
       case "comment":
         return `Nuovo commento su: ${p.task_title ?? "—"}`;
       case "mention":
-        return `Sei stato menzionato${p.where ? " in " + p.where : ""}`;
+        return p.task_title
+          ? `Menzionato in: ${p.task_title}`
+          : `Sei stato menzionato${p.where ? " in " + p.where : ""}`;
       case "queue_stale":
-        return `Task in coda da troppo tempo`;
+        return p.task_title
+          ? `Task in coda da > 4h: ${p.task_title}`
+          : `Task in coda da troppo tempo`;
       default:
         return n.type || "Notifica";
     }
@@ -1998,10 +2003,19 @@ const PRESENCE_COLORS = {
 };
 
 
-const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMarkAllRead }) => {
+const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMarkAllRead, onOpenTask }) => {
   const { isMobile } = useViewport();
   const list = Array.isArray(notifications) ? notifications : NOTIFICATIONS;
   const hasUnread = list.some(n => !n.read);
+  // Step J: la notifica è "navigabile" se ha un task_id nel payload
+  const isNavigable = (n) => isReal && n.payload && n.payload.task_id;
+  const handleClick = (n) => {
+    if (isNavigable(n)) {
+      onOpenTask?.(n.payload.task_id);
+      dispatch({ type: "TOGGLE_NOTIF" });
+    }
+    if (isReal && !n.read) onMarkRead?.(n.id);
+  };
   return (
     <div className="slide-right" style={{
       position: isMobile ? "fixed" : "absolute",
@@ -2033,13 +2047,16 @@ const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMar
         {list.map(n => (
           <div
             key={n.id}
-            onClick={() => isReal && !n.read && onMarkRead?.(n.id)}
+            onClick={() => handleClick(n)}
             style={{
               padding: "12px 16px", display: "flex", gap: 10, alignItems: "flex-start",
               background: n.read ? "transparent" : "rgba(212,168,67,0.07)",
               borderBottom: "1px solid var(--border)",
-              transition: "background 0.2s", cursor: isReal && !n.read ? "pointer" : "default",
+              transition: "background 0.2s",
+              cursor: isNavigable(n) || (isReal && !n.read) ? "pointer" : "default",
             }}
+            onMouseEnter={e => { if (isNavigable(n)) e.currentTarget.style.background = "rgba(212,168,67,0.12)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = n.read ? "transparent" : "rgba(212,168,67,0.07)"; }}
           >
             <span style={{ fontSize: 18, flexShrink: 0 }}>{NOTIF_ICONS[n.type] || "🔔"}</span>
             <div style={{ flex: 1 }}>
@@ -7586,6 +7603,13 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     });
   }, [useSupabase]);
 
+  // Step J: navigazione da notifica → TaskSlideOver
+  const openTaskById = useCallback((taskId) => {
+    if (!taskId) return;
+    const t = (state.tasks || []).find(x => x.id === taskId && !x.deletedAt);
+    if (t) dispatch({ type: "SET_SELECTED_TASK", payload: t });
+  }, [state.tasks]);
+
   const markAllNotificationsRead = useCallback(() => {
     if (!useSupabase) return;
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
@@ -7965,6 +7989,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           notifications={notifications}
           onMarkRead={markNotificationRead}
           onMarkAllRead={markAllNotificationsRead}
+          onOpenTask={openTaskById}
         />
         <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
           <Sidebar state={state} dispatch={dispatch} />
@@ -8032,3 +8057,4 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     </>
   );
 }
+// Step J — touched

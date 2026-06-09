@@ -1,5 +1,34 @@
 # CHANGELOG — VoyageDesk
 
+## v1.2-dev — Notifiche complete (sessione 11)
+
+> Cumulativo sopra v1.1-dev. PR su branch `claude/step-j-notifications`.
+
+### 🔔 Step J — Notifiche complete
+- `supabase/migrations/20260610_notifications_extra.sql`:
+  - **Anti-eco `task_assigned`**: la funzione `notify_task_assigned` ora salta l'utente che effettua l'auto-assegnazione (`auth.uid()`), risolvendo il caveat #1.
+  - **Trigger `trg_notify_task_comment`** su `INSERT` di `public.comments`: per ogni nuovo commento genera (a) notifica `mention` per ogni `@nome` matchato in `users.name` (case-insensitive, escluso autore), (b) notifica `comment` per ogni `assignee` non già menzionato e non autore.
+  - **Funzione `notify_task_due`**: scansiona task con `due_date` nelle 24h successive (non `done`, non cestinate) e genera notifica `task_due` per ogni assignee, de-duplicando entro 22h sullo stesso `task_id`.
+  - **Funzione `notify_queue_stale`**: task in coda globale (`assignees = []`, `status = todo`) creati da > 4h → notifica `queue_stale` a tutti i Manager / Admin / Senior Agent attivi (de-duplica entro 4h).
+  - **pg_cron**: `notify_task_due_daily` (`0 8 * * *` UTC), `notify_queue_stale_hourly` (`5 * * * *`). `create extension if not exists pg_cron;` + idempotenza via `cron.unschedule`.
+- `src/VoyageDesk.jsx`:
+  - `NotificationsPanel` accetta `onOpenTask`: click su notifica con `payload.task_id` apre la `TaskSlideOver` e chiude il pannello.
+  - Hover effect sulle notifiche navigabili, cursore `pointer` quando il payload contiene `task_id`.
+  - `notifTitle`: titoli arricchiti per `mention` (mostra task_title) e `queue_stale` (mostra task_title).
+  - Nuovo callback `openTaskById(taskId)` in `VoyageDeskInner`: lookup task non cestinata + `SET_SELECTED_TASK`.
+  - `Topbar`: nuovo prop `onOpenTask` propagato al panel.
+
+### Caveat residui dopo Step J
+- ~~#1 Auto-assegnazione genera notifica~~ → risolto.
+- #2 ridotto: rimangono solo eventuali edge case su mention con nomi composti molto simili tra loro.
+- I cron job dipendono da `pg_cron` installato sul progetto (incluso nella migrazione). Verificare in dashboard Supabase > Database > Extensions dopo l'apply.
+
+### 🔧 Step J — Fix post-applicazione (`20260610_step_j_fix.sql`)
+- **Grant EXECUTE** su `public.is_manager_or_admin()` ai ruoli `authenticated` e `anon`: la funzione era usata in policy RLS di `tasks` ma non eseguibile dall'utente loggato → tutti INSERT/UPDATE tasks fallivano con `permission denied for function is_manager_or_admin`.
+- `notify_queue_stale` allineata ai ruoli reali in `public.users` (lowercase `manager`,`admin`); rimosso `Senior Agent` inesistente nello schema.
+
+---
+
 ## v1.1-dev — Robustezza sync + Notifiche + Calendario + Chat estesa + Dashboard (sessione 10)
 
 > Cinque step in cumulativo sopra v1.0-dev. PR da aprire su branch `claude/step-e-sync-robustness`.

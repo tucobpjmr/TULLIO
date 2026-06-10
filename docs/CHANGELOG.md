@@ -1,5 +1,20 @@
 # CHANGELOG — VoyageDesk
 
+## v1.3-dev — Origin-tagging realtime (sessione 12)
+
+> Cumulativo sopra v1.2-dev (PR #15 mergeata su `main`).
+
+### 🛰️ Step L — Origin-tagging realtime (caveat #5)
+- `supabase/migrations/20260611_origin_tagging.sql`: nuova colonna `origin_client uuid null` su `public.tasks`, `public.notices`, `public.conversations`, `public.messages`. Colonna nullable per retrocompat (client che non taggano restano funzionanti, le righe già esistenti rimangono `NULL`).
+- `src/lib/clientId.js` (nuovo): `getClientId()` ritorna un UUID stabile per tab, persistito in `sessionStorage` (chiave `vd_client_id`). Fallback in-memory se `sessionStorage` non disponibile. Cache in modulo per evitare letture ripetute.
+- `src/lib/api.js`:
+  - Nuovo helper `withOrigin(payload)` che aggiunge `origin_client: getClientId()`.
+  - `Tasks.create/update/softDelete/restore`, `Notices.create/update/togglePin`, `Conversations.create/update`, `Messages.send/setReactions/markRead` ora taggano automaticamente ogni mutation. I call site in `VoyageDesk.jsx` non richiedono modifiche.
+  - `subscribeToTable(table, handler)` ora filtra payload con `payload.new.origin_client === getClientId()` PRIMA di invocare l'handler: il client che ha generato la mutation scarta l'eco realtime ed evita il flash di re-render dopo l'update ottimistico. `DELETE` (senza `payload.new`) viene sempre propagato.
+- **Effetto**: caveat #5 risolto. Update ottimistici (es. cambio stato task, send messaggio chat, pin notice) non producono più il flicker del refetch successivo.
+
+---
+
 ## v1.2-dev — Notifiche complete (sessione 11)
 
 > Cumulativo sopra v1.1-dev. PR su branch `claude/step-j-notifications`.

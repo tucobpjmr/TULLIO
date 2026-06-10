@@ -2,6 +2,12 @@
 // Layer dati: CRUD su tutte le entità VoyageDesk via supabase-js.
 // Le policy RLS sul DB filtrano automaticamente i risultati per utente loggato.
 import { supabase } from './supabase';
+import { getClientId } from './clientId';
+
+// Step L: allega l'origin client a ogni payload di mutation sulle tabelle
+// live (tasks/notices/conversations/messages). I subscriber realtime usano
+// questo tag per scartare gli eventi che hanno generato loro stessi.
+const withOrigin = (payload) => ({ ...payload, origin_client: getClientId() });
 
 // ----------------- USERS / TEAM -----------------
 export const Users = {
@@ -34,13 +40,13 @@ export const Tasks = {
   get: (id) =>
     supabase.from('tasks').select('*').eq('id', id).single(),
   create: (task) =>
-    supabase.from('tasks').insert(task).select().single(),
+    supabase.from('tasks').insert(withOrigin(task)).select().single(),
   update: (id, patch) =>
-    supabase.from('tasks').update(patch).eq('id', id).select().single(),
+    supabase.from('tasks').update(withOrigin(patch)).eq('id', id).select().single(),
   softDelete: (id) =>
-    supabase.from('tasks').update({ deleted_at: new Date().toISOString() }).eq('id', id),
+    supabase.from('tasks').update(withOrigin({ deleted_at: new Date().toISOString() })).eq('id', id),
   restore: (id) =>
-    supabase.from('tasks').update({ deleted_at: null }).eq('id', id),
+    supabase.from('tasks').update(withOrigin({ deleted_at: null })).eq('id', id),
   hardDelete: (id) =>
     supabase.from('tasks').delete().eq('id', id),
 };
@@ -63,11 +69,11 @@ export const Notices = {
       .order('pinned', { ascending: false })
       .order('created_at', { ascending: false }),
   create: (n) =>
-    supabase.from('notices').insert(n).select().single(),
+    supabase.from('notices').insert(withOrigin(n)).select().single(),
   update: (id, patch) =>
-    supabase.from('notices').update(patch).eq('id', id).select().single(),
+    supabase.from('notices').update(withOrigin(patch)).eq('id', id).select().single(),
   togglePin: (id, pinned) =>
-    supabase.from('notices').update({ pinned }).eq('id', id),
+    supabase.from('notices').update(withOrigin({ pinned })).eq('id', id),
   remove: (id) =>
     supabase.from('notices').delete().eq('id', id),
 };
@@ -77,9 +83,9 @@ export const Conversations = {
   listMine: () =>
     supabase.from('conversations').select('*').order('updated_at', { ascending: false }),
   create: (c) =>
-    supabase.from('conversations').insert(c).select().single(),
+    supabase.from('conversations').insert(withOrigin(c)).select().single(),
   update: (id, patch) =>
-    supabase.from('conversations').update(patch).eq('id', id).select().single(),
+    supabase.from('conversations').update(withOrigin(patch)).eq('id', id).select().single(),
 };
 
 // ----------------- MESSAGES -----------------
@@ -97,13 +103,13 @@ export const Messages = {
       .order('created_at', { ascending: true })
       .limit(limit),
   send: (m) =>
-    supabase.from('messages').insert(m).select().single(),
+    supabase.from('messages').insert(withOrigin(m)).select().single(),
   remove: (id) =>
     supabase.from('messages').delete().eq('id', id),
   setReactions: (id, reactions) =>
-    supabase.from('messages').update({ reactions }).eq('id', id),
+    supabase.from('messages').update(withOrigin({ reactions })).eq('id', id),
   markRead: (id, readBy) =>
-    supabase.from('messages').update({ read_by: readBy }).eq('id', id),
+    supabase.from('messages').update(withOrigin({ read_by: readBy })).eq('id', id),
 };
 
 // ----------------- NOTIFICATIONS -----------------
@@ -128,10 +134,19 @@ export const Notifications = {
 };
 
 // ----------------- REALTIME -----------------
+// Step L: i payload realtime hanno payload.new.origin_client se generati da
+// una mutation taggata. Se il tag coincide con il nostro client, l'evento è
+// l'eco della nostra stessa scrittura — l'UI è già aggiornata in modo
+// ottimistico, quindi lo scartiamo per evitare flash di re-render.
+// DELETE non porta payload.new: in quel caso passiamo sempre l'evento.
 export function subscribeToTable(tableName, handler) {
   const channel = supabase
     .channel(`realtime:${tableName}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: tableName }, handler)
+    .on('postgres_changes', { event: '*', schema: 'public', table: tableName }, (payload) => {
+      const origin = payload?.new?.origin_client;
+      if (origin && origin === getClientId()) return;
+      handler(payload);
+    })
     .subscribe();
   return () => supabase.removeChannel(channel);
 }

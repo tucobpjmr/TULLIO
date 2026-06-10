@@ -5349,14 +5349,17 @@ function parseTaskLink(text) {
 }
 
 // Renderizza testo del messaggio con eventuale pill task cliccabile.
-const MessageTextContent = ({ text, isMine }) => {
+// Step K: lookup preferito per `taskRef` (UUID) se presente sul messaggio;
+// fallback per titolo (compat messaggi vecchi senza taskRef).
+const MessageTextContent = ({ text, isMine, taskRef }) => {
   const { tasks, dispatch } = useContext(ChatContext);
   const link = parseTaskLink(text);
   if (!link) {
     return <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}>{text}</div>;
   }
-  // Cerca la task per titolo (best-effort: titoli unici nell'app)
-  const t = (tasks || []).find(x => x.title === link.taskTitle && !x.deletedAt);
+  // Step K: prima cerca per UUID, poi fallback al match titolo.
+  const tByRef = taskRef ? (tasks || []).find(x => x.id === taskRef && !x.deletedAt) : null;
+  const t = tByRef || (tasks || []).find(x => x.title === link.taskTitle && !x.deletedAt);
   const handleOpen = (e) => {
     e.stopPropagation();
     if (!t) return;
@@ -5467,7 +5470,7 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
 
           {/* Content */}
           {msg.type === "text" && (
-            <MessageTextContent text={msg.text} isMine={isMine} />
+            <MessageTextContent text={msg.text} isMine={isMine} taskRef={msg.taskRef} />
           )}
 
           {msg.type === "voice" && (
@@ -5603,21 +5606,24 @@ const VoiceRecorder = ({ onSend, onCancel }) => {
 };
 
 // ─── CHAT: CONVERSATION VIEW ───────────────────────────────────────────────
-const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, onInitialInputConsumed }) => {
+const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, initialTaskRef, onInitialInputConsumed }) => {
   const [input, setInput] = useState("");
   const [recording, setRecording] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const [showAttach, setShowAttach] = useState(false);
   const [typing, setTyping] = useState(false);
+  // Step K: taskRef UUID "armato" finché il prossimo invio non lo consuma.
+  const [pendingTaskRef, setPendingTaskRef] = useState(null);
   const scrollRef = useRef(null);
 
   // Se è arrivato un prefill (es. da "contatta agente" su urgenti altrui), popolalo
   useEffect(() => {
     if (initialInput) {
       setInput(initialInput);
+      if (initialTaskRef) setPendingTaskRef(initialTaskRef);
       if (onInitialInputConsumed) onInitialInputConsumed();
     }
-  }, [initialInput]);
+  }, [initialInput, initialTaskRef]);
 
   const msgs = messages[conv.id] || [];
 
@@ -5651,15 +5657,21 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
 
   const sendText = () => {
     if (!input.trim()) return;
+    // Step K: se il testo che sta partendo contiene un pattern "🔗 Riferimento task: ..."
+    // (perché viene da prefill o l'utente l'ha mantenuto), allega taskRef UUID.
+    const textOut = input.trim();
+    const stillHasLink = parseTaskLink(textOut) !== null;
     const newMsg = {
       id: "m" + Date.now(), sender: CURRENT_USER, type: "text",
-      text: input.trim(), time: new Date().toISOString(),
+      text: textOut, time: new Date().toISOString(),
       readBy: [CURRENT_USER],
       replyTo: replyingTo?.id,
+      ...(stillHasLink && pendingTaskRef ? { taskRef: pendingTaskRef } : {}),
     };
     setMessages(prev => ({ ...prev, [conv.id]: [...(prev[conv.id] || []), newMsg] }));
     setInput("");
     setReplyingTo(null);
+    setPendingTaskRef(null);
   };
 
   const sendVoice = (duration) => {
@@ -6218,6 +6230,8 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
   const [activeConv, setActiveConv] = useState(null);
   const [newMode, setNewMode] = useState(false);
   const [prefillText, setPrefillText] = useState("");
+  // Step K: taskRef UUID da precompilare insieme al testo del riferimento task.
+  const [prefillTaskRef, setPrefillTaskRef] = useState(null);
 
   // Gestione intent: apertura chat verso utente specifico con link a task
   useEffect(() => {
@@ -6246,6 +6260,8 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
       if (t) {
         const text = `🔗 Riferimento task: "${t.title}"\n📅 Scadenza: ${formatDate(t.dueDate)} ${formatTime(t.dueDate)}\n\n`;
         setPrefillText(text);
+        // Step K: salva l'UUID del task per popolare messages.task_ref alla send.
+        setPrefillTaskRef(t.id);
       }
     }
   }, [open, intent, currentUserId]);
@@ -6322,9 +6338,10 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
               conv={activeConv}
               messages={messages}
               setMessages={setMessages}
-              onBack={() => { setActiveConv(null); setPrefillText(""); }}
+              onBack={() => { setActiveConv(null); setPrefillText(""); setPrefillTaskRef(null); }}
               initialInput={prefillText}
-              onInitialInputConsumed={() => setPrefillText("")}
+              initialTaskRef={prefillTaskRef}
+              onInitialInputConsumed={() => { setPrefillText(""); setPrefillTaskRef(null); }}
             />
           ) : (
             <ConversationList

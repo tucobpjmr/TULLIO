@@ -32,6 +32,14 @@
 - Ora gate-ata dietro `import.meta.env.DEV && VITE_SHOW_MOCK_NOTIFICATIONS === 'true'`. Default off → in produzione mai mock; in dev solo se la flag è esplicitamente attivata.
 - Comportamento: lista vuota da DB → badge a 0 e pannello vuoto (corretto).
 
+### 🔗 Step K — Task link in chat via `task_ref` UUID
+- `src/VoyageDesk.jsx`:
+  - `ChatPanel`: nuovo state `prefillTaskRef` popolato insieme a `prefillText` quando `intent.taskLink` apre la chat da una task. Passato a `ConversationView` come `initialTaskRef`. Resettato su `onBack` e `onInitialInputConsumed`.
+  - `ConversationView`: nuovo state `pendingTaskRef`. `sendText` allega `taskRef: pendingTaskRef` al messaggio se il testo contiene ancora il pattern `🔗 Riferimento task`. Il taskRef è consumato dopo la send.
+  - `MessageTextContent`: lookup preferito per `taskRef` UUID; fallback al match per titolo per messaggi vecchi (deprecato, compat).
+- Mappers (`src/lib/mappers.js`): già supportava `task_ref` ↔ `taskRef`. Nessuna modifica al DB.
+- Risolve caveat #9: rinominare un task non rompe più i pill di riferimento nei messaggi già inviati.
+
 ### 🐛 fix(#14) — Demo switch (ACCEDI COME) confondeva RLS
 - `src/VoyageDesk.jsx` (`UserSwitcher`): il blocco "ACCEDI COME (DEMO MULTI-RUOLO)" cambiava solo `currentUser` lato UI, mentre `auth.uid()` server-side restava l'utente reale loggato → RLS leggeva sempre come utente reale, falsando i test di notifiche/presence/permessi.
 - Ora gate-ato dietro `import.meta.env.DEV && VITE_DEMO_SWITCH === 'true'`. Default off in prod e in dev. Attivabile solo esplicitamente in `.env.local` per test multi-ruolo controllati.

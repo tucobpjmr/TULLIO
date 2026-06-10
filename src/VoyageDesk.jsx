@@ -1556,7 +1556,7 @@ const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notifi
         {state.showNotif && <NotificationsPanel
           dispatch={dispatch}
           notifications={notifList}
-          isReal={useRealNotifs}
+          isReal={!SHOW_MOCK_NOTIFS}
           onMarkRead={onMarkRead}
           onMarkAllRead={onMarkAllRead}
           onOpenTask={onOpenTask}

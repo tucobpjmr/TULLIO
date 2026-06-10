@@ -216,24 +216,25 @@ VoyageDesk (export default, ViewportProvider wrapper)
 
 ## Roadmap prossimi step
 
-### Priorità 1 — Migrazione a progetto Vite
-- [ ] Creare progetto Vite + React
-- [ ] Splittare `VoyageDesk.jsx` in moduli (componenti, reducer, utils, mock-data, styles)
-- [ ] Aggiungere persistenza (localStorage iniziale, poi backend)
+### Priorità 1 — Persistenza dati
+- [ ] localStorage iniziale (scaffolding Supabase in `src/lib/supabase.js` e `src/lib/api/`)
+- [ ] Login vero & AuthContext (scaffolding in `src/lib/auth/` + `src/components/LoginScreen.jsx`)
+- [ ] Multi-utente reale
 
-### Priorità 2 — Modello dati completo
-- [ ] Anagrafica Clienti (CRM base)
-- [ ] Anagrafica Fornitori
-- [ ] Pratiche di viaggio (aggrega task + clienti + fornitori)
+### Priorità 2 — Report & Business
+- [ ] Report & Analytics avanzati (estende KPI già in AdminStatsTab)
+- [ ] Catalogo destinazioni / pacchetti
 
-### Priorità 3 — Operatività
-- [ ] Notifiche reali (collegate ad azioni)
-- [ ] Estensioni chat (task link cliccabile, ricerca conversazioni)
-- [ ] Dark mode
+### Priorità 3 — Migliorie incrementali
+- [ ] Modifica assegnatari da TaskSlideOver
+- [ ] Filtro coda globale
+- [ ] Bacheca: menzioni @utente
+- [ ] Dark mode (CSS variables pronte)
 
-### Priorità 4 — Business
-- [ ] Modulo finanziario (dopo Pratiche)
-- [ ] Report & Analytics avanzati
+### Priorità 4 — Architettura
+- [ ] Separazione multi-file
+- [ ] TypeScript
+- [ ] Vitest
 
 Vedi `docs/ROADMAP.md` per il dettaglio completo con dipendenze e stime.
 

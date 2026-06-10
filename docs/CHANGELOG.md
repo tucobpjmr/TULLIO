@@ -1,5 +1,57 @@
 # CHANGELOG — VoyageDesk
 
+## v0.10 — Notifiche Reali + Calendario + Chat + Impostazioni
+
+> Fase 2 completa: operatività quotidiana.
+
+### 🔔 Notifiche Reali
+- `generateInitialNotifications()` — genera notifiche dinamiche dallo stato iniziale (task scaduti, agenti pending, task in coda, commenti recenti).
+- `_makeNotif` + `_addNotif` helper per aggiungere notifiche dal reducer.
+- Notifiche automatiche su: `ADD_TASK` (se assegnato), `ADD_COMMENT`, `APPROVE_TEAM_MEMBER`.
+- Nuovi casi reducer: `MARK_NOTIF_READ`, `MARK_ALL_NOTIF_READ`, `DISMISS_NOTIF`, `DISMISS_READ_NOTIFS`.
+- `NotificationsPanel` completamente riscritto: filtri per tipo (Tutte/Non lette/Scadute/Assegnate/Commenti/Team), count badge, "✓ Tutte lette", "🗑️ Elimina lette", click-to-navigate (apre task in SlideOver o cambia vista), relTime per timestamp, dismiss per singola notifica.
+- `getNavBadgeCount(navId, state)` — ritorna count per badge su nav items.
+- **Badge Sidebar**: numero rosso su label (espansa) o dot rosso sull'icona (collassata) per Admin (pending) e Dashboard (coda globale).
+- **Badge BottomNav**: dot rosso sull'icona per stesse voci.
+
+### 📅 Calendario Avanzato
+- iCal helpers: `toICalDate`, `escapeICalText`, `exportTasksToICal` — RFC 5545 minimale, export come file `.ics`.
+- Nuova vista **Giorno**: timeline oraria 08:00–20:00, task senza orario in header, evidenzia ora corrente, click su task → TaskSlideOver.
+- Toggle a 3 bottoni: Mese / Sett. / Giorno.
+- Click su header colonna in vista Settimana → drill-down in vista Giorno per quella data.
+- Navigazione prev/next/Oggi funziona per tutte e 3 le viste.
+- Pulsante **📤 iCal** — esporta task del periodo corrente.
+- Distribuzione agenti nascosta in vista Giorno.
+
+### 💬 Estensioni Chat
+- `PRESENCE_STATES` + `MOCK_PRESENCE` + `getPresence(memberId)` — stati Online/Occupato/Offline con colori.
+- `PresenceDot` component per dot colorato.
+- `TASK_LINK_RE` + `parseMessageText` + `TaskLinkChip` + `RenderedMessageText` — parsing e render di `[task:ID]` come chip cliccabili.
+- `INITIAL_MESSAGE_TEMPLATES` — 5 template con variabili `{{cliente}}`, `{{data}}`, `{{agenzia}}`.
+- `ChatMessage` aggiornato: usa `RenderedMessageText` per messaggi testo.
+- `ConversationList`: ricerca anche nel testo dei messaggi (`matchInMessages`), preview del match con `<mark>`, presence dot usa colore reale da `getPresence`.
+- `ConversationView`: presenza reale nell'header (Online/Occupato/Offline), pulsante ⚡ template (dropdown con `applyTemplate` + sostituzione variabili), pulsante 📋 task picker (dropdown task attivi → inserisce `[task:ID]` nell'input).
+- Intent prefill aggiornato: usa `[task:ID]` invece di testo plain.
+- `ChatPanel`: accetta `dispatch`, `messageTemplates`, `agencyName` — forniti a `ChatContext.Provider`.
+
+### ⚙️ Impostazioni Agenzia (nuovo tab Admin)
+- `DEFAULT_UI_PREFERENCES` + `initialState` esteso con `agencySettings`, `messageTemplates`, `uiPreferences`.
+- Nuovi casi reducer (ADMIN_ONLY): `UPDATE_AGENCY_SETTINGS`, `ADD_MESSAGE_TEMPLATE`, `UPDATE_MESSAGE_TEMPLATE`, `DELETE_MESSAGE_TEMPLATE`, `SET_UI_PREFERENCE`, `RESET_UI_PREFERENCES`.
+- `RESTORE_BACKUP` e `exportBackup` aggiornati (versione `0.10`).
+- `AdminSettingsTab`: sezione Dati Agenzia (6 campi con salvataggio), sezione Template messaggi (CRUD completo con editor inline), sezione Preferenze UI (toggle switch per `showWelcomeBanner` e `confirmDestructive` + reset default).
+- `AdminView`: aggiunto tab "⚙️ Impostazioni" (6° tab).
+- `Dashboard`: `showBanner` da `state.uiPreferences.showWelcomeBanner` — condiziona il saluto Buongiorno.
+- `VoyageDeskInner`: `ChatPanel` riceve `dispatch`, `messageTemplates`, `agencyName`.
+
+### 📈 Metriche v0.10
+- File: 8349 → **~9000 righe** (+650).
+- Componenti nuovi: `AdminSettingsTab`, `PresenceDot`, `TaskLinkChip`, `RenderedMessageText`.
+- Viste Calendario: 2 → 3 (aggiunta vista Giorno).
+- Admin tab: 5 → 6 (aggiunta Impostazioni).
+- Docs: `HANDOFF.md` (nuovo), `ROADMAP.md` (aggiornato), `CLAUDE.md` (aggiornato).
+
+---
+
 ## v0.9 — Pratiche di Viaggio (sessione 9 — terza parte)
 
 > Fase 1 completa: modulo centrale che aggrega task, clienti, fornitori e dati economici.

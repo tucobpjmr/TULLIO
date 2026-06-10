@@ -320,14 +320,28 @@ const INITIAL_PRATICHE = [
   },
 ];
 
-const NOTIFICATIONS = [
-  { id: "n1", type: "overdue", title: "Task scaduto: Visto Giappone - Coppia Bianchi", time: "5 min fa", read: false },
-  { id: "n2", type: "assigned", title: "Nuovo task assegnato: Newsletter Giugno", time: "1 ora fa", read: false },
-  { id: "n3", type: "comment", title: "Sofia ha commentato su Hotel Overwater Bungalow", time: "2 ore fa", read: false },
-  { id: "n4", type: "deadline", title: "Scadenza domani: Conferma voli Maldive", time: "3 ore fa", read: true },
-  { id: "n5", type: "comment", title: "Luca ha aggiornato: Newsletter Giugno", time: "4 ore fa", read: true },
-  { id: "n6", type: "deadline", title: "Scadenza oggi: Pagamento acconto Famiglia Rossi", time: "8 ore fa", read: true },
-];
+// Notifiche generate dinamicamente dallo stato iniziale (v0.9)
+const generateInitialNotifications = () => {
+  const notifs = [];
+  const now = new Date();
+  const _od = t => t.status !== "done" && !t.deletedAt && t.dueDate && new Date(t.dueDate) < now;
+  let seq = 1;
+  const mkId = () => `ni-${seq++}`;
+  INITIAL_TASKS.filter(t => _od(t)).forEach(t => {
+    notifs.push({ id: mkId(), type: "overdue", title: `Task scaduto: "${t.title}"`, taskId: t.id, time: new Date(t.dueDate).toISOString(), read: false });
+  });
+  TEAM.filter(m => m.pending).forEach(m => {
+    notifs.push({ id: mkId(), type: "pending", title: `Richiesta accesso: ${m.name} (${m.role})`, memberId: m.id, time: new Date(now - 3600000 * 3).toISOString(), read: false });
+  });
+  INITIAL_TASKS.filter(t => !t.deletedAt && (!t.assignees || !t.assignees.length) && t.status !== "done").slice(0, 2).forEach(t => {
+    notifs.push({ id: mkId(), type: "queue", title: `Task in coda senza assegnatario: "${t.title}"`, taskId: t.id, time: new Date(now - 3600000 * 1).toISOString(), read: true });
+  });
+  INITIAL_TASKS.filter(t => !t.deletedAt && t.comments?.length > 0).slice(0, 2).forEach(t => {
+    const c = t.comments[t.comments.length - 1];
+    notifs.push({ id: mkId(), type: "comment", title: `${c.user} ha commentato su "${t.title}"`, taskId: t.id, time: c.time, read: true });
+  });
+  return notifs.sort((a, b) => new Date(b.time) - new Date(a.time));
+};
 
 // ─── TASK TEMPLATES ────────────────────────────────────────────────────────
 const TASK_TEMPLATES = [
@@ -455,6 +469,14 @@ const buildLogEntry = (action, state) => {
   return { id: `log-${stamp}-${Math.random().toString(36).slice(2,7)}`, time: stamp, type: t, text: (map[t] || (() => t))() };
 };
 
+const _makeNotif = (type, title, extras = {}) => ({
+  id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  type, title, time: new Date().toISOString(), read: false, ...extras,
+});
+const _addNotif = (state, notif) => ({
+  notifications: [notif, ...(state.notifications || [])].slice(0, 100),
+});
+
 function baseReducer(state, action) {
   const uid = state.currentUserId;
   const _denied = (msg = "Non hai i permessi per questa azione") =>
@@ -516,7 +538,10 @@ function baseReducer(state, action) {
         return _denied("Non puoi creare task di questa categoria");
       }
       const tasks = [action.payload, ...state.tasks];
-      return { ...state, tasks, toast: { message: "Task creato con successo!", type: "success" } };
+      const notifExtras = (action.payload.assignees || []).length > 0
+        ? _addNotif(state, _makeNotif("assigned", `Task assegnato: "${action.payload.title}"`, { taskId: action.payload.id }))
+        : {};
+      return { ...state, tasks, ...notifExtras, toast: { message: "Task creato con successo!", type: "success" } };
     }
     case "ADD_TASKS_BULK": {
       const bad = action.payload.find(t => !canCreateTaskCategory(t.category, uid));
@@ -552,7 +577,8 @@ function baseReducer(state, action) {
       const selectedTask = state.selectedTask?.id === action.payload.taskId
         ? { ...state.selectedTask, comments: [...(state.selectedTask.comments || []), action.payload.comment] }
         : state.selectedTask;
-      return { ...state, tasks, selectedTask };
+      const commentNotif = _makeNotif("comment", `${action.payload.comment.user} ha commentato su "${prev.title}"`, { taskId: action.payload.taskId });
+      return { ...state, tasks, selectedTask, ..._addNotif(state, commentNotif) };
     }
     case "DELETE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload);
@@ -601,9 +627,11 @@ function baseReducer(state, action) {
       return { ...state, team, toast: { message: "Agente aggiornato", type: "success" } };
     }
     case "APPROVE_TEAM_MEMBER": {
+      const approvedMember = getMember(action.payload);
       const team = state.team.map(m => m.id === action.payload ? { ...m, pending: false, active: true } : m);
       _syncTeam(team);
-      return { ...state, team, toast: { message: "Agente approvato e attivato!", type: "success" } };
+      const approveNotif = _makeNotif("pending", `${approvedMember?.name || "Agente"} approvato e attivato nel team`, { memberId: action.payload });
+      return { ...state, team, ..._addNotif(state, approveNotif), toast: { message: "Agente approvato e attivato!", type: "success" } };
     }
     case "TOGGLE_TEAM_MEMBER_ACTIVE": {
       const team = state.team.map(m => m.id === action.payload ? { ...m, active: !m.active } : m);
@@ -642,7 +670,7 @@ function baseReducer(state, action) {
       return { ...state, agencyName: action.payload };
     }
     case "RESTORE_BACKUP": {
-      const { tasks, clients, suppliers, pratiche, team, categories, agencyName, notices } = action.payload;
+      const { tasks, clients, suppliers, pratiche, team, categories, agencyName, notices, agencySettings, messageTemplates, uiPreferences } = action.payload;
       if (team) _syncTeam(team);
       if (categories) _syncCategories(categories);
       return {
@@ -655,6 +683,9 @@ function baseReducer(state, action) {
         categories: categories ?? state.categories,
         agencyName: agencyName ?? state.agencyName,
         notices: notices ?? state.notices,
+        agencySettings: agencySettings ?? state.agencySettings,
+        messageTemplates: messageTemplates ?? state.messageTemplates,
+        uiPreferences: uiPreferences ?? state.uiPreferences,
         toast: { message: "Backup ripristinato con successo!", type: "success" }
       };
     }
@@ -684,6 +715,53 @@ function baseReducer(state, action) {
         n.id === action.payload ? { ...n, pinned: !n.pinned } : n
       );
       return { ...state, notices };
+    }
+
+    // ─── NOTIFICHE (v0.9) ───
+    case "MARK_NOTIF_READ": {
+      const notifications = (state.notifications || []).map(n => n.id === action.payload ? { ...n, read: true } : n);
+      return { ...state, notifications };
+    }
+    case "MARK_ALL_NOTIF_READ": {
+      const notifications = (state.notifications || []).map(n => ({ ...n, read: true }));
+      return { ...state, notifications };
+    }
+    case "DISMISS_NOTIF": {
+      const notifications = (state.notifications || []).filter(n => n.id !== action.payload);
+      return { ...state, notifications };
+    }
+    case "DISMISS_READ_NOTIFS": {
+      const notifications = (state.notifications || []).filter(n => !n.read);
+      return { ...state, notifications };
+    }
+
+    // ─── IMPOSTAZIONI AGENZIA (v0.10) ───
+    case "UPDATE_AGENCY_SETTINGS": {
+      if (!canAccessAdmin(uid)) return _denied();
+      return { ...state, agencySettings: { ...(state.agencySettings || {}), ...action.payload }, agencyName: action.payload.agencyName ?? state.agencyName, toast: { message: "Impostazioni agenzia salvate", type: "success" } };
+    }
+    case "ADD_MESSAGE_TEMPLATE": {
+      if (!canAccessAdmin(uid)) return _denied();
+      const tpl = { ...action.payload, id: `tpl-${Date.now()}` };
+      return { ...state, messageTemplates: [...(state.messageTemplates || []), tpl], toast: { message: "Template aggiunto", type: "success" } };
+    }
+    case "UPDATE_MESSAGE_TEMPLATE": {
+      if (!canAccessAdmin(uid)) return _denied();
+      const messageTemplates = (state.messageTemplates || []).map(t => t.id === action.payload.id ? { ...t, ...action.payload } : t);
+      return { ...state, messageTemplates, toast: { message: "Template aggiornato", type: "success" } };
+    }
+    case "DELETE_MESSAGE_TEMPLATE": {
+      if (!canAccessAdmin(uid)) return _denied();
+      const messageTemplates = (state.messageTemplates || []).filter(t => t.id !== action.payload);
+      return { ...state, messageTemplates, toast: { message: "Template eliminato", type: "success" } };
+    }
+    case "SET_UI_PREFERENCE": {
+      if (!canAccessAdmin(uid)) return _denied();
+      return { ...state, uiPreferences: { ...(state.uiPreferences || DEFAULT_UI_PREFERENCES), ...action.payload } };
+    }
+    case "RESET_UI_PREFERENCES": {
+      if (!canAccessAdmin(uid)) return _denied();
+      return { ...state, uiPreferences: DEFAULT_UI_PREFERENCES, toast: { message: "Preferenze UI ripristinate", type: "success" } };
     }
 
     case "CLEAR_TOAST": return { ...state, toast: null };
@@ -827,6 +905,8 @@ const INITIAL_NOTICES = [
   },
 ];
 
+const DEFAULT_UI_PREFERENCES = { density: "comfortable", defaultView: "dashboard", confirmDestructive: true, showWelcomeBanner: true };
+
 const initialState = {
   tasks: INITIAL_TASKS,
   clients: INITIAL_CLIENTS,
@@ -835,17 +915,21 @@ const initialState = {
   team: TEAM,
   categories: CATEGORIES,
   agencyName: "VoyageDesk",
+  agencySettings: { address: "", phone: "", email: "", website: "", vatNumber: "" },
+  messageTemplates: INITIAL_MESSAGE_TEMPLATES,
+  uiPreferences: DEFAULT_UI_PREFERENCES,
   notices: INITIAL_NOTICES,
+  notifications: generateInitialNotifications(),
   activityLog: [],
-  activeView: "dashboard",
+  activeView: DEFAULT_UI_PREFERENCES.defaultView,
   selectedTask: null,
   toast: null,
   searchQuery: "",
   showNotif: false,
   sidebarCollapsed: false,
   filters: { assignee: "", category: "", priority: "", status: "", client: "" },
-  lastAction: null, // { type, payload, undo: () => state-patch } per swipe-actions undo
-  currentUserId: CURRENT_USER, // v0.8: utente loggato (con switcher in Topbar)
+  lastAction: null,
+  currentUserId: CURRENT_USER,
 };
 
 // ─── UTILS ─────────────────────────────────────────────────────────────────
@@ -1600,7 +1684,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
 const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
   const { isMobile } = useViewport();
-  const unread = NOTIFICATIONS.filter(n => !n.read).length;
+  const unread = (state.notifications || []).filter(n => !n.read).length;
   const [advOpen, setAdvOpen] = useState(false);
   return (
     <div style={{
@@ -1689,7 +1773,7 @@ const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
             color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center"
           }}>{unread}</span>}
         </button>
-        {state.showNotif && <NotificationsPanel dispatch={dispatch} />}
+        {state.showNotif && <NotificationsPanel state={state} dispatch={dispatch} />}
       </div>
 
       {/* User switcher (v0.8) */}
@@ -2066,39 +2150,138 @@ const UserSwitcher = ({ state, dispatch }) => {
 };
 
 // ─── NOTIFICATIONS PANEL ───────────────────────────────────────────────────
-const NotificationsPanel = ({ dispatch }) => {
+const NOTIF_ICONS = { overdue: "⚠️", assigned: "📋", comment: "💬", pending: "👤", queue: "🌐", pratica: "📋" };
+const NOTIF_COLORS = { overdue: "var(--danger)", assigned: "var(--navy)", comment: "var(--gold-dark)", pending: "#8B5CF6", queue: "#3B82F6", pratica: "var(--navy)" };
+
+const relTime = iso => {
+  if (!iso) return "—";
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 0) return "ora";
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "ora";
+  if (mins < 60) return `${mins} min fa`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs === 1 ? "1 ora fa" : `${hrs} ore fa`;
+  const days = Math.floor(hrs / 24);
+  return days === 1 ? "ieri" : `${days} giorni fa`;
+};
+
+const NOTIF_FILTERS = [
+  { key: "all", label: "Tutte" },
+  { key: "unread", label: "Non lette" },
+  { key: "overdue", label: "⚠️ Scadute" },
+  { key: "assigned", label: "📋 Assegnate" },
+  { key: "comment", label: "💬 Commenti" },
+  { key: "pending", label: "👤 Team" },
+];
+
+const NotificationsPanel = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
-  const icons = { overdue: "⚠️", assigned: "📋", comment: "💬", deadline: "📅" };
+  const [filter, setFilter] = useState("all");
+  const notifications = state.notifications || [];
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const visible = notifications.filter(n => {
+    if (filter === "unread") return !n.read;
+    if (filter === "all") return true;
+    return n.type === filter;
+  });
+
+  const handleClick = (n) => {
+    dispatch({ type: "MARK_NOTIF_READ", payload: n.id });
+    if (n.taskId) {
+      const task = state.tasks.find(t => t.id === n.taskId);
+      if (task) dispatch({ type: "SET_SELECTED_TASK", payload: task });
+    } else if (n.type === "pending") {
+      dispatch({ type: "SET_VIEW", payload: "admin" });
+    } else if (n.type === "queue") {
+      dispatch({ type: "SET_VIEW", payload: "dashboard" });
+    }
+    dispatch({ type: "TOGGLE_NOTIF" });
+  };
+
   return (
     <div className="slide-right" style={{
       position: isMobile ? "fixed" : "absolute",
       top: isMobile ? 56 : "calc(100% + 8px)",
-      right: isMobile ? 12 : 0,
-      left: isMobile ? 12 : "auto",
-      width: isMobile ? "auto" : "min(360px, calc(100vw - 24px))",
+      right: isMobile ? 12 : 0, left: isMobile ? 12 : "auto",
+      width: isMobile ? "auto" : "min(380px, calc(100vw - 24px))",
       background: "#fff", borderRadius: 12, boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
       border: "1px solid var(--border)", overflow: "hidden", zIndex: 200,
     }}>
-      <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div className="playfair" style={{ fontWeight: 600, fontSize: 15 }}>Notifiche</div>
-        <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
-      </div>
-      <div style={{ maxHeight: 420, overflowY: "auto" }}>
-        {NOTIFICATIONS.map(n => (
-          <div key={n.id} style={{
-            padding: "12px 16px", display: "flex", gap: 10, alignItems: "flex-start",
-            background: n.read ? "transparent" : "rgba(212,168,67,0.07)",
-            borderBottom: "1px solid var(--border)",
-            transition: "background 0.2s", cursor: "default",
-          }}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>{icons[n.type]}</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: n.read ? 400 : 600 }}>{n.title}</div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{n.time}</div>
-            </div>
-            {!n.read && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--gold)", flexShrink: 0, marginTop: 4 }} />}
+      {/* Header */}
+      <div style={{ padding: "14px 16px 10px", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span className="playfair" style={{ fontWeight: 600, fontSize: 15 }}>Notifiche</span>
+            {unreadCount > 0 && <span style={{ background: "var(--gold)", color: "var(--navy)", borderRadius: 10, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>{unreadCount}</span>}
           </div>
-        ))}
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            {unreadCount > 0 && (
+              <button onClick={() => dispatch({ type: "MARK_ALL_NOTIF_READ" })}
+                style={{ background: "var(--surface2)", border: "none", cursor: "pointer", fontSize: 11, color: "var(--navy)", fontWeight: 600, padding: "4px 8px", borderRadius: 6 }}>
+                ✓ Tutte lette
+              </button>
+            )}
+            {notifications.some(n => n.read) && (
+              <button onClick={() => dispatch({ type: "DISMISS_READ_NOTIFS" })}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "var(--text-muted)", padding: "4px 8px", borderRadius: 6 }}>
+                🗑️
+              </button>
+            )}
+            <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
+          </div>
+        </div>
+        {/* Filtri */}
+        <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 2 }}>
+          {NOTIF_FILTERS.map(f => {
+            const cnt = f.key === "all" ? notifications.length : f.key === "unread" ? unreadCount : notifications.filter(n => n.type === f.key).length;
+            if (f.key !== "all" && f.key !== "unread" && cnt === 0) return null;
+            return (
+              <button key={f.key} onClick={() => setFilter(f.key)} style={{
+                padding: "4px 10px", borderRadius: 20, cursor: "pointer", fontSize: 11, whiteSpace: "nowrap",
+                border: filter === f.key ? "1.5px solid var(--navy)" : "1.5px solid var(--border)",
+                background: filter === f.key ? "var(--navy)" : "#fff",
+                color: filter === f.key ? "#fff" : "var(--text-muted)",
+                fontWeight: filter === f.key ? 600 : 400,
+              }}>{f.label}{cnt > 0 ? ` (${cnt})` : ""}</button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Lista notifiche */}
+      <div style={{ maxHeight: 400, overflowY: "auto" }}>
+        {visible.length === 0 ? (
+          <div style={{ padding: "32px 16px", textAlign: "center", color: "var(--text-muted)" }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>🔔</div>
+            <div style={{ fontSize: 13 }}>Nessuna notifica{filter !== "all" ? " in questa categoria" : ""}</div>
+          </div>
+        ) : (
+          visible.map(n => (
+            <div key={n.id} onClick={() => handleClick(n)} style={{
+              padding: "11px 16px", display: "flex", gap: 10, alignItems: "flex-start",
+              background: n.read ? "transparent" : "rgba(212,168,67,0.06)",
+              borderBottom: "1px solid var(--border)", cursor: "pointer", transition: "background 0.15s",
+            }}
+              onMouseEnter={e => e.currentTarget.style.background = n.read ? "var(--surface2)" : "rgba(212,168,67,0.1)"}
+              onMouseLeave={e => e.currentTarget.style.background = n.read ? "transparent" : "rgba(212,168,67,0.06)"}>
+              <div style={{ width: 32, height: 32, borderRadius: "50%", background: `${NOTIF_COLORS[n.type]}18`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>
+                {NOTIF_ICONS[n.type] || "🔔"}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: n.read ? 400 : 600, color: "var(--text)", lineHeight: 1.4 }}>{n.title}</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{relTime(n.time)}</div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
+                {!n.read && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--gold)" }} />}
+                <button onClick={e => { e.stopPropagation(); dispatch({ type: "DISMISS_NOTIF", payload: n.id }); }}
+                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "var(--text-light)", padding: 2, lineHeight: 1 }}
+                  title="Rimuovi">✕</button>
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
@@ -2120,6 +2303,12 @@ const NAV_ITEMS = [
 const getNavItemsForUser = (userId) => {
   const role = getRoleType(userId);
   return NAV_ITEMS.filter(it => !it.roles || it.roles.includes(role));
+};
+
+const getNavBadgeCount = (navId, state) => {
+  if (navId === "admin") return (state.team || []).filter(m => m.pending).length;
+  if (navId === "dashboard") return getActiveTasks(state.tasks || []).filter(t => isInGlobalQueue(t)).length;
+  return 0;
 };
 
 const Sidebar = ({ state, dispatch }) => {
@@ -2146,6 +2335,7 @@ const Sidebar = ({ state, dispatch }) => {
       <div style={{ marginTop: 48, padding: col ? "0 8px" : "0 12px", display: "flex", flexDirection: "column", gap: 2 }}>
         {navItems.map(item => {
           const active = state.activeView === item.id;
+          const badge = getNavBadgeCount(item.id, state);
           return (
             <button key={item.id} onClick={() => dispatch({ type: "SET_VIEW", payload: item.id })} style={{
               display: "flex", alignItems: "center", gap: 10,
@@ -2154,11 +2344,21 @@ const Sidebar = ({ state, dispatch }) => {
               background: active ? "rgba(212,168,67,0.18)" : "transparent",
               color: active ? "var(--gold)" : "rgba(255,255,255,0.6)",
               fontSize: 14, fontWeight: active ? 600 : 400,
-              transition: "all 0.2s", textAlign: "left",
+              transition: "all 0.2s", textAlign: "left", position: "relative",
               borderLeft: active ? "2px solid var(--gold)" : "2px solid transparent",
             }}>
-              <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
-              {!col && <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>{item.label}</span>}
+              <span style={{ fontSize: 16, flexShrink: 0, position: "relative" }}>
+                {item.icon}
+                {col && badge > 0 && <span style={{
+                  position: "absolute", top: -4, right: -4, width: 8, height: 8,
+                  borderRadius: "50%", background: "var(--danger)", border: "1.5px solid var(--navy-dark)",
+                }} />}
+              </span>
+              {!col && <span style={{ whiteSpace: "nowrap", overflow: "hidden", flex: 1 }}>{item.label}</span>}
+              {!col && badge > 0 && <span style={{
+                background: "var(--danger)", color: "#fff", borderRadius: 10,
+                padding: "1px 6px", fontSize: 10, fontWeight: 700, flexShrink: 0,
+              }}>{badge}</span>}
             </button>
           );
         })}
@@ -2193,6 +2393,7 @@ const BottomNav = ({ state, dispatch }) => {
     <nav className="vd-bottom-nav" aria-label="Navigazione principale">
       {navItems.map(item => {
         const active = state.activeView === item.id;
+        const badge = getNavBadgeCount(item.id, state);
         return (
           <button
             key={item.id}
@@ -2205,10 +2406,16 @@ const BottomNav = ({ state, dispatch }) => {
               background: "transparent", border: "none", cursor: "pointer",
               color: active ? "var(--gold)" : "rgba(255,255,255,0.55)",
               borderTop: active ? "2px solid var(--gold)" : "2px solid transparent",
-              transition: "color 0.2s",
+              transition: "color 0.2s", position: "relative",
             }}
           >
-            <span style={{ fontSize: 19, lineHeight: 1 }}>{item.icon}</span>
+            <span style={{ fontSize: 19, lineHeight: 1, position: "relative" }}>
+              {item.icon}
+              {badge > 0 && <span style={{
+                position: "absolute", top: -3, right: -3, width: 8, height: 8,
+                borderRadius: "50%", background: "var(--danger)", border: "1.5px solid var(--navy-dark)",
+              }} />}
+            </span>
             <span style={{ fontSize: 9, fontWeight: active ? 700 : 500, whiteSpace: "nowrap" }}>
               {item.label.split(" ")[0]}
             </span>
@@ -3977,16 +4184,17 @@ const Dashboard = ({ state, dispatch, onOpenChat }) => {
   };
 
   const firstName = me?.name?.split(" ")[0] || "ciao";
+  const showBanner = state.uiPreferences?.showWelcomeBanner !== false;
 
   return (
     <div className="fade-in" style={{ padding: isMobile ? 16 : 28, display: "flex", flexDirection: "column", gap: isMobile ? 18 : 24, minWidth: 0, overflow: "hidden" }}>
       {/* Header */}
       <div className="vd-row-wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
         <div>
-          <div className="playfair" style={{ fontSize: isMobile ? 21 : 26, fontWeight: 700 }}>
+          {showBanner && <div className="playfair" style={{ fontSize: isMobile ? 21 : 26, fontWeight: 700 }}>
             Buongiorno, {firstName} ☀️
-          </div>
-          <div style={{ color: "var(--text-muted)", fontSize: 14, marginTop: 2 }}>
+          </div>}
+          <div style={{ color: "var(--text-muted)", fontSize: 14, marginTop: showBanner ? 2 : 0 }}>
             {new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
             {role !== "admin" && <span style={{ marginLeft: 8, fontSize: 11, padding: "2px 8px", background: "var(--surface3)", borderRadius: 99, color: "var(--text-muted)", fontWeight: 600, letterSpacing: 0.3 }}>{me?.role}</span>}
           </div>
@@ -4428,21 +4636,55 @@ const TaskSlideOver = ({ task, dispatch }) => {
   );
 };
 
-// ─── CALENDAR PLANNER (unificato: mese + settimana + distribuzione agenti) ──
+// ─── ICAL HELPERS ──────────────────────────────────────────────────────────
+const toICalDate = (iso) => {
+  const d = new Date(iso);
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}00Z`;
+};
+const escapeICalText = (s) => (s || "").replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+const exportTasksToICal = (tasks, filename = "voyagedesk.ics") => {
+  if (!tasks.length) { alert("Nessun task da esportare per il periodo selezionato."); return; }
+  const now = toICalDate(new Date().toISOString());
+  const lines = [
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//VoyageDesk//IT",
+    "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+  ];
+  tasks.forEach(t => {
+    const uid = `${t.id}@voyagedesk`;
+    const dtstart = t.dueDate ? toICalDate(t.dueDate) : now;
+    lines.push("BEGIN:VEVENT",
+      `UID:${uid}`, `DTSTAMP:${now}`, `DTSTART:${dtstart}`, `DTEND:${dtstart}`,
+      `SUMMARY:${escapeICalText(t.title)}`,
+      `DESCRIPTION:${escapeICalText(t.description || "")}`,
+      `STATUS:${t.status === "done" ? "COMPLETED" : "NEEDS-ACTION"}`,
+      `PRIORITY:${t.priority === "critical" ? 1 : t.priority === "high" ? 3 : t.priority === "medium" ? 5 : 7}`,
+      "END:VEVENT");
+  });
+  lines.push("END:VCALENDAR");
+  const blob = new Blob([lines.join("\r\n")], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+};
+
+// ─── CALENDAR PLANNER (unificato: mese + settimana + giorno + distribuzione agenti) ──
 const CalendarPlanner = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
-  const [viewMode, setViewMode] = useState("month"); // "month" | "week"
+  const [viewMode, setViewMode] = useState("month"); // "month" | "week" | "day"
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [weekOffset, setWeekOffset] = useState(0);
+  const [dayOffset, setDayOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState(null);
   const uid = state.currentUserId;
+  const today = new Date();
+  const currentDay = new Date(today); currentDay.setDate(today.getDate() + dayOffset);
 
   // ── Month helpers ──
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const today = new Date();
   const monthName = currentMonth.toLocaleDateString("it-IT", { month: "long", year: "numeric" });
   const startOffset = firstDay === 0 ? 6 : firstDay - 1;
 
@@ -4474,6 +4716,16 @@ const CalendarPlanner = ({ state, dispatch }) => {
     return getWeekDays(0);
   })();
 
+  // ── Day view helpers ──
+  const dayHours = Array.from({ length: 13 }, (_, i) => i + 8); // 8-20
+  const getTasksForHour = (h) =>
+    state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate &&
+      new Date(t.dueDate).toDateString() === currentDay.toDateString() &&
+      new Date(t.dueDate).getHours() === h);
+  const getTasksForCurrentDay = () =>
+    state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate &&
+      new Date(t.dueDate).toDateString() === currentDay.toDateString());
+
   // ── Toggle style ──
   const toggleBtn = (mode, label) => (
     <button
@@ -4482,12 +4734,24 @@ const CalendarPlanner = ({ state, dispatch }) => {
         background: viewMode === mode ? "var(--navy)" : "transparent",
         color: viewMode === mode ? "#fff" : "var(--text)",
         border: viewMode === mode ? "none" : "1px solid var(--border)",
-        borderRadius: 8, padding: isMobile ? "6px 12px" : "6px 16px",
+        borderRadius: 8, padding: isMobile ? "5px 10px" : "6px 16px",
         fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
         transition: "all 0.15s",
       }}
     >{label}</button>
   );
+
+  const handleICalExport = () => {
+    let tasks;
+    if (viewMode === "month") {
+      tasks = state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && new Date(t.dueDate).getFullYear() === year && new Date(t.dueDate).getMonth() === month);
+    } else if (viewMode === "week") {
+      tasks = state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && weekDays.some(d => new Date(t.dueDate).toDateString() === d.toDateString()));
+    } else {
+      tasks = getTasksForCurrentDay();
+    }
+    exportTasksToICal(tasks, `voyagedesk-${viewMode}.ics`);
+  };
 
   return (
     <div className="fade-in" style={{ padding: isMobile ? 16 : 28, display: "flex", flexDirection: "column", gap: isMobile ? 16 : 22 }}>
@@ -4496,7 +4760,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
       <div className="vd-row-wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div className="playfair" style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, textTransform: viewMode === "month" ? "capitalize" : "none" }}>
-            {viewMode === "month" ? monthName : "Settimana"}
+            {viewMode === "month" ? monthName : viewMode === "week" ? "Settimana" : currentDay.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
           </div>
           {viewMode === "week" && (
             <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
@@ -4508,23 +4772,32 @@ const CalendarPlanner = ({ state, dispatch }) => {
           {/* View toggle */}
           <div style={{ display: "flex", gap: 4, background: "var(--surface2)", borderRadius: 10, padding: 3 }}>
             {toggleBtn("month", isMobile ? "Mese" : "📅 Mese")}
-            {toggleBtn("week", isMobile ? "Sett." : "📆 Settimana")}
+            {toggleBtn("week", isMobile ? "Sett." : "📆 Sett.")}
+            {toggleBtn("day", isMobile ? "Giorno" : "📋 Giorno")}
           </div>
           {/* Nav buttons */}
           <div style={{ display: "flex", gap: 4 }}>
-            <button onClick={() => viewMode === "month" ? setCurrentMonth(new Date(year, month - 1)) : setWeekOffset(w => w - 1)} style={{
-              background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
-              width: 34, height: 34, cursor: "pointer", fontSize: 14
-            }}>←</button>
-            <button onClick={() => { viewMode === "month" ? setCurrentMonth(new Date()) : setWeekOffset(0); setSelectedDay(null); }} style={{
+            <button onClick={() => {
+              if (viewMode === "month") setCurrentMonth(new Date(year, month - 1));
+              else if (viewMode === "week") setWeekOffset(w => w - 1);
+              else setDayOffset(d => d - 1);
+            }} style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, width: 34, height: 34, cursor: "pointer", fontSize: 14 }}>←</button>
+            <button onClick={() => { setCurrentMonth(new Date()); setWeekOffset(0); setDayOffset(0); setSelectedDay(null); }} style={{
               background: "var(--gold)", color: "var(--navy)", border: "none",
               borderRadius: 8, padding: "0 14px", height: 34, cursor: "pointer", fontSize: 12, fontWeight: 700
             }}>Oggi</button>
-            <button onClick={() => viewMode === "month" ? setCurrentMonth(new Date(year, month + 1)) : setWeekOffset(w => w + 1)} style={{
-              background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
-              width: 34, height: 34, cursor: "pointer", fontSize: 14
-            }}>→</button>
+            <button onClick={() => {
+              if (viewMode === "month") setCurrentMonth(new Date(year, month + 1));
+              else if (viewMode === "week") setWeekOffset(w => w + 1);
+              else setDayOffset(d => d + 1);
+            }} style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, width: 34, height: 34, cursor: "pointer", fontSize: 14 }}>→</button>
           </div>
+          {/* iCal export */}
+          <button onClick={handleICalExport} title="Esporta in formato iCal" style={{
+            background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
+            padding: "0 12px", height: 34, cursor: "pointer", fontSize: 12, fontWeight: 600,
+            color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 5,
+          }}>📤 iCal</button>
         </div>
       </div>
 
@@ -4644,11 +4917,11 @@ const CalendarPlanner = ({ state, dispatch }) => {
                   borderRadius: 10, border: `1px solid ${isToday ? "transparent" : "var(--border)"}`,
                   overflow: "hidden", scrollSnapAlign: isMobile ? "start" : "none",
                 }}>
-                  {/* Day header */}
-                  <div style={{
+                  {/* Day header — click to drill into day view */}
+                  <div onClick={() => { const off = Math.round((day - new Date(new Date().toDateString())) / 86400000); setDayOffset(off); setViewMode("day"); }} style={{
                     padding: "10px 10px 6px",
                     background: isToday ? "var(--gold)" : "var(--surface2)",
-                    textAlign: "center"
+                    textAlign: "center", cursor: "pointer",
                   }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: isToday ? "var(--navy)" : "var(--text-muted)" }}>{dayNames[i]}</div>
                     <div style={{ fontSize: 20, fontWeight: 700, color: isToday ? "var(--navy)" : "var(--text)" }}>
@@ -4679,8 +4952,75 @@ const CalendarPlanner = ({ state, dispatch }) => {
         </div>
       )}
 
-      {/* ─── DISTRIBUZIONE AGENTI (sempre visibile) ─── */}
-      <div style={{ background: "#fff", borderRadius: 12, padding: isMobile ? "14px 12px" : "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
+      {/* ─── VISTA GIORNO ─── */}
+      {viewMode === "day" && (() => {
+        const isToday = currentDay.toDateString() === today.toDateString();
+        const dayTasksAll = getTasksForCurrentDay();
+        const noTime = dayTasksAll.filter(t => !new Date(t.dueDate).getHours() && !new Date(t.dueDate).getMinutes());
+        const withTime = dayTasksAll.filter(t => new Date(t.dueDate).getHours() || new Date(t.dueDate).getMinutes());
+        return (
+          <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)", overflow: "hidden" }}>
+            <div style={{ padding: "12px 18px", background: isToday ? "var(--navy)" : "var(--surface2)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontWeight: 600, fontSize: 14, color: isToday ? "#fff" : "var(--text)" }}>
+                {isToday ? "Oggi — " : ""}{currentDay.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+              </div>
+              <div style={{ fontSize: 12, color: isToday ? "rgba(255,255,255,0.7)" : "var(--text-muted)" }}>
+                {dayTasksAll.length} task
+              </div>
+            </div>
+            {noTime.length > 0 && (
+              <div style={{ padding: "10px 18px", borderBottom: "1px solid var(--border)", display: "flex", flexWrap: "wrap", gap: 6 }}>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", width: "100%", marginBottom: 4, fontWeight: 600 }}>Senza orario</div>
+                {noTime.map(t => (
+                  <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                    background: CATEGORIES[t.category]?.color + "18", borderLeft: `3px solid ${CATEGORIES[t.category]?.color}`,
+                    borderRadius: "0 6px 6px 0", padding: "4px 8px", cursor: "pointer", fontSize: 11, fontWeight: 500,
+                  }}>
+                    {CATEGORIES[t.category]?.icon} {t.title}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ overflowY: "auto", maxHeight: 460 }}>
+              {dayHours.map(h => {
+                const hTasks = getTasksForHour(h);
+                const currentHour = today.getHours();
+                const isCurrentHour = isToday && currentHour === h;
+                return (
+                  <div key={h} style={{
+                    display: "flex", borderBottom: "1px solid var(--border)",
+                    background: isCurrentHour ? "rgba(212,168,67,0.06)" : "transparent",
+                    minHeight: 52,
+                  }}>
+                    <div style={{
+                      width: 54, flexShrink: 0, padding: "8px 10px 8px 18px",
+                      fontSize: 11, color: isCurrentHour ? "var(--gold)" : "var(--text-muted)",
+                      fontWeight: isCurrentHour ? 700 : 400, borderRight: `2px solid ${isCurrentHour ? "var(--gold)" : "var(--border)"}`,
+                      display: "flex", alignItems: "flex-start", paddingTop: 10,
+                    }}>{String(h).padStart(2, "0")}:00</div>
+                    <div style={{ flex: 1, padding: "6px 12px", display: "flex", flexWrap: "wrap", gap: 5, alignItems: "flex-start" }}>
+                      {hTasks.map(t => (
+                        <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                          background: CATEGORIES[t.category]?.color + "18", borderLeft: `3px solid ${CATEGORIES[t.category]?.color}`,
+                          borderRadius: "0 6px 6px 0", padding: "4px 8px", cursor: "pointer", fontSize: 11, fontWeight: 500,
+                          display: "flex", alignItems: "center", gap: 5,
+                        }}>
+                          <span>{CATEGORIES[t.category]?.icon}</span>
+                          <span>{t.title}</span>
+                          <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{formatTime(t.dueDate)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ─── DISTRIBUZIONE AGENTI (solo per mese/settimana) ─── */}
+      {viewMode !== "day" && <div style={{ background: "#fff", borderRadius: 12, padding: isMobile ? "14px 12px" : "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
         <div className="playfair" style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>Distribuzione Settimanale per Agente</div>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
@@ -4735,7 +5075,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
             </tbody>
           </table>
         </div>
-      </div>
+      </div>}
     </div>
   );
 };
@@ -4990,6 +5330,82 @@ const getUnreadCount = (msgs, convId) => {
   return arr.filter(m => m.sender !== CURRENT_USER && !m.readBy?.includes(CURRENT_USER)).length;
 };
 
+// ─── CHAT: PRESENCE ────────────────────────────────────────────────────────
+const PRESENCE_STATES = {
+  online: { color: "#2D7A4F", label: "Online" },
+  busy: { color: "#C8832A", label: "Occupato" },
+  offline: { color: "#9999AA", label: "Offline" },
+};
+const MOCK_PRESENCE = { marco: "online", sofia: "online", luca: "busy", roberto: "online", giulia: "offline" };
+const getPresence = (memberId) => MOCK_PRESENCE[memberId] || "offline";
+
+const PresenceDot = ({ memberId, size = 9 }) => {
+  const p = PRESENCE_STATES[getPresence(memberId)];
+  return <span style={{ display: "inline-block", width: size, height: size, borderRadius: "50%", background: p.color, border: "1.5px solid #fff", flexShrink: 0 }} />;
+};
+
+// ─── CHAT: TASK LINK PARSING ────────────────────────────────────────────────
+const TASK_LINK_RE = /\[task:([a-zA-Z0-9_-]+)\]/g;
+
+const parseMessageText = (text) => {
+  const parts = [];
+  let last = 0;
+  let match;
+  const re = new RegExp(TASK_LINK_RE.source, "g");
+  while ((match = re.exec(text)) !== null) {
+    if (match.index > last) parts.push({ type: "text", value: text.slice(last, match.index) });
+    parts.push({ type: "taskLink", taskId: match[1] });
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) parts.push({ type: "text", value: text.slice(last) });
+  return parts;
+};
+
+const TaskLinkChip = ({ taskId, isMine }) => {
+  const ctx = useContext(ChatContext);
+  const task = (ctx?.tasks || []).find(t => t.id === taskId);
+  if (!task) return <span style={{ fontStyle: "italic", opacity: 0.6 }}>[task rimosso]</span>;
+  const cat = CATEGORIES[task.category];
+  return (
+    <span
+      onClick={e => { e.stopPropagation(); ctx?.dispatch?.({ type: "SET_SELECTED_TASK", payload: task }); ctx?.onCloseChat?.(); }}
+      title={`Apri: ${task.title}`}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 4,
+        background: isMine ? "rgba(255,255,255,0.18)" : (cat?.color + "20" || "var(--surface2)"),
+        border: `1px solid ${isMine ? "rgba(255,255,255,0.3)" : (cat?.color || "var(--border)")}`,
+        borderRadius: 6, padding: "1px 7px", cursor: "pointer", fontSize: 12, fontWeight: 600,
+        color: isMine ? "#fff" : (cat?.color || "var(--navy)"),
+        verticalAlign: "middle", margin: "0 2px",
+      }}>
+      <span>{cat?.icon}</span>
+      <span>{task.title.slice(0, 28)}{task.title.length > 28 ? "…" : ""}</span>
+    </span>
+  );
+};
+
+const RenderedMessageText = ({ text, isMine }) => {
+  const parts = parseMessageText(text || "");
+  return (
+    <span style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}>
+      {parts.map((p, i) =>
+        p.type === "taskLink"
+          ? <TaskLinkChip key={i} taskId={p.taskId} isMine={isMine} />
+          : <span key={i}>{p.value}</span>
+      )}
+    </span>
+  );
+};
+
+// ─── CHAT: MESSAGE TEMPLATES ────────────────────────────────────────────────
+const INITIAL_MESSAGE_TEMPLATES = [
+  { id: "tpl1", name: "Conferma prenotazione", text: "Gentile {{cliente}}, siamo lieti di confermare la sua prenotazione per il {{data}}. Cordiali saluti, {{agenzia}}" },
+  { id: "tpl2", name: "Richiesta documenti", text: "Buongiorno {{cliente}}, per completare la pratica abbiamo bisogno dei suoi documenti entro il {{data}}. Grazie, {{agenzia}}" },
+  { id: "tpl3", name: "Aggiornamento pratica", text: "Caro {{cliente}}, la informiamo che la sua pratica è stata aggiornata in data {{data}}. Per informazioni, contatti {{agenzia}}." },
+  { id: "tpl4", name: "Promemoria pagamento", text: "Gentile {{cliente}}, le ricordiamo che il pagamento è previsto entro il {{data}}. Per assistenza: {{agenzia}}" },
+  { id: "tpl5", name: "Saluto chiusura", text: "Buona giornata {{cliente}}, siamo a sua disposizione per qualsiasi necessità. Il team di {{agenzia}}" },
+];
+
 // ─── CHAT: REACTIONS POPOVER ───────────────────────────────────────────────
 const EMOJI_REACTIONS = ["👍", "❤️", "😂", "🔥", "✅", "🎉", "💡", "🙌"];
 
@@ -5134,7 +5550,7 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
 
           {/* Content */}
           {msg.type === "text" && (
-            <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}>{msg.text}</div>
+            <div><RenderedMessageText text={msg.text} isMine={isMine} /></div>
           )}
 
           {msg.type === "voice" && (
@@ -5275,8 +5691,14 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
   const [recording, setRecording] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const [showAttach, setShowAttach] = useState(false);
+  const [showTaskPicker, setShowTaskPicker] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [typing, setTyping] = useState(false);
   const scrollRef = useRef(null);
+  const ctx = useContext(ChatContext);
+  const ctxTasks = ctx?.tasks || [];
+  const ctxTemplates = ctx?.messageTemplates || INITIAL_MESSAGE_TEMPLATES;
+  const ctxAgencyName = ctx?.agencyName || "VoyageDesk";
 
   // Se è arrivato un prefill (es. da "contatta agente" su urgenti altrui), popolalo
   useEffect(() => {
@@ -5355,6 +5777,19 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
     setShowAttach(false);
   };
 
+  const applyTemplate = (tpl) => {
+    const clientGuess = conv.type === "group" ? conv.name : (getMember(conv.participants.find(p => p !== CURRENT_USER))?.name || "[nome cliente]");
+    const dateStr = new Date().toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" });
+    const text = tpl.text.replace(/\{\{cliente\}\}/g, clientGuess).replace(/\{\{data\}\}/g, dateStr).replace(/\{\{agenzia\}\}/g, ctxAgencyName);
+    setInput(text);
+    setShowTemplatePicker(false);
+  };
+
+  const insertTaskLink = (task) => {
+    setInput(prev => prev + (prev ? " " : "") + `[task:${task.id}]`);
+    setShowTaskPicker(false);
+  };
+
   const handleReact = (msgId, emoji) => {
     setMessages(prev => ({
       ...prev,
@@ -5403,7 +5838,7 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
           <div style={{ color: "#fff", fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {getConversationName(conv)}
           </div>
-          <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 11 }}>
+          <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, display: "flex", alignItems: "center", gap: 5 }}>
             {typing ? (
               <span style={{ color: "var(--gold-light)" }}>
                 {conv.type === "group" ? `${getMember(otherTypingMember)?.name.split(" ")[0]} sta scrivendo` : "sta scrivendo"}
@@ -5411,9 +5846,10 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
                 <span style={{ animation: "typing 1s infinite", animationDelay: "0.2s", display: "inline-block" }}>.</span>
                 <span style={{ animation: "typing 1s infinite", animationDelay: "0.4s", display: "inline-block" }}>.</span>
               </span>
-            ) : conv.type === "direct" ? (
-              <>● Online</>
-            ) : (
+            ) : conv.type === "direct" ? (() => {
+              const p = PRESENCE_STATES[getPresence(otherTypingMember)];
+              return <><span style={{ color: p.color }}>●</span> {p.label}</>;
+            })() : (
               `${conv.participants.length} membri`
             )}
           </div>
@@ -5521,6 +5957,63 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
               )}
             </div>
 
+            {/* Template picker */}
+            <div style={{ position: "relative" }}>
+              <button onClick={() => { setShowTemplatePicker(s => !s); setShowTaskPicker(false); }} title="Template messaggi" style={{
+                background: "var(--surface2)", border: "none", borderRadius: "50%",
+                width: 36, height: 36, cursor: "pointer", fontSize: 15, flexShrink: 0,
+              }}>⚡</button>
+              {showTemplatePicker && (
+                <div className="slide-up" style={{
+                  position: "absolute", bottom: "calc(100% + 8px)", left: 0,
+                  background: "#fff", borderRadius: 12, padding: 8,
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--border)",
+                  display: "flex", flexDirection: "column", gap: 4, minWidth: 240, maxHeight: 260, overflowY: "auto", zIndex: 100,
+                }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", padding: "4px 8px", letterSpacing: 1 }}>TEMPLATE RAPIDI</div>
+                  {ctxTemplates.map(tpl => (
+                    <button key={tpl.id} onClick={() => applyTemplate(tpl)} style={{
+                      display: "flex", flexDirection: "column", padding: "8px 10px", border: "none",
+                      background: "transparent", borderRadius: 8, cursor: "pointer", textAlign: "left",
+                    }}
+                      onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                      <span style={{ fontSize: 12, fontWeight: 600 }}>{tpl.name}</span>
+                      <span style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }}>{tpl.text}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {/* Task link picker */}
+            <div style={{ position: "relative" }}>
+              <button onClick={() => { setShowTaskPicker(s => !s); setShowTemplatePicker(false); }} title="Collega task" style={{
+                background: "var(--surface2)", border: "none", borderRadius: "50%",
+                width: 36, height: 36, cursor: "pointer", fontSize: 15, flexShrink: 0,
+              }}>📋</button>
+              {showTaskPicker && (
+                <div className="slide-up" style={{
+                  position: "absolute", bottom: "calc(100% + 8px)", left: 0,
+                  background: "#fff", borderRadius: 12, padding: 8,
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--border)",
+                  display: "flex", flexDirection: "column", gap: 4, minWidth: 260, maxHeight: 300, overflowY: "auto", zIndex: 100,
+                }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", padding: "4px 8px", letterSpacing: 1 }}>COLLEGA TASK</div>
+                  {ctxTasks.filter(t => isActiveTask(t)).slice(0, 20).map(t => (
+                    <button key={t.id} onClick={() => insertTaskLink(t)} style={{
+                      display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", border: "none",
+                      background: "transparent", borderRadius: 8, cursor: "pointer", textAlign: "left",
+                    }}
+                      onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                      <span style={{ fontSize: 16 }}>{CATEGORIES[t.category]?.icon}</span>
+                      <span style={{ fontSize: 12, fontWeight: 500, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
@@ -5568,11 +6061,30 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
     return new Date(lastB.time) - new Date(lastA.time);
   });
 
+  const matchInMessages = (convId) => {
+    if (!search) return null;
+    const q = search.toLowerCase();
+    const arr = messages[convId] || [];
+    const hit = [...arr].reverse().find(m => m.type === "text" && m.text?.toLowerCase().includes(q));
+    return hit || null;
+  };
+
+  const highlightMatch = (text, q) => {
+    if (!q) return text;
+    const idx = text.toLowerCase().indexOf(q.toLowerCase());
+    if (idx < 0) return text;
+    return <>{text.slice(0, idx)}<mark style={{ background: "#FFE082", borderRadius: 2 }}>{text.slice(idx, idx + q.length)}</mark>{text.slice(idx + q.length)}</>;
+  };
+
   const filtered = sorted.filter(c => {
     if (filter === "direct" && c.type !== "direct") return false;
     if (filter === "group" && c.type !== "group") return false;
     if (filter === "unread" && getUnreadCount(messages, c.id) === 0) return false;
-    if (search && !getConversationName(c).toLowerCase().includes(search.toLowerCase())) return false;
+    if (search) {
+      const nameMatch = getConversationName(c).toLowerCase().includes(search.toLowerCase());
+      const msgMatch = matchInMessages(c.id) !== null;
+      if (!nameMatch && !msgMatch) return false;
+    }
     return true;
   });
 
@@ -5637,7 +6149,7 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
                   <Avatar memberId={otherUser} size={42} />
                   <div style={{
                     position: "absolute", bottom: 0, right: 0, width: 11, height: 11,
-                    borderRadius: "50%", background: "var(--success)", border: "2px solid #fff",
+                    borderRadius: "50%", background: PRESENCE_STATES[getPresence(otherUser)].color, border: "2px solid #fff",
                   }} />
                 </div>
               ) : (
@@ -5666,19 +6178,24 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
                     fontWeight: unread > 0 ? 500 : 400,
                     whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1, minWidth: 0,
                   }}>
-                    {last ? (
-                      <>
+                    {(() => {
+                      const msgHit = search ? matchInMessages(c.id) : null;
+                      if (msgHit) {
+                        const hitSender = getMember(msgHit.sender);
+                        return <>
+                          <span style={{ color: hitSender?.color || "var(--text-muted)", fontWeight: 600 }}>{hitSender?.name.split(" ")[0]}: </span>
+                          {highlightMatch(msgHit.text.slice(Math.max(0, msgHit.text.toLowerCase().indexOf(search.toLowerCase()) - 10), msgHit.text.toLowerCase().indexOf(search.toLowerCase()) + search.length + 20), search)}
+                        </>;
+                      }
+                      if (!last) return "Nessun messaggio";
+                      return <>
                         {last.sender === CURRENT_USER && <span style={{ color: "var(--text-muted)" }}>Tu: </span>}
                         {c.type === "group" && last.sender !== CURRENT_USER && (
-                          <span style={{ color: lastSender?.color, fontWeight: 600 }}>
-                            {lastSender?.name.split(" ")[0]}:{" "}
-                          </span>
+                          <span style={{ color: lastSender?.color, fontWeight: 600 }}>{lastSender?.name.split(" ")[0]}: </span>
                         )}
-                        {last.type === "voice" ? "🎙️ Messaggio vocale" :
-                          last.type === "file" ? `📎 ${last.fileName}` :
-                            last.text}
-                      </>
-                    ) : "Nessun messaggio"}
+                        {last.type === "voice" ? "🎙️ Messaggio vocale" : last.type === "file" ? `📎 ${last.fileName}` : last.text}
+                      </>;
+                    })()}
                   </div>
                   {unread > 0 && (
                     <div style={{
@@ -5851,7 +6368,7 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
 };
 
 // ─── CHAT: MAIN PANEL ──────────────────────────────────────────────────────
-const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, currentUserId }) => {
+const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, currentUserId, dispatch, messageTemplates, agencyName }) => {
   const { isMobile } = useViewport();
   const [activeConv, setActiveConv] = useState(null);
   const [newMode, setNewMode] = useState(false);
@@ -5878,13 +6395,10 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
     }
     setActiveConv(direct);
     setNewMode(false);
-    // Precompila il messaggio con riferimento al task
+    // Precompila il messaggio con link cliccabile al task
     if (intent.taskLink) {
       const t = (tasks || []).find(x => x.id === intent.taskLink);
-      if (t) {
-        const text = `🔗 Riferimento task: "${t.title}"\n📅 Scadenza: ${formatDate(t.dueDate)} ${formatTime(t.dueDate)}\n\n`;
-        setPrefillText(text);
-      }
+      if (t) setPrefillText(`[task:${t.id}] `);
     }
   }, [open, intent, currentUserId]);
 
@@ -5897,7 +6411,7 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
   };
 
   return (
-    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER }}>
+    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER, dispatch, onCloseChat: onClose, messageTemplates: messageTemplates || INITIAL_MESSAGE_TEMPLATES, agencyName: agencyName || "VoyageDesk" }}>
     <>
       <div onClick={onClose} style={{
         position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: 700,
@@ -6339,6 +6853,135 @@ const Trash = ({ state, dispatch }) => {
   );
 };
 
+// ─── ADMIN: SETTINGS TAB ───────────────────────────────────────────────────
+const AdminSettingsTab = ({ state, dispatch }) => {
+  const [agency, setAgency] = useState({ agencyName: state.agencyName || "VoyageDesk", ...(state.agencySettings || {}) });
+  const [editingTpl, setEditingTpl] = useState(null);
+  const [newTpl, setNewTpl] = useState({ name: "", text: "" });
+  const [showNewTpl, setShowNewTpl] = useState(false);
+  const templates = state.messageTemplates || INITIAL_MESSAGE_TEMPLATES;
+  const prefs = state.uiPreferences || DEFAULT_UI_PREFERENCES;
+
+  const saveAgency = () => dispatch({ type: "UPDATE_AGENCY_SETTINGS", payload: agency });
+
+  const saveTemplate = () => {
+    if (!editingTpl) return;
+    dispatch({ type: "UPDATE_MESSAGE_TEMPLATE", payload: editingTpl });
+    setEditingTpl(null);
+  };
+
+  const addTemplate = () => {
+    if (!newTpl.name.trim() || !newTpl.text.trim()) return;
+    dispatch({ type: "ADD_MESSAGE_TEMPLATE", payload: newTpl });
+    setNewTpl({ name: "", text: "" });
+    setShowNewTpl(false);
+  };
+
+  const inp = (label, field, placeholder = "") => (
+    <div>
+      <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5, marginBottom: 4, display: "block" }}>{label}</label>
+      <input value={agency[field] || ""} onChange={e => setAgency(a => ({ ...a, [field]: e.target.value }))}
+        placeholder={placeholder} style={{ width: "100%", border: "1px solid var(--border)", borderRadius: 6, padding: "8px 10px", fontSize: 13, fontFamily: "inherit", boxSizing: "border-box" }} />
+    </div>
+  );
+
+  const toggle = (label, prefKey) => (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "1px solid var(--border)" }}>
+      <span style={{ fontSize: 13 }}>{label}</span>
+      <button onClick={() => dispatch({ type: "SET_UI_PREFERENCE", payload: { [prefKey]: !prefs[prefKey] } })} style={{
+        width: 44, height: 24, borderRadius: 12, border: "none", cursor: "pointer", position: "relative",
+        background: prefs[prefKey] ? "var(--success)" : "var(--border)", transition: "background 0.2s",
+      }}>
+        <span style={{
+          position: "absolute", top: 2, left: prefs[prefKey] ? 22 : 2, width: 20, height: 20,
+          borderRadius: "50%", background: "#fff", transition: "left 0.2s",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+        }} />
+      </button>
+    </div>
+  );
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+      {/* ── Dati agenzia ── */}
+      <div style={{ background: "#fff", borderRadius: 12, padding: "22px 24px", border: "1px solid var(--border)" }}>
+        <div className="playfair" style={{ fontSize: 17, fontWeight: 700, marginBottom: 18 }}>🏢 Dati Agenzia</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          {inp("Nome agenzia", "agencyName", "es. VoyageDesk")}
+          {inp("Telefono", "phone", "es. +39 02 1234567")}
+          {inp("Email", "email", "es. info@agenzia.it")}
+          {inp("Sito web", "website", "es. www.agenzia.it")}
+          {inp("Partita IVA", "vatNumber", "es. IT12345678901")}
+          {inp("Indirizzo", "address", "es. Via Roma 1, Milano")}
+        </div>
+        <button onClick={saveAgency} style={{ marginTop: 16, background: "var(--navy)", color: "#fff", border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+          💾 Salva dati agenzia
+        </button>
+      </div>
+
+      {/* ── Template messaggi ── */}
+      <div style={{ background: "#fff", borderRadius: 12, padding: "22px 24px", border: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+          <div className="playfair" style={{ fontSize: 17, fontWeight: 700 }}>⚡ Template messaggi</div>
+          <button onClick={() => setShowNewTpl(s => !s)} style={{ background: "var(--navy)", color: "#fff", border: "none", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+            + Nuovo
+          </button>
+        </div>
+        {showNewTpl && (
+          <div style={{ background: "var(--surface2)", borderRadius: 10, padding: 14, marginBottom: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+            <input value={newTpl.name} onChange={e => setNewTpl(t => ({ ...t, name: e.target.value }))} placeholder="Nome template..." style={{ border: "1px solid var(--border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, fontFamily: "inherit" }} />
+            <textarea value={newTpl.text} onChange={e => setNewTpl(t => ({ ...t, text: e.target.value }))} placeholder="Testo (usa {{cliente}}, {{data}}, {{agenzia}})..." rows={3} style={{ border: "1px solid var(--border)", borderRadius: 6, padding: "7px 10px", fontSize: 12, fontFamily: "inherit", resize: "vertical" }} />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={addTemplate} style={{ background: "var(--navy)", color: "#fff", border: "none", borderRadius: 6, padding: "7px 14px", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Aggiungi</button>
+              <button onClick={() => setShowNewTpl(false)} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 6, padding: "7px 14px", cursor: "pointer", fontSize: 12 }}>Annulla</button>
+            </div>
+          </div>
+        )}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {templates.map(tpl => (
+            <div key={tpl.id} style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "12px 14px" }}>
+              {editingTpl?.id === tpl.id ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <input value={editingTpl.name} onChange={e => setEditingTpl(t => ({ ...t, name: e.target.value }))} style={{ border: "1px solid var(--border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, fontFamily: "inherit" }} />
+                  <textarea value={editingTpl.text} onChange={e => setEditingTpl(t => ({ ...t, text: e.target.value }))} rows={3} style={{ border: "1px solid var(--border)", borderRadius: 6, padding: "7px 10px", fontSize: 12, fontFamily: "inherit", resize: "vertical" }} />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={saveTemplate} style={{ background: "var(--navy)", color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Salva</button>
+                    <button onClick={() => setEditingTpl(null)} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 12px", cursor: "pointer", fontSize: 12 }}>Annulla</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{tpl.name}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tpl.text}</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                    <button onClick={() => setEditingTpl({ ...tpl })} style={{ background: "var(--surface2)", border: "none", borderRadius: 6, padding: "5px 10px", cursor: "pointer", fontSize: 12 }}>✏️</button>
+                    <button onClick={() => dispatch({ type: "DELETE_MESSAGE_TEMPLATE", payload: tpl.id })} style={{ background: "transparent", border: "1px solid var(--danger)", borderRadius: 6, padding: "5px 10px", cursor: "pointer", fontSize: 12, color: "var(--danger)" }}>✕</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Preferenze UI ── */}
+      <div style={{ background: "#fff", borderRadius: 12, padding: "22px 24px", border: "1px solid var(--border)" }}>
+        <div className="playfair" style={{ fontSize: 17, fontWeight: 700, marginBottom: 6 }}>🎨 Preferenze UI</div>
+        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 16 }}>Si applicano a tutti gli utenti dell'agenzia.</div>
+        {toggle("Mostra banner di benvenuto in Dashboard", "showWelcomeBanner")}
+        {toggle("Conferma azioni distruttive (es. eliminazione)", "confirmDestructive")}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+          <button onClick={() => dispatch({ type: "RESET_UI_PREFERENCES" })} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontSize: 12, color: "var(--text-muted)" }}>
+            Ripristina default
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── ADMIN VIEW ────────────────────────────────────────────────────────────
 const AdminView = ({ state, dispatch }) => {
   const [tab, setTab] = useState("team");
@@ -6349,6 +6992,7 @@ const AdminView = ({ state, dispatch }) => {
     { id: "stats", icon: "📊", label: "Sistema" },
     { id: "cats", icon: "🏷️", label: "Categorie" },
     { id: "log", icon: "📋", label: "Log attività" },
+    { id: "settings", icon: "⚙️", label: "Impostazioni" },
   ];
 
   return (
@@ -6396,6 +7040,7 @@ const AdminView = ({ state, dispatch }) => {
         {tab === "stats" && <AdminStatsTab state={state} />}
         {tab === "cats" && <AdminCategoriesTab state={state} dispatch={dispatch} />}
         {tab === "log" && <AdminLogTab state={state} dispatch={dispatch} />}
+        {tab === "settings" && <AdminSettingsTab state={state} dispatch={dispatch} />}
       </div>
     </div>
   );
@@ -6661,9 +7306,12 @@ const AdminIOTab = ({ state, dispatch }) => {
 
   const exportBackup = () => {
     const backup = {
-      version: "0.9",
+      version: "0.10",
       exportedAt: new Date().toISOString(),
       agencyName: state.agencyName,
+      agencySettings: state.agencySettings || {},
+      messageTemplates: state.messageTemplates || [],
+      uiPreferences: state.uiPreferences || DEFAULT_UI_PREFERENCES,
       tasks: state.tasks,
       clients: state.clients || [],
       suppliers: state.suppliers || [],
@@ -8307,6 +8955,9 @@ function VoyageDeskInner() {
           intent={chatIntent}
           tasks={state.tasks}
           currentUserId={state.currentUserId}
+          dispatch={dispatch}
+          messageTemplates={state.messageTemplates}
+          agencyName={state.agencyName}
         />
 
         {/* FAB principale (singolo task) + FAB secondario (bulk) */}

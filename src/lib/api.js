@@ -13,12 +13,22 @@ export const Users = {
     supabase.from('users').update(patch).eq('id', id).select().single(),
   setActive: (id, active) =>
     supabase.from('users').update({ active }).eq('id', id),
+  // Step H: presence
+  setPresence: (id, status) =>
+    supabase.from('users').update({
+      status, last_seen_at: new Date().toISOString(),
+    }).eq('id', id),
 };
 
 // ----------------- TASKS -----------------
+// Select riusabile che porta dietro i commenti con il nome dell'autore.
+const TASK_SELECT_WITH_COMMENTS =
+  '*, comments(id, user_id, text, created_at, users(name))';
+
 export const Tasks = {
-  list: ({ includeDeleted = false } = {}) => {
-    const q = supabase.from('tasks').select('*').order('due_date', { ascending: true });
+  list: ({ includeDeleted = false, withComments = false } = {}) => {
+    const select = withComments ? TASK_SELECT_WITH_COMMENTS : '*';
+    const q = supabase.from('tasks').select(select).order('due_date', { ascending: true });
     return includeDeleted ? q : q.is('deleted_at', null);
   },
   get: (id) =>
@@ -54,6 +64,8 @@ export const Notices = {
       .order('created_at', { ascending: false }),
   create: (n) =>
     supabase.from('notices').insert(n).select().single(),
+  update: (id, patch) =>
+    supabase.from('notices').update(patch).eq('id', id).select().single(),
   togglePin: (id, pinned) =>
     supabase.from('notices').update({ pinned }).eq('id', id),
   remove: (id) =>
@@ -77,6 +89,13 @@ export const Messages = {
       .eq('conversation_id', conversation_id)
       .order('created_at', { ascending: true })
       .limit(limit),
+  // Carica TUTTI i messaggi delle conv visibili in un solo round-trip:
+  // l'app raggruppa lato client per conversation_id. Le RLS già limitano
+  // la visibilità ai soli partecipanti.
+  listAll: (limit = 2000) =>
+    supabase.from('messages').select('*')
+      .order('created_at', { ascending: true })
+      .limit(limit),
   send: (m) =>
     supabase.from('messages').insert(m).select().single(),
   remove: (id) =>
@@ -85,6 +104,27 @@ export const Messages = {
     supabase.from('messages').update({ reactions }).eq('id', id),
   markRead: (id, readBy) =>
     supabase.from('messages').update({ read_by: readBy }).eq('id', id),
+};
+
+// ----------------- NOTIFICATIONS -----------------
+// Generate solo da trigger DB (vedi migration 20260609_notifications.sql).
+// Le RLS filtrano automaticamente per auth.uid().
+export const Notifications = {
+  list: ({ limit = 50 } = {}) =>
+    supabase.from('notifications').select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit),
+  listUnread: ({ limit = 50 } = {}) =>
+    supabase.from('notifications').select('*')
+      .eq('read', false)
+      .order('created_at', { ascending: false })
+      .limit(limit),
+  markRead: (id) =>
+    supabase.from('notifications').update({ read: true }).eq('id', id),
+  markAllRead: () =>
+    supabase.from('notifications').update({ read: true }).eq('read', false),
+  remove: (id) =>
+    supabase.from('notifications').delete().eq('id', id),
 };
 
 // ----------------- REALTIME -----------------

@@ -1,5 +1,155 @@
 # CHANGELOG — VoyageDesk
 
+## v1.2-dev — Notifiche complete (sessione 11)
+
+> Cumulativo sopra v1.1-dev. PR su branch `claude/step-j-notifications`.
+
+### 🔔 Step J — Notifiche complete
+- `supabase/migrations/20260610_notifications_extra.sql`:
+  - **Anti-eco `task_assigned`**: la funzione `notify_task_assigned` ora salta l'utente che effettua l'auto-assegnazione (`auth.uid()`), risolvendo il caveat #1.
+  - **Trigger `trg_notify_task_comment`** su `INSERT` di `public.comments`: per ogni nuovo commento genera (a) notifica `mention` per ogni `@nome` matchato in `users.name` (case-insensitive, escluso autore), (b) notifica `comment` per ogni `assignee` non già menzionato e non autore.
+  - **Funzione `notify_task_due`**: scansiona task con `due_date` nelle 24h successive (non `done`, non cestinate) e genera notifica `task_due` per ogni assignee, de-duplicando entro 22h sullo stesso `task_id`.
+  - **Funzione `notify_queue_stale`**: task in coda globale (`assignees = []`, `status = todo`) creati da > 4h → notifica `queue_stale` a tutti i Manager / Admin / Senior Agent attivi (de-duplica entro 4h).
+  - **pg_cron**: `notify_task_due_daily` (`0 8 * * *` UTC), `notify_queue_stale_hourly` (`5 * * * *`). `create extension if not exists pg_cron;` + idempotenza via `cron.unschedule`.
+- `src/VoyageDesk.jsx`:
+  - `NotificationsPanel` accetta `onOpenTask`: click su notifica con `payload.task_id` apre la `TaskSlideOver` e chiude il pannello.
+  - Hover effect sulle notifiche navigabili, cursore `pointer` quando il payload contiene `task_id`.
+  - `notifTitle`: titoli arricchiti per `mention` (mostra task_title) e `queue_stale` (mostra task_title).
+  - Nuovo callback `openTaskById(taskId)` in `VoyageDeskInner`: lookup task non cestinata + `SET_SELECTED_TASK`.
+  - `Topbar`: nuovo prop `onOpenTask` propagato al panel.
+
+### Caveat residui dopo Step J
+- ~~#1 Auto-assegnazione genera notifica~~ → risolto.
+- #2 ridotto: rimangono solo eventuali edge case su mention con nomi composti molto simili tra loro.
+- I cron job dipendono da `pg_cron` installato sul progetto (incluso nella migrazione). Verificare in dashboard Supabase > Database > Extensions dopo l'apply.
+
+### 🔧 Step J — Fix post-applicazione (`20260610_step_j_fix.sql`)
+- **Grant EXECUTE** su `public.is_manager_or_admin()` ai ruoli `authenticated` e `anon`: la funzione era usata in policy RLS di `tasks` ma non eseguibile dall'utente loggato → tutti INSERT/UPDATE tasks fallivano con `permission denied for function is_manager_or_admin`.
+- `notify_queue_stale` allineata ai ruoli reali in `public.users` (lowercase `manager`,`admin`); rimosso `Senior Agent` inesistente nello schema.
+
+### 🐛 fix(#11) — Notifiche mock fittizie in UI
+- `src/VoyageDesk.jsx` (`Topbar`): la logica precedente faceva fallback all'array `NOTIFICATIONS` (mock "Newsletter Giugno", "Hotel Overwater Bungalow", ecc.) ogni volta che `public.notifications` era vuota.
+- Ora gate-ata dietro `import.meta.env.DEV && VITE_SHOW_MOCK_NOTIFICATIONS === 'true'`. Default off → in produzione mai mock; in dev solo se la flag è esplicitamente attivata.
+- Comportamento: lista vuota da DB → badge a 0 e pannello vuoto (corretto).
+
+### 🔗 Step K — Task link in chat via `task_ref` UUID
+- `src/VoyageDesk.jsx`:
+  - `ChatPanel`: nuovo state `prefillTaskRef` popolato insieme a `prefillText` quando `intent.taskLink` apre la chat da una task. Passato a `ConversationView` come `initialTaskRef`. Resettato su `onBack` e `onInitialInputConsumed`.
+  - `ConversationView`: nuovo state `pendingTaskRef`. `sendText` allega `taskRef: pendingTaskRef` al messaggio se il testo contiene ancora il pattern `🔗 Riferimento task`. Il taskRef è consumato dopo la send.
+  - `MessageTextContent`: lookup preferito per `taskRef` UUID; fallback al match per titolo per messaggi vecchi (deprecato, compat).
+- Mappers (`src/lib/mappers.js`): già supportava `task_ref` ↔ `taskRef`. Nessuna modifica al DB.
+- Risolve caveat #9: rinominare un task non rompe più i pill di riferimento nei messaggi già inviati.
+
+### 🐛 fix(#14) — Demo switch (ACCEDI COME) confondeva RLS
+- `src/VoyageDesk.jsx` (`UserSwitcher`): il blocco "ACCEDI COME (DEMO MULTI-RUOLO)" cambiava solo `currentUser` lato UI, mentre `auth.uid()` server-side restava l'utente reale loggato → RLS leggeva sempre come utente reale, falsando i test di notifiche/presence/permessi.
+- Ora gate-ato dietro `import.meta.env.DEV && VITE_DEMO_SWITCH === 'true'`. Default off in prod e in dev. Attivabile solo esplicitamente in `.env.local` per test multi-ruolo controllati.
+- Resta visibile sempre "Modifica profilo" — solo la lista candidati e il titolo "ACCEDI COME" sono gate-ati.
+
+---
+
+## v1.1-dev — Robustezza sync + Notifiche + Calendario + Chat estesa + Dashboard (sessione 10)
+
+> Cinque step in cumulativo sopra v1.0-dev. PR da aprire su branch `claude/step-e-sync-robustness`.
+
+### 🛡️ Step E — Robustezza sync
+- Reducer: nuovo case `SHOW_TOAST` come canale unificato per notificare errori dal layer di persistenza.
+- Wrapper dispatch (Supabase): ogni `Promise.catch` ora emette toast rosso con messaggio leggibile invece del solo `console.error`.
+- Idratazioni iniziali `TasksAPI.list`, `NoticesAPI.list`, `ConversationsAPI.listMine`, `MessagesAPI.listAll`: errori convertiti in toast.
+- Persist chat (`setConversations`, `setMessages`): toast su fallimento `conv.create`, `conv.update`, `msg.send`.
+- `LoginScreen.localizeAuthError`: mappa codici Supabase (`invalid_credentials`, `email_not_confirmed`, `user_banned`, `rate_limit`, errori di rete) in messaggi italiani; `try/catch` su `signIn`.
+- `ChatPanel`: nuovo prop `loading` + mini-spinner che evita il flash "nessun messaggio" durante l'idratazione iniziale in modalità Supabase. Stato `chatLoading` setato `false` dopo il primo reload.
+- Nuovo keyframe globale `@keyframes spin`.
+
+### 🔔 Step F — Notifiche reali
+- `supabase/migrations/20260609_notifications.sql`:
+  - tabella `public.notifications` (`id`, `user_id`, `type`, `payload jsonb`, `read`, `created_at`);
+  - indici su `(user_id, read, created_at desc)` e `(created_at desc)`;
+  - RLS: SELECT/UPDATE/DELETE solo per `user_id = auth.uid()`; nessun INSERT lato client (solo trigger server);
+  - `notifications` aggiunta a `supabase_realtime`;
+  - funzione `notify_task_assigned` + trigger `trg_notify_task_assigned` su INSERT/UPDATE OF `assignees` su `public.tasks`: genera una notifica `task_assigned` per ogni nuovo assignee.
+- `src/lib/api.js`: `Notifications.{list, listUnread, markRead, markAllRead, remove}`.
+- `src/lib/mappers.js`: `fromDbNotification` (camelCase, `createdAt`).
+- `src/VoyageDesk.jsx`:
+  - state `notifications` + effect di idratazione + realtime subscribe;
+  - `markNotificationRead` / `markAllNotificationsRead` (ottimistici + toast su errore);
+  - `Topbar` passa `notifications` e gli handler a `NotificationsPanel`;
+  - `NotificationsPanel` ridisegnato: `notifTitle` per type da payload, `notifTime` relativo ("5 min fa"), click su non-lette le marca lette, header con bottone "Segna tutte lette";
+  - `NavBadge` su `Sidebar` e `BottomNav`: Admin = agenti pending, Dashboard = task in coda globale.
+
+### 🗓️ Step G — Calendario avanzato
+- `CalendarPlanner`: `viewMode` esteso a `"day"` e `"week-full"` (oltre a `month` e `week`).
+- **Vista Giorno**: colonna ore 00–23 (slot 44px), eventi posizionati assoluti per `dueDate + estimatedHours`, linea orizzontale dorata per l'ora corrente se è il giorno odierno.
+- **Vista Settimana piena**: griglia 7 giorni × 24 ore con eventi assoluti per giorno/ora; sfondo giallo tenue sulla colonna del giorno corrente.
+- Toggle ordinato: Giorno · Settimana · Sett. piena · Mese.
+- Navigazione prev/today/next: gestisce il `dayDate` in vista Giorno, `currentMonth` in vista Mese, `weekOffset` in vista Settimana/Sett. piena.
+- **Export iCal**: bottone "⤓ iCal" in header. `exportTasksToIcs` costruisce un `.ics` RFC5545 conforme con DTSTART/DTEND su `estimatedHours`, escape caratteri, download via Blob + `URL.createObjectURL`. Filename `voyagedesk-tasks-YYYY-MM-DD.ics`.
+
+### 💬 Step H — Estensioni chat
+- `MessageTextContent`: parser regex `🔗 Riferimento task: "TITLE"
+📅 Scadenza:...
+
+` → rende una pill cliccabile sopra il messaggio. Click → `dispatch({ type: "SET_SELECTED_TASK", payload: t })` apre il `TaskSlideOver`. Disabled se la task non esiste.
+- `ChatContext` espone ora `tasks`, `currentUserId`, `dispatch`, `presenceMap`.
+- `ConversationList.matchesSearch` esteso: filtro su nome conversazione + nomi partecipanti + ultimi 30 messaggi (testo + filename).
+- **Presence online/away/offline**:
+  - `supabase/migrations/20260609_user_presence.sql`: colonne `status` (`online`|`away`|`offline`) e `last_seen_at` su `public.users`, policy `users update self presence`, `users` in `supabase_realtime`.
+  - `Users.setPresence(id, status)`.
+  - `VoyageDeskInner`: state `presenceMap`, heartbeat ogni 45s, `visibilitychange` → `away`, `beforeunload` → `offline`, subscribe realtime a `users`. Tick di re-render ogni 30s per l'ageing.
+  - `computePresence(user)` da `last_seen_at`: <60s online, <5min away, altrimenti offline. Colori: `#2D7A4F` / `#E0A800` / `#94a3b8`.
+  - `ConversationList`: indicatore presenza sull'avatar diretto ora dinamico (era `var(--success)` fisso).
+
+### 🚀 Step I — Quick wins Dashboard
+- `Dashboard.takeOwnership`: se la task era in `todo`, viene automaticamente spostata in `inprogress` insieme all'auto-assegnazione; toast custom `Hai preso in carico: [titolo]` con `swipe: true` (undoable).
+- Badge Admin (agenti pending) e Dashboard (coda globale) già consegnati nello Step F.
+
+---
+
+# CHANGELOG — VoyageDesk
+
+## v1.0-dev — Persistenza Supabase + Auth (sessione 9, PR #13)
+
+> Migrazione da dati in-memory a Supabase: autenticazione reale, tutti i dati principali persistiti e sincronizzati in realtime.
+
+### 🔐 Autenticazione reale
+- `src/auth/AuthContext.jsx` — `AuthProvider` con `session`, `profile`, `team`; `signIn`/`signOut` via Supabase Auth.
+- `src/auth/LoginScreen.jsx` — form login email/password, gestione errori.
+- `src/main.jsx` — `AuthGate`: mostra `LoginScreen` senza sessione, `VoyageDesk` con sessione (loading state intermedio).
+
+### 🗃️ Layer dati
+- `src/lib/supabase.js` — client Supabase (env vars Vite).
+- `src/lib/api.js` — CRUD per Users, Tasks, Comments, Notices, Conversations, Messages; `subscribeToTable` helper realtime.
+- `src/lib/mappers.js` — `fromDb`/`toDb` + patch per Task, Comment, Notice, Conversation, Message; helpers `isUuid`/`newId`.
+
+### 📦 VoyageDesk — modalità Supabase
+- `makeInitialState({ team, currentUserId })` — factory che sincronizza i `let` globali TEAM/CURRENT_USER se riceve dati reali dal DB; senza argomenti usa i mock (dev/preview).
+- `VoyageDeskInner` accetta `initialTeam` e `initialCurrentUserId` props.
+- Effect mount: idrata tasks, notices, conversations, messages dal DB.
+- Realtime: subscribe su tasks, comments, notices, conversations, messages con reload debounced 200ms.
+- Dispatch wrapper: persiste fire-and-forget ADD/UPDATE/MOVE/DELETE/PURGE/EMPTY_TRASH per task, ADD_COMMENT, ADD/UPDATE/DELETE/TOGGLE_PIN per notice, create/update per conversation, send/reactions/readBy per messages.
+- `ADD_COMMENT`: autore usa `getMember(CURRENT_USER)?.name` (era hardcoded "Marco Ferretti").
+- Nuovi id normalizzati in UUID per tutte le entità create lato app (era "t"+Date.now()).
+
+### 🗄️ Supabase DB — migrazioni
+- `users_add_capacity_and_avatar` — colonna `capacity int default 10` + avatar iniziali su seed.
+- `enable_realtime_for_app_tables` — tasks, comments, notices in publication.
+- `enable_realtime_for_chat_tables` — conversations, messages in publication.
+
+### 📁 Infrastruttura
+- `.gitignore` aggiunto (node_modules, dist, .env).
+- `package-lock.json` pinnato.
+
+### ⚠️ Caveat noti
+- Errori sync solo in console (nessun toast utente se la persist fallisce).
+- Reload completo a ogni evento realtime (non incrementale).
+- File allegati in chat: `fileSize` su DB è `null` (storage da integrare).
+- `UNDO_LAST_ACTION` opera solo in-memory.
+
+### 📈 Metriche
+- `src/VoyageDesk.jsx`: ~7071 → **~7420 righe** (+349).
+- File aggiunti: 4 (`auth/AuthContext.jsx`, `auth/LoginScreen.jsx`, `lib/supabase.js` già contato, `lib/mappers.js`).
+
+---
+
 ## v0.9-dev — Ristrutturazione UI + Profilo + Handoff (sessione 8)
 
 > Semplificazione interfaccia, unificazione viste, nuovo profilo utente, preparazione per migrazione a progetto Vite.

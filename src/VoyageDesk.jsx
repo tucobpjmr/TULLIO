@@ -1,6 +1,20 @@
 
 import { useState, useReducer, useContext, createContext, useRef, useEffect, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx";
+import {
+  Tasks as TasksAPI, Comments as CommentsAPI, Notices as NoticesAPI,
+  Conversations as ConversationsAPI, Messages as MessagesAPI,
+  Notifications as NotificationsAPI, Users as UsersAPI,
+  subscribeToTable,
+} from "./lib/api.js";
+import {
+  toDbTask, toDbTaskPatch, fromDbTask,
+  toDbNotice, toDbNoticePatch, fromDbNotice,
+  toDbConversation, fromDbConversation,
+  toDbMessage, fromDbMessage,
+  fromDbNotification,
+  newId, isUuid,
+} from "./lib/mappers.js";
 
 // ─── GOOGLE FONTS ──────────────────────────────────────────────────────────
 const FontLoader = () => (
@@ -42,6 +56,7 @@ const FontLoader = () => (
     @keyframes recordPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(192,57,43,0.5); } 50% { box-shadow: 0 0 0 12px rgba(192,57,43,0); } }
     @keyframes wave { 0%,100% { transform: scaleY(0.4); } 50% { transform: scaleY(1); } }
     @keyframes typing { 0%,100% { opacity: 0.3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
+    @keyframes spin { to { transform: rotate(360deg); } }
     .record-pulse { animation: recordPulse 1.5s ease infinite; }
     .fade-in { animation: fadeIn 0.3s ease forwards; }
     .slide-right { animation: slideRight 0.3s ease forwards; }
@@ -370,6 +385,10 @@ function baseReducer(state, action) {
         toast: { message: `Ora stai usando l'app come ${m.name} (${m.role})`, type: "success" },
       };
     }
+    case "SET_TASKS": {
+      // Sostituisce in blocco l'array tasks (usato per idratazione iniziale da DB).
+      return { ...state, tasks: Array.isArray(action.payload) ? action.payload : [] };
+    }
     case "MOVE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload.taskId);
       if (!prev) return state;
@@ -535,6 +554,9 @@ function baseReducer(state, action) {
     }
 
     // ─── BACHECA AVVISI ───
+    case "SET_NOTICES": {
+      return { ...state, notices: Array.isArray(action.payload) ? action.payload : [] };
+    }
     case "ADD_NOTICE": {
       const notices = [action.payload, ...state.notices];
       return { ...state, notices, toast: { message: "Avviso pubblicato in bacheca", type: "success" } };
@@ -558,6 +580,7 @@ function baseReducer(state, action) {
       return { ...state, notices };
     }
 
+    case "SHOW_TOAST": return { ...state, toast: { message: action.payload?.message ?? "", type: action.payload?.type ?? "error" } };
     case "CLEAR_TOAST": return { ...state, toast: null };
     case "UNDO_LAST_ACTION": {
       const la = state.lastAction;
@@ -657,23 +680,33 @@ const INITIAL_NOTICES = [
   },
 ];
 
-const initialState = {
-  tasks: INITIAL_TASKS,
-  team: TEAM,
-  categories: CATEGORIES,
-  agencyName: "VoyageDesk",
-  notices: INITIAL_NOTICES,
-  activityLog: [],
-  activeView: "dashboard",
-  selectedTask: null,
-  toast: null,
-  searchQuery: "",
-  showNotif: false,
-  sidebarCollapsed: false,
-  filters: { assignee: "", category: "", priority: "", status: "", client: "" },
-  lastAction: null, // { type, payload, undo: () => state-patch } per swipe-actions undo
-  currentUserId: CURRENT_USER, // v0.8: utente loggato (con switcher in Topbar)
-};
+// Factory dell'initial state. Se `team` e/o `currentUserId` sono forniti
+// (es. da Supabase via AuthContext), sincronizza i `let` globali TEAM/CURRENT_USER
+// prima di costruire lo state. Senza argomenti, restituisce lo state mock storico.
+function makeInitialState({ team, currentUserId } = {}) {
+  const hasRealTeam = Array.isArray(team) && team.length > 0;
+  if (hasRealTeam) _syncTeam(team);
+  if (currentUserId) _syncCurrentUser(currentUserId);
+  return {
+    // Quando il team viene dal DB le task in-memory non hanno più assignees validi:
+    // partiamo da vuoto, le task reali arriveranno dal prossimo wire-up Supabase.
+    tasks: hasRealTeam ? [] : INITIAL_TASKS,
+    team: TEAM,
+    categories: CATEGORIES,
+    agencyName: "VoyageDesk",
+    notices: hasRealTeam ? [] : INITIAL_NOTICES,
+    activityLog: [],
+    activeView: "dashboard",
+    selectedTask: null,
+    toast: null,
+    searchQuery: "",
+    showNotif: false,
+    sidebarCollapsed: false,
+    filters: { assignee: "", category: "", priority: "", status: "", client: "" },
+    lastAction: null, // { type, payload, undo: () => state-patch } per swipe-actions undo
+    currentUserId: CURRENT_USER, // v0.8: utente loggato (con switcher in Topbar)
+  };
+}
 
 // ─── UTILS ─────────────────────────────────────────────────────────────────
 const getMember = id => TEAM.find(m => m.id === id);
@@ -1425,9 +1458,13 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
 };
 
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
-const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
+const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notificationsProp, onMarkRead, onMarkAllRead, onOpenTask }) => {
   const { isMobile } = useViewport();
-  const unread = NOTIFICATIONS.filter(n => !n.read).length;
+  // Fix #11: notifiche mock gate-ate dietro env var (default off in prod)
+  const SHOW_MOCK_NOTIFS = import.meta.env.DEV && import.meta.env.VITE_SHOW_MOCK_NOTIFICATIONS === 'true';
+  const realNotifs = Array.isArray(notificationsProp) ? notificationsProp : [];
+  const notifList = SHOW_MOCK_NOTIFS ? [...realNotifs, ...NOTIFICATIONS] : realNotifs;
+  const unread = notifList.filter(n => !n.read).length;
   const [advOpen, setAdvOpen] = useState(false);
   return (
     <div style={{
@@ -1516,7 +1553,14 @@ const Topbar = ({ state, dispatch, onOpenChat, unreadChat }) => {
             color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center"
           }}>{unread}</span>}
         </button>
-        {state.showNotif && <NotificationsPanel dispatch={dispatch} />}
+        {state.showNotif && <NotificationsPanel
+          dispatch={dispatch}
+          notifications={notifList}
+          isReal={!SHOW_MOCK_NOTIFS}
+          onMarkRead={onMarkRead}
+          onMarkAllRead={onMarkAllRead}
+          onOpenTask={onOpenTask}
+        />}
       </div>
 
       {/* User switcher (v0.8) */}
@@ -1781,6 +1825,10 @@ const UserSwitcher = ({ state, dispatch }) => {
   const [showProfile, setShowProfile] = useState(false);
   const ref = useRef(null);
   const curr = getMember(state.currentUserId) || { name: "—", role: "—", avatar: "??", color: "#999" };
+  // Fix #14: demo switch gate-ato dietro env var (default off in prod e in dev)
+  // Cambia solo currentUser lato UI; auth.uid() server-side resta l'utente reale → confonde RLS.
+  // Attivare con VITE_DEMO_SWITCH=true in .env.local solo per test multi-ruolo.
+  const SHOW_DEMO_SWITCH = import.meta.env.DEV && import.meta.env.VITE_DEMO_SWITCH === 'true';
 
   useEffect(() => {
     if (!open) return;
@@ -1848,41 +1896,45 @@ const UserSwitcher = ({ state, dispatch }) => {
             <span style={{ fontWeight: 600 }}>Modifica profilo</span>
           </button>
 
-          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", padding: "8px 10px 4px", letterSpacing: 1 }}>
-            ACCEDI COME (DEMO MULTI-RUOLO)
-          </div>
-          {candidates.map(m => {
-            const active = m.id === state.currentUserId;
-            return (
-              <button
-                key={m.id}
-                onClick={() => { dispatch({ type: "SET_CURRENT_USER", payload: m.id }); setOpen(false); }}
-                style={{
-                  width: "100%", display: "flex", alignItems: "center", gap: 10,
-                  padding: "8px 10px", background: active ? "var(--surface2)" : "transparent",
-                  border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontSize: 13,
-                  color: "var(--text)", textAlign: "left",
-                }}
-                onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--surface2)"; }}
-                onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
-              >
-                {m.photoUrl ? (
-                  <img src={m.photoUrl} alt="" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
-                ) : (
-                  <div style={{
-                    width: 30, height: 30, borderRadius: "50%", background: m.color,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 11, fontWeight: 700, color: "#fff", flexShrink: 0,
-                  }}>{m.avatar}</div>
-                )}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.name}</div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{m.role}</div>
-                </div>
-                {active && <span style={{ color: "var(--success)", fontSize: 14 }}>✓</span>}
-              </button>
-            );
-          })}
+          {SHOW_DEMO_SWITCH && (
+            <>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", padding: "8px 10px 4px", letterSpacing: 1 }}>
+                ACCEDI COME (DEMO MULTI-RUOLO)
+              </div>
+              {candidates.map(m => {
+                const active = m.id === state.currentUserId;
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => { dispatch({ type: "SET_CURRENT_USER", payload: m.id }); setOpen(false); }}
+                    style={{
+                      width: "100%", display: "flex", alignItems: "center", gap: 10,
+                      padding: "8px 10px", background: active ? "var(--surface2)" : "transparent",
+                      border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontSize: 13,
+                      color: "var(--text)", textAlign: "left",
+                    }}
+                    onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--surface2)"; }}
+                    onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
+                  >
+                    {m.photoUrl ? (
+                      <img src={m.photoUrl} alt="" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                    ) : (
+                      <div style={{
+                        width: 30, height: 30, borderRadius: "50%", background: m.color,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 11, fontWeight: 700, color: "#fff", flexShrink: 0,
+                      }}>{m.avatar}</div>
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.name}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{m.role}</div>
+                    </div>
+                    {active && <span style={{ color: "var(--success)", fontSize: 14 }}>✓</span>}
+                  </button>
+                );
+              })}
+            </>
+          )}
         </div>
       )}
 
@@ -1893,9 +1945,87 @@ const UserSwitcher = ({ state, dispatch }) => {
 };
 
 // ─── NOTIFICATIONS PANEL ───────────────────────────────────────────────────
-const NotificationsPanel = ({ dispatch }) => {
+// Helpers per il rendering delle notifiche reali (Step F).
+const NOTIF_ICONS = {
+  task_assigned: "📋",
+  task_due: "📅",
+  comment: "💬",
+  mention: "@",
+  queue_stale: "⏳",
+  // Compat con mock
+  overdue: "⚠️", assigned: "📋", deadline: "📅",
+};
+
+function notifTitle(n) {
+  // Notifiche reali (DB): titolo derivato da type + payload
+  if (n.payload) {
+    const p = n.payload || {};
+    switch (n.type) {
+      case "task_assigned":
+        return `Nuovo task assegnato: ${p.task_title ?? "—"}`;
+      case "task_due":
+        return `Scadenza task: ${p.task_title ?? "—"}`;
+      case "comment":
+        return `Nuovo commento su: ${p.task_title ?? "—"}`;
+      case "mention":
+        return p.task_title
+          ? `Menzionato in: ${p.task_title}`
+          : `Sei stato menzionato${p.where ? " in " + p.where : ""}`;
+      case "queue_stale":
+        return p.task_title
+          ? `Task in coda da > 4h: ${p.task_title}`
+          : `Task in coda da troppo tempo`;
+      default:
+        return n.type || "Notifica";
+    }
+  }
+  // Mock legacy
+  return n.title || n.type;
+}
+
+function notifTime(n) {
+  if (n.time) return n.time; // mock
+  if (!n.createdAt) return "";
+  const ms = Date.now() - new Date(n.createdAt).getTime();
+  const min = Math.round(ms / 60000);
+  if (min < 1) return "ora";
+  if (min < 60) return `${min} min fa`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `${h} ${h === 1 ? "ora" : "ore"} fa`;
+  const d = Math.round(h / 24);
+  return `${d} ${d === 1 ? "giorno" : "giorni"} fa`;
+}
+
+// Presence (Step H): mappa userId → 'online'|'away'|'offline'
+// calcolata dal last_seen_at (online <60s, away <5min, altrimenti offline).
+function computePresence(user) {
+  if (!user || !user.last_seen_at) return 'offline';
+  if (user.status === 'offline') return 'offline';
+  const age = Date.now() - new Date(user.last_seen_at).getTime();
+  if (age < 60 * 1000) return user.status === 'away' ? 'away' : 'online';
+  if (age < 5 * 60 * 1000) return 'away';
+  return 'offline';
+}
+const PRESENCE_COLORS = {
+  online: '#2D7A4F',
+  away: '#E0A800',
+  offline: '#94a3b8',
+};
+
+
+const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMarkAllRead, onOpenTask }) => {
   const { isMobile } = useViewport();
-  const icons = { overdue: "⚠️", assigned: "📋", comment: "💬", deadline: "📅" };
+  const list = Array.isArray(notifications) ? notifications : NOTIFICATIONS;
+  const hasUnread = list.some(n => !n.read);
+  // Step J: la notifica è "navigabile" se ha un task_id nel payload
+  const isNavigable = (n) => isReal && n.payload && n.payload.task_id;
+  const handleClick = (n) => {
+    if (isNavigable(n)) {
+      onOpenTask?.(n.payload.task_id);
+      dispatch({ type: "TOGGLE_NOTIF" });
+    }
+    if (isReal && !n.read) onMarkRead?.(n.id);
+  };
   return (
     <div className="slide-right" style={{
       position: isMobile ? "fixed" : "absolute",
@@ -1906,22 +2036,42 @@ const NotificationsPanel = ({ dispatch }) => {
       background: "#fff", borderRadius: 12, boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
       border: "1px solid var(--border)", overflow: "hidden", zIndex: 200,
     }}>
-      <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
         <div className="playfair" style={{ fontWeight: 600, fontSize: 15 }}>Notifiche</div>
-        <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {isReal && hasUnread && (
+            <button onClick={() => onMarkAllRead?.()} style={{
+              background: "transparent", border: "1px solid var(--border)", borderRadius: 6,
+              padding: "4px 8px", cursor: "pointer", fontSize: 11, color: "var(--text-muted)",
+            }}>Segna tutte lette</button>
+          )}
+          <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
+        </div>
       </div>
       <div style={{ maxHeight: 420, overflowY: "auto" }}>
-        {NOTIFICATIONS.map(n => (
-          <div key={n.id} style={{
-            padding: "12px 16px", display: "flex", gap: 10, alignItems: "flex-start",
-            background: n.read ? "transparent" : "rgba(212,168,67,0.07)",
-            borderBottom: "1px solid var(--border)",
-            transition: "background 0.2s", cursor: "default",
-          }}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>{icons[n.type]}</span>
+        {list.length === 0 && (
+          <div style={{ padding: "24px 16px", textAlign: "center", color: "var(--text-muted)", fontSize: 12 }}>
+            Nessuna notifica
+          </div>
+        )}
+        {list.map(n => (
+          <div
+            key={n.id}
+            onClick={() => handleClick(n)}
+            style={{
+              padding: "12px 16px", display: "flex", gap: 10, alignItems: "flex-start",
+              background: n.read ? "transparent" : "rgba(212,168,67,0.07)",
+              borderBottom: "1px solid var(--border)",
+              transition: "background 0.2s",
+              cursor: isNavigable(n) || (isReal && !n.read) ? "pointer" : "default",
+            }}
+            onMouseEnter={e => { if (isNavigable(n)) e.currentTarget.style.background = "rgba(212,168,67,0.12)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = n.read ? "transparent" : "rgba(212,168,67,0.07)"; }}
+          >
+            <span style={{ fontSize: 18, flexShrink: 0 }}>{NOTIF_ICONS[n.type] || "🔔"}</span>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: n.read ? 400 : 600 }}>{n.title}</div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{n.time}</div>
+              <div style={{ fontSize: 13, fontWeight: n.read ? 400 : 600 }}>{notifTitle(n)}</div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{notifTime(n)}</div>
             </div>
             {!n.read && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--gold)", flexShrink: 0, marginTop: 4 }} />}
           </div>
@@ -1946,11 +2096,43 @@ const getNavItemsForUser = (userId) => {
   return NAV_ITEMS.filter(it => !it.roles || it.roles.includes(role));
 };
 
+// Calcola i contatori per i badge sidebar/bottom-nav (Step F).
+function getNavBadges(state) {
+  const pending = (state.team || []).filter(m => m.pending).length;
+  const queue = (state.tasks || []).filter(
+    t => !t.deletedAt && (!Array.isArray(t.assignees) || t.assignees.length === 0)
+  ).length;
+  return { admin: pending, dashboard: queue };
+}
+
+// Componente helper per renderizzare il badge numerico
+const NavBadge = ({ count, collapsed = false, mobile = false }) => {
+  if (!count) return null;
+  const base = {
+    background: "var(--gold)", color: "var(--navy)", fontWeight: 700,
+    borderRadius: 999, fontSize: 10, padding: "1px 6px", minWidth: 16,
+    height: 16, display: "inline-flex", alignItems: "center", justifyContent: "center",
+    lineHeight: 1,
+  };
+  if (mobile) {
+    return <span style={{
+      ...base, position: "absolute", top: 2, right: "calc(50% - 18px)",
+    }}>{count > 99 ? "99+" : count}</span>;
+  }
+  if (collapsed) {
+    return <span style={{
+      ...base, position: "absolute", top: 4, right: 4,
+    }}>{count > 9 ? "9+" : count}</span>;
+  }
+  return <span style={{ ...base, marginLeft: "auto" }}>{count > 99 ? "99+" : count}</span>;
+};
+
 const Sidebar = ({ state, dispatch }) => {
   const { isDesktop } = useViewport();
   if (!isDesktop) return null;
   const col = state.sidebarCollapsed;
   const navItems = getNavItemsForUser(state.currentUserId);
+  const badges = getNavBadges(state);
   return (
     <div style={{
       width: col ? 60 : 210, background: "var(--navy-dark)", color: "#fff",
@@ -1980,9 +2162,11 @@ const Sidebar = ({ state, dispatch }) => {
               fontSize: 14, fontWeight: active ? 600 : 400,
               transition: "all 0.2s", textAlign: "left",
               borderLeft: active ? "2px solid var(--gold)" : "2px solid transparent",
+              position: "relative",
             }}>
               <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
               {!col && <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>{item.label}</span>}
+              <NavBadge count={badges[item.id] || 0} collapsed={col} />
             </button>
           );
         })}
@@ -2013,10 +2197,12 @@ const Sidebar = ({ state, dispatch }) => {
 // ─── BOTTOM NAV (mobile/tablet) ────────────────────────────────────────────
 const BottomNav = ({ state, dispatch }) => {
   const navItems = getNavItemsForUser(state.currentUserId);
+  const badges = getNavBadges(state);
   return (
     <nav className="vd-bottom-nav" aria-label="Navigazione principale">
       {navItems.map(item => {
         const active = state.activeView === item.id;
+        const badge = badges[item.id] || 0;
         return (
           <button
             key={item.id}
@@ -2029,10 +2215,13 @@ const BottomNav = ({ state, dispatch }) => {
               background: "transparent", border: "none", cursor: "pointer",
               color: active ? "var(--gold)" : "rgba(255,255,255,0.55)",
               borderTop: active ? "2px solid var(--gold)" : "2px solid transparent",
-              transition: "color 0.2s",
+              transition: "color 0.2s", position: "relative",
             }}
           >
-            <span style={{ fontSize: 19, lineHeight: 1 }}>{item.icon}</span>
+            <span style={{ fontSize: 19, lineHeight: 1, position: "relative" }}>
+              {item.icon}
+              <NavBadge count={badge} mobile />
+            </span>
             <span style={{ fontSize: 9, fontWeight: active ? 700 : 500, whiteSpace: "nowrap" }}>
               {item.label.split(" ")[0]}
             </span>
@@ -3794,9 +3983,15 @@ const Dashboard = ({ state, dispatch, onOpenChat }) => {
     .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
 
   const takeOwnership = (task) => {
+    // Step I: auto-assegna + auto-move "In Corso" se la task è in todo,
+    // più toast personalizzato che cita il titolo.
+    const patch = { id: task.id, assignees: [uid] };
+    if (task.status === "todo") patch.status = "inprogress";
     dispatch({
       type: "UPDATE_TASK",
-      payload: { id: task.id, assignees: [uid] }
+      payload: patch,
+      swipe: true,
+      toastMessage: `Hai preso in carico: ${task.title}`,
     });
   };
 
@@ -4068,10 +4263,11 @@ const TaskSlideOver = ({ task, dispatch }) => {
 
   const handleComment = () => {
     if (!newComment.trim()) return;
+    const authorName = getMember(CURRENT_USER)?.name || "Utente";
     dispatch({
       type: "ADD_COMMENT", payload: {
         taskId: task.id,
-        comment: { user: "Marco Ferretti", text: newComment, time: new Date().toISOString() }
+        comment: { user: authorName, text: newComment, time: new Date().toISOString() }
       }
     });
     setNewComment("");
@@ -4253,9 +4449,72 @@ const TaskSlideOver = ({ task, dispatch }) => {
 };
 
 // ─── CALENDAR PLANNER (unificato: mese + settimana + distribuzione agenti) ──
+// ─── iCal export (Step G) ────────────────────────────────────────────────
+function pad2(n) { return String(n).padStart(2, "0"); }
+function icsDate(d) {
+  // YYYYMMDDTHHmmssZ (UTC)
+  const u = new Date(d);
+  return (
+    u.getUTCFullYear() + pad2(u.getUTCMonth() + 1) + pad2(u.getUTCDate()) +
+    "T" + pad2(u.getUTCHours()) + pad2(u.getUTCMinutes()) + pad2(u.getUTCSeconds()) + "Z"
+  );
+}
+function icsEscape(s) {
+  return String(s ?? "")
+    .replace(/\\/g, "\\\\")
+    .replace(/\n/g, "\\n")
+    .replace(/,/g, "\\,")
+    .replace(/;/g, "\\;");
+}
+function buildIcs(tasks) {
+  const now = icsDate(new Date());
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//VoyageDesk//Tasks//IT",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+  ];
+  for (const t of tasks) {
+    if (!t.dueDate) continue;
+    const start = new Date(t.dueDate);
+    const hours = Number(t.estimatedHours) > 0 ? Number(t.estimatedHours) : 1;
+    const end = new Date(start.getTime() + hours * 3600 * 1000);
+    lines.push(
+      "BEGIN:VEVENT",
+      `UID:${t.id}@voyagedesk`,
+      `DTSTAMP:${now}`,
+      `DTSTART:${icsDate(start)}`,
+      `DTEND:${icsDate(end)}`,
+      `SUMMARY:${icsEscape(t.title || "Task")}`,
+      `DESCRIPTION:${icsEscape((t.description || "") + (t.priority ? "\nPriorità: " + t.priority : ""))}`,
+      `CATEGORIES:${icsEscape(t.category || "task")}`,
+      "END:VEVENT"
+    );
+  }
+  lines.push("END:VCALENDAR");
+  return lines.join("\r\n");
+}
+function exportTasksToIcs(allTasks, uid) {
+  const tasks = (allTasks || []).filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate);
+  if (tasks.length === 0) return;
+  const ics = buildIcs(tasks);
+  const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const ts = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `voyagedesk-tasks-${ts}.ics`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 const CalendarPlanner = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
-  const [viewMode, setViewMode] = useState("month"); // "month" | "week"
+  const [viewMode, setViewMode] = useState("month"); // "month" | "week" | "week-full" | "day"
+  const [dayDate, setDayDate] = useState(new Date());
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState(null);
@@ -4320,9 +4579,12 @@ const CalendarPlanner = ({ state, dispatch }) => {
       <div className="vd-row-wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div className="playfair" style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, textTransform: viewMode === "month" ? "capitalize" : "none" }}>
-            {viewMode === "month" ? monthName : "Settimana"}
+            {viewMode === "month" && monthName}
+            {viewMode === "week" && "Settimana"}
+            {viewMode === "week-full" && "Settimana piena"}
+            {viewMode === "day" && dayDate.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
           </div>
-          {viewMode === "week" && (
+          {(viewMode === "week" || viewMode === "week-full") && (
             <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
               {weekDays[0].toLocaleDateString("it-IT", { day: "numeric", month: "short" })} — {weekDays[6].toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" })}
             </div>
@@ -4331,23 +4593,43 @@ const CalendarPlanner = ({ state, dispatch }) => {
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
           {/* View toggle */}
           <div style={{ display: "flex", gap: 4, background: "var(--surface2)", borderRadius: 10, padding: 3 }}>
-            {toggleBtn("month", isMobile ? "Mese" : "📅 Mese")}
+            {toggleBtn("day", isMobile ? "Gior." : "🕒 Giorno")}
             {toggleBtn("week", isMobile ? "Sett." : "📆 Settimana")}
+            {toggleBtn("week-full", isMobile ? "Sett.+" : "🗓️ Sett. piena")}
+            {toggleBtn("month", isMobile ? "Mese" : "📅 Mese")}
           </div>
           {/* Nav buttons */}
           <div style={{ display: "flex", gap: 4 }}>
-            <button onClick={() => viewMode === "month" ? setCurrentMonth(new Date(year, month - 1)) : setWeekOffset(w => w - 1)} style={{
+            <button onClick={() => {
+              if (viewMode === "month") setCurrentMonth(new Date(year, month - 1));
+              else if (viewMode === "day") setDayDate(d => { const x = new Date(d); x.setDate(x.getDate() - 1); return x; });
+              else setWeekOffset(w => w - 1);
+            }} style={{
               background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
               width: 34, height: 34, cursor: "pointer", fontSize: 14
             }}>←</button>
-            <button onClick={() => { viewMode === "month" ? setCurrentMonth(new Date()) : setWeekOffset(0); setSelectedDay(null); }} style={{
+            <button onClick={() => {
+              if (viewMode === "month") setCurrentMonth(new Date());
+              else if (viewMode === "day") setDayDate(new Date());
+              else setWeekOffset(0);
+              setSelectedDay(null);
+            }} style={{
               background: "var(--gold)", color: "var(--navy)", border: "none",
               borderRadius: 8, padding: "0 14px", height: 34, cursor: "pointer", fontSize: 12, fontWeight: 700
             }}>Oggi</button>
-            <button onClick={() => viewMode === "month" ? setCurrentMonth(new Date(year, month + 1)) : setWeekOffset(w => w + 1)} style={{
+            <button onClick={() => {
+              if (viewMode === "month") setCurrentMonth(new Date(year, month + 1));
+              else if (viewMode === "day") setDayDate(d => { const x = new Date(d); x.setDate(x.getDate() + 1); return x; });
+              else setWeekOffset(w => w + 1);
+            }} style={{
               background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
               width: 34, height: 34, cursor: "pointer", fontSize: 14
             }}>→</button>
+            <button onClick={() => exportTasksToIcs(state.tasks, uid)} title="Esporta calendario in iCal (.ics)" style={{
+              background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
+              padding: "0 12px", height: 34, cursor: "pointer", fontSize: 12, fontWeight: 600,
+              color: "var(--navy)",
+            }}>⤓ iCal</button>
           </div>
         </div>
       </div>
@@ -4502,6 +4784,173 @@ const CalendarPlanner = ({ state, dispatch }) => {
           </div>
         </div>
       )}
+
+      {/* ─── VISTA GIORNO (Step G) ─── */}
+      {viewMode === "day" && (() => {
+        const dayTasks = state.tasks
+          .filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate &&
+            new Date(t.dueDate).toDateString() === dayDate.toDateString())
+          .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+        const HOURS = Array.from({ length: 24 }, (_, h) => h);
+        const SLOT_H = 44; // px per ora
+        const isToday = dayDate.toDateString() === new Date().toDateString();
+        const nowMinutes = isToday ? new Date().getHours() * 60 + new Date().getMinutes() : null;
+        return (
+          <div style={{
+            background: "#fff", borderRadius: 14, border: "1px solid var(--border)",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden",
+          }}>
+            <div style={{
+              padding: "10px 14px", background: "var(--surface2)",
+              fontSize: 12, color: "var(--text-muted)", fontWeight: 600,
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+            }}>
+              <span>{dayTasks.length} task in agenda</span>
+              {isToday && <span style={{ color: "var(--gold)" }}>● Oggi</span>}
+            </div>
+            <div style={{ position: "relative", display: "flex", maxHeight: 640, overflowY: "auto" }}>
+              {/* Colonna ore */}
+              <div style={{ width: 56, flexShrink: 0, borderRight: "1px solid var(--border)" }}>
+                {HOURS.map(h => (
+                  <div key={h} style={{
+                    height: SLOT_H, padding: "2px 8px", fontSize: 10, color: "var(--text-muted)",
+                    textAlign: "right", borderBottom: "1px solid var(--surface2)",
+                  }}>{String(h).padStart(2, "0")}:00</div>
+                ))}
+              </div>
+              {/* Colonna eventi */}
+              <div style={{ flex: 1, position: "relative" }}>
+                {HOURS.map(h => (
+                  <div key={h} style={{
+                    height: SLOT_H, borderBottom: "1px solid var(--surface2)",
+                  }} />
+                ))}
+                {/* Linea ora corrente */}
+                {nowMinutes != null && (
+                  <div style={{
+                    position: "absolute", left: 0, right: 0,
+                    top: (nowMinutes / 60) * SLOT_H,
+                    height: 2, background: "var(--gold)", zIndex: 2,
+                  }}>
+                    <div style={{
+                      position: "absolute", left: -4, top: -4, width: 10, height: 10,
+                      borderRadius: "50%", background: "var(--gold)",
+                    }} />
+                  </div>
+                )}
+                {/* Eventi */}
+                {dayTasks.map(t => {
+                  const d = new Date(t.dueDate);
+                  const startMin = d.getHours() * 60 + d.getMinutes();
+                  const hours = Number(t.estimatedHours) > 0 ? Number(t.estimatedHours) : 1;
+                  const top = (startMin / 60) * SLOT_H;
+                  const height = Math.max(28, hours * SLOT_H - 2);
+                  const cat = CATEGORIES[t.category] || {};
+                  return (
+                    <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                      position: "absolute", top, left: 6, right: 6, height,
+                      background: (cat.color || "#94a3b8") + "22",
+                      borderLeft: `3px solid ${cat.color || "#94a3b8"}`,
+                      borderRadius: "0 6px 6px 0", padding: "4px 8px",
+                      cursor: "pointer", overflow: "hidden", fontSize: 12,
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.08)", zIndex: 1,
+                    }}>
+                      <div style={{ fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {cat.icon} {t.title}
+                      </div>
+                      <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 1 }}>
+                        {formatTime(t.dueDate)} · {hours}h
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ─── VISTA SETTIMANA PIENA (Step G) ─── */}
+      {viewMode === "week-full" && (() => {
+        const HOURS = Array.from({ length: 24 }, (_, h) => h);
+        const SLOT_H = 36;
+        const today = new Date().toDateString();
+        return (
+          <div style={{
+            background: "#fff", borderRadius: 14, border: "1px solid var(--border)",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden",
+          }}>
+            {/* Header giorni */}
+            <div style={{ display: "grid", gridTemplateColumns: `56px repeat(7, 1fr)`, background: "var(--surface2)" }}>
+              <div />
+              {weekDays.map((d, i) => {
+                const isToday = d.toDateString() === today;
+                return (
+                  <div key={i} style={{
+                    padding: "8px 4px", textAlign: "center", fontSize: 11,
+                    color: isToday ? "var(--gold)" : "var(--text-muted)",
+                    fontWeight: 600, borderLeft: "1px solid var(--border)",
+                  }}>
+                    {dayNames[i]} {d.getDate()}
+                  </div>
+                );
+              })}
+            </div>
+            {/* Griglia oraria scrollabile */}
+            <div style={{ maxHeight: 560, overflowY: "auto" }}>
+              <div style={{ display: "grid", gridTemplateColumns: `56px repeat(7, 1fr)`, position: "relative" }}>
+                {/* Colonna ore */}
+                <div>
+                  {HOURS.map(h => (
+                    <div key={h} style={{
+                      height: SLOT_H, padding: "2px 6px", fontSize: 9, color: "var(--text-muted)",
+                      textAlign: "right", borderBottom: "1px solid var(--surface2)",
+                    }}>{String(h).padStart(2, "0")}:00</div>
+                  ))}
+                </div>
+                {weekDays.map((day, di) => {
+                  const dayTasks = getTasksForDay(day).sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+                  const isToday = day.toDateString() === today;
+                  return (
+                    <div key={di} style={{
+                      position: "relative", borderLeft: "1px solid var(--border)",
+                      background: isToday ? "rgba(212,168,67,0.04)" : "transparent",
+                    }}>
+                      {HOURS.map(h => (
+                        <div key={h} style={{
+                          height: SLOT_H, borderBottom: "1px solid var(--surface2)",
+                        }} />
+                      ))}
+                      {dayTasks.map(t => {
+                        const d = new Date(t.dueDate);
+                        const startMin = d.getHours() * 60 + d.getMinutes();
+                        const hours = Number(t.estimatedHours) > 0 ? Number(t.estimatedHours) : 1;
+                        const top = (startMin / 60) * SLOT_H;
+                        const height = Math.max(20, hours * SLOT_H - 2);
+                        const cat = CATEGORIES[t.category] || {};
+                        return (
+                          <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
+                            position: "absolute", top, left: 2, right: 2, height,
+                            background: (cat.color || "#94a3b8") + "22",
+                            borderLeft: `2px solid ${cat.color || "#94a3b8"}`,
+                            borderRadius: "0 4px 4px 0", padding: "2px 5px",
+                            cursor: "pointer", overflow: "hidden", fontSize: 10, lineHeight: 1.2,
+                          }}>
+                            <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {cat.icon} {t.title}
+                            </div>
+                            <div style={{ fontSize: 9, color: "var(--text-muted)" }}>{formatTime(t.dueDate)}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ─── DISTRIBUZIONE AGENTI (sempre visibile) ─── */}
       <div style={{ background: "#fff", borderRadius: 12, padding: isMobile ? "14px 12px" : "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
@@ -4887,6 +5336,69 @@ const VoicePlayer = ({ duration, waveform, isMine }) => {
   );
 };
 
+// Parsing task link nel testo dei messaggi (Step H).
+// Riconosce il pattern generato da openChatTo+intent.taskLink:
+//   🔗 Riferimento task: "TITLE"\n📅 Scadenza: DATE TIME\n\nRESTO
+// Ritorna { taskTitle, taskDue, rest } o null se non match.
+const TASK_LINK_RE = /^🔗 Riferimento task: "([^"]+)"\n📅 Scadenza:([^\n]*)\n\n([\s\S]*)$/;
+function parseTaskLink(text) {
+  if (typeof text !== "string") return null;
+  const m = TASK_LINK_RE.exec(text);
+  if (!m) return null;
+  return { taskTitle: m[1], taskDue: m[2].trim(), rest: m[3] };
+}
+
+// Renderizza testo del messaggio con eventuale pill task cliccabile.
+// Step K: lookup preferito per `taskRef` (UUID) se presente sul messaggio;
+// fallback per titolo (compat messaggi vecchi senza taskRef).
+const MessageTextContent = ({ text, isMine, taskRef }) => {
+  const { tasks, dispatch } = useContext(ChatContext);
+  const link = parseTaskLink(text);
+  if (!link) {
+    return <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}>{text}</div>;
+  }
+  // Step K: prima cerca per UUID, poi fallback al match titolo.
+  const tByRef = taskRef ? (tasks || []).find(x => x.id === taskRef && !x.deletedAt) : null;
+  const t = tByRef || (tasks || []).find(x => x.title === link.taskTitle && !x.deletedAt);
+  const handleOpen = (e) => {
+    e.stopPropagation();
+    if (!t) return;
+    dispatch?.({ type: "SET_SELECTED_TASK", payload: t });
+  };
+  return (
+    <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}>
+      <button
+        type="button"
+        onClick={handleOpen}
+        disabled={!t}
+        title={t ? "Apri task" : "Task non disponibile"}
+        style={{
+          display: "block", textAlign: "left", width: "100%",
+          background: isMine ? "rgba(255,255,255,0.12)" : "var(--surface2)",
+          border: isMine ? "1px solid rgba(255,255,255,0.18)" : "1px solid var(--border)",
+          color: "inherit",
+          padding: "6px 10px", borderRadius: 8, marginBottom: link.rest ? 6 : 0,
+          cursor: t ? "pointer" : "not-allowed", opacity: t ? 1 : 0.6,
+          fontFamily: "inherit",
+        }}
+      >
+        <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.7, letterSpacing: 0.5 }}>
+          🔗 RIFERIMENTO TASK
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 600, marginTop: 2 }}>
+          {link.taskTitle}
+        </div>
+        {link.taskDue && (
+          <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>
+            📅 {link.taskDue}
+          </div>
+        )}
+      </button>
+      {link.rest && <div>{link.rest}</div>}
+    </div>
+  );
+};
+
 // ─── CHAT: MESSAGE ─────────────────────────────────────────────────────────
 const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onContextMenu }) => {
   const [showReactions, setShowReactions] = useState(false);
@@ -4958,7 +5470,7 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
 
           {/* Content */}
           {msg.type === "text" && (
-            <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}>{msg.text}</div>
+            <MessageTextContent text={msg.text} isMine={isMine} taskRef={msg.taskRef} />
           )}
 
           {msg.type === "voice" && (
@@ -5094,21 +5606,24 @@ const VoiceRecorder = ({ onSend, onCancel }) => {
 };
 
 // ─── CHAT: CONVERSATION VIEW ───────────────────────────────────────────────
-const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, onInitialInputConsumed }) => {
+const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, initialTaskRef, onInitialInputConsumed }) => {
   const [input, setInput] = useState("");
   const [recording, setRecording] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const [showAttach, setShowAttach] = useState(false);
   const [typing, setTyping] = useState(false);
+  // Step K: taskRef UUID "armato" finché il prossimo invio non lo consuma.
+  const [pendingTaskRef, setPendingTaskRef] = useState(null);
   const scrollRef = useRef(null);
 
   // Se è arrivato un prefill (es. da "contatta agente" su urgenti altrui), popolalo
   useEffect(() => {
     if (initialInput) {
       setInput(initialInput);
+      if (initialTaskRef) setPendingTaskRef(initialTaskRef);
       if (onInitialInputConsumed) onInitialInputConsumed();
     }
-  }, [initialInput]);
+  }, [initialInput, initialTaskRef]);
 
   const msgs = messages[conv.id] || [];
 
@@ -5142,15 +5657,21 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
 
   const sendText = () => {
     if (!input.trim()) return;
+    // Step K: se il testo che sta partendo contiene un pattern "🔗 Riferimento task: ..."
+    // (perché viene da prefill o l'utente l'ha mantenuto), allega taskRef UUID.
+    const textOut = input.trim();
+    const stillHasLink = parseTaskLink(textOut) !== null;
     const newMsg = {
       id: "m" + Date.now(), sender: CURRENT_USER, type: "text",
-      text: input.trim(), time: new Date().toISOString(),
+      text: textOut, time: new Date().toISOString(),
       readBy: [CURRENT_USER],
       replyTo: replyingTo?.id,
+      ...(stillHasLink && pendingTaskRef ? { taskRef: pendingTaskRef } : {}),
     };
     setMessages(prev => ({ ...prev, [conv.id]: [...(prev[conv.id] || []), newMsg] }));
     setInput("");
     setReplyingTo(null);
+    setPendingTaskRef(null);
   };
 
   const sendVoice = (duration) => {
@@ -5379,6 +5900,7 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, o
 
 // ─── CHAT: LIST OF CONVERSATIONS ───────────────────────────────────────────
 const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
+  const { presenceMap } = useContext(ChatContext);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
 
@@ -5392,11 +5914,32 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
     return new Date(lastB.time) - new Date(lastA.time);
   });
 
+  const matchesSearch = (c) => {
+    if (!search) return true;
+    const q = search.toLowerCase().trim();
+    if (!q) return true;
+    // 1) nome conversazione
+    if (getConversationName(c).toLowerCase().includes(q)) return true;
+    // 2) nomi partecipanti
+    const partNames = (c.participants || [])
+      .map(id => getMember(id)?.name || "")
+      .join(" ")
+      .toLowerCase();
+    if (partNames.includes(q)) return true;
+    // 3) ultimi 30 messaggi della conversazione (testo)
+    const msgs = (messages[c.id] || []).slice(-30);
+    for (const m of msgs) {
+      if (m.type === "text" && m.text && m.text.toLowerCase().includes(q)) return true;
+      if (m.type === "file" && m.fileName && m.fileName.toLowerCase().includes(q)) return true;
+    }
+    return false;
+  };
+
   const filtered = sorted.filter(c => {
     if (filter === "direct" && c.type !== "direct") return false;
     if (filter === "group" && c.type !== "group") return false;
     if (filter === "unread" && getUnreadCount(messages, c.id) === 0) return false;
-    if (search && !getConversationName(c).toLowerCase().includes(search.toLowerCase())) return false;
+    if (!matchesSearch(c)) return false;
     return true;
   });
 
@@ -5459,10 +6002,17 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
               {c.type === "direct" ? (
                 <div style={{ position: "relative", flexShrink: 0 }}>
                   <Avatar memberId={otherUser} size={42} />
-                  <div style={{
-                    position: "absolute", bottom: 0, right: 0, width: 11, height: 11,
-                    borderRadius: "50%", background: "var(--success)", border: "2px solid #fff",
-                  }} />
+                  {(() => {
+                    const u = (presenceMap || {})[otherUser];
+                    const p = u ? computePresence(u) : 'offline';
+                    return (
+                      <div title={p} style={{
+                        position: "absolute", bottom: 0, right: 0, width: 11, height: 11,
+                        borderRadius: "50%", background: PRESENCE_COLORS[p],
+                        border: "2px solid #fff",
+                      }} />
+                    );
+                  })()}
                 </div>
               ) : (
                 <div style={{
@@ -5675,11 +6225,13 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
 };
 
 // ─── CHAT: MAIN PANEL ──────────────────────────────────────────────────────
-const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, currentUserId }) => {
+const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, currentUserId, dispatch, presenceMap, loading = false }) => {
   const { isMobile } = useViewport();
   const [activeConv, setActiveConv] = useState(null);
   const [newMode, setNewMode] = useState(false);
   const [prefillText, setPrefillText] = useState("");
+  // Step K: taskRef UUID da precompilare insieme al testo del riferimento task.
+  const [prefillTaskRef, setPrefillTaskRef] = useState(null);
 
   // Gestione intent: apertura chat verso utente specifico con link a task
   useEffect(() => {
@@ -5708,6 +6260,8 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
       if (t) {
         const text = `🔗 Riferimento task: "${t.title}"\n📅 Scadenza: ${formatDate(t.dueDate)} ${formatTime(t.dueDate)}\n\n`;
         setPrefillText(text);
+        // Step K: salva l'UUID del task per popolare messages.task_ref alla send.
+        setPrefillTaskRef(t.id);
       }
     }
   }, [open, intent, currentUserId]);
@@ -5721,7 +6275,7 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
   };
 
   return (
-    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER }}>
+    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {} }}>
     <>
       <div onClick={onClose} style={{
         position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: 700,
@@ -5759,7 +6313,21 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
 
         {/* Body */}
         <div style={{ flex: 1, overflow: "hidden" }}>
-          {newMode ? (
+          {loading ? (
+            <div style={{
+              height: "100%", display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center", gap: 12, color: "var(--navy)",
+            }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: "50%",
+                border: "3px solid rgba(15,32,68,0.15)", borderTopColor: "var(--gold)",
+                animation: "spin 0.8s linear infinite",
+              }} />
+              <div style={{ fontSize: 12, opacity: 0.7, letterSpacing: 1 }}>
+                Caricamento chat…
+              </div>
+            </div>
+          ) : newMode ? (
             <NewConversationView
               onCreate={handleCreate}
               onCancel={() => setNewMode(false)}
@@ -5770,9 +6338,10 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
               conv={activeConv}
               messages={messages}
               setMessages={setMessages}
-              onBack={() => { setActiveConv(null); setPrefillText(""); }}
+              onBack={() => { setActiveConv(null); setPrefillText(""); setPrefillTaskRef(null); }}
               initialInput={prefillText}
-              onInitialInputConsumed={() => setPrefillText("")}
+              initialTaskRef={prefillTaskRef}
+              onInitialInputConsumed={() => { setPrefillText(""); setPrefillTaskRef(null); }}
             />
           ) : (
             <ConversationList
@@ -6939,23 +7508,457 @@ const modalOverlay = { position: "fixed", inset: 0, background: "rgba(15,32,68,0
 const modalCard = { background: "#fff", borderRadius: 12, padding: 24, width: "90%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" };
 
 // ─── ROOT APP ──────────────────────────────────────────────────────────────
-export default function VoyageDesk() {
+export default function VoyageDesk({ initialTeam, initialCurrentUserId } = {}) {
   return (
     <ViewportProvider>
-      <VoyageDeskInner />
+      <VoyageDeskInner
+        initialTeam={initialTeam}
+        initialCurrentUserId={initialCurrentUserId}
+      />
     </ViewportProvider>
   );
 }
 
-function VoyageDeskInner() {
+function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   const { isDesktop } = useViewport();
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const [state, rawDispatch] = useReducer(
+    reducer,
+    { team: initialTeam, currentUserId: initialCurrentUserId },
+    makeInitialState
+  );
+
+  // Modalità DB: attiva solo se AuthContext ha fornito un team reale.
+  // Senza, l'app resta sui mock (dev/preview senza login).
+  const useSupabase = Array.isArray(initialTeam) && initialTeam.length > 0;
+
+  // Idratazione tasks + notices dal DB al primo mount in modalità Supabase,
+  // più subscription realtime: ad ogni evento postgres ricarico la lista
+  // intera (debounced) — semplice e robusto al duplicate dell'eco locale.
+  useEffect(() => {
+    if (!useSupabase) return;
+    let cancelled = false;
+
+    const reloadTasks = () => {
+      TasksAPI.list({ withComments: true }).then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.error("[VoyageDesk] Tasks.list", error);
+          rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Caricamento task fallito: ${error.message || ""}` } });
+          return;
+        }
+        rawDispatch({ type: "SET_TASKS", payload: (data || []).map(fromDbTask) });
+      });
+    };
+    const reloadNotices = () => {
+      NoticesAPI.list().then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.error("[VoyageDesk] Notices.list", error);
+          rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Caricamento avvisi fallito: ${error.message || ""}` } });
+          return;
+        }
+        rawDispatch({ type: "SET_NOTICES", payload: (data || []).map(fromDbNotice) });
+      });
+    };
+
+    reloadTasks();
+    reloadNotices();
+
+    // Debounce: gli eventi arrivano a raffica durante inserimenti bulk.
+    let tasksTimer = null;
+    let noticesTimer = null;
+    const debouncedTasks = () => {
+      clearTimeout(tasksTimer);
+      tasksTimer = setTimeout(reloadTasks, 200);
+    };
+    const debouncedNotices = () => {
+      clearTimeout(noticesTimer);
+      noticesTimer = setTimeout(reloadNotices, 200);
+    };
+
+    const unsubTasks = subscribeToTable("tasks", debouncedTasks);
+    const unsubComments = subscribeToTable("comments", debouncedTasks);
+    const unsubNotices = subscribeToTable("notices", debouncedNotices);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(tasksTimer);
+      clearTimeout(noticesTimer);
+      unsubTasks?.();
+      unsubComments?.();
+      unsubNotices?.();
+    };
+  }, [useSupabase]);
+
+  // Loading state chat: true finché non completa il primo reload da Supabase.
+  // Evita il flash "nessun messaggio" mentre l'idratazione è in volo.
+  const [chatLoading, setChatLoading] = useState(useSupabase);
+
+  // Notifiche reali (Step F): in modalità Supabase idratiamo + realtime.
+  // Senza login restiamo sui mock NOTIFICATIONS.
+  const [notifications, setNotifications] = useState([]);
+  useEffect(() => {
+    if (!useSupabase) return;
+    let cancelled = false;
+    const reload = () => {
+      NotificationsAPI.list({ limit: 100 }).then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.error("[notifications] list", error);
+          rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Notifiche: caricamento fallito: ${error.message || ""}` } });
+          return;
+        }
+        setNotifications((data || []).map(fromDbNotification));
+      });
+    };
+    reload();
+    let timer = null;
+    const debounced = () => { clearTimeout(timer); timer = setTimeout(reload, 200); };
+    const unsub = subscribeToTable("notifications", debounced);
+    return () => { cancelled = true; clearTimeout(timer); unsub?.(); };
+  }, [useSupabase]);
+
+  const markNotificationRead = useCallback((id) => {
+    if (!useSupabase) return;
+    // Ottimistico
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    NotificationsAPI.markRead(id).then(r => {
+      if (r?.error) {
+        console.error("[notifications] markRead", r.error);
+        rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Notifica: aggiornamento fallito` } });
+      }
+    });
+  }, [useSupabase]);
+
+  // Step J: navigazione da notifica → TaskSlideOver
+  const openTaskById = useCallback((taskId) => {
+    if (!taskId) return;
+    const t = (state.tasks || []).find(x => x.id === taskId && !x.deletedAt);
+    if (t) dispatch({ type: "SET_SELECTED_TASK", payload: t });
+  }, [state.tasks]);
+
+  const markAllNotificationsRead = useCallback(() => {
+    if (!useSupabase) return;
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    NotificationsAPI.markAllRead().then(r => {
+      if (r?.error) {
+        console.error("[notifications] markAllRead", r.error);
+        rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Notifiche: aggiornamento fallito` } });
+      }
+    });
+  }, [useSupabase]);
+
+  // Presence (Step H): heartbeat + subscribe a users
+  // Mappa { userId -> rowDB } (per leggere last_seen_at e status).
+  const [presenceMap, setPresenceMap] = useState({});
+  useEffect(() => {
+    if (!useSupabase) return;
+    const myId = initialCurrentUserId;
+    let cancelled = false;
+    let hbTimer = null;
+
+    // Snapshot iniziale di tutti gli utenti
+    const reload = () => {
+      // Non passare per UsersAPI.list (filtra active=true): vogliamo tutti
+      // gli utenti del team. initialTeam è già lo snapshot completo; uso quello
+      // più aggiornamenti via realtime.
+      const map = {};
+      for (const u of initialTeam || []) map[u.id] = u;
+      setPresenceMap(prev => ({ ...map, ...prev }));
+    };
+    reload();
+
+    const beat = (status = 'online') => {
+      if (!myId) return;
+      UsersAPI.setPresence(myId, status).then(r => {
+        if (r?.error) console.warn("[presence] setPresence", r.error);
+        // Aggiorno anche localmente per immediatezza
+        setPresenceMap(prev => ({
+          ...prev,
+          [myId]: { ...(prev[myId] || {}), status, last_seen_at: new Date().toISOString() },
+        }));
+      });
+    };
+    beat('online');
+    hbTimer = setInterval(() => beat('online'), 45 * 1000);
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') beat('away');
+      else beat('online');
+    };
+    const onBeforeUnload = () => beat('offline');
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('beforeunload', onBeforeUnload);
+
+    // Realtime: aggiorna presenceMap quando un altro utente cambia status
+    const unsub = subscribeToTable("users", (payload) => {
+      const row = payload?.new || payload?.record;
+      if (!row || !row.id) return;
+      setPresenceMap(prev => ({ ...prev, [row.id]: { ...(prev[row.id] || {}), ...row } }));
+    });
+
+    // Tick di re-render: ogni 30s ricomputo presenza per ageing
+    const tick = setInterval(() => {
+      if (cancelled) return;
+      setPresenceMap(prev => ({ ...prev })); // shallow rerender
+    }, 30 * 1000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(hbTimer);
+      clearInterval(tick);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      unsub?.();
+      // Best-effort: segnala offline
+      if (myId) UsersAPI.setPresence(myId, 'offline').then(() => {});
+    };
+  }, [useSupabase, initialCurrentUserId, initialTeam]);
+
+  // Idratazione chat (conversations + messages) + realtime.
+  useEffect(() => {
+    if (!useSupabase) { setChatLoading(false); return; }
+    let cancelled = false;
+
+    const reload = async () => {
+      const [convsRes, msgsRes] = await Promise.all([
+        ConversationsAPI.listMine(),
+        MessagesAPI.listAll(),
+      ]);
+      if (cancelled) return;
+      if (convsRes.error) {
+        console.error("[chat] convs.list", convsRes.error);
+        rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Chat: caricamento conversazioni fallito: ${convsRes.error.message || ""}` } });
+      }
+      if (msgsRes.error) {
+        console.error("[chat] msgs.list", msgsRes.error);
+        rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Chat: caricamento messaggi fallito: ${msgsRes.error.message || ""}` } });
+      }
+      const convs = (convsRes.data || []).map(fromDbConversation);
+      const msgsByConv = {};
+      for (const r of msgsRes.data || []) {
+        const m = fromDbMessage(r);
+        (msgsByConv[m.conversation_id] ||= []).push(m);
+      }
+      setConversationsRaw(convs);
+      setMessagesRaw(msgsByConv);
+      setChatLoading(false);
+    };
+
+    reload();
+
+    let timer = null;
+    const debouncedReload = () => {
+      clearTimeout(timer);
+      timer = setTimeout(reload, 200);
+    };
+    const unsubConvs = subscribeToTable("conversations", debouncedReload);
+    const unsubMsgs = subscribeToTable("messages", debouncedReload);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      unsubConvs?.();
+      unsubMsgs?.();
+    };
+  }, [useSupabase]);
+
+  // currentUserId vivo, per persistere i comments con l'autore giusto.
+  const currentUserIdRef = useRef(state.currentUserId);
+  useEffect(() => { currentUserIdRef.current = state.currentUserId; }, [state.currentUserId]);
+
+  // Wrapper dispatch: applica al reducer (UI istantanea) e poi sincronizza
+  // su Supabase fire-and-forget. Per ADD_TASK normalizza l'id in uuid in
+  // modo coerente tra reducer e DB.
+  const dispatch = useCallback((action) => {
+    if (!useSupabase) { rawDispatch(action); return; }
+
+    let toDispatch = action;
+    let dbOps = null;
+
+    switch (action.type) {
+      case "ADD_TASK": {
+        const id = isUuid(action.payload?.id) ? action.payload.id : newId();
+        const payload = { ...action.payload, id };
+        toDispatch = { ...action, payload };
+        dbOps = () => TasksAPI.create(toDbTask(payload));
+        break;
+      }
+      case "ADD_TASKS_BULK": {
+        const payload = (action.payload || []).map(t => ({
+          ...t, id: isUuid(t?.id) ? t.id : newId(),
+        }));
+        toDispatch = { ...action, payload };
+        dbOps = () => Promise.all(payload.map(t => TasksAPI.create(toDbTask(t))));
+        break;
+      }
+      case "UPDATE_TASK":
+        dbOps = () => TasksAPI.update(action.payload.id, toDbTaskPatch(action.payload));
+        break;
+      case "MOVE_TASK":
+        dbOps = () => TasksAPI.update(action.payload.taskId, { status: action.payload.newStatus });
+        break;
+      case "DELETE_TASK":
+        dbOps = () => TasksAPI.softDelete(action.payload);
+        break;
+      case "RESTORE_TASK":
+        dbOps = () => TasksAPI.restore(action.payload);
+        break;
+      case "PURGE_TASK":
+        dbOps = () => TasksAPI.hardDelete(action.payload);
+        break;
+      case "EMPTY_TRASH": {
+        const ids = state.tasks.filter(t => t.deletedAt).map(t => t.id);
+        dbOps = () => Promise.all(ids.map(id => TasksAPI.hardDelete(id)));
+        break;
+      }
+      case "ADD_COMMENT": {
+        const uid = currentUserIdRef.current;
+        dbOps = () => CommentsAPI.create({
+          task_id: action.payload.taskId,
+          user_id: uid,
+          text: action.payload.comment?.text ?? "",
+        });
+        break;
+      }
+      case "ADD_NOTICE": {
+        const id = isUuid(action.payload?.id) ? action.payload.id : newId();
+        const payload = { ...action.payload, id, author: action.payload.author ?? currentUserIdRef.current };
+        toDispatch = { ...action, payload };
+        dbOps = () => NoticesAPI.create(toDbNotice(payload));
+        break;
+      }
+      case "UPDATE_NOTICE":
+        dbOps = () => NoticesAPI.update(action.payload.id, toDbNoticePatch(action.payload));
+        break;
+      case "DELETE_NOTICE":
+        dbOps = () => NoticesAPI.remove(action.payload);
+        break;
+      case "TOGGLE_PIN_NOTICE": {
+        const prev = state.notices.find(n => n.id === action.payload);
+        const pinned = !(prev?.pinned);
+        dbOps = () => NoticesAPI.togglePin(action.payload, pinned);
+        break;
+      }
+      default:
+        break;
+    }
+
+    rawDispatch(toDispatch);
+    if (dbOps) {
+      Promise.resolve()
+        .then(dbOps)
+        .then((res) => {
+          const err = Array.isArray(res) ? res.find(r => r?.error)?.error : res?.error;
+          if (err) {
+            console.error(`[VoyageDesk] sync ${action.type}`, err);
+            rawDispatch({
+              type: "SHOW_TOAST",
+              payload: {
+                type: "error",
+                message: `Salvataggio fallito: ${err.message || "errore sconosciuto"}`,
+              },
+            });
+          }
+        })
+        .catch((e) => {
+          console.error(`[VoyageDesk] sync ${action.type}`, e);
+          rawDispatch({
+            type: "SHOW_TOAST",
+            payload: {
+              type: "error",
+              message: `Salvataggio fallito: ${e?.message || "errore di rete"}`,
+            },
+          });
+        });
+    }
+  }, [useSupabase, state.tasks, state.notices]);
   const [showFABModal, setShowFABModal] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [chatIntent, setChatIntent] = useState(null); // { toUser, taskLink } per aprire chat preconfezionata
   const [showBulkModal, setShowBulkModal] = useState(false);
-  const [conversations, setConversations] = useState(initialConversations);
-  const [messages, setMessages] = useState(initialMessages);
+  // In modalità Supabase partiamo da stato vuoto e idratiamo dal DB.
+  // Senza login i mock restano per smoke-test rapido.
+  const [conversations, setConversationsRaw] = useState(
+    useSupabase ? [] : initialConversations
+  );
+  const [messages, setMessagesRaw] = useState(
+    useSupabase ? {} : initialMessages
+  );
+
+  // Wrapper di setConversations: diff vs prev e persiste create/update(pinned).
+  const setConversations = useCallback((updater) => {
+    setConversationsRaw(prev => {
+      const nextRaw = typeof updater === 'function' ? updater(prev) : updater;
+      if (!useSupabase) return nextRaw;
+      const prevById = new Map(prev.map(c => [c.id, c]));
+      return nextRaw.map(c => {
+        if (!prevById.has(c.id)) {
+          const id = isUuid(c.id) ? c.id : newId();
+          const normalized = { ...c, id };
+          ConversationsAPI.create(toDbConversation(normalized))
+            .then(r => { if (r?.error) { console.error('[chat] conv.create', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: creazione conversazione fallita: ${r.error.message || ''}` } }); } });
+          return normalized;
+        }
+        const prevC = prevById.get(c.id);
+        if (prevC.pinned !== c.pinned || prevC.name !== c.name || prevC.icon !== c.icon) {
+          ConversationsAPI.update(c.id, {
+            pinned: !!c.pinned, name: c.name ?? null, icon: c.icon ?? null,
+          }).then(r => { if (r?.error) { console.error('[chat] conv.update', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: aggiornamento conversazione fallito: ${r.error.message || ''}` } }); } });
+        }
+        return c;
+      });
+    });
+  }, [useSupabase]);
+
+  // Wrapper di setMessages: diff per conv e persiste insert + reactions + readBy.
+  const setMessages = useCallback((updater) => {
+    setMessagesRaw(prev => {
+      const nextRaw = typeof updater === 'function' ? updater(prev) : updater;
+      if (!useSupabase) return nextRaw;
+
+      const eqArr = (a, b) => {
+        if (a === b) return true;
+        if (!Array.isArray(a) || !Array.isArray(b)) return false;
+        if (a.length !== b.length) return false;
+        for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+        return true;
+      };
+      const eqReactions = (a, b) => {
+        const ka = Object.keys(a || {}), kb = Object.keys(b || {});
+        if (ka.length !== kb.length) return false;
+        for (const k of ka) if (!eqArr(a[k], b[k])) return false;
+        return true;
+      };
+
+      const next = {};
+      for (const convId of Object.keys(nextRaw)) {
+        const prevArr = prev[convId] || [];
+        const nextArr = nextRaw[convId] || [];
+        const prevById = new Map(prevArr.map(m => [m.id, m]));
+        next[convId] = nextArr.map(m => {
+          if (!prevById.has(m.id)) {
+            const id = isUuid(m.id) ? m.id : newId();
+            const normalized = { ...m, id };
+            MessagesAPI.send(toDbMessage(normalized, convId))
+              .then(r => { if (r?.error) { console.error('[chat] msg.send', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: invio messaggio fallito: ${r.error.message || ''}` } }); } });
+            return normalized;
+          }
+          const prevM = prevById.get(m.id);
+          if (!eqReactions(prevM.reactions, m.reactions)) {
+            MessagesAPI.setReactions(m.id, m.reactions || {})
+              .then(r => { if (r?.error) { console.error('[chat] msg.reactions', r.error); } });
+          }
+          if (!eqArr(prevM.readBy, m.readBy)) {
+            MessagesAPI.markRead(m.id, m.readBy || [])
+              .then(r => { if (r?.error) { console.error('[chat] msg.readBy', r.error); } });
+          }
+          return m;
+        });
+      }
+      return next;
+    });
+  }, [useSupabase]);
 
   // Conta non letti totali per badge topbar (dallo stato vivo della chat)
   const unreadChat = conversations.reduce(
@@ -7005,7 +8008,16 @@ function VoyageDeskInner() {
     <>
       <FontLoader />
       <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", background: "var(--surface)", fontFamily: "'DM Sans', sans-serif" }}>
-        <Topbar state={state} dispatch={dispatch} onOpenChat={() => { setChatIntent(null); setShowChat(true); }} unreadChat={unreadChat} />
+        <Topbar
+          state={state}
+          dispatch={dispatch}
+          onOpenChat={() => { setChatIntent(null); setShowChat(true); }}
+          unreadChat={unreadChat}
+          notifications={notifications}
+          onMarkRead={markNotificationRead}
+          onMarkAllRead={markAllNotificationsRead}
+          onOpenTask={openTaskById}
+        />
         <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
           <Sidebar state={state} dispatch={dispatch} />
           <main className="vd-main-scroll" style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
@@ -7030,6 +8042,9 @@ function VoyageDeskInner() {
           intent={chatIntent}
           tasks={state.tasks}
           currentUserId={state.currentUserId}
+          dispatch={dispatch}
+          presenceMap={presenceMap}
+          loading={chatLoading}
         />
 
         {/* FAB principale (singolo task) + FAB secondario (bulk) */}
@@ -7069,3 +8084,4 @@ function VoyageDeskInner() {
     </>
   );
 }
+// Step J — touched

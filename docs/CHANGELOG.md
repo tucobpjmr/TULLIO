@@ -27,6 +27,11 @@
 - **Grant EXECUTE** su `public.is_manager_or_admin()` ai ruoli `authenticated` e `anon`: la funzione era usata in policy RLS di `tasks` ma non eseguibile dall'utente loggato → tutti INSERT/UPDATE tasks fallivano con `permission denied for function is_manager_or_admin`.
 - `notify_queue_stale` allineata ai ruoli reali in `public.users` (lowercase `manager`,`admin`); rimosso `Senior Agent` inesistente nello schema.
 
+### 🐛 fix(#11) — Notifiche mock fittizie in UI
+- `src/VoyageDesk.jsx` (`Topbar`): la logica precedente faceva fallback all'array `NOTIFICATIONS` (mock "Newsletter Giugno", "Hotel Overwater Bungalow", ecc.) ogni volta che `public.notifications` era vuota.
+- Ora gate-ata dietro `import.meta.env.DEV && VITE_SHOW_MOCK_NOTIFICATIONS === 'true'`. Default off → in produzione mai mock; in dev solo se la flag è esplicitamente attivata.
+- Comportamento: lista vuota da DB → badge a 0 e pannello vuoto (corretto).
+
 ---
 
 ## v1.1-dev — Robustezza sync + Notifiche + Calendario + Chat estesa + Dashboard (sessione 10)

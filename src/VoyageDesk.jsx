@@ -1460,8 +1460,10 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
 const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notificationsProp, onMarkRead, onMarkAllRead, onOpenTask }) => {
   const { isMobile } = useViewport();
-  const useRealNotifs = Array.isArray(notificationsProp) && notificationsProp.length > 0;
-  const notifList = useRealNotifs ? notificationsProp : NOTIFICATIONS;
+  // Fix #11: notifiche mock gate-ate dietro env var (default off in prod)
+  const SHOW_MOCK_NOTIFS = import.meta.env.DEV && import.meta.env.VITE_SHOW_MOCK_NOTIFICATIONS === 'true';
+  const realNotifs = Array.isArray(notificationsProp) ? notificationsProp : [];
+  const notifList = SHOW_MOCK_NOTIFS ? [...realNotifs, ...NOTIFICATIONS] : realNotifs;
   const unread = notifList.filter(n => !n.read).length;
   const [advOpen, setAdvOpen] = useState(false);
   return (

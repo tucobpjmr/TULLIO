@@ -1825,6 +1825,10 @@ const UserSwitcher = ({ state, dispatch }) => {
   const [showProfile, setShowProfile] = useState(false);
   const ref = useRef(null);
   const curr = getMember(state.currentUserId) || { name: "—", role: "—", avatar: "??", color: "#999" };
+  // Fix #14: demo switch gate-ato dietro env var (default off in prod e in dev)
+  // Cambia solo currentUser lato UI; auth.uid() server-side resta l'utente reale → confonde RLS.
+  // Attivare con VITE_DEMO_SWITCH=true in .env.local solo per test multi-ruolo.
+  const SHOW_DEMO_SWITCH = import.meta.env.DEV && import.meta.env.VITE_DEMO_SWITCH === 'true';
 
   useEffect(() => {
     if (!open) return;
@@ -1892,41 +1896,45 @@ const UserSwitcher = ({ state, dispatch }) => {
             <span style={{ fontWeight: 600 }}>Modifica profilo</span>
           </button>
 
-          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", padding: "8px 10px 4px", letterSpacing: 1 }}>
-            ACCEDI COME (DEMO MULTI-RUOLO)
-          </div>
-          {candidates.map(m => {
-            const active = m.id === state.currentUserId;
-            return (
-              <button
-                key={m.id}
-                onClick={() => { dispatch({ type: "SET_CURRENT_USER", payload: m.id }); setOpen(false); }}
-                style={{
-                  width: "100%", display: "flex", alignItems: "center", gap: 10,
-                  padding: "8px 10px", background: active ? "var(--surface2)" : "transparent",
-                  border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontSize: 13,
-                  color: "var(--text)", textAlign: "left",
-                }}
-                onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--surface2)"; }}
-                onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
-              >
-                {m.photoUrl ? (
-                  <img src={m.photoUrl} alt="" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
-                ) : (
-                  <div style={{
-                    width: 30, height: 30, borderRadius: "50%", background: m.color,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 11, fontWeight: 700, color: "#fff", flexShrink: 0,
-                  }}>{m.avatar}</div>
-                )}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.name}</div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{m.role}</div>
-                </div>
-                {active && <span style={{ color: "var(--success)", fontSize: 14 }}>✓</span>}
-              </button>
-            );
-          })}
+          {SHOW_DEMO_SWITCH && (
+            <>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", padding: "8px 10px 4px", letterSpacing: 1 }}>
+                ACCEDI COME (DEMO MULTI-RUOLO)
+              </div>
+              {candidates.map(m => {
+                const active = m.id === state.currentUserId;
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => { dispatch({ type: "SET_CURRENT_USER", payload: m.id }); setOpen(false); }}
+                    style={{
+                      width: "100%", display: "flex", alignItems: "center", gap: 10,
+                      padding: "8px 10px", background: active ? "var(--surface2)" : "transparent",
+                      border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontSize: 13,
+                      color: "var(--text)", textAlign: "left",
+                    }}
+                    onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--surface2)"; }}
+                    onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
+                  >
+                    {m.photoUrl ? (
+                      <img src={m.photoUrl} alt="" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                    ) : (
+                      <div style={{
+                        width: 30, height: 30, borderRadius: "50%", background: m.color,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 11, fontWeight: 700, color: "#fff", flexShrink: 0,
+                      }}>{m.avatar}</div>
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.name}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{m.role}</div>
+                    </div>
+                    {active && <span style={{ color: "var(--success)", fontSize: 14 }}>✓</span>}
+                  </button>
+                );
+              })}
+            </>
+          )}
         </div>
       )}
 

@@ -32,6 +32,11 @@
 - Ora gate-ata dietro `import.meta.env.DEV && VITE_SHOW_MOCK_NOTIFICATIONS === 'true'`. Default off → in produzione mai mock; in dev solo se la flag è esplicitamente attivata.
 - Comportamento: lista vuota da DB → badge a 0 e pannello vuoto (corretto).
 
+### 🐛 fix(#14) — Demo switch (ACCEDI COME) confondeva RLS
+- `src/VoyageDesk.jsx` (`UserSwitcher`): il blocco "ACCEDI COME (DEMO MULTI-RUOLO)" cambiava solo `currentUser` lato UI, mentre `auth.uid()` server-side restava l'utente reale loggato → RLS leggeva sempre come utente reale, falsando i test di notifiche/presence/permessi.
+- Ora gate-ato dietro `import.meta.env.DEV && VITE_DEMO_SWITCH === 'true'`. Default off in prod e in dev. Attivabile solo esplicitamente in `.env.local` per test multi-ruolo controllati.
+- Resta visibile sempre "Modifica profilo" — solo la lista candidati e il titolo "ACCEDI COME" sono gate-ati.
+
 ---
 
 ## v1.1-dev — Robustezza sync + Notifiche + Calendario + Chat estesa + Dashboard (sessione 10)

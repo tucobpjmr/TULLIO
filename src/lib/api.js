@@ -89,6 +89,10 @@ export const Conversations = {
 };
 
 // ----------------- MESSAGES -----------------
+// Step M: i nomi file possono contenere caratteri non ammessi nelle key
+// di Storage (spazi, accenti) → normalizzo mantenendo estensione leggibile.
+const sanitizeFileName = (name = 'file') => name.replace(/[^\w.\-]+/g, '_');
+
 export const Messages = {
   listForConversation: (conversation_id, limit = 200) =>
     supabase.from('messages').select('*')
@@ -110,6 +114,24 @@ export const Messages = {
     supabase.from('messages').update(withOrigin({ reactions })).eq('id', id),
   markRead: (id, readBy) =>
     supabase.from('messages').update(withOrigin({ read_by: readBy })).eq('id', id),
+  // Step M: upload allegato sul bucket privato 'chat-files'.
+  // Path convention <conversation_id>/<uuid>-<nomefile>: le policy RLS del
+  // bucket verificano l'appartenenza alla conversazione dal primo segmento.
+  // Ritorna { path } da salvare in messages.file_url.
+  uploadFile: async (file, conversationId) => {
+    const path = `${conversationId}/${crypto.randomUUID()}-${sanitizeFileName(file.name)}`;
+    const { data, error } = await supabase.storage
+      .from('chat-files')
+      .upload(path, file, { contentType: file.type || 'application/octet-stream' });
+    return { path: data?.path ?? null, error };
+  },
+  // Signed URL temporanea (1h) per scaricare/visualizzare un allegato.
+  getFileUrl: async (path) => {
+    const { data, error } = await supabase.storage
+      .from('chat-files')
+      .createSignedUrl(path, 60 * 60);
+    return { url: data?.signedUrl ?? null, error };
+  },
 };
 
 // ----------------- NOTIFICATIONS -----------------

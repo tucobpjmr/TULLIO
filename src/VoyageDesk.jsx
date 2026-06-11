@@ -8095,11 +8095,11 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           const prevM = prevById.get(m.id);
           if (!eqReactions(prevM.reactions, m.reactions)) {
             MessagesAPI.setReactions(m.id, m.reactions || {})
-              .then(r => { if (r?.error) { console.error('[chat] msg.reactions', r.error); } });
+              .then(r => { if (r?.error) { console.error('[chat] msg.reactions', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: aggiornamento reazione fallito: ${r.error.message || ''}` } }); } });
           }
           if (!eqArr(prevM.readBy, m.readBy)) {
             MessagesAPI.markRead(m.id, m.readBy || [])
-              .then(r => { if (r?.error) { console.error('[chat] msg.readBy', r.error); } });
+              .then(r => { if (r?.error) { console.error('[chat] msg.readBy', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: aggiornamento "letto" fallito: ${r.error.message || ''}` } }); } });
           }
           return m;
         });

@@ -5692,7 +5692,7 @@ const VoiceRecorder = ({ onSend, onCancel }) => {
 };
 
 // ─── CHAT: CONVERSATION VIEW ───────────────────────────────────────────────
-const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, initialTaskRef, onInitialInputConsumed }) => {
+const ConversationView = ({ conv, messages, setMessages, markConversationRead, onBack, initialInput, initialTaskRef, onInitialInputConsumed }) => {
   const [input, setInput] = useState("");
   const [recording, setRecording] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
@@ -5725,8 +5725,13 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, i
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [msgs.length]);
 
-  // Mark as read on open
+  // Mark as read on open (Step Q.4: 1 RPC bulk invece di N UPDATE per msg)
   useEffect(() => {
+    if (markConversationRead) {
+      markConversationRead(conv.id);
+      return;
+    }
+    // Fallback per i call site che non passano il callback (eg. test)
     setMessages(prev => ({
       ...prev,
       [conv.id]: (prev[conv.id] || []).map(m => {
@@ -6357,7 +6362,7 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
 };
 
 // ─── CHAT: MAIN PANEL ──────────────────────────────────────────────────────
-const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, currentUserId, dispatch, presenceMap, loading = false }) => {
+const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, intent, tasks, currentUserId, dispatch, presenceMap, loading = false }) => {
   const { isMobile } = useViewport();
   const [activeConv, setActiveConv] = useState(null);
   const [newMode, setNewMode] = useState(false);
@@ -6470,6 +6475,7 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
               conv={activeConv}
               messages={messages}
               setMessages={setMessages}
+              markConversationRead={markConversationRead}
               onBack={() => { setActiveConv(null); setPrefillText(""); setPrefillTaskRef(null); }}
               initialInput={prefillText}
               initialTaskRef={prefillTaskRef}
@@ -7670,10 +7676,15 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   useEffect(() => {
     if (!useSupabase) return;
     let cancelled = false;
+    // Generation counter: scarta risposte stale quando un evento realtime
+    // ri-triggera reload mentre uno è ancora in volo (caveat #21, finding #2).
+    let tasksGen = 0;
+    let noticesGen = 0;
 
     const reloadTasks = () => {
+      const my = ++tasksGen;
       TasksAPI.list({ withComments: true }).then(({ data, error }) => {
-        if (cancelled) return;
+        if (cancelled || my !== tasksGen) return;
         if (error) {
           console.error("[VoyageDesk] Tasks.list", error);
           rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Caricamento task fallito: ${error.message || ""}` } });
@@ -7683,8 +7694,9 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       });
     };
     const reloadNotices = () => {
+      const my = ++noticesGen;
       NoticesAPI.list().then(({ data, error }) => {
-        if (cancelled) return;
+        if (cancelled || my !== noticesGen) return;
         if (error) {
           console.error("[VoyageDesk] Notices.list", error);
           rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Caricamento avvisi fallito: ${error.message || ""}` } });
@@ -7733,9 +7745,11 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   useEffect(() => {
     if (!useSupabase) return;
     let cancelled = false;
+    let loadGen = 0;
     const reload = () => {
+      const my = ++loadGen;
       NotificationsAPI.list({ limit: 100 }).then(({ data, error }) => {
-        if (cancelled) return;
+        if (cancelled || my !== loadGen) return;
         if (error) {
           console.error("[notifications] list", error);
           rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Notifiche: caricamento fallito: ${error.message || ""}` } });
@@ -7963,13 +7977,19 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   useEffect(() => {
     if (!useSupabase) { setChatLoading(false); return; }
     let cancelled = false;
+    // Generation counter: durante il primo reload può arrivare un evento
+    // realtime che fa partire un secondo reload. Senza guardia, l'ordine di
+    // completamento delle due fetch non è garantito → un load più vecchio
+    // sovrascrive uno più nuovo (caveat #21, finding #2).
+    let loadGen = 0;
 
     const reload = async () => {
+      const my = ++loadGen;
       const [convsRes, msgsRes] = await Promise.all([
         ConversationsAPI.listMine(),
         MessagesAPI.listAll(),
       ]);
-      if (cancelled) return;
+      if (cancelled || my !== loadGen) return;
       if (convsRes.error) {
         console.error("[chat] convs.list", convsRes.error);
         rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Chat: caricamento conversazioni fallito: ${convsRes.error.message || ""}` } });
@@ -8081,16 +8101,45 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           const prevM = prevById.get(m.id);
           if (!eqReactions(prevM.reactions, m.reactions)) {
             MessagesAPI.setReactions(m.id, m.reactions || {})
-              .then(r => { if (r?.error) { console.error('[chat] msg.reactions', r.error); } });
+              .then(r => { if (r?.error) { console.error('[chat] msg.reactions', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: aggiornamento reazione fallito: ${r.error.message || ''}` } }); } });
           }
           if (!eqArr(prevM.readBy, m.readBy)) {
             MessagesAPI.markRead(m.id, m.readBy || [])
-              .then(r => { if (r?.error) { console.error('[chat] msg.readBy', r.error); } });
+              .then(r => { if (r?.error) { console.error('[chat] msg.readBy', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: aggiornamento "letto" fallito: ${r.error.message || ''}` } }); } });
           }
           return m;
         });
       }
       return next;
+    });
+  }, [useSupabase]);
+
+  // Step Q.4: markRead bulk all'apertura conversazione.
+  // Bypassa il wrapper setMessages (che farebbe N UPDATE) e fa:
+  // 1) update locale ottimistico via setMessagesRaw, 2) una sola RPC che
+  // marca letti tutti i messaggi non letti della conv. origin_client è
+  // tagged così l'eco realtime viene filtrata sul nostro client.
+  const markConversationRead = useCallback((convId) => {
+    const uid = currentUserIdRef.current;
+    if (!convId || !uid) return;
+    setMessagesRaw(prev => {
+      const list = prev[convId] || [];
+      let changed = false;
+      const next = list.map(m => {
+        if (m.sender !== uid && !m.readBy?.includes(uid)) {
+          changed = true;
+          return { ...m, readBy: [...(m.readBy || []), uid] };
+        }
+        return m;
+      });
+      return changed ? { ...prev, [convId]: next } : prev;
+    });
+    if (!useSupabase || !isUuid(convId)) return;
+    MessagesAPI.markReadBulk(convId, uid).then(r => {
+      if (r?.error) {
+        console.error('[chat] markReadBulk', r.error);
+        rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: aggiornamento "letto" fallito: ${r.error.message || ''}` } });
+      }
     });
   }, [useSupabase]);
 
@@ -8173,6 +8222,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           setConversations={setConversations}
           messages={messages}
           setMessages={setMessages}
+          markConversationRead={markConversationRead}
           intent={chatIntent}
           tasks={state.tasks}
           currentUserId={state.currentUserId}

@@ -16,14 +16,14 @@ export const Users = {
   get: (id) =>
     supabase.from('users').select('*').eq('id', id).single(),
   updateProfile: (id, patch) =>
-    supabase.from('users').update(patch).eq('id', id).select().single(),
+    supabase.from('users').update(withOrigin(patch)).eq('id', id).select().single(),
   setActive: (id, active) =>
-    supabase.from('users').update({ active }).eq('id', id),
+    supabase.from('users').update(withOrigin({ active })).eq('id', id),
   // Step H: presence
   setPresence: (id, status) =>
-    supabase.from('users').update({
+    supabase.from('users').update(withOrigin({
       status, last_seen_at: new Date().toISOString(),
-    }).eq('id', id),
+    })).eq('id', id),
 };
 
 // ----------------- TASKS -----------------
@@ -57,7 +57,7 @@ export const Comments = {
     supabase.from('comments').select('*, users(name, color, photo_url)')
       .eq('task_id', taskId).order('created_at'),
   create: ({ task_id, user_id, text }) =>
-    supabase.from('comments').insert({ task_id, user_id, text }).select().single(),
+    supabase.from('comments').insert(withOrigin({ task_id, user_id, text })).select().single(),
   remove: (id) =>
     supabase.from('comments').delete().eq('id', id),
 };
@@ -118,6 +118,15 @@ export const Messages = {
     supabase.from('messages').update(withOrigin({ reactions })).eq('id', id),
   markRead: (id, readBy) =>
     supabase.from('messages').update(withOrigin({ read_by: readBy })).eq('id', id),
+  // Step Q.4: RPC bulk markRead. Un singolo UPDATE su tutti i messaggi non
+  // letti della conversazione → 1 round-trip + 1 evento realtime invece di N.
+  // Vedi migration 20260612_messages_mark_read_bulk.sql.
+  markReadBulk: (conversationId, userId) =>
+    supabase.rpc('messages_mark_read', {
+      conv_id: conversationId,
+      reader_id: userId,
+      origin: getClientId(),
+    }),
   // Step M: upload allegato sul bucket privato 'chat-files'.
   // Path convention <conversation_id>/<uuid>-<nomefile>: le policy RLS del
   // bucket verificano l'appartenenza alla conversazione dal primo segmento.

@@ -7670,10 +7670,15 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   useEffect(() => {
     if (!useSupabase) return;
     let cancelled = false;
+    // Generation counter: scarta risposte stale quando un evento realtime
+    // ri-triggera reload mentre uno è ancora in volo (caveat #21, finding #2).
+    let tasksGen = 0;
+    let noticesGen = 0;
 
     const reloadTasks = () => {
+      const my = ++tasksGen;
       TasksAPI.list({ withComments: true }).then(({ data, error }) => {
-        if (cancelled) return;
+        if (cancelled || my !== tasksGen) return;
         if (error) {
           console.error("[VoyageDesk] Tasks.list", error);
           rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Caricamento task fallito: ${error.message || ""}` } });
@@ -7683,8 +7688,9 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       });
     };
     const reloadNotices = () => {
+      const my = ++noticesGen;
       NoticesAPI.list().then(({ data, error }) => {
-        if (cancelled) return;
+        if (cancelled || my !== noticesGen) return;
         if (error) {
           console.error("[VoyageDesk] Notices.list", error);
           rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Caricamento avvisi fallito: ${error.message || ""}` } });
@@ -7733,9 +7739,11 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   useEffect(() => {
     if (!useSupabase) return;
     let cancelled = false;
+    let loadGen = 0;
     const reload = () => {
+      const my = ++loadGen;
       NotificationsAPI.list({ limit: 100 }).then(({ data, error }) => {
-        if (cancelled) return;
+        if (cancelled || my !== loadGen) return;
         if (error) {
           console.error("[notifications] list", error);
           rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Notifiche: caricamento fallito: ${error.message || ""}` } });
@@ -7963,13 +7971,19 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   useEffect(() => {
     if (!useSupabase) { setChatLoading(false); return; }
     let cancelled = false;
+    // Generation counter: durante il primo reload può arrivare un evento
+    // realtime che fa partire un secondo reload. Senza guardia, l'ordine di
+    // completamento delle due fetch non è garantito → un load più vecchio
+    // sovrascrive uno più nuovo (caveat #21, finding #2).
+    let loadGen = 0;
 
     const reload = async () => {
+      const my = ++loadGen;
       const [convsRes, msgsRes] = await Promise.all([
         ConversationsAPI.listMine(),
         MessagesAPI.listAll(),
       ]);
-      if (cancelled) return;
+      if (cancelled || my !== loadGen) return;
       if (convsRes.error) {
         console.error("[chat] convs.list", convsRes.error);
         rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Chat: caricamento conversazioni fallito: ${convsRes.error.message || ""}` } });

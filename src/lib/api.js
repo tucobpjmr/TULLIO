@@ -84,8 +84,12 @@ export const Conversations = {
     supabase.from('conversations').select('*').order('updated_at', { ascending: false }),
   create: (c) =>
     supabase.from('conversations').insert(withOrigin(c)).select().single(),
+  // updated_at va impostato qui: il DB non ha trigger moddatetime e listMine
+  // ordina per updated_at — senza, pin/rename non riordinano la lista.
   update: (id, patch) =>
-    supabase.from('conversations').update(withOrigin(patch)).eq('id', id).select().single(),
+    supabase.from('conversations')
+      .update(withOrigin({ updated_at: new Date().toISOString(), ...patch }))
+      .eq('id', id).select().single(),
 };
 
 // ----------------- MESSAGES -----------------
@@ -126,13 +130,23 @@ export const Messages = {
     return { path: data?.path ?? null, error };
   },
   // Signed URL temporanea (1h) per scaricare/visualizzare un allegato.
+  // Cache in-memory: scade 5 min prima del TTL, così click ripetuti sullo
+  // stesso allegato non rigenerano una signed URL per ogni interazione.
   getFileUrl: async (path) => {
+    const cached = signedUrlCache.get(path);
+    if (cached && cached.expiresAt > Date.now()) {
+      return { url: cached.url, error: null };
+    }
     const { data, error } = await supabase.storage
       .from('chat-files')
       .createSignedUrl(path, 60 * 60);
-    return { url: data?.signedUrl ?? null, error };
+    const url = data?.signedUrl ?? null;
+    if (url) signedUrlCache.set(path, { url, expiresAt: Date.now() + 55 * 60 * 1000 });
+    return { url, error };
   },
 };
+
+const signedUrlCache = new Map();
 
 // ----------------- NOTIFICATIONS -----------------
 // Generate solo da trigger DB (vedi migration 20260609_notifications.sql).
@@ -156,16 +170,17 @@ export const Notifications = {
 };
 
 // ----------------- REALTIME -----------------
-// Step L: i payload realtime hanno payload.new.origin_client se generati da
-// una mutation taggata. Se il tag coincide con il nostro client, l'evento è
-// l'eco della nostra stessa scrittura — l'UI è già aggiornata in modo
-// ottimistico, quindi lo scartiamo per evitare flash di re-render.
-// DELETE non porta payload.new: in quel caso passiamo sempre l'evento.
+// Step L: i payload realtime hanno origin_client se generati da una mutation
+// taggata: su INSERT/UPDATE sta in payload.new, su DELETE in payload.old
+// (serve REPLICA IDENTITY FULL sulle tabelle, vedi migration
+// 20260611_replica_identity_full.sql). Se il tag coincide con il nostro
+// client, l'evento è l'eco della nostra stessa scrittura — l'UI è già
+// aggiornata in modo ottimistico, quindi lo scartiamo per evitare flash.
 export function subscribeToTable(tableName, handler) {
   const channel = supabase
     .channel(`realtime:${tableName}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: tableName }, (payload) => {
-      const origin = payload?.new?.origin_client;
+      const origin = payload?.new?.origin_client ?? payload?.old?.origin_client;
       if (origin && origin === getClientId()) return;
       handler(payload);
     })

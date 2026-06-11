@@ -2,7 +2,12 @@
 
 ## v1.4-dev — Code-splitting bundle (sessione 12)
 
-> Cumulativo sopra v1.3-dev (Step L mergeato su `main` via PR #16).
+> Cumulativo sopra v1.3-dev (Step L mergeato su `main` via PR #16). Step N mergeato su `main` via PR #18 (squash `66f5ba7`).
+
+### 🆕 Caveat aperti rilevati in sessione 12 (vedi `HANDOFF_SESSION_2026-06-11_v6.md`)
+- **#16 — Logout mancante UI**: `AuthContext.signOut` esiste ma non è collegato a nessun componente. Workaround attuale: pulire `localStorage` (`sb-*-auth-token`). Da risolvere con Step O.
+- **#17 — TEAM seed locale**: al primo login si vedono i nomi mock vecchi, sovrascritti solo dopo refresh esplicito. Cosmetico.
+- **#18 — Encoding mojibake intestazioni preview CSV**: "PrioritÃ " al posto di "Priorità". Solo preview, non blocca l'import.
 
 ### 📦 Step N — Code-splitting (caveat #15)
 Obiettivo: ridurre il chunk JS iniziale (era un unico bundle da ~1039 KB / 303 KB gz, con warning Vite >500 KB).

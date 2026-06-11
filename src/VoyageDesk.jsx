@@ -701,8 +701,11 @@ function makeInitialState({ team, currentUserId } = {}) {
     // Quando il team viene dal DB le task in-memory non hanno più assignees validi:
     // partiamo da vuoto, le task reali arriveranno dal prossimo wire-up Supabase.
     tasks: hasRealTeam ? [] : INITIAL_TASKS,
-    team: TEAM,
-    categories: CATEGORIES,
+    // Copie, non riferimenti: _syncTeam/_syncCategories mutano i globali
+    // in-place e un alias diretto cambierebbe lo state sotto React senza
+    // che il riferimento cambi (re-render mai innescato).
+    team: [...TEAM],
+    categories: { ...CATEGORIES },
     agencyName: "VoyageDesk",
     notices: hasRealTeam ? [] : INITIAL_NOTICES,
     activityLog: [],

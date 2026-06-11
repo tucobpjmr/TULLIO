@@ -1,5 +1,48 @@
 # CHANGELOG — VoyageDesk
 
+## v1.6-dev — Step Q: Hardening realtime + chat (sessione 14)
+
+> Cumulativo sopra v1.5-dev (PR #22 + #23 mergeate, code-review chiusa, handoff v7 attivo).
+
+Chiude i 4 finding aperti della code-review di sessione 13 (#2 race init/realtime, #5 withOrigin parziale, #6 toast reactions/markRead, #9 markRead batch) + caveat #4 verificato come non-issue.
+
+### 🛰️ Q.1 — withOrigin completo (caveat #23, finding #5)
+- `supabase/migrations/20260612_origin_tagging_comments_users.sql` (applicata via MCP):
+  - `origin_client uuid` su `public.comments` e `public.users` (nullable, retrocompat).
+  - `REPLICA IDENTITY FULL` su entrambe (il filtro echo funziona anche su DELETE).
+- `src/lib/api.js`: `withOrigin` su `Comments.create`, `Users.updateProfile`, `Users.setActive`, `Users.setPresence`. Step L copriva tasks/notices/conversations/messages; mancavano queste due tabelle live.
+
+### ⚡ Q.2 — Race init / realtime con generation counter (caveat #21, finding #2)
+- `src/VoyageDesk.jsx`: i tre `useEffect` di idratazione live (tasks+notices, notifications, chat) usavano solo un flag `cancelled` (gestiva solo l'unmount). Se un `reload()` era in volo e un evento realtime ne triggerava un secondo, l'ordine di completamento non era garantito → un load più vecchio poteva sovrascrivere uno più nuovo.
+- Pattern: contatore locale `loadGen` (separato per tasks/notices, condiviso per chat conv+msgs), snapshot prima della/e fetch, check post-await/then → scarta se non è l'ultimo.
+
+### 🔔 Q.3 — Toast su errori reactions/markRead chat (caveat #22, finding #6)
+- `src/VoyageDesk.jsx`: gli errori di `MessagesAPI.setReactions` e `MessagesAPI.markRead` nel wrapper `setMessagesRaw` venivano solo loggati. Ora dispatch toast `error` con messaggio specifico, allineato al pattern degli altri errori chat (`msg.send`).
+
+### 📨 Q.4 — RPC bulk markRead chat (caveat #6, finding #9)
+- `supabase/migrations/20260612_messages_mark_read_bulk.sql` (applicata via MCP):
+  - `public.messages_mark_read(conv_id uuid, reader_id uuid, origin uuid)` → integer. Un singolo UPDATE che appende `reader_id` ad `read_by` per tutti i messaggi non letti della conv (escluso `sender = reader`). Imposta anche `origin_client = origin` per il filtro echo realtime.
+  - `security invoker` + `grant authenticated`.
+- `src/lib/api.js`: `Messages.markReadBulk(conversationId, userId)` chiama la RPC con `origin = getClientId()`.
+- `src/VoyageDesk.jsx`: nuovo `markConversationRead(convId)` in `VoyageDeskInner`. Bypassa il wrapper `setMessages` (che farebbe N UPDATE) → update locale ottimistico via `setMessagesRaw` + 1 RPC. Passato a `ChatPanel` → `ConversationView`; l'effetto "mark as read on open" lo chiama invece di mappare i messaggi via `setMessages`. Costo aprire una conv non letta: **da N round-trip + N eventi realtime a 1 + 1**.
+
+### ✅ Q.5 — Index `messages(conversation_id)` (caveat #20)
+Già presente: `idx_messages_conversation(conversation_id, created_at DESC)` copre `listForConversation` (PG può traversarlo bidirezionalmente).
+
+### 🔍 Q.6 — RLS realtime users (caveat #4) → non-issue
+Verifica policy `users_select_all`: `qual='true'` per ruolo `authenticated` → tutti gli utenti loggati vedono tutti gli utenti, by-design (roster team completo). Realtime consegna correttamente eventi per ogni riga `SELECT`-abile → nessun leak da bloccare. Caveat #4 chiuso come non-issue (intenzionale).
+
+### Verifica build (commit ultimo Q.4)
+```
+dist/index.html                     0.50 kB │ gzip:   0.30 kB
+dist/assets/react-*.js            140.87 kB │ gzip:  45.26 kB
+dist/assets/supabase-*.js         211.12 kB │ gzip:  54.46 kB
+dist/assets/index-*.js            266.31 kB │ gzip:  64.25 kB  (+~0.3 kB gz vs PR #22)
+dist/assets/xlsx-*.js             429.03 kB │ gzip: 143.08 kB
+```
+
+---
+
 ## v1.5-dev — Storage file chat + Logout UI (sessione 13)
 
 > Cumulativo sopra v1.4-dev (Step N mergeato su `main` via PR #18).

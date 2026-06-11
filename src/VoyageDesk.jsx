@@ -17,6 +17,8 @@ import {
   fromDbNotification,
   newId, isUuid,
 } from "./lib/mappers.js";
+// Step O: logout UI — signOut vive in AuthContext, qui viene solo cablato.
+import { useAuth } from "./auth/AuthContext.jsx";
 
 // ─── XLSX LAZY LOADER ──────────────────────────────────────────────────────
 // Carica SheetJS solo alla prima import/export e ne cachea il modulo, così il
@@ -1831,7 +1833,23 @@ const ProfileEditor = ({ member, dispatch, onClose }) => {
 const UserSwitcher = ({ state, dispatch }) => {
   const [open, setOpen] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const { signOut } = useAuth();
   const ref = useRef(null);
+
+  // Step O (caveat #16): logout reale. Prima marca l'utente offline (best
+  // effort: dopo signOut le RLS bloccherebbero l'update), poi chiude la
+  // sessione — l'AuthGate in main.jsx ri-renderizza LoginScreen da solo.
+  const handleLogout = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    try { await UsersAPI.setPresence(state.currentUserId, "offline"); } catch { /* best effort */ }
+    const { error } = await signOut();
+    if (error) {
+      setSigningOut(false);
+      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Logout fallito: ${error.message}` } });
+    }
+  };
   const curr = getMember(state.currentUserId) || { name: "—", role: "—", avatar: "??", color: "#999" };
   // Fix #14: demo switch gate-ato dietro env var (default off in prod e in dev)
   // Cambia solo currentUser lato UI; auth.uid() server-side resta l'utente reale → confonde RLS.
@@ -1943,6 +1961,25 @@ const UserSwitcher = ({ state, dispatch }) => {
               })}
             </>
           )}
+
+          {/* Step O: logout reale (caveat #16) */}
+          <button
+            onClick={handleLogout}
+            disabled={signingOut}
+            style={{
+              width: "100%", display: "flex", alignItems: "center", gap: 10,
+              padding: "10px 10px", background: "transparent",
+              border: "none", borderRadius: 6, cursor: signingOut ? "wait" : "pointer",
+              fontFamily: "inherit", fontSize: 13,
+              color: "var(--danger)", textAlign: "left",
+              borderTop: "1px solid var(--border)", marginTop: 4,
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+          >
+            <span style={{ fontSize: 16 }}>🚪</span>
+            <span style={{ fontWeight: 600 }}>{signingOut ? "Uscita…" : "Esci"}</span>
+          </button>
         </div>
       )}
 
@@ -5408,6 +5445,26 @@ const MessageTextContent = ({ text, isMine, taskRef }) => {
   );
 };
 
+// ─── CHAT: FILE HELPERS (Step M) ───────────────────────────────────────────
+// Deduce il "kind" UI (icona) dall'estensione del file caricato.
+const fileKindFromName = (name = "") => {
+  const ext = name.split(".").pop().toLowerCase();
+  if (ext === "pdf") return "pdf";
+  if (["jpg", "jpeg", "png", "gif", "webp", "heic", "svg"].includes(ext)) return "img";
+  if (["xls", "xlsx", "csv"].includes(ext)) return "xls";
+  if (["doc", "docx", "txt", "rtf", "odt"].includes(ext)) return "doc";
+  return "default";
+};
+
+// fileSize reale è in byte (bigint su DB); i vecchi mock usano stringhe
+// già formattate ("245 KB") → passthrough.
+const formatFileSize = (size) => {
+  if (typeof size !== "number") return size || "";
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+};
+
 // ─── CHAT: MESSAGE ─────────────────────────────────────────────────────────
 const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onContextMenu }) => {
   const [showReactions, setShowReactions] = useState(false);
@@ -5426,6 +5483,17 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
   const readBySome = isMine && otherParticipants.some(p => msg.readBy?.includes(p));
 
   const fileIcons = { pdf: "📄", doc: "📝", img: "🖼️", xls: "📊", default: "📎" };
+
+  // Step M: apre l'allegato con una signed URL temporanea dal bucket privato.
+  const [fileOpening, setFileOpening] = useState(false);
+  const openFile = async () => {
+    if (!msg.fileUrl || fileOpening) return;
+    setFileOpening(true);
+    const { url, error } = await MessagesAPI.getFileUrl(msg.fileUrl);
+    setFileOpening(false);
+    if (error || !url) { console.error("[chat] signed url", error); return; }
+    window.open(url, "_blank", "noopener");
+  };
 
   return (
     <div
@@ -5487,10 +5555,13 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
           )}
 
           {msg.type === "file" && (
-            <div style={{
-              display: "flex", alignItems: "center", gap: 10, padding: "6px 4px",
-              minWidth: 220, cursor: "pointer",
-            }}>
+            <div
+              onClick={openFile}
+              title={msg.fileUrl ? "Scarica file" : "File di esempio (nessun contenuto)"}
+              style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "6px 4px",
+                minWidth: 220, cursor: msg.fileUrl ? "pointer" : "default",
+              }}>
               <div style={{
                 width: 40, height: 40, background: isMine ? "rgba(255,255,255,0.15)" : "var(--surface2)",
                 borderRadius: 8, display: "flex", alignItems: "center",
@@ -5498,9 +5569,9 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
               }}>{fileIcons[msg.fileType] || fileIcons.default}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{msg.fileName}</div>
-                <div style={{ fontSize: 11, opacity: 0.7 }}>{msg.fileSize}</div>
+                <div style={{ fontSize: 11, opacity: 0.7 }}>{formatFileSize(msg.fileSize)}</div>
               </div>
-              <div style={{ fontSize: 16, opacity: 0.7 }}>⬇</div>
+              {msg.fileUrl && <div style={{ fontSize: 16, opacity: 0.7 }}>{fileOpening ? "⏳" : "⬇"}</div>}
             </div>
           )}
 
@@ -5624,6 +5695,10 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, i
   // Step K: taskRef UUID "armato" finché il prossimo invio non lo consuma.
   const [pendingTaskRef, setPendingTaskRef] = useState(null);
   const scrollRef = useRef(null);
+  // Step M: upload allegati reale
+  const fileInputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const { dispatch } = useContext(ChatContext);
 
   // Se è arrivato un prefill (es. da "contatta agente" su urgenti altrui), popolalo
   useEffect(() => {
@@ -5694,19 +5769,39 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, i
     setRecording(false);
   };
 
-  const sendFile = (kind) => {
-    const samples = {
-      pdf: { fileName: "Documento.pdf", fileSize: "245 KB", fileType: "pdf" },
-      img: { fileName: "Foto_destinazione.jpg", fileSize: "1.2 MB", fileType: "img" },
-      doc: { fileName: "Itinerario.docx", fileSize: "67 KB", fileType: "doc" },
-    };
+  // Step M: il picker nativo viene aperto con un accept diverso per tipo;
+  // l'upload va sul bucket privato 'chat-files' e il messaggio porta il path.
+  const pickFile = (accept) => {
+    setShowAttach(false);
+    if (!fileInputRef.current) return;
+    fileInputRef.current.accept = accept;
+    fileInputRef.current.click();
+  };
+
+  const sendFile = async (file) => {
+    if (!file || uploading) return;
+    // Conv mock (id non-uuid, smoke-test senza login): nessuno storage,
+    // il messaggio resta solo locale senza fileUrl.
+    let fileUrl = null;
+    if (isUuid(conv.id)) {
+      setUploading(true);
+      const { path, error } = await MessagesAPI.uploadFile(file, conv.id);
+      setUploading(false);
+      if (error || !path) {
+        console.error("[chat] upload", error);
+        dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Upload fallito: ${error?.message || "errore sconosciuto"}` } });
+        return;
+      }
+      fileUrl = path;
+    }
     const newMsg = {
       id: "m" + Date.now(), sender: CURRENT_USER, type: "file",
-      ...samples[kind], time: new Date().toISOString(),
+      fileName: file.name, fileSize: file.size,
+      fileType: fileKindFromName(file.name), fileUrl,
+      time: new Date().toISOString(),
       readBy: [CURRENT_USER],
     };
     setMessages(prev => ({ ...prev, [conv.id]: [...(prev[conv.id] || []), newMsg] }));
-    setShowAttach(false);
   };
 
   const handleReact = (msgId, emoji) => {
@@ -5844,10 +5939,20 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, i
         ) : (
           <>
             <div style={{ position: "relative" }}>
-              <button onClick={() => setShowAttach(s => !s)} style={{
+              <input
+                ref={fileInputRef}
+                type="file"
+                hidden
+                onChange={e => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  sendFile(f);
+                }}
+              />
+              <button onClick={() => setShowAttach(s => !s)} disabled={uploading} style={{
                 background: "var(--surface2)", border: "none", borderRadius: "50%",
-                width: 36, height: 36, cursor: "pointer", fontSize: 18, flexShrink: 0,
-              }}>📎</button>
+                width: 36, height: 36, cursor: uploading ? "wait" : "pointer", fontSize: 18, flexShrink: 0,
+              }}>{uploading ? "⏳" : "📎"}</button>
               {showAttach && (
                 <div className="slide-up" style={{
                   position: "absolute", bottom: "calc(100% + 8px)", left: 0,
@@ -5856,11 +5961,11 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, i
                   display: "flex", flexDirection: "column", gap: 4, minWidth: 160, zIndex: 100,
                 }}>
                   {[
-                    { kind: "pdf", icon: "📄", label: "Documento PDF" },
-                    { kind: "img", icon: "🖼️", label: "Immagine" },
-                    { kind: "doc", icon: "📝", label: "Word/Excel" },
+                    { kind: "pdf", icon: "📄", label: "Documento PDF", accept: "application/pdf" },
+                    { kind: "img", icon: "🖼️", label: "Immagine", accept: "image/*" },
+                    { kind: "doc", icon: "📝", label: "Word/Excel", accept: ".doc,.docx,.xls,.xlsx,.csv,.txt,.rtf,.odt" },
                   ].map(opt => (
-                    <button key={opt.kind} onClick={() => sendFile(opt.kind)} style={{
+                    <button key={opt.kind} onClick={() => pickFile(opt.accept)} style={{
                       display: "flex", alignItems: "center", gap: 10,
                       padding: "8px 12px", border: "none", background: "transparent",
                       borderRadius: 8, cursor: "pointer", fontSize: 13, textAlign: "left",

@@ -1,5 +1,30 @@
 # CHANGELOG — VoyageDesk
 
+## v1.5-dev — Storage file chat + Logout UI (sessione 13)
+
+> Cumulativo sopra v1.4-dev (Step N mergeato su `main` via PR #18).
+
+### 📎 Step M — Storage file chat reale (caveat #7)
+- `supabase/migrations/20260611_chat_files_storage.sql` (applicata via MCP):
+  - Nuova colonna `messages.file_url text` (path nel bucket, non URL pubblica).
+  - Bucket privato `chat-files` (limite 25 MB/file).
+  - Policy RLS su `storage.objects`: path convention `<conversation_id>/<uuid>-<nomefile>` — select/insert consentiti solo ai partecipanti della conversazione (admin può leggere), delete solo a owner/admin.
+- `src/lib/api.js`:
+  - `Messages.uploadFile(file, conversationId)`: upload sul bucket con nome file sanificato, ritorna `{ path }`.
+  - `Messages.getFileUrl(path)`: signed URL temporanea (1h) per download/preview.
+- `src/lib/mappers.js`: `file_url ↔ fileUrl` in `fromDbMessage`/`toDbMessage`. `fileSize` reale è ora bigint in byte.
+- `src/VoyageDesk.jsx` (Chat):
+  - `sendFile` non genera più sample hardcoded: il menu allegati apre il picker nativo (accept per PDF / immagini / Office), fa upload reale e invia il messaggio con `fileName`/`fileSize` (byte)/`fileType`/`fileUrl`. Indicatore ⏳ durante l'upload, toast su errore.
+  - Nuovi helper `fileKindFromName` (icona da estensione) e `formatFileSize` (byte → "245 KB", passthrough per le stringhe dei vecchi mock).
+  - Click sul bubble file → signed URL → apertura in nuova tab. I vecchi messaggi sample (senza `fileUrl`) restano renderizzati ma non cliccabili.
+  - Conv mock (id non-UUID, smoke-test senza login): nessun upload, messaggio solo locale.
+
+### 🚪 Step O — Logout UI (caveat #16)
+- `src/VoyageDesk.jsx` (`UserSwitcher`): nuova voce "🚪 Esci" in fondo al menu utente. On click: `setPresence('offline')` best-effort → `signOut()` di `AuthContext` → l'`AuthGate` in `main.jsx` ri-renderizza `LoginScreen`. Stato "Uscita…" durante l'operazione, toast su errore.
+- Niente più finestre incognito / pulizia manuale `sb-*-auth-token` per cambiare utente.
+
+---
+
 ## v1.4-dev — Code-splitting bundle (sessione 12)
 
 > Cumulativo sopra v1.3-dev (Step L mergeato su `main` via PR #16). Step N mergeato su `main` via PR #18 (squash `66f5ba7`).

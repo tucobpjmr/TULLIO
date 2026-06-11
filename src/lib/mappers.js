@@ -155,11 +155,10 @@ export function fromDbMessage(row) {
     type: row.type,
     text: row.text ?? '',
     fileName: row.file_name ?? null,
-    // fileSize lato DB è bigint (byte), lato UI viene mostrato come stringa
-    // human-readable: non ricostruisco la stringa, lascio i byte e i componenti
-    // continueranno a usare la stringa generata localmente al momento dell'invio.
+    // fileSize è bigint (byte): l'UI lo formatta con formatFileSize.
     fileSize: row.file_size ?? null,
     fileType: row.file_type ?? null,
+    fileUrl: row.file_url ?? null,
     duration: row.duration ?? null,
     waveform: row.waveform ?? null,
     replyTo: row.reply_to ?? null,
@@ -171,9 +170,8 @@ export function fromDbMessage(row) {
 }
 
 export function toDbMessage(msg, conversationId) {
-  // fileSize lato app è una stringa human-readable ("245 KB") → su DB
-  // (bigint) restiamo null per ora; lo wire-up dei file reali arriverà
-  // quando integreremo lo storage.
+  // Step M: gli upload reali hanno fileSize numerico (byte). I vecchi mock
+  // usavano stringhe human-readable ("245 KB") → su DB (bigint) restano null.
   const fileSizeBytes =
     typeof msg.fileSize === 'number' ? msg.fileSize : null;
   return {
@@ -185,6 +183,7 @@ export function toDbMessage(msg, conversationId) {
     file_name: msg.fileName ?? null,
     file_size: fileSizeBytes,
     file_type: msg.fileType ?? null,
+    file_url: msg.fileUrl ?? null,
     duration: msg.duration ?? null,
     waveform: msg.waveform ?? null,
     reply_to: msg.replyTo ?? null,

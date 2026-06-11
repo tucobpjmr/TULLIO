@@ -23,6 +23,50 @@
 - `src/VoyageDesk.jsx` (`UserSwitcher`): nuova voce "🚪 Esci" in fondo al menu utente. On click: `setPresence('offline')` best-effort → `signOut()` di `AuthContext` → l'`AuthGate` in `main.jsx` ri-renderizza `LoginScreen`. Stato "Uscita…" durante l'operazione, toast su errore.
 - Niente più finestre incognito / pulizia manuale `sb-*-auth-token` per cambiare utente.
 
+### 🩹 Fix code-review sessione 13 (PR #22, squash `787a132`)
+
+Code-review approfondita (7 angoli × 6 candidati → verifica 1-vote, ~40 candidati grezzi → 10 finding sopravvissuti). 6 finding chiusi qui; 4 restano aperti → Step Q.
+
+**🔴 Finding #1 (alta) — Eco DELETE realtime (regressione Step L)**
+- `src/lib/api.js` (`subscribeToTable`): il filtro `origin_client` leggeva solo `payload.new` → gli eventi DELETE (che hanno solo `payload.old`) non venivano mai filtrati e tornavano sul tab che li ha originati, ricomparendo brevemente in UI fino al refetch.
+- Ora `payload?.new?.origin_client ?? payload?.old?.origin_client` con fallback su `payload.new`.
+- `supabase/migrations/20260611_replica_identity_full.sql`: `REPLICA IDENTITY FULL` su `public.tasks`/`notices`/`conversations`/`messages` — di default `payload.old` contiene solo la PK; con FULL contiene la riga intera (incluso `origin_client`). Applicata via MCP e verificata (`relreplident='f'` su tutte e 4).
+
+**🔴 Finding #3 (alta) — Caveat #17 risolto (TEAM mock al primo login)**
+
+Doppia causa radice:
+1. `src/auth/AuthContext.jsx` + `src/main.jsx` (`AuthGate`): `onAuthStateChange` imposta `session` prima che `loadProfile` completi. `AuthGate` montava `VoyageDesk` con `initialTeam=[]` e `useReducer` (che inizializza una volta sola) congelava i mock seed. Ora `AuthGate` resta in loading finché `profile` non è disponibile.
+2. `src/VoyageDesk.jsx` (`makeInitialState`): `team: TEAM` / `categories: CATEGORIES` erano **alias** dei `let` globali. I `_syncTeam`/`_syncCategories` mutano i globali in-place, quindi cambiavano lo state sotto React senza nuovo riferimento → niente re-render. Ora lo state riceve **copie** (`[...TEAM]`, `[...CATEGORIES]`).
+
+**🔴 Finding #4 (media) — Ordinamento conversazioni stantio**
+- `src/lib/api.js` (`Conversations.update`): pin/rename non toccavano `updated_at` (nessun trigger `moddatetime` sul DB) ma `listMine` ordina per `updated_at DESC` → la lista non si riordinava dopo refresh. Ora il patch di default imposta `updated_at = now()` (sovrascrivibile dal chiamante).
+
+**🟢 Minori**
+- `src/lib/api.js` (`Messages.getFileUrl`): cache in-memory `Map<path,{url,expiresAt}>` con TTL 55min (signed URL dura 1h, buffer 5min). Click ripetuti sullo stesso allegato non rigenerano la URL.
+- `src/VoyageDesk.jsx` (`sendFile`): validazione client `MAX_FILE_SIZE=25MB` (allineata al limite bucket) + guardia `mountedRef` contro `setState` dopo unmount se l'utente chiude la chat mid-upload.
+- `src/VoyageDesk.jsx` (`openTaskById`): `dispatch` aggiunto nelle deps del `useCallback`. Per evitare TDZ (`dispatch` era dichiarato 140 righe dopo), la definizione di `dispatch` + `currentUserIdRef` è stata spostata prima del callback (refactor neutro).
+
+### 📋 Finding aperti → Step Q
+
+| # | Severità | Cosa |
+|---|----------|------|
+| 2 | 🟡 media | Race init chat / realtime: `reload()` async non awaitato prima del subscribe, un evento realtime può sovrascrivere dati più nuovi |
+| 5 | 🟡 media | `withOrigin` mancante su `Comments.create`, `Users.updateProfile`, `Users.setPresence` → eco realtime su comments/users |
+| 6 | 🟡 media | Errori di `setReactions`/`markRead` chat solo `console.log`, niente toast né rollback ottimistico |
+| 10 | 🟢 bassa | Tre `useEffect` quasi identici (subscribe+debounce) duplicano la logica → hook `useDebouncedTableSubscription` |
+
+### 🆕 Caveat aperti aggiornati (sessione 13 — vedi `HANDOFF_SESSION_2026-06-11_v7.md`)
+
+- **#5** definitivamente chiuso (eco realtime, anche DELETE).
+- **#7** chiuso (Step M).
+- **#16** chiuso (Step O).
+- **#17** chiuso (PR #22 — doppia causa: race AuthGate + alias mutabile).
+- **#19 NEW** — Drift repo↔DB: `20260610_step_j_fix2.sql` manca dal repo (applicata solo via MCP), DDL tabelle base non versionato, def stale `notify_queue_stale` in `notifications_extra.sql`. → Step R.
+- **#20 NEW** — Index mancante su `messages(conversation_id)` (FK non indicizzata, usata da `listForConversation`). → Step Q.
+- **#21 NEW** — Race init chat / realtime (finding #2). → Step Q.
+- **#22 NEW** — Errori reactions/markRead chat senza toast (finding #6). → Step Q.
+- **#23 NEW** — `withOrigin` parziale: mancante su comments/users (finding #5). → Step Q.
+
 ---
 
 ## v1.4-dev — Code-splitting bundle (sessione 12)

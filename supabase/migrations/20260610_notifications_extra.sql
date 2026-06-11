@@ -6,6 +6,12 @@
 --   4. pg_cron orario `notify_queue_stale`: task in coda globale da > 4h
 --
 -- Dipendenze: tabella `public.notifications` (Step F), `public.tasks`, `public.comments`, `public.users`.
+--
+-- ⚠️ MIGRAZIONE OUT-OF-BAND (Step R, caveat #19): applicata al DB ma NON registrata
+-- in supabase_migrations.schema_migrations. Conservata per ricostruibilità del repo.
+-- La def di `notify_queue_stale` originale (ruoli `Manager`/`Admin`/`Senior Agent`)
+-- è stata superseded da `20260610_step_j_fix.sql` (lowercase `manager`/`admin`) →
+-- rimossa da qui per evitare confusione in audit.
 
 -- ── Estensioni necessarie ──────────────────────────────────────────────────
 create extension if not exists pg_cron;
@@ -188,52 +194,10 @@ begin
   end loop;
 end $$;
 
--- ── 4. pg_cron: notify_queue_stale (orario) ────────────────────────────────
--- Task in coda globale (assignees = []) e in stato 'todo' da > 4 ore:
--- notifica `queue_stale` a tutti i manager/admin (ruoli con accesso coda globale).
--- De-duplica: max 1 notifica per stesso task_id ogni 4 ore.
-create or replace function public.notify_queue_stale() returns void
-language plpgsql security definer set search_path = public
-as $$
-declare
-  t record;
-  uid uuid;
-begin
-  for t in
-    select id, title, created_at
-    from public.tasks
-    where deleted_at is null
-      and status = 'todo'
-      and (assignees is null or array_length(assignees, 1) is null)
-      and created_at < now() - interval '4 hours'
-  loop
-    for uid in
-      select id from public.users
-      where active = true
-        and pending = false
-        and role in ('Manager', 'Admin', 'Senior Agent')
-    loop
-      if not exists (
-        select 1 from public.notifications
-        where user_id = uid
-          and type = 'queue_stale'
-          and payload->>'task_id' = t.id::text
-          and created_at > now() - interval '4 hours'
-      ) then
-        insert into public.notifications (user_id, type, payload)
-        values (
-          uid,
-          'queue_stale',
-          jsonb_build_object(
-            'task_id', t.id,
-            'task_title', t.title,
-            'stale_since', t.created_at
-          )
-        );
-      end if;
-    end loop;
-  end loop;
-end $$;
+-- ── 4. pg_cron: notify_queue_stale → vedi 20260610_step_j_fix.sql ──────────
+-- La def originale (ruoli capitalizzati `Manager`/`Admin`/`Senior Agent`) è
+-- superseded dal successivo `step_j_fix.sql` che usa lowercase per matchare
+-- i valori reali in `users.role`. Rimossa da qui per evitare confusione.
 
 -- ── 5. Schedule pg_cron jobs ───────────────────────────────────────────────
 -- Idempotenza: unschedule se già esistente prima di rischedulare.

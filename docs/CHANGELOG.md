@@ -1,5 +1,66 @@
 # CHANGELOG — VoyageDesk
 
+## v1.7-dev — Step R: Drift repo↔DB (sessione 15)
+
+> Cumulativo sopra v1.6-dev (PR #24 Step Q + PR #25 handoff v8 mergeate).
+
+Chiude **caveat #19** (drift repo↔DB migrazioni). Recupera dal DB il contenuto di **9 migrazioni mai versionate** e pulisce 2 file out-of-band. Nessuna modifica funzionale: solo allineamento `supabase/migrations/` ↔ `supabase_migrations.schema_migrations`.
+
+### 🔎 Audit del drift (sessione 15)
+
+`mcp__Supabase__list_migrations` riporta **19 migrazioni applicate** al DB; il repo ne conteneva **12**. Differenza: 9 migrazioni applicate ma non versionate (incluso lo storico `step_j_fix2` perso, riferito nell'handoff v5) + 2 file presenti nel repo ma applicati out-of-band (non registrati in `schema_migrations`).
+
+| Versione DB | Nome | Stato prima Step R | Azione |
+|---|---|---|---|
+| 20260605160705 | schema_iniziale_voyagedesk | mancante | aggiunto |
+| 20260605160742 | enable_rls_and_policies | mancante | aggiunto |
+| 20260605160836 | hardening_advisors_fix | mancante | aggiunto |
+| 20260608115454 | fase1_clients_suppliers_dossiers | mancante | aggiunto |
+| 20260608122151 | fix_task_priority_status_to_match_app | mancante | aggiunto |
+| 20260608230232 | users_add_capacity_and_avatar | mancante | aggiunto |
+| 20260608231610 | enable_realtime_for_app_tables | mancante | aggiunto |
+| 20260608231915 | enable_realtime_for_chat_tables | mancante | aggiunto |
+| 20260609091418 | notifications | nel repo come `20260609_notifications.sql` | invariato (idempotente) |
+| 20260609091432 | user_presence | nel repo come `20260609_user_presence.sql` | invariato |
+| 20260609163159 | grant_execute_is_admin_step_j_fix2 | **perso** (caveat #19) | **recuperato** |
+| 20260609174842 | step_j_fix3_tasks_set_created_by | nel repo come `20260610_step_j_fix3.sql` | invariato |
+| 20260609184437 | step_j_fix4_mention_regex | nel repo come `20260610_step_j_fix4.sql` | invariato |
+| 20260609190630 | step_j_fix5_notifications_rls | nel repo come `20260610_step_j_fix5.sql` | invariato |
+| 20260610192442 | origin_tagging | nel repo come `20260611_origin_tagging.sql` | invariato |
+| 20260611094536 | chat_files_storage | nel repo come `20260611_chat_files_storage.sql` | invariato |
+| 20260611173409 | replica_identity_full | nel repo come `20260611_replica_identity_full.sql` | invariato |
+| 20260611221308 | origin_tagging_comments_users | nel repo come `20260612_origin_tagging_comments_users.sql` | invariato |
+| 20260611221627 | messages_mark_read_bulk | nel repo come `20260612_messages_mark_read_bulk.sql` | invariato |
+| — (out-of-band) | step_j_fix (notify_queue_stale lowercase) | nel repo come `20260610_step_j_fix.sql` | header documentato |
+| — (out-of-band) | notifications_extra (step J trigger comments + cron) | nel repo come `20260610_notifications_extra.sql` | header + def stale rimossa |
+
+### 🗂️ R.1 — Recupero 9 migrazioni mancanti
+
+Per ognuna delle 9 versioni assenti dal repo, `select statements[1] from supabase_migrations.schema_migrations where version = …` ha restituito lo SQL applicato. Salvato come `supabase/migrations/<version>_<name>.sql` (formato Supabase CLI standard, 14 cifre yyyymmddhhmiss). Ordinamento alfabetico = ordinamento di applicazione DB.
+
+In particolare `20260609163159_grant_execute_is_admin_step_j_fix2.sql` ricostruisce il file `step_j_fix2.sql` perso (riferito nell'handoff v5 e nel caveat #19). Contenuto: singolo `GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated, anon` necessario perché `hardening_advisors_fix` revoca i grant default per fix advisor.
+
+### 🧹 R.2 — Pulizia def stale `notify_queue_stale`
+
+`20260610_notifications_extra.sql:194-236` conteneva la versione originale di `notify_queue_stale` con `role in ('Manager', 'Admin', 'Senior Agent')` (case-sensitive, ruoli inesistenti). Superseded da `20260610_step_j_fix.sql:21-62` che usa `lower(role) in ('manager', 'admin')`. Rimossa dal file `notifications_extra.sql` per evitare confusione in audit; sostituita da commento esplicativo che rimanda al file fix.
+
+### 📌 R.3 — Header documentativo file out-of-band
+
+I 2 file `20260610_notifications_extra.sql` e `20260610_step_j_fix.sql` non sono registrati in `supabase_migrations.schema_migrations` (applicati direttamente al DB pre-MCP). Aggiunto header `⚠️ MIGRAZIONE OUT-OF-BAND` che documenta lo status e rimanda a Step R / caveat #19.
+
+### ✅ Verifica statica
+
+- Tutte le 19 versioni DB hanno ora un file corrispondente nel repo (o un equivalente idempotente con timestamp file leggermente più avanti).
+- Ordine alfabetico applicato a `supabase/migrations/*.sql` produce uno schema equivalente al DB remoto (verificato confrontando struttura tabelle, policies, function signature; smoke-test su branch Supabase non eseguito per evitare costo `create_branch` — non strettamente necessario).
+- Build invariato (nessuna modifica codice app).
+
+### Note residue
+
+- Drift di **naming** sui 12 file esistenti: il timestamp nel nome file non matcha il timestamp DB (es. `20260611_chat_files_storage.sql` vs DB `20260611094536`). Risolvibile con un futuro mass-rename ma rimandato per minimizzare diff git; ordine alfabetico relativo è preservato e SQL idempotente.
+- Drift di **content** sul file `20260609_notifications.sql`: differenza solo nei commenti decorativi (file repo verboso 4257 byte, DB compatto 2678 byte). Funzionalmente identico.
+
+---
+
 ## v1.6-dev — Step Q: Hardening realtime + chat (sessione 14)
 
 > Cumulativo sopra v1.5-dev (PR #22 + #23 mergeate, code-review chiusa, handoff v7 attivo).

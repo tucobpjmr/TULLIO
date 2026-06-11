@@ -118,6 +118,15 @@ export const Messages = {
     supabase.from('messages').update(withOrigin({ reactions })).eq('id', id),
   markRead: (id, readBy) =>
     supabase.from('messages').update(withOrigin({ read_by: readBy })).eq('id', id),
+  // Step Q.4: RPC bulk markRead. Un singolo UPDATE su tutti i messaggi non
+  // letti della conversazione → 1 round-trip + 1 evento realtime invece di N.
+  // Vedi migration 20260612_messages_mark_read_bulk.sql.
+  markReadBulk: (conversationId, userId) =>
+    supabase.rpc('messages_mark_read', {
+      conv_id: conversationId,
+      reader_id: userId,
+      origin: getClientId(),
+    }),
   // Step M: upload allegato sul bucket privato 'chat-files'.
   // Path convention <conversation_id>/<uuid>-<nomefile>: le policy RLS del
   // bucket verificano l'appartenenza alla conversazione dal primo segmento.

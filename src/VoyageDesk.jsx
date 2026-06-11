@@ -5692,7 +5692,7 @@ const VoiceRecorder = ({ onSend, onCancel }) => {
 };
 
 // ─── CHAT: CONVERSATION VIEW ───────────────────────────────────────────────
-const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, initialTaskRef, onInitialInputConsumed }) => {
+const ConversationView = ({ conv, messages, setMessages, markConversationRead, onBack, initialInput, initialTaskRef, onInitialInputConsumed }) => {
   const [input, setInput] = useState("");
   const [recording, setRecording] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
@@ -5725,8 +5725,13 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, i
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [msgs.length]);
 
-  // Mark as read on open
+  // Mark as read on open (Step Q.4: 1 RPC bulk invece di N UPDATE per msg)
   useEffect(() => {
+    if (markConversationRead) {
+      markConversationRead(conv.id);
+      return;
+    }
+    // Fallback per i call site che non passano il callback (eg. test)
     setMessages(prev => ({
       ...prev,
       [conv.id]: (prev[conv.id] || []).map(m => {
@@ -6357,7 +6362,7 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
 };
 
 // ─── CHAT: MAIN PANEL ──────────────────────────────────────────────────────
-const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, intent, tasks, currentUserId, dispatch, presenceMap, loading = false }) => {
+const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, intent, tasks, currentUserId, dispatch, presenceMap, loading = false }) => {
   const { isMobile } = useViewport();
   const [activeConv, setActiveConv] = useState(null);
   const [newMode, setNewMode] = useState(false);
@@ -6470,6 +6475,7 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
               conv={activeConv}
               messages={messages}
               setMessages={setMessages}
+              markConversationRead={markConversationRead}
               onBack={() => { setActiveConv(null); setPrefillText(""); setPrefillTaskRef(null); }}
               initialInput={prefillText}
               initialTaskRef={prefillTaskRef}
@@ -8108,6 +8114,35 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     });
   }, [useSupabase]);
 
+  // Step Q.4: markRead bulk all'apertura conversazione.
+  // Bypassa il wrapper setMessages (che farebbe N UPDATE) e fa:
+  // 1) update locale ottimistico via setMessagesRaw, 2) una sola RPC che
+  // marca letti tutti i messaggi non letti della conv. origin_client è
+  // tagged così l'eco realtime viene filtrata sul nostro client.
+  const markConversationRead = useCallback((convId) => {
+    const uid = currentUserIdRef.current;
+    if (!convId || !uid) return;
+    setMessagesRaw(prev => {
+      const list = prev[convId] || [];
+      let changed = false;
+      const next = list.map(m => {
+        if (m.sender !== uid && !m.readBy?.includes(uid)) {
+          changed = true;
+          return { ...m, readBy: [...(m.readBy || []), uid] };
+        }
+        return m;
+      });
+      return changed ? { ...prev, [convId]: next } : prev;
+    });
+    if (!useSupabase || !isUuid(convId)) return;
+    MessagesAPI.markReadBulk(convId, uid).then(r => {
+      if (r?.error) {
+        console.error('[chat] markReadBulk', r.error);
+        rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: aggiornamento "letto" fallito: ${r.error.message || ''}` } });
+      }
+    });
+  }, [useSupabase]);
+
   // Conta non letti totali per badge topbar (dallo stato vivo della chat)
   const unreadChat = conversations.reduce(
     (acc, c) => acc + getUnreadCount(messages, c.id),
@@ -8187,6 +8222,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           setConversations={setConversations}
           messages={messages}
           setMessages={setMessages}
+          markConversationRead={markConversationRead}
           intent={chatIntent}
           tasks={state.tasks}
           currentUserId={state.currentUserId}

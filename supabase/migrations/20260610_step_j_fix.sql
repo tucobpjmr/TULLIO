@@ -4,6 +4,12 @@
 --     "permission denied for function is_manager_or_admin" su INSERT/UPDATE tasks)
 -- 2. Allinea notify_queue_stale ai ruoli realmente presenti in users
 --    (lowercase: 'manager','admin'; rimosso 'Senior Agent' inesistente)
+--
+-- ⚠️ MIGRAZIONE OUT-OF-BAND (Step R, caveat #19): applicata al DB ma NON registrata
+-- in supabase_migrations.schema_migrations. Conservata per ricostruibilità del repo.
+-- Supersedes la def di `notify_queue_stale` in `20260610_notifications_extra.sql`
+-- (ruoli capitalizzati). Nessun fix #1 separato esiste ancora come file (in DB era
+-- coperto da `grant_execute_is_admin_step_j_fix2`, recuperato in Step R).
 
 -- ── 1. Grant execute ───────────────────────────────────────────────────────
 do $$

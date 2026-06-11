@@ -5449,6 +5449,9 @@ const MessageTextContent = ({ text, isMine, taskRef }) => {
 };
 
 // ─── CHAT: FILE HELPERS (Step M) ───────────────────────────────────────────
+// Limite bucket 'chat-files' (vedi migration 20260611_chat_files_storage.sql).
+// Replicato qui per validazione client prima di iniziare l'upload.
+const MAX_FILE_SIZE = 25 * 1024 * 1024;
 // Deduce il "kind" UI (icona) dall'estensione del file caricato.
 const fileKindFromName = (name = "") => {
   const ext = name.split(".").pop().toLowerCase();
@@ -5702,6 +5705,10 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, i
   const fileInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const { dispatch } = useContext(ChatContext);
+  // Guardia unmount: setState dopo unmount (utente chiude la chat mid-upload)
+  // genera un warning React e perde la callback di errore.
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
 
   // Se è arrivato un prefill (es. da "contatta agente" su urgenti altrui), popolalo
   useEffect(() => {
@@ -5783,12 +5790,20 @@ const ConversationView = ({ conv, messages, setMessages, onBack, initialInput, i
 
   const sendFile = async (file) => {
     if (!file || uploading) return;
+    // Validazione client del limite del bucket (vedi migration
+    // 20260611_chat_files_storage.sql): senza, l'utente vede l'errore
+    // solo dopo aver caricato fino al rifiuto Storage.
+    if (file.size > MAX_FILE_SIZE) {
+      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `File troppo grande (max ${MAX_FILE_SIZE / 1024 / 1024} MB)` } });
+      return;
+    }
     // Conv mock (id non-uuid, smoke-test senza login): nessuno storage,
     // il messaggio resta solo locale senza fileUrl.
     let fileUrl = null;
     if (isUuid(conv.id)) {
       setUploading(true);
       const { path, error } = await MessagesAPI.uploadFile(file, conv.id);
+      if (!mountedRef.current) return;
       setUploading(false);
       if (error || !path) {
         console.error("[chat] upload", error);
@@ -7748,12 +7763,123 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     });
   }, [useSupabase]);
 
+  // currentUserId vivo, per persistere i comments con l'autore giusto.
+  const currentUserIdRef = useRef(state.currentUserId);
+  useEffect(() => { currentUserIdRef.current = state.currentUserId; }, [state.currentUserId]);
+
+  // Wrapper dispatch: applica al reducer (UI istantanea) e poi sincronizza
+  // su Supabase fire-and-forget. Per ADD_TASK normalizza l'id in uuid in
+  // modo coerente tra reducer e DB.
+  const dispatch = useCallback((action) => {
+    if (!useSupabase) { rawDispatch(action); return; }
+
+    let toDispatch = action;
+    let dbOps = null;
+
+    switch (action.type) {
+      case "ADD_TASK": {
+        const id = isUuid(action.payload?.id) ? action.payload.id : newId();
+        const payload = { ...action.payload, id };
+        toDispatch = { ...action, payload };
+        dbOps = () => TasksAPI.create(toDbTask(payload));
+        break;
+      }
+      case "ADD_TASKS_BULK": {
+        const payload = (action.payload || []).map(t => ({
+          ...t, id: isUuid(t?.id) ? t.id : newId(),
+        }));
+        toDispatch = { ...action, payload };
+        dbOps = () => Promise.all(payload.map(t => TasksAPI.create(toDbTask(t))));
+        break;
+      }
+      case "UPDATE_TASK":
+        dbOps = () => TasksAPI.update(action.payload.id, toDbTaskPatch(action.payload));
+        break;
+      case "MOVE_TASK":
+        dbOps = () => TasksAPI.update(action.payload.taskId, { status: action.payload.newStatus });
+        break;
+      case "DELETE_TASK":
+        dbOps = () => TasksAPI.softDelete(action.payload);
+        break;
+      case "RESTORE_TASK":
+        dbOps = () => TasksAPI.restore(action.payload);
+        break;
+      case "PURGE_TASK":
+        dbOps = () => TasksAPI.hardDelete(action.payload);
+        break;
+      case "EMPTY_TRASH": {
+        const ids = state.tasks.filter(t => t.deletedAt).map(t => t.id);
+        dbOps = () => Promise.all(ids.map(id => TasksAPI.hardDelete(id)));
+        break;
+      }
+      case "ADD_COMMENT": {
+        const uid = currentUserIdRef.current;
+        dbOps = () => CommentsAPI.create({
+          task_id: action.payload.taskId,
+          user_id: uid,
+          text: action.payload.comment?.text ?? "",
+        });
+        break;
+      }
+      case "ADD_NOTICE": {
+        const id = isUuid(action.payload?.id) ? action.payload.id : newId();
+        const payload = { ...action.payload, id, author: action.payload.author ?? currentUserIdRef.current };
+        toDispatch = { ...action, payload };
+        dbOps = () => NoticesAPI.create(toDbNotice(payload));
+        break;
+      }
+      case "UPDATE_NOTICE":
+        dbOps = () => NoticesAPI.update(action.payload.id, toDbNoticePatch(action.payload));
+        break;
+      case "DELETE_NOTICE":
+        dbOps = () => NoticesAPI.remove(action.payload);
+        break;
+      case "TOGGLE_PIN_NOTICE": {
+        const prev = state.notices.find(n => n.id === action.payload);
+        const pinned = !(prev?.pinned);
+        dbOps = () => NoticesAPI.togglePin(action.payload, pinned);
+        break;
+      }
+      default:
+        break;
+    }
+
+    rawDispatch(toDispatch);
+    if (dbOps) {
+      Promise.resolve()
+        .then(dbOps)
+        .then((res) => {
+          const err = Array.isArray(res) ? res.find(r => r?.error)?.error : res?.error;
+          if (err) {
+            console.error(`[VoyageDesk] sync ${action.type}`, err);
+            rawDispatch({
+              type: "SHOW_TOAST",
+              payload: {
+                type: "error",
+                message: `Salvataggio fallito: ${err.message || "errore sconosciuto"}`,
+              },
+            });
+          }
+        })
+        .catch((e) => {
+          console.error(`[VoyageDesk] sync ${action.type}`, e);
+          rawDispatch({
+            type: "SHOW_TOAST",
+            payload: {
+              type: "error",
+              message: `Salvataggio fallito: ${e?.message || "errore di rete"}`,
+            },
+          });
+        });
+    }
+  }, [useSupabase, state.tasks, state.notices]);
+
   // Step J: navigazione da notifica → TaskSlideOver
   const openTaskById = useCallback((taskId) => {
     if (!taskId) return;
     const t = (state.tasks || []).find(x => x.id === taskId && !x.deletedAt);
     if (t) dispatch({ type: "SET_SELECTED_TASK", payload: t });
-  }, [state.tasks]);
+  }, [state.tasks, dispatch]);
 
   const markAllNotificationsRead = useCallback(() => {
     if (!useSupabase) return;
@@ -7881,116 +8007,6 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     };
   }, [useSupabase]);
 
-  // currentUserId vivo, per persistere i comments con l'autore giusto.
-  const currentUserIdRef = useRef(state.currentUserId);
-  useEffect(() => { currentUserIdRef.current = state.currentUserId; }, [state.currentUserId]);
-
-  // Wrapper dispatch: applica al reducer (UI istantanea) e poi sincronizza
-  // su Supabase fire-and-forget. Per ADD_TASK normalizza l'id in uuid in
-  // modo coerente tra reducer e DB.
-  const dispatch = useCallback((action) => {
-    if (!useSupabase) { rawDispatch(action); return; }
-
-    let toDispatch = action;
-    let dbOps = null;
-
-    switch (action.type) {
-      case "ADD_TASK": {
-        const id = isUuid(action.payload?.id) ? action.payload.id : newId();
-        const payload = { ...action.payload, id };
-        toDispatch = { ...action, payload };
-        dbOps = () => TasksAPI.create(toDbTask(payload));
-        break;
-      }
-      case "ADD_TASKS_BULK": {
-        const payload = (action.payload || []).map(t => ({
-          ...t, id: isUuid(t?.id) ? t.id : newId(),
-        }));
-        toDispatch = { ...action, payload };
-        dbOps = () => Promise.all(payload.map(t => TasksAPI.create(toDbTask(t))));
-        break;
-      }
-      case "UPDATE_TASK":
-        dbOps = () => TasksAPI.update(action.payload.id, toDbTaskPatch(action.payload));
-        break;
-      case "MOVE_TASK":
-        dbOps = () => TasksAPI.update(action.payload.taskId, { status: action.payload.newStatus });
-        break;
-      case "DELETE_TASK":
-        dbOps = () => TasksAPI.softDelete(action.payload);
-        break;
-      case "RESTORE_TASK":
-        dbOps = () => TasksAPI.restore(action.payload);
-        break;
-      case "PURGE_TASK":
-        dbOps = () => TasksAPI.hardDelete(action.payload);
-        break;
-      case "EMPTY_TRASH": {
-        const ids = state.tasks.filter(t => t.deletedAt).map(t => t.id);
-        dbOps = () => Promise.all(ids.map(id => TasksAPI.hardDelete(id)));
-        break;
-      }
-      case "ADD_COMMENT": {
-        const uid = currentUserIdRef.current;
-        dbOps = () => CommentsAPI.create({
-          task_id: action.payload.taskId,
-          user_id: uid,
-          text: action.payload.comment?.text ?? "",
-        });
-        break;
-      }
-      case "ADD_NOTICE": {
-        const id = isUuid(action.payload?.id) ? action.payload.id : newId();
-        const payload = { ...action.payload, id, author: action.payload.author ?? currentUserIdRef.current };
-        toDispatch = { ...action, payload };
-        dbOps = () => NoticesAPI.create(toDbNotice(payload));
-        break;
-      }
-      case "UPDATE_NOTICE":
-        dbOps = () => NoticesAPI.update(action.payload.id, toDbNoticePatch(action.payload));
-        break;
-      case "DELETE_NOTICE":
-        dbOps = () => NoticesAPI.remove(action.payload);
-        break;
-      case "TOGGLE_PIN_NOTICE": {
-        const prev = state.notices.find(n => n.id === action.payload);
-        const pinned = !(prev?.pinned);
-        dbOps = () => NoticesAPI.togglePin(action.payload, pinned);
-        break;
-      }
-      default:
-        break;
-    }
-
-    rawDispatch(toDispatch);
-    if (dbOps) {
-      Promise.resolve()
-        .then(dbOps)
-        .then((res) => {
-          const err = Array.isArray(res) ? res.find(r => r?.error)?.error : res?.error;
-          if (err) {
-            console.error(`[VoyageDesk] sync ${action.type}`, err);
-            rawDispatch({
-              type: "SHOW_TOAST",
-              payload: {
-                type: "error",
-                message: `Salvataggio fallito: ${err.message || "errore sconosciuto"}`,
-              },
-            });
-          }
-        })
-        .catch((e) => {
-          console.error(`[VoyageDesk] sync ${action.type}`, e);
-          rawDispatch({
-            type: "SHOW_TOAST",
-            payload: {
-              type: "error",
-              message: `Salvataggio fallito: ${e?.message || "errore di rete"}`,
-            },
-          });
-        });
-    }
-  }, [useSupabase, state.tasks, state.notices]);
   const [showFABModal, setShowFABModal] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [chatIntent, setChatIntent] = useState(null); // { toUser, taskLink } per aprire chat preconfezionata

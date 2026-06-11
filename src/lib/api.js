@@ -130,13 +130,23 @@ export const Messages = {
     return { path: data?.path ?? null, error };
   },
   // Signed URL temporanea (1h) per scaricare/visualizzare un allegato.
+  // Cache in-memory: scade 5 min prima del TTL, così click ripetuti sullo
+  // stesso allegato non rigenerano una signed URL per ogni interazione.
   getFileUrl: async (path) => {
+    const cached = signedUrlCache.get(path);
+    if (cached && cached.expiresAt > Date.now()) {
+      return { url: cached.url, error: null };
+    }
     const { data, error } = await supabase.storage
       .from('chat-files')
       .createSignedUrl(path, 60 * 60);
-    return { url: data?.signedUrl ?? null, error };
+    const url = data?.signedUrl ?? null;
+    if (url) signedUrlCache.set(path, { url, expiresAt: Date.now() + 55 * 60 * 1000 });
+    return { url, error };
   },
 };
+
+const signedUrlCache = new Map();
 
 // ----------------- NOTIFICATIONS -----------------
 // Generate solo da trigger DB (vedi migration 20260609_notifications.sql).

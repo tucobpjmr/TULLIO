@@ -1,5 +1,30 @@
 # CHANGELOG — VoyageDesk
 
+## v1.4-dev — Code-splitting bundle (sessione 12)
+
+> Cumulativo sopra v1.3-dev (Step L mergeato su `main` via PR #16).
+
+### 📦 Step N — Code-splitting (caveat #15)
+Obiettivo: ridurre il chunk JS iniziale (era un unico bundle da ~1039 KB / 303 KB gz, con warning Vite >500 KB).
+
+- **Lazy-load `xlsx`** (`src/VoyageDesk.jsx`): rimosso l'`import * as XLSX` statico. Nuovo helper module-level `loadXLSX()` che fa `import("xlsx")` on-demand e cachea la promise. I due unici call site (`handleFile` parsing import, `exportExcel`) ora sono `async` e fanno `const XLSX = await loadXLSX()`. SheetJS (~429 KB) esce dal bundle iniziale e diventa un chunk async caricato solo quando l'utente importa/esporta un file.
+- **`vite.config.js` — `manualChunks`**: `react`+`react-dom` e `@supabase/supabase-js` in chunk vendor dedicati. Cambiano di rado → restano in cache del browser tra i deploy.
+
+**Risultato build:**
+
+| Chunk | Prima | Dopo |
+|-------|-------|------|
+| principale (app) | 1039 KB (303 KB gz) | **262 KB (63 KB gz)** |
+| `react` vendor | — | 141 KB (45 KB gz) |
+| `supabase` vendor | — | 211 KB (54 KB gz) |
+| `xlsx` (async, on-demand) | incluso nel bundle | 429 KB (143 KB gz), **fuori dal load iniziale** |
+
+Load iniziale in gzip: ~303 KB → **~162 KB**. Warning Vite >500 KB rimosso. Target handoff "chunk principale ~400 KB" superato (262 KB).
+
+> Nota: lo split a livello di componente (`React.lazy` su `CalendarPlanner`/`AdminView`/`Trash`/`BulkTaskCreator`/`AIDayPlanner`) richiede prima di estrarre i componenti dal monolite `VoyageDesk.jsx` in moduli separati — rimandato (vedi caveat #15, ancora aperto per il refactor strutturale).
+
+---
+
 ## v1.3-dev — Origin-tagging realtime (sessione 12)
 
 > Cumulativo sopra v1.2-dev (PR #15 mergeata su `main`).

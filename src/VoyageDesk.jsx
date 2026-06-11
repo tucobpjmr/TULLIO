@@ -1,6 +1,8 @@
 
 import { useState, useReducer, useContext, createContext, useRef, useEffect, useCallback, useMemo } from "react";
-import * as XLSX from "xlsx";
+// xlsx (SheetJS, ~430KB) è caricato on-demand via import() dinamico solo
+// quando l'utente importa o esporta un file (vedi loadXLSX). Tenerlo fuori
+// dal bundle iniziale è il singolo guadagno più grande sul chunk principale.
 import {
   Tasks as TasksAPI, Comments as CommentsAPI, Notices as NoticesAPI,
   Conversations as ConversationsAPI, Messages as MessagesAPI,
@@ -15,6 +17,12 @@ import {
   fromDbNotification,
   newId, isUuid,
 } from "./lib/mappers.js";
+
+// ─── XLSX LAZY LOADER ──────────────────────────────────────────────────────
+// Carica SheetJS solo alla prima import/export e ne cachea il modulo, così il
+// bundle iniziale resta leggero (caveat #15, Step N).
+let _xlsxPromise = null;
+const loadXLSX = () => (_xlsxPromise ||= import("xlsx"));
 
 // ─── GOOGLE FONTS ──────────────────────────────────────────────────────────
 const FontLoader = () => (
@@ -2475,8 +2483,9 @@ const ImportTab = ({ onCreate, onClose }) => {
     setFileName(file.name);
     setError(null);
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
+        const XLSX = await loadXLSX();
         const data = evt.target.result;
         const wb = XLSX.read(data, { type: "binary", cellDates: true });
         const sheet = wb.Sheets[wb.SheetNames[0]];
@@ -7036,7 +7045,8 @@ const AdminIOTab = ({ state, dispatch }) => {
     downloadFile(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }), `voyagedesk-task-${new Date().toISOString().slice(0,10)}.csv`);
   };
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
+    const XLSX = await loadXLSX();
     const data = tasksToExport().map(t => ({
       ID: t.id, Titolo: t.title, Categoria: t.category, Priorità: t.priority,
       Status: t.status, Cliente: t.client || "",

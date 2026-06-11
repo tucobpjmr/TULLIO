@@ -7,4 +7,18 @@ export default defineConfig({
     port: 5173,
     open: true,
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Step N (caveat #15): separa le dipendenze vendor in chunk dedicati.
+        // Cambiano di rado → restano in cache del browser tra i deploy mentre
+        // il codice app (chunk principale) si aggiorna. xlsx non è qui perché
+        // ora è caricato via import() dinamico (chunk async a sé).
+        manualChunks: {
+          react: ['react', 'react-dom'],
+          supabase: ['@supabase/supabase-js'],
+        },
+      },
+    },
+  },
 });

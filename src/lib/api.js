@@ -16,14 +16,14 @@ export const Users = {
   get: (id) =>
     supabase.from('users').select('*').eq('id', id).single(),
   updateProfile: (id, patch) =>
-    supabase.from('users').update(patch).eq('id', id).select().single(),
+    supabase.from('users').update(withOrigin(patch)).eq('id', id).select().single(),
   setActive: (id, active) =>
-    supabase.from('users').update({ active }).eq('id', id),
+    supabase.from('users').update(withOrigin({ active })).eq('id', id),
   // Step H: presence
   setPresence: (id, status) =>
-    supabase.from('users').update({
+    supabase.from('users').update(withOrigin({
       status, last_seen_at: new Date().toISOString(),
-    }).eq('id', id),
+    })).eq('id', id),
 };
 
 // ----------------- TASKS -----------------
@@ -57,7 +57,7 @@ export const Comments = {
     supabase.from('comments').select('*, users(name, color, photo_url)')
       .eq('task_id', taskId).order('created_at'),
   create: ({ task_id, user_id, text }) =>
-    supabase.from('comments').insert({ task_id, user_id, text }).select().single(),
+    supabase.from('comments').insert(withOrigin({ task_id, user_id, text })).select().single(),
   remove: (id) =>
     supabase.from('comments').delete().eq('id', id),
 };

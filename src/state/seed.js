@@ -1,0 +1,175 @@
+// Seed mock usati solo da makeInitialState come fallback senza login.
+// Team/categorie/utente vivono nello state del reducer; i componenti li leggono
+// via AppContext (useTeam/useCategories/useCurrentUserId), non da globali.
+
+export const INITIAL_CURRENT_USER = "marco";
+
+export const INITIAL_TEAM = [
+  { id: "marco", name: "Marco Ferretti", role: "Manager", avatar: "MF", color: "#0F2044", capacity: 12, active: true, pending: false },
+  { id: "sofia", name: "Sofia Conti", role: "Senior Agent", avatar: "SC", color: "#2D7A4F", capacity: 10, active: true, pending: false },
+  { id: "luca", name: "Luca Moretti", role: "Junior Agent", avatar: "LM", color: "#C8832A", capacity: 8, active: true, pending: false },
+  { id: "giulia", name: "Giulia Ricci", role: "Driver", avatar: "GR", color: "#7B4F9E", capacity: 6, active: true, pending: false },
+  { id: "roberto", name: "Roberto Esposito", role: "Admin", avatar: "RE", color: "#C0392B", capacity: 9, active: true, pending: false },
+  { id: "elena", name: "Elena Marini", role: "Junior Agent", avatar: "EM", color: "#0EA5E9", capacity: 8, active: false, pending: true },
+  { id: "matteo", name: "Matteo De Luca", role: "Senior Agent", avatar: "MD", color: "#DB2777", capacity: 10, active: false, pending: true },
+];
+
+export const INITIAL_CATEGORIES = {
+  booking: { label: "Booking", icon: "✈️", color: "#3B82F6", bg: "#EFF6FF" },
+  hotel: { label: "Hotel", icon: "🏨", color: "#8B5CF6", bg: "#F5F3FF" },
+  visa: { label: "Visa & Doc.", icon: "🛂", color: "#EF4444", bg: "#FEF2F2" },
+  client: { label: "Clienti", icon: "👤", color: "#06B6D4", bg: "#ECFEFF" },
+  payment: { label: "Pagamenti", icon: "💰", color: "#F59E0B", bg: "#FFFBEB" },
+  marketing: { label: "Marketing", icon: "📣", color: "#EC4899", bg: "#FDF2F8" },
+  supplier: { label: "Fornitori", icon: "🤝", color: "#10B981", bg: "#ECFDF5" },
+  admin: { label: "Admin", icon: "📋", color: "#6B7280", bg: "#F9FAFB" },
+  itinerary: { label: "Itinerario", icon: "🗺️", color: "#F97316", bg: "#FFF7ED" },
+  transfer: { label: "Transfer", icon: "🚐", color: "#7B4F9E", bg: "#F3F0F9" },
+};
+
+// Date helper interno per generare scadenze relative a `now` al primo load.
+const now = new Date();
+const d = (daysOffset, h = 10, m = 0) => {
+  const dt = new Date(now);
+  dt.setDate(dt.getDate() + daysOffset);
+  dt.setHours(h, m, 0, 0);
+  return dt.toISOString();
+};
+
+export const INITIAL_TASKS = [
+  { id: "t1", title: "Confermare voli Maldive - Famiglia Rossi", category: "booking", priority: "critical", status: "inprogress", assignees: ["sofia"], client: "Famiglia Rossi", dueDate: d(1, 17, 0), estimatedHours: 2, description: "Verificare disponibilità posti business class e confermare prenotazione. Contattare Emirates per upgrade disponibili.", comments: [{ user: "Marco Ferretti", text: "Priorità massima, cliente VIP", time: d(-1) }] },
+  { id: "t2", title: "Visto Giappone - Coppia Bianchi", category: "visa", priority: "critical", status: "todo", assignees: ["roberto"], client: "Coppia Bianchi", dueDate: d(2, 9, 0), estimatedHours: 3, description: "Raccogliere documentazione per visto turistico Giappone. Luna di miele prevista per il mese prossimo.", comments: [] },
+  { id: "t3", title: "Hotel Overwater Bungalow - Maldive", category: "hotel", priority: "high", status: "inprogress", assignees: ["sofia", "luca"], client: "Famiglia Rossi", dueDate: d(3, 12, 0), estimatedHours: 1.5, description: "Contattare Four Seasons Kuda Huraa per disponibilità bungalow sull'acqua. Budget: 1500€/notte.", comments: [{ user: "Sofia Conti", text: "Four Seasons ha confermato 2 bungalow disponibili", time: d(-2) }] },
+  { id: "t4", title: "Proposta incentive travel TechCorp", category: "itinerary", priority: "high", status: "awaiting_client", assignees: ["marco"], client: "Azienda TechCorp", dueDate: d(4, 14, 0), estimatedHours: 5, description: "Preparare proposta dettagliata per viaggio incentive 50 persone. Destinazioni candidate: Dubrovnik, Marrakech, Lisbona.", comments: [{ user: "Marco Ferretti", text: "Proposta inviata, attesa risposta", time: d(-1) }] },
+  { id: "t5", title: "Pagamento acconto Famiglia Rossi", category: "payment", priority: "high", status: "todo", assignees: ["roberto"], client: "Famiglia Rossi", dueDate: d(0, 16, 0), estimatedHours: 0.5, description: "Richiedere acconto del 30% per prenotazione Maldive. Totale viaggio: 12.400€.", comments: [] },
+  { id: "t6", title: "Transfer aeroporto - Coppia Bianchi", category: "supplier", priority: "medium", status: "todo", assignees: ["giulia"], client: "Coppia Bianchi", dueDate: d(5, 8, 0), estimatedHours: 1, description: "Organizzare transfer NCC per partenza verso MXP. Volo KL 1656 ore 11:30.", comments: [] },
+  { id: "t7", title: "Newsletter Giugno - Offerte Estate", category: "marketing", priority: "medium", status: "inprogress", assignees: ["luca"], client: null, dueDate: d(6, 18, 0), estimatedHours: 4, description: "Creare newsletter mensile con offerte last minute estate 2025. Target: 2.400 contatti.", comments: [{ user: "Luca Moretti", text: "Bozza al 60%, aggiungo le foto Grecia", time: d(0) }] },
+  { id: "t8", title: "Contratto con nuovo fornitore bus", category: "supplier", priority: "medium", status: "awaiting_supplier", assignees: ["marco", "roberto"], client: null, dueDate: d(7, 10, 0), estimatedHours: 2, description: "Finalizzare accordo quadro con Autoservizi Meridionali per trasporti gruppi 2025/2026.", comments: [] },
+  { id: "t9", title: "Itinerario dettagliato Giappone 14 giorni", category: "itinerary", priority: "high", status: "inprogress", assignees: ["sofia"], client: "Coppia Bianchi", dueDate: d(3, 11, 0), estimatedHours: 6, description: "Strutturare itinerario Tokyo-Kyoto-Osaka-Hiroshima. Inserire esperienze di nicchia: cerimonia del tè, tempio Fushimi Inari alba.", comments: [{ user: "Sofia Conti", text: "Aggiunto ryokan a Kyoto su richiesta della coppia", time: d(-1) }] },
+  { id: "t10", title: "Aggiornare sito web pacchetti autunno", category: "marketing", priority: "low", status: "todo", assignees: ["luca"], client: null, dueDate: d(10, 17, 0), estimatedHours: 3, description: "Pubblicare nuovi pacchetti autunno: Foliage Canada, Halloween New York, Dolomiti.", comments: [] },
+  { id: "t11", title: "Check-in online TechCorp - voli Barcelona", category: "booking", priority: "high", status: "done", assignees: ["sofia"], client: "Azienda TechCorp", dueDate: d(-1, 9, 0), estimatedHours: 1, description: "Completare check-in online per 50 partecipanti. Assegnare posti preferenziali ai manager.", comments: [{ user: "Sofia Conti", text: "Check-in completato ✓ Tutti i posti assegnati", time: d(-1) }] },
+  { id: "t12", title: "Richiesta polizza assicurativa viaggio", category: "admin", priority: "medium", status: "done", assignees: ["roberto"], client: "Famiglia Rossi", dueDate: d(-2, 15, 0), estimatedHours: 0.5, description: "Polizza annullamento + medica per 4 persone. Confrontare Allianz, Generali, AXA.", comments: [{ user: "Roberto Esposito", text: "Polizza Allianz emessa, €342 totale", time: d(-2) }] },
+  { id: "t13", title: "Followup chiamata TechCorp - decisione destinazione", category: "client", priority: "critical", status: "awaiting_client", assignees: ["marco"], client: "Azienda TechCorp", dueDate: d(1, 10, 30), estimatedHours: 1, description: "Chiamata con HR Director TechCorp per confermare destinazione incentive. Budget approvato 85.000€.", comments: [] },
+  { id: "t14", title: "Prenotare ryokan Kyoto - Bianchi", category: "hotel", priority: "high", status: "inprogress", assignees: ["sofia"], client: "Coppia Bianchi", dueDate: d(2, 16, 0), estimatedHours: 2, description: "Prenotare Tawaraya Ryokan o Hiiragiya per 2 notti. Suite tradizionale con vista giardino zen.", comments: [] },
+  { id: "t15", title: "Fattura acconto TechCorp", category: "payment", priority: "medium", status: "todo", assignees: ["roberto"], client: "Azienda TechCorp", dueDate: d(4, 11, 0), estimatedHours: 0.5, description: "Emettere fattura acconto 50% per evento incentive. Importo: 42.500€ + IVA.", comments: [] },
+  { id: "t16", title: "Aggiornamento CRM clienti Q2", category: "admin", priority: "low", status: "todo", assignees: ["roberto", "luca"], client: null, dueDate: d(14, 17, 0), estimatedHours: 4, description: "Aggiornare schede clienti con dati viaggi 2025. Aggiungere preferenze e note speciali.", comments: [] },
+  { id: "t17", title: "Transfer hotel-aeroporto Bianchi Malpensa", category: "supplier", priority: "medium", status: "todo", assignees: ["giulia"], client: "Coppia Bianchi", dueDate: d(8, 6, 0), estimatedHours: 0.5, description: "NCC privato per 2 persone + bagagli. Partenza alle 06:45, volo ANA 785.", comments: [] },
+  { id: "t18", title: "Social media post - Maldive promo", category: "marketing", priority: "low", status: "done", assignees: ["luca"], client: null, dueDate: d(-3, 17, 0), estimatedHours: 1.5, description: "Post Instagram + Facebook con foto Maldive stagione monsoni. CTA: richiedi preventivo.", comments: [{ user: "Luca Moretti", text: "Post pubblicato, +156 interazioni in 24h", time: d(-3) }] },
+  { id: "t19", title: "Documenti sanitari Maldive - Rossi", category: "visa", priority: "high", status: "done", assignees: ["roberto"], client: "Famiglia Rossi", dueDate: d(-1, 12, 0), estimatedHours: 1, description: "Verificare requisiti sanitari entrata Maldive. Raccogliere certificati vaccinazione richiesti.", comments: [{ user: "Roberto Esposito", text: "Non richieste vaccinazioni specifiche, documentazione OK", time: d(-1) }] },
+  { id: "t20", title: "Presentazione corporate travel policy TechCorp", category: "client", priority: "medium", status: "awaiting_client", assignees: ["marco", "sofia"], client: "Azienda TechCorp", dueDate: d(5, 15, 0), estimatedHours: 3, description: "Preparare slide con policy viaggi corporate, livelli classe, hotel preferred, tool di prenotazione.", comments: [] },
+  { id: "t21", title: "Escursioni snorkeling Maldive", category: "booking", priority: "medium", status: "inprogress", assignees: ["luca"], client: "Famiglia Rossi", dueDate: d(6, 10, 0), estimatedHours: 1.5, description: "Prenotare 3 escursioni snorkeling e 1 sessione di immersione guidata con istruttore certificato.", comments: [] },
+  { id: "t22", title: "Revisione contratti stagione invernale", category: "admin", priority: "low", status: "todo", assignees: ["marco"], client: null, dueDate: d(20, 10, 0), estimatedHours: 5, description: "Revisione annuale contratti fornitori: tour operator, hotel chains, compagnie aeree.", comments: [] },
+  // ─── Coda globale: task non assegnati (in attesa che qualcuno li prenda in carico) ───
+  { id: "t23", title: "Nuova richiesta crociera Caraibi - Famiglia Marchetti", category: "client", priority: "high", status: "todo", assignees: [], client: "Famiglia Marchetti", dueDate: d(2, 11, 0), estimatedHours: 1, description: "Richiesta arrivata via form sito: crociera 7 notti per 4 persone, partenza Miami. Da contattare entro 48h.", comments: [] },
+  { id: "t24", title: "Blocco urgente Hotel Atene per gruppo studenti", category: "hotel", priority: "critical", status: "todo", assignees: [], client: "Liceo Manzoni", dueDate: d(1, 12, 0), estimatedHours: 2, description: "30 camere a Plaka per fine Maggio. Tariffa già negoziata, serve solo conferma e invio rooming list.", comments: [] },
+  { id: "t25", title: "Preventivo viaggio nozze Vietnam - Sposi Conte", category: "itinerary", priority: "medium", status: "todo", assignees: [], client: "Sposi Conte", dueDate: d(5, 17, 0), estimatedHours: 3, description: "14 giorni Vietnam classico: Hanoi - Halong - Hoi An - Saigon. Budget medio-alto, esperienze locali.", comments: [] },
+  // ─── Task Transfer assegnati a Giulia (Driver) ───
+  { id: "t26", title: "Transfer Linate → Hotel Principe - Famiglia Rossi", category: "transfer", priority: "high", status: "todo", assignees: ["giulia"], client: "Famiglia Rossi", dueDate: d(1, 14, 30), estimatedHours: 1, description: "Pickup arrivo volo AZ1234 ore 14:00, 4 pax + 6 bagagli. Van 8 posti.", comments: [] },
+  { id: "t27", title: "Transfer Hotel → Stazione Centrale - Coppia Bianchi", category: "transfer", priority: "medium", status: "inprogress", assignees: ["giulia"], client: "Coppia Bianchi", dueDate: d(3, 9, 0), estimatedHours: 0.5, description: "Pickup hotel ore 09:00, treno Frecciarossa 9:55 per Roma. 2 pax + 3 bagagli.", comments: [] },
+];
+
+export const NOTIFICATIONS = [
+  { id: "n1", type: "overdue", title: "Task scaduto: Visto Giappone - Coppia Bianchi", time: "5 min fa", read: false },
+  { id: "n2", type: "assigned", title: "Nuovo task assegnato: Newsletter Giugno", time: "1 ora fa", read: false },
+  { id: "n3", type: "comment", title: "Sofia ha commentato su Hotel Overwater Bungalow", time: "2 ore fa", read: false },
+  { id: "n4", type: "deadline", title: "Scadenza domani: Conferma voli Maldive", time: "3 ore fa", read: true },
+  { id: "n5", type: "comment", title: "Luca ha aggiornato: Newsletter Giugno", time: "4 ore fa", read: true },
+  { id: "n6", type: "deadline", title: "Scadenza oggi: Pagamento acconto Famiglia Rossi", time: "8 ore fa", read: true },
+];
+
+// ─── TASK TEMPLATES ────────────────────────────────────────────────────────
+export const TASK_TEMPLATES = [
+  {
+    id: "event-corp",
+    name: "Evento corporate / Incentive",
+    icon: "🎯",
+    description: "Set completo per organizzare un viaggio incentive aziendale",
+    tasks: [
+      { title: "Briefing iniziale con cliente", category: "client", priority: "high", dayOffset: -45, estimatedHours: 2 },
+      { title: "Proposta destinazioni e budget", category: "itinerary", priority: "high", dayOffset: -40, estimatedHours: 5 },
+      { title: "Conferma destinazione cliente", category: "client", priority: "critical", dayOffset: -35, estimatedHours: 1 },
+      { title: "Prenotazione voli gruppo", category: "booking", priority: "critical", dayOffset: -30, estimatedHours: 4 },
+      { title: "Prenotazione hotel di gruppo", category: "hotel", priority: "high", dayOffset: -28, estimatedHours: 3 },
+      { title: "Organizzazione transfer aeroportuali", category: "supplier", priority: "medium", dayOffset: -14, estimatedHours: 2 },
+      { title: "Polizza viaggio gruppo", category: "admin", priority: "medium", dayOffset: -10, estimatedHours: 1 },
+      { title: "Voucher e documenti ai partecipanti", category: "admin", priority: "high", dayOffset: -5, estimatedHours: 2 },
+    ],
+  },
+  {
+    id: "honeymoon",
+    name: "Viaggio di nozze",
+    icon: "💍",
+    description: "Pacchetto completo per una luna di miele",
+    tasks: [
+      { title: "Consulenza preferenze coppia", category: "client", priority: "high", dayOffset: -90, estimatedHours: 2 },
+      { title: "Proposta itinerario personalizzato", category: "itinerary", priority: "high", dayOffset: -75, estimatedHours: 5 },
+      { title: "Conferma destinazione e budget", category: "client", priority: "critical", dayOffset: -60, estimatedHours: 1 },
+      { title: "Prenotazione voli", category: "booking", priority: "critical", dayOffset: -55, estimatedHours: 2 },
+      { title: "Prenotazione hotel/resort", category: "hotel", priority: "critical", dayOffset: -50, estimatedHours: 3 },
+      { title: "Esperienze speciali (cene, escursioni)", category: "booking", priority: "high", dayOffset: -30, estimatedHours: 3 },
+      { title: "Documenti viaggio e visti", category: "visa", priority: "high", dayOffset: -25, estimatedHours: 2 },
+      { title: "Saldo finale e consegna voucher", category: "payment", priority: "high", dayOffset: -10, estimatedHours: 1 },
+    ],
+  },
+  {
+    id: "family",
+    name: "Viaggio famiglia",
+    icon: "👨‍👩‍👧",
+    description: "Pacchetto vacanza per nucleo familiare",
+    tasks: [
+      { title: "Briefing famiglia e preferenze", category: "client", priority: "medium", dayOffset: -45, estimatedHours: 1.5 },
+      { title: "Proposta destinazioni family-friendly", category: "itinerary", priority: "high", dayOffset: -40, estimatedHours: 3 },
+      { title: "Prenotazione voli famiglia", category: "booking", priority: "high", dayOffset: -30, estimatedHours: 2 },
+      { title: "Prenotazione hotel con servizi bambini", category: "hotel", priority: "high", dayOffset: -28, estimatedHours: 2 },
+      { title: "Assicurazione viaggio", category: "admin", priority: "medium", dayOffset: -14, estimatedHours: 1 },
+      { title: "Consegna documentazione completa", category: "admin", priority: "medium", dayOffset: -5, estimatedHours: 1 },
+    ],
+  },
+  {
+    id: "incoming",
+    name: "Visita incoming / Ospitalità",
+    icon: "🛬",
+    description: "Accoglienza di un cliente o gruppo in arrivo",
+    tasks: [
+      { title: "Conferma arrivo e voli", category: "booking", priority: "high", dayOffset: -14, estimatedHours: 1 },
+      { title: "Prenotazione transfer NCC", category: "supplier", priority: "high", dayOffset: -10, estimatedHours: 1 },
+      { title: "Prenotazione hotel", category: "hotel", priority: "high", dayOffset: -10, estimatedHours: 1.5 },
+      { title: "Programma esperienze/visite", category: "itinerary", priority: "medium", dayOffset: -7, estimatedHours: 3 },
+      { title: "Prenotazione ristoranti", category: "supplier", priority: "medium", dayOffset: -5, estimatedHours: 1 },
+      { title: "Welcome kit e brief operativo", category: "admin", priority: "medium", dayOffset: -2, estimatedHours: 1 },
+    ],
+  },
+];
+
+// giallo, rosa, verde, azzurro, lilla
+export const NOTICE_COLORS = ["#FEF3C7", "#FCE7F3", "#D1FAE5", "#DBEAFE", "#E9D5FF"];
+
+export const INITIAL_NOTICES = [
+  {
+    id: "n1",
+    text: "📅 Riunione settimanale del team\nLunedì ore 9:30 in sala riunioni — agenda condivisa via mail.",
+    color: "#FEF3C7",
+    author: "marco",
+    pinned: true,
+    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+    updatedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+  },
+  {
+    id: "n2",
+    text: "🌞 Promo Summer attiva!\nSconti -15% su pacchetti Grecia/Croazia fino al 30 Giugno. Riferimento offerta: SUMMER26.",
+    color: "#FCE7F3",
+    author: "sofia",
+    pinned: false,
+    createdAt: new Date(Date.now() - 86400000).toISOString(),
+    updatedAt: new Date(Date.now() - 86400000).toISOString(),
+  },
+  {
+    id: "n3",
+    text: "🏨 Nuovo fornitore confermato\nAegean Hotels Group - vedere allegato in mail di Roberto per tariffe nette 2026.",
+    color: "#D1FAE5",
+    author: "roberto",
+    pinned: false,
+    createdAt: new Date(Date.now() - 3600000 * 4).toISOString(),
+    updatedAt: new Date(Date.now() - 3600000 * 4).toISOString(),
+  },
+];

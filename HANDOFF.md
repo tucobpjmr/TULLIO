@@ -32,12 +32,12 @@ Font: Playfair Display (headings, `.playfair`) + DM Sans (body, default).
 
 ## 2. Stato attuale del codebase
 
-**File principale:** `src/VoyageDesk.jsx` (~4.780 righe, da una baseline di ~8.270 → **−42%**).
+**File principale:** `src/VoyageDesk.jsx` (~686 righe, da una baseline di ~8.270 → **−92%**).
 
-**Struttura moduli già estratti** (Step P, Fasi 1 + 2/PR1-3):
+**Struttura moduli** (Step P, Fasi 1 + 2 PR 1-7 completate):
 ```
 src/
-  VoyageDesk.jsx              # wrapper + AppContext.Provider + ChatPanel + restanti views
+  VoyageDesk.jsx              # wrapper + VoyageDeskInner (state + effetti + render view + chat panel)
   hooks/
     useViewport.jsx
   state/
@@ -50,34 +50,55 @@ src/
   utils/
     formatters.js             # formatDate, formatTime, getDayKey
     taskFilters.js            # isOverdue, isUrgent, isMyTask, isInGlobalQueue, ecc.
+    xlsx.js                   # loadXLSX (lazy loader SheetJS condiviso)
   components/
     atoms/index.jsx           # Avatar, PriorityBadge, CategoryChip, StatusBadge
     layout/
-      FontLoader.jsx
-      Toast.jsx
-      FAB.jsx
-      NavBadge.jsx
+      FontLoader.jsx, Toast.jsx, FAB.jsx, NavBadge.jsx
       NotificationsPanel.jsx  # + NOTIF_ICONS/notifTitle/notifTime co-locati
-      UserSwitcher.jsx
-      AdvancedSearchPanel.jsx
-      Sidebar.jsx
-      BottomNav.jsx
-      Topbar.jsx
+      UserSwitcher.jsx, AdvancedSearchPanel.jsx
+      Sidebar.jsx, BottomNav.jsx, Topbar.jsx
     team/
+      Team.jsx                # view team (capacità + slide-up task)
       ProfileEditor.jsx       # + AVATAR_EMOJIS/AVATAR_COLORS
     shared/
       SwipeActions.jsx
     dashboard/
-      Dashboard.jsx
-      PersonalQueue.jsx
-      UrgentOthersQueue.jsx
-      UnassignedQueue.jsx
-      OverdueQueue.jsx
-      QueueTab.jsx
-      NoticeBoard.jsx
-      NoticeEditorModal.jsx
+      Dashboard.jsx, PersonalQueue.jsx, UrgentOthersQueue.jsx
+      UnassignedQueue.jsx, OverdueQueue.jsx, QueueTab.jsx
+      NoticeBoard.jsx, NoticeEditorModal.jsx
     ai/
       AIDayPlanner.jsx
+    calendar/
+      CalendarPlanner.jsx     # mese/sett/giorno + ics helpers + distribuzione agenti
+    chat/
+      seed.js                 # initialConversations + initialMessages
+      presence.js             # computePresence + PRESENCE_COLORS
+      ChatContext.js
+      formatters.js           # formatChatTime/MsgTime/Duration/FileSize, fileKindFromName, MAX_FILE_SIZE
+      helpers.js              # getConversationName/LastMessage/UnreadCount, EMOJI_REACTIONS,
+                              # TASK_LINK_RE, parseTaskLink, iconBtn
+      ReactionPicker.jsx, VoicePlayer.jsx, VoiceRecorder.jsx
+      MessageTextContent.jsx, ChatMessage.jsx
+      ConversationView.jsx, ConversationList.jsx, NewConversationView.jsx
+      ChatPanel.jsx           # orchestratore (drawer + intent + provider)
+    tasks/
+      bulkStyles.js           # bulkInputStyle/BtnPrimary/BtnGhost/IconBtnSmall
+      ManualTab.jsx, DuplicateTab.jsx, ImportTab.jsx, TemplateTab.jsx
+      BulkTaskCreator.jsx     # orchestratore dei 4 tab
+      QuickAddTask.jsx        # form FAB
+      TaskSlideOver.jsx       # dettaglio task
+    trash/
+      Trash.jsx               # view cestino + RestoreEditModal inline
+    admin/
+      adminStyles.js          # sectionH, cardStyle, cardH, cardP, labelStyle, fieldStyle,
+                              # btnPrimary/Gold/Ghost/Danger/Warning, modalOverlay/Card
+      AdminView.jsx           # orchestratore + 5 tab
+      AdminTeamTab.jsx, AddTeamMemberModal.jsx
+      AdminIOTab.jsx          # export CSV/Excel + backup JSON
+      AdminStatsTab.jsx       # KPI + distribuzioni
+      AdminCategoriesTab.jsx, AddCategoryModal.jsx
+      AdminLogTab.jsx
 ```
 
 **Altri file rilevanti:**
@@ -87,7 +108,7 @@ src/
 - `supabase/migrations/*.sql` — 21 file SQL versionati (Step R)
 
 **Branch attivo:** `claude/focused-davinci-47667f`
-**PR aperta (draft):** [#27 — Step P refactor monolite](https://github.com/tucobpjmr/TULLIO/pull/27) — 5 commit, build Vercel verde.
+**PR aperta (draft):** [#27 — Step P refactor monolite](https://github.com/tucobpjmr/TULLIO/pull/27) — 9 commit, build Vercel verde, **−92%** sul main file.
 
 **Step completati (in ordine):**
 - A–E: setup, auth, RLS, mock seed
@@ -105,44 +126,43 @@ src/
 - **P — Fase 2/PR 1:** estratti `state/`, `utils/`, `hooks/`
 - **P — Fase 2/PR 2:** estratti `components/layout/` + `atoms` + `team/ProfileEditor`
 - **P — Fase 2/PR 3:** estratti `components/dashboard/` + `ai/AIDayPlanner` + `shared/SwipeActions`
+- **P — Fase 2/PR 4:** estratti `components/calendar/CalendarPlanner` + ics helpers
+- **P — Fase 2/PR 5:** estratti `components/chat/` (14 file)
+- **P — Fase 2/PR 6:** estratti `components/tasks/` (8 file) + `components/trash/` + `utils/xlsx.js`
+- **P — Fase 2/PR 7:** estratti `components/admin/` (9 file) + `components/team/Team.jsx`
 
 ---
 
 ## 3. Step P — Fase 2: cosa resta da fare
 
-Componenti ancora dentro `src/VoyageDesk.jsx` da estrarre, in ordine (una sotto-PR per gruppo):
+### PR 8 — cleanup + React.lazy (OPZIONALE)
 
-### PR 4 — `components/calendar/`
-- `CalendarPlanner.jsx` (~500 righe, vista calendario month/week/day)
-- helpers ICS (`buildIcs`, `icsDate`, `icsEscape`, `exportTasksToIcs`)
+L'estrazione del monolite è completa. Resta solo cleanup opzionale:
 
-### PR 5 — `components/chat/` (la più grossa, ~1200 righe)
-- `ChatPanel.jsx` (orchestratore)
-- `ConversationList.jsx`, `ConversationView.jsx`, `NewConversationView.jsx`
-- `ChatMessage.jsx`, `MessageTextContent.jsx`, `ReactionPicker.jsx`
-- `VoicePlayer.jsx`, `VoiceRecorder.jsx`
-- formatters chat (`formatChatTime`, `formatMsgTime`, `formatDuration`, `formatFileSize`)
-- helpers plain (`getConversationName`, `getUnreadCount`, `getLastMessage`, `EMOJI_REACTIONS`)
-- `computePresence` / `PRESENCE_COLORS` (ora nel main file, andranno qui)
-- `ChatContext` (ora nel main file)
+1. **`React.lazy(() => import(...))` + `<Suspense>`** su modali e viste non-default:
+   - `AdminView` (~600 righe + 5 tab)
+   - `BulkTaskCreator` (~500 righe + 4 tab)
+   - `AIDayPlanner`
+   - `TaskSlideOver`
+   - `NoticeEditorModal`
+   - `ProfileEditor`
+   - `Trash`
+   - `CalendarPlanner`
 
-### PR 6 — `components/tasks/` + `components/trash/`
-- `tasks/TaskSlideOver.jsx`, `QuickAddTask.jsx`
-- `tasks/BulkTaskCreator.jsx` (+ tabs: `ManualTab`, `DuplicateTab`, `ImportTab`, `TemplateTab`)
-- `tasks/bulkStyles.js` (`bulkInputStyle`, `bulkBtnPrimary`, `bulkBtnGhost`, `bulkIconBtnSmall`)
-- `trash/Trash.jsx` (+ `RestoreEditModal` inline)
+   Riduce il chunk principale di **~50-80 kB gz**.
 
-### PR 7 — `components/admin/` + `components/team/Team.jsx`
-- `admin/AdminView.jsx` (orchestratore + 5 tab)
-- `admin/AdminTeamTab.jsx`, `AddTeamMemberModal.jsx`
-- `admin/AdminIOTab.jsx`, `AdminCategoriesTab.jsx`, `AddCategoryModal.jsx`
-- `admin/AdminStatsTab.jsx`, `AdminLogTab.jsx`
-- `team/Team.jsx` (la view, non il ProfileEditor — già estratto)
+2. **Verificare import orfani** nel main file dopo eventuale lazy (probabile cleanup minimo).
 
-### PR 8 — cleanup
-- `VoyageDesk.jsx` deve restare solo wrapper + `VoyageDeskInner` (state + effetti + render switch view + chat panel).
-- `React.lazy(() => import(...))` + `<Suspense>` su modali e viste non-default: `AdminView`, `BulkTaskCreator`, `AIDayPlanner`, `TaskSlideOver`, `NoticeEditorModal`, `ProfileEditor`. Riduce il chunk principale di ~50-80 kB gz.
-- Rimuovi import non più usati nel main file dopo ogni estrazione.
+3. **Eventuale estrazione `VoyageDeskInner`**: la funzione interna del main file (~600 righe ora) potrebbe essere divisa in:
+   - `state/effects.js` — i `useEffect` di subscribe realtime / hydration Supabase
+   - `useChatState.js` — hook custom per `conversations`/`messages`/`presenceMap`
+   - Il main resterebbe solo come wrapper + render switch view + ChatPanel.
+
+   **Attenzione:** è un refactor più invasivo del solo MOVE; valutare costo/beneficio.
+
+### Dopo PR 8 — merge PR #27
+
+Una volta verde l'ultima sotto-PR, marca PR #27 come **ready for review** e mergi su `main`.
 
 ---
 
@@ -155,7 +175,7 @@ Componenti ancora dentro `src/VoyageDesk.jsx` da estrarre, in ordine (una sotto-
 5. Mantenere CSS inline + CSS variables
 6. Lingua UI italiano
 7. **PR piccole** — un commit per cartella/gruppo logico
-8. **Solo MOVE, zero rewrite** durante l'estrazione. Tweaks di chiarezza ok (es. rimozione `noticeBtnStyle` orphan); refactor di firme/logica NO.
+8. **Solo MOVE, zero rewrite** durante l'estrazione. Tweaks di chiarezza ok; refactor di firme/logica NO.
 
 ---
 
@@ -208,6 +228,9 @@ Da `src/utils/taskFilters.js`:
 Da `src/hooks/useViewport.jsx`:
 `useViewport()` → `{ isMobile, isTablet, isDesktop }`.
 
+Da `src/utils/xlsx.js`:
+`loadXLSX()` → Promise<typeof XLSX> (lazy + cached).
+
 ---
 
 ## 6. Convenzioni codice
@@ -248,9 +271,10 @@ Da `src/hooks/useViewport.jsx`:
 | 3 | Presence heartbeat ogni 45s anche con status invariato | aperto | bassa |
 | 8 | Calendar Distribuzione Agenti settimana fissa | aperto | bassa |
 | 10 | 3 useEffect simili (tasks+notices, notifications, chat) — estrai `useDebouncedTableSubscription` | aperto | bassa (target PR 8) |
-| 15 | Monolite — **Step P in corso** | parziale (Fase 2 al 50%) | **alta** |
+| 15 | Monolite — **Step P quasi chiuso** | Fase 2 al 100% (resta solo PR 8 cleanup opzionale) | bassa |
 | 17 | Pattern `let` globali + `_sync*` | **chiuso** in Step P Fase 1 ✅ | — |
 | 18 | Mojibake preview import CSV — usa `codepage: 65001` | aperto | bassa |
+| 19 | Bug latente `SwipeActions` non importato nel main file | **chiuso** in Step P Fase 2 PR 4 ✅ | — |
 
 ---
 
@@ -272,14 +296,20 @@ Da `src/hooks/useViewport.jsx`:
 
 Inizia con:
 ```
-Ho letto l'handoff. Branch claude/focused-davinci-47667f, PR #27 (draft) aperta con 5 commit.
-Sono pronto a riprendere Step P / Fase 2.
-Prossimo target: PR 4 — estrazione components/calendar/ (CalendarPlanner + ics helpers).
-Procedo o vuoi rivedere prima la preview Vercel della PR?
+Ho letto l'handoff. Branch claude/focused-davinci-47667f, PR #27 (draft) aperta con 9 commit.
+Step P / Fase 2 completata: 8271 → 686 righe (-92%) sul main file.
+
+Opzioni residue:
+A. PR 8 — React.lazy su modali/viste pesanti (riduce chunk principale ~50-80 kB gz)
+B. Merge PR #27 su main così com'è (refactor is already complete, lazy è ottimizzazione)
+C. Refactor invasivo di VoyageDeskInner (~600 righe rimaste nel main):
+   estrarre useChatState hook + state/effects.js
+
+Quale preferisci?
 ```
 
-Aspetta la risposta dell'utente prima di scrivere codice. Una volta confermato, applica il workflow operativo (sezione 7) per CalendarPlanner.
+Aspetta la risposta dell'utente prima di scrivere codice.
 
 ---
 
-**Fine handoff Claude Code / cowork.** Aggiornato al 12/06/2026, post Fase 2 PR 3 (sessione 16).
+**Fine handoff Claude Code / cowork.** Aggiornato al 12/06/2026, post Fase 2 PR 7 (sessione 17).

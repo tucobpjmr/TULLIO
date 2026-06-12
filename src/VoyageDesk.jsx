@@ -141,15 +141,12 @@ const ViewportProvider = ({ children }) => {
 };
 
 // ─── MOCK DATA ─────────────────────────────────────────────────────────────
-// Utente attualmente loggato. `let` per supportare lo switcher utente (v0.8).
-// Il reducer mantiene in sync state.currentUserId con questo riferimento globale.
-let CURRENT_USER = "marco";
-const _syncCurrentUser = (id) => { CURRENT_USER = id; };
+// Seed mock usati solo da makeInitialState come fallback senza login.
+// Team/categorie/utente vivono nello state del reducer; i componenti li leggono
+// via AppContext (useTeam/useCategories/useCurrentUserId), non da globali.
+const INITIAL_CURRENT_USER = "marco";
 
-// TEAM e CATEGORIES sono mutabili (gestiti dall'Admin via reducer).
-// Sono `let` perché getMember e altre utility leggono il riferimento corrente.
-// Il reducer aggiorna sia state.team/state.categories sia questi array in-place.
-let TEAM = [
+const INITIAL_TEAM = [
   { id: "marco", name: "Marco Ferretti", role: "Manager", avatar: "MF", color: "#0F2044", capacity: 12, active: true, pending: false },
   { id: "sofia", name: "Sofia Conti", role: "Senior Agent", avatar: "SC", color: "#2D7A4F", capacity: 10, active: true, pending: false },
   { id: "luca", name: "Luca Moretti", role: "Junior Agent", avatar: "LM", color: "#C8832A", capacity: 8, active: true, pending: false },
@@ -159,7 +156,7 @@ let TEAM = [
   { id: "matteo", name: "Matteo De Luca", role: "Senior Agent", avatar: "MD", color: "#DB2777", capacity: 10, active: false, pending: true },
 ];
 
-let CATEGORIES = {
+const INITIAL_CATEGORIES = {
   booking: { label: "Booking", icon: "✈️", color: "#3B82F6", bg: "#EFF6FF" },
   hotel: { label: "Hotel", icon: "🏨", color: "#8B5CF6", bg: "#F5F3FF" },
   visa: { label: "Visa & Doc.", icon: "🛂", color: "#EF4444", bg: "#FEF2F2" },
@@ -309,14 +306,13 @@ const TASK_TEMPLATES = [
 ];
 
 // ─── CONTEXT & REDUCER ─────────────────────────────────────────────────────
-const AppContext = createContext(null);
-
-// Mutazione in-place per mantenere il riferimento alle costanti TEAM/CATEGORIES
-const _syncTeam = (newTeam) => { TEAM.length = 0; newTeam.forEach(m => TEAM.push(m)); };
-const _syncCategories = (newCats) => {
-  Object.keys(CATEGORIES).forEach(k => { delete CATEGORIES[k]; });
-  Object.entries(newCats).forEach(([k, v]) => { CATEGORIES[k] = v; });
-};
+// AppContext espone i dati condivisi { team, categories, currentUserId } letti
+// dallo state del reducer. I componenti li consumano via gli hook qui sotto,
+// senza dover leggere globali mutabili (eliminati in Fase 1).
+const AppContext = createContext({ team: [], categories: {}, currentUserId: null });
+const useTeam = () => useContext(AppContext).team;
+const useCategories = () => useContext(AppContext).categories;
+const useCurrentUserId = () => useContext(AppContext).currentUserId;
 
 // Azioni che generano una voce nel log attività
 const LOGGED_ACTIONS = new Set([
@@ -382,7 +378,6 @@ function baseReducer(state, action) {
       const newId = action.payload;
       const m = getMember(newId, state.team);
       if (!m) return state;
-      _syncCurrentUser(newId);
       // Se l'utente non può più accedere alla view corrente, riporta a dashboard
       const activeView = (state.activeView === "admin" && !canAccessAdmin(newId, state.team))
         ? "dashboard"
@@ -495,49 +490,34 @@ function baseReducer(state, action) {
 
     // ─── ADMIN: TEAM ───
     case "ADD_TEAM_MEMBER": {
-      const team = [...state.team, action.payload];
-      _syncTeam(team);
-      return { ...state, team, toast: { message: `Agente "${action.payload.name}" aggiunto`, type: "success" } };
+      const team = [...state.team, action.payload];      return { ...state, team, toast: { message: `Agente "${action.payload.name}" aggiunto`, type: "success" } };
     }
     case "UPDATE_TEAM_MEMBER": {
-      const team = state.team.map(m => m.id === action.payload.id ? { ...m, ...action.payload } : m);
-      _syncTeam(team);
-      return { ...state, team, toast: { message: "Agente aggiornato", type: "success" } };
+      const team = state.team.map(m => m.id === action.payload.id ? { ...m, ...action.payload } : m);      return { ...state, team, toast: { message: "Agente aggiornato", type: "success" } };
     }
     case "APPROVE_TEAM_MEMBER": {
-      const team = state.team.map(m => m.id === action.payload ? { ...m, pending: false, active: true } : m);
-      _syncTeam(team);
-      return { ...state, team, toast: { message: "Agente approvato e attivato!", type: "success" } };
+      const team = state.team.map(m => m.id === action.payload ? { ...m, pending: false, active: true } : m);      return { ...state, team, toast: { message: "Agente approvato e attivato!", type: "success" } };
     }
     case "TOGGLE_TEAM_MEMBER_ACTIVE": {
-      const team = state.team.map(m => m.id === action.payload ? { ...m, active: !m.active } : m);
-      _syncTeam(team);
-      const target = team.find(m => m.id === action.payload);
+      const team = state.team.map(m => m.id === action.payload ? { ...m, active: !m.active } : m);      const target = team.find(m => m.id === action.payload);
       return { ...state, team, toast: { message: target?.active ? "Agente attivato" : "Agente disattivato", type: "success" } };
     }
     case "REMOVE_TEAM_MEMBER": {
       // Non rimuove davvero se ha task assegnati: si limita a disattivare e segnare pending=false
-      const team = state.team.filter(m => m.id !== action.payload);
-      _syncTeam(team);
-      return { ...state, team, toast: { message: "Agente rimosso", type: "success" } };
+      const team = state.team.filter(m => m.id !== action.payload);      return { ...state, team, toast: { message: "Agente rimosso", type: "success" } };
     }
 
     // ─── ADMIN: CATEGORIES ───
     case "ADD_CATEGORY": {
       const { key, ...rest } = action.payload;
-      const categories = { ...state.categories, [key]: rest };
-      _syncCategories(categories);
-      return { ...state, categories, toast: { message: `Categoria "${rest.label}" aggiunta`, type: "success" } };
+      const categories = { ...state.categories, [key]: rest };      return { ...state, categories, toast: { message: `Categoria "${rest.label}" aggiunta`, type: "success" } };
     }
     case "UPDATE_CATEGORY": {
       const { key, ...rest } = action.payload;
-      const categories = { ...state.categories, [key]: { ...state.categories[key], ...rest } };
-      _syncCategories(categories);
-      return { ...state, categories, toast: { message: "Categoria aggiornata", type: "success" } };
+      const categories = { ...state.categories, [key]: { ...state.categories[key], ...rest } };      return { ...state, categories, toast: { message: "Categoria aggiornata", type: "success" } };
     }
     case "REMOVE_CATEGORY": {
       const { [action.payload]: _, ...rest } = state.categories;
-      _syncCategories(rest);
       return { ...state, categories: rest, toast: { message: "Categoria rimossa", type: "success" } };
     }
 
@@ -547,8 +527,6 @@ function baseReducer(state, action) {
     }
     case "RESTORE_BACKUP": {
       const { tasks, team, categories, agencyName, notices } = action.payload;
-      if (team) _syncTeam(team);
-      if (categories) _syncCategories(categories);
       return {
         ...state,
         tasks: tasks ?? state.tasks,
@@ -626,9 +604,7 @@ function baseReducer(state, action) {
       if (email !== undefined) updates.email = email;
       if (phone !== undefined) updates.phone = phone;
       if (photoUrl !== undefined) updates.photoUrl = photoUrl;
-      const team = state.team.map(m => m.id === uid ? { ...m, ...updates } : m);
-      _syncTeam(team);
-      return { ...state, team, toast: { message: "Profilo aggiornato!", type: "success" } };
+      const team = state.team.map(m => m.id === uid ? { ...m, ...updates } : m);      return { ...state, team, toast: { message: "Profilo aggiornato!", type: "success" } };
     }
 
     default: return state;
@@ -691,21 +667,16 @@ const INITIAL_NOTICES = [
 ];
 
 // Factory dell'initial state. Se `team` e/o `currentUserId` sono forniti
-// (es. da Supabase via AuthContext), sincronizza i `let` globali TEAM/CURRENT_USER
-// prima di costruire lo state. Senza argomenti, restituisce lo state mock storico.
+// (es. da Supabase via AuthContext) li usa, altrimenti parte dai seed mock.
+// Team/categorie/utente vivono nello state: i componenti li leggono via AppContext.
 function makeInitialState({ team, currentUserId } = {}) {
   const hasRealTeam = Array.isArray(team) && team.length > 0;
-  if (hasRealTeam) _syncTeam(team);
-  if (currentUserId) _syncCurrentUser(currentUserId);
   return {
     // Quando il team viene dal DB le task in-memory non hanno più assignees validi:
     // partiamo da vuoto, le task reali arriveranno dal prossimo wire-up Supabase.
     tasks: hasRealTeam ? [] : INITIAL_TASKS,
-    // Copie, non riferimenti: _syncTeam/_syncCategories mutano i globali
-    // in-place e un alias diretto cambierebbe lo state sotto React senza
-    // che il riferimento cambi (re-render mai innescato).
-    team: [...TEAM],
-    categories: { ...CATEGORIES },
+    team: hasRealTeam ? [...team] : [...INITIAL_TEAM],
+    categories: { ...INITIAL_CATEGORIES },
     agencyName: "VoyageDesk",
     notices: hasRealTeam ? [] : INITIAL_NOTICES,
     activityLog: [],
@@ -717,18 +688,17 @@ function makeInitialState({ team, currentUserId } = {}) {
     sidebarCollapsed: false,
     filters: { assignee: "", category: "", priority: "", status: "", client: "" },
     lastAction: null, // { type, payload, undo: () => state-patch } per swipe-actions undo
-    currentUserId: CURRENT_USER, // v0.8: utente loggato (con switcher in Topbar)
+    currentUserId: currentUserId || INITIAL_CURRENT_USER, // v0.8: utente loggato (con switcher in Topbar)
   };
 }
 
 // ─── UTILS ─────────────────────────────────────────────────────────────────
-// NB: questi helper sono funzioni PURE. `team`/`categories` vanno passati
-// esplicitamente (es. dal reducer via state.team). Il default `= TEAM`/`= CATEGORIES`
-// è un fallback temporaneo per i call site nei componenti che leggono ancora il
-// globale; verrà rimosso quando i componenti passeranno al DataContext (Fase 1, PR2).
-const getMember = (id, team = TEAM) => team.find(m => m.id === id);
+// Helper PURI: `team`/`categories` vanno sempre passati esplicitamente. Nei
+// componenti si ottengono via AppContext (useTeam/useCategories), nel reducer
+// via state.team/state.categories.
+const getMember = (id, team) => team.find(m => m.id === id);
 // Agenti selezionabili come assegnatari (attivi e non in attesa di approvazione)
-const getAssignableTeam = (team = TEAM) => team.filter(m => m.active !== false && !m.pending);
+const getAssignableTeam = (team) => team.filter(m => m.active !== false && !m.pending);
 const formatDate = iso => {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -750,7 +720,7 @@ const getTrashedTasks = tasks => tasks.filter(t => t.deletedAt);
 // - Manager     → come Senior/Junior Agent (gestione propria coda + globale + visualizza urgenti altrui)
 // - Senior/Junior Agent → idem Manager
 // - Driver      → solo task categoria "transfer", solo coda personale
-const getRoleType = (userId, team = TEAM) => {
+const getRoleType = (userId, team) => {
   const m = getMember(userId, team);
   if (!m) return "agent";
   const r = (m.role || "").toLowerCase();
@@ -760,8 +730,8 @@ const getRoleType = (userId, team = TEAM) => {
   return "agent"; // senior/junior agent
 };
 
-const isAdmin = (userId, team = TEAM) => getRoleType(userId, team) === "admin";
-const isDriver = (userId, team = TEAM) => getRoleType(userId, team) === "driver";
+const isAdmin = (userId, team) => getRoleType(userId, team) === "admin";
+const isDriver = (userId, team) => getRoleType(userId, team) === "driver";
 
 // Task è "mio" se sono nell'array assignees
 const isMyTask = (task, userId) => task.assignees?.includes(userId);
@@ -779,7 +749,7 @@ const isUrgent = (task) => {
 // (Nota: gli scaduti — diff < 0 — non sono considerati "urgenti < 24h": già visibili come overdue di chi li ha)
 
 // Può visualizzare il task?
-const canViewTask = (task, userId, team = TEAM) => {
+const canViewTask = (task, userId, team) => {
   const role = getRoleType(userId, team);
   if (role === "admin") return true;
   if (role === "driver") {
@@ -794,7 +764,7 @@ const canViewTask = (task, userId, team = TEAM) => {
 };
 
 // Può modificare il task?
-const canEditTask = (task, userId, team = TEAM) => {
+const canEditTask = (task, userId, team) => {
   const role = getRoleType(userId, team);
   if (role === "admin") return true;
   if (role === "driver") {
@@ -807,7 +777,7 @@ const canEditTask = (task, userId, team = TEAM) => {
 };
 
 // Può creare un task con questa categoria?
-const canCreateTaskCategory = (category, userId, team = TEAM) => {
+const canCreateTaskCategory = (category, userId, team) => {
   const role = getRoleType(userId, team);
   if (role === "admin") return true;
   if (role === "driver") return category === "transfer";
@@ -815,10 +785,10 @@ const canCreateTaskCategory = (category, userId, team = TEAM) => {
 };
 
 // Può accedere all'Admin?
-const canAccessAdmin = (userId, team = TEAM) => isAdmin(userId, team);
+const canAccessAdmin = (userId, team) => isAdmin(userId, team);
 
 // Categorie selezionabili nei form per questo utente
-const getAvailableCategories = (userId, team = TEAM, categories = CATEGORIES) => {
+const getAvailableCategories = (userId, team, categories) => {
   if (isDriver(userId, team)) {
     return { transfer: categories.transfer };
   }
@@ -826,7 +796,7 @@ const getAvailableCategories = (userId, team = TEAM, categories = CATEGORIES) =>
 };
 
 // Filtra una lista di task secondo le regole di visibilità
-const getVisibleTasks = (tasks, userId, team = TEAM) => tasks.filter(t => canViewTask(t, userId, team));
+const getVisibleTasks = (tasks, userId, team) => tasks.filter(t => canViewTask(t, userId, team));
 
 // ─── SWIPE ACTIONS (mobile/tablet) ─────────────────────────────────────────
 // Wrapper riusabile: swipe verso destra rivela 3 bottoni (Completato / Cestino / Inoltra).
@@ -834,6 +804,8 @@ const getVisibleTasks = (tasks, userId, team = TEAM) => tasks.filter(t => canVie
 // Su desktop è trasparente. Disabilitato anche se l'utente non può editare la task.
 const SwipeActions = ({ task, dispatch, children, disabled = false }) => {
   const { isDesktop } = useViewport();
+  const currentUserId = useCurrentUserId();
+  const team = useTeam();
   const [offset, setOffset] = useState(0);          // px di traslazione attuale
   const [opened, setOpened] = useState(false);      // stato "aperto" (bottoni visibili)
   const [showForward, setShowForward] = useState(false);
@@ -846,8 +818,7 @@ const SwipeActions = ({ task, dispatch, children, disabled = false }) => {
   const OPEN_WIDTH = 210; // larghezza pannello bottoni rivelato (3 bottoni × 70)
 
   // Disabilita su desktop / disabilitato esplicitamente / no permessi di edit (v0.8)
-  // Leggo il currentUserId dal globale (sincronizzato dal reducer).
-  const canEdit = canEditTask(task, CURRENT_USER);
+  const canEdit = canEditTask(task, currentUserId, team);
   const swipeEnabled = !isDesktop && !disabled && canEdit;
 
   // tap fuori per chiudere
@@ -940,7 +911,7 @@ const SwipeActions = ({ task, dispatch, children, disabled = false }) => {
 
   const handleForwardTo = (e, memberId) => {
     e.stopPropagation();
-    const member = getMember(memberId);
+    const member = getMember(memberId, team);
     closeAndDo(() => dispatch({
       type: "UPDATE_TASK",
       payload: { id: task.id, assignees: [memberId] },
@@ -953,7 +924,7 @@ const SwipeActions = ({ task, dispatch, children, disabled = false }) => {
     return <>{children}</>;
   }
 
-  const assignable = getAssignableTeam();
+  const assignable = getAssignableTeam(team);
 
   return (
     <div
@@ -1074,8 +1045,8 @@ const SwipeActions = ({ task, dispatch, children, disabled = false }) => {
 
 // ─── AVATAR ────────────────────────────────────────────────────────────────
 const Avatar = ({ memberId, size = 28 }) => {
-  const m = getMember(memberId);
-  if (!m) return null;
+  const m = getMember(memberId, useTeam());
+  if (!m) return null; // hook chiamato sopra, prima di qualsiasi return
   if (m.photoUrl) {
     return (
       <img src={m.photoUrl} alt={m.name} title={m.name} style={{
@@ -1107,7 +1078,8 @@ const PriorityBadge = ({ priority }) => {
 
 // ─── CATEGORY CHIP ─────────────────────────────────────────────────────────
 const CategoryChip = ({ category, small }) => {
-  const c = CATEGORIES[category] || CATEGORIES.admin;
+  const categories = useCategories();
+  const c = categories[category] || categories.admin;
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 4,
@@ -1169,6 +1141,8 @@ const Toast = ({ toast, dispatch }) => {
 // ─── ADVANCED SEARCH PANEL ─────────────────────────────────────────────────
 const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
   const { isMobile } = useViewport();
+  const team = useTeam();
+  const categories = useCategories();
   const [keyword, setKeyword] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -1341,7 +1315,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
         <div style={{ marginBottom: 14 }}>
           <div style={sectionTitle}>Categoria</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {Object.entries(CATEGORIES).map(([key, c]) => {
+            {Object.entries(categories).map(([key, c]) => {
               const active = cats.includes(key);
               return (
                 <div key={key} onClick={() => toggle(cats, setCats, key)} style={chipBase(active, c.color)}>
@@ -1369,7 +1343,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
         <div style={{ marginBottom: 14 }}>
           <div style={sectionTitle}>Agente</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {TEAM.filter(m => !m.pending).map(m => {
+            {team.filter(m => !m.pending).map(m => {
               const active = agents.includes(m.id);
               return (
                 <div key={m.id} onClick={() => toggle(agents, setAgents, m.id)} style={chipBase(active, m.color)}>
@@ -1413,7 +1387,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
               {results.length} {results.length === 1 ? "risultato" : "risultati"}
             </div>
             {results.map(t => {
-              const cat = CATEGORIES[t.category];
+              const cat = categories[t.category];
               const prio = PRIORITIES[t.priority];
               const overdue = isOverdue(t);
               return (
@@ -1857,7 +1831,7 @@ const UserSwitcher = ({ state, dispatch }) => {
       dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Logout fallito: ${error.message}` } });
     }
   };
-  const curr = getMember(state.currentUserId) || { name: "—", role: "—", avatar: "??", color: "#999" };
+  const curr = getMember(state.currentUserId, state.team) || { name: "—", role: "—", avatar: "??", color: "#999" };
   // Fix #14: demo switch gate-ato dietro env var (default off in prod e in dev)
   // Cambia solo currentUser lato UI; auth.uid() server-side resta l'utente reale → confonde RLS.
   // Attivare con VITE_DEMO_SWITCH=true in .env.local solo per test multi-ruolo.
@@ -1873,7 +1847,7 @@ const UserSwitcher = ({ state, dispatch }) => {
 
   // Tutti i membri non-pending, ordinati per ruolo (Admin, Manager, Senior, Junior, Driver)
   const order = { admin: 0, manager: 1, "senior agent": 2, "junior agent": 3, driver: 4 };
-  const candidates = TEAM
+  const candidates = state.team
     .filter(m => !m.pending)
     .slice()
     .sort((a, b) => (order[(a.role || "").toLowerCase()] ?? 99) - (order[(b.role || "").toLowerCase()] ?? 99));
@@ -2143,8 +2117,8 @@ const NAV_ITEMS = [
 ];
 
 // Filtra NAV_ITEMS in base al ruolo dell'utente loggato
-const getNavItemsForUser = (userId) => {
-  const role = getRoleType(userId);
+const getNavItemsForUser = (userId, team) => {
+  const role = getRoleType(userId, team);
   return NAV_ITEMS.filter(it => !it.roles || it.roles.includes(role));
 };
 
@@ -2183,7 +2157,7 @@ const Sidebar = ({ state, dispatch }) => {
   const { isDesktop } = useViewport();
   if (!isDesktop) return null;
   const col = state.sidebarCollapsed;
-  const navItems = getNavItemsForUser(state.currentUserId);
+  const navItems = getNavItemsForUser(state.currentUserId, state.team);
   const badges = getNavBadges(state);
   return (
     <div style={{
@@ -2228,7 +2202,7 @@ const Sidebar = ({ state, dispatch }) => {
         <div style={{ marginTop: "auto", padding: "16px 12px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
           <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: 1, marginBottom: 8 }}>TEAM ONLINE</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-            {getAssignableTeam().slice(0, 4).map(m => (
+            {getAssignableTeam(state.team).slice(0, 4).map(m => (
               <div key={m.id} title={m.name} style={{
                 width: 26, height: 26, borderRadius: "50%", background: m.color,
                 fontSize: 10, fontWeight: 600, display: "flex", alignItems: "center",
@@ -2248,7 +2222,7 @@ const Sidebar = ({ state, dispatch }) => {
 
 // ─── BOTTOM NAV (mobile/tablet) ────────────────────────────────────────────
 const BottomNav = ({ state, dispatch }) => {
-  const navItems = getNavItemsForUser(state.currentUserId);
+  const navItems = getNavItemsForUser(state.currentUserId, state.team);
   const badges = getNavBadges(state);
   return (
     <nav className="vd-bottom-nav" aria-label="Navigazione principale">
@@ -2308,6 +2282,8 @@ const bulkIconBtnSmall = {
 
 // ─── BULK: MANUAL TAB ──────────────────────────────────────────────────────
 const ManualTab = ({ onCreate, onClose }) => {
+  const team = useTeam();
+  const categories = useCategories();
   const [common, setCommon] = useState({ client: "", category: "booking", priority: "medium", assignee: "" });
   const emptyRow = () => ({ key: Math.random().toString(36).slice(2), title: "", category: "", priority: "", assignee: "", dueDate: "" });
   const [rows, setRows] = useState([emptyRow(), emptyRow(), emptyRow()]);
@@ -2346,14 +2322,14 @@ const ManualTab = ({ onCreate, onClose }) => {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
           <input value={common.client} onChange={e => setCommon({ ...common, client: e.target.value })} placeholder="Cliente" style={bulkInputStyle} />
           <select value={common.category} onChange={e => setCommon({ ...common, category: e.target.value })} style={bulkInputStyle}>
-            {Object.entries(CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+            {Object.entries(categories).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
           </select>
           <select value={common.priority} onChange={e => setCommon({ ...common, priority: e.target.value })} style={bulkInputStyle}>
             {Object.entries(PRIORITIES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
           <select value={common.assignee} onChange={e => setCommon({ ...common, assignee: e.target.value })} style={bulkInputStyle}>
             <option value="">— Assegna a —</option>
-            {getAssignableTeam().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+            {getAssignableTeam(team).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </div>
       </div>
@@ -2368,7 +2344,7 @@ const ManualTab = ({ onCreate, onClose }) => {
             <input value={r.title} onChange={e => updateRow(r.key, "title", e.target.value)} placeholder="Titolo task..." style={bulkInputStyle} />
             <select value={r.category} onChange={e => updateRow(r.key, "category", e.target.value)} style={bulkInputStyle}>
               <option value="">— default —</option>
-              {Object.entries(CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+              {Object.entries(categories).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
             </select>
             <select value={r.priority} onChange={e => updateRow(r.key, "priority", e.target.value)} style={bulkInputStyle}>
               <option value="">—</option>
@@ -2376,7 +2352,7 @@ const ManualTab = ({ onCreate, onClose }) => {
             </select>
             <select value={r.assignee} onChange={e => updateRow(r.key, "assignee", e.target.value)} style={bulkInputStyle}>
               <option value="">—</option>
-              {getAssignableTeam().map(m => <option key={m.id} value={m.id}>{m.name.split(" ")[0]}</option>)}
+              {getAssignableTeam(team).map(m => <option key={m.id} value={m.id}>{m.name.split(" ")[0]}</option>)}
             </select>
             <input type="date" value={r.dueDate} onChange={e => updateRow(r.key, "dueDate", e.target.value)} style={bulkInputStyle} />
             <button onClick={() => removeRow(r.key)} disabled={rows.length === 1} style={{
@@ -2407,6 +2383,7 @@ const ManualTab = ({ onCreate, onClose }) => {
 
 // ─── BULK: DUPLICATE TAB ───────────────────────────────────────────────────
 const DuplicateTab = ({ tasks, onCreate, onClose }) => {
+  const categories = useCategories();
   const [selected, setSelected] = useState({});
   const [titleSuffix, setTitleSuffix] = useState(" (copia)");
   const [dayOffset, setDayOffset] = useState(0);
@@ -2480,11 +2457,11 @@ const DuplicateTab = ({ tasks, onCreate, onClose }) => {
               cursor: "pointer",
             }} onClick={() => toggle(t.id)}>
               <input type="checkbox" checked={isSel} readOnly style={{ cursor: "pointer" }} />
-              <span style={{ fontSize: 14 }}>{CATEGORIES[t.category]?.icon}</span>
+              <span style={{ fontSize: 14 }}>{categories[t.category]?.icon}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{t.title}</div>
                 <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                  {CATEGORIES[t.category]?.label} • {t.client || "—"} • {formatDate(t.dueDate)}
+                  {categories[t.category]?.label} • {t.client || "—"} • {formatDate(t.dueDate)}
                 </div>
               </div>
               {isSel && (
@@ -2514,6 +2491,8 @@ const DuplicateTab = ({ tasks, onCreate, onClose }) => {
 
 // ─── BULK: IMPORT TAB ──────────────────────────────────────────────────────
 const ImportTab = ({ onCreate, onClose }) => {
+  const team = useTeam();
+  const categories = useCategories();
   const [fileName, setFileName] = useState("");
   const [rows, setRows] = useState([]);
   const [columns, setColumns] = useState([]);
@@ -2559,7 +2538,7 @@ const ImportTab = ({ onCreate, onClose }) => {
   const normCat = (v) => {
     if (!v) return "admin";
     const s = String(v).toLowerCase().trim();
-    return Object.keys(CATEGORIES).find(k => k === s || CATEGORIES[k].label.toLowerCase() === s) || "admin";
+    return Object.keys(categories).find(k => k === s || categories[k].label.toLowerCase() === s) || "admin";
   };
   const normPrio = (v) => {
     if (!v) return "medium";
@@ -2574,7 +2553,7 @@ const ImportTab = ({ onCreate, onClose }) => {
   const normAssignee = (v) => {
     if (!v) return null;
     const s = String(v).toLowerCase().trim();
-    const m = TEAM.find(mm => mm.id === s || mm.name.toLowerCase().includes(s) || s.includes(mm.name.toLowerCase().split(" ")[0]));
+    const m = team.find(mm => mm.id === s || mm.name.toLowerCase().includes(s) || s.includes(mm.name.toLowerCase().split(" ")[0]));
     return m?.id || null;
   };
   const normDate = (v) => {
@@ -2709,6 +2688,8 @@ const ImportTab = ({ onCreate, onClose }) => {
 
 // ─── BULK: TEMPLATE TAB ────────────────────────────────────────────────────
 const TemplateTab = ({ onCreate, onClose }) => {
+  const team = useTeam();
+  const categories = useCategories();
   const [selectedId, setSelectedId] = useState(null);
   const [client, setClient] = useState("");
   const [eventDate, setEventDate] = useState("");
@@ -2787,7 +2768,7 @@ const TemplateTab = ({ onCreate, onClose }) => {
               <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>ASSEGNA A</div>
               <select value={defaultAssignee} onChange={e => setDefaultAssignee(e.target.value)} style={bulkInputStyle}>
                 <option value="">— Non assegnato —</option>
-                {getAssignableTeam().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                {getAssignableTeam(team).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
             </div>
           </div>
@@ -2803,7 +2784,7 @@ const TemplateTab = ({ onCreate, onClose }) => {
                     padding: "8px 12px", borderBottom: idx === previewTasks.length - 1 ? "none" : "1px solid var(--border)",
                     display: "flex", alignItems: "center", gap: 10, fontSize: 12,
                   }}>
-                    <span style={{ fontSize: 14 }}>{CATEGORIES[t.category]?.icon}</span>
+                    <span style={{ fontSize: 14 }}>{categories[t.category]?.icon}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 500 }}>{t.title}</div>
                       <div style={{ fontSize: 10, color: "var(--text-muted)" }}>
@@ -2894,6 +2875,8 @@ const BulkTaskCreator = ({ existingTasks, onCreate, onClose }) => {
 
 // ─── AI DAY PLANNER ────────────────────────────────────────────────────────
 const AIDayPlanner = ({ tasks, onClose }) => {
+  const currentUserId = useCurrentUserId();
+  const team = useTeam();
   const [loading, setLoading] = useState(true);
   const [plan, setPlan] = useState(null);
   const [error, setError] = useState(null);
@@ -2904,13 +2887,13 @@ const AIDayPlanner = ({ tasks, onClose }) => {
 
     // I task attivi assegnati a Marco
     const myTasks = tasks.filter(t =>
-      t.assignees?.includes(CURRENT_USER) && t.status !== "done"
+      t.assignees?.includes(currentUserId) && t.status !== "done"
     );
 
     // Task di altri operatori: scaduti, oppure urgenti e ancora in "todo"
     // (proxy ragionevole per "non visti / non presi in carico")
     const othersNeglected = tasks.filter(t => {
-      if (!t.assignees || t.assignees.includes(CURRENT_USER)) return false;
+      if (!t.assignees || t.assignees.includes(currentUserId)) return false;
       if (t.status === "done") return false;
       const urgent = t.priority === "critical" || t.priority === "high";
       const overdue = isOverdue(t);
@@ -2926,7 +2909,7 @@ const AIDayPlanner = ({ tasks, onClose }) => {
       client: t.client,
       dueDate: t.dueDate,
       estimatedHours: t.estimatedHours,
-      assignees: t.assignees?.map(a => getMember(a)?.name).filter(Boolean),
+      assignees: t.assignees?.map(a => getMember(a, team)?.name).filter(Boolean),
       overdue: isOverdue(t),
       category: t.category,
     });
@@ -2978,7 +2961,7 @@ Regole:
       .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
-  }, [tasks]);
+  }, [tasks, currentUserId, team]);
 
   const findTask = (id) => tasks.find(t => t.id === id);
   const sevColor = { alta: "var(--danger)", media: "var(--warning)" };
@@ -3175,6 +3158,8 @@ Regole:
 
 // ─── NOTICE BOARD (bacheca avvisi) ─────────────────────────────────────────
 const NoticeBoard = ({ notices, dispatch }) => {
+  const currentUserId = useCurrentUserId();
+  const team = useTeam();
   const [editing, setEditing] = useState(null); // null | { id?, text, color }
   const [creating, setCreating] = useState(false);
   const { isMobile } = useViewport();
@@ -3253,7 +3238,7 @@ const NoticeBoard = ({ notices, dispatch }) => {
           gap: 16, padding: "6px 4px",
         }}>
           {sorted.map((n, idx) => {
-            const author = getMember(n.author);
+            const author = getMember(n.author, team);
             const rotation = ((n.id.charCodeAt(n.id.length - 1) % 5) - 2) * 0.7; // -1.4 a +1.4 deg
             return (
               <div
@@ -3360,7 +3345,7 @@ const NoticeBoard = ({ notices, dispatch }) => {
                 payload: {
                   id: "n" + Date.now(),
                   ...data,
-                  author: CURRENT_USER,
+                  author: currentUserId,
                   createdAt: new Date().toISOString(),
                   updatedAt: new Date().toISOString(),
                 }
@@ -3490,6 +3475,7 @@ const NoticeEditorModal = ({ notice, onClose, onSave }) => {
 // ─── PERSONAL QUEUE (le mie task — v0.8) ───────────────────────────────────
 const PersonalQueue = ({ tasks, dispatch, me }) => {
   const { isMobile } = useViewport();
+  const categories = useCategories();
   const empty = tasks.length === 0;
   return (
     <div style={{
@@ -3539,7 +3525,7 @@ const PersonalQueue = ({ tasks, dispatch, me }) => {
           gap: 10,
         }}>
           {tasks.map(t => {
-            const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
+            const cat = categories[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
             const prio = PRIORITIES[t.priority];
             const overdue = isOverdue(t);
             const urgent = isUrgent(t);
@@ -3596,6 +3582,8 @@ const PersonalQueue = ({ tasks, dispatch, me }) => {
 // ─── URGENT OTHERS QUEUE (scadenza <24h, non mie — read-only — v0.8) ──────
 const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
   const { isMobile } = useViewport();
+  const categories = useCategories();
+  const team = useTeam();
   return (
     <div style={{
       background: "linear-gradient(135deg, rgba(200,131,42,0.07) 0%, rgba(200,131,42,0.01) 100%)",
@@ -3633,9 +3621,9 @@ const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
         gap: 10,
       }}>
         {tasks.map(t => {
-          const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
+          const cat = categories[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
           const prio = PRIORITIES[t.priority];
-          const owner = getMember(t.assignees?.[0]);
+          const owner = getMember(t.assignees?.[0], team);
           return (
             <div
               key={t.id}
@@ -3706,6 +3694,7 @@ const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
 // ─── UNASSIGNED QUEUE (coda globale) ───────────────────────────────────────
 const UnassignedQueue = ({ tasks, dispatch, onTake }) => {
   const { isMobile } = useViewport();
+  const categories = useCategories();
   const empty = tasks.length === 0;
 
   return (
@@ -3758,7 +3747,7 @@ const UnassignedQueue = ({ tasks, dispatch, onTake }) => {
           gap: 10,
         }}>
           {tasks.map(t => {
-            const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
+            const cat = categories[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
             const prio = PRIORITIES[t.priority];
             const overdue = isOverdue(t);
             const card = (
@@ -3872,6 +3861,8 @@ const QueueTab = ({ active, onClick, icon, label, count, isMobile, dangerCount }
 // ─── OVERDUE QUEUE (task scaduti visibili) ────────────────────────────────
 const OverdueQueue = ({ tasks, dispatch }) => {
   const { isMobile } = useViewport();
+  const categories = useCategories();
+  const team = useTeam();
   const empty = tasks.length === 0;
   return (
     <div style={{
@@ -3921,7 +3912,7 @@ const OverdueQueue = ({ tasks, dispatch }) => {
           gap: 10,
         }}>
           {tasks.map(t => {
-            const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
+            const cat = categories[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
             const prio = PRIORITIES[t.priority];
             const card = (
               <div
@@ -3958,7 +3949,7 @@ const OverdueQueue = ({ tasks, dispatch }) => {
                     </span>
                   )}
                   {t.assignees?.length > 0 && (
-                    <span>👥 {t.assignees.map(a => getMember(a)?.name?.split(" ")[0]).filter(Boolean).join(", ")}</span>
+                    <span>👥 {t.assignees.map(a => getMember(a, team)?.name?.split(" ")[0]).filter(Boolean).join(", ")}</span>
                   )}
                 </div>
               </div>
@@ -3981,13 +3972,15 @@ const Dashboard = ({ state, dispatch, onOpenChat }) => {
   const [showAIPlanner, setShowAIPlanner] = useState(false);
   const [activeQueue, setActiveQueue] = useState("personal");
   const uid = state.currentUserId;
-  const role = getRoleType(uid);
-  const me = getMember(uid);
+  const team = state.team;
+  const categories = state.categories;
+  const role = getRoleType(uid, team);
+  const me = getMember(uid, team);
   const allTasks = getActiveTasks(state.tasks);
   // Filtro permessi: solo task visibili all'utente
-  const tasks = getVisibleTasks(allTasks, uid);
+  const tasks = getVisibleTasks(allTasks, uid, team);
 
-  const agentWorkload = getAssignableTeam().map(m => ({
+  const agentWorkload = getAssignableTeam(team).map(m => ({
     ...m,
     count: allTasks.filter(t => t.assignees?.includes(m.id) && t.status !== "done").length
   }));
@@ -4001,7 +3994,7 @@ const Dashboard = ({ state, dispatch, onOpenChat }) => {
   // Coda globale: task non assegnati (Driver non la vede)
   const showGlobalQueue = role !== "driver";
   const unassigned = showGlobalQueue
-    ? allTasks.filter(t => isInGlobalQueue(t) && canViewTask(t, uid)).sort((a, b) => {
+    ? allTasks.filter(t => isInGlobalQueue(t) && canViewTask(t, uid, team)).sort((a, b) => {
         const prioOrder = { critical: 0, high: 1, medium: 2, low: 3 };
         const dp = prioOrder[a.priority] - prioOrder[b.priority];
         if (dp !== 0) return dp;
@@ -4149,7 +4142,7 @@ const Dashboard = ({ state, dispatch, onOpenChat }) => {
                 onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
                 onMouseLeave={e => e.currentTarget.style.background = isOverdue(t) ? "rgba(192,57,43,0.05)" : "transparent"}
               >
-                <span style={{ fontSize: 16 }}>{CATEGORIES[t.category]?.icon}</span>
+                <span style={{ fontSize: 16 }}>{categories[t.category]?.icon}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
                   <div style={{ fontSize: 11, color: isOverdue(t) ? "var(--danger)" : "var(--text-muted)" }}>
@@ -4196,8 +4189,11 @@ const Dashboard = ({ state, dispatch, onOpenChat }) => {
 
 // ─── QUICK ADD TASK FORM ───────────────────────────────────────────────────
 const QuickAddTask = ({ onAdd, onClose }) => {
+  const currentUserId = useCurrentUserId();
+  const team = useTeam();
+  const categories = useCategories();
   // Categorie filtrate per il ruolo dell'utente loggato (v0.8)
-  const availableCats = getAvailableCategories(CURRENT_USER);
+  const availableCats = getAvailableCategories(currentUserId, team, categories);
   const firstCatKey = Object.keys(availableCats)[0] || "booking";
 
   const [form, setForm] = useState({
@@ -4272,7 +4268,7 @@ const QuickAddTask = ({ onAdd, onClose }) => {
                 onChange={e => setForm(p => ({ ...p, assignees: e.target.value ? [e.target.value] : [] }))}
                 style={{ ...inp("category").style, cursor: "pointer" }}>
                 <option value="">— Non assegnato —</option>
-                {getAssignableTeam().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                {getAssignableTeam(team).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
             </div>
             <div>
@@ -4310,13 +4306,15 @@ const QuickAddTask = ({ onAdd, onClose }) => {
 // ─── TASK DETAIL SLIDE-OVER ────────────────────────────────────────────────
 const TaskSlideOver = ({ task, dispatch }) => {
   const { isMobile } = useViewport();
+  const currentUserId = useCurrentUserId();
+  const team = useTeam();
   const [newComment, setNewComment] = useState("");
 
   if (!task) return null;
 
   const handleComment = () => {
     if (!newComment.trim()) return;
-    const authorName = getMember(CURRENT_USER)?.name || "Utente";
+    const authorName = getMember(currentUserId, team)?.name || "Utente";
     dispatch({
       type: "ADD_COMMENT", payload: {
         taskId: task.id,
@@ -4401,7 +4399,7 @@ const TaskSlideOver = ({ task, dispatch }) => {
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>ASSEGNATI</div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {task.assignees?.map(id => {
-                  const m = getMember(id);
+                  const m = getMember(id, team);
                   return m ? (
                     <div key={id} style={{ display: "flex", alignItems: "center", gap: 5, background: "var(--surface2)", padding: "4px 8px", borderRadius: 99 }}>
                       <Avatar memberId={id} size={20} />
@@ -4548,8 +4546,8 @@ function buildIcs(tasks) {
   lines.push("END:VCALENDAR");
   return lines.join("\r\n");
 }
-function exportTasksToIcs(allTasks, uid) {
-  const tasks = (allTasks || []).filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate);
+function exportTasksToIcs(allTasks, uid, team) {
+  const tasks = (allTasks || []).filter(t => isActiveTask(t) && canViewTask(t, uid, team) && t.dueDate);
   if (tasks.length === 0) return;
   const ics = buildIcs(tasks);
   const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
@@ -4572,6 +4570,8 @@ const CalendarPlanner = ({ state, dispatch }) => {
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState(null);
   const uid = state.currentUserId;
+  const team = state.team;
+  const categories = state.categories;
 
   // ── Month helpers ──
   const year = currentMonth.getFullYear();
@@ -4584,7 +4584,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
 
   const getTasksForCalDay = (day) => {
     const d = new Date(year, month, day).toDateString();
-    return state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && new Date(t.dueDate).toDateString() === d);
+    return state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid, team) && t.dueDate && new Date(t.dueDate).toDateString() === d);
   };
 
   // ── Week helpers ──
@@ -4602,7 +4602,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
   const dayNames = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
   const getTasksForDay = (day) =>
-    state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && new Date(t.dueDate).toDateString() === day.toDateString());
+    state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid, team) && t.dueDate && new Date(t.dueDate).toDateString() === day.toDateString());
 
   // ── Distribuzione agenti (settimana corrente in vista week, settimana del mese selezionato in vista month) ──
   const agentWeekDays = viewMode === "week" ? weekDays : (() => {
@@ -4678,7 +4678,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
               background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
               width: 34, height: 34, cursor: "pointer", fontSize: 14
             }}>→</button>
-            <button onClick={() => exportTasksToIcs(state.tasks, uid)} title="Esporta calendario in iCal (.ics)" style={{
+            <button onClick={() => exportTasksToIcs(state.tasks, uid, team)} title="Esporta calendario in iCal (.ics)" style={{
               background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
               padding: "0 12px", height: 34, cursor: "pointer", fontSize: 12, fontWeight: 600,
               color: "var(--navy)",
@@ -4722,7 +4722,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
                     dayTasks.length > 0 && (
                       <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "center" }}>
                         {dayTasks.slice(0, 4).map(t => (
-                          <span key={t.id} style={{ width: 6, height: 6, borderRadius: "50%", background: CATEGORIES[t.category]?.color || "var(--navy)" }} />
+                          <span key={t.id} style={{ width: 6, height: 6, borderRadius: "50%", background: categories[t.category]?.color || "var(--navy)" }} />
                         ))}
                       </div>
                     )
@@ -4731,11 +4731,11 @@ const CalendarPlanner = ({ state, dispatch }) => {
                       {dayTasks.slice(0, 3).map(t => (
                         <div key={t.id} onClick={e => { e.stopPropagation(); dispatch({ type: "SET_SELECTED_TASK", payload: t }); }} style={{
                           fontSize: 10, fontWeight: 500, padding: "1px 5px", borderRadius: 3,
-                          background: CATEGORIES[t.category]?.color + "20",
-                          color: CATEGORIES[t.category]?.color,
+                          background: categories[t.category]?.color + "20",
+                          color: categories[t.category]?.color,
                           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                           cursor: "pointer",
-                        }}>{CATEGORIES[t.category]?.icon} {t.title}</div>
+                        }}>{categories[t.category]?.icon} {t.title}</div>
                       ))}
                       {dayTasks.length > 3 && <div style={{ fontSize: 10, color: "var(--text-muted)", paddingLeft: 4 }}>+{dayTasks.length - 3} altri</div>}
                     </div>
@@ -4770,7 +4770,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
                     onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
                     onMouseLeave={e => e.currentTarget.style.background = "#fff"}
                   >
-                    <span style={{ fontSize: 18 }}>{CATEGORIES[t.category]?.icon}</span>
+                    <span style={{ fontSize: 18 }}>{categories[t.category]?.icon}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</div>
                       <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{t.client ? `${t.client} • ` : ""}{formatTime(t.dueDate)}</div>
@@ -4819,13 +4819,13 @@ const CalendarPlanner = ({ state, dispatch }) => {
                       <div style={{ fontSize: 10, color: isToday ? "rgba(255,255,255,0.4)" : "var(--text-muted)", textAlign: "center", marginTop: 20 }}>Nessun task</div>
                     ) : dayTasks.slice(0, 6).map(t => (
                       <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
-                        background: isToday ? "rgba(255,255,255,0.12)" : CATEGORIES[t.category]?.color + "18",
-                        borderLeft: `3px solid ${CATEGORIES[t.category]?.color}`,
+                        background: isToday ? "rgba(255,255,255,0.12)" : categories[t.category]?.color + "18",
+                        borderLeft: `3px solid ${categories[t.category]?.color}`,
                         borderRadius: "0 4px 4px 0", padding: "4px 6px", cursor: "pointer",
                         fontSize: 10, fontWeight: 500, lineHeight: 1.3,
                         color: isToday ? "#fff" : "var(--text)",
                       }}>
-                        {CATEGORIES[t.category]?.icon} {t.title.slice(0, 30)}{t.title.length > 30 ? "…" : ""}
+                        {categories[t.category]?.icon} {t.title.slice(0, 30)}{t.title.length > 30 ? "…" : ""}
                         <div style={{ fontSize: 9, color: isToday ? "rgba(255,255,255,0.5)" : "var(--text-muted)", marginTop: 1 }}>{formatTime(t.dueDate)}</div>
                       </div>
                     ))}
@@ -4841,7 +4841,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
       {/* ─── VISTA GIORNO (Step G) ─── */}
       {viewMode === "day" && (() => {
         const dayTasks = state.tasks
-          .filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate &&
+          .filter(t => isActiveTask(t) && canViewTask(t, uid, team) && t.dueDate &&
             new Date(t.dueDate).toDateString() === dayDate.toDateString())
           .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
         const HOURS = Array.from({ length: 24 }, (_, h) => h);
@@ -4898,7 +4898,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
                   const hours = Number(t.estimatedHours) > 0 ? Number(t.estimatedHours) : 1;
                   const top = (startMin / 60) * SLOT_H;
                   const height = Math.max(28, hours * SLOT_H - 2);
-                  const cat = CATEGORIES[t.category] || {};
+                  const cat = categories[t.category] || {};
                   return (
                     <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
                       position: "absolute", top, left: 6, right: 6, height,
@@ -4980,7 +4980,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
                         const hours = Number(t.estimatedHours) > 0 ? Number(t.estimatedHours) : 1;
                         const top = (startMin / 60) * SLOT_H;
                         const height = Math.max(20, hours * SLOT_H - 2);
-                        const cat = CATEGORIES[t.category] || {};
+                        const cat = categories[t.category] || {};
                         return (
                           <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
                             position: "absolute", top, left: 2, right: 2, height,
@@ -5026,7 +5026,7 @@ const CalendarPlanner = ({ state, dispatch }) => {
               </tr>
             </thead>
             <tbody>
-              {getAssignableTeam().map(m => (
+              {getAssignableTeam(team).map(m => (
                 <tr key={m.id}>
                   <td style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -5070,9 +5070,11 @@ const Team = ({ state, dispatch }) => {
   const [selectedMember, setSelectedMember] = useState(null);
   const [filterStatus, setFilterStatus] = useState("");
   const uid = state.currentUserId;
+  const team = state.team;
+  const categories = state.categories;
 
   const memberTasks = (memberId) =>
-    state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.assignees?.includes(memberId));
+    state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid, team) && t.assignees?.includes(memberId));
 
   const filtered = selectedMember
     ? memberTasks(selectedMember).filter(t => !filterStatus || t.status === filterStatus)
@@ -5085,7 +5087,7 @@ const Team = ({ state, dispatch }) => {
       <div className="playfair" style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, marginBottom: 22 }}>Team & Assegnazioni</div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 16, marginBottom: 28 }}>
-        {getAssignableTeam().map(m => {
+        {getAssignableTeam(team).map(m => {
           const tasks = memberTasks(m.id);
           const active = tasks.filter(t => t.status !== "done");
           const done = tasks.filter(t => t.status === "done");
@@ -5131,7 +5133,7 @@ const Team = ({ state, dispatch }) => {
       </div>
 
       {selectedMember && (() => {
-        const m = getMember(selectedMember);
+        const m = getMember(selectedMember, team);
         if (!m) return null;
         return (
           <div className="slide-up" style={{ background: "#fff", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
@@ -5164,7 +5166,7 @@ const Team = ({ state, dispatch }) => {
                   onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                 >
-                  <span style={{ fontSize: 18 }}>{CATEGORIES[t.category]?.icon}</span>
+                  <span style={{ fontSize: 18 }}>{categories[t.category]?.icon}</span>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 500 }}>{t.title}</div>
                     <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
@@ -5184,7 +5186,7 @@ const Team = ({ state, dispatch }) => {
 };
 
 // ─── CHAT: MOCK DATA ───────────────────────────────────────────────────────
-// CURRENT_USER è dichiarato in cima al file (sezione MOCK DATA)
+// L'utente corrente si legge via useCurrentUserId() (AppContext).
 
 // Context per condividere tasks/dispatch (per messaggi con taskLink — v0.8)
 const ChatContext = createContext({ tasks: [], dispatch: () => {} });
@@ -5300,10 +5302,10 @@ const formatDuration = (sec) => {
   return `${m}:${s.toString().padStart(2, "0")}`;
 };
 
-const getConversationName = (conv) => {
+const getConversationName = (conv, currentUserId, team) => {
   if (conv.name) return conv.name;
-  const other = conv.participants.find(p => p !== CURRENT_USER);
-  return getMember(other)?.name || "Sconosciuto";
+  const other = conv.participants.find(p => p !== currentUserId);
+  return getMember(other, team)?.name || "Sconosciuto";
 };
 
 const getLastMessage = (msgs, convId) => {
@@ -5311,9 +5313,9 @@ const getLastMessage = (msgs, convId) => {
   return arr[arr.length - 1];
 };
 
-const getUnreadCount = (msgs, convId) => {
+const getUnreadCount = (msgs, convId, currentUserId) => {
   const arr = msgs[convId] || [];
-  return arr.filter(m => m.sender !== CURRENT_USER && !m.readBy?.includes(CURRENT_USER)).length;
+  return arr.filter(m => m.sender !== currentUserId && !m.readBy?.includes(currentUserId)).length;
 };
 
 // ─── CHAT: REACTIONS POPOVER ───────────────────────────────────────────────
@@ -5477,18 +5479,20 @@ const formatFileSize = (size) => {
 
 // ─── CHAT: MESSAGE ─────────────────────────────────────────────────────────
 const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onContextMenu }) => {
+  const currentUserId = useCurrentUserId();
+  const team = useTeam();
   const [showReactions, setShowReactions] = useState(false);
   const [hovered, setHovered] = useState(false);
-  const isMine = msg.sender === CURRENT_USER;
-  const sender = getMember(msg.sender);
+  const isMine = msg.sender === currentUserId;
+  const sender = getMember(msg.sender, team);
   const showAvatar = !prevMsg || prevMsg.sender !== msg.sender;
   const showName = conv.type === "group" && !isMine && showAvatar;
 
   const replyMsg = msg.replyTo ? allMessages.find(m => m.id === msg.replyTo) : null;
-  const replyAuthor = replyMsg ? getMember(replyMsg.sender) : null;
+  const replyAuthor = replyMsg ? getMember(replyMsg.sender, team) : null;
 
   // Read indicator
-  const otherParticipants = conv.participants.filter(p => p !== CURRENT_USER);
+  const otherParticipants = conv.participants.filter(p => p !== currentUserId);
   const readByAll = isMine && otherParticipants.every(p => msg.readBy?.includes(p));
   const readBySome = isMine && otherParticipants.some(p => msg.readBy?.includes(p));
 
@@ -5697,6 +5701,8 @@ const VoiceRecorder = ({ onSend, onCancel }) => {
 
 // ─── CHAT: CONVERSATION VIEW ───────────────────────────────────────────────
 const ConversationView = ({ conv, messages, setMessages, markConversationRead, onBack, initialInput, initialTaskRef, onInitialInputConsumed }) => {
+  const currentUserId = useCurrentUserId();
+  const team = useTeam();
   const [input, setInput] = useState("");
   const [recording, setRecording] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
@@ -5739,8 +5745,8 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
     setMessages(prev => ({
       ...prev,
       [conv.id]: (prev[conv.id] || []).map(m => {
-        if (m.sender !== CURRENT_USER && !m.readBy?.includes(CURRENT_USER)) {
-          return { ...m, readBy: [...(m.readBy || []), CURRENT_USER] };
+        if (m.sender !== currentUserId && !m.readBy?.includes(currentUserId)) {
+          return { ...m, readBy: [...(m.readBy || []), currentUserId] };
         }
         return m;
       })
@@ -5751,7 +5757,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
   useEffect(() => {
     if (msgs.length === 0) return;
     const last = msgs[msgs.length - 1];
-    if (last.sender === CURRENT_USER) {
+    if (last.sender === currentUserId) {
       const timer = setTimeout(() => setTyping(true), 800);
       const stop = setTimeout(() => setTyping(false), 3500);
       return () => { clearTimeout(timer); clearTimeout(stop); };
@@ -5765,9 +5771,9 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
     const textOut = input.trim();
     const stillHasLink = parseTaskLink(textOut) !== null;
     const newMsg = {
-      id: "m" + Date.now(), sender: CURRENT_USER, type: "text",
+      id: "m" + Date.now(), sender: currentUserId, type: "text",
       text: textOut, time: new Date().toISOString(),
-      readBy: [CURRENT_USER],
+      readBy: [currentUserId],
       replyTo: replyingTo?.id,
       ...(stillHasLink && pendingTaskRef ? { taskRef: pendingTaskRef } : {}),
     };
@@ -5780,9 +5786,9 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
   const sendVoice = (duration) => {
     const waveform = Array.from({ length: 30 }, () => 0.3 + Math.random() * 0.6);
     const newMsg = {
-      id: "m" + Date.now(), sender: CURRENT_USER, type: "voice",
+      id: "m" + Date.now(), sender: currentUserId, type: "voice",
       duration, waveform, time: new Date().toISOString(),
-      readBy: [CURRENT_USER],
+      readBy: [currentUserId],
     };
     setMessages(prev => ({ ...prev, [conv.id]: [...(prev[conv.id] || []), newMsg] }));
     setRecording(false);
@@ -5822,11 +5828,11 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
       fileUrl = path;
     }
     const newMsg = {
-      id: "m" + Date.now(), sender: CURRENT_USER, type: "file",
+      id: "m" + Date.now(), sender: currentUserId, type: "file",
       fileName: file.name, fileSize: file.size,
       fileType: fileKindFromName(file.name), fileUrl,
       time: new Date().toISOString(),
-      readBy: [CURRENT_USER],
+      readBy: [currentUserId],
     };
     setMessages(prev => ({ ...prev, [conv.id]: [...(prev[conv.id] || []), newMsg] }));
   };
@@ -5838,19 +5844,19 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
         if (m.id !== msgId) return m;
         const reactions = { ...(m.reactions || {}) };
         const users = reactions[emoji] || [];
-        if (users.includes(CURRENT_USER)) {
-          reactions[emoji] = users.filter(u => u !== CURRENT_USER);
+        if (users.includes(currentUserId)) {
+          reactions[emoji] = users.filter(u => u !== currentUserId);
           if (reactions[emoji].length === 0) delete reactions[emoji];
         } else {
-          reactions[emoji] = [...users, CURRENT_USER];
+          reactions[emoji] = [...users, currentUserId];
         }
         return { ...m, reactions };
       })
     }));
   };
 
-  const otherTypingMember = conv.participants.find(p => p !== CURRENT_USER);
-  const otherMember = conv.type === "direct" ? getMember(otherTypingMember) : null;
+  const otherTypingMember = conv.participants.find(p => p !== currentUserId);
+  const otherMember = conv.type === "direct" ? getMember(otherTypingMember, team) : null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--surface2)" }}>
@@ -5877,12 +5883,12 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ color: "#fff", fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {getConversationName(conv)}
+            {getConversationName(conv, currentUserId, team)}
           </div>
           <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 11 }}>
             {typing ? (
               <span style={{ color: "var(--gold-light)" }}>
-                {conv.type === "group" ? `${getMember(otherTypingMember)?.name.split(" ")[0]} sta scrivendo` : "sta scrivendo"}
+                {conv.type === "group" ? `${getMember(otherTypingMember, team)?.name.split(" ")[0]} sta scrivendo` : "sta scrivendo"}
                 <span style={{ animation: "typing 1s infinite", animationDelay: "0s", display: "inline-block" }}>.</span>
                 <span style={{ animation: "typing 1s infinite", animationDelay: "0.2s", display: "inline-block" }}>.</span>
                 <span style={{ animation: "typing 1s infinite", animationDelay: "0.4s", display: "inline-block" }}>.</span>
@@ -5942,7 +5948,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
           <div style={{ width: 3, alignSelf: "stretch", background: "var(--gold)", borderRadius: 2 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: "var(--gold-dark)" }}>
-              Rispondi a {getMember(replyingTo.sender)?.name}
+              Rispondi a {getMember(replyingTo.sender, team)?.name}
             </div>
             <div style={{ fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {replyingTo.type === "voice" ? "🎙️ Vocale" : replyingTo.type === "file" ? `📎 ${replyingTo.fileName}` : replyingTo.text}
@@ -6042,6 +6048,8 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
 // ─── CHAT: LIST OF CONVERSATIONS ───────────────────────────────────────────
 const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
   const { presenceMap } = useContext(ChatContext);
+  const currentUserId = useCurrentUserId();
+  const team = useTeam();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
 
@@ -6060,10 +6068,10 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
     const q = search.toLowerCase().trim();
     if (!q) return true;
     // 1) nome conversazione
-    if (getConversationName(c).toLowerCase().includes(q)) return true;
+    if (getConversationName(c, currentUserId, team).toLowerCase().includes(q)) return true;
     // 2) nomi partecipanti
     const partNames = (c.participants || [])
-      .map(id => getMember(id)?.name || "")
+      .map(id => getMember(id, team)?.name || "")
       .join(" ")
       .toLowerCase();
     if (partNames.includes(q)) return true;
@@ -6079,12 +6087,12 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
   const filtered = sorted.filter(c => {
     if (filter === "direct" && c.type !== "direct") return false;
     if (filter === "group" && c.type !== "group") return false;
-    if (filter === "unread" && getUnreadCount(messages, c.id) === 0) return false;
+    if (filter === "unread" && getUnreadCount(messages, c.id, currentUserId) === 0) return false;
     if (!matchesSearch(c)) return false;
     return true;
   });
 
-  const totalUnread = conversations.reduce((acc, c) => acc + getUnreadCount(messages, c.id), 0);
+  const totalUnread = conversations.reduce((acc, c) => acc + getUnreadCount(messages, c.id, currentUserId), 0);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -6126,9 +6134,9 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
       <div style={{ flex: 1, overflowY: "auto" }}>
         {filtered.map(c => {
           const last = getLastMessage(messages, c.id);
-          const unread = getUnreadCount(messages, c.id);
-          const lastSender = last ? getMember(last.sender) : null;
-          const otherUser = c.type === "direct" ? c.participants.find(p => p !== CURRENT_USER) : null;
+          const unread = getUnreadCount(messages, c.id, currentUserId);
+          const lastSender = last ? getMember(last.sender, team) : null;
+          const otherUser = c.type === "direct" ? c.participants.find(p => p !== currentUserId) : null;
 
           return (
             <div key={c.id} onClick={() => onSelect(c)} style={{
@@ -6168,7 +6176,7 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
                   <div style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0, flex: 1 }}>
                     {c.pinned && <span style={{ fontSize: 10, color: "var(--gold)" }}>📌</span>}
                     <span style={{ fontSize: 13.5, fontWeight: unread > 0 ? 700 : 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {getConversationName(c)}
+                      {getConversationName(c, currentUserId, team)}
                     </span>
                   </div>
                   <span style={{ fontSize: 10, color: "var(--text-muted)", flexShrink: 0 }}>
@@ -6183,8 +6191,8 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
                   }}>
                     {last ? (
                       <>
-                        {last.sender === CURRENT_USER && <span style={{ color: "var(--text-muted)" }}>Tu: </span>}
-                        {c.type === "group" && last.sender !== CURRENT_USER && (
+                        {last.sender === currentUserId && <span style={{ color: "var(--text-muted)" }}>Tu: </span>}
+                        {c.type === "group" && last.sender !== currentUserId && (
                           <span style={{ color: lastSender?.color, fontWeight: 600 }}>
                             {lastSender?.name.split(" ")[0]}:{" "}
                           </span>
@@ -6226,11 +6234,13 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
 
 // ─── CHAT: NEW CONVERSATION ────────────────────────────────────────────────
 const NewConversationView = ({ onCreate, onCancel, existing }) => {
+  const currentUserId = useCurrentUserId();
+  const team = useTeam();
   const [mode, setMode] = useState("select"); // select | group
   const [selected, setSelected] = useState([]);
   const [groupName, setGroupName] = useState("");
 
-  const available = TEAM.filter(m => m.id !== CURRENT_USER);
+  const available = team.filter(m => m.id !== currentUserId);
 
   const toggle = (id) => {
     setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
@@ -6241,7 +6251,7 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
     if (found) { onCreate(found); return; }
     const newConv = {
       id: "c" + Date.now(), type: "direct",
-      participants: [CURRENT_USER, memberId], name: null,
+      participants: [currentUserId,memberId], name: null,
     };
     onCreate(newConv, true);
   };
@@ -6250,7 +6260,7 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
     if (!groupName.trim() || selected.length < 2) return;
     const newConv = {
       id: "c" + Date.now(), type: "group",
-      participants: [CURRENT_USER, ...selected],
+      participants: [currentUserId,...selected],
       name: groupName.trim(), icon: "👥",
     };
     onCreate(newConv, true);
@@ -6377,7 +6387,7 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
   // Gestione intent: apertura chat verso utente specifico con link a task
   useEffect(() => {
     if (!open || !intent || !intent.toUser) return;
-    const me = currentUserId || CURRENT_USER;
+    const me = currentUserId;
     // Cerca conversazione diretta esistente
     let direct = conversations.find(c =>
       c.type === "direct" &&
@@ -6416,7 +6426,7 @@ const ChatPanel = ({ open, onClose, conversations, setConversations, messages, s
   };
 
   return (
-    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {} }}>
+    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {} }}>
     <>
       <div onClick={onClose} style={{
         position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: 700,
@@ -6521,6 +6531,8 @@ const FAB = ({ onClick }) => {
 // ─── TRASH (CESTINO) ───────────────────────────────────────────────────────
 const Trash = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
+  const team = state.team;
+  const categories = state.categories;
   const [restoring, setRestoring] = useState(null); // task being restored/edited
   const trashed = getTrashedTasks(state.tasks)
     .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt));
@@ -6717,7 +6729,7 @@ const Trash = ({ state, dispatch }) => {
                       background: "#fff", cursor: "pointer",
                     }}
                   >
-                    {Object.entries(CATEGORIES).map(([k, v]) => (
+                    {Object.entries(categories).map(([k, v]) => (
                       <option key={k} value={k}>{v.icon} {v.label}</option>
                     ))}
                   </select>
@@ -6793,7 +6805,7 @@ const Trash = ({ state, dispatch }) => {
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5, marginBottom: 4, display: "block" }}>ASSEGNATARI</label>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {getAssignableTeam().map(m => {
+                  {getAssignableTeam(team).map(m => {
                     const sel = restoring.assignees?.includes(m.id);
                     return (
                       <button key={m.id}
@@ -7185,7 +7197,7 @@ const AdminIOTab = ({ state, dispatch }) => {
       Status: t.status, Cliente: t.client || "",
       Scadenza: t.dueDate ? t.dueDate.slice(0,10) : "",
       Ore: t.estimatedHours || 0,
-      Assegnati: (t.assignees || []).map(a => getMember(a)?.name || a).join(", "),
+      Assegnati: (t.assignees || []).map(a => getMember(a, state.team)?.name || a).join(", "),
       Descrizione: t.description || "",
       Cestinato: t.deletedAt ? "Sì" : "No",
     }));
@@ -8149,7 +8161,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
 
   // Conta non letti totali per badge topbar (dallo stato vivo della chat)
   const unreadChat = conversations.reduce(
-    (acc, c) => acc + getUnreadCount(messages, c.id),
+    (acc, c) => acc + getUnreadCount(messages, c.id, state.currentUserId),
     0
   );
 
@@ -8191,8 +8203,15 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     }
   };
 
+  // Dati condivisi esposti via AppContext: i componenti li leggono con gli hook
+  // useTeam/useCategories/useCurrentUserId invece che da globali mutabili.
+  const appData = useMemo(
+    () => ({ team: state.team, categories: state.categories, currentUserId: state.currentUserId }),
+    [state.team, state.categories, state.currentUserId]
+  );
+
   return (
-    <>
+    <AppContext.Provider value={appData}>
       <FontLoader />
       <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", background: "var(--surface)", fontFamily: "'DM Sans', sans-serif" }}>
         <Topbar
@@ -8269,7 +8288,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         {/* Toast */}
         <Toast toast={state.toast} dispatch={dispatch} />
       </div>
-    </>
+    </AppContext.Provider>
   );
 }
 // Step J — touched

@@ -344,9 +344,9 @@ const buildLogEntry = (action, state) => {
     EMPTY_TRASH: () => `Cestino svuotato`,
     ADD_TEAM_MEMBER: () => `Aggiunto agente "${action.payload.name}"`,
     UPDATE_TEAM_MEMBER: () => `Modificato agente "${action.payload.name || action.payload.id}"`,
-    APPROVE_TEAM_MEMBER: () => `Approvato agente "${getMember(action.payload)?.name || action.payload}"`,
-    TOGGLE_TEAM_MEMBER_ACTIVE: () => `Agente "${getMember(action.payload)?.name || action.payload}" attivato/disattivato`,
-    REMOVE_TEAM_MEMBER: () => `Rimosso agente "${getMember(action.payload)?.name || action.payload}"`,
+    APPROVE_TEAM_MEMBER: () => `Approvato agente "${getMember(action.payload, state.team)?.name || action.payload}"`,
+    TOGGLE_TEAM_MEMBER_ACTIVE: () => `Agente "${getMember(action.payload, state.team)?.name || action.payload}" attivato/disattivato`,
+    REMOVE_TEAM_MEMBER: () => `Rimosso agente "${getMember(action.payload, state.team)?.name || action.payload}"`,
     ADD_CATEGORY: () => `Aggiunta categoria "${action.payload.label}"`,
     UPDATE_CATEGORY: () => `Modificata categoria "${action.payload.key}"`,
     REMOVE_CATEGORY: () => `Rimossa categoria "${action.payload}"`,
@@ -366,25 +366,25 @@ function baseReducer(state, action) {
   switch (action.type) {
     case "SET_VIEW": {
       // Solo admin può aprire la vista Admin
-      if (action.payload === "admin" && !canAccessAdmin(uid)) {
+      if (action.payload === "admin" && !canAccessAdmin(uid, state.team)) {
         return _denied("Non hai i permessi per accedere all'Admin");
       }
       return { ...state, activeView: action.payload };
     }
     case "SET_SELECTED_TASK": {
       // Non permettere di aprire un task non visibile
-      if (action.payload && !canViewTask(action.payload, uid)) {
+      if (action.payload && !canViewTask(action.payload, uid, state.team)) {
         return _denied("Non hai i permessi per visualizzare questa task");
       }
       return { ...state, selectedTask: action.payload };
     }
     case "SET_CURRENT_USER": {
       const newId = action.payload;
-      const m = getMember(newId);
+      const m = getMember(newId, state.team);
       if (!m) return state;
       _syncCurrentUser(newId);
       // Se l'utente non può più accedere alla view corrente, riporta a dashboard
-      const activeView = (state.activeView === "admin" && !canAccessAdmin(newId))
+      const activeView = (state.activeView === "admin" && !canAccessAdmin(newId, state.team))
         ? "dashboard"
         : state.activeView;
       return {
@@ -402,7 +402,7 @@ function baseReducer(state, action) {
     case "MOVE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload.taskId);
       if (!prev) return state;
-      if (!canEditTask(prev, uid)) return _denied();
+      if (!canEditTask(prev, uid, state.team)) return _denied();
       const prevStatus = prev?.status;
       const tasks = state.tasks.map(t =>
         t.id === action.payload.taskId ? { ...t, status: action.payload.newStatus } : t
@@ -416,14 +416,14 @@ function baseReducer(state, action) {
       return { ...state, tasks, toast, lastAction };
     }
     case "ADD_TASK": {
-      if (!canCreateTaskCategory(action.payload.category, uid)) {
+      if (!canCreateTaskCategory(action.payload.category, uid, state.team)) {
         return _denied("Non puoi creare task di questa categoria");
       }
       const tasks = [action.payload, ...state.tasks];
       return { ...state, tasks, toast: { message: "Task creato con successo!", type: "success" } };
     }
     case "ADD_TASKS_BULK": {
-      const bad = action.payload.find(t => !canCreateTaskCategory(t.category, uid));
+      const bad = action.payload.find(t => !canCreateTaskCategory(t.category, uid, state.team));
       if (bad) return _denied("Alcune task hanno categorie che non puoi creare");
       const tasks = [...action.payload, ...state.tasks];
       return { ...state, tasks, toast: { message: `${action.payload.length} task creati!`, type: "success" } };
@@ -431,7 +431,7 @@ function baseReducer(state, action) {
     case "UPDATE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload.id);
       if (!prev) return state;
-      if (!canEditTask(prev, uid)) return _denied();
+      if (!canEditTask(prev, uid, state.team)) return _denied();
       const tasks = state.tasks.map(t => t.id === action.payload.id ? { ...t, ...action.payload } : t);
       const selectedTask = state.selectedTask?.id === action.payload.id
         ? { ...state.selectedTask, ...action.payload }
@@ -447,7 +447,7 @@ function baseReducer(state, action) {
     case "ADD_COMMENT": {
       const prev = state.tasks.find(t => t.id === action.payload.taskId);
       if (!prev) return state;
-      if (!canViewTask(prev, uid)) return _denied("Non puoi commentare questa task");
+      if (!canViewTask(prev, uid, state.team)) return _denied("Non puoi commentare questa task");
       const tasks = state.tasks.map(t =>
         t.id === action.payload.taskId
           ? { ...t, comments: [...(t.comments || []), action.payload.comment] }
@@ -461,7 +461,7 @@ function baseReducer(state, action) {
     case "DELETE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload);
       if (!prev) return state;
-      if (!canEditTask(prev, uid)) return _denied();
+      if (!canEditTask(prev, uid, state.team)) return _denied();
       const tasks = state.tasks.map(t =>
         t.id === action.payload ? { ...t, deletedAt: new Date().toISOString() } : t
       );
@@ -475,19 +475,19 @@ function baseReducer(state, action) {
       return { ...state, tasks, selectedTask, toast, lastAction };
     }
     case "RESTORE_TASK": {
-      if (!isAdmin(uid)) return _denied("Solo Admin può gestire il cestino");
+      if (!isAdmin(uid, state.team)) return _denied("Solo Admin può gestire il cestino");
       const tasks = state.tasks.map(t =>
         t.id === action.payload ? { ...t, deletedAt: null } : t
       );
       return { ...state, tasks, toast: { message: "Task ripristinato!", type: "success" } };
     }
     case "PURGE_TASK": {
-      if (!isAdmin(uid)) return _denied("Solo Admin può gestire il cestino");
+      if (!isAdmin(uid, state.team)) return _denied("Solo Admin può gestire il cestino");
       const tasks = state.tasks.filter(t => t.id !== action.payload);
       return { ...state, tasks, toast: { message: "Task eliminato definitivamente", type: "success" } };
     }
     case "EMPTY_TRASH": {
-      if (!isAdmin(uid)) return _denied("Solo Admin può svuotare il cestino");
+      if (!isAdmin(uid, state.team)) return _denied("Solo Admin può svuotare il cestino");
       const count = state.tasks.filter(t => t.deletedAt).length;
       const tasks = state.tasks.filter(t => !t.deletedAt);
       return { ...state, tasks, toast: { message: `Cestino svuotato (${count} task eliminati)`, type: "success" } };
@@ -646,7 +646,7 @@ const ADMIN_ONLY_ACTIONS = new Set([
 // Wrapper che aggiunge automaticamente al log le azioni rilevanti
 function reducer(state, action) {
   // Pre-check permessi Admin (centralizzato — non sporca i singoli case)
-  if (ADMIN_ONLY_ACTIONS.has(action.type) && !isAdmin(state.currentUserId)) {
+  if (ADMIN_ONLY_ACTIONS.has(action.type) && !isAdmin(state.currentUserId, state.team)) {
     return { ...state, toast: { message: "Solo Admin può eseguire questa azione", type: "error" } };
   }
   const next = baseReducer(state, action);
@@ -722,9 +722,13 @@ function makeInitialState({ team, currentUserId } = {}) {
 }
 
 // ─── UTILS ─────────────────────────────────────────────────────────────────
-const getMember = id => TEAM.find(m => m.id === id);
+// NB: questi helper sono funzioni PURE. `team`/`categories` vanno passati
+// esplicitamente (es. dal reducer via state.team). Il default `= TEAM`/`= CATEGORIES`
+// è un fallback temporaneo per i call site nei componenti che leggono ancora il
+// globale; verrà rimosso quando i componenti passeranno al DataContext (Fase 1, PR2).
+const getMember = (id, team = TEAM) => team.find(m => m.id === id);
 // Agenti selezionabili come assegnatari (attivi e non in attesa di approvazione)
-const getAssignableTeam = () => TEAM.filter(m => m.active !== false && !m.pending);
+const getAssignableTeam = (team = TEAM) => team.filter(m => m.active !== false && !m.pending);
 const formatDate = iso => {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -746,8 +750,8 @@ const getTrashedTasks = tasks => tasks.filter(t => t.deletedAt);
 // - Manager     → come Senior/Junior Agent (gestione propria coda + globale + visualizza urgenti altrui)
 // - Senior/Junior Agent → idem Manager
 // - Driver      → solo task categoria "transfer", solo coda personale
-const getRoleType = (userId) => {
-  const m = getMember(userId);
+const getRoleType = (userId, team = TEAM) => {
+  const m = getMember(userId, team);
   if (!m) return "agent";
   const r = (m.role || "").toLowerCase();
   if (r.includes("admin")) return "admin";
@@ -756,8 +760,8 @@ const getRoleType = (userId) => {
   return "agent"; // senior/junior agent
 };
 
-const isAdmin = (userId) => getRoleType(userId) === "admin";
-const isDriver = (userId) => getRoleType(userId) === "driver";
+const isAdmin = (userId, team = TEAM) => getRoleType(userId, team) === "admin";
+const isDriver = (userId, team = TEAM) => getRoleType(userId, team) === "driver";
 
 // Task è "mio" se sono nell'array assignees
 const isMyTask = (task, userId) => task.assignees?.includes(userId);
@@ -775,8 +779,8 @@ const isUrgent = (task) => {
 // (Nota: gli scaduti — diff < 0 — non sono considerati "urgenti < 24h": già visibili come overdue di chi li ha)
 
 // Può visualizzare il task?
-const canViewTask = (task, userId) => {
-  const role = getRoleType(userId);
+const canViewTask = (task, userId, team = TEAM) => {
+  const role = getRoleType(userId, team);
   if (role === "admin") return true;
   if (role === "driver") {
     // Solo le proprie task transfer
@@ -790,8 +794,8 @@ const canViewTask = (task, userId) => {
 };
 
 // Può modificare il task?
-const canEditTask = (task, userId) => {
-  const role = getRoleType(userId);
+const canEditTask = (task, userId, team = TEAM) => {
+  const role = getRoleType(userId, team);
   if (role === "admin") return true;
   if (role === "driver") {
     return task.category === "transfer" && (isMyTask(task, userId) || isInGlobalQueue(task));
@@ -803,26 +807,26 @@ const canEditTask = (task, userId) => {
 };
 
 // Può creare un task con questa categoria?
-const canCreateTaskCategory = (category, userId) => {
-  const role = getRoleType(userId);
+const canCreateTaskCategory = (category, userId, team = TEAM) => {
+  const role = getRoleType(userId, team);
   if (role === "admin") return true;
   if (role === "driver") return category === "transfer";
   return true; // manager/agent: tutte le categorie
 };
 
 // Può accedere all'Admin?
-const canAccessAdmin = (userId) => isAdmin(userId);
+const canAccessAdmin = (userId, team = TEAM) => isAdmin(userId, team);
 
 // Categorie selezionabili nei form per questo utente
-const getAvailableCategories = (userId) => {
-  if (isDriver(userId)) {
-    return { transfer: CATEGORIES.transfer };
+const getAvailableCategories = (userId, team = TEAM, categories = CATEGORIES) => {
+  if (isDriver(userId, team)) {
+    return { transfer: categories.transfer };
   }
-  return CATEGORIES;
+  return categories;
 };
 
 // Filtra una lista di task secondo le regole di visibilità
-const getVisibleTasks = (tasks, userId) => tasks.filter(t => canViewTask(t, userId));
+const getVisibleTasks = (tasks, userId, team = TEAM) => tasks.filter(t => canViewTask(t, userId, team));
 
 // ─── SWIPE ACTIONS (mobile/tablet) ─────────────────────────────────────────
 // Wrapper riusabile: swipe verso destra rivela 3 bottoni (Completato / Cestino / Inoltra).

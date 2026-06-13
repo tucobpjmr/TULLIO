@@ -475,21 +475,29 @@ function baseReducer(state, action) {
       return { ...state, tasks, selectedTask, toast, lastAction };
     }
     case "RESTORE_TASK": {
-      if (!isAdmin(uid)) return _denied("Solo Admin può gestire il cestino");
+      const prev = state.tasks.find(t => t.id === action.payload);
+      if (!prev) return state;
+      // Ogni utente può ripristinare solo i task che potrebbe modificare (prerogativa di status)
+      if (!canEditTask(prev, uid)) return _denied("Non puoi gestire questo task nel cestino");
       const tasks = state.tasks.map(t =>
         t.id === action.payload ? { ...t, deletedAt: null } : t
       );
       return { ...state, tasks, toast: { message: "Task ripristinato!", type: "success" } };
     }
     case "PURGE_TASK": {
-      if (!isAdmin(uid)) return _denied("Solo Admin può gestire il cestino");
+      const prev = state.tasks.find(t => t.id === action.payload);
+      if (!prev) return state;
+      if (!canEditTask(prev, uid)) return _denied("Non puoi eliminare questo task");
       const tasks = state.tasks.filter(t => t.id !== action.payload);
       return { ...state, tasks, toast: { message: "Task eliminato definitivamente", type: "success" } };
     }
     case "EMPTY_TRASH": {
-      if (!isAdmin(uid)) return _denied("Solo Admin può svuotare il cestino");
-      const count = state.tasks.filter(t => t.deletedAt).length;
-      const tasks = state.tasks.filter(t => !t.deletedAt);
+      // Svuota solo i task cestinati che l'utente corrente può gestire
+      const purgeIds = new Set(
+        state.tasks.filter(t => t.deletedAt && canEditTask(t, uid)).map(t => t.id)
+      );
+      const count = purgeIds.size;
+      const tasks = state.tasks.filter(t => !purgeIds.has(t.id));
       return { ...state, tasks, toast: { message: `Cestino svuotato (${count} task eliminati)`, type: "success" } };
     }
 
@@ -2134,7 +2142,7 @@ const NAV_ITEMS = [
   { id: "dashboard", icon: "📊", label: "Dashboard", roles: ["admin", "manager", "agent", "driver"] },
   { id: "calendar", icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
   { id: "team", icon: "👥", label: "Team", roles: ["admin", "manager", "agent"] },
-  { id: "trash", icon: "🗑️", label: "Cestino", roles: ["admin"] },
+  { id: "trash", icon: "🗑️", label: "Cestino", roles: ["admin", "manager", "agent", "driver"] },
   { id: "admin", icon: "⚙️", label: "Admin", roles: ["admin"] },
 ];
 
@@ -6518,7 +6526,11 @@ const FAB = ({ onClick }) => {
 const Trash = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
   const [restoring, setRestoring] = useState(null); // task being restored/edited
+  const me = state.currentUserId;
+  // Ogni utente vede nel cestino solo i task che può gestire (admin: tutti; manager/agent:
+  // propri + coda globale; driver: solo transfer propri/globali) — prerogativa di status.
   const trashed = getTrashedTasks(state.tasks)
+    .filter(t => canEditTask(t, me))
     .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt));
 
   const handleRestore = (task) => {

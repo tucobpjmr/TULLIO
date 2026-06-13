@@ -7242,8 +7242,15 @@ const AdminIOTab = ({ state, dispatch }) => {
 
   const escapeCSV = (val) => {
     if (val === null || val === undefined) return "";
-    const s = String(val);
-    if (s.includes(",") || s.includes('"') || s.includes("\n")) return `"${s.replace(/"/g, '""')}"`;
+    let s = String(val);
+    // Mitiga CSV/formula injection: una cella che inizia con = + - @ (o tab/CR)
+    // verrebbe eseguita come formula all'apertura in Excel/LibreOffice/Sheets.
+    // Anteponendo un apostrofo la si forza a testo. I titoli/descrizioni dei
+    // task sono inseribili da qualsiasi utente, quindi sono un vettore stored.
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    if (s.includes(",") || s.includes('"') || s.includes("\n") || s.includes("\r")) {
+      return `"${s.replace(/"/g, '""')}"`;
+    }
     return s;
   };
 

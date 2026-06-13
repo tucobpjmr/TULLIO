@@ -475,21 +475,29 @@ function baseReducer(state, action) {
       return { ...state, tasks, selectedTask, toast, lastAction };
     }
     case "RESTORE_TASK": {
-      if (!isAdmin(uid)) return _denied("Solo Admin può gestire il cestino");
+      const prev = state.tasks.find(t => t.id === action.payload);
+      if (!prev) return state;
+      // Ogni utente può ripristinare solo i task che potrebbe modificare (prerogativa di status)
+      if (!canEditTask(prev, uid)) return _denied("Non puoi gestire questo task nel cestino");
       const tasks = state.tasks.map(t =>
         t.id === action.payload ? { ...t, deletedAt: null } : t
       );
       return { ...state, tasks, toast: { message: "Task ripristinato!", type: "success" } };
     }
     case "PURGE_TASK": {
-      if (!isAdmin(uid)) return _denied("Solo Admin può gestire il cestino");
+      const prev = state.tasks.find(t => t.id === action.payload);
+      if (!prev) return state;
+      if (!canEditTask(prev, uid)) return _denied("Non puoi eliminare questo task");
       const tasks = state.tasks.filter(t => t.id !== action.payload);
       return { ...state, tasks, toast: { message: "Task eliminato definitivamente", type: "success" } };
     }
     case "EMPTY_TRASH": {
-      if (!isAdmin(uid)) return _denied("Solo Admin può svuotare il cestino");
-      const count = state.tasks.filter(t => t.deletedAt).length;
-      const tasks = state.tasks.filter(t => !t.deletedAt);
+      // Svuota solo i task cestinati che l'utente corrente può gestire
+      const purgeIds = new Set(
+        state.tasks.filter(t => t.deletedAt && canEditTask(t, uid)).map(t => t.id)
+      );
+      const count = purgeIds.size;
+      const tasks = state.tasks.filter(t => !purgeIds.has(t.id));
       return { ...state, tasks, toast: { message: `Cestino svuotato (${count} task eliminati)`, type: "success" } };
     }
 
@@ -1163,9 +1171,10 @@ const Toast = ({ toast, dispatch }) => {
 };
 
 // ─── ADVANCED SEARCH PANEL ─────────────────────────────────────────────────
-const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
+// Pannello di ricerca unificato: la keyword è controllata dall'input lente nella
+// Topbar (props keyword / onKeyword), i filtri avanzati restano locali al pannello.
+const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword }) => {
   const { isMobile } = useViewport();
-  const [keyword, setKeyword] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [cats, setCats] = useState([]);
@@ -1173,19 +1182,8 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
   const [agents, setAgents] = useState([]);
   const [includeTrashed, setIncludeTrashed] = useState(false);
 
-  const panelRef = useRef(null);
-  const keywordRef = useRef(null);
-
-  useEffect(() => { keywordRef.current?.focus(); }, []);
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (panelRef.current && !panelRef.current.contains(e.target)) onClose();
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [onClose]);
-
+  // La chiusura su click esterno è gestita dal wrapper di ricerca nella Topbar
+  // (l'input keyword vive lì). Qui resta solo la chiusura con Escape.
   useEffect(() => {
     const handler = (e) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", handler);
@@ -1197,7 +1195,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
   };
 
   const resetAll = () => {
-    setKeyword(""); setDateFrom(""); setDateTo("");
+    onKeyword?.(""); setDateFrom(""); setDateTo("");
     setCats([]); setStats([]); setAgents([]); setIncludeTrashed(false);
   };
 
@@ -1258,7 +1256,6 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
 
   return (
     <div
-      ref={panelRef}
       className="fade-in"
       style={{
         position: isMobile ? "fixed" : "absolute",
@@ -1279,7 +1276,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
         background: "#fff",
       }}>
         <div className="playfair" style={{ fontSize: 15, fontWeight: 700, color: "var(--navy)" }}>
-          🎛️ Ricerca avanzata
+          🔍 Ricerca
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           {hasFilters && (
@@ -1297,23 +1294,6 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
       </div>
 
       <div style={{ padding: "16px 18px", borderBottom: "1px solid var(--border)", overflowY: "auto", maxHeight: 380 }}>
-        <div style={{ marginBottom: 14 }}>
-          <div style={sectionTitle}>Parola chiave</div>
-          <input
-            ref={keywordRef}
-            value={keyword}
-            onChange={e => setKeyword(e.target.value)}
-            placeholder="Cerca in titolo, descrizione, cliente, commenti..."
-            style={{
-              width: "100%", padding: "8px 12px", borderRadius: 8,
-              border: "1px solid var(--border)", fontSize: 13, outline: "none",
-              fontFamily: "inherit", boxSizing: "border-box",
-            }}
-            onFocus={e => e.target.style.borderColor = "var(--gold)"}
-            onBlur={e => e.target.style.borderColor = "var(--border)"}
-          />
-        </div>
-
         <div style={{ marginBottom: 14 }}>
           <div style={sectionTitle}>Scadenza</div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -1391,7 +1371,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", background: "#fff", maxHeight: 320 }}>
         {!hasFilters && (
           <div style={{ padding: "32px 20px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
-            Imposta uno o più filtri per iniziare la ricerca
+            Digita una parola chiave o imposta un filtro per iniziare la ricerca
           </div>
         )}
         {hasFilters && results.length === 0 && (
@@ -1478,7 +1458,18 @@ const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notifi
   const realNotifs = Array.isArray(notificationsProp) ? notificationsProp : [];
   const notifList = SHOW_MOCK_NOTIFS ? [...realNotifs, ...NOTIFICATIONS] : realNotifs;
   const unread = notifList.filter(n => !n.read).length;
-  const [advOpen, setAdvOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchWrapRef = useRef(null);
+
+  // Chiude il pannello di ricerca al click fuori dal wrapper (input + pannello)
+  useEffect(() => {
+    if (!searchOpen) return;
+    const handler = (e) => {
+      if (searchWrapRef.current && !searchWrapRef.current.contains(e.target)) setSearchOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [searchOpen]);
   return (
     <div style={{
       height: 58, background: "var(--navy)", display: "flex", alignItems: "center",
@@ -1497,40 +1488,31 @@ const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notifi
         </div>
       </div>
 
-      {/* Search + Advanced */}
-      <div style={{ flex: 1, maxWidth: 520, position: "relative", display: "flex", gap: 8, alignItems: "center" }}>
-        <div style={{ flex: 1, position: "relative" }}>
+      {/* Ricerca unificata (testuale + filtri avanzati) */}
+      <div ref={searchWrapRef} style={{ flex: 1, maxWidth: 520, position: "relative" }}>
+        <div style={{ position: "relative" }}>
           <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.4)", fontSize: 14 }}>🔍</div>
           <input
             value={state.searchQuery}
-            onChange={e => dispatch({ type: "SET_SEARCH", payload: e.target.value })}
+            onChange={e => { dispatch({ type: "SET_SEARCH", payload: e.target.value }); setSearchOpen(true); }}
+            onFocus={e => { setSearchOpen(true); e.target.style.background = "rgba(255,255,255,0.13)"; e.target.style.borderColor = "var(--gold)"; }}
+            onBlur={e => { e.target.style.background = "rgba(255,255,255,0.08)"; e.target.style.borderColor = "rgba(255,255,255,0.15)"; }}
             placeholder={isMobile ? "Cerca..." : "Cerca task, clienti, categorie... (Ctrl+K)"}
+            aria-label="Cerca"
             style={{
               width: "100%", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)",
               borderRadius: 8, padding: "7px 12px 7px 36px", color: "#fff", fontSize: 13,
               outline: "none", transition: "all 0.2s", boxSizing: "border-box",
             }}
-            onFocus={e => { e.target.style.background = "rgba(255,255,255,0.13)"; e.target.style.borderColor = "var(--gold)"; }}
-            onBlur={e => { e.target.style.background = "rgba(255,255,255,0.08)"; e.target.style.borderColor = "rgba(255,255,255,0.15)"; }}
           />
         </div>
-        <button
-          onClick={() => setAdvOpen(o => !o)}
-          title="Ricerca avanzata"
-          aria-label="Apri ricerca avanzata"
-          style={{
-            background: advOpen ? "var(--gold)" : "rgba(255,255,255,0.08)",
-            border: `1px solid ${advOpen ? "var(--gold)" : "rgba(255,255,255,0.15)"}`,
-            borderRadius: 8, width: 36, height: 34, cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 15, flexShrink: 0, transition: "all 0.2s",
-          }}
-        >🎛️</button>
-        {advOpen && (
+        {searchOpen && (
           <AdvancedSearchPanel
             tasks={state.tasks}
             dispatch={dispatch}
-            onClose={() => setAdvOpen(false)}
+            keyword={state.searchQuery}
+            onKeyword={v => dispatch({ type: "SET_SEARCH", payload: v })}
+            onClose={() => setSearchOpen(false)}
           />
         )}
       </div>
@@ -2134,7 +2116,7 @@ const NAV_ITEMS = [
   { id: "dashboard", icon: "📊", label: "Dashboard", roles: ["admin", "manager", "agent", "driver"] },
   { id: "calendar", icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
   { id: "team", icon: "👥", label: "Team", roles: ["admin", "manager", "agent"] },
-  { id: "trash", icon: "🗑️", label: "Cestino", roles: ["admin"] },
+  { id: "trash", icon: "🗑️", label: "Cestino", roles: ["admin", "manager", "agent", "driver"] },
   { id: "admin", icon: "⚙️", label: "Admin", roles: ["admin"] },
 ];
 
@@ -2175,7 +2157,7 @@ const NavBadge = ({ count, collapsed = false, mobile = false }) => {
   return <span style={{ ...base, marginLeft: "auto" }}>{count > 99 ? "99+" : count}</span>;
 };
 
-const Sidebar = ({ state, dispatch }) => {
+const Sidebar = ({ state, dispatch, onOpenBulk }) => {
   const { isDesktop } = useViewport();
   if (!isDesktop) return null;
   const col = state.sidebarCollapsed;
@@ -2218,6 +2200,28 @@ const Sidebar = ({ state, dispatch }) => {
             </button>
           );
         })}
+
+        {/* Azione: crea più task / import / template (spostata dal FAB secondario) */}
+        <button
+          onClick={onOpenBulk}
+          title="Crea più task / Import / Template"
+          aria-label="Crea più task"
+          style={{
+            display: "flex", alignItems: "center", gap: 10,
+            padding: col ? "10px 8px" : "10px 12px", marginTop: 8,
+            borderRadius: 8, cursor: "pointer",
+            border: "1px solid rgba(212,168,67,0.4)",
+            background: "rgba(212,168,67,0.12)",
+            color: "var(--gold)", fontSize: 14, fontWeight: 600,
+            transition: "all 0.2s", textAlign: "left",
+            justifyContent: col ? "center" : "flex-start",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = "rgba(212,168,67,0.22)"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "rgba(212,168,67,0.12)"; }}
+        >
+          <span style={{ fontSize: 16, flexShrink: 0 }}>📑</span>
+          {!col && <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>Più task</span>}
+        </button>
       </div>
 
       {!col && (
@@ -2243,7 +2247,7 @@ const Sidebar = ({ state, dispatch }) => {
 };
 
 // ─── BOTTOM NAV (mobile/tablet) ────────────────────────────────────────────
-const BottomNav = ({ state, dispatch }) => {
+const BottomNav = ({ state, dispatch, onOpenBulk }) => {
   const navItems = getNavItemsForUser(state.currentUserId);
   const badges = getNavBadges(state);
   return (
@@ -2276,6 +2280,22 @@ const BottomNav = ({ state, dispatch }) => {
           </button>
         );
       })}
+
+      {/* Azione: crea più task (spostata dal FAB secondario) */}
+      <button
+        onClick={onOpenBulk}
+        aria-label="Crea più task"
+        style={{
+          flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
+          justifyContent: "center", gap: 3, padding: "6px 2px",
+          background: "transparent", border: "none", cursor: "pointer",
+          color: "var(--gold)", borderTop: "2px solid transparent",
+          transition: "color 0.2s", position: "relative",
+        }}
+      >
+        <span style={{ fontSize: 19, lineHeight: 1 }}>📑</span>
+        <span style={{ fontSize: 9, fontWeight: 600, whiteSpace: "nowrap" }}>Più task</span>
+      </button>
     </nav>
   );
 };
@@ -2285,6 +2305,7 @@ const bulkInputStyle = {
   width: "100%", border: "1px solid var(--border)", borderRadius: 6,
   padding: "7px 9px", fontSize: 12.5, fontFamily: "inherit",
   background: "#fff", outline: "none",
+  minWidth: 0, boxSizing: "border-box",
 };
 const bulkBtnPrimary = {
   background: "var(--navy)", color: "#fff", border: "none",
@@ -2304,6 +2325,7 @@ const bulkIconBtnSmall = {
 
 // ─── BULK: MANUAL TAB ──────────────────────────────────────────────────────
 const ManualTab = ({ onCreate, onClose }) => {
+  const { isMobile } = useViewport();
   const [common, setCommon] = useState({ client: "", category: "booking", priority: "medium", assignee: "" });
   const emptyRow = () => ({ key: Math.random().toString(36).slice(2), title: "", category: "", priority: "", assignee: "", dueDate: "" });
   const [rows, setRows] = useState([emptyRow(), emptyRow(), emptyRow()]);
@@ -2339,7 +2361,7 @@ const ManualTab = ({ onCreate, onClose }) => {
         <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 8 }}>
           IMPOSTAZIONI COMUNI (usate se la riga non specifica)
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: 8 }}>
           <input value={common.client} onChange={e => setCommon({ ...common, client: e.target.value })} placeholder="Cliente" style={bulkInputStyle} />
           <select value={common.category} onChange={e => setCommon({ ...common, category: e.target.value })} style={bulkInputStyle}>
             {Object.entries(CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
@@ -2354,32 +2376,63 @@ const ManualTab = ({ onCreate, onClose }) => {
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "26px 1fr 130px 100px 120px 130px 28px", gap: 6, fontSize: 10, fontWeight: 700, color: "var(--text-muted)", padding: "0 4px", letterSpacing: 0.5 }}>
-          <div>#</div><div>TITOLO *</div><div>CATEGORIA</div><div>PRIORITÀ</div><div>ASSEGNATO</div><div>SCADENZA</div><div></div>
-        </div>
-        {rows.map((r, idx) => (
-          <div key={r.key} style={{ display: "grid", gridTemplateColumns: "26px 1fr 130px 100px 120px 130px 28px", gap: 6, alignItems: "center" }}>
-            <div style={{ fontSize: 11, color: "var(--text-muted)", textAlign: "center" }}>{idx + 1}</div>
-            <input value={r.title} onChange={e => updateRow(r.key, "title", e.target.value)} placeholder="Titolo task..." style={bulkInputStyle} />
-            <select value={r.category} onChange={e => updateRow(r.key, "category", e.target.value)} style={bulkInputStyle}>
-              <option value="">— default —</option>
-              {Object.entries(CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
-            </select>
-            <select value={r.priority} onChange={e => updateRow(r.key, "priority", e.target.value)} style={bulkInputStyle}>
-              <option value="">—</option>
-              {Object.entries(PRIORITIES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-            </select>
-            <select value={r.assignee} onChange={e => updateRow(r.key, "assignee", e.target.value)} style={bulkInputStyle}>
-              <option value="">—</option>
-              {getAssignableTeam().map(m => <option key={m.id} value={m.id}>{m.name.split(" ")[0]}</option>)}
-            </select>
-            <input type="date" value={r.dueDate} onChange={e => updateRow(r.key, "dueDate", e.target.value)} style={bulkInputStyle} />
-            <button onClick={() => removeRow(r.key)} disabled={rows.length === 1} style={{
-              background: "transparent", border: "none", cursor: rows.length === 1 ? "not-allowed" : "pointer",
-              fontSize: 14, color: "var(--text-muted)", opacity: rows.length === 1 ? 0.3 : 1,
-            }}>✕</button>
+      <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 10 : 6 }}>
+        {!isMobile && (
+          <div style={{ display: "grid", gridTemplateColumns: "26px 1fr 130px 100px 120px 130px 28px", gap: 6, fontSize: 10, fontWeight: 700, color: "var(--text-muted)", padding: "0 4px", letterSpacing: 0.5 }}>
+            <div>#</div><div>TITOLO *</div><div>CATEGORIA</div><div>PRIORITÀ</div><div>ASSEGNATO</div><div>SCADENZA</div><div></div>
           </div>
+        )}
+        {rows.map((r, idx) => (
+          isMobile ? (
+            /* Mobile: ogni riga è una card impilata (no scroll orizzontale) */
+            <div key={r.key} style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 10, background: "var(--surface)", display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", flexShrink: 0 }}>#{idx + 1}</span>
+                <input value={r.title} onChange={e => updateRow(r.key, "title", e.target.value)} placeholder="Titolo task..." style={{ ...bulkInputStyle, flex: 1 }} />
+                <button onClick={() => removeRow(r.key)} disabled={rows.length === 1} style={{
+                  background: "transparent", border: "none", cursor: rows.length === 1 ? "not-allowed" : "pointer",
+                  fontSize: 16, color: "var(--text-muted)", opacity: rows.length === 1 ? 0.3 : 1, flexShrink: 0,
+                }}>✕</button>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <select value={r.category} onChange={e => updateRow(r.key, "category", e.target.value)} style={bulkInputStyle}>
+                  <option value="">— categoria —</option>
+                  {Object.entries(CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+                </select>
+                <select value={r.priority} onChange={e => updateRow(r.key, "priority", e.target.value)} style={bulkInputStyle}>
+                  <option value="">— priorità —</option>
+                  {Object.entries(PRIORITIES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                </select>
+                <select value={r.assignee} onChange={e => updateRow(r.key, "assignee", e.target.value)} style={bulkInputStyle}>
+                  <option value="">— assegna —</option>
+                  {getAssignableTeam().map(m => <option key={m.id} value={m.id}>{m.name.split(" ")[0]}</option>)}
+                </select>
+                <input type="date" value={r.dueDate} onChange={e => updateRow(r.key, "dueDate", e.target.value)} style={bulkInputStyle} />
+              </div>
+            </div>
+          ) : (
+            <div key={r.key} style={{ display: "grid", gridTemplateColumns: "26px 1fr 130px 100px 120px 130px 28px", gap: 6, alignItems: "center" }}>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", textAlign: "center" }}>{idx + 1}</div>
+              <input value={r.title} onChange={e => updateRow(r.key, "title", e.target.value)} placeholder="Titolo task..." style={bulkInputStyle} />
+              <select value={r.category} onChange={e => updateRow(r.key, "category", e.target.value)} style={bulkInputStyle}>
+                <option value="">— default —</option>
+                {Object.entries(CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+              </select>
+              <select value={r.priority} onChange={e => updateRow(r.key, "priority", e.target.value)} style={bulkInputStyle}>
+                <option value="">—</option>
+                {Object.entries(PRIORITIES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+              <select value={r.assignee} onChange={e => updateRow(r.key, "assignee", e.target.value)} style={bulkInputStyle}>
+                <option value="">—</option>
+                {getAssignableTeam().map(m => <option key={m.id} value={m.id}>{m.name.split(" ")[0]}</option>)}
+              </select>
+              <input type="date" value={r.dueDate} onChange={e => updateRow(r.key, "dueDate", e.target.value)} style={bulkInputStyle} />
+              <button onClick={() => removeRow(r.key)} disabled={rows.length === 1} style={{
+                background: "transparent", border: "none", cursor: rows.length === 1 ? "not-allowed" : "pointer",
+                fontSize: 14, color: "var(--text-muted)", opacity: rows.length === 1 ? 0.3 : 1,
+              }}>✕</button>
+            </div>
+          )
         ))}
         <button onClick={addRow} style={{
           background: "transparent", border: "1px dashed var(--border)", borderRadius: 8,
@@ -6518,7 +6571,11 @@ const FAB = ({ onClick }) => {
 const Trash = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
   const [restoring, setRestoring] = useState(null); // task being restored/edited
+  const me = state.currentUserId;
+  // Ogni utente vede nel cestino solo i task che può gestire (admin: tutti; manager/agent:
+  // propri + coda globale; driver: solo transfer propri/globali) — prerogativa di status.
   const trashed = getTrashedTasks(state.tasks)
+    .filter(t => canEditTask(t, me))
     .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt));
 
   const handleRestore = (task) => {
@@ -7659,7 +7716,6 @@ export default function VoyageDesk({ initialTeam, initialCurrentUserId } = {}) {
 }
 
 function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
-  const { isDesktop } = useViewport();
   const [state, rawDispatch] = useReducer(
     reducer,
     { team: initialTeam, currentUserId: initialCurrentUserId },
@@ -8202,14 +8258,14 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           onOpenTask={openTaskById}
         />
         <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-          <Sidebar state={state} dispatch={dispatch} />
+          <Sidebar state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} />
           <main className="vd-main-scroll" style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
             {renderView()}
           </main>
         </div>
 
         {/* Bottom nav mobile/tablet */}
-        <BottomNav state={state} dispatch={dispatch} />
+        <BottomNav state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} />
 
         {/* Slide-over */}
         {state.selectedTask && <TaskSlideOver task={state.selectedTask} dispatch={dispatch} />}
@@ -8231,25 +8287,9 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           loading={chatLoading}
         />
 
-        {/* FAB principale (singolo task) + FAB secondario (bulk) */}
+        {/* FAB principale (singolo task). La creazione bulk/multi-task è ora in Sidebar/BottomNav. */}
         {state.activeView !== "trash" && state.activeView !== "admin" && (
-          <>
-            <button
-              onClick={() => setShowBulkModal(true)}
-              title="Crea più task / Import / Template"
-              style={{
-                position: "fixed", bottom: isDesktop ? 32 : 84, right: isDesktop ? 92 : 76, width: 44, height: 44,
-                borderRadius: "50%", background: "var(--navy)", border: "none",
-                boxShadow: "0 6px 20px rgba(15,32,68,0.35)", cursor: "pointer",
-                fontSize: 17, display: "flex", alignItems: "center", justifyContent: "center",
-                color: "#fff", zIndex: 400,
-                transition: "transform 0.2s ease, box-shadow 0.2s ease",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.1)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-            >📑</button>
-            <FAB onClick={() => setShowFABModal(true)} />
-          </>
+          <FAB onClick={() => setShowFABModal(true)} />
         )}
         {showFABModal && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} />}
 

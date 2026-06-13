@@ -31,7 +31,7 @@ Agisci come sviluppatore full-stack specializzato in sistemi gestionali per trav
 - **Animazioni ingresso**: classi `slide-up`, `fade-in`, `slide-right`
 - **Responsive**: `const { isMobile, isDesktop } = useViewport()` dentro ogni componente che adatta il layout
 - **Permessi**: ogni nuova feature che tocca task o viste deve usare `canViewTask`/`canEditTask`. Ogni nuova voce nav in `NAV_ITEMS` deve avere il campo `roles`
-- **Sync globale**: TEAM/CATEGORIES/CURRENT_USER sono `let` mutabili sincronizzati via `_syncTeam`/`_syncCategories`/`_syncCurrentUser`
+- **Sync globale**: TEAM/CATEGORIES/CURRENT_USER vivono in `src/state/appGlobals.js` come `export let` (live ES-module bindings). Il reducer (`src/state/reducer.js`) li aggiorna chiamando i setter `setTeam`/`setCategories`/`setCurrentUser`. I moduli esterni leggono direttamente la live binding. **NON** usare il vecchio pattern `_syncTeam`/`_syncCategories`/`_syncCurrentUser` (rimosso in Step P Phase 1)
 
 ### Cosa NON fare
 - Non usare localStorage/sessionStorage (vincolo artifact, da rimuovere post-migrazione Vite)
@@ -240,8 +240,31 @@ Vedi `docs/ROADMAP.md` per il dettaglio completo con dipendenze e stime.
 ## Note tecniche importanti
 
 1. **Architettura root**: `VoyageDesk` wrappa `VoyageDeskInner` dentro `<ViewportProvider>`. Tutti i componenti con `useViewport()` devono essere dentro questo provider.
-2. **TEAM/CATEGORIES/CURRENT_USER** sono `let` mutabili — pattern ibrido con sync nel reducer. Funziona ma è da migrare a Context puro.
+2. **TEAM/CATEGORIES/CURRENT_USER** vivono in `src/state/appGlobals.js` come `export let` (live ES-module bindings). Setter `setTeam`/`setCategories`/`setCurrentUser` esposti per consentire la riassegnazione dal reducer (`src/state/reducer.js`) — i moduli esterni non possono riassegnare un `let` importato (read-only). Pattern introdotto in Step P Phase 2c (PR #35), insieme alla rimozione del vecchio `_sync*` (Phase 1, PR #32).
 3. **Chat e AI**: usano `fetch` su `https://api.anthropic.com/v1/messages` — funziona solo in ambiente Claude.ai artifacts. Per dev locale, mockare o usare API key.
 4. **activityLog**: max 100 entry, poi taglia le più vecchie.
 5. **Backup JSON**: Admin → Import/Export include tutto lo stato persistente. Ripristino sovrascrive.
 6. **DnD**: disabilitato su mobile. Usare SwipeActions per azioni rapide.
+7. **CRLF su `src/VoyageDesk.jsx`**: il monolite ha line endings CRLF. Tool che lo riscrivono interamente (Python, alcuni helper) lo normalizzano a LF gonfiando il diff a 8000+ righe. Verifica sempre `git diff --numstat src/VoyageDesk.jsx` prima del push; se anomalo riconverti CRLF con `python3 -c "p='src/VoyageDesk.jsx'; d=open(p,'rb').read().replace(b'\r\n',b'\n').replace(b'\n',b'\r\n'); open(p,'wb').write(d)"`.
+
+## File structure post Step P (Phase 2d locale, non-mergeato)
+
+```
+src/
+├── auth/                 (AuthContext.jsx, LoginScreen.jsx)
+├── lib/
+│   ├── api.js            Tasks/Notices/.../Users/Messages APIs
+│   ├── clientId.js       UUID per tab (origin-tagging realtime)
+│   ├── mappers.js        DB ↔ camelCase
+│   ├── supabase.js
+│   ├── taskConstants.js  PRIORITIES/STATUSES/STATUS_*/NOTICE_COLORS/TASK_TEMPLATES (Phase 2a)
+│   └── taskUtils.js      formatDate/formatTime/isUrgent/isMyTask/... (Phase 2a)
+├── state/                (cartella nuova, Phase 2b-2d)
+│   ├── mockData.js       INITIAL_TEAM/CATEGORIES/TASKS/NOTICES + MOCK_NOTIFICATIONS
+│   ├── appGlobals.js     TEAM/CATEGORIES/CURRENT_USER live bindings + setter + permessi
+│   └── reducer.js        baseReducer / reducer / makeInitialState / LOGGED_ACTIONS / ADMIN_ONLY
+├── VoyageDesk.jsx        AppContext + albero componenti React (~7668 righe, era 8325)
+└── main.jsx
+```
+
+Vedi `docs/HANDOFF_SESSION_2026-06-13_v10.md` §3 per la catena di import dettagliata e gli insight chiave (live bindings, setter, CURRENT_USER doppio canale).

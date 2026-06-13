@@ -5,6 +5,30 @@
 
 ---
 
+## ⚠️ Questo file è LEGACY (sessioni E–I)
+
+L'handoff aggiornato vive in `docs/HANDOFF_SESSION_<data>_v<n>.md`.
+
+**Ultimo handoff attivo:** [`docs/HANDOFF_SESSION_2026-06-13_v10.md`](./HANDOFF_SESSION_2026-06-13_v10.md) (sessione 16, post Step P Phase 1+2a→2d).
+
+**Sequenza handoff:**
+- v10 (2026-06-13, sessione 16) — post Step P, chain PR #32→#36 draft
+- v9 (2026-06-13, sessione 15) — post Step R + S
+- v8 (2026-06-11, sessione 14) — post Step Q
+- v7 (2026-06-11, sessione 13) — post Step M + O
+- v6 (2026-06-11, sessione 12) — post Step N
+- v5 (2026-06-10) — post Step L
+- v4 (2026-06-09) — post Step J
+- v2 (2026-06-09) — post Step F
+
+Leggi il più recente, poi se serve risalire allo storico apri quello precedente.
+
+Il `CHANGELOG.md` ha il dettaglio cronologico di ogni step. Il `ROADMAP.md` ha lo stato corrente delle priorità.
+
+---
+
+## Storico (sessioni E → I)
+
 ## Stato attuale (branch `claude/step-e-sync-robustness`, commits E→I sopra `claude/cool-darwin-8wdgwv`)
 
 ### Cosa è stato fatto nella sessione corrente (Step E → I)

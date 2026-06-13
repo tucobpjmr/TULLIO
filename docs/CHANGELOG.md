@@ -1,5 +1,85 @@
 # CHANGELOG — VoyageDesk
 
+## v1.8-dev — Step P (Phase 1 → 2d): refactor monolite (sessione 16)
+
+> Cumulativo sopra v1.7-dev (PR #30 Step R + PR #31 Step S mergeate in sessione 15). Chain di 5 PR draft, da mergeare in ordine.
+
+Avvio del refactor del monolite `src/VoyageDesk.jsx` (caveat #15). Strategia: micro-PR incrementali, ciascuna con preview Vercel indipendente. Risultato cumulativo: **8325 → 7668 righe** (−657, ~−8%), creata la cartella `src/state/` e nuovi moduli `lib/taskConstants.js` + `lib/taskUtils.js`.
+
+### 🧹 P.1 — Phase 1: rimozione mutazione in-place globali (PR #32)
+
+- Rimossi `_syncTeam`/`_syncCategories`/`_syncCurrentUser` — gli helper che aggiornavano `TEAM.length = 0; team.forEach(t => TEAM.push(t))` per mantenere sincronizzato lo state del reducer con i `let` module-level.
+- Sostituiti con **riassegnazione diretta** (`TEAM = newTeam`, `CATEGORIES = newCats`, `CURRENT_USER = newId`) in tutti i 12 punti del reducer + `makeInitialState`.
+- Le utility (`getMember`, `getRoleType`, …) chiudono sulla **variabile** `let`, non sul valore iniziale → continuano a vedere il valore corrente senza mutazione in-place.
+- `docs/CLAUDE.md`: aggiornato pattern "Sync globale" e nota tecnica #2.
+- Branch: `claude/step-p-phase1-remove-mutable-globals` · base: `main`.
+
+### 📦 P.2 — Phase 2a: costanti + utility pure (PR #33)
+
+- `src/lib/taskConstants.js` (nuovo): `PRIORITIES`, `STATUSES`, `STATUS_LABELS`, `STATUS_COLORS`, `NOTICE_COLORS`, `TASK_TEMPLATES` (4 template predefiniti).
+- `src/lib/taskUtils.js` (nuovo): `formatDate`/`formatTime`, `getDayKey`, `isOverdue`/`isUrgent`, `isActiveTask`/`getActiveTasks`/`getTrashedTasks`, `isMyTask`, `isInGlobalQueue`. Nessuna dipendenza da `TEAM`/`CATEGORIES`/`CURRENT_USER` (utility pure).
+- `VoyageDesk.jsx`: rimosse le dichiarazioni inline, aggiunti import dai due nuovi moduli (~300 righe in meno).
+- Branch: `claude/step-p-phase2a-extract-constants-utils` · base: Phase 1.
+
+### 🗂️ P.3 — Phase 2b: dati mock (PR #34)
+
+- `src/state/mockData.js` (nuovo, cartella `state/` creata): `INITIAL_TEAM` (7 membri Marco/Sofia/Luca/Giulia/Roberto + 2 pending Elena/Matteo), `INITIAL_CATEGORIES` (10), `INITIAL_TASKS` (27), `INITIAL_NOTICES` (3), `MOCK_NOTIFICATIONS` (6). Helper privato `d()` per date relative al `_now` snapshot.
+- Rinominato `NOTIFICATIONS` → `MOCK_NOTIFICATIONS` (chiarisce che è solo fallback offline/demo, vedi anche fix #11 v1.2-dev).
+- `VoyageDesk.jsx`: `let TEAM = [...INITIAL_TEAM]` e `let CATEGORIES = { ...INITIAL_CATEGORIES }` ora usano gli import (~100 righe rimosse dal monolite).
+- Branch: `claude/step-p-phase2b-extract-mock-data` · base: Phase 2a.
+
+### 🔌 P.4 — Phase 2c: globali mutabili + helper permessi (PR #35)
+
+- `src/state/appGlobals.js` (nuovo, ~80 righe):
+  - Export `TEAM`/`CATEGORIES`/`CURRENT_USER` come **live ES-module bindings** (con `export let`).
+  - Setter `setTeam`/`setCategories`/`setCurrentUser` — necessari perché moduli esterni non possono riassegnare un `let` importato (read-only).
+  - Tutti gli helper team + permessi: `getMember`, `getAssignableTeam`, `getRoleType`, `isAdmin`, `isDriver`, `canViewTask`, `canEditTask`, `canCreateTaskCategory`, `canAccessAdmin`, `getAvailableCategories`, `getVisibleTasks`.
+- `VoyageDesk.jsx`: tutti gli usi degli helper ora vengono da import, rimosse ~70 righe (le `let` inline + l'intera sezione `// ─── PERMESSI`). Le 11 assegnazioni dirette nel reducer (`TEAM = ...`) ora chiamano il setter equivalente.
+- **Insight chiave**: `export let X` + `setX()` funziona perché gli importatori leggono la live binding — vedono sempre il valore corrente dopo `setX(newVal)`. Pattern essenziale per estrarre il reducer in Phase 2d senza usare React Context.
+- Branch: `claude/step-p-phase2c-appglobals` · base: Phase 2b.
+
+### 🎛️ P.5 — Phase 2d: reducer + makeInitialState (PR #36)
+
+- `src/state/reducer.js` (nuovo, ~400 righe):
+  - `baseReducer`: logica pura di transizione (tutte le action `SET_*`/`ADD_*`/`UPDATE_*`/`MOVE_*`/`DELETE_*`/`RESTORE_*`/`PURGE_*`/`EMPTY_TRASH`/`ADD_TEAM_MEMBER`/…/`UPDATE_OWN_PROFILE`).
+  - `reducer`: wrapper con pre-check `ADMIN_ONLY_ACTIONS` + append al `activityLog` per le `LOGGED_ACTIONS`.
+  - `LOGGED_ACTIONS`, `buildLogEntry`, `ADMIN_ONLY_ACTIONS`, `makeInitialState`.
+  - Importa `STATUS_LABELS` da `taskConstants`, mutable globals + setter + permission helpers da `appGlobals`, `INITIAL_TASKS`/`INITIAL_NOTICES` da `mockData`.
+- `VoyageDesk.jsx`: rimosse ~370 righe (il blocco reducer completo); resta solo `AppContext = createContext(null)` e l'albero componenti. Import puliti — `setTeam/setCategories/setCurrentUser` (solo reducer li chiama) e seed mock (`INITIAL_TEAM/CATEGORIES/TASKS/NOTICES`) rimossi; solo `MOCK_NOTIFICATIONS` resta usato nei componenti per il fallback offline.
+- **Gotcha CRLF**: il monolite `src/VoyageDesk.jsx` ha line endings CRLF. Durante l'estrazione un passaggio Python aveva normalizzato a LF, gonfiando il diff a 8000+ righe (full-file rewrite). Risolto con riconversione esplicita CRLF prima del push → diff finale **8 added / 386 removed** + 400 added (nuovo file). Lesson learned aggiunta in CLAUDE.md + handoff v10.
+- Verifica build: `vite build` OK, 84 moduli transformati (+1 vs Phase 2c).
+- Branch: `claude/step-p-phase2d-reducer` · base: Phase 2c.
+
+### Verifica build cumulativa (Phase 2d locale)
+
+```
+dist/index.html                     0.50 kB │ gzip:   0.30 kB
+dist/assets/react-*.js            140.87 kB │ gzip:  45.26 kB
+dist/assets/supabase-*.js         211.12 kB │ gzip:  54.46 kB
+dist/assets/index-*.js            268.69 kB │ gzip:  64.54 kB  (+~2 kB vs Step Q)
+dist/assets/xlsx-*.js             429.03 kB │ gzip: 143.08 kB
+```
+
+Lieve aumento (~2 kB gz) sul chunk principale dovuto al boilerplate dei nuovi moduli (export/import overhead). Atteso che si riduca quando Phase 2e estrarrà i componenti pesanti in chunk lazy.
+
+### Caveat #15 — stato dopo Step P Phase 1→2d
+
+🔶 **Parziale**: `src/VoyageDesk.jsx` a 7668 righe (era 8325). Tutta la logica non-React (state mock, globali, permessi, reducer, costanti, utility) è fuori dal monolite. **Phase 2e** (estrazione componenti React in `src/components/`) è il blocco residuo.
+
+---
+
+## v1.7-dev — Step R + Step S: drift DB + user_contacts (sessione 15)
+
+> Cumulativo sopra v1.6-dev (Step Q PR #24 mergeato).
+
+Sessione 15 ha:
+1. Versionato 14 migrazioni mancanti (Step R, PR #30 mergeata `6245a14`) → caveat #19 chiuso.
+2. Cablato `email`/`phone` su `public.user_contacts` (Step S, PR #31 mergeata `75358e2`) → caveat #24 chiuso.
+
+Vedi `docs/HANDOFF_SESSION_2026-06-13_v9.md` §1-3 per il dettaglio.
+
+---
+
 ## v1.6-dev — Step Q: Hardening realtime + chat (sessione 14)
 
 > Cumulativo sopra v1.5-dev (PR #22 + #23 mergeate, code-review chiusa, handoff v7 attivo).

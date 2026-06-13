@@ -35,6 +35,15 @@ import {
   INITIAL_TEAM, INITIAL_CATEGORIES,
   INITIAL_TASKS, INITIAL_NOTICES, MOCK_NOTIFICATIONS,
 } from "./state/mockData.js";
+// Step P Phase 2c: globals mutabili, setter e helper permessi estratti.
+import {
+  TEAM, CATEGORIES, CURRENT_USER,
+  setTeam, setCategories, setCurrentUser,
+  getMember, getAssignableTeam,
+  getRoleType, isAdmin, isDriver,
+  canViewTask, canEditTask, canCreateTaskCategory,
+  canAccessAdmin, getAvailableCategories, getVisibleTasks,
+} from "./state/appGlobals.js";
 
 // ─── XLSX LAZY LOADER ──────────────────────────────────────────────────────
 // Carica SheetJS solo alla prima import/export e ne cachea il modulo, così il
@@ -156,15 +165,6 @@ const ViewportProvider = ({ children }) => {
   return <ViewportContext.Provider value={vp}>{children}</ViewportContext.Provider>;
 };
 
-// ─── STATO GLOBALE MUTABILE ────────────────────────────────────────────────
-// CURRENT_USER, TEAM, CATEGORIES sono `let` module-level: il reducer li aggiorna
-// via semplice riassegnazione (TEAM = newTeam) dopo ogni mutazione, così getMember
-// e le altre utility leggono sempre il valore corrente senza essere hook.
-// I valori iniziali vengono da mockData.js (fallback offline/demo).
-let CURRENT_USER = "marco";
-let TEAM = [...INITIAL_TEAM];
-let CATEGORIES = { ...INITIAL_CATEGORIES };
-
 // ─── CONTEXT & REDUCER ─────────────────────────────────────────────────────
 const AppContext = createContext(null);
 
@@ -232,7 +232,7 @@ function baseReducer(state, action) {
       const newId = action.payload;
       const m = getMember(newId);
       if (!m) return state;
-      CURRENT_USER = newId;
+      setCurrentUser(newId);
       // Se l'utente non può più accedere alla view corrente, riporta a dashboard
       const activeView = (state.activeView === "admin" && !canAccessAdmin(newId))
         ? "dashboard"
@@ -354,29 +354,29 @@ function baseReducer(state, action) {
     // ─── ADMIN: TEAM ───
     case "ADD_TEAM_MEMBER": {
       const team = [...state.team, action.payload];
-      TEAM = team;
+      setTeam(team);
       return { ...state, team, toast: { message: `Agente "${action.payload.name}" aggiunto`, type: "success" } };
     }
     case "UPDATE_TEAM_MEMBER": {
       const team = state.team.map(m => m.id === action.payload.id ? { ...m, ...action.payload } : m);
-      TEAM = team;
+      setTeam(team);
       return { ...state, team, toast: { message: "Agente aggiornato", type: "success" } };
     }
     case "APPROVE_TEAM_MEMBER": {
       const team = state.team.map(m => m.id === action.payload ? { ...m, pending: false, active: true } : m);
-      TEAM = team;
+      setTeam(team);
       return { ...state, team, toast: { message: "Agente approvato e attivato!", type: "success" } };
     }
     case "TOGGLE_TEAM_MEMBER_ACTIVE": {
       const team = state.team.map(m => m.id === action.payload ? { ...m, active: !m.active } : m);
-      TEAM = team;
+      setTeam(team);
       const target = team.find(m => m.id === action.payload);
       return { ...state, team, toast: { message: target?.active ? "Agente attivato" : "Agente disattivato", type: "success" } };
     }
     case "REMOVE_TEAM_MEMBER": {
       // Non rimuove davvero se ha task assegnati: si limita a disattivare e segnare pending=false
       const team = state.team.filter(m => m.id !== action.payload);
-      TEAM = team;
+      setTeam(team);
       return { ...state, team, toast: { message: "Agente rimosso", type: "success" } };
     }
 
@@ -384,18 +384,18 @@ function baseReducer(state, action) {
     case "ADD_CATEGORY": {
       const { key, ...rest } = action.payload;
       const categories = { ...state.categories, [key]: rest };
-      CATEGORIES = categories;
+      setCategories(categories);
       return { ...state, categories, toast: { message: `Categoria "${rest.label}" aggiunta`, type: "success" } };
     }
     case "UPDATE_CATEGORY": {
       const { key, ...rest } = action.payload;
       const categories = { ...state.categories, [key]: { ...state.categories[key], ...rest } };
-      CATEGORIES = categories;
+      setCategories(categories);
       return { ...state, categories, toast: { message: "Categoria aggiornata", type: "success" } };
     }
     case "REMOVE_CATEGORY": {
       const { [action.payload]: _, ...rest } = state.categories;
-      CATEGORIES = rest;
+      setCategories(rest);
       return { ...state, categories: rest, toast: { message: "Categoria rimossa", type: "success" } };
     }
 
@@ -405,8 +405,8 @@ function baseReducer(state, action) {
     }
     case "RESTORE_BACKUP": {
       const { tasks, team, categories, agencyName, notices } = action.payload;
-      if (team) TEAM = team;
-      if (categories) CATEGORIES = categories;
+      if (team) setTeam(team);
+      if (categories) setCategories(categories);
       return {
         ...state,
         tasks: tasks ?? state.tasks,
@@ -485,7 +485,7 @@ function baseReducer(state, action) {
       if (phone !== undefined) updates.phone = phone;
       if (photoUrl !== undefined) updates.photoUrl = photoUrl;
       const team = state.team.map(m => m.id === uid ? { ...m, ...updates } : m);
-      TEAM = team;
+      setTeam(team);
       return { ...state, team, toast: { message: "Profilo aggiornato!", type: "success" } };
     }
 
@@ -517,12 +517,12 @@ function reducer(state, action) {
 }
 
 // Factory dell'initial state. Se `team` e/o `currentUserId` sono forniti
-// (es. da Supabase via AuthContext), aggiorna i `let` globali TEAM/CURRENT_USER
-// via riassegnazione prima di costruire lo state. Senza argomenti, state mock.
+// (es. da Supabase via AuthContext), aggiorna i globali in appGlobals.js
+// via setter prima di costruire lo state. Senza argomenti, state mock.
 function makeInitialState({ team, currentUserId } = {}) {
   const hasRealTeam = Array.isArray(team) && team.length > 0;
-  if (hasRealTeam) TEAM = [...team];
-  if (currentUserId) CURRENT_USER = currentUserId;
+  if (hasRealTeam) setTeam([...team]);
+  if (currentUserId) setCurrentUser(currentUserId);
   return {
     // Quando il team viene dal DB le task in-memory non hanno più assignees validi:
     // partiamo da vuoto, le task reali arriveranno dal prossimo wire-up Supabase.
@@ -549,78 +549,9 @@ function makeInitialState({ team, currentUserId } = {}) {
 // ─── UTILS ─────────────────────────────────────────────────────────────────
 // formatDate, formatTime, getDayKey, isOverdue, isUrgent, isActiveTask,
 // getActiveTasks, getTrashedTasks, isMyTask, isInGlobalQueue → src/lib/taskUtils.js
-const getMember = id => TEAM.find(m => m.id === id);
-// Agenti selezionabili come assegnatari (attivi e non in attesa di approvazione)
-const getAssignableTeam = () => TEAM.filter(m => m.active !== false && !m.pending);
-
-// ─── PERMESSI (v0.8) ──────────────────────────────────────────────────────
-// Ruoli logici derivati dal campo `role` del team member.
-// - Admin       → tutto
-// - Manager     → come Senior/Junior Agent (gestione propria coda + globale + visualizza urgenti altrui)
-// - Senior/Junior Agent → idem Manager
-// - Driver      → solo task categoria "transfer", solo coda personale
-const getRoleType = (userId) => {
-  const m = getMember(userId);
-  if (!m) return "agent";
-  const r = (m.role || "").toLowerCase();
-  if (r.includes("admin")) return "admin";
-  if (r.includes("driver")) return "driver";
-  if (r.includes("manager")) return "manager";
-  return "agent"; // senior/junior agent
-};
-
-const isAdmin = (userId) => getRoleType(userId) === "admin";
-const isDriver = (userId) => getRoleType(userId) === "driver";
-
-// Può visualizzare il task?
-const canViewTask = (task, userId) => {
-  const role = getRoleType(userId);
-  if (role === "admin") return true;
-  if (role === "driver") {
-    // Solo le proprie task transfer
-    return isMyTask(task, userId);
-  }
-  // manager/agent: proprie + globali + urgenti altrui
-  if (isMyTask(task, userId)) return true;
-  if (isInGlobalQueue(task)) return true;
-  if (isUrgent(task)) return true;
-  return false;
-};
-
-// Può modificare il task?
-const canEditTask = (task, userId) => {
-  const role = getRoleType(userId);
-  if (role === "admin") return true;
-  if (role === "driver") {
-    return task.category === "transfer" && (isMyTask(task, userId) || isInGlobalQueue(task));
-  }
-  // manager/agent: proprie + globali (non urgenti altrui — quelli sono read-only)
-  if (isMyTask(task, userId)) return true;
-  if (isInGlobalQueue(task)) return true;
-  return false;
-};
-
-// Può creare un task con questa categoria?
-const canCreateTaskCategory = (category, userId) => {
-  const role = getRoleType(userId);
-  if (role === "admin") return true;
-  if (role === "driver") return category === "transfer";
-  return true; // manager/agent: tutte le categorie
-};
-
-// Può accedere all'Admin?
-const canAccessAdmin = (userId) => isAdmin(userId);
-
-// Categorie selezionabili nei form per questo utente
-const getAvailableCategories = (userId) => {
-  if (isDriver(userId)) {
-    return { transfer: CATEGORIES.transfer };
-  }
-  return CATEGORIES;
-};
-
-// Filtra una lista di task secondo le regole di visibilità
-const getVisibleTasks = (tasks, userId) => tasks.filter(t => canViewTask(t, userId));
+// getMember, getAssignableTeam, getRoleType, isAdmin, isDriver,
+// canViewTask, canEditTask, canCreateTaskCategory, canAccessAdmin,
+// getAvailableCategories, getVisibleTasks → src/state/appGlobals.js
 
 // ─── SWIPE ACTIONS (mobile/tablet) ─────────────────────────────────────────
 // Wrapper riusabile: swipe verso destra rivela 3 bottoni (Completato / Cestino / Inoltra).

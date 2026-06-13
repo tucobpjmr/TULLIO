@@ -4,6 +4,10 @@
 --     "permission denied for function is_manager_or_admin" su INSERT/UPDATE tasks)
 -- 2. Allinea notify_queue_stale ai ruoli realmente presenti in users
 --    (lowercase: 'manager','admin'; rimosso 'Senior Agent' inesistente)
+--
+-- ⚠️  STATO: applicato via execute_sql MCP (non tracciato in supabase_migrations).
+--     Il grant su is_manager_or_admin() è poi revocato da anon in
+--     20260613092355_revoke_rpc_execute.sql; resta valido per authenticated.
 
 -- ── 1. Grant execute ───────────────────────────────────────────────────────
 do $$

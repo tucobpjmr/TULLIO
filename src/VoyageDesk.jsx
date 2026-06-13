@@ -1,12 +1,13 @@
 
 import { useState, useReducer, useContext, createContext, useRef, useEffect, useCallback, useMemo } from "react";
-// xlsx (SheetJS, ~430KB) è caricato on-demand via import() dinamico solo
-// quando l'utente importa o esporta un file (vedi loadXLSX). Tenerlo fuori
-// dal bundle iniziale è il singolo guadagno più grande sul chunk principale.
+// exceljs è caricato on-demand via import() dinamico solo quando l'utente
+// importa o esporta un file Excel (vedi loadExcelJS). Tenerlo fuori dal bundle
+// iniziale è il singolo guadagno più grande sul chunk principale.
 import {
   Tasks as TasksAPI, Comments as CommentsAPI, Notices as NoticesAPI,
   Conversations as ConversationsAPI, Messages as MessagesAPI,
   Notifications as NotificationsAPI, Users as UsersAPI,
+  Contacts as ContactsAPI,
   subscribeToTable,
 } from "./lib/api.js";
 import {
@@ -20,11 +21,40 @@ import {
 // Step O: logout UI — signOut vive in AuthContext, qui viene solo cablato.
 import { useAuth } from "./auth/AuthContext.jsx";
 
-// ─── XLSX LAZY LOADER ──────────────────────────────────────────────────────
-// Carica SheetJS solo alla prima import/export e ne cachea il modulo, così il
-// bundle iniziale resta leggero (caveat #15, Step N).
-let _xlsxPromise = null;
-const loadXLSX = () => (_xlsxPromise ||= import("xlsx"));
+// ─── EXCELJS LAZY LOADER ────────────────────────────────────────────────────
+// Carica exceljs solo alla prima import/export Excel e ne cachea il modulo, così
+// il bundle iniziale resta leggero (caveat #15, Step N). exceljs sostituisce
+// SheetJS/xlsx, che su npm era fermo a 0.18.5 con vulnerabilità note
+// (Prototype Pollution CVE-2023-30533 + ReDoS CVE-2024-22363).
+let _exceljsPromise = null;
+const loadExcelJS = () =>
+  (_exceljsPromise ||= import("exceljs").then((m) => m.default ?? m));
+
+// Parser CSV minimale ma corretto (gestisce campi quotati, virgole e newline
+// dentro le virgolette, e "" come escape). Ritorna una matrice di stringhe.
+// exceljs in ambiente browser non legge CSV comodamente, quindi li gestiamo qui.
+const parseCSVMatrix = (text) => {
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1); // strip BOM
+  const rows = [];
+  let row = [], field = "", i = 0, inQuotes = false;
+  while (i < text.length) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
+        inQuotes = false; i++; continue;
+      }
+      field += c; i++; continue;
+    }
+    if (c === '"') { inQuotes = true; i++; continue; }
+    if (c === ",") { row.push(field); field = ""; i++; continue; }
+    if (c === "\r") { i++; continue; }
+    if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; i++; continue; }
+    field += c; i++;
+  }
+  if (field !== "" || row.length) { row.push(field); rows.push(row); }
+  return rows;
+};
 
 // ─── GOOGLE FONTS ──────────────────────────────────────────────────────────
 const FontLoader = () => (
@@ -2517,39 +2547,97 @@ const ImportTab = ({ onCreate, onClose }) => {
   const [error, setError] = useState(null);
   const fileInputRef = useRef(null);
 
-  const handleFile = (e) => {
+  // Estrae da un file (.csv o .xlsx) una lista di righe-oggetto keyate per
+  // intestazione + l'elenco delle colonne, com'era con sheet_to_json.
+  const extractRows = async (file) => {
+    const ext = (file.name.split(".").pop() || "").toLowerCase();
+
+    if (ext === "xls") {
+      throw new Error(
+        "Il formato .xls (Excel 97-2003) non è supportato. Salva il file come .xlsx o .csv e riprova."
+      );
+    }
+
+    if (ext === "csv" || file.type === "text/csv") {
+      const text = await file.text();
+      const matrix = parseCSVMatrix(text);
+      if (!matrix.length) return { json: [], cols: [] };
+      const cols = matrix[0].map((h) => String(h ?? "").trim()).filter(Boolean);
+      const json = matrix.slice(1)
+        .filter((r) => r.some((c) => String(c ?? "").trim() !== ""))
+        .map((r) => Object.fromEntries(cols.map((h, idx) => [h, r[idx] ?? ""])));
+      return { json, cols };
+    }
+
+    // .xlsx (e altri formati OOXML) via exceljs
+    const ExcelJS = await loadExcelJS();
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(await file.arrayBuffer());
+    const ws = wb.worksheets[0];
+    if (!ws) return { json: [], cols: [] };
+
+    // Intestazioni dalla prima riga (indici 1-based di exceljs).
+    const header = [];
+    ws.getRow(1).eachCell({ includeEmpty: false }, (cell, col) => {
+      header[col] = String(cellText(cell.value) ?? "").trim();
+    });
+    const cols = header.filter(Boolean);
+
+    const json = [];
+    ws.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+      if (rowNumber === 1) return;
+      const obj = {};
+      let hasVal = false;
+      header.forEach((h, col) => {
+        if (!h) return;
+        const v = cellText(row.getCell(col).value);
+        obj[h] = v == null ? "" : v;
+        if (String(obj[h]).trim() !== "") hasVal = true;
+      });
+      if (hasVal) json.push(obj);
+    });
+    return { json, cols };
+  };
+
+  // exceljs ritorna oggetti per celle ricche/formula/hyperlink/data:
+  // normalizziamo al valore leggibile (le date restano Date per normDate).
+  const cellText = (v) => {
+    if (v == null) return v;
+    if (v instanceof Date) return v;
+    if (typeof v === "object") {
+      if (Array.isArray(v.richText)) return v.richText.map((t) => t.text).join("");
+      if ("text" in v) return v.text;
+      if ("result" in v) return v.result;
+      if ("hyperlink" in v) return v.text ?? v.hyperlink;
+      return String(v);
+    }
+    return v;
+  };
+
+  const handleFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setFileName(file.name);
     setError(null);
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        const XLSX = await loadXLSX();
-        const data = evt.target.result;
-        const wb = XLSX.read(data, { type: "binary", cellDates: true });
-        const sheet = wb.Sheets[wb.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false });
-        if (!json.length) { setError("Il file è vuoto o non contiene righe leggibili."); return; }
-        const cols = Object.keys(json[0]);
-        setRows(json); setColumns(cols);
-        const find = (kws) => cols.find(c => kws.some(kw => c.toLowerCase().includes(kw)));
-        setMapping({
-          title: find(["titolo", "title", "nome", "task"]) || "",
-          category: find(["categoria", "category", "tipo"]) || "",
-          priority: find(["priorit", "priority"]) || "",
-          status: find(["stato", "status"]) || "",
-          client: find(["cliente", "client"]) || "",
-          dueDate: find(["scadenz", "due", "data"]) || "",
-          assignee: find(["assegn", "assign", "owner", "responsab"]) || "",
-          estimatedHours: find(["ore", "hours"]) || "",
-          description: find(["descriz", "descr", "note"]) || "",
-        });
-      } catch (err) {
-        setError("Impossibile leggere il file: " + err.message);
-      }
-    };
-    reader.readAsBinaryString(file);
+    try {
+      const { json, cols } = await extractRows(file);
+      if (!json.length) { setError("Il file è vuoto o non contiene righe leggibili."); return; }
+      setRows(json); setColumns(cols);
+      const find = (kws) => cols.find(c => kws.some(kw => c.toLowerCase().includes(kw)));
+      setMapping({
+        title: find(["titolo", "title", "nome", "task"]) || "",
+        category: find(["categoria", "category", "tipo"]) || "",
+        priority: find(["priorit", "priority"]) || "",
+        status: find(["stato", "status"]) || "",
+        client: find(["cliente", "client"]) || "",
+        dueDate: find(["scadenz", "due", "data"]) || "",
+        assignee: find(["assegn", "assign", "owner", "responsab"]) || "",
+        estimatedHours: find(["ore", "hours"]) || "",
+        description: find(["descriz", "descr", "note"]) || "",
+      });
+    } catch (err) {
+      setError("Impossibile leggere il file: " + err.message);
+    }
   };
 
   const normCat = (v) => {
@@ -2627,8 +2715,8 @@ const ImportTab = ({ onCreate, onClose }) => {
         >
           <div style={{ fontSize: 40, marginBottom: 10 }}>📥</div>
           <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Clicca per caricare CSV o Excel</div>
-          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Formati supportati: .csv, .xlsx, .xls</div>
-          <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleFile} style={{ display: "none" }} />
+          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Formati supportati: .csv, .xlsx</div>
+          <input ref={fileInputRef} type="file" accept=".csv,.xlsx" onChange={handleFile} style={{ display: "none" }} />
         </div>
       )}
 
@@ -7155,8 +7243,15 @@ const AdminIOTab = ({ state, dispatch }) => {
 
   const escapeCSV = (val) => {
     if (val === null || val === undefined) return "";
-    const s = String(val);
-    if (s.includes(",") || s.includes('"') || s.includes("\n")) return `"${s.replace(/"/g, '""')}"`;
+    let s = String(val);
+    // Mitiga CSV/formula injection: una cella che inizia con = + - @ (o tab/CR)
+    // verrebbe eseguita come formula all'apertura in Excel/LibreOffice/Sheets.
+    // Anteponendo un apostrofo la si forza a testo. I titoli/descrizioni dei
+    // task sono inseribili da qualsiasi utente, quindi sono un vettore stored.
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    if (s.includes(",") || s.includes('"') || s.includes("\n") || s.includes("\r")) {
+      return `"${s.replace(/"/g, '""')}"`;
+    }
     return s;
   };
 
@@ -7175,7 +7270,7 @@ const AdminIOTab = ({ state, dispatch }) => {
   };
 
   const exportExcel = async () => {
-    const XLSX = await loadXLSX();
+    const ExcelJS = await loadExcelJS();
     const data = tasksToExport().map(t => ({
       ID: t.id, Titolo: t.title, Categoria: t.category, Priorità: t.priority,
       Status: t.status, Cliente: t.client || "",
@@ -7185,10 +7280,18 @@ const AdminIOTab = ({ state, dispatch }) => {
       Descrizione: t.description || "",
       Cestinato: t.deletedAt ? "Sì" : "No",
     }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Task");
-    XLSX.writeFile(wb, `voyagedesk-task-${new Date().toISOString().slice(0,10)}.xlsx`);
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Task");
+    ws.columns = [
+      "ID", "Titolo", "Categoria", "Priorità", "Status", "Cliente",
+      "Scadenza", "Ore", "Assegnati", "Descrizione", "Cestinato",
+    ].map(h => ({ header: h, key: h }));
+    ws.addRows(data);
+    const buf = await wb.xlsx.writeBuffer();
+    downloadFile(
+      new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+      `voyagedesk-task-${new Date().toISOString().slice(0,10)}.xlsx`
+    );
   };
 
   const exportBackup = () => {
@@ -7852,6 +7955,16 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         const prev = state.notices.find(n => n.id === action.payload);
         const pinned = !(prev?.pinned);
         dbOps = () => NoticesAPI.togglePin(action.payload, pinned);
+        break;
+      }
+      case "UPDATE_OWN_PROFILE": {
+        // email/telefono vivono ora in public.user_contacts (RLS own+admin).
+        // Li persisto qui; gli altri campi profilo restano gestiti dal reducer.
+        const uid = currentUserIdRef.current;
+        const { email, phone } = action.payload || {};
+        if (uid && (email !== undefined || phone !== undefined)) {
+          dbOps = () => ContactsAPI.upsert(uid, { email, phone });
+        }
         break;
       }
       default:

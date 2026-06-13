@@ -12,12 +12,20 @@ export function AuthProvider({ children }) {
 
   const loadProfile = useCallback(async (userId) => {
     if (!userId) { setProfile(null); setTeam([]); return; }
-    const [{ data: me }, { data: all }] = await Promise.all([
+    const [{ data: me }, { data: all }, { data: contacts }] = await Promise.all([
       supabase.from('users').select('*').eq('id', userId).single(),
       supabase.from('users').select('*').eq('active', true).order('name'),
+      // email/telefono vivono in user_contacts (PII fuori da public.users).
+      // La RLS ritorna solo il proprio contatto, oppure tutti se admin: i
+      // colleghi NON vedono i recapiti altrui (né qui né via realtime).
+      supabase.from('user_contacts').select('user_id, email, phone'),
     ]);
-    setProfile(me ?? null);
-    setTeam(all ?? []);
+    const byId = new Map((contacts ?? []).map(c => [c.user_id, c]));
+    const withContact = (u) => u
+      ? { ...u, email: byId.get(u.id)?.email ?? null, phone: byId.get(u.id)?.phone ?? null }
+      : u;
+    setProfile(withContact(me) ?? null);
+    setTeam((all ?? []).map(withContact));
   }, []);
 
   useEffect(() => {

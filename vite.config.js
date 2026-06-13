@@ -12,7 +12,7 @@ export default defineConfig({
       output: {
         // Step N (caveat #15): separa le dipendenze vendor in chunk dedicati.
         // Cambiano di rado → restano in cache del browser tra i deploy mentre
-        // il codice app (chunk principale) si aggiorna. xlsx non è qui perché
+        // il codice app (chunk principale) si aggiorna. exceljs non è qui perché
         // ora è caricato via import() dinamico (chunk async a sé).
         manualChunks: {
           react: ['react', 'react-dom'],

@@ -6,6 +6,11 @@
 --   4. pg_cron orario `notify_queue_stale`: task in coda globale da > 4h
 --
 -- Dipendenze: tabella `public.notifications` (Step F), `public.tasks`, `public.comments`, `public.users`.
+--
+-- ⚠️  STATO: applicato via execute_sql MCP (non tracciato in supabase_migrations).
+--     La funzione notify_queue_stale definita qui (riga ~195) usa ruoli con casing
+--     errato ('Manager', 'Admin', 'Senior Agent') — STALE, superseded da
+--     20260610_step_j_fix.sql che la riscrive con lowercase ('manager','admin').
 
 -- ── Estensioni necessarie ──────────────────────────────────────────────────
 create extension if not exists pg_cron;
@@ -68,7 +73,7 @@ as $$
 declare
   v_task        record;
   v_assignee    uuid;
-  v_mention_re  text := '@([\w''’\.\-]+(?:\s+[\w''’\.\-]+)?)';
+  v_mention_re  text := '@([\w'''.\-]+(?:\s+[\w'''.\-]+)?)';
   v_mention     text;
   v_mention_id  uuid;
   v_notified    uuid[] := ARRAY[]::uuid[];
@@ -189,9 +194,9 @@ begin
 end $$;
 
 -- ── 4. pg_cron: notify_queue_stale (orario) ────────────────────────────────
--- Task in coda globale (assignees = []) e in stato 'todo' da > 4 ore:
--- notifica `queue_stale` a tutti i manager/admin (ruoli con accesso coda globale).
--- De-duplica: max 1 notifica per stesso task_id ogni 4 ore.
+-- ⚠️  STALE: i ruoli usati qui ('Manager', 'Admin', 'Senior Agent') hanno casing
+--     errato rispetto al DB ('manager', 'admin'). Questa definizione è sovrascritta
+--     da 20260610_step_j_fix.sql che riscrive notify_queue_stale con lowercase.
 create or replace function public.notify_queue_stale() returns void
 language plpgsql security definer set search_path = public
 as $$

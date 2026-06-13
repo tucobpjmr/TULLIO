@@ -1572,6 +1572,7 @@ const AVATAR_COLORS = ["#0F2044", "#2D7A4F", "#C8832A", "#7B4F9E", "#C0392B", "#
 
 const ProfileEditor = ({ member, dispatch, onClose }) => {
   const { isMobile } = useViewport();
+  const { session } = useAuth();
   const [name, setName] = useState(member.name || "");
   const [avatar, setAvatar] = useState(member.avatar || "");
   const [color, setColor] = useState(member.color || "#0F2044");
@@ -1596,7 +1597,7 @@ const ProfileEditor = ({ member, dispatch, onClose }) => {
     reader.readAsDataURL(file);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) return;
     const payload = {
       name: name.trim(),
@@ -1606,7 +1607,20 @@ const ProfileEditor = ({ member, dispatch, onClose }) => {
       phone: phone.trim(),
       photoUrl: avatarMode === "photo" ? photoUrl : null,
     };
+    // Aggiornamento ottimistico in memoria (immediato per l'UI).
     dispatch({ type: "UPDATE_OWN_PROFILE", payload });
+    // Persistenza email/phone su public.user_contacts (Step S): solo in
+    // modalità Supabase (sessione attiva). email/phone non sono più colonne
+    // di public.users → vanno in user_contacts via Users.updateContact.
+    if (session) {
+      const { error } = await UsersAPI.updateContact(member.id, {
+        email: payload.email || null,
+        phone: payload.phone || null,
+      });
+      if (error) {
+        dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Contatti non salvati: ${error.message}` } });
+      }
+    }
     onClose();
   };
 

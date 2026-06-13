@@ -9,10 +9,17 @@
 
 ## 0. TL;DR (30 secondi)
 
-- ✅ **PR #30 aperta (draft)** su branch `claude/roadmap-project-review-wkusz2`: **Step R** — versionamento 14 migrazioni mancanti.
-  - CI verde (Vercel Preview: success). Da mergeato quando approvata.
-- ⚠️ **Breaking change scoperta in sessione 15**: `20260613100833_user_contacts_table` (applicata via MCP tra sessione 14 e 15) ha rimosso `email`/`phone` da `public.users` → `public.user_contacts`. Il codice app NON è ancora aggiornato (caveat #24, nuovo).
-- **Prossima sessione raccomandazione**: merge PR #30, poi **Step S** (fix app per `user_contacts`) o **Step P** (refactor monolite).
+- ✅ **Step R mergeato** (PR #30, squash `6245a14`): versionate 14 migrazioni mancanti, repo ora ricostruibile da zero. Chiude caveat #19.
+- ✅ **Step S fatto** (stessa sessione, nuova PR sul branch `claude/roadmap-project-review-wkusz2`): wiring `email`/`phone` su `public.user_contacts`. Chiude caveat #24. Build verde.
+- ⏳ **Prossima sessione raccomandazione**: **Step P** (refactor monolite, caveat #15) oppure quick wins (#10/#18/#3/#2/#8).
+
+### Step S — dettaglio (caveat #24)
+La migrazione `20260613100833_user_contacts_table` aveva spostato `email`/`phone` da `public.users` a `public.user_contacts` (RLS own+admin). Il codice app è stato allineato:
+- `src/lib/api.js`: aggiunti `Users.getContacts` / `Users.updateContact`; `Users.updateProfile` scarta difensivamente email/phone.
+- `src/auth/AuthContext.jsx`: `loadProfile` carica i contatti propri e li rimergia in `profile` + entry team dell'utente loggato (gli altri membri non li espongono, by-design privacy).
+- `src/VoyageDesk.jsx` `ProfileEditor.handleSave`: persiste email/phone su `user_contacts` in modalità Supabase, toast on error.
+
+> ⚠️ Gap pre-esistente NON risolto in Step S: `UPDATE_OWN_PROFILE` aggiorna solo lo stato in memoria — name/avatar/color/photoUrl NON sono persistiti su `public.users` (nessun path chiama `Users.updateProfile`). Step S ha cablato solo i contatti. Valutare in una sessione futura se persistere anche il resto del profilo.
 
 ---
 

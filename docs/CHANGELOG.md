@@ -1,5 +1,54 @@
 # CHANGELOG — VoyageDesk
 
+## v1.6 — UI polish + Responsive mobile (sessione 15)
+
+> Cumulativo sopra v1.5-dev (PR #29 mergiata, 4 interventi UI, handoff v9 attivo).
+
+### 🗑️ Cestino accessibile a tutti gli utenti
+- **`NAV_ITEMS`**: Cestino aggiunte a `roles: ["admin", "manager", "agent", "driver"]` → icona 🗑️ visibile a tutti in Sidebar (desktop) e BottomNav (mobile).
+- **Vista `Trash`**: lista filtrata con `canEditTask(task, currentUserId)` — ogni utente vede solo i propri task cestinati (prerogativa per status):
+  - Admin → tutti i cestinati.
+  - Manager / Agent → propri + coda globale.
+  - Driver → solo task `transfer` propri/globali.
+- **Reducer**: `RESTORE_TASK` / `PURGE_TASK` / `EMPTY_TRASH` autorizzano via `canEditTask` invece di `isAdmin` (caveat #17 implicito: allineato al pattern di `DELETE_TASK`).
+
+### 🔍 Ricerca unificata nell'header (lente)
+- Fuse due strumenti separati (input testuale `state.searchQuery` non consumato + bottone 🎛️ "ricerca avanzata" con keyword duplicata) in un **unico input lente 🔍**.
+- Al focus/digitazione apre il pannello unificato con filtri (scadenza / categoria / status / agente / cestino) e lista risultati cliccabili.
+- Rimozione: bottone 🎛️ separato, campo keyword duplicato nel pannello.
+- Topbar: nuovo hook `searchWrapRef` per chiudere il pannello su click fuori. Ctrl+K invariato.
+- **`AdvancedSearchPanel`**: riceve `keyword` + `onKeyword` da topbar (no più state locale), titolo rinominato a "🔍 Ricerca".
+
+### 📑 "Più task" spostato da FAB a sidebar/bottom nav
+- Il FAB secondario 📑 ("Crea più task / Import / Template") in basso a destra è rimosso.
+- Azione trasferita a:
+  - **Sidebar (desktop)**: bottone accentato (oro) "Più task" 📑 sotto le voci di navigazione; collassato mostra solo icona.
+  - **BottomNav (mobile/tablet)**: pulsante "Più task" 📑.
+- Callback `onOpenBulk` su entrambi per aprire `BulkTaskCreator`.
+- FAB `+` singolo per il task veloce resta invariato in basso a destra.
+
+### 📱 Layout responsive tab Manuale del BulkTaskCreator
+- **Mobile**: ogni riga task diventa una **card impilata** (niente scroll orizzontale):
+  - Top: numero + titolo + ✕ in flex row.
+  - Under: griglia 2 colonne (categoria / priorità / assegnato / scadenza).
+  - Header tabellare nascosto.
+- **Desktop**: layout tabellare classico invariato (`26px 1fr 130px ...`).
+- **Impostazioni comuni**: griglia `1fr 1fr` su mobile, `1fr 1fr 1fr 1fr` su desktop.
+- `bulkInputStyle`: aggiunti `minWidth: 0` + `boxSizing: border-box` (prevenzione overflow celle).
+
+### Verifica build (commit merge `3a7bb17`)
+```
+dist/index.html                     0.50 kB │ gzip:   0.30 kB
+dist/assets/react-*.js            140.87 kB │ gzip:  45.26 kB
+dist/assets/supabase-*.js         211.12 kB │ gzip:  54.46 kB
+dist/assets/index-*.js            267.97 kB │ gzip:  64.32 kB  (+~0.07 kB gz vs PR #24)
+dist/assets/xlsx-*.js             429.03 kB │ gzip: 143.08 kB
+```
+
+Vercel preview PR #29: Ready ✅ (tutti i 4 commit). Merge squash su main: OK.
+
+---
+
 ## v1.6-dev — Step Q: Hardening realtime + chat (sessione 14)
 
 > Cumulativo sopra v1.5-dev (PR #22 + #23 mergeate, code-review chiusa, handoff v7 attivo).

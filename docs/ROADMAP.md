@@ -9,22 +9,24 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 
 ---
 
-## 📍 Punto di partenza (post v0.8)
+## 📍 Punto di partenza (post v1.6)
 
-- App stabile e validata sintatticamente (Babel) a **6617 righe**.
+- App stabile e validata sintatticamente (Babel) a **~7216 righe** (crescita UI polish + responsive mobile).
 - Tutte le viste base: Dashboard, Kanban, Calendar, Team, Planning, Trash, Admin.
-- **Responsive completo** (desktop + tablet + mobile, mobile-first) ✅.
-- **Ricerca avanzata** topbar (🎛️) ✅.
+- **Responsive completo** (desktop + tablet + mobile, mobile-first) ✅ — incluso BulkTaskCreator con card impilate su mobile.
+- **Ricerca unificata** topbar (lente 🔍, fonde input + filtri avanzati) ✅ NUOVO v1.6.
 - **Pannello Admin** con 5 tab ✅.
 - **Coda globale** + **Coda personale** + **Urgenti altrui** in Dashboard ✅.
 - **Bacheca avvisi** sticky notes condivisa ✅.
-- **SwipeActions** mobile (Fatto/Cestino/Inoltra) con undo ✅ NUOVO v0.7.
-- **Sistema permessi** per ruolo (Admin/Manager/Agent/Driver) ✅ NUOVO v0.8.
-- **Multi-utente mock** con UserSwitcher in Topbar ✅ NUOVO v0.8.
-- **Categoria `transfer`** per Driver ✅ NUOVO v0.8.
-- Chat + AI Day Planner + Bulk Task Creator + Cestino tutti operativi ✅.
-- Chat con `intent` per apertura contestuale (task link) ✅ NUOVO v0.8.
-- TEAM, CATEGORIES e CURRENT_USER gestiti come stato mutabile via reducer.
+- **SwipeActions** mobile (Fatto/Cestino/Inoltra) con undo ✅ v0.7.
+- **Sistema permessi** per ruolo (Admin/Manager/Agent/Driver) ✅ v0.8.
+- **Multi-utente mock** con UserSwitcher in Topbar ✅ v0.8.
+- **Categoria `transfer`** per Driver ✅ v0.8.
+- **Cestino** per tutti gli utenti (prerogativa per status via `canEditTask`) ✅ NUOVO v1.6.
+- **"Più task"** in sidebar + bottom nav (da FAB secondaria) ✅ NUOVO v1.6.
+- Chat + AI Day Planner + Bulk Task Creator tutti operativi ✅.
+- Chat con `intent` per apertura contestuale (task link) ✅ v0.8.
+- TEAM, CATEGORIES e CURRENT_USER gestiti come stato mutabile via reducer (fragilità da Step P).
 - Dipendenza esterna: SheetJS (`xlsx`) — eccezione documentata.
 - Dati ancora **solo in memoria**, single-file artifact.
 

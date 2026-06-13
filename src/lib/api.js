@@ -15,8 +15,14 @@ export const Users = {
     supabase.from('users').select('*').eq('active', true).order('name'),
   get: (id) =>
     supabase.from('users').select('*').eq('id', id).single(),
-  updateProfile: (id, patch) =>
-    supabase.from('users').update(withOrigin(patch)).eq('id', id).select().single(),
+  // Nota: email/phone NON sono più colonne di public.users (migrazione
+  // 20260613100833_user_contacts_table). Vivono in public.user_contacts via
+  // getContacts/updateContact. updateProfile le scarta difensivamente per
+  // evitare l'errore "column does not exist".
+  updateProfile: (id, patch) => {
+    const { email, phone, ...rest } = patch || {};
+    return supabase.from('users').update(withOrigin(rest)).eq('id', id).select().single();
+  },
   setActive: (id, active) =>
     supabase.from('users').update(withOrigin({ active })).eq('id', id),
   // Step H: presence
@@ -24,6 +30,16 @@ export const Users = {
     supabase.from('users').update(withOrigin({
       status, last_seen_at: new Date().toISOString(),
     })).eq('id', id),
+  // ----------------- CONTATTI PII (user_contacts) -----------------
+  // email/phone sono in public.user_contacts (RLS: solo l'utente stesso o un
+  // admin). Vedi migrazione 20260613100833_user_contacts_table.sql.
+  // user_contacts non è in realtime e non ha origin_client → niente withOrigin.
+  getContacts: (id) =>
+    supabase.from('user_contacts').select('email, phone').eq('user_id', id).maybeSingle(),
+  updateContact: (id, { email, phone } = {}) =>
+    supabase.from('user_contacts')
+      .upsert({ user_id: id, email: email ?? null, phone: phone ?? null }, { onConflict: 'user_id' })
+      .select().single(),
 };
 
 // ----------------- TASKS -----------------

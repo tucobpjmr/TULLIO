@@ -12,12 +12,18 @@ export function AuthProvider({ children }) {
 
   const loadProfile = useCallback(async (userId) => {
     if (!userId) { setProfile(null); setTeam([]); return; }
-    const [{ data: me }, { data: all }] = await Promise.all([
+    const [{ data: me }, { data: all }, { data: contacts }] = await Promise.all([
       supabase.from('users').select('*').eq('id', userId).single(),
       supabase.from('users').select('*').eq('active', true).order('name'),
+      // email/phone vivono in public.user_contacts (RLS own+admin). Le carico
+      // solo per l'utente loggato e le rimergio nel profilo e nella sua entry
+      // di team, così ProfileEditor le mostra (gli altri membri non le hanno,
+      // by-design privacy hardening). Vedi migrazione 20260613100833.
+      supabase.from('user_contacts').select('email, phone').eq('user_id', userId).maybeSingle(),
     ]);
-    setProfile(me ?? null);
-    setTeam(all ?? []);
+    const myContacts = { email: contacts?.email ?? null, phone: contacts?.phone ?? null };
+    setProfile(me ? { ...me, ...myContacts } : null);
+    setTeam((all ?? []).map(u => u.id === userId ? { ...u, ...myContacts } : u));
   }, []);
 
   useEffect(() => {

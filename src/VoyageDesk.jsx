@@ -1171,9 +1171,10 @@ const Toast = ({ toast, dispatch }) => {
 };
 
 // ─── ADVANCED SEARCH PANEL ─────────────────────────────────────────────────
-const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
+// Pannello di ricerca unificato: la keyword è controllata dall'input lente nella
+// Topbar (props keyword / onKeyword), i filtri avanzati restano locali al pannello.
+const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword }) => {
   const { isMobile } = useViewport();
-  const [keyword, setKeyword] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [cats, setCats] = useState([]);
@@ -1181,19 +1182,8 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
   const [agents, setAgents] = useState([]);
   const [includeTrashed, setIncludeTrashed] = useState(false);
 
-  const panelRef = useRef(null);
-  const keywordRef = useRef(null);
-
-  useEffect(() => { keywordRef.current?.focus(); }, []);
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (panelRef.current && !panelRef.current.contains(e.target)) onClose();
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [onClose]);
-
+  // La chiusura su click esterno è gestita dal wrapper di ricerca nella Topbar
+  // (l'input keyword vive lì). Qui resta solo la chiusura con Escape.
   useEffect(() => {
     const handler = (e) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", handler);
@@ -1205,7 +1195,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
   };
 
   const resetAll = () => {
-    setKeyword(""); setDateFrom(""); setDateTo("");
+    onKeyword?.(""); setDateFrom(""); setDateTo("");
     setCats([]); setStats([]); setAgents([]); setIncludeTrashed(false);
   };
 
@@ -1266,7 +1256,6 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
 
   return (
     <div
-      ref={panelRef}
       className="fade-in"
       style={{
         position: isMobile ? "fixed" : "absolute",
@@ -1287,7 +1276,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
         background: "#fff",
       }}>
         <div className="playfair" style={{ fontSize: 15, fontWeight: 700, color: "var(--navy)" }}>
-          🎛️ Ricerca avanzata
+          🔍 Ricerca
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           {hasFilters && (
@@ -1305,23 +1294,6 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
       </div>
 
       <div style={{ padding: "16px 18px", borderBottom: "1px solid var(--border)", overflowY: "auto", maxHeight: 380 }}>
-        <div style={{ marginBottom: 14 }}>
-          <div style={sectionTitle}>Parola chiave</div>
-          <input
-            ref={keywordRef}
-            value={keyword}
-            onChange={e => setKeyword(e.target.value)}
-            placeholder="Cerca in titolo, descrizione, cliente, commenti..."
-            style={{
-              width: "100%", padding: "8px 12px", borderRadius: 8,
-              border: "1px solid var(--border)", fontSize: 13, outline: "none",
-              fontFamily: "inherit", boxSizing: "border-box",
-            }}
-            onFocus={e => e.target.style.borderColor = "var(--gold)"}
-            onBlur={e => e.target.style.borderColor = "var(--border)"}
-          />
-        </div>
-
         <div style={{ marginBottom: 14 }}>
           <div style={sectionTitle}>Scadenza</div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -1399,7 +1371,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose }) => {
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", background: "#fff", maxHeight: 320 }}>
         {!hasFilters && (
           <div style={{ padding: "32px 20px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
-            Imposta uno o più filtri per iniziare la ricerca
+            Digita una parola chiave o imposta un filtro per iniziare la ricerca
           </div>
         )}
         {hasFilters && results.length === 0 && (
@@ -1486,7 +1458,18 @@ const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notifi
   const realNotifs = Array.isArray(notificationsProp) ? notificationsProp : [];
   const notifList = SHOW_MOCK_NOTIFS ? [...realNotifs, ...NOTIFICATIONS] : realNotifs;
   const unread = notifList.filter(n => !n.read).length;
-  const [advOpen, setAdvOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchWrapRef = useRef(null);
+
+  // Chiude il pannello di ricerca al click fuori dal wrapper (input + pannello)
+  useEffect(() => {
+    if (!searchOpen) return;
+    const handler = (e) => {
+      if (searchWrapRef.current && !searchWrapRef.current.contains(e.target)) setSearchOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [searchOpen]);
   return (
     <div style={{
       height: 58, background: "var(--navy)", display: "flex", alignItems: "center",
@@ -1505,40 +1488,31 @@ const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notifi
         </div>
       </div>
 
-      {/* Search + Advanced */}
-      <div style={{ flex: 1, maxWidth: 520, position: "relative", display: "flex", gap: 8, alignItems: "center" }}>
-        <div style={{ flex: 1, position: "relative" }}>
+      {/* Ricerca unificata (testuale + filtri avanzati) */}
+      <div ref={searchWrapRef} style={{ flex: 1, maxWidth: 520, position: "relative" }}>
+        <div style={{ position: "relative" }}>
           <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.4)", fontSize: 14 }}>🔍</div>
           <input
             value={state.searchQuery}
-            onChange={e => dispatch({ type: "SET_SEARCH", payload: e.target.value })}
+            onChange={e => { dispatch({ type: "SET_SEARCH", payload: e.target.value }); setSearchOpen(true); }}
+            onFocus={e => { setSearchOpen(true); e.target.style.background = "rgba(255,255,255,0.13)"; e.target.style.borderColor = "var(--gold)"; }}
+            onBlur={e => { e.target.style.background = "rgba(255,255,255,0.08)"; e.target.style.borderColor = "rgba(255,255,255,0.15)"; }}
             placeholder={isMobile ? "Cerca..." : "Cerca task, clienti, categorie... (Ctrl+K)"}
+            aria-label="Cerca"
             style={{
               width: "100%", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)",
               borderRadius: 8, padding: "7px 12px 7px 36px", color: "#fff", fontSize: 13,
               outline: "none", transition: "all 0.2s", boxSizing: "border-box",
             }}
-            onFocus={e => { e.target.style.background = "rgba(255,255,255,0.13)"; e.target.style.borderColor = "var(--gold)"; }}
-            onBlur={e => { e.target.style.background = "rgba(255,255,255,0.08)"; e.target.style.borderColor = "rgba(255,255,255,0.15)"; }}
           />
         </div>
-        <button
-          onClick={() => setAdvOpen(o => !o)}
-          title="Ricerca avanzata"
-          aria-label="Apri ricerca avanzata"
-          style={{
-            background: advOpen ? "var(--gold)" : "rgba(255,255,255,0.08)",
-            border: `1px solid ${advOpen ? "var(--gold)" : "rgba(255,255,255,0.15)"}`,
-            borderRadius: 8, width: 36, height: 34, cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 15, flexShrink: 0, transition: "all 0.2s",
-          }}
-        >🎛️</button>
-        {advOpen && (
+        {searchOpen && (
           <AdvancedSearchPanel
             tasks={state.tasks}
             dispatch={dispatch}
-            onClose={() => setAdvOpen(false)}
+            keyword={state.searchQuery}
+            onKeyword={v => dispatch({ type: "SET_SEARCH", payload: v })}
+            onClose={() => setSearchOpen(false)}
           />
         )}
       </div>

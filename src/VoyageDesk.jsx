@@ -19,6 +19,17 @@ import {
 } from "./lib/mappers.js";
 // Step O: logout UI — signOut vive in AuthContext, qui viene solo cablato.
 import { useAuth } from "./auth/AuthContext.jsx";
+// Step P Phase 2a: costanti e utility pure estratte dal monolite.
+import {
+  PRIORITIES, STATUSES, STATUS_LABELS, STATUS_COLORS,
+  NOTICE_COLORS, TASK_TEMPLATES,
+} from "./lib/taskConstants.js";
+import {
+  formatDate, formatTime, getDayKey,
+  isOverdue, isUrgent,
+  isActiveTask, getActiveTasks, getTrashedTasks,
+  isMyTask, isInGlobalQueue,
+} from "./lib/taskUtils.js";
 
 // ─── XLSX LAZY LOADER ──────────────────────────────────────────────────────
 // Carica SheetJS solo alla prima import/export e ne cachea il modulo, così il
@@ -169,29 +180,6 @@ let CATEGORIES = {
   transfer: { label: "Transfer", icon: "🚐", color: "#7B4F9E", bg: "#F3F0F9" },
 };
 
-const PRIORITIES = {
-  critical: { label: "Critico", color: "#C0392B", bg: "#FEE2E2" },
-  high: { label: "Alto", color: "#C8832A", bg: "#FEF3C7" },
-  medium: { label: "Medio", color: "#D4A843", bg: "#FFFBEB" },
-  low: { label: "Basso", color: "#2D7A4F", bg: "#D1FAE5" },
-};
-
-const STATUSES = ["todo", "inprogress", "awaiting_client", "awaiting_supplier", "done"];
-const STATUS_LABELS = {
-  todo: "Da Fare",
-  inprogress: "In Corso",
-  awaiting_client: "Attesa Cliente",
-  awaiting_supplier: "Attesa Fornitore",
-  done: "Completato",
-};
-const STATUS_COLORS = {
-  todo: "#6B7280",
-  inprogress: "#3B82F6",
-  awaiting_client: "#F59E0B",
-  awaiting_supplier: "#8B5CF6",
-  done: "#2D7A4F",
-};
-
 const now = new Date();
 const d = (daysOffset, h = 10, m = 0) => {
   const dt = new Date(now);
@@ -242,69 +230,6 @@ const NOTIFICATIONS = [
 ];
 
 // ─── TASK TEMPLATES ────────────────────────────────────────────────────────
-const TASK_TEMPLATES = [
-  {
-    id: "event-corp",
-    name: "Evento corporate / Incentive",
-    icon: "🎯",
-    description: "Set completo per organizzare un viaggio incentive aziendale",
-    tasks: [
-      { title: "Briefing iniziale con cliente", category: "client", priority: "high", dayOffset: -45, estimatedHours: 2 },
-      { title: "Proposta destinazioni e budget", category: "itinerary", priority: "high", dayOffset: -40, estimatedHours: 5 },
-      { title: "Conferma destinazione cliente", category: "client", priority: "critical", dayOffset: -35, estimatedHours: 1 },
-      { title: "Prenotazione voli gruppo", category: "booking", priority: "critical", dayOffset: -30, estimatedHours: 4 },
-      { title: "Prenotazione hotel di gruppo", category: "hotel", priority: "high", dayOffset: -28, estimatedHours: 3 },
-      { title: "Organizzazione transfer aeroportuali", category: "supplier", priority: "medium", dayOffset: -14, estimatedHours: 2 },
-      { title: "Polizza viaggio gruppo", category: "admin", priority: "medium", dayOffset: -10, estimatedHours: 1 },
-      { title: "Voucher e documenti ai partecipanti", category: "admin", priority: "high", dayOffset: -5, estimatedHours: 2 },
-    ],
-  },
-  {
-    id: "honeymoon",
-    name: "Viaggio di nozze",
-    icon: "💍",
-    description: "Pacchetto completo per una luna di miele",
-    tasks: [
-      { title: "Consulenza preferenze coppia", category: "client", priority: "high", dayOffset: -90, estimatedHours: 2 },
-      { title: "Proposta itinerario personalizzato", category: "itinerary", priority: "high", dayOffset: -75, estimatedHours: 5 },
-      { title: "Conferma destinazione e budget", category: "client", priority: "critical", dayOffset: -60, estimatedHours: 1 },
-      { title: "Prenotazione voli", category: "booking", priority: "critical", dayOffset: -55, estimatedHours: 2 },
-      { title: "Prenotazione hotel/resort", category: "hotel", priority: "critical", dayOffset: -50, estimatedHours: 3 },
-      { title: "Esperienze speciali (cene, escursioni)", category: "booking", priority: "high", dayOffset: -30, estimatedHours: 3 },
-      { title: "Documenti viaggio e visti", category: "visa", priority: "high", dayOffset: -25, estimatedHours: 2 },
-      { title: "Saldo finale e consegna voucher", category: "payment", priority: "high", dayOffset: -10, estimatedHours: 1 },
-    ],
-  },
-  {
-    id: "family",
-    name: "Viaggio famiglia",
-    icon: "👨‍👩‍👧",
-    description: "Pacchetto vacanza per nucleo familiare",
-    tasks: [
-      { title: "Briefing famiglia e preferenze", category: "client", priority: "medium", dayOffset: -45, estimatedHours: 1.5 },
-      { title: "Proposta destinazioni family-friendly", category: "itinerary", priority: "high", dayOffset: -40, estimatedHours: 3 },
-      { title: "Prenotazione voli famiglia", category: "booking", priority: "high", dayOffset: -30, estimatedHours: 2 },
-      { title: "Prenotazione hotel con servizi bambini", category: "hotel", priority: "high", dayOffset: -28, estimatedHours: 2 },
-      { title: "Assicurazione viaggio", category: "admin", priority: "medium", dayOffset: -14, estimatedHours: 1 },
-      { title: "Consegna documentazione completa", category: "admin", priority: "medium", dayOffset: -5, estimatedHours: 1 },
-    ],
-  },
-  {
-    id: "incoming",
-    name: "Visita incoming / Ospitalità",
-    icon: "🛬",
-    description: "Accoglienza di un cliente o gruppo in arrivo",
-    tasks: [
-      { title: "Conferma arrivo e voli", category: "booking", priority: "high", dayOffset: -14, estimatedHours: 1 },
-      { title: "Prenotazione transfer NCC", category: "supplier", priority: "high", dayOffset: -10, estimatedHours: 1 },
-      { title: "Prenotazione hotel", category: "hotel", priority: "high", dayOffset: -10, estimatedHours: 1.5 },
-      { title: "Programma esperienze/visite", category: "itinerary", priority: "medium", dayOffset: -7, estimatedHours: 3 },
-      { title: "Prenotazione ristoranti", category: "supplier", priority: "medium", dayOffset: -5, estimatedHours: 1 },
-      { title: "Welcome kit e brief operativo", category: "admin", priority: "medium", dayOffset: -2, estimatedHours: 1 },
-    ],
-  },
-];
-
 // ─── CONTEXT & REDUCER ─────────────────────────────────────────────────────
 const AppContext = createContext(null);
 
@@ -656,8 +581,6 @@ function reducer(state, action) {
   return next;
 }
 
-const NOTICE_COLORS = ["#FEF3C7", "#FCE7F3", "#D1FAE5", "#DBEAFE", "#E9D5FF"]; // giallo, rosa, verde, azzurro, lilla
-
 const INITIAL_NOTICES = [
   {
     id: "n1",
@@ -719,23 +642,11 @@ function makeInitialState({ team, currentUserId } = {}) {
 }
 
 // ─── UTILS ─────────────────────────────────────────────────────────────────
+// formatDate, formatTime, getDayKey, isOverdue, isUrgent, isActiveTask,
+// getActiveTasks, getTrashedTasks, isMyTask, isInGlobalQueue → src/lib/taskUtils.js
 const getMember = id => TEAM.find(m => m.id === id);
 // Agenti selezionabili come assegnatari (attivi e non in attesa di approvazione)
 const getAssignableTeam = () => TEAM.filter(m => m.active !== false && !m.pending);
-const formatDate = iso => {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return d.toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" });
-};
-const formatTime = iso => {
-  if (!iso) return "";
-  return new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
-};
-const isOverdue = task => task.status !== "done" && task.dueDate && new Date(task.dueDate) < new Date();
-const getDayKey = iso => iso ? new Date(iso).toDateString() : null;
-const isActiveTask = t => !t.deletedAt;
-const getActiveTasks = tasks => tasks.filter(isActiveTask);
-const getTrashedTasks = tasks => tasks.filter(t => t.deletedAt);
 
 // ─── PERMESSI (v0.8) ──────────────────────────────────────────────────────
 // Ruoli logici derivati dal campo `role` del team member.
@@ -755,21 +666,6 @@ const getRoleType = (userId) => {
 
 const isAdmin = (userId) => getRoleType(userId) === "admin";
 const isDriver = (userId) => getRoleType(userId) === "driver";
-
-// Task è "mio" se sono nell'array assignees
-const isMyTask = (task, userId) => task.assignees?.includes(userId);
-
-// Task è "in coda globale" se non ha assegnatari
-const isInGlobalQueue = (task) => !task.assignees || task.assignees.length === 0;
-
-// Task è "urgente" (< 24h alla scadenza, non ancora done)
-const HOURS_24 = 24 * 60 * 60 * 1000;
-const isUrgent = (task) => {
-  if (!task.dueDate || task.status === "done") return false;
-  const diff = new Date(task.dueDate).getTime() - Date.now();
-  return diff >= 0 && diff <= HOURS_24;
-};
-// (Nota: gli scaduti — diff < 0 — non sono considerati "urgenti < 24h": già visibili come overdue di chi li ha)
 
 // Può visualizzare il task?
 const canViewTask = (task, userId) => {

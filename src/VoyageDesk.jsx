@@ -2157,7 +2157,7 @@ const NavBadge = ({ count, collapsed = false, mobile = false }) => {
   return <span style={{ ...base, marginLeft: "auto" }}>{count > 99 ? "99+" : count}</span>;
 };
 
-const Sidebar = ({ state, dispatch }) => {
+const Sidebar = ({ state, dispatch, onOpenBulk }) => {
   const { isDesktop } = useViewport();
   if (!isDesktop) return null;
   const col = state.sidebarCollapsed;
@@ -2200,6 +2200,28 @@ const Sidebar = ({ state, dispatch }) => {
             </button>
           );
         })}
+
+        {/* Azione: crea più task / import / template (spostata dal FAB secondario) */}
+        <button
+          onClick={onOpenBulk}
+          title="Crea più task / Import / Template"
+          aria-label="Crea più task"
+          style={{
+            display: "flex", alignItems: "center", gap: 10,
+            padding: col ? "10px 8px" : "10px 12px", marginTop: 8,
+            borderRadius: 8, cursor: "pointer",
+            border: "1px solid rgba(212,168,67,0.4)",
+            background: "rgba(212,168,67,0.12)",
+            color: "var(--gold)", fontSize: 14, fontWeight: 600,
+            transition: "all 0.2s", textAlign: "left",
+            justifyContent: col ? "center" : "flex-start",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = "rgba(212,168,67,0.22)"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "rgba(212,168,67,0.12)"; }}
+        >
+          <span style={{ fontSize: 16, flexShrink: 0 }}>📑</span>
+          {!col && <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>Più task</span>}
+        </button>
       </div>
 
       {!col && (
@@ -2225,7 +2247,7 @@ const Sidebar = ({ state, dispatch }) => {
 };
 
 // ─── BOTTOM NAV (mobile/tablet) ────────────────────────────────────────────
-const BottomNav = ({ state, dispatch }) => {
+const BottomNav = ({ state, dispatch, onOpenBulk }) => {
   const navItems = getNavItemsForUser(state.currentUserId);
   const badges = getNavBadges(state);
   return (
@@ -2258,6 +2280,22 @@ const BottomNav = ({ state, dispatch }) => {
           </button>
         );
       })}
+
+      {/* Azione: crea più task (spostata dal FAB secondario) */}
+      <button
+        onClick={onOpenBulk}
+        aria-label="Crea più task"
+        style={{
+          flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
+          justifyContent: "center", gap: 3, padding: "6px 2px",
+          background: "transparent", border: "none", cursor: "pointer",
+          color: "var(--gold)", borderTop: "2px solid transparent",
+          transition: "color 0.2s", position: "relative",
+        }}
+      >
+        <span style={{ fontSize: 19, lineHeight: 1 }}>📑</span>
+        <span style={{ fontSize: 9, fontWeight: 600, whiteSpace: "nowrap" }}>Più task</span>
+      </button>
     </nav>
   );
 };
@@ -7645,7 +7683,6 @@ export default function VoyageDesk({ initialTeam, initialCurrentUserId } = {}) {
 }
 
 function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
-  const { isDesktop } = useViewport();
   const [state, rawDispatch] = useReducer(
     reducer,
     { team: initialTeam, currentUserId: initialCurrentUserId },
@@ -8188,14 +8225,14 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           onOpenTask={openTaskById}
         />
         <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-          <Sidebar state={state} dispatch={dispatch} />
+          <Sidebar state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} />
           <main className="vd-main-scroll" style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
             {renderView()}
           </main>
         </div>
 
         {/* Bottom nav mobile/tablet */}
-        <BottomNav state={state} dispatch={dispatch} />
+        <BottomNav state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} />
 
         {/* Slide-over */}
         {state.selectedTask && <TaskSlideOver task={state.selectedTask} dispatch={dispatch} />}
@@ -8217,25 +8254,9 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           loading={chatLoading}
         />
 
-        {/* FAB principale (singolo task) + FAB secondario (bulk) */}
+        {/* FAB principale (singolo task). La creazione bulk/multi-task è ora in Sidebar/BottomNav. */}
         {state.activeView !== "trash" && state.activeView !== "admin" && (
-          <>
-            <button
-              onClick={() => setShowBulkModal(true)}
-              title="Crea più task / Import / Template"
-              style={{
-                position: "fixed", bottom: isDesktop ? 32 : 84, right: isDesktop ? 92 : 76, width: 44, height: 44,
-                borderRadius: "50%", background: "var(--navy)", border: "none",
-                boxShadow: "0 6px 20px rgba(15,32,68,0.35)", cursor: "pointer",
-                fontSize: 17, display: "flex", alignItems: "center", justifyContent: "center",
-                color: "#fff", zIndex: 400,
-                transition: "transform 0.2s ease, box-shadow 0.2s ease",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.1)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-            >📑</button>
-            <FAB onClick={() => setShowFABModal(true)} />
-          </>
+          <FAB onClick={() => setShowFABModal(true)} />
         )}
         {showFABModal && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} />}
 

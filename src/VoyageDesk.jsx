@@ -141,14 +141,11 @@ const ViewportProvider = ({ children }) => {
 };
 
 // ─── MOCK DATA ─────────────────────────────────────────────────────────────
-// Utente attualmente loggato. `let` per supportare lo switcher utente (v0.8).
-// Il reducer mantiene in sync state.currentUserId con questo riferimento globale.
+// CURRENT_USER, TEAM, CATEGORIES sono `let` module-level: il reducer li aggiorna
+// via semplice riassegnazione (TEAM = newTeam) dopo ogni mutazione, così getMember
+// e le altre utility leggono sempre il valore corrente senza essere hook.
 let CURRENT_USER = "marco";
-const _syncCurrentUser = (id) => { CURRENT_USER = id; };
 
-// TEAM e CATEGORIES sono mutabili (gestiti dall'Admin via reducer).
-// Sono `let` perché getMember e altre utility leggono il riferimento corrente.
-// Il reducer aggiorna sia state.team/state.categories sia questi array in-place.
 let TEAM = [
   { id: "marco", name: "Marco Ferretti", role: "Manager", avatar: "MF", color: "#0F2044", capacity: 12, active: true, pending: false },
   { id: "sofia", name: "Sofia Conti", role: "Senior Agent", avatar: "SC", color: "#2D7A4F", capacity: 10, active: true, pending: false },
@@ -311,13 +308,6 @@ const TASK_TEMPLATES = [
 // ─── CONTEXT & REDUCER ─────────────────────────────────────────────────────
 const AppContext = createContext(null);
 
-// Mutazione in-place per mantenere il riferimento alle costanti TEAM/CATEGORIES
-const _syncTeam = (newTeam) => { TEAM.length = 0; newTeam.forEach(m => TEAM.push(m)); };
-const _syncCategories = (newCats) => {
-  Object.keys(CATEGORIES).forEach(k => { delete CATEGORIES[k]; });
-  Object.entries(newCats).forEach(([k, v]) => { CATEGORIES[k] = v; });
-};
-
 // Azioni che generano una voce nel log attività
 const LOGGED_ACTIONS = new Set([
   "ADD_TASK", "ADD_TASKS_BULK", "UPDATE_TASK", "MOVE_TASK", "ADD_COMMENT",
@@ -382,7 +372,7 @@ function baseReducer(state, action) {
       const newId = action.payload;
       const m = getMember(newId);
       if (!m) return state;
-      _syncCurrentUser(newId);
+      CURRENT_USER = newId;
       // Se l'utente non può più accedere alla view corrente, riporta a dashboard
       const activeView = (state.activeView === "admin" && !canAccessAdmin(newId))
         ? "dashboard"
@@ -504,29 +494,29 @@ function baseReducer(state, action) {
     // ─── ADMIN: TEAM ───
     case "ADD_TEAM_MEMBER": {
       const team = [...state.team, action.payload];
-      _syncTeam(team);
+      TEAM = team;
       return { ...state, team, toast: { message: `Agente "${action.payload.name}" aggiunto`, type: "success" } };
     }
     case "UPDATE_TEAM_MEMBER": {
       const team = state.team.map(m => m.id === action.payload.id ? { ...m, ...action.payload } : m);
-      _syncTeam(team);
+      TEAM = team;
       return { ...state, team, toast: { message: "Agente aggiornato", type: "success" } };
     }
     case "APPROVE_TEAM_MEMBER": {
       const team = state.team.map(m => m.id === action.payload ? { ...m, pending: false, active: true } : m);
-      _syncTeam(team);
+      TEAM = team;
       return { ...state, team, toast: { message: "Agente approvato e attivato!", type: "success" } };
     }
     case "TOGGLE_TEAM_MEMBER_ACTIVE": {
       const team = state.team.map(m => m.id === action.payload ? { ...m, active: !m.active } : m);
-      _syncTeam(team);
+      TEAM = team;
       const target = team.find(m => m.id === action.payload);
       return { ...state, team, toast: { message: target?.active ? "Agente attivato" : "Agente disattivato", type: "success" } };
     }
     case "REMOVE_TEAM_MEMBER": {
       // Non rimuove davvero se ha task assegnati: si limita a disattivare e segnare pending=false
       const team = state.team.filter(m => m.id !== action.payload);
-      _syncTeam(team);
+      TEAM = team;
       return { ...state, team, toast: { message: "Agente rimosso", type: "success" } };
     }
 
@@ -534,18 +524,18 @@ function baseReducer(state, action) {
     case "ADD_CATEGORY": {
       const { key, ...rest } = action.payload;
       const categories = { ...state.categories, [key]: rest };
-      _syncCategories(categories);
+      CATEGORIES = categories;
       return { ...state, categories, toast: { message: `Categoria "${rest.label}" aggiunta`, type: "success" } };
     }
     case "UPDATE_CATEGORY": {
       const { key, ...rest } = action.payload;
       const categories = { ...state.categories, [key]: { ...state.categories[key], ...rest } };
-      _syncCategories(categories);
+      CATEGORIES = categories;
       return { ...state, categories, toast: { message: "Categoria aggiornata", type: "success" } };
     }
     case "REMOVE_CATEGORY": {
       const { [action.payload]: _, ...rest } = state.categories;
-      _syncCategories(rest);
+      CATEGORIES = rest;
       return { ...state, categories: rest, toast: { message: "Categoria rimossa", type: "success" } };
     }
 
@@ -555,8 +545,8 @@ function baseReducer(state, action) {
     }
     case "RESTORE_BACKUP": {
       const { tasks, team, categories, agencyName, notices } = action.payload;
-      if (team) _syncTeam(team);
-      if (categories) _syncCategories(categories);
+      if (team) TEAM = team;
+      if (categories) CATEGORIES = categories;
       return {
         ...state,
         tasks: tasks ?? state.tasks,
@@ -635,7 +625,7 @@ function baseReducer(state, action) {
       if (phone !== undefined) updates.phone = phone;
       if (photoUrl !== undefined) updates.photoUrl = photoUrl;
       const team = state.team.map(m => m.id === uid ? { ...m, ...updates } : m);
-      _syncTeam(team);
+      TEAM = team;
       return { ...state, team, toast: { message: "Profilo aggiornato!", type: "success" } };
     }
 
@@ -699,19 +689,18 @@ const INITIAL_NOTICES = [
 ];
 
 // Factory dell'initial state. Se `team` e/o `currentUserId` sono forniti
-// (es. da Supabase via AuthContext), sincronizza i `let` globali TEAM/CURRENT_USER
-// prima di costruire lo state. Senza argomenti, restituisce lo state mock storico.
+// (es. da Supabase via AuthContext), aggiorna i `let` globali TEAM/CURRENT_USER
+// via riassegnazione prima di costruire lo state. Senza argomenti, state mock.
 function makeInitialState({ team, currentUserId } = {}) {
   const hasRealTeam = Array.isArray(team) && team.length > 0;
-  if (hasRealTeam) _syncTeam(team);
-  if (currentUserId) _syncCurrentUser(currentUserId);
+  if (hasRealTeam) TEAM = [...team];
+  if (currentUserId) CURRENT_USER = currentUserId;
   return {
     // Quando il team viene dal DB le task in-memory non hanno più assignees validi:
     // partiamo da vuoto, le task reali arriveranno dal prossimo wire-up Supabase.
     tasks: hasRealTeam ? [] : INITIAL_TASKS,
-    // Copie, non riferimenti: _syncTeam/_syncCategories mutano i globali
-    // in-place e un alias diretto cambierebbe lo state sotto React senza
-    // che il riferimento cambi (re-render mai innescato).
+    // Spread per creare copie: lo state non deve condividere il riferimento
+    // con i globali (altrimenti React non innesca re-render se la ref non cambia).
     team: [...TEAM],
     categories: { ...CATEGORIES },
     agencyName: "VoyageDesk",

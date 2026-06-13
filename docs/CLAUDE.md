@@ -31,7 +31,7 @@ Agisci come sviluppatore full-stack specializzato in sistemi gestionali per trav
 - **Animazioni ingresso**: classi `slide-up`, `fade-in`, `slide-right`
 - **Responsive**: `const { isMobile, isDesktop } = useViewport()` dentro ogni componente che adatta il layout
 - **Permessi**: ogni nuova feature che tocca task o viste deve usare `canViewTask`/`canEditTask`. Ogni nuova voce nav in `NAV_ITEMS` deve avere il campo `roles`
-- **Sync globale**: TEAM/CATEGORIES/CURRENT_USER sono `let` mutabili sincronizzati via `_syncTeam`/`_syncCategories`/`_syncCurrentUser`
+- **Sync globale**: TEAM/CATEGORIES/CURRENT_USER sono `let` module-level aggiornati via riassegnazione diretta (`TEAM = newTeam`) dopo ogni mutazione nel reducer. I sync helper `_syncTeam`/`_syncCategories`/`_syncCurrentUser` sono stati rimossi (Step P Phase 1)
 
 ### Cosa NON fare
 - Non usare localStorage/sessionStorage (vincolo artifact, da rimuovere post-migrazione Vite)
@@ -240,7 +240,7 @@ Vedi `docs/ROADMAP.md` per il dettaglio completo con dipendenze e stime.
 ## Note tecniche importanti
 
 1. **Architettura root**: `VoyageDesk` wrappa `VoyageDeskInner` dentro `<ViewportProvider>`. Tutti i componenti con `useViewport()` devono essere dentro questo provider.
-2. **TEAM/CATEGORIES/CURRENT_USER** sono `let` mutabili — pattern ibrido con sync nel reducer. Funziona ma è da migrare a Context puro.
+2. **TEAM/CATEGORIES/CURRENT_USER** sono `let` module-level aggiornati via riassegnazione diretta nel reducer (Step P Phase 1: rimosso il vecchio pattern di mutazione in-place). Prossimo step: migrare a Context puro (Phase 2).
 3. **Chat e AI**: usano `fetch` su `https://api.anthropic.com/v1/messages` — funziona solo in ambiente Claude.ai artifacts. Per dev locale, mockare o usare API key.
 4. **activityLog**: max 100 entry, poi taglia le più vecchie.
 5. **Backup JSON**: Admin → Import/Export include tutto lo stato persistente. Ripristino sovrascrive.

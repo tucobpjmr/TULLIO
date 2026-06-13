@@ -7,6 +7,7 @@ import {
   Tasks as TasksAPI, Comments as CommentsAPI, Notices as NoticesAPI,
   Conversations as ConversationsAPI, Messages as MessagesAPI,
   Notifications as NotificationsAPI, Users as UsersAPI,
+  Contacts as ContactsAPI,
   subscribeToTable,
 } from "./lib/api.js";
 import {
@@ -7954,6 +7955,16 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         const prev = state.notices.find(n => n.id === action.payload);
         const pinned = !(prev?.pinned);
         dbOps = () => NoticesAPI.togglePin(action.payload, pinned);
+        break;
+      }
+      case "UPDATE_OWN_PROFILE": {
+        // email/telefono vivono ora in public.user_contacts (RLS own+admin).
+        // Li persisto qui; gli altri campi profilo restano gestiti dal reducer.
+        const uid = currentUserIdRef.current;
+        const { email, phone } = action.payload || {};
+        if (uid && (email !== undefined || phone !== undefined)) {
+          dbOps = () => ContactsAPI.upsert(uid, { email, phone });
+        }
         break;
       }
       default:

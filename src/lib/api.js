@@ -26,6 +26,28 @@ export const Users = {
     })).eq('id', id),
 };
 
+// ----------------- USER CONTACTS (PII: email/telefono) -----------------
+// Tabella separata con RLS own+admin: un utente legge/scrive solo il proprio
+// contatto, un admin tutti. NON è in publication realtime, quindi i contatti
+// non transitano mai sui canali postgres_changes (vedi migration
+// 20260613_user_contacts_table.sql). Sostituisce le ex colonne
+// public.users.email / public.users.phone, rimosse per non esporle al team.
+export const Contacts = {
+  // La RLS filtra il risultato: il proprio contatto, oppure tutti se admin.
+  listVisible: () =>
+    supabase.from('user_contacts').select('user_id, email, phone'),
+  // Upsert del proprio contatto (o di chiunque, se admin — consentito da RLS).
+  // Stringa vuota → NULL, per non collidere con l'unique index parziale su email.
+  upsert: (userId, { email, phone }) => {
+    const row = { user_id: userId };
+    if (email !== undefined) row.email = email?.trim() ? email.trim() : null;
+    if (phone !== undefined) row.phone = phone?.trim() ? phone.trim() : null;
+    return supabase.from('user_contacts')
+      .upsert(row, { onConflict: 'user_id' })
+      .select().single();
+  },
+};
+
 // ----------------- TASKS -----------------
 // Select riusabile che porta dietro i commenti con il nome dell'autore.
 const TASK_SELECT_WITH_COMMENTS =

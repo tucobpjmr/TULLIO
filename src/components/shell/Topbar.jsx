@@ -12,14 +12,23 @@ import { MOCK_NOTIFICATIONS } from "../../state/mockData.js";
 import { TEAM, CATEGORIES, getMember } from "../../state/appGlobals.js";
 import { ProfileEditor } from "../modals/ProfileEditor.jsx";
 
-const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword }) => {
+const AdvancedSearchPanel = ({ tasks, dossiers = [], dispatch, onClose, keyword = "", onKeyword }) => {
   const { isMobile } = useViewport();
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [cats, setCats] = useState([]);
   const [stats, setStats] = useState([]);
   const [agents, setAgents] = useState([]);
+  const [dossierId, setDossierId] = useState("");
   const [includeTrashed, setIncludeTrashed] = useState(false);
+
+  // Mappa pratiche per id: usata sia per il filtro che per arricchire
+  // l'haystack della keyword (numero/titolo pratica) e i risultati.
+  const dossierById = useMemo(() => {
+    const m = {};
+    for (const d of dossiers) m[d.id] = d;
+    return m;
+  }, [dossiers]);
 
   // La chiusura su click esterno è gestita dal wrapper di ricerca nella Topbar
   // (l'input keyword vive lì). Qui resta solo la chiusura con Escape.
@@ -35,10 +44,10 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
 
   const resetAll = () => {
     onKeyword?.(""); setDateFrom(""); setDateTo("");
-    setCats([]); setStats([]); setAgents([]); setIncludeTrashed(false);
+    setCats([]); setStats([]); setAgents([]); setDossierId(""); setIncludeTrashed(false);
   };
 
-  const hasFilters = keyword.trim() || dateFrom || dateTo || cats.length || stats.length || agents.length || includeTrashed;
+  const hasFilters = keyword.trim() || dateFrom || dateTo || cats.length || stats.length || agents.length || dossierId || includeTrashed;
 
   const results = useMemo(() => {
     if (!hasFilters) return [];
@@ -51,6 +60,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
       if (cats.length && !cats.includes(t.category)) return false;
       if (stats.length && !stats.includes(t.status)) return false;
       if (agents.length && !(t.assignees || []).some(a => agents.includes(a))) return false;
+      if (dossierId && t.dossierId !== dossierId) return false;
       if (from) {
         if (!t.dueDate) return false;
         if (new Date(t.dueDate) < from) return false;
@@ -60,10 +70,13 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
         if (new Date(t.dueDate) > to) return false;
       }
       if (k) {
+        const dossier = t.dossierId ? dossierById[t.dossierId] : null;
         const hay = [
           t.title || "",
           t.description || "",
           t.client || "",
+          dossier?.number || "",
+          dossier?.title || "",
           ...(t.comments || []).map(c => c.text || ""),
         ].join(" ").toLowerCase();
         if (!hay.includes(k)) return false;
@@ -75,7 +88,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
       if (!b.dueDate) return -1;
       return new Date(a.dueDate) - new Date(b.dueDate);
     });
-  }, [tasks, keyword, dateFrom, dateTo, cats, stats, agents, includeTrashed, hasFilters]);
+  }, [tasks, keyword, dateFrom, dateTo, cats, stats, agents, dossierId, includeTrashed, hasFilters, dossierById]);
 
   const openTask = (t) => {
     dispatch({ type: "SET_SELECTED_TASK", payload: t });
@@ -201,6 +214,26 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
           </div>
         </div>
 
+        {dossiers.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={sectionTitle}>Pratica</div>
+            <select
+              value={dossierId}
+              onChange={e => setDossierId(e.target.value)}
+              style={{
+                width: "100%", padding: "7px 10px", borderRadius: 6,
+                border: "1px solid var(--border)", fontSize: 12, outline: "none",
+                fontFamily: "inherit", boxSizing: "border-box", cursor: "pointer", background: "#fff",
+              }}
+            >
+              <option value="">— Tutte le pratiche —</option>
+              {dossiers.map(d => (
+                <option key={d.id} value={d.id}>{d.number ? `${d.number} — ` : ""}{d.title}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "var(--text)" }}>
           <input type="checkbox" checked={includeTrashed} onChange={e => setIncludeTrashed(e.target.checked)} />
           🗑️ Includi task nel cestino
@@ -260,6 +293,9 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
                     </div>
                     <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, display: "flex", gap: 10 }}>
                       <span>{STATUS_LABELS[t.status]}</span>
+                      {t.dossierId && dossierById[t.dossierId]?.number && (
+                        <span style={{ color: "var(--navy-light)", fontWeight: 600 }}>• 📁 {dossierById[t.dossierId].number}</span>
+                      )}
                       {t.client && <span>• {t.client}</span>}
                       {t.dueDate && (
                         <span style={{ color: overdue ? "var(--danger)" : "var(--text-muted)" }}>
@@ -348,6 +384,7 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
         {searchOpen && (
           <AdvancedSearchPanel
             tasks={state.tasks}
+            dossiers={state.dossiers}
             dispatch={dispatch}
             keyword={state.searchQuery}
             onKeyword={v => dispatch({ type: "SET_SEARCH", payload: v })}

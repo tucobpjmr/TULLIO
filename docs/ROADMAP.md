@@ -47,12 +47,15 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 | Modulo | Stato | Priorità | Sforzo | Dipende da |
 |---|---|---|---|---|
-| Anagrafica Clienti (CRM base) | ⬜ | 🔴 | M | — |
-| Anagrafica Fornitori | ⬜ | 🔴 | M | — |
-| Pratiche di viaggio | ⬜ | 🔴 | L | Clienti + Fornitori |
-| Collegamento Task ↔ Cliente ↔ Pratica | ⬜ | 🔴 | M | i tre sopra |
+| Anagrafica Clienti (CRM base) | ✅ | 🔴 | M | — |
+| Anagrafica Fornitori | ✅ | 🔴 | M | — |
+| Pratiche di viaggio | ✅ | 🔴 | L | Clienti + Fornitori |
+| Collegamento Task ↔ Cliente ↔ Pratica | 🔶 | 🔴 | M | i tre sopra |
+| Fornitori collegati a Pratica (DossierSuppliers) | 🔶 | 🟡 | S | Pratiche |
 
-**Dettaglio Pratiche** — modulo centrale: aggrega task, documenti, pagamenti e fornitori di un singolo viaggio; numerazione progressiva (`PR-2026-001`), stati (Bozza → Confermata → In corso → Completata/Annullata), riepilogo economico, timeline eventi.
+**Dettaglio Pratiche** — modulo centrale: aggrega task, documenti, pagamenti e fornitori di un singolo viaggio; numerazione progressiva (`PR-2026-001` ✅), stati (Bozza → Confermata → In corso → Completata/Annullata ✅), riepilogo economico, timeline eventi.
+
+**Stato sessione 19**: Clienti ✅, Fornitori ✅, Pratiche ✅ (PR #49). Collegamento Task ↔ Pratica: schema pronto (`tasks.dossier_id`), UI mancante (caveat #26). DossierSuppliers: API pronta, pannello UI mancante in `PraticaDetail` (caveat #27).
 
 > Dopo questa fase, aggiungere il filtro **numero di pratica** nella Ricerca avanzata.
 
@@ -177,7 +180,9 @@ Vedi `docs/HANDOFF_SESSION_2026-06-14_v13.md` per il dettaglio sessione 18 (Phas
 
 ## ✅ Completato (cronologia)
 
-- **v2.0-dev** — Step P **Phase 2g** (code-splitting `React.lazy`, PR #41) + quick win: caveat **#10** (`useDebouncedTableSubscription`, #42), **#18** (mojibake CSV UTF-8, #43), **#3** (heartbeat 30s, #44), **#8** (calendar weekOffset, #45). In PR draft: **#2** (@menzioni robuste commenti+chat, #46, DB già live) e **#25** (profilo persistente, #47). Step P completo (Phase 1 → 2g).
+- **v2.1-dev** — **Fase 1 CRM completa** (PR #49): Anagrafica Clienti (`ClientiView`), Fornitori (`FornitoriView`), Pratiche di viaggio (`PraticheView`). DB trigger auto-numerazione `PR-YYYY-NNN`. API/mappers/reducer/sidebar/VoyageDesk wiring. Build: 245.71 kB / 58.15 kB gz. Caveat aperti: #26 (Task↔Pratica UI), #27 (DossierSuppliers UI).
+
+- **v2.0-dev** — Step P **Phase 2g** (code-splitting `React.lazy`, PR #41) + quick win: caveat **#10** (`useDebouncedTableSubscription`, #42), **#18** (mojibake CSV UTF-8, #43), **#3** (heartbeat 30s, #44), **#8** (calendar weekOffset, #45). Mergeati anche #46 (#2), #47 (#25), #48 (docs v13). Step P completo (Phase 1 → 2g).
 
 - **v1.8-dev** — Step P (Phase 1 → 2e): refactor monolite. Rimosso `_sync*`; estratti costanti task, utility pure, dati mock, globali + permessi, reducer, e primo slice di componenti (Viewport/SwipeActions/ui). `VoyageDesk.jsx` 8325 → 7313 righe. Catena #32→#36 + #38, tutte mergeate (squash).
 - **v1.7-dev** — Step R (drift repo↔DB, 14 migrazioni recuperate, #30) + Step S (wiring `email`/`phone` su `user_contacts`, #31). Caveat #19 + #24 chiusi.

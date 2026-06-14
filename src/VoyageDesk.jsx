@@ -912,7 +912,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         {/* Slide-over (lazy, Phase 2g) */}
         {state.selectedTask && (
           <Suspense fallback={<LazyFallback overlay />}>
-            <TaskSlideOver task={state.selectedTask} dispatch={dispatch} />
+            <TaskSlideOver task={state.selectedTask} dispatch={dispatch} dossiers={state.dossiers} />
           </Suspense>
         )}
 
@@ -937,7 +937,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         {state.activeView !== "trash" && state.activeView !== "admin" && (
           <FAB onClick={() => setShowFABModal(true)} />
         )}
-        {showFABModal && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} />}
+        {showFABModal && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} dossiers={state.dossiers} />}
 
         {/* Bulk Task Creator (lazy, Phase 2g) */}
         {showBulkModal && (

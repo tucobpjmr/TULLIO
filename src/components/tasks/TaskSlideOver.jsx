@@ -8,6 +8,7 @@ import { CategoryChip } from "../ui/CategoryChip.jsx";
 import { STATUSES, STATUS_LABELS } from "../../lib/taskConstants.js";
 import { formatDate, formatTime, isOverdue } from "../../lib/taskUtils.js";
 import { CURRENT_USER, getMember } from "../../state/appGlobals.js";
+import { MentionText } from "../ui/MentionText.jsx";
 
 export const TaskSlideOver = ({ task, dispatch }) => {
   const { isMobile } = useViewport();
@@ -166,7 +167,7 @@ export const TaskSlideOver = ({ task, dispatch }) => {
                       <span style={{ fontSize: 12, fontWeight: 600 }}>{c.user}</span>
                       <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{formatDate(c.time)}</span>
                     </div>
-                    <div style={{ fontSize: 13, color: "var(--text)", marginTop: 2, lineHeight: 1.5 }}>{c.text}</div>
+                    <div style={{ fontSize: 13, color: "var(--text)", marginTop: 2, lineHeight: 1.5 }}><MentionText text={c.text} /></div>
                   </div>
                 </div>
               ))}

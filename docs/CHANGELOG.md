@@ -1,6 +1,40 @@
 # CHANGELOG — VoyageDesk
 
 
+## v2.0-dev — Step P Phase 2g + quick win Pri 2/3 (sessione 18)
+
+> Cumulativo sopra v1.9-dev. **Mergeati in `main`** (squash): #41 (Phase 2g), #42 (#10), #43 (#18), #44 (#3), #45 (#8). **In PR draft**: #46 (#2), #47 (#25).
+
+### ⚡ Phase 2g — code-splitting `React.lazy` (PR #41)
+- `React.lazy` + `<Suspense>` su 4 componenti pesanti on-demand: `AdminView` (Suspense su `renderView()`), `BulkTaskCreator` e `TaskSlideOver` (Suspense overlay) in `VoyageDesk.jsx`; `AIDayPlanner` in `Dashboard.jsx`. Named export → `import(...).then(m => ({ default: m.X }))`.
+- Nuovo `LazyFallback` (spinner inline che riusa il keyframe `spin`): overlay per i modali, riempimento area per la vista.
+- Bundle `index`: **268.60 → 205.13 kB** (64.11 → **50.90 kB gz, −20%**) + chunk async AdminView 7.12 / Bulk 6.00 / AIDayPlanner 3.28 / TaskSlideOver 2.18 kB gz. **Step P COMPLETO (Phase 1 → 2g).**
+
+### 🔁 Caveat #10 — `useDebouncedTableSubscription` (PR #42)
+- Nuovo `src/hooks/useDebouncedTableSubscription.js`: astrae idratazione + subscribe realtime + reload debounced + generation counter (anti-stale, caveat #21) + cleanup. `reload(isCurrent)` fonde `cancelled`+gen-counter; `reload` in un `ref` (no re-subscribe per render).
+- `VoyageDesk.jsx`: 4 effetti (tasks+comments, notices, notifications, chat) → 4 chiamate dichiarative. **Presence effect intatto** (heartbeat + callback incrementale).
+
+### 🔤 Caveat #18 — mojibake import CSV (PR #43)
+- `BulkTaskCreator` ImportTab: `readAsArrayBuffer` + `Uint8Array` + `XLSX type "array"` (era `readAsBinaryString` + `type "binary"`). SheetJS decodifica UTF-8 e rimuove il BOM dei CSV; invariato per xlsx/xls.
+
+### 🟢 Caveat #3 — heartbeat presence (PR #44)
+- `VoyageDesk.jsx`: heartbeat 45s → 30s, allineato al tick di ageing.
+
+### 📅 Caveat #8 — distribuzione agenti calendario (PR #45)
+- `CalendarPlanner`: `agentWeekDays` segue `weekOffset` anche in vista `week-full` (prima solo `week`).
+
+### 🏷️ Caveat #2 — @menzioni robuste commenti + chat (PR #46, draft — DB già live via MCP)
+- `supabase/migrations/20260614_mention_composite_names.sql`:
+  - `find_mentioned_users(text)`: matcher condiviso **greedy** contro i nomi utenti reali (longest-first), boundary iniziale (no falsi positivi email) + azzeramento span (no prefissi dentro nomi più lunghi). Sostituisce la regex fragile di `20260610_step_j_fix4.sql`.
+  - `notify_task_comment` riscritto sul matcher; **nuovo** `notify_message_mention` su `messages` (menzioni in chat ai partecipanti, escluso il mittente).
+- UI: `src/lib/mentions.js` (gemello JS, stessi boundary) + `src/components/ui/MentionText.jsx` (chip; "a me" più marcata) in `ChatPanel` e `TaskSlideOver`.
+
+### 👤 Caveat #25 — profilo persistente (PR #47, draft)
+- `ProfileEditor.handleSave`: `Users.updateProfile(id, {name, avatar, color, photo_url})` con sessione attiva (accanto a `updateContact` per email/phone). Trigger anti-escalation lascia passare questi campi.
+- `AuthContext`: normalizza `photo_url` → `photoUrl` → foto persistita ri-mostrata dopo reload. Nessuna migration.
+
+---
+
 ## v1.9-dev — Step P: component extraction clusters (Phase 2f) (sessione 17)
 
 > Cumulativo sopra v1.8-dev. Tutte le PR della Phase 2f sono **mergeate in `main`** (squash): #39 → #40 → #41 → #42 → #43 → #44 → #45 → #47.

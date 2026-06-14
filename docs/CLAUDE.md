@@ -258,7 +258,10 @@ src/
 │   ├── supabase.js
 │   ├── taskConstants.js     PRIORITIES/STATUSES/STATUS_*/NOTICE_COLORS/TASK_TEMPLATES (Phase 2a)
 │   ├── taskUtils.js         formatDate/formatTime/isUrgent/isMyTask/... (Phase 2a)
-│   └── xlsx.js              loadXLSX() lazy loader (Phase 2f)
+│   ├── xlsx.js              loadXLSX() lazy loader (Phase 2f)
+│   └── mentions.js          findMentions() — parser @menzioni (caveat #2, gemello DB)
+├── hooks/                   (sessione 18)
+│   └── useDebouncedTableSubscription.js   idratazione+subscribe realtime debounced (caveat #10)
 ├── state/                   (Phase 2b–2d)
 │   ├── mockData.js          INITIAL_TEAM/CATEGORIES/TASKS/NOTICES + MOCK_NOTIFICATIONS
 │   ├── appGlobals.js        TEAM/CATEGORIES/CURRENT_USER live bindings + setter + permessi
@@ -271,7 +274,8 @@ src/
 │   │   ├── PriorityBadge.jsx
 │   │   ├── CategoryChip.jsx
 │   │   ├── StatusBadge.jsx
-│   │   └── Toast.jsx
+│   │   ├── Toast.jsx
+│   │   └── MentionText.jsx  evidenzia @menzioni come chip (caveat #2)
 │   ├── modals/
 │   │   ├── ProfileEditor.jsx
 │   │   ├── BulkTaskCreator.jsx (contiene 5 tab locali)
@@ -299,8 +303,10 @@ src/
 │       ├── Topbar.jsx (contiene AdvancedSearchPanel, UserSwitcher, NotificationsPanel locali)
 │       ├── Sidebar.jsx (contiene NAV_ITEMS, BottomNav, NavBadge locali)
 │       └── FAB.jsx
-├── VoyageDesk.jsx           Shell di orchestrazione (~903 righe, era 8325)
+├── VoyageDesk.jsx           Shell di orchestrazione (~955 righe; Phase 2g: React.lazy + Suspense + LazyFallback)
 └── main.jsx
 ```
 
-Vedi `docs/HANDOFF_SESSION_2026-06-14_v12.md` per la catena di import dettagliata e gli insight chiave (live bindings, setter, CURRENT_USER doppio canale).
+**Step P COMPLETO (Phase 1 → 2g).** Phase 2g: `React.lazy` + `<Suspense>` su AdminView/BulkTaskCreator/AIDayPlanner/TaskSlideOver (chunk async on-demand). Le notifiche nascono **solo da trigger DB** (RLS vieta insert client) — per nuove notifiche serve un trigger server-side (pattern in `supabase/migrations/20260614_mention_composite_names.sql`).
+
+Vedi `docs/HANDOFF_SESSION_2026-06-14_v13.md` per il dettaglio sessione 18 (Phase 2g + quick win #10/#18/#3/#8/#2/#25) e v12 per Phase 2f.

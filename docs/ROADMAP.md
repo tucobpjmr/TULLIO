@@ -41,7 +41,7 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 
 ---
 
-## 🚀 Fase 1 — Modello dati completo (il cuore gestionale)
+## 🚀 Fase 1 — Modello dati completo (il cuore gestionale) ✅ COMPLETATA
 
 Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti e Fornitori prima delle Pratiche.**
 
@@ -56,16 +56,18 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 **Dettaglio Pratiche** — modulo centrale: aggrega task, documenti, pagamenti e fornitori di un singolo viaggio; numerazione progressiva (`PR-2026-001` ✅), stati (Bozza → Confermata → In corso → Completata/Annullata ✅), riepilogo economico, timeline eventi.
 
-**Stato sessione 20**: ✅ **Fase 1 COMPLETA**. Task↔Pratica (PR #51, caveat #26 chiuso), Fornitori della pratica (PR #52, caveat #27 chiuso), filtro pratica in Ricerca avanzata (PR #53). Nessun caveat aperto.
+**✅ STATO FINALE (sessione 20)**: Task↔Pratica (PR #51, caveat #26 ✅ chiuso), Fornitori della pratica (PR #52, caveat #27 ✅ chiuso), filtro pratica in Ricerca avanzata (PR #53). **Nessun caveat aperto.** Build: 252.04 kB / 59.47 kB gz. Tutti i mergeati in `main` (squash).
 
 ---
 
-## 🔧 Fase 2 — Operatività quotidiana
+## 🔧 Fase 2 — Operatività quotidiana (apertura sessione 21)
+
+**Prerequisito**: Fase 1 completa ✅ (sessione 20). Scelta consigliata: **Inizio Fase 2 OPPURE Fase 3 business** (vedi opzioni sotto).
 
 | Modulo | Stato | Priorità | Sforzo | Note |
 |---|---|---|---|---|
-| Notifiche reali | ⬜ | 🔴 | M | Collegate ad azioni (scadenze, assegnazioni, commenti, pending, coda > N ore); filtri + "segna tutte lette" |
-| Calendario avanzato | ⬜ | 🟡 | M | Viste settimanale/giornaliera, eventi multipli, iCal (mock) |
+| **Notifiche pratiche** (estensione) | ⬜ | 🔴 | M | Trigger DB su cambio status pratica (es. Bozza→Confermata), scadenza partenza imminente; notifiche real-time ai manager |
+| **Calendario avanzato** | ⬜ | 🟡 | M | Mostrare date partenza/ritorno delle pratiche nel `CalendarPlanner`; viste settimanale/giornaliera, iCal export |
 | Estensioni chat (base) | ⬜ | 🟡 | S–M | Ricerca nelle conversazioni, stato online/occupato, rich preview di task/pratiche, **task link cliccabile** nel messaggio |
 | Impostazioni agenzia | 🔶 | 🟡 | S | Gestione categorie e nome agenzia già in Admin. Manca: template messaggi, profilo utente, preferenze UI |
 | Ricerca globale estesa | ✅ | — | — | Completata in v0.5. |
@@ -75,15 +77,17 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 ---
 
-## 💰 Fase 3 — Business & finanza
+## 💰 Fase 3 — Business & finanza (aperta da sessione 20)
 
-Ha senso **solo dopo le Pratiche** (servono dati reali).
+Ha senso **solo dopo le Pratiche** (servono dati reali). **Ora `dossier_suppliers.cost` esiste** → finanziario è sbloccato.
 
-| Modulo | Stato | Priorità | Sforzo | Dipende da |
-|---|---|---|---|---|
-| Modulo finanziario | ⬜ | 🔴 | L | Pratiche |
-| Report & Analytics | 🔶 | 🟡 | M–L | KPI base già in Admin/Sistema. Da estendere con: margini, trend temporali, export PDF |
-| Catalogo destinazioni / pacchetti | ⬜ | 🟡 | M | autonomo |
+| Modulo | Stato | Priorità | Sforzo | Dipende da | Note |
+|---|---|---|---|---|---|
+| **Modulo finanziario** | ⬜ | 🔴 | L | Pratiche | Aggregare costi fornitori per pratica vs `dossiers.budget_total` → margine. Riepilogo economico in `PraticaDetail` (somma costi, scostamento budget). Acconti/pagamenti opzionali. |
+| Report & Analytics | 🔶 | 🟡 | M–L | Pratiche | KPI base già in Admin/Sistema. Da estendere con: margini per pratica/cliente, trend temporali, export PDF. Collegate al finanziario. |
+| Catalogo destinazioni / pacchetti | ⬜ | 🟡 | M | autonomo | Associare destinazioni pre-populate a pratiche; pacchetti con fornitori pre-assegnati. |
+
+**Consiglio sessione 21**: Se serve **valore € immediato**, scegli **Fase 3 Finanziario**. Se serve **operatività quotidiana**, scegli **Fase 2 Notifiche/Calendario**.
 
 ---
 
@@ -205,12 +209,13 @@ Vedi `docs/HANDOFF_SESSION_2026-06-14_v13.md` per il dettaglio sessione 18 (Phas
 
 ---
 
-## ✅ Sequenza consigliata (sintesi aggiornata)
+## ✅ Sequenza consigliata (aggiornata a sessione 21)
 
-1. **Decidi A o B** (persistenza sì/no).
-2. **Fase 1** — Clienti → Fornitori → Pratiche → collegamenti.
-3. **Notifiche reali** (Fase 2) — sblocca badge, alert su pending/coda, menzioni in bacheca.
-4. **Fase 3** — Finanziario, poi Report avanzati.
-5. **Fase 2 residua** (Calendario avanzato, estensioni chat) + **Fase 4** (multi-utente reale).
-6. Migliorie incrementali post-v0.5/v0.6/v0.8 inserite dove pertinenti.
-7. Traccia tecnica man mano, se in Opzione B.
+1. ✅ **Fase 1 COMPLETATA** (sessione 20) — Clienti, Fornitori, Pratiche, Collegamenti Task↔Pratica, DossierSuppliers UI, filtro ricerca.
+2. **SCELTA SESSIONE 21**:
+   - **Opzione A — Fase 2 (Operatività)**: Notifiche pratiche + Calendario avanzato (date partenza/ritorno) — sblocca workflow quotidiano real-time.
+   - **Opzione B — Fase 3 (Business)**: Modulo finanziario (margini, costi fornitori vs budget) — sblocca valore € immediato.
+3. **Dopo scelta**: completare l'altra Fase + Fase 2 residua (estensioni chat, impostazioni agenzia).
+4. **Fase 4** (multi-utente reale, AI Assistant estensioni) e migliorie incrementali man mano.
+
+**Nota**: tutte le colonne DB per Fase 3 finanziario esistono già (`dossier_suppliers.cost`, `dossiers.budget_total`). Blocco architetturale rimosso.

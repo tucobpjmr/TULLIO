@@ -152,7 +152,7 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 
 Obiettivo: portare `src/VoyageDesk.jsx` da ~8300 righe a uno **shell sottile** che importa moduli, eliminando il pattern di stato mutabile globale via `_sync*`.
 
-### Stato corrente (tutte le PH 1→2f MERGEATE in `main`)
+### Stato corrente (tutte le PH 1→2g MERGEATE in `main`)
 
 | Phase | Stato | PR | Output | Δ monolite |
 |-------|-------|----|--------|-----------|
@@ -163,19 +163,21 @@ Obiettivo: portare `src/VoyageDesk.jsx` da ~8300 righe a uno **shell sottile** c
 | **2d** — Reducer | ✅ | #36 | `state/reducer.js` | −370 |
 | **2e** — Componenti (avvio) | ✅ | #38 | `components/Viewport.jsx`, `SwipeActions.jsx`, `ui/` (Avatar/Badge/Chip/Toast) | −355 |
 | **2f** — Componenti (8 cluster grandi) | ✅ | #39–#47 | `components/` (modals/dashboard/calendar/chat/tasks/admin/views/shell) + `lib/xlsx.js` | −6410 |
-| 2g — `React.lazy` code-splitting | ⬜ | — | Lazy-load AdminView/Bulk/AIDayPlanner/TaskSlideOver | bundle gz −100 kB |
+| **2g** — `React.lazy` code-splitting | ✅ | #41 | Lazy-load AdminView/Bulk/AIDayPlanner/TaskSlideOver + `LazyFallback` | index −13.2 kB gz (−20%) |
 
-**Cumulativo Phase 2f:** 8325 → **903 righe** (−7422, −88%).
+**Cumulativo:** 8325 → **903 righe** (−7422, −88%); ~955 righe dopo Phase 2g (wrapper Suspense + LazyFallback).
 
-### Next: Phase 2g (code-splitting)
+### ✅ Step P COMPLETO (Phase 1 → 2g)
 
-Prossima sessione: aggiungere `React.lazy` su 4 componenti pesanti (AdminView, BulkTaskCreator, AIDayPlanner, TaskSlideOver) per ridurre chunk principale da 268.6 kB a ~168 kB gz. Una singola PR, build verde, Vercel Ready, squash merge.
+Phase 2g (PR #41, sessione 18): `React.lazy` + `<Suspense>` sui 4 componenti pesanti caricati on-demand. Bundle `index` 268.60 → 205.13 kB (64.11 → **50.90 kB gz, −20%**) + 4 chunk async (AdminView 7.12, Bulk 6.00, AIDayPlanner 3.28, TaskSlideOver 2.18 kB gz). La stima v12 di −100 kB confondeva raw/gz: il guadagno reale gz è −13.2 kB.
 
-Vedi `docs/HANDOFF_SESSION_2026-06-14_v12.md` §6 per dettagli.
+Vedi `docs/HANDOFF_SESSION_2026-06-14_v13.md` per il dettaglio sessione 18 (Phase 2g + quick win #10/#18/#3/#8/#2/#25).
 
 ---
 
 ## ✅ Completato (cronologia)
+
+- **v2.0-dev** — Step P **Phase 2g** (code-splitting `React.lazy`, PR #41) + quick win: caveat **#10** (`useDebouncedTableSubscription`, #42), **#18** (mojibake CSV UTF-8, #43), **#3** (heartbeat 30s, #44), **#8** (calendar weekOffset, #45). In PR draft: **#2** (@menzioni robuste commenti+chat, #46, DB già live) e **#25** (profilo persistente, #47). Step P completo (Phase 1 → 2g).
 
 - **v1.8-dev** — Step P (Phase 1 → 2e): refactor monolite. Rimosso `_sync*`; estratti costanti task, utility pure, dati mock, globali + permessi, reducer, e primo slice di componenti (Viewport/SwipeActions/ui). `VoyageDesk.jsx` 8325 → 7313 righe. Catena #32→#36 + #38, tutte mergeate (squash).
 - **v1.7-dev** — Step R (drift repo↔DB, 14 migrazioni recuperate, #30) + Step S (wiring `email`/`phone` su `user_contacts`, #31). Caveat #19 + #24 chiusi.

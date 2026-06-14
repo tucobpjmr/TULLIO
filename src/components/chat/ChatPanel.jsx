@@ -8,6 +8,7 @@ import { Messages as MessagesAPI } from "../../lib/api.js";
 import { isUuid } from "../../lib/mappers.js";
 import { formatDate, formatTime } from "../../lib/taskUtils.js";
 import { TEAM, CURRENT_USER, getMember } from "../../state/appGlobals.js";
+import { MentionText } from "../ui/MentionText.jsx";
 
 // Helper presenza (computePresence/PRESENCE_COLORS) usati solo dalla chat,
 // spostati qui dal monolite insieme al cluster (Step P Phase 2f).
@@ -157,7 +158,7 @@ const MessageTextContent = ({ text, isMine, taskRef }) => {
   const { tasks, dispatch } = useContext(ChatContext);
   const link = parseTaskLink(text);
   if (!link) {
-    return <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}>{text}</div>;
+    return <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}><MentionText text={text} /></div>;
   }
   // Step K: prima cerca per UUID, poi fallback al match titolo.
   const tByRef = taskRef ? (tasks || []).find(x => x.id === taskRef && !x.deletedAt) : null;
@@ -196,7 +197,7 @@ const MessageTextContent = ({ text, isMine, taskRef }) => {
           </div>
         )}
       </button>
-      {link.rest && <div>{link.rest}</div>}
+      {link.rest && <div><MentionText text={link.rest} /></div>}
     </div>
   );
 };

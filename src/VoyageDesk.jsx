@@ -7,6 +7,7 @@ import {
   Tasks as TasksAPI, Comments as CommentsAPI, Notices as NoticesAPI,
   Conversations as ConversationsAPI, Messages as MessagesAPI,
   Notifications as NotificationsAPI, Users as UsersAPI,
+  Clients as ClientsAPI, Suppliers as SuppliersAPI, Dossiers as DossiersAPI,
   subscribeToTable,
 } from "./lib/api.js";
 import {
@@ -15,6 +16,9 @@ import {
   toDbConversation, fromDbConversation,
   toDbMessage, fromDbMessage,
   fromDbNotification,
+  fromDbClient, toDbClient,
+  fromDbSupplier, toDbSupplier,
+  fromDbDossier, toDbDossier,
   newId, isUuid,
 } from "./lib/mappers.js";
 // Step O: logout UI — signOut vive in AuthContext, qui viene solo cablato.
@@ -82,6 +86,10 @@ const TaskSlideOver = lazy(() =>
 // Step P Phase 2f: views estratte in src/components/views/.
 import { Team } from "./components/views/Team.jsx";
 import { Trash } from "./components/views/Trash.jsx";
+// Fase 1: Clienti, Fornitori, Pratiche
+import { ClientiView } from "./components/clients/ClientiView.jsx";
+import { FornitoriView } from "./components/suppliers/FornitoriView.jsx";
+import { PraticheView } from "./components/dossiers/PraticheView.jsx";
 
 // Step P Phase 2f: shell estratto in src/components/shell/.
 import { Topbar } from "./components/shell/Topbar.jsx";
@@ -407,6 +415,24 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     setNotifications((data || []).map(fromDbNotification));
   }, { enabled: useSupabase, deps: [useSupabase] });
 
+  // Fase 1: idratazione CRM (clienti, fornitori, pratiche) al mount.
+  // Reference data, nessun realtime — semplice fetch one-shot.
+  useEffect(() => {
+    if (!useSupabase) return;
+    let cancelled = false;
+    Promise.all([
+      ClientsAPI.list(),
+      SuppliersAPI.list(),
+      DossiersAPI.list(),
+    ]).then(([cRes, sRes, dRes]) => {
+      if (cancelled) return;
+      if (!cRes.error) rawDispatch({ type: "SET_CLIENTS", payload: (cRes.data || []).map(fromDbClient) });
+      if (!sRes.error) rawDispatch({ type: "SET_SUPPLIERS", payload: (sRes.data || []).map(fromDbSupplier) });
+      if (!dRes.error) rawDispatch({ type: "SET_DOSSIERS", payload: (dRes.data || []).map(fromDbDossier) });
+    }).catch(e => console.error("[CRM] hydration", e));
+    return () => { cancelled = true; };
+  }, [useSupabase]);
+
   const markNotificationRead = useCallback((id) => {
     if (!useSupabase) return;
     // Ottimistico
@@ -496,6 +522,53 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         dbOps = () => NoticesAPI.togglePin(action.payload, pinned);
         break;
       }
+      // ─── CRM sync ───
+      case "ADD_CLIENT": {
+        const id = newId();
+        const payload = { ...action.payload, id };
+        toDispatch = { ...action, payload };
+        dbOps = () => ClientsAPI.create(toDbClient(payload));
+        break;
+      }
+      case "UPDATE_CLIENT":
+        dbOps = () => ClientsAPI.update(action.payload.id, toDbClient(action.payload));
+        break;
+      case "DELETE_CLIENT":
+        dbOps = () => ClientsAPI.remove(action.payload);
+        break;
+      case "ADD_SUPPLIER": {
+        const id = newId();
+        const payload = { ...action.payload, id };
+        toDispatch = { ...action, payload };
+        dbOps = () => SuppliersAPI.create(toDbSupplier(payload));
+        break;
+      }
+      case "UPDATE_SUPPLIER":
+        dbOps = () => SuppliersAPI.update(action.payload.id, toDbSupplier(action.payload));
+        break;
+      case "DELETE_SUPPLIER":
+        dbOps = () => SuppliersAPI.remove(action.payload);
+        break;
+      case "ADD_DOSSIER": {
+        const id = newId();
+        const payload = { ...action.payload, id };
+        toDispatch = { ...action, payload };
+        dbOps = async () => {
+          const res = await DossiersAPI.create(toDbDossier(payload));
+          // Il trigger DB popola il numero: aggiorna lo state con il numero generato
+          if (!res.error && res.data?.number) {
+            rawDispatch({ type: "UPDATE_DOSSIER", payload: { id, number: res.data.number } });
+          }
+          return res;
+        };
+        break;
+      }
+      case "UPDATE_DOSSIER":
+        dbOps = () => DossiersAPI.update(action.payload.id, toDbDossier(action.payload));
+        break;
+      case "DELETE_DOSSIER":
+        dbOps = () => DossiersAPI.remove(action.payload);
+        break;
       default:
         break;
     }
@@ -796,12 +869,15 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
 
   const renderView = () => {
     switch (state.activeView) {
-      case "dashboard": return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
-      case "calendar": return <CalendarPlanner state={state} dispatch={dispatch} />;
-      case "team": return <Team state={state} dispatch={dispatch} />;
-      case "trash": return <Trash state={state} dispatch={dispatch} />;
-      case "admin": return <AdminView state={state} dispatch={dispatch} />;
-      default: return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
+      case "dashboard":  return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
+      case "calendar":   return <CalendarPlanner state={state} dispatch={dispatch} />;
+      case "clienti":    return <ClientiView state={state} dispatch={dispatch} />;
+      case "fornitori":  return <FornitoriView state={state} dispatch={dispatch} />;
+      case "pratiche":   return <PraticheView state={state} dispatch={dispatch} />;
+      case "team":       return <Team state={state} dispatch={dispatch} />;
+      case "trash":      return <Trash state={state} dispatch={dispatch} />;
+      case "admin":      return <AdminView state={state} dispatch={dispatch} />;
+      default:           return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
     }
   };
 

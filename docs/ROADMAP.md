@@ -50,14 +50,13 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 | Anagrafica Clienti (CRM base) | ✅ | 🔴 | M | — |
 | Anagrafica Fornitori | ✅ | 🔴 | M | — |
 | Pratiche di viaggio | ✅ | 🔴 | L | Clienti + Fornitori |
-| Collegamento Task ↔ Cliente ↔ Pratica | 🔶 | 🔴 | M | i tre sopra |
-| Fornitori collegati a Pratica (DossierSuppliers) | 🔶 | 🟡 | S | Pratiche |
+| Collegamento Task ↔ Cliente ↔ Pratica | ✅ | 🔴 | M | i tre sopra |
+| Fornitori collegati a Pratica (DossierSuppliers) | ✅ | 🟡 | S | Pratiche |
+| Filtro numero pratica in Ricerca avanzata | ✅ | 🟡 | S | Pratiche |
 
 **Dettaglio Pratiche** — modulo centrale: aggrega task, documenti, pagamenti e fornitori di un singolo viaggio; numerazione progressiva (`PR-2026-001` ✅), stati (Bozza → Confermata → In corso → Completata/Annullata ✅), riepilogo economico, timeline eventi.
 
-**Stato sessione 19**: Clienti ✅, Fornitori ✅, Pratiche ✅ (PR #49). Collegamento Task ↔ Pratica: schema pronto (`tasks.dossier_id`), UI mancante (caveat #26). DossierSuppliers: API pronta, pannello UI mancante in `PraticaDetail` (caveat #27).
-
-> Dopo questa fase, aggiungere il filtro **numero di pratica** nella Ricerca avanzata.
+**Stato sessione 20**: ✅ **Fase 1 COMPLETA**. Task↔Pratica (PR #51, caveat #26 chiuso), Fornitori della pratica (PR #52, caveat #27 chiuso), filtro pratica in Ricerca avanzata (PR #53). Nessun caveat aperto.
 
 ---
 
@@ -180,7 +179,9 @@ Vedi `docs/HANDOFF_SESSION_2026-06-14_v13.md` per il dettaglio sessione 18 (Phas
 
 ## ✅ Completato (cronologia)
 
-- **v2.1-dev** — **Fase 1 CRM completa** (PR #49): Anagrafica Clienti (`ClientiView`), Fornitori (`FornitoriView`), Pratiche di viaggio (`PraticheView`). DB trigger auto-numerazione `PR-YYYY-NNN`. API/mappers/reducer/sidebar/VoyageDesk wiring. Build: 245.71 kB / 58.15 kB gz. Caveat aperti: #26 (Task↔Pratica UI), #27 (DossierSuppliers UI).
+- **v2.2-dev** — **Fase 1 COMPLETA** (PR #51/#52/#53): collegamento Task↔Pratica (`dossierId` su QuickAddTask/TaskSlideOver), pannello fornitori in `PraticaDetail` (`FornitoriPanel`), filtro pratica nella Ricerca avanzata. Caveat #26 e #27 chiusi. Build: 252.04 kB / 59.47 kB gz.
+
+- **v2.1-dev** — **Fase 1 CRM base** (PR #49): Anagrafica Clienti (`ClientiView`), Fornitori (`FornitoriView`), Pratiche di viaggio (`PraticheView`). DB trigger auto-numerazione `PR-YYYY-NNN`. API/mappers/reducer/sidebar/VoyageDesk wiring. Build: 245.71 kB / 58.15 kB gz.
 
 - **v2.0-dev** — Step P **Phase 2g** (code-splitting `React.lazy`, PR #41) + quick win: caveat **#10** (`useDebouncedTableSubscription`, #42), **#18** (mojibake CSV UTF-8, #43), **#3** (heartbeat 30s, #44), **#8** (calendar weekOffset, #45). Mergeati anche #46 (#2), #47 (#25), #48 (docs v13). Step P completo (Phase 1 → 2g).
 

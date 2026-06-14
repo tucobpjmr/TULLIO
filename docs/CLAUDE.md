@@ -280,20 +280,21 @@ Tutti i componenti sono **moduli separati** in `src/components/`; helper e sub-c
 
 ## Roadmap prossimi step
 
-### Priorità 1 — Completamento Fase 1
+### Priorità 1 — Fase 1 COMPLETA ✅
 - [x] Anagrafica Clienti → `src/components/clients/ClientiView.jsx` ✅
 - [x] Anagrafica Fornitori → `src/components/suppliers/FornitoriView.jsx` ✅
 - [x] Pratiche di viaggio → `src/components/dossiers/PraticheView.jsx` ✅
-- [ ] Collegamento Task ↔ Pratica: select pratica in `QuickAddTask` + `TaskSlideOver` (caveat #26)
-- [ ] DossierSuppliers UI: pannello fornitori in `PraticaDetail` dentro `PraticheView` (caveat #27)
+- [x] Collegamento Task ↔ Pratica: select pratica in `QuickAddTask` + `TaskSlideOver` (PR #51, caveat #26) ✅
+- [x] DossierSuppliers UI: `FornitoriPanel` in `PraticaDetail` dentro `PraticheView` (PR #52, caveat #27) ✅
+- [x] Filtro pratica in Ricerca avanzata (`AdvancedSearchPanel` in `Topbar`, PR #53) ✅
 
 ### Priorità 2 — Fase 2 Operatività
-- [ ] Notifiche reali (già parzialmente implementate — es. trigger @menzioni, assign, coda; da estendere a pratiche)
-- [ ] Filtro numero pratica in Ricerca avanzata (`AdvancedSearchPanel` in `Topbar`)
+- [ ] Notifiche reali estese alle pratiche (cambio status, scadenza partenza) — pattern trigger DB
+- [ ] Calendario avanzato con date partenza/ritorno pratiche
 - [ ] Estensioni chat (ricerca nelle conversazioni)
 
-### Priorità 3 — Business
-- [ ] Modulo finanziario (dopo Pratiche complete)
+### Priorità 3 — Business (Fase 3)
+- [ ] Modulo finanziario: aggregare `dossier_suppliers.cost` vs `dossiers.budget_total` → margine
 - [ ] Report & Analytics avanzati
 
 Vedi `docs/ROADMAP.md` per il dettaglio completo con dipendenze e stime.
@@ -363,7 +364,7 @@ src/
 │   ├── suppliers/           🆕 Fase 1 CRM
 │   │   └── FornitoriView.jsx
 │   ├── dossiers/            🆕 Fase 1 CRM
-│   │   └── PraticheView.jsx
+│   │   └── PraticheView.jsx (contiene FornitoriPanel locale — fornitori della pratica)
 │   ├── views/
 │   │   ├── Team.jsx
 │   │   └── Trash.jsx
@@ -375,8 +376,8 @@ src/
 └── main.jsx
 ```
 
-**Step P COMPLETO (Phase 1 → 2g).** **Fase 1 CRM COMPLETA** (PR #49): Clienti, Fornitori, Pratiche. Manca il completamento Fase 1: collegamento Task↔Pratica (caveat #26) e DossierSuppliers UI (caveat #27).
+**Step P COMPLETO (Phase 1 → 2g).** **Fase 1 COMPLETA** (PR #49 base + #51/#52/#53): Clienti, Fornitori, Pratiche, collegamento Task↔Pratica, fornitori della pratica, filtro pratica in ricerca. Nessun caveat aperto.
 
 Le notifiche nascono **solo da trigger DB** (RLS vieta insert client) — per nuove notifiche serve un trigger server-side (pattern in `supabase/migrations/20260614_mention_composite_names.sql`).
 
-Vedi `docs/HANDOFF_SESSION_2026-06-14_v14.md` per il dettaglio sessione 19 (Fase 1 CRM) e v13 per Phase 2g.
+Vedi `docs/HANDOFF_SESSION_2026-06-14_v15.md` per il dettaglio sessione 20 (Fase 1 completa) e v14 per la Fase 1 CRM base.

@@ -1,6 +1,74 @@
 # CHANGELOG — VoyageDesk
 
 
+## v2.1-dev — Fase 1 CRM: Anagrafica Clienti, Fornitori, Pratiche (sessione 19)
+
+> Cumulativo sopra v2.0-dev. **Mergeati in `main`** (squash): #46 (#2), #47 (#25), #48 (docs v13). **In PR draft**: #49 (Fase 1 CRM), #50 (docs v14).
+
+### 🏗️ DB — Trigger auto-numerazione pratiche
+
+- `supabase/migrations/20260614_fase1_dossier_autonumber.sql`:
+  - `CREATE SEQUENCE dossier_number_seq START 1`
+  - Funzione `generate_dossier_number()`: genera `PR-YYYY-NNN` via `lpad(nextval(...)::text, 3, '0')`. Idempotente: genera il numero solo se `NEW.number IS NULL OR ''`.
+  - Trigger `dossiers_auto_number` BEFORE INSERT su `dossiers`.
+- Le tabelle `clients`, `suppliers`, `dossiers`, `dossier_suppliers` e tutte le RLS policy erano già presenti nel DB. Il trigger era l'unico elemento mancante.
+
+### 🔌 API layer (`src/lib/api.js`)
+
+Nuovi oggetti:
+- `Clients`: `list / get / create / update / remove`
+- `Suppliers`: stessa struttura
+- `Dossiers`: `list` con join `*, clients(id,name,email,phone)`; `get` con join profondo `dossier_suppliers(*, suppliers(*))`; `create / update / remove`
+- `DossierSuppliers`: `list(dossierId) / add / remove`
+- Nessun `withOrigin()` (tabelle CRM non hanno colonna `origin_client` né subscribe realtime).
+
+### 🗺️ Mappers (`src/lib/mappers.js`)
+
+- `fromDbClient(row)` → `{id, name, email, phone, address, city, notes, createdAt}`
+- `toDbClient(client)` → `{name, email, phone, address, city, notes}`
+- `fromDbSupplier` / `toDbSupplier` — aggiungono `category`, `country`
+- `fromDbDossier(row)` → include `client: fromDbClient(row.clients)` embedded, `departureDate`, `returnDate`, `paxAdults`, `paxChildren`, `budgetTotal`
+- `toDbDossier` — omette `id` e `number` (generati server-side)
+
+### 🔁 Reducer (`src/state/reducer.js`)
+
+Nuove azioni in `baseReducer`:
+- `SET_CLIENTS`, `ADD_CLIENT`, `UPDATE_CLIENT`, `DELETE_CLIENT`
+- `SET_SUPPLIERS`, `ADD_SUPPLIER`, `UPDATE_SUPPLIER`, `DELETE_SUPPLIER`
+- `SET_DOSSIERS`, `ADD_DOSSIER`, `UPDATE_DOSSIER`, `DELETE_DOSSIER`
+
+`makeInitialState` aggiornato: `clients: [], suppliers: [], dossiers: []`.
+
+### 🖥️ Componenti UI
+
+- **`src/components/clients/ClientiView.jsx`** (~200 righe): card con avatar iniziali, email/tel cliccabili, badge pratiche, modal add/edit, conferma delete, ricerca per nome/email/città.
+- **`src/components/suppliers/FornitoriView.jsx`** (~220 righe): filtro categoria (7 valori), ricerca testo, modal add/edit con select categoria.
+- **`src/components/dossiers/PraticheView.jsx`** (~330 righe): lista con KPI badge per status, filtro status chip, card con numero/titolo/cliente/destinazione/date/pax/budget/task-count, slide-over dettaglio con cambio status + task collegati + elimina.
+
+### 🔗 Wiring
+
+- **Sidebar**: +3 voci `Clienti / Fornitori / Pratiche` (ruoli admin/manager/agent; driver non vede CRM).
+- **VoyageDesk**: idratazione CRM one-shot (`Promise.all` al mount, no realtime); dispatch CRM con sync Supabase fire-and-forget; `ADD_DOSSIER` backfilla il `number` con quello generato dal trigger; `renderView` esteso con i 3 nuovi case.
+
+### Build
+
+```
+dist/assets/index-*.js    245.71 kB │ gzip: 58.15 kB   (+7.25 kB gz vs Phase 2g — 3 nuove viste)
+117 moduli trasformati. ✅
+```
+
+### Note permessi
+
+- Driver non vede le viste CRM.
+- RLS DB: select/insert/update per admin+manager+agent; delete solo admin+manager.
+
+### Caveat aperti post-Fase 1
+
+- **#26** — Collegamento Task ↔ Pratica: `tasks.dossier_id` non popolato da QuickAddTask/TaskSlideOver (UI mancante, schema pronto).
+- **#27** — DossierSuppliers: nessuna UI per collegare fornitori a una pratica (`PraticaDetail` manca il pannello fornitori).
+
+---
+
 ## v2.0-dev — Step P Phase 2g + quick win Pri 2/3 (sessione 18)
 
 > Cumulativo sopra v1.9-dev. **Mergeati in `main`** (squash): #41 (Phase 2g), #42 (#10), #43 (#18), #44 (#3), #45 (#8). **In PR draft**: #46 (#2), #47 (#25).

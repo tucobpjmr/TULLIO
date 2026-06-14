@@ -68,12 +68,65 @@ Navigazione: Desktop → Sidebar collassabile. Tablet/Mobile → BottomNav.
 {
   id, title, category, priority, status,
   assignees: [memberId],     // [] = coda globale
-  client: string|null,
+  client: string|null,       // ATTENZIONE: campo testo libero legacy (NON FK)
+  dossierId: UUID|null,      // FK → dossiers.id (collegamento reale pratica)
   dueDate: ISO|null,
   estimatedHours: number,
   description: string,
   comments: [{ user, text, time }],
   deletedAt: ISO|null        // soft-delete
+}
+```
+
+### Cliente (CRM)
+```js
+{
+  id: UUID,
+  name: string,              // required
+  email: string|null,
+  phone: string|null,
+  address: string|null,
+  city: string|null,
+  notes: string|null,
+  createdAt: ISO
+}
+```
+
+### Fornitore (CRM)
+```js
+{
+  id: UUID,
+  name: string,              // required
+  category: 'hotel'|'volo'|'transfer'|'tour_operator'|'assicurazione'|'crociera'|'altro',
+  email: string|null,
+  phone: string|null,
+  city: string|null,
+  country: string|null,
+  address: string|null,
+  notes: string|null,
+  createdAt: ISO
+}
+```
+
+### Pratica di viaggio (Dossier)
+```js
+{
+  id: UUID,
+  number: string,            // 'PR-YYYY-NNN' — generato da trigger DB al INSERT
+  title: string,             // required
+  status: 'bozza'|'confermata'|'in_corso'|'completata'|'annullata',
+  clientId: UUID|null,       // FK → clients.id
+  client: Cliente|null,      // oggetto embedded (join Supabase)
+  destination: string|null,
+  departureDate: ISO|null,
+  returnDate: ISO|null,
+  paxAdults: number,
+  paxChildren: number,
+  budgetTotal: number|null,  // €
+  notes: string|null,
+  createdBy: UUID,
+  createdAt: ISO,
+  updatedAt: ISO
 }
 ```
 
@@ -127,6 +180,15 @@ Famiglia Rossi (Maldive), Coppia Bianchi (Giappone), Azienda TechCorp (Incentive
 
 ### Bacheca
 `ADD_NOTICE`, `UPDATE_NOTICE`, `DELETE_NOTICE`, `TOGGLE_PIN_NOTICE`
+
+### CRM Clienti
+`SET_CLIENTS`, `ADD_CLIENT`, `UPDATE_CLIENT`, `DELETE_CLIENT`
+
+### CRM Fornitori
+`SET_SUPPLIERS`, `ADD_SUPPLIER`, `UPDATE_SUPPLIER`, `DELETE_SUPPLIER`
+
+### CRM Pratiche
+`SET_DOSSIERS`, `ADD_DOSSIER`, `UPDATE_DOSSIER`, `DELETE_DOSSIER`
 
 ### Altro
 `UNDO_LAST_ACTION`, `SET_CURRENT_USER`
@@ -182,7 +244,7 @@ getNavItemsForUser(userId)       — NAV_ITEMS filtrati per ruolo
 | Azioni Admin | ✅ | ❌ | ❌ |
 | Cestino | ✅ | ❌ | ❌ |
 
-## Struttura componenti attuali (post Phase 2f)
+## Struttura componenti attuali (post Phase 2f + Fase 1 CRM)
 
 ```
 VoyageDesk (export default, ViewportProvider wrapper)
@@ -199,6 +261,9 @@ VoyageDesk (export default, ViewportProvider wrapper)
     │   │   ├── PersonalQueue / UnassignedQueue / OverdueQueue / UrgentOthersQueue (locale)
     │   │   └── Scadenze Prossime + Carico Team (locale)
     │   ├── calendar/CalendarPlanner (mese + settimana + distribuzione + helper iCal)
+    │   ├── clients/ClientiView          🆕 Fase 1 CRM
+    │   ├── suppliers/FornitoriView      🆕 Fase 1 CRM
+    │   ├── dossiers/PraticheView        🆕 Fase 1 CRM
     │   ├── views/Team
     │   ├── views/Trash
     │   └── admin/AdminView (5 tab locale, stili da adminStyles.js)
@@ -215,23 +280,20 @@ Tutti i componenti sono **moduli separati** in `src/components/`; helper e sub-c
 
 ## Roadmap prossimi step
 
-### Priorità 1 — Migrazione a progetto Vite
-- [ ] Creare progetto Vite + React
-- [ ] Splittare `VoyageDesk.jsx` in moduli (componenti, reducer, utils, mock-data, styles)
-- [ ] Aggiungere persistenza (localStorage iniziale, poi backend)
+### Priorità 1 — Completamento Fase 1
+- [x] Anagrafica Clienti → `src/components/clients/ClientiView.jsx` ✅
+- [x] Anagrafica Fornitori → `src/components/suppliers/FornitoriView.jsx` ✅
+- [x] Pratiche di viaggio → `src/components/dossiers/PraticheView.jsx` ✅
+- [ ] Collegamento Task ↔ Pratica: select pratica in `QuickAddTask` + `TaskSlideOver` (caveat #26)
+- [ ] DossierSuppliers UI: pannello fornitori in `PraticaDetail` dentro `PraticheView` (caveat #27)
 
-### Priorità 2 — Modello dati completo
-- [ ] Anagrafica Clienti (CRM base)
-- [ ] Anagrafica Fornitori
-- [ ] Pratiche di viaggio (aggrega task + clienti + fornitori)
+### Priorità 2 — Fase 2 Operatività
+- [ ] Notifiche reali (già parzialmente implementate — es. trigger @menzioni, assign, coda; da estendere a pratiche)
+- [ ] Filtro numero pratica in Ricerca avanzata (`AdvancedSearchPanel` in `Topbar`)
+- [ ] Estensioni chat (ricerca nelle conversazioni)
 
-### Priorità 3 — Operatività
-- [ ] Notifiche reali (collegate ad azioni)
-- [ ] Estensioni chat (task link cliccabile, ricerca conversazioni)
-- [ ] Dark mode
-
-### Priorità 4 — Business
-- [ ] Modulo finanziario (dopo Pratiche)
+### Priorità 3 — Business
+- [ ] Modulo finanziario (dopo Pratiche complete)
 - [ ] Report & Analytics avanzati
 
 Vedi `docs/ROADMAP.md` per il dettaglio completo con dipendenze e stime.
@@ -246,15 +308,15 @@ Vedi `docs/ROADMAP.md` per il dettaglio completo con dipendenze e stime.
 6. **DnD**: disabilitato su mobile. Usare SwipeActions per azioni rapide.
 7. **CRLF su `src/VoyageDesk.jsx`**: il monolite ha line endings CRLF. Tool che lo riscrivono interamente (Python, alcuni helper) lo normalizzano a LF gonfiando il diff a migliaia di righe. Verifica sempre `git diff --numstat src/VoyageDesk.jsx` prima del push; se anomalo riconverti con `python3 -c "p='src/VoyageDesk.jsx'; d=open(p,'rb').read().replace(b'\r\n',b'\n').replace(b'\n',b'\r\n'); open(p,'wb').write(d)"`.
 
-## Struttura moduli post Step P (Phase 1 → 2f) — COMPLETA
+## Struttura moduli post Step P + Fase 1 CRM — COMPLETA
 
 ```
 src/
 ├── auth/                    AuthContext.jsx, LoginScreen.jsx
 ├── lib/
-│   ├── api.js               Tasks/Notices/Conversations/Messages/Notifications/Users APIs
+│   ├── api.js               Tasks/Notices/Conversations/Messages/Notifications/Users/Clients/Suppliers/Dossiers APIs
 │   ├── clientId.js          UUID per tab (origin-tagging realtime)
-│   ├── mappers.js           DB ↔ camelCase
+│   ├── mappers.js           DB ↔ camelCase (include CRM: fromDbClient/Supplier/Dossier)
 │   ├── supabase.js
 │   ├── taskConstants.js     PRIORITIES/STATUSES/STATUS_*/NOTICE_COLORS/TASK_TEMPLATES (Phase 2a)
 │   ├── taskUtils.js         formatDate/formatTime/isUrgent/isMyTask/... (Phase 2a)
@@ -266,7 +328,7 @@ src/
 │   ├── mockData.js          INITIAL_TEAM/CATEGORIES/TASKS/NOTICES + MOCK_NOTIFICATIONS
 │   ├── appGlobals.js        TEAM/CATEGORIES/CURRENT_USER live bindings + setter + permessi
 │   └── reducer.js           baseReducer / reducer / makeInitialState / LOGGED_ACTIONS / ADMIN_ONLY
-├── components/              (Phase 2e + 2f — ESTRAZIONE COMPLETA)
+├── components/              (Phase 2e + 2f — ESTRAZIONE COMPLETA + Fase 1 CRM)
 │   ├── Viewport.jsx         ViewportContext / useViewport / ViewportProvider
 │   ├── SwipeActions.jsx     swipe mobile wrapper
 │   ├── ui/
@@ -296,17 +358,25 @@ src/
 │   ├── admin/
 │   │   ├── AdminView.jsx (contiene 5 tab locali)
 │   │   └── adminStyles.js (13 costanti stile consolidate)
+│   ├── clients/             🆕 Fase 1 CRM
+│   │   └── ClientiView.jsx
+│   ├── suppliers/           🆕 Fase 1 CRM
+│   │   └── FornitoriView.jsx
+│   ├── dossiers/            🆕 Fase 1 CRM
+│   │   └── PraticheView.jsx
 │   ├── views/
 │   │   ├── Team.jsx
 │   │   └── Trash.jsx
 │   └── shell/
 │       ├── Topbar.jsx (contiene AdvancedSearchPanel, UserSwitcher, NotificationsPanel locali)
-│       ├── Sidebar.jsx (contiene NAV_ITEMS, BottomNav, NavBadge locali)
+│       ├── Sidebar.jsx (contiene NAV_ITEMS 8 voci, BottomNav, NavBadge locali)
 │       └── FAB.jsx
-├── VoyageDesk.jsx           Shell di orchestrazione (~955 righe; Phase 2g: React.lazy + Suspense + LazyFallback)
+├── VoyageDesk.jsx           Shell di orchestrazione (~970 righe; Phase 2g + CRM hydration + dispatch CRM)
 └── main.jsx
 ```
 
-**Step P COMPLETO (Phase 1 → 2g).** Phase 2g: `React.lazy` + `<Suspense>` su AdminView/BulkTaskCreator/AIDayPlanner/TaskSlideOver (chunk async on-demand). Le notifiche nascono **solo da trigger DB** (RLS vieta insert client) — per nuove notifiche serve un trigger server-side (pattern in `supabase/migrations/20260614_mention_composite_names.sql`).
+**Step P COMPLETO (Phase 1 → 2g).** **Fase 1 CRM COMPLETA** (PR #49): Clienti, Fornitori, Pratiche. Manca il completamento Fase 1: collegamento Task↔Pratica (caveat #26) e DossierSuppliers UI (caveat #27).
 
-Vedi `docs/HANDOFF_SESSION_2026-06-14_v13.md` per il dettaglio sessione 18 (Phase 2g + quick win #10/#18/#3/#8/#2/#25) e v12 per Phase 2f.
+Le notifiche nascono **solo da trigger DB** (RLS vieta insert client) — per nuove notifiche serve un trigger server-side (pattern in `supabase/migrations/20260614_mention_composite_names.sql`).
+
+Vedi `docs/HANDOFF_SESSION_2026-06-14_v14.md` per il dettaglio sessione 19 (Fase 1 CRM) e v13 per Phase 2g.

@@ -1,6 +1,44 @@
 # CHANGELOG — VoyageDesk
 
 
+## v2.2-dev — Fase 1 completa: Task↔Pratica, Fornitori pratica, Filtro ricerca (sessione 20)
+
+> Cumulativo sopra v2.1-dev. **Mergeati in `main`** (squash, in ordine): #51 (Task↔Pratica), #52 (Fornitori pratica), #53 (filtro pratica ricerca). Chiusi i caveat **#26** e **#27** → **Fase 1 completa**.
+
+### 🔗 Collegamento Task ↔ Pratica (PR #51, caveat #26)
+
+- **`src/lib/mappers.js`**: `fromDbTask`/`toDbTask`/`toDbTaskPatch` mappano `dossier_id` ↔ `dossierId` (prima il campo non veniva tradotto → il collegamento non si persisteva).
+- **`QuickAddTask`**: select "Pratica collegata" (esclude le pratiche `annullata`) → popola `dossierId` alla creazione.
+- **`TaskSlideOver`**: sezione "Pratica collegata" con select → dispatcha `UPDATE_TASK` con `dossierId`.
+- **`VoyageDesk`**: passa `state.dossiers` a entrambi.
+- Il collegamento reale è `tasks.dossier_id → dossiers.id` (FK UUID), distinto da `tasks.client_id` (testo libero legacy). `PraticheView` ora conta davvero i task collegati.
+
+### 🤝 Fornitori della pratica (PR #52, caveat #27)
+
+- **`src/lib/mappers.js`**: `fromDbDossierSupplier` / `toDbDossierSupplier` (`service_type`, `cost`, `notes` + fornitore embedded).
+- **`PraticheView`** → nuovo `FornitoriPanel` in `PraticaDetail`: carica i fornitori via `DossierSuppliers.list`, form di aggiunta (fornitore + servizio + costo), rimozione ottimistica con rollback, toast su errore.
+- Dati di dettaglio per-pratica gestiti in stato locale del pannello (no realtime, no stato globale).
+
+### 🔍 Filtro pratica nella Ricerca avanzata (PR #53)
+
+- **`AdvancedSearchPanel`**: sezione "Pratica" (select) che filtra i task per `dossierId`; keyword search arricchita con numero+titolo della pratica collegata; badge `📁 PR-YYYY-NNN` nei risultati.
+- Completa la nota roadmap "filtro numero di pratica nella Ricerca avanzata".
+
+### Build
+
+```
+dist/assets/index-*.js   252.04 kB │ gzip: 59.47 kB   (+1.3 kB gz vs Fase 1 base)
+✅ Build verde a ogni step.
+```
+
+### Stato caveat
+
+- **#26** ✅ chiuso (Task↔Pratica)
+- **#27** ✅ chiuso (DossierSuppliers UI)
+- **Nessun caveat aperto** — Fase 1 completa.
+
+---
+
 ## v2.1-dev — Fase 1 CRM: Anagrafica Clienti, Fornitori, Pratiche (sessione 19)
 
 > Cumulativo sopra v2.0-dev. **Mergeati in `main`** (squash): #46 (#2), #47 (#25), #48 (docs v13). **In PR draft**: #49 (Fase 1 CRM), #50 (docs v14).

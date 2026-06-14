@@ -4,14 +4,17 @@ import { useState } from "react";
 import { PRIORITIES } from "../../lib/taskConstants.js";
 import { CURRENT_USER, getAssignableTeam, getAvailableCategories } from "../../state/appGlobals.js";
 
-export const QuickAddTask = ({ onAdd, onClose }) => {
+export const QuickAddTask = ({ onAdd, onClose, dossiers = [] }) => {
   // Categorie filtrate per il ruolo dell'utente loggato (v0.8)
   const availableCats = getAvailableCategories(CURRENT_USER);
   const firstCatKey = Object.keys(availableCats)[0] || "booking";
 
+  // Pratiche collegabili: escludo quelle annullate (Fase 1, caveat #26)
+  const linkableDossiers = dossiers.filter(d => d.status !== "annullata");
+
   const [form, setForm] = useState({
     title: "", category: firstCatKey, priority: "medium",
-    status: "todo", assignees: [], dueDate: "", client: "", description: ""
+    status: "todo", assignees: [], dueDate: "", client: "", dossierId: "", description: ""
   });
 
   const handleSubmit = () => {
@@ -20,6 +23,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
       id: "t" + Date.now(),
       ...form,
       client: form.client.trim() || null,
+      dossierId: form.dossierId || null,
       comments: [],
       estimatedHours: 1,
       dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
@@ -94,6 +98,18 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
             <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>CLIENTE</label>
             <input {...inp("client")} placeholder="Es. Famiglia Rossi..." />
           </div>
+
+          {linkableDossiers.length > 0 && (
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>PRATICA COLLEGATA</label>
+              <select {...inp("dossierId")} style={{ ...inp("dossierId").style, cursor: "pointer" }}>
+                <option value="">— Nessuna pratica —</option>
+                {linkableDossiers.map(d => (
+                  <option key={d.id} value={d.id}>{d.number ? `${d.number} — ` : ""}{d.title}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>DESCRIZIONE</label>

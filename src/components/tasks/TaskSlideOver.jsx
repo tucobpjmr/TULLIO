@@ -10,11 +10,21 @@ import { formatDate, formatTime, isOverdue } from "../../lib/taskUtils.js";
 import { CURRENT_USER, getMember } from "../../state/appGlobals.js";
 import { MentionText } from "../ui/MentionText.jsx";
 
-export const TaskSlideOver = ({ task, dispatch }) => {
+export const TaskSlideOver = ({ task, dispatch, dossiers = [] }) => {
   const { isMobile } = useViewport();
   const [newComment, setNewComment] = useState("");
 
   if (!task) return null;
+
+  // Pratiche selezionabili: non annullate + l'eventuale pratica già collegata
+  // (così non sparisce dal menu se nel frattempo è stata annullata).
+  const linkableDossiers = dossiers.filter(
+    d => d.status !== "annullata" || d.id === task.dossierId
+  );
+
+  const handleDossierChange = (e) => {
+    dispatch({ type: "UPDATE_TASK", payload: { id: task.id, dossierId: e.target.value || null } });
+  };
 
   const handleComment = () => {
     if (!newComment.trim()) return;
@@ -120,6 +130,25 @@ export const TaskSlideOver = ({ task, dispatch }) => {
                 {task.client || <span style={{ color: "var(--text-muted)" }}>—</span>}
               </div>
             </div>
+          </div>
+
+          {/* Pratica collegata (Fase 1, caveat #26) */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>PRATICA COLLEGATA</div>
+            {linkableDossiers.length === 0 ? (
+              <div style={{ fontSize: 13, color: "var(--text-muted)", fontStyle: "italic" }}>Nessuna pratica disponibile</div>
+            ) : (
+              <select value={task.dossierId || ""} onChange={handleDossierChange} style={{
+                width: "100%", border: "1px solid var(--border)", borderRadius: 8,
+                padding: "7px 10px", fontSize: 13, fontFamily: "inherit",
+                background: "white", cursor: "pointer"
+              }}>
+                <option value="">— Nessuna pratica —</option>
+                {linkableDossiers.map(d => (
+                  <option key={d.id} value={d.id}>{d.number ? `${d.number} — ` : ""}{d.title}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* ORE */}

@@ -47,10 +47,22 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
     };
     // Aggiornamento ottimistico in memoria (immediato per l'UI).
     dispatch({ type: "UPDATE_OWN_PROFILE", payload });
-    // Persistenza email/phone su public.user_contacts (Step S): solo in
-    // modalità Supabase (sessione attiva). email/phone non sono più colonne
-    // di public.users → vanno in user_contacts via Users.updateContact.
+    // Persistenza su Supabase (solo con sessione attiva):
+    //  - name/avatar/color/photo_url su public.users (caveat #25: prima erano
+    //    solo in-memory). Il trigger anti-escalation lascia passare questi
+    //    campi (blocca solo role/active/pending/capacity).
+    //  - email/phone su public.user_contacts (Step S): non sono più colonne di
+    //    public.users → vanno via Users.updateContact.
     if (session) {
+      const { error: profileErr } = await UsersAPI.updateProfile(member.id, {
+        name: payload.name,
+        avatar: payload.avatar,
+        color: payload.color,
+        photo_url: payload.photoUrl,
+      });
+      if (profileErr) {
+        dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Profilo non salvato: ${profileErr.message}` } });
+      }
       const { error } = await UsersAPI.updateContact(member.id, {
         email: payload.email || null,
         phone: payload.phone || null,

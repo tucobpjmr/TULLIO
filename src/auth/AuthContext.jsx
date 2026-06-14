@@ -22,8 +22,12 @@ export function AuthProvider({ children }) {
       supabase.from('user_contacts').select('email, phone').eq('user_id', userId).maybeSingle(),
     ]);
     const myContacts = { email: contacts?.email ?? null, phone: contacts?.phone ?? null };
-    setProfile(me ? { ...me, ...myContacts } : null);
-    setTeam((all ?? []).map(u => u.id === userId ? { ...u, ...myContacts } : u));
+    // Normalizza la colonna DB photo_url → photoUrl (camelCase) atteso da
+    // Avatar/ProfileEditor (caveat #25): senza, la foto persistita non si
+    // ri-mostrerebbe dopo il reload.
+    const normalize = (u) => ({ ...u, photoUrl: u.photo_url ?? null });
+    setProfile(me ? { ...normalize(me), ...myContacts } : null);
+    setTeam((all ?? []).map(u => u.id === userId ? { ...normalize(u), ...myContacts } : normalize(u)));
   }, []);
 
   useEffect(() => {

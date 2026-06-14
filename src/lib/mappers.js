@@ -290,6 +290,32 @@ export function toDbDossier(dossier) {
   };
 }
 
+// ----------------- DOSSIER_SUPPLIERS -----------------
+// Fornitori collegati a una pratica (con il fornitore embedded dal join).
+export function fromDbDossierSupplier(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    dossierId: row.dossier_id,
+    supplierId: row.supplier_id,
+    serviceType: row.service_type ?? null,
+    cost: row.cost != null ? Number(row.cost) : null,
+    notes: row.notes ?? null,
+    supplier: row.suppliers ? fromDbSupplier(row.suppliers) : null,
+    createdAt: row.created_at ?? null,
+  };
+}
+
+export function toDbDossierSupplier(entry) {
+  return {
+    dossier_id: entry.dossierId,
+    supplier_id: entry.supplierId,
+    service_type: entry.serviceType ?? null,
+    cost: entry.cost ?? null,
+    notes: entry.notes ?? null,
+  };
+}
+
 // ----------------- NOTIFICATIONS -----------------
 // DB row → app notification. Payload arbitrario per tipo.
 export function fromDbNotification(row) {

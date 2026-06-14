@@ -1,8 +1,10 @@
 // src/components/dossiers/PraticheView.jsx
 // Pratiche di viaggio — Fase 1 modello dati.
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { formatDate } from "../../lib/taskUtils.js";
+import { DossierSuppliers as DossierSuppliersAPI } from "../../lib/api.js";
+import { fromDbDossierSupplier, toDbDossierSupplier } from "../../lib/mappers.js";
 
 const DOSSIER_STATUSES = [
   { value: "bozza",      label: "Bozza",      color: "#6B7280", bg: "#F3F4F6" },
@@ -193,8 +195,142 @@ function PraticaCard({ dossier, taskCount, onClick }) {
   );
 }
 
+// ─── PANNELLO FORNITORI PRATICA (caveat #27) ───────────────────────────────
+// Gestisce i fornitori collegati alla pratica via DossierSuppliers API.
+// I dossier_suppliers sono dati di dettaglio per-pratica (no realtime, no
+// stato globale): li carico/aggiorno localmente quando il pannello è aperto.
+function FornitoriPanel({ dossierId, suppliers, dispatch }) {
+  const [links, setLinks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ supplierId: "", serviceType: "", cost: "" });
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    DossierSuppliersAPI.list(dossierId).then(({ data, error }) => {
+      if (cancelled) return;
+      if (error) {
+        dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "Errore caricamento fornitori pratica" } });
+      } else {
+        setLinks((data || []).map(fromDbDossierSupplier));
+      }
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [dossierId, dispatch]);
+
+  const handleAdd = async () => {
+    if (!form.supplierId || adding) return;
+    setAdding(true);
+    const payload = toDbDossierSupplier({
+      dossierId,
+      supplierId: form.supplierId,
+      serviceType: form.serviceType.trim() || null,
+      cost: form.cost ? Number(form.cost) : null,
+    });
+    const { data, error } = await DossierSuppliersAPI.create(payload);
+    if (error) {
+      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "Errore aggiunta fornitore" } });
+    } else {
+      // Il create non porta dietro il join suppliers: lo recupero dalla lista.
+      const link = fromDbDossierSupplier(data);
+      link.supplier = suppliers.find(s => s.id === link.supplierId) || null;
+      setLinks(prev => [...prev, link]);
+      setForm({ supplierId: "", serviceType: "", cost: "" });
+    }
+    setAdding(false);
+  };
+
+  const handleRemove = async (id) => {
+    const prev = links;
+    setLinks(links.filter(l => l.id !== id));
+    const { error } = await DossierSuppliersAPI.remove(id);
+    if (error) {
+      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "Errore rimozione fornitore" } });
+      setLinks(prev);
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ fontWeight: 700, fontSize: 14, color: "var(--navy)", marginBottom: 10 }}>
+        Fornitori ({links.length})
+      </div>
+
+      {loading ? (
+        <div style={{ fontSize: 13, color: "var(--text-muted)", fontStyle: "italic" }}>Caricamento…</div>
+      ) : links.length === 0 ? (
+        <div style={{ fontSize: 13, color: "var(--text-muted)", fontStyle: "italic", marginBottom: 10 }}>
+          Nessun fornitore collegato
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+          {links.map(l => (
+            <div key={l.id} style={{
+              padding: "8px 12px", borderRadius: 8, background: "var(--surface2)",
+              fontSize: 13, color: "var(--text)", display: "flex", alignItems: "center", gap: 8,
+            }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600 }}>
+                  {l.supplier?.category && (SUPPLIER_CATEGORY_LABELS[l.supplier.category]?.split(" ")[0] || "")} {l.supplier?.name || "—"}
+                </div>
+                {(l.serviceType || l.cost != null) && (
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                    {l.serviceType}{l.serviceType && l.cost != null ? " · " : ""}
+                    {l.cost != null && <span style={{ color: "var(--success)", fontWeight: 600 }}>€{l.cost.toLocaleString("it-IT")}</span>}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => handleRemove(l.id)}
+                title="Rimuovi fornitore"
+                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--danger)", fontSize: 14, flexShrink: 0 }}
+              >✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Form aggiunta */}
+      {suppliers.length === 0 ? (
+        <div style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>
+          Aggiungi prima dei fornitori nell'anagrafica
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
+          <div style={{ flex: "1 1 140px", minWidth: 0 }}>
+            <label style={labelStyle}>Fornitore</label>
+            <select style={fieldStyle} value={form.supplierId} onChange={e => setForm(f => ({ ...f, supplierId: e.target.value }))}>
+              <option value="">— seleziona —</option>
+              {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+          <div style={{ flex: "1 1 120px", minWidth: 0 }}>
+            <label style={labelStyle}>Servizio</label>
+            <input style={fieldStyle} value={form.serviceType} onChange={e => setForm(f => ({ ...f, serviceType: e.target.value }))} placeholder="es. Volo A/R" />
+          </div>
+          <div style={{ flex: "0 1 100px" }}>
+            <label style={labelStyle}>Costo €</label>
+            <input style={fieldStyle} type="number" min="0" step="0.01" value={form.cost} onChange={e => setForm(f => ({ ...f, cost: e.target.value }))} placeholder="0" />
+          </div>
+          <button
+            onClick={handleAdd}
+            disabled={!form.supplierId || adding}
+            style={{
+              padding: "9px 16px", borderRadius: 8, border: "none",
+              background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600,
+              opacity: (!form.supplierId || adding) ? 0.5 : 1,
+            }}
+          >{adding ? "…" : "+ Aggiungi"}</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── DETTAGLIO PRATICA ────────────────────────────────────────────────────
-function PraticaDetail({ dossier, tasks, dispatch, onClose }) {
+function PraticaDetail({ dossier, tasks, suppliers, dispatch, onClose }) {
   const linkedTasks = useMemo(
     () => tasks.filter(t => t.dossierId === dossier.id && !t.deletedAt),
     [tasks, dossier.id]
@@ -324,6 +460,9 @@ function PraticaDetail({ dossier, tasks, dispatch, onClose }) {
             </div>
           )}
         </div>
+
+        {/* Fornitori collegati (caveat #27) */}
+        <FornitoriPanel dossierId={dossier.id} suppliers={suppliers} dispatch={dispatch} />
       </div>
 
       {/* Footer */}
@@ -486,6 +625,7 @@ export function PraticheView({ state, dispatch }) {
           <PraticaDetail
             dossier={selectedDossier}
             tasks={tasks}
+            suppliers={state.suppliers || []}
             dispatch={dispatch}
             onClose={() => setSelected(null)}
           />

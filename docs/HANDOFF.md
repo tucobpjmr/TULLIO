@@ -1,7 +1,13 @@
 # HANDOFF — Sessione successiva
 
-> Documento di passaggio consegne per la nuova sessione Claude Code.
-> Leggi questo file PRIMA di aprire qualsiasi altro file del progetto.
+> ⚠️ **Questo file è LEGACY (sessioni E–I).** L'handoff attivo è il più recente
+> `docs/HANDOFF_SESSION_<data>_v<n>.md`.
+>
+> **Ultimo handoff attivo:** [`docs/HANDOFF_SESSION_2026-06-14_v11.md`](./HANDOFF_SESSION_2026-06-14_v11.md) (sessione 16, post Step P Phase 1 → 2e).
+>
+> Sequenza: v11 (post Step P, chain #32→#36 + #38 mergeate) → v9 (Step R+S) → v8 (Step Q) → v7 (Step M+O) → v6 (Step N) → v5 (Step L) → v4 (Step J) → v2 (Step F).
+> `CHANGELOG.md` = dettaglio cronologico; `ROADMAP.md` = stato priorità.
+> *(v10 mai mergeato: i suoi contenuti sono confluiti in v11.)*
 
 ---
 

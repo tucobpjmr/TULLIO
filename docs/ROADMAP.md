@@ -140,15 +140,49 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 | Intervento | Stato | Priorità | Sforzo | Quando |
 |---|---|---|---|---|
 | Chat `useState` → `useReducer` | ⬜ | 🟡 | S–M | Fattibile in Opzione A |
-| `TEAM`/`CATEGORIES`/`CURRENT_USER` da `let` mutabile a Context puro | ⬜ | ⚪ | M | Funzionale oggi, ma più pulito |
-| Persistenza dati (localStorage o backend mock) | ⬜ | 🔴 | L | ⚙️**B** |
-| Separazione in più file | ⬜ | 🟡 | M | ⚙️**B** |
-| TypeScript | ⬜ | ⚪ | L | Dopo refactor multi-file ⚙️**B** |
-| Test unitari (Vitest) | ⬜ | ⚪ | M | Dopo TypeScript ⚙️**B** |
+| `TEAM`/`CATEGORIES`/`CURRENT_USER` da `let` mutabile a Context puro | 🔶 | ⚪ | M | Step P Phase 2c (PR #35) ha estratto in `src/state/appGlobals.js` con live bindings + setter; migrazione a Context puro React resta aperta |
+| Persistenza dati (Supabase) | ✅ | — | — | Completata (Step C–D) |
+| Separazione in più file | 🔶 | 🟡 | M | Step P Phase 1→2e mergeate (catena #32→#36 + #38). Resta l'estrazione dei cluster grandi di componenti |
+| TypeScript | ⬜ | ⚪ | L | Dopo Phase 2e completa |
+| Test unitari (Vitest) | ⬜ | ⚪ | M | Dopo TypeScript |
+
+---
+
+## 🔧 Step P — Refactor monolite (caveat #15)
+
+Obiettivo: portare `src/VoyageDesk.jsx` da ~8300 righe a uno **shell sottile** che importa moduli, eliminando il pattern di stato mutabile globale via `_sync*`.
+
+### Stato corrente (tutte le PH 1→2e MERGEATE in `main`)
+
+| Phase | Stato | PR | Output | Δ monolite |
+|-------|-------|----|--------|-----------|
+| **1** — Rimozione mutazione in-place | ✅ | #32 | `_sync*` → riassegnazione diretta | 0 (refactor pattern) |
+| **2a** — Costanti + utility pure | ✅ | #33 | `lib/taskConstants.js` + `lib/taskUtils.js` | −300 |
+| **2b** — Dati mock | ✅ | #34 | `state/mockData.js` | −100 |
+| **2c** — Globali + permessi | ✅ | #35 | `state/appGlobals.js` (live bindings + setter) | −70 |
+| **2d** — Reducer | ✅ | #36 | `state/reducer.js` | −370 |
+| **2e** — Componenti (avvio) | ✅ | #38 | `components/Viewport.jsx`, `SwipeActions.jsx`, `ui/` (Avatar/Badge/Chip/Toast) | −355 |
+| 2f → … — Componenti (cluster grandi) | ⬜ | — | `components/` (modals/dashboard/calendar/chat/tasks/admin/views/shell) | stimato −6000 |
+| 2g (opz) — `React.lazy` modali | ⬜ | — | code-splitting AdminView/Bulk/AIDayPlanner/TaskSlideOver | bundle gz −20-30% |
+
+**Cumulativo dopo Phase 2e:** 8325 → **7313 righe** (−1012, ~−12%).
+
+### Prossima sessione
+
+Continua Phase 2f: estrarre i componenti per gruppi logici (atoms residui → modali → dashboard/code → calendar → chat → tasks → admin → trash/team → shell), **una PR per gruppo**, mantenendo VoyageDesk.jsx come shell. Vedi `docs/HANDOFF_SESSION_2026-06-14_v11.md` §6.
 
 ---
 
 ## ✅ Completato (cronologia)
+
+- **v1.8-dev** — Step P (Phase 1 → 2e): refactor monolite. Rimosso `_sync*`; estratti costanti task, utility pure, dati mock, globali + permessi, reducer, e primo slice di componenti (Viewport/SwipeActions/ui). `VoyageDesk.jsx` 8325 → 7313 righe. Catena #32→#36 + #38, tutte mergeate (squash).
+- **v1.7-dev** — Step R (drift repo↔DB, 14 migrazioni recuperate, #30) + Step S (wiring `email`/`phone` su `user_contacts`, #31). Caveat #19 + #24 chiusi.
+- **v1.6-dev** — Step Q: Hardening realtime + chat (withOrigin completo, race init reducer, toast errori reactions/markRead, RPC bulk markRead). PR #24.
+- **v1.5-dev** — Step M (storage file chat reale, bucket `chat-files`) + Step O (logout UI). PR #22.
+- **v1.4-dev** — Step N: code-splitting. Bundle iniziale 1039 → 262 KB (lazy `xlsx`, manualChunks). PR #18.
+- **v1.3-dev** — Step L: origin-tagging realtime (caveat #5).
+- **v1.2-dev** — Step J (notifiche complete) + Step K (task link via `task_ref`).
+- **v1.0–v1.1-dev** — Persistenza Supabase + Auth (Step C–D) + robustezza sync/notifiche/calendario/chat/dashboard (Step E–I).
 
 - **v0.8** — Sistema Permessi per Ruolo: helper centralizzati (canViewTask/canEditTask/…), check nel reducer, UserSwitcher in Topbar, Dashboard con 3 code condizionali (PersonalQueue/UnassignedQueue/UrgentOthersQueue), chat con intent per task link, Sidebar/BottomNav filtrate per ruolo, QuickAddTask categorie filtrate, nuova categoria `transfer` 🚐 + 2 task demo. 6617 righe.
 - **v0.7** — SwipeActions mobile: wrapper riusabile, swipe→3 bottoni (Fatto/Cestino/Inoltra), undo con toast 5s, integrato in KanbanCard/UnassignedQueue/Calendar/PersonalQueue. 6048 righe.

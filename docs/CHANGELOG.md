@@ -1,5 +1,51 @@
 # CHANGELOG — VoyageDesk
 
+
+## v1.8-dev — Step P: refactor monolite (Phase 1 → 2e) (sessione 16)
+
+> Cumulativo sopra v1.7-dev. Tutte le PR della catena Step P sono **mergeate in `main`** (squash): #32 → #33 → #34 → #35 → #36 → #38.
+
+Refactor del monolite `src/VoyageDesk.jsx` (caveat #15) in micro-PR incrementali, ciascuna con preview Vercel indipendente e build verde. Risultato cumulativo: **8325 → 7313 righe** (−1012, ~−12%); create le cartelle `src/state/` e `src/components/` + i moduli `lib/taskConstants.js` e `lib/taskUtils.js`. Nessuna modifica di comportamento (bundle `index` byte-identico a ogni fase).
+
+### 🧹 Phase 1 — rimozione mutazione in-place globali (PR #32, `f5e0caf`)
+- Rimossi `_syncTeam`/`_syncCategories`/`_syncCurrentUser` (mutavano i `let` module-level con `.length = 0` + `forEach push`). Sostituiti con **riassegnazione diretta** in tutti i 12 punti del reducer + `makeInitialState`. Le utility chiudono sulla *variabile* `let`, non sul valore → continuano a leggere il valore corrente. `docs/CLAUDE.md` aggiornato.
+
+### 📦 Phase 2a — costanti + utility pure (PR #33, `013c900`)
+- `src/lib/taskConstants.js` (nuovo): `PRIORITIES`, `STATUSES`, `STATUS_LABELS`, `STATUS_COLORS`, `NOTICE_COLORS`, `TASK_TEMPLATES`.
+- `src/lib/taskUtils.js` (nuovo): `formatDate`/`formatTime`, `getDayKey`, `isOverdue`/`isUrgent`, `isActiveTask`/`getActiveTasks`/`getTrashedTasks`, `isMyTask`, `isInGlobalQueue` (utility pure, nessuna dipendenza dai globali). ~−300 righe dal monolite.
+
+### 🗂️ Phase 2b — dati mock (PR #34, `19eebc2`)
+- `src/state/mockData.js` (nuovo, cartella `state/` creata): `INITIAL_TEAM` (7), `INITIAL_CATEGORIES` (10), `INITIAL_TASKS` (27), `INITIAL_NOTICES` (3), `MOCK_NOTIFICATIONS` (6) + helper privato `d()`. Rinominato `NOTIFICATIONS` → `MOCK_NOTIFICATIONS` (solo fallback offline/demo). ~−100 righe.
+
+### 🔌 Phase 2c — globali mutabili + helper permessi (PR #35, `1bc4e0b`)
+- `src/state/appGlobals.js` (nuovo): `TEAM`/`CATEGORIES`/`CURRENT_USER` come **live ES-module bindings** + setter `setTeam`/`setCategories`/`setCurrentUser`; tutti gli helper team + permessi (`getMember`, `getAssignableTeam`, `getRoleType`, `isAdmin`, `isDriver`, `canViewTask`, `canEditTask`, `canCreateTaskCategory`, `canAccessAdmin`, `getAvailableCategories`, `getVisibleTasks`).
+- **Insight**: `export let X` + `setX()` funziona perché gli importatori leggono la live binding; i moduli esterni non possono riassegnare un `let` importato (read-only) → i setter sono obbligatori. ~−70 righe.
+
+### 🎛️ Phase 2d — reducer + makeInitialState (PR #36, `c063500`)
+- `src/state/reducer.js` (nuovo, ~400 righe): `baseReducer`, `reducer` (wrapper Admin pre-check + activity log), `LOGGED_ACTIONS`, `buildLogEntry`, `ADMIN_ONLY_ACTIONS`, `makeInitialState`. VoyageDesk.jsx perde l'intero blocco reducer (~−370 righe): resta solo `AppContext` + albero componenti.
+- **Gotcha CRLF**: il monolite ha line endings CRLF; una normalizzazione accidentale a LF gonfiava il diff a migliaia di righe. Risolto con riconversione CRLF prima del push. Lesson learned in CLAUDE.md (nota #7).
+
+### 🧩 Phase 2e — avvio estrazione albero componenti (PR #38, `79b5b42`)
+- Primo slice della **component extraction** in `src/components/`: foundation responsive + primitive presentazionali a basse dipendenze.
+  - `components/Viewport.jsx`: `ViewportContext`, `useViewport`, `ViewportProvider`.
+  - `components/SwipeActions.jsx`: swipe mobile (Fatto/Cestino/Inoltra).
+  - `components/ui/`: `Avatar`, `PriorityBadge`, `CategoryChip`, `StatusBadge`, `Toast`.
+- VoyageDesk.jsx importa gli estratti; definizioni inline rimosse (7668 → 7313 righe). Delimitatori di sezione lasciati come note di rimando. Build: 91 moduli (+7 file), `index` 268.57 kB invariato.
+
+### Caveat #15 — stato dopo Step P (Phase 1 → 2e)
+🔶 **Parziale**: `src/VoyageDesk.jsx` a 7313 righe (era 8325). Tutta la logica non-React è fuori dal monolite; l'estrazione dell'albero componenti è **avviata** (atoms + foundation). Restano da estrarre i cluster grandi: modali, dashboard/code, calendar, chat, tasks, admin, viste, shell.
+
+---
+
+## v1.7-dev — Step R + Step S: drift DB + user_contacts (sessione 15)
+
+> Cumulativo sopra v1.6-dev.
+
+- **Step R** (PR #30, `6245a14`): versionate 14 migrazioni mancanti → repo ricostruibile da zero. Caveat #19 chiuso.
+- **Step S** (PR #31, `75358e2`): cablato `email`/`phone` su `public.user_contacts` (`Users.getContacts`/`updateContact`; `loadProfile` rimergia i contatti; `ProfileEditor.handleSave` persiste). Caveat #24 chiuso.
+- Dettaglio in `docs/HANDOFF_SESSION_2026-06-13_v9.md` §1-3.
+
+---
 ## v1.6-dev — Step Q: Hardening realtime + chat (sessione 14)
 
 > Cumulativo sopra v1.5-dev (PR #22 + #23 mergeate, code-review chiusa, handoff v7 attivo).

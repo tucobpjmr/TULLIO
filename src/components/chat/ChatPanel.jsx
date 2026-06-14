@@ -26,8 +26,8 @@ const PRESENCE_COLORS = {
   offline: '#94a3b8',
 };
 
-// Context per condividere tasks/dispatch (per messaggi con taskLink — v0.8)
-const ChatContext = createContext({ tasks: [], dispatch: () => {} });
+// Context per condividere tasks/dossiers/dispatch (messaggi con task/pratica link)
+const ChatContext = createContext({ tasks: [], dossiers: [], dispatch: () => {} });
 
 // ─── CHAT: UTILS ───────────────────────────────────────────────────────────
 const formatChatTime = (iso) => {
@@ -151,13 +151,61 @@ function parseTaskLink(text) {
   return { taskTitle: m[1], taskDue: m[2].trim(), rest: m[3] };
 }
 
+// Parsing riferimento pratica nel testo (Fase 2). Pattern generato dal pulsante
+// "Condividi in chat" della PraticaDetail:
+//   📁 Riferimento pratica: PR-2026-001 — "TITLE"\n\nRESTO
+// Il match si fa sul NUMERO (immutabile) → robusto anche se il titolo cambia.
+const PRATICA_LINK_RE = /^📁 Riferimento pratica: (\S+) — "([^"]+)"\n\n([\s\S]*)$/;
+function parsePraticaLink(text) {
+  if (typeof text !== "string") return null;
+  const m = PRATICA_LINK_RE.exec(text);
+  if (!m) return null;
+  return { number: m[1], title: m[2], rest: m[3] };
+}
+
 // Renderizza testo del messaggio con eventuale pill task cliccabile.
 // Step K: lookup preferito per `taskRef` (UUID) se presente sul messaggio;
 // fallback per titolo (compat messaggi vecchi senza taskRef).
 const MessageTextContent = ({ text, isMine, taskRef }) => {
-  const { tasks, dispatch } = useContext(ChatContext);
+  const { tasks, dossiers, dispatch } = useContext(ChatContext);
   const link = parseTaskLink(text);
   if (!link) {
+    // Fase 2: riferimento pratica cliccabile (apre la vista Pratiche).
+    const dLink = parsePraticaLink(text);
+    if (dLink) {
+      const d = (dossiers || []).find(x => x.number === dLink.number);
+      const openPratiche = (e) => { e.stopPropagation(); dispatch?.({ type: "SET_VIEW", payload: "pratiche" }); };
+      return (
+        <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}>
+          <button
+            type="button"
+            onClick={openPratiche}
+            disabled={!d}
+            title={d ? "Apri Pratiche" : "Pratica non disponibile"}
+            style={{
+              display: "block", textAlign: "left", width: "100%",
+              background: isMine ? "rgba(255,255,255,0.12)" : "var(--surface2)",
+              border: isMine ? "1px solid rgba(255,255,255,0.18)" : "1px solid var(--border)",
+              color: "inherit",
+              padding: "6px 10px", borderRadius: 8, marginBottom: dLink.rest ? 6 : 0,
+              cursor: d ? "pointer" : "not-allowed", opacity: d ? 1 : 0.6,
+              fontFamily: "inherit",
+            }}
+          >
+            <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.7, letterSpacing: 0.5 }}>
+              📁 RIFERIMENTO PRATICA
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 600, marginTop: 2 }}>
+              {dLink.number} — {d?.title || dLink.title}
+            </div>
+            {d?.destination && (
+              <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>📍 {d.destination}</div>
+            )}
+          </button>
+          {dLink.rest && <div><MentionText text={dLink.rest} /></div>}
+        </div>
+      );
+    }
     return <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}><MentionText text={text} /></div>;
   }
   // Step K: prima cerca per UUID, poi fallback al match titolo.
@@ -226,7 +274,7 @@ const formatFileSize = (size) => {
 };
 
 // ─── CHAT: MESSAGE ─────────────────────────────────────────────────────────
-const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onContextMenu }) => {
+const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onContextMenu, highlight }) => {
   const [showReactions, setShowReactions] = useState(false);
   const [hovered, setHovered] = useState(false);
   const isMine = msg.sender === CURRENT_USER;
@@ -257,12 +305,17 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
 
   return (
     <div
+      data-mid={msg.id}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => { setHovered(false); setShowReactions(false); }}
       style={{
         display: "flex", flexDirection: isMine ? "row-reverse" : "row",
         gap: 8, marginTop: showAvatar ? 12 : 2, alignItems: "flex-end",
         position: "relative",
+        ...(highlight === "current" ? { outline: "2px solid var(--gold)", outlineOffset: 2, borderRadius: 14 }
+          : highlight === "match" ? { outline: "1px dashed var(--gold-dark)", outlineOffset: 2, borderRadius: 14 }
+          : null),
+        scrollMarginTop: 12, scrollMarginBottom: 12,
       }}>
       {/* Avatar */}
       <div style={{ width: 28, flexShrink: 0 }}>
@@ -454,6 +507,10 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
   const [typing, setTyping] = useState(false);
   // Step K: taskRef UUID "armato" finché il prossimo invio non lo consuma.
   const [pendingTaskRef, setPendingTaskRef] = useState(null);
+  // Fase 2: ricerca nei messaggi del thread aperto.
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQ, setSearchQ] = useState("");
+  const [matchIdx, setMatchIdx] = useState(0);
   const scrollRef = useRef(null);
   // Step M: upload allegati reale
   const fileInputRef = useRef(null);
@@ -475,7 +532,37 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
 
   const msgs = messages[conv.id] || [];
 
+  // Fase 2: match della ricerca in-thread (id dei messaggi che contengono la query).
+  const searchMatches = (() => {
+    const q = searchQ.trim().toLowerCase();
+    if (!q) return [];
+    return msgs
+      .filter(m =>
+        (m.type === "text" && m.text && m.text.toLowerCase().includes(q)) ||
+        (m.type === "file" && m.fileName && m.fileName.toLowerCase().includes(q))
+      )
+      .map(m => m.id);
+  })();
+  const matchSet = new Set(searchMatches);
+  const currentMatchId = searchMatches[matchIdx] || null;
+  const gotoMatch = (dir) => {
+    if (searchMatches.length === 0) return;
+    setMatchIdx(i => (i + dir + searchMatches.length) % searchMatches.length);
+  };
+
+  // Riparti dal primo match a ogni nuova query.
+  useEffect(() => { setMatchIdx(0); }, [searchQ]);
+
+  // Scrolla al match corrente.
   useEffect(() => {
+    if (!currentMatchId || !scrollRef.current) return;
+    const el = scrollRef.current.querySelector(`[data-mid="${currentMatchId}"]`);
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [currentMatchId]);
+
+  useEffect(() => {
+    // Non forzare lo scroll in fondo mentre si naviga la ricerca.
+    if (searchQ.trim()) return;
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [msgs.length]);
 
@@ -645,11 +732,47 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
           </div>
         </div>
 
-        <button style={{
-          background: "rgba(255,255,255,0.1)", border: "none", color: "#fff",
-          width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 12,
-        }}>⋮</button>
+        <button
+          onClick={() => setShowSearch(s => { const n = !s; if (!n) setSearchQ(""); return n; })}
+          title="Cerca nei messaggi"
+          style={{
+            background: showSearch ? "var(--gold)" : "rgba(255,255,255,0.1)",
+            border: "none", color: showSearch ? "var(--navy)" : "#fff",
+            width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 14,
+          }}>🔍</button>
       </div>
+
+      {/* Barra ricerca in-thread (Fase 2) */}
+      {showSearch && (
+        <div style={{
+          padding: "8px 12px", background: "#fff", borderBottom: "1px solid var(--border)",
+          display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
+        }}>
+          <input
+            autoFocus
+            value={searchQ}
+            onChange={e => setSearchQ(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") gotoMatch(e.shiftKey ? -1 : 1); if (e.key === "Escape") { setShowSearch(false); setSearchQ(""); } }}
+            placeholder="Cerca in questa conversazione…"
+            style={{
+              flex: 1, border: "1px solid var(--border)", borderRadius: 8,
+              padding: "7px 12px", fontSize: 13, fontFamily: "inherit",
+              outline: "none", background: "var(--surface)",
+            }}
+          />
+          <span style={{ fontSize: 11, color: "var(--text-muted)", minWidth: 38, textAlign: "center", fontVariantNumeric: "tabular-nums" }}>
+            {searchQ.trim() ? `${searchMatches.length ? matchIdx + 1 : 0}/${searchMatches.length}` : ""}
+          </span>
+          <button onClick={() => gotoMatch(-1)} disabled={searchMatches.length === 0} title="Precedente" style={{
+            background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 6,
+            width: 28, height: 28, cursor: searchMatches.length ? "pointer" : "not-allowed", fontSize: 13,
+          }}>↑</button>
+          <button onClick={() => gotoMatch(1)} disabled={searchMatches.length === 0} title="Successivo" style={{
+            background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 6,
+            width: 28, height: 28, cursor: searchMatches.length ? "pointer" : "not-allowed", fontSize: 13,
+          }}>↓</button>
+        </div>
+      )}
 
       {/* Messages */}
       <div ref={scrollRef} style={{
@@ -665,6 +788,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
             allMessages={msgs}
             onReact={handleReact}
             onReply={setReplyingTo}
+            highlight={m.id === currentMatchId ? "current" : matchSet.has(m.id) ? "match" : null}
           />
         ))}
         {typing && (
@@ -1116,7 +1240,7 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
 };
 
 // ─── CHAT: MAIN PANEL ──────────────────────────────────────────────────────
-export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, intent, tasks, currentUserId, dispatch, presenceMap, loading = false }) => {
+export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, intent, tasks, dossiers, currentUserId, dispatch, presenceMap, loading = false }) => {
   const { isMobile } = useViewport();
   const [activeConv, setActiveConv] = useState(null);
   const [newMode, setNewMode] = useState(false);
@@ -1124,9 +1248,22 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
   // Step K: taskRef UUID da precompilare insieme al testo del riferimento task.
   const [prefillTaskRef, setPrefillTaskRef] = useState(null);
 
-  // Gestione intent: apertura chat verso utente specifico con link a task
+  // Gestione intent: apertura chat verso utente specifico con link a task,
+  // oppure condivisione di una pratica (Fase 2: nessun destinatario fisso →
+  // si arma il prefill e l'utente sceglie la conversazione dalla lista).
   useEffect(() => {
-    if (!open || !intent || !intent.toUser) return;
+    if (!open || !intent) return;
+    if (intent.dossierLink && !intent.toUser) {
+      const d = (dossiers || []).find(x => x.id === intent.dossierLink);
+      if (d) {
+        setPrefillText(`📁 Riferimento pratica: ${d.number} — "${d.title}"\n\n`);
+        setPrefillTaskRef(null);
+        setActiveConv(null);
+        setNewMode(false);
+      }
+      return;
+    }
+    if (!intent.toUser) return;
     const me = currentUserId || CURRENT_USER;
     // Cerca conversazione diretta esistente
     let direct = conversations.find(c =>
@@ -1166,7 +1303,7 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
   };
 
   return (
-    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {} }}>
+    <ChatContext.Provider value={{ tasks: tasks || [], dossiers: dossiers || [], currentUserId: currentUserId || CURRENT_USER, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {} }}>
     <>
       <div onClick={onClose} style={{
         position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: 700,

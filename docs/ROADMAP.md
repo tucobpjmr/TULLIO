@@ -66,7 +66,7 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 |---|---|---|---|---|
 | Notifiche reali | ✅ | 🔴 | M | Task (Step F/J) + **pratiche** (cambio status, partenza imminente — sessione 21). Trigger DB + pg_cron; filtri + "segna tutte lette" |
 | Calendario avanzato | ✅ | 🟡 | M | Viste giorno/settimana/mese (Step G) + **date partenza/rientro pratiche** (sessione 21); export iCal con eventi all-day |
-| Estensioni chat (base) | ⬜ | 🟡 | S–M | Ricerca nelle conversazioni, stato online/occupato, rich preview di task/pratiche, **task link cliccabile** nel messaggio |
+| Estensioni chat (base) | ✅ | 🟡 | S–M | Ricerca conversazioni + **ricerca in-thread** (sessione 21), stato online/occupato, rich preview di task **e pratiche** (task link + pratica link cliccabili), "Condividi in chat" da PraticaDetail |
 | Impostazioni agenzia | 🔶 | 🟡 | S | Gestione categorie e nome agenzia già in Admin. Manca: template messaggi, profilo utente, preferenze UI |
 | Ricerca globale estesa | ✅ | — | — | Completata in v0.5. |
 | Responsive (mobile/tablet/desktop) | ✅ | — | — | Completato in v0.6. |

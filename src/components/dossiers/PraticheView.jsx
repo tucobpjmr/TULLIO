@@ -330,7 +330,7 @@ function FornitoriPanel({ dossierId, suppliers, dispatch }) {
 }
 
 // ─── DETTAGLIO PRATICA ────────────────────────────────────────────────────
-function PraticaDetail({ dossier, tasks, suppliers, dispatch, onClose }) {
+function PraticaDetail({ dossier, tasks, suppliers, dispatch, onShareChat, onClose }) {
   const linkedTasks = useMemo(
     () => tasks.filter(t => t.dossierId === dossier.id && !t.deletedAt),
     [tasks, dossier.id]
@@ -356,11 +356,20 @@ function PraticaDetail({ dossier, tasks, suppliers, dispatch, onClose }) {
             <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginBottom: 2 }}>{dossier.number}</div>
             <div className="playfair" style={{ fontSize: 17, fontWeight: 600, lineHeight: 1.3 }}>{dossier.title}</div>
           </div>
-          <button onClick={onClose} style={{
-            background: "rgba(255,255,255,0.15)", border: "none", borderRadius: 8,
-            width: 32, height: 32, cursor: "pointer", color: "#fff", fontSize: 16,
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-          }}>✕</button>
+          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+            {onShareChat && (
+              <button onClick={() => onShareChat({ dossierLink: dossier.id })} title="Condividi in chat" style={{
+                background: "rgba(255,255,255,0.15)", border: "none", borderRadius: 8,
+                width: 32, height: 32, cursor: "pointer", color: "#fff", fontSize: 15,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>💬</button>
+            )}
+            <button onClick={onClose} style={{
+              background: "rgba(255,255,255,0.15)", border: "none", borderRadius: 8,
+              width: 32, height: 32, cursor: "pointer", color: "#fff", fontSize: 16,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>✕</button>
+          </div>
         </div>
         <div style={{ marginTop: 10 }}>
           <StatusBadgeDossier status={dossier.status} />
@@ -480,7 +489,7 @@ function PraticaDetail({ dossier, tasks, suppliers, dispatch, onClose }) {
 }
 
 // ─── VISTA PRINCIPALE ─────────────────────────────────────────────────────
-export function PraticheView({ state, dispatch }) {
+export function PraticheView({ state, dispatch, onOpenChat }) {
   const { isMobile } = useViewport();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -627,6 +636,7 @@ export function PraticheView({ state, dispatch }) {
             tasks={tasks}
             suppliers={state.suppliers || []}
             dispatch={dispatch}
+            onShareChat={onOpenChat}
             onClose={() => setSelected(null)}
           />
         </>

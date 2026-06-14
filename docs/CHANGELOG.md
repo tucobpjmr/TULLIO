@@ -24,11 +24,17 @@
   - **Export iCal**: aggiunge le partenze/rientri come eventi all-day (`DTSTART;VALUE=DATE`).
 - **`src/VoyageDesk.jsx`**: passa `dossiers={state.dossiers}` al `CalendarPlanner`.
 
+### 💬 Estensioni chat (completano la Fase 2)
+
+- **Ricerca in-thread** (`ConversationView`): bottone 🔍 nell'header → barra di ricerca che trova, evidenzia (ring oro) e scorre ai messaggi della conversazione aperta, con contatore `n/m` e navigazione ↑/↓ (Invio / Shift+Invio, Esc per chiudere). `ChatMessage` ora ha `data-mid` + prop `highlight`.
+- **Riferimento pratica cliccabile** (`MessageTextContent`): nuovo parser `parsePraticaLink` (`📁 Riferimento pratica: PR-… — "Titolo"`, match per **numero immutabile**) → pill che apre la vista **Pratiche**. `ChatContext` ora espone anche `dossiers`.
+- **"Condividi in chat"** da `PraticaDetail` (pulsante 💬): apre la chat sulla lista conversazioni con il riferimento pratica pre-armato; l'utente sceglie la conversazione (intent `dossierLink` senza destinatario fisso). Wiring: `VoyageDesk.openChatTo` accetta `dossierLink`, passa `dossiers` a `ChatPanel` e `onOpenChat` a `PraticheView`.
+
 ### Build
 
 ```
-dist/assets/index-*.js   257.15 kB │ gzip: 60.68 kB   (+1.2 kB gz vs Fase 1)
-✅ Build verde.
+dist/assets/index-*.js   261.29 kB │ gzip: 61.80 kB   (+2.3 kB gz vs Fase 1)
+✅ Build verde. **Fase 2 completa.**
 ```
 
 ---

@@ -1,4 +1,4 @@
-# HANDOFF — Sessione 21: Fase 2 Operatività (Notifiche pratiche + Calendario date pratiche)
+# HANDOFF — Sessione 21: Fase 2 Operatività COMPLETA (Notifiche + Calendario + Chat)
 **Data:** 14 giugno 2026 (sessione 21)
 **Sessione precedente:** sessione 20 ha chiuso la **Fase 1** (Task↔Pratica, Fornitori pratica, Filtro ricerca — vedi `HANDOFF_SESSION_2026-06-14_v15.md`).
 **Branch:** `claude/notifiche-calendario-phase-2-28dq44`
@@ -9,12 +9,13 @@
 
 ## 0. TL;DR (60 secondi)
 
-- ✅ **Fase 2 Operatività** — parte Notifiche + Calendario: le pratiche ora **generano notifiche** e **compaiono nel calendario**.
+- ✅ **Fase 2 Operatività COMPLETA**: Notifiche pratiche + Calendario con date pratiche + Estensioni chat.
 - ✅ **Notifiche pratiche** (server-side, pattern Step F/J): trigger su cambio status + cron giornaliero per partenza imminente.
 - ✅ **Calendario**: partenze (✈️) e rientri (🛬) delle pratiche in tutte le viste (mese/settimana/giorno/sett. piena) + export iCal.
+- ✅ **Chat**: ricerca in-thread (🔍 con navigazione match) + riferimento pratica cliccabile (`📁` pill) + "Condividi in chat" da PraticaDetail.
 - ✅ **Migration applicata** al progetto Supabase `tullio` (vmxvnxsqfisucugcpqlc) via MCP; file in `supabase/migrations/`.
-- ✅ **Build verde**: `index 257.15 kB │ gzip 60.68 kB` (+1.2 kB gz).
-- 🚧 **Prossimo**: estensioni chat (ricerca conversazioni) oppure **Fase 3 Business** (modulo finanziario su `dossier_suppliers.cost`).
+- ✅ **Build verde**: `index 261.29 kB │ gzip 61.80 kB` (+2.3 kB gz vs Fase 1).
+- 🚧 **Prossimo**: **Fase 3 Business** (modulo finanziario su `dossier_suppliers.cost` vs `dossiers.budget_total` → margine).
 
 ---
 
@@ -52,6 +53,20 @@ Due nuovi tipi di notifica (`notifications.type`):
 - Click su un evento → vista **Pratiche** (`openPratiche` → `SET_VIEW`).
 - **Export iCal** (`buildIcs`): partenze/rientri come eventi all-day (`DTSTART;VALUE=DATE:YYYYMMDD`).
 
+### 💬 Estensioni chat — completano la Fase 2
+
+**Ricerca in-thread** — `src/components/chat/ChatPanel.jsx` (`ConversationView`):
+- Bottone 🔍 nell'header del thread → barra di ricerca. Trova i messaggi (testo + nome file) della conversazione aperta, li evidenzia (ring oro sul corrente, tratteggiato sugli altri) e ci scorre. Contatore `n/m`, navigazione ↑/↓ (Invio / Shift+Invio), Esc per chiudere.
+- `ChatMessage` ha ora `data-mid={msg.id}` + prop `highlight` (`"current"`/`"match"`/null). Lo scroll-in-fondo automatico è sospeso mentre la ricerca è attiva.
+
+**Riferimento pratica cliccabile** — `MessageTextContent`:
+- Nuovo parser `parsePraticaLink` per il pattern `📁 Riferimento pratica: PR-… — "Titolo"` → match per **numero** (immutabile, niente colonna DB nuova, a differenza del task link che usa `task_ref`). Pill che apre la vista **Pratiche**.
+- `ChatContext` espone ora anche `dossiers` (lookup per numero).
+
+**"Condividi in chat"** da `PraticaDetail` (pulsante 💬 nell'header dello slide-over):
+- `onShareChat({ dossierLink: dossier.id })` → `VoyageDesk.openChatTo` (esteso per accettare `dossierLink` oltre a `toUser`) → `ChatPanel` arma il prefill del riferimento pratica e mostra la **lista conversazioni** (nessun destinatario fisso: l'utente sceglie la chat).
+- Wiring: `VoyageDesk` passa `dossiers={state.dossiers}` a `ChatPanel` e `onOpenChat={openChatTo}` a `PraticheView` → `onShareChat` a `PraticaDetail`.
+
 ---
 
 ## 2. File toccati
@@ -60,8 +75,10 @@ Due nuovi tipi di notifica (`notifications.type`):
 supabase/migrations/20260614_dossier_notifications.sql   🆕 trigger + cron notifiche pratiche
 src/components/shell/Topbar.jsx                           ✏️ icone/titoli/navigazione tipi dossier_*
 src/components/calendar/CalendarPlanner.jsx               ✏️ eventi-pratica in tutte le viste + iCal
-src/VoyageDesk.jsx                                        ✏️ passa dossiers a CalendarPlanner
-docs/CHANGELOG.md / ROADMAP.md / CLAUDE.md               ✏️ stato Fase 2
+src/components/chat/ChatPanel.jsx                         ✏️ ricerca in-thread + pratica link + intent dossierLink
+src/components/dossiers/PraticheView.jsx                  ✏️ pulsante "Condividi in chat" in PraticaDetail
+src/VoyageDesk.jsx                                        ✏️ dossiers→Calendar/Chat; openChatTo dossierLink; onOpenChat→Pratiche
+docs/CHANGELOG.md / ROADMAP.md / CLAUDE.md               ✏️ stato Fase 2 completa
 docs/HANDOFF_SESSION_2026-06-14_v16.md                   🆕 questo file
 ```
 
@@ -96,5 +113,6 @@ docs/HANDOFF_SESSION_2026-06-14_v16.md                   🆕 questo file
 
 ## 6. Cosa fare nella prossima sessione (22)
 
-- **Estensioni chat** (ricerca nelle conversazioni) per chiudere la Fase 2.
-- Oppure **Fase 3 Business**: modulo finanziario aggregando `dossier_suppliers.cost` vs `dossiers.budget_total` → margine nella `PraticaDetail`.
+**Fase 2 completa.** Prossimo:
+- **Fase 3 Business**: modulo finanziario aggregando `dossier_suppliers.cost` vs `dossiers.budget_total` → margine nella `PraticaDetail` (riepilogo economico, acconti/pagamenti).
+- Quick win residui: realtime/refresh sulle viste CRM; selettore pratica in `BulkTaskCreator`; deep-link notifiche pratica al singolo dossier (caveat #28).

@@ -122,7 +122,6 @@ Navigazione: Desktop → Sidebar collassabile. Tablet/Mobile → BottomNav.
   returnDate: ISO|null,
   paxAdults: number,
   paxChildren: number,
-  budgetTotal: number|null,  // €
   notes: string|null,
   createdBy: UUID,
   createdAt: ISO,
@@ -292,10 +291,6 @@ Tutti i componenti sono **moduli separati** in `src/components/`; helper e sub-c
 - [x] Notifiche reali estese alle pratiche (cambio status, partenza imminente) — trigger DB `notify_dossier_status` + cron `notify_dossier_departure` (sessione 21)
 - [x] Calendario avanzato con date partenza/ritorno pratiche → `CalendarPlanner` mostra ✈️ partenze / 🛬 rientri in tutte le viste + iCal (sessione 21)
 - [x] Estensioni chat → ricerca conversazioni (Step H) + **ricerca in-thread** con navigazione match + **riferimento pratica cliccabile** (`📁` pill → vista Pratiche, "Condividi in chat" da PraticaDetail) — sessione 21. **Fase 2 completa.**
-
-### Priorità 3 — Business (Fase 3)
-- [ ] Modulo finanziario: aggregare `dossier_suppliers.cost` vs `dossiers.budget_total` → margine
-- [ ] Report & Analytics avanzati
 
 Vedi `docs/ROADMAP.md` per il dettaglio completo con dipendenze e stime.
 

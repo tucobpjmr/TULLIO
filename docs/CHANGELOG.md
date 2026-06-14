@@ -1,6 +1,44 @@
 # CHANGELOG — VoyageDesk
 
 
+## v2.3-dev — Fase 2 Operatività: Notifiche pratiche + Calendario con date pratiche (sessione 21)
+
+> Cumulativo sopra v2.2-dev. Branch `claude/notifiche-calendario-phase-2-28dq44`.
+
+### 🔔 Notifiche pratiche (trigger DB + pg_cron)
+
+- **`supabase/migrations/20260614_dossier_notifications.sql`** (applicata via MCP):
+  - `notify_dossier_status()` — trigger `after update of status on dossiers` → notifica `dossier_status` a manager+admin attivi e al `created_by` della pratica, **escluso l'attore** (`auth.uid()`). Guard `NEW.status is not distinct from OLD.status` per non notificare su update di altri campi.
+  - `notify_dossier_departure()` — funzione + pg_cron giornaliero `notify_dossier_departure_daily` (07:00 UTC): pratiche `confermata`/`in_corso` con `departure_date` nei prossimi 3 giorni → notifica `dossier_departure` (de-dup 20h).
+  - Entrambe `security definer` + `revoke` da public/anon/authenticated, coerenti col pattern Step F/J (le notifiche nascono solo da trigger server-side).
+- **`src/components/shell/Topbar.jsx`** (`NotificationsPanel`): icone (`📁` status, `✈️` partenza) + titoli leggibili per i due nuovi tipi (con label stato pratica), e navigazione → vista **Pratiche** al click (oltre alla navigazione task esistente).
+
+### 📅 Calendario con date pratiche
+
+- **`src/components/calendar/CalendarPlanner.jsx`**: partenze (✈️) e rientri (🛬) delle pratiche non annullate mostrati in tutte le viste:
+  - **Mese**: pill colorate nelle celle (desktop) / pallini con bordo (mobile) + pannello dettaglio giorno.
+  - **Settimana**: pill in cima a ogni colonna giorno.
+  - **Giorno**: striscia "tutto il giorno" sopra la griglia oraria.
+  - **Settimana piena**: riga "tutto il giorno" sotto le intestazioni.
+  - Click su un evento-pratica → vista **Pratiche**.
+  - **Export iCal**: aggiunge le partenze/rientri come eventi all-day (`DTSTART;VALUE=DATE`).
+- **`src/VoyageDesk.jsx`**: passa `dossiers={state.dossiers}` al `CalendarPlanner`.
+
+### 💬 Estensioni chat (completano la Fase 2)
+
+- **Ricerca in-thread** (`ConversationView`): bottone 🔍 nell'header → barra di ricerca che trova, evidenzia (ring oro) e scorre ai messaggi della conversazione aperta, con contatore `n/m` e navigazione ↑/↓ (Invio / Shift+Invio, Esc per chiudere). `ChatMessage` ora ha `data-mid` + prop `highlight`.
+- **Riferimento pratica cliccabile** (`MessageTextContent`): nuovo parser `parsePraticaLink` (`📁 Riferimento pratica: PR-… — "Titolo"`, match per **numero immutabile**) → pill che apre la vista **Pratiche**. `ChatContext` ora espone anche `dossiers`.
+- **"Condividi in chat"** da `PraticaDetail` (pulsante 💬): apre la chat sulla lista conversazioni con il riferimento pratica pre-armato; l'utente sceglie la conversazione (intent `dossierLink` senza destinatario fisso). Wiring: `VoyageDesk.openChatTo` accetta `dossierLink`, passa `dossiers` a `ChatPanel` e `onOpenChat` a `PraticheView`.
+
+### Build
+
+```
+dist/assets/index-*.js   261.29 kB │ gzip: 61.80 kB   (+2.3 kB gz vs Fase 1)
+✅ Build verde. **Fase 2 completa.**
+```
+
+---
+
 ## v2.2-dev — Fase 1 completa: Task↔Pratica, Fornitori pratica, Filtro ricerca (sessione 20)
 
 > Cumulativo sopra v2.1-dev. **Mergeati in `main`** (squash, in ordine): #51 (Task↔Pratica), #52 (Fornitori pratica), #53 (filtro pratica ricerca). Chiusi i caveat **#26** e **#27** → **Fase 1 completa**.

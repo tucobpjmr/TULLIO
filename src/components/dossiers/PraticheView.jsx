@@ -35,7 +35,7 @@ function PraticaModal({ clients, currentUserId, onSave, onClose }) {
     title: "", clientId: "", destination: "",
     departureDate: "", returnDate: "",
     paxAdults: 1, paxChildren: 0,
-    budgetTotal: "", notes: "",
+    notes: "",
   });
   const [saving, setSaving] = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -50,7 +50,6 @@ function PraticaModal({ clients, currentUserId, onSave, onClose }) {
       clientId: form.clientId || null,
       paxAdults: Number(form.paxAdults) || 0,
       paxChildren: Number(form.paxChildren) || 0,
-      budgetTotal: form.budgetTotal ? Number(form.budgetTotal) : null,
       createdBy: currentUserId,
     });
     setSaving(false);
@@ -102,10 +101,6 @@ function PraticaModal({ clients, currentUserId, onSave, onClose }) {
             <div>
               <label style={labelStyle}>Pax bambini</label>
               <input style={fieldStyle} type="number" min="0" value={form.paxChildren} onChange={e => set("paxChildren", e.target.value)} />
-            </div>
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Budget totale (€)</label>
-              <input style={fieldStyle} type="number" min="0" step="0.01" value={form.budgetTotal} onChange={e => set("budgetTotal", e.target.value)} placeholder="0.00" />
             </div>
             <div style={{ gridColumn: "1 / -1" }}>
               <label style={labelStyle}>Note</label>
@@ -182,11 +177,6 @@ function PraticaCard({ dossier, taskCount, onClick }) {
         {pax > 0 && (
           <span style={{ fontSize: 12, color: "var(--text-muted)" }}>👥 {pax} pax</span>
         )}
-        {dossier.budgetTotal != null && (
-          <span style={{ fontSize: 12, color: "var(--success)", fontWeight: 600 }}>
-            💰 €{dossier.budgetTotal.toLocaleString("it-IT", { minimumFractionDigits: 0 })}
-          </span>
-        )}
         {taskCount > 0 && (
           <span style={{ fontSize: 12, color: "var(--text-muted)" }}>✅ {taskCount} task</span>
         )}
@@ -203,7 +193,7 @@ function FornitoriPanel({ dossierId, suppliers, dispatch }) {
   const [links, setLinks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({ supplierId: "", serviceType: "", cost: "" });
+  const [form, setForm] = useState({ supplierId: "", serviceType: "" });
 
   useEffect(() => {
     let cancelled = false;
@@ -227,7 +217,6 @@ function FornitoriPanel({ dossierId, suppliers, dispatch }) {
       dossierId,
       supplierId: form.supplierId,
       serviceType: form.serviceType.trim() || null,
-      cost: form.cost ? Number(form.cost) : null,
     });
     const { data, error } = await DossierSuppliersAPI.create(payload);
     if (error) {
@@ -237,7 +226,7 @@ function FornitoriPanel({ dossierId, suppliers, dispatch }) {
       const link = fromDbDossierSupplier(data);
       link.supplier = suppliers.find(s => s.id === link.supplierId) || null;
       setLinks(prev => [...prev, link]);
-      setForm({ supplierId: "", serviceType: "", cost: "" });
+      setForm({ supplierId: "", serviceType: "" });
     }
     setAdding(false);
   };
@@ -275,11 +264,8 @@ function FornitoriPanel({ dossierId, suppliers, dispatch }) {
                 <div style={{ fontWeight: 600 }}>
                   {l.supplier?.category && (SUPPLIER_CATEGORY_LABELS[l.supplier.category]?.split(" ")[0] || "")} {l.supplier?.name || "—"}
                 </div>
-                {(l.serviceType || l.cost != null) && (
-                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-                    {l.serviceType}{l.serviceType && l.cost != null ? " · " : ""}
-                    {l.cost != null && <span style={{ color: "var(--success)", fontWeight: 600 }}>€{l.cost.toLocaleString("it-IT")}</span>}
-                  </div>
+                {l.serviceType && (
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{l.serviceType}</div>
                 )}
               </div>
               <button
@@ -310,10 +296,6 @@ function FornitoriPanel({ dossierId, suppliers, dispatch }) {
             <label style={labelStyle}>Servizio</label>
             <input style={fieldStyle} value={form.serviceType} onChange={e => setForm(f => ({ ...f, serviceType: e.target.value }))} placeholder="es. Volo A/R" />
           </div>
-          <div style={{ flex: "0 1 100px" }}>
-            <label style={labelStyle}>Costo €</label>
-            <input style={fieldStyle} type="number" min="0" step="0.01" value={form.cost} onChange={e => setForm(f => ({ ...f, cost: e.target.value }))} placeholder="0" />
-          </div>
           <button
             onClick={handleAdd}
             disabled={!form.supplierId || adding}
@@ -330,7 +312,7 @@ function FornitoriPanel({ dossierId, suppliers, dispatch }) {
 }
 
 // ─── DETTAGLIO PRATICA ────────────────────────────────────────────────────
-function PraticaDetail({ dossier, tasks, suppliers, dispatch, onClose }) {
+function PraticaDetail({ dossier, tasks, suppliers, dispatch, onShareChat, onClose }) {
   const linkedTasks = useMemo(
     () => tasks.filter(t => t.dossierId === dossier.id && !t.deletedAt),
     [tasks, dossier.id]
@@ -356,11 +338,20 @@ function PraticaDetail({ dossier, tasks, suppliers, dispatch, onClose }) {
             <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginBottom: 2 }}>{dossier.number}</div>
             <div className="playfair" style={{ fontSize: 17, fontWeight: 600, lineHeight: 1.3 }}>{dossier.title}</div>
           </div>
-          <button onClick={onClose} style={{
-            background: "rgba(255,255,255,0.15)", border: "none", borderRadius: 8,
-            width: 32, height: 32, cursor: "pointer", color: "#fff", fontSize: 16,
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-          }}>✕</button>
+          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+            {onShareChat && (
+              <button onClick={() => onShareChat({ dossierLink: dossier.id })} title="Condividi in chat" style={{
+                background: "rgba(255,255,255,0.15)", border: "none", borderRadius: 8,
+                width: 32, height: 32, cursor: "pointer", color: "#fff", fontSize: 15,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>💬</button>
+            )}
+            <button onClick={onClose} style={{
+              background: "rgba(255,255,255,0.15)", border: "none", borderRadius: 8,
+              width: 32, height: 32, cursor: "pointer", color: "#fff", fontSize: 16,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>✕</button>
+          </div>
         </div>
         <div style={{ marginTop: 10 }}>
           <StatusBadgeDossier status={dossier.status} />
@@ -414,14 +405,6 @@ function PraticaDetail({ dossier, tasks, suppliers, dispatch, onClose }) {
             <div>
               <div style={labelStyle}>Ritorno</div>
               <div style={{ fontSize: 14 }}>🛬 {formatDate(dossier.returnDate)}</div>
-            </div>
-          )}
-          {dossier.budgetTotal != null && (
-            <div>
-              <div style={labelStyle}>Budget totale</div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--success)" }}>
-                €{dossier.budgetTotal.toLocaleString("it-IT", { minimumFractionDigits: 2 })}
-              </div>
             </div>
           )}
           {dossier.notes && (
@@ -480,7 +463,7 @@ function PraticaDetail({ dossier, tasks, suppliers, dispatch, onClose }) {
 }
 
 // ─── VISTA PRINCIPALE ─────────────────────────────────────────────────────
-export function PraticheView({ state, dispatch }) {
+export function PraticheView({ state, dispatch, onOpenChat }) {
   const { isMobile } = useViewport();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -627,6 +610,7 @@ export function PraticheView({ state, dispatch }) {
             tasks={tasks}
             suppliers={state.suppliers || []}
             dispatch={dispatch}
+            onShareChat={onOpenChat}
             onClose={() => setSelected(null)}
           />
         </>

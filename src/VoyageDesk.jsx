@@ -842,7 +842,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
 
   // Apre la chat verso un utente specifico, opzionalmente con link a task
   const openChatTo = (intent) => {
-    if (intent && intent.toUser) {
+    if (intent && (intent.toUser || intent.dossierLink)) {
       setChatIntent(intent);
     }
     setShowChat(true);
@@ -870,10 +870,10 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   const renderView = () => {
     switch (state.activeView) {
       case "dashboard":  return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
-      case "calendar":   return <CalendarPlanner state={state} dispatch={dispatch} />;
+      case "calendar":   return <CalendarPlanner state={state} dispatch={dispatch} dossiers={state.dossiers} />;
       case "clienti":    return <ClientiView state={state} dispatch={dispatch} />;
       case "fornitori":  return <FornitoriView state={state} dispatch={dispatch} />;
-      case "pratiche":   return <PraticheView state={state} dispatch={dispatch} />;
+      case "pratiche":   return <PraticheView state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
       case "team":       return <Team state={state} dispatch={dispatch} />;
       case "trash":      return <Trash state={state} dispatch={dispatch} />;
       case "admin":      return <AdminView state={state} dispatch={dispatch} />;
@@ -927,6 +927,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           markConversationRead={markConversationRead}
           intent={chatIntent}
           tasks={state.tasks}
+          dossiers={state.dossiers}
           currentUserId={state.currentUserId}
           dispatch={dispatch}
           presenceMap={presenceMap}

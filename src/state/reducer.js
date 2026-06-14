@@ -299,6 +299,48 @@ function baseReducer(state, action) {
       return { ...state, notices };
     }
 
+    // ─── CRM: CLIENTI ───
+    case "SET_CLIENTS":
+      return { ...state, clients: Array.isArray(action.payload) ? action.payload : [] };
+    case "ADD_CLIENT":
+      return { ...state, clients: [action.payload, ...(state.clients || [])], toast: { message: "Cliente aggiunto!", type: "success" } };
+    case "UPDATE_CLIENT": {
+      const clients = (state.clients || []).map(c => c.id === action.payload.id ? { ...c, ...action.payload } : c);
+      return { ...state, clients, toast: { message: "Cliente aggiornato!", type: "success" } };
+    }
+    case "DELETE_CLIENT": {
+      const clients = (state.clients || []).filter(c => c.id !== action.payload);
+      return { ...state, clients, toast: { message: "Cliente rimosso", type: "success" } };
+    }
+
+    // ─── CRM: FORNITORI ───
+    case "SET_SUPPLIERS":
+      return { ...state, suppliers: Array.isArray(action.payload) ? action.payload : [] };
+    case "ADD_SUPPLIER":
+      return { ...state, suppliers: [action.payload, ...(state.suppliers || [])], toast: { message: "Fornitore aggiunto!", type: "success" } };
+    case "UPDATE_SUPPLIER": {
+      const suppliers = (state.suppliers || []).map(s => s.id === action.payload.id ? { ...s, ...action.payload } : s);
+      return { ...state, suppliers, toast: { message: "Fornitore aggiornato!", type: "success" } };
+    }
+    case "DELETE_SUPPLIER": {
+      const suppliers = (state.suppliers || []).filter(s => s.id !== action.payload);
+      return { ...state, suppliers, toast: { message: "Fornitore rimosso", type: "success" } };
+    }
+
+    // ─── CRM: PRATICHE ───
+    case "SET_DOSSIERS":
+      return { ...state, dossiers: Array.isArray(action.payload) ? action.payload : [] };
+    case "ADD_DOSSIER":
+      return { ...state, dossiers: [action.payload, ...(state.dossiers || [])], toast: { message: `Pratica ${action.payload.number || ''} creata!`, type: "success" } };
+    case "UPDATE_DOSSIER": {
+      const dossiers = (state.dossiers || []).map(d => d.id === action.payload.id ? { ...d, ...action.payload } : d);
+      return { ...state, dossiers, toast: { message: "Pratica aggiornata!", type: "success" } };
+    }
+    case "DELETE_DOSSIER": {
+      const dossiers = (state.dossiers || []).filter(d => d.id !== action.payload);
+      return { ...state, dossiers, toast: { message: "Pratica rimossa", type: "success" } };
+    }
+
     case "SHOW_TOAST": return { ...state, toast: { message: action.payload?.message ?? "", type: action.payload?.type ?? "error" } };
     case "CLEAR_TOAST": return { ...state, toast: null };
     case "UNDO_LAST_ACTION": {
@@ -384,6 +426,9 @@ function makeInitialState({ team, currentUserId } = {}) {
     categories: { ...CATEGORIES },
     agencyName: "VoyageDesk",
     notices: hasRealTeam ? [] : INITIAL_NOTICES,
+    clients: [],
+    suppliers: [],
+    dossiers: [],
     activityLog: [],
     activeView: "dashboard",
     selectedTask: null,

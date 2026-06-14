@@ -5,11 +5,14 @@ import { useViewport } from "../Viewport.jsx";
 import { CURRENT_USER, getAssignableTeam, getRoleType } from "../../state/appGlobals.js";
 
 const NAV_ITEMS = [
-  { id: "dashboard", icon: "📊", label: "Dashboard", roles: ["admin", "manager", "agent", "driver"] },
-  { id: "calendar", icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
-  { id: "team", icon: "👥", label: "Team", roles: ["admin", "manager", "agent"] },
-  { id: "trash", icon: "🗑️", label: "Cestino", roles: ["admin", "manager", "agent", "driver"] },
-  { id: "admin", icon: "⚙️", label: "Admin", roles: ["admin"] },
+  { id: "dashboard",  icon: "📊", label: "Dashboard",  roles: ["admin", "manager", "agent", "driver"] },
+  { id: "calendar",   icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
+  { id: "clienti",    icon: "👤", label: "Clienti",    roles: ["admin", "manager", "agent"] },
+  { id: "fornitori",  icon: "🤝", label: "Fornitori",  roles: ["admin", "manager", "agent"] },
+  { id: "pratiche",   icon: "📁", label: "Pratiche",   roles: ["admin", "manager", "agent"] },
+  { id: "team",       icon: "👥", label: "Team",       roles: ["admin", "manager", "agent"] },
+  { id: "trash",      icon: "🗑️", label: "Cestino",    roles: ["admin", "manager", "agent", "driver"] },
+  { id: "admin",      icon: "⚙️", label: "Admin",      roles: ["admin"] },
 ];
 
 // Filtra NAV_ITEMS in base al ruolo dell'utente loggato

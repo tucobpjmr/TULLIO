@@ -193,6 +193,100 @@ export function toDbMessage(msg, conversationId) {
   };
 }
 
+// ----------------- CLIENTS -----------------
+export function fromDbClient(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email ?? null,
+    phone: row.phone ?? null,
+    address: row.address ?? null,
+    city: row.city ?? null,
+    notes: row.notes ?? null,
+    createdAt: row.created_at ?? null,
+  };
+}
+
+export function toDbClient(client) {
+  return {
+    name: client.name,
+    email: client.email ?? null,
+    phone: client.phone ?? null,
+    address: client.address ?? null,
+    city: client.city ?? null,
+    notes: client.notes ?? null,
+  };
+}
+
+// ----------------- SUPPLIERS -----------------
+export function fromDbSupplier(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    category: row.category ?? null,
+    email: row.email ?? null,
+    phone: row.phone ?? null,
+    address: row.address ?? null,
+    city: row.city ?? null,
+    country: row.country ?? null,
+    notes: row.notes ?? null,
+    createdAt: row.created_at ?? null,
+  };
+}
+
+export function toDbSupplier(supplier) {
+  return {
+    name: supplier.name,
+    category: supplier.category ?? null,
+    email: supplier.email ?? null,
+    phone: supplier.phone ?? null,
+    address: supplier.address ?? null,
+    city: supplier.city ?? null,
+    country: supplier.country ?? null,
+    notes: supplier.notes ?? null,
+  };
+}
+
+// ----------------- DOSSIERS -----------------
+export function fromDbDossier(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    number: row.number,
+    title: row.title,
+    status: row.status,
+    clientId: row.client_id ?? null,
+    client: row.clients ? fromDbClient(row.clients) : null,
+    destination: row.destination ?? null,
+    departureDate: row.departure_date ?? null,
+    returnDate: row.return_date ?? null,
+    paxAdults: row.pax_adults ?? 0,
+    paxChildren: row.pax_children ?? 0,
+    budgetTotal: row.budget_total != null ? Number(row.budget_total) : null,
+    notes: row.notes ?? null,
+    createdBy: row.created_by ?? null,
+    createdAt: row.created_at ?? null,
+    updatedAt: row.updated_at ?? null,
+  };
+}
+
+export function toDbDossier(dossier) {
+  return {
+    title: dossier.title,
+    status: dossier.status ?? 'bozza',
+    client_id: dossier.clientId ?? null,
+    destination: dossier.destination ?? null,
+    departure_date: dossier.departureDate ?? null,
+    return_date: dossier.returnDate ?? null,
+    pax_adults: dossier.paxAdults ?? 0,
+    pax_children: dossier.paxChildren ?? 0,
+    budget_total: dossier.budgetTotal ?? null,
+    notes: dossier.notes ?? null,
+  };
+}
+
 // ----------------- NOTIFICATIONS -----------------
 // DB row → app notification. Payload arbitrario per tipo.
 export function fromDbNotification(row) {

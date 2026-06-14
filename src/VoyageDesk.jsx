@@ -580,7 +580,9 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       });
     };
     beat('online');
-    hbTimer = setInterval(() => beat('online'), 45 * 1000);
+    // Caveat #3: heartbeat ogni 30s (era 45s), allineato al tick di ageing
+    // della presenza → lo stato online/away resta più reattivo.
+    hbTimer = setInterval(() => beat('online'), 30 * 1000);
 
     const onVisibility = () => {
       if (document.visibilityState === 'hidden') beat('away');

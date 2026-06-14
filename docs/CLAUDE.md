@@ -375,4 +375,4 @@ src/
 
 Le notifiche nascono **solo da trigger DB** (RLS vieta insert client) — per nuove notifiche serve un trigger server-side (pattern in `supabase/migrations/20260614_mention_composite_names.sql`).
 
-Vedi `docs/HANDOFF_SESSION_2026-06-14_v15.md` per il dettaglio sessione 20 (Fase 1 completa) e v14 per la Fase 1 CRM base.
+Vedi `docs/HANDOFF_SESSION_2026-06-14_v17.md` per il dettaglio sessione 22 (rimozione modulo finanziario). Cronologia: v16 (Fase 2 completa), v15 (Fase 1 completa), v14 (Fase 1 CRM base).

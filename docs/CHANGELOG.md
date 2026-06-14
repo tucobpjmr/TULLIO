@@ -1,6 +1,33 @@
 # CHANGELOG — VoyageDesk
 
 
+## v2.4-dev — Rimozione modulo finanziario (sessione 22)
+
+> Cumulativo sopra v2.3-dev. Branch `claude/notifiche-calendario-phase-2-28dq44`.
+
+Su richiesta esplicita: il modulo finanziario pianificato (ex Fase 3) è stato eliminato dall'app. Nessuna migration DB necessaria; le colonne restano nel DB ma non vengono più lette né scritte.
+
+### Modifiche UI (`src/components/dossiers/PraticheView.jsx`)
+
+- **`PraticaModal`**: rimosso campo "Budget totale (€)" (input + state `budgetTotal` + conversione nel payload).
+- **`PraticaCard`**: rimosso chip `💰 €...` (condizionale su `budgetTotal != null`).
+- **`PraticaDetail`**: rimossa sezione "Budget totale" nel pannello info.
+- **`FornitoriPanel`**: rimossi campo "Costo €" (input aggiunta fornitore), display `€{cost}` in lista, e stato/payload `cost`.
+
+### Modifiche docs
+
+- **`ROADMAP.md`**: eliminata sezione "Fase 3 — Business & finanza"; ex Fase 4 rinumerata Fase 3; rimosso "riepilogo economico" dal dettaglio Pratiche; sequenza consigliata finale aggiornata.
+- **`CLAUDE.md`**: `budgetTotal` rimosso dal modello dati Pratica; sezione "Priorità 3 — Business (Fase 3)" rimossa dalla roadmap prossimi step.
+
+### Build
+
+```
+dist/assets/index-*.js   260.08 kB │ gzip: 61.54 kB   (−0.26 kB gz vs v2.3-dev)
+✅ Build verde.
+```
+
+---
+
 ## v2.3-dev — Fase 2 Operatività: Notifiche pratiche + Calendario con date pratiche (sessione 21)
 
 > Cumulativo sopra v2.2-dev. Branch `claude/notifiche-calendario-phase-2-28dq44`.

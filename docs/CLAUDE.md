@@ -182,37 +182,36 @@ getNavItemsForUser(userId)       — NAV_ITEMS filtrati per ruolo
 | Azioni Admin | ✅ | ❌ | ❌ |
 | Cestino | ✅ | ❌ | ❌ |
 
-## Struttura componenti attuali
+## Struttura componenti attuali (post Phase 2f)
 
 ```
 VoyageDesk (export default, ViewportProvider wrapper)
 └── VoyageDeskInner
-    ├── Topbar
-    │   ├── AdvancedSearchPanel
-    │   ├── UserSwitcher → ProfileEditor
-    │   └── NotificationsPanel
-    ├── Sidebar (desktop) / BottomNav (mobile/tablet)
+    ├── shell/Topbar
+    │   ├── AdvancedSearchPanel (locale)
+    │   ├── UserSwitcher → modals/ProfileEditor
+    │   └── NotificationsPanel (locale)
+    ├── shell/Sidebar (desktop) / shell/BottomNav (mobile/tablet)
     ├── [Vista attiva — renderView switch]
-    │   ├── Dashboard
-    │   │   ├── NoticeBoard + NoticeEditorModal
-    │   │   ├── QueueTab (x4)
-    │   │   ├── PersonalQueue / UnassignedQueue / OverdueQueue / UrgentOthersQueue
-    │   │   └── Scadenze Prossime + Carico Team
-    │   ├── CalendarPlanner (mese + settimana + distribuzione agenti)
-    │   ├── Team
-    │   ├── Trash (con RestoreEditModal)
-    │   └── AdminView (5 tab)
-    ├── TaskSlideOver
-    ├── ChatPanel
-    │   ├── ConversationList / ConversationView / NewConversationView
-    │   ├── Message + VoicePlayer + ReactionsPopover
-    │   └── VoiceRecorder
-    ├── QuickAddTask (modale)
-    ├── BulkTaskCreator (modale, 4 tab)
-    ├── AIDayPlanner (modale)
-    ├── FAB
-    └── Toast
+    │   ├── dashboard/Dashboard
+    │   │   ├── dashboard/NoticeBoard + modals/NoticeEditorModal
+    │   │   ├── QueueTab (locale in dashboard/Dashboard)
+    │   │   ├── PersonalQueue / UnassignedQueue / OverdueQueue / UrgentOthersQueue (locale)
+    │   │   └── Scadenze Prossime + Carico Team (locale)
+    │   ├── calendar/CalendarPlanner (mese + settimana + distribuzione + helper iCal)
+    │   ├── views/Team
+    │   ├── views/Trash
+    │   └── admin/AdminView (5 tab locale, stili da adminStyles.js)
+    ├── tasks/TaskSlideOver
+    ├── chat/ChatPanel (~1250 righe; 9 sub-componenti + helper locali)
+    ├── modals/QuickAddTask
+    ├── modals/BulkTaskCreator (4 tab locale)
+    ├── modals/AIDayPlanner
+    ├── shell/FAB
+    └── ui/Toast
 ```
+
+Tutti i componenti sono **moduli separati** in `src/components/`; helper e sub-componenti rimangono **module-local** (non esportati).
 
 ## Roadmap prossimi step
 
@@ -247,28 +246,61 @@ Vedi `docs/ROADMAP.md` per il dettaglio completo con dipendenze e stime.
 6. **DnD**: disabilitato su mobile. Usare SwipeActions per azioni rapide.
 7. **CRLF su `src/VoyageDesk.jsx`**: il monolite ha line endings CRLF. Tool che lo riscrivono interamente (Python, alcuni helper) lo normalizzano a LF gonfiando il diff a migliaia di righe. Verifica sempre `git diff --numstat src/VoyageDesk.jsx` prima del push; se anomalo riconverti con `python3 -c "p='src/VoyageDesk.jsx'; d=open(p,'rb').read().replace(b'\r\n',b'\n').replace(b'\n',b'\r\n'); open(p,'wb').write(d)"`.
 
-## Struttura moduli post Step P (Phase 1 → 2e)
+## Struttura moduli post Step P (Phase 1 → 2f) — COMPLETA
 
 ```
 src/
-├── auth/                 AuthContext.jsx, LoginScreen.jsx
+├── auth/                    AuthContext.jsx, LoginScreen.jsx
 ├── lib/
-│   ├── api.js            Tasks/Notices/Conversations/Messages/Notifications/Users APIs
-│   ├── clientId.js       UUID per tab (origin-tagging realtime)
-│   ├── mappers.js        DB ↔ camelCase
+│   ├── api.js               Tasks/Notices/Conversations/Messages/Notifications/Users APIs
+│   ├── clientId.js          UUID per tab (origin-tagging realtime)
+│   ├── mappers.js           DB ↔ camelCase
 │   ├── supabase.js
-│   ├── taskConstants.js  PRIORITIES/STATUSES/STATUS_*/NOTICE_COLORS/TASK_TEMPLATES (Phase 2a)
-│   └── taskUtils.js      formatDate/formatTime/isUrgent/isMyTask/... (Phase 2a)
-├── state/                (Phase 2b–2d)
-│   ├── mockData.js       INITIAL_TEAM/CATEGORIES/TASKS/NOTICES + MOCK_NOTIFICATIONS
-│   ├── appGlobals.js     TEAM/CATEGORIES/CURRENT_USER live bindings + setter + permessi
-│   └── reducer.js        baseReducer / reducer / makeInitialState / LOGGED_ACTIONS / ADMIN_ONLY
-├── components/           (Phase 2e — estrazione albero componenti, in corso)
-│   ├── Viewport.jsx      ViewportContext / useViewport / ViewportProvider
-│   ├── SwipeActions.jsx
-│   └── ui/               Avatar, PriorityBadge, CategoryChip, StatusBadge, Toast
-├── VoyageDesk.jsx        AppContext + albero componenti React (~7313 righe, era 8325)
+│   ├── taskConstants.js     PRIORITIES/STATUSES/STATUS_*/NOTICE_COLORS/TASK_TEMPLATES (Phase 2a)
+│   ├── taskUtils.js         formatDate/formatTime/isUrgent/isMyTask/... (Phase 2a)
+│   └── xlsx.js              loadXLSX() lazy loader (Phase 2f)
+├── state/                   (Phase 2b–2d)
+│   ├── mockData.js          INITIAL_TEAM/CATEGORIES/TASKS/NOTICES + MOCK_NOTIFICATIONS
+│   ├── appGlobals.js        TEAM/CATEGORIES/CURRENT_USER live bindings + setter + permessi
+│   └── reducer.js           baseReducer / reducer / makeInitialState / LOGGED_ACTIONS / ADMIN_ONLY
+├── components/              (Phase 2e + 2f — ESTRAZIONE COMPLETA)
+│   ├── Viewport.jsx         ViewportContext / useViewport / ViewportProvider
+│   ├── SwipeActions.jsx     swipe mobile wrapper
+│   ├── ui/
+│   │   ├── Avatar.jsx
+│   │   ├── PriorityBadge.jsx
+│   │   ├── CategoryChip.jsx
+│   │   ├── StatusBadge.jsx
+│   │   └── Toast.jsx
+│   ├── modals/
+│   │   ├── ProfileEditor.jsx
+│   │   ├── BulkTaskCreator.jsx (contiene 5 tab locali)
+│   │   ├── AIDayPlanner.jsx
+│   │   ├── NoticeEditorModal.jsx
+│   │   ├── QuickAddTask.jsx
+│   │   ├── AddTeamMemberModal.jsx
+│   │   └── AddCategoryModal.jsx
+│   ├── dashboard/
+│   │   ├── Dashboard.jsx (esporta Dashboard; contiene 4 Queue + QueueTab locali)
+│   │   └── NoticeBoard.jsx
+│   ├── calendar/
+│   │   └── CalendarPlanner.jsx (contiene helper iCal locali)
+│   ├── chat/
+│   │   └── ChatPanel.jsx (~1250 righe; 9 sub-componenti + helper locali)
+│   ├── tasks/
+│   │   └── TaskSlideOver.jsx
+│   ├── admin/
+│   │   ├── AdminView.jsx (contiene 5 tab locali)
+│   │   └── adminStyles.js (13 costanti stile consolidate)
+│   ├── views/
+│   │   ├── Team.jsx
+│   │   └── Trash.jsx
+│   └── shell/
+│       ├── Topbar.jsx (contiene AdvancedSearchPanel, UserSwitcher, NotificationsPanel locali)
+│       ├── Sidebar.jsx (contiene NAV_ITEMS, BottomNav, NavBadge locali)
+│       └── FAB.jsx
+├── VoyageDesk.jsx           Shell di orchestrazione (~903 righe, era 8325)
 └── main.jsx
 ```
 
-Vedi `docs/HANDOFF_SESSION_2026-06-14_v11.md` per la catena di import dettagliata e gli insight chiave (live bindings, setter, CURRENT_USER doppio canale).
+Vedi `docs/HANDOFF_SESSION_2026-06-14_v12.md` per la catena di import dettagliata e gli insight chiave (live bindings, setter, CURRENT_USER doppio canale).

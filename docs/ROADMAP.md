@@ -152,7 +152,7 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 
 Obiettivo: portare `src/VoyageDesk.jsx` da ~8300 righe a uno **shell sottile** che importa moduli, eliminando il pattern di stato mutabile globale via `_sync*`.
 
-### Stato corrente (tutte le PH 1→2e MERGEATE in `main`)
+### Stato corrente (tutte le PH 1→2f MERGEATE in `main`)
 
 | Phase | Stato | PR | Output | Δ monolite |
 |-------|-------|----|--------|-----------|
@@ -162,14 +162,16 @@ Obiettivo: portare `src/VoyageDesk.jsx` da ~8300 righe a uno **shell sottile** c
 | **2c** — Globali + permessi | ✅ | #35 | `state/appGlobals.js` (live bindings + setter) | −70 |
 | **2d** — Reducer | ✅ | #36 | `state/reducer.js` | −370 |
 | **2e** — Componenti (avvio) | ✅ | #38 | `components/Viewport.jsx`, `SwipeActions.jsx`, `ui/` (Avatar/Badge/Chip/Toast) | −355 |
-| 2f → … — Componenti (cluster grandi) | ⬜ | — | `components/` (modals/dashboard/calendar/chat/tasks/admin/views/shell) | stimato −6000 |
-| 2g (opz) — `React.lazy` modali | ⬜ | — | code-splitting AdminView/Bulk/AIDayPlanner/TaskSlideOver | bundle gz −20-30% |
+| **2f** — Componenti (8 cluster grandi) | ✅ | #39–#47 | `components/` (modals/dashboard/calendar/chat/tasks/admin/views/shell) + `lib/xlsx.js` | −6410 |
+| 2g — `React.lazy` code-splitting | ⬜ | — | Lazy-load AdminView/Bulk/AIDayPlanner/TaskSlideOver | bundle gz −100 kB |
 
-**Cumulativo dopo Phase 2e:** 8325 → **7313 righe** (−1012, ~−12%).
+**Cumulativo Phase 2f:** 8325 → **903 righe** (−7422, −88%).
 
-### Prossima sessione
+### Next: Phase 2g (code-splitting)
 
-Continua Phase 2f: estrarre i componenti per gruppi logici (atoms residui → modali → dashboard/code → calendar → chat → tasks → admin → trash/team → shell), **una PR per gruppo**, mantenendo VoyageDesk.jsx come shell. Vedi `docs/HANDOFF_SESSION_2026-06-14_v11.md` §6.
+Prossima sessione: aggiungere `React.lazy` su 4 componenti pesanti (AdminView, BulkTaskCreator, AIDayPlanner, TaskSlideOver) per ridurre chunk principale da 268.6 kB a ~168 kB gz. Una singola PR, build verde, Vercel Ready, squash merge.
+
+Vedi `docs/HANDOFF_SESSION_2026-06-14_v12.md` §6 per dettagli.
 
 ---
 

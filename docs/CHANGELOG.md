@@ -1,6 +1,52 @@
 # CHANGELOG — VoyageDesk
 
 
+## v1.9-dev — Step P: component extraction clusters (Phase 2f) (sessione 17)
+
+> Cumulativo sopra v1.8-dev. Tutte le PR della Phase 2f sono **mergeate in `main`** (squash): #39 → #40 → #41 → #42 → #43 → #44 → #45 → #47.
+
+Proseguimento dell'estrazione dall'albero componenti del monolite `src/VoyageDesk.jsx` in **8 cluster logici**, ciascuno con propria PR (draft), build verde, preview Vercel. Risultato cumulativo di Phase 2e + 2f: **7313 → 903 righe** (−6410, −88%); creazione della struttura modulare `src/components/` con 9 sottodirectory e 20 file estratti. **VoyageDesk.jsx è ora uno shell di orchestrazione**, importa e monta i componenti estratti. Nessuna modifica di comportamento (bundle `index` invariato ~268.6 kB / 64.1 kB gz).
+
+### 🎁 Phase 2f — Estrazione 8 cluster componenti (PR #39–#47, 8 sessioni di estrazione)
+
+| # | Cluster | Cartella target | File | Δ monolite |
+|---|---------|-----------------|------|-----------|
+| 1 | Modali | `src/components/modals/` | ProfileEditor, BulkTaskCreator, AIDayPlanner, NoticeEditorModal, QuickAddTask, AddTeamMemberModal, AddCategoryModal (7 file) | −1200 |
+| 2 | Dashboard | `src/components/dashboard/` | Dashboard, NoticeBoard (2 file) | −1100 |
+| 3 | Calendario | `src/components/calendar/` | CalendarPlanner (1 file, ~1250 righe) | −1250 |
+| 4 | Chat | `src/components/chat/` | ChatPanel (1 file, ~1250 righe, 9 sub-componenti + helper) | −1250 |
+| 5 | Task | `src/components/tasks/` | TaskSlideOver (1 file) | −200 |
+| 6 | Admin | `src/components/admin/` | AdminView, adminStyles.js (2 file, stile consolidato) | −900 |
+| 7 | Viste | `src/components/views/` | Team, Trash (2 file) | −500 |
+| 8 | Shell | `src/components/shell/` | Topbar, Sidebar (+BottomNav locale), FAB (3 file) | −610 |
+
+**Cumulativo Phase 2f:** −6410 righe dal monolite.
+
+### Dettagli estrazione
+
+- **Verbatim copy + import resolution**: ogni componente copiato integralmente da VoyageDesk.jsx, senza refactoring durante l'estrazione. Aggiunti import per dipendenze (`appGlobals`, `taskConstants`, `dispatch`, ecc.). Nessun cambio di comportamento — validazione Babel per ogni commit.
+- **Helper co-locati**: i 9 sub-componenti di `ChatPanel` (ReactionPicker, VoicePlayer, MessageTextContent, ChatMessage, VoiceRecorder, ConversationView, ConversationList, NewConversationView), le 5 tab di `AdminView` (AdminTeamTab, AdminIOTab, AdminStatsTab, AdminCategoriesTab, AdminLogTab), le 4 tab di `BulkTaskCreator`, e i calcolatori iCal di `CalendarPlanner` rimangono come dichiarazioni module-local (non esportate). Clustering a livello logico.
+- **CRLF preservation**: il monolite ha line endings CRLF. Ogni commit verificato con `git diff --numstat src/VoyageDesk.jsx` per garantire solo CRLF (0 valori anomali nelle colonne aggiunte/rimozioni oltre la colonna righe).
+- **Build verification**: ogni commit con `npm run build` verifica che chunk `index` rimane ~268.6 kB (invarianza = refactor puro, nessun cambio comportamento).
+- **Live binding intatta**: `export let TEAM`/`CATEGORIES`/`CURRENT_USER` in `appGlobals.js` e i setter rimangono il canale centrale. Nessun refactor a Context puro in questo step.
+- **Stile admin consolidato**: nuovo `src/components/admin/adminStyles.js` raccoglie 13 variabili di stile (sectionH, cardStyle, labelStyle, fieldStyle, btnPrimary, btnGold, btnGhost, btnDanger, btnWarning, modalOverlay, modalCard, etc.) che erano duplicate in `AddTeamMemberModal` e `AddCategoryModal`. Entrambe ora importano e usano le stesse costanti.
+
+### Bonus — `src/lib/xlsx.js` estrazione
+
+Estratta la **lazy loader per SheetJS** (`loadXLSX()`) in modulo dedicato, usato da `ImportTab` (BulkTaskCreator) e `AdminIOTab` (AdminView). Rimane un `let _xlsxPromise = null` che cachea la promise di import on-demand.
+
+### Stato post-Phase 2f
+
+- `src/VoyageDesk.jsx`: **903 righe**. Contiene solo FontLoader (stili), AppContext, helper `t()` e `initialConversations/initialMessages` (mock chat), esportazione root `VoyageDesk` + orchestratore `VoyageDeskInner`. Delimitatori sezione (commenti `// ─── `) rimasti come breadcrumb rimando.
+- `src/components/`: 9 directory (`ui/`, `modals/`, `dashboard/`, `calendar/`, `chat/`, `tasks/`, `admin/`, `views/`, `shell/`) + 20 file per cluster. Struttura logica, facile localizzare dove è ciascun componente.
+- **Bundle:** chunk `index` invariato ~268.6 kB / 64.1 kB gz (refactor puro, zero cambio comportamento).
+- **Tutti i test**: build verde, Vercel preview Ready per ogni PR, no CI failures.
+
+### Caveat #15 — stato dopo Step P (Phase 1 → 2f)
+✅ **COMPLETA**: `src/VoyageDesk.jsx` a **903 righe** (era 8325 in inizio Step P). Tutta la logica non-React e l'intero tree componenti sono fuori dal monolite. VoyageDesk.jsx è ora un file di orchestrazione puro.
+
+---
+
 ## v1.8-dev — Step P: refactor monolite (Phase 1 → 2e) (sessione 16)
 
 > Cumulativo sopra v1.7-dev. Tutte le PR della catena Step P sono **mergeate in `main`** (squash): #32 → #33 → #34 → #35 → #36 → #38.

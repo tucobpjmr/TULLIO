@@ -111,11 +111,14 @@ export const CalendarPlanner = ({ state, dispatch }) => {
   const getTasksForDay = (day) =>
     state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && new Date(t.dueDate).toDateString() === day.toDateString());
 
-  // ── Distribuzione agenti (settimana corrente in vista week, settimana del mese selezionato in vista month) ──
-  const agentWeekDays = viewMode === "week" ? weekDays : (() => {
-    // In vista mese, usiamo la settimana corrente
-    return getWeekDays(0);
-  })();
+  // ── Distribuzione agenti ──
+  // Caveat #8: nelle viste settimanali (week / week-full) le frecce ←/→ guidano
+  // weekOffset, quindi la distribuzione deve seguire la settimana navigata
+  // (weekDays è già offset-aware). Solo in vista mese/giorno, dove weekOffset
+  // non è navigabile, mostriamo la settimana corrente.
+  const agentWeekDays = (viewMode === "week" || viewMode === "week-full")
+    ? weekDays
+    : getWeekDays(0);
 
   // ── Toggle style ──
   const toggleBtn = (mode, label) => (

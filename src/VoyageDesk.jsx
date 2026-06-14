@@ -1,5 +1,5 @@
 
-import { useState, useReducer, useContext, createContext, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useReducer, useContext, createContext, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
 // xlsx (SheetJS, ~430KB) è caricato on-demand via import() dinamico solo
 // quando l'utente importa o esporta un file (vedi loadXLSX). Tenerlo fuori
 // dal bundle iniziale è il singolo guadagno più grande sul chunk principale.
@@ -52,7 +52,11 @@ import { CategoryChip } from "./components/ui/CategoryChip.jsx";
 import { StatusBadge } from "./components/ui/StatusBadge.jsx";
 import { Toast } from "./components/ui/Toast.jsx";
 // Step P Phase 2f: modali estratti in src/components/modals/.
-import { BulkTaskCreator } from "./components/modals/BulkTaskCreator.jsx";
+// Step P Phase 2g: BulkTaskCreator è pesante (~600 righe, 5 tab) e si apre solo
+// on-demand → lazy-loaded come chunk async per alleggerire il bundle iniziale.
+const BulkTaskCreator = lazy(() =>
+  import("./components/modals/BulkTaskCreator.jsx").then(m => ({ default: m.BulkTaskCreator }))
+);
 // AIDayPlanner e NoticeEditorModal sono ora consumati direttamente dai
 // componenti dashboard (Dashboard.jsx / NoticeBoard.jsx), non più da qui.
 import { QuickAddTask } from "./components/modals/QuickAddTask.jsx";
@@ -67,7 +71,11 @@ import { CalendarPlanner } from "./components/calendar/CalendarPlanner.jsx";
 import { ChatPanel, getUnreadCount } from "./components/chat/ChatPanel.jsx";
 
 // Step P Phase 2f: tasks estratto in src/components/tasks/.
-import { TaskSlideOver } from "./components/tasks/TaskSlideOver.jsx";
+// Step P Phase 2g: TaskSlideOver appare solo quando si seleziona un task →
+// lazy-loaded come chunk async.
+const TaskSlideOver = lazy(() =>
+  import("./components/tasks/TaskSlideOver.jsx").then(m => ({ default: m.TaskSlideOver }))
+);
 
 // Step P Phase 2f: views estratte in src/components/views/.
 import { Team } from "./components/views/Team.jsx";
@@ -80,7 +88,11 @@ import { BottomNav } from "./components/shell/Sidebar.jsx";
 import { FAB } from "./components/shell/FAB.jsx";
 
 // Step P Phase 2f: admin estratto in src/components/admin/.
-import { AdminView } from "./components/admin/AdminView.jsx";
+// Step P Phase 2g: AdminView è la vista più pesante (~900 righe, 5 tab, import
+// xlsx) e visibile solo agli admin → lazy-loaded come chunk async.
+const AdminView = lazy(() =>
+  import("./components/admin/AdminView.jsx").then(m => ({ default: m.AdminView }))
+);
 
 // ─── XLSX LAZY LOADER ──────────────────────────────────────────────────────
 // loadXLSX → src/lib/xlsx.js (Step P Phase 2f)
@@ -294,6 +306,36 @@ const initialMessages = {
 // AdminView + tab (Team/IO/Stats/Categories/Log) → src/components/admin/AdminView.jsx (Step P Phase 2f)
 
 // stili admin condivisi (sectionH/cardStyle/btnPrimary/modalOverlay/...) → src/components/admin/adminStyles.js (Step P Phase 2f)
+
+// ─── LAZY FALLBACK ─────────────────────────────────────────────────────────
+// Spinner mostrato mentre un chunk lazy (Step P Phase 2g: AdminView,
+// BulkTaskCreator, TaskSlideOver) viene scaricato. `overlay` lo centra a tutto
+// schermo per i modali; altrimenti riempie l'area della vista.
+const LazyFallback = ({ overlay = false }) => {
+  const ring = (size, track, top) => (
+    <div style={{
+      width: size, height: size,
+      border: `3px solid ${track}`, borderTopColor: top,
+      borderRadius: "50%", animation: "spin 0.8s linear infinite",
+    }} />
+  );
+  if (overlay) {
+    return (
+      <div style={{
+        position: "fixed", inset: 0, zIndex: 500,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: "rgba(8,21,45,0.35)",
+      }}>
+        {ring(40, "rgba(255,255,255,0.3)", "var(--gold)")}
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 48 }}>
+      {ring(34, "var(--surface3)", "var(--gold)")}
+    </div>
+  );
+};
 
 // ─── ROOT APP ──────────────────────────────────────────────────────────────
 export default function VoyageDesk({ initialTeam, initialCurrentUserId } = {}) {
@@ -852,15 +894,23 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
           <Sidebar state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} />
           <main className="vd-main-scroll" style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
-            {renderView()}
+            {/* Suspense per la vista attiva: solo AdminView è lazy (Phase 2g),
+                le altre viste risolvono sincronicamente. */}
+            <Suspense fallback={<LazyFallback />}>
+              {renderView()}
+            </Suspense>
           </main>
         </div>
 
         {/* Bottom nav mobile/tablet */}
         <BottomNav state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} />
 
-        {/* Slide-over */}
-        {state.selectedTask && <TaskSlideOver task={state.selectedTask} dispatch={dispatch} />}
+        {/* Slide-over (lazy, Phase 2g) */}
+        {state.selectedTask && (
+          <Suspense fallback={<LazyFallback overlay />}>
+            <TaskSlideOver task={state.selectedTask} dispatch={dispatch} />
+          </Suspense>
+        )}
 
         {/* Chat Panel */}
         <ChatPanel
@@ -885,13 +935,15 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         )}
         {showFABModal && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} />}
 
-        {/* Bulk Task Creator */}
+        {/* Bulk Task Creator (lazy, Phase 2g) */}
         {showBulkModal && (
-          <BulkTaskCreator
-            existingTasks={getActiveTasks(state.tasks)}
-            onCreate={(tasks) => dispatch({ type: "ADD_TASKS_BULK", payload: tasks })}
-            onClose={() => setShowBulkModal(false)}
-          />
+          <Suspense fallback={<LazyFallback overlay />}>
+            <BulkTaskCreator
+              existingTasks={getActiveTasks(state.tasks)}
+              onCreate={(tasks) => dispatch({ type: "ADD_TASKS_BULK", payload: tasks })}
+              onClose={() => setShowBulkModal(false)}
+            />
+          </Suspense>
         )}
 
         {/* Toast */}

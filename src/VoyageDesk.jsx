@@ -41,6 +41,8 @@ import {
 } from "./state/appGlobals.js";
 // Step P Phase 2d: reducer e factory dell'initial state estratti.
 import { reducer, makeInitialState } from "./state/reducer.js";
+// Caveat #10: hook che astrae idratazione + subscribe realtime debounced.
+import { useDebouncedTableSubscription } from "./hooks/useDebouncedTableSubscription.js";
 // Step P Phase 2e: foundation + UI primitives estratti in src/components/.
 import { useViewport, ViewportProvider } from "./components/Viewport.jsx";
 // Step P Phase 2f: loader xlsx condiviso estratto in lib/xlsx.js.
@@ -363,67 +365,29 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // Idratazione tasks + notices dal DB al primo mount in modalità Supabase,
   // più subscription realtime: ad ogni evento postgres ricarico la lista
   // intera (debounced) — semplice e robusto al duplicate dell'eco locale.
-  useEffect(() => {
-    if (!useSupabase) return;
-    let cancelled = false;
-    // Generation counter: scarta risposte stale quando un evento realtime
-    // ri-triggera reload mentre uno è ancora in volo (caveat #21, finding #2).
-    let tasksGen = 0;
-    let noticesGen = 0;
+  // Caveat #10: il pattern reload+debounce+gen-counter vive in
+  // useDebouncedTableSubscription; le tasks ascoltano anche i comments.
+  useDebouncedTableSubscription(["tasks", "comments"], async (isCurrent) => {
+    const { data, error } = await TasksAPI.list({ withComments: true });
+    if (!isCurrent()) return;
+    if (error) {
+      console.error("[VoyageDesk] Tasks.list", error);
+      rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Caricamento task fallito: ${error.message || ""}` } });
+      return;
+    }
+    rawDispatch({ type: "SET_TASKS", payload: (data || []).map(fromDbTask) });
+  }, { enabled: useSupabase, deps: [useSupabase] });
 
-    const reloadTasks = () => {
-      const my = ++tasksGen;
-      TasksAPI.list({ withComments: true }).then(({ data, error }) => {
-        if (cancelled || my !== tasksGen) return;
-        if (error) {
-          console.error("[VoyageDesk] Tasks.list", error);
-          rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Caricamento task fallito: ${error.message || ""}` } });
-          return;
-        }
-        rawDispatch({ type: "SET_TASKS", payload: (data || []).map(fromDbTask) });
-      });
-    };
-    const reloadNotices = () => {
-      const my = ++noticesGen;
-      NoticesAPI.list().then(({ data, error }) => {
-        if (cancelled || my !== noticesGen) return;
-        if (error) {
-          console.error("[VoyageDesk] Notices.list", error);
-          rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Caricamento avvisi fallito: ${error.message || ""}` } });
-          return;
-        }
-        rawDispatch({ type: "SET_NOTICES", payload: (data || []).map(fromDbNotice) });
-      });
-    };
-
-    reloadTasks();
-    reloadNotices();
-
-    // Debounce: gli eventi arrivano a raffica durante inserimenti bulk.
-    let tasksTimer = null;
-    let noticesTimer = null;
-    const debouncedTasks = () => {
-      clearTimeout(tasksTimer);
-      tasksTimer = setTimeout(reloadTasks, 200);
-    };
-    const debouncedNotices = () => {
-      clearTimeout(noticesTimer);
-      noticesTimer = setTimeout(reloadNotices, 200);
-    };
-
-    const unsubTasks = subscribeToTable("tasks", debouncedTasks);
-    const unsubComments = subscribeToTable("comments", debouncedTasks);
-    const unsubNotices = subscribeToTable("notices", debouncedNotices);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(tasksTimer);
-      clearTimeout(noticesTimer);
-      unsubTasks?.();
-      unsubComments?.();
-      unsubNotices?.();
-    };
-  }, [useSupabase]);
+  useDebouncedTableSubscription(["notices"], async (isCurrent) => {
+    const { data, error } = await NoticesAPI.list();
+    if (!isCurrent()) return;
+    if (error) {
+      console.error("[VoyageDesk] Notices.list", error);
+      rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Caricamento avvisi fallito: ${error.message || ""}` } });
+      return;
+    }
+    rawDispatch({ type: "SET_NOTICES", payload: (data || []).map(fromDbNotice) });
+  }, { enabled: useSupabase, deps: [useSupabase] });
 
   // Loading state chat: true finché non completa il primo reload da Supabase.
   // Evita il flash "nessun messaggio" mentre l'idratazione è in volo.
@@ -432,28 +396,16 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // Notifiche reali (Step F): in modalità Supabase idratiamo + realtime.
   // Senza login restiamo sui mock NOTIFICATIONS.
   const [notifications, setNotifications] = useState([]);
-  useEffect(() => {
-    if (!useSupabase) return;
-    let cancelled = false;
-    let loadGen = 0;
-    const reload = () => {
-      const my = ++loadGen;
-      NotificationsAPI.list({ limit: 100 }).then(({ data, error }) => {
-        if (cancelled || my !== loadGen) return;
-        if (error) {
-          console.error("[notifications] list", error);
-          rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Notifiche: caricamento fallito: ${error.message || ""}` } });
-          return;
-        }
-        setNotifications((data || []).map(fromDbNotification));
-      });
-    };
-    reload();
-    let timer = null;
-    const debounced = () => { clearTimeout(timer); timer = setTimeout(reload, 200); };
-    const unsub = subscribeToTable("notifications", debounced);
-    return () => { cancelled = true; clearTimeout(timer); unsub?.(); };
-  }, [useSupabase]);
+  useDebouncedTableSubscription(["notifications"], async (isCurrent) => {
+    const { data, error } = await NotificationsAPI.list({ limit: 100 });
+    if (!isCurrent()) return;
+    if (error) {
+      console.error("[notifications] list", error);
+      rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Notifiche: caricamento fallito: ${error.message || ""}` } });
+      return;
+    }
+    setNotifications((data || []).map(fromDbNotification));
+  }, { enabled: useSupabase, deps: [useSupabase] });
 
   const markNotificationRead = useCallback((id) => {
     if (!useSupabase) return;
@@ -664,58 +616,32 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   }, [useSupabase, initialCurrentUserId, initialTeam]);
 
   // Idratazione chat (conversations + messages) + realtime.
-  useEffect(() => {
-    if (!useSupabase) { setChatLoading(false); return; }
-    let cancelled = false;
-    // Generation counter: durante il primo reload può arrivare un evento
-    // realtime che fa partire un secondo reload. Senza guardia, l'ordine di
-    // completamento delle due fetch non è garantito → un load più vecchio
-    // sovrascrive uno più nuovo (caveat #21, finding #2).
-    let loadGen = 0;
-
-    const reload = async () => {
-      const my = ++loadGen;
-      const [convsRes, msgsRes] = await Promise.all([
-        ConversationsAPI.listMine(),
-        MessagesAPI.listAll(),
-      ]);
-      if (cancelled || my !== loadGen) return;
-      if (convsRes.error) {
-        console.error("[chat] convs.list", convsRes.error);
-        rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Chat: caricamento conversazioni fallito: ${convsRes.error.message || ""}` } });
-      }
-      if (msgsRes.error) {
-        console.error("[chat] msgs.list", msgsRes.error);
-        rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Chat: caricamento messaggi fallito: ${msgsRes.error.message || ""}` } });
-      }
-      const convs = (convsRes.data || []).map(fromDbConversation);
-      const msgsByConv = {};
-      for (const r of msgsRes.data || []) {
-        const m = fromDbMessage(r);
-        (msgsByConv[m.conversation_id] ||= []).push(m);
-      }
-      setConversationsRaw(convs);
-      setMessagesRaw(msgsByConv);
-      setChatLoading(false);
-    };
-
-    reload();
-
-    let timer = null;
-    const debouncedReload = () => {
-      clearTimeout(timer);
-      timer = setTimeout(reload, 200);
-    };
-    const unsubConvs = subscribeToTable("conversations", debouncedReload);
-    const unsubMsgs = subscribeToTable("messages", debouncedReload);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-      unsubConvs?.();
-      unsubMsgs?.();
-    };
-  }, [useSupabase]);
+  // chatLoading parte da `useSupabase`: senza login è già false, quindi non
+  // serve azzerarlo qui (l'hook non gira affatto quando enabled=false).
+  useDebouncedTableSubscription(["conversations", "messages"], async (isCurrent) => {
+    const [convsRes, msgsRes] = await Promise.all([
+      ConversationsAPI.listMine(),
+      MessagesAPI.listAll(),
+    ]);
+    if (!isCurrent()) return;
+    if (convsRes.error) {
+      console.error("[chat] convs.list", convsRes.error);
+      rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Chat: caricamento conversazioni fallito: ${convsRes.error.message || ""}` } });
+    }
+    if (msgsRes.error) {
+      console.error("[chat] msgs.list", msgsRes.error);
+      rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Chat: caricamento messaggi fallito: ${msgsRes.error.message || ""}` } });
+    }
+    const convs = (convsRes.data || []).map(fromDbConversation);
+    const msgsByConv = {};
+    for (const r of msgsRes.data || []) {
+      const m = fromDbMessage(r);
+      (msgsByConv[m.conversation_id] ||= []).push(m);
+    }
+    setConversationsRaw(convs);
+    setMessagesRaw(msgsByConv);
+    setChatLoading(false);
+  }, { enabled: useSupabase, deps: [useSupabase] });
 
   const [showFABModal, setShowFABModal] = useState(false);
   const [showChat, setShowChat] = useState(false);

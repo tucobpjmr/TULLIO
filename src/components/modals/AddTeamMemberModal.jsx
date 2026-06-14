@@ -1,17 +1,10 @@
 // ─── ADD TEAM MEMBER MODAL ───────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
-// NB: gli stili modalOverlay/modalCard/labelStyle/fieldStyle/btnGhost/btnPrimary
-// nel monolite sono const condivise tra molti componenti Admin; restano definite
-// in VoyageDesk.jsx. Qui sono ricopiate verbatim come const module-local perché
-// non esiste (ancora) un modulo di stili condivisi da importare.
+// Stili condivisi importati da admin/adminStyles.js (consolidati in Phase 2f).
 import { useState } from "react";
-
-const labelStyle = { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, display: "block", marginBottom: 4 };
-const fieldStyle = { width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid var(--border)", fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box", background: "#fff", color: "var(--text)" };
-const btnPrimary = { padding: "8px 14px", borderRadius: 6, border: "1px solid var(--navy)", background: "var(--navy)", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" };
-const btnGhost = { padding: "8px 12px", borderRadius: 6, border: "1px solid var(--border)", background: "#fff", color: "var(--text)", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" };
-const modalOverlay = { position: "fixed", inset: 0, background: "rgba(15,32,68,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 600, padding: 16 };
-const modalCard = { background: "#fff", borderRadius: 12, padding: 24, width: "90%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" };
+import {
+  modalOverlay, modalCard, labelStyle, fieldStyle, btnPrimary, btnGhost,
+} from "../admin/adminStyles.js";
 
 export const AddTeamMemberModal = ({ onClose, dispatch, existingIds }) => {
   const [name, setName] = useState("");

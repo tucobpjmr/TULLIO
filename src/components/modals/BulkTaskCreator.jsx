@@ -289,8 +289,12 @@ const ImportTab = ({ onCreate, onClose }) => {
     reader.onload = async (evt) => {
       try {
         const XLSX = await loadXLSX();
-        const data = evt.target.result;
-        const wb = XLSX.read(data, { type: "binary", cellDates: true });
+        // Caveat #18: leggiamo come ArrayBuffer + type "array" (non più binary
+        // string). Così SheetJS decodifica correttamente l'UTF-8 dei CSV (e
+        // rimuove il BOM iniziale), evitando il mojibake sui caratteri accentati
+        // (es. "città", "è"). Funziona anche per .xlsx/.xls.
+        const data = new Uint8Array(evt.target.result);
+        const wb = XLSX.read(data, { type: "array", cellDates: true });
         const sheet = wb.Sheets[wb.SheetNames[0]];
         const json = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false });
         if (!json.length) { setError("Il file è vuoto o non contiene righe leggibili."); return; }
@@ -312,7 +316,7 @@ const ImportTab = ({ onCreate, onClose }) => {
         setError("Impossibile leggere il file: " + err.message);
       }
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   };
 
   const normCat = (v) => {

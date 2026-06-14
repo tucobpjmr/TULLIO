@@ -26,7 +26,12 @@ function icsEscape(s) {
     .replace(/,/g, "\\,")
     .replace(/;/g, "\\;");
 }
-function buildIcs(tasks) {
+function icsDateOnly(d) {
+  // YYYYMMDD (data pura, eventi all-day) in UTC
+  const u = new Date(d);
+  return u.getUTCFullYear() + pad2(u.getUTCMonth() + 1) + pad2(u.getUTCDate());
+}
+function buildIcs(tasks, dossierEvents) {
   const now = icsDate(new Date());
   const lines = [
     "BEGIN:VCALENDAR",
@@ -52,13 +57,41 @@ function buildIcs(tasks) {
       "END:VEVENT"
     );
   }
+  // Fase 2 — partenze/rientri pratiche come eventi all-day.
+  for (const ev of (dossierEvents || [])) {
+    const day = icsDateOnly(ev.date);
+    const lbl = ev.kind === "departure" ? "Partenza" : "Rientro";
+    const ref = ev.dossier.number ? `${ev.dossier.number} · ` : "";
+    lines.push(
+      "BEGIN:VEVENT",
+      `UID:${ev.dossier.id}-${ev.kind}@voyagedesk`,
+      `DTSTAMP:${now}`,
+      `DTSTART;VALUE=DATE:${day}`,
+      `DTEND;VALUE=DATE:${day}`,
+      `SUMMARY:${icsEscape(`${ev.kind === "departure" ? "✈️" : "🛬"} ${lbl}: ${ref}${ev.dossier.title || "Pratica"}`)}`,
+      `DESCRIPTION:${icsEscape(ev.dossier.destination ? "Destinazione: " + ev.dossier.destination : "")}`,
+      "CATEGORIES:pratica",
+      "END:VEVENT"
+    );
+  }
   lines.push("END:VCALENDAR");
   return lines.join("\r\n");
 }
-function exportTasksToIcs(allTasks, uid) {
+// Estrae tutti gli eventi-pratica (partenza/rientro) dalle pratiche non annullate.
+function collectDossierEvents(dossiers) {
+  const out = [];
+  for (const d of (dossiers || [])) {
+    if (d.status === "annullata") continue;
+    if (d.departureDate) out.push({ dossier: d, kind: "departure", date: d.departureDate });
+    if (d.returnDate) out.push({ dossier: d, kind: "return", date: d.returnDate });
+  }
+  return out;
+}
+function exportTasksToIcs(allTasks, uid, dossiers) {
   const tasks = (allTasks || []).filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate);
-  if (tasks.length === 0) return;
-  const ics = buildIcs(tasks);
+  const dossierEvents = collectDossierEvents(dossiers);
+  if (tasks.length === 0 && dossierEvents.length === 0) return;
+  const ics = buildIcs(tasks, dossierEvents);
   const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -71,7 +104,13 @@ function exportTasksToIcs(allTasks, uid) {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-export const CalendarPlanner = ({ state, dispatch }) => {
+// Stile eventi-pratica (distinti dai task, colorati per categoria).
+const DOSSIER_EVENT_STYLE = {
+  departure: { icon: "✈️", label: "Partenza", color: "var(--navy)" },
+  return: { icon: "🛬", label: "Rientro", color: "var(--gold-dark)" },
+};
+
+export const CalendarPlanner = ({ state, dispatch, dossiers }) => {
   const { isMobile } = useViewport();
   const [viewMode, setViewMode] = useState("month"); // "month" | "week" | "week-full" | "day"
   const [dayDate, setDayDate] = useState(new Date());
@@ -79,6 +118,43 @@ export const CalendarPlanner = ({ state, dispatch }) => {
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState(null);
   const uid = state.currentUserId;
+
+  // Fase 2 — eventi-pratica (partenze/rientri) mostrati nel calendario.
+  const dossierList = dossiers || state.dossiers || [];
+  const dossierEventsForDate = (date) => {
+    const ds = date.toDateString();
+    const out = [];
+    for (const d of dossierList) {
+      if (d.status === "annullata") continue;
+      if (d.departureDate && new Date(d.departureDate).toDateString() === ds) out.push({ dossier: d, kind: "departure" });
+      if (d.returnDate && new Date(d.returnDate).toDateString() === ds) out.push({ dossier: d, kind: "return" });
+    }
+    return out;
+  };
+  const openPratiche = () => dispatch({ type: "SET_VIEW", payload: "pratiche" });
+
+  // Pillola riutilizzabile per un evento-pratica.
+  const DossierEventPill = ({ ev, compact }) => {
+    const st = DOSSIER_EVENT_STYLE[ev.kind];
+    return (
+      <div
+        onClick={(e) => { e.stopPropagation(); openPratiche(); }}
+        title={`${st.label} · ${ev.dossier.number || ""} ${ev.dossier.title || ""}`.trim()}
+        style={{
+          display: "flex", alignItems: "center", gap: 4,
+          fontSize: compact ? 10 : 11, fontWeight: 600,
+          padding: compact ? "1px 5px" : "3px 7px", borderRadius: 4,
+          background: st.color, color: "#fff", cursor: "pointer",
+          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+        }}
+      >
+        <span>{st.icon}</span>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+          {ev.dossier.number || ev.dossier.title || "Pratica"}
+        </span>
+      </div>
+    );
+  };
 
   // ── Month helpers ──
   const year = currentMonth.getFullYear();
@@ -188,7 +264,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
               background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
               width: 34, height: 34, cursor: "pointer", fontSize: 14
             }}>→</button>
-            <button onClick={() => exportTasksToIcs(state.tasks, uid)} title="Esporta calendario in iCal (.ics)" style={{
+            <button onClick={() => exportTasksToIcs(state.tasks, uid, dossierList)} title="Esporta calendario in iCal (.ics) — task e partenze/rientri pratiche" style={{
               background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
               padding: "0 12px", height: 34, cursor: "pointer", fontSize: 12, fontWeight: 600,
               color: "var(--navy)",
@@ -214,11 +290,12 @@ export const CalendarPlanner = ({ state, dispatch }) => {
             {Array.from({ length: daysInMonth }, (_, i) => {
               const day = i + 1;
               const dayTasks = getTasksForCalDay(day);
+              const dayEvents = dossierEventsForDate(new Date(year, month, day));
               const isToday = today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
               return (
                 <div key={day} onClick={() => setSelectedDay(selectedDay === day ? null : day)} style={{
                   minHeight: isMobile ? 52 : 100, borderRight: "1px solid var(--border)", borderBottom: "1px solid var(--border)",
-                  padding: isMobile ? "5px 3px" : "8px 6px", cursor: dayTasks.length ? "pointer" : "default",
+                  padding: isMobile ? "5px 3px" : "8px 6px", cursor: (dayTasks.length || dayEvents.length) ? "pointer" : "default",
                   background: selectedDay === day ? "rgba(212,168,67,0.08)" : "#fff",
                   transition: "background 0.15s", display: "flex", flexDirection: "column", alignItems: isMobile ? "center" : "stretch",
                 }}>
@@ -229,8 +306,11 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                     color: isToday ? "#fff" : "var(--text)", marginBottom: 4
                   }}>{day}</div>
                   {isMobile ? (
-                    dayTasks.length > 0 && (
+                    (dayTasks.length > 0 || dayEvents.length > 0) && (
                       <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "center" }}>
+                        {dayEvents.slice(0, 4).map((ev, k) => (
+                          <span key={`d${k}`} style={{ width: 6, height: 6, borderRadius: "50%", background: DOSSIER_EVENT_STYLE[ev.kind].color, outline: "1px solid #fff" }} />
+                        ))}
                         {dayTasks.slice(0, 4).map(t => (
                           <span key={t.id} style={{ width: 6, height: 6, borderRadius: "50%", background: CATEGORIES[t.category]?.color || "var(--navy)" }} />
                         ))}
@@ -238,7 +318,10 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                     )
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                      {dayTasks.slice(0, 3).map(t => (
+                      {dayEvents.slice(0, 2).map((ev, k) => (
+                        <DossierEventPill key={`d${k}`} ev={ev} compact />
+                      ))}
+                      {dayTasks.slice(0, dayEvents.length ? 2 : 3).map(t => (
                         <div key={t.id} onClick={e => { e.stopPropagation(); dispatch({ type: "SET_SELECTED_TASK", payload: t }); }} style={{
                           fontSize: 10, fontWeight: 500, padding: "1px 5px", borderRadius: 3,
                           background: CATEGORIES[t.category]?.color + "20",
@@ -247,7 +330,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                           cursor: "pointer",
                         }}>{CATEGORIES[t.category]?.icon} {t.title}</div>
                       ))}
-                      {dayTasks.length > 3 && <div style={{ fontSize: 10, color: "var(--text-muted)", paddingLeft: 4 }}>+{dayTasks.length - 3} altri</div>}
+                      {dayTasks.length > (dayEvents.length ? 2 : 3) && <div style={{ fontSize: 10, color: "var(--text-muted)", paddingLeft: 4 }}>+{dayTasks.length - (dayEvents.length ? 2 : 3)} altri</div>}
                     </div>
                   )}
                 </div>
@@ -260,15 +343,40 @@ export const CalendarPlanner = ({ state, dispatch }) => {
       {/* ─── Day detail (month view) ─── */}
       {viewMode === "month" && selectedDay && (() => {
         const dayTasks = getTasksForCalDay(selectedDay);
-        if (!dayTasks.length) return null;
+        const dayEvents = dossierEventsForDate(new Date(year, month, selectedDay));
+        if (!dayTasks.length && !dayEvents.length) return null;
         return (
           <div className="slide-up" style={{
             background: "#fff", borderRadius: 12, padding: isMobile ? "14px 12px" : "18px 20px",
             boxShadow: "0 4px 20px rgba(0,0,0,0.1)", border: "1px solid var(--border)"
           }}>
             <div className="playfair" style={{ fontWeight: 600, fontSize: 16, marginBottom: 12 }}>
-              Task del {selectedDay} {monthName}
+              {selectedDay} {monthName}
             </div>
+            {dayEvents.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: dayTasks.length ? 14 : 0 }}>
+                {dayEvents.map((ev, k) => {
+                  const st = DOSSIER_EVENT_STYLE[ev.kind];
+                  return (
+                    <div key={`d${k}`} onClick={openPratiche} style={{
+                      display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
+                      borderRadius: 8, border: `1px solid ${st.color}`, cursor: "pointer",
+                      background: st.color + "0F",
+                    }}>
+                      <span style={{ fontSize: 18 }}>{st.icon}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: st.color }}>
+                          {st.label} · {ev.dossier.number || ""}
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {ev.dossier.title}{ev.dossier.destination ? ` — ${ev.dossier.destination}` : ""}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {dayTasks.map(t => {
                 const row = (
@@ -306,6 +414,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(7, 60vw)" : "repeat(7, 1fr)", gap: 10 }}>
             {weekDays.map((day, i) => {
               const dayTasks = getTasksForDay(day);
+              const dayEvents = dossierEventsForDate(day);
               const isToday = day.toDateString() === new Date().toDateString();
               return (
                 <div key={i} style={{
@@ -325,7 +434,17 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                     </div>
                   </div>
                   <div style={{ padding: "8px 6px", display: "flex", flexDirection: "column", gap: 4, minHeight: 160 }}>
-                    {dayTasks.length === 0 ? (
+                    {dayEvents.map((ev, k) => {
+                      const st = DOSSIER_EVENT_STYLE[ev.kind];
+                      return (
+                        <div key={`d${k}`} onClick={openPratiche} title={`${st.label} · ${ev.dossier.number || ""} ${ev.dossier.title || ""}`.trim()} style={{
+                          background: st.color, color: "#fff", borderRadius: 4, padding: "3px 6px",
+                          fontSize: 10, fontWeight: 600, cursor: "pointer",
+                          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                        }}>{st.icon} {ev.dossier.number || ev.dossier.title}</div>
+                      );
+                    })}
+                    {dayTasks.length === 0 && dayEvents.length === 0 ? (
                       <div style={{ fontSize: 10, color: isToday ? "rgba(255,255,255,0.4)" : "var(--text-muted)", textAlign: "center", marginTop: 20 }}>Nessun task</div>
                     ) : dayTasks.slice(0, 6).map(t => (
                       <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
@@ -358,6 +477,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
         const SLOT_H = 44; // px per ora
         const isToday = dayDate.toDateString() === new Date().toDateString();
         const nowMinutes = isToday ? new Date().getHours() * 60 + new Date().getMinutes() : null;
+        const dayEvents = dossierEventsForDate(dayDate);
         return (
           <div style={{
             background: "#fff", borderRadius: 14, border: "1px solid var(--border)",
@@ -371,6 +491,11 @@ export const CalendarPlanner = ({ state, dispatch }) => {
               <span>{dayTasks.length} task in agenda</span>
               {isToday && <span style={{ color: "var(--gold)" }}>● Oggi</span>}
             </div>
+            {dayEvents.length > 0 && (
+              <div style={{ padding: "8px 14px", display: "flex", flexWrap: "wrap", gap: 6, borderBottom: "1px solid var(--border)", background: "#fff" }}>
+                {dayEvents.map((ev, k) => <DossierEventPill key={`d${k}`} ev={ev} />)}
+              </div>
+            )}
             <div style={{ position: "relative", display: "flex", maxHeight: 640, overflowY: "auto" }}>
               {/* Colonna ore */}
               <div style={{ width: 56, flexShrink: 0, borderRight: "1px solid var(--border)" }}>
@@ -459,6 +584,29 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                 );
               })}
             </div>
+            {/* Riga all-day: partenze/rientri pratiche */}
+            {weekDays.some(d => dossierEventsForDate(d).length > 0) && (
+              <div style={{ display: "grid", gridTemplateColumns: `56px repeat(7, 1fr)`, borderBottom: "1px solid var(--border)", background: "var(--surface)" }}>
+                <div style={{ padding: "4px 6px", fontSize: 9, color: "var(--text-muted)", textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end" }}>tutto il giorno</div>
+                {weekDays.map((day, i) => {
+                  const evs = dossierEventsForDate(day);
+                  return (
+                    <div key={i} style={{ padding: "4px 3px", borderLeft: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 3, minHeight: 24 }}>
+                      {evs.map((ev, k) => {
+                        const st = DOSSIER_EVENT_STYLE[ev.kind];
+                        return (
+                          <div key={`d${k}`} onClick={openPratiche} title={`${st.label} · ${ev.dossier.number || ""} ${ev.dossier.title || ""}`.trim()} style={{
+                            background: st.color, color: "#fff", borderRadius: 3, padding: "1px 4px",
+                            fontSize: 9, fontWeight: 600, cursor: "pointer",
+                            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                          }}>{st.icon} {ev.dossier.number || ev.dossier.title}</div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {/* Griglia oraria scrollabile */}
             <div style={{ maxHeight: 560, overflowY: "auto" }}>
               <div style={{ display: "grid", gridTemplateColumns: `56px repeat(7, 1fr)`, position: "relative" }}>

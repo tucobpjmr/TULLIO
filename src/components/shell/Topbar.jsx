@@ -611,8 +611,20 @@ const NOTIF_ICONS = {
   comment: "💬",
   mention: "@",
   queue_stale: "⏳",
+  // Fase 2 — notifiche pratiche
+  dossier_status: "📁",
+  dossier_departure: "✈️",
   // Compat con mock
   overdue: "⚠️", assigned: "📋", deadline: "📅",
+};
+
+// Etichette leggibili per gli stati pratica (coerenti con PraticheView).
+const DOSSIER_STATUS_LABELS = {
+  bozza: "Bozza",
+  confermata: "Confermata",
+  in_corso: "In corso",
+  completata: "Completata",
+  annullata: "Annullata",
 };
 
 function notifTitle(n) {
@@ -634,6 +646,15 @@ function notifTitle(n) {
         return p.task_title
           ? `Task in coda da > 4h: ${p.task_title}`
           : `Task in coda da troppo tempo`;
+      case "dossier_status": {
+        const lbl = DOSSIER_STATUS_LABELS[p.new_status] || p.new_status || "—";
+        const ref = p.dossier_number || p.dossier_title || "Pratica";
+        return `${ref}: stato → ${lbl}`;
+      }
+      case "dossier_departure": {
+        const ref = p.dossier_number ? `${p.dossier_number} · ` : "";
+        return `Partenza imminente: ${ref}${p.dossier_title ?? "—"}`;
+      }
       default:
         return n.type || "Notifica";
     }
@@ -662,11 +683,15 @@ const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMar
   const { isMobile } = useViewport();
   const list = Array.isArray(notifications) ? notifications : MOCK_NOTIFICATIONS;
   const hasUnread = list.some(n => !n.read);
-  // Step J: la notifica è "navigabile" se ha un task_id nel payload
-  const isNavigable = (n) => isReal && n.payload && n.payload.task_id;
+  // Una notifica è "navigabile" se punta a un task (Step J) o a una pratica (Fase 2).
+  const isNavigable = (n) => isReal && n.payload && (n.payload.task_id || n.payload.dossier_id);
   const handleClick = (n) => {
     if (isNavigable(n)) {
-      onOpenTask?.(n.payload.task_id);
+      if (n.payload.task_id) {
+        onOpenTask?.(n.payload.task_id);
+      } else if (n.payload.dossier_id) {
+        dispatch({ type: "SET_VIEW", payload: "pratiche" });
+      }
       dispatch({ type: "TOGGLE_NOTIF" });
     }
     if (isReal && !n.read) onMarkRead?.(n.id);

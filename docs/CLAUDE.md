@@ -289,8 +289,8 @@ Tutti i componenti sono **moduli separati** in `src/components/`; helper e sub-c
 - [x] Filtro pratica in Ricerca avanzata (`AdvancedSearchPanel` in `Topbar`, PR #53) ✅
 
 ### Priorità 2 — Fase 2 Operatività
-- [ ] Notifiche reali estese alle pratiche (cambio status, scadenza partenza) — pattern trigger DB
-- [ ] Calendario avanzato con date partenza/ritorno pratiche
+- [x] Notifiche reali estese alle pratiche (cambio status, partenza imminente) — trigger DB `notify_dossier_status` + cron `notify_dossier_departure` (sessione 21)
+- [x] Calendario avanzato con date partenza/ritorno pratiche → `CalendarPlanner` mostra ✈️ partenze / 🛬 rientri in tutte le viste + iCal (sessione 21)
 - [ ] Estensioni chat (ricerca nelle conversazioni)
 
 ### Priorità 3 — Business (Fase 3)

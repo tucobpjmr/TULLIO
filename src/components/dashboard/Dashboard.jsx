@@ -1,6 +1,6 @@
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { SwipeActions } from "../SwipeActions.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
@@ -10,7 +10,11 @@ import { PRIORITIES } from "../../lib/taskConstants.js";
 import { formatDate, formatTime, isOverdue, isUrgent, isMyTask, isInGlobalQueue, getActiveTasks } from "../../lib/taskUtils.js";
 import { CATEGORIES, getMember, getRoleType, getAssignableTeam, canViewTask, getVisibleTasks } from "../../state/appGlobals.js";
 import { NoticeBoard } from "./NoticeBoard.jsx";
-import { AIDayPlanner } from "../modals/AIDayPlanner.jsx";
+// Step P Phase 2g: AIDayPlanner (~350 righe, chiama l'API Claude) si apre solo
+// on-demand → lazy-loaded come chunk async.
+const AIDayPlanner = lazy(() =>
+  import("../modals/AIDayPlanner.jsx").then(m => ({ default: m.AIDayPlanner }))
+);
 
 // ─── PERSONAL QUEUE (le mie task — v0.8) ───────────────────────────────────
 const PersonalQueue = ({ tasks, dispatch, me }) => {
@@ -714,7 +718,11 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
         </div>
       </div>
 
-      {showAIPlanner && <AIDayPlanner tasks={tasks} onClose={() => setShowAIPlanner(false)} />}
+      {showAIPlanner && (
+        <Suspense fallback={null}>
+          <AIDayPlanner tasks={tasks} onClose={() => setShowAIPlanner(false)} />
+        </Suspense>
+      )}
     </div>
   );
 };

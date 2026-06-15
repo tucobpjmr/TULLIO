@@ -76,7 +76,7 @@ function exportTasksToIcs(allTasks, uid) {
 const SKY = "#87CEEB";
 const SKY_DARK = "#5DA8C9";
 
-export const CalendarPlanner = ({ state, dispatch }) => {
+export const CalendarPlanner = ({ state, dispatch, onOpenDossier }) => {
   const { isMobile } = useViewport();
   const [viewMode, setViewMode] = useState("month"); // "month" | "week" | "week-full" | "day"
   const [dayDate, setDayDate] = useState(new Date());
@@ -122,7 +122,12 @@ export const CalendarPlanner = ({ state, dispatch }) => {
     }
     return events;
   };
-  const openDossiers = () => dispatch({ type: "SET_VIEW", payload: "pratiche" });
+  // openDossierById se passato dal parent (apre direttamente la pratica),
+  // altrimenti fallback alla view pratiche.
+  const openDossier = (d) => {
+    if (onOpenDossier && d?.id) onOpenDossier(d.id);
+    else dispatch({ type: "SET_VIEW", payload: "pratiche" });
+  };
 
   // ── Week helpers ──
   const getWeekDays = (offset) => {
@@ -275,7 +280,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                       {dayDossiers.slice(0, 2).map((e, di) => (
-                        <div key={`d${di}`} onClick={ev => { ev.stopPropagation(); openDossiers(); }} title={`${e.dossier.number} · ${e.dossier.title}`} style={{
+                        <div key={`d${di}`} onClick={ev => { ev.stopPropagation(); openDossier(e.dossier); }} title={`${e.dossier.number} · ${e.dossier.title}`} style={{
                           fontSize: 10, fontWeight: 600, padding: "1px 5px", borderRadius: 3,
                           background: SKY + "40", color: SKY_DARK,
                           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
@@ -320,7 +325,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {dayDossiers.map((e, di) => (
-                <div key={`d${di}`} onClick={openDossiers} style={{
+                <div key={`d${di}`} onClick={() => openDossier(e.dossier)} style={{
                   display: "flex", alignItems: "center", gap: 12, padding: "8px 12px",
                   borderRadius: 8, border: `1px solid ${SKY_DARK}`, cursor: "pointer",
                   background: SKY + "20", transition: "background 0.15s",
@@ -396,7 +401,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                   </div>
                   <div style={{ padding: "8px 6px", display: "flex", flexDirection: "column", gap: 4, minHeight: 160 }}>
                     {dayDossiers.map((e, di) => (
-                      <div key={`d${di}`} onClick={openDossiers} title={`${e.dossier.number} · ${e.dossier.title}`} style={{
+                      <div key={`d${di}`} onClick={() => openDossier(e.dossier)} title={`${e.dossier.number} · ${e.dossier.title}`} style={{
                         background: SKY + "33", borderLeft: `3px solid ${SKY_DARK}`,
                         borderRadius: "0 4px 4px 0", padding: "3px 6px", cursor: "pointer",
                         fontSize: 10, fontWeight: 600, lineHeight: 1.3,
@@ -458,7 +463,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                 display: "flex", flexWrap: "wrap", gap: 8,
               }}>
                 {dayDossiers.map((e, di) => (
-                  <div key={di} onClick={openDossiers} title={`${e.dossier.title}${e.dossier.destination ? " · " + e.dossier.destination : ""}`} style={{
+                  <div key={di} onClick={() => openDossier(e.dossier)} title={`${e.dossier.title}${e.dossier.destination ? " · " + e.dossier.destination : ""}`} style={{
                     background: SKY + "55", color: SKY_DARK, fontWeight: 600,
                     fontSize: 11, padding: "4px 10px", borderRadius: 12,
                     cursor: "pointer", border: `1px solid ${SKY_DARK}`,
@@ -568,7 +573,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                       display: "flex", flexDirection: "column", gap: 2, minHeight: 22,
                     }}>
                       {evs.map((e, di) => (
-                        <div key={di} onClick={openDossiers} title={`${e.dossier.number} · ${e.dossier.title}`} style={{
+                        <div key={di} onClick={() => openDossier(e.dossier)} title={`${e.dossier.number} · ${e.dossier.title}`} style={{
                           background: SKY + "55", color: SKY_DARK, fontWeight: 600,
                           fontSize: 9, padding: "2px 4px", borderRadius: 3,
                           cursor: "pointer", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",

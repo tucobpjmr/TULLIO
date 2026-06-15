@@ -291,8 +291,10 @@ Tutti i componenti sono **moduli separati** in `src/components/`; helper e sub-c
 
 ### Priorità 2 — Fase 2 Operatività ✅
 - [x] Notifiche reali estese alle pratiche (cambio status, scadenza partenza) — pattern trigger DB (session 22) ✅
-- [x] Calendario avanzato con date partenza/ritorno pratiche (session 22) ✅
-- [x] Estensioni chat con riconoscimento pratica (dossier reference PR-YYYY-NNN) (session 22) ✅
+- [x] Notifiche bacheca @menzioni (`notify_notice_mention`, session 23) + avvisi scadenza automatica (`notices.expires_at`, session 23) ✅
+- [x] Calendario avanzato con date partenza/ritorno pratiche (session 22) + click apre PraticaDetail (`openDossierById`, session 23) ✅
+- [x] Estensioni chat con riconoscimento pratica (dossier reference PR-YYYY-NNN) (session 22) + chip apre PraticaDetail (`openDossierById`, session 23) ✅
+- [x] Driver: agenda transfer-oriented con pillole data (Oggi/Domani/Settimana/Dopo) in `PersonalQueue` (session 23) ✅
 
 ### Priorità 3 — Business (Fase 3)
 - [ ] Report & Analytics avanzati (trend temporali, export PDF)
@@ -379,6 +381,6 @@ src/
 
 **Step P COMPLETO (Phase 1 → 2g).** **Fase 1 COMPLETA** (PR #49 base + #51/#52/#53): Clienti, Fornitori, Pratiche, collegamento Task↔Pratica, fornitori della pratica, filtro pratica in ricerca. Nessun caveat aperto.
 
-Le notifiche nascono **solo da trigger DB** (RLS vieta insert client) — per nuove notifiche serve un trigger server-side (pattern in `supabase/migrations/20260614_mention_composite_names.sql`).
+Le notifiche nascono **solo da trigger DB** (RLS vieta insert client) — per nuove notifiche serve un trigger server-side (pattern in `supabase/migrations/20260614_mention_composite_names.sql`, `20260614_dossier_notifications.sql`, `20260615_notices_expiration_and_mentions.sql`).
 
-Vedi `docs/HANDOFF_SESSION_2026-06-15_v17.md` per il dettaglio sessione 21 (quick wins v17) e v15 per la Fase 1 completa.
+Vedi `docs/HANDOFF_SESSION_2026-06-15_v19.md` (sessione 23, PR #58 cumulativa) per il punto di partenza. Storico sessioni precedenti: v18 (sessione 22), v17 (sessione 21), v15 (Fase 1 completa).

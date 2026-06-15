@@ -611,6 +611,7 @@ const NOTIF_ICONS = {
   task_due: "📅",
   comment: "💬",
   mention: "@",
+  notice_mention: "📌",
   queue_stale: "⏳",
   dossier_status: "📁",
   dossier_departure: "✈️",
@@ -622,7 +623,7 @@ const NOTIF_ICONS = {
 const NOTIF_CATEGORIES = {
   task: ["task_assigned", "task_due", "comment", "queue_stale"],
   dossier: ["dossier_status", "dossier_departure"],
-  mention: ["mention"],
+  mention: ["mention", "notice_mention"],
 };
 
 function notifTitle(n) {
@@ -640,6 +641,10 @@ function notifTitle(n) {
         return p.task_title
           ? `Menzionato in: ${p.task_title}`
           : `Sei stato menzionato${p.where ? " in " + p.where : ""}`;
+      case "notice_mention":
+        return p.preview
+          ? `Menzionato in bacheca: "${p.preview.length > 60 ? p.preview.slice(0, 60) + "…" : p.preview}"`
+          : "Sei stato menzionato in bacheca";
       case "queue_stale":
         return p.task_title
           ? `Task in coda da > 4h: ${p.task_title}`
@@ -698,8 +703,9 @@ const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMar
     const types = NOTIF_CATEGORIES[filter] || [];
     return list.filter(n => types.includes(n.type));
   }, [list, filter]);
-  // Navigabile se ha task_id o dossier_id nel payload (caveat #28)
-  const isNavigable = (n) => isReal && n.payload && !!(n.payload.task_id || n.payload.dossier_id);
+  // Navigabile se ha task_id, dossier_id o e' una menzione bacheca
+  const isNavigable = (n) =>
+    isReal && n.payload && !!(n.payload.task_id || n.payload.dossier_id || n.type === "notice_mention");
   const handleClick = (n) => {
     if (isReal && n.payload) {
       if (n.payload.task_id) {
@@ -707,6 +713,10 @@ const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMar
         dispatch({ type: "TOGGLE_NOTIF" });
       } else if (n.payload.dossier_id) {
         onOpenDossier?.(n.payload.dossier_id);
+        dispatch({ type: "TOGGLE_NOTIF" });
+      } else if (n.type === "notice_mention") {
+        // Bacheca vive nella Dashboard; portiamoci li' dal click.
+        dispatch({ type: "SET_VIEW", payload: "dashboard" });
         dispatch({ type: "TOGGLE_NOTIF" });
       }
     }

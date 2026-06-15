@@ -66,9 +66,9 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 | Modulo | Stato | Priorità | Sforzo | Note |
 |---|---|---|---|---|
-| Notifiche reali | 🔶 | 🔴 | M | Trigger task ✅ (Step F/J), trigger pratica ✅ (caveat #28, PR #57). Filtri + "segna tutte lette" ✅ (PR #57). Manca: notifica task in coda > N ore |
-| Calendario avanzato | 🔶 | 🟡 | M | iCal export ✅, vista settimanale ✅, vista giornaliera ✅, pratiche nel calendario ✅ (PR #57). Manca: eventi multipli/ricorrenti |
-| Estensioni chat (base) | 🔶 | 🟡 | S–M | Ricerca conversazioni ✅, stato online/occupato ✅, task link cliccabile ✅, rich preview pratiche ✅ (PR #57). Manca: stato "occupato" manuale |
+| Notifiche reali | ✅ | 🔴 | M | Trigger task ✅ (Step F/J + queue_stale orario), trigger pratica ✅ (PR #57), trigger menzione bacheca ✅ (PR #58, sessione 23). Filtri + "segna tutte lette" ✅. |
+| Calendario avanzato | 🔶 | 🟡 | M | iCal export ✅, vista settimanale ✅, vista giornaliera ✅, pratiche nel calendario ✅ (PR #57), apertura PraticaDetail dal click ✅ (PR #58). Manca: eventi multipli/ricorrenti |
+| Estensioni chat (base) | 🔶 | 🟡 | S–M | Ricerca conversazioni ✅, stato online/occupato ✅, task link cliccabile ✅, rich preview pratiche ✅ (PR #57), apertura PraticaDetail dal chip ✅ (PR #58). Manca: stato "occupato" manuale |
 | Impostazioni agenzia | 🔶 | 🟡 | S | Gestione categorie e nome agenzia già in Admin. Manca: template messaggi, profilo utente, preferenze UI |
 | Ricerca globale estesa | ✅ | — | — | Completata in v0.5. |
 | Responsive (mobile/tablet/desktop) | ✅ | — | — | Completato in v0.6. |
@@ -107,10 +107,10 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 | Badge sulla voce sidebar/bottom-nav **Pratiche** con partenze imminenti (≤7gg) | ✅ | — | Completato in PR #56 (sessione 21) |
 | Toast personalizzato "Hai preso in carico: \[titolo\]" | ✅ | — | Completato in Step I (`takeOwnership` → toastMessage) |
 | Auto-move in "In Corso" al "Prendi in carico" | ✅ | — | Completato in Step I (`takeOwnership`) |
-| Notifica al manager se un task resta in coda > N ore | ⬜ | 🟡 | Dipende da notifiche reali (trigger DB `queue_stale`) |
+| Notifica al manager se un task resta in coda > N ore | ✅ | — | Trigger DB `notify_queue_stale` (orario, sessione 16/J) + handler UI 📋 ⏳ in NotificationsPanel |
 | Filtro nella coda globale (per categoria/priorità) | ✅ | — | Completato in PR #57 (sessione 22) |
-| Bacheca: menzioni @utente con notifica | ⬜ | 🟡 | Dipende da notifiche reali (trigger DB su `notices`) |
-| Bacheca: avvisi con scadenza automatica | ⬜ | ⚪ | Richiede colonna `expires_at` su `notices` |
+| Bacheca: menzioni @utente con notifica | ✅ | — | Trigger DB `notify_notice_mention` (PR #58, sessione 23) + handler UI 📌 in NotificationsPanel |
+| Bacheca: avvisi con scadenza automatica | ✅ | — | Colonna `expires_at` su `notices` + UI auto-hide/toggle/chip ⏳ (PR #58, sessione 23) |
 | Bacheca: reazioni emoji sui post-it | ⬜ | ⚪ | |
 | Bacheca: tag/categorie filtrabili | ⬜ | ⚪ | |
 | Modifica assegnatari da `TaskSlideOver` | ✅ | — | Completato in PR #57 (sessione 22) |
@@ -122,7 +122,7 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 | Idea | Stato | Priorità | Note |
 |---|---|---|---|
 | Vista settimanale Calendario | ✅ | — | Completata in v0.7 (CalendarPlanner: week + week-full) |
-| Comprimi automaticamente Sidebar desktop tra 1024–1280px | ⬜ | ⚪ | |
+| Comprimi automaticamente Sidebar desktop tra 1024–1280px | ✅ | — | PR #58 sessione 23 (auto-collapse `AUTO_COLLAPSE_MIN`/`MAX` in `Sidebar.jsx`) |
 | Skeleton loading su prime render | ⬜ | ⚪ | |
 | Dark mode | ⬜ | ⚪ | CSS variables pronte |
 | Test responsive automatici (Playwright) | ⬜ | ⚪ | ⚙️**B** |
@@ -133,7 +133,7 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 |---|---|---|---|
 | Task link cliccabile nella chat (apre TaskSlideOver) | ✅ | — | Completato in Step H/K (`MessageTextContent` + `taskRef`) |
 | Permessi granulari per sub-ruolo (Senior vs Junior) | ⬜ | ⚪ | Oggi trattati identicamente come "agent" |
-| Coda personale Driver: filtro per data/ora (tipo agenda giornaliera) | ⬜ | 🟡 | Giulia ha bisogno di una vista transfer-oriented |
+| Coda personale Driver: filtro per data/ora (tipo agenda giornaliera) | ✅ | — | PR #58 sessione 23 (pillole `Oggi`/`Domani`/`Settimana`/`Dopo` in `PersonalQueue` se `role === "driver"`) |
 | Indicatore visivo "read-only" sulle card urgenti altrui | ✅ | — | Completato in PR #57 (sessione 22): bordo dashed + chip 🔒 |
 | Notifica in-app al cambio utente (rollback automatico dopo X secondi?) | ⬜ | ⚪ | Per evitare che qualcuno lasci l'app loggato come Admin |
 
@@ -147,7 +147,7 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 | Calendario: eventi partenza/ritorno pratiche (celesti ✈️/🏁) | ✅ | — | PR #57 (sessione 22) |
 | Rich preview pratiche in chat (`PR-YYYY-NNN` come chip) | ✅ | — | PR #57 (sessione 22) |
 | Filtri NotificationsPanel (Tutte / Non lette / Task / Pratiche / Menzioni) | ✅ | — | PR #57 (sessione 22) |
-| openDossierById in PraticheView (sostituisce SET_VIEW) | ⬜ | ⚪ | Quick refactor post-merge #56 |
+| openDossierById in Calendar + Chat (sostituisce SET_VIEW) | ✅ | — | PR #58 (sessione 23) |
 
 ---
 
@@ -192,6 +192,8 @@ Vedi `docs/HANDOFF_SESSION_2026-06-14_v13.md` per il dettaglio sessione 18 (Phas
 ---
 
 ## ✅ Completato (cronologia)
+
+- **v2.4-dev** — Sessione 23 (PR #58 draft, **cumulativa** = include #56+#57+sess.23 sul branch `claude/bold-turing-7qkos8`): bacheca con scadenza automatica (`notices.expires_at` + UI auto-hide/toggle/chip ⏳) + trigger DB `notify_notice_mention` con dedup 6h (chiude la Fase 2 notifiche) + handler UI `notice_mention` 📌 in NotificationsPanel + `openDossierById` in Calendar/ChatPanel (chiude debito tecnico v17) + pillole filtro data per Driver in PersonalQueue + auto-collapse Sidebar 1024–1280px. Build: 266.03 kB / 63.52 kB gz.
 
 - **v2.2-dev** — **Fase 1 COMPLETA** (PR #51/#52/#53): collegamento Task↔Pratica (`dossierId` su QuickAddTask/TaskSlideOver), pannello fornitori in `PraticaDetail` (`FornitoriPanel`), filtro pratica nella Ricerca avanzata. Caveat #26 e #27 chiusi. Build: 252.04 kB / 59.47 kB gz.
 

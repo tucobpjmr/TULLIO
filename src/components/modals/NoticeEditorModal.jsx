@@ -3,17 +3,31 @@
 import { useState, useRef, useEffect } from "react";
 import { NOTICE_COLORS } from "../../lib/taskConstants.js";
 
+// Converte una data ISO (con TZ) nel formato richiesto dall'input
+// type="datetime-local" → YYYY-MM-DDTHH:mm in fuso locale del client.
+function isoToLocalInput(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
   const [text, setText] = useState(notice?.text || "");
   const [color, setColor] = useState(notice?.color || NOTICE_COLORS[0]);
   const [pinned, setPinned] = useState(notice?.pinned || false);
+  const [expiresAt, setExpiresAt] = useState(isoToLocalInput(notice?.expiresAt));
   const textareaRef = useRef(null);
 
   useEffect(() => { textareaRef.current?.focus(); }, []);
 
   const submit = () => {
     if (!text.trim()) return;
-    onSave({ text: text.trim(), color, pinned });
+    // datetime-local emette "YYYY-MM-DDTHH:mm" senza TZ: lo interpreto come
+    // ora locale e ne ricavo l'ISO. Vuoto → null (nessuna scadenza).
+    const expIso = expiresAt ? new Date(expiresAt).toISOString() : null;
+    onSave({ text: text.trim(), color, pinned, expiresAt: expIso });
   };
 
   return (
@@ -89,6 +103,35 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
           <input type="checkbox" checked={pinned} onChange={e => setPinned(e.target.checked)} />
           📌 Fissa questo avviso in cima alla bacheca
         </label>
+
+        {/* Scadenza */}
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span>⏳ Scadenza (opzionale)</span>
+            {expiresAt && (
+              <button
+                type="button"
+                onClick={() => setExpiresAt("")}
+                style={{ background: "transparent", border: "none", color: "var(--text-muted)", fontSize: 11, cursor: "pointer", textDecoration: "underline" }}
+              >Rimuovi</button>
+            )}
+          </div>
+          <input
+            type="datetime-local"
+            value={expiresAt}
+            onChange={e => setExpiresAt(e.target.value)}
+            style={{
+              width: "100%", padding: "8px 10px", borderRadius: 8,
+              border: "1px solid var(--border)", fontSize: 13,
+              outline: "none", fontFamily: "inherit", boxSizing: "border-box",
+            }}
+            onFocus={e => e.target.style.borderColor = "var(--gold)"}
+            onBlur={e => e.target.style.borderColor = "var(--border)"}
+          />
+          <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 4 }}>
+            Dopo questa data l'avviso viene nascosto automaticamente dalla bacheca (resta nello storico).
+          </div>
+        </div>
 
         {/* Footer buttons */}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 }}>

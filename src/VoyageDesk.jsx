@@ -416,6 +416,10 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     setNotifications((data || []).map(fromDbNotification));
   }, { enabled: useSupabase, deps: [useSupabase] });
 
+  // Loading state CRM: true finché non completa il primo fetch da Supabase.
+  // Senza login parte già false (nessuna idratazione: si usano i dati mock).
+  const [crmLoading, setCrmLoading] = useState(useSupabase);
+
   // Fase 1: idratazione CRM (clienti, fornitori, pratiche) al mount.
   // Reference data, nessun realtime — semplice fetch one-shot.
   useEffect(() => {
@@ -430,7 +434,8 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       if (!cRes.error) rawDispatch({ type: "SET_CLIENTS", payload: (cRes.data || []).map(fromDbClient) });
       if (!sRes.error) rawDispatch({ type: "SET_SUPPLIERS", payload: (sRes.data || []).map(fromDbSupplier) });
       if (!dRes.error) rawDispatch({ type: "SET_DOSSIERS", payload: (dRes.data || []).map(fromDbDossier) });
-    }).catch(e => console.error("[CRM] hydration", e));
+    }).catch(e => console.error("[CRM] hydration", e))
+      .finally(() => { if (!cancelled) setCrmLoading(false); });
     return () => { cancelled = true; };
   }, [useSupabase]);
 
@@ -902,9 +907,9 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     switch (state.activeView) {
       case "dashboard":  return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
       case "calendar":   return <CalendarPlanner state={state} dispatch={dispatch} />;
-      case "clienti":    return <ClientiView state={state} dispatch={dispatch} />;
-      case "fornitori":  return <FornitoriView state={state} dispatch={dispatch} />;
-      case "pratiche":   return <PraticheView state={state} dispatch={dispatch} initialDossierId={targetDossierId} />;
+      case "clienti":    return <ClientiView state={state} dispatch={dispatch} loading={crmLoading} />;
+      case "fornitori":  return <FornitoriView state={state} dispatch={dispatch} loading={crmLoading} />;
+      case "pratiche":   return <PraticheView state={state} dispatch={dispatch} initialDossierId={targetDossierId} loading={crmLoading} />;
       case "team":       return <Team state={state} dispatch={dispatch} />;
       case "trash":      return <Trash state={state} dispatch={dispatch} />;
       case "admin":      return <AdminView state={state} dispatch={dispatch} />;

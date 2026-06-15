@@ -1,6 +1,7 @@
 // src/components/suppliers/FornitoriView.jsx
 // Anagrafica Fornitori — Fase 1 modello dati.
 import { useState, useMemo } from "react";
+import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { useViewport } from "../Viewport.jsx";
 
 const SUPPLIER_CATEGORIES = [
@@ -177,7 +178,7 @@ function FornitoreCard({ fornitore, onEdit, onDelete }) {
   );
 }
 
-export function FornitoriView({ state, dispatch }) {
+export function FornitoriView({ state, dispatch, loading = false }) {
   const { isMobile } = useViewport();
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("");
@@ -224,7 +225,9 @@ export function FornitoriView({ state, dispatch }) {
             Fornitori
           </h1>
           <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
-            {suppliers.length} {suppliers.length === 1 ? "fornitore" : "fornitori"} in anagrafica
+            {loading && suppliers.length === 0
+              ? "Caricamento…"
+              : `${suppliers.length} ${suppliers.length === 1 ? "fornitore" : "fornitori"} in anagrafica`}
           </div>
         </div>
         <button
@@ -258,7 +261,9 @@ export function FornitoriView({ state, dispatch }) {
       </div>
 
       {/* Lista */}
-      {filtered.length === 0 ? (
+      {loading && suppliers.length === 0 ? (
+        <SkeletonCards />
+      ) : filtered.length === 0 ? (
         <div style={{ textAlign: "center", padding: "64px 24px", color: "var(--text-muted)" }}>
           {(search || filterCat) ? "Nessun fornitore trovato" : (
             <div>

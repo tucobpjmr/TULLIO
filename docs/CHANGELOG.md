@@ -1,9 +1,15 @@
 # CHANGELOG — VoyageDesk
 
 
-## v2.6-dev — Micro-miglioramenti UI: auto-collapse sidebar + export log CSV (sessione 23)
+## v2.6-dev — Micro-miglioramenti UI: auto-collapse sidebar + export log CSV + skeleton loading (sessione 23)
 
 > Branch `claude/handoff-v20-docs-4an8rx` — PR #60 (draft). Quick win frontend a basso rischio.
+
+### 💀 Skeleton loading (viste CRM)
+
+- **`src/components/ui/SkeletonCards.jsx`** (nuovo): griglia di card placeholder con shimmer (classe `.skeleton`), responsive.
+- **`src/VoyageDesk.jsx`**: nuovo flag `crmLoading` (true finché non completa il primo fetch CRM da Supabase, `.finally`), passato a Clienti/Fornitori/Pratiche.
+- **`ClientiView` / `FornitoriView` / `PraticheView`**: mostrano `SkeletonCards` durante l'idratazione iniziale (prima che arrivino i dati) invece di lampeggiare l'empty-state "Nessun…"; sottotitolo "Caricamento…" al posto di "0 …".
 
 ### 🖥️ Auto-collapse Sidebar (desktop stretto 1025–1280px)
 

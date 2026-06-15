@@ -112,7 +112,7 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 |---|---|---|---|
 | Vista settimanale Calendario | ✅ | — | Completata in v0.7 (CalendarPlanner: week + week-full) |
 | Comprimi automaticamente Sidebar desktop tra 1024–1280px | ✅ | — | Auto-collapse a transizione di banda in `Sidebar` (guardia `prevBandRef`, non contrasta il toggle manuale) |
-| Skeleton loading su prime render | ⬜ | ⚪ | |
+| Skeleton loading su prime render | ✅ | — | `SkeletonCards` (shimmer) nelle viste Clienti/Fornitori/Pratiche durante l'idratazione CRM (`crmLoading`) |
 | Dark mode | ⬜ | ⚪ | CSS variables pronte |
 | Test responsive automatici (Playwright) | ⬜ | ⚪ | ⚙️**B** |
 

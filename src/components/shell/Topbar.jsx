@@ -326,7 +326,7 @@ const AdvancedSearchPanel = ({ tasks, dossiers = [], dispatch, onClose, keyword 
 };
 
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
-export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notificationsProp, onMarkRead, onMarkAllRead, onOpenTask }) => {
+export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notificationsProp, onMarkRead, onMarkAllRead, onOpenTask, onOpenDossier }) => {
   const { isMobile } = useViewport();
   // Fix #11: notifiche mock gate-ate dietro env var (default off in prod)
   const SHOW_MOCK_NOTIFS = import.meta.env.DEV && import.meta.env.VITE_SHOW_MOCK_NOTIFICATIONS === 'true';
@@ -347,9 +347,9 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
   }, [searchOpen]);
   return (
     <div style={{
-      height: 58, background: "var(--navy)", display: "flex", alignItems: "center",
+      height: 58, background: "var(--sky)", display: "flex", alignItems: "center",
       padding: isMobile ? "0 12px" : "0 20px", gap: isMobile ? 8 : 16, position: "sticky", top: 0, zIndex: 100,
-      borderBottom: "1px solid rgba(212,168,67,0.2)", flexShrink: 0,
+      borderBottom: "1px solid rgba(212,168,67,0.3)", flexShrink: 0,
     }}>
       {/* Logo */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginRight: isMobile ? 0 : 12 }}>
@@ -358,25 +358,25 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
           display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0
         }}>✈️</div>
         <div className="vd-hide-mobile">
-          <div className="playfair" style={{ color: "#fff", fontSize: 15, fontWeight: 700, lineHeight: 1 }}>VoyageDesk</div>
-          <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 10, letterSpacing: 1.5 }}>TRAVEL MANAGEMENT</div>
+          <div className="playfair" style={{ color: "var(--navy)", fontSize: 15, fontWeight: 700, lineHeight: 1 }}>VoyageDesk</div>
+          <div style={{ color: "rgba(15,32,68,0.55)", fontSize: 10, letterSpacing: 1.5 }}>TRAVEL MANAGEMENT</div>
         </div>
       </div>
 
       {/* Ricerca unificata (testuale + filtri avanzati) */}
       <div ref={searchWrapRef} style={{ flex: 1, maxWidth: 520, position: "relative" }}>
         <div style={{ position: "relative" }}>
-          <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.4)", fontSize: 14 }}>🔍</div>
+          <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(15,32,68,0.5)", fontSize: 14 }}>🔍</div>
           <input
             value={state.searchQuery}
             onChange={e => { dispatch({ type: "SET_SEARCH", payload: e.target.value }); setSearchOpen(true); }}
-            onFocus={e => { setSearchOpen(true); e.target.style.background = "rgba(255,255,255,0.13)"; e.target.style.borderColor = "var(--gold)"; }}
-            onBlur={e => { e.target.style.background = "rgba(255,255,255,0.08)"; e.target.style.borderColor = "rgba(255,255,255,0.15)"; }}
+            onFocus={e => { setSearchOpen(true); e.target.style.background = "rgba(255,255,255,0.65)"; e.target.style.borderColor = "var(--gold)"; }}
+            onBlur={e => { e.target.style.background = "rgba(255,255,255,0.45)"; e.target.style.borderColor = "rgba(15,32,68,0.15)"; }}
             placeholder={isMobile ? "Cerca..." : "Cerca task, clienti, categorie... (Ctrl+K)"}
             aria-label="Cerca"
             style={{
-              width: "100%", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)",
-              borderRadius: 8, padding: "7px 12px 7px 36px", color: "#fff", fontSize: 13,
+              width: "100%", background: "rgba(255,255,255,0.45)", border: "1px solid rgba(15,32,68,0.15)",
+              borderRadius: 8, padding: "7px 12px 7px 36px", color: "var(--navy)", fontSize: 13,
               outline: "none", transition: "all 0.2s", boxSizing: "border-box",
             }}
           />
@@ -397,7 +397,7 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
 
       {/* Chat */}
       <button onClick={onOpenChat} title="Messaggi team" style={{
-        background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)",
+        background: "rgba(255,255,255,0.45)", border: "1px solid rgba(15,32,68,0.15)",
         borderRadius: 8, width: 36, height: 36, cursor: "pointer",
         display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, position: "relative"
       }}>
@@ -413,7 +413,7 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
       {/* Notifications */}
       <div style={{ position: "relative" }}>
         <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{
-          background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)",
+          background: "rgba(255,255,255,0.45)", border: "1px solid rgba(15,32,68,0.15)",
           borderRadius: 8, width: 36, height: 36, cursor: "pointer",
           display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, position: "relative"
         }}>
@@ -431,6 +431,7 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
           onMarkRead={onMarkRead}
           onMarkAllRead={onMarkAllRead}
           onOpenTask={onOpenTask}
+          onOpenDossier={onOpenDossier}
         />}
       </div>
 
@@ -493,7 +494,7 @@ const UserSwitcher = ({ state, dispatch }) => {
         aria-label="Cambia utente loggato"
         style={{
           display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
-          background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)",
+          background: "rgba(255,255,255,0.45)", border: "1px solid rgba(15,32,68,0.15)",
           borderRadius: 8, padding: "3px 8px 3px 4px", fontFamily: "inherit",
         }}
       >
@@ -507,10 +508,10 @@ const UserSwitcher = ({ state, dispatch }) => {
           }}>{curr.avatar}</div>
         )}
         <div className="vd-hide-mobile" style={{ textAlign: "left" }}>
-          <div style={{ color: "#fff", fontSize: 12, fontWeight: 600, lineHeight: 1.2 }}>{curr.name}</div>
-          <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 10 }}>{curr.role}</div>
+          <div style={{ color: "var(--navy)", fontSize: 12, fontWeight: 600, lineHeight: 1.2 }}>{curr.name}</div>
+          <div style={{ color: "rgba(15,32,68,0.55)", fontSize: 10 }}>{curr.role}</div>
         </div>
-        <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginLeft: 2 }}>▾</span>
+        <span style={{ color: "rgba(15,32,68,0.5)", fontSize: 10, marginLeft: 2 }}>▾</span>
       </button>
 
       {open && (
@@ -611,6 +612,8 @@ const NOTIF_ICONS = {
   comment: "💬",
   mention: "@",
   queue_stale: "⏳",
+  dossier_status: "📁",
+  dossier_departure: "✈️",
   // Compat con mock
   overdue: "⚠️", assigned: "📋", deadline: "📅",
 };
@@ -634,6 +637,14 @@ function notifTitle(n) {
         return p.task_title
           ? `Task in coda da > 4h: ${p.task_title}`
           : `Task in coda da troppo tempo`;
+      case "dossier_status":
+        return p.dossier_number
+          ? `Pratica ${p.dossier_number}: nuovo stato "${p.new_status ?? "—"}"`
+          : "Stato pratica aggiornato";
+      case "dossier_departure":
+        return p.dossier_number
+          ? `Partenza imminente — ${p.dossier_number}${p.destination ? " · " + p.destination : ""}`
+          : "Partenza imminente";
       default:
         return n.type || "Notifica";
     }
@@ -658,16 +669,21 @@ function notifTime(n) {
 // computePresence + PRESENCE_COLORS (usati solo dalla chat) → src/components/chat/ChatPanel.jsx (Step P Phase 2f)
 
 
-const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMarkAllRead, onOpenTask }) => {
+const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMarkAllRead, onOpenTask, onOpenDossier }) => {
   const { isMobile } = useViewport();
   const list = Array.isArray(notifications) ? notifications : MOCK_NOTIFICATIONS;
   const hasUnread = list.some(n => !n.read);
-  // Step J: la notifica è "navigabile" se ha un task_id nel payload
-  const isNavigable = (n) => isReal && n.payload && n.payload.task_id;
+  // Navigabile se ha task_id o dossier_id nel payload (caveat #28)
+  const isNavigable = (n) => isReal && n.payload && !!(n.payload.task_id || n.payload.dossier_id);
   const handleClick = (n) => {
-    if (isNavigable(n)) {
-      onOpenTask?.(n.payload.task_id);
-      dispatch({ type: "TOGGLE_NOTIF" });
+    if (isReal && n.payload) {
+      if (n.payload.task_id) {
+        onOpenTask?.(n.payload.task_id);
+        dispatch({ type: "TOGGLE_NOTIF" });
+      } else if (n.payload.dossier_id) {
+        onOpenDossier?.(n.payload.dossier_id);
+        dispatch({ type: "TOGGLE_NOTIF" });
+      }
     }
     if (isReal && !n.read) onMarkRead?.(n.id);
   };

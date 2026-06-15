@@ -116,6 +116,7 @@ const FontLoader = () => (
       --navy: #0F2044;
       --navy-light: #1a3060;
       --navy-dark: #08152d;
+      --sky: #87CEEB;
       --gold: #D4A843;
       --gold-light: #e8c46a;
       --gold-dark: #b8902e;
@@ -179,7 +180,7 @@ const FontLoader = () => (
       .vd-bottom-nav {
         display: flex;
         position: fixed; bottom: 0; left: 0; right: 0; z-index: 450;
-        background: var(--navy-dark); border-top: 1px solid rgba(212,168,67,0.2);
+        background: var(--sky); border-top: 1px solid rgba(212,168,67,0.3);
         padding: 6px 4px env(safe-area-inset-bottom, 6px);
         justify-content: space-around; align-items: stretch;
         box-shadow: 0 -4px 20px rgba(0,0,0,0.25);
@@ -610,6 +611,13 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     if (t) dispatch({ type: "SET_SELECTED_TASK", payload: t });
   }, [state.tasks, dispatch]);
 
+  // Caveat #28: navigazione da notifica pratica → PraticheView con detail aperto
+  const openDossierById = useCallback((dossierId) => {
+    if (!dossierId) return;
+    dispatch({ type: "SET_VIEW", payload: "pratiche" });
+    setTargetDossierId(dossierId);
+  }, [dispatch]);
+
   const markAllNotificationsRead = useCallback(() => {
     if (!useSupabase) return;
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
@@ -722,6 +730,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   const [showChat, setShowChat] = useState(false);
   const [chatIntent, setChatIntent] = useState(null); // { toUser, taskLink } per aprire chat preconfezionata
   const [showBulkModal, setShowBulkModal] = useState(false);
+  const [targetDossierId, setTargetDossierId] = useState(null);
   // In modalità Supabase partiamo da stato vuoto e idratiamo dal DB.
   // Senza login i mock restano per smoke-test rapido.
   const [conversations, setConversationsRaw] = useState(
@@ -873,7 +882,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       case "calendar":   return <CalendarPlanner state={state} dispatch={dispatch} />;
       case "clienti":    return <ClientiView state={state} dispatch={dispatch} />;
       case "fornitori":  return <FornitoriView state={state} dispatch={dispatch} />;
-      case "pratiche":   return <PraticheView state={state} dispatch={dispatch} />;
+      case "pratiche":   return <PraticheView state={state} dispatch={dispatch} initialDossierId={targetDossierId} />;
       case "team":       return <Team state={state} dispatch={dispatch} />;
       case "trash":      return <Trash state={state} dispatch={dispatch} />;
       case "admin":      return <AdminView state={state} dispatch={dispatch} />;
@@ -894,6 +903,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           onMarkRead={markNotificationRead}
           onMarkAllRead={markAllNotificationsRead}
           onOpenTask={openTaskById}
+          onOpenDossier={openDossierById}
         />
         <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
           <Sidebar state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} />
@@ -946,6 +956,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
               existingTasks={getActiveTasks(state.tasks)}
               onCreate={(tasks) => dispatch({ type: "ADD_TASKS_BULK", payload: tasks })}
               onClose={() => setShowBulkModal(false)}
+              dossiers={state.dossiers}
             />
           </Suspense>
         )}

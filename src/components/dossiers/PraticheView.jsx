@@ -1,6 +1,6 @@
 // src/components/dossiers/PraticheView.jsx
 // Pratiche di viaggio — Fase 1 modello dati.
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { formatDate } from "../../lib/taskUtils.js";
 import { DossierSuppliers as DossierSuppliersAPI } from "../../lib/api.js";
@@ -480,12 +480,21 @@ function PraticaDetail({ dossier, tasks, suppliers, dispatch, onClose }) {
 }
 
 // ─── VISTA PRINCIPALE ─────────────────────────────────────────────────────
-export function PraticheView({ state, dispatch }) {
+export function PraticheView({ state, dispatch, initialDossierId = null }) {
   const { isMobile } = useViewport();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [selected, setSelected] = useState(null);
+
+  // Apre la pratica richiesta da deep-link notifica (caveat #28)
+  const prevInitialRef = useRef(null);
+  useEffect(() => {
+    if (initialDossierId && initialDossierId !== prevInitialRef.current) {
+      prevInitialRef.current = initialDossierId;
+      setSelected(initialDossierId);
+    }
+  }, [initialDossierId]);
 
   const dossiers = state.dossiers || [];
   const clients = state.clients || [];

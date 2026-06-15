@@ -34,9 +34,10 @@ const bulkIconBtnSmall = {
 };
 
 // ─── BULK: MANUAL TAB ──────────────────────────────────────────────────────
-const ManualTab = ({ onCreate, onClose }) => {
+const ManualTab = ({ onCreate, onClose, dossiers = [] }) => {
   const { isMobile } = useViewport();
-  const [common, setCommon] = useState({ client: "", category: "booking", priority: "medium", assignee: "" });
+  const [common, setCommon] = useState({ client: "", category: "booking", priority: "medium", assignee: "", dossierId: "" });
+  const linkableDossiers = dossiers.filter(d => d.status !== "annullata");
   const emptyRow = () => ({ key: Math.random().toString(36).slice(2), title: "", category: "", priority: "", assignee: "", dueDate: "" });
   const [rows, setRows] = useState([emptyRow(), emptyRow(), emptyRow()]);
 
@@ -56,6 +57,7 @@ const ManualTab = ({ onCreate, onClose }) => {
       status: "todo",
       assignees: (r.assignee || common.assignee) ? [r.assignee || common.assignee] : [],
       client: common.client.trim() || null,
+      dossierId: common.dossierId || null,
       dueDate: r.dueDate ? new Date(r.dueDate).toISOString() : null,
       estimatedHours: 1,
       description: "",
@@ -84,6 +86,15 @@ const ManualTab = ({ onCreate, onClose }) => {
             {getAssignableTeam().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </div>
+        {linkableDossiers.length > 0 && (
+          <div style={{ marginTop: 8 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>PRATICA COLLEGATA</div>
+            <select value={common.dossierId} onChange={e => setCommon({ ...common, dossierId: e.target.value })} style={{ ...bulkInputStyle, maxWidth: isMobile ? "100%" : 320 }}>
+              <option value="">— Nessuna pratica —</option>
+              {linkableDossiers.map(d => <option key={d.id} value={d.id}>{d.number} — {d.title}</option>)}
+            </select>
+          </div>
+        )}
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 10 : 6 }}>
@@ -471,11 +482,13 @@ const ImportTab = ({ onCreate, onClose }) => {
 };
 
 // ─── BULK: TEMPLATE TAB ────────────────────────────────────────────────────
-const TemplateTab = ({ onCreate, onClose }) => {
+const TemplateTab = ({ onCreate, onClose, dossiers = [] }) => {
   const [selectedId, setSelectedId] = useState(null);
   const [client, setClient] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [defaultAssignee, setDefaultAssignee] = useState("");
+  const [dossierId, setDossierId] = useState("");
+  const linkableDossiers = dossiers.filter(d => d.status !== "annullata");
 
   const tpl = TASK_TEMPLATES.find(t => t.id === selectedId);
   const previewTasks = tpl && eventDate ? tpl.tasks.map(t => {
@@ -495,6 +508,7 @@ const TemplateTab = ({ onCreate, onClose }) => {
       status: "todo",
       assignees: defaultAssignee ? [defaultAssignee] : [],
       client: client.trim() || null,
+      dossierId: dossierId || null,
       dueDate: t.dueDate,
       estimatedHours: t.estimatedHours,
       description: "",
@@ -553,6 +567,15 @@ const TemplateTab = ({ onCreate, onClose }) => {
                 {getAssignableTeam().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
             </div>
+            {linkableDossiers.length > 0 && (
+              <div style={{ gridColumn: "1 / -1" }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>PRATICA COLLEGATA</div>
+                <select value={dossierId} onChange={e => setDossierId(e.target.value)} style={{ ...bulkInputStyle, maxWidth: 360 }}>
+                  <option value="">— Nessuna pratica —</option>
+                  {linkableDossiers.map(d => <option key={d.id} value={d.id}>{d.number} — {d.title}</option>)}
+                </select>
+              </div>
+            )}
           </div>
 
           {eventDate && (
@@ -598,7 +621,7 @@ const TemplateTab = ({ onCreate, onClose }) => {
 };
 
 // ─── BULK TASK CREATOR (modale principale) ─────────────────────────────────
-export const BulkTaskCreator = ({ existingTasks, onCreate, onClose }) => {
+export const BulkTaskCreator = ({ existingTasks, onCreate, onClose, dossiers = [] }) => {
   const [tab, setTab] = useState("manual");
 
   return (
@@ -645,10 +668,10 @@ export const BulkTaskCreator = ({ existingTasks, onCreate, onClose }) => {
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "18px 22px" }}>
-          {tab === "manual" && <ManualTab onCreate={onCreate} onClose={onClose} />}
+          {tab === "manual" && <ManualTab onCreate={onCreate} onClose={onClose} dossiers={dossiers} />}
           {tab === "duplicate" && <DuplicateTab tasks={existingTasks} onCreate={onCreate} onClose={onClose} />}
           {tab === "import" && <ImportTab onCreate={onCreate} onClose={onClose} />}
-          {tab === "template" && <TemplateTab onCreate={onCreate} onClose={onClose} />}
+          {tab === "template" && <TemplateTab onCreate={onCreate} onClose={onClose} dossiers={dossiers} />}
         </div>
       </div>
     </div>

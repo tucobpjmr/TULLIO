@@ -27,7 +27,15 @@ function getNavBadges(state) {
   const queue = (state.tasks || []).filter(
     t => !t.deletedAt && (!Array.isArray(t.assignees) || t.assignees.length === 0)
   ).length;
-  return { admin: pending, dashboard: queue };
+  // Badge pratiche: partenze nei prossimi 7 giorni (status attivo)
+  const now = Date.now();
+  const in7d = now + 7 * 24 * 60 * 60 * 1000;
+  const imminentDossiers = (state.dossiers || []).filter(d => {
+    if (!d.departureDate || d.status === "completata" || d.status === "annullata") return false;
+    const ts = new Date(d.departureDate).getTime();
+    return ts >= now && ts <= in7d;
+  }).length;
+  return { admin: pending, dashboard: queue, pratiche: imminentDossiers };
 }
 
 // Componente helper per renderizzare il badge numerico

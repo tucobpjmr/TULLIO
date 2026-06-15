@@ -326,7 +326,7 @@ const AdvancedSearchPanel = ({ tasks, dossiers = [], dispatch, onClose, keyword 
 };
 
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
-export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notificationsProp, onMarkRead, onMarkAllRead, onOpenTask }) => {
+export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notificationsProp, onMarkRead, onMarkAllRead, onOpenTask, onOpenDossier }) => {
   const { isMobile } = useViewport();
   // Fix #11: notifiche mock gate-ate dietro env var (default off in prod)
   const SHOW_MOCK_NOTIFS = import.meta.env.DEV && import.meta.env.VITE_SHOW_MOCK_NOTIFICATIONS === 'true';
@@ -431,6 +431,7 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
           onMarkRead={onMarkRead}
           onMarkAllRead={onMarkAllRead}
           onOpenTask={onOpenTask}
+          onOpenDossier={onOpenDossier}
         />}
       </div>
 
@@ -611,6 +612,8 @@ const NOTIF_ICONS = {
   comment: "💬",
   mention: "@",
   queue_stale: "⏳",
+  dossier_status: "📁",
+  dossier_departure: "✈️",
   // Compat con mock
   overdue: "⚠️", assigned: "📋", deadline: "📅",
 };
@@ -634,6 +637,14 @@ function notifTitle(n) {
         return p.task_title
           ? `Task in coda da > 4h: ${p.task_title}`
           : `Task in coda da troppo tempo`;
+      case "dossier_status":
+        return p.dossier_number
+          ? `Pratica ${p.dossier_number}: nuovo stato "${p.new_status ?? "—"}"`
+          : "Stato pratica aggiornato";
+      case "dossier_departure":
+        return p.dossier_number
+          ? `Partenza imminente — ${p.dossier_number}${p.destination ? " · " + p.destination : ""}`
+          : "Partenza imminente";
       default:
         return n.type || "Notifica";
     }
@@ -658,16 +669,21 @@ function notifTime(n) {
 // computePresence + PRESENCE_COLORS (usati solo dalla chat) → src/components/chat/ChatPanel.jsx (Step P Phase 2f)
 
 
-const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMarkAllRead, onOpenTask }) => {
+const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMarkAllRead, onOpenTask, onOpenDossier }) => {
   const { isMobile } = useViewport();
   const list = Array.isArray(notifications) ? notifications : MOCK_NOTIFICATIONS;
   const hasUnread = list.some(n => !n.read);
-  // Step J: la notifica è "navigabile" se ha un task_id nel payload
-  const isNavigable = (n) => isReal && n.payload && n.payload.task_id;
+  // Navigabile se ha task_id o dossier_id nel payload (caveat #28)
+  const isNavigable = (n) => isReal && n.payload && !!(n.payload.task_id || n.payload.dossier_id);
   const handleClick = (n) => {
-    if (isNavigable(n)) {
-      onOpenTask?.(n.payload.task_id);
-      dispatch({ type: "TOGGLE_NOTIF" });
+    if (isReal && n.payload) {
+      if (n.payload.task_id) {
+        onOpenTask?.(n.payload.task_id);
+        dispatch({ type: "TOGGLE_NOTIF" });
+      } else if (n.payload.dossier_id) {
+        onOpenDossier?.(n.payload.dossier_id);
+        dispatch({ type: "TOGGLE_NOTIF" });
+      }
     }
     if (isReal && !n.read) onMarkRead?.(n.id);
   };

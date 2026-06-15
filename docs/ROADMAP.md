@@ -193,7 +193,7 @@ Vedi `docs/HANDOFF_SESSION_2026-06-14_v13.md` per il dettaglio sessione 18 (Phas
 
 ## ✅ Completato (cronologia)
 
-- **v2.4-dev** — Sessione 23 (PR #58 draft): bacheca con scadenza automatica (`notices.expires_at` + UI auto-hide/toggle/chip ⏳) + trigger DB `notify_notice_mention` con dedup 6h (chiude la Fase 2 notifiche) + handler UI `notice_mention` 📌 in NotificationsPanel + `openDossierById` in Calendar/ChatPanel (chiude debito tecnico v17) + pillole filtro data per Driver in PersonalQueue + auto-collapse Sidebar 1024–1280px. Build: 266.03 kB / 63.52 kB gz.
+- **v2.4-dev** — Sessione 23 (PR #58 draft, **cumulativa** = include #56+#57+sess.23 sul branch `claude/bold-turing-7qkos8`): bacheca con scadenza automatica (`notices.expires_at` + UI auto-hide/toggle/chip ⏳) + trigger DB `notify_notice_mention` con dedup 6h (chiude la Fase 2 notifiche) + handler UI `notice_mention` 📌 in NotificationsPanel + `openDossierById` in Calendar/ChatPanel (chiude debito tecnico v17) + pillole filtro data per Driver in PersonalQueue + auto-collapse Sidebar 1024–1280px. Build: 266.03 kB / 63.52 kB gz.
 
 - **v2.2-dev** — **Fase 1 COMPLETA** (PR #51/#52/#53): collegamento Task↔Pratica (`dossierId` su QuickAddTask/TaskSlideOver), pannello fornitori in `PraticaDetail` (`FornitoriPanel`), filtro pratica nella Ricerca avanzata. Caveat #26 e #27 chiusi. Build: 252.04 kB / 59.47 kB gz.
 

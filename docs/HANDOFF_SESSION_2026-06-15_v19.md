@@ -10,12 +10,14 @@
 ## 0. TL;DR (60 secondi)
 
 - ✅ **6 interventi** indipendenti su branch `claude/bold-turing-7qkos8` — PR **#58** (draft).
+- ⚠️ **PR #58 è CUMULATIVA**: contiene anche i commit di sessione 21 (`13b0ffc`, era PR #56) e sessione 22 (`b0e5a0c`, era PR #57). Mergiando #58 chiudi #56 e #57 in un colpo solo. `main` è ferma a `4d7284b` (handoff v15) ed è 3 commit indietro rispetto al branch attuale.
 - ✅ **Bacheca avvisi**: scadenza automatica (`expires_at` + UI auto-hide/toggle/chip ⏳ + editor datetime-local).
 - ✅ **Bacheca @menzioni**: trigger DB `notify_notice_mention` (dedup 6h) + handler UI 📌 in NotificationsPanel.
 - ✅ **Quick refactor v17**: `openDossierById` in `CalendarPlanner` (5 click handler) e `ChatPanel/DossierRefChip` — click su evento calendario/chip chat ora apre direttamente la PraticaDetail.
 - ✅ **Driver agenda**: pillole filtro data in `PersonalQueue` (Oggi/Domani/Settimana/Dopo) quando `role === "driver"`.
 - ✅ **Sidebar auto-collapse** tra 1024–1280px (override utente vince).
 - ✅ **Build verde**. `266.03 kB │ gzip: 63.52 kB` (+1.73 kB gz vs PR #57).
+- ✅ **Vercel preview Ready** (deploy CI green).
 - ❌ **Modulo finanziario**: confermo rimozione roadmap (sessione 22). Non sviluppare.
 - 🚧 **Notifiche residue Fase 2 chiuse** lato server: `notify_queue_stale` già attivo da Step J (cron orario), ora coperto in roadmap.
 
@@ -153,13 +155,17 @@ Già attivi da sessioni precedenti (no-op qui):
 
 ## 4. Cosa fare nella prossima sessione (24)
 
+### Punto di partenza per la sessione 24 (fresh context)
+
+1. Leggi `docs/CLAUDE.md` (convenzioni) → questo handoff (v19) → `docs/HANDOFF_SESSION_2026-06-15_v18.md` (sessione 22, per dettaglio Caveat #28 e filtri NotificationsPanel).
+2. Esegui `git fetch origin && git log --oneline origin/main..origin/claude/bold-turing-7qkos8` per vedere se PR #58 è ancora aperta. Se sì, il branch da continuare è `claude/bold-turing-7qkos8` (oppure ne crei uno nuovo derivato da `main` dopo il merge).
+3. Esegui `npm install && npm run build` per validare l'ambiente. Build atteso: ~266 kB / ~63.5 kB gz.
+4. Verifica stato DB con MCP Supabase: cron `notify_queue_stale_hourly` (`5 * * * *`) e `notify_dossier_departure_daily` (`0 7 * * *`) attivi. Trigger `trg_notify_notice_mention`, `trg_notify_dossier_status`, `trg_notices_touch_updated_at` presenti.
+
 ### Priorità di merge
 
-1. **Mergiare PR #56** (sessione 21) → main: porta badge Pratiche, deep-link UI, selettore Bulk, tema celeste.
-2. **Mergiare PR #57** (sessione 22) → main: porta migration recovery, calendario pratiche, assegnatari editable, filtri notifiche, filtri coda, read-only urgenti, rich preview chat.
-3. **Mergiare PR #58** (sessione 23, questa) → main: porta bacheca scadenze + menzioni notificate + `openDossierById` Calendar/Chat + Driver date-pill + Sidebar auto-collapse.
-
-Nessuna sequenza vincolante: i tre PR hanno solo sovrapposizioni minori (in `NotificationsPanel` ognuno aggiunge handler distinti, in `CalendarPlanner` la prop `onOpenDossier` è additiva, in `ChatPanel` idem). Git potrebbe segnalare "both modified" su alcune righe in `NOTIF_ICONS`/`notifTitle` ma il contenuto è deterministicamente uguale.
+1. **Mergiare PR #58** (questa, sessione 23) → main: porta tutto il delta cumulativo sessione 21+22+23 (badge Pratiche, deep-link UI, selettore Bulk, tema celeste, migration recovery, calendario pratiche, assegnatari editable, filtri notifiche, filtri coda, read-only urgenti, rich preview chat, bacheca scadenze + menzioni, openDossierById, Driver date-pill, Sidebar auto-collapse).
+2. **Chiudere PR #56 e #57** (draft) come superati: contenuti già inclusi in #58. Aggiungere commento "Superato da #58 (cumulativo)" e chiudere senza merge.
 
 ### Opzione A — Estensioni chat & impostazioni agenzia (priorità 🟡)
 

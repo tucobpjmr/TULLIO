@@ -3,7 +3,7 @@
 
 ## v2.4-dev — Bacheca scadenze + @menzioni + openDossierById + auto-collapse sidebar + driver date-pill (sessione 23)
 
-> Branch `claude/bold-turing-7qkos8` — PR #58 (draft). Base: `claude/sleepy-davinci-ka888x` (PR #57 sessione 22).
+> Branch `claude/bold-turing-7qkos8` — PR **#58** (draft, **cumulativa**: include anche i commit di sessione 21 = PR #56 e sessione 22 = PR #57). Base: `main` (post Fase 1 completa). Mergiando #58 si chiudono #56 e #57.
 
 ### 📌 Bacheca avvisi: scadenza automatica + @menzioni notificate
 

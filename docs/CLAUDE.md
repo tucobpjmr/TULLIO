@@ -381,6 +381,6 @@ src/
 
 **Step P COMPLETO (Phase 1 → 2g).** **Fase 1 COMPLETA** (PR #49 base + #51/#52/#53): Clienti, Fornitori, Pratiche, collegamento Task↔Pratica, fornitori della pratica, filtro pratica in ricerca. Nessun caveat aperto.
 
-Le notifiche nascono **solo da trigger DB** (RLS vieta insert client) — per nuove notifiche serve un trigger server-side (pattern in `supabase/migrations/20260614_mention_composite_names.sql`).
+Le notifiche nascono **solo da trigger DB** (RLS vieta insert client) — per nuove notifiche serve un trigger server-side (pattern in `supabase/migrations/20260614_mention_composite_names.sql`, `20260614_dossier_notifications.sql`, `20260615_notices_expiration_and_mentions.sql`).
 
-Vedi `docs/HANDOFF_SESSION_2026-06-15_v17.md` per il dettaglio sessione 21 (quick wins v17) e v15 per la Fase 1 completa.
+Vedi `docs/HANDOFF_SESSION_2026-06-15_v19.md` (sessione 23, PR #58 cumulativa) per il punto di partenza. Storico sessioni precedenti: v18 (sessione 22), v17 (sessione 21), v15 (Fase 1 completa).

@@ -416,6 +416,10 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     setNotifications((data || []).map(fromDbNotification));
   }, { enabled: useSupabase, deps: [useSupabase] });
 
+  // Loading state CRM: true finché non completa il primo fetch da Supabase.
+  // Senza login parte già false (nessuna idratazione: si usano i dati mock).
+  const [crmLoading, setCrmLoading] = useState(useSupabase);
+
   // Fase 1: idratazione CRM (clienti, fornitori, pratiche) al mount.
   // Reference data, nessun realtime — semplice fetch one-shot.
   useEffect(() => {
@@ -430,7 +434,8 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       if (!cRes.error) rawDispatch({ type: "SET_CLIENTS", payload: (cRes.data || []).map(fromDbClient) });
       if (!sRes.error) rawDispatch({ type: "SET_SUPPLIERS", payload: (sRes.data || []).map(fromDbSupplier) });
       if (!dRes.error) rawDispatch({ type: "SET_DOSSIERS", payload: (dRes.data || []).map(fromDbDossier) });
-    }).catch(e => console.error("[CRM] hydration", e));
+    }).catch(e => console.error("[CRM] hydration", e))
+      .finally(() => { if (!cancelled) setCrmLoading(false); });
     return () => { cancelled = true; };
   }, [useSupabase]);
 
@@ -632,6 +637,26 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // Presence (Step H): heartbeat + subscribe a users
   // Mappa { userId -> rowDB } (per leggere last_seen_at e status).
   const [presenceMap, setPresenceMap] = useState({});
+  // Stato "Occupato" manuale: il toggle vive in ChatPanel; lo teniamo in un ref
+  // così il beat() lo legge senza far ripartire l'effetto presence.
+  const [myBusy, setMyBusy] = useState(false);
+  const myBusyRef = useRef(false);
+  const toggleMyBusy = useCallback(() => {
+    setMyBusy(prev => {
+      const nv = !prev;
+      myBusyRef.current = nv;
+      const myId = initialCurrentUserId;
+      if (useSupabase && myId) {
+        const st = nv ? 'busy' : 'online';
+        UsersAPI.setPresence(myId, st).then(() => {});
+        setPresenceMap(p => ({
+          ...p,
+          [myId]: { ...(p[myId] || {}), status: st, last_seen_at: new Date().toISOString() },
+        }));
+      }
+      return nv;
+    });
+  }, [useSupabase, initialCurrentUserId]);
   useEffect(() => {
     if (!useSupabase) return;
     const myId = initialCurrentUserId;
@@ -649,25 +674,27 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     };
     reload();
 
-    const beat = (status = 'online') => {
+    // Se status non è passato esplicitamente, rispetta il toggle "Occupato".
+    const beat = (status) => {
       if (!myId) return;
-      UsersAPI.setPresence(myId, status).then(r => {
+      const eff = status || (myBusyRef.current ? 'busy' : 'online');
+      UsersAPI.setPresence(myId, eff).then(r => {
         if (r?.error) console.warn("[presence] setPresence", r.error);
         // Aggiorno anche localmente per immediatezza
         setPresenceMap(prev => ({
           ...prev,
-          [myId]: { ...(prev[myId] || {}), status, last_seen_at: new Date().toISOString() },
+          [myId]: { ...(prev[myId] || {}), status: eff, last_seen_at: new Date().toISOString() },
         }));
       });
     };
-    beat('online');
+    beat();
     // Caveat #3: heartbeat ogni 30s (era 45s), allineato al tick di ageing
     // della presenza → lo stato online/away resta più reattivo.
-    hbTimer = setInterval(() => beat('online'), 30 * 1000);
+    hbTimer = setInterval(() => beat(), 30 * 1000);
 
     const onVisibility = () => {
       if (document.visibilityState === 'hidden') beat('away');
-      else beat('online');
+      else beat();
     };
     const onBeforeUnload = () => beat('offline');
     document.addEventListener('visibilitychange', onVisibility);
@@ -880,9 +907,9 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     switch (state.activeView) {
       case "dashboard":  return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
       case "calendar":   return <CalendarPlanner state={state} dispatch={dispatch} />;
-      case "clienti":    return <ClientiView state={state} dispatch={dispatch} />;
-      case "fornitori":  return <FornitoriView state={state} dispatch={dispatch} />;
-      case "pratiche":   return <PraticheView state={state} dispatch={dispatch} initialDossierId={targetDossierId} />;
+      case "clienti":    return <ClientiView state={state} dispatch={dispatch} loading={crmLoading} />;
+      case "fornitori":  return <FornitoriView state={state} dispatch={dispatch} loading={crmLoading} />;
+      case "pratiche":   return <PraticheView state={state} dispatch={dispatch} initialDossierId={targetDossierId} loading={crmLoading} />;
       case "team":       return <Team state={state} dispatch={dispatch} />;
       case "trash":      return <Trash state={state} dispatch={dispatch} />;
       case "admin":      return <AdminView state={state} dispatch={dispatch} />;
@@ -942,6 +969,8 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           dispatch={dispatch}
           presenceMap={presenceMap}
           loading={chatLoading}
+          myBusy={myBusy}
+          onToggleBusy={toggleMyBusy}
         />
 
         {/* FAB principale (singolo task). La creazione bulk/multi-task è ora in Sidebar/BottomNav. */}

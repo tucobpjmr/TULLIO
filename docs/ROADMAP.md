@@ -66,9 +66,9 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 | Modulo | Stato | Priorità | Sforzo | Note |
 |---|---|---|---|---|
-| Notifiche reali | 🔶 | 🔴 | M | Trigger task ✅ (Step F/J), trigger pratica ✅ (caveat #28, PR #57). Filtri + "segna tutte lette" ✅ (PR #57). Manca: notifica task in coda > N ore |
+| Notifiche reali | ✅ | 🔴 | M | Trigger task ✅ (Step F/J), trigger pratica ✅ (caveat #28, PR #57), coda stantia ✅ (`queue_stale`, hourly cron). Filtri + "segna tutte lette" ✅ (PR #57). |
 | Calendario avanzato | 🔶 | 🟡 | M | iCal export ✅, vista settimanale ✅, vista giornaliera ✅, pratiche nel calendario ✅ (PR #57). Manca: eventi multipli/ricorrenti |
-| Estensioni chat (base) | 🔶 | 🟡 | S–M | Ricerca conversazioni ✅, stato online/occupato ✅, task link cliccabile ✅, rich preview pratiche ✅ (PR #57). Manca: stato "occupato" manuale |
+| Estensioni chat (base) | ✅ | 🟡 | S–M | Ricerca conversazioni ✅, presence online/assente/offline ✅, **stato "Occupato" manuale ✅** (toggle header chat), task link cliccabile ✅, rich preview pratiche ✅ |
 | Impostazioni agenzia | 🔶 | 🟡 | S | Gestione categorie e nome agenzia già in Admin. Manca: template messaggi, profilo utente, preferenze UI |
 | Ricerca globale estesa | ✅ | — | — | Completata in v0.5. |
 | Responsive (mobile/tablet/desktop) | ✅ | — | — | Completato in v0.6. |
@@ -77,18 +77,7 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 ---
 
-## 💰 Fase 3 — Business
-
-Ha senso **solo dopo le Pratiche** (servono dati reali).
-
-| Modulo | Stato | Priorità | Sforzo | Dipende da |
-|---|---|---|---|---|
-| Report & Analytics | 🔶 | 🟡 | M–L | KPI base già in Admin/Sistema. Da estendere con: trend temporali, export PDF |
-| Catalogo destinazioni / pacchetti | ⬜ | 🟡 | M | autonomo |
-
----
-
-## 📈 Fase 4 — Scala & accessi
+## 📈 Fase 3 — Scala & accessi
 
 | Modulo | Stato | Priorità | Sforzo | Note |
 |---|---|---|---|---|
@@ -107,7 +96,7 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 | Badge sulla voce sidebar/bottom-nav **Pratiche** con partenze imminenti (≤7gg) | ✅ | — | Completato in PR #56 (sessione 21) |
 | Toast personalizzato "Hai preso in carico: \[titolo\]" | ✅ | — | Completato in Step I (`takeOwnership` → toastMessage) |
 | Auto-move in "In Corso" al "Prendi in carico" | ✅ | — | Completato in Step I (`takeOwnership`) |
-| Notifica al manager se un task resta in coda > N ore | ⬜ | 🟡 | Dipende da notifiche reali (trigger DB `queue_stale`) |
+| Notifica al manager se un task resta in coda > N ore | ✅ | — | Trigger DB `notify_queue_stale` + cron orario (migration `20260615_queue_stale_notifications.sql`) |
 | Filtro nella coda globale (per categoria/priorità) | ✅ | — | Completato in PR #57 (sessione 22) |
 | Bacheca: menzioni @utente con notifica | ⬜ | 🟡 | Dipende da notifiche reali (trigger DB su `notices`) |
 | Bacheca: avvisi con scadenza automatica | ⬜ | ⚪ | Richiede colonna `expires_at` su `notices` |
@@ -115,15 +104,15 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 | Bacheca: tag/categorie filtrabili | ⬜ | ⚪ | |
 | Modifica assegnatari da `TaskSlideOver` | ✅ | — | Completato in PR #57 (sessione 22) |
 | Permessi granulari per ruolo | ✅ | — | Completato in v0.8 |
-| Export Log attività in CSV | ⬜ | ⚪ | |
+| Export Log attività in CSV | ✅ | — | Pulsante "Esporta CSV" nel tab Log (rispetta il filtro attivo), helper `downloadFile`/`escapeCSV` hoistati a module-scope |
 
 ## ✨ Migliorie incrementali emerse (post v0.6)
 
 | Idea | Stato | Priorità | Note |
 |---|---|---|---|
 | Vista settimanale Calendario | ✅ | — | Completata in v0.7 (CalendarPlanner: week + week-full) |
-| Comprimi automaticamente Sidebar desktop tra 1024–1280px | ⬜ | ⚪ | |
-| Skeleton loading su prime render | ⬜ | ⚪ | |
+| Comprimi automaticamente Sidebar desktop tra 1024–1280px | ✅ | — | Auto-collapse a transizione di banda in `Sidebar` (guardia `prevBandRef`, non contrasta il toggle manuale) |
+| Skeleton loading su prime render | ✅ | — | `SkeletonCards` (shimmer) nelle viste Clienti/Fornitori/Pratiche durante l'idratazione CRM (`crmLoading`) |
 | Dark mode | ⬜ | ⚪ | CSS variables pronte |
 | Test responsive automatici (Playwright) | ⬜ | ⚪ | ⚙️**B** |
 
@@ -195,7 +184,7 @@ Vedi `docs/HANDOFF_SESSION_2026-06-14_v13.md` per il dettaglio sessione 18 (Phas
 
 - **v2.2-dev** — **Fase 1 COMPLETA** (PR #51/#52/#53): collegamento Task↔Pratica (`dossierId` su QuickAddTask/TaskSlideOver), pannello fornitori in `PraticaDetail` (`FornitoriPanel`), filtro pratica nella Ricerca avanzata. Caveat #26 e #27 chiusi. Build: 252.04 kB / 59.47 kB gz.
 
-- **v2.3-dev** — Sessione 22 (PR #57): caveat #28 (trigger DB notifiche pratica, allinea repo↔DB) + Calendario pratiche (eventi ✈️/🏁 celesti in tutte le viste) + Modifica assegnatari da TaskSlideOver + Filtri NotificationsPanel (Tutte/Non lette/Task/Pratiche/Menzioni) + icon dossier (📁 ✈️) + Filtri coda globale (categoria/priorità) + Indicatore read-only urgenti altrui + Rich preview pratiche in chat (`PR-YYYY-NNN` → chip). Cleanup docs: modulo finanziario rimosso da Fase 3 e CLAUDE.md (richiesta utente). Build: 260.57 kB / 61.79 kB gz.
+- **v2.3-dev** — Sessione 22 (PR #57): caveat #28 (trigger DB notifiche pratica, allinea repo↔DB) + Calendario pratiche (eventi ✈️/🏁 celesti in tutte le viste) + Modifica assegnatari da TaskSlideOver + Filtri NotificationsPanel (Tutte/Non lette/Task/Pratiche/Menzioni) + icon dossier (📁 ✈️) + Filtri coda globale (categoria/priorità) + Indicatore read-only urgenti altrui + Rich preview pratiche in chat (`PR-YYYY-NNN` → chip). Cleanup docs: Fase 3 Business (modulo finanziario, Report & Analytics, catalogo) rimossa da roadmap/CLAUDE.md/changelog (richiesta utente). Build: 260.57 kB / 61.79 kB gz.
 
 - **v2.2.1-dev** — Sessione 21 (PR #56 draft, handoff v17): badge sidebar Pratiche partenze imminenti, deep-link notifiche pratica (UI), selettore pratica in BulkTaskCreator, tema celeste `--sky` su Topbar/Sidebar/BottomNav. Build: 253.08 kB / 59.87 kB gz.
 
@@ -228,7 +217,7 @@ Vedi `docs/HANDOFF_SESSION_2026-06-14_v13.md` per il dettaglio sessione 18 (Phas
 1. **Decidi A o B** (persistenza sì/no).
 2. **Fase 1** — Clienti → Fornitori → Pratiche → collegamenti.
 3. **Notifiche reali** (Fase 2) — sblocca badge, alert su pending/coda, menzioni in bacheca.
-4. **Fase 2 residua** (Calendario avanzato, estensioni chat) + **Fase 3** (Report avanzati, catalogo).
-5. **Fase 4** (multi-utente reale).
+4. **Fase 2 residua** (Calendario avanzato, estensioni chat).
+5. **Fase 3** (multi-utente reale, scala & accessi).
 6. Migliorie incrementali post-v0.5/v0.6/v0.8 inserite dove pertinenti.
 7. Traccia tecnica man mano, se in Opzione B.

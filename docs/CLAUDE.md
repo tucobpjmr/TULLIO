@@ -294,9 +294,10 @@ Tutti i componenti sono **moduli separati** in `src/components/`; helper e sub-c
 - [x] Calendario avanzato con date partenza/ritorno pratiche (session 22) ✅
 - [x] Estensioni chat con riconoscimento pratica (dossier reference PR-YYYY-NNN) (session 22) ✅
 
-### Priorità 3 — Business (Fase 3)
-- [ ] Report & Analytics avanzati (trend temporali, export PDF)
-- [ ] Catalogo destinazioni / pacchetti
+### Priorità 3 — Scala & accessi (Fase 3)
+- [ ] Multi-utente reale & permessi (login vero, isolamento dati)
+- [ ] Estensioni chat avanzate (reazioni custom, mock audio/video)
+- [ ] AI Assistant — estensioni (genera preventivo da testo, suggerimenti assegnazione)
 
 Vedi `docs/ROADMAP.md` per il dettaglio completo con dipendenze e stime.
 
@@ -379,6 +380,6 @@ src/
 
 **Step P COMPLETO (Phase 1 → 2g).** **Fase 1 COMPLETA** (PR #49 base + #51/#52/#53): Clienti, Fornitori, Pratiche, collegamento Task↔Pratica, fornitori della pratica, filtro pratica in ricerca. Nessun caveat aperto.
 
-Le notifiche nascono **solo da trigger DB** (RLS vieta insert client) — per nuove notifiche serve un trigger server-side (pattern in `supabase/migrations/20260614_mention_composite_names.sql`).
+Le notifiche nascono **solo da trigger DB / funzioni server-side** (RLS vieta insert client) — per nuove notifiche serve un trigger o una funzione `SECURITY DEFINER` schedulata via pg_cron (pattern in `supabase/migrations/20260614_mention_composite_names.sql`, `20260614_dossier_notifications.sql`, `20260615_queue_stale_notifications.sql`). Tipi notifica gestiti dal frontend (`NOTIF_ICONS`/`notifTitle` in `Topbar.jsx`): `task_assigned`, `task_due`, `comment`, `mention`, `queue_stale`, `dossier_status`, `dossier_departure`.
 
-Vedi `docs/HANDOFF_SESSION_2026-06-15_v17.md` per il dettaglio sessione 21 (quick wins v17) e v15 per la Fase 1 completa.
+Vedi `docs/HANDOFF_SESSION_2026-06-15_v20.md` per il dettaglio sessione 22 (Fase 2 completa: notifiche pratica, calendario, assegnatari, filtri), v17 per sessione 21 (quick wins) e v15 per la Fase 1 completa.

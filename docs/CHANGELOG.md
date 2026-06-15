@@ -1,6 +1,89 @@
 # CHANGELOG — VoyageDesk
 
 
+## v2.6-dev — Micro-miglioramenti UI: auto-collapse sidebar + export log CSV + skeleton loading (sessione 23)
+
+> Branch `claude/handoff-v20-docs-4an8rx` — PR #60 (draft). Quick win frontend a basso rischio.
+
+### 💀 Skeleton loading (viste CRM)
+
+- **`src/components/ui/SkeletonCards.jsx`** (nuovo): griglia di card placeholder con shimmer (classe `.skeleton`), responsive.
+- **`src/VoyageDesk.jsx`**: nuovo flag `crmLoading` (true finché non completa il primo fetch CRM da Supabase, `.finally`), passato a Clienti/Fornitori/Pratiche.
+- **`ClientiView` / `FornitoriView` / `PraticheView`**: mostrano `SkeletonCards` durante l'idratazione iniziale (prima che arrivino i dati) invece di lampeggiare l'empty-state "Nessun…"; sottotitolo "Caricamento…" al posto di "0 …".
+
+### 🖥️ Auto-collapse Sidebar (desktop stretto 1025–1280px)
+
+- **`src/components/shell/Sidebar.jsx`**: la sidebar si collassa automaticamente quando la finestra entra nella fascia 1025–1280px (dove 210px di nav rubano spazio) e si ri-espande sopra i 1280px. Effetto guardato per banda (`prevBandRef`): agisce solo sulle transizioni, quindi **non contrasta il toggle manuale** dentro la stessa banda. Su mount in fascia stretta parte già collassata.
+
+### 📄 Export Log attività in CSV (Admin)
+
+- **`src/components/admin/AdminView.jsx`**: pulsante "Esporta CSV" nel tab Log attività → scarica le righe **del filtro attivo** (Tutte/Task/Cestino/Admin) come CSV (`Data/ora, Tipo, Descrizione`, con BOM UTF-8). Disabilitato se la lista filtrata è vuota.
+- Refactor: `downloadFile` ed `escapeCSV` (prima locali a `AdminIOTab`) **hoistati a module-scope** e condivisi tra i tab Import/Export e Log (no duplicazione).
+
+---
+
+## v2.5-dev — Fase 2 chiusa: queue_stale versionata + chat "Occupato" + cleanup roadmap (sessione 23)
+
+> Branch `claude/handoff-v20-docs-4an8rx` — PR #60 (draft). Docs v20.
+
+### ⏳ Notifica coda globale stantia (`queue_stale`)
+
+- **`supabase/migrations/20260615_queue_stale_notifications.sql`** (nuovo): `notify_queue_stale()` (`SECURITY DEFINER`) + cron orario `notify_queue_stale_hourly` (`5 * * * *`). Notifica i manager/admin attivi non-pending per i task in **coda globale** (nessun assegnatario, status `todo`, non cestinati) creati da **> 4h**. De-dup 4h. Payload `{ task_id, task_title, stale_since }`.
+- La funzione + il cron erano **già live** (sessione 22) ma non versionati né registrati in `schema_migrations`: questa migration riallinea repo↔DB e registra la migration. Frontend già pronto (`NOTIF_ICONS['queue_stale']='⏳'`, `notifTitle`, categoria Task).
+
+### 💬 Stato chat "Occupato" manuale
+
+- **`src/components/chat/ChatPanel.jsx`**: `computePresence` riconosce lo stato `busy` (pallino rosso `#C0392B`); `PRESENCE_LABELS` per i tooltip (Online/Assente/Occupato/Offline); toggle "Occupato/Online" nell'header chat (prop `myBusy`/`onToggleBusy`).
+- **`src/VoyageDesk.jsx`**: stato `myBusy` + `myBusyRef` + `toggleMyBusy`; l'heartbeat presence (`beat()`) invia `busy` invece di `online` quando il flag è attivo, senza far ripartire l'effetto presence. Tab nascosta → `away` (override temporaneo), poi torna a `busy` al ritorno. Chiude la voce "stato occupato manuale" della Fase 2.
+
+### 🗑️ Rimozione Fase 3 Business
+
+- **Fase 3 Business eliminata** da `ROADMAP.md` / `CLAUDE.md` / `CHANGELOG.md` / handoff (Report & Analytics, modulo finanziario, catalogo destinazioni) su richiesta utente. Ex-Fase 4 "Scala & accessi" rinumerata a Fase 3.
+
+---
+
+## v2.4-dev — Fase 2 Operatività completa: notifiche pratica, calendario, assegnatari, filtri (sessione 22)
+
+> Branch sessione 22 — PR #57 (commit `b0e5a0c`). Base: `main` (post quick wins v17). Chiude il caveat **#28** → **Fase 2 completa, nessun caveat aperto**. Handoff: `docs/HANDOFF_SESSION_2026-06-15_v20.md`.
+
+### 🔔 Trigger DB notifiche pratica (caveat #28)
+
+- **`supabase/migrations/20260614_dossier_notifications.sql`** (nuovo): `notify_dossier_status()` (trigger `AFTER UPDATE OF status` su `dossiers` → notifica a `created_by` + manager/admin attivi non-pending, escluso l'attore) e `notify_dossier_departure()` (pg_cron giornaliero `0 7 * * *` UTC, pratiche confermate/in_corso con partenza ≤3gg, de-dup 20h). Entrambe `SECURITY DEFINER` + `revoke all`. Già applicata in prod (version `20260614212448`); file in repo per version control.
+
+### 📅 Calendario — pratiche in tutte le viste
+
+- **`src/components/calendar/CalendarPlanner.jsx`**: pratiche con `departureDate`/`returnDate` come eventi distinti (colore diverso dai task) in vista mese, settimana, settimana-piena e giorno (partenza ✈️ / ritorno 🛬).
+
+### 👥 TaskSlideOver — assegnatari editable
+
+- **`src/components/tasks/TaskSlideOver.jsx`**: assegnatari modificabili inline — chip con `×`, pulsante "+ Aggiungi" (select da `getAssignableTeam`), dispatch `UPDATE_TASK`. Rispetta `canEditTask`.
+
+### 🧰 Filtri — notifiche e coda globale
+
+- **`src/components/shell/Topbar.jsx`**: `NotificationsPanel` con filtri per categoria (Task / Pratiche / Menzioni).
+- **`src/components/dashboard/Dashboard.jsx`**: `UnassignedQueue` con filtri per categoria e priorità.
+
+### 💬 Chat — riferimenti pratica inline
+
+- **`src/components/chat/ChatPanel.jsx`**: parser `PR-YYYY-NNN` (`DOSSIER_REF_RE`) → chip cliccabile (`DossierRefChip`) che apre la vista Pratiche; `ChatContext` trasporta `dossiers`. **`src/VoyageDesk.jsx`**: passa `dossiers` a `ChatPanel`.
+
+### 📋 Docs
+
+- **`docs/ROADMAP.md`**: **Fase 3 Business rimossa** (modulo finanziario, Report & Analytics, catalogo destinazioni); Fase 4 → Fase 3 (Scala & accessi); moduli Fase 2 → 🔶/✅. **`docs/CLAUDE.md`**: Priorità 2 completa `(session 22)`, rimossa Priorità 3 Business.
+
+### Build
+
+```
+dist/assets/index-*.js   261.35 kB │ gzip: 62.14 kB   (+2.3 kB gz vs v2.3)
+✅ Build verde.
+```
+
+### Caveat
+
+- **#28** ✅ chiuso. **Nessun caveat aperto.**
+
+---
+
 ## v2.3-dev — Quick wins v17: badge partenze, deep-link notifiche, selettore pratica, tema celeste (sessione 21)
 
 > Branch `claude/handoff-v17-quick-wins-03nn3u` — PR #56 (draft). Base: `main` (post Fase 1 completa).

@@ -13,6 +13,23 @@ import {
   btnPrimary, btnGold, btnGhost, btnDanger, btnWarning,
 } from "./adminStyles.js";
 
+// Helper export condivisi dai tab Import/Export e Log (module-local).
+const downloadFile = (blob, filename) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 500);
+};
+
+const escapeCSV = (val) => {
+  if (val === null || val === undefined) return "";
+  const s = String(val);
+  if (s.includes(",") || s.includes('"') || s.includes("\n")) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+};
+
 export const AdminView = ({ state, dispatch }) => {
   const [tab, setTab] = useState("team");
 
@@ -221,22 +238,6 @@ const AdminIOTab = ({ state, dispatch }) => {
   const fileInputRef = useRef(null);
 
   const tasksToExport = () => includeTrashed ? state.tasks : state.tasks.filter(t => !t.deletedAt);
-
-  const downloadFile = (blob, filename) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 500);
-  };
-
-  const escapeCSV = (val) => {
-    if (val === null || val === undefined) return "";
-    const s = String(val);
-    if (s.includes(",") || s.includes('"') || s.includes("\n")) return `"${s.replace(/"/g, '""')}"`;
-    return s;
-  };
 
   const exportCSV = () => {
     const headers = ["ID","Titolo","Categoria","Priorità","Status","Cliente","Scadenza","Ore","Assegnati","Descrizione","Cestinato"];
@@ -572,6 +573,20 @@ const AdminLogTab = ({ state, dispatch }) => {
   };
   const list = groups[filter]();
 
+  const exportLogCSV = () => {
+    const headers = ["Data/ora", "Tipo", "Descrizione"];
+    const rows = list.map(l => [
+      new Date(l.time).toLocaleString("it-IT"),
+      l.type,
+      (l.text || "").replace(/\n/g, " "),
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(escapeCSV).join(",")).join("\n");
+    downloadFile(
+      new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }),
+      `voyagedesk-log-${filter}-${new Date().toISOString().slice(0, 10)}.csv`,
+    );
+  };
+
   const iconFor = (type) => {
     if (type.includes("DELETE") || type.includes("PURGE") || type.includes("EMPTY")) return "🗑️";
     if (type.includes("RESTORE")) return "↻";
@@ -616,11 +631,17 @@ const AdminLogTab = ({ state, dispatch }) => {
           ))}
         </div>
         {state.activityLog.length > 0 && (
-          <button onClick={() => {
-            if (window.confirm("Svuotare il log attività? Non è reversibile.")) {
-              dispatch({ type: "CLEAR_ACTIVITY_LOG" });
-            }
-          }} style={btnDanger}>🔥 Svuota log</button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={exportLogCSV} disabled={list.length === 0} style={{
+              ...btnGhost, opacity: list.length === 0 ? 0.5 : 1,
+              cursor: list.length === 0 ? "not-allowed" : "pointer",
+            }}>📄 Esporta CSV</button>
+            <button onClick={() => {
+              if (window.confirm("Svuotare il log attività? Non è reversibile.")) {
+                dispatch({ type: "CLEAR_ACTIVITY_LOG" });
+              }
+            }} style={btnDanger}>🔥 Svuota log</button>
+          </div>
         )}
       </div>
 

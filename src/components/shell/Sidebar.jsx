@@ -1,6 +1,7 @@
 // ─── SIDEBAR / BOTTOM NAV ────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f). NAV_ITEMS/getNavItemsForUser/
 // getNavBadges + NavBadge (module-local) + Sidebar e BottomNav (esportati).
+import { useEffect, useRef } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { CURRENT_USER, getAssignableTeam, getRoleType } from "../../state/appGlobals.js";
 
@@ -61,7 +62,24 @@ const NavBadge = ({ count, collapsed = false, mobile = false }) => {
 };
 
 export const Sidebar = ({ state, dispatch, onOpenBulk }) => {
-  const { isDesktop } = useViewport();
+  const { isDesktop, width } = useViewport();
+  // Auto-collassa la sidebar nella fascia "desktop stretto" (1025–1280px) dove
+  // 210px di nav rubano troppo spazio orizzontale; si ri-espande sopra i 1280px.
+  // Guardia per banda: agisce solo sulle transizioni, così il toggle manuale
+  // dentro la stessa banda non viene contrastato.
+  const prevBandRef = useRef(null);
+  useEffect(() => {
+    if (!isDesktop) { prevBandRef.current = null; return; }
+    const band = width <= 1280 ? "narrow" : "wide";
+    const prev = prevBandRef.current;
+    prevBandRef.current = band;
+    if (prev === band) return;
+    if (band === "narrow" && !state.sidebarCollapsed) {
+      dispatch({ type: "TOGGLE_SIDEBAR" });
+    } else if (band === "wide" && prev !== null && state.sidebarCollapsed) {
+      dispatch({ type: "TOGGLE_SIDEBAR" });
+    }
+  }, [width, isDesktop, state.sidebarCollapsed, dispatch]);
   if (!isDesktop) return null;
   const col = state.sidebarCollapsed;
   const navItems = getNavItemsForUser(state.currentUserId);

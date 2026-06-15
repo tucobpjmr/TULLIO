@@ -2,6 +2,7 @@
 // Pratiche di viaggio — Fase 1 modello dati.
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useViewport } from "../Viewport.jsx";
+import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { formatDate } from "../../lib/taskUtils.js";
 import { DossierSuppliers as DossierSuppliersAPI } from "../../lib/api.js";
 import { fromDbDossierSupplier, toDbDossierSupplier } from "../../lib/mappers.js";
@@ -480,7 +481,7 @@ function PraticaDetail({ dossier, tasks, suppliers, dispatch, onClose }) {
 }
 
 // ─── VISTA PRINCIPALE ─────────────────────────────────────────────────────
-export function PraticheView({ state, dispatch, initialDossierId = null }) {
+export function PraticheView({ state, dispatch, initialDossierId = null, loading = false }) {
   const { isMobile } = useViewport();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -540,7 +541,9 @@ export function PraticheView({ state, dispatch, initialDossierId = null }) {
             Pratiche
           </h1>
           <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
-            {dossiers.length} {dossiers.length === 1 ? "pratica" : "pratiche"} totali
+            {loading && dossiers.length === 0
+              ? "Caricamento…"
+              : `${dossiers.length} ${dossiers.length === 1 ? "pratica" : "pratiche"} totali`}
           </div>
         </div>
         <button
@@ -594,7 +597,9 @@ export function PraticheView({ state, dispatch, initialDossierId = null }) {
       </div>
 
       {/* Lista */}
-      {filtered.length === 0 ? (
+      {loading && dossiers.length === 0 ? (
+        <SkeletonCards />
+      ) : filtered.length === 0 ? (
         <div style={{ textAlign: "center", padding: "64px 24px", color: "var(--text-muted)" }}>
           {(search || filterStatus) ? "Nessuna pratica trovata" : (
             <div>

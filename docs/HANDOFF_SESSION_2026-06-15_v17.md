@@ -13,7 +13,7 @@
 - ✅ **Build verde** a ogni commit: `253.08 kB │ gzip: 59.87 kB`.
 - ✅ **Vercel preview Ready** — vedi link sotto.
 - 🚧 **Caveat #28 aperto**: UI deep-link notifiche pratica pronta; mancano i trigger DB lato Supabase.
-- 🚧 **Prossimo lavoro**: trigger DB `dossier_status`/`dossier_departure` (Fase 2), oppure modulo finanziario (Fase 3).
+- 🚧 **Prossimo lavoro**: trigger DB `dossier_status`/`dossier_departure` (Fase 2), poi calendario pratiche.
 
 ---
 
@@ -108,13 +108,7 @@ Creare due trigger in Supabase:
    - Payload: `{ dossier_id, dossier_number, destination, departure_date }`.
    - Tipo notifica: `dossier_departure`.
 
-### Opzione B — Modulo finanziario (Fase 3)
-
-- Aggregare `dossier_suppliers.cost` vs `dossiers.budget_total` → margine.
-- Riepilogo economico in `PraticaDetail`: somma costi, scostamento da budget, % margine.
-- Acconti/pagamenti (tabella `dossier_payments` nuova).
-
-### Opzione C — Calendario pratiche
+### Opzione B — Calendario pratiche
 
 - Mostrare `departureDate`/`returnDate` nel `CalendarPlanner` come eventi distinti.
 - Colore diverso da task (es. celeste/teal).

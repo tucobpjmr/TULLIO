@@ -2,6 +2,7 @@
 // Anagrafica Clienti — Fase 1 modello dati.
 import { useState, useMemo } from "react";
 import { useViewport } from "../Viewport.jsx";
+import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 
 const EMPTY_FORM = { name: "", email: "", phone: "", address: "", city: "", notes: "" };
 
@@ -159,7 +160,7 @@ function ClienteCard({ cliente, dossierCount, onEdit, onDelete }) {
   );
 }
 
-export function ClientiView({ state, dispatch }) {
+export function ClientiView({ state, dispatch, loading = false }) {
   const { isMobile } = useViewport();
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState(null); // null | { mode: "add" | "edit", cliente?: {} }
@@ -209,7 +210,9 @@ export function ClientiView({ state, dispatch }) {
             Clienti
           </h1>
           <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
-            {clients.length} {clients.length === 1 ? "cliente" : "clienti"} in anagrafica
+            {loading && clients.length === 0
+              ? "Caricamento…"
+              : `${clients.length} ${clients.length === 1 ? "cliente" : "clienti"} in anagrafica`}
           </div>
         </div>
         <button
@@ -235,7 +238,9 @@ export function ClientiView({ state, dispatch }) {
       </div>
 
       {/* Lista */}
-      {filtered.length === 0 ? (
+      {loading && clients.length === 0 ? (
+        <SkeletonCards />
+      ) : filtered.length === 0 ? (
         <div style={{ textAlign: "center", padding: "64px 24px", color: "var(--text-muted)" }}>
           {search ? "Nessun cliente trovato" : (
             <div>

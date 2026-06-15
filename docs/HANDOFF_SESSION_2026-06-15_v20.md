@@ -97,9 +97,11 @@ Nessuno. **#28 chiuso** → tutti i caveat #1–#28 risolti.
 
 ### Quick wins residui Fase 2 (consigliati come prossimo step)
 
-- 🟡 Notifica al manager se un task resta in coda > N ore → serve trigger DB `queue_stale` (pg_cron, pattern come `dossier_departure`).
-- 🟡 Bacheca: menzioni @utente con notifica → trigger DB su `notices`.
-- 🟡 Estensioni chat: stato "occupato" manuale.
+- ✅ ~~Notifica al manager se un task resta in coda > N ore~~ → **fatto**: `notify_queue_stale` + cron orario, migration `20260615_queue_stale_notifications.sql` (la funzione era già live ma non versionata; ora repo↔DB allineati e registrata in `schema_migrations`).
+- ✅ ~~Bacheca: menzioni @utente con notifica~~ → già presente: `notify_notice_mention` (migration `20260614_mention_composite_names.sql`).
+- 🟡 Estensioni chat: stato "occupato" manuale (solo frontend).
+
+> ℹ️ **Notifiche — stato drift repo↔DB:** verificato che `notify_task_assigned/due/comment`, `notify_notice_mention`, `notify_dossier_status/departure`, `notify_queue_stale` esistono **tutti** sia in DB sia come migration in repo. Nessun drift residuo sulle notifiche.
 
 ### Fase 3 — Scala & accessi
 

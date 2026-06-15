@@ -1,6 +1,21 @@
 # CHANGELOG — VoyageDesk
 
 
+## v2.5-dev — Notifica coda stantia (queue_stale) versionata + cleanup roadmap (sessione 23)
+
+> Branch `claude/handoff-v20-docs-4an8rx` — PR #60 (draft). Docs v20.
+
+### ⏳ Notifica coda globale stantia (`queue_stale`)
+
+- **`supabase/migrations/20260615_queue_stale_notifications.sql`** (nuovo): `notify_queue_stale()` (`SECURITY DEFINER`) + cron orario `notify_queue_stale_hourly` (`5 * * * *`). Notifica i manager/admin attivi non-pending per i task in **coda globale** (nessun assegnatario, status `todo`, non cestinati) creati da **> 4h**. De-dup 4h. Payload `{ task_id, task_title, stale_since }`.
+- La funzione + il cron erano **già live** (sessione 22) ma non versionati né registrati in `schema_migrations`: questa migration riallinea repo↔DB e registra la migration. Frontend già pronto (`NOTIF_ICONS['queue_stale']='⏳'`, `notifTitle`, categoria Task).
+
+### 🗑️ Rimozione Fase 3 Business
+
+- **Fase 3 Business eliminata** da `ROADMAP.md` / `CLAUDE.md` / `CHANGELOG.md` / handoff (Report & Analytics, modulo finanziario, catalogo destinazioni) su richiesta utente. Ex-Fase 4 "Scala & accessi" rinumerata a Fase 3.
+
+---
+
 ## v2.4-dev — Fase 2 Operatività completa: notifiche pratica, calendario, assegnatari, filtri (sessione 22)
 
 > Branch sessione 22 — PR #57 (commit `b0e5a0c`). Base: `main` (post quick wins v17). Chiude il caveat **#28** → **Fase 2 completa, nessun caveat aperto**. Handoff: `docs/HANDOFF_SESSION_2026-06-15_v20.md`.

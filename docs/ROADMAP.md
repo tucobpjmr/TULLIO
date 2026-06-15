@@ -66,7 +66,7 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 | Modulo | Stato | Priorità | Sforzo | Note |
 |---|---|---|---|---|
-| Notifiche reali | 🔶 | 🔴 | M | Trigger task ✅ (Step F/J), trigger pratica ✅ (caveat #28, PR #57). Filtri + "segna tutte lette" ✅ (PR #57). Manca: notifica task in coda > N ore |
+| Notifiche reali | ✅ | 🔴 | M | Trigger task ✅ (Step F/J), trigger pratica ✅ (caveat #28, PR #57), coda stantia ✅ (`queue_stale`, hourly cron). Filtri + "segna tutte lette" ✅ (PR #57). |
 | Calendario avanzato | 🔶 | 🟡 | M | iCal export ✅, vista settimanale ✅, vista giornaliera ✅, pratiche nel calendario ✅ (PR #57). Manca: eventi multipli/ricorrenti |
 | Estensioni chat (base) | 🔶 | 🟡 | S–M | Ricerca conversazioni ✅, stato online/occupato ✅, task link cliccabile ✅, rich preview pratiche ✅ (PR #57). Manca: stato "occupato" manuale |
 | Impostazioni agenzia | 🔶 | 🟡 | S | Gestione categorie e nome agenzia già in Admin. Manca: template messaggi, profilo utente, preferenze UI |
@@ -96,7 +96,7 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 | Badge sulla voce sidebar/bottom-nav **Pratiche** con partenze imminenti (≤7gg) | ✅ | — | Completato in PR #56 (sessione 21) |
 | Toast personalizzato "Hai preso in carico: \[titolo\]" | ✅ | — | Completato in Step I (`takeOwnership` → toastMessage) |
 | Auto-move in "In Corso" al "Prendi in carico" | ✅ | — | Completato in Step I (`takeOwnership`) |
-| Notifica al manager se un task resta in coda > N ore | ⬜ | 🟡 | Dipende da notifiche reali (trigger DB `queue_stale`) |
+| Notifica al manager se un task resta in coda > N ore | ✅ | — | Trigger DB `notify_queue_stale` + cron orario (migration `20260615_queue_stale_notifications.sql`) |
 | Filtro nella coda globale (per categoria/priorità) | ✅ | — | Completato in PR #57 (sessione 22) |
 | Bacheca: menzioni @utente con notifica | ⬜ | 🟡 | Dipende da notifiche reali (trigger DB su `notices`) |
 | Bacheca: avvisi con scadenza automatica | ⬜ | ⚪ | Richiede colonna `expires_at` su `notices` |

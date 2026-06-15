@@ -168,10 +168,12 @@ const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
           return (
             <div
               key={t.id}
+              title="Solo visualizzazione: questa task appartiene a un altro agente"
               style={{
                 background: "#fff", borderRadius: 10,
-                border: "1px solid rgba(200,131,42,0.3)",
+                border: "1.5px dashed rgba(200,131,42,0.45)",
                 padding: 12, display: "flex", flexDirection: "column", gap: 8,
+                position: "relative",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
@@ -183,10 +185,21 @@ const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
                 }}>
                   <span>{cat.icon}</span> {cat.label}
                 </div>
-                <div style={{
-                  fontSize: 10, fontWeight: 700, padding: "3px 7px", borderRadius: 4,
-                  background: prio.bg, color: prio.color, textTransform: "uppercase", letterSpacing: 0.5,
-                }}>{prio.label}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span
+                    aria-label="Solo visualizzazione"
+                    style={{
+                      fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+                      background: "var(--surface2)", color: "var(--text-muted)",
+                      display: "inline-flex", alignItems: "center", gap: 3,
+                      textTransform: "uppercase", letterSpacing: 0.4,
+                    }}
+                  >🔒 Read-only</span>
+                  <div style={{
+                    fontSize: 10, fontWeight: 700, padding: "3px 7px", borderRadius: 4,
+                    background: prio.bg, color: prio.color, textTransform: "uppercase", letterSpacing: 0.5,
+                  }}>{prio.label}</div>
+                </div>
               </div>
 
               <div

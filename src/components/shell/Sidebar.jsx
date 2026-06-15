@@ -68,16 +68,16 @@ export const Sidebar = ({ state, dispatch, onOpenBulk }) => {
   const badges = getNavBadges(state);
   return (
     <div style={{
-      width: col ? 60 : 210, background: "var(--navy-dark)", color: "#fff",
+      width: col ? 60 : 210, background: "var(--sky)", color: "var(--navy)",
       display: "flex", flexDirection: "column",
       transition: "width 0.25s ease", flexShrink: 0,
-      borderRight: "1px solid rgba(212,168,67,0.15)", position: "relative",
+      borderRight: "1px solid rgba(212,168,67,0.3)", position: "relative",
     }}>
       <button onClick={() => dispatch({ type: "TOGGLE_SIDEBAR" })} style={{
         position: "absolute", top: 12, right: col ? "50%" : 8,
         transform: col ? "translateX(50%)" : "none",
-        background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)",
-        borderRadius: 6, width: 24, height: 24, cursor: "pointer", color: "rgba(255,255,255,0.5)",
+        background: "rgba(15,32,68,0.07)", border: "1px solid rgba(15,32,68,0.12)",
+        borderRadius: 6, width: 24, height: 24, cursor: "pointer", color: "rgba(15,32,68,0.5)",
         fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center",
         transition: "all 0.2s",
       }}>{col ? "→" : "←"}</button>
@@ -91,7 +91,7 @@ export const Sidebar = ({ state, dispatch, onOpenBulk }) => {
               padding: col ? "10px 8px" : "10px 12px",
               borderRadius: 8, cursor: "pointer", border: "none",
               background: active ? "rgba(212,168,67,0.18)" : "transparent",
-              color: active ? "var(--gold)" : "rgba(255,255,255,0.6)",
+              color: active ? "var(--navy)" : "rgba(15,32,68,0.6)",
               fontSize: 14, fontWeight: active ? 600 : 400,
               transition: "all 0.2s", textAlign: "left",
               borderLeft: active ? "2px solid var(--gold)" : "2px solid transparent",
@@ -128,18 +128,18 @@ export const Sidebar = ({ state, dispatch, onOpenBulk }) => {
       </div>
 
       {!col && (
-        <div style={{ marginTop: "auto", padding: "16px 12px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: 1, marginBottom: 8 }}>TEAM ONLINE</div>
+        <div style={{ marginTop: "auto", padding: "16px 12px", borderTop: "1px solid rgba(15,32,68,0.12)" }}>
+          <div style={{ fontSize: 10, color: "rgba(15,32,68,0.45)", letterSpacing: 1, marginBottom: 8 }}>TEAM ONLINE</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
             {getAssignableTeam().slice(0, 4).map(m => (
               <div key={m.id} title={m.name} style={{
                 width: 26, height: 26, borderRadius: "50%", background: m.color,
                 fontSize: 10, fontWeight: 600, display: "flex", alignItems: "center",
-                justifyContent: "center", color: "#fff", border: "2px solid var(--navy-dark)",
+                justifyContent: "center", color: "#fff", border: "2px solid var(--sky)",
                 position: "relative"
               }}>
                 {m.avatar}
-                <div style={{ position: "absolute", bottom: 0, right: 0, width: 7, height: 7, borderRadius: "50%", background: "#2D7A4F", border: "1px solid var(--navy-dark)" }} />
+                <div style={{ position: "absolute", bottom: 0, right: 0, width: 7, height: 7, borderRadius: "50%", background: "#2D7A4F", border: "1px solid var(--sky)" }} />
               </div>
             ))}
           </div>
@@ -168,7 +168,7 @@ export const BottomNav = ({ state, dispatch, onOpenBulk }) => {
               flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
               justifyContent: "center", gap: 3, padding: "6px 2px",
               background: "transparent", border: "none", cursor: "pointer",
-              color: active ? "var(--gold)" : "rgba(255,255,255,0.55)",
+              color: active ? "var(--navy)" : "rgba(15,32,68,0.55)",
               borderTop: active ? "2px solid var(--gold)" : "2px solid transparent",
               transition: "color 0.2s", position: "relative",
             }}
@@ -192,7 +192,7 @@ export const BottomNav = ({ state, dispatch, onOpenBulk }) => {
           flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
           justifyContent: "center", gap: 3, padding: "6px 2px",
           background: "transparent", border: "none", cursor: "pointer",
-          color: "var(--gold)", borderTop: "2px solid transparent",
+          color: "var(--navy)", borderTop: "2px solid transparent",
           transition: "color 0.2s", position: "relative",
         }}
       >

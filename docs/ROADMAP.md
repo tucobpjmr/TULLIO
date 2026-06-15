@@ -77,18 +77,7 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 ---
 
-## 💰 Fase 3 — Business
-
-Ha senso **solo dopo le Pratiche** (servono dati reali).
-
-| Modulo | Stato | Priorità | Sforzo | Dipende da |
-|---|---|---|---|---|
-| Report & Analytics | 🔶 | 🟡 | M–L | KPI base già in Admin/Sistema. Da estendere con: trend temporali, export PDF |
-| Catalogo destinazioni / pacchetti | ⬜ | 🟡 | M | autonomo |
-
----
-
-## 📈 Fase 4 — Scala & accessi
+## 📈 Fase 3 — Scala & accessi
 
 | Modulo | Stato | Priorità | Sforzo | Note |
 |---|---|---|---|---|
@@ -195,7 +184,7 @@ Vedi `docs/HANDOFF_SESSION_2026-06-14_v13.md` per il dettaglio sessione 18 (Phas
 
 - **v2.2-dev** — **Fase 1 COMPLETA** (PR #51/#52/#53): collegamento Task↔Pratica (`dossierId` su QuickAddTask/TaskSlideOver), pannello fornitori in `PraticaDetail` (`FornitoriPanel`), filtro pratica nella Ricerca avanzata. Caveat #26 e #27 chiusi. Build: 252.04 kB / 59.47 kB gz.
 
-- **v2.3-dev** — Sessione 22 (PR #57): caveat #28 (trigger DB notifiche pratica, allinea repo↔DB) + Calendario pratiche (eventi ✈️/🏁 celesti in tutte le viste) + Modifica assegnatari da TaskSlideOver + Filtri NotificationsPanel (Tutte/Non lette/Task/Pratiche/Menzioni) + icon dossier (📁 ✈️) + Filtri coda globale (categoria/priorità) + Indicatore read-only urgenti altrui + Rich preview pratiche in chat (`PR-YYYY-NNN` → chip). Cleanup docs: modulo finanziario rimosso da Fase 3 e CLAUDE.md (richiesta utente). Build: 260.57 kB / 61.79 kB gz.
+- **v2.3-dev** — Sessione 22 (PR #57): caveat #28 (trigger DB notifiche pratica, allinea repo↔DB) + Calendario pratiche (eventi ✈️/🏁 celesti in tutte le viste) + Modifica assegnatari da TaskSlideOver + Filtri NotificationsPanel (Tutte/Non lette/Task/Pratiche/Menzioni) + icon dossier (📁 ✈️) + Filtri coda globale (categoria/priorità) + Indicatore read-only urgenti altrui + Rich preview pratiche in chat (`PR-YYYY-NNN` → chip). Cleanup docs: Fase 3 Business (modulo finanziario, Report & Analytics, catalogo) rimossa da roadmap/CLAUDE.md/changelog (richiesta utente). Build: 260.57 kB / 61.79 kB gz.
 
 - **v2.2.1-dev** — Sessione 21 (PR #56 draft, handoff v17): badge sidebar Pratiche partenze imminenti, deep-link notifiche pratica (UI), selettore pratica in BulkTaskCreator, tema celeste `--sky` su Topbar/Sidebar/BottomNav. Build: 253.08 kB / 59.87 kB gz.
 
@@ -228,7 +217,7 @@ Vedi `docs/HANDOFF_SESSION_2026-06-14_v13.md` per il dettaglio sessione 18 (Phas
 1. **Decidi A o B** (persistenza sì/no).
 2. **Fase 1** — Clienti → Fornitori → Pratiche → collegamenti.
 3. **Notifiche reali** (Fase 2) — sblocca badge, alert su pending/coda, menzioni in bacheca.
-4. **Fase 2 residua** (Calendario avanzato, estensioni chat) + **Fase 3** (Report avanzati, catalogo).
-5. **Fase 4** (multi-utente reale).
+4. **Fase 2 residua** (Calendario avanzato, estensioni chat).
+5. **Fase 3** (multi-utente reale, scala & accessi).
 6. Migliorie incrementali post-v0.5/v0.6/v0.8 inserite dove pertinenti.
 7. Traccia tecnica man mano, se in Opzione B.

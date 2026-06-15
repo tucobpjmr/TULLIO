@@ -12,7 +12,7 @@
 - ✅ **Fase 1 COMPLETA**. Chiusi i caveat **#26** (collegamento Task↔Pratica) e **#27** (fornitori della pratica) + filtro pratica nella Ricerca avanzata.
 - ✅ **Mergeati in `main`** (squash, in ordine): #51 (Task↔Pratica), #52 (DossierSuppliers UI), #53 (filtro pratica ricerca).
 - ✅ **Build verde** a ogni step. Ultimo: `dist/assets/index-*.js 252.04 kB │ gzip: 59.47 kB`.
-- 🚧 **Prossimo lavoro**: Fase 2 operatività (notifiche reali estese alle pratiche, calendario avanzato) oppure Fase 3 (modulo finanziario, ora che `dossier_suppliers.cost` esiste).
+- 🚧 **Prossimo lavoro**: Fase 2 operatività (notifiche reali estese alle pratiche, calendario avanzato).
 
 ---
 
@@ -94,10 +94,6 @@ La Fase 1 del modello dati è **completa**. Opzioni:
 - **Notifiche pratiche**: trigger DB su cambio status pratica / scadenza partenza imminente. Pattern in `supabase/migrations/20260614_mention_composite_names.sql` (le notifiche nascono solo da trigger DB, RLS vieta insert client).
 - **Calendario avanzato**: mostrare le date partenza/ritorno delle pratiche nel `CalendarPlanner`.
 
-### Opzione B — Fase 3 Business (consigliata se serve valore €)
-- **Modulo finanziario**: ora `dossier_suppliers.cost` esiste. Aggregare i costi fornitori per pratica vs `dossiers.budget_total` → margine. Aggiungere acconti/pagamenti.
-- Riepilogo economico nella `PraticaDetail` (somma costi fornitori, scostamento da budget).
-
 ### Quick win residui
 - Realtime/refresh manuale sulle viste CRM (oggi one-shot al mount; cambiando cliente/fornitore da un altro tab non si aggiorna senza reload).
 - `BulkTaskCreator`: aggiungere selettore pratica (oggi solo `QuickAddTask`/`TaskSlideOver` collegano alla pratica).
@@ -110,7 +106,7 @@ La Fase 1 del modello dati è **completa**. Opzioni:
 Invariato da v14: `dossier_id` è il FK UUID reale verso la pratica; `client_id` è testo libero legacy. Il mapper ora popola `dossierId` correttamente (era il bug latente chiuso da #51).
 
 ### dossier_suppliers gestiti localmente
-`FornitoriPanel` NON usa il reducer/dispatch wrapper per le mutazioni: chiama `DossierSuppliersAPI` direttamente e tiene lo stato in `useState` locale. È intenzionale (dato di dettaglio per-pratica). Se in futuro serve mostrare i costi fornitori altrove (es. modulo finanziario), valutare di promuovere a stato globale o ricaricare via `Dossiers.get(id)` che già include il join `dossier_suppliers(*, suppliers(*))`.
+`FornitoriPanel` NON usa il reducer/dispatch wrapper per le mutazioni: chiama `DossierSuppliersAPI` direttamente e tiene lo stato in `useState` locale. È intenzionale (dato di dettaglio per-pratica). Se in futuro serve mostrare i costi fornitori altrove, valutare di promuovere a stato globale o ricaricare via `Dossiers.get(id)` che già include il join `dossier_suppliers(*, suppliers(*))`.
 
 ### Ricerca per numero pratica
 Il filtro pratica è una `<select>`; la ricerca **testuale** per numero (`PR-2026-001`) funziona perché l'haystack della keyword include numero+titolo della pratica collegata. Entrambe le strade portano agli stessi task.
@@ -125,4 +121,4 @@ Il filtro pratica è una `<select>`; la ricerca **testuale** per numero (`PR-202
 | #26 | ✅ **chiuso** | Collegamento Task↔Pratica → PR #51 |
 | #27 | ✅ **chiuso** | DossierSuppliers UI → PR #52 |
 
-**Nessun caveat aperto.** Fase 1 completa. La prossima sessione apre Fase 2 o Fase 3.
+**Nessun caveat aperto.** Fase 1 completa. La prossima sessione apre la Fase 2 operatività.

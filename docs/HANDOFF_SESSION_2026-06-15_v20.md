@@ -12,7 +12,7 @@
 - ✅ **Fase 2 — Operatività COMPLETA.** Caveat #28 chiuso. Nessun caveat aperto.
 - ✅ Lavoro sessione 22 su **PR #57** (commit `b0e5a0c`): trigger DB notifiche pratica + 4 feature UI.
 - ✅ **Build verde:** `index 261.35 kB │ gzip: 62.14 kB` (+2.3 kB gz vs v17).
-- 🚧 **Prossimo lavoro:** Fase 3 — Business (Report & Analytics avanzati, Catalogo destinazioni). Modulo finanziario rimosso dalla roadmap.
+- 🚧 **Prossimo lavoro:** quick wins residui Fase 2 (notifica coda > N ore, menzioni bacheca, stato chat "occupato") → poi Fase 3 Scala & accessi (multi-utente reale). **Fase 3 Business (Report/Analytics/finanza/catalogo) NON è nella roadmap — rimossa su richiesta utente.**
 - ⚠️ **Da applicare in prod:** già fatto via `apply_migration` MCP (version `20260614212448`); il file SQL è in repo per version control.
 
 ---
@@ -50,7 +50,7 @@
 ### Docs
 
 - **`docs/CLAUDE.md`**: roadmap Priorità 2 (Fase 2) marcata completa con marker `(session 22)`.
-- **`docs/ROADMAP.md`**: Fase 3 rinominata da "Business & finanza" → **"Business"**, **modulo finanziario rimosso**. Moduli Fase 2 (notifiche/calendario/chat) passati a 🔶/✅ con note PR #57. Diverse idee minori marcate ✅.
+- **`docs/ROADMAP.md`**: **Fase 3 Business eliminata** (modulo finanziario, Report & Analytics, catalogo destinazioni); ex-Fase 4 "Scala & accessi" rinumerata a Fase 3. Moduli Fase 2 (notifiche/calendario/chat) passati a 🔶/✅ con note PR #57. Diverse idee minori marcate ✅.
 
 ---
 
@@ -66,7 +66,7 @@ src/components/shell/Topbar.jsx                         ✏️ +filtri notifiche
 src/components/dashboard/Dashboard.jsx                  ✏️ +filtri coda globale (categoria/priorità)
 src/components/chat/ChatPanel.jsx                       ✏️ +chip pratica PR-YYYY-NNN inline
 src/VoyageDesk.jsx                                      ✏️ +dossiers→ChatPanel
-docs/CLAUDE.md, docs/ROADMAP.md                         ✏️ Fase 2 completa; Fase 3 = Business
+docs/CLAUDE.md, docs/ROADMAP.md                         ✏️ Fase 2 completa; Fase 3 Business eliminata
 ```
 
 ---
@@ -95,16 +95,19 @@ Nessuno. **#28 chiuso** → tutti i caveat #1–#28 risolti.
 
 ## 4. Cosa fare nella prossima sessione (23)
 
-### Fase 3 — Business
-
-- **Report & Analytics avanzati**: trend temporali (task/pratiche nel tempo), export PDF. KPI base già in Admin/Sistema.
-- **Catalogo destinazioni / pacchetti**: modulo autonomo.
-
-### Quick wins residui (da ROADMAP §Idee)
+### Quick wins residui Fase 2 (consigliati come prossimo step)
 
 - 🟡 Notifica al manager se un task resta in coda > N ore → serve trigger DB `queue_stale` (pg_cron, pattern come `dossier_departure`).
 - 🟡 Bacheca: menzioni @utente con notifica → trigger DB su `notices`.
 - 🟡 Estensioni chat: stato "occupato" manuale.
+
+### Fase 3 — Scala & accessi
+
+- Multi-utente reale & permessi (login vero, isolamento dati).
+- Estensioni chat avanzate (reazioni custom, mock audio/video).
+- AI Assistant — estensioni (genera preventivo da testo, suggerimenti assegnazione).
+
+> ⛔ **Fase 3 Business (Report & Analytics, modulo finanziario, catalogo destinazioni) è stata RIMOSSA dal progetto su richiesta esplicita dell'utente. Non reintrodurla.**
 
 ---
 

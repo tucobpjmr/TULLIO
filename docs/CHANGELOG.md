@@ -28,7 +28,7 @@
 
 ### 📋 Docs
 
-- **`docs/ROADMAP.md`**: Fase 3 rinominata "Business" (modulo finanziario rimosso); moduli Fase 2 → 🔶/✅. **`docs/CLAUDE.md`**: Priorità 2 completa `(session 22)`.
+- **`docs/ROADMAP.md`**: **Fase 3 Business rimossa** (modulo finanziario, Report & Analytics, catalogo destinazioni); Fase 4 → Fase 3 (Scala & accessi); moduli Fase 2 → 🔶/✅. **`docs/CLAUDE.md`**: Priorità 2 completa `(session 22)`, rimossa Priorità 3 Business.
 
 ### Build
 

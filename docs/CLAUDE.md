@@ -294,9 +294,10 @@ Tutti i componenti sono **moduli separati** in `src/components/`; helper e sub-c
 - [x] Calendario avanzato con date partenza/ritorno pratiche (session 22) ✅
 - [x] Estensioni chat con riconoscimento pratica (dossier reference PR-YYYY-NNN) (session 22) ✅
 
-### Priorità 3 — Business (Fase 3)
-- [ ] Report & Analytics avanzati (trend temporali, export PDF)
-- [ ] Catalogo destinazioni / pacchetti
+### Priorità 3 — Scala & accessi (Fase 3)
+- [ ] Multi-utente reale & permessi (login vero, isolamento dati)
+- [ ] Estensioni chat avanzate (reazioni custom, mock audio/video)
+- [ ] AI Assistant — estensioni (genera preventivo da testo, suggerimenti assegnazione)
 
 Vedi `docs/ROADMAP.md` per il dettaglio completo con dipendenze e stime.
 

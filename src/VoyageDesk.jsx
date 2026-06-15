@@ -967,6 +967,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           dossiers={state.dossiers || []}
           currentUserId={state.currentUserId}
           dispatch={dispatch}
+          onOpenDossier={openDossierById}
           presenceMap={presenceMap}
           loading={chatLoading}
           myBusy={myBusy}

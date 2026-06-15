@@ -349,7 +349,8 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
     <div style={{
       height: 58, background: "var(--sky)", display: "flex", alignItems: "center",
       padding: isMobile ? "0 12px" : "0 20px", gap: isMobile ? 8 : 16, position: "sticky", top: 0, zIndex: 100,
-      borderBottom: "1px solid rgba(212,168,67,0.3)", flexShrink: 0,
+      borderBottom: "1px solid rgba(15,32,68,0.18)", flexShrink: 0,
+      boxShadow: "0 1px 4px rgba(15,32,68,0.08)",
     }}>
       {/* Logo */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginRight: isMobile ? 0 : 12 }}>
@@ -359,23 +360,23 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
         }}>✈️</div>
         <div className="vd-hide-mobile">
           <div className="playfair" style={{ color: "var(--navy)", fontSize: 15, fontWeight: 700, lineHeight: 1 }}>VoyageDesk</div>
-          <div style={{ color: "rgba(15,32,68,0.55)", fontSize: 10, letterSpacing: 1.5 }}>TRAVEL MANAGEMENT</div>
+          <div style={{ color: "rgba(15,32,68,0.78)", fontSize: 10, letterSpacing: 1.5, fontWeight: 600 }}>TRAVEL MANAGEMENT</div>
         </div>
       </div>
 
       {/* Ricerca unificata (testuale + filtri avanzati) */}
       <div ref={searchWrapRef} style={{ flex: 1, maxWidth: 520, position: "relative" }}>
         <div style={{ position: "relative" }}>
-          <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(15,32,68,0.5)", fontSize: 14 }}>🔍</div>
+          <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(15,32,68,0.75)", fontSize: 14 }}>🔍</div>
           <input
             value={state.searchQuery}
             onChange={e => { dispatch({ type: "SET_SEARCH", payload: e.target.value }); setSearchOpen(true); }}
-            onFocus={e => { setSearchOpen(true); e.target.style.background = "rgba(255,255,255,0.65)"; e.target.style.borderColor = "var(--gold)"; }}
-            onBlur={e => { e.target.style.background = "rgba(255,255,255,0.45)"; e.target.style.borderColor = "rgba(15,32,68,0.15)"; }}
+            onFocus={e => { setSearchOpen(true); e.target.style.background = "#fff"; e.target.style.borderColor = "var(--gold)"; }}
+            onBlur={e => { e.target.style.background = "rgba(255,255,255,0.85)"; e.target.style.borderColor = "rgba(15,32,68,0.28)"; }}
             placeholder={isMobile ? "Cerca..." : "Cerca task, clienti, categorie... (Ctrl+K)"}
             aria-label="Cerca"
             style={{
-              width: "100%", background: "rgba(255,255,255,0.45)", border: "1px solid rgba(15,32,68,0.15)",
+              width: "100%", background: "rgba(255,255,255,0.85)", border: "1px solid rgba(15,32,68,0.28)",
               borderRadius: 8, padding: "7px 12px 7px 36px", color: "var(--navy)", fontSize: 13,
               outline: "none", transition: "all 0.2s", boxSizing: "border-box",
             }}
@@ -397,7 +398,7 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
 
       {/* Chat */}
       <button onClick={onOpenChat} title="Messaggi team" style={{
-        background: "rgba(255,255,255,0.45)", border: "1px solid rgba(15,32,68,0.15)",
+        background: "rgba(255,255,255,0.85)", border: "1px solid rgba(15,32,68,0.28)",
         borderRadius: 8, width: 36, height: 36, cursor: "pointer",
         display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, position: "relative"
       }}>
@@ -413,7 +414,7 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
       {/* Notifications */}
       <div style={{ position: "relative" }}>
         <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{
-          background: "rgba(255,255,255,0.45)", border: "1px solid rgba(15,32,68,0.15)",
+          background: "rgba(255,255,255,0.85)", border: "1px solid rgba(15,32,68,0.28)",
           borderRadius: 8, width: 36, height: 36, cursor: "pointer",
           display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, position: "relative"
         }}>
@@ -494,7 +495,7 @@ const UserSwitcher = ({ state, dispatch, presenceOverride, onSetPresence }) => {
         aria-label="Cambia utente loggato"
         style={{
           display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
-          background: "rgba(255,255,255,0.45)", border: "1px solid rgba(15,32,68,0.15)",
+          background: "rgba(255,255,255,0.85)", border: "1px solid rgba(15,32,68,0.28)",
           borderRadius: 8, padding: "3px 8px 3px 4px", fontFamily: "inherit",
         }}
       >
@@ -517,9 +518,9 @@ const UserSwitcher = ({ state, dispatch, presenceOverride, onSetPresence }) => {
         </div>
         <div className="vd-hide-mobile" style={{ textAlign: "left" }}>
           <div style={{ color: "var(--navy)", fontSize: 12, fontWeight: 600, lineHeight: 1.2 }}>{curr.name}</div>
-          <div style={{ color: "rgba(15,32,68,0.55)", fontSize: 10 }}>{curr.role}</div>
+          <div style={{ color: "rgba(15,32,68,0.78)", fontSize: 10, fontWeight: 500 }}>{curr.role}</div>
         </div>
-        <span style={{ color: "rgba(15,32,68,0.5)", fontSize: 10, marginLeft: 2 }}>▾</span>
+        <span style={{ color: "rgba(15,32,68,0.75)", fontSize: 10, marginLeft: 2 }}>▾</span>
       </button>
 
       {open && (

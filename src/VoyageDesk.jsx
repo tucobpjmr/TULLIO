@@ -117,7 +117,7 @@ const FontLoader = () => (
       --navy: #0F2044;
       --navy-light: #1a3060;
       --navy-dark: #08152d;
-      --sky: #87CEEB;
+      --sky: #C5E6F2;
       --gold: #D4A843;
       --gold-light: #e8c46a;
       --gold-dark: #b8902e;
@@ -200,10 +200,10 @@ const FontLoader = () => (
       .vd-bottom-nav {
         display: flex;
         position: fixed; bottom: 0; left: 0; right: 0; z-index: 450;
-        background: var(--sky); border-top: 1px solid rgba(212,168,67,0.3);
+        background: var(--sky); border-top: 1px solid rgba(15,32,68,0.18);
         padding: 6px 4px env(safe-area-inset-bottom, 6px);
         justify-content: space-around; align-items: stretch;
-        box-shadow: 0 -4px 20px rgba(0,0,0,0.25);
+        box-shadow: 0 -2px 12px rgba(15,32,68,0.12);
       }
       .vd-main-scroll { padding-bottom: 70px !important; }
     }

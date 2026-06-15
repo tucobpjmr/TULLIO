@@ -68,7 +68,7 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 |---|---|---|---|---|
 | Notifiche reali | ✅ | 🔴 | M | Trigger task ✅ (Step F/J), trigger pratica ✅ (caveat #28, PR #57), coda stantia ✅ (`queue_stale`, hourly cron). Filtri + "segna tutte lette" ✅ (PR #57). |
 | Calendario avanzato | 🔶 | 🟡 | M | iCal export ✅, vista settimanale ✅, vista giornaliera ✅, pratiche nel calendario ✅ (PR #57). Manca: eventi multipli/ricorrenti |
-| Estensioni chat (base) | 🔶 | 🟡 | S–M | Ricerca conversazioni ✅, stato online/occupato ✅, task link cliccabile ✅, rich preview pratiche ✅ (PR #57). Manca: stato "occupato" manuale |
+| Estensioni chat (base) | ✅ | 🟡 | S–M | Ricerca conversazioni ✅, presence online/assente/offline ✅, **stato "Occupato" manuale ✅** (toggle header chat), task link cliccabile ✅, rich preview pratiche ✅ |
 | Impostazioni agenzia | 🔶 | 🟡 | S | Gestione categorie e nome agenzia già in Admin. Manca: template messaggi, profilo utente, preferenze UI |
 | Ricerca globale estesa | ✅ | — | — | Completata in v0.5. |
 | Responsive (mobile/tablet/desktop) | ✅ | — | — | Completato in v0.6. |

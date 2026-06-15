@@ -1,7 +1,7 @@
 # CHANGELOG — VoyageDesk
 
 
-## v2.5-dev — Notifica coda stantia (queue_stale) versionata + cleanup roadmap (sessione 23)
+## v2.5-dev — Fase 2 chiusa: queue_stale versionata + chat "Occupato" + cleanup roadmap (sessione 23)
 
 > Branch `claude/handoff-v20-docs-4an8rx` — PR #60 (draft). Docs v20.
 
@@ -9,6 +9,11 @@
 
 - **`supabase/migrations/20260615_queue_stale_notifications.sql`** (nuovo): `notify_queue_stale()` (`SECURITY DEFINER`) + cron orario `notify_queue_stale_hourly` (`5 * * * *`). Notifica i manager/admin attivi non-pending per i task in **coda globale** (nessun assegnatario, status `todo`, non cestinati) creati da **> 4h**. De-dup 4h. Payload `{ task_id, task_title, stale_since }`.
 - La funzione + il cron erano **già live** (sessione 22) ma non versionati né registrati in `schema_migrations`: questa migration riallinea repo↔DB e registra la migration. Frontend già pronto (`NOTIF_ICONS['queue_stale']='⏳'`, `notifTitle`, categoria Task).
+
+### 💬 Stato chat "Occupato" manuale
+
+- **`src/components/chat/ChatPanel.jsx`**: `computePresence` riconosce lo stato `busy` (pallino rosso `#C0392B`); `PRESENCE_LABELS` per i tooltip (Online/Assente/Occupato/Offline); toggle "Occupato/Online" nell'header chat (prop `myBusy`/`onToggleBusy`).
+- **`src/VoyageDesk.jsx`**: stato `myBusy` + `myBusyRef` + `toggleMyBusy`; l'heartbeat presence (`beat()`) invia `busy` invece di `online` quando il flag è attivo, senza far ripartire l'effetto presence. Tab nascosta → `away` (override temporaneo), poi torna a `busy` al ritorno. Chiude la voce "stato occupato manuale" della Fase 2.
 
 ### 🗑️ Rimozione Fase 3 Business
 

@@ -16,14 +16,25 @@ function computePresence(user) {
   if (!user || !user.last_seen_at) return 'offline';
   if (user.status === 'offline') return 'offline';
   const age = Date.now() - new Date(user.last_seen_at).getTime();
-  if (age < 60 * 1000) return user.status === 'away' ? 'away' : 'online';
+  if (age < 60 * 1000) {
+    // 'busy' è manuale (heartbeat lo rinnova ogni 30s finché attivo)
+    if (user.status === 'busy') return 'busy';
+    return user.status === 'away' ? 'away' : 'online';
+  }
   if (age < 5 * 60 * 1000) return 'away';
   return 'offline';
 }
 const PRESENCE_COLORS = {
   online: '#2D7A4F',
   away: '#E0A800',
+  busy: '#C0392B',
   offline: '#94a3b8',
+};
+const PRESENCE_LABELS = {
+  online: 'Online',
+  away: 'Assente',
+  busy: 'Occupato',
+  offline: 'Offline',
 };
 
 // Context per condividere tasks/dispatch (per messaggi con taskLink — v0.8)
@@ -944,7 +955,7 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
                     const u = (presenceMap || {})[otherUser];
                     const p = u ? computePresence(u) : 'offline';
                     return (
-                      <div title={p} style={{
+                      <div title={PRESENCE_LABELS[p] || p} style={{
                         position: "absolute", bottom: 0, right: 0, width: 11, height: 11,
                         borderRadius: "50%", background: PRESENCE_COLORS[p],
                         border: "2px solid #fff",
@@ -1163,7 +1174,7 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
 };
 
 // ─── CHAT: MAIN PANEL ──────────────────────────────────────────────────────
-export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, intent, tasks, dossiers, currentUserId, dispatch, presenceMap, loading = false }) => {
+export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, intent, tasks, dossiers, currentUserId, dispatch, presenceMap, loading = false, myBusy = false, onToggleBusy }) => {
   const { isMobile } = useViewport();
   const [activeConv, setActiveConv] = useState(null);
   const [newMode, setNewMode] = useState(false);
@@ -1243,10 +1254,30 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
               </div>
             </div>
           </div>
-          <button onClick={onClose} style={{
-            background: "rgba(255,255,255,0.1)", border: "none", color: "#fff",
-            width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 14,
-          }}>✕</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {onToggleBusy && (
+              <button
+                onClick={onToggleBusy}
+                title={myBusy ? "Sei Occupato — clicca per tornare Online" : "Imposta il tuo stato su Occupato"}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.22)",
+                  color: "#fff", height: 28, padding: "0 10px", borderRadius: 14,
+                  cursor: "pointer", fontSize: 11, fontWeight: 600,
+                }}
+              >
+                <span style={{
+                  width: 8, height: 8, borderRadius: "50%",
+                  background: myBusy ? PRESENCE_COLORS.busy : PRESENCE_COLORS.online,
+                }} />
+                {myBusy ? "Occupato" : "Online"}
+              </button>
+            )}
+            <button onClick={onClose} style={{
+              background: "rgba(255,255,255,0.1)", border: "none", color: "#fff",
+              width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 14,
+            }}>✕</button>
+          </div>
         </div>
 
         {/* Body */}

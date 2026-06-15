@@ -99,7 +99,9 @@ Nessuno. **#28 chiuso** → tutti i caveat #1–#28 risolti.
 
 - ✅ ~~Notifica al manager se un task resta in coda > N ore~~ → **fatto**: `notify_queue_stale` + cron orario, migration `20260615_queue_stale_notifications.sql` (la funzione era già live ma non versionata; ora repo↔DB allineati e registrata in `schema_migrations`).
 - ✅ ~~Bacheca: menzioni @utente con notifica~~ → già presente: `notify_notice_mention` (migration `20260614_mention_composite_names.sql`).
-- 🟡 Estensioni chat: stato "occupato" manuale (solo frontend).
+- ✅ ~~Estensioni chat: stato "occupato" manuale~~ → **fatto**: toggle "Occupato/Online" nell'header di `ChatPanel`; `computePresence` riconosce `busy` (rosso); heartbeat in `VoyageDesk` rispetta il flag via `myBusyRef` (no restart effetto presence).
+
+> **Fase 2 ora chiusa al 100%** — nessun quick win residuo. Il prossimo blocco è la Fase 3 (Scala & accessi / multi-utente reale), lavoro grande prevalentemente auth+DB: da concordare con l'utente prima di iniziare.
 
 > ℹ️ **Notifiche — stato drift repo↔DB:** verificato che `notify_task_assigned/due/comment`, `notify_notice_mention`, `notify_dossier_status/departure`, `notify_queue_stale` esistono **tutti** sia in DB sia come migration in repo. Nessun drift residuo sulle notifiche.
 

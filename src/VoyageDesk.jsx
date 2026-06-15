@@ -632,6 +632,26 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // Presence (Step H): heartbeat + subscribe a users
   // Mappa { userId -> rowDB } (per leggere last_seen_at e status).
   const [presenceMap, setPresenceMap] = useState({});
+  // Stato "Occupato" manuale: il toggle vive in ChatPanel; lo teniamo in un ref
+  // così il beat() lo legge senza far ripartire l'effetto presence.
+  const [myBusy, setMyBusy] = useState(false);
+  const myBusyRef = useRef(false);
+  const toggleMyBusy = useCallback(() => {
+    setMyBusy(prev => {
+      const nv = !prev;
+      myBusyRef.current = nv;
+      const myId = initialCurrentUserId;
+      if (useSupabase && myId) {
+        const st = nv ? 'busy' : 'online';
+        UsersAPI.setPresence(myId, st).then(() => {});
+        setPresenceMap(p => ({
+          ...p,
+          [myId]: { ...(p[myId] || {}), status: st, last_seen_at: new Date().toISOString() },
+        }));
+      }
+      return nv;
+    });
+  }, [useSupabase, initialCurrentUserId]);
   useEffect(() => {
     if (!useSupabase) return;
     const myId = initialCurrentUserId;
@@ -649,25 +669,27 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     };
     reload();
 
-    const beat = (status = 'online') => {
+    // Se status non è passato esplicitamente, rispetta il toggle "Occupato".
+    const beat = (status) => {
       if (!myId) return;
-      UsersAPI.setPresence(myId, status).then(r => {
+      const eff = status || (myBusyRef.current ? 'busy' : 'online');
+      UsersAPI.setPresence(myId, eff).then(r => {
         if (r?.error) console.warn("[presence] setPresence", r.error);
         // Aggiorno anche localmente per immediatezza
         setPresenceMap(prev => ({
           ...prev,
-          [myId]: { ...(prev[myId] || {}), status, last_seen_at: new Date().toISOString() },
+          [myId]: { ...(prev[myId] || {}), status: eff, last_seen_at: new Date().toISOString() },
         }));
       });
     };
-    beat('online');
+    beat();
     // Caveat #3: heartbeat ogni 30s (era 45s), allineato al tick di ageing
     // della presenza → lo stato online/away resta più reattivo.
-    hbTimer = setInterval(() => beat('online'), 30 * 1000);
+    hbTimer = setInterval(() => beat(), 30 * 1000);
 
     const onVisibility = () => {
       if (document.visibilityState === 'hidden') beat('away');
-      else beat('online');
+      else beat();
     };
     const onBeforeUnload = () => beat('offline');
     document.addEventListener('visibilitychange', onVisibility);
@@ -942,6 +964,8 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           dispatch={dispatch}
           presenceMap={presenceMap}
           loading={chatLoading}
+          myBusy={myBusy}
+          onToggleBusy={toggleMyBusy}
         />
 
         {/* FAB principale (singolo task). La creazione bulk/multi-task è ora in Sidebar/BottomNav. */}

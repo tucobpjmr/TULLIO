@@ -879,7 +879,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   const renderView = () => {
     switch (state.activeView) {
       case "dashboard":  return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
-      case "calendar":   return <CalendarPlanner state={state} dispatch={dispatch} />;
+      case "calendar":   return <CalendarPlanner state={state} dispatch={dispatch} onOpenDossier={openDossierById} />;
       case "clienti":    return <ClientiView state={state} dispatch={dispatch} />;
       case "fornitori":  return <FornitoriView state={state} dispatch={dispatch} />;
       case "pratiche":   return <PraticheView state={state} dispatch={dispatch} initialDossierId={targetDossierId} />;
@@ -942,6 +942,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           dispatch={dispatch}
           presenceMap={presenceMap}
           loading={chatLoading}
+          onOpenDossier={openDossierById}
         />
 
         {/* FAB principale (singolo task). La creazione bulk/multi-task è ora in Sidebar/BottomNav. */}

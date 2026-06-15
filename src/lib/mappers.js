@@ -88,8 +88,8 @@ export function fromDbComment(row) {
 
 // ----------------- NOTICES -----------------
 
-// DB row → app notice. Il DB non ha updated_at: replico created_at lato app
-// per non rompere i componenti che lo leggono.
+// DB row → app notice. updated_at e expires_at aggiunti in sessione 23
+// (migration 20260615_notices_expiration_and_mentions.sql).
 export function fromDbNotice(row) {
   if (!row) return null;
   return {
@@ -99,7 +99,8 @@ export function fromDbNotice(row) {
     pinned: !!row.pinned,
     author: row.author_id ?? null,
     createdAt: row.created_at ?? null,
-    updatedAt: row.created_at ?? null,
+    updatedAt: row.updated_at ?? row.created_at ?? null,
+    expiresAt: row.expires_at ?? null,
   };
 }
 
@@ -110,6 +111,7 @@ export function toDbNotice(notice) {
     color: notice.color ?? null,
     pinned: !!notice.pinned,
     author_id: notice.author ?? null,
+    expires_at: notice.expiresAt ?? null,
   };
 }
 
@@ -119,6 +121,7 @@ export function toDbNoticePatch(patch) {
   if ('color' in patch) out.color = patch.color;
   if ('pinned' in patch) out.pinned = !!patch.pinned;
   if ('author' in patch) out.author_id = patch.author ?? null;
+  if ('expiresAt' in patch) out.expires_at = patch.expiresAt ?? null;
   return out;
 }
 

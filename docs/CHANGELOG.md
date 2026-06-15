@@ -1,6 +1,49 @@
 # CHANGELOG — VoyageDesk
 
 
+## v2.4-dev — Bacheca scadenze + @menzioni + openDossierById + auto-collapse sidebar + driver date-pill (sessione 23)
+
+> Branch `claude/bold-turing-7qkos8` — PR #58 (draft). Base: `claude/sleepy-davinci-ka888x` (PR #57 sessione 22).
+
+### 📌 Bacheca avvisi: scadenza automatica + @menzioni notificate
+
+- **`supabase/migrations/20260615_notices_expiration_and_mentions.sql`** (NEW): nuove colonne `notices.expires_at` (TIMESTAMPTZ NULL) e `notices.updated_at` (TIMESTAMPTZ NOT NULL DEFAULT now() + trigger BEFORE UPDATE). Nuovo trigger `notify_notice_mention` (AFTER INSERT OR UPDATE OF text) che reusa `find_mentioned_users` e crea notifiche `notice_mention` con dedup 6h.
+- **`src/lib/mappers.js`**: `fromDbNotice`/`toDbNotice`/`toDbNoticePatch` ora trasportano `expiresAt`/`updated_at`.
+- **`src/components/dashboard/NoticeBoard.jsx`**: filtro auto-hide degli avvisi scaduti, toggle "📁 Scaduti (N)" per ri-mostrarli, chip ⏳ scadenza in card con messaggio relativo (`scade fra Ng`, `scade domani`, `scaduto Ng fa`), opacità ridotta + grayscale 0.4 per gli avvisi scaduti.
+- **`src/components/modals/NoticeEditorModal.jsx`**: nuovo campo `datetime-local` "⏳ Scadenza (opzionale)" + helper `isoToLocalInput` per pre-popolare l'input; bottone "Rimuovi" per cancellarla.
+- **`src/components/shell/Topbar.jsx`** (`NotificationsPanel`):
+  - `NOTIF_ICONS.notice_mention = "📌"`.
+  - `NOTIF_CATEGORIES.mention` ora include `notice_mention` (compare nel filtro @ Menzioni).
+  - `notifTitle("notice_mention")` → "Menzionato in bacheca: '...preview...'" (truncated 60 char).
+  - `isNavigable(n)` true anche per `notice_mention`; `handleClick` naviga a `dashboard` (la bacheca vive lì).
+
+### 🧭 Quick refactor — `openDossierById` (chiude debito tecnico v17)
+
+- **`src/components/calendar/CalendarPlanner.jsx`**: prop `onOpenDossier`; helper `openDossier(d)` sostituisce `openDossiers()` in tutti i 5 click handler (vista mese, dettaglio giorno mese, week, week-full, day all-day band). Fallback su `SET_VIEW: "pratiche"` se la prop manca.
+- **`src/components/chat/ChatPanel.jsx`**: prop `onOpenDossier`; `DossierRefChip` riceve `openDossier(id)`; `ChatContext` esteso con `openDossier`; `renderTextWithRefs` lo propaga. Chip pratica nei messaggi ora aprono direttamente la PraticaDetail.
+- **`src/VoyageDesk.jsx`**: `onOpenDossier={openDossierById}` passato a `CalendarPlanner` e `ChatPanel`.
+
+### 🚐 Coda Driver — pillole filtro data/ora (agenda transfer-oriented)
+
+- **`src/components/dashboard/Dashboard.jsx`** (`PersonalQueue`): nuova prop `role`. Se `role === "driver"`, sopra la card-grid compaiono pillole filtro: 🚐 Oggi · 📅 Domani · 🗓 Settimana · ↪ Dopo, con conteggio per ogni slot (nascoste se vuote). Le task arretrate confluiscono in "Oggi" (per non perderle). Header badge mostra `5/12` durante filtraggio. Empty state dedicato `🔍 Nessuna task per questo filtro data.`. La PersonalQueue continua a comportarsi come prima per gli altri ruoli.
+
+### 🪟 Sidebar auto-collapse 1024–1280px
+
+- **`src/components/shell/Sidebar.jsx`**: nuove costanti `AUTO_COLLAPSE_MIN=1024`/`AUTO_COLLAPSE_MAX=1280`. Quando il viewport è in quel range la sidebar viene compressa di default (resta possibile espanderla manualmente tramite toggle; l'override utente vince — vive in `state.sidebarCollapsed`).
+
+### Build
+
+```
+dist/assets/index-*.js   266.03 kB │ gzip: 63.52 kB   (+1.73 kB gz vs v2.3 sessione 22)
+✅ Build verde.
+```
+
+### Caveat
+
+- **Nessun caveat aperto.** Le voci precedenti restano chiuse.
+
+---
+
 ## v2.3-dev — Quick wins v17: badge partenze, deep-link notifiche, selettore pratica, tema celeste (sessione 21)
 
 > Branch `claude/handoff-v17-quick-wins-03nn3u` — PR #56 (draft). Base: `main` (post Fase 1 completa).

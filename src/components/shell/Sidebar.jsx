@@ -4,6 +4,12 @@
 import { useViewport } from "../Viewport.jsx";
 import { CURRENT_USER, getAssignableTeam, getRoleType } from "../../state/appGlobals.js";
 
+// Range di viewport in cui la sidebar si auto-comprime (Desktop "stretto":
+// > 1024 (sopra BottomNav) ma < 1280 (Desktop "standard"). L'utente puo'
+// comunque ri-espanderla manualmente: la collapse e' solo il default.
+const AUTO_COLLAPSE_MIN = 1024;
+const AUTO_COLLAPSE_MAX = 1280;
+
 const NAV_ITEMS = [
   { id: "dashboard",  icon: "📊", label: "Dashboard",  roles: ["admin", "manager", "agent", "driver"] },
   { id: "calendar",   icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
@@ -61,9 +67,14 @@ const NavBadge = ({ count, collapsed = false, mobile = false }) => {
 };
 
 export const Sidebar = ({ state, dispatch, onOpenBulk }) => {
-  const { isDesktop } = useViewport();
+  const { isDesktop, width } = useViewport();
   if (!isDesktop) return null;
-  const col = state.sidebarCollapsed;
+  // Auto-collapse: tra 1024 e 1280px la sidebar e' compressa per default,
+  // a meno che l'utente non l'abbia espansa esplicitamente toccando il
+  // toggle (state.sidebarCollapsed memorizza solo la sua scelta esplicita,
+  // quindi qui derivo il valore effettivo).
+  const inAutoRange = width > AUTO_COLLAPSE_MIN && width < AUTO_COLLAPSE_MAX;
+  const col = state.sidebarCollapsed || inAutoRange;
   const navItems = getNavItemsForUser(state.currentUserId);
   const badges = getNavBadges(state);
   return (

@@ -291,8 +291,10 @@ Tutti i componenti sono **moduli separati** in `src/components/`; helper e sub-c
 
 ### Priorità 2 — Fase 2 Operatività ✅
 - [x] Notifiche reali estese alle pratiche (cambio status, scadenza partenza) — pattern trigger DB (session 22) ✅
-- [x] Calendario avanzato con date partenza/ritorno pratiche (session 22) ✅
-- [x] Estensioni chat con riconoscimento pratica (dossier reference PR-YYYY-NNN) (session 22) ✅
+- [x] Notifiche bacheca @menzioni (`notify_notice_mention`, session 23) + avvisi scadenza automatica (`notices.expires_at`, session 23) ✅
+- [x] Calendario avanzato con date partenza/ritorno pratiche (session 22) + click apre PraticaDetail (`openDossierById`, session 23) ✅
+- [x] Estensioni chat con riconoscimento pratica (dossier reference PR-YYYY-NNN) (session 22) + chip apre PraticaDetail (`openDossierById`, session 23) ✅
+- [x] Driver: agenda transfer-oriented con pillole data (Oggi/Domani/Settimana/Dopo) in `PersonalQueue` (session 23) ✅
 
 ### Priorità 3 — Business (Fase 3)
 - [ ] Report & Analytics avanzati (trend temporali, export PDF)

@@ -27,7 +27,8 @@ const PRESENCE_COLORS = {
 };
 
 // Context per condividere tasks/dispatch (per messaggi con taskLink — v0.8)
-const ChatContext = createContext({ tasks: [], dossiers: [], dispatch: () => {} });
+// + dossiers/openDossier (rich preview pratiche, sessione 22-23)
+const ChatContext = createContext({ tasks: [], dossiers: [], dispatch: () => {}, openDossier: null });
 
 // ─── CHAT: UTILS ───────────────────────────────────────────────────────────
 const formatChatTime = (iso) => {
@@ -154,15 +155,17 @@ function parseTaskLink(text) {
 // Riferimenti pratiche inline: pattern PR-YYYY-NNN nel testo del messaggio
 // → chip cliccabile (rich preview pratica, Fase 2 estensioni chat).
 const DOSSIER_REF_RE = /\bPR-\d{4}-\d{3,}\b/g;
-const DossierRefChip = ({ number, dossier, dispatch }) => (
+const DossierRefChip = ({ number, dossier, dispatch, openDossier }) => (
   <button
     type="button"
     onClick={e => {
       e.stopPropagation();
-      if (dossier && dispatch) dispatch({ type: "SET_VIEW", payload: "pratiche" });
+      if (!dossier) return;
+      if (openDossier) openDossier(dossier.id);
+      else if (dispatch) dispatch({ type: "SET_VIEW", payload: "pratiche" });
     }}
     disabled={!dossier}
-    title={dossier ? `${dossier.title}${dossier.destination ? " · " + dossier.destination : ""} — apri Pratiche` : "Pratica non trovata"}
+    title={dossier ? `${dossier.title}${dossier.destination ? " · " + dossier.destination : ""} — apri pratica` : "Pratica non trovata"}
     style={{
       display: "inline-flex", alignItems: "center", gap: 3,
       padding: "1px 6px", margin: "0 2px", borderRadius: 4,
@@ -176,7 +179,7 @@ const DossierRefChip = ({ number, dossier, dispatch }) => (
 );
 // Renderizza un testo applicando: prima i chip pratica PR-YYYY-NNN,
 // poi MentionText sui segmenti rimanenti.
-function renderTextWithRefs(text, dossiers, dispatch, keyPrefix = "") {
+function renderTextWithRefs(text, dossiers, dispatch, openDossier, keyPrefix = "") {
   if (!text) return null;
   const parts = [];
   let last = 0;
@@ -189,7 +192,7 @@ function renderTextWithRefs(text, dossiers, dispatch, keyPrefix = "") {
     }
     const num = m[0];
     const d = (dossiers || []).find(x => x.number === num);
-    parts.push(<DossierRefChip key={`${keyPrefix}d${i++}`} number={num} dossier={d} dispatch={dispatch} />);
+    parts.push(<DossierRefChip key={`${keyPrefix}d${i++}`} number={num} dossier={d} dispatch={dispatch} openDossier={openDossier} />);
     last = m.index + num.length;
   }
   if (last < text.length) {
@@ -202,10 +205,10 @@ function renderTextWithRefs(text, dossiers, dispatch, keyPrefix = "") {
 // Step K: lookup preferito per `taskRef` (UUID) se presente sul messaggio;
 // fallback per titolo (compat messaggi vecchi senza taskRef).
 const MessageTextContent = ({ text, isMine, taskRef }) => {
-  const { tasks, dossiers, dispatch } = useContext(ChatContext);
+  const { tasks, dossiers, dispatch, openDossier } = useContext(ChatContext);
   const link = parseTaskLink(text);
   if (!link) {
-    return <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}>{renderTextWithRefs(text, dossiers, dispatch)}</div>;
+    return <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}>{renderTextWithRefs(text, dossiers, dispatch, openDossier)}</div>;
   }
   // Step K: prima cerca per UUID, poi fallback al match titolo.
   const tByRef = taskRef ? (tasks || []).find(x => x.id === taskRef && !x.deletedAt) : null;
@@ -244,7 +247,7 @@ const MessageTextContent = ({ text, isMine, taskRef }) => {
           </div>
         )}
       </button>
-      {link.rest && <div>{renderTextWithRefs(link.rest, dossiers, dispatch, "r")}</div>}
+      {link.rest && <div>{renderTextWithRefs(link.rest, dossiers, dispatch, openDossier, "r")}</div>}
     </div>
   );
 };
@@ -1163,7 +1166,7 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
 };
 
 // ─── CHAT: MAIN PANEL ──────────────────────────────────────────────────────
-export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, intent, tasks, dossiers, currentUserId, dispatch, presenceMap, loading = false }) => {
+export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, intent, tasks, dossiers, currentUserId, dispatch, presenceMap, loading = false, onOpenDossier }) => {
   const { isMobile } = useViewport();
   const [activeConv, setActiveConv] = useState(null);
   const [newMode, setNewMode] = useState(false);
@@ -1213,7 +1216,7 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
   };
 
   return (
-    <ChatContext.Provider value={{ tasks: tasks || [], dossiers: dossiers || [], currentUserId: currentUserId || CURRENT_USER, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {} }}>
+    <ChatContext.Provider value={{ tasks: tasks || [], dossiers: dossiers || [], currentUserId: currentUserId || CURRENT_USER, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {}, openDossier: onOpenDossier || null }}>
     <>
       <div onClick={onClose} style={{
         position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: 700,

@@ -6,15 +6,38 @@ import { getMember, CURRENT_USER } from "../../state/appGlobals.js";
 import { NoticeEditorModal } from "../modals/NoticeEditorModal.jsx";
 
 export const NoticeBoard = ({ notices, dispatch }) => {
-  const [editing, setEditing] = useState(null); // null | { id?, text, color }
+  const [editing, setEditing] = useState(null); // null | { id?, text, color, expiresAt }
   const [creating, setCreating] = useState(false);
+  const [showExpired, setShowExpired] = useState(false);
   const { isMobile } = useViewport();
 
+  // expires_at < now() → avviso scaduto (auto-hide ma toggle per ammin/autore).
+  const now = Date.now();
+  const isExpired = (n) => n.expiresAt && new Date(n.expiresAt).getTime() < now;
+  const expiredCount = notices.filter(isExpired).length;
+  const visible = showExpired ? notices : notices.filter(n => !isExpired(n));
+
   // Pinned in alto, poi per data
-  const sorted = [...notices].sort((a, b) => {
+  const sorted = [...visible].sort((a, b) => {
     if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
     return new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt);
   });
+
+  const formatExpiry = (iso) => {
+    const ts = new Date(iso).getTime();
+    const diff = ts - now;
+    if (diff < 0) {
+      const ago = Math.floor(-diff / 86400000);
+      return ago === 0 ? "scaduto oggi" : `scaduto ${ago}g fa`;
+    }
+    const days = Math.floor(diff / 86400000);
+    if (days === 0) {
+      const h = Math.floor(diff / 3600000);
+      return h <= 1 ? "scade entro 1h" : `scade fra ${h}h`;
+    }
+    if (days === 1) return "scade domani";
+    return `scade fra ${days}g`;
+  };
 
   const formatRel = (iso) => {
     const diff = Date.now() - new Date(iso).getTime();
@@ -56,18 +79,33 @@ export const NoticeBoard = ({ notices, dispatch }) => {
             </div>
           </div>
         </div>
-        <button
-          onClick={() => setCreating(true)}
-          style={{
-            background: "var(--navy)", color: "#fff", border: "none",
-            padding: "8px 14px", borderRadius: 8, cursor: "pointer",
-            fontSize: 12, fontWeight: 700, fontFamily: "inherit",
-            display: "flex", alignItems: "center", gap: 5,
-            boxShadow: "0 2px 8px rgba(15,32,68,0.3)",
-          }}
-        >
-          + Nuovo avviso
-        </button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {expiredCount > 0 && (
+            <button
+              onClick={() => setShowExpired(s => !s)}
+              title={showExpired ? "Nascondi avvisi scaduti" : `Mostra ${expiredCount} avviso/i scaduto/i`}
+              style={{
+                background: showExpired ? "rgba(139,90,43,0.18)" : "transparent",
+                color: "#5d4920",
+                border: "1px solid rgba(139,90,43,0.4)",
+                padding: "6px 10px", borderRadius: 6, cursor: "pointer",
+                fontSize: 11, fontWeight: 600, fontFamily: "inherit",
+              }}
+            >{showExpired ? "🗂 Nascondi scaduti" : `📁 Scaduti (${expiredCount})`}</button>
+          )}
+          <button
+            onClick={() => setCreating(true)}
+            style={{
+              background: "var(--navy)", color: "#fff", border: "none",
+              padding: "8px 14px", borderRadius: 8, cursor: "pointer",
+              fontSize: 12, fontWeight: 700, fontFamily: "inherit",
+              display: "flex", alignItems: "center", gap: 5,
+              boxShadow: "0 2px 8px rgba(15,32,68,0.3)",
+            }}
+          >
+            + Nuovo avviso
+          </button>
+        </div>
       </div>
 
       {/* Board */}
@@ -86,6 +124,7 @@ export const NoticeBoard = ({ notices, dispatch }) => {
           {sorted.map((n, idx) => {
             const author = getMember(n.author);
             const rotation = ((n.id.charCodeAt(n.id.length - 1) % 5) - 2) * 0.7; // -1.4 a +1.4 deg
+            const expired = isExpired(n);
             return (
               <div
                 key={n.id}
@@ -100,6 +139,8 @@ export const NoticeBoard = ({ notices, dispatch }) => {
                   minHeight: 130,
                   display: "flex", flexDirection: "column",
                   fontFamily: "'DM Sans', sans-serif",
+                  opacity: expired ? 0.55 : 1,
+                  filter: expired ? "grayscale(0.4)" : "none",
                 }}
                 onMouseEnter={e => {
                   e.currentTarget.style.transform = "rotate(0deg) scale(1.02)";
@@ -129,7 +170,7 @@ export const NoticeBoard = ({ notices, dispatch }) => {
                     style={noticeBtnStyle}
                   >{n.pinned ? "📍" : "📌"}</button>
                   <button
-                    onClick={() => setEditing({ id: n.id, text: n.text, color: n.color, pinned: n.pinned })}
+                    onClick={() => setEditing({ id: n.id, text: n.text, color: n.color, pinned: n.pinned, expiresAt: n.expiresAt ?? null })}
                     title="Modifica"
                     style={noticeBtnStyle}
                   >✏️</button>
@@ -153,11 +194,11 @@ export const NoticeBoard = ({ notices, dispatch }) => {
                   {n.text}
                 </div>
 
-                {/* Footer: autore + data */}
+                {/* Footer: autore + data + scadenza */}
                 <div style={{
                   marginTop: 10, paddingTop: 8,
                   borderTop: "1px dashed rgba(61,47,16,0.2)",
-                  display: "flex", alignItems: "center", gap: 6,
+                  display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap",
                   fontSize: 10, color: "#5d4920",
                 }}>
                   {author && (
@@ -171,6 +212,16 @@ export const NoticeBoard = ({ notices, dispatch }) => {
                     </>
                   )}
                   <span style={{ marginLeft: "auto" }}>{formatRel(n.updatedAt || n.createdAt)}</span>
+                  {n.expiresAt && (
+                    <span style={{
+                      width: "100%", marginTop: 4,
+                      fontSize: 10, fontWeight: 600,
+                      color: expired ? "#8b3a3a" : "#5d4920",
+                      display: "inline-flex", alignItems: "center", gap: 4,
+                    }} title={new Date(n.expiresAt).toLocaleString("it-IT")}>
+                      ⏳ {formatExpiry(n.expiresAt)}
+                    </span>
+                  )}
                 </div>
               </div>
             );
@@ -183,6 +234,7 @@ export const NoticeBoard = ({ notices, dispatch }) => {
           notice={editing}
           onClose={() => { setCreating(false); setEditing(null); }}
           onSave={(data) => {
+            // data = { text, color, pinned, expiresAt }
             if (editing) {
               dispatch({ type: "UPDATE_NOTICE", payload: { id: editing.id, ...data } });
             } else {

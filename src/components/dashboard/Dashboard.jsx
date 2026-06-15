@@ -17,9 +17,41 @@ const AIDayPlanner = lazy(() =>
 );
 
 // ─── PERSONAL QUEUE (le mie task — v0.8) ───────────────────────────────────
-const PersonalQueue = ({ tasks, dispatch, me }) => {
+// `role` (sessione 23): se "driver" attiva i date-pill agenda transfer-oriented.
+const PersonalQueue = ({ tasks, dispatch, me, role }) => {
   const { isMobile } = useViewport();
-  const empty = tasks.length === 0;
+  const isDriver = role === "driver";
+  // dateFilter: "all" | "today" | "tomorrow" | "week" | "later"
+  const [dateFilter, setDateFilter] = useState("all");
+
+  // Calcola lo "slot" data di una task: la categorizziamo a partire da dueDate
+  // (fallback: "no date" → considerata "later" perché non urgente per il driver).
+  const taskSlot = (t) => {
+    if (!t.dueDate) return "later";
+    const d = new Date(t.dueDate);
+    const now = new Date();
+    const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startTomorrow = new Date(startToday); startTomorrow.setDate(startTomorrow.getDate() + 1);
+    const startDayAfter = new Date(startToday); startDayAfter.setDate(startDayAfter.getDate() + 2);
+    const startWeekEnd = new Date(startToday); startWeekEnd.setDate(startWeekEnd.getDate() + 7);
+    if (d < startToday) return "today"; // arretrate considerate "oggi" per non perderle
+    if (d >= startToday && d < startTomorrow) return "today";
+    if (d >= startTomorrow && d < startDayAfter) return "tomorrow";
+    if (d >= startDayAfter && d < startWeekEnd) return "week";
+    return "later";
+  };
+
+  // Conteggi per slot (solo Driver: filtri visibili). Calcolato sempre per
+  // evitare condizioni hook (low cost, lista breve).
+  const slotCounts = { today: 0, tomorrow: 0, week: 0, later: 0 };
+  for (const t of tasks) slotCounts[taskSlot(t)]++;
+
+  const filteredTasks = (isDriver && dateFilter !== "all")
+    ? tasks.filter(t => taskSlot(t) === dateFilter)
+    : tasks;
+
+  const empty = filteredTasks.length === 0;
+  const noTasksAtAll = tasks.length === 0;
   return (
     <div style={{
       background: "linear-gradient(135deg, rgba(15,32,68,0.04) 0%, rgba(15,32,68,0.01) 100%)",
@@ -45,29 +77,65 @@ const PersonalQueue = ({ tasks, dispatch, me }) => {
             </div>
           </div>
         </div>
-        {!empty && (
+        {!noTasksAtAll && (
           <div style={{
             background: "var(--navy)", color: "#fff",
             padding: "4px 12px", borderRadius: 999,
             fontSize: 13, fontWeight: 700,
-          }}>{tasks.length} {tasks.length === 1 ? "task" : "task"}</div>
+          }}>
+            {(isDriver && dateFilter !== "all")
+              ? `${filteredTasks.length}/${tasks.length}`
+              : `${tasks.length} ${tasks.length === 1 ? "task" : "task"}`}
+          </div>
         )}
       </div>
+
+      {/* Driver: pillole filtro data (agenda transfer-oriented) */}
+      {isDriver && !noTasksAtAll && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+          {[
+            { key: "all", label: "Tutte", count: tasks.length },
+            { key: "today", label: "🚐 Oggi", count: slotCounts.today },
+            { key: "tomorrow", label: "📅 Domani", count: slotCounts.tomorrow },
+            { key: "week", label: "🗓 Settimana", count: slotCounts.week },
+            { key: "later", label: "↪ Dopo", count: slotCounts.later },
+          ].map(p => {
+            const active = dateFilter === p.key;
+            const visible = p.key === "all" || p.count > 0;
+            if (!visible) return null;
+            return (
+              <button
+                key={p.key}
+                onClick={() => setDateFilter(p.key)}
+                style={{
+                  background: active ? "var(--navy)" : "transparent",
+                  color: active ? "#fff" : "var(--text-muted)",
+                  border: `1px solid ${active ? "var(--navy)" : "var(--border)"}`,
+                  borderRadius: 99, padding: "4px 10px", fontSize: 11, fontWeight: 600,
+                  cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+                }}
+              >{p.label}{p.count > 0 && p.key !== "all" ? ` (${p.count})` : ""}</button>
+            );
+          })}
+        </div>
+      )}
 
       {empty ? (
         <div style={{
           padding: "14px 0 4px", display: "flex", alignItems: "center", gap: 10,
           color: "var(--text-muted)", fontSize: 13,
         }}>
-          <span style={{ fontSize: 18 }}>🎉</span>
-          Nessuna task aperta a tuo nome. Buon lavoro!
+          <span style={{ fontSize: 18 }}>{noTasksAtAll ? "🎉" : "🔍"}</span>
+          {noTasksAtAll
+            ? "Nessuna task aperta a tuo nome. Buon lavoro!"
+            : "Nessuna task per questo filtro data."}
         </div>
       ) : (
         <div style={{
           display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))",
           gap: 10,
         }}>
-          {tasks.map(t => {
+          {filteredTasks.map(t => {
             const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
             const prio = PRIORITIES[t.priority];
             const overdue = isOverdue(t);
@@ -733,7 +801,7 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
 
       {/* ─── SEZIONE CODA FILTRATA ─── */}
       {activeQueue === "personal" && (
-        <PersonalQueue tasks={personalQueue} dispatch={dispatch} me={me} />
+        <PersonalQueue tasks={personalQueue} dispatch={dispatch} me={me} role={role} />
       )}
       {activeQueue === "global" && showGlobalQueue && (
         <UnassignedQueue tasks={unassigned} dispatch={dispatch} onTake={takeOwnership} />

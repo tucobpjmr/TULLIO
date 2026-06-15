@@ -84,7 +84,7 @@ const EMOJI_REACTIONS = ["👍", "❤️", "😂", "🔥", "✅", "🎉", "💡"
 const ReactionPicker = ({ onPick, onClose }) => (
   <div onClick={e => e.stopPropagation()} style={{
     position: "absolute", bottom: "calc(100% + 4px)", left: 0,
-    background: "#fff", borderRadius: 20, padding: "6px 8px",
+    background: "var(--card)", borderRadius: 20, padding: "6px 8px",
     boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--border)",
     display: "flex", gap: 2, zIndex: 100,
   }}>
@@ -337,7 +337,7 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
         )}
 
         <div style={{
-          background: isMine ? "var(--navy)" : "#fff",
+          background: isMine ? "var(--navy)" : "var(--card)",
           color: isMine ? "#fff" : "var(--text)",
           padding: msg.type === "voice" ? "8px 12px" : "8px 12px",
           borderRadius: 14,
@@ -416,7 +416,7 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
           }}>
             {Object.entries(msg.reactions).map(([emoji, users]) => (
               <div key={emoji} style={{
-                background: "#fff", border: "1px solid var(--border)",
+                background: "var(--card)", border: "1px solid var(--border)",
                 borderRadius: 99, padding: "2px 7px", fontSize: 11,
                 boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
                 display: "flex", alignItems: "center", gap: 3,
@@ -432,7 +432,7 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
         {hovered && (
           <div style={{
             position: "absolute", top: -8, [isMine ? "left" : "right"]: -8,
-            display: "flex", gap: 2, background: "#fff",
+            display: "flex", gap: 2, background: "var(--card)",
             border: "1px solid var(--border)", borderRadius: 99,
             padding: "3px 6px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
             zIndex: 50,
@@ -730,7 +730,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
           <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "flex-end" }}>
             <Avatar memberId={otherTypingMember} size={28} />
             <div style={{
-              background: "#fff", border: "1px solid var(--border)",
+              background: "var(--card)", border: "1px solid var(--border)",
               borderRadius: 14, borderTopLeftRadius: 4, padding: "8px 12px",
               display: "flex", gap: 3, alignItems: "center",
             }}>
@@ -745,7 +745,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
       {/* Reply preview */}
       {replyingTo && (
         <div style={{
-          padding: "8px 14px", background: "#fff", borderTop: "1px solid var(--border)",
+          padding: "8px 14px", background: "var(--card)", borderTop: "1px solid var(--border)",
           display: "flex", alignItems: "center", gap: 10,
         }}>
           <div style={{ width: 3, alignSelf: "stretch", background: "var(--gold)", borderRadius: 2 }} />
@@ -766,7 +766,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
 
       {/* Input */}
       <div style={{
-        padding: "10px 12px", background: "#fff", borderTop: "1px solid var(--border)",
+        padding: "10px 12px", background: "var(--card)", borderTop: "1px solid var(--border)",
         display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
         position: "relative",
       }}>
@@ -792,7 +792,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
               {showAttach && (
                 <div className="slide-up" style={{
                   position: "absolute", bottom: "calc(100% + 8px)", left: 0,
-                  background: "#fff", borderRadius: 12, padding: 8,
+                  background: "var(--card)", borderRadius: 12, padding: 8,
                   boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--border)",
                   display: "flex", flexDirection: "column", gap: 4, minWidth: 160, zIndex: 100,
                 }}>
@@ -1149,7 +1149,7 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
                     border: `2px solid ${isSel ? "var(--gold)" : "var(--border)"}`,
                     background: isSel ? "var(--gold)" : "transparent",
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 13, color: "var(--navy)", fontWeight: 700,
+                    fontSize: 13, color: "var(--heading)", fontWeight: 700,
                   }}>{isSel && "✓"}</div>
                 </div>
               );
@@ -1232,7 +1232,7 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
       }} />
       <div className="slide-right" style={{
         position: "fixed", top: 0, right: 0, width: isMobile ? "100vw" : 420, height: "100vh",
-        background: "#fff", zIndex: 800, boxShadow: "-20px 0 60px rgba(0,0,0,0.2)",
+        background: "var(--card)", zIndex: 800, boxShadow: "-20px 0 60px rgba(0,0,0,0.2)",
         display: "flex", flexDirection: "column", overflow: "hidden",
       }}>
         {/* Header */}
@@ -1286,7 +1286,7 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
           {loading ? (
             <div style={{
               height: "100%", display: "flex", flexDirection: "column",
-              alignItems: "center", justifyContent: "center", gap: 12, color: "var(--navy)",
+              alignItems: "center", justifyContent: "center", gap: 12, color: "var(--heading)",
             }}>
               <div style={{
                 width: 28, height: 28, borderRadius: "50%",

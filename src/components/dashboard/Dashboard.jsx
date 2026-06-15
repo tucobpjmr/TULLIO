@@ -50,7 +50,7 @@ const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
         padding: "5px 12px", borderRadius: 999, cursor: "pointer",
         fontSize: 12, fontWeight: 600, fontFamily: "inherit",
         border: `1px solid ${dateFilter === key ? "var(--navy)" : "var(--border)"}`,
-        background: dateFilter === key ? "var(--navy)" : "#fff",
+        background: dateFilter === key ? "var(--navy)" : "var(--card)",
         color: dateFilter === key ? "#fff" : "var(--text-muted)",
         transition: "background 0.15s, color 0.15s",
       }}
@@ -74,7 +74,7 @@ const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
             fontSize: 12, fontWeight: 700,
           }}>{me?.avatar || "?"}</div>
           <div>
-            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)" }}>
+            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
               {enableDateFilter ? "La mia coda transfer" : "La mia coda — task assegnate a me"}
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
@@ -102,7 +102,7 @@ const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
             style={{
               padding: "4px 10px", borderRadius: 999, fontSize: 12, fontFamily: "inherit",
               border: `1px solid ${customDate ? "var(--navy)" : "var(--border)"}`,
-              background: "#fff", color: "var(--text)", cursor: "pointer",
+              background: "var(--card)", color: "var(--text)", cursor: "pointer",
             }}
           />
           {customDate && (
@@ -134,7 +134,7 @@ const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
             const card = (
               <div
                 style={{
-                  background: "#fff", borderRadius: 10,
+                  background: "var(--card)", borderRadius: 10,
                   border: `1px solid ${overdue ? "rgba(192,57,43,0.4)" : urgent ? "rgba(200,131,42,0.4)" : "var(--border)"}`,
                   padding: 12, display: "flex", flexDirection: "column", gap: 8,
                   cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
@@ -201,7 +201,7 @@ const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
             fontSize: 18, fontWeight: 700,
           }}>⏱</div>
           <div>
-            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)" }}>
+            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
               Urgenti del team — scadenza entro 24h
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
@@ -229,7 +229,7 @@ const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
               key={t.id}
               title="Solo visualizzazione: questa task appartiene a un altro agente"
               style={{
-                background: "#fff", borderRadius: 10,
+                background: "var(--card)", borderRadius: 10,
                 border: "1.5px dashed rgba(200,131,42,0.45)",
                 padding: 12, display: "flex", flexDirection: "column", gap: 8,
                 position: "relative",
@@ -343,7 +343,7 @@ const UnassignedQueue = ({ tasks, dispatch, onTake }) => {
             fontSize: 18, fontWeight: 700,
           }}>🙋</div>
           <div>
-            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)" }}>
+            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
               Coda globale — task da prendere in carico
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
@@ -399,7 +399,7 @@ const UnassignedQueue = ({ tasks, dispatch, onTake }) => {
           {hasFilter && (
             <button onClick={() => { setCategoryFilter(""); setPriorityFilter(""); }} style={{
               padding: "3px 9px", borderRadius: 99, border: "1px solid var(--border)",
-              background: "#fff", color: "var(--text-muted)",
+              background: "var(--card)", color: "var(--text-muted)",
               fontSize: 11, cursor: "pointer", fontFamily: "inherit",
             }}>✕ Reset</button>
           )}
@@ -435,7 +435,7 @@ const UnassignedQueue = ({ tasks, dispatch, onTake }) => {
             const card = (
               <div
                 style={{
-                  background: "#fff", borderRadius: 10,
+                  background: "var(--card)", borderRadius: 10,
                   border: `1px solid ${overdue ? "rgba(192,57,43,0.3)" : "var(--border)"}`,
                   padding: 12, display: "flex", flexDirection: "column", gap: 10,
                   cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
@@ -561,7 +561,7 @@ const OverdueQueue = ({ tasks, dispatch }) => {
             fontSize: 18,
           }}>📅</div>
           <div>
-            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)" }}>
+            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
               Task scadute
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
@@ -597,7 +597,7 @@ const OverdueQueue = ({ tasks, dispatch }) => {
             const card = (
               <div
                 style={{
-                  background: "#fff", borderRadius: 10,
+                  background: "var(--card)", borderRadius: 10,
                   border: "1px solid rgba(192,57,43,0.4)",
                   padding: 12, display: "flex", flexDirection: "column", gap: 8,
                   cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
@@ -754,7 +754,7 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
 
       {/* ─── TAB CODE ─── */}
       <div style={{
-        background: "#fff", borderRadius: 12, padding: isMobile ? 8 : 10,
+        background: "var(--card)", borderRadius: 12, padding: isMobile ? 8 : 10,
         boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)",
         display: "grid",
         gridTemplateColumns: `repeat(${(showGlobalQueue ? 1 : 0) + 1 + 1 + (showUrgentOthers ? 1 : 0)}, 1fr)`,
@@ -806,7 +806,7 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
 
       <div className="vd-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         {/* Upcoming deadlines */}
-        <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
+        <div style={{ background: "var(--card)", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
           <div className="playfair" style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>Scadenze Prossime</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {next7.map(t => (
@@ -834,7 +834,7 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
         </div>
 
         {/* Agent workload */}
-        <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
+        <div style={{ background: "var(--card)", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
           <div className="playfair" style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>Carico di Lavoro Team</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {agentWorkload.map(m => {

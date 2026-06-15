@@ -130,8 +130,37 @@ const FontLoader = () => (
       --text-muted: #6B6B80;
       --text-light: #9999AA;
       --border: #E0DDD5;
+      /* Token semantici introdotti per la dark mode (v22):
+         --card  = superficie card (sostituisce gli "#fff" inline dei contenuti)
+         --heading = titoli su card (sostituisce "color: var(--navy)" nei contenuti).
+         In light coincidono con i valori storici → nessun cambiamento visivo. */
+      --card: #ffffff;
+      --card2: #F7F6F2;
+      --heading: var(--navy);
+      color-scheme: light;
     }
-    body { font-family: 'DM Sans', sans-serif; background: var(--surface); color: var(--text); }
+    /* ─── DARK MODE (v22) ───
+       Shell (topbar/sidebar/bottom-nav) resta brand-celeste per scelta di design;
+       l'area contenuti passa a superfici scure. --navy resta scuro (usato come bg
+       bottoni con testo bianco e come testo su oro/celeste). */
+    [data-theme="dark"] {
+      --navy-light: #5277b5;
+      --surface: #131319;
+      --surface2: #1c1c26;
+      --surface3: #272733;
+      --success: #3fa06a;
+      --warning: #d79a45;
+      --danger: #d6584c;
+      --text: #E8E8EF;
+      --text-muted: #A6A6BC;
+      --text-light: #74748c;
+      --border: #2f2f3c;
+      --card: #1a1a23;
+      --card2: #222230;
+      --heading: #cdd9ef;
+      color-scheme: dark;
+    }
+    body { font-family: 'DM Sans', sans-serif; background: var(--surface); color: var(--text); transition: background 0.2s ease, color 0.2s ease; }
     .playfair { font-family: 'Playfair Display', serif; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -758,6 +787,13 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   const [chatIntent, setChatIntent] = useState(null); // { toUser, taskLink } per aprire chat preconfezionata
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [targetDossierId, setTargetDossierId] = useState(null);
+  // Tema chiaro/scuro (v22). Solo-sessione: nessuna persistenza (vincolo
+  // localStorage in CLAUDE.md). data-theme applicato su <html>.
+  const [theme, setTheme] = useState("light");
+  const toggleTheme = useCallback(() => setTheme(t => (t === "dark" ? "light" : "dark")), []);
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
   // In modalità Supabase partiamo da stato vuoto e idratiamo dal DB.
   // Senza login i mock restano per smoke-test rapido.
   const [conversations, setConversationsRaw] = useState(
@@ -931,6 +967,8 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           onMarkAllRead={markAllNotificationsRead}
           onOpenTask={openTaskById}
           onOpenDossier={openDossierById}
+          theme={theme}
+          onToggleTheme={toggleTheme}
         />
         <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
           <Sidebar state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} />

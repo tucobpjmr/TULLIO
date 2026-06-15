@@ -200,7 +200,7 @@ export const SwipeActions = ({ task, dispatch, children, disabled = false }) => 
           onClick={e => e.stopPropagation()}
           style={{
             position: "absolute", top: "calc(100% + 6px)", right: 0,
-            zIndex: 30, background: "#fff",
+            zIndex: 30, background: "var(--card)",
             border: "1px solid var(--border)", borderRadius: 10,
             boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
             minWidth: 200, maxHeight: 240, overflowY: "auto",

@@ -22,11 +22,11 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
       display: "flex", alignItems: "center", justifyContent: "center", zIndex: 600,
     }}>
       <div onClick={e => e.stopPropagation()} style={{
-        background: "#fff", borderRadius: 12, padding: 24,
+        background: "var(--card)", borderRadius: 12, padding: 24,
         width: "90%", maxWidth: 520,
         boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
       }}>
-        <h3 className="playfair" style={{ margin: 0, marginBottom: 16, color: "var(--navy)" }}>
+        <h3 className="playfair" style={{ margin: 0, marginBottom: 16, color: "var(--heading)" }}>
           {notice ? "✏️ Modifica avviso" : "📌 Nuovo avviso"}
         </h3>
 
@@ -94,7 +94,7 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 }}>
           <button onClick={onClose} style={{
             padding: "8px 14px", borderRadius: 6, border: "1px solid var(--border)",
-            background: "#fff", color: "var(--text)", fontSize: 12, fontWeight: 500,
+            background: "var(--card)", color: "var(--text)", fontSize: 12, fontWeight: 500,
             cursor: "pointer", fontFamily: "inherit",
           }}>Annulla</button>
           <button onClick={submit} disabled={!text.trim()} style={{

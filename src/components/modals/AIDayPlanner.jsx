@@ -102,7 +102,7 @@ Regole:
       display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100, padding: 20,
     }}>
       <div className="slide-up" style={{
-        background: "#fff", borderRadius: 16, width: 640, maxWidth: "100%",
+        background: "var(--card)", borderRadius: 16, width: 640, maxWidth: "100%",
         maxHeight: "90vh", display: "flex", flexDirection: "column",
         boxShadow: "0 30px 80px rgba(0,0,0,0.25)", border: "1px solid var(--border)", overflow: "hidden",
       }}>
@@ -181,13 +181,13 @@ Regole:
                       return (
                         <div key={i} style={{
                           display: "flex", gap: 12, padding: "10px 12px",
-                          border: "1px solid var(--border)", borderRadius: 10, background: "#fff",
+                          border: "1px solid var(--border)", borderRadius: 10, background: "var(--card)",
                         }}>
                           <div style={{
                             display: "flex", flexDirection: "column", alignItems: "center",
                             minWidth: 54, paddingTop: 2,
                           }}>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--navy)" }}>{s.time}</div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--heading)" }}>{s.time}</div>
                             {s.duration && <div style={{ fontSize: 10, color: "var(--text-muted)" }}>{s.duration}</div>}
                           </div>
                           <div style={{ width: 1, background: "var(--border)" }} />
@@ -239,7 +239,7 @@ Regole:
                             </div>
                             <span style={{
                               fontSize: 10, fontWeight: 700, color, textTransform: "uppercase",
-                              padding: "2px 8px", borderRadius: 99, background: "#fff", flexShrink: 0,
+                              padding: "2px 8px", borderRadius: 99, background: "var(--card)", flexShrink: 0,
                             }}>{a.severity}</span>
                           </div>
                           <div style={{ fontSize: 12, marginTop: 6, color: "var(--text)" }}>
@@ -278,7 +278,7 @@ Regole:
         }}>
           <button onClick={onClose} style={{
             padding: "8px 18px", borderRadius: 8, border: "1px solid var(--border)",
-            background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 500,
+            background: "var(--card)", cursor: "pointer", fontSize: 13, fontWeight: 500,
           }}>Chiudi</button>
         </div>
       </div>

@@ -937,6 +937,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           markConversationRead={markConversationRead}
           intent={chatIntent}
           tasks={state.tasks}
+          dossiers={state.dossiers || []}
           currentUserId={state.currentUserId}
           dispatch={dispatch}
           presenceMap={presenceMap}

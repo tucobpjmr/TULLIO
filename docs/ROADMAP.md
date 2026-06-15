@@ -182,6 +182,8 @@ Vedi `docs/HANDOFF_SESSION_2026-06-14_v13.md` per il dettaglio sessione 18 (Phas
 
 ## ✅ Completato (cronologia)
 
+- **v2.5/v2.6-dev** — Sessione 23 (PR #60 **mergeata**, `46dbe0a`, handoff v21): **Fase 2 chiusa al 100%**. `queue_stale` versionata (migration `20260615`, repo↔DB allineati) + chat stato "Occupato" manuale (presence `busy`) + auto-collapse Sidebar 1025–1280px + export Log CSV + skeleton loading viste CRM. Rimozione completa **Fase 3 Business**. Build: 264.00 kB / 62.90 kB gz.
+
 - **v2.2-dev** — **Fase 1 COMPLETA** (PR #51/#52/#53): collegamento Task↔Pratica (`dossierId` su QuickAddTask/TaskSlideOver), pannello fornitori in `PraticaDetail` (`FornitoriPanel`), filtro pratica nella Ricerca avanzata. Caveat #26 e #27 chiusi. Build: 252.04 kB / 59.47 kB gz.
 
 - **v2.3-dev** — Sessione 22 (PR #57): caveat #28 (trigger DB notifiche pratica, allinea repo↔DB) + Calendario pratiche (eventi ✈️/🏁 celesti in tutte le viste) + Modifica assegnatari da TaskSlideOver + Filtri NotificationsPanel (Tutte/Non lette/Task/Pratiche/Menzioni) + icon dossier (📁 ✈️) + Filtri coda globale (categoria/priorità) + Indicatore read-only urgenti altrui + Rich preview pratiche in chat (`PR-YYYY-NNN` → chip). Cleanup docs: Fase 3 Business (modulo finanziario, Report & Analytics, catalogo) rimossa da roadmap/CLAUDE.md/changelog (richiesta utente). Build: 260.57 kB / 61.79 kB gz.

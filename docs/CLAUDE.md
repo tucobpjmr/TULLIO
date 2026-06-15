@@ -382,4 +382,4 @@ src/
 
 Le notifiche nascono **solo da trigger DB / funzioni server-side** (RLS vieta insert client) — per nuove notifiche serve un trigger o una funzione `SECURITY DEFINER` schedulata via pg_cron (pattern in `supabase/migrations/20260614_mention_composite_names.sql`, `20260614_dossier_notifications.sql`, `20260615_queue_stale_notifications.sql`). Tipi notifica gestiti dal frontend (`NOTIF_ICONS`/`notifTitle` in `Topbar.jsx`): `task_assigned`, `task_due`, `comment`, `mention`, `queue_stale`, `dossier_status`, `dossier_departure`.
 
-Vedi `docs/HANDOFF_SESSION_2026-06-15_v20.md` per il dettaglio sessione 22 (Fase 2 completa: notifiche pratica, calendario, assegnatari, filtri), v17 per sessione 21 (quick wins) e v15 per la Fase 1 completa.
+Vedi `docs/HANDOFF_SESSION_2026-06-15_v21.md` (handoff attivo) per lo stato corrente dopo il merge di #60 (sessioni 22+23: Fase 2 chiusa, queue_stale, chat "Occupato", micro-UI; Fase 3 Business rimossa). v17 = sessione 21 (quick wins); v15 = Fase 1 completa.

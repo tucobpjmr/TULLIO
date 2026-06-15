@@ -3,7 +3,7 @@
 
 ## v2.6-dev — Micro-miglioramenti UI: auto-collapse sidebar + export log CSV + skeleton loading (sessione 23)
 
-> Branch `claude/handoff-v20-docs-4an8rx` — PR #60 (draft). Quick win frontend a basso rischio.
+> PR #60 (**mergeata** in `main`, squash `46dbe0a`). Quick win frontend a basso rischio.
 
 ### 💀 Skeleton loading (viste CRM)
 
@@ -24,7 +24,7 @@
 
 ## v2.5-dev — Fase 2 chiusa: queue_stale versionata + chat "Occupato" + cleanup roadmap (sessione 23)
 
-> Branch `claude/handoff-v20-docs-4an8rx` — PR #60 (draft). Docs v20.
+> PR #60 (**mergeata** in `main`, squash `46dbe0a`).
 
 ### ⏳ Notifica coda globale stantia (`queue_stale`)
 
@@ -44,7 +44,7 @@
 
 ## v2.4-dev — Fase 2 Operatività completa: notifiche pratica, calendario, assegnatari, filtri (sessione 22)
 
-> Branch sessione 22 — PR #57 (commit `b0e5a0c`). Base: `main` (post quick wins v17). Chiude il caveat **#28** → **Fase 2 completa, nessun caveat aperto**. Handoff: `docs/HANDOFF_SESSION_2026-06-15_v20.md`.
+> Branch sessione 22 — PR #57 (commit `b0e5a0c`). Base: `main` (post quick wins v17). Chiude il caveat **#28** → **Fase 2 completa, nessun caveat aperto**. Handoff: `docs/HANDOFF_SESSION_2026-06-15_v21.md` (consolida l'ex v20).
 
 ### 🔔 Trigger DB notifiche pratica (caveat #28)
 

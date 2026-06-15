@@ -295,8 +295,8 @@ Tutti i componenti sono **moduli separati** in `src/components/`; helper e sub-c
 - [ ] Estensioni chat (ricerca nelle conversazioni)
 
 ### Priorità 3 — Business (Fase 3)
-- [ ] Modulo finanziario: aggregare `dossier_suppliers.cost` vs `dossiers.budget_total` → margine
-- [ ] Report & Analytics avanzati
+- [ ] Report & Analytics avanzati (trend temporali, export PDF)
+- [ ] Catalogo destinazioni / pacchetti
 
 Vedi `docs/ROADMAP.md` per il dettaglio completo con dipendenze e stime.
 

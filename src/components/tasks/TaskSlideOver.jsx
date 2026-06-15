@@ -7,14 +7,33 @@ import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { CategoryChip } from "../ui/CategoryChip.jsx";
 import { STATUSES, STATUS_LABELS } from "../../lib/taskConstants.js";
 import { formatDate, formatTime, isOverdue } from "../../lib/taskUtils.js";
-import { CURRENT_USER, getMember } from "../../state/appGlobals.js";
+import { CURRENT_USER, getMember, getAssignableTeam, canEditTask } from "../../state/appGlobals.js";
 import { MentionText } from "../ui/MentionText.jsx";
 
 export const TaskSlideOver = ({ task, dispatch, dossiers = [] }) => {
   const { isMobile } = useViewport();
   const [newComment, setNewComment] = useState("");
+  const [showAssigneePicker, setShowAssigneePicker] = useState(false);
 
   if (!task) return null;
+
+  const editable = canEditTask(task, CURRENT_USER);
+  const currentAssignees = task.assignees || [];
+  const availableMembers = editable
+    ? getAssignableTeam().filter(m => !currentAssignees.includes(m.id))
+    : [];
+
+  const updateAssignees = (next) => {
+    dispatch({ type: "UPDATE_TASK", payload: { id: task.id, assignees: next } });
+  };
+  const addAssignee = (memberId) => {
+    if (!memberId || currentAssignees.includes(memberId)) return;
+    updateAssignees([...currentAssignees, memberId]);
+    setShowAssigneePicker(false);
+  };
+  const removeAssignee = (memberId) => {
+    updateAssignees(currentAssignees.filter(id => id !== memberId));
+  };
 
   // Pratiche selezionabili: non annullate + l'eventuale pratica già collegata
   // (così non sparisce dal menu se nel frattempo è stata annullata).
@@ -109,20 +128,75 @@ export const TaskSlideOver = ({ task, dispatch, dossiers = [] }) => {
 
           {/* Meta */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div>
+            <div style={{ position: "relative" }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>ASSEGNATI</div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {task.assignees?.map(id => {
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                {currentAssignees.map(id => {
                   const m = getMember(id);
                   return m ? (
                     <div key={id} style={{ display: "flex", alignItems: "center", gap: 5, background: "var(--surface2)", padding: "4px 8px", borderRadius: 99 }}>
                       <Avatar memberId={id} size={20} />
                       <span style={{ fontSize: 12 }}>{m.name.split(" ")[0]}</span>
+                      {editable && (
+                        <button
+                          onClick={() => removeAssignee(id)}
+                          title="Rimuovi assegnatario"
+                          style={{
+                            background: "none", border: "none", cursor: "pointer",
+                            color: "var(--text-muted)", fontSize: 12, lineHeight: 1, padding: 0,
+                            marginLeft: 2,
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.color = "var(--danger)"}
+                          onMouseLeave={e => e.currentTarget.style.color = "var(--text-muted)"}
+                        >✕</button>
+                      )}
                     </div>
                   ) : null;
                 })}
-                {!task.assignees?.length && <span style={{ fontSize: 13, color: "var(--text-muted)" }}>Non assegnato</span>}
+                {!currentAssignees.length && (
+                  <span style={{ fontSize: 13, color: "var(--text-muted)" }}>Non assegnato</span>
+                )}
+                {editable && availableMembers.length > 0 && (
+                  <button
+                    onClick={() => setShowAssigneePicker(v => !v)}
+                    title="Aggiungi assegnatario"
+                    style={{
+                      background: showAssigneePicker ? "var(--navy)" : "var(--surface2)",
+                      color: showAssigneePicker ? "#fff" : "var(--navy)",
+                      border: "1px dashed var(--border)", borderRadius: 99,
+                      padding: "4px 10px", fontSize: 12, fontWeight: 600,
+                      cursor: "pointer", fontFamily: "inherit",
+                    }}
+                  >＋ Aggiungi</button>
+                )}
               </div>
+              {editable && showAssigneePicker && availableMembers.length > 0 && (
+                <div style={{
+                  position: "absolute", top: "100%", left: 0, marginTop: 6, zIndex: 10,
+                  background: "#fff", border: "1px solid var(--border)", borderRadius: 10,
+                  boxShadow: "0 10px 30px rgba(0,0,0,0.12)", padding: 6,
+                  minWidth: 180, maxHeight: 220, overflowY: "auto",
+                }}>
+                  {availableMembers.map(m => (
+                    <button
+                      key={m.id}
+                      onClick={() => addAssignee(m.id)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 8, width: "100%",
+                        padding: "6px 8px", borderRadius: 6, border: "none",
+                        background: "transparent", cursor: "pointer", fontSize: 13,
+                        fontFamily: "inherit", color: "var(--text)", textAlign: "left",
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                    >
+                      <Avatar memberId={m.id} size={22} />
+                      <span style={{ flex: 1 }}>{m.name}</span>
+                      <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{m.role}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>CLIENTE</div>

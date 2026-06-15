@@ -104,14 +104,14 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 | Bacheca: tag/categorie filtrabili | ⬜ | ⚪ | |
 | Modifica assegnatari da `TaskSlideOver` | ✅ | — | Completato in PR #57 (sessione 22) |
 | Permessi granulari per ruolo | ✅ | — | Completato in v0.8 |
-| Export Log attività in CSV | ⬜ | ⚪ | |
+| Export Log attività in CSV | ✅ | — | Pulsante "Esporta CSV" nel tab Log (rispetta il filtro attivo), helper `downloadFile`/`escapeCSV` hoistati a module-scope |
 
 ## ✨ Migliorie incrementali emerse (post v0.6)
 
 | Idea | Stato | Priorità | Note |
 |---|---|---|---|
 | Vista settimanale Calendario | ✅ | — | Completata in v0.7 (CalendarPlanner: week + week-full) |
-| Comprimi automaticamente Sidebar desktop tra 1024–1280px | ⬜ | ⚪ | |
+| Comprimi automaticamente Sidebar desktop tra 1024–1280px | ✅ | — | Auto-collapse a transizione di banda in `Sidebar` (guardia `prevBandRef`, non contrasta il toggle manuale) |
 | Skeleton loading su prime render | ⬜ | ⚪ | |
 | Dark mode | ⬜ | ⚪ | CSS variables pronte |
 | Test responsive automatici (Playwright) | ⬜ | ⚪ | ⚙️**B** |

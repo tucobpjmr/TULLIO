@@ -1,6 +1,21 @@
 # CHANGELOG — VoyageDesk
 
 
+## v2.6-dev — Micro-miglioramenti UI: auto-collapse sidebar + export log CSV (sessione 23)
+
+> Branch `claude/handoff-v20-docs-4an8rx` — PR #60 (draft). Quick win frontend a basso rischio.
+
+### 🖥️ Auto-collapse Sidebar (desktop stretto 1025–1280px)
+
+- **`src/components/shell/Sidebar.jsx`**: la sidebar si collassa automaticamente quando la finestra entra nella fascia 1025–1280px (dove 210px di nav rubano spazio) e si ri-espande sopra i 1280px. Effetto guardato per banda (`prevBandRef`): agisce solo sulle transizioni, quindi **non contrasta il toggle manuale** dentro la stessa banda. Su mount in fascia stretta parte già collassata.
+
+### 📄 Export Log attività in CSV (Admin)
+
+- **`src/components/admin/AdminView.jsx`**: pulsante "Esporta CSV" nel tab Log attività → scarica le righe **del filtro attivo** (Tutte/Task/Cestino/Admin) come CSV (`Data/ora, Tipo, Descrizione`, con BOM UTF-8). Disabilitato se la lista filtrata è vuota.
+- Refactor: `downloadFile` ed `escapeCSV` (prima locali a `AdminIOTab`) **hoistati a module-scope** e condivisi tra i tab Import/Export e Log (no duplicazione).
+
+---
+
 ## v2.5-dev — Fase 2 chiusa: queue_stale versionata + chat "Occupato" + cleanup roadmap (sessione 23)
 
 > Branch `claude/handoff-v20-docs-4an8rx` — PR #60 (draft). Docs v20.

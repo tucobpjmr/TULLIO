@@ -326,7 +326,7 @@ const AdvancedSearchPanel = ({ tasks, dossiers = [], dispatch, onClose, keyword 
 };
 
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
-export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notificationsProp, onMarkRead, onMarkAllRead, onOpenTask, onOpenDossier }) => {
+export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notificationsProp, onMarkRead, onMarkAllRead, onOpenTask, onOpenDossier, presenceOverride, onSetPresence }) => {
   const { isMobile } = useViewport();
   // Fix #11: notifiche mock gate-ate dietro env var (default off in prod)
   const SHOW_MOCK_NOTIFS = import.meta.env.DEV && import.meta.env.VITE_SHOW_MOCK_NOTIFICATIONS === 'true';
@@ -436,7 +436,7 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
       </div>
 
       {/* User switcher (v0.8) */}
-      <UserSwitcher state={state} dispatch={dispatch} />
+      <UserSwitcher state={state} dispatch={dispatch} presenceOverride={presenceOverride} onSetPresence={onSetPresence} />
     </div>
   );
 };
@@ -445,7 +445,7 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
 // Dropdown nella Topbar per cambiare l'utente loggato (mock multi-utente).
 // ProfileEditor (+ AVATAR_EMOJIS/AVATAR_COLORS) → src/components/modals/ProfileEditor.jsx (Step P Phase 2f)
 
-const UserSwitcher = ({ state, dispatch }) => {
+const UserSwitcher = ({ state, dispatch, presenceOverride, onSetPresence }) => {
   const [open, setOpen] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -490,7 +490,7 @@ const UserSwitcher = ({ state, dispatch }) => {
     <div ref={ref} style={{ position: "relative" }}>
       <button
         onClick={() => setOpen(o => !o)}
-        title="Cambia utente"
+        title={presenceOverride === 'busy' ? "Stato: Occupato — clicca per cambiare" : "Cambia utente / stato"}
         aria-label="Cambia utente loggato"
         style={{
           display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
@@ -498,15 +498,23 @@ const UserSwitcher = ({ state, dispatch }) => {
           borderRadius: 8, padding: "3px 8px 3px 4px", fontFamily: "inherit",
         }}
       >
-        {curr.photoUrl ? (
-          <img src={curr.photoUrl} alt="" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover" }} />
-        ) : (
-          <div style={{
-            width: 30, height: 30, borderRadius: "50%", background: curr.color,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 11, fontWeight: 700, color: "#fff",
-          }}>{curr.avatar}</div>
-        )}
+        <div style={{ position: "relative" }}>
+          {curr.photoUrl ? (
+            <img src={curr.photoUrl} alt="" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover" }} />
+          ) : (
+            <div style={{
+              width: 30, height: 30, borderRadius: "50%", background: curr.color,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 11, fontWeight: 700, color: "#fff",
+            }}>{curr.avatar}</div>
+          )}
+          <span style={{
+            position: "absolute", bottom: -1, right: -1,
+            width: 10, height: 10, borderRadius: "50%",
+            background: presenceOverride === 'busy' ? "#E0A800" : "#2D7A4F",
+            border: "2px solid var(--sky)",
+          }} />
+        </div>
         <div className="vd-hide-mobile" style={{ textAlign: "left" }}>
           <div style={{ color: "var(--navy)", fontSize: 12, fontWeight: 600, lineHeight: 1.2 }}>{curr.name}</div>
           <div style={{ color: "rgba(15,32,68,0.55)", fontSize: 10 }}>{curr.role}</div>
@@ -521,6 +529,36 @@ const UserSwitcher = ({ state, dispatch }) => {
           boxShadow: "0 12px 30px rgba(0,0,0,0.2)", zIndex: 200,
           minWidth: 240, padding: 6,
         }}>
+          {/* Stato presenza (sessione 24) */}
+          {onSetPresence && (
+            <div style={{ padding: "8px 10px 10px", borderBottom: "1px solid var(--border)", marginBottom: 4 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 6 }}>STATO</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {[
+                  { id: null, label: "Online", icon: "🟢", color: "#2D7A4F" },
+                  { id: "busy", label: "Occupato", icon: "🟡", color: "#E0A800" },
+                ].map(opt => {
+                  const active = (presenceOverride || null) === opt.id;
+                  return (
+                    <button
+                      key={opt.label}
+                      onClick={() => onSetPresence(opt.id)}
+                      style={{
+                        flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                        padding: "6px 8px", borderRadius: 6, fontFamily: "inherit", fontSize: 12, fontWeight: 600,
+                        cursor: "pointer",
+                        border: `1px solid ${active ? opt.color : "var(--border)"}`,
+                        background: active ? `${opt.color}18` : "#fff",
+                        color: active ? opt.color : "var(--text)",
+                      }}
+                    >
+                      <span>{opt.icon}</span>{opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           {/* Profilo personale */}
           <button
             onClick={() => { setShowProfile(true); setOpen(false); }}

@@ -68,8 +68,8 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 |---|---|---|---|---|
 | Notifiche reali | ✅ | 🔴 | M | Trigger task ✅ (Step F/J + queue_stale orario), trigger pratica ✅ (PR #57), trigger menzione bacheca ✅ (PR #58, sessione 23). Filtri + "segna tutte lette" ✅. |
 | Calendario avanzato | 🔶 | 🟡 | M | iCal export ✅, vista settimanale ✅, vista giornaliera ✅, pratiche nel calendario ✅ (PR #57), apertura PraticaDetail dal click ✅ (PR #58). Manca: eventi multipli/ricorrenti |
-| Estensioni chat (base) | 🔶 | 🟡 | S–M | Ricerca conversazioni ✅, stato online/occupato ✅, task link cliccabile ✅, rich preview pratiche ✅ (PR #57), apertura PraticaDetail dal chip ✅ (PR #58). Manca: stato "occupato" manuale |
-| Impostazioni agenzia | 🔶 | 🟡 | S | Gestione categorie e nome agenzia già in Admin. Manca: template messaggi, profilo utente, preferenze UI |
+| Estensioni chat (base) | ✅ | 🟡 | S–M | Ricerca conversazioni ✅, stato online/occupato ✅, task link cliccabile ✅, rich preview pratiche ✅ (PR #57), apertura PraticaDetail dal chip ✅ (PR #58), **stato "occupato" manuale ✅ (PR #59, sessione 24)**, template messaggi ✅ (PR #59) |
+| Impostazioni agenzia | ✅ | 🟡 | S | Gestione categorie e nome agenzia già in Admin. **Tab Template messaggi ✅ + Tab Preferenze UI (tema/locale/dateFormat) ✅** (PR #59, sessione 24). Profilo utente già operativo via ProfileEditor. |
 | Ricerca globale estesa | ✅ | — | — | Completata in v0.5. |
 | Responsive (mobile/tablet/desktop) | ✅ | — | — | Completato in v0.6. |
 | SwipeActions mobile | ✅ | — | — | Completato in v0.7. |
@@ -124,7 +124,7 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 | Vista settimanale Calendario | ✅ | — | Completata in v0.7 (CalendarPlanner: week + week-full) |
 | Comprimi automaticamente Sidebar desktop tra 1024–1280px | ✅ | — | PR #58 sessione 23 (auto-collapse `AUTO_COLLAPSE_MIN`/`MAX` in `Sidebar.jsx`) |
 | Skeleton loading su prime render | ⬜ | ⚪ | |
-| Dark mode | ⬜ | ⚪ | CSS variables pronte |
+| Dark mode | ✅ | ⚪ | Completato PR #59 sessione 24 (palette `html[data-theme="dark"]` in FontLoader + toggle in Admin → Preferenze UI). Modalità Sistema segue `prefers-color-scheme` con listener live |
 | Test responsive automatici (Playwright) | ⬜ | ⚪ | ⚙️**B** |
 
 ## ✨ Migliorie incrementali emerse (post v0.8)
@@ -192,6 +192,8 @@ Vedi `docs/HANDOFF_SESSION_2026-06-14_v13.md` per il dettaglio sessione 18 (Phas
 ---
 
 ## ✅ Completato (cronologia)
+
+- **v2.5-dev** — Sessione 24 (PR #59 draft, branch `claude/optimistic-carson-ppw0gl`): chat stato Online/Occupato manuale (toggle in UserSwitcher + dot sull'avatar Topbar) + Tab "✉️ Template msg" in AdminView con CRUD + popover ✉️ nel composer Chat per inserire i template + Tab "🎨 Preferenze UI" in AdminView (tema light/dark/system, locale, formato data) + **Dark mode** completa con `html[data-theme="dark"]` su tutte le CSS variables. Tutto frontend, persistenza in `localStorage` (`voyagedesk:prefs:v1`, `voyagedesk:msgTemplates:v1`). Build: 272.82 kB / 65.74 kB gz (+2.22 kB gz vs PR #58).
 
 - **v2.4-dev** — Sessione 23 (PR #58 draft, **cumulativa** = include #56+#57+sess.23 sul branch `claude/bold-turing-7qkos8`): bacheca con scadenza automatica (`notices.expires_at` + UI auto-hide/toggle/chip ⏳) + trigger DB `notify_notice_mention` con dedup 6h (chiude la Fase 2 notifiche) + handler UI `notice_mention` 📌 in NotificationsPanel + `openDossierById` in Calendar/ChatPanel (chiude debito tecnico v17) + pillole filtro data per Driver in PersonalQueue + auto-collapse Sidebar 1024–1280px. Build: 266.03 kB / 63.52 kB gz.
 

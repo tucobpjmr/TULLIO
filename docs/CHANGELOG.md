@@ -1,6 +1,42 @@
 # CHANGELOG — VoyageDesk
 
 
+## v2.5-dev — Chat busy/online + Preferenze UI (dark mode) + Template messaggi (sessione 24)
+
+> Branch `claude/optimistic-carson-ppw0gl` — PR **#59** (draft). Base: `claude/bold-turing-7qkos8` (PR #58 cumulativa di sessione 21+22+23). **Tutto frontend, zero migrazioni DB nuove** (restiamo "su artifact"): le preferenze e i template sono persistiti in `localStorage`.
+
+### 🟢🟡 Chat — stato presenza manuale Online / Occupato
+
+- **`src/VoyageDesk.jsx`**: nuovo stato `presenceOverride` (null | `"busy"`) + `presenceOverrideRef` per non re-instanziare i timer dell'heartbeat. `beat(status)` ora rispetta l'override (`effective = override || status`). Nuovo callback `setPresenceOverride(next)` applica subito `UsersAPI.setPresence(...)` e mostra toast di conferma (🟡 Sei in modalità Occupato / 🟢 Sei di nuovo Online).
+- **`src/components/shell/Topbar.jsx`**: prop `presenceOverride`/`onSetPresence` su Topbar e su `UserSwitcher`. Nel dropdown, in alto, sezione "STATO" con 2 pillole `🟢 Online` · `🟡 Occupato` (toggle reciproco, l'attiva resta evidenziata). Sull'avatar in Topbar appare un dot di stato (verde/giallo) con bordo `--sky` per integrarsi nello shell celeste.
+- **`src/components/chat/ChatPanel.jsx`**: `computePresence` ora riconosce `'busy'` come stato separato (resta `busy` se status manuale, fallback a `away` quando l'utente è inattivo); aggiunto `PRESENCE_COLORS.busy = '#E0A800'`. Tooltip italianizzati (`Online`/`Occupato`/`Assente`/`Offline`).
+
+### 🎨 Preferenze UI + Dark mode
+
+- **`src/lib/preferences.js`** (NEW): hook `usePreferences()` localStorage-backed (`voyagedesk:prefs:v1`). Gestisce `theme: "light"|"dark"|"system"`, `locale`, `dateFormat`. Helper `applyTheme(t)` imposta `data-theme="dark|light"` su `<html>`; se "system" usa `prefers-color-scheme` con listener di re-apply al cambio OS.
+- **`src/VoyageDesk.jsx`** (`FontLoader`): aggiunto blocco `html[data-theme="dark"]` con override per tutte le CSS variables (navy/sky/gold/surface/surface2/surface3/text/text-muted/border) + `color-scheme: dark` sul body. La palette light resta default.
+- **`src/components/admin/AdminView.jsx`**: nuovo tab "🎨 Preferenze UI" (`AdminPrefsTab`) con 3 sezioni a pillole: Tema (☀️/🌙/🖥️), Lingua (placeholder it/en), Formato data (dmy/mdy/ymd). Nota a piè pagina sul fatto che le preferenze vivono nel browser locale.
+
+### ✉️ Template messaggi chat
+
+- **`src/lib/messageTemplates.js`** (NEW): hook `useMessageTemplates()` localStorage-backed (`voyagedesk:msgTemplates:v1`). 5 template di default (Saluto, Preventivo, Conferma, Follow-up, Ringraziamento). Custom event `voyagedesk:msgTemplates:changed` per sincronizzare l'aggiornamento tra AdminView e ChatPanel nella stessa tab (`storage` event copre solo le altre tab).
+- **`src/components/admin/AdminView.jsx`**: nuovo tab "✉️ Template msg" (`AdminTemplatesTab`) — lista CRUD (aggiungi/modifica/elimina) + bottone "↻ Ripristina default".
+- **`src/components/chat/ChatPanel.jsx`** (`ConversationView`, composer): nuovo bottone `✉️` tra l'allegato e l'input → popover con la lista dei template. Click su template → testo inserito nell'input (append con newline se l'input non è vuoto).
+
+### Build
+
+```
+dist/assets/index-*.js     272.82 kB │ gzip: 65.74 kB   (+2.22 kB gz vs v2.4 sessione 23)
+dist/assets/AdminView-*.js  31.63 kB │ gzip:  8.52 kB   (+1.40 kB gz: 2 nuovi tab)
+✅ Build verde.
+```
+
+### Caveat
+
+- **Nessun caveat aperto.** Le preferenze in localStorage vanno migrate a `user_settings` su Supabase quando si vorrà sincronizzarle multi-dispositivo (non in scope per la sessione 24).
+
+---
+
 ## v2.4-dev — Bacheca scadenze + @menzioni + openDossierById + auto-collapse sidebar + driver date-pill (sessione 23)
 
 > Branch `claude/bold-turing-7qkos8` — PR **#58** (draft, **cumulativa**: include anche i commit di sessione 21 = PR #56 e sessione 22 = PR #57). Base: `main` (post Fase 1 completa). Mergiando #58 si chiudono #56 e #57.

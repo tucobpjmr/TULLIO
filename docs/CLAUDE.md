@@ -289,14 +289,14 @@ Tutti i componenti sono **moduli separati** in `src/components/`; helper e sub-c
 - [x] DossierSuppliers UI: `FornitoriPanel` in `PraticaDetail` dentro `PraticheView` (PR #52, caveat #27) ✅
 - [x] Filtro pratica in Ricerca avanzata (`AdvancedSearchPanel` in `Topbar`, PR #53) ✅
 
-### Priorità 2 — Fase 2 Operatività
-- [ ] Notifiche reali estese alle pratiche (cambio status, scadenza partenza) — pattern trigger DB
-- [ ] Calendario avanzato con date partenza/ritorno pratiche
-- [ ] Estensioni chat (ricerca nelle conversazioni)
+### Priorità 2 — Fase 2 Operatività ✅
+- [x] Notifiche reali estese alle pratiche (cambio status, scadenza partenza) — pattern trigger DB (session 22) ✅
+- [x] Calendario avanzato con date partenza/ritorno pratiche (session 22) ✅
+- [x] Estensioni chat con riconoscimento pratica (dossier reference PR-YYYY-NNN) (session 22) ✅
 
 ### Priorità 3 — Business (Fase 3)
-- [ ] Modulo finanziario: aggregare `dossier_suppliers.cost` vs `dossiers.budget_total` → margine
-- [ ] Report & Analytics avanzati
+- [ ] Report & Analytics avanzati (trend temporali, export PDF)
+- [ ] Catalogo destinazioni / pacchetti
 
 Vedi `docs/ROADMAP.md` per il dettaglio completo con dipendenze e stime.
 

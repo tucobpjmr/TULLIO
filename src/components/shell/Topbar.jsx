@@ -618,6 +618,13 @@ const NOTIF_ICONS = {
   overdue: "⚠️", assigned: "📋", deadline: "📅",
 };
 
+// Categorie filtro: raggruppano i type per la UI filtri (Fase 2).
+const NOTIF_CATEGORIES = {
+  task: ["task_assigned", "task_due", "comment", "queue_stale"],
+  dossier: ["dossier_status", "dossier_departure"],
+  mention: ["mention"],
+};
+
 function notifTitle(n) {
   // Notifiche reali (DB): titolo derivato da type + payload
   if (n.payload) {
@@ -671,8 +678,26 @@ function notifTime(n) {
 
 const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMarkAllRead, onOpenTask, onOpenDossier }) => {
   const { isMobile } = useViewport();
+  const [filter, setFilter] = useState("all"); // all | unread | task | dossier | mention
   const list = Array.isArray(notifications) ? notifications : MOCK_NOTIFICATIONS;
   const hasUnread = list.some(n => !n.read);
+  // Filtri (Fase 2 notifiche): conteggi e applicazione filtro.
+  const counts = useMemo(() => {
+    const c = { all: list.length, unread: 0, task: 0, dossier: 0, mention: 0 };
+    for (const n of list) {
+      if (!n.read) c.unread++;
+      if (NOTIF_CATEGORIES.task.includes(n.type)) c.task++;
+      else if (NOTIF_CATEGORIES.dossier.includes(n.type)) c.dossier++;
+      else if (NOTIF_CATEGORIES.mention.includes(n.type)) c.mention++;
+    }
+    return c;
+  }, [list]);
+  const filteredList = useMemo(() => {
+    if (filter === "all") return list;
+    if (filter === "unread") return list.filter(n => !n.read);
+    const types = NOTIF_CATEGORIES[filter] || [];
+    return list.filter(n => types.includes(n.type));
+  }, [list, filter]);
   // Navigabile se ha task_id o dossier_id nel payload (caveat #28)
   const isNavigable = (n) => isReal && n.payload && !!(n.payload.task_id || n.payload.dossier_id);
   const handleClick = (n) => {
@@ -686,6 +711,23 @@ const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMar
       }
     }
     if (isReal && !n.read) onMarkRead?.(n.id);
+  };
+  const filterBtn = (key, label) => {
+    const cnt = counts[key];
+    const active = filter === key;
+    return (
+      <button
+        key={key}
+        onClick={() => setFilter(key)}
+        style={{
+          background: active ? "var(--navy)" : "transparent",
+          color: active ? "#fff" : "var(--text-muted)",
+          border: `1px solid ${active ? "var(--navy)" : "var(--border)"}`,
+          borderRadius: 99, padding: "3px 9px", fontSize: 11, fontWeight: 600,
+          cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+        }}
+      >{label}{cnt > 0 && ` (${cnt})`}</button>
+    );
   };
   return (
     <div className="slide-right" style={{
@@ -709,13 +751,25 @@ const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMar
           <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
         </div>
       </div>
+      {isReal && list.length > 0 && (
+        <div style={{
+          padding: "8px 12px", borderBottom: "1px solid var(--border)",
+          display: "flex", gap: 5, flexWrap: "wrap", background: "var(--surface2)",
+        }}>
+          {filterBtn("all", "Tutte")}
+          {filterBtn("unread", "Non lette")}
+          {counts.task > 0 && filterBtn("task", "📋 Task")}
+          {counts.dossier > 0 && filterBtn("dossier", "📁 Pratiche")}
+          {counts.mention > 0 && filterBtn("mention", "@ Menzioni")}
+        </div>
+      )}
       <div style={{ maxHeight: 420, overflowY: "auto" }}>
-        {list.length === 0 && (
+        {filteredList.length === 0 && (
           <div style={{ padding: "24px 16px", textAlign: "center", color: "var(--text-muted)", fontSize: 12 }}>
-            Nessuna notifica
+            {list.length === 0 ? "Nessuna notifica" : "Nessuna notifica per questo filtro"}
           </div>
         )}
-        {list.map(n => (
+        {filteredList.map(n => (
           <div
             key={n.id}
             onClick={() => handleClick(n)}

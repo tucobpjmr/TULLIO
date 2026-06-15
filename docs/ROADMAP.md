@@ -58,6 +58,8 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 **Stato sessione 20**: ✅ **Fase 1 COMPLETA**. Task↔Pratica (PR #51, caveat #26 chiuso), Fornitori della pratica (PR #52, caveat #27 chiuso), filtro pratica in Ricerca avanzata (PR #53). Nessun caveat aperto.
 
+**Stato sessione 21** (PR #56 draft): quick wins v17 — badge partenze imminenti, deep-link notifiche→pratica (caveat #28 aperto), selettore pratica in BulkTaskCreator, tema celeste shell.
+
 ---
 
 ## 🔧 Fase 2 — Operatività quotidiana
@@ -101,8 +103,9 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 
 | Idea | Stato | Priorità | Note |
 |---|---|---|---|
-| Badge sulla voce sidebar/bottom-nav **Admin** con conteggio agenti pending | ⬜ | 🟡 | |
-| Badge sulla voce sidebar/bottom-nav **Dashboard** con conteggio coda globale | ⬜ | 🟡 | |
+| Badge sulla voce sidebar/bottom-nav **Admin** con conteggio agenti pending | ✅ | — | Step F |
+| Badge sulla voce sidebar/bottom-nav **Dashboard** con conteggio coda globale | ✅ | — | Step F |
+| Badge sulla voce sidebar/bottom-nav **Pratiche** con partenze imminenti (≤7gg) | ✅ | — | sessione 21, PR #56 |
 | Toast personalizzato "Hai preso in carico: \[titolo\]" | ⬜ | ⚪ | |
 | Auto-move in "In Corso" al "Prendi in carico" | ⬜ | ⚪ | |
 | Notifica al manager se un task resta in coda > N ore | ⬜ | 🟡 | Dipende da notifiche reali |

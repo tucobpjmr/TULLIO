@@ -1,6 +1,45 @@
 # CHANGELOG — VoyageDesk
 
 
+## v2.3-dev — Quick wins v17: badge partenze, deep-link notifiche, selettore pratica, tema celeste (sessione 21)
+
+> Branch `claude/handoff-v17-quick-wins-03nn3u` — PR #56 (draft). Base: `main` (post Fase 1 completa).
+
+### 🔔 Badge sidebar "Pratiche" — partenze imminenti
+
+- **`src/components/shell/Sidebar.jsx`** (`getNavBadges`): nuovo contatore `pratiche` = pratiche con `departureDate` nei prossimi 7 giorni e status non `completata`/`annullata`. Badge dorato in Sidebar desktop (collapsed/expanded) e BottomNav mobile.
+
+### 📁 Deep-link notifiche → Pratica (caveat #28)
+
+- **`src/components/shell/Topbar.jsx`**: `NotificationsPanel` gestisce `payload.dossier_id` oltre a `payload.task_id`; click naviga a PraticheView con il dettaglio della pratica già aperto. Nuovi tipi `dossier_status` (📁) e `dossier_departure` (✈️) con titoli italiani in `notifTitle`. Prop `onOpenDossier` aggiunta a `Topbar` e `NotificationsPanel`.
+- **`src/components/dossiers/PraticheView.jsx`**: prop `initialDossierId` + `useEffect`/`useRef` per aprire il dettaglio corretto al mount senza loop.
+- **`src/VoyageDesk.jsx`**: callback `openDossierById` + state `targetDossierId`; passati a Topbar e PraticheView.
+
+### 📑 Selettore pratica in BulkTaskCreator
+
+- **`src/components/modals/BulkTaskCreator.jsx`**: select "Pratica collegata" in `ManualTab` (impostazioni comuni) e `TemplateTab` (configurazione); visibile solo se esistono pratiche non annullate; `dossierId` propagato in tutti i task creati. Prop `dossiers` aggiunta al componente principale.
+- **`src/VoyageDesk.jsx`**: passa `dossiers={state.dossiers}` a `BulkTaskCreator`.
+
+### 🎨 Tema celeste — Topbar, Sidebar, BottomNav
+
+- Nuova variabile CSS `--sky: #87CEEB` in `:root` (FontLoader in `VoyageDesk.jsx`).
+- Topbar, Sidebar desktop e BottomNav mobile: background da `--navy`/`--navy-dark` → `--sky`.
+- Testi adattati: bianco → navy/rgba(navy). Bottoni: vetro traslucido `rgba(255,255,255,0.45)`. Bordi: `rgba(15,32,68,*)`.
+- Invariati: palette contenuto (card, modal, superfici bianche), accenti gold, badge.
+
+### Build
+
+```
+dist/assets/index-*.js   253.08 kB │ gzip: 59.87 kB   (+0.4 kB gz vs v2.2)
+✅ Build verde. Vercel preview: Ready.
+```
+
+### Caveat
+
+- **#28** (nuovo) 🟡: UI deep-link notifiche pratica pronta; trigger DB `dossier_status`/`dossier_departure` da creare.
+
+---
+
 ## v2.2-dev — Fase 1 completa: Task↔Pratica, Fornitori pratica, Filtro ricerca (sessione 20)
 
 > Cumulativo sopra v2.1-dev. **Mergeati in `main`** (squash, in ordine): #51 (Task↔Pratica), #52 (Fornitori pratica), #53 (filtro pratica ricerca). Chiusi i caveat **#26** e **#27** → **Fase 1 completa**.

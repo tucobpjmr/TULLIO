@@ -44,6 +44,7 @@ Agisci come sviluppatore full-stack specializzato in sistemi gestionali per trav
 
 ```css
 --navy: #0F2044;        --navy-light: #1a3060;     --navy-dark: #08152d;
+--sky: #87CEEB;         /* shell: topbar, sidebar, bottom-nav */
 --gold: #D4A843;        --gold-light: #e8c46a;     --gold-dark: #b8902e;
 --surface: #FAFAF7;     --surface2: #F0EEE8;       --surface3: #E8E5DC;
 --success: #2D7A4F;     --warning: #C8832A;        --danger: #C0392B;
@@ -380,4 +381,4 @@ src/
 
 Le notifiche nascono **solo da trigger DB** (RLS vieta insert client) — per nuove notifiche serve un trigger server-side (pattern in `supabase/migrations/20260614_mention_composite_names.sql`).
 
-Vedi `docs/HANDOFF_SESSION_2026-06-14_v15.md` per il dettaglio sessione 20 (Fase 1 completa) e v14 per la Fase 1 CRM base.
+Vedi `docs/HANDOFF_SESSION_2026-06-15_v17.md` per il dettaglio sessione 21 (quick wins v17) e v15 per la Fase 1 completa.

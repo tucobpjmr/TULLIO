@@ -1,4 +1,4 @@
-# HANDOFF — Sessione 24 · Chat busy/online + Preferenze UI (dark mode) + Template messaggi v20
+# HANDOFF — Sessione 24 · Chat busy/online + Preferenze UI (dark mode) + Template messaggi + restyle shell/nav v20
 **Data:** 15 giugno 2026
 **Sessione precedente:** sessione 23 ha chiuso la Fase 2 notifiche (bacheca scadenze + @menzioni), `openDossierById` in Calendar/Chat, Driver date-pill, Sidebar auto-collapse — PR #58 draft cumulativa (sessione 21+22+23), handoff v19.
 **Per:** Claude Code / Claude Cowork (prossima sessione 25)
@@ -9,12 +9,14 @@
 
 ## 0. TL;DR (60 secondi)
 
-- ✅ **3 interventi** Opzione A/B della roadmap, su branch `claude/optimistic-carson-ppw0gl` — PR **#59** (draft).
+- ✅ **5 interventi** (3 roadmap Opzione A/B + 2 restyle UI su richiesta utente), su branch `claude/optimistic-carson-ppw0gl` — PR **#59** (draft).
 - 🟦 **Branch base**: `claude/bold-turing-7qkos8` (PR #58 cumulativa = sessione 21+22+23). Mergiando PR #58 + PR #59 si chiude tutto fino a sessione 24.
 - ✅ **Chat — stato "occupato" manuale**: toggle `🟢 Online`/`🟡 Occupato` in UserSwitcher; dot di stato sull'avatar Topbar; computePresence chat riconosce `busy`.
 - ✅ **Preferenze UI + Dark mode**: nuovo tab "🎨 Preferenze UI" in AdminView (tema light/dark/system, locale, formato data) + palette dark completa su tutte le CSS variables via `html[data-theme="dark"]`.
 - ✅ **Template messaggi chat**: nuovo tab "✉️ Template msg" in AdminView (CRUD + ripristino default) + popover ✉️ nel composer ChatPanel per inserire un template nell'input.
-- ✅ **Build verde**. `272.82 kB │ gzip: 65.74 kB` (+2.22 kB gz vs PR #58). AdminView chunk `31.63 kB │ gzip: 8.52 kB` (+1.40 kB gz: 2 nuovi tab).
+- ✅ **Restyle shell (richiesta utente)**: `--sky` schiarito `#87CEEB`→`#C5E6F2`; contrasto alzato su Topbar/Sidebar/BottomNav (testi, bordi, background controlli).
+- ✅ **Ristrutturazione nav (richiesta utente)**: voce "Dashboard" rimossa dalla nav → logo aeroplanino cliccabile per tornare alla Dashboard (con badge coda); chat spostata dalla Topbar a Sidebar (desktop) e BottomNav (mobile/tablet).
+- ✅ **Build verde**. `275.15 kB │ gzip: 66.01 kB` (+2.49 kB gz vs PR #58). AdminView chunk `31.63 kB │ gzip: 8.52 kB` (+1.40 kB gz: 2 nuovi tab).
 - 📦 **Zero migrazioni DB nuove** (restiamo "su artifact"). Le preferenze e i template vivono in `localStorage`.
 - ❌ **Modulo finanziario**: rimosso permanentemente dalla roadmap (richiesta utente sessione 22). Non sviluppare.
 
@@ -101,7 +103,26 @@
   - Click su template → testo appeso all'input (con newline se non vuoto), chiude popover.
   - Backdrop fixed `inset:0` per chiudere il popover al click fuori.
 
-### #4 · Docs
+### #4 · Restyle shell — celeste più chiaro + contrasto (richiesta utente)
+
+- **`src/VoyageDesk.jsx`** (`FontLoader`): `--sky` da `#87CEEB` a `#C5E6F2`. BottomNav: bordo superiore `rgba(15,32,68,0.18)` + shadow più morbida.
+- **`src/components/shell/Topbar.jsx`**: subtitle/ruolo `rgba(.55)`→`rgba(.78)` + fontWeight; bordi controlli `rgba(.15)`→`rgba(.28)`; background bottoni shell `rgba(.45)`→`rgba(.85)` (search/chat ora rimosso/notif/user); search input bianco su focus; icona lente `rgba(.5)`→`rgba(.75)`; boxShadow morbido sotto la topbar.
+- **`src/components/shell/Sidebar.jsx`**: nav items inattivi `rgba(.6)`→`rgba(.82)` + fontWeight 500; attivo gold `.18`→`.28` + fontWeight 700; toggle collapse migliorato; footer/label "TEAM ONLINE" più leggibili. BottomNav testo inattivo `rgba(.55)`→`rgba(.82)`.
+
+### #5 · Ristrutturazione nav — logo→Dashboard + chat in sidebar/bottom-nav (richiesta utente)
+
+- **`src/components/shell/Sidebar.jsx`**:
+  - Rimossa la voce `dashboard` da `NAV_ITEMS` (sparisce da Sidebar e BottomNav).
+  - `getNavBadges` ora **esportato** (riusato dal logo in Topbar per il badge coda non assegnata).
+  - Nuovo pulsante "💬 Chat" come azione in Sidebar (sopra "Più task"): badge non letti, icona-only con mini-badge quando la sidebar è compressa. Nuove prop `onOpenChat`/`unreadChat`.
+  - Stesso pulsante "💬 Chat" aggiunto in BottomNav (mobile/tablet) con badge non letti.
+- **`src/components/shell/Topbar.jsx`**:
+  - Logo aeroplanino ora è un `<button>` → `dispatch({ type: "SET_VIEW", payload: "dashboard" })`. Ring (boxShadow) quando `activeView === "dashboard"`. Badge coda non assegnata (`getNavBadges(state).dashboard`) sul logo.
+  - Rimosso il bottone chat dalla Topbar + rimosse le prop `onOpenChat`/`unreadChat` dalla firma.
+  - Import `getNavBadges` da `./Sidebar.jsx` (dipendenza unidirezionale Topbar→Sidebar, nessun ciclo).
+- **`src/VoyageDesk.jsx`**: `onOpenChat`/`unreadChat` passati a `Sidebar` e `BottomNav` invece che a `Topbar`.
+
+### #6 · Docs
 
 - **`docs/CHANGELOG.md`**: aggiunto blocco v2.5-dev (sessione 24) all'inizio.
 - **`docs/ROADMAP.md`**: spuntate voci coperte:
@@ -118,12 +139,13 @@
 ```
 src/lib/preferences.js                              ✅ NUOVO (hook + applyTheme + localStorage)
 src/lib/messageTemplates.js                         ✅ NUOVO (hook + default templates + custom event)
-src/VoyageDesk.jsx                                  ✏️ import usePreferences, presenceOverride state+ref, beat usa override, setPresenceOverride callback, FontLoader dark palette, prefs→AdminView
-src/components/shell/Topbar.jsx                     ✏️ props presenceOverride/onSetPresence in Topbar+UserSwitcher, sezione STATO con pillole, dot di stato sull'avatar
+src/VoyageDesk.jsx                                  ✏️ usePreferences, presenceOverride state+ref, setPresenceOverride, FontLoader (dark palette + --sky #C5E6F2 + bottom-nav), prefs→AdminView, onOpenChat/unreadChat→Sidebar+BottomNav
+src/components/shell/Topbar.jsx                     ✏️ presenceOverride/onSetPresence + sezione STATO + dot avatar; restyle contrasto; logo→Dashboard (button) + badge coda; rimosso bottone chat; import getNavBadges
+src/components/shell/Sidebar.jsx                    ✏️ rimossa voce dashboard da NAV_ITEMS; getNavBadges esportato; pulsante 💬 Chat in Sidebar+BottomNav (onOpenChat/unreadChat); restyle contrasto
 src/components/chat/ChatPanel.jsx                   ✏️ computePresence riconosce 'busy', PRESENCE_COLORS.busy, tooltip italiani, bottone ✉️ template + popover composer
 src/components/admin/AdminView.jsx                  ✏️ 2 nuovi tab (Template msg + Preferenze UI), AdminTemplatesTab, AdminPrefsTab, prefs/setPrefs props
 docs/CHANGELOG.md                                   ✏️ v2.5-dev (sessione 24)
-docs/ROADMAP.md                                     ✏️ chiuse 3 voci + entry cronologia
+docs/ROADMAP.md                                     ✏️ chiuse voci + entry cronologia + tabella sessione 24
 docs/HANDOFF_SESSION_2026-06-15_v20.md              ✅ NUOVO (questo file)
 ```
 
@@ -144,10 +166,10 @@ Nessun nuovo file `supabase/migrations/`. Schema DB invariato (lo stato `'busy'`
 ### Build
 
 ```
-dist/assets/index-*.js          272.82 kB │ gzip: 65.74 kB   (+2.22 kB gz vs PR #58)
+dist/assets/index-*.js          275.15 kB │ gzip: 66.01 kB   (+2.49 kB gz vs PR #58)
 dist/assets/AdminView-*.js       31.63 kB │ gzip:  8.52 kB   (+1.40 kB gz: 2 nuovi tab)
-dist/assets/TaskSlideOver-*.js    9.61 kB │ gzip:  2.80 kB
-✅ Build verde.
+dist/assets/TaskSlideOver-*.js    9.61 kB │ gzip:  2.79 kB
+✅ Build verde. Vercel preview Ready (deploy CI green).
 ```
 
 ### DB
@@ -168,7 +190,7 @@ Sessione 24 **non ha applicato migration**. Il valore `'busy'` su `users.status`
 
 1. Leggi `docs/CLAUDE.md` → questo handoff (v20) → `docs/HANDOFF_SESSION_2026-06-15_v19.md` (sessione 23) per il contesto cumulativo.
 2. `git fetch origin && git log --oneline origin/main..origin/claude/optimistic-carson-ppw0gl` per vedere lo stato delle PR draft.
-3. `npm install && npm run build` per validare l'ambiente. Build atteso: ~272 kB / ~65.7 kB gz.
+3. `npm install && npm run build` per validare l'ambiente. Build atteso: ~275 kB / ~66.0 kB gz.
 
 ### Priorità di merge
 
@@ -219,6 +241,13 @@ Il match `prefers-color-scheme: dark` viene risolto al mount e ad ogni cambio de
 ### Restiamo "su artifact" — significato
 
 L'utente ha chiesto di restare "su artifact" (Opzione A della tabella decisionale ROADMAP §⚠️). Il progetto è già in modalità "Opzione B" (Vite + multi-file + Supabase), ma "restando su artifact" l'ho interpretato come: **niente nuove migration DB, niente refactor architetturale grosso, niente nuove dipendenze npm**. Tutto il lavoro è in JS/CSS puro client-side. Le preferenze + template usano `localStorage` (non vietato dalle convenzioni post-Vite: la vecchia regola era per la fase pre-Vite).
+
+### Navigazione: Dashboard via logo + chat fuori dalla Topbar (sessione 24)
+
+- La voce "Dashboard" **non esiste più** in `NAV_ITEMS`. Per tornare alla dashboard si clicca il **logo aeroplanino** in Topbar (è un `<button>` che fa `SET_VIEW: "dashboard"`). Il fallback `default` di `renderView` resta `Dashboard`, quindi anche stati anomali ricadono lì.
+- Il **badge coda non assegnata** (ex voce nav Dashboard) ora vive sul logo. La fonte è `getNavBadges(state).dashboard`, **esportata** da `Sidebar.jsx` e importata da `Topbar.jsx`. Dipendenza unidirezionale Topbar→Sidebar: **non** importare Topbar dentro Sidebar (creerebbe un ciclo).
+- La **chat** non è più in Topbar: il pulsante "💬 Chat" è in `Sidebar` (desktop) e in `BottomNav` (mobile/tablet). `onOpenChat`/`unreadChat` arrivano da `VoyageDesk` a questi due componenti. Se serve riaggiungere un entry point chat altrove, riusare le stesse prop.
+- ⚠️ Aggiungendo una nuova voce nav, ricordarsi che `CLAUDE.md` cita ancora "NAV_ITEMS 8 voci": ora sono 7 (dashboard rimossa). Il vincolo `roles` per ogni voce resta valido.
 
 ---
 

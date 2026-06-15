@@ -149,6 +149,18 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 | Filtri NotificationsPanel (Tutte / Non lette / Task / Pratiche / Menzioni) | ✅ | — | PR #57 (sessione 22) |
 | openDossierById in Calendar + Chat (sostituisce SET_VIEW) | ✅ | — | PR #58 (sessione 23) |
 
+## ✨ Migliorie incrementali emerse (sessione 24)
+
+| Idea | Stato | Priorità | Note |
+|---|---|---|---|
+| Chat — stato Occupato manuale (toggle 🟢/🟡) | ✅ | — | PR #59 (sessione 24): toggle in UserSwitcher + dot sull'avatar Topbar |
+| Template messaggi chat (Admin + popover composer) | ✅ | — | PR #59: tab "✉️ Template msg" + bottone ✉️ in ChatPanel |
+| Preferenze UI (tema/locale/dateFormat) + Dark mode | ✅ | — | PR #59: `usePreferences` localStorage + `html[data-theme="dark"]` |
+| Shell celeste più chiaro + contrasto elementi | ✅ | — | PR #59 (richiesta utente): `--sky` #C5E6F2 + opacità testi/bordi alzate |
+| Logo aeroplanino → Dashboard (rimossa voce nav) | ✅ | — | PR #59 (richiesta utente): logo cliccabile + badge coda spostato |
+| Chat spostata da Topbar a Sidebar/BottomNav | ✅ | — | PR #59 (richiesta utente) |
+| `dateFormat` cablato in `formatDate` (oggi solo salvato) | ⬜ | 🟡 | La preferenza è persistita ma non ancora usata dai formatter |
+
 ---
 
 ## 🧱 Traccia tecnica (trasversale)
@@ -193,7 +205,7 @@ Vedi `docs/HANDOFF_SESSION_2026-06-14_v13.md` per il dettaglio sessione 18 (Phas
 
 ## ✅ Completato (cronologia)
 
-- **v2.5-dev** — Sessione 24 (PR #59 draft, branch `claude/optimistic-carson-ppw0gl`): chat stato Online/Occupato manuale (toggle in UserSwitcher + dot sull'avatar Topbar) + Tab "✉️ Template msg" in AdminView con CRUD + popover ✉️ nel composer Chat per inserire i template + Tab "🎨 Preferenze UI" in AdminView (tema light/dark/system, locale, formato data) + **Dark mode** completa con `html[data-theme="dark"]` su tutte le CSS variables. Tutto frontend, persistenza in `localStorage` (`voyagedesk:prefs:v1`, `voyagedesk:msgTemplates:v1`). Build: 272.82 kB / 65.74 kB gz (+2.22 kB gz vs PR #58).
+- **v2.5-dev** — Sessione 24 (PR #59 draft, branch `claude/optimistic-carson-ppw0gl`): chat stato Online/Occupato manuale (toggle in UserSwitcher + dot sull'avatar Topbar) + Tab "✉️ Template msg" in AdminView con CRUD + popover ✉️ nel composer Chat per inserire i template + Tab "🎨 Preferenze UI" in AdminView (tema light/dark/system, locale, formato data) + **Dark mode** completa con `html[data-theme="dark"]` su tutte le CSS variables. **Restyle shell** (richiesta utente): `--sky` schiarito (#87CEEB→#C5E6F2) + contrasto alzato su Topbar/Sidebar/BottomNav. **Ristrutturazione nav** (richiesta utente): voce Dashboard rimossa dalla nav → logo aeroplanino cliccabile per tornare alla Dashboard (con badge coda); chat spostata dalla Topbar a Sidebar (desktop) e BottomNav (mobile/tablet). Tutto frontend, persistenza in `localStorage` (`voyagedesk:prefs:v1`, `voyagedesk:msgTemplates:v1`). Build: 275.15 kB / 66.01 kB gz (+2.49 kB gz vs PR #58).
 
 - **v2.4-dev** — Sessione 23 (PR #58 draft, **cumulativa** = include #56+#57+sess.23 sul branch `claude/bold-turing-7qkos8`): bacheca con scadenza automatica (`notices.expires_at` + UI auto-hide/toggle/chip ⏳) + trigger DB `notify_notice_mention` con dedup 6h (chiude la Fase 2 notifiche) + handler UI `notice_mention` 📌 in NotificationsPanel + `openDossierById` in Calendar/ChatPanel (chiude debito tecnico v17) + pillole filtro data per Driver in PersonalQueue + auto-collapse Sidebar 1024–1280px. Build: 266.03 kB / 63.52 kB gz.
 

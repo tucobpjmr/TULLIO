@@ -1,7 +1,7 @@
 # CHANGELOG — VoyageDesk
 
 
-## v2.5-dev — Chat busy/online + Preferenze UI (dark mode) + Template messaggi (sessione 24)
+## v2.5-dev — Chat busy/online + Preferenze UI (dark mode) + Template messaggi + restyle shell/nav (sessione 24)
 
 > Branch `claude/optimistic-carson-ppw0gl` — PR **#59** (draft). Base: `claude/bold-turing-7qkos8` (PR #58 cumulativa di sessione 21+22+23). **Tutto frontend, zero migrazioni DB nuove** (restiamo "su artifact"): le preferenze e i template sono persistiti in `localStorage`.
 
@@ -23,10 +23,22 @@
 - **`src/components/admin/AdminView.jsx`**: nuovo tab "✉️ Template msg" (`AdminTemplatesTab`) — lista CRUD (aggiungi/modifica/elimina) + bottone "↻ Ripristina default".
 - **`src/components/chat/ChatPanel.jsx`** (`ConversationView`, composer): nuovo bottone `✉️` tra l'allegato e l'input → popover con la lista dei template. Click su template → testo inserito nell'input (append con newline se l'input non è vuoto).
 
+### 🎨 Shell — celeste più chiaro + contrasto elementi (richiesta utente)
+
+- **`src/VoyageDesk.jsx`** (`FontLoader`): `--sky` schiarito da `#87CEEB` a `#C5E6F2` (tonalità più chiara/morbida). Bordo superiore BottomNav e shadow rese più definite ma morbide (`rgba(15,32,68,0.18)`).
+- **`src/components/shell/Topbar.jsx`**: testi subtitle/ruolo `rgba(.55)`→`rgba(.78)` con fontWeight maggiorato; bordi controlli `rgba(.15)`→`rgba(.28)`; background bottoni shell (chat/notif/user/search) `rgba(.45)`→`rgba(.85)`; search input bianco pieno su focus; icona lente `rgba(.5)`→`rgba(.75)`; boxShadow morbido sotto la topbar.
+- **`src/components/shell/Sidebar.jsx`**: nav items inattivi `rgba(.6)`→`rgba(.82)` + fontWeight 500; indicatore attivo gold `.18`→`.28` + fontWeight 700; toggle collapse con bg/bordo/colore migliorati; separatore footer e label "TEAM ONLINE" più leggibili. BottomNav: testo inattivo `rgba(.55)`→`rgba(.82)`.
+
+### 🧭 Navigazione — logo→Dashboard + chat spostata in sidebar/bottom-nav (richiesta utente)
+
+- **`src/components/shell/Sidebar.jsx`**: rimossa la voce `dashboard` da `NAV_ITEMS` (sparisce da Sidebar e BottomNav). `getNavBadges` ora **esportato** (il badge coda non assegnata si sposta sul logo). Aggiunto pulsante "💬 Chat" come azione in Sidebar (desktop, badge non letti anche in collapsed) e in BottomNav (mobile/tablet). Nuove prop `onOpenChat`/`unreadChat`.
+- **`src/components/shell/Topbar.jsx`**: il logo aeroplanino è ora un `button` che naviga alla Dashboard (`SET_VIEW: "dashboard"`), con ring quando la dashboard è attiva e badge coda (importa `getNavBadges` da Sidebar). Rimosso il bottone chat dalla Topbar (insieme alle prop `onOpenChat`/`unreadChat`).
+- **`src/VoyageDesk.jsx`**: `onOpenChat`/`unreadChat` ora passati a `Sidebar` e `BottomNav` invece che a `Topbar`.
+
 ### Build
 
 ```
-dist/assets/index-*.js     272.82 kB │ gzip: 65.74 kB   (+2.22 kB gz vs v2.4 sessione 23)
+dist/assets/index-*.js     275.15 kB │ gzip: 66.01 kB   (+2.49 kB gz vs v2.4 sessione 23)
 dist/assets/AdminView-*.js  31.63 kB │ gzip:  8.52 kB   (+1.40 kB gz: 2 nuovi tab)
 ✅ Build verde.
 ```
@@ -34,6 +46,7 @@ dist/assets/AdminView-*.js  31.63 kB │ gzip:  8.52 kB   (+1.40 kB gz: 2 nuovi 
 ### Caveat
 
 - **Nessun caveat aperto.** Le preferenze in localStorage vanno migrate a `user_settings` su Supabase quando si vorrà sincronizzarle multi-dispositivo (non in scope per la sessione 24).
+- **Sidebar 1024–1280px (auto-collapse)**: nel range l'utente non riesce a espandere manualmente (limite noto da sessione 23). La chat in Sidebar è icon-only nello stato compresso, con badge — comportamento accettabile.
 
 ---
 

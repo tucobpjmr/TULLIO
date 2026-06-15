@@ -11,6 +11,7 @@ import { formatDate, isOverdue } from "../../lib/taskUtils.js";
 import { MOCK_NOTIFICATIONS } from "../../state/mockData.js";
 import { TEAM, CATEGORIES, getMember } from "../../state/appGlobals.js";
 import { ProfileEditor } from "../modals/ProfileEditor.jsx";
+import { getNavBadges } from "./Sidebar.jsx";
 
 const AdvancedSearchPanel = ({ tasks, dossiers = [], dispatch, onClose, keyword = "", onKeyword }) => {
   const { isMobile } = useViewport();
@@ -326,13 +327,15 @@ const AdvancedSearchPanel = ({ tasks, dossiers = [], dispatch, onClose, keyword 
 };
 
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
-export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notificationsProp, onMarkRead, onMarkAllRead, onOpenTask, onOpenDossier }) => {
+export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMarkRead, onMarkAllRead, onOpenTask, onOpenDossier, presenceOverride, onSetPresence }) => {
   const { isMobile } = useViewport();
   // Fix #11: notifiche mock gate-ate dietro env var (default off in prod)
   const SHOW_MOCK_NOTIFS = import.meta.env.DEV && import.meta.env.VITE_SHOW_MOCK_NOTIFICATIONS === 'true';
   const realNotifs = Array.isArray(notificationsProp) ? notificationsProp : [];
   const notifList = SHOW_MOCK_NOTIFS ? [...realNotifs, ...MOCK_NOTIFICATIONS] : realNotifs;
   const unread = notifList.filter(n => !n.read).length;
+  // Badge coda non assegnata: ora vive sul logo (la voce nav Dashboard è stata rimossa)
+  const queueBadge = getNavBadges(state).dashboard || 0;
   const [searchOpen, setSearchOpen] = useState(false);
   const searchWrapRef = useRef(null);
 
@@ -349,33 +352,54 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
     <div style={{
       height: 58, background: "var(--sky)", display: "flex", alignItems: "center",
       padding: isMobile ? "0 12px" : "0 20px", gap: isMobile ? 8 : 16, position: "sticky", top: 0, zIndex: 100,
-      borderBottom: "1px solid rgba(212,168,67,0.3)", flexShrink: 0,
+      borderBottom: "1px solid rgba(15,32,68,0.18)", flexShrink: 0,
+      boxShadow: "0 1px 4px rgba(15,32,68,0.08)",
     }}>
-      {/* Logo */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginRight: isMobile ? 0 : 12 }}>
+      {/* Logo — cliccabile: torna alla Dashboard (la voce nav dedicata è stata rimossa) */}
+      <button
+        onClick={() => dispatch({ type: "SET_VIEW", payload: "dashboard" })}
+        title="Vai alla Dashboard"
+        aria-label="Vai alla Dashboard"
+        style={{
+          display: "flex", alignItems: "center", gap: 10, marginRight: isMobile ? 0 : 12,
+          background: "transparent", border: "none", cursor: "pointer",
+          fontFamily: "inherit", padding: 0,
+        }}
+      >
         <div style={{
           width: 32, height: 32, background: "var(--gold)", borderRadius: 8,
-          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0
-        }}>✈️</div>
-        <div className="vd-hide-mobile">
-          <div className="playfair" style={{ color: "var(--navy)", fontSize: 15, fontWeight: 700, lineHeight: 1 }}>VoyageDesk</div>
-          <div style={{ color: "rgba(15,32,68,0.55)", fontSize: 10, letterSpacing: 1.5 }}>TRAVEL MANAGEMENT</div>
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0,
+          position: "relative",
+          boxShadow: state.activeView === "dashboard" ? "0 0 0 2px rgba(15,32,68,0.35)" : "none",
+        }}>
+          ✈️
+          {queueBadge > 0 && <span style={{
+            position: "absolute", top: -5, right: -5, background: "var(--navy)",
+            color: "#fff", borderRadius: 999, fontSize: 9, fontWeight: 700,
+            minWidth: 15, height: 15, display: "inline-flex", alignItems: "center",
+            justifyContent: "center", padding: "0 3px", lineHeight: 1,
+            border: "1px solid var(--sky)",
+          }}>{queueBadge > 9 ? "9+" : queueBadge}</span>}
         </div>
-      </div>
+        <div className="vd-hide-mobile" style={{ textAlign: "left" }}>
+          <div className="playfair" style={{ color: "var(--navy)", fontSize: 15, fontWeight: 700, lineHeight: 1 }}>VoyageDesk</div>
+          <div style={{ color: "rgba(15,32,68,0.78)", fontSize: 10, letterSpacing: 1.5, fontWeight: 600 }}>TRAVEL MANAGEMENT</div>
+        </div>
+      </button>
 
       {/* Ricerca unificata (testuale + filtri avanzati) */}
       <div ref={searchWrapRef} style={{ flex: 1, maxWidth: 520, position: "relative" }}>
         <div style={{ position: "relative" }}>
-          <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(15,32,68,0.5)", fontSize: 14 }}>🔍</div>
+          <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(15,32,68,0.75)", fontSize: 14 }}>🔍</div>
           <input
             value={state.searchQuery}
             onChange={e => { dispatch({ type: "SET_SEARCH", payload: e.target.value }); setSearchOpen(true); }}
-            onFocus={e => { setSearchOpen(true); e.target.style.background = "rgba(255,255,255,0.65)"; e.target.style.borderColor = "var(--gold)"; }}
-            onBlur={e => { e.target.style.background = "rgba(255,255,255,0.45)"; e.target.style.borderColor = "rgba(15,32,68,0.15)"; }}
+            onFocus={e => { setSearchOpen(true); e.target.style.background = "#fff"; e.target.style.borderColor = "var(--gold)"; }}
+            onBlur={e => { e.target.style.background = "rgba(255,255,255,0.85)"; e.target.style.borderColor = "rgba(15,32,68,0.28)"; }}
             placeholder={isMobile ? "Cerca..." : "Cerca task, clienti, categorie... (Ctrl+K)"}
             aria-label="Cerca"
             style={{
-              width: "100%", background: "rgba(255,255,255,0.45)", border: "1px solid rgba(15,32,68,0.15)",
+              width: "100%", background: "rgba(255,255,255,0.85)", border: "1px solid rgba(15,32,68,0.28)",
               borderRadius: 8, padding: "7px 12px 7px 36px", color: "var(--navy)", fontSize: 13,
               outline: "none", transition: "all 0.2s", boxSizing: "border-box",
             }}
@@ -395,25 +419,10 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
 
       <div className="vd-hide-mobile" style={{ flex: 1 }} />
 
-      {/* Chat */}
-      <button onClick={onOpenChat} title="Messaggi team" style={{
-        background: "rgba(255,255,255,0.45)", border: "1px solid rgba(15,32,68,0.15)",
-        borderRadius: 8, width: 36, height: 36, cursor: "pointer",
-        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, position: "relative"
-      }}>
-        💬
-        {unreadChat > 0 && <span style={{
-          position: "absolute", top: -4, right: -4, background: "var(--gold)",
-          borderRadius: "50%", minWidth: 16, height: 16, fontSize: 10, fontWeight: 700,
-          color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center",
-          padding: "0 4px",
-        }}>{unreadChat}</span>}
-      </button>
-
       {/* Notifications */}
       <div style={{ position: "relative" }}>
         <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{
-          background: "rgba(255,255,255,0.45)", border: "1px solid rgba(15,32,68,0.15)",
+          background: "rgba(255,255,255,0.85)", border: "1px solid rgba(15,32,68,0.28)",
           borderRadius: 8, width: 36, height: 36, cursor: "pointer",
           display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, position: "relative"
         }}>
@@ -436,7 +445,7 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
       </div>
 
       {/* User switcher (v0.8) */}
-      <UserSwitcher state={state} dispatch={dispatch} />
+      <UserSwitcher state={state} dispatch={dispatch} presenceOverride={presenceOverride} onSetPresence={onSetPresence} />
     </div>
   );
 };
@@ -445,7 +454,7 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
 // Dropdown nella Topbar per cambiare l'utente loggato (mock multi-utente).
 // ProfileEditor (+ AVATAR_EMOJIS/AVATAR_COLORS) → src/components/modals/ProfileEditor.jsx (Step P Phase 2f)
 
-const UserSwitcher = ({ state, dispatch }) => {
+const UserSwitcher = ({ state, dispatch, presenceOverride, onSetPresence }) => {
   const [open, setOpen] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -490,28 +499,36 @@ const UserSwitcher = ({ state, dispatch }) => {
     <div ref={ref} style={{ position: "relative" }}>
       <button
         onClick={() => setOpen(o => !o)}
-        title="Cambia utente"
+        title={presenceOverride === 'busy' ? "Stato: Occupato — clicca per cambiare" : "Cambia utente / stato"}
         aria-label="Cambia utente loggato"
         style={{
           display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
-          background: "rgba(255,255,255,0.45)", border: "1px solid rgba(15,32,68,0.15)",
+          background: "rgba(255,255,255,0.85)", border: "1px solid rgba(15,32,68,0.28)",
           borderRadius: 8, padding: "3px 8px 3px 4px", fontFamily: "inherit",
         }}
       >
-        {curr.photoUrl ? (
-          <img src={curr.photoUrl} alt="" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover" }} />
-        ) : (
-          <div style={{
-            width: 30, height: 30, borderRadius: "50%", background: curr.color,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 11, fontWeight: 700, color: "#fff",
-          }}>{curr.avatar}</div>
-        )}
+        <div style={{ position: "relative" }}>
+          {curr.photoUrl ? (
+            <img src={curr.photoUrl} alt="" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover" }} />
+          ) : (
+            <div style={{
+              width: 30, height: 30, borderRadius: "50%", background: curr.color,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 11, fontWeight: 700, color: "#fff",
+            }}>{curr.avatar}</div>
+          )}
+          <span style={{
+            position: "absolute", bottom: -1, right: -1,
+            width: 10, height: 10, borderRadius: "50%",
+            background: presenceOverride === 'busy' ? "#E0A800" : "#2D7A4F",
+            border: "2px solid var(--sky)",
+          }} />
+        </div>
         <div className="vd-hide-mobile" style={{ textAlign: "left" }}>
           <div style={{ color: "var(--navy)", fontSize: 12, fontWeight: 600, lineHeight: 1.2 }}>{curr.name}</div>
-          <div style={{ color: "rgba(15,32,68,0.55)", fontSize: 10 }}>{curr.role}</div>
+          <div style={{ color: "rgba(15,32,68,0.78)", fontSize: 10, fontWeight: 500 }}>{curr.role}</div>
         </div>
-        <span style={{ color: "rgba(15,32,68,0.5)", fontSize: 10, marginLeft: 2 }}>▾</span>
+        <span style={{ color: "rgba(15,32,68,0.75)", fontSize: 10, marginLeft: 2 }}>▾</span>
       </button>
 
       {open && (
@@ -521,6 +538,36 @@ const UserSwitcher = ({ state, dispatch }) => {
           boxShadow: "0 12px 30px rgba(0,0,0,0.2)", zIndex: 200,
           minWidth: 240, padding: 6,
         }}>
+          {/* Stato presenza (sessione 24) */}
+          {onSetPresence && (
+            <div style={{ padding: "8px 10px 10px", borderBottom: "1px solid var(--border)", marginBottom: 4 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 6 }}>STATO</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {[
+                  { id: null, label: "Online", icon: "🟢", color: "#2D7A4F" },
+                  { id: "busy", label: "Occupato", icon: "🟡", color: "#E0A800" },
+                ].map(opt => {
+                  const active = (presenceOverride || null) === opt.id;
+                  return (
+                    <button
+                      key={opt.label}
+                      onClick={() => onSetPresence(opt.id)}
+                      style={{
+                        flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                        padding: "6px 8px", borderRadius: 6, fontFamily: "inherit", fontSize: 12, fontWeight: 600,
+                        cursor: "pointer",
+                        border: `1px solid ${active ? opt.color : "var(--border)"}`,
+                        background: active ? `${opt.color}18` : "#fff",
+                        color: active ? opt.color : "var(--text)",
+                      }}
+                    >
+                      <span>{opt.icon}</span>{opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           {/* Profilo personale */}
           <button
             onClick={() => { setShowProfile(true); setOpen(false); }}

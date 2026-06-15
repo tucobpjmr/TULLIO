@@ -11,7 +11,6 @@ const AUTO_COLLAPSE_MIN = 1024;
 const AUTO_COLLAPSE_MAX = 1280;
 
 const NAV_ITEMS = [
-  { id: "dashboard",  icon: "📊", label: "Dashboard",  roles: ["admin", "manager", "agent", "driver"] },
   { id: "calendar",   icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
   { id: "clienti",    icon: "👤", label: "Clienti",    roles: ["admin", "manager", "agent"] },
   { id: "fornitori",  icon: "🤝", label: "Fornitori",  roles: ["admin", "manager", "agent"] },
@@ -28,7 +27,9 @@ const getNavItemsForUser = (userId) => {
 };
 
 // Calcola i contatori per i badge sidebar/bottom-nav (Step F).
-function getNavBadges(state) {
+// Esportato: il badge "dashboard" (coda non assegnata) ora vive sul logo
+// aeroplanino in Topbar dopo la rimozione della voce Dashboard dalla nav.
+export function getNavBadges(state) {
   const pending = (state.team || []).filter(m => m.pending).length;
   const queue = (state.tasks || []).filter(
     t => !t.deletedAt && (!Array.isArray(t.assignees) || t.assignees.length === 0)
@@ -66,7 +67,7 @@ const NavBadge = ({ count, collapsed = false, mobile = false }) => {
   return <span style={{ ...base, marginLeft: "auto" }}>{count > 99 ? "99+" : count}</span>;
 };
 
-export const Sidebar = ({ state, dispatch, onOpenBulk }) => {
+export const Sidebar = ({ state, dispatch, onOpenBulk, onOpenChat, unreadChat = 0 }) => {
   const { isDesktop, width } = useViewport();
   if (!isDesktop) return null;
   // Auto-collapse: tra 1024 e 1280px la sidebar e' compressa per default,
@@ -82,13 +83,13 @@ export const Sidebar = ({ state, dispatch, onOpenBulk }) => {
       width: col ? 60 : 210, background: "var(--sky)", color: "var(--navy)",
       display: "flex", flexDirection: "column",
       transition: "width 0.25s ease", flexShrink: 0,
-      borderRight: "1px solid rgba(212,168,67,0.3)", position: "relative",
+      borderRight: "1px solid rgba(15,32,68,0.18)", position: "relative",
     }}>
       <button onClick={() => dispatch({ type: "TOGGLE_SIDEBAR" })} style={{
         position: "absolute", top: 12, right: col ? "50%" : 8,
         transform: col ? "translateX(50%)" : "none",
-        background: "rgba(15,32,68,0.07)", border: "1px solid rgba(15,32,68,0.12)",
-        borderRadius: 6, width: 24, height: 24, cursor: "pointer", color: "rgba(15,32,68,0.5)",
+        background: "rgba(255,255,255,0.7)", border: "1px solid rgba(15,32,68,0.28)",
+        borderRadius: 6, width: 24, height: 24, cursor: "pointer", color: "rgba(15,32,68,0.85)",
         fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center",
         transition: "all 0.2s",
       }}>{col ? "→" : "←"}</button>
@@ -101,9 +102,9 @@ export const Sidebar = ({ state, dispatch, onOpenBulk }) => {
               display: "flex", alignItems: "center", gap: 10,
               padding: col ? "10px 8px" : "10px 12px",
               borderRadius: 8, cursor: "pointer", border: "none",
-              background: active ? "rgba(212,168,67,0.18)" : "transparent",
-              color: active ? "var(--navy)" : "rgba(15,32,68,0.6)",
-              fontSize: 14, fontWeight: active ? 600 : 400,
+              background: active ? "rgba(212,168,67,0.28)" : "transparent",
+              color: active ? "var(--navy)" : "rgba(15,32,68,0.82)",
+              fontSize: 14, fontWeight: active ? 700 : 500,
               transition: "all 0.2s", textAlign: "left",
               borderLeft: active ? "2px solid var(--gold)" : "2px solid transparent",
               position: "relative",
@@ -114,6 +115,45 @@ export const Sidebar = ({ state, dispatch, onOpenBulk }) => {
             </button>
           );
         })}
+
+        {/* Azione: Chat team (spostata dalla Topbar) */}
+        {onOpenChat && (
+          <button
+            onClick={onOpenChat}
+            title="Messaggi team"
+            aria-label="Messaggi team"
+            style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: col ? "10px 8px" : "10px 12px", marginTop: 8,
+              borderRadius: 8, cursor: "pointer",
+              border: "1px solid rgba(15,32,68,0.18)",
+              background: "rgba(255,255,255,0.45)",
+              color: "var(--navy)", fontSize: 14, fontWeight: 600,
+              transition: "all 0.2s", textAlign: "left",
+              justifyContent: col ? "center" : "flex-start",
+              position: "relative",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.75)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.45)"; }}
+          >
+            <span style={{ fontSize: 16, flexShrink: 0, position: "relative" }}>
+              💬
+              {unreadChat > 0 && col && <span style={{
+                position: "absolute", top: -6, right: -8, background: "var(--gold)",
+                color: "var(--navy)", borderRadius: 999, fontSize: 9, fontWeight: 700,
+                minWidth: 14, height: 14, display: "inline-flex", alignItems: "center",
+                justifyContent: "center", padding: "0 3px", lineHeight: 1,
+              }}>{unreadChat > 9 ? "9+" : unreadChat}</span>}
+            </span>
+            {!col && <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>Chat</span>}
+            {!col && unreadChat > 0 && <span style={{
+              marginLeft: "auto", background: "var(--gold)", color: "var(--navy)",
+              borderRadius: 999, fontSize: 10, fontWeight: 700, minWidth: 16, height: 16,
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              padding: "0 5px", lineHeight: 1,
+            }}>{unreadChat > 99 ? "99+" : unreadChat}</span>}
+          </button>
+        )}
 
         {/* Azione: crea più task / import / template (spostata dal FAB secondario) */}
         <button
@@ -139,8 +179,8 @@ export const Sidebar = ({ state, dispatch, onOpenBulk }) => {
       </div>
 
       {!col && (
-        <div style={{ marginTop: "auto", padding: "16px 12px", borderTop: "1px solid rgba(15,32,68,0.12)" }}>
-          <div style={{ fontSize: 10, color: "rgba(15,32,68,0.45)", letterSpacing: 1, marginBottom: 8 }}>TEAM ONLINE</div>
+        <div style={{ marginTop: "auto", padding: "16px 12px", borderTop: "1px solid rgba(15,32,68,0.22)" }}>
+          <div style={{ fontSize: 10, color: "rgba(15,32,68,0.7)", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>TEAM ONLINE</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
             {getAssignableTeam().slice(0, 4).map(m => (
               <div key={m.id} title={m.name} style={{
@@ -161,7 +201,7 @@ export const Sidebar = ({ state, dispatch, onOpenBulk }) => {
 };
 
 // ─── BOTTOM NAV (mobile/tablet) ────────────────────────────────────────────
-export const BottomNav = ({ state, dispatch, onOpenBulk }) => {
+export const BottomNav = ({ state, dispatch, onOpenBulk, onOpenChat, unreadChat = 0 }) => {
   const navItems = getNavItemsForUser(state.currentUserId);
   const badges = getNavBadges(state);
   return (
@@ -179,7 +219,7 @@ export const BottomNav = ({ state, dispatch, onOpenBulk }) => {
               flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
               justifyContent: "center", gap: 3, padding: "6px 2px",
               background: "transparent", border: "none", cursor: "pointer",
-              color: active ? "var(--navy)" : "rgba(15,32,68,0.55)",
+              color: active ? "var(--navy)" : "rgba(15,32,68,0.82)",
               borderTop: active ? "2px solid var(--gold)" : "2px solid transparent",
               transition: "color 0.2s", position: "relative",
             }}
@@ -194,6 +234,32 @@ export const BottomNav = ({ state, dispatch, onOpenBulk }) => {
           </button>
         );
       })}
+
+      {/* Azione: Chat team (spostata dalla Topbar) */}
+      {onOpenChat && (
+        <button
+          onClick={onOpenChat}
+          aria-label="Messaggi team"
+          style={{
+            flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
+            justifyContent: "center", gap: 3, padding: "6px 2px",
+            background: "transparent", border: "none", cursor: "pointer",
+            color: "rgba(15,32,68,0.82)", borderTop: "2px solid transparent",
+            transition: "color 0.2s", position: "relative",
+          }}
+        >
+          <span style={{ fontSize: 19, lineHeight: 1, position: "relative" }}>
+            💬
+            {unreadChat > 0 && <span style={{
+              position: "absolute", top: -4, right: "calc(50% - 18px)",
+              background: "var(--gold)", color: "var(--navy)", fontWeight: 700,
+              borderRadius: 999, fontSize: 10, padding: "1px 5px", minWidth: 16, height: 16,
+              display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1,
+            }}>{unreadChat > 99 ? "99+" : unreadChat}</span>}
+          </span>
+          <span style={{ fontSize: 9, fontWeight: 500, whiteSpace: "nowrap" }}>Chat</span>
+        </button>
+      )}
 
       {/* Azione: crea più task (spostata dal FAB secondario) */}
       <button

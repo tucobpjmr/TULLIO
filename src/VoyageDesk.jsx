@@ -47,6 +47,7 @@ import {
 import { reducer, makeInitialState } from "./state/reducer.js";
 // Caveat #10: hook che astrae idratazione + subscribe realtime debounced.
 import { useDebouncedTableSubscription } from "./hooks/useDebouncedTableSubscription.js";
+import { usePreferences } from "./lib/preferences.js";
 // Step P Phase 2e: foundation + UI primitives estratti in src/components/.
 import { useViewport, ViewportProvider } from "./components/Viewport.jsx";
 // Step P Phase 2f: loader xlsx condiviso estratto in lib/xlsx.js.
@@ -116,7 +117,7 @@ const FontLoader = () => (
       --navy: #0F2044;
       --navy-light: #1a3060;
       --navy-dark: #08152d;
-      --sky: #87CEEB;
+      --sky: #C5E6F2;
       --gold: #D4A843;
       --gold-light: #e8c46a;
       --gold-dark: #b8902e;
@@ -131,6 +132,25 @@ const FontLoader = () => (
       --text-light: #9999AA;
       --border: #E0DDD5;
     }
+    /* Dark mode (sessione 24): l'attributo data-theme="dark" su <html>
+       viene impostato dal hook usePreferences (src/lib/preferences.js). */
+    html[data-theme="dark"] {
+      --navy: #0a1530;
+      --navy-light: #15244a;
+      --navy-dark: #050b1e;
+      --sky: #1f3357;
+      --gold: #E0B85A;
+      --gold-light: #F0CC7A;
+      --gold-dark: #B89638;
+      --surface: #0F1424;
+      --surface2: #181E33;
+      --surface3: #232A40;
+      --text: #E6E6F0;
+      --text-muted: #9BA0B4;
+      --text-light: #6F7591;
+      --border: #2A3147;
+    }
+    html[data-theme="dark"] body { color-scheme: dark; }
     body { font-family: 'DM Sans', sans-serif; background: var(--surface); color: var(--text); }
     .playfair { font-family: 'Playfair Display', serif; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -180,10 +200,10 @@ const FontLoader = () => (
       .vd-bottom-nav {
         display: flex;
         position: fixed; bottom: 0; left: 0; right: 0; z-index: 450;
-        background: var(--sky); border-top: 1px solid rgba(212,168,67,0.3);
+        background: var(--sky); border-top: 1px solid rgba(15,32,68,0.18);
         padding: 6px 4px env(safe-area-inset-bottom, 6px);
         justify-content: space-around; align-items: stretch;
-        box-shadow: 0 -4px 20px rgba(0,0,0,0.25);
+        box-shadow: 0 -2px 12px rgba(15,32,68,0.12);
       }
       .vd-main-scroll { padding-bottom: 70px !important; }
     }
@@ -361,6 +381,11 @@ export default function VoyageDesk({ initialTeam, initialCurrentUserId } = {}) {
 }
 
 function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
+  // Preferenze UI locali (tema, locale, dateFormat). Sessione 24.
+  // L'hook applica il tema corrente su <html data-theme="…"> al mount e ad
+  // ogni cambio (vedi src/lib/preferences.js).
+  const [prefs, setPrefs] = usePreferences();
+
   const [state, rawDispatch] = useReducer(
     reducer,
     { team: initialTeam, currentUserId: initialCurrentUserId },
@@ -632,6 +657,12 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // Presence (Step H): heartbeat + subscribe a users
   // Mappa { userId -> rowDB } (per leggere last_seen_at e status).
   const [presenceMap, setPresenceMap] = useState({});
+  // Sessione 24: override presenza manuale (null | "busy"). Il toggle nel
+  // UserSwitcher imposta lo stato; l'heartbeat lo rispetta tramite ref
+  // così non re-instanzia i timer ad ogni cambio.
+  const [presenceOverride, setPresenceOverrideState] = useState(null);
+  const presenceOverrideRef = useRef(null);
+  useEffect(() => { presenceOverrideRef.current = presenceOverride; }, [presenceOverride]);
   useEffect(() => {
     if (!useSupabase) return;
     const myId = initialCurrentUserId;
@@ -651,12 +682,13 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
 
     const beat = (status = 'online') => {
       if (!myId) return;
-      UsersAPI.setPresence(myId, status).then(r => {
+      const effective = presenceOverrideRef.current || status;
+      UsersAPI.setPresence(myId, effective).then(r => {
         if (r?.error) console.warn("[presence] setPresence", r.error);
         // Aggiorno anche localmente per immediatezza
         setPresenceMap(prev => ({
           ...prev,
-          [myId]: { ...(prev[myId] || {}), status, last_seen_at: new Date().toISOString() },
+          [myId]: { ...(prev[myId] || {}), status: effective, last_seen_at: new Date().toISOString() },
         }));
       });
     };
@@ -697,6 +729,24 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       if (myId) UsersAPI.setPresence(myId, 'offline').then(() => {});
     };
   }, [useSupabase, initialCurrentUserId, initialTeam]);
+
+  // Setter "smart": applica subito lo stato sul DB così l'utente vede il cambio
+  // senza aspettare il prossimo tick di heartbeat. L'effetto sopra continuerà
+  // a usare il valore aggiornato via ref.
+  const setPresenceOverride = useCallback((next) => {
+    setPresenceOverrideState(next);
+    const myId = initialCurrentUserId;
+    if (!useSupabase || !myId) return;
+    const effective = next || 'online';
+    UsersAPI.setPresence(myId, effective).then(r => {
+      if (r?.error) console.warn("[presence] setPresence (manual)", r.error);
+      setPresenceMap(prev => ({
+        ...prev,
+        [myId]: { ...(prev[myId] || {}), status: effective, last_seen_at: new Date().toISOString() },
+      }));
+    });
+    rawDispatch({ type: "SHOW_TOAST", payload: { type: "success", message: next === 'busy' ? "🟡 Sei in modalità Occupato" : "🟢 Sei di nuovo Online" } });
+  }, [useSupabase, initialCurrentUserId]);
 
   // Idratazione chat (conversations + messages) + realtime.
   // chatLoading parte da `useSupabase`: senza login è già false, quindi non
@@ -885,7 +935,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       case "pratiche":   return <PraticheView state={state} dispatch={dispatch} initialDossierId={targetDossierId} />;
       case "team":       return <Team state={state} dispatch={dispatch} />;
       case "trash":      return <Trash state={state} dispatch={dispatch} />;
-      case "admin":      return <AdminView state={state} dispatch={dispatch} />;
+      case "admin":      return <AdminView state={state} dispatch={dispatch} prefs={prefs} setPrefs={setPrefs} />;
       default:           return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
     }
   };
@@ -897,16 +947,22 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         <Topbar
           state={state}
           dispatch={dispatch}
-          onOpenChat={() => { setChatIntent(null); setShowChat(true); }}
-          unreadChat={unreadChat}
           notifications={notifications}
           onMarkRead={markNotificationRead}
           onMarkAllRead={markAllNotificationsRead}
           onOpenTask={openTaskById}
           onOpenDossier={openDossierById}
+          presenceOverride={presenceOverride}
+          onSetPresence={setPresenceOverride}
         />
         <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-          <Sidebar state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} />
+          <Sidebar
+            state={state}
+            dispatch={dispatch}
+            onOpenBulk={() => setShowBulkModal(true)}
+            onOpenChat={() => { setChatIntent(null); setShowChat(true); }}
+            unreadChat={unreadChat}
+          />
           <main className="vd-main-scroll" style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
             {/* Suspense per la vista attiva: solo AdminView è lazy (Phase 2g),
                 le altre viste risolvono sincronicamente. */}
@@ -917,7 +973,13 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         </div>
 
         {/* Bottom nav mobile/tablet */}
-        <BottomNav state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} />
+        <BottomNav
+          state={state}
+          dispatch={dispatch}
+          onOpenBulk={() => setShowBulkModal(true)}
+          onOpenChat={() => { setChatIntent(null); setShowChat(true); }}
+          unreadChat={unreadChat}
+        />
 
         {/* Slide-over (lazy, Phase 2g) */}
         {state.selectedTask && (

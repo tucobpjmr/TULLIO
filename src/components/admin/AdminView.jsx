@@ -1,6 +1,7 @@
 // ─── ADMIN VIEW ──────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f). AdminView + i 5 tab (Team/IO/Stats/
 // Categories/Log, module-local). Esporta solo AdminView.
+// Sessione 24: aggiunti tab "Template messaggi" e "Preferenze UI".
 import { useState, useRef } from "react";
 import { STATUSES, STATUS_LABELS, STATUS_COLORS } from "../../lib/taskConstants.js";
 import { isOverdue } from "../../lib/taskUtils.js";
@@ -8,12 +9,13 @@ import { loadXLSX } from "../../lib/xlsx.js";
 import { TEAM, getMember } from "../../state/appGlobals.js";
 import { AddTeamMemberModal } from "../modals/AddTeamMemberModal.jsx";
 import { AddCategoryModal } from "../modals/AddCategoryModal.jsx";
+import { useMessageTemplates, DEFAULT_TEMPLATES } from "../../lib/messageTemplates.js";
 import {
   sectionH, cardStyle, cardH, cardP, fieldStyle,
   btnPrimary, btnGold, btnGhost, btnDanger, btnWarning,
 } from "./adminStyles.js";
 
-export const AdminView = ({ state, dispatch }) => {
+export const AdminView = ({ state, dispatch, prefs, setPrefs }) => {
   const [tab, setTab] = useState("team");
 
   const tabs = [
@@ -21,6 +23,8 @@ export const AdminView = ({ state, dispatch }) => {
     { id: "io", icon: "📤", label: "Import / Export" },
     { id: "stats", icon: "📊", label: "Sistema" },
     { id: "cats", icon: "🏷️", label: "Categorie" },
+    { id: "templates", icon: "✉️", label: "Template msg" },
+    { id: "prefs", icon: "🎨", label: "Preferenze UI" },
     { id: "log", icon: "📋", label: "Log attività" },
   ];
 
@@ -68,6 +72,8 @@ export const AdminView = ({ state, dispatch }) => {
         {tab === "io" && <AdminIOTab state={state} dispatch={dispatch} />}
         {tab === "stats" && <AdminStatsTab state={state} />}
         {tab === "cats" && <AdminCategoriesTab state={state} dispatch={dispatch} />}
+        {tab === "templates" && <AdminTemplatesTab />}
+        {tab === "prefs" && <AdminPrefsTab prefs={prefs} setPrefs={setPrefs} />}
         {tab === "log" && <AdminLogTab state={state} dispatch={dispatch} />}
       </div>
     </div>
@@ -645,6 +651,216 @@ const AdminLogTab = ({ state, dispatch }) => {
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+};
+
+// ─── ADMIN TAB: TEMPLATE MESSAGGI (sessione 24) ────────────────────────────
+// Template testuali per i messaggi chat — persistiti in localStorage.
+// Inseribili nel composer del ChatPanel via il bottone "✉️" (sessione 24).
+const AdminTemplatesTab = () => {
+  const [templates, setTemplates] = useMessageTemplates();
+  const [editingId, setEditingId] = useState(null);
+  const [draft, setDraft] = useState(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newTpl, setNewTpl] = useState({ name: "", text: "" });
+
+  const startEdit = (t) => { setEditingId(t.id); setDraft({ ...t }); };
+  const cancelEdit = () => { setEditingId(null); setDraft(null); };
+  const saveEdit = () => {
+    if (!draft.name?.trim() || !draft.text?.trim()) return;
+    setTemplates(prev => prev.map(t => t.id === draft.id ? { ...draft } : t));
+    cancelEdit();
+  };
+  const removeTpl = (id) => {
+    if (!window.confirm("Rimuovere questo template?")) return;
+    setTemplates(prev => prev.filter(t => t.id !== id));
+  };
+  const addTpl = () => {
+    if (!newTpl.name.trim() || !newTpl.text.trim()) return;
+    const tpl = { id: `tpl-${Date.now().toString(36)}`, name: newTpl.name.trim(), text: newTpl.text.trim() };
+    setTemplates(prev => [tpl, ...prev]);
+    setNewTpl({ name: "", text: "" });
+    setShowAdd(false);
+  };
+  const resetToDefault = () => {
+    if (!window.confirm("Ripristinare i template di default? Le tue modifiche verranno perse.")) return;
+    setTemplates([...DEFAULT_TEMPLATES]);
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
+          ✉️ <b>{templates.length}</b> template — inseribili nel composer chat con il bottone ✉️
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button onClick={resetToDefault} style={btnGhost}>↻ Ripristina default</button>
+          <button onClick={() => setShowAdd(true)} style={btnPrimary}>+ Nuovo template</button>
+        </div>
+      </div>
+
+      {showAdd && (
+        <div style={{ ...cardStyle, marginBottom: 12, borderColor: "var(--gold)" }}>
+          <h3 style={cardH}>Nuovo template</h3>
+          <div style={{ display: "grid", gap: 10 }}>
+            <input
+              value={newTpl.name}
+              onChange={e => setNewTpl({ ...newTpl, name: e.target.value })}
+              placeholder="Nome (es. Conferma prenotazione)"
+              style={fieldStyle}
+            />
+            <textarea
+              value={newTpl.text}
+              onChange={e => setNewTpl({ ...newTpl, text: e.target.value })}
+              placeholder="Testo del messaggio…"
+              rows={4}
+              style={{ ...fieldStyle, fontFamily: "inherit", resize: "vertical" }}
+            />
+            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+              <button onClick={() => { setShowAdd(false); setNewTpl({ name: "", text: "" }); }} style={btnGhost}>Annulla</button>
+              <button onClick={addTpl} style={btnPrimary} disabled={!newTpl.name.trim() || !newTpl.text.trim()}>💾 Aggiungi</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "grid", gap: 10 }}>
+        {templates.length === 0 ? (
+          <div style={{ ...cardStyle, textAlign: "center", color: "var(--text-muted)" }}>
+            Nessun template. Aggiungine uno o ripristina i default.
+          </div>
+        ) : templates.map(t => {
+          const isEditing = editingId === t.id;
+          return (
+            <div key={t.id} style={{ ...cardStyle, padding: 14 }}>
+              {isEditing ? (
+                <div style={{ display: "grid", gap: 8 }}>
+                  <input
+                    value={draft.name}
+                    onChange={e => setDraft({ ...draft, name: e.target.value })}
+                    placeholder="Nome"
+                    style={fieldStyle}
+                  />
+                  <textarea
+                    value={draft.text}
+                    onChange={e => setDraft({ ...draft, text: e.target.value })}
+                    rows={4}
+                    style={{ ...fieldStyle, fontFamily: "inherit", resize: "vertical" }}
+                  />
+                  <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                    <button onClick={cancelEdit} style={btnGhost}>Annulla</button>
+                    <button onClick={saveEdit} style={btnPrimary}>💾 Salva</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", marginBottom: 4 }}>{t.name}</div>
+                    <div style={{ fontSize: 13, color: "var(--text-muted)", whiteSpace: "pre-wrap" }}>{t.text}</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                    <button onClick={() => startEdit(t)} style={btnGhost}>✏️ Modifica</button>
+                    <button onClick={() => removeTpl(t.id)} style={btnDanger}>🗑️</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ─── ADMIN TAB: PREFERENZE UI (sessione 24) ────────────────────────────────
+// Tema (light/dark/system), locale (it/en placeholder), formato data.
+// Persistiti in localStorage via hook usePreferences (vedi lib/preferences.js).
+const AdminPrefsTab = ({ prefs, setPrefs }) => {
+  if (!prefs || !setPrefs) {
+    return (
+      <div style={cardStyle}>
+        <div style={{ color: "var(--text-muted)", fontSize: 13 }}>
+          Preferenze non disponibili in questo contesto.
+        </div>
+      </div>
+    );
+  }
+
+  const themeOptions = [
+    { id: "light", icon: "☀️", label: "Chiaro" },
+    { id: "dark", icon: "🌙", label: "Scuro" },
+    { id: "system", icon: "🖥️", label: "Sistema" },
+  ];
+  const localeOptions = [
+    { id: "it", label: "🇮🇹 Italiano" },
+    { id: "en", label: "🇬🇧 English (placeholder)" },
+  ];
+  const dateFormatOptions = [
+    { id: "dmy", label: "31/12/2026" },
+    { id: "mdy", label: "12/31/2026" },
+    { id: "ymd", label: "2026-12-31" },
+  ];
+
+  const sectionStyle = { ...cardStyle, marginBottom: 12 };
+
+  const Pill = ({ active, onClick, children }) => (
+    <button onClick={onClick} style={{
+      padding: "8px 14px", borderRadius: 8,
+      border: `1px solid ${active ? "var(--gold)" : "var(--border)"}`,
+      background: active ? "var(--gold)" + "22" : "#fff",
+      color: active ? "var(--navy)" : "var(--text)",
+      cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: active ? 700 : 500,
+      display: "inline-flex", alignItems: "center", gap: 6,
+    }}>{children}</button>
+  );
+
+  return (
+    <div>
+      {/* Tema */}
+      <div style={sectionStyle}>
+        <h3 style={cardH}>🎨 Tema</h3>
+        <p style={cardP}>Scegli l'aspetto dell'app. "Sistema" segue la preferenza del tuo sistema operativo.</p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {themeOptions.map(o => (
+            <Pill key={o.id} active={prefs.theme === o.id} onClick={() => setPrefs({ theme: o.id })}>
+              <span>{o.icon}</span> {o.label}
+            </Pill>
+          ))}
+        </div>
+      </div>
+
+      {/* Lingua */}
+      <div style={sectionStyle}>
+        <h3 style={cardH}>🌍 Lingua</h3>
+        <p style={cardP}>
+          La traduzione completa è in roadmap. Per ora la preferenza viene salvata e usata dai nuovi moduli.
+        </p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {localeOptions.map(o => (
+            <Pill key={o.id} active={prefs.locale === o.id} onClick={() => setPrefs({ locale: o.id })}>
+              {o.label}
+            </Pill>
+          ))}
+        </div>
+      </div>
+
+      {/* Formato data */}
+      <div style={sectionStyle}>
+        <h3 style={cardH}>📅 Formato data</h3>
+        <p style={cardP}>Esempio: come visualizzare la data 31 dicembre 2026.</p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {dateFormatOptions.map(o => (
+            <Pill key={o.id} active={prefs.dateFormat === o.id} onClick={() => setPrefs({ dateFormat: o.id })}>
+              {o.label}
+            </Pill>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ fontSize: 11, color: "var(--text-muted)", padding: "8px 4px" }}>
+        ℹ️ Le preferenze sono salvate localmente nel browser (localStorage). Non sincronizzate con altri dispositivi.
       </div>
     </div>
   );

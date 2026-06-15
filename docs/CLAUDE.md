@@ -44,7 +44,7 @@ Agisci come sviluppatore full-stack specializzato in sistemi gestionali per trav
 
 ```css
 --navy: #0F2044;        --navy-light: #1a3060;     --navy-dark: #08152d;
---sky: #87CEEB;         /* shell: topbar, sidebar, bottom-nav */
+--sky: #C5E6F2;         /* shell: topbar, sidebar, bottom-nav (schiarito sessione 24) */
 --gold: #D4A843;        --gold-light: #e8c46a;     --gold-dark: #b8902e;
 --surface: #FAFAF7;     --surface2: #F0EEE8;       --surface3: #E8E5DC;
 --success: #2D7A4F;     --warning: #C8832A;        --danger: #C0392B;
@@ -60,7 +60,7 @@ Agisci come sviluppatore full-stack specializzato in sistemi gestionali per trav
 | Tablet | 641–1024px | `isTablet` |
 | Desktop | > 1024px | `isDesktop` |
 
-Navigazione: Desktop → Sidebar collassabile. Tablet/Mobile → BottomNav.
+Navigazione: Desktop → Sidebar collassabile. Tablet/Mobile → BottomNav. La **Dashboard** non ha una voce nav dedicata: si raggiunge cliccando il **logo aeroplanino** in Topbar (sessione 24). La **chat** vive come azione in Sidebar/BottomNav (non più in Topbar).
 
 ## Modello dati
 
@@ -254,7 +254,7 @@ VoyageDesk (export default, ViewportProvider wrapper)
     │   ├── AdvancedSearchPanel (locale)
     │   ├── UserSwitcher → modals/ProfileEditor
     │   └── NotificationsPanel (locale)
-    ├── shell/Sidebar (desktop) / shell/BottomNav (mobile/tablet)
+    ├── shell/Sidebar (desktop) / shell/BottomNav (mobile/tablet)  [+ azione 💬 Chat — sessione 24]
     ├── [Vista attiva — renderView switch]
     │   ├── dashboard/Dashboard
     │   │   ├── dashboard/NoticeBoard + modals/NoticeEditorModal
@@ -372,8 +372,8 @@ src/
 │   │   ├── Team.jsx
 │   │   └── Trash.jsx
 │   └── shell/
-│       ├── Topbar.jsx (contiene AdvancedSearchPanel, UserSwitcher, NotificationsPanel locali)
-│       ├── Sidebar.jsx (contiene NAV_ITEMS 8 voci, BottomNav, NavBadge locali)
+│       ├── Topbar.jsx (AdvancedSearchPanel, UserSwitcher, NotificationsPanel locali; logo→Dashboard + badge coda; chat rimossa dalla topbar — sessione 24)
+│       ├── Sidebar.jsx (NAV_ITEMS 7 voci — Dashboard rimossa, accessibile dal logo; getNavBadges esportato; azione 💬 Chat in Sidebar+BottomNav; NavBadge locale)
 │       └── FAB.jsx
 ├── VoyageDesk.jsx           Shell di orchestrazione (~970 righe; Phase 2g + CRM hydration + dispatch CRM)
 └── main.jsx
@@ -383,4 +383,4 @@ src/
 
 Le notifiche nascono **solo da trigger DB** (RLS vieta insert client) — per nuove notifiche serve un trigger server-side (pattern in `supabase/migrations/20260614_mention_composite_names.sql`, `20260614_dossier_notifications.sql`, `20260615_notices_expiration_and_mentions.sql`).
 
-Vedi `docs/HANDOFF_SESSION_2026-06-15_v19.md` (sessione 23, PR #58 cumulativa) per il punto di partenza. Storico sessioni precedenti: v18 (sessione 22), v17 (sessione 21), v15 (Fase 1 completa).
+Vedi `docs/HANDOFF_SESSION_2026-06-15_v20.md` (sessione 24, PR #59 — chat busy/online, Preferenze UI + dark mode, template messaggi, restyle shell/nav) per il punto di partenza. Storico: v19 (sessione 23, PR #58 cumulativa), v18 (sessione 22), v17 (sessione 21), v15 (Fase 1 completa).

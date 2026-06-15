@@ -9,6 +9,7 @@ import { isUuid } from "../../lib/mappers.js";
 import { formatDate, formatTime } from "../../lib/taskUtils.js";
 import { TEAM, CURRENT_USER, getMember } from "../../state/appGlobals.js";
 import { MentionText } from "../ui/MentionText.jsx";
+import { useMessageTemplates } from "../../lib/messageTemplates.js";
 
 // Helper presenza (computePresence/PRESENCE_COLORS) usati solo dalla chat,
 // spostati qui dal monolite insieme al cluster (Step P Phase 2f).
@@ -16,13 +17,20 @@ function computePresence(user) {
   if (!user || !user.last_seen_at) return 'offline';
   if (user.status === 'offline') return 'offline';
   const age = Date.now() - new Date(user.last_seen_at).getTime();
-  if (age < 60 * 1000) return user.status === 'away' ? 'away' : 'online';
-  if (age < 5 * 60 * 1000) return 'away';
+  // Sessione 24: lo stato 'busy' è manuale → resta valido finché l'utente
+  // batte heartbeat. Se ageing oltre 5 min cade comunque in offline.
+  if (age < 60 * 1000) {
+    if (user.status === 'away') return 'away';
+    if (user.status === 'busy') return 'busy';
+    return 'online';
+  }
+  if (age < 5 * 60 * 1000) return user.status === 'busy' ? 'busy' : 'away';
   return 'offline';
 }
 const PRESENCE_COLORS = {
   online: '#2D7A4F',
-  away: '#E0A800',
+  busy: '#E0A800',
+  away: '#C8832A',
   offline: '#94a3b8',
 };
 
@@ -501,6 +509,9 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
   const [recording, setRecording] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const [showAttach, setShowAttach] = useState(false);
+  // Sessione 24: popover template messaggi (sopra l'input).
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [templates] = useMessageTemplates();
   const [typing, setTyping] = useState(false);
   // Step K: taskRef UUID "armato" finché il prossimo invio non lo consuma.
   const [pendingTaskRef, setPendingTaskRef] = useState(null);
@@ -807,6 +818,59 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
               )}
             </div>
 
+            {/* Bottone template messaggi (sessione 24) */}
+            <div style={{ position: "relative" }}>
+              <button
+                onClick={() => { setShowTemplates(s => !s); setShowAttach(false); }}
+                title="Inserisci template messaggio"
+                aria-label="Template messaggi"
+                style={{
+                  background: "var(--surface2)", border: "none", borderRadius: "50%",
+                  width: 36, height: 36, cursor: "pointer", fontSize: 16, flexShrink: 0,
+                }}
+              >✉️</button>
+              {showTemplates && (
+                <>
+                  <div onClick={() => setShowTemplates(false)} style={{ position: "fixed", inset: 0, zIndex: 99 }} />
+                  <div className="slide-up" style={{
+                    position: "absolute", bottom: "calc(100% + 8px)", left: 0,
+                    background: "#fff", borderRadius: 12, padding: 8,
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--border)",
+                    minWidth: 260, maxWidth: 320, maxHeight: 360, overflowY: "auto", zIndex: 100,
+                  }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, padding: "4px 8px 8px" }}>
+                      TEMPLATE MESSAGGI
+                    </div>
+                    {templates.length === 0 ? (
+                      <div style={{ padding: "12px 8px", fontSize: 12, color: "var(--text-muted)", textAlign: "center" }}>
+                        Nessun template. Aggiungili da Admin → Template msg.
+                      </div>
+                    ) : templates.map(t => (
+                      <button
+                        key={t.id}
+                        onClick={() => {
+                          setInput(prev => prev ? `${prev}${prev.endsWith("\n") ? "" : "\n"}${t.text}` : t.text);
+                          setShowTemplates(false);
+                        }}
+                        style={{
+                          display: "block", width: "100%", textAlign: "left",
+                          padding: "8px 10px", border: "none", background: "transparent",
+                          borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                      >
+                        <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text)" }}>{t.name}</div>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 2 }}>
+                          {t.text}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
@@ -946,8 +1010,9 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
                   {(() => {
                     const u = (presenceMap || {})[otherUser];
                     const p = u ? computePresence(u) : 'offline';
+                    const labels = { online: 'Online', busy: 'Occupato', away: 'Assente', offline: 'Offline' };
                     return (
-                      <div title={p} style={{
+                      <div title={labels[p] || p} style={{
                         position: "absolute", bottom: 0, right: 0, width: 11, height: 11,
                         borderRadius: "50%", background: PRESENCE_COLORS[p],
                         border: "2px solid #fff",

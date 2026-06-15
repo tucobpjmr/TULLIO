@@ -1,6 +1,48 @@
 # CHANGELOG — VoyageDesk
 
 
+## v2.4-dev — Fase 2 Operatività completa: notifiche pratica, calendario, assegnatari, filtri (sessione 22)
+
+> Branch sessione 22 — PR #57 (commit `b0e5a0c`). Base: `main` (post quick wins v17). Chiude il caveat **#28** → **Fase 2 completa, nessun caveat aperto**. Handoff: `docs/HANDOFF_SESSION_2026-06-15_v20.md`.
+
+### 🔔 Trigger DB notifiche pratica (caveat #28)
+
+- **`supabase/migrations/20260614_dossier_notifications.sql`** (nuovo): `notify_dossier_status()` (trigger `AFTER UPDATE OF status` su `dossiers` → notifica a `created_by` + manager/admin attivi non-pending, escluso l'attore) e `notify_dossier_departure()` (pg_cron giornaliero `0 7 * * *` UTC, pratiche confermate/in_corso con partenza ≤3gg, de-dup 20h). Entrambe `SECURITY DEFINER` + `revoke all`. Già applicata in prod (version `20260614212448`); file in repo per version control.
+
+### 📅 Calendario — pratiche in tutte le viste
+
+- **`src/components/calendar/CalendarPlanner.jsx`**: pratiche con `departureDate`/`returnDate` come eventi distinti (colore diverso dai task) in vista mese, settimana, settimana-piena e giorno (partenza ✈️ / ritorno 🛬).
+
+### 👥 TaskSlideOver — assegnatari editable
+
+- **`src/components/tasks/TaskSlideOver.jsx`**: assegnatari modificabili inline — chip con `×`, pulsante "+ Aggiungi" (select da `getAssignableTeam`), dispatch `UPDATE_TASK`. Rispetta `canEditTask`.
+
+### 🧰 Filtri — notifiche e coda globale
+
+- **`src/components/shell/Topbar.jsx`**: `NotificationsPanel` con filtri per categoria (Task / Pratiche / Menzioni).
+- **`src/components/dashboard/Dashboard.jsx`**: `UnassignedQueue` con filtri per categoria e priorità.
+
+### 💬 Chat — riferimenti pratica inline
+
+- **`src/components/chat/ChatPanel.jsx`**: parser `PR-YYYY-NNN` (`DOSSIER_REF_RE`) → chip cliccabile (`DossierRefChip`) che apre la vista Pratiche; `ChatContext` trasporta `dossiers`. **`src/VoyageDesk.jsx`**: passa `dossiers` a `ChatPanel`.
+
+### 📋 Docs
+
+- **`docs/ROADMAP.md`**: Fase 3 rinominata "Business" (modulo finanziario rimosso); moduli Fase 2 → 🔶/✅. **`docs/CLAUDE.md`**: Priorità 2 completa `(session 22)`.
+
+### Build
+
+```
+dist/assets/index-*.js   261.35 kB │ gzip: 62.14 kB   (+2.3 kB gz vs v2.3)
+✅ Build verde.
+```
+
+### Caveat
+
+- **#28** ✅ chiuso. **Nessun caveat aperto.**
+
+---
+
 ## v2.3-dev — Quick wins v17: badge partenze, deep-link notifiche, selettore pratica, tema celeste (sessione 21)
 
 > Branch `claude/handoff-v17-quick-wins-03nn3u` — PR #56 (draft). Base: `main` (post Fase 1 completa).

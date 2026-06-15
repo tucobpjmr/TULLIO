@@ -381,4 +381,4 @@ src/
 
 Le notifiche nascono **solo da trigger DB** (RLS vieta insert client) — per nuove notifiche serve un trigger server-side (pattern in `supabase/migrations/20260614_mention_composite_names.sql`).
 
-Vedi `docs/HANDOFF_SESSION_2026-06-15_v17.md` per il dettaglio sessione 21 (quick wins v17) e v15 per la Fase 1 completa.
+Vedi `docs/HANDOFF_SESSION_2026-06-15_v20.md` per il dettaglio sessione 22 (Fase 2 completa: notifiche pratica, calendario, assegnatari, filtri), v17 per sessione 21 (quick wins) e v15 per la Fase 1 completa.

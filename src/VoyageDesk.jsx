@@ -947,8 +947,6 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         <Topbar
           state={state}
           dispatch={dispatch}
-          onOpenChat={() => { setChatIntent(null); setShowChat(true); }}
-          unreadChat={unreadChat}
           notifications={notifications}
           onMarkRead={markNotificationRead}
           onMarkAllRead={markAllNotificationsRead}
@@ -958,7 +956,13 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           onSetPresence={setPresenceOverride}
         />
         <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-          <Sidebar state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} />
+          <Sidebar
+            state={state}
+            dispatch={dispatch}
+            onOpenBulk={() => setShowBulkModal(true)}
+            onOpenChat={() => { setChatIntent(null); setShowChat(true); }}
+            unreadChat={unreadChat}
+          />
           <main className="vd-main-scroll" style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
             {/* Suspense per la vista attiva: solo AdminView è lazy (Phase 2g),
                 le altre viste risolvono sincronicamente. */}
@@ -969,7 +973,13 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         </div>
 
         {/* Bottom nav mobile/tablet */}
-        <BottomNav state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} />
+        <BottomNav
+          state={state}
+          dispatch={dispatch}
+          onOpenBulk={() => setShowBulkModal(true)}
+          onOpenChat={() => { setChatIntent(null); setShowChat(true); }}
+          unreadChat={unreadChat}
+        />
 
         {/* Slide-over (lazy, Phase 2g) */}
         {state.selectedTask && (

@@ -11,6 +11,7 @@ import { formatDate, isOverdue } from "../../lib/taskUtils.js";
 import { MOCK_NOTIFICATIONS } from "../../state/mockData.js";
 import { TEAM, CATEGORIES, getMember } from "../../state/appGlobals.js";
 import { ProfileEditor } from "../modals/ProfileEditor.jsx";
+import { getNavBadges } from "./Sidebar.jsx";
 
 const AdvancedSearchPanel = ({ tasks, dossiers = [], dispatch, onClose, keyword = "", onKeyword }) => {
   const { isMobile } = useViewport();
@@ -326,13 +327,15 @@ const AdvancedSearchPanel = ({ tasks, dossiers = [], dispatch, onClose, keyword 
 };
 
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
-export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notificationsProp, onMarkRead, onMarkAllRead, onOpenTask, onOpenDossier, presenceOverride, onSetPresence }) => {
+export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMarkRead, onMarkAllRead, onOpenTask, onOpenDossier, presenceOverride, onSetPresence }) => {
   const { isMobile } = useViewport();
   // Fix #11: notifiche mock gate-ate dietro env var (default off in prod)
   const SHOW_MOCK_NOTIFS = import.meta.env.DEV && import.meta.env.VITE_SHOW_MOCK_NOTIFICATIONS === 'true';
   const realNotifs = Array.isArray(notificationsProp) ? notificationsProp : [];
   const notifList = SHOW_MOCK_NOTIFS ? [...realNotifs, ...MOCK_NOTIFICATIONS] : realNotifs;
   const unread = notifList.filter(n => !n.read).length;
+  // Badge coda non assegnata: ora vive sul logo (la voce nav Dashboard è stata rimossa)
+  const queueBadge = getNavBadges(state).dashboard || 0;
   const [searchOpen, setSearchOpen] = useState(false);
   const searchWrapRef = useRef(null);
 
@@ -352,17 +355,37 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
       borderBottom: "1px solid rgba(15,32,68,0.18)", flexShrink: 0,
       boxShadow: "0 1px 4px rgba(15,32,68,0.08)",
     }}>
-      {/* Logo */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginRight: isMobile ? 0 : 12 }}>
+      {/* Logo — cliccabile: torna alla Dashboard (la voce nav dedicata è stata rimossa) */}
+      <button
+        onClick={() => dispatch({ type: "SET_VIEW", payload: "dashboard" })}
+        title="Vai alla Dashboard"
+        aria-label="Vai alla Dashboard"
+        style={{
+          display: "flex", alignItems: "center", gap: 10, marginRight: isMobile ? 0 : 12,
+          background: "transparent", border: "none", cursor: "pointer",
+          fontFamily: "inherit", padding: 0,
+        }}
+      >
         <div style={{
           width: 32, height: 32, background: "var(--gold)", borderRadius: 8,
-          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0
-        }}>✈️</div>
-        <div className="vd-hide-mobile">
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0,
+          position: "relative",
+          boxShadow: state.activeView === "dashboard" ? "0 0 0 2px rgba(15,32,68,0.35)" : "none",
+        }}>
+          ✈️
+          {queueBadge > 0 && <span style={{
+            position: "absolute", top: -5, right: -5, background: "var(--navy)",
+            color: "#fff", borderRadius: 999, fontSize: 9, fontWeight: 700,
+            minWidth: 15, height: 15, display: "inline-flex", alignItems: "center",
+            justifyContent: "center", padding: "0 3px", lineHeight: 1,
+            border: "1px solid var(--sky)",
+          }}>{queueBadge > 9 ? "9+" : queueBadge}</span>}
+        </div>
+        <div className="vd-hide-mobile" style={{ textAlign: "left" }}>
           <div className="playfair" style={{ color: "var(--navy)", fontSize: 15, fontWeight: 700, lineHeight: 1 }}>VoyageDesk</div>
           <div style={{ color: "rgba(15,32,68,0.78)", fontSize: 10, letterSpacing: 1.5, fontWeight: 600 }}>TRAVEL MANAGEMENT</div>
         </div>
-      </div>
+      </button>
 
       {/* Ricerca unificata (testuale + filtri avanzati) */}
       <div ref={searchWrapRef} style={{ flex: 1, maxWidth: 520, position: "relative" }}>
@@ -395,21 +418,6 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
       </div>
 
       <div className="vd-hide-mobile" style={{ flex: 1 }} />
-
-      {/* Chat */}
-      <button onClick={onOpenChat} title="Messaggi team" style={{
-        background: "rgba(255,255,255,0.85)", border: "1px solid rgba(15,32,68,0.28)",
-        borderRadius: 8, width: 36, height: 36, cursor: "pointer",
-        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, position: "relative"
-      }}>
-        💬
-        {unreadChat > 0 && <span style={{
-          position: "absolute", top: -4, right: -4, background: "var(--gold)",
-          borderRadius: "50%", minWidth: 16, height: 16, fontSize: 10, fontWeight: 700,
-          color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center",
-          padding: "0 4px",
-        }}>{unreadChat}</span>}
-      </button>
 
       {/* Notifications */}
       <div style={{ position: "relative" }}>

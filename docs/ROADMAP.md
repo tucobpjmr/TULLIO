@@ -66,9 +66,9 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 | Modulo | Stato | Priorità | Sforzo | Note |
 |---|---|---|---|---|
-| Notifiche reali | ⬜ | 🔴 | M | Collegate ad azioni (scadenze, assegnazioni, commenti, pending, coda > N ore); filtri + "segna tutte lette" |
-| Calendario avanzato | ⬜ | 🟡 | M | Viste settimanale/giornaliera, eventi multipli, iCal (mock) |
-| Estensioni chat (base) | ⬜ | 🟡 | S–M | Ricerca nelle conversazioni, stato online/occupato, rich preview di task/pratiche, **task link cliccabile** nel messaggio |
+| Notifiche reali | 🔶 | 🔴 | M | Trigger task ✅ (Step F/J), trigger pratica ✅ (caveat #28, PR #57). Filtri + "segna tutte lette" ✅ (PR #57). Manca: notifica task in coda > N ore |
+| Calendario avanzato | 🔶 | 🟡 | M | iCal export ✅, vista settimanale ✅, vista giornaliera ✅, pratiche nel calendario ✅ (PR #57). Manca: eventi multipli/ricorrenti |
+| Estensioni chat (base) | 🔶 | 🟡 | S–M | Ricerca conversazioni ✅, stato online/occupato ✅, task link cliccabile ✅, rich preview pratiche ✅ (PR #57). Manca: stato "occupato" manuale |
 | Impostazioni agenzia | 🔶 | 🟡 | S | Gestione categorie e nome agenzia già in Admin. Manca: template messaggi, profilo utente, preferenze UI |
 | Ricerca globale estesa | ✅ | — | — | Completata in v0.5. |
 | Responsive (mobile/tablet/desktop) | ✅ | — | — | Completato in v0.6. |
@@ -102,18 +102,18 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 
 | Idea | Stato | Priorità | Note |
 |---|---|---|---|
-| Badge sulla voce sidebar/bottom-nav **Admin** con conteggio agenti pending | ✅ | — | Step F |
-| Badge sulla voce sidebar/bottom-nav **Dashboard** con conteggio coda globale | ✅ | — | Step F |
-| Badge sulla voce sidebar/bottom-nav **Pratiche** con partenze imminenti (≤7gg) | ✅ | — | sessione 21, PR #56 |
-| Toast personalizzato "Hai preso in carico: \[titolo\]" | ⬜ | ⚪ | |
-| Auto-move in "In Corso" al "Prendi in carico" | ⬜ | ⚪ | |
-| Notifica al manager se un task resta in coda > N ore | ⬜ | 🟡 | Dipende da notifiche reali |
-| Filtro nella coda globale (per categoria/priorità) | ⬜ | ⚪ | |
-| Bacheca: menzioni @utente con notifica | ⬜ | 🟡 | Dipende da notifiche reali |
-| Bacheca: avvisi con scadenza automatica | ⬜ | ⚪ | |
+| Badge sulla voce sidebar/bottom-nav **Admin** con conteggio agenti pending | ✅ | — | Completato in main (Sidebar `getNavBadges`) |
+| Badge sulla voce sidebar/bottom-nav **Dashboard** con conteggio coda globale | ✅ | — | Completato in main (Sidebar `getNavBadges`) |
+| Badge sulla voce sidebar/bottom-nav **Pratiche** con partenze imminenti (≤7gg) | ✅ | — | Completato in PR #56 (sessione 21) |
+| Toast personalizzato "Hai preso in carico: \[titolo\]" | ✅ | — | Completato in Step I (`takeOwnership` → toastMessage) |
+| Auto-move in "In Corso" al "Prendi in carico" | ✅ | — | Completato in Step I (`takeOwnership`) |
+| Notifica al manager se un task resta in coda > N ore | ⬜ | 🟡 | Dipende da notifiche reali (trigger DB `queue_stale`) |
+| Filtro nella coda globale (per categoria/priorità) | ✅ | — | Completato in PR #57 (sessione 22) |
+| Bacheca: menzioni @utente con notifica | ⬜ | 🟡 | Dipende da notifiche reali (trigger DB su `notices`) |
+| Bacheca: avvisi con scadenza automatica | ⬜ | ⚪ | Richiede colonna `expires_at` su `notices` |
 | Bacheca: reazioni emoji sui post-it | ⬜ | ⚪ | |
 | Bacheca: tag/categorie filtrabili | ⬜ | ⚪ | |
-| Modifica assegnatari da `TaskSlideOver` | ⬜ | 🟡 | |
+| Modifica assegnatari da `TaskSlideOver` | ✅ | — | Completato in PR #57 (sessione 22) |
 | Permessi granulari per ruolo | ✅ | — | Completato in v0.8 |
 | Export Log attività in CSV | ⬜ | ⚪ | |
 
@@ -121,7 +121,7 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 
 | Idea | Stato | Priorità | Note |
 |---|---|---|---|
-| Vista settimanale Calendario | ⬜ | 🟡 | Utile specialmente su mobile |
+| Vista settimanale Calendario | ✅ | — | Completata in v0.7 (CalendarPlanner: week + week-full) |
 | Comprimi automaticamente Sidebar desktop tra 1024–1280px | ⬜ | ⚪ | |
 | Skeleton loading su prime render | ⬜ | ⚪ | |
 | Dark mode | ⬜ | ⚪ | CSS variables pronte |
@@ -131,11 +131,23 @@ Ha senso **solo dopo le Pratiche** (servono dati reali).
 
 | Idea | Stato | Priorità | Note |
 |---|---|---|---|
-| Task link cliccabile nella chat (apre TaskSlideOver) | ⬜ | 🟡 | Oggi è testo precompilato, non interattivo |
+| Task link cliccabile nella chat (apre TaskSlideOver) | ✅ | — | Completato in Step H/K (`MessageTextContent` + `taskRef`) |
 | Permessi granulari per sub-ruolo (Senior vs Junior) | ⬜ | ⚪ | Oggi trattati identicamente come "agent" |
 | Coda personale Driver: filtro per data/ora (tipo agenda giornaliera) | ⬜ | 🟡 | Giulia ha bisogno di una vista transfer-oriented |
-| Indicatore visivo "read-only" sulle card urgenti altrui | ⬜ | ⚪ | Lucchetto o bordo tratteggiato |
+| Indicatore visivo "read-only" sulle card urgenti altrui | ✅ | — | Completato in PR #57 (sessione 22): bordo dashed + chip 🔒 |
 | Notifica in-app al cambio utente (rollback automatico dopo X secondi?) | ⬜ | ⚪ | Per evitare che qualcuno lasci l'app loggato come Admin |
+
+## ✨ Migliorie incrementali emerse (post v2.2-dev / sessione 21-22)
+
+| Idea | Stato | Priorità | Note |
+|---|---|---|---|
+| Badge sidebar **Pratiche** con partenze imminenti (≤7gg) | ✅ | — | PR #56 draft (handoff v17) |
+| Deep-link notifiche pratica → PraticaDetail | 🔶 | 🔴 | UI in PR #56 (handoff v17), trigger DB ✅ caveat #28 (PR #57). Merge entrambe per chiudere |
+| Selettore pratica in BulkTaskCreator | ✅ | — | PR #56 draft (handoff v17) |
+| Calendario: eventi partenza/ritorno pratiche (celesti ✈️/🏁) | ✅ | — | PR #57 (sessione 22) |
+| Rich preview pratiche in chat (`PR-YYYY-NNN` come chip) | ✅ | — | PR #57 (sessione 22) |
+| Filtri NotificationsPanel (Tutte / Non lette / Task / Pratiche / Menzioni) | ✅ | — | PR #57 (sessione 22) |
+| openDossierById in PraticheView (sostituisce SET_VIEW) | ⬜ | ⚪ | Quick refactor post-merge #56 |
 
 ---
 
@@ -182,6 +194,10 @@ Vedi `docs/HANDOFF_SESSION_2026-06-14_v13.md` per il dettaglio sessione 18 (Phas
 ## ✅ Completato (cronologia)
 
 - **v2.2-dev** — **Fase 1 COMPLETA** (PR #51/#52/#53): collegamento Task↔Pratica (`dossierId` su QuickAddTask/TaskSlideOver), pannello fornitori in `PraticaDetail` (`FornitoriPanel`), filtro pratica nella Ricerca avanzata. Caveat #26 e #27 chiusi. Build: 252.04 kB / 59.47 kB gz.
+
+- **v2.3-dev** — Sessione 22 (PR #57): caveat #28 (trigger DB notifiche pratica, allinea repo↔DB) + Calendario pratiche (eventi ✈️/🏁 celesti in tutte le viste) + Modifica assegnatari da TaskSlideOver + Filtri NotificationsPanel (Tutte/Non lette/Task/Pratiche/Menzioni) + icon dossier (📁 ✈️) + Filtri coda globale (categoria/priorità) + Indicatore read-only urgenti altrui + Rich preview pratiche in chat (`PR-YYYY-NNN` → chip). Cleanup docs: modulo finanziario rimosso da Fase 3 e CLAUDE.md (richiesta utente). Build: 260.57 kB / 61.79 kB gz.
+
+- **v2.2.1-dev** — Sessione 21 (PR #56 draft, handoff v17): badge sidebar Pratiche partenze imminenti, deep-link notifiche pratica (UI), selettore pratica in BulkTaskCreator, tema celeste `--sky` su Topbar/Sidebar/BottomNav. Build: 253.08 kB / 59.87 kB gz.
 
 - **v2.1-dev** — **Fase 1 CRM base** (PR #49): Anagrafica Clienti (`ClientiView`), Fornitori (`FornitoriView`), Pratiche di viaggio (`PraticheView`). DB trigger auto-numerazione `PR-YYYY-NNN`. API/mappers/reducer/sidebar/VoyageDesk wiring. Build: 245.71 kB / 58.15 kB gz.
 

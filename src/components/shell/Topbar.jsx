@@ -12,23 +12,14 @@ import { MOCK_NOTIFICATIONS } from "../../state/mockData.js";
 import { TEAM, CATEGORIES, getMember } from "../../state/appGlobals.js";
 import { ProfileEditor } from "../modals/ProfileEditor.jsx";
 
-const AdvancedSearchPanel = ({ tasks, dossiers = [], dispatch, onClose, keyword = "", onKeyword }) => {
+const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword }) => {
   const { isMobile } = useViewport();
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [cats, setCats] = useState([]);
   const [stats, setStats] = useState([]);
   const [agents, setAgents] = useState([]);
-  const [dossierId, setDossierId] = useState("");
   const [includeTrashed, setIncludeTrashed] = useState(false);
-
-  // Mappa pratiche per id: usata sia per il filtro che per arricchire
-  // l'haystack della keyword (numero/titolo pratica) e i risultati.
-  const dossierById = useMemo(() => {
-    const m = {};
-    for (const d of dossiers) m[d.id] = d;
-    return m;
-  }, [dossiers]);
 
   // La chiusura su click esterno è gestita dal wrapper di ricerca nella Topbar
   // (l'input keyword vive lì). Qui resta solo la chiusura con Escape.
@@ -44,10 +35,10 @@ const AdvancedSearchPanel = ({ tasks, dossiers = [], dispatch, onClose, keyword 
 
   const resetAll = () => {
     onKeyword?.(""); setDateFrom(""); setDateTo("");
-    setCats([]); setStats([]); setAgents([]); setDossierId(""); setIncludeTrashed(false);
+    setCats([]); setStats([]); setAgents([]); setIncludeTrashed(false);
   };
 
-  const hasFilters = keyword.trim() || dateFrom || dateTo || cats.length || stats.length || agents.length || dossierId || includeTrashed;
+  const hasFilters = keyword.trim() || dateFrom || dateTo || cats.length || stats.length || agents.length || includeTrashed;
 
   const results = useMemo(() => {
     if (!hasFilters) return [];
@@ -60,7 +51,6 @@ const AdvancedSearchPanel = ({ tasks, dossiers = [], dispatch, onClose, keyword 
       if (cats.length && !cats.includes(t.category)) return false;
       if (stats.length && !stats.includes(t.status)) return false;
       if (agents.length && !(t.assignees || []).some(a => agents.includes(a))) return false;
-      if (dossierId && t.dossierId !== dossierId) return false;
       if (from) {
         if (!t.dueDate) return false;
         if (new Date(t.dueDate) < from) return false;
@@ -70,13 +60,11 @@ const AdvancedSearchPanel = ({ tasks, dossiers = [], dispatch, onClose, keyword 
         if (new Date(t.dueDate) > to) return false;
       }
       if (k) {
-        const dossier = t.dossierId ? dossierById[t.dossierId] : null;
         const hay = [
           t.title || "",
           t.description || "",
           t.client || "",
-          dossier?.number || "",
-          dossier?.title || "",
+          t.praticaRef || "",
           ...(t.comments || []).map(c => c.text || ""),
         ].join(" ").toLowerCase();
         if (!hay.includes(k)) return false;
@@ -88,7 +76,7 @@ const AdvancedSearchPanel = ({ tasks, dossiers = [], dispatch, onClose, keyword 
       if (!b.dueDate) return -1;
       return new Date(a.dueDate) - new Date(b.dueDate);
     });
-  }, [tasks, keyword, dateFrom, dateTo, cats, stats, agents, dossierId, includeTrashed, hasFilters, dossierById]);
+  }, [tasks, keyword, dateFrom, dateTo, cats, stats, agents, includeTrashed, hasFilters]);
 
   const openTask = (t) => {
     dispatch({ type: "SET_SELECTED_TASK", payload: t });
@@ -214,26 +202,6 @@ const AdvancedSearchPanel = ({ tasks, dossiers = [], dispatch, onClose, keyword 
           </div>
         </div>
 
-        {dossiers.length > 0 && (
-          <div style={{ marginBottom: 14 }}>
-            <div style={sectionTitle}>Pratica</div>
-            <select
-              value={dossierId}
-              onChange={e => setDossierId(e.target.value)}
-              style={{
-                width: "100%", padding: "7px 10px", borderRadius: 6,
-                border: "1px solid var(--border)", fontSize: 12, outline: "none",
-                fontFamily: "inherit", boxSizing: "border-box", cursor: "pointer", background: "#fff",
-              }}
-            >
-              <option value="">— Tutte le pratiche —</option>
-              {dossiers.map(d => (
-                <option key={d.id} value={d.id}>{d.number ? `${d.number} — ` : ""}{d.title}</option>
-              ))}
-            </select>
-          </div>
-        )}
-
         <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "var(--text)" }}>
           <input type="checkbox" checked={includeTrashed} onChange={e => setIncludeTrashed(e.target.checked)} />
           🗑️ Includi task nel cestino
@@ -293,8 +261,8 @@ const AdvancedSearchPanel = ({ tasks, dossiers = [], dispatch, onClose, keyword 
                     </div>
                     <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, display: "flex", gap: 10 }}>
                       <span>{STATUS_LABELS[t.status]}</span>
-                      {t.dossierId && dossierById[t.dossierId]?.number && (
-                        <span style={{ color: "var(--navy-light)", fontWeight: 600 }}>• 📁 {dossierById[t.dossierId].number}</span>
+                      {t.praticaRef && (
+                        <span style={{ color: "var(--navy-light)", fontWeight: 600 }}>• {t.praticaRef}</span>
                       )}
                       {t.client && <span>• {t.client}</span>}
                       {t.dueDate && (
@@ -326,7 +294,7 @@ const AdvancedSearchPanel = ({ tasks, dossiers = [], dispatch, onClose, keyword 
 };
 
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
-export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notificationsProp, onMarkRead, onMarkAllRead, onOpenTask, onOpenDossier }) => {
+export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notificationsProp, onMarkRead, onMarkAllRead, onOpenTask }) => {
   const { isMobile } = useViewport();
   // Fix #11: notifiche mock gate-ate dietro env var (default off in prod)
   const SHOW_MOCK_NOTIFS = import.meta.env.DEV && import.meta.env.VITE_SHOW_MOCK_NOTIFICATIONS === 'true';
@@ -384,7 +352,6 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
         {searchOpen && (
           <AdvancedSearchPanel
             tasks={state.tasks}
-            dossiers={state.dossiers}
             dispatch={dispatch}
             keyword={state.searchQuery}
             onKeyword={v => dispatch({ type: "SET_SEARCH", payload: v })}
@@ -431,7 +398,6 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
           onMarkRead={onMarkRead}
           onMarkAllRead={onMarkAllRead}
           onOpenTask={onOpenTask}
-          onOpenDossier={onOpenDossier}
         />}
       </div>
 
@@ -612,8 +578,6 @@ const NOTIF_ICONS = {
   comment: "💬",
   mention: "@",
   queue_stale: "⏳",
-  dossier_status: "📁",
-  dossier_departure: "✈️",
   // Compat con mock
   overdue: "⚠️", assigned: "📋", deadline: "📅",
 };
@@ -621,7 +585,6 @@ const NOTIF_ICONS = {
 // Categorie filtro: raggruppano i type per la UI filtri (Fase 2).
 const NOTIF_CATEGORIES = {
   task: ["task_assigned", "task_due", "comment", "queue_stale"],
-  dossier: ["dossier_status", "dossier_departure"],
   mention: ["mention"],
 };
 
@@ -644,14 +607,6 @@ function notifTitle(n) {
         return p.task_title
           ? `Task in coda da > 4h: ${p.task_title}`
           : `Task in coda da troppo tempo`;
-      case "dossier_status":
-        return p.dossier_number
-          ? `Pratica ${p.dossier_number}: nuovo stato "${p.new_status ?? "—"}"`
-          : "Stato pratica aggiornato";
-      case "dossier_departure":
-        return p.dossier_number
-          ? `Partenza imminente — ${p.dossier_number}${p.destination ? " · " + p.destination : ""}`
-          : "Partenza imminente";
       default:
         return n.type || "Notifica";
     }
@@ -676,18 +631,17 @@ function notifTime(n) {
 // computePresence + PRESENCE_COLORS (usati solo dalla chat) → src/components/chat/ChatPanel.jsx (Step P Phase 2f)
 
 
-const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMarkAllRead, onOpenTask, onOpenDossier }) => {
+const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMarkAllRead, onOpenTask }) => {
   const { isMobile } = useViewport();
-  const [filter, setFilter] = useState("all"); // all | unread | task | dossier | mention
+  const [filter, setFilter] = useState("all"); // all | unread | task | mention
   const list = Array.isArray(notifications) ? notifications : MOCK_NOTIFICATIONS;
   const hasUnread = list.some(n => !n.read);
   // Filtri (Fase 2 notifiche): conteggi e applicazione filtro.
   const counts = useMemo(() => {
-    const c = { all: list.length, unread: 0, task: 0, dossier: 0, mention: 0 };
+    const c = { all: list.length, unread: 0, task: 0, mention: 0 };
     for (const n of list) {
       if (!n.read) c.unread++;
       if (NOTIF_CATEGORIES.task.includes(n.type)) c.task++;
-      else if (NOTIF_CATEGORIES.dossier.includes(n.type)) c.dossier++;
       else if (NOTIF_CATEGORIES.mention.includes(n.type)) c.mention++;
     }
     return c;
@@ -698,15 +652,12 @@ const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMar
     const types = NOTIF_CATEGORIES[filter] || [];
     return list.filter(n => types.includes(n.type));
   }, [list, filter]);
-  // Navigabile se ha task_id o dossier_id nel payload (caveat #28)
-  const isNavigable = (n) => isReal && n.payload && !!(n.payload.task_id || n.payload.dossier_id);
+  // Navigabile se ha task_id nel payload
+  const isNavigable = (n) => isReal && n.payload && !!(n.payload.task_id);
   const handleClick = (n) => {
     if (isReal && n.payload) {
       if (n.payload.task_id) {
         onOpenTask?.(n.payload.task_id);
-        dispatch({ type: "TOGGLE_NOTIF" });
-      } else if (n.payload.dossier_id) {
-        onOpenDossier?.(n.payload.dossier_id);
         dispatch({ type: "TOGGLE_NOTIF" });
       }
     }
@@ -759,7 +710,6 @@ const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMar
           {filterBtn("all", "Tutte")}
           {filterBtn("unread", "Non lette")}
           {counts.task > 0 && filterBtn("task", "📋 Task")}
-          {counts.dossier > 0 && filterBtn("dossier", "📁 Pratiche")}
           {counts.mention > 0 && filterBtn("mention", "@ Menzioni")}
         </div>
       )}

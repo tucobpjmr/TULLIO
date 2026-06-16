@@ -71,10 +71,6 @@ function exportTasksToIcs(allTasks, uid) {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-// Colore pratiche in calendario (celeste, allineato a --sky introdotto in v17).
-// Quando --sky sara' in main (post merge PR #56) si potra' usare var(--sky).
-const SKY = "#87CEEB";
-const SKY_DARK = "#5DA8C9";
 
 export const CalendarPlanner = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
@@ -84,8 +80,6 @@ export const CalendarPlanner = ({ state, dispatch }) => {
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState(null);
   const uid = state.currentUserId;
-  const dossiers = state.dossiers || [];
-
   // ── Month helpers ──
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
@@ -99,30 +93,6 @@ export const CalendarPlanner = ({ state, dispatch }) => {
     const d = new Date(year, month, day).toDateString();
     return state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && new Date(t.dueDate).toDateString() === d);
   };
-
-  // ── Dossier events ──
-  // Le pratiche con departureDate/returnDate generano eventi all-day distinti
-  // dai task. Stato 'annullata' / 'completata' escluso (non operativo).
-  // Una pratica genera 1 o 2 eventi nello stesso giorno (es. partenza+ritorno
-  // se stessa data; viaggio andata-e-ritorno breve).
-  const isDossierActive = (d) => d.status !== "annullata" && d.status !== "completata";
-  const sameDay = (iso, day) => {
-    if (!iso) return false;
-    const a = new Date(iso);
-    return a.getFullYear() === day.getFullYear()
-      && a.getMonth() === day.getMonth()
-      && a.getDate() === day.getDate();
-  };
-  const getDossierEventsForDay = (day) => {
-    const events = [];
-    for (const d of dossiers) {
-      if (!isDossierActive(d)) continue;
-      if (sameDay(d.departureDate, day)) events.push({ dossier: d, kind: "departure" });
-      if (sameDay(d.returnDate, day)) events.push({ dossier: d, kind: "return" });
-    }
-    return events;
-  };
-  const openDossiers = () => dispatch({ type: "SET_VIEW", payload: "pratiche" });
 
   // ── Week helpers ──
   const getWeekDays = (offset) => {

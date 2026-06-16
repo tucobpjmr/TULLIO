@@ -91,7 +91,7 @@ function ClienteModal({ cliente, onSave, onClose }) {
   );
 }
 
-function ClienteCard({ cliente, dossierCount, onEdit, onDelete }) {
+function ClienteCard({ cliente, onEdit, onDelete }) {
   const [hovered, setHovered] = useState(false);
   return (
     <div
@@ -138,12 +138,6 @@ function ClienteCard({ cliente, dossierCount, onEdit, onDelete }) {
           )}
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
-          {dossierCount > 0 && (
-            <span style={{
-              background: "var(--surface2)", color: "var(--navy)", fontSize: 11, fontWeight: 600,
-              borderRadius: 20, padding: "2px 8px",
-            }}>📁 {dossierCount} {dossierCount === 1 ? "pratica" : "pratiche"}</span>
-          )}
           <div style={{ display: "flex", gap: 4 }}>
             <button onClick={() => onEdit(cliente)} style={{
               padding: "5px 10px", borderRadius: 6, border: "1px solid var(--border)",
@@ -167,7 +161,6 @@ export function ClientiView({ state, dispatch, loading = false }) {
   const [confirmDelete, setConfirmDelete] = useState(null);
 
   const clients = state.clients || [];
-  const dossiers = state.dossiers || [];
 
   const filtered = useMemo(() => {
     if (!search.trim()) return clients;
@@ -178,14 +171,6 @@ export function ClientiView({ state, dispatch, loading = false }) {
       (c.city || "").toLowerCase().includes(q)
     );
   }, [clients, search]);
-
-  const dossiersByClient = useMemo(() => {
-    const map = {};
-    for (const d of dossiers) {
-      if (d.clientId) map[d.clientId] = (map[d.clientId] || 0) + 1;
-    }
-    return map;
-  }, [dossiers]);
 
   const handleSave = async (form) => {
     if (modal?.mode === "edit" && modal.cliente) {
@@ -256,7 +241,6 @@ export function ClientiView({ state, dispatch, loading = false }) {
             <ClienteCard
               key={c.id}
               cliente={c}
-              dossierCount={dossiersByClient[c.id] || 0}
               onEdit={c => setModal({ mode: "edit", cliente: c })}
               onDelete={c => setConfirmDelete(c)}
             />
@@ -285,7 +269,7 @@ export function ClientiView({ state, dispatch, loading = false }) {
           }} onClick={e => e.stopPropagation()}>
             <div style={{ fontWeight: 700, fontSize: 16, color: "var(--navy)", marginBottom: 8 }}>Rimuovi cliente</div>
             <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 20 }}>
-              Rimuovere <strong>{confirmDelete.name}</strong> dall'anagrafica? Le pratiche collegate resteranno invariate.
+              Rimuovere <strong>{confirmDelete.name}</strong> dall'anagrafica?
             </div>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button onClick={() => setConfirmDelete(null)} style={{

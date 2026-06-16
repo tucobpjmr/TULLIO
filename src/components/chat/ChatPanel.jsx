@@ -38,7 +38,7 @@ const PRESENCE_LABELS = {
 };
 
 // Context per condividere tasks/dispatch (per messaggi con taskLink — v0.8)
-const ChatContext = createContext({ tasks: [], dossiers: [], dispatch: () => {} });
+const ChatContext = createContext({ tasks: [], dispatch: () => {} });
 
 // ─── CHAT: UTILS ───────────────────────────────────────────────────────────
 const formatChatTime = (iso) => {
@@ -162,61 +162,15 @@ function parseTaskLink(text) {
   return { taskTitle: m[1], taskDue: m[2].trim(), rest: m[3] };
 }
 
-// Riferimenti pratiche inline: pattern PR-YYYY-NNN nel testo del messaggio
-// → chip cliccabile (rich preview pratica, Fase 2 estensioni chat).
-const DOSSIER_REF_RE = /\bPR-\d{4}-\d{3,}\b/g;
-const DossierRefChip = ({ number, dossier, dispatch }) => (
-  <button
-    type="button"
-    onClick={e => {
-      e.stopPropagation();
-      if (dossier && dispatch) dispatch({ type: "SET_VIEW", payload: "pratiche" });
-    }}
-    disabled={!dossier}
-    title={dossier ? `${dossier.title}${dossier.destination ? " · " + dossier.destination : ""} — apri Pratiche` : "Pratica non trovata"}
-    style={{
-      display: "inline-flex", alignItems: "center", gap: 3,
-      padding: "1px 6px", margin: "0 2px", borderRadius: 4,
-      background: "rgba(135,206,235,0.25)",
-      border: "1px solid rgba(93,168,201,0.45)",
-      color: "inherit", fontFamily: "inherit", fontSize: 12.5, fontWeight: 600,
-      cursor: dossier ? "pointer" : "not-allowed", opacity: dossier ? 1 : 0.55,
-      verticalAlign: "baseline",
-    }}
-  >📁 {number}</button>
-);
-// Renderizza un testo applicando: prima i chip pratica PR-YYYY-NNN,
-// poi MentionText sui segmenti rimanenti.
-function renderTextWithRefs(text, dossiers, dispatch, keyPrefix = "") {
-  if (!text) return null;
-  const parts = [];
-  let last = 0;
-  let i = 0;
-  let m;
-  const re = new RegExp(DOSSIER_REF_RE.source, "g");
-  while ((m = re.exec(text)) !== null) {
-    if (m.index > last) {
-      parts.push(<MentionText key={`${keyPrefix}t${i++}`} text={text.slice(last, m.index)} />);
-    }
-    const num = m[0];
-    const d = (dossiers || []).find(x => x.number === num);
-    parts.push(<DossierRefChip key={`${keyPrefix}d${i++}`} number={num} dossier={d} dispatch={dispatch} />);
-    last = m.index + num.length;
-  }
-  if (last < text.length) {
-    parts.push(<MentionText key={`${keyPrefix}t${i++}`} text={text.slice(last)} />);
-  }
-  return parts;
-}
 
 // Renderizza testo del messaggio con eventuale pill task cliccabile.
 // Step K: lookup preferito per `taskRef` (UUID) se presente sul messaggio;
 // fallback per titolo (compat messaggi vecchi senza taskRef).
 const MessageTextContent = ({ text, isMine, taskRef }) => {
-  const { tasks, dossiers, dispatch } = useContext(ChatContext);
+  const { tasks, dispatch } = useContext(ChatContext);
   const link = parseTaskLink(text);
   if (!link) {
-    return <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}>{renderTextWithRefs(text, dossiers, dispatch)}</div>;
+    return <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}><MentionText text={text} /></div>;
   }
   // Step K: prima cerca per UUID, poi fallback al match titolo.
   const tByRef = taskRef ? (tasks || []).find(x => x.id === taskRef && !x.deletedAt) : null;
@@ -255,7 +209,7 @@ const MessageTextContent = ({ text, isMine, taskRef }) => {
           </div>
         )}
       </button>
-      {link.rest && <div>{renderTextWithRefs(link.rest, dossiers, dispatch, "r")}</div>}
+      {link.rest && <div><MentionText text={link.rest} /></div>}
     </div>
   );
 };
@@ -1174,7 +1128,7 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
 };
 
 // ─── CHAT: MAIN PANEL ──────────────────────────────────────────────────────
-export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, intent, tasks, dossiers, currentUserId, dispatch, presenceMap, loading = false, myBusy = false, onToggleBusy }) => {
+export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, intent, tasks, currentUserId, dispatch, presenceMap, loading = false, myBusy = false, onToggleBusy }) => {
   const { isMobile } = useViewport();
   const [activeConv, setActiveConv] = useState(null);
   const [newMode, setNewMode] = useState(false);
@@ -1224,7 +1178,7 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
   };
 
   return (
-    <ChatContext.Provider value={{ tasks: tasks || [], dossiers: dossiers || [], currentUserId: currentUserId || CURRENT_USER, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {} }}>
+    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {} }}>
     <>
       <div onClick={onClose} style={{
         position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: 700,

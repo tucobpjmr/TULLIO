@@ -111,6 +111,12 @@ export const CalendarPlanner = ({ state, dispatch }) => {
   const getTasksForDay = (day) =>
     state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && new Date(t.dueDate).toDateString() === day.toDateString());
 
+  // Pratiche rimosse: stub mantenuto per compatibilità con le viste calendario esistenti
+  // eslint-disable-next-line no-unused-vars
+  const getDossierEventsForDay = (_day) => [];
+  // eslint-disable-next-line no-unused-vars
+  const openDossiers = () => {};
+
   // ── Distribuzione agenti ──
   // Caveat #8: nelle viste settimanali (week / week-full) le frecce ←/→ guidano
   // weekOffset, quindi la distribuzione deve seguire la settimana navigata

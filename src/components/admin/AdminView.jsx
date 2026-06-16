@@ -30,7 +30,7 @@ const escapeCSV = (val) => {
   return s;
 };
 
-export const AdminView = ({ state, dispatch }) => {
+export const AdminView = ({ state, dispatch, useSupabase = false }) => {
   const [tab, setTab] = useState("team");
 
   const tabs = [
@@ -81,7 +81,7 @@ export const AdminView = ({ state, dispatch }) => {
 
       {/* Tab content */}
       <div className="fade-in" key={tab}>
-        {tab === "team" && <AdminTeamTab state={state} dispatch={dispatch} />}
+        {tab === "team" && <AdminTeamTab state={state} dispatch={dispatch} useSupabase={useSupabase} />}
         {tab === "io" && <AdminIOTab state={state} dispatch={dispatch} />}
         {tab === "stats" && <AdminStatsTab state={state} />}
         {tab === "cats" && <AdminCategoriesTab state={state} dispatch={dispatch} />}
@@ -92,7 +92,7 @@ export const AdminView = ({ state, dispatch }) => {
 };
 
 // ─── ADMIN TAB: TEAM ───────────────────────────────────────────────────────
-const AdminTeamTab = ({ state, dispatch }) => {
+const AdminTeamTab = ({ state, dispatch, useSupabase = false }) => {
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -225,7 +225,7 @@ const AdminTeamTab = ({ state, dispatch }) => {
         </div>
       )}
 
-      {showAdd && <AddTeamMemberModal onClose={() => setShowAdd(false)} dispatch={dispatch} existingIds={state.team.map(m => m.id)} />}
+      {showAdd && <AddTeamMemberModal onClose={() => setShowAdd(false)} dispatch={dispatch} existingIds={state.team.map(m => m.id)} useSupabase={useSupabase} />}
     </div>
   );
 };

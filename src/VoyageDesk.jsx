@@ -948,7 +948,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       case "pratiche":   return <PraticheView state={state} dispatch={dispatch} initialDossierId={targetDossierId} loading={crmLoading} />;
       case "team":       return <Team state={state} dispatch={dispatch} />;
       case "trash":      return <Trash state={state} dispatch={dispatch} />;
-      case "admin":      return <AdminView state={state} dispatch={dispatch} />;
+      case "admin":      return <AdminView state={state} dispatch={dispatch} useSupabase={useSupabase} />;
       default:           return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
     }
   };

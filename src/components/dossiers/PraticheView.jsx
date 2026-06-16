@@ -25,7 +25,7 @@ const SUPPLIER_CATEGORY_LABELS = {
 
 const fieldStyle = {
   width: "100%", padding: "9px 12px", borderRadius: 8,
-  border: "1px solid var(--border)", background: "#fff",
+  border: "1px solid var(--border)", background: "var(--card)",
   fontSize: 14, color: "var(--text)", outline: "none", fontFamily: "inherit",
 };
 const labelStyle = { fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, display: "block" };
@@ -63,12 +63,12 @@ function PraticaModal({ clients, currentUserId, onSave, onClose }) {
       background: "rgba(8,21,45,0.45)", display: "flex", alignItems: "center", justifyContent: "center",
     }} onClick={onClose}>
       <div style={{
-        background: "#fff", borderRadius: 14, padding: 28, width: "min(600px, 96vw)",
+        background: "var(--card)", borderRadius: 14, padding: 28, width: "min(600px, 96vw)",
         maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
         animation: "slideUp 0.25s ease",
       }} onClick={e => e.stopPropagation()}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-          <h2 className="playfair" style={{ fontSize: 20, color: "var(--navy)" }}>Nuova Pratica</h2>
+          <h2 className="playfair" style={{ fontSize: 20, color: "var(--heading)" }}>Nuova Pratica</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text-muted)" }}>✕</button>
         </div>
         <form onSubmit={handleSubmit}>
@@ -116,7 +116,7 @@ function PraticaModal({ clients, currentUserId, onSave, onClose }) {
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
             <button type="button" onClick={onClose} style={{
               padding: "9px 20px", borderRadius: 8, border: "1px solid var(--border)",
-              background: "#fff", cursor: "pointer", fontSize: 14, color: "var(--text-muted)",
+              background: "var(--card)", cursor: "pointer", fontSize: 14, color: "var(--text-muted)",
             }}>Annulla</button>
             <button type="submit" disabled={saving || !form.title.trim()} style={{
               padding: "9px 20px", borderRadius: 8, border: "none",
@@ -150,7 +150,7 @@ function PraticaCard({ dossier, taskCount, onClick }) {
     <div
       onClick={onClick}
       style={{
-        background: "#fff", borderRadius: 12, padding: "16px 18px",
+        background: "var(--card)", borderRadius: 12, padding: "16px 18px",
         border: `1px solid ${hovered ? "var(--navy-light)" : "var(--border)"}`,
         transition: "all 0.18s", cursor: "pointer",
         boxShadow: hovered ? "0 4px 20px rgba(15,32,68,0.1)" : "none",
@@ -161,7 +161,7 @@ function PraticaCard({ dossier, taskCount, onClick }) {
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, marginBottom: 2 }}>{dossier.number}</div>
-          <div style={{ fontWeight: 700, color: "var(--navy)", fontSize: 15, lineHeight: 1.3 }}>{dossier.title}</div>
+          <div style={{ fontWeight: 700, color: "var(--heading)", fontSize: 15, lineHeight: 1.3 }}>{dossier.title}</div>
         </div>
         <StatusBadgeDossier status={dossier.status} />
       </div>
@@ -255,7 +255,7 @@ function FornitoriPanel({ dossierId, suppliers, dispatch }) {
 
   return (
     <div style={{ marginBottom: 20 }}>
-      <div style={{ fontWeight: 700, fontSize: 14, color: "var(--navy)", marginBottom: 10 }}>
+      <div style={{ fontWeight: 700, fontSize: 14, color: "var(--heading)", marginBottom: 10 }}>
         Fornitori ({links.length})
       </div>
 
@@ -342,7 +342,7 @@ function PraticaDetail({ dossier, tasks, suppliers, dispatch, onClose }) {
   return (
     <div style={{
       position: "fixed", top: 0, right: 0, bottom: 0, zIndex: 500,
-      width: "min(520px, 100vw)", background: "#fff",
+      width: "min(520px, 100vw)", background: "var(--card)",
       boxShadow: "-8px 0 40px rgba(0,0,0,0.16)",
       display: "flex", flexDirection: "column",
       animation: "slideRight 0.25s ease",
@@ -387,7 +387,7 @@ function PraticaDetail({ dossier, tasks, suppliers, dispatch, onClose }) {
           {dossier.client && (
             <div style={{ gridColumn: "1 / -1" }}>
               <div style={labelStyle}>Cliente</div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--navy)" }}>👤 {dossier.client.name}</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--heading)" }}>👤 {dossier.client.name}</div>
               {dossier.client.email && <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{dossier.client.email}</div>}
             </div>
           )}
@@ -435,7 +435,7 @@ function PraticaDetail({ dossier, tasks, suppliers, dispatch, onClose }) {
 
         {/* Task collegati */}
         <div style={{ marginBottom: 20 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, color: "var(--navy)", marginBottom: 10 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: "var(--heading)", marginBottom: 10 }}>
             Task collegati ({linkedTasks.length})
           </div>
           {linkedTasks.length === 0 ? (
@@ -472,7 +472,7 @@ function PraticaDetail({ dossier, tasks, suppliers, dispatch, onClose }) {
           onClick={() => { dispatch({ type: "DELETE_DOSSIER", payload: dossier.id }); onClose(); }}
           style={{
             padding: "8px 16px", borderRadius: 8, border: "1px solid #fecaca",
-            background: "#fff", color: "var(--danger)", cursor: "pointer", fontSize: 13, fontWeight: 600,
+            background: "var(--card)", color: "var(--danger)", cursor: "pointer", fontSize: 13, fontWeight: 600,
           }}
         >🗑️ Rimuovi pratica</button>
       </div>
@@ -537,7 +537,7 @@ export function PraticheView({ state, dispatch, initialDossierId = null, loading
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
         <div>
-          <h1 className="playfair" style={{ fontSize: isMobile ? 22 : 26, color: "var(--navy)", marginBottom: 4 }}>
+          <h1 className="playfair" style={{ fontSize: isMobile ? 22 : 26, color: "var(--heading)", marginBottom: 4 }}>
             Pratiche
           </h1>
           <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
@@ -581,7 +581,7 @@ export function PraticheView({ state, dispatch, initialDossierId = null, loading
         {filterStatus && (
           <button
             onClick={() => setFilterStatus("")}
-            style={{ padding: "5px 10px", borderRadius: 20, border: "1px solid var(--border)", background: "#fff", fontSize: 12, cursor: "pointer", color: "var(--text-muted)" }}
+            style={{ padding: "5px 10px", borderRadius: 20, border: "1px solid var(--border)", background: "var(--card)", fontSize: 12, cursor: "pointer", color: "var(--text-muted)" }}
           >✕ Tutti</button>
         )}
       </div>

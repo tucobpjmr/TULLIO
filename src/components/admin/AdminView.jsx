@@ -30,7 +30,7 @@ const escapeCSV = (val) => {
   return s;
 };
 
-export const AdminView = ({ state, dispatch }) => {
+export const AdminView = ({ state, dispatch, useSupabase = false }) => {
   const [tab, setTab] = useState("team");
 
   const tabs = [
@@ -44,7 +44,7 @@ export const AdminView = ({ state, dispatch }) => {
   return (
     <div className="vd-pad" style={{ padding: 32, maxWidth: 1200, margin: "0 auto" }}>
       <div style={{ marginBottom: 24 }}>
-        <h1 className="playfair" style={{ fontSize: 28, color: "var(--navy)", margin: 0, fontWeight: 700 }}>
+        <h1 className="playfair" style={{ fontSize: 28, color: "var(--heading)", margin: 0, fontWeight: 700 }}>
           ⚙️ Amministrazione
         </h1>
         <p style={{ color: "var(--text-muted)", fontSize: 14, marginTop: 4 }}>
@@ -81,7 +81,7 @@ export const AdminView = ({ state, dispatch }) => {
 
       {/* Tab content */}
       <div className="fade-in" key={tab}>
-        {tab === "team" && <AdminTeamTab state={state} dispatch={dispatch} />}
+        {tab === "team" && <AdminTeamTab state={state} dispatch={dispatch} useSupabase={useSupabase} />}
         {tab === "io" && <AdminIOTab state={state} dispatch={dispatch} />}
         {tab === "stats" && <AdminStatsTab state={state} />}
         {tab === "cats" && <AdminCategoriesTab state={state} dispatch={dispatch} />}
@@ -92,7 +92,7 @@ export const AdminView = ({ state, dispatch }) => {
 };
 
 // ─── ADMIN TAB: TEAM ───────────────────────────────────────────────────────
-const AdminTeamTab = ({ state, dispatch }) => {
+const AdminTeamTab = ({ state, dispatch, useSupabase = false }) => {
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -116,7 +116,7 @@ const AdminTeamTab = ({ state, dispatch }) => {
     const count = taskCount(m.id);
     return (
       <div key={m.id} style={{
-        background: "#fff", border: "1px solid var(--border)", borderRadius: 10,
+        background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10,
         padding: 16, display: "flex", alignItems: "center", gap: 14,
         opacity: opts.dim ? 0.65 : 1,
       }}>
@@ -225,7 +225,7 @@ const AdminTeamTab = ({ state, dispatch }) => {
         </div>
       )}
 
-      {showAdd && <AddTeamMemberModal onClose={() => setShowAdd(false)} dispatch={dispatch} existingIds={state.team.map(m => m.id)} />}
+      {showAdd && <AddTeamMemberModal onClose={() => setShowAdd(false)} dispatch={dispatch} existingIds={state.team.map(m => m.id)} useSupabase={useSupabase} />}
     </div>
   );
 };
@@ -454,7 +454,7 @@ const AdminStatsTab = ({ state }) => {
               <div style={{
                 width: 32, height: 32, borderRadius: 8, fontSize: 16,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                background: "#fff",
+                background: "var(--card)",
               }}>{c.icon}</div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{c.label}</div>
@@ -499,7 +499,7 @@ const AdminCategoriesTab = ({ state, dispatch }) => {
           const count = usageCount(key);
           return (
             <div key={key} style={{
-              background: "#fff", border: "1px solid var(--border)", borderRadius: 10,
+              background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10,
               padding: 14, display: "flex", alignItems: "center", gap: 14,
             }}>
               <div style={{
@@ -624,7 +624,7 @@ const AdminLogTab = ({ state, dispatch }) => {
             <button key={f.id} onClick={() => setFilter(f.id)} style={{
               padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600,
               border: "1px solid var(--border)", cursor: "pointer",
-              background: filter === f.id ? "var(--navy)" : "#fff",
+              background: filter === f.id ? "var(--navy)" : "var(--card)",
               color: filter === f.id ? "#fff" : "var(--text)",
               fontFamily: "inherit",
             }}>{f.label}</button>

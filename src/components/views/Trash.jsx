@@ -51,7 +51,7 @@ export const Trash = ({ state, dispatch }) => {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, gap: 16, flexWrap: "wrap" }}>
         <div>
-          <div className="playfair" style={{ fontSize: 28, fontWeight: 700, color: "var(--navy)", marginBottom: 4 }}>
+          <div className="playfair" style={{ fontSize: 28, fontWeight: 700, color: "var(--heading)", marginBottom: 4 }}>
             🗑️ Cestino
           </div>
           <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
@@ -74,11 +74,11 @@ export const Trash = ({ state, dispatch }) => {
       {/* Empty state */}
       {trashed.length === 0 ? (
         <div style={{
-          background: "#fff", borderRadius: 12, padding: "60px 20px",
+          background: "var(--card)", borderRadius: 12, padding: "60px 20px",
           textAlign: "center", border: "1px solid var(--border)",
         }}>
           <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>🗑️</div>
-          <div style={{ fontSize: 16, fontWeight: 600, color: "var(--navy)", marginBottom: 6 }}>
+          <div style={{ fontSize: 16, fontWeight: 600, color: "var(--heading)", marginBottom: 6 }}>
             Cestino vuoto
           </div>
           <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
@@ -87,7 +87,7 @@ export const Trash = ({ state, dispatch }) => {
         </div>
       ) : (
         /* Trash table */
-        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid var(--border)", overflow: "hidden" }}>
+        <div style={{ background: "var(--card)", borderRadius: 12, border: "1px solid var(--border)", overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: "var(--surface2)", borderBottom: "1px solid var(--border)" }}>
@@ -106,7 +106,7 @@ export const Trash = ({ state, dispatch }) => {
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                 >
                   <td style={{ padding: "12px 16px" }}>
-                    <div style={{ fontWeight: 600, color: "var(--navy)", marginBottom: 2 }}>{task.title}</div>
+                    <div style={{ fontWeight: 600, color: "var(--heading)", marginBottom: 2 }}>{task.title}</div>
                     <div style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 11, color: "var(--text-muted)" }}>
                       <PriorityBadge priority={task.priority} />
                       <span>• {STATUS_LABELS[task.status]}</span>
@@ -137,7 +137,7 @@ export const Trash = ({ state, dispatch }) => {
                         fontWeight: 600, fontFamily: "inherit",
                       }}>↻ Ripristina</button>
                       <button onClick={() => handlePurge(task)} title="Elimina definitivamente" style={{
-                        background: "#fff", color: "var(--danger)", border: "1px solid var(--danger)",
+                        background: "var(--card)", color: "var(--danger)", border: "1px solid var(--danger)",
                         padding: "6px 10px", borderRadius: 6, cursor: "pointer", fontSize: 12,
                         fontWeight: 600, fontFamily: "inherit",
                       }}>✕</button>
@@ -158,7 +158,7 @@ export const Trash = ({ state, dispatch }) => {
           }} />
           <div style={{
             position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-            background: "#fff", borderRadius: 16, zIndex: 1001,
+            background: "var(--card)", borderRadius: 16, zIndex: 1001,
             width: isMobile ? "calc(100vw - 32px)" : 520, maxWidth: "100%",
             maxHeight: "90vh", overflowY: "auto",
             boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
@@ -208,7 +208,7 @@ export const Trash = ({ state, dispatch }) => {
                     style={{
                       width: "100%", padding: "10px 12px", borderRadius: 8,
                       border: "1px solid var(--border)", fontSize: 13, fontFamily: "inherit",
-                      background: "#fff", cursor: "pointer",
+                      background: "var(--card)", cursor: "pointer",
                     }}
                   >
                     {Object.entries(CATEGORIES).map(([k, v]) => (
@@ -224,7 +224,7 @@ export const Trash = ({ state, dispatch }) => {
                     style={{
                       width: "100%", padding: "10px 12px", borderRadius: 8,
                       border: "1px solid var(--border)", fontSize: 13, fontFamily: "inherit",
-                      background: "#fff", cursor: "pointer",
+                      background: "var(--card)", cursor: "pointer",
                     }}
                   >
                     {Object.entries(PRIORITIES).map(([k, v]) => (
@@ -244,7 +244,7 @@ export const Trash = ({ state, dispatch }) => {
                     style={{
                       width: "100%", padding: "10px 12px", borderRadius: 8,
                       border: "1px solid var(--border)", fontSize: 13, fontFamily: "inherit",
-                      background: "#fff", cursor: "pointer",
+                      background: "var(--card)", cursor: "pointer",
                     }}
                   >
                     {Object.entries(STATUS_LABELS).map(([k, v]) => (
@@ -298,7 +298,7 @@ export const Trash = ({ state, dispatch }) => {
                         style={{
                           padding: "6px 12px", borderRadius: 99,
                           border: sel ? "2px solid var(--navy)" : "1px solid var(--border)",
-                          background: sel ? "var(--navy)" : "#fff",
+                          background: sel ? "var(--navy)" : "var(--card)",
                           color: sel ? "#fff" : "var(--text)",
                           fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
                           display: "flex", alignItems: "center", gap: 5,
@@ -343,7 +343,7 @@ export const Trash = ({ state, dispatch }) => {
               display: "flex", justifyContent: "flex-end", gap: 10,
             }}>
               <button onClick={() => setRestoring(null)} style={{
-                background: "#fff", color: "var(--text)", border: "1px solid var(--border)",
+                background: "var(--card)", color: "var(--text)", border: "1px solid var(--border)",
                 padding: "10px 20px", borderRadius: 8, cursor: "pointer", fontSize: 13,
                 fontWeight: 600, fontFamily: "inherit",
               }}>Annulla</button>

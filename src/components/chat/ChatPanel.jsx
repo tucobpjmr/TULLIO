@@ -38,7 +38,8 @@ const PRESENCE_LABELS = {
 };
 
 // Context per condividere tasks/dispatch (per messaggi con taskLink — v0.8)
-const ChatContext = createContext({ tasks: [], dossiers: [], dispatch: () => {} });
+// onOpenDossier (v22): apre la pratica via openDossierById (naviga + apre il detail)
+const ChatContext = createContext({ tasks: [], dossiers: [], dispatch: () => {}, onOpenDossier: () => {} });
 
 // ─── CHAT: UTILS ───────────────────────────────────────────────────────────
 const formatChatTime = (iso) => {
@@ -83,7 +84,7 @@ const EMOJI_REACTIONS = ["👍", "❤️", "😂", "🔥", "✅", "🎉", "💡"
 const ReactionPicker = ({ onPick, onClose }) => (
   <div onClick={e => e.stopPropagation()} style={{
     position: "absolute", bottom: "calc(100% + 4px)", left: 0,
-    background: "#fff", borderRadius: 20, padding: "6px 8px",
+    background: "var(--card)", borderRadius: 20, padding: "6px 8px",
     boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--border)",
     display: "flex", gap: 2, zIndex: 100,
   }}>
@@ -165,15 +166,15 @@ function parseTaskLink(text) {
 // Riferimenti pratiche inline: pattern PR-YYYY-NNN nel testo del messaggio
 // → chip cliccabile (rich preview pratica, Fase 2 estensioni chat).
 const DOSSIER_REF_RE = /\bPR-\d{4}-\d{3,}\b/g;
-const DossierRefChip = ({ number, dossier, dispatch }) => (
+const DossierRefChip = ({ number, dossier, onOpenDossier }) => (
   <button
     type="button"
     onClick={e => {
       e.stopPropagation();
-      if (dossier && dispatch) dispatch({ type: "SET_VIEW", payload: "pratiche" });
+      if (dossier && onOpenDossier) onOpenDossier(dossier.id);
     }}
     disabled={!dossier}
-    title={dossier ? `${dossier.title}${dossier.destination ? " · " + dossier.destination : ""} — apri Pratiche` : "Pratica non trovata"}
+    title={dossier ? `${dossier.title}${dossier.destination ? " · " + dossier.destination : ""} — apri pratica` : "Pratica non trovata"}
     style={{
       display: "inline-flex", alignItems: "center", gap: 3,
       padding: "1px 6px", margin: "0 2px", borderRadius: 4,
@@ -187,7 +188,7 @@ const DossierRefChip = ({ number, dossier, dispatch }) => (
 );
 // Renderizza un testo applicando: prima i chip pratica PR-YYYY-NNN,
 // poi MentionText sui segmenti rimanenti.
-function renderTextWithRefs(text, dossiers, dispatch, keyPrefix = "") {
+function renderTextWithRefs(text, dossiers, onOpenDossier, keyPrefix = "") {
   if (!text) return null;
   const parts = [];
   let last = 0;
@@ -200,7 +201,7 @@ function renderTextWithRefs(text, dossiers, dispatch, keyPrefix = "") {
     }
     const num = m[0];
     const d = (dossiers || []).find(x => x.number === num);
-    parts.push(<DossierRefChip key={`${keyPrefix}d${i++}`} number={num} dossier={d} dispatch={dispatch} />);
+    parts.push(<DossierRefChip key={`${keyPrefix}d${i++}`} number={num} dossier={d} onOpenDossier={onOpenDossier} />);
     last = m.index + num.length;
   }
   if (last < text.length) {
@@ -213,10 +214,10 @@ function renderTextWithRefs(text, dossiers, dispatch, keyPrefix = "") {
 // Step K: lookup preferito per `taskRef` (UUID) se presente sul messaggio;
 // fallback per titolo (compat messaggi vecchi senza taskRef).
 const MessageTextContent = ({ text, isMine, taskRef }) => {
-  const { tasks, dossiers, dispatch } = useContext(ChatContext);
+  const { tasks, dossiers, dispatch, onOpenDossier } = useContext(ChatContext);
   const link = parseTaskLink(text);
   if (!link) {
-    return <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}>{renderTextWithRefs(text, dossiers, dispatch)}</div>;
+    return <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}>{renderTextWithRefs(text, dossiers, onOpenDossier)}</div>;
   }
   // Step K: prima cerca per UUID, poi fallback al match titolo.
   const tByRef = taskRef ? (tasks || []).find(x => x.id === taskRef && !x.deletedAt) : null;
@@ -255,7 +256,7 @@ const MessageTextContent = ({ text, isMine, taskRef }) => {
           </div>
         )}
       </button>
-      {link.rest && <div>{renderTextWithRefs(link.rest, dossiers, dispatch, "r")}</div>}
+      {link.rest && <div>{renderTextWithRefs(link.rest, dossiers, onOpenDossier, "r")}</div>}
     </div>
   );
 };
@@ -336,7 +337,7 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
         )}
 
         <div style={{
-          background: isMine ? "var(--navy)" : "#fff",
+          background: isMine ? "var(--navy)" : "var(--card)",
           color: isMine ? "#fff" : "var(--text)",
           padding: msg.type === "voice" ? "8px 12px" : "8px 12px",
           borderRadius: 14,
@@ -415,7 +416,7 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
           }}>
             {Object.entries(msg.reactions).map(([emoji, users]) => (
               <div key={emoji} style={{
-                background: "#fff", border: "1px solid var(--border)",
+                background: "var(--card)", border: "1px solid var(--border)",
                 borderRadius: 99, padding: "2px 7px", fontSize: 11,
                 boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
                 display: "flex", alignItems: "center", gap: 3,
@@ -431,7 +432,7 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
         {hovered && (
           <div style={{
             position: "absolute", top: -8, [isMine ? "left" : "right"]: -8,
-            display: "flex", gap: 2, background: "#fff",
+            display: "flex", gap: 2, background: "var(--card)",
             border: "1px solid var(--border)", borderRadius: 99,
             padding: "3px 6px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
             zIndex: 50,
@@ -729,7 +730,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
           <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "flex-end" }}>
             <Avatar memberId={otherTypingMember} size={28} />
             <div style={{
-              background: "#fff", border: "1px solid var(--border)",
+              background: "var(--card)", border: "1px solid var(--border)",
               borderRadius: 14, borderTopLeftRadius: 4, padding: "8px 12px",
               display: "flex", gap: 3, alignItems: "center",
             }}>
@@ -744,7 +745,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
       {/* Reply preview */}
       {replyingTo && (
         <div style={{
-          padding: "8px 14px", background: "#fff", borderTop: "1px solid var(--border)",
+          padding: "8px 14px", background: "var(--card)", borderTop: "1px solid var(--border)",
           display: "flex", alignItems: "center", gap: 10,
         }}>
           <div style={{ width: 3, alignSelf: "stretch", background: "var(--gold)", borderRadius: 2 }} />
@@ -765,7 +766,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
 
       {/* Input */}
       <div style={{
-        padding: "10px 12px", background: "#fff", borderTop: "1px solid var(--border)",
+        padding: "10px 12px", background: "var(--card)", borderTop: "1px solid var(--border)",
         display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
         position: "relative",
       }}>
@@ -791,7 +792,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
               {showAttach && (
                 <div className="slide-up" style={{
                   position: "absolute", bottom: "calc(100% + 8px)", left: 0,
-                  background: "#fff", borderRadius: 12, padding: 8,
+                  background: "var(--card)", borderRadius: 12, padding: 8,
                   boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--border)",
                   display: "flex", flexDirection: "column", gap: 4, minWidth: 160, zIndex: 100,
                 }}>
@@ -1148,7 +1149,7 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
                     border: `2px solid ${isSel ? "var(--gold)" : "var(--border)"}`,
                     background: isSel ? "var(--gold)" : "transparent",
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 13, color: "var(--navy)", fontWeight: 700,
+                    fontSize: 13, color: "var(--heading)", fontWeight: 700,
                   }}>{isSel && "✓"}</div>
                 </div>
               );
@@ -1174,7 +1175,7 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
 };
 
 // ─── CHAT: MAIN PANEL ──────────────────────────────────────────────────────
-export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, intent, tasks, dossiers, currentUserId, dispatch, presenceMap, loading = false, myBusy = false, onToggleBusy }) => {
+export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, intent, tasks, dossiers, currentUserId, dispatch, onOpenDossier, presenceMap, loading = false, myBusy = false, onToggleBusy }) => {
   const { isMobile } = useViewport();
   const [activeConv, setActiveConv] = useState(null);
   const [newMode, setNewMode] = useState(false);
@@ -1224,14 +1225,14 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
   };
 
   return (
-    <ChatContext.Provider value={{ tasks: tasks || [], dossiers: dossiers || [], currentUserId: currentUserId || CURRENT_USER, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {} }}>
+    <ChatContext.Provider value={{ tasks: tasks || [], dossiers: dossiers || [], currentUserId: currentUserId || CURRENT_USER, dispatch: dispatch || (() => {}), onOpenDossier: onOpenDossier || (() => {}), presenceMap: presenceMap || {} }}>
     <>
       <div onClick={onClose} style={{
         position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: 700,
       }} />
       <div className="slide-right" style={{
         position: "fixed", top: 0, right: 0, width: isMobile ? "100vw" : 420, height: "100vh",
-        background: "#fff", zIndex: 800, boxShadow: "-20px 0 60px rgba(0,0,0,0.2)",
+        background: "var(--card)", zIndex: 800, boxShadow: "-20px 0 60px rgba(0,0,0,0.2)",
         display: "flex", flexDirection: "column", overflow: "hidden",
       }}>
         {/* Header */}
@@ -1285,7 +1286,7 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
           {loading ? (
             <div style={{
               height: "100%", display: "flex", flexDirection: "column",
-              alignItems: "center", justifyContent: "center", gap: 12, color: "var(--navy)",
+              alignItems: "center", justifyContent: "center", gap: 12, color: "var(--heading)",
             }}>
               <div style={{
                 width: 28, height: 28, borderRadius: "50%",

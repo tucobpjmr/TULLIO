@@ -326,7 +326,7 @@ const AdvancedSearchPanel = ({ tasks, dossiers = [], dispatch, onClose, keyword 
 };
 
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
-export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notificationsProp, onMarkRead, onMarkAllRead, onOpenTask, onOpenDossier }) => {
+export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notificationsProp, onMarkRead, onMarkAllRead, onOpenTask, onOpenDossier, theme, onToggleTheme }) => {
   const { isMobile } = useViewport();
   // Fix #11: notifiche mock gate-ate dietro env var (default off in prod)
   const SHOW_MOCK_NOTIFS = import.meta.env.DEV && import.meta.env.VITE_SHOW_MOCK_NOTIFICATIONS === 'true';
@@ -394,6 +394,17 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
       </div>
 
       <div className="vd-hide-mobile" style={{ flex: 1 }} />
+
+      {/* Tema chiaro/scuro (v22) */}
+      {onToggleTheme && (
+        <button onClick={onToggleTheme} title={theme === "dark" ? "Passa al tema chiaro" : "Passa al tema scuro"} aria-label="Cambia tema" style={{
+          background: "rgba(255,255,255,0.45)", border: "1px solid rgba(15,32,68,0.15)",
+          borderRadius: 8, width: 36, height: 36, cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
+        }}>
+          {theme === "dark" ? "☀️" : "🌙"}
+        </button>
+      )}
 
       {/* Chat */}
       <button onClick={onOpenChat} title="Messaggi team" style={{

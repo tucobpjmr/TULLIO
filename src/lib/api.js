@@ -25,6 +25,26 @@ export const Users = {
   },
   setActive: (id, active) =>
     supabase.from('users').update(withOrigin({ active })).eq('id', id),
+  // Onboarding (Fase 3): invita un nuovo utente reale. Passa per la Edge
+  // Function 'invite-user' (service-role lato server) che verifica che il
+  // chiamante sia admin, crea l'utente auth e invia l'email d'invito.
+  // Ritorna { ok, userId } o { error }.
+  invite: async ({ email, name, role, color, avatar, capacity }) => {
+    const { data, error } = await supabase.functions.invoke('invite-user', {
+      body: {
+        email, name, role, color, avatar, capacity,
+        redirectTo: `${window.location.origin}`,
+      },
+    });
+    if (error) {
+      // L'errore HTTP della function porta il messaggio nel body JSON.
+      let msg = error.message;
+      try { msg = (await error.context?.json())?.error || msg; } catch { /* noop */ }
+      return { error: msg };
+    }
+    if (data?.error) return { error: data.error };
+    return { ok: true, userId: data?.userId ?? null };
+  },
   // Step H: presence
   setPresence: (id, status) =>
     supabase.from('users').update(withOrigin({

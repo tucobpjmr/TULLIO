@@ -1,6 +1,28 @@
 # CHANGELOG — VoyageDesk
 
 
+## v2.7-dev — Candidati low-risk handoff v21: chip pratica chat + filtro coda Driver + dark mode (sessione 24)
+
+> Branch `claude/github-repo-handoff-candidates-1lzauz`. Esecuzione dei 3 candidati micro-UI indicati nell'handoff v21 §4. Frontend-only, build verde (`index 268.11 kB │ gzip 64.08 kB`).
+
+### 🔧 Refactor `openDossierById` — chip pratica in chat
+
+- **`src/components/chat/ChatPanel.jsx`**: il `DossierRefChip` (pattern `PR-YYYY-NNN` nei messaggi) navigava solo con `SET_VIEW` alla vista Pratiche **senza aprire il dettaglio**. Ora usa `openDossierById` (naviga **+** apre la `PraticaDetail`), propagato via `ChatContext` (nuovo `onOpenDossier`).
+- **`src/VoyageDesk.jsx`**: `onOpenDossier={openDossierById}` passato a `ChatPanel`.
+
+### 🟡 Filtro data/ora coda personale Driver (vista transfer)
+
+- **`src/components/dashboard/Dashboard.jsx`**: `PersonalQueue` accetta `enableDateFilter` (attivo per `role === "driver"`). Barra filtro con chip **Tutte / Oggi / Domani** + `input[type=date]`; le card mostrano l'**orario** (`🕑`) oltre alla data. Titolo "La mia coda transfer". Vista transfer-oriented per Giulia. Helper `getDayKey` per il match di giornata (mezzogiorno locale, no shift TZ).
+
+### ⚪ Dark mode (toggle Topbar)
+
+- **`src/VoyageDesk.jsx` (FontLoader)**: nuovi token semantici `--card` (superficie card, sostituisce gli `#fff` inline dei contenuti) e `--heading` (titoli su card, sostituisce `color: var(--navy)`); in light coincidono coi valori storici → **nessun cambiamento visivo**. Blocco `[data-theme="dark"]` con superfici scure, testo chiaro, `color-scheme: dark`.
+- Shell (topbar/sidebar/bottom-nav) **resta brand-celeste** per scelta di design e per evitare testo invisibile sui controlli; l'area contenuti passa a superfici scure.
+- `--navy` resta scuro (bg bottoni con testo bianco + testo su oro/celeste): bottoni/avatar oro mantengono il testo navy.
+- **`src/components/shell/Topbar.jsx`**: toggle 🌙/☀️. Stato `theme` in `VoyageDeskInner` applicato a `<html>` via `data-theme`; **solo-sessione**, nessuna persistenza (vincolo localStorage in CLAUDE.md).
+
+---
+
 ## v2.6-dev — Micro-miglioramenti UI: auto-collapse sidebar + export log CSV + skeleton loading (sessione 23)
 
 > PR #60 (**mergeata** in `main`, squash `46dbe0a`). Quick win frontend a basso rischio.

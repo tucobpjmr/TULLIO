@@ -7,7 +7,7 @@ import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { StatusBadge } from "../ui/StatusBadge.jsx";
 import { PRIORITIES } from "../../lib/taskConstants.js";
-import { formatDate, formatTime, isOverdue, isUrgent, isMyTask, isInGlobalQueue, getActiveTasks } from "../../lib/taskUtils.js";
+import { formatDate, formatTime, isOverdue, isUrgent, isMyTask, isInGlobalQueue, getActiveTasks, getDayKey } from "../../lib/taskUtils.js";
 import { CATEGORIES, getMember, getRoleType, getAssignableTeam, canViewTask, getVisibleTasks } from "../../state/appGlobals.js";
 import { NoticeBoard } from "./NoticeBoard.jsx";
 // Step P Phase 2g: AIDayPlanner (~350 righe, chiama l'API Claude) si apre solo
@@ -17,9 +17,46 @@ const AIDayPlanner = lazy(() =>
 );
 
 // ─── PERSONAL QUEUE (le mie task — v0.8) ───────────────────────────────────
-const PersonalQueue = ({ tasks, dispatch, me }) => {
+// enableDateFilter (v22): per il Driver (vista transfer-oriented) abilita un
+// filtro data/ora — i transfer sono time-sensitive, Giulia filtra la coda per
+// giornata (Tutte / Oggi / Domani / data specifica).
+const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
   const { isMobile } = useViewport();
-  const empty = tasks.length === 0;
+  const [dateFilter, setDateFilter] = useState("all"); // "all" | "today" | "tomorrow" | "YYYY-MM-DD"
+
+  let filtered = tasks;
+  if (enableDateFilter && dateFilter !== "all") {
+    let targetKey;
+    if (dateFilter === "today") {
+      targetKey = new Date().toDateString();
+    } else if (dateFilter === "tomorrow") {
+      const d = new Date(); d.setDate(d.getDate() + 1); targetKey = d.toDateString();
+    } else {
+      // dateFilter = "YYYY-MM-DD" da <input type="date"> → mezzogiorno locale (no shift TZ)
+      targetKey = new Date(dateFilter + "T12:00:00").toDateString();
+    }
+    filtered = tasks.filter(t => t.dueDate && getDayKey(t.dueDate) === targetKey);
+  }
+  // I transfer sono ordinati per orario: dueDate include l'ora, l'ordinamento
+  // per scadenza arriva già dal chiamante.
+  const empty = filtered.length === 0;
+
+  const customDate = !["all", "today", "tomorrow"].includes(dateFilter) ? dateFilter : "";
+  const chip = (key, label) => (
+    <button
+      type="button"
+      onClick={() => setDateFilter(key)}
+      style={{
+        padding: "5px 12px", borderRadius: 999, cursor: "pointer",
+        fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+        border: `1px solid ${dateFilter === key ? "var(--navy)" : "var(--border)"}`,
+        background: dateFilter === key ? "var(--navy)" : "var(--card)",
+        color: dateFilter === key ? "#fff" : "var(--text-muted)",
+        transition: "background 0.15s, color 0.15s",
+      }}
+    >{label}</button>
+  );
+
   return (
     <div style={{
       background: "linear-gradient(135deg, rgba(15,32,68,0.04) 0%, rgba(15,32,68,0.01) 100%)",
@@ -37,37 +74,59 @@ const PersonalQueue = ({ tasks, dispatch, me }) => {
             fontSize: 12, fontWeight: 700,
           }}>{me?.avatar || "?"}</div>
           <div>
-            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)" }}>
-              La mia coda — task assegnate a me
+            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
+              {enableDateFilter ? "La mia coda transfer" : "La mia coda — task assegnate a me"}
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-              Ordinate per scadenza • clicca una card per i dettagli
+              {enableDateFilter ? "Filtra per giornata • ordinate per orario • clicca una card per i dettagli" : "Ordinate per scadenza • clicca una card per i dettagli"}
             </div>
           </div>
         </div>
-        {!empty && (
-          <div style={{
-            background: "var(--navy)", color: "#fff",
-            padding: "4px 12px", borderRadius: 999,
-            fontSize: 13, fontWeight: 700,
-          }}>{tasks.length} {tasks.length === 1 ? "task" : "task"}</div>
-        )}
+        <div style={{
+          background: "var(--navy)", color: "#fff",
+          padding: "4px 12px", borderRadius: 999,
+          fontSize: 13, fontWeight: 700,
+        }}>{enableDateFilter && dateFilter !== "all" ? `${filtered.length}/${tasks.length}` : `${tasks.length}`} task</div>
       </div>
+
+      {enableDateFilter && (
+        <div className="vd-row-wrap" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+          {chip("all", "Tutte")}
+          {chip("today", "Oggi")}
+          {chip("tomorrow", "Domani")}
+          <input
+            type="date"
+            value={customDate}
+            onChange={e => setDateFilter(e.target.value || "all")}
+            aria-label="Filtra per data"
+            style={{
+              padding: "4px 10px", borderRadius: 999, fontSize: 12, fontFamily: "inherit",
+              border: `1px solid ${customDate ? "var(--navy)" : "var(--border)"}`,
+              background: "var(--card)", color: "var(--text)", cursor: "pointer",
+            }}
+          />
+          {customDate && (
+            <button type="button" onClick={() => setDateFilter("all")} title="Azzera filtro" style={{
+              background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: 13, fontWeight: 600,
+            }}>✕ azzera</button>
+          )}
+        </div>
+      )}
 
       {empty ? (
         <div style={{
           padding: "14px 0 4px", display: "flex", alignItems: "center", gap: 10,
           color: "var(--text-muted)", fontSize: 13,
         }}>
-          <span style={{ fontSize: 18 }}>🎉</span>
-          Nessuna task aperta a tuo nome. Buon lavoro!
+          <span style={{ fontSize: 18 }}>{enableDateFilter && dateFilter !== "all" ? "📭" : "🎉"}</span>
+          {enableDateFilter && dateFilter !== "all" ? "Nessun transfer per la giornata selezionata." : "Nessuna task aperta a tuo nome. Buon lavoro!"}
         </div>
       ) : (
         <div style={{
           display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))",
           gap: 10,
         }}>
-          {tasks.map(t => {
+          {filtered.map(t => {
             const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
             const prio = PRIORITIES[t.priority];
             const overdue = isOverdue(t);
@@ -75,7 +134,7 @@ const PersonalQueue = ({ tasks, dispatch, me }) => {
             const card = (
               <div
                 style={{
-                  background: "#fff", borderRadius: 10,
+                  background: "var(--card)", borderRadius: 10,
                   border: `1px solid ${overdue ? "rgba(192,57,43,0.4)" : urgent ? "rgba(200,131,42,0.4)" : "var(--border)"}`,
                   padding: 12, display: "flex", flexDirection: "column", gap: 8,
                   cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
@@ -103,7 +162,7 @@ const PersonalQueue = ({ tasks, dispatch, me }) => {
                   {t.client && <span>👤 {t.client}</span>}
                   {t.dueDate && (
                     <span style={{ color: overdue ? "var(--danger)" : urgent ? "var(--warning)" : "var(--text-muted)", fontWeight: (overdue || urgent) ? 700 : 400 }}>
-                      📅 {formatDate(t.dueDate)}{overdue ? " ⚠ scaduto" : urgent ? " ⏱ < 24h" : ""}
+                      📅 {formatDate(t.dueDate)}{enableDateFilter ? ` 🕑 ${formatTime(t.dueDate)}` : ""}{overdue ? " ⚠ scaduto" : urgent ? " ⏱ < 24h" : ""}
                     </span>
                   )}
                   {t.estimatedHours > 0 && <span>⏱️ {t.estimatedHours}h</span>}
@@ -142,7 +201,7 @@ const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
             fontSize: 18, fontWeight: 700,
           }}>⏱</div>
           <div>
-            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)" }}>
+            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
               Urgenti del team — scadenza entro 24h
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
@@ -170,7 +229,7 @@ const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
               key={t.id}
               title="Solo visualizzazione: questa task appartiene a un altro agente"
               style={{
-                background: "#fff", borderRadius: 10,
+                background: "var(--card)", borderRadius: 10,
                 border: "1.5px dashed rgba(200,131,42,0.45)",
                 padding: 12, display: "flex", flexDirection: "column", gap: 8,
                 position: "relative",
@@ -284,7 +343,7 @@ const UnassignedQueue = ({ tasks, dispatch, onTake }) => {
             fontSize: 18, fontWeight: 700,
           }}>🙋</div>
           <div>
-            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)" }}>
+            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
               Coda globale — task da prendere in carico
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
@@ -340,7 +399,7 @@ const UnassignedQueue = ({ tasks, dispatch, onTake }) => {
           {hasFilter && (
             <button onClick={() => { setCategoryFilter(""); setPriorityFilter(""); }} style={{
               padding: "3px 9px", borderRadius: 99, border: "1px solid var(--border)",
-              background: "#fff", color: "var(--text-muted)",
+              background: "var(--card)", color: "var(--text-muted)",
               fontSize: 11, cursor: "pointer", fontFamily: "inherit",
             }}>✕ Reset</button>
           )}
@@ -376,7 +435,7 @@ const UnassignedQueue = ({ tasks, dispatch, onTake }) => {
             const card = (
               <div
                 style={{
-                  background: "#fff", borderRadius: 10,
+                  background: "var(--card)", borderRadius: 10,
                   border: `1px solid ${overdue ? "rgba(192,57,43,0.3)" : "var(--border)"}`,
                   padding: 12, display: "flex", flexDirection: "column", gap: 10,
                   cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
@@ -502,7 +561,7 @@ const OverdueQueue = ({ tasks, dispatch }) => {
             fontSize: 18,
           }}>📅</div>
           <div>
-            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)" }}>
+            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
               Task scadute
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
@@ -538,7 +597,7 @@ const OverdueQueue = ({ tasks, dispatch }) => {
             const card = (
               <div
                 style={{
-                  background: "#fff", borderRadius: 10,
+                  background: "var(--card)", borderRadius: 10,
                   border: "1px solid rgba(192,57,43,0.4)",
                   padding: 12, display: "flex", flexDirection: "column", gap: 8,
                   cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
@@ -695,7 +754,7 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
 
       {/* ─── TAB CODE ─── */}
       <div style={{
-        background: "#fff", borderRadius: 12, padding: isMobile ? 8 : 10,
+        background: "var(--card)", borderRadius: 12, padding: isMobile ? 8 : 10,
         boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)",
         display: "grid",
         gridTemplateColumns: `repeat(${(showGlobalQueue ? 1 : 0) + 1 + 1 + (showUrgentOthers ? 1 : 0)}, 1fr)`,
@@ -733,7 +792,7 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
 
       {/* ─── SEZIONE CODA FILTRATA ─── */}
       {activeQueue === "personal" && (
-        <PersonalQueue tasks={personalQueue} dispatch={dispatch} me={me} />
+        <PersonalQueue tasks={personalQueue} dispatch={dispatch} me={me} enableDateFilter={role === "driver"} />
       )}
       {activeQueue === "global" && showGlobalQueue && (
         <UnassignedQueue tasks={unassigned} dispatch={dispatch} onTake={takeOwnership} />
@@ -747,7 +806,7 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
 
       <div className="vd-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         {/* Upcoming deadlines */}
-        <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
+        <div style={{ background: "var(--card)", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
           <div className="playfair" style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>Scadenze Prossime</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {next7.map(t => (
@@ -775,7 +834,7 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
         </div>
 
         {/* Agent workload */}
-        <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
+        <div style={{ background: "var(--card)", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
           <div className="playfair" style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>Carico di Lavoro Team</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {agentWorkload.map(m => {

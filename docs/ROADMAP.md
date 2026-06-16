@@ -41,24 +41,18 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 
 ---
 
-## 🚀 Fase 1 — Modello dati completo (il cuore gestionale)
+## 🚀 Fase 1 — Modello dati (storico)
 
-Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti e Fornitori prima delle Pratiche.**
+> ⛔ **Nota sessione 24:** I moduli **Pratiche** (dossiers) e **Fornitori** (suppliers) sono stati **RIMOSSI DEFINITIVAMENTE** su richiesta utente (PR #63, migration `20260616`). Non reintrodurli. Il modulo **Clienti** rimane intatto.
 
-| Modulo | Stato | Priorità | Sforzo | Dipende da |
-|---|---|---|---|---|
-| Anagrafica Clienti (CRM base) | ✅ | 🔴 | M | — |
-| Anagrafica Fornitori | ✅ | 🔴 | M | — |
-| Pratiche di viaggio | ✅ | 🔴 | L | Clienti + Fornitori |
-| Collegamento Task ↔ Cliente ↔ Pratica | ✅ | 🔴 | M | i tre sopra |
-| Fornitori collegati a Pratica (DossierSuppliers) | ✅ | 🟡 | S | Pratiche |
-| Filtro numero pratica in Ricerca avanzata | ✅ | 🟡 | S | Pratiche |
-
-**Dettaglio Pratiche** — modulo centrale: aggrega task, documenti, pagamenti e fornitori di un singolo viaggio; numerazione progressiva (`PR-2026-001` ✅), stati (Bozza → Confermata → In corso → Completata/Annullata ✅), riepilogo economico, timeline eventi.
-
-**Stato sessione 20**: ✅ **Fase 1 COMPLETA**. Task↔Pratica (PR #51, caveat #26 chiuso), Fornitori della pratica (PR #52, caveat #27 chiuso), filtro pratica in Ricerca avanzata (PR #53). Nessun caveat aperto.
-
-**Stato sessione 21** (PR #56 draft): quick wins v17 — badge partenze imminenti, deep-link notifiche→pratica (caveat #28 aperto), selettore pratica in BulkTaskCreator, tema celeste shell.
+| Modulo | Stato | Note |
+|---|---|---|
+| Anagrafica Clienti (CRM base) | ✅ mantenuto | `src/components/clients/ClientiView.jsx` intatto |
+| Anagrafica Fornitori | ~~✅~~→⛔ **RIMOSSO** | `FornitoriView.jsx` eliminato, tabella `suppliers` droppata |
+| Pratiche di viaggio | ~~✅~~→⛔ **RIMOSSO** | `PraticheView.jsx` eliminato, tabella `dossiers` droppata |
+| Collegamento Task ↔ Pratica | ~~✅~~→⛔ **RIMOSSO** | `tasks.dossier_id` (FK) → `tasks.pratica_ref text` (campo libero) |
+| Fornitori collegati a Pratica | ~~✅~~→⛔ **RIMOSSO** | tabella `dossier_suppliers` droppata |
+| Filtro numero pratica in Ricerca avanzata | ~~✅~~→⛔ **RIMOSSO** | rimosso insieme al modulo |
 
 ---
 
@@ -181,6 +175,8 @@ Vedi `docs/HANDOFF_SESSION_2026-06-14_v13.md` per il dettaglio sessione 18 (Phas
 ---
 
 ## ✅ Completato (cronologia)
+
+- **v2.7-dev** — Sessione 24 (PR #63 ready for review, handoff v22): **Rimozione completa Pratiche & Fornitori** su richiesta utente. Deleted `PraticheView.jsx` + `FornitoriView.jsx`. Tabelle `dossiers`/`suppliers`/`dossier_suppliers` droppate. `tasks.dossier_id` → `tasks.pratica_ref text`. Cleanup api/mappers/reducer/sidebar/topbar/calendar/chat. Migration `20260616_remove_pratiche_fornitori.sql` applicata in produzione.
 
 - **v2.5/v2.6-dev** — Sessione 23 (PR #60 **mergeata**, `46dbe0a`, handoff v21): **Fase 2 chiusa al 100%**. `queue_stale` versionata (migration `20260615`, repo↔DB allineati) + chat stato "Occupato" manuale (presence `busy`) + auto-collapse Sidebar 1025–1280px + export Log CSV + skeleton loading viste CRM. Rimozione completa **Fase 3 Business**. Build: 264.00 kB / 62.90 kB gz.
 

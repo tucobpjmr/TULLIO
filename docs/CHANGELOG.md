@@ -1,6 +1,63 @@
 # CHANGELOG — VoyageDesk
 
 
+## v2.7-dev — Rimozione completa Pratiche & Fornitori; campo libero praticaRef nelle task (sessione 24)
+
+> PR #63 su branch `claude/phase-3-password-protection-kw3hz8` · ready for review · CI Vercel verde.
+> Migration `20260616_remove_pratiche_fornitori.sql` **già applicata in produzione**.
+
+### ⛔ Decisione architetturale
+
+Su richiesta esplicita dell'utente, i moduli **Pratiche** (dossiers/viaggi) e **Fornitori** (suppliers) sono stati **eliminati permanentemente** dal frontend e dal database. Il modulo **Clienti** è rimasto intatto. Non reintrodurre pratiche né fornitori in nessuna forma.
+
+### 🗑️ File eliminati
+
+- `src/components/dossiers/PraticheView.jsx`
+- `src/components/suppliers/FornitoriView.jsx`
+
+### 📦 Campo `praticaRef` (testo libero) in sostituzione di `dossier_id`
+
+- **DB**: `tasks.dossier_id` (UUID FK) → `tasks.pratica_ref text` (campo libero, nessuna FK).
+- **Mapper** (`src/lib/mappers.js`): `fromDbTask` → `praticaRef`; `toDbTask`/`toDbTaskPatch` → `pratica_ref`.
+- **UI**: `TaskSlideOver`, `QuickAddTask`, `BulkTaskCreator` (ManualTab + TemplateTab) sostituiscono il select pratica con un input testo "N° PRATICA".
+
+### 🔌 Cleanup layer dati
+
+- **`src/lib/api.js`**: rimossi `Suppliers`, `Dossiers`, `DossierSuppliers`. Rimasto `Clients`.
+- **`src/lib/mappers.js`**: rimossi `fromDbSupplier/toDbSupplier`, `fromDbDossier/toDbDossier`, `fromDbDossierSupplier/toDbDossierSupplier`. Rimasti `fromDbClient/toDbClient`, `fromDbNotification`.
+- **`src/state/reducer.js`**: rimossi casi `SET/ADD/UPDATE/DELETE_SUPPLIER` e `SET/ADD/UPDATE/DELETE_DOSSIER`; rimosso `suppliers: []` e `dossiers: []` da `makeInitialState`.
+
+### 🖥️ Cleanup componenti
+
+- **`src/VoyageDesk.jsx`**: CRM hydration ora carica solo Clienti; rimossi `targetDossierId`, `openDossierById`, dispatch supplier/dossier, props `dossiers` a Topbar/TaskSlideOver/ChatPanel/QuickAddTask/BulkTaskCreator.
+- **`src/components/shell/Sidebar.jsx`**: voci nav "fornitori" e "pratiche" rimosse; `imminentDossiers` badge rimosso; `getNavBadges` → `{ admin, dashboard }`.
+- **`src/components/shell/Topbar.jsx`**: `dossier_status`/`dossier_departure` rimossi da `NOTIF_ICONS`, `NOTIF_CATEGORIES`, `notifTitle`; filtro dossier e `onOpenDossier` rimossi da `NotificationsPanel`.
+- **`src/components/tasks/TaskSlideOver.jsx`**: sezione "PRATICA COLLEGATA" (select FK) → campo testo "N° PRATICA" (legato a `task.praticaRef`).
+- **`src/components/clients/ClientiView.jsx`**: badge contatore dossier rimosso da `ClienteCard`.
+- **`src/components/modals/QuickAddTask.jsx`**: select pratica → `praticaRef` text input.
+- **`src/components/modals/BulkTaskCreator.jsx`**: select pratica rimosso da ManualTab e TemplateTab → text input "N° PRATICA"; prop `dossiers` rimossa.
+- **`src/components/chat/ChatPanel.jsx`**: `DossierRefChip`, `renderTextWithRefs` rimossi → `MentionText`; `dossiers` rimosso da `ChatContext` e props.
+- **`src/components/calendar/CalendarPlanner.jsx`**: tutti i blocchi di rendering eventi dossier rimossi (mese/settimana/giorno/settimana-piena), `getDossierEventsForDay`, `openDossiers`, costanti `SKY`/`SKY_DARK` (−101 righe nette).
+
+### 🗄️ Migration DB (`20260616_remove_pratiche_fornitori.sql`)
+
+Applicata in produzione su `vmxvnxsqfisucugcpqlc` — **non va riapplicata**:
+
+1. Cron `notify_dossier_departure_daily` unscheduled
+2. Drop triggers `trg_notify_dossier_status`, `dossiers_auto_number`
+3. Drop functions `notify_dossier_status()`, `notify_dossier_departure()`, `generate_dossier_number()`
+4. `ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS pratica_ref text`
+5. Migrazione dati: `UPDATE tasks SET pratica_ref = dossiers.number WHERE dossier_id = dossiers.id`
+6. `ALTER TABLE public.tasks DROP COLUMN dossier_id`
+7. Drop tables `dossier_suppliers`, `dossiers`, `suppliers` (CASCADE)
+8. Drop sequence `dossier_number_seq`
+
+### Caveat
+
+Nessuno.
+
+---
+
 ## v2.6-dev — Micro-miglioramenti UI: auto-collapse sidebar + export log CSV + skeleton loading (sessione 23)
 
 > PR #60 (**mergeata** in `main`, squash `46dbe0a`). Quick win frontend a basso rischio.

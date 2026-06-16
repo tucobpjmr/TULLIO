@@ -3,9 +3,9 @@
 > ⚠️ **Questo file è LEGACY (sessioni E–I).** L'handoff attivo è il più recente
 > `docs/HANDOFF_SESSION_<data>_v<n>.md`.
 >
-> **Ultimo handoff attivo:** [`docs/HANDOFF_SESSION_2026-06-15_v21.md`](./HANDOFF_SESSION_2026-06-15_v21.md) (sessione 23, post merge #60: Fase 2 chiusa + micro-UI; Fase 3 Business rimossa).
+> **Ultimo handoff attivo:** [`docs/HANDOFF_SESSION_2026-06-16_v22.md`](./HANDOFF_SESSION_2026-06-16_v22.md) (sessione 24, PR #63: rimozione completa Pratiche & Fornitori; campo libero `praticaRef` nelle task; migration applicata in produzione).
 >
-> Sequenza: v11 (post Step P, chain #32→#36 + #38 mergeate) → v9 (Step R+S) → v8 (Step Q) → v7 (Step M+O) → v6 (Step N) → v5 (Step L) → v4 (Step J) → v2 (Step F).
+> Sequenza: v22 (rimozione Pratiche/Fornitori) → v21 (post merge #60: Fase 2 chiusa + micro-UI; Fase 3 Business rimossa) → v11 (post Step P, chain #32→#36 + #38 mergeate) → v9 (Step R+S) → v8 (Step Q) → v7 (Step M+O) → v6 (Step N) → v5 (Step L) → v4 (Step J) → v2 (Step F).
 > `CHANGELOG.md` = dettaglio cronologico; `ROADMAP.md` = stato priorità.
 > *(v10 mai mergeato: i suoi contenuti sono confluiti in v11.)*
 

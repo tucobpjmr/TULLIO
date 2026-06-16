@@ -1,6 +1,31 @@
 # CHANGELOG — VoyageDesk
 
 
+## v2.7-dev — Inviti team reali via Supabase Auth (sessione 24, PR #64 draft)
+
+> PR #64 in **draft** su `claude/first-real-invites-juidur`. Build: `index 268.02 kB │ gzip 63.94 kB`.
+
+### ✉️ Sistema inviti reali
+
+- **`supabase/functions/invite-user/index.ts`** (v3): Edge Function admin-only. Verifica JWT + ruolo `admin` nel DB. Chiama `auth.admin.inviteUserByEmail(email, { data: { name, role, capacity, color } })`. Pre-crea profilo in `public.users` (`pending=true, active=false`) e contatto in `user_contacts` via `upsert`.
+- **`supabase/migrations/20260616235900_invite_user_trigger.sql`**: trigger `AFTER INSERT ON auth.users` → `handle_new_auth_user()` (`SECURITY DEFINER`). Safety-net: crea `public.users` + `user_contacts` dai metadati dell'invito. `ON CONFLICT DO NOTHING` (idempotente). **Già applicata in produzione.**
+- **`src/lib/api.js`**: `Users.invite()` (chiama EF), `Users.approve()` (`pending→false, active→true`), `Users.list()` ora include pending, `Users.listActive()` per assign task.
+- **`src/components/modals/AddTeamMemberModal.jsx`** (rewrite): campo email obbligatorio, dropdown ruolo con valori DB (`agent/manager/driver/admin`), submit chiama `Users.invite()` con loading inline + errore inline. On success: dispatch `ADD_TEAM_MEMBER` ottimistico + toast.
+
+### 🔑 Auth flow invito
+
+- **`src/auth/AuthContext.jsx`**: `loadProfile` carica tutti gli utenti (inclusi pending) — AdminView vede i nuovi invitati immediatamente. `needsPasswordSetup`: letto dall'URL hash (`type=invite` / `type=recovery`) prima che Supabase lo cancelli. `updatePassword(password)`: chiama `supabase.auth.updateUser`, setta `needsPasswordSetup=false` on success.
+- **`src/auth/LoginScreen.jsx`**: `SetPasswordScreen` (primo accesso da link invito, valida ≥8 caratteri + conferma). `PendingScreen` (account creato, in attesa di approvazione admin).
+- **`src/main.jsx`**: `AuthGate` a 5 stati: loading → login → set-password → profile loading → pending → app.
+
+### 🔄 Sync realtime team
+
+- **`src/state/reducer.js`**: aggiunge `SET_TEAM` (aggiorna `state.team` + `setTeam()` globale; non in `ADMIN_ONLY_ACTIONS`).
+- **`src/VoyageDesk.jsx`**: dispatch wrapper aggiunge sync DB per `APPROVE_TEAM_MEMBER` (`Users.approve`) e `TOGGLE_TEAM_MEMBER_ACTIVE` (`Users.setActive`). Subscription realtime tabella `users` → dispatch `SET_TEAM` su ogni cambio. Deps `useCallback` aggiornate con `state.team`.
+- **`src/components/admin/AdminView.jsx`**: pulsante `✉️ Invita agente`; `existingIds` rimosso dalla prop modal.
+
+---
+
 ## v2.6-dev — Micro-miglioramenti UI: auto-collapse sidebar + export log CSV + skeleton loading (sessione 23)
 
 > PR #60 (**mergeata** in `main`, squash `46dbe0a`). Quick win frontend a basso rischio.

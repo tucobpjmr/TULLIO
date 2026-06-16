@@ -3,7 +3,7 @@
 > ⚠️ **Questo file è LEGACY (sessioni E–I).** L'handoff attivo è il più recente
 > `docs/HANDOFF_SESSION_<data>_v<n>.md`.
 >
-> **Ultimo handoff attivo:** [`docs/HANDOFF_SESSION_2026-06-15_v21.md`](./HANDOFF_SESSION_2026-06-15_v21.md) (sessione 23, post merge #60: Fase 2 chiusa + micro-UI; Fase 3 Business rimossa).
+> **Ultimo handoff attivo:** [`docs/HANDOFF_SESSION_2026-06-16_v22.md`](./HANDOFF_SESSION_2026-06-16_v22.md) (sessione 24, PR #64 draft: inviti team reali via Supabase Auth — Fase 3 kickoff).
 >
 > Sequenza: v11 (post Step P, chain #32→#36 + #38 mergeate) → v9 (Step R+S) → v8 (Step Q) → v7 (Step M+O) → v6 (Step N) → v5 (Step L) → v4 (Step J) → v2 (Step F).
 > `CHANGELOG.md` = dettaglio cronologico; `ROADMAP.md` = stato priorità.

@@ -81,7 +81,8 @@ Costruisce le entità su cui poggia tutto il resto. **Ordine vincolante: Clienti
 
 | Modulo | Stato | Priorità | Sforzo | Note |
 |---|---|---|---|---|
-| Multi-utente reale & permessi | 🔶 | 🟡 | L | Matrice permessi ✅ v0.8. Manca login vero e isolamento dati. ⚙️**B** per autenticazione |
+| Inviti team reali (email) | 🔶 | 🔴 | M | Edge Function `invite-user` v3 ✅ (PR #64 draft). Flusso: invito → SetPasswordScreen → PendingScreen → Approva. Manca merge. |
+| Multi-utente reale & permessi | 🔶 | 🟡 | L | Inviti ✅ (PR #64). Manca: isolamento dati per agenzia (`agency_id` su tabelle + RLS). ⚙️**B** |
 | Estensioni chat (avanzate) | ⬜ | ⚪ | M | Chiamate audio/video (mock UI), reazioni custom |
 | AI Assistant — estensioni | 🔶 | ⚪ | M | Day planner ✅. Da fare: "Genera preventivo" da testo, suggerimenti assegnazione, auto-categorizzazione |
 

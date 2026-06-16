@@ -2,7 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import VoyageDesk from './VoyageDesk.jsx';
 import { AuthProvider, useAuth } from './auth/AuthContext.jsx';
-import LoginScreen from './auth/LoginScreen.jsx';
+import LoginScreen, { SetPasswordScreen, PendingScreen } from './auth/LoginScreen.jsx';
 
 const loadingScreen = (
   <div style={{
@@ -15,17 +15,21 @@ const loadingScreen = (
 );
 
 function AuthGate() {
-  const { session, profile, team, loading } = useAuth();
+  const { session, profile, team, loading, needsPasswordSetup } = useAuth();
 
   if (loading) return loadingScreen;
 
+  // Nessuna sessione → login
   if (!session) return <LoginScreen />;
 
-  // Caveat #17: al login onAuthStateChange imposta la session prima che
-  // profile/team siano caricati. Montare VoyageDesk con team vuoto congela
-  // i mock nel reducer (useReducer inizializza una volta sola), quindi
-  // aspettiamo il profilo prima di montare l'app.
+  // Sessione da link invito/recovery → imposta password prima di accedere
+  if (needsPasswordSetup) return <SetPasswordScreen />;
+
+  // Caveat #17: aspetta che profile sia caricato prima di montare l'app
   if (!profile) return loadingScreen;
+
+  // Account creato ma non ancora approvato dall'admin
+  if (profile.pending) return <PendingScreen />;
 
   return (
     <VoyageDesk

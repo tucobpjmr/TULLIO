@@ -11,7 +11,11 @@ const withOrigin = (payload) => ({ ...payload, origin_client: getClientId() });
 
 // ----------------- USERS / TEAM -----------------
 export const Users = {
+  // Carica tutti gli utenti (inclusi pending) — usato da AuthContext e AdminView.
   list: () =>
+    supabase.from('users').select('*').order('name'),
+  // Filtra solo attivi: usato per select/assign (non per admin panel).
+  listActive: () =>
     supabase.from('users').select('*').eq('active', true).order('name'),
   get: (id) =>
     supabase.from('users').select('*').eq('id', id).single(),
@@ -25,11 +29,19 @@ export const Users = {
   },
   setActive: (id, active) =>
     supabase.from('users').update(withOrigin({ active })).eq('id', id),
+  // Approva un utente in attesa: pending→false, active→true.
+  approve: (id) =>
+    supabase.from('users').update(withOrigin({ pending: false, active: true })).eq('id', id),
   // Step H: presence
   setPresence: (id, status) =>
     supabase.from('users').update(withOrigin({
       status, last_seen_at: new Date().toISOString(),
     })).eq('id', id),
+  // Invito via Edge Function invite-user (admin only, invia email reale).
+  invite: (email, name, role, capacity, color) =>
+    supabase.functions.invoke('invite-user', {
+      body: { email, name, role, capacity, color },
+    }),
   // ----------------- CONTATTI PII (user_contacts) -----------------
   // email/phone sono in public.user_contacts (RLS: solo l'utente stesso o un
   // admin). Vedi migrazione 20260613100833_user_contacts_table.sql.

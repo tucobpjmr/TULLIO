@@ -4,28 +4,32 @@ import { supabase } from '../lib/supabase';
 
 const AuthContext = createContext(null);
 
+// Rileva se la sessione corrente proviene da un link invito/recovery nell'URL hash
+// (letto in modo sincrono prima che Supabase lo cancelli).
+function detectPasswordSetupNeeded() {
+  const hash = typeof window !== 'undefined' ? window.location.hash : '';
+  return hash.includes('type=invite') || hash.includes('type=recovery');
+}
+
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [team, setTeam] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [needsPasswordSetup, setNeedsPasswordSetup] = useState(detectPasswordSetupNeeded);
+
+  const normalize = (u) => ({ ...u, photoUrl: u.photo_url ?? null });
 
   const loadProfile = useCallback(async (userId) => {
     if (!userId) { setProfile(null); setTeam([]); return; }
     const [{ data: me }, { data: all }, { data: contacts }] = await Promise.all([
       supabase.from('users').select('*').eq('id', userId).single(),
-      supabase.from('users').select('*').eq('active', true).order('name'),
-      // email/phone vivono in public.user_contacts (RLS own+admin). Le carico
-      // solo per l'utente loggato e le rimergio nel profilo e nella sua entry
-      // di team, così ProfileEditor le mostra (gli altri membri non le hanno,
-      // by-design privacy hardening). Vedi migrazione 20260613100833.
+      // Carica tutti gli utenti (inclusi pending) per AdminView.
+      // getAssignableTeam() in appGlobals filtra già i pending per i task.
+      supabase.from('users').select('*').order('name'),
       supabase.from('user_contacts').select('email, phone').eq('user_id', userId).maybeSingle(),
     ]);
     const myContacts = { email: contacts?.email ?? null, phone: contacts?.phone ?? null };
-    // Normalizza la colonna DB photo_url → photoUrl (camelCase) atteso da
-    // Avatar/ProfileEditor (caveat #25): senza, la foto persistita non si
-    // ri-mostrerebbe dopo il reload.
-    const normalize = (u) => ({ ...u, photoUrl: u.photo_url ?? null });
     setProfile(me ? { ...normalize(me), ...myContacts } : null);
     setTeam((all ?? []).map(u => u.id === userId ? { ...normalize(u), ...myContacts } : normalize(u)));
   }, []);
@@ -55,12 +59,20 @@ export function AuthProvider({ children }) {
 
   const refreshTeam = () => loadProfile(session?.user?.id);
 
+  // Imposta la password (usato dal SetPasswordScreen dopo click su link invito).
+  const updatePassword = async (password) => {
+    const { error } = await supabase.auth.updateUser({ password });
+    if (!error) setNeedsPasswordSetup(false);
+    return { error };
+  };
+
   const value = {
     session,
     user: session?.user ?? null,
     profile,
     team,
     loading,
+    needsPasswordSetup,
     isAdmin: profile?.role === 'admin',
     isManager: profile?.role === 'manager',
     isAgent: profile?.role === 'agent',
@@ -68,6 +80,7 @@ export function AuthProvider({ children }) {
     signIn,
     signOut,
     refreshTeam,
+    updatePassword,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

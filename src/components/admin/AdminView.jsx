@@ -194,7 +194,7 @@ const AdminTeamTab = ({ state, dispatch }) => {
           {pending.length > 0 && <span>⏳ <b style={{ color: "var(--gold-dark)" }}>{pending.length}</b> in attesa</span>}
           {disabled.length > 0 && <span>⏸️ <b>{disabled.length}</b> disabilitati</span>}
         </div>
-        <button onClick={() => setShowAdd(true)} style={btnPrimary}>+ Aggiungi agente</button>
+        <button onClick={() => setShowAdd(true)} style={btnPrimary}>✉️ Invita agente</button>
       </div>
 
       {/* Pending */}
@@ -225,7 +225,7 @@ const AdminTeamTab = ({ state, dispatch }) => {
         </div>
       )}
 
-      {showAdd && <AddTeamMemberModal onClose={() => setShowAdd(false)} dispatch={dispatch} existingIds={state.team.map(m => m.id)} />}
+      {showAdd && <AddTeamMemberModal onClose={() => setShowAdd(false)} dispatch={dispatch} />}
     </div>
   );
 };

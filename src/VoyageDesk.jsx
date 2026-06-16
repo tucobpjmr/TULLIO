@@ -416,6 +416,15 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     setNotifications((data || []).map(fromDbNotification));
   }, { enabled: useSupabase, deps: [useSupabase] });
 
+  // Subscription realtime su users: rileva nuovi inviti approvati/creati e
+  // aggiorna state.team senza bisogno di reload pagina.
+  useDebouncedTableSubscription(["users"], async (isCurrent) => {
+    const { data } = await UsersAPI.list();
+    if (!isCurrent() || !data) return;
+    const team = data.map(u => ({ ...u, photoUrl: u.photo_url ?? null }));
+    rawDispatch({ type: "SET_TEAM", payload: team });
+  }, { enabled: useSupabase, deps: [useSupabase] });
+
   // Loading state CRM: true finché non completa il primo fetch da Supabase.
   // Senza login parte già false (nessuna idratazione: si usano i dati mock).
   const [crmLoading, setCrmLoading] = useState(useSupabase);
@@ -575,6 +584,16 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       case "DELETE_DOSSIER":
         dbOps = () => DossiersAPI.remove(action.payload);
         break;
+      // ─── Team sync (inviti reali) ───
+      case "APPROVE_TEAM_MEMBER":
+        dbOps = () => UsersAPI.approve(action.payload);
+        break;
+      case "TOGGLE_TEAM_MEMBER_ACTIVE": {
+        const member = state.team.find(m => m.id === action.payload);
+        const newActive = !(member?.active);
+        dbOps = () => UsersAPI.setActive(action.payload, newActive);
+        break;
+      }
       default:
         break;
     }
@@ -607,7 +626,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           });
         });
     }
-  }, [useSupabase, state.tasks, state.notices]);
+  }, [useSupabase, state.tasks, state.notices, state.team]);
 
   // Step J: navigazione da notifica → TaskSlideOver
   const openTaskById = useCallback((taskId) => {

@@ -203,6 +203,11 @@ function baseReducer(state, action) {
     }
 
     // ─── ADMIN: TEAM ───
+    case "SET_TEAM": {
+      const team = Array.isArray(action.payload) ? action.payload : state.team;
+      setTeam(team);
+      return { ...state, team };
+    }
     case "ADD_TEAM_MEMBER": {
       const team = [...state.team, action.payload];
       setTeam(team);

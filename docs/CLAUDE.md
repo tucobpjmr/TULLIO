@@ -69,8 +69,8 @@ Navigazione: Desktop → Sidebar collassabile. Tablet/Mobile → BottomNav.
 {
   id, title, category, priority, status,
   assignees: [memberId],     // [] = coda globale
-  client: string|null,       // ATTENZIONE: campo testo libero legacy (NON FK)
-  dossierId: UUID|null,      // FK → dossiers.id (collegamento reale pratica)
+  client: string|null,       // campo testo libero (NON FK)
+  praticaRef: string|null,   // campo testo libero "N° pratica" (es. "PR-2026-001") — NON FK
   dueDate: ISO|null,
   estimatedHours: number,
   description: string,
@@ -78,6 +78,8 @@ Navigazione: Desktop → Sidebar collassabile. Tablet/Mobile → BottomNav.
   deletedAt: ISO|null        // soft-delete
 }
 ```
+
+> ⛔ `dossierId` / `dossier_id` NON ESISTONO PIÙ (rimossi in sessione 24, migration `20260616`). Usare `praticaRef`/`pratica_ref` (testo libero).
 
 ### Cliente (CRM)
 ```js
@@ -93,43 +95,7 @@ Navigazione: Desktop → Sidebar collassabile. Tablet/Mobile → BottomNav.
 }
 ```
 
-### Fornitore (CRM)
-```js
-{
-  id: UUID,
-  name: string,              // required
-  category: 'hotel'|'volo'|'transfer'|'tour_operator'|'assicurazione'|'crociera'|'altro',
-  email: string|null,
-  phone: string|null,
-  city: string|null,
-  country: string|null,
-  address: string|null,
-  notes: string|null,
-  createdAt: ISO
-}
-```
-
-### Pratica di viaggio (Dossier)
-```js
-{
-  id: UUID,
-  number: string,            // 'PR-YYYY-NNN' — generato da trigger DB al INSERT
-  title: string,             // required
-  status: 'bozza'|'confermata'|'in_corso'|'completata'|'annullata',
-  clientId: UUID|null,       // FK → clients.id
-  client: Cliente|null,      // oggetto embedded (join Supabase)
-  destination: string|null,
-  departureDate: ISO|null,
-  returnDate: ISO|null,
-  paxAdults: number,
-  paxChildren: number,
-  budgetTotal: number|null,  // €
-  notes: string|null,
-  createdBy: UUID,
-  createdAt: ISO,
-  updatedAt: ISO
-}
-```
+> ⛔ **Fornitore** e **Pratica di viaggio** (Dossier) sono stati **RIMOSSI DEFINITIVAMENTE** in sessione 24. Non reintrodurli.
 
 ### Team member
 ```js
@@ -185,11 +151,7 @@ Famiglia Rossi (Maldive), Coppia Bianchi (Giappone), Azienda TechCorp (Incentive
 ### CRM Clienti
 `SET_CLIENTS`, `ADD_CLIENT`, `UPDATE_CLIENT`, `DELETE_CLIENT`
 
-### CRM Fornitori
-`SET_SUPPLIERS`, `ADD_SUPPLIER`, `UPDATE_SUPPLIER`, `DELETE_SUPPLIER`
-
-### CRM Pratiche
-`SET_DOSSIERS`, `ADD_DOSSIER`, `UPDATE_DOSSIER`, `DELETE_DOSSIER`
+> ⛔ Le azioni CRM Fornitori (`*_SUPPLIER`) e CRM Pratiche (`*_DOSSIER`) sono state **rimosse** in sessione 24.
 
 ### Altro
 `UNDO_LAST_ACTION`, `SET_CURRENT_USER`
@@ -262,9 +224,9 @@ VoyageDesk (export default, ViewportProvider wrapper)
     │   │   ├── PersonalQueue / UnassignedQueue / OverdueQueue / UrgentOthersQueue (locale)
     │   │   └── Scadenze Prossime + Carico Team (locale)
     │   ├── calendar/CalendarPlanner (mese + settimana + distribuzione + helper iCal)
-    │   ├── clients/ClientiView          🆕 Fase 1 CRM
-    │   ├── suppliers/FornitoriView      🆕 Fase 1 CRM
-    │   ├── dossiers/PraticheView        🆕 Fase 1 CRM
+    │   ├── clients/ClientiView          ← mantenuto (anagrafica clienti)
+    │   ├── suppliers/FornitoriView      ← ⛔ RIMOSSO sessione 24
+    │   ├── dossiers/PraticheView        ← ⛔ RIMOSSO sessione 24
     │   ├── views/Team
     │   ├── views/Trash
     │   └── admin/AdminView (5 tab locale, stili da adminStyles.js)
@@ -281,18 +243,19 @@ Tutti i componenti sono **moduli separati** in `src/components/`; helper e sub-c
 
 ## Roadmap prossimi step
 
-### Priorità 1 — Fase 1 COMPLETA ✅
-- [x] Anagrafica Clienti → `src/components/clients/ClientiView.jsx` ✅
-- [x] Anagrafica Fornitori → `src/components/suppliers/FornitoriView.jsx` ✅
-- [x] Pratiche di viaggio → `src/components/dossiers/PraticheView.jsx` ✅
-- [x] Collegamento Task ↔ Pratica: select pratica in `QuickAddTask` + `TaskSlideOver` (PR #51, caveat #26) ✅
-- [x] DossierSuppliers UI: `FornitoriPanel` in `PraticaDetail` dentro `PraticheView` (PR #52, caveat #27) ✅
-- [x] Filtro pratica in Ricerca avanzata (`AdvancedSearchPanel` in `Topbar`, PR #53) ✅
+> ⛔ **Fase 1 — Pratiche & Fornitori RIMOSSI** (sessione 24, PR #63). Non ripristinare.
+> ⛔ **Fase 3 Business RIMOSSA** (sessione 23). Non ripristinare.
 
-### Priorità 2 — Fase 2 Operatività ✅
-- [x] Notifiche reali estese alle pratiche (cambio status, scadenza partenza) — pattern trigger DB (session 22) ✅
-- [x] Calendario avanzato con date partenza/ritorno pratiche (session 22) ✅
-- [x] Estensioni chat con riconoscimento pratica (dossier reference PR-YYYY-NNN) (session 22) ✅
+### Priorità 1 — CRM (stato attuale)
+- [x] Anagrafica Clienti → `src/components/clients/ClientiView.jsx` ✅ mantenuto
+- [x] ~~Anagrafica Fornitori~~ → ⛔ RIMOSSO sessione 24
+- [x] ~~Pratiche di viaggio~~ → ⛔ RIMOSSO sessione 24
+- [x] Collegamento Task ↔ Pratica → ⛔ Sostituito con campo testo libero `praticaRef` nelle task
+
+### Priorità 2 — Fase 2 Operatività ✅ (chiusa sessione 23)
+- [x] Notifiche reali ✅
+- [x] Calendario avanzato ✅
+- [x] Estensioni chat ✅ (incluso riconoscimento pratica — rimosso in sessione 24)
 
 ### Priorità 3 — Scala & accessi (Fase 3)
 - [ ] Multi-utente reale & permessi (login vero, isolamento dati)
@@ -317,9 +280,9 @@ Vedi `docs/ROADMAP.md` per il dettaglio completo con dipendenze e stime.
 src/
 ├── auth/                    AuthContext.jsx, LoginScreen.jsx
 ├── lib/
-│   ├── api.js               Tasks/Notices/Conversations/Messages/Notifications/Users/Clients/Suppliers/Dossiers APIs
+│   ├── api.js               Tasks/Notices/Conversations/Messages/Notifications/Users/Clients APIs (Suppliers/Dossiers RIMOSSI sessione 24)
 │   ├── clientId.js          UUID per tab (origin-tagging realtime)
-│   ├── mappers.js           DB ↔ camelCase (include CRM: fromDbClient/Supplier/Dossier)
+│   ├── mappers.js           DB ↔ camelCase (fromDbClient/toDbClient, fromDbNotification; Supplier/Dossier RIMOSSI sessione 24)
 │   ├── supabase.js
 │   ├── taskConstants.js     PRIORITIES/STATUSES/STATUS_*/NOTICE_COLORS/TASK_TEMPLATES (Phase 2a)
 │   ├── taskUtils.js         formatDate/formatTime/isUrgent/isMyTask/... (Phase 2a)
@@ -361,25 +324,23 @@ src/
 │   ├── admin/
 │   │   ├── AdminView.jsx (contiene 5 tab locali)
 │   │   └── adminStyles.js (13 costanti stile consolidate)
-│   ├── clients/             🆕 Fase 1 CRM
-│   │   └── ClientiView.jsx
-│   ├── suppliers/           🆕 Fase 1 CRM
-│   │   └── FornitoriView.jsx
-│   ├── dossiers/            🆕 Fase 1 CRM
-│   │   └── PraticheView.jsx (contiene FornitoriPanel locale — fornitori della pratica)
+│   ├── clients/
+│   │   └── ClientiView.jsx              ← anagrafica clienti (mantenuta)
+│   ├── suppliers/                       ← directory vuota (FornitoriView.jsx RIMOSSO sessione 24)
+│   ├── dossiers/                        ← directory vuota (PraticheView.jsx RIMOSSO sessione 24)
 │   ├── views/
 │   │   ├── Team.jsx
 │   │   └── Trash.jsx
 │   └── shell/
 │       ├── Topbar.jsx (contiene AdvancedSearchPanel, UserSwitcher, NotificationsPanel locali)
-│       ├── Sidebar.jsx (contiene NAV_ITEMS 8 voci, BottomNav, NavBadge locali)
+│       ├── Sidebar.jsx (contiene NAV_ITEMS 6 voci, BottomNav, NavBadge locali)
 │       └── FAB.jsx
-├── VoyageDesk.jsx           Shell di orchestrazione (~970 righe; Phase 2g + CRM hydration + dispatch CRM)
+├── VoyageDesk.jsx           Shell di orchestrazione (hydration solo Clienti; sessione 24)
 └── main.jsx
 ```
 
-**Step P COMPLETO (Phase 1 → 2g).** **Fase 1 COMPLETA** (PR #49 base + #51/#52/#53): Clienti, Fornitori, Pratiche, collegamento Task↔Pratica, fornitori della pratica, filtro pratica in ricerca. Nessun caveat aperto.
+**Step P COMPLETO (Phase 1 → 2g).** **CRM:** solo Clienti attivo (Fornitori e Pratiche rimossi in sessione 24, PR #63). Nessun caveat aperto.
 
-Le notifiche nascono **solo da trigger DB / funzioni server-side** (RLS vieta insert client) — per nuove notifiche serve un trigger o una funzione `SECURITY DEFINER` schedulata via pg_cron (pattern in `supabase/migrations/20260614_mention_composite_names.sql`, `20260614_dossier_notifications.sql`, `20260615_queue_stale_notifications.sql`). Tipi notifica gestiti dal frontend (`NOTIF_ICONS`/`notifTitle` in `Topbar.jsx`): `task_assigned`, `task_due`, `comment`, `mention`, `queue_stale`, `dossier_status`, `dossier_departure`.
+Le notifiche nascono **solo da trigger DB / funzioni server-side** (RLS vieta insert client) — per nuove notifiche serve un trigger o una funzione `SECURITY DEFINER` schedulata via pg_cron. Tipi notifica attivi (`NOTIF_ICONS`/`notifTitle` in `Topbar.jsx`): `task_assigned`, `task_due`, `comment`, `mention`, `queue_stale`. ~~`dossier_status`~~ e ~~`dossier_departure`~~ **RIMOSSI** (sessione 24).
 
-Vedi `docs/HANDOFF_SESSION_2026-06-15_v21.md` (handoff attivo) per lo stato corrente dopo il merge di #60 (sessioni 22+23: Fase 2 chiusa, queue_stale, chat "Occupato", micro-UI; Fase 3 Business rimossa). v17 = sessione 21 (quick wins); v15 = Fase 1 completa.
+Vedi `docs/HANDOFF_SESSION_2026-06-16_v22.md` (handoff attivo) per lo stato corrente dopo PR #63 (sessione 24: rimozione Pratiche & Fornitori, campo libero `praticaRef`, migration applicata in produzione).

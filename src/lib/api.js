@@ -208,52 +208,6 @@ export const Clients = {
     supabase.from('clients').delete().eq('id', id),
 };
 
-// ----------------- SUPPLIERS -----------------
-export const Suppliers = {
-  list: () =>
-    supabase.from('suppliers').select('*').order('name'),
-  get: (id) =>
-    supabase.from('suppliers').select('*').eq('id', id).single(),
-  create: (supplier) =>
-    supabase.from('suppliers').insert(supplier).select().single(),
-  update: (id, patch) =>
-    supabase.from('suppliers').update(patch).eq('id', id).select().single(),
-  remove: (id) =>
-    supabase.from('suppliers').delete().eq('id', id),
-};
-
-// ----------------- DOSSIERS -----------------
-export const Dossiers = {
-  list: () =>
-    supabase.from('dossiers')
-      .select('*, clients(id, name, email, phone)')
-      .order('created_at', { ascending: false }),
-  get: (id) =>
-    supabase.from('dossiers')
-      .select('*, clients(id, name, email, phone), dossier_suppliers(*, suppliers(*))')
-      .eq('id', id).single(),
-  create: (dossier) =>
-    supabase.from('dossiers').insert(dossier).select().single(),
-  update: (id, patch) =>
-    supabase.from('dossiers').update(patch).eq('id', id).select().single(),
-  remove: (id) =>
-    supabase.from('dossiers').delete().eq('id', id),
-};
-
-// ----------------- DOSSIER_SUPPLIERS -----------------
-export const DossierSuppliers = {
-  list: (dossierId) =>
-    supabase.from('dossier_suppliers')
-      .select('*, suppliers(*)')
-      .eq('dossier_id', dossierId),
-  create: (entry) =>
-    supabase.from('dossier_suppliers').insert(entry).select().single(),
-  update: (id, patch) =>
-    supabase.from('dossier_suppliers').update(patch).eq('id', id).select().single(),
-  remove: (id) =>
-    supabase.from('dossier_suppliers').delete().eq('id', id),
-};
-
 // ----------------- REALTIME -----------------
 // Step L: i payload realtime hanno origin_client se generati da una mutation
 // taggata: su INSERT/UPDATE sta in payload.new, su DELETE in payload.old

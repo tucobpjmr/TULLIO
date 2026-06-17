@@ -9,8 +9,6 @@ const NAV_ITEMS = [
   { id: "dashboard",  icon: "📊", label: "Dashboard",  roles: ["admin", "manager", "agent", "driver"] },
   { id: "calendar",   icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
   { id: "clienti",    icon: "👤", label: "Clienti",    roles: ["admin", "manager", "agent"] },
-  { id: "fornitori",  icon: "🤝", label: "Fornitori",  roles: ["admin", "manager", "agent"] },
-  { id: "pratiche",   icon: "📁", label: "Pratiche",   roles: ["admin", "manager", "agent"] },
   { id: "team",       icon: "👥", label: "Team",       roles: ["admin", "manager", "agent"] },
   { id: "trash",      icon: "🗑️", label: "Cestino",    roles: ["admin", "manager", "agent", "driver"] },
   { id: "admin",      icon: "⚙️", label: "Admin",      roles: ["admin"] },
@@ -28,15 +26,7 @@ function getNavBadges(state) {
   const queue = (state.tasks || []).filter(
     t => !t.deletedAt && (!Array.isArray(t.assignees) || t.assignees.length === 0)
   ).length;
-  // Badge pratiche: partenze nei prossimi 7 giorni (status attivo)
-  const now = Date.now();
-  const in7d = now + 7 * 24 * 60 * 60 * 1000;
-  const imminentDossiers = (state.dossiers || []).filter(d => {
-    if (!d.departureDate || d.status === "completata" || d.status === "annullata") return false;
-    const ts = new Date(d.departureDate).getTime();
-    return ts >= now && ts <= in7d;
-  }).length;
-  return { admin: pending, dashboard: queue, pratiche: imminentDossiers };
+  return { admin: pending, dashboard: queue };
 }
 
 // Componente helper per renderizzare il badge numerico

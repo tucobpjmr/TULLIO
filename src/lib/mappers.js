@@ -24,7 +24,7 @@ export function fromDbTask(row) {
     status: row.status,
     assignees: Array.isArray(row.assignees) ? row.assignees : [],
     client: row.client_id ?? null,
-    dossierId: row.dossier_id ?? null,
+    praticaRef: row.pratica_ref ?? null,
     dueDate: row.due_date ?? null,
     estimatedHours: row.estimated_hours == null ? 0 : Number(row.estimated_hours),
     description: row.description ?? '',
@@ -46,7 +46,7 @@ export function toDbTask(task) {
     status: task.status ?? 'todo',
     assignees: Array.isArray(task.assignees) ? task.assignees : [],
     client_id: task.client ?? null,
-    dossier_id: task.dossierId ?? null,
+    pratica_ref: task.praticaRef ?? null,
     due_date: task.dueDate ?? null,
     estimated_hours: task.estimatedHours ?? null,
     description: task.description ?? null,
@@ -64,7 +64,7 @@ export function toDbTaskPatch(patch) {
   if ('status' in patch) out.status = patch.status;
   if ('assignees' in patch) out.assignees = patch.assignees ?? [];
   if ('client' in patch) out.client_id = patch.client ?? null;
-  if ('dossierId' in patch) out.dossier_id = patch.dossierId ?? null;
+  if ('praticaRef' in patch) out.pratica_ref = patch.praticaRef ?? null;
   if ('dueDate' in patch) out.due_date = patch.dueDate ?? null;
   if ('estimatedHours' in patch) out.estimated_hours = patch.estimatedHours ?? null;
   if ('description' in patch) out.description = patch.description ?? null;
@@ -219,100 +219,6 @@ export function toDbClient(client) {
     address: client.address ?? null,
     city: client.city ?? null,
     notes: client.notes ?? null,
-  };
-}
-
-// ----------------- SUPPLIERS -----------------
-export function fromDbSupplier(row) {
-  if (!row) return null;
-  return {
-    id: row.id,
-    name: row.name,
-    category: row.category ?? null,
-    email: row.email ?? null,
-    phone: row.phone ?? null,
-    address: row.address ?? null,
-    city: row.city ?? null,
-    country: row.country ?? null,
-    notes: row.notes ?? null,
-    createdAt: row.created_at ?? null,
-  };
-}
-
-export function toDbSupplier(supplier) {
-  return {
-    name: supplier.name,
-    category: supplier.category ?? null,
-    email: supplier.email ?? null,
-    phone: supplier.phone ?? null,
-    address: supplier.address ?? null,
-    city: supplier.city ?? null,
-    country: supplier.country ?? null,
-    notes: supplier.notes ?? null,
-  };
-}
-
-// ----------------- DOSSIERS -----------------
-export function fromDbDossier(row) {
-  if (!row) return null;
-  return {
-    id: row.id,
-    number: row.number,
-    title: row.title,
-    status: row.status,
-    clientId: row.client_id ?? null,
-    client: row.clients ? fromDbClient(row.clients) : null,
-    destination: row.destination ?? null,
-    departureDate: row.departure_date ?? null,
-    returnDate: row.return_date ?? null,
-    paxAdults: row.pax_adults ?? 0,
-    paxChildren: row.pax_children ?? 0,
-    budgetTotal: row.budget_total != null ? Number(row.budget_total) : null,
-    notes: row.notes ?? null,
-    createdBy: row.created_by ?? null,
-    createdAt: row.created_at ?? null,
-    updatedAt: row.updated_at ?? null,
-  };
-}
-
-export function toDbDossier(dossier) {
-  return {
-    title: dossier.title,
-    status: dossier.status ?? 'bozza',
-    client_id: dossier.clientId ?? null,
-    destination: dossier.destination ?? null,
-    departure_date: dossier.departureDate ?? null,
-    return_date: dossier.returnDate ?? null,
-    pax_adults: dossier.paxAdults ?? 0,
-    pax_children: dossier.paxChildren ?? 0,
-    budget_total: dossier.budgetTotal ?? null,
-    notes: dossier.notes ?? null,
-  };
-}
-
-// ----------------- DOSSIER_SUPPLIERS -----------------
-// Fornitori collegati a una pratica (con il fornitore embedded dal join).
-export function fromDbDossierSupplier(row) {
-  if (!row) return null;
-  return {
-    id: row.id,
-    dossierId: row.dossier_id,
-    supplierId: row.supplier_id,
-    serviceType: row.service_type ?? null,
-    cost: row.cost != null ? Number(row.cost) : null,
-    notes: row.notes ?? null,
-    supplier: row.suppliers ? fromDbSupplier(row.suppliers) : null,
-    createdAt: row.created_at ?? null,
-  };
-}
-
-export function toDbDossierSupplier(entry) {
-  return {
-    dossier_id: entry.dossierId,
-    supplier_id: entry.supplierId,
-    service_type: entry.serviceType ?? null,
-    cost: entry.cost ?? null,
-    notes: entry.notes ?? null,
   };
 }
 

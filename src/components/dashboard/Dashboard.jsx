@@ -7,7 +7,7 @@ import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { StatusBadge } from "../ui/StatusBadge.jsx";
 import { PRIORITIES } from "../../lib/taskConstants.js";
-import { formatDate, formatTime, isOverdue, isUrgent, isMyTask, isInGlobalQueue, getActiveTasks } from "../../lib/taskUtils.js";
+import { formatDate, formatTime, isOverdue, isUrgent, isMyTask, isInGlobalQueue, getActiveTasks, getDayKey } from "../../lib/taskUtils.js";
 import { CATEGORIES, getMember, getRoleType, getAssignableTeam, canViewTask, getVisibleTasks } from "../../state/appGlobals.js";
 import { NoticeBoard } from "./NoticeBoard.jsx";
 // Step P Phase 2g: AIDayPlanner (~350 righe, chiama l'API Claude) si apre solo
@@ -17,9 +17,46 @@ const AIDayPlanner = lazy(() =>
 );
 
 // ─── PERSONAL QUEUE (le mie task — v0.8) ───────────────────────────────────
-const PersonalQueue = ({ tasks, dispatch, me }) => {
+// enableDateFilter (v22): per il Driver (vista transfer-oriented) abilita un
+// filtro data/ora — i transfer sono time-sensitive, Giulia filtra la coda per
+// giornata (Tutte / Oggi / Domani / data specifica).
+const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
   const { isMobile } = useViewport();
-  const empty = tasks.length === 0;
+  const [dateFilter, setDateFilter] = useState("all"); // "all" | "today" | "tomorrow" | "YYYY-MM-DD"
+
+  let filtered = tasks;
+  if (enableDateFilter && dateFilter !== "all") {
+    let targetKey;
+    if (dateFilter === "today") {
+      targetKey = new Date().toDateString();
+    } else if (dateFilter === "tomorrow") {
+      const d = new Date(); d.setDate(d.getDate() + 1); targetKey = d.toDateString();
+    } else {
+      // dateFilter = "YYYY-MM-DD" da <input type="date"> → mezzogiorno locale (no shift TZ)
+      targetKey = new Date(dateFilter + "T12:00:00").toDateString();
+    }
+    filtered = tasks.filter(t => t.dueDate && getDayKey(t.dueDate) === targetKey);
+  }
+  // I transfer sono ordinati per orario: dueDate include l'ora, l'ordinamento
+  // per scadenza arriva già dal chiamante.
+  const empty = filtered.length === 0;
+
+  const customDate = !["all", "today", "tomorrow"].includes(dateFilter) ? dateFilter : "";
+  const chip = (key, label) => (
+    <button
+      type="button"
+      onClick={() => setDateFilter(key)}
+      style={{
+        padding: "5px 12px", borderRadius: 999, cursor: "pointer",
+        fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+        border: `1px solid ${dateFilter === key ? "var(--navy)" : "var(--border)"}`,
+        background: dateFilter === key ? "var(--navy)" : "#fff",
+        color: dateFilter === key ? "#fff" : "var(--text-muted)",
+        transition: "background 0.15s, color 0.15s",
+      }}
+    >{label}</button>
+  );
+
   return (
     <div style={{
       background: "linear-gradient(135deg, rgba(15,32,68,0.04) 0%, rgba(15,32,68,0.01) 100%)",
@@ -38,36 +75,58 @@ const PersonalQueue = ({ tasks, dispatch, me }) => {
           }}>{me?.avatar || "?"}</div>
           <div>
             <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)" }}>
-              La mia coda — task assegnate a me
+              {enableDateFilter ? "La mia coda transfer" : "La mia coda — task assegnate a me"}
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-              Ordinate per scadenza • clicca una card per i dettagli
+              {enableDateFilter ? "Filtra per giornata • ordinate per orario • clicca una card per i dettagli" : "Ordinate per scadenza • clicca una card per i dettagli"}
             </div>
           </div>
         </div>
-        {!empty && (
-          <div style={{
-            background: "var(--navy)", color: "#fff",
-            padding: "4px 12px", borderRadius: 999,
-            fontSize: 13, fontWeight: 700,
-          }}>{tasks.length} {tasks.length === 1 ? "task" : "task"}</div>
-        )}
+        <div style={{
+          background: "var(--navy)", color: "#fff",
+          padding: "4px 12px", borderRadius: 999,
+          fontSize: 13, fontWeight: 700,
+        }}>{enableDateFilter && dateFilter !== "all" ? `${filtered.length}/${tasks.length}` : `${tasks.length}`} task</div>
       </div>
+
+      {enableDateFilter && (
+        <div className="vd-row-wrap" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+          {chip("all", "Tutte")}
+          {chip("today", "Oggi")}
+          {chip("tomorrow", "Domani")}
+          <input
+            type="date"
+            value={customDate}
+            onChange={e => setDateFilter(e.target.value || "all")}
+            aria-label="Filtra per data"
+            style={{
+              padding: "4px 10px", borderRadius: 999, fontSize: 12, fontFamily: "inherit",
+              border: `1px solid ${customDate ? "var(--navy)" : "var(--border)"}`,
+              background: "#fff", color: "var(--text)", cursor: "pointer",
+            }}
+          />
+          {customDate && (
+            <button type="button" onClick={() => setDateFilter("all")} title="Azzera filtro" style={{
+              background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: 13, fontWeight: 600,
+            }}>✕ azzera</button>
+          )}
+        </div>
+      )}
 
       {empty ? (
         <div style={{
           padding: "14px 0 4px", display: "flex", alignItems: "center", gap: 10,
           color: "var(--text-muted)", fontSize: 13,
         }}>
-          <span style={{ fontSize: 18 }}>🎉</span>
-          Nessuna task aperta a tuo nome. Buon lavoro!
+          <span style={{ fontSize: 18 }}>{enableDateFilter && dateFilter !== "all" ? "📭" : "🎉"}</span>
+          {enableDateFilter && dateFilter !== "all" ? "Nessun transfer per la giornata selezionata." : "Nessuna task aperta a tuo nome. Buon lavoro!"}
         </div>
       ) : (
         <div style={{
           display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))",
           gap: 10,
         }}>
-          {tasks.map(t => {
+          {filtered.map(t => {
             const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
             const prio = PRIORITIES[t.priority];
             const overdue = isOverdue(t);
@@ -103,7 +162,7 @@ const PersonalQueue = ({ tasks, dispatch, me }) => {
                   {t.client && <span>👤 {t.client}</span>}
                   {t.dueDate && (
                     <span style={{ color: overdue ? "var(--danger)" : urgent ? "var(--warning)" : "var(--text-muted)", fontWeight: (overdue || urgent) ? 700 : 400 }}>
-                      📅 {formatDate(t.dueDate)}{overdue ? " ⚠ scaduto" : urgent ? " ⏱ < 24h" : ""}
+                      📅 {formatDate(t.dueDate)}{enableDateFilter ? ` 🕑 ${formatTime(t.dueDate)}` : ""}{overdue ? " ⚠ scaduto" : urgent ? " ⏱ < 24h" : ""}
                     </span>
                   )}
                   {t.estimatedHours > 0 && <span>⏱️ {t.estimatedHours}h</span>}
@@ -733,7 +792,7 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
 
       {/* ─── SEZIONE CODA FILTRATA ─── */}
       {activeQueue === "personal" && (
-        <PersonalQueue tasks={personalQueue} dispatch={dispatch} me={me} />
+        <PersonalQueue tasks={personalQueue} dispatch={dispatch} me={me} enableDateFilter={role === "driver"} />
       )}
       {activeQueue === "global" && showGlobalQueue && (
         <UnassignedQueue tasks={unassigned} dispatch={dispatch} onTake={takeOwnership} />

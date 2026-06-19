@@ -107,7 +107,7 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 | Vista settimanale Calendario | ✅ | — | Completata in v0.7 (CalendarPlanner: week + week-full) |
 | Comprimi automaticamente Sidebar desktop tra 1024–1280px | ✅ | — | Auto-collapse a transizione di banda in `Sidebar` (guardia `prevBandRef`, non contrasta il toggle manuale) |
 | Skeleton loading su prime render | ✅ | — | `SkeletonCards` (shimmer) nelle viste Clienti/Fornitori/Pratiche durante l'idratazione CRM (`crmLoading`) |
-| Dark mode | ⬜ | ⚪ | CSS variables pronte |
+| Dark mode | ✅ | — | Token `--card`/`--heading` + blocco `[data-theme="dark"]`, toggle 🌙/☀️ in Topbar (solo-sessione). Shell resta brand-celeste. v2.8-dev |
 | Test responsive automatici (Playwright) | ⬜ | ⚪ | ⚙️**B** |
 
 ## ✨ Migliorie incrementali emerse (post v0.8)
@@ -116,7 +116,7 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 |---|---|---|---|
 | Task link cliccabile nella chat (apre TaskSlideOver) | ✅ | — | Completato in Step H/K (`MessageTextContent` + `taskRef`) |
 | Permessi granulari per sub-ruolo (Senior vs Junior) | ⬜ | ⚪ | Oggi trattati identicamente come "agent" |
-| Coda personale Driver: filtro per data/ora (tipo agenda giornaliera) | ⬜ | 🟡 | Giulia ha bisogno di una vista transfer-oriented |
+| Coda personale Driver: filtro per data/ora (tipo agenda giornaliera) | ✅ | — | `PersonalQueue` con `enableDateFilter` per role=driver: chip Tutte/Oggi/Domani + date picker, orario nelle card. v2.8-dev |
 | Indicatore visivo "read-only" sulle card urgenti altrui | ✅ | — | Completato in PR #57 (sessione 22): bordo dashed + chip 🔒 |
 | Notifica in-app al cambio utente (rollback automatico dopo X secondi?) | ⬜ | ⚪ | Per evitare che qualcuno lasci l'app loggato come Admin |
 

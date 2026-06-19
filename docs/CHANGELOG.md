@@ -1,6 +1,32 @@
 # CHANGELOG — VoyageDesk
 
 
+## v2.8-dev — Candidati low-risk: filtro data/ora coda Driver + dark mode (sessione 25)
+
+> Branch `claude/handoff-changelog-roadmap-xlkae9`. Feature low-risk portate da PR #62 (commit isolati), depurate dalle parti obsolete (chip pratica) e dai moduli rimossi in #63.
+
+### 🚐 Filtro data/ora nella coda personale Driver (vista transfer)
+
+- **`src/components/dashboard/Dashboard.jsx`**: `PersonalQueue` accetta `enableDateFilter` (attivo per `role === "driver"`). Chip **Tutte / Oggi / Domani** + `<input type="date">` per filtrare i transfer per giornata; contatore `filtrati/totale`; orario (`formatTime`) mostrato nelle card. Titolo/sottotitolo dedicati ("La mia coda transfer"). Empty-state contestuale (📭) quando il filtro non produce risultati.
+- Risolve il bisogno di Giulia (Driver) di una vista transfer-oriented.
+
+### 🌙 Dark mode con toggle in Topbar
+
+- **Token semantici** (`src/VoyageDesk.jsx` FontLoader): `--card` (superficie card, sostituisce gli `#fff` inline dei contenuti) e `--heading` (titoli su card, sostituisce `color: var(--navy)`). In light coincidono coi valori storici → **nessun cambiamento visivo**.
+- **Blocco `[data-theme="dark"]`**: superfici scure, testo chiaro, `color-scheme: dark`. La **shell** (topbar/sidebar/bottom-nav) resta brand-celeste per scelta di design (evita testo invisibile sui controlli). `--navy` resta scuro (bg bottoni con testo bianco).
+- **Toggle 🌙/☀️ in Topbar** (`src/components/shell/Topbar.jsx`): stato solo-sessione, **nessun localStorage** (vincolo CLAUDE.md), `data-theme` applicato su `<html>` via `useEffect`.
+- Sostituzioni `#fff`→`var(--card)` e `var(--navy)`→`var(--heading)` propagate ai componenti contenuto (Dashboard, AdminView, Calendar, Chat, Clienti, Trash, Team, modali, ui). `TaskSlideOver`/`ClientiView` adattati a post-#63 (input `praticaRef` al posto del select pratica; badge dossier non reintrodotto).
+
+### 🔍 Revisione PR aperte
+
+- **PR #62 / #64**: partite da un branch-point **precedente** alla rimozione Pratiche/Fornitori (#63). Mergiate as-is **reintrodurrebbero** `PraticheView.jsx`/`FornitoriView.jsx` e le migration dossier, e si sovrappongono tra loro sulla feature "inviti reali via Supabase" (Fase 3). Decisione: **non mergiare as-is**; estratti solo i commit-feature puliti e low-risk (driver filter, dark mode). La feature "inviti reali" resta a Fase 3 (da concordare).
+
+### Caveat
+
+Nessuno.
+
+---
+
 ## v2.7-dev — Rimozione completa Pratiche & Fornitori; campo libero praticaRef nelle task (sessione 24)
 
 > PR #63 su branch `claude/phase-3-password-protection-kw3hz8` · ready for review · CI Vercel verde.

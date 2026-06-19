@@ -3,6 +3,10 @@
 import { useState, useMemo } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { SkeletonCards } from "../ui/SkeletonCards.jsx";
+import { PriorityBadge } from "../ui/PriorityBadge.jsx";
+import { StatusBadge } from "../ui/StatusBadge.jsx";
+import { formatDate, isActiveTask } from "../../lib/taskUtils.js";
+import { CATEGORIES, CURRENT_USER, canViewTask } from "../../state/appGlobals.js";
 
 const EMPTY_FORM = { name: "", email: "", phone: "", address: "", city: "", notes: "" };
 
@@ -91,13 +95,13 @@ function ClienteModal({ cliente, onSave, onClose }) {
   );
 }
 
-function ClienteCard({ cliente, onEdit, onDelete }) {
+function ClienteCard({ cliente, onEdit, onDelete, onSelect, selected }) {
   const [hovered, setHovered] = useState(false);
   return (
     <div
       style={{
         background: "var(--card)", borderRadius: 12, padding: "16px 18px",
-        border: `1px solid ${hovered ? "var(--navy-light)" : "var(--border)"}`,
+        border: `2px solid ${selected ? "var(--navy)" : hovered ? "var(--navy-light)" : "var(--border)"}`,
         transition: "all 0.18s", cursor: "default",
         boxShadow: hovered ? "0 4px 16px rgba(15,32,68,0.08)" : "none",
       }}
@@ -105,10 +109,11 @@ function ClienteCard({ cliente, onEdit, onDelete }) {
       onMouseLeave={() => setHovered(false)}
     >
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ flex: 1, minWidth: 0, cursor: "pointer" }} onClick={() => onSelect(cliente)}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
             <div style={{
-              width: 34, height: 34, borderRadius: "50%", background: "var(--navy)",
+              width: 34, height: 34, borderRadius: "50%",
+              background: selected ? "var(--navy)" : "var(--navy-light)",
               color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 13, fontWeight: 700, flexShrink: 0,
             }}>
@@ -154,6 +159,70 @@ function ClienteCard({ cliente, onEdit, onDelete }) {
   );
 }
 
+// Panel task collegati al cliente selezionato (v2.8 Round 9)
+function ClienteTaskPanel({ cliente, tasks, dispatch, onClose }) {
+  const uid = CURRENT_USER;
+  const clientTasks = useMemo(() => {
+    const q = (cliente.name || "").toLowerCase();
+    return tasks.filter(t =>
+      isActiveTask(t) &&
+      canViewTask(t, uid) &&
+      (t.client || "").toLowerCase().includes(q)
+    );
+  }, [tasks, cliente.name, uid]);
+
+  const open = clientTasks.filter(t => t.status !== "done");
+  const done = clientTasks.filter(t => t.status === "done");
+
+  return (
+    <div className="slide-up" style={{
+      background: "var(--card)", borderRadius: 12, padding: "20px 22px",
+      border: "1px solid var(--border)", boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
+      marginTop: 6, marginBottom: 8,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <div>
+          <span className="playfair" style={{ fontWeight: 700, fontSize: 16 }}>Task di {cliente.name}</span>
+          <span style={{ marginLeft: 10, fontSize: 12, color: "var(--text-muted)" }}>
+            {open.length} aperti · {done.length} completati
+          </span>
+        </div>
+        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
+      </div>
+
+      {clientTasks.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "24px 0", color: "var(--text-muted)", fontSize: 13 }}>
+          Nessun task associato a questo cliente
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+          {clientTasks.map(t => (
+            <div
+              key={t.id}
+              onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "9px 12px", borderRadius: 8, border: "1px solid var(--border)",
+                cursor: "pointer", transition: "background 0.15s",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+            >
+              <span style={{ fontSize: 16 }}>{CATEGORIES[t.category]?.icon || "📋"}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</div>
+                {t.dueDate && <div style={{ fontSize: 11, color: "var(--text-muted)" }}>📅 {formatDate(t.dueDate)}</div>}
+              </div>
+              <PriorityBadge priority={t.priority} />
+              <StatusBadge status={t.status} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Opzioni di ordinamento per la lista clienti (v2.8 Round 8)
 const CLIENT_SORT_OPTS = [
   { key: "name",    label: "Nome A-Z" },
@@ -165,7 +234,8 @@ const CLIENT_SORT_OPTS = [
 export function ClientiView({ state, dispatch, loading = false }) {
   const { isMobile } = useViewport();
   const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState("name"); // v2.8
+  const [sortBy, setSortBy] = useState("name"); // v2.8 Round 8
+  const [selectedClient, setSelectedClient] = useState(null); // v2.8 Round 9
   const [modal, setModal] = useState(null); // null | { mode: "add" | "edit", cliente?: {} }
   const [confirmDelete, setConfirmDelete] = useState(null);
 
@@ -277,9 +347,21 @@ export function ClientiView({ state, dispatch, loading = false }) {
               cliente={c}
               onEdit={c => setModal({ mode: "edit", cliente: c })}
               onDelete={c => setConfirmDelete(c)}
+              onSelect={c => setSelectedClient(sc => sc?.id === c.id ? null : c)}
+              selected={selectedClient?.id === c.id}
             />
           ))}
         </div>
+      )}
+
+      {/* Task del cliente selezionato (v2.8 Round 9) */}
+      {selectedClient && (
+        <ClienteTaskPanel
+          cliente={selectedClient}
+          tasks={state.tasks || []}
+          dispatch={dispatch}
+          onClose={() => setSelectedClient(null)}
+        />
       )}
 
       {/* Modal add/edit */}

@@ -5,6 +5,14 @@
 
 > Branch `claude/handoff-changelog-roadmap-xlkae9`. **Round 1:** feature low-risk portate da PR #62 (commit isolati), depurate dalle parti obsolete (chip pratica) e dai moduli rimossi in #63. **Round 2:** micro-feature frontend-only prima dell'implementazione OneDrive/WhatsApp. **Round 3:** admin rollback automatico.
 
+### 👤 Round 9 — Pannello task del cliente nella vista Clienti
+
+#### Click su una card cliente → mostra i task collegati inline
+
+- **`ClientiView.jsx`**: nuova funzione `ClienteTaskPanel` — pannello `slide-up` sotto la griglia che elenca tutti i task (attivi e visibili) il cui campo `client` contiene il nome del cliente selezionato (match case-insensitive). Contatori "N aperti · N completati" nell'header. Ogni riga task è cliccabile → apre il `TaskSlideOver` tramite `SET_SELECTED_TASK`.
+- Click sull'avatar/nome di una card seleziona (e deseleziona) il cliente. La card selezionata ha bordo blu evidenziato (`--navy`). Il pannello si chiude con il pulsante ✕ o riselezionando la stessa card.
+- Usa `PriorityBadge` + `StatusBadge` + icona categoria per la riga task. Filtra con `isActiveTask` + `canViewTask` rispettando i permessi utente corrente.
+
 ### 🔍 Round 8 — Sort e ricerca avanzata nella vista Clienti
 
 #### Ordinamento e ricerca estesa nell'anagrafica clienti

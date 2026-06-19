@@ -99,6 +99,12 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 | Modifica assegnatari da `TaskSlideOver` | ✅ | — | Completato in PR #57 (sessione 22) |
 | Permessi granulari per ruolo | ✅ | — | Completato in v0.8 |
 | Export Log attività in CSV | ✅ | — | Pulsante "Esporta CSV" nel tab Log (rispetta il filtro attivo), helper `downloadFile`/`escapeCSV` hoistati a module-scope |
+| Sort e ricerca avanzata Clienti | ✅ | — | 4 chip ordinamento (A-Z / Z-A / Più recenti / Città), ricerca estesa a telefono e note. v2.8-dev Round 8. |
+| Pannello task del cliente | ✅ | — | Click su card cliente mostra task collegati inline (match campo `client`). v2.8-dev Round 9. |
+| Scorciatoie tastiera globali | ✅ | — | K=QuickAddTask, ?=overlay shortcut, Esc=chiudi. v2.8-dev Round 10. |
+| Badge urgenze personali nav | ✅ | — | Badge rosso su voce Dashboard per task scaduti/urgenti dell'utente corrente. v2.8-dev Round 11. |
+| Filtro categoria CalendarPlanner | ✅ | — | Chip categoria sotto header calendario, filtra mese/settimana/giorno/distribuzione. v2.8-dev Round 12. |
+| Cerca nei messaggi chat | ✅ | — | Pulsante 🔍 in header conversazione, ricerca full-text con contatore risultati. v2.8-dev Round 13. |
 
 ## ✨ Migliorie incrementali emerse (post v0.6)
 

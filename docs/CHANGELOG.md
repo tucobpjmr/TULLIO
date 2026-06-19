@@ -1,6 +1,60 @@
 # CHANGELOG — VoyageDesk
 
 
+## v2.8-dev — Micro-feature loop frontend-only Round 16–23 (sessione 26)
+
+> Branch `claude/handoff-changelog-roadmap-wm7scp`. Continuazione del loop di sessione 25 (Rounds 8–15). 8 round ulteriori tutti frontend-only, senza DB né librerie esterne.
+
+### ⏱ Round 23 — Pill ore-in-coda nel greeting Dashboard
+
+#### Riepilogo workload visibile al primo sguardo
+
+- **`Dashboard.jsx`**: sotto il saluto "Buongiorno, Marco ☀️" appare un pill `⏱ Xh in coda` con il totale delle ore stimate della coda personale (sum `estimatedHours` sui task aperti assegnati all'utente). Quando ci sono task scaduti il pill diventa rosso e aggiunge `· N scadute`. Non mostrato per Admin. Visibile solo se la somma > 0.
+
+### ⏳ Round 22 — Campo ore stimate nel QuickAddTask
+
+#### Stima inseribile alla creazione del task
+
+- **`QuickAddTask.jsx`**: aggiunto input numerico "ORE ⏱" (step 0.5, max 100) nella riga Assegna A / Scadenza. Il valore era precedentemente hardcoded a 1. Default a 1h se vuoto al submit. La griglia 2-colonne diventa 3-colonne (`1fr 1fr 80px`) per ospitare il campo senza spostare la struttura visiva.
+
+### 🔴 Round 21 — Filtro assegnatario nella OverdueQueue
+
+#### Filtra task scaduti per agente (speculare a Round 15)
+
+- **`Dashboard.jsx` — `OverdueQueue`**: chip avatar+nome+contatore per filtrare i task scaduti per agente assegnato. Chip "Tutti" (rosso pieno) + chip per ogni assegnatario presente. Badge header aggiorna `N/M` quando filtro attivo. Stato vuoto dedicato per assegnatario senza task scaduti nel filtro. Visibile solo quando ci sono > 1 assegnatari.
+
+### 👥 Round 20 — Ore stimate in coda per membro nel Team view
+
+#### Workload in ore oltre al conteggio task
+
+- **`Team.jsx`**: riga sotto la barra capacità nella card membro ora mostra `N/M task · ⏱ Xh` quando il membro ha task attivi con `estimatedHours > 0`. Calcolato con `reduce` su `active` per sommare le ore stimate. Visibile solo quando la somma è > 0.
+
+### 🗓️ Round 19 — Mini-avatar assegnatari nel day view CalendarPlanner
+
+#### Avatar assegnatari visibili sulle card evento senza aprire il dettaglio
+
+- **`CalendarPlanner.jsx`** — vista giornaliera time-grid: riga inferiore delle card evento ora mostra ora/durata a sinistra e avatar 14px degli assegnatari a destra. Max 3 avatar + `+N` per eventuali ulteriori. Visibili solo quando `height >= 42px` (evento ≥ 1h) per non sovraffollare card piccole. Usa il componente `Avatar` già esistente.
+
+### ↓ Round 18 — Export CSV coda personale
+
+#### Scarica le task filtrate correnti come file CSV
+
+- **`Dashboard.jsx`**: bottone `↓ CSV` affiancato al badge contatore nel header della `PersonalQueue`. Visibile solo quando `filtered.length > 0` (rispetta filtro data Driver). Helper `_esc` e `exportTasksCSV` definiti a module-scope. CSV con BOM UTF-8, colonne: Titolo, Categoria, Priorità, Stato, Cliente, Pratica, Assegnati, Scadenza, Ore stimate. Nome file `coda-personale-YYYY-MM-DD.csv`.
+
+### 👤 Round 17 — Ore stimate nel pannello task del cliente
+
+#### Riepilogo ore per cliente nel ClienteTaskPanel
+
+- **`ClientiView.jsx` — `ClienteTaskPanel`**: sotto il titolo "Task di [cliente]" viene mostrato un summary row multi-colonna: `N aperti · Xh stimate` (in muted) + `N completati · Yh` (in verde) + `Totale: Zh` (in navy bold) quando almeno un task ha `estimatedHours > 0`. Calcolato con `reduce` su `open`/`done`.
+
+### 🗑️ Round 16 — Filtro periodo nel Cestino
+
+#### Chip temporale per navigare lo storico task eliminati
+
+- **`Trash.jsx`**: riga di chip "Periodo:" con 4 opzioni: **Tutti** | **Ultimi 7 gg** | **Questo mese** | **Mese scorso**. Il badge in cima al header mostra `N di M task — filtrati per periodo` quando un filtro è attivo. Stato vuoto dedicato con bottone "Mostra tutti" per resettare. Helper `filterByPeriod` a module-scope con calcoli date basati su `deletedAt`. Chip visibili solo se ci sono task nel cestino.
+
+---
+
 ## v2.8-dev — Candidati low-risk: driver/dark mode + ux switch + bacheca tag/reazioni + template chat + admin rollback (sessione 25)
 
 > Branch `claude/handoff-changelog-roadmap-xlkae9`. **Round 1:** feature low-risk portate da PR #62 (commit isolati), depurate dalle parti obsolete (chip pratica) e dai moduli rimossi in #63. **Round 2:** micro-feature frontend-only prima dell'implementazione OneDrive/WhatsApp. **Round 3:** admin rollback automatico.

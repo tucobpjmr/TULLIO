@@ -107,6 +107,14 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 | Cerca nei messaggi chat | ✅ | — | Pulsante 🔍 in header conversazione, ricerca full-text con contatore risultati. v2.8-dev Round 13. |
 | Avanzamento status rapido PersonalQueue | ✅ | — | Bottoni inline ▶/⏸/✓ contestuali per status nella coda personale, senza aprire TaskSlideOver. v2.8-dev Round 14. |
 | Filtro per agente UrgentOthersQueue | ✅ | — | Chip con avatar + nome + contatore per filtrare i task urgenti del team per agente. Badge aggiorna. v2.8-dev Round 15. |
+| Filtro periodo nel Cestino | ✅ | — | Chip Tutti/Ultimi 7 gg/Questo mese/Mese scorso su `deletedAt`. Badge `N di M`, stato vuoto con reset. v2.8-dev Round 16. |
+| Ore stimate nel pannello task cliente | ✅ | — | Summary row `N aperti · Xh stimate · N completati · Yh · Totale: Zh` in ClienteTaskPanel. v2.8-dev Round 17. |
+| Export CSV coda personale | ✅ | — | Bottone `↓ CSV` nel header PersonalQueue, esporta il set filtrato corrente. v2.8-dev Round 18. |
+| Mini-avatar assegnatari nel day view | ✅ | — | Avatar 14px degli assegnatari sulle card evento nel time-grid giornaliero (height ≥ 42px). v2.8-dev Round 19. |
+| Ore stimate in coda per membro (Team view) | ✅ | — | Riga `N/M task · ⏱ Xh` sotto barra capacità nella card membro. v2.8-dev Round 20. |
+| Filtro assegnatario OverdueQueue | ✅ | — | Chip avatar+nome+contatore per filtrare task scaduti per agente (speculare a Round 15). v2.8-dev Round 21. |
+| Campo ore stimate nel QuickAddTask | ✅ | — | Input numerico "ORE ⏱" (step 0.5) nella riga Assegna A/Scadenza. Default 1h se vuoto. v2.8-dev Round 22. |
+| Pill ore-in-coda nel greeting Dashboard | ✅ | — | Pill `⏱ Xh in coda` + `· N scadute` (rosso) sotto il saluto per ruoli non-admin. v2.8-dev Round 23. |
 
 ## ✨ Migliorie incrementali emerse (post v0.6)
 

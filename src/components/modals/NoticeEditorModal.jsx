@@ -7,13 +7,32 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
   const [text, setText] = useState(notice?.text || "");
   const [color, setColor] = useState(notice?.color || NOTICE_COLORS[0]);
   const [pinned, setPinned] = useState(notice?.pinned || false);
+  // v2.8: tag/categorie sui post-it (free-form, max 20 char ciascuno, max 5).
+  // Persistono come array di stringhe normalizzate (lowercase, trim).
+  const [tags, setTags] = useState(Array.isArray(notice?.tags) ? notice.tags : []);
+  const [tagDraft, setTagDraft] = useState("");
   const textareaRef = useRef(null);
 
   useEffect(() => { textareaRef.current?.focus(); }, []);
 
+  const addTag = (raw) => {
+    const t = String(raw || "").trim().toLowerCase().slice(0, 20);
+    if (!t || tags.includes(t) || tags.length >= 5) return;
+    setTags([...tags, t]);
+  };
+  const onTagKey = (e) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      addTag(tagDraft);
+      setTagDraft("");
+    } else if (e.key === "Backspace" && !tagDraft && tags.length) {
+      setTags(tags.slice(0, -1));
+    }
+  };
+
   const submit = () => {
     if (!text.trim()) return;
-    onSave({ text: text.trim(), color, pinned });
+    onSave({ text: text.trim(), color, pinned, tags });
   };
 
   return (
@@ -81,6 +100,49 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
                 }}
               />
             ))}
+          </div>
+        </div>
+
+        {/* Tag (v2.8): chip + input. Enter o virgola conferma; Backspace su input vuoto rimuove ultimo */}
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+            Tag <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(opzionali, max 5 — premi Invio per aggiungere)</span>
+          </div>
+          <div style={{
+            display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center",
+            padding: "6px 8px", borderRadius: 8, border: "1px solid var(--border)",
+            minHeight: 38,
+          }}>
+            {tags.map(t => (
+              <span key={t} style={{
+                display: "inline-flex", alignItems: "center", gap: 4,
+                background: "var(--surface2)", color: "var(--heading)",
+                padding: "3px 8px", borderRadius: 999, fontSize: 11, fontWeight: 600,
+              }}>
+                #{t}
+                <button
+                  type="button"
+                  onClick={() => setTags(tags.filter(x => x !== t))}
+                  aria-label={`Rimuovi tag ${t}`}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: 12, lineHeight: 1, padding: 0 }}
+                >×</button>
+              </span>
+            ))}
+            {tags.length < 5 && (
+              <input
+                value={tagDraft}
+                onChange={e => setTagDraft(e.target.value)}
+                onKeyDown={onTagKey}
+                onBlur={() => { if (tagDraft) { addTag(tagDraft); setTagDraft(""); } }}
+                placeholder={tags.length === 0 ? "es. urgente, partenza, fornitori…" : ""}
+                maxLength={20}
+                style={{
+                  flex: 1, minWidth: 100, border: "none", outline: "none",
+                  fontSize: 12, fontFamily: "inherit", padding: "3px 2px",
+                  background: "transparent", color: "var(--text)",
+                }}
+              />
+            )}
           </div>
         </div>
 

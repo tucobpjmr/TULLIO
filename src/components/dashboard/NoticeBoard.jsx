@@ -8,13 +8,35 @@ import { NoticeEditorModal } from "../modals/NoticeEditorModal.jsx";
 export const NoticeBoard = ({ notices, dispatch }) => {
   const [editing, setEditing] = useState(null); // null | { id?, text, color }
   const [creating, setCreating] = useState(false);
+  // v2.8: filtro per tag (Set di tag attivi; vuoto = mostra tutto).
+  // Modalità OR: un post-it visibile se ha almeno un tag tra quelli attivi.
+  const [activeTags, setActiveTags] = useState(new Set());
   const { isMobile } = useViewport();
 
-  // Pinned in alto, poi per data
-  const sorted = [...notices].sort((a, b) => {
-    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-    return new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt);
-  });
+  // Tutti i tag in uso (dedup), ordinati per frequenza decrescente.
+  const allTags = (() => {
+    const count = new Map();
+    for (const n of notices) {
+      for (const t of (n.tags || [])) count.set(t, (count.get(t) || 0) + 1);
+    }
+    return [...count.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t);
+  })();
+
+  const toggleTag = (t) => {
+    setActiveTags(prev => {
+      const next = new Set(prev);
+      if (next.has(t)) next.delete(t); else next.add(t);
+      return next;
+    });
+  };
+
+  // Filtro + ordinamento (pinned in alto, poi per data)
+  const sorted = [...notices]
+    .filter(n => activeTags.size === 0 || (n.tags || []).some(t => activeTags.has(t)))
+    .sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt);
+    });
 
   const formatRel = (iso) => {
     const diff = Date.now() - new Date(iso).getTime();
@@ -69,6 +91,47 @@ export const NoticeBoard = ({ notices, dispatch }) => {
           + Nuovo avviso
         </button>
       </div>
+
+      {/* Filtro tag (v2.8): visibile solo se ci sono tag in uso */}
+      {allTags.length > 0 && (
+        <div style={{
+          display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6,
+          marginBottom: 14, padding: "0 2px",
+        }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: "#8b6f3a", textTransform: "uppercase", letterSpacing: 1, marginRight: 2 }}>
+            Tag:
+          </span>
+          {allTags.map(t => {
+            const on = activeTags.has(t);
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => toggleTag(t)}
+                style={{
+                  border: `1px solid ${on ? "var(--navy)" : "rgba(139,90,43,0.3)"}`,
+                  background: on ? "var(--navy)" : "rgba(255,255,255,0.5)",
+                  color: on ? "#fff" : "#5d4920",
+                  padding: "3px 10px", borderRadius: 999,
+                  fontSize: 11, fontWeight: 600, fontFamily: "inherit",
+                  cursor: "pointer", transition: "background 0.15s, color 0.15s",
+                }}
+              >#{t}</button>
+            );
+          })}
+          {activeTags.size > 0 && (
+            <button
+              type="button"
+              onClick={() => setActiveTags(new Set())}
+              style={{
+                background: "none", border: "none", color: "#8b6f3a",
+                fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                marginLeft: 4, textDecoration: "underline",
+              }}
+            >azzera</button>
+          )}
+        </div>
+      )}
 
       {/* Board */}
       {sorted.length === 0 ? (
@@ -152,6 +215,26 @@ export const NoticeBoard = ({ notices, dispatch }) => {
                 }}>
                   {n.text}
                 </div>
+
+                {/* Tag chips (v2.8) */}
+                {Array.isArray(n.tags) && n.tags.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
+                    {n.tags.map(t => (
+                      <span
+                        key={t}
+                        onClick={(e) => { e.stopPropagation(); toggleTag(t); }}
+                        style={{
+                          fontSize: 10, fontWeight: 600,
+                          color: activeTags.has(t) ? "#fff" : "#5d4920",
+                          background: activeTags.has(t) ? "rgba(15,32,68,0.85)" : "rgba(255,255,255,0.55)",
+                          padding: "1px 7px", borderRadius: 999, cursor: "pointer",
+                          border: "1px solid rgba(139,90,43,0.25)",
+                        }}
+                        title={`Filtra per #${t}`}
+                      >#{t}</span>
+                    ))}
+                  </div>
+                )}
 
                 {/* Footer: autore + data */}
                 <div style={{

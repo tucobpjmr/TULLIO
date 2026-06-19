@@ -5,6 +5,15 @@
 
 > Branch `claude/handoff-changelog-roadmap-xlkae9`. **Round 1:** feature low-risk portate da PR #62 (commit isolati), depurate dalle parti obsolete (chip pratica) e dai moduli rimossi in #63. **Round 2:** micro-feature frontend-only prima dell'implementazione OneDrive/WhatsApp. **Round 3:** admin rollback automatico.
 
+### 👥 Round 15 — Filtro per agente nella UrgentOthersQueue
+
+#### Chip per filtrare i task urgenti del team per singolo agente
+
+- **`Dashboard.jsx` — `UrgentOthersQueue`**: quando la sezione "Urgenti del team" contiene task di più di un agente, appare una riga di chip filtro sotto l'intestazione. Chip **"Tutti"** (arancione pieno) + un chip per ciascun agente presente (avatar 16px + nome + contatore task). Click attiva il filtro; click sulla stessa chip lo azzera.
+- Il contatore nel badge in alto aggiorna dinamicamente: mostra `N visibili / M totali` quando un filtro è attivo.
+- `presentAgents` calcolato con `Set` su `tasks.map(t => t.assignees?.[0])` — mostra solo gli agenti che hanno effettivamente task urgenti nella finestra 24h.
+- La riga di chip è nascosta se tutti i task appartengono allo stesso agente (`presentAgents.length <= 1`).
+
 ### ⚡ Round 14 — Avanzamento status rapido nella PersonalQueue
 
 #### Bottoni inline per cambiare status senza aprire il TaskSlideOver

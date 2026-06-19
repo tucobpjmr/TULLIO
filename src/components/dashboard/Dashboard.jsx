@@ -257,6 +257,16 @@ const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
 // ─── URGENT OTHERS QUEUE (scadenza <24h, non mie — read-only — v0.8) ──────
 const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
   const { isMobile } = useViewport();
+  const [filterAgent, setFilterAgent] = useState(null);
+
+  const presentAgents = [...new Set(
+    tasks.map(t => t.assignees?.[0]).filter(Boolean)
+  )];
+
+  const visibleTasks = filterAgent
+    ? tasks.filter(t => t.assignees?.[0] === filterAgent)
+    : tasks;
+
   return (
     <div style={{
       background: "linear-gradient(135deg, rgba(200,131,42,0.07) 0%, rgba(200,131,42,0.01) 100%)",
@@ -286,14 +296,63 @@ const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
           background: "var(--warning)", color: "#fff",
           padding: "4px 12px", borderRadius: 999,
           fontSize: 13, fontWeight: 700,
-        }}>{tasks.length}</div>
+        }}>{visibleTasks.length}{filterAgent ? `/${tasks.length}` : ""}</div>
       </div>
+
+      {/* Filtro per agente — Round 15 */}
+      {presentAgents.length > 1 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+          <button
+            type="button"
+            onClick={() => setFilterAgent(null)}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 5,
+              padding: "4px 12px", borderRadius: 999, cursor: "pointer",
+              fontSize: 11, fontWeight: 600, fontFamily: "inherit",
+              border: `1px solid ${!filterAgent ? "var(--warning)" : "var(--border)"}`,
+              background: !filterAgent ? "var(--warning)" : "var(--card)",
+              color: !filterAgent ? "#fff" : "var(--text-muted)",
+              transition: "all 0.15s",
+            }}
+          >Tutti</button>
+          {presentAgents.map(agentId => {
+            const m = getMember(agentId);
+            if (!m) return null;
+            const active = filterAgent === agentId;
+            const count = tasks.filter(t => t.assignees?.[0] === agentId).length;
+            return (
+              <button
+                key={agentId}
+                type="button"
+                onClick={() => setFilterAgent(active ? null : agentId)}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  padding: "4px 12px", borderRadius: 999, cursor: "pointer",
+                  fontSize: 11, fontWeight: 600, fontFamily: "inherit",
+                  border: `1px solid ${active ? "var(--warning)" : "var(--border)"}`,
+                  background: active ? "var(--warning)" : "var(--card)",
+                  color: active ? "#fff" : "var(--text-muted)",
+                  transition: "all 0.15s",
+                }}
+              >
+                <Avatar memberId={agentId} size={16} />
+                {m.name}
+                <span style={{
+                  background: active ? "rgba(255,255,255,0.25)" : "var(--surface2)",
+                  borderRadius: 999, padding: "1px 5px", fontSize: 10,
+                  color: active ? "#fff" : "var(--text-muted)",
+                }}>{count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div style={{
         display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 320px), 1fr))",
         gap: 10,
       }}>
-        {tasks.map(t => {
+        {visibleTasks.map(t => {
           const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
           const prio = PRIORITIES[t.priority];
           const owner = getMember(t.assignees?.[0]);

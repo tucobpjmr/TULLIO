@@ -105,6 +105,8 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 | Badge urgenze personali nav | ✅ | — | Badge rosso su voce Dashboard per task scaduti/urgenti dell'utente corrente. v2.8-dev Round 11. |
 | Filtro categoria CalendarPlanner | ✅ | — | Chip categoria sotto header calendario, filtra mese/settimana/giorno/distribuzione. v2.8-dev Round 12. |
 | Cerca nei messaggi chat | ✅ | — | Pulsante 🔍 in header conversazione, ricerca full-text con contatore risultati. v2.8-dev Round 13. |
+| Avanzamento status rapido PersonalQueue | ✅ | — | Bottoni inline ▶/⏸/✓ contestuali per status nella coda personale, senza aprire TaskSlideOver. v2.8-dev Round 14. |
+| Filtro per agente UrgentOthersQueue | ✅ | — | Chip con avatar + nome + contatore per filtrare i task urgenti del team per agente. Badge aggiorna. v2.8-dev Round 15. |
 
 ## ✨ Migliorie incrementali emerse (post v0.6)
 

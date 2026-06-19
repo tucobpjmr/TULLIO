@@ -9,15 +9,46 @@ import { PRIORITIES, STATUS_LABELS } from "../../lib/taskConstants.js";
 import { formatDate, getTrashedTasks } from "../../lib/taskUtils.js";
 import { CATEGORIES, getAssignableTeam, canEditTask } from "../../state/appGlobals.js";
 
+const PERIOD_OPTIONS = [
+  { key: "all",       label: "Tutti" },
+  { key: "week",      label: "Ultimi 7 gg" },
+  { key: "month",     label: "Questo mese" },
+  { key: "lastMonth", label: "Mese scorso" },
+];
+
+const filterByPeriod = (tasks, period) => {
+  if (period === "all") return tasks;
+  const now = new Date();
+  return tasks.filter(t => {
+    if (!t.deletedAt) return false;
+    const d = new Date(t.deletedAt);
+    if (period === "week") {
+      const cutoff = new Date(now); cutoff.setDate(cutoff.getDate() - 7);
+      return d >= cutoff;
+    }
+    if (period === "month") {
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    }
+    if (period === "lastMonth") {
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const end   = new Date(now.getFullYear(), now.getMonth(), 1);
+      return d >= start && d < end;
+    }
+    return true;
+  });
+};
+
 export const Trash = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
   const [restoring, setRestoring] = useState(null); // task being restored/edited
+  const [period, setPeriod] = useState("all");
   const me = state.currentUserId;
   // Ogni utente vede nel cestino solo i task che può gestire (admin: tutti; manager/agent:
   // propri + coda globale; driver: solo transfer propri/globali) — prerogativa di status.
   const trashed = getTrashedTasks(state.tasks)
     .filter(t => canEditTask(t, me))
     .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt));
+  const visible = filterByPeriod(trashed, period);
 
   const handleRestore = (task) => {
     setRestoring({ ...task });
@@ -57,7 +88,9 @@ export const Trash = ({ state, dispatch }) => {
           <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
             {trashed.length === 0
               ? "Nessun task nel cestino"
-              : `${trashed.length} task ${trashed.length === 1 ? "eliminato" : "eliminati"}. Ripristinali o rimuovili definitivamente.`
+              : period !== "all"
+                ? `${visible.length} di ${trashed.length} task — filtrati per periodo`
+                : `${trashed.length} task ${trashed.length === 1 ? "eliminato" : "eliminati"}. Ripristinali o rimuovili definitivamente.`
             }
           </div>
         </div>
@@ -70,6 +103,28 @@ export const Trash = ({ state, dispatch }) => {
           }}>🔥 Svuota cestino</button>
         )}
       </div>
+
+      {/* Filtro periodo — solo se ci sono task */}
+      {trashed.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>Periodo:</span>
+          {PERIOD_OPTIONS.map(opt => (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => setPeriod(opt.key)}
+              style={{
+                padding: "5px 12px", borderRadius: 999, cursor: "pointer",
+                fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                border: `1px solid ${period === opt.key ? "var(--navy)" : "var(--border)"}`,
+                background: period === opt.key ? "var(--navy)" : "var(--card)",
+                color: period === opt.key ? "#fff" : "var(--text-muted)",
+                transition: "background 0.15s, color 0.15s",
+              }}
+            >{opt.label}</button>
+          ))}
+        </div>
+      )}
 
       {/* Empty state */}
       {trashed.length === 0 ? (
@@ -84,6 +139,22 @@ export const Trash = ({ state, dispatch }) => {
           <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
             I task eliminati appariranno qui. Potrai ripristinarli o rimuoverli definitivamente.
           </div>
+        </div>
+      ) : visible.length === 0 ? (
+        <div style={{
+          background: "var(--card)", borderRadius: 12, padding: "40px 20px",
+          textAlign: "center", border: "1px solid var(--border)",
+        }}>
+          <div style={{ fontSize: 36, marginBottom: 12, opacity: 0.3 }}>📭</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--heading)", marginBottom: 4 }}>
+            Nessun task nel periodo selezionato
+          </div>
+          <button type="button" onClick={() => setPeriod("all")} style={{
+            marginTop: 8, padding: "6px 14px", borderRadius: 8,
+            border: "1px solid var(--border)", background: "var(--card)",
+            color: "var(--text-muted)", fontSize: 12, fontWeight: 600,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>Mostra tutti</button>
         </div>
       ) : (
         /* Trash table */
@@ -100,7 +171,7 @@ export const Trash = ({ state, dispatch }) => {
               </tr>
             </thead>
             <tbody>
-              {trashed.map(task => (
+              {visible.map(task => (
                 <tr key={task.id} style={{ borderBottom: "1px solid var(--border)", transition: "background 0.15s" }}
                   onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}

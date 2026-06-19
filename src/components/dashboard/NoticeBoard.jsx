@@ -5,12 +5,18 @@ import { useViewport } from "../Viewport.jsx";
 import { getMember, CURRENT_USER } from "../../state/appGlobals.js";
 import { NoticeEditorModal } from "../modals/NoticeEditorModal.jsx";
 
+// v2.8: emoji disponibili per le reazioni rapide sui post-it.
+// Tenuto basso (6) per non rompere il layout del post-it. Stesso shape della chat.
+const NOTICE_REACTION_EMOJI = ["👍", "❤️", "🎉", "👀", "🔥", "✅"];
+
 export const NoticeBoard = ({ notices, dispatch }) => {
   const [editing, setEditing] = useState(null); // null | { id?, text, color }
   const [creating, setCreating] = useState(false);
   // v2.8: filtro per tag (Set di tag attivi; vuoto = mostra tutto).
   // Modalità OR: un post-it visibile se ha almeno un tag tra quelli attivi.
   const [activeTags, setActiveTags] = useState(new Set());
+  // v2.8: id del post-it con picker reazioni aperto (null = nessuno).
+  const [reactingId, setReactingId] = useState(null);
   const { isMobile } = useViewport();
 
   // Tutti i tag in uso (dedup), ordinati per frequenza decrescente.
@@ -187,12 +193,17 @@ export const NoticeBoard = ({ notices, dispatch }) => {
                   display: "flex", gap: 2, opacity: 0.6,
                 }}>
                   <button
+                    onClick={() => setReactingId(reactingId === n.id ? null : n.id)}
+                    title="Reagisci"
+                    style={noticeBtnStyle}
+                  >😀</button>
+                  <button
                     onClick={() => dispatch({ type: "TOGGLE_PIN_NOTICE", payload: n.id })}
                     title={n.pinned ? "Rimuovi pin" : "Fissa in alto"}
                     style={noticeBtnStyle}
                   >{n.pinned ? "📍" : "📌"}</button>
                   <button
-                    onClick={() => setEditing({ id: n.id, text: n.text, color: n.color, pinned: n.pinned })}
+                    onClick={() => setEditing({ id: n.id, text: n.text, color: n.color, pinned: n.pinned, tags: n.tags })}
                     title="Modifica"
                     style={noticeBtnStyle}
                   >✏️</button>
@@ -207,6 +218,39 @@ export const NoticeBoard = ({ notices, dispatch }) => {
                   >✕</button>
                 </div>
 
+                {/* Picker reazioni (v2.8): si apre cliccando 😀 */}
+                {reactingId === n.id && (
+                  <div
+                    style={{
+                      position: "absolute", top: 32, right: 6,
+                      display: "flex", gap: 2,
+                      background: "rgba(255,255,255,0.95)",
+                      border: "1px solid rgba(139,90,43,0.3)",
+                      borderRadius: 999, padding: "3px 6px",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.18)",
+                      zIndex: 5,
+                    }}
+                  >
+                    {NOTICE_REACTION_EMOJI.map(em => (
+                      <button
+                        key={em}
+                        type="button"
+                        onClick={() => {
+                          dispatch({ type: "TOGGLE_NOTICE_REACTION", payload: { noticeId: n.id, emoji: em } });
+                          setReactingId(null);
+                        }}
+                        style={{
+                          background: "none", border: "none", padding: "2px 4px",
+                          cursor: "pointer", fontSize: 16, lineHeight: 1,
+                          borderRadius: 4,
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "rgba(15,32,68,0.08)"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+                      >{em}</button>
+                    ))}
+                  </div>
+                )}
+
                 {/* Testo avviso */}
                 <div style={{
                   fontSize: 13, lineHeight: 1.45, color: "#3d2f10",
@@ -215,6 +259,36 @@ export const NoticeBoard = ({ notices, dispatch }) => {
                 }}>
                   {n.text}
                 </div>
+
+                {/* Chip riassuntive reazioni (v2.8): click toggla la mia reazione */}
+                {n.reactions && Object.keys(n.reactions).length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
+                    {Object.entries(n.reactions).map(([em, users]) => {
+                      if (!Array.isArray(users) || users.length === 0) return null;
+                      const mine = users.includes(CURRENT_USER);
+                      return (
+                        <button
+                          key={em}
+                          type="button"
+                          onClick={() => dispatch({ type: "TOGGLE_NOTICE_REACTION", payload: { noticeId: n.id, emoji: em } })}
+                          title={users.map(u => getMember(u)?.name || u).join(", ")}
+                          style={{
+                            display: "inline-flex", alignItems: "center", gap: 3,
+                            background: mine ? "rgba(15,32,68,0.85)" : "rgba(255,255,255,0.6)",
+                            color: mine ? "#fff" : "#3d2f10",
+                            border: `1px solid ${mine ? "var(--navy)" : "rgba(139,90,43,0.3)"}`,
+                            padding: "1px 7px", borderRadius: 999,
+                            fontSize: 11, fontWeight: 600,
+                            cursor: "pointer", fontFamily: "inherit", lineHeight: 1.4,
+                          }}
+                        >
+                          <span>{em}</span>
+                          <span>{users.length}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* Tag chips (v2.8) */}
                 {Array.isArray(n.tags) && n.tags.length > 0 && (

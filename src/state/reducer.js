@@ -305,6 +305,27 @@ function baseReducer(state, action) {
       );
       return { ...state, notices };
     }
+    case "TOGGLE_NOTICE_REACTION": {
+      // v2.8: stesso shape della chat — { emoji: [userId, ...] }. Toggle del
+      // userId corrente. Se la lista finisce vuota, l'emoji viene rimosso.
+      const { noticeId, emoji } = action.payload || {};
+      const me = state.currentUserId;
+      if (!noticeId || !emoji || !me) return state;
+      const notices = state.notices.map(n => {
+        if (n.id !== noticeId) return n;
+        const reactions = { ...(n.reactions || {}) };
+        const users = reactions[emoji] || [];
+        if (users.includes(me)) {
+          const next = users.filter(u => u !== me);
+          if (next.length === 0) delete reactions[emoji];
+          else reactions[emoji] = next;
+        } else {
+          reactions[emoji] = [...users, me];
+        }
+        return { ...n, reactions };
+      });
+      return { ...state, notices };
+    }
 
     // ─── CRM: CLIENTI ───
     case "SET_CLIENTS":

@@ -20,9 +20,20 @@ const AIDayPlanner = lazy(() =>
 // enableDateFilter (v22): per il Driver (vista transfer-oriented) abilita un
 // filtro data/ora — i transfer sono time-sensitive, Giulia filtra la coda per
 // giornata (Tutte / Oggi / Domani / data specifica).
+// Ordini disponibili per la coda personale (v2.8 Round 5)
+const QUEUE_SORT_OPTIONS = [
+  { key: "date",     label: "Scadenza" },
+  { key: "priority", label: "Priorità" },
+  { key: "client",   label: "Cliente"  },
+  { key: "status",   label: "Stato"    },
+];
+const PRIO_ORDER = { critical: 0, high: 1, medium: 2, low: 3 };
+const STATUS_ORDER = { todo: 0, inprogress: 1, awaiting_client: 2, awaiting_supplier: 3, done: 4 };
+
 const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
   const { isMobile } = useViewport();
   const [dateFilter, setDateFilter] = useState("all"); // "all" | "today" | "tomorrow" | "YYYY-MM-DD"
+  const [sortBy, setSortBy] = useState("date"); // "date" | "priority" | "client" | "status"
 
   let filtered = tasks;
   if (enableDateFilter && dateFilter !== "all") {
@@ -37,8 +48,26 @@ const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
     }
     filtered = tasks.filter(t => t.dueDate && getDayKey(t.dueDate) === targetKey);
   }
-  // I transfer sono ordinati per orario: dueDate include l'ora, l'ordinamento
-  // per scadenza arriva già dal chiamante.
+  // Ordinamento locale (il chiamante li ordina per data di default).
+  // Driver: mantiene l'ordine per orario quando sortBy === "date".
+  filtered = [...filtered].sort((a, b) => {
+    if (sortBy === "priority") {
+      const dp = (PRIO_ORDER[a.priority] ?? 9) - (PRIO_ORDER[b.priority] ?? 9);
+      if (dp !== 0) return dp;
+    }
+    if (sortBy === "client") {
+      return (a.client || "").localeCompare(b.client || "", "it");
+    }
+    if (sortBy === "status") {
+      const ds = (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9);
+      if (ds !== 0) return ds;
+    }
+    // Fallback: per scadenza (default e tie-breaker)
+    if (!a.dueDate && !b.dueDate) return 0;
+    if (!a.dueDate) return 1;
+    if (!b.dueDate) return -1;
+    return new Date(a.dueDate) - new Date(b.dueDate);
+  });
   const empty = filtered.length === 0;
 
   const customDate = !["all", "today", "tomorrow"].includes(dateFilter) ? dateFilter : "";
@@ -78,7 +107,9 @@ const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
               {enableDateFilter ? "La mia coda transfer" : "La mia coda — task assegnate a me"}
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-              {enableDateFilter ? "Filtra per giornata • ordinate per orario • clicca una card per i dettagli" : "Ordinate per scadenza • clicca una card per i dettagli"}
+              {enableDateFilter
+                ? "Filtra per giornata • ordinate per orario • clicca una card per i dettagli"
+                : `Ordinate per ${QUEUE_SORT_OPTIONS.find(o => o.key === sortBy)?.label.toLowerCase() || "scadenza"} • clicca una card per i dettagli`}
             </div>
           </div>
         </div>
@@ -88,6 +119,28 @@ const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
           fontSize: 13, fontWeight: 700,
         }}>{enableDateFilter && dateFilter !== "all" ? `${filtered.length}/${tasks.length}` : `${tasks.length}`} task</div>
       </div>
+
+      {/* Barra di ordinamento (v2.8) — non mostrata per i Driver (usano il filtro data) */}
+      {!enableDateFilter && tasks.length > 1 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, marginRight: 2 }}>Ordina:</span>
+          {QUEUE_SORT_OPTIONS.map(opt => (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => setSortBy(opt.key)}
+              style={{
+                padding: "4px 10px", borderRadius: 999, cursor: "pointer",
+                fontSize: 11, fontWeight: 600, fontFamily: "inherit",
+                border: `1px solid ${sortBy === opt.key ? "var(--navy)" : "var(--border)"}`,
+                background: sortBy === opt.key ? "var(--navy)" : "var(--card)",
+                color: sortBy === opt.key ? "#fff" : "var(--text-muted)",
+                transition: "background 0.15s, color 0.15s",
+              }}
+            >{opt.label}</button>
+          ))}
+        </div>
+      )}
 
       {enableDateFilter && (
         <div className="vd-row-wrap" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>

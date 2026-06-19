@@ -154,23 +154,40 @@ function ClienteCard({ cliente, onEdit, onDelete }) {
   );
 }
 
+// Opzioni di ordinamento per la lista clienti (v2.8 Round 8)
+const CLIENT_SORT_OPTS = [
+  { key: "name",    label: "Nome A-Z" },
+  { key: "name_z",  label: "Nome Z-A" },
+  { key: "date",    label: "Più recenti" },
+  { key: "city",    label: "Città A-Z" },
+];
+
 export function ClientiView({ state, dispatch, loading = false }) {
   const { isMobile } = useViewport();
   const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState("name"); // v2.8
   const [modal, setModal] = useState(null); // null | { mode: "add" | "edit", cliente?: {} }
   const [confirmDelete, setConfirmDelete] = useState(null);
 
   const clients = state.clients || [];
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return clients;
-    const q = search.toLowerCase();
-    return clients.filter(c =>
+    const q = search.trim().toLowerCase();
+    const base = !q ? clients : clients.filter(c =>
       c.name.toLowerCase().includes(q) ||
       (c.email || "").toLowerCase().includes(q) ||
-      (c.city || "").toLowerCase().includes(q)
+      (c.city || "").toLowerCase().includes(q) ||
+      (c.phone || "").toLowerCase().includes(q) ||
+      (c.notes || "").toLowerCase().includes(q)
     );
-  }, [clients, search]);
+    return [...base].sort((a, b) => {
+      if (sortBy === "name")   return (a.name || "").localeCompare(b.name || "", "it");
+      if (sortBy === "name_z") return (b.name || "").localeCompare(a.name || "", "it");
+      if (sortBy === "city")   return (a.city || "").localeCompare(b.city || "", "it");
+      // date: più recenti prima (createdAt desc)
+      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+    });
+  }, [clients, search, sortBy]);
 
   const handleSave = async (form) => {
     if (modal?.mode === "edit" && modal.cliente) {
@@ -212,14 +229,31 @@ export function ClientiView({ state, dispatch, loading = false }) {
         </button>
       </div>
 
-      {/* Search */}
+      {/* Search + Sort */}
       <div style={{ marginBottom: 20 }}>
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Cerca per nome, email, città…"
+          placeholder="Cerca per nome, email, città, telefono…"
           style={{ ...fieldStyle, maxWidth: 360 }}
         />
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+          {CLIENT_SORT_OPTS.map(opt => (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => setSortBy(opt.key)}
+              style={{
+                padding: "4px 12px", borderRadius: 999, cursor: "pointer",
+                fontSize: 11, fontWeight: 600, fontFamily: "inherit",
+                border: `1px solid ${sortBy === opt.key ? "var(--navy)" : "var(--border)"}`,
+                background: sortBy === opt.key ? "var(--navy)" : "var(--card)",
+                color: sortBy === opt.key ? "#fff" : "var(--text-muted)",
+                transition: "all 0.15s",
+              }}
+            >{opt.label}</button>
+          ))}
+        </div>
       </div>
 
       {/* Lista */}

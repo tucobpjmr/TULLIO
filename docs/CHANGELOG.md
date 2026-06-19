@@ -5,6 +5,14 @@
 
 > Branch `claude/handoff-changelog-roadmap-xlkae9`. **Round 1:** feature low-risk portate da PR #62 (commit isolati), depurate dalle parti obsolete (chip pratica) e dai moduli rimossi in #63. **Round 2:** micro-feature frontend-only prima dell'implementazione OneDrive/WhatsApp. **Round 3:** admin rollback automatico.
 
+### 🔍 Round 8 — Sort e ricerca avanzata nella vista Clienti
+
+#### Ordinamento e ricerca estesa nell'anagrafica clienti
+
+- **`ClientiView.jsx`**: nuovi chip di ordinamento sotto la barra di ricerca — **Nome A-Z**, **Nome Z-A**, **Più recenti** (per `createdAt`), **Città A-Z** — con evidenziazione blu del criterio attivo.
+- Ricerca estesa a **telefono** e **note** (prima era solo nome/email/città). Il placeholder aggiornato riflette i nuovi campi ricercabili.
+- Sorting stabile: `localeCompare` con locale `"it"` per testo; `Date` per cronologico. Derivato via `useMemo` per evitare re-ordini a ogni keystroke.
+
 ### 👥 Round 7 — Team view: filtro ruolo, badge sovraccarico, sezione pending
 
 #### Miglioramenti alla vista Team & Assegnazioni

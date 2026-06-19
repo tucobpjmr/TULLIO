@@ -16,6 +16,31 @@ const AIDayPlanner = lazy(() =>
   import("../modals/AIDayPlanner.jsx").then(m => ({ default: m.AIDayPlanner }))
 );
 
+// ─── CSV EXPORT HELPER ───────────────────────────────────────────────────────
+const _esc = v => {
+  const s = v == null ? "" : String(v);
+  return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+};
+const exportTasksCSV = (tasks, filename = "coda-personale") => {
+  const headers = ["Titolo", "Categoria", "Priorità", "Stato", "Cliente", "Pratica", "Assegnati", "Scadenza", "Ore stimate"];
+  const rows = tasks.map(t => [
+    t.title,
+    CATEGORIES[t.category]?.label || t.category,
+    PRIORITIES[t.priority]?.label || t.priority,
+    STATUS_LABELS[t.status] || t.status,
+    t.client || "",
+    t.praticaRef || "",
+    (t.assignees || []).map(id => getMember(id)?.name || id).join("; "),
+    t.dueDate ? new Date(t.dueDate).toLocaleString("it-IT") : "",
+    t.estimatedHours || "",
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(_esc).join(",")).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
+  a.download = `${filename}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+};
+
 // ─── PERSONAL QUEUE (le mie task — v0.8) ───────────────────────────────────
 // enableDateFilter (v22): per il Driver (vista transfer-oriented) abilita un
 // filtro data/ora — i transfer sono time-sensitive, Giulia filtra la coda per
@@ -113,11 +138,25 @@ const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
             </div>
           </div>
         </div>
-        <div style={{
-          background: "var(--navy)", color: "#fff",
-          padding: "4px 12px", borderRadius: 999,
-          fontSize: 13, fontWeight: 700,
-        }}>{enableDateFilter && dateFilter !== "all" ? `${filtered.length}/${tasks.length}` : `${tasks.length}`} task</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {filtered.length > 0 && (
+            <button
+              type="button"
+              title="Esporta come CSV"
+              onClick={() => exportTasksCSV(filtered, "coda-personale")}
+              style={{
+                background: "none", border: "1px solid var(--border)",
+                color: "var(--text-muted)", padding: "4px 10px", borderRadius: 999,
+                fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+              }}
+            >↓ CSV</button>
+          )}
+          <div style={{
+            background: "var(--navy)", color: "#fff",
+            padding: "4px 12px", borderRadius: 999,
+            fontSize: 13, fontWeight: 700,
+          }}>{enableDateFilter && dateFilter !== "all" ? `${filtered.length}/${tasks.length}` : `${tasks.length}`} task</div>
+        </div>
       </div>
 
       {/* Barra di ordinamento (v2.8) — non mostrata per i Driver (usano il filtro data) */}

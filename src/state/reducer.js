@@ -27,6 +27,7 @@ const LOGGED_ACTIONS = new Set([
   "ADD_CATEGORY", "UPDATE_CATEGORY", "REMOVE_CATEGORY",
   "RESTORE_BACKUP",
   "ADD_NOTICE", "UPDATE_NOTICE", "DELETE_NOTICE",
+  "ADD_MESSAGE_TEMPLATE", "UPDATE_MESSAGE_TEMPLATE", "DELETE_MESSAGE_TEMPLATE",
 ]);
 
 const buildLogEntry = (action, state) => {
@@ -55,6 +56,9 @@ const buildLogEntry = (action, state) => {
     ADD_NOTICE: () => `Pubblicato avviso in bacheca`,
     UPDATE_NOTICE: () => `Modificato avviso in bacheca`,
     DELETE_NOTICE: () => `Rimosso avviso dalla bacheca`,
+    ADD_MESSAGE_TEMPLATE: () => `Template messaggio creato: "${action.payload?.label || ""}"`,
+    UPDATE_MESSAGE_TEMPLATE: () => `Template messaggio modificato`,
+    DELETE_MESSAGE_TEMPLATE: () => `Template messaggio rimosso`,
   };
   return { id: `log-${stamp}-${Math.random().toString(36).slice(2,7)}`, time: stamp, type: t, text: (map[t] || (() => t))() };
 };
@@ -341,6 +345,29 @@ function baseReducer(state, action) {
       return { ...state, clients, toast: { message: "Cliente rimosso", type: "success" } };
     }
 
+    // ─── TEMPLATE MESSAGGI CHAT (v2.8, admin-only) ───
+    case "ADD_MESSAGE_TEMPLATE": {
+      const { label, text } = action.payload || {};
+      if (!label?.trim() || !text?.trim()) return state;
+      const tpl = { id: "mt" + Date.now(), label: label.trim(), text: text.trim() };
+      return {
+        ...state,
+        messageTemplates: [...(state.messageTemplates || []), tpl],
+        toast: { message: "Template aggiunto", type: "success" },
+      };
+    }
+    case "UPDATE_MESSAGE_TEMPLATE": {
+      const { id, label, text } = action.payload || {};
+      const messageTemplates = (state.messageTemplates || []).map(t =>
+        t.id === id ? { ...t, ...(label !== undefined ? { label } : {}), ...(text !== undefined ? { text } : {}) } : t
+      );
+      return { ...state, messageTemplates, toast: { message: "Template aggiornato", type: "success" } };
+    }
+    case "DELETE_MESSAGE_TEMPLATE": {
+      const messageTemplates = (state.messageTemplates || []).filter(t => t.id !== action.payload);
+      return { ...state, messageTemplates, toast: { message: "Template rimosso", type: "success" } };
+    }
+
     case "SHOW_TOAST": return { ...state, toast: { message: action.payload?.message ?? "", type: action.payload?.type ?? "error" } };
     case "CLEAR_TOAST": return { ...state, toast: null };
     case "UNDO_LAST_ACTION": {
@@ -392,6 +419,7 @@ const ADMIN_ONLY_ACTIONS = new Set([
   "TOGGLE_TEAM_MEMBER_ACTIVE", "REMOVE_TEAM_MEMBER",
   "ADD_CATEGORY", "UPDATE_CATEGORY", "REMOVE_CATEGORY",
   "SET_AGENCY_NAME", "RESTORE_BACKUP", "CLEAR_ACTIVITY_LOG",
+  "ADD_MESSAGE_TEMPLATE", "UPDATE_MESSAGE_TEMPLATE", "DELETE_MESSAGE_TEMPLATE",
 ]);
 
 // Wrapper che aggiunge automaticamente al log le azioni rilevanti
@@ -437,6 +465,14 @@ function makeInitialState({ team, currentUserId } = {}) {
     filters: { assignee: "", category: "", priority: "", status: "", client: "" },
     lastAction: null, // { type, payload, undo: () => state-patch } per swipe-actions undo
     currentUserId: CURRENT_USER, // v0.8: utente loggato (con switcher in Topbar)
+    // v2.8: template messaggi chat (gestiti da Admin tab Sistema). Array di
+    // { id, label, text }. Mock iniziale con frasi ricorrenti per agenzie viaggi.
+    messageTemplates: [
+      { id: "mt1", label: "Conferma ricezione documenti", text: "Buongiorno, abbiamo ricevuto i documenti. Le confermeremo a breve i dettagli della pratica." },
+      { id: "mt2", label: "Richiesta passaporti", text: "Buongiorno, per procedere con la prenotazione le servono i dati anagrafici completi e copia dei passaporti di tutti i partecipanti. Grazie!" },
+      { id: "mt3", label: "Sollecito acconto", text: "Le ricordiamo che la scadenza per il versamento dell'acconto è imminente. Resto a disposizione per qualsiasi chiarimento." },
+      { id: "mt4", label: "Voucher pronto", text: "I documenti di viaggio (voucher hotel, biglietti, assicurazione) sono pronti. Li trova in allegato o può ritirarli in agenzia." },
+    ],
   };
 }
 

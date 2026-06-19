@@ -950,6 +950,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           currentUserId={state.currentUserId}
           dispatch={dispatch}
           presenceMap={presenceMap}
+          messageTemplates={state.messageTemplates}
           loading={chatLoading}
           myBusy={myBusy}
           onToggleBusy={toggleMyBusy}

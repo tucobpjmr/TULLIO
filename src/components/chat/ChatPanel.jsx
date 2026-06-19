@@ -38,7 +38,7 @@ const PRESENCE_LABELS = {
 };
 
 // Context per condividere tasks/dispatch (per messaggi con taskLink — v0.8)
-const ChatContext = createContext({ tasks: [], dispatch: () => {} });
+const ChatContext = createContext({ tasks: [], dispatch: () => {}, messageTemplates: [] });
 
 // ─── CHAT: UTILS ───────────────────────────────────────────────────────────
 const formatChatTime = (iso) => {
@@ -463,6 +463,9 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
   const [recording, setRecording] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const [showAttach, setShowAttach] = useState(false);
+  // v2.8: dropdown template messaggi
+  const [showTemplates, setShowTemplates] = useState(false);
+  const { messageTemplates: templates = [] } = useContext(ChatContext);
   const [typing, setTyping] = useState(false);
   // Step K: taskRef UUID "armato" finché il prossimo invio non lo consuma.
   const [pendingTaskRef, setPendingTaskRef] = useState(null);
@@ -768,6 +771,57 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
                 </div>
               )}
             </div>
+
+            {/* Template messaggi (v2.8) */}
+            {templates.length > 0 && (
+              <div style={{ position: "relative" }}>
+                <button
+                  onClick={() => { setShowTemplates(s => !s); setShowAttach(false); }}
+                  title="Inserisci template"
+                  style={{
+                    background: showTemplates ? "var(--navy)" : "var(--surface2)",
+                    color: showTemplates ? "#fff" : "var(--text)",
+                    border: "none", borderRadius: "50%",
+                    width: 36, height: 36, cursor: "pointer", fontSize: 16, flexShrink: 0,
+                  }}
+                >📋</button>
+                {showTemplates && (
+                  <div className="slide-up" style={{
+                    position: "absolute", bottom: "calc(100% + 8px)", left: 0,
+                    background: "var(--card)", borderRadius: 12, padding: 6,
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--border)",
+                    display: "flex", flexDirection: "column", gap: 2,
+                    minWidth: 260, maxWidth: 340, maxHeight: 320, overflowY: "auto", zIndex: 100,
+                  }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, padding: "6px 10px 4px" }}>
+                      Template messaggi
+                    </div>
+                    {templates.map(t => (
+                      <button
+                        key={t.id}
+                        onClick={() => {
+                          // Inserisce alla posizione corrente (append con separatore o overwrite se vuoto)
+                          setInput(prev => prev ? `${prev}\n${t.text}` : t.text);
+                          setShowTemplates(false);
+                        }}
+                        style={{
+                          display: "block", textAlign: "left", width: "100%",
+                          padding: "8px 10px", border: "none", background: "transparent",
+                          borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                      >
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--heading)" }}>{t.label}</div>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {t.text}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <input
               value={input}
@@ -1128,7 +1182,7 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
 };
 
 // ─── CHAT: MAIN PANEL ──────────────────────────────────────────────────────
-export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, intent, tasks, currentUserId, dispatch, presenceMap, loading = false, myBusy = false, onToggleBusy }) => {
+export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, intent, tasks, currentUserId, dispatch, presenceMap, messageTemplates = [], loading = false, myBusy = false, onToggleBusy }) => {
   const { isMobile } = useViewport();
   const [activeConv, setActiveConv] = useState(null);
   const [newMode, setNewMode] = useState(false);
@@ -1178,7 +1232,7 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
   };
 
   return (
-    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {} }}>
+    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {}, messageTemplates: messageTemplates || [] }}>
     <>
       <div onClick={onClose} style={{
         position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: 700,

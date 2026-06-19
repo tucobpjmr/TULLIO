@@ -5,6 +5,14 @@
 
 > Branch `claude/handoff-changelog-roadmap-xlkae9`. **Round 1:** feature low-risk portate da PR #62 (commit isolati), depurate dalle parti obsolete (chip pratica) e dai moduli rimossi in #63. **Round 2:** micro-feature frontend-only prima dell'implementazione OneDrive/WhatsApp. **Round 3:** admin rollback automatico.
 
+### 🔴 Round 11 — Badge urgenze personali nel nav laterale
+
+#### Indicatore rosso nel nav per task scaduti/urgenti assegnati all'utente
+
+- **`Sidebar.jsx`**: il badge dorato esistente sulla voce "Dashboard" (coda non assegnata) è ora affiancato da un badge **rosso** che conta i task dell'utente corrente che sono scaduti o in scadenza entro 24h (`isOverdue || isUrgent`, status ≠ `done`). Tooltip descrittivo al hover.
+- Badge rosso visibile anche nella **BottomNav** (mobile/tablet) per la stessa voce Dashboard.
+- `getNavBadges(state)` aggiornato: nuovo campo `dashboardUrgent` calcolato filtrando per `state.currentUserId`. Badge scompare a zero.
+
 ### ⌨️ Round 10 — Scorciatoie tastiera globali
 
 #### Shortcut da tastiera per le azioni più frequenti

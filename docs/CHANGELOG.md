@@ -5,6 +5,16 @@
 
 > Branch `claude/handoff-changelog-roadmap-xlkae9`. **Round 1:** feature low-risk portate da PR #62 (commit isolati), depurate dalle parti obsolete (chip pratica) e dai moduli rimossi in #63. **Round 2:** micro-feature frontend-only prima dell'implementazione OneDrive/WhatsApp. **Round 3:** admin rollback automatico.
 
+### ⌨️ Round 10 — Scorciatoie tastiera globali
+
+#### Shortcut da tastiera per le azioni più frequenti
+
+- **`K`** (senza modificatori, fuori da input): apre il modale **Nuovo Task rapido** (`QuickAddTask`).
+- **`Ctrl+K`** / `Cmd+K`: porta il focus alla barra di ricerca della Topbar (già presente, ora documentata).
+- **`?`**: apre/chiude l'overlay `KeyboardHelpOverlay` — lista di tutte le scorciatoie disponibili con descrizione e `<kbd>` visivo.
+- **`Esc`**: chiude l'overlay scorciatoie (gli altri modali gestiscono già Esc tramite click-outside).
+- Le shortcut non si attivano quando il focus è su un `<input>`, `<textarea>` o `<select>` per evitare conflitti con la digitazione.
+
 ### 👤 Round 9 — Pannello task del cliente nella vista Clienti
 
 #### Click su una card cliente → mostra i task collegati inline

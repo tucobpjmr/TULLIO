@@ -25,6 +25,10 @@ export const Users = {
   },
   setActive: (id, active) =>
     supabase.from('users').update(withOrigin({ active })).eq('id', id),
+  // Approvazione admin di un utente registrato (pending → attivo). Le policy
+  // RLS (users_admin_all) consentono l'update solo a un admin.
+  approve: (id) =>
+    supabase.from('users').update(withOrigin({ pending: false, active: true })).eq('id', id),
   // Step H: presence
   setPresence: (id, status) =>
     supabase.from('users').update(withOrigin({

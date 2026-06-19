@@ -677,6 +677,21 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       case "DELETE_CLIENT":
         dbOps = () => ClientsAPI.remove(action.payload);
         break;
+      // ─── ADMIN: TEAM sync ───
+      // Persistiamo solo le azioni che operano su utenti reali (creati via
+      // signup): approvazione e attivazione/disattivazione. ADD/UPDATE/REMOVE
+      // restano locali — ADD_TEAM_MEMBER non ha una riga auth.users associata,
+      // e UPDATE del ruolo richiederebbe il mapping all'enum DB (niente
+      // sotto-ruolo Junior/Senior nello schema attuale).
+      case "APPROVE_TEAM_MEMBER":
+        dbOps = () => UsersAPI.approve(action.payload);
+        break;
+      case "TOGGLE_TEAM_MEMBER_ACTIVE": {
+        const curr = state.team.find(m => m.id === action.payload);
+        const nextActive = !(curr?.active);
+        dbOps = () => UsersAPI.setActive(action.payload, nextActive);
+        break;
+      }
       default:
         break;
     }
@@ -709,7 +724,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           });
         });
     }
-  }, [useSupabase, state.tasks, state.notices]);
+  }, [useSupabase, state.tasks, state.notices, state.team]);
 
   // Step J: navigazione da notifica → TaskSlideOver
   const openTaskById = useCallback((taskId) => {

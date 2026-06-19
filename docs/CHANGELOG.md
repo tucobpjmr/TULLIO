@@ -5,6 +5,15 @@
 
 > Branch `claude/handoff-changelog-roadmap-xlkae9`. **Round 1:** feature low-risk portate da PR #62 (commit isolati), depurate dalle parti obsolete (chip pratica) e dai moduli rimossi in #63. **Round 2:** micro-feature frontend-only prima dell'implementazione OneDrive/WhatsApp. **Round 3:** admin rollback automatico.
 
+### 👥 Round 7 — Team view: filtro ruolo, badge sovraccarico, sezione pending
+
+#### Miglioramenti alla vista Team & Assegnazioni
+
+- **Chip filtro per ruolo** (v2.8): riga di chip sopra la griglia con i ruoli effettivamente presenti (Tutti / Manager / Senior Agent / Junior Agent / Driver). Contatore per ruolo. Resetta la selezione membro corrente al cambio filtro.
+- **Badge "⚠ Sovraccarico"**: appare in alto a destra sulla card quando carico > 85% della capacità; bordo card rosso tratteggiato.
+- **Badge "JR"** giallo sui Junior Agent (coerente con UserSwitcher/Dashboard).
+- **Sezione "In attesa di approvazione"**: sotto la griglia principale, mostra i membri `pending=true` con avatar sfumato e badge "⏳ In attesa". Contatore badge nel header della pagina.
+
 ### 💡 Round 6 — Auto-categoria in QuickAddTask
 
 #### Suggerimento automatico di categoria basato su keyword nel titolo

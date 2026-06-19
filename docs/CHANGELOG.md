@@ -5,6 +5,17 @@
 
 > Branch `claude/handoff-changelog-roadmap-xlkae9`. **Round 1:** feature low-risk portate da PR #62 (commit isolati), depurate dalle parti obsolete (chip pratica) e dai moduli rimossi in #63. **Round 2:** micro-feature frontend-only prima dell'implementazione OneDrive/WhatsApp. **Round 3:** admin rollback automatico.
 
+### ⚡ Round 14 — Avanzamento status rapido nella PersonalQueue
+
+#### Bottoni inline per cambiare status senza aprire il TaskSlideOver
+
+- **`Dashboard.jsx` — `PersonalQueue`**: ogni card mostra (in fondo, sopra l'area cliccabile) una riga di 2 micro-bottoni contestuali in base allo status corrente:
+  - `todo` → **▶ Avvia** (→ `inprogress`) + **✓ Fatto** (→ `done`)
+  - `inprogress` → **⏸ Attesa** (→ `awaiting_client`) + **✓ Fatto** (→ `done`)
+  - `awaiting_*` → **▶ Riprendi** (→ `inprogress`) + **✓ Fatto** (→ `done`)
+  - `done`: nessun bottone (task già chiusi)
+- Click sui bottoni chiama `UPDATE_TASK` e stoppa la propagazione (evita apertura TaskSlideOver). Hover: bordo pieno + testo bianco.
+
 ### 💬 Round 13 — Cerca nei messaggi (ChatPanel)
 
 #### Ricerca full-text nei messaggi della conversazione attiva

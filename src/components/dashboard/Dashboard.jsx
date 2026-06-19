@@ -6,7 +6,7 @@ import { SwipeActions } from "../SwipeActions.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { StatusBadge } from "../ui/StatusBadge.jsx";
-import { PRIORITIES } from "../../lib/taskConstants.js";
+import { PRIORITIES, STATUS_LABELS } from "../../lib/taskConstants.js";
 import { formatDate, formatTime, isOverdue, isUrgent, isMyTask, isInGlobalQueue, getActiveTasks, getDayKey } from "../../lib/taskUtils.js";
 import { CATEGORIES, getMember, getRoleType, getAssignableTeam, canViewTask, getVisibleTasks, isJuniorAgent } from "../../state/appGlobals.js";
 import { NoticeBoard } from "./NoticeBoard.jsx";
@@ -220,6 +220,26 @@ const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
                   )}
                   {t.estimatedHours > 0 && <span>⏱️ {t.estimatedHours}h</span>}
                 </div>
+                {/* Avanzamento rapido status (v2.8 Round 14) */}
+                {t.status !== "done" && (() => {
+                  const quickBtn = (label, newStatus, color) => (
+                    <button
+                      key={newStatus}
+                      type="button"
+                      onClick={e => { e.stopPropagation(); dispatch({ type: "UPDATE_TASK", payload: { ...t, status: newStatus } }); }}
+                      style={{
+                        padding: "3px 10px", borderRadius: 999, border: `1px solid ${color}`,
+                        background: "transparent", color, cursor: "pointer",
+                        fontSize: 11, fontWeight: 600, fontFamily: "inherit", transition: "all 0.15s",
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = color; e.currentTarget.style.color = "#fff"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = color; }}
+                    >{label}</button>
+                  );
+                  if (t.status === "todo") return <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>{quickBtn("▶ Avvia", "inprogress", "var(--navy)")}{quickBtn("✓ Fatto", "done", "var(--success)")}</div>;
+                  if (t.status === "inprogress") return <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>{quickBtn("⏸ Attesa", "awaiting_client", "var(--warning)")}{quickBtn("✓ Fatto", "done", "var(--success)")}</div>;
+                  return <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>{quickBtn("▶ Riprendi", "inprogress", "var(--navy)")}{quickBtn("✓ Fatto", "done", "var(--success)")}</div>;
+                })()}
               </div>
             );
             return (

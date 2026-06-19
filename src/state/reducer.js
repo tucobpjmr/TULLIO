@@ -88,12 +88,19 @@ function baseReducer(state, action) {
       const activeView = (state.activeView === "admin" && !canAccessAdmin(newId))
         ? "dashboard"
         : state.activeView;
+      // Sicurezza operativa (v2.8): warning visibile quando si passa a un ruolo
+      // privilegiato (admin), per evitare di lasciare la sessione aperta come
+      // Admin per errore. Mock UserSwitcher: senza login reale serve un cue chiaro.
+      const elevated = isAdmin(newId);
+      const toast = elevated
+        ? { message: `⚠️ Ora stai usando l'app come ${m.name} (Admin). Ricordati di tornare al tuo profilo a fine sessione.`, type: "warning" }
+        : { message: `Ora stai usando l'app come ${m.name} (${m.role})`, type: "success" };
       return {
         ...state,
         currentUserId: newId,
         activeView,
         selectedTask: null,
-        toast: { message: `Ora stai usando l'app come ${m.name} (${m.role})`, type: "success" },
+        toast,
       };
     }
     case "SET_TASKS": {

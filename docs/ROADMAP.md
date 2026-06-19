@@ -118,7 +118,7 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 | Permessi granulari per sub-ruolo (Senior vs Junior) | ⬜ | ⚪ | Oggi trattati identicamente come "agent" |
 | Coda personale Driver: filtro per data/ora (tipo agenda giornaliera) | ✅ | — | `PersonalQueue` con `enableDateFilter` per role=driver: chip Tutte/Oggi/Domani + date picker, orario nelle card. v2.8-dev |
 | Indicatore visivo "read-only" sulle card urgenti altrui | ✅ | — | Completato in PR #57 (sessione 22): bordo dashed + chip 🔒 |
-| Notifica in-app al cambio utente | ✅ | — | Toast type=warning quando si switcha verso ruolo Admin (cue "ricordati di tornare al tuo profilo"). v2.8-dev. Rollback automatico non ancora implementato. |
+| Notifica in-app al cambio utente | ✅ | — | Toast type=warning + banner countdown 60s con rollback automatico all'utente precedente. "Rimani come Admin" / "Torna ora →". v2.8-dev Round 3. |
 
 ## ✨ Migliorie incrementali emerse (post v2.2-dev / sessione 21-22)
 

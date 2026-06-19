@@ -1,9 +1,17 @@
 # CHANGELOG — VoyageDesk
 
 
-## v2.8-dev — Candidati low-risk: driver/dark mode + ux switch + bacheca tag/reazioni + template chat (sessione 25)
+## v2.8-dev — Candidati low-risk: driver/dark mode + ux switch + bacheca tag/reazioni + template chat + admin rollback (sessione 25)
 
-> Branch `claude/handoff-changelog-roadmap-xlkae9`. **Round 1:** feature low-risk portate da PR #62 (commit isolati), depurate dalle parti obsolete (chip pratica) e dai moduli rimossi in #63. **Round 2:** micro-feature frontend-only prima dell'implementazione OneDrive/WhatsApp.
+> Branch `claude/handoff-changelog-roadmap-xlkae9`. **Round 1:** feature low-risk portate da PR #62 (commit isolati), depurate dalle parti obsolete (chip pratica) e dai moduli rimossi in #63. **Round 2:** micro-feature frontend-only prima dell'implementazione OneDrive/WhatsApp. **Round 3:** admin rollback automatico.
+
+### 🔐 Round 3 — Admin rollback automatico
+
+#### ⏱ Countdown di 60s per sessioni Admin (rollback automatico)
+
+- **`reducer.js`**: `SET_CURRENT_USER` ora registra `adminRollbackTo` (userId precedente) e `adminSwitchedAt` (ISO timestamp) quando si passa **da un non-Admin a un Admin**. Aggiorna il toast in "rollback automatico in 60s". Nuova azione `CANCEL_ADMIN_ROLLBACK` per cancellare il countdown senza cambiare utente.
+- **`VoyageDesk.jsx`**: componente `AdminRollbackBanner` — banner arancione fisso sotto la Topbar. Calcola i secondi residui dall'ISO timestamp (sopravvive ai re-render), decrementa via `setInterval` e auto-dispatcha `SET_CURRENT_USER` allo scadere. Pulsanti: **"Rimani come Admin"** (cancella il rollback) e **"Torna ora →"** (rollback immediato). Nessun localStorage, solo-sessione.
+- Chiude completamente il roadmap item "Notifica in-app al cambio utente (rollback automatico dopo X secondi?)".
 
 ### 🎨 Round 2 — Micro-feature pre-OneDrive/WhatsApp
 

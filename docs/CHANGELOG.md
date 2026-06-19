@@ -1,5 +1,83 @@
 # CHANGELOG — VoyageDesk
 
+## v3.0-dev — Block 1: Authentication & Onboarding (sessione 27)
+
+> Branch `claude/handoff-changelog-roadmap-wm7scp` (3 commits). Complete password recovery, self-service signup, team member approval system with persistence fix, security hardening migration.
+
+### 🔐 Password Recovery Flow
+
+**`src/auth/UpdatePasswordScreen.jsx` (NEW)**
+- Password reset UI shown after user clicks recovery link from email.
+- Input: password confirmation (min 8 chars, must match).
+- Calls `updatePassword()` from AuthContext → on success `recovery=false` → exits screen.
+- Italian error messages for all Supabase auth codes.
+
+**`src/auth/AuthContext.jsx` (Enhanced)**
+- New method `resetPassword(email)`: sends Supabase password reset magic link.
+- New method `updatePassword(password)`: updates password in current session.
+- New state: `recovery` (boolean, set true when Supabase detects PASSWORD_RECOVERY event).
+- Magic link detection: `onAuthStateChange` checks `event === PASSWORD_RECOVERY`.
+
+**`src/auth/LoginScreen.jsx` (Rewritten with 3 modes)**
+- **Signup mode**: name + email + password fields. Validation: name required, password ≥8 chars.
+- **Forgot password mode**: email only, sends reset link.
+- **Login mode**: email + password (original).
+- All modes use `localizeAuthError()` for Italian Supabase error messages.
+- Mode switching clears errors and password field.
+
+**`src/main.jsx` (Updated AuthGate)**
+- Priority order: `recovery` → session → profile → `pending` → app.
+- If `recovery=true`: show `UpdatePasswordScreen` (even with valid session).
+- If no session: show `LoginScreen`.
+- If no profile: loading screen.
+- If `profile.pending === true`: show new **`PendingScreen`** (wait for admin approval).
+- Else: mount `VoyageDesk` app.
+
+### 📝 Self-Service Signup
+
+**Flow**:
+1. User fills signup form (name, email, password) → `signUp()`.
+2. `AuthContext.signUp()` creates auth user + sets metadata.
+3. **Trigger** `handle_new_auth_user()` fires:
+   - Creates `public.users`: `id, name, role, avatar, color, capacity, pending=true, active=false`.
+   - Creates `public.user_contacts`: `user_id, email`.
+4. User's `profile.pending=true` → `PendingScreen` shown (wait for admin).
+5. Admin approves → `pending=false, active=true` → app unlocks.
+
+**New component `PendingScreen`** (in `main.jsx`)
+- Shown when `profile.pending === true`.
+- Displays: "Account in attesa" + user greeting + "Un amministratore deve approvare…"
+- Button: "Esci" (logout).
+- Prevents app access until approval.
+
+### ✅ Team Member Approval (Persistence Fix)
+
+**Bug Fixed**: `APPROVE_TEAM_MEMBER` + `TOGGLE_TEAM_MEMBER_ACTIVE` only mutated local state → on reload, lost; approval didn't persist.
+
+**Solution**:
+- **`src/lib/api.js`** new `Users.approve(id)`: persists `pending=false, active=true` to Supabase (admin-only via RLS).
+- **`src/VoyageDesk.jsx`** dispatch wrappers: both actions now call API + Supabase, with error toast.
+- **`state.team` added to deps**: read current member state correctly.
+
+**Result**: approval persists to DB, survives reload.
+
+### 🔒 Security Hardening
+
+**Migration `20260619_security_dedupe_signup_trigger.sql` (Applied to Production)**
+
+1. **Codify production function**: `handle_new_auth_user()` (was live but untracked in repo).
+   - Avatar, color, capacity generation from metadata.
+   - Idempotent: `ON CONFLICT DO NOTHING`.
+
+2. **Remove duplicate**: Drop old `trg_on_auth_user_created` + `handle_new_user()` (redundant).
+
+3. **Revoke EXECUTE on trigger**: Clients cannot call as RPC (trigger fires normally).
+
+4. **Keep EXECUTE for helpers**: `is_admin()` + `is_manager_or_admin()` (called inside RLS policies, safe).
+
+**Result**: repo↔prod synced, signup fully documented, no client RPC exposure.
+
+---
 
 ## v2.8-dev — Micro-feature loop frontend-only Round 16–23 (sessione 26)
 

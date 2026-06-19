@@ -1,11 +1,76 @@
 # 🗺️ VoyageDesk — Roadmap di Sviluppo
 
-Documento di pianificazione. Idee organizzate in **fasi sequenziali** basate su dipendenze tecniche e valore utente.
+Documento di pianificazione. Idee organizzate in **blocchi sequenziali** basate su dipendenze tecniche e valore utente.
 
 **Legenda**
 Priorità: 🔴 Alta · 🟡 Media · ⚪ Bassa
 Sforzo: `S` piccolo (~1 sessione) · `M` medio (2-3) · `L` grande (4+)
 Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
+
+---
+
+## 🎯 Blocchi Operatività 100%
+
+### ✅ Block 1 — Autenticazione & Onboarding (COMPLETO — sessione 27)
+
+| Modulo | Stato | Priorità | Sforzo |
+|---|---|---|---|
+| Password recovery (email magic link) | ✅ | 🔴 | S |
+| Self-service signup (form + validation) | ✅ | 🔴 | S |
+| Team member approval (pending gate) | ✅ | 🔴 | S |
+| Approval persistence fix (DB write) | ✅ | 🔴 | S |
+| Security hardening (trigger dedup + RLS) | ✅ | 🔴 | S |
+
+**Deliverables**: Password recovery flow, signup form, PendingScreen gate, approval system (API + dispatch), migration (sync repo↔prod). All deployed ✅.
+
+**Next decision**: 
+- **Option A** (recommended): Apply Block 2 (RLS hardening for pending users).
+- **Option B**: Skip to Block 3+ (email verification, admin invites, etc.).
+
+---
+
+### 🟡 Block 2 — RLS Hardening for Pending Users (DEFERRED — optional)
+
+| Modulo | Stato | Priorità | Sforzo |
+|---|---|---|---|
+| Pending user read access isolation | ⬜ | 🟡 | S |
+| Email confirmation requirement | ⬜ | 🟡 | S |
+| Approval notification to admin | ⬜ | 🟡 | S |
+
+**Why deferred**: No real users yet; safer to add when live data exists.
+
+**Scope**:
+- Add `AND (NOT auth.uid() = current_user_id OR active = true)` to RLS read policies where pending users should be blocked.
+- Supabase config to require email confirmation before login.
+- Trigger `notify_user_pending` when signup completes (notify admin).
+
+---
+
+### 🔵 Block 3 — Email Confirmation & Admin Controls
+
+| Modulo | Stato | Priorità | Sforzo |
+|---|---|---|---|
+| Email confirmation enforcement | ⬜ | 🟡 | S |
+| Resend confirmation email UI | ⬜ | 🟡 | S |
+| Admin bulk invite + send links | ⬜ | 🟡 | M |
+| Approval notification (→admin + user) | ⬜ | 🟡 | S |
+
+---
+
+### 🟢 Block 4 — Account Management
+
+| Modulo | Stato | Priorità | Sforzo |
+|---|---|---|---|
+| Profile edit (name, avatar, email/phone) | ⬜ | 🟡 | S |
+| Change password (in-app, not reset link) | ⬜ | 🟡 | S |
+| Account deletion (self-service or admin) | ⬜ | ⚪ | S |
+| Multi-session tracking (last seen, devices) | ⬜ | ⚪ | M |
+
+---
+
+
+
+---
 
 ---
 

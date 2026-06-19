@@ -9,6 +9,10 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [team, setTeam] = useState([]);
   const [loading, setLoading] = useState(true);
+  // recovery=true quando l'utente arriva da un link "reimposta password"
+  // (evento PASSWORD_RECOVERY). In quel caso mostriamo la schermata di
+  // aggiornamento password invece dell'app, anche se la session è valida.
+  const [recovery, setRecovery] = useState(false);
 
   const loadProfile = useCallback(async (userId) => {
     if (!userId) { setProfile(null); setTeam([]); return; }
@@ -41,6 +45,7 @@ export function AuthProvider({ children }) {
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, s) => {
+      if (_event === 'PASSWORD_RECOVERY') setRecovery(true);
       setSession(s);
       await loadProfile(s?.user?.id);
     });
@@ -51,7 +56,32 @@ export function AuthProvider({ children }) {
   const signIn = (email, password) =>
     supabase.auth.signInWithPassword({ email, password });
 
+  // Registrazione self-service: il trigger handle_new_user crea il profilo
+  // applicativo con pending=true (vedi migrazione schema iniziale). L'admin
+  // deve poi approvare l'utente dal pannello Team prima dell'accesso.
+  const signUp = (email, password, name) =>
+    supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { name } },
+    });
+
   const signOut = () => supabase.auth.signOut();
+
+  // Invia l'email con il link per reimpostare la password. redirectTo riporta
+  // l'utente sull'app, dove detectSessionInUrl genera l'evento PASSWORD_RECOVERY.
+  const resetPassword = (email) =>
+    supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin,
+    });
+
+  // Aggiorna la password dell'utente nella sessione di recovery, poi esce
+  // dalla modalità recovery così l'app monta normalmente.
+  const updatePassword = async (password) => {
+    const res = await supabase.auth.updateUser({ password });
+    if (!res.error) setRecovery(false);
+    return res;
+  };
 
   const refreshTeam = () => loadProfile(session?.user?.id);
 
@@ -61,11 +91,15 @@ export function AuthProvider({ children }) {
     profile,
     team,
     loading,
+    recovery,
     isAdmin: profile?.role === 'admin',
     isManager: profile?.role === 'manager',
     isAgent: profile?.role === 'agent',
     isDriver: profile?.role === 'driver',
     signIn,
+    signUp,
+    resetPassword,
+    updatePassword,
     signOut,
     refreshTeam,
   };

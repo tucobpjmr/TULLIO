@@ -173,6 +173,8 @@ function ClienteTaskPanel({ cliente, tasks, dispatch, onClose }) {
 
   const open = clientTasks.filter(t => t.status !== "done");
   const done = clientTasks.filter(t => t.status === "done");
+  const hOpen = open.reduce((s, t) => s + (t.estimatedHours || 0), 0);
+  const hDone = done.reduce((s, t) => s + (t.estimatedHours || 0), 0);
 
   return (
     <div className="slide-up" style={{
@@ -183,9 +185,19 @@ function ClienteTaskPanel({ cliente, tasks, dispatch, onClose }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <div>
           <span className="playfair" style={{ fontWeight: 700, fontSize: 16 }}>Task di {cliente.name}</span>
-          <span style={{ marginLeft: 10, fontSize: 12, color: "var(--text-muted)" }}>
-            {open.length} aperti · {done.length} completati
-          </span>
+          <div style={{ display: "flex", gap: 12, marginTop: 4, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+              {open.length} aperti{hOpen > 0 ? ` · ${hOpen}h stimate` : ""}
+            </span>
+            <span style={{ fontSize: 12, color: "var(--success)" }}>
+              {done.length} completati{hDone > 0 ? ` · ${hDone}h` : ""}
+            </span>
+            {(hOpen + hDone) > 0 && (
+              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--navy)" }}>
+                Totale: {hOpen + hDone}h
+              </span>
+            )}
+          </div>
         </div>
         <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
       </div>

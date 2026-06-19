@@ -343,4 +343,4 @@ src/
 
 Le notifiche nascono **solo da trigger DB / funzioni server-side** (RLS vieta insert client) — per nuove notifiche serve un trigger o una funzione `SECURITY DEFINER` schedulata via pg_cron. Tipi notifica attivi (`NOTIF_ICONS`/`notifTitle` in `Topbar.jsx`): `task_assigned`, `task_due`, `comment`, `mention`, `queue_stale`. ~~`dossier_status`~~ e ~~`dossier_departure`~~ **RIMOSSI** (sessione 24).
 
-Vedi `docs/HANDOFF_SESSION_2026-06-16_v22.md` (handoff attivo) per lo stato corrente dopo PR #63 (sessione 24: rimozione Pratiche & Fornitori, campo libero `praticaRef`, migration applicata in produzione).
+Vedi `docs/HANDOFF_SESSION_2026-06-19_v25.md` (handoff attivo) per lo stato corrente dopo sessione 25 (8 round micro-feature loop frontend-only, PR #65 draft).

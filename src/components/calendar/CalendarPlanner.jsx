@@ -474,8 +474,18 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                       <div style={{ fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {cat.icon} {t.title}
                       </div>
-                      <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 1 }}>
-                        {formatTime(t.dueDate)} · {hours}h
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 1 }}>
+                        <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{formatTime(t.dueDate)} · {hours}h</span>
+                        {t.assignees?.length > 0 && height >= 42 && (
+                          <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+                            {t.assignees.slice(0, 3).map(id => (
+                              <Avatar key={id} memberId={id} size={14} />
+                            ))}
+                            {t.assignees.length > 3 && (
+                              <span style={{ fontSize: 9, color: "var(--text-muted)" }}>+{t.assignees.length - 3}</span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );

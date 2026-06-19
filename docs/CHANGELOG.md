@@ -5,6 +5,12 @@
 
 > Branch `claude/handoff-changelog-roadmap-xlkae9`. **Round 1:** feature low-risk portate da PR #62 (commit isolati), depurate dalle parti obsolete (chip pratica) e dai moduli rimossi in #63. **Round 2:** micro-feature frontend-only prima dell'implementazione OneDrive/WhatsApp. **Round 3:** admin rollback automatico.
 
+### 💬 Round 13 — Cerca nei messaggi (ChatPanel)
+
+#### Ricerca full-text nei messaggi della conversazione attiva
+
+- **`ChatPanel.jsx` — `ConversationView`**: pulsante 🔍 in alto a destra nell'header della conversazione. Click apre/chiude una barra di ricerca sotto l'header (sfondo `--navy-dark`). Il campo filtra i messaggi di testo visibili per keyword (case-insensitive); i messaggi vocali e file non vengono esclusi se il testo non coincide. Contatore "N risultati" aggiornato in tempo reale. Pulsante ✕ chiude e azzera la ricerca. Il filtro si resetta automaticamente alla chiusura del pannello.
+
 ### 📅 Round 12 — Filtro per categoria nel CalendarPlanner
 
 #### Chip filtro categoria nel calendario (mese / settimana / giorno / distribuzione)

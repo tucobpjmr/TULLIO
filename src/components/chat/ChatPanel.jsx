@@ -465,6 +465,9 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
   const [showAttach, setShowAttach] = useState(false);
   // v2.8: dropdown template messaggi
   const [showTemplates, setShowTemplates] = useState(false);
+  // v2.8 Round 13: ricerca messaggi
+  const [showMsgSearch, setShowMsgSearch] = useState(false);
+  const [msgSearch, setMsgSearch] = useState("");
   const { messageTemplates: templates = [] } = useContext(ChatContext);
   const [typing, setTyping] = useState(false);
   // Step K: taskRef UUID "armato" finché il prossimo invio non lo consuma.
@@ -660,18 +663,51 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
           </div>
         </div>
 
-        <button style={{
-          background: "rgba(255,255,255,0.1)", border: "none", color: "#fff",
-          width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 12,
-        }}>⋮</button>
+        <button
+          onClick={() => { setShowMsgSearch(s => !s); setMsgSearch(""); }}
+          title="Cerca nei messaggi"
+          style={{
+            background: showMsgSearch ? "rgba(212,168,67,0.25)" : "rgba(255,255,255,0.1)",
+            border: "none", color: "#fff",
+            width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 13,
+          }}>🔍</button>
       </div>
+
+      {/* Search bar (v2.8 Round 13) */}
+      {showMsgSearch && (
+        <div style={{
+          background: "var(--navy-dark)", padding: "8px 12px",
+          display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
+          borderBottom: "1px solid rgba(212,168,67,0.15)",
+        }}>
+          <input
+            autoFocus
+            value={msgSearch}
+            onChange={e => setMsgSearch(e.target.value)}
+            placeholder="Cerca nei messaggi…"
+            style={{
+              flex: 1, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)",
+              borderRadius: 8, padding: "6px 10px", fontSize: 12, color: "#fff",
+              outline: "none", fontFamily: "inherit",
+            }}
+          />
+          {msgSearch && (
+            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", whiteSpace: "nowrap" }}>
+              {msgs.filter(m => m.text?.toLowerCase().includes(msgSearch.toLowerCase())).length} risultati
+            </span>
+          )}
+          <button onClick={() => { setShowMsgSearch(false); setMsgSearch(""); }} style={{
+            background: "none", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 16,
+          }}>✕</button>
+        </div>
+      )}
 
       {/* Messages */}
       <div ref={scrollRef} style={{
         flex: 1, overflowY: "auto", padding: "12px 14px",
         background: "var(--surface2)",
       }}>
-        {msgs.map((m, i) => (
+        {(msgSearch ? msgs.filter(m => m.text?.toLowerCase().includes(msgSearch.toLowerCase())) : msgs).map((m, i) => (
           <ChatMessage
             key={m.id}
             msg={m}

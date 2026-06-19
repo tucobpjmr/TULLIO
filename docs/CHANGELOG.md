@@ -5,6 +5,12 @@
 
 > Branch `claude/handoff-changelog-roadmap-xlkae9`. **Round 1:** feature low-risk portate da PR #62 (commit isolati), depurate dalle parti obsolete (chip pratica) e dai moduli rimossi in #63. **Round 2:** micro-feature frontend-only prima dell'implementazione OneDrive/WhatsApp. **Round 3:** admin rollback automatico.
 
+### 💡 Round 6 — Auto-categoria in QuickAddTask
+
+#### Suggerimento automatico di categoria basato su keyword nel titolo
+
+- `QuickAddTask`: funzione `suggestCategory(title, availableCats)` — mappa ~40 keyword italiane a 10 categorie (es. "volo/aereo/bigliett" → Booking, "hotel/albergo/bungalow" → Hotel, "visto/passaporto" → Visa, "fattura/acconto/saldo" → Pagamenti, ecc.). Auto-applica la categoria finché l'utente non la modifica manualmente. Label "CATEGORIA" mostra badge blu `💡 auto` quando il valore è suggerito. Se l'utente cambia manualmente ma esiste una suggestion diversa, appare link "💡 Usa categoria suggerita: X".
+
 ### 🔀 Round 5 — Ordinamento coda personale
 
 #### Chip di ordinamento nella coda personale (Scadenza / Priorità / Cliente / Stato)

@@ -44,7 +44,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
       display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16
     }}>
       <div className="slide-up" style={{
-        background: "#fff", borderRadius: 14, padding: 28, width: 500, maxWidth: "100%",
+        background: "var(--card)", borderRadius: 14, padding: 28, width: 500, maxWidth: "100%",
         maxHeight: "90vh", overflowY: "auto",
         boxShadow: "0 30px 80px rgba(0,0,0,0.2)", border: "1px solid var(--border)"
       }}>

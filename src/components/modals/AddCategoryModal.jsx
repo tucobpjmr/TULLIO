@@ -26,7 +26,7 @@ export const AddCategoryModal = ({ onClose, dispatch, existingKeys }) => {
   return (
     <div onClick={onClose} style={modalOverlay}>
       <div onClick={e => e.stopPropagation()} style={{ ...modalCard, maxWidth: 480 }}>
-        <h3 className="playfair" style={{ margin: 0, marginBottom: 16, color: "var(--navy)" }}>Aggiungi nuova categoria</h3>
+        <h3 className="playfair" style={{ margin: 0, marginBottom: 16, color: "var(--heading)" }}>Aggiungi nuova categoria</h3>
         <div style={{ display: "grid", gap: 12 }}>
           <div>
             <label style={labelStyle}>Nome *</label>

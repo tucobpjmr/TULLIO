@@ -39,7 +39,7 @@ export const Team = ({ state, dispatch }) => {
 
           return (
             <div key={m.id} className="hover-lift" onClick={() => setSelectedMember(isSelected ? null : m.id)} style={{
-              background: "#fff", borderRadius: 12, padding: "20px 16px",
+              background: "var(--card)", borderRadius: 12, padding: "20px 16px",
               boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: `2px solid ${isSelected ? m.color : "var(--border)"}`,
               cursor: "pointer", textAlign: "center", transition: "all 0.2s",
             }}>
@@ -56,7 +56,7 @@ export const Team = ({ state, dispatch }) => {
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 12, marginBottom: 8 }}>
                 <div style={{ background: "var(--surface2)", borderRadius: 8, padding: "6px 4px" }}>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: "var(--navy)" }}>{active.length}</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: "var(--heading)" }}>{active.length}</div>
                   <div style={{ fontSize: 10, color: "var(--text-muted)" }}>Attivi</div>
                 </div>
                 <div style={{ background: "var(--surface2)", borderRadius: 8, padding: "6px 4px" }}>
@@ -78,7 +78,7 @@ export const Team = ({ state, dispatch }) => {
         const m = getMember(selectedMember);
         if (!m) return null;
         return (
-          <div className="slide-up" style={{ background: "#fff", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
+          <div className="slide-up" style={{ background: "var(--card)", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <Avatar memberId={selectedMember} size={40} />

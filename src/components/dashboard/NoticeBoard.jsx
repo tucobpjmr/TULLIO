@@ -48,7 +48,7 @@ export const NoticeBoard = ({ notices, dispatch }) => {
             fontSize: 18,
           }}>📌</div>
           <div>
-            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)" }}>
+            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
               Bacheca avvisi
             </div>
             <div style={{ fontSize: 11, color: "#8b6f3a", marginTop: 2 }}>

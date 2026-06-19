@@ -168,7 +168,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
               else if (viewMode === "day") setDayDate(d => { const x = new Date(d); x.setDate(x.getDate() - 1); return x; });
               else setWeekOffset(w => w - 1);
             }} style={{
-              background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
+              background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8,
               width: 34, height: 34, cursor: "pointer", fontSize: 14
             }}>←</button>
             <button onClick={() => {
@@ -185,13 +185,13 @@ export const CalendarPlanner = ({ state, dispatch }) => {
               else if (viewMode === "day") setDayDate(d => { const x = new Date(d); x.setDate(x.getDate() + 1); return x; });
               else setWeekOffset(w => w + 1);
             }} style={{
-              background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
+              background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8,
               width: 34, height: 34, cursor: "pointer", fontSize: 14
             }}>→</button>
             <button onClick={() => exportTasksToIcs(state.tasks, uid)} title="Esporta calendario in iCal (.ics)" style={{
-              background: "#fff", border: "1px solid var(--border)", borderRadius: 8,
+              background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8,
               padding: "0 12px", height: 34, cursor: "pointer", fontSize: 12, fontWeight: 600,
-              color: "var(--navy)",
+              color: "var(--heading)",
             }}>⤓ iCal</button>
           </div>
         </div>
@@ -199,7 +199,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
 
       {/* ─── VISTA MESE ─── */}
       {viewMode === "month" && (
-        <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)", overflow: "hidden" }}>
+        <div style={{ background: "var(--card)", borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)", overflow: "hidden" }}>
           {/* Day headers */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", background: "var(--navy)", padding: "10px 0" }}>
             {dayNames.map(d => (
@@ -220,7 +220,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                 <div key={day} onClick={() => setSelectedDay(selectedDay === day ? null : day)} style={{
                   minHeight: isMobile ? 52 : 100, borderRight: "1px solid var(--border)", borderBottom: "1px solid var(--border)",
                   padding: isMobile ? "5px 3px" : "8px 6px", cursor: hasContent ? "pointer" : "default",
-                  background: selectedDay === day ? "rgba(212,168,67,0.08)" : "#fff",
+                  background: selectedDay === day ? "rgba(212,168,67,0.08)" : "var(--card)",
                   transition: "background 0.15s", display: "flex", flexDirection: "column", alignItems: isMobile ? "center" : "stretch",
                 }}>
                   <div style={{
@@ -268,7 +268,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
         if (!dayTasks.length) return null;
         return (
           <div className="slide-up" style={{
-            background: "#fff", borderRadius: 12, padding: isMobile ? "14px 12px" : "18px 20px",
+            background: "var(--card)", borderRadius: 12, padding: isMobile ? "14px 12px" : "18px 20px",
             boxShadow: "0 4px 20px rgba(0,0,0,0.1)", border: "1px solid var(--border)"
           }}>
             <div className="playfair" style={{ fontWeight: 600, fontSize: 16, marginBottom: 12 }}>
@@ -280,7 +280,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                   <div onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
                     display: "flex", alignItems: "center", gap: 12, padding: "8px 12px",
                     borderRadius: 8, border: "1px solid var(--border)", cursor: "pointer",
-                    transition: "background 0.15s", background: "#fff",
+                    transition: "background 0.15s", background: "var(--card)",
                   }}
                     onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
                     onMouseLeave={e => e.currentTarget.style.background = "#fff"}
@@ -314,7 +314,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
               const isToday = day.toDateString() === new Date().toDateString();
               return (
                 <div key={i} style={{
-                  background: isToday ? "var(--navy)" : "#fff",
+                  background: isToday ? "var(--navy)" : "var(--card)",
                   borderRadius: 10, border: `1px solid ${isToday ? "transparent" : "var(--border)"}`,
                   overflow: "hidden", scrollSnapAlign: isMobile ? "start" : "none",
                 }}>
@@ -365,7 +365,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
         const nowMinutes = isToday ? new Date().getHours() * 60 + new Date().getMinutes() : null;
         return (
           <div style={{
-            background: "#fff", borderRadius: 14, border: "1px solid var(--border)",
+            background: "var(--card)", borderRadius: 14, border: "1px solid var(--border)",
             boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden",
           }}>
             <div style={{
@@ -445,7 +445,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
         const today = new Date().toDateString();
         return (
           <div style={{
-            background: "#fff", borderRadius: 14, border: "1px solid var(--border)",
+            background: "var(--card)", borderRadius: 14, border: "1px solid var(--border)",
             boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden",
           }}>
             {/* Header giorni */}
@@ -521,7 +521,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
       })()}
 
       {/* ─── DISTRIBUZIONE AGENTI (sempre visibile) ─── */}
-      <div style={{ background: "#fff", borderRadius: 12, padding: isMobile ? "14px 12px" : "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
+      <div style={{ background: "var(--card)", borderRadius: 12, padding: isMobile ? "14px 12px" : "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
         <div className="playfair" style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>Distribuzione Settimanale per Agente</div>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
@@ -565,7 +565,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                       </td>
                     );
                   })}
-                  <td style={{ padding: "8px 12px", textAlign: "center", borderBottom: "1px solid var(--border)", fontWeight: 700, color: "var(--navy)" }}>
+                  <td style={{ padding: "8px 12px", textAlign: "center", borderBottom: "1px solid var(--border)", fontWeight: 700, color: "var(--heading)" }}>
                     {state.tasks.filter(t =>
                       isActiveTask(t) && t.assignees?.includes(m.id) && t.dueDate &&
                       agentWeekDays.some(d => new Date(t.dueDate).toDateString() === d.toDateString())

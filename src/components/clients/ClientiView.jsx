@@ -8,7 +8,7 @@ const EMPTY_FORM = { name: "", email: "", phone: "", address: "", city: "", note
 
 const fieldStyle = {
   width: "100%", padding: "9px 12px", borderRadius: 8,
-  border: "1px solid var(--border)", background: "#fff",
+  border: "1px solid var(--border)", background: "var(--card)",
   fontSize: 14, color: "var(--text)", outline: "none",
   fontFamily: "inherit",
 };
@@ -37,12 +37,12 @@ function ClienteModal({ cliente, onSave, onClose }) {
       background: "rgba(8,21,45,0.45)", display: "flex", alignItems: "center", justifyContent: "center",
     }} onClick={onClose}>
       <div style={{
-        background: "#fff", borderRadius: 14, padding: 28, width: "min(540px, 96vw)",
+        background: "var(--card)", borderRadius: 14, padding: 28, width: "min(540px, 96vw)",
         maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
         animation: "slideUp 0.25s ease",
       }} onClick={e => e.stopPropagation()}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-          <h2 className="playfair" style={{ fontSize: 20, color: "var(--navy)" }}>
+          <h2 className="playfair" style={{ fontSize: 20, color: "var(--heading)" }}>
             {cliente ? "Modifica Cliente" : "Nuovo Cliente"}
           </h2>
           <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text-muted)" }}>✕</button>
@@ -77,7 +77,7 @@ function ClienteModal({ cliente, onSave, onClose }) {
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
             <button type="button" onClick={onClose} style={{
               padding: "9px 20px", borderRadius: 8, border: "1px solid var(--border)",
-              background: "#fff", cursor: "pointer", fontSize: 14, color: "var(--text-muted)",
+              background: "var(--card)", cursor: "pointer", fontSize: 14, color: "var(--text-muted)",
             }}>Annulla</button>
             <button type="submit" disabled={saving || !form.name.trim()} style={{
               padding: "9px 20px", borderRadius: 8, border: "none",
@@ -96,7 +96,7 @@ function ClienteCard({ cliente, onEdit, onDelete }) {
   return (
     <div
       style={{
-        background: "#fff", borderRadius: 12, padding: "16px 18px",
+        background: "var(--card)", borderRadius: 12, padding: "16px 18px",
         border: `1px solid ${hovered ? "var(--navy-light)" : "var(--border)"}`,
         transition: "all 0.18s", cursor: "default",
         boxShadow: hovered ? "0 4px 16px rgba(15,32,68,0.08)" : "none",
@@ -115,7 +115,7 @@ function ClienteCard({ cliente, onEdit, onDelete }) {
               {cliente.name.slice(0, 2).toUpperCase()}
             </div>
             <div>
-              <div style={{ fontWeight: 600, color: "var(--navy)", fontSize: 15 }}>{cliente.name}</div>
+              <div style={{ fontWeight: 600, color: "var(--heading)", fontSize: 15 }}>{cliente.name}</div>
               {cliente.city && <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{cliente.city}</div>}
             </div>
           </div>
@@ -141,11 +141,11 @@ function ClienteCard({ cliente, onEdit, onDelete }) {
           <div style={{ display: "flex", gap: 4 }}>
             <button onClick={() => onEdit(cliente)} style={{
               padding: "5px 10px", borderRadius: 6, border: "1px solid var(--border)",
-              background: "#fff", cursor: "pointer", fontSize: 12, color: "var(--text-muted)",
+              background: "var(--card)", cursor: "pointer", fontSize: 12, color: "var(--text-muted)",
             }}>✏️</button>
             <button onClick={() => onDelete(cliente)} style={{
               padding: "5px 10px", borderRadius: 6, border: "1px solid #fecaca",
-              background: "#fff", cursor: "pointer", fontSize: 12, color: "var(--danger)",
+              background: "var(--card)", cursor: "pointer", fontSize: 12, color: "var(--danger)",
             }}>🗑️</button>
           </div>
         </div>
@@ -191,7 +191,7 @@ export function ClientiView({ state, dispatch, loading = false }) {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
         <div>
-          <h1 className="playfair" style={{ fontSize: isMobile ? 22 : 26, color: "var(--navy)", marginBottom: 4 }}>
+          <h1 className="playfair" style={{ fontSize: isMobile ? 22 : 26, color: "var(--heading)", marginBottom: 4 }}>
             Clienti
           </h1>
           <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
@@ -264,16 +264,16 @@ export function ClientiView({ state, dispatch, loading = false }) {
           background: "rgba(8,21,45,0.45)", display: "flex", alignItems: "center", justifyContent: "center",
         }} onClick={() => setConfirmDelete(null)}>
           <div style={{
-            background: "#fff", borderRadius: 12, padding: 24, width: "min(380px, 92vw)",
+            background: "var(--card)", borderRadius: 12, padding: 24, width: "min(380px, 92vw)",
             boxShadow: "0 12px 40px rgba(0,0,0,0.18)", animation: "slideUp 0.2s ease",
           }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontWeight: 700, fontSize: 16, color: "var(--navy)", marginBottom: 8 }}>Rimuovi cliente</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: "var(--heading)", marginBottom: 8 }}>Rimuovi cliente</div>
             <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 20 }}>
               Rimuovere <strong>{confirmDelete.name}</strong> dall'anagrafica?
             </div>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button onClick={() => setConfirmDelete(null)} style={{
-                padding: "8px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "#fff",
+                padding: "8px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)",
                 cursor: "pointer", fontSize: 14, color: "var(--text-muted)",
               }}>Annulla</button>
               <button onClick={() => handleDelete(confirmDelete)} style={{

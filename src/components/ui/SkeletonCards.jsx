@@ -17,7 +17,7 @@ export function SkeletonCards({ count = 6 }) {
     >
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} style={{
-          background: "#fff", borderRadius: 12, padding: "16px 18px",
+          background: "var(--card)", borderRadius: 12, padding: "16px 18px",
           border: "1px solid var(--border)",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>

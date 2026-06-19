@@ -63,7 +63,7 @@ export const TaskSlideOver = ({ task, dispatch }) => {
         style={{ position: "fixed", inset: 0, background: "rgba(15,32,68,0.4)", zIndex: 500 }} />
       <div className="slide-right" style={{
         position: "fixed", top: 0, right: 0, width: isMobile ? "100vw" : 480, height: "100vh",
-        background: "#fff", zIndex: 600, boxShadow: "-20px 0 60px rgba(0,0,0,0.15)",
+        background: "var(--card)", zIndex: 600, boxShadow: "-20px 0 60px rgba(0,0,0,0.15)",
         display: "flex", flexDirection: "column", overflowY: "auto",
       }}>
         {/* Header */}
@@ -103,7 +103,7 @@ export const TaskSlideOver = ({ task, dispatch }) => {
               <select value={task.status} onChange={handleStatusChange} style={{
                 width: "100%", border: "1px solid var(--border)", borderRadius: 8,
                 padding: "7px 10px", fontSize: 13, fontFamily: "inherit",
-                background: "white", cursor: "pointer"
+                background: "var(--card)", cursor: "pointer"
               }}>
                 {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
               </select>
@@ -163,7 +163,7 @@ export const TaskSlideOver = ({ task, dispatch }) => {
               {editable && showAssigneePicker && availableMembers.length > 0 && (
                 <div style={{
                   position: "absolute", top: "100%", left: 0, marginTop: 6, zIndex: 10,
-                  background: "#fff", border: "1px solid var(--border)", borderRadius: 10,
+                  background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10,
                   boxShadow: "0 10px 30px rgba(0,0,0,0.12)", padding: 6,
                   minWidth: 180, maxHeight: 220, overflowY: "auto",
                 }}>
@@ -206,7 +206,7 @@ export const TaskSlideOver = ({ task, dispatch }) => {
               style={{
                 width: "100%", border: "1px solid var(--border)", borderRadius: 8,
                 padding: "7px 10px", fontSize: 13, fontFamily: "inherit",
-                background: "white",
+                background: "var(--card)",
               }}
             />
           </div>

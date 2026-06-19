@@ -1,23 +1,46 @@
 # CHANGELOG — VoyageDesk
 
 
-## v2.8-dev — Candidati low-risk: filtro data/ora coda Driver + dark mode (sessione 25)
+## v2.8-dev — Candidati low-risk: driver/dark mode + ux switch + bacheca tag/reazioni + template chat (sessione 25)
 
-> Branch `claude/handoff-changelog-roadmap-xlkae9`. Feature low-risk portate da PR #62 (commit isolati), depurate dalle parti obsolete (chip pratica) e dai moduli rimossi in #63.
+> Branch `claude/handoff-changelog-roadmap-xlkae9`. **Round 1:** feature low-risk portate da PR #62 (commit isolati), depurate dalle parti obsolete (chip pratica) e dai moduli rimossi in #63. **Round 2:** micro-feature frontend-only prima dell'implementazione OneDrive/WhatsApp.
 
-### 🚐 Filtro data/ora nella coda personale Driver (vista transfer)
+### 🎨 Round 2 — Micro-feature pre-OneDrive/WhatsApp
+
+#### ⚠️ Warning toast su switch verso Admin
+- `SET_CURRENT_USER`: se il nuovo profilo è Admin, toast `type=warning` con cue esplicito ("Ricordati di tornare al tuo profilo a fine sessione"). Evita di lasciare la sessione mock aperta come Admin per errore.
+- `Toast`: supporta `type="warning"` (oro `#C8832A`, icona ⚠). Rimosso `whiteSpace:nowrap` (messaggi più lunghi vanno a capo, max-width 560px).
+
+#### 🏷️ Bacheca: tag/categorie filtrabili sui post-it
+- `NoticeEditorModal`: input "Tag" con chip + draft (Enter/virgola conferma, Backspace su input vuoto rimuove l'ultimo). Max 5 tag normalizzati lowercase, max 20 char.
+- `NoticeBoard`: barra filtro tag in header (chip clickabili, **OR**, bottone "azzera"); chip nel footer del post-it (click toggla il filtro). Visibile solo se almeno un post-it ha tag.
+
+#### 😀 Bacheca: reazioni emoji sui post-it
+- Reducer: `TOGGLE_NOTICE_REACTION` (stesso shape della chat: `{ emoji: [userId, ...] }`, toggle currentUser, cleanup vuoti).
+- `NoticeBoard`: bottone 😀 in toolbar apre picker con 6 emoji (👍 ❤️ 🎉 👀 🔥 ✅). Chip riassuntive con tooltip "chi ha reagito"; click toggla la propria reazione.
+- Fix collaterale: edit notice ora propaga anche `tags` (non più persi).
+
+#### 💬 Template messaggi chat (Impostazioni agenzia)
+- `state.messageTemplates`: array `{ id, label, text }`. Mock iniziale con 4 frasi tipiche (conferma documenti, richiesta passaporti, sollecito acconto, voucher pronto).
+- Reducer: `ADD/UPDATE/DELETE_MESSAGE_TEMPLATE` (admin-only, log attività).
+- `AdminView` tab Sistema: nuova sezione **Template messaggi chat** con CRUD inline (label max 40, testo max 500).
+- `ChatPanel` composer: pulsante 📋 (a fianco di 📎) apre dropdown template; click inserisce il testo (append con newline se input non vuoto, overwrite altrimenti). Reso solo se templates non vuoti.
+
+### 🎨 Round 1 — Cherry-pick da PR #62 (driver + dark mode)
+
+#### 🚐 Filtro data/ora nella coda personale Driver (vista transfer)
 
 - **`src/components/dashboard/Dashboard.jsx`**: `PersonalQueue` accetta `enableDateFilter` (attivo per `role === "driver"`). Chip **Tutte / Oggi / Domani** + `<input type="date">` per filtrare i transfer per giornata; contatore `filtrati/totale`; orario (`formatTime`) mostrato nelle card. Titolo/sottotitolo dedicati ("La mia coda transfer"). Empty-state contestuale (📭) quando il filtro non produce risultati.
 - Risolve il bisogno di Giulia (Driver) di una vista transfer-oriented.
 
-### 🌙 Dark mode con toggle in Topbar
+#### 🌙 Dark mode con toggle in Topbar
 
 - **Token semantici** (`src/VoyageDesk.jsx` FontLoader): `--card` (superficie card, sostituisce gli `#fff` inline dei contenuti) e `--heading` (titoli su card, sostituisce `color: var(--navy)`). In light coincidono coi valori storici → **nessun cambiamento visivo**.
 - **Blocco `[data-theme="dark"]`**: superfici scure, testo chiaro, `color-scheme: dark`. La **shell** (topbar/sidebar/bottom-nav) resta brand-celeste per scelta di design (evita testo invisibile sui controlli). `--navy` resta scuro (bg bottoni con testo bianco).
 - **Toggle 🌙/☀️ in Topbar** (`src/components/shell/Topbar.jsx`): stato solo-sessione, **nessun localStorage** (vincolo CLAUDE.md), `data-theme` applicato su `<html>` via `useEffect`.
 - Sostituzioni `#fff`→`var(--card)` e `var(--navy)`→`var(--heading)` propagate ai componenti contenuto (Dashboard, AdminView, Calendar, Chat, Clienti, Trash, Team, modali, ui). `TaskSlideOver`/`ClientiView` adattati a post-#63 (input `praticaRef` al posto del select pratica; badge dossier non reintrodotto).
 
-### 🔍 Revisione PR aperte
+#### 🔍 Revisione PR aperte
 
 - **PR #62 / #64**: partite da un branch-point **precedente** alla rimozione Pratiche/Fornitori (#63). Mergiate as-is **reintrodurrebbero** `PraticheView.jsx`/`FornitoriView.jsx` e le migration dossier, e si sovrappongono tra loro sulla feature "inviti reali via Supabase" (Fase 3). Decisione: **non mergiare as-is**; estratti solo i commit-feature puliti e low-risk (driver filter, dark mode). La feature "inviti reali" resta a Fase 3 (da concordare).
 

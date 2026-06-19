@@ -63,7 +63,7 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 | Notifiche reali | ✅ | 🔴 | M | Trigger task ✅ (Step F/J), trigger pratica ✅ (caveat #28, PR #57), coda stantia ✅ (`queue_stale`, hourly cron). Filtri + "segna tutte lette" ✅ (PR #57). |
 | Calendario avanzato | 🔶 | 🟡 | M | iCal export ✅, vista settimanale ✅, vista giornaliera ✅, pratiche nel calendario ✅ (PR #57). Manca: eventi multipli/ricorrenti |
 | Estensioni chat (base) | ✅ | 🟡 | S–M | Ricerca conversazioni ✅, presence online/assente/offline ✅, **stato "Occupato" manuale ✅** (toggle header chat), task link cliccabile ✅, rich preview pratiche ✅ |
-| Impostazioni agenzia | 🔶 | 🟡 | S | Gestione categorie e nome agenzia già in Admin. Manca: template messaggi, profilo utente, preferenze UI |
+| Impostazioni agenzia | 🔶 | 🟡 | S | Gestione categorie e nome agenzia in Admin; **template messaggi chat** ✅ v2.8-dev (Admin tab Sistema + picker composer). Manca: profilo utente, preferenze UI |
 | Ricerca globale estesa | ✅ | — | — | Completata in v0.5. |
 | Responsive (mobile/tablet/desktop) | ✅ | — | — | Completato in v0.6. |
 | SwipeActions mobile | ✅ | — | — | Completato in v0.7. |
@@ -94,8 +94,8 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 | Filtro nella coda globale (per categoria/priorità) | ✅ | — | Completato in PR #57 (sessione 22) |
 | Bacheca: menzioni @utente con notifica | ⬜ | 🟡 | Dipende da notifiche reali (trigger DB su `notices`) |
 | Bacheca: avvisi con scadenza automatica | ⬜ | ⚪ | Richiede colonna `expires_at` su `notices` |
-| Bacheca: reazioni emoji sui post-it | ⬜ | ⚪ | |
-| Bacheca: tag/categorie filtrabili | ⬜ | ⚪ | |
+| Bacheca: reazioni emoji sui post-it | ✅ | — | TOGGLE_NOTICE_REACTION (shape gemello chat), picker 6 emoji, chip riassuntive cliccabili. v2.8-dev |
+| Bacheca: tag/categorie filtrabili | ✅ | — | Tag (max 5 lowercase) gestiti in NoticeEditorModal; filtro multi-select OR in NoticeBoard header. v2.8-dev |
 | Modifica assegnatari da `TaskSlideOver` | ✅ | — | Completato in PR #57 (sessione 22) |
 | Permessi granulari per ruolo | ✅ | — | Completato in v0.8 |
 | Export Log attività in CSV | ✅ | — | Pulsante "Esporta CSV" nel tab Log (rispetta il filtro attivo), helper `downloadFile`/`escapeCSV` hoistati a module-scope |
@@ -118,7 +118,7 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 | Permessi granulari per sub-ruolo (Senior vs Junior) | ⬜ | ⚪ | Oggi trattati identicamente come "agent" |
 | Coda personale Driver: filtro per data/ora (tipo agenda giornaliera) | ✅ | — | `PersonalQueue` con `enableDateFilter` per role=driver: chip Tutte/Oggi/Domani + date picker, orario nelle card. v2.8-dev |
 | Indicatore visivo "read-only" sulle card urgenti altrui | ✅ | — | Completato in PR #57 (sessione 22): bordo dashed + chip 🔒 |
-| Notifica in-app al cambio utente (rollback automatico dopo X secondi?) | ⬜ | ⚪ | Per evitare che qualcuno lasci l'app loggato come Admin |
+| Notifica in-app al cambio utente | ✅ | — | Toast type=warning quando si switcha verso ruolo Admin (cue "ricordati di tornare al tuo profilo"). v2.8-dev. Rollback automatico non ancora implementato. |
 
 ## ✨ Migliorie incrementali emerse (post v2.2-dev / sessione 21-22)
 

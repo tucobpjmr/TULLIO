@@ -5,6 +5,14 @@
 
 > Branch `claude/handoff-changelog-roadmap-xlkae9`. **Round 1:** feature low-risk portate da PR #62 (commit isolati), depurate dalle parti obsolete (chip pratica) e dai moduli rimossi in #63. **Round 2:** micro-feature frontend-only prima dell'implementazione OneDrive/WhatsApp. **Round 3:** admin rollback automatico.
 
+### 📅 Round 12 — Filtro per categoria nel CalendarPlanner
+
+#### Chip filtro categoria nel calendario (mese / settimana / giorno / distribuzione)
+
+- **`CalendarPlanner.jsx`**: riga di chip categoria appare sotto l'header del calendario quando sono presenti più di una categoria con `dueDate`. Chip **"Tutte"** (Navy pieno) + un chip per ogni categoria presente (icona + label, colore categoria). Click su categoria attiva filtra tutte le viste (mese, settimana, giornata, distribuzione agenti); click sulla stessa categoria la deseleziona.
+- `matchesCat(t)` helper locale applicato a `getTasksForCalDay`, `getTasksForDay`, e ai contatori della tabella distribuzione settimanale.
+- `presentCats` calcolato da `Set` sui task visibili con `dueDate` — mostra solo i chip delle categorie effettivamente presenti nel calendario.
+
 ### 🔴 Round 11 — Badge urgenze personali nel nav laterale
 
 #### Indicatore rosso nel nav per task scaduti/urgenti assegnati all'utente

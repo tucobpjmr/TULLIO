@@ -79,7 +79,17 @@ export const CalendarPlanner = ({ state, dispatch }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState(null);
+  const [catFilter, setCatFilter] = useState(null); // v2.8 Round 12: null = tutti
   const uid = state.currentUserId;
+
+  // Categorie presenti nei task con dueDate (per mostrare solo i chip utili)
+  const presentCats = [...new Set(
+    state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate).map(t => t.category)
+  )].filter(Boolean);
+
+  // Filtro base applicato a tutti i getter di task
+  const matchesCat = (t) => !catFilter || t.category === catFilter;
+
   // ── Month helpers ──
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
@@ -91,7 +101,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
 
   const getTasksForCalDay = (day) => {
     const d = new Date(year, month, day).toDateString();
-    return state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && new Date(t.dueDate).toDateString() === d);
+    return state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && new Date(t.dueDate).toDateString() === d && matchesCat(t));
   };
 
   // ── Week helpers ──
@@ -109,7 +119,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
   const dayNames = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
   const getTasksForDay = (day) =>
-    state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && new Date(t.dueDate).toDateString() === day.toDateString());
+    state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && new Date(t.dueDate).toDateString() === day.toDateString() && matchesCat(t));
 
   // ── Distribuzione agenti ──
   // Caveat #8: nelle viste settimanali (week / week-full) le frecce ←/→ guidano
@@ -196,6 +206,44 @@ export const CalendarPlanner = ({ state, dispatch }) => {
           </div>
         </div>
       </div>
+
+      {/* ─── Filtro categoria (v2.8 Round 12) ─── */}
+      {presentCats.length > 1 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: -8 }}>
+          <button
+            type="button"
+            onClick={() => setCatFilter(null)}
+            style={{
+              padding: "4px 12px", borderRadius: 999, cursor: "pointer",
+              fontSize: 11, fontWeight: 600, fontFamily: "inherit",
+              border: `1px solid ${!catFilter ? "var(--navy)" : "var(--border)"}`,
+              background: !catFilter ? "var(--navy)" : "var(--card)",
+              color: !catFilter ? "#fff" : "var(--text-muted)",
+              transition: "all 0.15s",
+            }}
+          >Tutte</button>
+          {presentCats.map(cat => {
+            const c = CATEGORIES[cat];
+            if (!c) return null;
+            const active = catFilter === cat;
+            return (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setCatFilter(active ? null : cat)}
+                style={{
+                  padding: "4px 12px", borderRadius: 999, cursor: "pointer",
+                  fontSize: 11, fontWeight: 600, fontFamily: "inherit",
+                  border: `1px solid ${active ? (c.color || "var(--navy)") : "var(--border)"}`,
+                  background: active ? ((c.color || "var(--navy)") + "18") : "var(--card)",
+                  color: active ? (c.color || "var(--navy)") : "var(--text-muted)",
+                  transition: "all 0.15s",
+                }}
+              >{c.icon} {c.label}</button>
+            );
+          })}
+        </div>
+      )}
 
       {/* ─── VISTA MESE ─── */}
       {viewMode === "month" && (
@@ -552,7 +600,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                   {agentWeekDays.map((day, i) => {
                     const count = state.tasks.filter(t =>
                       isActiveTask(t) && t.assignees?.includes(m.id) && t.dueDate &&
-                      new Date(t.dueDate).toDateString() === day.toDateString()
+                      new Date(t.dueDate).toDateString() === day.toDateString() && matchesCat(t)
                     ).length;
                     return (
                       <td key={i} style={{
@@ -568,7 +616,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                   <td style={{ padding: "8px 12px", textAlign: "center", borderBottom: "1px solid var(--border)", fontWeight: 700, color: "var(--heading)" }}>
                     {state.tasks.filter(t =>
                       isActiveTask(t) && t.assignees?.includes(m.id) && t.dueDate &&
-                      agentWeekDays.some(d => new Date(t.dueDate).toDateString() === d.toDateString())
+                      agentWeekDays.some(d => new Date(t.dueDate).toDateString() === d.toDateString()) && matchesCat(t)
                     ).length}
                   </td>
                 </tr>

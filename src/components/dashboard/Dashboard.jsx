@@ -976,15 +976,29 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
           <div className="playfair" style={{ fontSize: isMobile ? 21 : 26, fontWeight: 700 }}>
             Buongiorno, {firstName} ☀️
           </div>
-          <div style={{ color: "var(--text-muted)", fontSize: 14, marginTop: 2 }}>
-            {new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
+          <div style={{ color: "var(--text-muted)", fontSize: 14, marginTop: 2, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+            <span>{new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}</span>
             {role !== "admin" && (
-              <span style={{ marginLeft: 8, display: "inline-flex", alignItems: "center", gap: 5 }}>
-                <span style={{ fontSize: 11, padding: "2px 8px", background: "var(--surface3)", borderRadius: 99, color: "var(--text-muted)", fontWeight: 600, letterSpacing: 0.3 }}>{me?.role}</span>
-                {isJuniorAgent(uid) && (
-                  <span style={{ fontSize: 10, padding: "1px 6px", background: "#FFF3CD", color: "#856404", borderRadius: 99, fontWeight: 700, letterSpacing: 0.3 }}>JUNIOR</span>
-                )}
-              </span>
+              <>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                  <span style={{ fontSize: 11, padding: "2px 8px", background: "var(--surface3)", borderRadius: 99, color: "var(--text-muted)", fontWeight: 600, letterSpacing: 0.3 }}>{me?.role}</span>
+                  {isJuniorAgent(uid) && (
+                    <span style={{ fontSize: 10, padding: "1px 6px", background: "#FFF3CD", color: "#856404", borderRadius: 99, fontWeight: 700, letterSpacing: 0.3 }}>JUNIOR</span>
+                  )}
+                </span>
+                {(() => {
+                  const totalH = personalQueue.reduce((s, t) => s + (Number(t.estimatedHours) || 0), 0);
+                  if (totalH === 0) return null;
+                  return (
+                    <span style={{
+                      fontSize: 11, padding: "2px 9px", borderRadius: 99, fontWeight: 700,
+                      background: overdueTasks.length > 0 ? "rgba(192,57,43,0.08)" : "rgba(15,32,68,0.06)",
+                      color: overdueTasks.length > 0 ? "var(--danger)" : "var(--navy)",
+                      border: `1px solid ${overdueTasks.length > 0 ? "rgba(192,57,43,0.2)" : "rgba(15,32,68,0.1)"}`,
+                    }}>⏱ {totalH}h in coda{overdueTasks.length > 0 ? ` · ${overdueTasks.length} scadut${overdueTasks.length === 1 ? "a" : "e"}` : ""}</span>
+                  );
+                })()}
+              </>
             )}
           </div>
         </div>

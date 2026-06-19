@@ -1,11 +1,76 @@
 # 🗺️ VoyageDesk — Roadmap di Sviluppo
 
-Documento di pianificazione. Idee organizzate in **fasi sequenziali** basate su dipendenze tecniche e valore utente.
+Documento di pianificazione. Idee organizzate in **blocchi sequenziali** basate su dipendenze tecniche e valore utente.
 
 **Legenda**
 Priorità: 🔴 Alta · 🟡 Media · ⚪ Bassa
 Sforzo: `S` piccolo (~1 sessione) · `M` medio (2-3) · `L` grande (4+)
 Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
+
+---
+
+## 🎯 Blocchi Operatività 100%
+
+### ✅ Block 1 — Autenticazione & Onboarding (COMPLETO — sessione 27)
+
+| Modulo | Stato | Priorità | Sforzo |
+|---|---|---|---|
+| Password recovery (email magic link) | ✅ | 🔴 | S |
+| Self-service signup (form + validation) | ✅ | 🔴 | S |
+| Team member approval (pending gate) | ✅ | 🔴 | S |
+| Approval persistence fix (DB write) | ✅ | 🔴 | S |
+| Security hardening (trigger dedup + RLS) | ✅ | 🔴 | S |
+
+**Deliverables**: Password recovery flow, signup form, PendingScreen gate, approval system (API + dispatch), migration (sync repo↔prod). All deployed ✅.
+
+**Next decision**: 
+- **Option A** (recommended): Apply Block 2 (RLS hardening for pending users).
+- **Option B**: Skip to Block 3+ (email verification, admin invites, etc.).
+
+---
+
+### 🟡 Block 2 — RLS Hardening for Pending Users (DEFERRED — optional)
+
+| Modulo | Stato | Priorità | Sforzo |
+|---|---|---|---|
+| Pending user read access isolation | ⬜ | 🟡 | S |
+| Email confirmation requirement | ⬜ | 🟡 | S |
+| Approval notification to admin | ⬜ | 🟡 | S |
+
+**Why deferred**: No real users yet; safer to add when live data exists.
+
+**Scope**:
+- Add `AND (NOT auth.uid() = current_user_id OR active = true)` to RLS read policies where pending users should be blocked.
+- Supabase config to require email confirmation before login.
+- Trigger `notify_user_pending` when signup completes (notify admin).
+
+---
+
+### 🔵 Block 3 — Email Confirmation & Admin Controls
+
+| Modulo | Stato | Priorità | Sforzo |
+|---|---|---|---|
+| Email confirmation enforcement | ⬜ | 🟡 | S |
+| Resend confirmation email UI | ⬜ | 🟡 | S |
+| Admin bulk invite + send links | ⬜ | 🟡 | M |
+| Approval notification (→admin + user) | ⬜ | 🟡 | S |
+
+---
+
+### 🟢 Block 4 — Account Management
+
+| Modulo | Stato | Priorità | Sforzo |
+|---|---|---|---|
+| Profile edit (name, avatar, email/phone) | ⬜ | 🟡 | S |
+| Change password (in-app, not reset link) | ⬜ | 🟡 | S |
+| Account deletion (self-service or admin) | ⬜ | ⚪ | S |
+| Multi-session tracking (last seen, devices) | ⬜ | ⚪ | M |
+
+---
+
+
+
+---
 
 ---
 
@@ -63,7 +128,7 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 | Notifiche reali | ✅ | 🔴 | M | Trigger task ✅ (Step F/J), trigger pratica ✅ (caveat #28, PR #57), coda stantia ✅ (`queue_stale`, hourly cron). Filtri + "segna tutte lette" ✅ (PR #57). |
 | Calendario avanzato | 🔶 | 🟡 | M | iCal export ✅, vista settimanale ✅, vista giornaliera ✅, pratiche nel calendario ✅ (PR #57). Manca: eventi multipli/ricorrenti |
 | Estensioni chat (base) | ✅ | 🟡 | S–M | Ricerca conversazioni ✅, presence online/assente/offline ✅, **stato "Occupato" manuale ✅** (toggle header chat), task link cliccabile ✅, rich preview pratiche ✅ |
-| Impostazioni agenzia | 🔶 | 🟡 | S | Gestione categorie e nome agenzia già in Admin. Manca: template messaggi, profilo utente, preferenze UI |
+| Impostazioni agenzia | 🔶 | 🟡 | S | Gestione categorie e nome agenzia in Admin; **template messaggi chat** ✅ v2.8-dev (Admin tab Sistema + picker composer). Manca: profilo utente, preferenze UI |
 | Ricerca globale estesa | ✅ | — | — | Completata in v0.5. |
 | Responsive (mobile/tablet/desktop) | ✅ | — | — | Completato in v0.6. |
 | SwipeActions mobile | ✅ | — | — | Completato in v0.7. |
@@ -94,11 +159,27 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 | Filtro nella coda globale (per categoria/priorità) | ✅ | — | Completato in PR #57 (sessione 22) |
 | Bacheca: menzioni @utente con notifica | ⬜ | 🟡 | Dipende da notifiche reali (trigger DB su `notices`) |
 | Bacheca: avvisi con scadenza automatica | ⬜ | ⚪ | Richiede colonna `expires_at` su `notices` |
-| Bacheca: reazioni emoji sui post-it | ⬜ | ⚪ | |
-| Bacheca: tag/categorie filtrabili | ⬜ | ⚪ | |
+| Bacheca: reazioni emoji sui post-it | ✅ | — | TOGGLE_NOTICE_REACTION (shape gemello chat), picker 6 emoji, chip riassuntive cliccabili. v2.8-dev |
+| Bacheca: tag/categorie filtrabili | ✅ | — | Tag (max 5 lowercase) gestiti in NoticeEditorModal; filtro multi-select OR in NoticeBoard header. v2.8-dev |
 | Modifica assegnatari da `TaskSlideOver` | ✅ | — | Completato in PR #57 (sessione 22) |
 | Permessi granulari per ruolo | ✅ | — | Completato in v0.8 |
 | Export Log attività in CSV | ✅ | — | Pulsante "Esporta CSV" nel tab Log (rispetta il filtro attivo), helper `downloadFile`/`escapeCSV` hoistati a module-scope |
+| Sort e ricerca avanzata Clienti | ✅ | — | 4 chip ordinamento (A-Z / Z-A / Più recenti / Città), ricerca estesa a telefono e note. v2.8-dev Round 8. |
+| Pannello task del cliente | ✅ | — | Click su card cliente mostra task collegati inline (match campo `client`). v2.8-dev Round 9. |
+| Scorciatoie tastiera globali | ✅ | — | K=QuickAddTask, ?=overlay shortcut, Esc=chiudi. v2.8-dev Round 10. |
+| Badge urgenze personali nav | ✅ | — | Badge rosso su voce Dashboard per task scaduti/urgenti dell'utente corrente. v2.8-dev Round 11. |
+| Filtro categoria CalendarPlanner | ✅ | — | Chip categoria sotto header calendario, filtra mese/settimana/giorno/distribuzione. v2.8-dev Round 12. |
+| Cerca nei messaggi chat | ✅ | — | Pulsante 🔍 in header conversazione, ricerca full-text con contatore risultati. v2.8-dev Round 13. |
+| Avanzamento status rapido PersonalQueue | ✅ | — | Bottoni inline ▶/⏸/✓ contestuali per status nella coda personale, senza aprire TaskSlideOver. v2.8-dev Round 14. |
+| Filtro per agente UrgentOthersQueue | ✅ | — | Chip con avatar + nome + contatore per filtrare i task urgenti del team per agente. Badge aggiorna. v2.8-dev Round 15. |
+| Filtro periodo nel Cestino | ✅ | — | Chip Tutti/Ultimi 7 gg/Questo mese/Mese scorso su `deletedAt`. Badge `N di M`, stato vuoto con reset. v2.8-dev Round 16. |
+| Ore stimate nel pannello task cliente | ✅ | — | Summary row `N aperti · Xh stimate · N completati · Yh · Totale: Zh` in ClienteTaskPanel. v2.8-dev Round 17. |
+| Export CSV coda personale | ✅ | — | Bottone `↓ CSV` nel header PersonalQueue, esporta il set filtrato corrente. v2.8-dev Round 18. |
+| Mini-avatar assegnatari nel day view | ✅ | — | Avatar 14px degli assegnatari sulle card evento nel time-grid giornaliero (height ≥ 42px). v2.8-dev Round 19. |
+| Ore stimate in coda per membro (Team view) | ✅ | — | Riga `N/M task · ⏱ Xh` sotto barra capacità nella card membro. v2.8-dev Round 20. |
+| Filtro assegnatario OverdueQueue | ✅ | — | Chip avatar+nome+contatore per filtrare task scaduti per agente (speculare a Round 15). v2.8-dev Round 21. |
+| Campo ore stimate nel QuickAddTask | ✅ | — | Input numerico "ORE ⏱" (step 0.5) nella riga Assegna A/Scadenza. Default 1h se vuoto. v2.8-dev Round 22. |
+| Pill ore-in-coda nel greeting Dashboard | ✅ | — | Pill `⏱ Xh in coda` + `· N scadute` (rosso) sotto il saluto per ruoli non-admin. v2.8-dev Round 23. |
 
 ## ✨ Migliorie incrementali emerse (post v0.6)
 
@@ -107,7 +188,7 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 | Vista settimanale Calendario | ✅ | — | Completata in v0.7 (CalendarPlanner: week + week-full) |
 | Comprimi automaticamente Sidebar desktop tra 1024–1280px | ✅ | — | Auto-collapse a transizione di banda in `Sidebar` (guardia `prevBandRef`, non contrasta il toggle manuale) |
 | Skeleton loading su prime render | ✅ | — | `SkeletonCards` (shimmer) nelle viste Clienti/Fornitori/Pratiche durante l'idratazione CRM (`crmLoading`) |
-| Dark mode | ⬜ | ⚪ | CSS variables pronte |
+| Dark mode | ✅ | — | Token `--card`/`--heading` + blocco `[data-theme="dark"]`, toggle 🌙/☀️ in Topbar (solo-sessione). Shell resta brand-celeste. v2.8-dev |
 | Test responsive automatici (Playwright) | ⬜ | ⚪ | ⚙️**B** |
 
 ## ✨ Migliorie incrementali emerse (post v0.8)
@@ -115,10 +196,10 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 | Idea | Stato | Priorità | Note |
 |---|---|---|---|
 | Task link cliccabile nella chat (apre TaskSlideOver) | ✅ | — | Completato in Step H/K (`MessageTextContent` + `taskRef`) |
-| Permessi granulari per sub-ruolo (Senior vs Junior) | ⬜ | ⚪ | Oggi trattati identicamente come "agent" |
-| Coda personale Driver: filtro per data/ora (tipo agenda giornaliera) | ⬜ | 🟡 | Giulia ha bisogno di una vista transfer-oriented |
+| Permessi granulari per sub-ruolo (Senior vs Junior) | ✅ | — | isJuniorAgent() + canEditTask/canCreateTaskCategory ridotti. Badge UI in Topbar e Dashboard. v2.8-dev Round 4. |
+| Coda personale Driver: filtro per data/ora (tipo agenda giornaliera) | ✅ | — | `PersonalQueue` con `enableDateFilter` per role=driver: chip Tutte/Oggi/Domani + date picker, orario nelle card. v2.8-dev |
 | Indicatore visivo "read-only" sulle card urgenti altrui | ✅ | — | Completato in PR #57 (sessione 22): bordo dashed + chip 🔒 |
-| Notifica in-app al cambio utente (rollback automatico dopo X secondi?) | ⬜ | ⚪ | Per evitare che qualcuno lasci l'app loggato come Admin |
+| Notifica in-app al cambio utente | ✅ | — | Toast type=warning + banner countdown 60s con rollback automatico all'utente precedente. "Rimani come Admin" / "Torna ora →". v2.8-dev Round 3. |
 
 ## ✨ Migliorie incrementali emerse (post v2.2-dev / sessione 21-22)
 

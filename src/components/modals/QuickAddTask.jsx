@@ -4,6 +4,30 @@ import { useState } from "react";
 import { PRIORITIES } from "../../lib/taskConstants.js";
 import { CURRENT_USER, getAssignableTeam, getAvailableCategories } from "../../state/appGlobals.js";
 
+// v2.8 Round 6: auto-suggerisci la categoria in base a keyword nel titolo.
+// Regole: primo match vince (ordine top-down). Solo per categorie disponibili all'utente.
+const CATEGORY_KEYWORDS = [
+  { cat: "transfer",  words: ["transfer", "navetta", "shuttle", "ncc "] },
+  { cat: "visa",      words: ["visto", "passaporto", "visa", "documenti sanitar", "document"] },
+  { cat: "booking",   words: ["volo", "voli", "aereo", "aerei", "bigliett", "compagnia aerea", "check-in", "checkin", "flight"] },
+  { cat: "hotel",     words: ["hotel", "albergo", "resort", "villa", "bed ", "bungalow", "ryokan", "appartament", "ospitalit"] },
+  { cat: "payment",   words: ["pagament", "acconto", "saldo", "fattura", "bonifico", "invoice", "polizza", "tariffa"] },
+  { cat: "itinerary", words: ["itinerario", "programma viaggio", "tappe", "tour ", "percorso", "preventivo"] },
+  { cat: "client",    words: ["cliente", "followup", "follow-up", "chiamata", "contatto", "incontro", "appuntamento", "meeting"] },
+  { cat: "marketing", words: ["newsletter", "social", "post ", "campagna", "promo", "pubblicità", "instagram", "facebook"] },
+  { cat: "supplier",  words: ["fornitore", "contratto", "accordo", "autobus", "bus "] },
+  { cat: "admin",     words: ["riunione", "agenda", "report", "log ", "amministrazion"] },
+];
+const suggestCategory = (title, availableCats) => {
+  const lower = (title || "").toLowerCase();
+  if (lower.length < 4) return null;
+  for (const { cat, words } of CATEGORY_KEYWORDS) {
+    if (!availableCats[cat]) continue;
+    if (words.some(w => lower.includes(w))) return cat;
+  }
+  return null;
+};
+
 export const QuickAddTask = ({ onAdd, onClose }) => {
   // Categorie filtrate per il ruolo dell'utente loggato (v0.8)
   const availableCats = getAvailableCategories(CURRENT_USER);
@@ -11,8 +35,10 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
 
   const [form, setForm] = useState({
     title: "", category: firstCatKey, priority: "medium",
-    status: "todo", assignees: [], dueDate: "", client: "", praticaRef: "", description: ""
+    status: "todo", assignees: [], dueDate: "", estimatedHours: "", client: "", praticaRef: "", description: ""
   });
+  // true se l'utente ha cambiato manualmente la categoria → non sovrascrivere
+  const [catManual, setCatManual] = useState(false);
 
   const handleSubmit = () => {
     if (!form.title.trim()) return;
@@ -22,15 +48,29 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
       client: form.client.trim() || null,
       praticaRef: form.praticaRef || null,
       comments: [],
-      estimatedHours: 1,
+      estimatedHours: Number(form.estimatedHours) > 0 ? Number(form.estimatedHours) : 1,
       dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
     });
     onClose();
   };
 
+  // Auto-suggerisci categoria al cambio titolo (se l'utente non ha impostato manualmente)
+  const suggested = !catManual ? suggestCategory(form.title, availableCats) : null;
+
   const inp = (field) => ({
     value: form[field],
-    onChange: e => setForm(p => ({ ...p, [field]: e.target.value })),
+    onChange: e => {
+      const val = e.target.value;
+      setForm(p => {
+        const next = { ...p, [field]: val };
+        // Auto-applica la categoria suggerita se non è stata modificata manualmente
+        if (field === "title" && !catManual) {
+          const s = suggestCategory(val, availableCats);
+          if (s) next.category = s;
+        }
+        return next;
+      });
+    },
     style: {
       width: "100%", border: "1px solid var(--border)", borderRadius: 8,
       padding: "8px 10px", fontSize: 13, background: "var(--surface)",
@@ -44,7 +84,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
       display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16
     }}>
       <div className="slide-up" style={{
-        background: "#fff", borderRadius: 14, padding: 28, width: 500, maxWidth: "100%",
+        background: "var(--card)", borderRadius: 14, padding: 28, width: 500, maxWidth: "100%",
         maxHeight: "90vh", overflowY: "auto",
         boxShadow: "0 30px 80px rgba(0,0,0,0.2)", border: "1px solid var(--border)"
       }}>
@@ -61,10 +101,37 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>CATEGORIA</label>
-              <select {...inp("category")} style={{ ...inp("category").style, cursor: "pointer" }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>
+                CATEGORIA
+                {suggested && (
+                  <span style={{
+                    marginLeft: 8, fontSize: 10, fontWeight: 700,
+                    background: "#E0F2FE", color: "#0369A1",
+                    padding: "1px 6px", borderRadius: 4,
+                  }}>💡 auto</span>
+                )}
+              </label>
+              <select
+                value={form.category}
+                onChange={e => { setCatManual(true); setForm(p => ({ ...p, category: e.target.value })); }}
+                style={{ ...inp("category").style, cursor: "pointer",
+                  borderColor: suggested ? "#0369A1" : "var(--border)",
+                }}
+              >
                 {Object.entries(availableCats).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
               </select>
+              {catManual && form.title.length >= 4 && suggestCategory(form.title, availableCats) && suggestCategory(form.title, availableCats) !== form.category && (
+                <button
+                  type="button"
+                  onClick={() => { setCatManual(false); const s = suggestCategory(form.title, availableCats); if (s) setForm(p => ({ ...p, category: s })); }}
+                  style={{
+                    marginTop: 5, fontSize: 11, color: "#0369A1", background: "none",
+                    border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit",
+                  }}
+                >
+                  💡 Usa categoria suggerita: {availableCats[suggestCategory(form.title, availableCats)]?.label}
+                </button>
+              )}
             </div>
             <div>
               <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>PRIORITÀ</label>
@@ -74,7 +141,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 80px", gap: 12 }}>
             <div>
               <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>ASSEGNA A</label>
               <select
@@ -88,6 +155,17 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
             <div>
               <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>SCADENZA</label>
               <input type="datetime-local" {...inp("dueDate")} />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>ORE ⏱</label>
+              <input
+                type="number"
+                min="0.5" max="100" step="0.5"
+                value={form.estimatedHours}
+                onChange={e => setForm(p => ({ ...p, estimatedHours: e.target.value }))}
+                placeholder="1"
+                style={{ ...inp("estimatedHours").style }}
+              />
             </div>
           </div>
 

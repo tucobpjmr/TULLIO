@@ -1,5 +1,292 @@
 # CHANGELOG — VoyageDesk
 
+## v3.0-dev — Block 1: Authentication & Onboarding (sessione 27)
+
+> Branch `claude/handoff-changelog-roadmap-wm7scp` (3 commits). Complete password recovery, self-service signup, team member approval system with persistence fix, security hardening migration.
+
+### 🔐 Password Recovery Flow
+
+**`src/auth/UpdatePasswordScreen.jsx` (NEW)**
+- Password reset UI shown after user clicks recovery link from email.
+- Input: password confirmation (min 8 chars, must match).
+- Calls `updatePassword()` from AuthContext → on success `recovery=false` → exits screen.
+- Italian error messages for all Supabase auth codes.
+
+**`src/auth/AuthContext.jsx` (Enhanced)**
+- New method `resetPassword(email)`: sends Supabase password reset magic link.
+- New method `updatePassword(password)`: updates password in current session.
+- New state: `recovery` (boolean, set true when Supabase detects PASSWORD_RECOVERY event).
+- Magic link detection: `onAuthStateChange` checks `event === PASSWORD_RECOVERY`.
+
+**`src/auth/LoginScreen.jsx` (Rewritten with 3 modes)**
+- **Signup mode**: name + email + password fields. Validation: name required, password ≥8 chars.
+- **Forgot password mode**: email only, sends reset link.
+- **Login mode**: email + password (original).
+- All modes use `localizeAuthError()` for Italian Supabase error messages.
+- Mode switching clears errors and password field.
+
+**`src/main.jsx` (Updated AuthGate)**
+- Priority order: `recovery` → session → profile → `pending` → app.
+- If `recovery=true`: show `UpdatePasswordScreen` (even with valid session).
+- If no session: show `LoginScreen`.
+- If no profile: loading screen.
+- If `profile.pending === true`: show new **`PendingScreen`** (wait for admin approval).
+- Else: mount `VoyageDesk` app.
+
+### 📝 Self-Service Signup
+
+**Flow**:
+1. User fills signup form (name, email, password) → `signUp()`.
+2. `AuthContext.signUp()` creates auth user + sets metadata.
+3. **Trigger** `handle_new_auth_user()` fires:
+   - Creates `public.users`: `id, name, role, avatar, color, capacity, pending=true, active=false`.
+   - Creates `public.user_contacts`: `user_id, email`.
+4. User's `profile.pending=true` → `PendingScreen` shown (wait for admin).
+5. Admin approves → `pending=false, active=true` → app unlocks.
+
+**New component `PendingScreen`** (in `main.jsx`)
+- Shown when `profile.pending === true`.
+- Displays: "Account in attesa" + user greeting + "Un amministratore deve approvare…"
+- Button: "Esci" (logout).
+- Prevents app access until approval.
+
+### ✅ Team Member Approval (Persistence Fix)
+
+**Bug Fixed**: `APPROVE_TEAM_MEMBER` + `TOGGLE_TEAM_MEMBER_ACTIVE` only mutated local state → on reload, lost; approval didn't persist.
+
+**Solution**:
+- **`src/lib/api.js`** new `Users.approve(id)`: persists `pending=false, active=true` to Supabase (admin-only via RLS).
+- **`src/VoyageDesk.jsx`** dispatch wrappers: both actions now call API + Supabase, with error toast.
+- **`state.team` added to deps**: read current member state correctly.
+
+**Result**: approval persists to DB, survives reload.
+
+### 🔒 Security Hardening
+
+**Migration `20260619_security_dedupe_signup_trigger.sql` (Applied to Production)**
+
+1. **Codify production function**: `handle_new_auth_user()` (was live but untracked in repo).
+   - Avatar, color, capacity generation from metadata.
+   - Idempotent: `ON CONFLICT DO NOTHING`.
+
+2. **Remove duplicate**: Drop old `trg_on_auth_user_created` + `handle_new_user()` (redundant).
+
+3. **Revoke EXECUTE on trigger**: Clients cannot call as RPC (trigger fires normally).
+
+4. **Keep EXECUTE for helpers**: `is_admin()` + `is_manager_or_admin()` (called inside RLS policies, safe).
+
+**Result**: repo↔prod synced, signup fully documented, no client RPC exposure.
+
+---
+
+## v2.8-dev — Micro-feature loop frontend-only Round 16–23 (sessione 26)
+
+> Branch `claude/handoff-changelog-roadmap-wm7scp`. Continuazione del loop di sessione 25 (Rounds 8–15). 8 round ulteriori tutti frontend-only, senza DB né librerie esterne.
+
+### ⏱ Round 23 — Pill ore-in-coda nel greeting Dashboard
+
+#### Riepilogo workload visibile al primo sguardo
+
+- **`Dashboard.jsx`**: sotto il saluto "Buongiorno, Marco ☀️" appare un pill `⏱ Xh in coda` con il totale delle ore stimate della coda personale (sum `estimatedHours` sui task aperti assegnati all'utente). Quando ci sono task scaduti il pill diventa rosso e aggiunge `· N scadute`. Non mostrato per Admin. Visibile solo se la somma > 0.
+
+### ⏳ Round 22 — Campo ore stimate nel QuickAddTask
+
+#### Stima inseribile alla creazione del task
+
+- **`QuickAddTask.jsx`**: aggiunto input numerico "ORE ⏱" (step 0.5, max 100) nella riga Assegna A / Scadenza. Il valore era precedentemente hardcoded a 1. Default a 1h se vuoto al submit. La griglia 2-colonne diventa 3-colonne (`1fr 1fr 80px`) per ospitare il campo senza spostare la struttura visiva.
+
+### 🔴 Round 21 — Filtro assegnatario nella OverdueQueue
+
+#### Filtra task scaduti per agente (speculare a Round 15)
+
+- **`Dashboard.jsx` — `OverdueQueue`**: chip avatar+nome+contatore per filtrare i task scaduti per agente assegnato. Chip "Tutti" (rosso pieno) + chip per ogni assegnatario presente. Badge header aggiorna `N/M` quando filtro attivo. Stato vuoto dedicato per assegnatario senza task scaduti nel filtro. Visibile solo quando ci sono > 1 assegnatari.
+
+### 👥 Round 20 — Ore stimate in coda per membro nel Team view
+
+#### Workload in ore oltre al conteggio task
+
+- **`Team.jsx`**: riga sotto la barra capacità nella card membro ora mostra `N/M task · ⏱ Xh` quando il membro ha task attivi con `estimatedHours > 0`. Calcolato con `reduce` su `active` per sommare le ore stimate. Visibile solo quando la somma è > 0.
+
+### 🗓️ Round 19 — Mini-avatar assegnatari nel day view CalendarPlanner
+
+#### Avatar assegnatari visibili sulle card evento senza aprire il dettaglio
+
+- **`CalendarPlanner.jsx`** — vista giornaliera time-grid: riga inferiore delle card evento ora mostra ora/durata a sinistra e avatar 14px degli assegnatari a destra. Max 3 avatar + `+N` per eventuali ulteriori. Visibili solo quando `height >= 42px` (evento ≥ 1h) per non sovraffollare card piccole. Usa il componente `Avatar` già esistente.
+
+### ↓ Round 18 — Export CSV coda personale
+
+#### Scarica le task filtrate correnti come file CSV
+
+- **`Dashboard.jsx`**: bottone `↓ CSV` affiancato al badge contatore nel header della `PersonalQueue`. Visibile solo quando `filtered.length > 0` (rispetta filtro data Driver). Helper `_esc` e `exportTasksCSV` definiti a module-scope. CSV con BOM UTF-8, colonne: Titolo, Categoria, Priorità, Stato, Cliente, Pratica, Assegnati, Scadenza, Ore stimate. Nome file `coda-personale-YYYY-MM-DD.csv`.
+
+### 👤 Round 17 — Ore stimate nel pannello task del cliente
+
+#### Riepilogo ore per cliente nel ClienteTaskPanel
+
+- **`ClientiView.jsx` — `ClienteTaskPanel`**: sotto il titolo "Task di [cliente]" viene mostrato un summary row multi-colonna: `N aperti · Xh stimate` (in muted) + `N completati · Yh` (in verde) + `Totale: Zh` (in navy bold) quando almeno un task ha `estimatedHours > 0`. Calcolato con `reduce` su `open`/`done`.
+
+### 🗑️ Round 16 — Filtro periodo nel Cestino
+
+#### Chip temporale per navigare lo storico task eliminati
+
+- **`Trash.jsx`**: riga di chip "Periodo:" con 4 opzioni: **Tutti** | **Ultimi 7 gg** | **Questo mese** | **Mese scorso**. Il badge in cima al header mostra `N di M task — filtrati per periodo` quando un filtro è attivo. Stato vuoto dedicato con bottone "Mostra tutti" per resettare. Helper `filterByPeriod` a module-scope con calcoli date basati su `deletedAt`. Chip visibili solo se ci sono task nel cestino.
+
+---
+
+## v2.8-dev — Candidati low-risk: driver/dark mode + ux switch + bacheca tag/reazioni + template chat + admin rollback (sessione 25)
+
+> Branch `claude/handoff-changelog-roadmap-xlkae9`. **Round 1:** feature low-risk portate da PR #62 (commit isolati), depurate dalle parti obsolete (chip pratica) e dai moduli rimossi in #63. **Round 2:** micro-feature frontend-only prima dell'implementazione OneDrive/WhatsApp. **Round 3:** admin rollback automatico.
+
+### 👥 Round 15 — Filtro per agente nella UrgentOthersQueue
+
+#### Chip per filtrare i task urgenti del team per singolo agente
+
+- **`Dashboard.jsx` — `UrgentOthersQueue`**: quando la sezione "Urgenti del team" contiene task di più di un agente, appare una riga di chip filtro sotto l'intestazione. Chip **"Tutti"** (arancione pieno) + un chip per ciascun agente presente (avatar 16px + nome + contatore task). Click attiva il filtro; click sulla stessa chip lo azzera.
+- Il contatore nel badge in alto aggiorna dinamicamente: mostra `N visibili / M totali` quando un filtro è attivo.
+- `presentAgents` calcolato con `Set` su `tasks.map(t => t.assignees?.[0])` — mostra solo gli agenti che hanno effettivamente task urgenti nella finestra 24h.
+- La riga di chip è nascosta se tutti i task appartengono allo stesso agente (`presentAgents.length <= 1`).
+
+### ⚡ Round 14 — Avanzamento status rapido nella PersonalQueue
+
+#### Bottoni inline per cambiare status senza aprire il TaskSlideOver
+
+- **`Dashboard.jsx` — `PersonalQueue`**: ogni card mostra (in fondo, sopra l'area cliccabile) una riga di 2 micro-bottoni contestuali in base allo status corrente:
+  - `todo` → **▶ Avvia** (→ `inprogress`) + **✓ Fatto** (→ `done`)
+  - `inprogress` → **⏸ Attesa** (→ `awaiting_client`) + **✓ Fatto** (→ `done`)
+  - `awaiting_*` → **▶ Riprendi** (→ `inprogress`) + **✓ Fatto** (→ `done`)
+  - `done`: nessun bottone (task già chiusi)
+- Click sui bottoni chiama `UPDATE_TASK` e stoppa la propagazione (evita apertura TaskSlideOver). Hover: bordo pieno + testo bianco.
+
+### 💬 Round 13 — Cerca nei messaggi (ChatPanel)
+
+#### Ricerca full-text nei messaggi della conversazione attiva
+
+- **`ChatPanel.jsx` — `ConversationView`**: pulsante 🔍 in alto a destra nell'header della conversazione. Click apre/chiude una barra di ricerca sotto l'header (sfondo `--navy-dark`). Il campo filtra i messaggi di testo visibili per keyword (case-insensitive); i messaggi vocali e file non vengono esclusi se il testo non coincide. Contatore "N risultati" aggiornato in tempo reale. Pulsante ✕ chiude e azzera la ricerca. Il filtro si resetta automaticamente alla chiusura del pannello.
+
+### 📅 Round 12 — Filtro per categoria nel CalendarPlanner
+
+#### Chip filtro categoria nel calendario (mese / settimana / giorno / distribuzione)
+
+- **`CalendarPlanner.jsx`**: riga di chip categoria appare sotto l'header del calendario quando sono presenti più di una categoria con `dueDate`. Chip **"Tutte"** (Navy pieno) + un chip per ogni categoria presente (icona + label, colore categoria). Click su categoria attiva filtra tutte le viste (mese, settimana, giornata, distribuzione agenti); click sulla stessa categoria la deseleziona.
+- `matchesCat(t)` helper locale applicato a `getTasksForCalDay`, `getTasksForDay`, e ai contatori della tabella distribuzione settimanale.
+- `presentCats` calcolato da `Set` sui task visibili con `dueDate` — mostra solo i chip delle categorie effettivamente presenti nel calendario.
+
+### 🔴 Round 11 — Badge urgenze personali nel nav laterale
+
+#### Indicatore rosso nel nav per task scaduti/urgenti assegnati all'utente
+
+- **`Sidebar.jsx`**: il badge dorato esistente sulla voce "Dashboard" (coda non assegnata) è ora affiancato da un badge **rosso** che conta i task dell'utente corrente che sono scaduti o in scadenza entro 24h (`isOverdue || isUrgent`, status ≠ `done`). Tooltip descrittivo al hover.
+- Badge rosso visibile anche nella **BottomNav** (mobile/tablet) per la stessa voce Dashboard.
+- `getNavBadges(state)` aggiornato: nuovo campo `dashboardUrgent` calcolato filtrando per `state.currentUserId`. Badge scompare a zero.
+
+### ⌨️ Round 10 — Scorciatoie tastiera globali
+
+#### Shortcut da tastiera per le azioni più frequenti
+
+- **`K`** (senza modificatori, fuori da input): apre il modale **Nuovo Task rapido** (`QuickAddTask`).
+- **`Ctrl+K`** / `Cmd+K`: porta il focus alla barra di ricerca della Topbar (già presente, ora documentata).
+- **`?`**: apre/chiude l'overlay `KeyboardHelpOverlay` — lista di tutte le scorciatoie disponibili con descrizione e `<kbd>` visivo.
+- **`Esc`**: chiude l'overlay scorciatoie (gli altri modali gestiscono già Esc tramite click-outside).
+- Le shortcut non si attivano quando il focus è su un `<input>`, `<textarea>` o `<select>` per evitare conflitti con la digitazione.
+
+### 👤 Round 9 — Pannello task del cliente nella vista Clienti
+
+#### Click su una card cliente → mostra i task collegati inline
+
+- **`ClientiView.jsx`**: nuova funzione `ClienteTaskPanel` — pannello `slide-up` sotto la griglia che elenca tutti i task (attivi e visibili) il cui campo `client` contiene il nome del cliente selezionato (match case-insensitive). Contatori "N aperti · N completati" nell'header. Ogni riga task è cliccabile → apre il `TaskSlideOver` tramite `SET_SELECTED_TASK`.
+- Click sull'avatar/nome di una card seleziona (e deseleziona) il cliente. La card selezionata ha bordo blu evidenziato (`--navy`). Il pannello si chiude con il pulsante ✕ o riselezionando la stessa card.
+- Usa `PriorityBadge` + `StatusBadge` + icona categoria per la riga task. Filtra con `isActiveTask` + `canViewTask` rispettando i permessi utente corrente.
+
+### 🔍 Round 8 — Sort e ricerca avanzata nella vista Clienti
+
+#### Ordinamento e ricerca estesa nell'anagrafica clienti
+
+- **`ClientiView.jsx`**: nuovi chip di ordinamento sotto la barra di ricerca — **Nome A-Z**, **Nome Z-A**, **Più recenti** (per `createdAt`), **Città A-Z** — con evidenziazione blu del criterio attivo.
+- Ricerca estesa a **telefono** e **note** (prima era solo nome/email/città). Il placeholder aggiornato riflette i nuovi campi ricercabili.
+- Sorting stabile: `localeCompare` con locale `"it"` per testo; `Date` per cronologico. Derivato via `useMemo` per evitare re-ordini a ogni keystroke.
+
+### 👥 Round 7 — Team view: filtro ruolo, badge sovraccarico, sezione pending
+
+#### Miglioramenti alla vista Team & Assegnazioni
+
+- **Chip filtro per ruolo** (v2.8): riga di chip sopra la griglia con i ruoli effettivamente presenti (Tutti / Manager / Senior Agent / Junior Agent / Driver). Contatore per ruolo. Resetta la selezione membro corrente al cambio filtro.
+- **Badge "⚠ Sovraccarico"**: appare in alto a destra sulla card quando carico > 85% della capacità; bordo card rosso tratteggiato.
+- **Badge "JR"** giallo sui Junior Agent (coerente con UserSwitcher/Dashboard).
+- **Sezione "In attesa di approvazione"**: sotto la griglia principale, mostra i membri `pending=true` con avatar sfumato e badge "⏳ In attesa". Contatore badge nel header della pagina.
+
+### 💡 Round 6 — Auto-categoria in QuickAddTask
+
+#### Suggerimento automatico di categoria basato su keyword nel titolo
+
+- `QuickAddTask`: funzione `suggestCategory(title, availableCats)` — mappa ~40 keyword italiane a 10 categorie (es. "volo/aereo/bigliett" → Booking, "hotel/albergo/bungalow" → Hotel, "visto/passaporto" → Visa, "fattura/acconto/saldo" → Pagamenti, ecc.). Auto-applica la categoria finché l'utente non la modifica manualmente. Label "CATEGORIA" mostra badge blu `💡 auto` quando il valore è suggerito. Se l'utente cambia manualmente ma esiste una suggestion diversa, appare link "💡 Usa categoria suggerita: X".
+
+### 🔀 Round 5 — Ordinamento coda personale
+
+#### Chip di ordinamento nella coda personale (Scadenza / Priorità / Cliente / Stato)
+
+- `PersonalQueue`: nuovo stato locale `sortBy`. Quattro chip: **Scadenza** (default), **Priorità** (critical → low), **Cliente** (A-Z), **Stato** (todo → done). Tie-breaker sempre per scadenza. Sottotitolo si aggiorna dinamicamente. Non visibile per il Driver (che ha già il filtro data giornaliera).
+- Constanti `QUEUE_SORT_OPTIONS`, `PRIO_ORDER`, `STATUS_ORDER` definite module-local.
+
+### 👥 Round 4 — Permessi granulari sub-ruolo Senior vs Junior Agent
+
+#### 🔒 Junior Agent: permessi ridotti rispetto a Senior Agent
+
+- **`appGlobals.js`**: Nuovi helper `isJuniorAgent(userId)` e `isSeniorAgent(userId)` (leggono `m.role.toLowerCase().includes("junior")`). `canEditTask`: Junior Agent può modificare solo task dove è esplicitamente in `assignees` — non può raccogliere task dalla coda globale non assegnata. `canCreateTaskCategory`: Junior Agent non può creare task nelle categorie sensibili `payment` e `admin`.
+- **`Dashboard.jsx`**: `UnassignedQueue` ora riceve `uid`; per Junior Agent il bottone "Prendi in carico" è sostituito da "🔒 Chiedi a un Senior per l'assegnazione" (grigio, non cliccabile); sottotitolo della coda adattato. Badge "JUNIOR" (giallo) nel header Dashboard accanto al ruolo.
+- **`Topbar.jsx`**: Badge "JUNIOR" nel dropdown UserSwitcher per ogni membro Junior Agent.
+
+### 🔐 Round 3 — Admin rollback automatico
+
+#### ⏱ Countdown di 60s per sessioni Admin (rollback automatico)
+
+- **`reducer.js`**: `SET_CURRENT_USER` ora registra `adminRollbackTo` (userId precedente) e `adminSwitchedAt` (ISO timestamp) quando si passa **da un non-Admin a un Admin**. Aggiorna il toast in "rollback automatico in 60s". Nuova azione `CANCEL_ADMIN_ROLLBACK` per cancellare il countdown senza cambiare utente.
+- **`VoyageDesk.jsx`**: componente `AdminRollbackBanner` — banner arancione fisso sotto la Topbar. Calcola i secondi residui dall'ISO timestamp (sopravvive ai re-render), decrementa via `setInterval` e auto-dispatcha `SET_CURRENT_USER` allo scadere. Pulsanti: **"Rimani come Admin"** (cancella il rollback) e **"Torna ora →"** (rollback immediato). Nessun localStorage, solo-sessione.
+- Chiude completamente il roadmap item "Notifica in-app al cambio utente (rollback automatico dopo X secondi?)".
+
+### 🎨 Round 2 — Micro-feature pre-OneDrive/WhatsApp
+
+#### ⚠️ Warning toast su switch verso Admin
+- `SET_CURRENT_USER`: se il nuovo profilo è Admin, toast `type=warning` con cue esplicito ("Ricordati di tornare al tuo profilo a fine sessione"). Evita di lasciare la sessione mock aperta come Admin per errore.
+- `Toast`: supporta `type="warning"` (oro `#C8832A`, icona ⚠). Rimosso `whiteSpace:nowrap` (messaggi più lunghi vanno a capo, max-width 560px).
+
+#### 🏷️ Bacheca: tag/categorie filtrabili sui post-it
+- `NoticeEditorModal`: input "Tag" con chip + draft (Enter/virgola conferma, Backspace su input vuoto rimuove l'ultimo). Max 5 tag normalizzati lowercase, max 20 char.
+- `NoticeBoard`: barra filtro tag in header (chip clickabili, **OR**, bottone "azzera"); chip nel footer del post-it (click toggla il filtro). Visibile solo se almeno un post-it ha tag.
+
+#### 😀 Bacheca: reazioni emoji sui post-it
+- Reducer: `TOGGLE_NOTICE_REACTION` (stesso shape della chat: `{ emoji: [userId, ...] }`, toggle currentUser, cleanup vuoti).
+- `NoticeBoard`: bottone 😀 in toolbar apre picker con 6 emoji (👍 ❤️ 🎉 👀 🔥 ✅). Chip riassuntive con tooltip "chi ha reagito"; click toggla la propria reazione.
+- Fix collaterale: edit notice ora propaga anche `tags` (non più persi).
+
+#### 💬 Template messaggi chat (Impostazioni agenzia)
+- `state.messageTemplates`: array `{ id, label, text }`. Mock iniziale con 4 frasi tipiche (conferma documenti, richiesta passaporti, sollecito acconto, voucher pronto).
+- Reducer: `ADD/UPDATE/DELETE_MESSAGE_TEMPLATE` (admin-only, log attività).
+- `AdminView` tab Sistema: nuova sezione **Template messaggi chat** con CRUD inline (label max 40, testo max 500).
+- `ChatPanel` composer: pulsante 📋 (a fianco di 📎) apre dropdown template; click inserisce il testo (append con newline se input non vuoto, overwrite altrimenti). Reso solo se templates non vuoti.
+
+### 🎨 Round 1 — Cherry-pick da PR #62 (driver + dark mode)
+
+#### 🚐 Filtro data/ora nella coda personale Driver (vista transfer)
+
+- **`src/components/dashboard/Dashboard.jsx`**: `PersonalQueue` accetta `enableDateFilter` (attivo per `role === "driver"`). Chip **Tutte / Oggi / Domani** + `<input type="date">` per filtrare i transfer per giornata; contatore `filtrati/totale`; orario (`formatTime`) mostrato nelle card. Titolo/sottotitolo dedicati ("La mia coda transfer"). Empty-state contestuale (📭) quando il filtro non produce risultati.
+- Risolve il bisogno di Giulia (Driver) di una vista transfer-oriented.
+
+#### 🌙 Dark mode con toggle in Topbar
+
+- **Token semantici** (`src/VoyageDesk.jsx` FontLoader): `--card` (superficie card, sostituisce gli `#fff` inline dei contenuti) e `--heading` (titoli su card, sostituisce `color: var(--navy)`). In light coincidono coi valori storici → **nessun cambiamento visivo**.
+- **Blocco `[data-theme="dark"]`**: superfici scure, testo chiaro, `color-scheme: dark`. La **shell** (topbar/sidebar/bottom-nav) resta brand-celeste per scelta di design (evita testo invisibile sui controlli). `--navy` resta scuro (bg bottoni con testo bianco).
+- **Toggle 🌙/☀️ in Topbar** (`src/components/shell/Topbar.jsx`): stato solo-sessione, **nessun localStorage** (vincolo CLAUDE.md), `data-theme` applicato su `<html>` via `useEffect`.
+- Sostituzioni `#fff`→`var(--card)` e `var(--navy)`→`var(--heading)` propagate ai componenti contenuto (Dashboard, AdminView, Calendar, Chat, Clienti, Trash, Team, modali, ui). `TaskSlideOver`/`ClientiView` adattati a post-#63 (input `praticaRef` al posto del select pratica; badge dossier non reintrodotto).
+
+#### 🔍 Revisione PR aperte
+
+- **PR #62 / #64**: partite da un branch-point **precedente** alla rimozione Pratiche/Fornitori (#63). Mergiate as-is **reintrodurrebbero** `PraticheView.jsx`/`FornitoriView.jsx` e le migration dossier, e si sovrappongono tra loro sulla feature "inviti reali via Supabase" (Fase 3). Decisione: **non mergiare as-is**; estratti solo i commit-feature puliti e low-risk (driver filter, dark mode). La feature "inviti reali" resta a Fase 3 (da concordare).
+
+### Caveat
+
+Nessuno.
+
+---
 
 ## v2.7-dev — Rimozione completa Pratiche & Fornitori; campo libero praticaRef nelle task (sessione 24)
 

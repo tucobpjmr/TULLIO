@@ -4,6 +4,7 @@
 import { useEffect, useRef } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { CURRENT_USER, getAssignableTeam, getRoleType } from "../../state/appGlobals.js";
+import { isOverdue, isUrgent } from "../../lib/taskUtils.js";
 
 const NAV_ITEMS = [
   { id: "dashboard",  icon: "📊", label: "Dashboard",  roles: ["admin", "manager", "agent", "driver"] },
@@ -26,7 +27,13 @@ function getNavBadges(state) {
   const queue = (state.tasks || []).filter(
     t => !t.deletedAt && (!Array.isArray(t.assignees) || t.assignees.length === 0)
   ).length;
-  return { admin: pending, dashboard: queue };
+  // v2.8 Round 11: task scaduti o urgenti assegnati all'utente corrente
+  const urgentMine = (state.tasks || []).filter(t =>
+    !t.deletedAt && t.status !== "done" &&
+    (t.assignees || []).includes(state.currentUserId) &&
+    (isOverdue(t) || isUrgent(t))
+  ).length;
+  return { admin: pending, dashboard: queue, dashboardUrgent: urgentMine };
 }
 
 // Componente helper per renderizzare il badge numerico
@@ -108,6 +115,15 @@ export const Sidebar = ({ state, dispatch, onOpenBulk }) => {
               <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
               {!col && <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>{item.label}</span>}
               <NavBadge count={badges[item.id] || 0} collapsed={col} />
+              {/* Badge urgenze personali (v2.8 Round 11) — rosso, solo voce Dashboard */}
+              {item.id === "dashboard" && badges.dashboardUrgent > 0 && (
+                <span title={`${badges.dashboardUrgent} task scadut${badges.dashboardUrgent === 1 ? "o" : "i"} o urgent${badges.dashboardUrgent === 1 ? "e" : "i"}`} style={{
+                  background: "var(--danger)", color: "#fff", fontWeight: 700,
+                  borderRadius: 999, fontSize: 10, padding: "1px 5px", minWidth: 15,
+                  height: 15, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  lineHeight: 1, ...(col ? { position: "absolute", top: 4, left: 4 } : { marginLeft: col ? "auto" : 2 }),
+                }}>{badges.dashboardUrgent > 9 ? "9+" : badges.dashboardUrgent}</span>
+              )}
             </button>
           );
         })}
@@ -184,6 +200,15 @@ export const BottomNav = ({ state, dispatch, onOpenBulk }) => {
             <span style={{ fontSize: 19, lineHeight: 1, position: "relative" }}>
               {item.icon}
               <NavBadge count={badge} mobile />
+              {item.id === "dashboard" && badges.dashboardUrgent > 0 && (
+                <span style={{
+                  position: "absolute", top: -2, left: "calc(50% - 18px)",
+                  background: "var(--danger)", color: "#fff", fontWeight: 700,
+                  borderRadius: 999, fontSize: 9, padding: "1px 4px",
+                  minWidth: 13, height: 13, display: "inline-flex",
+                  alignItems: "center", justifyContent: "center", lineHeight: 1,
+                }}>{badges.dashboardUrgent > 9 ? "9+" : badges.dashboardUrgent}</span>
+              )}
             </span>
             <span style={{ fontSize: 9, fontWeight: active ? 700 : 500, whiteSpace: "nowrap" }}>
               {item.label.split(" ")[0]}

@@ -90,7 +90,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,32,68,0.4)", zIndex: 1000 }} />
       <div style={{
         position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-        background: "#fff", borderRadius: 16, zIndex: 1001,
+        background: "var(--card)", borderRadius: 16, zIndex: 1001,
         width: isMobile ? "calc(100vw - 32px)" : 480, maxWidth: "100%",
         maxHeight: "90vh", overflowY: "auto",
         boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
@@ -153,7 +153,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
                     <button key={e} onClick={() => setAvatar(e)} style={{
                       width: 38, height: 38, borderRadius: 8,
                       border: avatar === e ? "2px solid var(--gold)" : "1px solid var(--border)",
-                      background: avatar === e ? "var(--gold)" + "20" : "#fff",
+                      background: avatar === e ? "var(--gold)" + "20" : "var(--card)",
                       cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center",
                     }}>{e}</button>
                   ))}
@@ -161,7 +161,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
                   <button onClick={() => setAvatar(initials)} style={{
                     width: 38, height: 38, borderRadius: 8,
                     border: !AVATAR_EMOJIS.includes(avatar) ? "2px solid var(--gold)" : "1px solid var(--border)",
-                    background: !AVATAR_EMOJIS.includes(avatar) ? color : "#fff",
+                    background: !AVATAR_EMOJIS.includes(avatar) ? color : "var(--card)",
                     color: !AVATAR_EMOJIS.includes(avatar) ? "#fff" : "var(--text)",
                     cursor: "pointer", fontSize: 11, fontWeight: 700,
                     display: "flex", alignItems: "center", justifyContent: "center",
@@ -256,7 +256,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
           display: "flex", justifyContent: "flex-end", gap: 10,
         }}>
           <button onClick={onClose} style={{
-            background: "#fff", color: "var(--text)", border: "1px solid var(--border)",
+            background: "var(--card)", color: "var(--text)", border: "1px solid var(--border)",
             padding: "10px 20px", borderRadius: 8, cursor: "pointer", fontSize: 13,
             fontWeight: 600, fontFamily: "inherit",
           }}>Annulla</button>

@@ -27,6 +27,7 @@ const LOGGED_ACTIONS = new Set([
   "ADD_CATEGORY", "UPDATE_CATEGORY", "REMOVE_CATEGORY",
   "RESTORE_BACKUP",
   "ADD_NOTICE", "UPDATE_NOTICE", "DELETE_NOTICE",
+  "ADD_MESSAGE_TEMPLATE", "UPDATE_MESSAGE_TEMPLATE", "DELETE_MESSAGE_TEMPLATE",
 ]);
 
 const buildLogEntry = (action, state) => {
@@ -55,6 +56,9 @@ const buildLogEntry = (action, state) => {
     ADD_NOTICE: () => `Pubblicato avviso in bacheca`,
     UPDATE_NOTICE: () => `Modificato avviso in bacheca`,
     DELETE_NOTICE: () => `Rimosso avviso dalla bacheca`,
+    ADD_MESSAGE_TEMPLATE: () => `Template messaggio creato: "${action.payload?.label || ""}"`,
+    UPDATE_MESSAGE_TEMPLATE: () => `Template messaggio modificato`,
+    DELETE_MESSAGE_TEMPLATE: () => `Template messaggio rimosso`,
   };
   return { id: `log-${stamp}-${Math.random().toString(36).slice(2,7)}`, time: stamp, type: t, text: (map[t] || (() => t))() };
 };
@@ -88,13 +92,31 @@ function baseReducer(state, action) {
       const activeView = (state.activeView === "admin" && !canAccessAdmin(newId))
         ? "dashboard"
         : state.activeView;
+      // Sicurezza operativa (v2.8): warning visibile quando si passa a un ruolo
+      // privilegiato (admin), per evitare di lasciare la sessione aperta come
+      // Admin per errore. Mock UserSwitcher: senza login reale serve un cue chiaro.
+      const elevated = isAdmin(newId);
+      // v2.8 rollback automatico: se si passa a un utente Admin, registra da chi
+      // si sta passando e il timestamp. Un banner con countdown permetterà il
+      // ripristino automatico dopo 60s. Si resetta se si torna a un non-admin.
+      const prevIsAdmin = isAdmin(state.currentUserId);
+      const adminRollbackTo = elevated && !prevIsAdmin ? state.currentUserId : null;
+      const adminSwitchedAt = elevated && !prevIsAdmin ? new Date().toISOString() : null;
+      const toast = elevated
+        ? { message: `⚠️ Ora stai usando l'app come ${m.name} (Admin). Rollback automatico in 60s.`, type: "warning" }
+        : { message: `Ora stai usando l'app come ${m.name} (${m.role})`, type: "success" };
       return {
         ...state,
         currentUserId: newId,
         activeView,
         selectedTask: null,
-        toast: { message: `Ora stai usando l'app come ${m.name} (${m.role})`, type: "success" },
+        toast,
+        adminRollbackTo,
+        adminSwitchedAt,
       };
+    }
+    case "CANCEL_ADMIN_ROLLBACK": {
+      return { ...state, adminRollbackTo: null, adminSwitchedAt: null };
     }
     case "SET_TASKS": {
       // Sostituisce in blocco l'array tasks (usato per idratazione iniziale da DB).
@@ -298,6 +320,27 @@ function baseReducer(state, action) {
       );
       return { ...state, notices };
     }
+    case "TOGGLE_NOTICE_REACTION": {
+      // v2.8: stesso shape della chat — { emoji: [userId, ...] }. Toggle del
+      // userId corrente. Se la lista finisce vuota, l'emoji viene rimosso.
+      const { noticeId, emoji } = action.payload || {};
+      const me = state.currentUserId;
+      if (!noticeId || !emoji || !me) return state;
+      const notices = state.notices.map(n => {
+        if (n.id !== noticeId) return n;
+        const reactions = { ...(n.reactions || {}) };
+        const users = reactions[emoji] || [];
+        if (users.includes(me)) {
+          const next = users.filter(u => u !== me);
+          if (next.length === 0) delete reactions[emoji];
+          else reactions[emoji] = next;
+        } else {
+          reactions[emoji] = [...users, me];
+        }
+        return { ...n, reactions };
+      });
+      return { ...state, notices };
+    }
 
     // ─── CRM: CLIENTI ───
     case "SET_CLIENTS":
@@ -311,6 +354,29 @@ function baseReducer(state, action) {
     case "DELETE_CLIENT": {
       const clients = (state.clients || []).filter(c => c.id !== action.payload);
       return { ...state, clients, toast: { message: "Cliente rimosso", type: "success" } };
+    }
+
+    // ─── TEMPLATE MESSAGGI CHAT (v2.8, admin-only) ───
+    case "ADD_MESSAGE_TEMPLATE": {
+      const { label, text } = action.payload || {};
+      if (!label?.trim() || !text?.trim()) return state;
+      const tpl = { id: "mt" + Date.now(), label: label.trim(), text: text.trim() };
+      return {
+        ...state,
+        messageTemplates: [...(state.messageTemplates || []), tpl],
+        toast: { message: "Template aggiunto", type: "success" },
+      };
+    }
+    case "UPDATE_MESSAGE_TEMPLATE": {
+      const { id, label, text } = action.payload || {};
+      const messageTemplates = (state.messageTemplates || []).map(t =>
+        t.id === id ? { ...t, ...(label !== undefined ? { label } : {}), ...(text !== undefined ? { text } : {}) } : t
+      );
+      return { ...state, messageTemplates, toast: { message: "Template aggiornato", type: "success" } };
+    }
+    case "DELETE_MESSAGE_TEMPLATE": {
+      const messageTemplates = (state.messageTemplates || []).filter(t => t.id !== action.payload);
+      return { ...state, messageTemplates, toast: { message: "Template rimosso", type: "success" } };
     }
 
     case "SHOW_TOAST": return { ...state, toast: { message: action.payload?.message ?? "", type: action.payload?.type ?? "error" } };
@@ -364,6 +430,7 @@ const ADMIN_ONLY_ACTIONS = new Set([
   "TOGGLE_TEAM_MEMBER_ACTIVE", "REMOVE_TEAM_MEMBER",
   "ADD_CATEGORY", "UPDATE_CATEGORY", "REMOVE_CATEGORY",
   "SET_AGENCY_NAME", "RESTORE_BACKUP", "CLEAR_ACTIVITY_LOG",
+  "ADD_MESSAGE_TEMPLATE", "UPDATE_MESSAGE_TEMPLATE", "DELETE_MESSAGE_TEMPLATE",
 ]);
 
 // Wrapper che aggiunge automaticamente al log le azioni rilevanti
@@ -409,6 +476,17 @@ function makeInitialState({ team, currentUserId } = {}) {
     filters: { assignee: "", category: "", priority: "", status: "", client: "" },
     lastAction: null, // { type, payload, undo: () => state-patch } per swipe-actions undo
     currentUserId: CURRENT_USER, // v0.8: utente loggato (con switcher in Topbar)
+    // v2.8 rollback automatico: impostati da SET_CURRENT_USER quando si passa ad Admin.
+    adminRollbackTo: null,    // userId a cui tornare automaticamente
+    adminSwitchedAt: null,    // ISO timestamp del momento in cui si è entrati come Admin
+    // v2.8: template messaggi chat (gestiti da Admin tab Sistema). Array di
+    // { id, label, text }. Mock iniziale con frasi ricorrenti per agenzie viaggi.
+    messageTemplates: [
+      { id: "mt1", label: "Conferma ricezione documenti", text: "Buongiorno, abbiamo ricevuto i documenti. Le confermeremo a breve i dettagli della pratica." },
+      { id: "mt2", label: "Richiesta passaporti", text: "Buongiorno, per procedere con la prenotazione le servono i dati anagrafici completi e copia dei passaporti di tutti i partecipanti. Grazie!" },
+      { id: "mt3", label: "Sollecito acconto", text: "Le ricordiamo che la scadenza per il versamento dell'acconto è imminente. Resto a disposizione per qualsiasi chiarimento." },
+      { id: "mt4", label: "Voucher pronto", text: "I documenti di viaggio (voucher hotel, biglietti, assicurazione) sono pronti. Li trova in allegato o può ritirarli in agenzia." },
+    ],
   };
 }
 

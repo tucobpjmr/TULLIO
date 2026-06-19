@@ -9,7 +9,7 @@ import { useAuth } from "../../auth/AuthContext.jsx";
 import { PRIORITIES, STATUSES, STATUS_LABELS, STATUS_COLORS } from "../../lib/taskConstants.js";
 import { formatDate, isOverdue } from "../../lib/taskUtils.js";
 import { MOCK_NOTIFICATIONS } from "../../state/mockData.js";
-import { TEAM, CATEGORIES, getMember } from "../../state/appGlobals.js";
+import { TEAM, CATEGORIES, getMember, isJuniorAgent } from "../../state/appGlobals.js";
 import { ProfileEditor } from "../modals/ProfileEditor.jsx";
 
 const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword }) => {
@@ -294,7 +294,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
 };
 
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
-export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notificationsProp, onMarkRead, onMarkAllRead, onOpenTask }) => {
+export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notificationsProp, onMarkRead, onMarkAllRead, onOpenTask, theme, onToggleTheme }) => {
   const { isMobile } = useViewport();
   // Fix #11: notifiche mock gate-ate dietro env var (default off in prod)
   const SHOW_MOCK_NOTIFS = import.meta.env.DEV && import.meta.env.VITE_SHOW_MOCK_NOTIFICATIONS === 'true';
@@ -361,6 +361,17 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
       </div>
 
       <div className="vd-hide-mobile" style={{ flex: 1 }} />
+
+      {/* Tema chiaro/scuro (v22) */}
+      {onToggleTheme && (
+        <button onClick={onToggleTheme} title={theme === "dark" ? "Passa al tema chiaro" : "Passa al tema scuro"} aria-label="Cambia tema" style={{
+          background: "rgba(255,255,255,0.45)", border: "1px solid rgba(15,32,68,0.15)",
+          borderRadius: 8, width: 36, height: 36, cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
+        }}>
+          {theme === "dark" ? "☀️" : "🌙"}
+        </button>
+      )}
 
       {/* Chat */}
       <button onClick={onOpenChat} title="Messaggi team" style={{
@@ -534,7 +545,15 @@ const UserSwitcher = ({ state, dispatch }) => {
                     )}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.name}</div>
-                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{m.role}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 5 }}>
+                        {m.role}
+                        {isJuniorAgent(m.id) && (
+                          <span style={{
+                            background: "#FFF3CD", color: "#856404", fontSize: 9, fontWeight: 700,
+                            padding: "1px 5px", borderRadius: 4, letterSpacing: 0.3,
+                          }}>JUNIOR</span>
+                        )}
+                      </div>
                     </div>
                     {active && <span style={{ color: "var(--success)", fontSize: 14 }}>✓</span>}
                   </button>

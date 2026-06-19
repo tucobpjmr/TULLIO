@@ -37,7 +37,7 @@ import {
 import {
   TEAM, CATEGORIES, CURRENT_USER,
   getMember, getAssignableTeam,
-  getRoleType, isAdmin, isDriver,
+  getRoleType, isAdmin, isDriver, isSeniorAgent, isJuniorAgent,
   canViewTask, canEditTask, canCreateTaskCategory,
   canAccessAdmin, getAvailableCategories, getVisibleTasks,
 } from "./state/appGlobals.js";
@@ -125,8 +125,37 @@ const FontLoader = () => (
       --text-muted: #6B6B80;
       --text-light: #9999AA;
       --border: #E0DDD5;
+      /* Token semantici introdotti per la dark mode (v22):
+         --card  = superficie card (sostituisce gli "#fff" inline dei contenuti)
+         --heading = titoli su card (sostituisce "color: var(--navy)" nei contenuti).
+         In light coincidono con i valori storici → nessun cambiamento visivo. */
+      --card: #ffffff;
+      --card2: #F7F6F2;
+      --heading: var(--navy);
+      color-scheme: light;
     }
-    body { font-family: 'DM Sans', sans-serif; background: var(--surface); color: var(--text); }
+    /* ─── DARK MODE (v22) ───
+       Shell (topbar/sidebar/bottom-nav) resta brand-celeste per scelta di design;
+       l'area contenuti passa a superfici scure. --navy resta scuro (usato come bg
+       bottoni con testo bianco e come testo su oro/celeste). */
+    [data-theme="dark"] {
+      --navy-light: #5277b5;
+      --surface: #131319;
+      --surface2: #1c1c26;
+      --surface3: #272733;
+      --success: #3fa06a;
+      --warning: #d79a45;
+      --danger: #d6584c;
+      --text: #E8E8EF;
+      --text-muted: #A6A6BC;
+      --text-light: #74748c;
+      --border: #2f2f3c;
+      --card: #1a1a23;
+      --card2: #222230;
+      --heading: #cdd9ef;
+      color-scheme: dark;
+    }
+    body { font-family: 'DM Sans', sans-serif; background: var(--surface); color: var(--text); transition: background 0.2s ease, color 0.2s ease; }
     .playfair { font-family: 'Playfair Display', serif; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -313,6 +342,79 @@ const initialMessages = {
 
 // stili admin condivisi (sectionH/cardStyle/btnPrimary/modalOverlay/...) → src/components/admin/adminStyles.js (Step P Phase 2f)
 
+// ─── ADMIN ROLLBACK BANNER ────────────────────────────────────────────────
+// Mostrato quando si passa come Admin: countdown 60s → auto-ripristino utente.
+// La logica tick è locale al componente; non inquina lo state globale con date.
+const ROLLBACK_SECS = 60;
+
+function AdminRollbackBanner({ rollbackTo, switchedAt, dispatch }) {
+  const [secs, setSecs] = useState(() => {
+    if (!switchedAt) return ROLLBACK_SECS;
+    const elapsed = Math.floor((Date.now() - new Date(switchedAt).getTime()) / 1000);
+    return Math.max(0, ROLLBACK_SECS - elapsed);
+  });
+  const secsRef = useRef(secs);
+  secsRef.current = secs;
+
+  useEffect(() => {
+    if (!switchedAt || !rollbackTo) return;
+    const iv = setInterval(() => {
+      setSecs(prev => {
+        if (prev <= 1) {
+          clearInterval(iv);
+          dispatch({ type: "SET_CURRENT_USER", payload: rollbackTo });
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [switchedAt, rollbackTo, dispatch]);
+
+  const rollbackMember = rollbackTo
+    ? (typeof getMember === "function" ? getMember(rollbackTo) : null)
+    : null;
+
+  return (
+    <div style={{
+      background: "#C8832A", color: "#fff", fontSize: 13, fontWeight: 500,
+      padding: "6px 16px", display: "flex", alignItems: "center", gap: 10,
+      justifyContent: "space-between", flexWrap: "wrap",
+      boxShadow: "0 2px 8px rgba(200,131,42,0.35)",
+    }}>
+      <span>
+        ⏱ Sessione Admin attiva — ripristino automatico
+        {rollbackMember ? ` a ${rollbackMember.name}` : ""} tra{" "}
+        <strong>{secs}s</strong>
+      </span>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          onClick={() => dispatch({ type: "CANCEL_ADMIN_ROLLBACK" })}
+          style={{
+            background: "rgba(255,255,255,0.25)", border: "1px solid rgba(255,255,255,0.5)",
+            color: "#fff", borderRadius: 6, padding: "3px 10px", cursor: "pointer",
+            fontSize: 12, fontWeight: 600,
+          }}
+        >
+          Rimani come Admin
+        </button>
+        {rollbackTo && (
+          <button
+            onClick={() => dispatch({ type: "SET_CURRENT_USER", payload: rollbackTo })}
+            style={{
+              background: "#fff", border: "none",
+              color: "#C8832A", borderRadius: 6, padding: "3px 10px", cursor: "pointer",
+              fontSize: 12, fontWeight: 700,
+            }}
+          >
+            Torna ora →
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── LAZY FALLBACK ─────────────────────────────────────────────────────────
 // Spinner mostrato mentre un chunk lazy (Step P Phase 2g: AdminView,
 // BulkTaskCreator, TaskSlideOver) viene scaricato. `overlay` lo centra a tutto
@@ -342,6 +444,51 @@ const LazyFallback = ({ overlay = false }) => {
     </div>
   );
 };
+
+// ─── KEYBOARD SHORTCUTS OVERLAY (v2.8 Round 10) ────────────────────────────
+const SHORTCUTS = [
+  { key: "K",       desc: "Nuovo task rapido" },
+  { key: "Ctrl+K",  desc: "Cerca (focus barra ricerca)" },
+  { key: "?",       desc: "Mostra queste scorciatoie" },
+  { key: "Esc",     desc: "Chiudi pannello / modal" },
+];
+
+function KeyboardHelpOverlay({ onClose }) {
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 1100,
+      background: "rgba(8,21,45,0.55)", display: "flex",
+      alignItems: "center", justifyContent: "center",
+    }} onClick={onClose}>
+      <div className="slide-up" style={{
+        background: "var(--card)", borderRadius: 14, padding: "28px 32px",
+        width: "min(420px, 96vw)", boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
+        border: "1px solid var(--border)",
+      }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <div className="playfair" style={{ fontSize: 18, fontWeight: 700, color: "var(--heading)" }}>Scorciatoie tastiera</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--text-muted)" }}>✕</button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {SHORTCUTS.map(s => (
+            <div key={s.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{s.desc}</span>
+              <kbd style={{
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                padding: "3px 10px", borderRadius: 6, fontSize: 12, fontFamily: "monospace",
+                background: "var(--surface2)", border: "1px solid var(--border)",
+                color: "var(--text)", fontWeight: 600, whiteSpace: "nowrap",
+              }}>{s.key}</kbd>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 18, fontSize: 12, color: "var(--text-muted)", textAlign: "center" }}>
+          Premi <strong>Esc</strong> o clicca fuori per chiudere
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── ROOT APP ──────────────────────────────────────────────────────────────
 export default function VoyageDesk({ initialTeam, initialCurrentUserId } = {}) {
@@ -530,6 +677,21 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       case "DELETE_CLIENT":
         dbOps = () => ClientsAPI.remove(action.payload);
         break;
+      // ─── ADMIN: TEAM sync ───
+      // Persistiamo solo le azioni che operano su utenti reali (creati via
+      // signup): approvazione e attivazione/disattivazione. ADD/UPDATE/REMOVE
+      // restano locali — ADD_TEAM_MEMBER non ha una riga auth.users associata,
+      // e UPDATE del ruolo richiederebbe il mapping all'enum DB (niente
+      // sotto-ruolo Junior/Senior nello schema attuale).
+      case "APPROVE_TEAM_MEMBER":
+        dbOps = () => UsersAPI.approve(action.payload);
+        break;
+      case "TOGGLE_TEAM_MEMBER_ACTIVE": {
+        const curr = state.team.find(m => m.id === action.payload);
+        const nextActive = !(curr?.active);
+        dbOps = () => UsersAPI.setActive(action.payload, nextActive);
+        break;
+      }
       default:
         break;
     }
@@ -562,7 +724,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           });
         });
     }
-  }, [useSupabase, state.tasks, state.notices]);
+  }, [useSupabase, state.tasks, state.notices, state.team]);
 
   // Step J: navigazione da notifica → TaskSlideOver
   const openTaskById = useCallback((taskId) => {
@@ -703,9 +865,17 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   }, { enabled: useSupabase, deps: [useSupabase] });
 
   const [showFABModal, setShowFABModal] = useState(false);
+  const [showKeyHelp, setShowKeyHelp] = useState(false); // v2.8 Round 10
   const [showChat, setShowChat] = useState(false);
   const [chatIntent, setChatIntent] = useState(null); // { toUser, taskLink } per aprire chat preconfezionata
   const [showBulkModal, setShowBulkModal] = useState(false);
+  // Tema chiaro/scuro (v22). Solo-sessione: nessuna persistenza (vincolo
+  // localStorage in CLAUDE.md). data-theme applicato su <html>.
+  const [theme, setTheme] = useState("light");
+  const toggleTheme = useCallback(() => setTheme(t => (t === "dark" ? "light" : "dark")), []);
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
   // In modalità Supabase partiamo da stato vuoto e idratiamo dal DB.
   // Senza login i mock restano per smoke-test rapido.
   const [conversations, setConversationsRaw] = useState(
@@ -834,9 +1004,21 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
 
   useEffect(() => {
     const handler = (e) => {
+      const inInput = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
       if ((e.ctrlKey || e.metaKey) && e.key === "k") {
         e.preventDefault();
         document.querySelector("input[placeholder*='Cerca']")?.focus();
+        return;
+      }
+      if (inInput) return;
+      if (e.key === "k" || e.key === "K") {
+        e.preventDefault();
+        setShowFABModal(true);
+      } else if (e.key === "?") {
+        e.preventDefault();
+        setShowKeyHelp(p => !p);
+      } else if (e.key === "Escape") {
+        setShowKeyHelp(false);
       }
     };
     window.addEventListener("keydown", handler);
@@ -876,7 +1058,16 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           onMarkRead={markNotificationRead}
           onMarkAllRead={markAllNotificationsRead}
           onOpenTask={openTaskById}
+          theme={theme}
+          onToggleTheme={toggleTheme}
         />
+        {state.adminRollbackTo && state.adminSwitchedAt && (
+          <AdminRollbackBanner
+            rollbackTo={state.adminRollbackTo}
+            switchedAt={state.adminSwitchedAt}
+            dispatch={dispatch}
+          />
+        )}
         <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
           <Sidebar state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} />
           <main className="vd-main-scroll" style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
@@ -912,6 +1103,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           currentUserId={state.currentUserId}
           dispatch={dispatch}
           presenceMap={presenceMap}
+          messageTemplates={state.messageTemplates}
           loading={chatLoading}
           myBusy={myBusy}
           onToggleBusy={toggleMyBusy}
@@ -922,6 +1114,9 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           <FAB onClick={() => setShowFABModal(true)} />
         )}
         {showFABModal && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} />}
+
+        {/* Overlay scorciatoie tastiera (v2.8 Round 10) */}
+        {showKeyHelp && <KeyboardHelpOverlay onClose={() => setShowKeyHelp(false)} />}
 
         {/* Bulk Task Creator (lazy, Phase 2g) */}
         {showBulkModal && (

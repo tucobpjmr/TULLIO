@@ -15,17 +15,25 @@ export const Toast = ({ toast, dispatch }) => {
   const handleUndo = () => {
     dispatch({ type: "UNDO_LAST_ACTION" });
   };
+  // v2.8: aggiunto tipo "warning" (oro) per i cue di sicurezza operativa
+  // (es. switch utente verso ruolo Admin nel UserSwitcher mock).
+  const bg = toast.type === "success" ? "#0F2044"
+    : toast.type === "warning" ? "#C8832A"
+    : "#C0392B";
+  const icon = toast.type === "success" ? "✓"
+    : toast.type === "warning" ? "⚠"
+    : "✗";
   return (
     <div style={{
       position: "fixed", bottom: isDesktop ? 24 : 80, left: "50%", transform: "translateX(-50%)",
-      background: toast.type === "success" ? "#0F2044" : "#C0392B",
+      background: bg,
       color: "#fff", padding: "10px 16px 10px 20px", borderRadius: 10,
       fontSize: 14, fontWeight: 500, zIndex: 9999, boxShadow: "0 8px 30px rgba(0,0,0,0.25)",
       animation: "toastIn 0.3s ease", display: "flex", alignItems: "center", gap: 12,
-      whiteSpace: "nowrap", maxWidth: "calc(100vw - 24px)",
+      maxWidth: "min(560px, calc(100vw - 24px))",
     }}>
-      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span>{toast.type === "success" ? "✓" : "✗"}</span>
+      <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+        <span style={{ flexShrink: 0 }}>{icon}</span>
         <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{toast.message}</span>
       </span>
       {toast.undoable && (

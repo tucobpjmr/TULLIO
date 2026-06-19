@@ -9,15 +9,46 @@ import { PRIORITIES, STATUS_LABELS } from "../../lib/taskConstants.js";
 import { formatDate, getTrashedTasks } from "../../lib/taskUtils.js";
 import { CATEGORIES, getAssignableTeam, canEditTask } from "../../state/appGlobals.js";
 
+const PERIOD_OPTIONS = [
+  { key: "all",       label: "Tutti" },
+  { key: "week",      label: "Ultimi 7 gg" },
+  { key: "month",     label: "Questo mese" },
+  { key: "lastMonth", label: "Mese scorso" },
+];
+
+const filterByPeriod = (tasks, period) => {
+  if (period === "all") return tasks;
+  const now = new Date();
+  return tasks.filter(t => {
+    if (!t.deletedAt) return false;
+    const d = new Date(t.deletedAt);
+    if (period === "week") {
+      const cutoff = new Date(now); cutoff.setDate(cutoff.getDate() - 7);
+      return d >= cutoff;
+    }
+    if (period === "month") {
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    }
+    if (period === "lastMonth") {
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const end   = new Date(now.getFullYear(), now.getMonth(), 1);
+      return d >= start && d < end;
+    }
+    return true;
+  });
+};
+
 export const Trash = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
   const [restoring, setRestoring] = useState(null); // task being restored/edited
+  const [period, setPeriod] = useState("all");
   const me = state.currentUserId;
   // Ogni utente vede nel cestino solo i task che può gestire (admin: tutti; manager/agent:
   // propri + coda globale; driver: solo transfer propri/globali) — prerogativa di status.
   const trashed = getTrashedTasks(state.tasks)
     .filter(t => canEditTask(t, me))
     .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt));
+  const visible = filterByPeriod(trashed, period);
 
   const handleRestore = (task) => {
     setRestoring({ ...task });
@@ -51,13 +82,15 @@ export const Trash = ({ state, dispatch }) => {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, gap: 16, flexWrap: "wrap" }}>
         <div>
-          <div className="playfair" style={{ fontSize: 28, fontWeight: 700, color: "var(--navy)", marginBottom: 4 }}>
+          <div className="playfair" style={{ fontSize: 28, fontWeight: 700, color: "var(--heading)", marginBottom: 4 }}>
             🗑️ Cestino
           </div>
           <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
             {trashed.length === 0
               ? "Nessun task nel cestino"
-              : `${trashed.length} task ${trashed.length === 1 ? "eliminato" : "eliminati"}. Ripristinali o rimuovili definitivamente.`
+              : period !== "all"
+                ? `${visible.length} di ${trashed.length} task — filtrati per periodo`
+                : `${trashed.length} task ${trashed.length === 1 ? "eliminato" : "eliminati"}. Ripristinali o rimuovili definitivamente.`
             }
           </div>
         </div>
@@ -71,23 +104,61 @@ export const Trash = ({ state, dispatch }) => {
         )}
       </div>
 
+      {/* Filtro periodo — solo se ci sono task */}
+      {trashed.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>Periodo:</span>
+          {PERIOD_OPTIONS.map(opt => (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => setPeriod(opt.key)}
+              style={{
+                padding: "5px 12px", borderRadius: 999, cursor: "pointer",
+                fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                border: `1px solid ${period === opt.key ? "var(--navy)" : "var(--border)"}`,
+                background: period === opt.key ? "var(--navy)" : "var(--card)",
+                color: period === opt.key ? "#fff" : "var(--text-muted)",
+                transition: "background 0.15s, color 0.15s",
+              }}
+            >{opt.label}</button>
+          ))}
+        </div>
+      )}
+
       {/* Empty state */}
       {trashed.length === 0 ? (
         <div style={{
-          background: "#fff", borderRadius: 12, padding: "60px 20px",
+          background: "var(--card)", borderRadius: 12, padding: "60px 20px",
           textAlign: "center", border: "1px solid var(--border)",
         }}>
           <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>🗑️</div>
-          <div style={{ fontSize: 16, fontWeight: 600, color: "var(--navy)", marginBottom: 6 }}>
+          <div style={{ fontSize: 16, fontWeight: 600, color: "var(--heading)", marginBottom: 6 }}>
             Cestino vuoto
           </div>
           <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
             I task eliminati appariranno qui. Potrai ripristinarli o rimuoverli definitivamente.
           </div>
         </div>
+      ) : visible.length === 0 ? (
+        <div style={{
+          background: "var(--card)", borderRadius: 12, padding: "40px 20px",
+          textAlign: "center", border: "1px solid var(--border)",
+        }}>
+          <div style={{ fontSize: 36, marginBottom: 12, opacity: 0.3 }}>📭</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--heading)", marginBottom: 4 }}>
+            Nessun task nel periodo selezionato
+          </div>
+          <button type="button" onClick={() => setPeriod("all")} style={{
+            marginTop: 8, padding: "6px 14px", borderRadius: 8,
+            border: "1px solid var(--border)", background: "var(--card)",
+            color: "var(--text-muted)", fontSize: 12, fontWeight: 600,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>Mostra tutti</button>
+        </div>
       ) : (
         /* Trash table */
-        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid var(--border)", overflow: "hidden" }}>
+        <div style={{ background: "var(--card)", borderRadius: 12, border: "1px solid var(--border)", overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: "var(--surface2)", borderBottom: "1px solid var(--border)" }}>
@@ -100,13 +171,13 @@ export const Trash = ({ state, dispatch }) => {
               </tr>
             </thead>
             <tbody>
-              {trashed.map(task => (
+              {visible.map(task => (
                 <tr key={task.id} style={{ borderBottom: "1px solid var(--border)", transition: "background 0.15s" }}
                   onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                 >
                   <td style={{ padding: "12px 16px" }}>
-                    <div style={{ fontWeight: 600, color: "var(--navy)", marginBottom: 2 }}>{task.title}</div>
+                    <div style={{ fontWeight: 600, color: "var(--heading)", marginBottom: 2 }}>{task.title}</div>
                     <div style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 11, color: "var(--text-muted)" }}>
                       <PriorityBadge priority={task.priority} />
                       <span>• {STATUS_LABELS[task.status]}</span>
@@ -137,7 +208,7 @@ export const Trash = ({ state, dispatch }) => {
                         fontWeight: 600, fontFamily: "inherit",
                       }}>↻ Ripristina</button>
                       <button onClick={() => handlePurge(task)} title="Elimina definitivamente" style={{
-                        background: "#fff", color: "var(--danger)", border: "1px solid var(--danger)",
+                        background: "var(--card)", color: "var(--danger)", border: "1px solid var(--danger)",
                         padding: "6px 10px", borderRadius: 6, cursor: "pointer", fontSize: 12,
                         fontWeight: 600, fontFamily: "inherit",
                       }}>✕</button>
@@ -158,7 +229,7 @@ export const Trash = ({ state, dispatch }) => {
           }} />
           <div style={{
             position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-            background: "#fff", borderRadius: 16, zIndex: 1001,
+            background: "var(--card)", borderRadius: 16, zIndex: 1001,
             width: isMobile ? "calc(100vw - 32px)" : 520, maxWidth: "100%",
             maxHeight: "90vh", overflowY: "auto",
             boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
@@ -208,7 +279,7 @@ export const Trash = ({ state, dispatch }) => {
                     style={{
                       width: "100%", padding: "10px 12px", borderRadius: 8,
                       border: "1px solid var(--border)", fontSize: 13, fontFamily: "inherit",
-                      background: "#fff", cursor: "pointer",
+                      background: "var(--card)", cursor: "pointer",
                     }}
                   >
                     {Object.entries(CATEGORIES).map(([k, v]) => (
@@ -224,7 +295,7 @@ export const Trash = ({ state, dispatch }) => {
                     style={{
                       width: "100%", padding: "10px 12px", borderRadius: 8,
                       border: "1px solid var(--border)", fontSize: 13, fontFamily: "inherit",
-                      background: "#fff", cursor: "pointer",
+                      background: "var(--card)", cursor: "pointer",
                     }}
                   >
                     {Object.entries(PRIORITIES).map(([k, v]) => (
@@ -244,7 +315,7 @@ export const Trash = ({ state, dispatch }) => {
                     style={{
                       width: "100%", padding: "10px 12px", borderRadius: 8,
                       border: "1px solid var(--border)", fontSize: 13, fontFamily: "inherit",
-                      background: "#fff", cursor: "pointer",
+                      background: "var(--card)", cursor: "pointer",
                     }}
                   >
                     {Object.entries(STATUS_LABELS).map(([k, v]) => (
@@ -298,7 +369,7 @@ export const Trash = ({ state, dispatch }) => {
                         style={{
                           padding: "6px 12px", borderRadius: 99,
                           border: sel ? "2px solid var(--navy)" : "1px solid var(--border)",
-                          background: sel ? "var(--navy)" : "#fff",
+                          background: sel ? "var(--navy)" : "var(--card)",
                           color: sel ? "#fff" : "var(--text)",
                           fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
                           display: "flex", alignItems: "center", gap: 5,
@@ -343,7 +414,7 @@ export const Trash = ({ state, dispatch }) => {
               display: "flex", justifyContent: "flex-end", gap: 10,
             }}>
               <button onClick={() => setRestoring(null)} style={{
-                background: "#fff", color: "var(--text)", border: "1px solid var(--border)",
+                background: "var(--card)", color: "var(--text)", border: "1px solid var(--border)",
                 padding: "10px 20px", borderRadius: 8, cursor: "pointer", fontSize: 13,
                 fontWeight: 600, fontFamily: "inherit",
               }}>Annulla</button>

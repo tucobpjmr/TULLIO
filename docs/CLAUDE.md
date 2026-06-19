@@ -241,16 +241,33 @@ VoyageDesk (export default, ViewportProvider wrapper)
 
 Tutti i componenti sono **moduli separati** in `src/components/`; helper e sub-componenti rimangono **module-local** (non esportati).
 
-## Roadmap prossimi step
+## Roadmap prossimi step (Blocchi Operatività 100%)
 
 > ⛔ **Fase 1 — Pratiche & Fornitori RIMOSSI** (sessione 24, PR #63). Non ripristinare.
 > ⛔ **Fase 3 Business RIMOSSA** (sessione 23). Non ripristinare.
+> ✅ **Block 1 — Authentication & Onboarding COMPLETO** (sessione 27). Password recovery, signup, approval system, security hardening.
 
-### Priorità 1 — CRM (stato attuale)
-- [x] Anagrafica Clienti → `src/components/clients/ClientiView.jsx` ✅ mantenuto
-- [x] ~~Anagrafica Fornitori~~ → ⛔ RIMOSSO sessione 24
-- [x] ~~Pratiche di viaggio~~ → ⛔ RIMOSSO sessione 24
-- [x] Collegamento Task ↔ Pratica → ⛔ Sostituito con campo testo libero `praticaRef` nelle task
+### ✅ Block 1 — Autenticazione & Onboarding (COMPLETO — sessione 27)
+- [x] Password recovery (email magic link) ✅
+- [x] Self-service signup (form + validation) ✅
+- [x] Team member approval (pending gate) ✅
+- [x] Approval persistence fix (DB write + dispatch) ✅
+- [x] Security hardening (trigger dedup + RLS) ✅
+
+**Deliverables**: `UpdatePasswordScreen.jsx`, 3-mode `LoginScreen.jsx`, `PendingScreen`, `Users.approve()` API, dispatch wrappers, migration `20260619_security_dedupe_signup_trigger.sql`.
+
+### 🟡 Block 2 — RLS Hardening for Pending Users (DEFERRED — optional)
+- [ ] Pending user read access isolation
+- [ ] Email confirmation requirement
+- [ ] Approval notification to admin
+
+**Why deferred**: No real users yet; safer when live data exists.
+
+### 🔵 Block 3 — Email Confirmation & Admin Controls
+- [ ] Email confirmation enforcement
+- [ ] Resend confirmation email UI
+- [ ] Admin bulk invite + send links
+- [ ] Approval notification (→admin + user)
 
 ### Priorità 2 — Fase 2 Operatività ✅ (chiusa sessione 23)
 - [x] Notifiche reali ✅
@@ -343,4 +360,4 @@ src/
 
 Le notifiche nascono **solo da trigger DB / funzioni server-side** (RLS vieta insert client) — per nuove notifiche serve un trigger o una funzione `SECURITY DEFINER` schedulata via pg_cron. Tipi notifica attivi (`NOTIF_ICONS`/`notifTitle` in `Topbar.jsx`): `task_assigned`, `task_due`, `comment`, `mention`, `queue_stale`. ~~`dossier_status`~~ e ~~`dossier_departure`~~ **RIMOSSI** (sessione 24).
 
-Vedi `docs/HANDOFF_SESSION_2026-06-16_v22.md` (handoff attivo) per lo stato corrente dopo PR #63 (sessione 24: rimozione Pratiche & Fornitori, campo libero `praticaRef`, migration applicata in produzione).
+Vedi `docs/HANDOFF_SESSION_2026-06-19_v27.md` (handoff attivo) per lo stato corrente dopo sessione 27 (Block 1: autenticazione & onboarding completo, password recovery, signup, approval system).

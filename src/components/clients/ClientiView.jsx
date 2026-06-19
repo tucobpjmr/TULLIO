@@ -3,12 +3,16 @@
 import { useState, useMemo } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { SkeletonCards } from "../ui/SkeletonCards.jsx";
+import { PriorityBadge } from "../ui/PriorityBadge.jsx";
+import { StatusBadge } from "../ui/StatusBadge.jsx";
+import { formatDate, isActiveTask } from "../../lib/taskUtils.js";
+import { CATEGORIES, CURRENT_USER, canViewTask } from "../../state/appGlobals.js";
 
 const EMPTY_FORM = { name: "", email: "", phone: "", address: "", city: "", notes: "" };
 
 const fieldStyle = {
   width: "100%", padding: "9px 12px", borderRadius: 8,
-  border: "1px solid var(--border)", background: "#fff",
+  border: "1px solid var(--border)", background: "var(--card)",
   fontSize: 14, color: "var(--text)", outline: "none",
   fontFamily: "inherit",
 };
@@ -37,12 +41,12 @@ function ClienteModal({ cliente, onSave, onClose }) {
       background: "rgba(8,21,45,0.45)", display: "flex", alignItems: "center", justifyContent: "center",
     }} onClick={onClose}>
       <div style={{
-        background: "#fff", borderRadius: 14, padding: 28, width: "min(540px, 96vw)",
+        background: "var(--card)", borderRadius: 14, padding: 28, width: "min(540px, 96vw)",
         maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
         animation: "slideUp 0.25s ease",
       }} onClick={e => e.stopPropagation()}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-          <h2 className="playfair" style={{ fontSize: 20, color: "var(--navy)" }}>
+          <h2 className="playfair" style={{ fontSize: 20, color: "var(--heading)" }}>
             {cliente ? "Modifica Cliente" : "Nuovo Cliente"}
           </h2>
           <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text-muted)" }}>✕</button>
@@ -77,7 +81,7 @@ function ClienteModal({ cliente, onSave, onClose }) {
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
             <button type="button" onClick={onClose} style={{
               padding: "9px 20px", borderRadius: 8, border: "1px solid var(--border)",
-              background: "#fff", cursor: "pointer", fontSize: 14, color: "var(--text-muted)",
+              background: "var(--card)", cursor: "pointer", fontSize: 14, color: "var(--text-muted)",
             }}>Annulla</button>
             <button type="submit" disabled={saving || !form.name.trim()} style={{
               padding: "9px 20px", borderRadius: 8, border: "none",
@@ -91,13 +95,13 @@ function ClienteModal({ cliente, onSave, onClose }) {
   );
 }
 
-function ClienteCard({ cliente, onEdit, onDelete }) {
+function ClienteCard({ cliente, onEdit, onDelete, onSelect, selected }) {
   const [hovered, setHovered] = useState(false);
   return (
     <div
       style={{
-        background: "#fff", borderRadius: 12, padding: "16px 18px",
-        border: `1px solid ${hovered ? "var(--navy-light)" : "var(--border)"}`,
+        background: "var(--card)", borderRadius: 12, padding: "16px 18px",
+        border: `2px solid ${selected ? "var(--navy)" : hovered ? "var(--navy-light)" : "var(--border)"}`,
         transition: "all 0.18s", cursor: "default",
         boxShadow: hovered ? "0 4px 16px rgba(15,32,68,0.08)" : "none",
       }}
@@ -105,17 +109,18 @@ function ClienteCard({ cliente, onEdit, onDelete }) {
       onMouseLeave={() => setHovered(false)}
     >
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ flex: 1, minWidth: 0, cursor: "pointer" }} onClick={() => onSelect(cliente)}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
             <div style={{
-              width: 34, height: 34, borderRadius: "50%", background: "var(--navy)",
+              width: 34, height: 34, borderRadius: "50%",
+              background: selected ? "var(--navy)" : "var(--navy-light)",
               color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 13, fontWeight: 700, flexShrink: 0,
             }}>
               {cliente.name.slice(0, 2).toUpperCase()}
             </div>
             <div>
-              <div style={{ fontWeight: 600, color: "var(--navy)", fontSize: 15 }}>{cliente.name}</div>
+              <div style={{ fontWeight: 600, color: "var(--heading)", fontSize: 15 }}>{cliente.name}</div>
               {cliente.city && <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{cliente.city}</div>}
             </div>
           </div>
@@ -141,11 +146,11 @@ function ClienteCard({ cliente, onEdit, onDelete }) {
           <div style={{ display: "flex", gap: 4 }}>
             <button onClick={() => onEdit(cliente)} style={{
               padding: "5px 10px", borderRadius: 6, border: "1px solid var(--border)",
-              background: "#fff", cursor: "pointer", fontSize: 12, color: "var(--text-muted)",
+              background: "var(--card)", cursor: "pointer", fontSize: 12, color: "var(--text-muted)",
             }}>✏️</button>
             <button onClick={() => onDelete(cliente)} style={{
               padding: "5px 10px", borderRadius: 6, border: "1px solid #fecaca",
-              background: "#fff", cursor: "pointer", fontSize: 12, color: "var(--danger)",
+              background: "var(--card)", cursor: "pointer", fontSize: 12, color: "var(--danger)",
             }}>🗑️</button>
           </div>
         </div>
@@ -154,23 +159,117 @@ function ClienteCard({ cliente, onEdit, onDelete }) {
   );
 }
 
+// Panel task collegati al cliente selezionato (v2.8 Round 9)
+function ClienteTaskPanel({ cliente, tasks, dispatch, onClose }) {
+  const uid = CURRENT_USER;
+  const clientTasks = useMemo(() => {
+    const q = (cliente.name || "").toLowerCase();
+    return tasks.filter(t =>
+      isActiveTask(t) &&
+      canViewTask(t, uid) &&
+      (t.client || "").toLowerCase().includes(q)
+    );
+  }, [tasks, cliente.name, uid]);
+
+  const open = clientTasks.filter(t => t.status !== "done");
+  const done = clientTasks.filter(t => t.status === "done");
+  const hOpen = open.reduce((s, t) => s + (t.estimatedHours || 0), 0);
+  const hDone = done.reduce((s, t) => s + (t.estimatedHours || 0), 0);
+
+  return (
+    <div className="slide-up" style={{
+      background: "var(--card)", borderRadius: 12, padding: "20px 22px",
+      border: "1px solid var(--border)", boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
+      marginTop: 6, marginBottom: 8,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <div>
+          <span className="playfair" style={{ fontWeight: 700, fontSize: 16 }}>Task di {cliente.name}</span>
+          <div style={{ display: "flex", gap: 12, marginTop: 4, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+              {open.length} aperti{hOpen > 0 ? ` · ${hOpen}h stimate` : ""}
+            </span>
+            <span style={{ fontSize: 12, color: "var(--success)" }}>
+              {done.length} completati{hDone > 0 ? ` · ${hDone}h` : ""}
+            </span>
+            {(hOpen + hDone) > 0 && (
+              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--navy)" }}>
+                Totale: {hOpen + hDone}h
+              </span>
+            )}
+          </div>
+        </div>
+        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
+      </div>
+
+      {clientTasks.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "24px 0", color: "var(--text-muted)", fontSize: 13 }}>
+          Nessun task associato a questo cliente
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+          {clientTasks.map(t => (
+            <div
+              key={t.id}
+              onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "9px 12px", borderRadius: 8, border: "1px solid var(--border)",
+                cursor: "pointer", transition: "background 0.15s",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+            >
+              <span style={{ fontSize: 16 }}>{CATEGORIES[t.category]?.icon || "📋"}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</div>
+                {t.dueDate && <div style={{ fontSize: 11, color: "var(--text-muted)" }}>📅 {formatDate(t.dueDate)}</div>}
+              </div>
+              <PriorityBadge priority={t.priority} />
+              <StatusBadge status={t.status} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Opzioni di ordinamento per la lista clienti (v2.8 Round 8)
+const CLIENT_SORT_OPTS = [
+  { key: "name",    label: "Nome A-Z" },
+  { key: "name_z",  label: "Nome Z-A" },
+  { key: "date",    label: "Più recenti" },
+  { key: "city",    label: "Città A-Z" },
+];
+
 export function ClientiView({ state, dispatch, loading = false }) {
   const { isMobile } = useViewport();
   const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState("name"); // v2.8 Round 8
+  const [selectedClient, setSelectedClient] = useState(null); // v2.8 Round 9
   const [modal, setModal] = useState(null); // null | { mode: "add" | "edit", cliente?: {} }
   const [confirmDelete, setConfirmDelete] = useState(null);
 
   const clients = state.clients || [];
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return clients;
-    const q = search.toLowerCase();
-    return clients.filter(c =>
+    const q = search.trim().toLowerCase();
+    const base = !q ? clients : clients.filter(c =>
       c.name.toLowerCase().includes(q) ||
       (c.email || "").toLowerCase().includes(q) ||
-      (c.city || "").toLowerCase().includes(q)
+      (c.city || "").toLowerCase().includes(q) ||
+      (c.phone || "").toLowerCase().includes(q) ||
+      (c.notes || "").toLowerCase().includes(q)
     );
-  }, [clients, search]);
+    return [...base].sort((a, b) => {
+      if (sortBy === "name")   return (a.name || "").localeCompare(b.name || "", "it");
+      if (sortBy === "name_z") return (b.name || "").localeCompare(a.name || "", "it");
+      if (sortBy === "city")   return (a.city || "").localeCompare(b.city || "", "it");
+      // date: più recenti prima (createdAt desc)
+      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+    });
+  }, [clients, search, sortBy]);
 
   const handleSave = async (form) => {
     if (modal?.mode === "edit" && modal.cliente) {
@@ -191,7 +290,7 @@ export function ClientiView({ state, dispatch, loading = false }) {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
         <div>
-          <h1 className="playfair" style={{ fontSize: isMobile ? 22 : 26, color: "var(--navy)", marginBottom: 4 }}>
+          <h1 className="playfair" style={{ fontSize: isMobile ? 22 : 26, color: "var(--heading)", marginBottom: 4 }}>
             Clienti
           </h1>
           <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
@@ -212,14 +311,31 @@ export function ClientiView({ state, dispatch, loading = false }) {
         </button>
       </div>
 
-      {/* Search */}
+      {/* Search + Sort */}
       <div style={{ marginBottom: 20 }}>
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Cerca per nome, email, città…"
+          placeholder="Cerca per nome, email, città, telefono…"
           style={{ ...fieldStyle, maxWidth: 360 }}
         />
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+          {CLIENT_SORT_OPTS.map(opt => (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => setSortBy(opt.key)}
+              style={{
+                padding: "4px 12px", borderRadius: 999, cursor: "pointer",
+                fontSize: 11, fontWeight: 600, fontFamily: "inherit",
+                border: `1px solid ${sortBy === opt.key ? "var(--navy)" : "var(--border)"}`,
+                background: sortBy === opt.key ? "var(--navy)" : "var(--card)",
+                color: sortBy === opt.key ? "#fff" : "var(--text-muted)",
+                transition: "all 0.15s",
+              }}
+            >{opt.label}</button>
+          ))}
+        </div>
       </div>
 
       {/* Lista */}
@@ -243,9 +359,21 @@ export function ClientiView({ state, dispatch, loading = false }) {
               cliente={c}
               onEdit={c => setModal({ mode: "edit", cliente: c })}
               onDelete={c => setConfirmDelete(c)}
+              onSelect={c => setSelectedClient(sc => sc?.id === c.id ? null : c)}
+              selected={selectedClient?.id === c.id}
             />
           ))}
         </div>
+      )}
+
+      {/* Task del cliente selezionato (v2.8 Round 9) */}
+      {selectedClient && (
+        <ClienteTaskPanel
+          cliente={selectedClient}
+          tasks={state.tasks || []}
+          dispatch={dispatch}
+          onClose={() => setSelectedClient(null)}
+        />
       )}
 
       {/* Modal add/edit */}
@@ -264,16 +392,16 @@ export function ClientiView({ state, dispatch, loading = false }) {
           background: "rgba(8,21,45,0.45)", display: "flex", alignItems: "center", justifyContent: "center",
         }} onClick={() => setConfirmDelete(null)}>
           <div style={{
-            background: "#fff", borderRadius: 12, padding: 24, width: "min(380px, 92vw)",
+            background: "var(--card)", borderRadius: 12, padding: 24, width: "min(380px, 92vw)",
             boxShadow: "0 12px 40px rgba(0,0,0,0.18)", animation: "slideUp 0.2s ease",
           }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontWeight: 700, fontSize: 16, color: "var(--navy)", marginBottom: 8 }}>Rimuovi cliente</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: "var(--heading)", marginBottom: 8 }}>Rimuovi cliente</div>
             <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 20 }}>
               Rimuovere <strong>{confirmDelete.name}</strong> dall'anagrafica?
             </div>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button onClick={() => setConfirmDelete(null)} style={{
-                padding: "8px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "#fff",
+                padding: "8px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)",
                 cursor: "pointer", fontSize: 14, color: "var(--text-muted)",
               }}>Annulla</button>
               <button onClick={() => handleDelete(confirmDelete)} style={{

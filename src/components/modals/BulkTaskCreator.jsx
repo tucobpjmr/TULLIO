@@ -14,7 +14,7 @@ import { loadXLSX } from "../../lib/xlsx.js";
 const bulkInputStyle = {
   width: "100%", border: "1px solid var(--border)", borderRadius: 6,
   padding: "7px 9px", fontSize: 12.5, fontFamily: "inherit",
-  background: "#fff", outline: "none",
+  background: "var(--card)", outline: "none",
   minWidth: 0, boxSizing: "border-box",
 };
 const bulkBtnPrimary = {
@@ -518,7 +518,7 @@ const TemplateTab = ({ onCreate, onClose }) => {
           {TASK_TEMPLATES.map(t => (
             <div key={t.id} onClick={() => setSelectedId(t.id)} className="hover-lift" style={{
               padding: "16px 18px", borderRadius: 12, border: "1px solid var(--border)",
-              cursor: "pointer", background: "#fff",
+              cursor: "pointer", background: "var(--card)",
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                 <div style={{ fontSize: 28 }}>{t.icon}</div>
@@ -618,7 +618,7 @@ export const BulkTaskCreator = ({ existingTasks, onCreate, onClose }) => {
       display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100, padding: 20,
     }}>
       <div className="slide-up" style={{
-        background: "#fff", borderRadius: 16, width: 820, maxWidth: "100%",
+        background: "var(--card)", borderRadius: 16, width: 820, maxWidth: "100%",
         maxHeight: "92vh", display: "flex", flexDirection: "column",
         boxShadow: "0 30px 80px rgba(0,0,0,0.25)", border: "1px solid var(--border)", overflow: "hidden",
       }}>

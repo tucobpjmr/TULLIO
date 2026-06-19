@@ -6,9 +6,9 @@ import { SwipeActions } from "../SwipeActions.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { StatusBadge } from "../ui/StatusBadge.jsx";
-import { PRIORITIES } from "../../lib/taskConstants.js";
-import { formatDate, formatTime, isOverdue, isUrgent, isMyTask, isInGlobalQueue, getActiveTasks } from "../../lib/taskUtils.js";
-import { CATEGORIES, getMember, getRoleType, getAssignableTeam, canViewTask, getVisibleTasks } from "../../state/appGlobals.js";
+import { PRIORITIES, STATUS_LABELS } from "../../lib/taskConstants.js";
+import { formatDate, formatTime, isOverdue, isUrgent, isMyTask, isInGlobalQueue, getActiveTasks, getDayKey } from "../../lib/taskUtils.js";
+import { CATEGORIES, getMember, getRoleType, getAssignableTeam, canViewTask, getVisibleTasks, isJuniorAgent } from "../../state/appGlobals.js";
 import { NoticeBoard } from "./NoticeBoard.jsx";
 // Step P Phase 2g: AIDayPlanner (~350 righe, chiama l'API Claude) si apre solo
 // on-demand → lazy-loaded come chunk async.
@@ -16,10 +16,101 @@ const AIDayPlanner = lazy(() =>
   import("../modals/AIDayPlanner.jsx").then(m => ({ default: m.AIDayPlanner }))
 );
 
+// ─── CSV EXPORT HELPER ───────────────────────────────────────────────────────
+const _esc = v => {
+  const s = v == null ? "" : String(v);
+  return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+};
+const exportTasksCSV = (tasks, filename = "coda-personale") => {
+  const headers = ["Titolo", "Categoria", "Priorità", "Stato", "Cliente", "Pratica", "Assegnati", "Scadenza", "Ore stimate"];
+  const rows = tasks.map(t => [
+    t.title,
+    CATEGORIES[t.category]?.label || t.category,
+    PRIORITIES[t.priority]?.label || t.priority,
+    STATUS_LABELS[t.status] || t.status,
+    t.client || "",
+    t.praticaRef || "",
+    (t.assignees || []).map(id => getMember(id)?.name || id).join("; "),
+    t.dueDate ? new Date(t.dueDate).toLocaleString("it-IT") : "",
+    t.estimatedHours || "",
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(_esc).join(",")).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
+  a.download = `${filename}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+};
+
 // ─── PERSONAL QUEUE (le mie task — v0.8) ───────────────────────────────────
-const PersonalQueue = ({ tasks, dispatch, me }) => {
+// enableDateFilter (v22): per il Driver (vista transfer-oriented) abilita un
+// filtro data/ora — i transfer sono time-sensitive, Giulia filtra la coda per
+// giornata (Tutte / Oggi / Domani / data specifica).
+// Ordini disponibili per la coda personale (v2.8 Round 5)
+const QUEUE_SORT_OPTIONS = [
+  { key: "date",     label: "Scadenza" },
+  { key: "priority", label: "Priorità" },
+  { key: "client",   label: "Cliente"  },
+  { key: "status",   label: "Stato"    },
+];
+const PRIO_ORDER = { critical: 0, high: 1, medium: 2, low: 3 };
+const STATUS_ORDER = { todo: 0, inprogress: 1, awaiting_client: 2, awaiting_supplier: 3, done: 4 };
+
+const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
   const { isMobile } = useViewport();
-  const empty = tasks.length === 0;
+  const [dateFilter, setDateFilter] = useState("all"); // "all" | "today" | "tomorrow" | "YYYY-MM-DD"
+  const [sortBy, setSortBy] = useState("date"); // "date" | "priority" | "client" | "status"
+
+  let filtered = tasks;
+  if (enableDateFilter && dateFilter !== "all") {
+    let targetKey;
+    if (dateFilter === "today") {
+      targetKey = new Date().toDateString();
+    } else if (dateFilter === "tomorrow") {
+      const d = new Date(); d.setDate(d.getDate() + 1); targetKey = d.toDateString();
+    } else {
+      // dateFilter = "YYYY-MM-DD" da <input type="date"> → mezzogiorno locale (no shift TZ)
+      targetKey = new Date(dateFilter + "T12:00:00").toDateString();
+    }
+    filtered = tasks.filter(t => t.dueDate && getDayKey(t.dueDate) === targetKey);
+  }
+  // Ordinamento locale (il chiamante li ordina per data di default).
+  // Driver: mantiene l'ordine per orario quando sortBy === "date".
+  filtered = [...filtered].sort((a, b) => {
+    if (sortBy === "priority") {
+      const dp = (PRIO_ORDER[a.priority] ?? 9) - (PRIO_ORDER[b.priority] ?? 9);
+      if (dp !== 0) return dp;
+    }
+    if (sortBy === "client") {
+      return (a.client || "").localeCompare(b.client || "", "it");
+    }
+    if (sortBy === "status") {
+      const ds = (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9);
+      if (ds !== 0) return ds;
+    }
+    // Fallback: per scadenza (default e tie-breaker)
+    if (!a.dueDate && !b.dueDate) return 0;
+    if (!a.dueDate) return 1;
+    if (!b.dueDate) return -1;
+    return new Date(a.dueDate) - new Date(b.dueDate);
+  });
+  const empty = filtered.length === 0;
+
+  const customDate = !["all", "today", "tomorrow"].includes(dateFilter) ? dateFilter : "";
+  const chip = (key, label) => (
+    <button
+      type="button"
+      onClick={() => setDateFilter(key)}
+      style={{
+        padding: "5px 12px", borderRadius: 999, cursor: "pointer",
+        fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+        border: `1px solid ${dateFilter === key ? "var(--navy)" : "var(--border)"}`,
+        background: dateFilter === key ? "var(--navy)" : "var(--card)",
+        color: dateFilter === key ? "#fff" : "var(--text-muted)",
+        transition: "background 0.15s, color 0.15s",
+      }}
+    >{label}</button>
+  );
+
   return (
     <div style={{
       background: "linear-gradient(135deg, rgba(15,32,68,0.04) 0%, rgba(15,32,68,0.01) 100%)",
@@ -37,37 +128,97 @@ const PersonalQueue = ({ tasks, dispatch, me }) => {
             fontSize: 12, fontWeight: 700,
           }}>{me?.avatar || "?"}</div>
           <div>
-            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)" }}>
-              La mia coda — task assegnate a me
+            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
+              {enableDateFilter ? "La mia coda transfer" : "La mia coda — task assegnate a me"}
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-              Ordinate per scadenza • clicca una card per i dettagli
+              {enableDateFilter
+                ? "Filtra per giornata • ordinate per orario • clicca una card per i dettagli"
+                : `Ordinate per ${QUEUE_SORT_OPTIONS.find(o => o.key === sortBy)?.label.toLowerCase() || "scadenza"} • clicca una card per i dettagli`}
             </div>
           </div>
         </div>
-        {!empty && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {filtered.length > 0 && (
+            <button
+              type="button"
+              title="Esporta come CSV"
+              onClick={() => exportTasksCSV(filtered, "coda-personale")}
+              style={{
+                background: "none", border: "1px solid var(--border)",
+                color: "var(--text-muted)", padding: "4px 10px", borderRadius: 999,
+                fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+              }}
+            >↓ CSV</button>
+          )}
           <div style={{
             background: "var(--navy)", color: "#fff",
             padding: "4px 12px", borderRadius: 999,
             fontSize: 13, fontWeight: 700,
-          }}>{tasks.length} {tasks.length === 1 ? "task" : "task"}</div>
-        )}
+          }}>{enableDateFilter && dateFilter !== "all" ? `${filtered.length}/${tasks.length}` : `${tasks.length}`} task</div>
+        </div>
       </div>
+
+      {/* Barra di ordinamento (v2.8) — non mostrata per i Driver (usano il filtro data) */}
+      {!enableDateFilter && tasks.length > 1 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, marginRight: 2 }}>Ordina:</span>
+          {QUEUE_SORT_OPTIONS.map(opt => (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => setSortBy(opt.key)}
+              style={{
+                padding: "4px 10px", borderRadius: 999, cursor: "pointer",
+                fontSize: 11, fontWeight: 600, fontFamily: "inherit",
+                border: `1px solid ${sortBy === opt.key ? "var(--navy)" : "var(--border)"}`,
+                background: sortBy === opt.key ? "var(--navy)" : "var(--card)",
+                color: sortBy === opt.key ? "#fff" : "var(--text-muted)",
+                transition: "background 0.15s, color 0.15s",
+              }}
+            >{opt.label}</button>
+          ))}
+        </div>
+      )}
+
+      {enableDateFilter && (
+        <div className="vd-row-wrap" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+          {chip("all", "Tutte")}
+          {chip("today", "Oggi")}
+          {chip("tomorrow", "Domani")}
+          <input
+            type="date"
+            value={customDate}
+            onChange={e => setDateFilter(e.target.value || "all")}
+            aria-label="Filtra per data"
+            style={{
+              padding: "4px 10px", borderRadius: 999, fontSize: 12, fontFamily: "inherit",
+              border: `1px solid ${customDate ? "var(--navy)" : "var(--border)"}`,
+              background: "var(--card)", color: "var(--text)", cursor: "pointer",
+            }}
+          />
+          {customDate && (
+            <button type="button" onClick={() => setDateFilter("all")} title="Azzera filtro" style={{
+              background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: 13, fontWeight: 600,
+            }}>✕ azzera</button>
+          )}
+        </div>
+      )}
 
       {empty ? (
         <div style={{
           padding: "14px 0 4px", display: "flex", alignItems: "center", gap: 10,
           color: "var(--text-muted)", fontSize: 13,
         }}>
-          <span style={{ fontSize: 18 }}>🎉</span>
-          Nessuna task aperta a tuo nome. Buon lavoro!
+          <span style={{ fontSize: 18 }}>{enableDateFilter && dateFilter !== "all" ? "📭" : "🎉"}</span>
+          {enableDateFilter && dateFilter !== "all" ? "Nessun transfer per la giornata selezionata." : "Nessuna task aperta a tuo nome. Buon lavoro!"}
         </div>
       ) : (
         <div style={{
           display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))",
           gap: 10,
         }}>
-          {tasks.map(t => {
+          {filtered.map(t => {
             const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
             const prio = PRIORITIES[t.priority];
             const overdue = isOverdue(t);
@@ -75,7 +226,7 @@ const PersonalQueue = ({ tasks, dispatch, me }) => {
             const card = (
               <div
                 style={{
-                  background: "#fff", borderRadius: 10,
+                  background: "var(--card)", borderRadius: 10,
                   border: `1px solid ${overdue ? "rgba(192,57,43,0.4)" : urgent ? "rgba(200,131,42,0.4)" : "var(--border)"}`,
                   padding: 12, display: "flex", flexDirection: "column", gap: 8,
                   cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
@@ -103,11 +254,31 @@ const PersonalQueue = ({ tasks, dispatch, me }) => {
                   {t.client && <span>👤 {t.client}</span>}
                   {t.dueDate && (
                     <span style={{ color: overdue ? "var(--danger)" : urgent ? "var(--warning)" : "var(--text-muted)", fontWeight: (overdue || urgent) ? 700 : 400 }}>
-                      📅 {formatDate(t.dueDate)}{overdue ? " ⚠ scaduto" : urgent ? " ⏱ < 24h" : ""}
+                      📅 {formatDate(t.dueDate)}{enableDateFilter ? ` 🕑 ${formatTime(t.dueDate)}` : ""}{overdue ? " ⚠ scaduto" : urgent ? " ⏱ < 24h" : ""}
                     </span>
                   )}
                   {t.estimatedHours > 0 && <span>⏱️ {t.estimatedHours}h</span>}
                 </div>
+                {/* Avanzamento rapido status (v2.8 Round 14) */}
+                {t.status !== "done" && (() => {
+                  const quickBtn = (label, newStatus, color) => (
+                    <button
+                      key={newStatus}
+                      type="button"
+                      onClick={e => { e.stopPropagation(); dispatch({ type: "UPDATE_TASK", payload: { ...t, status: newStatus } }); }}
+                      style={{
+                        padding: "3px 10px", borderRadius: 999, border: `1px solid ${color}`,
+                        background: "transparent", color, cursor: "pointer",
+                        fontSize: 11, fontWeight: 600, fontFamily: "inherit", transition: "all 0.15s",
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = color; e.currentTarget.style.color = "#fff"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = color; }}
+                    >{label}</button>
+                  );
+                  if (t.status === "todo") return <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>{quickBtn("▶ Avvia", "inprogress", "var(--navy)")}{quickBtn("✓ Fatto", "done", "var(--success)")}</div>;
+                  if (t.status === "inprogress") return <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>{quickBtn("⏸ Attesa", "awaiting_client", "var(--warning)")}{quickBtn("✓ Fatto", "done", "var(--success)")}</div>;
+                  return <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>{quickBtn("▶ Riprendi", "inprogress", "var(--navy)")}{quickBtn("✓ Fatto", "done", "var(--success)")}</div>;
+                })()}
               </div>
             );
             return (
@@ -125,6 +296,16 @@ const PersonalQueue = ({ tasks, dispatch, me }) => {
 // ─── URGENT OTHERS QUEUE (scadenza <24h, non mie — read-only — v0.8) ──────
 const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
   const { isMobile } = useViewport();
+  const [filterAgent, setFilterAgent] = useState(null);
+
+  const presentAgents = [...new Set(
+    tasks.map(t => t.assignees?.[0]).filter(Boolean)
+  )];
+
+  const visibleTasks = filterAgent
+    ? tasks.filter(t => t.assignees?.[0] === filterAgent)
+    : tasks;
+
   return (
     <div style={{
       background: "linear-gradient(135deg, rgba(200,131,42,0.07) 0%, rgba(200,131,42,0.01) 100%)",
@@ -142,7 +323,7 @@ const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
             fontSize: 18, fontWeight: 700,
           }}>⏱</div>
           <div>
-            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)" }}>
+            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
               Urgenti del team — scadenza entro 24h
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
@@ -154,14 +335,63 @@ const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
           background: "var(--warning)", color: "#fff",
           padding: "4px 12px", borderRadius: 999,
           fontSize: 13, fontWeight: 700,
-        }}>{tasks.length}</div>
+        }}>{visibleTasks.length}{filterAgent ? `/${tasks.length}` : ""}</div>
       </div>
+
+      {/* Filtro per agente — Round 15 */}
+      {presentAgents.length > 1 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+          <button
+            type="button"
+            onClick={() => setFilterAgent(null)}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 5,
+              padding: "4px 12px", borderRadius: 999, cursor: "pointer",
+              fontSize: 11, fontWeight: 600, fontFamily: "inherit",
+              border: `1px solid ${!filterAgent ? "var(--warning)" : "var(--border)"}`,
+              background: !filterAgent ? "var(--warning)" : "var(--card)",
+              color: !filterAgent ? "#fff" : "var(--text-muted)",
+              transition: "all 0.15s",
+            }}
+          >Tutti</button>
+          {presentAgents.map(agentId => {
+            const m = getMember(agentId);
+            if (!m) return null;
+            const active = filterAgent === agentId;
+            const count = tasks.filter(t => t.assignees?.[0] === agentId).length;
+            return (
+              <button
+                key={agentId}
+                type="button"
+                onClick={() => setFilterAgent(active ? null : agentId)}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  padding: "4px 12px", borderRadius: 999, cursor: "pointer",
+                  fontSize: 11, fontWeight: 600, fontFamily: "inherit",
+                  border: `1px solid ${active ? "var(--warning)" : "var(--border)"}`,
+                  background: active ? "var(--warning)" : "var(--card)",
+                  color: active ? "#fff" : "var(--text-muted)",
+                  transition: "all 0.15s",
+                }}
+              >
+                <Avatar memberId={agentId} size={16} />
+                {m.name}
+                <span style={{
+                  background: active ? "rgba(255,255,255,0.25)" : "var(--surface2)",
+                  borderRadius: 999, padding: "1px 5px", fontSize: 10,
+                  color: active ? "#fff" : "var(--text-muted)",
+                }}>{count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div style={{
         display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 320px), 1fr))",
         gap: 10,
       }}>
-        {tasks.map(t => {
+        {visibleTasks.map(t => {
           const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
           const prio = PRIORITIES[t.priority];
           const owner = getMember(t.assignees?.[0]);
@@ -170,7 +400,7 @@ const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
               key={t.id}
               title="Solo visualizzazione: questa task appartiene a un altro agente"
               style={{
-                background: "#fff", borderRadius: 10,
+                background: "var(--card)", borderRadius: 10,
                 border: "1.5px dashed rgba(200,131,42,0.45)",
                 padding: 12, display: "flex", flexDirection: "column", gap: 8,
                 position: "relative",
@@ -246,7 +476,8 @@ const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
 };
 
 // ─── UNASSIGNED QUEUE (coda globale) ───────────────────────────────────────
-const UnassignedQueue = ({ tasks, dispatch, onTake }) => {
+const UnassignedQueue = ({ tasks, dispatch, onTake, uid }) => {
+  const isJunior = isJuniorAgent(uid);
   const { isMobile } = useViewport();
   const [categoryFilter, setCategoryFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
@@ -284,11 +515,13 @@ const UnassignedQueue = ({ tasks, dispatch, onTake }) => {
             fontSize: 18, fontWeight: 700,
           }}>🙋</div>
           <div>
-            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)" }}>
+            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
               Coda globale — task da prendere in carico
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-              Task non assegnati • visibili a tutto il team • clicca "Prendi in carico" per autoassegnarti
+              {isJunior
+                ? "Task non assegnati • visibili a tutto il team • per i Junior Agent l'assegnazione richiede un Senior/Manager"
+                : "Task non assegnati • visibili a tutto il team • clicca \"Prendi in carico\" per autoassegnarti"}
             </div>
           </div>
         </div>
@@ -340,7 +573,7 @@ const UnassignedQueue = ({ tasks, dispatch, onTake }) => {
           {hasFilter && (
             <button onClick={() => { setCategoryFilter(""); setPriorityFilter(""); }} style={{
               padding: "3px 9px", borderRadius: 99, border: "1px solid var(--border)",
-              background: "#fff", color: "var(--text-muted)",
+              background: "var(--card)", color: "var(--text-muted)",
               fontSize: 11, cursor: "pointer", fontFamily: "inherit",
             }}>✕ Reset</button>
           )}
@@ -376,10 +609,11 @@ const UnassignedQueue = ({ tasks, dispatch, onTake }) => {
             const card = (
               <div
                 style={{
-                  background: "#fff", borderRadius: 10,
+                  background: "var(--card)", borderRadius: 10,
                   border: `1px solid ${overdue ? "rgba(192,57,43,0.3)" : "var(--border)"}`,
                   padding: 12, display: "flex", flexDirection: "column", gap: 10,
                   cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
+                  opacity: isJunior ? 0.8 : 1,
                 }}
                 onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
                 onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.08)"; }}
@@ -417,24 +651,35 @@ const UnassignedQueue = ({ tasks, dispatch, onTake }) => {
                   {t.estimatedHours > 0 && <span>⏱️ {t.estimatedHours}h</span>}
                 </div>
 
-                {/* Take ownership button */}
-                <button
-                  onClick={e => { e.stopPropagation(); onTake(t); }}
-                  style={{
-                    background: "var(--gold)", color: "var(--navy)",
-                    border: "none", borderRadius: 8,
-                    padding: "8px 12px", fontSize: 12, fontWeight: 700,
-                    cursor: "pointer", display: "flex", alignItems: "center",
-                    justifyContent: "center", gap: 6,
-                    fontFamily: "inherit",
-                    transition: "background 0.15s, transform 0.15s",
+                {/* Take ownership button — nascosto per Junior Agent */}
+                {isJunior ? (
+                  <div style={{
+                    background: "var(--surface2)", color: "var(--text-muted)",
+                    borderRadius: 8, padding: "7px 12px", fontSize: 11, fontWeight: 600,
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
                     marginTop: 2,
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = "var(--gold-light)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "var(--gold)"; }}
-                >
-                  🙋 Prendi in carico
-                </button>
+                  }}>
+                    🔒 Chiedi a un Senior per l'assegnazione
+                  </div>
+                ) : (
+                  <button
+                    onClick={e => { e.stopPropagation(); onTake(t); }}
+                    style={{
+                      background: "var(--gold)", color: "var(--navy)",
+                      border: "none", borderRadius: 8,
+                      padding: "8px 12px", fontSize: 12, fontWeight: 700,
+                      cursor: "pointer", display: "flex", alignItems: "center",
+                      justifyContent: "center", gap: 6,
+                      fontFamily: "inherit",
+                      transition: "background 0.15s, transform 0.15s",
+                      marginTop: 2,
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "var(--gold-light)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "var(--gold)"; }}
+                  >
+                    🙋 Prendi in carico
+                  </button>
+                )}
               </div>
             );
             return (
@@ -484,7 +729,16 @@ const QueueTab = ({ active, onClick, icon, label, count, isMobile, dangerCount }
 // ─── OVERDUE QUEUE (task scaduti visibili) ────────────────────────────────
 const OverdueQueue = ({ tasks, dispatch }) => {
   const { isMobile } = useViewport();
+  const [filterAssignee, setFilterAssignee] = useState(null);
   const empty = tasks.length === 0;
+
+  const presentAssignees = Array.from(new Set(
+    tasks.flatMap(t => t.assignees || [])
+  )).filter(Boolean);
+  const visible = filterAssignee
+    ? tasks.filter(t => (t.assignees || []).includes(filterAssignee))
+    : tasks;
+
   return (
     <div style={{
       background: "linear-gradient(135deg, rgba(192,57,43,0.05) 0%, rgba(192,57,43,0.01) 100%)",
@@ -502,7 +756,7 @@ const OverdueQueue = ({ tasks, dispatch }) => {
             fontSize: 18,
           }}>📅</div>
           <div>
-            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)" }}>
+            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
               Task scadute
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
@@ -515,9 +769,57 @@ const OverdueQueue = ({ tasks, dispatch }) => {
             background: "var(--danger)", color: "#fff",
             padding: "4px 12px", borderRadius: 999,
             fontSize: 13, fontWeight: 700,
-          }}>{tasks.length}</div>
+          }}>{filterAssignee ? `${visible.length}/${tasks.length}` : tasks.length}</div>
         )}
       </div>
+
+      {/* Filtro assegnatario — solo se più di un assegnatario presente */}
+      {!empty && presentAssignees.length > 1 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={() => setFilterAssignee(null)}
+            style={{
+              padding: "3px 10px", borderRadius: 999, cursor: "pointer",
+              fontSize: 11, fontWeight: 700, fontFamily: "inherit",
+              border: `1px solid ${!filterAssignee ? "var(--danger)" : "var(--border)"}`,
+              background: !filterAssignee ? "var(--danger)" : "var(--card)",
+              color: !filterAssignee ? "#fff" : "var(--text-muted)",
+            }}
+          >Tutti</button>
+          {presentAssignees.map(id => {
+            const m = getMember(id);
+            if (!m) return null;
+            const active = filterAssignee === id;
+            const cnt = tasks.filter(t => (t.assignees || []).includes(id)).length;
+            return (
+              <button key={id} type="button"
+                onClick={() => setFilterAssignee(active ? null : id)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  padding: "3px 10px", borderRadius: 999, cursor: "pointer",
+                  fontSize: 11, fontWeight: 600, fontFamily: "inherit",
+                  border: `1px solid ${active ? "var(--danger)" : "var(--border)"}`,
+                  background: active ? "rgba(192,57,43,0.08)" : "var(--card)",
+                  color: active ? "var(--danger)" : "var(--text-muted)",
+                }}
+              >
+                <span style={{
+                  width: 16, height: 16, borderRadius: "50%", background: m.color,
+                  color: "#fff", display: "flex", alignItems: "center",
+                  justifyContent: "center", fontSize: 8, fontWeight: 700, flexShrink: 0,
+                }}>{m.avatar}</span>
+                {m.name.split(" ")[0]}
+                <span style={{
+                  background: active ? "var(--danger)" : "var(--surface2)",
+                  color: active ? "#fff" : "var(--text-muted)",
+                  borderRadius: 99, padding: "0 5px", fontSize: 10, fontWeight: 700,
+                }}>{cnt}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {empty ? (
         <div style={{
@@ -527,18 +829,22 @@ const OverdueQueue = ({ tasks, dispatch }) => {
           <span style={{ fontSize: 18 }}>✅</span>
           Nessuna task scaduta. Tutto in regola!
         </div>
+      ) : visible.length === 0 ? (
+        <div style={{ padding: "14px 0 4px", color: "var(--text-muted)", fontSize: 13, display: "flex", gap: 8 }}>
+          <span>📭</span> Nessuna task scaduta per l&#39;agente selezionato.
+        </div>
       ) : (
         <div style={{
           display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))",
           gap: 10,
         }}>
-          {tasks.map(t => {
+          {visible.map(t => {
             const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
             const prio = PRIORITIES[t.priority];
             const card = (
               <div
                 style={{
-                  background: "#fff", borderRadius: 10,
+                  background: "var(--card)", borderRadius: 10,
                   border: "1px solid rgba(192,57,43,0.4)",
                   padding: 12, display: "flex", flexDirection: "column", gap: 8,
                   cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
@@ -670,9 +976,30 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
           <div className="playfair" style={{ fontSize: isMobile ? 21 : 26, fontWeight: 700 }}>
             Buongiorno, {firstName} ☀️
           </div>
-          <div style={{ color: "var(--text-muted)", fontSize: 14, marginTop: 2 }}>
-            {new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
-            {role !== "admin" && <span style={{ marginLeft: 8, fontSize: 11, padding: "2px 8px", background: "var(--surface3)", borderRadius: 99, color: "var(--text-muted)", fontWeight: 600, letterSpacing: 0.3 }}>{me?.role}</span>}
+          <div style={{ color: "var(--text-muted)", fontSize: 14, marginTop: 2, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+            <span>{new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}</span>
+            {role !== "admin" && (
+              <>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                  <span style={{ fontSize: 11, padding: "2px 8px", background: "var(--surface3)", borderRadius: 99, color: "var(--text-muted)", fontWeight: 600, letterSpacing: 0.3 }}>{me?.role}</span>
+                  {isJuniorAgent(uid) && (
+                    <span style={{ fontSize: 10, padding: "1px 6px", background: "#FFF3CD", color: "#856404", borderRadius: 99, fontWeight: 700, letterSpacing: 0.3 }}>JUNIOR</span>
+                  )}
+                </span>
+                {(() => {
+                  const totalH = personalQueue.reduce((s, t) => s + (Number(t.estimatedHours) || 0), 0);
+                  if (totalH === 0) return null;
+                  return (
+                    <span style={{
+                      fontSize: 11, padding: "2px 9px", borderRadius: 99, fontWeight: 700,
+                      background: overdueTasks.length > 0 ? "rgba(192,57,43,0.08)" : "rgba(15,32,68,0.06)",
+                      color: overdueTasks.length > 0 ? "var(--danger)" : "var(--navy)",
+                      border: `1px solid ${overdueTasks.length > 0 ? "rgba(192,57,43,0.2)" : "rgba(15,32,68,0.1)"}`,
+                    }}>⏱ {totalH}h in coda{overdueTasks.length > 0 ? ` · ${overdueTasks.length} scadut${overdueTasks.length === 1 ? "a" : "e"}` : ""}</span>
+                  );
+                })()}
+              </>
+            )}
           </div>
         </div>
         <button onClick={() => setShowAIPlanner(true)} style={{
@@ -695,7 +1022,7 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
 
       {/* ─── TAB CODE ─── */}
       <div style={{
-        background: "#fff", borderRadius: 12, padding: isMobile ? 8 : 10,
+        background: "var(--card)", borderRadius: 12, padding: isMobile ? 8 : 10,
         boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)",
         display: "grid",
         gridTemplateColumns: `repeat(${(showGlobalQueue ? 1 : 0) + 1 + 1 + (showUrgentOthers ? 1 : 0)}, 1fr)`,
@@ -733,10 +1060,10 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
 
       {/* ─── SEZIONE CODA FILTRATA ─── */}
       {activeQueue === "personal" && (
-        <PersonalQueue tasks={personalQueue} dispatch={dispatch} me={me} />
+        <PersonalQueue tasks={personalQueue} dispatch={dispatch} me={me} enableDateFilter={role === "driver"} />
       )}
       {activeQueue === "global" && showGlobalQueue && (
-        <UnassignedQueue tasks={unassigned} dispatch={dispatch} onTake={takeOwnership} />
+        <UnassignedQueue tasks={unassigned} dispatch={dispatch} onTake={takeOwnership} uid={uid} />
       )}
       {activeQueue === "overdue" && (
         <OverdueQueue tasks={overdueTasks} dispatch={dispatch} />
@@ -747,7 +1074,7 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
 
       <div className="vd-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         {/* Upcoming deadlines */}
-        <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
+        <div style={{ background: "var(--card)", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
           <div className="playfair" style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>Scadenze Prossime</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {next7.map(t => (
@@ -775,7 +1102,7 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
         </div>
 
         {/* Agent workload */}
-        <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
+        <div style={{ background: "var(--card)", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
           <div className="playfair" style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>Carico di Lavoro Team</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {agentWorkload.map(m => {

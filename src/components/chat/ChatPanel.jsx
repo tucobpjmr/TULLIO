@@ -38,7 +38,7 @@ const PRESENCE_LABELS = {
 };
 
 // Context per condividere tasks/dispatch (per messaggi con taskLink — v0.8)
-const ChatContext = createContext({ tasks: [], dispatch: () => {} });
+const ChatContext = createContext({ tasks: [], dispatch: () => {}, messageTemplates: [] });
 
 // ─── CHAT: UTILS ───────────────────────────────────────────────────────────
 const formatChatTime = (iso) => {
@@ -83,7 +83,7 @@ const EMOJI_REACTIONS = ["👍", "❤️", "😂", "🔥", "✅", "🎉", "💡"
 const ReactionPicker = ({ onPick, onClose }) => (
   <div onClick={e => e.stopPropagation()} style={{
     position: "absolute", bottom: "calc(100% + 4px)", left: 0,
-    background: "#fff", borderRadius: 20, padding: "6px 8px",
+    background: "var(--card)", borderRadius: 20, padding: "6px 8px",
     boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--border)",
     display: "flex", gap: 2, zIndex: 100,
   }}>
@@ -290,7 +290,7 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
         )}
 
         <div style={{
-          background: isMine ? "var(--navy)" : "#fff",
+          background: isMine ? "var(--navy)" : "var(--card)",
           color: isMine ? "#fff" : "var(--text)",
           padding: msg.type === "voice" ? "8px 12px" : "8px 12px",
           borderRadius: 14,
@@ -369,7 +369,7 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
           }}>
             {Object.entries(msg.reactions).map(([emoji, users]) => (
               <div key={emoji} style={{
-                background: "#fff", border: "1px solid var(--border)",
+                background: "var(--card)", border: "1px solid var(--border)",
                 borderRadius: 99, padding: "2px 7px", fontSize: 11,
                 boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
                 display: "flex", alignItems: "center", gap: 3,
@@ -385,7 +385,7 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
         {hovered && (
           <div style={{
             position: "absolute", top: -8, [isMine ? "left" : "right"]: -8,
-            display: "flex", gap: 2, background: "#fff",
+            display: "flex", gap: 2, background: "var(--card)",
             border: "1px solid var(--border)", borderRadius: 99,
             padding: "3px 6px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
             zIndex: 50,
@@ -463,6 +463,12 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
   const [recording, setRecording] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const [showAttach, setShowAttach] = useState(false);
+  // v2.8: dropdown template messaggi
+  const [showTemplates, setShowTemplates] = useState(false);
+  // v2.8 Round 13: ricerca messaggi
+  const [showMsgSearch, setShowMsgSearch] = useState(false);
+  const [msgSearch, setMsgSearch] = useState("");
+  const { messageTemplates: templates = [] } = useContext(ChatContext);
   const [typing, setTyping] = useState(false);
   // Step K: taskRef UUID "armato" finché il prossimo invio non lo consuma.
   const [pendingTaskRef, setPendingTaskRef] = useState(null);
@@ -657,18 +663,51 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
           </div>
         </div>
 
-        <button style={{
-          background: "rgba(255,255,255,0.1)", border: "none", color: "#fff",
-          width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 12,
-        }}>⋮</button>
+        <button
+          onClick={() => { setShowMsgSearch(s => !s); setMsgSearch(""); }}
+          title="Cerca nei messaggi"
+          style={{
+            background: showMsgSearch ? "rgba(212,168,67,0.25)" : "rgba(255,255,255,0.1)",
+            border: "none", color: "#fff",
+            width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 13,
+          }}>🔍</button>
       </div>
+
+      {/* Search bar (v2.8 Round 13) */}
+      {showMsgSearch && (
+        <div style={{
+          background: "var(--navy-dark)", padding: "8px 12px",
+          display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
+          borderBottom: "1px solid rgba(212,168,67,0.15)",
+        }}>
+          <input
+            autoFocus
+            value={msgSearch}
+            onChange={e => setMsgSearch(e.target.value)}
+            placeholder="Cerca nei messaggi…"
+            style={{
+              flex: 1, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)",
+              borderRadius: 8, padding: "6px 10px", fontSize: 12, color: "#fff",
+              outline: "none", fontFamily: "inherit",
+            }}
+          />
+          {msgSearch && (
+            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", whiteSpace: "nowrap" }}>
+              {msgs.filter(m => m.text?.toLowerCase().includes(msgSearch.toLowerCase())).length} risultati
+            </span>
+          )}
+          <button onClick={() => { setShowMsgSearch(false); setMsgSearch(""); }} style={{
+            background: "none", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 16,
+          }}>✕</button>
+        </div>
+      )}
 
       {/* Messages */}
       <div ref={scrollRef} style={{
         flex: 1, overflowY: "auto", padding: "12px 14px",
         background: "var(--surface2)",
       }}>
-        {msgs.map((m, i) => (
+        {(msgSearch ? msgs.filter(m => m.text?.toLowerCase().includes(msgSearch.toLowerCase())) : msgs).map((m, i) => (
           <ChatMessage
             key={m.id}
             msg={m}
@@ -683,7 +722,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
           <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "flex-end" }}>
             <Avatar memberId={otherTypingMember} size={28} />
             <div style={{
-              background: "#fff", border: "1px solid var(--border)",
+              background: "var(--card)", border: "1px solid var(--border)",
               borderRadius: 14, borderTopLeftRadius: 4, padding: "8px 12px",
               display: "flex", gap: 3, alignItems: "center",
             }}>
@@ -698,7 +737,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
       {/* Reply preview */}
       {replyingTo && (
         <div style={{
-          padding: "8px 14px", background: "#fff", borderTop: "1px solid var(--border)",
+          padding: "8px 14px", background: "var(--card)", borderTop: "1px solid var(--border)",
           display: "flex", alignItems: "center", gap: 10,
         }}>
           <div style={{ width: 3, alignSelf: "stretch", background: "var(--gold)", borderRadius: 2 }} />
@@ -719,7 +758,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
 
       {/* Input */}
       <div style={{
-        padding: "10px 12px", background: "#fff", borderTop: "1px solid var(--border)",
+        padding: "10px 12px", background: "var(--card)", borderTop: "1px solid var(--border)",
         display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
         position: "relative",
       }}>
@@ -745,7 +784,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
               {showAttach && (
                 <div className="slide-up" style={{
                   position: "absolute", bottom: "calc(100% + 8px)", left: 0,
-                  background: "#fff", borderRadius: 12, padding: 8,
+                  background: "var(--card)", borderRadius: 12, padding: 8,
                   boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--border)",
                   display: "flex", flexDirection: "column", gap: 4, minWidth: 160, zIndex: 100,
                 }}>
@@ -768,6 +807,57 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
                 </div>
               )}
             </div>
+
+            {/* Template messaggi (v2.8) */}
+            {templates.length > 0 && (
+              <div style={{ position: "relative" }}>
+                <button
+                  onClick={() => { setShowTemplates(s => !s); setShowAttach(false); }}
+                  title="Inserisci template"
+                  style={{
+                    background: showTemplates ? "var(--navy)" : "var(--surface2)",
+                    color: showTemplates ? "#fff" : "var(--text)",
+                    border: "none", borderRadius: "50%",
+                    width: 36, height: 36, cursor: "pointer", fontSize: 16, flexShrink: 0,
+                  }}
+                >📋</button>
+                {showTemplates && (
+                  <div className="slide-up" style={{
+                    position: "absolute", bottom: "calc(100% + 8px)", left: 0,
+                    background: "var(--card)", borderRadius: 12, padding: 6,
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--border)",
+                    display: "flex", flexDirection: "column", gap: 2,
+                    minWidth: 260, maxWidth: 340, maxHeight: 320, overflowY: "auto", zIndex: 100,
+                  }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, padding: "6px 10px 4px" }}>
+                      Template messaggi
+                    </div>
+                    {templates.map(t => (
+                      <button
+                        key={t.id}
+                        onClick={() => {
+                          // Inserisce alla posizione corrente (append con separatore o overwrite se vuoto)
+                          setInput(prev => prev ? `${prev}\n${t.text}` : t.text);
+                          setShowTemplates(false);
+                        }}
+                        style={{
+                          display: "block", textAlign: "left", width: "100%",
+                          padding: "8px 10px", border: "none", background: "transparent",
+                          borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                      >
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--heading)" }}>{t.label}</div>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {t.text}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <input
               value={input}
@@ -1102,7 +1192,7 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
                     border: `2px solid ${isSel ? "var(--gold)" : "var(--border)"}`,
                     background: isSel ? "var(--gold)" : "transparent",
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 13, color: "var(--navy)", fontWeight: 700,
+                    fontSize: 13, color: "var(--heading)", fontWeight: 700,
                   }}>{isSel && "✓"}</div>
                 </div>
               );
@@ -1128,7 +1218,7 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
 };
 
 // ─── CHAT: MAIN PANEL ──────────────────────────────────────────────────────
-export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, intent, tasks, currentUserId, dispatch, presenceMap, loading = false, myBusy = false, onToggleBusy }) => {
+export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, intent, tasks, currentUserId, dispatch, presenceMap, messageTemplates = [], loading = false, myBusy = false, onToggleBusy }) => {
   const { isMobile } = useViewport();
   const [activeConv, setActiveConv] = useState(null);
   const [newMode, setNewMode] = useState(false);
@@ -1178,14 +1268,14 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
   };
 
   return (
-    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {} }}>
+    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {}, messageTemplates: messageTemplates || [] }}>
     <>
       <div onClick={onClose} style={{
         position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: 700,
       }} />
       <div className="slide-right" style={{
         position: "fixed", top: 0, right: 0, width: isMobile ? "100vw" : 420, height: "100vh",
-        background: "#fff", zIndex: 800, boxShadow: "-20px 0 60px rgba(0,0,0,0.2)",
+        background: "var(--card)", zIndex: 800, boxShadow: "-20px 0 60px rgba(0,0,0,0.2)",
         display: "flex", flexDirection: "column", overflow: "hidden",
       }}>
         {/* Header */}
@@ -1239,7 +1329,7 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
           {loading ? (
             <div style={{
               height: "100%", display: "flex", flexDirection: "column",
-              alignItems: "center", justifyContent: "center", gap: 12, color: "var(--navy)",
+              alignItems: "center", justifyContent: "center", gap: 12, color: "var(--heading)",
             }}>
               <div style={{
                 width: 28, height: 28, borderRadius: "50%",

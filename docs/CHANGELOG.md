@@ -5,6 +5,14 @@
 
 > Branch `claude/handoff-changelog-roadmap-xlkae9`. **Round 1:** feature low-risk portate da PR #62 (commit isolati), depurate dalle parti obsolete (chip pratica) e dai moduli rimossi in #63. **Round 2:** micro-feature frontend-only prima dell'implementazione OneDrive/WhatsApp. **Round 3:** admin rollback automatico.
 
+### 👥 Round 4 — Permessi granulari sub-ruolo Senior vs Junior Agent
+
+#### 🔒 Junior Agent: permessi ridotti rispetto a Senior Agent
+
+- **`appGlobals.js`**: Nuovi helper `isJuniorAgent(userId)` e `isSeniorAgent(userId)` (leggono `m.role.toLowerCase().includes("junior")`). `canEditTask`: Junior Agent può modificare solo task dove è esplicitamente in `assignees` — non può raccogliere task dalla coda globale non assegnata. `canCreateTaskCategory`: Junior Agent non può creare task nelle categorie sensibili `payment` e `admin`.
+- **`Dashboard.jsx`**: `UnassignedQueue` ora riceve `uid`; per Junior Agent il bottone "Prendi in carico" è sostituito da "🔒 Chiedi a un Senior per l'assegnazione" (grigio, non cliccabile); sottotitolo della coda adattato. Badge "JUNIOR" (giallo) nel header Dashboard accanto al ruolo.
+- **`Topbar.jsx`**: Badge "JUNIOR" nel dropdown UserSwitcher per ogni membro Junior Agent.
+
 ### 🔐 Round 3 — Admin rollback automatico
 
 #### ⏱ Countdown di 60s per sessioni Admin (rollback automatico)

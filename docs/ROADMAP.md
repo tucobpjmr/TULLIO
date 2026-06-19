@@ -115,7 +115,7 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 | Idea | Stato | Priorità | Note |
 |---|---|---|---|
 | Task link cliccabile nella chat (apre TaskSlideOver) | ✅ | — | Completato in Step H/K (`MessageTextContent` + `taskRef`) |
-| Permessi granulari per sub-ruolo (Senior vs Junior) | ⬜ | ⚪ | Oggi trattati identicamente come "agent" |
+| Permessi granulari per sub-ruolo (Senior vs Junior) | ✅ | — | isJuniorAgent() + canEditTask/canCreateTaskCategory ridotti. Badge UI in Topbar e Dashboard. v2.8-dev Round 4. |
 | Coda personale Driver: filtro per data/ora (tipo agenda giornaliera) | ✅ | — | `PersonalQueue` con `enableDateFilter` per role=driver: chip Tutte/Oggi/Domani + date picker, orario nelle card. v2.8-dev |
 | Indicatore visivo "read-only" sulle card urgenti altrui | ✅ | — | Completato in PR #57 (sessione 22): bordo dashed + chip 🔒 |
 | Notifica in-app al cambio utente | ✅ | — | Toast type=warning + banner countdown 60s con rollback automatico all'utente precedente. "Rimani come Admin" / "Torna ora →". v2.8-dev Round 3. |

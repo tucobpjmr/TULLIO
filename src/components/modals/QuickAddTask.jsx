@@ -35,7 +35,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
 
   const [form, setForm] = useState({
     title: "", category: firstCatKey, priority: "medium",
-    status: "todo", assignees: [], dueDate: "", client: "", praticaRef: "", description: ""
+    status: "todo", assignees: [], dueDate: "", estimatedHours: "", client: "", praticaRef: "", description: ""
   });
   // true se l'utente ha cambiato manualmente la categoria → non sovrascrivere
   const [catManual, setCatManual] = useState(false);
@@ -48,7 +48,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
       client: form.client.trim() || null,
       praticaRef: form.praticaRef || null,
       comments: [],
-      estimatedHours: 1,
+      estimatedHours: Number(form.estimatedHours) > 0 ? Number(form.estimatedHours) : 1,
       dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
     });
     onClose();
@@ -141,7 +141,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 80px", gap: 12 }}>
             <div>
               <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>ASSEGNA A</label>
               <select
@@ -155,6 +155,17 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
             <div>
               <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>SCADENZA</label>
               <input type="datetime-local" {...inp("dueDate")} />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>ORE ⏱</label>
+              <input
+                type="number"
+                min="0.5" max="100" step="0.5"
+                value={form.estimatedHours}
+                onChange={e => setForm(p => ({ ...p, estimatedHours: e.target.value }))}
+                placeholder="1"
+                style={{ ...inp("estimatedHours").style }}
+              />
             </div>
           </div>
 

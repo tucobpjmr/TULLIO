@@ -29,6 +29,28 @@ export const Users = {
   // RLS (users_admin_all) consentono l'update solo a un admin.
   approve: (id) =>
     supabase.from('users').update(withOrigin({ pending: false, active: true })).eq('id', id),
+  // Invito admin di un nuovo utente via email (Block 3). Chiama la Edge
+  // Function 'invite-user' (verify_jwt) che usa la Auth Admin API per inviare
+  // l'invito e pre-crea il profilo public.users con pending=true. L'admin
+  // verrà poi notificato (trigger notify_user_pending) e potrà approvarlo.
+  // La Edge Function ritorna { success } oppure { error } con status non-2xx:
+  // in quel caso supabase-js mette il messaggio in error.context (lo
+  // normalizziamo qui per esporre il testo localizzato al chiamante).
+  invite: async ({ email, name, role = 'agent', capacity = 8, color = '#3B82F6' } = {}) => {
+    const { data, error } = await supabase.functions.invoke('invite-user', {
+      body: { email, name, role, capacity, color },
+    });
+    if (error) {
+      let msg = error.message;
+      try {
+        const body = await error.context?.json?.();
+        if (body?.error) msg = body.error;
+      } catch { /* body non-JSON: usa error.message */ }
+      return { data: null, error: { message: msg } };
+    }
+    if (data?.error) return { data: null, error: { message: data.error } };
+    return { data, error: null };
+  },
   // Step H: presence
   setPresence: (id, status) =>
     supabase.from('users').update(withOrigin({

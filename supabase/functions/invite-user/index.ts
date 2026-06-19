@@ -1,0 +1,104 @@
+// supabase/functions/invite-user/index.ts
+// Edge Function (Admin-only): invia un invito email via Supabase Auth e
+// pre-crea il profilo in public.users con pending=true.
+// verify_jwt:true → Supabase valida il JWT prima di eseguire il body.
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+const VALID_ROLES = new Set(["admin", "manager", "agent", "driver"]);
+
+const json = (data: unknown, status = 200) =>
+  new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) return json({ error: "Non autorizzato" }, 401);
+
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+
+    // Verifica identità del chiamante tramite il suo JWT
+    const supabaseUser = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const { data: { user }, error: userErr } = await supabaseUser.auth.getUser();
+    if (userErr || !user) return json({ error: "Token non valido" }, 401);
+
+    // Controlla che il chiamante sia admin
+    const { data: caller } = await supabaseAdmin
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (caller?.role !== "admin") {
+      return json({ error: "Solo gli admin possono invitare nuovi utenti" }, 403);
+    }
+
+    const body = await req.json();
+    const email: string = (body.email ?? "").trim().toLowerCase();
+    const name: string = (body.name ?? "").trim();
+    const rawRole: string = body.role ?? "agent";
+    const role: string = VALID_ROLES.has(rawRole) ? rawRole : "agent";
+    const capacity: number = Number(body.capacity) || 8;
+    const color: string = body.color || "#3B82F6";
+
+    if (!email || !name) {
+      return json({ error: "Email e nome sono obbligatori" }, 400);
+    }
+
+    // Genera avatar dalle iniziali
+    const parts = name.split(/\s+/);
+    const avatar = ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? parts[0]?.[1] ?? "")).toUpperCase();
+
+    // Invia invito via Supabase Auth Admin API
+    const { data: inviteData, error: inviteErr } =
+      await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+        data: { name, role, capacity, color },
+      });
+
+    if (inviteErr) {
+      if (inviteErr.message?.includes("already been registered")) {
+        return json({ error: "Questa email è già registrata nel sistema" }, 409);
+      }
+      throw inviteErr;
+    }
+
+    const uid = inviteData.user.id;
+
+    // Pre-crea profilo (il trigger DB fa lo stesso come safety-net)
+    await supabaseAdmin.from("users").upsert(
+      { id: uid, name, role, avatar, color, capacity, pending: true, active: false },
+      { onConflict: "id" }
+    );
+
+    // Pre-crea contatto
+    await supabaseAdmin.from("user_contacts").upsert(
+      { user_id: uid, email },
+      { onConflict: "user_id" }
+    );
+
+    return json({ success: true, userId: uid });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Errore interno";
+    console.error("[invite-user]", msg);
+    return json({ error: msg }, 500);
+  }
+});

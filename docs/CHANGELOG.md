@@ -5,6 +5,13 @@
 
 > Branch `claude/handoff-changelog-roadmap-xlkae9`. **Round 1:** feature low-risk portate da PR #62 (commit isolati), depurate dalle parti obsolete (chip pratica) e dai moduli rimossi in #63. **Round 2:** micro-feature frontend-only prima dell'implementazione OneDrive/WhatsApp. **Round 3:** admin rollback automatico.
 
+### 🔀 Round 5 — Ordinamento coda personale
+
+#### Chip di ordinamento nella coda personale (Scadenza / Priorità / Cliente / Stato)
+
+- `PersonalQueue`: nuovo stato locale `sortBy`. Quattro chip: **Scadenza** (default), **Priorità** (critical → low), **Cliente** (A-Z), **Stato** (todo → done). Tie-breaker sempre per scadenza. Sottotitolo si aggiorna dinamicamente. Non visibile per il Driver (che ha già il filtro data giornaliera).
+- Constanti `QUEUE_SORT_OPTIONS`, `PRIO_ORDER`, `STATUS_ORDER` definite module-local.
+
 ### 👥 Round 4 — Permessi granulari sub-ruolo Senior vs Junior Agent
 
 #### 🔒 Junior Agent: permessi ridotti rispetto a Senior Agent

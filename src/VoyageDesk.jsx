@@ -37,7 +37,7 @@ import {
 import {
   TEAM, CATEGORIES, CURRENT_USER,
   getMember, getAssignableTeam,
-  getRoleType, isAdmin, isDriver,
+  getRoleType, isAdmin, isDriver, isSeniorAgent, isJuniorAgent,
   canViewTask, canEditTask, canCreateTaskCategory,
   canAccessAdmin, getAvailableCategories, getVisibleTasks,
 } from "./state/appGlobals.js";

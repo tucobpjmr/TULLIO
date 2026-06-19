@@ -9,7 +9,7 @@ import { useAuth } from "../../auth/AuthContext.jsx";
 import { PRIORITIES, STATUSES, STATUS_LABELS, STATUS_COLORS } from "../../lib/taskConstants.js";
 import { formatDate, isOverdue } from "../../lib/taskUtils.js";
 import { MOCK_NOTIFICATIONS } from "../../state/mockData.js";
-import { TEAM, CATEGORIES, getMember } from "../../state/appGlobals.js";
+import { TEAM, CATEGORIES, getMember, isJuniorAgent } from "../../state/appGlobals.js";
 import { ProfileEditor } from "../modals/ProfileEditor.jsx";
 
 const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword }) => {
@@ -545,7 +545,15 @@ const UserSwitcher = ({ state, dispatch }) => {
                     )}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.name}</div>
-                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{m.role}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 5 }}>
+                        {m.role}
+                        {isJuniorAgent(m.id) && (
+                          <span style={{
+                            background: "#FFF3CD", color: "#856404", fontSize: 9, fontWeight: 700,
+                            padding: "1px 5px", borderRadius: 4, letterSpacing: 0.3,
+                          }}>JUNIOR</span>
+                        )}
+                      </div>
                     </div>
                     {active && <span style={{ color: "var(--success)", fontSize: 14 }}>✓</span>}
                   </button>

@@ -8,7 +8,7 @@ import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { StatusBadge } from "../ui/StatusBadge.jsx";
 import { PRIORITIES } from "../../lib/taskConstants.js";
 import { formatDate, formatTime, isOverdue, isUrgent, isMyTask, isInGlobalQueue, getActiveTasks, getDayKey } from "../../lib/taskUtils.js";
-import { CATEGORIES, getMember, getRoleType, getAssignableTeam, canViewTask, getVisibleTasks } from "../../state/appGlobals.js";
+import { CATEGORIES, getMember, getRoleType, getAssignableTeam, canViewTask, getVisibleTasks, isJuniorAgent } from "../../state/appGlobals.js";
 import { NoticeBoard } from "./NoticeBoard.jsx";
 // Step P Phase 2g: AIDayPlanner (~350 righe, chiama l'API Claude) si apre solo
 // on-demand → lazy-loaded come chunk async.
@@ -305,7 +305,8 @@ const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
 };
 
 // ─── UNASSIGNED QUEUE (coda globale) ───────────────────────────────────────
-const UnassignedQueue = ({ tasks, dispatch, onTake }) => {
+const UnassignedQueue = ({ tasks, dispatch, onTake, uid }) => {
+  const isJunior = isJuniorAgent(uid);
   const { isMobile } = useViewport();
   const [categoryFilter, setCategoryFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
@@ -347,7 +348,9 @@ const UnassignedQueue = ({ tasks, dispatch, onTake }) => {
               Coda globale — task da prendere in carico
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-              Task non assegnati • visibili a tutto il team • clicca "Prendi in carico" per autoassegnarti
+              {isJunior
+                ? "Task non assegnati • visibili a tutto il team • per i Junior Agent l'assegnazione richiede un Senior/Manager"
+                : "Task non assegnati • visibili a tutto il team • clicca \"Prendi in carico\" per autoassegnarti"}
             </div>
           </div>
         </div>
@@ -439,6 +442,7 @@ const UnassignedQueue = ({ tasks, dispatch, onTake }) => {
                   border: `1px solid ${overdue ? "rgba(192,57,43,0.3)" : "var(--border)"}`,
                   padding: 12, display: "flex", flexDirection: "column", gap: 10,
                   cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
+                  opacity: isJunior ? 0.8 : 1,
                 }}
                 onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
                 onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.08)"; }}
@@ -476,24 +480,35 @@ const UnassignedQueue = ({ tasks, dispatch, onTake }) => {
                   {t.estimatedHours > 0 && <span>⏱️ {t.estimatedHours}h</span>}
                 </div>
 
-                {/* Take ownership button */}
-                <button
-                  onClick={e => { e.stopPropagation(); onTake(t); }}
-                  style={{
-                    background: "var(--gold)", color: "var(--navy)",
-                    border: "none", borderRadius: 8,
-                    padding: "8px 12px", fontSize: 12, fontWeight: 700,
-                    cursor: "pointer", display: "flex", alignItems: "center",
-                    justifyContent: "center", gap: 6,
-                    fontFamily: "inherit",
-                    transition: "background 0.15s, transform 0.15s",
+                {/* Take ownership button — nascosto per Junior Agent */}
+                {isJunior ? (
+                  <div style={{
+                    background: "var(--surface2)", color: "var(--text-muted)",
+                    borderRadius: 8, padding: "7px 12px", fontSize: 11, fontWeight: 600,
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
                     marginTop: 2,
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = "var(--gold-light)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "var(--gold)"; }}
-                >
-                  🙋 Prendi in carico
-                </button>
+                  }}>
+                    🔒 Chiedi a un Senior per l'assegnazione
+                  </div>
+                ) : (
+                  <button
+                    onClick={e => { e.stopPropagation(); onTake(t); }}
+                    style={{
+                      background: "var(--gold)", color: "var(--navy)",
+                      border: "none", borderRadius: 8,
+                      padding: "8px 12px", fontSize: 12, fontWeight: 700,
+                      cursor: "pointer", display: "flex", alignItems: "center",
+                      justifyContent: "center", gap: 6,
+                      fontFamily: "inherit",
+                      transition: "background 0.15s, transform 0.15s",
+                      marginTop: 2,
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "var(--gold-light)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "var(--gold)"; }}
+                  >
+                    🙋 Prendi in carico
+                  </button>
+                )}
               </div>
             );
             return (
@@ -731,7 +746,14 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
           </div>
           <div style={{ color: "var(--text-muted)", fontSize: 14, marginTop: 2 }}>
             {new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
-            {role !== "admin" && <span style={{ marginLeft: 8, fontSize: 11, padding: "2px 8px", background: "var(--surface3)", borderRadius: 99, color: "var(--text-muted)", fontWeight: 600, letterSpacing: 0.3 }}>{me?.role}</span>}
+            {role !== "admin" && (
+              <span style={{ marginLeft: 8, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <span style={{ fontSize: 11, padding: "2px 8px", background: "var(--surface3)", borderRadius: 99, color: "var(--text-muted)", fontWeight: 600, letterSpacing: 0.3 }}>{me?.role}</span>
+                {isJuniorAgent(uid) && (
+                  <span style={{ fontSize: 10, padding: "1px 6px", background: "#FFF3CD", color: "#856404", borderRadius: 99, fontWeight: 700, letterSpacing: 0.3 }}>JUNIOR</span>
+                )}
+              </span>
+            )}
           </div>
         </div>
         <button onClick={() => setShowAIPlanner(true)} style={{
@@ -795,7 +817,7 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
         <PersonalQueue tasks={personalQueue} dispatch={dispatch} me={me} enableDateFilter={role === "driver"} />
       )}
       {activeQueue === "global" && showGlobalQueue && (
-        <UnassignedQueue tasks={unassigned} dispatch={dispatch} onTake={takeOwnership} />
+        <UnassignedQueue tasks={unassigned} dispatch={dispatch} onTake={takeOwnership} uid={uid} />
       )}
       {activeQueue === "overdue" && (
         <OverdueQueue tasks={overdueTasks} dispatch={dispatch} />

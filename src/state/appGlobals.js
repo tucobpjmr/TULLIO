@@ -22,11 +22,12 @@ export const setCurrentUser = (id) => { CURRENT_USER = id; };
 export const getMember = (id) => TEAM.find(m => m.id === id);
 export const getAssignableTeam = () => TEAM.filter(m => m.active !== false && !m.pending);
 
-// ─── PERMESSI (v0.8) ──────────────────────────────────────────────────────────
-// - Admin       → tutto
-// - Manager     → gestione propria coda + globale + visualizza urgenti altrui
-// - Senior/Junior Agent → idem Manager
-// - Driver      → solo task categoria "transfer", solo coda personale
+// ─── PERMESSI (v0.8 + v2.8 sub-ruolo) ───────────────────────────────────────
+// - Admin          → tutto
+// - Manager        → gestione propria coda + globale + visualizza urgenti altrui
+// - Senior Agent   → idem Manager (può prendere task dalla coda globale)
+// - Junior Agent   → solo task esplicitamente assegnati; non crea payment/admin
+// - Driver         → solo task categoria "transfer", solo coda personale
 export const getRoleType = (userId) => {
   const m = getMember(userId);
   if (!m) return "agent";
@@ -35,6 +36,19 @@ export const getRoleType = (userId) => {
   if (r.includes("driver")) return "driver";
   if (r.includes("manager")) return "manager";
   return "agent";
+};
+
+// v2.8: distingue sub-ruolo Agent. "Junior Agent" ha permessi ridotti;
+// "Senior Agent" (e qualsiasi altro "agent") ha i permessi standard.
+export const isJuniorAgent = (userId) => {
+  const m = getMember(userId);
+  return !!m && (m.role || "").toLowerCase().includes("junior");
+};
+export const isSeniorAgent = (userId) => {
+  const m = getMember(userId);
+  if (!m) return false;
+  const r = (m.role || "").toLowerCase();
+  return r.includes("senior") || (r.includes("agent") && !r.includes("junior"));
 };
 
 export const isAdmin = (userId) => getRoleType(userId) === "admin";
@@ -56,6 +70,9 @@ export const canEditTask = (task, userId) => {
   if (role === "driver") {
     return task.category === "transfer" && (isMyTask(task, userId) || isInGlobalQueue(task));
   }
+  // Junior Agent: può modificare solo task in cui è esplicitamente assegnato.
+  // Non può "raccogliere" task dalla coda globale non assegnata.
+  if (isJuniorAgent(userId)) return isMyTask(task, userId);
   if (isMyTask(task, userId)) return true;
   if (isInGlobalQueue(task)) return true;
   return false;
@@ -65,6 +82,8 @@ export const canCreateTaskCategory = (category, userId) => {
   const role = getRoleType(userId);
   if (role === "admin") return true;
   if (role === "driver") return category === "transfer";
+  // Junior Agent: non può creare task nelle categorie sensibili payment e admin.
+  if (isJuniorAgent(userId)) return !["payment", "admin"].includes(category);
   return true;
 };
 

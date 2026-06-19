@@ -342,6 +342,79 @@ const initialMessages = {
 
 // stili admin condivisi (sectionH/cardStyle/btnPrimary/modalOverlay/...) → src/components/admin/adminStyles.js (Step P Phase 2f)
 
+// ─── ADMIN ROLLBACK BANNER ────────────────────────────────────────────────
+// Mostrato quando si passa come Admin: countdown 60s → auto-ripristino utente.
+// La logica tick è locale al componente; non inquina lo state globale con date.
+const ROLLBACK_SECS = 60;
+
+function AdminRollbackBanner({ rollbackTo, switchedAt, dispatch }) {
+  const [secs, setSecs] = useState(() => {
+    if (!switchedAt) return ROLLBACK_SECS;
+    const elapsed = Math.floor((Date.now() - new Date(switchedAt).getTime()) / 1000);
+    return Math.max(0, ROLLBACK_SECS - elapsed);
+  });
+  const secsRef = useRef(secs);
+  secsRef.current = secs;
+
+  useEffect(() => {
+    if (!switchedAt || !rollbackTo) return;
+    const iv = setInterval(() => {
+      setSecs(prev => {
+        if (prev <= 1) {
+          clearInterval(iv);
+          dispatch({ type: "SET_CURRENT_USER", payload: rollbackTo });
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [switchedAt, rollbackTo, dispatch]);
+
+  const rollbackMember = rollbackTo
+    ? (typeof getMember === "function" ? getMember(rollbackTo) : null)
+    : null;
+
+  return (
+    <div style={{
+      background: "#C8832A", color: "#fff", fontSize: 13, fontWeight: 500,
+      padding: "6px 16px", display: "flex", alignItems: "center", gap: 10,
+      justifyContent: "space-between", flexWrap: "wrap",
+      boxShadow: "0 2px 8px rgba(200,131,42,0.35)",
+    }}>
+      <span>
+        ⏱ Sessione Admin attiva — ripristino automatico
+        {rollbackMember ? ` a ${rollbackMember.name}` : ""} tra{" "}
+        <strong>{secs}s</strong>
+      </span>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          onClick={() => dispatch({ type: "CANCEL_ADMIN_ROLLBACK" })}
+          style={{
+            background: "rgba(255,255,255,0.25)", border: "1px solid rgba(255,255,255,0.5)",
+            color: "#fff", borderRadius: 6, padding: "3px 10px", cursor: "pointer",
+            fontSize: 12, fontWeight: 600,
+          }}
+        >
+          Rimani come Admin
+        </button>
+        {rollbackTo && (
+          <button
+            onClick={() => dispatch({ type: "SET_CURRENT_USER", payload: rollbackTo })}
+            style={{
+              background: "#fff", border: "none",
+              color: "#C8832A", borderRadius: 6, padding: "3px 10px", cursor: "pointer",
+              fontSize: 12, fontWeight: 700,
+            }}
+          >
+            Torna ora →
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── LAZY FALLBACK ─────────────────────────────────────────────────────────
 // Spinner mostrato mentre un chunk lazy (Step P Phase 2g: AdminView,
 // BulkTaskCreator, TaskSlideOver) viene scaricato. `overlay` lo centra a tutto
@@ -915,6 +988,13 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           theme={theme}
           onToggleTheme={toggleTheme}
         />
+        {state.adminRollbackTo && state.adminSwitchedAt && (
+          <AdminRollbackBanner
+            rollbackTo={state.adminRollbackTo}
+            switchedAt={state.adminSwitchedAt}
+            dispatch={dispatch}
+          />
+        )}
         <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
           <Sidebar state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} />
           <main className="vd-main-scroll" style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>

@@ -96,8 +96,14 @@ function baseReducer(state, action) {
       // privilegiato (admin), per evitare di lasciare la sessione aperta come
       // Admin per errore. Mock UserSwitcher: senza login reale serve un cue chiaro.
       const elevated = isAdmin(newId);
+      // v2.8 rollback automatico: se si passa a un utente Admin, registra da chi
+      // si sta passando e il timestamp. Un banner con countdown permetterà il
+      // ripristino automatico dopo 60s. Si resetta se si torna a un non-admin.
+      const prevIsAdmin = isAdmin(state.currentUserId);
+      const adminRollbackTo = elevated && !prevIsAdmin ? state.currentUserId : null;
+      const adminSwitchedAt = elevated && !prevIsAdmin ? new Date().toISOString() : null;
       const toast = elevated
-        ? { message: `⚠️ Ora stai usando l'app come ${m.name} (Admin). Ricordati di tornare al tuo profilo a fine sessione.`, type: "warning" }
+        ? { message: `⚠️ Ora stai usando l'app come ${m.name} (Admin). Rollback automatico in 60s.`, type: "warning" }
         : { message: `Ora stai usando l'app come ${m.name} (${m.role})`, type: "success" };
       return {
         ...state,
@@ -105,7 +111,12 @@ function baseReducer(state, action) {
         activeView,
         selectedTask: null,
         toast,
+        adminRollbackTo,
+        adminSwitchedAt,
       };
+    }
+    case "CANCEL_ADMIN_ROLLBACK": {
+      return { ...state, adminRollbackTo: null, adminSwitchedAt: null };
     }
     case "SET_TASKS": {
       // Sostituisce in blocco l'array tasks (usato per idratazione iniziale da DB).
@@ -465,6 +476,9 @@ function makeInitialState({ team, currentUserId } = {}) {
     filters: { assignee: "", category: "", priority: "", status: "", client: "" },
     lastAction: null, // { type, payload, undo: () => state-patch } per swipe-actions undo
     currentUserId: CURRENT_USER, // v0.8: utente loggato (con switcher in Topbar)
+    // v2.8 rollback automatico: impostati da SET_CURRENT_USER quando si passa ad Admin.
+    adminRollbackTo: null,    // userId a cui tornare automaticamente
+    adminSwitchedAt: null,    // ISO timestamp del momento in cui si è entrati come Admin
     // v2.8: template messaggi chat (gestiti da Admin tab Sistema). Array di
     // { id, label, text }. Mock iniziale con frasi ricorrenti per agenzie viaggi.
     messageTemplates: [

@@ -2,6 +2,13 @@
 import React, { useState } from 'react';
 import { useAuth } from './AuthContext';
 
+function isEmailNotConfirmed(error) {
+  if (!error) return false;
+  const code = error.code || error.error || '';
+  const raw = (error.message || '').toLowerCase();
+  return code === 'email_not_confirmed' || raw.includes('email not confirmed');
+}
+
 function localizeAuthError(error) {
   if (!error) return null;
   const code = error.code || error.error || '';
@@ -9,7 +16,7 @@ function localizeAuthError(error) {
   if (code === 'invalid_credentials' || raw.includes('invalid login credentials')) {
     return 'Email o password non corretti.';
   }
-  if (code === 'email_not_confirmed' || raw.includes('email not confirmed')) {
+  if (isEmailNotConfirmed(error)) {
     return 'Email non confermata. Controlla la tua casella.';
   }
   if (code === 'user_banned' || raw.includes('banned')) {
@@ -31,7 +38,7 @@ function localizeAuthError(error) {
 }
 
 export default function LoginScreen() {
-  const { signIn, signUp, resetPassword } = useAuth();
+  const { signIn, signUp, resetPassword, resendConfirmation } = useAuth();
   const [mode, setMode] = useState('login'); // 'login' | 'forgot' | 'signup'
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -39,22 +46,30 @@ export default function LoginScreen() {
   const [err, setErr] = useState(null);
   const [info, setInfo] = useState(null);
   const [loading, setLoading] = useState(false);
+  // showResend = true quando l'ultimo tentativo è fallito per email_not_confirmed:
+  // mostra la CTA "Reinvia conferma" sotto al messaggio d'errore.
+  const [showResend, setShowResend] = useState(false);
+  const [resending, setResending] = useState(false);
 
   function switchMode(next) {
     setMode(next);
     setErr(null);
     setInfo(null);
+    setShowResend(false);
     setPassword('');
   }
 
   async function onSubmit(e) {
     e.preventDefault();
-    setErr(null); setInfo(null); setLoading(true);
+    setErr(null); setInfo(null); setShowResend(false); setLoading(true);
     const mail = email.trim().toLowerCase();
     try {
       if (mode === 'login') {
         const { error } = await signIn(mail, password);
-        if (error) setErr(localizeAuthError(error));
+        if (error) {
+          setErr(localizeAuthError(error));
+          if (isEmailNotConfirmed(error)) setShowResend(true);
+        }
       } else if (mode === 'forgot') {
         const { error } = await resetPassword(mail);
         if (error) setErr(localizeAuthError(error));
@@ -70,6 +85,25 @@ export default function LoginScreen() {
       setErr(localizeAuthError(e));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function onResendConfirmation() {
+    const mail = email.trim().toLowerCase();
+    if (!mail) { setErr('Inserisci l\'email per ricevere il link di conferma.'); return; }
+    setResending(true);
+    setErr(null); setInfo(null);
+    try {
+      const { error } = await resendConfirmation(mail);
+      if (error) setErr(localizeAuthError(error));
+      else {
+        setInfo('Email di conferma reinviata. Controlla la tua casella (e lo spam).');
+        setShowResend(false);
+      }
+    } catch (e) {
+      setErr(localizeAuthError(e));
+    } finally {
+      setResending(false);
     }
   }
 
@@ -123,6 +157,21 @@ export default function LoginScreen() {
         )}
 
         {err && <div style={errStyle}>{err}</div>}
+        {showResend && (
+          <button
+            type="button"
+            onClick={onResendConfirmation}
+            disabled={resending}
+            style={{
+              marginTop: 10, width: '100%', padding: '10px 12px', borderRadius: 8,
+              border: '1px solid #7f1d1d', background: 'transparent', color: '#fca5a5',
+              fontSize: 13, fontWeight: 600, cursor: resending ? 'wait' : 'pointer',
+              opacity: resending ? 0.7 : 1, fontFamily: 'inherit',
+            }}
+          >
+            {resending ? 'Invio in corso…' : '✉ Reinvia email di conferma'}
+          </button>
+        )}
         {info && <div style={infoStyle}>{info}</div>}
 
         <button type="submit" disabled={loading} style={{

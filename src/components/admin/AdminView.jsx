@@ -7,6 +7,7 @@ import { isOverdue } from "../../lib/taskUtils.js";
 import { loadXLSX } from "../../lib/xlsx.js";
 import { TEAM, getMember } from "../../state/appGlobals.js";
 import { AddTeamMemberModal } from "../modals/AddTeamMemberModal.jsx";
+import { BulkInviteModal } from "../modals/BulkInviteModal.jsx";
 import { AddCategoryModal } from "../modals/AddCategoryModal.jsx";
 import {
   sectionH, cardStyle, cardH, cardP, fieldStyle,
@@ -96,6 +97,7 @@ const AdminTeamTab = ({ state, dispatch }) => {
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [showBulk, setShowBulk] = useState(false);
 
   const pending = state.team.filter(m => m.pending);
   const active = state.team.filter(m => !m.pending && m.active);
@@ -194,7 +196,12 @@ const AdminTeamTab = ({ state, dispatch }) => {
           {pending.length > 0 && <span>⏳ <b style={{ color: "var(--gold-dark)" }}>{pending.length}</b> in attesa</span>}
           {disabled.length > 0 && <span>⏸️ <b>{disabled.length}</b> disabilitati</span>}
         </div>
-        <button onClick={() => setShowAdd(true)} style={btnPrimary}>+ Aggiungi agente</button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => setShowBulk(true)} style={btnGhost} title="Invita più utenti in un colpo solo">
+            ✉️ Invito multiplo
+          </button>
+          <button onClick={() => setShowAdd(true)} style={btnPrimary}>+ Aggiungi agente</button>
+        </div>
       </div>
 
       {/* Pending */}
@@ -226,6 +233,7 @@ const AdminTeamTab = ({ state, dispatch }) => {
       )}
 
       {showAdd && <AddTeamMemberModal onClose={() => setShowAdd(false)} dispatch={dispatch} existingIds={state.team.map(m => m.id)} />}
+      {showBulk && <BulkInviteModal onClose={() => setShowBulk(false)} />}
     </div>
   );
 };

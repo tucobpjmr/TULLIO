@@ -225,6 +225,16 @@ function baseReducer(state, action) {
     }
 
     // ─── ADMIN: TEAM ───
+    // SET_TEAM: rimpiazza l'intero team con la lista fornita (idratazione o
+    // refresh realtime). Aggiorna anche il global TEAM così getAssignableTeam,
+    // getMember, ecc. (consumati fuori da reducer/components) vedono i valori
+    // aggiornati. Niente toast: la notifica utente non serve qui (e.g. arrivo
+    // di un nuovo signup → la notifica admin esiste già via trigger DB).
+    case "SET_TEAM": {
+      const team = action.payload || [];
+      setTeam(team);
+      return { ...state, team };
+    }
     case "ADD_TEAM_MEMBER": {
       const team = [...state.team, action.payload];
       setTeam(team);

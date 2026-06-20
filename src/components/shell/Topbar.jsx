@@ -7,7 +7,7 @@ import { Avatar } from "../ui/Avatar.jsx";
 import { Users as UsersAPI } from "../../lib/api.js";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { PRIORITIES, STATUSES, STATUS_LABELS, STATUS_COLORS } from "../../lib/taskConstants.js";
-import { formatDate, isOverdue, isUrgent } from "../../lib/taskUtils.js";
+import { formatDate, isOverdue } from "../../lib/taskUtils.js";
 import { MOCK_NOTIFICATIONS } from "../../state/mockData.js";
 import { TEAM, CATEGORIES, getMember, isJuniorAgent } from "../../state/appGlobals.js";
 import { ProfileEditor } from "../modals/ProfileEditor.jsx";
@@ -294,7 +294,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
 };
 
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
-export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notificationsProp, onMarkRead, onMarkAllRead, onOpenTask }) => {
+export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMarkRead, onMarkAllRead, onOpenTask }) => {
   const { isMobile } = useViewport();
   // Fix #11: notifiche mock gate-ate dietro env var (default off in prod)
   const SHOW_MOCK_NOTIFS = import.meta.env.DEV && import.meta.env.VITE_SHOW_MOCK_NOTIFICATIONS === 'true';
@@ -305,14 +305,8 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
   const searchWrapRef = useRef(null);
 
   // Il logo aeroplano funge da pulsante Dashboard (la voce dedicata è stata
-  // rimossa da sidebar/bottom-nav). Badge urgenze personali (v2.8 Round 11)
-  // riportato qui per non perdere l'indicatore al togliere la voce nav.
+  // rimossa da sidebar/bottom-nav).
   const dashActive = state.activeView === "dashboard";
-  const urgentMine = useMemo(() => (state.tasks || []).filter(t =>
-    !t.deletedAt && t.status !== "done" &&
-    (t.assignees || []).includes(state.currentUserId) &&
-    (isOverdue(t) || isUrgent(t))
-  ).length, [state.tasks, state.currentUserId]);
   const goDashboard = () => dispatch({ type: "SET_VIEW", payload: "dashboard" });
 
   // Chiude il pannello di ricerca al click fuori dal wrapper (input + pannello)
@@ -347,15 +341,6 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
           }}
         >
           ✈️
-          {urgentMine > 0 && (
-            <span title={`${urgentMine} task scadut${urgentMine === 1 ? "o" : "i"} o urgent${urgentMine === 1 ? "e" : "i"}`} style={{
-              position: "absolute", top: -5, right: -5,
-              background: "var(--danger)", color: "#fff", fontWeight: 700,
-              borderRadius: 999, fontSize: 9, padding: "1px 4px", minWidth: 14, height: 14,
-              display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1,
-              border: "1px solid var(--sky)",
-            }}>{urgentMine > 9 ? "9+" : urgentMine}</span>
-          )}
         </button>
         <button
           onClick={goDashboard}
@@ -397,21 +382,6 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
       </div>
 
       <div className="vd-hide-mobile" style={{ flex: 1 }} />
-
-      {/* Chat */}
-      <button onClick={onOpenChat} title="Messaggi team" style={{
-        background: "rgba(255,255,255,0.45)", border: "1px solid rgba(15,32,68,0.15)",
-        borderRadius: 8, width: 36, height: 36, cursor: "pointer",
-        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, position: "relative"
-      }}>
-        💬
-        {unreadChat > 0 && <span style={{
-          position: "absolute", top: -4, right: -4, background: "var(--gold)",
-          borderRadius: "50%", minWidth: 16, height: 16, fontSize: 10, fontWeight: 700,
-          color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center",
-          padding: "0 4px",
-        }}>{unreadChat}</span>}
-      </button>
 
       {/* Notifications */}
       <div style={{ position: "relative" }}>

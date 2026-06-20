@@ -51,7 +51,7 @@ const NavBadge = ({ count, collapsed = false, mobile = false }) => {
   return <span style={{ ...base, marginLeft: "auto" }}>{count > 99 ? "99+" : count}</span>;
 };
 
-export const Sidebar = ({ state, dispatch, onOpenBulk }) => {
+export const Sidebar = ({ state, dispatch, onOpenBulk, onOpenChat, unreadChat = 0 }) => {
   const { isDesktop, width } = useViewport();
   // Auto-collassa la sidebar nella fascia "desktop stretto" (1025–1280px) dove
   // 210px di nav rubano troppo spazio orizzontale; si ri-espande sopra i 1280px.
@@ -112,6 +112,26 @@ export const Sidebar = ({ state, dispatch, onOpenBulk }) => {
           );
         })}
 
+        {/* Chat team (spostata dalla Topbar) */}
+        <button
+          onClick={onOpenChat}
+          title="Messaggi team"
+          aria-label="Messaggi team"
+          style={{
+            display: "flex", alignItems: "center", gap: 10,
+            padding: col ? "10px 8px" : "10px 12px",
+            borderRadius: 8, cursor: "pointer", border: "none",
+            background: "transparent", color: "rgba(15,32,68,0.6)",
+            fontSize: 14, fontWeight: 400, transition: "all 0.2s", textAlign: "left",
+            borderLeft: "2px solid transparent", position: "relative",
+            justifyContent: col ? "center" : "flex-start",
+          }}
+        >
+          <span style={{ fontSize: 16, flexShrink: 0 }}>💬</span>
+          {!col && <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>Chat</span>}
+          <NavBadge count={unreadChat} collapsed={col} />
+        </button>
+
         {/* Azione: crea più task / import / template (spostata dal FAB secondario) */}
         <button
           onClick={onOpenBulk}
@@ -158,7 +178,7 @@ export const Sidebar = ({ state, dispatch, onOpenBulk }) => {
 };
 
 // ─── BOTTOM NAV (mobile/tablet) ────────────────────────────────────────────
-export const BottomNav = ({ state, dispatch, onOpenBulk }) => {
+export const BottomNav = ({ state, dispatch, onOpenBulk, onOpenChat, unreadChat = 0 }) => {
   const navItems = getNavItemsForUser(state.currentUserId);
   const badges = getNavBadges(state);
   return (
@@ -191,6 +211,25 @@ export const BottomNav = ({ state, dispatch, onOpenBulk }) => {
           </button>
         );
       })}
+
+      {/* Chat team (spostata dalla Topbar) */}
+      <button
+        onClick={onOpenChat}
+        aria-label="Messaggi team"
+        style={{
+          flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
+          justifyContent: "center", gap: 3, padding: "6px 2px",
+          background: "transparent", border: "none", cursor: "pointer",
+          color: "rgba(15,32,68,0.55)", borderTop: "2px solid transparent",
+          transition: "color 0.2s", position: "relative",
+        }}
+      >
+        <span style={{ fontSize: 19, lineHeight: 1, position: "relative" }}>
+          💬
+          <NavBadge count={unreadChat} mobile />
+        </span>
+        <span style={{ fontSize: 9, fontWeight: 500, whiteSpace: "nowrap" }}>Chat</span>
+      </button>
 
       {/* Azione: crea più task (spostata dal FAB secondario) */}
       <button

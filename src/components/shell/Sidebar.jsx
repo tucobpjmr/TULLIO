@@ -84,8 +84,8 @@ export const Sidebar = ({ state, dispatch, onOpenBulk, onOpenChat, unreadChat = 
       <button onClick={() => dispatch({ type: "TOGGLE_SIDEBAR" })} style={{
         position: "absolute", top: 12, right: col ? "50%" : 8,
         transform: col ? "translateX(50%)" : "none",
-        background: "rgba(15,32,68,0.07)", border: "1px solid rgba(15,32,68,0.12)",
-        borderRadius: 6, width: 24, height: 24, cursor: "pointer", color: "rgba(15,32,68,0.5)",
+        background: "rgba(15,32,68,0.09)", border: "1px solid rgba(15,32,68,0.18)",
+        borderRadius: 6, width: 24, height: 24, cursor: "pointer", color: "rgba(15,32,68,0.7)",
         fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center",
         transition: "all 0.2s",
       }}>{col ? "→" : "←"}</button>
@@ -99,7 +99,7 @@ export const Sidebar = ({ state, dispatch, onOpenBulk, onOpenChat, unreadChat = 
               padding: col ? "10px 8px" : "10px 12px",
               borderRadius: 8, cursor: "pointer", border: "none",
               background: active ? "rgba(212,168,67,0.18)" : "transparent",
-              color: active ? "var(--navy)" : "rgba(15,32,68,0.6)",
+              color: active ? "var(--navy)" : "rgba(15,32,68,0.8)",
               fontSize: 14, fontWeight: active ? 600 : 400,
               transition: "all 0.2s", textAlign: "left",
               borderLeft: active ? "2px solid var(--gold)" : "2px solid transparent",
@@ -121,7 +121,7 @@ export const Sidebar = ({ state, dispatch, onOpenBulk, onOpenChat, unreadChat = 
             display: "flex", alignItems: "center", gap: 10,
             padding: col ? "10px 8px" : "10px 12px",
             borderRadius: 8, cursor: "pointer", border: "none",
-            background: "transparent", color: "rgba(15,32,68,0.6)",
+            background: "transparent", color: "rgba(15,32,68,0.8)",
             fontSize: 14, fontWeight: 400, transition: "all 0.2s", textAlign: "left",
             borderLeft: "2px solid transparent", position: "relative",
             justifyContent: col ? "center" : "flex-start",
@@ -157,7 +157,7 @@ export const Sidebar = ({ state, dispatch, onOpenBulk, onOpenChat, unreadChat = 
 
       {!col && (
         <div style={{ marginTop: "auto", padding: "16px 12px", borderTop: "1px solid rgba(15,32,68,0.12)" }}>
-          <div style={{ fontSize: 10, color: "rgba(15,32,68,0.45)", letterSpacing: 1, marginBottom: 8 }}>TEAM ONLINE</div>
+          <div style={{ fontSize: 10, color: "rgba(15,32,68,0.65)", letterSpacing: 1, marginBottom: 8 }}>TEAM ONLINE</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
             {getAssignableTeam().slice(0, 4).map(m => (
               <div key={m.id} title={m.name} style={{
@@ -196,7 +196,7 @@ export const BottomNav = ({ state, dispatch, onOpenBulk, onOpenChat, unreadChat 
               flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
               justifyContent: "center", gap: 3, padding: "6px 2px",
               background: "transparent", border: "none", cursor: "pointer",
-              color: active ? "var(--navy)" : "rgba(15,32,68,0.55)",
+              color: active ? "var(--navy)" : "rgba(15,32,68,0.75)",
               borderTop: active ? "2px solid var(--gold)" : "2px solid transparent",
               transition: "color 0.2s", position: "relative",
             }}
@@ -220,7 +220,7 @@ export const BottomNav = ({ state, dispatch, onOpenBulk, onOpenChat, unreadChat 
           flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
           justifyContent: "center", gap: 3, padding: "6px 2px",
           background: "transparent", border: "none", cursor: "pointer",
-          color: "rgba(15,32,68,0.55)", borderTop: "2px solid transparent",
+          color: "rgba(15,32,68,0.75)", borderTop: "2px solid transparent",
           transition: "color 0.2s", position: "relative",
         }}
       >

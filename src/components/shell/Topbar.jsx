@@ -348,14 +348,14 @@ export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMa
           style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
         >
           <div className="playfair" style={{ color: "var(--navy)", fontSize: 15, fontWeight: 700, lineHeight: 1 }}>VoyageDesk</div>
-          <div style={{ color: "rgba(15,32,68,0.55)", fontSize: 10, letterSpacing: 1.5 }}>TRAVEL MANAGEMENT</div>
+          <div style={{ color: "rgba(15,32,68,0.75)", fontSize: 10, letterSpacing: 1.5 }}>TRAVEL MANAGEMENT</div>
         </button>
       </div>
 
       {/* Ricerca unificata (testuale + filtri avanzati) */}
       <div ref={searchWrapRef} style={{ flex: 1, maxWidth: 520, position: "relative" }}>
         <div style={{ position: "relative" }}>
-          <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(15,32,68,0.5)", fontSize: 14 }}>🔍</div>
+          <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(15,32,68,0.7)", fontSize: 14 }}>🔍</div>
           <input
             value={state.searchQuery}
             onChange={e => { dispatch({ type: "SET_SEARCH", payload: e.target.value }); setSearchOpen(true); }}
@@ -481,9 +481,9 @@ const UserSwitcher = ({ state, dispatch }) => {
         )}
         <div className="vd-hide-mobile" style={{ textAlign: "left" }}>
           <div style={{ color: "var(--navy)", fontSize: 12, fontWeight: 600, lineHeight: 1.2 }}>{curr.name}</div>
-          <div style={{ color: "rgba(15,32,68,0.55)", fontSize: 10 }}>{curr.role}</div>
+          <div style={{ color: "rgba(15,32,68,0.75)", fontSize: 10 }}>{curr.role}</div>
         </div>
-        <span style={{ color: "rgba(15,32,68,0.5)", fontSize: 10, marginLeft: 2 }}>▾</span>
+        <span style={{ color: "rgba(15,32,68,0.7)", fontSize: 10, marginLeft: 2 }}>▾</span>
       </button>
 
       {open && (

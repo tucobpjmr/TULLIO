@@ -111,7 +111,7 @@ const FontLoader = () => (
       --navy: #0F2044;
       --navy-light: #1a3060;
       --navy-dark: #08152d;
-      --sky: #87CEEB;
+      --sky: #D0EEF9;
       --gold: #D4A843;
       --gold-light: #e8c46a;
       --gold-dark: #b8902e;

@@ -38,7 +38,7 @@ const PRESENCE_LABELS = {
 };
 
 // Context per condividere tasks/dispatch (per messaggi con taskLink — v0.8)
-const ChatContext = createContext({ tasks: [], dispatch: () => {}, messageTemplates: [] });
+const ChatContext = createContext({ tasks: [], dispatch: () => {}, messageTemplates: [], onForward: () => {} });
 
 // ─── CHAT: UTILS ───────────────────────────────────────────────────────────
 const formatChatTime = (iso) => {
@@ -241,6 +241,7 @@ const formatFileSize = (size) => {
 const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onContextMenu }) => {
   const [showReactions, setShowReactions] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const { onForward } = useContext(ChatContext);
   const isMine = msg.sender === CURRENT_USER;
   const sender = getMember(msg.sender);
   const showAvatar = !prevMsg || prevMsg.sender !== msg.sender;
@@ -248,6 +249,13 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
 
   const replyMsg = msg.replyTo ? allMessages.find(m => m.id === msg.replyTo) : null;
   const replyAuthor = replyMsg ? getMember(replyMsg.sender) : null;
+  // Fase 3 forward: se valorizzato, il messaggio è un inoltro e
+  // originalSenderId tiene l'UID dell'autore originale (preservato anche
+  // attraverso catene di forward A→B→C).
+  const originalSender = msg.originalSenderId ? getMember(msg.originalSenderId) : null;
+  // Forwardable v1: solo testo. File/voice richiedono copia su storage e
+  // restano fuori scope di questo primo giro.
+  const canForward = msg.type === "text" && !!onForward;
 
   // Read indicator
   const otherParticipants = conv.participants.filter(p => p !== CURRENT_USER);
@@ -300,6 +308,21 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
           border: isMine ? "none" : "1px solid var(--border)",
           position: "relative",
         }}>
+          {/* Forwarded badge (Fase 3): se originalSenderId è valorizzato,
+              mostra "Inoltrato da {nome}". Il lookup avviene su TEAM globale
+              (non sui partecipanti del conv) → funziona anche se l'autore
+              originale non è in questa conversazione. */}
+          {originalSender && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 4, marginBottom: 4,
+              fontSize: 10.5, fontStyle: "italic",
+              color: isMine ? "rgba(255,255,255,0.65)" : "var(--text-muted)",
+            }}>
+              <span>↪</span>
+              <span>Inoltrato da {originalSender.name}</span>
+            </div>
+          )}
+
           {/* Reply preview */}
           {replyMsg && (
             <div style={{
@@ -392,6 +415,13 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
           }}>
             <button onClick={() => setShowReactions(s => !s)} style={iconBtn}>😊</button>
             <button onClick={() => onReply(msg)} style={iconBtn}>↩</button>
+            {canForward && (
+              <button
+                onClick={() => onForward(msg)}
+                style={iconBtn}
+                title="Inoltra a un'altra conversazione"
+              >↪</button>
+            )}
           </div>
         )}
 
@@ -1218,6 +1248,133 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
 };
 
 // ─── CHAT: MAIN PANEL ──────────────────────────────────────────────────────
+// ─── FORWARD PICKER (Fase 3) ───────────────────────────────────────────────
+// Overlay che mostra la lista conversazioni e ritorna la convId scelta.
+// Esclude la conversazione di origine (forward in-place non avrebbe senso) e
+// le conversazioni mock (id non-uuid: niente persistenza, fuori scope).
+// L'ordinamento riusa la stessa logica di ConversationList (pinned + ultimo
+// messaggio decrescente) → l'admin trova subito chi ha contattato per ultimo.
+const ForwardPicker = ({ msg, conversations, messages, onPick, onClose }) => {
+  const [search, setSearch] = useState("");
+  const sorted = [...conversations]
+    .filter(c => c.id !== msg.__sourceConvId && isUuid(c.id))
+    .sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+      const lastA = getLastMessage(messages, a.id);
+      const lastB = getLastMessage(messages, b.id);
+      if (!lastA) return 1;
+      if (!lastB) return -1;
+      return new Date(lastB.time) - new Date(lastA.time);
+    });
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? sorted.filter(c => {
+        if (getConversationName(c).toLowerCase().includes(q)) return true;
+        const partNames = (c.participants || [])
+          .map(id => getMember(id)?.name || "")
+          .join(" ")
+          .toLowerCase();
+        return partNames.includes(q);
+      })
+    : sorted;
+
+  const preview = msg.text?.length > 120 ? msg.text.slice(0, 117) + "…" : (msg.text || "");
+
+  return (
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, background: "rgba(8,21,45,0.45)", zIndex: 900,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: "min(420px, 96vw)", maxHeight: "78vh",
+        background: "var(--card)", borderRadius: 14, overflow: "hidden",
+        display: "flex", flexDirection: "column",
+        boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+      }}>
+        <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
+          <div className="playfair" style={{ fontSize: 16, fontWeight: 700, color: "var(--heading)", marginBottom: 6 }}>
+            ↪ Inoltra a…
+          </div>
+          {preview && (
+            <div style={{
+              fontSize: 12, color: "var(--text-muted)", background: "var(--surface2)",
+              padding: "6px 10px", borderRadius: 6, borderLeft: "3px solid var(--gold)",
+              maxHeight: 56, overflow: "hidden", lineHeight: 1.4,
+            }}>{preview}</div>
+          )}
+        </div>
+        <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)" }}>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Cerca conversazione…"
+            autoFocus
+            style={{
+              width: "100%", padding: "8px 10px", borderRadius: 8,
+              border: "1px solid var(--border)", background: "var(--surface)",
+              color: "var(--text)", fontSize: 13, fontFamily: "inherit", outline: "none",
+            }}
+          />
+        </div>
+        <div style={{ overflowY: "auto", flex: 1 }}>
+          {filtered.length === 0 ? (
+            <div style={{ padding: "24px 16px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+              Nessuna conversazione disponibile.
+            </div>
+          ) : filtered.map(c => {
+            const otherUid = c.type === "direct"
+              ? (c.participants || []).find(p => p !== CURRENT_USER)
+              : null;
+            const last = getLastMessage(messages, c.id);
+            return (
+              <button
+                key={c.id}
+                onClick={() => onPick(c.id)}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 14px", background: "none", border: "none",
+                  borderBottom: "1px solid var(--border)", cursor: "pointer",
+                  fontFamily: "inherit", textAlign: "left",
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              >
+                {c.type === "direct" && otherUid ? (
+                  <Avatar memberId={otherUid} size={32} />
+                ) : (
+                  <div style={{
+                    width: 32, height: 32, borderRadius: "50%", background: "var(--gold)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 14, flexShrink: 0,
+                  }}>{c.icon || "👥"}</div>
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {getConversationName(c)}
+                  </div>
+                  {last && (
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 1 }}>
+                      {last.type === "text" ? last.text : last.type === "file" ? `📎 ${last.fileName}` : "🎙️ Vocale"}
+                    </div>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ padding: "10px 14px", borderTop: "1px solid var(--border)", textAlign: "right" }}>
+          <button onClick={onClose} style={{
+            background: "transparent", border: "1px solid var(--border)",
+            padding: "6px 14px", borderRadius: 8, cursor: "pointer", fontSize: 12.5,
+            color: "var(--text)", fontFamily: "inherit",
+          }}>Annulla</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, intent, tasks, currentUserId, dispatch, presenceMap, messageTemplates = [], loading = false, myBusy = false, onToggleBusy }) => {
   const { isMobile } = useViewport();
   const [activeConv, setActiveConv] = useState(null);
@@ -1225,6 +1382,48 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
   const [prefillText, setPrefillText] = useState("");
   // Step K: taskRef UUID da precompilare insieme al testo del riferimento task.
   const [prefillTaskRef, setPrefillTaskRef] = useState(null);
+  // Fase 3 forward: il messaggio da inoltrare quando aperto il picker.
+  // Stash __sourceConvId sul payload così ForwardPicker può escludere
+  // dalla lista la conversazione di origine senza dover ricavarla a parte.
+  const [forwardingMsg, setForwardingMsg] = useState(null);
+
+  const handleForwardStart = (msg) => {
+    setForwardingMsg({ ...msg, __sourceConvId: activeConv?.id ?? null });
+  };
+
+  const handleForwardPick = (destConvId) => {
+    const src = forwardingMsg;
+    setForwardingMsg(null);
+    if (!src || !destConvId) return;
+    const me = currentUserId || CURRENT_USER;
+    // Preserva l'autore originale anche su forward chain (A→B→C): se src è
+    // già un forward, ereditiamo il suo originalSenderId; altrimenti è src.sender.
+    const originalSenderId = src.originalSenderId || src.sender;
+    const newMsg = {
+      // id provvisorio: il wrapper setMessages in VoyageDesk normalizza in UUID
+      // se non lo è (vedi caveat newId).
+      id: "m" + Date.now(),
+      sender: me,
+      type: "text",
+      text: src.text || "",
+      time: new Date().toISOString(),
+      readBy: [me],
+      originalSenderId,
+    };
+    setMessages(prev => ({
+      ...prev,
+      [destConvId]: [...(prev[destConvId] || []), newMsg],
+    }));
+    // Se sto inoltrando verso una conv diversa da quella aperta, aprila per
+    // mostrare visivamente il messaggio appena inoltrato.
+    if (destConvId !== activeConv?.id) {
+      const target = conversations.find(c => c.id === destConvId);
+      if (target) setActiveConv(target);
+    }
+    if (dispatch) {
+      dispatch({ type: "SHOW_TOAST", payload: { type: "success", message: "Messaggio inoltrato" } });
+    }
+  };
 
   // Gestione intent: apertura chat verso utente specifico con link a task
   useEffect(() => {
@@ -1268,7 +1467,7 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
   };
 
   return (
-    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {}, messageTemplates: messageTemplates || [] }}>
+    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {}, messageTemplates: messageTemplates || [], onForward: handleForwardStart }}>
     <>
       <div onClick={onClose} style={{
         position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: 700,
@@ -1367,6 +1566,18 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
           )}
         </div>
       </div>
+
+      {/* Forward picker overlay (Fase 3): sopra il pannello chat (z-index 900
+          > pannello 800). Si chiude su click outside o tasto Annulla. */}
+      {forwardingMsg && (
+        <ForwardPicker
+          msg={forwardingMsg}
+          conversations={conversations}
+          messages={messages}
+          onPick={handleForwardPick}
+          onClose={() => setForwardingMsg(null)}
+        />
+      )}
     </>
     </ChatContext.Provider>
   );

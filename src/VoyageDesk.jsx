@@ -561,9 +561,15 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // Refresh team live (sessione 29). Senza questo sub, l'admin invita o
   // approva un utente e l'elenco Team non si aggiorna fino a un reload.
   // Risub-scrive ai change su `users` e ricarica la lista completa (inclusi
-  // pending=true e active=false: l'admin deve vederli). Il debounce coalesce
-  // le raffiche di UPDATE generate dagli heartbeat di presenza (status /
-  // last_seen_at). normalize() allinea photo_url → photoUrl, idem AuthContext.
+  // pending=true e active=false: l'admin deve vederli). normalize() allinea
+  // photo_url → photoUrl, idem AuthContext.
+  //
+  // filterEvent (sessione 29 cleanup): saltiamo gli UPDATE che cambiano solo
+  // i campi di presence (status, last_seen_at) — la presence ha già il suo
+  // proprio canale (presenceMap), il team non ne ha bisogno. Senza filtro,
+  // ogni heartbeat di un altro client (ogni 30s) provocava un reload del
+  // team. REPLICA IDENTITY FULL su public.users (migration 20260612) ci
+  // garantisce il pre-image in payload.old per fare il confronto.
   useDebouncedTableSubscription(["users"], async (isCurrent) => {
     const { data, error } = await UsersAPI.listAll();
     if (!isCurrent()) return;
@@ -573,7 +579,23 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     }
     const team = (data || []).map(u => ({ ...u, photoUrl: u.photo_url ?? null }));
     rawDispatch({ type: "SET_TEAM", payload: team });
-  }, { enabled: useSupabase, delay: 800, deps: [useSupabase] });
+  }, {
+    enabled: useSupabase,
+    delay: 800,
+    deps: [useSupabase],
+    filterEvent: (payload) => {
+      if (payload?.eventType !== "UPDATE") return true; // INSERT/DELETE sempre
+      const oldRow = payload.old;
+      const newRow = payload.new;
+      if (!oldRow || !newRow) return true; // pre-image mancante → safe-reload
+      const PRESENCE_ONLY = new Set(["status", "last_seen_at", "origin_client"]);
+      for (const key of Object.keys(newRow)) {
+        if (PRESENCE_ONLY.has(key)) continue;
+        if (oldRow[key] !== newRow[key]) return true; // campo "interessante" cambiato
+      }
+      return false; // solo presence → skip reload
+    },
+  });
 
   // Loading state CRM: true finché non completa il primo fetch da Supabase.
   // Senza login parte già false (nessuna idratazione: si usano i dati mock).

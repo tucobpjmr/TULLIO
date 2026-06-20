@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef, useContext, createContext } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
-import { Messages as MessagesAPI } from "../../lib/api.js";
+import { Messages as MessagesAPI, Users as UsersAPI } from "../../lib/api.js";
 import { isUuid } from "../../lib/mappers.js";
 import { formatDate, formatTime } from "../../lib/taskUtils.js";
 import { TEAM, CURRENT_USER, getMember } from "../../state/appGlobals.js";
@@ -112,19 +112,53 @@ const loadRecentReactions = () => {
   } catch { return []; }
 };
 
-const pushRecentReaction = (emoji) => {
+// Aggiunge un'emoji ai recenti. localStorage resta la cache veloce (lettura
+// sincrona allo mount del picker); se l'utente è loggato (uuid reale) la lista
+// completa viene anche sincronizzata server-side (user_app_preferences) così i
+// recenti seguono l'utente su tutti i dispositivi.
+const pushRecentReaction = (emoji, userId) => {
+  const next = [emoji, ...loadRecentReactions().filter(e => e !== emoji)].slice(0, RECENT_REACTIONS_MAX);
   try {
-    const next = [emoji, ...loadRecentReactions().filter(e => e !== emoji)].slice(0, RECENT_REACTIONS_MAX);
     localStorage.setItem(RECENT_REACTIONS_KEY, JSON.stringify(next));
-  } catch { /* localStorage non disponibile: i recenti restano vuoti */ }
+  } catch { /* localStorage non disponibile: si prosegue col solo sync server */ }
+  if (userId && isUuid(userId)) {
+    UsersAPI.setRecentReactions(userId, next)
+      .then(r => { if (r?.error) console.error("[chat] recent reactions sync", r.error); })
+      .catch(err => console.error("[chat] recent reactions sync", err));
+  }
+};
+
+// All'apertura della chat allinea la cache locale con il server: se il server
+// ha già dei recenti (anche da un altro dispositivo) sono la fonte di verità e
+// sovrascrivono la cache; se il server è vuoto ma localmente esistono recenti
+// pregressi, li migra al server una volta. No-op per utenti non loggati (mock).
+const syncRecentReactionsFromServer = async (userId) => {
+  if (!userId || !isUuid(userId)) return;
+  try {
+    const { data, error } = await UsersAPI.getPreferences(userId);
+    if (error) return;
+    const server = Array.isArray(data?.recent_reactions)
+      ? data.recent_reactions.filter(e => typeof e === "string").slice(0, RECENT_REACTIONS_MAX)
+      : [];
+    if (server.length > 0) {
+      try { localStorage.setItem(RECENT_REACTIONS_KEY, JSON.stringify(server)); } catch { /* cache non scrivibile */ }
+    } else {
+      const local = loadRecentReactions();
+      if (local.length > 0) await UsersAPI.setRecentReactions(userId, local);
+    }
+  } catch (err) {
+    console.error("[chat] recent reactions load", err);
+  }
 };
 
 const ReactionPicker = ({ onPick, onClose }) => {
   const [expanded, setExpanded] = useState(false);
-  // Snapshot dei recenti all'apertura del picker (lettura sincrona da storage).
+  const { currentUserId } = useContext(ChatContext);
+  // Snapshot dei recenti all'apertura del picker (lettura sincrona da storage,
+  // già allineata col server allo open della chat — vedi syncRecentReactions).
   const [recents] = useState(loadRecentReactions);
-  // Registra l'emoji nei recenti, applica la reazione e chiude.
-  const pick = (e) => { pushRecentReaction(e); onPick(e); onClose(); };
+  // Registra l'emoji nei recenti (locale + server), applica la reazione e chiude.
+  const pick = (e) => { pushRecentReaction(e, currentUserId); onPick(e); onClose(); };
 
   const emojiBtn = {
     background: "none", border: "none", cursor: "pointer",
@@ -198,12 +232,45 @@ const ReactionPicker = ({ onPick, onClose }) => {
 };
 
 // ─── CHAT: VOICE PLAYER ────────────────────────────────────────────────────
-const VoicePlayer = ({ duration, waveform, isMine }) => {
+// Se il messaggio ha fileUrl (audio reale su storage) la riproduzione usa un
+// elemento <audio> alimentato da una signed URL; in mancanza (vocali legacy/
+// simulati senza audio) si ricade sulla progressione finta a timer.
+const VoicePlayer = ({ duration, waveform, isMine, fileUrl }) => {
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [loadingAudio, setLoadingAudio] = useState(false);
+  const audioRef = useRef(null);
 
+  const hasRealAudio = !!fileUrl;
+
+  // Lazy: crea l'elemento audio (signed URL) solo al primo play.
+  const ensureAudio = async () => {
+    if (audioRef.current) return audioRef.current;
+    const { url, error } = await MessagesAPI.getFileUrl(fileUrl);
+    if (error || !url) { console.error("[chat] voice signed url", error); return null; }
+    const a = new Audio(url);
+    a.addEventListener("timeupdate", () => {
+      if (a.duration && isFinite(a.duration)) setProgress((a.currentTime / a.duration) * 100);
+    });
+    a.addEventListener("ended", () => { setPlaying(false); setProgress(0); });
+    a.addEventListener("pause", () => setPlaying(false));
+    audioRef.current = a;
+    return a;
+  };
+
+  const toggleReal = async () => {
+    const a = audioRef.current;
+    if (playing && a) { a.pause(); return; }
+    setLoadingAudio(true);
+    const el = await ensureAudio();
+    setLoadingAudio(false);
+    if (!el) return;
+    try { await el.play(); setPlaying(true); } catch (err) { console.error("[chat] voice play", err); }
+  };
+
+  // Progressione simulata: solo per i vocali senza audio reale.
   useEffect(() => {
-    if (!playing) return;
+    if (hasRealAudio || !playing) return;
     const interval = setInterval(() => {
       setProgress(p => {
         if (p >= 100) { setPlaying(false); return 0; }
@@ -211,21 +278,25 @@ const VoicePlayer = ({ duration, waveform, isMine }) => {
       });
     }, 100);
     return () => clearInterval(interval);
-  }, [playing, duration]);
+  }, [playing, duration, hasRealAudio]);
+
+  // Cleanup: ferma l'audio se il messaggio si smonta mentre suona.
+  useEffect(() => () => { try { audioRef.current?.pause(); } catch { /* noop */ } }, []);
 
   const color = isMine ? "rgba(255,255,255,0.9)" : "var(--navy)";
   const dimColor = isMine ? "rgba(255,255,255,0.35)" : "var(--text-light)";
+  const onToggle = hasRealAudio ? toggleReal : () => setPlaying(p => !p);
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 200 }}>
-      <button onClick={() => setPlaying(!playing)} style={{
+      <button onClick={onToggle} disabled={loadingAudio} style={{
         width: 32, height: 32, borderRadius: "50%",
         background: isMine ? "rgba(255,255,255,0.2)" : "var(--gold)",
-        border: "none", cursor: "pointer", display: "flex",
+        border: "none", cursor: loadingAudio ? "wait" : "pointer", display: "flex",
         alignItems: "center", justifyContent: "center",
         color: isMine ? "#fff" : "var(--navy)", fontSize: 12,
         flexShrink: 0,
-      }}>{playing ? "⏸" : "▶"}</button>
+      }}>{loadingAudio ? "…" : playing ? "⏸" : "▶"}</button>
 
       <div style={{ display: "flex", alignItems: "center", gap: 2, flex: 1, height: 28 }}>
         {waveform.map((h, i) => {
@@ -467,7 +538,7 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onTogg
           )}
 
           {msg.type === "voice" && (
-            <VoicePlayer duration={msg.duration} waveform={msg.waveform} isMine={isMine} />
+            <VoicePlayer duration={msg.duration} waveform={msg.waveform} isMine={isMine} fileUrl={msg.fileUrl} />
           )}
 
           {msg.type === "file" && (
@@ -570,13 +641,125 @@ const iconBtn = {
 };
 
 // ─── CHAT: VOICE RECORDER ──────────────────────────────────────────────────
+const VOICE_BARS = 30;
+
+const randomWaveform = () => Array.from({ length: VOICE_BARS }, () => 0.3 + Math.random() * 0.6);
+
+// Sceglie un container/codec audio supportato dal browser per MediaRecorder.
+const pickAudioMime = () => {
+  if (typeof MediaRecorder === "undefined" || !MediaRecorder.isTypeSupported) return "";
+  const cands = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
+  return cands.find(t => MediaRecorder.isTypeSupported(t)) || "";
+};
+
+// Estrae una waveform (VOICE_BARS campioni, valori 0..1) decodificando il blob
+// audio registrato e prendendo il picco per bucket. Fallback random se il
+// browser non sa decodificare quel codec (così il messaggio resta valido).
+async function computeWaveform(blob) {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC || !blob) throw new Error("AudioContext non disponibile");
+    const ctx = new AC();
+    const audio = await ctx.decodeAudioData(await blob.arrayBuffer());
+    const data = audio.getChannelData(0);
+    const block = Math.floor(data.length / VOICE_BARS) || 1;
+    const bars = [];
+    let max = 0.0001;
+    for (let i = 0; i < VOICE_BARS; i++) {
+      let peak = 0;
+      for (let j = 0; j < block; j++) {
+        const v = Math.abs(data[i * block + j] || 0);
+        if (v > peak) peak = v;
+      }
+      bars.push(peak);
+      if (peak > max) max = peak;
+    }
+    try { ctx.close(); } catch { /* noop */ }
+    return bars.map(b => Math.max(0.12, b / max)); // normalizza, minimo visibile
+  } catch {
+    return randomWaveform();
+  }
+}
+
+// Registrazione vocale reale via MediaRecorder. Se il microfono non è
+// disponibile (permesso negato, contesto non sicuro, demo senza hardware) si
+// degrada al comportamento simulato (waveform random, nessun audio) così la
+// feature resta utilizzabile ovunque.
 const VoiceRecorder = ({ onSend, onCancel }) => {
   const [seconds, setSeconds] = useState(0);
+  const [sending, setSending] = useState(false);
+  const recorderRef = useRef(null);
+  const streamRef = useRef(null);
+  const chunksRef = useRef([]);
+  const mimeRef = useRef("");
+  const simulatedRef = useRef(false);
+  const sentRef = useRef(false);
 
+  // Timer durata: si ferma quando parte l'invio.
   useEffect(() => {
+    if (sending) return;
     const i = setInterval(() => setSeconds(s => s + 1), 1000);
     return () => clearInterval(i);
+  }, [sending]);
+
+  // Avvia la registrazione reale; in caso d'errore marca "simulato".
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+          throw new Error("MediaRecorder non disponibile");
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
+        streamRef.current = stream;
+        const mime = pickAudioMime();
+        mimeRef.current = mime;
+        const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+        rec.ondataavailable = e => { if (e.data && e.data.size > 0) chunksRef.current.push(e.data); };
+        rec.start();
+        recorderRef.current = rec;
+      } catch {
+        simulatedRef.current = true;
+      }
+    })();
+    return () => {
+      cancelled = true;
+      try { if (recorderRef.current && recorderRef.current.state !== "inactive") recorderRef.current.stop(); } catch { /* noop */ }
+      streamRef.current?.getTracks().forEach(t => t.stop());
+    };
   }, []);
+
+  const stopStream = () => streamRef.current?.getTracks().forEach(t => t.stop());
+
+  const handleCancel = () => {
+    try { if (recorderRef.current && recorderRef.current.state !== "inactive") recorderRef.current.stop(); } catch { /* noop */ }
+    stopStream();
+    onCancel();
+  };
+
+  const handleSend = () => {
+    if (sentRef.current) return;
+    sentRef.current = true;
+    setSending(true);
+    const dur = Math.max(1, seconds);
+    const rec = recorderRef.current;
+    const sendSimulated = () => { stopStream(); onSend({ blob: null, duration: dur, waveform: randomWaveform(), mimeType: null }); };
+    if (simulatedRef.current || !rec) { sendSimulated(); return; }
+    rec.onstop = async () => {
+      try {
+        const type = mimeRef.current || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type });
+        const waveform = await computeWaveform(blob);
+        stopStream();
+        onSend({ blob, duration: dur, waveform, mimeType: type });
+      } catch (err) {
+        console.error("[chat] voice stop", err);
+        sendSimulated();
+      }
+    };
+    try { rec.stop(); } catch { sendSimulated(); }
+  };
 
   return (
     <div style={{
@@ -585,7 +768,8 @@ const VoiceRecorder = ({ onSend, onCancel }) => {
       flex: 1,
     }}>
       <div className="record-pulse" style={{
-        width: 10, height: 10, borderRadius: "50%", background: "var(--danger)",
+        width: 10, height: 10, borderRadius: "50%",
+        background: sending ? "var(--text-muted)" : "var(--danger)",
         flexShrink: 0,
       }} />
       <div style={{ display: "flex", gap: 2, flex: 1, alignItems: "center", height: 20 }}>
@@ -594,21 +778,23 @@ const VoiceRecorder = ({ onSend, onCancel }) => {
             flex: 1, background: "var(--navy)",
             height: `${30 + Math.random() * 70}%`, minHeight: 3,
             borderRadius: 1,
-            animation: `wave 0.${4 + (i % 5)}s ease infinite`,
+            animation: sending ? "none" : `wave 0.${4 + (i % 5)}s ease infinite`,
             animationDelay: `${i * 0.05}s`,
+            opacity: sending ? 0.4 : 1,
           }} />
         ))}
       </div>
-      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--danger)", fontVariantNumeric: "tabular-nums" }}>
-        {formatDuration(seconds)}
+      <span style={{ fontSize: 12, fontWeight: 600, color: sending ? "var(--text-muted)" : "var(--danger)", fontVariantNumeric: "tabular-nums" }}>
+        {sending ? "Invio…" : formatDuration(seconds)}
       </span>
-      <button onClick={onCancel} style={{
+      <button onClick={handleCancel} disabled={sending} style={{
         background: "var(--surface2)", border: "none", borderRadius: "50%",
-        width: 30, height: 30, cursor: "pointer", fontSize: 14,
+        width: 30, height: 30, cursor: sending ? "default" : "pointer", fontSize: 14,
+        opacity: sending ? 0.5 : 1,
       }}>✕</button>
-      <button onClick={() => onSend(seconds)} style={{
+      <button onClick={handleSend} disabled={sending} style={{
         background: "var(--gold)", color: "var(--navy)", border: "none",
-        borderRadius: "50%", width: 30, height: 30, cursor: "pointer",
+        borderRadius: "50%", width: 30, height: 30, cursor: sending ? "wait" : "pointer",
         fontSize: 14, fontWeight: 700,
       }}>↑</button>
     </div>
@@ -706,11 +892,28 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
     setPendingTaskRef(null);
   };
 
-  const sendVoice = (duration) => {
-    const waveform = Array.from({ length: 30 }, () => 0.3 + Math.random() * 0.6);
+  // Riceve il payload dal VoiceRecorder: { blob, duration, waveform, mimeType }.
+  // Carica l'audio reale solo su conversazioni vere (uuid); sui mock o quando il
+  // microfono non era disponibile (blob null) resta un vocale simulato.
+  const sendVoice = async ({ blob, duration, waveform, mimeType }) => {
+    let fileUrl = null;
+    let fileType = null;
+    if (blob && isUuid(conv.id)) {
+      const { path, error } = await MessagesAPI.uploadVoice(blob, conv.id, mimeType || "audio/webm");
+      if (!mountedRef.current) return;
+      if (error || !path) {
+        console.error("[chat] voice upload", error);
+        dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Invio vocale fallito: ${error?.message || "errore sconosciuto"}` } });
+        setRecording(false);
+        return;
+      }
+      fileUrl = path;
+      fileType = mimeType || null;
+    }
     const newMsg = {
       id: "m" + Date.now(), sender: CURRENT_USER, type: "voice",
-      duration, waveform, time: new Date().toISOString(),
+      duration, waveform: waveform || randomWaveform(), fileUrl, fileType,
+      time: new Date().toISOString(),
       readBy: [CURRENT_USER],
     };
     setMessages(prev => ({ ...prev, [conv.id]: [...(prev[conv.id] || []), newMsg] }));
@@ -1612,8 +1815,20 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
 
     let newMsg;
     if (src.type === "voice") {
-      // Vocale simulato: nessuno storage, copia metadata.
-      newMsg = { ...base, type: "voice", duration: src.duration, waveform: src.waveform };
+      // Vocale: copia metadata (duration/waveform). Se ha audio reale su storage
+      // lo si copia server-side nella conv destinazione (come gli allegati file);
+      // i vocali legacy/simulati (senza fileUrl) restano solo metadata.
+      newMsg = { ...base, type: "voice", duration: src.duration, waveform: src.waveform, fileType: src.fileType ?? null, fileUrl: null };
+      if (src.fileUrl && isUuid(destConvId)) {
+        const voiceName = `voice.${(src.fileUrl.split(".").pop() || "webm").toLowerCase()}`;
+        const { path, error } = await MessagesAPI.copyFile(src.fileUrl, destConvId, voiceName);
+        if (error || !path) {
+          console.error("[chat] forward voice copyFile", error);
+          if (dispatch) dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Inoltro vocale fallito: ${error?.message || "errore sconosciuto"}` } });
+          return;
+        }
+        newMsg.fileUrl = path;
+      }
     } else if (src.type === "file") {
       newMsg = {
         ...base, type: "file",
@@ -1649,6 +1864,13 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
       dispatch({ type: "SHOW_TOAST", payload: { type: "success", message: "Messaggio inoltrato" } });
     }
   };
+
+  // Fase 3 — reazioni recenti cross-device: all'apertura della chat allinea la
+  // cache locale col server (no-op per utenti non loggati / id mock).
+  useEffect(() => {
+    if (!open) return;
+    syncRecentReactionsFromServer(currentUserId || CURRENT_USER);
+  }, [open, currentUserId]);
 
   // Gestione intent: apertura chat verso utente specifico con link a task
   useEffect(() => {

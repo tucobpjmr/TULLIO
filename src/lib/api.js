@@ -72,6 +72,15 @@ export const Users = {
     supabase.from('user_contacts')
       .upsert({ user_id: id, email: email ?? null, phone: phone ?? null }, { onConflict: 'user_id' })
       .select().single(),
+  // ----------------- PREFERENZE APP (user_app_preferences) -----------------
+  // Preferenze personali sincronizzate server-side (es. reazioni recenti chat).
+  // RLS: solo l'utente stesso. Fuori da realtime, niente origin_client (vedi
+  // migration 20260620_user_app_preferences.sql).
+  getPreferences: (id) =>
+    supabase.from('user_app_preferences').select('recent_reactions').eq('user_id', id).maybeSingle(),
+  setRecentReactions: (id, recentReactions) =>
+    supabase.from('user_app_preferences')
+      .upsert({ user_id: id, recent_reactions: recentReactions, updated_at: new Date().toISOString() }, { onConflict: 'user_id' }),
 };
 
 // ----------------- TASKS -----------------
@@ -208,6 +217,18 @@ export const Messages = {
       .from('chat-files')
       .copy(srcPath, destPath);
     return { path: data?.path ?? destPath, error };
+  },
+  // Fase 3 — audio vocale reale: carica il blob registrato (MediaRecorder) sullo
+  // stesso bucket privato 'chat-files', con la convenzione di path
+  // <conversation_id>/<uuid>-voice.<ext> così le RLS (primo segmento = conv)
+  // valgono come per gli altri allegati. Ritorna { path } da salvare in file_url.
+  uploadVoice: async (blob, conversationId, mimeType = 'audio/webm') => {
+    const ext = mimeType.includes('mp4') ? 'm4a' : mimeType.includes('ogg') ? 'ogg' : 'webm';
+    const path = `${conversationId}/${crypto.randomUUID()}-voice.${ext}`;
+    const { data, error } = await supabase.storage
+      .from('chat-files')
+      .upload(path, blob, { contentType: mimeType || 'audio/webm' });
+    return { path: data?.path ?? null, error };
   },
   // Signed URL temporanea (1h) per scaricare/visualizzare un allegato.
   // Cache in-memory: scade 5 min prima del TTL, così click ripetuti sullo

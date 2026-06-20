@@ -58,8 +58,8 @@ Build `npm run build`: ✅ verde (117 moduli).
 ## 3. Caveat / cose da fare (sessione 29)
 
 1. **Toggle dashboard (manuale — nessun tool MCP)**:
-   - Supabase → Authentication → Providers/Email → **"Confirm email"** ON per attivare l'email confirmation (il frontend è già pronto).
-   - Authentication → Policies → **Leaked password protection** ON (chiude l'advisor residuo).
+   - Supabase → Authentication → Providers/Email → **"Confirm email"** → **già ON** (verificato in dashboard, sessione 28).
+   - **Leaked password protection** → **non disponibile sul piano free** (richiede Pro+). Advisor residuo accettato come N/A finché il progetto resta su free. Documentato qui per riprenderlo all'eventuale upgrade.
 2. **Refresh team live dopo invito**: la subscription realtime su `users` aggiorna solo `presenceMap`, non la lista team del reducer. Dopo un invito il nuovo pending appare al reload. Per il live serve dispatch SET_TEAM / re-idratazione (non fatto, scope contenuto).
 3. **Bulk invite** e **UI "reinvia conferma"**: non implementati.
 4. **#64** (`claude/first-real-invites-juidur`): branch obsoleto (pre-#63/Block 1). Ne è stata salvata solo la Edge Function. **Da chiudere** — un rebase reintrodurrebbe Pratiche/Fornitori e rimuoverebbe Block 1.
@@ -69,7 +69,7 @@ Build `npm run build`: ✅ verde (117 moduli).
 ## 4. RLS — stato (confermato in prod)
 
 - RLS ON su tutte le 9 tabelle public.
-- Advisor security residui: `is_admin()`/`is_manager_or_admin()` SECURITY DEFINER eseguibili da authenticated = **falso positivo documentato** (usate nelle policy RLS); `leaked_password_protection` = toggle dashboard.
+- Advisor security residui: `is_admin()`/`is_manager_or_admin()` SECURITY DEFINER eseguibili da authenticated = **falso positivo documentato** (usate nelle policy RLS); `leaked_password_protection` = **non disponibile su piano free** (gating Pro+), accettato come N/A.
 - Block 2 (isolamento SELECT utenti pending a livello RLS) resta **deliberatamente rinviato**: `users_select_all` ha `qual=true` per authenticated; il blocco pending è solo nel gate frontend (`PendingScreen`). Applicare quando ci saranno dati reali.
 
 ---

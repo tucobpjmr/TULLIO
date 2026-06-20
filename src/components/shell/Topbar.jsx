@@ -7,7 +7,7 @@ import { Avatar } from "../ui/Avatar.jsx";
 import { Users as UsersAPI } from "../../lib/api.js";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { PRIORITIES, STATUSES, STATUS_LABELS, STATUS_COLORS } from "../../lib/taskConstants.js";
-import { formatDate, isOverdue } from "../../lib/taskUtils.js";
+import { formatDate, isOverdue, isUrgent } from "../../lib/taskUtils.js";
 import { MOCK_NOTIFICATIONS } from "../../state/mockData.js";
 import { TEAM, CATEGORIES, getMember, isJuniorAgent } from "../../state/appGlobals.js";
 import { ProfileEditor } from "../modals/ProfileEditor.jsx";
@@ -304,6 +304,17 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
   const [searchOpen, setSearchOpen] = useState(false);
   const searchWrapRef = useRef(null);
 
+  // Il logo aeroplano funge da pulsante Dashboard (la voce dedicata è stata
+  // rimossa da sidebar/bottom-nav). Badge urgenze personali (v2.8 Round 11)
+  // riportato qui per non perdere l'indicatore al togliere la voce nav.
+  const dashActive = state.activeView === "dashboard";
+  const urgentMine = useMemo(() => (state.tasks || []).filter(t =>
+    !t.deletedAt && t.status !== "done" &&
+    (t.assignees || []).includes(state.currentUserId) &&
+    (isOverdue(t) || isUrgent(t))
+  ).length, [state.tasks, state.currentUserId]);
+  const goDashboard = () => dispatch({ type: "SET_VIEW", payload: "dashboard" });
+
   // Chiude il pannello di ricerca al click fuori dal wrapper (input + pannello)
   useEffect(() => {
     if (!searchOpen) return;
@@ -319,16 +330,41 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
       padding: isMobile ? "0 12px" : "0 20px", gap: isMobile ? 8 : 16, position: "sticky", top: 0, zIndex: 100,
       borderBottom: "1px solid rgba(212,168,67,0.3)", flexShrink: 0,
     }}>
-      {/* Logo */}
+      {/* Logo — funge da pulsante Dashboard */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginRight: isMobile ? 0 : 12 }}>
-        <div style={{
-          width: 32, height: 32, background: "var(--gold)", borderRadius: 8,
-          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0
-        }}>✈️</div>
-        <div className="vd-hide-mobile">
+        <button
+          onClick={goDashboard}
+          title="Dashboard"
+          aria-label="Dashboard"
+          aria-current={dashActive ? "page" : undefined}
+          style={{
+            width: 32, height: 32, background: "var(--gold)", borderRadius: 8,
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
+            flexShrink: 0, cursor: "pointer", padding: 0, position: "relative",
+            border: dashActive ? "2px solid var(--navy)" : "2px solid transparent",
+            boxShadow: dashActive ? "0 0 0 2px rgba(15,32,68,0.15)" : "none",
+            transition: "all 0.2s",
+          }}
+        >
+          ✈️
+          {urgentMine > 0 && (
+            <span title={`${urgentMine} task scadut${urgentMine === 1 ? "o" : "i"} o urgent${urgentMine === 1 ? "e" : "i"}`} style={{
+              position: "absolute", top: -5, right: -5,
+              background: "var(--danger)", color: "#fff", fontWeight: 700,
+              borderRadius: 999, fontSize: 9, padding: "1px 4px", minWidth: 14, height: 14,
+              display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1,
+              border: "1px solid var(--sky)",
+            }}>{urgentMine > 9 ? "9+" : urgentMine}</span>
+          )}
+        </button>
+        <button
+          onClick={goDashboard}
+          className="vd-hide-mobile"
+          style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
+        >
           <div className="playfair" style={{ color: "var(--navy)", fontSize: 15, fontWeight: 700, lineHeight: 1 }}>VoyageDesk</div>
           <div style={{ color: "rgba(15,32,68,0.55)", fontSize: 10, letterSpacing: 1.5 }}>TRAVEL MANAGEMENT</div>
-        </div>
+        </button>
       </div>
 
       {/* Ricerca unificata (testuale + filtri avanzati) */}

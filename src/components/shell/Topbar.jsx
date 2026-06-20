@@ -294,7 +294,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
 };
 
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
-export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications: notificationsProp, onMarkRead, onMarkAllRead, onOpenTask, theme, onToggleTheme }) => {
+export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMarkRead, onMarkAllRead, onOpenTask }) => {
   const { isMobile } = useViewport();
   // Fix #11: notifiche mock gate-ate dietro env var (default off in prod)
   const SHOW_MOCK_NOTIFS = import.meta.env.DEV && import.meta.env.VITE_SHOW_MOCK_NOTIFICATIONS === 'true';
@@ -303,6 +303,11 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
   const unread = notifList.filter(n => !n.read).length;
   const [searchOpen, setSearchOpen] = useState(false);
   const searchWrapRef = useRef(null);
+
+  // Il logo aeroplano funge da pulsante Dashboard (la voce dedicata è stata
+  // rimossa da sidebar/bottom-nav).
+  const dashActive = state.activeView === "dashboard";
+  const goDashboard = () => dispatch({ type: "SET_VIEW", payload: "dashboard" });
 
   // Chiude il pannello di ricerca al click fuori dal wrapper (input + pannello)
   useEffect(() => {
@@ -319,22 +324,38 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
       padding: isMobile ? "0 12px" : "0 20px", gap: isMobile ? 8 : 16, position: "sticky", top: 0, zIndex: 100,
       borderBottom: "1px solid rgba(212,168,67,0.3)", flexShrink: 0,
     }}>
-      {/* Logo */}
+      {/* Logo — funge da pulsante Dashboard */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginRight: isMobile ? 0 : 12 }}>
-        <div style={{
-          width: 32, height: 32, background: "var(--gold)", borderRadius: 8,
-          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0
-        }}>✈️</div>
-        <div className="vd-hide-mobile">
+        <button
+          onClick={goDashboard}
+          title="Dashboard"
+          aria-label="Dashboard"
+          aria-current={dashActive ? "page" : undefined}
+          style={{
+            width: 32, height: 32, background: "var(--gold)", borderRadius: 8,
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
+            flexShrink: 0, cursor: "pointer", padding: 0, position: "relative",
+            border: dashActive ? "2px solid var(--navy)" : "2px solid transparent",
+            boxShadow: dashActive ? "0 0 0 2px rgba(15,32,68,0.15)" : "none",
+            transition: "all 0.2s",
+          }}
+        >
+          ✈️
+        </button>
+        <button
+          onClick={goDashboard}
+          className="vd-hide-mobile"
+          style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
+        >
           <div className="playfair" style={{ color: "var(--navy)", fontSize: 15, fontWeight: 700, lineHeight: 1 }}>VoyageDesk</div>
-          <div style={{ color: "rgba(15,32,68,0.55)", fontSize: 10, letterSpacing: 1.5 }}>TRAVEL MANAGEMENT</div>
-        </div>
+          <div style={{ color: "rgba(15,32,68,0.75)", fontSize: 10, letterSpacing: 1.5 }}>TRAVEL MANAGEMENT</div>
+        </button>
       </div>
 
       {/* Ricerca unificata (testuale + filtri avanzati) */}
       <div ref={searchWrapRef} style={{ flex: 1, maxWidth: 520, position: "relative" }}>
         <div style={{ position: "relative" }}>
-          <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(15,32,68,0.5)", fontSize: 14 }}>🔍</div>
+          <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(15,32,68,0.7)", fontSize: 14 }}>🔍</div>
           <input
             value={state.searchQuery}
             onChange={e => { dispatch({ type: "SET_SEARCH", payload: e.target.value }); setSearchOpen(true); }}
@@ -361,32 +382,6 @@ export const Topbar = ({ state, dispatch, onOpenChat, unreadChat, notifications:
       </div>
 
       <div className="vd-hide-mobile" style={{ flex: 1 }} />
-
-      {/* Tema chiaro/scuro (v22) */}
-      {onToggleTheme && (
-        <button onClick={onToggleTheme} title={theme === "dark" ? "Passa al tema chiaro" : "Passa al tema scuro"} aria-label="Cambia tema" style={{
-          background: "rgba(255,255,255,0.45)", border: "1px solid rgba(15,32,68,0.15)",
-          borderRadius: 8, width: 36, height: 36, cursor: "pointer",
-          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
-        }}>
-          {theme === "dark" ? "☀️" : "🌙"}
-        </button>
-      )}
-
-      {/* Chat */}
-      <button onClick={onOpenChat} title="Messaggi team" style={{
-        background: "rgba(255,255,255,0.45)", border: "1px solid rgba(15,32,68,0.15)",
-        borderRadius: 8, width: 36, height: 36, cursor: "pointer",
-        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, position: "relative"
-      }}>
-        💬
-        {unreadChat > 0 && <span style={{
-          position: "absolute", top: -4, right: -4, background: "var(--gold)",
-          borderRadius: "50%", minWidth: 16, height: 16, fontSize: 10, fontWeight: 700,
-          color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center",
-          padding: "0 4px",
-        }}>{unreadChat}</span>}
-      </button>
 
       {/* Notifications */}
       <div style={{ position: "relative" }}>
@@ -486,9 +481,9 @@ const UserSwitcher = ({ state, dispatch }) => {
         )}
         <div className="vd-hide-mobile" style={{ textAlign: "left" }}>
           <div style={{ color: "var(--navy)", fontSize: 12, fontWeight: 600, lineHeight: 1.2 }}>{curr.name}</div>
-          <div style={{ color: "rgba(15,32,68,0.55)", fontSize: 10 }}>{curr.role}</div>
+          <div style={{ color: "rgba(15,32,68,0.75)", fontSize: 10 }}>{curr.role}</div>
         </div>
-        <span style={{ color: "rgba(15,32,68,0.5)", fontSize: 10, marginLeft: 2 }}>▾</span>
+        <span style={{ color: "rgba(15,32,68,0.7)", fontSize: 10, marginLeft: 2 }}>▾</span>
       </button>
 
       {open && (

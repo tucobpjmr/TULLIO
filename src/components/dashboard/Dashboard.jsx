@@ -151,11 +151,6 @@ const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
               }}
             >↓ CSV</button>
           )}
-          <div style={{
-            background: "var(--navy)", color: "#fff",
-            padding: "4px 12px", borderRadius: 999,
-            fontSize: 13, fontWeight: 700,
-          }}>{enableDateFilter && dateFilter !== "all" ? `${filtered.length}/${tasks.length}` : `${tasks.length}`} task</div>
         </div>
       </div>
 
@@ -293,8 +288,10 @@ const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
   );
 };
 
-// ─── URGENT OTHERS QUEUE (scadenza <24h, non mie — read-only — v0.8) ──────
-const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
+// ─── URGENT QUEUE (tutte le task in scadenza <24h — visibile a non-driver) ──
+// Mostra sia le proprie task urgenti (editabili dal dettaglio) sia quelle
+// altrui (read-only, con scorciatoia "contatta" verso l'assegnatario).
+const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
   const { isMobile } = useViewport();
   const [filterAgent, setFilterAgent] = useState(null);
 
@@ -324,10 +321,10 @@ const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
           }}>⏱</div>
           <div>
             <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
-              Urgenti del team — scadenza entro 24h
+              Urgenti — scadenza entro 24h
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-              Solo visualizzazione • clicca sull'agente per scrivergli in chat
+              Tutte le task in scadenza entro 24h • clicca una card per i dettagli
             </div>
           </div>
         </div>
@@ -395,13 +392,14 @@ const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
           const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
           const prio = PRIORITIES[t.priority];
           const owner = getMember(t.assignees?.[0]);
+          const mine = (t.assignees || []).includes(uid);
           return (
             <div
               key={t.id}
-              title="Solo visualizzazione: questa task appartiene a un altro agente"
+              title={mine ? "Tua task in scadenza — clicca per i dettagli" : "Task di un altro agente in scadenza"}
               style={{
                 background: "var(--card)", borderRadius: 10,
-                border: "1.5px dashed rgba(200,131,42,0.45)",
+                border: mine ? "1px solid rgba(200,131,42,0.45)" : "1.5px dashed rgba(200,131,42,0.45)",
                 padding: 12, display: "flex", flexDirection: "column", gap: 8,
                 position: "relative",
               }}
@@ -416,15 +414,17 @@ const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
                   <span>{cat.icon}</span> {cat.label}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span
-                    aria-label="Solo visualizzazione"
-                    style={{
-                      fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
-                      background: "var(--surface2)", color: "var(--text-muted)",
-                      display: "inline-flex", alignItems: "center", gap: 3,
-                      textTransform: "uppercase", letterSpacing: 0.4,
-                    }}
-                  >🔒 Read-only</span>
+                  {!mine && (
+                    <span
+                      aria-label="Solo visualizzazione"
+                      style={{
+                        fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+                        background: "var(--surface2)", color: "var(--text-muted)",
+                        display: "inline-flex", alignItems: "center", gap: 3,
+                        textTransform: "uppercase", letterSpacing: 0.4,
+                      }}
+                    >🔒 Read-only</span>
+                  )}
                   <div style={{
                     fontSize: 10, fontWeight: 700, padding: "3px 7px", borderRadius: 4,
                     background: prio.bg, color: prio.color, textTransform: "uppercase", letterSpacing: 0.5,
@@ -448,8 +448,8 @@ const UrgentOthersQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
                 )}
               </div>
 
-              {/* Owner cliccabile → apre chat con link al task */}
-              {owner && (
+              {/* Owner cliccabile → apre chat con link al task (solo task altrui) */}
+              {owner && !mine && (
                 <button
                   onClick={() => onOpenChat && onOpenChat({ toUser: owner.id, taskLink: t.id })}
                   style={{
@@ -940,11 +940,12 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
       return new Date(a.dueDate) - new Date(b.dueDate);
     });
 
-  // Urgenti altrui: task con scadenza < 24h, non mie, non in coda globale (Driver non li vede)
-  const showUrgentOthers = role !== "driver" && role !== "admin";
-  const urgentOthers = showUrgentOthers
-    ? allTasks
-      .filter(t => !isMyTask(t, uid) && !isInGlobalQueue(t) && isUrgent(t))
+  // Urgenti: tutte le task visibili con scadenza < 24h (Driver non le vede).
+  // Visibile a tutti gli altri ruoli, admin inclusi.
+  const showUrgent = role !== "driver";
+  const urgentTasks = showUrgent
+    ? tasks
+      .filter(t => isUrgent(t))
       .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
     : [];
 
@@ -1025,7 +1026,7 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
         background: "var(--card)", borderRadius: 12, padding: isMobile ? 8 : 10,
         boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)",
         display: "grid",
-        gridTemplateColumns: `repeat(${(showGlobalQueue ? 1 : 0) + 1 + 1 + (showUrgentOthers ? 1 : 0)}, 1fr)`,
+        gridTemplateColumns: `repeat(${(showGlobalQueue ? 1 : 0) + 1 + 1 + (showUrgent ? 1 : 0)}, 1fr)`,
         gap: isMobile ? 6 : 8,
       }}>
         {showGlobalQueue && (
@@ -1048,11 +1049,11 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
           icon="📅" label="Scadute" count={overdueTasks.length}
           isMobile={isMobile} dangerCount
         />
-        {showUrgentOthers && (
+        {showUrgent && (
           <QueueTab
             active={activeQueue === "urgent"}
             onClick={() => setActiveQueue("urgent")}
-            icon="⚠️" label="Urgenti" count={urgentOthers.length}
+            icon="⚠️" label="Urgenti" count={urgentTasks.length}
             isMobile={isMobile} dangerCount
           />
         )}
@@ -1068,8 +1069,8 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
       {activeQueue === "overdue" && (
         <OverdueQueue tasks={overdueTasks} dispatch={dispatch} />
       )}
-      {activeQueue === "urgent" && showUrgentOthers && (
-        <UrgentOthersQueue tasks={urgentOthers} dispatch={dispatch} onOpenChat={onOpenChat} uid={uid} />
+      {activeQueue === "urgent" && showUrgent && (
+        <UrgentQueue tasks={urgentTasks} dispatch={dispatch} onOpenChat={onOpenChat} uid={uid} />
       )}
 
       <div className="vd-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>

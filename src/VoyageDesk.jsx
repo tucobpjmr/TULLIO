@@ -111,7 +111,7 @@ const FontLoader = () => (
       --navy: #0F2044;
       --navy-light: #1a3060;
       --navy-dark: #08152d;
-      --sky: #87CEEB;
+      --sky: #D0EEF9;
       --gold: #D4A843;
       --gold-light: #e8c46a;
       --gold-dark: #b8902e;
@@ -125,35 +125,13 @@ const FontLoader = () => (
       --text-muted: #6B6B80;
       --text-light: #9999AA;
       --border: #E0DDD5;
-      /* Token semantici introdotti per la dark mode (v22):
+      /* Token semantici per le superfici contenuti:
          --card  = superficie card (sostituisce gli "#fff" inline dei contenuti)
-         --heading = titoli su card (sostituisce "color: var(--navy)" nei contenuti).
-         In light coincidono con i valori storici → nessun cambiamento visivo. */
+         --heading = titoli su card (sostituisce "color: var(--navy)" nei contenuti). */
       --card: #ffffff;
       --card2: #F7F6F2;
       --heading: var(--navy);
       color-scheme: light;
-    }
-    /* ─── DARK MODE (v22) ───
-       Shell (topbar/sidebar/bottom-nav) resta brand-celeste per scelta di design;
-       l'area contenuti passa a superfici scure. --navy resta scuro (usato come bg
-       bottoni con testo bianco e come testo su oro/celeste). */
-    [data-theme="dark"] {
-      --navy-light: #5277b5;
-      --surface: #131319;
-      --surface2: #1c1c26;
-      --surface3: #272733;
-      --success: #3fa06a;
-      --warning: #d79a45;
-      --danger: #d6584c;
-      --text: #E8E8EF;
-      --text-muted: #A6A6BC;
-      --text-light: #74748c;
-      --border: #2f2f3c;
-      --card: #1a1a23;
-      --card2: #222230;
-      --heading: #cdd9ef;
-      color-scheme: dark;
     }
     body { font-family: 'DM Sans', sans-serif; background: var(--surface); color: var(--text); transition: background 0.2s ease, color 0.2s ease; }
     .playfair { font-family: 'Playfair Display', serif; }
@@ -908,13 +886,6 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   const [showChat, setShowChat] = useState(false);
   const [chatIntent, setChatIntent] = useState(null); // { toUser, taskLink } per aprire chat preconfezionata
   const [showBulkModal, setShowBulkModal] = useState(false);
-  // Tema chiaro/scuro (v22). Solo-sessione: nessuna persistenza (vincolo
-  // localStorage in CLAUDE.md). data-theme applicato su <html>.
-  const [theme, setTheme] = useState("light");
-  const toggleTheme = useCallback(() => setTheme(t => (t === "dark" ? "light" : "dark")), []);
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-  }, [theme]);
   // In modalità Supabase partiamo da stato vuoto e idratiamo dal DB.
   // Senza login i mock restano per smoke-test rapido.
   const [conversations, setConversationsRaw] = useState(
@@ -1097,14 +1068,10 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         <Topbar
           state={state}
           dispatch={dispatch}
-          onOpenChat={() => { setChatIntent(null); setShowChat(true); }}
-          unreadChat={unreadChat}
           notifications={notifications}
           onMarkRead={markNotificationRead}
           onMarkAllRead={markAllNotificationsRead}
           onOpenTask={openTaskById}
-          theme={theme}
-          onToggleTheme={toggleTheme}
         />
         {state.adminRollbackTo && state.adminSwitchedAt && (
           <AdminRollbackBanner
@@ -1114,7 +1081,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           />
         )}
         <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-          <Sidebar state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} />
+          <Sidebar state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} onOpenChat={() => { setChatIntent(null); setShowChat(true); }} unreadChat={unreadChat} />
           <main className="vd-main-scroll" style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
             {/* Suspense per la vista attiva: solo AdminView è lazy (Phase 2g),
                 le altre viste risolvono sincronicamente. */}
@@ -1125,7 +1092,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         </div>
 
         {/* Bottom nav mobile/tablet */}
-        <BottomNav state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} />
+        <BottomNav state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} onOpenChat={() => { setChatIntent(null); setShowChat(true); }} unreadChat={unreadChat} />
 
         {/* Slide-over (lazy, Phase 2g) */}
         {state.selectedTask && (

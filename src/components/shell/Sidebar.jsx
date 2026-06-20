@@ -4,10 +4,10 @@
 import { useEffect, useRef } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { CURRENT_USER, getAssignableTeam, getRoleType } from "../../state/appGlobals.js";
-import { isOverdue, isUrgent } from "../../lib/taskUtils.js";
 
+// La Dashboard è raggiungibile dal logo aeroplano nella Topbar (la voce
+// dedicata in sidebar/bottom-nav è stata rimossa per alleggerire la nav).
 const NAV_ITEMS = [
-  { id: "dashboard",  icon: "📊", label: "Dashboard",  roles: ["admin", "manager", "agent", "driver"] },
   { id: "calendar",   icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
   { id: "clienti",    icon: "👤", label: "Clienti",    roles: ["admin", "manager", "agent"] },
   { id: "team",       icon: "👥", label: "Team",       roles: ["admin", "manager", "agent"] },
@@ -22,18 +22,11 @@ const getNavItemsForUser = (userId) => {
 };
 
 // Calcola i contatori per i badge sidebar/bottom-nav (Step F).
+// Il badge Dashboard (coda + urgenze) è migrato sul logo aeroplano in Topbar
+// insieme alla voce; qui resta solo il badge "pending" della voce Admin.
 function getNavBadges(state) {
   const pending = (state.team || []).filter(m => m.pending).length;
-  const queue = (state.tasks || []).filter(
-    t => !t.deletedAt && (!Array.isArray(t.assignees) || t.assignees.length === 0)
-  ).length;
-  // v2.8 Round 11: task scaduti o urgenti assegnati all'utente corrente
-  const urgentMine = (state.tasks || []).filter(t =>
-    !t.deletedAt && t.status !== "done" &&
-    (t.assignees || []).includes(state.currentUserId) &&
-    (isOverdue(t) || isUrgent(t))
-  ).length;
-  return { admin: pending, dashboard: queue, dashboardUrgent: urgentMine };
+  return { admin: pending };
 }
 
 // Componente helper per renderizzare il badge numerico
@@ -58,7 +51,7 @@ const NavBadge = ({ count, collapsed = false, mobile = false }) => {
   return <span style={{ ...base, marginLeft: "auto" }}>{count > 99 ? "99+" : count}</span>;
 };
 
-export const Sidebar = ({ state, dispatch, onOpenBulk }) => {
+export const Sidebar = ({ state, dispatch, onOpenBulk, onOpenChat, unreadChat = 0 }) => {
   const { isDesktop, width } = useViewport();
   // Auto-collassa la sidebar nella fascia "desktop stretto" (1025–1280px) dove
   // 210px di nav rubano troppo spazio orizzontale; si ri-espande sopra i 1280px.
@@ -91,8 +84,8 @@ export const Sidebar = ({ state, dispatch, onOpenBulk }) => {
       <button onClick={() => dispatch({ type: "TOGGLE_SIDEBAR" })} style={{
         position: "absolute", top: 12, right: col ? "50%" : 8,
         transform: col ? "translateX(50%)" : "none",
-        background: "rgba(15,32,68,0.07)", border: "1px solid rgba(15,32,68,0.12)",
-        borderRadius: 6, width: 24, height: 24, cursor: "pointer", color: "rgba(15,32,68,0.5)",
+        background: "rgba(15,32,68,0.09)", border: "1px solid rgba(15,32,68,0.18)",
+        borderRadius: 6, width: 24, height: 24, cursor: "pointer", color: "rgba(15,32,68,0.7)",
         fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center",
         transition: "all 0.2s",
       }}>{col ? "→" : "←"}</button>
@@ -106,7 +99,7 @@ export const Sidebar = ({ state, dispatch, onOpenBulk }) => {
               padding: col ? "10px 8px" : "10px 12px",
               borderRadius: 8, cursor: "pointer", border: "none",
               background: active ? "rgba(212,168,67,0.18)" : "transparent",
-              color: active ? "var(--navy)" : "rgba(15,32,68,0.6)",
+              color: active ? "var(--navy)" : "rgba(15,32,68,0.8)",
               fontSize: 14, fontWeight: active ? 600 : 400,
               transition: "all 0.2s", textAlign: "left",
               borderLeft: active ? "2px solid var(--gold)" : "2px solid transparent",
@@ -115,18 +108,29 @@ export const Sidebar = ({ state, dispatch, onOpenBulk }) => {
               <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
               {!col && <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>{item.label}</span>}
               <NavBadge count={badges[item.id] || 0} collapsed={col} />
-              {/* Badge urgenze personali (v2.8 Round 11) — rosso, solo voce Dashboard */}
-              {item.id === "dashboard" && badges.dashboardUrgent > 0 && (
-                <span title={`${badges.dashboardUrgent} task scadut${badges.dashboardUrgent === 1 ? "o" : "i"} o urgent${badges.dashboardUrgent === 1 ? "e" : "i"}`} style={{
-                  background: "var(--danger)", color: "#fff", fontWeight: 700,
-                  borderRadius: 999, fontSize: 10, padding: "1px 5px", minWidth: 15,
-                  height: 15, display: "inline-flex", alignItems: "center", justifyContent: "center",
-                  lineHeight: 1, ...(col ? { position: "absolute", top: 4, left: 4 } : { marginLeft: col ? "auto" : 2 }),
-                }}>{badges.dashboardUrgent > 9 ? "9+" : badges.dashboardUrgent}</span>
-              )}
             </button>
           );
         })}
+
+        {/* Chat team (spostata dalla Topbar) */}
+        <button
+          onClick={onOpenChat}
+          title="Messaggi team"
+          aria-label="Messaggi team"
+          style={{
+            display: "flex", alignItems: "center", gap: 10,
+            padding: col ? "10px 8px" : "10px 12px",
+            borderRadius: 8, cursor: "pointer", border: "none",
+            background: "transparent", color: "rgba(15,32,68,0.8)",
+            fontSize: 14, fontWeight: 400, transition: "all 0.2s", textAlign: "left",
+            borderLeft: "2px solid transparent", position: "relative",
+            justifyContent: col ? "center" : "flex-start",
+          }}
+        >
+          <span style={{ fontSize: 16, flexShrink: 0 }}>💬</span>
+          {!col && <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>Chat</span>}
+          <NavBadge count={unreadChat} collapsed={col} />
+        </button>
 
         {/* Azione: crea più task / import / template (spostata dal FAB secondario) */}
         <button
@@ -153,7 +157,7 @@ export const Sidebar = ({ state, dispatch, onOpenBulk }) => {
 
       {!col && (
         <div style={{ marginTop: "auto", padding: "16px 12px", borderTop: "1px solid rgba(15,32,68,0.12)" }}>
-          <div style={{ fontSize: 10, color: "rgba(15,32,68,0.45)", letterSpacing: 1, marginBottom: 8 }}>TEAM ONLINE</div>
+          <div style={{ fontSize: 10, color: "rgba(15,32,68,0.65)", letterSpacing: 1, marginBottom: 8 }}>TEAM ONLINE</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
             {getAssignableTeam().slice(0, 4).map(m => (
               <div key={m.id} title={m.name} style={{
@@ -174,7 +178,7 @@ export const Sidebar = ({ state, dispatch, onOpenBulk }) => {
 };
 
 // ─── BOTTOM NAV (mobile/tablet) ────────────────────────────────────────────
-export const BottomNav = ({ state, dispatch, onOpenBulk }) => {
+export const BottomNav = ({ state, dispatch, onOpenBulk, onOpenChat, unreadChat = 0 }) => {
   const navItems = getNavItemsForUser(state.currentUserId);
   const badges = getNavBadges(state);
   return (
@@ -192,7 +196,7 @@ export const BottomNav = ({ state, dispatch, onOpenBulk }) => {
               flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
               justifyContent: "center", gap: 3, padding: "6px 2px",
               background: "transparent", border: "none", cursor: "pointer",
-              color: active ? "var(--navy)" : "rgba(15,32,68,0.55)",
+              color: active ? "var(--navy)" : "rgba(15,32,68,0.75)",
               borderTop: active ? "2px solid var(--gold)" : "2px solid transparent",
               transition: "color 0.2s", position: "relative",
             }}
@@ -200,15 +204,6 @@ export const BottomNav = ({ state, dispatch, onOpenBulk }) => {
             <span style={{ fontSize: 19, lineHeight: 1, position: "relative" }}>
               {item.icon}
               <NavBadge count={badge} mobile />
-              {item.id === "dashboard" && badges.dashboardUrgent > 0 && (
-                <span style={{
-                  position: "absolute", top: -2, left: "calc(50% - 18px)",
-                  background: "var(--danger)", color: "#fff", fontWeight: 700,
-                  borderRadius: 999, fontSize: 9, padding: "1px 4px",
-                  minWidth: 13, height: 13, display: "inline-flex",
-                  alignItems: "center", justifyContent: "center", lineHeight: 1,
-                }}>{badges.dashboardUrgent > 9 ? "9+" : badges.dashboardUrgent}</span>
-              )}
             </span>
             <span style={{ fontSize: 9, fontWeight: active ? 700 : 500, whiteSpace: "nowrap" }}>
               {item.label.split(" ")[0]}
@@ -216,6 +211,25 @@ export const BottomNav = ({ state, dispatch, onOpenBulk }) => {
           </button>
         );
       })}
+
+      {/* Chat team (spostata dalla Topbar) */}
+      <button
+        onClick={onOpenChat}
+        aria-label="Messaggi team"
+        style={{
+          flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
+          justifyContent: "center", gap: 3, padding: "6px 2px",
+          background: "transparent", border: "none", cursor: "pointer",
+          color: "rgba(15,32,68,0.75)", borderTop: "2px solid transparent",
+          transition: "color 0.2s", position: "relative",
+        }}
+      >
+        <span style={{ fontSize: 19, lineHeight: 1, position: "relative" }}>
+          💬
+          <NavBadge count={unreadChat} mobile />
+        </span>
+        <span style={{ fontSize: 9, fontWeight: 500, whiteSpace: "nowrap" }}>Chat</span>
+      </button>
 
       {/* Azione: crea più task (spostata dal FAB secondario) */}
       <button

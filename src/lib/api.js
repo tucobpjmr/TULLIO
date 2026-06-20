@@ -72,6 +72,15 @@ export const Users = {
     supabase.from('user_contacts')
       .upsert({ user_id: id, email: email ?? null, phone: phone ?? null }, { onConflict: 'user_id' })
       .select().single(),
+  // ----------------- PREFERENZE APP (user_app_preferences) -----------------
+  // Preferenze personali sincronizzate server-side (es. reazioni recenti chat).
+  // RLS: solo l'utente stesso. Fuori da realtime, niente origin_client (vedi
+  // migration 20260620_user_app_preferences.sql).
+  getPreferences: (id) =>
+    supabase.from('user_app_preferences').select('recent_reactions').eq('user_id', id).maybeSingle(),
+  setRecentReactions: (id, recentReactions) =>
+    supabase.from('user_app_preferences')
+      .upsert({ user_id: id, recent_reactions: recentReactions, updated_at: new Date().toISOString() }, { onConflict: 'user_id' }),
 };
 
 // ----------------- TASKS -----------------
@@ -209,6 +218,18 @@ export const Messages = {
       .copy(srcPath, destPath);
     return { path: data?.path ?? destPath, error };
   },
+  // Fase 3 — audio vocale reale: carica il blob registrato (MediaRecorder) sullo
+  // stesso bucket privato 'chat-files', con la convenzione di path
+  // <conversation_id>/<uuid>-voice.<ext> così le RLS (primo segmento = conv)
+  // valgono come per gli altri allegati. Ritorna { path } da salvare in file_url.
+  uploadVoice: async (blob, conversationId, mimeType = 'audio/webm') => {
+    const ext = mimeType.includes('mp4') ? 'm4a' : mimeType.includes('ogg') ? 'ogg' : 'webm';
+    const path = `${conversationId}/${crypto.randomUUID()}-voice.${ext}`;
+    const { data, error } = await supabase.storage
+      .from('chat-files')
+      .upload(path, blob, { contentType: mimeType || 'audio/webm' });
+    return { path: data?.path ?? null, error };
+  },
   // Signed URL temporanea (1h) per scaricare/visualizzare un allegato.
   // Cache in-memory: scade 5 min prima del TTL, così click ripetuti sullo
   // stesso allegato non rigenerano una signed URL per ogni interazione.
@@ -270,9 +291,19 @@ export const Clients = {
 // 20260611_replica_identity_full.sql). Se il tag coincide con il nostro
 // client, l'evento è l'eco della nostra stessa scrittura — l'UI è già
 // aggiornata in modo ottimistico, quindi lo scartiamo per evitare flash.
+// Contatore monotono per generare topic di canale UNIVOCI a ogni chiamata.
+// Più subscriber possono ascoltare la STESSA tabella: `users`, ad esempio, è
+// osservata sia dal refresh team sia dalla presence. Con un topic fisso
+// `realtime:<table>` supabase-js riusa il canale già sottoscritto e il secondo
+// `.on('postgres_changes')` lancia "cannot add postgres_changes callbacks for
+// realtime:realtime:<table> after subscribe()" (pagina bianca al mount). Un
+// suffisso univoco dà a ogni subscriber il proprio canale indipendente, con lo
+// stesso filtro postgres → entrambi ricevono gli eventi della tabella.
+let channelSeq = 0;
+
 export function subscribeToTable(tableName, handler) {
   const channel = supabase
-    .channel(`realtime:${tableName}`)
+    .channel(`realtime:${tableName}:${getClientId()}:${++channelSeq}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: tableName }, (payload) => {
       const origin = payload?.new?.origin_client ?? payload?.old?.origin_client;
       if (origin && origin === getClientId()) return;

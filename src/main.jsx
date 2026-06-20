@@ -4,6 +4,7 @@ import VoyageDesk from './VoyageDesk.jsx';
 import { AuthProvider, useAuth } from './auth/AuthContext.jsx';
 import LoginScreen from './auth/LoginScreen.jsx';
 import UpdatePasswordScreen from './auth/UpdatePasswordScreen.jsx';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
 
 const screenWrap = {
   minHeight: '100vh', display: 'grid', placeItems: 'center',
@@ -73,8 +74,10 @@ function AuthGate() {
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <AuthProvider>
-      <AuthGate />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AuthGate />
+      </AuthProvider>
+    </ErrorBoundary>
   </React.StrictMode>
 );

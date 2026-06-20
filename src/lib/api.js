@@ -166,9 +166,14 @@ export const Messages = {
     supabase.from('messages').update(withOrigin({ reactions })).eq('id', id),
   // Fase 3 — pin condiviso: tutti i partecipanti vedono lo stesso stato.
   // Le RLS UPDATE su messages permettono già a chi partecipa di toggleare
-  // (stesso path di setReactions).
-  setPinned: (id, pinned) =>
-    supabase.from('messages').update(withOrigin({ pinned })).eq('id', id),
+  // (stesso path di setReactions). `pinnedBy`/`pinnedAt` sono l'audit (chi/
+  // quando): valorizzati al pin, azzerati all'unpin.
+  setPinned: (id, pinned, pinnedBy = null) =>
+    supabase.from('messages').update(withOrigin({
+      pinned,
+      pinned_by: pinned ? pinnedBy : null,
+      pinned_at: pinned ? new Date().toISOString() : null,
+    })).eq('id', id),
   markRead: (id, readBy) =>
     supabase.from('messages').update(withOrigin({ read_by: readBy })).eq('id', id),
   // Step Q.4: RPC bulk markRead. Un singolo UPDATE su tutti i messaggi non
@@ -190,6 +195,19 @@ export const Messages = {
       .from('chat-files')
       .upload(path, file, { contentType: file.type || 'application/octet-stream' });
     return { path: data?.path ?? null, error };
+  },
+  // Fase 3 forward allegati: copia server-side un file dal path sorgente a una
+  // nuova path scoped sulla conversazione destinazione. Le RLS su
+  // storage.objects richiedono SELECT su src (partecipante della conv sorgente)
+  // + INSERT su dest (partecipante della conv destinazione): chi inoltra è in
+  // entrambe → la copy passa. Niente download/upload lato client: il blob non
+  // transita dal browser. Nuovo UUID nel path così non collide con l'originale.
+  copyFile: async (srcPath, destConversationId, fileName) => {
+    const destPath = `${destConversationId}/${crypto.randomUUID()}-${sanitizeFileName(fileName || 'file')}`;
+    const { data, error } = await supabase.storage
+      .from('chat-files')
+      .copy(srcPath, destPath);
+    return { path: data?.path ?? destPath, error };
   },
   // Signed URL temporanea (1h) per scaricare/visualizzare un allegato.
   // Cache in-memory: scade 5 min prima del TTL, così click ripetuti sullo

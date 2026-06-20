@@ -18,7 +18,10 @@ export function AuthProvider({ children }) {
     if (!userId) { setProfile(null); setTeam([]); return; }
     const [{ data: me }, { data: all }, { data: contacts }] = await Promise.all([
       supabase.from('users').select('*').eq('id', userId).single(),
-      supabase.from('users').select('*').eq('active', true).order('name'),
+      // Nessun filtro su active: gli admin devono vedere anche utenti pending
+      // (per approvarli) e disabilitati. Le viste task usano getAssignableTeam()
+      // che filtra a sua volta active=true + pending=false (state/appGlobals.js).
+      supabase.from('users').select('*').order('name'),
       // email/phone vivono in public.user_contacts (RLS own+admin). Le carico
       // solo per l'utente loggato e le rimergio nel profilo e nella sua entry
       // di team, così ProfileEditor le mostra (gli altri membri non le hanno,
@@ -76,6 +79,17 @@ export function AuthProvider({ children }) {
       redirectTo: window.location.origin,
     });
 
+  // Reinvia l'email di conferma signup (utile quando l'utente ha registrato un
+  // account ma non ha cliccato il link in tempo, o lo ha perso). Supabase
+  // emette lo stesso link OTP del signup. Usata dal LoginScreen quando il
+  // tentativo di login fallisce con email_not_confirmed.
+  const resendConfirmation = (email) =>
+    supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: { emailRedirectTo: window.location.origin },
+    });
+
   // Aggiorna la password dell'utente nella sessione di recovery, poi esce
   // dalla modalità recovery così l'app monta normalmente.
   const updatePassword = async (password) => {
@@ -100,6 +114,7 @@ export function AuthProvider({ children }) {
     signIn,
     signUp,
     resetPassword,
+    resendConfirmation,
     updatePassword,
     signOut,
     refreshTeam,

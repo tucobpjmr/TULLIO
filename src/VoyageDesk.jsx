@@ -558,6 +558,23 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     setNotifications((data || []).map(fromDbNotification));
   }, { enabled: useSupabase, deps: [useSupabase] });
 
+  // Refresh team live (sessione 29). Senza questo sub, l'admin invita o
+  // approva un utente e l'elenco Team non si aggiorna fino a un reload.
+  // Risub-scrive ai change su `users` e ricarica la lista completa (inclusi
+  // pending=true e active=false: l'admin deve vederli). Il debounce coalesce
+  // le raffiche di UPDATE generate dagli heartbeat di presenza (status /
+  // last_seen_at). normalize() allinea photo_url → photoUrl, idem AuthContext.
+  useDebouncedTableSubscription(["users"], async (isCurrent) => {
+    const { data, error } = await UsersAPI.listAll();
+    if (!isCurrent()) return;
+    if (error) {
+      console.error("[VoyageDesk] Users.listAll", error);
+      return;
+    }
+    const team = (data || []).map(u => ({ ...u, photoUrl: u.photo_url ?? null }));
+    rawDispatch({ type: "SET_TEAM", payload: team });
+  }, { enabled: useSupabase, delay: 800, deps: [useSupabase] });
+
   // Loading state CRM: true finché non completa il primo fetch da Supabase.
   // Senza login parte già false (nessuna idratazione: si usano i dati mock).
   const [crmLoading, setCrmLoading] = useState(useSupabase);

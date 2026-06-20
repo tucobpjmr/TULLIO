@@ -13,6 +13,12 @@ const withOrigin = (payload) => ({ ...payload, origin_client: getClientId() });
 export const Users = {
   list: () =>
     supabase.from('users').select('*').eq('active', true).order('name'),
+  // listAll() include pending=true e active=false: serve agli admin per vedere
+  // utenti in attesa di approvazione e disabilitati nel pannello Team. Le
+  // policy RLS sulla tabella users non filtrano per active, quindi tutti gli
+  // utenti autenticati possono leggere l'elenco completo (è un team condiviso).
+  listAll: () =>
+    supabase.from('users').select('*').order('name'),
   get: (id) =>
     supabase.from('users').select('*').eq('id', id).single(),
   // Nota: email/phone NON sono più colonne di public.users (migrazione

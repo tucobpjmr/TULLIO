@@ -99,8 +99,40 @@ const EMOJI_EXPANDED = [
   "🚀", "🎯", "🛠️", "🆘", "☕", "🍽️", "🎊", "✨",
 ];
 
+// Fase 3 — reazioni recenti: le ultime emoji usate (anche dal set esteso)
+// sono ricordate in localStorage e riproposte in cima al pannello esteso, così
+// le custom usate spesso non vanno ricercate nella griglia ogni volta.
+const RECENT_REACTIONS_KEY = "tullio_recent_reactions";
+const RECENT_REACTIONS_MAX = 8;
+
+const loadRecentReactions = () => {
+  try {
+    const arr = JSON.parse(localStorage.getItem(RECENT_REACTIONS_KEY) || "[]");
+    return Array.isArray(arr) ? arr.filter(e => typeof e === "string").slice(0, RECENT_REACTIONS_MAX) : [];
+  } catch { return []; }
+};
+
+const pushRecentReaction = (emoji) => {
+  try {
+    const next = [emoji, ...loadRecentReactions().filter(e => e !== emoji)].slice(0, RECENT_REACTIONS_MAX);
+    localStorage.setItem(RECENT_REACTIONS_KEY, JSON.stringify(next));
+  } catch { /* localStorage non disponibile: i recenti restano vuoti */ }
+};
+
 const ReactionPicker = ({ onPick, onClose }) => {
   const [expanded, setExpanded] = useState(false);
+  // Snapshot dei recenti all'apertura del picker (lettura sincrona da storage).
+  const [recents] = useState(loadRecentReactions);
+  // Registra l'emoji nei recenti, applica la reazione e chiude.
+  const pick = (e) => { pushRecentReaction(e); onPick(e); onClose(); };
+
+  const emojiBtn = {
+    background: "none", border: "none", cursor: "pointer",
+    fontSize: 18, padding: 4, borderRadius: 6, transition: "background 0.15s",
+  };
+  const hoverOn = ev => ev.currentTarget.style.background = "var(--surface2)";
+  const hoverOff = ev => ev.currentTarget.style.background = "transparent";
+
   return (
     <div onClick={e => e.stopPropagation()} style={{
       position: "absolute", bottom: "calc(100% + 4px)", left: 0,
@@ -112,6 +144,19 @@ const ReactionPicker = ({ onPick, onClose }) => {
     }}>
       {expanded ? (
         <>
+          {recents.length > 0 && (
+            <>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>
+                RECENTI
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 2, marginBottom: 8 }}>
+                {recents.map(e => (
+                  <button key={"r" + e} onClick={() => pick(e)} style={emojiBtn}
+                    onMouseEnter={hoverOn} onMouseLeave={hoverOff}>{e}</button>
+                ))}
+              </div>
+            </>
+          )}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
             <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: 0.5 }}>
               EMOJI ESTESE
@@ -126,26 +171,16 @@ const ReactionPicker = ({ onPick, onClose }) => {
             maxHeight: 200, overflowY: "auto",
           }}>
             {EMOJI_EXPANDED.map(e => (
-              <button key={e} onClick={() => { onPick(e); onClose(); }} style={{
-                background: "none", border: "none", cursor: "pointer",
-                fontSize: 18, padding: 4, borderRadius: 6,
-              }}
-                onMouseEnter={ev => ev.currentTarget.style.background = "var(--surface2)"}
-                onMouseLeave={ev => ev.currentTarget.style.background = "transparent"}
-              >{e}</button>
+              <button key={e} onClick={() => pick(e)} style={emojiBtn}
+                onMouseEnter={hoverOn} onMouseLeave={hoverOff}>{e}</button>
             ))}
           </div>
         </>
       ) : (
         <>
           {EMOJI_REACTIONS.map(e => (
-            <button key={e} onClick={() => { onPick(e); onClose(); }} style={{
-              background: "none", border: "none", cursor: "pointer",
-              fontSize: 18, padding: 4, borderRadius: 6, transition: "background 0.15s",
-            }}
-              onMouseEnter={ev => ev.currentTarget.style.background = "var(--surface2)"}
-              onMouseLeave={ev => ev.currentTarget.style.background = "transparent"}
-            >{e}</button>
+            <button key={e} onClick={() => pick(e)} style={emojiBtn}
+              onMouseEnter={hoverOn} onMouseLeave={hoverOff}>{e}</button>
           ))}
           <button
             onClick={() => setExpanded(true)}
@@ -316,9 +351,10 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onTogg
   // originalSenderId tiene l'UID dell'autore originale (preservato anche
   // attraverso catene di forward A→B→C).
   const originalSender = msg.originalSenderId ? getMember(msg.originalSenderId) : null;
-  // Forwardable v1: solo testo. File/voice richiedono copia su storage e
-  // restano fuori scope di questo primo giro.
-  const canForward = msg.type === "text" && !!onForward;
+  // Forwardable: testo, file e vocali. Per i file l'allegato viene copiato
+  // nello storage della conv destinazione (path scoped per RLS); i vocali
+  // sono simulati (duration + waveform) → si copiano direttamente.
+  const canForward = !!onForward && ["text", "file", "voice"].includes(msg.type);
 
   // Read indicator
   const otherParticipants = conv.participants.filter(p => p !== CURRENT_USER);
@@ -374,18 +410,25 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onTogg
           {/* Pin indicator (Fase 3): chip dorata in alto-fuori dal bubble.
               Visibile sempre quando msg.pinned, anche senza hover, così l'utente
               sa subito quali messaggi sono fissati senza dover aprire il filtro. */}
-          {msg.pinned && (
-            <div style={{
-              position: "absolute", top: -8, [isMine ? "right" : "left"]: 8,
-              background: "var(--gold)", color: "var(--navy)",
-              fontSize: 10, fontWeight: 700, borderRadius: 99,
-              padding: "1px 6px", display: "flex", alignItems: "center", gap: 3,
-              boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-            }}>
-              <span style={{ fontSize: 9 }}>📌</span>
-              <span>FISSATO</span>
-            </div>
-          )}
+          {msg.pinned && (() => {
+            // Audit (Fase 3 metadata): tooltip "Fissato da {nome} · {data}".
+            const pinner = msg.pinnedBy ? getMember(msg.pinnedBy) : null;
+            const pinTitle = pinner
+              ? `Fissato da ${pinner.name}${msg.pinnedAt ? ` · ${formatDate(msg.pinnedAt)}` : ""}`
+              : "Messaggio fissato";
+            return (
+              <div title={pinTitle} style={{
+                position: "absolute", top: -8, [isMine ? "right" : "left"]: 8,
+                background: "var(--gold)", color: "var(--navy)",
+                fontSize: 10, fontWeight: 700, borderRadius: 99,
+                padding: "1px 6px", display: "flex", alignItems: "center", gap: 3,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.15)", cursor: "default",
+              }}>
+                <span style={{ fontSize: 9 }}>📌</span>
+                <span>FISSATO</span>
+              </div>
+            );
+          })()}
           {/* Forwarded badge (Fase 3): se originalSenderId è valorizzato,
               mostra "Inoltrato da {nome}". Il lookup avviene su TEAM globale
               (non sui partecipanti del conv) → funziona anche se l'autore
@@ -738,12 +781,20 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
   // Fase 3 pin: stato group-level. Toggle via wrapper setMessages → diff
   // pinned → MessagesAPI.setPinned. Niente API ottimistica diversa: il
   // wrapper persiste, l'UI si aggiorna dal local set immediatamente.
+  // pinnedBy/pinnedAt: audit (chi/quando) valorizzato al pin, azzerato all'unpin.
   const handleTogglePin = (msgId) => {
     setMessages(prev => ({
       ...prev,
-      [conv.id]: (prev[conv.id] || []).map(m =>
-        m.id === msgId ? { ...m, pinned: !m.pinned } : m
-      ),
+      [conv.id]: (prev[conv.id] || []).map(m => {
+        if (m.id !== msgId) return m;
+        const willPin = !m.pinned;
+        return {
+          ...m,
+          pinned: willPin,
+          pinnedBy: willPin ? CURRENT_USER : null,
+          pinnedAt: willPin ? new Date().toISOString() : null,
+        };
+      }),
     }));
   };
 
@@ -1145,6 +1196,8 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
         {filtered.map(c => {
           const last = getLastMessage(messages, c.id);
           const unread = getUnreadCount(messages, c.id);
+          // Fase 3: quanti messaggi fissati ha questa conversazione → badge.
+          const pinnedCount = (messages[c.id] || []).filter(m => m.pinned).length;
           const lastSender = last ? getMember(last.sender) : null;
           const otherUser = c.type === "direct" ? c.participants.find(p => p !== CURRENT_USER) : null;
 
@@ -1213,6 +1266,12 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
                       </>
                     ) : "Nessun messaggio"}
                   </div>
+                  {pinnedCount > 0 && (
+                    <div title={`${pinnedCount} ${pinnedCount === 1 ? "messaggio fissato" : "messaggi fissati"}`} style={{
+                      display: "flex", alignItems: "center", gap: 1,
+                      fontSize: 10, color: "var(--gold)", fontWeight: 700, flexShrink: 0,
+                    }}>📌{pinnedCount}</div>
+                  )}
                   {unread > 0 && (
                     <div style={{
                       background: "var(--gold)", color: "var(--navy)", fontSize: 10, fontWeight: 700,
@@ -1415,7 +1474,13 @@ const ForwardPicker = ({ msg, conversations, messages, onPick, onClose }) => {
       })
     : sorted;
 
-  const preview = msg.text?.length > 120 ? msg.text.slice(0, 117) + "…" : (msg.text || "");
+  // Preview del messaggio da inoltrare: etichetta dedicata per file/voice,
+  // testo troncato altrimenti.
+  const preview = msg.type === "file"
+    ? `📎 ${msg.fileName || "Allegato"}`
+    : msg.type === "voice"
+      ? "🎙️ Messaggio vocale"
+      : (msg.text?.length > 120 ? msg.text.slice(0, 117) + "…" : (msg.text || ""));
 
   return (
     <div onClick={onClose} style={{
@@ -1527,7 +1592,7 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
     setForwardingMsg({ ...msg, __sourceConvId: activeConv?.id ?? null });
   };
 
-  const handleForwardPick = (destConvId) => {
+  const handleForwardPick = async (destConvId) => {
     const src = forwardingMsg;
     setForwardingMsg(null);
     if (!src || !destConvId) return;
@@ -1535,17 +1600,41 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
     // Preserva l'autore originale anche su forward chain (A→B→C): se src è
     // già un forward, ereditiamo il suo originalSenderId; altrimenti è src.sender.
     const originalSenderId = src.originalSenderId || src.sender;
-    const newMsg = {
+    const base = {
       // id provvisorio: il wrapper setMessages in VoyageDesk normalizza in UUID
       // se non lo è (vedi caveat newId).
       id: "m" + Date.now(),
       sender: me,
-      type: "text",
-      text: src.text || "",
       time: new Date().toISOString(),
       readBy: [me],
       originalSenderId,
     };
+
+    let newMsg;
+    if (src.type === "voice") {
+      // Vocale simulato: nessuno storage, copia metadata.
+      newMsg = { ...base, type: "voice", duration: src.duration, waveform: src.waveform };
+    } else if (src.type === "file") {
+      newMsg = {
+        ...base, type: "file",
+        fileName: src.fileName, fileSize: src.fileSize, fileType: src.fileType,
+        fileUrl: null,
+      };
+      // Copia l'allegato nello storage della conv destinazione (solo se la
+      // sorgente ha un path reale e la dest è una conv vera, non mock).
+      if (src.fileUrl && isUuid(destConvId)) {
+        const { path, error } = await MessagesAPI.copyFile(src.fileUrl, destConvId, src.fileName);
+        if (error || !path) {
+          console.error("[chat] forward copyFile", error);
+          if (dispatch) dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Inoltro allegato fallito: ${error?.message || "errore sconosciuto"}` } });
+          return;
+        }
+        newMsg.fileUrl = path;
+      }
+    } else {
+      newMsg = { ...base, type: "text", text: src.text || "" };
+    }
+
     setMessages(prev => ({
       ...prev,
       [destConvId]: [...(prev[destConvId] || []), newMsg],

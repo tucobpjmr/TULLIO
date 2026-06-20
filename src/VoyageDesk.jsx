@@ -992,7 +992,9 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
               .then(r => { if (r?.error) { console.error('[chat] msg.readBy', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: aggiornamento "letto" fallito: ${r.error.message || ''}` } }); } });
           }
           if (!!prevM.pinned !== !!m.pinned) {
-            MessagesAPI.setPinned(m.id, !!m.pinned)
+            // pinnedBy: chi sta fissando (per l'audit). Solo al pin; all'unpin
+            // l'API azzera comunque pinned_by/pinned_at.
+            MessagesAPI.setPinned(m.id, !!m.pinned, m.pinned ? (m.pinnedBy ?? null) : null)
               .then(r => { if (r?.error) { console.error('[chat] msg.pinned', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: pin fallito: ${r.error.message || ''}` } }); } });
           }
           return m;

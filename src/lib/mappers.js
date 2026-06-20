@@ -171,6 +171,9 @@ export function fromDbMessage(row) {
     // catene di forward. NULL = messaggio non inoltrato.
     originalSenderId: row.original_sender_id ?? null,
     pinned: !!row.pinned,
+    // Fase 3 pin metadata: audit di chi/quando ha fissato. NULL se non fissato.
+    pinnedAt: row.pinned_at ?? null,
+    pinnedBy: row.pinned_by ?? null,
     reactions: row.reactions ?? {},
     readBy: Array.isArray(row.read_by) ? row.read_by : [],
     time: row.created_at,
@@ -198,6 +201,8 @@ export function toDbMessage(msg, conversationId) {
     task_ref: msg.taskRef ?? null,
     original_sender_id: msg.originalSenderId ?? null,
     pinned: !!msg.pinned,
+    pinned_at: msg.pinnedAt ?? null,
+    pinned_by: msg.pinnedBy ?? null,
     reactions: msg.reactions ?? {},
     read_by: Array.isArray(msg.readBy) ? msg.readBy : [],
   };

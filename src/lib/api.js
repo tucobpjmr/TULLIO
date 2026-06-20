@@ -291,9 +291,19 @@ export const Clients = {
 // 20260611_replica_identity_full.sql). Se il tag coincide con il nostro
 // client, l'evento è l'eco della nostra stessa scrittura — l'UI è già
 // aggiornata in modo ottimistico, quindi lo scartiamo per evitare flash.
+// Contatore monotono per generare topic di canale UNIVOCI a ogni chiamata.
+// Più subscriber possono ascoltare la STESSA tabella: `users`, ad esempio, è
+// osservata sia dal refresh team sia dalla presence. Con un topic fisso
+// `realtime:<table>` supabase-js riusa il canale già sottoscritto e il secondo
+// `.on('postgres_changes')` lancia "cannot add postgres_changes callbacks for
+// realtime:realtime:<table> after subscribe()" (pagina bianca al mount). Un
+// suffisso univoco dà a ogni subscriber il proprio canale indipendente, con lo
+// stesso filtro postgres → entrambi ricevono gli eventi della tabella.
+let channelSeq = 0;
+
 export function subscribeToTable(tableName, handler) {
   const channel = supabase
-    .channel(`realtime:${tableName}`)
+    .channel(`realtime:${tableName}:${getClientId()}:${++channelSeq}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: tableName }, (payload) => {
       const origin = payload?.new?.origin_client ?? payload?.old?.origin_client;
       if (origin && origin === getClientId()) return;

@@ -38,7 +38,7 @@ const PRESENCE_LABELS = {
 };
 
 // Context per condividere tasks/dispatch (per messaggi con taskLink — v0.8)
-const ChatContext = createContext({ tasks: [], dispatch: () => {}, messageTemplates: [] });
+const ChatContext = createContext({ tasks: [], dispatch: () => {}, messageTemplates: [], onForward: () => {} });
 
 // ─── CHAT: UTILS ───────────────────────────────────────────────────────────
 const formatChatTime = (iso) => {
@@ -80,24 +80,87 @@ export const getUnreadCount = (msgs, convId) => {
 // ─── CHAT: REACTIONS POPOVER ───────────────────────────────────────────────
 const EMOJI_REACTIONS = ["👍", "❤️", "😂", "🔥", "✅", "🎉", "💡", "🙌"];
 
-const ReactionPicker = ({ onPick, onClose }) => (
-  <div onClick={e => e.stopPropagation()} style={{
-    position: "absolute", bottom: "calc(100% + 4px)", left: 0,
-    background: "var(--card)", borderRadius: 20, padding: "6px 8px",
-    boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--border)",
-    display: "flex", gap: 2, zIndex: 100,
-  }}>
-    {EMOJI_REACTIONS.map(e => (
-      <button key={e} onClick={() => { onPick(e); onClose(); }} style={{
-        background: "none", border: "none", cursor: "pointer",
-        fontSize: 18, padding: 4, borderRadius: 6, transition: "background 0.15s",
-      }}
-        onMouseEnter={ev => ev.currentTarget.style.background = "var(--surface2)"}
-        onMouseLeave={ev => ev.currentTarget.style.background = "transparent"}
-      >{e}</button>
-    ))}
-  </div>
-);
+// Fase 3 — set esteso di emoji per la modalità "+" del picker. Raggruppate
+// per blocchi di senso (sentiment, gesti, oggetti, simboli, attività) così
+// l'utente trova rapidamente quello che cerca senza dover scrollare un
+// catalogo gigante. ~48 totali = compromesso ragionevole copertura/peso UI.
+const EMOJI_EXPANDED = [
+  // sentiment
+  "😀", "😅", "😍", "🤔", "😎", "😭", "😡", "🥳",
+  // gesti
+  "👏", "🙏", "🤝", "💪", "👌", "✋", "👋", "🤙",
+  // simboli ok/no
+  "✔️", "❌", "⚠️", "❓", "❗", "💯", "🆗", "⭐",
+  // oggetti/lavoro
+  "📌", "📎", "📅", "📞", "📧", "💼", "🏝️", "✈️",
+  // tempo/soldi
+  "⏰", "⏳", "💰", "💸", "🧾", "📊", "📈", "📉",
+  // varie
+  "🚀", "🎯", "🛠️", "🆘", "☕", "🍽️", "🎊", "✨",
+];
+
+const ReactionPicker = ({ onPick, onClose }) => {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div onClick={e => e.stopPropagation()} style={{
+      position: "absolute", bottom: "calc(100% + 4px)", left: 0,
+      background: "var(--card)", borderRadius: expanded ? 12 : 20,
+      padding: expanded ? "8px 10px" : "6px 8px",
+      boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--border)",
+      display: expanded ? "block" : "flex",
+      gap: 2, zIndex: 100, maxWidth: expanded ? 280 : "auto",
+    }}>
+      {expanded ? (
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: 0.5 }}>
+              EMOJI ESTESE
+            </span>
+            <button onClick={() => setExpanded(false)} style={{
+              background: "none", border: "none", cursor: "pointer",
+              color: "var(--text-muted)", fontSize: 11, padding: "2px 6px",
+            }}>← Indietro</button>
+          </div>
+          <div style={{
+            display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 2,
+            maxHeight: 200, overflowY: "auto",
+          }}>
+            {EMOJI_EXPANDED.map(e => (
+              <button key={e} onClick={() => { onPick(e); onClose(); }} style={{
+                background: "none", border: "none", cursor: "pointer",
+                fontSize: 18, padding: 4, borderRadius: 6,
+              }}
+                onMouseEnter={ev => ev.currentTarget.style.background = "var(--surface2)"}
+                onMouseLeave={ev => ev.currentTarget.style.background = "transparent"}
+              >{e}</button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          {EMOJI_REACTIONS.map(e => (
+            <button key={e} onClick={() => { onPick(e); onClose(); }} style={{
+              background: "none", border: "none", cursor: "pointer",
+              fontSize: 18, padding: 4, borderRadius: 6, transition: "background 0.15s",
+            }}
+              onMouseEnter={ev => ev.currentTarget.style.background = "var(--surface2)"}
+              onMouseLeave={ev => ev.currentTarget.style.background = "transparent"}
+            >{e}</button>
+          ))}
+          <button
+            onClick={() => setExpanded(true)}
+            title="Altre emoji"
+            style={{
+              background: "var(--surface2)", border: "none", cursor: "pointer",
+              fontSize: 14, padding: "4px 8px", borderRadius: 6,
+              color: "var(--text-muted)", fontWeight: 700,
+            }}
+          >+</button>
+        </>
+      )}
+    </div>
+  );
+};
 
 // ─── CHAT: VOICE PLAYER ────────────────────────────────────────────────────
 const VoicePlayer = ({ duration, waveform, isMine }) => {
@@ -238,9 +301,10 @@ const formatFileSize = (size) => {
 };
 
 // ─── CHAT: MESSAGE ─────────────────────────────────────────────────────────
-const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onContextMenu }) => {
+const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onTogglePin, onContextMenu }) => {
   const [showReactions, setShowReactions] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const { onForward } = useContext(ChatContext);
   const isMine = msg.sender === CURRENT_USER;
   const sender = getMember(msg.sender);
   const showAvatar = !prevMsg || prevMsg.sender !== msg.sender;
@@ -248,6 +312,13 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
 
   const replyMsg = msg.replyTo ? allMessages.find(m => m.id === msg.replyTo) : null;
   const replyAuthor = replyMsg ? getMember(replyMsg.sender) : null;
+  // Fase 3 forward: se valorizzato, il messaggio è un inoltro e
+  // originalSenderId tiene l'UID dell'autore originale (preservato anche
+  // attraverso catene di forward A→B→C).
+  const originalSender = msg.originalSenderId ? getMember(msg.originalSenderId) : null;
+  // Forwardable v1: solo testo. File/voice richiedono copia su storage e
+  // restano fuori scope di questo primo giro.
+  const canForward = msg.type === "text" && !!onForward;
 
   // Read indicator
   const otherParticipants = conv.participants.filter(p => p !== CURRENT_USER);
@@ -300,6 +371,36 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
           border: isMine ? "none" : "1px solid var(--border)",
           position: "relative",
         }}>
+          {/* Pin indicator (Fase 3): chip dorata in alto-fuori dal bubble.
+              Visibile sempre quando msg.pinned, anche senza hover, così l'utente
+              sa subito quali messaggi sono fissati senza dover aprire il filtro. */}
+          {msg.pinned && (
+            <div style={{
+              position: "absolute", top: -8, [isMine ? "right" : "left"]: 8,
+              background: "var(--gold)", color: "var(--navy)",
+              fontSize: 10, fontWeight: 700, borderRadius: 99,
+              padding: "1px 6px", display: "flex", alignItems: "center", gap: 3,
+              boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+            }}>
+              <span style={{ fontSize: 9 }}>📌</span>
+              <span>FISSATO</span>
+            </div>
+          )}
+          {/* Forwarded badge (Fase 3): se originalSenderId è valorizzato,
+              mostra "Inoltrato da {nome}". Il lookup avviene su TEAM globale
+              (non sui partecipanti del conv) → funziona anche se l'autore
+              originale non è in questa conversazione. */}
+          {originalSender && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 4, marginBottom: 4,
+              fontSize: 10.5, fontStyle: "italic",
+              color: isMine ? "rgba(255,255,255,0.65)" : "var(--text-muted)",
+            }}>
+              <span>↪</span>
+              <span>Inoltrato da {originalSender.name}</span>
+            </div>
+          )}
+
           {/* Reply preview */}
           {replyMsg && (
             <div style={{
@@ -392,6 +493,20 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
           }}>
             <button onClick={() => setShowReactions(s => !s)} style={iconBtn}>😊</button>
             <button onClick={() => onReply(msg)} style={iconBtn}>↩</button>
+            {canForward && (
+              <button
+                onClick={() => onForward(msg)}
+                style={iconBtn}
+                title="Inoltra a un'altra conversazione"
+              >↪</button>
+            )}
+            {onTogglePin && (
+              <button
+                onClick={() => onTogglePin(msg.id)}
+                style={iconBtn}
+                title={msg.pinned ? "Rimuovi fissaggio" : "Fissa nella conversazione"}
+              >{msg.pinned ? "📍" : "📌"}</button>
+            )}
           </div>
         )}
 
@@ -468,6 +583,9 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
   // v2.8 Round 13: ricerca messaggi
   const [showMsgSearch, setShowMsgSearch] = useState(false);
   const [msgSearch, setMsgSearch] = useState("");
+  // Fase 3 pin: filtro "solo messaggi fissati" — pill nell'header. Si combina
+  // in AND con la ricerca testuale.
+  const [showPinnedOnly, setShowPinnedOnly] = useState(false);
   const { messageTemplates: templates = [] } = useContext(ChatContext);
   const [typing, setTyping] = useState(false);
   // Step K: taskRef UUID "armato" finché il prossimo invio non lo consuma.
@@ -617,6 +735,18 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
     }));
   };
 
+  // Fase 3 pin: stato group-level. Toggle via wrapper setMessages → diff
+  // pinned → MessagesAPI.setPinned. Niente API ottimistica diversa: il
+  // wrapper persiste, l'UI si aggiorna dal local set immediatamente.
+  const handleTogglePin = (msgId) => {
+    setMessages(prev => ({
+      ...prev,
+      [conv.id]: (prev[conv.id] || []).map(m =>
+        m.id === msgId ? { ...m, pinned: !m.pinned } : m
+      ),
+    }));
+  };
+
   const otherTypingMember = conv.participants.find(p => p !== CURRENT_USER);
   const otherMember = conv.type === "direct" ? getMember(otherTypingMember) : null;
 
@@ -663,6 +793,27 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
           </div>
         </div>
 
+        {/* Pill "📌 N fissati" — visibile solo se ci sono messaggi fissati.
+            Click → toggle del filtro showPinnedOnly. Stato premuto evidenziato
+            in oro per richiamare visivamente la modalità filtro attiva. */}
+        {msgs.some(m => m.pinned) && (() => {
+          const pinnedCount = msgs.filter(m => m.pinned).length;
+          return (
+            <button
+              onClick={() => setShowPinnedOnly(p => !p)}
+              title={showPinnedOnly ? "Mostra tutti i messaggi" : "Mostra solo i messaggi fissati"}
+              style={{
+                background: showPinnedOnly ? "rgba(212,168,67,0.35)" : "rgba(255,255,255,0.1)",
+                border: "none", color: "#fff",
+                height: 30, padding: "0 10px", borderRadius: 6, cursor: "pointer",
+                fontSize: 11.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
+              }}
+            >
+              <span>📌</span>
+              <span>{pinnedCount}</span>
+            </button>
+          );
+        })()}
         <button
           onClick={() => { setShowMsgSearch(s => !s); setMsgSearch(""); }}
           title="Cerca nei messaggi"
@@ -707,17 +858,32 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
         flex: 1, overflowY: "auto", padding: "12px 14px",
         background: "var(--surface2)",
       }}>
-        {(msgSearch ? msgs.filter(m => m.text?.toLowerCase().includes(msgSearch.toLowerCase())) : msgs).map((m, i) => (
-          <ChatMessage
-            key={m.id}
-            msg={m}
-            prevMsg={msgs[i - 1]}
-            conv={conv}
-            allMessages={msgs}
-            onReact={handleReact}
-            onReply={setReplyingTo}
-          />
-        ))}
+        {(() => {
+          const q = msgSearch.toLowerCase();
+          // Filtro: pinned-only + ricerca testo (AND). Mantengo il riferimento
+          // a `msgs` per `prevMsg`/`allMessages` (mostra reply/avatar coerenti
+          // con la timeline intera, non solo il sottoinsieme filtrato).
+          const visible = msgs.filter(m => {
+            if (showPinnedOnly && !m.pinned) return false;
+            if (msgSearch && !m.text?.toLowerCase().includes(q)) return false;
+            return true;
+          });
+          return visible.map((m) => {
+            const i = msgs.indexOf(m);
+            return (
+              <ChatMessage
+                key={m.id}
+                msg={m}
+                prevMsg={msgs[i - 1]}
+                conv={conv}
+                allMessages={msgs}
+                onReact={handleReact}
+                onReply={setReplyingTo}
+                onTogglePin={handleTogglePin}
+              />
+            );
+          });
+        })()}
         {typing && (
           <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "flex-end" }}>
             <Avatar memberId={otherTypingMember} size={28} />
@@ -1218,6 +1384,133 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
 };
 
 // ─── CHAT: MAIN PANEL ──────────────────────────────────────────────────────
+// ─── FORWARD PICKER (Fase 3) ───────────────────────────────────────────────
+// Overlay che mostra la lista conversazioni e ritorna la convId scelta.
+// Esclude la conversazione di origine (forward in-place non avrebbe senso) e
+// le conversazioni mock (id non-uuid: niente persistenza, fuori scope).
+// L'ordinamento riusa la stessa logica di ConversationList (pinned + ultimo
+// messaggio decrescente) → l'admin trova subito chi ha contattato per ultimo.
+const ForwardPicker = ({ msg, conversations, messages, onPick, onClose }) => {
+  const [search, setSearch] = useState("");
+  const sorted = [...conversations]
+    .filter(c => c.id !== msg.__sourceConvId && isUuid(c.id))
+    .sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+      const lastA = getLastMessage(messages, a.id);
+      const lastB = getLastMessage(messages, b.id);
+      if (!lastA) return 1;
+      if (!lastB) return -1;
+      return new Date(lastB.time) - new Date(lastA.time);
+    });
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? sorted.filter(c => {
+        if (getConversationName(c).toLowerCase().includes(q)) return true;
+        const partNames = (c.participants || [])
+          .map(id => getMember(id)?.name || "")
+          .join(" ")
+          .toLowerCase();
+        return partNames.includes(q);
+      })
+    : sorted;
+
+  const preview = msg.text?.length > 120 ? msg.text.slice(0, 117) + "…" : (msg.text || "");
+
+  return (
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, background: "rgba(8,21,45,0.45)", zIndex: 900,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: "min(420px, 96vw)", maxHeight: "78vh",
+        background: "var(--card)", borderRadius: 14, overflow: "hidden",
+        display: "flex", flexDirection: "column",
+        boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+      }}>
+        <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
+          <div className="playfair" style={{ fontSize: 16, fontWeight: 700, color: "var(--heading)", marginBottom: 6 }}>
+            ↪ Inoltra a…
+          </div>
+          {preview && (
+            <div style={{
+              fontSize: 12, color: "var(--text-muted)", background: "var(--surface2)",
+              padding: "6px 10px", borderRadius: 6, borderLeft: "3px solid var(--gold)",
+              maxHeight: 56, overflow: "hidden", lineHeight: 1.4,
+            }}>{preview}</div>
+          )}
+        </div>
+        <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)" }}>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Cerca conversazione…"
+            autoFocus
+            style={{
+              width: "100%", padding: "8px 10px", borderRadius: 8,
+              border: "1px solid var(--border)", background: "var(--surface)",
+              color: "var(--text)", fontSize: 13, fontFamily: "inherit", outline: "none",
+            }}
+          />
+        </div>
+        <div style={{ overflowY: "auto", flex: 1 }}>
+          {filtered.length === 0 ? (
+            <div style={{ padding: "24px 16px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+              Nessuna conversazione disponibile.
+            </div>
+          ) : filtered.map(c => {
+            const otherUid = c.type === "direct"
+              ? (c.participants || []).find(p => p !== CURRENT_USER)
+              : null;
+            const last = getLastMessage(messages, c.id);
+            return (
+              <button
+                key={c.id}
+                onClick={() => onPick(c.id)}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 14px", background: "none", border: "none",
+                  borderBottom: "1px solid var(--border)", cursor: "pointer",
+                  fontFamily: "inherit", textAlign: "left",
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              >
+                {c.type === "direct" && otherUid ? (
+                  <Avatar memberId={otherUid} size={32} />
+                ) : (
+                  <div style={{
+                    width: 32, height: 32, borderRadius: "50%", background: "var(--gold)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 14, flexShrink: 0,
+                  }}>{c.icon || "👥"}</div>
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {getConversationName(c)}
+                  </div>
+                  {last && (
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 1 }}>
+                      {last.type === "text" ? last.text : last.type === "file" ? `📎 ${last.fileName}` : "🎙️ Vocale"}
+                    </div>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ padding: "10px 14px", borderTop: "1px solid var(--border)", textAlign: "right" }}>
+          <button onClick={onClose} style={{
+            background: "transparent", border: "1px solid var(--border)",
+            padding: "6px 14px", borderRadius: 8, cursor: "pointer", fontSize: 12.5,
+            color: "var(--text)", fontFamily: "inherit",
+          }}>Annulla</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, intent, tasks, currentUserId, dispatch, presenceMap, messageTemplates = [], loading = false, myBusy = false, onToggleBusy }) => {
   const { isMobile } = useViewport();
   const [activeConv, setActiveConv] = useState(null);
@@ -1225,6 +1518,48 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
   const [prefillText, setPrefillText] = useState("");
   // Step K: taskRef UUID da precompilare insieme al testo del riferimento task.
   const [prefillTaskRef, setPrefillTaskRef] = useState(null);
+  // Fase 3 forward: il messaggio da inoltrare quando aperto il picker.
+  // Stash __sourceConvId sul payload così ForwardPicker può escludere
+  // dalla lista la conversazione di origine senza dover ricavarla a parte.
+  const [forwardingMsg, setForwardingMsg] = useState(null);
+
+  const handleForwardStart = (msg) => {
+    setForwardingMsg({ ...msg, __sourceConvId: activeConv?.id ?? null });
+  };
+
+  const handleForwardPick = (destConvId) => {
+    const src = forwardingMsg;
+    setForwardingMsg(null);
+    if (!src || !destConvId) return;
+    const me = currentUserId || CURRENT_USER;
+    // Preserva l'autore originale anche su forward chain (A→B→C): se src è
+    // già un forward, ereditiamo il suo originalSenderId; altrimenti è src.sender.
+    const originalSenderId = src.originalSenderId || src.sender;
+    const newMsg = {
+      // id provvisorio: il wrapper setMessages in VoyageDesk normalizza in UUID
+      // se non lo è (vedi caveat newId).
+      id: "m" + Date.now(),
+      sender: me,
+      type: "text",
+      text: src.text || "",
+      time: new Date().toISOString(),
+      readBy: [me],
+      originalSenderId,
+    };
+    setMessages(prev => ({
+      ...prev,
+      [destConvId]: [...(prev[destConvId] || []), newMsg],
+    }));
+    // Se sto inoltrando verso una conv diversa da quella aperta, aprila per
+    // mostrare visivamente il messaggio appena inoltrato.
+    if (destConvId !== activeConv?.id) {
+      const target = conversations.find(c => c.id === destConvId);
+      if (target) setActiveConv(target);
+    }
+    if (dispatch) {
+      dispatch({ type: "SHOW_TOAST", payload: { type: "success", message: "Messaggio inoltrato" } });
+    }
+  };
 
   // Gestione intent: apertura chat verso utente specifico con link a task
   useEffect(() => {
@@ -1268,7 +1603,7 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
   };
 
   return (
-    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {}, messageTemplates: messageTemplates || [] }}>
+    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {}, messageTemplates: messageTemplates || [], onForward: handleForwardStart }}>
     <>
       <div onClick={onClose} style={{
         position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: 700,
@@ -1367,6 +1702,18 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
           )}
         </div>
       </div>
+
+      {/* Forward picker overlay (Fase 3): sopra il pannello chat (z-index 900
+          > pannello 800). Si chiude su click outside o tasto Annulla. */}
+      {forwardingMsg && (
+        <ForwardPicker
+          msg={forwardingMsg}
+          conversations={conversations}
+          messages={messages}
+          onPick={handleForwardPick}
+          onClose={() => setForwardingMsg(null)}
+        />
+      )}
     </>
     </ChatContext.Provider>
   );

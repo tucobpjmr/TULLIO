@@ -166,6 +166,11 @@ export function fromDbMessage(row) {
     waveform: row.waveform ?? null,
     replyTo: row.reply_to ?? null,
     taskRef: row.task_ref ?? null,
+    // originalSenderId valorizzato solo sui messaggi inoltrati (Fase 3):
+    // contiene l'UID di chi ha originato il messaggio originale, anche dopo
+    // catene di forward. NULL = messaggio non inoltrato.
+    originalSenderId: row.original_sender_id ?? null,
+    pinned: !!row.pinned,
     reactions: row.reactions ?? {},
     readBy: Array.isArray(row.read_by) ? row.read_by : [],
     time: row.created_at,
@@ -191,6 +196,8 @@ export function toDbMessage(msg, conversationId) {
     waveform: msg.waveform ?? null,
     reply_to: msg.replyTo ?? null,
     task_ref: msg.taskRef ?? null,
+    original_sender_id: msg.originalSenderId ?? null,
+    pinned: !!msg.pinned,
     reactions: msg.reactions ?? {},
     read_by: Array.isArray(msg.readBy) ? msg.readBy : [],
   };

@@ -151,11 +151,6 @@ const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
               }}
             >↓ CSV</button>
           )}
-          <div style={{
-            background: "var(--navy)", color: "#fff",
-            padding: "4px 12px", borderRadius: 999,
-            fontSize: 13, fontWeight: 700,
-          }}>{enableDateFilter && dateFilter !== "all" ? `${filtered.length}/${tasks.length}` : `${tasks.length}`} task</div>
         </div>
       </div>
 

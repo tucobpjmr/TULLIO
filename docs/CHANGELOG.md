@@ -1,5 +1,37 @@
 # CHANGELOG — VoyageDesk
 
+## v3.1-dev — Block 3: Email Confirmation & Admin Controls (sessione 28)
+
+> Branch `claude/block3-email-confirm-invites`. Base: `main` post-merge #66 (Block 1) + #67 (server-fix). Notifica admin su signup, inviti utente reali via email, predisposizione email confirmation.
+
+### 🔔 Notifica admin su nuova registrazione (server-side)
+
+**`supabase/migrations/20260619_notify_user_pending.sql` (NEW — applicata in prod)**
+- Funzione `notify_user_pending()` SECURITY DEFINER + trigger `trg_notify_user_pending` AFTER INSERT su `public.users`.
+- Quando nasce un utente con `pending=true` (signup self-service **o** invito admin), inserisce una notifica `user_pending` per ogni admin attivo non-pending (escluso l'utente stesso).
+- Pattern standard notifiche server-side (RLS vieta insert client). `revoke execute` da public/anon/authenticated.
+
+**`src/components/shell/Topbar.jsx`**
+- `NOTIF_ICONS['user_pending'] = '👤'`; `notifTitle()` → "Nuova richiesta di accesso: {nome}".
+
+### ✉️ Inviti utente reali via email (admin)
+
+**`supabase/functions/invite-user/index.ts` (salvato da #64 — deployato in prod, v4, verify_jwt)**
+- Edge Function admin-only: verifica il JWT del chiamante e il ruolo `admin`, poi `auth.admin.inviteUserByEmail()` + pre-crea profilo `public.users` (pending) e `user_contacts`. Il trigger DB resta safety-net.
+- Errori localizzati (email già registrata → 409; non-admin → 403).
+
+**`src/lib/api.js`**
+- `Users.invite({ email, name, role, capacity, color })`: invoca la Edge Function e normalizza l'errore (estrae il messaggio localizzato da `error.context`).
+
+**`src/components/modals/AddTeamMemberModal.jsx`**
+- Nuovo campo **Email**: se valorizzato → invito reale via `Users.invite` (label bottone "Invia invito", toast di conferma); se vuoto → vecchio comportamento "agente locale".
+- Mappa ruolo UI → ruolo DB (`Manager→manager`, `Senior/Junior Agent→agent`, `Driver→driver`, `Admin→admin`). Stato `busy`/`err` inline.
+
+### 📧 Email confirmation
+
+- Frontend già pronto: `LoginScreen.localizeAuthError()` gestisce `email_not_confirmed`; il messaggio di signup invita a confermare l'email.
+- ⚠️ **L'enforcement è un toggle dashboard** (Supabase → Authentication → "Confirm email"): non esiste tool MCP per attivarlo, va abilitato manualmente. Stesso per "Leaked password protection" (HaveIBeenPwned).
+
 ## v3.0-dev — Block 1: Authentication & Onboarding (sessione 27)
 
 > Branch `claude/handoff-changelog-roadmap-wm7scp` (3 commits). Complete password recovery, self-service signup, team member approval system with persistence fix, security hardening migration.

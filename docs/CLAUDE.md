@@ -263,11 +263,13 @@ Tutti i componenti sono **moduli separati** in `src/components/`; helper e sub-c
 
 **Why deferred**: No real users yet; safer when live data exists.
 
-### 🔵 Block 3 — Email Confirmation & Admin Controls
-- [ ] Email confirmation enforcement
+### 🟢 Block 3 — Email Confirmation & Admin Controls (sessione 28 — in corso)
+- [x] Approval notification (→admin): trigger `notify_user_pending` + notifica `user_pending` ✅
+- [x] Admin invite via email: Edge Function `invite-user` + `Users.invite()` + campo email in `AddTeamMemberModal` ✅
+- [x] Email confirmation: frontend pronto (`email_not_confirmed` gestito) — manca solo il toggle dashboard ⚠️
 - [ ] Resend confirmation email UI
-- [ ] Admin bulk invite + send links
-- [ ] Approval notification (→admin + user)
+- [ ] Admin **bulk** invite (più email insieme)
+- [ ] Leaked password protection (toggle dashboard HaveIBeenPwned)
 
 ### Priorità 2 — Fase 2 Operatività ✅ (chiusa sessione 23)
 - [x] Notifiche reali ✅
@@ -358,6 +360,6 @@ src/
 
 **Step P COMPLETO (Phase 1 → 2g).** **CRM:** solo Clienti attivo (Fornitori e Pratiche rimossi in sessione 24, PR #63). Nessun caveat aperto.
 
-Le notifiche nascono **solo da trigger DB / funzioni server-side** (RLS vieta insert client) — per nuove notifiche serve un trigger o una funzione `SECURITY DEFINER` schedulata via pg_cron. Tipi notifica attivi (`NOTIF_ICONS`/`notifTitle` in `Topbar.jsx`): `task_assigned`, `task_due`, `comment`, `mention`, `queue_stale`. ~~`dossier_status`~~ e ~~`dossier_departure`~~ **RIMOSSI** (sessione 24).
+Le notifiche nascono **solo da trigger DB / funzioni server-side** (RLS vieta insert client) — per nuove notifiche serve un trigger o una funzione `SECURITY DEFINER` schedulata via pg_cron. Tipi notifica attivi (`NOTIF_ICONS`/`notifTitle` in `Topbar.jsx`): `task_assigned`, `task_due`, `comment`, `mention`, `queue_stale`, `user_pending` (Block 3 — trigger `notify_user_pending`). ~~`dossier_status`~~ e ~~`dossier_departure`~~ **RIMOSSI** (sessione 24).
 
 Vedi `docs/HANDOFF_SESSION_2026-06-19_v27.md` (handoff attivo) per lo stato corrente dopo sessione 27 (Block 1: autenticazione & onboarding completo, password recovery, signup, approval system).

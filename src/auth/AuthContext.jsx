@@ -56,9 +56,10 @@ export function AuthProvider({ children }) {
   const signIn = (email, password) =>
     supabase.auth.signInWithPassword({ email, password });
 
-  // Registrazione self-service: il trigger handle_new_user crea il profilo
-  // applicativo con pending=true (vedi migrazione schema iniziale). L'admin
-  // deve poi approvare l'utente dal pannello Team prima dell'accesso.
+  // Registrazione self-service: il trigger handle_new_auth_user crea il profilo
+  // applicativo con pending=true (vedi 20260619_security_dedupe_signup_trigger).
+  // Il trigger notify_user_pending avvisa gli admin (Block 3). L'admin deve poi
+  // approvare l'utente dal pannello Team prima dell'accesso.
   const signUp = (email, password, name) =>
     supabase.auth.signUp({
       email,

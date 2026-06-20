@@ -597,6 +597,7 @@ const NOTIF_ICONS = {
   comment: "💬",
   mention: "@",
   queue_stale: "⏳",
+  user_pending: "👤",
   // Compat con mock
   overdue: "⚠️", assigned: "📋", deadline: "📅",
 };
@@ -626,6 +627,10 @@ function notifTitle(n) {
         return p.task_title
           ? `Task in coda da > 4h: ${p.task_title}`
           : `Task in coda da troppo tempo`;
+      case "user_pending":
+        return p.user_name
+          ? `Nuova richiesta di accesso: ${p.user_name}`
+          : `Nuova richiesta di accesso da approvare`;
       default:
         return n.type || "Notifica";
     }

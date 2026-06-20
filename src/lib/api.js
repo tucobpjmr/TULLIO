@@ -164,6 +164,11 @@ export const Messages = {
     supabase.from('messages').delete().eq('id', id),
   setReactions: (id, reactions) =>
     supabase.from('messages').update(withOrigin({ reactions })).eq('id', id),
+  // Fase 3 — pin condiviso: tutti i partecipanti vedono lo stesso stato.
+  // Le RLS UPDATE su messages permettono già a chi partecipa di toggleare
+  // (stesso path di setReactions).
+  setPinned: (id, pinned) =>
+    supabase.from('messages').update(withOrigin({ pinned })).eq('id', id),
   markRead: (id, readBy) =>
     supabase.from('messages').update(withOrigin({ read_by: readBy })).eq('id', id),
   // Step Q.4: RPC bulk markRead. Un singolo UPDATE su tutti i messaggi non

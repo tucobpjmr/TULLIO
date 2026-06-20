@@ -1,6 +1,6 @@
-# HANDOFF — Session 30 (Fase 3 chat — Inoltra messaggio v1)
+# HANDOFF — Session 30 (Fase 3 chat — forward + pin + reazioni custom)
 
-> **Status**: feature 1 di 3 dell'estensione chat ✅ (forward → pin → reazioni custom)
+> **Status**: Fase 3 estensioni chat — primo giro completo ✅
 > **Branch**: `claude/festive-hamilton-82kfi5`
 > **Base**: `main` dopo merge #69 + #70
 
@@ -8,67 +8,79 @@
 
 ## 0. TL;DR
 
-Forward messaggio testo. Dal context menu hover di un messaggio: `↪` apre il
-ForwardPicker che lista le conversazioni dell'utente. Selezionando una,
-viene creato un nuovo messaggio nella destinazione con `originalSenderId`
-denormalizzato — l'autore originale resta visibile (badge "↪ Inoltrato da
-{nome}") anche nelle catene A→B→C, e anche se i partecipanti del nuovo conv
-non hanno accesso al messaggio originale (RLS scoped per conversazione).
+Tre estensioni alla chat in una sola PR:
 
-V1 limitato al `type='text'`: forward di file/voice richiede copia su
-storage cross-conversation — fuori scope di questo primo giro.
+1. **Inoltra messaggio** (text v1): bottone `↪` nella hover toolbar → ForwardPicker overlay → seleziona conv destinazione → copia messaggio con `originalSenderId` denormalizzato per preservare l'autore originale anche su catene A→B→C.
+2. **Pin messaggio** (group-level): bottone `📌/📍` nella hover toolbar → `messages.pinned` boolean condiviso tra partecipanti. Pill "📌 N" nell'header conv → toggle filtro "solo fissati" (combina in AND con la ricerca testo).
+3. **Reazioni custom**: nel ReactionPicker bottone `+` → pannello con 48 emoji estese raggruppate per sentiment/gesti/simboli/oggetti-lavoro/tempo-soldi/varie.
 
 ---
 
 ## 1. Cosa è stato fatto
 
-### Schema
-- **`supabase/migrations/20260620_message_forward_original_sender.sql`** (applicata in prod):
+### Schema (2 migrations applicate in prod)
+- **`supabase/migrations/20260620_message_forward_original_sender.sql`**:
   - `ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS original_sender_id uuid REFERENCES public.users(id) ON DELETE SET NULL`.
-  - NULL su tutte le righe esistenti = comportamento legacy intatto.
+- **`supabase/migrations/20260620_message_pinned.sql`**:
+  - `ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS pinned boolean NOT NULL DEFAULT false`.
 
 ### Mappers (`src/lib/mappers.js`)
-- `fromDbMessage`: aggiunge `originalSenderId` (camelCase).
-- `toDbMessage`: scrive `original_sender_id`.
+- `fromDbMessage`/`toDbMessage`: aggiungono `originalSenderId ↔ original_sender_id` e `pinned ↔ pinned`.
+
+### API (`src/lib/api.js`)
+- `Messages.setPinned(id, pinned)`: UPDATE su `messages.pinned`, con `withOrigin` (origin-tagging realtime).
+
+### VoyageDesk wrapper (`src/VoyageDesk.jsx`)
+- `setMessages` ora detecta anche `pinned` diff: chiama `MessagesAPI.setPinned` (parallelo a `setReactions`/`markRead`). Origin-tagged → eco realtime filtrata sul nostro client.
 
 ### Chat (`src/components/chat/ChatPanel.jsx`)
-- **ChatContext**: aggiunto `onForward(msg)`.
-- **ChatMessage**:
-  - `canForward = msg.type === "text" && !!onForward` (v1 text-only).
-  - Bottone `↪` nella hover toolbar (accanto a 😊 e ↩).
-  - Badge "↪ Inoltrato da {originalSender.name}" sopra il content quando `msg.originalSenderId` è valorizzato (lookup su TEAM globale, indipendente dai partecipanti del conv).
-- **ForwardPicker** (nuovo componente, ~120 LoC): overlay z-index 900. Lista conversazioni filtrabili per nome + partecipanti, ordinate per pinned/recency (riusa la stessa logica di ConversationList). Esclude la conv di origine e le conv non-uuid (mock). Mostra preview testo del messaggio in alto. Su pick → close.
-- **ChatPanel**:
-  - State `forwardingMsg` (con `__sourceConvId` annidato per il filter del picker).
-  - `handleForwardStart(msg)` → setta forwardingMsg.
-  - `handleForwardPick(destConvId)` → costruisce il nuovo messaggio:
-    - `sender = me` (l'inoltratore),
-    - `originalSenderId = src.originalSenderId || src.sender` (preserva l'origine in caso di forward chain),
-    - text/type copiati, `readBy = [me]`.
-  - Dispatch su `setMessages` per il conv di destinazione → il wrapper in VoyageDesk persiste via `MessagesAPI.send(toDbMessage(...))`.
-  - Apertura automatica della conv di destinazione (se diversa dall'attuale) + toast "Messaggio inoltrato".
+
+#### Forward
+- `ChatContext`: aggiunto `onForward(msg)`.
+- `ChatMessage`: bottone `↪` (text-only) + badge "↪ Inoltrato da {nome}" (lookup su TEAM globale, indipendente dai partecipanti del conv).
+- **`ForwardPicker`** (nuovo, ~120 LoC): overlay z-index 900, conv list filtrabile per nome/partecipanti, ordinata pinned/recency. Esclude la conv di origine e le mock.
+- `ChatPanel`: state `forwardingMsg`. `handleForwardPick` costruisce il nuovo messaggio (sender = inoltratore, originalSenderId preservato), dispatch a `setMessages` della conv destinazione, apre la conv, toast "Messaggio inoltrato".
+
+#### Pin
+- `ChatMessage`: bottone `📌/📍` nella hover toolbar (icona switcha per stato pinned) + chip dorata "📌 FISSATO" in alto-fuori dal bubble (sempre visibile, non solo on-hover).
+- `ConversationView`:
+  - State `showPinnedOnly`.
+  - Pill "📌 N" nell'header (visibile solo se ≥1 messaggio è fissato). Toggle del filtro.
+  - Lista messaggi: combina filtro pinned + ricerca testo in AND, mantenendo `prevMsg`/`allMessages` riferiti alla timeline completa (così reply/avatar grouping restano coerenti).
+  - `handleTogglePin(msgId)` → setMessages locale → wrapper persiste.
+
+#### Reazioni custom
+- `EMOJI_EXPANDED` (48 emoji, raggruppate per blocchi).
+- `ReactionPicker`: nuovo state `expanded`. Modalità default = 8 emoji compatte + bottone `+`. Modalità expanded = grid 8-cols con `EMOJI_EXPANDED` + bottone "← Indietro". Su pick chiude sempre (sia compact che expanded).
 
 ### Build
-- `npm run build` → ✅ verde, 118 moduli, bundle `index-*.js` 275.85 kB / 68.13 kB gz (+4.7 kB / +1.0 kB gz per ForwardPicker + handler).
+- `npm run build` → ✅ verde, 118 moduli, bundle `index-*.js` 278.75 kB / 68.88 kB gz (+7.6 kB / +1.8 kB gz totali per tutte e 3 le feature).
 
 ---
 
-## 2. Stato prod
+## 2. Stato prod (`vmxvnxsqfisucugcpqlc`)
 
-- Migration `message_forward_original_sender` applicata su `vmxvnxsqfisucugcpqlc`.
-- Nessun cambio EF, nessun cambio trigger.
+### Schema
+- `public.messages.original_sender_id uuid` — FK users, ON DELETE SET NULL.
+- `public.messages.pinned boolean NOT NULL DEFAULT false`.
+
+### Migrations applicate (questa sessione)
+- `message_forward_original_sender`.
+- `message_pinned`.
+
+Nessun cambio EF, nessun cambio trigger.
 
 ---
 
-## 3. Aperto / prossimi giri
+## 3. Limitazioni v1 / prossimi giri
 
-1. **Forward file/voice**: serve copia cross-conversation del path Storage (oggi le RLS del bucket `chat-files` scopiano per `convId` nel primo segmento del path). Soluzioni possibili:
+1. **Forward file/voice**: serve copia del path Storage (le RLS del bucket `chat-files` scopiano per `convId` nel primo segmento). Soluzioni candidate:
    - Re-download + re-upload nel path destinazione (client-side, ~25MB max).
-   - Edge Function "copy-attachment" che fa server-side la duplica nel bucket.
-2. **Pin messaggio** (feature 2/3 del backlog Fase 3 chat).
-3. **Reazioni custom** (feature 3/3 — frontend only).
-4. **Forward modal cross-search**: oggi cerca per nome conv + partecipanti; potrebbe cercare anche nel testo degli ultimi messaggi (parità con ConversationList).
+   - Edge Function `copy-attachment` che copia il blob server-side.
+2. **Pin badge in header conv list**: oggi il count "fissati" è dentro il ConversationView; aggiungerlo accanto al nome conv in ConversationList aiuterebbe a vedere a colpo d'occhio quali conv hanno regole/policy.
+3. **Reazioni recenti**: salvare in localStorage o user-pref le ultime emoji custom usate per metterle in cima al picker.
+4. **Pin con metadata** (`pinned_at`, `pinned_by`): oggi è solo boolean; tracciare chi/quando ha fissato consente audit + "Fissato da Marco il 12/06".
 
 ---
 
-**Session 30 — Forward v1: COMPLETE ✅**
+**Session 30 — Forward + Pin + Reazioni custom (v1): COMPLETE ✅**

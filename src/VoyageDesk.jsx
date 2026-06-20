@@ -991,6 +991,10 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
             MessagesAPI.markRead(m.id, m.readBy || [])
               .then(r => { if (r?.error) { console.error('[chat] msg.readBy', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: aggiornamento "letto" fallito: ${r.error.message || ''}` } }); } });
           }
+          if (!!prevM.pinned !== !!m.pinned) {
+            MessagesAPI.setPinned(m.id, !!m.pinned)
+              .then(r => { if (r?.error) { console.error('[chat] msg.pinned', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: pin fallito: ${r.error.message || ''}` } }); } });
+          }
           return m;
         });
       }

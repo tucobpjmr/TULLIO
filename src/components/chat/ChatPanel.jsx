@@ -80,24 +80,87 @@ export const getUnreadCount = (msgs, convId) => {
 // ─── CHAT: REACTIONS POPOVER ───────────────────────────────────────────────
 const EMOJI_REACTIONS = ["👍", "❤️", "😂", "🔥", "✅", "🎉", "💡", "🙌"];
 
-const ReactionPicker = ({ onPick, onClose }) => (
-  <div onClick={e => e.stopPropagation()} style={{
-    position: "absolute", bottom: "calc(100% + 4px)", left: 0,
-    background: "var(--card)", borderRadius: 20, padding: "6px 8px",
-    boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--border)",
-    display: "flex", gap: 2, zIndex: 100,
-  }}>
-    {EMOJI_REACTIONS.map(e => (
-      <button key={e} onClick={() => { onPick(e); onClose(); }} style={{
-        background: "none", border: "none", cursor: "pointer",
-        fontSize: 18, padding: 4, borderRadius: 6, transition: "background 0.15s",
-      }}
-        onMouseEnter={ev => ev.currentTarget.style.background = "var(--surface2)"}
-        onMouseLeave={ev => ev.currentTarget.style.background = "transparent"}
-      >{e}</button>
-    ))}
-  </div>
-);
+// Fase 3 — set esteso di emoji per la modalità "+" del picker. Raggruppate
+// per blocchi di senso (sentiment, gesti, oggetti, simboli, attività) così
+// l'utente trova rapidamente quello che cerca senza dover scrollare un
+// catalogo gigante. ~48 totali = compromesso ragionevole copertura/peso UI.
+const EMOJI_EXPANDED = [
+  // sentiment
+  "😀", "😅", "😍", "🤔", "😎", "😭", "😡", "🥳",
+  // gesti
+  "👏", "🙏", "🤝", "💪", "👌", "✋", "👋", "🤙",
+  // simboli ok/no
+  "✔️", "❌", "⚠️", "❓", "❗", "💯", "🆗", "⭐",
+  // oggetti/lavoro
+  "📌", "📎", "📅", "📞", "📧", "💼", "🏝️", "✈️",
+  // tempo/soldi
+  "⏰", "⏳", "💰", "💸", "🧾", "📊", "📈", "📉",
+  // varie
+  "🚀", "🎯", "🛠️", "🆘", "☕", "🍽️", "🎊", "✨",
+];
+
+const ReactionPicker = ({ onPick, onClose }) => {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div onClick={e => e.stopPropagation()} style={{
+      position: "absolute", bottom: "calc(100% + 4px)", left: 0,
+      background: "var(--card)", borderRadius: expanded ? 12 : 20,
+      padding: expanded ? "8px 10px" : "6px 8px",
+      boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--border)",
+      display: expanded ? "block" : "flex",
+      gap: 2, zIndex: 100, maxWidth: expanded ? 280 : "auto",
+    }}>
+      {expanded ? (
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: 0.5 }}>
+              EMOJI ESTESE
+            </span>
+            <button onClick={() => setExpanded(false)} style={{
+              background: "none", border: "none", cursor: "pointer",
+              color: "var(--text-muted)", fontSize: 11, padding: "2px 6px",
+            }}>← Indietro</button>
+          </div>
+          <div style={{
+            display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 2,
+            maxHeight: 200, overflowY: "auto",
+          }}>
+            {EMOJI_EXPANDED.map(e => (
+              <button key={e} onClick={() => { onPick(e); onClose(); }} style={{
+                background: "none", border: "none", cursor: "pointer",
+                fontSize: 18, padding: 4, borderRadius: 6,
+              }}
+                onMouseEnter={ev => ev.currentTarget.style.background = "var(--surface2)"}
+                onMouseLeave={ev => ev.currentTarget.style.background = "transparent"}
+              >{e}</button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          {EMOJI_REACTIONS.map(e => (
+            <button key={e} onClick={() => { onPick(e); onClose(); }} style={{
+              background: "none", border: "none", cursor: "pointer",
+              fontSize: 18, padding: 4, borderRadius: 6, transition: "background 0.15s",
+            }}
+              onMouseEnter={ev => ev.currentTarget.style.background = "var(--surface2)"}
+              onMouseLeave={ev => ev.currentTarget.style.background = "transparent"}
+            >{e}</button>
+          ))}
+          <button
+            onClick={() => setExpanded(true)}
+            title="Altre emoji"
+            style={{
+              background: "var(--surface2)", border: "none", cursor: "pointer",
+              fontSize: 14, padding: "4px 8px", borderRadius: 6,
+              color: "var(--text-muted)", fontWeight: 700,
+            }}
+          >+</button>
+        </>
+      )}
+    </div>
+  );
+};
 
 // ─── CHAT: VOICE PLAYER ────────────────────────────────────────────────────
 const VoicePlayer = ({ duration, waveform, isMine }) => {
@@ -238,7 +301,7 @@ const formatFileSize = (size) => {
 };
 
 // ─── CHAT: MESSAGE ─────────────────────────────────────────────────────────
-const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onContextMenu }) => {
+const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onTogglePin, onContextMenu }) => {
   const [showReactions, setShowReactions] = useState(false);
   const [hovered, setHovered] = useState(false);
   const { onForward } = useContext(ChatContext);
@@ -308,6 +371,21 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
           border: isMine ? "none" : "1px solid var(--border)",
           position: "relative",
         }}>
+          {/* Pin indicator (Fase 3): chip dorata in alto-fuori dal bubble.
+              Visibile sempre quando msg.pinned, anche senza hover, così l'utente
+              sa subito quali messaggi sono fissati senza dover aprire il filtro. */}
+          {msg.pinned && (
+            <div style={{
+              position: "absolute", top: -8, [isMine ? "right" : "left"]: 8,
+              background: "var(--gold)", color: "var(--navy)",
+              fontSize: 10, fontWeight: 700, borderRadius: 99,
+              padding: "1px 6px", display: "flex", alignItems: "center", gap: 3,
+              boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+            }}>
+              <span style={{ fontSize: 9 }}>📌</span>
+              <span>FISSATO</span>
+            </div>
+          )}
           {/* Forwarded badge (Fase 3): se originalSenderId è valorizzato,
               mostra "Inoltrato da {nome}". Il lookup avviene su TEAM globale
               (non sui partecipanti del conv) → funziona anche se l'autore
@@ -422,6 +500,13 @@ const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onCont
                 title="Inoltra a un'altra conversazione"
               >↪</button>
             )}
+            {onTogglePin && (
+              <button
+                onClick={() => onTogglePin(msg.id)}
+                style={iconBtn}
+                title={msg.pinned ? "Rimuovi fissaggio" : "Fissa nella conversazione"}
+              >{msg.pinned ? "📍" : "📌"}</button>
+            )}
           </div>
         )}
 
@@ -498,6 +583,9 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
   // v2.8 Round 13: ricerca messaggi
   const [showMsgSearch, setShowMsgSearch] = useState(false);
   const [msgSearch, setMsgSearch] = useState("");
+  // Fase 3 pin: filtro "solo messaggi fissati" — pill nell'header. Si combina
+  // in AND con la ricerca testuale.
+  const [showPinnedOnly, setShowPinnedOnly] = useState(false);
   const { messageTemplates: templates = [] } = useContext(ChatContext);
   const [typing, setTyping] = useState(false);
   // Step K: taskRef UUID "armato" finché il prossimo invio non lo consuma.
@@ -647,6 +735,18 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
     }));
   };
 
+  // Fase 3 pin: stato group-level. Toggle via wrapper setMessages → diff
+  // pinned → MessagesAPI.setPinned. Niente API ottimistica diversa: il
+  // wrapper persiste, l'UI si aggiorna dal local set immediatamente.
+  const handleTogglePin = (msgId) => {
+    setMessages(prev => ({
+      ...prev,
+      [conv.id]: (prev[conv.id] || []).map(m =>
+        m.id === msgId ? { ...m, pinned: !m.pinned } : m
+      ),
+    }));
+  };
+
   const otherTypingMember = conv.participants.find(p => p !== CURRENT_USER);
   const otherMember = conv.type === "direct" ? getMember(otherTypingMember) : null;
 
@@ -693,6 +793,27 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
           </div>
         </div>
 
+        {/* Pill "📌 N fissati" — visibile solo se ci sono messaggi fissati.
+            Click → toggle del filtro showPinnedOnly. Stato premuto evidenziato
+            in oro per richiamare visivamente la modalità filtro attiva. */}
+        {msgs.some(m => m.pinned) && (() => {
+          const pinnedCount = msgs.filter(m => m.pinned).length;
+          return (
+            <button
+              onClick={() => setShowPinnedOnly(p => !p)}
+              title={showPinnedOnly ? "Mostra tutti i messaggi" : "Mostra solo i messaggi fissati"}
+              style={{
+                background: showPinnedOnly ? "rgba(212,168,67,0.35)" : "rgba(255,255,255,0.1)",
+                border: "none", color: "#fff",
+                height: 30, padding: "0 10px", borderRadius: 6, cursor: "pointer",
+                fontSize: 11.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
+              }}
+            >
+              <span>📌</span>
+              <span>{pinnedCount}</span>
+            </button>
+          );
+        })()}
         <button
           onClick={() => { setShowMsgSearch(s => !s); setMsgSearch(""); }}
           title="Cerca nei messaggi"
@@ -737,17 +858,32 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
         flex: 1, overflowY: "auto", padding: "12px 14px",
         background: "var(--surface2)",
       }}>
-        {(msgSearch ? msgs.filter(m => m.text?.toLowerCase().includes(msgSearch.toLowerCase())) : msgs).map((m, i) => (
-          <ChatMessage
-            key={m.id}
-            msg={m}
-            prevMsg={msgs[i - 1]}
-            conv={conv}
-            allMessages={msgs}
-            onReact={handleReact}
-            onReply={setReplyingTo}
-          />
-        ))}
+        {(() => {
+          const q = msgSearch.toLowerCase();
+          // Filtro: pinned-only + ricerca testo (AND). Mantengo il riferimento
+          // a `msgs` per `prevMsg`/`allMessages` (mostra reply/avatar coerenti
+          // con la timeline intera, non solo il sottoinsieme filtrato).
+          const visible = msgs.filter(m => {
+            if (showPinnedOnly && !m.pinned) return false;
+            if (msgSearch && !m.text?.toLowerCase().includes(q)) return false;
+            return true;
+          });
+          return visible.map((m) => {
+            const i = msgs.indexOf(m);
+            return (
+              <ChatMessage
+                key={m.id}
+                msg={m}
+                prevMsg={msgs[i - 1]}
+                conv={conv}
+                allMessages={msgs}
+                onReact={handleReact}
+                onReply={setReplyingTo}
+                onTogglePin={handleTogglePin}
+              />
+            );
+          });
+        })()}
         {typing && (
           <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "flex-end" }}>
             <Avatar memberId={otherTypingMember} size={28} />

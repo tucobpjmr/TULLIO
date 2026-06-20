@@ -69,9 +69,12 @@ Deno.serve(async (req: Request) => {
     const avatar = ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? parts[0]?.[1] ?? "")).toUpperCase();
 
     // Invia invito via Supabase Auth Admin API
+    // invited_by viaggia nei metadata → letto dal trigger handle_new_auth_user
+    // che lo persiste su public.users.invited_by. notify_user_pending lo usa
+    // per non notificare l'admin che ha lanciato l'invito (sessione 29 fix).
     const { data: inviteData, error: inviteErr } =
       await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-        data: { name, role, capacity, color },
+        data: { name, role, capacity, color, invited_by: user.id },
       });
 
     if (inviteErr) {
@@ -83,9 +86,11 @@ Deno.serve(async (req: Request) => {
 
     const uid = inviteData.user.id;
 
-    // Pre-crea profilo (il trigger DB fa lo stesso come safety-net)
+    // Pre-crea profilo (il trigger DB fa lo stesso come safety-net).
+    // invited_by ridondante col trigger ma utile se il safety-net non scatta
+    // (es. race con auth → upsert).
     await supabaseAdmin.from("users").upsert(
-      { id: uid, name, role, avatar, color, capacity, pending: true, active: false },
+      { id: uid, name, role, avatar, color, capacity, pending: true, active: false, invited_by: user.id },
       { onConflict: "id" }
     );
 

@@ -14,13 +14,15 @@ import { subscribeToTable } from "../lib/api.js";
 export function useDebouncedTableSubscription(
   tables,
   reload,
-  { enabled = true, delay = 200, deps = [] } = {}
+  { enabled = true, delay = 200, deps = [], filterEvent } = {}
 ) {
-  // reload può catturare closure che cambiano ad ogni render: lo teniamo in un
-  // ref così l'effetto non si ri-sottoscrive ad ogni render, ma la reload vede
-  // sempre i valori freschi. Le dipendenze "vere" sono in `deps`.
+  // reload e filterEvent possono catturare closure che cambiano ad ogni render:
+  // li teniamo in ref così l'effetto non si ri-sottoscrive ad ogni render, ma
+  // la reload vede sempre i valori freschi. Le dipendenze "vere" sono in `deps`.
   const reloadRef = useRef(reload);
   reloadRef.current = reload;
+  const filterRef = useRef(filterEvent);
+  filterRef.current = filterEvent;
 
   useEffect(() => {
     if (!enabled) return;
@@ -36,7 +38,13 @@ export function useDebouncedTableSubscription(
     run();
 
     let timer = null;
-    const debounced = () => {
+    // filterEvent (se passato) può ritornare false per scartare un evento
+    // prima che alimenti il debounce: utile per la sub `users` (sessione 29),
+    // dove gli UPDATE da heartbeat presence (status/last_seen_at) non
+    // richiedono il reload del team.
+    const debounced = (payload) => {
+      const fn = filterRef.current;
+      if (fn && !fn(payload)) return;
       clearTimeout(timer);
       timer = setTimeout(run, delay);
     };

@@ -10,7 +10,7 @@ const AVATAR_COLORS = ["#0F2044", "#2D7A4F", "#C8832A", "#7B4F9E", "#C0392B", "#
 
 export const ProfileEditor = ({ member, dispatch, onClose }) => {
   const { isMobile } = useViewport();
-  const { session } = useAuth();
+  const { session, updatePassword } = useAuth();
   const [name, setName] = useState(member.name || "");
   const [avatar, setAvatar] = useState(member.avatar || "");
   const [color, setColor] = useState(member.color || "#0F2044");
@@ -19,6 +19,26 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
   const [photoUrl, setPhotoUrl] = useState(member.photoUrl || "");
   const [avatarMode, setAvatarMode] = useState(member.photoUrl ? "photo" : "emoji"); // "emoji" | "photo"
   const fileRef = useRef(null);
+  const [showPwd, setShowPwd] = useState(false);
+  const [newPwd, setNewPwd] = useState("");
+  const [confirmPwd, setConfirmPwd] = useState("");
+  const [savingPwd, setSavingPwd] = useState(false);
+  const [pwdMsg, setPwdMsg] = useState(null); // { type: 'ok'|'err', text }
+
+  const handleChangePwd = async () => {
+    setPwdMsg(null);
+    if (newPwd.length < 8) { setPwdMsg({ type: "err", text: "La password deve avere almeno 8 caratteri." }); return; }
+    if (newPwd !== confirmPwd) { setPwdMsg({ type: "err", text: "Le due password non coincidono." }); return; }
+    setSavingPwd(true);
+    const { error } = await updatePassword(newPwd);
+    setSavingPwd(false);
+    if (error) {
+      setPwdMsg({ type: "err", text: error.message || "Cambio password non riuscito." });
+    } else {
+      setPwdMsg({ type: "ok", text: "Password aggiornata." });
+      setNewPwd(""); setConfirmPwd("");
+    }
+  };
 
   const handlePhotoUpload = (e) => {
     const file = e.target.files?.[0];
@@ -248,6 +268,69 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
               fontSize: 14, color: "var(--text-muted)", fontWeight: 500,
             }}>{member.role}</div>
           </div>
+
+          {/* ── Cambia password (solo con sessione reale) ── */}
+          {session && (
+            <div>
+              <button
+                onClick={() => { setShowPwd(v => !v); setPwdMsg(null); setNewPwd(""); setConfirmPwd(""); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  background: "none", border: "none", cursor: "pointer",
+                  color: "var(--navy)", fontSize: 13, fontWeight: 600,
+                  padding: "6px 0", fontFamily: "inherit",
+                }}
+              >
+                <span style={{ fontSize: 15 }}>🔑</span>
+                Cambia password
+                <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 2 }}>{showPwd ? "▲" : "▼"}</span>
+              </button>
+              {showPwd && (
+                <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div>
+                    {fieldLabel("NUOVA PASSWORD")}
+                    <input
+                      type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)}
+                      placeholder="Minimo 8 caratteri" style={inputStyle}
+                      onFocus={e => e.target.style.borderColor = "var(--gold)"}
+                      onBlur={e => e.target.style.borderColor = "var(--border)"}
+                    />
+                  </div>
+                  <div>
+                    {fieldLabel("CONFERMA PASSWORD")}
+                    <input
+                      type="password" value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)}
+                      placeholder="Ripeti la password" style={inputStyle}
+                      onFocus={e => e.target.style.borderColor = "var(--gold)"}
+                      onBlur={e => e.target.style.borderColor = "var(--border)"}
+                      onKeyDown={e => { if (e.key === "Enter") handleChangePwd(); }}
+                    />
+                  </div>
+                  {pwdMsg && (
+                    <div style={{
+                      fontSize: 12.5, borderRadius: 8, padding: "8px 10px",
+                      background: pwdMsg.type === "ok" ? "rgba(45,122,79,0.1)" : "rgba(192,57,43,0.08)",
+                      border: `1px solid ${pwdMsg.type === "ok" ? "var(--success)" : "var(--danger)"}`,
+                      color: pwdMsg.type === "ok" ? "var(--success)" : "var(--danger)",
+                    }}>{pwdMsg.text}</div>
+                  )}
+                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                    <button
+                      onClick={handleChangePwd}
+                      disabled={savingPwd || !newPwd}
+                      style={{
+                        background: savingPwd || !newPwd ? "var(--surface3)" : "var(--navy)",
+                        color: savingPwd || !newPwd ? "var(--text-muted)" : "#fff",
+                        border: "none", padding: "9px 18px", borderRadius: 8,
+                        cursor: savingPwd || !newPwd ? "not-allowed" : "pointer",
+                        fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+                      }}
+                    >{savingPwd ? "Salvataggio…" : "Aggiorna password"}</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer */}

@@ -11,6 +11,63 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 
 ## 🎯 Blocchi Operatività 100%
 
+> 🆕 **Sessione 34 — nuovi blocchi 5→8 (allegati task + OneDrive + WhatsApp).**
+> Dettaglio tecnico completo in `docs/HANDOFF_SESSION_2026-06-21_v34_attachments_onedrive_whatsapp.md`.
+
+### 🧱 Block 5 — Allegati Task (FONDAZIONE) — ⬜ da fare — 🔴 Alta — Sforzo M
+
+> ⚠️ **Prerequisito di Block 6 e 7.** Oggi i task NON hanno allegati reali: in `TaskSlideOver.jsx` (~232) c'è solo un placeholder inerte. Manca tabella, bucket, API e UI.
+
+| Modulo | Stato | Priorità | Sforzo |
+|---|---|---|---|
+| Migration `task_files` (tabella + RLS rispecchia `tasks_select`) | ⬜ | 🔴 | S |
+| Bucket privato `task-files` + policy storage (template `chat-files`) | ⬜ | 🔴 | S |
+| API `TaskFiles` (list/upload/remove/signedUrl) in `lib/api.js` | ⬜ | 🔴 | S |
+| UI dropzone reale in `TaskSlideOver` (upload/lista/download/badge sorgente) | ⬜ | 🔴 | M |
+| Test Vitest helper (size/mime/limit) | ⬜ | 🟡 | S |
+
+**Output**: allegati funzionanti via upload manuale. OneDrive/WhatsApp diventano sorgenti che chiamano `TaskFiles.upload(file, taskId, source)`.
+
+### ☁️ Block 6 — Allega da OneDrive (Azure personale/MSA) — ⬜ da fare — 🟡 Media — Sforzo M
+
+> **Decisione**: il file viene **copiato in Supabase** (non solo linkato). **Prerequisito**: Block 5.
+
+| Modulo | Stato | Priorità | Sforzo |
+|---|---|---|---|
+| Setup Azure App Registration (client ID, redirect SPA, scope `Files.Read`) — **manuale** | ⬜ | 🟡 | S |
+| Frontend: OneDrive File Picker v8 (o MSAL.js) + bottone "☁️ Allega da OneDrive" | ⬜ | 🟡 | M |
+| Edge Function `onedrive-import` (Graph `…/content` → bucket → riga `task_files`) | ⬜ | 🟡 | M |
+| Env `VITE_AZURE_CLIENT_ID` (pubblica, no secret per SPA PKCE) | ⬜ | 🟡 | S |
+
+### 🟢 Block 7 — Invia file da WhatsApp a un task — ⬜ da fare — 🟡 Media — Sforzo L
+
+> **Decisione**: API ufficiale **Meta WhatsApp Business Cloud**. **Routing**: codice task nella didascalia (`#T<codice>`). **Prerequisito**: Block 5.
+
+| Modulo | Stato | Priorità | Sforzo |
+|---|---|---|---|
+| Setup Meta App + WhatsApp Business + numero dedicato + token permanente — **manuale** | ⬜ | 🟡 | M |
+| Edge Function `whatsapp-webhook` (verify GET + POST media, firma `X-Hub-Signature-256`) | ⬜ | 🟡 | L |
+| Routing: estrai codice task dalla didascalia + match `user_contacts.phone` → utente | ⬜ | 🟡 | M |
+| Codice task leggibile: `tasks.short_code` (consigliato) o primi 8 char UUID | ⬜ | 🟡 | S |
+| UI box "Invia da WhatsApp" in `TaskSlideOver` (numero + codice + istruzioni) | ⬜ | 🟡 | S |
+| Secrets Edge Function `WHATSAPP_TOKEN/PHONE_NUMBER_ID/VERIFY_TOKEN/APP_SECRET` | ⬜ | 🟡 | S |
+| (Fase 2) Sessione "Collega WhatsApp" dall'app (TTL, no codice da digitare) | ⬜ | ⚪ | M |
+
+### ✅ Block 8 — Rifiniture "100% usable" (residui sicurezza/onboarding)
+
+| Modulo | Stato | Priorità | Sforzo |
+|---|---|---|---|
+| **HIBP** protezione password compromesse (toggle Dashboard, non via codice) | ⬜ | 🔴 | S |
+| Email confirmation enforcement + UI "reinvia" | ⬜ | 🟡 | S |
+| Admin **bulk** invite + invio link | ⬜ | 🟡 | M |
+| Block 2 — RLS hardening pending users (quando ci sono utenti reali) | ⬜ | 🟡 | S |
+| Bacheca @menzioni con notifica · Calendario eventi ricorrenti | ⬜ | 🟡 | M |
+| TypeScript migration · copertura test estesa | ⬜ | ⚪ | L |
+
+**Sequenza consigliata**: 5 → 6 → 7 → 8. Block 5 sblocca tutto; HIBP è un quick-win di sicurezza inseribile in qualsiasi momento.
+
+---
+
 ### ✅ Block 1 — Autenticazione & Onboarding (COMPLETO — sessione 27)
 
 | Modulo | Stato | Priorità | Sforzo |

@@ -72,6 +72,70 @@ function exportTasksToIcs(allTasks, uid) {
 }
 
 
+// ── Recurring expansion ─────────────────────────────────────────────────────
+// Generates virtual task copies for recurring tasks within [rangeStart, rangeEnd].
+// Virtual copies have isRecurringInstance:true and originalId pointing to the base.
+function expandRecurring(tasks, rangeStart, rangeEnd) {
+  const result = [];
+  for (const t of tasks) {
+    if (!t.dueDate || !t.recurrence || t.recurrence === "none") {
+      result.push(t);
+      continue;
+    }
+    const orig = new Date(t.dueDate);
+    let cur = new Date(orig);
+    let safety = 0;
+    const advance = (d) => {
+      const n = new Date(d);
+      if (t.recurrence === "daily")        n.setDate(n.getDate() + 1);
+      else if (t.recurrence === "weekly")  n.setDate(n.getDate() + 7);
+      else if (t.recurrence === "monthly") n.setMonth(n.getMonth() + 1);
+      else if (t.recurrence === "yearly")  n.setFullYear(n.getFullYear() + 1);
+      return n;
+    };
+    // Wind forward to first occurrence >= rangeStart
+    while (cur < rangeStart && safety++ < 400) cur = advance(cur);
+    // Emit all occurrences in [rangeStart, rangeEnd]
+    safety = 0;
+    while (cur <= rangeEnd && safety++ < 400) {
+      const isOrig = cur.getTime() === orig.getTime();
+      result.push({
+        ...t,
+        id: isOrig ? t.id : `${t.id}_r${cur.getTime()}`,
+        dueDate: cur.toISOString(),
+        isRecurringInstance: !isOrig,
+        originalId: t.id,
+      });
+      cur = advance(cur);
+    }
+  }
+  return result;
+}
+
+// ── Column layout for overlapping events ────────────────────────────────────
+// Returns array of { task, col, totalCols } with non-overlapping column placement.
+function layoutColumns(dayTasks) {
+  const sorted = [...dayTasks].sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+  const colEnds = []; // end-minute of last event assigned to each column
+  const items = sorted.map(t => {
+    const d = new Date(t.dueDate);
+    const startMin = d.getHours() * 60 + d.getMinutes();
+    const durH = Math.max(0.25, Number(t.estimatedHours) > 0 ? Number(t.estimatedHours) : 1);
+    const endMin = startMin + durH * 60;
+    let col = colEnds.findIndex(e => e <= startMin);
+    if (col === -1) { col = colEnds.length; colEnds.push(endMin); }
+    else colEnds[col] = endMin;
+    return { task: t, col, startMin, endMin };
+  });
+  // Assign totalCols = max col in the overlapping group + 1
+  return items.map(item => {
+    const totalCols = Math.max(...items
+      .filter(o => o.startMin < item.endMin && o.endMin > item.startMin)
+      .map(o => o.col)) + 1;
+    return { ...item, totalCols };
+  });
+}
+
 export const CalendarPlanner = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
   const [viewMode, setViewMode] = useState("month"); // "month" | "week" | "week-full" | "day"
@@ -99,11 +163,6 @@ export const CalendarPlanner = ({ state, dispatch }) => {
   const monthName = currentMonth.toLocaleDateString("it-IT", { month: "long", year: "numeric" });
   const startOffset = firstDay === 0 ? 6 : firstDay - 1;
 
-  const getTasksForCalDay = (day) => {
-    const d = new Date(year, month, day).toDateString();
-    return state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && new Date(t.dueDate).toDateString() === d && matchesCat(t));
-  };
-
   // ── Week helpers ──
   const getWeekDays = (offset) => {
     const now = new Date();
@@ -118,8 +177,28 @@ export const CalendarPlanner = ({ state, dispatch }) => {
   const weekDays = getWeekDays(weekOffset);
   const dayNames = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
+  // ── Pre-expand recurring tasks for each visible range ──
+  const baseTasks = state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid));
+
+  const monthStart = new Date(year, month, 1, 0, 0, 0);
+  const monthEnd = new Date(year, month + 1, 0, 23, 59, 59);
+  const expandedMonth = expandRecurring(baseTasks, monthStart, monthEnd);
+
+  const _wkS = new Date(weekDays[0]); _wkS.setHours(0, 0, 0, 0);
+  const _wkE = new Date(weekDays[6]); _wkE.setHours(23, 59, 59, 999);
+  const expandedWeek = expandRecurring(baseTasks, _wkS, _wkE);
+
+  const _dyS = new Date(dayDate); _dyS.setHours(0, 0, 0, 0);
+  const _dyE = new Date(dayDate); _dyE.setHours(23, 59, 59, 999);
+  const expandedDay = expandRecurring(baseTasks, _dyS, _dyE);
+
+  const getTasksForCalDay = (day) => {
+    const d = new Date(year, month, day).toDateString();
+    return expandedMonth.filter(t => t.dueDate && new Date(t.dueDate).toDateString() === d && matchesCat(t));
+  };
+
   const getTasksForDay = (day) =>
-    state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate && new Date(t.dueDate).toDateString() === day.toDateString() && matchesCat(t));
+    expandedWeek.filter(t => t.dueDate && new Date(t.dueDate).toDateString() === day.toDateString() && matchesCat(t));
 
   // ── Distribuzione agenti ──
   // Caveat #8: nelle viste settimanali (week / week-full) le frecce ←/→ guidano
@@ -403,10 +482,10 @@ export const CalendarPlanner = ({ state, dispatch }) => {
 
       {/* ─── VISTA GIORNO (Step G) ─── */}
       {viewMode === "day" && (() => {
-        const dayTasks = state.tasks
-          .filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate &&
-            new Date(t.dueDate).toDateString() === dayDate.toDateString())
+        const dayTasks = expandedDay
+          .filter(t => t.dueDate && new Date(t.dueDate).toDateString() === dayDate.toDateString() && matchesCat(t))
           .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+        const laid = layoutColumns(dayTasks);
         const HOURS = Array.from({ length: 24 }, (_, h) => h);
         const SLOT_H = 44; // px per ora
         const isToday = dayDate.toDateString() === new Date().toDateString();
@@ -454,28 +533,36 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                     }} />
                   </div>
                 )}
-                {/* Eventi */}
-                {dayTasks.map(t => {
+                {/* Eventi con layout colonne anti-overlap */}
+                {laid.map(({ task: t, col, totalCols }) => {
                   const d = new Date(t.dueDate);
                   const startMin = d.getHours() * 60 + d.getMinutes();
-                  const hours = Number(t.estimatedHours) > 0 ? Number(t.estimatedHours) : 1;
+                  const hours = Math.max(0.25, Number(t.estimatedHours) > 0 ? Number(t.estimatedHours) : 1);
                   const top = (startMin / 60) * SLOT_H;
                   const height = Math.max(28, hours * SLOT_H - 2);
                   const cat = CATEGORIES[t.category] || {};
+                  const colW = 100 / totalCols;
+                  const taskToOpen = t.isRecurringInstance
+                    ? (state.tasks.find(x => x.id === t.originalId) || t)
+                    : t;
                   return (
-                    <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
-                      position: "absolute", top, left: 6, right: 6, height,
+                    <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: taskToOpen })} style={{
+                      position: "absolute", top,
+                      left: `calc(${col * colW}% + 3px)`,
+                      width: `calc(${colW}% - 6px)`,
+                      height,
                       background: (cat.color || "#94a3b8") + "22",
                       borderLeft: `3px solid ${cat.color || "#94a3b8"}`,
                       borderRadius: "0 6px 6px 0", padding: "4px 8px",
                       cursor: "pointer", overflow: "hidden", fontSize: 12,
                       boxShadow: "0 1px 3px rgba(0,0,0,0.08)", zIndex: 1,
+                      outline: t.isRecurringInstance ? `1px dashed ${cat.color || "#94a3b8"}66` : "none",
                     }}>
                       <div style={{ fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {cat.icon} {t.title}
+                        {cat.icon} {t.title}{t.isRecurringInstance ? " ↻" : ""}
                       </div>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 1 }}>
-                        <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{formatTime(t.dueDate)} · {hours}h</span>
+                        <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{formatTime(t.dueDate)}</span>
                         {t.assignees?.length > 0 && height >= 42 && (
                           <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
                             {t.assignees.slice(0, 3).map(id => (
@@ -536,6 +623,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                 </div>
                 {weekDays.map((day, di) => {
                   const dayTasks = getTasksForDay(day).sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+                  const laid = layoutColumns(dayTasks);
                   const isToday = day.toDateString() === today;
                   return (
                     <div key={di} style={{
@@ -547,23 +635,31 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                           height: SLOT_H, borderBottom: "1px solid var(--surface2)",
                         }} />
                       ))}
-                      {dayTasks.map(t => {
+                      {laid.map(({ task: t, col, totalCols }) => {
                         const d = new Date(t.dueDate);
                         const startMin = d.getHours() * 60 + d.getMinutes();
-                        const hours = Number(t.estimatedHours) > 0 ? Number(t.estimatedHours) : 1;
+                        const hours = Math.max(0.25, Number(t.estimatedHours) > 0 ? Number(t.estimatedHours) : 1);
                         const top = (startMin / 60) * SLOT_H;
                         const height = Math.max(20, hours * SLOT_H - 2);
                         const cat = CATEGORIES[t.category] || {};
+                        const colW = 100 / totalCols;
+                        const taskToOpen = t.isRecurringInstance
+                          ? (state.tasks.find(x => x.id === t.originalId) || t)
+                          : t;
                         return (
-                          <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
-                            position: "absolute", top, left: 2, right: 2, height,
+                          <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: taskToOpen })} style={{
+                            position: "absolute", top,
+                            left: `calc(${col * colW}% + 1px)`,
+                            width: `calc(${colW}% - 3px)`,
+                            height,
                             background: (cat.color || "#94a3b8") + "22",
                             borderLeft: `2px solid ${cat.color || "#94a3b8"}`,
                             borderRadius: "0 4px 4px 0", padding: "2px 5px",
                             cursor: "pointer", overflow: "hidden", fontSize: 10, lineHeight: 1.2,
+                            outline: t.isRecurringInstance ? `1px dashed ${cat.color || "#94a3b8"}66` : "none",
                           }}>
                             <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                              {cat.icon} {t.title}
+                              {cat.icon} {t.title}{t.isRecurringInstance ? " ↻" : ""}
                             </div>
                             <div style={{ fontSize: 9, color: "var(--text-muted)" }}>{formatTime(t.dueDate)}</div>
                           </div>

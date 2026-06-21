@@ -2,6 +2,7 @@
 // Estratto dal monolite (Step P Phase 2f).
 import { useState, useRef, useEffect } from "react";
 import { NOTICE_COLORS } from "../../lib/taskConstants.js";
+import { MentionText } from "../ui/MentionText.jsx";
 
 export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
   const [text, setText] = useState(notice?.text || "");
@@ -57,7 +58,9 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
           fontSize: 13, lineHeight: 1.45, color: "#3d2f10",
           whiteSpace: "pre-wrap", wordBreak: "break-word",
         }}>
-          {text || <span style={{ color: "#8b6f3a", fontStyle: "italic" }}>Anteprima dell'avviso...</span>}
+          {text
+            ? <MentionText text={text} />
+            : <span style={{ color: "#8b6f3a", fontStyle: "italic" }}>Anteprima dell'avviso...</span>}
         </div>
 
         {/* Textarea */}
@@ -65,7 +68,7 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
           ref={textareaRef}
           value={text}
           onChange={e => setText(e.target.value)}
-          placeholder="Scrivi qui il tuo avviso..."
+          placeholder="Scrivi qui il tuo avviso... usa @nome per menzionare un membro del team"
           rows={4}
           maxLength={500}
           style={{
@@ -77,8 +80,11 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
           onFocus={e => e.target.style.borderColor = "var(--gold)"}
           onBlur={e => e.target.style.borderColor = "var(--border)"}
         />
-        <div style={{ fontSize: 11, color: "var(--text-muted)", textAlign: "right", marginTop: 4 }}>
-          {text.length}/500
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+            💡 Scrivi <b>@nome</b> per notificare un collega
+          </span>
+          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{text.length}/500</span>
         </div>
 
         {/* Colore */}

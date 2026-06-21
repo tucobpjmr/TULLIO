@@ -211,14 +211,6 @@ export const TaskSlideOver = ({ task, dispatch }) => {
             />
           </div>
 
-          {/* ORE */}
-          {task.estimatedHours && (
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4 }}>ORE STIMATE</div>
-              <div style={{ fontSize: 13 }}>{task.estimatedHours}h</div>
-            </div>
-          )}
-
           {/* Description */}
           <div>
             <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>DESCRIZIONE</div>

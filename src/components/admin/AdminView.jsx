@@ -272,11 +272,10 @@ const AdminIOTab = ({ state, dispatch }) => {
   const tasksToExport = () => includeTrashed ? state.tasks : state.tasks.filter(t => !t.deletedAt);
 
   const exportCSV = () => {
-    const headers = ["ID","Titolo","Categoria","Priorità","Status","Cliente","Scadenza","Ore","Assegnati","Descrizione","Cestinato"];
+    const headers = ["ID","Titolo","Categoria","Priorità","Status","Cliente","Scadenza","Assegnati","Descrizione","Cestinato"];
     const rows = tasksToExport().map(t => [
       t.id, t.title, t.category, t.priority, t.status, t.client || "",
       t.dueDate ? t.dueDate.slice(0,10) : "",
-      t.estimatedHours || 0,
       (t.assignees || []).join("|"),
       (t.description || "").replace(/\n/g, " "),
       t.deletedAt ? "Sì" : "No",
@@ -291,7 +290,6 @@ const AdminIOTab = ({ state, dispatch }) => {
       ID: t.id, Titolo: t.title, Categoria: t.category, Priorità: t.priority,
       Status: t.status, Cliente: t.client || "",
       Scadenza: t.dueDate ? t.dueDate.slice(0,10) : "",
-      Ore: t.estimatedHours || 0,
       Assegnati: (t.assignees || []).map(a => getMember(a)?.name || a).join(", "),
       Descrizione: t.description || "",
       Cestinato: t.deletedAt ? "Sì" : "No",
@@ -365,7 +363,7 @@ const AdminIOTab = ({ state, dispatch }) => {
         <h3 style={cardH}>📥 Importa task</h3>
         <p style={cardP}>Usa il <b>Bulk Task Creator</b> (FAB navy 📑 in basso a destra) → tab <b>Importa</b> per caricare CSV/Excel con mapping automatico.</p>
         <div style={{ fontSize: 12, color: "var(--text-muted)", padding: 12, background: "var(--surface2)", borderRadius: 8, border: "1px dashed var(--border)" }}>
-          💡 Colonne supportate: <code>Titolo, Categoria, Priorità, Cliente, Scadenza, Assegnato, Ore, Descrizione</code><br/>
+          💡 Colonne supportate: <code>Titolo, Categoria, Priorità, Cliente, Scadenza, Assegnato, Descrizione</code><br/>
           Il sistema normalizza automaticamente nomi categoria/priorità in italiano e ID agenti.
         </div>
       </div>

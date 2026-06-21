@@ -22,7 +22,7 @@ const _esc = v => {
   return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
 };
 const exportTasksCSV = (tasks, filename = "coda-personale") => {
-  const headers = ["Titolo", "Categoria", "Priorità", "Stato", "Cliente", "Pratica", "Assegnati", "Scadenza", "Ore stimate"];
+  const headers = ["Titolo", "Categoria", "Priorità", "Stato", "Cliente", "Pratica", "Assegnati", "Scadenza"];
   const rows = tasks.map(t => [
     t.title,
     CATEGORIES[t.category]?.label || t.category,
@@ -32,7 +32,6 @@ const exportTasksCSV = (tasks, filename = "coda-personale") => {
     t.praticaRef || "",
     (t.assignees || []).map(id => getMember(id)?.name || id).join("; "),
     t.dueDate ? new Date(t.dueDate).toLocaleString("it-IT") : "",
-    t.estimatedHours || "",
   ]);
   const csv = [headers, ...rows].map(r => r.map(_esc).join(",")).join("\n");
   const a = document.createElement("a");
@@ -252,7 +251,6 @@ const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
                       📅 {formatDate(t.dueDate)}{enableDateFilter ? ` 🕑 ${formatTime(t.dueDate)}` : ""}{overdue ? " ⚠ scaduto" : urgent ? " ⏱ < 24h" : ""}
                     </span>
                   )}
-                  {t.estimatedHours > 0 && <span>⏱️ {t.estimatedHours}h</span>}
                 </div>
                 {/* Avanzamento rapido status (v2.8 Round 14) */}
                 {t.status !== "done" && (() => {
@@ -648,7 +646,6 @@ const UnassignedQueue = ({ tasks, dispatch, onTake, uid }) => {
                       📅 {formatDate(t.dueDate)}{overdue ? " (scaduto)" : ""}
                     </span>
                   )}
-                  {t.estimatedHours > 0 && <span>⏱️ {t.estimatedHours}h</span>}
                 </div>
 
                 {/* Take ownership button — nascosto per Junior Agent */}
@@ -987,18 +984,13 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
                     <span style={{ fontSize: 10, padding: "1px 6px", background: "#FFF3CD", color: "#856404", borderRadius: 99, fontWeight: 700, letterSpacing: 0.3 }}>JUNIOR</span>
                   )}
                 </span>
-                {(() => {
-                  const totalH = personalQueue.reduce((s, t) => s + (Number(t.estimatedHours) || 0), 0);
-                  if (totalH === 0) return null;
-                  return (
-                    <span style={{
-                      fontSize: 11, padding: "2px 9px", borderRadius: 99, fontWeight: 700,
-                      background: overdueTasks.length > 0 ? "rgba(192,57,43,0.08)" : "rgba(15,32,68,0.06)",
-                      color: overdueTasks.length > 0 ? "var(--danger)" : "var(--navy)",
-                      border: `1px solid ${overdueTasks.length > 0 ? "rgba(192,57,43,0.2)" : "rgba(15,32,68,0.1)"}`,
-                    }}>⏱ {totalH}h in coda{overdueTasks.length > 0 ? ` · ${overdueTasks.length} scadut${overdueTasks.length === 1 ? "a" : "e"}` : ""}</span>
-                  );
-                })()}
+                {overdueTasks.length > 0 && (
+                  <span style={{
+                    fontSize: 11, padding: "2px 9px", borderRadius: 99, fontWeight: 700,
+                    background: "rgba(192,57,43,0.08)", color: "var(--danger)",
+                    border: "1px solid rgba(192,57,43,0.2)",
+                  }}>⚠ {overdueTasks.length} scadut{overdueTasks.length === 1 ? "a" : "e"}</span>
+                )}
               </>
             )}
           </div>

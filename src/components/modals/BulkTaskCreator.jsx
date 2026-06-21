@@ -382,7 +382,7 @@ const ImportTab = ({ onCreate, onClose }) => {
     { key: "title", label: "Titolo *" }, { key: "category", label: "Categoria" },
     { key: "priority", label: "Priorità" }, { key: "status", label: "Stato" },
     { key: "client", label: "Cliente" }, { key: "dueDate", label: "Scadenza" },
-    { key: "assignee", label: "Assegnato" }, { key: "estimatedHours", label: "Ore stimate" },
+    { key: "assignee", label: "Assegnato" },
     { key: "description", label: "Descrizione" },
   ];
 

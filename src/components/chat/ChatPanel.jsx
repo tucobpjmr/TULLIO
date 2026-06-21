@@ -826,7 +826,6 @@ function convViewReducer(s, a) {
     case "CLOSE_SEARCH":   return { ...s, showMsgSearch: false, msgSearch: "" };
     case "TOGGLE_PINNED":  return { ...s, showPinnedOnly: !s.showPinnedOnly };
     case "TYPING":         return { ...s, typing: a.v };
-    case "TASK_REF":       return { ...s, pendingTaskRef: a.v };
     case "UPLOADING":      return { ...s, uploading: a.v };
     case "PREFILL":        return { ...s, input: a.text, pendingTaskRef: a.taskRef ?? null };
     default: return s;

@@ -57,14 +57,16 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 
 ---
 
-### 🟢 Block 4 — Account Management
+### ✅ Block 4 — Account Management (COMPLETO — sessione 33)
 
 | Modulo | Stato | Priorità | Sforzo |
 |---|---|---|---|
-| Profile edit (name, avatar, email/phone) | ⬜ | 🟡 | S |
-| Change password (in-app, not reset link) | ⬜ | 🟡 | S |
-| Account deletion (self-service or admin) | ⬜ | ⚪ | S |
-| Multi-session tracking (last seen, devices) | ⬜ | ⚪ | M |
+| Profile edit (name, avatar, email/phone) | ✅ | 🟡 | S |
+| Change password (in-app, not reset link) | ✅ | 🟡 | S |
+| Account deletion (self-service or admin) | ✅ | ⚪ | S |
+| Multi-session tracking (last seen, devices) | ✅ | ⚪ | S |
+
+**Deliverables**: sezione "Cambia password" in `ProfileEditor`, sezione "Elimina account" con typed confirmation, Edge Function `delete-account` (ban 87600h + active=false), `Users.deleteAccount()` API, `AuthContext.deleteAccount()`, dot presenza + last-seen in `AdminView`. Tutti deployati ✅.
 
 ---
 

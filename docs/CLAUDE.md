@@ -44,7 +44,7 @@ Agisci come sviluppatore full-stack specializzato in sistemi gestionali per trav
 
 ```css
 --navy: #0F2044;        --navy-light: #1a3060;     --navy-dark: #08152d;
---sky: #87CEEB;         /* shell: topbar, sidebar, bottom-nav */
+--sky: #D0EEF9;         /* shell: topbar, sidebar, bottom-nav (celeste tenue) */
 --gold: #D4A843;        --gold-light: #e8c46a;     --gold-dark: #b8902e;
 --surface: #FAFAF7;     --surface2: #F0EEE8;       --surface3: #E8E5DC;
 --success: #2D7A4F;     --warning: #C8832A;        --danger: #C0392B;
@@ -263,13 +263,19 @@ Tutti i componenti sono **moduli separati** in `src/components/`; helper e sub-c
 
 **Why deferred**: No real users yet; safer when live data exists.
 
-### 🟢 Block 3 — Email Confirmation & Admin Controls (sessione 28 — in corso)
+### ✅ Block 3 — Email Confirmation & Admin Controls (COMPLETO — sessione 28)
 - [x] Approval notification (→admin): trigger `notify_user_pending` + notifica `user_pending` ✅
 - [x] Admin invite via email: Edge Function `invite-user` + `Users.invite()` + campo email in `AddTeamMemberModal` ✅
-- [x] Email confirmation: frontend pronto (`email_not_confirmed` gestito) — manca solo il toggle dashboard ⚠️
-- [ ] Resend confirmation email UI
-- [ ] Admin **bulk** invite (più email insieme)
-- [ ] Leaked password protection (toggle dashboard HaveIBeenPwned)
+- [x] Email confirmation: frontend pronto (`email_not_confirmed` gestito) — toggle dashboard manuale (Supabase Auth settings) ✅
+- [ ] Resend confirmation email UI (deferred)
+- [ ] Admin **bulk** invite (deferred)
+- [ ] Leaked password protection (deferred)
+
+### ✅ Block 4 — Account Management (COMPLETO — sessione 33)
+- [x] Cambia password in-app (`ProfileEditor` — sezione collassabile, min 8 char, conferma) ✅
+- [x] Elimina account self-service (typed confirmation `ELIMINA`, ban 87600h, preserva chat) ✅
+- [x] Presenza + last-seen in AdminView (dot colorato + "ultimo accesso X min fa") ✅
+- [x] Edge Function `delete-account` (v2, verify_jwt, ban + active=false) ✅
 
 ### Priorità 2 — Fase 2 Operatività ✅ (chiusa sessione 23)
 - [x] Notifiche reali ✅
@@ -362,4 +368,4 @@ src/
 
 Le notifiche nascono **solo da trigger DB / funzioni server-side** (RLS vieta insert client) — per nuove notifiche serve un trigger o una funzione `SECURITY DEFINER` schedulata via pg_cron. Tipi notifica attivi (`NOTIF_ICONS`/`notifTitle` in `Topbar.jsx`): `task_assigned`, `task_due`, `comment`, `mention`, `queue_stale`, `user_pending` (Block 3 — trigger `notify_user_pending`). ~~`dossier_status`~~ e ~~`dossier_departure`~~ **RIMOSSI** (sessione 24).
 
-Vedi `docs/HANDOFF_SESSION_2026-06-19_v27.md` (handoff attivo) per lo stato corrente dopo sessione 27 (Block 1: autenticazione & onboarding completo, password recovery, signup, approval system).
+Vedi `docs/HANDOFF_SESSION_2026-06-21_v33_block4_account_management.md` (handoff attivo) per lo stato corrente dopo sessione 33 (Block 4: shell sky blue, presenza admin, cambio password in-app, eliminazione account self-service).

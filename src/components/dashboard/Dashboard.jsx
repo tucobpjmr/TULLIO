@@ -289,17 +289,33 @@ const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
 // ─── URGENT QUEUE (tutte le task in scadenza <24h — visibile a non-driver) ──
 // Mostra sia le proprie task urgenti (editabili dal dettaglio) sia quelle
 // altrui (read-only, con scorciatoia "contatta" verso l'assegnatario).
+// windowH: finestra temporale selezionabile (ore). 24 = default (badge tab).
+const URGENT_WINDOWS = [
+  { h: 24, label: "Entro 24h" },
+  { h: 48, label: "Entro 48h" },
+  { h: 72, label: "Entro 72h" },
+];
+
 const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
   const { isMobile } = useViewport();
   const [filterAgent, setFilterAgent] = useState(null);
+  const [windowH, setWindowH] = useState(24);
+
+  // `tasks` arriva già limitato a 72h dal parent: qui restringo alla finestra
+  // selezionata, poi (eventualmente) al singolo agente.
+  const windowMs = windowH * 60 * 60 * 1000;
+  const inWindow = tasks.filter(t => {
+    const diff = new Date(t.dueDate).getTime() - Date.now();
+    return diff >= 0 && diff <= windowMs;
+  });
 
   const presentAgents = [...new Set(
-    tasks.map(t => t.assignees?.[0]).filter(Boolean)
+    inWindow.map(t => t.assignees?.[0]).filter(Boolean)
   )];
 
   const visibleTasks = filterAgent
-    ? tasks.filter(t => t.assignees?.[0] === filterAgent)
-    : tasks;
+    ? inWindow.filter(t => t.assignees?.[0] === filterAgent)
+    : inWindow;
 
   return (
     <div style={{
@@ -319,10 +335,10 @@ const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
           }}>⏱</div>
           <div>
             <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
-              Urgenti — scadenza entro 24h
+              Urgenti — scadenza entro {windowH}h
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-              Tutte le task in scadenza entro 24h • clicca una card per i dettagli
+              Tutte le task in scadenza entro {windowH}h • clicca una card per i dettagli
             </div>
           </div>
         </div>
@@ -330,7 +346,41 @@ const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
           background: "var(--warning)", color: "#fff",
           padding: "4px 12px", borderRadius: 999,
           fontSize: 13, fontWeight: 700,
-        }}>{visibleTasks.length}{filterAgent ? `/${tasks.length}` : ""}</div>
+        }}>{visibleTasks.length}{filterAgent ? `/${inWindow.length}` : ""}</div>
+      </div>
+
+      {/* Selettore finestra temporale (24/48/72h) */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+        {URGENT_WINDOWS.map(w => {
+          const on = windowH === w.h;
+          const n = tasks.filter(t => {
+            const diff = new Date(t.dueDate).getTime() - Date.now();
+            return diff >= 0 && diff <= w.h * 60 * 60 * 1000;
+          }).length;
+          return (
+            <button
+              key={w.h}
+              type="button"
+              onClick={() => { setWindowH(w.h); setFilterAgent(null); }}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "5px 12px", borderRadius: 8, cursor: "pointer",
+                fontSize: 12, fontWeight: 700, fontFamily: "inherit",
+                border: `1px solid ${on ? "var(--warning)" : "var(--border)"}`,
+                background: on ? "var(--warning)" : "var(--card)",
+                color: on ? "#fff" : "var(--text-muted)",
+                transition: "all 0.15s",
+              }}
+            >
+              {w.label}
+              <span style={{
+                background: on ? "rgba(255,255,255,0.25)" : "var(--surface2)",
+                borderRadius: 999, padding: "1px 6px", fontSize: 11,
+                color: on ? "#fff" : "var(--text-muted)",
+              }}>{n}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Filtro per agente — Round 15 */}
@@ -353,7 +403,7 @@ const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
             const m = getMember(agentId);
             if (!m) return null;
             const active = filterAgent === agentId;
-            const count = tasks.filter(t => t.assignees?.[0] === agentId).length;
+            const count = inWindow.filter(t => t.assignees?.[0] === agentId).length;
             return (
               <button
                 key={agentId}
@@ -382,6 +432,15 @@ const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
         </div>
       )}
 
+      {visibleTasks.length === 0 ? (
+        <div style={{
+          padding: "26px 20px", textAlign: "center", color: "var(--text-muted)",
+          fontSize: 13, fontStyle: "italic",
+        }}>
+          ✅ Nessuna task in scadenza entro {windowH}h{filterAgent ? " per questo agente" : ""}.
+          {windowH < 72 && " Prova ad allargare la finestra."}
+        </div>
+      ) : (
       <div style={{
         display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 320px), 1fr))",
         gap: 10,
@@ -469,6 +528,7 @@ const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
           );
         })}
       </div>
+      )}
     </div>
   );
 };
@@ -937,14 +997,23 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
       return new Date(a.dueDate) - new Date(b.dueDate);
     });
 
-  // Urgenti: tutte le task visibili con scadenza < 24h (Driver non le vede).
-  // Visibile a tutti gli altri ruoli, admin inclusi.
+  // Urgenti: task visibili con scadenza imminente (Driver non le vede).
+  // Visibile a tutti gli altri ruoli, admin inclusi. La tab Urgenti permette
+  // di allargare la finestra (24/48/72h); qui prepariamo i candidati entro 72h
+  // e lasciamo il filtro temporale al componente. Il badge della tab usa la
+  // finestra di default (24h) via isUrgent.
   const showUrgent = role !== "driver";
-  const urgentTasks = showUrgent
+  const WINDOW_72H = 72 * 60 * 60 * 1000;
+  const urgentCandidates = showUrgent
     ? tasks
-      .filter(t => isUrgent(t))
+      .filter(t => {
+        if (!t.dueDate || t.status === "done") return false;
+        const diff = new Date(t.dueDate).getTime() - Date.now();
+        return diff >= 0 && diff <= WINDOW_72H;
+      })
       .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
     : [];
+  const urgentTasks = urgentCandidates.filter(t => isUrgent(t));
 
   // Scadute: tutti i task visibili scaduti, non completati
   const overdueTasks = tasks
@@ -1062,7 +1131,7 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
         <OverdueQueue tasks={overdueTasks} dispatch={dispatch} />
       )}
       {activeQueue === "urgent" && showUrgent && (
-        <UrgentQueue tasks={urgentTasks} dispatch={dispatch} onOpenChat={onOpenChat} uid={uid} />
+        <UrgentQueue tasks={urgentCandidates} dispatch={dispatch} onOpenChat={onOpenChat} uid={uid} />
       )}
 
       <div className="vd-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>

@@ -42,9 +42,9 @@ export const Users = {
   // La Edge Function ritorna { success } oppure { error } con status non-2xx:
   // in quel caso supabase-js mette il messaggio in error.context (lo
   // normalizziamo qui per esporre il testo localizzato al chiamante).
-  invite: async ({ email, name, role = 'agent', capacity = 8, color = '#3B82F6' } = {}) => {
+  invite: async ({ email, name, role = 'agent', capacity = 8, color = '#3B82F6', resend = false } = {}) => {
     const { data, error } = await supabase.functions.invoke('invite-user', {
-      body: { email, name, role, capacity, color },
+      body: { email, name, role, capacity, color, resend },
     });
     if (error) {
       let msg = error.message;

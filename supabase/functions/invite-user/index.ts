@@ -59,19 +59,21 @@ Deno.serve(async (req: Request) => {
     const role: string = VALID_ROLES.has(rawRole) ? rawRole : "agent";
     const capacity: number = Number(body.capacity) || 8;
     const color: string = body.color || "#3B82F6";
+    const resend: boolean = body.resend === true;
 
-    if (!email || !name) {
+    if (!email || (!resend && !name)) {
       return json({ error: "Email e nome sono obbligatori" }, 400);
     }
 
-    // Genera avatar dalle iniziali
+    // Genera avatar dalle iniziali (non serve per resend ma non fa male)
     const parts = name.split(/\s+/);
     const avatar = ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? parts[0]?.[1] ?? "")).toUpperCase();
 
-    // Invia invito via Supabase Auth Admin API
-    // invited_by viaggia nei metadata → letto dal trigger handle_new_auth_user
-    // che lo persiste su public.users.invited_by. notify_user_pending lo usa
-    // per non notificare l'admin che ha lanciato l'invito (sessione 29 fix).
+    // Invia (o reinvia) invito via Supabase Auth Admin API.
+    // invited_by viaggia nei metadata → letto dal trigger handle_new_auth_user.
+    // Quando resend=true l'utente esiste già: Supabase aggiorna il token e
+    // reinvia l'email se l'account non è ancora confermato. Se l'utente ha
+    // già confermato, Auth restituisce "already been registered".
     const { data: inviteData, error: inviteErr } =
       await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
         data: { name, role, capacity, color, invited_by: user.id },
@@ -79,28 +81,33 @@ Deno.serve(async (req: Request) => {
 
     if (inviteErr) {
       if (inviteErr.message?.includes("already been registered")) {
-        return json({ error: "Questa email è già registrata nel sistema" }, 409);
+        return json({
+          error: resend
+            ? "L'utente ha già confermato l'account: non è possibile reinviare l'invito"
+            : "Questa email è già registrata nel sistema",
+        }, 409);
       }
       throw inviteErr;
     }
 
-    const uid = inviteData.user.id;
+    // Per i reinvii il profilo e il contatto esistono già: saltiamo l'upsert.
+    if (!resend) {
+      const uid = inviteData.user.id;
 
-    // Pre-crea profilo (il trigger DB fa lo stesso come safety-net).
-    // invited_by ridondante col trigger ma utile se il safety-net non scatta
-    // (es. race con auth → upsert).
-    await supabaseAdmin.from("users").upsert(
-      { id: uid, name, role, avatar, color, capacity, pending: true, active: false, invited_by: user.id },
-      { onConflict: "id" }
-    );
+      // Pre-crea profilo (il trigger DB fa lo stesso come safety-net).
+      await supabaseAdmin.from("users").upsert(
+        { id: uid, name, role, avatar, color, capacity, pending: true, active: false, invited_by: user.id },
+        { onConflict: "id" }
+      );
 
-    // Pre-crea contatto
-    await supabaseAdmin.from("user_contacts").upsert(
-      { user_id: uid, email },
-      { onConflict: "user_id" }
-    );
+      // Pre-crea contatto
+      await supabaseAdmin.from("user_contacts").upsert(
+        { user_id: uid, email },
+        { onConflict: "user_id" }
+      );
+    }
 
-    return json({ success: true, userId: uid });
+    return json({ success: true, userId: inviteData.user.id });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Errore interno";
     console.error("[invite-user]", msg);

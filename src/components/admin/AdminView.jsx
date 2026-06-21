@@ -6,6 +6,7 @@ import { STATUSES, STATUS_LABELS, STATUS_COLORS } from "../../lib/taskConstants.
 import { isOverdue } from "../../lib/taskUtils.js";
 import { loadXLSX } from "../../lib/xlsx.js";
 import { TEAM, getMember } from "../../state/appGlobals.js";
+import { Users } from "../../lib/api.js";
 import { AddTeamMemberModal } from "../modals/AddTeamMemberModal.jsx";
 import { BulkInviteModal } from "../modals/BulkInviteModal.jsx";
 import { AddCategoryModal } from "../modals/AddCategoryModal.jsx";
@@ -98,6 +99,26 @@ const AdminTeamTab = ({ state, dispatch }) => {
   const [draft, setDraft] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
+  // resendMap: { [memberId]: 'loading' | 'ok' | 'err' | string(errMsg) }
+  const [resendMap, setResendMap] = useState({});
+
+  const resendInvite = async (m) => {
+    setResendMap(prev => ({ ...prev, [m.id]: 'loading' }));
+    const { data: contacts, error: cErr } = await Users.getContacts(m.id);
+    const email = contacts?.email;
+    if (cErr || !email) {
+      setResendMap(prev => ({ ...prev, [m.id]: 'Email non trovata' }));
+      setTimeout(() => setResendMap(prev => { const n = {...prev}; delete n[m.id]; return n; }), 3000);
+      return;
+    }
+    const { error } = await Users.invite({ email, name: m.name, role: m.role, capacity: m.capacity, color: m.color, resend: true });
+    if (error) {
+      setResendMap(prev => ({ ...prev, [m.id]: error.message || 'Errore' }));
+    } else {
+      setResendMap(prev => ({ ...prev, [m.id]: 'ok' }));
+    }
+    setTimeout(() => setResendMap(prev => { const n = {...prev}; delete n[m.id]; return n; }), 3500);
+  };
 
   const pending = state.team.filter(m => m.pending);
   const active = state.team.filter(m => !m.pending && m.active);
@@ -181,6 +202,24 @@ const AdminTeamTab = ({ state, dispatch }) => {
             </>
           ) : (
             <>
+              {opts.canApprove && m.invited_by && (() => {
+                const rs = resendMap[m.id];
+                return (
+                  <button
+                    onClick={() => { if (!rs) resendInvite(m); }}
+                    disabled={rs === 'loading'}
+                    style={{
+                      ...btnGhost,
+                      fontSize: 12,
+                      color: rs === 'ok' ? "var(--success)" : rs && rs !== 'loading' ? "var(--danger)" : "var(--navy)",
+                      opacity: rs === 'loading' ? 0.6 : 1,
+                    }}
+                    title="Reinvia email di invito"
+                  >
+                    {rs === 'loading' ? '⏳' : rs === 'ok' ? '✅ Inviata' : rs && rs !== 'loading' ? `❌ ${rs}` : '📧 Reinvia'}
+                  </button>
+                );
+              })()}
               {opts.canApprove && (
                 <button onClick={() => dispatch({ type: "APPROVE_TEAM_MEMBER", payload: m.id })} style={btnGold}>
                   ✓ Approva
@@ -257,7 +296,12 @@ const AdminTeamTab = ({ state, dispatch }) => {
       )}
 
       {showAdd && <AddTeamMemberModal onClose={() => setShowAdd(false)} dispatch={dispatch} existingIds={state.team.map(m => m.id)} />}
-      {showBulk && <BulkInviteModal onClose={() => setShowBulk(false)} />}
+      {showBulk && (
+        <BulkInviteModal
+          onClose={() => setShowBulk(false)}
+          onInvited={() => dispatch({ type: "SHOW_TOAST", payload: { type: "success", message: "Inviti inviati. I nuovi utenti appariranno nella lista dopo aver accettato." } })}
+        />
+      )}
     </div>
   );
 };

@@ -1,5 +1,54 @@
 # CHANGELOG — VoyageDesk
 
+## v3.2-dev — Block 4: Account Management (sessione 33 — 2026-06-21)
+
+> Branch `claude/pr-73-merge-preview-02y67z`. Base: `main` post-merge #74 (Block 3). Shell più chiara, presenza admin, cambio password, eliminazione account self-service.
+
+### 🎨 Shell — Celeste più chiaro e contrasto icone
+
+**`src/VoyageDesk.jsx`**
+- `--sky: #87CEEB` → `--sky: #D0EEF9` (celeste quasi bianco su topbar/sidebar/bottom-nav).
+
+**`src/components/shell/Topbar.jsx`** / **`Sidebar.jsx`**
+- Tutti i testi/icone muted portati da opacità 0.45–0.60 a 0.65–0.80 per leggibilità su sfondo chiaro.
+
+### 👤 Presenza nel pannello Admin
+
+**`src/components/admin/AdminView.jsx`**
+- Dot presenza colorato (verde online / ambra busy / grigio offline) sovrapposto all'avatar di ogni membro.
+- Label "ultimo accesso X min/h/g fa" nella riga sottotitolo della card.
+- Helper `PRESENCE_COLOR` + `fmtLastSeen` module-scope (usa `m.status` + `m.last_seen_at` già in `state.team`).
+
+### 🔑 Cambia password in-app
+
+**`src/components/modals/ProfileEditor.jsx`**
+- Sezione collassabile "🔑 Cambia password" (solo con sessione reale Supabase).
+- Validazione lato client: min 8 caratteri, le due password devono coincidere.
+- Feedback inline OK/errore, reset campi su successo.
+- Chiama `updatePassword()` da `AuthContext` (`supabase.auth.updateUser({ password })`).
+
+### 🗑️ Eliminazione account self-service
+
+**`supabase/functions/delete-account/index.ts`** (NEW — `verify_jwt: true`, v2 ACTIVE in prod)
+- Verifica JWT → ottiene `user.id`.
+- `adminClient.from("users").update({ active: false })` — disabilita profilo pubblico.
+- `adminClient.auth.admin.updateUserById(user.id, { ban_duration: "87600h" })` — ban 10 anni.
+- **Non** usa `deleteUser`: le FK `comments.user_id` e `messages.sender_id ON DELETE CASCADE` cancellerebbero tutta la cronologia chat.
+
+**`src/lib/api.js`**
+- `Users.deleteAccount()`: invoca la Edge Function, normalizza errori.
+
+**`src/auth/AuthContext.jsx`**
+- `deleteAccount()`: chiama `Users.deleteAccount()`, poi `signOut()` su successo. Esposto in `value`.
+
+**`src/components/modals/ProfileEditor.jsx`** (zona pericolosa)
+- Sezione collassabile "⚠️ Elimina account" in rosso (solo con sessione).
+- Box avvertenza rosso chiaro con spiegazione effetti.
+- Input testo: il bottone "Elimina account definitivamente" si abilita solo quando l'utente digita esattamente `ELIMINA`.
+- Su conferma: `deleteAccount()` → `signOut()` → app si smonta automaticamente.
+
+---
+
 ## v3.1-dev — Block 3: Email Confirmation & Admin Controls (sessione 28)
 
 > Branch `claude/block3-email-confirm-invites`. Base: `main` post-merge #66 (Block 1) + #67 (server-fix). Notifica admin su signup, inviti utente reali via email, predisposizione email confirmation.

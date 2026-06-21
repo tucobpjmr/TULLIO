@@ -1,6 +1,7 @@
 // src/auth/AuthContext.jsx
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { Users as UsersAPI } from '../lib/api.js';
 
 const AuthContext = createContext(null);
 
@@ -100,6 +101,14 @@ export function AuthProvider({ children }) {
 
   const refreshTeam = () => loadProfile(session?.user?.id);
 
+  // Self-service account deletion: delegates to delete-account Edge Function,
+  // then signs out so the banned user is immediately logged out.
+  const deleteAccount = async () => {
+    const result = await UsersAPI.deleteAccount();
+    if (!result.error) await supabase.auth.signOut();
+    return result;
+  };
+
   const value = {
     session,
     user: session?.user ?? null,
@@ -116,6 +125,7 @@ export function AuthProvider({ children }) {
     resetPassword,
     resendConfirmation,
     updatePassword,
+    deleteAccount,
     signOut,
     refreshTeam,
   };

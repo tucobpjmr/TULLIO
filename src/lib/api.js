@@ -81,6 +81,22 @@ export const Users = {
   setRecentReactions: (id, recentReactions) =>
     supabase.from('user_app_preferences')
       .upsert({ user_id: id, recent_reactions: recentReactions, updated_at: new Date().toISOString() }, { onConflict: 'user_id' }),
+  // Self-service account deletion (Block 4). Calls the delete-account Edge
+  // Function (verify_jwt) which bans the user for 10 years + sets active=false.
+  // Does NOT hard-delete: preserves comments/messages (FK ON DELETE CASCADE safety).
+  deleteAccount: async () => {
+    const { data, error } = await supabase.functions.invoke('delete-account', { body: {} });
+    if (error) {
+      let msg = error.message;
+      try {
+        const body = await error.context?.json?.();
+        if (body?.error) msg = body.error;
+      } catch { /* non-JSON */ }
+      return { data: null, error: { message: msg } };
+    }
+    if (data?.error) return { data: null, error: { message: data.error } };
+    return { data, error: null };
+  },
 };
 
 // ----------------- TASKS -----------------

@@ -113,20 +113,43 @@ const AdminTeamTab = ({ state, dispatch }) => {
     cancelEdit();
   };
 
+  const PRESENCE_COLOR = { online: "#2D7A4F", busy: "#C8832A", offline: "#9999AA" };
+  const fmtLastSeen = (ts) => {
+    if (!ts) return null;
+    const ms = Date.now() - new Date(ts).getTime();
+    const min = Math.round(ms / 60000);
+    if (min < 2) return "ora";
+    if (min < 60) return `${min} min fa`;
+    const h = Math.round(min / 60);
+    if (h < 24) return `${h}h fa`;
+    return `${Math.round(h / 24)}g fa`;
+  };
+
   const card = (m, opts = {}) => {
     const isEditing = editingId === m.id;
     const count = taskCount(m.id);
+    const dotColor = PRESENCE_COLOR[m.status] || PRESENCE_COLOR.offline;
+    const seenLabel = fmtLastSeen(m.last_seen_at);
     return (
       <div key={m.id} style={{
         background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10,
         padding: 16, display: "flex", alignItems: "center", gap: 14,
         opacity: opts.dim ? 0.65 : 1,
       }}>
-        <div style={{
-          width: 48, height: 48, borderRadius: "50%", background: m.color,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          color: "#fff", fontWeight: 700, fontSize: 16, flexShrink: 0,
-        }}>{m.avatar}</div>
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: "50%", background: m.color,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "#fff", fontWeight: 700, fontSize: 16,
+          }}>{m.avatar}</div>
+          {m.status && (
+            <div style={{
+              position: "absolute", bottom: 1, right: 1,
+              width: 11, height: 11, borderRadius: "50%",
+              background: dotColor, border: "2px solid var(--card)",
+            }} title={m.status === "online" ? "Online" : m.status === "busy" ? "Occupato" : "Offline"} />
+          )}
+        </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           {isEditing ? (
             <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 80px 100px", gap: 8 }}>
@@ -145,6 +168,7 @@ const AdminTeamTab = ({ state, dispatch }) => {
               <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text)" }}>{m.name}</div>
               <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
                 {m.role} • Capacità {m.capacity} task • {count} task assegnati
+                {seenLabel && <span> • ultimo accesso {seenLabel}</span>}
               </div>
             </>
           )}

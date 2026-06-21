@@ -1,7 +1,7 @@
 // ─── CHAT ────────────────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f). Include ChatContext (module-local) e
 // tutti i sotto-componenti chat; esporta solo ChatPanel.
-import { useState, useEffect, useRef, useContext, createContext } from "react";
+import { useState, useReducer, useEffect, useRef, useContext, createContext } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { Messages as MessagesAPI, Users as UsersAPI } from "../../lib/api.js";
@@ -801,28 +801,66 @@ const VoiceRecorder = ({ onSend, onCancel }) => {
   );
 };
 
+// ─── CHAT: REDUCERS ────────────────────────────────────────────────────────
+// convViewReducer: local UI state for an open conversation.
+// Keeps related fields atomic: e.g. AFTER_SEND clears input+replyingTo+taskRef in one step.
+const convViewInitial = {
+  input: "", recording: false, replyingTo: null,
+  showAttach: false, showTemplates: false,
+  showMsgSearch: false, msgSearch: "", showPinnedOnly: false,
+  typing: false, pendingTaskRef: null, uploading: false,
+};
+function convViewReducer(s, a) {
+  switch (a.type) {
+    case "INPUT":          return { ...s, input: a.v };
+    case "APPEND_INPUT":   return { ...s, input: s.input ? `${s.input}\n${a.v}` : a.v };
+    case "AFTER_SEND":     return { ...s, input: "", replyingTo: null, pendingTaskRef: null };
+    case "RECORDING":      return { ...s, recording: a.v };
+    case "REPLYING":       return { ...s, replyingTo: a.v };
+    case "TOGGLE_ATTACH":  return { ...s, showAttach: !s.showAttach, showTemplates: false };
+    case "CLOSE_ATTACH":   return { ...s, showAttach: false };
+    case "TOGGLE_TMPL":    return { ...s, showTemplates: !s.showTemplates, showAttach: false };
+    case "CLOSE_TMPL":     return { ...s, showTemplates: false };
+    case "TOGGLE_SEARCH":  return { ...s, showMsgSearch: !s.showMsgSearch, msgSearch: "" };
+    case "SEARCH":         return { ...s, msgSearch: a.v };
+    case "CLOSE_SEARCH":   return { ...s, showMsgSearch: false, msgSearch: "" };
+    case "TOGGLE_PINNED":  return { ...s, showPinnedOnly: !s.showPinnedOnly };
+    case "TYPING":         return { ...s, typing: a.v };
+    case "TASK_REF":       return { ...s, pendingTaskRef: a.v };
+    case "UPLOADING":      return { ...s, uploading: a.v };
+    case "PREFILL":        return { ...s, input: a.text, pendingTaskRef: a.taskRef ?? null };
+    default: return s;
+  }
+}
+
+// chatPanelReducer: navigation state for the whole chat panel.
+const chatPanelInitial = {
+  activeConv: null, newMode: false,
+  prefillText: "", prefillTaskRef: null, forwardingMsg: null,
+};
+function chatPanelReducer(s, a) {
+  switch (a.type) {
+    case "ACTIVATE":      return { ...s, activeConv: a.conv, newMode: false };
+    case "BACK":          return { ...s, activeConv: null, prefillText: "", prefillTaskRef: null };
+    case "NEW_MODE":      return { ...s, newMode: a.v };
+    case "PREFILL":       return { ...s, prefillText: a.text, prefillTaskRef: a.taskRef ?? null };
+    case "CLEAR_PREFILL": return { ...s, prefillText: "", prefillTaskRef: null };
+    case "FWD_START":     return { ...s, forwardingMsg: a.payload };
+    case "FWD_CLEAR":     return { ...s, forwardingMsg: null };
+    default: return s;
+  }
+}
+
 // ─── CHAT: CONVERSATION VIEW ───────────────────────────────────────────────
 const ConversationView = ({ conv, messages, setMessages, markConversationRead, onBack, initialInput, initialTaskRef, onInitialInputConsumed }) => {
-  const [input, setInput] = useState("");
-  const [recording, setRecording] = useState(false);
-  const [replyingTo, setReplyingTo] = useState(null);
-  const [showAttach, setShowAttach] = useState(false);
-  // v2.8: dropdown template messaggi
-  const [showTemplates, setShowTemplates] = useState(false);
-  // v2.8 Round 13: ricerca messaggi
-  const [showMsgSearch, setShowMsgSearch] = useState(false);
-  const [msgSearch, setMsgSearch] = useState("");
-  // Fase 3 pin: filtro "solo messaggi fissati" — pill nell'header. Si combina
-  // in AND con la ricerca testuale.
-  const [showPinnedOnly, setShowPinnedOnly] = useState(false);
+  const [cv, cvd] = useReducer(convViewReducer, convViewInitial);
+  const { input, recording, replyingTo, showAttach, showTemplates,
+          showMsgSearch, msgSearch, showPinnedOnly, typing,
+          pendingTaskRef, uploading } = cv;
   const { messageTemplates: templates = [] } = useContext(ChatContext);
-  const [typing, setTyping] = useState(false);
-  // Step K: taskRef UUID "armato" finché il prossimo invio non lo consuma.
-  const [pendingTaskRef, setPendingTaskRef] = useState(null);
   const scrollRef = useRef(null);
   // Step M: upload allegati reale
   const fileInputRef = useRef(null);
-  const [uploading, setUploading] = useState(false);
   const { dispatch } = useContext(ChatContext);
   // Guardia unmount: setState dopo unmount (utente chiude la chat mid-upload)
   // genera un warning React e perde la callback di errore.
@@ -832,8 +870,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
   // Se è arrivato un prefill (es. da "contatta agente" su urgenti altrui), popolalo
   useEffect(() => {
     if (initialInput) {
-      setInput(initialInput);
-      if (initialTaskRef) setPendingTaskRef(initialTaskRef);
+      cvd({ type: "PREFILL", text: initialInput, taskRef: initialTaskRef ?? null });
       if (onInitialInputConsumed) onInitialInputConsumed();
     }
   }, [initialInput, initialTaskRef]);
@@ -867,8 +904,8 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
     if (msgs.length === 0) return;
     const last = msgs[msgs.length - 1];
     if (last.sender === CURRENT_USER) {
-      const timer = setTimeout(() => setTyping(true), 800);
-      const stop = setTimeout(() => setTyping(false), 3500);
+      const timer = setTimeout(() => cvd({ type: "TYPING", v: true }), 800);
+      const stop = setTimeout(() => cvd({ type: "TYPING", v: false }), 3500);
       return () => { clearTimeout(timer); clearTimeout(stop); };
     }
   }, [msgs.length]);
@@ -887,9 +924,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
       ...(stillHasLink && pendingTaskRef ? { taskRef: pendingTaskRef } : {}),
     };
     setMessages(prev => ({ ...prev, [conv.id]: [...(prev[conv.id] || []), newMsg] }));
-    setInput("");
-    setReplyingTo(null);
-    setPendingTaskRef(null);
+    cvd({ type: "AFTER_SEND" });
   };
 
   // Riceve il payload dal VoiceRecorder: { blob, duration, waveform, mimeType }.
@@ -904,7 +939,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
       if (error || !path) {
         console.error("[chat] voice upload", error);
         dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Invio vocale fallito: ${error?.message || "errore sconosciuto"}` } });
-        setRecording(false);
+        cvd({ type: "RECORDING", v: false });
         return;
       }
       fileUrl = path;
@@ -917,13 +952,13 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
       readBy: [CURRENT_USER],
     };
     setMessages(prev => ({ ...prev, [conv.id]: [...(prev[conv.id] || []), newMsg] }));
-    setRecording(false);
+    cvd({ type: "RECORDING", v: false });
   };
 
   // Step M: il picker nativo viene aperto con un accept diverso per tipo;
   // l'upload va sul bucket privato 'chat-files' e il messaggio porta il path.
   const pickFile = (accept) => {
-    setShowAttach(false);
+    cvd({ type: "CLOSE_ATTACH" });
     if (!fileInputRef.current) return;
     fileInputRef.current.accept = accept;
     fileInputRef.current.click();
@@ -942,10 +977,10 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
     // il messaggio resta solo locale senza fileUrl.
     let fileUrl = null;
     if (isUuid(conv.id)) {
-      setUploading(true);
+      cvd({ type: "UPLOADING", v: true });
       const { path, error } = await MessagesAPI.uploadFile(file, conv.id);
       if (!mountedRef.current) return;
-      setUploading(false);
+      cvd({ type: "UPLOADING", v: false });
       if (error || !path) {
         console.error("[chat] upload", error);
         dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Upload fallito: ${error?.message || "errore sconosciuto"}` } });
@@ -1054,7 +1089,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
           const pinnedCount = msgs.filter(m => m.pinned).length;
           return (
             <button
-              onClick={() => setShowPinnedOnly(p => !p)}
+              onClick={() => cvd({ type: "TOGGLE_PINNED" })}
               title={showPinnedOnly ? "Mostra tutti i messaggi" : "Mostra solo i messaggi fissati"}
               style={{
                 background: showPinnedOnly ? "rgba(212,168,67,0.35)" : "rgba(255,255,255,0.1)",
@@ -1069,7 +1104,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
           );
         })()}
         <button
-          onClick={() => { setShowMsgSearch(s => !s); setMsgSearch(""); }}
+          onClick={() => cvd({ type: "TOGGLE_SEARCH" })}
           title="Cerca nei messaggi"
           style={{
             background: showMsgSearch ? "rgba(212,168,67,0.25)" : "rgba(255,255,255,0.1)",
@@ -1088,7 +1123,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
           <input
             autoFocus
             value={msgSearch}
-            onChange={e => setMsgSearch(e.target.value)}
+            onChange={e => cvd({ type: "SEARCH", v: e.target.value })}
             placeholder="Cerca nei messaggi…"
             style={{
               flex: 1, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)",
@@ -1101,7 +1136,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
               {msgs.filter(m => m.text?.toLowerCase().includes(msgSearch.toLowerCase())).length} risultati
             </span>
           )}
-          <button onClick={() => { setShowMsgSearch(false); setMsgSearch(""); }} style={{
+          <button onClick={() => cvd({ type: "CLOSE_SEARCH" })} style={{
             background: "none", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 16,
           }}>✕</button>
         </div>
@@ -1132,7 +1167,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
                 conv={conv}
                 allMessages={msgs}
                 onReact={handleReact}
-                onReply={setReplyingTo}
+                onReply={(m) => cvd({ type: "REPLYING", v: m })}
                 onTogglePin={handleTogglePin}
               />
             );
@@ -1169,7 +1204,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
               {replyingTo.type === "voice" ? "🎙️ Vocale" : replyingTo.type === "file" ? `📎 ${replyingTo.fileName}` : replyingTo.text}
             </div>
           </div>
-          <button onClick={() => setReplyingTo(null)} style={{
+          <button onClick={() => cvd({ type: "REPLYING", v: null })} style={{
             background: "none", border: "none", cursor: "pointer",
             fontSize: 16, color: "var(--text-muted)",
           }}>✕</button>
@@ -1183,7 +1218,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
         position: "relative",
       }}>
         {recording ? (
-          <VoiceRecorder onSend={sendVoice} onCancel={() => setRecording(false)} />
+          <VoiceRecorder onSend={sendVoice} onCancel={() => cvd({ type: "RECORDING", v: false })} />
         ) : (
           <>
             <div style={{ position: "relative" }}>
@@ -1197,7 +1232,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
                   sendFile(f);
                 }}
               />
-              <button onClick={() => setShowAttach(s => !s)} disabled={uploading} style={{
+              <button onClick={() => cvd({ type: "TOGGLE_ATTACH" })} disabled={uploading} style={{
                 background: "var(--surface2)", border: "none", borderRadius: "50%",
                 width: 36, height: 36, cursor: uploading ? "wait" : "pointer", fontSize: 18, flexShrink: 0,
               }}>{uploading ? "⏳" : "📎"}</button>
@@ -1232,7 +1267,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
             {templates.length > 0 && (
               <div style={{ position: "relative" }}>
                 <button
-                  onClick={() => { setShowTemplates(s => !s); setShowAttach(false); }}
+                  onClick={() => cvd({ type: "TOGGLE_TMPL" })}
                   title="Inserisci template"
                   style={{
                     background: showTemplates ? "var(--navy)" : "var(--surface2)",
@@ -1257,8 +1292,8 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
                         key={t.id}
                         onClick={() => {
                           // Inserisce alla posizione corrente (append con separatore o overwrite se vuoto)
-                          setInput(prev => prev ? `${prev}\n${t.text}` : t.text);
-                          setShowTemplates(false);
+                          cvd({ type: "APPEND_INPUT", v: t.text });
+                          cvd({ type: "CLOSE_TMPL" });
                         }}
                         style={{
                           display: "block", textAlign: "left", width: "100%",
@@ -1281,7 +1316,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
 
             <input
               value={input}
-              onChange={e => setInput(e.target.value)}
+              onChange={e => cvd({ type: "INPUT", v: e.target.value })}
               onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), sendText())}
               placeholder="Scrivi un messaggio..."
               style={{
@@ -1298,7 +1333,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
                 fontSize: 14, fontWeight: 700, flexShrink: 0,
               }}>↑</button>
             ) : (
-              <button onClick={() => setRecording(true)} style={{
+              <button onClick={() => cvd({ type: "RECORDING", v: true })} style={{
                 background: "var(--gold)", color: "var(--navy)", border: "none",
                 borderRadius: "50%", width: 36, height: 36, cursor: "pointer",
                 fontSize: 16, flexShrink: 0,
@@ -1781,23 +1816,16 @@ const ForwardPicker = ({ msg, conversations, messages, onPick, onClose }) => {
 
 export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, intent, tasks, currentUserId, dispatch, presenceMap, messageTemplates = [], loading = false, myBusy = false, onToggleBusy }) => {
   const { isMobile } = useViewport();
-  const [activeConv, setActiveConv] = useState(null);
-  const [newMode, setNewMode] = useState(false);
-  const [prefillText, setPrefillText] = useState("");
-  // Step K: taskRef UUID da precompilare insieme al testo del riferimento task.
-  const [prefillTaskRef, setPrefillTaskRef] = useState(null);
-  // Fase 3 forward: il messaggio da inoltrare quando aperto il picker.
-  // Stash __sourceConvId sul payload così ForwardPicker può escludere
-  // dalla lista la conversazione di origine senza dover ricavarla a parte.
-  const [forwardingMsg, setForwardingMsg] = useState(null);
+  const [ps, pd] = useReducer(chatPanelReducer, chatPanelInitial);
+  const { activeConv, newMode, prefillText, prefillTaskRef, forwardingMsg } = ps;
 
   const handleForwardStart = (msg) => {
-    setForwardingMsg({ ...msg, __sourceConvId: activeConv?.id ?? null });
+    pd({ type: "FWD_START", payload: { ...msg, __sourceConvId: activeConv?.id ?? null } });
   };
 
   const handleForwardPick = async (destConvId) => {
     const src = forwardingMsg;
-    setForwardingMsg(null);
+    pd({ type: "FWD_CLEAR" });
     if (!src || !destConvId) return;
     const me = currentUserId || CURRENT_USER;
     // Preserva l'autore originale anche su forward chain (A→B→C): se src è
@@ -1858,7 +1886,7 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
     // mostrare visivamente il messaggio appena inoltrato.
     if (destConvId !== activeConv?.id) {
       const target = conversations.find(c => c.id === destConvId);
-      if (target) setActiveConv(target);
+      if (target) pd({ type: "ACTIVATE", conv: target });
     }
     if (dispatch) {
       dispatch({ type: "SHOW_TOAST", payload: { type: "success", message: "Messaggio inoltrato" } });
@@ -1891,16 +1919,13 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
       };
       setConversations(prev => [direct, ...prev]);
     }
-    setActiveConv(direct);
-    setNewMode(false);
+    pd({ type: "ACTIVATE", conv: direct });
     // Precompila il messaggio con riferimento al task
     if (intent.taskLink) {
       const t = (tasks || []).find(x => x.id === intent.taskLink);
       if (t) {
         const text = `🔗 Riferimento task: "${t.title}"\n📅 Scadenza: ${formatDate(t.dueDate)} ${formatTime(t.dueDate)}\n\n`;
-        setPrefillText(text);
-        // Step K: salva l'UUID del task per popolare messages.task_ref alla send.
-        setPrefillTaskRef(t.id);
+        pd({ type: "PREFILL", text, taskRef: t.id });
       }
     }
   }, [open, intent, currentUserId]);
@@ -1909,8 +1934,7 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
 
   const handleCreate = (conv, addNew = false) => {
     if (addNew) setConversations(c => [conv, ...c]);
-    setActiveConv(conv);
-    setNewMode(false);
+    pd({ type: "ACTIVATE", conv });
   };
 
   return (
@@ -1989,7 +2013,7 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
           ) : newMode ? (
             <NewConversationView
               onCreate={handleCreate}
-              onCancel={() => setNewMode(false)}
+              onCancel={() => pd({ type: "NEW_MODE", v: false })}
               existing={conversations}
             />
           ) : activeConv ? (
@@ -1998,17 +2022,17 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
               messages={messages}
               setMessages={setMessages}
               markConversationRead={markConversationRead}
-              onBack={() => { setActiveConv(null); setPrefillText(""); setPrefillTaskRef(null); }}
+              onBack={() => pd({ type: "BACK" })}
               initialInput={prefillText}
               initialTaskRef={prefillTaskRef}
-              onInitialInputConsumed={() => { setPrefillText(""); setPrefillTaskRef(null); }}
+              onInitialInputConsumed={() => pd({ type: "CLEAR_PREFILL" })}
             />
           ) : (
             <ConversationList
               conversations={conversations}
               messages={messages}
-              onSelect={setActiveConv}
-              onNew={() => setNewMode(true)}
+              onSelect={(c) => pd({ type: "ACTIVATE", conv: c })}
+              onNew={() => pd({ type: "NEW_MODE", v: true })}
             />
           )}
         </div>
@@ -2022,7 +2046,7 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
           conversations={conversations}
           messages={messages}
           onPick={handleForwardPick}
-          onClose={() => setForwardingMsg(null)}
+          onClose={() => pd({ type: "FWD_CLEAR" })}
         />
       )}
     </>

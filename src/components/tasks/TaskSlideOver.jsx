@@ -109,10 +109,20 @@ export const TaskSlideOver = ({ task, dispatch }) => {
               </select>
             </div>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>SCADENZA</div>
-              <div style={{ fontSize: 13, fontWeight: 500, padding: "7px 10px", background: "var(--surface2)", borderRadius: 8 }}>
-                {formatDate(task.dueDate)} {formatTime(task.dueDate) && `ore ${formatTime(task.dueDate)}`}
+              <div style={{ fontSize: 11, fontWeight: 600, color: isOverdue(task) ? "var(--danger)" : "var(--text-muted)", marginBottom: 6 }}>
+                SCADENZA {isOverdue(task) && "⚠️"}
               </div>
+              <input
+                type="datetime-local"
+                value={task.dueDate ? task.dueDate.slice(0, 16) : ""}
+                onChange={e => dispatch({ type: "UPDATE_TASK", payload: { id: task.id, dueDate: e.target.value ? new Date(e.target.value).toISOString() : null } })}
+                style={{
+                  width: "100%", border: `1px solid ${isOverdue(task) ? "var(--danger)" : "var(--border)"}`,
+                  borderRadius: 8, padding: "7px 10px", fontSize: 13, fontFamily: "inherit",
+                  background: isOverdue(task) ? "#FFF5F5" : "var(--card)", cursor: "pointer",
+                  color: isOverdue(task) ? "var(--danger)" : "var(--text)", fontWeight: isOverdue(task) ? 600 : 400,
+                }}
+              />
             </div>
           </div>
 

@@ -14,19 +14,19 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 > 🆕 **Sessione 34 — nuovi blocchi 5→8 (allegati task + OneDrive + WhatsApp).**
 > Dettaglio tecnico completo in `docs/HANDOFF_SESSION_2026-06-21_v34_attachments_onedrive_whatsapp.md`.
 
-### 🧱 Block 5 — Allegati Task (FONDAZIONE) — ⬜ da fare — 🔴 Alta — Sforzo M
+### ✅ Block 5 — Allegati Task (FONDAZIONE) — COMPLETO (sessione 34) — 🔴 Alta — Sforzo M
 
-> ⚠️ **Prerequisito di Block 6 e 7.** Oggi i task NON hanno allegati reali: in `TaskSlideOver.jsx` (~232) c'è solo un placeholder inerte. Manca tabella, bucket, API e UI.
+> Prerequisito di Block 6 e 7, ora pronto: i task hanno allegati reali (upload/lista/download/elimina). OneDrive/WhatsApp diventano sorgenti che chiamano `TaskFiles.upload(file, taskId, { source })`.
 
 | Modulo | Stato | Priorità | Sforzo |
 |---|---|---|---|
-| Migration `task_files` (tabella + RLS rispecchia `tasks_select`) | ⬜ | 🔴 | S |
-| Bucket privato `task-files` + policy storage (template `chat-files`) | ⬜ | 🔴 | S |
-| API `TaskFiles` (list/upload/remove/signedUrl) in `lib/api.js` | ⬜ | 🔴 | S |
-| UI dropzone reale in `TaskSlideOver` (upload/lista/download/badge sorgente) | ⬜ | 🔴 | M |
-| Test Vitest helper (size/mime/limit) | ⬜ | 🟡 | S |
+| Migration `task_files` (tabella + RLS rispecchia `tasks_select`) | ✅ | 🔴 | S |
+| Bucket privato `task-files` + policy storage (template `chat-files`) | ✅ | 🔴 | S |
+| API `TaskFiles` (list/upload/remove/signedUrl) in `lib/api.js` | ✅ | 🔴 | S |
+| UI dropzone reale in `TaskSlideOver` (upload/lista/download/badge sorgente) | ✅ | 🔴 | M |
+| Test Vitest helper (`fileUtils`: size/mime/limit/badge) | ✅ | 🟡 | S |
 
-**Output**: allegati funzionanti via upload manuale. OneDrive/WhatsApp diventano sorgenti che chiamano `TaskFiles.upload(file, taskId, source)`.
+**Deliverable**: migration `20260621_task_files.sql` (applicata in prod), `src/lib/fileUtils.js` + 11 test, export `TaskFiles` in `api.js`, sub-componente `TaskAttachments` in `TaskSlideOver.jsx` (drag&drop + lista + download via signed URL + elimina, badge sorgente). Limite 25 MB/file. RLS rispecchiano la visibilità del task; nessun nuovo advisor di sicurezza.
 
 ### ☁️ Block 6 — Allega da OneDrive (Azure personale/MSA) — ⬜ da fare — 🟡 Media — Sforzo M
 

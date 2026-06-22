@@ -60,6 +60,12 @@ Deno.serve(async (req: Request) => {
     const capacity: number = Number(body.capacity) || 8;
     const color: string = body.color || "#3B82F6";
     const resend: boolean = body.resend === true;
+    // redirectTo passato dal client (window.location.origin): garantisce che
+    // il link nell'email punti all'ambiente corretto (preview o produzione)
+    // invece di dipendere dal Site URL configurato in Supabase Dashboard.
+    const redirectTo: string | undefined = typeof body.redirectTo === "string" && body.redirectTo.startsWith("https://")
+      ? body.redirectTo
+      : undefined;
 
     if (!email || (!resend && !name)) {
       return json({ error: "Email e nome sono obbligatori" }, 400);
@@ -77,6 +83,7 @@ Deno.serve(async (req: Request) => {
     const { data: inviteData, error: inviteErr } =
       await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
         data: { name, role, capacity, color, invited_by: user.id },
+        ...(redirectTo ? { redirectTo } : {}),
       });
 
     if (inviteErr) {

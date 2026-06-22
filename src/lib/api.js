@@ -44,7 +44,7 @@ export const Users = {
   // normalizziamo qui per esporre il testo localizzato al chiamante).
   invite: async ({ email, name, role = 'agent', capacity = 8, color = '#3B82F6', resend = false } = {}) => {
     const { data, error } = await supabase.functions.invoke('invite-user', {
-      body: { email, name, role, capacity, color, resend },
+      body: { email, name, role, capacity, color, resend, redirectTo: window.location.origin },
     });
     if (error) {
       let msg = error.message;

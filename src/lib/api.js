@@ -97,6 +97,24 @@ export const Users = {
     if (data?.error) return { data: null, error: { message: data.error } };
     return { data, error: null };
   },
+  // Eliminazione DEFINITIVA di un utente da parte di un admin (Block 3).
+  // Chiama la Edge Function 'delete-user' (verify_jwt) che hard-elimina la
+  // riga auth.users: la FK CASCADE ripulisce public.users e user_contacts.
+  // Serve a liberare un'email "fantasma" così l'invito può essere rifatto da
+  // zero (altrimenti Users.invite restituisce "già registrata").
+  deleteUser: async (userId) => {
+    const { data, error } = await supabase.functions.invoke('delete-user', { body: { userId } });
+    if (error) {
+      let msg = error.message;
+      try {
+        const body = await error.context?.json?.();
+        if (body?.error) msg = body.error;
+      } catch { /* non-JSON */ }
+      return { data: null, error: { message: msg } };
+    }
+    if (data?.error) return { data: null, error: { message: data.error } };
+    return { data, error: null };
+  },
 };
 
 // ----------------- TASKS -----------------

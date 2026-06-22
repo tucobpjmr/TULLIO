@@ -695,13 +695,19 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         dbOps = () => ClientsAPI.remove(action.payload);
         break;
       // ─── ADMIN: TEAM sync ───
-      // Persistiamo solo le azioni che operano su utenti reali (creati via
-      // signup): approvazione e attivazione/disattivazione. ADD/UPDATE/REMOVE
-      // restano locali — ADD_TEAM_MEMBER non ha una riga auth.users associata,
-      // e UPDATE del ruolo richiederebbe il mapping all'enum DB (niente
-      // sotto-ruolo Junior/Senior nello schema attuale).
+      // Persistiamo le azioni che operano su utenti reali (creati via signup o
+      // invito): approvazione, attivazione/disattivazione ed eliminazione.
+      // ADD/UPDATE restano locali — ADD_TEAM_MEMBER non ha una riga auth.users
+      // associata, e UPDATE del ruolo richiederebbe il mapping all'enum DB
+      // (niente sotto-ruolo Junior/Senior nello schema attuale).
       case "APPROVE_TEAM_MEMBER":
         dbOps = () => UsersAPI.approve(action.payload);
+        break;
+      // Eliminazione definitiva: hard-delete via Edge Function delete-user.
+      // Rimuove la riga auth.users (CASCADE → public.users + user_contacts),
+      // così l'email torna libera e l'invito può essere rifatto da zero.
+      case "REMOVE_TEAM_MEMBER":
+        dbOps = () => UsersAPI.deleteUser(action.payload);
         break;
       case "TOGGLE_TEAM_MEMBER_ACTIVE": {
         const curr = state.team.find(m => m.id === action.payload);

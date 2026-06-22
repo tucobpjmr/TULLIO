@@ -29,6 +29,14 @@ export const STATUS_COLORS = {
 // Palette colori per gli avvisi della bacheca
 export const NOTICE_COLORS = ["#FEF3C7", "#FCE7F3", "#D1FAE5", "#DBEAFE", "#E9D5FF"];
 
+// Ricorrenza task — usata in QuickAddTask e CalendarPlanner
+export const RECURRENCE_OPTIONS = {
+  none:    { label: "Nessuna",      icon: "—" },
+  daily:   { label: "Giornaliera",  icon: "↻" },
+  weekly:  { label: "Settimanale",  icon: "↻" },
+  monthly: { label: "Mensile",      icon: "↻" },
+};
+
 // Template predefiniti per la creazione in blocco di task
 export const TASK_TEMPLATES = [
   {

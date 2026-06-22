@@ -6,6 +6,7 @@ import { STATUSES, STATUS_LABELS, STATUS_COLORS } from "../../lib/taskConstants.
 import { isOverdue } from "../../lib/taskUtils.js";
 import { loadXLSX } from "../../lib/xlsx.js";
 import { TEAM, getMember } from "../../state/appGlobals.js";
+import { Users } from "../../lib/api.js";
 import { AddTeamMemberModal } from "../modals/AddTeamMemberModal.jsx";
 import { BulkInviteModal } from "../modals/BulkInviteModal.jsx";
 import { AddCategoryModal } from "../modals/AddCategoryModal.jsx";
@@ -98,6 +99,26 @@ const AdminTeamTab = ({ state, dispatch }) => {
   const [draft, setDraft] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
+  // resendMap: { [memberId]: 'loading' | 'ok' | 'err' | string(errMsg) }
+  const [resendMap, setResendMap] = useState({});
+
+  const resendInvite = async (m) => {
+    setResendMap(prev => ({ ...prev, [m.id]: 'loading' }));
+    const { data: contacts, error: cErr } = await Users.getContacts(m.id);
+    const email = contacts?.email;
+    if (cErr || !email) {
+      setResendMap(prev => ({ ...prev, [m.id]: 'Email non trovata' }));
+      setTimeout(() => setResendMap(prev => { const n = {...prev}; delete n[m.id]; return n; }), 3000);
+      return;
+    }
+    const { error } = await Users.invite({ email, name: m.name, role: m.role, capacity: m.capacity, color: m.color, resend: true });
+    if (error) {
+      setResendMap(prev => ({ ...prev, [m.id]: error.message || 'Errore' }));
+    } else {
+      setResendMap(prev => ({ ...prev, [m.id]: 'ok' }));
+    }
+    setTimeout(() => setResendMap(prev => { const n = {...prev}; delete n[m.id]; return n; }), 3500);
+  };
 
   const pending = state.team.filter(m => m.pending);
   const active = state.team.filter(m => !m.pending && m.active);
@@ -181,6 +202,24 @@ const AdminTeamTab = ({ state, dispatch }) => {
             </>
           ) : (
             <>
+              {opts.canApprove && m.invited_by && (() => {
+                const rs = resendMap[m.id];
+                return (
+                  <button
+                    onClick={() => { if (!rs) resendInvite(m); }}
+                    disabled={rs === 'loading'}
+                    style={{
+                      ...btnGhost,
+                      fontSize: 12,
+                      color: rs === 'ok' ? "var(--success)" : rs && rs !== 'loading' ? "var(--danger)" : "var(--navy)",
+                      opacity: rs === 'loading' ? 0.6 : 1,
+                    }}
+                    title="Reinvia email di invito"
+                  >
+                    {rs === 'loading' ? '⏳' : rs === 'ok' ? '✅ Inviata' : rs && rs !== 'loading' ? `❌ ${rs}` : '📧 Reinvia'}
+                  </button>
+                );
+              })()}
               {opts.canApprove && (
                 <button onClick={() => dispatch({ type: "APPROVE_TEAM_MEMBER", payload: m.id })} style={btnGold}>
                   ✓ Approva
@@ -257,7 +296,12 @@ const AdminTeamTab = ({ state, dispatch }) => {
       )}
 
       {showAdd && <AddTeamMemberModal onClose={() => setShowAdd(false)} dispatch={dispatch} existingIds={state.team.map(m => m.id)} />}
-      {showBulk && <BulkInviteModal onClose={() => setShowBulk(false)} />}
+      {showBulk && (
+        <BulkInviteModal
+          onClose={() => setShowBulk(false)}
+          onInvited={() => dispatch({ type: "SHOW_TOAST", payload: { type: "success", message: "Inviti inviati. I nuovi utenti appariranno nella lista dopo aver accettato." } })}
+        />
+      )}
     </div>
   );
 };
@@ -272,11 +316,10 @@ const AdminIOTab = ({ state, dispatch }) => {
   const tasksToExport = () => includeTrashed ? state.tasks : state.tasks.filter(t => !t.deletedAt);
 
   const exportCSV = () => {
-    const headers = ["ID","Titolo","Categoria","Priorità","Status","Cliente","Scadenza","Ore","Assegnati","Descrizione","Cestinato"];
+    const headers = ["ID","Titolo","Categoria","Priorità","Status","Cliente","Scadenza","Assegnati","Descrizione","Cestinato"];
     const rows = tasksToExport().map(t => [
       t.id, t.title, t.category, t.priority, t.status, t.client || "",
       t.dueDate ? t.dueDate.slice(0,10) : "",
-      t.estimatedHours || 0,
       (t.assignees || []).join("|"),
       (t.description || "").replace(/\n/g, " "),
       t.deletedAt ? "Sì" : "No",
@@ -291,7 +334,6 @@ const AdminIOTab = ({ state, dispatch }) => {
       ID: t.id, Titolo: t.title, Categoria: t.category, Priorità: t.priority,
       Status: t.status, Cliente: t.client || "",
       Scadenza: t.dueDate ? t.dueDate.slice(0,10) : "",
-      Ore: t.estimatedHours || 0,
       Assegnati: (t.assignees || []).map(a => getMember(a)?.name || a).join(", "),
       Descrizione: t.description || "",
       Cestinato: t.deletedAt ? "Sì" : "No",
@@ -365,7 +407,7 @@ const AdminIOTab = ({ state, dispatch }) => {
         <h3 style={cardH}>📥 Importa task</h3>
         <p style={cardP}>Usa il <b>Bulk Task Creator</b> (FAB navy 📑 in basso a destra) → tab <b>Importa</b> per caricare CSV/Excel con mapping automatico.</p>
         <div style={{ fontSize: 12, color: "var(--text-muted)", padding: 12, background: "var(--surface2)", borderRadius: 8, border: "1px dashed var(--border)" }}>
-          💡 Colonne supportate: <code>Titolo, Categoria, Priorità, Cliente, Scadenza, Assegnato, Ore, Descrizione</code><br/>
+          💡 Colonne supportate: <code>Titolo, Categoria, Priorità, Cliente, Scadenza, Assegnato, Descrizione</code><br/>
           Il sistema normalizza automaticamente nomi categoria/priorità in italiano e ID agenti.
         </div>
       </div>

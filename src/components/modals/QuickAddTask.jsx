@@ -1,7 +1,7 @@
 // ─── QUICK ADD TASK ──────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
 import { useState } from "react";
-import { PRIORITIES } from "../../lib/taskConstants.js";
+import { PRIORITIES, RECURRENCE_OPTIONS } from "../../lib/taskConstants.js";
 import { CURRENT_USER, getAssignableTeam, getAvailableCategories } from "../../state/appGlobals.js";
 
 // v2.8 Round 6: auto-suggerisci la categoria in base a keyword nel titolo.
@@ -35,7 +35,8 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
 
   const [form, setForm] = useState({
     title: "", category: firstCatKey, priority: "medium",
-    status: "todo", assignees: [], dueDate: "", estimatedHours: "", client: "", praticaRef: "", description: ""
+    status: "todo", assignees: [], dueDate: "", recurrence: "none",
+    client: "", praticaRef: "", description: ""
   });
   // true se l'utente ha cambiato manualmente la categoria → non sovrascrivere
   const [catManual, setCatManual] = useState(false);
@@ -48,7 +49,8 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
       client: form.client.trim() || null,
       praticaRef: form.praticaRef || null,
       comments: [],
-      estimatedHours: Number(form.estimatedHours) > 0 ? Number(form.estimatedHours) : 1,
+      estimatedHours: 1,
+      recurrence: form.recurrence || "none",
       dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
     });
     onClose();
@@ -141,7 +143,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 80px", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
             <div>
               <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>ASSEGNA A</label>
               <select
@@ -157,15 +159,16 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
               <input type="datetime-local" {...inp("dueDate")} />
             </div>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>ORE ⏱</label>
-              <input
-                type="number"
-                min="0.5" max="100" step="0.5"
-                value={form.estimatedHours}
-                onChange={e => setForm(p => ({ ...p, estimatedHours: e.target.value }))}
-                placeholder="1"
-                style={{ ...inp("estimatedHours").style }}
-              />
+              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>RICORRENZA</label>
+              <select
+                value={form.recurrence}
+                onChange={e => setForm(p => ({ ...p, recurrence: e.target.value }))}
+                style={{ ...inp("category").style, cursor: "pointer" }}
+              >
+                {Object.entries(RECURRENCE_OPTIONS).map(([k, v]) => (
+                  <option key={k} value={k}>{v.icon} {v.label}</option>
+                ))}
+              </select>
             </div>
           </div>
 

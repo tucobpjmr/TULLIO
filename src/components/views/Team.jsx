@@ -77,7 +77,6 @@ export const Team = ({ state, dispatch }) => {
           const tasks = memberTasks(m.id);
           const active = tasks.filter(t => t.status !== "done");
           const done = tasks.filter(t => t.status === "done");
-          const estimatedH = active.reduce((s, t) => s + (Number(t.estimatedHours) || 0), 0);
           const pct = Math.min(100, Math.round((active.length / m.capacity) * 100));
           const barColor = pct > 85 ? "var(--danger)" : pct > 65 ? "var(--warning)" : "var(--success)";
           const isSelected = selectedMember === m.id;
@@ -128,9 +127,6 @@ export const Team = ({ state, dispatch }) => {
               </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 3, flexWrap: "wrap" }}>
                 <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{active.length}/{m.capacity} task</span>
-                {estimatedH > 0 && (
-                  <span style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 600 }}>· ⏱ {estimatedH}h</span>
-                )}
               </div>
             </div>
           );

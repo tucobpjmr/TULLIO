@@ -10,7 +10,7 @@ import { formatDate, formatTime, isOverdue } from "../../lib/taskUtils.js";
 import { CURRENT_USER, getMember, getAssignableTeam, canEditTask } from "../../state/appGlobals.js";
 import { MentionText } from "../ui/MentionText.jsx";
 import { TaskFiles } from "../../lib/api.js";
-import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit, sourceBadge } from "../../lib/fileUtils.js";
+import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit, sourceBadge, mediaKind } from "../../lib/fileUtils.js";
 
 // ─── Allegati task (Block 5) ─────────────────────────────────────────────────
 // Sub-componente module-local: gestisce il proprio stato (lista/loading/upload)
@@ -22,6 +22,9 @@ function TaskAttachments({ taskId, editable }) {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState("");
+  // Anteprima inline: id allegato espanso → signed URL caricata on-demand.
+  const [previewId, setPreviewId] = useState(null);
+  const [previewUrls, setPreviewUrls] = useState({});
   const inputRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -61,7 +64,23 @@ function TaskAttachments({ taskId, editable }) {
     if (!window.confirm(`Eliminare "${file.file_name}"?`)) return;
     const { error: e } = await TaskFiles.remove(file.id, file.file_url);
     if (e) setError("Eliminazione fallita");
-    else setFiles(prev => prev.filter(x => x.id !== file.id));
+    else {
+      setFiles(prev => prev.filter(x => x.id !== file.id));
+      if (previewId === file.id) setPreviewId(null);
+    }
+  };
+
+  // Apre/chiude l'anteprima inline (immagine/audio/video). La signed URL viene
+  // recuperata solo al primo click e poi riusata (anche dalla cache in api.js).
+  const togglePreview = async (file) => {
+    if (previewId === file.id) { setPreviewId(null); return; }
+    setError("");
+    if (!previewUrls[file.id]) {
+      const { url, error: e } = await TaskFiles.getFileUrl(file.file_url);
+      if (!url) { setError(e ? "Impossibile caricare l'anteprima" : ""); return; }
+      setPreviewUrls(prev => ({ ...prev, [file.id]: url }));
+    }
+    setPreviewId(file.id);
   };
 
   return (
@@ -77,33 +96,61 @@ function TaskAttachments({ taskId, editable }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: editable ? 10 : 0 }}>
           {files.map(file => {
             const badge = sourceBadge(file.source);
+            const kind = mediaKind(file.file_type || file.file_name);
+            const isOpen = previewId === file.id;
+            const url = previewUrls[file.id];
             return (
               <div key={file.id} style={{
-                display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
-                background: "var(--surface2)", borderRadius: 8,
+                display: "flex", flexDirection: "column",
+                background: "var(--surface2)", borderRadius: 8, overflow: "hidden",
               }}>
-                <span style={{ fontSize: 18, flexShrink: 0 }}>{fileIcon(file.file_type || file.file_name)}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{
-                    fontSize: 13, fontWeight: 600, color: "var(--text)",
-                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                  }}>{file.file_name}</div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {file.file_size != null && <span>{formatFileSize(file.file_size)}</span>}
-                    {file.users?.name && <span>· {file.users.name.split(" ")[0]}</span>}
-                    {badge && <span>· {badge}</span>}
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px" }}>
+                  <span style={{ fontSize: 18, flexShrink: 0 }}>{fileIcon(file.file_type || file.file_name)}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 13, fontWeight: 600, color: "var(--text)",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    }}>{file.file_name}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {file.file_size != null && <span>{formatFileSize(file.file_size)}</span>}
+                      {file.users?.name && <span>· {file.users.name.split(" ")[0]}</span>}
+                      {badge && <span>· {badge}</span>}
+                    </div>
                   </div>
+                  {kind && (
+                    <button onClick={() => togglePreview(file)} title={isOpen ? "Chiudi anteprima" : "Anteprima"} style={{
+                      background: "none", border: "none", cursor: "pointer", fontSize: 15, padding: 4,
+                      color: isOpen ? "var(--gold-dark)" : "var(--navy)",
+                    }}>{isOpen ? "🔽" : "👁️"}</button>
+                  )}
+                  <button onClick={() => handleDownload(file)} title="Apri / scarica" style={{
+                    background: "none", border: "none", cursor: "pointer", fontSize: 15, padding: 4, color: "var(--navy)",
+                  }}>⬇️</button>
+                  {editable && (
+                    <button onClick={() => handleRemove(file)} title="Elimina allegato" style={{
+                      background: "none", border: "none", cursor: "pointer", fontSize: 13, padding: 4, color: "var(--text-muted)",
+                    }}
+                      onMouseEnter={e => e.currentTarget.style.color = "var(--danger)"}
+                      onMouseLeave={e => e.currentTarget.style.color = "var(--text-muted)"}
+                    >🗑️</button>
+                  )}
                 </div>
-                <button onClick={() => handleDownload(file)} title="Apri / scarica" style={{
-                  background: "none", border: "none", cursor: "pointer", fontSize: 15, padding: 4, color: "var(--navy)",
-                }}>⬇️</button>
-                {editable && (
-                  <button onClick={() => handleRemove(file)} title="Elimina allegato" style={{
-                    background: "none", border: "none", cursor: "pointer", fontSize: 13, padding: 4, color: "var(--text-muted)",
-                  }}
-                    onMouseEnter={e => e.currentTarget.style.color = "var(--danger)"}
-                    onMouseLeave={e => e.currentTarget.style.color = "var(--text-muted)"}
-                  >🗑️</button>
+
+                {/* Anteprima inline media (immagine / audio / video) */}
+                {isOpen && url && (
+                  <div style={{ padding: "0 10px 10px", display: "flex", justifyContent: "center" }}>
+                    {kind === "image" && (
+                      <img src={url} alt={file.file_name} style={{
+                        maxWidth: "100%", maxHeight: 360, borderRadius: 6, objectFit: "contain",
+                      }} />
+                    )}
+                    {kind === "video" && (
+                      <video src={url} controls style={{ maxWidth: "100%", maxHeight: 360, borderRadius: 6 }} />
+                    )}
+                    {kind === "audio" && (
+                      <audio src={url} controls style={{ width: "100%" }} />
+                    )}
+                  </div>
                 )}
               </div>
             );
@@ -140,7 +187,7 @@ function TaskAttachments({ taskId, editable }) {
             {uploading ? "⏳ Caricamento in corso…" : "📎 Trascina file qui o clicca per caricare"}
           </div>
           <div style={{ fontSize: 11, color: "var(--text-light)", marginTop: 4 }}>
-            Max {formatFileSize(MAX_TASK_FILE_SIZE)} per file.
+            Immagini, video, audio e documenti · max {formatFileSize(MAX_TASK_FILE_SIZE)} per file.
           </div>
         </>
       )}

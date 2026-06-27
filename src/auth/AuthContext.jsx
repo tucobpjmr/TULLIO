@@ -5,15 +5,37 @@ import { Users as UsersAPI } from '../lib/api.js';
 
 const AuthContext = createContext(null);
 
+// Rileva dal frammento URL con quale tipo di link Auth è arrivato l'utente.
+// I link di RECUPERO password emettono anche l'evento PASSWORD_RECOVERY, ma i
+// link di INVITO (inviteUserByEmail) NO: arrivano come SIGNED_IN con
+// '#...&type=invite'. Senza questo controllo l'invitato entrerebbe in app senza
+// mai vedere la schermata "imposta password", restando di fatto costretto al
+// recupero password. Letto in modo sincrono al primo render, prima che
+// detectSessionInUrl ripulisca l'hash.
+function detectAuthLinkType() {
+  if (typeof window === 'undefined') return null;
+  const fromStr = (s) => new URLSearchParams((s || '').replace(/^[#?]/, '')).get('type');
+  const t = fromStr(window.location.hash) || fromStr(window.location.search);
+  return t === 'invite' || t === 'recovery' ? t : null;
+}
+
+// Catturato UNA volta al caricamento del modulo: detectSessionInUrl ripulisce
+// l'hash in modo asincrono, quindi leggerlo qui (prima del primo render React)
+// è più robusto che leggerlo dentro il componente, che potrebbe rimontare.
+const INITIAL_AUTH_LINK_TYPE = detectAuthLinkType();
+
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [team, setTeam] = useState([]);
   const [loading, setLoading] = useState(true);
-  // recovery=true quando l'utente arriva da un link "reimposta password"
-  // (evento PASSWORD_RECOVERY). In quel caso mostriamo la schermata di
-  // aggiornamento password invece dell'app, anche se la session è valida.
-  const [recovery, setRecovery] = useState(false);
+  // recovery=true quando l'utente arriva da un link che richiede di impostare
+  // la password: "reimposta password" (evento PASSWORD_RECOVERY) oppure "invito"
+  // (type=invite nell'URL). In quel caso mostriamo la schermata di impostazione
+  // password invece dell'app, anche se la session è valida. recoveryKind
+  // distingue i due casi per adattare i testi (primo accesso vs recupero).
+  const [recovery, setRecovery] = useState(!!INITIAL_AUTH_LINK_TYPE);
+  const [recoveryKind, setRecoveryKind] = useState(INITIAL_AUTH_LINK_TYPE);
 
   const loadProfile = useCallback(async (userId) => {
     if (!userId) { setProfile(null); setTeam([]); return; }
@@ -49,7 +71,10 @@ export function AuthProvider({ children }) {
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, s) => {
-      if (_event === 'PASSWORD_RECOVERY') setRecovery(true);
+      if (_event === 'PASSWORD_RECOVERY') {
+        setRecovery(true);
+        setRecoveryKind(prev => prev ?? 'recovery');
+      }
       setSession(s);
       await loadProfile(s?.user?.id);
     });
@@ -95,7 +120,7 @@ export function AuthProvider({ children }) {
   // dalla modalità recovery così l'app monta normalmente.
   const updatePassword = async (password) => {
     const res = await supabase.auth.updateUser({ password });
-    if (!res.error) setRecovery(false);
+    if (!res.error) { setRecovery(false); setRecoveryKind(null); }
     return res;
   };
 
@@ -116,6 +141,7 @@ export function AuthProvider({ children }) {
     team,
     loading,
     recovery,
+    recoveryKind,
     isAdmin: profile?.role === 'admin',
     isManager: profile?.role === 'manager',
     isAgent: profile?.role === 'agent',

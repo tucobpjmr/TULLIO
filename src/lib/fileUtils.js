@@ -2,8 +2,8 @@
 // Block 5 — helper puri per gli allegati (task e in generale).
 // Funzioni senza side-effect → facilmente testabili (Vitest).
 
-// Limite dimensione per allegato task (coerente col bucket 'task-files': 25 MB).
-export const MAX_TASK_FILE_SIZE = 25 * 1024 * 1024;
+// Limite dimensione per allegato task (coerente col bucket 'task-files': 50 MB).
+export const MAX_TASK_FILE_SIZE = 50 * 1024 * 1024;
 
 // Formatta una dimensione in byte in stringa leggibile (B / KB / MB).
 export function formatFileSize(bytes) {
@@ -26,6 +26,17 @@ export function fileIcon(mimeOrName = "") {
   if (/sheet|excel|\.xlsx?$|\.csv$/.test(s)) return "📗";
   if (/zip|rar|7z|tar|gz/.test(s)) return "🗜️";
   return "📎";
+}
+
+// Classifica un allegato come media riproducibile/visualizzabile inline.
+// Ritorna 'image' | 'video' | 'audio' | null (null = non anteprimabile inline).
+// Usa sia il mime-type (file_type) sia, come fallback, l'estensione del nome.
+export function mediaKind(mimeOrName = "") {
+  const s = String(mimeOrName).toLowerCase();
+  if (/^image\/|\.(png|jpe?g|gif|webp|svg|bmp)$/.test(s)) return "image";
+  if (/^video\/|\.(mp4|mov|webm|ogv)$/.test(s)) return "video";
+  if (/^audio\/|\.(mp3|wav|ogg|m4a|aac)$/.test(s)) return "audio";
+  return null;
 }
 
 // True se la dimensione rientra nel limite (default: limite task).

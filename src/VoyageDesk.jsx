@@ -610,8 +610,11 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // Wrapper dispatch: applica al reducer (UI istantanea) e poi sincronizza
   // su Supabase fire-and-forget. Per ADD_TASK normalizza l'id in uuid in
   // modo coerente tra reducer e DB.
+  // Ritorna una promise { error } così i chiamanti che devono concatenare
+  // operazioni dipendenti dalla persistenza (es. upload allegati subito dopo
+  // ADD_TASK, che via RLS richiede la riga task già scritta) possono await-arla.
   const dispatch = useCallback((action) => {
-    if (!useSupabase) { rawDispatch(action); return; }
+    if (!useSupabase) { rawDispatch(action); return Promise.resolve({ error: null }); }
 
     let toDispatch = action;
     let dbOps = null;
@@ -721,7 +724,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
 
     rawDispatch(toDispatch);
     if (dbOps) {
-      Promise.resolve()
+      return Promise.resolve()
         .then(dbOps)
         .then((res) => {
           const err = Array.isArray(res) ? res.find(r => r?.error)?.error : res?.error;
@@ -735,6 +738,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
               },
             });
           }
+          return { error: err || null };
         })
         .catch((e) => {
           console.error(`[VoyageDesk] sync ${action.type}`, e);
@@ -745,8 +749,10 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
               message: `Salvataggio fallito: ${e?.message || "errore di rete"}`,
             },
           });
+          return { error: e };
         });
     }
+    return Promise.resolve({ error: null });
   }, [useSupabase, state.tasks, state.notices, state.team]);
 
   // Step J: navigazione da notifica → TaskSlideOver

@@ -3,14 +3,19 @@
 // (evento PASSWORD_RECOVERY). Imposta la nuova password e rientra nell'app.
 import React, { useState } from 'react';
 import { useAuth } from './AuthContext';
+import { PasswordField } from '../components/ui/PasswordField.jsx';
 
 export default function UpdatePasswordScreen() {
-  const { updatePassword, signOut } = useAuth();
+  const { updatePassword, signOut, recoveryKind } = useAuth();
+  const isInvite = recoveryKind === 'invite';
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [err, setErr] = useState(null);
   const [ok, setOk] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Mostra/nascondi password: unico toggle per entrambi i campi (devono
+  // coincidere, quindi mostrarli insieme è il comportamento atteso).
+  const [show, setShow] = useState(false);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -37,13 +42,15 @@ export default function UpdatePasswordScreen() {
       <form onSubmit={onSubmit} style={cardStyle}>
         <h1 style={titleStyle}>VoyageDesk</h1>
         <p style={{ margin: '0 0 24px', fontSize: 13, opacity: 0.7 }}>
-          Imposta una nuova password
+          {isInvite ? 'Benvenuto! Imposta la tua password per attivare l’account' : 'Imposta una nuova password'}
         </p>
 
         {ok ? (
           <>
             <div style={successStyle}>
-              ✓ Password aggiornata. Ora puoi usare l'app.
+              {isInvite
+                ? '✓ Password impostata. Un amministratore deve approvare il tuo account prima dell’accesso.'
+                : '✓ Password aggiornata. Ora puoi usare l’app.'}
             </div>
             <button type="button" onClick={() => signOut()} style={primaryBtn}>
               Continua
@@ -51,18 +58,18 @@ export default function UpdatePasswordScreen() {
           </>
         ) : (
           <>
-            <label style={labelStyle}>Nuova password</label>
-            <input
-              type="password" autoComplete="new-password" required
+            <label style={labelStyle}>{isInvite ? 'Password' : 'Nuova password'}</label>
+            <PasswordField
+              inputStyle={inputStyle} autoComplete="new-password" required
               value={password} onChange={e => setPassword(e.target.value)}
-              style={inputStyle}
+              show={show} onToggle={() => setShow(s => !s)}
             />
 
             <label style={{ ...labelStyle, marginTop: 14 }}>Conferma password</label>
-            <input
-              type="password" autoComplete="new-password" required
+            <PasswordField
+              inputStyle={inputStyle} autoComplete="new-password" required
               value={confirm} onChange={e => setConfirm(e.target.value)}
-              style={inputStyle}
+              show={show} onToggle={() => setShow(s => !s)}
             />
 
             {err && <div style={errStyle}>{err}</div>}

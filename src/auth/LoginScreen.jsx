@@ -1,6 +1,7 @@
 // src/auth/LoginScreen.jsx
 import React, { useState } from 'react';
 import { useAuth } from './AuthContext';
+import { PasswordField } from '../components/ui/PasswordField.jsx';
 
 function isEmailNotConfirmed(error) {
   if (!error) return false;
@@ -146,12 +147,11 @@ export default function LoginScreen() {
         {mode !== 'forgot' && (
           <>
             <label style={{ ...labelStyle, margin: '14px 0 6px' }}>Password</label>
-            <input
-              type="password"
+            <PasswordField
+              inputStyle={inputStyle}
               autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
               required
               value={password} onChange={e => setPassword(e.target.value)}
-              style={inputStyle}
             />
           </>
         )}

@@ -1,8 +1,10 @@
 // ─── QUICK ADD TASK ──────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { PRIORITIES, RECURRENCE_OPTIONS } from "../../lib/taskConstants.js";
 import { CURRENT_USER, getAssignableTeam, getAvailableCategories } from "../../state/appGlobals.js";
+import { TaskFiles } from "../../lib/api.js";
+import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit } from "../../lib/fileUtils.js";
 
 // v2.8 Round 6: auto-suggerisci la categoria in base a keyword nel titolo.
 // Regole: primo match vince (ordine top-down). Solo per categorie disponibili all'utente.
@@ -40,11 +42,40 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
   });
   // true se l'utente ha cambiato manualmente la categoria → non sovrascrivere
   const [catManual, setCatManual] = useState(false);
+  // Allegati selezionati in fase di creazione: tenuti in memoria e caricati
+  // subito DOPO che la task è stata persistita (l'upload via RLS richiede la
+  // riga task già esistente, e serve il suo UUID definitivo).
+  const [pendingFiles, setPendingFiles] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [fileError, setFileError] = useState("");
+  const fileInputRef = useRef(null);
 
-  const handleSubmit = () => {
-    if (!form.title.trim()) return;
-    onAdd({
-      id: "t" + Date.now(),
+  const addFiles = (fileList) => {
+    const arr = Array.from(fileList || []);
+    if (!arr.length) return;
+    setFileError("");
+    const ok = [];
+    for (const f of arr) {
+      if (!isWithinSizeLimit(f.size)) {
+        setFileError(`"${f.name}" supera il limite di ${formatFileSize(MAX_TASK_FILE_SIZE)}`);
+        continue;
+      }
+      ok.push(f);
+    }
+    if (ok.length) setPendingFiles(prev => [...prev, ...ok]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const removeFile = (idx) => setPendingFiles(prev => prev.filter((_, i) => i !== idx));
+
+  const handleSubmit = async () => {
+    if (!form.title.trim() || busy) return;
+    setBusy(true);
+    // UUID generato qui: dispatch lo conserva (è già un uuid valido), così
+    // conosciamo l'id definitivo della task per caricarci gli allegati.
+    const id = crypto.randomUUID();
+    const result = await onAdd({
+      id,
       ...form,
       client: form.client.trim() || null,
       praticaRef: form.praticaRef || null,
@@ -53,6 +84,19 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
       recurrence: form.recurrence || "none",
       dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
     });
+
+    // Se la creazione è andata a buon fine, carica gli allegati in sequenza.
+    if (pendingFiles.length && !(result && result.error)) {
+      for (const f of pendingFiles) {
+        const { error: e } = await TaskFiles.upload(f, id, { uploadedBy: CURRENT_USER });
+        if (e) {
+          setFileError(`Task creata, ma l'upload di "${f.name}" è fallito. Riprova dal dettaglio della task.`);
+          setBusy(false);
+          return; // tieni il modale aperto per dare contesto sull'errore
+        }
+      }
+    }
+    setBusy(false);
     onClose();
   };
 
@@ -186,17 +230,63 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
             <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>DESCRIZIONE</label>
             <textarea {...inp("description")} rows={3} placeholder="Dettagli del task..." style={{ ...inp("description").style, resize: "vertical" }} />
           </div>
+
+          {/* Allegati (immagini, video, audio, documenti) */}
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>ALLEGATI</label>
+            {pendingFiles.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
+                {pendingFiles.map((f, i) => (
+                  <div key={i} style={{
+                    display: "flex", alignItems: "center", gap: 10, padding: "6px 10px",
+                    background: "var(--surface2)", borderRadius: 8,
+                  }}>
+                    <span style={{ fontSize: 16, flexShrink: 0 }}>{fileIcon(f.type || f.name)}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{formatFileSize(f.size)}</div>
+                    </div>
+                    <button type="button" onClick={() => removeFile(i)} disabled={busy} title="Rimuovi" style={{
+                      background: "none", border: "none", cursor: busy ? "default" : "pointer", fontSize: 13, padding: 4, color: "var(--text-muted)",
+                    }}>🗑️</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              style={{ display: "none" }}
+              onChange={e => addFiles(e.target.files)}
+            />
+            <button
+              type="button"
+              onClick={() => !busy && fileInputRef.current?.click()}
+              style={{
+                width: "100%", border: "2px dashed var(--border)", borderRadius: 8,
+                padding: "12px", textAlign: "center", color: "var(--text-muted)", fontSize: 13,
+                cursor: busy ? "default" : "pointer", background: "transparent", fontFamily: "inherit",
+              }}
+            >📎 Aggiungi file</button>
+            <div style={{ fontSize: 11, color: "var(--text-light)", marginTop: 4 }}>
+              Immagini, video, audio e documenti · max {formatFileSize(MAX_TASK_FILE_SIZE)} per file.
+            </div>
+            {fileError && <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 6 }}>{fileError}</div>}
+          </div>
         </div>
 
         <div style={{ display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" }}>
-          <button onClick={onClose} style={{
+          <button onClick={onClose} disabled={busy} style={{
             padding: "9px 18px", borderRadius: 8, border: "1px solid var(--border)",
-            background: "transparent", cursor: "pointer", fontSize: 13, fontWeight: 500
+            background: "transparent", cursor: busy ? "default" : "pointer", fontSize: 13, fontWeight: 500,
+            opacity: busy ? 0.6 : 1,
           }}>Annulla</button>
-          <button onClick={handleSubmit} style={{
+          <button onClick={handleSubmit} disabled={busy} style={{
             padding: "9px 20px", borderRadius: 8, border: "none",
-            background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600
-          }}>✓ Crea Task</button>
+            background: "var(--navy)", color: "#fff", cursor: busy ? "default" : "pointer", fontSize: 13, fontWeight: 600,
+            opacity: busy ? 0.7 : 1,
+          }}>{busy ? "⏳ Creazione…" : "✓ Crea Task"}</button>
         </div>
       </div>
     </div>

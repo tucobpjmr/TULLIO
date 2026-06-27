@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { Users as UsersAPI } from "../../lib/api.js";
+import { PasswordField } from "../ui/PasswordField.jsx";
 
 const AVATAR_EMOJIS = ["😊", "😎", "🧑‍💼", "👩‍💻", "🧑‍✈️", "👨‍🔧", "🦸", "🌟", "🎯", "🚀", "✈️", "🏝️"];
 const AVATAR_COLORS = ["#0F2044", "#2D7A4F", "#C8832A", "#7B4F9E", "#C0392B", "#0EA5E9", "#DB2777", "#059669", "#6366F1", "#EA580C", "#0891B2", "#4F46E5"];
@@ -20,6 +21,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
   const [avatarMode, setAvatarMode] = useState(member.photoUrl ? "photo" : "emoji"); // "emoji" | "photo"
   const fileRef = useRef(null);
   const [showPwd, setShowPwd] = useState(false);
+  const [revealPwd, setRevealPwd] = useState(false); // visibilità testo password (icona occhio)
   const [newPwd, setNewPwd] = useState("");
   const [confirmPwd, setConfirmPwd] = useState("");
   const [savingPwd, setSavingPwd] = useState(false);
@@ -305,18 +307,22 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
                 <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
                   <div>
                     {fieldLabel("NUOVA PASSWORD")}
-                    <input
-                      type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)}
-                      placeholder="Minimo 8 caratteri" style={inputStyle}
+                    <PasswordField
+                      inputStyle={inputStyle} autoComplete="new-password"
+                      value={newPwd} onChange={e => setNewPwd(e.target.value)}
+                      placeholder="Minimo 8 caratteri"
+                      show={revealPwd} onToggle={() => setRevealPwd(s => !s)}
                       onFocus={e => e.target.style.borderColor = "var(--gold)"}
                       onBlur={e => e.target.style.borderColor = "var(--border)"}
                     />
                   </div>
                   <div>
                     {fieldLabel("CONFERMA PASSWORD")}
-                    <input
-                      type="password" value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)}
-                      placeholder="Ripeti la password" style={inputStyle}
+                    <PasswordField
+                      inputStyle={inputStyle} autoComplete="new-password"
+                      value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)}
+                      placeholder="Ripeti la password"
+                      show={revealPwd} onToggle={() => setRevealPwd(s => !s)}
                       onFocus={e => e.target.style.borderColor = "var(--gold)"}
                       onBlur={e => e.target.style.borderColor = "var(--border)"}
                       onKeyDown={e => { if (e.key === "Enter") handleChangePwd(); }}

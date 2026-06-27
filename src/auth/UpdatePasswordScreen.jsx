@@ -3,6 +3,7 @@
 // (evento PASSWORD_RECOVERY). Imposta la nuova password e rientra nell'app.
 import React, { useState } from 'react';
 import { useAuth } from './AuthContext';
+import { PasswordField } from '../components/ui/PasswordField.jsx';
 
 export default function UpdatePasswordScreen() {
   const { updatePassword, signOut, recoveryKind } = useAuth();
@@ -59,12 +60,14 @@ export default function UpdatePasswordScreen() {
           <>
             <label style={labelStyle}>{isInvite ? 'Password' : 'Nuova password'}</label>
             <PasswordField
+              inputStyle={inputStyle} autoComplete="new-password" required
               value={password} onChange={e => setPassword(e.target.value)}
               show={show} onToggle={() => setShow(s => !s)}
             />
 
             <label style={{ ...labelStyle, marginTop: 14 }}>Conferma password</label>
             <PasswordField
+              inputStyle={inputStyle} autoComplete="new-password" required
               value={confirm} onChange={e => setConfirm(e.target.value)}
               show={show} onToggle={() => setShow(s => !s)}
             />
@@ -82,33 +85,6 @@ export default function UpdatePasswordScreen() {
     </div>
   );
 }
-
-// Campo password con icona a occhio per mostrare/nascondere il testo.
-function PasswordField({ value, onChange, show, onToggle }) {
-  return (
-    <div style={{ position: 'relative' }}>
-      <input
-        type={show ? 'text' : 'password'} autoComplete="new-password" required
-        value={value} onChange={onChange}
-        style={{ ...inputStyle, paddingRight: 44 }}
-      />
-      <button
-        type="button" onClick={onToggle}
-        aria-label={show ? 'Nascondi password' : 'Mostra password'}
-        title={show ? 'Nascondi password' : 'Mostra password'}
-        style={eyeBtn}
-      >
-        {show ? '🙈' : '👁️'}
-      </button>
-    </div>
-  );
-}
-
-const eyeBtn = {
-  position: 'absolute', top: '50%', right: 8, transform: 'translateY(-50%)',
-  background: 'none', border: 'none', cursor: 'pointer', fontSize: 16,
-  padding: 4, lineHeight: 1, opacity: 0.85,
-};
 
 const wrapStyle = {
   minHeight: '100vh', display: 'grid', placeItems: 'center',

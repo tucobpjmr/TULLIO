@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   MAX_TASK_FILE_SIZE,
-  formatFileSize, fileIcon, isWithinSizeLimit, sourceBadge,
+  formatFileSize, fileIcon, isWithinSizeLimit, sourceBadge, mediaKind,
 } from "../lib/fileUtils.js";
 
 describe("formatFileSize", () => {
@@ -26,6 +26,32 @@ describe("formatFileSize", () => {
   it("formats MB", () => {
     expect(formatFileSize(1024 * 1024)).toBe("1.0 MB");
     expect(formatFileSize(25 * 1024 * 1024)).toBe("25 MB");
+  });
+});
+
+describe("MAX_TASK_FILE_SIZE", () => {
+  it("is 50 MB (coerente col bucket task-files)", () => {
+    expect(MAX_TASK_FILE_SIZE).toBe(50 * 1024 * 1024);
+  });
+});
+
+describe("mediaKind", () => {
+  it("classifies by mime-type", () => {
+    expect(mediaKind("image/png")).toBe("image");
+    expect(mediaKind("video/mp4")).toBe("video");
+    expect(mediaKind("audio/mpeg")).toBe("audio");
+  });
+
+  it("classifies by extension", () => {
+    expect(mediaKind("foto.JPG")).toBe("image");
+    expect(mediaKind("clip.MP4")).toBe("video");
+    expect(mediaKind("nota.m4a")).toBe("audio");
+  });
+
+  it("returns null for non-previewable types", () => {
+    expect(mediaKind("application/pdf")).toBe(null);
+    expect(mediaKind("contratto.docx")).toBe(null);
+    expect(mediaKind("")).toBe(null);
   });
 });
 

@@ -5,7 +5,8 @@ import React, { useState } from 'react';
 import { useAuth } from './AuthContext';
 
 export default function UpdatePasswordScreen() {
-  const { updatePassword, signOut } = useAuth();
+  const { updatePassword, signOut, recoveryKind } = useAuth();
+  const isInvite = recoveryKind === 'invite';
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [err, setErr] = useState(null);
@@ -37,13 +38,15 @@ export default function UpdatePasswordScreen() {
       <form onSubmit={onSubmit} style={cardStyle}>
         <h1 style={titleStyle}>VoyageDesk</h1>
         <p style={{ margin: '0 0 24px', fontSize: 13, opacity: 0.7 }}>
-          Imposta una nuova password
+          {isInvite ? 'Benvenuto! Imposta la tua password per attivare l’account' : 'Imposta una nuova password'}
         </p>
 
         {ok ? (
           <>
             <div style={successStyle}>
-              ✓ Password aggiornata. Ora puoi usare l'app.
+              {isInvite
+                ? '✓ Password impostata. Un amministratore deve approvare il tuo account prima dell’accesso.'
+                : '✓ Password aggiornata. Ora puoi usare l’app.'}
             </div>
             <button type="button" onClick={() => signOut()} style={primaryBtn}>
               Continua
@@ -51,7 +54,7 @@ export default function UpdatePasswordScreen() {
           </>
         ) : (
           <>
-            <label style={labelStyle}>Nuova password</label>
+            <label style={labelStyle}>{isInvite ? 'Password' : 'Nuova password'}</label>
             <input
               type="password" autoComplete="new-password" required
               value={password} onChange={e => setPassword(e.target.value)}

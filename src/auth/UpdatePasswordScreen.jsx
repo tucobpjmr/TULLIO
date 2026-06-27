@@ -12,6 +12,9 @@ export default function UpdatePasswordScreen() {
   const [err, setErr] = useState(null);
   const [ok, setOk] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Mostra/nascondi password: unico toggle per entrambi i campi (devono
+  // coincidere, quindi mostrarli insieme è il comportamento atteso).
+  const [show, setShow] = useState(false);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -55,17 +58,15 @@ export default function UpdatePasswordScreen() {
         ) : (
           <>
             <label style={labelStyle}>{isInvite ? 'Password' : 'Nuova password'}</label>
-            <input
-              type="password" autoComplete="new-password" required
+            <PasswordField
               value={password} onChange={e => setPassword(e.target.value)}
-              style={inputStyle}
+              show={show} onToggle={() => setShow(s => !s)}
             />
 
             <label style={{ ...labelStyle, marginTop: 14 }}>Conferma password</label>
-            <input
-              type="password" autoComplete="new-password" required
+            <PasswordField
               value={confirm} onChange={e => setConfirm(e.target.value)}
-              style={inputStyle}
+              show={show} onToggle={() => setShow(s => !s)}
             />
 
             {err && <div style={errStyle}>{err}</div>}
@@ -81,6 +82,33 @@ export default function UpdatePasswordScreen() {
     </div>
   );
 }
+
+// Campo password con icona a occhio per mostrare/nascondere il testo.
+function PasswordField({ value, onChange, show, onToggle }) {
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        type={show ? 'text' : 'password'} autoComplete="new-password" required
+        value={value} onChange={onChange}
+        style={{ ...inputStyle, paddingRight: 44 }}
+      />
+      <button
+        type="button" onClick={onToggle}
+        aria-label={show ? 'Nascondi password' : 'Mostra password'}
+        title={show ? 'Nascondi password' : 'Mostra password'}
+        style={eyeBtn}
+      >
+        {show ? '🙈' : '👁️'}
+      </button>
+    </div>
+  );
+}
+
+const eyeBtn = {
+  position: 'absolute', top: '50%', right: 8, transform: 'translateY(-50%)',
+  background: 'none', border: 'none', cursor: 'pointer', fontSize: 16,
+  padding: 4, lineHeight: 1, opacity: 0.85,
+};
 
 const wrapStyle = {
   minHeight: '100vh', display: 'grid', placeItems: 'center',

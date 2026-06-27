@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { getMember, CURRENT_USER } from "../../state/appGlobals.js";
 import { NoticeEditorModal } from "../modals/NoticeEditorModal.jsx";
+import { MentionText } from "../ui/MentionText.jsx";
 
 // v2.8: emoji disponibili per le reazioni rapide sui post-it.
 // Tenuto basso (6) per non rompere il layout del post-it. Stesso shape della chat.
@@ -251,13 +252,13 @@ export const NoticeBoard = ({ notices, dispatch }) => {
                   </div>
                 )}
 
-                {/* Testo avviso */}
+                {/* Testo avviso (con @menzioni evidenziate) */}
                 <div style={{
                   fontSize: 13, lineHeight: 1.45, color: "#3d2f10",
                   whiteSpace: "pre-wrap", wordBreak: "break-word",
                   flex: 1, marginTop: 10, marginRight: 50,
                 }}>
-                  {n.text}
+                  <MentionText text={n.text} />
                 </div>
 
                 {/* Chip riassuntive reazioni (v2.8): click toggla la mia reazione */}

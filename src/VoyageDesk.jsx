@@ -1135,6 +1135,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
               existingTasks={getActiveTasks(state.tasks)}
               onCreate={(tasks) => dispatch({ type: "ADD_TASKS_BULK", payload: tasks })}
               onClose={() => setShowBulkModal(false)}
+              clients={state.clients || []}
             />
           </Suspense>
         )}

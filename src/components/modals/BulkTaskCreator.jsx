@@ -34,9 +34,10 @@ const bulkIconBtnSmall = {
 };
 
 // ─── BULK: MANUAL TAB ──────────────────────────────────────────────────────
-const ManualTab = ({ onCreate, onClose }) => {
+const ManualTab = ({ onCreate, onClose, clients = [] }) => {
   const { isMobile } = useViewport();
   const [common, setCommon] = useState({ client: "", category: "booking", priority: "medium", assignee: "", praticaRef: "" });
+  const [clientFocus, setClientFocus] = useState(false);
   const emptyRow = () => ({ key: Math.random().toString(36).slice(2), title: "", category: "", priority: "", assignee: "", dueDate: "" });
   const [rows, setRows] = useState([emptyRow(), emptyRow(), emptyRow()]);
 
@@ -73,7 +74,56 @@ const ManualTab = ({ onCreate, onClose }) => {
           IMPOSTAZIONI COMUNI (usate se la riga non specifica)
         </div>
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: 8 }}>
-          <input value={common.client} onChange={e => setCommon({ ...common, client: e.target.value })} placeholder="Cliente" style={bulkInputStyle} />
+          {(() => {
+            const q = common.client.trim().toLowerCase();
+            const matches = (q ? clients.filter(c => c.name?.toLowerCase().includes(q)) : clients).slice(0, 6);
+            const showList = clientFocus && matches.length > 0 &&
+              !(matches.length === 1 && matches[0].name?.toLowerCase() === q);
+            return (
+              <div style={{ position: "relative" }}>
+                <input
+                  value={common.client}
+                  onChange={e => setCommon({ ...common, client: e.target.value })}
+                  placeholder={clients.length ? "Cerca in anagrafica…" : "Cliente"}
+                  style={bulkInputStyle}
+                  autoComplete="off"
+                  onFocus={() => setClientFocus(true)}
+                  onBlur={() => setTimeout(() => setClientFocus(false), 150)}
+                />
+                {showList && (
+                  <div style={{
+                    position: "absolute", top: "100%", left: 0, right: 0, zIndex: 30,
+                    marginTop: 3, background: "var(--card)", border: "1px solid var(--border)",
+                    borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                    maxHeight: 180, overflowY: "auto",
+                  }}>
+                    {matches.map(c => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onMouseDown={() => { setCommon(p => ({ ...p, client: c.name })); setClientFocus(false); }}
+                        style={{
+                          display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1,
+                          width: "100%", textAlign: "left", padding: "7px 10px", border: "none",
+                          borderBottom: "1px solid var(--border)", background: "transparent",
+                          cursor: "pointer", fontFamily: "inherit",
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                      >
+                        <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text)" }}>{c.name}</span>
+                        {(c.city || c.email) && (
+                          <span style={{ fontSize: 10.5, color: "var(--text-muted)" }}>
+                            {[c.city, c.email].filter(Boolean).join(" · ")}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           <select value={common.category} onChange={e => setCommon({ ...common, category: e.target.value })} style={bulkInputStyle}>
             {Object.entries(CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
           </select>
@@ -476,9 +526,10 @@ const ImportTab = ({ onCreate, onClose }) => {
 };
 
 // ─── BULK: TEMPLATE TAB ────────────────────────────────────────────────────
-const TemplateTab = ({ onCreate, onClose }) => {
+const TemplateTab = ({ onCreate, onClose, clients = [] }) => {
   const [selectedId, setSelectedId] = useState(null);
   const [client, setClient] = useState("");
+  const [clientFocus, setClientFocus] = useState(false);
   const [eventDate, setEventDate] = useState("");
   const [defaultAssignee, setDefaultAssignee] = useState("");
   const [praticaRef, setPraticaRef] = useState("");
@@ -547,7 +598,56 @@ const TemplateTab = ({ onCreate, onClose }) => {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
             <div>
               <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>CLIENTE</div>
-              <input value={client} onChange={e => setClient(e.target.value)} placeholder="Es. Famiglia Rossi" style={bulkInputStyle} />
+              {(() => {
+                const q = client.trim().toLowerCase();
+                const matches = (q ? clients.filter(c => c.name?.toLowerCase().includes(q)) : clients).slice(0, 6);
+                const showList = clientFocus && matches.length > 0 &&
+                  !(matches.length === 1 && matches[0].name?.toLowerCase() === q);
+                return (
+                  <div style={{ position: "relative" }}>
+                    <input
+                      value={client}
+                      onChange={e => setClient(e.target.value)}
+                      placeholder={clients.length ? "Cerca in anagrafica…" : "Es. Famiglia Rossi"}
+                      style={bulkInputStyle}
+                      autoComplete="off"
+                      onFocus={() => setClientFocus(true)}
+                      onBlur={() => setTimeout(() => setClientFocus(false), 150)}
+                    />
+                    {showList && (
+                      <div style={{
+                        position: "absolute", top: "100%", left: 0, right: 0, zIndex: 30,
+                        marginTop: 3, background: "var(--card)", border: "1px solid var(--border)",
+                        borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                        maxHeight: 180, overflowY: "auto",
+                      }}>
+                        {matches.map(c => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onMouseDown={() => { setClient(c.name); setClientFocus(false); }}
+                            style={{
+                              display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1,
+                              width: "100%", textAlign: "left", padding: "7px 10px", border: "none",
+                              borderBottom: "1px solid var(--border)", background: "transparent",
+                              cursor: "pointer", fontFamily: "inherit",
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                          >
+                            <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text)" }}>{c.name}</span>
+                            {(c.city || c.email) && (
+                              <span style={{ fontSize: 10.5, color: "var(--text-muted)" }}>
+                                {[c.city, c.email].filter(Boolean).join(" · ")}
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
             <div>
               <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>DATA EVENTO *</div>
@@ -609,7 +709,7 @@ const TemplateTab = ({ onCreate, onClose }) => {
 };
 
 // ─── BULK TASK CREATOR (modale principale) ─────────────────────────────────
-export const BulkTaskCreator = ({ existingTasks, onCreate, onClose }) => {
+export const BulkTaskCreator = ({ existingTasks, onCreate, onClose, clients = [] }) => {
   const [tab, setTab] = useState("manual");
 
   return (
@@ -656,10 +756,10 @@ export const BulkTaskCreator = ({ existingTasks, onCreate, onClose }) => {
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "18px 22px" }}>
-          {tab === "manual" && <ManualTab onCreate={onCreate} onClose={onClose} />}
+          {tab === "manual" && <ManualTab onCreate={onCreate} onClose={onClose} clients={clients} />}
           {tab === "duplicate" && <DuplicateTab tasks={existingTasks} onCreate={onCreate} onClose={onClose} />}
           {tab === "import" && <ImportTab onCreate={onCreate} onClose={onClose} />}
-          {tab === "template" && <TemplateTab onCreate={onCreate} onClose={onClose} />}
+          {tab === "template" && <TemplateTab onCreate={onCreate} onClose={onClose} clients={clients} />}
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
-import { useState, lazy, Suspense } from "react";
+import { useState } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { SwipeActions } from "../SwipeActions.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
@@ -10,11 +10,6 @@ import { PRIORITIES, STATUS_LABELS } from "../../lib/taskConstants.js";
 import { formatDate, formatTime, isOverdue, isUrgent, isMyTask, isInGlobalQueue, getActiveTasks, getDayKey } from "../../lib/taskUtils.js";
 import { CATEGORIES, getMember, getRoleType, getAssignableTeam, canViewTask, getVisibleTasks, isJuniorAgent } from "../../state/appGlobals.js";
 import { NoticeBoard } from "./NoticeBoard.jsx";
-// Step P Phase 2g: AIDayPlanner (~350 righe, chiama l'API Claude) si apre solo
-// on-demand → lazy-loaded come chunk async.
-const AIDayPlanner = lazy(() =>
-  import("../modals/AIDayPlanner.jsx").then(m => ({ default: m.AIDayPlanner }))
-);
 
 // ─── CSV EXPORT HELPER ───────────────────────────────────────────────────────
 const _esc = v => {
@@ -953,7 +948,6 @@ const OverdueQueue = ({ tasks, dispatch }) => {
 // ─── DASHBOARD ─────────────────────────────────────────────────────────────
 export const Dashboard = ({ state, dispatch, onOpenChat }) => {
   const { isMobile } = useViewport();
-  const [showAIPlanner, setShowAIPlanner] = useState(false);
   const [activeQueue, setActiveQueue] = useState("personal");
   const uid = state.currentUserId;
   const role = getRoleType(uid);
@@ -1064,19 +1058,6 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
             )}
           </div>
         </div>
-        <button onClick={() => setShowAIPlanner(true)} style={{
-          background: "linear-gradient(135deg, var(--gold) 0%, var(--gold-dark) 100%)",
-          color: "var(--navy)", border: "none",
-          padding: "10px 18px", borderRadius: 8, cursor: "pointer",
-          fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6,
-          boxShadow: "0 4px 14px rgba(212,168,67,0.4)",
-          transition: "transform 0.15s, box-shadow 0.15s",
-        }}
-          onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 6px 18px rgba(212,168,67,0.5)"; }}
-          onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(212,168,67,0.4)"; }}
-        >
-          <span>✨</span> Pianifica la mia giornata
-        </button>
       </div>
 
       {/* ─── BACHECA AVVISI ─── */}
@@ -1189,12 +1170,6 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
           </div>
         </div>
       </div>
-
-      {showAIPlanner && (
-        <Suspense fallback={null}>
-          <AIDayPlanner tasks={tasks} onClose={() => setShowAIPlanner(false)} />
-        </Suspense>
-      )}
     </div>
   );
 };

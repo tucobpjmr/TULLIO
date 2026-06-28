@@ -373,27 +373,6 @@ export const Clients = {
     supabase.from('clients').delete().eq('id', id),
 };
 
-// ----------------- AI (Day Planner) -----------------
-// Il planning passa per la Edge Function 'plan-day' (verify_jwt) che tiene la
-// chiave ANTHROPIC_API_KEY lato server: la chiave non finisce MAI nel bundle.
-// La function restituisce il testo grezzo del modello; lo strip markdown +
-// JSON.parse resta nel chiamante (AIDayPlanner) per non cambiarne la logica.
-export const AI = {
-  planDay: async (prompt) => {
-    const { data, error } = await supabase.functions.invoke('plan-day', { body: { prompt } });
-    if (error) {
-      let msg = error.message;
-      try {
-        const body = await error.context?.json?.();
-        if (body?.error) msg = body.error;
-      } catch { /* non-JSON */ }
-      return { text: null, error: { message: msg } };
-    }
-    if (data?.error) return { text: null, error: { message: data.error } };
-    return { text: data?.text ?? '', error: null };
-  },
-};
-
 // ----------------- REALTIME -----------------
 // Step L: i payload realtime hanno origin_client se generati da una mutation
 // taggata: su INSERT/UPDATE sta in payload.new, su DELETE in payload.old

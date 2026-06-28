@@ -1986,6 +1986,16 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
                 {myBusy ? "Occupato" : "Online"}
               </button>
             )}
+            {!loading && (
+              <button
+                onClick={() => pd({ type: "NEW_MODE", v: true })}
+                title="Nuova chat — scrivi a un membro del team"
+                style={{
+                  background: newMode ? "var(--gold)" : "rgba(255,255,255,0.1)",
+                  border: "none", color: newMode ? "var(--navy)" : "#fff",
+                  width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 15,
+                }}>✏️</button>
+            )}
             <button onClick={onClose} style={{
               background: "rgba(255,255,255,0.1)", border: "none", color: "#fff",
               width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 14,

@@ -186,7 +186,7 @@ export const Conversations = {
 // ----------------- MESSAGES -----------------
 // Step M: i nomi file possono contenere caratteri non ammessi nelle key
 // di Storage (spazi, accenti) → normalizzo mantenendo estensione leggibile.
-const sanitizeFileName = (name = 'file') => name.replace(/[^\w.\-]+/g, '_');
+const sanitizeFileName = (name = 'file') => name.replace(/[^\w.-]+/g, '_');
 
 export const Messages = {
   listForConversation: (conversation_id, limit = 200) =>

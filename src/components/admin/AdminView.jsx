@@ -5,7 +5,7 @@ import { useState, useRef } from "react";
 import { STATUSES, STATUS_LABELS, STATUS_COLORS } from "../../lib/taskConstants.js";
 import { isOverdue } from "../../lib/taskUtils.js";
 import { loadXLSX } from "../../lib/xlsx.js";
-import { TEAM, getMember } from "../../state/appGlobals.js";
+import { getMember } from "../../state/appGlobals.js";
 import { Users } from "../../lib/api.js";
 import { AddTeamMemberModal } from "../modals/AddTeamMemberModal.jsx";
 import { BulkInviteModal } from "../modals/BulkInviteModal.jsx";

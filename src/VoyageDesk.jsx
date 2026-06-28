@@ -1,5 +1,5 @@
 
-import { useState, useReducer, useContext, createContext, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
+import { useState, useReducer, createContext, useRef, useEffect, useCallback, lazy, Suspense } from "react";
 // xlsx (SheetJS, ~430KB) è caricato on-demand via import() dinamico solo
 // quando l'utente importa o esporta un file (vedi loadXLSX). Tenerlo fuori
 // dal bundle iniziale è il singolo guadagno più grande sul chunk principale.
@@ -21,39 +21,17 @@ import {
 } from "./lib/mappers.js";
 // Step O: logout UI — signOut vive in AuthContext, qui viene solo cablato.
 import { useAuth } from "./auth/AuthContext.jsx";
-// Step P Phase 2a: costanti e utility pure estratte dal monolite.
-import {
-  PRIORITIES, STATUSES, STATUS_LABELS, STATUS_COLORS,
-  NOTICE_COLORS, TASK_TEMPLATES,
-} from "./lib/taskConstants.js";
-import {
-  formatDate, formatTime, getDayKey,
-  isOverdue, isUrgent,
-  isActiveTask, getActiveTasks, getTrashedTasks,
-  isMyTask, isInGlobalQueue,
-} from "./lib/taskUtils.js";
+// Step P Phase 2a: utility pure estratte dal monolite.
+import { getActiveTasks } from "./lib/taskUtils.js";
 // Step P Phase 2b: dati mock (solo le notifiche, le altre seed vivono nel reducer).
 // Step P Phase 2c: globals mutabili e helper permessi estratti.
-import {
-  TEAM, CATEGORIES, CURRENT_USER,
-  getMember, getAssignableTeam,
-  getRoleType, isAdmin, isDriver, isSeniorAgent, isJuniorAgent,
-  canViewTask, canEditTask, canCreateTaskCategory,
-  canAccessAdmin, getAvailableCategories, getVisibleTasks,
-} from "./state/appGlobals.js";
+import { getMember } from "./state/appGlobals.js";
 // Step P Phase 2d: reducer e factory dell'initial state estratti.
 import { reducer, makeInitialState } from "./state/reducer.js";
 // Caveat #10: hook che astrae idratazione + subscribe realtime debounced.
 import { useDebouncedTableSubscription } from "./hooks/useDebouncedTableSubscription.js";
 // Step P Phase 2e: foundation + UI primitives estratti in src/components/.
-import { useViewport, ViewportProvider } from "./components/Viewport.jsx";
-// Step P Phase 2f: loader xlsx condiviso estratto in lib/xlsx.js.
-import { loadXLSX } from "./lib/xlsx.js";
-import { SwipeActions } from "./components/SwipeActions.jsx";
-import { Avatar } from "./components/ui/Avatar.jsx";
-import { PriorityBadge } from "./components/ui/PriorityBadge.jsx";
-import { CategoryChip } from "./components/ui/CategoryChip.jsx";
-import { StatusBadge } from "./components/ui/StatusBadge.jsx";
+import { ViewportProvider } from "./components/Viewport.jsx";
 import { Toast } from "./components/ui/Toast.jsx";
 // Step P Phase 2f: modali estratti in src/components/modals/.
 // Step P Phase 2g: BulkTaskCreator è pesante (~600 righe, 5 tab) e si apre solo
@@ -607,6 +585,14 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   const currentUserIdRef = useRef(state.currentUserId);
   useEffect(() => { currentUserIdRef.current = state.currentUserId; }, [state.currentUserId]);
 
+  // Snapshot vivo dello state per il wrapper dispatch: leggendo tasks/notices/
+  // team da qui (invece che dalle deps della useCallback) `dispatch` resta
+  // un'identità STABILE. Prima aveva [state.tasks, state.notices, state.team]
+  // nelle deps → veniva ricreato a ogni mutazione, rompendo la memoizzazione
+  // dei figli che ricevono dispatch/openTaskById. Il ref è sempre aggiornato.
+  const stateRef = useRef(state);
+  useEffect(() => { stateRef.current = state; }, [state]);
+
   // Wrapper dispatch: applica al reducer (UI istantanea) e poi sincronizza
   // su Supabase fire-and-forget. Per ADD_TASK normalizza l'id in uuid in
   // modo coerente tra reducer e DB.
@@ -651,7 +637,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         dbOps = () => TasksAPI.hardDelete(action.payload);
         break;
       case "EMPTY_TRASH": {
-        const ids = state.tasks.filter(t => t.deletedAt).map(t => t.id);
+        const ids = stateRef.current.tasks.filter(t => t.deletedAt).map(t => t.id);
         dbOps = () => Promise.all(ids.map(id => TasksAPI.hardDelete(id)));
         break;
       }
@@ -678,7 +664,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         dbOps = () => NoticesAPI.remove(action.payload);
         break;
       case "TOGGLE_PIN_NOTICE": {
-        const prev = state.notices.find(n => n.id === action.payload);
+        const prev = stateRef.current.notices.find(n => n.id === action.payload);
         const pinned = !(prev?.pinned);
         dbOps = () => NoticesAPI.togglePin(action.payload, pinned);
         break;
@@ -713,7 +699,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         dbOps = () => UsersAPI.deleteUser(action.payload);
         break;
       case "TOGGLE_TEAM_MEMBER_ACTIVE": {
-        const curr = state.team.find(m => m.id === action.payload);
+        const curr = stateRef.current.team.find(m => m.id === action.payload);
         const nextActive = !(curr?.active);
         dbOps = () => UsersAPI.setActive(action.payload, nextActive);
         break;
@@ -753,7 +739,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         });
     }
     return Promise.resolve({ error: null });
-  }, [useSupabase, state.tasks, state.notices, state.team]);
+  }, [useSupabase]);
 
   // Step J: navigazione da notifica → TaskSlideOver
   const openTaskById = useCallback((taskId) => {

@@ -14,7 +14,6 @@ App single-file React (~7071 righe) con tutte le feature operative funzionanti i
 - **Chat interna** — 1:1 e gruppo, vocali con waveform, reply, emoji reactions, typing indicator, read receipts, intent con task link
 - **Task management** — CRUD completo, 10 categorie, 4 priorità, 5 stati, commenti, slide-over dettaglio
 - **Bulk Task Creator** — 4 tab (manuale, duplica, import CSV/Excel, template pratica)
-- **AI Day Planner** — pianificazione giornaliera via Claude API
 - **Cestino** — soft-delete con ripristino + modifica prima del ripristino
 - **Pannello Admin** — 5 tab (Team, Import/Export, Sistema, Categorie, Log attività)
 - **Bacheca avvisi** — sticky notes condivise con pin, colori, CRUD

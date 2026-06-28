@@ -3,7 +3,7 @@
 // getNavBadges + NavBadge (module-local) + Sidebar e BottomNav (esportati).
 import { useEffect, useRef } from "react";
 import { useViewport } from "../Viewport.jsx";
-import { CURRENT_USER, getAssignableTeam, getRoleType } from "../../state/appGlobals.js";
+import { getAssignableTeam, getRoleType } from "../../state/appGlobals.js";
 
 // La Dashboard è raggiungibile dal logo aeroplano nella Topbar (la voce
 // dedicata in sidebar/bottom-nav è stata rimossa per alleggerire la nav).

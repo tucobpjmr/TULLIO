@@ -12,6 +12,19 @@ const corsHeaders = {
 
 const VALID_ROLES = new Set(["admin", "manager", "agent", "driver"]);
 
+// Origin consentiti per il link d'invito: produzione + preview Vercel del
+// progetto. Restituisce l'URL solo se valido, altrimenti undefined (Supabase
+// userà il Site URL configurato nel Dashboard).
+function safeRedirect(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  let u: URL;
+  try { u = new URL(value); } catch { return undefined; }
+  if (u.protocol !== "https:") return undefined;
+  const host = u.hostname.toLowerCase();
+  const ok = host === "tullio-seven.vercel.app" || host.endsWith(".vercel.app");
+  return ok ? value : undefined;
+}
+
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
     status,
@@ -63,9 +76,10 @@ Deno.serve(async (req: Request) => {
     // redirectTo passato dal client (window.location.origin): garantisce che
     // il link nell'email punti all'ambiente corretto (preview o produzione)
     // invece di dipendere dal Site URL configurato in Supabase Dashboard.
-    const redirectTo: string | undefined = typeof body.redirectTo === "string" && body.redirectTo.startsWith("https://")
-      ? body.redirectTo
-      : undefined;
+    // Hardening: accettiamo SOLO la produzione e i preview *.vercel.app di
+    // questo progetto. Senza whitelist un admin potrebbe (anche per errore)
+    // far puntare il link d'invito a un dominio di phishing.
+    const redirectTo: string | undefined = safeRedirect(body.redirectTo);
 
     if (!email || (!resend && !name)) {
       return json({ error: "Email e nome sono obbligatori" }, 400);

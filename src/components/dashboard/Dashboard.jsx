@@ -1104,25 +1104,27 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
           <div className="playfair" style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>Scadenze Prossime</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {next7.map(t => (
-              <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
-                style={{
-                  display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
-                  borderRadius: 8, cursor: "pointer", transition: "background 0.15s",
-                  background: isOverdue(t) ? "rgba(192,57,43,0.05)" : "transparent",
-                  border: `1px solid ${isOverdue(t) ? "rgba(192,57,43,0.15)" : "var(--border)"}`,
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-                onMouseLeave={e => e.currentTarget.style.background = isOverdue(t) ? "rgba(192,57,43,0.05)" : "transparent"}
-              >
-                <span style={{ fontSize: 16 }}>{CATEGORIES[t.category]?.icon}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
-                  <div style={{ fontSize: 11, color: isOverdue(t) ? "var(--danger)" : "var(--text-muted)" }}>
-                    {isOverdue(t) ? "⚠️ Scaduto • " : ""}{formatDate(t.dueDate)}
+              <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+                <div onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
+                    borderRadius: 8, cursor: "pointer", transition: "background 0.15s",
+                    background: isOverdue(t) ? "rgba(192,57,43,0.05)" : "transparent",
+                    border: `1px solid ${isOverdue(t) ? "rgba(192,57,43,0.15)" : "var(--border)"}`,
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                  onMouseLeave={e => e.currentTarget.style.background = isOverdue(t) ? "rgba(192,57,43,0.05)" : "transparent"}
+                >
+                  <span style={{ fontSize: 16 }}>{CATEGORIES[t.category]?.icon}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
+                    <div style={{ fontSize: 11, color: isOverdue(t) ? "var(--danger)" : "var(--text-muted)" }}>
+                      {isOverdue(t) ? "⚠️ Scaduto • " : ""}{formatDate(t.dueDate)}
+                    </div>
                   </div>
+                  <PriorityBadge priority={t.priority} />
                 </div>
-                <PriorityBadge priority={t.priority} />
-              </div>
+              </SwipeActions>
             ))}
           </div>
         </div>

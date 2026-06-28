@@ -80,9 +80,6 @@ export const NoticeBoard = ({ notices, dispatch }) => {
             <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
               Bacheca avvisi
             </div>
-            <div style={{ fontSize: 11, color: "#8b6f3a", marginTop: 2 }}>
-              Visibile a tutto il team • chiunque può aggiungere o modificare
-            </div>
           </div>
         </div>
         <button

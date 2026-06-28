@@ -123,12 +123,7 @@ const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
           }}>{me?.avatar || "?"}</div>
           <div>
             <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
-              {enableDateFilter ? "La mia coda transfer" : "La mia coda — task assegnate a me"}
-            </div>
-            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-              {enableDateFilter
-                ? "Filtra per giornata • ordinate per orario • clicca una card per i dettagli"
-                : `Ordinate per ${QUEUE_SORT_OPTIONS.find(o => o.key === sortBy)?.label.toLowerCase() || "scadenza"} • clicca una card per i dettagli`}
+              {enableDateFilter ? "La mia coda transfer" : "La mia coda"}
             </div>
           </div>
         </div>
@@ -264,8 +259,7 @@ const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
                     >{label}</button>
                   );
                   if (t.status === "todo") return <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>{quickBtn("▶ Avvia", "inprogress", "var(--navy)")}{quickBtn("✓ Fatto", "done", "var(--success)")}</div>;
-                  if (t.status === "inprogress") return <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>{quickBtn("⏸ Attesa", "awaiting_client", "var(--warning)")}{quickBtn("✓ Fatto", "done", "var(--success)")}</div>;
-                  return <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>{quickBtn("▶ Riprendi", "inprogress", "var(--navy)")}{quickBtn("✓ Fatto", "done", "var(--success)")}</div>;
+                  return <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>{quickBtn("✓ Fatto", "done", "var(--success)")}</div>;
                 })()}
               </div>
             );
@@ -330,10 +324,7 @@ const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
           }}>⏱</div>
           <div>
             <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
-              Urgenti — scadenza entro {windowH}h
-            </div>
-            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-              Tutte le task in scadenza entro {windowH}h • clicca una card per i dettagli
+              Urgenti
             </div>
           </div>
         </div>
@@ -569,12 +560,7 @@ const UnassignedQueue = ({ tasks, dispatch, onTake, uid }) => {
           }}>🙋</div>
           <div>
             <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
-              Coda globale — task da prendere in carico
-            </div>
-            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-              {isJunior
-                ? "Task non assegnati • visibili a tutto il team • per i Junior Agent l'assegnazione richiede un Senior/Manager"
-                : "Task non assegnati • visibili a tutto il team • clicca \"Prendi in carico\" per autoassegnarti"}
+              Coda globale
             </div>
           </div>
         </div>
@@ -810,9 +796,6 @@ const OverdueQueue = ({ tasks, dispatch }) => {
           <div>
             <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
               Task scadute
-            </div>
-            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-              Ordinate per data di scadenza • richiedono attenzione immediata
             </div>
           </div>
         </div>
@@ -1121,25 +1104,27 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
           <div className="playfair" style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>Scadenze Prossime</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {next7.map(t => (
-              <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
-                style={{
-                  display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
-                  borderRadius: 8, cursor: "pointer", transition: "background 0.15s",
-                  background: isOverdue(t) ? "rgba(192,57,43,0.05)" : "transparent",
-                  border: `1px solid ${isOverdue(t) ? "rgba(192,57,43,0.15)" : "var(--border)"}`,
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-                onMouseLeave={e => e.currentTarget.style.background = isOverdue(t) ? "rgba(192,57,43,0.05)" : "transparent"}
-              >
-                <span style={{ fontSize: 16 }}>{CATEGORIES[t.category]?.icon}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
-                  <div style={{ fontSize: 11, color: isOverdue(t) ? "var(--danger)" : "var(--text-muted)" }}>
-                    {isOverdue(t) ? "⚠️ Scaduto • " : ""}{formatDate(t.dueDate)}
+              <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+                <div onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
+                    borderRadius: 8, cursor: "pointer", transition: "background 0.15s",
+                    background: isOverdue(t) ? "rgba(192,57,43,0.05)" : "transparent",
+                    border: `1px solid ${isOverdue(t) ? "rgba(192,57,43,0.15)" : "var(--border)"}`,
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                  onMouseLeave={e => e.currentTarget.style.background = isOverdue(t) ? "rgba(192,57,43,0.05)" : "transparent"}
+                >
+                  <span style={{ fontSize: 16 }}>{CATEGORIES[t.category]?.icon}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
+                    <div style={{ fontSize: 11, color: isOverdue(t) ? "var(--danger)" : "var(--text-muted)" }}>
+                      {isOverdue(t) ? "⚠️ Scaduto • " : ""}{formatDate(t.dueDate)}
+                    </div>
                   </div>
+                  <PriorityBadge priority={t.priority} />
                 </div>
-                <PriorityBadge priority={t.priority} />
-              </div>
+              </SwipeActions>
             ))}
           </div>
         </div>

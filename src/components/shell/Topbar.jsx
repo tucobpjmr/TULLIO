@@ -209,11 +209,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
       </div>
 
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", background: "#fff", maxHeight: 320 }}>
-        {!hasFilters && (
-          <div style={{ padding: "32px 20px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
-            Digita una parola chiave o imposta un filtro per iniziare la ricerca
-          </div>
-        )}
+
         {hasFilters && results.length === 0 && (
           <div style={{ padding: "32px 20px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
             Nessun task corrisponde ai filtri

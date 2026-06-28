@@ -123,12 +123,7 @@ const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
           }}>{me?.avatar || "?"}</div>
           <div>
             <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
-              {enableDateFilter ? "La mia coda transfer" : "La mia coda — task assegnate a me"}
-            </div>
-            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-              {enableDateFilter
-                ? "Filtra per giornata • ordinate per orario • clicca una card per i dettagli"
-                : `Ordinate per ${QUEUE_SORT_OPTIONS.find(o => o.key === sortBy)?.label.toLowerCase() || "scadenza"} • clicca una card per i dettagli`}
+              {enableDateFilter ? "La mia coda transfer" : "La mia coda"}
             </div>
           </div>
         </div>

@@ -1123,7 +1123,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         {state.activeView !== "trash" && state.activeView !== "admin" && (
           <FAB onClick={() => setShowFABModal(true)} />
         )}
-        {showFABModal && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} />}
+        {showFABModal && <QuickAddTask clients={state.clients || []} onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} />}
 
         {/* Overlay scorciatoie tastiera (v2.8 Round 10) */}
         {showKeyHelp && <KeyboardHelpOverlay onClose={() => setShowKeyHelp(false)} />}

@@ -30,7 +30,7 @@ const suggestCategory = (title, availableCats) => {
   return null;
 };
 
-export const QuickAddTask = ({ onAdd, onClose }) => {
+export const QuickAddTask = ({ onAdd, onClose, clients = [] }) => {
   // Categorie filtrate per il ruolo dell'utente loggato (v0.8)
   const availableCats = getAvailableCategories(CURRENT_USER);
   const firstCatKey = Object.keys(availableCats)[0] || "booking";
@@ -48,7 +48,21 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
   const [pendingFiles, setPendingFiles] = useState([]);
   const [busy, setBusy] = useState(false);
   const [fileError, setFileError] = useState("");
+  // Autocomplete cliente: mostra la tendina dei clienti in anagrafica mentre si
+  // digita. Il campo resta testo libero (task.client è una stringa), così si può
+  // anche inserire un cliente non ancora presente in anagrafica.
+  const [clientFocus, setClientFocus] = useState(false);
   const fileInputRef = useRef(null);
+
+  const clientQuery = form.client.trim().toLowerCase();
+  const clientMatches = (clientQuery
+    ? clients.filter(c => c.name?.toLowerCase().includes(clientQuery))
+    : clients
+  ).slice(0, 6);
+  // Nasconde la tendina quando l'unico match coincide esattamente con quanto
+  // digitato (cliente già selezionato → niente suggerimento ridondante).
+  const showClientList = clientFocus && clientMatches.length > 0 &&
+    !(clientMatches.length === 1 && clientMatches[0].name?.toLowerCase() === clientQuery);
 
   const addFiles = (fileList) => {
     const arr = Array.from(fileList || []);
@@ -216,9 +230,47 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
             </div>
           </div>
 
-          <div>
+          <div style={{ position: "relative" }}>
             <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>CLIENTE</label>
-            <input {...inp("client")} placeholder="Es. Famiglia Rossi..." />
+            <input
+              {...inp("client")}
+              placeholder={clients.length ? "Cerca in anagrafica o scrivi un nome…" : "Es. Famiglia Rossi…"}
+              autoComplete="off"
+              onFocus={() => setClientFocus(true)}
+              // Ritardo la chiusura per dare tempo al click sull'opzione (mousedown).
+              onBlur={() => setTimeout(() => setClientFocus(false), 150)}
+            />
+            {showClientList && (
+              <div style={{
+                position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20,
+                marginTop: 4, background: "var(--card)", border: "1px solid var(--border)",
+                borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                maxHeight: 200, overflowY: "auto",
+              }}>
+                {clientMatches.map(c => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onMouseDown={() => { setForm(p => ({ ...p, client: c.name })); setClientFocus(false); }}
+                    style={{
+                      display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1,
+                      width: "100%", textAlign: "left", padding: "8px 10px", border: "none",
+                      borderBottom: "1px solid var(--border)", background: "transparent",
+                      cursor: "pointer", fontFamily: "inherit",
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{c.name}</span>
+                    {(c.city || c.email) && (
+                      <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                        {[c.city, c.email].filter(Boolean).join(" · ")}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>

@@ -1,8 +1,8 @@
 # HANDOFF — Sessione TULLIO: UX cleanup + riorganizzazione categorie
 
 **Data:** 28 giugno 2026 (sessione 37)
-**Branch di lavoro:** `claude/leggi-handoff-captions-gfoj3c` — **HEAD `7b8dd9a`**
-**PR:** **#81** (draft) su `tucobpjmr/TULLIO` — non ancora mergeata
+**Branch di lavoro:** `claude/leggi-handoff-captions-gfoj3c` — squash mergeato in `main`
+**PR:** **#81** ✅ **MERGEATA** su `main` — squash SHA `11749145`
 **Per:** Claude Code / prossima sessione
 
 > **LEGGI PRIMA:** `docs/CLAUDE.md` (convenzioni) → questo file. Sessione precedente di riferimento: PR #80 (handoff letto a inizio sessione).
@@ -11,9 +11,7 @@
 
 ## 0. TL;DR (30 secondi)
 
-Sessione di rifinitura UX + ristrutturazione delle categorie task. **Tutto su un'unica PR draft (#81)**, build verde, 82/82 test passati, 0 errori lint (11 warning preesistenti). Deploy Vercel `Ready` sul preview.
-
-Branch **non mergeato**: la prossima sessione (o l'utente) deve decidere se portare #81 in `main`.
+Sessione di rifinitura UX + ristrutturazione delle categorie task. **PR #81 mergeata in `main`** (squash SHA `11749145`), build verde, 82/82 test passati, 0 errori lint (11 warning preesistenti). Deploy Vercel `Ready`.
 
 ---
 
@@ -78,8 +76,8 @@ Definizione in **`src/state/mockData.js` → `INITIAL_CATEGORIES`**. Le categori
 
 ## 4. Stato repo & verifica
 
-- **Branch:** `claude/leggi-handoff-captions-gfoj3c`, HEAD `7b8dd9a`, pushato.
-- **PR #81** draft, **non mergeata**.
+- **`main` HEAD:** `11749145` (squash merge di PR #81).
+- **PR #81** ✅ mergeata e chiusa.
 - `npm run lint` → 0 errori, 11 warning (tutti `exhaustive-deps`/unused, preesistenti).
 - `npm test` → **82/82** passati (vitest).
 - `npm run build` → verde.
@@ -94,7 +92,7 @@ Definizione in **`src/state/mockData.js` → `INITIAL_CATEGORIES`**. Le categori
 
 ## 5. Prossimi passi possibili
 
-1. **Decidere il merge di #81** in `main` (è il blocco principale aperto).
-2. Eventuale ritocco icone/colori delle nuove categorie (`Check-in` ✅, `Scadenza OPT` ⏳, `Appuntamento` 📅) — chiesto all'utente, in attesa di feedback.
+1. ~~Decidere il merge di #81~~ — ✅ fatto, già in `main`.
+2. Eventuale ritocco icone/colori delle nuove categorie (`Check-in` ✅, `Scadenza OPT` ⏳, `Appuntamento` 📅).
 3. Cleanup opzionale del dato di test `category: "hotel"` in `src/test/mappers.test.js`.
 4. Verificare in UI che `appointment` compaia correttamente in tutti i filtri/dropdown che iterano `CATEGORIES` (Dashboard filtri, CalendarPlanner, AdminView categorie) — derivano dinamicamente, quindi atteso ok, ma da confermare visivamente sul preview.

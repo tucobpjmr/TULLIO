@@ -259,8 +259,7 @@ const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
                     >{label}</button>
                   );
                   if (t.status === "todo") return <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>{quickBtn("▶ Avvia", "inprogress", "var(--navy)")}{quickBtn("✓ Fatto", "done", "var(--success)")}</div>;
-                  if (t.status === "inprogress") return <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>{quickBtn("⏸ Attesa", "awaiting_client", "var(--warning)")}{quickBtn("✓ Fatto", "done", "var(--success)")}</div>;
-                  return <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>{quickBtn("▶ Riprendi", "inprogress", "var(--navy)")}{quickBtn("✓ Fatto", "done", "var(--success)")}</div>;
+                  return <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>{quickBtn("✓ Fatto", "done", "var(--success)")}</div>;
                 })()}
               </div>
             );

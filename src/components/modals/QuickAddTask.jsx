@@ -11,14 +11,13 @@ import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit } from 
 const CATEGORY_KEYWORDS = [
   { cat: "transfer",  words: ["transfer", "navetta", "shuttle", "ncc "] },
   { cat: "visa",      words: ["visto", "passaporto", "visa", "documenti sanitar", "document"] },
-  { cat: "booking",   words: ["volo", "voli", "aereo", "aerei", "bigliett", "compagnia aerea", "check-in", "checkin", "flight"] },
-  { cat: "hotel",     words: ["hotel", "albergo", "resort", "villa", "bed ", "bungalow", "ryokan", "appartament", "ospitalit"] },
-  { cat: "payment",   words: ["pagament", "acconto", "saldo", "fattura", "bonifico", "invoice", "polizza", "tariffa"] },
-  { cat: "itinerary", words: ["itinerario", "programma viaggio", "tappe", "tour ", "percorso", "preventivo"] },
-  { cat: "client",    words: ["cliente", "followup", "follow-up", "chiamata", "contatto", "incontro", "appuntamento", "meeting"] },
-  { cat: "marketing", words: ["newsletter", "social", "post ", "campagna", "promo", "pubblicità", "instagram", "facebook"] },
-  { cat: "supplier",  words: ["fornitore", "contratto", "accordo", "autobus", "bus "] },
-  { cat: "admin",     words: ["riunione", "agenda", "report", "log ", "amministrazion"] },
+  { cat: "booking",     words: ["volo", "voli", "aereo", "aerei", "bigliett", "compagnia aerea", "flight"] },
+  { cat: "itinerary",   words: ["itinerario", "programma viaggio", "tappe", "tour ", "percorso", "preventivo", "hotel", "albergo", "resort", "villa", "bed ", "bungalow", "ryokan", "appartament", "ospitalit"] },
+  { cat: "payment",     words: ["pagament", "acconto", "saldo", "fattura", "bonifico", "invoice", "polizza", "tariffa", "fornitore", "contratto", "accordo", "autobus", "bus "] },
+  { cat: "client",      words: ["cliente", "followup", "follow-up", "chiamata", "contatto", "scadenza opt", "opzione"] },
+  { cat: "appointment", words: ["appuntamento", "appointment", "meeting", "incontro"] },
+  { cat: "marketing",   words: ["newsletter", "social", "post ", "campagna", "promo", "pubblicità", "instagram", "facebook"] },
+  { cat: "admin",       words: ["check-in", "checkin", "check in", "riunione", "agenda", "report", "log ", "amministrazion"] },
 ];
 const suggestCategory = (title, availableCats) => {
   const lower = (title || "").toLowerCase();

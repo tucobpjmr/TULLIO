@@ -5,6 +5,7 @@ import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { CategoryChip } from "../ui/CategoryChip.jsx";
 import { formatDate, isOverdue } from "../../lib/taskUtils.js";
 import { CURRENT_USER, getMember } from "../../state/appGlobals.js";
+import { AI } from "../../lib/api.js";
 
 export const AIDayPlanner = ({ tasks, onClose }) => {
   const [loading, setLoading] = useState(true);
@@ -67,23 +68,12 @@ Regole:
 - Per i campi "taskId" usa esattamente gli id forniti.
 - Massimo 2 "tips", brevi.`;
 
-    fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1000,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    })
-      .then(r => {
-        if (!r.ok) throw new Error("Errore di rete (HTTP " + r.status + ")");
-        return r.json();
-      })
-      .then(data => {
+    // Il planning passa per la Edge Function 'plan-day' (chiave AI lato server).
+    AI.planDay(prompt)
+      .then(({ text, error }) => {
         if (cancelled) return;
-        const text = (data.content || []).map(b => b.text || "").join("").trim();
-        const clean = text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+        if (error) { setError(error.message || "Errore servizio AI"); return; }
+        const clean = (text || "").replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
         const parsed = JSON.parse(clean);
         setPlan(parsed);
       })

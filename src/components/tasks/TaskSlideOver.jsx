@@ -6,7 +6,7 @@ import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { CategoryChip } from "../ui/CategoryChip.jsx";
 import { STATUSES, STATUS_LABELS } from "../../lib/taskConstants.js";
-import { formatDate, formatTime, isOverdue } from "../../lib/taskUtils.js";
+import { formatDate, isOverdue } from "../../lib/taskUtils.js";
 import { CURRENT_USER, getMember, getAssignableTeam, canEditTask } from "../../state/appGlobals.js";
 import { MentionText } from "../ui/MentionText.jsx";
 import { TaskFiles } from "../../lib/api.js";

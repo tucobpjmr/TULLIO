@@ -325,10 +325,7 @@ const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
           }}>⏱</div>
           <div>
             <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
-              Urgenti — scadenza entro {windowH}h
-            </div>
-            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-              Tutte le task in scadenza entro {windowH}h • clicca una card per i dettagli
+              Urgenti
             </div>
           </div>
         </div>
@@ -564,12 +561,7 @@ const UnassignedQueue = ({ tasks, dispatch, onTake, uid }) => {
           }}>🙋</div>
           <div>
             <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
-              Coda globale — task da prendere in carico
-            </div>
-            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-              {isJunior
-                ? "Task non assegnati • visibili a tutto il team • per i Junior Agent l'assegnazione richiede un Senior/Manager"
-                : "Task non assegnati • visibili a tutto il team • clicca \"Prendi in carico\" per autoassegnarti"}
+              Coda globale
             </div>
           </div>
         </div>
@@ -805,9 +797,6 @@ const OverdueQueue = ({ tasks, dispatch }) => {
           <div>
             <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
               Task scadute
-            </div>
-            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-              Ordinate per data di scadenza • richiedono attenzione immediata
             </div>
           </div>
         </div>

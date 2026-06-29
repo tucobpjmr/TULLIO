@@ -6,34 +6,10 @@ import { SwipeActions } from "../SwipeActions.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { StatusBadge } from "../ui/StatusBadge.jsx";
-import { PRIORITIES, STATUS_LABELS } from "../../lib/taskConstants.js";
+import { PRIORITIES } from "../../lib/taskConstants.js";
 import { formatDate, formatTime, isOverdue, isUrgent, isMyTask, isInGlobalQueue, getActiveTasks, getDayKey } from "../../lib/taskUtils.js";
 import { CATEGORIES, getMember, getRoleType, getAssignableTeam, canViewTask, getVisibleTasks, isJuniorAgent } from "../../state/appGlobals.js";
 import { NoticeBoard } from "./NoticeBoard.jsx";
-
-// ─── CSV EXPORT HELPER ───────────────────────────────────────────────────────
-const _esc = v => {
-  const s = v == null ? "" : String(v);
-  return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
-};
-const exportTasksCSV = (tasks, filename = "coda-personale") => {
-  const headers = ["Titolo", "Categoria", "Priorità", "Stato", "Cliente", "Pratica", "Assegnati", "Scadenza"];
-  const rows = tasks.map(t => [
-    t.title,
-    CATEGORIES[t.category]?.label || t.category,
-    PRIORITIES[t.priority]?.label || t.priority,
-    STATUS_LABELS[t.status] || t.status,
-    t.client || "",
-    t.praticaRef || "",
-    (t.assignees || []).map(id => getMember(id)?.name || id).join("; "),
-    t.dueDate ? new Date(t.dueDate).toLocaleString("it-IT") : "",
-  ]);
-  const csv = [headers, ...rows].map(r => r.map(_esc).join(",")).join("\n");
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
-  a.download = `${filename}-${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-};
 
 // ─── PERSONAL QUEUE (le mie task — v0.8) ───────────────────────────────────
 // enableDateFilter (v22): per il Driver (vista transfer-oriented) abilita un
@@ -126,20 +102,6 @@ const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
               {enableDateFilter ? "La mia coda transfer" : "La mia coda"}
             </div>
           </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {filtered.length > 0 && (
-            <button
-              type="button"
-              title="Esporta come CSV"
-              onClick={() => exportTasksCSV(filtered, "coda-personale")}
-              style={{
-                background: "none", border: "1px solid var(--border)",
-                color: "var(--text-muted)", padding: "4px 10px", borderRadius: 999,
-                fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-              }}
-            >↓ CSV</button>
-          )}
         </div>
       </div>
 
@@ -242,25 +204,6 @@ const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
                     </span>
                   )}
                 </div>
-                {/* Avanzamento rapido status (v2.8 Round 14) */}
-                {t.status !== "done" && (() => {
-                  const quickBtn = (label, newStatus, color) => (
-                    <button
-                      key={newStatus}
-                      type="button"
-                      onClick={e => { e.stopPropagation(); dispatch({ type: "UPDATE_TASK", payload: { ...t, status: newStatus } }); }}
-                      style={{
-                        padding: "3px 10px", borderRadius: 999, border: `1px solid ${color}`,
-                        background: "transparent", color, cursor: "pointer",
-                        fontSize: 11, fontWeight: 600, fontFamily: "inherit", transition: "all 0.15s",
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.background = color; e.currentTarget.style.color = "#fff"; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = color; }}
-                    >{label}</button>
-                  );
-                  if (t.status === "todo") return <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>{quickBtn("▶ Avvia", "inprogress", "var(--navy)")}{quickBtn("✓ Fatto", "done", "var(--success)")}</div>;
-                  return <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>{quickBtn("✓ Fatto", "done", "var(--success)")}</div>;
-                })()}
               </div>
             );
             return (

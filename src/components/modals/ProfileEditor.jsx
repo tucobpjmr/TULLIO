@@ -143,19 +143,15 @@ const CropModal = ({ src, onConfirm, onCancel }) => {
   );
 };
 
-const AVATAR_EMOJIS = ["😊", "😎", "🧑‍💼", "👩‍💻", "🧑‍✈️", "👨‍🔧", "🦸", "🌟", "🎯", "🚀", "✈️", "🏝️"];
-const AVATAR_COLORS = ["#0F2044", "#2D7A4F", "#C8832A", "#7B4F9E", "#C0392B", "#0EA5E9", "#DB2777", "#059669", "#6366F1", "#EA580C", "#0891B2", "#4F46E5"];
 
 export const ProfileEditor = ({ member, dispatch, onClose }) => {
   const { isMobile } = useViewport();
   const { session, updatePassword, deleteAccount } = useAuth();
   const [name, setName] = useState(member.name || "");
-  const [avatar, setAvatar] = useState(member.avatar || "");
-  const [color, setColor] = useState(member.color || "#0F2044");
+  const [color] = useState(member.color || "#0F2044");
   const [email, setEmail] = useState(member.email || "");
   const [phone, setPhone] = useState(member.phone || "");
   const [photoUrl, setPhotoUrl] = useState(member.photoUrl || "");
-  const [avatarMode, setAvatarMode] = useState(member.photoUrl ? "photo" : "emoji"); // "emoji" | "photo"
   const [cropSrc, setCropSrc] = useState(null);
   const fileRef = useRef(null);
   const [showPwd, setShowPwd] = useState(false);
@@ -213,11 +209,11 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
     if (!name.trim()) return;
     const payload = {
       name: name.trim(),
-      avatar: avatarMode === "photo" ? (name.trim().split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()) : avatar,
+      avatar: name.trim().split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
       color,
       email: email.trim(),
       phone: phone.trim(),
-      photoUrl: avatarMode === "photo" ? photoUrl : null,
+      photoUrl: photoUrl || null,
     };
     // Aggiornamento ottimistico in memoria (immediato per l'UI).
     dispatch({ type: "UPDATE_OWN_PROFILE", payload });
@@ -264,7 +260,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
       {cropSrc && (
         <CropModal
           src={cropSrc}
-          onConfirm={(dataUrl) => { setPhotoUrl(dataUrl); setAvatarMode("photo"); setCropSrc(null); }}
+          onConfirm={(dataUrl) => { setPhotoUrl(dataUrl); setCropSrc(null); }}
           onCancel={() => setCropSrc(null)}
         />
       )}
@@ -284,7 +280,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             {/* Preview avatar */}
-            {avatarMode === "photo" && photoUrl ? (
+            {photoUrl ? (
               <img src={photoUrl} alt="" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "3px solid rgba(255,255,255,0.3)" }} />
             ) : (
               <div style={{
@@ -292,7 +288,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 18, fontWeight: 700, color: "#fff",
                 border: "3px solid rgba(255,255,255,0.3)",
-              }}>{avatar || initials}</div>
+              }}>{initials}</div>
             )}
             <div>
               <div className="playfair" style={{ fontSize: 18, fontWeight: 700, color: "#fff" }}>Modifica profilo</div>
@@ -308,84 +304,31 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
         {/* Body */}
         <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 18 }}>
 
-          {/* ── Avatar Mode Toggle ── */}
-          <div>
-            {fieldLabel("AVATAR")}
-            <div style={{ display: "flex", gap: 4, marginBottom: 12, background: "var(--surface2)", borderRadius: 10, padding: 3 }}>
-              <button onClick={() => setAvatarMode("emoji")} style={{
-                flex: 1, padding: "7px 0", borderRadius: 8, border: "none", cursor: "pointer",
-                background: avatarMode === "emoji" ? "var(--navy)" : "transparent",
-                color: avatarMode === "emoji" ? "#fff" : "var(--text)",
-                fontSize: 12, fontWeight: 600, fontFamily: "inherit",
-              }}>Emoji / Iniziali</button>
-              <button onClick={() => setAvatarMode("photo")} style={{
-                flex: 1, padding: "7px 0", borderRadius: 8, border: "none", cursor: "pointer",
-                background: avatarMode === "photo" ? "var(--navy)" : "transparent",
-                color: avatarMode === "photo" ? "#fff" : "var(--text)",
-                fontSize: 12, fontWeight: 600, fontFamily: "inherit",
-              }}>📷 Foto</button>
-            </div>
-
-            {avatarMode === "emoji" ? (
-              <div>
-                {/* Emoji grid */}
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-                  {AVATAR_EMOJIS.map(e => (
-                    <button key={e} onClick={() => setAvatar(e)} style={{
-                      width: 38, height: 38, borderRadius: 8,
-                      border: avatar === e ? "2px solid var(--gold)" : "1px solid var(--border)",
-                      background: avatar === e ? "var(--gold)" + "20" : "var(--card)",
-                      cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center",
-                    }}>{e}</button>
-                  ))}
-                  {/* Initials option */}
-                  <button onClick={() => setAvatar(initials)} style={{
-                    width: 38, height: 38, borderRadius: 8,
-                    border: !AVATAR_EMOJIS.includes(avatar) ? "2px solid var(--gold)" : "1px solid var(--border)",
-                    background: !AVATAR_EMOJIS.includes(avatar) ? color : "var(--card)",
-                    color: !AVATAR_EMOJIS.includes(avatar) ? "#fff" : "var(--text)",
-                    cursor: "pointer", fontSize: 11, fontWeight: 700,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                  }}>{initials}</button>
-                </div>
-                {/* Color picker */}
-                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5, marginBottom: 4 }}>COLORE</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {AVATAR_COLORS.map(c => (
-                    <button key={c} onClick={() => setColor(c)} style={{
-                      width: 28, height: 28, borderRadius: "50%", background: c, border: color === c ? "3px solid var(--gold)" : "2px solid transparent",
-                      cursor: "pointer", transition: "transform 0.1s",
-                    }} />
-                  ))}
-                </div>
+          {/* ── Foto profilo ── */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+            {photoUrl ? (
+              <div style={{ position: "relative" }}>
+                <img src={photoUrl} alt="" style={{ width: 100, height: 100, borderRadius: "50%", objectFit: "cover", border: "3px solid var(--border)" }} />
+                <button onClick={() => setPhotoUrl("")} style={{
+                  position: "absolute", top: -4, right: -4,
+                  width: 24, height: 24, borderRadius: "50%", background: "var(--danger)", color: "#fff",
+                  border: "2px solid #fff", cursor: "pointer", fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center",
+                }}>✕</button>
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-                {photoUrl ? (
-                  <div style={{ position: "relative" }}>
-                    <img src={photoUrl} alt="" style={{ width: 100, height: 100, borderRadius: "50%", objectFit: "cover", border: "3px solid var(--border)" }} />
-                    <button onClick={() => { setPhotoUrl(""); setAvatarMode("emoji"); }} style={{
-                      position: "absolute", top: -4, right: -4,
-                      width: 24, height: 24, borderRadius: "50%", background: "var(--danger)", color: "#fff",
-                      border: "2px solid #fff", cursor: "pointer", fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center",
-                    }}>✕</button>
-                  </div>
-                ) : (
-                  <div style={{
-                    width: 100, height: 100, borderRadius: "50%", border: "2px dashed var(--border)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    color: "var(--text-muted)", fontSize: 12,
-                  }}>Nessuna foto</div>
-                )}
-                <input ref={fileRef} type="file" accept="image/*" onChange={handlePhotoUpload} style={{ display: "none" }} />
-                <button onClick={() => fileRef.current?.click()} style={{
-                  background: "var(--surface2)", border: "1px solid var(--border)",
-                  padding: "8px 20px", borderRadius: 8, cursor: "pointer",
-                  fontSize: 13, fontWeight: 600, fontFamily: "inherit", color: "var(--text)",
-                }}>📷 {photoUrl ? "Cambia foto" : "Carica foto"}</button>
-                <div style={{ fontSize: 11, color: "var(--text-muted)" }}>JPG, PNG — max 5 MB • potrai ritagliare dopo il caricamento</div>
-              </div>
+              <div style={{
+                width: 100, height: 100, borderRadius: "50%", border: "2px dashed var(--border)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "var(--text-muted)", fontSize: 12,
+              }}>Nessuna foto</div>
             )}
+            <input ref={fileRef} type="file" accept="image/*" onChange={handlePhotoUpload} style={{ display: "none" }} />
+            <button onClick={() => fileRef.current?.click()} style={{
+              background: "var(--surface2)", border: "1px solid var(--border)",
+              padding: "8px 20px", borderRadius: 8, cursor: "pointer",
+              fontSize: 13, fontWeight: 600, fontFamily: "inherit", color: "var(--text)",
+            }}>📷 {photoUrl ? "Cambia foto" : "Carica foto"}</button>
+            <div style={{ fontSize: 11, color: "var(--text-muted)" }}>JPG, PNG — max 5 MB • potrai ritagliare dopo il caricamento</div>
           </div>
 
           {/* ── Nome ── */}

@@ -7,6 +7,7 @@ import { isOverdue } from "../../lib/taskUtils.js";
 import { loadXLSX } from "../../lib/xlsx.js";
 import { getMember } from "../../state/appGlobals.js";
 import { Users } from "../../lib/api.js";
+import { useViewport } from "../Viewport.jsx";
 import { AddTeamMemberModal } from "../modals/AddTeamMemberModal.jsx";
 import { BulkInviteModal } from "../modals/BulkInviteModal.jsx";
 import { AddCategoryModal } from "../modals/AddCategoryModal.jsx";
@@ -34,6 +35,7 @@ const escapeCSV = (val) => {
 
 export const AdminView = ({ state, dispatch }) => {
   const [tab, setTab] = useState("team");
+  const { isMobile } = useViewport();
 
   const tabs = [
     { id: "team", icon: "👥", label: "Team" },
@@ -44,7 +46,7 @@ export const AdminView = ({ state, dispatch }) => {
   ];
 
   return (
-    <div className="vd-pad" style={{ padding: 32, maxWidth: 1200, margin: "0 auto" }}>
+    <div className="vd-pad" style={{ padding: isMobile ? 16 : 32, maxWidth: 1200, margin: "0 auto" }}>
       <div style={{ marginBottom: 24 }}>
         <h1 className="playfair" style={{ fontSize: 28, color: "var(--heading)", margin: 0, fontWeight: 700 }}>
           ⚙️ Amministrazione
@@ -95,6 +97,7 @@ export const AdminView = ({ state, dispatch }) => {
 
 // ─── ADMIN TAB: TEAM ───────────────────────────────────────────────────────
 const AdminTeamTab = ({ state, dispatch }) => {
+  const { isMobile } = useViewport();
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -168,58 +171,65 @@ const AdminTeamTab = ({ state, dispatch }) => {
     return (
       <div key={m.id} style={{
         background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10,
-        padding: 16, display: "flex", alignItems: "center", gap: 14,
+        padding: 16, display: "flex",
+        flexDirection: isMobile ? "column" : "row",
+        alignItems: isMobile ? "stretch" : "center",
+        gap: isMobile ? 10 : 14,
         opacity: opts.dim ? 0.65 : 1,
       }}>
-        <div style={{ position: "relative", flexShrink: 0 }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: "50%", background: m.color,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            color: "#fff", fontWeight: 700, fontSize: 16,
-          }}>{m.avatar}</div>
-          {m.status && (
+        {/* Avatar + Info — sempre su una riga */}
+        <div style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0 }}>
+          <div style={{ position: "relative", flexShrink: 0 }}>
             <div style={{
-              position: "absolute", bottom: 1, right: 1,
-              width: 11, height: 11, borderRadius: "50%",
-              background: dotColor, border: "2px solid var(--card)",
-            }} title={m.status === "online" ? "Online" : m.status === "busy" ? "Occupato" : "Offline"} />
-          )}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {isEditing ? (
-            <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 100px", gap: 8 }}>
-              <input value={draft.name} onChange={e => setDraft({...draft, name: e.target.value})}
-                placeholder="Nome" style={fieldStyle} />
-              <input value={draft.role} onChange={e => setDraft({...draft, role: e.target.value})}
-                placeholder="Ruolo" style={fieldStyle} />
-              <input type="color" value={draft.color} onChange={e => setDraft({...draft, color: e.target.value})}
-                style={{ ...fieldStyle, padding: 2, height: 32 }} />
-            </div>
-          ) : (
-            <>
-              <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text)" }}>{m.name}</div>
-              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
-                {m.role} • {count} task assegnati
-                {seenLabel && <span> • ultimo accesso {seenLabel}</span>}
+              width: 48, height: 48, borderRadius: "50%", background: m.color,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "#fff", fontWeight: 700, fontSize: 16,
+            }}>{m.avatar}</div>
+            {m.status && (
+              <div style={{
+                position: "absolute", bottom: 1, right: 1,
+                width: 11, height: 11, borderRadius: "50%",
+                background: dotColor, border: "2px solid var(--card)",
+              }} title={m.status === "online" ? "Online" : m.status === "busy" ? "Occupato" : "Offline"} />
+            )}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {isEditing ? (
+              <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 100px", gap: 8 }}>
+                <input value={draft.name} onChange={e => setDraft({...draft, name: e.target.value})}
+                  placeholder="Nome" style={fieldStyle} />
+                <input value={draft.role} onChange={e => setDraft({...draft, role: e.target.value})}
+                  placeholder="Ruolo" style={fieldStyle} />
+                <input type="color" value={draft.color} onChange={e => setDraft({...draft, color: e.target.value})}
+                  style={{ ...fieldStyle, padding: 2, height: 32 }} />
               </div>
-              {(() => {
-                const c = contactsMap[m.id];
-                if (!c || (!c.email && !c.phone)) return null;
-                return (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 4, fontSize: 12 }}>
-                    {c.email && (
-                      <a href={`mailto:${c.email}`} style={{ color: "var(--navy)", textDecoration: "none" }}>✉️ {c.email}</a>
-                    )}
-                    {c.phone && (
-                      <a href={`tel:${c.phone.replace(/\s+/g, "")}`} style={{ color: "var(--navy)", textDecoration: "none" }}>📞 {c.phone}</a>
-                    )}
-                  </div>
-                );
-              })()}
-            </>
-          )}
+            ) : (
+              <>
+                <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text)" }}>{m.name}</div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+                  {m.role} • {count} task assegnati
+                  {seenLabel && <span> • ultimo accesso {seenLabel}</span>}
+                </div>
+                {(() => {
+                  const c = contactsMap[m.id];
+                  if (!c || (!c.email && !c.phone)) return null;
+                  return (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 4, fontSize: 12 }}>
+                      {c.email && (
+                        <a href={`mailto:${c.email}`} style={{ color: "var(--navy)", textDecoration: "none" }}>✉️ {c.email}</a>
+                      )}
+                      {c.phone && (
+                        <a href={`tel:${c.phone.replace(/\s+/g, "")}`} style={{ color: "var(--navy)", textDecoration: "none" }}>📞 {c.phone}</a>
+                      )}
+                    </div>
+                  );
+                })()}
+              </>
+            )}
+          </div>
         </div>
-        <div style={{ display: "flex", gap: 6 }}>
+        {/* Bottoni — a destra su desktop, allineati a destra in seconda riga su mobile */}
+        <div style={{ display: "flex", gap: 6, ...(isMobile ? { justifyContent: "flex-end" } : {}) }}>
           {isEditing ? (
             <>
               <button onClick={saveEdit} style={btnPrimary}>💾 Salva</button>

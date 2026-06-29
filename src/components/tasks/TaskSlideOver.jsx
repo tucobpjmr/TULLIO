@@ -250,8 +250,8 @@ export const TaskSlideOver = ({ task, dispatch }) => {
     <>
       <div onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: null })}
         style={{ position: "fixed", inset: 0, background: "rgba(15,32,68,0.4)", zIndex: 500 }} />
-      <div className="slide-right" style={{
-        position: "fixed", top: 0, right: 0, width: isMobile ? "100vw" : 480, height: "100vh",
+      <div className="slide-right vd-sheet-full" style={{
+        position: "fixed", top: 0, right: 0, width: isMobile ? "100vw" : 480,
         background: "var(--card)", zIndex: 600, boxShadow: "-20px 0 60px rgba(0,0,0,0.15)",
         display: "flex", flexDirection: "column", overflowY: "auto",
       }}>

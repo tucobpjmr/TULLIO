@@ -142,9 +142,9 @@ export const QuickAddTask = ({ onAdd, onClose, clients = [] }) => {
       position: "fixed", inset: 0, background: "rgba(15,32,68,0.5)",
       display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16
     }}>
-      <div className="slide-up" style={{
+      <div className="slide-up vd-modal-mh" style={{
         background: "var(--card)", borderRadius: 14, padding: 28, width: 500, maxWidth: "100%",
-        maxHeight: "90vh", overflowY: "auto",
+        overflowY: "auto",
         boxShadow: "0 30px 80px rgba(0,0,0,0.2)", border: "1px solid var(--border)"
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>

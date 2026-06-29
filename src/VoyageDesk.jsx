@@ -167,6 +167,22 @@ const FontLoader = () => (
       }
       .vd-main-scroll { padding-bottom: 70px !important; }
     }
+    /* ─── MODALI / SCHEDE: viewport dinamico (fix iOS Safari) ───
+       Su Safari iOS le unità "vh" si riferiscono al viewport GRANDE (barre del
+       browser nascoste): un modale centrato alto 90vh sfora l'area realmente
+       visibile e il footer (es. il pulsante "Salva") finisce fuori schermo o
+       dietro la bottom-nav, risultando irraggiungibile. "dvh" = altezza del
+       viewport DINAMICO (cambia quando compaiono/scompaiono le barre), quindi il
+       contenuto sta sempre dentro lo schermo visibile. La doppia dichiarazione
+       (vh poi dvh) è un fallback: i browser che non conoscono dvh ignorano la
+       seconda riga e usano vh. */
+    .vd-modal-mh { max-height: 90vh; max-height: 90dvh; }
+    .vd-sheet-full { height: 100vh; height: 100dvh; }
+    @media (max-width: 1024px) {
+      /* Mobile/tablet: lascia spazio alla bottom-nav (~64px + safe-area) così il
+         footer del modale resta sopra di essa e tappabile, senza sovrapposizioni. */
+      .vd-modal-mh { max-height: calc(100dvh - 76px); }
+    }
   `}</style>
 );
 
@@ -527,13 +543,34 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // team. REPLICA IDENTITY FULL su public.users (migration 20260612) ci
   // garantisce il pre-image in payload.old per fare il confronto.
   useDebouncedTableSubscription(["users"], async (isCurrent) => {
-    const { data, error } = await UsersAPI.listAll();
+    // listAll() legge solo public.users → NON contiene email/phone, che vivono
+    // in public.user_contacts (RLS own+admin). Senza ri-merge, ad ogni refresh
+    // del team (incluso quello iniziale al mount) i contatti dell'utente loggato
+    // verrebbero azzerati nello stato: ProfileEditor li mostrerebbe vuoti dopo
+    // il reload, facendo sembrare che le modifiche a mail/telefono non si
+    // persistano (in realtà sono salvate, ma sovrascritte qui). Li recuperiamo
+    // e li reinnestiamo nella sola entry dell'utente loggato, come fa
+    // AuthContext.loadProfile alla prima idratazione.
+    const [listRes, contactsRes] = await Promise.all([
+      UsersAPI.listAll(),
+      initialCurrentUserId
+        ? UsersAPI.getContacts(initialCurrentUserId)
+        : Promise.resolve({ data: null }),
+    ]);
+    const { data, error } = listRes;
     if (!isCurrent()) return;
     if (error) {
       console.error("[VoyageDesk] Users.listAll", error);
       return;
     }
-    const team = (data || []).map(u => ({ ...u, photoUrl: u.photo_url ?? null }));
+    const myContacts = {
+      email: contactsRes?.data?.email ?? null,
+      phone: contactsRes?.data?.phone ?? null,
+    };
+    const team = (data || []).map(u => {
+      const base = { ...u, photoUrl: u.photo_url ?? null };
+      return u.id === initialCurrentUserId ? { ...base, ...myContacts } : base;
+    });
     rawDispatch({ type: "SET_TEAM", payload: team });
   }, {
     enabled: useSupabase,

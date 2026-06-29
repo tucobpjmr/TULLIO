@@ -41,9 +41,9 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
       position: "fixed", inset: 0, background: "rgba(15,32,68,0.6)",
       display: "flex", alignItems: "center", justifyContent: "center", zIndex: 600,
     }}>
-      <div onClick={e => e.stopPropagation()} style={{
+      <div onClick={e => e.stopPropagation()} className="vd-modal-mh" style={{
         background: "var(--card)", borderRadius: 12, padding: 24,
-        width: "90%", maxWidth: 520,
+        width: "90%", maxWidth: 520, overflowY: "auto",
         boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
       }}>
         <h3 className="playfair" style={{ margin: 0, marginBottom: 16, color: "var(--heading)" }}>

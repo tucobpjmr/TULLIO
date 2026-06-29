@@ -14,4 +14,6 @@ export const btnGhost = { padding: "8px 12px", borderRadius: 6, border: "1px sol
 export const btnDanger = { padding: "8px 12px", borderRadius: 6, border: "1px solid var(--danger)", background: "#fff", color: "var(--danger)", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" };
 export const btnWarning = { padding: "8px 12px", borderRadius: 6, border: "1px solid var(--warning)", background: "#fff", color: "var(--warning)", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" };
 export const modalOverlay = { position: "fixed", inset: 0, background: "rgba(15,32,68,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 600, padding: 16 };
-export const modalCard = { background: "#fff", borderRadius: 12, padding: 24, width: "90%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" };
+// maxHeight in dvh (viewport dinamico): su iOS Safari evita che il modale sfori
+// sotto le barre del browser rendendo i pulsanti in fondo irraggiungibili.
+export const modalCard = { background: "#fff", borderRadius: 12, padding: 24, width: "90%", maxHeight: "90dvh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" };

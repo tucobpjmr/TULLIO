@@ -717,9 +717,9 @@ export const BulkTaskCreator = ({ existingTasks, onCreate, onClose, clients = []
       position: "fixed", inset: 0, background: "rgba(15,32,68,0.55)",
       display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100, padding: 20,
     }}>
-      <div className="slide-up" style={{
+      <div className="slide-up vd-modal-mh" style={{
         background: "var(--card)", borderRadius: 16, width: 820, maxWidth: "100%",
-        maxHeight: "92vh", display: "flex", flexDirection: "column",
+        display: "flex", flexDirection: "column",
         boxShadow: "0 30px 80px rgba(0,0,0,0.25)", border: "1px solid var(--border)", overflow: "hidden",
       }}>
         <div style={{

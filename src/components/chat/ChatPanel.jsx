@@ -1725,7 +1725,7 @@ const ForwardPicker = ({ msg, conversations, messages, onPick, onClose }) => {
       display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
     }}>
       <div onClick={e => e.stopPropagation()} style={{
-        width: "min(420px, 96vw)", maxHeight: "78vh",
+        width: "min(420px, 96vw)", maxHeight: "78dvh",
         background: "var(--card)", borderRadius: 14, overflow: "hidden",
         display: "flex", flexDirection: "column",
         boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
@@ -1942,8 +1942,8 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
       <div onClick={onClose} style={{
         position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: 700,
       }} />
-      <div className="slide-right" style={{
-        position: "fixed", top: 0, right: 0, width: isMobile ? "100vw" : 420, height: "100vh",
+      <div className="slide-right vd-sheet-full" style={{
+        position: "fixed", top: 0, right: 0, width: isMobile ? "100vw" : 420,
         background: "var(--card)", zIndex: 800, boxShadow: "-20px 0 60px rgba(0,0,0,0.2)",
         display: "flex", flexDirection: "column", overflow: "hidden",
       }}>

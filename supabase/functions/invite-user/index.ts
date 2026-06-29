@@ -101,12 +101,25 @@ Deno.serve(async (req: Request) => {
       });
 
     if (inviteErr) {
-      if (inviteErr.message?.includes("already been registered")) {
+      const im = (inviteErr.message ?? "").toLowerCase();
+      if (im.includes("already been registered")) {
         return json({
           error: resend
             ? "L'utente ha già confermato l'account: non è possibile reinviare l'invito"
             : "Questa email è già registrata nel sistema",
         }, 409);
+      }
+      // GoTrue maschera l'errore SMTP sottostante come "Error sending invite
+      // email". Tipicamente: provider email in modalità test (es. Resend invia
+      // solo all'indirizzo del proprietario finché non si verifica un dominio)
+      // oppure SMTP non configurato. Diamo un messaggio azionabile invece di un
+      // 500 generico.
+      if (im.includes("sending invite email") || im.includes("smtp") || im.includes("email")) {
+        return json({
+          error: "Invito non inviato: il servizio email non è configurato o è in modalità test. " +
+            "Verifica un dominio su resend.com/domains (e imposta un mittente su quel dominio) " +
+            "oppure configura un SMTP valido in Supabase → Auth → SMTP.",
+        }, 502);
       }
       throw inviteErr;
     }

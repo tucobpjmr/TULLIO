@@ -77,24 +77,14 @@ export const Team = ({ state, dispatch }) => {
           const tasks = memberTasks(m.id);
           const active = tasks.filter(t => t.status !== "done");
           const done = tasks.filter(t => t.status === "done");
-          const pct = Math.min(100, Math.round((active.length / m.capacity) * 100));
-          const barColor = pct > 85 ? "var(--danger)" : pct > 65 ? "var(--warning)" : "var(--success)";
           const isSelected = selectedMember === m.id;
-          const overloaded = pct > 85;
 
           return (
             <div key={m.id} className="hover-lift" onClick={() => setSelectedMember(isSelected ? null : m.id)} style={{
               background: "var(--card)", borderRadius: 12, padding: "20px 16px",
-              boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: `2px solid ${isSelected ? m.color : overloaded ? "rgba(192,57,43,0.3)" : "var(--border)"}`,
+              boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: `2px solid ${isSelected ? m.color : "var(--border)"}`,
               cursor: "pointer", textAlign: "center", transition: "all 0.2s", position: "relative",
             }}>
-              {overloaded && (
-                <div style={{
-                  position: "absolute", top: 8, right: 8,
-                  fontSize: 11, fontWeight: 700, color: "var(--danger)",
-                  background: "rgba(192,57,43,0.08)", padding: "2px 7px", borderRadius: 99,
-                }} title="Sovraccarico di lavoro">⚠ Sovraccarico</div>
-              )}
               <div style={{
                 width: 56, height: 56, borderRadius: "50%", background: m.color,
                 fontSize: 18, fontWeight: 700, display: "flex", alignItems: "center",
@@ -122,11 +112,8 @@ export const Team = ({ state, dispatch }) => {
                 </div>
               </div>
 
-              <div style={{ height: 5, background: "var(--surface2)", borderRadius: 3, overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${pct}%`, background: barColor, borderRadius: 3 }} />
-              </div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 3, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{active.length}/{m.capacity} task</span>
+              <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 4 }}>
+                {active.length} task attivi
               </div>
             </div>
           );

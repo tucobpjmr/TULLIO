@@ -204,7 +204,7 @@ const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
         }}>
           {filtered.map(t => {
             const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
-            const prio = PRIORITIES[t.priority];
+            const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
             const overdue = isOverdue(t);
             const urgent = isUrgent(t);
             const card = (
@@ -643,7 +643,7 @@ const UnassignedQueue = ({ tasks, dispatch, onTake, uid }) => {
         }}>
           {filtered.map(t => {
             const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
-            const prio = PRIORITIES[t.priority];
+            const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
             const overdue = isOverdue(t);
             const card = (
               <div
@@ -875,7 +875,7 @@ const OverdueQueue = ({ tasks, dispatch }) => {
         }}>
           {visible.map(t => {
             const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
-            const prio = PRIORITIES[t.priority];
+            const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
             const card = (
               <div
                 style={{
@@ -1133,25 +1133,18 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
         <div style={{ background: "var(--card)", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
           <div className="playfair" style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>Carico di Lavoro Team</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {agentWorkload.map(m => {
-              const pct = Math.min(100, Math.round((m.count / m.capacity) * 100));
-              const barColor = pct > 85 ? "var(--danger)" : pct > 65 ? "var(--warning)" : "var(--success)";
-              return (
-                <div key={m.id}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 5 }}>
-                    <Avatar memberId={m.id} size={30} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>{m.name}</div>
-                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{m.role}</div>
-                    </div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: barColor }}>{m.count}/{m.capacity}</div>
-                  </div>
-                  <div style={{ height: 6, background: "var(--surface2)", borderRadius: 3 }}>
-                    <div style={{ height: "100%", width: `${pct}%`, background: barColor, borderRadius: 3, transition: "width 0.6s ease" }} />
-                  </div>
+            {agentWorkload.map(m => (
+              <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <Avatar memberId={m.id} size={30} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>{m.name}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{m.role}</div>
                 </div>
-              );
-            })}
+                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>
+                  {m.count} task
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

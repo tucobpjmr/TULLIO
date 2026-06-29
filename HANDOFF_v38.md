@@ -31,21 +31,18 @@
 | Rimozione completa campo `capacity` | 5 file: `AddTeamMemberModal.jsx`, `BulkInviteModal.jsx`, `AdminView.jsx`, `Team.jsx`, `Dashboard.jsx` |
 | Crash "Cannot read properties of undefined (reading 'bg')" | `src/components/shell/Topbar.jsx` + `Dashboard.jsx` — fallback per category/priority rimossi |
 
-### ⏳ Pendente — SMTP Supabase
+### ✅ SMTP Supabase Configurato
 
-Il dominio `londonviaggi.it` è stato **verificato su Resend** (DNS record aggiunti, status: Verified).  
-**Manca ancora**: configurare l'SMTP custom in Supabase Dashboard:
-
+SMTP custom abilitato in Supabase Dashboard (Auth → SMTP Settings):
 ```
-Auth → SMTP Settings → Enable Custom SMTP
 Sender:  noreply@londonviaggi.it
 Host:    smtp.resend.com
 Port:    465
 Username: resend
 Password: re_... (API key Resend)
 ```
-
-Dopo la config: cliccare **"Test SMTP Settings"** e verificare che l'email arrivi.
+**Test SMTP Settings**: email di verifica inviata e ricevuta ✅  
+Inviti agenti ora funzionano end-to-end verso qualsiasi email.
 
 ### ⏳ Pendente — Test onboarding E2E (R2 roadmap)
 
@@ -89,7 +86,7 @@ Da eseguire dopo SMTP funzionante:
 
 | # | Task | Stato |
 |---|---|---|
-| R1 | SMTP funzionante (Resend + londonviaggi.it) | ⏳ Config Supabase da fare |
+| R1 | SMTP funzionante (Resend + londonviaggi.it) | ✅ Fatto (noreply@londonviaggi.it) |
 | R2 | Test onboarding E2E | ⏳ Dipende da R1 |
 | R3 | PR #82 merge in main | ✅ Fatto (`015ce41c`) |
 

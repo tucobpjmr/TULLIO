@@ -55,7 +55,6 @@ const parseLine = (raw, defaultRoleLabel) => {
 export const BulkInviteModal = ({ onClose, onInvited }) => {
   const [text, setText] = useState("");
   const [defaultRole, setDefaultRole] = useState("Junior Agent");
-  const [capacity, setCapacity] = useState(8);
   const [color, setColor] = useState("#3B82F6");
   const [busy, setBusy] = useState(false);
   // results: per ogni email tentata, { email, status: 'ok'|'err', message?: '...' }
@@ -95,7 +94,6 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
         email: p.email,
         name: p.name,
         role: ROLE_TO_DB[p.roleLabel] || "agent",
-        capacity,
         color,
       });
       out.push(error
@@ -139,7 +137,7 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
             />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 80px", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 80px", gap: 10 }}>
             <div>
               <label style={labelStyle}>Ruolo default</label>
               <select value={defaultRole} onChange={e => setDefaultRole(e.target.value)} disabled={busy} style={fieldStyle}>
@@ -149,11 +147,6 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
                 <option>Driver</option>
                 <option>Admin</option>
               </select>
-            </div>
-            <div>
-              <label style={labelStyle}>Capacità</label>
-              <input type="number" min="1" max="50" value={capacity} disabled={busy}
-                onChange={e => setCapacity(parseInt(e.target.value) || 8)} style={fieldStyle} />
             </div>
             <div>
               <label style={labelStyle}>Colore</label>

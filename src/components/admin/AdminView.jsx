@@ -173,14 +173,11 @@ const AdminTeamTab = ({ state, dispatch }) => {
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           {isEditing ? (
-            <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 80px 100px", gap: 8 }}>
+            <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 100px", gap: 8 }}>
               <input value={draft.name} onChange={e => setDraft({...draft, name: e.target.value})}
                 placeholder="Nome" style={fieldStyle} />
               <input value={draft.role} onChange={e => setDraft({...draft, role: e.target.value})}
                 placeholder="Ruolo" style={fieldStyle} />
-              <input type="number" min="1" max="50" value={draft.capacity}
-                onChange={e => setDraft({...draft, capacity: parseInt(e.target.value) || 1})}
-                placeholder="Cap" style={fieldStyle} />
               <input type="color" value={draft.color} onChange={e => setDraft({...draft, color: e.target.value})}
                 style={{ ...fieldStyle, padding: 2, height: 32 }} />
             </div>
@@ -188,7 +185,7 @@ const AdminTeamTab = ({ state, dispatch }) => {
             <>
               <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text)" }}>{m.name}</div>
               <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
-                {m.role} • Capacità {m.capacity} task • {count} task assegnati
+                {m.role} • {count} task assegnati
                 {seenLabel && <span> • ultimo accesso {seenLabel}</span>}
               </div>
             </>
@@ -449,7 +446,7 @@ const AdminStatsTab = ({ state, dispatch }) => {
 
   const byMember = state.team.filter(m => !m.pending).map(m => {
     const count = active.filter(t => (t.assignees || []).includes(m.id) && t.status !== "done").length;
-    return { m, count, pct: m.capacity ? Math.min(100, Math.round((count / m.capacity) * 100)) : 0 };
+    return { m, count };
   });
 
   const kpiCard = (label, value, sub, color) => (
@@ -493,23 +490,16 @@ const AdminStatsTab = ({ state, dispatch }) => {
       <div style={cardStyle}>
         <h3 style={cardH}>👥 Carico di lavoro per agente</h3>
         <div style={{ display: "grid", gap: 10 }}>
-          {byMember.map(({ m, count, pct }) => (
+          {byMember.map(({ m, count }) => (
             <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{
                 width: 32, height: 32, borderRadius: "50%", background: m.color,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 color: "#fff", fontWeight: 700, fontSize: 11, flexShrink: 0,
               }}>{m.avatar}</div>
-              <div style={{ width: 160, fontSize: 13 }}>{m.name}</div>
-              <div style={{ flex: 1, height: 18, background: "var(--surface2)", borderRadius: 9, overflow: "hidden" }}>
-                <div style={{
-                  width: `${pct}%`, height: "100%",
-                  background: pct > 90 ? "var(--danger)" : pct > 70 ? "var(--warning)" : "var(--success)",
-                  transition: "width 0.3s",
-                }} />
-              </div>
-              <div style={{ width: 100, textAlign: "right", fontSize: 12, color: "var(--text-muted)" }}>
-                {count}/{m.capacity} • <b style={{ color: "var(--text)" }}>{pct}%</b>
+              <div style={{ flex: 1, fontSize: 13 }}>{m.name}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>
+                {count} task attivi
               </div>
             </div>
           ))}

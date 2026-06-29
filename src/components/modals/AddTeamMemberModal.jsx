@@ -23,7 +23,6 @@ export const AddTeamMemberModal = ({ onClose, dispatch, existingIds, onInvited }
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("Junior Agent");
-  const [capacity, setCapacity] = useState(8);
   const [color, setColor] = useState("#3B82F6");
   const [pending, setPending] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -41,7 +40,6 @@ export const AddTeamMemberModal = ({ onClose, dispatch, existingIds, onInvited }
         email: trimmedEmail,
         name: name.trim(),
         role: ROLE_TO_DB[role] || "agent",
-        capacity,
         color,
       });
       setBusy(false);
@@ -64,7 +62,7 @@ export const AddTeamMemberModal = ({ onClose, dispatch, existingIds, onInvited }
     if (suffix) id = `${id}${suffix}`;
     dispatch({
       type: "ADD_TEAM_MEMBER",
-      payload: { id, name: name.trim(), role, avatar, color, capacity, active: !pending, pending }
+      payload: { id, name: name.trim(), role, avatar, color, capacity: 999, active: !pending, pending }
     });
     onClose();
   };
@@ -95,16 +93,9 @@ export const AddTeamMemberModal = ({ onClose, dispatch, existingIds, onInvited }
               <option>Admin</option>
             </select>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div>
-              <label style={labelStyle}>Capacità task</label>
-              <input type="number" min="1" max="50" value={capacity}
-                onChange={e => setCapacity(parseInt(e.target.value) || 8)} style={fieldStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>Colore</label>
-              <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{...fieldStyle, height: 38, padding: 2}} />
-            </div>
+          <div>
+            <label style={labelStyle}>Colore</label>
+            <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{...fieldStyle, height: 38, padding: 2}} />
           </div>
           {!email.trim() && (
             <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text)", cursor: "pointer", marginTop: 4 }}>

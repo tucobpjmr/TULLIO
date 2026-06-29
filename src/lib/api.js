@@ -74,11 +74,16 @@ export const Users = {
       status, last_seen_at: new Date().toISOString(),
     })).eq('id', id),
   // ----------------- CONTATTI PII (user_contacts) -----------------
-  // email/phone sono in public.user_contacts (RLS: solo l'utente stesso o un
-  // admin). Vedi migrazione 20260613100833_user_contacts_table.sql.
+  // email/phone sono in public.user_contacts. RLS: SELECT consentito a tutti gli
+  // utenti autenticati (rubrica interna del team — vedi migrazione
+  // 20260629_user_contacts_select_team.sql); INSERT/UPDATE restano own+admin.
   // user_contacts non è in realtime e non ha origin_client → niente withOrigin.
   getContacts: (id) =>
     supabase.from('user_contacts').select('email, phone').eq('user_id', id).maybeSingle(),
+  // Rubrica completa: tutte le righe contatti (per Team view e pannello Admin).
+  // RLS lato server filtra ciò che non è leggibile; con la policy "team" vede tutti.
+  listContacts: () =>
+    supabase.from('user_contacts').select('user_id, email, phone'),
   updateContact: (id, { email, phone } = {}) =>
     supabase.from('user_contacts')
       .upsert({ user_id: id, email: email ?? null, phone: phone ?? null }, { onConflict: 'user_id' })

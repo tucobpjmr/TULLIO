@@ -1,7 +1,8 @@
 // ─── TEAM ────────────────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useViewport } from "../Viewport.jsx";
+import { Users as UsersAPI } from "../../lib/api.js";
 import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { StatusBadge } from "../ui/StatusBadge.jsx";
@@ -17,7 +18,20 @@ export const Team = ({ state, dispatch }) => {
   const [selectedMember, setSelectedMember] = useState(null);
   const [filterStatus, setFilterStatus] = useState("");
   const [roleFilter, setRoleFilter] = useState("Tutti"); // v2.8 Round 7
+  // Rubrica interna: i contatti (email/telefono) del membro selezionato vengono
+  // caricati on-demand da user_contacts (RLS: leggibili da ogni utente attivo).
+  const [memberContacts, setMemberContacts] = useState(null);
   const uid = state.currentUserId;
+
+  useEffect(() => {
+    if (!selectedMember) { setMemberContacts(null); return; }
+    let alive = true;
+    setMemberContacts(null);
+    UsersAPI.getContacts(selectedMember).then(({ data }) => {
+      if (alive) setMemberContacts(data || {});
+    });
+    return () => { alive = false; };
+  }, [selectedMember]);
 
   const memberTasks = (memberId) =>
     state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.assignees?.includes(memberId));
@@ -166,6 +180,28 @@ export const Team = ({ state, dispatch }) => {
                 {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
               </select>
             </div>
+
+            {/* Contatti del membro (rubrica interna) */}
+            {memberContacts && (memberContacts.email || memberContacts.phone) && (
+              <div style={{
+                display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 16,
+                padding: "10px 14px", borderRadius: 8, background: "var(--surface2)",
+                fontSize: 13,
+              }}>
+                {memberContacts.email && (
+                  <a href={`mailto:${memberContacts.email}`} style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    color: "var(--navy)", textDecoration: "none", fontWeight: 500,
+                  }}>✉️ {memberContacts.email}</a>
+                )}
+                {memberContacts.phone && (
+                  <a href={`tel:${memberContacts.phone.replace(/\s+/g, "")}`} style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    color: "var(--navy)", textDecoration: "none", fontWeight: 500,
+                  }}>📞 {memberContacts.phone}</a>
+                )}
+              </div>
+            )}
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {filtered.length === 0 ? (
                 <div style={{ textAlign: "center", padding: 30, color: "var(--text-muted)", fontSize: 14 }}>

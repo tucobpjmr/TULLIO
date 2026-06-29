@@ -1,7 +1,7 @@
 // ─── ADMIN VIEW ──────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f). AdminView + i 5 tab (Team/IO/Stats/
 // Categories/Log, module-local). Esporta solo AdminView.
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { STATUSES, STATUS_LABELS, STATUS_COLORS } from "../../lib/taskConstants.js";
 import { isOverdue } from "../../lib/taskUtils.js";
 import { loadXLSX } from "../../lib/xlsx.js";
@@ -101,6 +101,20 @@ const AdminTeamTab = ({ state, dispatch }) => {
   const [showBulk, setShowBulk] = useState(false);
   // resendMap: { [memberId]: 'loading' | 'ok' | 'err' | string(errMsg) }
   const [resendMap, setResendMap] = useState({});
+  // Rubrica contatti: { [userId]: { email, phone } }. Caricata una volta sola;
+  // l'admin ha accesso RLS a tutte le righe di user_contacts.
+  const [contactsMap, setContactsMap] = useState({});
+
+  useEffect(() => {
+    let alive = true;
+    Users.listContacts().then(({ data }) => {
+      if (!alive || !data) return;
+      const map = {};
+      for (const c of data) map[c.user_id] = { email: c.email, phone: c.phone };
+      setContactsMap(map);
+    });
+    return () => { alive = false; };
+  }, []);
 
   const resendInvite = async (m) => {
     setResendMap(prev => ({ ...prev, [m.id]: 'loading' }));
@@ -188,6 +202,20 @@ const AdminTeamTab = ({ state, dispatch }) => {
                 {m.role} • {count} task assegnati
                 {seenLabel && <span> • ultimo accesso {seenLabel}</span>}
               </div>
+              {(() => {
+                const c = contactsMap[m.id];
+                if (!c || (!c.email && !c.phone)) return null;
+                return (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 4, fontSize: 12 }}>
+                    {c.email && (
+                      <a href={`mailto:${c.email}`} style={{ color: "var(--navy)", textDecoration: "none" }}>✉️ {c.email}</a>
+                    )}
+                    {c.phone && (
+                      <a href={`tel:${c.phone.replace(/\s+/g, "")}`} style={{ color: "var(--navy)", textDecoration: "none" }}>📞 {c.phone}</a>
+                    )}
+                  </div>
+                );
+              })()}
             </>
           )}
         </div>

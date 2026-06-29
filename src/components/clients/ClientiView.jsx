@@ -40,9 +40,9 @@ function ClienteModal({ cliente, onSave, onClose }) {
       position: "fixed", inset: 0, zIndex: 600,
       background: "rgba(8,21,45,0.45)", display: "flex", alignItems: "center", justifyContent: "center",
     }} onClick={onClose}>
-      <div style={{
+      <div className="vd-modal-mh" style={{
         background: "var(--card)", borderRadius: 14, padding: 28, width: "min(540px, 96vw)",
-        maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+        overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
         animation: "slideUp 0.25s ease",
       }} onClick={e => e.stopPropagation()}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>

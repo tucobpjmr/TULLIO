@@ -103,7 +103,12 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
         top: isMobile ? 64 : "calc(100% + 8px)",
         left: isMobile ? 8 : 0,
         right: isMobile ? 8 : "auto",
-        width: isMobile ? "auto" : 680, maxHeight: "calc(100vh - 80px)", overflow: "hidden",
+        width: isMobile ? "auto" : 680,
+        // iOS Safari: dvh = viewport visibile. Su mobile il pannello parte a
+        // top:64 e ha zIndex sotto la bottom-nav → riservo ~140px (offset top +
+        // nav) così l'ultimo risultato non finisce nascosto sotto la nav.
+        maxHeight: isMobile ? "calc(100dvh - 140px)" : "calc(100dvh - 80px)",
+        overflow: "hidden",
         background: "var(--surface)", borderRadius: 12,
         boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
         border: "1px solid var(--border)",

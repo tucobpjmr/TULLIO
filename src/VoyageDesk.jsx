@@ -167,6 +167,22 @@ const FontLoader = () => (
       }
       .vd-main-scroll { padding-bottom: 70px !important; }
     }
+    /* ─── MODALI / SCHEDE: viewport dinamico (fix iOS Safari) ───
+       Su Safari iOS le unità "vh" si riferiscono al viewport GRANDE (barre del
+       browser nascoste): un modale centrato alto 90vh sfora l'area realmente
+       visibile e il footer (es. il pulsante "Salva") finisce fuori schermo o
+       dietro la bottom-nav, risultando irraggiungibile. "dvh" = altezza del
+       viewport DINAMICO (cambia quando compaiono/scompaiono le barre), quindi il
+       contenuto sta sempre dentro lo schermo visibile. La doppia dichiarazione
+       (vh poi dvh) è un fallback: i browser che non conoscono dvh ignorano la
+       seconda riga e usano vh. */
+    .vd-modal-mh { max-height: 90vh; max-height: 90dvh; }
+    .vd-sheet-full { height: 100vh; height: 100dvh; }
+    @media (max-width: 1024px) {
+      /* Mobile/tablet: lascia spazio alla bottom-nav (~64px + safe-area) così il
+         footer del modale resta sopra di essa e tappabile, senza sovrapposizioni. */
+      .vd-modal-mh { max-height: calc(100dvh - 76px); }
+    }
   `}</style>
 );
 

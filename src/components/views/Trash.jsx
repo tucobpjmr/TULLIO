@@ -227,11 +227,11 @@ export const Trash = ({ state, dispatch }) => {
           <div onClick={() => setRestoring(null)} style={{
             position: "fixed", inset: 0, background: "rgba(15,32,68,0.4)", zIndex: 1000,
           }} />
-          <div style={{
+          <div className="vd-modal-mh" style={{
             position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
             background: "var(--card)", borderRadius: 16, zIndex: 1001,
             width: isMobile ? "calc(100vw - 32px)" : 520, maxWidth: "100%",
-            maxHeight: "90vh", overflowY: "auto",
+            overflowY: "auto",
             boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
             display: "flex", flexDirection: "column",
           }}>

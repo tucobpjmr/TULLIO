@@ -204,7 +204,7 @@ const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
         }}>
           {filtered.map(t => {
             const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
-            const prio = PRIORITIES[t.priority];
+            const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
             const overdue = isOverdue(t);
             const urgent = isUrgent(t);
             const card = (
@@ -643,7 +643,7 @@ const UnassignedQueue = ({ tasks, dispatch, onTake, uid }) => {
         }}>
           {filtered.map(t => {
             const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
-            const prio = PRIORITIES[t.priority];
+            const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
             const overdue = isOverdue(t);
             const card = (
               <div
@@ -875,7 +875,7 @@ const OverdueQueue = ({ tasks, dispatch }) => {
         }}>
           {visible.map(t => {
             const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
-            const prio = PRIORITIES[t.priority];
+            const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
             const card = (
               <div
                 style={{

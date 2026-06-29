@@ -225,8 +225,8 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
               {results.length} {results.length === 1 ? "risultato" : "risultati"}
             </div>
             {results.map(t => {
-              const cat = CATEGORIES[t.category];
-              const prio = PRIORITIES[t.priority];
+              const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
+              const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
               const overdue = isOverdue(t);
               return (
                 <div

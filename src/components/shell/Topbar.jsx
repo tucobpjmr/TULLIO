@@ -11,6 +11,7 @@ import { formatDate, isOverdue } from "../../lib/taskUtils.js";
 import { MOCK_NOTIFICATIONS } from "../../state/mockData.js";
 import { TEAM, CATEGORIES, getMember, isJuniorAgent } from "../../state/appGlobals.js";
 import { ProfileEditor } from "../modals/ProfileEditor.jsx";
+import { SwipeActions } from "../SwipeActions.jsx";
 
 const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword }) => {
   const { isMobile } = useViewport();
@@ -133,7 +134,11 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
         </div>
       </div>
 
-      <div style={{ padding: "16px 18px", borderBottom: "1px solid var(--border)", overflowY: "auto", maxHeight: 380 }}>
+      {/* Scroll unico: filtri + risultati scorrono insieme. Prima erano due aree
+          di scroll annidate con altezze fisse (380 + 320 px) → su mobile lo
+          scroll era a scatti e poco agevole. Ora un solo contenitore scrollabile. */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", background: "var(--surface)" }}>
+      <div style={{ padding: "16px 18px", borderBottom: "1px solid var(--border)" }}>
         <div style={{ marginBottom: 14 }}>
           <div style={sectionTitle}>Scadenza</div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -208,7 +213,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
         </label>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", background: "#fff", maxHeight: 320 }}>
+      <div style={{ background: "#fff" }}>
 
         {hasFilters && results.length === 0 && (
           <div style={{ padding: "32px 20px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
@@ -229,17 +234,17 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
               const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
               const overdue = isOverdue(t);
               return (
+                <SwipeActions key={t.id} task={t} dispatch={dispatch} disabled={!!t.deletedAt}>
                 <div
-                  key={t.id}
                   onClick={() => openTask(t)}
                   style={{
                     padding: "10px 18px", borderBottom: "1px solid var(--border)",
                     cursor: "pointer", display: "flex", alignItems: "center", gap: 12,
-                    transition: "background 0.15s",
+                    transition: "background 0.15s", background: "#fff",
                     opacity: t.deletedAt ? 0.6 : 1,
                   }}
                   onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                  onMouseLeave={e => e.currentTarget.style.background = "#fff"}
                 >
                   <div style={{
                     width: 28, height: 28, borderRadius: 6,
@@ -280,10 +285,12 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
                     ))}
                   </div>
                 </div>
+                </SwipeActions>
               );
             })}
           </>
         )}
+      </div>
       </div>
     </div>
   );

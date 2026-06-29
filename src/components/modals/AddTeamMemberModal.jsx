@@ -114,7 +114,7 @@ export const AddTeamMemberModal = ({ onClose, dispatch, existingIds, onInvited }
           )}
           {err && (
             <div style={{ fontSize: 12.5, color: "var(--danger)", background: "rgba(192,57,43,0.08)", border: "1px solid var(--danger)", borderRadius: 8, padding: "8px 10px" }}>
-              {err}
+              {typeof err === "string" ? err : (err?.message || "Errore imprevisto.")}
             </div>
           )}
         </div>

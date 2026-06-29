@@ -9,6 +9,17 @@ import { getClientId } from './clientId';
 // questo tag per scartare gli eventi che hanno generato loro stessi.
 const withOrigin = (payload) => ({ ...payload, origin_client: getClientId() });
 
+// Normalizza un errore (stringa, oggetto Error, oggetto serializzato) in un
+// testo sempre mostrabile. Evita il bug per cui un Error serializzato via
+// JSON.stringify diventa "{}" (message/stack sono proprietà non enumerabili)
+// e finiva renderizzato così nelle modali. Restituisce sempre una stringa
+// non vuota: il messaggio se disponibile, altrimenti il fallback.
+const errText = (v, fallback = 'Operazione non riuscita.') => {
+  if (typeof v === 'string' && v.trim()) return v;
+  if (v && typeof v === 'object' && typeof v.message === 'string' && v.message.trim()) return v.message;
+  return fallback;
+};
+
 // ----------------- USERS / TEAM -----------------
 export const Users = {
   list: () =>
@@ -47,14 +58,14 @@ export const Users = {
       body: { email, name, role, capacity, color, resend, redirectTo: window.location.origin },
     });
     if (error) {
-      let msg = error.message;
+      let msg = errText(error.message, 'Invito non riuscito.');
       try {
         const body = await error.context?.json?.();
-        if (body?.error) msg = body.error;
+        if (body?.error) msg = errText(body.error, msg);
       } catch { /* body non-JSON: usa error.message */ }
       return { data: null, error: { message: msg } };
     }
-    if (data?.error) return { data: null, error: { message: data.error } };
+    if (data?.error) return { data: null, error: { message: errText(data.error, 'Invito non riuscito.') } };
     return { data, error: null };
   },
   // Step H: presence
@@ -87,14 +98,14 @@ export const Users = {
   deleteAccount: async () => {
     const { data, error } = await supabase.functions.invoke('delete-account', { body: {} });
     if (error) {
-      let msg = error.message;
+      let msg = errText(error.message, 'Eliminazione non riuscita.');
       try {
         const body = await error.context?.json?.();
-        if (body?.error) msg = body.error;
+        if (body?.error) msg = errText(body.error, msg);
       } catch { /* non-JSON */ }
       return { data: null, error: { message: msg } };
     }
-    if (data?.error) return { data: null, error: { message: data.error } };
+    if (data?.error) return { data: null, error: { message: errText(data.error, 'Eliminazione non riuscita.') } };
     return { data, error: null };
   },
   // Eliminazione DEFINITIVA di un utente da parte di un admin (Block 3).
@@ -105,14 +116,14 @@ export const Users = {
   deleteUser: async (userId) => {
     const { data, error } = await supabase.functions.invoke('delete-user', { body: { userId } });
     if (error) {
-      let msg = error.message;
+      let msg = errText(error.message, 'Eliminazione non riuscita.');
       try {
         const body = await error.context?.json?.();
-        if (body?.error) msg = body.error;
+        if (body?.error) msg = errText(body.error, msg);
       } catch { /* non-JSON */ }
       return { data: null, error: { message: msg } };
     }
-    if (data?.error) return { data: null, error: { message: data.error } };
+    if (data?.error) return { data: null, error: { message: errText(data.error, 'Eliminazione non riuscita.') } };
     return { data, error: null };
   },
 };

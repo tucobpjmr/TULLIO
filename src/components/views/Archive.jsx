@@ -17,8 +17,10 @@ export const Archive = ({ state, dispatch }) => {
   const [category, setCategory] = useState("all");
 
   // Solo le task completate che l'utente può vedere (rispetta i permessi).
+  // Ordinate per data di completamento (completedAt) decrescente; fallback su
+  // dueDate per task completate prima dell'introduzione di completed_at.
   const archived = getVisibleTasks(getArchivedTasks(state.tasks), me)
-    .sort((a, b) => new Date(b.dueDate || 0) - new Date(a.dueDate || 0));
+    .sort((a, b) => new Date(b.completedAt || b.dueDate || 0) - new Date(a.completedAt || a.dueDate || 0));
 
   const visible = archived.filter(t => {
     if (category !== "all" && t.category !== category) return false;
@@ -136,7 +138,7 @@ export const Archive = ({ state, dispatch }) => {
                 <th style={thStyle("left")}>CATEGORIA</th>
                 <th style={thStyle("left")}>CLIENTE</th>
                 <th style={thStyle("left")}>ASSEGNATI</th>
-                <th style={thStyle("left")}>SCADENZA</th>
+                <th style={thStyle("left")}>COMPLETATA</th>
                 <th style={thStyle("right", "16px")}>AZIONI</th>
               </tr>
             </thead>
@@ -169,7 +171,7 @@ export const Archive = ({ state, dispatch }) => {
                     </div>
                   </td>
                   <td style={{ padding: "12px 8px", color: "var(--text-muted)", fontSize: 12 }}>
-                    {task.dueDate ? formatDate(task.dueDate) : "—"}
+                    {task.completedAt ? formatDate(task.completedAt) : "—"}
                   </td>
                   <td style={{ padding: "12px 16px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
                     <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>

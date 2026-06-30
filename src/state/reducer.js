@@ -63,6 +63,16 @@ const buildLogEntry = (action, state) => {
   return { id: `log-${stamp}-${Math.random().toString(36).slice(2,7)}`, time: stamp, type: t, text: (map[t] || (() => t))() };
 };
 
+// Mantiene completedAt coerente lato app (UI ottimistica + modalità mock).
+// Sul DB la fonte di verità è il trigger set_task_completed_at; qui replichiamo
+// la stessa regola per non mostrare uno stato stantio prima del reload realtime.
+// Ritorna un patch ({ completedAt } o {}) da spalmare sulla task aggiornata.
+const completedAtPatch = (prevStatus, nextStatus) => {
+  if (nextStatus === undefined || nextStatus === prevStatus) return {};
+  if (nextStatus === "done") return { completedAt: new Date().toISOString() };
+  return { completedAt: null };
+};
+
 function baseReducer(state, action) {
   const uid = state.currentUserId;
   const _denied = (msg = "Non hai i permessi per questa azione") =>
@@ -128,7 +138,9 @@ function baseReducer(state, action) {
       if (!canEditTask(prev, uid)) return _denied();
       const prevStatus = prev?.status;
       const tasks = state.tasks.map(t =>
-        t.id === action.payload.taskId ? { ...t, status: action.payload.newStatus } : t
+        t.id === action.payload.taskId
+          ? { ...t, status: action.payload.newStatus, ...completedAtPatch(t.status, action.payload.newStatus) }
+          : t
       );
       const toast = action.swipe
         ? { message: `✓ Spostato in "${STATUS_LABELS[action.payload.newStatus]}"`, type: "success", undoable: true }
@@ -155,9 +167,12 @@ function baseReducer(state, action) {
       const prev = state.tasks.find(t => t.id === action.payload.id);
       if (!prev) return state;
       if (!canEditTask(prev, uid)) return _denied();
-      const tasks = state.tasks.map(t => t.id === action.payload.id ? { ...t, ...action.payload } : t);
+      const statusPatch = "status" in action.payload
+        ? completedAtPatch(prev.status, action.payload.status)
+        : {};
+      const tasks = state.tasks.map(t => t.id === action.payload.id ? { ...t, ...action.payload, ...statusPatch } : t);
       const selectedTask = state.selectedTask?.id === action.payload.id
-        ? { ...state.selectedTask, ...action.payload }
+        ? { ...state.selectedTask, ...action.payload, ...statusPatch }
         : state.selectedTask;
       const toast = action.swipe
         ? { message: action.toastMessage || "Task aggiornato!", type: "success", undoable: true }

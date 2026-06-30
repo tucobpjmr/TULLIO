@@ -302,7 +302,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
 };
 
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
-export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMarkRead, onMarkAllRead, onOpenTask }) => {
+export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMarkRead, onMarkAllRead, onRemoveNotification, onClearAllNotifications, onOpenTask }) => {
   const { isMobile } = useViewport();
   // Fix #11: notifiche mock gate-ate dietro env var (default off in prod)
   const SHOW_MOCK_NOTIFS = import.meta.env.DEV && import.meta.env.VITE_SHOW_MOCK_NOTIFICATIONS === 'true';
@@ -411,6 +411,8 @@ export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMa
           isReal={!SHOW_MOCK_NOTIFS}
           onMarkRead={onMarkRead}
           onMarkAllRead={onMarkAllRead}
+          onRemoveNotification={onRemoveNotification}
+          onClearAllNotifications={onClearAllNotifications}
           onOpenTask={onOpenTask}
         />}
       </div>
@@ -658,7 +660,7 @@ function notifTime(n) {
 // computePresence + PRESENCE_COLORS (usati solo dalla chat) → src/components/chat/ChatPanel.jsx (Step P Phase 2f)
 
 
-const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMarkAllRead, onOpenTask }) => {
+const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMarkAllRead, onRemoveNotification, onClearAllNotifications, onOpenTask }) => {
   const { isMobile } = useViewport();
   const [filter, setFilter] = useState("all"); // all | unread | task | mention
   const list = Array.isArray(notifications) ? notifications : MOCK_NOTIFICATIONS;
@@ -726,6 +728,21 @@ const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMar
               padding: "4px 8px", cursor: "pointer", fontSize: 11, color: "var(--text-muted)",
             }}>Segna tutte lette</button>
           )}
+          {isReal && list.length > 0 && (
+            <button
+              onClick={() => {
+                if (window.confirm(`Cancellare tutte le notifiche?\n\n${list.length} ${list.length === 1 ? "notifica verrà eliminata" : "notifiche verranno eliminate"}. Azione irreversibile.`)) {
+                  onClearAllNotifications?.();
+                }
+              }}
+              title="Cancella tutte le notifiche"
+              aria-label="Cancella tutte le notifiche"
+              style={{
+                background: "transparent", border: "1px solid var(--border)", borderRadius: 6,
+                padding: "4px 8px", cursor: "pointer", fontSize: 13, color: "var(--text-muted)",
+              }}
+            >🗑️</button>
+          )}
           <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
         </div>
       </div>
@@ -765,7 +782,22 @@ const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMar
               <div style={{ fontSize: 13, fontWeight: n.read ? 400 : 600 }}>{notifTitle(n)}</div>
               <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{notifTime(n)}</div>
             </div>
-            {!n.read && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--gold)", flexShrink: 0, marginTop: 4 }} />}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, marginTop: 2 }}>
+              {!n.read && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--gold)" }} />}
+              {isReal && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onRemoveNotification?.(n.id); }}
+                  title="Elimina notifica"
+                  aria-label="Elimina notifica"
+                  style={{
+                    background: "none", border: "none", cursor: "pointer", padding: 2,
+                    fontSize: 13, lineHeight: 1, color: "var(--text-muted)", opacity: 0.6,
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.opacity = 1; }}
+                  onMouseLeave={e => { e.currentTarget.style.opacity = 0.6; }}
+                >✕</button>
+              )}
+            </div>
           </div>
         ))}
       </div>

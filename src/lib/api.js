@@ -20,6 +20,14 @@ const errText = (v, fallback = 'Operazione non riuscita.') => {
   return fallback;
 };
 
+// Messaggio mostrato quando la sessione lato server non esiste più (tipicamente
+// dopo un logout avvenuto altrove). Le Edge Function (verify_jwt + getUser)
+// rispondono "Token non valido"/"Non autorizzato": un access-token JWT può
+// essere ancora formalmente valido mentre la sessione è già stata revocata.
+const SESSION_EXPIRED_MSG = 'Sessione scaduta. Esci e accedi di nuovo, poi riprova.';
+const isExpiredSessionError = (msg) =>
+  typeof msg === 'string' && /token non valido|session.?not.?found|non autorizzato/i.test(msg);
+
 // ----------------- USERS / TEAM -----------------
 export const Users = {
   list: () =>
@@ -54,19 +62,33 @@ export const Users = {
   // in quel caso supabase-js mette il messaggio in error.context (lo
   // normalizziamo qui per esporre il testo localizzato al chiamante).
   invite: async ({ email, name, role = 'agent', capacity = 8, color = '#3B82F6', resend = false } = {}) => {
-    const { data, error } = await supabase.functions.invoke('invite-user', {
-      body: { email, name, role, capacity, color, resend, redirectTo: window.location.origin },
-    });
-    if (error) {
-      let msg = errText(error.message, 'Invito non riuscito.');
-      try {
-        const body = await error.context?.json?.();
-        if (body?.error) msg = errText(body.error, msg);
-      } catch { /* body non-JSON: usa error.message */ }
-      return { data: null, error: { message: msg } };
+    const body = { email, name, role, capacity, color, resend, redirectTo: window.location.origin };
+    const run = async () => {
+      const { data, error } = await supabase.functions.invoke('invite-user', { body });
+      if (error) {
+        let msg = errText(error.message, 'Invito non riuscito.');
+        try {
+          const b = await error.context?.json?.();
+          if (b?.error) msg = errText(b.error, msg);
+        } catch { /* body non-JSON: usa error.message */ }
+        return { data: null, error: { message: msg } };
+      }
+      if (data?.error) return { data: null, error: { message: errText(data.error, 'Invito non riuscito.') } };
+      return { data, error: null };
+    };
+    let res = await run();
+    // "Token non valido" = la sessione lato server non esiste più (es. logout
+    // avvenuto in un'altra scheda/dispositivo). Provo a rinfrescare la sessione
+    // e riprovo una volta; se non recupero, restituisco un messaggio chiaro
+    // invece di quello criptico della Edge Function.
+    if (res.error && isExpiredSessionError(res.error.message)) {
+      const { data: refreshed } = await supabase.auth.refreshSession();
+      if (refreshed?.session) res = await run();
+      if (res.error && isExpiredSessionError(res.error.message)) {
+        return { data: null, error: { message: SESSION_EXPIRED_MSG } };
+      }
     }
-    if (data?.error) return { data: null, error: { message: errText(data.error, 'Invito non riuscito.') } };
-    return { data, error: null };
+    return res;
   },
   // Step H: presence
   setPresence: (id, status) =>

@@ -96,7 +96,13 @@ export function AuthProvider({ children }) {
       options: { data: { name } },
     });
 
-  const signOut = () => supabase.auth.signOut();
+  // scope:'local' → esce SOLO dalla scheda/dispositivo corrente. Senza scope,
+  // supabase-js usa di default 'global' e revoca TUTTE le sessioni dell'utente
+  // su ogni scheda e dispositivo: un logout in un punto invalidava lato server
+  // anche le altre schede ancora aperte, che restavano con una sessione "morta"
+  // in memoria → la successiva azione privilegiata (es. invito via Edge
+  // Function) falliva con "Token non valido" (session_not_found).
+  const signOut = () => supabase.auth.signOut({ scope: 'local' });
 
   // Invia l'email con il link per reimpostare la password. redirectTo riporta
   // l'utente sull'app, dove detectSessionInUrl genera l'evento PASSWORD_RECOVERY.

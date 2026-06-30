@@ -8,6 +8,7 @@ import {
   Conversations as ConversationsAPI, Messages as MessagesAPI,
   Notifications as NotificationsAPI, Users as UsersAPI,
   Clients as ClientsAPI,
+  Categories as CategoriesAPI,
   subscribeToTable,
 } from "./lib/api.js";
 import {
@@ -17,6 +18,7 @@ import {
   toDbMessage, fromDbMessage,
   fromDbNotification,
   fromDbClient, toDbClient,
+  fromDbCategory, toDbCategory,
   newId, isUuid,
 } from "./lib/mappers.js";
 // Step O: logout UI — signOut vive in AuthContext, qui viene solo cablato.
@@ -519,6 +521,26 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     rawDispatch({ type: "SET_NOTICES", payload: (data || []).map(fromDbNotice) });
   }, { enabled: useSupabase, deps: [useSupabase] });
 
+  // Idratazione + realtime categorie task (Admin → Categorie). Prima di questa
+  // sub, ADD_CATEGORY/UPDATE_CATEGORY/REMOVE_CATEGORY toccavano solo lo stato
+  // React in memoria: una categoria creata spariva al primo reload perché non
+  // veniva mai scritta su Supabase (vedi migration 20260630_categories_table).
+  useDebouncedTableSubscription(["categories"], async (isCurrent) => {
+    const { data, error } = await CategoriesAPI.list();
+    if (!isCurrent()) return;
+    if (error) {
+      console.error("[VoyageDesk] Categories.list", error);
+      rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Caricamento categorie fallito: ${error.message || ""}` } });
+      return;
+    }
+    const categories = {};
+    for (const row of data || []) {
+      const c = fromDbCategory(row);
+      categories[c.key] = { label: c.label, icon: c.icon, color: c.color, bg: c.bg };
+    }
+    rawDispatch({ type: "SET_CATEGORIES", payload: categories });
+  }, { enabled: useSupabase, deps: [useSupabase] });
+
   // Loading state chat: true finché non completa il primo reload da Supabase.
   // Evita il flash "nessun messaggio" mentre l'idratazione è in volo.
   const [chatLoading, setChatLoading] = useState(useSupabase);
@@ -726,6 +748,18 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         break;
       case "DELETE_CLIENT":
         dbOps = () => ClientsAPI.remove(action.payload);
+        break;
+      // ─── ADMIN: CATEGORIES sync ───
+      case "ADD_CATEGORY":
+        dbOps = () => CategoriesAPI.create(toDbCategory(action.payload));
+        break;
+      case "UPDATE_CATEGORY": {
+        const { key, ...rest } = action.payload;
+        dbOps = () => CategoriesAPI.update(key, rest);
+        break;
+      }
+      case "REMOVE_CATEGORY":
+        dbOps = () => CategoriesAPI.remove(action.payload);
         break;
       // ─── ADMIN: TEAM sync ───
       // Persistiamo le azioni che operano su utenti reali (creati via signup o

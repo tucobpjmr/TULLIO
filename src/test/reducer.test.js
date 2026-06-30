@@ -114,6 +114,28 @@ describe("reducer — permessi", () => {
   });
 });
 
+describe("reducer — categorie", () => {
+  it("ADD_CATEGORY da admin aggiunge la categoria", () => {
+    const s = freshState("marco");
+    const next = reducer(s, { type: "ADD_CATEGORY", payload: { key: "hotel", label: "Hotel", icon: "🏨", color: "#14B8A6", bg: "#F0FDFA" } });
+    expect(next.categories.hotel).toMatchObject({ label: "Hotel", icon: "🏨" });
+  });
+
+  it("SET_CATEGORIES rimpiazza l'intero dizionario (idratazione da DB)", () => {
+    const s = freshState("marco");
+    const payload = { hotel: { label: "Hotel", icon: "🏨", color: "#14B8A6", bg: "#F0FDFA" } };
+    const next = reducer(s, { type: "SET_CATEGORIES", payload });
+    expect(next.categories).toEqual(payload);
+    expect(next.categories.booking).toBeUndefined(); // sostituito, non mergiato
+  });
+
+  it("SET_CATEGORIES con payload non valido non crasha (fallback {})", () => {
+    const s = freshState("marco");
+    const next = reducer(s, { type: "SET_CATEGORIES", payload: null });
+    expect(next.categories).toEqual({});
+  });
+});
+
 describe("reducer — bacheca avvisi", () => {
   let s;
   beforeEach(() => { s = freshState("marco"); });

@@ -35,6 +35,9 @@ export function fromDbTask(row) {
     comments: Array.isArray(row.comments)
       ? row.comments.map(fromDbComment)
       : [],
+    history: Array.isArray(row.task_history)
+      ? row.task_history.map(fromDbHistory)
+      : [],
   };
 }
 
@@ -85,6 +88,22 @@ export function fromDbComment(row) {
     user: row.users?.name ?? row.user ?? '',
     user_id: row.user_id,
     text: row.text,
+    time: row.created_at,
+  };
+}
+
+// ----------------- TASK HISTORY -----------------
+
+// DB row (con join users(name)) → entry di cronologia del task.
+export function fromDbHistory(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    actor: row.users?.name ?? '',
+    actorId: row.actor_id,
+    action: row.action,
+    oldValue: row.old_value,
+    newValue: row.new_value,
     time: row.created_at,
   };
 }

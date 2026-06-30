@@ -199,6 +199,41 @@ function TaskAttachments({ taskId, editable }) {
   );
 }
 
+// ─── Cronologia task (sessione 42) ────────────────────────────────────────
+// Le entry arrivano dal trigger DB log_task_history (sola lettura, mai
+// scritte dal client). Formattazione human-readable riusando le stesse
+// label di STATUS_LABELS/PRIORITIES usate altrove nell'app.
+const HISTORY_ICONS = {
+  created: "📝", status: "🔄", priority: "🚦", assignees: "👤",
+  due_date: "📅", trashed: "🗑️", restored: "↩️",
+};
+
+function resolveAssigneeNames(csv) {
+  if (!csv) return "Nessuno";
+  return csv.split(",").filter(Boolean).map(id => getMember(id)?.name || id).join(", ");
+}
+
+function historyDescribe(h) {
+  switch (h.action) {
+    case "created":
+      return "Task creata";
+    case "status":
+      return `Stato: ${STATUS_LABELS[h.oldValue] ?? h.oldValue ?? "—"} → ${STATUS_LABELS[h.newValue] ?? h.newValue ?? "—"}`;
+    case "priority":
+      return `Priorità: ${PRIORITIES[h.oldValue]?.label ?? h.oldValue ?? "—"} → ${PRIORITIES[h.newValue]?.label ?? h.newValue ?? "—"}`;
+    case "assignees":
+      return `Assegnatari: ${resolveAssigneeNames(h.oldValue)} → ${resolveAssigneeNames(h.newValue)}`;
+    case "due_date":
+      return `Scadenza: ${h.oldValue ? formatDate(h.oldValue) : "—"} → ${h.newValue ? formatDate(h.newValue) : "—"}`;
+    case "trashed":
+      return "Spostata nel cestino";
+    case "restored":
+      return "Ripristinata dal cestino";
+    default:
+      return h.action;
+  }
+}
+
 export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
   const { isMobile } = useViewport();
   const [newComment, setNewComment] = useState("");
@@ -645,6 +680,35 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
                   }}>↑</button>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Cronologia (sessione 42): chi ha creato + modifiche di stato, priorità,
+              assegnatari, scadenza, cestino/ripristino. Sola lettura. */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 10 }}>
+              CRONOLOGIA ({task.history?.length || 0})
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {[...(task.history || [])]
+                .sort((a, b) => new Date(a.time) - new Date(b.time))
+                .map(h => (
+                  <div key={h.id} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                    <div style={{ width: 28, textAlign: "center", fontSize: 14, flexShrink: 0 }}>
+                      {HISTORY_ICONS[h.action] || "•"}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 12, fontWeight: 600 }}>{h.actor || "Sistema"}</span>
+                        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{formatDate(h.time)}</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{historyDescribe(h)}</div>
+                    </div>
+                  </div>
+                ))}
+              {(!task.history || task.history.length === 0) && (
+                <div style={{ fontSize: 12, color: "var(--text-light)" }}>Nessuna cronologia disponibile.</div>
+              )}
             </div>
           </div>
         </div>

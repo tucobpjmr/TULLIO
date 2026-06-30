@@ -937,6 +937,12 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     useSupabase ? {} : initialMessages
   );
 
+  // Mappa convId → Promise dell'INSERT conversazione ancora in volo. Serve a
+  // serializzare il primo messaggio dietro la creazione della conversazione:
+  // senza, la RLS messages_insert rifiuta il messaggio perché la conversation_id
+  // non esiste ancora lato DB (race conv→primo messaggio = "messaggio non arriva").
+  const convCreatePromises = useRef(new Map());
+
   // Wrapper di setConversations: diff vs prev e persiste create/update(pinned).
   const setConversations = useCallback((updater) => {
     setConversationsRaw(prev => {
@@ -947,8 +953,11 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         if (!prevById.has(c.id)) {
           const id = isUuid(c.id) ? c.id : newId();
           const normalized = { ...c, id };
-          ConversationsAPI.create(toDbConversation(normalized))
-            .then(r => { if (r?.error) { console.error('[chat] conv.create', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: creazione conversazione fallita: ${r.error.message || ''}` } }); } });
+          const createPromise = ConversationsAPI.create(toDbConversation(normalized));
+          convCreatePromises.current.set(id, createPromise);
+          createPromise
+            .then(r => { if (r?.error) { console.error('[chat] conv.create', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: creazione conversazione fallita: ${r.error.message || ''}` } }); } })
+            .finally(() => { convCreatePromises.current.delete(id); });
           return normalized;
         }
         const prevC = prevById.get(c.id);
@@ -991,8 +1000,19 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           if (!prevById.has(m.id)) {
             const id = isUuid(m.id) ? m.id : newId();
             const normalized = { ...m, id };
-            MessagesAPI.send(toDbMessage(normalized, convId))
+            const sendMsg = () => MessagesAPI.send(toDbMessage(normalized, convId))
               .then(r => { if (r?.error) { console.error('[chat] msg.send', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: invio messaggio fallito: ${r.error.message || ''}` } }); } });
+            // Se la conversazione è appena stata creata e l'INSERT è ancora in
+            // volo, attendi che il DB l'abbia persistita: altrimenti la RLS
+            // messages_insert rifiuta il primo messaggio (conversation_id non
+            // ancora esistente). Se la creazione conversazione è fallita, non
+            // tentare l'invio (il toast d'errore è già stato mostrato).
+            const pendingConv = convCreatePromises.current.get(convId);
+            if (pendingConv) {
+              pendingConv.then(r => { if (!r?.error) sendMsg(); });
+            } else {
+              sendMsg();
+            }
             return normalized;
           }
           const prevM = prevById.get(m.id);

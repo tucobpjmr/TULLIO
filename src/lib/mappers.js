@@ -237,6 +237,16 @@ export function toDbClient(client) {
   };
 }
 
+// ----------------- CATEGORIES -----------------
+export function fromDbCategory(row) {
+  if (!row) return null;
+  return { key: row.key, label: row.label, icon: row.icon ?? "", color: row.color, bg: row.bg };
+}
+
+export function toDbCategory(cat) {
+  return { key: cat.key, label: cat.label, icon: cat.icon ?? "", color: cat.color, bg: cat.bg };
+}
+
 // ----------------- NOTIFICATIONS -----------------
 // DB row → app notification. Payload arbitrario per tipo.
 export function fromDbNotification(row) {

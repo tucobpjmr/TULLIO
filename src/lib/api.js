@@ -411,6 +411,21 @@ export const Clients = {
     supabase.from('clients').delete().eq('id', id),
 };
 
+// ----------------- CATEGORIES -----------------
+export const Categories = {
+  list: () =>
+    supabase.from('categories').select('*').order('label'),
+  create: (cat) =>
+    supabase.from('categories').insert(withOrigin(cat)).select().single(),
+  // key è la PK e non si rinomina: il patch tocca solo i campi visuali.
+  update: (key, patch) =>
+    supabase.from('categories')
+      .update(withOrigin({ ...patch, updated_at: new Date().toISOString() }))
+      .eq('key', key).select().single(),
+  remove: (key) =>
+    supabase.from('categories').delete().eq('key', key),
+};
+
 // ----------------- REALTIME -----------------
 // Step L: i payload realtime hanno origin_client se generati da una mutation
 // taggata: su INSERT/UPDATE sta in payload.new, su DELETE in payload.old

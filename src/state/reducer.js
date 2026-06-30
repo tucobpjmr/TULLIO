@@ -296,6 +296,14 @@ function baseReducer(state, action) {
       setCategories(rest);
       return { ...state, categories: rest, toast: { message: "Categoria rimossa", type: "success" } };
     }
+    // SET_CATEGORIES: rimpiazza l'intero dizionario con quello idratato da DB
+    // (mount + refresh realtime). Aggiorna anche il global CATEGORIES, come
+    // SET_TEAM fa per TEAM. Niente toast: idratazione silenziosa.
+    case "SET_CATEGORIES": {
+      const categories = action.payload && typeof action.payload === "object" ? action.payload : {};
+      setCategories(categories);
+      return { ...state, categories };
+    }
 
     // ─── ADMIN: AGENZIA & BACKUP ───
     case "SET_AGENCY_NAME": {

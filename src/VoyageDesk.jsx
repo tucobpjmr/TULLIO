@@ -8,6 +8,7 @@ import {
   Conversations as ConversationsAPI, Messages as MessagesAPI,
   Notifications as NotificationsAPI, Users as UsersAPI,
   Clients as ClientsAPI,
+  Categories as CategoriesAPI,
   subscribeToTable,
 } from "./lib/api.js";
 import {
@@ -17,6 +18,7 @@ import {
   toDbMessage, fromDbMessage,
   fromDbNotification,
   fromDbClient, toDbClient,
+  fromDbCategory, toDbCategory,
   newId, isUuid,
 } from "./lib/mappers.js";
 // Step O: logout UI — signOut vive in AuthContext, qui viene solo cablato.
@@ -519,6 +521,26 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     rawDispatch({ type: "SET_NOTICES", payload: (data || []).map(fromDbNotice) });
   }, { enabled: useSupabase, deps: [useSupabase] });
 
+  // Idratazione + realtime categorie task (Admin → Categorie). Prima di questa
+  // sub, ADD_CATEGORY/UPDATE_CATEGORY/REMOVE_CATEGORY toccavano solo lo stato
+  // React in memoria: una categoria creata spariva al primo reload perché non
+  // veniva mai scritta su Supabase (vedi migration 20260630_categories_table).
+  useDebouncedTableSubscription(["categories"], async (isCurrent) => {
+    const { data, error } = await CategoriesAPI.list();
+    if (!isCurrent()) return;
+    if (error) {
+      console.error("[VoyageDesk] Categories.list", error);
+      rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Caricamento categorie fallito: ${error.message || ""}` } });
+      return;
+    }
+    const categories = {};
+    for (const row of data || []) {
+      const c = fromDbCategory(row);
+      categories[c.key] = { label: c.label, icon: c.icon, color: c.color, bg: c.bg };
+    }
+    rawDispatch({ type: "SET_CATEGORIES", payload: categories });
+  }, { enabled: useSupabase, deps: [useSupabase] });
+
   // Loading state chat: true finché non completa il primo reload da Supabase.
   // Evita il flash "nessun messaggio" mentre l'idratazione è in volo.
   const [chatLoading, setChatLoading] = useState(useSupabase);
@@ -726,6 +748,18 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         break;
       case "DELETE_CLIENT":
         dbOps = () => ClientsAPI.remove(action.payload);
+        break;
+      // ─── ADMIN: CATEGORIES sync ───
+      case "ADD_CATEGORY":
+        dbOps = () => CategoriesAPI.create(toDbCategory(action.payload));
+        break;
+      case "UPDATE_CATEGORY": {
+        const { key, ...rest } = action.payload;
+        dbOps = () => CategoriesAPI.update(key, rest);
+        break;
+      }
+      case "REMOVE_CATEGORY":
+        dbOps = () => CategoriesAPI.remove(action.payload);
         break;
       // ─── ADMIN: TEAM sync ───
       // Persistiamo le azioni che operano su utenti reali (creati via signup o
@@ -937,6 +971,12 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     useSupabase ? {} : initialMessages
   );
 
+  // Mappa convId → Promise dell'INSERT conversazione ancora in volo. Serve a
+  // serializzare il primo messaggio dietro la creazione della conversazione:
+  // senza, la RLS messages_insert rifiuta il messaggio perché la conversation_id
+  // non esiste ancora lato DB (race conv→primo messaggio = "messaggio non arriva").
+  const convCreatePromises = useRef(new Map());
+
   // Wrapper di setConversations: diff vs prev e persiste create/update(pinned).
   const setConversations = useCallback((updater) => {
     setConversationsRaw(prev => {
@@ -947,8 +987,11 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         if (!prevById.has(c.id)) {
           const id = isUuid(c.id) ? c.id : newId();
           const normalized = { ...c, id };
-          ConversationsAPI.create(toDbConversation(normalized))
-            .then(r => { if (r?.error) { console.error('[chat] conv.create', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: creazione conversazione fallita: ${r.error.message || ''}` } }); } });
+          const createPromise = ConversationsAPI.create(toDbConversation(normalized));
+          convCreatePromises.current.set(id, createPromise);
+          createPromise
+            .then(r => { if (r?.error) { console.error('[chat] conv.create', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: creazione conversazione fallita: ${r.error.message || ''}` } }); } })
+            .finally(() => { convCreatePromises.current.delete(id); });
           return normalized;
         }
         const prevC = prevById.get(c.id);
@@ -991,8 +1034,19 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           if (!prevById.has(m.id)) {
             const id = isUuid(m.id) ? m.id : newId();
             const normalized = { ...m, id };
-            MessagesAPI.send(toDbMessage(normalized, convId))
+            const sendMsg = () => MessagesAPI.send(toDbMessage(normalized, convId))
               .then(r => { if (r?.error) { console.error('[chat] msg.send', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: invio messaggio fallito: ${r.error.message || ''}` } }); } });
+            // Se la conversazione è appena stata creata e l'INSERT è ancora in
+            // volo, attendi che il DB l'abbia persistita: altrimenti la RLS
+            // messages_insert rifiuta il primo messaggio (conversation_id non
+            // ancora esistente). Se la creazione conversazione è fallita, non
+            // tentare l'invio (il toast d'errore è già stato mostrato).
+            const pendingConv = convCreatePromises.current.get(convId);
+            if (pendingConv) {
+              pendingConv.then(r => { if (!r?.error) sendMsg(); });
+            } else {
+              sendMsg();
+            }
             return normalized;
           }
           const prevM = prevById.get(m.id);

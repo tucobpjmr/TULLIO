@@ -8,6 +8,7 @@ import {
   fromDbMessage, toDbMessage,
   fromDbClient, toDbClient,
   fromDbNotification,
+  fromDbCategory, toDbCategory,
 } from "../lib/mappers.js";
 
 const UUID = "11111111-2222-4333-8444-555555555555";
@@ -34,6 +35,7 @@ describe("fromDb* null-safety", () => {
     expect(fromDbMessage(null)).toBeNull();
     expect(fromDbClient(null)).toBeNull();
     expect(fromDbNotification(null)).toBeNull();
+    expect(fromDbCategory(null)).toBeNull();
   });
 });
 
@@ -171,5 +173,16 @@ describe("client & notification mapping", () => {
     expect(n.userId).toBe("marco");
     expect(n.read).toBe(false);
     expect(n.payload).toEqual({});
+  });
+});
+
+describe("category mapping", () => {
+  it("round-trip app→DB→app conserva key/label/icon/color/bg", () => {
+    const cat = { key: "hotel", label: "Hotel", icon: "🏨", color: "#14B8A6", bg: "#F0FDFA" };
+    expect(fromDbCategory(toDbCategory(cat))).toEqual(cat);
+  });
+
+  it("fromDbCategory normalizza icon mancante a stringa vuota", () => {
+    expect(fromDbCategory({ key: "x", label: "X", color: "#000", bg: "#fff" }).icon).toBe("");
   });
 });

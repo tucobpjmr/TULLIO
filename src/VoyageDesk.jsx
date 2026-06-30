@@ -1132,7 +1132,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         {/* Slide-over (lazy, Phase 2g) */}
         {state.selectedTask && (
           <Suspense fallback={<LazyFallback overlay />}>
-            <TaskSlideOver task={state.selectedTask} dispatch={dispatch} />
+            <TaskSlideOver task={state.selectedTask} dispatch={dispatch} clients={state.clients || []} />
           </Suspense>
         )}
 

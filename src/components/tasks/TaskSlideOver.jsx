@@ -5,9 +5,9 @@ import { useViewport } from "../Viewport.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { CategoryChip } from "../ui/CategoryChip.jsx";
-import { STATUSES, STATUS_LABELS } from "../../lib/taskConstants.js";
-import { formatDate, isOverdue } from "../../lib/taskUtils.js";
-import { CURRENT_USER, getMember, getAssignableTeam, canEditTask } from "../../state/appGlobals.js";
+import { STATUSES, STATUS_LABELS, PRIORITIES } from "../../lib/taskConstants.js";
+import { formatDate, formatTime, isOverdue } from "../../lib/taskUtils.js";
+import { CURRENT_USER, getMember, getAssignableTeam, canEditTask, getAvailableCategories, CATEGORIES } from "../../state/appGlobals.js";
 import { MentionText } from "../ui/MentionText.jsx";
 import { TaskFiles } from "../../lib/api.js";
 import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit, sourceBadge, mediaKind } from "../../lib/fileUtils.js";
@@ -199,10 +199,30 @@ function TaskAttachments({ taskId, editable }) {
   );
 }
 
-export const TaskSlideOver = ({ task, dispatch }) => {
+export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
   const { isMobile } = useViewport();
   const [newComment, setNewComment] = useState("");
   const [showAssigneePicker, setShowAssigneePicker] = useState(false);
+  const [clientFocus, setClientFocus] = useState(false);
+  // Bozza locale dei campi testo: si scrive in locale e si persiste al blur
+  // (un solo UPDATE_TASK per modifica, non a ogni tasto → niente toast a raffica
+  // né un round-trip DB per carattere). I select/data persistono subito.
+  const [draft, setDraft] = useState({ title: "", client: "", praticaRef: "", description: "" });
+
+  // Risincronizza la bozza quando si apre un task diverso. NON dipende dall'intero
+  // `task` per non sovrascrivere quanto si sta digitando dopo un dispatch (es. il
+  // cambio di status aggiorna `task` ma deve lasciare intatto il testo in corso).
+  useEffect(() => {
+    setDraft({
+      title: task?.title || "",
+      client: task?.client || "",
+      praticaRef: task?.praticaRef || "",
+      description: task?.description || "",
+    });
+    // Volutamente solo task?.id: ri-sincronizzare a ogni cambio dei campi
+    // sovrascriverebbe il testo che l'utente sta digitando dopo un dispatch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task?.id]);
 
   if (!task) return null;
 
@@ -211,6 +231,41 @@ export const TaskSlideOver = ({ task, dispatch }) => {
   const availableMembers = editable
     ? getAssignableTeam().filter(m => !currentAssignees.includes(m.id))
     : [];
+
+  // Categorie selezionabili = quelle disponibili al ruolo; includo sempre quella
+  // corrente del task così resta visibile anche se fuori dallo scope dell'utente.
+  const availableCats = getAvailableCategories(CURRENT_USER);
+  const catOptions = task.category && !availableCats[task.category]
+    ? { [task.category]: CATEGORIES[task.category] || { label: task.category, icon: "" }, ...availableCats }
+    : availableCats;
+
+  const updateField = (field, value) =>
+    dispatch({ type: "UPDATE_TASK", payload: { id: task.id, [field]: value } });
+
+  // Persiste un campo testo dalla bozza, solo se cambiato. `nullable` → stringa
+  // vuota diventa null (client/praticaRef). Il titolo è obbligatorio: se svuotato
+  // si ripristina il valore corrente.
+  const commitText = (field, { nullable = false } = {}) => {
+    const trimmed = (draft[field] || "").trim();
+    if (field === "title" && !trimmed) { setDraft(d => ({ ...d, title: task.title || "" })); return; }
+    const next = nullable ? (trimmed || null) : trimmed;
+    const curr = task[field] ?? (nullable ? null : "");
+    if (next === curr) return;
+    updateField(field, next);
+  };
+
+  const clientQuery = draft.client.trim().toLowerCase();
+  const clientMatches = (clientQuery
+    ? clients.filter(c => c.name?.toLowerCase().includes(clientQuery))
+    : clients
+  ).slice(0, 6);
+  const showClientList = editable && clientFocus && clientMatches.length > 0 &&
+    !(clientMatches.length === 1 && clientMatches[0].name?.toLowerCase() === clientQuery);
+  const pickClient = (name) => {
+    setDraft(d => ({ ...d, client: name }));
+    setClientFocus(false);
+    if (name !== (task.client ?? null)) updateField("client", name);
+  };
 
   const updateAssignees = (next) => {
     dispatch({ type: "UPDATE_TASK", payload: { id: task.id, assignees: next } });
@@ -246,6 +301,14 @@ export const TaskSlideOver = ({ task, dispatch }) => {
     }
   };
 
+  const labelStyle = { fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 };
+  const fieldStyle = {
+    width: "100%", border: "1px solid var(--border)", borderRadius: 8,
+    padding: "7px 10px", fontSize: 13, fontFamily: "inherit", background: "var(--card)",
+  };
+  const myInitials = (getMember(CURRENT_USER)?.name || "")
+    .split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "?";
+
   return (
     <>
       <div onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: null })}
@@ -266,7 +329,23 @@ export const TaskSlideOver = ({ task, dispatch }) => {
               <PriorityBadge priority={task.priority} />
               {isOverdue(task) && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--danger)", background: "#FEE2E2", padding: "2px 8px", borderRadius: 99 }}>⚠️ Scaduto</span>}
             </div>
-            <div className="playfair" style={{ color: "#fff", fontSize: 18, fontWeight: 700, lineHeight: 1.3 }}>{task.title}</div>
+            {editable ? (
+              <input
+                className="playfair"
+                value={draft.title}
+                onChange={e => setDraft(d => ({ ...d, title: e.target.value }))}
+                onBlur={() => commitText("title")}
+                onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                placeholder="Titolo del task"
+                style={{
+                  color: "#fff", fontSize: 18, fontWeight: 700, lineHeight: 1.3,
+                  background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)",
+                  borderRadius: 6, padding: "4px 8px", width: "100%", fontFamily: "inherit", outline: "none",
+                }}
+              />
+            ) : (
+              <div className="playfair" style={{ color: "#fff", fontSize: 18, fontWeight: 700, lineHeight: 1.3 }}>{task.title}</div>
+            )}
           </div>
           <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
             <button onClick={handleDelete} title="Sposta nel cestino" style={{
@@ -285,35 +364,61 @@ export const TaskSlideOver = ({ task, dispatch }) => {
         </div>
 
         <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 20 }}>
-          {/* Status select */}
+          {/* Status + Scadenza */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>STATO</div>
-              <select value={task.status} onChange={handleStatusChange} style={{
-                width: "100%", border: "1px solid var(--border)", borderRadius: 8,
-                padding: "7px 10px", fontSize: 13, fontFamily: "inherit",
-                background: "var(--card)", cursor: "pointer"
-              }}>
-                {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-              </select>
+              <div style={labelStyle}>STATO</div>
+              {editable ? (
+                <select value={task.status} onChange={handleStatusChange} style={{ ...fieldStyle, cursor: "pointer" }}>
+                  {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+                </select>
+              ) : (
+                <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>
+                  {STATUS_LABELS[task.status] || task.status}
+                </div>
+              )}
             </div>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: isOverdue(task) ? "var(--danger)" : "var(--text-muted)", marginBottom: 6 }}>
+              <div style={{ ...labelStyle, color: isOverdue(task) ? "var(--danger)" : "var(--text-muted)" }}>
                 SCADENZA {isOverdue(task) && "⚠️"}
               </div>
-              <input
-                type="datetime-local"
-                value={task.dueDate ? task.dueDate.slice(0, 16) : ""}
-                onChange={e => dispatch({ type: "UPDATE_TASK", payload: { id: task.id, dueDate: e.target.value ? new Date(e.target.value).toISOString() : null } })}
-                style={{
-                  width: "100%", border: `1px solid ${isOverdue(task) ? "var(--danger)" : "var(--border)"}`,
-                  borderRadius: 8, padding: "7px 10px", fontSize: 13, fontFamily: "inherit",
-                  background: isOverdue(task) ? "#FFF5F5" : "var(--card)", cursor: "pointer",
-                  color: isOverdue(task) ? "var(--danger)" : "var(--text)", fontWeight: isOverdue(task) ? 600 : 400,
-                }}
-              />
+              {editable ? (
+                <input
+                  type="datetime-local"
+                  value={task.dueDate ? task.dueDate.slice(0, 16) : ""}
+                  onChange={e => updateField("dueDate", e.target.value ? new Date(e.target.value).toISOString() : null)}
+                  style={{
+                    ...fieldStyle, cursor: "pointer",
+                    border: `1px solid ${isOverdue(task) ? "var(--danger)" : "var(--border)"}`,
+                    background: isOverdue(task) ? "#FFF5F5" : "var(--card)",
+                    color: isOverdue(task) ? "var(--danger)" : "var(--text)", fontWeight: isOverdue(task) ? 600 : 400,
+                  }}
+                />
+              ) : (
+                <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block", color: isOverdue(task) ? "var(--danger)" : "var(--text)" }}>
+                  {task.dueDate ? `${formatDate(task.dueDate)} ${formatTime(task.dueDate)}` : "—"}
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Categoria + Priorità (modificabili) */}
+          {editable && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <div style={labelStyle}>CATEGORIA</div>
+                <select value={task.category || ""} onChange={e => updateField("category", e.target.value)} style={{ ...fieldStyle, cursor: "pointer" }}>
+                  {Object.entries(catOptions).map(([k, v]) => <option key={k} value={k}>{v?.icon ? `${v.icon} ` : ""}{v?.label || k}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={labelStyle}>PRIORITÀ</div>
+                <select value={task.priority || ""} onChange={e => updateField("priority", e.target.value)} style={{ ...fieldStyle, cursor: "pointer" }}>
+                  {Object.entries(PRIORITIES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                </select>
+              </div>
+            </div>
+          )}
 
           {/* Meta */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -387,35 +492,94 @@ export const TaskSlideOver = ({ task, dispatch }) => {
                 </div>
               )}
             </div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>CLIENTE</div>
-              <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>
-                {task.client || <span style={{ color: "var(--text-muted)" }}>—</span>}
-              </div>
+            <div style={{ position: "relative" }}>
+              <div style={labelStyle}>CLIENTE</div>
+              {editable ? (
+                <>
+                  <input
+                    value={draft.client}
+                    onChange={e => setDraft(d => ({ ...d, client: e.target.value }))}
+                    onFocus={() => setClientFocus(true)}
+                    onBlur={() => { setTimeout(() => setClientFocus(false), 150); commitText("client", { nullable: true }); }}
+                    placeholder={clients.length ? "Cerca o scrivi un nome…" : "Es. Famiglia Rossi…"}
+                    autoComplete="off"
+                    style={fieldStyle}
+                  />
+                  {showClientList && (
+                    <div style={{
+                      position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20,
+                      marginTop: 4, background: "var(--card)", border: "1px solid var(--border)",
+                      borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                      maxHeight: 200, overflowY: "auto",
+                    }}>
+                      {clientMatches.map(c => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onMouseDown={() => pickClient(c.name)}
+                          style={{
+                            display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1,
+                            width: "100%", textAlign: "left", padding: "8px 10px", border: "none",
+                            borderBottom: "1px solid var(--border)", background: "transparent",
+                            cursor: "pointer", fontFamily: "inherit",
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                          onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                        >
+                          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{c.name}</span>
+                          {(c.city || c.email) && (
+                            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                              {[c.city, c.email].filter(Boolean).join(" · ")}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>
+                  {task.client || <span style={{ color: "var(--text-muted)" }}>—</span>}
+                </div>
+              )}
             </div>
           </div>
 
           {/* Pratica (n° libero) */}
           <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>N° PRATICA</div>
-            <input
-              value={task.praticaRef || ""}
-              onChange={e => dispatch({ type: "UPDATE_TASK", payload: { id: task.id, praticaRef: e.target.value || null } })}
-              placeholder="es. PR-2026-001"
-              style={{
-                width: "100%", border: "1px solid var(--border)", borderRadius: 8,
-                padding: "7px 10px", fontSize: 13, fontFamily: "inherit",
-                background: "var(--card)",
-              }}
-            />
+            <div style={labelStyle}>N° PRATICA</div>
+            {editable ? (
+              <input
+                value={draft.praticaRef}
+                onChange={e => setDraft(d => ({ ...d, praticaRef: e.target.value }))}
+                onBlur={() => commitText("praticaRef", { nullable: true })}
+                placeholder="es. PR-2026-001"
+                style={fieldStyle}
+              />
+            ) : (
+              <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>
+                {task.praticaRef || <span style={{ color: "var(--text-muted)" }}>—</span>}
+              </div>
+            )}
           </div>
 
           {/* Description */}
           <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>DESCRIZIONE</div>
-            <div style={{ fontSize: 13, lineHeight: 1.7, color: "var(--text)", background: "var(--surface2)", padding: 12, borderRadius: 8 }}>
-              {task.description || <span style={{ color: "var(--text-muted)" }}>Nessuna descrizione.</span>}
-            </div>
+            <div style={labelStyle}>DESCRIZIONE</div>
+            {editable ? (
+              <textarea
+                value={draft.description}
+                onChange={e => setDraft(d => ({ ...d, description: e.target.value }))}
+                onBlur={() => commitText("description")}
+                rows={4}
+                placeholder="Dettagli del task…"
+                style={{ ...fieldStyle, lineHeight: 1.6, resize: "vertical" }}
+              />
+            ) : (
+              <div style={{ fontSize: 13, lineHeight: 1.7, color: "var(--text)", background: "var(--surface2)", padding: 12, borderRadius: 8 }}>
+                {task.description || <span style={{ color: "var(--text-muted)" }}>Nessuna descrizione.</span>}
+              </div>
+            )}
           </div>
 
           {/* Attachments (Block 5 — allegati reali) */}
@@ -452,7 +616,7 @@ export const TaskSlideOver = ({ task, dispatch }) => {
                   width: 28, height: 28, borderRadius: "50%", background: "var(--gold)",
                   fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center",
                   justifyContent: "center", color: "var(--navy)", flexShrink: 0
-                }}>MF</div>
+                }}>{myInitials}</div>
                 <div style={{ flex: 1, display: "flex", gap: 6 }}>
                   <input
                     value={newComment}

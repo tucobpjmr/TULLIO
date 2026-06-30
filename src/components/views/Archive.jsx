@@ -10,11 +10,44 @@ import { CategoryChip } from "../ui/CategoryChip.jsx";
 import { formatDate, getArchivedTasks } from "../../lib/taskUtils.js";
 import { CATEGORIES, getVisibleTasks, canEditTask } from "../../state/appGlobals.js";
 
+const PERIOD_OPTIONS = [
+  { key: "all",       label: "Sempre" },
+  { key: "week",      label: "Ultimi 7 gg" },
+  { key: "month",     label: "Questo mese" },
+  { key: "lastMonth", label: "Mese scorso" },
+];
+
+// Filtra le task per data di completamento (completedAt). Le task completate
+// prima dell'introduzione di completed_at (completedAt null) restano fuori dai
+// filtri temporali ma compaiono in "Sempre".
+const filterByPeriod = (tasks, period) => {
+  if (period === "all") return tasks;
+  const now = new Date();
+  return tasks.filter(t => {
+    if (!t.completedAt) return false;
+    const d = new Date(t.completedAt);
+    if (period === "week") {
+      const cutoff = new Date(now); cutoff.setDate(cutoff.getDate() - 7);
+      return d >= cutoff;
+    }
+    if (period === "month") {
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    }
+    if (period === "lastMonth") {
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const end   = new Date(now.getFullYear(), now.getMonth(), 1);
+      return d >= start && d < end;
+    }
+    return true;
+  });
+};
+
 export const Archive = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
   const me = state.currentUserId;
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
+  const [period, setPeriod] = useState("all");
 
   // Solo le task completate che l'utente può vedere (rispetta i permessi).
   // Ordinate per data di completamento (completedAt) decrescente; fallback su
@@ -22,7 +55,7 @@ export const Archive = ({ state, dispatch }) => {
   const archived = getVisibleTasks(getArchivedTasks(state.tasks), me)
     .sort((a, b) => new Date(b.completedAt || b.dueDate || 0) - new Date(a.completedAt || a.dueDate || 0));
 
-  const visible = archived.filter(t => {
+  const visible = filterByPeriod(archived, period).filter(t => {
     if (category !== "all" && t.category !== category) return false;
     if (query.trim()) {
       const q = query.trim().toLowerCase();
@@ -31,6 +64,9 @@ export const Archive = ({ state, dispatch }) => {
     }
     return true;
   });
+
+  const hasActiveFilter = category !== "all" || query.trim() || period !== "all";
+  const resetFilters = () => { setCategory("all"); setQuery(""); setPeriod("all"); };
 
   const handleReopen = (task) => {
     if (!canEditTask(task, me)) {
@@ -60,7 +96,7 @@ export const Archive = ({ state, dispatch }) => {
           <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
             {archived.length === 0
               ? "Nessuna task completata"
-              : category !== "all" || query.trim()
+              : hasActiveFilter
                 ? `${visible.length} di ${archived.length} task — filtrate`
                 : `${archived.length} task ${archived.length === 1 ? "completata" : "completate"}. Riaprile o spostale nel cestino.`
             }
@@ -98,6 +134,21 @@ export const Archive = ({ state, dispatch }) => {
         </div>
       )}
 
+      {/* Filtro periodo (per data di completamento) — solo se ci sono task */}
+      {archived.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>Completate:</span>
+          {PERIOD_OPTIONS.map(opt => (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => setPeriod(opt.key)}
+              style={chipStyle(period === opt.key)}
+            >{opt.label}</button>
+          ))}
+        </div>
+      )}
+
       {/* Empty state */}
       {archived.length === 0 ? (
         <div style={{
@@ -121,7 +172,7 @@ export const Archive = ({ state, dispatch }) => {
           <div style={{ fontSize: 14, fontWeight: 600, color: "var(--heading)", marginBottom: 4 }}>
             Nessuna task per i filtri selezionati
           </div>
-          <button type="button" onClick={() => { setCategory("all"); setQuery(""); }} style={{
+          <button type="button" onClick={resetFilters} style={{
             marginTop: 8, padding: "6px 14px", borderRadius: 8,
             border: "1px solid var(--border)", background: "var(--card)",
             color: "var(--text-muted)", fontSize: 12, fontWeight: 600,

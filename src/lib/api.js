@@ -395,6 +395,15 @@ export const Notifications = {
     supabase.from('notifications').update({ read: true }).eq('read', false),
   remove: (id) =>
     supabase.from('notifications').delete().eq('id', id),
+  // Pulizia elenco: cancella le sole notifiche già lette. La RLS
+  // ("own notifications delete") scopa automaticamente a auth.uid().
+  removeRead: () =>
+    supabase.from('notifications').delete().eq('read', true),
+  // Cancella tutte le notifiche dell'utente. Il filtro id-non-null è solo
+  // per soddisfare il requisito Supabase di un WHERE sulle delete: la RLS
+  // garantisce comunque che tocchi solo le righe di auth.uid().
+  removeAll: () =>
+    supabase.from('notifications').delete().not('id', 'is', null),
 };
 
 // ----------------- CLIENTS -----------------

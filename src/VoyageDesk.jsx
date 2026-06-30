@@ -838,6 +838,34 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     });
   }, [useSupabase]);
 
+  // Pulizia elenco notifiche: rimozione singola e in blocco. Tutte ottimistiche
+  // con rollback allo snapshot precedente se la delete su DB fallisce.
+  const removeNotification = useCallback((id) => {
+    if (!useSupabase) return;
+    let snapshot = [];
+    setNotifications(prev => { snapshot = prev; return prev.filter(n => n.id !== id); });
+    NotificationsAPI.remove(id).then(r => {
+      if (r?.error) {
+        console.error("[notifications] remove", r.error);
+        setNotifications(snapshot);
+        rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Notifica: eliminazione fallita` } });
+      }
+    });
+  }, [useSupabase]);
+
+  const clearAllNotifications = useCallback(() => {
+    if (!useSupabase) return;
+    let snapshot = [];
+    setNotifications(prev => { snapshot = prev; return []; });
+    NotificationsAPI.removeAll().then(r => {
+      if (r?.error) {
+        console.error("[notifications] removeAll", r.error);
+        setNotifications(snapshot);
+        rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Notifiche: pulizia fallita` } });
+      }
+    });
+  }, [useSupabase]);
+
   // Presence (Step H): heartbeat + subscribe a users
   // Mappa { userId -> rowDB } (per leggere last_seen_at e status).
   const [presenceMap, setPresenceMap] = useState({});
@@ -1178,6 +1206,8 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           notifications={notifications}
           onMarkRead={markNotificationRead}
           onMarkAllRead={markAllNotificationsRead}
+          onRemoveNotification={removeNotification}
+          onClearAllNotifications={clearAllNotifications}
           onOpenTask={openTaskById}
         />
         {state.adminRollbackTo && state.adminSwitchedAt && (

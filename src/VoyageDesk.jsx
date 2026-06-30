@@ -493,8 +493,9 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // più subscription realtime: ad ogni evento postgres ricarico la lista
   // intera (debounced) — semplice e robusto al duplicate dell'eco locale.
   // Caveat #10: il pattern reload+debounce+gen-counter vive in
-  // useDebouncedTableSubscription; le tasks ascoltano anche i comments.
-  useDebouncedTableSubscription(["tasks", "comments"], async (isCurrent) => {
+  // useDebouncedTableSubscription; le tasks ascoltano anche comments e
+  // task_history (cronologia per-task, sessione 42).
+  useDebouncedTableSubscription(["tasks", "comments", "task_history"], async (isCurrent) => {
     // includeDeleted: true → portiamo anche le task soft-deleted nello stato,
     // altrimenti la ri-idratazione realtime (che parte subito dopo un DELETE_TASK)
     // le filtrerebbe via, svuotando il Cestino. Le viste attive (Dashboard,

@@ -156,9 +156,10 @@ export const Users = {
 };
 
 // ----------------- TASKS -----------------
-// Select riusabile che porta dietro i commenti con il nome dell'autore.
+// Select riusabile che porta dietro i commenti e la cronologia (chi ha
+// creato/modificato il task), entrambi con il nome dell'attore via join.
 const TASK_SELECT_WITH_COMMENTS =
-  '*, comments(id, user_id, text, created_at, users(name))';
+  '*, comments(id, user_id, text, created_at, users(name)), task_history(id, actor_id, action, old_value, new_value, created_at, users(name))';
 
 export const Tasks = {
   list: ({ includeDeleted = false, withComments = false } = {}) => {

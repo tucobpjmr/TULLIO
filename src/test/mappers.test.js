@@ -9,6 +9,7 @@ import {
   fromDbClient, toDbClient,
   fromDbNotification,
   fromDbCategory, toDbCategory,
+  fromDbHistory,
 } from "../lib/mappers.js";
 
 const UUID = "11111111-2222-4333-8444-555555555555";
@@ -36,6 +37,7 @@ describe("fromDb* null-safety", () => {
     expect(fromDbClient(null)).toBeNull();
     expect(fromDbNotification(null)).toBeNull();
     expect(fromDbCategory(null)).toBeNull();
+    expect(fromDbHistory(null)).toBeNull();
   });
 });
 
@@ -184,5 +186,37 @@ describe("category mapping", () => {
 
   it("fromDbCategory normalizza icon mancante a stringa vuota", () => {
     expect(fromDbCategory({ key: "x", label: "X", color: "#000", bg: "#fff" }).icon).toBe("");
+  });
+});
+
+describe("task history mapping", () => {
+  it("fromDbHistory preferisce users.name e mappa actor_id/action/old-new value", () => {
+    const h = fromDbHistory({
+      id: UUID, actor_id: "marco", action: "status",
+      old_value: "todo", new_value: "done",
+      created_at: "2026-07-01T10:00:00.000Z", users: { name: "Marco" },
+    });
+    expect(h.actor).toBe("Marco");
+    expect(h.actorId).toBe("marco");
+    expect(h.action).toBe("status");
+    expect(h.oldValue).toBe("todo");
+    expect(h.newValue).toBe("done");
+    expect(h.time).toBe("2026-07-01T10:00:00.000Z");
+  });
+
+  it("fromDbHistory gestisce users mancante (autore di sistema / utente eliminato)", () => {
+    const h = fromDbHistory({ id: UUID, action: "created", created_at: "t" });
+    expect(h.actor).toBe("");
+    expect(h.actorId).toBeUndefined();
+  });
+
+  it("fromDbTask popola history da task_history embedded, default []", () => {
+    expect(fromDbTask({ id: UUID, title: "x" }).history).toEqual([]);
+    const t = fromDbTask({
+      id: UUID, title: "x",
+      task_history: [{ id: "h1", action: "created", created_at: "t", users: { name: "Sofia" } }],
+    });
+    expect(t.history).toHaveLength(1);
+    expect(t.history[0].actor).toBe("Sofia");
   });
 });

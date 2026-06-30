@@ -67,14 +67,34 @@ Deno.serve(async (req: Request) => {
     // user_contacts ha la stessa FK su public.users(id) → ripulita a sua volta.
     const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(targetId);
     if (delErr) {
+      // Estrai un messaggio sensato: AuthApiError espone {name, status, code, message}
+      // ma in alcuni casi message è vuoto/oggetto e arriva come "{}" lato client.
+      const rawMsg = typeof delErr.message === "string" && delErr.message.trim()
+        ? delErr.message
+        : JSON.stringify(delErr);
+      const lower = rawMsg.toLowerCase();
+
       // Se l'utente non esiste più in auth (es. già eliminato), ripuliamo
       // comunque l'eventuale riga residua in public.users per sicurezza.
-      if (delErr.message?.toLowerCase().includes("not found")) {
+      if (lower.includes("not found")) {
         await supabaseAdmin.from("users").delete().eq("id", targetId);
         return json({ success: true });
       }
-      console.error("[delete-user]", delErr.message);
-      return json({ error: "Impossibile eliminare l'utente: " + delErr.message }, 500);
+
+      // Foreign key violation: dipendenza che impedisce la cancellazione.
+      // (Mapping coerente col fix migration task_files.uploaded_by → SET NULL.)
+      if (lower.includes("foreign key") || lower.includes("violates")) {
+        console.error("[delete-user] FK violation", rawMsg);
+        return json({
+          error:
+            "Impossibile eliminare l'utente: ci sono dati collegati che lo " +
+            "impediscono (es. allegati o messaggi). Applica le ultime migrazioni " +
+            "del database e riprova.",
+        }, 409);
+      }
+
+      console.error("[delete-user]", rawMsg);
+      return json({ error: "Impossibile eliminare l'utente: " + rawMsg }, 500);
     }
 
     return json({ success: true });

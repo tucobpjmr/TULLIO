@@ -1,5 +1,5 @@
 
-import { useState, useReducer, createContext, useRef, useEffect, useCallback, lazy, Suspense } from "react";
+import { useState, useReducer, createContext, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
 // xlsx (SheetJS, ~430KB) è caricato on-demand via import() dinamico solo
 // quando l'utente importa o esporta un file (vedi loadXLSX). Tenerlo fuori
 // dal bundle iniziale è il singolo guadagno più grande sul chunk principale.
@@ -23,6 +23,7 @@ import {
 import { useAuth } from "./auth/AuthContext.jsx";
 // Step P Phase 2a: utility pure estratte dal monolite.
 import { getActiveTasks } from "./lib/taskUtils.js";
+import { scopeConversationsForUser } from "./lib/chatUtils.js";
 // Step P Phase 2b: dati mock (solo le notifiche, le altre seed vivono nel reducer).
 // Step P Phase 2c: globals mutabili e helper permessi estratti.
 import { getMember } from "./state/appGlobals.js";
@@ -1045,8 +1046,18 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     });
   }, [useSupabase]);
 
+  // La lista chat è PERSONALE: mostra solo le conversazioni di cui l'utente è
+  // davvero partecipante (e scarta le dirette orfane → "Sconosciuto"). Vedi
+  // scopeConversationsForUser per il perché (RLS admin-see-all + invio bloccato
+  // sulle conversazioni di cui non si è partecipanti).
+  const chatConversations = useMemo(() => {
+    if (!useSupabase) return conversations;
+    const teamIds = new Set((state.team || []).map(m => m.id));
+    return scopeConversationsForUser(conversations, state.currentUserId, teamIds);
+  }, [conversations, state.team, state.currentUserId, useSupabase]);
+
   // Conta non letti totali per badge topbar (dallo stato vivo della chat)
-  const unreadChat = conversations.reduce(
+  const unreadChat = chatConversations.reduce(
     (acc, c) => acc + getUnreadCount(messages, c.id),
     0
   );
@@ -1147,7 +1158,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         <ChatPanel
           open={showChat}
           onClose={() => { setShowChat(false); setChatIntent(null); }}
-          conversations={conversations}
+          conversations={chatConversations}
           setConversations={setConversations}
           messages={messages}
           setMessages={setMessages}

@@ -316,7 +316,11 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
       <div className="slide-right vd-sheet-full" style={{
         position: "fixed", top: 0, right: 0, width: isMobile ? "100vw" : 480,
         background: "var(--card)", zIndex: 600, boxShadow: "-20px 0 60px rgba(0,0,0,0.15)",
-        display: "flex", flexDirection: "column", overflowY: "auto",
+        // overflow:hidden sul guscio + scroll SOLO sul corpo (vedi sotto): su iOS
+        // scrollare l'intero elemento fixed alto 100dvh lascia il fondo (box
+        // commento) dietro la toolbar del browser e irraggiungibile. Header fisso,
+        // corpo scrollabile = pattern già usato da ChatPanel.
+        display: "flex", flexDirection: "column", overflow: "hidden",
       }}>
         {/* Header */}
         <div style={{
@@ -363,7 +367,15 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
           </div>
         </div>
 
-        <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{
+          flex: 1, minHeight: 0, overflowY: "auto",
+          WebkitOverflowScrolling: "touch", overscrollBehavior: "contain",
+          // padding-bottom con safe-area: l'ultimo elemento (box commento) resta
+          // sopra l'home-indicator / la toolbar inferiore di Safari/Chrome iOS.
+          padding: "20px 22px",
+          paddingBottom: "calc(28px + env(safe-area-inset-bottom, 0px))",
+          display: "flex", flexDirection: "column", gap: 20,
+        }}>
           {/* Status + Scadenza */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>

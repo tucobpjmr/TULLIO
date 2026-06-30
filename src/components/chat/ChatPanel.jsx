@@ -1213,6 +1213,8 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
       {/* Input */}
       <div style={{
         padding: "10px 12px", background: "var(--card)", borderTop: "1px solid var(--border)",
+        // safe-area in basso: il composer resta sopra l'home-indicator/toolbar iOS.
+        paddingBottom: "calc(10px + env(safe-area-inset-bottom, 0px))",
         display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
         position: "relative",
       }}>

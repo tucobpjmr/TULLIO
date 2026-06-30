@@ -75,7 +75,8 @@ Navigazione: Desktop → Sidebar collassabile. Tablet/Mobile → BottomNav.
   estimatedHours: number,
   description: string,
   comments: [{ user, text, time }],
-  deletedAt: ISO|null        // soft-delete
+  deletedAt: ISO|null,       // soft-delete
+  completedAt: ISO|null      // data completamento — gestita dal DB (trigger set_task_completed_at), sola lettura lato app
 }
 ```
 

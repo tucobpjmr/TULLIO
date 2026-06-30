@@ -62,6 +62,7 @@ const TaskSlideOver = lazy(() =>
 // Step P Phase 2f: views estratte in src/components/views/.
 import { Team } from "./components/views/Team.jsx";
 import { Trash } from "./components/views/Trash.jsx";
+import { Archive } from "./components/views/Archive.jsx";
 import { ClientiView } from "./components/clients/ClientiView.jsx";
 
 // Step P Phase 2f: shell estratto in src/components/shell/.
@@ -491,7 +492,12 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // Caveat #10: il pattern reload+debounce+gen-counter vive in
   // useDebouncedTableSubscription; le tasks ascoltano anche i comments.
   useDebouncedTableSubscription(["tasks", "comments"], async (isCurrent) => {
-    const { data, error } = await TasksAPI.list({ withComments: true });
+    // includeDeleted: true → portiamo anche le task soft-deleted nello stato,
+    // altrimenti la ri-idratazione realtime (che parte subito dopo un DELETE_TASK)
+    // le filtrerebbe via, svuotando il Cestino. Le viste attive (Dashboard,
+    // Calendario) filtrano comunque con getActiveTasks/isActiveTask, quindi le
+    // cestinate restano confinate alla vista Cestino.
+    const { data, error } = await TasksAPI.list({ withComments: true, includeDeleted: true });
     if (!isCurrent()) return;
     if (error) {
       console.error("[VoyageDesk] Tasks.list", error);
@@ -1090,6 +1096,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       case "calendar":   return <CalendarPlanner state={state} dispatch={dispatch} />;
       case "clienti":    return <ClientiView state={state} dispatch={dispatch} loading={crmLoading} />;
       case "team":       return <Team state={state} dispatch={dispatch} />;
+      case "archivio":   return <Archive state={state} dispatch={dispatch} />;
       case "trash":      return <Trash state={state} dispatch={dispatch} />;
       case "admin":      return <AdminView state={state} dispatch={dispatch} />;
       default:           return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
@@ -1157,7 +1164,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         />
 
         {/* FAB principale (singolo task). La creazione bulk/multi-task è ora in Sidebar/BottomNav. */}
-        {state.activeView !== "trash" && state.activeView !== "admin" && (
+        {state.activeView !== "trash" && state.activeView !== "archivio" && state.activeView !== "admin" && (
           <FAB onClick={() => setShowFABModal(true)} />
         )}
         {showFABModal && <QuickAddTask clients={state.clients || []} onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} />}

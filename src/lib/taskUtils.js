@@ -28,6 +28,10 @@ export const isUrgent = task => {
 export const isActiveTask = t => !t.deletedAt;
 export const getActiveTasks = tasks => tasks.filter(isActiveTask);
 export const getTrashedTasks = tasks => tasks.filter(t => t.deletedAt);
+// Archivio: task completate ("done") e non cestinate. Il sistema convoglia qui
+// le task chiuse, che non compaiono più nelle code attive della Dashboard.
+export const isArchivedTask = t => !t.deletedAt && t.status === "done";
+export const getArchivedTasks = tasks => tasks.filter(isArchivedTask);
 
 // Task appartiene all'utente userId?
 export const isMyTask = (task, userId) => task.assignees?.includes(userId);

@@ -29,6 +29,9 @@ export function fromDbTask(row) {
     estimatedHours: row.estimated_hours == null ? 0 : Number(row.estimated_hours),
     description: row.description ?? '',
     deletedAt: row.deleted_at ?? null,
+    // completed_at è gestito dal DB (trigger set_task_completed_at): sola lettura
+    // lato app, non viene mai scritto da toDbTask/toDbTaskPatch.
+    completedAt: row.completed_at ?? null,
     comments: Array.isArray(row.comments)
       ? row.comments.map(fromDbComment)
       : [],

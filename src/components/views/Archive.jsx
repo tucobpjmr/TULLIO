@@ -85,51 +85,45 @@ export const Archive = ({ state, dispatch }) => {
   // Categorie effettivamente presenti tra le task archiviate (per il filtro).
   const presentCats = Array.from(new Set(archived.map(t => t.category)));
 
+  const pad = isMobile ? "16px" : "24px 32px";
+
   return (
-    <div className="vd-pad" style={{ padding: "24px 32px", maxWidth: 1200, margin: "0 auto" }}>
+    <div className="vd-pad" style={{ padding: pad, maxWidth: 1200, margin: "0 auto", boxSizing: "border-box" }}>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, gap: 16, flexWrap: "wrap" }}>
-        <div>
-          <div className="playfair" style={{ fontSize: 28, fontWeight: 700, color: "var(--heading)", marginBottom: 4 }}>
-            📦 Archivio
-          </div>
-          <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
-            {archived.length === 0
-              ? "Nessuna task completata"
-              : hasActiveFilter
-                ? `${visible.length} di ${archived.length} task — filtrate`
-                : `${archived.length} task ${archived.length === 1 ? "completata" : "completate"}. Riaprile o spostale nel cestino.`
-            }
-          </div>
+      <div style={{ marginBottom: 20 }}>
+        <div className="playfair" style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, color: "var(--heading)", marginBottom: 4 }}>
+          📦 Archivio
+        </div>
+        <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
+          {archived.length === 0
+            ? "Nessuna task completata"
+            : hasActiveFilter
+              ? `${visible.length} di ${archived.length} task — filtrate`
+              : `${archived.length} task ${archived.length === 1 ? "completata" : "completate"}. Riaprile o spostale nel cestino.`
+          }
         </div>
       </div>
 
       {/* Filtri — solo se ci sono task */}
       {archived.length > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Cerca per titolo, cliente, pratica…"
             style={{
-              flex: isMobile ? "1 1 100%" : "0 1 280px", padding: "8px 12px", borderRadius: 8,
-              border: "1px solid var(--border)", fontSize: 13, fontFamily: "inherit", outline: "none",
+              flex: "1 1 100%", minWidth: 0, padding: "8px 12px", borderRadius: 8,
+              border: "1px solid var(--border)", fontSize: 13, fontFamily: "inherit",
+              outline: "none", boxSizing: "border-box",
             }}
             onFocus={e => e.target.style.borderColor = "var(--gold)"}
             onBlur={e => e.target.style.borderColor = "var(--border)"}
           />
-          <button
-            type="button"
-            onClick={() => setCategory("all")}
-            style={chipStyle(category === "all")}
-          >Tutte</button>
+          <button type="button" onClick={() => setCategory("all")} style={chipStyle(category === "all")}>Tutte</button>
           {presentCats.map(k => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => setCategory(k)}
-              style={chipStyle(category === k)}
-            >{CATEGORIES[k]?.icon} {CATEGORIES[k]?.label || k}</button>
+            <button key={k} type="button" onClick={() => setCategory(k)} style={chipStyle(category === k)}>
+              {CATEGORIES[k]?.icon} {CATEGORIES[k]?.label || k}
+            </button>
           ))}
         </div>
       )}
@@ -139,12 +133,9 @@ export const Archive = ({ state, dispatch }) => {
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
           <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>Completate:</span>
           {PERIOD_OPTIONS.map(opt => (
-            <button
-              key={opt.key}
-              type="button"
-              onClick={() => setPeriod(opt.key)}
-              style={chipStyle(period === opt.key)}
-            >{opt.label}</button>
+            <button key={opt.key} type="button" onClick={() => setPeriod(opt.key)} style={chipStyle(period === opt.key)}>
+              {opt.label}
+            </button>
           ))}
         </div>
       )}
@@ -156,9 +147,7 @@ export const Archive = ({ state, dispatch }) => {
           textAlign: "center", border: "1px solid var(--border)",
         }}>
           <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>📦</div>
-          <div style={{ fontSize: 16, fontWeight: 600, color: "var(--heading)", marginBottom: 6 }}>
-            Archivio vuoto
-          </div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: "var(--heading)", marginBottom: 6 }}>Archivio vuoto</div>
           <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
             Le task completate verranno raccolte qui. Potrai riaprirle o cestinarle.
           </div>
@@ -179,8 +168,58 @@ export const Archive = ({ state, dispatch }) => {
             cursor: "pointer", fontFamily: "inherit",
           }}>Azzera filtri</button>
         </div>
+      ) : isMobile ? (
+        /* Mobile: card list — no horizontal overflow */
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {visible.map(task => (
+            <div
+              key={task.id}
+              onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: task })}
+              style={{
+                background: "var(--card)", borderRadius: 12, border: "1px solid var(--border)",
+                padding: "14px 16px", cursor: "pointer",
+              }}
+            >
+              <div style={{ fontWeight: 600, color: "var(--heading)", fontSize: 14, marginBottom: 6 }}>
+                {task.title}
+              </div>
+              <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
+                <PriorityBadge priority={task.priority} />
+                <CategoryChip category={task.category} />
+                <span style={{ fontSize: 11, color: "var(--success)", fontWeight: 600 }}>✓ Completata</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                  {task.client && (
+                    <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{task.client}</span>
+                  )}
+                  {task.completedAt && (
+                    <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{formatDate(task.completedAt)}</span>
+                  )}
+                  {task.assignees?.length > 0 && (
+                    <div style={{ display: "flex", gap: 3 }}>
+                      {task.assignees.map(id => <Avatar key={id} memberId={id} size={20} />)}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                  <button onClick={() => handleReopen(task)} style={{
+                    background: "var(--navy)", color: "#fff", border: "none",
+                    padding: "5px 10px", borderRadius: 6, cursor: "pointer", fontSize: 12,
+                    fontWeight: 600, fontFamily: "inherit",
+                  }}>↩ Riapri</button>
+                  <button onClick={() => handleTrash(task)} style={{
+                    background: "var(--card)", color: "var(--danger)", border: "1px solid var(--danger)",
+                    padding: "5px 8px", borderRadius: 6, cursor: "pointer", fontSize: 12,
+                    fontWeight: 600, fontFamily: "inherit",
+                  }}>🗑️</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       ) : (
-        /* Archive table */
+        /* Desktop: table */
         <div style={{ background: "var(--card)", borderRadius: 12, border: "1px solid var(--border)", overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
@@ -207,9 +246,7 @@ export const Archive = ({ state, dispatch }) => {
                       <span style={{ color: "var(--success)", fontWeight: 600 }}>✓ Completata</span>
                     </div>
                   </td>
-                  <td style={{ padding: "12px 8px" }}>
-                    <CategoryChip category={task.category} />
-                  </td>
+                  <td style={{ padding: "12px 8px" }}><CategoryChip category={task.category} /></td>
                   <td style={{ padding: "12px 8px", color: "var(--text)" }}>
                     {task.client || <span style={{ color: "var(--text-muted)" }}>—</span>}
                   </td>

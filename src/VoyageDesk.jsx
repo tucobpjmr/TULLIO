@@ -28,9 +28,9 @@ import { getActiveTasks } from "./lib/taskUtils.js";
 import { scopeConversationsForUser } from "./lib/chatUtils.js";
 // Step P Phase 2b: dati mock (solo le notifiche, le altre seed vivono nel reducer).
 // Step P Phase 2c: globals mutabili e helper permessi estratti.
-import { getMember, canEditTask } from "./state/appGlobals.js";
+import { getMember, canEditTask, canViewTask, canCreateTaskCategory, isAdmin } from "./state/appGlobals.js";
 // Step P Phase 2d: reducer e factory dell'initial state estratti.
-import { reducer, makeInitialState } from "./state/reducer.js";
+import { reducer, makeInitialState, ADMIN_ONLY_ACTIONS } from "./state/reducer.js";
 // Caveat #10: hook che astrae idratazione + subscribe realtime debounced.
 import { useDebouncedTableSubscription } from "./hooks/useDebouncedTableSubscription.js";
 // Step P Phase 2e: foundation + UI primitives estratti in src/components/.
@@ -669,11 +669,24 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   const dispatch = useCallback((action) => {
     if (!useSupabase) { rawDispatch(action); return Promise.resolve({ error: null }); }
 
+    const uid = currentUserIdRef.current;
+
+    // Pre-check permessi: rispecchia i gate del reducer (ADMIN_ONLY_ACTIONS in
+    // state/reducer.js) *prima* di costruire dbOps. Senza questo, un'azione
+    // negata lato reducer (stato locale invariato + toast d'errore) veniva
+    // comunque inviata a Supabase, affidando l'unica vera barriera alla RLS
+    // lato server — nessuna difesa in profondità lato client.
+    if (ADMIN_ONLY_ACTIONS.has(action.type) && !isAdmin(uid)) {
+      rawDispatch(action);
+      return Promise.resolve({ error: null });
+    }
+
     let toDispatch = action;
     let dbOps = null;
 
     switch (action.type) {
       case "ADD_TASK": {
+        if (!canCreateTaskCategory(action.payload?.category, uid)) break;
         const id = isUuid(action.payload?.id) ? action.payload.id : newId();
         const payload = { ...action.payload, id };
         toDispatch = { ...action, payload };
@@ -681,6 +694,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         break;
       }
       case "ADD_TASKS_BULK": {
+        if ((action.payload || []).some(t => !canCreateTaskCategory(t?.category, uid))) break;
         const payload = (action.payload || []).map(t => ({
           ...t, id: isUuid(t?.id) ? t.id : newId(),
         }));
@@ -688,21 +702,36 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         dbOps = () => Promise.all(payload.map(t => TasksAPI.create(toDbTask(t))));
         break;
       }
-      case "UPDATE_TASK":
+      case "UPDATE_TASK": {
+        const prev = stateRef.current.tasks.find(t => t.id === action.payload.id);
+        if (!prev || !canEditTask(prev, uid)) break;
         dbOps = () => TasksAPI.update(action.payload.id, toDbTaskPatch(action.payload));
         break;
-      case "MOVE_TASK":
+      }
+      case "MOVE_TASK": {
+        const prev = stateRef.current.tasks.find(t => t.id === action.payload.taskId);
+        if (!prev || !canEditTask(prev, uid)) break;
         dbOps = () => TasksAPI.update(action.payload.taskId, { status: action.payload.newStatus });
         break;
-      case "DELETE_TASK":
+      }
+      case "DELETE_TASK": {
+        const prev = stateRef.current.tasks.find(t => t.id === action.payload);
+        if (!prev || !canEditTask(prev, uid)) break;
         dbOps = () => TasksAPI.softDelete(action.payload);
         break;
-      case "RESTORE_TASK":
+      }
+      case "RESTORE_TASK": {
+        const prev = stateRef.current.tasks.find(t => t.id === action.payload);
+        if (!prev || !canEditTask(prev, uid)) break;
         dbOps = () => TasksAPI.restore(action.payload);
         break;
-      case "PURGE_TASK":
+      }
+      case "PURGE_TASK": {
+        const prev = stateRef.current.tasks.find(t => t.id === action.payload);
+        if (!prev || !canEditTask(prev, uid)) break;
         dbOps = () => TasksAPI.hardDelete(action.payload);
         break;
+      }
       case "UNDO_LAST_ACTION": {
         // Il reducer applica l'undo solo allo stato locale (state.lastAction,
         // popolato da MOVE_TASK/DELETE_TASK/UPDATE_TASK con swipe:true). Senza
@@ -724,7 +753,6 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         // in state/reducer.js): altrimenti un utente non-admin che vede solo un
         // sottoinsieme di task nel proprio Cestino finirebbe per far eliminare
         // sul DB anche i task cestinati di altri, di cui non ha i permessi.
-        const uid = currentUserIdRef.current;
         const ids = stateRef.current.tasks
           .filter(t => t.deletedAt && canEditTask(t, uid))
           .map(t => t.id);
@@ -732,7 +760,8 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         break;
       }
       case "ADD_COMMENT": {
-        const uid = currentUserIdRef.current;
+        const prev = stateRef.current.tasks.find(t => t.id === action.payload.taskId);
+        if (!prev || !canViewTask(prev, uid)) break;
         dbOps = () => CommentsAPI.create({
           task_id: action.payload.taskId,
           user_id: uid,

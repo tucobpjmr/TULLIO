@@ -233,13 +233,22 @@ export const Messages = {
       .eq('conversation_id', conversation_id)
       .order('created_at', { ascending: true })
       .limit(limit),
-  // Carica TUTTI i messaggi delle conv visibili in un solo round-trip:
+  // Carica i messaggi più RECENTI delle conv visibili in un solo round-trip:
   // l'app raggruppa lato client per conversation_id. Le RLS già limitano
   // la visibilità ai soli partecipanti.
-  listAll: (limit = 2000) =>
-    supabase.from('messages').select('*')
-      .order('created_at', { ascending: true })
-      .limit(limit),
+  // Nota: ordiniamo discendente per prendere gli ultimi `limit` (non i primi:
+  // con ascending una volta superato il totale cumulativo di `limit` messaggi
+  // su tutte le conversazioni visibili, i messaggi NUOVI smetterebbero di
+  // comparire perché la query restituirebbe sempre e solo i più vecchi).
+  // Poi si reinverte per ripristinare l'ordine cronologico atteso dai
+  // consumer (msgsByConv in VoyageDesk.jsx costruisce gli array assumendo
+  // ordine ascendente).
+  listAll: async (limit = 2000) => {
+    const { data, error } = await supabase.from('messages').select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    return { data: data ? [...data].reverse() : data, error };
+  },
   send: (m) =>
     supabase.from('messages').insert(withOrigin(m)).select().single(),
   remove: (id) =>

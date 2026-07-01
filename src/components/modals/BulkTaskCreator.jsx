@@ -2,7 +2,7 @@
 // Estratto dal monolite (Step P Phase 2f).
 // Contiene ManualTab, DuplicateTab, ImportTab, TemplateTab (helper interni,
 // non esportati) + il modale principale BulkTaskCreator.
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { PRIORITIES, STATUSES, STATUS_LABELS, TASK_TEMPLATES } from "../../lib/taskConstants.js";
@@ -387,15 +387,30 @@ const ImportTab = ({ onCreate, onClose }) => {
     const s = String(v).toLowerCase().trim();
     return Object.keys(CATEGORIES).find(k => k === s || CATEGORIES[k].label.toLowerCase() === s) || "admin";
   };
+  const isRecognizedCat = (v) => {
+    if (!v) return true;
+    const s = String(v).toLowerCase().trim();
+    return Object.keys(CATEGORIES).some(k => k === s || CATEGORIES[k].label.toLowerCase() === s);
+  };
   const normPrio = (v) => {
     if (!v) return "medium";
     const s = String(v).toLowerCase().trim();
     return Object.keys(PRIORITIES).find(k => k === s || PRIORITIES[k].label.toLowerCase() === s) || "medium";
   };
+  const isRecognizedPrio = (v) => {
+    if (!v) return true;
+    const s = String(v).toLowerCase().trim();
+    return Object.keys(PRIORITIES).some(k => k === s || PRIORITIES[k].label.toLowerCase() === s);
+  };
   const normStat = (v) => {
     if (!v) return "todo";
     const s = String(v).toLowerCase().trim();
     return STATUSES.find(k => k === s || STATUS_LABELS[k].toLowerCase() === s) || "todo";
+  };
+  const isRecognizedStat = (v) => {
+    if (!v) return true;
+    const s = String(v).toLowerCase().trim();
+    return STATUSES.some(k => k === s || STATUS_LABELS[k].toLowerCase() === s);
   };
   const normAssignee = (v) => {
     if (!v) return null;
@@ -403,14 +418,52 @@ const ImportTab = ({ onCreate, onClose }) => {
     const m = TEAM.find(mm => mm.id === s || mm.name.toLowerCase().includes(s) || s.includes(mm.name.toLowerCase().split(" ")[0]));
     return m?.id || null;
   };
+  // Formato italiano gg/mm/aaaa (o gg-mm-aaaa): il costruttore Date nativo
+  // interpreta "31/12/2026" come Invalid Date (prova mm/dd/yyyy, 31 non è un
+  // mese valido) → veniva scartata senza avviso; per date ambigue come
+  // "05/03/2026" la interpretava invece come 3 maggio anziché 5 marzo,
+  // invertendo silenziosamente giorno e mese. L'app è italiana: per questo
+  // pattern trattiamo sempre giorno-mese-anno, con validazione esplicita
+  // (rifiuta es. 31/02 invece di farlo scivolare al 3 marzo).
   const normDate = (v) => {
     if (!v) return null;
-    if (v instanceof Date) return v.toISOString();
-    const d = new Date(v);
+    if (v instanceof Date) return isNaN(v.getTime()) ? null : v.toISOString();
+    const s = String(v).trim();
+    const itMatch = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+    if (itMatch) {
+      const dd = Number(itMatch[1]);
+      const mm = Number(itMatch[2]);
+      let yyyy = Number(itMatch[3]);
+      if (itMatch[3].length === 2) yyyy += yyyy < 70 ? 2000 : 1900;
+      const d = new Date(Date.UTC(yyyy, mm - 1, dd));
+      const valid = d.getUTCFullYear() === yyyy && d.getUTCMonth() === mm - 1 && d.getUTCDate() === dd;
+      return valid ? d.toISOString() : null;
+    }
+    const d = new Date(s);
     return isNaN(d.getTime()) ? null : d.toISOString();
   };
 
-  const validRows = mapping.title ? rows.filter(r => String(r[mapping.title] || "").trim()) : [];
+  const validRows = useMemo(
+    () => mapping.title ? rows.filter(r => String(r[mapping.title] || "").trim()) : [],
+    [rows, mapping.title]
+  );
+
+  // Conta le righe che verrebbero importate con un valore "silenziosamente"
+  // sostituito da un default (categoria/priorità/stato non riconosciuti) o
+  // con la scadenza persa (data non interpretabile) — prima l'operatore non
+  // se ne accorgeva finché non ispezionava i task già creati.
+  const importWarnings = useMemo(() => {
+    if (!validRows.length) return null;
+    let badCategory = 0, badPriority = 0, badStatus = 0, badDate = 0;
+    for (const r of validRows) {
+      if (mapping.category && r[mapping.category] && !isRecognizedCat(r[mapping.category])) badCategory++;
+      if (mapping.priority && r[mapping.priority] && !isRecognizedPrio(r[mapping.priority])) badPriority++;
+      if (mapping.status && r[mapping.status] && !isRecognizedStat(r[mapping.status])) badStatus++;
+      if (mapping.dueDate && r[mapping.dueDate] && !normDate(r[mapping.dueDate])) badDate++;
+    }
+    const total = badCategory + badPriority + badStatus + badDate;
+    return total > 0 ? { badCategory, badPriority, badStatus, badDate } : null;
+  }, [validRows, mapping]);
 
   const handleCreate = () => {
     const ts = Date.now();
@@ -467,6 +520,17 @@ const ImportTab = ({ onCreate, onClose }) => {
       {error && (
         <div style={{ background: "#FEE2E2", border: "1px solid rgba(192,57,43,0.3)", color: "var(--danger)", padding: "12px 14px", borderRadius: 10, fontSize: 13 }}>
           ⚠️ {error}
+        </div>
+      )}
+
+      {importWarnings && (
+        <div style={{ background: "#FEF3C7", border: "1px solid rgba(200,131,42,0.35)", color: "var(--warning)", padding: "12px 14px", borderRadius: 10, fontSize: 12, lineHeight: 1.6 }}>
+          <div style={{ fontWeight: 700, marginBottom: 2 }}>⚠️ Valori non riconosciuti nel file</div>
+          {importWarnings.badCategory > 0 && <div>{importWarnings.badCategory} righe con categoria non riconosciuta → verrà usata "Amministrazione"</div>}
+          {importWarnings.badPriority > 0 && <div>{importWarnings.badPriority} righe con priorità non riconosciuta → verrà usata "Media"</div>}
+          {importWarnings.badStatus > 0 && <div>{importWarnings.badStatus} righe con stato non riconosciuto → verrà usato "Da fare"</div>}
+          {importWarnings.badDate > 0 && <div>{importWarnings.badDate} righe con data non interpretabile → scadenza lasciata vuota</div>}
+          <div style={{ marginTop: 4, opacity: 0.85 }}>Controlla l'anteprima sotto prima di importare, o correggi il file sorgente.</div>
         </div>
       )}
 

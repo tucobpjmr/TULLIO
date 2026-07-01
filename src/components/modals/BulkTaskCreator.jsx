@@ -36,7 +36,7 @@ const bulkIconBtnSmall = {
 // ─── BULK: MANUAL TAB ──────────────────────────────────────────────────────
 const ManualTab = ({ onCreate, onClose, clients = [] }) => {
   const { isMobile } = useViewport();
-  const [common, setCommon] = useState({ client: "", category: "booking", priority: "medium", assignee: "", praticaRef: "" });
+  const [common, setCommon] = useState({ client: "", category: "booking", priority: "medium", assignee: "", praticaRef: "", contact: "" });
   const [clientFocus, setClientFocus] = useState(false);
   const emptyRow = () => ({ key: Math.random().toString(36).slice(2), title: "", category: "", priority: "", assignee: "", dueDate: "" });
   const [rows, setRows] = useState([emptyRow(), emptyRow(), emptyRow()]);
@@ -58,6 +58,7 @@ const ManualTab = ({ onCreate, onClose, clients = [] }) => {
       assignees: (r.assignee || common.assignee) ? [r.assignee || common.assignee] : [],
       client: common.client.trim() || null,
       praticaRef: common.praticaRef || null,
+      contact: common.contact.trim() || null,
       dueDate: r.dueDate ? new Date(r.dueDate).toISOString() : null,
       estimatedHours: 1,
       description: "",
@@ -135,9 +136,15 @@ const ManualTab = ({ onCreate, onClose, clients = [] }) => {
             {getAssignableTeam().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </div>
-        <div style={{ marginTop: 8 }}>
-          <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>N° PRATICA</div>
-          <input value={common.praticaRef} onChange={e => setCommon({ ...common, praticaRef: e.target.value })} placeholder="es. PR-2026-001" style={{ ...bulkInputStyle, maxWidth: isMobile ? "100%" : 320 }} />
+        <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8, maxWidth: isMobile ? "100%" : 660 }}>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>N° PRATICA</div>
+            <input value={common.praticaRef} onChange={e => setCommon({ ...common, praticaRef: e.target.value })} placeholder="es. PR-2026-001" style={bulkInputStyle} />
+          </div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>CONTATTI</div>
+            <input value={common.contact} onChange={e => setCommon({ ...common, contact: e.target.value })} placeholder="Telefono, email…" style={bulkInputStyle} />
+          </div>
         </div>
       </div>
 
@@ -366,6 +373,7 @@ const ImportTab = ({ onCreate, onClose }) => {
           assignee: find(["assegn", "assign", "owner", "responsab"]) || "",
           estimatedHours: find(["ore", "hours"]) || "",
           description: find(["descriz", "descr", "note"]) || "",
+          contact: find(["contatt", "contact", "telefono", "phone", "cellulare"]) || "",
         });
       } catch (err) {
         setError("Impossibile leggere il file: " + err.message);
@@ -419,6 +427,7 @@ const ImportTab = ({ onCreate, onClose }) => {
         dueDate: mapping.dueDate ? normDate(r[mapping.dueDate]) : null,
         estimatedHours: mapping.estimatedHours ? (parseFloat(r[mapping.estimatedHours]) || 1) : 1,
         description: mapping.description ? String(r[mapping.description] || "").trim() : "",
+        contact: mapping.contact ? (String(r[mapping.contact] || "").trim() || null) : null,
         comments: [],
       };
     });
@@ -434,6 +443,7 @@ const ImportTab = ({ onCreate, onClose }) => {
     { key: "client", label: "Cliente" }, { key: "dueDate", label: "Scadenza" },
     { key: "assignee", label: "Assegnato" },
     { key: "description", label: "Descrizione" },
+    { key: "contact", label: "Contatti" },
   ];
 
   return (
@@ -533,6 +543,7 @@ const TemplateTab = ({ onCreate, onClose, clients = [] }) => {
   const [eventDate, setEventDate] = useState("");
   const [defaultAssignee, setDefaultAssignee] = useState("");
   const [praticaRef, setPraticaRef] = useState("");
+  const [contact, setContact] = useState("");
 
   const tpl = TASK_TEMPLATES.find(t => t.id === selectedId);
   const previewTasks = tpl && eventDate ? tpl.tasks.map(t => {
@@ -553,6 +564,7 @@ const TemplateTab = ({ onCreate, onClose, clients = [] }) => {
       assignees: defaultAssignee ? [defaultAssignee] : [],
       client: client.trim() || null,
       praticaRef: praticaRef || null,
+      contact: contact.trim() || null,
       dueDate: t.dueDate,
       estimatedHours: t.estimatedHours,
       description: "",
@@ -660,9 +672,13 @@ const TemplateTab = ({ onCreate, onClose, clients = [] }) => {
                 {getAssignableTeam().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
             </div>
-            <div style={{ gridColumn: "1 / -1" }}>
+            <div>
               <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>N° PRATICA</div>
-              <input value={praticaRef} onChange={e => setPraticaRef(e.target.value)} placeholder="es. PR-2026-001" style={{ ...bulkInputStyle, maxWidth: 360 }} />
+              <input value={praticaRef} onChange={e => setPraticaRef(e.target.value)} placeholder="es. PR-2026-001" style={bulkInputStyle} />
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>CONTATTI</div>
+              <input value={contact} onChange={e => setContact(e.target.value)} placeholder="Telefono, email…" style={bulkInputStyle} />
             </div>
           </div>
 

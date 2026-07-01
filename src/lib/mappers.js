@@ -25,6 +25,7 @@ export function fromDbTask(row) {
     assignees: Array.isArray(row.assignees) ? row.assignees : [],
     client: row.client_id ?? null,
     praticaRef: row.pratica_ref ?? null,
+    contact: row.contact ?? null,
     dueDate: row.due_date ?? null,
     estimatedHours: row.estimated_hours == null ? 0 : Number(row.estimated_hours),
     description: row.description ?? '',
@@ -53,6 +54,7 @@ export function toDbTask(task) {
     assignees: Array.isArray(task.assignees) ? task.assignees : [],
     client_id: task.client ?? null,
     pratica_ref: task.praticaRef ?? null,
+    contact: task.contact ?? null,
     due_date: task.dueDate ?? null,
     estimated_hours: task.estimatedHours ?? null,
     description: task.description ?? null,
@@ -71,6 +73,7 @@ export function toDbTaskPatch(patch) {
   if ('assignees' in patch) out.assignees = patch.assignees ?? [];
   if ('client' in patch) out.client_id = patch.client ?? null;
   if ('praticaRef' in patch) out.pratica_ref = patch.praticaRef ?? null;
+  if ('contact' in patch) out.contact = patch.contact ?? null;
   if ('dueDate' in patch) out.due_date = patch.dueDate ?? null;
   if ('estimatedHours' in patch) out.estimated_hours = patch.estimatedHours ?? null;
   if ('description' in patch) out.description = patch.description ?? null;

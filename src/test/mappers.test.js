@@ -46,11 +46,12 @@ describe("task mapping (DB ↔ app)", () => {
     const t = fromDbTask({
       id: UUID, title: "Volo Roma", category: "booking", priority: "high",
       status: "todo", assignees: ["marco"], client_id: "cli1",
-      pratica_ref: "PR-1", due_date: "2026-07-01", estimated_hours: "3",
+      pratica_ref: "PR-1", contact: "3331234567", due_date: "2026-07-01", estimated_hours: "3",
       description: "desc", deleted_at: null, comments: null,
     });
     expect(t.client).toBe("cli1");
     expect(t.praticaRef).toBe("PR-1");
+    expect(t.contact).toBe("3331234567");
     expect(t.dueDate).toBe("2026-07-01");
     expect(t.estimatedHours).toBe(3); // coercizione a Number
     expect(t.assignees).toEqual(["marco"]);
@@ -74,21 +75,21 @@ describe("task mapping (DB ↔ app)", () => {
     const appTask = {
       id: UUID, title: "Hotel", category: "hotel", priority: "medium",
       status: "doing", assignees: ["lucia"], client: "cli9",
-      praticaRef: "PR-9", dueDate: "2026-08-01", estimatedHours: 2,
+      praticaRef: "PR-9", contact: "3339876543", dueDate: "2026-08-01", estimatedHours: 2,
       description: "note", deletedAt: null,
     };
     const back = fromDbTask({ ...toDbTask(appTask), comments: [] });
     expect(back).toMatchObject({
       id: UUID, title: "Hotel", category: "hotel", priority: "medium",
       status: "doing", assignees: ["lucia"], client: "cli9",
-      praticaRef: "PR-9", estimatedHours: 2, description: "note",
+      praticaRef: "PR-9", contact: "3339876543", estimatedHours: 2, description: "note",
     });
   });
 
   it("toDbTaskPatch traduce solo i campi presenti", () => {
     expect(toDbTaskPatch({ status: "done" })).toEqual({ status: "done" });
-    const patch = toDbTaskPatch({ client: "c1", praticaRef: "P", dueDate: "d" });
-    expect(patch).toEqual({ client_id: "c1", pratica_ref: "P", due_date: "d" });
+    const patch = toDbTaskPatch({ client: "c1", praticaRef: "P", contact: "3331112222", dueDate: "d" });
+    expect(patch).toEqual({ client_id: "c1", pratica_ref: "P", contact: "3331112222", due_date: "d" });
     expect("title" in toDbTaskPatch({ status: "done" })).toBe(false);
   });
 

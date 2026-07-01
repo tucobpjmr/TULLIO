@@ -473,3 +473,21 @@ export function subscribeToTable(tableName, handler) {
     .subscribe();
   return () => supabase.removeChannel(channel);
 }
+
+// Canale realtime di BROADCAST per lo stato EFFIMERO "sta scrivendo".
+// A differenza di subscribeToTable non tocca il DB: gli eventi vivono solo
+// finché i client sono connessi (il typing non va persistito). Topic dedicato
+// per-conversazione così ogni chat ha il suo canale isolato.
+//   { config: { broadcast: { self: false } } } → il mittente NON riceve l'eco
+//   dei propri eventi, quindi non serve filtrare il proprio userId in ricezione.
+// Ritorna { send, unsubscribe }; send(payload) pubblica un evento 'typing'.
+export function subscribeToTyping(conversationId, onEvent) {
+  const channel = supabase
+    .channel(`typing:${conversationId}`, { config: { broadcast: { self: false } } })
+    .on('broadcast', { event: 'typing' }, ({ payload }) => onEvent(payload))
+    .subscribe();
+  const send = (payload) =>
+    channel.send({ type: 'broadcast', event: 'typing', payload });
+  const unsubscribe = () => supabase.removeChannel(channel);
+  return { send, unsubscribe };
+}

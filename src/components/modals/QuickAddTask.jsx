@@ -37,7 +37,7 @@ export const QuickAddTask = ({ onAdd, onClose, clients = [] }) => {
   const [form, setForm] = useState({
     title: "", category: firstCatKey, priority: "medium",
     status: "todo", assignees: [], dueDate: "",
-    client: "", praticaRef: "", description: ""
+    client: "", praticaRef: "", contact: "", description: ""
   });
   // true se l'utente ha cambiato manualmente la categoria → non sovrascrivere
   const [catManual, setCatManual] = useState(false);
@@ -92,6 +92,7 @@ export const QuickAddTask = ({ onAdd, onClose, clients = [] }) => {
       ...form,
       client: form.client.trim() || null,
       praticaRef: form.praticaRef || null,
+      contact: form.contact.trim() || null,
       comments: [],
       estimatedHours: 1,
       recurrence: "none",
@@ -260,9 +261,15 @@ export const QuickAddTask = ({ onAdd, onClose, clients = [] }) => {
             )}
           </div>
 
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>N° PRATICA</label>
-            <input {...inp("praticaRef")} placeholder="es. PR-2026-001" />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>N° PRATICA</label>
+              <input {...inp("praticaRef")} placeholder="es. PR-2026-001" />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>CONTATTI</label>
+              <input {...inp("contact")} placeholder="Telefono, email…" />
+            </div>
           </div>
 
           <div>

@@ -9,6 +9,7 @@ import { STATUSES, STATUS_LABELS, PRIORITIES } from "../../lib/taskConstants.js"
 import { formatDate, formatTime, isOverdue } from "../../lib/taskUtils.js";
 import { CURRENT_USER, getMember, getAssignableTeam, canEditTask, getAvailableCategories, CATEGORIES } from "../../state/appGlobals.js";
 import { MentionText } from "../ui/MentionText.jsx";
+import { DateTimePicker } from "../ui/DateTimePicker.jsx";
 import { TaskFiles } from "../../lib/api.js";
 import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit, sourceBadge, mediaKind } from "../../lib/fileUtils.js";
 
@@ -242,7 +243,7 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
   // Bozza locale dei campi testo: si scrive in locale e si persiste al blur
   // (un solo UPDATE_TASK per modifica, non a ogni tasto → niente toast a raffica
   // né un round-trip DB per carattere). I select/data persistono subito.
-  const [draft, setDraft] = useState({ title: "", client: "", praticaRef: "", description: "" });
+  const [draft, setDraft] = useState({ title: "", client: "", praticaRef: "", contact: "", description: "" });
 
   // Risincronizza la bozza quando si apre un task diverso. NON dipende dall'intero
   // `task` per non sovrascrivere quanto si sta digitando dopo un dispatch (es. il
@@ -252,6 +253,7 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
       title: task?.title || "",
       client: task?.client || "",
       praticaRef: task?.praticaRef || "",
+      contact: task?.contact || "",
       description: task?.description || "",
     });
     // Volutamente solo task?.id: ri-sincronizzare a ogni cambio dei campi
@@ -430,16 +432,10 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
                 SCADENZA {isOverdue(task) && "⚠️"}
               </div>
               {editable ? (
-                <input
-                  type="datetime-local"
-                  value={task.dueDate ? task.dueDate.slice(0, 16) : ""}
-                  onChange={e => updateField("dueDate", e.target.value ? new Date(e.target.value).toISOString() : null)}
-                  style={{
-                    ...fieldStyle, cursor: "pointer",
-                    border: `1px solid ${isOverdue(task) ? "var(--danger)" : "var(--border)"}`,
-                    background: isOverdue(task) ? "#FFF5F5" : "var(--card)",
-                    color: isOverdue(task) ? "var(--danger)" : "var(--text)", fontWeight: isOverdue(task) ? 600 : 400,
-                  }}
+                <DateTimePicker
+                  value={task.dueDate}
+                  onChange={iso => updateField("dueDate", iso)}
+                  hasError={isOverdue(task)}
                 />
               ) : (
                 <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block", color: isOverdue(task) ? "var(--danger)" : "var(--text)" }}>
@@ -592,22 +588,40 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
             </div>
           </div>
 
-          {/* Pratica (n° libero) */}
-          <div>
-            <div style={labelStyle}>N° PRATICA</div>
-            {editable ? (
-              <input
-                value={draft.praticaRef}
-                onChange={e => setDraft(d => ({ ...d, praticaRef: e.target.value }))}
-                onBlur={() => commitText("praticaRef", { nullable: true })}
-                placeholder="es. PR-2026-001"
-                style={fieldStyle}
-              />
-            ) : (
-              <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>
-                {task.praticaRef || <span style={{ color: "var(--text-muted)" }}>—</span>}
-              </div>
-            )}
+          {/* Pratica (n° libero) + Contatti */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <div style={labelStyle}>N° PRATICA</div>
+              {editable ? (
+                <input
+                  value={draft.praticaRef}
+                  onChange={e => setDraft(d => ({ ...d, praticaRef: e.target.value }))}
+                  onBlur={() => commitText("praticaRef", { nullable: true })}
+                  placeholder="es. PR-2026-001"
+                  style={fieldStyle}
+                />
+              ) : (
+                <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>
+                  {task.praticaRef || <span style={{ color: "var(--text-muted)" }}>—</span>}
+                </div>
+              )}
+            </div>
+            <div>
+              <div style={labelStyle}>CONTATTI</div>
+              {editable ? (
+                <input
+                  value={draft.contact}
+                  onChange={e => setDraft(d => ({ ...d, contact: e.target.value }))}
+                  onBlur={() => commitText("contact", { nullable: true })}
+                  placeholder="Telefono, email…"
+                  style={fieldStyle}
+                />
+              ) : (
+                <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>
+                  {task.contact || <span style={{ color: "var(--text-muted)" }}>—</span>}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Description */}

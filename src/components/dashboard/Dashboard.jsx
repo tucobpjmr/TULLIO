@@ -896,7 +896,7 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
   // Coda globale: task non assegnati (Driver non la vede)
   const showGlobalQueue = role !== "driver";
   const unassigned = showGlobalQueue
-    ? allTasks.filter(t => isInGlobalQueue(t) && canViewTask(t, uid)).sort((a, b) => {
+    ? allTasks.filter(t => t.status !== "done" && isInGlobalQueue(t) && canViewTask(t, uid)).sort((a, b) => {
         const prioOrder = { critical: 0, high: 1, medium: 2, low: 3 };
         const dp = prioOrder[a.priority] - prioOrder[b.priority];
         if (dp !== 0) return dp;

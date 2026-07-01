@@ -36,39 +36,61 @@ export function AuthProvider({ children }) {
   // distingue i due casi per adattare i testi (primo accesso vs recupero).
   const [recovery, setRecovery] = useState(!!INITIAL_AUTH_LINK_TYPE);
   const [recoveryKind, setRecoveryKind] = useState(INITIAL_AUTH_LINK_TYPE);
+  // Errore del caricamento profilo/sessione iniziale: senza, un blip di rete
+  // (es. connessione DB "a freddo" dopo inattività) lasciava l'app bloccata
+  // sulla schermata "Caricamento…" per sempre, recuperabile solo con un
+  // refresh manuale della pagina. Con authError mostriamo un retry esplicito.
+  const [authError, setAuthError] = useState(null);
 
   const loadProfile = useCallback(async (userId) => {
-    if (!userId) { setProfile(null); setTeam([]); return; }
-    const [{ data: me }, { data: all }, { data: contacts }] = await Promise.all([
-      supabase.from('users').select('*').eq('id', userId).single(),
-      // Nessun filtro su active: gli admin devono vedere anche utenti pending
-      // (per approvarli) e disabilitati. Le viste task usano getAssignableTeam()
-      // che filtra a sua volta active=true + pending=false (state/appGlobals.js).
-      supabase.from('users').select('*').order('name'),
-      // email/phone vivono in public.user_contacts (RLS own+admin). Le carico
-      // solo per l'utente loggato e le rimergio nel profilo e nella sua entry
-      // di team, così ProfileEditor le mostra (gli altri membri non le hanno,
-      // by-design privacy hardening). Vedi migrazione 20260613100833.
-      supabase.from('user_contacts').select('email, phone').eq('user_id', userId).maybeSingle(),
-    ]);
-    const myContacts = { email: contacts?.email ?? null, phone: contacts?.phone ?? null };
-    // Normalizza la colonna DB photo_url → photoUrl (camelCase) atteso da
-    // Avatar/ProfileEditor (caveat #25): senza, la foto persistita non si
-    // ri-mostrerebbe dopo il reload.
-    const normalize = (u) => ({ ...u, photoUrl: u.photo_url ?? null });
-    setProfile(me ? { ...normalize(me), ...myContacts } : null);
-    setTeam((all ?? []).map(u => u.id === userId ? { ...normalize(u), ...myContacts } : normalize(u)));
+    if (!userId) { setProfile(null); setTeam([]); setAuthError(null); return; }
+    try {
+      const [{ data: me, error: meError }, { data: all }, { data: contacts }] = await Promise.all([
+        supabase.from('users').select('*').eq('id', userId).single(),
+        // Nessun filtro su active: gli admin devono vedere anche utenti pending
+        // (per approvarli) e disabilitati. Le viste task usano getAssignableTeam()
+        // che filtra a sua volta active=true + pending=false (state/appGlobals.js).
+        supabase.from('users').select('*').order('name'),
+        // email/phone vivono in public.user_contacts (RLS own+admin). Le carico
+        // solo per l'utente loggato e le rimergio nel profilo e nella sua entry
+        // di team, così ProfileEditor le mostra (gli altri membri non le hanno,
+        // by-design privacy hardening). Vedi migrazione 20260613100833.
+        supabase.from('user_contacts').select('email, phone').eq('user_id', userId).maybeSingle(),
+      ]);
+      if (meError || !me) throw meError || new Error('Profilo non trovato');
+      const myContacts = { email: contacts?.email ?? null, phone: contacts?.phone ?? null };
+      // Normalizza la colonna DB photo_url → photoUrl (camelCase) atteso da
+      // Avatar/ProfileEditor (caveat #25): senza, la foto persistita non si
+      // ri-mostrerebbe dopo il reload.
+      const normalize = (u) => ({ ...u, photoUrl: u.photo_url ?? null });
+      setProfile({ ...normalize(me), ...myContacts });
+      setTeam((all ?? []).map(u => u.id === userId ? { ...normalize(u), ...myContacts } : normalize(u)));
+      setAuthError(null);
+    } catch (err) {
+      console.error('[auth] loadProfile failed', err);
+      setAuthError(err);
+    }
   }, []);
 
   useEffect(() => {
     let mounted = true;
 
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (!mounted) return;
-      setSession(data.session ?? null);
-      await loadProfile(data.session?.user?.id);
-      setLoading(false);
-    });
+    (async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!mounted) return;
+        setSession(data.session ?? null);
+        await loadProfile(data.session?.user?.id);
+      } catch (err) {
+        console.error('[auth] init failed', err);
+        if (mounted) setAuthError(err);
+      } finally {
+        // Sempre eseguito: senza questo, un errore/rifiuto in getSession() o
+        // loadProfile() lasciava `loading` bloccato a true per sempre (nessun
+        // catch a monte → la Promise chain non arrivava mai a setLoading(false)).
+        if (mounted) setLoading(false);
+      }
+    })();
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, s) => {
       if (_event === 'PASSWORD_RECOVERY') {
@@ -146,6 +168,7 @@ export function AuthProvider({ children }) {
     profile,
     team,
     loading,
+    authError,
     recovery,
     recoveryKind,
     isAdmin: profile?.role === 'admin',

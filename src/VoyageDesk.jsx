@@ -1202,7 +1202,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       return changed ? { ...prev, [convId]: next } : prev;
     });
     if (!useSupabase || !isUuid(convId)) return;
-    MessagesAPI.markReadBulk(convId, uid).then(r => {
+    MessagesAPI.markReadBulk(convId).then(r => {
       if (r?.error) {
         console.error('[chat] markReadBulk', r.error);
         rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: aggiornamento "letto" fallito: ${r.error.message || ''}` } });

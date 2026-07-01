@@ -4,6 +4,7 @@
 import { useState, useRef, useEffect } from "react";
 import { STATUSES, STATUS_LABELS, STATUS_COLORS } from "../../lib/taskConstants.js";
 import { isOverdue } from "../../lib/taskUtils.js";
+import { validateBackup } from "../../lib/backupValidation.js";
 import { loadXLSX } from "../../lib/xlsx.js";
 import { getMember } from "../../state/appGlobals.js";
 import { Users } from "../../lib/api.js";
@@ -406,8 +407,22 @@ const AdminIOTab = ({ state, dispatch }) => {
     reader.onload = (ev) => {
       try {
         const data = JSON.parse(ev.target.result);
-        if (!data.tasks || !Array.isArray(data.tasks)) throw new Error("File backup non valido");
-        dispatch({ type: "RESTORE_BACKUP", payload: data });
+        const { fatalError, sanitized, warnings } = validateBackup(data);
+        if (fatalError) throw new Error(fatalError);
+        if (warnings.length > 0) {
+          const MAX_SHOWN = 10;
+          const preview = warnings.slice(0, MAX_SHOWN).join("\n")
+            + (warnings.length > MAX_SHOWN ? `\n… e altri ${warnings.length - MAX_SHOWN} problemi` : "");
+          const proceed = window.confirm(
+            `Il backup contiene ${warnings.length} problema/i su righe non valide o non riconosciute:\n\n${preview}\n\n` +
+            `Le righe interessate verranno escluse o corrette con valori di default. Continuare comunque con il ripristino?`
+          );
+          if (!proceed) {
+            e.target.value = "";
+            return;
+          }
+        }
+        dispatch({ type: "RESTORE_BACKUP", payload: sanitized });
       } catch (err) {
         alert("Errore nel ripristino: " + err.message);
       }

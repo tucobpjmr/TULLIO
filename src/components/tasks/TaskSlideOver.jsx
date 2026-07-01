@@ -9,6 +9,7 @@ import { STATUSES, STATUS_LABELS, PRIORITIES } from "../../lib/taskConstants.js"
 import { formatDate, formatTime, isOverdue } from "../../lib/taskUtils.js";
 import { CURRENT_USER, getMember, getAssignableTeam, canEditTask, getAvailableCategories, CATEGORIES } from "../../state/appGlobals.js";
 import { MentionText } from "../ui/MentionText.jsx";
+import { DateTimePicker } from "../ui/DateTimePicker.jsx";
 import { TaskFiles } from "../../lib/api.js";
 import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit, sourceBadge, mediaKind } from "../../lib/fileUtils.js";
 
@@ -430,16 +431,10 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
                 SCADENZA {isOverdue(task) && "⚠️"}
               </div>
               {editable ? (
-                <input
-                  type="datetime-local"
-                  value={task.dueDate ? task.dueDate.slice(0, 16) : ""}
-                  onChange={e => updateField("dueDate", e.target.value ? new Date(e.target.value).toISOString() : null)}
-                  style={{
-                    ...fieldStyle, cursor: "pointer",
-                    border: `1px solid ${isOverdue(task) ? "var(--danger)" : "var(--border)"}`,
-                    background: isOverdue(task) ? "#FFF5F5" : "var(--card)",
-                    color: isOverdue(task) ? "var(--danger)" : "var(--text)", fontWeight: isOverdue(task) ? 600 : 400,
-                  }}
+                <DateTimePicker
+                  value={task.dueDate}
+                  onChange={iso => updateField("dueDate", iso)}
+                  hasError={isOverdue(task)}
                 />
               ) : (
                 <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block", color: isOverdue(task) ? "var(--danger)" : "var(--text)" }}>

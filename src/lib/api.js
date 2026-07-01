@@ -177,8 +177,30 @@ export const Tasks = {
     supabase.from('tasks').update(withOrigin({ deleted_at: new Date().toISOString() })).eq('id', id),
   restore: (id) =>
     supabase.from('tasks').update(withOrigin({ deleted_at: null })).eq('id', id),
-  hardDelete: (id) =>
-    supabase.from('tasks').delete().eq('id', id),
+  // Purge definitiva: la FK task_files.task_id ON DELETE CASCADE ripulisce le
+  // righe metadati ma NON tocca i file fisici nel bucket privato 'task-files'
+  // (path <task_id>/<uuid>-<nomefile>, vedi TaskFiles.upload). Senza questo step
+  // ogni purge di un task con allegati lascia file orfani nello storage per
+  // sempre. Leggiamo quindi i path prima di eliminare la riga task e rimuoviamo
+  // in un'unica chiamata batch; solo dopo cancelliamo il task (che innesca la
+  // cascade sui metadati). Se la lettura o la rimozione storage falliscono
+  // (es. bucket già ripulito), logghiamo un warning ma non blocchiamo comunque
+  // l'eliminazione del task — stesso principio non-bloccante di TaskFiles.remove.
+  hardDelete: async (id) => {
+    const filesRes = await supabase.from('task_files').select('file_url').eq('task_id', id);
+    if (filesRes.error) {
+      console.warn('TasksAPI.hardDelete: lettura allegati task_files fallita, procedo comunque', filesRes.error);
+    } else {
+      const paths = (filesRes.data || []).map((f) => f.file_url).filter(Boolean);
+      if (paths.length) {
+        const { error: removeError } = await supabase.storage.from('task-files').remove(paths);
+        if (removeError) {
+          console.warn('TasksAPI.hardDelete: rimozione allegati da storage fallita, procedo comunque', removeError);
+        }
+      }
+    }
+    return supabase.from('tasks').delete().eq('id', id);
+  },
 };
 
 // ----------------- COMMENTS -----------------

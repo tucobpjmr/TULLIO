@@ -19,14 +19,48 @@ function icsDate(d) {
     "T" + pad2(u.getUTCHours()) + pad2(u.getUTCMinutes()) + pad2(u.getUTCSeconds()) + "Z"
   );
 }
-function icsEscape(s) {
+export function icsEscape(s) {
   return String(s ?? "")
     .replace(/\\/g, "\\\\")
     .replace(/\n/g, "\\n")
     .replace(/,/g, "\\,")
     .replace(/;/g, "\\;");
 }
-function buildIcs(tasks) {
+// RFC 5545 §3.1 "Content Lines": nessuna riga può superare i 75 OTTETTI (byte
+// UTF-8, non caratteri). Le righe più lunghe vanno "foldate": si spezzano con
+// CRLF seguito da un singolo spazio di continuazione, che il client rimuove
+// per ricomporre la riga originale. Lo split DEVE avvenire su un confine di
+// ottetto valido, senza spezzare a metà un carattere UTF-8 multi-byte.
+const ICS_FOLD_LIMIT = 75;
+const textEncoder = new TextEncoder();
+export function foldIcsLine(line) {
+  const str = String(line ?? "");
+  if (textEncoder.encode(str).length <= ICS_FOLD_LIMIT) return str;
+
+  const segments = [];
+  let segment = "";
+  let segmentBytes = 0;
+  let limit = ICS_FOLD_LIMIT; // la prima porzione ha 75 ottetti disponibili
+
+  for (const ch of str) {
+    const chBytes = textEncoder.encode(ch).length;
+    if (segmentBytes + chBytes > limit) {
+      // Chiude la porzione corrente prima del carattere, mai a metà dei suoi byte
+      segments.push(segment);
+      segment = "";
+      segmentBytes = 0;
+      limit = ICS_FOLD_LIMIT - 1; // le continuazioni sono prefissate da uno spazio (1 ottetto)
+    }
+    segment += ch;
+    segmentBytes += chBytes;
+  }
+  segments.push(segment);
+
+  return segments
+    .map((s, i) => (i === 0 ? s : " " + s))
+    .join("\r\n");
+}
+export function buildIcs(tasks) {
   const now = icsDate(new Date());
   const lines = [
     "BEGIN:VCALENDAR",
@@ -53,7 +87,7 @@ function buildIcs(tasks) {
     );
   }
   lines.push("END:VCALENDAR");
-  return lines.join("\r\n");
+  return lines.map(foldIcsLine).join("\r\n");
 }
 function exportTasksToIcs(allTasks, uid) {
   const tasks = (allTasks || []).filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate);

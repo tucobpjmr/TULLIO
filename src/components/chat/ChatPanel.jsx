@@ -880,8 +880,17 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [msgs.length]);
 
-  // Mark as read on open (Step Q.4: 1 RPC bulk invece di N UPDATE per msg)
+  // Mark as read on open E quando arrivano nuovi messaggi non letti a chat
+  // aperta (Step Q.4: 1 RPC bulk invece di N UPDATE per msg).
+  // unreadCount nella dep list fa scattare l'effect anche quando il realtime
+  // aggiorna `msgs` con un nuovo messaggio altrui non letto, non solo
+  // all'apertura. Il guard `unreadCount === 0` evita chiamate ridondanti (sia
+  // a chat già "letta" sia dopo che il mark ha azzerato readBy, il che
+  // impedisce anche il loop: una volta marcati come letti, unreadCount torna
+  // a 0 e l'effect si ferma, senza reinnescarsi da solo).
+  const unreadCount = msgs.filter(m => m.sender !== CURRENT_USER && !m.readBy?.includes(CURRENT_USER)).length;
   useEffect(() => {
+    if (unreadCount === 0) return;
     if (markConversationRead) {
       markConversationRead(conv.id);
       return;
@@ -896,7 +905,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
         return m;
       })
     }));
-  }, [conv.id]);
+  }, [conv.id, unreadCount]);
 
   // Simulate someone typing
   useEffect(() => {

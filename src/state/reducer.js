@@ -523,4 +523,4 @@ function makeInitialState({ team, currentUserId } = {}) {
   };
 }
 
-export { reducer, makeInitialState };
+export { reducer, makeInitialState, ADMIN_ONLY_ACTIONS };

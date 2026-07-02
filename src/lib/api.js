@@ -421,10 +421,20 @@ export const Notifications = {
       .eq('read', false)
       .order('created_at', { ascending: false })
       .limit(limit),
+  // withOrigin sul patch: l'UPDATE realtime porta origin_client in payload.new,
+  // così subscribeToTable scarta l'eco della nostra stessa scrittura (niente
+  // refetch che sovrascrive l'update ottimistico → niente flicker "torna non
+  // letta"). markAllRead aggiorna in blocco via .eq: withOrigin aggiunge solo
+  // un campo al patch, la clausola where resta invariata.
   markRead: (id) =>
-    supabase.from('notifications').update({ read: true }).eq('id', id),
+    supabase.from('notifications').update(withOrigin({ read: true })).eq('id', id),
   markAllRead: () =>
-    supabase.from('notifications').update({ read: true }).eq('read', false),
+    supabase.from('notifications').update(withOrigin({ read: true })).eq('read', false),
+  // Le remove sono hard-delete: .delete() non accetta un payload, quindi non
+  // può trasportare origin_client (come Categories.remove). Le notifiche nascono
+  // da trigger DB server-side con origin_client NULL, perciò l'eco della DELETE
+  // non è auto-filtrabile; è però innocua (la riga eliminata non riappare: il
+  // refetch la conferma assente, nessun flicker visibile).
   remove: (id) =>
     supabase.from('notifications').delete().eq('id', id),
   // Pulizia elenco: cancella le sole notifiche già lette. La RLS

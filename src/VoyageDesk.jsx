@@ -902,10 +902,18 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   }, [useSupabase]);
 
   // Step J: navigazione da notifica → TaskSlideOver
+  // Se il task referenziato dalla notifica non è (più) raggiungibile — cestinato,
+  // purgato o non più visibile per riassegnazione/permessi — il pannello si
+  // chiude comunque e la notifica viene marcata come letta lato chiamante: senza
+  // un toast esplicito l'utente clicca e non vede succedere nulla, in silenzio.
   const openTaskById = useCallback((taskId) => {
     if (!taskId) return;
     const t = (state.tasks || []).find(x => x.id === taskId && !x.deletedAt);
-    if (t) dispatch({ type: "SET_SELECTED_TASK", payload: t });
+    if (t) {
+      dispatch({ type: "SET_SELECTED_TASK", payload: t });
+    } else {
+      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "Task non più disponibile (spostato nel cestino o riassegnato)" } });
+    }
   }, [state.tasks, dispatch]);
 
 
@@ -1202,7 +1210,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       return changed ? { ...prev, [convId]: next } : prev;
     });
     if (!useSupabase || !isUuid(convId)) return;
-    MessagesAPI.markReadBulk(convId, uid).then(r => {
+    MessagesAPI.markReadBulk(convId).then(r => {
       if (r?.error) {
         console.error('[chat] markReadBulk', r.error);
         rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: aggiornamento "letto" fallito: ${r.error.message || ''}` } });

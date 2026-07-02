@@ -8,7 +8,7 @@ import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { PRIORITIES, STATUSES, STATUS_LABELS, TASK_TEMPLATES } from "../../lib/taskConstants.js";
 import { formatDate } from "../../lib/taskUtils.js";
 import { TEAM, CATEGORIES, getAssignableTeam } from "../../state/appGlobals.js";
-import { loadXLSX } from "../../lib/xlsx.js";
+import { readFirstSheetRows } from "../../lib/xlsx.js";
 
 // ─── BULK TASK CREATOR (stili helper) ──────────────────────────────────────
 const bulkInputStyle = {
@@ -350,15 +350,9 @@ const ImportTab = ({ onCreate, onClose }) => {
     const reader = new FileReader();
     reader.onload = async (evt) => {
       try {
-        const XLSX = await loadXLSX();
-        // Caveat #18: leggiamo come ArrayBuffer + type "array" (non più binary
-        // string). Così SheetJS decodifica correttamente l'UTF-8 dei CSV (e
-        // rimuove il BOM iniziale), evitando il mojibake sui caratteri accentati
-        // (es. "città", "è"). Funziona anche per .xlsx/.xls.
-        const data = new Uint8Array(evt.target.result);
-        const wb = XLSX.read(data, { type: "array", cellDates: true });
-        const sheet = wb.Sheets[wb.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false });
+        // Lettura "hardened" (limite dimensione + guard anti prototype-pollution)
+        // centralizzata in src/lib/xlsx.js — vedi nota sicurezza SheetJS 0.18.5.
+        const json = await readFirstSheetRows(evt.target.result);
         if (!json.length) { setError("Il file è vuoto o non contiene righe leggibili."); return; }
         const cols = Object.keys(json[0]);
         setRows(json); setColumns(cols);

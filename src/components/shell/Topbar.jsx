@@ -7,7 +7,7 @@ import { Avatar } from "../ui/Avatar.jsx";
 import { Users as UsersAPI } from "../../lib/api.js";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { PRIORITIES, STATUSES, STATUS_LABELS, STATUS_COLORS } from "../../lib/taskConstants.js";
-import { formatDate, isOverdue } from "../../lib/taskUtils.js";
+import { formatDate, isOverdue, startOfLocalDay, endOfLocalDay } from "../../lib/taskUtils.js";
 import { MOCK_NOTIFICATIONS } from "../../state/mockData.js";
 import { TEAM, CATEGORIES, getMember, isJuniorAgent } from "../../state/appGlobals.js";
 import { ProfileEditor } from "../modals/ProfileEditor.jsx";
@@ -44,8 +44,8 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
   const results = useMemo(() => {
     if (!hasFilters) return [];
     const k = keyword.trim().toLowerCase();
-    const from = dateFrom ? new Date(dateFrom) : null;
-    const to = dateTo ? (() => { const d = new Date(dateTo); d.setHours(23,59,59,999); return d; })() : null;
+    const from = startOfLocalDay(dateFrom);
+    const to = endOfLocalDay(dateTo);
 
     return tasks.filter(t => {
       if (!includeTrashed && t.deletedAt) return false;

@@ -19,14 +19,48 @@ function icsDate(d) {
     "T" + pad2(u.getUTCHours()) + pad2(u.getUTCMinutes()) + pad2(u.getUTCSeconds()) + "Z"
   );
 }
-function icsEscape(s) {
+export function icsEscape(s) {
   return String(s ?? "")
     .replace(/\\/g, "\\\\")
     .replace(/\n/g, "\\n")
     .replace(/,/g, "\\,")
     .replace(/;/g, "\\;");
 }
-function buildIcs(tasks) {
+// RFC 5545 §3.1 "Content Lines": nessuna riga può superare i 75 OTTETTI (byte
+// UTF-8, non caratteri). Le righe più lunghe vanno "foldate": si spezzano con
+// CRLF seguito da un singolo spazio di continuazione, che il client rimuove
+// per ricomporre la riga originale. Lo split DEVE avvenire su un confine di
+// ottetto valido, senza spezzare a metà un carattere UTF-8 multi-byte.
+const ICS_FOLD_LIMIT = 75;
+const textEncoder = new TextEncoder();
+export function foldIcsLine(line) {
+  const str = String(line ?? "");
+  if (textEncoder.encode(str).length <= ICS_FOLD_LIMIT) return str;
+
+  const segments = [];
+  let segment = "";
+  let segmentBytes = 0;
+  let limit = ICS_FOLD_LIMIT; // la prima porzione ha 75 ottetti disponibili
+
+  for (const ch of str) {
+    const chBytes = textEncoder.encode(ch).length;
+    if (segmentBytes + chBytes > limit) {
+      // Chiude la porzione corrente prima del carattere, mai a metà dei suoi byte
+      segments.push(segment);
+      segment = "";
+      segmentBytes = 0;
+      limit = ICS_FOLD_LIMIT - 1; // le continuazioni sono prefissate da uno spazio (1 ottetto)
+    }
+    segment += ch;
+    segmentBytes += chBytes;
+  }
+  segments.push(segment);
+
+  return segments
+    .map((s, i) => (i === 0 ? s : " " + s))
+    .join("\r\n");
+}
+export function buildIcs(tasks) {
   const now = icsDate(new Date());
   const lines = [
     "BEGIN:VCALENDAR",
@@ -53,7 +87,7 @@ function buildIcs(tasks) {
     );
   }
   lines.push("END:VCALENDAR");
-  return lines.join("\r\n");
+  return lines.map(foldIcsLine).join("\r\n");
 }
 function exportTasksToIcs(allTasks, uid) {
   const tasks = (allTasks || []).filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate);
@@ -73,9 +107,48 @@ function exportTasksToIcs(allTasks, uid) {
 
 
 // ── Recurring expansion ─────────────────────────────────────────────────────
+// Numero di giorni (28–31) del mese `month` (0-based) dell'anno `year`.
+function daysInMonthOf(year, month) {
+  return new Date(year, month + 1, 0).getDate();
+}
+
+// Calcola l'occorrenza N-esima di una ricorrenza a partire SEMPRE dalla data base
+// originale (n = 0 restituisce la base stessa). Derivare ogni occorrenza dalla base
+// — invece di iterare su un accumulatore — evita lo slittamento permanente dovuto
+// all'overflow di setMonth/setFullYear quando il giorno di partenza non esiste nel
+// mese/anno target. Per monthly/yearly il giorno viene "clampato" all'ultimo giorno
+// valido del mese target (es. 31 gen → 28/29 feb → 31 mar → 30 apr → 31 mag; 29 feb
+// annuale → 28 feb negli anni non bisestili). L'ora del giorno (ore/minuti/secondi/ms)
+// della base è sempre preservata.
+export function nthRecurrence(base, recurrence, n) {
+  if (recurrence === "daily") {
+    const d = new Date(base);
+    d.setDate(d.getDate() + n);
+    return d;
+  }
+  if (recurrence === "weekly") {
+    const d = new Date(base);
+    d.setDate(d.getDate() + n * 7);
+    return d;
+  }
+  if (recurrence === "monthly" || recurrence === "yearly") {
+    const step = recurrence === "yearly" ? 12 : 1;
+    const totalMonths = base.getMonth() + n * step;
+    const year = base.getFullYear() + Math.floor(totalMonths / 12);
+    const month = ((totalMonths % 12) + 12) % 12;
+    const day = Math.min(base.getDate(), daysInMonthOf(year, month));
+    return new Date(
+      year, month, day,
+      base.getHours(), base.getMinutes(), base.getSeconds(), base.getMilliseconds()
+    );
+  }
+  // Ricorrenza sconosciuta: nessun avanzamento.
+  return new Date(base);
+}
+
 // Generates virtual task copies for recurring tasks within [rangeStart, rangeEnd].
 // Virtual copies have isRecurringInstance:true and originalId pointing to the base.
-function expandRecurring(tasks, rangeStart, rangeEnd) {
+export function expandRecurring(tasks, rangeStart, rangeEnd) {
   const result = [];
   for (const t of tasks) {
     if (!t.dueDate || !t.recurrence || t.recurrence === "none") {
@@ -83,18 +156,16 @@ function expandRecurring(tasks, rangeStart, rangeEnd) {
       continue;
     }
     const orig = new Date(t.dueDate);
-    let cur = new Date(orig);
+    // Ogni occorrenza è ricavata dalla base originale tramite l'indice `n`
+    // (n = 0 → base), così un mese/anno "corto" non altera le occorrenze successive.
+    let n = 0;
+    let cur = nthRecurrence(orig, t.recurrence, n);
     let safety = 0;
-    const advance = (d) => {
-      const n = new Date(d);
-      if (t.recurrence === "daily")        n.setDate(n.getDate() + 1);
-      else if (t.recurrence === "weekly")  n.setDate(n.getDate() + 7);
-      else if (t.recurrence === "monthly") n.setMonth(n.getMonth() + 1);
-      else if (t.recurrence === "yearly")  n.setFullYear(n.getFullYear() + 1);
-      return n;
-    };
     // Wind forward to first occurrence >= rangeStart
-    while (cur < rangeStart && safety++ < 400) cur = advance(cur);
+    while (cur < rangeStart && safety++ < 400) {
+      n++;
+      cur = nthRecurrence(orig, t.recurrence, n);
+    }
     // Emit all occurrences in [rangeStart, rangeEnd]
     safety = 0;
     while (cur <= rangeEnd && safety++ < 400) {
@@ -106,7 +177,8 @@ function expandRecurring(tasks, rangeStart, rangeEnd) {
         isRecurringInstance: !isOrig,
         originalId: t.id,
       });
-      cur = advance(cur);
+      n++;
+      cur = nthRecurrence(orig, t.recurrence, n);
     }
   }
   return result;

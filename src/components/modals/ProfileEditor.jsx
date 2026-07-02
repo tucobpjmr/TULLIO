@@ -5,6 +5,7 @@ import { useViewport } from "../Viewport.jsx";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { Users as UsersAPI } from "../../lib/api.js";
 import { PasswordField } from "../ui/PasswordField.jsx";
+import { isValidEmail } from "../../lib/validators.js";
 
 // ─── CROP MODAL ───────────────────────────────────────────────────────────────
 const PREVIEW = 280;
@@ -207,11 +208,16 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
 
   const handleSave = async () => {
     if (!name.trim()) return;
+    const trimmedEmail = email.trim();
+    if (trimmedEmail && !isValidEmail(trimmedEmail)) {
+      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "Email non valida." } });
+      return;
+    }
     const payload = {
       name: name.trim(),
       avatar: name.trim().split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
       color,
-      email: email.trim(),
+      email: trimmedEmail,
       phone: phone.trim(),
       photoUrl: photoUrl || null,
     };

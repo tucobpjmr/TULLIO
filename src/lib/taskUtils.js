@@ -14,6 +14,26 @@ export const formatTime = iso => {
 
 export const getDayKey = iso => iso ? new Date(iso).toDateString() : null;
 
+// Costruiscono inizio/fine giornata in ora LOCALE a partire da una stringa
+// "YYYY-MM-DD" (es. il valore di un <input type="date">, usato dal filtro
+// "Scadenza" della ricerca avanzata). new Date("YYYY-MM-DD") interpreta la
+// stringa come UTC-mezzanotte (01:00/02:00 locale in Italia): senza
+// normalizzare con setHours in locale, l'inizio giornata restava ancorato a
+// quell'orario e scartava erroneamente i task con dueDate di primo mattino
+// nello stesso giorno locale.
+export const startOfLocalDay = dateStr => {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+export const endOfLocalDay = dateStr => {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  d.setHours(23, 59, 59, 999);
+  return d;
+};
+
 export const isOverdue = task =>
   task.status !== "done" && task.dueDate && new Date(task.dueDate) < new Date();
 

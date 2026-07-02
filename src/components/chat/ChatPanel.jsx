@@ -4,8 +4,12 @@
 import { useState, useReducer, useEffect, useRef, useContext, createContext } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
-import { Messages as MessagesAPI, Users as UsersAPI } from "../../lib/api.js";
+import { Messages as MessagesAPI, Users as UsersAPI, subscribeToTyping } from "../../lib/api.js";
 import { isUuid } from "../../lib/mappers.js";
+import {
+  applyTypingEvent, pruneTypingMap, typingUserIds, buildTypingLabel,
+  TYPING_PING_MS, TYPING_STOP_MS,
+} from "../../lib/typingUtils.js";
 import { formatDate, formatTime } from "../../lib/taskUtils.js";
 import { TEAM, CURRENT_USER, getMember } from "../../state/appGlobals.js";
 import { MentionText } from "../ui/MentionText.jsx";
@@ -808,7 +812,7 @@ const convViewInitial = {
   input: "", recording: false, replyingTo: null,
   showAttach: false, showTemplates: false,
   showMsgSearch: false, msgSearch: "", showPinnedOnly: false,
-  typing: false, pendingTaskRef: null, uploading: false,
+  typingMap: {}, pendingTaskRef: null, uploading: false,
 };
 function convViewReducer(s, a) {
   switch (a.type) {
@@ -825,7 +829,7 @@ function convViewReducer(s, a) {
     case "SEARCH":         return { ...s, msgSearch: a.v };
     case "CLOSE_SEARCH":   return { ...s, showMsgSearch: false, msgSearch: "" };
     case "TOGGLE_PINNED":  return { ...s, showPinnedOnly: !s.showPinnedOnly };
-    case "TYPING":         return { ...s, typing: a.v };
+    case "SET_TYPING_MAP": return { ...s, typingMap: a.v };
     case "UPLOADING":      return { ...s, uploading: a.v };
     case "PREFILL":        return { ...s, input: a.text, pendingTaskRef: a.taskRef ?? null };
     default: return s;
@@ -854,13 +858,14 @@ function chatPanelReducer(s, a) {
 const ConversationView = ({ conv, messages, setMessages, markConversationRead, onBack, initialInput, initialTaskRef, onInitialInputConsumed }) => {
   const [cv, cvd] = useReducer(convViewReducer, convViewInitial);
   const { input, recording, replyingTo, showAttach, showTemplates,
-          showMsgSearch, msgSearch, showPinnedOnly, typing,
+          showMsgSearch, msgSearch, showPinnedOnly, typingMap,
           pendingTaskRef, uploading } = cv;
-  const { messageTemplates: templates = [] } = useContext(ChatContext);
+  const { messageTemplates: templates = [], currentUserId } = useContext(ChatContext);
   const scrollRef = useRef(null);
   // Step M: upload allegati reale
   const fileInputRef = useRef(null);
   const { dispatch } = useContext(ChatContext);
+  const myId = currentUserId || CURRENT_USER;
   // Guardia unmount: setState dopo unmount (utente chiude la chat mid-upload)
   // genera un warning React e perde la callback di errore.
   const mountedRef = useRef(true);
@@ -880,8 +885,17 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [msgs.length]);
 
-  // Mark as read on open (Step Q.4: 1 RPC bulk invece di N UPDATE per msg)
+  // Mark as read on open E quando arrivano nuovi messaggi non letti a chat
+  // aperta (Step Q.4: 1 RPC bulk invece di N UPDATE per msg).
+  // unreadCount nella dep list fa scattare l'effect anche quando il realtime
+  // aggiorna `msgs` con un nuovo messaggio altrui non letto, non solo
+  // all'apertura. Il guard `unreadCount === 0` evita chiamate ridondanti (sia
+  // a chat già "letta" sia dopo che il mark ha azzerato readBy, il che
+  // impedisce anche il loop: una volta marcati come letti, unreadCount torna
+  // a 0 e l'effect si ferma, senza reinnescarsi da solo).
+  const unreadCount = msgs.filter(m => m.sender !== CURRENT_USER && !m.readBy?.includes(CURRENT_USER)).length;
   useEffect(() => {
+    if (unreadCount === 0) return;
     if (markConversationRead) {
       markConversationRead(conv.id);
       return;
@@ -896,18 +910,82 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
         return m;
       })
     }));
-  }, [conv.id]);
+  }, [conv.id, unreadCount]);
 
-  // Simulate someone typing
+  // ── Typing indicator realtime (broadcast) ────────────────────────────────
+  // Stato effimero via canale broadcast per-conversazione (subscribeToTyping):
+  // niente DB. Ogni client tiene una mappa { userId: expiresAt } dei typer, con
+  // auto-scadenza locale così l'indicatore sparisce anche se un evento "stop"
+  // si perde. Gestisce nativamente più typer contemporanei nei gruppi.
+  const typingMapRef = useRef({});          // mirror sincrono di cv.typingMap
+  const typingChannelRef = useRef(null);    // { send, unsubscribe }
+  const lastTypingSentRef = useRef(0);       // anti-flood dei "typing:start"
+  const typingStopTimerRef = useRef(null);   // debounce "typing:stop"
+  useEffect(() => { typingMapRef.current = typingMap; }, [typingMap]);
+
+  const commitTypingMap = (next) => {
+    typingMapRef.current = next;
+    cvd({ type: "SET_TYPING_MAP", v: next });
+  };
+
+  // Sottoscrizione al canale della conversazione. Solo su conv reali (uuid):
+  // i mock/test non hanno realtime → nessuna connessione, nessun crash.
   useEffect(() => {
-    if (msgs.length === 0) return;
-    const last = msgs[msgs.length - 1];
-    if (last.sender === CURRENT_USER) {
-      const timer = setTimeout(() => cvd({ type: "TYPING", v: true }), 800);
-      const stop = setTimeout(() => cvd({ type: "TYPING", v: false }), 3500);
-      return () => { clearTimeout(timer); clearTimeout(stop); };
+    if (!isUuid(conv.id)) return;
+    let channel;
+    try {
+      channel = subscribeToTyping(conv.id, (payload) => {
+        commitTypingMap(applyTypingEvent(typingMapRef.current, payload, { selfId: myId }));
+      });
+    } catch (err) {
+      console.error("[chat] typing subscribe", err);
+      return;
     }
-  }, [msgs.length]);
+    typingChannelRef.current = channel;
+    return () => {
+      clearTimeout(typingStopTimerRef.current);
+      lastTypingSentRef.current = 0;
+      try { channel?.send({ userId: myId, typing: false }); } catch { /* noop */ }
+      try { channel?.unsubscribe(); } catch { /* noop */ }
+      typingChannelRef.current = null;
+      commitTypingMap({});
+    };
+  }, [conv.id, myId]);
+
+  // Prune periodico: rimuove i typer scaduti (fallback se un "stop" si perde).
+  useEffect(() => {
+    const t = setInterval(() => {
+      const pruned = pruneTypingMap(typingMapRef.current);
+      if (Object.keys(pruned).length !== Object.keys(typingMapRef.current).length) {
+        commitTypingMap(pruned);
+      }
+    }, 1500);
+    return () => clearInterval(t);
+  }, []);
+
+  // Segnala che l'utente locale sta scrivendo: pubblica "typing:start" (con
+  // anti-flood) e programma un "typing:stop" dopo un po' di inattività.
+  const notifyTyping = () => {
+    const ch = typingChannelRef.current;
+    if (!ch) return;
+    const now = Date.now();
+    if (now - lastTypingSentRef.current > TYPING_PING_MS) {
+      lastTypingSentRef.current = now;
+      try { ch.send({ userId: myId, typing: true }); } catch { /* noop */ }
+    }
+    clearTimeout(typingStopTimerRef.current);
+    typingStopTimerRef.current = setTimeout(() => {
+      lastTypingSentRef.current = 0;
+      try { ch.send({ userId: myId, typing: false }); } catch { /* noop */ }
+    }, TYPING_STOP_MS);
+  };
+
+  // Ferma subito il "sto scrivendo" (all'invio del messaggio).
+  const stopTyping = () => {
+    clearTimeout(typingStopTimerRef.current);
+    lastTypingSentRef.current = 0;
+    try { typingChannelRef.current?.send({ userId: myId, typing: false }); } catch { /* noop */ }
+  };
 
   const sendText = () => {
     if (!input.trim()) return;
@@ -923,6 +1001,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
       ...(stillHasLink && pendingTaskRef ? { taskRef: pendingTaskRef } : {}),
     };
     setMessages(prev => ({ ...prev, [conv.id]: [...(prev[conv.id] || []), newMsg] }));
+    stopTyping();
     cvd({ type: "AFTER_SEND" });
   };
 
@@ -1038,6 +1117,15 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
   const otherTypingMember = conv.participants.find(p => p !== CURRENT_USER);
   const otherMember = conv.type === "direct" ? getMember(otherTypingMember) : null;
 
+  // Chi sta DAVVERO scrivendo ora (dal broadcast, self escluso): guida sia
+  // l'etichetta sia l'avatar del bubble, gestendo più typer nei gruppi.
+  const typingIds = typingUserIds(typingMap, { selfId: myId });
+  const isTyping = typingIds.length > 0;
+  const typingLabel = buildTypingLabel(typingIds, {
+    type: conv.type,
+    resolveName: (id) => getMember(id)?.name?.split(" ")[0],
+  });
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--surface2)" }}>
       {/* Header */}
@@ -1066,9 +1154,9 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
             {getConversationName(conv)}
           </div>
           <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 11 }}>
-            {typing ? (
+            {isTyping ? (
               <span style={{ color: "var(--gold-light)" }}>
-                {conv.type === "group" ? `${getMember(otherTypingMember)?.name.split(" ")[0]} sta scrivendo` : "sta scrivendo"}
+                {typingLabel}
                 <span style={{ animation: "typing 1s infinite", animationDelay: "0s", display: "inline-block" }}>.</span>
                 <span style={{ animation: "typing 1s infinite", animationDelay: "0.2s", display: "inline-block" }}>.</span>
                 <span style={{ animation: "typing 1s infinite", animationDelay: "0.4s", display: "inline-block" }}>.</span>
@@ -1172,9 +1260,9 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
             );
           });
         })()}
-        {typing && (
+        {isTyping && (
           <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "flex-end" }}>
-            <Avatar memberId={otherTypingMember} size={28} />
+            <Avatar memberId={typingIds[0]} size={28} />
             <div style={{
               background: "var(--card)", border: "1px solid var(--border)",
               borderRadius: 14, borderTopLeftRadius: 4, padding: "8px 12px",
@@ -1317,7 +1405,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
 
             <input
               value={input}
-              onChange={e => cvd({ type: "INPUT", v: e.target.value })}
+              onChange={e => { cvd({ type: "INPUT", v: e.target.value }); notifyTyping(); }}
               onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), sendText())}
               placeholder="Scrivi un messaggio..."
               style={{

@@ -7,7 +7,7 @@ import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { CategoryChip } from "../ui/CategoryChip.jsx";
 import { PRIORITIES, STATUS_LABELS } from "../../lib/taskConstants.js";
 import { formatDate, getTrashedTasks } from "../../lib/taskUtils.js";
-import { CATEGORIES, getAssignableTeam, canEditTask } from "../../state/appGlobals.js";
+import { CATEGORIES, getAssignableTeam, canEditTask, getVisibleTasks } from "../../state/appGlobals.js";
 
 const PERIOD_OPTIONS = [
   { key: "all",       label: "Tutti" },
@@ -43,14 +43,25 @@ export const Trash = ({ state, dispatch }) => {
   const [restoring, setRestoring] = useState(null); // task being restored/edited
   const [period, setPeriod] = useState("all");
   const me = state.currentUserId;
-  // Ogni utente vede nel cestino solo i task che può gestire (admin: tutti; manager/agent:
-  // propri + coda globale; driver: solo transfer propri/globali) — prerogativa di status.
-  const trashed = getTrashedTasks(state.tasks)
-    .filter(t => canEditTask(t, me))
+  // La LISTA mostra tutti i task cestinati che l'utente può VEDERE (canViewTask,
+  // via getVisibleTasks) — stesso pattern di Archive.jsx: chi ha solo permesso di
+  // visualizzazione su un task (es. stakeholder in sola lettura, o ruolo che vede
+  // ma non gestisce quella categoria) deve poterlo vedere anche cestinato, non
+  // solo quando è completato/archiviato.
+  // Le AZIONI di ripristino/eliminazione restano invece gated da canEditTask
+  // (admin: tutti; manager/agent: propri + coda globale; driver: solo transfer
+  // propri/globali) — prerogativa di status, applicata sia qui in UI (toast di
+  // errore) sia a valle nel reducer (RESTORE_TASK/PURGE_TASK/EMPTY_TRASH).
+  const trashed = getVisibleTasks(getTrashedTasks(state.tasks), me)
     .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt));
   const visible = filterByPeriod(trashed, period);
+  const editableCount = trashed.filter(t => canEditTask(t, me)).length;
 
   const handleRestore = (task) => {
+    if (!canEditTask(task, me)) {
+      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "Non puoi ripristinare questo task" } });
+      return;
+    }
     setRestoring({ ...task });
   };
 
@@ -63,6 +74,10 @@ export const Trash = ({ state, dispatch }) => {
   };
 
   const handlePurge = (task) => {
+    if (!canEditTask(task, me)) {
+      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "Non puoi eliminare definitivamente questo task" } });
+      return;
+    }
     if (window.confirm(`Eliminare definitivamente "${task.title}"?\n\nQuesta azione è irreversibile.`)) {
       dispatch({ type: "PURGE_TASK", payload: task.id });
     }
@@ -70,7 +85,11 @@ export const Trash = ({ state, dispatch }) => {
 
   const handleEmpty = () => {
     if (trashed.length === 0) return;
-    if (window.confirm(`Svuotare il cestino?\n\n${trashed.length} task verranno eliminati definitivamente. Azione irreversibile.`)) {
+    if (editableCount === 0) {
+      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "Non hai permessi per svuotare il cestino" } });
+      return;
+    }
+    if (window.confirm(`Svuotare il cestino?\n\n${editableCount} task verranno eliminati definitivamente. Azione irreversibile.`)) {
       dispatch({ type: "EMPTY_TRASH" });
     }
   };

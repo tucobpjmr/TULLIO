@@ -4,6 +4,7 @@ import {
   isOverdue, isUrgent,
   isActiveTask, getActiveTasks, getTrashedTasks,
   isMyTask, isInGlobalQueue,
+  startOfLocalDay, endOfLocalDay,
 } from "../lib/taskUtils.js";
 
 describe("formatDate", () => {
@@ -69,6 +70,42 @@ describe("isOverdue", () => {
   it("returns false for a future dueDate", () => {
     const t = { status: "todo", dueDate: "2099-01-01T00:00:00.000Z" };
     expect(isOverdue(t)).toBe(false);
+  });
+});
+
+describe("startOfLocalDay", () => {
+  it("returns null for falsy input", () => {
+    expect(startOfLocalDay(null)).toBeNull();
+    expect(startOfLocalDay("")).toBeNull();
+  });
+
+  it("returns local midnight for the given date, not UTC midnight", () => {
+    const d = startOfLocalDay("2026-07-15");
+    const expected = new Date(2026, 6, 15, 0, 0, 0, 0); // mezzanotte locale
+    expect(d.getTime()).toBe(expected.getTime());
+  });
+
+  it("regression: include un task dovuto poco dopo mezzanotte locale del giorno 'Da'", () => {
+    // Prima del fix, il filtro "Da" usava new Date("2026-07-15") che JS
+    // interpreta come UTC-mezzanotte: in fusi con offset positivo (es. Italia
+    // UTC+1/+2) equivale alle 01:00/02:00 locali, escludendo erroneamente un
+    // task con dueDate alle 00:30 locali dello stesso giorno.
+    const dueDate = new Date(2026, 6, 15, 0, 30, 0, 0); // 00:30 locale
+    const from = startOfLocalDay("2026-07-15");
+    expect(dueDate.getTime()).toBeGreaterThanOrEqual(from.getTime());
+  });
+});
+
+describe("endOfLocalDay", () => {
+  it("returns null for falsy input", () => {
+    expect(endOfLocalDay(null)).toBeNull();
+    expect(endOfLocalDay("")).toBeNull();
+  });
+
+  it("returns local end-of-day (23:59:59.999) for the given date", () => {
+    const d = endOfLocalDay("2026-07-15");
+    const expected = new Date(2026, 6, 15, 23, 59, 59, 999);
+    expect(d.getTime()).toBe(expected.getTime());
   });
 });
 

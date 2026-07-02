@@ -18,6 +18,7 @@ import {
   modalOverlay, modalCard, labelStyle, fieldStyle, btnPrimary, btnGhost,
 } from "../admin/adminStyles.js";
 import { Users } from "../../lib/api.js";
+import { EMAIL_RX } from "../../lib/validators.js";
 
 const ROLE_TO_DB = {
   "Manager": "manager",
@@ -26,8 +27,6 @@ const ROLE_TO_DB = {
   "Driver": "driver",
   "Admin": "admin",
 };
-
-const EMAIL_RX = /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/;
 
 // "anna.bianchi" → "Anna Bianchi". Spezza su . _ - e capitalizza.
 const guessNameFromLocal = (local) => {

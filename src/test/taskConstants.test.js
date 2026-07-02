@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { PRIORITIES, STATUSES, STATUS_LABELS, STATUS_COLORS, RECURRENCE_OPTIONS, TASK_TEMPLATES } from "../lib/taskConstants.js";
+import { PRIORITIES, STATUSES, STATUS_LABELS, STATUS_COLORS, RECURRENCE_OPTIONS, TASK_TEMPLATES, TEAM_ROLES } from "../lib/taskConstants.js";
 
 describe("PRIORITIES", () => {
   const keys = ["critical", "high", "medium", "low"];
@@ -31,6 +31,16 @@ describe("STATUSES", () => {
       expect(STATUS_LABELS[s]).toBeTruthy();
       expect(STATUS_COLORS[s]).toBeTruthy();
     }
+  });
+});
+
+describe("TEAM_ROLES", () => {
+  it("has exactly the five canonical roles used by member.role", () => {
+    expect(TEAM_ROLES).toEqual(["Manager", "Senior Agent", "Junior Agent", "Driver", "Admin"]);
+  });
+
+  it("contains no duplicates", () => {
+    expect(new Set(TEAM_ROLES).size).toBe(TEAM_ROLES.length);
   });
 });
 

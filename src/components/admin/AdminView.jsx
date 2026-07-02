@@ -2,7 +2,7 @@
 // Estratto dal monolite (Step P Phase 2f). AdminView + i 5 tab (Team/IO/Stats/
 // Categories/Log, module-local). Esporta solo AdminView.
 import { useState, useRef, useEffect } from "react";
-import { STATUSES, STATUS_LABELS, STATUS_COLORS } from "../../lib/taskConstants.js";
+import { STATUSES, STATUS_LABELS, STATUS_COLORS, TEAM_ROLES } from "../../lib/taskConstants.js";
 import { isOverdue } from "../../lib/taskUtils.js";
 import { validateBackup } from "../../lib/backupValidation.js";
 import { loadXLSX } from "../../lib/xlsx.js";
@@ -199,8 +199,10 @@ const AdminTeamTab = ({ state, dispatch }) => {
               <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 100px", gap: 8 }}>
                 <input value={draft.name} onChange={e => setDraft({...draft, name: e.target.value})}
                   placeholder="Nome" style={fieldStyle} />
-                <input value={draft.role} onChange={e => setDraft({...draft, role: e.target.value})}
-                  placeholder="Ruolo" style={fieldStyle} />
+                <select value={draft.role} onChange={e => setDraft({...draft, role: e.target.value})}
+                  style={fieldStyle}>
+                  {TEAM_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
                 <input type="color" value={draft.color} onChange={e => setDraft({...draft, color: e.target.value})}
                   style={{ ...fieldStyle, padding: 2, height: 32 }} />
               </div>

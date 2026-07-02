@@ -9,6 +9,7 @@ import {
   modalOverlay, modalCard, labelStyle, fieldStyle, btnPrimary, btnGhost,
 } from "../admin/adminStyles.js";
 import { Users } from "../../lib/api.js";
+import { isValidEmail } from "../../lib/validators.js";
 
 // Ruolo UI (label) → ruolo DB/Auth ammesso dall'enum (admin|manager|agent|driver).
 const ROLE_TO_DB = {
@@ -32,6 +33,7 @@ export const AddTeamMemberModal = ({ onClose, dispatch, existingIds, onInvited }
     if (!name.trim()) { setErr("Il nome è obbligatorio."); return; }
     setErr(null);
     const trimmedEmail = email.trim().toLowerCase();
+    if (trimmedEmail && !isValidEmail(trimmedEmail)) { setErr("Email non valida."); return; }
 
     // Con email → invito reale via Edge Function (account auth + profilo pending).
     if (trimmedEmail) {

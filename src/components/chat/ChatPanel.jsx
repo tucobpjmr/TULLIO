@@ -5,7 +5,7 @@ import { useState, useReducer, useEffect, useRef, useContext, createContext } fr
 import { useViewport } from "../Viewport.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { Messages as MessagesAPI, Users as UsersAPI, subscribeToTyping } from "../../lib/api.js";
-import { isUuid } from "../../lib/mappers.js";
+import { isUuid, newId } from "../../lib/mappers.js";
 import {
   applyTypingEvent, pruneTypingMap, typingUserIds, buildTypingLabel,
   TYPING_PING_MS, TYPING_STOP_MS,
@@ -2000,8 +2000,10 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
       c.participants.includes(intent.toUser)
     );
     if (!direct) {
+      // UUID subito (come in handleCreate): la vista attivata e la riga
+      // persistita devono condividere lo stesso id.
       direct = {
-        id: "c" + Date.now(),
+        id: newId(),
         type: "direct",
         participants: [me, intent.toUser],
         name: null,
@@ -2021,9 +2023,17 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
 
   if (!open) return null;
 
+  // Le conv nuove nascono in NewConversationView con id locale "c<timestamp>".
+  // L'UUID definitivo va assegnato QUI, prima di attivare la vista: il wrapper
+  // setConversations (VoyageDesk) rimappa gli id non-uuid quando persiste su
+  // DB, ma ACTIVATE riceveva l'oggetto originale — il creatore restava su un
+  // id non-uuid con typing/markRead saltati (gate isUuid), primo messaggio
+  // INSERTato con conversation_id invalido e risposte realtime instradate
+  // sotto la chiave UUID di una vista che leggeva ancora "c<timestamp>".
   const handleCreate = (conv, addNew = false) => {
-    if (addNew) setConversations(c => [conv, ...c]);
-    pd({ type: "ACTIVATE", conv });
+    const normalized = addNew && !isUuid(conv.id) ? { ...conv, id: newId() } : conv;
+    if (addNew) setConversations(c => [normalized, ...c]);
+    pd({ type: "ACTIVATE", conv: normalized });
   };
 
   return (

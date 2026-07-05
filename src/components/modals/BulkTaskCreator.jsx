@@ -9,6 +9,7 @@ import { PRIORITIES, STATUSES, STATUS_LABELS, TASK_TEMPLATES } from "../../lib/t
 import { formatDate } from "../../lib/taskUtils.js";
 import { TEAM, CATEGORIES, getAssignableTeam } from "../../state/appGlobals.js";
 import { readFirstSheetRows } from "../../lib/xlsx.js";
+import { DateTimePicker } from "../ui/DateTimePicker.jsx";
 
 // ─── BULK TASK CREATOR (stili helper) ──────────────────────────────────────
 const bulkInputStyle = {
@@ -179,7 +180,11 @@ const ManualTab = ({ onCreate, onClose, clients = [] }) => {
                   <option value="">— assegna —</option>
                   {getAssignableTeam().map(m => <option key={m.id} value={m.id}>{m.name.split(" ")[0]}</option>)}
                 </select>
-                <input type="date" value={r.dueDate} onChange={e => updateRow(r.key, "dueDate", e.target.value)} style={bulkInputStyle} />
+                <DateTimePicker
+                  value={r.dueDate || null}
+                  onChange={iso => updateRow(r.key, "dueDate", iso || "")}
+                  align="right"
+                />
               </div>
             </div>
           ) : (
@@ -198,7 +203,11 @@ const ManualTab = ({ onCreate, onClose, clients = [] }) => {
                 <option value="">—</option>
                 {getAssignableTeam().map(m => <option key={m.id} value={m.id}>{m.name.split(" ")[0]}</option>)}
               </select>
-              <input type="date" value={r.dueDate} onChange={e => updateRow(r.key, "dueDate", e.target.value)} style={bulkInputStyle} />
+              <DateTimePicker
+                value={r.dueDate || null}
+                onChange={iso => updateRow(r.key, "dueDate", iso || "")}
+                align="right"
+              />
               <button onClick={() => removeRow(r.key)} disabled={rows.length === 1} style={{
                 background: "transparent", border: "none", cursor: rows.length === 1 ? "not-allowed" : "pointer",
                 fontSize: 14, color: "var(--text-muted)", opacity: rows.length === 1 ? 0.3 : 1,
@@ -721,7 +730,12 @@ const TemplateTab = ({ onCreate, onClose, clients = [] }) => {
             </div>
             <div>
               <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>DATA EVENTO *</div>
-              <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} style={bulkInputStyle} />
+              <DateTimePicker
+                value={eventDate || null}
+                onChange={iso => setEventDate(iso || "")}
+                withTime={false}
+                placeholder="gg/mm/aaaa"
+              />
             </div>
             <div>
               <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>ASSEGNA A</div>

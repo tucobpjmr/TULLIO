@@ -8,6 +8,7 @@ import { CategoryChip } from "../ui/CategoryChip.jsx";
 import { PRIORITIES, STATUS_LABELS } from "../../lib/taskConstants.js";
 import { formatDate, getTrashedTasks } from "../../lib/taskUtils.js";
 import { CATEGORIES, getAssignableTeam, canEditTask, getVisibleTasks } from "../../state/appGlobals.js";
+import { DateTimePicker } from "../ui/DateTimePicker.jsx";
 
 const PERIOD_OPTIONS = [
   { key: "all",       label: "Tutti" },
@@ -344,14 +345,10 @@ export const Trash = ({ state, dispatch }) => {
                 </div>
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5, marginBottom: 4, display: "block" }}>SCADENZA</label>
-                  <input
-                    type="datetime-local"
-                    value={restoring.dueDate ? restoring.dueDate.slice(0, 16) : ""}
-                    onChange={e => updateField("dueDate", e.target.value ? new Date(e.target.value).toISOString() : null)}
-                    style={{
-                      width: "100%", padding: "10px 12px", borderRadius: 8,
-                      border: "1px solid var(--border)", fontSize: 13, fontFamily: "inherit",
-                    }}
+                  <DateTimePicker
+                    value={restoring.dueDate || null}
+                    onChange={iso => updateField("dueDate", iso)}
+                    align="right"
                   />
                 </div>
               </div>

@@ -28,7 +28,12 @@ function buildMonthGrid(viewDate) {
 const sameDay = (a, b) => !!a && !!b &&
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
-export function DateTimePicker({ value, onChange, hasError, style, placeholder = "gg/mm/aaaa --:--" }) {
+// `align`: lato di ancoraggio del popover ("left" | "right") — "right" serve
+// quando il campo sta vicino al bordo destro di un modale e il popover
+// verrebbe tagliato dall'overflow. `withTime`: se false il picker è solo-data
+// (niente riga "Ora"); la conferma fissa mezzogiorno locale, come il filtro
+// data della Dashboard, così la data non slitta di giorno tra fusi orari.
+export function DateTimePicker({ value, onChange, hasError, style, placeholder = "gg/mm/aaaa --:--", align = "left", withTime = true }) {
   const [open, setOpen] = useState(false);
   const [viewDate, setViewDate] = useState(() => (value ? new Date(value) : new Date()));
   const [draftDay, setDraftDay] = useState(() => (value ? new Date(value) : null));
@@ -65,9 +70,13 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
 
   const confirm = () => {
     if (!draftDay) { onChange(null); setOpen(false); return; }
-    const [h, m] = draftTime.split(":").map(Number);
     const out = new Date(draftDay);
-    out.setHours(h || 0, m || 0, 0, 0);
+    if (withTime) {
+      const [h, m] = draftTime.split(":").map(Number);
+      out.setHours(h || 0, m || 0, 0, 0);
+    } else {
+      out.setHours(12, 0, 0, 0);
+    }
     onChange(out.toISOString());
     setOpen(false);
   };
@@ -75,7 +84,9 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
   const clear = () => { onChange(null); setOpen(false); };
 
   const label = value
-    ? `${new Date(value).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" })} ${new Date(value).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`
+    ? withTime
+      ? `${new Date(value).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" })} ${new Date(value).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`
+      : new Date(value).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" })
     : placeholder;
 
   return (
@@ -98,7 +109,8 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
 
       {open && (
         <div style={{
-          position: "absolute", top: "100%", left: 0, marginTop: 6, zIndex: 30,
+          position: "absolute", top: "100%", ...(align === "right" ? { right: 0 } : { left: 0 }),
+          marginTop: 6, zIndex: 30,
           background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10,
           boxShadow: "0 10px 30px rgba(0,0,0,0.15)", padding: 12, width: 260,
         }}>
@@ -146,15 +158,17 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
             })}
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-            <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>Ora</span>
-            <input
-              type="time"
-              value={draftTime}
-              onChange={e => setDraftTime(e.target.value)}
-              style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 6, padding: "4px 8px", fontSize: 12, fontFamily: "inherit" }}
-            />
-          </div>
+          {withTime && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>Ora</span>
+              <input
+                type="time"
+                value={draftTime}
+                onChange={e => setDraftTime(e.target.value)}
+                style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 6, padding: "4px 8px", fontSize: 12, fontFamily: "inherit" }}
+              />
+            </div>
+          )}
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <button

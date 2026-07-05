@@ -6,6 +6,7 @@ import { Users as UsersAPI } from "../../lib/api.js";
 import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { StatusBadge } from "../ui/StatusBadge.jsx";
+import { ContactActions } from "../ui/ContactActions.jsx";
 import { STATUSES, STATUS_LABELS } from "../../lib/taskConstants.js";
 import { formatDate, isActiveTask } from "../../lib/taskUtils.js";
 import { CATEGORIES, getMember, getAssignableTeam, canViewTask, isJuniorAgent, TEAM } from "../../state/appGlobals.js";
@@ -195,10 +196,7 @@ export const Team = ({ state, dispatch }) => {
                   }}>✉️ {memberContacts.email}</a>
                 )}
                 {memberContacts.phone && (
-                  <a href={`tel:${memberContacts.phone.replace(/\s+/g, "")}`} style={{
-                    display: "flex", alignItems: "center", gap: 6,
-                    color: "var(--navy)", textDecoration: "none", fontWeight: 500,
-                  }}>📞 {memberContacts.phone}</a>
+                  <ContactActions phone={memberContacts.phone} style={{ fontWeight: 500 }} />
                 )}
               </div>
             )}

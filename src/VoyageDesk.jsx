@@ -1218,6 +1218,34 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     });
   }, [useSupabase]);
 
+  // Eliminazione conversazione/gruppo (richiesta utente, conferma già data in
+  // ChatPanel). Rimozione locale ottimistica + persistenza: prima il cleanup
+  // best-effort degli allegati storage (dopo il delete della conv le policy
+  // sul bucket non permetterebbero più la rimozione → orfani permanenti), poi
+  // il DELETE della riga (i messaggi seguono via FK ON DELETE CASCADE). Gli
+  // altri client si allineano via realtime (refetch su evento conversations).
+  const deleteConversation = useCallback((convId) => {
+    setConversationsRaw(prev => prev.filter(c => c.id !== convId));
+    setMessagesRaw(prev => {
+      if (!(convId in prev)) return prev;
+      const next = { ...prev };
+      delete next[convId];
+      return next;
+    });
+    if (!useSupabase || !isUuid(convId)) return;
+    (async () => {
+      const filesRes = await MessagesAPI.removeConversationFiles(convId);
+      if (filesRes?.error) console.warn('[chat] conv files cleanup', filesRes.error);
+      const { error } = await ConversationsAPI.remove(convId);
+      if (error) {
+        console.error('[chat] conv.delete', error);
+        rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: eliminazione conversazione fallita: ${error.message || ''}` } });
+        return;
+      }
+      rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'success', message: 'Conversazione eliminata' } });
+    })();
+  }, [useSupabase]);
+
   // La lista chat è PERSONALE: mostra solo le conversazioni di cui l'utente è
   // davvero partecipante (e scarta le dirette orfane → "Sconosciuto"). Vedi
   // scopeConversationsForUser per il perché (RLS admin-see-all + invio bloccato
@@ -1337,6 +1365,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           messages={messages}
           setMessages={setMessages}
           markConversationRead={markConversationRead}
+          onDeleteConversation={deleteConversation}
           intent={chatIntent}
           tasks={state.tasks}
           currentUserId={state.currentUserId}

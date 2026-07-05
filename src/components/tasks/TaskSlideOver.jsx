@@ -10,6 +10,7 @@ import { formatDate, formatTime, isOverdue } from "../../lib/taskUtils.js";
 import { CURRENT_USER, getMember, getAssignableTeam, canEditTask, getAvailableCategories, CATEGORIES } from "../../state/appGlobals.js";
 import { MentionText } from "../ui/MentionText.jsx";
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";
+import { ContactText } from "../ui/ContactActions.jsx";
 import { TaskFiles } from "../../lib/api.js";
 import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit, sourceBadge, mediaKind } from "../../lib/fileUtils.js";
 
@@ -618,7 +619,9 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
                 />
               ) : (
                 <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>
-                  {task.contact || <span style={{ color: "var(--text-muted)" }}>—</span>}
+                  {task.contact
+                    ? <ContactText text={task.contact} />
+                    : <span style={{ color: "var(--text-muted)" }}>—</span>}
                 </div>
               )}
             </div>

@@ -12,6 +12,7 @@ import { useViewport } from "../Viewport.jsx";
 import { AddTeamMemberModal } from "../modals/AddTeamMemberModal.jsx";
 import { BulkInviteModal } from "../modals/BulkInviteModal.jsx";
 import { AddCategoryModal } from "../modals/AddCategoryModal.jsx";
+import { ContactActions } from "../ui/ContactActions.jsx";
 import {
   sectionH, cardStyle, cardH, cardP, fieldStyle,
   btnPrimary, btnGold, btnGhost, btnDanger, btnWarning,
@@ -222,7 +223,7 @@ const AdminTeamTab = ({ state, dispatch }) => {
                         <a href={`mailto:${c.email}`} style={{ color: "var(--navy)", textDecoration: "none" }}>✉️ {c.email}</a>
                       )}
                       {c.phone && (
-                        <a href={`tel:${c.phone.replace(/\s+/g, "")}`} style={{ color: "var(--navy)", textDecoration: "none" }}>📞 {c.phone}</a>
+                        <ContactActions phone={c.phone} />
                       )}
                     </div>
                   );

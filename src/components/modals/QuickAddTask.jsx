@@ -5,6 +5,7 @@ import { PRIORITIES } from "../../lib/taskConstants.js";
 import { CURRENT_USER, getAssignableTeam, getAvailableCategories } from "../../state/appGlobals.js";
 import { TaskFiles } from "../../lib/api.js";
 import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit } from "../../lib/fileUtils.js";
+import { DateTimePicker } from "../ui/DateTimePicker.jsx";
 
 // v2.8 Round 6: auto-suggerisci la categoria in base a keyword nel titolo.
 // Regole: primo match vince (ordine top-down). Solo per categorie disponibili all'utente.
@@ -214,7 +215,10 @@ export const QuickAddTask = ({ onAdd, onClose, clients = [] }) => {
             </div>
             <div>
               <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>SCADENZA</label>
-              <input type="datetime-local" {...inp("dueDate")} />
+              <DateTimePicker
+                value={form.dueDate || null}
+                onChange={iso => setForm(p => ({ ...p, dueDate: iso || "" }))}
+              />
             </div>
           </div>
 

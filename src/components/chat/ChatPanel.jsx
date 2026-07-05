@@ -855,7 +855,7 @@ function chatPanelReducer(s, a) {
 }
 
 // ─── CHAT: CONVERSATION VIEW ───────────────────────────────────────────────
-const ConversationView = ({ conv, messages, setMessages, markConversationRead, onBack, initialInput, initialTaskRef, onInitialInputConsumed }) => {
+const ConversationView = ({ conv, messages, setMessages, markConversationRead, onBack, onDelete, initialInput, initialTaskRef, onInitialInputConsumed }) => {
   const [cv, cvd] = useReducer(convViewReducer, convViewInitial);
   const { input, recording, replyingTo, showAttach, showTemplates,
           showMsgSearch, msgSearch, showPinnedOnly, typingMap,
@@ -1198,6 +1198,16 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
             border: "none", color: "#fff",
             width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 13,
           }}>🔍</button>
+        {onDelete && (
+          <button
+            onClick={onDelete}
+            title={conv.type === "group" ? "Elimina gruppo" : "Elimina conversazione"}
+            aria-label={conv.type === "group" ? "Elimina gruppo" : "Elimina conversazione"}
+            style={{
+              background: "rgba(255,255,255,0.1)", border: "none", color: "#fff",
+              width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 13,
+            }}>🗑</button>
+        )}
       </div>
 
       {/* Search bar (v2.8 Round 13) */}
@@ -1436,7 +1446,7 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
 };
 
 // ─── CHAT: LIST OF CONVERSATIONS ───────────────────────────────────────────
-const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
+const ConversationList = ({ conversations, messages, onSelect, onNew, onDelete }) => {
   const { presenceMap } = useContext(ChatContext);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
@@ -1607,6 +1617,21 @@ const ConversationList = ({ conversations, messages, onSelect, onNew }) => {
                   )}
                 </div>
               </div>
+
+              {onDelete && (
+                <button
+                  onClick={e => { e.stopPropagation(); onDelete(c); }}
+                  title={c.type === "group" ? "Elimina gruppo" : "Elimina conversazione"}
+                  aria-label={c.type === "group" ? "Elimina gruppo" : "Elimina conversazione"}
+                  style={{
+                    background: "none", border: "none", cursor: "pointer",
+                    fontSize: 14, color: "var(--text-muted)", padding: "6px 4px",
+                    borderRadius: 6, flexShrink: 0, opacity: 0.65,
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.opacity = 1; e.currentTarget.style.color = "var(--danger)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.opacity = 0.65; e.currentTarget.style.color = "var(--text-muted)"; }}
+                >🗑</button>
+              )}
             </div>
           );
         })}
@@ -1903,10 +1928,40 @@ const ForwardPicker = ({ msg, conversations, messages, onPick, onClose }) => {
   );
 };
 
-export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, intent, tasks, currentUserId, dispatch, presenceMap, messageTemplates = [], loading = false, myBusy = false, onToggleBusy }) => {
+export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, onDeleteConversation, intent, tasks, currentUserId, dispatch, presenceMap, messageTemplates = [], loading = false, myBusy = false, onToggleBusy }) => {
   const { isMobile } = useViewport();
   const [ps, pd] = useReducer(chatPanelReducer, chatPanelInitial);
   const { activeConv, newMode, prefillText, prefillTaskRef, forwardingMsg } = ps;
+
+  // Eliminazione conversazione/gruppo: conferma esplicita (azione irreversibile
+  // per TUTTI i partecipanti: messaggi in cascade, allegati rimossi dallo
+  // storage). Se la conv eliminata è quella aperta, si torna prima alla lista.
+  const handleDeleteConv = (conv) => {
+    if (!onDeleteConversation || !conv) return;
+    const label = getConversationName(conv);
+    const ok = window.confirm(conv.type === "group"
+      ? `Eliminare il gruppo "${label}"?\n\nTutti i messaggi e gli allegati verranno eliminati per tutti i partecipanti. Azione irreversibile.`
+      : `Eliminare la conversazione con ${label}?\n\nTutti i messaggi e gli allegati verranno eliminati per entrambi. Azione irreversibile.`);
+    if (!ok) return;
+    if (activeConv?.id === conv.id) pd({ type: "BACK" });
+    onDeleteConversation(conv.id);
+  };
+
+  // Se la conversazione aperta sparisce dalla lista (eliminata da un altro
+  // client via realtime), torna alla lista invece di restare su una vista
+  // orfana. Il ref ricorda l'ultima conv attiva VISTA nella lista: le conv
+  // appena create (o i mock dei test, dove la lista non si aggiorna) non vi
+  // sono mai comparse e non devono provocare il BACK.
+  const seenActiveRef = useRef(null);
+  useEffect(() => {
+    if (!activeConv) { seenActiveRef.current = null; return; }
+    if (conversations.some(c => c.id === activeConv.id)) {
+      seenActiveRef.current = activeConv.id;
+    } else if (seenActiveRef.current === activeConv.id) {
+      seenActiveRef.current = null;
+      pd({ type: "BACK" });
+    }
+  }, [activeConv, conversations]);
 
   const handleForwardStart = (msg) => {
     pd({ type: "FWD_START", payload: { ...msg, __sourceConvId: activeConv?.id ?? null } });
@@ -2132,6 +2187,7 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
               setMessages={setMessages}
               markConversationRead={markConversationRead}
               onBack={() => pd({ type: "BACK" })}
+              onDelete={onDeleteConversation ? () => handleDeleteConv(activeConv) : undefined}
               initialInput={prefillText}
               initialTaskRef={prefillTaskRef}
               onInitialInputConsumed={() => pd({ type: "CLEAR_PREFILL" })}
@@ -2142,6 +2198,7 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
               messages={messages}
               onSelect={(c) => pd({ type: "ACTIVATE", conv: c })}
               onNew={() => pd({ type: "NEW_MODE", v: true })}
+              onDelete={onDeleteConversation ? handleDeleteConv : undefined}
             />
           )}
         </div>

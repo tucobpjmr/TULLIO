@@ -242,6 +242,10 @@ export const Conversations = {
     supabase.from('conversations')
       .update(withOrigin({ updated_at: new Date().toISOString(), ...patch }))
       .eq('id', id).select().single(),
+  // Eliminazione conversazione/gruppo: i messaggi seguono via FK ON DELETE
+  // CASCADE; le RLS (20260705) permettono il delete a ogni partecipante.
+  remove: (id) =>
+    supabase.from('conversations').delete().eq('id', id),
 };
 
 // ----------------- MESSAGES -----------------
@@ -333,6 +337,22 @@ export const Messages = {
       .from('chat-files')
       .upload(path, blob, { contentType: mimeType || 'audio/webm' });
     return { path: data?.path ?? null, error };
+  },
+  // Cleanup allegati di una conversazione in via di eliminazione: lista i
+  // file sotto il prefisso <conversation_id>/ e li rimuove. Va chiamato PRIMA
+  // del delete della riga conversations: le policy storage derivano
+  // l'autorizzazione dai partecipanti della conversazione, che dopo il delete
+  // non esiste più (i file diventerebbero orfani permanenti). Best-effort:
+  // un errore qui non deve bloccare l'eliminazione della conversazione.
+  removeConversationFiles: async (conversationId) => {
+    const { data, error } = await supabase.storage
+      .from('chat-files')
+      .list(conversationId, { limit: 1000 });
+    if (error) return { error };
+    if (!data?.length) return { error: null };
+    const paths = data.map(f => `${conversationId}/${f.name}`);
+    const { error: rmError } = await supabase.storage.from('chat-files').remove(paths);
+    return { error: rmError };
   },
   // Signed URL temporanea (1h) per scaricare/visualizzare un allegato.
   // Cache in-memory: scade 5 min prima del TTL, così click ripetuti sullo

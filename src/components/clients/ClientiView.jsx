@@ -5,6 +5,7 @@ import { useViewport } from "../Viewport.jsx";
 import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { StatusBadge } from "../ui/StatusBadge.jsx";
+import { ContactActions } from "../ui/ContactActions.jsx";
 import { formatDate, isActiveTask } from "../../lib/taskUtils.js";
 import { CATEGORIES, CURRENT_USER, canViewTask } from "../../state/appGlobals.js";
 
@@ -126,14 +127,16 @@ function ClienteCard({ cliente, onEdit, onDelete, onSelect, selected }) {
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px", marginTop: 6 }}>
             {cliente.email && (
-              <a href={`mailto:${cliente.email}`} style={{ fontSize: 13, color: "var(--navy-light)", textDecoration: "none" }}>
+              <a
+                href={`mailto:${cliente.email}`}
+                onClick={e => e.stopPropagation()}
+                style={{ fontSize: 13, color: "var(--navy-light)", textDecoration: "none" }}
+              >
                 ✉️ {cliente.email}
               </a>
             )}
             {cliente.phone && (
-              <a href={`tel:${cliente.phone}`} style={{ fontSize: 13, color: "var(--navy-light)", textDecoration: "none" }}>
-                📞 {cliente.phone}
-              </a>
+              <ContactActions phone={cliente.phone} style={{ fontSize: 13 }} />
             )}
           </div>
           {cliente.notes && (

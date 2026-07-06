@@ -69,6 +69,24 @@ export const Users = {
     const { email, phone, ...rest } = patch || {};
     return supabase.from('users').update(withOrigin(rest)).eq('id', id).select().single();
   },
+  // Avatar upload sul bucket pubblico 'avatars' (migration 20260706). Prima le
+  // foto erano data-URL base64 dentro users.photo_url: la riga cresceva fino a
+  // megabyte e listAll() la riscaricava per tutto il team ad ogni evento
+  // realtime. Path fisso <user_id>/avatar.jpg con upsert → una sola foto per
+  // utente, nessun orfano. Ritorna la public URL con cache-buster (?v=timestamp,
+  // il path è fisso quindi senza query la CDN servirebbe la foto vecchia) da
+  // salvare in photo_url. Il primo segmento del path = userId → le RLS del
+  // bucket (foldername[1] = auth.uid()) autorizzano solo la propria cartella.
+  uploadAvatar: async (userId, blob) => {
+    const path = `${userId}/avatar.jpg`;
+    const { error } = await supabase.storage
+      .from('avatars')
+      .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+    if (error) return { url: null, error };
+    const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+    const base = data?.publicUrl ?? null;
+    return { url: base ? `${base}?v=${Date.now()}` : null, error: null };
+  },
   setActive: (id, active) =>
     supabase.from('users').update(withOrigin({ active })).eq('id', id),
   // Approvazione admin di un utente registrato (pending → attivo). Le policy

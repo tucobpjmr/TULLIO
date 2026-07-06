@@ -7,6 +7,17 @@ import { Users as UsersAPI } from "../../lib/api.js";
 import { PasswordField } from "../ui/PasswordField.jsx";
 import { isValidEmail } from "../../lib/validators.js";
 
+// Converte un data-URL (prodotto dal crop canvas) in Blob per l'upload sul
+// bucket 'avatars'. Il crop emette sempre JPEG (toDataURL("image/jpeg")).
+const dataUrlToBlob = (dataUrl) => {
+  const [head, b64] = String(dataUrl).split(",");
+  const mime = head.match(/data:(.*?);base64/)?.[1] || "image/jpeg";
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+};
+
 // ─── CROP MODAL ───────────────────────────────────────────────────────────────
 const PREVIEW = 280;
 const OUTPUT = 256;
@@ -213,13 +224,27 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
       dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "Email non valida." } });
       return;
     }
+    // Foto: se è una nuova immagine (data-URL dal crop, o una vecchia base64
+    // ancora in photo_url), caricala sul bucket 'avatars' e sostituiscila con
+    // la public URL. Così users.photo_url non contiene più il base64 (riga
+    // enorme riscaricata per tutto il team ad ogni evento realtime), ma una
+    // URL leggera. Le URL http già presenti (foto invariata) non si ricaricano.
+    let finalPhotoUrl = photoUrl || null;
+    if (session && typeof photoUrl === "string" && photoUrl.startsWith("data:")) {
+      const { url, error: upErr } = await UsersAPI.uploadAvatar(member.id, dataUrlToBlob(photoUrl));
+      if (upErr || !url) {
+        dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Foto non caricata: ${upErr?.message || "errore sconosciuto"}` } });
+        return; // non salvo: l'utente può ritentare senza perdere la foto scelta
+      }
+      finalPhotoUrl = url;
+    }
     const payload = {
       name: name.trim(),
       avatar: name.trim().split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
       color,
       email: trimmedEmail,
       phone: phone.trim(),
-      photoUrl: photoUrl || null,
+      photoUrl: finalPhotoUrl,
     };
     // Aggiornamento ottimistico in memoria (immediato per l'UI).
     dispatch({ type: "UPDATE_OWN_PROFILE", payload });

@@ -468,6 +468,20 @@ export const Notifications = {
     supabase.from('notifications').delete().not('id', 'is', null),
 };
 
+// ----------------- PUSH SUBSCRIPTIONS -----------------
+// Web Push (handoff v44). Una riga per dispositivo/browser sottoscritto; le
+// RLS limitano tutto a auth.uid(). L'invio è server-side (trigger notify_push
+// → Edge Function send-push), qui c'è solo la gestione della sottoscrizione.
+export const Push = {
+  // Chiave pubblica VAPID: arriva dal Vault via RPC, niente env var frontend.
+  getVapidPublicKey: () => supabase.rpc('get_vapid_public_key'),
+  // Upsert: ri-attivare sul solito dispositivo aggiorna le chiavi senza duplicare.
+  save: (row) =>
+    supabase.from('push_subscriptions').upsert(row, { onConflict: 'user_id,endpoint' }),
+  removeByEndpoint: (endpoint) =>
+    supabase.from('push_subscriptions').delete().eq('endpoint', endpoint),
+};
+
 // ----------------- CLIENTS -----------------
 export const Clients = {
   list: () =>

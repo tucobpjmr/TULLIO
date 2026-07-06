@@ -916,6 +916,43 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     }
   }, [state.tasks, dispatch]);
 
+  // Web Push (handoff v44): apertura del task dalla notifica di sistema.
+  // Due canali dal service worker (public/sw.js):
+  //   - avvio a freddo → deep-link ?task=<id> nell'URL (letto una volta e rimosso)
+  //   - app già aperta → postMessage { type: 'push-open-task', taskId }
+  // Il task può non essere ancora idratato al momento del click: l'id resta
+  // in pendingPushTask finché non compare in state.tasks (niente toast d'errore
+  // prematuro, a differenza di openTaskById).
+  const pendingPushTask = useRef(null);
+  const [pushNavTick, setPushNavTick] = useState(0);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get("task");
+    if (fromUrl) {
+      pendingPushTask.current = fromUrl;
+      params.delete("task");
+      const qs = params.toString();
+      window.history.replaceState(null, "", window.location.pathname + (qs ? `?${qs}` : ""));
+      setPushNavTick(t => t + 1);
+    }
+    if (!("serviceWorker" in navigator)) return;
+    const onMessage = (e) => {
+      if (e.data?.type === "push-open-task" && e.data.taskId) {
+        pendingPushTask.current = e.data.taskId;
+        setPushNavTick(t => t + 1);
+      }
+    };
+    navigator.serviceWorker.addEventListener("message", onMessage);
+    return () => navigator.serviceWorker.removeEventListener("message", onMessage);
+  }, []);
+  useEffect(() => {
+    if (!pendingPushTask.current) return;
+    const t = (state.tasks || []).find(x => x.id === pendingPushTask.current && !x.deletedAt);
+    if (t) {
+      pendingPushTask.current = null;
+      dispatch({ type: "SET_SELECTED_TASK", payload: t });
+    }
+  }, [state.tasks, pushNavTick, dispatch]);
 
   const markAllNotificationsRead = useCallback(() => {
     if (!useSupabase) return;

@@ -11,6 +11,8 @@ import {
   TYPING_PING_MS, TYPING_STOP_MS,
 } from "../../lib/typingUtils.js";
 import { formatDate, formatTime } from "../../lib/taskUtils.js";
+import { sortConversationsByRecent } from "../../lib/chatUtils.js";
+import { formatFileSize as formatBytes } from "../../lib/fileUtils.js";
 import { TEAM, CURRENT_USER, getMember } from "../../state/appGlobals.js";
 import { MentionText } from "../ui/MentionText.jsx";
 
@@ -401,17 +403,14 @@ const fileKindFromName = (name = "") => {
   return "default";
 };
 
-// fileSize reale è in byte (bigint su DB); i vecchi mock usano stringhe
-// già formattate ("245 KB") → passthrough.
-const formatFileSize = (size) => {
-  if (typeof size !== "number") return size || "";
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
-  return `${(size / 1024 / 1024).toFixed(1)} MB`;
-};
+// fileSize reale è in byte (bigint su DB): delego la formattazione all'helper
+// puro e testato di fileUtils. I vecchi mock usano stringhe già formattate
+// ("245 KB") → passthrough, non toccato da formatBytes (che gestisce solo i number).
+const formatFileSize = (size) =>
+  typeof size === "number" ? formatBytes(size) : (size || "");
 
 // ─── CHAT: MESSAGE ─────────────────────────────────────────────────────────
-const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onTogglePin, onContextMenu }) => {
+const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onTogglePin }) => {
   const [showReactions, setShowReactions] = useState(false);
   const [hovered, setHovered] = useState(false);
   const { onForward } = useContext(ChatContext);
@@ -855,12 +854,12 @@ function chatPanelReducer(s, a) {
 }
 
 // ─── CHAT: CONVERSATION VIEW ───────────────────────────────────────────────
-const ConversationView = ({ conv, messages, setMessages, markConversationRead, onBack, onDelete, initialInput, initialTaskRef, onInitialInputConsumed }) => {
+const ConversationView = ({ conv, messages, setMessages, markConversationRead, onToggleReaction, onBack, onDelete, initialInput, initialTaskRef, onInitialInputConsumed }) => {
   const [cv, cvd] = useReducer(convViewReducer, convViewInitial);
   const { input, recording, replyingTo, showAttach, showTemplates,
           showMsgSearch, msgSearch, showPinnedOnly, typingMap,
           pendingTaskRef, uploading } = cv;
-  const { messageTemplates: templates = [], currentUserId } = useContext(ChatContext);
+  const { messageTemplates: templates = [], currentUserId, presenceMap } = useContext(ChatContext);
   const scrollRef = useRef(null);
   // Step M: upload allegati reale
   const fileInputRef = useRef(null);
@@ -1077,6 +1076,11 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
   };
 
   const handleReact = (msgId, emoji) => {
+    // Percorso reale: toggle atomico via RPC (ottimistico + persistenza gestiti
+    // dal parent, come markConversationRead). Evita di scrivere l'intero oggetto
+    // reactions dal client (race last-write-wins tra utenti concorrenti).
+    if (onToggleReaction) { onToggleReaction(conv.id, msgId, emoji); return; }
+    // Fallback mock/test (nessun parent handler): toggle locale via setMessages.
     setMessages(prev => ({
       ...prev,
       [conv.id]: prev[conv.id].map(m => {
@@ -1115,7 +1119,13 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
   };
 
   const otherTypingMember = conv.participants.find(p => p !== CURRENT_USER);
-  const otherMember = conv.type === "direct" ? getMember(otherTypingMember) : null;
+  // Presenza reale dell'interlocutore (solo conv dirette): guida il pallino
+  // colorato + l'etichetta nell'header. computePresence normalizza a 'offline'
+  // se il membro è assente o non ha last_seen_at. Prima l'header mostrava un
+  // "● Online" fisso, ingannevole quando l'altro era in realtà away/offline.
+  const otherPresence = conv.type === "direct" && otherTypingMember
+    ? computePresence((presenceMap || {})[otherTypingMember])
+    : null;
 
   // Chi sta DAVVERO scrivendo ora (dal broadcast, self escluso): guida sia
   // l'etichetta sia l'avatar del bubble, gestendo più typer nei gruppi.
@@ -1162,7 +1172,14 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
                 <span style={{ animation: "typing 1s infinite", animationDelay: "0.4s", display: "inline-block" }}>.</span>
               </span>
             ) : conv.type === "direct" ? (
-              <>● Online</>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <span style={{
+                  width: 7, height: 7, borderRadius: "50%",
+                  background: PRESENCE_COLORS[otherPresence] || PRESENCE_COLORS.offline,
+                  display: "inline-block",
+                }} />
+                {PRESENCE_LABELS[otherPresence] || PRESENCE_LABELS.offline}
+              </span>
             ) : (
               `${conv.participants.length} membri`
             )}
@@ -1451,15 +1468,7 @@ const ConversationList = ({ conversations, messages, onSelect, onNew, onDelete }
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
 
-  const sorted = [...conversations].sort((a, b) => {
-    if (a.pinned && !b.pinned) return -1;
-    if (!a.pinned && b.pinned) return 1;
-    const lastA = getLastMessage(messages, a.id);
-    const lastB = getLastMessage(messages, b.id);
-    if (!lastA) return 1;
-    if (!lastB) return -1;
-    return new Date(lastB.time) - new Date(lastA.time);
-  });
+  const sorted = sortConversationsByRecent(conversations, messages);
 
   const matchesSearch = (c) => {
     if (!search) return true;
@@ -1803,17 +1812,10 @@ const NewConversationView = ({ onCreate, onCancel, existing }) => {
 // messaggio decrescente) → l'admin trova subito chi ha contattato per ultimo.
 const ForwardPicker = ({ msg, conversations, messages, onPick, onClose }) => {
   const [search, setSearch] = useState("");
-  const sorted = [...conversations]
-    .filter(c => c.id !== msg.__sourceConvId && isUuid(c.id))
-    .sort((a, b) => {
-      if (a.pinned && !b.pinned) return -1;
-      if (!a.pinned && b.pinned) return 1;
-      const lastA = getLastMessage(messages, a.id);
-      const lastB = getLastMessage(messages, b.id);
-      if (!lastA) return 1;
-      if (!lastB) return -1;
-      return new Date(lastB.time) - new Date(lastA.time);
-    });
+  const sorted = sortConversationsByRecent(
+    conversations.filter(c => c.id !== msg.__sourceConvId && isUuid(c.id)),
+    messages,
+  );
   const q = search.trim().toLowerCase();
   const filtered = q
     ? sorted.filter(c => {
@@ -1928,7 +1930,7 @@ const ForwardPicker = ({ msg, conversations, messages, onPick, onClose }) => {
   );
 };
 
-export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, onDeleteConversation, intent, tasks, currentUserId, dispatch, presenceMap, messageTemplates = [], loading = false, myBusy = false, onToggleBusy }) => {
+export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, onToggleReaction, onDeleteConversation, intent, tasks, currentUserId, dispatch, presenceMap, messageTemplates = [], loading = false, myBusy = false, onToggleBusy }) => {
   const { isMobile } = useViewport();
   const [ps, pd] = useReducer(chatPanelReducer, chatPanelInitial);
   const { activeConv, newMode, prefillText, prefillTaskRef, forwardingMsg } = ps;
@@ -2186,6 +2188,7 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
               messages={messages}
               setMessages={setMessages}
               markConversationRead={markConversationRead}
+              onToggleReaction={onToggleReaction}
               onBack={() => pd({ type: "BACK" })}
               onDelete={onDeleteConversation ? () => handleDeleteConv(activeConv) : undefined}
               initialInput={prefillText}

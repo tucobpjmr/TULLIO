@@ -402,7 +402,7 @@ const AdminIOTab = ({ state, dispatch }) => {
   const importBackup = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!window.confirm("ATTENZIONE: il ripristino sovrascrive tutti i dati correnti (task, team, categorie). Continuare?")) {
+    if (!window.confirm("Il ripristino UNISCE il backup ai dati correnti: i record con lo stesso id/chiave (task, categorie, avvisi) vengono aggiornati, i nuovi aggiunti. Nulla viene eliminato. Continuare?")) {
       e.target.value = "";
       return;
     }

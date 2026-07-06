@@ -150,7 +150,7 @@ export const NoticeBoard = ({ notices, dispatch }) => {
           display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
           gap: 16, padding: "6px 4px",
         }}>
-          {sorted.map((n, idx) => {
+          {sorted.map((n) => {
             const author = getMember(n.author);
             const rotation = ((n.id.charCodeAt(n.id.length - 1) % 5) - 2) * 0.7; // -1.4 a +1.4 deg
             return (

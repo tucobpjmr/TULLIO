@@ -1,5 +1,5 @@
 
-import { useState, useReducer, createContext, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
+import { useState, useReducer, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
 // xlsx (SheetJS, ~430KB) è caricato on-demand via import() dinamico solo
 // quando l'utente importa o esporta un file (vedi loadXLSX). Tenerlo fuori
 // dal bundle iniziale è il singolo guadagno più grande sul chunk principale.
@@ -21,8 +21,6 @@ import {
   fromDbCategory, toDbCategory,
   newId, isUuid,
 } from "./lib/mappers.js";
-// Step O: logout UI — signOut vive in AuthContext, qui viene solo cablato.
-import { useAuth } from "./auth/AuthContext.jsx";
 // Step P Phase 2a: utility pure estratte dal monolite.
 import { getActiveTasks } from "./lib/taskUtils.js";
 import { scopeConversationsForUser } from "./lib/chatUtils.js";
@@ -194,7 +192,6 @@ const FontLoader = () => (
 // ViewportContext, useViewport, ViewportProvider → src/components/Viewport.jsx (Step P Phase 2e)
 
 // ─── CONTEXT ───────────────────────────────────────────────────────────────
-const AppContext = createContext(null);
 // reducer, makeInitialState (+ baseReducer, buildLogEntry, LOGGED_ACTIONS,
 // ADMIN_ONLY_ACTIONS) → src/state/reducer.js
 
@@ -1173,12 +1170,6 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
         return true;
       };
-      const eqReactions = (a, b) => {
-        const ka = Object.keys(a || {}), kb = Object.keys(b || {});
-        if (ka.length !== kb.length) return false;
-        for (const k of ka) if (!eqArr(a[k], b[k])) return false;
-        return true;
-      };
 
       const next = {};
       for (const convId of Object.keys(nextRaw)) {
@@ -1205,10 +1196,10 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
             return normalized;
           }
           const prevM = prevById.get(m.id);
-          if (!eqReactions(prevM.reactions, m.reactions)) {
-            MessagesAPI.setReactions(m.id, m.reactions || {})
-              .then(r => { if (r?.error) { console.error('[chat] msg.reactions', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: aggiornamento reazione fallito: ${r.error.message || ''}` } }); } });
-          }
+          // Le reazioni NON passano più da qui: il toggle atomico via RPC
+          // (toggleReaction, con setMessagesRaw ottimistico) bypassa questo
+          // wrapper per evitare la scrittura dell'intero oggetto reactions
+          // (race last-write-wins). Qui restano readBy e pinned.
           if (!eqArr(prevM.readBy, m.readBy)) {
             MessagesAPI.markRead(m.id, m.readBy || [])
               .then(r => { if (r?.error) { console.error('[chat] msg.readBy', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: aggiornamento "letto" fallito: ${r.error.message || ''}` } }); } });
@@ -1251,6 +1242,44 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       if (r?.error) {
         console.error('[chat] markReadBulk', r.error);
         rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: aggiornamento "letto" fallito: ${r.error.message || ''}` } });
+      }
+    });
+  }, [useSupabase]);
+
+  // Toggle reazione. Come markConversationRead, bypassa il wrapper setMessages
+  // (che scriverebbe l'intero oggetto reactions → race last-write-wins):
+  // 1) update locale ottimistico via setMessagesRaw, 2) RPC atomica lato server
+  // (messages_toggle_reaction) che fa read-modify-write sotto lock di riga e usa
+  // sempre auth.uid() come reactor. In caso di errore, rollback allo snapshot.
+  const toggleReaction = useCallback((convId, msgId, emoji) => {
+    const uid = currentUserIdRef.current;
+    if (!convId || !msgId || !emoji || !uid) return;
+    let snapshot = null;
+    setMessagesRaw(prev => {
+      const list = prev[convId];
+      if (!list) return prev;
+      snapshot = prev;
+      const next = list.map(m => {
+        if (m.id !== msgId) return m;
+        const reactions = { ...(m.reactions || {}) };
+        const users = reactions[emoji] || [];
+        if (users.includes(uid)) {
+          const filtered = users.filter(u => u !== uid);
+          if (filtered.length === 0) delete reactions[emoji];
+          else reactions[emoji] = filtered;
+        } else {
+          reactions[emoji] = [...users, uid];
+        }
+        return { ...m, reactions };
+      });
+      return { ...prev, [convId]: next };
+    });
+    if (!useSupabase || !isUuid(msgId)) return;
+    MessagesAPI.toggleReaction(msgId, emoji).then(r => {
+      if (r?.error) {
+        console.error('[chat] toggleReaction', r.error);
+        if (snapshot) setMessagesRaw(snapshot);
+        rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: reazione non salvata: ${r.error.message || ''}` } });
       }
     });
   }, [useSupabase]);
@@ -1310,7 +1339,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   useEffect(() => {
     const handler = (e) => {
       const inInput = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
-      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         document.querySelector("input[placeholder*='Cerca']")?.focus();
         return;
@@ -1402,6 +1431,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           messages={messages}
           setMessages={setMessages}
           markConversationRead={markConversationRead}
+          onToggleReaction={toggleReaction}
           onDeleteConversation={deleteConversation}
           intent={chatIntent}
           tasks={state.tasks}

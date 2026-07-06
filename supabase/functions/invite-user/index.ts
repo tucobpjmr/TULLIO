@@ -4,11 +4,7 @@
 // verify_jwt:true → Supabase valida il JWT prima di eseguire il body.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { corsHeaders } from "../_shared/cors.ts";
 
 const VALID_ROLES = new Set(["admin", "manager", "agent", "driver"]);
 
@@ -21,18 +17,33 @@ function safeRedirect(value: unknown): string | undefined {
   try { u = new URL(value); } catch { return undefined; }
   if (u.protocol !== "https:") return undefined;
   const host = u.hostname.toLowerCase();
-  const ok = host === "tullio-seven.vercel.app" || host.endsWith(".vercel.app");
-  return ok ? value : undefined;
+  // Produzione.
+  if (host === "tullio-seven.vercel.app") return value;
+  // Preview deployment di QUESTO progetto: Vercel li serve come
+  // <project>-<hash>-<scope>.vercel.app, cioè un'unica label prima di
+  // ".vercel.app" che inizia con "tullio-". Il precedente check
+  // host.endsWith(".vercel.app") accettava QUALSIASI progetto Vercel (anche di
+  // terzi): un redirectTo manipolato avrebbe fatto arrivare il link d'invito
+  // — con il token d'accesso — a un dominio di phishing. Qui restringiamo alla
+  // sola famiglia di host del progetto ed escludiamo le label annidate (nessun
+  // punto extra) così "tullio-x.attacker.vercel.app" non passa.
+  const SUFFIX = ".vercel.app";
+  if (host.endsWith(SUFFIX)) {
+    const label = host.slice(0, -SUFFIX.length);
+    if (label.startsWith("tullio-") && !label.includes(".")) return value;
+  }
+  return undefined;
 }
 
-const json = (data: unknown, status = 200) =>
-  new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  const cors = corsHeaders(req);
+  const json = (data: unknown, status = 200) =>
+    new Response(JSON.stringify(data), {
+      status,
+      headers: { ...cors, "Content-Type": "application/json" },
+    });
+
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
   try {
     const authHeader = req.headers.get("Authorization");

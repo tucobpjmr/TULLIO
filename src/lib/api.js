@@ -28,6 +28,27 @@ const SESSION_EXPIRED_MSG = 'Sessione scaduta. Esci e accedi di nuovo, poi ripro
 const isExpiredSessionError = (msg) =>
   typeof msg === 'string' && /token non valido|session.?not.?found|non autorizzato/i.test(msg);
 
+// Invoca una Edge Function e normalizza sempre il risultato in
+// { data, error: { message } }. Supabase-js mette il corpo JSON della risposta
+// d'errore (status non-2xx) in error.context: lo estraiamo per esporre il
+// messaggio localizzato dalla funzione invece del generico "Edge Function
+// returned a non-2xx status code". Alcune funzioni ritornano { error } anche
+// con status 2xx: lo trattiamo come errore. Un tempo questo blocco era
+// copia-incollato in invite/deleteAccount/deleteUser.
+const invokeFn = async (name, body = {}, fallback = 'Operazione non riuscita.') => {
+  const { data, error } = await supabase.functions.invoke(name, { body });
+  if (error) {
+    let msg = errText(error.message, fallback);
+    try {
+      const b = await error.context?.json?.();
+      if (b?.error) msg = errText(b.error, msg);
+    } catch { /* body non-JSON: usa error.message */ }
+    return { data: null, error: { message: msg } };
+  }
+  if (data?.error) return { data: null, error: { message: errText(data.error, fallback) } };
+  return { data, error: null };
+};
+
 // ----------------- USERS / TEAM -----------------
 export const Users = {
   list: () =>
@@ -48,6 +69,24 @@ export const Users = {
     const { email, phone, ...rest } = patch || {};
     return supabase.from('users').update(withOrigin(rest)).eq('id', id).select().single();
   },
+  // Avatar upload sul bucket pubblico 'avatars' (migration 20260706). Prima le
+  // foto erano data-URL base64 dentro users.photo_url: la riga cresceva fino a
+  // megabyte e listAll() la riscaricava per tutto il team ad ogni evento
+  // realtime. Path fisso <user_id>/avatar.jpg con upsert → una sola foto per
+  // utente, nessun orfano. Ritorna la public URL con cache-buster (?v=timestamp,
+  // il path è fisso quindi senza query la CDN servirebbe la foto vecchia) da
+  // salvare in photo_url. Il primo segmento del path = userId → le RLS del
+  // bucket (foldername[1] = auth.uid()) autorizzano solo la propria cartella.
+  uploadAvatar: async (userId, blob) => {
+    const path = `${userId}/avatar.jpg`;
+    const { error } = await supabase.storage
+      .from('avatars')
+      .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+    if (error) return { url: null, error };
+    const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+    const base = data?.publicUrl ?? null;
+    return { url: base ? `${base}?v=${Date.now()}` : null, error: null };
+  },
   setActive: (id, active) =>
     supabase.from('users').update(withOrigin({ active })).eq('id', id),
   // Approvazione admin di un utente registrato (pending → attivo). Le policy
@@ -63,19 +102,7 @@ export const Users = {
   // normalizziamo qui per esporre il testo localizzato al chiamante).
   invite: async ({ email, name, role = 'agent', capacity = 8, color = '#3B82F6', resend = false } = {}) => {
     const body = { email, name, role, capacity, color, resend, redirectTo: window.location.origin };
-    const run = async () => {
-      const { data, error } = await supabase.functions.invoke('invite-user', { body });
-      if (error) {
-        let msg = errText(error.message, 'Invito non riuscito.');
-        try {
-          const b = await error.context?.json?.();
-          if (b?.error) msg = errText(b.error, msg);
-        } catch { /* body non-JSON: usa error.message */ }
-        return { data: null, error: { message: msg } };
-      }
-      if (data?.error) return { data: null, error: { message: errText(data.error, 'Invito non riuscito.') } };
-      return { data, error: null };
-    };
+    const run = () => invokeFn('invite-user', body, 'Invito non riuscito.');
     let res = await run();
     // "Token non valido" = la sessione lato server non esiste più (es. logout
     // avvenuto in un'altra scheda/dispositivo). Provo a rinfrescare la sessione
@@ -122,37 +149,13 @@ export const Users = {
   // Self-service account deletion (Block 4). Calls the delete-account Edge
   // Function (verify_jwt) which bans the user for 10 years + sets active=false.
   // Does NOT hard-delete: preserves comments/messages (FK ON DELETE CASCADE safety).
-  deleteAccount: async () => {
-    const { data, error } = await supabase.functions.invoke('delete-account', { body: {} });
-    if (error) {
-      let msg = errText(error.message, 'Eliminazione non riuscita.');
-      try {
-        const body = await error.context?.json?.();
-        if (body?.error) msg = errText(body.error, msg);
-      } catch { /* non-JSON */ }
-      return { data: null, error: { message: msg } };
-    }
-    if (data?.error) return { data: null, error: { message: errText(data.error, 'Eliminazione non riuscita.') } };
-    return { data, error: null };
-  },
+  deleteAccount: () => invokeFn('delete-account', {}, 'Eliminazione non riuscita.'),
   // Eliminazione DEFINITIVA di un utente da parte di un admin (Block 3).
   // Chiama la Edge Function 'delete-user' (verify_jwt) che hard-elimina la
   // riga auth.users: la FK CASCADE ripulisce public.users e user_contacts.
   // Serve a liberare un'email "fantasma" così l'invito può essere rifatto da
   // zero (altrimenti Users.invite restituisce "già registrata").
-  deleteUser: async (userId) => {
-    const { data, error } = await supabase.functions.invoke('delete-user', { body: { userId } });
-    if (error) {
-      let msg = errText(error.message, 'Eliminazione non riuscita.');
-      try {
-        const body = await error.context?.json?.();
-        if (body?.error) msg = errText(body.error, msg);
-      } catch { /* non-JSON */ }
-      return { data: null, error: { message: msg } };
-    }
-    if (data?.error) return { data: null, error: { message: errText(data.error, 'Eliminazione non riuscita.') } };
-    return { data, error: null };
-  },
+  deleteUser: (userId) => invokeFn('delete-user', { userId }, 'Eliminazione non riuscita.'),
 };
 
 // ----------------- TASKS -----------------
@@ -279,8 +282,18 @@ export const Messages = {
     supabase.from('messages').insert(withOrigin(m)).select().single(),
   remove: (id) =>
     supabase.from('messages').delete().eq('id', id),
-  setReactions: (id, reactions) =>
-    supabase.from('messages').update(withOrigin({ reactions })).eq('id', id),
+  // Toggle atomico di una reazione (RPC messages_toggle_reaction, migration
+  // 20260706). Sostituisce il vecchio setReactions che scriveva l'intero
+  // oggetto reactions calcolato lato client: due utenti che reagivano allo
+  // stesso messaggio in contemporanea si sovrascrivevano (last-write-wins). La
+  // RPC fa read-modify-write sotto lock di riga e usa sempre auth.uid() come
+  // reactor (non spoofabile). origin taggato per filtrare l'eco realtime.
+  toggleReaction: (id, emoji) =>
+    supabase.rpc('messages_toggle_reaction', {
+      msg_id: id,
+      emoji,
+      origin: getClientId(),
+    }),
   // Fase 3 — pin condiviso: tutti i partecipanti vedono lo stesso stato.
   // Le RLS UPDATE su messages permettono già a chi partecipa di toggleare
   // (stesso path di setReactions). `pinnedBy`/`pinnedAt` sono l'audit (chi/

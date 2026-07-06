@@ -191,3 +191,35 @@ describe("reducer — activity log & toast", () => {
     expect(reducer(s, { type: "NON_ESISTE" })).toBe(s);
   });
 });
+
+describe("reducer — RESTORE_BACKUP (merge non distruttivo)", () => {
+  const T1 = "11111111-2222-4333-8444-555555555551";
+  const T2 = "11111111-2222-4333-8444-555555555552";
+  const T3 = "11111111-2222-4333-8444-555555555553";
+
+  it("unisce i task: aggiorna gli esistenti per id, aggiunge i nuovi, conserva gli assenti", () => {
+    let s = freshState("marco");
+    s = reducer(s, { type: "ADD_TASK", payload: task({ id: T1, title: "Originale 1" }) });
+    s = reducer(s, { type: "ADD_TASK", payload: task({ id: T2, title: "Originale 2" }) });
+    // Backup: aggiorna T2 e introduce T3; T1 NON è nel backup.
+    s = reducer(s, { type: "RESTORE_BACKUP", payload: {
+      tasks: [{ id: T2, title: "Aggiornato 2" }, task({ id: T3, title: "Nuovo 3" })],
+    }});
+    const byId = Object.fromEntries(s.tasks.map(t => [t.id, t]));
+    expect(byId[T1].title).toBe("Originale 1");      // assente dal backup → conservato
+    expect(byId[T2].title).toBe("Aggiornato 2");     // presente → aggiornato
+    expect(byId[T3].title).toBe("Nuovo 3");          // nuovo → aggiunto
+    expect(s.tasks).toHaveLength(3);
+  });
+
+  it("unisce le categorie per chiave senza eliminare quelle esistenti", () => {
+    let s = freshState("marco");
+    const before = Object.keys(s.categories).length;
+    s = reducer(s, { type: "RESTORE_BACKUP", payload: {
+      tasks: [],
+      categories: { nuovacat: { label: "Nuova", color: "#000", bg: "#fff", icon: "★" } },
+    }});
+    expect(s.categories.nuovacat.label).toBe("Nuova");
+    expect(Object.keys(s.categories).length).toBe(before + 1);
+  });
+});

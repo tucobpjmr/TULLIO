@@ -12,6 +12,7 @@ import { MOCK_NOTIFICATIONS } from "../../state/mockData.js";
 import { TEAM, CATEGORIES, getMember, isJuniorAgent } from "../../state/appGlobals.js";
 import { ProfileEditor } from "../modals/ProfileEditor.jsx";
 import { SwipeActions } from "../SwipeActions.jsx";
+import { getPushSupport, getPushState, enablePush, disablePush } from "../../lib/push.js";
 
 const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword }) => {
   const { isMobile } = useViewport();
@@ -659,6 +660,95 @@ function notifTime(n) {
 
 // computePresence + PRESENCE_COLORS (usati solo dalla chat) → src/components/chat/ChatPanel.jsx (Step P Phase 2f)
 
+// ─── PUSH TOGGLE ───────────────────────────────────────────────────────────
+// Opt-in Web Push per dispositivo (handoff v44): footer del NotificationsPanel.
+// Stati: loading | unsupported | needs-install (iOS Safari fuori PWA) |
+// denied (permesso negato a livello browser/OS) | off | on | busy.
+const PUSH_HINTS = {
+  "needs-install": "Su iPhone: apri da Safari → Condividi → \"Aggiungi alla schermata Home\" (richiede iOS 16.4+), poi riapri l'app installata.",
+  unsupported: "Questo browser non supporta le notifiche push.",
+  denied: "Permesso negato: riattivalo dalle impostazioni del browser o del sistema.",
+  off: "Ricevi le notifiche anche ad app chiusa.",
+  on: "Attive su questo dispositivo.",
+};
+
+const PushToggle = ({ dispatch }) => {
+  const { profile } = useAuth();
+  const [status, setStatus] = useState("loading");
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const support = getPushSupport();
+      if (!support.supported) {
+        if (alive) setStatus(support.needsInstall ? "needs-install" : "unsupported");
+        return;
+      }
+      const s = await getPushState();
+      if (!alive) return;
+      setStatus(s.enabled ? "on" : (s.permission === "denied" ? "denied" : "off"));
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  const toggle = async () => {
+    if (status === "off") {
+      setStatus("busy");
+      const { error } = await enablePush(profile?.id);
+      if (!error) { setStatus("on"); return; }
+      if (error === "denied") { setStatus("denied"); return; }
+      setStatus("off");
+      if (error !== "dismissed") {
+        dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Notifiche push: ${error}` } });
+      }
+    } else if (status === "on") {
+      setStatus("busy");
+      const { error } = await disablePush();
+      setStatus(error ? "on" : "off");
+      if (error) {
+        dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Notifiche push: ${error}` } });
+      }
+    }
+  };
+
+  if (status === "loading") return null;
+  const enabled = status === "on";
+  const interactive = status === "on" || status === "off";
+
+  return (
+    <div style={{
+      padding: "12px 16px", borderTop: "1px solid var(--border)",
+      background: "var(--surface2)", display: "flex", gap: 10, alignItems: "flex-start",
+    }}>
+      <span style={{ fontSize: 16, flexShrink: 0 }}>📲</span>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 600 }}>Notifiche push</div>
+        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, lineHeight: 1.4 }}>
+          {status === "busy" ? "Attendere…" : PUSH_HINTS[status]}
+        </div>
+      </div>
+      {(interactive || status === "busy") && (
+        <button
+          onClick={toggle}
+          disabled={status === "busy"}
+          role="switch"
+          aria-checked={enabled}
+          aria-label="Attiva notifiche push su questo dispositivo"
+          style={{
+            width: 40, height: 22, borderRadius: 99, border: "none", padding: 2,
+            background: enabled ? "var(--success)" : "var(--border)",
+            cursor: status === "busy" ? "default" : "pointer",
+            display: "flex", justifyContent: enabled ? "flex-end" : "flex-start",
+            alignItems: "center", transition: "background 0.2s", flexShrink: 0, marginTop: 2,
+            opacity: status === "busy" ? 0.6 : 1,
+          }}
+        >
+          <span style={{ width: 18, height: 18, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
+        </button>
+      )}
+    </div>
+  );
+};
 
 const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMarkAllRead, onRemoveNotification, onClearAllNotifications, onOpenTask }) => {
   const { isMobile } = useViewport();
@@ -801,6 +891,7 @@ const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMar
           </div>
         ))}
       </div>
+      {isReal && <PushToggle dispatch={dispatch} />}
     </div>
   );
 };

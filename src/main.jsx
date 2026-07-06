@@ -120,6 +120,17 @@ function AuthGate() {
   );
 }
 
+// Service worker per le Web Push (public/sw.js): solo notifiche, nessun
+// caching. La sottoscrizione vera avviene dal toggle nel pannello notifiche;
+// qui registriamo soltanto, così navigator.serviceWorker.ready è già risolto.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((e) => {
+      console.error('[VoyageDesk] registrazione service worker fallita:', e);
+    });
+  });
+}
+
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>

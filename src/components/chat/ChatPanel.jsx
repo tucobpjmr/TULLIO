@@ -854,7 +854,7 @@ function chatPanelReducer(s, a) {
 }
 
 // ─── CHAT: CONVERSATION VIEW ───────────────────────────────────────────────
-const ConversationView = ({ conv, messages, setMessages, markConversationRead, onBack, onDelete, initialInput, initialTaskRef, onInitialInputConsumed }) => {
+const ConversationView = ({ conv, messages, setMessages, markConversationRead, onToggleReaction, onBack, onDelete, initialInput, initialTaskRef, onInitialInputConsumed }) => {
   const [cv, cvd] = useReducer(convViewReducer, convViewInitial);
   const { input, recording, replyingTo, showAttach, showTemplates,
           showMsgSearch, msgSearch, showPinnedOnly, typingMap,
@@ -1076,6 +1076,11 @@ const ConversationView = ({ conv, messages, setMessages, markConversationRead, o
   };
 
   const handleReact = (msgId, emoji) => {
+    // Percorso reale: toggle atomico via RPC (ottimistico + persistenza gestiti
+    // dal parent, come markConversationRead). Evita di scrivere l'intero oggetto
+    // reactions dal client (race last-write-wins tra utenti concorrenti).
+    if (onToggleReaction) { onToggleReaction(conv.id, msgId, emoji); return; }
+    // Fallback mock/test (nessun parent handler): toggle locale via setMessages.
     setMessages(prev => ({
       ...prev,
       [conv.id]: prev[conv.id].map(m => {
@@ -1925,7 +1930,7 @@ const ForwardPicker = ({ msg, conversations, messages, onPick, onClose }) => {
   );
 };
 
-export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, onDeleteConversation, intent, tasks, currentUserId, dispatch, presenceMap, messageTemplates = [], loading = false, myBusy = false, onToggleBusy }) => {
+export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, onToggleReaction, onDeleteConversation, intent, tasks, currentUserId, dispatch, presenceMap, messageTemplates = [], loading = false, myBusy = false, onToggleBusy }) => {
   const { isMobile } = useViewport();
   const [ps, pd] = useReducer(chatPanelReducer, chatPanelInitial);
   const { activeConv, newMode, prefillText, prefillTaskRef, forwardingMsg } = ps;
@@ -2183,6 +2188,7 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
               messages={messages}
               setMessages={setMessages}
               markConversationRead={markConversationRead}
+              onToggleReaction={onToggleReaction}
               onBack={() => pd({ type: "BACK" })}
               onDelete={onDeleteConversation ? () => handleDeleteConv(activeConv) : undefined}
               initialInput={prefillText}

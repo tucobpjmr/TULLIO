@@ -282,8 +282,18 @@ export const Messages = {
     supabase.from('messages').insert(withOrigin(m)).select().single(),
   remove: (id) =>
     supabase.from('messages').delete().eq('id', id),
-  setReactions: (id, reactions) =>
-    supabase.from('messages').update(withOrigin({ reactions })).eq('id', id),
+  // Toggle atomico di una reazione (RPC messages_toggle_reaction, migration
+  // 20260706). Sostituisce il vecchio setReactions che scriveva l'intero
+  // oggetto reactions calcolato lato client: due utenti che reagivano allo
+  // stesso messaggio in contemporanea si sovrascrivevano (last-write-wins). La
+  // RPC fa read-modify-write sotto lock di riga e usa sempre auth.uid() come
+  // reactor (non spoofabile). origin taggato per filtrare l'eco realtime.
+  toggleReaction: (id, emoji) =>
+    supabase.rpc('messages_toggle_reaction', {
+      msg_id: id,
+      emoji,
+      origin: getClientId(),
+    }),
   // Fase 3 — pin condiviso: tutti i partecipanti vedono lo stesso stato.
   // Le RLS UPDATE su messages permettono già a chi partecipa di toggleare
   // (stesso path di setReactions). `pinnedBy`/`pinnedAt` sono l'audit (chi/

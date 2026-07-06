@@ -21,8 +21,22 @@ function safeRedirect(value: unknown): string | undefined {
   try { u = new URL(value); } catch { return undefined; }
   if (u.protocol !== "https:") return undefined;
   const host = u.hostname.toLowerCase();
-  const ok = host === "tullio-seven.vercel.app" || host.endsWith(".vercel.app");
-  return ok ? value : undefined;
+  // Produzione.
+  if (host === "tullio-seven.vercel.app") return value;
+  // Preview deployment di QUESTO progetto: Vercel li serve come
+  // <project>-<hash>-<scope>.vercel.app, cioè un'unica label prima di
+  // ".vercel.app" che inizia con "tullio-". Il precedente check
+  // host.endsWith(".vercel.app") accettava QUALSIASI progetto Vercel (anche di
+  // terzi): un redirectTo manipolato avrebbe fatto arrivare il link d'invito
+  // — con il token d'accesso — a un dominio di phishing. Qui restringiamo alla
+  // sola famiglia di host del progetto ed escludiamo le label annidate (nessun
+  // punto extra) così "tullio-x.attacker.vercel.app" non passa.
+  const SUFFIX = ".vercel.app";
+  if (host.endsWith(SUFFIX)) {
+    const label = host.slice(0, -SUFFIX.length);
+    if (label.startsWith("tullio-") && !label.includes(".")) return value;
+  }
+  return undefined;
 }
 
 const json = (data: unknown, status = 200) =>

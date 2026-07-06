@@ -30,3 +30,24 @@ export const scopeConversationsForUser = (conversations, userId, teamIds) => {
     return true;
   });
 };
+
+// Ordina le conversazioni per la vista lista: prima le pinned, poi per
+// timestamp dell'ultimo messaggio (più recente in cima); quelle senza messaggi
+// finiscono in fondo. Non muta l'array in ingresso. Condivisa da
+// ConversationList e ForwardPicker (prima duplicavano lo stesso comparatore).
+export const sortConversationsByRecent = (conversations, messages) => {
+  const lastTime = (convId) => {
+    const arr = messages?.[convId];
+    const last = arr && arr.length ? arr[arr.length - 1] : null;
+    return last ? new Date(last.time).getTime() : null;
+  };
+  return [...(conversations || [])].sort((a, b) => {
+    if (a.pinned && !b.pinned) return -1;
+    if (!a.pinned && b.pinned) return 1;
+    const ta = lastTime(a.id);
+    const tb = lastTime(b.id);
+    if (ta == null) return 1;
+    if (tb == null) return -1;
+    return tb - ta;
+  });
+};

@@ -28,6 +28,27 @@ const SESSION_EXPIRED_MSG = 'Sessione scaduta. Esci e accedi di nuovo, poi ripro
 const isExpiredSessionError = (msg) =>
   typeof msg === 'string' && /token non valido|session.?not.?found|non autorizzato/i.test(msg);
 
+// Invoca una Edge Function e normalizza sempre il risultato in
+// { data, error: { message } }. Supabase-js mette il corpo JSON della risposta
+// d'errore (status non-2xx) in error.context: lo estraiamo per esporre il
+// messaggio localizzato dalla funzione invece del generico "Edge Function
+// returned a non-2xx status code". Alcune funzioni ritornano { error } anche
+// con status 2xx: lo trattiamo come errore. Un tempo questo blocco era
+// copia-incollato in invite/deleteAccount/deleteUser.
+const invokeFn = async (name, body = {}, fallback = 'Operazione non riuscita.') => {
+  const { data, error } = await supabase.functions.invoke(name, { body });
+  if (error) {
+    let msg = errText(error.message, fallback);
+    try {
+      const b = await error.context?.json?.();
+      if (b?.error) msg = errText(b.error, msg);
+    } catch { /* body non-JSON: usa error.message */ }
+    return { data: null, error: { message: msg } };
+  }
+  if (data?.error) return { data: null, error: { message: errText(data.error, fallback) } };
+  return { data, error: null };
+};
+
 // ----------------- USERS / TEAM -----------------
 export const Users = {
   list: () =>
@@ -63,19 +84,7 @@ export const Users = {
   // normalizziamo qui per esporre il testo localizzato al chiamante).
   invite: async ({ email, name, role = 'agent', capacity = 8, color = '#3B82F6', resend = false } = {}) => {
     const body = { email, name, role, capacity, color, resend, redirectTo: window.location.origin };
-    const run = async () => {
-      const { data, error } = await supabase.functions.invoke('invite-user', { body });
-      if (error) {
-        let msg = errText(error.message, 'Invito non riuscito.');
-        try {
-          const b = await error.context?.json?.();
-          if (b?.error) msg = errText(b.error, msg);
-        } catch { /* body non-JSON: usa error.message */ }
-        return { data: null, error: { message: msg } };
-      }
-      if (data?.error) return { data: null, error: { message: errText(data.error, 'Invito non riuscito.') } };
-      return { data, error: null };
-    };
+    const run = () => invokeFn('invite-user', body, 'Invito non riuscito.');
     let res = await run();
     // "Token non valido" = la sessione lato server non esiste più (es. logout
     // avvenuto in un'altra scheda/dispositivo). Provo a rinfrescare la sessione
@@ -122,37 +131,13 @@ export const Users = {
   // Self-service account deletion (Block 4). Calls the delete-account Edge
   // Function (verify_jwt) which bans the user for 10 years + sets active=false.
   // Does NOT hard-delete: preserves comments/messages (FK ON DELETE CASCADE safety).
-  deleteAccount: async () => {
-    const { data, error } = await supabase.functions.invoke('delete-account', { body: {} });
-    if (error) {
-      let msg = errText(error.message, 'Eliminazione non riuscita.');
-      try {
-        const body = await error.context?.json?.();
-        if (body?.error) msg = errText(body.error, msg);
-      } catch { /* non-JSON */ }
-      return { data: null, error: { message: msg } };
-    }
-    if (data?.error) return { data: null, error: { message: errText(data.error, 'Eliminazione non riuscita.') } };
-    return { data, error: null };
-  },
+  deleteAccount: () => invokeFn('delete-account', {}, 'Eliminazione non riuscita.'),
   // Eliminazione DEFINITIVA di un utente da parte di un admin (Block 3).
   // Chiama la Edge Function 'delete-user' (verify_jwt) che hard-elimina la
   // riga auth.users: la FK CASCADE ripulisce public.users e user_contacts.
   // Serve a liberare un'email "fantasma" così l'invito può essere rifatto da
   // zero (altrimenti Users.invite restituisce "già registrata").
-  deleteUser: async (userId) => {
-    const { data, error } = await supabase.functions.invoke('delete-user', { body: { userId } });
-    if (error) {
-      let msg = errText(error.message, 'Eliminazione non riuscita.');
-      try {
-        const body = await error.context?.json?.();
-        if (body?.error) msg = errText(body.error, msg);
-      } catch { /* non-JSON */ }
-      return { data: null, error: { message: msg } };
-    }
-    if (data?.error) return { data: null, error: { message: errText(data.error, 'Eliminazione non riuscita.') } };
-    return { data, error: null };
-  },
+  deleteUser: (userId) => invokeFn('delete-user', { userId }, 'Eliminazione non riuscita.'),
 };
 
 // ----------------- TASKS -----------------

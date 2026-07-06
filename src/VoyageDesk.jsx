@@ -1,5 +1,5 @@
 
-import { useState, useReducer, createContext, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
+import { useState, useReducer, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
 // xlsx (SheetJS, ~430KB) è caricato on-demand via import() dinamico solo
 // quando l'utente importa o esporta un file (vedi loadXLSX). Tenerlo fuori
 // dal bundle iniziale è il singolo guadagno più grande sul chunk principale.
@@ -21,8 +21,6 @@ import {
   fromDbCategory, toDbCategory,
   newId, isUuid,
 } from "./lib/mappers.js";
-// Step O: logout UI — signOut vive in AuthContext, qui viene solo cablato.
-import { useAuth } from "./auth/AuthContext.jsx";
 // Step P Phase 2a: utility pure estratte dal monolite.
 import { getActiveTasks } from "./lib/taskUtils.js";
 import { scopeConversationsForUser } from "./lib/chatUtils.js";
@@ -194,7 +192,6 @@ const FontLoader = () => (
 // ViewportContext, useViewport, ViewportProvider → src/components/Viewport.jsx (Step P Phase 2e)
 
 // ─── CONTEXT ───────────────────────────────────────────────────────────────
-const AppContext = createContext(null);
 // reducer, makeInitialState (+ baseReducer, buildLogEntry, LOGGED_ACTIONS,
 // ADMIN_ONLY_ACTIONS) → src/state/reducer.js
 
@@ -1310,7 +1307,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   useEffect(() => {
     const handler = (e) => {
       const inInput = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
-      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         document.querySelector("input[placeholder*='Cerca']")?.focus();
         return;

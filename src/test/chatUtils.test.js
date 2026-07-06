@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { scopeConversationsForUser } from "../lib/chatUtils.js";
+import { scopeConversationsForUser, sortConversationsByRecent } from "../lib/chatUtils.js";
 
 const ME = "me-uuid";
 const NAT = "nat-uuid";
@@ -49,5 +49,37 @@ describe("scopeConversationsForUser", () => {
   it("è difensivo su input non validi", () => {
     expect(scopeConversationsForUser(null, ME, team)).toEqual([]);
     expect(scopeConversationsForUser([{ id: "z", type: "direct" }], ME, team)).toEqual([]);
+  });
+});
+
+describe("sortConversationsByRecent", () => {
+  const messages = {
+    a: [{ time: "2026-01-01T10:00:00Z" }],
+    b: [{ time: "2026-01-03T10:00:00Z" }],
+    c: [{ time: "2026-01-02T10:00:00Z" }],
+    // 'd' senza messaggi
+  };
+
+  it("ordina per timestamp dell'ultimo messaggio, più recente in cima", () => {
+    const convs = [{ id: "a" }, { id: "b" }, { id: "c" }];
+    expect(sortConversationsByRecent(convs, messages).map(c => c.id)).toEqual(["b", "c", "a"]);
+  });
+
+  it("mette le pinned davanti a tutto, indipendentemente dai messaggi", () => {
+    const convs = [{ id: "a" }, { id: "b" }, { id: "c", pinned: true }];
+    expect(sortConversationsByRecent(convs, messages).map(c => c.id)).toEqual(["c", "b", "a"]);
+  });
+
+  it("relega in fondo le conversazioni senza messaggi", () => {
+    const convs = [{ id: "d" }, { id: "a" }, { id: "b" }];
+    expect(sortConversationsByRecent(convs, messages).map(c => c.id)).toEqual(["b", "a", "d"]);
+  });
+
+  it("non muta l'array in ingresso ed è difensivo su input assenti", () => {
+    const convs = [{ id: "a" }, { id: "b" }];
+    const copy = [...convs];
+    sortConversationsByRecent(convs, messages);
+    expect(convs).toEqual(copy);
+    expect(sortConversationsByRecent(undefined, undefined)).toEqual([]);
   });
 });

@@ -87,13 +87,21 @@ function ProfileErrorScreen({ onRetry, onSignOut }) {
 }
 
 function AuthGate() {
-  const { session, profile, team, loading, recovery, authError, refreshTeam, signOut } = useAuth();
+  const { session, profile, team, loading, recovery, authError, refreshTeam, retryInit, signOut } = useAuth();
 
   if (loading) return loadingScreen;
 
   // Recovery ha priorità: anche con una session valida, se l'utente arriva da
   // un link "reimposta password" mostriamo prima la schermata di aggiornamento.
   if (recovery) return <UpdatePasswordScreen />;
+
+  // getSession() stessa è fallita o è andata in timeout (rete instabile,
+  // mobile riportato in foreground dopo essere stato a lungo in background):
+  // nessuna session è mai stata ottenuta, ma potrebbe essercene una valida
+  // persistita. Senza questo ramo si finiva su LoginScreen forzando un
+  // nuovo login anche quando la sessione salvata era ancora valida — qui
+  // offriamo invece un retry che ritenta l'intera sequenza di init.
+  if (authError && !session) return <ProfileErrorScreen onRetry={retryInit} onSignOut={signOut} />;
 
   if (!session) return <LoginScreen />;
 

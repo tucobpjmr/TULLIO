@@ -1,9 +1,32 @@
 // src/auth/AuthContext.jsx
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Users as UsersAPI } from '../lib/api.js';
 
 const AuthContext = createContext(null);
+
+// Timeout per le chiamate di init auth (getSession + query profilo). Su
+// mobile (WebView Android, PWA riportata in foreground dopo essere rimasta
+// a lungo in background) una richiesta di rete può restare "appesa" senza
+// mai risolversi né rigettarsi (lock del refresh token bloccato, socket
+// morto non ancora rilevato dal sistema operativo). In quel caso la Promise
+// chain getSession()→loadProfile()→setLoading(false) non arriva mai al
+// finally: niente errore da intercettare, solo uno spinner "Caricamento…"
+// bloccato a tempo indeterminato, risolvibile solo da un refresh manuale
+// (che ricrea la connessione di rete da zero). withTimeout forza quella
+// Promise appesa a rigettare, così rientra nella gestione errori esistente
+// (authError + retry) invece di restare bloccata per sempre.
+const AUTH_TIMEOUT_MS = 15000;
+
+function withTimeout(promise, ms, label) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`[auth] ${label} in timeout dopo ${ms}ms`)), ms);
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
 
 // Rileva dal frammento URL con quale tipo di link Auth è arrivato l'utente.
 // I link di RECUPERO password emettono anche l'evento PASSWORD_RECOVERY, ma i
@@ -41,22 +64,29 @@ export function AuthProvider({ children }) {
   // sulla schermata "Caricamento…" per sempre, recuperabile solo con un
   // refresh manuale della pagina. Con authError mostriamo un retry esplicito.
   const [authError, setAuthError] = useState(null);
+  // Ref alla funzione di init corrente, così retryInit può rieseguirla senza
+  // ricreare l'effetto (vedi commento sopra all'useEffect).
+  const initAuthRef = useRef(null);
 
   const loadProfile = useCallback(async (userId) => {
     if (!userId) { setProfile(null); setTeam([]); setAuthError(null); return; }
     try {
-      const [{ data: me, error: meError }, { data: all }, { data: contacts }] = await Promise.all([
-        supabase.from('users').select('*').eq('id', userId).single(),
-        // Nessun filtro su active: gli admin devono vedere anche utenti pending
-        // (per approvarli) e disabilitati. Le viste task usano getAssignableTeam()
-        // che filtra a sua volta active=true + pending=false (state/appGlobals.js).
-        supabase.from('users').select('*').order('name'),
-        // email/phone vivono in public.user_contacts (RLS own+admin). Le carico
-        // solo per l'utente loggato e le rimergio nel profilo e nella sua entry
-        // di team, così ProfileEditor le mostra (gli altri membri non le hanno,
-        // by-design privacy hardening). Vedi migrazione 20260613100833.
-        supabase.from('user_contacts').select('email, phone').eq('user_id', userId).maybeSingle(),
-      ]);
+      const [{ data: me, error: meError }, { data: all }, { data: contacts }] = await withTimeout(
+        Promise.all([
+          supabase.from('users').select('*').eq('id', userId).single(),
+          // Nessun filtro su active: gli admin devono vedere anche utenti pending
+          // (per approvarli) e disabilitati. Le viste task usano getAssignableTeam()
+          // che filtra a sua volta active=true + pending=false (state/appGlobals.js).
+          supabase.from('users').select('*').order('name'),
+          // email/phone vivono in public.user_contacts (RLS own+admin). Le carico
+          // solo per l'utente loggato e le rimergio nel profilo e nella sua entry
+          // di team, così ProfileEditor le mostra (gli altri membri non le hanno,
+          // by-design privacy hardening). Vedi migrazione 20260613100833.
+          supabase.from('user_contacts').select('email, phone').eq('user_id', userId).maybeSingle(),
+        ]),
+        AUTH_TIMEOUT_MS,
+        'loadProfile',
+      );
       if (meError || !me) throw meError || new Error('Profilo non trovato');
       const myContacts = { email: contacts?.email ?? null, phone: contacts?.phone ?? null };
       // Normalizza la colonna DB photo_url → photoUrl (camelCase) atteso da
@@ -75,9 +105,9 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let mounted = true;
 
-    (async () => {
+    const initAuth = async () => {
       try {
-        const { data } = await supabase.auth.getSession();
+        const { data } = await withTimeout(supabase.auth.getSession(), AUTH_TIMEOUT_MS, 'getSession');
         if (!mounted) return;
         setSession(data.session ?? null);
         await loadProfile(data.session?.user?.id);
@@ -90,7 +120,13 @@ export function AuthProvider({ children }) {
         // catch a monte → la Promise chain non arrivava mai a setLoading(false)).
         if (mounted) setLoading(false);
       }
-    })();
+    };
+    // Esposta via retryInit: se getSession() stessa va in errore/timeout
+    // (session mai ottenuta), il retry deve rieseguire l'intera sequenza,
+    // non solo loadProfile (a differenza di refreshTeam, usato quando la
+    // session c'è già ma il profilo no).
+    initAuthRef.current = initAuth;
+    initAuth();
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, s) => {
       if (_event === 'PASSWORD_RECOVERY') {
@@ -154,6 +190,11 @@ export function AuthProvider({ children }) {
 
   const refreshTeam = () => loadProfile(session?.user?.id);
 
+  // Retry per quando è la sessione stessa a non essere mai stata ottenuta
+  // (getSession() fallita o rimasta appesa in timeout): rieseguono tutta la
+  // sequenza init, non solo il caricamento profilo.
+  const retryInit = () => initAuthRef.current?.();
+
   // Self-service account deletion: delegates to delete-account Edge Function,
   // then signs out so the banned user is immediately logged out.
   const deleteAccount = async () => {
@@ -183,6 +224,7 @@ export function AuthProvider({ children }) {
     deleteAccount,
     signOut,
     refreshTeam,
+    retryInit,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

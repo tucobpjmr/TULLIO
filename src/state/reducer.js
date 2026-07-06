@@ -311,16 +311,35 @@ function baseReducer(state, action) {
     }
     case "RESTORE_BACKUP": {
       const { tasks, team, categories, agencyName, notices } = action.payload;
-      if (team) setTeam(team);
-      if (categories) setCategories(categories);
+      // Merge (upsert) NON distruttivo, coerente col sync DB (VoyageDesk), che
+      // fa solo update/create per id/chiave e NON elimina i record assenti dal
+      // backup. Prima il reducer SOSTITUIVA gli array in-memory: i task non
+      // presenti nel backup sparivano dall'UI per poi riapparire al primo
+      // reload realtime (restavano sul DB) — incoerente e allarmante. E un
+      // restore che cancella i record assenti sarebbe una perdita dati silente
+      // se si ripristina un backup vecchio o parziale: la scelta è l'unione.
+      const mergeById = (existing, incoming) => {
+        if (!Array.isArray(incoming)) return existing;
+        const byId = new Map((existing || []).map(x => [x.id, x]));
+        for (const item of incoming) byId.set(item.id, { ...byId.get(item.id), ...item });
+        return [...byId.values()];
+      };
+      const nextTasks = mergeById(state.tasks, tasks);
+      const nextNotices = mergeById(state.notices, notices);
+      const nextTeam = mergeById(state.team, team);
+      const nextCategories = (categories && typeof categories === "object" && !Array.isArray(categories))
+        ? { ...state.categories, ...categories }
+        : state.categories;
+      setTeam(nextTeam);
+      setCategories(nextCategories);
       return {
         ...state,
-        tasks: tasks ?? state.tasks,
-        team: team ?? state.team,
-        categories: categories ?? state.categories,
+        tasks: nextTasks,
+        team: nextTeam,
+        categories: nextCategories,
         agencyName: agencyName ?? state.agencyName,
-        notices: notices ?? state.notices,
-        toast: { message: "Backup ripristinato con successo!", type: "success" }
+        notices: nextNotices,
+        toast: { message: "Backup ripristinato: dati uniti a quelli esistenti", type: "success" }
       };
     }
     case "CLEAR_ACTIVITY_LOG": {

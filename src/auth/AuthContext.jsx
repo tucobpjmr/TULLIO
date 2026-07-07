@@ -28,6 +28,35 @@ function withTimeout(promise, ms, label) {
   });
 }
 
+// Ritenta automaticamente e in silenzio una chiamata di init prima di
+// arrendersi. Il primo avvio "a freddo" (progetto Supabase in pausa dopo
+// inattività, mobile che ristabilisce la connessione al ritorno in foreground)
+// può far fallire la PRIMA richiesta con un errore transitorio (o un cold
+// start lentissimo), mentre il tentativo successivo su connessione ormai
+// "calda" va a buon fine. Ritentando qui, l'utente resta sullo spinner
+// "Caricamento…" ancora un attimo invece di vedere lampeggiare una schermata
+// d'errore che si risolve da sola dopo un secondo.
+const AUTH_RETRIES = 2;
+const AUTH_RETRY_DELAY_MS = 1200;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function withRetry(fn, label) {
+  let lastErr;
+  for (let attempt = 0; attempt <= AUTH_RETRIES; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (attempt < AUTH_RETRIES) {
+        console.warn(`[auth] ${label} tentativo ${attempt + 1} fallito, ritento…`, err);
+        await sleep(AUTH_RETRY_DELAY_MS * (attempt + 1));
+      }
+    }
+  }
+  throw lastErr;
+}
+
 // Rileva dal frammento URL con quale tipo di link Auth è arrivato l'utente.
 // I link di RECUPERO password emettono anche l'evento PASSWORD_RECOVERY, ma i
 // link di INVITO (inviteUserByEmail) NO: arrivano come SIGNED_IN con
@@ -67,39 +96,69 @@ export function AuthProvider({ children }) {
   // Ref alla funzione di init corrente, così retryInit può rieseguirla senza
   // ricreare l'effetto (vedi commento sopra all'useEffect).
   const initAuthRef = useRef(null);
+  // Deduplica i caricamenti profilo concorrenti sullo stesso utente. All'avvio
+  // loadProfile veniva chiamata DUE volte quasi in contemporanea: una da
+  // initAuth (dopo getSession) e una dall'evento INITIAL_SESSION che
+  // onAuthStateChange emette subito alla sottoscrizione. Due query concorrenti
+  // sul DB "a freddo": se una falliva e l'altra riusciva, la prima faceva
+  // lampeggiare la schermata d'errore prima che la seconda montasse l'app
+  // ("errore, poi si connette"). Con un'unica richiesta in volo per utente il
+  // race sparisce.
+  const loadInFlightRef = useRef(null);
 
-  const loadProfile = useCallback(async (userId) => {
-    if (!userId) { setProfile(null); setTeam([]); setAuthError(null); return; }
-    try {
-      const [{ data: me, error: meError }, { data: all }, { data: contacts }] = await withTimeout(
-        Promise.all([
-          supabase.from('users').select('*').eq('id', userId).single(),
-          // Nessun filtro su active: gli admin devono vedere anche utenti pending
-          // (per approvarli) e disabilitati. Le viste task usano getAssignableTeam()
-          // che filtra a sua volta active=true + pending=false (state/appGlobals.js).
-          supabase.from('users').select('*').order('name'),
-          // email/phone vivono in public.user_contacts (RLS own+admin). Le carico
-          // solo per l'utente loggato e le rimergio nel profilo e nella sua entry
-          // di team, così ProfileEditor le mostra (gli altri membri non le hanno,
-          // by-design privacy hardening). Vedi migrazione 20260613100833.
-          supabase.from('user_contacts').select('email, phone').eq('user_id', userId).maybeSingle(),
-        ]),
-        AUTH_TIMEOUT_MS,
-        'loadProfile',
-      );
-      if (meError || !me) throw meError || new Error('Profilo non trovato');
-      const myContacts = { email: contacts?.email ?? null, phone: contacts?.phone ?? null };
-      // Normalizza la colonna DB photo_url → photoUrl (camelCase) atteso da
-      // Avatar/ProfileEditor (caveat #25): senza, la foto persistita non si
-      // ri-mostrerebbe dopo il reload.
-      const normalize = (u) => ({ ...u, photoUrl: u.photo_url ?? null });
-      setProfile({ ...normalize(me), ...myContacts });
-      setTeam((all ?? []).map(u => u.id === userId ? { ...normalize(u), ...myContacts } : normalize(u)));
-      setAuthError(null);
-    } catch (err) {
-      console.error('[auth] loadProfile failed', err);
-      setAuthError(err);
-    }
+  const loadProfile = useCallback((userId) => {
+    const key = userId ?? null;
+    const inflight = loadInFlightRef.current;
+    if (inflight && inflight.key === key) return inflight.promise;
+
+    const promise = (async () => {
+      if (!userId) { setProfile(null); setTeam([]); setAuthError(null); return; }
+      try {
+        const { me, all, contacts } = await withRetry(async () => {
+          const [{ data: me, error: meError }, { data: all, error: allError }, { data: contacts }] = await withTimeout(
+            Promise.all([
+              supabase.from('users').select('*').eq('id', userId).single(),
+              // Nessun filtro su active: gli admin devono vedere anche utenti pending
+              // (per approvarli) e disabilitati. Le viste task usano getAssignableTeam()
+              // che filtra a sua volta active=true + pending=false (state/appGlobals.js).
+              supabase.from('users').select('*').order('name'),
+              // email/phone vivono in public.user_contacts (RLS own+admin). Le carico
+              // solo per l'utente loggato e le rimergio nel profilo e nella sua entry
+              // di team, così ProfileEditor le mostra (gli altri membri non le hanno,
+              // by-design privacy hardening). Vedi migrazione 20260613100833.
+              supabase.from('user_contacts').select('email, phone').eq('user_id', userId).maybeSingle(),
+            ]),
+            AUTH_TIMEOUT_MS,
+            'loadProfile',
+          );
+          // Errori/righe mancanti rientrano nel retry: al primo avvio a freddo
+          // il token può non essere ancora rinfrescato e le RLS restituiscono
+          // vuoto, cosa che si risolve al tentativo successivo.
+          if (meError || !me) throw meError || new Error('Profilo non trovato');
+          if (allError) throw allError;
+          return { me, all, contacts };
+        }, 'loadProfile');
+        const myContacts = { email: contacts?.email ?? null, phone: contacts?.phone ?? null };
+        // Normalizza la colonna DB photo_url → photoUrl (camelCase) atteso da
+        // Avatar/ProfileEditor (caveat #25): senza, la foto persistita non si
+        // ri-mostrerebbe dopo il reload.
+        const normalize = (u) => ({ ...u, photoUrl: u.photo_url ?? null });
+        setProfile({ ...normalize(me), ...myContacts });
+        setTeam((all ?? []).map(u => u.id === userId ? { ...normalize(u), ...myContacts } : normalize(u)));
+        setAuthError(null);
+      } catch (err) {
+        console.error('[auth] loadProfile fallito dopo i retry', err);
+        setAuthError(err);
+      }
+    })();
+
+    loadInFlightRef.current = { key, promise };
+    // Libera lo slot a fine caricamento così una richiesta successiva (es.
+    // TOKEN_REFRESHED, o un retry esplicito dell'utente) riparte da capo.
+    promise.finally(() => {
+      if (loadInFlightRef.current?.promise === promise) loadInFlightRef.current = null;
+    });
+    return promise;
   }, []);
 
   useEffect(() => {
@@ -107,7 +166,10 @@ export function AuthProvider({ children }) {
 
     const initAuth = async () => {
       try {
-        const { data } = await withTimeout(supabase.auth.getSession(), AUTH_TIMEOUT_MS, 'getSession');
+        const { data } = await withRetry(
+          () => withTimeout(supabase.auth.getSession(), AUTH_TIMEOUT_MS, 'getSession'),
+          'getSession',
+        );
         if (!mounted) return;
         setSession(data.session ?? null);
         await loadProfile(data.session?.user?.id);

@@ -1,0 +1,27 @@
+name: Keep Supabase warm
+
+# Il progetto Supabase è sul piano Free: senza traffico per 7 giorni consecutivi
+# va in pausa (richiede poi un ripristino manuale dalla dashboard), e anche
+# prima di quel limite il compute condiviso può "raffreddarsi" con l'inattività,
+# causando qualche secondo di ritardo alla prima richiesta dopo una pausa
+# d'uso (es. rientro nell'app dopo la notte). Questo workflow pinga l'API a
+# intervalli regolari per tenere l'istanza attiva ed evitare entrambi i casi.
+on:
+  schedule:
+    - cron: '0 */4 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Auth (GoTrue)
+        run: curl -sS -f -o /dev/null "https://vmxvnxsqfisucugcpqlc.supabase.co/auth/v1/health"
+
+      # Chiave anon pubblica: è la stessa spedita nel bundle frontend a ogni
+      # visitatore (protetta dalle policy RLS, non da segretezza), quindi non
+      # è un segreto da mettere in un secret di repository.
+      - name: Ping REST (PostgREST + Postgres)
+        run: |
+          curl -sS -f -o /dev/null "https://vmxvnxsqfisucugcpqlc.supabase.co/rest/v1/users?select=id&limit=1" \
+            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZteHZueHNxZmlzdWN1Z2NwcWxjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjcyNjYsImV4cCI6MjA5NjI0MzI2Nn0.HzrIVB-ykHYbOPeA8IH9x-NO3U8Gzc9OqixAVD4noug"

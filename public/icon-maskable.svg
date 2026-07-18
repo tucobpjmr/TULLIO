@@ -1,13 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Sfondo navy full-bleed (nessun bordo arrotondato: è il sistema che applica la maschera) -->
+  <!-- Sfondo navy full-bleed per maskable (Android adaptive icons) -->
   <rect width="512" height="512" fill="#0F2044"/>
-  <!-- Contenuto scalato al 65% per restare dentro la safe zone dell'80% (maskable) -->
-  <g fill="#D4A843" transform="translate(256,256) scale(0.65) translate(-256,-256)">
-    <!-- Fusoliera -->
-    <ellipse cx="256" cy="248" rx="24" ry="135"/>
-    <!-- Ali principali -->
-    <path d="M234,215 L52,338 L76,353 L244,265 L268,265 L436,353 L460,338 L278,215Z"/>
-    <!-- Stabilizzatori orizzontali -->
-    <path d="M244,344 L168,390 L182,400 L246,370 L266,370 L330,400 L344,390 L268,344Z"/>
+  <!-- Omino stilizzato con valigetta, scalato per la safe zone maskable (80%) -->
+  <g fill="none" stroke="#D4A843" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" transform="translate(256,256) scale(0.75) translate(-256,-256)">
+    <!-- Testa -->
+    <circle cx="256" cy="140" r="55"/>
+    <!-- Capelli/spunti -->
+    <path d="M210,95 L185,45 M256,85 L256,30 M302,95 L327,45"/>
+    <!-- Corpo -->
+    <rect x="225" y="205" width="62" height="85" rx="8"/>
+    <!-- Braccio sinistro (con valigetta) -->
+    <line x1="225" y1="240" x2="160" y2="210"/>
+    <rect x="135" y="180" width="50" height="65" rx="6"/>
+    <!-- Braccio destro -->
+    <line x1="287" y1="240" x2="352" y2="215"/>
+    <!-- Gambe -->
+    <line x1="240" y1="290" x2="230" y2="380"/>
+    <line x1="272" y1="290" x2="282" y2="380"/>
+    <!-- Piedi -->
+    <circle cx="230" cy="395" r="15"/>
+    <circle cx="282" cy="395" r="15"/>
   </g>
 </svg>

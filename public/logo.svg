@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Omino stilizzato con valigetta, stile line-art -->
+  <g fill="none" stroke="#0F2044" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Testa -->
+    <circle cx="100" cy="45" r="18"/>
+    <!-- Capelli/spunti -->
+    <path d="M85,30 L80,20 M100,28 L100,15 M115,30 L120,20"/>
+    <!-- Corpo -->
+    <rect x="88" y="65" width="24" height="32" rx="3"/>
+    <!-- Braccio sinistro (con valigetta) -->
+    <line x1="88" y1="75" x2="70" y2="65"/>
+    <rect x="62" y="60" width="15" height="20" rx="2"/>
+    <!-- Braccio destro -->
+    <line x1="112" y1="75" x2="130" y2="70"/>
+    <!-- Gambe -->
+    <line x1="92" y1="97" x2="88" y2="125"/>
+    <line x1="108" y1="97" x2="112" y2="125"/>
+    <!-- Piedi -->
+    <circle cx="88" cy="128" r="4"/>
+    <circle cx="112" cy="128" r="4"/>
+  </g>
+</svg>

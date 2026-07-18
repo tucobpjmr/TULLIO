@@ -342,14 +342,25 @@ export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMa
           aria-current={dashActive ? "page" : undefined}
           style={{
             width: 32, height: 32, background: "var(--gold)", borderRadius: 8,
-            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
+            display: "flex", alignItems: "center", justifyContent: "center",
             flexShrink: 0, cursor: "pointer", padding: 0, position: "relative",
             border: dashActive ? "2px solid var(--navy)" : "2px solid transparent",
             boxShadow: dashActive ? "0 0 0 2px rgba(15,32,68,0.15)" : "none",
             transition: "all 0.2s",
           }}
         >
-          ✈️
+          <svg width="20" height="20" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" style={{ fill: "none", stroke: "#0F2044", strokeWidth: 2.5, strokeLinecap: "round", strokeLinejoin: "round" }}>
+            <circle cx="100" cy="45" r="18"/>
+            <path d="M85,30 L80,20 M100,28 L100,15 M115,30 L120,20"/>
+            <rect x="88" y="65" width="24" height="32" rx="3"/>
+            <line x1="88" y1="75" x2="70" y2="65"/>
+            <rect x="62" y="60" width="15" height="20" rx="2"/>
+            <line x1="112" y1="75" x2="130" y2="70"/>
+            <line x1="92" y1="97" x2="88" y2="125"/>
+            <line x1="108" y1="97" x2="112" y2="125"/>
+            <circle cx="88" cy="128" r="4"/>
+            <circle cx="112" cy="128" r="4"/>
+          </svg>
         </button>
         <button
           onClick={goDashboard}

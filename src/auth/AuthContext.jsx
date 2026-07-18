@@ -197,6 +197,18 @@ export function AuthProvider({ children }) {
       }
       setSession(s);
       await loadProfile(s?.user?.id);
+      // Sblocca lo spinner anche da qui, non solo dal finally di initAuth.
+      // onAuthStateChange emette INITIAL_SESSION appena ci si sottoscrive: è un
+      // segnale indipendente da getSession() che lo stato auth iniziale è
+      // determinato. Su avvio a freddo getSession() può restare APPESA (lock
+      // del refresh token, socket morto su mobile/PWA) senza mai risolversi: in
+      // quel caso session e profilo venivano caricati QUI con successo, ma
+      // `loading` restava true in attesa del finally di initAuth (mai raggiunto
+      // finché non scattava il timeout dopo 15s×retry) → schermata
+      // "Caricamento…" bloccata, sbloccabile solo con un refresh manuale.
+      // Chiudendo `loading` qui l'app monta appena i dati sono pronti, da
+      // qualunque dei due percorsi arrivino per primi.
+      if (mounted) setLoading(false);
     });
 
     return () => { mounted = false; sub.subscription.unsubscribe(); };

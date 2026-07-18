@@ -68,6 +68,23 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
   });
   const rootRef = useRef(null);
   const isMobile = useIsMobile();
+  // Lato effettivo del dropdown desktop: parte da `align` ma viene ribaltato
+  // all'apertura se ancorarlo lì farebbe sforare il pannello oltre il bordo
+  // della finestra (es. campo nella colonna destra della griglia).
+  const [desktopAlign, setDesktopAlign] = useState(align);
+
+  // All'apertura su desktop misura la posizione del campo e sceglie il lato di
+  // ancoraggio che tiene il pannello (largo ~260px) dentro il viewport.
+  useEffect(() => {
+    if (!open || isMobile) return;
+    const rect = rootRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const PANEL_W = 260, MARGIN = 8;
+    const overflowsRight = rect.left + PANEL_W > window.innerWidth - MARGIN;
+    const overflowsLeft = rect.right - PANEL_W < MARGIN;
+    if (align === "left") setDesktopAlign(overflowsRight && !overflowsLeft ? "right" : "left");
+    else setDesktopAlign(overflowsLeft && !overflowsRight ? "left" : "right");
+  }, [open, isMobile, align]);
 
   // Riallinea la bozza al valore corrente ogni volta che il popover si apre.
   useEffect(() => {
@@ -252,7 +269,7 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
       ) : (
         // Desktop: dropdown ancorato al campo.
         <div style={{
-          position: "absolute", top: "100%", ...(align === "right" ? { right: 0 } : { left: 0 }),
+          position: "absolute", top: "100%", ...(desktopAlign === "right" ? { right: 0 } : { left: 0 }),
           marginTop: 6, zIndex: 30,
           background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10,
           boxShadow: "0 10px 30px rgba(0,0,0,0.15)", padding: 12, width: 260,

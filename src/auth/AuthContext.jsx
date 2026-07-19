@@ -190,25 +190,39 @@ export function AuthProvider({ children }) {
     initAuthRef.current = initAuth;
     initAuth();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, s) => {
+    // ATTENZIONE: questo callback DEVE restare SINCRONO, senza await di
+    // chiamate supabase al suo interno. gotrue-js emette gli eventi (compreso
+    // INITIAL_SESSION, sparato subito alla sottoscrizione) TENENDO il lock
+    // auth (navigator.locks) e ASPETTANDO che il callback finisca. Qualsiasi
+    // query awaited qui dentro deve prima ottenere l'access token →
+    // getSession() → lo STESSO lock: attesa circolare. In pratica all'avvio:
+    // initAuth faceva partire loadProfile, le cui query restavano in coda sul
+    // lock; il callback INITIAL_SESSION (che il lock lo deteneva) faceva
+    // await della STESSA promise deduplicata da loadInFlightRef → deadlock.
+    // Risultato: schermata "Caricamento…" bloccata a ogni avvio (desktop e
+    // mobile) finché non scadevano timeout+retry (~45s), risolvibile in
+    // pratica solo con un refresh manuale — che a volte vinceva il race sul
+    // lock e quindi "funzionava". setTimeout(0) rimanda il lavoro a dopo il
+    // ritorno del callback: il lock si libera subito e loadProfile procede.
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       if (_event === 'PASSWORD_RECOVERY') {
         setRecovery(true);
         setRecoveryKind(prev => prev ?? 'recovery');
       }
       setSession(s);
-      await loadProfile(s?.user?.id);
-      // Sblocca lo spinner anche da qui, non solo dal finally di initAuth.
-      // onAuthStateChange emette INITIAL_SESSION appena ci si sottoscrive: è un
-      // segnale indipendente da getSession() che lo stato auth iniziale è
-      // determinato. Su avvio a freddo getSession() può restare APPESA (lock
-      // del refresh token, socket morto su mobile/PWA) senza mai risolversi: in
-      // quel caso session e profilo venivano caricati QUI con successo, ma
-      // `loading` restava true in attesa del finally di initAuth (mai raggiunto
-      // finché non scattava il timeout dopo 15s×retry) → schermata
-      // "Caricamento…" bloccata, sbloccabile solo con un refresh manuale.
-      // Chiudendo `loading` qui l'app monta appena i dati sono pronti, da
-      // qualunque dei due percorsi arrivino per primi.
-      if (mounted) setLoading(false);
+      setTimeout(() => {
+        if (!mounted) return;
+        loadProfile(s?.user?.id).finally(() => {
+          // Sblocca lo spinner anche da qui, non solo dal finally di initAuth.
+          // INITIAL_SESSION è un segnale indipendente da getSession() che lo
+          // stato auth iniziale è determinato: su avvio a freddo getSession()
+          // può restare appesa (socket morto su mobile/PWA) e in quel caso
+          // session e profilo arrivano da QUI. Chiudendo `loading` in entrambi
+          // i percorsi l'app monta appena i dati sono pronti, da qualunque dei
+          // due arrivi per primo.
+          if (mounted) setLoading(false);
+        });
+      }, 0);
     });
 
     return () => { mounted = false; sub.subscription.unsubscribe(); };

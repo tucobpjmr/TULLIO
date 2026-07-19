@@ -2,7 +2,7 @@
 // Estratto dal monolite (Step P Phase 2f).
 // Contiene ManualTab, DuplicateTab, ImportTab, TemplateTab (helper interni,
 // non esportati) + il modale principale BulkTaskCreator.
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { PRIORITIES, STATUSES, STATUS_LABELS, TASK_TEMPLATES } from "../../lib/taskConstants.js";
@@ -35,7 +35,7 @@ const bulkIconBtnSmall = {
 };
 
 // ─── BULK: MANUAL TAB ──────────────────────────────────────────────────────
-const ManualTab = ({ onCreate, onClose, clients = [] }) => {
+const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
   const { isMobile } = useViewport();
   const [common, setCommon] = useState({ client: "", category: "booking", priority: "medium", assignee: "", praticaRef: "", contact: "" });
   const [clientFocus, setClientFocus] = useState(false);
@@ -47,6 +47,21 @@ const ManualTab = ({ onCreate, onClose, clients = [] }) => {
   const removeRow = (key) => setRows(rs => rs.length > 1 ? rs.filter(r => r.key !== key) : rs);
 
   const validRows = rows.filter(r => r.title.trim());
+  // Righe con qualche dato ma senza titolo: verrebbero scartate in silenzio.
+  const rowHasData = (r) => r.category || r.priority || r.assignee || r.dueDate;
+  const ignoredRows = rows.filter(r => !r.title.trim() && rowHasData(r));
+
+  // Etichette delle impostazioni comuni, mostrate come valore ereditato nelle
+  // righe che non specificano nulla (così l'operatore vede cosa uscirà davvero).
+  const commonCatLabel = CATEGORIES[common.category]?.label || "categoria";
+  const commonPrioLabel = PRIORITIES[common.priority]?.label || "priorità";
+  const commonAssigneeLabel = common.assignee
+    ? (getAssignableTeam().find(m => m.id === common.assignee)?.name.split(" ")[0] || "assegnato")
+    : "nessuno";
+
+  const isDirty = validRows.length > 0 || ignoredRows.length > 0 ||
+    !!(common.client.trim() || common.praticaRef.trim() || common.contact.trim());
+  useEffect(() => { onDirty?.(isDirty); }, [isDirty, onDirty]);
 
   const handleCreate = () => {
     const ts = Date.now();
@@ -158,26 +173,35 @@ const ManualTab = ({ onCreate, onClose, clients = [] }) => {
         {rows.map((r, idx) => (
           isMobile ? (
             /* Mobile: ogni riga è una card impilata (no scroll orizzontale) */
-            <div key={r.key} style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 10, background: "var(--surface)", display: "flex", flexDirection: "column", gap: 8 }}>
+            <div key={r.key} style={{
+              border: `1px solid ${!r.title.trim() && rowHasData(r) ? "var(--warning)" : "var(--border)"}`,
+              borderRadius: 10, padding: 10, background: "var(--surface)", display: "flex", flexDirection: "column", gap: 8,
+            }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", flexShrink: 0 }}>#{idx + 1}</span>
-                <input value={r.title} onChange={e => updateRow(r.key, "title", e.target.value)} placeholder="Titolo task..." style={{ ...bulkInputStyle, flex: 1 }} />
+                <input value={r.title} onChange={e => updateRow(r.key, "title", e.target.value)} placeholder="Titolo task..." style={{
+                  ...bulkInputStyle, flex: 1,
+                  borderColor: !r.title.trim() && rowHasData(r) ? "var(--warning)" : "var(--border)",
+                }} />
                 <button onClick={() => removeRow(r.key)} disabled={rows.length === 1} style={{
                   background: "transparent", border: "none", cursor: rows.length === 1 ? "not-allowed" : "pointer",
                   fontSize: 16, color: "var(--text-muted)", opacity: rows.length === 1 ? 0.3 : 1, flexShrink: 0,
                 }}>✕</button>
               </div>
+              {!r.title.trim() && rowHasData(r) && (
+                <div style={{ fontSize: 10.5, color: "var(--warning)", fontWeight: 600 }}>⚠ Aggiungi un titolo o questa riga verrà ignorata</div>
+              )}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 <select value={r.category} onChange={e => updateRow(r.key, "category", e.target.value)} style={bulkInputStyle}>
-                  <option value="">— categoria —</option>
+                  <option value="">{commonCatLabel} (comune)</option>
                   {Object.entries(CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
                 </select>
                 <select value={r.priority} onChange={e => updateRow(r.key, "priority", e.target.value)} style={bulkInputStyle}>
-                  <option value="">— priorità —</option>
+                  <option value="">{commonPrioLabel} (comune)</option>
                   {Object.entries(PRIORITIES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                 </select>
                 <select value={r.assignee} onChange={e => updateRow(r.key, "assignee", e.target.value)} style={bulkInputStyle}>
-                  <option value="">— assegna —</option>
+                  <option value="">{commonAssigneeLabel} (comune)</option>
                   {getAssignableTeam().map(m => <option key={m.id} value={m.id}>{m.name.split(" ")[0]}</option>)}
                 </select>
                 <DateTimePicker
@@ -190,17 +214,20 @@ const ManualTab = ({ onCreate, onClose, clients = [] }) => {
           ) : (
             <div key={r.key} style={{ display: "grid", gridTemplateColumns: "26px 1fr 130px 100px 120px 130px 28px", gap: 6, alignItems: "center" }}>
               <div style={{ fontSize: 11, color: "var(--text-muted)", textAlign: "center" }}>{idx + 1}</div>
-              <input value={r.title} onChange={e => updateRow(r.key, "title", e.target.value)} placeholder="Titolo task..." style={bulkInputStyle} />
+              <input value={r.title} onChange={e => updateRow(r.key, "title", e.target.value)} placeholder="Titolo task..." style={{
+                ...bulkInputStyle,
+                borderColor: !r.title.trim() && rowHasData(r) ? "var(--warning)" : "var(--border)",
+              }} title={!r.title.trim() && rowHasData(r) ? "Aggiungi un titolo o la riga verrà ignorata" : undefined} />
               <select value={r.category} onChange={e => updateRow(r.key, "category", e.target.value)} style={bulkInputStyle}>
-                <option value="">— default —</option>
+                <option value="">{commonCatLabel}</option>
                 {Object.entries(CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
               </select>
               <select value={r.priority} onChange={e => updateRow(r.key, "priority", e.target.value)} style={bulkInputStyle}>
-                <option value="">—</option>
+                <option value="">{commonPrioLabel}</option>
                 {Object.entries(PRIORITIES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
               <select value={r.assignee} onChange={e => updateRow(r.key, "assignee", e.target.value)} style={bulkInputStyle}>
-                <option value="">—</option>
+                <option value="">{commonAssigneeLabel}</option>
                 {getAssignableTeam().map(m => <option key={m.id} value={m.id}>{m.name.split(" ")[0]}</option>)}
               </select>
               <DateTimePicker
@@ -222,10 +249,17 @@ const ManualTab = ({ onCreate, onClose, clients = [] }) => {
         }}>+ Aggiungi riga</button>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 10, borderTop: "1px solid var(--border)" }}>
-        <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{validRows.length} task da creare</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 10, borderTop: "1px solid var(--border)", flexWrap: "wrap", gap: 8 }}>
+        <div style={{ fontSize: 12, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 2 }}>
+          <span>{validRows.length} task da creare</span>
+          {ignoredRows.length > 0 && (
+            <span style={{ color: "var(--warning)", fontWeight: 600 }}>
+              ⚠ {ignoredRows.length} rig{ignoredRows.length === 1 ? "a" : "he"} senza titolo {ignoredRows.length === 1 ? "verrà ignorata" : "verranno ignorate"}
+            </span>
+          )}
+        </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={onClose} style={bulkBtnGhost}>Annulla</button>
+          <button onClick={onCancel || onClose} style={bulkBtnGhost}>Annulla</button>
           <button onClick={handleCreate} disabled={validRows.length === 0} style={{
             ...bulkBtnPrimary, opacity: validRows.length === 0 ? 0.5 : 1, cursor: validRows.length === 0 ? "not-allowed" : "pointer",
           }}>✓ Crea {validRows.length} task</button>
@@ -236,7 +270,7 @@ const ManualTab = ({ onCreate, onClose, clients = [] }) => {
 };
 
 // ─── BULK: DUPLICATE TAB ───────────────────────────────────────────────────
-const DuplicateTab = ({ tasks, onCreate, onClose }) => {
+const DuplicateTab = ({ tasks, onCreate, onClose, onCancel, onDirty }) => {
   const [selected, setSelected] = useState({});
   const [titleSuffix, setTitleSuffix] = useState(" (copia)");
   const [dayOffset, setDayOffset] = useState(0);
@@ -253,6 +287,18 @@ const DuplicateTab = ({ tasks, onCreate, onClose }) => {
     !search || t.title.toLowerCase().includes(search.toLowerCase()) || t.client?.toLowerCase().includes(search.toLowerCase())
   );
   const totalCount = Object.values(selected).reduce((a, c) => a + (c || 0), 0);
+
+  useEffect(() => { onDirty?.(totalCount > 0); }, [totalCount, onDirty]);
+
+  // Scadenza risultante dopo l'offset (relativo alla scadenza originale, non a
+  // oggi): usata per l'anteprima sotto ogni task selezionato.
+  const resultingDue = (src) => {
+    if (!src.dueDate) return "senza scadenza";
+    if (!dayOffset) return formatDate(src.dueDate);
+    const d = new Date(src.dueDate);
+    d.setDate(d.getDate() + dayOffset);
+    return formatDate(d.toISOString());
+  };
 
   const handleCreate = () => {
     const newTasks = [];
@@ -285,12 +331,14 @@ const DuplicateTab = ({ tasks, onCreate, onClose }) => {
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ background: "var(--surface2)", borderRadius: 10, padding: "12px 14px", display: "grid", gridTemplateColumns: "2fr 1fr", gap: 10 }}>
         <div>
-          <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>SUFFISSO TITOLO</div>
-          <input value={titleSuffix} onChange={e => setTitleSuffix(e.target.value)} style={bulkInputStyle} />
+          <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>TESTO DA AGGIUNGERE AL TITOLO</div>
+          <input value={titleSuffix} onChange={e => setTitleSuffix(e.target.value)} placeholder=" (copia)" style={bulkInputStyle} />
+          <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 3 }}>Aggiunto in fondo al titolo di ogni copia</div>
         </div>
         <div>
-          <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>OFFSET SCADENZA (giorni)</div>
+          <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>SPOSTA LA SCADENZA DI (giorni)</div>
           <input type="number" value={dayOffset} onChange={e => setDayOffset(parseInt(e.target.value) || 0)} style={bulkInputStyle} />
+          <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 3 }}>+7 = una settimana dopo l'originale, −3 = tre giorni prima</div>
         </div>
       </div>
 
@@ -316,6 +364,11 @@ const DuplicateTab = ({ tasks, onCreate, onClose }) => {
                 <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
                   {CATEGORIES[t.category]?.label} • {t.client || "—"} • {formatDate(t.dueDate)}
                 </div>
+                {isSel && (
+                  <div style={{ fontSize: 10.5, color: "var(--success)", fontWeight: 600, marginTop: 3 }}>
+                    → {t.title}{titleSuffix}{count > 1 ? ` 1…${count}` : ""} · scad. {resultingDue(t)}
+                  </div>
+                )}
               </div>
               {isSel && (
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={e => e.stopPropagation()}>
@@ -332,7 +385,7 @@ const DuplicateTab = ({ tasks, onCreate, onClose }) => {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: "1px solid var(--border)" }}>
         <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{totalCount} copie da creare</div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={onClose} style={bulkBtnGhost}>Annulla</button>
+          <button onClick={onCancel || onClose} style={bulkBtnGhost}>Annulla</button>
           <button onClick={handleCreate} disabled={totalCount === 0} style={{
             ...bulkBtnPrimary, opacity: totalCount === 0 ? 0.5 : 1, cursor: totalCount === 0 ? "not-allowed" : "pointer",
           }}>✓ Crea {totalCount} copie</button>
@@ -343,13 +396,18 @@ const DuplicateTab = ({ tasks, onCreate, onClose }) => {
 };
 
 // ─── BULK: IMPORT TAB ──────────────────────────────────────────────────────
-const ImportTab = ({ onCreate, onClose }) => {
+const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
   const [fileName, setFileName] = useState("");
   const [rows, setRows] = useState([]);
   const [columns, setColumns] = useState([]);
   const [mapping, setMapping] = useState({});
+  // Campi il cui abbinamento è stato indovinato automaticamente al caricamento:
+  // li evidenziamo così l'operatore sa cosa verificare (e cosa mappare a mano).
+  const [autoDetected, setAutoDetected] = useState({});
   const [error, setError] = useState(null);
   const fileInputRef = useRef(null);
+
+  useEffect(() => { onDirty?.(rows.length > 0); }, [rows.length, onDirty]);
 
   const handleFile = (e) => {
     const file = e.target.files?.[0];
@@ -366,7 +424,7 @@ const ImportTab = ({ onCreate, onClose }) => {
         const cols = Object.keys(json[0]);
         setRows(json); setColumns(cols);
         const find = (kws) => cols.find(c => kws.some(kw => c.toLowerCase().includes(kw)));
-        setMapping({
+        const auto = {
           title: find(["titolo", "title", "nome", "task"]) || "",
           category: find(["categoria", "category", "tipo"]) || "",
           priority: find(["priorit", "priority"]) || "",
@@ -377,12 +435,31 @@ const ImportTab = ({ onCreate, onClose }) => {
           estimatedHours: find(["ore", "hours"]) || "",
           description: find(["descriz", "descr", "note"]) || "",
           contact: find(["contatt", "contact", "telefono", "phone", "cellulare"]) || "",
-        });
+        };
+        setMapping(auto);
+        setAutoDetected(Object.fromEntries(Object.entries(auto).filter(([, v]) => v).map(([k]) => [k, true])));
       } catch (err) {
         setError("Impossibile leggere il file: " + err.message);
       }
     };
     reader.readAsArrayBuffer(file);
+  };
+
+  // Genera e scarica un CSV modello con intestazioni riconosciute e una riga
+  // d'esempio con valori validi, così l'operatore parte da un file corretto.
+  const downloadTemplate = () => {
+    const headers = ["Titolo", "Categoria", "Priorità", "Stato", "Cliente", "Scadenza", "Assegnato", "Descrizione", "Contatti"];
+    const example = ["Prenotare volo Roma-Parigi", "Booking", "Alto", "Da Fare", "Mario Rossi", "31/12/2026", "", "Volo diretto andata/ritorno", "mario.rossi@example.com"];
+    const esc = (v) => `"${String(v).replace(/"/g, '""')}"`;
+    const csv = "﻿" + [headers, example].map(r => r.map(esc).join(",")).join("\r\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "modello-task.csv";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
 
   const normCat = (v) => {
@@ -457,15 +534,16 @@ const ImportTab = ({ onCreate, onClose }) => {
   // se ne accorgeva finché non ispezionava i task già creati.
   const importWarnings = useMemo(() => {
     if (!validRows.length) return null;
-    let badCategory = 0, badPriority = 0, badStatus = 0, badDate = 0;
+    let badCategory = 0, badPriority = 0, badStatus = 0, badDate = 0, badAssignee = 0;
     for (const r of validRows) {
       if (mapping.category && r[mapping.category] && !isRecognizedCat(r[mapping.category])) badCategory++;
       if (mapping.priority && r[mapping.priority] && !isRecognizedPrio(r[mapping.priority])) badPriority++;
       if (mapping.status && r[mapping.status] && !isRecognizedStat(r[mapping.status])) badStatus++;
       if (mapping.dueDate && r[mapping.dueDate] && !normDate(r[mapping.dueDate])) badDate++;
+      if (mapping.assignee && String(r[mapping.assignee] || "").trim() && !normAssignee(r[mapping.assignee])) badAssignee++;
     }
-    const total = badCategory + badPriority + badStatus + badDate;
-    return total > 0 ? { badCategory, badPriority, badStatus, badDate } : null;
+    const total = badCategory + badPriority + badStatus + badDate + badAssignee;
+    return total > 0 ? { badCategory, badPriority, badStatus, badDate, badAssignee } : null;
   }, [validRows, mapping]);
 
   const handleCreate = () => {
@@ -491,7 +569,7 @@ const ImportTab = ({ onCreate, onClose }) => {
     onClose();
   };
 
-  const reset = () => { setRows([]); setColumns([]); setMapping({}); setFileName(""); setError(null); };
+  const reset = () => { setRows([]); setColumns([]); setMapping({}); setAutoDetected({}); setFileName(""); setError(null); };
 
   const fields = [
     { key: "title", label: "Titolo *" }, { key: "category", label: "Categoria" },
@@ -516,6 +594,15 @@ const ImportTab = ({ onCreate, onClose }) => {
           <div style={{ fontSize: 40, marginBottom: 10 }}>📥</div>
           <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Clicca per caricare CSV o Excel</div>
           <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Formati supportati: .csv, .xlsx, .xls</div>
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); downloadTemplate(); }}
+            style={{
+              marginTop: 14, background: "transparent", border: "1px solid var(--border)",
+              borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontSize: 12, fontWeight: 600,
+              color: "var(--navy)", fontFamily: "inherit",
+            }}
+          >⬇ Scarica un file modello</button>
           <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleFile} style={{ display: "none" }} />
         </div>
       )}
@@ -533,6 +620,7 @@ const ImportTab = ({ onCreate, onClose }) => {
           {importWarnings.badPriority > 0 && <div>{importWarnings.badPriority} righe con priorità non riconosciuta → verrà usata "Media"</div>}
           {importWarnings.badStatus > 0 && <div>{importWarnings.badStatus} righe con stato non riconosciuto → verrà usato "Da fare"</div>}
           {importWarnings.badDate > 0 && <div>{importWarnings.badDate} righe con data non interpretabile → scadenza lasciata vuota</div>}
+          {importWarnings.badAssignee > 0 && <div>{importWarnings.badAssignee} righe con assegnatario non trovato nel team → task lasciata non assegnata</div>}
           <div style={{ marginTop: 4, opacity: 0.85 }}>Controlla l'anteprima sotto prima di importare, o correggi il file sorgente.</div>
         </div>
       )}
@@ -545,17 +633,36 @@ const ImportTab = ({ onCreate, onClose }) => {
           </div>
 
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 8 }}>MAPPATURA COLONNE</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 6 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1 }}>MAPPATURA COLONNE</div>
+              <div style={{ fontSize: 10.5, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 5 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--success)", display: "inline-block" }} />
+                rilevato automaticamente — verifica
+              </div>
+            </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-              {fields.map(f => (
-                <div key={f.key}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 3 }}>{f.label}</div>
-                  <select value={mapping[f.key] || ""} onChange={e => setMapping(m => ({ ...m, [f.key]: e.target.value }))} style={bulkInputStyle}>
-                    <option value="">— non mappato —</option>
-                    {columns.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-              ))}
+              {fields.map(f => {
+                const isAuto = autoDetected[f.key] && mapping[f.key];
+                return (
+                  <div key={f.key}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 3 }}>
+                      {f.label}{isAuto && <span style={{ color: "var(--success)", marginLeft: 4 }}>✓</span>}
+                    </div>
+                    <select
+                      value={mapping[f.key] || ""}
+                      onChange={e => setMapping(m => ({ ...m, [f.key]: e.target.value }))}
+                      style={{
+                        ...bulkInputStyle,
+                        borderColor: isAuto ? "var(--success)" : "var(--border)",
+                        background: isAuto ? "rgba(45,122,79,0.05)" : "var(--card)",
+                      }}
+                    >
+                      <option value="">— non mappato —</option>
+                      {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -590,7 +697,7 @@ const ImportTab = ({ onCreate, onClose }) => {
           {validRows.length} task validi {!mapping.title && rows.length > 0 && "(mappa il TITOLO)"}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={onClose} style={bulkBtnGhost}>Annulla</button>
+          <button onClick={onCancel || onClose} style={bulkBtnGhost}>Annulla</button>
           <button onClick={handleCreate} disabled={validRows.length === 0 || !mapping.title} style={{
             ...bulkBtnPrimary,
             opacity: (validRows.length === 0 || !mapping.title) ? 0.5 : 1,
@@ -603,7 +710,7 @@ const ImportTab = ({ onCreate, onClose }) => {
 };
 
 // ─── BULK: TEMPLATE TAB ────────────────────────────────────────────────────
-const TemplateTab = ({ onCreate, onClose, clients = [] }) => {
+const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
   const [selectedId, setSelectedId] = useState(null);
   const [client, setClient] = useState("");
   const [clientFocus, setClientFocus] = useState(false);
@@ -611,6 +718,8 @@ const TemplateTab = ({ onCreate, onClose, clients = [] }) => {
   const [defaultAssignee, setDefaultAssignee] = useState("");
   const [praticaRef, setPraticaRef] = useState("");
   const [contact, setContact] = useState("");
+
+  useEffect(() => { onDirty?.(!!selectedId); }, [selectedId, onDirty]);
 
   const tpl = TASK_TEMPLATES.find(t => t.id === selectedId);
   const previewTasks = tpl && eventDate ? tpl.tasks.map(t => {
@@ -784,7 +893,7 @@ const TemplateTab = ({ onCreate, onClose, clients = [] }) => {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: "1px solid var(--border)" }}>
         <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{previewTasks.length} task pronti</div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={onClose} style={bulkBtnGhost}>Annulla</button>
+          <button onClick={onCancel || onClose} style={bulkBtnGhost}>Annulla</button>
           <button onClick={handleCreate} disabled={!tpl || !eventDate} style={{
             ...bulkBtnPrimary,
             opacity: (!tpl || !eventDate) ? 0.5 : 1,
@@ -796,15 +905,38 @@ const TemplateTab = ({ onCreate, onClose, clients = [] }) => {
   );
 };
 
+// Descrizione breve di ogni modalità: mostrata sotto le tab per orientare
+// l'operatore su "quando" usare ciascuna (v-bulk-ux fase 1).
+const TAB_META = [
+  { id: "manual",    icon: "✏️", label: "Manuale",     desc: "Inserisci le task a mano, una per riga. Le impostazioni comuni valgono per le righe che non specificano un valore." },
+  { id: "duplicate", icon: "🔁", label: "Duplica",      desc: "Riparti da task esistenti: scegli quali duplicare, cambia il titolo e sposta le scadenze." },
+  { id: "import",    icon: "📥", label: "Importa file", desc: "Carica un file CSV o Excel e abbina le colonne ai campi delle task." },
+  { id: "template",  icon: "📋", label: "Da template",  desc: "Genera una serie di task predefinite a partire dalla data di un evento." },
+];
+
 // ─── BULK TASK CREATOR (modale principale) ─────────────────────────────────
 export const BulkTaskCreator = ({ existingTasks, onCreate, onClose, clients = [] }) => {
   const [tab, setTab] = useState("manual");
+  // Traccia se ogni modalità contiene dati non ancora creati, così la chiusura
+  // (✕ / sfondo / Annulla) può avvisare invece di buttare via il lavoro.
+  const [dirty, setDirty] = useState({});
+  const markDirty = (id) => (v) => setDirty(d => (d[id] === v ? d : { ...d, [id]: v }));
+  const anyDirty = Object.values(dirty).some(Boolean);
+  const requestClose = () => {
+    if (anyDirty && !window.confirm("Ci sono dati inseriti non ancora creati. Vuoi chiudere e perderli?")) return;
+    onClose();
+  };
+
+  const activeMeta = TAB_META.find(t => t.id === tab);
 
   return (
-    <div style={{
-      position: "fixed", inset: 0, background: "rgba(15,32,68,0.55)",
-      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100, padding: 20,
-    }}>
+    <div
+      onMouseDown={e => { if (e.target === e.currentTarget) requestClose(); }}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(15,32,68,0.55)",
+        display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100, padding: 20,
+      }}
+    >
       <div className="slide-up vd-modal-mh" style={{
         background: "var(--card)", borderRadius: 16, width: 820, maxWidth: "100%",
         display: "flex", flexDirection: "column",
@@ -821,33 +953,54 @@ export const BulkTaskCreator = ({ existingTasks, onCreate, onClose, clients = []
               <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 10, letterSpacing: 1.2, marginTop: 2 }}>MANUALE · DUPLICA · IMPORT · TEMPLATE</div>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", width: 32, height: 32, borderRadius: 8, cursor: "pointer", fontSize: 14 }}>✕</button>
+          <button onClick={requestClose} style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", width: 32, height: 32, borderRadius: 8, cursor: "pointer", fontSize: 14 }}>✕</button>
         </div>
 
         <div style={{ display: "flex", borderBottom: "1px solid var(--border)", background: "var(--surface)", flexShrink: 0 }}>
-          {[
-            { id: "manual", icon: "✏️", label: "Manuale" },
-            { id: "duplicate", icon: "🔁", label: "Duplica" },
-            { id: "import", icon: "📥", label: "Importa file" },
-            { id: "template", icon: "📋", label: "Da template" },
-          ].map(t => (
+          {TAB_META.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
               flex: 1, padding: "12px 8px", background: tab === t.id ? "#fff" : "transparent",
               border: "none", borderBottom: tab === t.id ? "2px solid var(--gold)" : "2px solid transparent",
               cursor: "pointer", fontSize: 13, fontWeight: tab === t.id ? 700 : 500,
               color: tab === t.id ? "var(--navy)" : "var(--text-muted)",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.15s",
+              position: "relative",
             }}>
               <span>{t.icon}</span> {t.label}
+              {dirty[t.id] && tab !== t.id && (
+                <span title="Contiene dati non ancora creati" style={{
+                  position: "absolute", top: 8, right: 8, width: 7, height: 7,
+                  borderRadius: "50%", background: "var(--gold)",
+                }} />
+              )}
             </button>
           ))}
         </div>
 
+        {activeMeta && (
+          <div style={{
+            padding: "10px 22px", background: "var(--surface)", borderBottom: "1px solid var(--border)",
+            fontSize: 12, color: "var(--text-muted)", lineHeight: 1.4, flexShrink: 0,
+          }}>
+            {activeMeta.desc}
+          </div>
+        )}
+
+        {/* Tutte le modalità restano montate (display:none quando inattive):
+            cambiare tab non azzera più i dati già inseriti. */}
         <div style={{ flex: 1, overflowY: "auto", padding: "18px 22px" }}>
-          {tab === "manual" && <ManualTab onCreate={onCreate} onClose={onClose} clients={clients} />}
-          {tab === "duplicate" && <DuplicateTab tasks={existingTasks} onCreate={onCreate} onClose={onClose} />}
-          {tab === "import" && <ImportTab onCreate={onCreate} onClose={onClose} />}
-          {tab === "template" && <TemplateTab onCreate={onCreate} onClose={onClose} clients={clients} />}
+          <div style={{ display: tab === "manual" ? "block" : "none" }}>
+            <ManualTab onCreate={onCreate} onClose={onClose} onCancel={requestClose} onDirty={markDirty("manual")} clients={clients} />
+          </div>
+          <div style={{ display: tab === "duplicate" ? "block" : "none" }}>
+            <DuplicateTab tasks={existingTasks} onCreate={onCreate} onClose={onClose} onCancel={requestClose} onDirty={markDirty("duplicate")} />
+          </div>
+          <div style={{ display: tab === "import" ? "block" : "none" }}>
+            <ImportTab onCreate={onCreate} onClose={onClose} onCancel={requestClose} onDirty={markDirty("import")} />
+          </div>
+          <div style={{ display: tab === "template" ? "block" : "none" }}>
+            <TemplateTab onCreate={onCreate} onClose={onClose} onCancel={requestClose} onDirty={markDirty("template")} clients={clients} />
+          </div>
         </div>
       </div>
     </div>

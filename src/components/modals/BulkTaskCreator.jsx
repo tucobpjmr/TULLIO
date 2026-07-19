@@ -546,6 +546,29 @@ const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
     return total > 0 ? { badCategory, badPriority, badStatus, badDate, badAssignee } : null;
   }, [validRows, mapping]);
 
+  // Anteprima dei task "come verranno creati" (fase 2): applica le stesse
+  // normalizzazioni di handleCreate così l'operatore vede il risultato reale
+  // — categoria/priorità/stato tradotti, data interpretata, assegnatario
+  // abbinato — invece delle celle grezze del file.
+  const normalizedPreview = useMemo(() => {
+    if (!mapping.title) return [];
+    return validRows.slice(0, 8).map(r => {
+      const dueRaw = mapping.dueDate ? String(r[mapping.dueDate] || "").trim() : "";
+      const due = mapping.dueDate ? normDate(r[mapping.dueDate]) : null;
+      const assigneeRaw = mapping.assignee ? String(r[mapping.assignee] || "").trim() : "";
+      const assigneeId = mapping.assignee ? normAssignee(r[mapping.assignee]) : null;
+      return {
+        title: String(r[mapping.title]).trim(),
+        category: normCat(mapping.category ? r[mapping.category] : null),
+        priority: normPrio(mapping.priority ? r[mapping.priority] : null),
+        status: normStat(mapping.status ? r[mapping.status] : null),
+        client: mapping.client ? String(r[mapping.client] || "").trim() : "",
+        due, dueLost: !!(dueRaw && !due),
+        assigneeId, assigneeLost: !!(assigneeRaw && !assigneeId),
+      };
+    });
+  }, [validRows, mapping]);
+
   const handleCreate = () => {
     const ts = Date.now();
     const tasks = validRows.map((r, idx) => {
@@ -666,9 +689,50 @@ const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
             </div>
           </div>
 
+          {normalizedPreview.length > 0 && (
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 8 }}>
+                ANTEPRIMA TASK — COME VERRANNO CREATI
+              </div>
+              <div style={{ maxHeight: 240, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 8 }}>
+                {normalizedPreview.map((t, i) => {
+                  const assigneeName = t.assigneeId ? (TEAM.find(m => m.id === t.assigneeId)?.name || t.assigneeId) : null;
+                  return (
+                    <div key={i} style={{
+                      padding: "8px 12px", borderBottom: i === normalizedPreview.length - 1 ? "none" : "1px solid var(--border)",
+                      display: "flex", alignItems: "center", gap: 10, fontSize: 12,
+                    }}>
+                      <span style={{ fontSize: 14 }}>{CATEGORIES[t.category]?.icon}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
+                        <div style={{ fontSize: 10, color: "var(--text-muted)", display: "flex", flexWrap: "wrap", gap: 8, marginTop: 2 }}>
+                          <span>{CATEGORIES[t.category]?.label}</span>
+                          <span>{STATUS_LABELS[t.status]}</span>
+                          {t.client && <span>👤 {t.client}</span>}
+                          <span style={{ color: t.dueLost ? "var(--warning)" : "var(--text-muted)", fontWeight: t.dueLost ? 700 : 400 }}>
+                            📅 {t.due ? formatDate(t.due) : (t.dueLost ? "⚠ scadenza persa" : "nessuna")}
+                          </span>
+                          <span style={{ color: t.assigneeLost ? "var(--warning)" : "var(--text-muted)", fontWeight: t.assigneeLost ? 700 : 400 }}>
+                            👥 {assigneeName || (t.assigneeLost ? "⚠ non trovato" : "non assegnato")}
+                          </span>
+                        </div>
+                      </div>
+                      <PriorityBadge priority={t.priority} />
+                    </div>
+                  );
+                })}
+              </div>
+              {validRows.length > normalizedPreview.length && (
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6 }}>
+                  …e altri {validRows.length - normalizedPreview.length} task non mostrati in anteprima.
+                </div>
+              )}
+            </div>
+          )}
+
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 8 }}>
-              ANTEPRIMA (prime 5 righe)
+              FILE SORGENTE (prime 5 righe)
             </div>
             <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: 8, maxHeight: 200, overflowY: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
@@ -916,7 +980,13 @@ const TAB_META = [
 
 // ─── BULK TASK CREATOR (modale principale) ─────────────────────────────────
 export const BulkTaskCreator = ({ existingTasks, onCreate, onClose, clients = [] }) => {
+  const { isMobile } = useViewport();
   const [tab, setTab] = useState("manual");
+  // Fase 2: si parte da una schermata di scelta ("Come vuoi creare i task?")
+  // con 4 card grandi, invece di atterrare direttamente su una tab fitta —
+  // riduce il carico cognitivo, soprattutto su mobile. `entered` distingue la
+  // schermata di scelta dal contenuto della modalità.
+  const [entered, setEntered] = useState(false);
   // Traccia se ogni modalità contiene dati non ancora creati, così la chiusura
   // (✕ / sfondo / Annulla) può avvisare invece di buttare via il lavoro.
   const [dirty, setDirty] = useState({});
@@ -956,49 +1026,107 @@ export const BulkTaskCreator = ({ existingTasks, onCreate, onClose, clients = []
           <button onClick={requestClose} style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", width: 32, height: 32, borderRadius: 8, cursor: "pointer", fontSize: 14 }}>✕</button>
         </div>
 
-        <div style={{ display: "flex", borderBottom: "1px solid var(--border)", background: "var(--surface)", flexShrink: 0 }}>
-          {TAB_META.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
-              flex: 1, padding: "12px 8px", background: tab === t.id ? "#fff" : "transparent",
-              border: "none", borderBottom: tab === t.id ? "2px solid var(--gold)" : "2px solid transparent",
-              cursor: "pointer", fontSize: 13, fontWeight: tab === t.id ? 700 : 500,
-              color: tab === t.id ? "var(--navy)" : "var(--text-muted)",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.15s",
-              position: "relative",
-            }}>
-              <span>{t.icon}</span> {t.label}
-              {dirty[t.id] && tab !== t.id && (
-                <span title="Contiene dati non ancora creati" style={{
-                  position: "absolute", top: 8, right: 8, width: 7, height: 7,
-                  borderRadius: "50%", background: "var(--gold)",
-                }} />
-              )}
-            </button>
-          ))}
-        </div>
+        {/* Barra tab + descrizione: solo dopo aver scelto una modalità. */}
+        {entered && (
+          <>
+            <div style={{ display: "flex", borderBottom: "1px solid var(--border)", background: "var(--surface)", flexShrink: 0 }}>
+              {TAB_META.map(t => (
+                <button key={t.id} onClick={() => setTab(t.id)} style={{
+                  flex: 1, padding: "12px 8px", background: tab === t.id ? "#fff" : "transparent",
+                  border: "none", borderBottom: tab === t.id ? "2px solid var(--gold)" : "2px solid transparent",
+                  cursor: "pointer", fontSize: 13, fontWeight: tab === t.id ? 700 : 500,
+                  color: tab === t.id ? "var(--navy)" : "var(--text-muted)",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.15s",
+                  position: "relative",
+                }}>
+                  <span>{t.icon}</span> {!isMobile && t.label}
+                  {dirty[t.id] && tab !== t.id && (
+                    <span title="Contiene dati non ancora creati" style={{
+                      position: "absolute", top: 8, right: 8, width: 7, height: 7,
+                      borderRadius: "50%", background: "var(--gold)",
+                    }} />
+                  )}
+                </button>
+              ))}
+            </div>
 
-        {activeMeta && (
-          <div style={{
-            padding: "10px 22px", background: "var(--surface)", borderBottom: "1px solid var(--border)",
-            fontSize: 12, color: "var(--text-muted)", lineHeight: 1.4, flexShrink: 0,
-          }}>
-            {activeMeta.desc}
-          </div>
+            {activeMeta && (
+              <div style={{
+                padding: "9px 22px", background: "var(--surface)", borderBottom: "1px solid var(--border)",
+                fontSize: 12, color: "var(--text-muted)", lineHeight: 1.4, flexShrink: 0,
+                display: "flex", alignItems: "center", gap: 10,
+              }}>
+                <button
+                  type="button"
+                  onClick={() => setEntered(false)}
+                  title="Torna alla scelta della modalità"
+                  style={{
+                    background: "transparent", border: "1px solid var(--border)", borderRadius: 6,
+                    padding: "3px 8px", cursor: "pointer", fontSize: 11, fontWeight: 600,
+                    color: "var(--text-muted)", fontFamily: "inherit", flexShrink: 0, whiteSpace: "nowrap",
+                  }}
+                >‹ Modalità</button>
+                <span>{activeMeta.desc}</span>
+              </div>
+            )}
+          </>
         )}
 
-        {/* Tutte le modalità restano montate (display:none quando inattive):
-            cambiare tab non azzera più i dati già inseriti. */}
+        {/* Le 4 modalità restano montate (display:none quando inattive o in
+            schermata di scelta): cambiare tab o tornare alla scelta non azzera
+            i dati già inseriti. */}
         <div style={{ flex: 1, overflowY: "auto", padding: "18px 22px" }}>
-          <div style={{ display: tab === "manual" ? "block" : "none" }}>
+          {!entered && (
+            <div>
+              <div className="playfair" style={{ fontSize: 18, fontWeight: 700, color: "var(--heading)", marginBottom: 4 }}>
+                Come vuoi creare i task?
+              </div>
+              <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginBottom: 16 }}>
+                Scegli una modalità. Potrai passare da una all'altra senza perdere quello che hai inserito.
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
+                {TAB_META.map(t => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => { setTab(t.id); setEntered(true); }}
+                    className="hover-lift"
+                    style={{
+                      textAlign: "left", padding: "16px 18px", borderRadius: 12,
+                      border: `1px solid ${dirty[t.id] ? "var(--gold)" : "var(--border)"}`,
+                      background: "var(--card)", cursor: "pointer", fontFamily: "inherit",
+                      display: "flex", flexDirection: "column", gap: 8,
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{
+                        width: 44, height: 44, borderRadius: 12, background: "var(--surface2)",
+                        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0,
+                      }}>{t.icon}</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>{t.label}</div>
+                      {dirty[t.id] && (
+                        <span title="Contiene dati non ancora creati" style={{
+                          marginLeft: "auto", fontSize: 10, fontWeight: 700, color: "var(--navy)",
+                          background: "rgba(212,168,67,0.18)", borderRadius: 999, padding: "2px 8px", flexShrink: 0,
+                        }}>bozza</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.45 }}>{t.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div style={{ display: entered && tab === "manual" ? "block" : "none" }}>
             <ManualTab onCreate={onCreate} onClose={onClose} onCancel={requestClose} onDirty={markDirty("manual")} clients={clients} />
           </div>
-          <div style={{ display: tab === "duplicate" ? "block" : "none" }}>
+          <div style={{ display: entered && tab === "duplicate" ? "block" : "none" }}>
             <DuplicateTab tasks={existingTasks} onCreate={onCreate} onClose={onClose} onCancel={requestClose} onDirty={markDirty("duplicate")} />
           </div>
-          <div style={{ display: tab === "import" ? "block" : "none" }}>
+          <div style={{ display: entered && tab === "import" ? "block" : "none" }}>
             <ImportTab onCreate={onCreate} onClose={onClose} onCancel={requestClose} onDirty={markDirty("import")} />
           </div>
-          <div style={{ display: tab === "template" ? "block" : "none" }}>
+          <div style={{ display: entered && tab === "template" ? "block" : "none" }}>
             <TemplateTab onCreate={onCreate} onClose={onClose} onCancel={requestClose} onDirty={markDirty("template")} clients={clients} />
           </div>
         </div>

@@ -8,7 +8,7 @@ import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { StatusBadge } from "../ui/StatusBadge.jsx";
 import { PRIORITIES } from "../../lib/taskConstants.js";
 import { formatDate, formatTime, isOverdue, isUrgent, isMyTask, isInGlobalQueue, getActiveTasks, getDayKey } from "../../lib/taskUtils.js";
-import { CATEGORIES, getMember, getRoleType, getAssignableTeam, canViewTask, getVisibleTasks, isJuniorAgent } from "../../state/appGlobals.js";
+import { CATEGORIES, getMember, getRoleType, getAssignableTeam, canViewTask, canEditTask, getVisibleTasks, isJuniorAgent } from "../../state/appGlobals.js";
 import { NoticeBoard } from "./NoticeBoard.jsx";
 
 // ─── PERSONAL QUEUE (le mie task — v0.8) ───────────────────────────────────
@@ -379,10 +379,12 @@ const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
           const prio = PRIORITIES[t.priority];
           const owner = getMember(t.assignees?.[0]);
           const mine = (t.assignees || []).includes(uid);
-          return (
+          // Read-only solo se l'utente non ha davvero i permessi di modifica:
+          // le task non assegnate (coda globale) restano editabili anche qui.
+          const editable = canEditTask(t, uid);
+          const card = (
             <div
-              key={t.id}
-              title={mine ? "Tua task in scadenza — clicca per i dettagli" : "Task di un altro agente in scadenza"}
+              title={mine ? "Tua task in scadenza — clicca per i dettagli" : editable ? "Task in scadenza — clicca per i dettagli" : "Task di un altro agente in scadenza"}
               style={{
                 background: "var(--card)", borderRadius: 10,
                 border: mine ? "1px solid rgba(200,131,42,0.45)" : "1.5px dashed rgba(200,131,42,0.45)",
@@ -400,7 +402,7 @@ const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
                   <span>{cat.icon}</span> {cat.label}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  {!mine && (
+                  {!editable && (
                     <span
                       aria-label="Solo visualizzazione"
                       style={{
@@ -454,6 +456,11 @@ const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
                 </button>
               )}
             </div>
+          );
+          return (
+            <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+              {card}
+            </SwipeActions>
           );
         })}
       </div>

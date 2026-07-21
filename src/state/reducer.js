@@ -407,6 +407,13 @@ function baseReducer(state, action) {
       const clients = (state.clients || []).filter(c => c.id !== action.payload);
       return { ...state, clients, toast: { message: "Cliente rimosso", type: "success" } };
     }
+    // Riporta in lista un cliente la cui DELETE_CLIENT ottimistica è stata
+    // respinta dal DB (es. foreign key su liste_viaggio): senza questo la UI
+    // resta disallineata dal DB finché non arriva un reload/refetch completo.
+    case "RESTORE_CLIENT": {
+      if (!action.payload || (state.clients || []).some(c => c.id === action.payload.id)) return state;
+      return { ...state, clients: [...(state.clients || []), action.payload] };
+    }
 
     // ─── TEMPLATE MESSAGGI CHAT (v2.8, admin-only) ───
     case "ADD_MESSAGE_TEMPLATE": {

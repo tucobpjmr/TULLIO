@@ -78,3 +78,69 @@ export const readFirstSheetRows = async (
     return XLSX.utils.sheet_to_json(sheet, sheetToJsonOpts);
   });
 };
+
+// Individua l'indice della riga di intestazione dentro un array-di-array
+// (`sheet_to_json` con header:1). Serve per gli export di gestionali legacy
+// che anteappongono righe di titolo/metadati vuote prima della vera
+// intestazione (es. "Esportazione del : 21/07/2026" + righe vuote prima di
+// "Titolo,RagioneSociale,..."): assumere sempre la riga 0 come header, come
+// fa readFirstSheetRows, romperebbe questi file. Euristica: cerca fra le
+// prime `maxScan` righe quella con più celle che matchano gli `hints` forniti
+// (parole chiave attese nell'intestazione, es. "email", "nome"); richiede
+// almeno 2 match per non scambiare una riga dati per l'intestazione. Se
+// nessuna riga soddisfa la soglia, ripiega sulla riga 0 (file "normali" senza
+// blocco di metadati, dove l'intestazione è già la prima riga).
+export const detectHeaderRowIndex = (rows2d, hints, maxScan = 20) => {
+  const normHints = hints.map((h) => h.toLowerCase().replace(/[^a-z0-9]/g, ""));
+  let bestIdx = 0;
+  let bestScore = -1;
+  const scanLimit = Math.min(rows2d.length, maxScan);
+  for (let i = 0; i < scanLimit; i++) {
+    const row = rows2d[i] || [];
+    const nonEmpty = row.map((c) => String(c ?? "").trim()).filter(Boolean);
+    if (nonEmpty.length < 2) continue;
+    const normCells = nonEmpty.map((c) => c.toLowerCase().replace(/[^a-z0-9]/g, ""));
+    const hits = normCells.filter((c) => normHints.some((h) => c.includes(h))).length;
+    if (hits < 2) continue;
+    const score = hits * 10 + Math.min(nonEmpty.length, 20);
+    if (score > bestScore) { bestScore = score; bestIdx = i; }
+  }
+  return bestIdx;
+};
+
+// Variante di readFirstSheetRows che non assume la riga 0 come intestazione:
+// legge il foglio come griglia grezza, individua la riga header via
+// detectHeaderRowIndex e costruisce gli oggetti riga da lì in poi. Stessa
+// difesa in profondità (limite dimensione + guard anti prototype-pollution)
+// dell'entry point esistente. `hints` sono le parole chiave di dominio da
+// cercare nell'intestazione (per l'anagrafica clienti: nome/email/telefono/…).
+export const readFirstSheetRowsAutoHeader = async (arrayBuffer, hints) => {
+  if (arrayBuffer.byteLength > MAX_IMPORT_BYTES) {
+    throw new Error(
+      `File troppo grande (${(arrayBuffer.byteLength / 1048576).toFixed(1)} MB, ` +
+      `max ${MAX_IMPORT_BYTES / 1048576} MB).`
+    );
+  }
+  const XLSX = await loadXLSX();
+  const data = new Uint8Array(arrayBuffer);
+  return withPrototypePollutionGuard(() => {
+    const wb = XLSX.read(data, { type: "array", cellDates: true });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    if (!sheet) return { rows: [], columns: [] };
+    const grid = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false });
+    if (!grid.length) return { rows: [], columns: [] };
+    const headerIdx = detectHeaderRowIndex(grid, hints);
+    const rawHeaders = grid[headerIdx] || [];
+    const seen = new Map();
+    const columns = rawHeaders.map((h, i) => {
+      const base = String(h ?? "").trim() || `Colonna ${i + 1}`;
+      const n = seen.get(base) || 0;
+      seen.set(base, n + 1);
+      return n === 0 ? base : `${base}_${n}`;
+    });
+    const rows = grid.slice(headerIdx + 1)
+      .filter((r) => r.some((c) => String(c ?? "").trim() !== ""))
+      .map((r) => Object.fromEntries(columns.map((c, i) => [c, r[i] ?? ""])));
+    return { rows, columns };
+  });
+};

@@ -797,6 +797,12 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         dbOps = () => ClientsAPI.create(toDbClient(payload));
         break;
       }
+      case "ADD_CLIENTS_BULK": {
+        const payload = (action.payload || []).map(c => ({ ...c, id: isUuid(c?.id) ? c.id : newId() }));
+        toDispatch = { ...action, payload };
+        dbOps = () => Promise.all(payload.map(c => ClientsAPI.create(toDbClient(c))));
+        break;
+      }
       case "UPDATE_CLIENT":
         dbOps = () => ClientsAPI.update(action.payload.id, toDbClient(action.payload));
         break;

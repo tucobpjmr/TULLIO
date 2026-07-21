@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { PRIORITIES } from "../../lib/taskConstants.js";
 import { CURRENT_USER, getAssignableTeam, getAvailableCategories } from "../../state/appGlobals.js";
+import { clientContact } from "../../lib/taskUtils.js";
 import { TaskFiles } from "../../lib/api.js";
 import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit } from "../../lib/fileUtils.js";
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";
@@ -243,7 +244,12 @@ export const QuickAddTask = ({ onAdd, onClose, clients = [] }) => {
                   <button
                     key={c.id}
                     type="button"
-                    onMouseDown={() => { setForm(p => ({ ...p, client: c.name })); setClientFocus(false); }}
+                    onMouseDown={() => {
+                      // Eredita i contatti dall'anagrafica solo se il campo è ancora
+                      // vuoto: non sovrascrive un contatto già digitato a mano.
+                      setForm(p => ({ ...p, client: c.name, contact: p.contact.trim() ? p.contact : clientContact(c) }));
+                      setClientFocus(false);
+                    }}
                     style={{
                       display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1,
                       width: "100%", textAlign: "left", padding: "8px 10px", border: "none",

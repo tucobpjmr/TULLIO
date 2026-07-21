@@ -58,3 +58,10 @@ export const isMyTask = (task, userId) => task.assignees?.includes(userId);
 
 // Task non ha assegnatari → è nella coda globale
 export const isInGlobalQueue = task => !task.assignees || task.assignees.length === 0;
+
+// Stringa "Contatti" derivata da un'anagrafica cliente (telefono + email),
+// usata per pre-compilare il campo omonimo del task quando si sceglie un
+// cliente dall'autocomplete: prima la selezione riempiva solo il nome,
+// lasciando i contatti già presenti in anagrafica da ricopiare a mano.
+export const clientContact = (client) =>
+  [client?.phone, client?.email].filter(Boolean).join(" · ");

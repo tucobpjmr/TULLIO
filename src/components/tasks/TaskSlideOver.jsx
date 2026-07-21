@@ -6,7 +6,7 @@ import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { CategoryChip } from "../ui/CategoryChip.jsx";
 import { STATUSES, STATUS_LABELS, PRIORITIES } from "../../lib/taskConstants.js";
-import { formatDate, formatTime, isOverdue } from "../../lib/taskUtils.js";
+import { formatDate, formatTime, isOverdue, clientContact } from "../../lib/taskUtils.js";
 import { CURRENT_USER, getMember, getAssignableTeam, canEditTask, getAvailableCategories, CATEGORIES } from "../../state/appGlobals.js";
 import { MentionText } from "../ui/MentionText.jsx";
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";
@@ -299,10 +299,16 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
   ).slice(0, 6);
   const showClientList = editable && clientFocus && clientMatches.length > 0 &&
     !(clientMatches.length === 1 && clientMatches[0].name?.toLowerCase() === clientQuery);
-  const pickClient = (name) => {
-    setDraft(d => ({ ...d, client: name }));
+  const pickClient = (c) => {
+    const name = c.name;
     setClientFocus(false);
     if (name !== (task.client ?? null)) updateField("client", name);
+    // Eredita i contatti dall'anagrafica solo se il campo è ancora vuoto: non
+    // sovrascrive un contatto già digitato a mano o già presente sul task.
+    const contact = clientContact(c);
+    const shouldFillContact = contact && !draft.contact.trim() && !task.contact;
+    setDraft(d => ({ ...d, client: name, contact: shouldFillContact ? contact : d.contact }));
+    if (shouldFillContact) updateField("contact", contact);
   };
 
   const updateAssignees = (next) => {
@@ -560,7 +566,7 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
                         <button
                           key={c.id}
                           type="button"
-                          onMouseDown={() => pickClient(c.name)}
+                          onMouseDown={() => pickClient(c)}
                           style={{
                             display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1,
                             width: "100%", textAlign: "left", padding: "8px 10px", border: "none",

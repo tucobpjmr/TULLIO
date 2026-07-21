@@ -6,7 +6,7 @@ import { useState, useRef, useMemo, useEffect } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { PRIORITIES, STATUSES, STATUS_LABELS, TASK_TEMPLATES } from "../../lib/taskConstants.js";
-import { formatDate } from "../../lib/taskUtils.js";
+import { formatDate, clientContact } from "../../lib/taskUtils.js";
 import { TEAM, CATEGORIES, getAssignableTeam } from "../../state/appGlobals.js";
 import { readFirstSheetRows } from "../../lib/xlsx.js";
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";
@@ -118,7 +118,10 @@ const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
                       <button
                         key={c.id}
                         type="button"
-                        onMouseDown={() => { setCommon(p => ({ ...p, client: c.name })); setClientFocus(false); }}
+                        onMouseDown={() => {
+                          setCommon(p => ({ ...p, client: c.name, contact: p.contact.trim() ? p.contact : clientContact(c) }));
+                          setClientFocus(false);
+                        }}
                         style={{
                           display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1,
                           width: "100%", textAlign: "left", padding: "7px 10px", border: "none",
@@ -877,7 +880,11 @@ const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => 
                           <button
                             key={c.id}
                             type="button"
-                            onMouseDown={() => { setClient(c.name); setClientFocus(false); }}
+                            onMouseDown={() => {
+                              setClient(c.name);
+                              setContact(prev => prev.trim() ? prev : clientContact(c));
+                              setClientFocus(false);
+                            }}
                             style={{
                               display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1,
                               width: "100%", textAlign: "left", padding: "7px 10px", border: "none",

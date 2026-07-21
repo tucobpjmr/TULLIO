@@ -399,6 +399,11 @@ function baseReducer(state, action) {
       return { ...state, clients: Array.isArray(action.payload) ? action.payload : [] };
     case "ADD_CLIENT":
       return { ...state, clients: [action.payload, ...(state.clients || [])], toast: { message: "Cliente aggiunto!", type: "success" } };
+    case "ADD_CLIENTS_BULK": {
+      const n = action.payload.length;
+      const clients = [...action.payload, ...(state.clients || [])];
+      return { ...state, clients, toast: { message: `${n} client${n === 1 ? "e" : "i"} importat${n === 1 ? "o" : "i"}!`, type: "success" } };
+    }
     case "UPDATE_CLIENT": {
       const clients = (state.clients || []).map(c => c.id === action.payload.id ? { ...c, ...action.payload } : c);
       return { ...state, clients, toast: { message: "Cliente aggiornato!", type: "success" } };
@@ -406,6 +411,13 @@ function baseReducer(state, action) {
     case "DELETE_CLIENT": {
       const clients = (state.clients || []).filter(c => c.id !== action.payload);
       return { ...state, clients, toast: { message: "Cliente rimosso", type: "success" } };
+    }
+    // Riporta in lista un cliente la cui DELETE_CLIENT ottimistica è stata
+    // respinta dal DB (es. foreign key su liste_viaggio): senza questo la UI
+    // resta disallineata dal DB finché non arriva un reload/refetch completo.
+    case "RESTORE_CLIENT": {
+      if (!action.payload || (state.clients || []).some(c => c.id === action.payload.id)) return state;
+      return { ...state, clients: [...(state.clients || []), action.payload] };
     }
 
     // ─── TEMPLATE MESSAGGI CHAT (v2.8, admin-only) ───

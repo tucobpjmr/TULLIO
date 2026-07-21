@@ -168,6 +168,31 @@ describe("reducer — CRM clienti", () => {
     s = reducer(s, { type: "DELETE_CLIENT", payload: "cl1" });
     expect(s.clients).toHaveLength(0);
   });
+
+  it("DELETE_CLIENT ottimistica: RESTORE_CLIENT la riporta in lista se il DB rifiuta", () => {
+    let s = freshState("marco");
+    s = reducer(s, { type: "ADD_CLIENT", payload: { id: "cl1", name: "Rossi" } });
+    const deleted = s.clients[0];
+    s = reducer(s, { type: "DELETE_CLIENT", payload: "cl1" });
+    expect(s.clients).toHaveLength(0);
+    s = reducer(s, { type: "RESTORE_CLIENT", payload: deleted });
+    expect(s.clients).toHaveLength(1);
+    expect(s.clients[0].id).toBe("cl1");
+    // idempotente: non duplica se il cliente è già presente
+    s = reducer(s, { type: "RESTORE_CLIENT", payload: deleted });
+    expect(s.clients).toHaveLength(1);
+  });
+
+  it("ADD_CLIENTS_BULK aggiunge più clienti in un colpo solo", () => {
+    let s = freshState("marco");
+    s = reducer(s, {
+      type: "ADD_CLIENTS_BULK",
+      payload: [{ id: "cl1", name: "Rossi" }, { id: "cl2", name: "Bianchi" }],
+    });
+    expect(s.clients).toHaveLength(2);
+    expect(s.clients.map(c => c.name)).toEqual(["Rossi", "Bianchi"]);
+    expect(s.toast.type).toBe("success");
+  });
 });
 
 describe("reducer — activity log & toast", () => {

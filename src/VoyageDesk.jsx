@@ -680,6 +680,10 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
 
     let toDispatch = action;
     let dbOps = null;
+    // Invocato solo se dbOps fallisce: usato per riportare indietro lo stato
+    // ottimistico (rollback) e/o riscrivere err.message in un testo comprensibile
+    // prima che finisca nel toast "Salvataggio fallito".
+    let onError = null;
 
     switch (action.type) {
       case "ADD_TASK": {
@@ -793,12 +797,29 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         dbOps = () => ClientsAPI.create(toDbClient(payload));
         break;
       }
+      case "ADD_CLIENTS_BULK": {
+        const payload = (action.payload || []).map(c => ({ ...c, id: isUuid(c?.id) ? c.id : newId() }));
+        toDispatch = { ...action, payload };
+        dbOps = () => Promise.all(payload.map(c => ClientsAPI.create(toDbClient(c))));
+        break;
+      }
       case "UPDATE_CLIENT":
         dbOps = () => ClientsAPI.update(action.payload.id, toDbClient(action.payload));
         break;
-      case "DELETE_CLIENT":
+      case "DELETE_CLIENT": {
+        const prev = stateRef.current.clients.find(c => c.id === action.payload);
         dbOps = () => ClientsAPI.remove(action.payload);
+        onError = (err) => {
+          if (prev) rawDispatch({ type: "RESTORE_CLIENT", payload: prev });
+          // 23503 = violazione foreign key (es. liste_viaggio ancora collegate
+          // al cliente): il messaggio Postgres grezzo non è comprensibile per
+          // l'utente finale, lo sostituiamo con uno actionable.
+          if (err?.code === "23503") {
+            err.message = "impossibile eliminare: il cliente ha liste viaggio collegate. Rimuovi o riassegna prima le liste viaggio associate.";
+          }
+        };
         break;
+      }
       // ─── ADMIN: CATEGORIES sync ───
       case "ADD_CATEGORY":
         dbOps = () => CategoriesAPI.create(toDbCategory(action.payload));
@@ -873,6 +894,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           const err = Array.isArray(res) ? res.find(r => r?.error)?.error : res?.error;
           if (err) {
             console.error(`[VoyageDesk] sync ${action.type}`, err);
+            onError?.(err);
             rawDispatch({
               type: "SHOW_TOAST",
               payload: {
@@ -885,6 +907,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         })
         .catch((e) => {
           console.error(`[VoyageDesk] sync ${action.type}`, e);
+          onError?.(e);
           rawDispatch({
             type: "SHOW_TOAST",
             payload: {

@@ -8,6 +8,7 @@ import { StatusBadge } from "../ui/StatusBadge.jsx";
 import { ContactActions } from "../ui/ContactActions.jsx";
 import { formatDate, isActiveTask } from "../../lib/taskUtils.js";
 import { CATEGORIES, CURRENT_USER, canViewTask } from "../../state/appGlobals.js";
+import { ClientImportModal } from "./ClientImportModal.jsx";
 
 const EMPTY_FORM = { name: "", email: "", phone: "", address: "", city: "", notes: "" };
 
@@ -245,6 +246,7 @@ export function ClientiView({ state, dispatch, loading = false }) {
   const [selectedClient, setSelectedClient] = useState(null); // v2.8 Round 9
   const [modal, setModal] = useState(null); // null | { mode: "add" | "edit", cliente?: {} }
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const clients = state.clients || [];
 
@@ -294,16 +296,28 @@ export function ClientiView({ state, dispatch, loading = false }) {
               : `${clients.length} ${clients.length === 1 ? "cliente" : "clienti"} in anagrafica`}
           </div>
         </div>
-        <button
-          onClick={() => setModal({ mode: "add" })}
-          style={{
-            padding: "10px 18px", borderRadius: 9, border: "none",
-            background: "var(--navy)", color: "#fff", cursor: "pointer",
-            fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 6,
-          }}
-        >
-          + Nuovo cliente
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={() => setImportOpen(true)}
+            style={{
+              padding: "10px 16px", borderRadius: 9, border: "1px solid var(--border)",
+              background: "var(--card)", color: "var(--navy)", cursor: "pointer",
+              fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 6,
+            }}
+          >
+            📥 Importa da Excel
+          </button>
+          <button
+            onClick={() => setModal({ mode: "add" })}
+            style={{
+              padding: "10px 18px", borderRadius: 9, border: "none",
+              background: "var(--navy)", color: "#fff", cursor: "pointer",
+              fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 6,
+            }}
+          >
+            + Nuovo cliente
+          </button>
+        </div>
       </div>
 
       {/* Search + Sort */}
@@ -377,6 +391,15 @@ export function ClientiView({ state, dispatch, loading = false }) {
           cliente={modal.cliente}
           onSave={handleSave}
           onClose={() => setModal(null)}
+        />
+      )}
+
+      {/* Import anagrafica da Excel/CSV */}
+      {importOpen && (
+        <ClientImportModal
+          existingClients={clients}
+          onImport={(newClients) => dispatch({ type: "ADD_CLIENTS_BULK", payload: newClients })}
+          onClose={() => setImportOpen(false)}
         />
       )}
 

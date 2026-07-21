@@ -132,9 +132,9 @@ const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
                         onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                       >
                         <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text)" }}>{c.name}</span>
-                        {(c.city || c.email) && (
+                        {(c.phone || c.city || c.email) && (
                           <span style={{ fontSize: 10.5, color: "var(--text-muted)" }}>
-                            {[c.city, c.email].filter(Boolean).join(" · ")}
+                            {[c.phone, c.city, c.email].filter(Boolean).join(" · ")}
                           </span>
                         )}
                       </button>
@@ -895,9 +895,9 @@ const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => 
                             onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                           >
                             <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text)" }}>{c.name}</span>
-                            {(c.city || c.email) && (
+                            {(c.phone || c.city || c.email) && (
                               <span style={{ fontSize: 10.5, color: "var(--text-muted)" }}>
-                                {[c.city, c.email].filter(Boolean).join(" · ")}
+                                {[c.phone, c.city, c.email].filter(Boolean).join(" · ")}
                               </span>
                             )}
                           </button>

@@ -260,9 +260,9 @@ export const QuickAddTask = ({ onAdd, onClose, clients = [] }) => {
                     onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                   >
                     <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{c.name}</span>
-                    {(c.city || c.email) && (
+                    {(c.phone || c.city || c.email) && (
                       <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                        {[c.city, c.email].filter(Boolean).join(" · ")}
+                        {[c.phone, c.city, c.email].filter(Boolean).join(" · ")}
                       </span>
                     )}
                   </button>

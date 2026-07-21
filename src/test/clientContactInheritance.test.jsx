@@ -43,4 +43,24 @@ describe("QuickAddTask — eredità contatti dall'anagrafica cliente", () => {
 
     expect(contactInput.value).toBe("già inserito a mano");
   });
+
+  // Regressione del caso reale: un cliente importato con SOLO il telefono
+  // (niente città né email, es. "malagnino …" con "+39 338 918 5756"). Prima
+  // la tendina mostrava solo città·email, quindi il suo sottotitolo era vuoto
+  // e il telefono da ereditare era invisibile; ora dev'essere mostrato — e
+  // comunque ereditato nel campo Contatti alla selezione.
+  it("mostra ed eredita il telefono anche se il cliente non ha città né email", () => {
+    const phoneOnly = { id: "cl2", name: "malagnino angelo", city: "", email: "", phone: "+39 338 918 5756" };
+    render(<QuickAddTask onAdd={vi.fn()} onClose={vi.fn()} clients={[phoneOnly]} />);
+
+    const clientInput = screen.getByPlaceholderText("Cerca in anagrafica o scrivi un nome…");
+    fireEvent.focus(clientInput);
+    fireEvent.change(clientInput, { target: { value: "malagnino" } });
+
+    // Il telefono è visibile nel suggerimento (sottotitolo della tendina).
+    expect(screen.getByText("+39 338 918 5756")).toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByText("malagnino angelo"));
+    expect(screen.getByPlaceholderText("Telefono, email…").value).toBe("+39 338 918 5756");
+  });
 });

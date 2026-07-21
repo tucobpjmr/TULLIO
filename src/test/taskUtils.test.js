@@ -5,6 +5,7 @@ import {
   isActiveTask, getActiveTasks, getTrashedTasks,
   isMyTask, isInGlobalQueue,
   startOfLocalDay, endOfLocalDay,
+  clientContact,
 } from "../lib/taskUtils.js";
 
 describe("formatDate", () => {
@@ -172,5 +173,22 @@ describe("isMyTask / isInGlobalQueue", () => {
     expect(isInGlobalQueue({ assignees: [] })).toBe(true);
     expect(isInGlobalQueue({})).toBe(true);
     expect(isInGlobalQueue({ assignees: ["u1"] })).toBe(false);
+  });
+});
+
+describe("clientContact", () => {
+  it("unisce telefono ed email con un separatore", () => {
+    expect(clientContact({ phone: "333 1234567", email: "mario@example.com" }))
+      .toBe("333 1234567 · mario@example.com");
+  });
+
+  it("usa solo il campo presente quando l'altro manca", () => {
+    expect(clientContact({ phone: "333 1234567" })).toBe("333 1234567");
+    expect(clientContact({ email: "mario@example.com" })).toBe("mario@example.com");
+  });
+
+  it("stringa vuota se il cliente non ha né telefono né email", () => {
+    expect(clientContact({})).toBe("");
+    expect(clientContact(null)).toBe("");
   });
 });

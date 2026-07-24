@@ -9,7 +9,7 @@ import { PRIORITIES, STATUSES, STATUS_LABELS, TASK_TEMPLATES } from "../../lib/t
 import { formatDate, clientContact } from "../../lib/taskUtils.js";
 import { TEAM, CATEGORIES, getAssignableTeam } from "../../state/appGlobals.js";
 import { readFirstSheetRows } from "../../lib/xlsx.js";
-import { DateTimePicker } from "../ui/DateTimePicker.jsx";
+import { DateTimePicker, formatPickerValue } from "../ui/DateTimePicker.jsx";
 
 // ─── BULK TASK CREATOR (stili helper) ──────────────────────────────────────
 const bulkInputStyle = {
@@ -58,6 +58,11 @@ const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
   const commonAssigneeLabel = common.assignee
     ? (getAssignableTeam().find(m => m.id === common.assignee)?.name.split(" ")[0] || "assegnato")
     : "nessuno";
+  // La scadenza comune non ha una <option> in cui comparire come le altre:
+  // viene mostrata come placeholder del picker di riga, così anche qui si vede
+  // la data che la riga erediterà invece del generico "gg/mm/aaaa --:--".
+  // Vuota quando non è impostata, per lasciare il placeholder di default.
+  const commonDueLabel = common.dueDate ? formatPickerValue(common.dueDate) : "";
 
   const isDirty = validRows.length > 0 || ignoredRows.length > 0 ||
     !!(common.client.trim() || common.praticaRef.trim() || common.contact.trim() || common.dueDate);
@@ -219,6 +224,7 @@ const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
                   value={r.dueDate || null}
                   onChange={iso => updateRow(r.key, "dueDate", iso || "")}
                   align="right"
+                  placeholder={commonDueLabel ? `${commonDueLabel} (comune)` : undefined}
                 />
               </div>
             </div>
@@ -245,6 +251,7 @@ const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
                 value={r.dueDate || null}
                 onChange={iso => updateRow(r.key, "dueDate", iso || "")}
                 align="right"
+                placeholder={commonDueLabel || undefined}
               />
               <button onClick={() => removeRow(r.key)} disabled={rows.length === 1} style={{
                 background: "transparent", border: "none", cursor: rows.length === 1 ? "not-allowed" : "pointer",

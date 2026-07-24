@@ -46,7 +46,12 @@ describe("ClientImportModal", () => {
     // Città/telefono mostrati in anteprima confermano il mapping automatico.
     expect(screen.getByText(/ROMA · 3331234567 · mario\.rossi@example\.com/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText(/Importa 2 client/));
+    // La selezione di default è impostata in un useEffect, che React esegue
+    // dopo il commit in cui compaiono le righe in anteprima: nel frattempo il
+    // pulsante mostra ancora "Importa 0 clienti". Va quindi atteso il conteggio
+    // definitivo (findByText) invece di leggerlo subito (getByText), altrimenti
+    // il test fallisce a intermittenza.
+    fireEvent.click(await screen.findByText(/Importa 2 client/));
     expect(onImport).toHaveBeenCalledTimes(1);
     const imported = onImport.mock.calls[0][0];
     expect(imported).toHaveLength(2);
@@ -75,10 +80,9 @@ describe("ClientImportModal", () => {
     await uploadFile(buildLegacyExportFile());
 
     expect(screen.getByText("già presente")).toBeInTheDocument();
-    // Solo ANNA VERDI selezionata di default (1 di 2).
-    expect(screen.getByText(/Importa 1 client/)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByText(/Importa 1 client/));
+    // Solo ANNA VERDI selezionata di default (1 di 2). Come sopra, il
+    // conteggio arriva con l'effect: va atteso, non letto subito.
+    fireEvent.click(await screen.findByText(/Importa 1 client/));
     const imported = onImport.mock.calls[0][0];
     expect(imported).toHaveLength(1);
     expect(imported[0].name).toBe("ANNA VERDI");

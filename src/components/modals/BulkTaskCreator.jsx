@@ -37,7 +37,7 @@ const bulkIconBtnSmall = {
 // ─── BULK: MANUAL TAB ──────────────────────────────────────────────────────
 const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
   const { isMobile } = useViewport();
-  const [common, setCommon] = useState({ client: "", category: "booking", priority: "medium", assignee: "", praticaRef: "", contact: "" });
+  const [common, setCommon] = useState({ client: "", category: "booking", priority: "medium", assignee: "", praticaRef: "", contact: "", dueDate: "" });
   const [clientFocus, setClientFocus] = useState(false);
   const emptyRow = () => ({ key: Math.random().toString(36).slice(2), title: "", category: "", priority: "", assignee: "", dueDate: "" });
   const [rows, setRows] = useState([emptyRow(), emptyRow(), emptyRow()]);
@@ -60,7 +60,7 @@ const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
     : "nessuno";
 
   const isDirty = validRows.length > 0 || ignoredRows.length > 0 ||
-    !!(common.client.trim() || common.praticaRef.trim() || common.contact.trim());
+    !!(common.client.trim() || common.praticaRef.trim() || common.contact.trim() || common.dueDate);
   useEffect(() => { onDirty?.(isDirty); }, [isDirty, onDirty]);
 
   const handleCreate = () => {
@@ -75,7 +75,7 @@ const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
       client: common.client.trim() || null,
       praticaRef: common.praticaRef || null,
       contact: common.contact.trim() || null,
-      dueDate: r.dueDate ? new Date(r.dueDate).toISOString() : null,
+      dueDate: r.dueDate ? new Date(r.dueDate).toISOString() : (common.dueDate ? new Date(common.dueDate).toISOString() : null),
       estimatedHours: 1,
       description: "",
       comments: [],
@@ -155,7 +155,7 @@ const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
             {getAssignableTeam().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </div>
-        <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8, maxWidth: isMobile ? "100%" : 660 }}>
+        <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 8, maxWidth: isMobile ? "100%" : 900 }}>
           <div>
             <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>N° PRATICA</div>
             <input value={common.praticaRef} onChange={e => setCommon({ ...common, praticaRef: e.target.value })} placeholder="es. PR-2026-001" style={bulkInputStyle} />
@@ -163,6 +163,14 @@ const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
           <div>
             <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>CONTATTI</div>
             <input value={common.contact} onChange={e => setCommon({ ...common, contact: e.target.value })} placeholder="Telefono, email…" style={bulkInputStyle} />
+          </div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>SCADENZA</div>
+            <DateTimePicker
+              value={common.dueDate || null}
+              onChange={iso => setCommon({ ...common, dueDate: iso || "" })}
+              align={isMobile ? "left" : "right"}
+            />
           </div>
         </div>
       </div>

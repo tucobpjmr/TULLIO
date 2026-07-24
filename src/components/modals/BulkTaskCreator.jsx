@@ -9,7 +9,7 @@ import { PRIORITIES, STATUSES, STATUS_LABELS, TASK_TEMPLATES } from "../../lib/t
 import { formatDate, clientContact } from "../../lib/taskUtils.js";
 import { TEAM, CATEGORIES, getAssignableTeam } from "../../state/appGlobals.js";
 import { readFirstSheetRows } from "../../lib/xlsx.js";
-import { DateTimePicker } from "../ui/DateTimePicker.jsx";
+import { DateTimePicker, formatPickerValue } from "../ui/DateTimePicker.jsx";
 
 // ─── BULK TASK CREATOR (stili helper) ──────────────────────────────────────
 const bulkInputStyle = {
@@ -17,6 +17,12 @@ const bulkInputStyle = {
   padding: "7px 9px", fontSize: 12.5, fontFamily: "inherit",
   background: "var(--card)", outline: "none",
   minWidth: 0, boxSizing: "border-box",
+};
+// La descrizione di riga è facoltativa e può essere lunga: textarea bassa
+// (2 righe) ma allargabile a mano, così una lista di più task non diventa
+// altissima solo per un campo che spesso resta vuoto.
+const bulkTextareaStyle = {
+  ...bulkInputStyle, resize: "vertical", lineHeight: 1.4, display: "block",
 };
 const bulkBtnPrimary = {
   background: "var(--navy)", color: "#fff", border: "none",
@@ -39,7 +45,7 @@ const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
   const { isMobile } = useViewport();
   const [common, setCommon] = useState({ client: "", category: "booking", priority: "medium", assignee: "", praticaRef: "", contact: "", dueDate: "" });
   const [clientFocus, setClientFocus] = useState(false);
-  const emptyRow = () => ({ key: Math.random().toString(36).slice(2), title: "", category: "", priority: "", assignee: "", dueDate: "" });
+  const emptyRow = () => ({ key: Math.random().toString(36).slice(2), title: "", description: "", category: "", priority: "", assignee: "", dueDate: "" });
   const [rows, setRows] = useState([emptyRow(), emptyRow(), emptyRow()]);
 
   const updateRow = (key, field, value) => setRows(rs => rs.map(r => r.key === key ? { ...r, [field]: value } : r));
@@ -48,7 +54,7 @@ const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
 
   const validRows = rows.filter(r => r.title.trim());
   // Righe con qualche dato ma senza titolo: verrebbero scartate in silenzio.
-  const rowHasData = (r) => r.category || r.priority || r.assignee || r.dueDate;
+  const rowHasData = (r) => r.description.trim() || r.category || r.priority || r.assignee || r.dueDate;
   const ignoredRows = rows.filter(r => !r.title.trim() && rowHasData(r));
 
   // Etichette delle impostazioni comuni, mostrate come valore ereditato nelle
@@ -58,6 +64,11 @@ const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
   const commonAssigneeLabel = common.assignee
     ? (getAssignableTeam().find(m => m.id === common.assignee)?.name.split(" ")[0] || "assegnato")
     : "nessuno";
+  // La scadenza comune non ha una <option> in cui comparire come le altre:
+  // viene mostrata come placeholder del picker di riga, così anche qui si vede
+  // la data che la riga erediterà invece del generico "gg/mm/aaaa --:--".
+  // Vuota quando non è impostata, per lasciare il placeholder di default.
+  const commonDueLabel = common.dueDate ? formatPickerValue(common.dueDate) : "";
 
   const isDirty = validRows.length > 0 || ignoredRows.length > 0 ||
     !!(common.client.trim() || common.praticaRef.trim() || common.contact.trim() || common.dueDate);
@@ -77,7 +88,7 @@ const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
       contact: common.contact.trim() || null,
       dueDate: r.dueDate ? new Date(r.dueDate).toISOString() : (common.dueDate ? new Date(common.dueDate).toISOString() : null),
       estimatedHours: 1,
-      description: "",
+      description: r.description.trim(),
       comments: [],
     }));
     onCreate(tasks);
@@ -219,8 +230,16 @@ const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
                   value={r.dueDate || null}
                   onChange={iso => updateRow(r.key, "dueDate", iso || "")}
                   align="right"
+                  placeholder={commonDueLabel ? `${commonDueLabel} (comune)` : undefined}
                 />
               </div>
+              <textarea
+                value={r.description}
+                onChange={e => updateRow(r.key, "description", e.target.value)}
+                rows={2}
+                placeholder="Descrizione (facoltativa)…"
+                style={bulkTextareaStyle}
+              />
             </div>
           ) : (
             <div key={r.key} style={{ display: "grid", gridTemplateColumns: "26px 1fr 130px 100px 120px 130px 28px", gap: 6, alignItems: "center" }}>
@@ -245,11 +264,21 @@ const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
                 value={r.dueDate || null}
                 onChange={iso => updateRow(r.key, "dueDate", iso || "")}
                 align="right"
+                placeholder={commonDueLabel || undefined}
               />
               <button onClick={() => removeRow(r.key)} disabled={rows.length === 1} style={{
                 background: "transparent", border: "none", cursor: rows.length === 1 ? "not-allowed" : "pointer",
                 fontSize: 14, color: "var(--text-muted)", opacity: rows.length === 1 ? 0.3 : 1,
               }}>✕</button>
+              {/* Seconda riga della griglia: allineata sotto al titolo, senza
+                  occupare le colonne del numero e del pulsante di rimozione. */}
+              <textarea
+                value={r.description}
+                onChange={e => updateRow(r.key, "description", e.target.value)}
+                rows={2}
+                placeholder="Descrizione (facoltativa)…"
+                style={{ ...bulkTextareaStyle, gridColumn: "2 / -2" }}
+              />
             </div>
           )
         ))}

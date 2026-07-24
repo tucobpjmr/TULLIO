@@ -16,6 +16,20 @@ const WEEKDAYS = ["lu", "ma", "me", "gi", "ve", "sa", "do"];
 const pad2 = n => String(n).padStart(2, "0");
 const monthLabel = d => d.toLocaleDateString("it-IT", { month: "long", year: "numeric" });
 
+// Come il campo mostra un valore selezionato. Esportata perché chi deve
+// esibire una data *ereditata* senza selezionarla davvero (es. la scadenza
+// comune di BulkTaskCreator, mostrata come placeholder nelle righe che non la
+// sovrascrivono) la deve rendere identica a una data impostata: duplicare il
+// formato qui porterebbe le due viste a divergere alla prima modifica.
+export const formatPickerValue = (value, withTime = true) => {
+  if (!value) return "";
+  const d = new Date(value);
+  const date = d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return withTime
+    ? `${date} ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`
+    : date;
+};
+
 // Griglia di 42 celle (6 settimane, lu→do) che copre il mese di `viewDate`.
 function buildMonthGrid(viewDate) {
   const year = viewDate.getFullYear();
@@ -133,11 +147,7 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
 
   const clear = () => { onChange(null); setOpen(false); };
 
-  const label = value
-    ? withTime
-      ? `${new Date(value).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" })} ${new Date(value).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`
-      : new Date(value).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" })
-    : placeholder;
+  const label = value ? formatPickerValue(value, withTime) : placeholder;
 
   // Contenuto del pannello (calendario + ora + azioni), condiviso tra il
   // dropdown desktop e la card centrata mobile.

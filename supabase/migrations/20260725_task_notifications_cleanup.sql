@@ -22,9 +22,11 @@
 --      accodarne una nuova. Stesso schema di chat_message e task_due.
 --   3. RETENTION (cron giornaliero) — rete di sicurezza per le righe che il
 --      trigger non puo' intercettare (task cancellati definitivamente dal
---      cestino, import massivi) + limite di eta' a 30 giorni: una notifica di
---      un mese fa non e' piu' una notizia, e il task, se aperto, resta
---      comunque nella coda personale e nel calendario.
+--      cestino, import massivi) + limite di eta' a 15 giorni (scelto
+--      dall'utente): una notifica di due settimane fa non e' piu' una notizia,
+--      e il task, se aperto, resta comunque nella coda personale, nel
+--      calendario e nelle notifiche di scadenza. Il limite vale anche per le
+--      non lette.
 --
 -- Cosa NON cambia: il fatto che ogni assegnazione generi una notifica. E'
 -- informazione per-task legittima ("questo task specifico ora e' tuo"), e sui
@@ -201,7 +203,7 @@ create or replace function public.prune_notifications() returns void
 language plpgsql security definer set search_path = public
 as $$
 declare
-  c_max_age constant interval := interval '30 days';
+  c_max_age constant interval := interval '15 days';
 begin
   -- Notifiche che puntano a un task sparito.
   delete from public.notifications n

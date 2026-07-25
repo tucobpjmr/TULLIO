@@ -179,8 +179,9 @@ promemoria", che copre la riassegnazione di un task nel cestino.
 **3. Retention giornaliera** — nuova funzione `prune_notifications()` + cron
 `prune_notifications_daily` (`20 3 * * *`): rete di sicurezza per ciò che il
 trigger non vede (cestino svuotato = DELETE fisico del task, import massivi) +
-limite di età a **30 giorni**. `queue_stale` è esclusa dal limite: si rigenera
-da sola e il suo `created_at` è la data dell'ultimo risveglio, non dell'origine.
+limite di età a **15 giorni**, scelto dall'utente, valido **anche per le non
+lette**. `queue_stale` è esclusa dal limite: si rigenera da sola e il suo
+`created_at` è la data dell'ultimo risveglio, non dell'origine.
 
 **Cosa NON cambia**: ogni assegnazione continua a generare una notifica. È
 informazione per-task legittima ("questo task specifico ora è tuo") e sui dati
@@ -241,11 +242,14 @@ volume che ha richiesto il digest per la coda globale.
    immediato (prima il cleanup arrivava al massimo una volta al giorno, al giro
    del cron delle 8:00). Se un giorno servisse, lo schema digest è replicabile.
 
-4. **Retention a 30 giorni**: `prune_notifications()` cancella le notifiche più
-   vecchie di 30 giorni **anche se non lette**. Il lavoro non si perde — i task
-   restano nella coda personale, nel calendario e nelle notifiche `task_due` —
-   ma è una scelta da rivedere se qualcuno usa il pannello come to-do list. Una
-   riga: `c_max_age` in `prune_notifications()`.
+4. **Retention a 15 giorni** (scelta dell'utente): `prune_notifications()`
+   cancella le notifiche più vecchie di 15 giorni **anche se non lette**. Il
+   lavoro non si perde — i task restano nella coda personale, nel calendario e
+   nelle notifiche `task_due` — ma è una soglia stretta: al primo giro (03:20)
+   le `task_assigned` scendono da 11 a 3, perché 8 delle rimanenti risalgono al
+   1–10 luglio pur riferendosi a task ancora aperti (`awaiting_client`,
+   `awaiting_supplier`). Da rivedere se qualcuno usa il pannello come to-do
+   list. Una riga: `c_max_age` in `prune_notifications()`.
 
 5. **Trigger AFTER su `tasks`: ora sono tre** — `trg_log_task_history`,
    `trg_notify_task_assigned`, `trg_prune_task_notifications` (più i tre BEFORE:

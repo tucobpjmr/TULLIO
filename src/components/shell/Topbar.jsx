@@ -13,6 +13,7 @@ import { TEAM, CATEGORIES, getMember, isJuniorAgent } from "../../state/appGloba
 import { ProfileEditor } from "../modals/ProfileEditor.jsx";
 import { SwipeActions } from "../SwipeActions.jsx";
 import { getPushSupport, getPushState, enablePush, disablePush } from "../../lib/push.js";
+import { NOTIF_ICONS, NOTIF_CATEGORIES, notifTitle, notifSubtitle, notifTime, notifTarget } from "../../lib/notifUtils.js";
 
 const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword }) => {
   const { isMobile } = useViewport();
@@ -597,76 +598,9 @@ const UserSwitcher = ({ state, dispatch }) => {
 };
 
 // ─── NOTIFICATIONS PANEL ───────────────────────────────────────────────────
-// Helpers per il rendering delle notifiche reali (Step F).
-const NOTIF_ICONS = {
-  task_assigned: "📋",
-  task_due: "📅",
-  comment: "💬",
-  mention: "@",
-  queue_stale: "⏳",
-  user_pending: "👤",
-  chat_message: "✉️",
-  // Compat con mock
-  overdue: "⚠️", assigned: "📋", deadline: "📅",
-};
-
-// Categorie filtro: raggruppano i type per la UI filtri (Fase 2).
-const NOTIF_CATEGORIES = {
-  task: ["task_assigned", "task_due", "comment", "queue_stale"],
-  mention: ["mention"],
-  chat: ["chat_message"],
-};
-
-function notifTitle(n) {
-  // Notifiche reali (DB): titolo derivato da type + payload
-  if (n.payload) {
-    const p = n.payload || {};
-    switch (n.type) {
-      case "task_assigned":
-        return `Nuovo task assegnato: ${p.task_title ?? "—"}`;
-      case "task_due":
-        return `Scadenza task: ${p.task_title ?? "—"}`;
-      case "comment":
-        return `Nuovo commento su: ${p.task_title ?? "—"}`;
-      case "mention":
-        return p.task_title
-          ? `Menzionato in: ${p.task_title}`
-          : `Sei stato menzionato${p.where ? " in " + p.where : ""}`;
-      case "queue_stale":
-        return p.task_title
-          ? `Task in coda da > 4h: ${p.task_title}`
-          : `Task in coda da troppo tempo`;
-      case "user_pending":
-        return p.user_name
-          ? `Nuova richiesta di accesso: ${p.user_name}`
-          : `Nuova richiesta di accesso da approvare`;
-      // Specchio del case 'chat_message' in notify_push()
-      // (20260725_chat_message_notifications): nei gruppi il nome della
-      // conversazione, nelle chat dirette il mittente.
-      case "chat_message":
-        return p.conversation_name
-          ? `${p.conversation_name} — ${p.by_user_name ?? "Nuovo messaggio"}: ${p.preview ?? ""}`
-          : `${p.by_user_name ?? "Nuovo messaggio"}: ${p.preview ?? ""}`;
-      default:
-        return n.type || "Notifica";
-    }
-  }
-  // Mock legacy
-  return n.title || n.type;
-}
-
-function notifTime(n) {
-  if (n.time) return n.time; // mock
-  if (!n.createdAt) return "";
-  const ms = Date.now() - new Date(n.createdAt).getTime();
-  const min = Math.round(ms / 60000);
-  if (min < 1) return "ora";
-  if (min < 60) return `${min} min fa`;
-  const h = Math.round(min / 60);
-  if (h < 24) return `${h} ${h === 1 ? "ora" : "ore"} fa`;
-  const d = Math.round(h / 24);
-  return `${d} ${d === 1 ? "giorno" : "giorni"} fa`;
-}
+// Helpers per il rendering delle notifiche reali (Step F): icona, titolo,
+// sottotitolo, tempo e destinazione del tap vivono in lib/notifUtils.js
+// (funzioni pure, testate in src/test/notifUtils.test.js).
 
 // computePresence + PRESENCE_COLORS (usati solo dalla chat) → src/components/chat/ChatPanel.jsx (Step P Phase 2f)
 
@@ -782,17 +716,16 @@ const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMar
     const types = NOTIF_CATEGORIES[filter] || [];
     return list.filter(n => types.includes(n.type));
   }, [list, filter]);
-  // Navigabile se il payload porta a un task o a una conversazione
-  const isNavigable = (n) => isReal && n.payload && !!(n.payload.task_id || n.payload.conversation_id);
+  // Navigabile se il payload porta a un task, a una conversazione o a una vista
+  // (digest coda globale → Dashboard, tab "Coda Globale").
+  const isNavigable = (n) => isReal && !!notifTarget(n);
   const handleClick = (n) => {
-    if (isReal && n.payload) {
-      if (n.payload.task_id) {
-        onOpenTask?.(n.payload.task_id);
-        dispatch({ type: "TOGGLE_NOTIF" });
-      } else if (n.payload.conversation_id) {
-        onOpenChat?.(n.payload.conversation_id);
-        dispatch({ type: "TOGGLE_NOTIF" });
-      }
+    const target = isReal ? notifTarget(n) : null;
+    if (target) {
+      if (target.kind === "task") onOpenTask?.(target.taskId);
+      else if (target.kind === "chat") onOpenChat?.(target.conversationId);
+      else if (target.kind === "view") dispatch({ type: "SET_VIEW", payload: target.view, queue: target.queue });
+      dispatch({ type: "TOGGLE_NOTIF" });
     }
     if (isReal && !n.read) onMarkRead?.(n.id);
   };
@@ -883,8 +816,14 @@ const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMar
             onMouseLeave={e => { e.currentTarget.style.background = n.read ? "transparent" : "rgba(212,168,67,0.07)"; }}
           >
             <span style={{ fontSize: 18, flexShrink: 0 }}>{NOTIF_ICONS[n.type] || "🔔"}</span>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: n.read ? 400 : 600 }}>{notifTitle(n)}</div>
+              {notifSubtitle(n) && (
+                <div style={{
+                  fontSize: 11, color: "var(--text-muted)", marginTop: 3, lineHeight: 1.35,
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                }}>{notifSubtitle(n)}</div>
+              )}
               <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{notifTime(n)}</div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, marginTop: 2 }}>

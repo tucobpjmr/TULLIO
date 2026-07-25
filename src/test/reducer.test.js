@@ -114,6 +114,32 @@ describe("reducer — permessi", () => {
   });
 });
 
+// Il digest queue_stale (pannello notifiche) apre la Dashboard sulla tab
+// "Coda Globale": SET_VIEW porta con sé la tab richiesta.
+describe("reducer — SET_VIEW con tab coda", () => {
+  it("senza queue non tocca dashboardQueue", () => {
+    const s = freshState("marco");
+    const next = reducer(s, { type: "SET_VIEW", payload: "calendar" });
+    expect(next.activeView).toBe("calendar");
+    expect(next.dashboardQueue).toBeNull();
+  });
+
+  it("con queue registra la tab richiesta", () => {
+    const s = freshState("marco");
+    const next = reducer(s, { type: "SET_VIEW", payload: "dashboard", queue: "global" });
+    expect(next.activeView).toBe("dashboard");
+    expect(next.dashboardQueue).toMatchObject({ tab: "global" });
+  });
+
+  it("il seq avanza a ogni richiesta, anche sulla stessa tab", () => {
+    let s = freshState("marco");
+    s = reducer(s, { type: "SET_VIEW", payload: "dashboard", queue: "global" });
+    const first = s.dashboardQueue.seq;
+    s = reducer(s, { type: "SET_VIEW", payload: "dashboard", queue: "global" });
+    expect(s.dashboardQueue.seq).toBe(first + 1);
+  });
+});
+
 describe("reducer — categorie", () => {
   it("ADD_CATEGORY da admin aggiunge la categoria", () => {
     const s = freshState("marco");

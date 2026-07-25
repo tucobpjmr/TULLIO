@@ -5,12 +5,13 @@
 // con "OK" (o annulla il valore con "Cancella"), senza scorciatoia "Oggi".
 //
 // Impaginazione: su schermi larghi il pannello è un dropdown ancorato al
-// campo (a sinistra o a destra secondo `align`). Su mobile diventa una card
-// centrata con backdrop, così non sfora mai il margine destro e non provoca
-// scroll orizzontale. La selezione dell'ora usa due select compatte (ore /
-// minuti) invece dell'<input type="time">, che aprirebbe l'orologio nativo
-// del browser — anch'esso soggetto a sforare fuori dallo schermo su mobile.
-import { useState, useRef, useEffect } from "react";
+// campo (a sinistra o a destra secondo `align`) e riportato dentro i bordi
+// del contenitore quando lì sforerebbe. Su mobile diventa una card centrata
+// con backdrop, così non sfora mai il margine destro e non provoca scroll
+// orizzontale. La selezione dell'ora usa due select compatte (ore / minuti)
+// invece dell'<input type="time">, che aprirebbe l'orologio nativo del
+// browser — anch'esso soggetto a sforare fuori dallo schermo su mobile.
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
 
 const WEEKDAYS = ["lu", "ma", "me", "gi", "ve", "sa", "do"];
 const pad2 = n => String(n).padStart(2, "0");
@@ -53,6 +54,51 @@ const sameDay = (a, b) => !!a && !!b &&
 const HOURS = Array.from({ length: 24 }, (_, i) => pad2(i));
 const MINUTES = Array.from({ length: 12 }, (_, i) => pad2(i * 5));
 
+// Larghezza del dropdown desktop e distanza minima dai bordi del contenitore.
+const PANEL_W = 260;
+const PANEL_MARGIN = 8;
+
+// Scostamento orizzontale del pannello rispetto al bordo sinistro del campo,
+// in px. Parte dal lato preferito (`align`) e riporta il pannello dentro
+// [boundsLeft, boundsRight] quando lì sforerebbe. Tutta la geometria del
+// posizionamento sta qui — il resto è solo misurazione del DOM — così è
+// verificabile senza simulare un layout.
+export function computePanelOffset({ fieldLeft, fieldRight, boundsLeft, boundsRight, align, panelW = PANEL_W }) {
+  const ideal = align === "right" ? fieldRight - panelW : fieldLeft;
+  // Il limite destro è applicato prima di quello sinistro: se il contenitore
+  // è più stretto del pannello vince l'ancoraggio a sinistra, così restano
+  // visibili i controlli del mese invece del lato destro del calendario.
+  const x = Math.max(boundsLeft, Math.min(ideal, boundsRight - panelW));
+  return x - fieldLeft;
+}
+
+// Bordi orizzontali entro cui il pannello deve stare: intersezione tra il
+// viewport e il box di CONTENUTO di ogni antenato che ritaglia (overflow
+// diverso da visible, es. il corpo scrollabile di un modale). Guardare solo
+// il viewport non bastava: dentro un modale il pannello restava dentro la
+// finestra ma sforava il bordo destro del modale e, siccome un overflow in
+// `auto` su un asse rende `auto` anche l'altro, comparivano bordo tagliato e
+// scroll orizzontale (caso del campo SCADENZA nella colonna destra di
+// "Nuovo Task"). Il box di contenuto — non quello di padding — allinea il
+// pannello ai campi del form invece che al bordo del modale.
+function getClipBounds(el) {
+  let left = PANEL_MARGIN;
+  let right = (typeof window !== "undefined" ? window.innerWidth : 0) - PANEL_MARGIN;
+  for (let node = el?.parentElement; node && node !== document.body; node = node.parentElement) {
+    const cs = getComputedStyle(node);
+    if (cs.overflowX === "visible" && cs.overflowY === "visible") continue;
+    const r = node.getBoundingClientRect();
+    const bl = parseFloat(cs.borderLeftWidth) || 0;
+    const br = parseFloat(cs.borderRightWidth) || 0;
+    // La scrollbar verticale occupa spazio a destra dentro il bordo: senza
+    // scalarla il pannello finirebbe parzialmente sotto di essa.
+    const scrollbar = Math.max(0, node.offsetWidth - node.clientWidth - bl - br);
+    left = Math.max(left, r.left + bl + (parseFloat(cs.paddingLeft) || 0));
+    right = Math.min(right, r.right - br - scrollbar - (parseFloat(cs.paddingRight) || 0));
+  }
+  return { left, right };
+}
+
 // Breakpoint sotto il quale il pannello diventa una card centrata con backdrop.
 const MOBILE_MAX = 640;
 function useIsMobile() {
@@ -82,22 +128,27 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
   });
   const rootRef = useRef(null);
   const isMobile = useIsMobile();
-  // Lato effettivo del dropdown desktop: parte da `align` ma viene ribaltato
-  // all'apertura se ancorarlo lì farebbe sforare il pannello oltre il bordo
-  // della finestra (es. campo nella colonna destra della griglia).
-  const [desktopAlign, setDesktopAlign] = useState(align);
+  // Scostamento orizzontale del dropdown desktop rispetto al campo.
+  const [panelOffset, setPanelOffset] = useState(0);
 
-  // All'apertura su desktop misura la posizione del campo e sceglie il lato di
-  // ancoraggio che tiene il pannello (largo ~260px) dentro il viewport.
-  useEffect(() => {
+  // All'apertura su desktop misura campo e contenitore e posiziona il pannello
+  // dentro i bordi. useLayoutEffect (non useEffect) perché la misura deve
+  // essere applicata PRIMA che il browser dipinga: con useEffect il pannello
+  // lampeggerebbe per un frame nella posizione sforante.
+  useLayoutEffect(() => {
     if (!open || isMobile) return;
-    const rect = rootRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const PANEL_W = 260, MARGIN = 8;
-    const overflowsRight = rect.left + PANEL_W > window.innerWidth - MARGIN;
-    const overflowsLeft = rect.right - PANEL_W < MARGIN;
-    if (align === "left") setDesktopAlign(overflowsRight && !overflowsLeft ? "right" : "left");
-    else setDesktopAlign(overflowsLeft && !overflowsRight ? "left" : "right");
+    const place = () => {
+      const el = rootRef.current;
+      const rect = el?.getBoundingClientRect();
+      if (!rect) return;
+      const { left: boundsLeft, right: boundsRight } = getClipBounds(el);
+      setPanelOffset(computePanelOffset({
+        fieldLeft: rect.left, fieldRight: rect.right, boundsLeft, boundsRight, align,
+      }));
+    };
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
   }, [open, isMobile, align]);
 
   // Riallinea la bozza al valore corrente ogni volta che il popover si apre.
@@ -277,12 +328,13 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
           </div>
         </div>
       ) : (
-        // Desktop: dropdown ancorato al campo.
+        // Desktop: dropdown ancorato al campo e rientrato quando il lato
+        // preferito lo farebbe sforare oltre il contenitore.
         <div style={{
-          position: "absolute", top: "100%", ...(desktopAlign === "right" ? { right: 0 } : { left: 0 }),
+          position: "absolute", top: "100%", left: panelOffset,
           marginTop: 6, zIndex: 30,
           background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10,
-          boxShadow: "0 10px 30px rgba(0,0,0,0.15)", padding: 12, width: 260,
+          boxShadow: "0 10px 30px rgba(0,0,0,0.15)", padding: 12, width: PANEL_W,
         }}>
           {panel}
         </div>

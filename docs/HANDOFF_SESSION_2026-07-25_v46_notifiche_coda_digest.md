@@ -1,5 +1,12 @@
 # HANDOFF — Sessione 2026-07-25 v46
-### Notifiche coda globale: rilevanza per scadenza + digest unico
+### Notifiche: coda globale a digest + ritiro automatico dei promemoria di task
+
+Due interventi, due migration:
+
+| # | Migration | Tipo notifica | Problema |
+|---|-----------|---------------|----------|
+| 1 | `20260725_queue_stale_relevance_digest.sql` | `queue_stale` | 68 righe: si segnalava l'anzianità del task invece della scadenza, una riga per task |
+| 2 | `20260725_task_notifications_cleanup.sql` | `task_assigned`, `task_due` | 19 righe di cui 8 per task già chiusi o cestinati: la notifica nasceva e non veniva mai ritirata |
 
 ---
 
@@ -131,11 +138,73 @@ destinatario attivo), payload identico: **idempotente**.
 
 ---
 
+## Parte 2 — `task_assigned` / `task_due`: ritiro automatico
+
+### Diagnosi
+
+`notify_task_assigned()` è un trigger su `tasks`: crea la notifica al momento
+dell'assegnazione e **non la ritira mai**. Sul DB al 25/07, delle 19 righe:
+
+- **7** puntavano a task con `status = 'done'` — la più vecchia del 1° luglio,
+  mai letta, per un task chiuso da settimane (`irlanda`, `verifica penali msc`,
+  `x amastuola 25 luglio`…);
+- **1** a un task cestinato il 04/07 (`check in `);
+- **11** si riferivano a lavoro davvero aperto.
+
+"Nuovo task assegnato" è un promemoria di lavoro: quando il lavoro non c'è più
+la riga è rumore, e occupa il pannello esattamente come facevano le
+`queue_stale`.
+
+### Soluzione — `20260725_task_notifications_cleanup.sql`
+
+**1. Ritiro immediato** (nuovo trigger `trg_prune_task_notifications` su `tasks`,
+`after update of status, deleted_at, assignees`):
+
+| Evento sul task | Cosa viene ritirato |
+|---|---|
+| Passa a **done** | `task_assigned` + `task_due`. Commenti e menzioni restano: sono eventi di conversazione, non "hai qualcosa da fare" |
+| Va nel **cestino** | **tutte** le notifiche che lo citano — il tap porterebbe a un task cestinato |
+| Cambiano gli **assegnatari** | i promemoria di chi non è più della partita (chi entra riceve la sua da `notify_task_assigned`) |
+
+Il nome del trigger ordina **dopo** `trg_notify_task_assigned` (Postgres esegue
+in ordine alfabetico): sulla stessa UPDATE prima nasce la notifica per i nuovi
+assegnatari, poi si ritirano quelle di chi è uscito.
+
+**2. Una riga per utente+task** — indice `notifications_task_assigned_user_task_uq`
++ upsert nel trigger (stesso schema di `chat_message` e `task_due`): riassegnare
+lo stesso task alla stessa persona risveglia la riga esistente invece di
+accodarne una nuova. Aggiunto anche il guard "task già done/cestinato → nessun
+promemoria", che copre la riassegnazione di un task nel cestino.
+
+**3. Retention giornaliera** — nuova funzione `prune_notifications()` + cron
+`prune_notifications_daily` (`20 3 * * *`): rete di sicurezza per ciò che il
+trigger non vede (cestino svuotato = DELETE fisico del task, import massivi) +
+limite di età a **30 giorni**. `queue_stale` è esclusa dal limite: si rigenera
+da sola e il suo `created_at` è la data dell'ultimo risveglio, non dell'origine.
+
+**Cosa NON cambia**: ogni assegnazione continua a generare una notifica. È
+informazione per-task legittima ("questo task specifico ora è tuo") e sui dati
+reali il ritmo è di circa una ogni giorno e mezzo — non c'è il problema di
+volume che ha richiesto il digest per la coda globale.
+
+### Verifica (transazione con rollback sul DB live)
+
+| Scenario | Atteso | Esito |
+|---|---|---|
+| Cleanup one-off | righe orfane via | `task_assigned` 19 → **11**, `task_due` 2 → **1** |
+| S1 — completo un task | la sua `task_assigned` sparisce | 1 → **0** ✅ |
+| S2 — cestino un task | spariscono tutte le sue notifiche | 1 → **0** ✅ |
+| S3 — riassegno a un altro | resta solo il nuovo assegnatario | solo `Cosimo` ✅ |
+| S4 — assegna / togli / riassegna | nessun duplicato | **1** riga ✅ |
+
+---
+
 ## File toccati
 
 | File | Azione |
 |------|--------|
 | `supabase/migrations/20260725_queue_stale_relevance_digest.sql` | NUOVO |
+| `supabase/migrations/20260725_task_notifications_cleanup.sql` | NUOVO |
 | `src/lib/notifUtils.js` | NUOVO |
 | `src/test/notifUtils.test.js` | NUOVO |
 | `src/components/shell/Topbar.jsx` | helper estratti, sottotitolo, navigazione per vista |
@@ -166,11 +235,22 @@ destinatario attivo), payload identico: **idempotente**.
    più anticipo si alza `c_due_window`; se la coda urgente resta troppo affollata
    si scende a 24h. Una riga in `notify_queue_stale()`.
 
-3. **`notify_task_due()` lasciata invariata.** Ha già una finestra di 24h, punta
-   ai soli assegnatari ed è deduplicata per utente+task (`20260706_task_due_dedup`):
-   sul DB sono 2 righe totali, non contribuisce all'affollamento. Se un giorno
-   servisse, lo stesso schema digest è replicabile.
+3. **`notify_task_due()`: logica di generazione invariata.** Ha già una finestra
+   di 24h, punta ai soli assegnatari ed è deduplicata per utente+task
+   (`20260706_task_due_dedup`). La migration 2 le aggiunge solo il ritiro
+   immediato (prima il cleanup arrivava al massimo una volta al giorno, al giro
+   del cron delle 8:00). Se un giorno servisse, lo schema digest è replicabile.
 
-4. **`task_assigned`: 18 non lette sul DB.** Non è un difetto di logica (una
-   notifica per assegnazione reale è corretta) ma è la seconda voce per volume
-   dopo `queue_stale`. Da riguardare solo se l'utente lo segnala.
+4. **Retention a 30 giorni**: `prune_notifications()` cancella le notifiche più
+   vecchie di 30 giorni **anche se non lette**. Il lavoro non si perde — i task
+   restano nella coda personale, nel calendario e nelle notifiche `task_due` —
+   ma è una scelta da rivedere se qualcuno usa il pannello come to-do list. Una
+   riga: `c_max_age` in `prune_notifications()`.
+
+5. **Trigger AFTER su `tasks`: ora sono tre** — `trg_log_task_history`,
+   `trg_notify_task_assigned`, `trg_prune_task_notifications` (più i tre BEFORE:
+   `set_task_completed_at`, `tasks_set_created_by`, `touch_updated_at`). Il nome
+   scelto ordina `prune` dopo `notify` (Postgres esegue in ordine alfabetico),
+   ma il risultato non dipende dall'ordine: `prune` cancella solo le righe di
+   chi **non** è fra i nuovi assegnatari, quindi non può toccare quella appena
+   creata. È una precauzione, non un vincolo.

@@ -148,12 +148,21 @@ destinatario attivo), payload identico: **idempotente**.
 
 ## Da fare / caveat
 
-1. **Migration non ancora applicata al DB live.** Va eseguita sul progetto
-   `vmxvnxsqfisucugcpqlc` (in sessione è stata solo validata con rollback). La
-   sezione 1 cancella le `queue_stale` esistenti — sono promemoria effimeri e la
-   sezione 6 li rigenera subito nel nuovo formato.
+1. **Migration applicata al DB live** (progetto `vmxvnxsqfisucugcpqlc`, su
+   conferma dell'utente in sessione). Stato di `notifications` dopo
+   l'applicazione:
 
-2. **Finestra 48h da tarare sull'uso reale.** Se i check-in vanno lavorati con
+   | Tipo | Prima | Dopo |
+   |------|-------|------|
+   | `queue_stale` | 68 (65 non lette) | **2** (una per destinatario, 15 task nel digest) |
+   | `task_assigned` | 19 | 19 (non toccate) |
+   | `task_due` | 2 | 2 (non toccate) |
+   | `chat_message` | 1 | 1 (non toccata) |
+
+   Il cron `notify_queue_stale_hourly` (`5 * * * *`) resta invariato: chiama la
+   funzione per nome, quindi usa già la versione nuova.
+
+2. **Finestra 48h confermata dall'utente.** Se i check-in vanno lavorati con
    più anticipo si alza `c_due_window`; se la coda urgente resta troppo affollata
    si scende a 24h. Una riga in `notify_queue_stale()`.
 

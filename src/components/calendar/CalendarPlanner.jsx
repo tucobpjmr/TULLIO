@@ -400,15 +400,16 @@ export const CalendarPlanner = ({ state, dispatch }) => {
       {viewMode === "month" && (
         <div style={{ background: "var(--card)", borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)", overflow: "hidden" }}>
           {/* Day headers */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", background: "var(--navy)", padding: "10px 0" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", background: "var(--navy)", padding: "10px 0" }}>
             {dayNames.map(d => (
-              <div key={d} style={{ textAlign: "center", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>{d}</div>
+              <div key={d} style={{ textAlign: "center", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.7)", minWidth: 0 }}>{d}</div>
             ))}
           </div>
-          {/* Cells */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
+          {/* Cells — minmax(0,1fr) evita che i titoli dei task (nowrap) allarghino
+              le colonne oltre il contenitore facendo tagliare la domenica */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }}>
             {Array.from({ length: startOffset }, (_, i) => (
-              <div key={`e${i}`} style={{ minHeight: isMobile ? 52 : 100, borderRight: "1px solid var(--border)", borderBottom: "1px solid var(--border)", background: "var(--surface2)" }} />
+              <div key={`e${i}`} style={{ minHeight: isMobile ? 52 : 100, minWidth: 0, borderRight: "1px solid var(--border)", borderBottom: "1px solid var(--border)", background: "var(--surface2)" }} />
             ))}
             {Array.from({ length: daysInMonth }, (_, i) => {
               const day = i + 1;
@@ -417,7 +418,8 @@ export const CalendarPlanner = ({ state, dispatch }) => {
               const isToday = today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
               return (
                 <div key={day} onClick={() => setSelectedDay(selectedDay === day ? null : day)} style={{
-                  minHeight: isMobile ? 52 : 100, borderRight: "1px solid var(--border)", borderBottom: "1px solid var(--border)",
+                  minHeight: isMobile ? 52 : 100, minWidth: 0, overflow: "hidden",
+                  borderRight: "1px solid var(--border)", borderBottom: "1px solid var(--border)",
                   padding: isMobile ? "5px 3px" : "8px 6px", cursor: hasContent ? "pointer" : "default",
                   background: selectedDay === day ? "rgba(212,168,67,0.08)" : "var(--card)",
                   transition: "background 0.15s", display: "flex", flexDirection: "column", alignItems: isMobile ? "center" : "stretch",
@@ -437,7 +439,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                       </div>
                     )
                   ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
                       {dayTasks.slice(0, 3).map(t => (
                         <div key={t.id} onClick={e => { e.stopPropagation(); dispatch({ type: "SET_SELECTED_TASK", payload: t }); }} style={{
                           fontSize: 10, fontWeight: 500, padding: "1px 5px", borderRadius: 3,
@@ -507,7 +509,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
       {/* ─── VISTA SETTIMANA ─── */}
       {viewMode === "week" && (
         <div style={{ overflowX: isMobile ? "auto" : "visible", scrollSnapType: isMobile ? "x mandatory" : "none" }}>
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(7, 60vw)" : "repeat(7, 1fr)", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(7, 60vw)" : "repeat(7, minmax(0, 1fr))", gap: 10 }}>
             {weekDays.map((day, i) => {
               const dayTasks = getTasksForDay(day);
               const isToday = day.toDateString() === new Date().toDateString();
@@ -666,7 +668,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
             boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden",
           }}>
             {/* Header giorni */}
-            <div style={{ display: "grid", gridTemplateColumns: `56px repeat(7, 1fr)`, background: "var(--surface2)" }}>
+            <div style={{ display: "grid", gridTemplateColumns: `56px repeat(7, minmax(0, 1fr))`, background: "var(--surface2)" }}>
               <div />
               {weekDays.map((d, i) => {
                 const isToday = d.toDateString() === today;
@@ -683,7 +685,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
             </div>
             {/* Griglia oraria scrollabile */}
             <div style={{ maxHeight: 560, overflowY: "auto" }}>
-              <div style={{ display: "grid", gridTemplateColumns: `56px repeat(7, 1fr)`, position: "relative" }}>
+              <div style={{ display: "grid", gridTemplateColumns: `56px repeat(7, minmax(0, 1fr))`, position: "relative" }}>
                 {/* Colonna ore */}
                 <div>
                   {HOURS.map(h => (

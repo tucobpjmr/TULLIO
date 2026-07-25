@@ -1,6 +1,14 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { BulkTaskCreator } from "../components/modals/BulkTaskCreator.jsx";
+
+// Mock di api.js per non istanziare il client Supabase reale (stesso pattern
+// di clientContactInheritance.test.jsx) — BulkTaskCreator importa TaskFiles
+// per gli allegati di riga, non esercitati da questo test.
+vi.mock("../lib/api.js", () => ({
+  TaskFiles: { upload: vi.fn(async () => ({ error: null })) },
+}));
+
+const { BulkTaskCreator } = await import("../components/modals/BulkTaskCreator.jsx");
 
 // Ogni riga della modalità manuale ha una descrizione facoltativa: prima le
 // task create in blocco nascevano sempre con description vuota, e l'unico

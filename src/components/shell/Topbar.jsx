@@ -303,7 +303,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
 };
 
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
-export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMarkRead, onMarkAllRead, onRemoveNotification, onClearAllNotifications, onOpenTask }) => {
+export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMarkRead, onMarkAllRead, onRemoveNotification, onClearAllNotifications, onOpenTask, onOpenChat }) => {
   const { isMobile } = useViewport();
   // Fix #11: notifiche mock gate-ate dietro env var (default off in prod)
   const SHOW_MOCK_NOTIFS = import.meta.env.DEV && import.meta.env.VITE_SHOW_MOCK_NOTIFICATIONS === 'true';
@@ -415,6 +415,7 @@ export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMa
           onRemoveNotification={onRemoveNotification}
           onClearAllNotifications={onClearAllNotifications}
           onOpenTask={onOpenTask}
+          onOpenChat={onOpenChat}
         />}
       </div>
 
@@ -604,6 +605,7 @@ const NOTIF_ICONS = {
   mention: "@",
   queue_stale: "⏳",
   user_pending: "👤",
+  chat_message: "✉️",
   // Compat con mock
   overdue: "⚠️", assigned: "📋", deadline: "📅",
 };
@@ -612,6 +614,7 @@ const NOTIF_ICONS = {
 const NOTIF_CATEGORIES = {
   task: ["task_assigned", "task_due", "comment", "queue_stale"],
   mention: ["mention"],
+  chat: ["chat_message"],
 };
 
 function notifTitle(n) {
@@ -637,6 +640,13 @@ function notifTitle(n) {
         return p.user_name
           ? `Nuova richiesta di accesso: ${p.user_name}`
           : `Nuova richiesta di accesso da approvare`;
+      // Specchio del case 'chat_message' in notify_push()
+      // (20260725_chat_message_notifications): nei gruppi il nome della
+      // conversazione, nelle chat dirette il mittente.
+      case "chat_message":
+        return p.conversation_name
+          ? `${p.conversation_name} — ${p.by_user_name ?? "Nuovo messaggio"}: ${p.preview ?? ""}`
+          : `${p.by_user_name ?? "Nuovo messaggio"}: ${p.preview ?? ""}`;
       default:
         return n.type || "Notifica";
     }
@@ -750,18 +760,19 @@ const PushToggle = ({ dispatch }) => {
   );
 };
 
-const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMarkAllRead, onRemoveNotification, onClearAllNotifications, onOpenTask }) => {
+const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMarkAllRead, onRemoveNotification, onClearAllNotifications, onOpenTask, onOpenChat }) => {
   const { isMobile } = useViewport();
-  const [filter, setFilter] = useState("all"); // all | unread | task | mention
+  const [filter, setFilter] = useState("all"); // all | unread | task | mention | chat
   const list = Array.isArray(notifications) ? notifications : MOCK_NOTIFICATIONS;
   const hasUnread = list.some(n => !n.read);
   // Filtri (Fase 2 notifiche): conteggi e applicazione filtro.
   const counts = useMemo(() => {
-    const c = { all: list.length, unread: 0, task: 0, mention: 0 };
+    const c = { all: list.length, unread: 0, task: 0, mention: 0, chat: 0 };
     for (const n of list) {
       if (!n.read) c.unread++;
       if (NOTIF_CATEGORIES.task.includes(n.type)) c.task++;
       else if (NOTIF_CATEGORIES.mention.includes(n.type)) c.mention++;
+      else if (NOTIF_CATEGORIES.chat.includes(n.type)) c.chat++;
     }
     return c;
   }, [list]);
@@ -771,12 +782,15 @@ const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMar
     const types = NOTIF_CATEGORIES[filter] || [];
     return list.filter(n => types.includes(n.type));
   }, [list, filter]);
-  // Navigabile se ha task_id nel payload
-  const isNavigable = (n) => isReal && n.payload && !!(n.payload.task_id);
+  // Navigabile se il payload porta a un task o a una conversazione
+  const isNavigable = (n) => isReal && n.payload && !!(n.payload.task_id || n.payload.conversation_id);
   const handleClick = (n) => {
     if (isReal && n.payload) {
       if (n.payload.task_id) {
         onOpenTask?.(n.payload.task_id);
+        dispatch({ type: "TOGGLE_NOTIF" });
+      } else if (n.payload.conversation_id) {
+        onOpenChat?.(n.payload.conversation_id);
         dispatch({ type: "TOGGLE_NOTIF" });
       }
     }
@@ -845,6 +859,7 @@ const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMar
           {filterBtn("unread", "Non lette")}
           {counts.task > 0 && filterBtn("task", "📋 Task")}
           {counts.mention > 0 && filterBtn("mention", "@ Menzioni")}
+          {counts.chat > 0 && filterBtn("chat", "✉️ Chat")}
         </div>
       )}
       <div style={{ maxHeight: 420, overflowY: "auto" }}>

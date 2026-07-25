@@ -948,9 +948,15 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const fromUrl = params.get("task");
-    if (fromUrl) {
-      pendingPushTask.current = fromUrl;
+    // Notifiche di chat: deep-link ?chat=<conversation_id>. La conversazione
+    // può non essere ancora idratata: l'intent resta finché ChatPanel non la
+    // trova nella lista.
+    const convFromUrl = params.get("chat");
+    if (fromUrl || convFromUrl) {
+      if (fromUrl) pendingPushTask.current = fromUrl;
+      if (convFromUrl) { setChatIntent({ convId: convFromUrl }); setShowChat(true); }
       params.delete("task");
+      params.delete("chat");
       const qs = params.toString();
       window.history.replaceState(null, "", window.location.pathname + (qs ? `?${qs}` : ""));
       setPushNavTick(t => t + 1);
@@ -960,6 +966,10 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       if (e.data?.type === "push-open-task" && e.data.taskId) {
         pendingPushTask.current = e.data.taskId;
         setPushNavTick(t => t + 1);
+      }
+      if (e.data?.type === "push-open-chat" && e.data.conversationId) {
+        setChatIntent({ convId: e.data.conversationId });
+        setShowChat(true);
       }
     };
     navigator.serviceWorker.addEventListener("message", onMessage);
@@ -1260,7 +1270,18 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       });
       return changed ? { ...prev, [convId]: next } : prev;
     });
+    // La notifica 'chat_message' della conversazione ha fatto il suo lavoro:
+    // spegnerla qui evita che la campanella resti con un non letto per una
+    // chat che l'utente sta leggendo.
+    setNotifications(prev => prev.map(n =>
+      n.type === 'chat_message' && n.payload?.conversation_id === convId && !n.read
+        ? { ...n, read: true }
+        : n
+    ));
     if (!useSupabase || !isUuid(convId)) return;
+    NotificationsAPI.markReadForConversation(convId).then(r => {
+      if (r?.error) console.error('[notifications] markReadForConversation', r.error);
+    });
     MessagesAPI.markReadBulk(convId).then(r => {
       if (r?.error) {
         console.error('[chat] markReadBulk', r.error);
@@ -1359,6 +1380,13 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     setShowChat(true);
   };
 
+  // Apre una conversazione già esistente (tap su una notifica di chat).
+  const openConversationById = useCallback((conversationId) => {
+    if (!conversationId) return;
+    setChatIntent({ convId: conversationId });
+    setShowChat(true);
+  }, []);
+
   useEffect(() => {
     const handler = (e) => {
       const inInput = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
@@ -1416,6 +1444,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           onRemoveNotification={removeNotification}
           onClearAllNotifications={clearAllNotifications}
           onOpenTask={openTaskById}
+          onOpenChat={openConversationById}
         />
         {state.adminRollbackTo && state.adminSwitchedAt && (
           <AdminRollbackBanner

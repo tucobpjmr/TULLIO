@@ -463,6 +463,15 @@ export const Notifications = {
     supabase.from('notifications').update(withOrigin({ read: true })).eq('id', id),
   markAllRead: () =>
     supabase.from('notifications').update(withOrigin({ read: true })).eq('read', false),
+  // Aprire la conversazione in chat deve spegnere anche la sua notifica
+  // 'chat_message' (20260725_chat_message_notifications): senza, la campanella
+  // resterebbe con un non letto che l'utente ha di fatto già visto. La RLS
+  // scopa a auth.uid(); il filtro su read evita UPDATE a vuoto a ogni apertura.
+  markReadForConversation: (conversationId) =>
+    supabase.from('notifications').update(withOrigin({ read: true }))
+      .eq('type', 'chat_message')
+      .eq('read', false)
+      .eq('payload->>conversation_id', conversationId),
   // Le remove sono hard-delete: .delete() non accetta un payload, quindi non
   // può trasportare origin_client (come Categories.remove). Le notifiche nascono
   // da trigger DB server-side con origin_client NULL, perciò l'eco della DELETE

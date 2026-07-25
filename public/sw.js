@@ -22,17 +22,28 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const taskId = event.notification.data && event.notification.data.task_id;
+  const data = event.notification.data || {};
+  const taskId = data.task_id;
+  // Notifiche di chat: nel payload c'è la conversazione invece del task.
+  const conversationId = data.conversation_id;
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     if (windows.length > 0) {
-      // App già aperta: focus + messaggio al client (VoyageDesk apre il TaskSlideOver)
+      // App già aperta: focus + messaggio al client (VoyageDesk apre il
+      // TaskSlideOver o la conversazione).
       const client = windows[0];
       await client.focus();
       if (taskId) client.postMessage({ type: 'push-open-task', taskId });
+      else if (conversationId) client.postMessage({ type: 'push-open-chat', conversationId });
       return;
     }
-    // App chiusa: apertura fredda con deep-link ?task= (gestito in VoyageDesk.jsx)
-    await self.clients.openWindow(taskId ? `/?task=${encodeURIComponent(taskId)}` : '/');
+    // App chiusa: apertura fredda con deep-link ?task= / ?chat= (gestiti in
+    // VoyageDesk.jsx).
+    const url = taskId
+      ? `/?task=${encodeURIComponent(taskId)}`
+      : conversationId
+        ? `/?chat=${encodeURIComponent(conversationId)}`
+        : '/';
+    await self.clients.openWindow(url);
   })());
 });

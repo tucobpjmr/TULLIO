@@ -12,7 +12,19 @@ const screenWrap = {
   fontFamily: '"DM Sans",system-ui,sans-serif', fontSize: 14, padding: 24,
 };
 
-const loadingScreen = <div style={screenWrap}>Caricamento…</div>;
+// Splash d'avvio: stesso logo su bianco della splash PWA generata dal manifest
+// (background_color #FFFFFF), così il passaggio dalla schermata di sistema a
+// quella dell'app non stacca.
+const loadingScreen = (
+  <div style={{
+    ...screenWrap, background: '#fff', color: '#64748b',
+    display: 'flex', flexDirection: 'column', alignItems: 'center',
+    justifyContent: 'center', gap: 16,
+  }}>
+    <img src="/apple-touch-icon-192.png" alt="VoyageDesk" width={112} height={112} />
+    <span>Caricamento…</span>
+  </div>
+);
 
 // Utente registrato ma non ancora approvato da un admin (pending=true).
 // Non monta l'app: l'accesso ai dati è bloccato finché un admin non approva.

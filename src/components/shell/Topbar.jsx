@@ -342,15 +342,17 @@ export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMa
           aria-label="Dashboard"
           aria-current={dashActive ? "page" : undefined}
           style={{
-            width: 32, height: 32, background: "var(--gold)", borderRadius: 8,
-            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
+            width: 32, height: 32, background: "#fff", borderRadius: 8,
+            display: "flex", alignItems: "center", justifyContent: "center",
             flexShrink: 0, cursor: "pointer", padding: 0, position: "relative",
             border: dashActive ? "2px solid var(--navy)" : "2px solid transparent",
             boxShadow: dashActive ? "0 0 0 2px rgba(15,32,68,0.15)" : "none",
-            transition: "all 0.2s",
+            transition: "all 0.2s", overflow: "hidden",
           }}
         >
-          ✈️
+          {/* Variante del logo per le dimensioni piccole: ritaglio pieno e tratto
+              ispessito, altrimenti a 28px le linee del disegno spariscono. */}
+          <img src="/logo-mark-64.png" alt="" width={28} height={28} style={{ display: "block" }} />
         </button>
         <button
           onClick={goDashboard}

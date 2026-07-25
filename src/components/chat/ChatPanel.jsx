@@ -2046,6 +2046,16 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
     syncRecentReactionsFromServer(currentUserId || CURRENT_USER);
   }, [open, currentUserId]);
 
+  // Intent con conversazione già nota (tap su una notifica di chat, in-app o
+  // push): apre direttamente quella conversazione. `conversations` è nelle
+  // deps perché al momento del tap la lista può non essere ancora idratata —
+  // l'intent resta e la vista si apre appena la conversazione compare.
+  useEffect(() => {
+    if (!open || !intent?.convId) return;
+    const conv = conversations.find(c => c.id === intent.convId);
+    if (conv) pd({ type: "ACTIVATE", conv });
+  }, [open, intent, conversations]);
+
   // Gestione intent: apertura chat verso utente specifico con link a task
   useEffect(() => {
     if (!open || !intent || !intent.toUser) return;

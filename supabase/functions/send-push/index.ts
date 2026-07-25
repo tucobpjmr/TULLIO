@@ -76,6 +76,7 @@ Deno.serve(async (req) => {
     title?: string;
     body?: string;
     task_id?: string | null;
+    conversation_id?: string | null;
   };
   try {
     payload = await req.json();
@@ -94,14 +95,16 @@ Deno.serve(async (req) => {
   }
   if (!subs?.length) return json({ sent: 0, removed: 0, failed: 0 });
 
-  // tag: stesso task/notifica → il sistema operativo sostituisce la notifica
-  // precedente invece di accumularne (es. re-promemoria queue_stale).
+  // tag: stesso task/conversazione/notifica → il sistema operativo sostituisce
+  // la notifica precedente invece di accumularne (es. re-promemoria
+  // queue_stale, o i messaggi successivi della stessa chat).
   const message = JSON.stringify({
     title: payload.title ?? "VoyageDesk",
     body: payload.body ?? "",
-    tag: `${payload.type ?? "notif"}:${payload.task_id ?? payload.notification_id ?? ""}`,
+    tag: `${payload.type ?? "notif"}:${payload.task_id ?? payload.conversation_id ?? payload.notification_id ?? ""}`,
     data: {
       task_id: payload.task_id ?? null,
+      conversation_id: payload.conversation_id ?? null,
       notification_id: payload.notification_id ?? null,
       type: payload.type ?? null,
     },

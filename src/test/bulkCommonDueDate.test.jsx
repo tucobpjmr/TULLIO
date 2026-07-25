@@ -1,7 +1,15 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
-import { BulkTaskCreator } from "../components/modals/BulkTaskCreator.jsx";
-import { formatPickerValue } from "../components/ui/DateTimePicker.jsx";
+
+// Mock di api.js per non istanziare il client Supabase reale (stesso pattern
+// di clientContactInheritance.test.jsx) — BulkTaskCreator importa TaskFiles
+// per gli allegati di riga, non esercitati da questo test.
+vi.mock("../lib/api.js", () => ({
+  TaskFiles: { upload: vi.fn(async () => ({ error: null })) },
+}));
+
+const { BulkTaskCreator } = await import("../components/modals/BulkTaskCreator.jsx");
+const { formatPickerValue } = await import("../components/ui/DateTimePicker.jsx");
 
 // La scadenza delle IMPOSTAZIONI COMUNI deve comportarsi come categoria,
 // priorità e assegnatario: valere per le righe che non specificano una data

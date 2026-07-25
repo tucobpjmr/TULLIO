@@ -7,9 +7,11 @@ import { useViewport } from "../Viewport.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { PRIORITIES, STATUSES, STATUS_LABELS, TASK_TEMPLATES } from "../../lib/taskConstants.js";
 import { formatDate, clientContact } from "../../lib/taskUtils.js";
-import { TEAM, CATEGORIES, getAssignableTeam } from "../../state/appGlobals.js";
+import { TEAM, CATEGORIES, getAssignableTeam, CURRENT_USER } from "../../state/appGlobals.js";
 import { readFirstSheetRows } from "../../lib/xlsx.js";
 import { DateTimePicker, formatPickerValue } from "../ui/DateTimePicker.jsx";
+import { TaskFiles } from "../../lib/api.js";
+import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit } from "../../lib/fileUtils.js";
 
 // ─── BULK TASK CREATOR (stili helper) ──────────────────────────────────────
 const bulkInputStyle = {
@@ -39,23 +41,99 @@ const bulkIconBtnSmall = {
   width: 22, height: 22, cursor: "pointer", fontSize: 13, fontWeight: 700,
   display: "flex", alignItems: "center", justifyContent: "center",
 };
+const bulkAttachBtn = {
+  display: "inline-flex", alignItems: "center", gap: 5,
+  background: "transparent", border: "1px dashed var(--border)", borderRadius: 8,
+  padding: "4px 10px", fontSize: 11.5, fontWeight: 600, color: "var(--text-muted)",
+  fontFamily: "inherit", flexShrink: 0,
+};
+const bulkFileChip = {
+  display: "inline-flex", alignItems: "center", gap: 5,
+  background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 999,
+  padding: "3px 7px 3px 9px", fontSize: 11, maxWidth: 240, minWidth: 0,
+};
+
+// ─── BULK: ALLEGATI DI RIGA ────────────────────────────────────────────────
+// I file scelti qui restano in memoria: l'upload richiede l'UUID definitivo
+// della task (path `<task_id>/…` e policy RLS del bucket 'task-files'), quindi
+// avviene in handleCreate subito dopo la persistenza — stesso schema di
+// QuickAddTask per la creazione singola.
+const RowAttachments = ({ files, onAdd, onRemove, disabled, style }) => {
+  const inputRef = useRef(null);
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, minWidth: 0, ...style }}>
+      <input
+        ref={inputRef}
+        type="file"
+        multiple
+        style={{ display: "none" }}
+        onChange={e => { onAdd(e.target.files); if (inputRef.current) inputRef.current.value = ""; }}
+      />
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => inputRef.current?.click()}
+        title={`Allega file a questa task · max ${formatFileSize(MAX_TASK_FILE_SIZE)} per file`}
+        style={{ ...bulkAttachBtn, opacity: disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "pointer" }}
+      >📎 Allega{files.length > 0 ? ` (${files.length})` : ""}</button>
+      {files.map((f, i) => (
+        <span key={`${f.name}-${i}`} style={bulkFileChip} title={`${f.name} · ${formatFileSize(f.size)}`}>
+          <span style={{ flexShrink: 0 }}>{fileIcon(f.type || f.name)}</span>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{f.name}</span>
+          <span style={{ color: "var(--text-muted)", flexShrink: 0 }}>{formatFileSize(f.size)}</span>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => onRemove(i)}
+            aria-label={`Rimuovi ${f.name}`}
+            title="Rimuovi"
+            style={{
+              background: "none", border: "none", padding: 0, marginLeft: 2, fontSize: 11,
+              color: "var(--text-muted)", flexShrink: 0, cursor: disabled ? "not-allowed" : "pointer",
+            }}
+          >✕</button>
+        </span>
+      ))}
+    </div>
+  );
+};
 
 // ─── BULK: MANUAL TAB ──────────────────────────────────────────────────────
 const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
   const { isMobile } = useViewport();
   const [common, setCommon] = useState({ client: "", category: "booking", priority: "medium", assignee: "", praticaRef: "", contact: "", dueDate: "" });
   const [clientFocus, setClientFocus] = useState(false);
-  const emptyRow = () => ({ key: Math.random().toString(36).slice(2), title: "", description: "", category: "", priority: "", assignee: "", dueDate: "" });
+  const emptyRow = () => ({ key: Math.random().toString(36).slice(2), title: "", description: "", category: "", priority: "", assignee: "", dueDate: "", files: [] });
   const [rows, setRows] = useState([emptyRow(), emptyRow(), emptyRow()]);
+  // Creazione in corso: con allegati il modale resta aperto finché tutti gli
+  // upload non sono finiti, così un errore è visibile invece di sparire.
+  const [busy, setBusy] = useState(false);
+  const [fileError, setFileError] = useState("");
 
   const updateRow = (key, field, value) => setRows(rs => rs.map(r => r.key === key ? { ...r, [field]: value } : r));
   const addRow = () => setRows(rs => [...rs, emptyRow()]);
   const removeRow = (key) => setRows(rs => rs.length > 1 ? rs.filter(r => r.key !== key) : rs);
 
+  // Gli allegati oltre il limite del bucket vengono scartati subito: caricarli
+  // fallirebbe comunque, ma solo a task già create.
+  const addRowFiles = (key, fileList) => {
+    const arr = Array.from(fileList || []);
+    if (!arr.length) return;
+    const tooBig = arr.filter(f => !isWithinSizeLimit(f.size));
+    const ok = arr.filter(f => isWithinSizeLimit(f.size));
+    setFileError(tooBig.length
+      ? `${tooBig.map(f => `"${f.name}"`).join(", ")} super${tooBig.length === 1 ? "a" : "ano"} il limite di ${formatFileSize(MAX_TASK_FILE_SIZE)} per file`
+      : "");
+    if (ok.length) setRows(rs => rs.map(r => r.key === key ? { ...r, files: [...r.files, ...ok] } : r));
+  };
+  const removeRowFile = (key, idx) =>
+    setRows(rs => rs.map(r => r.key === key ? { ...r, files: r.files.filter((_, i) => i !== idx) } : r));
+
   const validRows = rows.filter(r => r.title.trim());
   // Righe con qualche dato ma senza titolo: verrebbero scartate in silenzio.
-  const rowHasData = (r) => r.description.trim() || r.category || r.priority || r.assignee || r.dueDate;
+  const rowHasData = (r) => r.description.trim() || r.category || r.priority || r.assignee || r.dueDate || r.files.length > 0;
   const ignoredRows = rows.filter(r => !r.title.trim() && rowHasData(r));
+  const totalFiles = validRows.reduce((n, r) => n + r.files.length, 0);
 
   // Etichette delle impostazioni comuni, mostrate come valore ereditato nelle
   // righe che non specificano nulla (così l'operatore vede cosa uscirà davvero).
@@ -74,24 +152,56 @@ const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
     !!(common.client.trim() || common.praticaRef.trim() || common.contact.trim() || common.dueDate);
   useEffect(() => { onDirty?.(isDirty); }, [isDirty, onDirty]);
 
-  const handleCreate = () => {
-    const ts = Date.now();
-    const tasks = validRows.map((r, idx) => ({
-      id: "t" + ts + "-" + idx,
-      title: r.title.trim(),
-      category: r.category || common.category,
-      priority: r.priority || common.priority,
-      status: "todo",
-      assignees: (r.assignee || common.assignee) ? [r.assignee || common.assignee] : [],
-      client: common.client.trim() || null,
-      praticaRef: common.praticaRef || null,
-      contact: common.contact.trim() || null,
-      dueDate: r.dueDate ? new Date(r.dueDate).toISOString() : (common.dueDate ? new Date(common.dueDate).toISOString() : null),
-      estimatedHours: 1,
-      description: r.description.trim(),
-      comments: [],
+  const handleCreate = async () => {
+    if (busy) return;
+    // UUID generati qui: dispatch li conserva perché già validi, così
+    // conosciamo l'id definitivo di ogni task e possiamo caricarci gli
+    // allegati (il path nel bucket e la RLS partono dal task_id).
+    const prepared = validRows.map((r) => ({
+      files: r.files,
+      task: {
+        id: crypto.randomUUID(),
+        title: r.title.trim(),
+        category: r.category || common.category,
+        priority: r.priority || common.priority,
+        status: "todo",
+        assignees: (r.assignee || common.assignee) ? [r.assignee || common.assignee] : [],
+        client: common.client.trim() || null,
+        praticaRef: common.praticaRef || null,
+        contact: common.contact.trim() || null,
+        dueDate: r.dueDate ? new Date(r.dueDate).toISOString() : (common.dueDate ? new Date(common.dueDate).toISOString() : null),
+        estimatedHours: 1,
+        description: r.description.trim(),
+        comments: [],
+      },
     }));
-    onCreate(tasks);
+
+    const withFiles = prepared.filter(p => p.files.length > 0);
+    if (withFiles.length) { setBusy(true); setFileError(""); }
+
+    const result = await onCreate(prepared.map(p => p.task));
+
+    // Creazione fallita: niente upload (senza la riga task la RLS del bucket
+    // rifiuterebbe comunque), l'errore lo segnala già il toast di salvataggio.
+    if (!withFiles.length || (result && result.error)) {
+      if (withFiles.length) setBusy(false);
+      onClose();
+      return;
+    }
+
+    for (const { task, files } of withFiles) {
+      for (const f of files) {
+        const { error } = await TaskFiles.upload(f, task.id, { uploadedBy: CURRENT_USER });
+        if (error) {
+          // Le task sono già create: teniamo aperto il modale per dire quale
+          // allegato è rimasto indietro e dove recuperarlo.
+          setFileError(`Task create, ma l'upload di "${f.name}" su "${task.title}" è fallito. Riprova dal dettaglio della task.`);
+          setBusy(false);
+          return;
+        }
+      }
+    }
+    setBusy(false);
     onClose();
   };
 
@@ -240,6 +350,12 @@ const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
                 placeholder="Descrizione (facoltativa)…"
                 style={bulkTextareaStyle}
               />
+              <RowAttachments
+                files={r.files}
+                onAdd={fl => addRowFiles(r.key, fl)}
+                onRemove={i => removeRowFile(r.key, i)}
+                disabled={busy}
+              />
             </div>
           ) : (
             <div key={r.key} style={{ display: "grid", gridTemplateColumns: "26px 1fr 130px 100px 120px 130px 28px", gap: 6, alignItems: "center" }}>
@@ -279,6 +395,15 @@ const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
                 placeholder="Descrizione (facoltativa)…"
                 style={{ ...bulkTextareaStyle, gridColumn: "2 / -2" }}
               />
+              {/* Terza riga della griglia: allegati della singola task, allineati
+                  sotto al titolo come la descrizione. */}
+              <RowAttachments
+                files={r.files}
+                onAdd={fl => addRowFiles(r.key, fl)}
+                onRemove={i => removeRowFile(r.key, i)}
+                disabled={busy}
+                style={{ gridColumn: "2 / -2" }}
+              />
             </div>
           )
         ))}
@@ -291,18 +416,25 @@ const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 10, borderTop: "1px solid var(--border)", flexWrap: "wrap", gap: 8 }}>
         <div style={{ fontSize: 12, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 2 }}>
-          <span>{validRows.length} task da creare</span>
+          <span>
+            {validRows.length} task da creare
+            {totalFiles > 0 && ` · ${totalFiles} allegat${totalFiles === 1 ? "o" : "i"}`}
+          </span>
           {ignoredRows.length > 0 && (
             <span style={{ color: "var(--warning)", fontWeight: 600 }}>
               ⚠ {ignoredRows.length} rig{ignoredRows.length === 1 ? "a" : "he"} senza titolo {ignoredRows.length === 1 ? "verrà ignorata" : "verranno ignorate"}
+              {ignoredRows.some(r => r.files.length > 0) && " (allegati compresi)"}
             </span>
           )}
+          {fileError && <span style={{ color: "var(--danger)", fontWeight: 600 }}>{fileError}</span>}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={onCancel || onClose} style={bulkBtnGhost}>Annulla</button>
-          <button onClick={handleCreate} disabled={validRows.length === 0} style={{
-            ...bulkBtnPrimary, opacity: validRows.length === 0 ? 0.5 : 1, cursor: validRows.length === 0 ? "not-allowed" : "pointer",
-          }}>✓ Crea {validRows.length} task</button>
+          <button onClick={onCancel || onClose} disabled={busy} style={{ ...bulkBtnGhost, opacity: busy ? 0.6 : 1, cursor: busy ? "not-allowed" : "pointer" }}>Annulla</button>
+          <button onClick={handleCreate} disabled={validRows.length === 0 || busy} style={{
+            ...bulkBtnPrimary,
+            opacity: (validRows.length === 0 || busy) ? 0.5 : 1,
+            cursor: (validRows.length === 0 || busy) ? "not-allowed" : "pointer",
+          }}>{busy ? "⏳ Creazione…" : `✓ Crea ${validRows.length} task`}</button>
         </div>
       </div>
     </div>

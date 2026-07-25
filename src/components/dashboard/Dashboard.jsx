@@ -1,6 +1,6 @@
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { SwipeActions } from "../SwipeActions.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
@@ -884,6 +884,16 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
   const [activeQueue, setActiveQueue] = useState("personal");
   const uid = state.currentUserId;
   const role = getRoleType(uid);
+  // Apertura da notifica: il digest della coda globale chiede la tab "global"
+  // (SET_VIEW con action.queue → state.dashboardQueue). Il seq cambia a ogni
+  // richiesta, così il tap funziona anche a tab già visitata. Il Driver non ha
+  // la coda globale: per lui la richiesta viene ignorata (tab inesistente).
+  const queueReq = state.dashboardQueue;
+  useEffect(() => {
+    if (!queueReq?.tab) return;
+    if (queueReq.tab === "global" && role === "driver") return;
+    setActiveQueue(queueReq.tab);
+  }, [queueReq?.tab, queueReq?.seq, role]);
   const me = getMember(uid);
   const allTasks = getActiveTasks(state.tasks);
   // Filtro permessi: solo task visibili all'utente

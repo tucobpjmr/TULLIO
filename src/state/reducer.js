@@ -84,7 +84,15 @@ function baseReducer(state, action) {
       if (action.payload === "admin" && !canAccessAdmin(uid)) {
         return _denied("Non hai i permessi per accedere all'Admin");
       }
-      return { ...state, activeView: action.payload };
+      const next = { ...state, activeView: action.payload };
+      // action.queue: la Dashboard deve aprirsi su una tab coda precisa (il
+      // digest queue_stale punta a "global"). Il seq incrementale serve a far
+      // scattare la selezione anche quando la tab richiesta è la stessa
+      // dell'ultima volta ma nel frattempo l'utente ne ha aperta un'altra.
+      if (action.queue) {
+        next.dashboardQueue = { tab: action.queue, seq: (state.dashboardQueue?.seq ?? 0) + 1 };
+      }
+      return next;
     }
     case "SET_SELECTED_TASK": {
       // Non permettere di aprire un task non visibile
@@ -532,6 +540,9 @@ function makeInitialState({ team, currentUserId } = {}) {
     clients: [],
     activityLog: [],
     activeView: "dashboard",
+    // Richiesta di aprire la Dashboard su una tab coda precisa ({ tab, seq }),
+    // usata dal digest queue_stale nel pannello notifiche. null = nessuna.
+    dashboardQueue: null,
     selectedTask: null,
     toast: null,
     searchQuery: "",

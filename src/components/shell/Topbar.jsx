@@ -369,12 +369,12 @@ export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMa
           <input
             value={state.searchQuery}
             onChange={e => { dispatch({ type: "SET_SEARCH", payload: e.target.value }); setSearchOpen(true); }}
-            onFocus={e => { setSearchOpen(true); e.target.style.background = "rgba(255,255,255,0.65)"; e.target.style.borderColor = "var(--gold)"; }}
-            onBlur={e => { e.target.style.background = "rgba(255,255,255,0.45)"; e.target.style.borderColor = "rgba(15,32,68,0.15)"; }}
+            onFocus={e => { setSearchOpen(true); e.target.style.borderColor = "var(--gold)"; }}
+            onBlur={e => { e.target.style.borderColor = "rgba(15,32,68,0.15)"; }}
             placeholder={isMobile ? "Cerca..." : "Cerca task, clienti, categorie... (Ctrl+K)"}
             aria-label="Cerca"
             style={{
-              width: "100%", background: "rgba(255,255,255,0.45)", border: "1px solid rgba(15,32,68,0.15)",
+              width: "100%", background: "#fff", border: "1px solid rgba(15,32,68,0.15)",
               borderRadius: 8, padding: "7px 12px 7px 36px", color: "var(--navy)", fontSize: 13,
               outline: "none", transition: "all 0.2s", boxSizing: "border-box",
             }}
@@ -396,7 +396,7 @@ export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMa
       {/* Notifications */}
       <div style={{ position: "relative" }}>
         <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{
-          background: "rgba(255,255,255,0.45)", border: "1px solid rgba(15,32,68,0.15)",
+          background: "#fff", border: "1px solid rgba(15,32,68,0.15)",
           borderRadius: 8, width: 36, height: 36, cursor: "pointer",
           display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, position: "relative"
         }}>
@@ -479,7 +479,7 @@ const UserSwitcher = ({ state, dispatch }) => {
         aria-label="Cambia utente loggato"
         style={{
           display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
-          background: "rgba(255,255,255,0.45)", border: "1px solid rgba(15,32,68,0.15)",
+          background: "#fff", border: "1px solid rgba(15,32,68,0.15)",
           borderRadius: 8, padding: "3px 8px 3px 4px", fontFamily: "inherit",
         }}
       >

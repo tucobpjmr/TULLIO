@@ -235,6 +235,12 @@ function ClienteDetailPanel({ cliente, tasks, dispatch, onClose, showListe }) {
   // query, ma mostrare il cliente precedente per un frame è peggio.
   useEffect(() => { setTab("task"); }, [cliente.id]);
 
+  // Se il tab "Liste viaggio" era aperto e nel frattempo l'utente attivo
+  // cambia in un Driver (showListe passa a false), la barra dei tab sparisce
+  // ma senza questo il contenuto già montato resterebbe quello del tab Liste:
+  // il Driver vedrebbe comunque il pannello che non deve poter aprire.
+  useEffect(() => { if (!showListe) setTab("task"); }, [showListe]);
+
   const tabs = [
     { key: "task", label: "Task" },
     ...(showListe ? [{ key: "liste", label: "Liste viaggio" }] : []),

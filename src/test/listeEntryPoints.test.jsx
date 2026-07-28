@@ -97,4 +97,23 @@ describe("Scheda cliente — tab Liste viaggio", () => {
     expect(screen.queryByRole("button", { name: "Liste viaggio" })).toBeNull();
     expect(screen.getByText(/Nessun task associato a questo cliente/)).toBeTruthy();
   });
+
+  // Bug trovato con un giro manuale in browser: passando a un Driver mentre il
+  // tab "Liste viaggio" di un altro cliente era già aperto, la barra dei tab
+  // spariva ma il contenuto montato restava quello del tab Liste — il Driver
+  // vedeva comunque il pannello che non deve poter aprire.
+  it("se il tab Liste era aperto e l'utente diventa Driver, il pannello torna su Task", () => {
+    const dispatch = vi.fn();
+    asUser("marco");
+    const { rerender } = render(<ClientiView state={baseState("marco")} dispatch={dispatch} />);
+    fireEvent.click(screen.getByText("MARIO ROSSI"));
+    fireEvent.click(screen.getByRole("button", { name: "Liste viaggio" }));
+    expect(screen.queryByText(/Nessun task associato a questo cliente/)).toBeNull();
+
+    asUser("giulia");
+    rerender(<ClientiView state={baseState("giulia")} dispatch={dispatch} />);
+
+    expect(screen.queryByRole("button", { name: "Liste viaggio" })).toBeNull();
+    expect(screen.getByText(/Nessun task associato a questo cliente/)).toBeTruthy();
+  });
 });

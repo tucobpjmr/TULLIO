@@ -14,7 +14,7 @@ import { STATUS_LABELS } from "../lib/taskConstants.js";
 import {
   TEAM, CATEGORIES, CURRENT_USER,
   setTeam, setCategories, setCurrentUser,
-  getMember, isAdmin,
+  getMember, isAdmin, isDriver,
   canAccessAdmin, canViewTask, canEditTask, canCreateTaskCategory,
 } from "./appGlobals.js";
 import { INITIAL_TASKS, INITIAL_NOTICES } from "./mockData.js";
@@ -84,7 +84,22 @@ function baseReducer(state, action) {
       if (action.payload === "admin" && !canAccessAdmin(uid)) {
         return _denied("Non hai i permessi per accedere all'Admin");
       }
+      // Il modulo Liste viaggio è precluso al ruolo Driver: la RLS lo blocca
+      // comunque lato DB (migrazione 20260728190100), qui evitiamo di aprire
+      // una vista che mostrerebbe solo errori.
+      if (action.payload === "liste" && isDriver(uid)) {
+        return _denied("Il modulo Liste viaggio non è disponibile per il tuo ruolo");
+      }
       const next = { ...state, activeView: action.payload };
+      // action.lista: apertura mirata di una lista dal tab nella scheda
+      // cliente. Il seq incrementale fa scattare l'apertura anche quando si
+      // richiede due volte di fila la stessa lista (stesso meccanismo di
+      // action.queue qui sotto).
+      if (action.payload === "liste") {
+        next.listeTarget = action.lista
+          ? { id: action.lista, seq: (state.listeTarget?.seq ?? 0) + 1 }
+          : null;
+      }
       // action.queue: la Dashboard deve aprirsi su una tab coda precisa (il
       // digest queue_stale punta a "global"). Il seq incrementale serve a far
       // scattare la selezione anche quando la tab richiesta è la stessa
@@ -93,6 +108,12 @@ function baseReducer(state, action) {
         next.dashboardQueue = { tab: action.queue, seq: (state.dashboardQueue?.seq ?? 0) + 1 };
       }
       return next;
+    }
+    case "CLEAR_LISTE_TARGET": {
+      // Tornando all'elenco dentro il modulo, l'apertura mirata è consumata:
+      // senza azzerarla, rientrare nel modulo riaprirebbe la stessa lista.
+      if (!state.listeTarget) return state;
+      return { ...state, listeTarget: null };
     }
     case "SET_SELECTED_TASK": {
       // Non permettere di aprire un task non visibile
@@ -106,10 +127,14 @@ function baseReducer(state, action) {
       const m = getMember(newId);
       if (!m) return state;
       setCurrentUser(newId);
-      // Se l'utente non può più accedere alla view corrente, riporta a dashboard
-      const activeView = (state.activeView === "admin" && !canAccessAdmin(newId))
-        ? "dashboard"
-        : state.activeView;
+      // Se l'utente non può più accedere alla view corrente, riporta a dashboard.
+      // "liste" ha bisogno dello stesso guard di "admin" e per un motivo in più:
+      // nessuna voce di sidebar/bottom-nav punta al modulo, quindi senza questo
+      // un Driver resterebbe bloccato su una vista che non può né usare né
+      // abbandonare da un elemento di navigazione evidenziato.
+      const viewLocked = (state.activeView === "admin" && !canAccessAdmin(newId))
+        || (state.activeView === "liste" && isDriver(newId));
+      const activeView = viewLocked ? "dashboard" : state.activeView;
       // Sicurezza operativa (v2.8): warning visibile quando si passa a un ruolo
       // privilegiato (admin), per evitare di lasciare la sessione aperta come
       // Admin per errore. Mock UserSwitcher: senza login reale serve un cue chiaro.
@@ -127,6 +152,9 @@ function baseReducer(state, action) {
         ...state,
         currentUserId: newId,
         activeView,
+        // Se la vista è stata riportata a dashboard, l'eventuale apertura
+        // mirata di una lista non ha più un modulo dove essere consumata.
+        listeTarget: viewLocked ? null : state.listeTarget,
         selectedTask: null,
         toast,
         adminRollbackTo,
@@ -543,6 +571,9 @@ function makeInitialState({ team, currentUserId } = {}) {
     // Richiesta di aprire la Dashboard su una tab coda precisa ({ tab, seq }),
     // usata dal digest queue_stale nel pannello notifiche. null = nessuna.
     dashboardQueue: null,
+    // Richiesta di aprire il modulo Liste su una lista precisa ({ id, seq }),
+    // usata dal tab "Liste viaggio" della scheda cliente. null = elenco.
+    listeTarget: null,
     selectedTask: null,
     toast: null,
     searchQuery: "",

@@ -1001,6 +1001,26 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
             )}
           </div>
         </div>
+
+        {/* Accesso al modulo Liste viaggio. Vive qui, nello slot destro
+            dell'header, e non in sidebar/bottom-nav: la bottom bar mobile ha
+            già 7-8 voci a seconda del ruolo e una in più scenderebbe sotto i
+            44px di touch target. Gating come showGlobalQueue/showUrgent. */}
+        {role !== "driver" && (
+          <button
+            onClick={() => dispatch({ type: "SET_VIEW", payload: "liste" })}
+            className="hover-lift"
+            style={{
+              padding: isMobile ? "8px 14px" : "10px 18px", borderRadius: 9,
+              border: "1px solid var(--border)", background: "var(--card)",
+              color: "var(--navy)", cursor: "pointer", fontFamily: "inherit",
+              fontSize: isMobile ? 13 : 14, fontWeight: 600,
+              display: "inline-flex", alignItems: "center", gap: 7, flexShrink: 0,
+            }}
+          >
+            🧾 Liste viaggio
+          </button>
+        )}
       </div>
 
       {/* ─── BACHECA AVVISI ─── */}

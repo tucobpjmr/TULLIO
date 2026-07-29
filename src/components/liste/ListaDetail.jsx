@@ -10,6 +10,8 @@ import {
 import {
   BulkMovimentiModal, EditListaModal, EditMovimentoModal, SegnoSeg,
 } from "./listeModals.jsx";
+import { RiepilogoClienteModal } from "./listeDocModals.jsx";
+import { docHtml, downloadDoc, nomeFileDoc } from "../../lib/listeExport.js";
 
 // Riquadro "Nuovo movimento": sta in cima al foglio e si apre col tasto ＋
 // della barra. In fondo alla pagina, su liste lunghe, richiedeva di scorrere
@@ -319,6 +321,17 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
     },
   });
 
+  // Copia a uso interno: porta con sé i metodi di pagamento e lo storico di
+  // chi ha modificato cosa. Da non consegnare al cliente — per quello c'è il
+  // riepilogo, che entrambi omette.
+  const copiaAgente = () => {
+    downloadDoc(
+      nomeFileDoc(lista, "_COPIA_AGENTE"),
+      docHtml(lista, movimenti, history, usersById),
+    );
+    dispatch({ type: "SHOW_TOAST", payload: { type: "success", message: "Copia agente scaricata (Word)" } });
+  };
+
   const cell = (m, campo, className, content) => (
     <td
       className={`${className} editable`}
@@ -355,6 +368,8 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
         )}
         <button className="lv-btn" onClick={() => setModal("editLista")}>✎ Modifica dati</button>
         <button className="lv-btn" onClick={toggleStato}>{attiva ? "Segna ESAURITA" : "Riapri lista"}</button>
+        <button className="lv-btn" onClick={() => setModal("riepilogo")}>Riepilogo cliente</button>
+        <button className="lv-btn" onClick={copiaAgente}>Copia agente</button>
         <div style={{ flex: 1 }} />
         <button className="lv-btn danger sm" onClick={cestina}>🗑 Cestina</button>
       </div>
@@ -489,6 +504,15 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
               return true;
             },
           }}
+        />
+      )}
+
+      {modal === "riepilogo" && (
+        <RiepilogoClienteModal
+          lista={lista}
+          movimenti={movimenti}
+          onClose={() => setModal(null)}
+          onToast={(type, message) => dispatch({ type: "SHOW_TOAST", payload: { type, message } })}
         />
       )}
 

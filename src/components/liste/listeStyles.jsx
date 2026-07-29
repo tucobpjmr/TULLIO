@@ -162,6 +162,40 @@ export const ListeStyles = () => (
     .lv-overlay .lv-bulk-tot b.pos{color:#157F3D}
     .lv-overlay .lv-bulk-tot b.neg{color:#B23A2E}
 
+    /* ---------- riepilogo cliente (anteprima e stampa) ---------- */
+    /* Documento che si consegna al cliente: nessuna colonna Metodo e nessuno
+       storico — quelle sono informazioni interne, stanno nella copia agente. */
+    .lv-root .lv-riep{padding:2px}
+    .lv-root .lv-riep-brand{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--lv-muted);font-weight:600}
+    .lv-root .lv-riep h2{font-size:19px;margin:6px 0 16px;font-weight:700}
+    .lv-root .lv-riep-cliente{font-size:17px;font-weight:700;letter-spacing:-.01em}
+    .lv-root .lv-riep-tit{color:var(--lv-muted);font-size:14px;margin-top:3px}
+    .lv-root table.lv-riep-mov{width:100%;border-collapse:collapse;margin-top:18px}
+    .lv-root table.lv-riep-mov th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--lv-muted);text-align:left;padding:8px 10px;border-bottom:1px solid var(--lv-border);font-weight:600}
+    .lv-root table.lv-riep-mov td{padding:10px;border-bottom:1px solid #EEF0F3;vertical-align:top}
+    .lv-root table.lv-riep-mov .dt{white-space:nowrap;color:var(--lv-muted);font-size:13px;width:96px;font-variant-numeric:tabular-nums}
+    .lv-root table.lv-riep-mov .imp{text-align:right;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
+    .lv-root table.lv-riep-mov .imp.pos{color:var(--lv-pos)}
+    .lv-root table.lv-riep-mov .imp.neg{color:var(--lv-neg)}
+    .lv-root .lv-riep-vuoto{margin-top:18px;color:var(--lv-muted);font-size:14px}
+    .lv-root .lv-riep-saldo{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-top:18px;padding-top:12px;border-top:2px solid var(--lv-border);font-size:15px}
+    .lv-root .lv-riep-saldo b{font-size:21px;font-weight:700}
+    .lv-root .lv-riep-esaurita{margin-top:14px;border:2px solid var(--lv-stamp);color:var(--lv-stamp);font-weight:700;letter-spacing:.08em;text-align:center;padding:6px;border-radius:6px}
+    .lv-root .lv-riep-foot{margin-top:20px;font-size:11px;color:var(--lv-muted)}
+
+    /* ---------- stampa ---------- */
+    /* Il riepilogo è montato in un portal figlio diretto di <body> proprio per
+       poter nascondere tutto il resto: sidebar e topbar sono ANTENATI della
+       vista, non fratelli, e da dentro l'albero non sarebbero escludibili. */
+    @media print{
+      body.lv-printing > *:not(#lv-print-root){display:none!important}
+      body.lv-printing #lv-print-root{background:#fff}
+      body.lv-printing #lv-print-root .lv-overlay{position:static;background:none;padding:0;display:block}
+      body.lv-printing #lv-print-root .lv-modal{max-width:none;width:auto;max-height:none;overflow:visible;padding:0;border-radius:0;box-shadow:none}
+      body.lv-printing .no-print{display:none!important}
+      @page{margin:16mm}
+    }
+
     @media (max-width:560px){
       .lv-root table.lv-mov .met{display:none}
       .lv-root .lv-met-inline{display:block}

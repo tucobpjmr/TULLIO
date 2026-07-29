@@ -12,13 +12,17 @@
 // Il CONTENUTO mantiene di proposito lo stile originale (blu #0F4C81, font
 // Inter, impaginazione "foglio cartaceo"); solo la chrome di navigazione —
 // breadcrumb e testata — segue lo stile Tullio (navy/oro, Playfair).
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { getRoleType } from "../../state/appGlobals.js";
-import { ListeAPI, eur, fmtDate, runListeCall, saldoClass } from "../../lib/listeApi.js";
+import { ListeAPI, eur, fmtDate, runListeCall, saldoClass, todayISO } from "../../lib/listeApi.js";
+import {
+  buildBackup, docHtml, downloadBlob, downloadJson, leggiBackup, nomeFileDoc,
+} from "../../lib/listeExport.js";
 import { ListeStyles } from "./listeStyles.jsx";
 import { ListaDetail } from "./ListaDetail.jsx";
 import { NuovaListaModal } from "./listeModals.jsx";
+import { ResetTotaleModal, StrumentiDatiModal } from "./listeDocModals.jsx";
 
 const HOME_PAGE_SIZE = 10;
 
@@ -120,6 +124,22 @@ export function ListeViaggio({ state, dispatch }) {
   const [limit, setLimit] = useState(HOME_PAGE_SIZE);
   const [nuovaOpen, setNuovaOpen] = useState(false);
 
+  // Strumenti dati: export, backup e reset. `busy` blocca i comandi durante
+  // un'operazione lunga (l'export massivo carica tutte le liste).
+  const [strumentiOpen, setStrumentiOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [confirmBox, setConfirmBox] = useState(null); // { title, body, cta, danger, onOk }
+  const fileRef = useRef(null);
+
+  // Operazioni irreversibili, ristrette per ruolo: il reset azzera l'archivio
+  // dell'intera agenzia, l'hard delete distrugge una lista e il suo storico
+  // senza lasciare traccia. Il gate è nell'interfaccia — lato DB le RPC sono
+  // concesse a ogni utente autenticato, quindi è difesa in profondità e non
+  // la garanzia (chiuderlo lato DB è il lavoro di hardening previsto).
+  const canReset = role === "admin";
+  const canHardDelete = role === "admin" || role === "manager";
+
   // L'anagrafica clienti e il team sono già idratati nello state globale
   // dell'app (stesse tabelle `clients`/`users` del modulo): li riusiamo invece
   // di rifare le due query che faceva la SPA.
@@ -213,6 +233,134 @@ export function ListeViaggio({ state, dispatch }) {
   const ripristina = async (id) => {
     const { ok } = await runListeCall(dispatch, ListeAPI.ripristina(id), "Lista ripristinata");
     if (ok) await loadHome();
+  };
+
+  const toast = useCallback(
+    (type, message) => dispatch({ type: "SHOW_TOAST", payload: { type, message } }),
+    [dispatch],
+  );
+
+  // Hard delete definitivo di una lista già nel cestino: sparisce anche il suo
+  // storico, quindi la conferma nomina la lista invece di chiedere un sì
+  // generico.
+  const chiediEliminaDef = (lista) => setConfirmBox({
+    title: "Eliminare definitivamente?",
+    body: `"${lista.clients?.name || "questa lista"}" e tutti i suoi movimenti e storico verranno eliminati per sempre. L'operazione non è reversibile e non lascia traccia.`,
+    cta: "Elimina per sempre",
+    danger: true,
+    onOk: async () => {
+      setConfirmBox(null);
+      const { ok } = await runListeCall(
+        dispatch, ListeAPI.eliminaDefinitivamente(lista.id), "Lista eliminata definitivamente",
+      );
+      if (ok) await loadHome();
+    },
+  });
+
+  // ─── strumenti dati ───────────────────────────────────────────────────
+  // Un documento Word per lista, raccolti in uno ZIP. JSZip pesa ~100 KB ed è
+  // importato qui dinamicamente: entra nel bundle solo di chi preme il tasto.
+  const exportAll = async () => {
+    setBusy(true);
+    toast("success", "Preparo l’archivio…");
+    try {
+      const [rMovs, { default: JSZip }] = await Promise.all([
+        ListeAPI.movimentiTutti(),
+        import("jszip"),
+      ]);
+      if (rMovs.error) throw rMovs.error;
+
+      const perLista = new Map();
+      for (const m of rMovs.data || []) {
+        if (!perLista.has(m.lista_id)) perLista.set(m.lista_id, []);
+        perLista.get(m.lista_id).push(m);
+      }
+
+      const zip = new JSZip();
+      for (const l of liste) {
+        // L'export massivo non include lo storico: richiederebbe una query per
+        // lista. Chi vuole anche quello usa "Copia agente" sulla singola lista.
+        const nome = nomeFileDoc(l, l.stato === "esaurita" ? "_ESAURITA" : "");
+        // \uFEFF e' il BOM che fa riconoscere a Word il file come UTF-8:
+        // senza, le lettere accentate arrivano illeggibili.
+        zip.file(nome, `\uFEFF${docHtml(l, perLista.get(l.id) || [])}`);
+      }
+      const blob = await zip.generateAsync({ type: "blob" });
+      downloadBlob(`liste_viaggio_${todayISO()}.zip`, blob);
+      toast("success", `Archivio scaricato: ${liste.length} liste`);
+      setStrumentiOpen(false);
+    } catch (ex) {
+      console.error("[liste] export massivo", ex);
+      toast("error", `Errore: ${ex?.message || ex}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Il backup fotografa le tabelle intere, cestino compreso: serve a poter
+  // tornare indietro davvero.
+  const scaricaBackup = async () => {
+    setBusy(true);
+    toast("success", "Preparo il backup…");
+    try {
+      const [rc, rl, rm] = await Promise.all([
+        ListeAPI.allClients(), ListeAPI.allListe(), ListeAPI.allMovimenti(),
+      ]);
+      const failed = [rc, rl, rm].find((r) => r.error);
+      if (failed) throw failed.error;
+      const backup = buildBackup(rc.data, rl.data, rm.data);
+      downloadJson(`backup_liste_viaggio_${todayISO()}.json`, backup);
+      toast("success", `Backup scaricato: ${backup.liste.length} liste, ${backup.movimenti.length} movimenti`);
+      setStrumentiOpen(false);
+    } catch (ex) {
+      console.error("[liste] backup", ex);
+      toast("error", `Errore: ${ex?.message || ex}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Il file input vive fuori dalla modale: chiudendola durante la scelta del
+  // file, l'elemento resterebbe smontato e l'evento change andrebbe perso.
+  const onBackupFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // permette di ricaricare due volte lo stesso file
+    if (!file || busy) return;
+
+    const esito = leggiBackup(await file.text());
+    if (!esito.ok) return toast("error", esito.errore);
+
+    const { clients, liste: bListe, movimenti } = esito.payload;
+    const importa = async () => {
+      setConfirmBox(null);
+      setBusy(true);
+      const { ok, data } = await runListeCall(dispatch, ListeAPI.importaBackup(esito.payload), null);
+      setBusy(false);
+      if (!ok) return;
+      toast("success", `Backup caricato: +${data.clients_added} clienti, +${data.liste_added} liste, +${data.movimenti_added} movimenti`);
+      setStrumentiOpen(false);
+      await loadHome();
+    };
+
+    setConfirmBox({
+      title: esito.sospetto ? "File non riconosciuto" : "Caricare il backup?",
+      body: esito.sospetto
+        ? `Il file non sembra un backup di questo modulo. Contiene ${bListe.length} liste e ${movimenti.length} movimenti: provare comunque a caricarlo?`
+        : `${bListe.length} liste, ${movimenti.length} movimenti e ${clients.length} clienti verranno AGGIUNTI a quelli esistenti. I duplicati vengono saltati e nulla viene cancellato.`,
+      cta: "Carica",
+      danger: esito.sospetto,
+      onOk: importa,
+    });
+  };
+
+  const resetTotale = async (conferma) => {
+    const { ok, data } = await runListeCall(dispatch, ListeAPI.resetCompleto(conferma), null);
+    if (!ok) return false;
+    toast("success", `Reset eseguito: ${data.liste_deleted} liste e ${data.movimenti_deleted} movimenti eliminati`);
+    setResetOpen(false);
+    setStrumentiOpen(false);
+    await loadHome();
+    return true;
   };
 
   // ─── chrome di navigazione (stile Tullio) ───
@@ -313,6 +461,7 @@ export function ListeViaggio({ state, dispatch }) {
                   </select>
                 </label>
                 <button className="lv-btn primary" onClick={() => setNuovaOpen(true)}>+ Nuova lista</button>
+                <button className="lv-btn" onClick={() => setStrumentiOpen(true)}>Strumenti dati</button>
               </div>
 
               <div className="lv-card">
@@ -326,6 +475,11 @@ export function ListeViaggio({ state, dispatch }) {
                   visibili.map((l) => (
                     <ListaRow key={l.id} lista={l} saldo={saldi[l.id]} trashed>
                       <button className="lv-btn sm" onClick={() => ripristina(l.id)}>Ripristina</button>
+                      {canHardDelete && (
+                        <button className="lv-btn danger sm" onClick={() => chiediEliminaDef(l)}>
+                          Elimina
+                        </button>
+                      )}
                     </ListaRow>
                   ))
                 ) : (
@@ -362,6 +516,51 @@ export function ListeViaggio({ state, dispatch }) {
                 },
               }}
             />
+          )}
+
+          {/* Fuori dalla modale di proposito: chiudendola mentre il selettore
+              di file è aperto, l'input verrebbe smontato e l'evento change
+              perso senza alcun segnale all'utente. */}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={onBackupFile}
+          />
+
+          {strumentiOpen && (
+            <StrumentiDatiModal
+              canReset={canReset}
+              busy={busy}
+              onExportAll={exportAll}
+              onScarica={scaricaBackup}
+              onCarica={() => fileRef.current?.click()}
+              onReset={() => setResetOpen(true)}
+              onClose={() => setStrumentiOpen(false)}
+            />
+          )}
+
+          {resetOpen && (
+            <ResetTotaleModal onConfirm={resetTotale} onClose={() => setResetOpen(false)} />
+          )}
+
+          {confirmBox && (
+            <div className="lv-overlay" onClick={() => setConfirmBox(null)}>
+              <div className="lv-modal" onClick={(e) => e.stopPropagation()}>
+                <h2>{confirmBox.title}</h2>
+                <p style={{ fontSize: 14, color: "var(--lv-muted)" }}>{confirmBox.body}</p>
+                <div className="actions">
+                  <button className="lv-btn" onClick={() => setConfirmBox(null)}>Annulla</button>
+                  <button
+                    className={`lv-btn ${confirmBox.danger ? "danger" : "primary"}`}
+                    onClick={confirmBox.onOk}
+                  >
+                    {confirmBox.cta}
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </div>

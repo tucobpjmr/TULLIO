@@ -1,14 +1,15 @@
 // src/components/clients/ClientiView.jsx
 // Anagrafica Clienti — Fase 1 modello dati.
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { StatusBadge } from "../ui/StatusBadge.jsx";
 import { ContactActions } from "../ui/ContactActions.jsx";
 import { formatDate, isActiveTask } from "../../lib/taskUtils.js";
-import { CATEGORIES, CURRENT_USER, canViewTask } from "../../state/appGlobals.js";
+import { CATEGORIES, CURRENT_USER, canViewTask, getRoleType } from "../../state/appGlobals.js";
 import { ClientImportModal } from "./ClientImportModal.jsx";
+import { ClienteListePanel } from "../liste/ClienteListePanel.jsx";
 
 const EMPTY_FORM = { name: "", email: "", phone: "", address: "", city: "", notes: "" };
 
@@ -163,8 +164,10 @@ function ClienteCard({ cliente, onEdit, onDelete, onSelect, selected }) {
   );
 }
 
-// Panel task collegati al cliente selezionato (v2.8 Round 9)
-function ClienteTaskPanel({ cliente, tasks, dispatch, onClose }) {
+// Task collegati al cliente selezionato (v2.8 Round 9). Dal porting del modulo
+// Liste viaggio il pannello contestuale ha due tab: questo è il contenuto del
+// primo, la testata e la barra tab stanno in ClienteDetailPanel.
+function ClienteTaskTab({ cliente, tasks, dispatch }) {
   const uid = CURRENT_USER;
   const clientTasks = useMemo(() => {
     const q = (cliente.name || "").toLowerCase();
@@ -178,24 +181,14 @@ function ClienteTaskPanel({ cliente, tasks, dispatch, onClose }) {
   const open = clientTasks.filter(t => t.status !== "done");
   const done = clientTasks.filter(t => t.status === "done");
   return (
-    <div className="slide-up" style={{
-      background: "var(--card)", borderRadius: 12, padding: "20px 22px",
-      border: "1px solid var(--border)", boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
-      marginTop: 6, marginBottom: 8,
-    }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-        <div>
-          <span className="playfair" style={{ fontWeight: 700, fontSize: 16 }}>Task di {cliente.name}</span>
-          <div style={{ display: "flex", gap: 12, marginTop: 4, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
-              {open.length} aperti
-            </span>
-            <span style={{ fontSize: 12, color: "var(--success)" }}>
-              {done.length} completati
-            </span>
-          </div>
-        </div>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
+    <>
+      <div style={{ display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+          {open.length} aperti
+        </span>
+        <span style={{ fontSize: 12, color: "var(--success)" }}>
+          {done.length} completati
+        </span>
       </div>
 
       {clientTasks.length === 0 ? (
@@ -227,6 +220,66 @@ function ClienteTaskPanel({ cliente, tasks, dispatch, onClose }) {
           ))}
         </div>
       )}
+    </>
+  );
+}
+
+// Pannello contestuale del cliente selezionato: testata + tab.
+// Il tab "Liste viaggio" è il secondo punto d'ingresso al modulo Liste (il
+// primo è il bottone nell'header della Dashboard). Il modulo non ha una voce
+// di sidebar/bottom-nav: si arriva da qui e da lì.
+function ClienteDetailPanel({ cliente, tasks, dispatch, onClose, showListe }) {
+  const [tab, setTab] = useState("task");
+
+  // Cambiando cliente si riparte dal tab Task: il tab Liste rifà comunque la
+  // query, ma mostrare il cliente precedente per un frame è peggio.
+  useEffect(() => { setTab("task"); }, [cliente.id]);
+
+  // Se il tab "Liste viaggio" era aperto e nel frattempo l'utente attivo
+  // cambia in un Driver (showListe passa a false), la barra dei tab sparisce
+  // ma senza questo il contenuto già montato resterebbe quello del tab Liste:
+  // il Driver vedrebbe comunque il pannello che non deve poter aprire.
+  useEffect(() => { if (!showListe) setTab("task"); }, [showListe]);
+
+  const tabs = [
+    { key: "task", label: "Task" },
+    ...(showListe ? [{ key: "liste", label: "Liste viaggio" }] : []),
+  ];
+
+  return (
+    <div className="slide-up" style={{
+      background: "var(--card)", borderRadius: 12, padding: "20px 22px",
+      border: "1px solid var(--border)", boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
+      marginTop: 6, marginBottom: 8,
+    }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+        <span className="playfair" style={{ fontWeight: 700, fontSize: 16 }}>{cliente.name}</span>
+        <button onClick={onClose} aria-label="Chiudi il pannello" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
+      </div>
+
+      {tabs.length > 1 && (
+        <div style={{ display: "flex", gap: 4, marginBottom: 14, borderBottom: "1px solid var(--border)" }}>
+          {tabs.map(t => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setTab(t.key)}
+              style={{
+                padding: "8px 14px", border: "none", background: "none",
+                cursor: "pointer", fontSize: 13, fontFamily: "inherit",
+                fontWeight: tab === t.key ? 700 : 500,
+                color: tab === t.key ? "var(--navy)" : "var(--text-muted)",
+                borderBottom: `2px solid ${tab === t.key ? "var(--gold)" : "transparent"}`,
+                marginBottom: -1,
+              }}
+            >{t.label}</button>
+          ))}
+        </div>
+      )}
+
+      {tab === "liste"
+        ? <ClienteListePanel cliente={cliente} dispatch={dispatch} />
+        : <ClienteTaskTab cliente={cliente} tasks={tasks} dispatch={dispatch} />}
     </div>
   );
 }
@@ -249,6 +302,11 @@ export function ClientiView({ state, dispatch, loading = false }) {
   const [importOpen, setImportOpen] = useState(false);
 
   const clients = state.clients || [];
+
+  // Il modulo Liste viaggio è precluso al ruolo Driver (RLS lato DB, migrazione
+  // 20260728190100): senza questo gate il tab comparirebbe e mostrerebbe solo
+  // una lista vuota filtrata dalle policy.
+  const showListe = getRoleType(state.currentUserId) !== "driver";
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -375,13 +433,14 @@ export function ClientiView({ state, dispatch, loading = false }) {
         </div>
       )}
 
-      {/* Task del cliente selezionato (v2.8 Round 9) */}
+      {/* Pannello del cliente selezionato (v2.8 Round 9): task + liste viaggio */}
       {selectedClient && (
-        <ClienteTaskPanel
+        <ClienteDetailPanel
           cliente={selectedClient}
           tasks={state.tasks || []}
           dispatch={dispatch}
           onClose={() => setSelectedClient(null)}
+          showListe={showListe}
         />
       )}
 

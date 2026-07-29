@@ -79,6 +79,13 @@ const AdminView = lazy(() =>
   import("./components/admin/AdminView.jsx").then(m => ({ default: m.AdminView }))
 );
 
+// Modulo Liste viaggio: nessuna voce di nav ci punta (si arriva dal bottone in
+// Dashboard e dal tab nella scheda cliente) e il Driver non vi accede affatto,
+// quindi è un candidato naturale al lazy-load come AdminView.
+const ListeViaggio = lazy(() =>
+  import("./components/liste/ListeViaggio.jsx").then(m => ({ default: m.ListeViaggio }))
+);
+
 // ─── XLSX LAZY LOADER ──────────────────────────────────────────────────────
 // loadXLSX → src/lib/xlsx.js (Step P Phase 2f)
 
@@ -1427,6 +1434,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       case "archivio":   return <Archive state={state} dispatch={dispatch} />;
       case "trash":      return <Trash state={state} dispatch={dispatch} />;
       case "admin":      return <AdminView state={state} dispatch={dispatch} />;
+      case "liste":      return <ListeViaggio state={state} dispatch={dispatch} />;
       default:           return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
     }
   };
@@ -1456,8 +1464,9 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
           <Sidebar state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} onOpenChat={() => { setChatIntent(null); setShowChat(true); }} unreadChat={unreadChat} />
           <main className="vd-main-scroll" style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
-            {/* Suspense per la vista attiva: solo AdminView è lazy (Phase 2g),
-                le altre viste risolvono sincronicamente. */}
+            {/* Suspense per la vista attiva: solo AdminView (Phase 2g) e il
+                modulo Liste viaggio sono lazy, le altre viste risolvono
+                sincronicamente. */}
             <Suspense fallback={<LazyFallback />}>
               {renderView()}
             </Suspense>

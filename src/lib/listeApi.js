@@ -115,6 +115,40 @@ export const ListeAPI = {
   // Soft delete del movimento: resta in tabella con deleted_at valorizzato e
   // una voce nello storico.
   annullaMovimento: (id) => supabase.rpc('annulla_movimento_lista', { p_id: id }),
+
+  // ── Cestino: hard delete e strumenti dati ──
+  // Le tre RPC seguenti sono SECURITY DEFINER lato DB (bypassano la RLS di
+  // proposito) e hanno un controllo di ruolo esplicito nel loro corpo:
+  // elimina_lista_definitivamente/importaBackup per admin/manager/agent,
+  // resetCompleto solo per admin (vedi migrazione 20260728190100). Il client
+  // non duplica quel controllo se non nella UI (bottone Reset nascosto ai
+  // non-admin): il gate che conta resta quello nel database.
+  eliminaDefinitiva: (id) => supabase.rpc('elimina_lista_definitivamente', { p_id: id }),
+
+  importaBackup: (payload) => supabase.rpc('importa_backup', { p_data: payload }),
+
+  resetCompleto: (conferma) => supabase.rpc('reset_completo', { p_conferma: conferma }),
+
+  // Dati grezzi per il backup JSON scaricabile: le stesse tre tabelle che
+  // esportava la SPA sorgente. Non passa da una RPC: sono semplici SELECT,
+  // già coperte dalla RLS del modulo (admin/manager/agent).
+  backupData: async () => {
+    const [rClients, rListe, rMovimenti] = await Promise.all([
+      supabase.from('clients').select('*'),
+      supabase.from('liste_viaggio').select('*'),
+      supabase.from('movimenti_lista').select('*'),
+    ]);
+    const failed = [rClients, rListe, rMovimenti].find((r) => r.error);
+    if (failed) return { data: null, error: failed.error };
+    return {
+      data: {
+        clients: rClients.data || [],
+        liste: rListe.data || [],
+        movimenti: rMovimenti.data || [],
+      },
+      error: null,
+    };
+  },
 };
 
 // Esegue una chiamata (query o RPC) e instrada l'esito nel Toast dell'app.
@@ -184,4 +218,71 @@ export const parseImporto = (raw, segno = 1) => {
   const n = parseFloat(String(raw ?? '').replace(',', '.'));
   if (!n || Number.isNaN(n)) return null;
   return Math.abs(n) * (segno < 0 ? -1 : 1);
+};
+
+// ─── export "copia agente" (Word) e riepilogo cliente (SPA sorgente) ──────
+// Qui si costruisce HTML come stringa (non JSX): a differenza del rendering
+// React, non c'è escaping automatico, quindi va fatto a mano prima di
+// interpolare testo libero (descrizione, nome cliente...) nel markup.
+const escHtml = (s) => (s ?? '').toString().replace(/[&<>"']/g, (c) => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+}[c]));
+
+// Documento a uso interno (Word/.doc via HTML con namespace `w:`): include
+// metodo di pagamento e, se passato lo storico, il registro di chi ha
+// modificato cosa e quando. Il riepilogo per il cliente è un'altra cosa
+// (niente metodi di pagamento, niente storico): vedi riepilogoTesto.
+export const docHtml = (lista, movimenti, storico, usersById = {}) => {
+  const rows = movimenti.map((m) => `
+    <tr>
+      <td style="width:90px">${fmtDate(m.data_movimento)}</td>
+      <td>${escHtml(m.descrizione)}</td>
+      <td style="width:110px;text-align:right">${Number(m.importo) < 0 ? '-' : ''}€ ${Math.abs(Number(m.importo)).toLocaleString('it-IT', { minimumFractionDigits: 2 })}</td>
+      <td style="width:80px">${m.metodo ? escHtml(m.metodo.toUpperCase()) : ''}</td>
+    </tr>`).join('');
+  const saldo = movimenti.reduce((s, m) => s + Number(m.importo), 0);
+  const storicoHtml = storico && storico.length ? `
+    <h2 style="font-size:12pt;margin-top:18pt">Storico modifiche</h2>
+    <table>${storico.map((h) => `
+      <tr>
+        <td style="width:120px;font-size:9pt">${new Date(h.created_at).toLocaleString('it-IT')}</td>
+        <td style="width:110px;font-size:9pt">${escHtml(usersById[h.actor_id] || '—')}</td>
+        <td style="font-size:9pt">${escHtml(actionLabel(h.action))}${h.old_value ? ` — da: ${escHtml(h.old_value)}` : ''}${h.new_value ? ` — a: ${escHtml(h.new_value)}` : ''}</td>
+      </tr>`).join('')}</table>` : '';
+  return `<html xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8">
+    <style>body{font-family:Calibri,Arial,sans-serif;font-size:12pt}table{border-collapse:collapse;width:100%}td{padding:4pt 6pt;border-bottom:0.5pt solid #ccc}h1{font-size:14pt}</style>
+    </head><body>
+    <h1>LISTA ${escHtml(lista.clients?.name || '')}</h1>
+    ${lista.titolo ? `<p><i>${escHtml(lista.titolo)}</i></p>` : ''}
+    <p style="font-size:9pt;color:#B23A2E;letter-spacing:.06em"><b>COPIA AGENTE — USO INTERNO</b></p>
+    <table>${rows}</table>
+    <p style="margin-top:14pt"><b>SALDO: € ${saldo.toLocaleString('it-IT', { minimumFractionDigits: 2 })}</b></p>
+    ${lista.stato === 'esaurita' ? '<p style="color:#C0392B"><b>LISTA ESAURITA</b></p>' : ''}
+    ${storicoHtml}
+    <p style="font-size:9pt;color:#888">Esportato il ${new Date().toLocaleDateString('it-IT')} — Gestione Liste Viaggio</p>
+    </body></html>`;
+};
+
+// Testo semplice per il riepilogo cliente (condivisione via navigator.share o
+// clipboard): niente metodi di pagamento, niente storico.
+export const riepilogoTesto = (lista, movimenti) => {
+  const righe = movimenti.map((m) => `${fmtDate(m.data_movimento)}  ${m.descrizione}  ${eur(m.importo)}`).join('\n');
+  const saldo = movimenti.reduce((s, m) => s + Number(m.importo), 0);
+  return `RIEPILOGO BUONO VIAGGIO\n${lista.clients?.name || ''}${lista.titolo ? ' — ' + lista.titolo : ''}\n\n`
+    + (righe || 'Nessun movimento registrato.')
+    + `\n\nSALDO: ${eur(saldo)}`
+    + (lista.stato === 'esaurita' ? '\n\nLISTA ESAURITA' : '');
+};
+
+// Innesca il download lato client di un Blob già pronto (doc Word, JSON di
+// backup...). Stesso pattern di `downloadFile` in AdminView.jsx.
+export const downloadBlob = (blob, filename) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 500);
 };

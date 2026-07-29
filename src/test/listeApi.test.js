@@ -8,7 +8,9 @@ import { describe, it, expect, vi } from "vitest";
 // api.test.js, il client è mockato e mai usato.
 vi.mock("../lib/supabase", () => ({ supabase: {}, default: {} }));
 
-const { eur, fmtDate, parseImporto, saldoClass, todayISO } = await import("../lib/listeApi.js");
+const {
+  docHtml, eur, fmtDate, parseImporto, riepilogoTesto, saldoClass, todayISO,
+} = await import("../lib/listeApi.js");
 const { ordinaListe } = await import("../components/liste/ListeViaggio.jsx");
 
 describe("listeApi — formattazione", () => {
@@ -100,5 +102,70 @@ describe("ordinaListe", () => {
     const originale = [...liste];
     ordinaListe(liste, saldi, "nome");
     expect(liste).toEqual(originale);
+  });
+});
+
+// docHtml costruisce a mano una stringa HTML (non JSX): a differenza del
+// rendering React qui l'escaping non è automatico, quindi vale la pena
+// verificarlo esplicitamente — un nome cliente o una descrizione con `<`/`&`
+// non deve rompere il markup del documento Word generato.
+describe("docHtml — export Word 'copia agente'", () => {
+  const lista = { clients: { name: 'ROSSI & <FIGLI>' }, titolo: "Buono 2026", stato: "attiva" };
+  const movimenti = [
+    { data_movimento: "2026-07-01", descrizione: "Acconto <iniziale>", importo: 100, metodo: "bonifico" },
+    { data_movimento: "2026-07-10", descrizione: "Prelievo", importo: -30, metodo: null },
+  ];
+
+  it("include cliente, movimenti e saldo, con il testo HTML-escaped", () => {
+    const html = docHtml(lista, movimenti, [], {});
+    expect(html).toContain("LISTA ROSSI &amp; &lt;FIGLI&gt;");
+    expect(html).toContain("Acconto &lt;iniziale&gt;");
+    expect(html).not.toContain("<iniziale>");
+    expect(html).toContain("COPIA AGENTE");
+    expect(html).toContain("SALDO: € 70,00");
+    expect(html).toContain("BONIFICO");
+  });
+
+  it("segna LISTA ESAURITA solo se lo stato lo è", () => {
+    expect(docHtml(lista, movimenti, [], {})).not.toContain("LISTA ESAURITA");
+    expect(docHtml({ ...lista, stato: "esaurita" }, movimenti, [], {})).toContain("LISTA ESAURITA");
+  });
+
+  it("include lo storico modifiche risolvendo l'attore per nome, quando presente", () => {
+    const storico = [{ actor_id: "u1", action: "lista_creata", created_at: "2026-07-01T10:00:00Z" }];
+    const html = docHtml(lista, movimenti, storico, { u1: "Marco Rossi" });
+    expect(html).toContain("Storico modifiche");
+    expect(html).toContain("Marco Rossi");
+    expect(html).toContain("ha creato la lista");
+  });
+
+  it("omette la sezione storico se vuota o assente", () => {
+    expect(docHtml(lista, movimenti, [], {})).not.toContain("Storico modifiche");
+    expect(docHtml(lista, movimenti, undefined, {})).not.toContain("Storico modifiche");
+  });
+});
+
+describe("riepilogoTesto — riepilogo per il cliente (testo semplice)", () => {
+  const lista = { clients: { name: "ROSSI MARIO" }, titolo: "Buono 2026", stato: "attiva" };
+
+  it("elenca i movimenti e il saldo finale", () => {
+    const movimenti = [
+      { data_movimento: "2026-07-01", descrizione: "Acconto", importo: 100 },
+      { data_movimento: "2026-07-10", descrizione: "Prelievo", importo: -30 },
+    ];
+    const testo = riepilogoTesto(lista, movimenti);
+    expect(testo).toContain("RIEPILOGO BUONO VIAGGIO");
+    expect(testo).toContain("ROSSI MARIO — Buono 2026");
+    expect(testo).toContain("Acconto");
+    expect(testo).toMatch(/SALDO: 70,00\s*€/);
+    expect(testo).not.toContain("LISTA ESAURITA");
+  });
+
+  it("segnala l'assenza di movimenti invece di una lista vuota", () => {
+    expect(riepilogoTesto(lista, [])).toContain("Nessun movimento registrato.");
+  });
+
+  it("segnala una lista esaurita", () => {
+    expect(riepilogoTesto({ ...lista, stato: "esaurita" }, [])).toContain("LISTA ESAURITA");
   });
 });

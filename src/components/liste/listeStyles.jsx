@@ -177,6 +177,28 @@ export const ListeStyles = () => (
       .lv-root .lv-saldo-box .val{font-size:20px}
       .lv-main{padding:16px 12px 80px}
     }
+    /* ---------- riepilogo cliente (anteprima + stampa) ---------- */
+    .lv-riepilogo .rp-brand{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--lv-primary)}
+    .lv-riepilogo h2{font-size:18px;margin:2px 0 14px}
+    .lv-riepilogo .rp-cliente{font-size:16px;font-weight:700}
+    .lv-riepilogo .rp-tit{color:var(--lv-muted);font-size:13px}
+    .lv-riepilogo table.lv-mov{margin-top:12px}
+    .lv-riepilogo .rp-vuoto{color:var(--lv-muted);padding:16px 0}
+    .lv-riepilogo .rp-saldo{display:flex;justify-content:space-between;align-items:baseline;gap:12px;border-top:2px solid var(--lv-border);margin-top:12px;padding-top:10px;font-size:15px}
+    .lv-riepilogo .rp-saldo b{font-size:19px}
+    .lv-riepilogo .rp-esaurita{margin-top:12px;border:2px solid var(--lv-stamp);color:var(--lv-stamp);font-weight:700;letter-spacing:.06em;text-align:center;padding:6px;border-radius:6px}
+    .lv-riepilogo .rp-foot{font-size:11px;color:var(--lv-muted);margin-top:16px}
+
+    /* Stampa/PDF del solo riepilogo: nasconde tutto il resto della pagina
+       (chrome dell'app compresa) tramite il trucco classico visibility, così
+       non serve sapere dove l'overlay finisce nell'albero React. */
+    @media print{
+      body *{visibility:hidden}
+      .lv-riepilogo,.lv-riepilogo *{visibility:visible}
+      .lv-riepilogo{position:fixed;inset:0;padding:24px;background:#fff;overflow:visible}
+      .lv-riepilogo table.lv-mov td{border-bottom:1px solid #ddd}
+    }
+
     @media (prefers-reduced-motion:reduce){.lv-root *{transition:none!important}}
   `}</style>
 );

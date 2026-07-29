@@ -12,13 +12,18 @@
 // Il CONTENUTO mantiene di proposito lo stile originale (blu #0F4C81, font
 // Inter, impaginazione "foglio cartaceo"); solo la chrome di navigazione —
 // breadcrumb e testata — segue lo stile Tullio (navy/oro, Playfair).
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useViewport } from "../Viewport.jsx";
-import { getRoleType } from "../../state/appGlobals.js";
-import { ListeAPI, eur, fmtDate, runListeCall, saldoClass } from "../../lib/listeApi.js";
+import { getRoleType, isAdmin } from "../../state/appGlobals.js";
+import {
+  ListeAPI, downloadBlob, eur, fmtDate, runListeCall, saldoClass, todayISO,
+} from "../../lib/listeApi.js";
 import { ListeStyles } from "./listeStyles.jsx";
 import { ListaDetail } from "./ListaDetail.jsx";
-import { NuovaListaModal } from "./listeModals.jsx";
+import {
+  ConfirmModal, ImportaBackupConfirmModal, NuovaListaModal, ResetTotaleModal,
+  StrumentiDatiModal,
+} from "./listeModals.jsx";
 
 const HOME_PAGE_SIZE = 10;
 
@@ -104,6 +109,7 @@ export function ListeViaggio({ state, dispatch }) {
   const uid = state.currentUserId;
   const role = getRoleType(uid);
   const isDriver = role === "driver";
+  const isAdminUser = isAdmin(uid);
 
   const [liste, setListe] = useState([]);
   const [cestino, setCestino] = useState([]);
@@ -119,6 +125,13 @@ export function ListeViaggio({ state, dispatch }) {
   const [sort, setSort] = useState("recenti");
   const [limit, setLimit] = useState(HOME_PAGE_SIZE);
   const [nuovaOpen, setNuovaOpen] = useState(false);
+
+  // Strumenti dati (backup/ripristino/reset) e hard delete dal cestino.
+  const [strumentiOpen, setStrumentiOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [pendingImport, setPendingImport] = useState(null); // { payload, nL, nM }
+  const [confirm, setConfirm] = useState(null); // { title, body, cta, danger, onOk }
+  const fileInputRef = useRef(null);
 
   // L'anagrafica clienti e il team sono già idratati nello state globale
   // dell'app (stesse tabelle `clients`/`users` del modulo): li riusiamo invece
@@ -214,6 +227,95 @@ export function ListeViaggio({ state, dispatch }) {
     const { ok } = await runListeCall(dispatch, ListeAPI.ripristina(id), "Lista ripristinata");
     if (ok) await loadHome();
   };
+
+  const eliminaDefinitiva = (l) => setConfirm({
+    title: "Eliminare definitivamente?",
+    body: `"${l.clients?.name || "questa lista"}" e tutti i suoi movimenti e storico verranno eliminati. L'operazione NON è reversibile.`,
+    cta: "Elimina definitivamente",
+    danger: true,
+    onOk: async () => {
+      setConfirm(null);
+      const { ok } = await runListeCall(dispatch, ListeAPI.eliminaDefinitiva(l.id), "Lista eliminata definitivamente");
+      if (ok) await loadHome();
+    },
+  });
+
+  // ── Strumenti dati: backup JSON, ripristino da backup, reset totale ──
+  const scaricaBackup = async () => {
+    const { data, error } = await ListeAPI.backupData();
+    if (error) {
+      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Errore: ${error.message}` } });
+      return;
+    }
+    const backup = {
+      app: "liste-viaggio", versione: 1, esportato_il: new Date().toISOString(), ...data,
+    };
+    downloadBlob(
+      new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }),
+      `backup_liste_viaggio_${todayISO()}.json`,
+    );
+    dispatch({
+      type: "SHOW_TOAST",
+      payload: { type: "success", message: `Backup scaricato: ${data.liste.length} liste, ${data.movimenti.length} movimenti` },
+    });
+  };
+
+  const apriCaricaBackup = () => {
+    setStrumentiOpen(false);
+    fileInputRef.current?.click();
+  };
+
+  // Legge e valida il file scelto; il conteggio va mostrato PRIMA di scrivere,
+  // così l'utente sa cosa sta per aggiungere (importa_backup fa solo merge:
+  // aggiunge, salta i duplicati per id, non cancella nulla).
+  const onBackupFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    let data;
+    try {
+      data = JSON.parse(await file.text());
+    } catch {
+      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "File non valido: JSON non leggibile" } });
+      return;
+    }
+    if (!data || data.app !== "liste-viaggio" || !Array.isArray(data.liste)) {
+      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "Il file non sembra un backup di questa app." } });
+      return;
+    }
+    setPendingImport({
+      payload: { clients: data.clients || [], liste: data.liste || [], movimenti: data.movimenti || [] },
+      nL: (data.liste || []).length,
+      nM: (data.movimenti || []).length,
+    });
+  };
+
+  const confermaImport = async () => {
+    if (!pendingImport) return false;
+    const { ok, data: res } = await runListeCall(dispatch, ListeAPI.importaBackup(pendingImport.payload), null);
+    if (!ok) return false;
+    setPendingImport(null);
+    dispatch({
+      type: "SHOW_TOAST",
+      payload: { type: "success", message: `Backup caricato: +${res.clients_added} clienti, +${res.liste_added} liste, +${res.movimenti_added} movimenti` },
+    });
+    await loadHome();
+    return true;
+  };
+
+  const confermaReset = async () => {
+    const { ok, data: res } = await runListeCall(dispatch, ListeAPI.resetCompleto("RESET TOTALE"), null);
+    if (!ok) return false;
+    setResetOpen(false);
+    dispatch({
+      type: "SHOW_TOAST",
+      payload: { type: "success", message: `Reset eseguito: ${res.liste_deleted} liste e ${res.movimenti_deleted} movimenti eliminati` },
+    });
+    await loadHome();
+    return true;
+  };
+
+  const toastError = (message) => dispatch({ type: "SHOW_TOAST", payload: { type: "error", message } });
 
   // ─── chrome di navigazione (stile Tullio) ───
   const chrome = (
@@ -312,6 +414,9 @@ export function ListeViaggio({ state, dispatch }) {
                     ))}
                   </select>
                 </label>
+                <button className="lv-btn" title="Strumenti dati (backup e reset)" onClick={() => setStrumentiOpen(true)}>
+                  Strumenti dati
+                </button>
                 <button className="lv-btn primary" onClick={() => setNuovaOpen(true)}>+ Nuova lista</button>
               </div>
 
@@ -326,6 +431,9 @@ export function ListeViaggio({ state, dispatch }) {
                   visibili.map((l) => (
                     <ListaRow key={l.id} lista={l} saldo={saldi[l.id]} trashed>
                       <button className="lv-btn sm" onClick={() => ripristina(l.id)}>Ripristina</button>
+                      <button className="lv-btn danger sm" onClick={() => eliminaDefinitiva(l)}>
+                        Elimina definitivamente
+                      </button>
                     </ListaRow>
                   ))
                 ) : (
@@ -361,6 +469,53 @@ export function ListeViaggio({ state, dispatch }) {
                   return true;
                 },
               }}
+            />
+          )}
+
+          {/* Il file input resta fuori dalla modale Strumenti dati così
+              "Carica backup" funziona anche dopo che la modale si è chiusa. */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            style={{ display: "none" }}
+            onChange={onBackupFile}
+          />
+
+          {strumentiOpen && (
+            <StrumentiDatiModal
+              isAdminUser={isAdminUser}
+              onClose={() => setStrumentiOpen(false)}
+              onScaricaBackup={async () => { setStrumentiOpen(false); await scaricaBackup(); }}
+              onCaricaBackup={apriCaricaBackup}
+              onReset={() => { setStrumentiOpen(false); setResetOpen(true); }}
+            />
+          )}
+
+          {pendingImport && (
+            <ImportaBackupConfirmModal
+              nL={pendingImport.nL}
+              nM={pendingImport.nM}
+              onClose={() => setPendingImport(null)}
+              onSave={{ run: confermaImport, onError: toastError }}
+            />
+          )}
+
+          {resetOpen && (
+            <ResetTotaleModal
+              onClose={() => setResetOpen(false)}
+              onSave={{ run: confermaReset, onError: toastError }}
+            />
+          )}
+
+          {confirm && (
+            <ConfirmModal
+              title={confirm.title}
+              body={confirm.body}
+              cta={confirm.cta}
+              danger={confirm.danger}
+              onCancel={() => setConfirm(null)}
+              onConfirm={confirm.onOk}
             />
           )}
         </div>

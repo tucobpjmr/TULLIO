@@ -4,11 +4,12 @@
 // vanilla, con lo stato dei campi in useState invece che in variabili globali.
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ListeAPI, METODI, actionLabel, eur, fmtDate, parseImporto, runListeCall,
-  saldoClass, todayISO,
+  ListeAPI, METODI, actionLabel, docHtml, downloadBlob, eur, fmtDate,
+  parseImporto, runListeCall, saldoClass, todayISO,
 } from "../../lib/listeApi.js";
 import {
-  BulkMovimentiModal, EditListaModal, EditMovimentoModal, SegnoSeg,
+  BulkMovimentiModal, ConfirmModal, EditListaModal, EditMovimentoModal,
+  RiepilogoClienteModal, SegnoSeg,
 } from "./listeModals.jsx";
 
 // Riquadro "Nuovo movimento": sta in cima al foglio e si apre col tasto ＋
@@ -260,10 +261,13 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
   const [editCell, setEditCell] = useState(null); // { id, campo }
   const [modal, setModal] = useState(null);       // null | "editLista" | "bulk" | { mov }
   const [confirm, setConfirm] = useState(null);   // conferme distruttive / saldo non a zero
+  const [riepilogoOpen, setRiepilogoOpen] = useState(false);
 
   // Cambiando lista si richiude tutto: gli editor aperti si riferivano a
   // movimenti di un'altra lista.
-  useEffect(() => { setAddOpen(false); setEditCell(null); setModal(null); setConfirm(null); }, [lista.id]);
+  useEffect(() => {
+    setAddOpen(false); setEditCell(null); setModal(null); setConfirm(null); setRiepilogoOpen(false);
+  }, [lista.id]);
 
   const saldo = useMemo(
     () => movimenti.reduce((s, m) => s + Number(m.importo), 0),
@@ -306,6 +310,15 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
       if (ok) await onArchived();
     },
   });
+
+  // Export Word "copia agente": documento a uso interno (metodo di pagamento
+  // e storico inclusi), da distinguere dal riepilogo per il cliente qui sotto.
+  const copiaAgente = () => {
+    const name = `LISTA_${(lista.clients?.name || "CLIENTE").replace(/\s+/g, "_")}_COPIA_AGENTE.doc`;
+    const html = docHtml(lista, movimenti, history, usersById);
+    downloadBlob(new Blob(["\ufeff" + html], { type: "application/msword" }), name);
+    dispatch({ type: "SHOW_TOAST", payload: { type: "success", message: "Copia agente scaricata (Word)" } });
+  };
 
   const eliminaMov = (m) => setConfirm({
     title: "Eliminare il movimento?",
@@ -354,6 +367,8 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
           </button>
         )}
         <button className="lv-btn" onClick={() => setModal("editLista")}>✎ Modifica dati</button>
+        <button className="lv-btn" onClick={() => setRiepilogoOpen(true)}>Riepilogo cliente</button>
+        <button className="lv-btn" onClick={copiaAgente}>Copia agente</button>
         <button className="lv-btn" onClick={toggleStato}>{attiva ? "Segna ESAURITA" : "Riapri lista"}</button>
         <div style={{ flex: 1 }} />
         <button className="lv-btn danger sm" onClick={cestina}>🗑 Cestina</button>
@@ -507,21 +522,26 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
         />
       )}
 
+      {riepilogoOpen && (
+        <RiepilogoClienteModal
+          lista={lista}
+          movimenti={movimenti}
+          dispatch={dispatch}
+          onClose={() => setRiepilogoOpen(false)}
+        />
+      )}
+
       {/* Conferme: la SPA usava confirm() nativo, qui una modale coerente col
           resto del modulo (e non bloccante per il thread). */}
       {confirm && (
-        <div className="lv-overlay" onClick={() => setConfirm(null)}>
-          <div className="lv-modal" onClick={(e) => e.stopPropagation()}>
-            <h2>{confirm.title}</h2>
-            <p style={{ fontSize: 14, color: "var(--lv-muted)" }}>{confirm.body}</p>
-            <div className="actions">
-              <button className="lv-btn" onClick={() => setConfirm(null)}>Annulla</button>
-              <button className={`lv-btn ${confirm.danger ? "danger" : "primary"}`} onClick={confirm.onOk}>
-                {confirm.cta}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmModal
+          title={confirm.title}
+          body={confirm.body}
+          cta={confirm.cta}
+          danger={confirm.danger}
+          onCancel={() => setConfirm(null)}
+          onConfirm={confirm.onOk}
+        />
       )}
     </>
   );

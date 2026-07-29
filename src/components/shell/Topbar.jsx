@@ -175,7 +175,6 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
     onClose();
   };
 
-<<<<<<< HEAD
   // Clienti e stati disponibili dalle liste caricate (per i dropdown dei filtri).
   const availableListeClienti = useMemo(() => {
     const seen = new Set();
@@ -208,20 +207,6 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
       return hay.includes(k);
     }).sort((a, b) => (a.clients?.name || "").localeCompare(b.clients?.name || "", "it"));
   }, [liste, k, includeTrashed, listeAllowed, listeStati, listeClienti]);
-=======
-  // Liste: filtro di sola keyword (titolo, cliente, note) — categoria/status/
-  // agente/scadenza non hanno un equivalente sulle liste, stessa logica di
-  // ricerca già usata dentro il modulo Liste (ListeViaggio.jsx).
-  const k = keyword.trim().toLowerCase();
-  const listaResults = useMemo(() => {
-    if (!listeAllowed || !k) return [];
-    return liste.filter(l => {
-      if (!includeTrashed && l.deleted_at) return false;
-      const hay = [l.titolo || "", l.note || "", l.clients?.name || ""].join(" ").toLowerCase();
-      return hay.includes(k);
-    }).sort((a, b) => (a.clients?.name || "").localeCompare(b.clients?.name || "", "it"));
-  }, [liste, k, includeTrashed, listeAllowed]);
->>>>>>> origin/main
 
   const openLista = (l) => {
     dispatch({ type: "SET_VIEW", payload: "liste", lista: l.id });
@@ -447,22 +432,14 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
           </>
         )}
 
-<<<<<<< HEAD
         {listeAllowed && (k || listeStati.length || listeClienti.length) && listaResults.length > 0 && (
-=======
-        {listeAllowed && k && listaResults.length > 0 && (
->>>>>>> origin/main
           <>
             <div style={{
               padding: "8px 18px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)",
               textTransform: "uppercase", letterSpacing: 1, background: "var(--surface2)",
               borderBottom: "1px solid var(--border)", position: "sticky", top: 0,
             }}>
-<<<<<<< HEAD
               {listaResults.length} {listaResults.length === 1 ? "lista" : "liste"} viaggio ✈️
-=======
-              {listaResults.length} {listaResults.length === 1 ? "lista" : "liste"} viaggio
->>>>>>> origin/main
             </div>
             {listaResults.map(l => (
               <div

@@ -91,9 +91,9 @@ export const ListeAPI = {
   // lista. Irreversibile e senza traccia — la voce di storico sparisce con la
   // lista. La RPC rifiuta le liste non archiviate (check_violation).
   //
-  // Il gate per ruolo (admin/manager) è nell'interfaccia: lato DB la funzione
-  // è concessa a tutti gli `authenticated`. È difesa in profondità, non la
-  // garanzia; chiudere il cerchio lato DB è il lavoro di hardening previsto.
+  // Il gate admin/manager vale su entrambi i lati: la RPC verifica il ruolo al
+  // proprio interno (migrazione 20260729080000) e i trigger impediscono la
+  // cancellazione fisica a chiunque non passi di qui.
   eliminaDefinitivamente: (id) =>
     supabase.rpc('elimina_lista_definitivamente', { p_id: id }),
 

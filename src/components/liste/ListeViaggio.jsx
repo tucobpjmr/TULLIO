@@ -134,9 +134,9 @@ export function ListeViaggio({ state, dispatch }) {
 
   // Operazioni irreversibili, ristrette per ruolo: il reset azzera l'archivio
   // dell'intera agenzia, l'hard delete distrugge una lista e il suo storico
-  // senza lasciare traccia. Il gate è nell'interfaccia — lato DB le RPC sono
-  // concesse a ogni utente autenticato, quindi è difesa in profondità e non
-  // la garanzia (chiuderlo lato DB è il lavoro di hardening previsto).
+  // senza lasciare traccia. Questi due gate rispecchiano quelli che le RPC
+  // applicano da sole lato database (migrazione 20260729080000): qui servono a
+  // non mostrare un comando che il server rifiuterebbe, non a garantirlo.
   const canReset = role === "admin";
   const canHardDelete = role === "admin" || role === "manager";
 

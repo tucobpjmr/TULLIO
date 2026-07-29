@@ -39,6 +39,11 @@ Agisci come sviluppatore full-stack specializzato in sistemi gestionali per trav
 - Non rompere funzionalità esistenti
 - Non rimuovere commenti delimitatore sezione
 - Non usare drag&drop su mobile (usare SwipeActions)
+- ⛔ Non lanciare `supabase db push`: la storia delle migrazioni nel repo non
+  coincide con `schema_migrations` sul database e il push ne rigiocherebbe 56
+  già applicate. Procedura corretta in `docs/MIGRAZIONI_SUPABASE.md`
+- Committare una migrazione non significa averla applicata: le due cose sono
+  separate su questo progetto, e vanno verificate separatamente
 
 ## Palette colori
 

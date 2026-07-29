@@ -6,16 +6,78 @@ import { useViewport } from "../Viewport.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { Users as UsersAPI } from "../../lib/api.js";
 import { useAuth } from "../../auth/AuthContext.jsx";
-import { PRIORITIES, STATUSES, STATUS_LABELS, STATUS_COLORS } from "../../lib/taskConstants.js";
+import { PRIORITIES, STATUSES, STATUS_LABELS } from "../../lib/taskConstants.js";
 import { formatDate, isOverdue, startOfLocalDay, endOfLocalDay } from "../../lib/taskUtils.js";
 import { MOCK_NOTIFICATIONS } from "../../state/mockData.js";
-import { TEAM, CATEGORIES, getMember, isJuniorAgent } from "../../state/appGlobals.js";
+import { TEAM, CATEGORIES, getMember, isJuniorAgent, isDriver } from "../../state/appGlobals.js";
 import { ProfileEditor } from "../modals/ProfileEditor.jsx";
 import { SwipeActions } from "../SwipeActions.jsx";
 import { getPushSupport, getPushState, enablePush, disablePush } from "../../lib/push.js";
+import { ListeAPI } from "../../lib/listeApi.js";
 import { NOTIF_ICONS, NOTIF_CATEGORIES, notifTitle, notifSubtitle, notifTime, notifTarget } from "../../lib/notifUtils.js";
 
-const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword }) => {
+// Menù a tendina multi-selezione (Categoria/Status/Agente nel pannello Ricerca).
+// Sostituisce i chip toggle: trigger compatto + pannello a scomparsa con checkbox.
+const FilterDropdown = ({ options, selected, onToggle }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const count = selected.length;
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+          width: "100%", padding: "7px 10px", borderRadius: 6,
+          border: `1px solid ${count ? "var(--gold)" : "var(--border)"}`,
+          background: "#fff", fontSize: 12, fontWeight: 600, color: "var(--text)",
+          cursor: "pointer", fontFamily: "inherit", boxSizing: "border-box",
+        }}
+      >
+        <span>{count ? `${count} selezionat${count === 1 ? "a" : "e"}` : "Tutte"}</span>
+        <span style={{ fontSize: 10, color: "var(--text-muted)", transform: open ? "rotate(180deg)" : "none" }}>▾</span>
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, minWidth: 200,
+          maxHeight: 240, overflowY: "auto", background: "#fff",
+          border: "1px solid var(--border)", borderRadius: 8,
+          boxShadow: "0 12px 30px rgba(0,0,0,0.15)", zIndex: 300, padding: 6,
+        }}>
+          {options.map(opt => {
+            const active = selected.includes(opt.value);
+            return (
+              <label
+                key={opt.value}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8, padding: "6px 8px",
+                  borderRadius: 6, cursor: "pointer", fontSize: 12,
+                  background: active ? "var(--surface2)" : "transparent",
+                }}
+              >
+                <input type="checkbox" checked={active} onChange={() => onToggle(opt.value)} />
+                {opt.icon}
+                {opt.label}
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword, currentUserId }) => {
   const { isMobile } = useViewport();
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -23,6 +85,30 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
   const [stats, setStats] = useState([]);
   const [agents, setAgents] = useState([]);
   const [includeTrashed, setIncludeTrashed] = useState(false);
+
+  // Liste viaggio: il modulo è precluso ai Driver (stessa RLS del modulo
+  // stesso), quindi per loro non ha senso caricarle né mostrarle qui.
+  const listeAllowed = !isDriver(currentUserId);
+  const [liste, setListe] = useState([]);
+
+  // Caricate una sola volta all'apertura del pannello (non vivono nello state
+  // globale come i task: il modulo Liste le fetcha on-demand da sempre).
+  // Prendiamo sia attive che cestinate cosí "Includi... nel cestino" può
+  // valere anche per le liste, con la stessa semantica dei task.
+  useEffect(() => {
+    if (!listeAllowed) return;
+    let alive = true;
+    (async () => {
+      const [rListe, rCestino] = await Promise.all([ListeAPI.list(), ListeAPI.listTrash()]);
+      if (!alive) return;
+      if (rListe.error || rCestino.error) {
+        console.error("[liste] ricerca", rListe.error || rCestino.error);
+        return;
+      }
+      setListe([...(rListe.data || []), ...(rCestino.data || [])]);
+    })();
+    return () => { alive = false; };
+  }, [listeAllowed]);
 
   // La chiusura su click esterno è gestita dal wrapper di ricerca nella Topbar
   // (l'input keyword vive lì). Qui resta solo la chiusura con Escape.
@@ -86,14 +172,23 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
     onClose();
   };
 
-  const chipBase = (active, color) => ({
-    display: "inline-flex", alignItems: "center", gap: 5,
-    padding: "5px 10px", borderRadius: 999, fontSize: 12, fontWeight: 600,
-    cursor: "pointer", border: `1px solid ${active ? color : "var(--border)"}`,
-    background: active ? color : "#fff",
-    color: active ? "#fff" : "var(--text)",
-    transition: "all 0.15s", userSelect: "none",
-  });
+  // Liste: filtro di sola keyword (titolo, cliente, note) — categoria/status/
+  // agente/scadenza non hanno un equivalente sulle liste, stessa logica di
+  // ricerca già usata dentro il modulo Liste (ListeViaggio.jsx).
+  const k = keyword.trim().toLowerCase();
+  const listaResults = useMemo(() => {
+    if (!listeAllowed || !k) return [];
+    return liste.filter(l => {
+      if (!includeTrashed && l.deleted_at) return false;
+      const hay = [l.titolo || "", l.note || "", l.clients?.name || ""].join(" ").toLowerCase();
+      return hay.includes(k);
+    }).sort((a, b) => (a.clients?.name || "").localeCompare(b.clients?.name || "", "it"));
+  }, [liste, k, includeTrashed, listeAllowed]);
+
+  const openLista = (l) => {
+    dispatch({ type: "SET_VIEW", payload: "liste", lista: l.id });
+    onClose();
+  };
 
   const sectionTitle = { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 };
 
@@ -168,55 +263,45 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
 
         <div style={{ marginBottom: 14 }}>
           <div style={sectionTitle}>Categoria</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {Object.entries(CATEGORIES).map(([key, c]) => {
-              const active = cats.includes(key);
-              return (
-                <div key={key} onClick={() => toggle(cats, setCats, key)} style={chipBase(active, c.color)}>
-                  <span>{c.icon}</span>{c.label}
-                </div>
-              );
-            })}
-          </div>
+          <FilterDropdown
+            options={Object.entries(CATEGORIES).map(([key, c]) => ({
+              value: key, label: c.label, icon: <span>{c.icon}</span>,
+            }))}
+            selected={cats}
+            onToggle={val => toggle(cats, setCats, val)}
+          />
         </div>
 
         <div style={{ marginBottom: 14 }}>
           <div style={sectionTitle}>Status</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {STATUSES.map(s => {
-              const active = stats.includes(s);
-              return (
-                <div key={s} onClick={() => toggle(stats, setStats, s)} style={chipBase(active, STATUS_COLORS[s])}>
-                  {STATUS_LABELS[s]}
-                </div>
-              );
-            })}
-          </div>
+          <FilterDropdown
+            options={STATUSES.map(s => ({ value: s, label: STATUS_LABELS[s] }))}
+            selected={stats}
+            onToggle={val => toggle(stats, setStats, val)}
+          />
         </div>
 
         <div style={{ marginBottom: 14 }}>
           <div style={sectionTitle}>Agente</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {TEAM.filter(m => !m.pending).map(m => {
-              const active = agents.includes(m.id);
-              return (
-                <div key={m.id} onClick={() => toggle(agents, setAgents, m.id)} style={chipBase(active, m.color)}>
-                  <span style={{
-                    width: 16, height: 16, borderRadius: "50%",
-                    background: active ? "rgba(255,255,255,0.25)" : m.color,
-                    color: "#fff", fontSize: 9, fontWeight: 700,
-                    display: "inline-flex", alignItems: "center", justifyContent: "center",
-                  }}>{m.avatar}</span>
-                  {m.name.split(" ")[0]}
-                </div>
-              );
-            })}
-          </div>
+          <FilterDropdown
+            options={TEAM.filter(m => !m.pending).map(m => ({
+              value: m.id, label: m.name.split(" ")[0],
+              icon: (
+                <span style={{
+                  width: 16, height: 16, borderRadius: "50%", background: m.color,
+                  color: "#fff", fontSize: 9, fontWeight: 700,
+                  display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                }}>{m.avatar}</span>
+              ),
+            }))}
+            selected={agents}
+            onToggle={val => toggle(agents, setAgents, val)}
+          />
         </div>
 
         <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "var(--text)" }}>
           <input type="checkbox" checked={includeTrashed} onChange={e => setIncludeTrashed(e.target.checked)} />
-          🗑️ Includi task nel cestino
+          🗑️ Includi {listeAllowed ? "task e liste" : "task"} nel cestino
         </label>
       </div>
 
@@ -295,6 +380,59 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
                 </SwipeActions>
               );
             })}
+          </>
+        )}
+
+        {listeAllowed && k && listaResults.length > 0 && (
+          <>
+            <div style={{
+              padding: "8px 18px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)",
+              textTransform: "uppercase", letterSpacing: 1, background: "var(--surface2)",
+              borderBottom: "1px solid var(--border)", position: "sticky", top: 0,
+            }}>
+              {listaResults.length} {listaResults.length === 1 ? "lista" : "liste"} viaggio
+            </div>
+            {listaResults.map(l => (
+              <div
+                key={l.id}
+                onClick={() => openLista(l)}
+                style={{
+                  padding: "10px 18px", borderBottom: "1px solid var(--border)",
+                  cursor: "pointer", display: "flex", alignItems: "center", gap: 12,
+                  transition: "background 0.15s", background: "#fff",
+                  opacity: l.deleted_at ? 0.6 : 1,
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                onMouseLeave={e => e.currentTarget.style.background = "#fff"}
+              >
+                <div style={{
+                  width: 28, height: 28, borderRadius: 6,
+                  background: "#F9FAFB", color: "#6B7280",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 14, flexShrink: 0,
+                }}>🧾</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 13, fontWeight: 600, color: "var(--text)",
+                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  }}>
+                    {l.deleted_at && <span style={{ color: "var(--danger)", marginRight: 6 }}>🗑️</span>}
+                    {l.clients?.name || "—"}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, display: "flex", gap: 10 }}>
+                    <span>Lista viaggio</span>
+                    {l.titolo && <span>• {l.titolo}</span>}
+                  </div>
+                </div>
+                {!l.deleted_at && (
+                  <div style={{
+                    fontSize: 10, fontWeight: 700, padding: "3px 7px", borderRadius: 4,
+                    background: l.stato === "esaurita" ? "#F9FAFB" : "#E8F5E9",
+                    color: l.stato === "esaurita" ? "#6B7280" : "#2E7D32", flexShrink: 0,
+                  }}>{l.stato}</div>
+                )}
+              </div>
+            ))}
           </>
         )}
       </div>
@@ -387,6 +525,7 @@ export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMa
             keyword={state.searchQuery}
             onKeyword={v => dispatch({ type: "SET_SEARCH", payload: v })}
             onClose={() => setSearchOpen(false)}
+            currentUserId={state.currentUserId}
           />
         )}
       </div>

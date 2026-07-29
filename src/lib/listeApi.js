@@ -46,6 +46,11 @@ export const ListeAPI = {
   // dell'ultimo movimento per ogni lista non archiviata.
   saldi: () => supabase.from('liste_saldi').select('*'),
 
+  // Come sopra, per un solo cliente: il tab dentro la scheda cliente mostra
+  // le liste di quel cliente e non ha motivo di scaricare i saldi di tutti.
+  saldiByClient: (clientId) =>
+    supabase.from('liste_saldi').select('*').eq('client_id', clientId),
+
   movimenti: (listaId) =>
     supabase.from('movimenti_lista').select('*')
       .eq('lista_id', listaId)

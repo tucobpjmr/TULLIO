@@ -21,7 +21,7 @@ export function ClienteListePanel({ cliente, dispatch }) {
   const load = useCallback(async () => {
     setLoadError(null);
     const [rListe, rSaldi] = await Promise.all([
-      ListeAPI.listByClient(cliente.id), ListeAPI.saldi(),
+      ListeAPI.listByClient(cliente.id), ListeAPI.saldiByClient(cliente.id),
     ]);
     const failed = [rListe, rSaldi].find((r) => r.error);
     if (failed) {

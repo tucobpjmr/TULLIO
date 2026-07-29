@@ -33,6 +33,7 @@ import { reducer, makeInitialState, ADMIN_ONLY_ACTIONS } from "./state/reducer.j
 import { useDebouncedTableSubscription } from "./hooks/useDebouncedTableSubscription.js";
 // Step P Phase 2e: foundation + UI primitives estratti in src/components/.
 import { ViewportProvider } from "./components/Viewport.jsx";
+import { ViewErrorBoundary } from "./components/ViewErrorBoundary.jsx";
 import { Toast } from "./components/ui/Toast.jsx";
 // Step P Phase 2f: modali estratti in src/components/modals/.
 // Step P Phase 2g: BulkTaskCreator è pesante (~600 righe, 5 tab) e si apre solo
@@ -1466,9 +1467,18 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           <main className="vd-main-scroll" style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
             {/* Suspense per la vista attiva: solo AdminView (Phase 2g) e il
                 modulo Liste viaggio sono lazy, le altre viste risolvono
-                sincronicamente. */}
+                sincronicamente.
+                ViewErrorBoundary confina alla vista un eventuale errore di
+                render: senza, l'unico boundary è quello in main.jsx, che
+                sostituisce tutta l'app con una schermata di errore a tutta
+                pagina anche quando la shell è perfettamente integra. */}
             <Suspense fallback={<LazyFallback />}>
-              {renderView()}
+              <ViewErrorBoundary
+                viewKey={state.activeView}
+                onReset={() => dispatch({ type: "SET_VIEW", payload: "dashboard" })}
+              >
+                {renderView()}
+              </ViewErrorBoundary>
             </Suspense>
           </main>
         </div>

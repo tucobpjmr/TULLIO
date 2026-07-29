@@ -20,6 +20,9 @@ vi.mock("../lib/listeApi.js", async (importOriginal) => {
     ...actual,
     ListeAPI: {
       listByClient: vi.fn(async () => ({ data: [], error: null })),
+      // Il pannello cliente chiede solo i saldi del proprio cliente; `saldi`
+      // (tutti i saldi) resta mockato perché lo usa la home del modulo.
+      saldiByClient: vi.fn(async () => ({ data: [], error: null })),
       saldi: vi.fn(async () => ({ data: [], error: null })),
     },
   };

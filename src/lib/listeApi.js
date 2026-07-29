@@ -52,6 +52,14 @@ export const ListeAPI = {
       .is('deleted_at', null)
       .order('data_movimento').order('created_at'),
 
+  // Movimenti vivi di TUTTE le liste, in un colpo solo: l'export massivo li
+  // raggruppa per lista_id lato client. La SPA sorgente faceva una query per
+  // lista — su centinaia di liste erano centinaia di round-trip.
+  movimentiTutti: () =>
+    supabase.from('movimenti_lista').select('*')
+      .is('deleted_at', null)
+      .order('data_movimento').order('created_at'),
+
   history: (listaId, limit = 50) =>
     supabase.from('lista_history').select('*')
       .eq('lista_id', listaId)
@@ -78,6 +86,32 @@ export const ListeAPI = {
   archivia: (id) => supabase.rpc('archivia_lista', { p_id: id }),
 
   ripristina: (id) => supabase.rpc('ripristina_lista', { p_id: id }),
+
+  // Hard delete di una lista già nel cestino: cancella storico, movimenti e
+  // lista. Irreversibile e senza traccia — la voce di storico sparisce con la
+  // lista. La RPC rifiuta le liste non archiviate (check_violation).
+  //
+  // Il gate admin/manager vale su entrambi i lati: la RPC verifica il ruolo al
+  // proprio interno (migrazione 20260729080000) e i trigger impediscono la
+  // cancellazione fisica a chiunque non passi di qui.
+  eliminaDefinitivamente: (id) =>
+    supabase.rpc('elimina_lista_definitivamente', { p_id: id }),
+
+  // Ripristino additivo: conserva gli id originali e salta i duplicati, non
+  // cancella nulla. Ritorna { clients_added, liste_added, movimenti_added }.
+  importaBackup: (payload) => supabase.rpc('importa_backup', { p_data: payload }),
+
+  // Hard delete di TUTTE le liste, movimenti e storico (cestino incluso).
+  // Conserva l'anagrafica clienti e gli account. La conferma testuale è
+  // validata anche lato DB. Ritorna i conteggi di quanto è stato eliminato.
+  resetCompleto: (conferma) => supabase.rpc('reset_completo', { p_conferma: conferma }),
+
+  // ── letture complete, solo per il backup ──
+  // Il backup fotografa le tabelle così come sono, cestino incluso: serve a
+  // poter tornare indietro, quindi non filtra deleted_at.
+  allClients: () => supabase.from('clients').select('*'),
+  allListe: () => supabase.from('liste_viaggio').select('*'),
+  allMovimenti: () => supabase.from('movimenti_lista').select('*'),
 
   addMovimento: ({ listaId, data, descrizione, importo, metodo = null }) =>
     supabase.rpc('registra_movimento_lista', {

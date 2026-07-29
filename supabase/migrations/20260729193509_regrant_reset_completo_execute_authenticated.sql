@@ -1,0 +1,12 @@
+-- Ripristino: l'admin deve poter eseguire reset_completo dall'app (client
+-- autenticato), non solo da SQL Editor/service_role. La revoca in
+-- 20260729190431 partiva dal presupposto che la UI non avesse alcun punto
+-- di ingresso verso questa RPC — corretto oggi, ma nega anche l'uso
+-- legittimo lato admin, che deve restare disponibile.
+--
+-- Il gate di ruolo dentro il corpo della funzione (private.is_admin(),
+-- introdotto in 20260728190100) resta la barriera sostanziale: un utente
+-- authenticated non-admin che chiami reset_completo riceve comunque
+-- insufficient_privilege. Questo GRANT riguarda solo chi può *tentare* la
+-- chiamata via REST, non chi ha successo.
+GRANT EXECUTE ON FUNCTION reset_completo(text) TO authenticated;

@@ -90,6 +90,8 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
   // stesso), quindi per loro non ha senso caricarle né mostrarle qui.
   const listeAllowed = !isDriver(currentUserId);
   const [liste, setListe] = useState([]);
+  const [listeStati, setListeStati] = useState([]);
+  const [listeClienti, setListeClienti] = useState([]);
 
   // Caricate una sola volta all'apertura del pannello (non vivono nello state
   // globale come i task: il modulo Liste le fetcha on-demand da sempre).
@@ -125,9 +127,10 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
   const resetAll = () => {
     onKeyword?.(""); setDateFrom(""); setDateTo("");
     setCats([]); setStats([]); setAgents([]); setIncludeTrashed(false);
+    setListeStati([]); setListeClienti([]);
   };
 
-  const hasFilters = keyword.trim() || dateFrom || dateTo || cats.length || stats.length || agents.length || includeTrashed;
+  const hasFilters = keyword.trim() || dateFrom || dateTo || cats.length || stats.length || agents.length || includeTrashed || listeStati.length || listeClienti.length;
 
   const results = useMemo(() => {
     if (!hasFilters) return [];
@@ -172,6 +175,40 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
     onClose();
   };
 
+<<<<<<< HEAD
+  // Clienti e stati disponibili dalle liste caricate (per i dropdown dei filtri).
+  const availableListeClienti = useMemo(() => {
+    const seen = new Set();
+    liste.forEach(l => {
+      if (l.clients?.name) seen.add(l.clients.name);
+    });
+    return Array.from(seen).sort((a, b) => a.localeCompare(b, "it"));
+  }, [liste]);
+
+  const availableListeStati = useMemo(() => {
+    const seen = new Set();
+    liste.forEach(l => {
+      if (l.stato) seen.add(l.stato);
+    });
+    return Array.from(seen).sort();
+  }, [liste]);
+
+  // Liste: filtro con keyword + filtri per stato/cliente — categoria/agente/
+  // scadenza non hanno un equivalente sulle liste, stessa logica di ricerca
+  // già usata dentro il modulo Liste (ListeViaggio.jsx).
+  const k = keyword.trim().toLowerCase();
+  const listaResults = useMemo(() => {
+    if (!listeAllowed) return [];
+    return liste.filter(l => {
+      if (!includeTrashed && l.deleted_at) return false;
+      if (listeStati.length && !listeStati.includes(l.stato)) return false;
+      if (listeClienti.length && !listeClienti.includes(l.clients?.name)) return false;
+      if (!k) return true;
+      const hay = [l.titolo || "", l.note || "", l.clients?.name || ""].join(" ").toLowerCase();
+      return hay.includes(k);
+    }).sort((a, b) => (a.clients?.name || "").localeCompare(b.clients?.name || "", "it"));
+  }, [liste, k, includeTrashed, listeAllowed, listeStati, listeClienti]);
+=======
   // Liste: filtro di sola keyword (titolo, cliente, note) — categoria/status/
   // agente/scadenza non hanno un equivalente sulle liste, stessa logica di
   // ricerca già usata dentro il modulo Liste (ListeViaggio.jsx).
@@ -184,6 +221,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
       return hay.includes(k);
     }).sort((a, b) => (a.clients?.name || "").localeCompare(b.clients?.name || "", "it"));
   }, [liste, k, includeTrashed, listeAllowed]);
+>>>>>>> origin/main
 
   const openLista = (l) => {
     dispatch({ type: "SET_VIEW", payload: "liste", lista: l.id });
@@ -299,6 +337,32 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
           />
         </div>
 
+        {listeAllowed && (
+          <>
+            <div style={{ marginBottom: 14 }}>
+              <div style={sectionTitle}>✈️ Stato Lista</div>
+              <FilterDropdown
+                options={availableListeStati.map(s => ({
+                  value: s, label: s.charAt(0).toUpperCase() + s.slice(1),
+                }))}
+                selected={listeStati}
+                onToggle={val => toggle(listeStati, setListeStati, val)}
+              />
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <div style={sectionTitle}>✈️ Cliente Lista</div>
+              <FilterDropdown
+                options={availableListeClienti.map(c => ({
+                  value: c, label: c,
+                }))}
+                selected={listeClienti}
+                onToggle={val => toggle(listeClienti, setListeClienti, val)}
+              />
+            </div>
+          </>
+        )}
+
         <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "var(--text)" }}>
           <input type="checkbox" checked={includeTrashed} onChange={e => setIncludeTrashed(e.target.checked)} />
           🗑️ Includi {listeAllowed ? "task e liste" : "task"} nel cestino
@@ -383,14 +447,22 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
           </>
         )}
 
+<<<<<<< HEAD
+        {listeAllowed && (k || listeStati.length || listeClienti.length) && listaResults.length > 0 && (
+=======
         {listeAllowed && k && listaResults.length > 0 && (
+>>>>>>> origin/main
           <>
             <div style={{
               padding: "8px 18px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)",
               textTransform: "uppercase", letterSpacing: 1, background: "var(--surface2)",
               borderBottom: "1px solid var(--border)", position: "sticky", top: 0,
             }}>
+<<<<<<< HEAD
+              {listaResults.length} {listaResults.length === 1 ? "lista" : "liste"} viaggio ✈️
+=======
               {listaResults.length} {listaResults.length === 1 ? "lista" : "liste"} viaggio
+>>>>>>> origin/main
             </div>
             {listaResults.map(l => (
               <div

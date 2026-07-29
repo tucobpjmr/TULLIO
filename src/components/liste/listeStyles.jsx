@@ -128,6 +128,15 @@ export const ListeStyles = () => (
     .lv-overlay .lv-modal .row{margin-bottom:12px}
     .lv-overlay .lv-modal .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
 
+    /* ---------- note interne ---------- */
+    .lv-root .lv-note-card{padding:14px 16px}
+    .lv-root .lv-note-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+    .lv-root .lv-note-head h3{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--lv-muted)}
+    .lv-root .lv-note-hint{font-size:11px;color:var(--lv-muted)}
+    .lv-root .lv-note-body{white-space:pre-wrap;cursor:pointer;border-radius:6px;padding:6px;margin:-6px}
+    .lv-root .lv-note-body:hover{background:#F1F5F9}
+    .lv-root .lv-note-text{width:100%;padding:10px 11px;border:1px solid var(--lv-border);border-radius:8px;background:#fff;resize:vertical}
+
     /* ---------- storico ---------- */
     .lv-root .lv-hist{padding:14px 16px;font-size:13px;color:var(--lv-muted)}
     .lv-root .lv-hist li{list-style:none;padding:4px 0;border-bottom:1px dashed #EEF0F3}

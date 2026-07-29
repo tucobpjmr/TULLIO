@@ -112,6 +112,12 @@ export const ListeAPI = {
       p_metodo: metodo,
     }),
 
+  // Note interne: campo libero visibile solo al team, mai incluso nel
+  // riepilogo per il cliente (vedi riepilogoTesto/RiepilogoClienteModal, che
+  // non leggono `note`). note null/vuoto svuota il campo.
+  modificaNote: ({ id, note }) =>
+    supabase.rpc('modifica_note_lista', { p_id: id, p_note: note || null }),
+
   // Soft delete del movimento: resta in tabella con deleted_at valorizzato e
   // una voce nello storico.
   annullaMovimento: (id) => supabase.rpc('annulla_movimento_lista', { p_id: id }),
@@ -207,6 +213,7 @@ export const ACTION_LABELS = {
   movimento_aggiunto: 'ha registrato un movimento',
   movimento_modificato: 'ha modificato un movimento',
   movimento_eliminato: 'ha eliminato un movimento',
+  lista_note_modificata: 'ha modificato le note interne',
 };
 
 export const actionLabel = (a) => ACTION_LABELS[a] || a;

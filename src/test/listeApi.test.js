@@ -168,4 +168,13 @@ describe("riepilogoTesto — riepilogo per il cliente (testo semplice)", () => {
   it("segnala una lista esaurita", () => {
     expect(riepilogoTesto({ ...lista, stato: "esaurita" }, [])).toContain("LISTA ESAURITA");
   });
+
+  it("non include mai le note interne, anche quando valorizzate", () => {
+    // Le note interne (lista.note) sono a uso team: il riepilogo per il
+    // cliente non deve mai riportarle, indipendentemente dal contenuto.
+    const conNote = { ...lista, note: "Cliente da richiamare, sconto agenzia 5%" };
+    const testo = riepilogoTesto(conNote, []);
+    expect(testo).not.toContain("richiamare");
+    expect(testo).not.toContain("sconto agenzia");
+  });
 });

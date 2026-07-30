@@ -100,8 +100,11 @@ export function notifTime(n) {
   return `${d} ${d === 1 ? "giorno" : "giorni"} fa`;
 }
 
-// Destinazione del tap. Il digest non punta a un task singolo ma a una vista
-// (payload.view + payload.queue → Dashboard, tab "Coda Globale").
+// Destinazione del tap. task_id vince sempre su view: anche il digest
+// queue_stale (più task in coda) porta task_id del task più urgente, quindi
+// il tap apre sempre il dettaglio di un task, non la Dashboard
+// (20260730_queue_stale_notif_direct_task). payload.view/queue restano
+// supportati come fallback per eventuali notifiche future senza task_id.
 export function notifTarget(n) {
   const p = n?.payload;
   if (!p) return null;

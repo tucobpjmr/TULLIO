@@ -318,7 +318,7 @@ function NoteInterne({ lista, dispatch, onSaved }) {
 }
 
 // ─── Dettaglio ─────────────────────────────────────────────────────────────
-export function ListaDetail({ lista, movimenti, history, usersById, dispatch, onReload, onBack, onArchived }) {
+export function ListaDetail({ lista, movimenti, history, usersById, dispatch, onReload, onArchived }) {
   const [addOpen, setAddOpen] = useState(false);
   const [editCell, setEditCell] = useState(null); // { id, campo }
   const [modal, setModal] = useState(null);       // null | "editLista" | "bulk" | { mov }
@@ -406,8 +406,6 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
 
   return (
     <>
-      <button className="lv-btn sm" style={{ marginBottom: 12 }} onClick={onBack}>← Tutte le liste</button>
-
       <div className="lv-detail-head">
         <div className="grow">
           <div className="lv-name-row">

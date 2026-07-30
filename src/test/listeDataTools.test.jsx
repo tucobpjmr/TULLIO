@@ -216,7 +216,6 @@ describe("ListaDetail — Copia agente e Riepilogo cliente", () => {
         usersById={{}}
         dispatch={dispatch}
         onReload={vi.fn()}
-        onBack={vi.fn()}
         onArchived={vi.fn()}
       />,
     );

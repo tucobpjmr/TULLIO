@@ -10,7 +10,6 @@ import { getAssignableTeam, getRoleType } from "../../state/appGlobals.js";
 const NAV_ITEMS = [
   { id: "calendar",   icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
   { id: "clienti",    icon: "👤", label: "Clienti",    roles: ["admin", "manager", "agent"] },
-  { id: "team",       icon: "👥", label: "Team",       roles: ["admin", "manager", "agent"] },
   { id: "archivio",   icon: "📦", label: "Archivio",   roles: ["admin", "manager", "agent", "driver"] },
   { id: "trash",      icon: "🗑️", label: "Cestino",    roles: ["admin", "manager", "agent", "driver"] },
   { id: "admin",      icon: "⚙️", label: "Admin",      roles: ["admin"] },
@@ -270,7 +269,6 @@ export const BottomNav = ({ state, dispatch, onOpenBulk, onOpenChat, unreadChat 
 // TaskSlideOver → src/components/tasks/TaskSlideOver.jsx (Step P Phase 2f)
 
 // CalendarPlanner (+ iCal export helpers) → src/components/calendar/CalendarPlanner.jsx (Step P Phase 2f)
-// Team → src/components/views/Team.jsx (Step P Phase 2f)
 
 // ─── CHAT: MOCK DATA ───────────────────────────────────────────────────────
 // CURRENT_USER è dichiarato in cima al file (sezione MOCK DATA)

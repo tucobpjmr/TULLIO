@@ -316,17 +316,37 @@ export function ListeViaggio({ state, dispatch }) {
   const toastError = (message) => dispatch({ type: "SHOW_TOAST", payload: { type: "error", message } });
 
   // ─── chrome di navigazione (stile Tullio) ───
+  // Nel dettaglio di una lista il titolo si centra e la freccia per tornare
+  // all'elenco si affianca sulla stessa riga (pattern app bar mobile); nella
+  // home, dove non c'è un "indietro", il titolo resta allineato a sinistra.
   const chrome = (
     <div style={{
       padding: isMobile ? "14px 16px 0" : "20px 28px 0",
-      display: "flex", alignItems: "center", justifyContent: "space-between",
+      display: "flex", alignItems: "center",
+      justifyContent: detail ? "center" : "space-between",
+      position: "relative",
       gap: 12, flexWrap: "wrap",
     }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-        <h1 className="playfair" style={{ fontSize: isMobile ? 19 : 23, color: "var(--heading)", minWidth: 0 }}>
-          Liste viaggio
-        </h1>
-      </div>
+      {detail && (
+        <button
+          type="button"
+          title="Torna a tutte le liste"
+          aria-label="Torna a tutte le liste"
+          onClick={backToHome}
+          style={{
+            position: "absolute", left: isMobile ? 16 : 28,
+            width: 34, height: 34, borderRadius: "50%",
+            background: "#fff", border: "1px solid var(--border)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 16, color: "var(--navy)", cursor: "pointer", flexShrink: 0,
+          }}
+        >
+          ←
+        </button>
+      )}
+      <h1 className="playfair" style={{ fontSize: isMobile ? 19 : 23, color: "var(--heading)", minWidth: 0 }}>
+        Liste viaggio
+      </h1>
     </div>
   );
 
@@ -372,7 +392,6 @@ export function ListeViaggio({ state, dispatch }) {
               usersById={usersById}
               dispatch={dispatch}
               onReload={reloadAll}
-              onBack={backToHome}
               onArchived={backToHome}
             />
           ) : (

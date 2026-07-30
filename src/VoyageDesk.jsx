@@ -62,7 +62,6 @@ const TaskSlideOver = lazy(() =>
 );
 
 // Step P Phase 2f: views estratte in src/components/views/.
-import { Team } from "./components/views/Team.jsx";
 import { Trash } from "./components/views/Trash.jsx";
 import { Archive } from "./components/views/Archive.jsx";
 import { ClientiView } from "./components/clients/ClientiView.jsx";
@@ -1431,7 +1430,6 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       case "dashboard":  return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
       case "calendar":   return <CalendarPlanner state={state} dispatch={dispatch} />;
       case "clienti":    return <ClientiView state={state} dispatch={dispatch} loading={crmLoading} />;
-      case "team":       return <Team state={state} dispatch={dispatch} />;
       case "archivio":   return <Archive state={state} dispatch={dispatch} />;
       case "trash":      return <Trash state={state} dispatch={dispatch} />;
       case "admin":      return <AdminView state={state} dispatch={dispatch} />;

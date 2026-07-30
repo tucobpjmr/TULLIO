@@ -6,12 +6,24 @@
 // Il guard anti doppio-click della SPA (`let creatingLista=false`) diventa lo
 // stato `saving`: il bottone si disabilita finché la RPC non risponde.
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   METODI, eur, fmtDate, parseImporto, riepilogoTesto, saldoClass, todayISO,
 } from "../../lib/listeApi.js";
 
 // Chiude con Escape e blocca la propagazione del click interno, come faceva
 // l'overlay della SPA. Il focus va al primo campo all'apertura.
+//
+// Portale su document.body: ListeViaggio.jsx monta questi overlay dentro il
+// proprio wrapper ".fade-in" (animazione d'ingresso della vista), che ha un
+// transform (translateY) nel keyframe finale — per spec CSS un transform
+// diverso da "none" rende l'elemento containing block per i discendenti
+// position:fixed. L'overlay finiva quindi centrato rispetto all'altezza
+// dell'intera vista (spesso più alta del viewport, essendo scrollabile)
+// invece che rispetto allo schermo, comparendo troppo in basso su mobile
+// (segnalato dall'utente su "Strumenti dati" e "+ Nuova lista"). Il portale
+// lo sgancia da quella gerarchia e lo posiziona sempre rispetto al viewport
+// reale, com'è già per gli altri modali dell'app.
 export function LvOverlay({ children, onClose, wide = false }) {
   const boxRef = useRef(null);
   useEffect(() => {
@@ -20,7 +32,7 @@ export function LvOverlay({ children, onClose, wide = false }) {
     boxRef.current?.querySelector("input, select")?.focus();
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
-  return (
+  return createPortal(
     <div className="lv-overlay" onClick={onClose}>
       <div
         ref={boxRef}
@@ -29,7 +41,8 @@ export function LvOverlay({ children, onClose, wide = false }) {
       >
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

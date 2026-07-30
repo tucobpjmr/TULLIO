@@ -904,8 +904,11 @@ const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMar
     const types = NOTIF_CATEGORIES[filter] || [];
     return list.filter(n => types.includes(n.type));
   }, [list, filter]);
-  // Navigabile se il payload porta a un task, a una conversazione o a una vista
-  // (digest coda globale → Dashboard, tab "Coda Globale").
+  // Navigabile se il payload porta a un task, a una conversazione o a una vista.
+  // Il digest coda globale (queue_stale) porta sempre anche task_id (il task
+  // più urgente), che notifTarget() fa vincere su target "view": il tap apre
+  // quindi sempre il dettaglio del task, mai più una tappa intermedia sulla
+  // Dashboard (20260730_queue_stale_notif_direct_task).
   const isNavigable = (n) => isReal && !!notifTarget(n);
   const handleClick = (n) => {
     const target = isReal ? notifTarget(n) : null;

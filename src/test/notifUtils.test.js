@@ -5,12 +5,18 @@
 import { describe, it, expect } from "vitest";
 import { notifTitle, notifSubtitle, notifTime, notifTarget, NOTIF_CATEGORIES } from "../lib/notifUtils.js";
 
+// task_id/task_title puntano sempre al più urgente (tasks[0], già ordinato
+// per scadenza), come nel payload reale scritto da notify_queue_stale()
+// dopo 20260730_queue_stale_notif_direct_task.
 const digest = (count, tasks) => ({
   id: "n1",
   type: "queue_stale",
   read: false,
   createdAt: new Date().toISOString(),
-  payload: { count, tasks, task_ids: tasks.map(t => t.id), view: "dashboard", queue: "global" },
+  payload: {
+    count, tasks, task_ids: tasks.map(t => t.id), view: "dashboard", queue: "global",
+    task_id: tasks[0]?.id, task_title: tasks[0]?.title,
+  },
 });
 
 describe("notifTitle — queue_stale", () => {
@@ -66,15 +72,20 @@ describe("notifSubtitle", () => {
 });
 
 describe("notifTarget", () => {
-  it("il digest apre la Dashboard sulla coda globale", () => {
+  it("il digest con più task apre direttamente il task più urgente", () => {
     expect(notifTarget(digest(3, [{ id: "t1", title: "CK RYANAIR" }]))).toEqual({
-      kind: "view", view: "dashboard", queue: "global",
+      kind: "task", taskId: "t1",
     });
   });
 
   it("con un solo task apre direttamente il task", () => {
     const n = { type: "queue_stale", payload: { count: 1, task_id: "t1", view: "dashboard", queue: "global" } };
     expect(notifTarget(n)).toEqual({ kind: "task", taskId: "t1" });
+  });
+
+  it("payload legacy senza task_id ricade sulla vista (fallback)", () => {
+    const n = { type: "queue_stale", payload: { count: 3, view: "dashboard", queue: "global" } };
+    expect(notifTarget(n)).toEqual({ kind: "view", view: "dashboard", queue: "global" });
   });
 
   it("la chat apre la conversazione", () => {

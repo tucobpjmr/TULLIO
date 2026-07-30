@@ -410,7 +410,10 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
 
       <div className="lv-detail-head">
         <div className="grow">
-          <h1>{lista.clients?.name || "—"}</h1>
+          <div className="lv-name-row">
+            <h1>{lista.clients?.name || "—"}</h1>
+            <button className="lv-icon-btn" title="Modifica dati lista" aria-label="Modifica dati lista" onClick={() => setModal("editLista")}>✎</button>
+          </div>
           <div className="sub">
             <TitoloTestata lista={lista} dispatch={dispatch} onSaved={onReload} />
             <span className={`lv-badge ${lista.stato}`}>{lista.stato}</span>
@@ -428,7 +431,6 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
             <span className="plus">＋</span> Nuovo movimento
           </button>
         )}
-        <button className="lv-btn" onClick={() => setModal("editLista")}>✎ Modifica dati</button>
         <button className="lv-btn" onClick={() => setRiepilogoOpen(true)}>Riepilogo cliente</button>
         <button className="lv-btn" onClick={copiaAgente}>Copia agente</button>
         <button className="lv-btn" onClick={toggleStato}>{attiva ? "Segna ESAURITA" : "Riapri lista"}</button>

@@ -4,10 +4,8 @@
 // progetto Supabase e la stessa anagrafica clienti/utenti.
 //
 // Il modulo non ha una voce di sidebar/bottom-nav: ci si arriva dal bottone
-// nell'header della Dashboard e dal tab dentro la scheda cliente. Senza una
-// voce di nav attiva l'utente non ha, su mobile, un segnale di "dove sono":
-// per questo il modulo fornisce la propria via d'uscita esplicita (breadcrumb
-// "← Dashboard"), oltre al logo in Topbar che porta comunque alla Dashboard.
+// nell'header della Dashboard e dal tab dentro la scheda cliente. Il ritorno
+// alla Dashboard passa dal logo/voce già presente in Topbar.
 //
 // Il CONTENUTO mantiene di proposito lo stile originale (blu #0F4C81, font
 // Inter, impaginazione "foglio cartaceo"); solo la chrome di navigazione —
@@ -325,15 +323,6 @@ export function ListeViaggio({ state, dispatch }) {
       gap: 12, flexWrap: "wrap",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-        <button
-          onClick={() => dispatch({ type: "SET_VIEW", payload: "dashboard" })}
-          style={{
-            padding: "7px 14px", borderRadius: 9, border: "1px solid var(--border)",
-            background: "var(--card)", color: "var(--navy)", cursor: "pointer",
-            fontSize: 13, fontWeight: 600, fontFamily: "inherit",
-            display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0,
-          }}
-        >← Dashboard</button>
         <h1 className="playfair" style={{ fontSize: isMobile ? 19 : 23, color: "var(--heading)", minWidth: 0 }}>
           Liste viaggio
         </h1>

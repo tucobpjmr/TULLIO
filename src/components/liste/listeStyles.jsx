@@ -76,6 +76,7 @@ export const ListeStyles = () => (
     /* ---------- detail ---------- */
     .lv-root .lv-detail-head{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:16px}
     .lv-root .lv-detail-head h1{font-size:22px;font-weight:700;letter-spacing:-.02em}
+    .lv-root .lv-name-row{display:flex;align-items:center;gap:4px}
     .lv-root .lv-detail-head .sub{color:var(--lv-muted);font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}
     .lv-root .lv-detail-head .grow{flex:1;min-width:200px}
     /* titolo modificabile con un tocco: bersaglio ampio anche sul telefono */

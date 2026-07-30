@@ -970,18 +970,15 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
     });
   };
 
-  const firstName = me?.name?.split(" ")[0] || "ciao";
-
   return (
     <div className="fade-in" style={{ padding: isMobile ? 16 : 28, display: "flex", flexDirection: "column", gap: isMobile ? 18 : 24, minWidth: 0, overflow: "hidden" }}>
       {/* Header */}
       <div className="vd-row-wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
         <div>
-          <div className="playfair" style={{ fontSize: isMobile ? 21 : 26, fontWeight: 700 }}>
-            Buongiorno, {firstName} ☀️
+          <div className="playfair" style={{ fontSize: 35, fontWeight: 700, color: "var(--navy)" }}>
+            {new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
           </div>
           <div style={{ color: "var(--text-muted)", fontSize: 14, marginTop: 2, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-            <span>{new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}</span>
             {role !== "admin" && (
               <>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
@@ -1012,10 +1009,11 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
             className="hover-lift"
             style={{
               padding: isMobile ? "8px 14px" : "10px 18px", borderRadius: 9,
-              border: "1px solid var(--border)", background: "var(--card)",
-              color: "var(--navy)", cursor: "pointer", fontFamily: "inherit",
+              border: "none", background: "var(--navy)",
+              color: "#fff", cursor: "pointer", fontFamily: "inherit",
               fontSize: isMobile ? 13 : 14, fontWeight: 600,
               display: "inline-flex", alignItems: "center", gap: 7, flexShrink: 0,
+              boxShadow: "0 2px 8px rgba(15,32,68,0.3)",
             }}
           >
             🧾 Liste viaggio

@@ -24,6 +24,15 @@ import {
 // (segnalato dall'utente su "Strumenti dati" e "+ Nuova lista"). Il portale
 // lo sgancia da quella gerarchia e lo posiziona sempre rispetto al viewport
 // reale, com'è già per gli altri modali dell'app.
+//
+// Il wrapper .lv-root qui sotto è necessario quanto il portale stesso: TUTTO
+// il CSS del modulo (bottoni, select/input, font Inter, variabili colore
+// --lv-*) è scopato come discendente di .lv-root (vedi listeStyles.jsx) —
+// senza di lui il portale porta il modale fuori dalla sua stessa gerarchia
+// di stile, e bottoni/select tornano al default del browser (overflow del
+// <select> Cliente compreso). .lv-root non ha transform/filter, quindi non
+// reintroduce il bug della positioning: contribuisce zero altezza al layout
+// perché il suo unico figlio è position:fixed.
 export function LvOverlay({ children, onClose, wide = false }) {
   const boxRef = useRef(null);
   useEffect(() => {
@@ -33,13 +42,15 @@ export function LvOverlay({ children, onClose, wide = false }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
   return createPortal(
-    <div className="lv-overlay" onClick={onClose}>
-      <div
-        ref={boxRef}
-        className={`lv-modal${wide ? " wide" : ""}`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {children}
+    <div className="lv-root">
+      <div className="lv-overlay" onClick={onClose}>
+        <div
+          ref={boxRef}
+          className={`lv-modal${wide ? " wide" : ""}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {children}
+        </div>
       </div>
     </div>,
     document.body

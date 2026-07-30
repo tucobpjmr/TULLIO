@@ -122,12 +122,14 @@ export const ListeStyles = () => (
     .lv-root .lv-btn .plus{font-weight:700;line-height:1}
 
     /* ---------- modal ---------- */
-    .lv-overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:650}
-    .lv-overlay .lv-modal{background:#fff;border-radius:12px;max-width:440px;width:100%;padding:22px;max-height:90vh;overflow:auto}
+    @keyframes lvModalIn{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+    .lv-overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;padding:16px;z-index:650}
+    .lv-overlay .lv-modal{background:#fff;border-radius:16px;max-width:440px;width:100%;padding:24px;max-height:90vh;overflow:auto;box-shadow:0 24px 60px -12px rgba(15,23,42,.45),0 0 0 1px rgba(15,23,42,.04);animation:lvModalIn .18s cubic-bezier(.16,1,.3,1)}
     .lv-overlay .lv-modal.wide{max-width:600px}
-    .lv-overlay .lv-modal h2{font-size:17px;margin-bottom:14px}
+    .lv-overlay .lv-modal h2{font-size:18px;font-weight:700;letter-spacing:-.01em;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--lv-border)}
     .lv-overlay .lv-modal .row{margin-bottom:12px}
-    .lv-overlay .lv-modal .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+    .lv-overlay .lv-modal .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;padding-top:16px;border-top:1px solid var(--lv-border)}
+    @media (prefers-reduced-motion:reduce){.lv-overlay .lv-modal{animation:none}}
 
     /* ---------- note interne ---------- */
     .lv-root .lv-note-card{padding:14px 16px}

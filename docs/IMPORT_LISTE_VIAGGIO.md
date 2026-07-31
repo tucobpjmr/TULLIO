@@ -81,6 +81,27 @@ LISTA ESAURITA
 Le liste sono lette anche quando sono scritte dentro una tabella: le celle di
 una riga vengono ricomposte in un'unica riga di testo.
 
+### Righe con più movimenti scritti insieme
+
+Se nel documento due movimenti stanno sulla **stessa riga** invece che uno per
+riga (es. `TIZIO € 200,00 POS CAIO € 150,00 CONTANTI`), lo strumento **non
+tenta di separarli**: sono sempre segnalati come riga non riconosciuta,
+motivo `N importi sulla stessa riga`, e finiscono — come ogni riga non
+riconosciuta — nel report e nelle note interne della lista, pronti per essere
+inseriti a mano.
+
+La scelta è deliberata: capire dove finisce la descrizione del primo movimento
+e comincia quella del secondo dipende da come è scritto il documento (un
+separatore esplicito? uno spazio? un punto e virgola?), e indovinare qui vuol
+dire rischiare di scambiare descrizione e importo tra due clienti diversi.
+Meglio un intervento manuale in più che un saldo sbagliato in silenzio.
+
+Se nei tuoi documenti questo caso è frequente e segue **sempre lo stesso
+schema** (per esempio i movimenti separati da `;`), segnalalo: si può
+insegnare al parser quello schema specifico e farglieli separare in automatico
+in sicurezza. Nel dubbio, la soluzione più rapida resta comunque mettere ogni
+movimento sulla propria riga prima di lanciare l'import.
+
 ---
 
 ## 3. Che cosa succede alle righe che non torna
@@ -127,6 +148,11 @@ Gli avvisi sono la lista corta di documenti da guardare a occhio:
 - **riga ignorata come totale/riepilogo** — verifica che fosse davvero un
   totale e non un movimento.
 - **nessun movimento riconosciuto nel file**.
+
+La colonna `righe_non_importate` conta anche le righe con **più movimenti
+scritti sulla stessa riga** (vedi sezione precedente): non essendo separabili
+in automatico senza rischiare di scambiare descrizione e importo, vanno
+sempre inserite a mano.
 
 ---
 

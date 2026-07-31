@@ -15,6 +15,7 @@ import {
   estraiMetodo,
   aNumero,
   uuidv5,
+  contaSimboliValuta,
 } from '../../scripts/importa-liste/parser.js';
 import { estraiTesto } from '../../scripts/importa-liste/estrattore.js';
 
@@ -75,6 +76,14 @@ describe('estraiImporto', () => {
 
   it('toglie l\'importo dal testo, lasciando la descrizione', () => {
     expect(estraiImporto('CARRIERO MICHELE € 200,00 POS').testoRipulito).toBe('CARRIERO MICHELE POS');
+  });
+});
+
+describe('contaSimboliValuta', () => {
+  it('conta EURO/EUR come €', () => {
+    expect(contaSimboliValuta('ACCONTO EURO 100,00')).toBe(1);
+    expect(contaSimboliValuta('A € 100,00 B EUR 50,00')).toBe(2);
+    expect(contaSimboliValuta('MARIO ROSSI 200,00')).toBe(0);
   });
 });
 
@@ -179,6 +188,33 @@ describe('analizzaLista', () => {
   it('segnala il saldo negativo', () => {
     const r = analizzaLista('LISTA_ROSSI.odt', '01/02/2026 VOLO - € 100,00');
     expect(r.avvisi.join(' ')).toMatch(/saldo negativo/);
+  });
+
+  // estraiImporto prende solo l'ULTIMO simbolo € sulla riga: senza questo
+  // controllo, una riga con due movimenti scritti di fila perderebbe il
+  // primo importo in silenzio (resterebbe incollato, testo e cifre, dentro
+  // la descrizione del secondo). Va sempre segnalata, mai indovinata.
+  it('non fonde due movimenti scritti sulla stessa riga: li segnala invece di indovinare', () => {
+    const r = analizzaLista(
+      'LISTA_ROSSI.odt',
+      '18/10/24 CARRIERO MICHELE € 200,00 POS ROSSI ANNA € 150,00 CONTANTI',
+    );
+    expect(r.movimenti).toHaveLength(0);
+    expect(r.righeNonRiconosciute).toHaveLength(1);
+    expect(r.righeNonRiconosciute[0].motivo).toMatch(/più movimenti/);
+    expect(r.avvisi.join(' ')).toMatch(/1 riga\/e non riconosciuta/);
+  });
+
+  it('non fonde un doppio totale sulla stessa riga: lo segnala comunque, non tenta di sommarlo', () => {
+    const r = analizzaLista('LISTA_ROSSI.odt', 'PARZIALE € 50,00 TOTALE € 100,00');
+    expect(r.movimenti).toHaveLength(0);
+    expect(r.righeIgnorate.some((x) => x.motivo === 'totale/saldo riepilogativo')).toBe(true);
+  });
+
+  it('una riga con un solo simbolo € resta un movimento normale (nessun falso positivo)', () => {
+    const r = analizzaLista('LISTA_ROSSI.odt', '01/02/2026 ACCONTO VIAGGIO EGITTO € 300,00 BONIFICO');
+    expect(r.movimenti).toHaveLength(1);
+    expect(r.movimenti[0].importo).toBe(300);
   });
 });
 

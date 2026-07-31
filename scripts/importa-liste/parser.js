@@ -85,10 +85,21 @@ export function aNumero(grezzo) {
 }
 
 const RE_CIFRE = '\\d[\\d. ]*(?:,\\d{1,2})?';
+const RE_PAROLA_VALUTA = /\b(?:EURO|EUR)\b\.?/gi;
 
 // Tolto l'importo dal mezzo della riga resta un doppio spazio: va richiuso,
 // altrimenti finisce nella descrizione salvata a database.
 const ripulisciSpazi = (s) => s.replace(/\s+/g, ' ').trim();
+
+const normalizzaValuta = (testo) => testo.replace(RE_PAROLA_VALUTA, '€');
+
+// Quanti simboli di valuta compaiono nella riga (EURO/EUR contano come €).
+// Serve a scoprire le righe con PIÙ movimenti scritti di fila sulla stessa
+// riga ("TIZIO € 200,00 CAIO € 150,00"): `estraiImporto` prende solo
+// l'ultimo importo e lascerebbe il resto — testo E importo — incollato nella
+// descrizione, perdendo un movimento senza dirlo. Va intercettato PRIMA di
+// chiamare estraiImporto, non dopo.
+export const contaSimboliValuta = (testo) => (normalizzaValuta(testo).match(/€/g) || []).length;
 
 /**
  * Cerca l'importo nella riga (senza la data iniziale).
@@ -97,7 +108,7 @@ const ripulisciSpazi = (s) => s.replace(/\s+/g, ' ').trim();
  * descrizione.
  */
 export function estraiImporto(testo) {
-  const t = testo.replace(/\b(?:EURO|EUR)\b\.?/gi, '€');
+  const t = normalizzaValuta(testo);
   const idx = t.lastIndexOf('€');
 
   if (idx >= 0) {
@@ -219,7 +230,13 @@ export function analizzaLista(nomeFile, testo) {
 
     const conData = estraiData(riga);
     const resto = conData ? conData.resto : riga;
-    const imp = estraiImporto(resto);
+    const nSimboli = contaSimboliValuta(resto);
+    // Con 2+ simboli di valuta sulla riga c'è più di un importo: estraiImporto
+    // prenderebbe solo l'ultimo, lasciando il primo (testo E cifre) incollato
+    // nella descrizione — un movimento perso senza nessun avviso. Meglio non
+    // provarci nemmeno: null forza la riga sui rami "non riconosciuta" più in
+    // basso, che segnalano invece di indovinare.
+    const imp = nSimboli <= 1 ? estraiImporto(resto) : null;
 
     // L'ordine dei controlli conta. Marcatori e intestazioni si riconoscono
     // solo su righe SENZA data e SENZA importo: una riga datata con un
@@ -240,10 +257,21 @@ export function analizzaLista(nomeFile, testo) {
     // Totali scritti a mano nel documento: si ignorano, il saldo lo ricalcola
     // l'app sommando i movimenti. Se la riga ignorata portava un importo lo si
     // segnala, così chi rilegge il report può accertarsi che fosse un totale
-    // e non un movimento.
+    // e non un movimento. Il controllo riconosce la riga dalla parola iniziale
+    // (RE_TOTALI), non da `imp`: resta valido anche per un doppio totale tipo
+    // "PARZIALE € 50,00 TOTALE € 100,00", che ha due simboli ma è comunque un
+    // riepilogo da ignorare, non due movimenti.
     if (!conData && RE_TOTALI.test(riga)) {
       righeIgnorate.push({ n, riga, motivo: 'totale/saldo riepilogativo' });
-      if (imp) avvisi.push(`riga ${n} ignorata come totale/riepilogo: "${riga}"`);
+      if (nSimboli >= 1) avvisi.push(`riga ${n} ignorata come totale/riepilogo: "${riga}"`);
+      return;
+    }
+
+    if (nSimboli >= 2) {
+      righeNonRiconosciute.push({
+        n, riga,
+        motivo: `${nSimboli} importi sulla stessa riga: probabili più movimenti scritti insieme, da separare a mano`,
+      });
       return;
     }
 

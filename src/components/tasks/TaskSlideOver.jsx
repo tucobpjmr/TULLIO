@@ -366,9 +366,11 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
         // corpo scrollabile = pattern già usato da ChatPanel.
         display: "flex", flexDirection: "column", overflow: "hidden",
       }}>
-        {/* Header */}
+        {/* Header — pannello fixed a top:0: su iPhone il padding-top include
+            l'inset della status bar, altrimenti chip e pulsante di chiusura
+            finiscono sotto ora/batteria. */}
         <div style={{
-          background: "var(--navy)", padding: "18px 22px",
+          background: "var(--navy)", padding: "calc(18px + var(--safe-top)) 22px 18px",
           display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexShrink: 0
         }}>
           <div>

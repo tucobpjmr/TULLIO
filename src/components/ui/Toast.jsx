@@ -25,7 +25,9 @@ export const Toast = ({ toast, dispatch }) => {
     : "✗";
   return (
     <div style={{
-      position: "fixed", bottom: isDesktop ? 24 : 80, left: "50%", transform: "translateX(-50%)",
+      // Mobile: sopra la bottom-nav + home indicator iPhone (--safe-bottom).
+      position: "fixed", bottom: isDesktop ? 24 : "calc(80px + var(--safe-bottom))",
+      left: "50%", transform: "translateX(-50%)",
       background: bg,
       color: "#fff", padding: "10px 16px 10px 20px", borderRadius: 10,
       fontSize: 14, fontWeight: 500, zIndex: 9999, boxShadow: "0 8px 30px rgba(0,0,0,0.25)",

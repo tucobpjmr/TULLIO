@@ -2114,10 +2114,14 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
         background: "var(--card)", zIndex: 800, boxShadow: "-20px 0 60px rgba(0,0,0,0.2)",
         display: "flex", flexDirection: "column", overflow: "hidden",
       }}>
-        {/* Header */}
+        {/* Header — il pannello è fixed a top:0, quindi su iPhone la sua testata
+            finisce sotto la status bar: il padding-top include l'inset così
+            "Online", ✏️ e ✕ restano tappabili (lo sfondo navy riempie comunque
+            la zona della status bar). */}
         <div style={{
           background: "linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%)",
-          padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "calc(14px + var(--safe-top)) 16px 14px",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
           flexShrink: 0, borderBottom: "1px solid rgba(212,168,67,0.2)",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

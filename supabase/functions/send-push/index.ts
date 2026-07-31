@@ -22,6 +22,14 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
+// TTL del messaggio push, in secondi. Senza un TTL esplicito il push service
+// può trattarlo come 0 = "consegna solo se il dispositivo è connesso ADESSO,
+// altrimenti scarta": su iPhone (schermo spento, rete assente, modalità
+// risparmio energetico) è la differenza fra una notifica che arriva qualche
+// minuto dopo e una che non arriva mai. 24h è il tetto oltre il quale una
+// notifica di lavoro non è più utile.
+const PUSH_TTL_SECONDS = 24 * 60 * 60;
+
 interface PushContext {
   appServer: webpush.ApplicationServer;
   triggerSecret: string;
@@ -117,7 +125,7 @@ Deno.serve(async (req) => {
       keys: { p256dh: sub.p256dh, auth: sub.auth },
     });
     try {
-      await subscriber.pushTextMessage(message, {});
+      await subscriber.pushTextMessage(message, { ttl: PUSH_TTL_SECONDS });
       sent++;
     } catch (e) {
       const status = e instanceof webpush.PushMessageError
@@ -125,11 +133,18 @@ Deno.serve(async (req) => {
         : undefined;
       if (status === 404 || status === 410) {
         // Sottoscrizione scaduta/revocata: pulizia dalla tabella.
+        // Su iOS capita spesso (aggiornamento della PWA, app scaricata da
+        // iOS): il client se ne accorge e si ri-registra al riavvio dell'app
+        // (syncPushSubscription in src/lib/push.js).
         await supabase.from("push_subscriptions").delete().eq("id", sub.id);
         removed++;
       } else {
         failed++;
-        console.error(`[send-push] push a ${sub.endpoint.slice(0, 60)}…:`, e);
+        // Host + status nel log: distingue a colpo d'occhio un rifiuto di
+        // Apple (web.push.apple.com, tipicamente 400/403 su VAPID) da uno di
+        // FCM, altrimenti indistinguibili nei log della funzione.
+        const host = (() => { try { return new URL(sub.endpoint).host; } catch { return "?"; } })();
+        console.error(`[send-push] ${host} status=${status ?? "n/a"}:`, e);
       }
     }
   }));

@@ -12,6 +12,24 @@
     <meta name="apple-mobile-web-app-title" content="VoyageDesk" />
     <link rel="apple-touch-icon" sizes="192x192" href="/apple-touch-icon-192.png" />
     <link rel="apple-touch-icon" sizes="512x512" href="/apple-touch-icon-512.png" />
+    <style>
+      /* ─── SAFE AREA (iPhone) ───
+         Con viewport-fit=cover + apple-mobile-web-app-status-bar-style
+         black-translucent (vedi meta sopra) la web view occupa TUTTO lo schermo,
+         status bar (ora, batteria, Dynamic Island) e home indicator compresi:
+         senza compensazione le testate finiscono sotto la status bar e i loro
+         pulsanti diventano intoccabili.
+         I token stanno qui e non nel FontLoader di VoyageDesk.jsx perché servono
+         anche alle schermate montate fuori dall'app (login, reset password,
+         ErrorBoundary). Valgono 0px dove non c'è una tacca, quindi si sommano
+         sempre senza condizionali. */
+      :root {
+        --safe-top: env(safe-area-inset-top, 0px);
+        --safe-bottom: env(safe-area-inset-bottom, 0px);
+        --safe-left: env(safe-area-inset-left, 0px);
+        --safe-right: env(safe-area-inset-right, 0px);
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

@@ -1,7 +1,7 @@
 // Service Worker VoyageDesk — solo Web Push (roadmap handoff v44).
 // Nessun handler fetch: niente caching, il comportamento di rete della PWA
 // resta invariato. Il payload arriva dalla Edge Function send-push:
-// { title, body, tag, data: { task_id, notification_id, type } }.
+// { title, body, tag, data: { task_id, conversation_id, notification_id, type } }.
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
@@ -10,6 +10,8 @@ self.addEventListener('push', (event) => {
   let payload = {};
   try { payload = event.data ? event.data.json() : {}; } catch { /* payload non-JSON: notifica generica */ }
   const title = payload.title || 'VoyageDesk';
+  // showNotification va SEMPRE chiamata: la sottoscrizione è userVisibleOnly e
+  // i browser (iOS compreso) revocano il permesso a chi riceve push silenziosi.
   event.waitUntil(self.registration.showNotification(title, {
     body: payload.body || '',
     icon: '/apple-touch-icon-192.png',
@@ -45,5 +47,34 @@ self.addEventListener('notificationclick', (event) => {
         ? `/?chat=${encodeURIComponent(conversationId)}`
         : '/';
     await self.clients.openWindow(url);
+  })());
+});
+
+// Rotazione della sottoscrizione. Il browser la invalida da solo (su iOS
+// succede spesso: aggiornamento della PWA, app scaricata per liberare spazio,
+// riavvio del dispositivo) e da quel momento il server continua a spedire a un
+// endpoint morto: nessuna notifica arriva più e nella UI non cambia nulla.
+// Qui ri-sottoscriviamo con la stessa chiave VAPID e avvisiamo le finestre
+// aperte, che salvano il nuovo endpoint su Supabase (il service worker non ha
+// la sessione dell'utente, non può scrivere sul DB da solo). Se nessuna
+// finestra è aperta ci pensa syncPushSubscription() alla prossima apertura
+// dell'app: la sottoscrizione a quel punto esiste già e va solo salvata.
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil((async () => {
+    try {
+      let sub = event.newSubscription || await self.registration.pushManager.getSubscription();
+      if (!sub) {
+        const key = event.oldSubscription?.options?.applicationServerKey;
+        if (!key) return; // senza chiave non possiamo ricreare: ci penserà l'app
+        sub = await self.registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: key,
+        });
+      }
+      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of windows) client.postMessage({ type: 'push-subscription-changed' });
+    } catch (e) {
+      console.error('[VoyageDesk sw] pushsubscriptionchange:', e);
+    }
   })());
 });

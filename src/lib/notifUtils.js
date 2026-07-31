@@ -13,6 +13,7 @@ export const NOTIF_ICONS = {
   queue_stale: "⏳",
   user_pending: "👤",
   chat_message: "✉️",
+  push_test: "📲",
   // Compat con mock
   overdue: "⚠️", assigned: "📋", deadline: "📅",
 };
@@ -65,6 +66,10 @@ export function notifTitle(n) {
         return p.conversation_name
           ? `${p.conversation_name} — ${p.by_user_name ?? "Nuovo messaggio"}: ${p.preview ?? ""}`
           : `${p.by_user_name ?? "Nuovo messaggio"}: ${p.preview ?? ""}`;
+      // Prova inviata dall'utente a se stesso dal toggle push
+      // (RPC send_test_push, migration 20260731_push_test_and_ios_fixes).
+      case "push_test":
+        return "Notifica di prova: le push funzionano su questo dispositivo";
       default:
         return n.type || "Notifica";
     }

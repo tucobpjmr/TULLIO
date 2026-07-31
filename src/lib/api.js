@@ -500,8 +500,19 @@ export const Push = {
   // Upsert: ri-attivare sul solito dispositivo aggiorna le chiavi senza duplicare.
   save: (row) =>
     supabase.from('push_subscriptions').upsert(row, { onConflict: 'user_id,endpoint' }),
+  // Esiste ancora la riga per questa sottoscrizione? La Edge Function cancella
+  // gli endpoint che rispondono 404/410 (frequente su iOS), quindi il browser
+  // può avere una subscription viva mentre il server non sa più a chi inviare.
+  // maybeSingle: nessuna riga non è un errore, è proprio il caso da rilevare.
+  findByEndpoint: (userId, endpoint) =>
+    supabase.from('push_subscriptions').select('id')
+      .eq('user_id', userId).eq('endpoint', endpoint).maybeSingle(),
   removeByEndpoint: (endpoint) =>
     supabase.from('push_subscriptions').delete().eq('endpoint', endpoint),
+  // Notifica di prova a se stessi: l'insert su notifications è riservato ai
+  // trigger (nessuna policy di INSERT), quindi passa da una RPC security
+  // definer (migration 20260731_push_test_and_ios_fixes).
+  sendTest: () => supabase.rpc('send_test_push'),
 };
 
 // ----------------- CLIENTS -----------------

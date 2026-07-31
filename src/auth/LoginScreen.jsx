@@ -201,8 +201,11 @@ export default function LoginScreen() {
 }
 
 const wrapStyle = {
+  // padding con safe area: su iPhone (viewport-fit=cover) la card resterebbe
+  // altrimenti sotto la status bar quando è più alta del viewport.
   minHeight: '100vh', display: 'grid', placeItems: 'center',
-  background: 'linear-gradient(135deg,#0f172a,#1e293b)', padding: 24,
+  background: 'linear-gradient(135deg,#0f172a,#1e293b)',
+  padding: 'calc(24px + var(--safe-top)) calc(24px + var(--safe-right)) calc(24px + var(--safe-bottom)) calc(24px + var(--safe-left))',
   fontFamily: '"DM Sans",system-ui,sans-serif', color: '#e2e8f0',
 };
 const cardStyle = {

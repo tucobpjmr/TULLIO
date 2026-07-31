@@ -6,7 +6,12 @@ export const FAB = ({ onClick }) => {
   const { isDesktop } = useViewport();
   return (
   <button onClick={onClick} style={{
-    position: "fixed", bottom: isDesktop ? 28 : 80, right: isDesktop ? 28 : 16, width: 52, height: 52,
+    // Mobile: sopra la bottom-nav, che a sua volta cresce dell'home indicator
+    // iPhone (--safe-bottom) — senza somma il FAB finirebbe a cavallo della nav.
+    position: "fixed",
+    bottom: isDesktop ? 28 : "calc(80px + var(--safe-bottom))",
+    right: isDesktop ? 28 : "calc(16px + var(--safe-right))",
+    width: 52, height: 52,
     borderRadius: "50%", background: "var(--gold)", border: "none",
     boxShadow: "0 8px 24px rgba(212,168,67,0.5)", cursor: "pointer",
     fontSize: 22, display: "flex", alignItems: "center", justifyContent: "center",

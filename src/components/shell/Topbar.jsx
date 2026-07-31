@@ -1,7 +1,7 @@
 // ─── TOPBAR ──────────────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f). Topbar + AdvancedSearchPanel,
 // UserSwitcher, NotificationsPanel e i loro helper (module-local). Esporta Topbar.
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { Users as UsersAPI } from "../../lib/api.js";
@@ -12,7 +12,7 @@ import { MOCK_NOTIFICATIONS } from "../../state/mockData.js";
 import { TEAM, CATEGORIES, getMember, isJuniorAgent, isDriver } from "../../state/appGlobals.js";
 import { ProfileEditor } from "../modals/ProfileEditor.jsx";
 import { SwipeActions } from "../SwipeActions.jsx";
-import { getPushSupport, getPushState, enablePush, disablePush } from "../../lib/push.js";
+import { getPushSupport, getPushState, enablePush, disablePush, syncPushSubscription, sendTestPush } from "../../lib/push.js";
 import { ListeAPI } from "../../lib/listeApi.js";
 import { NOTIF_ICONS, NOTIF_CATEGORIES, notifTitle, notifSubtitle, notifTime, notifTarget } from "../../lib/notifUtils.js";
 
@@ -220,14 +220,19 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
       className="fade-in"
       style={{
         position: isMobile ? "fixed" : "absolute",
-        top: isMobile ? 64 : "calc(100% + 8px)",
+        // Su mobile è position:fixed → l'offset è dal bordo dello schermo, non
+        // dalla topbar: senza --safe-top il pannello finirebbe sotto la topbar
+        // (che su iPhone è alta 58px + inset).
+        top: isMobile ? "calc(64px + var(--safe-top))" : "calc(100% + 8px)",
         left: isMobile ? 8 : 0,
         right: isMobile ? 8 : "auto",
         width: isMobile ? "auto" : 680,
         // iOS Safari: dvh = viewport visibile. Su mobile il pannello parte a
         // top:64 e ha zIndex sotto la bottom-nav → riservo ~140px (offset top +
         // nav) così l'ultimo risultato non finisce nascosto sotto la nav.
-        maxHeight: isMobile ? "calc(100dvh - 140px)" : "calc(100dvh - 80px)",
+        maxHeight: isMobile
+          ? "calc(100dvh - 140px - var(--safe-top) - var(--safe-bottom))"
+          : "calc(100dvh - 80px)",
         overflow: "hidden",
         background: "var(--surface)", borderRadius: 12,
         boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
@@ -516,9 +521,17 @@ export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMa
     return () => document.removeEventListener("mousedown", handler);
   }, [searchOpen]);
   return (
+    // Safe area iPhone: la web view parte sotto la status bar (viewport-fit=cover
+    // + black-translucent in index.html), quindi la topbar ha un padding-top pari
+    // all'inset e un'altezza maggiorata dello stesso valore. Lo sfondo --sky
+    // continua a riempire la zona della status bar/Dynamic Island, ma logo,
+    // ricerca, campanella e avatar restano sotto e tappabili.
     <div style={{
-      height: 58, background: "var(--sky)", display: "flex", alignItems: "center",
-      padding: isMobile ? "0 12px" : "0 20px", gap: isMobile ? 8 : 16, position: "sticky", top: 0, zIndex: 100,
+      height: "calc(58px + var(--safe-top))", paddingTop: "var(--safe-top)",
+      background: "var(--sky)", display: "flex", alignItems: "center",
+      paddingLeft: `calc(${isMobile ? 12 : 20}px + var(--safe-left))`,
+      paddingRight: `calc(${isMobile ? 12 : 20}px + var(--safe-right))`,
+      gap: isMobile ? 8 : 16, position: "sticky", top: 0, zIndex: 100,
       borderBottom: "1px solid rgba(212,168,67,0.3)", flexShrink: 0,
     }}>
       {/* Logo — funge da pulsante Dashboard */}
@@ -797,9 +810,9 @@ const UserSwitcher = ({ state, dispatch }) => {
 // Stati: loading | unsupported | needs-install (iOS Safari fuori PWA) |
 // denied (permesso negato a livello browser/OS) | off | on | busy.
 const PUSH_HINTS = {
-  "needs-install": "Su iPhone: apri da Safari → Condividi → \"Aggiungi alla schermata Home\" (richiede iOS 16.4+), poi riapri l'app installata.",
+  "needs-install": "Su iPhone: apri da Safari → Condividi → \"Aggiungi alla schermata Home\" (richiede iOS 16.4+), poi riapri l'app installata dalla Home.",
   unsupported: "Questo browser non supporta le notifiche push.",
-  denied: "Permesso negato: riattivalo dalle impostazioni del browser o del sistema.",
+  denied: "Permesso negato: riattivalo dalle impostazioni del browser o del sistema (iPhone: Impostazioni → Notifiche → VoyageDesk).",
   off: "Ricevi le notifiche anche ad app chiusa.",
   on: "Attive su questo dispositivo.",
 };
@@ -807,27 +820,30 @@ const PUSH_HINTS = {
 const PushToggle = ({ dispatch }) => {
   const { profile } = useAuth();
   const [status, setStatus] = useState("loading");
+  // Sottoscrizione presente nel browser ma assente dal DB: il server non sa
+  // più dove inviare (tipico su iPhone dopo un aggiornamento della PWA) e senza
+  // questo avviso il toggle resterebbe verde a fronte di zero notifiche.
+  const [outOfSync, setOutOfSync] = useState(false);
+  const [testing, setTesting] = useState(false);
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      const support = getPushSupport();
-      if (!support.supported) {
-        if (alive) setStatus(support.needsInstall ? "needs-install" : "unsupported");
-        return;
-      }
-      const s = await getPushState();
-      if (!alive) return;
-      setStatus(s.enabled ? "on" : (s.permission === "denied" ? "denied" : "off"));
-    })();
-    return () => { alive = false; };
-  }, []);
+  const refresh = useCallback(async () => {
+    const support = getPushSupport();
+    if (!support.supported) {
+      setStatus(support.needsInstall ? "needs-install" : "unsupported");
+      return;
+    }
+    const s = await getPushState(profile?.id);
+    setStatus(s.enabled ? "on" : (s.permission === "denied" ? "denied" : "off"));
+    setOutOfSync(s.enabled && !s.synced);
+  }, [profile?.id]);
+
+  useEffect(() => { refresh(); }, [refresh]);
 
   const toggle = async () => {
     if (status === "off") {
       setStatus("busy");
       const { error } = await enablePush(profile?.id);
-      if (!error) { setStatus("on"); return; }
+      if (!error) { setStatus("on"); setOutOfSync(false); return; }
       if (error === "denied") { setStatus("denied"); return; }
       setStatus("off");
       if (error !== "dismissed") {
@@ -837,10 +853,39 @@ const PushToggle = ({ dispatch }) => {
       setStatus("busy");
       const { error } = await disablePush();
       setStatus(error ? "on" : "off");
+      setOutOfSync(false);
       if (error) {
         dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Notifiche push: ${error}` } });
       }
     }
+  };
+
+  // Ripristina la registrazione di questo dispositivo sul server senza che
+  // l'utente debba spegnere e riaccendere il toggle.
+  const repair = async () => {
+    setStatus("busy");
+    const { error } = await syncPushSubscription(profile?.id);
+    await refresh();
+    dispatch({
+      type: "SHOW_TOAST",
+      payload: error
+        ? { type: "error", message: `Notifiche push: ${error}` }
+        : { type: "success", message: "Dispositivo ricollegato alle notifiche push" },
+    });
+  };
+
+  // Prova end-to-end: se la notifica di sistema non compare entro pochi
+  // secondi il problema è nel percorso server → dispositivo, non nell'app.
+  const test = async () => {
+    setTesting(true);
+    const { error } = await sendTestPush();
+    setTesting(false);
+    dispatch({
+      type: "SHOW_TOAST",
+      payload: error
+        ? { type: "error", message: `Notifica di prova: ${error}` }
+        : { type: "success", message: "Notifica di prova inviata: controlla il telefono" },
+    });
   };
 
   if (status === "loading") return null;
@@ -851,13 +896,36 @@ const PushToggle = ({ dispatch }) => {
     <div style={{
       padding: "12px 16px", borderTop: "1px solid var(--border)",
       background: "var(--surface2)", display: "flex", gap: 10, alignItems: "flex-start",
+      flexShrink: 0,
     }}>
       <span style={{ fontSize: 16, flexShrink: 0 }}>📲</span>
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 600 }}>Notifiche push</div>
         <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, lineHeight: 1.4 }}>
           {status === "busy" ? "Attendere…" : PUSH_HINTS[status]}
         </div>
+        {enabled && outOfSync && (
+          <div style={{ fontSize: 11, color: "var(--danger)", marginTop: 6, lineHeight: 1.4 }}>
+            ⚠️ Questo dispositivo non risulta registrato sul server: le notifiche
+            non arrivano finché non lo ricolleghi.
+          </div>
+        )}
+        {enabled && (
+          <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+            {outOfSync && (
+              <button onClick={repair} style={{
+                background: "var(--navy)", color: "#fff", border: "none", borderRadius: 6,
+                padding: "5px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+              }}>Ricollega dispositivo</button>
+            )}
+            <button onClick={test} disabled={testing} style={{
+              background: "transparent", color: "var(--text-muted)",
+              border: "1px solid var(--border)", borderRadius: 6,
+              padding: "5px 10px", fontSize: 11, fontWeight: 600,
+              cursor: testing ? "default" : "pointer", fontFamily: "inherit", opacity: testing ? 0.6 : 1,
+            }}>{testing ? "Invio…" : "Invia notifica di prova"}</button>
+          </div>
+        )}
       </div>
       {(interactive || status === "busy") && (
         <button
@@ -940,14 +1008,18 @@ const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMar
   return (
     <div className="slide-right" style={{
       position: isMobile ? "fixed" : "absolute",
-      top: isMobile ? 56 : "calc(100% + 8px)",
+      // Come il pannello ricerca: su mobile è fixed, quindi l'offset parte dal
+      // bordo fisico dello schermo e va sommato all'inset della status bar.
+      top: isMobile ? "calc(56px + var(--safe-top))" : "calc(100% + 8px)",
       right: isMobile ? 12 : 0,
       left: isMobile ? 12 : "auto",
       width: isMobile ? "auto" : "min(360px, calc(100vw - 24px))",
+      maxHeight: isMobile ? "calc(100dvh - 76px - var(--safe-top) - var(--safe-bottom))" : undefined,
+      display: "flex", flexDirection: "column",
       background: "#fff", borderRadius: 12, boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
       border: "1px solid var(--border)", overflow: "hidden", zIndex: 200,
     }}>
-      <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+      <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexShrink: 0 }}>
         <div className="playfair" style={{ fontWeight: 600, fontSize: 15 }}>Notifiche</div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {isReal && hasUnread && (
@@ -977,7 +1049,7 @@ const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMar
       {isReal && list.length > 0 && (
         <div style={{
           padding: "8px 12px", borderBottom: "1px solid var(--border)",
-          display: "flex", gap: 5, flexWrap: "wrap", background: "var(--surface2)",
+          display: "flex", gap: 5, flexWrap: "wrap", background: "var(--surface2)", flexShrink: 0,
         }}>
           {filterBtn("all", "Tutte")}
           {filterBtn("unread", "Non lette")}
@@ -986,7 +1058,10 @@ const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMar
           {counts.chat > 0 && filterBtn("chat", "✉️ Chat")}
         </div>
       )}
-      <div style={{ maxHeight: 420, overflowY: "auto" }}>
+      {/* flex:1 + minHeight:0 — su mobile il pannello ha un'altezza massima
+          legata al viewport (safe area inclusa): la lista è l'unica parte che
+          scrolla, testata e toggle push restano sempre visibili. */}
+      <div style={{ flex: 1, minHeight: 0, maxHeight: 420, overflowY: "auto" }}>
         {filteredList.length === 0 && (
           <div style={{ padding: "24px 16px", textAlign: "center", color: "var(--text-muted)", fontSize: 12 }}>
             {list.length === 0 ? "Nessuna notifica" : "Nessuna notifica per questo filtro"}

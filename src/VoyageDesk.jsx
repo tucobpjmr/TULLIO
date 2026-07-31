@@ -24,6 +24,8 @@ import {
 // Step P Phase 2a: utility pure estratte dal monolite.
 import { getActiveTasks } from "./lib/taskUtils.js";
 import { scopeConversationsForUser } from "./lib/chatUtils.js";
+// Web Push: riparazione della sottoscrizione a ogni avvio (vedi src/lib/push.js).
+import { syncPushSubscription } from "./lib/push.js";
 // Step P Phase 2b: dati mock (solo le notifiche, le altre seed vivono nel reducer).
 // Step P Phase 2c: globals mutabili e helper permessi estratti.
 import { getMember, canEditTask, canViewTask, canCreateTaskCategory, isAdmin } from "./state/appGlobals.js";
@@ -118,6 +120,9 @@ const FontLoader = () => (
       --card: #ffffff;
       --card2: #F7F6F2;
       --heading: var(--navy);
+      /* --safe-top/bottom/left/right (safe area iPhone) sono definiti in
+         index.html: servono anche fuori dall'app montata (LoginScreen,
+         ErrorBoundary), che non renderizzano questo FontLoader. */
       color-scheme: light;
     }
     body { font-family: 'DM Sans', sans-serif; background: var(--surface); color: var(--text); transition: background 0.2s ease, color 0.2s ease; }
@@ -163,6 +168,14 @@ const FontLoader = () => (
       .vd-hide-mobile { display: none !important; }
       .vd-row-wrap { flex-wrap: wrap !important; }
     }
+    /* ─── UTILITY SAFE AREA ───
+       .vd-safe-top: da applicare a ogni testata che tocca il bordo superiore
+       dello schermo (topbar, header dei pannelli a tutta altezza). Il padding
+       spinge il contenuto sotto la status bar mentre lo sfondo dell'elemento
+       continua a riempirla: nessuna striscia vuota, nessun pulsante coperto. */
+    .vd-safe-top { padding-top: var(--safe-top); }
+    .vd-safe-bottom { padding-bottom: var(--safe-bottom); }
+
     /* Bottom nav: solo mobile/tablet */
     .vd-bottom-nav { display: none; }
     @media (max-width: 1024px) {
@@ -170,11 +183,14 @@ const FontLoader = () => (
         display: flex;
         position: fixed; bottom: 0; left: 0; right: 0; z-index: 450;
         background: var(--sky); border-top: 1px solid rgba(212,168,67,0.3);
-        padding: 6px 4px env(safe-area-inset-bottom, 6px);
+        /* calc invece di env() secco: la vecchia forma "padding: 6px 4px env(...)"
+           su un telefono senza tacca collassava il padding inferiore a 0 e le
+           icone toccavano il bordo. */
+        padding: 6px calc(4px + var(--safe-left)) calc(6px + var(--safe-bottom)) calc(4px + var(--safe-right));
         justify-content: space-around; align-items: stretch;
         box-shadow: 0 -4px 20px rgba(0,0,0,0.25);
       }
-      .vd-main-scroll { padding-bottom: 70px !important; }
+      .vd-main-scroll { padding-bottom: calc(70px + var(--safe-bottom)) !important; }
     }
     /* ─── MODALI / SCHEDE: viewport dinamico (fix iOS Safari) ───
        Su Safari iOS le unità "vh" si riferiscono al viewport GRANDE (barre del
@@ -185,12 +201,16 @@ const FontLoader = () => (
        contenuto sta sempre dentro lo schermo visibile. La doppia dichiarazione
        (vh poi dvh) è un fallback: i browser che non conoscono dvh ignorano la
        seconda riga e usano vh. */
-    .vd-modal-mh { max-height: 90vh; max-height: 90dvh; }
+    .vd-modal-mh { max-height: 90vh; max-height: calc(90dvh - var(--safe-top) - var(--safe-bottom)); }
     .vd-sheet-full { height: 100vh; height: 100dvh; }
+    .vd-app-shell { height: 100vh; height: 100dvh; }
     @media (max-width: 1024px) {
       /* Mobile/tablet: lascia spazio alla bottom-nav (~64px + safe-area) così il
-         footer del modale resta sopra di essa e tappabile, senza sovrapposizioni. */
-      .vd-modal-mh { max-height: calc(100dvh - 76px); }
+         footer del modale resta sopra di essa e tappabile, senza sovrapposizioni.
+         Gli insets sono sottratti anche qui: i modali sono centrati nel viewport
+         pieno, quindi togliere l'altezza degli insets tiene la testata sotto la
+         status bar e il footer sopra l'home indicator. */
+      .vd-modal-mh { max-height: calc(100dvh - 76px - var(--safe-top) - var(--safe-bottom)); }
     }
   `}</style>
 );
@@ -952,6 +972,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // prematuro, a differenza di openTaskById).
   const pendingPushTask = useRef(null);
   const [pushNavTick, setPushNavTick] = useState(0);
+  const [pushSyncTick, setPushSyncTick] = useState(0);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const fromUrl = params.get("task");
@@ -978,10 +999,32 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         setChatIntent({ convId: e.data.conversationId });
         setShowChat(true);
       }
+      // Il service worker ha ricreato la sottoscrizione dopo che il browser
+      // l'ha invalidata: solo il client ha la sessione Supabase per salvarla.
+      if (e.data?.type === "push-subscription-changed") setPushSyncTick(t => t + 1);
     };
     navigator.serviceWorker.addEventListener("message", onMessage);
     return () => navigator.serviceWorker.removeEventListener("message", onMessage);
   }, []);
+
+  // Riparazione della sottoscrizione push a ogni avvio dell'app.
+  // Su iPhone la sottoscrizione muore da sola (aggiornamento della PWA, app
+  // scaricata da iOS, riavvio) e la Edge Function cancella la riga al primo
+  // 410: da lì in poi nessun push arriva più, con il toggle ancora acceso.
+  // syncPushSubscription ricrea la sottoscrizione (il permesso è già concesso,
+  // nessun gesto utente necessario) e riscrive la riga; è un no-op per chi non
+  // ha mai attivato le push o le ha spente.
+  useEffect(() => {
+    if (!useSupabase || !state.currentUserId) return;
+    let alive = true;
+    syncPushSubscription(state.currentUserId).then(({ error }) => {
+      // 'opt-out' / 'permission' / 'unsupported' sono gli esiti normali di chi
+      // non usa le push: non sono errori e non vanno loggati.
+      if (!alive || !error || ["opt-out", "permission", "unsupported"].includes(error)) return;
+      console.warn("[push] sincronizzazione sottoscrizione fallita:", error);
+    });
+    return () => { alive = false; };
+  }, [useSupabase, state.currentUserId, pushSyncTick]);
   useEffect(() => {
     if (!pendingPushTask.current) return;
     const t = (state.tasks || []).find(x => x.id === pendingPushTask.current && !x.deletedAt);
@@ -1441,7 +1484,10 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   return (
     <>
       <FontLoader />
-      <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", background: "var(--surface)", fontFamily: "'DM Sans', sans-serif" }}>
+      {/* vd-app-shell = height 100dvh con fallback 100vh (vedi FontLoader): su iOS
+          "vh" è il viewport GRANDE, con la barra del browser visibile il guscio
+          sfora in basso e la bottom-nav finisce fuori schermo. */}
+      <div className="vd-app-shell" style={{ display: "flex", flexDirection: "column", overflow: "hidden", background: "var(--surface)", fontFamily: "'DM Sans', sans-serif" }}>
         <Topbar
           state={state}
           dispatch={dispatch}

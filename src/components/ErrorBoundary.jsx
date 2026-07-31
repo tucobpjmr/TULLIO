@@ -8,7 +8,8 @@ import React from 'react';
 const wrap = {
   minHeight: '100vh', display: 'grid', placeItems: 'center',
   background: '#0f172a', color: '#e2e8f0',
-  fontFamily: '"DM Sans",system-ui,sans-serif', padding: 24,
+  fontFamily: '"DM Sans",system-ui,sans-serif',
+  padding: 'calc(24px + var(--safe-top)) 24px calc(24px + var(--safe-bottom))',
 };
 
 export class ErrorBoundary extends React.Component {

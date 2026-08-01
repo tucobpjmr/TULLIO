@@ -118,6 +118,13 @@ function useIsMobile() {
 // verrebbe tagliato dall'overflow. `withTime`: se false il picker è solo-data
 // (niente riga "Ora"); la conferma fissa mezzogiorno locale, come il filtro
 // data della Dashboard, così la data non slitta di giorno tra fusi orari.
+//
+// Chiusura senza "OK" (click fuori, Escape, backdrop su mobile): il giorno
+// eventualmente già scelto nel calendario viene APPLICATO, non buttato via.
+// Prima veniva scartato in silenzio pur restando evidenziato in navy fino
+// all'ultimo frame: nel BulkTaskCreator, dove si passa da un campo all'altro
+// senza toccare "OK", le task nascevano senza scadenza ("la data inserita
+// non persiste"). "Cancella" resta l'unico modo per azzerare una data.
 export function DateTimePicker({ value, onChange, hasError, style, placeholder = "gg/mm/aaaa --:--", align = "left", withTime = true }) {
   const [open, setOpen] = useState(false);
   const [viewDate, setViewDate] = useState(() => (value ? new Date(value) : new Date()));
@@ -128,6 +135,11 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
   });
   const rootRef = useRef(null);
   const isMobile = useIsMobile();
+  // `dismiss` sempre aggiornata per i listener su `document`: quelli sono
+  // registrati una volta sola per apertura e senza questo rimando leggerebbero
+  // una bozza stale, chiudendo il pannello senza vedere il giorno appena
+  // scelto. Il ref viene riassegnato a ogni render (vedi più sotto).
+  const dismissRef = useRef(null);
   // Scostamento orizzontale del dropdown desktop rispetto al campo.
   const [panelOffset, setPanelOffset] = useState(0);
 
@@ -162,8 +174,8 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
 
   useEffect(() => {
     if (!open) return;
-    const onDocClick = e => { if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false); };
-    const onKey = e => { if (e.key === "Escape") setOpen(false); };
+    const onDocClick = e => { if (rootRef.current && !rootRef.current.contains(e.target)) dismissRef.current(); };
+    const onKey = e => { if (e.key === "Escape") dismissRef.current(); };
     document.addEventListener("mousedown", onDocClick);
     document.addEventListener("keydown", onKey);
     return () => {
@@ -183,8 +195,9 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
   const setHour = h => setDraftTime(`${h}:${draftM}`);
   const setMinute = m => setDraftTime(`${draftH}:${m}`);
 
-  const confirm = () => {
-    if (!draftDay) { onChange(null); setOpen(false); return; }
+  // ISO della bozza corrente (null se non è stato scelto nessun giorno).
+  const draftIso = () => {
+    if (!draftDay) return null;
     const out = new Date(draftDay);
     if (withTime) {
       const [h, m] = draftTime.split(":").map(Number);
@@ -192,9 +205,24 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
     } else {
       out.setHours(12, 0, 0, 0);
     }
-    onChange(out.toISOString());
+    return out.toISOString();
+  };
+
+  const confirm = () => {
+    onChange(draftIso());
     setOpen(false);
   };
+
+  // Abbandono del pannello: applica il giorno scelto se ce n'è uno nuovo,
+  // altrimenti lascia il valore com'era. Non azzera mai una data esistente —
+  // per quello c'è "Cancella".
+  const dismiss = () => {
+    const iso = draftIso();
+    const current = value ? new Date(value).toISOString() : null;
+    if (iso && iso !== current) onChange(iso);
+    setOpen(false);
+  };
+  dismissRef.current = dismiss;
 
   const clear = () => { onChange(null); setOpen(false); };
 
@@ -293,7 +321,7 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
     <div ref={rootRef} style={{ position: "relative", ...style }}>
       <button
         type="button"
-        onClick={() => setOpen(v => !v)}
+        onClick={() => (open ? dismiss() : setOpen(true))}
         style={{
           width: "100%", textAlign: "left", border: `1px solid ${hasError ? "var(--danger)" : "var(--border)"}`,
           borderRadius: 8, padding: "7px 10px", fontSize: 13, fontFamily: "inherit",
@@ -311,7 +339,7 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
         // Mobile: card centrata a schermo con backdrop — sempre dentro i
         // margini, niente scroll orizzontale.
         <div
-          onMouseDown={e => { if (e.target === e.currentTarget) setOpen(false); }}
+          onMouseDown={e => { if (e.target === e.currentTarget) dismiss(); }}
           style={{
             position: "fixed", inset: 0, zIndex: 60,
             background: "rgba(0,0,0,0.35)",

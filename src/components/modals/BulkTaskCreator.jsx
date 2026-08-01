@@ -105,8 +105,9 @@ const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
   const [clientFocus, setClientFocus] = useState(false);
   const emptyRow = () => ({ key: Math.random().toString(36).slice(2), title: "", description: "", category: "", priority: "", assignee: "", dueDate: "", files: [] });
   const [rows, setRows] = useState([emptyRow(), emptyRow(), emptyRow()]);
-  // Creazione in corso: con allegati il modale resta aperto finché tutti gli
-  // upload non sono finiti, così un errore è visibile invece di sparire.
+  // Creazione in corso: blocca il doppio invio (un secondo tap sul pulsante
+  // creava un secondo batch identico) e con allegati tiene aperto il modale
+  // finché tutti gli upload non sono finiti, così un errore è visibile.
   const [busy, setBusy] = useState(false);
   const [fileError, setFileError] = useState("");
 
@@ -177,14 +178,23 @@ const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
     }));
 
     const withFiles = prepared.filter(p => p.files.length > 0);
-    if (withFiles.length) { setBusy(true); setFileError(""); }
+    setBusy(true);
+    setFileError("");
 
     const result = await onCreate(prepared.map(p => p.task));
 
     // Creazione fallita: niente upload (senza la riga task la RLS del bucket
-    // rifiuterebbe comunque), l'errore lo segnala già il toast di salvataggio.
-    if (!withFiles.length || (result && result.error)) {
-      if (withFiles.length) setBusy(false);
+    // rifiuterebbe comunque) e soprattutto il modale RESTA APERTO con i dati
+    // inseriti. Prima si chiudeva comunque: le task sparivano al reload e
+    // l'unico segnale era un toast che passava inosservato.
+    if (result && result.error) {
+      setFileError(`Creazione non riuscita: ${result.error.message || "errore sconosciuto"}. I dati sono ancora qui, riprova.`);
+      setBusy(false);
+      return;
+    }
+
+    if (!withFiles.length) {
+      setBusy(false);
       onClose();
       return;
     }
@@ -447,6 +457,8 @@ const DuplicateTab = ({ tasks, onCreate, onClose, onCancel, onDirty }) => {
   const [titleSuffix, setTitleSuffix] = useState(" (copia)");
   const [dayOffset, setDayOffset] = useState(0);
   const [search, setSearch] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
   const toggle = (id) => setSelected(s => {
     const next = { ...s };
@@ -472,9 +484,9 @@ const DuplicateTab = ({ tasks, onCreate, onClose, onCancel, onDirty }) => {
     return formatDate(d.toISOString());
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
+    if (busy) return;
     const newTasks = [];
-    const ts = Date.now();
     Object.entries(selected).forEach(([taskId, count]) => {
       const src = tasks.find(t => t.id === taskId);
       if (!src) return;
@@ -487,7 +499,10 @@ const DuplicateTab = ({ tasks, onCreate, onClose, onCancel, onDirty }) => {
         }
         newTasks.push({
           ...src,
-          id: "t" + ts + "-" + newTasks.length,
+          // UUID come in ManualTab: gli id "t<timestamp>-<n>" venivano comunque
+          // riscritti dal dispatch, quindi l'id mostrato in UI non era quello
+          // salvato sul DB finché non arrivava il refresh.
+          id: crypto.randomUUID(),
           title: src.title + titleSuffix + (count > 1 ? ` ${i + 1}` : ""),
           status: "todo",
           comments: [],
@@ -495,7 +510,16 @@ const DuplicateTab = ({ tasks, onCreate, onClose, onCancel, onDirty }) => {
         });
       }
     });
-    onCreate(newTasks);
+    if (!newTasks.length) return;
+    setBusy(true);
+    setError("");
+    const result = await onCreate(newTasks);
+    if (result && result.error) {
+      setError(`Creazione non riuscita: ${result.error.message || "errore sconosciuto"}. Le selezioni sono ancora qui, riprova.`);
+      setBusy(false);
+      return;
+    }
+    setBusy(false);
     onClose();
   };
 
@@ -555,12 +579,17 @@ const DuplicateTab = ({ tasks, onCreate, onClose, onCancel, onDirty }) => {
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: "1px solid var(--border)" }}>
-        <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{totalCount} copie da creare</div>
+        <div style={{ fontSize: 12, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 2 }}>
+          <span>{totalCount} copie da creare</span>
+          {error && <span style={{ color: "var(--danger)", fontWeight: 600 }}>{error}</span>}
+        </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={onCancel || onClose} style={bulkBtnGhost}>Annulla</button>
-          <button onClick={handleCreate} disabled={totalCount === 0} style={{
-            ...bulkBtnPrimary, opacity: totalCount === 0 ? 0.5 : 1, cursor: totalCount === 0 ? "not-allowed" : "pointer",
-          }}>✓ Crea {totalCount} copie</button>
+          <button onClick={onCancel || onClose} disabled={busy} style={{ ...bulkBtnGhost, opacity: busy ? 0.6 : 1, cursor: busy ? "not-allowed" : "pointer" }}>Annulla</button>
+          <button onClick={handleCreate} disabled={totalCount === 0 || busy} style={{
+            ...bulkBtnPrimary,
+            opacity: (totalCount === 0 || busy) ? 0.5 : 1,
+            cursor: (totalCount === 0 || busy) ? "not-allowed" : "pointer",
+          }}>{busy ? "⏳ Creazione…" : `✓ Crea ${totalCount} copie`}</button>
         </div>
       </div>
     </div>
@@ -577,6 +606,7 @@ const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
   // li evidenziamo così l'operatore sa cosa verificare (e cosa mappare a mano).
   const [autoDetected, setAutoDetected] = useState({});
   const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => { onDirty?.(rows.length > 0); }, [rows.length, onDirty]);
@@ -741,12 +771,12 @@ const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
     });
   }, [validRows, mapping]);
 
-  const handleCreate = () => {
-    const ts = Date.now();
-    const tasks = validRows.map((r, idx) => {
+  const handleCreate = async () => {
+    if (busy) return;
+    const tasks = validRows.map((r) => {
       const assignee = mapping.assignee ? normAssignee(r[mapping.assignee]) : null;
       return {
-        id: "t" + ts + "-" + idx,
+        id: crypto.randomUUID(),
         title: String(r[mapping.title]).trim(),
         category: normCat(mapping.category ? r[mapping.category] : null),
         priority: normPrio(mapping.priority ? r[mapping.priority] : null),
@@ -760,7 +790,18 @@ const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
         comments: [],
       };
     });
-    onCreate(tasks);
+    if (!tasks.length) return;
+    setBusy(true);
+    setError(null);
+    const result = await onCreate(tasks);
+    // Import fallito: il modale resta aperto con file e mappatura intatti,
+    // altrimenti l'operatore dovrebbe ricaricare il CSV e rimappare tutto.
+    if (result && result.error) {
+      setError(`Importazione non riuscita: ${result.error.message || "errore sconosciuto"}. Il file e la mappatura sono ancora qui, riprova.`);
+      setBusy(false);
+      return;
+    }
+    setBusy(false);
     onClose();
   };
 
@@ -933,12 +974,12 @@ const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
           {validRows.length} task validi {!mapping.title && rows.length > 0 && "(mappa il TITOLO)"}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={onCancel || onClose} style={bulkBtnGhost}>Annulla</button>
-          <button onClick={handleCreate} disabled={validRows.length === 0 || !mapping.title} style={{
+          <button onClick={onCancel || onClose} disabled={busy} style={{ ...bulkBtnGhost, opacity: busy ? 0.6 : 1, cursor: busy ? "not-allowed" : "pointer" }}>Annulla</button>
+          <button onClick={handleCreate} disabled={validRows.length === 0 || !mapping.title || busy} style={{
             ...bulkBtnPrimary,
-            opacity: (validRows.length === 0 || !mapping.title) ? 0.5 : 1,
-            cursor: (validRows.length === 0 || !mapping.title) ? "not-allowed" : "pointer",
-          }}>✓ Importa {validRows.length} task</button>
+            opacity: (validRows.length === 0 || !mapping.title || busy) ? 0.5 : 1,
+            cursor: (validRows.length === 0 || !mapping.title || busy) ? "not-allowed" : "pointer",
+          }}>{busy ? "⏳ Importazione…" : `✓ Importa ${validRows.length} task`}</button>
         </div>
       </div>
     </div>
@@ -954,6 +995,8 @@ const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => 
   const [defaultAssignee, setDefaultAssignee] = useState("");
   const [praticaRef, setPraticaRef] = useState("");
   const [contact, setContact] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => { onDirty?.(!!selectedId); }, [selectedId, onDirty]);
 
@@ -964,11 +1007,10 @@ const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => 
     return { ...t, dueDate: d.toISOString() };
   }) : [];
 
-  const handleCreate = () => {
-    if (!tpl || !eventDate) return;
-    const ts = Date.now();
-    const tasks = previewTasks.map((t, idx) => ({
-      id: "t" + ts + "-" + idx,
+  const handleCreate = async () => {
+    if (!tpl || !eventDate || busy) return;
+    const tasks = previewTasks.map((t) => ({
+      id: crypto.randomUUID(),
       title: t.title,
       category: t.category,
       priority: t.priority,
@@ -982,7 +1024,16 @@ const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => 
       description: "",
       comments: [],
     }));
-    onCreate(tasks);
+    if (!tasks.length) return;
+    setBusy(true);
+    setError("");
+    const result = await onCreate(tasks);
+    if (result && result.error) {
+      setError(`Creazione non riuscita: ${result.error.message || "errore sconosciuto"}. I dati sono ancora qui, riprova.`);
+      setBusy(false);
+      return;
+    }
+    setBusy(false);
     onClose();
   };
 
@@ -1131,14 +1182,17 @@ const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => 
       )}
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: "1px solid var(--border)" }}>
-        <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{previewTasks.length} task pronti</div>
+        <div style={{ fontSize: 12, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 2 }}>
+          <span>{previewTasks.length} task pronti</span>
+          {error && <span style={{ color: "var(--danger)", fontWeight: 600 }}>{error}</span>}
+        </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={onCancel || onClose} style={bulkBtnGhost}>Annulla</button>
-          <button onClick={handleCreate} disabled={!tpl || !eventDate} style={{
+          <button onClick={onCancel || onClose} disabled={busy} style={{ ...bulkBtnGhost, opacity: busy ? 0.6 : 1, cursor: busy ? "not-allowed" : "pointer" }}>Annulla</button>
+          <button onClick={handleCreate} disabled={!tpl || !eventDate || busy} style={{
             ...bulkBtnPrimary,
-            opacity: (!tpl || !eventDate) ? 0.5 : 1,
-            cursor: (!tpl || !eventDate) ? "not-allowed" : "pointer",
-          }}>✓ Crea {previewTasks.length} task</button>
+            opacity: (!tpl || !eventDate || busy) ? 0.5 : 1,
+            cursor: (!tpl || !eventDate || busy) ? "not-allowed" : "pointer",
+          }}>{busy ? "⏳ Creazione…" : `✓ Crea ${previewTasks.length} task`}</button>
         </div>
       </div>
     </div>

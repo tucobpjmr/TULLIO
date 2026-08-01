@@ -34,6 +34,28 @@ describe("reducer — task lifecycle (admin)", () => {
     expect(next.toast.type).toBe("success");
   });
 
+  // L'insert in blocco su Supabase è atomica: se fallisce non esiste NESSUNA
+  // delle task, quindi vanno tolte anche dallo stato ottimistico. Senza questo
+  // restavano in lista task inesistenti sul server fino al reload successivo.
+  it("ROLLBACK_TASKS_BULK toglie solo le task del batch fallito", () => {
+    const T1 = "22222222-2222-4333-8444-555555555555";
+    const T2 = "33333333-2222-4333-8444-555555555555";
+    s = reducer(s, { type: "ADD_TASK", payload: task({ title: "Preesistente" }) });
+    s = reducer(s, {
+      type: "ADD_TASKS_BULK",
+      payload: [task({ id: T1, title: "Bulk 1" }), task({ id: T2, title: "Bulk 2" })],
+    });
+    expect(s.tasks).toHaveLength(3);
+
+    const next = reducer(s, { type: "ROLLBACK_TASKS_BULK", payload: [T1, T2] });
+    expect(next.tasks.map(t => t.id)).toEqual([UUID]);
+  });
+
+  it("ROLLBACK_TASKS_BULK con lista vuota lascia lo stato intatto", () => {
+    s = reducer(s, { type: "ADD_TASK", payload: task() });
+    expect(reducer(s, { type: "ROLLBACK_TASKS_BULK", payload: [] })).toBe(s);
+  });
+
   it("MOVE_TASK cambia lo status del task indicato", () => {
     s = reducer(s, { type: "ADD_TASK", payload: task() });
     const next = reducer(s, { type: "MOVE_TASK", payload: { taskId: UUID, newStatus: "done" } });

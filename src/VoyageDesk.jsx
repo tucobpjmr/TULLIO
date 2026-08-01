@@ -144,9 +144,19 @@ const FontLoader = () => (
     @keyframes typing { 0%,100% { opacity: 0.3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
     @keyframes spin { to { transform: rotate(360deg); } }
     .record-pulse { animation: recordPulse 1.5s ease infinite; }
-    .fade-in { animation: fadeIn 0.3s ease forwards; }
-    .slide-right { animation: slideRight 0.3s ease forwards; }
-    .slide-up { animation: slideUp 0.35s ease forwards; }
+    /* Niente "forwards": con animation-fill-mode:forwards l'elemento TRATTIENE
+       per sempre il transform del keyframe finale (translateY(0)/translateX(0)),
+       e un transform != none rende l'elemento containing block per i discendenti
+       position:fixed — i modali montati dentro una vista animata finivano così
+       centrati sull'altezza della vista (scrollabile) invece che sul viewport,
+       comparendo troppo in basso. Lo stato finale di questi keyframe coincide
+       con lo stato naturale dell'elemento (opacity 1, nessuna traslazione),
+       quindi togliere "forwards" non cambia nulla visivamente ma libera il
+       containing block a fine animazione. I modali usano comunque ModalPortal
+       (vedi ui/ModalPortal.jsx): questa è la difesa a monte, quello il fix. */
+    .fade-in { animation: fadeIn 0.3s ease; }
+    .slide-right { animation: slideRight 0.3s ease; }
+    .slide-up { animation: slideUp 0.35s ease; }
     .skeleton { animation: pulse 1.5s ease infinite; background: linear-gradient(90deg, var(--surface2) 25%, var(--surface3) 50%, var(--surface2) 75%); background-size: 200% 100%; }
     .hover-lift { transition: transform 0.2s ease, box-shadow 0.2s ease; }
     .hover-lift:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(15,32,68,0.12); }

@@ -75,8 +75,14 @@ const CropModal = ({ src, onConfirm, onCancel }) => {
   return (
     <>
       <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 1100 }} />
+      {/* Centratura con inset:0 + margin:auto invece di translate(-50%,-50%):
+          un transform != none renderebbe questa card containing block per i
+          discendenti position:fixed, che si posizionerebbero rispetto alla card
+          invece che allo schermo (vedi ui/ModalPortal.jsx per il meccanismo e
+          i casi in cui si è manifestato). Qui oggi non ci sono fixed annidati,
+          ma il crop è la card in cui è più probabile che ne arrivino. */}
       <div style={{
-        position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+        position: "fixed", inset: 0, margin: "auto", height: "fit-content",
         background: "var(--card)", borderRadius: 16, zIndex: 1101,
         padding: "22px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 16,
         width: 330, maxWidth: "calc(100vw - 32px)",
@@ -296,8 +302,9 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
         />
       )}
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,32,68,0.4)", zIndex: 1000 }} />
+      {/* Stessa centratura senza transform della CropModal qui sopra. */}
       <div className="vd-modal-mh" style={{
-        position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+        position: "fixed", inset: 0, margin: "auto", height: "fit-content",
         background: "var(--card)", borderRadius: 16, zIndex: 1001,
         width: isMobile ? "calc(100vw - 32px)" : 480, maxWidth: "100%",
         overflowY: "auto",

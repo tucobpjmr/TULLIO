@@ -247,8 +247,14 @@ export const Trash = ({ state, dispatch }) => {
           <div onClick={() => setRestoring(null)} style={{
             position: "fixed", inset: 0, background: "rgba(15,32,68,0.4)", zIndex: 1000,
           }} />
+          {/* Centratura con inset:0 + margin:auto invece di
+              translate(-50%,-50%): il transform renderebbe questa card
+              containing block per i discendenti position:fixed, e il backdrop
+              mobile del DateTimePicker qui sotto (campo SCADENZA) resterebbe
+              confinato — e scrollabile — dentro la card invece di coprire lo
+              schermo. Vedi ui/ModalPortal.jsx per il dettaglio del meccanismo. */}
           <div className="vd-modal-mh" style={{
-            position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+            position: "fixed", inset: 0, margin: "auto", height: "fit-content",
             background: "var(--card)", borderRadius: 16, zIndex: 1001,
             width: isMobile ? "calc(100vw - 32px)" : 520, maxWidth: "100%",
             overflowY: "auto",

@@ -174,6 +174,13 @@ export const Tasks = {
     supabase.from('tasks').select('*').eq('id', id).single(),
   create: (task) =>
     supabase.from('tasks').insert(withOrigin(task)).select().single(),
+  // Creazione in blocco (BulkTaskCreator): UNA insert multi-riga invece di N
+  // chiamate in parallelo. È atomica — o entrano tutte o nessuna — mentre con
+  // Promise.all una riga rifiutata (vincolo, RLS, rete) lasciava passare le
+  // altre e l'utente si ritrovava metà batch sul server ma tutte le task in
+  // lista, scoprendo la differenza solo al reload successivo.
+  createMany: (tasks) =>
+    supabase.from('tasks').insert(tasks.map(withOrigin)).select(),
   update: (id, patch) =>
     supabase.from('tasks').update(withOrigin(patch)).eq('id', id).select().single(),
   softDelete: (id) =>

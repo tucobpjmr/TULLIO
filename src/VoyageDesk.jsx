@@ -726,8 +726,17 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         const payload = (action.payload || []).map(t => ({
           ...t, id: isUuid(t?.id) ? t.id : newId(),
         }));
+        if (!payload.length) break;
         toDispatch = { ...action, payload };
-        dbOps = () => Promise.all(payload.map(t => TasksAPI.create(toDbTask(t))));
+        dbOps = () => TasksAPI.createMany(payload.map(toDbTask));
+        // L'insert è atomica: se fallisce NESSUNA task è stata creata, quindi
+        // le righe già aggiunte in ottimistico vanno tolte. Senza rollback
+        // restavano in lista task inesistenti sul server — sparivano solo al
+        // reload, dando l'impressione che il bulk "non crei davvero" nulla.
+        onError = () => rawDispatch({
+          type: "ROLLBACK_TASKS_BULK",
+          payload: payload.map(t => t.id),
+        });
         break;
       }
       case "UPDATE_TASK": {

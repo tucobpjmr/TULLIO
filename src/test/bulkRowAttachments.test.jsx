@@ -108,7 +108,11 @@ describe("BulkTaskCreator — allegati di riga", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("non tenta l'upload se la creazione delle task è fallita", async () => {
+  // Creazione fallita: niente upload (senza la riga task la RLS del bucket
+  // rifiuterebbe comunque) e modale che resta aperto con i dati inseriti.
+  // Prima si chiudeva lo stesso: le task ottimistiche sparivano al reload e
+  // l'unico segnale era un toast, da cui "le task non vengono create davvero".
+  it("se la creazione fallisce non fa upload, tiene aperto il modale e lo dice", async () => {
     const onClose = vi.fn();
     render(<BulkTaskCreator existingTasks={[]} onCreate={vi.fn(async () => ({ error: { message: "no" } }))} onClose={onClose} />);
     openManualTab();
@@ -117,7 +121,10 @@ describe("BulkTaskCreator — allegati di riga", () => {
     attachTo(0, [makeFile("doc.pdf")]);
     fireEvent.click(screen.getByText(/Crea 1 task/));
 
-    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    await screen.findByText(/Creazione non riuscita/);
     expect(upload).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    // I dati restano nel modale, pronti per un nuovo tentativo.
+    expect(titles()[0]).toHaveValue("Task");
   });
 });

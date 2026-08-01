@@ -199,6 +199,15 @@ function baseReducer(state, action) {
       const tasks = [...action.payload, ...state.tasks];
       return { ...state, tasks, toast: { message: `${action.payload.length} task creati!`, type: "success" } };
     }
+    // Annulla l'inserimento ottimistico di ADD_TASKS_BULK quando l'insert su
+    // Supabase è fallita (l'insert in blocco è atomica: nessuna delle task
+    // esiste davvero). Puramente locale e senza toast — quello d'errore lo
+    // mostra già il wrapper dispatch in VoyageDesk.
+    case "ROLLBACK_TASKS_BULK": {
+      const ids = new Set(action.payload || []);
+      if (!ids.size) return state;
+      return { ...state, tasks: state.tasks.filter(t => !ids.has(t.id)) };
+    }
     case "UPDATE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload.id);
       if (!prev) return state;

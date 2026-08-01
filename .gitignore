@@ -4,3 +4,7 @@ dist
 .env.local
 .DS_Store
 *.log
+
+# Output dello strumento di import delle liste storiche
+# (JSON con dati clienti reali: non va versionato)
+import-liste/

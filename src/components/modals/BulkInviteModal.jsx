@@ -17,6 +17,7 @@ import { useState } from "react";
 import {
   modalOverlay, modalCard, labelStyle, fieldStyle, btnPrimary, btnGhost,
 } from "../admin/adminStyles.js";
+import { ModalPortal } from "../ui/ModalPortal.jsx";
 import { Users } from "../../lib/api.js";
 import { EMAIL_RX } from "../../lib/validators.js";
 
@@ -109,91 +110,95 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
   const errCount = (results || []).filter(r => r.status === "err").length;
   const allDone = results && !busy && results.length > 0;
 
+  // Portale: AdminTeamTab vive dentro il wrapper .fade-in di AdminView (transform
+  // → containing block per i fixed). Vedi ui/ModalPortal.jsx.
   return (
-    <div onClick={busy ? undefined : onClose} style={modalOverlay}>
-      <div onClick={e => e.stopPropagation()} style={{ ...modalCard, maxWidth: 560 }}>
-        <h3 className="playfair" style={{ margin: 0, marginBottom: 8, color: "var(--heading)" }}>
-          Invito multiplo
-        </h3>
-        <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginBottom: 16, lineHeight: 1.5 }}>
-          Una riga per invito. Formati supportati:<br />
-          <code style={codeStyle}>anna@agenzia.it</code><br />
-          <code style={codeStyle}>anna@agenzia.it, Anna Bianchi</code><br />
-          <code style={codeStyle}>anna@agenzia.it, Anna Bianchi, Senior Agent</code>
-        </div>
-
-        <div style={{ display: "grid", gap: 12 }}>
-          <div>
-            <label style={labelStyle}>Inviti</label>
-            <textarea
-              value={text}
-              onChange={e => setText(e.target.value)}
-              disabled={busy}
-              rows={8}
-              placeholder={"anna@agenzia.it\nmarco@agenzia.it, Marco Rossi\nluca@agenzia.it, Luca Verdi, Driver"}
-              style={{ ...fieldStyle, fontFamily: "monospace", fontSize: 12.5, resize: "vertical" }}
-              autoFocus
-            />
+    <ModalPortal>
+      <div onClick={busy ? undefined : onClose} style={modalOverlay}>
+        <div onClick={e => e.stopPropagation()} style={{ ...modalCard, maxWidth: 560 }}>
+          <h3 className="playfair" style={{ margin: 0, marginBottom: 8, color: "var(--heading)" }}>
+            Invito multiplo
+          </h3>
+          <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginBottom: 16, lineHeight: 1.5 }}>
+            Una riga per invito. Formati supportati:<br />
+            <code style={codeStyle}>anna@agenzia.it</code><br />
+            <code style={codeStyle}>anna@agenzia.it, Anna Bianchi</code><br />
+            <code style={codeStyle}>anna@agenzia.it, Anna Bianchi, Senior Agent</code>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 80px", gap: 10 }}>
+          <div style={{ display: "grid", gap: 12 }}>
             <div>
-              <label style={labelStyle}>Ruolo default</label>
-              <select value={defaultRole} onChange={e => setDefaultRole(e.target.value)} disabled={busy} style={fieldStyle}>
-                <option>Manager</option>
-                <option>Senior Agent</option>
-                <option>Junior Agent</option>
-                <option>Driver</option>
-                <option>Admin</option>
-              </select>
+              <label style={labelStyle}>Inviti</label>
+              <textarea
+                value={text}
+                onChange={e => setText(e.target.value)}
+                disabled={busy}
+                rows={8}
+                placeholder={"anna@agenzia.it\nmarco@agenzia.it, Marco Rossi\nluca@agenzia.it, Luca Verdi, Driver"}
+                style={{ ...fieldStyle, fontFamily: "monospace", fontSize: 12.5, resize: "vertical" }}
+                autoFocus
+              />
             </div>
-            <div>
-              <label style={labelStyle}>Colore</label>
-              <input type="color" value={color} disabled={busy} onChange={e => setColor(e.target.value)}
-                style={{ ...fieldStyle, height: 38, padding: 2 }} />
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 80px", gap: 10 }}>
+              <div>
+                <label style={labelStyle}>Ruolo default</label>
+                <select value={defaultRole} onChange={e => setDefaultRole(e.target.value)} disabled={busy} style={fieldStyle}>
+                  <option>Manager</option>
+                  <option>Senior Agent</option>
+                  <option>Junior Agent</option>
+                  <option>Driver</option>
+                  <option>Admin</option>
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Colore</label>
+                <input type="color" value={color} disabled={busy} onChange={e => setColor(e.target.value)}
+                  style={{ ...fieldStyle, height: 38, padding: 2 }} />
+              </div>
             </div>
+
+            {parseErrors.length > 0 && (
+              <div style={warnBoxStyle}>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>Righe ignorate ({parseErrors.length})</div>
+                {parseErrors.slice(0, 6).map((e, i) => <div key={i}>• {e}</div>)}
+                {parseErrors.length > 6 && <div>…e altre {parseErrors.length - 6}</div>}
+              </div>
+            )}
+
+            {results && (
+              <div style={resultBoxStyle}>
+                <div style={{ fontWeight: 600, marginBottom: 6, color: "var(--text)" }}>
+                  {busy
+                    ? `Invio… ${results.length}/${total}`
+                    : `Riepilogo — ✅ ${okCount} inviati${errCount ? ` · ❌ ${errCount} falliti` : ""}`}
+                </div>
+                <div style={{ maxHeight: 140, overflowY: "auto", fontSize: 12.5 }}>
+                  {results.map((r, i) => (
+                    <div key={i} style={{ display: "flex", gap: 8, padding: "2px 0", color: r.status === "ok" ? "var(--success)" : "var(--danger)" }}>
+                      <span>{r.status === "ok" ? "✅" : "❌"}</span>
+                      <span style={{ flex: 1, wordBreak: "break-all" }}>{r.email}</span>
+                      {r.message && <span style={{ color: "var(--text-muted)" }}>{r.message}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
-          {parseErrors.length > 0 && (
-            <div style={warnBoxStyle}>
-              <div style={{ fontWeight: 600, marginBottom: 4 }}>Righe ignorate ({parseErrors.length})</div>
-              {parseErrors.slice(0, 6).map((e, i) => <div key={i}>• {e}</div>)}
-              {parseErrors.length > 6 && <div>…e altre {parseErrors.length - 6}</div>}
-            </div>
-          )}
-
-          {results && (
-            <div style={resultBoxStyle}>
-              <div style={{ fontWeight: 600, marginBottom: 6, color: "var(--text)" }}>
-                {busy
-                  ? `Invio… ${results.length}/${total}`
-                  : `Riepilogo — ✅ ${okCount} inviati${errCount ? ` · ❌ ${errCount} falliti` : ""}`}
-              </div>
-              <div style={{ maxHeight: 140, overflowY: "auto", fontSize: 12.5 }}>
-                {results.map((r, i) => (
-                  <div key={i} style={{ display: "flex", gap: 8, padding: "2px 0", color: r.status === "ok" ? "var(--success)" : "var(--danger)" }}>
-                    <span>{r.status === "ok" ? "✅" : "❌"}</span>
-                    <span style={{ flex: 1, wordBreak: "break-all" }}>{r.email}</span>
-                    {r.message && <span style={{ color: "var(--text-muted)" }}>{r.message}</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 }}>
-          <button onClick={onClose} disabled={busy} style={btnGhost}>
-            {allDone ? "Chiudi" : "Annulla"}
-          </button>
-          {!allDone && (
-            <button onClick={submit} disabled={busy || !text.trim()} style={btnPrimary}>
-              {busy ? "Invio…" : "Invia inviti"}
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 }}>
+            <button onClick={onClose} disabled={busy} style={btnGhost}>
+              {allDone ? "Chiudi" : "Annulla"}
             </button>
-          )}
+            {!allDone && (
+              <button onClick={submit} disabled={busy || !text.trim()} style={btnPrimary}>
+                {busy ? "Invio…" : "Invia inviti"}
+              </button>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 };
 

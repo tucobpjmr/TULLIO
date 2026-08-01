@@ -8,6 +8,7 @@ import { useState } from "react";
 import {
   modalOverlay, modalCard, labelStyle, fieldStyle, btnPrimary, btnGhost,
 } from "../admin/adminStyles.js";
+import { ModalPortal } from "../ui/ModalPortal.jsx";
 import { Users } from "../../lib/api.js";
 import { isValidEmail } from "../../lib/validators.js";
 
@@ -69,55 +70,59 @@ export const AddTeamMemberModal = ({ onClose, dispatch, existingIds, onInvited }
     onClose();
   };
 
+  // Portale: AdminTeamTab vive dentro il wrapper .fade-in di AdminView (transform
+  // → containing block per i fixed). Vedi ui/ModalPortal.jsx.
   return (
-    <div onClick={onClose} style={modalOverlay}>
-      <div onClick={e => e.stopPropagation()} style={{ ...modalCard, maxWidth: 480 }}>
-        <h3 className="playfair" style={{ margin: 0, marginBottom: 16, color: "var(--heading)" }}>Aggiungi nuovo agente</h3>
-        <div style={{ display: "grid", gap: 12 }}>
-          <div>
-            <label style={labelStyle}>Nome completo *</label>
-            <input value={name} onChange={e => setName(e.target.value)} placeholder="Es. Anna Bianchi" style={fieldStyle} autoFocus />
-          </div>
-          <div>
-            <label style={labelStyle}>Email (per invitare via email)</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="anna@agenzia.it" style={fieldStyle} />
-            <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 4 }}>
-              Con email: invio un invito reale (l'utente crea la password e resta in attesa di approvazione). Senza email: aggiungo solo un agente locale.
+    <ModalPortal>
+      <div onClick={onClose} style={modalOverlay}>
+        <div onClick={e => e.stopPropagation()} style={{ ...modalCard, maxWidth: 480 }}>
+          <h3 className="playfair" style={{ margin: 0, marginBottom: 16, color: "var(--heading)" }}>Aggiungi nuovo agente</h3>
+          <div style={{ display: "grid", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Nome completo *</label>
+              <input value={name} onChange={e => setName(e.target.value)} placeholder="Es. Anna Bianchi" style={fieldStyle} autoFocus />
             </div>
-          </div>
-          <div>
-            <label style={labelStyle}>Ruolo</label>
-            <select value={role} onChange={e => setRole(e.target.value)} style={fieldStyle}>
-              <option>Manager</option>
-              <option>Senior Agent</option>
-              <option>Junior Agent</option>
-              <option>Driver</option>
-              <option>Admin</option>
-            </select>
-          </div>
-          <div>
-            <label style={labelStyle}>Colore</label>
-            <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{...fieldStyle, height: 38, padding: 2}} />
-          </div>
-          {!email.trim() && (
-            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text)", cursor: "pointer", marginTop: 4 }}>
-              <input type="checkbox" checked={pending} onChange={e => setPending(e.target.checked)} />
-              Crea come "in attesa di approvazione" (simula iscrizione)
-            </label>
-          )}
-          {err && (
-            <div style={{ fontSize: 12.5, color: "var(--danger)", background: "rgba(192,57,43,0.08)", border: "1px solid var(--danger)", borderRadius: 8, padding: "8px 10px" }}>
-              {typeof err === "string" ? err : (err?.message || "Errore imprevisto.")}
+            <div>
+              <label style={labelStyle}>Email (per invitare via email)</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="anna@agenzia.it" style={fieldStyle} />
+              <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 4 }}>
+                Con email: invio un invito reale (l'utente crea la password e resta in attesa di approvazione). Senza email: aggiungo solo un agente locale.
+              </div>
             </div>
-          )}
-        </div>
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 }}>
-          <button onClick={onClose} style={btnGhost} disabled={busy}>Annulla</button>
-          <button onClick={submit} style={btnPrimary} disabled={busy}>
-            {busy ? "Invio…" : (email.trim() ? "Invia invito" : "Crea agente")}
-          </button>
+            <div>
+              <label style={labelStyle}>Ruolo</label>
+              <select value={role} onChange={e => setRole(e.target.value)} style={fieldStyle}>
+                <option>Manager</option>
+                <option>Senior Agent</option>
+                <option>Junior Agent</option>
+                <option>Driver</option>
+                <option>Admin</option>
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Colore</label>
+              <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{...fieldStyle, height: 38, padding: 2}} />
+            </div>
+            {!email.trim() && (
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text)", cursor: "pointer", marginTop: 4 }}>
+                <input type="checkbox" checked={pending} onChange={e => setPending(e.target.checked)} />
+                Crea come "in attesa di approvazione" (simula iscrizione)
+              </label>
+            )}
+            {err && (
+              <div style={{ fontSize: 12.5, color: "var(--danger)", background: "rgba(192,57,43,0.08)", border: "1px solid var(--danger)", borderRadius: 8, padding: "8px 10px" }}>
+                {typeof err === "string" ? err : (err?.message || "Errore imprevisto.")}
+              </div>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 }}>
+            <button onClick={onClose} style={btnGhost} disabled={busy}>Annulla</button>
+            <button onClick={submit} style={btnPrimary} disabled={busy}>
+              {busy ? "Invio…" : (email.trim() ? "Invia invito" : "Crea agente")}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 };

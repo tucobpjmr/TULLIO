@@ -128,6 +128,7 @@ export function ListeViaggio({ state, dispatch }) {
   const [strumentiOpen, setStrumentiOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [pendingImport, setPendingImport] = useState(null); // { payload, nL, nM }
+  const [importProgress, setImportProgress] = useState(null); // { done, total }
   const [confirm, setConfirm] = useState(null); // { title, body, cta, danger, onOk }
   const fileInputRef = useRef(null);
 
@@ -221,6 +222,16 @@ export function ListeViaggio({ state, dispatch }) {
     return ordinaListe(base, saldi, sort);
   }, [liste, cestino, saldi, filter, search, sort]);
 
+  // Conteggi per il menu a tendina del filtro. Senza, l'elenco mostra il
+  // totale delle sole "Attive" (il filtro di default) mentre il backup conta
+  // tutte le liste: due numeri diversi e nessun modo di capire perché.
+  const conteggi = useMemo(() => ({
+    attive: liste.filter((l) => l.stato === "attiva").length,
+    esaurite: liste.filter((l) => l.stato === "esaurita").length,
+    tutte: liste.length,
+    cestino: cestino.length,
+  }), [liste, cestino]);
+
   const ripristina = async (id) => {
     const { ok } = await runListeCall(dispatch, ListeAPI.ripristina(id), "Lista ripristinata");
     if (ok) await loadHome();
@@ -290,7 +301,15 @@ export function ListeViaggio({ state, dispatch }) {
 
   const confermaImport = async () => {
     if (!pendingImport) return false;
-    const { ok, data: res } = await runListeCall(dispatch, ListeAPI.importaBackup(pendingImport.payload), null);
+    // Il ripristino ora è spezzato in più chiamate: su un backup grande può
+    // durare parecchi secondi, e un bottone fermo su "Carico…" sembrerebbe
+    // bloccato. L'avanzamento arriva dal layer dati, che sa quanti blocchi ha
+    // già scritto.
+    setImportProgress({ done: 0, total: 0 });
+    const { ok, data: res } = await runListeCall(
+      dispatch, ListeAPI.importaBackup(pendingImport.payload, setImportProgress), null,
+    );
+    setImportProgress(null);
     if (!ok) return false;
     setPendingImport(null);
     dispatch({
@@ -409,10 +428,10 @@ export function ListeViaggio({ state, dispatch }) {
                   onChange={(e) => { setFilter(e.target.value); setLimit(HOME_PAGE_SIZE); }}
                   aria-label="Filtra le liste"
                 >
-                  <option value="attive">Attive</option>
-                  <option value="esaurite">Esaurite</option>
-                  <option value="tutte">Tutte</option>
-                  <option value="cestino">Cestino{cestino.length ? ` (${cestino.length})` : ""}</option>
+                  <option value="attive">Attive ({conteggi.attive})</option>
+                  <option value="esaurite">Esaurite ({conteggi.esaurite})</option>
+                  <option value="tutte">Tutte ({conteggi.tutte})</option>
+                  <option value="cestino">Cestino{conteggi.cestino ? ` (${conteggi.cestino})` : ""}</option>
                 </select>
                 <label className="lv-sel-lbl">
                   Ordina
@@ -504,6 +523,7 @@ export function ListeViaggio({ state, dispatch }) {
             <ImportaBackupConfirmModal
               nL={pendingImport.nL}
               nM={pendingImport.nM}
+              progress={importProgress}
               onClose={() => setPendingImport(null)}
               onSave={{ run: confermaImport, onError: toastError }}
             />

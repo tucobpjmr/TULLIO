@@ -19,18 +19,55 @@ import { supabase } from './supabase';
 // testata del dettaglio mostrano quello, non l'id.
 const LISTA_SELECT = '*, clients(name)';
 
+// PostgREST tronca OGNI select a `db-max-rows` (1000 sui progetti Supabase)
+// restituendo HTTP 200 senza errore: le righe oltre la soglia semplicemente
+// non arrivano, e il chiamante non ha modo di accorgersene guardando
+// `error`. Le query che devono restituire *tutto* (elenco liste, saldi,
+// backup) vanno quindi paginate a mano.
+const PAGE_SIZE = 1000;
+
+// Chiedere il conteggio esatto insieme alle righe: `count` arriva dal
+// Content-Range ed è il totale che soddisfa il filtro, NON il numero di righe
+// consegnate. È il solo dato che dice quando la paginazione è finita senza
+// dipendere dal valore del cap lato server.
+const WITH_COUNT = { count: 'exact' };
+
+// Scarica tutte le righe di una query paginando con .range().
+//
+// `buildQuery` deve costruire un builder NUOVO a ogni chiamata (i builder
+// PostgREST sono thenable monouso) e deve avere un ordinamento
+// DETERMINISTICO, cioè chiudersi su una colonna unica: senza ORDER BY stabile
+// Postgres non garantisce lo stesso ordine tra due query, e pagine successive
+// potrebbero ripetere o saltare righe.
+const fetchAllRows = async (buildQuery) => {
+  const rows = [];
+  for (;;) {
+    const { data, count, error } = await buildQuery()
+      .range(rows.length, rows.length + PAGE_SIZE - 1);
+    if (error) return { data: null, error };
+    const page = data || [];
+    rows.push(...page);
+    // Pagina vuota: il database ha finito le righe (vale anche come rete di
+    // sicurezza se `count` non arrivasse, così il ciclo non è infinito).
+    if (page.length === 0) return { data: rows, error: null };
+    if (typeof count === 'number' && rows.length >= count) return { data: rows, error: null };
+  }
+};
+
 export const ListeAPI = {
   // Liste non archiviate, più recenti in cima (l'ordinamento fine è lato client).
   list: () =>
-    supabase.from('liste_viaggio').select(LISTA_SELECT)
+    fetchAllRows(() => supabase.from('liste_viaggio').select(LISTA_SELECT, WITH_COUNT)
       .is('deleted_at', null)
-      .order('updated_at', { ascending: false }),
+      .order('updated_at', { ascending: false })
+      .order('id')),
 
   // Cestino: archiviate (soft delete), più recenti in cima.
   listTrash: () =>
-    supabase.from('liste_viaggio').select(LISTA_SELECT)
+    fetchAllRows(() => supabase.from('liste_viaggio').select(LISTA_SELECT, WITH_COUNT)
       .not('deleted_at', 'is', null)
-      .order('deleted_at', { ascending: false }),
+      .order('deleted_at', { ascending: false })
+      .order('id')),
 
   // Liste di un singolo cliente: alimenta il tab dentro la scheda cliente.
   listByClient: (clientId) =>
@@ -43,8 +80,12 @@ export const ListeAPI = {
     supabase.from('liste_viaggio').select(LISTA_SELECT).eq('id', id).single(),
 
   // Vista `liste_saldi` (security_invoker): saldo, numero movimenti e data
-  // dell'ultimo movimento per ogni lista non archiviata.
-  saldi: () => supabase.from('liste_saldi').select('*'),
+  // dell'ultimo movimento per ogni lista non archiviata. Una riga per lista,
+  // quindi cresce insieme all'elenco: va paginata come `list()`, altrimenti
+  // oltre le 1000 liste le righe in fondo mostrerebbero "0 movimenti · 0,00 €"
+  // invece del saldo reale.
+  saldi: () =>
+    fetchAllRows(() => supabase.from('liste_saldi').select('*', WITH_COUNT).order('lista_id')),
 
   // Come sopra, per un solo cliente: il tab dentro la scheda cliente mostra
   // le liste di quel cliente e non ha motivo di scaricare i saldi di tutti.
@@ -138,11 +179,17 @@ export const ListeAPI = {
   // Dati grezzi per il backup JSON scaricabile: le stesse tre tabelle che
   // esportava la SPA sorgente. Non passa da una RPC: sono semplici SELECT,
   // già coperte dalla RLS del modulo (admin/manager/agent).
+  //
+  // Le tre query DEVONO essere paginate: un backup troncato a 1000 righe si
+  // scarica senza errori e sembra completo (il toast conta le righe del file,
+  // non quelle del database), ma ripristinato dopo un reset totale
+  // riporterebbe indietro solo una frazione dei movimenti. Ordinamento su
+  // `id` perché è unico: è quello che rende le pagine stabili.
   backupData: async () => {
     const [rClients, rListe, rMovimenti] = await Promise.all([
-      supabase.from('clients').select('*'),
-      supabase.from('liste_viaggio').select('*'),
-      supabase.from('movimenti_lista').select('*'),
+      fetchAllRows(() => supabase.from('clients').select('*', WITH_COUNT).order('id')),
+      fetchAllRows(() => supabase.from('liste_viaggio').select('*', WITH_COUNT).order('id')),
+      fetchAllRows(() => supabase.from('movimenti_lista').select('*', WITH_COUNT).order('id')),
     ]);
     const failed = [rClients, rListe, rMovimenti].find((r) => r.error);
     if (failed) return { data: null, error: failed.error };

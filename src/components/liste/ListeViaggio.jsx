@@ -221,6 +221,16 @@ export function ListeViaggio({ state, dispatch }) {
     return ordinaListe(base, saldi, sort);
   }, [liste, cestino, saldi, filter, search, sort]);
 
+  // Conteggi per il menu a tendina del filtro. Senza, l'elenco mostra il
+  // totale delle sole "Attive" (il filtro di default) mentre il backup conta
+  // tutte le liste: due numeri diversi e nessun modo di capire perché.
+  const conteggi = useMemo(() => ({
+    attive: liste.filter((l) => l.stato === "attiva").length,
+    esaurite: liste.filter((l) => l.stato === "esaurita").length,
+    tutte: liste.length,
+    cestino: cestino.length,
+  }), [liste, cestino]);
+
   const ripristina = async (id) => {
     const { ok } = await runListeCall(dispatch, ListeAPI.ripristina(id), "Lista ripristinata");
     if (ok) await loadHome();
@@ -409,10 +419,10 @@ export function ListeViaggio({ state, dispatch }) {
                   onChange={(e) => { setFilter(e.target.value); setLimit(HOME_PAGE_SIZE); }}
                   aria-label="Filtra le liste"
                 >
-                  <option value="attive">Attive</option>
-                  <option value="esaurite">Esaurite</option>
-                  <option value="tutte">Tutte</option>
-                  <option value="cestino">Cestino{cestino.length ? ` (${cestino.length})` : ""}</option>
+                  <option value="attive">Attive ({conteggi.attive})</option>
+                  <option value="esaurite">Esaurite ({conteggi.esaurite})</option>
+                  <option value="tutte">Tutte ({conteggi.tutte})</option>
+                  <option value="cestino">Cestino{conteggi.cestino ? ` (${conteggi.cestino})` : ""}</option>
                 </select>
                 <label className="lv-sel-lbl">
                   Ordina

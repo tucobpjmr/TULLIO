@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  METODI, eur, fmtDate, parseImporto, riepilogoTesto, saldoClass, todayISO,
+  METODI, eur, fmtDate, intestazioneLista, parseImporto, riepilogoTesto, saldoClass, todayISO,
 } from "../../lib/listeApi.js";
 
 // Chiude con Escape e blocca la propagazione del click interno, come faceva
@@ -169,7 +169,7 @@ export function EditListaModal({ lista, onSave, onClose }) {
         <input id="el-title" value={titolo} onChange={(e) => setTitolo(e.target.value)} placeholder="Es. Buono viaggio 2026" />
       </div>
       <div className="row lv-field">
-        <label htmlFor="el-client">Nome cliente (anagrafica condivisa)</label>
+        <label htmlFor="el-client">Nome del titolare (anagrafica condivisa)</label>
         <input
           id="el-client"
           value={name}
@@ -186,17 +186,71 @@ export function EditListaModal({ lista, onSave, onClose }) {
           onChange={(e) => { setRinomina(e.target.checked); if (!e.target.checked) setName(nomeOriginale); }}
           style={{ marginTop: 3, cursor: "pointer" }}
         />
-        <span>Rinomina il cliente in anagrafica</span>
+        <span>Rinomina il titolare in anagrafica</span>
       </label>
       <p style={{ fontSize: 12, color: "var(--lv-muted)", marginTop: 6 }}>
         {rinomina
           ? "Il nome è quello dell'anagrafica: cambiarlo cambia l'intestazione di tutte le liste di questo cliente, della sua scheda e dei riepiloghi generati da qui in avanti."
-          : "Per correggere solo questa lista basta il titolo: il nome cliente resta com'è."}
+          : "Per correggere solo questa lista basta il titolo: il nome del titolare resta com'è. I cointestatari (se presenti) si aggiungono e rimuovono dal dettaglio della lista, non da qui."}
       </p>
       <div className="actions">
         <button className="lv-btn" onClick={onClose}>Annulla</button>
         <button className="lv-btn primary" disabled={saving} onClick={submit}>
           {saving ? "Salvo…" : "Salva modifiche"}
+        </button>
+      </div>
+    </LvOverlay>
+  );
+}
+
+// ─── Aggiungi cointestatario ────────────────────────────────────────────────
+// Come NuovaListaModal per il cliente: uno esistente dall'anagrafica o un nome
+// nuovo (creato contestualmente, stessa RPC-in-una-transazione di crea_lista).
+// `clients` arriva già filtrato dal chiamante (ListaDetail): niente titolare,
+// niente cointestatari già presenti, altrimenti si potrebbe "aggiungere" chi
+// c'è già.
+export function AggiungiBeneficiarioModal({ clients, onCreate, onClose }) {
+  const [clientId, setClientId] = useState("");
+  const [newName, setNewName] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    if (saving) return;
+    if (!clientId) return onCreate.onError("Scegli un cliente");
+    if (clientId === "__new__" && !newName.trim()) return onCreate.onError("Inserisci il nome del cliente");
+    setSaving(true);
+    const ok = await onCreate.run({
+      clientId: clientId === "__new__" ? null : clientId,
+      newClientName: clientId === "__new__" ? newName.trim() : null,
+    });
+    if (!ok) setSaving(false);
+  };
+
+  return (
+    <LvOverlay onClose={onClose}>
+      <h2>Aggiungi cointestatario</h2>
+      <div className="row lv-field">
+        <label htmlFor="ab-client">Cliente</label>
+        <select id="ab-client" value={clientId} onChange={(e) => setClientId(e.target.value)}>
+          <option value="">— scegli cliente —</option>
+          {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          <option value="__new__">+ Nuovo cliente…</option>
+        </select>
+      </div>
+      {clientId === "__new__" && (
+        <div className="row lv-field">
+          <label htmlFor="ab-newname">Nome nuovo cliente</label>
+          <input id="ab-newname" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Es. BIANCHI MARIA" />
+        </div>
+      )}
+      <p style={{ fontSize: 12, color: "var(--lv-muted)", marginTop: 4 }}>
+        Il cointestatario ha una propria scheda in anagrafica: comparirà anche
+        nella sua scheda cliente, con questa lista e il saldo condiviso.
+      </p>
+      <div className="actions">
+        <button className="lv-btn" onClick={onClose}>Annulla</button>
+        <button className="lv-btn primary" disabled={saving} onClick={submit}>
+          {saving ? "Aggiungo…" : "Aggiungi"}
         </button>
       </div>
     </LvOverlay>
@@ -414,7 +468,7 @@ export function RiepilogoClienteModal({ lista, movimenti, dispatch, onClose }) {
       <div className="lv-riepilogo">
         <div className="rp-brand">Liste Viaggio · Gestione buoni</div>
         <h2>Riepilogo buono viaggio</h2>
-        <div className="rp-cliente">{lista.clients?.name || "—"}</div>
+        <div className="rp-cliente">{intestazioneLista(lista) || "—"}</div>
         {lista.titolo && <div className="rp-tit">{lista.titolo}</div>}
         {movimenti.length > 0 ? (
           <table className="lv-mov">

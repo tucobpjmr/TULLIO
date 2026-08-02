@@ -6,17 +6,24 @@ modificando una scheda cliente, e quali protezioni ci sono oggi in app.
 
 ---
 
-## 1. Il punto di contatto è uno solo: la riga cliente
+## 1. Il punto di contatto: la riga cliente (titolare o cointestatario)
 
 ```
 clients (id, name, email, phone, address, city, notes)
-   ▲                    ▲
-   │ FK client_id       │ copia testuale del nome
-   │                    │
-liste_viaggio        tasks.client_id  ← testo libero, NON una foreign key
-   │
-movimenti_lista
+   ▲                    ▲                    ▲
+   │ FK client_id       │ copia testuale      │ FK client_id
+   │ (titolare)         │ del nome            │ (cointestatario)
+   │                    │                     │
+liste_viaggio ──────────┼──── tasks.client_id │
+   │                    │  ← testo libero,    │
+movimenti_lista         │    NON una FK       │
+                         │                     │
+                         └── lista_beneficiari ┘
 ```
+
+Una lista ha **un** titolare (`liste_viaggio.client_id`, obbligatorio) e **zero
+o più** cointestatari (`lista_beneficiari`, es. marito e moglie — vedi § 8).
+Ciascuno ha una propria riga in `clients`, con la propria scheda.
 
 - **Liste viaggio → cliente**: `liste_viaggio.client_id` è una foreign key su
   `clients.id`. Le liste non conservano il nome: lo leggono dalla scheda (la
@@ -148,3 +155,59 @@ automatico: è una cancellazione di dati e la decisione è dell'agenzia.
   guardando l'avviso; i task si portano dietro con la spunta.
 - **Eliminare** un cliente con liste: non è possibile, e l'app lo dice prima.
 - Distinguere due liste dello stesso cliente: **titolo**, non nome.
+
+---
+
+## 8. Cointestazione: liste con più di un beneficiario
+
+Prima di questa funzione (migrazione `20260802214946`), l'unico modo per
+gestire una lista di marito e moglie era un'unica scheda cliente con il nome
+combinato — è la spiegazione dei nomi come `ANGELA RICCI E MARCHETTI UMBERTO
+50° COMPLEANNO` o `ANTONELLO GIASI E VINCI ROSALBA 25°` che si vedono ancora in
+anagrafica (38 al momento in cui è stata scritta questa nota). Funziona per
+l'intestazione della lista, ma nessuno dei due ha una scheda propria, e se uno
+dei due esiste anche come cliente separato altrove la lista non gli compare.
+
+**Modello**: `liste_viaggio.client_id` resta il **titolare** — invariato,
+obbligatorio, tutto quello che c'era prima continua a funzionare senza
+modifiche. `lista_beneficiari` aggiunge i **cointestatari**: righe
+`(lista_id, client_id)`, zero o più per lista, mai il titolare stesso. "Chi è
+collegato a questa lista" = titolare **e** cointestatari, non uno o l'altro.
+
+**Dove si vede**:
+- nel dettaglio della lista, chip col nome di ciascun cointestatario accanto al
+  titolare, con "+ cointestatario" per aggiungerne uno (cliente esistente o
+  nuovo, creato lì) e "✕" per rimuoverlo;
+- ovunque prima si leggeva solo il nome del titolare — elenco liste, scheda
+  cliente, riepilogo per il cliente, copia agente Word — ora si legge
+  "MARIO ROSSI e MARIA BIANCHI" (o con più nomi, "…, … e …");
+- nella **scheda di un cointestatario**: la lista compare anche lì, con lo
+  stesso saldo, non solo nella scheda del titolare;
+- nella ricerca del modulo Liste: cercare il nome di un cointestatario trova la
+  lista, non solo cercando il titolare;
+- nel badge "N liste viaggio" e nel blocco eliminazione dell'anagrafica (§ 4):
+  contano anche le liste dove il cliente è cointestatario, non solo titolare.
+
+**Che cosa NON fa**: non si può promuovere un cointestatario a titolare (né il
+contrario) dall'app — per farlo va cambiato `liste_viaggio.client_id` a mano.
+Non c'è un limite al numero di cointestatari (non è "sempre esattamente 2"):
+zero o più, quindi copre anche un gruppo, non solo una coppia.
+
+**Chi può farlo**: stesso perimetro del resto del modulo — admin, manager,
+agent; il driver non vede il modulo. Rimuovere un cointestatario passa da una
+funzione a privilegi elevati (come l'eliminazione definitiva di una lista):
+niente rimozione diretta che bypassi lo storico, la voce in "Storico modifiche"
+è garantita nella stessa transazione.
+
+**Backup**: "Strumenti dati → Scarica/Carica backup" include le
+cointestazioni. Un backup scaricato prima di questa funzione non le conteneva
+(non esistevano ancora): ricaricarlo non le tocca, semplicemente non ne
+aggiunge.
+
+**Le 38 schede con nome combinato esistenti** non sono state toccate: separarle
+richiede di riconoscere due nomi propri dentro una stringa libera scritta in
+modo non uniforme, un'operazione che se automatizzata rischia di tagliare un
+nome a metà. Restano una migrazione manuale possibile, non necessaria: chi
+vuole ricondurle a due schede vere può ora farlo dal dettaglio della lista
+("+ cointestatario" per aggiungere il secondo nome come cliente reale, poi
+correggere il nome del titolare).

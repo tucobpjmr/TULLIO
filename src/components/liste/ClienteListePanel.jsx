@@ -7,7 +7,7 @@
 // significherebbe due copie della stessa UI da tenere allineate, e la scheda
 // cliente non è il contesto in cui si registra un movimento.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ListeAPI, eur, fmtDate, runListeCall, saldoClass } from "../../lib/listeApi.js";
+import { ListeAPI, eur, fmtDate, intestazioneLista, runListeCall, saldoClass } from "../../lib/listeApi.js";
 import { ListeStyles } from "./listeStyles.jsx";
 import { NuovaListaModal } from "./listeModals.jsx";
 
@@ -88,7 +88,7 @@ export function ClienteListePanel({ cliente, dispatch }) {
               return (
                 <button key={l.id} type="button" className="lv-lista-row" onClick={() => apri(l.id)}>
                   <div className="who">
-                    <b>{l.titolo || l.clients?.name || "—"}</b>
+                    <b>{l.titolo || intestazioneLista(l) || "—"}</b>
                     <span>{sub}</span>
                   </div>
                   <span className={`lv-badge ${l.stato}`}>{l.stato}</span>

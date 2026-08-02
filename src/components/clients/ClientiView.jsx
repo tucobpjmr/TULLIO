@@ -709,12 +709,14 @@ export function ClientiView({ state, dispatch, loading = false }) {
               </div>
               {bloccato ? (
                 <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 20, lineHeight: 1.5 }}>
-                  <strong>{confirmDelete.name}</strong> è l'intestatario di{" "}
-                  {l.totali === 1 ? "una lista viaggio" : `${l.totali} liste viaggio`}
-                  {l.totali > l.attive && ` (${l.totali - l.attive} nel cestino, che restano collegate)`}.
+                  <strong>{confirmDelete.name}</strong> è collegato a{" "}
+                  {l.totali === 1 ? "una lista viaggio" : `${l.totali} liste viaggio`}{" "}
+                  (come titolare o cointestatario)
+                  {l.totali > l.attive && `, di cui ${l.totali - l.attive} nel cestino: restano collegate anche lì`}.
                   <div style={{ marginTop: 8 }}>
                     Le liste sono agganciate a questa scheda: per rimuoverla vanno prima
-                    eliminate definitivamente dal cestino del modulo Liste viaggio.
+                    eliminate definitivamente dal cestino del modulo Liste viaggio, o questo
+                    cliente va rimosso come cointestatario dalle liste dove non è titolare.
                   </div>
                 </div>
               ) : (

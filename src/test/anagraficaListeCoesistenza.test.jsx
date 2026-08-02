@@ -165,7 +165,7 @@ describe("Anagrafica — eliminazione di un cliente con liste", () => {
 
     const modale = screen.getByText("Non si può rimuovere").parentElement;
     expect(within(modale).getByText(/3 liste viaggio/)).toBeInTheDocument();
-    expect(within(modale).getByText(/1 nel cestino, che restano collegate/)).toBeInTheDocument();
+    expect(within(modale).getByText(/1 nel cestino/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Rimuovi" })).toBeNull();
     expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: "DELETE_CLIENT" }));
   });
@@ -189,7 +189,7 @@ describe("Modulo Liste — rinominare il cliente è una scelta esplicita", () =>
 
     fireEvent.change(screen.getByLabelText("Titolo della lista (facoltativo)"), { target: { value: "Buono 2027" } });
     // Il nome cliente non è modificabile finché non lo si sblocca.
-    expect(screen.getByLabelText(/Nome cliente/)).toBeDisabled();
+    expect(screen.getByLabelText(/Nome del titolare/)).toBeDisabled();
 
     fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
     await waitFor(() => expect(run).toHaveBeenCalledWith({ id: "l1", titolo: "Buono 2027", clientName: null }));
@@ -199,10 +199,10 @@ describe("Modulo Liste — rinominare il cliente è una scelta esplicita", () =>
     const run = vi.fn(async () => true);
     render(<EditListaModal lista={lista} onClose={vi.fn()} onSave={{ run, onError: vi.fn() }} />);
 
-    fireEvent.click(screen.getByLabelText("Rinomina il cliente in anagrafica"));
+    fireEvent.click(screen.getByLabelText("Rinomina il titolare in anagrafica"));
     expect(screen.getByText(/cambia l'intestazione di tutte le liste di questo cliente/)).toBeInTheDocument();
 
-    const campo = screen.getByLabelText(/Nome cliente/);
+    const campo = screen.getByLabelText(/Nome del titolare/);
     expect(campo).not.toBeDisabled();
     fireEvent.change(campo, { target: { value: "ROSSI MARIO" } });
     fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
@@ -214,12 +214,12 @@ describe("Modulo Liste — rinominare il cliente è una scelta esplicita", () =>
     const run = vi.fn(async () => true);
     render(<EditListaModal lista={lista} onClose={vi.fn()} onSave={{ run, onError: vi.fn() }} />);
 
-    const spunta = screen.getByLabelText("Rinomina il cliente in anagrafica");
+    const spunta = screen.getByLabelText("Rinomina il titolare in anagrafica");
     fireEvent.click(spunta);
-    fireEvent.change(screen.getByLabelText(/Nome cliente/), { target: { value: "NOME SBAGLIATO" } });
+    fireEvent.change(screen.getByLabelText(/Nome del titolare/), { target: { value: "NOME SBAGLIATO" } });
     fireEvent.click(spunta);
 
-    expect(screen.getByLabelText(/Nome cliente/)).toHaveValue("MARIO ROSSI");
+    expect(screen.getByLabelText(/Nome del titolare/)).toHaveValue("MARIO ROSSI");
     fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
     await waitFor(() => expect(run).toHaveBeenCalledWith({ id: "l1", titolo: "Buono 2026", clientName: null }));
   });

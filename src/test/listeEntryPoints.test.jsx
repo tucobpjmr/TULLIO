@@ -24,6 +24,10 @@ vi.mock("../lib/listeApi.js", async (importOriginal) => {
       // (tutti i saldi) resta mockato perché lo usa la home del modulo.
       saldiByClient: vi.fn(async () => ({ data: [], error: null })),
       saldi: vi.fn(async () => ({ data: [], error: null })),
+      // L'anagrafica chiede il conteggio liste per cliente al mount (badge
+      // "N liste viaggio" sulle card): senza il mock la vista clienti
+      // solleverebbe qui, non nella navigazione che questo file verifica.
+      clientiConListe: vi.fn(async () => ({ data: [], error: null })),
     },
   };
 });

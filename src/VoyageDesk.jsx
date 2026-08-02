@@ -24,6 +24,9 @@ import {
 // Step P Phase 2a: utility pure estratte dal monolite.
 import { getActiveTasks } from "./lib/taskUtils.js";
 import { scopeConversationsForUser } from "./lib/chatUtils.js";
+// Confronto dei nomi cliente: stessa chiave usata dal reducer per decidere
+// quali task rinominare, così UI e database toccano esattamente le stesse righe.
+import { chiaveNome } from "./lib/clientNotes.js";
 // Web Push: riparazione della sottoscrizione a ogni avvio (vedi src/lib/push.js).
 import { syncPushSubscription } from "./lib/push.js";
 // Step P Phase 2b: dati mock (solo le notifiche, le altre seed vivono nel reducer).
@@ -852,6 +855,23 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       case "UPDATE_CLIENT":
         dbOps = () => ClientsAPI.update(action.payload.id, toDbClient(action.payload));
         break;
+      // Propagazione del rename cliente sui task che lo citano per nome
+      // (task.client è testo libero, non una FK). Il filtro deve essere lo
+      // STESSO del reducer — chiave normalizzata + canEditTask — altrimenti
+      // UI e database toccherebbero righe diverse. Le UPDATE partono in
+      // parallelo come in ADD_CLIENTS_BULK.
+      case "RENAME_CLIENT_IN_TASKS": {
+        const { from, to } = action.payload || {};
+        const k = chiaveNome(from);
+        if (!k || !to || chiaveNome(to) === k) break;
+        const daAggiornare = (stateRef.current.tasks || [])
+          .filter(t => chiaveNome(t.client) === k && canEditTask(t, uid));
+        if (!daAggiornare.length) break;
+        dbOps = () => Promise.all(
+          daAggiornare.map(t => TasksAPI.update(t.id, { client_id: to })),
+        );
+        break;
+      }
       case "DELETE_CLIENT": {
         const prev = stateRef.current.clients.find(c => c.id === action.payload);
         dbOps = () => ClientsAPI.remove(action.payload);

@@ -101,6 +101,13 @@ Navigazione: Desktop → Sidebar collassabile. Tablet/Mobile → BottomNav.
 }
 ```
 
+> ⚠️ `clients` è **condivisa con il modulo Liste viaggio**: `liste_viaggio.client_id`
+> è una FK e le liste mostrano `clients.name` come intestazione, mentre
+> `tasks.client_id` ne è una copia testuale (nessun vincolo). Rinominare un
+> cliente cambia tutte le sue liste e lascia indietro i task; eliminarlo è
+> rifiutato dalla FK se ha liste, cestino compreso. Regole e protezioni in
+> `docs/ANAGRAFICA_E_LISTE.md`.
+
 > ⛔ **Fornitore** e **Pratica di viaggio** (Dossier) sono stati **RIMOSSI DEFINITIVAMENTE** in sessione 24. Non reintrodurli.
 
 ### Team member

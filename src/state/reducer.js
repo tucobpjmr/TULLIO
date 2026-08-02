@@ -18,6 +18,7 @@ import {
   canAccessAdmin, canViewTask, canEditTask, canCreateTaskCategory,
 } from "./appGlobals.js";
 import { INITIAL_TASKS, INITIAL_NOTICES } from "./mockData.js";
+import { chiaveNome } from "../lib/clientNotes.js";
 
 // Azioni che generano una voce nel log attività
 const LOGGED_ACTIONS = new Set([
@@ -456,6 +457,38 @@ function baseReducer(state, action) {
     case "DELETE_CLIENT": {
       const clients = (state.clients || []).filter(c => c.id !== action.payload);
       return { ...state, clients, toast: { message: "Cliente rimosso", type: "success" } };
+    }
+    // Rinomina il cliente dentro i task che lo citano. `task.client` è testo
+    // libero (colonna `client_id text`, non una foreign key): senza questo,
+    // rinominare l'anagrafica lascia i task agganciati al vecchio nome e la
+    // scheda cliente smette di mostrarli, in silenzio.
+    //
+    // Rinomina solo i task che l'utente può modificare: sugli altri la
+    // scrittura verrebbe comunque respinta dalla RLS, e mostrarli come
+    // aggiornati sarebbe una bugia. Il confronto è sulla chiave normalizzata
+    // (maiuscole/accenti/spazi doppi), come ovunque si confrontino i nomi.
+    case "RENAME_CLIENT_IN_TASKS": {
+      const { from, to } = action.payload || {};
+      const k = chiaveNome(from);
+      if (!k || !to || chiaveNome(to) === k) return state;
+      let n = 0;
+      const tasks = (state.tasks || []).map(t => {
+        if (chiaveNome(t.client) !== k || !canEditTask(t, uid)) return t;
+        n += 1;
+        return { ...t, client: to };
+      });
+      if (!n) return state;
+      // Il pannello aperto va allineato solo se quel task è stato davvero
+      // rinominato (potrebbe essere uno di quelli saltati per permessi).
+      const rinominato = state.selectedTask
+        && tasks.find(t => t.id === state.selectedTask.id);
+      const selectedTask = rinominato && rinominato.client === to
+        ? { ...state.selectedTask, client: to }
+        : state.selectedTask;
+      return {
+        ...state, tasks, selectedTask,
+        toast: { message: `${n} task aggiornat${n === 1 ? "o" : "i"} col nuovo nome cliente`, type: "success" },
+      };
     }
     // Riporta in lista un cliente la cui DELETE_CLIENT ottimistica è stata
     // respinta dal DB (es. foreign key su liste_viaggio): senza questo la UI

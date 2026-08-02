@@ -105,6 +105,21 @@ export const ListeAPI = {
   saldiByClient: (clientId) =>
     supabase.from('liste_saldi').select('*').eq('client_id', clientId),
 
+  // Cliente e stato di archiviazione di OGNI lista: alimenta il badge "N liste
+  // viaggio" nell'anagrafica clienti, che è ciò che rende visibile — PRIMA di
+  // rinominare o eliminare — quali schede sono anche l'intestazione di un
+  // buono viaggio.
+  //
+  // Include le liste nel cestino: sono archiviate, non cancellate, e la loro
+  // foreign key sul cliente regge comunque. Un cliente con sole liste
+  // cestinate non è eliminabile, e va detto prima di provarci.
+  //
+  // Paginato come le altre query "tutto": oltre le 1000 righe PostgREST tronca
+  // senza errore, e le liste sono già oltre 600.
+  clientiConListe: () =>
+    fetchAllRows(() => supabase.from('liste_viaggio').select('client_id, deleted_at', WITH_COUNT)
+      .order('id')),
+
   movimenti: (listaId) =>
     supabase.from('movimenti_lista').select('*')
       .eq('lista_id', listaId)

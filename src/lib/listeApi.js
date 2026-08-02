@@ -39,6 +39,19 @@ const WITH_COUNT = { count: 'exact' };
 // DETERMINISTICO, cioè chiudersi su una colonna unica: senza ORDER BY stabile
 // Postgres non garantisce lo stesso ordine tra due query, e pagine successive
 // potrebbero ripetere o saltare righe.
+// Righe per chiamata nel ripristino da backup. Tenuto basso di proposito: a
+// 1000 movimenti la RPC misura ~150ms contro un tetto di 8s, così il margine
+// regge anche su un'istanza carica o una connessione lenta.
+const IMPORT_CHUNK_SIZE = 1000;
+
+const chunk = (rows) => {
+  const out = [];
+  for (let i = 0; i < (rows?.length || 0); i += IMPORT_CHUNK_SIZE) {
+    out.push(rows.slice(i, i + IMPORT_CHUNK_SIZE));
+  }
+  return out;
+};
+
 const fetchAllRows = async (buildQuery) => {
   const rows = [];
   for (;;) {
@@ -172,7 +185,63 @@ export const ListeAPI = {
   // non-admin): il gate che conta resta quello nel database.
   eliminaDefinitiva: (id) => supabase.rpc('elimina_lista_definitivamente', { p_id: id }),
 
-  importaBackup: (payload) => supabase.rpc('importa_backup', { p_data: payload }),
+  // Ripristino da backup, a blocchi.
+  //
+  // La RPC è UNA sola istruzione per PostgREST, quindi ricade sotto lo
+  // `statement_timeout` del ruolo `authenticated`, che su questo progetto è
+  // 8s. Misurato sul database reale: 5.275 movimenti si importano in ~760ms,
+  // ma 42.200 in ~7,1s — cioè il tetto si tocca poco oltre le 45.000 righe, e
+  // in quel punto l'intero ripristino fallisce in blocco. Sarebbe il momento
+  // peggiore per scoprirlo: si ripristina un backup dopo un disastro.
+  //
+  // Spezzare il payload tiene ogni chiamata a una frazione del limite,
+  // qualunque sia la dimensione del backup. Si perde l'atomicità del "tutto o
+  // niente", ma non è una perdita: la RPC è un merge per id con ON CONFLICT
+  // DO NOTHING e non cancella mai nulla, quindi è idempotente — se una
+  // chiamata fallisce, quelle già andate a buon fine restano valide e basta
+  // ricaricare lo stesso file per riprendere da dove si era interrotto.
+  //
+  // `onProgress({ done, total })` è opzionale: serve alla UI per non restare
+  // muta durante un ripristino lungo.
+  importaBackup: async (payload, onProgress = null) => {
+    // L'ordine è obbligato dai controlli di integrità dentro la RPC: scarta
+    // le liste il cui client_id non esiste ancora e i movimenti la cui lista
+    // non esiste. Clienti, poi liste, poi movimenti — mai mescolati.
+    const steps = [
+      ...chunk(payload.clients).map((rows) => ({ clients: rows, liste: [], movimenti: [] })),
+      ...chunk(payload.liste).map((rows) => ({ clients: [], liste: rows, movimenti: [] })),
+      ...chunk(payload.movimenti).map((rows) => ({ clients: [], liste: [], movimenti: rows })),
+    ];
+
+    const totale = (payload.clients?.length || 0) + (payload.liste?.length || 0)
+      + (payload.movimenti?.length || 0);
+    const totali = { clients_added: 0, liste_added: 0, movimenti_added: 0 };
+    let fatte = 0;
+
+    for (const p_data of steps) {
+      const { data, error } = await supabase.rpc('importa_backup', { p_data });
+      if (error) {
+        // Errore a metà strada: i blocchi precedenti sono già stati scritti e
+        // restano validi. Il messaggio deve dirlo, altrimenti l'utente crede
+        // di dover ripulire a mano prima di riprovare.
+        return {
+          data: null,
+          error: fatte === 0 ? error : {
+            ...error,
+            message: `${error.message} — importate ${fatte} righe su ${totale} prima dell'errore. `
+              + 'I dati già caricati restano validi: ricarica lo stesso file per riprendere.',
+          },
+        };
+      }
+      totali.clients_added += data?.clients_added || 0;
+      totali.liste_added += data?.liste_added || 0;
+      totali.movimenti_added += data?.movimenti_added || 0;
+      fatte += p_data.clients.length + p_data.liste.length + p_data.movimenti.length;
+      onProgress?.({ done: fatte, total: totale });
+    }
+
+    return { data: totali, error: null };
+  },
 
   resetCompleto: (conferma) => supabase.rpc('reset_completo', { p_conferma: conferma }),
 

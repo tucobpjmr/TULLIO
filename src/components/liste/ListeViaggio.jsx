@@ -128,6 +128,7 @@ export function ListeViaggio({ state, dispatch }) {
   const [strumentiOpen, setStrumentiOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [pendingImport, setPendingImport] = useState(null); // { payload, nL, nM }
+  const [importProgress, setImportProgress] = useState(null); // { done, total }
   const [confirm, setConfirm] = useState(null); // { title, body, cta, danger, onOk }
   const fileInputRef = useRef(null);
 
@@ -300,7 +301,15 @@ export function ListeViaggio({ state, dispatch }) {
 
   const confermaImport = async () => {
     if (!pendingImport) return false;
-    const { ok, data: res } = await runListeCall(dispatch, ListeAPI.importaBackup(pendingImport.payload), null);
+    // Il ripristino ora è spezzato in più chiamate: su un backup grande può
+    // durare parecchi secondi, e un bottone fermo su "Carico…" sembrerebbe
+    // bloccato. L'avanzamento arriva dal layer dati, che sa quanti blocchi ha
+    // già scritto.
+    setImportProgress({ done: 0, total: 0 });
+    const { ok, data: res } = await runListeCall(
+      dispatch, ListeAPI.importaBackup(pendingImport.payload, setImportProgress), null,
+    );
+    setImportProgress(null);
     if (!ok) return false;
     setPendingImport(null);
     dispatch({
@@ -514,6 +523,7 @@ export function ListeViaggio({ state, dispatch }) {
             <ImportaBackupConfirmModal
               nL={pendingImport.nL}
               nM={pendingImport.nM}
+              progress={importProgress}
               onClose={() => setPendingImport(null)}
               onSave={{ run: confermaImport, onError: toastError }}
             />

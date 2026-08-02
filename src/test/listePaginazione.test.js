@@ -14,6 +14,26 @@ const rows = (n, prefix) => Array.from({ length: n }, (_, i) => ({ id: `${prefix
 const db = { tables: {}, cap: 1000, error: null };
 const ranges = []; // [table, from, to] di ogni pagina richiesta
 
+// Chiamate a importa_backup, in ordine. `failAt` fa fallire l'ennesima, per
+// coprire l'interruzione a metà ripristino.
+const rpc = { calls: [], failAt: null };
+
+const fakeRpc = (name, args) => {
+  rpc.calls.push({ name, payload: args.p_data });
+  if (rpc.failAt !== null && rpc.calls.length === rpc.failAt) {
+    return Promise.resolve({ data: null, error: { message: "statement timeout" } });
+  }
+  const p = args.p_data;
+  return Promise.resolve({
+    data: {
+      clients_added: (p.clients || []).length,
+      liste_added: (p.liste || []).length,
+      movimenti_added: (p.movimenti || []).length,
+    },
+    error: null,
+  });
+};
+
 // Builder PostgREST minimale: incatenabile, e `.range()` chiude la catena
 // restituendo la pagina (troncata al cap, come fa il server vero) più il
 // conteggio esatto totale quando è stato richiesto con { count: 'exact' }.
@@ -36,7 +56,7 @@ const fakeFrom = (table) => {
   return q;
 };
 
-vi.mock("../lib/supabase", () => ({ supabase: { from: fakeFrom }, default: {} }));
+vi.mock("../lib/supabase", () => ({ supabase: { from: fakeFrom, rpc: fakeRpc }, default: {} }));
 
 const { ListeAPI } = await import("../lib/listeApi.js");
 
@@ -45,6 +65,8 @@ beforeEach(() => {
   db.cap = 1000;
   db.error = null;
   ranges.length = 0;
+  rpc.calls.length = 0;
+  rpc.failAt = null;
 });
 
 describe("backupData — il backup non si ferma alla prima pagina", () => {
@@ -144,5 +166,94 @@ describe("elenco e saldi — stessa paginazione, stesso cap", () => {
     const { data } = await ListeAPI.saldi();
 
     expect(data).toHaveLength(1400);
+  });
+});
+
+// La RPC importa_backup è UNA sola istruzione per PostgREST, quindi ricade
+// sotto lo `statement_timeout` del ruolo `authenticated` (8s su questo
+// progetto). Misurato sul database reale: 5.275 movimenti in ~760ms, 42.200 in
+// ~7,1s — il tetto si tocca poco oltre le 45.000 righe e lì il ripristino
+// fallisce in blocco. Spezzarlo toglie il tetto del tutto.
+describe("importaBackup — ripristino a blocchi", () => {
+  const backup = (nc, nl, nm) => ({
+    clients: rows(nc, "c"), liste: rows(nl, "l"), movimenti: rows(nm, "m"),
+  });
+
+  it("spezza il payload in più chiamate invece di mandarne una sola enorme", async () => {
+    const { data, error } = await ListeAPI.importaBackup(backup(816, 614, 5275));
+
+    expect(error).toBeNull();
+    // 1 blocco clienti + 1 liste + 6 movimenti (5275 → 1000×5 + 275)
+    expect(rpc.calls).toHaveLength(8);
+    expect(data).toEqual({ clients_added: 816, liste_added: 614, movimenti_added: 5275 });
+  });
+
+  it("nessun blocco supera il limite di righe per chiamata", async () => {
+    await ListeAPI.importaBackup(backup(0, 0, 42200));
+
+    const maxRighe = Math.max(...rpc.calls.map((c) =>
+      c.payload.clients.length + c.payload.liste.length + c.payload.movimenti.length));
+    expect(maxRighe).toBeLessThanOrEqual(1000);
+    expect(rpc.calls).toHaveLength(43);
+  });
+
+  it("rispetta l'ordine clienti → liste → movimenti", async () => {
+    // La RPC scarta le liste il cui client_id non esiste ancora e i movimenti
+    // la cui lista non esiste: invertire l'ordine perderebbe righe in silenzio.
+    await ListeAPI.importaBackup(backup(1500, 1200, 1100));
+
+    const tipo = (c) => (c.payload.clients.length ? "clients"
+      : c.payload.liste.length ? "liste" : "movimenti");
+    expect(rpc.calls.map(tipo)).toEqual([
+      "clients", "clients", "liste", "liste", "movimenti", "movimenti",
+    ]);
+  });
+
+  it("manda ogni riga una volta sola, senza perderne né duplicarne", async () => {
+    await ListeAPI.importaBackup(backup(0, 0, 2500));
+
+    const inviati = rpc.calls.flatMap((c) => c.payload.movimenti.map((m) => m.id));
+    expect(inviati).toHaveLength(2500);
+    expect(new Set(inviati).size).toBe(2500);
+  });
+
+  it("riporta l'avanzamento mentre scrive", async () => {
+    const visti = [];
+    await ListeAPI.importaBackup(backup(0, 0, 2500), (p) => visti.push(p));
+
+    expect(visti).toEqual([
+      { done: 1000, total: 2500 },
+      { done: 2000, total: 2500 },
+      { done: 2500, total: 2500 },
+    ]);
+  });
+
+  it("su errore a metà dice quanto è già entrato e che si può riprendere", async () => {
+    // Il merge è per id con ON CONFLICT DO NOTHING e non cancella nulla: i
+    // blocchi già scritti restano validi e ricaricare lo stesso file riprende
+    // da dove si era interrotto. Se il messaggio non lo dicesse, l'utente
+    // crederebbe di dover ripulire a mano.
+    rpc.failAt = 3;
+    const { data, error } = await ListeAPI.importaBackup(backup(0, 0, 5000));
+
+    expect(data).toBeNull();
+    expect(error.message).toContain("statement timeout");
+    expect(error.message).toContain("2000 righe su 5000");
+    expect(error.message).toContain("riprendere");
+  });
+
+  it("un errore al primo blocco resta l'errore originale, senza glosse", async () => {
+    rpc.failAt = 1;
+    const { error } = await ListeAPI.importaBackup(backup(0, 0, 5000));
+
+    expect(error.message).toBe("statement timeout");
+  });
+
+  it("un backup vuoto non chiama la RPC e non inventa conteggi", async () => {
+    const { data, error } = await ListeAPI.importaBackup(backup(0, 0, 0));
+
+    expect(error).toBeNull();
+    expect(rpc.calls).toHaveLength(0);
+    expect(data).toEqual({ clients_added: 0, liste_added: 0, movimenti_added: 0 });
   });
 });

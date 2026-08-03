@@ -9,7 +9,7 @@ import {
 } from "../../lib/listeApi.js";
 import {
   AggiungiBeneficiarioModal, BulkMovimentiModal, ConfirmModal, EditListaModal,
-  EditMovimentoModal, RiepilogoClienteModal, SegnoSeg,
+  EditMovimentoModal, RiepilogoClienteModal, SegnoSeg, SpostaTitolareModal,
 } from "./listeModals.jsx";
 
 // Riquadro "Nuovo movimento": sta in cima al foglio e si apre col tasto ＋
@@ -340,6 +340,15 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
     [clients, idsEsclusi],
   );
 
+  // Per "Sposta su un altro cliente" l'esclusione è diversa: solo il
+  // titolare attuale (spostare "su se stesso" non ha senso). I cointestatari
+  // restano scelte valide — sceglierne uno è la promozione gestita dalla RPC.
+  const cointestatariIds = useMemo(() => new Set(beneficiari.map((b) => b.client_id)), [beneficiari]);
+  const clientiPerSpostamento = useMemo(
+    () => clients.filter((c) => c.id !== lista.client_id),
+    [clients, lista.client_id],
+  );
+
   // Cambiando lista si richiude tutto: gli editor aperti si riferivano a
   // movimenti di un'altra lista.
   useEffect(() => {
@@ -387,6 +396,16 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
       if (ok) await onArchived();
     },
   });
+
+  const spostaTitolare = async (nuovoClientId) => {
+    const { ok } = await runListeCall(
+      dispatch,
+      ListeAPI.spostaTitolare(lista.id, nuovoClientId),
+      "Titolare spostato",
+    );
+    if (ok) { setModal(null); await onReload(); }
+    return ok;
+  };
 
   const aggiungiBenef = async (payload) => {
     const { ok } = await runListeCall(
@@ -448,6 +467,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
           <div className="lv-name-row">
             <h1>{lista.clients?.name || "—"}</h1>
             <button className="lv-icon-btn" title="Modifica dati lista" aria-label="Modifica dati lista" onClick={() => setModal("editLista")}>✎</button>
+            <button className="lv-icon-btn" title="Sposta su un altro cliente" aria-label="Sposta la lista su un altro cliente" onClick={() => setModal("spostaTitolare")}>⇄</button>
           </div>
           <div className="lv-benef-row">
             {beneficiari.map((b) => (
@@ -609,6 +629,16 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
           clients={clientiDisponibili}
           onClose={() => setModal(null)}
           onCreate={{ ...helper, run: aggiungiBenef }}
+        />
+      )}
+
+      {modal === "spostaTitolare" && (
+        <SpostaTitolareModal
+          clients={clientiPerSpostamento}
+          cointestatariIds={cointestatariIds}
+          titolareAttuale={lista.clients?.name || "—"}
+          onClose={() => setModal(null)}
+          onMove={{ ...helper, run: spostaTitolare }}
         />
       )}
 

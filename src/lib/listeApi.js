@@ -196,6 +196,16 @@ export const ListeAPI = {
   modifica: ({ id, titolo = null, clientName = null }) =>
     supabase.rpc('modifica_lista', { p_id: id, p_titolo: titolo, p_client_name: clientName }),
 
+  // Sposta il TITOLARE su un cliente diverso, già esistente in anagrafica
+  // (client_id cambia; il nome di entrambi i clienti resta intatto). Da non
+  // confondere con `modifica` sopra: quella rinomina la riga cliente attuale
+  // e si riflette su tutte le sue liste, questa cambia quale riga è il
+  // titolare e riguarda solo questa lista. Se il cliente scelto è già
+  // cointestatario di questa stessa lista, la RPC lo promuove: lo toglie da
+  // cointestatario e lo rende titolare nella stessa transazione.
+  spostaTitolare: (id, nuovoClientId) =>
+    supabase.rpc('sposta_titolare_lista', { p_id: id, p_nuovo_client_id: nuovoClientId }),
+
   // ── Cointestazione: cointestatari oltre al titolare (client_id) ──
   // Stesso pattern di crea_lista per il cliente: o uno esistente (clientId)
   // o il nome di uno nuovo (newClientName), mai entrambi. Il titolare non può
@@ -425,6 +435,7 @@ export const ACTION_LABELS = {
   lista_note_modificata: 'ha modificato le note interne',
   beneficiario_aggiunto: 'ha aggiunto un cointestatario',
   beneficiario_rimosso: 'ha rimosso un cointestatario',
+  titolare_spostato: 'ha spostato la lista su un altro cliente',
 };
 
 export const actionLabel = (a) => ACTION_LABELS[a] || a;

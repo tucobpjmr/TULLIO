@@ -34,6 +34,7 @@ const LISTA_COINTESTATA = {
 const ListeAPIMock = {
   aggiungiBeneficiario: vi.fn(async () => ({ data: "nuovo-id", error: null })),
   rimuoviBeneficiario: vi.fn(async () => ({ data: null, error: null })),
+  spostaTitolare: vi.fn(async () => ({ data: null, error: null })),
   list: vi.fn(async () => ({ data: [LISTA_COINTESTATA], error: null })),
   listTrash: vi.fn(async () => ({ data: [], error: null })),
   saldi: vi.fn(async () => ({ data: [], error: null })),
@@ -162,6 +163,75 @@ describe("ListaDetail — cointestatari", () => {
     fireEvent.click(screen.getByRole("button", { name: "Rimuovi" }));
     await waitFor(() => expect(ListeAPIMock.rimuoviBeneficiario).toHaveBeenCalledWith("l1", "cl-maria"));
     await waitFor(() => expect(onReload).toHaveBeenCalled());
+  });
+});
+
+// ─── ListaDetail: spostare il titolare su un cliente diverso ───────────────
+// Chiude il cerchio dell'anagrafica: un "intestatario-evento" nato
+// dall'import dei documenti Word può essere ricondotto alla persona vera,
+// già in anagrafica come cliente CRM pulito.
+describe("ListaDetail — sposta il titolare su un altro cliente", () => {
+  const LISTA = {
+    id: "l1",
+    client_id: "cl-titolare",
+    titolo: "Buono 2026",
+    stato: "attiva",
+    clients: { name: "MARIO ROSSI" },
+    lista_beneficiari: [{ client_id: "cl-maria", clients: { name: "MARIA BIANCHI" } }],
+  };
+  const CLIENTS = [
+    { id: "cl-titolare", name: "MARIO ROSSI" },
+    { id: "cl-maria", name: "MARIA BIANCHI" },
+    { id: "cl-altro", name: "LUCA VERDI" },
+  ];
+
+  const setup = (onReload = vi.fn()) => {
+    render(
+      <ListaDetail
+        lista={LISTA}
+        movimenti={[]}
+        history={[]}
+        usersById={{}}
+        dispatch={vi.fn()}
+        onReload={onReload}
+        onArchived={vi.fn()}
+        clients={CLIENTS}
+      />,
+    );
+  };
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it("il picker esclude il titolare attuale ma include i cointestatari (si può promuovere)", () => {
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "Sposta la lista su un altro cliente" }));
+    const select = screen.getByLabelText("Nuovo titolare");
+    const opzioni = within(select).getAllByRole("option").map((o) => o.textContent);
+    expect(opzioni).not.toContain("MARIO ROSSI");
+    expect(opzioni).toContain("MARIA BIANCHI");
+    expect(opzioni).toContain("LUCA VERDI");
+  });
+
+  it("scegliendo un cliente che NON è cointestatario, sposta senza avvisi di promozione", async () => {
+    const onReload = vi.fn();
+    setup(onReload);
+    fireEvent.click(screen.getByRole("button", { name: "Sposta la lista su un altro cliente" }));
+    fireEvent.change(screen.getByLabelText("Nuovo titolare"), { target: { value: "cl-altro" } });
+    expect(screen.queryByText(/verrà tolto dai cointestatari/)).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sposta" }));
+    await waitFor(() => expect(ListeAPIMock.spostaTitolare).toHaveBeenCalledWith("l1", "cl-altro"));
+    await waitFor(() => expect(onReload).toHaveBeenCalled());
+  });
+
+  it("scegliendo un cointestatario, avvisa che verrà promosso prima di spostare", async () => {
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "Sposta la lista su un altro cliente" }));
+    fireEvent.change(screen.getByLabelText("Nuovo titolare"), { target: { value: "cl-maria" } });
+
+    expect(screen.getByText(/verrà tolto dai cointestatari/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Sposta" }));
+    await waitFor(() => expect(ListeAPIMock.spostaTitolare).toHaveBeenCalledWith("l1", "cl-maria"));
   });
 });
 

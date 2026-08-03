@@ -64,10 +64,10 @@ Due precisazioni che contano:
 lista" — quando riceve `p_client_name` esegue una `UPDATE clients SET name`.
 Cioè: **correggere una lista può rinominare un cliente di tutta l'agenzia.**
 
-Per questo il campo "Nome cliente" in quella modale nasce **bloccato** e serve
-la spunta *"Rinomina il cliente in anagrafica"* per sbloccarlo. Senza spunta il
-nome non viene inviato (`clientName: null` → la RPC lo lascia intatto) e si
-modifica solo il **titolo**, che appartiene alla singola lista.
+Per questo il campo "Nome del titolare" in quella modale nasce **bloccato** e
+serve la spunta *"Rinomina il titolare in anagrafica"* per sbloccarlo. Senza
+spunta il nome non viene inviato (`clientName: null` → la RPC lo lascia
+intatto) e si modifica solo il **titolo**, che appartiene alla singola lista.
 
 Regola pratica: **il titolo distingue le liste dello stesso cliente, il nome
 identifica la persona.** Se due liste dello stesso intestatario vanno
@@ -98,12 +98,15 @@ sembrare un'anagrafica cambierebbe l'intestazione della lista.
 Se una di queste schede va davvero normalizzata (per esempio perché la persona
 è già in anagrafica come cliente CRM), la strada è:
 
-1. spostare le liste sul cliente giusto — oggi richiede un intervento SQL, non
-   esiste un "cambia intestatario" in app;
-2. solo dopo eliminare la scheda rimasta senza liste.
+1. **spostare** ogni sua lista sul cliente giusto — dal dettaglio della lista,
+   bottone ⇄ "Sposta su un altro cliente" accanto al nome (§ 9);
+2. solo dopo, se la scheda-evento è rimasta senza liste, eliminarla (bloccata
+   finché ne ha ancora, § 5).
 
-Farlo con un rename è la strada sbagliata: crea due schede per la stessa
-persona o fonde due persone diverse.
+Farlo con un **rename** è la strada sbagliata: crea due schede per la stessa
+persona o fonde due persone diverse. Lo spostamento invece non tocca il nome
+di nessuno dei due clienti: cambia solo a quale scheda è intestata quella
+lista.
 
 ---
 
@@ -155,6 +158,8 @@ automatico: è una cancellazione di dati e la decisione è dell'agenzia.
   guardando l'avviso; i task si portano dietro con la spunta.
 - **Eliminare** un cliente con liste: non è possibile, e l'app lo dice prima.
 - Distinguere due liste dello stesso cliente: **titolo**, non nome.
+- Ricondurre una lista al cliente giusto senza toccare nomi: **⇄ Sposta su un
+  altro cliente** (§ 9), non un rename.
 
 ---
 
@@ -188,10 +193,10 @@ collegato a questa lista" = titolare **e** cointestatari, non uno o l'altro.
 - nel badge "N liste viaggio" e nel blocco eliminazione dell'anagrafica (§ 4):
   contano anche le liste dove il cliente è cointestatario, non solo titolare.
 
-**Che cosa NON fa**: non si può promuovere un cointestatario a titolare (né il
-contrario) dall'app — per farlo va cambiato `liste_viaggio.client_id` a mano.
-Non c'è un limite al numero di cointestatari (non è "sempre esattamente 2"):
-zero o più, quindi copre anche un gruppo, non solo una coppia.
+**Che cosa NON fa**: non c'è un limite al numero di cointestatari (non è
+"sempre esattamente 2"): zero o più, quindi copre anche un gruppo, non solo
+una coppia. Promuovere un cointestatario a titolare *si può* fare dall'app —
+è "Sposta su un altro cliente" (§ 9) scegliendo proprio quel cointestatario.
 
 **Chi può farlo**: stesso perimetro del resto del modulo — admin, manager,
 agent; il driver non vede il modulo. Rimuovere un cointestatario passa da una
@@ -207,7 +212,49 @@ aggiunge.
 **Le 38 schede con nome combinato esistenti** non sono state toccate: separarle
 richiede di riconoscere due nomi propri dentro una stringa libera scritta in
 modo non uniforme, un'operazione che se automatizzata rischia di tagliare un
-nome a metà. Restano una migrazione manuale possibile, non necessaria: chi
-vuole ricondurle a due schede vere può ora farlo dal dettaglio della lista
-("+ cointestatario" per aggiungere il secondo nome come cliente reale, poi
-correggere il nome del titolare).
+nome a metà. Restano una migrazione manuale possibile, non necessaria: con § 9
+la strada pulita è "Sposta su un altro cliente" verso il primo dei due (già
+esistente in anagrafica o creato al volo rinominando la scheda-evento), poi
+"+ cointestatario" per il secondo — non più il rename-sul-posto che serviva
+prima che esistesse lo spostamento.
+
+---
+
+## 9. Spostare una lista su un altro cliente (cambiare il titolare)
+
+Dal dettaglio della lista, bottone **⇄** accanto al nome: sposta QUESTA lista
+su un cliente diverso, già esistente in anagrafica. Non tocca il nome di
+nessuno dei due — non è un rename, è un cambio di FK
+(`liste_viaggio.client_id`). Utile in particolare per ricondurre un
+intestatario-evento (§ 4) alla persona vera già in anagrafica come cliente
+CRM, senza passare da SQL a mano.
+
+**Differenza con "Modifica dati lista" (rinomina, § 3)**:
+
+| | Rinomina (§ 3) | Sposta su un altro cliente (§ 9) |
+| --- | --- | --- |
+| Che cosa cambia | il nome della riga cliente | quale riga cliente è titolare |
+| `client_id` | invariato | cambia |
+| Effetto su altre liste dello stesso cliente | sì, tutte | no, solo questa |
+| Il vecchio nome/cliente | non esiste più (rinominato) | resta intatto, solo senza questa lista |
+
+**Solo clienti esistenti**: il selettore non offre "+ Nuovo cliente…" come le
+altre modali del modulo — se la destinazione non esiste ancora, l'azione
+giusta è rinominare il cliente attuale (§ 3), non crearne uno nuovo per poi
+spostarcisi.
+
+**Promozione di un cointestatario**: se scegli come nuovo titolare qualcuno
+che è già cointestatario di questa stessa lista, l'app lo dichiara prima del
+click ("verrà tolto dai cointestatari") e lo fa: tolto da cointestatario,
+diventa titolare, entrambi i passaggi tracciati nello storico. È il modo per
+correggere "titolare e cointestatario erano invertiti" senza doverlo fare a
+mano in due passaggi.
+
+**Chi può farlo**: stesso perimetro del resto del modulo — admin, manager,
+agent; il driver non vede il modulo. Funzione a privilegi elevati sul
+database (come rimuovere un cointestatario): niente scrittura diretta che
+bypassi lo storico.
+
+**Il cliente rimasto senza liste** dopo uno spostamento non viene eliminato in
+automatico: resta in anagrafica, lo si trova col filtro "Solo anagrafica"
+(§ 6) e si elimina da lì quando si è sicuri che non serva più.

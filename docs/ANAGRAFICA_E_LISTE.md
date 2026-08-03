@@ -193,6 +193,27 @@ collegato a questa lista" = titolare **e** cointestatari, non uno o l'altro.
 - nel badge "N liste viaggio" e nel blocco eliminazione dell'anagrafica (§ 4):
   contano anche le liste dove il cliente è cointestatario, non solo titolare.
 
+**Effetto collaterale sulle query, da sapere prima di scriverne di nuove**:
+`lista_beneficiari` ha la chiave primaria `(lista_id, client_id)`, cioè due
+sole colonne entrambe foreign key verso due tabelle diverse. È esattamente la
+forma in cui PostgREST riconosce una **tabella-ponte**, e da quel momento
+deduce da sé una relazione molti-a-molti `liste_viaggio ↔ clients` che nessuno
+ha dichiarato. Sommata alla foreign key diretta `liste_viaggio.client_id →
+clients.id`, le strade per arrivare da una lista a `clients` diventano due: un
+`select=*, clients(name)` non dice quale, e PostgREST rifiuta **tutta** la
+query con `PGRST201` — "Could not embed because more than one relationship was
+found for 'liste_viaggio' and 'clients'". Non è un caso limite: è successo, ed
+è comparso come "Non riesco a caricare le liste" sull'intera pagina.
+
+La regola per chiunque scriva una query nuova: da `liste_viaggio` l'embed del
+titolare va sempre nominato — `clients!liste_viaggio_client_id_fkey(name)` —
+mentre l'embed annidato `lista_beneficiari → clients` resta nudo, perché parte
+dal ponte stesso, dove di relazione ce n'è una sola. Vale anche nel verso
+opposto, il giorno in cui una query partisse da `clients` per raggiungere le
+liste. `src/test/listeEmbedTitolare.test.js` blocca la regressione sui quattro
+metodi che leggono le liste; i test con Supabase mockato **non** se ne
+accorgerebbero da soli, perché l'errore nasce nel server e non nel client.
+
 **Che cosa NON fa**: non c'è un limite al numero di cointestatari (non è
 "sempre esattamente 2"): zero o più, quindi copre anche un gruppo, non solo
 una coppia. Promuovere un cointestatario a titolare *si può* fare dall'app —

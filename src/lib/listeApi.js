@@ -19,7 +19,21 @@ import { supabase } from './supabase';
 // eventuali cointestatari (lista_beneficiari → clients, es. marito e moglie):
 // la vista elenco e la testata del dettaglio mostrano quelli, non gli id.
 // Una lista senza cointestatari ha semplicemente lista_beneficiari: [].
-const LISTA_SELECT = '*, clients(name), lista_beneficiari(client_id, clients(name))';
+//
+// `clients!liste_viaggio_client_id_fkey` — il suffisso NON è decorativo.
+// `lista_beneficiari` ha la chiave primaria (lista_id, client_id), cioè due
+// sole colonne entrambe foreign key verso due tabelle diverse: è esattamente
+// la forma in cui PostgREST riconosce una tabella-ponte, e da quel momento
+// deduce da sola una relazione molti-a-molti liste_viaggio ↔ clients. Sommata
+// alla foreign key diretta liste_viaggio.client_id → clients.id le strade per
+// arrivare da una lista a `clients` diventano due, e un `clients(name)` nudo
+// non dice quale: PostgREST rifiuta l'intera query con PGRST201 ("Could not
+// embed because more than one relationship was found") e l'elenco liste resta
+// vuoto. Nominare il vincolo sceglie la strada: il TITOLARE, non il ponte.
+// Serve solo qui — l'annidato `lista_beneficiari → clients` parte dal ponte
+// stesso, dove di relazione ne esiste una sola.
+const LISTA_SELECT =
+  '*, clients!liste_viaggio_client_id_fkey(name), lista_beneficiari(client_id, clients(name))';
 
 // Nomi dei soli cointestatari (non il titolare). Ordine di arrivo dalla query
 // (nessun ORDER BY dedicato: sono in numero piccolo, non serve).

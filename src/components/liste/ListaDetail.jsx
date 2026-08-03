@@ -8,8 +8,8 @@ import {
   parseImporto, runListeCall, saldoClass, todayISO,
 } from "../../lib/listeApi.js";
 import {
-  BulkMovimentiModal, ConfirmModal, EditListaModal, EditMovimentoModal,
-  RiepilogoClienteModal, SegnoSeg,
+  AggiungiBeneficiarioModal, BulkMovimentiModal, ConfirmModal, EditListaModal,
+  EditMovimentoModal, RiepilogoClienteModal, SegnoSeg, SpostaTitolareModal,
 } from "./listeModals.jsx";
 
 // Riquadro "Nuovo movimento": sta in cima al foglio e si apre col tasto ＋
@@ -318,12 +318,36 @@ function NoteInterne({ lista, dispatch, onSaved }) {
 }
 
 // ─── Dettaglio ─────────────────────────────────────────────────────────────
-export function ListaDetail({ lista, movimenti, history, usersById, dispatch, onReload, onArchived }) {
+export function ListaDetail({ lista, movimenti, history, usersById, dispatch, onReload, onArchived, clients = [] }) {
   const [addOpen, setAddOpen] = useState(false);
   const [editCell, setEditCell] = useState(null); // { id, campo }
-  const [modal, setModal] = useState(null);       // null | "editLista" | "bulk" | { mov }
+  const [modal, setModal] = useState(null);       // null | "editLista" | "bulk" | "addBeneficiario" | { mov }
   const [confirm, setConfirm] = useState(null);   // conferme distruttive / saldo non a zero
   const [riepilogoOpen, setRiepilogoOpen] = useState(false);
+
+  // Cointestatari già presenti (client_id + nome, dalla LISTA_SELECT). Chi
+  // sceglie "+ cointestatario" non deve poter riscegliere il titolare o uno
+  // già in lista: idsEsclusi è lo stesso set usato per filtrare `clients`
+  // prima di passarlo alla modale. Memoizzato perché `|| []` altrimenti
+  // crea un array nuovo a ogni render quando la lista non ne ha ancora.
+  const beneficiari = useMemo(() => lista.lista_beneficiari || [], [lista.lista_beneficiari]);
+  const idsEsclusi = useMemo(
+    () => new Set([lista.client_id, ...beneficiari.map((b) => b.client_id)]),
+    [lista.client_id, beneficiari],
+  );
+  const clientiDisponibili = useMemo(
+    () => clients.filter((c) => !idsEsclusi.has(c.id)),
+    [clients, idsEsclusi],
+  );
+
+  // Per "Sposta su un altro cliente" l'esclusione è diversa: solo il
+  // titolare attuale (spostare "su se stesso" non ha senso). I cointestatari
+  // restano scelte valide — sceglierne uno è la promozione gestita dalla RPC.
+  const cointestatariIds = useMemo(() => new Set(beneficiari.map((b) => b.client_id)), [beneficiari]);
+  const clientiPerSpostamento = useMemo(
+    () => clients.filter((c) => c.id !== lista.client_id),
+    [clients, lista.client_id],
+  );
 
   // Cambiando lista si richiude tutto: gli editor aperti si riferivano a
   // movimenti di un'altra lista.
@@ -373,6 +397,38 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
     },
   });
 
+  const spostaTitolare = async (nuovoClientId) => {
+    const { ok } = await runListeCall(
+      dispatch,
+      ListeAPI.spostaTitolare(lista.id, nuovoClientId),
+      "Titolare spostato",
+    );
+    if (ok) { setModal(null); await onReload(); }
+    return ok;
+  };
+
+  const aggiungiBenef = async (payload) => {
+    const { ok } = await runListeCall(
+      dispatch,
+      ListeAPI.aggiungiBeneficiario({ listaId: lista.id, ...payload }),
+      "Cointestatario aggiunto",
+    );
+    if (ok) { setModal(null); await onReload(); }
+    return ok;
+  };
+
+  const rimuoviBenef = (b) => setConfirm({
+    title: "Rimuovere il cointestatario?",
+    body: `"${b.clients?.name}" non sarà più cointestatario di questa lista. Resta tracciato nello storico delle modifiche.`,
+    cta: "Rimuovi",
+    danger: true,
+    onOk: async () => {
+      setConfirm(null);
+      const { ok } = await runListeCall(dispatch, ListeAPI.rimuoviBeneficiario(lista.id, b.client_id), "Cointestatario rimosso");
+      if (ok) await onReload();
+    },
+  });
+
   // Export Word "copia agente": documento a uso interno (metodo di pagamento
   // e storico inclusi), da distinguere dal riepilogo per il cliente qui sotto.
   const copiaAgente = () => {
@@ -411,6 +467,24 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
           <div className="lv-name-row">
             <h1>{lista.clients?.name || "—"}</h1>
             <button className="lv-icon-btn" title="Modifica dati lista" aria-label="Modifica dati lista" onClick={() => setModal("editLista")}>✎</button>
+            <button className="lv-icon-btn" title="Sposta su un altro cliente" aria-label="Sposta la lista su un altro cliente" onClick={() => setModal("spostaTitolare")}>⇄</button>
+          </div>
+          <div className="lv-benef-row">
+            {beneficiari.map((b) => (
+              <span key={b.client_id} className="lv-benef-chip">
+                {b.clients?.name}
+                <button
+                  type="button"
+                  className="rm"
+                  title="Rimuovi cointestatario"
+                  aria-label={`Rimuovi ${b.clients?.name} come cointestatario`}
+                  onClick={() => rimuoviBenef(b)}
+                >✕</button>
+              </span>
+            ))}
+            <button type="button" className="lv-tit-btn add" onClick={() => setModal("addBeneficiario")}>
+              + cointestatario
+            </button>
           </div>
           <div className="sub">
             <TitoloTestata lista={lista} dispatch={dispatch} onSaved={onReload} />
@@ -547,6 +621,24 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
               return ok;
             },
           }}
+        />
+      )}
+
+      {modal === "addBeneficiario" && (
+        <AggiungiBeneficiarioModal
+          clients={clientiDisponibili}
+          onClose={() => setModal(null)}
+          onCreate={{ ...helper, run: aggiungiBenef }}
+        />
+      )}
+
+      {modal === "spostaTitolare" && (
+        <SpostaTitolareModal
+          clients={clientiPerSpostamento}
+          cointestatariIds={cointestatariIds}
+          titolareAttuale={lista.clients?.name || "—"}
+          onClose={() => setModal(null)}
+          onMove={{ ...helper, run: spostaTitolare }}
         />
       )}
 

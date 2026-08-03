@@ -14,7 +14,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { getRoleType, isAdmin } from "../../state/appGlobals.js";
 import {
-  ListeAPI, downloadBlob, eur, fmtDate, runListeCall, saldoClass, todayISO,
+  ListeAPI, beneficiariNomi, downloadBlob, eur, fmtDate, intestazioneLista,
+  runListeCall, saldoClass, todayISO,
 } from "../../lib/listeApi.js";
 import { ListeStyles } from "./listeStyles.jsx";
 import { ListaDetail } from "./ListaDetail.jsx";
@@ -77,7 +78,7 @@ export function ListaRow({ lista, saldo, onOpen, trashed = false, children }) {
   const content = (
     <>
       <div className="who">
-        <b>{lista.clients?.name || "—"}</b>
+        <b>{intestazioneLista(lista) || "—"}</b>
         <span>{sub}</span>
       </div>
       {!trashed && <span className={`lv-badge ${lista.stato}`}>{lista.stato}</span>}
@@ -217,7 +218,8 @@ export function ListeViaggio({ state, dispatch }) {
     if (q) {
       base = base.filter((l) =>
         (l.clients?.name || "").toLowerCase().includes(q) ||
-        (l.titolo || "").toLowerCase().includes(q));
+        (l.titolo || "").toLowerCase().includes(q) ||
+        beneficiariNomi(l).some((n) => n.toLowerCase().includes(q)));
     }
     return ordinaListe(base, saldi, sort);
   }, [liste, cestino, saldi, filter, search, sort]);
@@ -412,6 +414,7 @@ export function ListeViaggio({ state, dispatch }) {
               dispatch={dispatch}
               onReload={reloadAll}
               onArchived={backToHome}
+              clients={clients}
             />
           ) : (
             <>

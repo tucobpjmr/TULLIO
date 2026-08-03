@@ -15,9 +15,26 @@
 // profondità, non la garanzia: quella è e resta la RLS.
 import { supabase } from './supabase';
 
-// Le liste portano sempre con sé il nome del cliente: la vista elenco e la
-// testata del dettaglio mostrano quello, non l'id.
-const LISTA_SELECT = '*, clients(name)';
+// Le liste portano sempre con sé il nome del titolare (clients) e degli
+// eventuali cointestatari (lista_beneficiari → clients, es. marito e moglie):
+// la vista elenco e la testata del dettaglio mostrano quelli, non gli id.
+// Una lista senza cointestatari ha semplicemente lista_beneficiari: [].
+const LISTA_SELECT = '*, clients(name), lista_beneficiari(client_id, clients(name))';
+
+// Nomi dei soli cointestatari (non il titolare). Ordine di arrivo dalla query
+// (nessun ORDER BY dedicato: sono in numero piccolo, non serve).
+export const beneficiariNomi = (lista) =>
+  (lista?.lista_beneficiari || []).map((b) => b.clients?.name).filter(Boolean);
+
+// "Chi è questa lista": titolare + cointestatari, per la UI e per i documenti
+// (riepilogo cliente, copia agente). "MARIO ROSSI" da solo, o
+// "MARIO ROSSI e MARIA BIANCHI" con un cointestatario, "MARIO ROSSI, MARIA
+// BIANCHI e LUCA ROSSI" con più di uno.
+export const intestazioneLista = (lista) => {
+  const nomi = [lista?.clients?.name, ...beneficiariNomi(lista)].filter(Boolean);
+  if (nomi.length <= 1) return nomi[0] || '';
+  return `${nomi.slice(0, -1).join(', ')} e ${nomi[nomi.length - 1]}`;
+};
 
 // PostgREST tronca OGNI select a `db-max-rows` (1000 sui progetti Supabase)
 // restituendo HTTP 200 senza errore: le righe oltre la soglia semplicemente
@@ -67,6 +84,19 @@ const fetchAllRows = async (buildQuery) => {
   }
 };
 
+// Id delle liste non archiviate in cui il cliente compare, come titolare o
+// come cointestatario (vista lista_partecipanti = liste_viaggio.client_id
+// UNION lista_beneficiari). Non esportato: è un dettaglio implementativo di
+// listByClient/saldiByClient qui sotto, entrambe alle prese con lo stesso
+// problema — PostgREST non esprime in una query sola "colonna A in tabella 1
+// oppure colonna B in tabella 2".
+const listaIdsDiCliente = async (clientId) => {
+  const { data, error } = await supabase.from('lista_partecipanti')
+    .select('lista_id').eq('client_id', clientId).is('deleted_at', null);
+  if (error) return { ids: null, error };
+  return { ids: [...new Set((data || []).map((r) => r.lista_id))], error: null };
+};
+
 export const ListeAPI = {
   // Liste non archiviate, più recenti in cima (l'ordinamento fine è lato client).
   list: () =>
@@ -83,11 +113,19 @@ export const ListeAPI = {
       .order('id')),
 
   // Liste di un singolo cliente: alimenta il tab dentro la scheda cliente.
-  listByClient: (clientId) =>
-    supabase.from('liste_viaggio').select(LISTA_SELECT)
-      .eq('client_id', clientId)
+  // "Di un cliente" = dove compare come titolare O come cointestatario:
+  // PostgREST non sa esprimere in una sola query "colonna A in tabella 1
+  // oppure colonna B in tabella 2", quindi si passa in due tempi dalla vista
+  // lista_partecipanti che le unisce (vedi listaIdsDiCliente).
+  listByClient: async (clientId) => {
+    const { ids, error } = await listaIdsDiCliente(clientId);
+    if (error) return { data: null, error };
+    if (!ids.length) return { data: [], error: null };
+    return supabase.from('liste_viaggio').select(LISTA_SELECT)
+      .in('id', ids)
       .is('deleted_at', null)
-      .order('updated_at', { ascending: false }),
+      .order('updated_at', { ascending: false });
+  },
 
   get: (id) =>
     supabase.from('liste_viaggio').select(LISTA_SELECT).eq('id', id).single(),
@@ -101,9 +139,36 @@ export const ListeAPI = {
     fetchAllRows(() => supabase.from('liste_saldi').select('*', WITH_COUNT).order('lista_id')),
 
   // Come sopra, per un solo cliente: il tab dentro la scheda cliente mostra
-  // le liste di quel cliente e non ha motivo di scaricare i saldi di tutti.
-  saldiByClient: (clientId) =>
-    supabase.from('liste_saldi').select('*').eq('client_id', clientId),
+  // le liste di quel cliente (titolare o cointestatario) e non ha motivo di
+  // scaricare i saldi di tutti. `liste_saldi` è raggruppata per client_id
+  // (solo titolare), quindi anche qui si passa dagli id via
+  // lista_partecipanti: altrimenti un cointestatario non vedrebbe il saldo
+  // nella propria scheda.
+  saldiByClient: async (clientId) => {
+    const { ids, error } = await listaIdsDiCliente(clientId);
+    if (error) return { data: null, error };
+    if (!ids.length) return { data: [], error: null };
+    return supabase.from('liste_saldi').select('*').in('lista_id', ids);
+  },
+
+  // Cliente e stato di archiviazione di ogni riga di partecipazione (titolare
+  // O cointestatario) a OGNI lista: alimenta il badge "N liste viaggio"
+  // nell'anagrafica clienti, che è ciò che rende visibile — PRIMA di
+  // rinominare o eliminare — quali schede sono anche l'intestazione (o
+  // cointestazione) di un buono viaggio.
+  //
+  // Include le liste nel cestino: sono archiviate, non cancellate, e la loro
+  // foreign key regge comunque (sul titolare come sui cointestatari). Un
+  // cliente con sole liste cestinate non è eliminabile, e va detto prima di
+  // provarci.
+  //
+  // Paginato come le altre query "tutto": oltre le 1000 righe PostgREST tronca
+  // senza errore, e le liste sono già oltre 600. Ordinamento su due colonne
+  // (nessuna delle due unica da sola: un client può comparire più volte, una
+  // lista ha più partecipanti) perché fetchAllRows richiede una chiave stabile.
+  clientiConListe: () =>
+    fetchAllRows(() => supabase.from('lista_partecipanti').select('client_id, deleted_at', WITH_COUNT)
+      .order('lista_id').order('client_id')),
 
   movimenti: (listaId) =>
     supabase.from('movimenti_lista').select('*')
@@ -130,6 +195,34 @@ export const ListeAPI = {
   // riflette su tutte le liste di quel cliente.
   modifica: ({ id, titolo = null, clientName = null }) =>
     supabase.rpc('modifica_lista', { p_id: id, p_titolo: titolo, p_client_name: clientName }),
+
+  // Sposta il TITOLARE su un cliente diverso, già esistente in anagrafica
+  // (client_id cambia; il nome di entrambi i clienti resta intatto). Da non
+  // confondere con `modifica` sopra: quella rinomina la riga cliente attuale
+  // e si riflette su tutte le sue liste, questa cambia quale riga è il
+  // titolare e riguarda solo questa lista. Se il cliente scelto è già
+  // cointestatario di questa stessa lista, la RPC lo promuove: lo toglie da
+  // cointestatario e lo rende titolare nella stessa transazione.
+  spostaTitolare: (id, nuovoClientId) =>
+    supabase.rpc('sposta_titolare_lista', { p_id: id, p_nuovo_client_id: nuovoClientId }),
+
+  // ── Cointestazione: cointestatari oltre al titolare (client_id) ──
+  // Stesso pattern di crea_lista per il cliente: o uno esistente (clientId)
+  // o il nome di uno nuovo (newClientName), mai entrambi. Il titolare non può
+  // essere aggiunto come proprio cointestatario, né lo stesso cointestatario
+  // due volte: la RPC rifiuta entrambi i casi con check_violation.
+  aggiungiBeneficiario: ({ listaId, clientId = null, newClientName = null }) =>
+    supabase.rpc('aggiungi_beneficiario_lista', {
+      p_lista_id: listaId,
+      p_client_id: clientId,
+      p_new_client_name: newClientName,
+    }),
+
+  // SECURITY DEFINER lato DB (vedi migrazione 20260802214946): niente GRANT
+  // DELETE diretto su lista_beneficiari, la rimozione passa solo da qui, così
+  // la voce di storico è garantita nella stessa transazione.
+  rimuoviBeneficiario: (listaId, clientId) =>
+    supabase.rpc('rimuovi_beneficiario_lista', { p_lista_id: listaId, p_client_id: clientId }),
 
   cambiaStato: (id, stato) =>
     supabase.rpc('cambia_stato_lista', { p_id: id, p_stato: stato }),
@@ -204,18 +297,20 @@ export const ListeAPI = {
   // `onProgress({ done, total })` è opzionale: serve alla UI per non restare
   // muta durante un ripristino lungo.
   importaBackup: async (payload, onProgress = null) => {
-    // L'ordine è obbligato dai controlli di integrità dentro la RPC: scarta
-    // le liste il cui client_id non esiste ancora e i movimenti la cui lista
-    // non esiste. Clienti, poi liste, poi movimenti — mai mescolati.
+    // L'ordine è obbligato dai controlli di integrità dentro la RPC: scarta le
+    // liste il cui client_id non esiste ancora, i cointestatari la cui lista
+    // (o il cui client_id) non esiste, e i movimenti la cui lista non esiste.
+    // Clienti, poi liste, poi cointestatari, poi movimenti — mai mescolati.
     const steps = [
-      ...chunk(payload.clients).map((rows) => ({ clients: rows, liste: [], movimenti: [] })),
-      ...chunk(payload.liste).map((rows) => ({ clients: [], liste: rows, movimenti: [] })),
-      ...chunk(payload.movimenti).map((rows) => ({ clients: [], liste: [], movimenti: rows })),
+      ...chunk(payload.clients).map((rows) => ({ clients: rows, liste: [], beneficiari: [], movimenti: [] })),
+      ...chunk(payload.liste).map((rows) => ({ clients: [], liste: rows, beneficiari: [], movimenti: [] })),
+      ...chunk(payload.beneficiari).map((rows) => ({ clients: [], liste: [], beneficiari: rows, movimenti: [] })),
+      ...chunk(payload.movimenti).map((rows) => ({ clients: [], liste: [], beneficiari: [], movimenti: rows })),
     ];
 
     const totale = (payload.clients?.length || 0) + (payload.liste?.length || 0)
-      + (payload.movimenti?.length || 0);
-    const totali = { clients_added: 0, liste_added: 0, movimenti_added: 0 };
+      + (payload.beneficiari?.length || 0) + (payload.movimenti?.length || 0);
+    const totali = { clients_added: 0, liste_added: 0, beneficiari_added: 0, movimenti_added: 0 };
     let fatte = 0;
 
     for (const p_data of steps) {
@@ -235,8 +330,9 @@ export const ListeAPI = {
       }
       totali.clients_added += data?.clients_added || 0;
       totali.liste_added += data?.liste_added || 0;
+      totali.beneficiari_added += data?.beneficiari_added || 0;
       totali.movimenti_added += data?.movimenti_added || 0;
-      fatte += p_data.clients.length + p_data.liste.length + p_data.movimenti.length;
+      fatte += p_data.clients.length + p_data.liste.length + p_data.beneficiari.length + p_data.movimenti.length;
       onProgress?.({ done: fatte, total: totale });
     }
 
@@ -245,27 +341,34 @@ export const ListeAPI = {
 
   resetCompleto: (conferma) => supabase.rpc('reset_completo', { p_conferma: conferma }),
 
-  // Dati grezzi per il backup JSON scaricabile: le stesse tre tabelle che
-  // esportava la SPA sorgente. Non passa da una RPC: sono semplici SELECT,
-  // già coperte dalla RLS del modulo (admin/manager/agent).
+  // Dati grezzi per il backup JSON scaricabile: le stesse tabelle che
+  // esportava la SPA sorgente, più lista_beneficiari (cointestatari) da
+  // quando esiste la cointestazione — senza, un ripristino dopo un reset
+  // totale riporterebbe indietro liste e movimenti ma perderebbe in silenzio
+  // chi era cointestatario di cosa. Non passa da una RPC: sono semplici
+  // SELECT, già coperte dalla RLS del modulo (admin/manager/agent).
   //
-  // Le tre query DEVONO essere paginate: un backup troncato a 1000 righe si
+  // Le query DEVONO essere paginate: un backup troncato a 1000 righe si
   // scarica senza errori e sembra completo (il toast conta le righe del file,
   // non quelle del database), ma ripristinato dopo un reset totale
   // riporterebbe indietro solo una frazione dei movimenti. Ordinamento su
-  // `id` perché è unico: è quello che rende le pagine stabili.
+  // `id` (o, per lista_beneficiari che non ha una colonna id propria, sulla
+  // sua chiave primaria composta) perché è univoco: è quello che rende le
+  // pagine stabili.
   backupData: async () => {
-    const [rClients, rListe, rMovimenti] = await Promise.all([
+    const [rClients, rListe, rBeneficiari, rMovimenti] = await Promise.all([
       fetchAllRows(() => supabase.from('clients').select('*', WITH_COUNT).order('id')),
       fetchAllRows(() => supabase.from('liste_viaggio').select('*', WITH_COUNT).order('id')),
+      fetchAllRows(() => supabase.from('lista_beneficiari').select('*', WITH_COUNT).order('lista_id').order('client_id')),
       fetchAllRows(() => supabase.from('movimenti_lista').select('*', WITH_COUNT).order('id')),
     ]);
-    const failed = [rClients, rListe, rMovimenti].find((r) => r.error);
+    const failed = [rClients, rListe, rBeneficiari, rMovimenti].find((r) => r.error);
     if (failed) return { data: null, error: failed.error };
     return {
       data: {
         clients: rClients.data || [],
         liste: rListe.data || [],
+        beneficiari: rBeneficiari.data || [],
         movimenti: rMovimenti.data || [],
       },
       error: null,
@@ -330,6 +433,9 @@ export const ACTION_LABELS = {
   movimento_modificato: 'ha modificato un movimento',
   movimento_eliminato: 'ha eliminato un movimento',
   lista_note_modificata: 'ha modificato le note interne',
+  beneficiario_aggiunto: 'ha aggiunto un cointestatario',
+  beneficiario_rimosso: 'ha rimosso un cointestatario',
+  titolare_spostato: 'ha spostato la lista su un altro cliente',
 };
 
 export const actionLabel = (a) => ACTION_LABELS[a] || a;
@@ -375,7 +481,7 @@ export const docHtml = (lista, movimenti, storico, usersById = {}) => {
   return `<html xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8">
     <style>body{font-family:Calibri,Arial,sans-serif;font-size:12pt}table{border-collapse:collapse;width:100%}td{padding:4pt 6pt;border-bottom:0.5pt solid #ccc}h1{font-size:14pt}</style>
     </head><body>
-    <h1>LISTA ${escHtml(lista.clients?.name || '')}</h1>
+    <h1>LISTA ${escHtml(intestazioneLista(lista))}</h1>
     ${lista.titolo ? `<p><i>${escHtml(lista.titolo)}</i></p>` : ''}
     <p style="font-size:9pt;color:#B23A2E;letter-spacing:.06em"><b>COPIA AGENTE — USO INTERNO</b></p>
     <table>${rows}</table>
@@ -391,7 +497,7 @@ export const docHtml = (lista, movimenti, storico, usersById = {}) => {
 export const riepilogoTesto = (lista, movimenti) => {
   const righe = movimenti.map((m) => `${fmtDate(m.data_movimento)}  ${m.descrizione}  ${eur(m.importo)}`).join('\n');
   const saldo = movimenti.reduce((s, m) => s + Number(m.importo), 0);
-  return `RIEPILOGO BUONO VIAGGIO\n${lista.clients?.name || ''}${lista.titolo ? ' — ' + lista.titolo : ''}\n\n`
+  return `RIEPILOGO BUONO VIAGGIO\n${intestazioneLista(lista)}${lista.titolo ? ' — ' + lista.titolo : ''}\n\n`
     + (righe || 'Nessun movimento registrato.')
     + `\n\nSALDO: ${eur(saldo)}`
     + (lista.stato === 'esaurita' ? '\n\nLISTA ESAURITA' : '');

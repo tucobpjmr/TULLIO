@@ -86,6 +86,12 @@ export const ListeStyles = () => (
     .lv-root .lv-tit-btn.add{border-color:var(--lv-border)}
     .lv-root .lv-tit-edit{display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex:1 1 100%}
     .lv-root .lv-tit-edit input{font:inherit;padding:7px 9px;border:1px solid var(--lv-border);border-radius:8px;background:#fff;color:var(--lv-ink);min-width:0;flex:1 1 180px}
+    /* cointestatari: chip con nome + rimozione, e bottone "+ cointestatario"
+       che riusa lo stile di .lv-tit-btn.add (stessa affordance "aggiungi") */
+    .lv-root .lv-benef-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 2px}
+    .lv-root .lv-benef-chip{display:inline-flex;align-items:center;gap:4px;background:#F1F5F9;color:var(--lv-ink);border-radius:99px;padding:4px 4px 4px 12px;font-size:13px;font-weight:500}
+    .lv-root .lv-benef-chip .rm{border:none;background:none;color:var(--lv-muted);width:20px;height:20px;border-radius:50%;font-size:11px;line-height:1;display:inline-flex;align-items:center;justify-content:center;padding:0}
+    .lv-root .lv-benef-chip .rm:hover{background:#E3E6EA;color:var(--lv-neg)}
     .lv-root .lv-saldo-box{background:var(--lv-surface);border:1px solid var(--lv-border);border-radius:var(--lv-radius);padding:12px 18px;text-align:right}
     .lv-root .lv-saldo-box .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--lv-muted);font-weight:600}
     .lv-root .lv-saldo-box .val{font-size:24px;font-weight:700}

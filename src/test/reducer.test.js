@@ -241,6 +241,38 @@ describe("reducer — CRM clienti", () => {
     expect(s.clients.map(c => c.name)).toEqual(["Rossi", "Bianchi"]);
     expect(s.toast.type).toBe("success");
   });
+
+  // `task.client` è testo libero (colonna client_id text), non una FK verso
+  // clients: rinominare l'anagrafica lascia indietro i task che la citano, e
+  // la scheda cliente — che li cerca per nome — smette di mostrarli.
+  describe("RENAME_CLIENT_IN_TASKS", () => {
+    const conCliente = (id, client) => task({ id, client, assignees: ["marco"] });
+
+    it("riscrive il nome nei task che lo citano, confronto insensibile a maiuscole e spazi", () => {
+      let s = freshState("marco");
+      s = { ...s, tasks: [
+        conCliente("00000000-0000-4000-8000-000000000001", "rossi  mario"),
+        conCliente("00000000-0000-4000-8000-000000000002", "ALTRO CLIENTE"),
+      ] };
+      s = reducer(s, { type: "RENAME_CLIENT_IN_TASKS", payload: { from: "ROSSI MARIO", to: "MARIO ROSSI" } });
+      expect(s.tasks.map(t => t.client)).toEqual(["MARIO ROSSI", "ALTRO CLIENTE"]);
+      expect(s.toast).toEqual({ message: "1 task aggiornato col nuovo nome cliente", type: "success" });
+    });
+
+    it("non tocca nulla se nessun task cita quel cliente", () => {
+      const s = { ...freshState("marco"), tasks: [conCliente(UUID, "ALTRO")] };
+      expect(reducer(s, { type: "RENAME_CLIENT_IN_TASKS", payload: { from: "ROSSI", to: "BIANCHI" } })).toBe(s);
+    });
+
+    // Un task che l'utente non può modificare verrebbe comunque respinto dalla
+    // RLS: mostrarlo come aggiornato sarebbe una bugia.
+    it("salta i task che l'utente non può modificare", () => {
+      let s = freshState("gina");
+      s = { ...s, tasks: [{ ...conCliente(UUID, "ROSSI"), assignees: ["marco"], category: "admin" }] };
+      const next = reducer(s, { type: "RENAME_CLIENT_IN_TASKS", payload: { from: "ROSSI", to: "BIANCHI" } });
+      expect(next.tasks[0].client).toBe("ROSSI");
+    });
+  });
 });
 
 describe("reducer — activity log & toast", () => {

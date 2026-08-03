@@ -28,6 +28,7 @@ const fakeRpc = (name, args) => {
     data: {
       clients_added: (p.clients || []).length,
       liste_added: (p.liste || []).length,
+      beneficiari_added: (p.beneficiari || []).length,
       movimenti_added: (p.movimenti || []).length,
     },
     error: null,
@@ -175,37 +176,40 @@ describe("elenco e saldi — stessa paginazione, stesso cap", () => {
 // ~7,1s — il tetto si tocca poco oltre le 45.000 righe e lì il ripristino
 // fallisce in blocco. Spezzarlo toglie il tetto del tutto.
 describe("importaBackup — ripristino a blocchi", () => {
-  const backup = (nc, nl, nm) => ({
-    clients: rows(nc, "c"), liste: rows(nl, "l"), movimenti: rows(nm, "m"),
+  const backup = (nc, nl, nm, nb = 0) => ({
+    clients: rows(nc, "c"), liste: rows(nl, "l"), movimenti: rows(nm, "m"), beneficiari: rows(nb, "b"),
   });
 
   it("spezza il payload in più chiamate invece di mandarne una sola enorme", async () => {
     const { data, error } = await ListeAPI.importaBackup(backup(816, 614, 5275));
 
     expect(error).toBeNull();
-    // 1 blocco clienti + 1 liste + 6 movimenti (5275 → 1000×5 + 275)
+    // 1 blocco clienti + 1 liste + 6 movimenti (5275 → 1000×5 + 275), zero cointestatari
     expect(rpc.calls).toHaveLength(8);
-    expect(data).toEqual({ clients_added: 816, liste_added: 614, movimenti_added: 5275 });
+    expect(data).toEqual({ clients_added: 816, liste_added: 614, beneficiari_added: 0, movimenti_added: 5275 });
   });
 
-  it("nessun blocco supera il limite di righe per chiamata", async () => {
-    await ListeAPI.importaBackup(backup(0, 0, 42200));
+  it("nessun blocco supera il limite di righe per chiamata, cointestatari inclusi", async () => {
+    await ListeAPI.importaBackup(backup(0, 0, 42200, 1500));
 
     const maxRighe = Math.max(...rpc.calls.map((c) =>
-      c.payload.clients.length + c.payload.liste.length + c.payload.movimenti.length));
+      c.payload.clients.length + c.payload.liste.length + c.payload.beneficiari.length + c.payload.movimenti.length));
     expect(maxRighe).toBeLessThanOrEqual(1000);
-    expect(rpc.calls).toHaveLength(43);
+    // 43 blocchi movimenti (42200 → 1000×42 + 200) + 2 blocchi cointestatari (1500 → 1000+500)
+    expect(rpc.calls).toHaveLength(45);
   });
 
-  it("rispetta l'ordine clienti → liste → movimenti", async () => {
-    // La RPC scarta le liste il cui client_id non esiste ancora e i movimenti
-    // la cui lista non esiste: invertire l'ordine perderebbe righe in silenzio.
-    await ListeAPI.importaBackup(backup(1500, 1200, 1100));
+  it("rispetta l'ordine clienti → liste → cointestatari → movimenti", async () => {
+    // La RPC scarta le liste il cui client_id non esiste ancora, i
+    // cointestatari la cui lista non esiste e i movimenti la cui lista non
+    // esiste: invertire l'ordine perderebbe righe in silenzio.
+    await ListeAPI.importaBackup(backup(1500, 1200, 1100, 500));
 
     const tipo = (c) => (c.payload.clients.length ? "clients"
-      : c.payload.liste.length ? "liste" : "movimenti");
+      : c.payload.liste.length ? "liste"
+      : c.payload.beneficiari.length ? "beneficiari" : "movimenti");
     expect(rpc.calls.map(tipo)).toEqual([
-      "clients", "clients", "liste", "liste", "movimenti", "movimenti",
+      "clients", "clients", "liste", "liste", "beneficiari", "movimenti", "movimenti",
     ]);
   });
 
@@ -254,6 +258,6 @@ describe("importaBackup — ripristino a blocchi", () => {
 
     expect(error).toBeNull();
     expect(rpc.calls).toHaveLength(0);
-    expect(data).toEqual({ clients_added: 0, liste_added: 0, movimenti_added: 0 });
+    expect(data).toEqual({ clients_added: 0, liste_added: 0, beneficiari_added: 0, movimenti_added: 0 });
   });
 });

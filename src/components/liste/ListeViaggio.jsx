@@ -17,6 +17,7 @@ import {
   ListeAPI, beneficiariNomi, downloadBlob, eur, fmtDate, intestazioneLista,
   runListeCall, saldoClass, todayISO,
 } from "../../lib/listeApi.js";
+import { matchTermini, terminiRicerca } from "../../lib/searchUtils.js";
 import { ListeStyles } from "./listeStyles.jsx";
 import { ListaDetail } from "./ListaDetail.jsx";
 import {
@@ -25,6 +26,38 @@ import {
 } from "./listeModals.jsx";
 
 const HOME_PAGE_SIZE = 10;
+
+// Etichette dei quattro insiemi dell'elenco. Servono anche fuori dal menu a
+// tendina: quando la ricerca trova risultati in un insieme che il filtro
+// corrente esclude, il nome dell'insieme va detto all'utente.
+const FILTRI = {
+  attive: "Attive",
+  esaurite: "Esaurite",
+  tutte: "Tutte",
+  cestino: "Cestino",
+};
+
+// Insiemi che il filtro attivo NON copre. Cercando fra le "Attive" una lista
+// esaurita, l'elenco resta vuoto pur esistendo la lista: senza questa mappa
+// non c'è modo di dirlo, e l'utente conclude che la lista sia sparita (o che
+// la ricerca sia rotta). "Tutte" contiene attive ed esaurite ma non il
+// cestino, che è archiviato a parte.
+const FILTRI_ALTROVE = {
+  attive: ["esaurite", "cestino"],
+  esaurite: ["attive", "cestino"],
+  tutte: ["cestino"],
+  cestino: ["tutte"],
+};
+
+// Filtro testuale dell'elenco: titolare, titolo e cointestatari, con la
+// normalizzazione condivisa con l'anagrafica (vedi lib/searchUtils.js — la
+// ricerca ignora accenti, apostrofi e ordine delle parole). Esportata per i
+// test: è la funzione che decide se una lista si trova o no.
+export function filtraListe(liste, search) {
+  const termini = terminiRicerca(search);
+  if (!termini.length) return liste;
+  return liste.filter((l) => matchTermini(termini, l.clients?.name, l.titolo, beneficiariNomi(l)));
+}
 
 // Criteri di ordinamento della home. 'recenti' è l'ordine in cui il database
 // restituisce le liste (updated_at DESC): ordinare qui, sul client, evita di
@@ -209,20 +242,24 @@ export function ListeViaggio({ state, dispatch }) {
     await loadHome();
   }, [dispatch, loadHome]);
 
-  const visibili = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    let base = filter === "cestino" ? cestino : liste;
-    if (filter === "attive" || filter === "esaurite") {
-      base = base.filter((l) => (filter === "attive" ? l.stato === "attiva" : l.stato === "esaurita"));
-    }
-    if (q) {
-      base = base.filter((l) =>
-        (l.clients?.name || "").toLowerCase().includes(q) ||
-        (l.titolo || "").toLowerCase().includes(q) ||
-        beneficiariNomi(l).some((n) => n.toLowerCase().includes(q)));
-    }
-    return ordinaListe(base, saldi, sort);
-  }, [liste, cestino, saldi, filter, search, sort]);
+  // La ricerca si applica a TUTTI e quattro gli insiemi, non solo a quello
+  // selezionato: il filtro decide cosa si mostra, ma i conteggi degli altri
+  // servono per dire dove sono finiti i risultati che non si vedono.
+  const risultati = useMemo(() => {
+    const attive = liste.filter((l) => l.stato === "attiva");
+    const esaurite = liste.filter((l) => l.stato === "esaurita");
+    return {
+      attive: filtraListe(attive, search),
+      esaurite: filtraListe(esaurite, search),
+      tutte: filtraListe(liste, search),
+      cestino: filtraListe(cestino, search),
+    };
+  }, [liste, cestino, search]);
+
+  const visibili = useMemo(
+    () => ordinaListe(risultati[filter] || [], saldi, sort),
+    [risultati, filter, saldi, sort],
+  );
 
   // Conteggi per il menu a tendina del filtro. Senza, l'elenco mostra il
   // totale delle sole "Attive" (il filtro di default) mentre il backup conta
@@ -233,6 +270,28 @@ export function ListeViaggio({ state, dispatch }) {
     tutte: liste.length,
     cestino: cestino.length,
   }), [liste, cestino]);
+
+  // Risultati che la ricerca ha trovato ma che il filtro corrente nasconde.
+  // È il caso in cui l'elenco mente per omissione: la lista di un cliente
+  // esiste, l'anagrafica la conta nel suo badge, ma è ESAURITA e il filtro di
+  // default mostra solo le attive — quindi qui non compare e sembra un
+  // problema della ricerca.
+  const altrove = useMemo(() => {
+    if (!terminiRicerca(search).length) return [];
+    return (FILTRI_ALTROVE[filter] || [])
+      .map((k) => ({ key: k, n: (risultati[k] || []).length }))
+      .filter((x) => x.n > 0);
+  }, [search, filter, risultati]);
+
+  const vaiA = (key) => { setFilter(key); setLimit(HOME_PAGE_SIZE); };
+
+  // "Esaurite (1)" oppure "Esaurite (1) · Cestino (2)", come bottoni che
+  // portano dove i risultati sono.
+  const altroveChips = altrove.map(({ key, n }) => (
+    <button key={key} type="button" className="lv-btn sm" onClick={() => vaiA(key)}>
+      {FILTRI[key]} ({n})
+    </button>
+  ));
 
   const ripristina = async (id) => {
     const { ok } = await runListeCall(dispatch, ListeAPI.ripristina(id), "Lista ripristinata");
@@ -421,10 +480,10 @@ export function ListeViaggio({ state, dispatch }) {
               <div className="lv-toolbar">
                 <input
                   type="search"
-                  placeholder="Cerca cliente…"
+                  placeholder="Cerca cliente, cointestatario o titolo…"
                   value={search}
                   onChange={(e) => { setSearch(e.target.value); setLimit(HOME_PAGE_SIZE); }}
-                  aria-label="Cerca lista per cliente o titolo"
+                  aria-label="Cerca lista per cliente, cointestatario o titolo"
                 />
                 <select
                   value={filter}
@@ -450,12 +509,37 @@ export function ListeViaggio({ state, dispatch }) {
                 <button className="lv-btn primary" onClick={() => setNuovaOpen(true)}>+ Nuova lista</button>
               </div>
 
+              {/* Risultati nascosti dal filtro: si dice sempre, anche quando
+                  l'elenco NON è vuoto — cercando "COLUCCI" fra le attive si
+                  vedono tre liste e non si sospetta la quarta, esaurita. */}
+              {visibili.length > 0 && altrove.length > 0 && (
+                <div className="lv-altrove">
+                  <span>Altri risultati per “{search.trim()}” fuori da “{FILTRI[filter]}”:</span>
+                  {altroveChips}
+                </div>
+              )}
+
               <div className="lv-card">
                 {visibili.length === 0 ? (
                   <div className="lv-empty">
-                    {filter === "cestino"
-                      ? "Il cestino è vuoto."
-                      : <>Nessuna lista qui.<br />Crea la prima con “+ Nuova lista”.</>}
+                    {terminiRicerca(search).length ? (
+                      <>
+                        Nessuna lista trovata per “{search.trim()}” in “{FILTRI[filter]}”.
+                        {altrove.length > 0 && (
+                          <>
+                            <br />
+                            <span style={{ fontSize: 13 }}>Ma c’è altrove:</span>
+                            <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginTop: 10 }}>
+                              {altroveChips}
+                            </div>
+                          </>
+                        )}
+                      </>
+                    ) : filter === "cestino" ? (
+                      "Il cestino è vuoto."
+                    ) : (
+                      <>Nessuna lista qui.<br />Crea la prima con “+ Nuova lista”.</>
+                    )}
                   </div>
                 ) : filter === "cestino" ? (
                   visibili.map((l) => (

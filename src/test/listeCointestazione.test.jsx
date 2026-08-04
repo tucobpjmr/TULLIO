@@ -249,10 +249,10 @@ describe("ListeViaggio — la ricerca trova anche i cointestatari", () => {
 
     expect(await screen.findByText("MARIO ROSSI e MARIA BIANCHI")).toBeTruthy();
 
-    fireEvent.change(screen.getByPlaceholderText("Cerca cliente…"), { target: { value: "bianchi" } });
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "bianchi" } });
     expect(screen.getByText("MARIO ROSSI e MARIA BIANCHI")).toBeTruthy();
 
-    fireEvent.change(screen.getByPlaceholderText("Cerca cliente…"), { target: { value: "nessuno cosi" } });
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "nessuno cosi" } });
     expect(screen.queryByText("MARIO ROSSI e MARIA BIANCHI")).toBeNull();
   });
 });

@@ -13,7 +13,8 @@ import { TEAM, CATEGORIES, getMember, isJuniorAgent, isDriver } from "../../stat
 import { ProfileEditor } from "../modals/ProfileEditor.jsx";
 import { SwipeActions } from "../SwipeActions.jsx";
 import { getPushSupport, getPushState, enablePush, disablePush, syncPushSubscription, sendTestPush } from "../../lib/push.js";
-import { ListeAPI } from "../../lib/listeApi.js";
+import { ListeAPI, beneficiariNomi, intestazioneLista } from "../../lib/listeApi.js";
+import { matchTermini, terminiRicerca } from "../../lib/searchUtils.js";
 import { NOTIF_ICONS, NOTIF_CATEGORIES, notifTitle, notifSubtitle, notifTime, notifTarget } from "../../lib/notifUtils.js";
 
 // Menù a tendina multi-selezione (Categoria/Status/Agente nel pannello Ricerca).
@@ -77,7 +78,9 @@ const FilterDropdown = ({ options, selected, onToggle }) => {
   );
 };
 
-const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword, currentUserId }) => {
+// Esportato per i test: la ricerca globale è l'unico punto che cerca insieme
+// task e liste viaggio, ed è quello dove le due ricerche devono coincidere.
+export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword, currentUserId }) => {
   const { isMobile } = useViewport();
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -134,7 +137,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
 
   const results = useMemo(() => {
     if (!hasFilters) return [];
-    const k = keyword.trim().toLowerCase();
+    const termini = terminiRicerca(keyword);
     const from = startOfLocalDay(dateFrom);
     const to = endOfLocalDay(dateTo);
 
@@ -151,16 +154,11 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
         if (!t.dueDate) return false;
         if (new Date(t.dueDate) > to) return false;
       }
-      if (k) {
-        const hay = [
-          t.title || "",
-          t.description || "",
-          t.client || "",
-          t.praticaRef || "",
-          ...(t.comments || []).map(c => c.text || ""),
-        ].join(" ").toLowerCase();
-        if (!hay.includes(k)) return false;
-      }
+      // Normalizzazione condivisa con anagrafica e liste (lib/searchUtils.js):
+      // il campo `client` del task è il nome dell'anagrafica, e deve trovarsi
+      // digitandolo come lo si digita là.
+      if (!matchTermini(termini, t.title, t.description, t.client, t.praticaRef,
+        (t.comments || []).map(c => c.text || ""))) return false;
       return true;
     }).sort((a,b) => {
       if (!a.dueDate && !b.dueDate) return 0;
@@ -195,18 +193,21 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
   // Liste: filtro con keyword + filtri per stato/cliente — categoria/agente/
   // scadenza non hanno un equivalente sulle liste, stessa logica di ricerca
   // già usata dentro il modulo Liste (ListeViaggio.jsx).
-  const k = keyword.trim().toLowerCase();
   const listaResults = useMemo(() => {
     if (!listeAllowed) return [];
+    const termini = terminiRicerca(keyword);
     return liste.filter(l => {
       if (!includeTrashed && l.deleted_at) return false;
       if (listeStati.length && !listeStati.includes(l.stato)) return false;
       if (listeClienti.length && !listeClienti.includes(l.clients?.name)) return false;
-      if (!k) return true;
-      const hay = [l.titolo || "", l.note || "", l.clients?.name || ""].join(" ").toLowerCase();
-      return hay.includes(k);
+      // I COINTESTATARI contano: una lista intestata a ROSSI con BIANCHI
+      // cointestataria è anche di BIANCHI, e nel modulo Liste cercando
+      // "BIANCHI" si trova. Qui non si trovava — stessa ricerca, due esiti
+      // diversi, e il posto dove l'utente si aspetta di trovare tutto è
+      // proprio questo.
+      return matchTermini(termini, l.clients?.name, l.titolo, l.note, beneficiariNomi(l));
     }).sort((a, b) => (a.clients?.name || "").localeCompare(b.clients?.name || "", "it"));
-  }, [liste, k, includeTrashed, listeAllowed, listeStati, listeClienti]);
+  }, [liste, keyword, includeTrashed, listeAllowed, listeStati, listeClienti]);
 
   const openLista = (l) => {
     dispatch({ type: "SET_VIEW", payload: "liste", lista: l.id });
@@ -437,7 +438,7 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
           </>
         )}
 
-        {listeAllowed && (k || listeStati.length || listeClienti.length) && listaResults.length > 0 && (
+        {listeAllowed && (keyword.trim() || listeStati.length || listeClienti.length) && listaResults.length > 0 && (
           <>
             <div style={{
               padding: "8px 18px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)",
@@ -471,7 +472,11 @@ const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword
                     whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                   }}>
                     {l.deleted_at && <span style={{ color: "var(--danger)", marginRight: 6 }}>🗑️</span>}
-                    {l.clients?.name || "—"}
+                    {/* Titolare E cointestatari, come nell'elenco del modulo:
+                        una lista trovata cercando il cointestatario deve
+                        mostrare il nome che l'ha fatta trovare, altrimenti la
+                        riga sembra un risultato sbagliato. */}
+                    {intestazioneLista(l) || "—"}
                   </div>
                   <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, display: "flex", gap: 10 }}>
                     <span>Lista viaggio</span>

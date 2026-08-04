@@ -12,6 +12,7 @@ import { ClientImportModal } from "./ClientImportModal.jsx";
 import { ClienteListePanel } from "../liste/ClienteListePanel.jsx";
 import { ListeAPI } from "../../lib/listeApi.js";
 import { chiaveNome, notesPreview, parseClientNotes, tasksDelCliente } from "../../lib/clientNotes.js";
+import { matchTermini, terminiRicerca } from "../../lib/searchUtils.js";
 
 const EMPTY_FORM = { name: "", email: "", phone: "", address: "", city: "", notes: "" };
 
@@ -498,14 +499,12 @@ export function ClientiView({ state, dispatch, loading = false }) {
   }, [clients, listeByClient]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    let base = !q ? clients : clients.filter(c =>
-      c.name.toLowerCase().includes(q) ||
-      (c.email || "").toLowerCase().includes(q) ||
-      (c.city || "").toLowerCase().includes(q) ||
-      (c.phone || "").toLowerCase().includes(q) ||
-      (c.notes || "").toLowerCase().includes(q)
-    );
+    // Stessa normalizzazione dell'elenco liste viaggio (lib/searchUtils.js):
+    // le due ricerche lavorano sugli stessi nomi e devono trovare le stesse
+    // cose, altrimenti un cliente visibile qui sembra non avere liste là.
+    const termini = terminiRicerca(search);
+    let base = clients.filter(c =>
+      matchTermini(termini, c.name, c.email, c.city, c.phone, c.notes));
     if (listeByClient && linkFilter !== "all") {
       base = base.filter(c => (linkFilter === "conListe" ? !!listeByClient[c.id] : !listeByClient[c.id]));
     }

@@ -80,9 +80,22 @@ async function interroga(fetchImpl, base, chiave, nome, argomenti) {
 }
 
 /**
- * Sonda una funzione. Se con gli argomenti dedotti risulta assente riprova
- * senza: gli argomenti si leggono dal sorgente e possono essere incompleti,
- * e un errore di lettura non deve diventare un allarme.
+ * Sonda una funzione con i nomi degli argomenti letti dal sorgente.
+ *
+ * Il ripiego "riprova senza argomenti" vale solo per le firme che
+ * l'estrattore dichiara incomplete (spread, chiavi calcolate): lì la lista è
+ * un'ipotesi, e un'ipotesi sbagliata non deve diventare un allarme.
+ *
+ * Per le firme complete il ripiego non va fatto, ed è un errore averlo fatto
+ * fino a qui: PostgREST risolve una funzione per nome E nomi degli argomenti,
+ * quindi una GET senza parametri risolve qualunque funzione che abbia un
+ * DEFAULT su ogni parametro. `crea_lista(p_client_id, p_titolo,
+ * p_new_client_name)` è esattamente così — tre parametri, tre DEFAULT — e con
+ * il ripiego incondizionato risultava presente anche se i nomi attesi dal
+ * frontend non corrispondevano più a quelli sul database. Cioè proprio lo
+ * scarto che questo controllo esiste per trovare: il PGRST202 dell'app non
+ * distingue "funzione assente" da "argomenti diversi", e nemmeno la sonda
+ * deve farlo.
  */
 export async function sondaFunzione(fetchImpl, base, chiave, voce) {
   const tentativi = [];
@@ -90,7 +103,6 @@ export async function sondaFunzione(fetchImpl, base, chiave, voce) {
     tentativi.push(firma.argomenti);
     if (!firma.completo && firma.argomenti.length) tentativi.push([]);
   }
-  if (!tentativi.some((t) => t.length === 0)) tentativi.push([]);
 
   let esito = MANCANTE;
   const risposte = [];
@@ -107,8 +119,13 @@ export async function sondaFunzione(fetchImpl, base, chiave, voce) {
 /**
  * Esegue i controlli preliminari e poi sonda tutte le funzioni.
  *
- * Ritorna { verdetto, mancanti, dettagli, motivo }.
+ * Ritorna { verdetto, mancanti, indeterminati, dettagli, motivo }.
  * verdetto: 'ok' | 'drift' | 'indeterminato'.
+ *
+ * `indeterminati` sono le funzioni che la sonda non ha saputo classificare
+ * (5xx, rate limit, risposta inattesa). Non sono uno scarto e non fanno
+ * fallire il controllo, ma non sono nemmeno verificate: chi riporta l'esito
+ * deve poterle nominare invece di contarle fra quelle a posto.
  */
 export async function verifica({ fetchImpl = fetch, base, chiave, funzioni }) {
   // Controllo 1 — l'API risponde. Senza questo un blackout di rete
@@ -118,10 +135,10 @@ export async function verifica({ fetchImpl = fetch, base, chiave, funzioni }) {
       headers: { apikey: chiave, Authorization: `Bearer ${chiave}` },
     });
     if (!r.ok) {
-      return { verdetto: INDETERMINATO, mancanti: [], dettagli: [], motivo: `l'API REST ha risposto ${r.status}` };
+      return { verdetto: INDETERMINATO, mancanti: [], indeterminati: [], dettagli: [], motivo: `l'API REST ha risposto ${r.status}` };
     }
   } catch (e) {
-    return { verdetto: INDETERMINATO, mancanti: [], dettagli: [], motivo: `API REST irraggiungibile: ${e.message}` };
+    return { verdetto: INDETERMINATO, mancanti: [], indeterminati: [], dettagli: [], motivo: `API REST irraggiungibile: ${e.message}` };
   }
 
   // Controllo 2 — una funzione inesistente deve risultare mancante. Se non
@@ -131,6 +148,7 @@ export async function verifica({ fetchImpl = fetch, base, chiave, funzioni }) {
     return {
       verdetto: INDETERMINATO,
       mancanti: [],
+      indeterminati: [],
       dettagli: [],
       motivo: `una funzione inesistente non risulta mancante (HTTP ${controllo.stato}, code ${controllo.corpo?.code ?? '—'}): PostgREST non risponde più come atteso`,
     };
@@ -140,6 +158,7 @@ export async function verifica({ fetchImpl = fetch, base, chiave, funzioni }) {
   for (const voce of funzioni) dettagli.push(await sondaFunzione(fetchImpl, base, chiave, voce));
 
   const mancanti = dettagli.filter((d) => d.esito === MANCANTE).map((d) => d.nome);
+  const indeterminati = dettagli.filter((d) => d.esito === INDETERMINATO).map((d) => d.nome);
   const presenti = dettagli.filter((d) => d.esito === PRESENTE);
 
   // Controllo 3 — se nessuna funzione risulta presente, la spiegazione più
@@ -149,6 +168,7 @@ export async function verifica({ fetchImpl = fetch, base, chiave, funzioni }) {
     return {
       verdetto: INDETERMINATO,
       mancanti: [],
+      indeterminati,
       dettagli,
       motivo: 'nessuna delle funzioni risulta presente: più probabile un problema della sonda che un database senza RPC',
     };
@@ -157,6 +177,7 @@ export async function verifica({ fetchImpl = fetch, base, chiave, funzioni }) {
   return {
     verdetto: mancanti.length ? 'drift' : 'ok',
     mancanti,
+    indeterminati,
     dettagli,
     motivo: null,
   };

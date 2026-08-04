@@ -28,7 +28,10 @@ import { verifica, MANCANTE, INDETERMINATO } from './sonda.js';
 
 const RADICE = fileURLToPath(new URL('../..', import.meta.url));
 const SORGENTI = join(RADICE, 'src');
-const ESTENSIONI = /\.(js|jsx)$/;
+// ts/tsx per il giorno in cui il progetto ci arriverà: un'estensione non letta
+// non produce un errore, produce silenzio — e questo controllo esiste proprio
+// perché il silenzio era il problema.
+const ESTENSIONI = /\.(js|jsx|ts|tsx)$/;
 
 function* fileSorgente(dir) {
   for (const voce of readdirSync(dir)) {
@@ -87,8 +90,25 @@ async function main() {
     }
     console.log('\nProbabile causa: una migrazione presente in supabase/migrations/ non è');
     console.log('stata applicata al progetto. Confronta le migrazioni locali con quelle');
-    console.log('applicate e applica le mancanti.');
+    console.log('applicate e applica le mancanti. La stessa risposta arriva anche quando');
+    console.log('la funzione esiste ma con altri nomi degli argomenti: PGRST202 non');
+    console.log('distingue i due casi, e nemmeno l\'app quando li incontra.');
     process.exit(1);
+  }
+
+  // Una funzione indeterminata non è uno scarto, ma non è nemmeno verificata:
+  // dichiararle tutte a posto sarebbe una bugia, e su un controllo che serve a
+  // dare fiducia è il difetto peggiore possibile.
+  if (esito.indeterminati.length) {
+    const n = esito.indeterminati.length;
+    console.log(`\n⚠  ${esito.dettagli.length - n} RPC su ${esito.dettagli.length} risultano presenti; ${n} non è stato possibile verificarla/e:\n`);
+    for (const nome of esito.indeterminati) {
+      console.log(`    ${nome}  —  chiamata da ${origini.get(nome)}`);
+    }
+    console.log('\nLa sonda non ha saputo leggere la risposta (5xx, rate limit, risposta');
+    console.log('inattesa): non è un allarme, ma nemmeno un via libera. Rilancia il');
+    console.log('controllo per sciogliere il dubbio.');
+    return;
   }
 
   console.log('\n✓ Tutte le RPC chiamate dal codice esistono sul database.');

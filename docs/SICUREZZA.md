@@ -228,10 +228,25 @@ mitigazione strutturale contro l'esfiltrazione del token resta assente.
 > ⚠️ **La migrazione del punto 2 non è stata applicata al database.** Il file è
 > nel repo e la PR lo porta con sé, ma scrivere DDL sulla produzione è una
 > decisione di chi possiede il progetto, non un effetto collaterale di un
-> refactor. Va applicata a mano dalla dashboard (SQL Editor) o con
-> `apply_migration`. **Non** con `supabase db push`, per la ragione ⛔ già
-> documentata in `docs/CLAUDE.md`: la storia nel repo non coincide con
-> `schema_migrations` e il push rigiocherebbe decine di migrazioni.
+> refactor.
+>
+> Su questo progetto la distinzione è già costata tre incidenti — il peggiore
+> lasciò il modulo Liste in produzione senza controlli di ruolo per giorni,
+> con `reset_completo` chiamabile da chiunque (vedi
+> `docs/MIGRAZIONI_SUPABASE.md`). **Committare non è applicare.**
+>
+> Procedura completa in `docs/MIGRAZIONI_SUPABASE.md`; in breve: applicare da
+> SQL Editor o `apply_migration` (**mai** `db push`), poi registrare la
+> versione, che via SQL Editor non si scrive da sola:
+>
+> ```sql
+> insert into supabase_migrations.schema_migrations (version, name)
+> values ('20260804230000', 'set_updated_at_search_path')
+> on conflict (version) do nothing;
+> ```
+>
+> Infine rilanciare `get_advisors(security)`: se il warning
+> `function_search_path_mutable` sparisce, la correzione è arrivata davvero.
 
 Non urgenti, ma da mettere a piano: audit log sulle operazioni sensibili
 (cambio ruolo, eliminazione categorie), e una rilettura periodica delle policy

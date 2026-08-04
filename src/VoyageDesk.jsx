@@ -4,7 +4,7 @@ import { useState, useReducer, useRef, useEffect, useCallback, useMemo, lazy, Su
 // quando l'utente importa o esporta un file (vedi loadXLSX). Tenerlo fuori
 // dal bundle iniziale è il singolo guadagno più grande sul chunk principale.
 import {
-  Tasks as TasksAPI, Comments as CommentsAPI, Notices as NoticesAPI,
+  Tasks as TasksAPI, Notices as NoticesAPI,
   Conversations as ConversationsAPI, Messages as MessagesAPI,
   Notifications as NotificationsAPI, Users as UsersAPI,
   Clients as ClientsAPI,
@@ -12,30 +12,28 @@ import {
   subscribeToTable,
 } from "./lib/api.js";
 import {
-  toDbTask, toDbTaskPatch, fromDbTask,
-  toDbNotice, toDbNoticePatch, fromDbNotice,
+  fromDbTask, fromDbNotice,
   toDbConversation, fromDbConversation,
   toDbMessage, fromDbMessage,
   fromDbNotification,
-  fromDbClient, toDbClient,
-  fromDbCategory, toDbCategory,
+  fromDbClient,
+  fromDbCategory,
   newId, isUuid,
 } from "./lib/mappers.js";
 // Step P Phase 2a: utility pure estratte dal monolite.
 import { getActiveTasks } from "./lib/taskUtils.js";
 import { scopeConversationsForUser } from "./lib/chatUtils.js";
-// Confronto dei nomi cliente: stessa chiave usata dal reducer per decidere
-// quali task rinominare, così UI e database toccano esattamente le stesse righe.
-import { chiaveNome } from "./lib/clientNotes.js";
 // Web Push: riparazione della sottoscrizione a ogni avvio (vedi src/lib/push.js).
 import { syncPushSubscription } from "./lib/push.js";
-// Step P Phase 2b: dati mock (solo le notifiche, le altre seed vivono nel reducer).
-// Step P Phase 2c: globals mutabili e helper permessi estratti.
-import { getMember, canEditTask, canViewTask, canCreateTaskCategory, isAdmin } from "./state/appGlobals.js";
+// Specchio legacy dei globali: lo allinea allo state questo componente (unico
+// punto di scrittura rimasto), i componenti non migrati lo leggono.
+import { getMember, syncLegacyGlobals } from "./state/appGlobals.js";
 // Step P Phase 2d: reducer e factory dell'initial state estratti.
-import { reducer, makeInitialState, ADMIN_ONLY_ACTIONS } from "./state/reducer.js";
+import { reducer, makeInitialState } from "./state/reducer.js";
 // Caveat #10: hook che astrae idratazione + subscribe realtime debounced.
 import { useDebouncedTableSubscription } from "./hooks/useDebouncedTableSubscription.js";
+// Persistenza dichiarativa: vedi state/persistence.js per le regole per-azione.
+import { useSyncedDispatch } from "./hooks/useSyncedDispatch.js";
 // Step P Phase 2e: foundation + UI primitives estratti in src/components/.
 import { ViewportProvider } from "./components/Viewport.jsx";
 import { ViewErrorBoundary } from "./components/ViewErrorBoundary.jsx";
@@ -685,307 +683,29 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     });
   }, [useSupabase]);
 
-  // currentUserId vivo, per persistere i comments con l'autore giusto.
+  // currentUserId vivo, letto dai callback della chat (markConversationRead,
+  // toggleReaction) senza doverli ricreare a ogni cambio utente.
   const currentUserIdRef = useRef(state.currentUserId);
   useEffect(() => { currentUserIdRef.current = state.currentUserId; }, [state.currentUserId]);
 
-  // Snapshot vivo dello state per il wrapper dispatch: leggendo tasks/notices/
-  // team da qui (invece che dalle deps della useCallback) `dispatch` resta
-  // un'identità STABILE. Prima aveva [state.tasks, state.notices, state.team]
-  // nelle deps → veniva ricreato a ogni mutazione, rompendo la memoizzazione
-  // dei figli che ricevono dispatch/openTaskById. Il ref è sempre aggiornato.
-  const stateRef = useRef(state);
-  useEffect(() => { stateRef.current = state; }, [state]);
+  // Il wrapper dispatch (283 righe di switch: permessi + mapping + chiamate DB
+  // + rollback) è stato sostituito dal registry dichiarativo in
+  // state/persistence.js, orchestrato da questo hook. Stessa firma di prima:
+  // ritorna Promise<{ error }> e ha identità stabile tra i render.
+  const dispatch = useSyncedDispatch(state, rawDispatch, { enabled: useSupabase });
 
-  // Wrapper dispatch: applica al reducer (UI istantanea) e poi sincronizza
-  // su Supabase fire-and-forget. Per ADD_TASK normalizza l'id in uuid in
-  // modo coerente tra reducer e DB.
-  // Ritorna una promise { error } così i chiamanti che devono concatenare
-  // operazioni dipendenti dalla persistenza (es. upload allegati subito dopo
-  // ADD_TASK, che via RLS richiede la riga task già scritta) possono await-arla.
-  const dispatch = useCallback((action) => {
-    if (!useSupabase) { rawDispatch(action); return Promise.resolve({ error: null }); }
-
-    const uid = currentUserIdRef.current;
-
-    // Pre-check permessi: rispecchia i gate del reducer (ADMIN_ONLY_ACTIONS in
-    // state/reducer.js) *prima* di costruire dbOps. Senza questo, un'azione
-    // negata lato reducer (stato locale invariato + toast d'errore) veniva
-    // comunque inviata a Supabase, affidando l'unica vera barriera alla RLS
-    // lato server — nessuna difesa in profondità lato client.
-    if (ADMIN_ONLY_ACTIONS.has(action.type) && !isAdmin(uid)) {
-      rawDispatch(action);
-      return Promise.resolve({ error: null });
-    }
-
-    let toDispatch = action;
-    let dbOps = null;
-    // Invocato solo se dbOps fallisce: usato per riportare indietro lo stato
-    // ottimistico (rollback) e/o riscrivere err.message in un testo comprensibile
-    // prima che finisca nel toast "Salvataggio fallito".
-    let onError = null;
-
-    switch (action.type) {
-      case "ADD_TASK": {
-        if (!canCreateTaskCategory(action.payload?.category, uid)) break;
-        const id = isUuid(action.payload?.id) ? action.payload.id : newId();
-        const payload = { ...action.payload, id };
-        toDispatch = { ...action, payload };
-        dbOps = () => TasksAPI.create(toDbTask(payload));
-        break;
-      }
-      case "ADD_TASKS_BULK": {
-        if ((action.payload || []).some(t => !canCreateTaskCategory(t?.category, uid))) break;
-        const payload = (action.payload || []).map(t => ({
-          ...t, id: isUuid(t?.id) ? t.id : newId(),
-        }));
-        if (!payload.length) break;
-        toDispatch = { ...action, payload };
-        dbOps = () => TasksAPI.createMany(payload.map(toDbTask));
-        // L'insert è atomica: se fallisce NESSUNA task è stata creata, quindi
-        // le righe già aggiunte in ottimistico vanno tolte. Senza rollback
-        // restavano in lista task inesistenti sul server — sparivano solo al
-        // reload, dando l'impressione che il bulk "non crei davvero" nulla.
-        onError = () => rawDispatch({
-          type: "ROLLBACK_TASKS_BULK",
-          payload: payload.map(t => t.id),
-        });
-        break;
-      }
-      case "UPDATE_TASK": {
-        const prev = stateRef.current.tasks.find(t => t.id === action.payload.id);
-        if (!prev || !canEditTask(prev, uid)) break;
-        dbOps = () => TasksAPI.update(action.payload.id, toDbTaskPatch(action.payload));
-        break;
-      }
-      case "MOVE_TASK": {
-        const prev = stateRef.current.tasks.find(t => t.id === action.payload.taskId);
-        if (!prev || !canEditTask(prev, uid)) break;
-        dbOps = () => TasksAPI.update(action.payload.taskId, { status: action.payload.newStatus });
-        break;
-      }
-      case "DELETE_TASK": {
-        const prev = stateRef.current.tasks.find(t => t.id === action.payload);
-        if (!prev || !canEditTask(prev, uid)) break;
-        dbOps = () => TasksAPI.softDelete(action.payload);
-        break;
-      }
-      case "RESTORE_TASK": {
-        const prev = stateRef.current.tasks.find(t => t.id === action.payload);
-        if (!prev || !canEditTask(prev, uid)) break;
-        dbOps = () => TasksAPI.restore(action.payload);
-        break;
-      }
-      case "PURGE_TASK": {
-        const prev = stateRef.current.tasks.find(t => t.id === action.payload);
-        if (!prev || !canEditTask(prev, uid)) break;
-        dbOps = () => TasksAPI.hardDelete(action.payload);
-        break;
-      }
-      case "UNDO_LAST_ACTION": {
-        // Il reducer applica l'undo solo allo stato locale (state.lastAction,
-        // popolato da MOVE_TASK/DELETE_TASK/UPDATE_TASK con swipe:true). Senza
-        // questo case, il toast "↩ Annulla" tornava indietro solo in UI: la
-        // riga su Supabase restava nello stato post-azione e ricompariva al
-        // primo reload/evento realtime.
-        const la = stateRef.current.lastAction;
-        if (la?.type === "MOVE_TASK") {
-          dbOps = () => TasksAPI.update(la.taskId, { status: la.prevStatus });
-        } else if (la?.type === "DELETE_TASK") {
-          dbOps = () => TasksAPI.restore(la.taskId);
-        } else if (la?.type === "UPDATE_TASK") {
-          dbOps = () => TasksAPI.update(la.taskId, toDbTaskPatch(la.prevSnapshot));
-        }
-        break;
-      }
-      case "EMPTY_TRASH": {
-        // Deve rispecchiare esattamente il filtro del reducer (case "EMPTY_TRASH"
-        // in state/reducer.js): altrimenti un utente non-admin che vede solo un
-        // sottoinsieme di task nel proprio Cestino finirebbe per far eliminare
-        // sul DB anche i task cestinati di altri, di cui non ha i permessi.
-        const ids = stateRef.current.tasks
-          .filter(t => t.deletedAt && canEditTask(t, uid))
-          .map(t => t.id);
-        dbOps = () => Promise.all(ids.map(id => TasksAPI.hardDelete(id)));
-        break;
-      }
-      case "ADD_COMMENT": {
-        const prev = stateRef.current.tasks.find(t => t.id === action.payload.taskId);
-        if (!prev || !canViewTask(prev, uid)) break;
-        dbOps = () => CommentsAPI.create({
-          task_id: action.payload.taskId,
-          user_id: uid,
-          text: action.payload.comment?.text ?? "",
-        });
-        break;
-      }
-      case "ADD_NOTICE": {
-        const id = isUuid(action.payload?.id) ? action.payload.id : newId();
-        const payload = { ...action.payload, id, author: action.payload.author ?? currentUserIdRef.current };
-        toDispatch = { ...action, payload };
-        dbOps = () => NoticesAPI.create(toDbNotice(payload));
-        break;
-      }
-      case "UPDATE_NOTICE":
-        dbOps = () => NoticesAPI.update(action.payload.id, toDbNoticePatch(action.payload));
-        break;
-      case "DELETE_NOTICE":
-        dbOps = () => NoticesAPI.remove(action.payload);
-        break;
-      case "TOGGLE_PIN_NOTICE": {
-        const prev = stateRef.current.notices.find(n => n.id === action.payload);
-        const pinned = !(prev?.pinned);
-        dbOps = () => NoticesAPI.togglePin(action.payload, pinned);
-        break;
-      }
-      // ─── CRM sync ───
-      case "ADD_CLIENT": {
-        const id = newId();
-        const payload = { ...action.payload, id };
-        toDispatch = { ...action, payload };
-        dbOps = () => ClientsAPI.create(toDbClient(payload));
-        break;
-      }
-      case "ADD_CLIENTS_BULK": {
-        const payload = (action.payload || []).map(c => ({ ...c, id: isUuid(c?.id) ? c.id : newId() }));
-        toDispatch = { ...action, payload };
-        dbOps = () => Promise.all(payload.map(c => ClientsAPI.create(toDbClient(c))));
-        break;
-      }
-      case "UPDATE_CLIENT":
-        dbOps = () => ClientsAPI.update(action.payload.id, toDbClient(action.payload));
-        break;
-      // Propagazione del rename cliente sui task che lo citano per nome
-      // (task.client è testo libero, non una FK). Il filtro deve essere lo
-      // STESSO del reducer — chiave normalizzata + canEditTask — altrimenti
-      // UI e database toccherebbero righe diverse. Le UPDATE partono in
-      // parallelo come in ADD_CLIENTS_BULK.
-      case "RENAME_CLIENT_IN_TASKS": {
-        const { from, to } = action.payload || {};
-        const k = chiaveNome(from);
-        if (!k || !to || chiaveNome(to) === k) break;
-        const daAggiornare = (stateRef.current.tasks || [])
-          .filter(t => chiaveNome(t.client) === k && canEditTask(t, uid));
-        if (!daAggiornare.length) break;
-        dbOps = () => Promise.all(
-          daAggiornare.map(t => TasksAPI.update(t.id, { client_id: to })),
-        );
-        break;
-      }
-      case "DELETE_CLIENT": {
-        const prev = stateRef.current.clients.find(c => c.id === action.payload);
-        dbOps = () => ClientsAPI.remove(action.payload);
-        onError = (err) => {
-          if (prev) rawDispatch({ type: "RESTORE_CLIENT", payload: prev });
-          // 23503 = violazione foreign key (es. liste_viaggio ancora collegate
-          // al cliente): il messaggio Postgres grezzo non è comprensibile per
-          // l'utente finale, lo sostituiamo con uno actionable.
-          if (err?.code === "23503") {
-            err.message = "impossibile eliminare: il cliente ha liste viaggio collegate. Rimuovi o riassegna prima le liste viaggio associate.";
-          }
-        };
-        break;
-      }
-      // ─── ADMIN: CATEGORIES sync ───
-      case "ADD_CATEGORY":
-        dbOps = () => CategoriesAPI.create(toDbCategory(action.payload));
-        break;
-      case "UPDATE_CATEGORY": {
-        const { key, ...rest } = action.payload;
-        dbOps = () => CategoriesAPI.update(key, rest);
-        break;
-      }
-      case "REMOVE_CATEGORY":
-        dbOps = () => CategoriesAPI.remove(action.payload);
-        break;
-      // ─── ADMIN: TEAM sync ───
-      // Persistiamo le azioni che operano su utenti reali (creati via signup o
-      // invito): approvazione, attivazione/disattivazione ed eliminazione.
-      // ADD/UPDATE restano locali — ADD_TEAM_MEMBER non ha una riga auth.users
-      // associata, e UPDATE del ruolo richiederebbe il mapping all'enum DB
-      // (niente sotto-ruolo Junior/Senior nello schema attuale).
-      case "APPROVE_TEAM_MEMBER":
-        dbOps = () => UsersAPI.approve(action.payload);
-        break;
-      // Eliminazione definitiva: hard-delete via Edge Function delete-user.
-      // Rimuove la riga auth.users (CASCADE → public.users + user_contacts),
-      // così l'email torna libera e l'invito può essere rifatto da zero.
-      case "REMOVE_TEAM_MEMBER":
-        dbOps = () => UsersAPI.deleteUser(action.payload);
-        break;
-      case "TOGGLE_TEAM_MEMBER_ACTIVE": {
-        const curr = stateRef.current.team.find(m => m.id === action.payload);
-        const nextActive = !(curr?.active);
-        dbOps = () => UsersAPI.setActive(action.payload, nextActive);
-        break;
-      }
-      // ─── ADMIN: RESTORE_BACKUP sync ───
-      // Il reducer applicava il restore solo allo stato locale: l'admin vedeva
-      // "Backup ripristinato con successo!" ma su Supabase restavano i dati
-      // pre-restore, che ritornavano a galla al primo hydrate/evento realtime.
-      // Sincronizza tasks/categories/notices in upsert (update se l'id/key
-      // esiste già, altrimenti create). Il team resta local-only, come
-      // ADD/UPDATE_TEAM_MEMBER sopra: i membri sono righe auth.users, non
-      // ricreabili né cancellabili da un semplice restore client-side.
-      case "RESTORE_BACKUP": {
-        const payload = action.payload || {};
-        const existingTaskIds = new Set(stateRef.current.tasks.map(t => t.id));
-        const existingCategoryKeys = new Set(Object.keys(stateRef.current.categories || {}));
-        const existingNoticeIds = new Set(stateRef.current.notices.map(n => n.id));
-        dbOps = () => Promise.all([
-          ...(Array.isArray(payload.tasks) ? payload.tasks.map(t => existingTaskIds.has(t.id)
-            ? TasksAPI.update(t.id, toDbTaskPatch(t))
-            : TasksAPI.create(toDbTask(t))
-          ) : []),
-          ...(payload.categories && typeof payload.categories === "object" ? Object.entries(payload.categories).map(([key, cat]) => existingCategoryKeys.has(key)
-            ? CategoriesAPI.update(key, cat)
-            : CategoriesAPI.create(toDbCategory({ key, ...cat }))
-          ) : []),
-          ...(Array.isArray(payload.notices) ? payload.notices.map(n => existingNoticeIds.has(n.id)
-            ? NoticesAPI.update(n.id, toDbNoticePatch(n))
-            : NoticesAPI.create(toDbNotice(n))
-          ) : []),
-        ]);
-        break;
-      }
-      default:
-        break;
-    }
-
-    rawDispatch(toDispatch);
-    if (dbOps) {
-      return Promise.resolve()
-        .then(dbOps)
-        .then((res) => {
-          const err = Array.isArray(res) ? res.find(r => r?.error)?.error : res?.error;
-          if (err) {
-            console.error(`[VoyageDesk] sync ${action.type}`, err);
-            onError?.(err);
-            rawDispatch({
-              type: "SHOW_TOAST",
-              payload: {
-                type: "error",
-                message: `Salvataggio fallito: ${err.message || "errore sconosciuto"}`,
-              },
-            });
-          }
-          return { error: err || null };
-        })
-        .catch((e) => {
-          console.error(`[VoyageDesk] sync ${action.type}`, e);
-          onError?.(e);
-          rawDispatch({
-            type: "SHOW_TOAST",
-            payload: {
-              type: "error",
-              message: `Salvataggio fallito: ${e?.message || "errore di rete"}`,
-            },
-          });
-          return { error: e };
-        });
-    }
-    return Promise.resolve({ error: null });
-  }, [useSupabase]);
+  // Specchio legacy dei globali (state/appGlobals.js). È l'UNICO punto di
+  // scrittura rimasto: prima lo faceva il reducer, per effetto collaterale, a
+  // ogni mutazione di team/categorie/utente. Va chiamato qui nel corpo del
+  // render — non in un useEffect — perché i figli leggono TEAM/CATEGORIES
+  // durante il PROPRIO render, che avviene prima del flush degli effetti: con
+  // un effetto vedrebbero un frame di valori vecchi. L'assegnazione è
+  // idempotente, quindi è innocua anche sotto il doppio render di StrictMode.
+  syncLegacyGlobals({
+    team: state.team,
+    categories: state.categories,
+    currentUserId: state.currentUserId,
+  });
 
   // Step J: navigazione da notifica → TaskSlideOver
   // Se il task referenziato dalla notifica non è (più) raggiungibile — cestinato,

@@ -7,18 +7,27 @@
 //  - ADMIN_ONLY_ACTIONS / reducer    → wrapper con pre-check permessi + logging
 //  - makeInitialState                → factory dell'initial state (mock o DB)
 //
-// I globali mutabili (TEAM/CATEGORIES/CURRENT_USER) e gli helper permessi
-// vivono in appGlobals.js: il reducer li aggiorna via setter dopo ogni mutazione.
+// QUESTO REDUCER È PURO: nessun effetto collaterale, nessuna scrittura su stato
+// esterno. In precedenza chiamava setTeam/setCategories/setCurrentUser per
+// aggiornare i globali mutabili di appGlobals.js — cosa che React 18 non
+// garantisce di eseguire una volta sola (StrictMode invoca i reducer due volte,
+// il Concurrent rendering può scartare un render già calcolato). Oggi lo
+// specchio legacy viene allineato da un unico punto in VoyageDesk.jsx.
+//
+// I permessi arrivano da lib/permissions.js (funzioni pure) e ricevono
+// `state.team`: le decisioni di autorizzazione si prendono sulla stessa fonte di
+// verità che React sta renderizzando, non su una variabile di modulo.
 
 import { STATUS_LABELS } from "../lib/taskConstants.js";
 import {
-  TEAM, CATEGORIES, CURRENT_USER,
-  setTeam, setCategories, setCurrentUser,
   getMember, isAdmin, isDriver,
   canAccessAdmin, canViewTask, canEditTask, canCreateTaskCategory,
-} from "./appGlobals.js";
-import { INITIAL_TASKS, INITIAL_NOTICES } from "./mockData.js";
+} from "../lib/permissions.js";
+import { INITIAL_TEAM, INITIAL_CATEGORIES, INITIAL_TASKS, INITIAL_NOTICES } from "./mockData.js";
 import { chiaveNome } from "../lib/clientNotes.js";
+
+// Utente di default in modalità demo (nessun login, dati mock).
+const DEMO_CURRENT_USER = "marco";
 
 // Azioni che generano una voce nel log attività
 const LOGGED_ACTIONS = new Set([
@@ -47,9 +56,9 @@ const buildLogEntry = (action, state) => {
     EMPTY_TRASH: () => `Cestino svuotato`,
     ADD_TEAM_MEMBER: () => `Aggiunto agente "${action.payload.name}"`,
     UPDATE_TEAM_MEMBER: () => `Modificato agente "${action.payload.name || action.payload.id}"`,
-    APPROVE_TEAM_MEMBER: () => `Approvato agente "${getMember(action.payload)?.name || action.payload}"`,
-    TOGGLE_TEAM_MEMBER_ACTIVE: () => `Agente "${getMember(action.payload)?.name || action.payload}" attivato/disattivato`,
-    REMOVE_TEAM_MEMBER: () => `Rimosso agente "${getMember(action.payload)?.name || action.payload}"`,
+    APPROVE_TEAM_MEMBER: () => `Approvato agente "${getMember(state.team, action.payload)?.name || action.payload}"`,
+    TOGGLE_TEAM_MEMBER_ACTIVE: () => `Agente "${getMember(state.team, action.payload)?.name || action.payload}" attivato/disattivato`,
+    REMOVE_TEAM_MEMBER: () => `Rimosso agente "${getMember(state.team, action.payload)?.name || action.payload}"`,
     ADD_CATEGORY: () => `Aggiunta categoria "${action.payload.label}"`,
     UPDATE_CATEGORY: () => `Modificata categoria "${action.payload.key}"`,
     REMOVE_CATEGORY: () => `Rimossa categoria "${action.payload}"`,
@@ -82,13 +91,13 @@ function baseReducer(state, action) {
   switch (action.type) {
     case "SET_VIEW": {
       // Solo admin può aprire la vista Admin
-      if (action.payload === "admin" && !canAccessAdmin(uid)) {
+      if (action.payload === "admin" && !canAccessAdmin(state.team, uid)) {
         return _denied("Non hai i permessi per accedere all'Admin");
       }
       // Il modulo Liste viaggio è precluso al ruolo Driver: la RLS lo blocca
       // comunque lato DB (migrazione 20260728190100), qui evitiamo di aprire
       // una vista che mostrerebbe solo errori.
-      if (action.payload === "liste" && isDriver(uid)) {
+      if (action.payload === "liste" && isDriver(state.team, uid)) {
         return _denied("Il modulo Liste viaggio non è disponibile per il tuo ruolo");
       }
       const next = { ...state, activeView: action.payload };
@@ -118,32 +127,31 @@ function baseReducer(state, action) {
     }
     case "SET_SELECTED_TASK": {
       // Non permettere di aprire un task non visibile
-      if (action.payload && !canViewTask(action.payload, uid)) {
+      if (action.payload && !canViewTask(state.team, action.payload, uid)) {
         return _denied("Non hai i permessi per visualizzare questa task");
       }
       return { ...state, selectedTask: action.payload };
     }
     case "SET_CURRENT_USER": {
       const newId = action.payload;
-      const m = getMember(newId);
+      const m = getMember(state.team, newId);
       if (!m) return state;
-      setCurrentUser(newId);
       // Se l'utente non può più accedere alla view corrente, riporta a dashboard.
       // "liste" ha bisogno dello stesso guard di "admin" e per un motivo in più:
       // nessuna voce di sidebar/bottom-nav punta al modulo, quindi senza questo
       // un Driver resterebbe bloccato su una vista che non può né usare né
       // abbandonare da un elemento di navigazione evidenziato.
-      const viewLocked = (state.activeView === "admin" && !canAccessAdmin(newId))
-        || (state.activeView === "liste" && isDriver(newId));
+      const viewLocked = (state.activeView === "admin" && !canAccessAdmin(state.team, newId))
+        || (state.activeView === "liste" && isDriver(state.team, newId));
       const activeView = viewLocked ? "dashboard" : state.activeView;
       // Sicurezza operativa (v2.8): warning visibile quando si passa a un ruolo
       // privilegiato (admin), per evitare di lasciare la sessione aperta come
       // Admin per errore. Mock UserSwitcher: senza login reale serve un cue chiaro.
-      const elevated = isAdmin(newId);
+      const elevated = isAdmin(state.team, newId);
       // v2.8 rollback automatico: se si passa a un utente Admin, registra da chi
       // si sta passando e il timestamp. Un banner con countdown permetterà il
       // ripristino automatico dopo 60s. Si resetta se si torna a un non-admin.
-      const prevIsAdmin = isAdmin(state.currentUserId);
+      const prevIsAdmin = isAdmin(state.team, state.currentUserId);
       const adminRollbackTo = elevated && !prevIsAdmin ? state.currentUserId : null;
       const adminSwitchedAt = elevated && !prevIsAdmin ? new Date().toISOString() : null;
       const toast = elevated
@@ -172,7 +180,7 @@ function baseReducer(state, action) {
     case "MOVE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload.taskId);
       if (!prev) return state;
-      if (!canEditTask(prev, uid)) return _denied();
+      if (!canEditTask(state.team, prev, uid)) return _denied();
       const prevStatus = prev?.status;
       const tasks = state.tasks.map(t =>
         t.id === action.payload.taskId
@@ -188,14 +196,14 @@ function baseReducer(state, action) {
       return { ...state, tasks, toast, lastAction };
     }
     case "ADD_TASK": {
-      if (!canCreateTaskCategory(action.payload.category, uid)) {
+      if (!canCreateTaskCategory(state.team, action.payload.category, uid)) {
         return _denied("Non puoi creare task di questa categoria");
       }
       const tasks = [action.payload, ...state.tasks];
       return { ...state, tasks, toast: { message: "Task creato con successo!", type: "success" } };
     }
     case "ADD_TASKS_BULK": {
-      const bad = action.payload.find(t => !canCreateTaskCategory(t.category, uid));
+      const bad = action.payload.find(t => !canCreateTaskCategory(state.team, t.category, uid));
       if (bad) return _denied("Alcune task hanno categorie che non puoi creare");
       const tasks = [...action.payload, ...state.tasks];
       return { ...state, tasks, toast: { message: `${action.payload.length} task creati!`, type: "success" } };
@@ -212,7 +220,7 @@ function baseReducer(state, action) {
     case "UPDATE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload.id);
       if (!prev) return state;
-      if (!canEditTask(prev, uid)) return _denied();
+      if (!canEditTask(state.team, prev, uid)) return _denied();
       const statusPatch = "status" in action.payload
         ? completedAtPatch(prev.status, action.payload.status)
         : {};
@@ -231,7 +239,7 @@ function baseReducer(state, action) {
     case "ADD_COMMENT": {
       const prev = state.tasks.find(t => t.id === action.payload.taskId);
       if (!prev) return state;
-      if (!canViewTask(prev, uid)) return _denied("Non puoi commentare questa task");
+      if (!canViewTask(state.team, prev, uid)) return _denied("Non puoi commentare questa task");
       const tasks = state.tasks.map(t =>
         t.id === action.payload.taskId
           ? { ...t, comments: [...(t.comments || []), action.payload.comment] }
@@ -245,7 +253,7 @@ function baseReducer(state, action) {
     case "DELETE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload);
       if (!prev) return state;
-      if (!canEditTask(prev, uid)) return _denied();
+      if (!canEditTask(state.team, prev, uid)) return _denied();
       const tasks = state.tasks.map(t =>
         t.id === action.payload ? { ...t, deletedAt: new Date().toISOString() } : t
       );
@@ -262,7 +270,7 @@ function baseReducer(state, action) {
       const prev = state.tasks.find(t => t.id === action.payload);
       if (!prev) return state;
       // Ogni utente può ripristinare solo i task che potrebbe modificare (prerogativa di status)
-      if (!canEditTask(prev, uid)) return _denied("Non puoi gestire questo task nel cestino");
+      if (!canEditTask(state.team, prev, uid)) return _denied("Non puoi gestire questo task nel cestino");
       const tasks = state.tasks.map(t =>
         t.id === action.payload ? { ...t, deletedAt: null } : t
       );
@@ -271,14 +279,14 @@ function baseReducer(state, action) {
     case "PURGE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload);
       if (!prev) return state;
-      if (!canEditTask(prev, uid)) return _denied("Non puoi eliminare questo task");
+      if (!canEditTask(state.team, prev, uid)) return _denied("Non puoi eliminare questo task");
       const tasks = state.tasks.filter(t => t.id !== action.payload);
       return { ...state, tasks, toast: { message: "Task eliminato definitivamente", type: "success" } };
     }
     case "EMPTY_TRASH": {
       // Svuota solo i task cestinati che l'utente corrente può gestire
       const purgeIds = new Set(
-        state.tasks.filter(t => t.deletedAt && canEditTask(t, uid)).map(t => t.id)
+        state.tasks.filter(t => t.deletedAt && canEditTask(state.team, t, uid)).map(t => t.id)
       );
       const count = purgeIds.size;
       const tasks = state.tasks.filter(t => !purgeIds.has(t.id));
@@ -287,40 +295,35 @@ function baseReducer(state, action) {
 
     // ─── ADMIN: TEAM ───
     // SET_TEAM: rimpiazza l'intero team con la lista fornita (idratazione o
-    // refresh realtime). Aggiorna anche il global TEAM così getAssignableTeam,
-    // getMember, ecc. (consumati fuori da reducer/components) vedono i valori
-    // aggiornati. Niente toast: la notifica utente non serve qui (e.g. arrivo
-    // di un nuovo signup → la notifica admin esiste già via trigger DB).
+    // refresh realtime). Lo specchio legacy in appGlobals.js viene allineato da
+    // syncLegacyGlobals (VoyageDesk.jsx) al render successivo: qui NON si
+    // scrive nulla fuori dallo state. Niente toast: la notifica utente non
+    // serve (e.g. arrivo di un nuovo signup → la notifica admin esiste già via
+    // trigger DB).
     case "SET_TEAM": {
       const team = action.payload || [];
-      setTeam(team);
       return { ...state, team };
     }
     case "ADD_TEAM_MEMBER": {
       const team = [...state.team, action.payload];
-      setTeam(team);
       return { ...state, team, toast: { message: `Agente "${action.payload.name}" aggiunto`, type: "success" } };
     }
     case "UPDATE_TEAM_MEMBER": {
       const team = state.team.map(m => m.id === action.payload.id ? { ...m, ...action.payload } : m);
-      setTeam(team);
       return { ...state, team, toast: { message: "Agente aggiornato", type: "success" } };
     }
     case "APPROVE_TEAM_MEMBER": {
       const team = state.team.map(m => m.id === action.payload ? { ...m, pending: false, active: true } : m);
-      setTeam(team);
       return { ...state, team, toast: { message: "Agente approvato e attivato!", type: "success" } };
     }
     case "TOGGLE_TEAM_MEMBER_ACTIVE": {
       const team = state.team.map(m => m.id === action.payload ? { ...m, active: !m.active } : m);
-      setTeam(team);
       const target = team.find(m => m.id === action.payload);
       return { ...state, team, toast: { message: target?.active ? "Agente attivato" : "Agente disattivato", type: "success" } };
     }
     case "REMOVE_TEAM_MEMBER": {
       // Non rimuove davvero se ha task assegnati: si limita a disattivare e segnare pending=false
       const team = state.team.filter(m => m.id !== action.payload);
-      setTeam(team);
       return { ...state, team, toast: { message: "Agente rimosso", type: "success" } };
     }
 
@@ -328,26 +331,22 @@ function baseReducer(state, action) {
     case "ADD_CATEGORY": {
       const { key, ...rest } = action.payload;
       const categories = { ...state.categories, [key]: rest };
-      setCategories(categories);
       return { ...state, categories, toast: { message: `Categoria "${rest.label}" aggiunta`, type: "success" } };
     }
     case "UPDATE_CATEGORY": {
       const { key, ...rest } = action.payload;
       const categories = { ...state.categories, [key]: { ...state.categories[key], ...rest } };
-      setCategories(categories);
       return { ...state, categories, toast: { message: "Categoria aggiornata", type: "success" } };
     }
     case "REMOVE_CATEGORY": {
       const { [action.payload]: _, ...rest } = state.categories;
-      setCategories(rest);
       return { ...state, categories: rest, toast: { message: "Categoria rimossa", type: "success" } };
     }
     // SET_CATEGORIES: rimpiazza l'intero dizionario con quello idratato da DB
-    // (mount + refresh realtime). Aggiorna anche il global CATEGORIES, come
-    // SET_TEAM fa per TEAM. Niente toast: idratazione silenziosa.
+    // (mount + refresh realtime). Come SET_TEAM, non tocca nulla fuori dallo
+    // state. Niente toast: idratazione silenziosa.
     case "SET_CATEGORIES": {
       const categories = action.payload && typeof action.payload === "object" ? action.payload : {};
-      setCategories(categories);
       return { ...state, categories };
     }
 
@@ -376,8 +375,6 @@ function baseReducer(state, action) {
       const nextCategories = (categories && typeof categories === "object" && !Array.isArray(categories))
         ? { ...state.categories, ...categories }
         : state.categories;
-      setTeam(nextTeam);
-      setCategories(nextCategories);
       return {
         ...state,
         tasks: nextTasks,
@@ -473,7 +470,7 @@ function baseReducer(state, action) {
       if (!k || !to || chiaveNome(to) === k) return state;
       let n = 0;
       const tasks = (state.tasks || []).map(t => {
-        if (chiaveNome(t.client) !== k || !canEditTask(t, uid)) return t;
+        if (chiaveNome(t.client) !== k || !canEditTask(state.team, t, uid)) return t;
         n += 1;
         return { ...t, client: to };
       });
@@ -558,7 +555,6 @@ function baseReducer(state, action) {
       if (phone !== undefined) updates.phone = phone;
       if (photoUrl !== undefined) updates.photoUrl = photoUrl;
       const team = state.team.map(m => m.id === uid ? { ...m, ...updates } : m);
-      setTeam(team);
       return { ...state, team, toast: { message: "Profilo aggiornato!", type: "success" } };
     }
 
@@ -578,7 +574,7 @@ const ADMIN_ONLY_ACTIONS = new Set([
 // Wrapper che aggiunge automaticamente al log le azioni rilevanti
 function reducer(state, action) {
   // Pre-check permessi Admin (centralizzato — non sporca i singoli case)
-  if (ADMIN_ONLY_ACTIONS.has(action.type) && !isAdmin(state.currentUserId)) {
+  if (ADMIN_ONLY_ACTIONS.has(action.type) && !isAdmin(state.team, state.currentUserId)) {
     return { ...state, toast: { message: "Solo Admin può eseguire questa azione", type: "error" } };
   }
   const next = baseReducer(state, action);
@@ -590,21 +586,25 @@ function reducer(state, action) {
   return next;
 }
 
-// Factory dell'initial state. Se `team` e/o `currentUserId` sono forniti
-// (es. da Supabase via AuthContext), aggiorna i globali in appGlobals.js
-// via setter prima di costruire lo state. Senza argomenti, state mock.
+// Factory dell'initial state. Se `team` e/o `currentUserId` sono forniti (es.
+// da Supabase via AuthContext) costruisce lo state reale, altrimenti quello
+// demo sui mock.
+//
+// È una funzione PURA: React la invoca come inizializzatore di useReducer e
+// può eseguirla più di una volta (StrictMode). Prima scriveva i globali di
+// appGlobals.js via setter — ora quello è compito esclusivo di
+// syncLegacyGlobals, chiamato dal render di VoyageDesk.
 function makeInitialState({ team, currentUserId } = {}) {
   const hasRealTeam = Array.isArray(team) && team.length > 0;
-  if (hasRealTeam) setTeam([...team]);
-  if (currentUserId) setCurrentUser(currentUserId);
   return {
     // Quando il team viene dal DB le task in-memory non hanno più assignees validi:
     // partiamo da vuoto, le task reali arriveranno dal prossimo wire-up Supabase.
     tasks: hasRealTeam ? [] : INITIAL_TASKS,
-    // Spread per creare copie: lo state non deve condividere il riferimento
-    // con i globali (altrimenti React non innesca re-render se la ref non cambia).
-    team: [...TEAM],
-    categories: { ...CATEGORIES },
+    // Spread per creare copie: lo state non deve condividere il riferimento con
+    // gli array sorgente (altrimenti una mutazione esterna passerebbe inosservata
+    // a React, che confronta per identità).
+    team: hasRealTeam ? [...team] : [...INITIAL_TEAM],
+    categories: { ...INITIAL_CATEGORIES },
     agencyName: "VoyageDesk",
     notices: hasRealTeam ? [] : INITIAL_NOTICES,
     clients: [],
@@ -623,7 +623,9 @@ function makeInitialState({ team, currentUserId } = {}) {
     sidebarCollapsed: false,
     filters: { assignee: "", category: "", priority: "", status: "", client: "" },
     lastAction: null, // { type, payload, undo: () => state-patch } per swipe-actions undo
-    currentUserId: CURRENT_USER, // v0.8: utente loggato (con switcher in Topbar)
+    // Utente loggato (con switcher in Topbar). Senza login si parte dall'utente
+    // demo, coerentemente con INITIAL_TEAM.
+    currentUserId: currentUserId || DEMO_CURRENT_USER,
     // v2.8 rollback automatico: impostati da SET_CURRENT_USER quando si passa ad Admin.
     adminRollbackTo: null,    // userId a cui tornare automaticamente
     adminSwitchedAt: null,    // ISO timestamp del momento in cui si è entrati come Admin

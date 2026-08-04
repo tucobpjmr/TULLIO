@@ -30,8 +30,10 @@ Agisci come sviluppatore full-stack specializzato in sistemi gestionali per trav
 - **Hover**: `onMouseEnter`/`onMouseLeave` su `e.currentTarget.style`
 - **Animazioni ingresso**: classi `slide-up`, `fade-in`, `slide-right`
 - **Responsive**: `const { isMobile, isDesktop } = useViewport()` dentro ogni componente che adatta il layout
-- **Permessi**: ogni nuova feature che tocca task o viste deve usare `canViewTask`/`canEditTask`. Ogni nuova voce nav in `NAV_ITEMS` deve avere il campo `roles`
-- **Sync globale**: TEAM/CATEGORIES/CURRENT_USER vivono in `src/state/appGlobals.js` come `export let` (live ES-module bindings). Il reducer (`src/state/reducer.js`) li aggiorna chiamando i setter `setTeam`/`setCategories`/`setCurrentUser`; i moduli esterni leggono direttamente la live binding. **NON** usare il vecchio pattern `_syncTeam`/`_syncCategories`/`_syncCurrentUser` (rimosso in Step P Phase 1)
+- **Permessi**: ogni nuova feature che tocca task o viste deve usare `canViewTask`/`canEditTask` da `src/lib/permissions.js` (funzioni PURE, primo argomento `team`). Nei componenti si passa da `usePermissions(state.team, state.currentUserId)`. Ogni nuova voce nav in `NAV_ITEMS` deve avere il campo `roles`
+- **Reducer puro**: `src/state/reducer.js` non deve avere effetti collaterali — niente chiamate a `setTeam`/`setCategories`/`setCurrentUser`, niente scritture fuori dallo state. La fonte di verità è `state.team` / `state.categories` / `state.currentUserId`. Blindato da `src/test/reducerPurity.test.js`
+- **Persistenza**: una action che deve scrivere su Supabase si dichiara in `src/state/persistence.js` (`guard` / `normalize` / `persist` / `rollback` / `mapError`), NON aggiungendo un ramo a un `switch`. L'orchestrazione è in `src/hooks/useSyncedDispatch.js` e non va toccata. Se l'action ha una regola di permesso, il `guard` deve usare le stesse funzioni di `lib/permissions.js` del reducer: `src/test/persistenceGuards.test.js` verifica che i due verdetti coincidano e fallisce se divergono
+- **Specchio legacy**: `src/state/appGlobals.js` (TEAM/CATEGORIES/CURRENT_USER) è un ponte in via di dismissione per i componenti non ancora migrati. Si scrive da UN SOLO punto — `syncLegacyGlobals()` nel corpo di `VoyageDeskInner` — e non va scritto da nessun altro. **Non aggiungere nuovi consumatori**: usare `usePermissions()`
 
 ### Cosa NON fare
 - Non usare localStorage/sessionStorage (vincolo artifact, da rimuovere post-migrazione Vite)
@@ -185,16 +187,19 @@ isActiveTask(t)                  — true se non cestinato
 getActiveTasks(tasks)            — filtra non-cestinati
 getTrashedTasks(tasks)           — filtra cestinati
 useViewport()                    — hook responsive
-getRoleType(userId)              — "admin"|"manager"|"agent"|"driver"
-isAdmin(userId), isDriver(userId)
-canViewTask(task, userId)
-canEditTask(task, userId)
-canCreateTaskCategory(cat, userId)
-canAccessAdmin(userId)
-getAvailableCategories(userId)
+// src/lib/permissions.js — funzioni pure, `team` esplicito
+getRoleType(team, userId)        — "admin"|"manager"|"agent"|"driver"
+isAdmin(team, userId), isDriver(team, userId)
+canViewTask(team, task, userId)
+canEditTask(team, task, userId)
+canCreateTaskCategory(team, cat, userId)
+canAccessAdmin(team, userId)
+getAvailableCategories(categories, team, userId)
+getVisibleTasks(team, tasks, userId)
+// src/hooks/usePermissions.js — stesse regole, legate allo state React
+usePermissions(team, uid)        — .canEdit(task) / .canView(task) / .isAdmin() / .assignable() / ...
 isMyTask(task, userId)
 isInGlobalQueue(task)
-getVisibleTasks(tasks, userId)
 getNavItemsForUser(userId)       — NAV_ITEMS filtrati per ruolo
 ```
 
@@ -309,7 +314,7 @@ Vedi `docs/ROADMAP.md` per il dettaglio completo con dipendenze e stime.
 ## Note tecniche importanti
 
 1. **Architettura root**: `VoyageDesk` wrappa `VoyageDeskInner` dentro `<ViewportProvider>`. Tutti i componenti con `useViewport()` devono essere dentro questo provider.
-2. **TEAM/CATEGORIES/CURRENT_USER** vivono in `src/state/appGlobals.js` come `export let` (live ES-module bindings). Setter `setTeam`/`setCategories`/`setCurrentUser` esposti per la riassegnazione dal reducer (`src/state/reducer.js`) — i moduli esterni non possono riassegnare un `let` importato (read-only). Pattern introdotto in Step P Phase 2c, insieme alla rimozione del vecchio `_sync*` (Phase 1). `CURRENT_USER` è a doppio canale: `appGlobals.CURRENT_USER` (letto al volo dai componenti non-hook, es. `SwipeActions`) + `state.currentUserId` (coerenza React); `SET_CURRENT_USER` aggiorna entrambi.
+2. **Permessi e stato condiviso**: la fonte di verità è lo state React (`state.team`, `state.categories`, `state.currentUserId`); le regole di permesso sono funzioni pure in `src/lib/permissions.js`. `src/state/appGlobals.js` sopravvive come SPECCHIO in sola lettura per i ~18 componenti non ancora migrati (Avatar, CategoryChip, MentionText, SwipeActions…): viene allineato da `syncLegacyGlobals()`, chiamata nel corpo di `VoyageDeskInner` — nel render e non in un `useEffect`, perché i figli leggono `TEAM`/`CATEGORIES` durante il proprio render, che precede il flush degli effetti. Fino alla sessione precedente era il reducer a scrivere quelle globali via setter, e le decisioni di autorizzazione si prendevano su di esse: due fonti di verità disallineabili in silenzio, più un reducer impuro. Il percorso di dismissione è migrare i consumatori a `usePermissions()` ed eliminare il file.
 3. **Chat e AI**: usano `fetch` su `https://api.anthropic.com/v1/messages` — funziona solo in ambiente Claude.ai artifacts. Per dev locale, mockare o usare API key.
 4. **activityLog**: max 100 entry, poi taglia le più vecchie.
 5. **Backup JSON**: Admin → Import/Export include tutto lo stato persistente. Ripristino sovrascrive.
@@ -331,10 +336,13 @@ src/
 │   ├── xlsx.js              loadXLSX() lazy loader (Phase 2f)
 │   └── mentions.js          findMentions() — parser @menzioni (caveat #2, gemello DB)
 ├── hooks/                   (sessione 18)
-│   └── useDebouncedTableSubscription.js   idratazione+subscribe realtime debounced (caveat #10)
+│   ├── useDebouncedTableSubscription.js   idratazione+subscribe realtime debounced (caveat #10)
+│   ├── useSyncedDispatch.js               reducer + persistenza Supabase (orchestratore)
+│   └── usePermissions.js                  permessi legati a state.team (sostituisce appGlobals)
 ├── state/                   (Phase 2b–2d)
 │   ├── mockData.js          INITIAL_TEAM/CATEGORIES/TASKS/NOTICES + MOCK_NOTIFICATIONS
-│   ├── appGlobals.js        TEAM/CATEGORIES/CURRENT_USER live bindings + setter + permessi
+│   ├── appGlobals.js        specchio legacy in sola lettura (in dismissione) + syncLegacyGlobals
+│   ├── persistence.js       registry action → operazione Supabase (guard/normalize/persist/rollback)
 │   └── reducer.js           baseReducer / reducer / makeInitialState / LOGGED_ACTIONS / ADMIN_ONLY
 ├── components/              (Phase 2e + 2f — ESTRAZIONE COMPLETA + Fase 1 CRM)
 │   ├── Viewport.jsx         ViewportContext / useViewport / ViewportProvider

@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "importa:liste": "node scripts/importa-liste/index.js"
+    "importa:liste": "node scripts/importa-liste/index.js",
+    "verifica:rpc": "node scripts/verifica-rpc/index.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

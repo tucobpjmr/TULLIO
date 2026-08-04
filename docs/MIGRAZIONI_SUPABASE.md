@@ -75,6 +75,48 @@ order by version desc limit 5;
 E far girare gli advisor (MCP `get_advisors`, sia `security` sia
 `performance`): le modifiche a RLS e funzioni ne accendono facilmente di nuovi.
 
+Se la migrazione aggiunge o modifica una RPC chiamata dal frontend, chiudere
+con:
+
+```bash
+npm run verifica:rpc
+```
+
+## Controllo automatico dello scarto
+
+`scripts/verifica-rpc/` verifica che ogni RPC chiamata dal frontend esista
+davvero sul database. Gira ogni giorno alle 6:30 UTC via
+`.github/workflows/verifica-rpc.yml`, e a mano con `npm run verifica:rpc`.
+
+Nasce dal terzo episodio della stessa famiglia: la migrazione `20260729200000`
+(note interne delle liste) era in `main` da giorni ma non era mai arrivata al
+database. Il codice era corretto, lint e test passavano, e salvare una nota
+rispondeva `Could not find the function public.modifica_note_lista(p_id,
+p_note) in the schema cache`. Nessun controllo poteva accorgersene: lo scarto
+non era dentro il repository, ma fra repository e database.
+
+Come funziona, in breve:
+
+- legge dai sorgenti i nomi e gli argomenti delle chiamate `supabase.rpc(...)`;
+- interroga ciascuna funzione in **GET** con la sola chiave anon. PostgREST
+  accetta le funzioni `VOLATILE` solo in POST e rifiuta la GET con 405 *prima*
+  di eseguirle: la sonda non esegue mai nulla, nemmeno su produzione;
+- distingue `PGRST202` (funzione assente) da `405`/`42501` (funzione presente,
+  non interrogabile così).
+
+Prima di dare un verdetto la sonda si mette alla prova su casi di cui conosce
+già la risposta — l'API risponde? una funzione inventata risulta assente? —
+e se non li supera si dichiara **inconcludente** e non fallisce, invece di
+segnalare venti funzioni sparite perché è cambiato PostgREST. Un controllo che
+grida al lupo viene ignorato, e allora tanto vale non averlo.
+
+Quando invece fallisce sul serio, l'output nomina le RPC mancanti e il file da
+cui sono chiamate: la causa è quasi sempre una migrazione in
+`supabase/migrations/` mai applicata.
+
+> Il controllo copre le funzioni, non le tabelle, le colonne o le policy: una
+> migrazione che tocca solo quelle passa inosservata. Resta il passo 4 a mano.
+
 ## Dry-run: verificare una policy senza rischiare i dati
 
 Le policy RLS si testano impersonando un utente reale dentro una transazione.

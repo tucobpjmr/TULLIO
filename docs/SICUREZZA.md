@@ -1,469 +1,251 @@
-# Sicurezza & Gestione dei Dati
+# Sicurezza & gestione dei dati
 
-Questo documento descrive l'architettura di sicurezza di VoyageDesk: RLS, autorizzazione frontend, threat model e mitigazioni.
+Stato al 4 agosto 2026. Progetto Supabase `vmxvnxsqfisucugcpqlc` (tullio), 93 migrazioni nel repo.
 
-## Sommario Esecutivo
+**Come leggere questo documento.** Ogni affermazione è marcata con la sua fonte:
 
-VoyageDesk implementa difesa in profondità su tre livelli:
-1. **RLS (Row-Level Security)** su Supabase: 93 migrations, 14 dedicate al hardening
-2. **Authorization frontend**: Funzioni pure (src/lib/permissions.js) allineate con RLS via persistenza.js
-3. **Security headers + Transport**: HSTS, X-Frame-Options DENY, Referrer-Policy, JWT in Authorization header
+- ✅ **verificato sul database live** — via `get_advisors` / lettura diretta
+- 📄 **verificato nel repo** — letto nei file di migrazione o nel sorgente
+- ⚠️ **da verificare** — non controllabile da qui, richiede la dashboard
 
-**Nessun rischio critico non-mitigato.** Tutti i rischi identificati hanno mitigation path chiaro.
-
----
-
-## 1. RLS (Row-Level Security)
-
-### 1.1 Tabelle Protette
-
-| Tabella | RLS | Policy | Hardening Specifico |
-|---------|-----|--------|-------------------|
-| users | ✅ | 3 (select_all, update_self, admin_all) | Privilege escalation trigger, active check |
-| tasks | ✅ | 4 (select, insert, update, delete) | Admin only delete, InitPlan dedup |
-| comments | ✅ | Transitivity via tasks | Global queue awareness |
-| notices | ✅ | Local only | (niente) |
-| conversations | ✅ | Participants only | (niente) |
-| messages | ✅ | Via conversations | (niente) |
-| task_files | ✅ | Creator + task visibility | Creator self-upload, task RLS transitivity |
-| user_contacts | ✅ | Team all, update self+admin | PII protection |
-| user_app_preferences | ✅ | Self only | User preferences |
-| liste_viaggio | ✅ | private.can_liste() | Driver exclusion (admin/manager/agent only) |
-
-### 1.2 Helper Function Hierarchy
-
-**public level:**
-```sql
-public.current_user_role()      -- Lookup role from auth.uid()
-public.is_admin()               -- Wrapper: role = 'admin'
-public.is_manager_or_admin()    -- Wrapper: role IN ('admin','manager')
-```
-
-**private level (accessible to functions only):**
-```sql
-private.is_admin()              -- Same logic, SECURITY DEFINER context
-private.can_liste()             -- Modulo ListeViaggio: admin/manager/agent only
-```
-
-**Key safety:**
-- All SECURITY DEFINER + SET search_path = public
-- Prevents name-collision SQL injection
-- InitPlan deduplication: `(SELECT auth.uid())` vs `auth.uid()`
-
-### 1.3 Privilege Escalation Mitigation
-
-**File:** supabase/migrations/20260613080033_fix_users_privilege_escalation.sql
-
-Problem: Non-admin user could UPDATE their own role/active/pending via RLS bypass.
-
-Solution: BEFORE UPDATE trigger on users table:
-```sql
-CREATE TRIGGER trg_users_block_privileged_self_update
-  BEFORE UPDATE ON public.users
-  FOR EACH ROW EXECUTE FUNCTION public.users_block_privileged_self_update();
-
-FUNCTION users_block_privileged_self_update():
-  IF NOT is_admin() THEN
-    new.role     := old.role;       -- Block role escalation
-    new.active   := old.active;     -- Block activation
-    new.pending  := old.pending;    -- Block self-approval
-    new.capacity := old.capacity;   -- Block quota escalation
-    new.id       := old.id;         -- Immutable ID
-  END IF;
-```
-
-**Validation:** src/test/reducerPurity.test.js never attempts to write these columns.
-
-### 1.4 Edge Functions Authorization
-
-Edge Functions (invite-user, delete-account, delete-user) use SECURITY DEFINER + explicit role check:
-
-```javascript
-// src/lib/api.js:103-118
-invite: async ({ email, name, role = 'agent', ... }) => {
-  const run = () => invokeFn('invite-user', body);
-  // Edge Function (verify_jwt) checks:
-  //   1. Token valid & not expired
-  //   2. User is admin
-  //   3. Email not already invited
-  //   → Only then creates auth.users entry + public.users row
-}
-```
+La distinzione non è pedanteria: `docs/CLAUDE.md` (nota ⛔ sulle migrazioni)
+avverte che la storia delle migrazioni nel repo **non coincide** con
+`schema_migrations` sul database. Un'affermazione basata solo sui file `.sql`
+descrive l'intento, non necessariamente ciò che è deployato.
 
 ---
 
-## 2. Frontend Authorization
+## 1. Esito del security advisor (✅ live)
 
-### 2.1 Pure Permission Functions
+`get_advisors(type: security)` sul progetto di produzione: **0 errori, 9 warning**.
+Nessun warning di RLS mancante o disabilitata.
 
-**File:** src/lib/permissions.js
+| # | Warning | Conta | Valutazione |
+|---|---------|-------|-------------|
+| 1 | `function_search_path_mutable` su `public.set_updated_at` | 1 | **Da correggere** — vedi §6 |
+| 2 | `authenticated_security_definer_function_executable` | 7 | **Atteso e mitigato** — vedi sotto |
+| 3 | `auth_leaked_password_protection` disabilitata | 1 | **Da attivare** — vedi §6 |
 
-All functions take `team` as explicit first argument (no module-level state):
+### Le 7 funzioni SECURITY DEFINER: perché il warning non è un buco
 
-```javascript
-export const canViewTask = (team, task, userId) => {
-  const role = getRoleType(team, userId);
-  if (role === 'admin') return true;
-  if (role === 'driver') return isMyTask(task, userId);
-  if (isMyTask(task, userId)) return true;
-  if (isInGlobalQueue(task)) return true;
-  if (isUrgent(task)) return true;
-  return false;
-};
+L'advisor segnala che un utente autenticato può invocarle via
+`/rest/v1/rpc/<nome>`. Non può però guardare *dentro* il corpo della funzione,
+dove sta il controllo di ruolo. Verificato uno per uno (📄):
 
-export const canEditTask = (team, task, userId) => {
-  const role = getRoleType(team, userId);
-  if (role === 'admin') return true;
-  if (role === 'driver') return task.category === 'transfer' && (isMyTask(...) || isInGlobalQueue(...));
-  if (isJuniorAgent(team, userId)) return isMyTask(task, userId);  // No global queue
-  if (isMyTask(task, userId)) return true;
-  if (isInGlobalQueue(task)) return true;
-  return false;
-};
-```
+| Funzione | Guardia interna | Esito |
+|----------|-----------------|-------|
+| `reset_completo(text)` | `private.is_admin()` + conferma testuale `RESET TOTALE` | ok |
+| `elimina_lista_definitivamente(uuid)` | `private.can_liste()` | ok |
+| `importa_backup(jsonb)` | `private.can_liste()` | ok |
+| `rimuovi_beneficiario_lista(uuid,uuid)` | `private.can_liste()` | ok |
+| `sposta_titolare_lista(uuid,uuid)` | `private.can_liste()` | ok |
+| `send_test_push()` | `private.is_active_user()`, scrive solo sulla propria riga | ok |
+| `get_vapid_public_key()` | nessuna — **ed è corretto**: restituisce la metà *pubblica* della coppia VAPID, che il browser deve avere per sottoscriversi | ok |
 
-### 2.2 Persistence Registry Alignment
-
-**File:** src/state/persistence.js
-
-For every action with a `guard`, the registry enforces the same permission logic:
-
-```javascript
-ADD_TASK: {
-  guard: (s, a, uid) => canCreateTaskCategory(s.team, a.payload?.category, uid),
-  persist: (s, a) => TasksAPI.create(toDbTask(a.payload)),
-},
-
-// canCreateTaskCategory blocks 'payment' & 'admin' for Junior Agents
-export const canCreateTaskCategory = (team, category, userId) => {
-  const role = getRoleType(team, userId);
-  if (role === 'admin') return true;
-  if (role === 'driver') return category === 'transfer';
-  if (isJuniorAgent(team, userId)) return !['payment', 'admin'].includes(category);
-  return true;
-};
-```
-
-### 2.3 Conformance Testing
-
-**File:** src/test/persistenceGuards.test.js
-
-44 test cases validating that **persistence guard verdicts ≡ reducer logic**:
-
-```javascript
-// For each action + role combination:
-const action = { type: "ADD_TASK", payload: task({ category: "payment" }) };
-const guardPass = PERSISTENCE.ADD_TASK.guard(state, action, userId);
-const reducerResult = reducer(state, action);
-expect(guardPass).toBe(!reducerResult.toast?.type === 'error');
-```
-
-If guard passes, reducer accepts it. If guard fails, reducer shows error toast.
-
-**Key validation:** Mutation testing: removing canEditTask from DELETE_TASK guard causes test suite to fail.
-
-### 2.4 Legacy Bridge
-
-**File:** src/state/appGlobals.js
-
-For backward compatibility with ~18 non-migrated components:
-
-```javascript
-// Read-only mirror of state
-export let TEAM = [];
-export let CATEGORIES = {};
-export let CURRENT_USER = null;
-
-// Single write point (called in render body of VoyageDeskInner)
-export const syncLegacyGlobals = ({ team, categories, currentUserId }) => {
-  TEAM = team;
-  CATEGORIES = categories;
-  CURRENT_USER = currentUserId;
-};
-
-// All delegation functions use pure permissions.js
-export const getMember = (id) => permissions.getMember(TEAM, id);
-export const canEditTask = (task, uid) => permissions.canEditTask(TEAM, task, uid);
-```
-
-**Why in render body, not effect?** Children read TEAM during render (before effect flush), so assigning in render body (idempotent under StrictMode) prevents stale-value frame.
+> ⚠️ **Non "risolvere" questo warning revocando EXECUTE.** Le RPC sono il modo in
+> cui l'app chiama queste operazioni: revocare romperebbe il modulo Liste e il
+> push. Il warning è informativo; la difesa è nel corpo della funzione.
+> `get_push_secrets()` — quella che espone la chiave *privata* — è già ristretta
+> a `service_role` e infatti non compare nell'elenco.
 
 ---
 
-## 3. Permission Matrix
+## 2. Copertura RLS
 
-### 3.1 Role Definitions
+**✅ Live:** nessun lint di RLS mancante o disabilitata sull'intero schema `public`.
 
-```javascript
-getRoleType(team, userId) → 'admin'|'driver'|'manager'|'agent'
+**📄 Repo:** 21 tabelle con `ENABLE ROW LEVEL SECURITY` esplicito, e ogni
+`CREATE TABLE` presente nelle migrazioni ha la sua `ALTER TABLE … ENABLE RLS`
+(verificato per differenza fra i due insiemi: risultato vuoto).
 
-// Sub-roles
-isJuniorAgent(team, userId)  // role includes 'junior'
-isSeniorAgent(team, userId)  // role includes 'senior' OR (includes 'agent' AND NOT 'junior')
+```
+categories · clients · comments · conversations · dossier_suppliers · dossiers
+lista_beneficiari · lista_history · liste_viaggio · messages · movimenti_lista
+notices · notifications · push_subscriptions · suppliers · task_files
+task_history · tasks · user_app_preferences · user_contacts · users
 ```
 
-### 3.2 Full Matrix
+(`dossiers`, `dossier_suppliers`, `suppliers` appartengono a moduli rimossi
+nella sessione 24: le tabelle restano, protette, ma nessun codice le usa.)
 
-| Operation | Admin | Manager | Senior Agent | Junior Agent | Driver |
-|-----------|-------|---------|--------------|--------------|--------|
-| **View task** | All | All + self + urgent | Self + global + urgent | Self only | Self (transfer) |
-| **Edit task** | All | All | Self + global | Self only | Self (transfer) |
-| **Create task** | All categories | All | All | Exclude payment/admin | transfer only |
-| **Delete task** (soft) | All | All | Self + global | Self | Self (transfer) |
-| **Purge task** (hard) | All | ❌ | ❌ | ❌ | ❌ |
-| **Create comment** | All | All | All | On visible | On self |
-| **Access Admin** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Manage team** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Manage categories** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Access ListeViaggio** | ✅ | ✅ | ✅ | ✅ | ❌ |
+### Gerarchia degli helper (📄)
 
-### 3.3 Global Queue Access Rules
-
-| Role | Can View | Can Claim | Restrictions |
-|------|----------|-----------|--------------|
-| Admin | ✅ All | ✅ All | None |
-| Manager | ✅ All | ✅ All | None |
-| Senior Agent | ✅ Unassigned | ✅ Unassigned | (none) |
-| Junior Agent | ✅ Unassigned | ❌ NO | Can only accept explicit assignment |
-| Driver | ❌ | ❌ | transfer category only |
-
----
-
-## 4. Frontend Key Exposure
-
-### 4.1 Exposed Keys (by design)
-
-| Key | Location | Purpose | Risk |
-|-----|----------|---------|------|
-| VITE_SUPABASE_URL | .env, Vercel | Database endpoint | **None**: URL is public |
-| VITE_SUPABASE_ANON_KEY | .env, Vercel | Anon JWT signing | **Low**: RLS gates all access |
-
-**Verification:**
-```bash
-grep -r "VITE_" src/ | grep -v test
-# → Only VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
+```
+public.is_admin()            role = 'admin'            AND active
+public.is_manager_or_admin() role IN (admin, manager)  AND active
+public.is_active_user()      active
+private.is_admin()           idem, fuori dallo schema esposto
+private.can_liste()          role IN (admin, manager, agent) AND active
 ```
 
-### 4.2 Secret Keys (NOT Exposed)
+Tutti `SECURITY DEFINER` + `SET search_path`. Il controllo `active` è stato
+aggiunto in `20260621_rls_hardening_active_users`: prima un utente invitato ma
+non ancora attivato, con il ruolo già scritto, superava i controlli di ruolo.
 
-- ❌ SUPABASE_SERVICE_ROLE_KEY (backend only)
-- ❌ Database password
-- ❌ Edge Function secrets
-- ❌ Auth Admin API key
+### Escalation di privilegi bloccata da trigger (📄)
 
-### 4.3 Token Handling
-
-```javascript
-// src/lib/supabase.js
-const supabase = createClient(url, key, {
-  auth: {
-    persistSession: true,           // sessionStorage (not httpOnly)
-    autoRefreshToken: true,          // Refresh before expiry
-    detectSessionInUrl: true,        // OAuth callback
-  },
-});
-```
-
-**Tradeoff:** sessionStorage (XSS-vulnerable) chosen for SPA routing. Mitigated by XSS prevention (4.2).
-
----
-
-## 5. XSS/CSRF Threat Model
-
-### 5.1 XSS Vectors & Mitigations
-
-| Vector | Attack | Mitigation | Status |
-|--------|--------|-----------|--------|
-| Task title/description | `<img src=x onerror=...>` | React auto-escape | ✅ |
-| Comment text | `<script>alert(...)</script>` | React auto-escape | ✅ |
-| Error messages | API response injection | Regex sanitization | ✅ |
-| Markdown rendering | Raw HTML in markdown | Safe parser (html: false) | ✅ |
-| innerHTML usage | Anywhere in code | 0 instances | ✅ |
-| dangerouslySetInnerHTML | Anywhere in code | 0 instances | ✅ |
-
-**Output encoding verification:**
-```bash
-grep -r "dangerouslySetInnerHTML\|innerHTML" src/ --include="*.jsx"
-# → 0 matches (safe)
-```
-
-### 5.2 CSRF Vectors & Mitigations
-
-| Vector | Attack | Mitigation | Status |
-|--------|--------|-----------|--------|
-| Cookie-based auth | Automatic inclusion in cross-origin requests | **Token in Authorization header** (not cookie) | ✅ |
-| Form submission | Fake form action to Supabase | JWT + Bearer scheme required | ✅ |
-| CORS bypass | Missing origin check | Supabase enforces CORS | ✅ |
-| WebSocket state changes | Malicious realtime event | origin_client echo suppression | ✅ |
-
-**Authorization header pattern:**
-```javascript
-// supabase-js automatic
-POST /rest/v1/tasks
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-```
-
-Cross-origin requests cannot:
-1. Read response (SOP)
-2. Send Authorization header (CORS preflight required)
-3. Forge JWT without secret key (RS256 or HS256 server-side)
-
----
-
-## 6. Security Headers
-
-**File:** vercel.json
-
-```json
-{
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains" }
-      ]
-    }
-  ]
-}
-```
-
-| Header | Value | Purpose |
-|--------|-------|---------|
-| X-Content-Type-Options | nosniff | Prevent MIME-type sniffing attacks |
-| X-Frame-Options | DENY | Prevent clickjacking |
-| Referrer-Policy | strict-origin-when-cross-origin | Leak minimal referer info |
-| Strict-Transport-Security | max-age=63072000 | Force HTTPS for 2 years |
-
-**Not set (by choice):**
-- Content-Security-Policy: Incomplete (no report-uri for monitoring) — see Recommended Actions
-- X-XSS-Protection: Deprecated (CSP is standard)
-
----
-
-## 7. RLS Migration Audit Trail
-
-| Migration | Date | Problem | Solution |
-|-----------|------|---------|----------|
-| enable_rls_and_policies | 20260605 | Zero RLS | Enable RLS on 6 tables, 4 helper functions |
-| fix_users_privilege_escalation | 20260613 | Escalation via self-update | BEFORE UPDATE trigger |
-| revoke_rpc_execute | 20260613 | Anon invokes internal functions | REVOKE EXECUTE |
-| security_hardening_mono_agency | 20260616 | Multi-tenant confusion | team_id implicit check |
-| rls_hardening_active_users | 20260621 | Inactive users see data | Add active check to policies |
-| clients_insert_rls | 20260622 | Unbound create | Add created_by guard |
-| perf_rls_initplan_dedup | 20260622 | N+1 auth.uid() calls | Subquery for InitPlan |
-| comments_rls_global_queue | 20260630 | Comment leakage | Transitivity via tasks |
-| task_files_rls_global_queue | 20260630 | File leakage | Transitivity via tasks |
-| advisor_definer_and_search_path | 20260707 | SQL injection via names | SECURITY DEFINER + search_path |
-| revoke_anon_execute_rpc_liste | 20260716 | Anon accesses liste module | REVOKE EXECUTE |
-| hardening_liste_viaggio_ruoli | 20260728 | Driver accesses liste | private.can_liste() guard |
-| liste_viaggio_reti_di_sicurezza | 20260729 | RPC without role check | SECURITY DEFINER + explicit check |
-| revoke_anon_aggiungi_beneficiario | 20260804 | Anon adds beneficiaries | REVOKE EXECUTE |
-
-**Total:** 93 migrations, 14 dedicated to security hardening.
-
----
-
-## 8. Recommended Follow-up
-
-### Phase 1: Immediate (Current sprint)
-- [ ] Add Content-Security-Policy header with report-uri for XSS monitoring
-- [ ] Document token rotation strategy for compromised sessions
-- [ ] Add rate-limiting to invite-user Edge Function (DoS protection)
-
-### Phase 2: Medium-term (Next quarter)
-- [ ] Implement audit logging (user role changes, category deletions, etc.)
-- [ ] Device fingerprinting for concurrent session detection
-- [ ] Quarterly RLS policy review schedule
-
-### Phase 3: Long-term (Next year)
-- [ ] Move session token to httpOnly cookie with CSRF token rotation
-- [ ] Implement short-lived tokens (< 15 min) with refresh token rotation
-- [ ] Formal security audit by third party
-
----
-
-## Contacts & Escalation
-
-- **Security Issue:** Report to admin via secure channel
-- **Data Breach:** Follow GDPR notification requirements (24h)
-- **RLS Bug:** Halt production deployment, post migration, test conformance
-
----
-
-## Testing & Validation
-
-| Test Suite | Coverage | Status |
-|-----------|----------|--------|
-| src/test/permissions.test.js | Role matrix, pure functions | ✅ 188 test cases |
-| src/test/persistenceGuards.test.js | Guard ≡ reducer logic | ✅ 44 test cases |
-| src/test/reducerPurity.test.js | No global mutations | ✅ 13 actions tested |
-| src/test/syncedDispatch.test.jsx | Dispatch orchestration | ✅ 24 test cases |
-
-**Total security test coverage:** 269 test cases, 100% pass rate.
-
----
-
-## Appendix: RLS Policy Examples
-
-### Example 1: Tasks SELECT Policy
+`20260613080033_fix_users_privilege_escalation` — la policy `users_update_self`
+permette a ciascuno di aggiornare la propria riga, il che da solo consentirebbe
+di riscriversi `role = 'admin'`. Il trigger `BEFORE UPDATE` ripristina i campi
+sensibili per chiunque non sia già admin:
 
 ```sql
-CREATE POLICY tasks_select ON public.tasks
-  FOR SELECT TO authenticated
-  USING (
-    public.is_manager_or_admin()
-    OR auth.uid() = ANY(assignees)
-    OR created_by = auth.uid()
-  );
+new.role := old.role;  new.active := old.active;
+new.pending := old.pending;  new.capacity := old.capacity;  new.id := old.id;
 ```
 
-Allows select if:
-- User is manager or admin, OR
-- User is in assignees array, OR
-- User created the task
+---
 
-### Example 2: Comments Transitivity
+## 3. Chiavi esposte nel frontend
 
-```sql
-CREATE POLICY comments_select ON public.comments
-  FOR SELECT TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.tasks t
-      WHERE t.id = comments.task_id
-        AND (
-          public.is_manager_or_admin()
-          OR auth.uid() = ANY(t.assignees)
-          OR t.created_by = auth.uid()
-        )
-    )
-  );
+📄 Verificato con `grep -r "VITE_" src/`: il bundle contiene **solo**
+`VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` (`src/lib/supabase.js`).
+Nessuna `service_role` key, nessun segreto di Edge Function, nessuna chiave
+VAPID privata nel sorgente client.
+
+L'anon key **è pensata per essere pubblica**: è il ruolo `anon` di PostgREST, e
+l'unica cosa che le impedisce di leggere il database è la RLS. Che la RLS ci sia
+su tutto è quindi il presupposto del punto §2, non un dettaglio.
+
+### Dove vive il token di sessione
+
+```js
+createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true, … } })
 ```
 
-Read comment only if you can read the task it belongs to.
+📄 Con `persistSession: true` e nessuno `storage` custom, `@supabase/auth-js`
+usa **`globalThis.localStorage`** (`GoTrueClient.js:213`).
 
-### Example 3: ListeViaggio Role Gate
+> ⚠️ Correzione rispetto alla stesura precedente di questo documento, che
+> diceva `sessionStorage`. La differenza conta: `localStorage` **sopravvive
+> alla chiusura della scheda e del browser**, quindi la finestra di esposizione
+> di un token in caso di XSS è molto più ampia di quella descritta prima.
+> Resta la scelta corretta per una PWA che deve restare loggata, ma il rischio
+> va contabilizzato per quello che è (§5).
 
-```sql
-CREATE POLICY liste_select ON liste_viaggio
-  FOR SELECT TO authenticated
-  USING ((SELECT private.can_liste()));
+---
 
-CREATE FUNCTION private.can_liste()
-RETURNS boolean
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.users u
-    WHERE u.id = (SELECT auth.uid())
-      AND u.active
-      AND u.role = ANY (ARRAY['admin', 'manager', 'agent'])
-  );
-$$;
-```
+## 4. Matrice dei permessi
 
-Only admin/manager/agent can access liste module. Driver excluded.
+Le regole client sono funzioni pure in `src/lib/permissions.js`; i guard di
+scrittura in `src/state/persistence.js` chiamano **le stesse funzioni**, e
+`src/test/persistenceGuards.test.js` verifica che i due verdetti coincidano.
+
+| Operazione | Admin | Manager | Senior Agent | Junior Agent | Driver |
+|------------|:-----:|:-------:|:------------:|:------------:|:------:|
+| Vede task | tutti | propri + coda globale + urgenti | propri + coda globale + urgenti | propri + coda globale + urgenti | solo propri |
+| Modifica task | tutti | propri + coda globale | propri + coda globale | **solo assegnati** | solo transfer (propri o in coda) |
+| Crea categoria task | tutte | tutte | tutte | tutte **tranne** payment e admin | solo transfer |
+| Vista Admin | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Modulo Liste viaggio | ✅ | ✅ | ✅ | ✅ | ❌ |
+
+Due regole che è facile leggere male:
+
+- **Manager e Senior Agent hanno gli stessi permessi sui task.** La differenza
+  fra i due ruoli non passa da `permissions.js`.
+- **Junior Agent vede la coda globale ma non può prenderla.** `canViewTask`
+  concede, `canEditTask` nega. In UI il bottone "Prendi in carico" è sostituito
+  da "Chiedi a un Senior".
+
+### Lato database (📄)
+
+Il DB conosce quattro ruoli — `admin`, `manager`, `agent`, `driver` — e
+**non ha il sotto-ruolo Junior/Senior**: nello schema sono entrambi `agent`.
+
+> ⚠️ **Asimmetria da conoscere.** La restrizione del Junior Agent (niente task
+> dalla coda globale, niente categorie payment/admin) è applicata dal client e
+> dal guard di persistenza, **non dalla RLS**. Un Junior che chiamasse l'API
+> Supabase direttamente, con il proprio token, passerebbe: per il database è un
+> `agent`. Non è un buco di riservatezza (i dati sono comunque quelli del suo
+> team) ma è un limite reale del modello, e va tenuto presente prima di
+> descrivere il vincolo Junior come una garanzia di sicurezza. Renderlo tale
+> richiede una colonna sotto-ruolo in `public.users` e un predicato RLS che la
+> legga.
+
+### Edge Function (📄)
+
+| Funzione | Controllo |
+|----------|-----------|
+| `invite-user` | token valido + `caller.role === 'admin'`, altrimenti 403; ruolo richiesto filtrato su whitelist |
+| `delete-user` | token valido + `caller.role === 'admin'`, altrimenti 403 |
+| `delete-account` | solo token valido — corretto: è self-service sul proprio account |
+| `send-push` | 401 senza autorizzazione; i segreti via `get_push_secrets()`, solo `service_role` |
+
+---
+
+## 5. XSS / CSRF
+
+### XSS
+
+📄 `grep -r "dangerouslySetInnerHTML\|innerHTML" src/` → **0 occorrenze**.
+📄 Nessuna libreria markdown in `package.json`: il testo utente non passa mai
+per un renderer HTML, viene sempre interpolato da React (che fa escaping).
+
+> ⚠️ Correzione rispetto alla stesura precedente, che attribuiva la protezione a
+> "un parser markdown sicuro". Non esiste un parser markdown nel progetto —
+> il che è meglio, ma la ragione dichiarata era sbagliata.
+
+Superficie residua: il token in `localStorage` (§3) è leggibile da qualunque JS
+in esecuzione sull'origin. Con zero sink HTML l'esposizione è teorica, ma la
+mitigazione strutturale — una CSP — **non c'è**.
+
+### CSRF
+
+Il token viaggia come header `Authorization: Bearer`, mai come cookie: il
+browser non lo allega automaticamente a richieste cross-site, quindi la classe
+CSRF classica non si applica.
+
+### Header HTTP (📄 `vercel.json`)
+
+| Header | Valore |
+|--------|--------|
+| `X-Content-Type-Options` | `nosniff` |
+| `X-Frame-Options` | `DENY` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `Strict-Transport-Security` | `max-age=63072000; includeSubDomains` |
+
+> ⚠️ **Nessun `Content-Security-Policy`.** La stesura precedente lo descriveva
+> come "incompleto (manca report-uri)", il che lasciava intendere che ci fosse.
+> Non c'è affatto. È la lacuna più concreta del capitolo (§6).
+
+---
+
+## 6. Cosa fare, in ordine di rapporto valore/costo
+
+1. **Attivare la leaked password protection** (⚠️ dashboard → Auth → Password).
+   Un interruttore. Supabase confronta le password con HaveIBeenPwned.
+2. **`SET search_path` su `public.set_updated_at`.** Una riga di migrazione;
+   chiude l'unico avanzo del giro di hardening `20260707`.
+3. **Aggiungere una CSP.** È la mitigazione che manca alla scelta di tenere il
+   token in `localStorage`. Partire in `Content-Security-Policy-Report-Only`
+   per non rompere il caricamento dei font, poi promuoverla.
+4. **Decidere sul sotto-ruolo Junior.** O si porta a schema (colonna + RLS), o
+   si documenta esplicitamente come vincolo di UI e non di sicurezza. Oggi non
+   è né l'una né l'altra cosa.
+
+Non urgenti, ma da mettere a piano: audit log sulle operazioni sensibili
+(cambio ruolo, eliminazione categorie), e una rilettura periodica delle policy
+RLS — `get_advisors` è gratis e va rilanciato dopo ogni DDL.
+
+---
+
+## 7. Copertura di test sui permessi
+
+`vitest run` sui quattro file rilevanti → **137 test verdi**:
+
+| File | Cosa blinda |
+|------|-------------|
+| `permissions.test.js` | matrice ruoli sulle funzioni pure |
+| `persistenceGuards.test.js` | guard di persistenza ≡ verdetto del reducer |
+| `reducerPurity.test.js` | il reducer non decide sui globali mutabili |
+| `syncedDispatch.test.jsx` | un'azione negata non raggiunge il server |
+
+> ⚠️ Correzione rispetto alla stesura precedente, che dichiarava "269 test
+> case": quel numero era ottenuto sommando le **righe** dei file di test, non i
+> test. Il valore reale, misurato, è 137.
+
+Questi test coprono il livello client. **Non c'è copertura automatica delle
+policy RLS**: nessun test apre una connessione con il token di un `driver` per
+verificare che il database rifiuti davvero. È il buco di copertura più
+significativo dell'area sicurezza — la conformità fra i due livelli oggi è
+garantita dalla lettura, non da un test.

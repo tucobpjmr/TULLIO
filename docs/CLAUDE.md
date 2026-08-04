@@ -33,6 +33,8 @@ Agisci come sviluppatore full-stack specializzato in sistemi gestionali per trav
 - **Permessi**: ogni nuova feature che tocca task o viste deve usare `canViewTask`/`canEditTask` da `src/lib/permissions.js` (funzioni PURE, primo argomento `team`). Nei componenti si passa da `usePermissions(state.team, state.currentUserId)`. Ogni nuova voce nav in `NAV_ITEMS` deve avere il campo `roles`
 - **Reducer puro**: `src/state/reducer.js` non deve avere effetti collaterali — niente chiamate a `setTeam`/`setCategories`/`setCurrentUser`, niente scritture fuori dallo state. La fonte di verità è `state.team` / `state.categories` / `state.currentUserId`. Blindato da `src/test/reducerPurity.test.js`
 - **Persistenza**: una action che deve scrivere su Supabase si dichiara in `src/state/persistence.js` (`guard` / `normalize` / `persist` / `rollback` / `mapError`), NON aggiungendo un ramo a un `switch`. L'orchestrazione è in `src/hooks/useSyncedDispatch.js` e non va toccata. Se l'action ha una regola di permesso, il `guard` deve usare le stesse funzioni di `lib/permissions.js` del reducer: `src/test/persistenceGuards.test.js` verifica che i due verdetti coincidano e fallisce se divergono
+- **Card di un task**: non riscrivere il markup a mano. `TaskCard` (card verticale) e `TaskRow` (riga di elenco) stanno in `src/components/tasks/TaskCard.jsx` e coprono code, archivio, calendario e CRM. Le differenze fra call site passano dagli slot (`badges`, `subheader`, `meta`, `footer`) e dai parametri di bordo/accento; nel componente sta solo lo scheletro. Entrambi sono `memo`: le callback passate come prop (`onOpen`) vanno da `useCallback`, altrimenti la memoizzazione non serve a niente
+- **File grandi**: sopra le ~500 righe si spezza. I tre casi già fatti — `chat/`, `modals/bulk/`, `tasks/TaskCard` — seguono lo stesso criterio: un file per componente, gli helper puri in `lib/` o in un `*.js` accanto, mai un secondo componente "solo per ora" dentro un file che ne ha già uno
 - **Specchio legacy**: `src/state/appGlobals.js` (TEAM/CATEGORIES/CURRENT_USER) è un ponte in via di dismissione per i componenti non ancora migrati. Si scrive da UN SOLO punto — `syncLegacyGlobals()` nel corpo di `VoyageDeskInner` — e non va scritto da nessun altro. **Non aggiungere nuovi consumatori**: usare `usePermissions()`
 
 ### Cosa NON fare
@@ -253,9 +255,10 @@ VoyageDesk (export default, ViewportProvider wrapper)
     │   ├── views/Trash
     │   └── admin/AdminView (5 tab locale, stili da adminStyles.js)
     ├── tasks/TaskSlideOver
-    ├── chat/ChatPanel (~1250 righe; 9 sub-componenti + helper locali)
+    ├── tasks/TaskCard (TaskCard + TaskRow condivisi da code/archivio/calendario/CRM)
+    ├── chat/ChatPanel (orchestratore; il resto in chat/*.js + chat/message/)
     ├── modals/QuickAddTask
-    ├── modals/BulkTaskCreator (4 tab locale)
+    ├── modals/BulkTaskCreator (shell; le 4 tab in modals/bulk/)
     ├── modals/AIDayPlanner
     ├── shell/FAB
     └── ui/Toast
@@ -328,6 +331,7 @@ src/
 ├── auth/                    AuthContext.jsx, LoginScreen.jsx
 ├── lib/
 │   ├── api.js               Tasks/Notices/Conversations/Messages/Notifications/Users/Clients APIs (Suppliers/Dossiers RIMOSSI sessione 24)
+│   ├── bulkImport.js        normalizzazione valori CSV/Excel + auto-mappatura colonne (puro)
 │   ├── clientId.js          UUID per tab (origin-tagging realtime)
 │   ├── mappers.js           DB ↔ camelCase (fromDbClient/toDbClient, fromDbNotification; Supplier/Dossier RIMOSSI sessione 24)
 │   ├── supabase.js
@@ -356,21 +360,37 @@ src/
 │   │   └── MentionText.jsx  evidenzia @menzioni come chip (caveat #2)
 │   ├── modals/
 │   │   ├── ProfileEditor.jsx
-│   │   ├── BulkTaskCreator.jsx (contiene 5 tab locali)
+│   │   ├── BulkTaskCreator.jsx  shell: scelta modalità + tab bar + guardia "non salvato"
 │   │   ├── AIDayPlanner.jsx
 │   │   ├── NoticeEditorModal.jsx
 │   │   ├── QuickAddTask.jsx
 │   │   ├── AddTeamMemberModal.jsx
 │   │   └── AddCategoryModal.jsx
+│   ├── modals/bulk/
+│   │   ├── ManualTab.jsx / DuplicateTab.jsx / ImportTab.jsx / TemplateTab.jsx
+│   │   ├── RowAttachments.jsx  allegati di riga (upload dopo la persistenza)
+│   │   └── bulkStyles.js       stili condivisi dalle 4 tab
 │   ├── dashboard/
 │   │   ├── Dashboard.jsx (esporta Dashboard; contiene 4 Queue + QueueTab locali)
 │   │   └── NoticeBoard.jsx
 │   ├── calendar/
 │   │   └── CalendarPlanner.jsx (contiene helper iCal locali)
 │   ├── chat/
-│   │   └── ChatPanel.jsx (~1250 righe; 9 sub-componenti + helper locali)
+│   │   ├── ChatPanel.jsx        orchestratore: navigazione, ponte Supabase, context
+│   │   ├── ConversationView.jsx / ConversationList.jsx / NewConversationView.jsx
+│   │   ├── MessageComposer.jsx  allegati, template, microfono, invio
+│   │   ├── ForwardPicker.jsx
+│   │   ├── chatContext.js       ChatContext + useChatContext
+│   │   ├── chatPresence.js      record utente → stato di presenza
+│   │   ├── chatFormat.js        orari, nome conv., ultimo messaggio, getUnreadCount
+│   │   ├── chatReactions.js     emoji + reazioni recenti (localStorage + DB)
+│   │   ├── chatFiles.js         limite upload, classificazione allegati
+│   │   ├── chatReducers.js      convViewReducer + chatPanelReducer
+│   │   └── message/             ChatMessage, MessageTextContent, ReactionPicker,
+│   │                            VoicePlayer, VoiceRecorder
 │   ├── tasks/
-│   │   └── TaskSlideOver.jsx
+│   │   ├── TaskSlideOver.jsx
+│   │   └── TaskCard.jsx         TaskCard (card) + TaskRow (riga), entrambi memo
 │   ├── admin/
 │   │   ├── AdminView.jsx (contiene 5 tab locali)
 │   │   └── adminStyles.js (13 costanti stile consolidate)

@@ -1,13 +1,14 @@
 // src/components/clients/ClientiView.jsx
 // Anagrafica Clienti — Fase 1 modello dati.
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { StatusBadge } from "../ui/StatusBadge.jsx";
 import { ContactActions } from "../ui/ContactActions.jsx";
+import { TaskRow } from "../tasks/TaskCard.jsx";
 import { formatDate, isActiveTask } from "../../lib/taskUtils.js";
-import { CATEGORIES, CURRENT_USER, canViewTask, getRoleType } from "../../state/appGlobals.js";
+import { CURRENT_USER, canViewTask, getRoleType } from "../../state/appGlobals.js";
 import { ClientImportModal } from "./ClientImportModal.jsx";
 import { ClienteListePanel } from "../liste/ClienteListePanel.jsx";
 import { ListeAPI } from "../../lib/listeApi.js";
@@ -266,6 +267,9 @@ function ClienteCard({ cliente, onEdit, onDelete, onSelect, selected, liste = nu
 // primo, la testata e la barra tab stanno in ClienteDetailPanel.
 function ClienteTaskTab({ cliente, tasks, dispatch }) {
   const uid = CURRENT_USER;
+  // Stabile per la memoizzazione di TaskRow (vedi components/tasks/TaskCard.jsx).
+  const openTask = useCallback(
+    (task) => dispatch({ type: "SET_SELECTED_TASK", payload: task }), [dispatch]);
   const clientTasks = useMemo(() => {
     const q = (cliente.name || "").toLowerCase();
     return tasks.filter(t =>
@@ -295,25 +299,17 @@ function ClienteTaskTab({ cliente, tasks, dispatch }) {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
           {clientTasks.map(t => (
-            <div
+            <TaskRow
               key={t.id}
-              onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
-              style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "9px 12px", borderRadius: 8, border: "1px solid var(--border)",
-                cursor: "pointer", transition: "background 0.15s",
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-            >
-              <span style={{ fontSize: 16 }}>{CATEGORIES[t.category]?.icon || "📋"}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</div>
-                {t.dueDate && <div style={{ fontSize: 11, color: "var(--text-muted)" }}>📅 {formatDate(t.dueDate)}</div>}
-              </div>
-              <PriorityBadge priority={t.priority} />
-              <StatusBadge status={t.status} />
-            </div>
+              task={t}
+              onOpen={openTask}
+              padding="9px 12px"
+              subtitle={t.dueDate ? `📅 ${formatDate(t.dueDate)}` : null}
+              trailing={<>
+                <PriorityBadge priority={t.priority} />
+                <StatusBadge status={t.status} />
+              </>}
+            />
           ))}
         </div>
       )}

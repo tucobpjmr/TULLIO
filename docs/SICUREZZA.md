@@ -203,10 +203,11 @@ CSRF classica non si applica.
 | `X-Frame-Options` | `DENY` |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` |
 | `Strict-Transport-Security` | `max-age=63072000; includeSubDomains` |
+| `Content-Security-Policy-Report-Only` | vedi §8 |
 
-> ⚠️ **Nessun `Content-Security-Policy`.** La stesura precedente lo descriveva
-> come "incompleto (manca report-uri)", il che lasciava intendere che ci fosse.
-> Non c'è affatto. È la lacuna più concreta del capitolo (§6).
+La CSP è stata aggiunta **in modalità Report-Only** (§8): oggi non blocca nulla,
+segnala soltanto. Fino a quando non viene promossa a header bloccante, la
+mitigazione strutturale contro l'esfiltrazione del token resta assente.
 
 ---
 
@@ -214,14 +215,23 @@ CSRF classica non si applica.
 
 1. **Attivare la leaked password protection** (⚠️ dashboard → Auth → Password).
    Un interruttore. Supabase confronta le password con HaveIBeenPwned.
-2. **`SET search_path` su `public.set_updated_at`.** Una riga di migrazione;
-   chiude l'unico avanzo del giro di hardening `20260707`.
-3. **Aggiungere una CSP.** È la mitigazione che manca alla scelta di tenere il
-   token in `localStorage`. Partire in `Content-Security-Policy-Report-Only`
-   per non rompere il caricamento dei font, poi promuoverla.
+   **Non fattibile da qui**: è impostazione di progetto, non DDL.
+2. ~~**`SET search_path` su `public.set_updated_at`**~~ → migrazione **scritta**
+   in `20260804230000_set_updated_at_search_path.sql`, **non applicata**: vedi
+   la nota sotto.
+3. ~~**Aggiungere una CSP**~~ → **fatta in Report-Only**, vedi §8. Resta da
+   **promuoverla a bloccante** dopo qualche giorno di osservazione.
 4. **Decidere sul sotto-ruolo Junior.** O si porta a schema (colonna + RLS), o
    si documenta esplicitamente come vincolo di UI e non di sicurezza. Oggi non
    è né l'una né l'altra cosa.
+
+> ⚠️ **La migrazione del punto 2 non è stata applicata al database.** Il file è
+> nel repo e la PR lo porta con sé, ma scrivere DDL sulla produzione è una
+> decisione di chi possiede il progetto, non un effetto collaterale di un
+> refactor. Va applicata a mano dalla dashboard (SQL Editor) o con
+> `apply_migration`. **Non** con `supabase db push`, per la ragione ⛔ già
+> documentata in `docs/CLAUDE.md`: la storia nel repo non coincide con
+> `schema_migrations` e il push rigiocherebbe decine di migrazioni.
 
 Non urgenti, ma da mettere a piano: audit log sulle operazioni sensibili
 (cambio ruolo, eliminazione categorie), e una rilettura periodica delle policy
@@ -249,3 +259,91 @@ policy RLS**: nessun test apre una connessione con il token di un `driver` per
 verificare che il database rifiuti davvero. È il buco di copertura più
 significativo dell'area sicurezza — la conformità fra i due livelli oggi è
 garantita dalla lettura, non da un test.
+
+---
+
+## 8. Content-Security-Policy (Report-Only)
+
+Aggiunta in `vercel.json`. **`Content-Security-Policy-Report-Only` non blocca
+nulla**: il browser valuta la policy e segnala le violazioni in console, la
+pagina continua a funzionare esattamente come prima. È il modo di scoprire cosa
+si romperebbe senza romperlo.
+
+```
+default-src 'self';
+script-src  'self';
+style-src   'self' 'unsafe-inline' https://fonts.googleapis.com;
+font-src    'self' https://fonts.gstatic.com;
+img-src     'self' data: blob: https://vmxvnxsqfisucugcpqlc.supabase.co;
+media-src   'self' blob:;
+connect-src 'self' https://vmxvnxsqfisucugcpqlc.supabase.co
+                   wss://vmxvnxsqfisucugcpqlc.supabase.co;
+worker-src 'self'; manifest-src 'self';
+base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'
+```
+
+### Perché ogni direttiva è così
+
+- **`script-src 'self'`, senza `'unsafe-inline'` né `'unsafe-eval'`.** È la
+  direttiva che porta quasi tutto il valore della policy. Regge perché il build
+  Vite non emette script inline (📄 `dist/index.html`: zero tag `<script>`
+  inline, solo `<script type="module" src="/assets/…">`) e perché **nessun
+  bundle usa `eval` o `new Function`** — verificato su tutti i chunk prodotti,
+  SheetJS compreso, che era il candidato più probabile.
+- **`style-src` con `'unsafe-inline'`.** Non è evitabile oggi: `FontLoader`
+  (`VoyageDesk.jsx`) e `ListeStyles` (`liste/listeStyles.jsx`) inseriscono
+  blocchi `<style>` nel documento. L'origine `fonts.googleapis.com` serve
+  perché quei blocchi contengono `@import url(https://fonts.googleapis.com/…)`.
+  Va detto che `'unsafe-inline'` sugli stili è una concessione molto meno grave
+  di quella sugli script — non permette esecuzione di codice.
+  *(Gli `style={{…}}` di React non c'entrano: React scrive via CSSOM, che la
+  CSP non intercetta.)*
+- **`connect-src` con l'origine Supabase esatta**, non `https://*.supabase.co`.
+  Il wildcard lascerebbe esfiltrare dati verso un progetto Supabase
+  dell'attaccante. ⚠️ **Va aggiornata se il progetto cambia ref.**
+- **`blob:` in `img-src` e `media-src`**: anteprime allegati e riproduzione dei
+  messaggi vocali. `data:` per le icone inline.
+- **`frame-ancestors 'none'`** duplica `X-Frame-Options: DENY` — l'header
+  vecchio resta per i browser che ignorano la direttiva.
+
+### Cosa è stato verificato davvero, e cosa no
+
+La policy è stata provata **in modalità bloccante** (non Report-Only) contro il
+build reale, servito in locale e caricato con Chromium:
+
+| Esito | |
+|---|---|
+| Violazioni CSP | **0** |
+| Request fallite | **0** |
+| Errori console | **0** |
+| Schermata di login | renderizzata correttamente |
+| Origini contattate | solo `self`, `fonts.googleapis.com`, il progetto Supabase |
+
+Esercitati esplicitamente: il caricamento del bundle e dei chunk, l'`@import`
+verso Google Fonts (iniettando gli stessi identici blocchi `<style>` di
+`FontLoader` e `ListeStyles`, che altrimenti non montano fuori dall'area
+autenticata), una richiesta di login verso Supabase, e URL `blob:`/`data:` per
+media e immagini.
+
+> ⚠️ **Limiti della verifica, dichiarati.** (1) La sessione di prova non era
+> autenticata — l'app oltre il login non è stata percorsa, quindi restano non
+> esercitati il realtime WebSocket, gli upload su Storage e le immagini
+> profilo. (2) Il recupero dei file di font da `fonts.gstatic.com` non è
+> osservabile da questo ambiente, che non raggiunge Google Fonts dal browser:
+> so che la CSP **non blocca** l'`@import` (nessuna violazione sollevata), non
+> che i font arrivino. La direttiva `font-src` è quella canonica per Google
+> Fonts, ma è l'anello non provato.
+>
+> È esattamente il motivo per cui la policy parte in **Report-Only**: se una di
+> queste direttive è troppo stretta, lo si scopre da un report e non da
+> un'applicazione rotta.
+
+### Come promuoverla a bloccante
+
+Le violazioni compaiono nella **console del browser** — non c'è endpoint di
+raccolta, quindi niente `report-uri`/`report-to`: aggiungerne uno significa
+scegliere (e pagare) un servizio, decisione separata. Dopo qualche giorno d'uso
+reale, se la console resta pulita anche nelle aree non coperte dalla prova
+(chat con vocali, upload allegati, modulo Liste, foto profilo), basta
+rinominare la chiave in `vercel.json` da `Content-Security-Policy-Report-Only`
+a `Content-Security-Policy`.

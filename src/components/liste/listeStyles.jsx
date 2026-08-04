@@ -58,6 +58,8 @@ export const ListeStyles = () => (
     .lv-root .lv-toolbar input[type=search]{flex:1;min-width:180px;padding:9px 12px;border:1px solid var(--lv-border);border-radius:8px;background:var(--lv-surface)}
     .lv-root .lv-toolbar select{padding:9px 10px;border:1px solid var(--lv-border);border-radius:8px;background:var(--lv-surface)}
     .lv-root .lv-sel-lbl{display:flex;align-items:center;gap:6px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--lv-muted);font-weight:600}
+    /* Riga "i risultati sono altrove": ricerca con esiti fuori dal filtro attivo. */
+    .lv-root .lv-altrove{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:-6px 0 14px;font-size:13px;color:var(--lv-muted)}
     .lv-root .lv-lista-row{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--lv-border);cursor:pointer;transition:background .1s;text-align:left;width:100%;background:none;border-left:none;border-right:none;border-top:none;font:inherit;color:inherit}
     .lv-root .lv-lista-row:last-child{border-bottom:none}
     .lv-root .lv-lista-row:hover{background:#F8FAFC}

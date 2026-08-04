@@ -279,3 +279,69 @@ bypassi lo storico.
 **Il cliente rimasto senza liste** dopo uno spostamento non viene eliminato in
 automatico: resta in anagrafica, lo si trova col filtro "Solo anagrafica"
 (§ 6) e si elimina da lì quando si è sicuri che non serva più.
+
+## 10. Come cerca la ricerca (e perché sembrava rotta)
+
+Tre punti dell'app cercano fra gli stessi nomi: l'anagrafica clienti,
+l'elenco del modulo Liste viaggio e la ricerca globale della lente. Fino a
+ora ognuno lo faceva a modo proprio, con una sottostringa secca
+(`nome.toLowerCase().includes(query)`). Sui dati di questa anagrafica non
+basta, per la ragione descritta al § 4: metà delle righe non sono nomi
+regolari, e nessuna convenzione è garantita.
+
+**Caso segnalato**: `COLUCCI GIANNICOLA` compare in anagrafica col badge
+"1 lista viaggio", ma cercandolo nell'elenco liste non si trovava nulla e la
+pagina rispondeva *«Nessuna lista qui. Crea la prima con "+ Nuova lista"»*.
+La lista esisteva: era **ESAURITA**, e il filtro di default dell'elenco è
+**Attive**. La ricerca funzionava, il filtro la escludeva, e nessun elemento
+della pagina lo diceva — il messaggio di elenco vuoto suggeriva perfino di
+crearne una nuova, cioè di duplicare una lista che c'era già.
+
+**Che cosa fa ora l'elenco liste**: la ricerca gira su tutti e quattro gli
+insiemi (Attive, Esaurite, Tutte, Cestino) anche se se ne mostra uno solo. I
+risultati che il filtro nasconde vengono dichiarati, con un bottone che porta
+dove sono: *"Altri risultati per «colucci» fuori da «Attive»: Esaurite (1)"*.
+Vale anche quando l'elenco NON è vuoto — cercando `COLUCCI` fra le attive si
+vedono le liste attive e non si sospetterebbe la quarta, esaurita. A elenco
+vuoto il messaggio dice che cosa non ha trovato e dove, invece di proporre di
+creare.
+
+**Come confronta il testo** (`src/lib/searchUtils.js`, condiviso dalle tre
+ricerche):
+
+| Digitando | Si trova | Perché prima no |
+| --- | --- | --- |
+| `colucci gia` | `COLUCCI GIANNICOLA` | (funzionava) |
+| `gia colucci` | `COLUCCI GIANNICOLA` | l'ordine cognome/nome non è una regola: convivono `COLUCCI GIANNICOLA` ed `ELENA GIANCIPPOLI` |
+| `d amato`, `d’amato`, `damato` | `D'AMATO PATRIZIA` | apostrofo, apice tipografico da tastiera mobile, elisione |
+| `dellacqua` | `DELL'ACQUA CARLO` | idem |
+| `nicolo` | `NICOLÒ …` | accenti |
+| `fam scuro` | `FAM. SCURO TEODORO` | punteggiatura |
+| `colucci massafra` | il cliente COLUCCI di MASSAFRA | i termini possono stare su campi diversi |
+
+La regola è: **tutti** i termini digitati devono comparire, in qualunque
+ordine, su qualunque campo, ignorando accenti e punteggiatura. Il confronto
+avviene anche sul testo con gli spazi rimossi (è ciò che fa funzionare
+`dellacqua`), quindi un termine può accavallarsi su due parole
+(`rossimaria` trova `ROSSI MARIA`): falso positivo accettato di proposito.
+
+**Non è la chiave d'identità.** `chiaveNome` in `src/lib/clientNotes.js`
+resta separata e continua a NON riordinare le parole: là serve a decidere se
+due schede sono la stessa persona, e scambiare l'ordine fonderebbe le liste
+di due persone diverse. Qui si allarga solo ciò che l'utente riesce a
+trovare.
+
+**Ricerca globale (lente)**: cercava le liste con criteri più stretti del
+modulo — solo titolare, titolo e note interne, **senza i cointestatari**.
+Quindi `BIANCHI` trovava la lista dentro il modulo Liste e non la trovava
+nella ricerca globale, cioè proprio dove si cerca quando non si sa dove
+guardare. Ora cerca anche fra i cointestatari, e la riga del risultato mostra
+l'intestazione completa (`ROSSI MARIO e MARIA BIANCHI`) invece del solo
+titolare: una lista trovata per cointestatario deve mostrare il nome che l'ha
+fatta trovare.
+
+**Il badge dell'anagrafica non dice lo stato.** "1 lista viaggio" significa
+"esiste una lista collegata a questa scheda", titolare o cointestatario,
+attiva, esaurita o nel cestino (il tooltip distingue solo il cestino). Non è
+un badge di liste *attive*: per lo stato si apre la scheda o si guarda
+l'elenco del modulo.

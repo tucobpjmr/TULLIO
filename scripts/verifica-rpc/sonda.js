@@ -128,29 +128,32 @@ export async function sondaFunzione(fetchImpl, base, chiave, voce) {
  * deve poterle nominare invece di contarle fra quelle a posto.
  */
 export async function verifica({ fetchImpl = fetch, base, chiave, funzioni }) {
-  // Controllo 1 — l'API risponde. Senza questo un blackout di rete
-  // sembrerebbe la sparizione di tutte le funzioni.
+  // Controllo preliminare — una funzione inesistente deve risultare mancante.
+  //
+  // Vale come prova di raggiungibilità e come prova del discriminante in una
+  // sola richiesta: se la rete è giù o la chiave non è valida la risposta non
+  // sarà PGRST202, e la sonda si ferma invece di leggere venti funzioni
+  // sparite.
+  //
+  // Interroga la stessa rotta che usa l'app, /rest/v1/rpc/<nome>. Prima qui
+  // c'era una GET sulla radice /rest/v1/ (l'OpenAPI di PostgREST), e su questo
+  // progetto il gateway la nega ad anon con un 401: il controllo si dichiarava
+  // inconcludente a ogni esecuzione, usciva 0, e il workflow risultava verde
+  // senza aver verificato nulla. Un controllo che non può fallire non è un
+  // controllo — ed è il modo più silenzioso di non averne uno.
+  let controllo;
   try {
-    const r = await fetchImpl(`${base.replace(/\/$/, '')}/rest/v1/`, {
-      headers: { apikey: chiave, Authorization: `Bearer ${chiave}` },
-    });
-    if (!r.ok) {
-      return { verdetto: INDETERMINATO, mancanti: [], indeterminati: [], dettagli: [], motivo: `l'API REST ha risposto ${r.status}` };
-    }
+    controllo = await interroga(fetchImpl, base, chiave, NOME_CONTROLLO, []);
   } catch (e) {
     return { verdetto: INDETERMINATO, mancanti: [], indeterminati: [], dettagli: [], motivo: `API REST irraggiungibile: ${e.message}` };
   }
-
-  // Controllo 2 — una funzione inesistente deve risultare mancante. Se non
-  // succede, "mancante" non è più riconoscibile e la sonda non può concludere.
-  const controllo = await interroga(fetchImpl, base, chiave, NOME_CONTROLLO, []);
   if (classifica(controllo) !== MANCANTE) {
     return {
       verdetto: INDETERMINATO,
       mancanti: [],
       indeterminati: [],
       dettagli: [],
-      motivo: `una funzione inesistente non risulta mancante (HTTP ${controllo.stato}, code ${controllo.corpo?.code ?? '—'}): PostgREST non risponde più come atteso`,
+      motivo: `una funzione inesistente non risulta mancante (HTTP ${controllo.stato}, code ${controllo.corpo?.code ?? '—'}): PostgREST non risponde come atteso, o la chiave non è valida`,
     };
   }
 

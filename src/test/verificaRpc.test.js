@@ -269,7 +269,30 @@ describe('verifica — verdetto complessivo', () => {
     );
     const r = await verifica({ fetchImpl: impl, base: 'https://x.supabase.co', chiave: 'k', funzioni });
     expect(r.verdetto).toBe(INDETERMINATO);
-    expect(r.motivo).toMatch(/non risponde più come atteso/);
+    expect(r.motivo).toMatch(/non risponde come atteso/);
+  });
+
+  it('non interroga la radice /rest/v1/, che il gateway nega ad anon', async () => {
+    // Il guasto vero: la sonda apriva con una GET sulla radice (l'OpenAPI di
+    // PostgREST), su questo progetto negata ad anon con 401. Si dichiarava
+    // inconcludente a ogni esecuzione e usciva 0 — workflow verde, nessuna
+    // verifica. Qui la radice risponde 401 come in produzione: la sonda non
+    // deve nemmeno chiamarla, e deve arrivare a un verdetto vero.
+    const percorsi = [];
+    const impl = async (url) => {
+      const u = new URL(url);
+      percorsi.push(u.pathname);
+      if (!u.pathname.includes('/rpc/')) {
+        return { ok: false, status: 401, json: async () => ({ message: 'Invalid API key' }) };
+      }
+      const nome = /\/rpc\/([^/?]+)/.exec(u.pathname)[1];
+      const r = nome === NOME_CONTROLLO ? NON_TROVATA : PERMESSO_NEGATO;
+      return { ok: false, status: r.stato, json: async () => r.corpo };
+    };
+    const r = await verifica({ fetchImpl: impl, base: 'https://x.supabase.co', chiave: 'k', funzioni });
+    expect(percorsi.every((p) => p.includes('/rpc/'))).toBe(true);
+    expect(r.verdetto).toBe('ok');
+    expect(r.indeterminati).toEqual([]);
   });
 
   it('si dichiara inconcludente se nessuna funzione risulta presente', async () => {

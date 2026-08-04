@@ -188,6 +188,22 @@ describe('sondaFunzione', () => {
     expect(r.esito).toBe(PRESENTE);
   });
 
+  it('non ripiega su una sonda senza argomenti quando la firma è completa', async () => {
+    // Il caso crea_lista: sul database ha tre parametri e tre DEFAULT, quindi
+    // una GET senza parametri la risolve sempre. Se la sonda ci ripiegasse,
+    // un rename degli argomenti — che per l'app è lo stesso PGRST202 di una
+    // funzione sparita — passerebbe inosservato.
+    const impl = async (url) => {
+      const conArgomenti = [...new URL(url).searchParams.keys()].length > 0;
+      const r = conArgomenti ? NON_TROVATA : PERMESSO_NEGATO;
+      return { ok: false, status: r.stato, json: async () => r.corpo };
+    };
+    const voce = { nome: 'crea_lista', firme: [{ argomenti: ['p_client_id', 'p_titolo'], completo: true }] };
+    const r = await sondaFunzione(impl, 'https://x.supabase.co', 'k', voce);
+    expect(r.esito).toBe(MANCANTE);
+    expect(r.risposte.map((x) => x.argomenti)).toEqual([['p_client_id', 'p_titolo']]);
+  });
+
   it('dichiara mancante solo se nessun tentativo la trova', async () => {
     const f = finta({});
     const voce = { nome: 'sparita', firme: [{ argomenti: ['p_id'], completo: true }] };
@@ -218,6 +234,21 @@ describe('verifica — verdetto complessivo', () => {
     const r = await verifica({ fetchImpl: f, base: 'https://x.supabase.co', chiave: 'k', funzioni });
     expect(r.verdetto).toBe('ok');
     expect(r.mancanti).toEqual([]);
+  });
+
+  it('nomina le RPC che non ha saputo classificare invece di darle per buone', async () => {
+    // 502 su una sola funzione: le altre due risolvono, quindi il verdetto
+    // resta 'ok' e il controllo non fallisce — ma quella funzione non è stata
+    // verificata, e chi legge l'esito deve saperlo.
+    const f = finta({
+      crea_lista: PERMESSO_NEGATO,
+      archivia_lista: PERMESSO_NEGATO,
+      modifica_note_lista: { stato: 502, corpo: null },
+    });
+    const r = await verifica({ fetchImpl: f, base: 'https://x.supabase.co', chiave: 'k', funzioni });
+    expect(r.verdetto).toBe('ok');
+    expect(r.mancanti).toEqual([]);
+    expect(r.indeterminati).toEqual(['modifica_note_lista']);
   });
 
   it('sonda una funzione inesistente prima di dare un verdetto', async () => {

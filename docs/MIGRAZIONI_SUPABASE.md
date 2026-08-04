@@ -85,8 +85,18 @@ npm run verifica:rpc
 ## Controllo automatico dello scarto
 
 `scripts/verifica-rpc/` verifica che ogni RPC chiamata dal frontend esista
-davvero sul database. Gira ogni giorno alle 6:30 UTC via
-`.github/workflows/verifica-rpc.yml`, e a mano con `npm run verifica:rpc`.
+davvero sul database. Gira via `.github/workflows/verifica-rpc.yml`:
+
+- **a ogni push su `main`** che tocchi `src/`, `supabase/migrations/` o lo
+  script stesso — è il momento in cui lo scarto nasce, ed è `main` che Vercel
+  manda in produzione. Sulle pull request no: lì il codice precede
+  legittimamente la migrazione;
+- **ogni giorno alle 6:30 UTC**, perché uno scarto può nascere anche senza
+  toccare il repository (una migrazione applicata a metà, una funzione
+  rimossa a mano);
+- **a richiesta**, con "Run workflow" o `npm run verifica:rpc`. Serve dopo
+  aver applicato la migrazione che ha fatto scattare l'allarme: applicarla non
+  tocca il repository, quindi nulla farebbe ripartire il controllo da solo.
 
 Nasce dal terzo episodio della stessa famiglia: la migrazione `20260729200000`
 (note interne delle liste) era in `main` da giorni ma non era mai arrivata al
@@ -103,6 +113,20 @@ Come funziona, in breve:
   di eseguirle: la sonda non esegue mai nulla, nemmeno su produzione;
 - distingue `PGRST202` (funzione assente) da `405`/`42501` (funzione presente,
   non interrogabile così).
+
+Il controllo è sui **nomi degli argomenti**, non solo sul nome della funzione:
+PostgREST risolve una RPC per nome *e* nomi dei parametri, e per l'app un
+argomento rinominato sul database è indistinguibile da una funzione mai
+applicata — stesso `PGRST202`, stesso errore a schermo. Perciò la sonda ripiega
+su una GET senza parametri **solo** quando l'estrattore dichiara la firma
+incompleta (spread, chiavi calcolate). Farlo sempre, com'era all'inizio,
+annullava il controllo su ogni funzione con un `DEFAULT` su tutti i parametri:
+`crea_lista` è una di queste, e sarebbe risultata presente comunque.
+
+Quando una funzione non è classificabile (5xx, rate limit, risposta inattesa)
+l'esito la nomina come non verificata invece di contarla fra quelle a posto.
+Non fa fallire il controllo — non è uno scarto — ma non è nemmeno un via
+libera, e la differenza va detta.
 
 Prima di dare un verdetto la sonda si mette alla prova su casi di cui conosce
 già la risposta — l'API risponde? una funzione inventata risulta assente? —
@@ -140,6 +164,40 @@ volutamente sbagliata distingue già i due esiti senza toccare un solo dato.
 - errore `insufficient_privilege` → il gate di ruolo ha bloccato (atteso);
 - errore `check_violation` sulla conferma → il gate di ruolo **non** ha
   bloccato: la falla è aperta.
+
+## Lo scarto opposto: il repository indietro rispetto al database
+
+Finora questo documento parla di migrazioni committate ma non applicate. Esiste
+anche il verso contrario, ed è meno visibile: migrazioni **applicate** al
+database di cui nel repository non c'è nessun file. Nessun controllo le trova —
+`verifica:rpc` interroga il database, e sul database quelle funzioni ci sono. Il
+danno si vede solo quando qualcuno cerca di capire *perché* una funzione è fatta
+in un certo modo e non trova niente da leggere.
+
+Il SQL applicato non è perduto: `supabase_migrations.schema_migrations` conserva
+il testo esatto di ogni migrazione registrata nella colonna `statements`.
+
+```sql
+select statements[1] from supabase_migrations.schema_migrations
+ where version = '20260716114424';
+```
+
+Ricostruire il file da `pg_proc` non è la stessa cosa e va evitato: darebbe lo
+stato **attuale** della funzione, cioè come l'hanno lasciata le migrazioni
+successive, non quello che la migrazione faceva. `statements` dà il testo
+originale, verificabile con `md5(statements[1])` contro il file recuperato.
+
+Il file va salvato col nome `<version>_<name>.sql` preso da `schema_migrations`:
+con il timestamp completo a 14 cifre, la migrazione risulta già registrata e un
+eventuale `db push` la salta invece di rigiocarla.
+
+Recuperate così le sette migrazioni del modulo Liste viaggio
+(`20260713174309`, `20260716114424`, `20260716114544`, `20260718111131`,
+`20260718112551`, `20260726225334`, `20260727215507`). Restano da esaminare una
+per una una decina di righe più vecchie il cui `name` non corrisponde a nessun
+file: quasi tutte sono con ogni probabilità gli stessi file disallineati della
+sezione seguente, salvati sotto un altro titolo, ma il confronto per contenuto
+non lo conferma da solo.
 
 ## Recuperare l'allineamento (quando ci sarà tempo)
 

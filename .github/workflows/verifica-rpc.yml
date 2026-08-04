@@ -10,9 +10,27 @@ name: Verifica RPC
 #
 # Le migrazioni di questo progetto si applicano a mano: lo scarto tra il
 # repository e il database non è un caso limite ma una possibilità permanente,
-# ed è già successo (vedi scripts/verifica-rpc/index.js). Un controllo
-# giornaliero lo trova prima che ci finisca contro un utente.
+# ed è già successo (vedi scripts/verifica-rpc/index.js).
+#
+# Perché anche su push a main, e non solo di notte: lo scarto nasce nel momento
+# del merge, e main è ciò che Vercel manda in produzione. Con il solo controllo
+# giornaliero la finestra di esposizione arriva a 24 ore, ed è la finestra in
+# cui l'errore l'ha visto un utente e non noi. Su main essere rossi è il
+# risultato giusto al momento giusto: dice che il codice è già live e la
+# migrazione no. Sulle pull request resta escluso — lì il codice precede
+# legittimamente la migrazione (vedi sopra).
+#
+# Dopo aver applicato a mano la migrazione che ha fatto scattare l'allarme,
+# rilanciare con "Run workflow" (workflow_dispatch): applicare una migrazione
+# non tocca il repository, quindi nulla farebbe ripartire il controllo da solo.
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'supabase/migrations/**'
+      - 'scripts/verifica-rpc/**'
+      - '.github/workflows/verifica-rpc.yml'
   schedule:
     - cron: '30 6 * * *'
   workflow_dispatch: {}

@@ -15,8 +15,17 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
+      # Il gateway di Supabase vuole l'header apikey su tutte le rotte
+      # /auth/v1/*, /health compresa: senza, risponde 401 e `curl -f` esce in
+      # errore. Mancava, e questo passo falliva a ogni esecuzione — con due
+      # conseguenze, entrambe silenziose: il workflow risultava rosso da
+      # giorni, e il ping REST qui sotto non partiva mai, perché un passo
+      # fallito ferma i successivi. Cioè il workflow che deve tenere sveglio
+      # il progetto non lo stava toccando affatto.
       - name: Ping Auth (GoTrue)
-        run: curl -sS -f -o /dev/null "https://vmxvnxsqfisucugcpqlc.supabase.co/auth/v1/health"
+        run: |
+          curl -sS -f -o /dev/null "https://vmxvnxsqfisucugcpqlc.supabase.co/auth/v1/health" \
+            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZteHZueHNxZmlzdWN1Z2NwcWxjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjcyNjYsImV4cCI6MjA5NjI0MzI2Nn0.HzrIVB-ykHYbOPeA8IH9x-NO3U8Gzc9OqixAVD4noug"
 
       # Chiave anon pubblica: è la stessa spedita nel bundle frontend a ogni
       # visitatore (protetta dalle policy RLS, non da segretezza), quindi non

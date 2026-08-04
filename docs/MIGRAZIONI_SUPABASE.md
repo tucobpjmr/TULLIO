@@ -128,11 +128,20 @@ l'esito la nomina come non verificata invece di contarla fra quelle a posto.
 Non fa fallire il controllo — non è uno scarto — ma non è nemmeno un via
 libera, e la differenza va detta.
 
-Prima di dare un verdetto la sonda si mette alla prova su casi di cui conosce
-già la risposta — l'API risponde? una funzione inventata risulta assente? —
-e se non li supera si dichiara **inconcludente** e non fallisce, invece di
-segnalare venti funzioni sparite perché è cambiato PostgREST. Un controllo che
-grida al lupo viene ignorato, e allora tanto vale non averlo.
+Prima di dare un verdetto la sonda si mette alla prova su un caso di cui
+conosce già la risposta: una funzione inventata deve risultare assente. Se non
+lo è — rete giù, chiave non valida, PostgREST che ha cambiato risposta — si
+dichiara **inconcludente** e non fallisce, invece di segnalare venti funzioni
+sparite. Un controllo che grida al lupo viene ignorato, e allora tanto vale non
+averlo.
+
+> Quella prova va fatta sulla stessa rotta che usa l'app (`/rest/v1/rpc/…`).
+> All'inizio la sonda apriva invece con una GET sulla radice `/rest/v1/`,
+> l'OpenAPI di PostgREST, che su questo progetto il gateway nega ad `anon` con
+> un 401: il controllo si dichiarava inconcludente a **ogni** esecuzione,
+> usciva 0, e il workflow risultava verde senza aver verificato niente. Il
+> difetto opposto di quello che si voleva evitare, e più insidioso: un
+> controllo che non può fallire non protegge da nulla, ma sembra di sì.
 
 Quando invece fallisce sul serio, l'output nomina le RPC mancanti e il file da
 cui sono chiamate: la causa è quasi sempre una migrazione in

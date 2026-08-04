@@ -1,0 +1,39 @@
+name: Verifica RPC
+
+# Controlla che ogni RPC chiamata dal frontend esista davvero sul database.
+#
+# Perché serve un workflow a parte e non un passo dentro CI: questo controllo
+# interroga il database di produzione, mentre CI gira anche sulle pull request,
+# dove il codice per definizione precede le migrazioni. Un nuovo RPC aggiunto
+# in una PR risulterebbe "mancante" fino all'applicazione della migrazione, e
+# CI diventerebbe rossa per un motivo giusto ma nel momento sbagliato.
+#
+# Le migrazioni di questo progetto si applicano a mano: lo scarto tra il
+# repository e il database non è un caso limite ma una possibilità permanente,
+# ed è già successo (vedi scripts/verifica-rpc/index.js). Un controllo
+# giornaliero lo trova prima che ci finisca contro un utente.
+on:
+  schedule:
+    - cron: '30 6 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  verifica:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # Nessun `npm ci`: la sonda usa solo moduli nativi di Node.
+
+      # Chiave anon pubblica: è la stessa spedita nel bundle frontend a ogni
+      # visitatore (protetta dalle policy RLS, non dalla segretezza), quindi
+      # non è un segreto da mettere in un secret di repository — stesso
+      # ragionamento di keep-supabase-warm.yml. La sonda interroga in GET e non
+      # esegue mai nessuna funzione.
+      - name: Verifica che le RPC chiamate dal codice esistano
+        env:
+          SUPABASE_URL: https://vmxvnxsqfisucugcpqlc.supabase.co
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZteHZueHNxZmlzdWN1Z2NwcWxjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjcyNjYsImV4cCI6MjA5NjI0MzI2Nn0.HzrIVB-ykHYbOPeA8IH9x-NO3U8Gzc9OqixAVD4noug
+        run: npm run verifica:rpc

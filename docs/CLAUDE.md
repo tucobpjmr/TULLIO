@@ -43,7 +43,9 @@ Agisci come sviluppatore full-stack specializzato in sistemi gestionali per trav
   coincide con `schema_migrations` sul database e il push ne rigiocherebbe 56
   già applicate. Procedura corretta in `docs/MIGRAZIONI_SUPABASE.md`
 - Committare una migrazione non significa averla applicata: le due cose sono
-  separate su questo progetto, e vanno verificate separatamente
+  separate su questo progetto, e vanno verificate separatamente.
+  `npm run verifica:rpc` confronta le RPC chiamate dal codice con quelle
+  presenti sul database (gira anche ogni giorno in CI)
 
 ## Palette colori
 

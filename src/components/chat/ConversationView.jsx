@@ -21,7 +21,7 @@ import { MessageComposer } from "./MessageComposer.jsx";
 import { parseTaskLink } from "./message/MessageTextContent.jsx";
 
 // ─── CHAT: CONVERSATION VIEW ───────────────────────────────────────────────
-export const ConversationView = ({ conv, messages, setMessages, markConversationRead, onToggleReaction, onBack, onDelete, initialInput, initialTaskRef, onInitialInputConsumed }) => {
+export const ConversationView = ({ conv, messages, setMessages, commands, markConversationRead, onToggleReaction, onBack, onDelete, initialInput, initialTaskRef, onInitialInputConsumed }) => {
   const [cv, cvd] = useReducer(convViewReducer, convViewInitial);
   // Il composer riceve `cv` intero e si destruttura da sé i campi che usa
   // (input, recording, replyingTo, showAttach, showTemplates): qui restano
@@ -171,7 +171,7 @@ export const ConversationView = ({ conv, messages, setMessages, markConversation
       replyTo: replyingTo?.id,
       ...(stillHasLink && pendingTaskRef ? { taskRef: pendingTaskRef } : {}),
     };
-    setMessages(prev => ({ ...prev, [conv.id]: [...(prev[conv.id] || []), newMsg] }));
+    commands.sendMessage(conv.id, newMsg);
     stopTyping();
     cvd({ type: "AFTER_SEND" });
   };
@@ -200,7 +200,7 @@ export const ConversationView = ({ conv, messages, setMessages, markConversation
       time: new Date().toISOString(),
       readBy: [myId],
     };
-    setMessages(prev => ({ ...prev, [conv.id]: [...(prev[conv.id] || []), newMsg] }));
+    commands.sendMessage(conv.id, newMsg);
     cvd({ type: "RECORDING", v: false });
   };
 
@@ -235,7 +235,7 @@ export const ConversationView = ({ conv, messages, setMessages, markConversation
       time: new Date().toISOString(),
       readBy: [myId],
     };
-    setMessages(prev => ({ ...prev, [conv.id]: [...(prev[conv.id] || []), newMsg] }));
+    commands.sendMessage(conv.id, newMsg);
   };
 
   const handleReact = (msgId, emoji) => {
@@ -243,7 +243,8 @@ export const ConversationView = ({ conv, messages, setMessages, markConversation
     // dal parent, come markConversationRead). Evita di scrivere l'intero oggetto
     // reactions dal client (race last-write-wins tra utenti concorrenti).
     if (onToggleReaction) { onToggleReaction(conv.id, msgId, emoji); return; }
-    // Fallback mock/test (nessun parent handler): toggle locale via setMessages.
+    // Fallback mock/test (nessun parent handler): toggle SOLO locale — nessuna
+    // persistenza, il setter è un normale setState.
     setMessages(prev => ({
       ...prev,
       [conv.id]: prev[conv.id].map(m => {
@@ -261,24 +262,13 @@ export const ConversationView = ({ conv, messages, setMessages, markConversation
     }));
   };
 
-  // Fase 3 pin: stato group-level. Toggle via wrapper setMessages → diff
-  // pinned → MessagesAPI.setPinned. Niente API ottimistica diversa: il
-  // wrapper persiste, l'UI si aggiorna dal local set immediatamente.
-  // pinnedBy/pinnedAt: audit (chi/quando) valorizzato al pin, azzerato all'unpin.
+  // Fase 3 pin: stato group-level, condiviso da tutti i partecipanti. Il
+  // messaggio è già qui in `msgs`, quindi si sa se si sta fissando o togliendo:
+  // il comando riceve `pinned` esplicito invece di farlo dedurre da un diff.
   const handleTogglePin = (msgId) => {
-    setMessages(prev => ({
-      ...prev,
-      [conv.id]: (prev[conv.id] || []).map(m => {
-        if (m.id !== msgId) return m;
-        const willPin = !m.pinned;
-        return {
-          ...m,
-          pinned: willPin,
-          pinnedBy: willPin ? myId : null,
-          pinnedAt: willPin ? new Date().toISOString() : null,
-        };
-      }),
-    }));
+    const target = msgs.find(m => m.id === msgId);
+    if (!target) return;
+    commands.setMessagePinned(conv.id, msgId, !target.pinned, myId);
   };
 
   const otherTypingMember = conv.participants.find(p => p !== myId);

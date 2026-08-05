@@ -1,11 +1,10 @@
 // Regressione Caso 2 (typing indicator "morto" nelle conversazioni nuove).
-// NewConversationView crea le conv con id locale "c<timestamp>"; il wrapper
-// setConversations di VoyageDesk rimappa quell'id a un UUID quando persiste,
-// ma handleCreate attivava la vista con l'oggetto ORIGINALE: il creatore
-// restava su un id non-uuid, quindi subscribeToTyping veniva saltato (gate
-// isUuid), il primo messaggio partiva con conversation_id invalido e le
-// risposte realtime finivano sotto una chiave diversa da quella della vista.
-// Dopo il fix l'UUID è assegnato in handleCreate, PRIMA di lista + ACTIVATE.
+// NewConversationView crea le conv con id locale "c<timestamp>"; l'UUID
+// definitivo lo assegna commands.createConversation, che RITORNA la
+// conversazione normalizzata. Se handleCreate attivasse l'oggetto ORIGINALE il
+// creatore resterebbe su un id non-uuid: subscribeToTyping saltato (gate
+// isUuid), primo messaggio con conversation_id invalido, risposte realtime
+// sotto una chiave diversa da quella della vista.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { renderWithAppData, DEMO_APP_CTX } from "./helpers/appData.jsx";
@@ -46,8 +45,9 @@ if (!Element.prototype.scrollTo) {
   Element.prototype.scrollTo = () => {};
 }
 
-// Harness minimale: cattura le conversazioni che ChatPanel chiede di
-// persistere (come farebbe il wrapper setConversations di VoyageDesk).
+// Harness minimale: cattura le conversazioni che ChatPanel inserisce in lista.
+// Il setter è un normale setState (updater PURO): la persistenza non passa più
+// da qui ma da commands.createConversation — vedi chatCommands.test.js.
 function renderPanel({ onConversations }) {
   const setConversations = (updater) => {
     const next = typeof updater === "function" ? updater([]) : updater;

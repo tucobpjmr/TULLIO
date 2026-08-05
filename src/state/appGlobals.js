@@ -1,98 +1,74 @@
 // src/state/appGlobals.js
-// Stato mutabile condiviso tra reducer e componenti (non-hook code).
+// SHIM LEGACY DI TRANSIZIONE — non aggiungere nuovi consumatori.
 //
-// TEAM/CATEGORIES/CURRENT_USER sono `let` module-level aggiornati via
-// setter (setTeam ecc.) dopo ogni mutazione. I moduli importatori leggono
-// la live binding ES-module e vedono sempre il valore corrente.
-// Helpers come getMember chiudono su TEAM e si aggiornano di conseguenza.
+// Fino alla sessione precedente questo modulo era la FONTE DI VERITÀ per team,
+// categorie e utente corrente: tre `let` mutabili scritti da dentro il reducer
+// tramite setter. Due problemi seri:
+//
+//   1. Il reducer non era puro. React 18 invoca i reducer due volte in
+//      StrictMode e può scartare render in Concurrent Mode: scrivere stato
+//      esterno da lì è una trappola latente.
+//   2. Le decisioni di AUTORIZZAZIONE (canEditTask & co.) venivano prese
+//      leggendo queste globali invece dello state React — due fonti di verità
+//      per lo stesso dato, disallineabili in silenzio.
+//
+// Oggi la fonte di verità è `state.team` / `state.categories` /
+// `state.currentUserId`, e la logica di permesso vive in funzioni pure
+// (src/lib/permissions.js) che ricevono il team come argomento esplicito.
+//
+// Questo file resta solo come ponte per i ~18 componenti che leggono ancora i
+// globali per fini di PRESENTAZIONE (Avatar, CategoryChip, MentionText, elenchi
+// assegnatari...). Le globali non sono più scritte dal reducer: le sincronizza
+// un unico punto in VoyageDesk.jsx (syncLegacyGlobals) a partire dallo state.
+//
+// MIGRAZIONE: sostituire `import { getMember } from 'state/appGlobals.js'` con
+// `usePermissions()` (src/hooks/usePermissions.js) o con le funzioni pure di
+// lib/permissions.js, un componente alla volta. Quando l'ultimo consumatore
+// sarà migrato, questo file va eliminato.
 
 import { INITIAL_TEAM, INITIAL_CATEGORIES } from './mockData.js';
-import { isMyTask, isInGlobalQueue, isUrgent } from '../lib/taskUtils.js';
+import * as P from '../lib/permissions.js';
 
-// ─── GLOBALS MUTABILI ─────────────────────────────────────────────────────────
+// ─── SPECCHIO DELLO STATE (sola lettura per i consumatori) ───────────────────
+// Valori iniziali = dati demo: senza login l'app gira sui mock, e i componenti
+// devono avere qualcosa da mostrare anche prima che VoyageDesk monti.
 export let TEAM = [...INITIAL_TEAM];
 export let CATEGORIES = { ...INITIAL_CATEGORIES };
-export let CURRENT_USER = "marco";
+export let CURRENT_USER = 'marco';
 
+// Chiamati SOLO da syncLegacyGlobals (VoyageDesk.jsx) e dal setup dei test.
+// Non chiamarli dal reducer: il reducer deve restare puro.
 export const setTeam = (t) => { TEAM = t; };
 export const setCategories = (c) => { CATEGORIES = c; };
 export const setCurrentUser = (id) => { CURRENT_USER = id; };
 
-// ─── HELPERS TEAM ─────────────────────────────────────────────────────────────
-export const getMember = (id) => TEAM.find(m => m.id === id);
-export const getAssignableTeam = () => TEAM.filter(m => m.active !== false && !m.pending);
+// ─── DELEGHE ALLE FUNZIONI PURE ──────────────────────────────────────────────
+// Stessa firma di prima (team implicito) per non rompere i call site esistenti;
+// l'implementazione è quella pura, così esiste una sola definizione di ogni
+// regola di permesso in tutta la codebase.
 
-// ─── PERMESSI (v0.8 + v2.8 sub-ruolo) ───────────────────────────────────────
-// - Admin          → tutto
-// - Manager        → gestione propria coda + globale + visualizza urgenti altrui
-// - Senior Agent   → idem Manager (può prendere task dalla coda globale)
-// - Junior Agent   → solo task esplicitamente assegnati; non crea payment/admin
-// - Driver         → solo task categoria "transfer", solo coda personale
-export const getRoleType = (userId) => {
-  const m = getMember(userId);
-  if (!m) return "agent";
-  const r = (m.role || "").toLowerCase();
-  if (r.includes("admin")) return "admin";
-  if (r.includes("driver")) return "driver";
-  if (r.includes("manager")) return "manager";
-  return "agent";
-};
+export const getMember = (id) => P.getMember(TEAM, id);
+export const getAssignableTeam = () => P.getAssignableTeam(TEAM);
 
-// v2.8: distingue sub-ruolo Agent. "Junior Agent" ha permessi ridotti;
-// "Senior Agent" (e qualsiasi altro "agent") ha i permessi standard.
-export const isJuniorAgent = (userId) => {
-  const m = getMember(userId);
-  return !!m && (m.role || "").toLowerCase().includes("junior");
-};
-export const isSeniorAgent = (userId) => {
-  const m = getMember(userId);
-  if (!m) return false;
-  const r = (m.role || "").toLowerCase();
-  return r.includes("senior") || (r.includes("agent") && !r.includes("junior"));
-};
+export const getRoleType = (userId) => P.getRoleType(TEAM, userId);
+export const isJuniorAgent = (userId) => P.isJuniorAgent(TEAM, userId);
+export const isSeniorAgent = (userId) => P.isSeniorAgent(TEAM, userId);
+export const isAdmin = (userId) => P.isAdmin(TEAM, userId);
+export const isDriver = (userId) => P.isDriver(TEAM, userId);
 
-export const isAdmin = (userId) => getRoleType(userId) === "admin";
-export const isDriver = (userId) => getRoleType(userId) === "driver";
+export const canViewTask = (task, userId) => P.canViewTask(TEAM, task, userId);
+export const canEditTask = (task, userId) => P.canEditTask(TEAM, task, userId);
+export const canCreateTaskCategory = (category, userId) => P.canCreateTaskCategory(TEAM, category, userId);
+export const canAccessAdmin = (userId) => P.canAccessAdmin(TEAM, userId);
 
-export const canViewTask = (task, userId) => {
-  const role = getRoleType(userId);
-  if (role === "admin") return true;
-  if (role === "driver") return isMyTask(task, userId);
-  if (isMyTask(task, userId)) return true;
-  if (isInGlobalQueue(task)) return true;
-  if (isUrgent(task)) return true;
-  return false;
-};
+export const getAvailableCategories = (userId) => P.getAvailableCategories(CATEGORIES, TEAM, userId);
+export const getVisibleTasks = (tasks, userId) => P.getVisibleTasks(TEAM, tasks, userId);
 
-export const canEditTask = (task, userId) => {
-  const role = getRoleType(userId);
-  if (role === "admin") return true;
-  if (role === "driver") {
-    return task.category === "transfer" && (isMyTask(task, userId) || isInGlobalQueue(task));
-  }
-  // Junior Agent: può modificare solo task in cui è esplicitamente assegnato.
-  // Non può "raccogliere" task dalla coda globale non assegnata.
-  if (isJuniorAgent(userId)) return isMyTask(task, userId);
-  if (isMyTask(task, userId)) return true;
-  if (isInGlobalQueue(task)) return true;
-  return false;
-};
-
-export const canCreateTaskCategory = (category, userId) => {
-  const role = getRoleType(userId);
-  if (role === "admin") return true;
-  if (role === "driver") return category === "transfer";
-  // Junior Agent: non può creare task nelle categorie sensibili payment e admin.
-  if (isJuniorAgent(userId)) return !["payment", "admin"].includes(category);
-  return true;
-};
-
-export const canAccessAdmin = (userId) => isAdmin(userId);
-
-export const getAvailableCategories = (userId) => {
-  if (isDriver(userId)) return { transfer: CATEGORIES.transfer };
-  return CATEGORIES;
-};
-
-export const getVisibleTasks = (tasks, userId) =>
-  tasks.filter(t => canViewTask(t, userId));
+// Allinea lo specchio legacy allo state React. Unico punto di scrittura in
+// tutta l'app (vedi VoyageDesk.jsx). Idempotente: riassegnare lo stesso
+// riferimento non ha effetti, quindi è sicuro anche sotto StrictMode.
+export function syncLegacyGlobals({ team, categories, currentUserId }) {
+  if (team) TEAM = team;
+  if (categories) CATEGORIES = categories;
+  if (currentUserId) CURRENT_USER = currentUserId;
+}

@@ -1,11 +1,12 @@
 // ─── CALENDAR PLANNER ────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { SwipeActions } from "../SwipeActions.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { StatusBadge } from "../ui/StatusBadge.jsx";
+import { TaskRow } from "../tasks/TaskCard.jsx";
 import { formatTime, isActiveTask } from "../../lib/taskUtils.js";
 import { CATEGORIES, getAssignableTeam, canViewTask } from "../../state/appGlobals.js";
 
@@ -217,6 +218,9 @@ export const CalendarPlanner = ({ state, dispatch }) => {
   const [selectedDay, setSelectedDay] = useState(null);
   const [catFilter, setCatFilter] = useState(null); // v2.8 Round 12: null = tutti
   const uid = state.currentUserId;
+  // Stabile per la memoizzazione di TaskRow (vedi components/tasks/TaskCard.jsx).
+  const openTask = useCallback(
+    (task) => dispatch({ type: "SET_SELECTED_TASK", payload: task }), [dispatch]);
 
   // Categorie presenti nei task con dueDate (per mostrare solo i chip utili)
   const presentCats = [...new Set(
@@ -476,31 +480,23 @@ export const CalendarPlanner = ({ state, dispatch }) => {
               Agenda del {selectedDay} {monthName}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {dayTasks.map(t => {
-                const row = (
-                  <div onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
-                    display: "flex", alignItems: "center", gap: 12, padding: "8px 12px",
-                    borderRadius: 8, border: "1px solid var(--border)", cursor: "pointer",
-                    transition: "background 0.15s", background: "var(--card)",
-                  }}
-                    onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-                    onMouseLeave={e => e.currentTarget.style.background = "#fff"}
-                  >
-                    <span style={{ fontSize: 18 }}>{CATEGORIES[t.category]?.icon}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</div>
-                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{t.client ? `${t.client} • ` : ""}{formatTime(t.dueDate)}</div>
-                    </div>
-                    <PriorityBadge priority={t.priority} />
-                    <StatusBadge status={t.status} />
-                  </div>
-                );
-                return (
-                  <SwipeActions key={t.id} task={t} dispatch={dispatch}>
-                    {row}
-                  </SwipeActions>
-                );
-              })}
+              {dayTasks.map(t => (
+                <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+                  <TaskRow
+                    task={t}
+                    onOpen={openTask}
+                    background="var(--card)"
+                    iconSize={18}
+                    padding="8px 12px"
+                    gap={12}
+                    subtitle={`${t.client ? `${t.client} • ` : ""}${formatTime(t.dueDate)}`}
+                    trailing={<>
+                      <PriorityBadge priority={t.priority} />
+                      <StatusBadge status={t.status} />
+                    </>}
+                  />
+                </SwipeActions>
+              ))}
             </div>
           </div>
         );

@@ -1,11 +1,12 @@
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { SwipeActions } from "../SwipeActions.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { StatusBadge } from "../ui/StatusBadge.jsx";
+import { TaskCard, TaskRow } from "../tasks/TaskCard.jsx";
 import { PRIORITIES } from "../../lib/taskConstants.js";
 import { formatDate, formatTime, isOverdue, isUrgent, isMyTask, isInGlobalQueue, getActiveTasks, getDayKey } from "../../lib/taskUtils.js";
 import { CATEGORIES, getMember, getRoleType, getAssignableTeam, canViewTask, canEditTask, getVisibleTasks, isJuniorAgent } from "../../state/appGlobals.js";
@@ -25,10 +26,18 @@ const QUEUE_SORT_OPTIONS = [
 const PRIO_ORDER = { critical: 0, high: 1, medium: 2, low: 3 };
 const STATUS_ORDER = { todo: 0, inprogress: 1, awaiting_client: 2, awaiting_supplier: 3, done: 4 };
 
+// Apertura del dettaglio task. È `useCallback` perché `TaskCard` è `memo`: una
+// funzione ricreata a ogni render invaliderebbe la memoizzazione di tutte le
+// card della lista. `dispatch` ha identità stabile (useSyncedDispatch), quindi
+// il riferimento non cambia mai davvero.
+const useOpenTask = (dispatch) =>
+  useCallback((task) => dispatch({ type: "SET_SELECTED_TASK", payload: task }), [dispatch]);
+
 const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
   const { isMobile } = useViewport();
   const [dateFilter, setDateFilter] = useState("all"); // "all" | "today" | "tomorrow" | "YYYY-MM-DD"
   const [sortBy, setSortBy] = useState("date"); // "date" | "priority" | "client" | "status"
+  const openTask = useOpenTask(dispatch);
 
   let filtered = tasks;
   if (enableDateFilter && dateFilter !== "all") {
@@ -165,50 +174,24 @@ const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
           gap: 10,
         }}>
           {filtered.map(t => {
-            const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
             const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
             const overdue = isOverdue(t);
             const urgent = isUrgent(t);
-            const card = (
-              <div
-                style={{
-                  background: "var(--card)", borderRadius: 10,
-                  border: `1px solid ${overdue ? "rgba(192,57,43,0.4)" : urgent ? "rgba(200,131,42,0.4)" : "var(--border)"}`,
-                  padding: 12, display: "flex", flexDirection: "column", gap: 8,
-                  cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
-                  borderLeft: `3px solid ${prio.color}`,
-                }}
-                onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
-                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.08)"; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                  <div style={{
-                    display: "inline-flex", alignItems: "center", gap: 5,
-                    padding: "3px 8px", borderRadius: 999,
-                    background: cat.bg, color: cat.color,
-                    fontSize: 11, fontWeight: 600,
-                  }}>
-                    <span>{cat.icon}</span> {cat.label}
-                  </div>
-                  <StatusBadge status={t.status} />
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", lineHeight: 1.35 }}>
-                  {t.title}
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 10, fontSize: 11, color: "var(--text-muted)" }}>
-                  {t.client && <span>👤 {t.client}</span>}
-                  {t.dueDate && (
+            return (
+              <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+                <TaskCard
+                  task={t}
+                  onOpen={openTask}
+                  hoverLift
+                  accent={prio.color}
+                  border={`1px solid ${overdue ? "rgba(192,57,43,0.4)" : urgent ? "rgba(200,131,42,0.4)" : "var(--border)"}`}
+                  badges={<StatusBadge status={t.status} />}
+                  meta={t.dueDate && (
                     <span style={{ color: overdue ? "var(--danger)" : urgent ? "var(--warning)" : "var(--text-muted)", fontWeight: (overdue || urgent) ? 700 : 400 }}>
                       📅 {formatDate(t.dueDate)}{enableDateFilter ? ` 🕑 ${formatTime(t.dueDate)}` : ""}{overdue ? " ⚠ scaduto" : urgent ? " ⏱ < 24h" : ""}
                     </span>
                   )}
-                </div>
-              </div>
-            );
-            return (
-              <SwipeActions key={t.id} task={t} dispatch={dispatch}>
-                {card}
+                />
               </SwipeActions>
             );
           })}
@@ -232,6 +215,7 @@ const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
   const { isMobile } = useViewport();
   const [filterAgent, setFilterAgent] = useState(null);
   const [windowH, setWindowH] = useState(24);
+  const openTask = useOpenTask(dispatch);
 
   // `tasks` arriva già limitato a 72h dal parent: qui restringo alla finestra
   // selezionata, poi (eventualmente) al singolo agente.
@@ -375,91 +359,64 @@ const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
         gap: 10,
       }}>
         {visibleTasks.map(t => {
-          const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
           const prio = PRIORITIES[t.priority];
           const owner = getMember(t.assignees?.[0]);
           const mine = (t.assignees || []).includes(uid);
           // Read-only solo se l'utente non ha davvero i permessi di modifica:
           // le task non assegnate (coda globale) restano editabili anche qui.
           const editable = canEditTask(t, uid);
-          const card = (
-            <div
-              title={mine ? "Tua task in scadenza — clicca per i dettagli" : editable ? "Task in scadenza — clicca per i dettagli" : "Task di un altro agente in scadenza"}
-              style={{
-                background: "var(--card)", borderRadius: 10,
-                border: mine ? "1px solid rgba(200,131,42,0.45)" : "1.5px dashed rgba(200,131,42,0.45)",
-                padding: 12, display: "flex", flexDirection: "column", gap: 8,
-                position: "relative",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                <div style={{
-                  display: "inline-flex", alignItems: "center", gap: 5,
-                  padding: "3px 8px", borderRadius: 999,
-                  background: cat.bg, color: cat.color,
-                  fontSize: 11, fontWeight: 600,
-                }}>
-                  <span>{cat.icon}</span> {cat.label}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  {!editable && (
-                    <span
-                      aria-label="Solo visualizzazione"
-                      style={{
-                        fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
-                        background: "var(--surface2)", color: "var(--text-muted)",
-                        display: "inline-flex", alignItems: "center", gap: 3,
-                        textTransform: "uppercase", letterSpacing: 0.4,
-                      }}
-                    >🔒 Read-only</span>
-                  )}
-                  <div style={{
-                    fontSize: 10, fontWeight: 700, padding: "3px 7px", borderRadius: 4,
-                    background: prio.bg, color: prio.color, textTransform: "uppercase", letterSpacing: 0.5,
-                  }}>{prio.label}</div>
-                </div>
-              </div>
-
-              <div
-                onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
-                style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", lineHeight: 1.35, cursor: "pointer" }}
-              >
-                {t.title}
-              </div>
-
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 10, fontSize: 11, color: "var(--text-muted)" }}>
-                {t.client && <span>👤 {t.client}</span>}
-                {t.dueDate && (
+          return (
+            <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+              <TaskCard
+                task={t}
+                onOpen={openTask}
+                clickTitleOnly
+                tooltip={mine ? "Tua task in scadenza — clicca per i dettagli" : editable ? "Task in scadenza — clicca per i dettagli" : "Task di un altro agente in scadenza"}
+                border={mine ? "1px solid rgba(200,131,42,0.45)" : "1.5px dashed rgba(200,131,42,0.45)"}
+                badges={
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {!editable && (
+                      <span
+                        aria-label="Solo visualizzazione"
+                        style={{
+                          fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+                          background: "var(--surface2)", color: "var(--text-muted)",
+                          display: "inline-flex", alignItems: "center", gap: 3,
+                          textTransform: "uppercase", letterSpacing: 0.4,
+                        }}
+                      >🔒 Read-only</span>
+                    )}
+                    <div style={{
+                      fontSize: 10, fontWeight: 700, padding: "3px 7px", borderRadius: 4,
+                      background: prio.bg, color: prio.color, textTransform: "uppercase", letterSpacing: 0.5,
+                    }}>{prio.label}</div>
+                  </div>
+                }
+                meta={t.dueDate && (
                   <span style={{ color: "var(--warning)", fontWeight: 700 }}>
                     ⏱ {formatDate(t.dueDate)} ({formatTime(t.dueDate)})
                   </span>
                 )}
-              </div>
-
-              {/* Owner cliccabile → apre chat con link al task (solo task altrui) */}
-              {owner && !mine && (
-                <button
-                  onClick={() => onOpenChat && onOpenChat({ toUser: owner.id, taskLink: t.id })}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 8, padding: "6px 10px",
-                    background: "var(--surface2)", border: "1px solid var(--border)",
-                    borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
-                    transition: "background 0.15s",
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = "var(--surface3)"}
-                  onMouseLeave={e => e.currentTarget.style.background = "var(--surface2)"}
-                  title={`Scrivi a ${owner.name}`}
-                >
-                  <Avatar memberId={owner.id} size={24} />
-                  <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>{owner.name}</span>
-                  <span style={{ fontSize: 11, color: "var(--text-muted)" }}>💬 contatta</span>
-                </button>
-              )}
-            </div>
-          );
-          return (
-            <SwipeActions key={t.id} task={t} dispatch={dispatch}>
-              {card}
+                /* Owner cliccabile → apre chat con link al task (solo task altrui) */
+                footer={owner && !mine && (
+                  <button
+                    onClick={() => onOpenChat && onOpenChat({ toUser: owner.id, taskLink: t.id })}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 8, padding: "6px 10px",
+                      background: "var(--surface2)", border: "1px solid var(--border)",
+                      borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+                      transition: "background 0.15s",
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = "var(--surface3)"}
+                    onMouseLeave={e => e.currentTarget.style.background = "var(--surface2)"}
+                    title={`Scrivi a ${owner.name}`}
+                  >
+                    <Avatar memberId={owner.id} size={24} />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>{owner.name}</span>
+                    <span style={{ fontSize: 11, color: "var(--text-muted)" }}>💬 contatta</span>
+                  </button>
+                )}
+              />
             </SwipeActions>
           );
         })}
@@ -473,6 +430,7 @@ const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
 const UnassignedQueue = ({ tasks, dispatch, onTake, uid }) => {
   const isJunior = isJuniorAgent(uid);
   const { isMobile } = useViewport();
+  const openTask = useOpenTask(dispatch);
   const [categoryFilter, setCategoryFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
   const empty = tasks.length === 0;
@@ -592,87 +550,58 @@ const UnassignedQueue = ({ tasks, dispatch, onTake, uid }) => {
           gap: 10,
         }}>
           {filtered.map(t => {
-            const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
             const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
             const overdue = isOverdue(t);
-            const card = (
-              <div
-                style={{
-                  background: "var(--card)", borderRadius: 10,
-                  border: `1px solid ${overdue ? "rgba(192,57,43,0.3)" : "var(--border)"}`,
-                  padding: 12, display: "flex", flexDirection: "column", gap: 10,
-                  cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
-                  opacity: isJunior ? 0.8 : 1,
-                }}
-                onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
-                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.08)"; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
-              >
-                {/* Top row: category + priority */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                  <div style={{
-                    display: "inline-flex", alignItems: "center", gap: 5,
-                    padding: "3px 8px", borderRadius: 999,
-                    background: cat.bg, color: cat.color,
-                    fontSize: 11, fontWeight: 600,
-                  }}>
-                    <span>{cat.icon}</span> {cat.label}
-                  </div>
-                  <div style={{
-                    fontSize: 10, fontWeight: 700, padding: "3px 7px", borderRadius: 4,
-                    background: prio.bg, color: prio.color, textTransform: "uppercase", letterSpacing: 0.5,
-                  }}>{prio.label}</div>
-                </div>
-
-                {/* Title */}
-                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", lineHeight: 1.35 }}>
-                  {t.title}
-                </div>
-
-                {/* Meta */}
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 10, fontSize: 11, color: "var(--text-muted)" }}>
-                  {t.client && <span>👤 {t.client}</span>}
-                  {t.dueDate && (
+            return (
+              <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+                <TaskCard
+                  task={t}
+                  onOpen={openTask}
+                  hoverLift
+                  gap={10}
+                  opacity={isJunior ? 0.8 : 1}
+                  border={`1px solid ${overdue ? "rgba(192,57,43,0.3)" : "var(--border)"}`}
+                  badges={
+                    <div style={{
+                      fontSize: 10, fontWeight: 700, padding: "3px 7px", borderRadius: 4,
+                      background: prio.bg, color: prio.color, textTransform: "uppercase", letterSpacing: 0.5,
+                    }}>{prio.label}</div>
+                  }
+                  meta={t.dueDate && (
                     <span style={{ color: overdue ? "var(--danger)" : "var(--text-muted)", fontWeight: overdue ? 600 : 400 }}>
                       📅 {formatDate(t.dueDate)}{overdue ? " (scaduto)" : ""}
                     </span>
                   )}
-                </div>
-
-                {/* Take ownership button — nascosto per Junior Agent */}
-                {isJunior ? (
-                  <div style={{
-                    background: "var(--surface2)", color: "var(--text-muted)",
-                    borderRadius: 8, padding: "7px 12px", fontSize: 11, fontWeight: 600,
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-                    marginTop: 2,
-                  }}>
-                    🔒 Chiedi a un Senior per l'assegnazione
-                  </div>
-                ) : (
-                  <button
-                    onClick={e => { e.stopPropagation(); onTake(t); }}
-                    style={{
-                      background: "var(--gold)", color: "var(--navy)",
-                      border: "none", borderRadius: 8,
-                      padding: "8px 12px", fontSize: 12, fontWeight: 700,
-                      cursor: "pointer", display: "flex", alignItems: "center",
-                      justifyContent: "center", gap: 6,
-                      fontFamily: "inherit",
-                      transition: "background 0.15s, transform 0.15s",
+                  /* Take ownership — nascosto per Junior Agent */
+                  footer={isJunior ? (
+                    <div style={{
+                      background: "var(--surface2)", color: "var(--text-muted)",
+                      borderRadius: 8, padding: "7px 12px", fontSize: 11, fontWeight: 600,
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
                       marginTop: 2,
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = "var(--gold-light)"; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = "var(--gold)"; }}
-                  >
-                    🙋 Prendi in carico
-                  </button>
-                )}
-              </div>
-            );
-            return (
-              <SwipeActions key={t.id} task={t} dispatch={dispatch}>
-                {card}
+                    }}>
+                      🔒 Chiedi a un Senior per l&#39;assegnazione
+                    </div>
+                  ) : (
+                    <button
+                      onClick={e => { e.stopPropagation(); onTake(t); }}
+                      style={{
+                        background: "var(--gold)", color: "var(--navy)",
+                        border: "none", borderRadius: 8,
+                        padding: "8px 12px", fontSize: 12, fontWeight: 700,
+                        cursor: "pointer", display: "flex", alignItems: "center",
+                        justifyContent: "center", gap: 6,
+                        fontFamily: "inherit",
+                        transition: "background 0.15s, transform 0.15s",
+                        marginTop: 2,
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "var(--gold-light)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "var(--gold)"; }}
+                    >
+                      🙋 Prendi in carico
+                    </button>
+                  )}
+                />
               </SwipeActions>
             );
           })}
@@ -718,6 +647,7 @@ const QueueTab = ({ active, onClick, icon, label, count, isMobile, dangerCount }
 const OverdueQueue = ({ tasks, dispatch }) => {
   const { isMobile } = useViewport();
   const [filterAssignee, setFilterAssignee] = useState(null);
+  const openTask = useOpenTask(dispatch);
   const empty = tasks.length === 0;
 
   const presentAssignees = Array.from(new Set(
@@ -824,51 +754,27 @@ const OverdueQueue = ({ tasks, dispatch }) => {
           gap: 10,
         }}>
           {visible.map(t => {
-            const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
             const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
-            const card = (
-              <div
-                style={{
-                  background: "var(--card)", borderRadius: 10,
-                  border: "1px solid rgba(192,57,43,0.4)",
-                  padding: 12, display: "flex", flexDirection: "column", gap: 8,
-                  cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s",
-                  borderLeft: `3px solid ${prio.color}`,
-                }}
-                onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
-                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.08)"; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                  <div style={{
-                    display: "inline-flex", alignItems: "center", gap: 5,
-                    padding: "3px 8px", borderRadius: 999,
-                    background: cat.bg, color: cat.color,
-                    fontSize: 11, fontWeight: 600,
-                  }}>
-                    <span>{cat.icon}</span> {cat.label}
-                  </div>
-                  <StatusBadge status={t.status} />
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", lineHeight: 1.35 }}>
-                  {t.title}
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 10, fontSize: 11, color: "var(--text-muted)" }}>
-                  {t.client && <span>👤 {t.client}</span>}
-                  {t.dueDate && (
-                    <span style={{ color: "var(--danger)", fontWeight: 700 }}>
-                      📅 {formatDate(t.dueDate)} ⚠ scaduto
-                    </span>
-                  )}
-                  {t.assignees?.length > 0 && (
-                    <span>👥 {t.assignees.map(a => getMember(a)?.name?.split(" ")[0]).filter(Boolean).join(", ")}</span>
-                  )}
-                </div>
-              </div>
-            );
             return (
               <SwipeActions key={t.id} task={t} dispatch={dispatch}>
-                {card}
+                <TaskCard
+                  task={t}
+                  onOpen={openTask}
+                  hoverLift
+                  accent={prio.color}
+                  border="1px solid rgba(192,57,43,0.4)"
+                  badges={<StatusBadge status={t.status} />}
+                  meta={<>
+                    {t.dueDate && (
+                      <span style={{ color: "var(--danger)", fontWeight: 700 }}>
+                        📅 {formatDate(t.dueDate)} ⚠ scaduto
+                      </span>
+                    )}
+                    {t.assignees?.length > 0 && (
+                      <span>👥 {t.assignees.map(a => getMember(a)?.name?.split(" ")[0]).filter(Boolean).join(", ")}</span>
+                    )}
+                  </>}
+                />
               </SwipeActions>
             );
           })}
@@ -882,6 +788,7 @@ const OverdueQueue = ({ tasks, dispatch }) => {
 export const Dashboard = ({ state, dispatch, onOpenChat }) => {
   const { isMobile } = useViewport();
   const [activeQueue, setActiveQueue] = useState("personal");
+  const openTask = useOpenTask(dispatch);
   const uid = state.currentUserId;
   const role = getRoleType(uid);
   // Apertura da notifica: il digest della coda globale chiede la tab "global"
@@ -1083,25 +990,18 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {next7.map(t => (
               <SwipeActions key={t.id} task={t} dispatch={dispatch}>
-                <div onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
-                    borderRadius: 8, cursor: "pointer", transition: "background 0.15s",
-                    background: isOverdue(t) ? "rgba(192,57,43,0.05)" : "transparent",
-                    border: `1px solid ${isOverdue(t) ? "rgba(192,57,43,0.15)" : "var(--border)"}`,
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-                  onMouseLeave={e => e.currentTarget.style.background = isOverdue(t) ? "rgba(192,57,43,0.05)" : "transparent"}
-                >
-                  <span style={{ fontSize: 16 }}>{CATEGORIES[t.category]?.icon}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
-                    <div style={{ fontSize: 11, color: isOverdue(t) ? "var(--danger)" : "var(--text-muted)" }}>
+                <TaskRow
+                  task={t}
+                  onOpen={openTask}
+                  background={isOverdue(t) ? "rgba(192,57,43,0.05)" : "transparent"}
+                  border={`1px solid ${isOverdue(t) ? "rgba(192,57,43,0.15)" : "var(--border)"}`}
+                  subtitle={
+                    <span style={{ color: isOverdue(t) ? "var(--danger)" : "var(--text-muted)" }}>
                       {isOverdue(t) ? "⚠️ Scaduto • " : ""}{formatDate(t.dueDate)}
-                    </div>
-                  </div>
-                  <PriorityBadge priority={t.priority} />
-                </div>
+                    </span>
+                  }
+                  trailing={<PriorityBadge priority={t.priority} />}
+                />
               </SwipeActions>
             ))}
           </div>

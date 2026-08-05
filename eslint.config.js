@@ -35,6 +35,14 @@ export default [
         ignoreRestSiblings: true,
       }],
       'no-empty': ['warn', { allowEmptyCatch: true }],
+      // docs/CLAUDE.md prescrive di spezzare sopra le ~500 righe e di non
+      // tenere un secondo componente "solo per ora" in un file che ne ha già
+      // uno. Era una convenzione scritta e mai misurata: quindici file la
+      // violavano, il peggiore con sei componenti dentro. Warning e non error
+      // perché alcuni file grandi sono legittimi (il reducer È uno switch, il
+      // data layer È un elenco di query): serve un segnale in review, non un
+      // blocco.
+      'max-lines': ['warn', { max: 500, skipBlankLines: true, skipComments: true }],
       // Lo shim state/appGlobals.js (tre `let` di modulo con TEAM/CATEGORIES/
       // CURRENT_USER) è stato eliminato: la fonte di verità è lo state del
       // reducer, esposta ai componenti da useAppData(). La regola esiste perché

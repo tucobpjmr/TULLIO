@@ -52,7 +52,7 @@ vi.mock("../lib/push.js", () => ({
 }));
 
 const { ListeAPI } = await import("../lib/listeApi.js");
-const { AdvancedSearchPanel } = await import("../components/shell/Topbar.jsx");
+const { AdvancedSearchPanel } = await import("../components/search/AdvancedSearchPanel.jsx");
 
 const TEAM = [{ id: "marco", name: "Marco", role: "admin", active: true, pending: false }];
 

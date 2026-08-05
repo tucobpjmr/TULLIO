@@ -2,7 +2,6 @@
 // Coda globale: task non assegnati a nessuno, che chi ne ha i permessi può
 // prendere in carico. Il Driver non la vede.
 import { useState } from "react";
-import { useViewport } from "../../Viewport.jsx";
 import { SwipeActions } from "../../SwipeActions.jsx";
 import { TaskCard } from "../../tasks/TaskCard.jsx";
 import { PRIORITIES } from "../../../lib/taskConstants.js";
@@ -14,7 +13,6 @@ import { useOpenTask } from "./queueShared.js";
 export const UnassignedQueue = ({ tasks, dispatch, onTake, uid }) => {
   const { categories, isJuniorAgent } = useAppData();
   const isJunior = isJuniorAgent(uid);
-  const { isMobile } = useViewport();
   const openTask = useOpenTask(dispatch);
   const [categoryFilter, setCategoryFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
@@ -35,36 +33,13 @@ export const UnassignedQueue = ({ tasks, dispatch, onTake, uid }) => {
   const filteredEmpty = !empty && filtered.length === 0;
 
   return (
-    <div style={{
-      background: "linear-gradient(135deg, rgba(212,168,67,0.05) 0%, rgba(212,168,67,0.01) 100%)",
-      border: "1px solid rgba(212,168,67,0.3)",
-      borderRadius: 12, padding: isMobile ? "14px 12px" : "18px 22px",
-      boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
-      minWidth: 0, overflow: "hidden",
-    }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: empty ? 0 : 14 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: 10,
-            background: "var(--gold)", color: "var(--navy)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 18, fontWeight: 700,
-          }}>🙋</div>
-          <div>
-            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
-              Coda globale
-            </div>
-          </div>
-        </div>
-        {!empty && (
-          <div style={{
-            background: "var(--gold)", color: "var(--navy)",
-            padding: "4px 12px", borderRadius: 999,
-            fontSize: 13, fontWeight: 700,
-          }}>{hasFilter ? `${filtered.length}/${tasks.length}` : `${tasks.length} in attesa`}</div>
-        )}
-      </div>
+    <QueueShell
+      accent="unassigned"
+      icon="🙋"
+      title="Coda globale"
+      tight={empty}
+      badge={empty ? null : (hasFilter ? `${filtered.length}/${tasks.length}` : `${tasks.length} in attesa`)}
+    >
 
       {/* Filtri categoria + priorità */}
       {!empty && (presentCategories.length > 1 || presentPriorities.length > 1 || hasFilter) && (
@@ -192,6 +167,6 @@ export const UnassignedQueue = ({ tasks, dispatch, onTake, uid }) => {
           })}
         </div>
       )}
-    </div>
+    </QueueShell>
   );
 };

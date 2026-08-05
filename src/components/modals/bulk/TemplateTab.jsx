@@ -7,6 +7,7 @@ import { clientContact } from "../../../lib/taskUtils.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { DateTimePicker } from "../../ui/DateTimePicker.jsx";
 import { bulkInputStyle, bulkBtnPrimary, bulkBtnGhost } from "./bulkStyles.js";
+import { Z } from "../../../styles/tokens.js";
 
 
 // ─── BULK: TEMPLATE TAB ────────────────────────────────────────────────────
@@ -115,7 +116,7 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
                     />
                     {showList && (
                       <div style={{
-                        position: "absolute", top: "100%", left: 0, right: 0, zIndex: 30,
+                        position: "absolute", top: "100%", left: 0, right: 0, zIndex: Z.swipePanel,
                         marginTop: 3, background: "var(--card)", border: "1px solid var(--border)",
                         borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
                         maxHeight: 180, overflowY: "auto",

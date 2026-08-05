@@ -1,7 +1,6 @@
 // src/components/dashboard/queues/OverdueQueue.jsx
 // Coda scaduti: tutto ciò che ha superato la scadenza ed è ancora aperto.
 import { useState } from "react";
-import { useViewport } from "../../Viewport.jsx";
 import { SwipeActions } from "../../SwipeActions.jsx";
 import { StatusBadge } from "../../ui/StatusBadge.jsx";
 import { TaskCard } from "../../tasks/TaskCard.jsx";
@@ -9,10 +8,10 @@ import { PRIORITIES } from "../../../lib/taskConstants.js";
 import { formatDate } from "../../../lib/taskUtils.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useOpenTask } from "./queueShared.js";
+import { QueueShell } from "./QueueShell.jsx";
 
 // ─── OVERDUE QUEUE (task scaduti visibili) ────────────────────────────────
 export const OverdueQueue = ({ tasks, dispatch }) => {
-  const { isMobile } = useViewport();
   const { getMember } = useAppData();
   const [filterAssignee, setFilterAssignee] = useState(null);
   const openTask = useOpenTask(dispatch);
@@ -26,35 +25,13 @@ export const OverdueQueue = ({ tasks, dispatch }) => {
     : tasks;
 
   return (
-    <div style={{
-      background: "linear-gradient(135deg, rgba(192,57,43,0.05) 0%, rgba(192,57,43,0.01) 100%)",
-      border: "1px solid rgba(192,57,43,0.2)",
-      borderRadius: 12, padding: isMobile ? "14px 12px" : "18px 22px",
-      boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
-      minWidth: 0, overflow: "hidden",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: empty ? 0 : 14, flexWrap: "wrap", gap: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: 10,
-            background: "var(--danger)", color: "#fff",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 18,
-          }}>📅</div>
-          <div>
-            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
-              Task scadute
-            </div>
-          </div>
-        </div>
-        {!empty && (
-          <div style={{
-            background: "var(--danger)", color: "#fff",
-            padding: "4px 12px", borderRadius: 999,
-            fontSize: 13, fontWeight: 700,
-          }}>{filterAssignee ? `${visible.length}/${tasks.length}` : tasks.length}</div>
-        )}
-      </div>
+    <QueueShell
+      accent="overdue"
+      icon="📅"
+      title="Task scadute"
+      tight={empty}
+      badge={empty ? null : (filterAssignee ? `${visible.length}/${tasks.length}` : tasks.length)}
+    >
 
       {/* Filtro assegnatario — solo se più di un assegnatario presente */}
       {!empty && presentAssignees.length > 1 && (
@@ -148,6 +125,6 @@ export const OverdueQueue = ({ tasks, dispatch }) => {
           })}
         </div>
       )}
-    </div>
+    </QueueShell>
   );
 };

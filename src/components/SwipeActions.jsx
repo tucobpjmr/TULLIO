@@ -7,6 +7,7 @@ import { useState, useEffect, useRef } from "react";
 import { useViewport } from "./Viewport.jsx";
 import { useAppData } from "../state/AppDataContext.jsx";
 import { Avatar } from "./ui/Avatar.jsx";
+import { Z } from "../styles/tokens.js";
 
 export const SwipeActions = ({ task, dispatch, children, disabled = false }) => {
   const { isDesktop } = useViewport();
@@ -202,7 +203,7 @@ export const SwipeActions = ({ task, dispatch, children, disabled = false }) => 
           onClick={e => e.stopPropagation()}
           style={{
             position: "absolute", top: "calc(100% + 6px)", right: 0,
-            zIndex: 30, background: "var(--card)",
+            zIndex: Z.swipePanel, background: "var(--card)",
             border: "1px solid var(--border)", borderRadius: 10,
             boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
             minWidth: 200, maxHeight: 240, overflowY: "auto",
@@ -241,7 +242,7 @@ export const SwipeActions = ({ task, dispatch, children, disabled = false }) => 
           transform: `translateX(${offset}px)`,
           transition: tracking.current ? "none" : "transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1)",
           position: "relative",
-          zIndex: 2,
+          zIndex: Z.cardRaised,
         }}
       >
         {children}

@@ -6,6 +6,7 @@ import { Users as UsersAPI } from "../../lib/api.js";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { ProfileEditor } from "../modals/ProfileEditor.jsx";
+import { Z } from "../../styles/tokens.js";
 
 // ─── USER SWITCHER (v0.8) ──────────────────────────────────────────────────
 // Dropdown nella Topbar per cambiare l'utente loggato (mock multi-utente).
@@ -85,7 +86,7 @@ export const UserSwitcher = ({ state, dispatch }) => {
         <div style={{
           position: "absolute", top: "calc(100% + 8px)", right: 0,
           background: "#fff", border: "1px solid var(--border)", borderRadius: 10,
-          boxShadow: "0 12px 30px rgba(0,0,0,0.2)", zIndex: 200,
+          boxShadow: "0 12px 30px rgba(0,0,0,0.2)", zIndex: Z.panel,
           minWidth: 240, padding: 6,
         }}>
           {/* Profilo personale */}

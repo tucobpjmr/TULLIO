@@ -7,6 +7,8 @@ import { clientContact } from "../../lib/taskUtils.js";
 import { TaskFiles } from "../../lib/api.js";
 import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit } from "../../lib/fileUtils.js";
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";
+import { Modal } from "../ui/Modal.jsx";
+import { Z } from "../../styles/tokens.js";
 
 // v2.8 Round 6: auto-suggerisci la categoria in base a keyword nel titolo.
 // Regole: primo match vince (ordine top-down). Solo per categorie disponibili all'utente.
@@ -142,17 +144,10 @@ export const QuickAddTask = ({ onAdd, onClose, clients = [] }) => {
   });
 
   return (
-    <div style={{
-      position: "fixed", inset: 0, background: "rgba(15,32,68,0.5)",
-      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16
-    }}>
-      <div className="slide-up vd-modal-mh" style={{
-        background: "var(--card)", borderRadius: 14, padding: 28, width: 500, maxWidth: "100%",
-        overflowY: "auto",
-        boxShadow: "0 30px 80px rgba(0,0,0,0.2)", border: "1px solid var(--border)"
-      }}>
+    <Modal open onClose={onClose} labelledBy="quick-add-title" width={500} cardStyle={{ padding: 28 }}>
+      <>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <div className="playfair" style={{ fontSize: 20, fontWeight: 700 }}>Nuovo Task</div>
+          <div id="quick-add-title" className="playfair" style={{ fontSize: 20, fontWeight: 700 }}>Nuovo Task</div>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--text-muted)" }}>✕</button>
         </div>
 
@@ -236,7 +231,7 @@ export const QuickAddTask = ({ onAdd, onClose, clients = [] }) => {
             />
             {showClientList && (
               <div style={{
-                position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20,
+                position: "absolute", top: "100%", left: 0, right: 0, zIndex: Z.localRaised,
                 marginTop: 4, background: "var(--card)", border: "1px solid var(--border)",
                 borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
                 maxHeight: 200, overflowY: "auto",
@@ -345,7 +340,7 @@ export const QuickAddTask = ({ onAdd, onClose, clients = [] }) => {
             opacity: busy ? 0.7 : 1,
           }}>{busy ? "⏳ Creazione…" : "✓ Crea Task"}</button>
         </div>
-      </div>
-    </div>
+      </>
+    </Modal>
   );
 };

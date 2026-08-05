@@ -6,6 +6,7 @@
 // "mangiato" dall'onClick del genitore (stopPropagation qui risolve).
 import { useState, useRef, useEffect } from "react";
 import { sanitizePhone, toWhatsAppNumber, firstPhoneIn } from "../../lib/phoneUtils.js";
+import { Z } from "../../styles/tokens.js";
 
 export function ContactActions({ phone, label, style }) {
   const [open, setOpen] = useState(false);
@@ -47,7 +48,7 @@ export function ContactActions({ phone, label, style }) {
 
       {open && (
         <div style={{
-          position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 40,
+          position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: Z.popover,
           background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10,
           boxShadow: "0 10px 30px rgba(0,0,0,0.15)", padding: 4, minWidth: 170,
         }}>

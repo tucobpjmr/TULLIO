@@ -16,6 +16,7 @@ import { conteggioListePerCliente } from "../liste/listeModuleApi.js";
 import { tasksDelCliente } from "../../lib/clientNotes.js";
 import { matchTermini, terminiRicerca } from "../../lib/searchUtils.js";
 import { fieldStyle } from "./clientStyles.js";
+import { Z } from "../../styles/tokens.js";
 
 const CLIENT_SORT_OPTS = [
   { key: "name",    label: "Nome A-Z" },
@@ -286,7 +287,7 @@ export function ClientiView({ state, dispatch, loading = false }) {
         const bloccato = (l?.totali || 0) > 0;
         return (
           <div style={{
-            position: "fixed", inset: 0, zIndex: 700,
+            position: "fixed", inset: 0, zIndex: Z.chatBackdrop,
             background: "rgba(8,21,45,0.45)", display: "flex", alignItems: "center", justifyContent: "center",
           }} onClick={() => setConfirmDelete(null)}>
             <div style={{

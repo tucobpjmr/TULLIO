@@ -13,6 +13,7 @@ import { DateTimePicker } from "../ui/DateTimePicker.jsx";
 import { ContactText } from "../ui/ContactActions.jsx";
 import { TaskFiles } from "../../lib/api.js";
 import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit, sourceBadge, mediaKind } from "../../lib/fileUtils.js";
+import { Z } from "../../styles/tokens.js";
 
 // ─── Allegati task (Block 5) ─────────────────────────────────────────────────
 // Sub-componente module-local: gestisce il proprio stato (lista/loading/upload)
@@ -363,10 +364,10 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
   return (
     <>
       <div onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: null })}
-        style={{ position: "fixed", inset: 0, background: "rgba(15,32,68,0.4)", zIndex: 500 }} />
+        style={{ position: "fixed", inset: 0, background: "rgba(15,32,68,0.4)", zIndex: Z.slideOverBackdrop }} />
       <div className="slide-right vd-sheet-full" style={{
         position: "fixed", top: 0, right: 0, width: isMobile ? "100vw" : 480,
-        background: "var(--card)", zIndex: 600, boxShadow: "-20px 0 60px rgba(0,0,0,0.15)",
+        background: "var(--card)", zIndex: Z.slideOver, boxShadow: "-20px 0 60px rgba(0,0,0,0.15)",
         // overflow:hidden sul guscio + scroll SOLO sul corpo (vedi sotto): su iOS
         // scrollare l'intero elemento fixed alto 100dvh lascia il fondo (box
         // commento) dietro la toolbar del browser e irraggiungibile. Header fisso,
@@ -525,7 +526,7 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
               </div>
               {editable && showAssigneePicker && availableMembers.length > 0 && (
                 <div style={{
-                  position: "absolute", top: "100%", left: 0, marginTop: 6, zIndex: 10,
+                  position: "absolute", top: "100%", left: 0, marginTop: 6, zIndex: Z.local,
                   background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10,
                   boxShadow: "0 10px 30px rgba(0,0,0,0.12)", padding: 6,
                   minWidth: 180, maxHeight: 220, overflowY: "auto",
@@ -566,7 +567,7 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
                   />
                   {showClientList && (
                     <div style={{
-                      position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20,
+                      position: "absolute", top: "100%", left: 0, right: 0, zIndex: Z.localRaised,
                       marginTop: 4, background: "var(--card)", border: "1px solid var(--border)",
                       borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
                       maxHeight: 200, overflowY: "auto",

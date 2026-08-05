@@ -1,5 +1,9 @@
 # CLAUDE.md — Istruzioni per Claude Code
 
+> Gli altri documenti in `docs/` sono indicizzati in [`INDEX.md`](INDEX.md),
+> che distingue ciò che è vigente dai ~40 handoff di sessione, che sono un log
+> storico e non una specifica.
+
 ## Identità progetto
 
 **VoyageDesk** è un sistema gestionale per agenzie viaggi e tour operator. Attualmente è un single-file React (`src/VoyageDesk.jsx`, ~7071 righe). L'obiettivo immediato è portarlo in un progetto Vite reale per abilitare persistenza, multi-file, TypeScript e test.
@@ -32,6 +36,8 @@ Agisci come sviluppatore full-stack specializzato in sistemi gestionali per trav
 - **Responsive**: `const { isMobile, isDesktop } = useViewport()` dentro ogni componente che adatta il layout
 - **Permessi**: ogni nuova feature che tocca task o viste deve usare `canViewTask`/`canEditTask` da `src/lib/permissions.js` (funzioni PURE, primo argomento `team`). Nei componenti NON si importano direttamente: si passa da `useAppData()` (`src/state/AppDataContext.jsx`), che le espone già legate a `state.team` — `const { canEditTask, categories, getMember } = useAppData()`. Ogni nuova voce nav in `NAV_ITEMS` deve avere il campo `roles`
 - **Reducer puro**: `src/state/reducer.js` non deve avere effetti collaterali — niente chiamate a `setTeam`/`setCategories`/`setCurrentUser`, niente scritture fuori dallo state. La fonte di verità è `state.team` / `state.categories` / `state.currentUserId`. Blindato da `src/test/reducerPurity.test.js`
+- **Stili**: z-index, bottoni e campi vengono da `src/styles/tokens.js`. ⛔ Mai un `zIndex` numerico inline: la scala è nominata e ordinata lì (erano 23 valori magici da 1 a 9999, la causa dei bug di sovrapposizione). `admin/adminStyles.js` e `modals/bulk/bulkStyles.js` derivano dai token e dichiarano i propri delta
+- **Modali**: un modale centrato usa `components/ui/Modal.jsx`, che porta con sé portale (obbligatorio: un antenato con `transform` rompe il `position: fixed`), overlay, chiusura con Esc, blocco dello scroll di fondo e `role="dialog"`. ⛔ Non ricostruire l'overlay a mano
 - **Un file, una responsabilità**: sopra le ~500 righe si spezza, e mai un secondo componente "solo per ora" in un file che ne ha già uno. Ora è misurato: `max-lines` in `eslint.config.js` (warn, blank/comment esclusi). `VoyageDesk.jsx` è un ORCHESTRATORE — compone hook e viste, non implementa: idratazione/notifiche/presenza/push/chat vivono in `src/hooks/use*.js`
 - **Modulo Liste viaggio**: ha il proprio stato (non passa dal reducer) ma la STESSA architettura dati del core — `useListeData` usa `useDebouncedTableSubscription` come tutto il resto. Il core NON importa `lib/listeApi.js`: la porta d'ingresso è `components/liste/listeModuleApi.js`, che espone domande (`listeRicercabili`, `conteggioListePerCliente`) e non query
 - **Scritture della chat**: la chat non passa dal reducer. Ogni scrittura ha un comando esplicito in `src/components/chat/chatCommands.js` (`createConversation` / `sendMessage` / `setMessagePinned` / `markConversationRead` / `toggleReaction` / `removeConversation` / `updateConversation`). ⛔ **Mai chiamate di rete dentro l'updater di `setState`**: `setConversations`/`setMessages` sono normali setter React e i loro updater devono restare PURI — React 18 li invoca due volte in StrictMode e può rieseguirli in Concurrent. Prima la persistenza era dedotta differenziando prev/next dentro l'updater, e creare una conversazione faceva due INSERT in sviluppo. Blindato da `src/test/chatCommands.test.js`
@@ -128,7 +134,7 @@ Navigazione: Desktop → Sidebar collassabile. Tablet/Mobile → BottomNav.
   id, name, role, avatar, color, capacity,
   active: boolean, pending: boolean,
   email: string|undefined, phone: string|undefined,
-  photoUrl: string|undefined   // base64 o null
+  photoUrl: string|undefined   // URL pubblica del bucket `avatars` (Users.uploadAvatar), o null
 }
 ```
 
@@ -259,9 +265,6 @@ VoyageDesk (export default, ViewportProvider wrapper)
     │   │   └── Scadenze Prossime + Carico Team (locale)
     │   ├── calendar/CalendarPlanner (mese + settimana + distribuzione + helper iCal)
     │   ├── clients/ClientiView          ← mantenuto (anagrafica clienti)
-    │   ├── suppliers/FornitoriView      ← ⛔ RIMOSSO sessione 24
-    │   ├── dossiers/PraticheView        ← ⛔ RIMOSSO sessione 24
-    │   ├── views/Team
     │   ├── views/Trash
     │   └── admin/AdminView (5 tab locale, stili da adminStyles.js)
     ├── tasks/TaskSlideOver
@@ -269,7 +272,6 @@ VoyageDesk (export default, ViewportProvider wrapper)
     ├── chat/ChatPanel (orchestratore; il resto in chat/*.js + chat/message/)
     ├── modals/QuickAddTask
     ├── modals/BulkTaskCreator (shell; le 4 tab in modals/bulk/)
-    ├── modals/AIDayPlanner
     ├── shell/FAB
     └── ui/Toast
 ```
@@ -328,7 +330,7 @@ Vedi `docs/ROADMAP.md` per il dettaglio completo con dipendenze e stime.
 
 1. **Architettura root**: `VoyageDesk` wrappa `VoyageDeskInner` dentro `<ViewportProvider>`. Tutti i componenti con `useViewport()` devono essere dentro questo provider.
 2. **Permessi e stato condiviso**: fonte di verità UNICA, lo state React (`state.team`, `state.categories`, `state.currentUserId`). Le regole sono funzioni pure in `src/lib/permissions.js`; i componenti vi accedono da `useAppData()` (`src/state/AppDataContext.jsx`), il cui provider è alimentato dallo stesso state del reducer. Lo specchio mutabile `state/appGlobals.js` — tre `let` di modulo allineati da `syncLegacyGlobals()` **nel corpo del render** di `VoyageDeskInner` — è stato eliminato: leggeva fuori dal ciclo di render (un componente `memo` poteva mostrare permessi vecchi) e scrivere stato esterno durante il render non è sicuro sotto Concurrent Rendering. Con lo shim è sparito anche `hooks/usePermissions.js`, che ne era il sostituto previsto ma non aveva mai acquisito un solo consumatore: tenerlo accanto a `useAppData()` avrebbe lasciato due modi paralleli di fare la stessa cosa.
-3. **Chat e AI**: usano `fetch` su `https://api.anthropic.com/v1/messages` — funziona solo in ambiente Claude.ai artifacts. Per dev locale, mockare o usare API key.
+3. **Nessuna chiamata a modelli AI**: la chat è interna al team e passa da Supabase (tabelle `conversations`/`messages` + realtime). Le vecchie note su `fetch` verso `api.anthropic.com` si riferivano a codice non più presente.
 4. **activityLog**: max 100 entry, poi taglia le più vecchie.
 5. **Backup JSON**: Admin → Import/Export include tutto lo stato persistente. Ripristino sovrascrive.
 6. **DnD**: disabilitato su mobile. Usare SwipeActions per azioni rapide.
@@ -370,7 +372,6 @@ src/
 │   ├── modals/
 │   │   ├── ProfileEditor.jsx
 │   │   ├── BulkTaskCreator.jsx  shell: scelta modalità + tab bar + guardia "non salvato"
-│   │   ├── AIDayPlanner.jsx
 │   │   ├── NoticeEditorModal.jsx
 │   │   ├── QuickAddTask.jsx
 │   │   ├── AddTeamMemberModal.jsx
@@ -406,8 +407,6 @@ src/
 │   │   └── adminStyles.js (13 costanti stile consolidate)
 │   ├── clients/
 │   │   └── ClientiView.jsx              ← anagrafica clienti (mantenuta)
-│   ├── suppliers/                       ← directory vuota (FornitoriView.jsx RIMOSSO sessione 24)
-│   ├── dossiers/                        ← directory vuota (PraticheView.jsx RIMOSSO sessione 24)
 │   ├── views/
 │   │   ├── Team.jsx
 │   │   └── Trash.jsx

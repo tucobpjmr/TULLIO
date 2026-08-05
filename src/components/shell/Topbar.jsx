@@ -11,6 +11,7 @@ import { MOCK_NOTIFICATIONS } from "../../state/mockData.js";
 import { AdvancedSearchPanel } from "../search/AdvancedSearchPanel.jsx";
 import { NotificationsPanel } from "../notifications/NotificationsPanel.jsx";
 import { UserSwitcher } from "./UserSwitcher.jsx";
+import { Z } from "../../styles/tokens.js";
 
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
 export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMarkRead, onMarkAllRead, onRemoveNotification, onClearAllNotifications, onOpenTask, onOpenChat }) => {
@@ -48,7 +49,7 @@ export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMa
       background: "var(--sky)", display: "flex", alignItems: "center",
       paddingLeft: `calc(${isMobile ? 12 : 20}px + var(--safe-left))`,
       paddingRight: `calc(${isMobile ? 12 : 20}px + var(--safe-right))`,
-      gap: isMobile ? 8 : 16, position: "sticky", top: 0, zIndex: 100,
+      gap: isMobile ? 8 : 16, position: "sticky", top: 0, zIndex: Z.dropdown,
       borderBottom: "1px solid rgba(212,168,67,0.3)", flexShrink: 0,
     }}>
       {/* Logo — funge da pulsante Dashboard */}

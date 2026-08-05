@@ -14,7 +14,7 @@ export const LazyFallback = ({ overlay = false }) => {
   if (overlay) {
     return (
       <div style={{
-        position: "fixed", inset: 0, zIndex: 500,
+        position: "fixed", inset: 0, zIndex: Z.slideOverBackdrop,
         display: "flex", alignItems: "center", justifyContent: "center",
         background: "rgba(8,21,45,0.35)",
       }}>
@@ -28,3 +28,5 @@ export const LazyFallback = ({ overlay = false }) => {
     </div>
   );
 };
+
+import { Z } from "../../styles/tokens.js";

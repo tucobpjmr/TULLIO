@@ -3,12 +3,15 @@
 // Erano in testa a un file da 1.366 righe: qui restano un posto solo da
 // toccare quando la modale cambia aspetto, senza trascinarsi dietro il resto.
 
+import { field } from "../../../styles/tokens.js";
+
 // ─── BULK TASK CREATOR (stili helper) ──────────────────────────────────────
+// Deriva dal campo base di styles/tokens.js: la griglia del creatore in blocco
+// mette molte righe in colonna, quindi padding e font sono più compatti. Il
+// delta è esplicito, non una seconda definizione dello stesso campo.
 export const bulkInputStyle = {
-  width: "100%", border: "1px solid var(--border)", borderRadius: 6,
-  padding: "7px 9px", fontSize: 12.5, fontFamily: "inherit",
-  background: "var(--card)", outline: "none",
-  minWidth: 0, boxSizing: "border-box",
+  ...field,
+  padding: "7px 9px", fontSize: 12.5, minWidth: 0,
 };
 // La descrizione di riga è facoltativa e può essere lunga: textarea bassa
 // (2 righe) ma allargabile a mano, così una lista di più task non diventa

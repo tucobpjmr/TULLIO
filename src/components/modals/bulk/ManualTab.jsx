@@ -10,6 +10,7 @@ import { TaskFiles } from "../../../lib/api.js";
 import { MAX_TASK_FILE_SIZE, formatFileSize, isWithinSizeLimit } from "../../../lib/fileUtils.js";
 import { bulkInputStyle, bulkTextareaStyle, bulkBtnPrimary, bulkBtnGhost } from "./bulkStyles.js";
 import { RowAttachments } from "./RowAttachments.jsx";
+import { Z } from "../../../styles/tokens.js";
 
 
 // ─── BULK: MANUAL TAB ──────────────────────────────────────────────────────
@@ -155,7 +156,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
                 />
                 {showList && (
                   <div style={{
-                    position: "absolute", top: "100%", left: 0, right: 0, zIndex: 30,
+                    position: "absolute", top: "100%", left: 0, right: 0, zIndex: Z.swipePanel,
                     marginTop: 3, background: "var(--card)", border: "1px solid var(--border)",
                     borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
                     maxHeight: 180, overflowY: "auto",

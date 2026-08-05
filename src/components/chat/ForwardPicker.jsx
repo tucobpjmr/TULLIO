@@ -6,6 +6,7 @@ import { isUuid } from "../../lib/mappers.js";
 import { sortConversationsByRecent } from "../../lib/chatUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { getConversationName, getLastMessage } from "./chatFormat.js";
+import { Z } from "../../styles/tokens.js";
 
 // messaggio decrescente) → l'admin trova subito chi ha contattato per ultimo.
 export const ForwardPicker = ({ msg, conversations, messages, onPick, onClose }) => {
@@ -37,7 +38,7 @@ export const ForwardPicker = ({ msg, conversations, messages, onPick, onClose })
 
   return (
     <div onClick={onClose} style={{
-      position: "fixed", inset: 0, background: "rgba(8,21,45,0.45)", zIndex: 900,
+      position: "fixed", inset: 0, background: "rgba(8,21,45,0.45)", zIndex: Z.chatForward,
       display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
     }}>
       <div onClick={e => e.stopPropagation()} style={{

@@ -13,7 +13,7 @@ const SHORTCUTS = [
 export function KeyboardHelpOverlay({ onClose }) {
   return (
     <div style={{
-      position: "fixed", inset: 0, zIndex: 1100,
+      position: "fixed", inset: 0, zIndex: Z.modalFullBackdrop,
       background: "rgba(8,21,45,0.55)", display: "flex",
       alignItems: "center", justifyContent: "center",
     }} onClick={onClose}>
@@ -46,3 +46,5 @@ export function KeyboardHelpOverlay({ onClose }) {
     </div>
   );
 }
+
+import { Z } from "../../styles/tokens.js";

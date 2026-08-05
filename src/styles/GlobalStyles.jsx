@@ -9,7 +9,10 @@
 // logica di idratazione e subscription.
 export const GlobalStyles = () => (
   <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+    /* UNICA richiesta di font dell'app. Inter è usato dal solo modulo Liste
+       viaggio (listeStyles.jsx), che prima lo scaricava con un @import suo: un
+       secondo round-trip bloccante verso una CDN esterna per un modulo solo. */
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=Inter:wght@400;500;600;700&display=swap');
     * { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       --navy: #0F2044;

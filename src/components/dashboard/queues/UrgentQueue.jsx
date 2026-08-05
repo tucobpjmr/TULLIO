@@ -2,7 +2,6 @@
 // Coda urgenze: tutti i task in scadenza entro la finestra scelta, anche di
 // altri (i non-driver devono poter intervenire su ciò che sta per scadere).
 import { useState } from "react";
-import { useViewport } from "../../Viewport.jsx";
 import { SwipeActions } from "../../SwipeActions.jsx";
 import { Avatar } from "../../ui/Avatar.jsx";
 import { TaskCard } from "../../tasks/TaskCard.jsx";
@@ -23,7 +22,6 @@ const URGENT_WINDOWS = [
 
 export const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
   const { getMember, canEditTask } = useAppData();
-  const { isMobile } = useViewport();
   const [filterAgent, setFilterAgent] = useState(null);
   const [windowH, setWindowH] = useState(24);
   const openTask = useOpenTask(dispatch);
@@ -45,33 +43,12 @@ export const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
     : inWindow;
 
   return (
-    <div style={{
-      background: "linear-gradient(135deg, rgba(200,131,42,0.07) 0%, rgba(200,131,42,0.01) 100%)",
-      border: "1px solid rgba(200,131,42,0.35)",
-      borderRadius: 12, padding: isMobile ? "14px 12px" : "18px 22px",
-      boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
-      minWidth: 0, overflow: "hidden",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: 10,
-            background: "var(--warning)", color: "#fff",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 18, fontWeight: 700,
-          }}>⏱</div>
-          <div>
-            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
-              Urgenti
-            </div>
-          </div>
-        </div>
-        <div style={{
-          background: "var(--warning)", color: "#fff",
-          padding: "4px 12px", borderRadius: 999,
-          fontSize: 13, fontWeight: 700,
-        }}>{visibleTasks.length}{filterAgent ? `/${inWindow.length}` : ""}</div>
-      </div>
+    <QueueShell
+      accent="urgent"
+      icon="⏱"
+      title="Urgenti"
+      badge={`${visibleTasks.length}${filterAgent ? `/${inWindow.length}` : ""}`}
+    >
 
       {/* Selettore finestra temporale (24/48/72h) */}
       <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
@@ -233,6 +210,6 @@ export const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
         })}
       </div>
       )}
-    </div>
+    </QueueShell>
   );
 };

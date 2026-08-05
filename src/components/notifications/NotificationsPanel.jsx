@@ -11,6 +11,7 @@ import { useAuth } from "../../auth/AuthContext.jsx";
 import { MOCK_NOTIFICATIONS } from "../../state/mockData.js";
 import { getPushSupport, getPushState, enablePush, disablePush, syncPushSubscription, sendTestPush } from "../../lib/push.js";
 import { NOTIF_ICONS, NOTIF_CATEGORIES, notifTitle, notifSubtitle, notifTime, notifTarget } from "../../lib/notifUtils.js";
+import { Z } from "../../styles/tokens.js";
 
 // ─── NOTIFICATIONS PANEL ───────────────────────────────────────────────────
 // Helpers per il rendering delle notifiche reali (Step F): icona, titolo,
@@ -231,7 +232,7 @@ export const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead
       maxHeight: isMobile ? "calc(100dvh - 76px - var(--safe-top) - var(--safe-bottom))" : undefined,
       display: "flex", flexDirection: "column",
       background: "#fff", borderRadius: 12, boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
-      border: "1px solid var(--border)", overflow: "hidden", zIndex: 200,
+      border: "1px solid var(--border)", overflow: "hidden", zIndex: Z.panel,
     }}>
       <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexShrink: 0 }}>
         <div className="playfair" style={{ fontWeight: 600, fontSize: 15 }}>Notifiche</div>

@@ -3,16 +3,15 @@
 // enableDateFilter (v22): per il Driver abilita il filtro data/ora — i transfer
 // sono time-sensitive e la coda si filtra per giornata.
 import { useState } from "react";
-import { useViewport } from "../../Viewport.jsx";
 import { SwipeActions } from "../../SwipeActions.jsx";
 import { StatusBadge } from "../../ui/StatusBadge.jsx";
 import { TaskCard } from "../../tasks/TaskCard.jsx";
 import { PRIORITIES } from "../../../lib/taskConstants.js";
 import { formatDate, formatTime, isOverdue, isUrgent, getDayKey } from "../../../lib/taskUtils.js";
 import { QUEUE_SORT_OPTIONS, PRIO_ORDER, STATUS_ORDER, useOpenTask } from "./queueShared.js";
+import { QueueShell, FilterChip, FilterLabel, FilterRow } from "./QueueShell.jsx";
 
 export const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
-  const { isMobile } = useViewport();
   const [dateFilter, setDateFilter] = useState("all"); // "all" | "today" | "tomorrow" | "YYYY-MM-DD"
   const [sortBy, setSortBy] = useState("date"); // "date" | "priority" | "client" | "status"
   const openTask = useOpenTask(dispatch);
@@ -54,65 +53,30 @@ export const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false })
 
   const customDate = !["all", "today", "tomorrow"].includes(dateFilter) ? dateFilter : "";
   const chip = (key, label) => (
-    <button
-      type="button"
-      onClick={() => setDateFilter(key)}
-      style={{
-        padding: "5px 12px", borderRadius: 999, cursor: "pointer",
-        fontSize: 12, fontWeight: 600, fontFamily: "inherit",
-        border: `1px solid ${dateFilter === key ? "var(--navy)" : "var(--border)"}`,
-        background: dateFilter === key ? "var(--navy)" : "var(--card)",
-        color: dateFilter === key ? "#fff" : "var(--text-muted)",
-        transition: "background 0.15s, color 0.15s",
-      }}
-    >{label}</button>
+    <FilterChip active={dateFilter === key} onClick={() => setDateFilter(key)}>{label}</FilterChip>
   );
 
   return (
-    <div style={{
-      background: "linear-gradient(135deg, rgba(15,32,68,0.04) 0%, rgba(15,32,68,0.01) 100%)",
-      border: "1px solid rgba(15,32,68,0.15)",
-      borderRadius: 12, padding: isMobile ? "14px 12px" : "18px 22px",
-      boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
-      minWidth: 0, overflow: "hidden",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: empty ? 0 : 14, flexWrap: "wrap", gap: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: 10,
-            background: me?.color || "var(--navy)", color: "#fff",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 12, fontWeight: 700,
-          }}>{me?.avatar || "?"}</div>
-          <div>
-            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
-              {enableDateFilter ? "La mia coda transfer" : "La mia coda"}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Barra di ordinamento (v2.8) — non mostrata per i Driver (usano il filtro data) */}
-      {!enableDateFilter && tasks.length > 1 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, marginRight: 2 }}>Ordina:</span>
+    <QueueShell
+      accent="personal"
+      icon={me?.avatar || "?"}
+      iconBg={me?.color || "var(--navy)"}
+      iconFg="#fff"
+      iconSize={12}
+      title={enableDateFilter ? "La mia coda transfer" : "La mia coda"}
+      tight={empty}
+      filters={!enableDateFilter && tasks.length > 1 && (
+        /* Ordinamento — non mostrato ai Driver, che usano il filtro data */
+        <FilterRow>
+          <FilterLabel>Ordina:</FilterLabel>
           {QUEUE_SORT_OPTIONS.map(opt => (
-            <button
-              key={opt.key}
-              type="button"
-              onClick={() => setSortBy(opt.key)}
-              style={{
-                padding: "4px 10px", borderRadius: 999, cursor: "pointer",
-                fontSize: 11, fontWeight: 600, fontFamily: "inherit",
-                border: `1px solid ${sortBy === opt.key ? "var(--navy)" : "var(--border)"}`,
-                background: sortBy === opt.key ? "var(--navy)" : "var(--card)",
-                color: sortBy === opt.key ? "#fff" : "var(--text-muted)",
-                transition: "background 0.15s, color 0.15s",
-              }}
-            >{opt.label}</button>
+            <FilterChip key={opt.key} active={sortBy === opt.key} onClick={() => setSortBy(opt.key)}>
+              {opt.label}
+            </FilterChip>
           ))}
-        </div>
+        </FilterRow>
       )}
+    >
 
       {enableDateFilter && (
         <div className="vd-row-wrap" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
@@ -175,6 +139,6 @@ export const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false })
           })}
         </div>
       )}
-    </div>
+    </QueueShell>
   );
 };

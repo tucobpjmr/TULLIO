@@ -12,6 +12,7 @@ import { useAppData } from "../../state/AppDataContext.jsx";
 // quali query fare: vedi components/liste/listeModuleApi.js.
 import { listeRicercabili, beneficiariNomi, intestazioneLista } from "../liste/listeModuleApi.js";
 import { matchTermini, terminiRicerca } from "../../lib/searchUtils.js";
+import { Z } from "../../styles/tokens.js";
 
 // Menù a tendina multi-selezione (Categoria/Status/Agente nel pannello Ricerca).
 // Sostituisce i chip toggle: trigger compatto + pannello a scomparsa con checkbox.
@@ -49,7 +50,7 @@ const FilterDropdown = ({ options, selected, onToggle }) => {
           position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, minWidth: 200,
           maxHeight: 240, overflowY: "auto", background: "#fff",
           border: "1px solid var(--border)", borderRadius: 8,
-          boxShadow: "0 12px 30px rgba(0,0,0,0.15)", zIndex: 300, padding: 6,
+          boxShadow: "0 12px 30px rgba(0,0,0,0.15)", zIndex: Z.panelRaised, padding: 6,
         }}>
           {options.map(opt => {
             const active = selected.includes(opt.value);
@@ -236,7 +237,7 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
         boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
         border: "1px solid var(--border)",
         display: "flex", flexDirection: "column",
-        zIndex: 200,
+        zIndex: Z.panel,
       }}
     >
       <div style={{

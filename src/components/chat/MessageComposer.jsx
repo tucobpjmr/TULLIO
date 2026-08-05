@@ -11,6 +11,7 @@
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useChatContext } from "./chatContext.js";
 import { VoiceRecorder } from "./message/VoiceRecorder.jsx";
+import { Z } from "../../styles/tokens.js";
 
 export const MessageComposer = ({ cv, cvd, fileInputRef, sendText, sendVoice, sendFile, notifyTyping }) => {
   const { input, recording, replyingTo, showAttach, showTemplates, uploading } = cv;
@@ -82,7 +83,7 @@ export const MessageComposer = ({ cv, cvd, fileInputRef, sendText, sendVoice, se
                 position: "absolute", bottom: "calc(100% + 8px)", left: 0,
                 background: "var(--card)", borderRadius: 12, padding: 8,
                 boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--border)",
-                display: "flex", flexDirection: "column", gap: 4, minWidth: 160, zIndex: 100,
+                display: "flex", flexDirection: "column", gap: 4, minWidth: 160, zIndex: Z.dropdown,
               }}>
                 {[
                   { kind: "pdf", icon: "📄", label: "Documento PDF", accept: "application/pdf" },
@@ -123,7 +124,7 @@ export const MessageComposer = ({ cv, cvd, fileInputRef, sendText, sendVoice, se
                   background: "var(--card)", borderRadius: 12, padding: 6,
                   boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--border)",
                   display: "flex", flexDirection: "column", gap: 2,
-                  minWidth: 260, maxWidth: 340, maxHeight: 320, overflowY: "auto", zIndex: 100,
+                  minWidth: 260, maxWidth: 340, maxHeight: 320, overflowY: "auto", zIndex: Z.dropdown,
                 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, padding: "6px 10px 4px" }}>
                     Template messaggi

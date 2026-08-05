@@ -5,6 +5,7 @@
 import { useState } from "react";
 import { chiaveNome } from "../../lib/clientNotes.js";
 import { EMPTY_FORM, fieldStyle, labelStyle, noticeStyle } from "./clientStyles.js";
+import { Z } from "../../styles/tokens.js";
 
 export function ClienteModal({ cliente, onSave, onClose, liste = null, tasksCollegati = [] }) {
   const [form, setForm] = useState(cliente
@@ -38,7 +39,7 @@ export function ClienteModal({ cliente, onSave, onClose, liste = null, tasksColl
 
   return (
     <div style={{
-      position: "fixed", inset: 0, zIndex: 600,
+      position: "fixed", inset: 0, zIndex: Z.slideOver,
       background: "rgba(8,21,45,0.45)", display: "flex", alignItems: "center", justifyContent: "center",
     }} onClick={onClose}>
       <div className="vd-modal-mh" style={{

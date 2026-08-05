@@ -9,6 +9,7 @@ import { PRIORITIES, STATUS_LABELS } from "../../lib/taskConstants.js";
 import { formatDate, getTrashedTasks } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";
+import { Z } from "../../styles/tokens.js";
 
 const PERIOD_OPTIONS = [
   { key: "all",       label: "Tutti" },
@@ -246,7 +247,7 @@ export const Trash = ({ state, dispatch }) => {
       {restoring && (
         <>
           <div onClick={() => setRestoring(null)} style={{
-            position: "fixed", inset: 0, background: "rgba(15,32,68,0.4)", zIndex: 1000,
+            position: "fixed", inset: 0, background: "rgba(15,32,68,0.4)", zIndex: Z.modalBackdrop,
           }} />
           {/* Centratura con inset:0 + margin:auto invece di
               translate(-50%,-50%): il transform renderebbe questa card
@@ -256,7 +257,7 @@ export const Trash = ({ state, dispatch }) => {
               schermo. Vedi ui/ModalPortal.jsx per il dettaglio del meccanismo. */}
           <div className="vd-modal-mh" style={{
             position: "fixed", inset: 0, margin: "auto", height: "fit-content",
-            background: "var(--card)", borderRadius: 16, zIndex: 1001,
+            background: "var(--card)", borderRadius: 16, zIndex: Z.modal,
             width: isMobile ? "calc(100vw - 32px)" : 520, maxWidth: "100%",
             overflowY: "auto",
             boxShadow: "0 20px 60px rgba(0,0,0,0.3)",

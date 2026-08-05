@@ -5,6 +5,7 @@ import { useChatContext } from "../chatContext.js";
 import {
   EMOJI_REACTIONS, EMOJI_EXPANDED, loadRecentReactions, pushRecentReaction,
 } from "../chatReactions.js";
+import { Z } from "../../../styles/tokens.js";
 
 
 export const ReactionPicker = ({ onPick, onClose }) => {
@@ -30,7 +31,7 @@ export const ReactionPicker = ({ onPick, onClose }) => {
       padding: expanded ? "8px 10px" : "6px 8px",
       boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--border)",
       display: expanded ? "block" : "flex",
-      gap: 2, zIndex: 100, maxWidth: expanded ? 280 : "auto",
+      gap: 2, zIndex: Z.dropdown, maxWidth: expanded ? 280 : "auto",
     }}>
       {expanded ? (
         <>

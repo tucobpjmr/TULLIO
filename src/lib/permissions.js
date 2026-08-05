@@ -11,8 +11,8 @@
 // Chi le usa:
 //   - state/reducer.js       → passa state.team (fonte di verità di React)
 //   - state/persistence.js   → stessa cosa, così i due livelli non divergono
-//   - hooks/usePermissions   → per i componenti
-//   - state/appGlobals.js    → shim legacy di transizione (vedi lì)
+//   - state/AppDataContext   → per i componenti, che le ricevono già legate al
+//                              team del provider (useAppData)
 //
 // NOTA sui ruoli: `member.role` è testo libero proveniente dal DB e dai select
 // in TEAM_ROLES (lib/taskConstants.js). Il confronto è per sottostringa

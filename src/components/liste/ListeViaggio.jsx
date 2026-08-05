@@ -12,7 +12,7 @@
 // breadcrumb e testata — segue lo stile Tullio (navy/oro, Playfair).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useViewport } from "../Viewport.jsx";
-import { getRoleType, isAdmin } from "../../state/appGlobals.js";
+import { useAppData } from "../../state/AppDataContext.jsx";
 import {
   ListeAPI, beneficiariNomi, downloadBlob, eur, fmtDate, intestazioneLista,
   runListeCall, saldoClass, todayISO,
@@ -138,6 +138,7 @@ export function ListaRow({ lista, saldo, onOpen, trashed = false, children }) {
 // ─── Modulo ────────────────────────────────────────────────────────────────
 export function ListeViaggio({ state, dispatch }) {
   const { isMobile } = useViewport();
+  const { getRoleType, isAdmin } = useAppData();
   const uid = state.currentUserId;
   const role = getRoleType(uid);
   const isDriver = role === "driver";

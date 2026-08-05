@@ -6,7 +6,7 @@ import { useState, useRef, useMemo, useEffect } from "react";
 import { PriorityBadge } from "../../ui/PriorityBadge.jsx";
 import { STATUS_LABELS } from "../../../lib/taskConstants.js";
 import { formatDate } from "../../../lib/taskUtils.js";
-import { TEAM, CATEGORIES } from "../../../state/appGlobals.js";
+import { useAppData } from "../../../state/AppDataContext.jsx";
 import { readFirstSheetRows } from "../../../lib/xlsx.js";
 import {
   normCat, isRecognizedCat, normPrio, isRecognizedPrio, normStat, isRecognizedStat,
@@ -17,6 +17,7 @@ import { bulkInputStyle, bulkBtnPrimary, bulkBtnGhost } from "./bulkStyles.js";
 
 // ─── BULK: IMPORT TAB ──────────────────────────────────────────────────────
 export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
+  const { team, categories } = useAppData();
   const [fileName, setFileName] = useState("");
   const [rows, setRows] = useState([]);
   const [columns, setColumns] = useState([]);
@@ -84,15 +85,15 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
     if (!validRows.length) return null;
     let badCategory = 0, badPriority = 0, badStatus = 0, badDate = 0, badAssignee = 0;
     for (const r of validRows) {
-      if (mapping.category && r[mapping.category] && !isRecognizedCat(CATEGORIES, r[mapping.category])) badCategory++;
+      if (mapping.category && r[mapping.category] && !isRecognizedCat(categories, r[mapping.category])) badCategory++;
       if (mapping.priority && r[mapping.priority] && !isRecognizedPrio(r[mapping.priority])) badPriority++;
       if (mapping.status && r[mapping.status] && !isRecognizedStat(r[mapping.status])) badStatus++;
       if (mapping.dueDate && r[mapping.dueDate] && !normDate(r[mapping.dueDate])) badDate++;
-      if (mapping.assignee && String(r[mapping.assignee] || "").trim() && !normAssignee(TEAM, r[mapping.assignee])) badAssignee++;
+      if (mapping.assignee && String(r[mapping.assignee] || "").trim() && !normAssignee(team, r[mapping.assignee])) badAssignee++;
     }
     const total = badCategory + badPriority + badStatus + badDate + badAssignee;
     return total > 0 ? { badCategory, badPriority, badStatus, badDate, badAssignee } : null;
-  }, [validRows, mapping]);
+  }, [validRows, mapping, team, categories]);
 
   // Anteprima dei task "come verranno creati" (fase 2): applica le stesse
   // normalizzazioni di handleCreate così l'operatore vede il risultato reale
@@ -104,10 +105,10 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
       const dueRaw = mapping.dueDate ? String(r[mapping.dueDate] || "").trim() : "";
       const due = mapping.dueDate ? normDate(r[mapping.dueDate]) : null;
       const assigneeRaw = mapping.assignee ? String(r[mapping.assignee] || "").trim() : "";
-      const assigneeId = mapping.assignee ? normAssignee(TEAM, r[mapping.assignee]) : null;
+      const assigneeId = mapping.assignee ? normAssignee(team, r[mapping.assignee]) : null;
       return {
         title: String(r[mapping.title]).trim(),
-        category: normCat(CATEGORIES, mapping.category ? r[mapping.category] : null),
+        category: normCat(categories, mapping.category ? r[mapping.category] : null),
         priority: normPrio(mapping.priority ? r[mapping.priority] : null),
         status: normStat(mapping.status ? r[mapping.status] : null),
         client: mapping.client ? String(r[mapping.client] || "").trim() : "",
@@ -115,16 +116,16 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
         assigneeId, assigneeLost: !!(assigneeRaw && !assigneeId),
       };
     });
-  }, [validRows, mapping]);
+  }, [validRows, mapping, team, categories]);
 
   const handleCreate = async () => {
     if (busy) return;
     const tasks = validRows.map((r) => {
-      const assignee = mapping.assignee ? normAssignee(TEAM, r[mapping.assignee]) : null;
+      const assignee = mapping.assignee ? normAssignee(team, r[mapping.assignee]) : null;
       return {
         id: crypto.randomUUID(),
         title: String(r[mapping.title]).trim(),
-        category: normCat(CATEGORIES, mapping.category ? r[mapping.category] : null),
+        category: normCat(categories, mapping.category ? r[mapping.category] : null),
         priority: normPrio(mapping.priority ? r[mapping.priority] : null),
         status: normStat(mapping.status ? r[mapping.status] : null),
         assignees: assignee ? [assignee] : [],
@@ -255,17 +256,17 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
               </div>
               <div style={{ maxHeight: 240, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 8 }}>
                 {normalizedPreview.map((t, i) => {
-                  const assigneeName = t.assigneeId ? (TEAM.find(m => m.id === t.assigneeId)?.name || t.assigneeId) : null;
+                  const assigneeName = t.assigneeId ? (team.find(m => m.id === t.assigneeId)?.name || t.assigneeId) : null;
                   return (
                     <div key={i} style={{
                       padding: "8px 12px", borderBottom: i === normalizedPreview.length - 1 ? "none" : "1px solid var(--border)",
                       display: "flex", alignItems: "center", gap: 10, fontSize: 12,
                     }}>
-                      <span style={{ fontSize: 14 }}>{CATEGORIES[t.category]?.icon}</span>
+                      <span style={{ fontSize: 14 }}>{categories[t.category]?.icon}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
                         <div style={{ fontSize: 10, color: "var(--text-muted)", display: "flex", flexWrap: "wrap", gap: 8, marginTop: 2 }}>
-                          <span>{CATEGORIES[t.category]?.label}</span>
+                          <span>{categories[t.category]?.label}</span>
                           <span>{STATUS_LABELS[t.status]}</span>
                           {t.client && <span>👤 {t.client}</span>}
                           <span style={{ color: t.dueLost ? "var(--warning)" : "var(--text-muted)", fontWeight: t.dueLost ? 700 : 400 }}>

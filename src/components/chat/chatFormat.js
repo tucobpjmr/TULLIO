@@ -4,7 +4,11 @@
 // `getUnreadCount` è l'unica funzione della chat usata anche fuori (il badge
 // in VoyageDesk.jsx): resta ri-esportata da ChatPanel.jsx per non cambiare i
 // punti d'importazione esistenti.
-import { CURRENT_USER, getMember } from "../../state/appGlobals.js";
+//
+// Questo è l'unico modulo NON-componente della chat che aveva bisogno di sapere
+// chi è l'utente corrente, e lo leggeva da una variabile globale di modulo. Ora
+// sono funzioni pure: l'utente (e, dove serve, il lookup del team) arrivano
+// come parametro esplicito dal chiamante, che li prende da useAppData().
 
 export const formatChatTime = (iso) => {
   const d = new Date(iso);
@@ -26,10 +30,17 @@ export const formatDuration = (sec) => {
   return `${m}:${s.toString().padStart(2, "0")}`;
 };
 
-export const getConversationName = (conv) => {
+/**
+ * Nome da mostrare per una conversazione: quello del gruppo, oppure il nome
+ * dell'altro partecipante per le dirette.
+ * @param {object}   conv
+ * @param {string}   currentUserId
+ * @param {function} getMember  (id) => membro, da useAppData()
+ */
+export const getConversationName = (conv, currentUserId, getMember) => {
   if (conv.name) return conv.name;
-  const other = conv.participants.find(p => p !== CURRENT_USER);
-  return getMember(other)?.name || "Sconosciuto";
+  const other = conv.participants.find(p => p !== currentUserId);
+  return getMember?.(other)?.name || "Sconosciuto";
 };
 
 export const getLastMessage = (msgs, convId) => {
@@ -37,7 +48,7 @@ export const getLastMessage = (msgs, convId) => {
   return arr[arr.length - 1];
 };
 
-export const getUnreadCount = (msgs, convId) => {
+export const getUnreadCount = (msgs, convId, currentUserId) => {
   const arr = msgs[convId] || [];
-  return arr.filter(m => m.sender !== CURRENT_USER && !m.readBy?.includes(CURRENT_USER)).length;
+  return arr.filter(m => m.sender !== currentUserId && !m.readBy?.includes(currentUserId)).length;
 };

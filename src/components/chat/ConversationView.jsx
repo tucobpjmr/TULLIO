@@ -9,7 +9,7 @@ import {
   applyTypingEvent, pruneTypingMap, typingUserIds, buildTypingLabel,
   TYPING_PING_MS, TYPING_STOP_MS,
 } from "../../lib/typingUtils.js";
-import { CURRENT_USER, getMember } from "../../state/appGlobals.js";
+import { useAppData } from "../../state/AppDataContext.jsx";
 import { useChatContext } from "./chatContext.js";
 import { computePresence, PRESENCE_COLORS, PRESENCE_LABELS } from "./chatPresence.js";
 import { getConversationName } from "./chatFormat.js";
@@ -21,7 +21,7 @@ import { MessageComposer } from "./MessageComposer.jsx";
 import { parseTaskLink } from "./message/MessageTextContent.jsx";
 
 // ─── CHAT: CONVERSATION VIEW ───────────────────────────────────────────────
-export const ConversationView = ({ conv, messages, setMessages, markConversationRead, onToggleReaction, onBack, onDelete, initialInput, initialTaskRef, onInitialInputConsumed }) => {
+export const ConversationView = ({ conv, messages, setMessages, commands, markConversationRead, onToggleReaction, onBack, onDelete, initialInput, initialTaskRef, onInitialInputConsumed }) => {
   const [cv, cvd] = useReducer(convViewReducer, convViewInitial);
   // Il composer riceve `cv` intero e si destruttura da sé i campi che usa
   // (input, recording, replyingTo, showAttach, showTemplates): qui restano
@@ -33,7 +33,10 @@ export const ConversationView = ({ conv, messages, setMessages, markConversation
   // Step M: upload allegati reale
   const fileInputRef = useRef(null);
   const { dispatch } = useChatContext();
-  const myId = currentUserId || CURRENT_USER;
+  const { currentUserId: appUserId, getMember } = useAppData();
+  // `currentUserId` del ChatContext ha la precedenza (i test montano la vista
+  // isolata passandolo esplicitamente); altrimenti vale l'utente dell'app.
+  const myId = currentUserId || appUserId;
   // Guardia unmount: setState dopo unmount (utente chiude la chat mid-upload)
   // genera un warning React e perde la callback di errore.
   const mountedRef = useRef(true);
@@ -61,7 +64,7 @@ export const ConversationView = ({ conv, messages, setMessages, markConversation
   // a chat già "letta" sia dopo che il mark ha azzerato readBy, il che
   // impedisce anche il loop: una volta marcati come letti, unreadCount torna
   // a 0 e l'effect si ferma, senza reinnescarsi da solo).
-  const unreadCount = msgs.filter(m => m.sender !== CURRENT_USER && !m.readBy?.includes(CURRENT_USER)).length;
+  const unreadCount = msgs.filter(m => m.sender !== myId && !m.readBy?.includes(myId)).length;
   useEffect(() => {
     if (unreadCount === 0) return;
     if (markConversationRead) {
@@ -72,13 +75,13 @@ export const ConversationView = ({ conv, messages, setMessages, markConversation
     setMessages(prev => ({
       ...prev,
       [conv.id]: (prev[conv.id] || []).map(m => {
-        if (m.sender !== CURRENT_USER && !m.readBy?.includes(CURRENT_USER)) {
-          return { ...m, readBy: [...(m.readBy || []), CURRENT_USER] };
+        if (m.sender !== myId && !m.readBy?.includes(myId)) {
+          return { ...m, readBy: [...(m.readBy || []), myId] };
         }
         return m;
       })
     }));
-  }, [conv.id, unreadCount]);
+  }, [conv.id, unreadCount, myId]);
 
   // ── Typing indicator realtime (broadcast) ────────────────────────────────
   // Stato effimero via canale broadcast per-conversazione (subscribeToTyping):
@@ -162,13 +165,13 @@ export const ConversationView = ({ conv, messages, setMessages, markConversation
     const textOut = input.trim();
     const stillHasLink = parseTaskLink(textOut) !== null;
     const newMsg = {
-      id: "m" + Date.now(), sender: CURRENT_USER, type: "text",
+      id: "m" + Date.now(), sender: myId, type: "text",
       text: textOut, time: new Date().toISOString(),
-      readBy: [CURRENT_USER],
+      readBy: [myId],
       replyTo: replyingTo?.id,
       ...(stillHasLink && pendingTaskRef ? { taskRef: pendingTaskRef } : {}),
     };
-    setMessages(prev => ({ ...prev, [conv.id]: [...(prev[conv.id] || []), newMsg] }));
+    commands.sendMessage(conv.id, newMsg);
     stopTyping();
     cvd({ type: "AFTER_SEND" });
   };
@@ -192,12 +195,12 @@ export const ConversationView = ({ conv, messages, setMessages, markConversation
       fileType = mimeType || null;
     }
     const newMsg = {
-      id: "m" + Date.now(), sender: CURRENT_USER, type: "voice",
+      id: "m" + Date.now(), sender: myId, type: "voice",
       duration, waveform: waveform || randomWaveform(), fileUrl, fileType,
       time: new Date().toISOString(),
-      readBy: [CURRENT_USER],
+      readBy: [myId],
     };
-    setMessages(prev => ({ ...prev, [conv.id]: [...(prev[conv.id] || []), newMsg] }));
+    commands.sendMessage(conv.id, newMsg);
     cvd({ type: "RECORDING", v: false });
   };
 
@@ -226,13 +229,13 @@ export const ConversationView = ({ conv, messages, setMessages, markConversation
       fileUrl = path;
     }
     const newMsg = {
-      id: "m" + Date.now(), sender: CURRENT_USER, type: "file",
+      id: "m" + Date.now(), sender: myId, type: "file",
       fileName: file.name, fileSize: file.size,
       fileType: fileKindFromName(file.name), fileUrl,
       time: new Date().toISOString(),
-      readBy: [CURRENT_USER],
+      readBy: [myId],
     };
-    setMessages(prev => ({ ...prev, [conv.id]: [...(prev[conv.id] || []), newMsg] }));
+    commands.sendMessage(conv.id, newMsg);
   };
 
   const handleReact = (msgId, emoji) => {
@@ -240,45 +243,35 @@ export const ConversationView = ({ conv, messages, setMessages, markConversation
     // dal parent, come markConversationRead). Evita di scrivere l'intero oggetto
     // reactions dal client (race last-write-wins tra utenti concorrenti).
     if (onToggleReaction) { onToggleReaction(conv.id, msgId, emoji); return; }
-    // Fallback mock/test (nessun parent handler): toggle locale via setMessages.
+    // Fallback mock/test (nessun parent handler): toggle SOLO locale — nessuna
+    // persistenza, il setter è un normale setState.
     setMessages(prev => ({
       ...prev,
       [conv.id]: prev[conv.id].map(m => {
         if (m.id !== msgId) return m;
         const reactions = { ...(m.reactions || {}) };
         const users = reactions[emoji] || [];
-        if (users.includes(CURRENT_USER)) {
-          reactions[emoji] = users.filter(u => u !== CURRENT_USER);
+        if (users.includes(myId)) {
+          reactions[emoji] = users.filter(u => u !== myId);
           if (reactions[emoji].length === 0) delete reactions[emoji];
         } else {
-          reactions[emoji] = [...users, CURRENT_USER];
+          reactions[emoji] = [...users, myId];
         }
         return { ...m, reactions };
       })
     }));
   };
 
-  // Fase 3 pin: stato group-level. Toggle via wrapper setMessages → diff
-  // pinned → MessagesAPI.setPinned. Niente API ottimistica diversa: il
-  // wrapper persiste, l'UI si aggiorna dal local set immediatamente.
-  // pinnedBy/pinnedAt: audit (chi/quando) valorizzato al pin, azzerato all'unpin.
+  // Fase 3 pin: stato group-level, condiviso da tutti i partecipanti. Il
+  // messaggio è già qui in `msgs`, quindi si sa se si sta fissando o togliendo:
+  // il comando riceve `pinned` esplicito invece di farlo dedurre da un diff.
   const handleTogglePin = (msgId) => {
-    setMessages(prev => ({
-      ...prev,
-      [conv.id]: (prev[conv.id] || []).map(m => {
-        if (m.id !== msgId) return m;
-        const willPin = !m.pinned;
-        return {
-          ...m,
-          pinned: willPin,
-          pinnedBy: willPin ? CURRENT_USER : null,
-          pinnedAt: willPin ? new Date().toISOString() : null,
-        };
-      }),
-    }));
+    const target = msgs.find(m => m.id === msgId);
+    if (!target) return;
+    commands.setMessagePinned(conv.id, msgId, !target.pinned, myId);
   };
 
-  const otherTypingMember = conv.participants.find(p => p !== CURRENT_USER);
+  const otherTypingMember = conv.participants.find(p => p !== myId);
   // Presenza reale dell'interlocutore (solo conv dirette): guida il pallino
   // colorato + l'etichetta nell'header. computePresence normalizza a 'offline'
   // se il membro è assente o non ha last_seen_at. Prima l'header mostrava un
@@ -321,7 +314,7 @@ export const ConversationView = ({ conv, messages, setMessages, markConversation
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ color: "#fff", fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {getConversationName(conv)}
+            {getConversationName(conv, myId, getMember)}
           </div>
           <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 11 }}>
             {isTyping ? (

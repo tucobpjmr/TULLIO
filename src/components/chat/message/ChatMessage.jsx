@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Avatar } from "../../ui/Avatar.jsx";
 import { Messages as MessagesAPI } from "../../../lib/api.js";
 import { formatDate } from "../../../lib/taskUtils.js";
-import { CURRENT_USER, getMember } from "../../../state/appGlobals.js";
+import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useChatContext } from "../chatContext.js";
 import { formatMsgTime } from "../chatFormat.js";
 import { formatFileSize } from "../chatFiles.js";
@@ -16,8 +16,9 @@ import { MessageTextContent } from "./MessageTextContent.jsx";
 export const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onTogglePin }) => {
   const [showReactions, setShowReactions] = useState(false);
   const [hovered, setHovered] = useState(false);
-  const { onForward } = useChatContext();
-  const isMine = msg.sender === CURRENT_USER;
+  const { onForward, currentUserId: me } = useChatContext();
+  const { getMember } = useAppData();
+  const isMine = msg.sender === me;
   const sender = getMember(msg.sender);
   const showAvatar = !prevMsg || prevMsg.sender !== msg.sender;
   const showName = conv.type === "group" && !isMine && showAvatar;
@@ -34,7 +35,7 @@ export const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply,
   const canForward = !!onForward && ["text", "file", "voice"].includes(msg.type);
 
   // Read indicator
-  const otherParticipants = conv.participants.filter(p => p !== CURRENT_USER);
+  const otherParticipants = conv.participants.filter(p => p !== me);
   const readByAll = isMine && otherParticipants.every(p => msg.readBy?.includes(p));
   const readBySome = isMine && otherParticipants.some(p => msg.readBy?.includes(p));
 

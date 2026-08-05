@@ -9,7 +9,7 @@ import { StatusBadge } from "../ui/StatusBadge.jsx";
 import { TaskCard, TaskRow } from "../tasks/TaskCard.jsx";
 import { PRIORITIES } from "../../lib/taskConstants.js";
 import { formatDate, formatTime, isOverdue, isUrgent, isMyTask, isInGlobalQueue, getActiveTasks, getDayKey } from "../../lib/taskUtils.js";
-import { CATEGORIES, getMember, getRoleType, getAssignableTeam, canViewTask, canEditTask, getVisibleTasks, isJuniorAgent } from "../../state/appGlobals.js";
+import { useAppData } from "../../state/AppDataContext.jsx";
 import { NoticeBoard } from "./NoticeBoard.jsx";
 
 // ─── PERSONAL QUEUE (le mie task — v0.8) ───────────────────────────────────
@@ -212,6 +212,7 @@ const URGENT_WINDOWS = [
 ];
 
 const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
+  const { getMember, canEditTask } = useAppData();
   const { isMobile } = useViewport();
   const [filterAgent, setFilterAgent] = useState(null);
   const [windowH, setWindowH] = useState(24);
@@ -428,6 +429,7 @@ const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
 
 // ─── UNASSIGNED QUEUE (coda globale) ───────────────────────────────────────
 const UnassignedQueue = ({ tasks, dispatch, onTake, uid }) => {
+  const { categories, isJuniorAgent } = useAppData();
   const isJunior = isJuniorAgent(uid);
   const { isMobile } = useViewport();
   const openTask = useOpenTask(dispatch);
@@ -503,7 +505,7 @@ const UnassignedQueue = ({ tasks, dispatch, onTake, uid }) => {
             );
           })}
           {presentCategories.length > 1 && presentCategories.map(c => {
-            const meta = CATEGORIES[c];
+            const meta = categories[c];
             if (!meta) return null;
             const active = categoryFilter === c;
             return (
@@ -646,6 +648,7 @@ const QueueTab = ({ active, onClick, icon, label, count, isMobile, dangerCount }
 // ─── OVERDUE QUEUE (task scaduti visibili) ────────────────────────────────
 const OverdueQueue = ({ tasks, dispatch }) => {
   const { isMobile } = useViewport();
+  const { getMember } = useAppData();
   const [filterAssignee, setFilterAssignee] = useState(null);
   const openTask = useOpenTask(dispatch);
   const empty = tasks.length === 0;
@@ -787,6 +790,10 @@ const OverdueQueue = ({ tasks, dispatch }) => {
 // ─── DASHBOARD ─────────────────────────────────────────────────────────────
 export const Dashboard = ({ state, dispatch, onOpenChat }) => {
   const { isMobile } = useViewport();
+  const {
+    getMember, getRoleType, getAssignableTeam,
+    canViewTask, getVisibleTasks, isJuniorAgent,
+  } = useAppData();
   const [activeQueue, setActiveQueue] = useState("personal");
   const openTask = useOpenTask(dispatch);
   const uid = state.currentUserId;

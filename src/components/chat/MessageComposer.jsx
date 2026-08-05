@@ -8,13 +8,14 @@
 // stato locale `cv` per intero invece di otto prop separate: sono i campi di
 // un solo reducer (convViewReducer), spacchettarli qui non aggiungerebbe
 // niente se non punti in cui disallinearsi.
-import { getMember } from "../../state/appGlobals.js";
+import { useAppData } from "../../state/AppDataContext.jsx";
 import { useChatContext } from "./chatContext.js";
 import { VoiceRecorder } from "./message/VoiceRecorder.jsx";
 
 export const MessageComposer = ({ cv, cvd, fileInputRef, sendText, sendVoice, sendFile, notifyTyping }) => {
   const { input, recording, replyingTo, showAttach, showTemplates, uploading } = cv;
   const { messageTemplates: templates = [] } = useChatContext();
+  const { getMember } = useAppData();
 
   // Il picker nativo viene aperto con un `accept` diverso per tipo; l'upload
   // vero (bucket privato 'chat-files') è responsabilità di sendFile.

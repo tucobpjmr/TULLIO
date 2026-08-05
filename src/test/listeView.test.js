@@ -6,7 +6,6 @@
 // navigazione riporta l'utente fuori se la vista resta impostata su "liste".
 import { describe, it, expect } from "vitest";
 import { reducer, makeInitialState } from "../state/reducer.js";
-import { setTeam, setCurrentUser } from "../state/appGlobals.js";
 
 const TEAM_FIXTURE = [
   { id: "marco", name: "Marco", role: "admin", active: true, pending: false },
@@ -17,8 +16,6 @@ const TEAM_FIXTURE = [
 const LISTA_ID = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
 
 function freshState(uid = "marco") {
-  setTeam(TEAM_FIXTURE.map(m => ({ ...m })));
-  setCurrentUser(uid);
   return makeInitialState({ team: TEAM_FIXTURE, currentUserId: uid });
 }
 

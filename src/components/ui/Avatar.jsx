@@ -1,8 +1,9 @@
 // ─── AVATAR ────────────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2e).
-import { getMember } from "../../state/appGlobals.js";
+import { useAppData } from "../../state/AppDataContext.jsx";
 
 export const Avatar = ({ memberId, size = 28 }) => {
+  const { getMember } = useAppData();
   const m = getMember(memberId);
   if (!m) return null;
   if (m.photoUrl) {

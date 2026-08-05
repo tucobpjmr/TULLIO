@@ -1,0 +1,54 @@
+// src/test/helpers/appData.jsx
+// Helper di render per i componenti che consumano useAppData().
+//
+// Prima della migrazione i test impostavano il team e l'utente corrente con
+// setTeam()/setCurrentUser() — cioè scrivendo variabili globali di modulo, con
+// tutti i difetti del caso: l'ordine dei test contava, un `beforeEach`
+// dimenticato faceva passare (o fallire) il test per via dello stato lasciato
+// da un altro file, e nulla nel corpo del test dichiarava da quale team
+// dipendesse l'asserzione.
+//
+// Qui il contesto è esplicito e locale al singolo render:
+//
+//   renderWithAppData(<Trash state={…} dispatch={…} />, {
+//     team: TEAM_FIXTURE, currentUserId: "dario",
+//   });
+//
+// `state` accetta direttamente uno state del reducer, così i test che già ne
+// costruiscono uno non devono ripetere gli stessi tre campi:
+//
+//   renderWithAppData(<Dashboard state={s} … />, s);
+
+import { render } from "@testing-library/react";
+import { AppDataProvider } from "../../state/AppDataContext.jsx";
+import { INITIAL_TEAM, INITIAL_CATEGORIES } from "../../state/mockData.js";
+
+// Contesto demo: gli stessi valori che appGlobals aveva come default di modulo
+// (INITIAL_TEAM / INITIAL_CATEGORIES / "marco"). I test che non hanno un'opinione
+// sul team lo usavano già — implicitamente, senza dirlo. Ora lo dichiarano.
+export const DEMO_APP_CTX = {
+  team: INITIAL_TEAM,
+  categories: INITIAL_CATEGORIES,
+  currentUserId: "marco",
+};
+
+export function withAppData(ui, { team = [], categories = {}, currentUserId = null } = {}) {
+  return (
+    <AppDataProvider team={team} categories={categories} currentUserId={currentUserId}>
+      {ui}
+    </AppDataProvider>
+  );
+}
+
+export function renderWithAppData(ui, ctx = {}, options) {
+  const utils = render(withAppData(ui, ctx), options);
+  // `rerender` di testing-library rimonta l'elemento NUDO: senza questo
+  // override il secondo render perderebbe il provider e useAppData()
+  // solleverebbe. `nextCtx` permette anche di ri-renderizzare con un contesto
+  // diverso (es. "e adesso l'utente è un Driver"), che prima si otteneva
+  // mutando una globale tra un render e l'altro.
+  return {
+    ...utils,
+    rerender: (next, nextCtx = ctx) => utils.rerender(withAppData(next, nextCtx)),
+  };
+}

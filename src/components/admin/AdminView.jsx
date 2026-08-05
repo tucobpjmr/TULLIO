@@ -6,7 +6,7 @@ import { STATUSES, STATUS_LABELS, STATUS_COLORS, TEAM_ROLES } from "../../lib/ta
 import { isOverdue } from "../../lib/taskUtils.js";
 import { validateBackup } from "../../lib/backupValidation.js";
 import { loadXLSX } from "../../lib/xlsx.js";
-import { getMember } from "../../state/appGlobals.js";
+import { useAppData } from "../../state/AppDataContext.jsx";
 import { Users } from "../../lib/api.js";
 import { useViewport } from "../Viewport.jsx";
 import { AddTeamMemberModal } from "../modals/AddTeamMemberModal.jsx";
@@ -349,6 +349,7 @@ const AdminTeamTab = ({ state, dispatch }) => {
 
 // ─── ADMIN TAB: IMPORT / EXPORT ────────────────────────────────────────────
 const AdminIOTab = ({ state, dispatch }) => {
+  const { getMember } = useAppData();
   const [includeTrashed, setIncludeTrashed] = useState(false);
   const fileInputRef = useRef(null);
 

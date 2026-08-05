@@ -5,9 +5,10 @@
 // l'utente non chiudeva e riapriva la conversazione.
 import { describe, it, expect, vi } from "vitest";
 import { useState } from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { ChatPanel } from "../components/chat/ChatPanel.jsx";
-import { CURRENT_USER } from "../state/appGlobals.js";
+import { INITIAL_TEAM } from "../state/mockData.js";
+import { renderWithAppData } from "./helpers/appData.jsx";
 
 // ChatPanel importa src/lib/api.js, che a sua volta istanzia il client
 // Supabase reale (richiede VITE_SUPABASE_URL/ANON_KEY, assenti in test).
@@ -38,7 +39,13 @@ if (!Element.prototype.scrollTo) {
   Element.prototype.scrollTo = () => {};
 }
 
-const OTHER_USER = "sofia"; // membro reale di INITIAL_TEAM (diverso da CURRENT_USER)
+// Utente corrente e interlocutore: due membri reali di INITIAL_TEAM. Prima
+// erano letti dal globale CURRENT_USER; ora il contesto è dichiarato qui e
+// passato al render, quindi il test non dipende da nessuno stato di modulo.
+const ME = "marco";
+const OTHER_USER = "sofia";
+const APP_CTX = { team: INITIAL_TEAM, currentUserId: ME };
+const render = (ui) => renderWithAppData(ui, APP_CTX);
 const CONV_ID = "conv-test-1"; // non-uuid: nessuna chiamata Supabase (vedi isUuid guard)
 
 // Harness: tiene lo stato messaggi "lato genitore" come farebbe VoyageDesk.jsx
@@ -60,7 +67,7 @@ function ChatHarness({ onMessagesChange }) {
     });
   };
 
-  const conv = { id: CONV_ID, type: "direct", participants: [CURRENT_USER, OTHER_USER], name: null };
+  const conv = { id: CONV_ID, type: "direct", participants: [ME, OTHER_USER], name: null };
 
   return (
     <div>
@@ -92,7 +99,7 @@ describe("ConversationView — mark as read a chat aperta", () => {
     render(<ChatHarness onMessagesChange={(m) => { latest = m; }} />);
 
     await waitFor(() => {
-      expect(latest[CONV_ID].find(m => m.id === "m1").readBy).toContain(CURRENT_USER);
+      expect(latest[CONV_ID].find(m => m.id === "m1").readBy).toContain(ME);
     });
   });
 
@@ -102,7 +109,7 @@ describe("ConversationView — mark as read a chat aperta", () => {
 
     // Attende il mark-as-read iniziale (m1)
     await waitFor(() => {
-      expect(latest[CONV_ID].find(m => m.id === "m1").readBy).toContain(CURRENT_USER);
+      expect(latest[CONV_ID].find(m => m.id === "m1").readBy).toContain(ME);
     });
 
     // Simula un nuovo messaggio non letto arrivato via realtime (conv. sempre aperta)
@@ -111,7 +118,7 @@ describe("ConversationView — mark as read a chat aperta", () => {
     await waitFor(() => {
       const m2 = latest[CONV_ID].find(m => m.id === "m2");
       expect(m2).toBeTruthy();
-      expect(m2.readBy).toContain(CURRENT_USER);
+      expect(m2.readBy).toContain(ME);
     });
   });
 });

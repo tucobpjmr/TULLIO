@@ -1,15 +1,21 @@
 // Regressione Caso 2 (typing indicator "morto" nelle conversazioni nuove).
-// NewConversationView crea le conv con id locale "c<timestamp>"; il wrapper
-// setConversations di VoyageDesk rimappa quell'id a un UUID quando persiste,
-// ma handleCreate attivava la vista con l'oggetto ORIGINALE: il creatore
-// restava su un id non-uuid, quindi subscribeToTyping veniva saltato (gate
-// isUuid), il primo messaggio partiva con conversation_id invalido e le
-// risposte realtime finivano sotto una chiave diversa da quella della vista.
-// Dopo il fix l'UUID è assegnato in handleCreate, PRIMA di lista + ACTIVATE.
+// NewConversationView crea le conv con id locale "c<timestamp>"; l'UUID
+// definitivo lo assegna commands.createConversation, che RITORNA la
+// conversazione normalizzata. Se handleCreate attivasse l'oggetto ORIGINALE il
+// creatore resterebbe su un id non-uuid: subscribeToTyping saltato (gate
+// isUuid), primo messaggio con conversation_id invalido, risposte realtime
+// sotto una chiave diversa da quella della vista.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { renderWithAppData, DEMO_APP_CTX } from "./helpers/appData.jsx";
 import { ChatPanel } from "../components/chat/ChatPanel.jsx";
 import { isUuid } from "../lib/mappers.js";
+
+// I componenti sotto test leggono team/categorie/utente da useAppData(): prima
+// li prendevano dai default di modulo di appGlobals, ora vanno montati dentro
+// il provider. DEMO_APP_CTX è esattamente quel default, reso esplicito.
+const render = (ui, options) => renderWithAppData(ui, DEMO_APP_CTX, options);
+
 
 // Come in chatReadReceipts.test.jsx: mock di api.js per non istanziare il
 // client Supabase reale. In più qui spiamo subscribeToTyping per verificare
@@ -39,8 +45,9 @@ if (!Element.prototype.scrollTo) {
   Element.prototype.scrollTo = () => {};
 }
 
-// Harness minimale: cattura le conversazioni che ChatPanel chiede di
-// persistere (come farebbe il wrapper setConversations di VoyageDesk).
+// Harness minimale: cattura le conversazioni che ChatPanel inserisce in lista.
+// Il setter è un normale setState (updater PURO): la persistenza non passa più
+// da qui ma da commands.createConversation — vedi chatCommands.test.js.
 function renderPanel({ onConversations }) {
   const setConversations = (updater) => {
     const next = typeof updater === "function" ? updater([]) : updater;

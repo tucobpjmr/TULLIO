@@ -5,11 +5,12 @@
 // Estratto dal monolite (Step P Phase 2e).
 import { useState, useEffect, useRef } from "react";
 import { useViewport } from "./Viewport.jsx";
-import { CURRENT_USER, getMember, getAssignableTeam, canEditTask } from "../state/appGlobals.js";
+import { useAppData } from "../state/AppDataContext.jsx";
 import { Avatar } from "./ui/Avatar.jsx";
 
 export const SwipeActions = ({ task, dispatch, children, disabled = false }) => {
   const { isDesktop } = useViewport();
+  const { currentUserId, getMember, getAssignableTeam, canEditTask } = useAppData();
   const [offset, setOffset] = useState(0);          // px di traslazione attuale
   const [opened, setOpened] = useState(false);      // stato "aperto" (bottoni visibili)
   const [showForward, setShowForward] = useState(false);
@@ -21,9 +22,10 @@ export const SwipeActions = ({ task, dispatch, children, disabled = false }) => 
 
   const OPEN_WIDTH = 210; // larghezza pannello bottoni rivelato (3 bottoni × 70)
 
-  // Disabilita su desktop / disabilitato esplicitamente / no permessi di edit (v0.8)
-  // Leggo il currentUserId dal globale (sincronizzato dal reducer).
-  const canEdit = canEditTask(task, CURRENT_USER);
+  // Disabilita su desktop / disabilitato esplicitamente / no permessi di edit (v0.8).
+  // L'utente corrente arriva dal contesto app, cioè dallo stesso state che React
+  // sta renderizzando: un cambio utente invalida questo componente.
+  const canEdit = canEditTask(task, currentUserId);
   const swipeEnabled = !isDesktop && !disabled && canEdit;
 
   // tap fuori per chiudere

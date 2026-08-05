@@ -1,11 +1,23 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render as rtlRender, screen, fireEvent } from "@testing-library/react";
 import { Trash } from "../components/views/Trash.jsx";
-import { setTeam, setCurrentUser } from "../state/appGlobals.js";
+import { withAppData } from "./helpers/appData.jsx";
 
-// Team di prova: un admin (marco) e un driver (dario). Le funzioni di permesso
-// (canViewTask/canEditTask) leggono i globali TEAM/CURRENT_USER via appGlobals,
-// quindi li impostiamo prima di ogni render.
+// Contesto app per il render: sostituisce ctxTeam()/ctxUser() sui
+// globali eliminati. Le funzioni di permesso (canViewTask/canEditTask) arrivano
+// da useAppData(), quindi il team e l'utente vanno passati al provider — è il
+// render stesso a montarli, non uno stato di modulo impostato prima.
+let appCtx = { team: [], categories: {}, currentUserId: null };
+const ctxTeam = (t) => { appCtx = { ...appCtx, team: t }; };
+const ctxUser = (id) => { appCtx = { ...appCtx, currentUserId: id }; };
+const render = (ui, options) => {
+  const utils = rtlRender(withAppData(ui, appCtx), options);
+  // `appCtx` è letto al momento del rerender, non a quello del primo render:
+  // un test può cambiare utente con ctxUser() e ri-renderizzare.
+  return { ...utils, rerender: (next) => utils.rerender(withAppData(next, appCtx)) };
+};
+
+// Team di prova: un admin (marco) e un driver (dario).
 const TEAM_FIXTURE = [
   { id: "marco", name: "Marco", role: "admin", active: true, pending: false },
   { id: "dario", name: "Dario", role: "driver", active: true, pending: false },
@@ -19,18 +31,18 @@ const trashedTask = (over = {}) => ({
 
 describe("Trash — la lista usa canViewTask, le azioni usano canEditTask", () => {
   beforeEach(() => {
-    setTeam(TEAM_FIXTURE.map(m => ({ ...m })));
+    ctxTeam(TEAM_FIXTURE.map(m => ({ ...m })));
   });
 
   it("un driver vede in lista un proprio task cestinato anche se non di categoria transfer (canView=true anche se canEdit=false)", () => {
-    setCurrentUser("dario");
+    ctxUser("dario");
     const task = trashedTask();
     render(<Trash state={{ currentUserId: "dario", tasks: [task] }} dispatch={vi.fn()} />);
     expect(screen.getByText("Prenotazione hotel")).toBeInTheDocument();
   });
 
   it("il driver non può ripristinare né eliminare quel task (non è transfer): l'azione mostra un toast di errore e non tocca il reducer", () => {
-    setCurrentUser("dario");
+    ctxUser("dario");
     const task = trashedTask();
     const dispatch = vi.fn();
     render(<Trash state={{ currentUserId: "dario", tasks: [task] }} dispatch={dispatch} />);
@@ -54,7 +66,7 @@ describe("Trash — la lista usa canViewTask, le azioni usano canEditTask", () =
   });
 
   it("un task cestinato non assegnato al driver e non visibile (canView=false) non compare affatto in lista", () => {
-    setCurrentUser("dario");
+    ctxUser("dario");
     const task = trashedTask({ id: "t2", title: "Volo Milano", assignees: ["marco"] });
     render(<Trash state={{ currentUserId: "dario", tasks: [task] }} dispatch={vi.fn()} />);
     expect(screen.queryByText("Volo Milano")).not.toBeInTheDocument();
@@ -62,7 +74,7 @@ describe("Trash — la lista usa canViewTask, le azioni usano canEditTask", () =
   });
 
   it("un admin vede il task e può ripristinarlo (canEdit=true → nessun toast di errore, si apre la modale)", () => {
-    setCurrentUser("marco");
+    ctxUser("marco");
     const task = trashedTask();
     const dispatch = vi.fn();
     render(<Trash state={{ currentUserId: "marco", tasks: [task] }} dispatch={dispatch} />);

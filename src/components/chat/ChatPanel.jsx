@@ -17,17 +17,18 @@
 //   ConversationList    elenco conversazioni
 //   NewConversationView creazione conversazione
 //   ForwardPicker       scelta destinatario per l'inoltro
-import { useReducer, useEffect, useRef } from "react";
+import { useReducer, useEffect, useMemo, useRef } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { Messages as MessagesAPI } from "../../lib/api.js";
 import { isUuid, newId } from "../../lib/mappers.js";
 import { formatDate, formatTime } from "../../lib/taskUtils.js";
-import { CURRENT_USER } from "../../state/appGlobals.js";
+import { useAppData } from "../../state/AppDataContext.jsx";
 import { ChatContext } from "./chatContext.js";
 import { PRESENCE_COLORS } from "./chatPresence.js";
 import { getConversationName, getUnreadCount } from "./chatFormat.js";
 import { syncRecentReactionsFromServer } from "./chatReactions.js";
 import { chatPanelInitial, chatPanelReducer } from "./chatReducers.js";
+import { makeChatCommands } from "./chatCommands.js";
 import { ConversationView } from "./ConversationView.jsx";
 import { ConversationList } from "./ConversationList.jsx";
 import { NewConversationView } from "./NewConversationView.jsx";
@@ -38,8 +39,19 @@ import { ForwardPicker } from "./ForwardPicker.jsx";
 export { getUnreadCount };
 
 
-export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, onToggleReaction, onDeleteConversation, intent, tasks, currentUserId, dispatch, presenceMap, messageTemplates = [], loading = false, myBusy = false, onToggleBusy }) => {
+export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, commands: commandsProp, markConversationRead, onToggleReaction, onDeleteConversation, intent, tasks, currentUserId, dispatch, presenceMap, messageTemplates = [], loading = false, myBusy = false, onToggleBusy }) => {
   const { isMobile } = useViewport();
+  const { currentUserId: appUserId, getMember } = useAppData();
+  // La prop ha la precedenza sul contesto: i test montano il pannello isolato
+  // passando l'utente esplicitamente.
+  const me = currentUserId || appUserId;
+  // Senza `commands` (mock senza login, test che montano il pannello isolato)
+  // si usa la variante locale della stessa factory: identici aggiornamenti di
+  // stato, nessuna chiamata a Supabase.
+  const commands = useMemo(
+    () => commandsProp || makeChatCommands({ setConversations, setMessages, enabled: false }),
+    [commandsProp, setConversations, setMessages],
+  );
   const [ps, pd] = useReducer(chatPanelReducer, chatPanelInitial);
   const { activeConv, newMode, prefillText, prefillTaskRef, forwardingMsg } = ps;
 
@@ -48,7 +60,7 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
   // storage). Se la conv eliminata è quella aperta, si torna prima alla lista.
   const handleDeleteConv = (conv) => {
     if (!onDeleteConversation || !conv) return;
-    const label = getConversationName(conv);
+    const label = getConversationName(conv, me, getMember);
     const ok = window.confirm(conv.type === "group"
       ? `Eliminare il gruppo "${label}"?\n\nTutti i messaggi e gli allegati verranno eliminati per tutti i partecipanti. Azione irreversibile.`
       : `Eliminare la conversazione con ${label}?\n\nTutti i messaggi e gli allegati verranno eliminati per entrambi. Azione irreversibile.`);
@@ -81,13 +93,12 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
     const src = forwardingMsg;
     pd({ type: "FWD_CLEAR" });
     if (!src || !destConvId) return;
-    const me = currentUserId || CURRENT_USER;
     // Preserva l'autore originale anche su forward chain (A→B→C): se src è
     // già un forward, ereditiamo il suo originalSenderId; altrimenti è src.sender.
     const originalSenderId = src.originalSenderId || src.sender;
     const base = {
-      // id provvisorio: il wrapper setMessages in VoyageDesk normalizza in UUID
-      // se non lo è (vedi caveat newId).
+      // id provvisorio: commands.sendMessage lo normalizza in UUID quando
+      // persiste (vedi chatCommands.js).
       id: "m" + Date.now(),
       sender: me,
       time: new Date().toISOString(),
@@ -132,10 +143,7 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
       newMsg = { ...base, type: "text", text: src.text || "" };
     }
 
-    setMessages(prev => ({
-      ...prev,
-      [destConvId]: [...(prev[destConvId] || []), newMsg],
-    }));
+    commands.sendMessage(destConvId, newMsg);
     // Se sto inoltrando verso una conv diversa da quella aperta, aprila per
     // mostrare visivamente il messaggio appena inoltrato.
     if (destConvId !== activeConv?.id) {
@@ -151,8 +159,8 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
   // cache locale col server (no-op per utenti non loggati / id mock).
   useEffect(() => {
     if (!open) return;
-    syncRecentReactionsFromServer(currentUserId || CURRENT_USER);
-  }, [open, currentUserId]);
+    syncRecentReactionsFromServer(me);
+  }, [open, me]);
 
   // Intent con conversazione già nota (tap su una notifica di chat, in-app o
   // push): apre direttamente quella conversazione. `conversations` è nelle
@@ -167,7 +175,6 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
   // Gestione intent: apertura chat verso utente specifico con link a task
   useEffect(() => {
     if (!open || !intent || !intent.toUser) return;
-    const me = currentUserId || CURRENT_USER;
     // Cerca conversazione diretta esistente
     let direct = conversations.find(c =>
       c.type === "direct" &&
@@ -177,13 +184,12 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
     if (!direct) {
       // UUID subito (come in handleCreate): la vista attivata e la riga
       // persistita devono condividere lo stesso id.
-      direct = {
+      direct = commands.createConversation({
         id: newId(),
         type: "direct",
         participants: [me, intent.toUser],
         name: null,
-      };
-      setConversations(prev => [direct, ...prev]);
+      });
     }
     pd({ type: "ACTIVATE", conv: direct });
     // Precompila il messaggio con riferimento al task
@@ -194,25 +200,24 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
         pd({ type: "PREFILL", text, taskRef: t.id });
       }
     }
-  }, [open, intent, currentUserId]);
+  }, [open, intent, me]);
 
   if (!open) return null;
 
   // Le conv nuove nascono in NewConversationView con id locale "c<timestamp>".
-  // L'UUID definitivo va assegnato QUI, prima di attivare la vista: il wrapper
-  // setConversations (VoyageDesk) rimappa gli id non-uuid quando persiste su
-  // DB, ma ACTIVATE riceveva l'oggetto originale — il creatore restava su un
-  // id non-uuid con typing/markRead saltati (gate isUuid), primo messaggio
-  // INSERTato con conversation_id invalido e risposte realtime instradate
-  // sotto la chiave UUID di una vista che leggeva ancora "c<timestamp>".
+  // L'UUID definitivo lo assegna commands.createConversation, che RITORNA la
+  // conversazione normalizzata: si attiva quella, non l'originale. Attivare
+  // l'oggetto originale lasciava il creatore su un id non-uuid, con
+  // typing/markRead saltati (gate isUuid), il primo messaggio INSERTato con
+  // conversation_id invalido e le risposte realtime instradate sotto la chiave
+  // UUID di una vista che leggeva ancora "c<timestamp>".
   const handleCreate = (conv, addNew = false) => {
-    const normalized = addNew && !isUuid(conv.id) ? { ...conv, id: newId() } : conv;
-    if (addNew) setConversations(c => [normalized, ...c]);
-    pd({ type: "ACTIVATE", conv: normalized });
+    const attiva = addNew ? commands.createConversation(conv) : conv;
+    pd({ type: "ACTIVATE", conv: attiva });
   };
 
   return (
-    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {}, messageTemplates: messageTemplates || [], onForward: handleForwardStart }}>
+    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: me, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {}, messageTemplates: messageTemplates || [], onForward: handleForwardStart }}>
     <>
       <div onClick={onClose} style={{
         position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: 700,

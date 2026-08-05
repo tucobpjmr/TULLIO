@@ -120,7 +120,7 @@ export function AuthProvider({ children }) {
               supabase.from('users').select('*').eq('id', userId).single(),
               // Nessun filtro su active: gli admin devono vedere anche utenti pending
               // (per approvarli) e disabilitati. Le viste task usano getAssignableTeam()
-              // che filtra a sua volta active=true + pending=false (state/appGlobals.js).
+              // che filtra a sua volta active=true + pending=false (lib/permissions.js).
               supabase.from('users').select('*').order('name'),
               // email/phone vivono in public.user_contacts (RLS own+admin). Le carico
               // solo per l'utente loggato e le rimergio nel profilo e nella sua entry

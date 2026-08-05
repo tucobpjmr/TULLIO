@@ -3,7 +3,7 @@
 // getNavBadges + NavBadge (module-local) + Sidebar e BottomNav (esportati).
 import { useEffect, useRef } from "react";
 import { useViewport } from "../Viewport.jsx";
-import { getAssignableTeam, getRoleType } from "../../state/appGlobals.js";
+import { useAppData } from "../../state/AppDataContext.jsx";
 
 // La Dashboard è raggiungibile dal logo aeroplano nella Topbar (la voce
 // dedicata in sidebar/bottom-nav è stata rimossa per alleggerire la nav).
@@ -15,11 +15,11 @@ const NAV_ITEMS = [
   { id: "admin",      icon: "⚙️", label: "Admin",      roles: ["admin"] },
 ];
 
-// Filtra NAV_ITEMS in base al ruolo dell'utente loggato
-const getNavItemsForUser = (userId) => {
-  const role = getRoleType(userId);
-  return NAV_ITEMS.filter(it => !it.roles || it.roles.includes(role));
-};
+// Filtra NAV_ITEMS in base al ruolo dell'utente loggato. Riceve il RUOLO già
+// risolto (non l'userId) perché è una funzione pura di modulo: il lookup del
+// ruolo richiede il team, che i componenti prendono da useAppData().
+const getNavItemsForRole = (role) =>
+  NAV_ITEMS.filter(it => !it.roles || it.roles.includes(role));
 
 // Calcola i contatori per i badge sidebar/bottom-nav (Step F).
 // Il badge Dashboard (coda + urgenze) è migrato sul logo aeroplano in Topbar
@@ -53,6 +53,7 @@ const NavBadge = ({ count, collapsed = false, mobile = false }) => {
 
 export const Sidebar = ({ state, dispatch, onOpenBulk, onOpenChat, unreadChat = 0 }) => {
   const { isDesktop, width } = useViewport();
+  const { getRoleType, getAssignableTeam } = useAppData();
   // Auto-collassa la sidebar nella fascia "desktop stretto" (1025–1280px) dove
   // 210px di nav rubano troppo spazio orizzontale; si ri-espande sopra i 1280px.
   // Guardia per banda: agisce solo sulle transizioni, così il toggle manuale
@@ -72,7 +73,7 @@ export const Sidebar = ({ state, dispatch, onOpenBulk, onOpenChat, unreadChat = 
   }, [width, isDesktop, state.sidebarCollapsed, dispatch]);
   if (!isDesktop) return null;
   const col = state.sidebarCollapsed;
-  const navItems = getNavItemsForUser(state.currentUserId);
+  const navItems = getNavItemsForRole(getRoleType(state.currentUserId));
   const badges = getNavBadges(state);
   return (
     <div style={{
@@ -179,7 +180,8 @@ export const Sidebar = ({ state, dispatch, onOpenBulk, onOpenChat, unreadChat = 
 
 // ─── BOTTOM NAV (mobile/tablet) ────────────────────────────────────────────
 export const BottomNav = ({ state, dispatch, onOpenBulk, onOpenChat, unreadChat = 0 }) => {
-  const navItems = getNavItemsForUser(state.currentUserId);
+  const { getRoleType } = useAppData();
+  const navItems = getNavItemsForRole(getRoleType(state.currentUserId));
   const badges = getNavBadges(state);
   return (
     <nav className="vd-bottom-nav" aria-label="Navigazione principale">

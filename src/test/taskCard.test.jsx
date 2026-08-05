@@ -6,8 +6,15 @@
 // finire dove il chiamante si aspetta) e i fallback che erano copia-incollati
 // in ogni call site — categoria mancante, cliente assente, scadenza assente.
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { screen, fireEvent, within } from "@testing-library/react";
+import { renderWithAppData, DEMO_APP_CTX } from "./helpers/appData.jsx";
 import { TaskCard, TaskRow } from "../components/tasks/TaskCard.jsx";
+
+// I componenti sotto test leggono team/categorie/utente da useAppData(): prima
+// li prendevano dai default di modulo di appGlobals, ora vanno montati dentro
+// il provider. DEMO_APP_CTX è esattamente quel default, reso esplicito.
+const render = (ui, options) => renderWithAppData(ui, DEMO_APP_CTX, options);
+
 
 const task = (over = {}) => ({
   id: "t1", title: "Volo Roma → Tokyo", category: "booking",

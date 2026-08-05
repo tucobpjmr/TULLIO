@@ -1,6 +1,6 @@
 // Matrice permessi — funzioni pure di lib/permissions.js.
 //
-// Prima di questo refactor la stessa logica viveva in state/appGlobals.js e
+// Prima del refactor la stessa logica viveva in state/appGlobals.js (rimosso) e
 // leggeva una variabile `let` di modulo: testarla richiedeva di mutare quella
 // globale nel setup, con l'ordine dei test che diventava significativo. Qui il
 // team è un argomento, quindi ogni caso è isolato e la matrice ruoli × azioni

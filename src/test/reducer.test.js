@@ -1,10 +1,9 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { reducer, makeInitialState } from "../state/reducer.js";
-import { setTeam, setCurrentUser } from "../state/appGlobals.js";
 
 // Team di prova: un admin (marco) e una junior agent (gina). Le funzioni di
-// permesso del reducer leggono i globali TEAM/CURRENT_USER via appGlobals, quindi
-// li impostiamo prima di costruire lo state.
+// permesso del reducer ricevono `state.team` e `state.currentUserId`, entrambi
+// impostati da makeInitialState: il test non deve preparare nient'altro.
 const TEAM_FIXTURE = [
   { id: "marco", name: "Marco", role: "admin", active: true, pending: false },
   { id: "gina", name: "Gina", role: "junior agent", active: true, pending: false },
@@ -13,8 +12,6 @@ const TEAM_FIXTURE = [
 const UUID = "11111111-2222-4333-8444-555555555555";
 
 function freshState(uid = "marco") {
-  setTeam(TEAM_FIXTURE.map(m => ({ ...m })));
-  setCurrentUser(uid);
   return makeInitialState({ team: TEAM_FIXTURE, currentUserId: uid });
 }
 

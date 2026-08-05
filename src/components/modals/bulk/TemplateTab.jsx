@@ -4,13 +4,14 @@ import { useState, useEffect } from "react";
 import { PriorityBadge } from "../../ui/PriorityBadge.jsx";
 import { TASK_TEMPLATES } from "../../../lib/taskConstants.js";
 import { clientContact } from "../../../lib/taskUtils.js";
-import { CATEGORIES, getAssignableTeam } from "../../../state/appGlobals.js";
+import { useAppData } from "../../../state/AppDataContext.jsx";
 import { DateTimePicker } from "../../ui/DateTimePicker.jsx";
 import { bulkInputStyle, bulkBtnPrimary, bulkBtnGhost } from "./bulkStyles.js";
 
 
 // ─── BULK: TEMPLATE TAB ────────────────────────────────────────────────────
 export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
+  const { categories, getAssignableTeam } = useAppData();
   const [selectedId, setSelectedId] = useState(null);
   const [client, setClient] = useState("");
   const [clientFocus, setClientFocus] = useState(false);
@@ -188,7 +189,7 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
                     padding: "8px 12px", borderBottom: idx === previewTasks.length - 1 ? "none" : "1px solid var(--border)",
                     display: "flex", alignItems: "center", gap: 10, fontSize: 12,
                   }}>
-                    <span style={{ fontSize: 14 }}>{CATEGORIES[t.category]?.icon}</span>
+                    <span style={{ fontSize: 14 }}>{categories[t.category]?.icon}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 500 }}>{t.title}</div>
                       <div style={{ fontSize: 10, color: "var(--text-muted)" }}>

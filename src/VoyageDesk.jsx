@@ -13,21 +13,21 @@ import {
 } from "./lib/api.js";
 import {
   fromDbTask, fromDbNotice,
-  toDbConversation, fromDbConversation,
-  toDbMessage, fromDbMessage,
+  fromDbConversation,
+  fromDbMessage,
   fromDbNotification,
   fromDbClient,
   fromDbCategory,
-  newId, isUuid,
+  isUuid,
 } from "./lib/mappers.js";
 // Step P Phase 2a: utility pure estratte dal monolite.
 import { getActiveTasks } from "./lib/taskUtils.js";
 import { scopeConversationsForUser } from "./lib/chatUtils.js";
 // Web Push: riparazione della sottoscrizione a ogni avvio (vedi src/lib/push.js).
 import { syncPushSubscription } from "./lib/push.js";
-// Specchio legacy dei globali: lo allinea allo state questo componente (unico
-// punto di scrittura rimasto), i componenti non migrati lo leggono.
-import { getMember, syncLegacyGlobals } from "./state/appGlobals.js";
+// Contesto app: team / categorie / utente corrente + regole di permesso legate
+// allo state React. Sostituisce lo specchio mutabile di state/appGlobals.js.
+import { AppDataProvider, useAppData } from "./state/AppDataContext.jsx";
 // Step P Phase 2d: reducer e factory dell'initial state estratti.
 import { reducer, makeInitialState } from "./state/reducer.js";
 // Caveat #10: hook che astrae idratazione + subscribe realtime debounced.
@@ -56,6 +56,9 @@ import { CalendarPlanner } from "./components/calendar/CalendarPlanner.jsx";
 
 // Step P Phase 2f: chat estratto in src/components/chat/.
 import { ChatPanel, getUnreadCount } from "./components/chat/ChatPanel.jsx";
+// Scritture della chat: aggiornamento locale + persistenza, in comandi
+// espliciti invece che dedotte differenziando lo stato dentro un updater.
+import { makeChatCommands } from "./components/chat/chatCommands.js";
 
 // Step P Phase 2f: tasks estratto in src/components/tasks/.
 // Step P Phase 2g: TaskSlideOver appare solo quando si seleziona un task →
@@ -238,7 +241,8 @@ const FontLoader = () => (
 // getActiveTasks, getTrashedTasks, isMyTask, isInGlobalQueue → src/lib/taskUtils.js
 // getMember, getAssignableTeam, getRoleType, isAdmin, isDriver,
 // canViewTask, canEditTask, canCreateTaskCategory, canAccessAdmin,
-// getAvailableCategories, getVisibleTasks → src/state/appGlobals.js
+// getAvailableCategories, getVisibleTasks → src/lib/permissions.js (funzioni
+// pure), accessibili dai componenti via useAppData() (src/state/AppDataContext.jsx)
 
 // ─── SWIPE ACTIONS / UI PRIMITIVES ─────────────────────────────────────────
 // SwipeActions → src/components/SwipeActions.jsx (Step P Phase 2e)
@@ -359,6 +363,7 @@ const initialMessages = {
 const ROLLBACK_SECS = 60;
 
 function AdminRollbackBanner({ rollbackTo, switchedAt, dispatch }) {
+  const { getMember } = useAppData();
   const [secs, setSecs] = useState(() => {
     if (!switchedAt) return ROLLBACK_SECS;
     const elapsed = Math.floor((Date.now() - new Date(switchedAt).getTime()) / 1000);
@@ -382,9 +387,7 @@ function AdminRollbackBanner({ rollbackTo, switchedAt, dispatch }) {
     return () => clearInterval(iv);
   }, [switchedAt, rollbackTo, dispatch]);
 
-  const rollbackMember = rollbackTo
-    ? (typeof getMember === "function" ? getMember(rollbackTo) : null)
-    : null;
+  const rollbackMember = rollbackTo ? getMember(rollbackTo) : null;
 
   return (
     <div style={{
@@ -694,19 +697,6 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // ritorna Promise<{ error }> e ha identità stabile tra i render.
   const dispatch = useSyncedDispatch(state, rawDispatch, { enabled: useSupabase });
 
-  // Specchio legacy dei globali (state/appGlobals.js). È l'UNICO punto di
-  // scrittura rimasto: prima lo faceva il reducer, per effetto collaterale, a
-  // ogni mutazione di team/categorie/utente. Va chiamato qui nel corpo del
-  // render — non in un useEffect — perché i figli leggono TEAM/CATEGORIES
-  // durante il PROPRIO render, che avviene prima del flush degli effetti: con
-  // un effetto vedrebbero un frame di valori vecchi. L'assegnazione è
-  // idempotente, quindi è innocua anche sotto il doppio render di StrictMode.
-  syncLegacyGlobals({
-    team: state.team,
-    categories: state.categories,
-    currentUserId: state.currentUserId,
-  });
-
   // Step J: navigazione da notifica → TaskSlideOver
   // Se il task referenziato dalla notifica non è (più) raggiungibile — cestinato,
   // purgato o non più visibile per riassegnazione/permessi — il pannello si
@@ -965,205 +955,34 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     useSupabase ? {} : initialMessages
   );
 
-  // Mappa convId → Promise dell'INSERT conversazione ancora in volo. Serve a
-  // serializzare il primo messaggio dietro la creazione della conversazione:
-  // senza, la RLS messages_insert rifiuta il messaggio perché la conversation_id
-  // non esiste ancora lato DB (race conv→primo messaggio = "messaggio non arriva").
-  const convCreatePromises = useRef(new Map());
-
-  // Wrapper di setConversations: diff vs prev e persiste create/update(pinned).
-  const setConversations = useCallback((updater) => {
-    setConversationsRaw(prev => {
-      const nextRaw = typeof updater === 'function' ? updater(prev) : updater;
-      if (!useSupabase) return nextRaw;
-      const prevById = new Map(prev.map(c => [c.id, c]));
-      return nextRaw.map(c => {
-        if (!prevById.has(c.id)) {
-          const id = isUuid(c.id) ? c.id : newId();
-          const normalized = { ...c, id };
-          const createPromise = ConversationsAPI.create(toDbConversation(normalized));
-          convCreatePromises.current.set(id, createPromise);
-          createPromise
-            .then(r => { if (r?.error) { console.error('[chat] conv.create', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: creazione conversazione fallita: ${r.error.message || ''}` } }); } })
-            .finally(() => { convCreatePromises.current.delete(id); });
-          return normalized;
-        }
-        const prevC = prevById.get(c.id);
-        if (prevC.pinned !== c.pinned || prevC.name !== c.name || prevC.icon !== c.icon) {
-          ConversationsAPI.update(c.id, {
-            pinned: !!c.pinned, name: c.name ?? null, icon: c.icon ?? null,
-          }).then(r => { if (r?.error) { console.error('[chat] conv.update', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: aggiornamento conversazione fallito: ${r.error.message || ''}` } }); } });
-        }
-        return c;
+  // Comandi di scrittura della chat (create/send/pin/markRead/reaction/delete).
+  // Prima erano due wrapper di setConversations/setMessages che deducevano
+  // l'operazione DIFFERENZIANDO lo stato dentro l'updater di setState, e che
+  // quindi facevano chiamate di rete da dentro una funzione che React 18 può
+  // invocare due volte (StrictMode) o rieseguire (Concurrent): creare una
+  // conversazione produceva due INSERT in sviluppo. Ora l'updater è puro e la
+  // rete parte da un comando esplicito — vedi components/chat/chatCommands.js.
+  const chatCommands = useMemo(() => makeChatCommands({
+    setConversations: setConversationsRaw,
+    setMessages: setMessagesRaw,
+    enabled: useSupabase,
+    getCurrentUserId: () => currentUserIdRef.current,
+    onError: (message) => rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message } }),
+    onSuccess: (message) => rawDispatch({ type: "SHOW_TOAST", payload: { type: "success", message } }),
+    // Aprire la conversazione spegne anche la sua notifica in campanella: è
+    // bookkeeping delle notifiche, non della chat, quindi resta qui.
+    onConversationRead: (convId) => {
+      setNotifications(prev => prev.map(n => (
+        n.type === "chat_message" && n.payload?.conversation_id === convId && !n.read
+          ? { ...n, read: true }
+          : n
+      )));
+      if (!useSupabase || !isUuid(convId)) return;
+      NotificationsAPI.markReadForConversation(convId).then(r => {
+        if (r?.error) console.error("[notifications] markReadForConversation", r.error);
       });
-    });
-  }, [useSupabase]);
-
-  // Wrapper di setMessages: diff per conv e persiste insert + reactions + readBy.
-  const setMessages = useCallback((updater) => {
-    setMessagesRaw(prev => {
-      const nextRaw = typeof updater === 'function' ? updater(prev) : updater;
-      if (!useSupabase) return nextRaw;
-
-      const eqArr = (a, b) => {
-        if (a === b) return true;
-        if (!Array.isArray(a) || !Array.isArray(b)) return false;
-        if (a.length !== b.length) return false;
-        for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
-        return true;
-      };
-
-      const next = {};
-      for (const convId of Object.keys(nextRaw)) {
-        const prevArr = prev[convId] || [];
-        const nextArr = nextRaw[convId] || [];
-        const prevById = new Map(prevArr.map(m => [m.id, m]));
-        next[convId] = nextArr.map(m => {
-          if (!prevById.has(m.id)) {
-            const id = isUuid(m.id) ? m.id : newId();
-            const normalized = { ...m, id };
-            const sendMsg = () => MessagesAPI.send(toDbMessage(normalized, convId))
-              .then(r => { if (r?.error) { console.error('[chat] msg.send', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: invio messaggio fallito: ${r.error.message || ''}` } }); } });
-            // Se la conversazione è appena stata creata e l'INSERT è ancora in
-            // volo, attendi che il DB l'abbia persistita: altrimenti la RLS
-            // messages_insert rifiuta il primo messaggio (conversation_id non
-            // ancora esistente). Se la creazione conversazione è fallita, non
-            // tentare l'invio (il toast d'errore è già stato mostrato).
-            const pendingConv = convCreatePromises.current.get(convId);
-            if (pendingConv) {
-              pendingConv.then(r => { if (!r?.error) sendMsg(); });
-            } else {
-              sendMsg();
-            }
-            return normalized;
-          }
-          const prevM = prevById.get(m.id);
-          // Le reazioni NON passano più da qui: il toggle atomico via RPC
-          // (toggleReaction, con setMessagesRaw ottimistico) bypassa questo
-          // wrapper per evitare la scrittura dell'intero oggetto reactions
-          // (race last-write-wins). Qui restano readBy e pinned.
-          if (!eqArr(prevM.readBy, m.readBy)) {
-            MessagesAPI.markRead(m.id, m.readBy || [])
-              .then(r => { if (r?.error) { console.error('[chat] msg.readBy', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: aggiornamento "letto" fallito: ${r.error.message || ''}` } }); } });
-          }
-          if (!!prevM.pinned !== !!m.pinned) {
-            // pinnedBy: chi sta fissando (per l'audit). Solo al pin; all'unpin
-            // l'API azzera comunque pinned_by/pinned_at.
-            MessagesAPI.setPinned(m.id, !!m.pinned, m.pinned ? (m.pinnedBy ?? null) : null)
-              .then(r => { if (r?.error) { console.error('[chat] msg.pinned', r.error); rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: pin fallito: ${r.error.message || ''}` } }); } });
-          }
-          return m;
-        });
-      }
-      return next;
-    });
-  }, [useSupabase]);
-
-  // Step Q.4: markRead bulk all'apertura conversazione.
-  // Bypassa il wrapper setMessages (che farebbe N UPDATE) e fa:
-  // 1) update locale ottimistico via setMessagesRaw, 2) una sola RPC che
-  // marca letti tutti i messaggi non letti della conv. origin_client è
-  // tagged così l'eco realtime viene filtrata sul nostro client.
-  const markConversationRead = useCallback((convId) => {
-    const uid = currentUserIdRef.current;
-    if (!convId || !uid) return;
-    setMessagesRaw(prev => {
-      const list = prev[convId] || [];
-      let changed = false;
-      const next = list.map(m => {
-        if (m.sender !== uid && !m.readBy?.includes(uid)) {
-          changed = true;
-          return { ...m, readBy: [...(m.readBy || []), uid] };
-        }
-        return m;
-      });
-      return changed ? { ...prev, [convId]: next } : prev;
-    });
-    // La notifica 'chat_message' della conversazione ha fatto il suo lavoro:
-    // spegnerla qui evita che la campanella resti con un non letto per una
-    // chat che l'utente sta leggendo.
-    setNotifications(prev => prev.map(n =>
-      n.type === 'chat_message' && n.payload?.conversation_id === convId && !n.read
-        ? { ...n, read: true }
-        : n
-    ));
-    if (!useSupabase || !isUuid(convId)) return;
-    NotificationsAPI.markReadForConversation(convId).then(r => {
-      if (r?.error) console.error('[notifications] markReadForConversation', r.error);
-    });
-    MessagesAPI.markReadBulk(convId).then(r => {
-      if (r?.error) {
-        console.error('[chat] markReadBulk', r.error);
-        rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: aggiornamento "letto" fallito: ${r.error.message || ''}` } });
-      }
-    });
-  }, [useSupabase]);
-
-  // Toggle reazione. Come markConversationRead, bypassa il wrapper setMessages
-  // (che scriverebbe l'intero oggetto reactions → race last-write-wins):
-  // 1) update locale ottimistico via setMessagesRaw, 2) RPC atomica lato server
-  // (messages_toggle_reaction) che fa read-modify-write sotto lock di riga e usa
-  // sempre auth.uid() come reactor. In caso di errore, rollback allo snapshot.
-  const toggleReaction = useCallback((convId, msgId, emoji) => {
-    const uid = currentUserIdRef.current;
-    if (!convId || !msgId || !emoji || !uid) return;
-    let snapshot = null;
-    setMessagesRaw(prev => {
-      const list = prev[convId];
-      if (!list) return prev;
-      snapshot = prev;
-      const next = list.map(m => {
-        if (m.id !== msgId) return m;
-        const reactions = { ...(m.reactions || {}) };
-        const users = reactions[emoji] || [];
-        if (users.includes(uid)) {
-          const filtered = users.filter(u => u !== uid);
-          if (filtered.length === 0) delete reactions[emoji];
-          else reactions[emoji] = filtered;
-        } else {
-          reactions[emoji] = [...users, uid];
-        }
-        return { ...m, reactions };
-      });
-      return { ...prev, [convId]: next };
-    });
-    if (!useSupabase || !isUuid(msgId)) return;
-    MessagesAPI.toggleReaction(msgId, emoji).then(r => {
-      if (r?.error) {
-        console.error('[chat] toggleReaction', r.error);
-        if (snapshot) setMessagesRaw(snapshot);
-        rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: reazione non salvata: ${r.error.message || ''}` } });
-      }
-    });
-  }, [useSupabase]);
-
-  // Eliminazione conversazione/gruppo (richiesta utente, conferma già data in
-  // ChatPanel). Rimozione locale ottimistica + persistenza: prima il cleanup
-  // best-effort degli allegati storage (dopo il delete della conv le policy
-  // sul bucket non permetterebbero più la rimozione → orfani permanenti), poi
-  // il DELETE della riga (i messaggi seguono via FK ON DELETE CASCADE). Gli
-  // altri client si allineano via realtime (refetch su evento conversations).
-  const deleteConversation = useCallback((convId) => {
-    setConversationsRaw(prev => prev.filter(c => c.id !== convId));
-    setMessagesRaw(prev => {
-      if (!(convId in prev)) return prev;
-      const next = { ...prev };
-      delete next[convId];
-      return next;
-    });
-    if (!useSupabase || !isUuid(convId)) return;
-    (async () => {
-      const filesRes = await MessagesAPI.removeConversationFiles(convId);
-      if (filesRes?.error) console.warn('[chat] conv files cleanup', filesRes.error);
-      const { error } = await ConversationsAPI.remove(convId);
-      if (error) {
-        console.error('[chat] conv.delete', error);
-        rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Chat: eliminazione conversazione fallita: ${error.message || ''}` } });
-        return;
-      }
-      rawDispatch({ type: 'SHOW_TOAST', payload: { type: 'success', message: 'Conversazione eliminata' } });
-    })();
-  }, [useSupabase]);
+    },
+  }), [useSupabase]);
 
   // La lista chat è PERSONALE: mostra solo le conversazioni di cui l'utente è
   // davvero partecipante (e scarta le dirette orfane → "Sconosciuto"). Vedi
@@ -1177,7 +996,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
 
   // Conta non letti totali per badge topbar (dallo stato vivo della chat)
   const unreadChat = chatConversations.reduce(
-    (acc, c) => acc + getUnreadCount(messages, c.id),
+    (acc, c) => acc + getUnreadCount(messages, c.id, state.currentUserId),
     0
   );
 
@@ -1241,7 +1060,16 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   };
 
   return (
-    <>
+    // Il provider è alimentato dallo STESSO state del reducer: non esiste più
+    // una seconda copia di team/categorie/utente da tenere allineata a mano.
+    // Sostituisce syncLegacyGlobals(), che scriveva tre variabili di modulo nel
+    // corpo di questo render — cosa non sicura sotto Concurrent Rendering e che
+    // teneva le decisioni di permesso fuori dal ciclo di render di React.
+    <AppDataProvider
+      team={state.team}
+      categories={state.categories}
+      currentUserId={state.currentUserId}
+    >
       <FontLoader />
       {/* vd-app-shell = height 100dvh con fallback 100vh (vedi FontLoader): su iOS
           "vh" è il viewport GRANDE, con la barra del browser visibile il guscio
@@ -1301,12 +1129,13 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           open={showChat}
           onClose={() => { setShowChat(false); setChatIntent(null); }}
           conversations={chatConversations}
-          setConversations={setConversations}
+          setConversations={setConversationsRaw}
           messages={messages}
-          setMessages={setMessages}
-          markConversationRead={markConversationRead}
-          onToggleReaction={toggleReaction}
-          onDeleteConversation={deleteConversation}
+          setMessages={setMessagesRaw}
+          commands={chatCommands}
+          markConversationRead={chatCommands.markConversationRead}
+          onToggleReaction={chatCommands.toggleReaction}
+          onDeleteConversation={chatCommands.removeConversation}
           intent={chatIntent}
           tasks={state.tasks}
           currentUserId={state.currentUserId}
@@ -1342,7 +1171,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         {/* Toast */}
         <Toast toast={state.toast} dispatch={dispatch} />
       </div>
-    </>
+    </AppDataProvider>
   );
 }
 // Step J — touched

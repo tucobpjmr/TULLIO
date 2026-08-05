@@ -8,7 +8,7 @@ import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { StatusBadge } from "../ui/StatusBadge.jsx";
 import { TaskRow } from "../tasks/TaskCard.jsx";
 import { formatTime, isActiveTask } from "../../lib/taskUtils.js";
-import { CATEGORIES, getAssignableTeam, canViewTask } from "../../state/appGlobals.js";
+import { useAppData } from "../../state/AppDataContext.jsx";
 
 // ─── iCal export (Step G) ────────────────────────────────────────────────
 function pad2(n) { return String(n).padStart(2, "0"); }
@@ -90,8 +90,10 @@ export function buildIcs(tasks) {
   lines.push("END:VCALENDAR");
   return lines.map(foldIcsLine).join("\r\n");
 }
-function exportTasksToIcs(allTasks, uid) {
-  const tasks = (allTasks || []).filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate);
+// `canView` è il predicato di visibilità passato dal componente (da
+// useAppData): la funzione resta pura e testabile senza montare nulla.
+function exportTasksToIcs(allTasks, canView) {
+  const tasks = (allTasks || []).filter(t => isActiveTask(t) && canView(t) && t.dueDate);
   if (tasks.length === 0) return;
   const ics = buildIcs(tasks);
   const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
@@ -211,6 +213,7 @@ function layoutColumns(dayTasks) {
 
 export const CalendarPlanner = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
+  const { categories, getAssignableTeam, canViewTask } = useAppData();
   const [viewMode, setViewMode] = useState("month"); // "month" | "week" | "week-full" | "day"
   const [dayDate, setDayDate] = useState(new Date());
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -353,7 +356,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
               background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8,
               width: 34, height: 34, cursor: "pointer", fontSize: 14
             }}>→</button>
-            <button onClick={() => exportTasksToIcs(state.tasks, uid)} title="Esporta calendario in iCal (.ics)" style={{
+            <button onClick={() => exportTasksToIcs(state.tasks, (t) => canViewTask(t, uid))} title="Esporta calendario in iCal (.ics)" style={{
               background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8,
               padding: "0 12px", height: 34, cursor: "pointer", fontSize: 12, fontWeight: 600,
               color: "var(--heading)",
@@ -378,7 +381,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
             }}
           >Tutte</button>
           {presentCats.map(cat => {
-            const c = CATEGORIES[cat];
+            const c = categories[cat];
             if (!c) return null;
             const active = catFilter === cat;
             return (
@@ -438,7 +441,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                     hasContent && (
                       <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "center" }}>
                         {dayTasks.slice(0, 4).map(t => (
-                          <span key={t.id} style={{ width: 6, height: 6, borderRadius: "50%", background: CATEGORIES[t.category]?.color || "var(--navy)" }} />
+                          <span key={t.id} style={{ width: 6, height: 6, borderRadius: "50%", background: categories[t.category]?.color || "var(--navy)" }} />
                         ))}
                       </div>
                     )
@@ -447,11 +450,11 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                       {dayTasks.slice(0, 3).map(t => (
                         <div key={t.id} onClick={e => { e.stopPropagation(); dispatch({ type: "SET_SELECTED_TASK", payload: t }); }} style={{
                           fontSize: 10, fontWeight: 500, padding: "1px 5px", borderRadius: 3,
-                          background: CATEGORIES[t.category]?.color + "20",
-                          color: CATEGORIES[t.category]?.color,
+                          background: categories[t.category]?.color + "20",
+                          color: categories[t.category]?.color,
                           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                           cursor: "pointer",
-                        }}>{CATEGORIES[t.category]?.icon} {t.title}</div>
+                        }}>{categories[t.category]?.icon} {t.title}</div>
                       ))}
                       {dayTasks.length > 3 && (
                         <div style={{ fontSize: 10, color: "var(--text-muted)", paddingLeft: 4 }}>
@@ -531,13 +534,13 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                       <div style={{ fontSize: 10, color: isToday ? "rgba(255,255,255,0.4)" : "var(--text-muted)", textAlign: "center", marginTop: 20 }}>Nessun task</div>
                     ) : dayTasks.slice(0, 6).map(t => (
                       <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
-                        background: isToday ? "rgba(255,255,255,0.12)" : CATEGORIES[t.category]?.color + "18",
-                        borderLeft: `3px solid ${CATEGORIES[t.category]?.color}`,
+                        background: isToday ? "rgba(255,255,255,0.12)" : categories[t.category]?.color + "18",
+                        borderLeft: `3px solid ${categories[t.category]?.color}`,
                         borderRadius: "0 4px 4px 0", padding: "4px 6px", cursor: "pointer",
                         fontSize: 10, fontWeight: 500, lineHeight: 1.3,
                         color: isToday ? "#fff" : "var(--text)",
                       }}>
-                        {CATEGORIES[t.category]?.icon} {t.title.slice(0, 30)}{t.title.length > 30 ? "…" : ""}
+                        {categories[t.category]?.icon} {t.title.slice(0, 30)}{t.title.length > 30 ? "…" : ""}
                         <div style={{ fontSize: 9, color: isToday ? "rgba(255,255,255,0.5)" : "var(--text-muted)", marginTop: 1 }}>{formatTime(t.dueDate)}</div>
                       </div>
                     ))}
@@ -610,7 +613,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                   const hours = Math.max(0.25, Number(t.estimatedHours) > 0 ? Number(t.estimatedHours) : 1);
                   const top = (startMin / 60) * SLOT_H;
                   const height = Math.max(28, hours * SLOT_H - 2);
-                  const cat = CATEGORIES[t.category] || {};
+                  const cat = categories[t.category] || {};
                   const colW = 100 / totalCols;
                   const taskToOpen = t.isRecurringInstance
                     ? (state.tasks.find(x => x.id === t.originalId) || t)
@@ -711,7 +714,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                         const hours = Math.max(0.25, Number(t.estimatedHours) > 0 ? Number(t.estimatedHours) : 1);
                         const top = (startMin / 60) * SLOT_H;
                         const height = Math.max(20, hours * SLOT_H - 2);
-                        const cat = CATEGORIES[t.category] || {};
+                        const cat = categories[t.category] || {};
                         const colW = 100 / totalCols;
                         const taskToOpen = t.isRecurringInstance
                           ? (state.tasks.find(x => x.id === t.originalId) || t)

@@ -30,12 +30,14 @@ Agisci come sviluppatore full-stack specializzato in sistemi gestionali per trav
 - **Hover**: `onMouseEnter`/`onMouseLeave` su `e.currentTarget.style`
 - **Animazioni ingresso**: classi `slide-up`, `fade-in`, `slide-right`
 - **Responsive**: `const { isMobile, isDesktop } = useViewport()` dentro ogni componente che adatta il layout
-- **Permessi**: ogni nuova feature che tocca task o viste deve usare `canViewTask`/`canEditTask` da `src/lib/permissions.js` (funzioni PURE, primo argomento `team`). Nei componenti si passa da `usePermissions(state.team, state.currentUserId)`. Ogni nuova voce nav in `NAV_ITEMS` deve avere il campo `roles`
+- **Permessi**: ogni nuova feature che tocca task o viste deve usare `canViewTask`/`canEditTask` da `src/lib/permissions.js` (funzioni PURE, primo argomento `team`). Nei componenti NON si importano direttamente: si passa da `useAppData()` (`src/state/AppDataContext.jsx`), che le espone già legate a `state.team` — `const { canEditTask, categories, getMember } = useAppData()`. Ogni nuova voce nav in `NAV_ITEMS` deve avere il campo `roles`
 - **Reducer puro**: `src/state/reducer.js` non deve avere effetti collaterali — niente chiamate a `setTeam`/`setCategories`/`setCurrentUser`, niente scritture fuori dallo state. La fonte di verità è `state.team` / `state.categories` / `state.currentUserId`. Blindato da `src/test/reducerPurity.test.js`
+- **Scritture della chat**: la chat non passa dal reducer. Ogni scrittura ha un comando esplicito in `src/components/chat/chatCommands.js` (`createConversation` / `sendMessage` / `setMessagePinned` / `markConversationRead` / `toggleReaction` / `removeConversation` / `updateConversation`). ⛔ **Mai chiamate di rete dentro l'updater di `setState`**: `setConversations`/`setMessages` sono normali setter React e i loro updater devono restare PURI — React 18 li invoca due volte in StrictMode e può rieseguirli in Concurrent. Prima la persistenza era dedotta differenziando prev/next dentro l'updater, e creare una conversazione faceva due INSERT in sviluppo. Blindato da `src/test/chatCommands.test.js`
 - **Persistenza**: una action che deve scrivere su Supabase si dichiara in `src/state/persistence.js` (`guard` / `normalize` / `persist` / `rollback` / `mapError`), NON aggiungendo un ramo a un `switch`. L'orchestrazione è in `src/hooks/useSyncedDispatch.js` e non va toccata. Se l'action ha una regola di permesso, il `guard` deve usare le stesse funzioni di `lib/permissions.js` del reducer: `src/test/persistenceGuards.test.js` verifica che i due verdetti coincidano e fallisce se divergono
 - **Card di un task**: non riscrivere il markup a mano. `TaskCard` (card verticale) e `TaskRow` (riga di elenco) stanno in `src/components/tasks/TaskCard.jsx` e coprono code, archivio, calendario e CRM. Le differenze fra call site passano dagli slot (`badges`, `subheader`, `meta`, `footer`) e dai parametri di bordo/accento; nel componente sta solo lo scheletro. Entrambi sono `memo`: le callback passate come prop (`onOpen`) vanno da `useCallback`, altrimenti la memoizzazione non serve a niente
 - **File grandi**: sopra le ~500 righe si spezza. I tre casi già fatti — `chat/`, `modals/bulk/`, `tasks/TaskCard` — seguono lo stesso criterio: un file per componente, gli helper puri in `lib/` o in un `*.js` accanto, mai un secondo componente "solo per ora" dentro un file che ne ha già uno
-- **Specchio legacy**: `src/state/appGlobals.js` (TEAM/CATEGORIES/CURRENT_USER) è un ponte in via di dismissione per i componenti non ancora migrati. Si scrive da UN SOLO punto — `syncLegacyGlobals()` nel corpo di `VoyageDeskInner` — e non va scritto da nessun altro. **Non aggiungere nuovi consumatori**: usare `usePermissions()`
+- **Niente stato globale mutabile**: `src/state/appGlobals.js` (TEAM/CATEGORIES/CURRENT_USER + `syncLegacyGlobals`) è stato ELIMINATO. Team, categorie e utente corrente vivono solo nello state del reducer e raggiungono i componenti da `<AppDataProvider>` (montato in `VoyageDeskInner`) via `useAppData()`. Una regola `no-restricted-imports` in `eslint.config.js` fa fallire il lint se il modulo riappare. Fuori dai componenti (reducer, `persistence.js`, script) si usano le funzioni pure di `src/lib/permissions.js` passando `state.team`
+- **Test di componenti**: chi usa `useAppData()` va montato dentro il provider. Helper in `src/test/helpers/appData.jsx`: `renderWithAppData(ui, { team, categories, currentUserId })`, oppure `DEMO_APP_CTX` per il contesto demo (INITIAL_TEAM/INITIAL_CATEGORIES/"marco"). L'hook SOLLEVA fuori dal provider: è voluto, un fallback silenzioso ai mock ricreerebbe il valore globale implicito appena rimosso
 
 ### Cosa NON fare
 - Non usare localStorage/sessionStorage (vincolo artifact, da rimuovere post-migrazione Vite)
@@ -198,8 +200,14 @@ canCreateTaskCategory(team, cat, userId)
 canAccessAdmin(team, userId)
 getAvailableCategories(categories, team, userId)
 getVisibleTasks(team, tasks, userId)
-// src/hooks/usePermissions.js — stesse regole, legate allo state React
-usePermissions(team, uid)        — .canEdit(task) / .canView(task) / .isAdmin() / .assignable() / ...
+// src/state/AppDataContext.jsx — le stesse regole, legate allo state React.
+// Firme identiche a quelle di lib/permissions.js ma SENZA il primo argomento
+// `team`: lo lega il provider. È l'unico modo di accedervi dai componenti.
+useAppData()                     — { team, categories, currentUserId,
+                                     getMember, getAssignableTeam,
+                                     getRoleType, isAdmin, isDriver, isJuniorAgent, isSeniorAgent,
+                                     canViewTask, canEditTask, canCreateTaskCategory,
+                                     canAccessAdmin, getVisibleTasks, getAvailableCategories }
 isMyTask(task, userId)
 isInGlobalQueue(task)
 getNavItemsForUser(userId)       — NAV_ITEMS filtrati per ruolo
@@ -317,7 +325,7 @@ Vedi `docs/ROADMAP.md` per il dettaglio completo con dipendenze e stime.
 ## Note tecniche importanti
 
 1. **Architettura root**: `VoyageDesk` wrappa `VoyageDeskInner` dentro `<ViewportProvider>`. Tutti i componenti con `useViewport()` devono essere dentro questo provider.
-2. **Permessi e stato condiviso**: la fonte di verità è lo state React (`state.team`, `state.categories`, `state.currentUserId`); le regole di permesso sono funzioni pure in `src/lib/permissions.js`. `src/state/appGlobals.js` sopravvive come SPECCHIO in sola lettura per i ~18 componenti non ancora migrati (Avatar, CategoryChip, MentionText, SwipeActions…): viene allineato da `syncLegacyGlobals()`, chiamata nel corpo di `VoyageDeskInner` — nel render e non in un `useEffect`, perché i figli leggono `TEAM`/`CATEGORIES` durante il proprio render, che precede il flush degli effetti. Fino alla sessione precedente era il reducer a scrivere quelle globali via setter, e le decisioni di autorizzazione si prendevano su di esse: due fonti di verità disallineabili in silenzio, più un reducer impuro. Il percorso di dismissione è migrare i consumatori a `usePermissions()` ed eliminare il file.
+2. **Permessi e stato condiviso**: fonte di verità UNICA, lo state React (`state.team`, `state.categories`, `state.currentUserId`). Le regole sono funzioni pure in `src/lib/permissions.js`; i componenti vi accedono da `useAppData()` (`src/state/AppDataContext.jsx`), il cui provider è alimentato dallo stesso state del reducer. Lo specchio mutabile `state/appGlobals.js` — tre `let` di modulo allineati da `syncLegacyGlobals()` **nel corpo del render** di `VoyageDeskInner` — è stato eliminato: leggeva fuori dal ciclo di render (un componente `memo` poteva mostrare permessi vecchi) e scrivere stato esterno durante il render non è sicuro sotto Concurrent Rendering. Con lo shim è sparito anche `hooks/usePermissions.js`, che ne era il sostituto previsto ma non aveva mai acquisito un solo consumatore: tenerlo accanto a `useAppData()` avrebbe lasciato due modi paralleli di fare la stessa cosa.
 3. **Chat e AI**: usano `fetch` su `https://api.anthropic.com/v1/messages` — funziona solo in ambiente Claude.ai artifacts. Per dev locale, mockare o usare API key.
 4. **activityLog**: max 100 entry, poi taglia le più vecchie.
 5. **Backup JSON**: Admin → Import/Export include tutto lo stato persistente. Ripristino sovrascrive.
@@ -341,11 +349,10 @@ src/
 │   └── mentions.js          findMentions() — parser @menzioni (caveat #2, gemello DB)
 ├── hooks/                   (sessione 18)
 │   ├── useDebouncedTableSubscription.js   idratazione+subscribe realtime debounced (caveat #10)
-│   ├── useSyncedDispatch.js               reducer + persistenza Supabase (orchestratore)
-│   └── usePermissions.js                  permessi legati a state.team (sostituisce appGlobals)
+│   └── useSyncedDispatch.js               reducer + persistenza Supabase (orchestratore)
 ├── state/                   (Phase 2b–2d)
 │   ├── mockData.js          INITIAL_TEAM/CATEGORIES/TASKS/NOTICES + MOCK_NOTIFICATIONS
-│   ├── appGlobals.js        specchio legacy in sola lettura (in dismissione) + syncLegacyGlobals
+│   ├── AppDataContext.jsx   team/categorie/utente + permessi per i componenti (useAppData)
 │   ├── persistence.js       registry action → operazione Supabase (guard/normalize/persist/rollback)
 │   └── reducer.js           baseReducer / reducer / makeInitialState / LOGGED_ACTIONS / ADMIN_ONLY
 ├── components/              (Phase 2e + 2f — ESTRAZIONE COMPLETA + Fase 1 CRM)
@@ -386,6 +393,7 @@ src/
 │   │   ├── chatReactions.js     emoji + reazioni recenti (localStorage + DB)
 │   │   ├── chatFiles.js         limite upload, classificazione allegati
 │   │   ├── chatReducers.js      convViewReducer + chatPanelReducer
+│   ├── chatCommands.js      scritture chat: stato locale + persistenza (comandi espliciti)
 │   │   └── message/             ChatMessage, MessageTextContent, ReactionPicker,
 │   │                            VoicePlayer, VoiceRecorder
 │   ├── tasks/

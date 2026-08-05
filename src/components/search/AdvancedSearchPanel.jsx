@@ -8,7 +8,9 @@ import { useViewport } from "../Viewport.jsx";
 import { PRIORITIES, STATUSES, STATUS_LABELS } from "../../lib/taskConstants.js";
 import { formatDate, isOverdue, startOfLocalDay, endOfLocalDay } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
-import { ListeAPI, beneficiariNomi, intestazioneLista } from "../../lib/listeApi.js";
+// La ricerca chiede al modulo Liste "quali liste sono indicizzabili", non
+// quali query fare: vedi components/liste/listeModuleApi.js.
+import { listeRicercabili, beneficiariNomi, intestazioneLista } from "../liste/listeModuleApi.js";
 import { matchTermini, terminiRicerca } from "../../lib/searchUtils.js";
 
 // Menù a tendina multi-selezione (Categoria/Status/Agente nel pannello Ricerca).
@@ -99,13 +101,13 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
     if (!listeAllowed) return;
     let alive = true;
     (async () => {
-      const [rListe, rCestino] = await Promise.all([ListeAPI.list(), ListeAPI.listTrash()]);
+      const { data, error } = await listeRicercabili();
       if (!alive) return;
-      if (rListe.error || rCestino.error) {
-        console.error("[liste] ricerca", rListe.error || rCestino.error);
+      if (error) {
+        console.error("[liste] ricerca", error);
         return;
       }
-      setListe([...(rListe.data || []), ...(rCestino.data || [])]);
+      setListe(data);
     })();
     return () => { alive = false; };
   }, [listeAllowed]);

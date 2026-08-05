@@ -10,7 +10,9 @@ import { useViewport } from "../Viewport.jsx";
 import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { ClientImportModal } from "./ClientImportModal.jsx";
-import { ListeAPI } from "../../lib/listeApi.js";
+// L'anagrafica chiede al modulo Liste un conteggio per cliente, non le sue
+// query: vedi components/liste/listeModuleApi.js.
+import { conteggioListePerCliente } from "../liste/listeModuleApi.js";
 import { tasksDelCliente } from "../../lib/clientNotes.js";
 import { matchTermini, terminiRicerca } from "../../lib/searchUtils.js";
 import { fieldStyle } from "./clientStyles.js";
@@ -65,16 +67,10 @@ export function ClientiView({ state, dispatch, loading = false }) {
     let annullato = false;
     (async () => {
       try {
-        const { data, error } = await ListeAPI.clientiConListe();
+        const { data, error } = await conteggioListePerCliente();
         if (annullato) return;
         if (error) { console.error("[clienti] conteggio liste", error); return; }
-        const map = {};
-        for (const r of data || []) {
-          const e = map[r.client_id] || (map[r.client_id] = { attive: 0, totali: 0 });
-          e.totali += 1;
-          if (!r.deleted_at) e.attive += 1;
-        }
-        setListeByClient(map);
+        setListeByClient(data);
       } catch (ex) {
         // L'anagrafica deve restare usabile anche se il modulo Liste non
         // risponde: si perdono i badge, non la vista.

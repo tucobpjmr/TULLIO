@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useViewport } from "../../Viewport.jsx";
 import { PRIORITIES } from "../../../lib/taskConstants.js";
 import { clientContact } from "../../../lib/taskUtils.js";
-import { CATEGORIES, getAssignableTeam, CURRENT_USER } from "../../../state/appGlobals.js";
+import { useAppData } from "../../../state/AppDataContext.jsx";
 import { DateTimePicker, formatPickerValue } from "../../ui/DateTimePicker.jsx";
 import { TaskFiles } from "../../../lib/api.js";
 import { MAX_TASK_FILE_SIZE, formatFileSize, isWithinSizeLimit } from "../../../lib/fileUtils.js";
@@ -14,6 +14,7 @@ import { RowAttachments } from "./RowAttachments.jsx";
 
 // ─── BULK: MANUAL TAB ──────────────────────────────────────────────────────
 export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
+  const { categories, currentUserId, getAssignableTeam } = useAppData();
   const { isMobile } = useViewport();
   const [common, setCommon] = useState({ client: "", category: "booking", priority: "medium", assignee: "", praticaRef: "", contact: "", dueDate: "" });
   const [clientFocus, setClientFocus] = useState(false);
@@ -52,7 +53,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
 
   // Etichette delle impostazioni comuni, mostrate come valore ereditato nelle
   // righe che non specificano nulla (così l'operatore vede cosa uscirà davvero).
-  const commonCatLabel = CATEGORIES[common.category]?.label || "categoria";
+  const commonCatLabel = categories[common.category]?.label || "categoria";
   const commonPrioLabel = PRIORITIES[common.priority]?.label || "priorità";
   const commonAssigneeLabel = common.assignee
     ? (getAssignableTeam().find(m => m.id === common.assignee)?.name.split(" ")[0] || "assegnato")
@@ -115,7 +116,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
 
     for (const { task, files } of withFiles) {
       for (const f of files) {
-        const { error } = await TaskFiles.upload(f, task.id, { uploadedBy: CURRENT_USER });
+        const { error } = await TaskFiles.upload(f, task.id, { uploadedBy: currentUserId });
         if (error) {
           // Le task sono già create: teniamo aperto il modale per dire quale
           // allegato è rimasto indietro e dove recuperarlo.
@@ -190,7 +191,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
             );
           })()}
           <select value={common.category} onChange={e => setCommon({ ...common, category: e.target.value })} style={bulkInputStyle}>
-            {Object.entries(CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+            {Object.entries(categories).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
           </select>
           <select value={common.priority} onChange={e => setCommon({ ...common, priority: e.target.value })} style={bulkInputStyle}>
             {Object.entries(PRIORITIES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
@@ -250,7 +251,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 <select value={r.category} onChange={e => updateRow(r.key, "category", e.target.value)} style={bulkInputStyle}>
                   <option value="">{commonCatLabel} (comune)</option>
-                  {Object.entries(CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+                  {Object.entries(categories).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
                 </select>
                 <select value={r.priority} onChange={e => updateRow(r.key, "priority", e.target.value)} style={bulkInputStyle}>
                   <option value="">{commonPrioLabel} (comune)</option>
@@ -290,7 +291,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
               }} title={!r.title.trim() && rowHasData(r) ? "Aggiungi un titolo o la riga verrà ignorata" : undefined} />
               <select value={r.category} onChange={e => updateRow(r.key, "category", e.target.value)} style={bulkInputStyle}>
                 <option value="">{commonCatLabel}</option>
-                {Object.entries(CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+                {Object.entries(categories).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
               </select>
               <select value={r.priority} onChange={e => updateRow(r.key, "priority", e.target.value)} style={bulkInputStyle}>
                 <option value="">{commonPrioLabel}</option>

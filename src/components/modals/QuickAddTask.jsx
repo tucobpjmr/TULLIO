@@ -2,7 +2,7 @@
 // Estratto dal monolite (Step P Phase 2f).
 import { useState, useRef } from "react";
 import { PRIORITIES } from "../../lib/taskConstants.js";
-import { CURRENT_USER, getAssignableTeam, getAvailableCategories } from "../../state/appGlobals.js";
+import { useAppData } from "../../state/AppDataContext.jsx";
 import { clientContact } from "../../lib/taskUtils.js";
 import { TaskFiles } from "../../lib/api.js";
 import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit } from "../../lib/fileUtils.js";
@@ -32,8 +32,9 @@ const suggestCategory = (title, availableCats) => {
 };
 
 export const QuickAddTask = ({ onAdd, onClose, clients = [] }) => {
+  const { currentUserId, getAssignableTeam, getAvailableCategories } = useAppData();
   // Categorie filtrate per il ruolo dell'utente loggato (v0.8)
-  const availableCats = getAvailableCategories(CURRENT_USER);
+  const availableCats = getAvailableCategories(currentUserId);
   const firstCatKey = Object.keys(availableCats)[0] || "booking";
 
   const [form, setForm] = useState({
@@ -104,7 +105,7 @@ export const QuickAddTask = ({ onAdd, onClose, clients = [] }) => {
     // Se la creazione è andata a buon fine, carica gli allegati in sequenza.
     if (pendingFiles.length && !(result && result.error)) {
       for (const f of pendingFiles) {
-        const { error: e } = await TaskFiles.upload(f, id, { uploadedBy: CURRENT_USER });
+        const { error: e } = await TaskFiles.upload(f, id, { uploadedBy: currentUserId });
         if (e) {
           setFileError(`Task creata, ma l'upload di "${f.name}" è fallito. Riprova dal dettaglio della task.`);
           setBusy(false);

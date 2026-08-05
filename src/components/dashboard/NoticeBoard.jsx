@@ -2,7 +2,7 @@
 // Estratto dal monolite (Step P Phase 2f).
 import { useState } from "react";
 import { useViewport } from "../Viewport.jsx";
-import { getMember, CURRENT_USER } from "../../state/appGlobals.js";
+import { useAppData } from "../../state/AppDataContext.jsx";
 import { NoticeEditorModal } from "../modals/NoticeEditorModal.jsx";
 import { MentionText } from "../ui/MentionText.jsx";
 
@@ -11,6 +11,7 @@ import { MentionText } from "../ui/MentionText.jsx";
 const NOTICE_REACTION_EMOJI = ["👍", "❤️", "🎉", "👀", "🔥", "✅"];
 
 export const NoticeBoard = ({ notices, dispatch }) => {
+  const { getMember, currentUserId } = useAppData();
   const [editing, setEditing] = useState(null); // null | { id?, text, color }
   const [creating, setCreating] = useState(false);
   // v2.8: filtro per tag (Set di tag attivi; vuoto = mostra tutto).
@@ -263,7 +264,7 @@ export const NoticeBoard = ({ notices, dispatch }) => {
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
                     {Object.entries(n.reactions).map(([em, users]) => {
                       if (!Array.isArray(users) || users.length === 0) return null;
-                      const mine = users.includes(CURRENT_USER);
+                      const mine = users.includes(currentUserId);
                       return (
                         <button
                           key={em}
@@ -346,7 +347,7 @@ export const NoticeBoard = ({ notices, dispatch }) => {
                 payload: {
                   id: "n" + Date.now(),
                   ...data,
-                  author: CURRENT_USER,
+                  author: currentUserId,
                   createdAt: new Date().toISOString(),
                   updatedAt: new Date().toISOString(),
                 }

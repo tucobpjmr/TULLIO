@@ -2,12 +2,13 @@
 // Duplicazione di task esistenti, con spostamento delle scadenze.
 import { useState, useEffect } from "react";
 import { formatDate } from "../../../lib/taskUtils.js";
-import { CATEGORIES } from "../../../state/appGlobals.js";
+import { useAppData } from "../../../state/AppDataContext.jsx";
 import { bulkInputStyle, bulkBtnPrimary, bulkBtnGhost, bulkIconBtnSmall } from "./bulkStyles.js";
 
 
 // ─── BULK: DUPLICATE TAB ───────────────────────────────────────────────────
 export const DuplicateTab = ({ tasks, onCreate, onClose, onCancel, onDirty }) => {
+  const { categories } = useAppData();
   const [selected, setSelected] = useState({});
   const [titleSuffix, setTitleSuffix] = useState(" (copia)");
   const [dayOffset, setDayOffset] = useState(0);
@@ -109,11 +110,11 @@ export const DuplicateTab = ({ tasks, onCreate, onClose, onCancel, onDirty }) =>
               cursor: "pointer",
             }} onClick={() => toggle(t.id)}>
               <input type="checkbox" checked={isSel} readOnly style={{ cursor: "pointer" }} />
-              <span style={{ fontSize: 14 }}>{CATEGORIES[t.category]?.icon}</span>
+              <span style={{ fontSize: 14 }}>{categories[t.category]?.icon}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{t.title}</div>
                 <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                  {CATEGORIES[t.category]?.label} • {t.client || "—"} • {formatDate(t.dueDate)}
+                  {categories[t.category]?.label} • {t.client || "—"} • {formatDate(t.dueDate)}
                 </div>
                 {isSel && (
                   <div style={{ fontSize: 10.5, color: "var(--success)", fontWeight: 600, marginTop: 3 }}>

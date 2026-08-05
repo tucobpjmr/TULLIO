@@ -2,15 +2,16 @@
 // Creazione di una conversazione: diretta o di gruppo.
 import { useState } from "react";
 import { Avatar } from "../ui/Avatar.jsx";
-import { TEAM, CURRENT_USER } from "../../state/appGlobals.js";
+import { useAppData } from "../../state/AppDataContext.jsx";
 
 // ─── CHAT: NEW CONVERSATION ────────────────────────────────────────────────
 export const NewConversationView = ({ onCreate, onCancel, existing }) => {
+  const { team, currentUserId } = useAppData();
   const [mode, setMode] = useState("select"); // select | group
   const [selected, setSelected] = useState([]);
   const [groupName, setGroupName] = useState("");
 
-  const available = TEAM.filter(m => m.id !== CURRENT_USER);
+  const available = team.filter(m => m.id !== currentUserId);
 
   const toggle = (id) => {
     setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
@@ -21,7 +22,7 @@ export const NewConversationView = ({ onCreate, onCancel, existing }) => {
     if (found) { onCreate(found); return; }
     const newConv = {
       id: "c" + Date.now(), type: "direct",
-      participants: [CURRENT_USER, memberId], name: null,
+      participants: [currentUserId, memberId], name: null,
     };
     onCreate(newConv, true);
   };
@@ -30,7 +31,7 @@ export const NewConversationView = ({ onCreate, onCancel, existing }) => {
     if (!groupName.trim() || selected.length < 2) return;
     const newConv = {
       id: "c" + Date.now(), type: "group",
-      participants: [CURRENT_USER, ...selected],
+      participants: [currentUserId, ...selected],
       name: groupName.trim(), icon: "👥",
     };
     onCreate(newConv, true);

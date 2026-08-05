@@ -3,16 +3,20 @@
 import { useState } from "react";
 import { Avatar } from "../ui/Avatar.jsx";
 import { sortConversationsByRecent } from "../../lib/chatUtils.js";
-import { CURRENT_USER, getMember } from "../../state/appGlobals.js";
+import { useAppData } from "../../state/AppDataContext.jsx";
 import { useChatContext } from "./chatContext.js";
 import { computePresence, PRESENCE_COLORS, PRESENCE_LABELS } from "./chatPresence.js";
 import { formatChatTime, getConversationName, getLastMessage, getUnreadCount } from "./chatFormat.js";
 
 // ─── CHAT: LIST OF CONVERSATIONS ───────────────────────────────────────────
 export const ConversationList = ({ conversations, messages, onSelect, onNew, onDelete }) => {
-  const { presenceMap } = useChatContext();
+  const { presenceMap, currentUserId: me } = useChatContext();
+  const { getMember } = useAppData();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
+
+  const convName = (c) => getConversationName(c, me, getMember);
+  const unreadOf = (convId) => getUnreadCount(messages, convId, me);
 
   const sorted = sortConversationsByRecent(conversations, messages);
 
@@ -21,7 +25,7 @@ export const ConversationList = ({ conversations, messages, onSelect, onNew, onD
     const q = search.toLowerCase().trim();
     if (!q) return true;
     // 1) nome conversazione
-    if (getConversationName(c).toLowerCase().includes(q)) return true;
+    if (convName(c).toLowerCase().includes(q)) return true;
     // 2) nomi partecipanti
     const partNames = (c.participants || [])
       .map(id => getMember(id)?.name || "")
@@ -40,12 +44,12 @@ export const ConversationList = ({ conversations, messages, onSelect, onNew, onD
   const filtered = sorted.filter(c => {
     if (filter === "direct" && c.type !== "direct") return false;
     if (filter === "group" && c.type !== "group") return false;
-    if (filter === "unread" && getUnreadCount(messages, c.id) === 0) return false;
+    if (filter === "unread" && unreadOf(c.id) === 0) return false;
     if (!matchesSearch(c)) return false;
     return true;
   });
 
-  const totalUnread = conversations.reduce((acc, c) => acc + getUnreadCount(messages, c.id), 0);
+  const totalUnread = conversations.reduce((acc, c) => acc + unreadOf(c.id), 0);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -87,11 +91,11 @@ export const ConversationList = ({ conversations, messages, onSelect, onNew, onD
       <div style={{ flex: 1, overflowY: "auto" }}>
         {filtered.map(c => {
           const last = getLastMessage(messages, c.id);
-          const unread = getUnreadCount(messages, c.id);
+          const unread = unreadOf(c.id);
           // Fase 3: quanti messaggi fissati ha questa conversazione → badge.
           const pinnedCount = (messages[c.id] || []).filter(m => m.pinned).length;
           const lastSender = last ? getMember(last.sender) : null;
-          const otherUser = c.type === "direct" ? c.participants.find(p => p !== CURRENT_USER) : null;
+          const otherUser = c.type === "direct" ? c.participants.find(p => p !== me) : null;
 
           return (
             <div key={c.id} onClick={() => onSelect(c)} style={{
@@ -131,7 +135,7 @@ export const ConversationList = ({ conversations, messages, onSelect, onNew, onD
                   <div style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0, flex: 1 }}>
                     {c.pinned && <span style={{ fontSize: 10, color: "var(--gold)" }}>📌</span>}
                     <span style={{ fontSize: 13.5, fontWeight: unread > 0 ? 700 : 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {getConversationName(c)}
+                      {convName(c)}
                     </span>
                   </div>
                   <span style={{ fontSize: 10, color: "var(--text-muted)", flexShrink: 0 }}>
@@ -146,8 +150,8 @@ export const ConversationList = ({ conversations, messages, onSelect, onNew, onD
                   }}>
                     {last ? (
                       <>
-                        {last.sender === CURRENT_USER && <span style={{ color: "var(--text-muted)" }}>Tu: </span>}
-                        {c.type === "group" && last.sender !== CURRENT_USER && (
+                        {last.sender === me && <span style={{ color: "var(--text-muted)" }}>Tu: </span>}
+                        {c.type === "group" && last.sender !== me && (
                           <span style={{ color: lastSender?.color, fontWeight: 600 }}>
                             {lastSender?.name.split(" ")[0]}:{" "}
                           </span>

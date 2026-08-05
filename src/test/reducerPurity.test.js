@@ -1,18 +1,25 @@
 // Purezza del reducer.
 //
-// Il reducer scriveva i globali mutabili di appGlobals.js (setTeam,
-// setCategories, setCurrentUser) da dentro i propri case. React 18 invoca i
-// reducer DUE volte in StrictMode e il Concurrent rendering può scartare un
-// render già calcolato: un effetto collaterale lì dentro non ha garanzie di
-// eseguire una volta sola, e nel frattempo le decisioni di autorizzazione
-// venivano prese proprio su quelle globali.
+// Storia: il reducer scriveva i globali mutabili di state/appGlobals.js
+// (setTeam, setCategories, setCurrentUser) da dentro i propri case. React 18
+// invoca i reducer DUE volte in StrictMode e il Concurrent rendering può
+// scartare un render già calcolato: un effetto collaterale lì dentro non ha
+// garanzie di eseguire una volta sola, e nel frattempo le decisioni di
+// autorizzazione venivano prese proprio su quelle globali.
 //
-// Questi test bloccano la regressione: il reducer deve limitarsi a restituire
-// il nuovo state.
-import { describe, it, expect, beforeEach } from "vitest";
+// Quel modulo non esiste più (la fonte di verità è lo state, esposta ai
+// componenti da state/AppDataContext.jsx), quindi le vecchie sentinelle sui
+// globali non hanno più nulla da osservare. Restano — e sono la parte che
+// conta davvero — le due proprietà che rendono il reducer sicuro sotto
+// StrictMode e Concurrent:
+//
+//   1. NON MUTA il proprio input (lo state precedente resta identico);
+//   2. È DETERMINISTICO (invocarlo due volte sullo stesso input dà lo stesso
+//      risultato — esattamente ciò che StrictMode fa in sviluppo).
+//
+// Più la verifica che le decisioni di permesso si prendano su `state.team`.
+import { describe, it, expect } from "vitest";
 import { reducer, makeInitialState } from "../state/reducer.js";
-import * as appGlobals from "../state/appGlobals.js";
-import { setTeam, setCategories, setCurrentUser } from "../state/appGlobals.js";
 
 const TEAM = [
   { id: "admin1", name: "Admin", role: "Admin",        active: true, pending: false },
@@ -24,23 +31,10 @@ const statoBase = (uid = "admin1") => ({
   toast: null,
 });
 
-// Sentinelle: valori riconoscibili che il reducer non deve toccare.
-const SENTINELLA_TEAM = [{ id: "sentinella", name: "Sentinella", role: "Admin", active: true, pending: false }];
-const SENTINELLA_CATS = { sentinella: { label: "Sentinella" } };
+// Snapshot profondo, per confrontare uno state prima/dopo l'invocazione.
+const snapshot = (o) => JSON.parse(JSON.stringify(o));
 
-beforeEach(() => {
-  setTeam(SENTINELLA_TEAM);
-  setCategories(SENTINELLA_CATS);
-  setCurrentUser("sentinella");
-});
-
-const globaliIntatte = () => {
-  expect(appGlobals.TEAM).toBe(SENTINELLA_TEAM);
-  expect(appGlobals.CATEGORIES).toBe(SENTINELLA_CATS);
-  expect(appGlobals.CURRENT_USER).toBe("sentinella");
-};
-
-describe("reducer — nessuna scrittura sui globali", () => {
+describe("reducer — nessun effetto collaterale sull'input", () => {
   const AZIONI = [
     ["SET_TEAM",                  { type: "SET_TEAM", payload: [{ id: "nuovo", name: "Nuovo", role: "Admin", active: true, pending: false }] }],
     ["ADD_TEAM_MEMBER",           { type: "ADD_TEAM_MEMBER", payload: { id: "x", name: "X", role: "Manager", active: true, pending: false } }],
@@ -57,19 +51,28 @@ describe("reducer — nessuna scrittura sui globali", () => {
     ["RESTORE_BACKUP",            { type: "RESTORE_BACKUP", payload: { team: [{ id: "b", name: "B" }], categories: { c: { label: "C" } } } }],
   ];
 
-  it.each(AZIONI)("%s non tocca TEAM/CATEGORIES/CURRENT_USER", (_nome, action) => {
-    reducer(statoBase(), action);
-    globaliIntatte();
+  it.each(AZIONI)("%s non muta lo state ricevuto", (_nome, action) => {
+    const prima = statoBase();
+    const atteso = snapshot(prima);
+    reducer(prima, action);
+    expect(snapshot(prima)).toEqual(atteso);
   });
 
-  it("una sequenza completa di azioni lascia i globali invariati", () => {
-    let s = statoBase();
-    for (const [, action] of AZIONI) s = reducer(s, action);
-    globaliIntatte();
+  // Ciò che fa StrictMode in sviluppo: stesso input, due invocazioni. Se il
+  // reducer avesse un effetto collaterale (una scrittura fuori dallo state, un
+  // contatore, un push su un array condiviso) i due risultati divergerebbero.
+  it.each(AZIONI)("%s è deterministico su due invocazioni (StrictMode)", (_nome, action) => {
+    const base = statoBase();
+    const a = reducer(base, action);
+    const b = reducer(base, action);
+    // Il log attività porta un timestamp e un suffisso casuale per riga: è
+    // l'unico campo legittimamente diverso tra due invocazioni.
+    expect(snapshot({ ...a, activityLog: null })).toEqual(snapshot({ ...b, activityLog: null }));
+    expect(a.activityLog?.length).toBe(b.activityLog?.length);
   });
 });
 
-describe("reducer — le mutazioni finiscono nello state, non altrove", () => {
+describe("reducer — le mutazioni finiscono nello state", () => {
   it("SET_TEAM aggiorna state.team", () => {
     const nuovo = [{ id: "nuovo", name: "Nuovo", role: "Admin", active: true, pending: false }];
     expect(reducer(statoBase(), { type: "SET_TEAM", payload: nuovo }).team).toEqual(nuovo);
@@ -85,10 +88,9 @@ describe("reducer — le mutazioni finiscono nello state, non altrove", () => {
   });
 });
 
-describe("reducer — i permessi si leggono da state.team, non dai globali", () => {
-  // La prova decisiva: le globali dicono che "sentinella" è admin e che gli
-  // altri utenti non esistono. Se il reducer le consultasse ancora, questi due
-  // test darebbero il verdetto opposto.
+describe("reducer — i permessi si leggono da state.team", () => {
+  // Il verdetto dipende SOLO da `state.team` + `state.currentUserId`: nessuna
+  // preparazione fuori dallo state, nessun ordine di test che conti.
   it("un admin secondo state.team può accedere alla vista Admin", () => {
     const next = reducer(statoBase("admin1"), { type: "SET_VIEW", payload: "admin" });
     expect(next.activeView).toBe("admin");
@@ -110,11 +112,6 @@ describe("reducer — i permessi si leggono da state.team, non dai globali", () 
 });
 
 describe("makeInitialState — factory pura", () => {
-  it("non scrive i globali (React può invocarla due volte in StrictMode)", () => {
-    makeInitialState({ team: TEAM, currentUserId: "admin1" });
-    globaliIntatte();
-  });
-
   it("invocazioni ripetute con gli stessi argomenti danno lo stesso risultato", () => {
     const a = makeInitialState({ team: TEAM, currentUserId: "admin1" });
     const b = makeInitialState({ team: TEAM, currentUserId: "admin1" });

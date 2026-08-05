@@ -10,7 +10,7 @@ import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { CategoryChip } from "../ui/CategoryChip.jsx";
 import { TaskCard } from "../tasks/TaskCard.jsx";
 import { formatDate, getArchivedTasks } from "../../lib/taskUtils.js";
-import { CATEGORIES, getVisibleTasks, canEditTask, isDriver } from "../../state/appGlobals.js";
+import { useAppData } from "../../state/AppDataContext.jsx";
 import { ListeAPI, eur, fmtDate, runListeCall, saldoClass } from "../../lib/listeApi.js";
 
 const PERIOD_OPTIONS = [
@@ -49,6 +49,7 @@ const SALDO_COLORS = { pos: "var(--success)", neg: "var(--danger)", zero: "var(-
 
 export const Archive = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
+  const { categories, getVisibleTasks, canEditTask, isDriver } = useAppData();
   const me = state.currentUserId;
   // Le liste buoni viaggio sono precluse ai Driver (stessa RLS del modulo
   // Liste Viaggio): niente tab, niente fetch, per chi non può comunque accedervi.
@@ -146,7 +147,7 @@ export const Archive = ({ state, dispatch }) => {
               <button type="button" onClick={() => setCategory("all")} style={chipStyle(category === "all")}>Tutte</button>
               {presentCats.map(k => (
                 <button key={k} type="button" onClick={() => setCategory(k)} style={chipStyle(category === k)}>
-                  {CATEGORIES[k]?.icon} {CATEGORIES[k]?.label || k}
+                  {categories[k]?.icon} {categories[k]?.label || k}
                 </button>
               ))}
             </div>

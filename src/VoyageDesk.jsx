@@ -25,9 +25,9 @@ import { getActiveTasks } from "./lib/taskUtils.js";
 import { scopeConversationsForUser } from "./lib/chatUtils.js";
 // Web Push: riparazione della sottoscrizione a ogni avvio (vedi src/lib/push.js).
 import { syncPushSubscription } from "./lib/push.js";
-// Specchio legacy dei globali: lo allinea allo state questo componente (unico
-// punto di scrittura rimasto), i componenti non migrati lo leggono.
-import { getMember, syncLegacyGlobals } from "./state/appGlobals.js";
+// Contesto app: team / categorie / utente corrente + regole di permesso legate
+// allo state React. Sostituisce lo specchio mutabile di state/appGlobals.js.
+import { AppDataProvider, useAppData } from "./state/AppDataContext.jsx";
 // Step P Phase 2d: reducer e factory dell'initial state estratti.
 import { reducer, makeInitialState } from "./state/reducer.js";
 // Caveat #10: hook che astrae idratazione + subscribe realtime debounced.
@@ -238,7 +238,8 @@ const FontLoader = () => (
 // getActiveTasks, getTrashedTasks, isMyTask, isInGlobalQueue → src/lib/taskUtils.js
 // getMember, getAssignableTeam, getRoleType, isAdmin, isDriver,
 // canViewTask, canEditTask, canCreateTaskCategory, canAccessAdmin,
-// getAvailableCategories, getVisibleTasks → src/state/appGlobals.js
+// getAvailableCategories, getVisibleTasks → src/lib/permissions.js (funzioni
+// pure), accessibili dai componenti via useAppData() (src/state/AppDataContext.jsx)
 
 // ─── SWIPE ACTIONS / UI PRIMITIVES ─────────────────────────────────────────
 // SwipeActions → src/components/SwipeActions.jsx (Step P Phase 2e)
@@ -359,6 +360,7 @@ const initialMessages = {
 const ROLLBACK_SECS = 60;
 
 function AdminRollbackBanner({ rollbackTo, switchedAt, dispatch }) {
+  const { getMember } = useAppData();
   const [secs, setSecs] = useState(() => {
     if (!switchedAt) return ROLLBACK_SECS;
     const elapsed = Math.floor((Date.now() - new Date(switchedAt).getTime()) / 1000);
@@ -382,9 +384,7 @@ function AdminRollbackBanner({ rollbackTo, switchedAt, dispatch }) {
     return () => clearInterval(iv);
   }, [switchedAt, rollbackTo, dispatch]);
 
-  const rollbackMember = rollbackTo
-    ? (typeof getMember === "function" ? getMember(rollbackTo) : null)
-    : null;
+  const rollbackMember = rollbackTo ? getMember(rollbackTo) : null;
 
   return (
     <div style={{
@@ -693,19 +693,6 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // state/persistence.js, orchestrato da questo hook. Stessa firma di prima:
   // ritorna Promise<{ error }> e ha identità stabile tra i render.
   const dispatch = useSyncedDispatch(state, rawDispatch, { enabled: useSupabase });
-
-  // Specchio legacy dei globali (state/appGlobals.js). È l'UNICO punto di
-  // scrittura rimasto: prima lo faceva il reducer, per effetto collaterale, a
-  // ogni mutazione di team/categorie/utente. Va chiamato qui nel corpo del
-  // render — non in un useEffect — perché i figli leggono TEAM/CATEGORIES
-  // durante il PROPRIO render, che avviene prima del flush degli effetti: con
-  // un effetto vedrebbero un frame di valori vecchi. L'assegnazione è
-  // idempotente, quindi è innocua anche sotto il doppio render di StrictMode.
-  syncLegacyGlobals({
-    team: state.team,
-    categories: state.categories,
-    currentUserId: state.currentUserId,
-  });
 
   // Step J: navigazione da notifica → TaskSlideOver
   // Se il task referenziato dalla notifica non è (più) raggiungibile — cestinato,
@@ -1177,7 +1164,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
 
   // Conta non letti totali per badge topbar (dallo stato vivo della chat)
   const unreadChat = chatConversations.reduce(
-    (acc, c) => acc + getUnreadCount(messages, c.id),
+    (acc, c) => acc + getUnreadCount(messages, c.id, state.currentUserId),
     0
   );
 
@@ -1241,7 +1228,16 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   };
 
   return (
-    <>
+    // Il provider è alimentato dallo STESSO state del reducer: non esiste più
+    // una seconda copia di team/categorie/utente da tenere allineata a mano.
+    // Sostituisce syncLegacyGlobals(), che scriveva tre variabili di modulo nel
+    // corpo di questo render — cosa non sicura sotto Concurrent Rendering e che
+    // teneva le decisioni di permesso fuori dal ciclo di render di React.
+    <AppDataProvider
+      team={state.team}
+      categories={state.categories}
+      currentUserId={state.currentUserId}
+    >
       <FontLoader />
       {/* vd-app-shell = height 100dvh con fallback 100vh (vedi FontLoader): su iOS
           "vh" è il viewport GRANDE, con la barra del browser visibile il guscio
@@ -1342,7 +1338,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         {/* Toast */}
         <Toast toast={state.toast} dispatch={dispatch} />
       </div>
-    </>
+    </AppDataProvider>
   );
 }
 // Step J — touched

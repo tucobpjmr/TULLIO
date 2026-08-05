@@ -4,8 +4,15 @@
 // ChatPanel deve aprire quella conversazione — anche quando al momento del tap
 // la lista non è ancora idratata (avvio a freddo dell'app dalla notifica).
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
+import { renderWithAppData, DEMO_APP_CTX } from "./helpers/appData.jsx";
 import { ChatPanel } from "../components/chat/ChatPanel.jsx";
+
+// I componenti sotto test leggono team/categorie/utente da useAppData(): prima
+// li prendevano dai default di modulo di appGlobals, ora vanno montati dentro
+// il provider. DEMO_APP_CTX è esattamente quel default, reso esplicito.
+const render = (ui, options) => renderWithAppData(ui, DEMO_APP_CTX, options);
+
 
 // Come negli altri test chat: mock di api.js per non istanziare Supabase.
 vi.mock("../lib/api.js", () => ({

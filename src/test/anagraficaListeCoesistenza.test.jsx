@@ -8,8 +8,25 @@
 //  - il blocco dell'eliminazione di un cliente con liste (la FK la rifiuta comunque);
 //  - la spunta esplicita per rinominare l'anagrafica dal modulo Liste.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
-import { setTeam, setCurrentUser } from "../state/appGlobals.js";
+import { render as rtlRender, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { withAppData } from "./helpers/appData.jsx";
+
+// ─── Contesto app per il render ─────────────────────────────────────────────
+// Sostituisce setTeam()/setCurrentUser() sui globali eliminati: il team e
+// l'utente corrente non sono più variabili di modulo lette dai componenti al
+// render, ma props del provider. Restano impostabili con le stesse due
+// chiamate — `ctxTeam` / `ctxUser` — così ogni test dichiara da quale team
+// dipende, e `render` le applica montando l'albero dentro <AppDataProvider>.
+let appCtx = { team: [], categories: {}, currentUserId: null };
+const ctxTeam = (t) => { appCtx = { ...appCtx, team: t }; };
+const ctxUser = (id) => { appCtx = { ...appCtx, currentUserId: id }; };
+const render = (ui, options) => {
+  const utils = rtlRender(withAppData(ui, appCtx), options);
+  // `appCtx` è letto al momento del rerender, non a quello del primo render:
+  // un test può cambiare utente con ctxUser() e ri-renderizzare.
+  return { ...utils, rerender: (next) => utils.rerender(withAppData(next, appCtx)) };
+};
+
 
 vi.mock("../lib/supabase", () => ({ supabase: {}, default: {} }));
 
@@ -52,8 +69,8 @@ const baseState = () => ({
 });
 
 const renderView = () => {
-  setTeam(TEAM.map(m => ({ ...m })));
-  setCurrentUser("marco");
+  ctxTeam(TEAM.map(m => ({ ...m })));
+  ctxUser("marco");
   const dispatch = vi.fn();
   render(<ClientiView state={baseState()} dispatch={dispatch} />);
   return dispatch;

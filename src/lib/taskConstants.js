@@ -13,7 +13,7 @@ export const STATUSES = ["todo", "inprogress", "awaiting_client", "awaiting_supp
 // Ruoli team validi (i valori sono usati direttamente come member.role, non
 // solo come label). Fonte di verità per i select di ruolo — evita che un
 // refuso in un campo testo libero (es. "manger") rompa i controlli di
-// permesso in state/appGlobals.js (getRoleType confronta per substring).
+// permesso in lib/permissions.js (getRoleType confronta per substring).
 export const TEAM_ROLES = ["Manager", "Senior Agent", "Junior Agent", "Driver", "Admin"];
 
 export const STATUS_LABELS = {

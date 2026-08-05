@@ -8,7 +8,7 @@ import { StatusBadge } from "../ui/StatusBadge.jsx";
 import { ContactActions } from "../ui/ContactActions.jsx";
 import { TaskRow } from "../tasks/TaskCard.jsx";
 import { formatDate, isActiveTask } from "../../lib/taskUtils.js";
-import { CURRENT_USER, canViewTask, getRoleType } from "../../state/appGlobals.js";
+import { useAppData } from "../../state/AppDataContext.jsx";
 import { ClientImportModal } from "./ClientImportModal.jsx";
 import { ClienteListePanel } from "../liste/ClienteListePanel.jsx";
 import { ListeAPI } from "../../lib/listeApi.js";
@@ -266,7 +266,7 @@ function ClienteCard({ cliente, onEdit, onDelete, onSelect, selected, liste = nu
 // Liste viaggio il pannello contestuale ha due tab: questo è il contenuto del
 // primo, la testata e la barra tab stanno in ClienteDetailPanel.
 function ClienteTaskTab({ cliente, tasks, dispatch }) {
-  const uid = CURRENT_USER;
+  const { currentUserId: uid, canViewTask } = useAppData();
   // Stabile per la memoizzazione di TaskRow (vedi components/tasks/TaskCard.jsx).
   const openTask = useCallback(
     (task) => dispatch({ type: "SET_SELECTED_TASK", payload: task }), [dispatch]);
@@ -277,7 +277,7 @@ function ClienteTaskTab({ cliente, tasks, dispatch }) {
       canViewTask(t, uid) &&
       (t.client || "").toLowerCase().includes(q)
     );
-  }, [tasks, cliente.name, uid]);
+  }, [tasks, cliente.name, uid, canViewTask]);
 
   const open = clientTasks.filter(t => t.status !== "done");
   const done = clientTasks.filter(t => t.status === "done");
@@ -437,6 +437,7 @@ const LINK_FILTERS = [
 
 export function ClientiView({ state, dispatch, loading = false }) {
   const { isMobile } = useViewport();
+  const { getRoleType } = useAppData();
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("name"); // v2.8 Round 8
   const [linkFilter, setLinkFilter] = useState("all");

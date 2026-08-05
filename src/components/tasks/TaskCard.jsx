@@ -24,16 +24,19 @@
 // devono essere ricreati a ogni render senza motivo.
 
 import { memo } from "react";
-import { CATEGORIES } from "../../state/appGlobals.js";
+import { useAppData } from "../../state/AppDataContext.jsx";
 
 // Fallback per una categoria non più presente nel dizionario (categoria
 // eliminata dall'admin mentre dei task la usavano ancora): senza, l'accesso a
 // `.icon`/`.label` esploderebbe. Era ripetuto verbatim in ogni call site.
-const catMeta = (category) =>
-  CATEGORIES[category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: category };
+// Funzione pura (dizionario esplicito): i componenti qui sotto le passano
+// `categories` dal contesto app.
+const catMeta = (categories, category) =>
+  (categories || {})[category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: category };
 
 const CategoryPill = ({ category }) => {
-  const c = catMeta(category);
+  const { categories } = useAppData();
+  const c = catMeta(categories, category);
   return (
     <div style={{
       display: "inline-flex", alignItems: "center", gap: 5,
@@ -160,6 +163,7 @@ export const TaskRow = memo(function TaskRow({
   padding = "8px 10px",
   gap = 10,
 }) {
+  const { categories } = useAppData();
   return (
     <div
       onClick={onOpen ? () => onOpen(task) : undefined}
@@ -172,7 +176,7 @@ export const TaskRow = memo(function TaskRow({
         transition: "background 0.15s",
       }}
     >
-      <span style={{ fontSize: iconSize }}>{catMeta(task.category).icon}</span>
+      <span style={{ fontSize: iconSize }}>{catMeta(categories, task.category).icon}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {task.title}

@@ -7,9 +7,16 @@
 // risposte realtime finivano sotto una chiave diversa da quella della vista.
 // Dopo il fix l'UUID è assegnato in handleCreate, PRIMA di lista + ACTIVATE.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { renderWithAppData, DEMO_APP_CTX } from "./helpers/appData.jsx";
 import { ChatPanel } from "../components/chat/ChatPanel.jsx";
 import { isUuid } from "../lib/mappers.js";
+
+// I componenti sotto test leggono team/categorie/utente da useAppData(): prima
+// li prendevano dai default di modulo di appGlobals, ora vanno montati dentro
+// il provider. DEMO_APP_CTX è esattamente quel default, reso esplicito.
+const render = (ui, options) => renderWithAppData(ui, DEMO_APP_CTX, options);
+
 
 // Come in chatReadReceipts.test.jsx: mock di api.js per non istanziare il
 // client Supabase reale. In più qui spiamo subscribeToTyping per verificare

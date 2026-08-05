@@ -9,10 +9,11 @@
 //
 // QUESTO REDUCER È PURO: nessun effetto collaterale, nessuna scrittura su stato
 // esterno. In precedenza chiamava setTeam/setCategories/setCurrentUser per
-// aggiornare i globali mutabili di appGlobals.js — cosa che React 18 non
+// aggiornare i globali mutabili di state/appGlobals.js — cosa che React 18 non
 // garantisce di eseguire una volta sola (StrictMode invoca i reducer due volte,
-// il Concurrent rendering può scartare un render già calcolato). Oggi lo
-// specchio legacy viene allineato da un unico punto in VoyageDesk.jsx.
+// il Concurrent rendering può scartare un render già calcolato). Quel modulo
+// non esiste più: i componenti leggono team/categorie/utente da
+// state/AppDataContext.jsx, alimentato da questo stesso state.
 //
 // I permessi arrivano da lib/permissions.js (funzioni pure) e ricevono
 // `state.team`: le decisioni di autorizzazione si prendono sulla stessa fonte di
@@ -295,9 +296,9 @@ function baseReducer(state, action) {
 
     // ─── ADMIN: TEAM ───
     // SET_TEAM: rimpiazza l'intero team con la lista fornita (idratazione o
-    // refresh realtime). Lo specchio legacy in appGlobals.js viene allineato da
-    // syncLegacyGlobals (VoyageDesk.jsx) al render successivo: qui NON si
-    // scrive nulla fuori dallo state. Niente toast: la notifica utente non
+    // refresh realtime). I componenti lo rileggono dal provider, che riceve
+    // questo stesso `state.team`: qui NON si scrive nulla fuori dallo state.
+    // Niente toast: la notifica utente non
     // serve (e.g. arrivo di un nuovo signup → la notifica admin esiste già via
     // trigger DB).
     case "SET_TEAM": {
@@ -592,8 +593,8 @@ function reducer(state, action) {
 //
 // È una funzione PURA: React la invoca come inizializzatore di useReducer e
 // può eseguirla più di una volta (StrictMode). Prima scriveva i globali di
-// appGlobals.js via setter — ora quello è compito esclusivo di
-// syncLegacyGlobals, chiamato dal render di VoyageDesk.
+// state/appGlobals.js via setter; quel modulo è stato eliminato e non c'è più
+// nulla da allineare fuori dallo state.
 function makeInitialState({ team, currentUserId } = {}) {
   const hasRealTeam = Array.isArray(team) && team.length > 0;
   return {

@@ -7,7 +7,7 @@ import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { CategoryChip } from "../ui/CategoryChip.jsx";
 import { STATUSES, STATUS_LABELS, PRIORITIES } from "../../lib/taskConstants.js";
 import { formatDate, formatTime, isOverdue, clientContact } from "../../lib/taskUtils.js";
-import { CURRENT_USER, getMember, getAssignableTeam, canEditTask, getAvailableCategories, CATEGORIES } from "../../state/appGlobals.js";
+import { useAppData } from "../../state/AppDataContext.jsx";
 import { MentionText } from "../ui/MentionText.jsx";
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";
 import { ContactText } from "../ui/ContactActions.jsx";
@@ -19,6 +19,7 @@ import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit, source
 // e parla direttamente con l'API TaskFiles. Non passa dal reducer perché gli
 // allegati vivono nello storage, non nello stato applicativo.
 function TaskAttachments({ taskId, editable }) {
+  const { currentUserId } = useAppData();
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -48,7 +49,7 @@ function TaskAttachments({ taskId, editable }) {
         continue;
       }
       setUploading(true);
-      const { data, error: e } = await TaskFiles.upload(f, taskId, { uploadedBy: CURRENT_USER });
+      const { data, error: e } = await TaskFiles.upload(f, taskId, { uploadedBy: currentUserId });
       setUploading(false);
       if (e) { setError(`Upload di "${f.name}" fallito: ${e.message || "errore"}`); continue; }
       if (data) setFiles(prev => [data, ...prev]);
@@ -210,12 +211,14 @@ const HISTORY_ICONS = {
   due_date: "📅", trashed: "🗑️", restored: "↩️",
 };
 
-function resolveAssigneeNames(csv) {
+// `getMember` arriva dal chiamante (che lo prende da useAppData): queste due
+// restano funzioni pure di modulo, senza lookup impliciti su stato globale.
+function resolveAssigneeNames(csv, getMember) {
   if (!csv) return "Nessuno";
   return csv.split(",").filter(Boolean).map(id => getMember(id)?.name || id).join(", ");
 }
 
-function historyDescribe(h) {
+function historyDescribe(h, getMember) {
   switch (h.action) {
     case "created":
       return "Task creata";
@@ -224,7 +227,7 @@ function historyDescribe(h) {
     case "priority":
       return `Priorità: ${PRIORITIES[h.oldValue]?.label ?? h.oldValue ?? "—"} → ${PRIORITIES[h.newValue]?.label ?? h.newValue ?? "—"}`;
     case "assignees":
-      return `Assegnatari: ${resolveAssigneeNames(h.oldValue)} → ${resolveAssigneeNames(h.newValue)}`;
+      return `Assegnatari: ${resolveAssigneeNames(h.oldValue, getMember)} → ${resolveAssigneeNames(h.newValue, getMember)}`;
     case "due_date":
       return `Scadenza: ${h.oldValue ? formatDate(h.oldValue) : "—"} → ${h.newValue ? formatDate(h.newValue) : "—"}`;
     case "trashed":
@@ -238,6 +241,10 @@ function historyDescribe(h) {
 
 export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
   const { isMobile } = useViewport();
+  const {
+    categories, currentUserId, getMember, getAssignableTeam,
+    canEditTask, getAvailableCategories,
+  } = useAppData();
   const [newComment, setNewComment] = useState("");
   const [showAssigneePicker, setShowAssigneePicker] = useState(false);
   const [clientFocus, setClientFocus] = useState(false);
@@ -264,7 +271,7 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
 
   if (!task) return null;
 
-  const editable = canEditTask(task, CURRENT_USER);
+  const editable = canEditTask(task, currentUserId);
   const currentAssignees = task.assignees || [];
   const availableMembers = editable
     ? getAssignableTeam().filter(m => !currentAssignees.includes(m.id))
@@ -272,9 +279,9 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
 
   // Categorie selezionabili = quelle disponibili al ruolo; includo sempre quella
   // corrente del task così resta visibile anche se fuori dallo scope dell'utente.
-  const availableCats = getAvailableCategories(CURRENT_USER);
+  const availableCats = getAvailableCategories(currentUserId);
   const catOptions = task.category && !availableCats[task.category]
-    ? { [task.category]: CATEGORIES[task.category] || { label: task.category, icon: "" }, ...availableCats }
+    ? { [task.category]: categories[task.category] || { label: task.category, icon: "" }, ...availableCats }
     : availableCats;
 
   const updateField = (field, value) =>
@@ -325,7 +332,7 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
 
   const handleComment = () => {
     if (!newComment.trim()) return;
-    const authorName = getMember(CURRENT_USER)?.name || "Utente";
+    const authorName = getMember(currentUserId)?.name || "Utente";
     dispatch({
       type: "ADD_COMMENT", payload: {
         taskId: task.id,
@@ -350,7 +357,7 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
     width: "100%", border: "1px solid var(--border)", borderRadius: 8,
     padding: "7px 10px", fontSize: 13, fontFamily: "inherit", background: "var(--card)",
   };
-  const myInitials = (getMember(CURRENT_USER)?.name || "")
+  const myInitials = (getMember(currentUserId)?.name || "")
     .split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "?";
 
   return (
@@ -727,7 +734,7 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
                         <span style={{ fontSize: 12, fontWeight: 600 }}>{h.actor || "Sistema"}</span>
                         <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{formatDate(h.time)}</span>
                       </div>
-                      <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{historyDescribe(h)}</div>
+                      <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{historyDescribe(h, getMember)}</div>
                     </div>
                   </div>
                 ))}

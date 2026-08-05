@@ -4,8 +4,25 @@
 // Il backend (RPC + gating di ruolo) era già pronto; qui si copre la UI React
 // che mancava — bottoni, modali e la conferma testuale del reset totale.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
-import { setTeam, setCurrentUser } from "../state/appGlobals.js";
+import { render as rtlRender, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { withAppData } from "./helpers/appData.jsx";
+
+// ─── Contesto app per il render ─────────────────────────────────────────────
+// Sostituisce setTeam()/setCurrentUser() sui globali eliminati: il team e
+// l'utente corrente non sono più variabili di modulo lette dai componenti al
+// render, ma props del provider. Restano impostabili con le stesse due
+// chiamate — `ctxTeam` / `ctxUser` — così ogni test dichiara da quale team
+// dipende, e `render` le applica montando l'albero dentro <AppDataProvider>.
+let appCtx = { team: [], categories: {}, currentUserId: null };
+const ctxTeam = (t) => { appCtx = { ...appCtx, team: t }; };
+const ctxUser = (id) => { appCtx = { ...appCtx, currentUserId: id }; };
+const render = (ui, options) => {
+  const utils = rtlRender(withAppData(ui, appCtx), options);
+  // `appCtx` è letto al momento del rerender, non a quello del primo render:
+  // un test può cambiare utente con ctxUser() e ri-renderizzare.
+  return { ...utils, rerender: (next) => utils.rerender(withAppData(next, appCtx)) };
+};
+
 
 vi.mock("../lib/supabase", () => ({ supabase: {}, default: {} }));
 
@@ -52,7 +69,7 @@ const TEAM = [
   { id: "gina", name: "Gina Verdi", role: "senior agent", active: true, pending: false },
 ];
 
-const asUser = (uid) => { setTeam(TEAM.map((m) => ({ ...m }))); setCurrentUser(uid); };
+const asUser = (uid) => { ctxTeam(TEAM.map((m) => ({ ...m }))); ctxUser(uid); };
 
 const baseState = (uid) => ({
   currentUserId: uid, team: TEAM, clients: [], listeTarget: null,

@@ -4,11 +4,12 @@ import { useState } from "react";
 import { Avatar } from "../ui/Avatar.jsx";
 import { isUuid } from "../../lib/mappers.js";
 import { sortConversationsByRecent } from "../../lib/chatUtils.js";
-import { CURRENT_USER, getMember } from "../../state/appGlobals.js";
+import { useAppData } from "../../state/AppDataContext.jsx";
 import { getConversationName, getLastMessage } from "./chatFormat.js";
 
 // messaggio decrescente) → l'admin trova subito chi ha contattato per ultimo.
 export const ForwardPicker = ({ msg, conversations, messages, onPick, onClose }) => {
+  const { currentUserId, getMember } = useAppData();
   const [search, setSearch] = useState("");
   const sorted = sortConversationsByRecent(
     conversations.filter(c => c.id !== msg.__sourceConvId && isUuid(c.id)),
@@ -17,7 +18,7 @@ export const ForwardPicker = ({ msg, conversations, messages, onPick, onClose })
   const q = search.trim().toLowerCase();
   const filtered = q
     ? sorted.filter(c => {
-        if (getConversationName(c).toLowerCase().includes(q)) return true;
+        if (getConversationName(c, currentUserId, getMember).toLowerCase().includes(q)) return true;
         const partNames = (c.participants || [])
           .map(id => getMember(id)?.name || "")
           .join(" ")
@@ -77,7 +78,7 @@ export const ForwardPicker = ({ msg, conversations, messages, onPick, onClose })
             </div>
           ) : filtered.map(c => {
             const otherUid = c.type === "direct"
-              ? (c.participants || []).find(p => p !== CURRENT_USER)
+              ? (c.participants || []).find(p => p !== currentUserId)
               : null;
             const last = getLastMessage(messages, c.id);
             return (
@@ -104,7 +105,7 @@ export const ForwardPicker = ({ msg, conversations, messages, onPick, onClose })
                 )}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {getConversationName(c)}
+                    {getConversationName(c, currentUserId, getMember)}
                   </div>
                   {last && (
                     <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 1 }}>

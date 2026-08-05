@@ -7,7 +7,7 @@ import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { CategoryChip } from "../ui/CategoryChip.jsx";
 import { PRIORITIES, STATUS_LABELS } from "../../lib/taskConstants.js";
 import { formatDate, getTrashedTasks } from "../../lib/taskUtils.js";
-import { CATEGORIES, getAssignableTeam, canEditTask, getVisibleTasks } from "../../state/appGlobals.js";
+import { useAppData } from "../../state/AppDataContext.jsx";
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";
 
 const PERIOD_OPTIONS = [
@@ -41,6 +41,7 @@ const filterByPeriod = (tasks, period) => {
 
 export const Trash = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
+  const { categories, getAssignableTeam, canEditTask, getVisibleTasks } = useAppData();
   const [restoring, setRestoring] = useState(null); // task being restored/edited
   const [period, setPeriod] = useState("all");
   const me = state.currentUserId;
@@ -308,7 +309,7 @@ export const Trash = ({ state, dispatch }) => {
                       background: "var(--card)", cursor: "pointer",
                     }}
                   >
-                    {Object.entries(CATEGORIES).map(([k, v]) => (
+                    {Object.entries(categories).map(([k, v]) => (
                       <option key={k} value={k}>{v.icon} {v.label}</option>
                     ))}
                   </select>

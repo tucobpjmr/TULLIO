@@ -22,7 +22,7 @@ import { useViewport } from "../Viewport.jsx";
 import { Messages as MessagesAPI } from "../../lib/api.js";
 import { isUuid, newId } from "../../lib/mappers.js";
 import { formatDate, formatTime } from "../../lib/taskUtils.js";
-import { CURRENT_USER } from "../../state/appGlobals.js";
+import { useAppData } from "../../state/AppDataContext.jsx";
 import { ChatContext } from "./chatContext.js";
 import { PRESENCE_COLORS } from "./chatPresence.js";
 import { getConversationName, getUnreadCount } from "./chatFormat.js";
@@ -40,6 +40,10 @@ export { getUnreadCount };
 
 export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, markConversationRead, onToggleReaction, onDeleteConversation, intent, tasks, currentUserId, dispatch, presenceMap, messageTemplates = [], loading = false, myBusy = false, onToggleBusy }) => {
   const { isMobile } = useViewport();
+  const { currentUserId: appUserId, getMember } = useAppData();
+  // La prop ha la precedenza sul contesto: i test montano il pannello isolato
+  // passando l'utente esplicitamente.
+  const me = currentUserId || appUserId;
   const [ps, pd] = useReducer(chatPanelReducer, chatPanelInitial);
   const { activeConv, newMode, prefillText, prefillTaskRef, forwardingMsg } = ps;
 
@@ -48,7 +52,7 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
   // storage). Se la conv eliminata è quella aperta, si torna prima alla lista.
   const handleDeleteConv = (conv) => {
     if (!onDeleteConversation || !conv) return;
-    const label = getConversationName(conv);
+    const label = getConversationName(conv, me, getMember);
     const ok = window.confirm(conv.type === "group"
       ? `Eliminare il gruppo "${label}"?\n\nTutti i messaggi e gli allegati verranno eliminati per tutti i partecipanti. Azione irreversibile.`
       : `Eliminare la conversazione con ${label}?\n\nTutti i messaggi e gli allegati verranno eliminati per entrambi. Azione irreversibile.`);
@@ -81,7 +85,6 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
     const src = forwardingMsg;
     pd({ type: "FWD_CLEAR" });
     if (!src || !destConvId) return;
-    const me = currentUserId || CURRENT_USER;
     // Preserva l'autore originale anche su forward chain (A→B→C): se src è
     // già un forward, ereditiamo il suo originalSenderId; altrimenti è src.sender.
     const originalSenderId = src.originalSenderId || src.sender;
@@ -151,8 +154,8 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
   // cache locale col server (no-op per utenti non loggati / id mock).
   useEffect(() => {
     if (!open) return;
-    syncRecentReactionsFromServer(currentUserId || CURRENT_USER);
-  }, [open, currentUserId]);
+    syncRecentReactionsFromServer(me);
+  }, [open, me]);
 
   // Intent con conversazione già nota (tap su una notifica di chat, in-app o
   // push): apre direttamente quella conversazione. `conversations` è nelle
@@ -167,7 +170,6 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
   // Gestione intent: apertura chat verso utente specifico con link a task
   useEffect(() => {
     if (!open || !intent || !intent.toUser) return;
-    const me = currentUserId || CURRENT_USER;
     // Cerca conversazione diretta esistente
     let direct = conversations.find(c =>
       c.type === "direct" &&
@@ -194,7 +196,7 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
         pd({ type: "PREFILL", text, taskRef: t.id });
       }
     }
-  }, [open, intent, currentUserId]);
+  }, [open, intent, me]);
 
   if (!open) return null;
 
@@ -212,7 +214,7 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
   };
 
   return (
-    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: currentUserId || CURRENT_USER, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {}, messageTemplates: messageTemplates || [], onForward: handleForwardStart }}>
+    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: me, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {}, messageTemplates: messageTemplates || [], onForward: handleForwardStart }}>
     <>
       <div onClick={onClose} style={{
         position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: 700,

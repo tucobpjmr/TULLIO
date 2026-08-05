@@ -9,7 +9,7 @@ import { useAuth } from "../../auth/AuthContext.jsx";
 import { PRIORITIES, STATUSES, STATUS_LABELS } from "../../lib/taskConstants.js";
 import { formatDate, isOverdue, startOfLocalDay, endOfLocalDay } from "../../lib/taskUtils.js";
 import { MOCK_NOTIFICATIONS } from "../../state/mockData.js";
-import { TEAM, CATEGORIES, getMember, isJuniorAgent, isDriver } from "../../state/appGlobals.js";
+import { useAppData } from "../../state/AppDataContext.jsx";
 import { ProfileEditor } from "../modals/ProfileEditor.jsx";
 import { SwipeActions } from "../SwipeActions.jsx";
 import { getPushSupport, getPushState, enablePush, disablePush, syncPushSubscription, sendTestPush } from "../../lib/push.js";
@@ -82,6 +82,7 @@ const FilterDropdown = ({ options, selected, onToggle }) => {
 // task e liste viaggio, ed è quello dove le due ricerche devono coincidere.
 export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword, currentUserId }) => {
   const { isMobile } = useViewport();
+  const { team, categories, isDriver } = useAppData();
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [cats, setCats] = useState([]);
@@ -293,7 +294,7 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
         <div style={{ marginBottom: 14 }}>
           <div style={sectionTitle}>Categoria</div>
           <FilterDropdown
-            options={Object.entries(CATEGORIES).map(([key, c]) => ({
+            options={Object.entries(categories).map(([key, c]) => ({
               value: key, label: c.label, icon: <span>{c.icon}</span>,
             }))}
             selected={cats}
@@ -313,7 +314,7 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
         <div style={{ marginBottom: 14 }}>
           <div style={sectionTitle}>Agente</div>
           <FilterDropdown
-            options={TEAM.filter(m => !m.pending).map(m => ({
+            options={team.filter(m => !m.pending).map(m => ({
               value: m.id, label: m.name.split(" ")[0],
               icon: (
                 <span style={{
@@ -377,7 +378,7 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
               {results.length} {results.length === 1 ? "risultato" : "risultati"}
             </div>
             {results.map(t => {
-              const cat = CATEGORIES[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
+              const cat = categories[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
               const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
               const overdue = isOverdue(t);
               return (
@@ -637,6 +638,7 @@ export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMa
 // ProfileEditor (+ AVATAR_EMOJIS/AVATAR_COLORS) → src/components/modals/ProfileEditor.jsx (Step P Phase 2f)
 
 const UserSwitcher = ({ state, dispatch }) => {
+  const { team, getMember, isJuniorAgent } = useAppData();
   const [open, setOpen] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -672,7 +674,7 @@ const UserSwitcher = ({ state, dispatch }) => {
 
   // Tutti i membri non-pending, ordinati per ruolo (Admin, Manager, Senior, Junior, Driver)
   const order = { admin: 0, manager: 1, "senior agent": 2, "junior agent": 3, driver: 4 };
-  const candidates = TEAM
+  const candidates = team
     .filter(m => !m.pending)
     .slice()
     .sort((a, b) => (order[(a.role || "").toLowerCase()] ?? 99) - (order[(b.role || "").toLowerCase()] ?? 99));

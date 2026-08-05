@@ -35,6 +35,21 @@ export default [
         ignoreRestSiblings: true,
       }],
       'no-empty': ['warn', { allowEmptyCatch: true }],
+      // Lo shim state/appGlobals.js (tre `let` di modulo con TEAM/CATEGORIES/
+      // CURRENT_USER) è stato eliminato: la fonte di verità è lo state del
+      // reducer, esposta ai componenti da useAppData(). La regola esiste perché
+      // il problema vero non era scrivere il modulo nuovo — era che ogni
+      // componente aggiunto copiava l'import legacy dal vicino, e la migrazione
+      // è rimasta ferma a zero consumatori per intere sessioni. Se il file
+      // riappare, questo errore lo intercetta prima della review.
+      'no-restricted-imports': ['error', {
+        patterns: [{
+          group: ['**/state/appGlobals', '**/state/appGlobals.js'],
+          message:
+            'appGlobals è stato eliminato: nei componenti usa useAppData() ' +
+            '(src/state/AppDataContext.jsx), altrove le funzioni pure di src/lib/permissions.js.',
+        }],
+      }],
     },
   },
   {

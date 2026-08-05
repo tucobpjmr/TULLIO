@@ -1,5 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
+import { renderWithAppData, DEMO_APP_CTX } from "./helpers/appData.jsx";
+
+// I componenti sotto test leggono team/categorie/utente da useAppData(): prima
+// li prendevano dai default di modulo di appGlobals, ora vanno montati dentro
+// il provider. DEMO_APP_CTX è esattamente quel default, reso esplicito.
+const render = (ui, options) => renderWithAppData(ui, DEMO_APP_CTX, options);
+
 
 // Mock di api.js per non istanziare il client Supabase reale (stesso pattern
 // di clientContactInheritance.test.jsx) — BulkTaskCreator importa TaskFiles

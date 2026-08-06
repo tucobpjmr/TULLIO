@@ -60,6 +60,31 @@ const json = (body: unknown, status = 200) =>
     headers: { "Content-Type": "application/json" },
   });
 
+// Confronto del secret a tempo costante.
+//
+// `!==` esce al primo byte diverso, quindi il tempo di risposta dipende da
+// quanti caratteri iniziali sono corretti. Sfruttarlo attraverso la rete
+// pubblica, contro un runtime edge con jitter, è di fatto impraticabile: il
+// rumore di misura è ordini di grandezza sopra il segnale. Ma il costo di non
+// doverlo più argomentare è una funzione di sei righe, e il ragionamento
+// "impraticabile oggi" invecchia male — la stessa funzione resterebbe qui se
+// un domani il secret venisse confrontato in un contesto meno rumoroso.
+//
+// L'accumulatore XOR percorre sempre l'intero buffer invece di uscire al primo
+// byte diverso: niente `===` per byte, niente `.every()` (che corto-circuita e
+// riporterebbe il problema da capo), niente dipendenza da API non standard del
+// runtime. La differenza di lunghezza va gestita prima ed è osservabile, ma
+// rivela solo la lunghezza del secret, non il suo contenuto.
+function secretValido(ricevuto: string | null, atteso: string): boolean {
+  if (ricevuto === null) return false;
+  const a = new TextEncoder().encode(ricevuto);
+  const b = new TextEncoder().encode(atteso);
+  if (a.byteLength !== b.byteLength) return false;
+  let diff = 0;
+  for (let i = 0; i < a.byteLength; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
 
@@ -73,7 +98,7 @@ Deno.serve(async (req) => {
     return json({ error: "init failed" }, 500);
   }
 
-  if (req.headers.get("x-push-secret") !== ctx.triggerSecret) {
+  if (!secretValido(req.headers.get("x-push-secret"), ctx.triggerSecret)) {
     return json({ error: "unauthorized" }, 401);
   }
 

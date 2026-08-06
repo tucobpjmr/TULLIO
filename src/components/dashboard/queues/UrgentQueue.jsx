@@ -9,6 +9,7 @@ import { PRIORITIES } from "../../../lib/taskConstants.js";
 import { formatDate, formatTime } from "../../../lib/taskUtils.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useOpenTask } from "./queueShared.js";
+import { QueueShell } from "./QueueShell.jsx";
 
 // ─── URGENT QUEUE (tutte le task in scadenza <24h — visibile a non-driver) ──
 // Mostra sia le proprie task urgenti (editabili dal dettaglio) sia quelle

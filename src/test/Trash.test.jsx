@@ -3,6 +3,13 @@ import { render as rtlRender, screen, fireEvent } from "@testing-library/react";
 import { Trash } from "../components/views/Trash.jsx";
 import { withAppData } from "./helpers/appData.jsx";
 
+// Avatar (montato in profondità da questo albero di componenti) importa
+// lib/api.js per risolvere le signed URL degli avatar dal bucket privato
+// (S-10), e api.js importa il client Supabase condiviso, che senza
+// VITE_SUPABASE_URL non si costruisce. Stessa strategia degli altri test:
+// il client è mockato e mai usato.
+vi.mock("../lib/supabase", () => ({ supabase: {}, default: {} }));
+
 // Contesto app per il render: sostituisce ctxTeam()/ctxUser() sui
 // globali eliminati. Le funzioni di permesso (canViewTask/canEditTask) arrivano
 // da useAppData(), quindi il team e l'utente vanno passati al provider — è il

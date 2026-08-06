@@ -50,6 +50,12 @@ const invokeFn = async (name, body = {}, fallback = 'Operazione non riuscita.') 
 };
 
 // ----------------- USERS / TEAM -----------------
+// Cache delle signed URL degli avatar. Separata da quella degli allegati
+// (signedUrlCache, più in basso) perché ha una frequenza d'uso diversa: un
+// avatar è richiesto da decine di componenti nello stesso render, quindi
+// senza cache si genererebbe una richiesta per ogni <Avatar> montato.
+const avatarUrlCache = new Map();
+
 export const Users = {
   list: () =>
     supabase.from('users').select('*').eq('active', true).order('name'),
@@ -83,9 +89,37 @@ export const Users = {
       .from('avatars')
       .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
     if (error) return { url: null, error };
-    const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-    const base = data?.publicUrl ?? null;
-    return { url: base ? `${base}?v=${Date.now()}` : null, error: null };
+    // Si salva il PATH, non più la public URL: dalla migrazione 20260806180000
+    // il bucket è privato (S-10) e /object/public/... non risponde più. La
+    // signed URL si genera alla lettura, in getAvatarUrl.
+    //
+    // Il cache-buster ?v=<timestamp> non serve più ed è anzi impossibile: il
+    // valore salvato è un path, non una URL. Al suo posto si invalida qui la
+    // cache in memoria — il path è fisso (upsert), quindi senza questa riga il
+    // vecchio avatar resterebbe visibile fino alla scadenza della signed URL.
+    avatarUrlCache.delete(path);
+    return { url: path, error: null };
+  },
+  // Signed URL per un avatar (1h, con cache in memoria).
+  //
+  // Accetta anche i valori NON-path già presenti in users.photo_url e li
+  // restituisce invariati: i data URI base64 delle foto caricate prima che
+  // esistesse il bucket, e le eventuali public URL http salvate quando il
+  // bucket era pubblico. Così il passaggio a bucket privato non ha richiesto
+  // nessuna migrazione dei dati e nessuna foto esistente si è rotta.
+  getAvatarUrl: async (value) => {
+    if (!value) return { url: null, error: null };
+    if (value.startsWith('data:') || value.startsWith('http')) {
+      return { url: value, error: null };
+    }
+    const cached = avatarUrlCache.get(value);
+    if (cached && cached.expiresAt > Date.now()) return { url: cached.url, error: null };
+    const { data, error } = await supabase.storage
+      .from('avatars')
+      .createSignedUrl(value, 60 * 60);
+    const url = data?.signedUrl ?? null;
+    if (url) avatarUrlCache.set(value, { url, expiresAt: Date.now() + 55 * 60 * 1000 });
+    return { url, error };
   },
   setActive: (id, active) =>
     supabase.from('users').update(withOrigin({ active })).eq('id', id),

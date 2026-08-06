@@ -6,6 +6,7 @@ import { Users as UsersAPI } from "../../lib/api.js";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { ProfileEditor } from "../modals/ProfileEditor.jsx";
+import { AvatarImg } from "../ui/Avatar.jsx";
 import { Z } from "../../styles/tokens.js";
 import { roleLabel, toDbRole, toSeniority } from "../../lib/taskConstants.js";
 
@@ -78,7 +79,7 @@ export const UserSwitcher = ({ state, dispatch }) => {
         }}
       >
         {curr.photoUrl ? (
-          <img src={curr.photoUrl} alt="" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover" }} />
+          <AvatarImg photo={curr.photoUrl} style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover" }} />
         ) : (
           <div style={{
             width: 30, height: 30, borderRadius: "50%", background: curr.color,
@@ -137,7 +138,7 @@ export const UserSwitcher = ({ state, dispatch }) => {
                     onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
                   >
                     {m.photoUrl ? (
-                      <img src={m.photoUrl} alt="" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                      <AvatarImg photo={m.photoUrl} style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
                     ) : (
                       <div style={{
                         width: 30, height: 30, borderRadius: "50%", background: m.color,

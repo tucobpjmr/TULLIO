@@ -5,6 +5,8 @@
 // "cerca Bianchi" è una domanda sola, anche se sotto sono due tabelle.
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useViewport } from "../Viewport.jsx";
+import { SwipeActions } from "../SwipeActions.jsx";
+import { Avatar } from "../ui/Avatar.jsx";
 import { PRIORITIES, STATUSES, STATUS_LABELS } from "../../lib/taskConstants.js";
 import { formatDate, isOverdue, startOfLocalDay, endOfLocalDay } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";

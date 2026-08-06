@@ -25,6 +25,13 @@ export default [
       // verrebbero segnalati come import inutilizzati).
       'react/jsx-uses-vars': 'error',
       'react/jsx-uses-react': 'error',
+      // Componente usato in JSX senza importarlo. `no-undef` di eslint:recommended
+      // NON lo intercetta: gli identificatori JSX non sono trattati come reference
+      // dall'analisi di scope, quindi `<QueueShell>` senza import passava il lint e
+      // crashava solo a runtime, dentro il ViewErrorBoundary ("QueueShell is not
+      // defined"). È esattamente il modo in cui UrgentQueue e UnassignedQueue si
+      // sono rotte: serve la regola del plugin react.
+      'react/jsx-no-undef': 'error',
       // Solo le due regole hook classiche: violazioni reali = errore,
       // dipendenze mancanti = warning (fix mirato, non bloccante).
       'react-hooks/rules-of-hooks': 'error',

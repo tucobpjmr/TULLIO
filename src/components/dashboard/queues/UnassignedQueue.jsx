@@ -8,6 +8,7 @@ import { PRIORITIES } from "../../../lib/taskConstants.js";
 import { formatDate, isOverdue } from "../../../lib/taskUtils.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useOpenTask } from "./queueShared.js";
+import { QueueShell } from "./QueueShell.jsx";
 
 // ─── UNASSIGNED QUEUE (coda globale) ───────────────────────────────────────
 export const UnassignedQueue = ({ tasks, dispatch, onTake, uid }) => {

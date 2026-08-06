@@ -6,6 +6,7 @@ import { useAuth } from "../../auth/AuthContext.jsx";
 import { Users as UsersAPI } from "../../lib/api.js";
 import { PasswordField } from "../ui/PasswordField.jsx";
 import { isValidEmail } from "../../lib/validators.js";
+import { Z } from "../../styles/tokens.js";
 
 // Converte un data-URL (prodotto dal crop canvas) in Blob per l'upload sul
 // bucket 'avatars'. Il crop emette sempre JPEG (toDataURL("image/jpeg")).
@@ -74,7 +75,7 @@ const CropModal = ({ src, onConfirm, onCancel }) => {
 
   return (
     <>
-      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 1100 }} />
+      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: Z.modalFullBackdrop }} />
       {/* Centratura con inset:0 + margin:auto invece di translate(-50%,-50%):
           un transform != none renderebbe questa card containing block per i
           discendenti position:fixed, che si posizionerebbero rispetto alla card
@@ -83,7 +84,7 @@ const CropModal = ({ src, onConfirm, onCancel }) => {
           ma il crop è la card in cui è più probabile che ne arrivino. */}
       <div style={{
         position: "fixed", inset: 0, margin: "auto", height: "fit-content",
-        background: "var(--card)", borderRadius: 16, zIndex: 1101,
+        background: "var(--card)", borderRadius: 16, zIndex: Z.modalFull,
         padding: "22px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 16,
         width: 330, maxWidth: "calc(100vw - 32px)",
         boxShadow: "0 24px 64px rgba(0,0,0,0.4)",
@@ -301,11 +302,11 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
           onCancel={() => setCropSrc(null)}
         />
       )}
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,32,68,0.4)", zIndex: 1000 }} />
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,32,68,0.4)", zIndex: Z.modalBackdrop }} />
       {/* Stessa centratura senza transform della CropModal qui sopra. */}
       <div className="vd-modal-mh" style={{
         position: "fixed", inset: 0, margin: "auto", height: "fit-content",
-        background: "var(--card)", borderRadius: 16, zIndex: 1001,
+        background: "var(--card)", borderRadius: 16, zIndex: Z.modal,
         width: isMobile ? "calc(100vw - 32px)" : 480, maxWidth: "100%",
         overflowY: "auto",
         boxShadow: "0 20px 60px rgba(0,0,0,0.3)",

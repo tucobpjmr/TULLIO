@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { NOTICE_COLORS } from "../../lib/taskConstants.js";
 import { MentionText } from "../ui/MentionText.jsx";
 import { ModalPortal } from "../ui/ModalPortal.jsx";
+import { Z } from "../../styles/tokens.js";
 
 export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
   const [text, setText] = useState(notice?.text || "");
@@ -43,7 +44,7 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
     <ModalPortal>
       <div onClick={onClose} style={{
         position: "fixed", inset: 0, background: "rgba(15,32,68,0.6)",
-        display: "flex", alignItems: "center", justifyContent: "center", zIndex: 600,
+        display: "flex", alignItems: "center", justifyContent: "center", zIndex: Z.slideOver,
       }}>
         <div onClick={e => e.stopPropagation()} className="vd-modal-mh" style={{
           background: "var(--card)", borderRadius: 12, padding: 24,

@@ -12,6 +12,7 @@
 // invece dell'<input type="time">, che aprirebbe l'orologio nativo del
 // browser — anch'esso soggetto a sforare fuori dallo schermo su mobile.
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
+import { Z } from "../../styles/tokens.js";
 
 const WEEKDAYS = ["lu", "ma", "me", "gi", "ve", "sa", "do"];
 const pad2 = n => String(n).padStart(2, "0");
@@ -341,7 +342,7 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
         <div
           onMouseDown={e => { if (e.target === e.currentTarget) dismiss(); }}
           style={{
-            position: "fixed", inset: 0, zIndex: 60,
+            position: "fixed", inset: 0, zIndex: Z.datePicker,
             background: "rgba(0,0,0,0.35)",
             display: "flex", alignItems: "center", justifyContent: "center",
             padding: 16,
@@ -360,7 +361,7 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
         // preferito lo farebbe sforare oltre il contenitore.
         <div style={{
           position: "absolute", top: "100%", left: panelOffset,
-          marginTop: 6, zIndex: 30,
+          marginTop: 6, zIndex: Z.swipePanel,
           background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10,
           boxShadow: "0 10px 30px rgba(0,0,0,0.15)", padding: 12, width: PANEL_W,
         }}>

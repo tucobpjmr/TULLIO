@@ -12,6 +12,7 @@
 // breadcrumb e testata — segue lo stile Tullio (navy/oro, Playfair).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useViewport } from "../Viewport.jsx";
+import { useListeData } from "./useListeData.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import {
   ListeAPI, beneficiariNomi, downloadBlob, eur, fmtDate, intestazioneLista,
@@ -144,11 +145,12 @@ export function ListeViaggio({ state, dispatch }) {
   const isDriver = role === "driver";
   const isAdminUser = isAdmin(uid);
 
-  const [liste, setListe] = useState([]);
-  const [cestino, setCestino] = useState([]);
-  const [saldi, setSaldi] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(null);
+  // Dati della home + realtime: vedi useListeData. Prima erano cinque useState
+  // locali con un `await loadHome()` manuale dopo ogni scrittura — tre query di
+  // refetch completo per ogni modifica, e nessun evento quando a scrivere era
+  // un altro utente.
+  const { liste, cestino, saldi, loading, loadError, reload: loadHome } =
+    useListeData({ enabled: !isDriver });
 
   const [openId, setOpenId] = useState(null);
   const [detail, setDetail] = useState(null); // { lista, movimenti, history }
@@ -180,24 +182,6 @@ export function ListeViaggio({ state, dispatch }) {
     return m;
   }, [state.team]);
 
-  const loadHome = useCallback(async () => {
-    setLoadError(null);
-    const [rListe, rCestino, rSaldi] = await Promise.all([
-      ListeAPI.list(), ListeAPI.listTrash(), ListeAPI.saldi(),
-    ]);
-    const failed = [rListe, rCestino, rSaldi].find((r) => r.error);
-    if (failed) {
-      console.error("[liste] caricamento", failed.error);
-      setLoadError(failed.error.message);
-      setLoading(false);
-      return;
-    }
-    setListe(rListe.data || []);
-    setCestino(rCestino.data || []);
-    setSaldi(Object.fromEntries((rSaldi.data || []).map((s) => [s.lista_id, s])));
-    setLoading(false);
-  }, []);
-
   const loadDetail = useCallback(async (id) => {
     const [rLista, rMovs, rHist] = await Promise.all([
       ListeAPI.get(id), ListeAPI.movimenti(id), ListeAPI.history(id),
@@ -210,11 +194,6 @@ export function ListeViaggio({ state, dispatch }) {
     }
     setDetail({ lista: rLista.data, movimenti: rMovs.data || [], history: rHist.data || [] });
   }, [dispatch]);
-
-  useEffect(() => {
-    if (isDriver) { setLoading(false); return; }
-    loadHome();
-  }, [isDriver, loadHome]);
 
   useEffect(() => {
     if (!openId) { setDetail(null); return; }
@@ -460,7 +439,7 @@ export function ListeViaggio({ state, dispatch }) {
                 <br />
                 <span style={{ fontSize: 13 }}>{loadError}</span>
                 <br />
-                <button className="lv-btn" style={{ marginTop: 12 }} onClick={() => { setLoading(true); loadHome(); }}>
+                <button className="lv-btn" style={{ marginTop: 12 }} onClick={() => loadHome()}>
                   Riprova
                 </button>
               </div>

@@ -11,6 +11,7 @@ import { formatFileSize } from "../chatFiles.js";
 import { ReactionPicker } from "./ReactionPicker.jsx";
 import { VoicePlayer } from "./VoicePlayer.jsx";
 import { MessageTextContent } from "./MessageTextContent.jsx";
+import { Z } from "../../../styles/tokens.js";
 
 // ─── CHAT: MESSAGE ─────────────────────────────────────────────────────────
 export const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onTogglePin }) => {
@@ -210,7 +211,7 @@ export const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply,
             display: "flex", gap: 2, background: "var(--card)",
             border: "1px solid var(--border)", borderRadius: 99,
             padding: "3px 6px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-            zIndex: 50,
+            zIndex: Z.popoverRaised,
           }}>
             <button onClick={() => setShowReactions(s => !s)} style={iconBtn}>😊</button>
             <button onClick={() => onReply(msg)} style={iconBtn}>↩</button>

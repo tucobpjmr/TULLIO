@@ -23,7 +23,6 @@
 // navigazione — bottone in Dashboard, breadcrumb — segue lo stile Tullio.
 export const ListeStyles = () => (
   <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
     .lv-root{
       --lv-bg:#F6F7F9; --lv-surface:#FFFFFF; --lv-ink:#1B1F24; --lv-muted:#69707A;
@@ -131,7 +130,7 @@ export const ListeStyles = () => (
 
     /* ---------- modal ---------- */
     @keyframes lvModalIn{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
-    .lv-overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;padding:16px;z-index:650}
+    .lv-overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;padding:16px;z-index:650} /* Z.listeOverlay in styles/tokens.js */
     .lv-overlay .lv-modal{background:#fff;border-radius:16px;max-width:440px;width:100%;padding:24px;max-height:90vh;overflow:auto;box-shadow:0 24px 60px -12px rgba(15,23,42,.45),0 0 0 1px rgba(15,23,42,.04);animation:lvModalIn .18s cubic-bezier(.16,1,.3,1)}
     .lv-overlay .lv-modal.wide{max-width:600px}
     .lv-overlay .lv-modal h2{font-size:18px;font-weight:700;letter-spacing:-.01em;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--lv-border)}

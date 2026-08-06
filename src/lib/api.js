@@ -569,6 +569,14 @@ export const Categories = {
 let channelSeq = 0;
 
 export function subscribeToTable(tableName, handler) {
+  // Client non utilizzabile (env var assenti, o mockato nei test): il realtime
+  // è un miglioramento, non un requisito di funzionamento. Degradiamo a "nessun
+  // aggiornamento automatico" invece di sollevare dentro un useEffect, dove
+  // l'eccezione risalirebbe fino all'ErrorBoundary e mostrerebbe una pagina
+  // bianca al posto di una vista che i dati li ha già caricati.
+  if (typeof supabase?.channel !== "function") {
+    return () => {};
+  }
   const channel = supabase
     .channel(`realtime:${tableName}:${getClientId()}:${++channelSeq}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: tableName }, (payload) => {

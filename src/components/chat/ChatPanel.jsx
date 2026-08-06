@@ -33,6 +33,7 @@ import { ConversationView } from "./ConversationView.jsx";
 import { ConversationList } from "./ConversationList.jsx";
 import { NewConversationView } from "./NewConversationView.jsx";
 import { ForwardPicker } from "./ForwardPicker.jsx";
+import { Z } from "../../styles/tokens.js";
 
 // Il badge dei non letti in VoyageDesk.jsx importa getUnreadCount da qui:
 // ri-esportato per non toccare i punti d'importazione esistenti.
@@ -220,11 +221,11 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
     <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: me, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {}, messageTemplates: messageTemplates || [], onForward: handleForwardStart }}>
     <>
       <div onClick={onClose} style={{
-        position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: 700,
+        position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: Z.chatBackdrop,
       }} />
       <div className="slide-right vd-sheet-full" style={{
         position: "fixed", top: 0, right: 0, width: isMobile ? "100vw" : 420,
-        background: "var(--card)", zIndex: 800, boxShadow: "-20px 0 60px rgba(0,0,0,0.2)",
+        background: "var(--card)", zIndex: Z.chat, boxShadow: "-20px 0 60px rgba(0,0,0,0.2)",
         display: "flex", flexDirection: "column", overflow: "hidden",
       }}>
         {/* Header — il pannello è fixed a top:0, quindi su iPhone la sua testata

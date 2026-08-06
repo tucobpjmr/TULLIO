@@ -10,6 +10,7 @@ import { ManualTab } from "./bulk/ManualTab.jsx";
 import { DuplicateTab } from "./bulk/DuplicateTab.jsx";
 import { ImportTab } from "./bulk/ImportTab.jsx";
 import { TemplateTab } from "./bulk/TemplateTab.jsx";
+import { Modal } from "../ui/Modal.jsx";
 
 
 // Descrizione breve di ogni modalità: mostrata sotto le tab per orientare
@@ -43,18 +44,12 @@ export const BulkTaskCreator = ({ existingTasks, onCreate, onClose, clients = []
   const activeMeta = TAB_META.find(t => t.id === tab);
 
   return (
-    <div
-      onMouseDown={e => { if (e.target === e.currentTarget) requestClose(); }}
-      style={{
-        position: "fixed", inset: 0, background: "rgba(15,32,68,0.55)",
-        display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100, padding: 20,
-      }}
+    <Modal
+      open onClose={requestClose} labelledBy="bulk-title"
+      width={820} padding={20} layer="modalFull"
+      cardStyle={{ borderRadius: 16, display: "flex", flexDirection: "column", overflow: "hidden" }}
     >
-      <div className="slide-up vd-modal-mh" style={{
-        background: "var(--card)", borderRadius: 16, width: 820, maxWidth: "100%",
-        display: "flex", flexDirection: "column",
-        boxShadow: "0 30px 80px rgba(0,0,0,0.25)", border: "1px solid var(--border)", overflow: "hidden",
-      }}>
+      <>
         <div style={{
           background: "linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%)",
           padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0,
@@ -62,7 +57,7 @@ export const BulkTaskCreator = ({ existingTasks, onCreate, onClose, clients = []
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 38, height: 38, borderRadius: 10, background: "var(--gold)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>📑</div>
             <div>
-              <div className="playfair" style={{ color: "#fff", fontSize: 17, fontWeight: 700, lineHeight: 1.1 }}>Crea più task</div>
+              <div id="bulk-title" className="playfair" style={{ color: "#fff", fontSize: 17, fontWeight: 700, lineHeight: 1.1 }}>Crea più task</div>
               <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 10, letterSpacing: 1.2, marginTop: 2 }}>MANUALE · DUPLICA · IMPORT · TEMPLATE</div>
             </div>
           </div>
@@ -173,7 +168,7 @@ export const BulkTaskCreator = ({ existingTasks, onCreate, onClose, clients = []
             <TemplateTab onCreate={onCreate} onClose={onClose} onCancel={requestClose} onDirty={markDirty("template")} clients={clients} />
           </div>
         </div>
-      </div>
-    </div>
+      </>
+    </Modal>
   );
 };

@@ -2,6 +2,7 @@
 // Estratto dal monolite (Step P Phase 2e).
 import { useEffect } from "react";
 import { useViewport } from "../Viewport.jsx";
+import { Z } from "../../styles/tokens.js";
 
 export const Toast = ({ toast, dispatch }) => {
   const { isDesktop } = useViewport();
@@ -30,7 +31,7 @@ export const Toast = ({ toast, dispatch }) => {
       left: "50%", transform: "translateX(-50%)",
       background: bg,
       color: "#fff", padding: "10px 16px 10px 20px", borderRadius: 10,
-      fontSize: 14, fontWeight: 500, zIndex: 9999, boxShadow: "0 8px 30px rgba(0,0,0,0.25)",
+      fontSize: 14, fontWeight: 500, zIndex: Z.toast, boxShadow: "0 8px 30px rgba(0,0,0,0.25)",
       animation: "toastIn 0.3s ease", display: "flex", alignItems: "center", gap: 12,
       maxWidth: "min(560px, calc(100vw - 24px))",
     }}>

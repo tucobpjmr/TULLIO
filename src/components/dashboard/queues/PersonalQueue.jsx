@@ -1,0 +1,144 @@
+// src/components/dashboard/queues/PersonalQueue.jsx
+// Coda personale: i task assegnati a me.
+// enableDateFilter (v22): per il Driver abilita il filtro data/ora — i transfer
+// sono time-sensitive e la coda si filtra per giornata.
+import { useState } from "react";
+import { SwipeActions } from "../../SwipeActions.jsx";
+import { StatusBadge } from "../../ui/StatusBadge.jsx";
+import { TaskCard } from "../../tasks/TaskCard.jsx";
+import { PRIORITIES } from "../../../lib/taskConstants.js";
+import { formatDate, formatTime, isOverdue, isUrgent, getDayKey } from "../../../lib/taskUtils.js";
+import { QUEUE_SORT_OPTIONS, PRIO_ORDER, STATUS_ORDER, useOpenTask } from "./queueShared.js";
+import { QueueShell, FilterChip, FilterLabel, FilterRow } from "./QueueShell.jsx";
+
+export const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
+  const [dateFilter, setDateFilter] = useState("all"); // "all" | "today" | "tomorrow" | "YYYY-MM-DD"
+  const [sortBy, setSortBy] = useState("date"); // "date" | "priority" | "client" | "status"
+  const openTask = useOpenTask(dispatch);
+
+  let filtered = tasks;
+  if (enableDateFilter && dateFilter !== "all") {
+    let targetKey;
+    if (dateFilter === "today") {
+      targetKey = new Date().toDateString();
+    } else if (dateFilter === "tomorrow") {
+      const d = new Date(); d.setDate(d.getDate() + 1); targetKey = d.toDateString();
+    } else {
+      // dateFilter = "YYYY-MM-DD" da <input type="date"> → mezzogiorno locale (no shift TZ)
+      targetKey = new Date(dateFilter + "T12:00:00").toDateString();
+    }
+    filtered = tasks.filter(t => t.dueDate && getDayKey(t.dueDate) === targetKey);
+  }
+  // Ordinamento locale (il chiamante li ordina per data di default).
+  // Driver: mantiene l'ordine per orario quando sortBy === "date".
+  filtered = [...filtered].sort((a, b) => {
+    if (sortBy === "priority") {
+      const dp = (PRIO_ORDER[a.priority] ?? 9) - (PRIO_ORDER[b.priority] ?? 9);
+      if (dp !== 0) return dp;
+    }
+    if (sortBy === "client") {
+      return (a.client || "").localeCompare(b.client || "", "it");
+    }
+    if (sortBy === "status") {
+      const ds = (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9);
+      if (ds !== 0) return ds;
+    }
+    // Fallback: per scadenza (default e tie-breaker)
+    if (!a.dueDate && !b.dueDate) return 0;
+    if (!a.dueDate) return 1;
+    if (!b.dueDate) return -1;
+    return new Date(a.dueDate) - new Date(b.dueDate);
+  });
+  const empty = filtered.length === 0;
+
+  const customDate = !["all", "today", "tomorrow"].includes(dateFilter) ? dateFilter : "";
+  const chip = (key, label) => (
+    <FilterChip active={dateFilter === key} onClick={() => setDateFilter(key)}>{label}</FilterChip>
+  );
+
+  return (
+    <QueueShell
+      accent="personal"
+      icon={me?.avatar || "?"}
+      iconBg={me?.color || "var(--navy)"}
+      iconFg="#fff"
+      iconSize={12}
+      title={enableDateFilter ? "La mia coda transfer" : "La mia coda"}
+      tight={empty}
+      filters={!enableDateFilter && tasks.length > 1 && (
+        /* Ordinamento — non mostrato ai Driver, che usano il filtro data */
+        <FilterRow>
+          <FilterLabel>Ordina:</FilterLabel>
+          {QUEUE_SORT_OPTIONS.map(opt => (
+            <FilterChip key={opt.key} active={sortBy === opt.key} onClick={() => setSortBy(opt.key)}>
+              {opt.label}
+            </FilterChip>
+          ))}
+        </FilterRow>
+      )}
+    >
+
+      {enableDateFilter && (
+        <div className="vd-row-wrap" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+          {chip("all", "Tutte")}
+          {chip("today", "Oggi")}
+          {chip("tomorrow", "Domani")}
+          <input
+            type="date"
+            value={customDate}
+            onChange={e => setDateFilter(e.target.value || "all")}
+            aria-label="Filtra per data"
+            style={{
+              padding: "4px 10px", borderRadius: 999, fontSize: 12, fontFamily: "inherit",
+              border: `1px solid ${customDate ? "var(--navy)" : "var(--border)"}`,
+              background: "var(--card)", color: "var(--text)", cursor: "pointer",
+            }}
+          />
+          {customDate && (
+            <button type="button" onClick={() => setDateFilter("all")} title="Azzera filtro" style={{
+              background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: 13, fontWeight: 600,
+            }}>✕ azzera</button>
+          )}
+        </div>
+      )}
+
+      {empty ? (
+        <div style={{
+          padding: "14px 0 4px", display: "flex", alignItems: "center", gap: 10,
+          color: "var(--text-muted)", fontSize: 13,
+        }}>
+          <span style={{ fontSize: 18 }}>{enableDateFilter && dateFilter !== "all" ? "📭" : "🎉"}</span>
+          {enableDateFilter && dateFilter !== "all" ? "Nessun transfer per la giornata selezionata." : "Nessuna task aperta a tuo nome. Buon lavoro!"}
+        </div>
+      ) : (
+        <div style={{
+          display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))",
+          gap: 10,
+        }}>
+          {filtered.map(t => {
+            const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
+            const overdue = isOverdue(t);
+            const urgent = isUrgent(t);
+            return (
+              <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+                <TaskCard
+                  task={t}
+                  onOpen={openTask}
+                  hoverLift
+                  accent={prio.color}
+                  border={`1px solid ${overdue ? "rgba(192,57,43,0.4)" : urgent ? "rgba(200,131,42,0.4)" : "var(--border)"}`}
+                  badges={<StatusBadge status={t.status} />}
+                  meta={t.dueDate && (
+                    <span style={{ color: overdue ? "var(--danger)" : urgent ? "var(--warning)" : "var(--text-muted)", fontWeight: (overdue || urgent) ? 700 : 400 }}>
+                      📅 {formatDate(t.dueDate)}{enableDateFilter ? ` 🕑 ${formatTime(t.dueDate)}` : ""}{overdue ? " ⚠ scaduto" : urgent ? " ⏱ < 24h" : ""}
+                    </span>
+                  )}
+                />
+              </SwipeActions>
+            );
+          })}
+        </div>
+      )}
+    </QueueShell>
+  );
+};

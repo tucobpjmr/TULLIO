@@ -9,6 +9,7 @@ import { StatusBadge } from "../ui/StatusBadge.jsx";
 import { TaskRow } from "../tasks/TaskCard.jsx";
 import { formatTime, isActiveTask } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
+import { Z } from "../../styles/tokens.js";
 
 // ─── iCal export (Step G) ────────────────────────────────────────────────
 function pad2(n) { return String(n).padStart(2, "0"); }
@@ -598,7 +599,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                   <div style={{
                     position: "absolute", left: 0, right: 0,
                     top: (nowMinutes / 60) * SLOT_H,
-                    height: 2, background: "var(--gold)", zIndex: 2,
+                    height: 2, background: "var(--gold)", zIndex: Z.cardRaised,
                   }}>
                     <div style={{
                       position: "absolute", left: -4, top: -4, width: 10, height: 10,
@@ -628,7 +629,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                       borderLeft: `3px solid ${cat.color || "#94a3b8"}`,
                       borderRadius: "0 6px 6px 0", padding: "4px 8px",
                       cursor: "pointer", overflow: "hidden", fontSize: 12,
-                      boxShadow: "0 1px 3px rgba(0,0,0,0.08)", zIndex: 1,
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.08)", zIndex: Z.inCard,
                       outline: t.isRecurringInstance ? `1px dashed ${cat.color || "#94a3b8"}66` : "none",
                     }}>
                       <div style={{ fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>

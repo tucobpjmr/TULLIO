@@ -5,6 +5,7 @@ import { useViewport } from "../Viewport.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { NoticeEditorModal } from "../modals/NoticeEditorModal.jsx";
 import { MentionText } from "../ui/MentionText.jsx";
+import { Z } from "../../styles/tokens.js";
 
 // v2.8: emoji disponibili per le reazioni rapide sui post-it.
 // Tenuto basso (6) per non rompere il layout del post-it. Stesso shape della chat.
@@ -227,7 +228,7 @@ export const NoticeBoard = ({ notices, dispatch }) => {
                       border: "1px solid rgba(139,90,43,0.3)",
                       borderRadius: 999, padding: "3px 6px",
                       boxShadow: "0 4px 12px rgba(0,0,0,0.18)",
-                      zIndex: 5,
+                      zIndex: Z.stickyNote,
                     }}
                   >
                     {NOTICE_REACTION_EMOJI.map(em => (

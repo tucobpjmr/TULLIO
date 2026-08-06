@@ -4,7 +4,13 @@ Sistema gestionale per agenzie viaggi e tour operator.
 
 ## Stato attuale — v0.9-dev
 
-App single-file React (~7071 righe) con tutte le feature operative funzionanti in memoria (no persistenza).
+Applicazione React + Supabase in produzione: ~23.000 righe su un centinaio di
+moduli, con persistenza su PostgreSQL, Row Level Security, aggiornamenti
+realtime, notifiche Web Push e quattro Edge Function.
+
+> La descrizione precedente ("app single-file da ~7.071 righe, tutto in
+> memoria, nessuna persistenza") risaliva a prima del refactoring Step P ed era
+> rimasta ferma per molte sessioni.
 
 ### Feature completate
 
@@ -23,13 +29,22 @@ App single-file React (~7071 righe) con tutte le feature operative funzionanti i
 - **Responsive** — desktop + tablet + mobile (320px+), SwipeActions, BottomNav
 - **Ricerca avanzata** — filtri keyword, date, categoria, stato, agente
 
+- **Liste buoni viaggio** — modulo con movimenti, saldi, cointestazioni, cestino e storico
+- **Anagrafica clienti** — CRM con import, task e liste collegati
+- **Notifiche** — in-app (campanella) e Web Push su iOS/Android/desktop
+
 ### Stack
 
-- React 18 (hooks, useReducer, Context)
-- CSS inline + CSS variables + classi responsive
-- SheetJS (xlsx) per import/export
-- Font: Playfair Display + DM Sans
-- Lingua UI: italiano
+| | |
+|---|---|
+| Frontend | React 18 (`useReducer` + Context), Vite 6 |
+| Backend | Supabase — PostgreSQL, RLS, Realtime, Storage, Auth, Edge Functions |
+| Stile | CSS-in-JS + variabili di tema; token condivisi in `src/styles/tokens.js` |
+| Import/export | SheetJS (`xlsx`), caricato on-demand |
+| Test | Vitest + Testing Library — 676 test |
+| Qualità | ESLint 9 (flat config) con `max-lines`, `no-restricted-imports` |
+| Font | Playfair Display + DM Sans + Inter |
+| Lingua UI | italiano |
 
 ## Setup locale
 
@@ -43,26 +58,44 @@ Apri `http://localhost:5173`.
 ## Struttura progetto
 
 ```
-voyagedesk/
-├── public/
-├── src/
-│   └── VoyageDesk.jsx      # App completa (single-file, da splittare)
-├── docs/
-│   ├── PROJECT_SPEC.md      # Specifiche tecniche e architettura
-│   ├── CHANGELOG.md          # Storico versioni
-│   ├── ROADMAP.md            # Piano sviluppo futuro
-│   └── CLAUDE.md             # Istruzioni per Claude Code
-├── test/
-│   └── esempio_import_task.csv
-├── package.json
-├── vite.config.js
-├── index.html
-└── README.md
+src/
+├── VoyageDesk.jsx        orchestratore: compone hook e viste (~340 righe)
+├── main.jsx              entry point, AuthGate, service worker
+├── auth/                 AuthContext, login, recupero password
+├── state/                reducer, persistence (registry), AppDataContext, mockData
+├── hooks/                useAppHydration, useNotifications, usePresence,
+│                         usePushNavigation, useChatData, useSyncedDispatch,
+│                         useDebouncedTableSubscription
+├── lib/                  api (data layer), permissions (pure), mappers, utils
+├── styles/               GlobalStyles (tema), tokens (z-index, bottoni, campi)
+├── components/
+│   ├── shell/            Topbar, Sidebar/BottomNav, FAB, UserSwitcher
+│   ├── dashboard/        Dashboard + queues/ (4 code) + NoticeBoard
+│   ├── tasks/ clients/ calendar/ views/ admin/ chat/ liste/ search/
+│   ├── notifications/ modals/ ui/
+└── test/                 676 test (Vitest)
+
+supabase/
+├── migrations/           96 migrazioni SQL (schema, RLS, RPC, trigger)
+└── functions/            invite-user, delete-user, delete-account, send-push
+
+docs/                     vedi docs/INDEX.md
+```
+
+## Comandi
+
+```bash
+npm run dev      # dev server su http://localhost:5173
+npm test         # Vitest
+npm run lint     # ESLint
+npm run build    # build di produzione
 ```
 
 ## Sviluppo con Claude Code
 
-Leggi `docs/CLAUDE.md` prima di qualsiasi modifica. Contiene tutte le convenzioni, i pattern, gli helper disponibili e le istruzioni per Claude Code.
+Leggi `docs/CLAUDE.md` prima di qualsiasi modifica: contiene convenzioni,
+pattern, helper disponibili e i caveat accumulati. `docs/INDEX.md` dice quali
+altri documenti sono vigenti e quali sono storici.
 
 ## Licenza
 

@@ -263,6 +263,14 @@ export const Conversations = {
 // di Storage (spazi, accenti) → normalizzo mantenendo estensione leggibile.
 const sanitizeFileName = (name = 'file') => name.replace(/[^\w.-]+/g, '_');
 
+// Tipo MIME senza parametri: "audio/webm;codecs=opus" → "audio/webm",
+// "text/plain;charset=utf-8" → "text/plain". Da quando i bucket hanno una
+// allowed_mime_types (migrazione 20260806160000) il confronto è sulla stringa
+// esatta, e un parametro attaccato fa rifiutare un upload per il resto
+// legittimo. Il fallback octet-stream è nell'elenco consentito apposta: è ciò
+// che il browser manda quando il sistema operativo non riconosce l'estensione.
+const baseMimeType = (tipo) => (tipo || '').split(';')[0].trim() || 'application/octet-stream';
+
 export const Messages = {
   listForConversation: (conversation_id, limit = 200) =>
     supabase.from('messages').select('*')
@@ -330,7 +338,7 @@ export const Messages = {
     const path = `${conversationId}/${crypto.randomUUID()}-${sanitizeFileName(file.name)}`;
     const { data, error } = await supabase.storage
       .from('chat-files')
-      .upload(path, file, { contentType: file.type || 'application/octet-stream' });
+      .upload(path, file, { contentType: baseMimeType(file.type) });
     return { path: data?.path ?? null, error };
   },
   // Fase 3 forward allegati: copia server-side un file dal path sorgente a una
@@ -353,9 +361,13 @@ export const Messages = {
   uploadVoice: async (blob, conversationId, mimeType = 'audio/webm') => {
     const ext = mimeType.includes('mp4') ? 'm4a' : mimeType.includes('ogg') ? 'ogg' : 'webm';
     const path = `${conversationId}/${crypto.randomUUID()}-voice.${ext}`;
+    // MediaRecorder restituisce il tipo COMPLETO di parametri — es.
+    // "audio/webm;codecs=opus" (VoiceRecorder.jsx:15). Il parametro serve al
+    // codec in registrazione, non alla riproduzione: si salva il tipo base
+    // (vedi baseMimeType) e il player funziona lo stesso.
     const { data, error } = await supabase.storage
       .from('chat-files')
-      .upload(path, blob, { contentType: mimeType || 'audio/webm' });
+      .upload(path, blob, { contentType: baseMimeType(mimeType) || 'audio/webm' });
     return { path: data?.path ?? null, error };
   },
   // Cleanup allegati di una conversazione in via di eliminazione: lista i
@@ -412,7 +424,7 @@ export const TaskFiles = {
     const path = `${taskId}/${crypto.randomUUID()}-${sanitizeFileName(file.name)}`;
     const up = await supabase.storage
       .from('task-files')
-      .upload(path, file, { contentType: file.type || 'application/octet-stream' });
+      .upload(path, file, { contentType: baseMimeType(file.type) });
     if (up.error) return { data: null, error: up.error };
     const row = {
       task_id: taskId,

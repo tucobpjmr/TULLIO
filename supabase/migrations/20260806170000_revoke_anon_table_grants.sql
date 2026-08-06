@@ -1,0 +1,42 @@
+-- S-16 — Il ruolo `anon` non ha più privilegi sulle tabelle di `public`.
+--
+-- LA SITUAZIONE. `anon` conservava i GRANT di default di Supabase
+-- (SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER) su tutte le 19
+-- tabelle di `public`. Oggi non è sfruttabile: nessuna policy PERMISSIVE è
+-- concessa ad `anon`, e il gate RESTRICTIVE `rls_active_only` chiama
+-- private.is_active_user(), che per un chiamante senza auth.uid() è falso.
+--
+-- PERCHÉ TOGLIERLI LO STESSO. Perché "non sfruttabile" dipende interamente
+-- dallo strato delle policy, e quello strato è già stato sbagliato due volte
+-- in questo progetto: `clients_insert` creata su `{public}` senza WITH CHECK,
+-- e le policy notifiche duplicate su `{public}` — entrambe corrette dalla
+-- 20260621153006. Con i GRANT al loro posto, una policy scritta `to public`
+-- per distrazione, o una tabella nuova creata prima della sua policy, è una
+-- breccia NON autenticata dal primo istante. Senza i GRANT, lo stesso errore
+-- produce un "permission denied": resta un errore, smette di essere un
+-- incidente.
+--
+-- COSA NON CAMBIA. L'app è interamente autenticata: LoginScreen non interroga
+-- nessuna tabella, e le uniche letture (AuthContext.loadProfile) partono da un
+-- userId di sessione, quindi con ruolo `authenticated`. Il flusso di
+-- registrazione passa da GoTrue e dal trigger handle_new_auth_user, che è
+-- SECURITY DEFINER e gira con i privilegi del proprietario.
+--
+-- COSA CAMBIA DAVVERO, E VA SISTEMATO INSIEME. Il workflow
+-- keep-supabase-warm.yml pingava `/rest/v1/users?select=id&limit=1` con la
+-- chiave anon per tenere sveglio Postgres. Con questa revoca quella richiesta
+-- risponde "permission denied" e `curl -f` esce in errore — cioè il workflow
+-- che deve tenere sveglio il progetto tornerebbe rosso senza toccarlo, che è
+-- già successo una volta per un altro motivo (vedi il commento nel workflow).
+-- Il ping è stato spostato sulla RPC get_migrazioni_applicate(), che è
+-- concessa ad anon apposta, è STABLE (quindi interrogabile in GET) e tocca
+-- comunque Postgres.
+--
+-- Le funzioni non sono toccate: le REVOKE mirate su `anon` esistono già dove
+-- servono (20260613092355, 20260716114544, 20260804100000).
+revoke all on all tables in schema public from anon;
+
+-- Le tabelle create in futuro non devono ricominciare da capo con i GRANT di
+-- default: senza questa riga la revoca sopra vale solo per le tabelle di oggi,
+-- ed è proprio la tabella nuova il caso che preoccupa.
+alter default privileges in schema public revoke all on tables from anon;

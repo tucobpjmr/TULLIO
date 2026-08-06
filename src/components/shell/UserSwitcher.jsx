@@ -7,6 +7,7 @@ import { useAuth } from "../../auth/AuthContext.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { ProfileEditor } from "../modals/ProfileEditor.jsx";
 import { Z } from "../../styles/tokens.js";
+import { roleLabel, toDbRole, toSeniority } from "../../lib/taskConstants.js";
 
 // ─── USER SWITCHER (v0.8) ──────────────────────────────────────────────────
 // Dropdown nella Topbar per cambiare l'utente loggato (mock multi-utente).
@@ -47,12 +48,22 @@ export const UserSwitcher = ({ state, dispatch }) => {
     return () => { document.removeEventListener("mousedown", h); document.removeEventListener("touchstart", h); };
   }, [open]);
 
-  // Tutti i membri non-pending, ordinati per ruolo (Admin, Manager, Senior, Junior, Driver)
-  const order = { admin: 0, manager: 1, "senior agent": 2, "junior agent": 3, driver: 4 };
+  // Tutti i membri non-pending, ordinati per ruolo (Admin, Manager, Senior,
+  // Junior, Driver). Le chiavi seguono l'enum del database, non più le label:
+  // con "senior agent"/"junior agent" nessuna riga combaciava più e tutti
+  // finivano nel ramo di default (99), cioè in ordine arbitrario.
+  const rank = (m) => {
+    const r = toDbRole(m.role);
+    if (r === "admin") return 0;
+    if (r === "manager") return 1;
+    if (r === "agent") return toSeniority(m) === "junior" ? 3 : 2;
+    if (r === "driver") return 4;
+    return 99;
+  };
   const candidates = team
     .filter(m => !m.pending)
     .slice()
-    .sort((a, b) => (order[(a.role || "").toLowerCase()] ?? 99) - (order[(b.role || "").toLowerCase()] ?? 99));
+    .sort((a, b) => rank(a) - rank(b));
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
@@ -77,7 +88,7 @@ export const UserSwitcher = ({ state, dispatch }) => {
         )}
         <div className="vd-hide-mobile" style={{ textAlign: "left" }}>
           <div style={{ color: "var(--navy)", fontSize: 12, fontWeight: 600, lineHeight: 1.2 }}>{curr.name}</div>
-          <div style={{ color: "rgba(15,32,68,0.75)", fontSize: 10 }}>{curr.role}</div>
+          <div style={{ color: "rgba(15,32,68,0.75)", fontSize: 10 }}>{roleLabel(curr)}</div>
         </div>
         <span style={{ color: "rgba(15,32,68,0.7)", fontSize: 10, marginLeft: 2 }}>▾</span>
       </button>
@@ -137,7 +148,7 @@ export const UserSwitcher = ({ state, dispatch }) => {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.name}</div>
                       <div style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 5 }}>
-                        {m.role}
+                        {roleLabel(m)}
                         {isJuniorAgent(m.id) && (
                           <span style={{
                             background: "#FFF3CD", color: "#856404", fontSize: 9, fontWeight: 700,

@@ -7,6 +7,7 @@ import { Users as UsersAPI } from "../../lib/api.js";
 import { PasswordField } from "../ui/PasswordField.jsx";
 import { isValidEmail } from "../../lib/validators.js";
 import { Z } from "../../styles/tokens.js";
+import { roleLabel } from "../../lib/taskConstants.js";
 
 // Converte un data-URL (prodotto dal crop canvas) in Blob per l'upload sul
 // bucket 'avatars'. Il crop emette sempre JPEG (toDataURL("image/jpeg")).
@@ -331,7 +332,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
             )}
             <div>
               <div className="playfair" style={{ fontSize: 18, fontWeight: 700, color: "#fff" }}>Modifica profilo</div>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>{member.role}</div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>{roleLabel(member)}</div>
             </div>
           </div>
           <button onClick={onClose} style={{
@@ -409,7 +410,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
             <div style={{
               padding: "10px 12px", borderRadius: 8, background: "var(--surface2)",
               fontSize: 14, color: "var(--text-muted)", fontWeight: 500,
-            }}>{member.role}</div>
+            }}>{roleLabel(member)}</div>
           </div>
 
           {/* ── Cambia password (solo con sessione reale) ── */}

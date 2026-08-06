@@ -8,6 +8,7 @@ import { useViewport } from "./Viewport.jsx";
 import { useAppData } from "../state/AppDataContext.jsx";
 import { Avatar } from "./ui/Avatar.jsx";
 import { Z } from "../styles/tokens.js";
+import { roleLabel } from "../lib/taskConstants.js";
 
 export const SwipeActions = ({ task, dispatch, children, disabled = false }) => {
   const { isDesktop } = useViewport();
@@ -229,7 +230,7 @@ export const SwipeActions = ({ task, dispatch, children, disabled = false }) => 
               <Avatar memberId={m.id} size={26} />
               <div style={{ flex: 1, overflow: "hidden" }}>
                 <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.name}</div>
-                <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{m.role}</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{roleLabel(m)}</div>
               </div>
             </button>
           ))}

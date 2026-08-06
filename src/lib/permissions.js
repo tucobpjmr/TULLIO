@@ -14,12 +14,24 @@
 //   - state/AppDataContext   → per i componenti, che le ricevono già legate al
 //                              team del provider (useAppData)
 //
-// NOTA sui ruoli: `member.role` è testo libero proveniente dal DB e dai select
-// in TEAM_ROLES (lib/taskConstants.js). Il confronto è per sottostringa
-// case-insensitive, come da sempre: "Senior Agent", "senior agent" e "agent"
-// devono classificare allo stesso modo.
+// NOTA sui ruoli: `member.role` contiene i valori dell'enum del database
+// (admin|manager|agent|driver, vedi DB_ROLES in lib/taskConstants.js) e il
+// confronto è per UGUAGLIANZA ESATTA — lo stesso che fanno private.is_admin()
+// e private.can_liste() lato DB.
+//
+// Prima il confronto era per sottostringa case-insensitive. Serviva a far
+// classificare allo stesso modo "Senior Agent", "senior agent" e "agent", ma
+// significava che una decisione di autorizzazione dipendeva da un accidente
+// lessicale: un ruolo come "Amministrativo" otteneva i permessi di admin
+// perché conteneva "admin". Soprattutto, dava a questo livello risposte
+// diverse da quelle del database sulla stessa domanda — e il database è
+// l'unico dei due che un utente non possa aggirare.
+//
+// Il sotto-livello Junior/Senior non sta più dentro la stringa del ruolo: è
+// una colonna a parte (users.seniority), perché nell'enum DB non c'è posto.
 
 import { isMyTask, isInGlobalQueue, isUrgent } from './taskUtils.js';
+import { toDbRole, toSeniority } from './taskConstants.js';
 
 // ─── LOOKUP TEAM ─────────────────────────────────────────────────────────────
 
@@ -48,25 +60,30 @@ export const getAssignableTeam = (team) =>
 export const getRoleType = (team, userId) => {
   const m = getMember(team, userId);
   if (!m) return 'agent';
-  const r = (m.role || '').toLowerCase();
-  if (r.includes('admin')) return 'admin';
-  if (r.includes('driver')) return 'driver';
-  if (r.includes('manager')) return 'manager';
-  return 'agent';
+  // toDbRole ritorna null per i valori fuori enum: quel membro lato database
+  // non passa nessun helper di ruolo, quindi qui lo trattiamo come il profilo
+  // più ristretto (agent, e junior per isJuniorAgent qui sotto) invece di
+  // promuoverlo. Non è un caso teorico: era il risultato di ogni ruolo scritto
+  // a mano prima che i due vocabolari venissero unificati.
+  return toDbRole(m.role) ?? 'agent';
 };
 
-// Sub-ruolo Agent: "Junior Agent" ha permessi ridotti; "Senior Agent" (e
-// qualsiasi altro "agent") ha i permessi standard.
+// Sotto-livello Agent: un junior ha permessi ridotti (solo task esplicitamente
+// assegnati, niente categorie payment/admin); senior è il default.
 export const isJuniorAgent = (team, userId) => {
   const m = getMember(team, userId);
-  return !!m && (m.role || '').toLowerCase().includes('junior');
+  if (!m) return false;
+  // Ruolo non riconosciuto → trattato come junior: è il verdetto più
+  // restrittivo, e corrisponde a ciò che il DB concederebbe comunque a un
+  // utente il cui role non compare in nessuno degli helper private.*.
+  if (toDbRole(m.role) === null) return true;
+  return getRoleType(team, userId) === 'agent' && toSeniority(m) === 'junior';
 };
 
 export const isSeniorAgent = (team, userId) => {
   const m = getMember(team, userId);
   if (!m) return false;
-  const r = (m.role || '').toLowerCase();
-  return r.includes('senior') || (r.includes('agent') && !r.includes('junior'));
+  return getRoleType(team, userId) === 'agent' && !isJuniorAgent(team, userId);
 };
 
 export const isAdmin = (team, userId) => getRoleType(team, userId) === 'admin';

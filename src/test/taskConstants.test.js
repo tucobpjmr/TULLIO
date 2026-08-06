@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { PRIORITIES, STATUSES, STATUS_LABELS, STATUS_COLORS, RECURRENCE_OPTIONS, TASK_TEMPLATES, TEAM_ROLES } from "../lib/taskConstants.js";
+import {
+  PRIORITIES, STATUSES, STATUS_LABELS, STATUS_COLORS, RECURRENCE_OPTIONS, TASK_TEMPLATES,
+  DB_ROLES, ROLE_LABELS, SENIORITY_LEVELS, toDbRole, toSeniority, roleLabel,
+} from "../lib/taskConstants.js";
 
 describe("PRIORITIES", () => {
   const keys = ["critical", "high", "medium", "low"];
@@ -34,13 +37,82 @@ describe("STATUSES", () => {
   });
 });
 
-describe("TEAM_ROLES", () => {
-  it("has exactly the five canonical roles used by member.role", () => {
-    expect(TEAM_ROLES).toEqual(["Manager", "Senior Agent", "Junior Agent", "Driver", "Admin"]);
+// Il vecchio TEAM_ROLES elencava le LABEL e veniva usato anche come valore di
+// member.role. Era il difetto: il database confronta users.role per uguaglianza
+// esatta con 'admin'|'manager'|'agent'|'driver', quindi ogni label scritta lì
+// dentro produceva un utente che non passa nessun helper di ruolo — invisibile,
+// perché la RLS non solleva errori, restituisce insiemi vuoti.
+describe("DB_ROLES", () => {
+  it("contiene esattamente i quattro valori dell'enum del database", () => {
+    expect(DB_ROLES).toEqual(["admin", "manager", "agent", "driver"]);
   });
 
-  it("contains no duplicates", () => {
-    expect(new Set(TEAM_ROLES).size).toBe(TEAM_ROLES.length);
+  it("sono tutti minuscoli: il confronto lato DB è case-sensitive", () => {
+    for (const r of DB_ROLES) expect(r).toBe(r.toLowerCase());
+  });
+
+  it("ogni ruolo ha una label di presentazione", () => {
+    for (const r of DB_ROLES) expect(ROLE_LABELS[r]).toBeTruthy();
+  });
+});
+
+describe("toDbRole", () => {
+  it("lascia passare i valori dell'enum", () => {
+    for (const r of DB_ROLES) expect(toDbRole(r)).toBe(r);
+  });
+
+  it("normalizza le label mostrate nei select", () => {
+    expect(toDbRole("Admin")).toBe("admin");
+    expect(toDbRole("Manager")).toBe("manager");
+    expect(toDbRole("Driver")).toBe("driver");
+  });
+
+  it("appiattisce su 'agent' le vecchie label con il sotto-livello incorporato", () => {
+    expect(toDbRole("Senior Agent")).toBe("agent");
+    expect(toDbRole("Junior Agent")).toBe("agent");
+  });
+
+  it("rifiuta i valori fuori enum invece di ripiegare su un default", () => {
+    // Il ripiego silenzioso su 'agent' assegnerebbe permessi a un refuso.
+    expect(toDbRole("Amministrativo")).toBeNull();
+    expect(toDbRole("manger")).toBeNull();
+    expect(toDbRole("")).toBeNull();
+    expect(toDbRole(undefined)).toBeNull();
+  });
+});
+
+describe("toSeniority", () => {
+  it("legge la colonna dedicata quando c'è", () => {
+    expect(toSeniority({ role: "agent", seniority: "junior" })).toBe("junior");
+    expect(toSeniority({ role: "agent", seniority: "senior" })).toBe("senior");
+  });
+
+  it("ricade sulla vecchia label per i dati non ancora migrati", () => {
+    expect(toSeniority({ role: "Junior Agent" })).toBe("junior");
+    expect(toSeniority({ role: "Senior Agent" })).toBe("senior");
+  });
+
+  it("il default è 'senior': la migrazione non toglie permessi a nessuno", () => {
+    expect(toSeniority({ role: "agent" })).toBe("senior");
+    expect(toSeniority({ role: "agent", seniority: "boh" })).toBe("senior");
+  });
+
+  it("SENIORITY_LEVELS elenca solo i due livelli ammessi dal CHECK sul DB", () => {
+    expect(SENIORITY_LEVELS).toEqual(["senior", "junior"]);
+  });
+});
+
+describe("roleLabel", () => {
+  it("mostra la label, non il valore grezzo del database", () => {
+    expect(roleLabel({ role: "admin" })).toBe("Admin");
+    expect(roleLabel({ role: "manager" })).toBe("Manager");
+    expect(roleLabel({ role: "driver" })).toBe("Driver");
+  });
+
+  it("per gli agent include il sotto-livello", () => {
+    expect(roleLabel({ role: "agent", seniority: "junior" })).toBe("Junior Agent");
+    expect(roleLabel({ role: "agent", seniority: "senior" })).toBe("Senior Agent");
+    expect(roleLabel({ role: "Junior Agent" })).toBe("Junior Agent");
   });
 });
 

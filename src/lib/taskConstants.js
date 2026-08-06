@@ -10,11 +10,75 @@ export const PRIORITIES = {
 
 export const STATUSES = ["todo", "inprogress", "awaiting_client", "awaiting_supplier", "done"];
 
-// Ruoli team validi (i valori sono usati direttamente come member.role, non
-// solo come label). Fonte di verità per i select di ruolo — evita che un
-// refuso in un campo testo libero (es. "manger") rompa i controlli di
-// permesso in lib/permissions.js (getRoleType confronta per substring).
-export const TEAM_ROLES = ["Manager", "Senior Agent", "Junior Agent", "Driver", "Admin"];
+// ─── RUOLI ───────────────────────────────────────────────────────────────────
+// I QUATTRO valori che il database conosce. Ogni helper di autorizzazione lato
+// DB (private.is_admin, private.can_liste, private.is_manager_or_admin) li
+// confronta per UGUAGLIANZA ESATTA: qualsiasi altra stringa scritta in
+// users.role non è "un ruolo diverso", è un utente senza permessi.
+//
+// Prima qui viveva TEAM_ROLES = ["Manager","Senior Agent","Junior Agent",
+// "Driver","Admin"], usato sia come label sia come valore di member.role. Erano
+// due vocabolari per la stessa cosa: la UI scriveva "Senior Agent" dove il DB
+// si aspetta 'agent', e "Admin" dove si aspetta 'admin'. Finché il cambio ruolo
+// non veniva persistito (vedi UPDATE_TEAM_MEMBER in state/persistence.js) la
+// divergenza restava invisibile; nel momento in cui la scrittura è arrivata al
+// database avrebbe prodotto utenti senza permessi, in silenzio e senza errore
+// — la RLS non solleva eccezioni, restituisce insiemi vuoti.
+export const DB_ROLES = ["admin", "manager", "agent", "driver"];
+
+// Etichette di presentazione. La chiave è il valore che finisce sul DB, il
+// testo è SOLO interfaccia: è questa separazione che mancava.
+export const ROLE_LABELS = {
+  admin:   "Admin",
+  manager: "Manager",
+  agent:   "Agent",
+  driver:  "Driver",
+};
+
+// Sotto-livello degli agent. Non è un ruolo: il DB non saprebbe cosa farsene in
+// users.role (l'enum ha quattro valori) e infatti "Senior Agent"/"Junior Agent"
+// venivano già entrambi appiattiti su 'agent' da AddTeamMemberModal e
+// BulkInviteModal prima dell'invito — il sotto-ruolo si perdeva lì, e
+// isJuniorAgent() non era mai vera per un utente reale. Vive in una colonna
+// dedicata (users.seniority, migrazione 20260806120000).
+export const SENIORITY_LEVELS = ["senior", "junior"];
+
+export const SENIORITY_LABELS = {
+  senior: "Senior",
+  junior: "Junior",
+};
+
+// Normalizza un valore proveniente dalla UI, da un import o da dati legacy
+// verso l'enum DB. Accetta anche le vecchie label ("Senior Agent" → 'agent'),
+// così i membri creati prima di questo cambio continuano a classificare come
+// prima. Ritorna null (non un default permissivo) per gli input non
+// riconosciuti: meglio rifiutare l'operazione che assegnare un ruolo a caso.
+export function toDbRole(value) {
+  const v = String(value ?? "").trim().toLowerCase();
+  if (!v) return null;
+  if (DB_ROLES.includes(v)) return v;
+  // Compatibilità con le label storiche.
+  if (v === "senior agent" || v === "junior agent") return "agent";
+  return null;
+}
+
+// Il sotto-livello dedotto da un membro: colonna `seniority` se presente,
+// altrimenti dalla vecchia label di ruolo (dati non ancora migrati).
+export function toSeniority(member) {
+  const s = String(member?.seniority ?? "").trim().toLowerCase();
+  if (SENIORITY_LEVELS.includes(s)) return s;
+  return String(member?.role ?? "").trim().toLowerCase() === "junior agent" ? "junior" : "senior";
+}
+
+// Etichetta leggibile di un membro, per i punti in cui si mostrava member.role
+// grezzo (Topbar, Dashboard, chat, TaskSlideOver…). Senza questa, il passaggio
+// ai valori DB avrebbe fatto comparire "agent" minuscolo nella UI.
+export function roleLabel(member) {
+  const role = toDbRole(member?.role);
+  if (!role) return member?.role ?? "";
+  if (role !== "agent") return ROLE_LABELS[role];
+  return `${SENIORITY_LABELS[toSeniority(member)]} Agent`;
+}
 
 export const STATUS_LABELS = {
   todo:              "Da Fare",

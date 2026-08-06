@@ -5,7 +5,7 @@ import { useViewport } from "../Viewport.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { CategoryChip } from "../ui/CategoryChip.jsx";
-import { STATUSES, STATUS_LABELS, PRIORITIES } from "../../lib/taskConstants.js";
+import { STATUSES, STATUS_LABELS, PRIORITIES, roleLabel } from "../../lib/taskConstants.js";
 import { formatDate, formatTime, isOverdue, clientContact } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { MentionText } from "../ui/MentionText.jsx";
@@ -546,7 +546,7 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
                     >
                       <Avatar memberId={m.id} size={22} />
                       <span style={{ flex: 1 }}>{m.name}</span>
-                      <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{m.role}</span>
+                      <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{roleLabel(m)}</span>
                     </button>
                   ))}
                 </div>

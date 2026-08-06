@@ -3,14 +3,18 @@
 // Questi record NON vengono mai scritti su Supabase: sono solo il fallback locale.
 
 // ─── TEAM MOCK ───────────────────────────────────────────────────────────────
+// role usa i valori dell'enum del database (DB_ROLES), non le label: la demo
+// deve esercitare le stesse decisioni di permesso dei dati reali, altrimenti
+// verifica un comportamento che in produzione non esiste. Il sotto-livello
+// degli agent sta in `seniority`, come sulla tabella users.
 export const INITIAL_TEAM = [
-  { id: "marco",   name: "Marco Ferretti",   role: "Manager",      avatar: "MF", color: "#0F2044", capacity: 12, active: true,  pending: false },
-  { id: "sofia",   name: "Sofia Conti",      role: "Senior Agent", avatar: "SC", color: "#2D7A4F", capacity: 10, active: true,  pending: false },
-  { id: "luca",    name: "Luca Moretti",     role: "Junior Agent", avatar: "LM", color: "#C8832A", capacity:  8, active: true,  pending: false },
-  { id: "giulia",  name: "Giulia Ricci",     role: "Driver",       avatar: "GR", color: "#7B4F9E", capacity:  6, active: true,  pending: false },
-  { id: "roberto", name: "Roberto Esposito", role: "Admin",        avatar: "RE", color: "#C0392B", capacity:  9, active: true,  pending: false },
-  { id: "elena",   name: "Elena Marini",     role: "Junior Agent", avatar: "EM", color: "#0EA5E9", capacity:  8, active: false, pending: true  },
-  { id: "matteo",  name: "Matteo De Luca",   role: "Senior Agent", avatar: "MD", color: "#DB2777", capacity: 10, active: false, pending: true  },
+  { id: "marco",   name: "Marco Ferretti",   role: "manager", avatar: "MF", color: "#0F2044", capacity: 12, active: true,  pending: false },
+  { id: "sofia",   name: "Sofia Conti",      role: "agent",   seniority: "senior", avatar: "SC", color: "#2D7A4F", capacity: 10, active: true,  pending: false },
+  { id: "luca",    name: "Luca Moretti",     role: "agent",   seniority: "junior", avatar: "LM", color: "#C8832A", capacity:  8, active: true,  pending: false },
+  { id: "giulia",  name: "Giulia Ricci",     role: "driver",  avatar: "GR", color: "#7B4F9E", capacity:  6, active: true,  pending: false },
+  { id: "roberto", name: "Roberto Esposito", role: "admin",   avatar: "RE", color: "#C0392B", capacity:  9, active: true,  pending: false },
+  { id: "elena",   name: "Elena Marini",     role: "agent",   seniority: "junior", avatar: "EM", color: "#0EA5E9", capacity:  8, active: false, pending: true  },
+  { id: "matteo",  name: "Matteo De Luca",   role: "agent",   seniority: "senior", avatar: "MD", color: "#DB2777", capacity: 10, active: false, pending: true  },
 ];
 
 // ─── CATEGORIE MOCK ───────────────────────────────────────────────────────────

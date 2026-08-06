@@ -39,6 +39,7 @@ import {
   toDbClient, toDbCategory, newId, isUuid,
 } from "../lib/mappers.js";
 import { canEditTask, canViewTask, canCreateTaskCategory } from "../lib/permissions.js";
+import { toDbRole, toSeniority } from "../lib/taskConstants.js";
 import { chiaveNome } from "../lib/clientNotes.js";
 
 // Risultato "nessuna operazione": stessa forma di una risposta supabase-js
@@ -46,6 +47,16 @@ import { chiaveNome } from "../lib/clientNotes.js";
 const NOOP = { error: null };
 
 const findTask = (state, id) => (state.tasks || []).find(t => t.id === id);
+
+// Riconosce l'errore "questa colonna non esiste" da PostgREST (PGRST204, schema
+// cache) o da Postgres (42703, undefined_column). Serve a distinguere uno schema
+// non ancora migrato da un errore vero, che va invece mostrato all'utente.
+const isMissingColumn = (err, column) => {
+  if (!err) return false;
+  const code = err.code ?? '';
+  if (code !== 'PGRST204' && code !== '42703') return false;
+  return String(err.message ?? '').includes(column);
+};
 
 export const PERSISTENCE = {
   // ─── TASKS ─────────────────────────────────────────────────────────────────
@@ -229,10 +240,69 @@ export const PERSISTENCE = {
   REMOVE_CATEGORY: { persist: (s, a) => CategoriesAPI.remove(a.payload) },
 
   // ─── ADMIN: TEAM ───────────────────────────────────────────────────────────
-  // Persistiamo solo le azioni che operano su utenti reali (creati via signup o
-  // invito). ADD/UPDATE_TEAM_MEMBER restano locali: ADD non ha una riga
-  // auth.users associata, e UPDATE del ruolo richiederebbe il mapping all'enum
-  // DB (niente sotto-ruolo Junior/Senior nello schema attuale).
+  // ADD_TEAM_MEMBER resta locale: senza email non esiste una riga auth.users da
+  // aggiornare (con email il percorso è l'invito, non questa azione).
+  //
+  // UPDATE_TEAM_MEMBER invece DEVE essere persistito. Finché non lo era, il
+  // reducer aggiornava state.team e mostrava "Agente aggiornato" mentre sul
+  // database non cambiava nulla: il cambio di ruolo — cioè il modo con cui un
+  // admin REVOCA i privilegi di un account compromesso o di chi cambia
+  // mansione — era un no-op che la UI confermava. L'utente declassato
+  // conservava is_manager_or_admin() lato DB, e l'unico segnale del problema
+  // era il ruolo che tornava indietro al reload successivo.
+  //
+  // La motivazione storica per lasciarla locale ("richiederebbe il mapping
+  // all'enum DB, niente sotto-ruolo Junior/Senior nello schema") è caduta:
+  // toDbRole normalizza il valore e seniority ha una colonna sua
+  // (migrazione 20260806120000).
+  UPDATE_TEAM_MEMBER: {
+    guard: (s, a, uid) => {
+      const next = toDbRole(a.payload?.role);
+      if (!next) return false;                 // ruolo fuori enum → non si scrive
+      // Un admin non può declassare se stesso: se è l'ultimo rimasto, il
+      // progetto resta senza nessuno in grado di riassegnare i ruoli e si
+      // recupera solo da SQL.
+      return a.payload?.id !== uid || next === 'admin';
+    },
+    // Normalizza PRIMA del dispatch: così lo state React contiene esattamente
+    // il valore che finisce sul DB e i due livelli di permessi non ripartono
+    // già disallineati.
+    normalize: (a) => ({
+      ...a,
+      payload: {
+        ...a.payload,
+        role: toDbRole(a.payload?.role),
+        seniority: toSeniority(a.payload),
+      },
+    }),
+    // Solo le colonne che esistono davvero su public.users: il payload arriva
+    // dalla card del pannello Team ed è il membro intero, campi derivati
+    // (photoUrl, status, email…) compresi.
+    //
+    // Il ritentativo senza `seniority` copre la finestra in cui il codice è già
+    // in produzione ma la migrazione 20260806120000 no — in questo progetto le
+    // migrazioni si applicano a mano, quindi non è un caso limite. Il
+    // sotto-livello è un dettaglio della matrice permessi; il RUOLO è la revoca
+    // dei privilegi, e deve arrivare al database anche su uno schema vecchio
+    // invece di fallire in blocco per una colonna accessoria.
+    persist: async (s, a) => {
+      const { id, name, role, color, capacity, seniority } = a.payload;
+      const res = await UsersAPI.updateProfile(id, { name, role, color, capacity, seniority });
+      if (!isMissingColumn(res?.error, 'seniority')) return res;
+      console.warn('[VoyageDesk] colonna users.seniority assente: applicare la migrazione 20260806120000. Salvo il ruolo senza sotto-livello.');
+      return UsersAPI.updateProfile(id, { name, role, color, capacity });
+    },
+    // Se la scrittura fallisce (o la RLS la rifiuta perché il chiamante non è
+    // admin lato DB) lo stato ottimistico va riportato indietro: senza, la UI
+    // continuerebbe a mostrare un ruolo che il database non ha — di nuovo il
+    // disallineamento che questa entry esiste per chiudere.
+    rollback: (s, a) => {
+      const prev = (s.team || []).find(m => m.id === a.payload?.id);
+      return prev ? { type: "UPDATE_TEAM_MEMBER", payload: prev } : null;
+    },
+    mapError: () => "ruolo non aggiornato, la modifica non è stata salvata",
+  },
+
   APPROVE_TEAM_MEMBER: { persist: (s, a) => UsersAPI.approve(a.payload) },
 
   // Eliminazione definitiva via Edge Function delete-user: rimuove la riga

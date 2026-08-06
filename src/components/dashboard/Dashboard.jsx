@@ -18,6 +18,7 @@ import { TaskRow } from "../tasks/TaskCard.jsx";
 import { formatDate, isOverdue, isUrgent, isMyTask, isInGlobalQueue, getActiveTasks } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { NoticeBoard } from "./NoticeBoard.jsx";
+import { roleLabel } from "../../lib/taskConstants.js";
 
 // ─── PERSONAL QUEUE (le mie task — v0.8) ───────────────────────────────────
 // enableDateFilter (v22): per il Driver (vista transfer-oriented) abilita un
@@ -132,7 +133,7 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
             {role !== "admin" && (
               <>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                  <span style={{ fontSize: 11, padding: "2px 8px", background: "var(--surface3)", borderRadius: 99, color: "var(--text-muted)", fontWeight: 600, letterSpacing: 0.3 }}>{me?.role}</span>
+                  <span style={{ fontSize: 11, padding: "2px 8px", background: "var(--surface3)", borderRadius: 99, color: "var(--text-muted)", fontWeight: 600, letterSpacing: 0.3 }}>{me ? roleLabel(me) : ""}</span>
                   {isJuniorAgent(uid) && (
                     <span style={{ fontSize: 10, padding: "1px 6px", background: "#FFF3CD", color: "#856404", borderRadius: 99, fontWeight: 700, letterSpacing: 0.3 }}>JUNIOR</span>
                   )}
@@ -259,7 +260,7 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
                 <Avatar memberId={m.id} size={30} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 500 }}>{m.name}</div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{m.role}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{roleLabel(m)}</div>
                 </div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>
                   {m.count} task

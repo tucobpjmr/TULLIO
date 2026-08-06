@@ -5,6 +5,7 @@ import { useState, useReducer, useEffect, useCallback, lazy, Suspense } from "re
 import { Notifications as NotificationsAPI } from "./lib/api.js";
 import { isUuid } from "./lib/mappers.js";
 import { getActiveTasks } from "./lib/taskUtils.js";
+import { canAccessAdmin } from "./lib/permissions.js";
 import { reducer, makeInitialState } from "./state/reducer.js";
 import { AppDataProvider } from "./state/AppDataContext.jsx";
 import { INITIAL_CONVERSATIONS, INITIAL_MESSAGES } from "./state/mockData.js";
@@ -217,7 +218,17 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       case "clienti":    return <ClientiView state={state} dispatch={dispatch} loading={crmLoading} />;
       case "archivio":   return <Archive state={state} dispatch={dispatch} />;
       case "trash":      return <Trash state={state} dispatch={dispatch} />;
-      case "admin":      return <AdminView state={state} dispatch={dispatch} />;
+      // Il guard qui è ridondante per costruzione — il reducer rifiuta
+      // SET_VIEW → "admin" per i non-admin (reducer.js:95) e riporta la vista
+      // a dashboard al cambio utente (reducer.js:145) — ma è la ridondanza che
+      // serve: è l'ultimo punto prima del montaggio, e non dipende dal fatto
+      // che ogni percorso futuro verso activeView passi da quei due controlli.
+      // Costa una riga; senza, la protezione della vista più sensibile
+      // dell'app poggia interamente sul fatto che nessuno scriva mai un terzo
+      // modo di impostare activeView.
+      case "admin":      return canAccessAdmin(state.team, state.currentUserId)
+        ? <AdminView state={state} dispatch={dispatch} />
+        : <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
       case "liste":      return <ListeViaggio state={state} dispatch={dispatch} />;
       default:           return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
     }

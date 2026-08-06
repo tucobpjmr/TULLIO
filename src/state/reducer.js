@@ -19,7 +19,7 @@
 // `state.team`: le decisioni di autorizzazione si prendono sulla stessa fonte di
 // verità che React sta renderizzando, non su una variabile di modulo.
 
-import { STATUS_LABELS } from "../lib/taskConstants.js";
+import { STATUS_LABELS, toDbRole, toSeniority, roleLabel } from "../lib/taskConstants.js";
 import {
   getMember, isAdmin, isDriver,
   canAccessAdmin, canViewTask, canEditTask, canCreateTaskCategory,
@@ -157,7 +157,7 @@ function baseReducer(state, action) {
       const adminSwitchedAt = elevated && !prevIsAdmin ? new Date().toISOString() : null;
       const toast = elevated
         ? { message: `⚠️ Ora stai usando l'app come ${m.name} (Admin). Rollback automatico in 60s.`, type: "warning" }
-        : { message: `Ora stai usando l'app come ${m.name} (${m.role})`, type: "success" };
+        : { message: `Ora stai usando l'app come ${m.name} (${roleLabel(m)})`, type: "success" };
       return {
         ...state,
         currentUserId: newId,
@@ -310,7 +310,19 @@ function baseReducer(state, action) {
       return { ...state, team, toast: { message: `Agente "${action.payload.name}" aggiunto`, type: "success" } };
     }
     case "UPDATE_TEAM_MEMBER": {
-      const team = state.team.map(m => m.id === action.payload.id ? { ...m, ...action.payload } : m);
+      // Gli stessi due rifiuti dichiarati nel guard di state/persistence.js.
+      // Devono stare anche qui: quando il guard nega, useSyncedDispatch
+      // dispatcha comunque l'azione originale ed è il reducer a doverla
+      // respingere. Senza, lo stato locale accetterebbe una modifica che il
+      // server non riceve — cioè di nuovo il disallineamento fra UI e database
+      // che questa azione è stata sistemata per chiudere.
+      const nextRole = toDbRole(action.payload?.role);
+      if (!nextRole) return _denied("Ruolo non valido");
+      if (action.payload?.id === uid && nextRole !== 'admin') {
+        return _denied("Non puoi rimuovere a te stesso i permessi di amministratore");
+      }
+      const patch = { ...action.payload, role: nextRole, seniority: toSeniority(action.payload) };
+      const team = state.team.map(m => m.id === patch.id ? { ...m, ...patch } : m);
       return { ...state, team, toast: { message: "Agente aggiornato", type: "success" } };
     }
     case "APPROVE_TEAM_MEMBER": {

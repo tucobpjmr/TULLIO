@@ -5,8 +5,10 @@ import { useViewport } from "../Viewport.jsx";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { Users as UsersAPI } from "../../lib/api.js";
 import { PasswordField } from "../ui/PasswordField.jsx";
+import { useAvatarSrc } from "../ui/Avatar.jsx";
 import { isValidEmail } from "../../lib/validators.js";
 import { Z } from "../../styles/tokens.js";
+import { roleLabel } from "../../lib/taskConstants.js";
 
 // Converte un data-URL (prodotto dal crop canvas) in Blob per l'upload sul
 // bucket 'avatars'. Il crop emette sempre JPEG (toDataURL("image/jpeg")).
@@ -171,6 +173,9 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
   const [email, setEmail] = useState(member.email || "");
   const [phone, setPhone] = useState(member.phone || "");
   const [photoUrl, setPhotoUrl] = useState(member.photoUrl || "");
+  // photoUrl può essere un path del bucket privato (S-10), un data URI appena
+  // ritagliato o una vecchia public URL: l'anteprima passa sempre da qui.
+  const photoPreview = useAvatarSrc(photoUrl || null);
   const [cropSrc, setCropSrc] = useState(null);
   const fileRef = useRef(null);
   const [showPwd, setShowPwd] = useState(false);
@@ -319,8 +324,8 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             {/* Preview avatar */}
-            {photoUrl ? (
-              <img src={photoUrl} alt="" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "3px solid rgba(255,255,255,0.3)" }} />
+            {photoPreview ? (
+              <img src={photoPreview} alt="" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "3px solid rgba(255,255,255,0.3)" }} />
             ) : (
               <div style={{
                 width: 52, height: 52, borderRadius: "50%", background: color,
@@ -331,7 +336,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
             )}
             <div>
               <div className="playfair" style={{ fontSize: 18, fontWeight: 700, color: "#fff" }}>Modifica profilo</div>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>{member.role}</div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>{roleLabel(member)}</div>
             </div>
           </div>
           <button onClick={onClose} style={{
@@ -345,9 +350,9 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
 
           {/* ── Foto profilo ── */}
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-            {photoUrl ? (
+            {photoPreview ? (
               <div style={{ position: "relative" }}>
-                <img src={photoUrl} alt="" style={{ width: 100, height: 100, borderRadius: "50%", objectFit: "cover", border: "3px solid var(--border)" }} />
+                <img src={photoPreview} alt="" style={{ width: 100, height: 100, borderRadius: "50%", objectFit: "cover", border: "3px solid var(--border)" }} />
                 <button onClick={() => setPhotoUrl("")} style={{
                   position: "absolute", top: -4, right: -4,
                   width: 24, height: 24, borderRadius: "50%", background: "var(--danger)", color: "#fff",
@@ -409,7 +414,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
             <div style={{
               padding: "10px 12px", borderRadius: 8, background: "var(--surface2)",
               fontSize: 14, color: "var(--text-muted)", fontWeight: 500,
-            }}>{member.role}</div>
+            }}>{roleLabel(member)}</div>
           </div>
 
           {/* ── Cambia password (solo con sessione reale) ── */}

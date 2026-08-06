@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react";
 import { useViewport } from "../../Viewport.jsx";
 import { sectionH, fieldStyle, btnPrimary, btnGold, btnGhost, btnDanger, btnWarning } from "../adminStyles.js";
-import { TEAM_ROLES } from "../../../lib/taskConstants.js";
+import {
+  DB_ROLES, ROLE_LABELS, SENIORITY_LEVELS, SENIORITY_LABELS, roleLabel, toSeniority,
+} from "../../../lib/taskConstants.js";
 import { Users } from "../../../lib/api.js";
 import { AddTeamMemberModal } from "../../modals/AddTeamMemberModal.jsx";
 import { BulkInviteModal } from "../../modals/BulkInviteModal.jsx";
@@ -57,7 +59,9 @@ export const AdminTeamTab = ({ state, dispatch }) => {
 
   const taskCount = (id) => state.tasks.filter(t => !t.deletedAt && (t.assignees || []).includes(id)).length;
 
-  const startEdit = (m) => { setEditingId(m.id); setDraft({ ...m }); };
+  // seniority normalizzata già nel draft: il <select> qui sotto è controllato e
+  // con un valore undefined React lo renderebbe non controllato.
+  const startEdit = (m) => { setEditingId(m.id); setDraft({ ...m, seniority: toSeniority(m) }); };
   const cancelEdit = () => { setEditingId(null); setDraft(null); };
   const saveEdit = () => {
     if (!draft.name?.trim()) return;
@@ -109,13 +113,23 @@ export const AdminTeamTab = ({ state, dispatch }) => {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             {isEditing ? (
-              <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 100px", gap: 8 }}>
+              <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: draft.role === "agent" ? "1fr 1fr 1fr 100px" : "1fr 1fr 100px", gap: 8 }}>
                 <input value={draft.name} onChange={e => setDraft({...draft, name: e.target.value})}
                   placeholder="Nome" style={fieldStyle} />
+                {/* I valori sono quelli dell'enum del database (DB_ROLES), non
+                    le etichette: prima il select scriveva "Senior Agent"/"Admin"
+                    in una colonna che gli helper RLS confrontano con 'agent' e
+                    'admin'. Le label restano solo presentazione. */}
                 <select value={draft.role} onChange={e => setDraft({...draft, role: e.target.value})}
-                  style={fieldStyle}>
-                  {TEAM_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                  aria-label="Ruolo" style={fieldStyle}>
+                  {DB_ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                 </select>
+                {draft.role === "agent" && (
+                  <select value={draft.seniority} onChange={e => setDraft({...draft, seniority: e.target.value})}
+                    aria-label="Livello" style={fieldStyle}>
+                    {SENIORITY_LEVELS.map(s => <option key={s} value={s}>{SENIORITY_LABELS[s]}</option>)}
+                  </select>
+                )}
                 <input type="color" value={draft.color} onChange={e => setDraft({...draft, color: e.target.value})}
                   style={{ ...fieldStyle, padding: 2, height: 32 }} />
               </div>
@@ -123,7 +137,7 @@ export const AdminTeamTab = ({ state, dispatch }) => {
               <>
                 <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text)" }}>{m.name}</div>
                 <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
-                  {m.role} • {count} task assegnati
+                  {roleLabel(m)} • {count} task assegnati
                   {seenLabel && <span> • ultimo accesso {seenLabel}</span>}
                 </div>
                 {(() => {

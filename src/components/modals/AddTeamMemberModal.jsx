@@ -11,20 +11,20 @@ import {
 import { ModalPortal } from "../ui/ModalPortal.jsx";
 import { Users } from "../../lib/api.js";
 import { isValidEmail } from "../../lib/validators.js";
+import {
+  DB_ROLES, ROLE_LABELS, SENIORITY_LEVELS, SENIORITY_LABELS,
+} from "../../lib/taskConstants.js";
 
-// Ruolo UI (label) → ruolo DB/Auth ammesso dall'enum (admin|manager|agent|driver).
-const ROLE_TO_DB = {
-  "Manager": "manager",
-  "Senior Agent": "agent",
-  "Junior Agent": "agent",
-  "Driver": "driver",
-  "Admin": "admin",
-};
+// La mappa label→enum che stava qui (e, identica, in BulkInviteModal) è
+// diventata DB_ROLES/ROLE_LABELS in lib/taskConstants.js: erano due copie della
+// stessa conversione, e una terza mancava del tutto in AdminTeamTab — che
+// infatti scriveva le label dentro users.role.
 
 export const AddTeamMemberModal = ({ onClose, dispatch, existingIds, onInvited }) => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState("Junior Agent");
+  const [role, setRole] = useState("agent");
+  const [seniority, setSeniority] = useState("junior");
   const [color, setColor] = useState("#3B82F6");
   const [pending, setPending] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -42,7 +42,7 @@ export const AddTeamMemberModal = ({ onClose, dispatch, existingIds, onInvited }
       const { error } = await Users.invite({
         email: trimmedEmail,
         name: name.trim(),
-        role: ROLE_TO_DB[role] || "agent",
+        role,
         color,
       });
       setBusy(false);
@@ -65,7 +65,7 @@ export const AddTeamMemberModal = ({ onClose, dispatch, existingIds, onInvited }
     if (suffix) id = `${id}${suffix}`;
     dispatch({
       type: "ADD_TEAM_MEMBER",
-      payload: { id, name: name.trim(), role, avatar, color, capacity: 999, active: !pending, pending }
+      payload: { id, name: name.trim(), role, seniority, avatar, color, capacity: 999, active: !pending, pending }
     });
     onClose();
   };
@@ -91,13 +91,15 @@ export const AddTeamMemberModal = ({ onClose, dispatch, existingIds, onInvited }
             </div>
             <div>
               <label style={labelStyle}>Ruolo</label>
-              <select value={role} onChange={e => setRole(e.target.value)} style={fieldStyle}>
-                <option>Manager</option>
-                <option>Senior Agent</option>
-                <option>Junior Agent</option>
-                <option>Driver</option>
-                <option>Admin</option>
+              <select value={role} onChange={e => setRole(e.target.value)} aria-label="Ruolo" style={fieldStyle}>
+                {DB_ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
               </select>
+              {role === "agent" && (
+                <select value={seniority} onChange={e => setSeniority(e.target.value)}
+                  aria-label="Livello" style={{ ...fieldStyle, marginTop: 8 }}>
+                  {SENIORITY_LEVELS.map(sv => <option key={sv} value={sv}>{SENIORITY_LABELS[sv]} Agent</option>)}
+                </select>
+              )}
             </div>
             <div>
               <label style={labelStyle}>Colore</label>

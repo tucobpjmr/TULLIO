@@ -78,6 +78,48 @@ describe("permissions — classificazione ruoli", () => {
     expect(canAccessAdmin(TEAM, "admin1")).toBe(true);
     expect(canAccessAdmin(TEAM, "mgr1")).toBe(false);
   });
+
+  // Il confronto era per SOTTOSTRINGA: bastava che il ruolo contenesse "admin"
+  // per ottenere i permessi di amministratore in tutta la UI. Il database, che
+  // confronta role = 'admin' per uguaglianza, dava la risposta opposta sulla
+  // stessa domanda — due livelli di autorizzazione in disaccordo.
+  it.each([
+    "Amministrativo", "Admin assistant", "ex-admin", "manger", "Agente driver",
+  ])("un ruolo fuori enum come %s non ottiene privilegi", (role) => {
+    const team = [{ id: "x", role, active: true, pending: false }];
+    expect(isAdmin(team, "x")).toBe(false);
+    expect(canAccessAdmin(team, "x")).toBe(false);
+    expect(isDriver(team, "x")).toBe(false);
+    // …e viene trattato come il profilo più ristretto, non come agent pieno:
+    // è ciò che il DB gli concederebbe comunque (nessun helper private.* lo
+    // riconosce, quindi vede solo i propri task).
+    expect(isJuniorAgent(team, "x")).toBe(true);
+    expect(isSeniorAgent(team, "x")).toBe(false);
+    expect(canCreateTaskCategory(team, "payment", "x")).toBe(false);
+  });
+
+  it("il sotto-livello arriva dalla colonna seniority, non dalla stringa del ruolo", () => {
+    const team = [
+      { id: "j", role: "agent", seniority: "junior", active: true, pending: false },
+      { id: "s", role: "agent", seniority: "senior", active: true, pending: false },
+      { id: "d", role: "agent", active: true, pending: false }, // default
+    ];
+    expect(isJuniorAgent(team, "j")).toBe(true);
+    expect(isJuniorAgent(team, "s")).toBe(false);
+    expect(isJuniorAgent(team, "d")).toBe(false);
+    expect(isSeniorAgent(team, "d")).toBe(true);
+  });
+
+  it("seniority non promuove né declassa gli altri ruoli", () => {
+    const team = [
+      { id: "a", role: "admin",  seniority: "junior", active: true, pending: false },
+      { id: "m", role: "manager", seniority: "junior", active: true, pending: false },
+    ];
+    expect(isAdmin(team, "a")).toBe(true);
+    expect(isJuniorAgent(team, "a")).toBe(false);
+    expect(getRoleType(team, "m")).toBe("manager");
+    expect(isJuniorAgent(team, "m")).toBe(false);
+  });
 });
 
 describe("permissions — canViewTask", () => {

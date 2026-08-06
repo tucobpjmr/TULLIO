@@ -30,7 +30,17 @@ jobs:
       # Chiave anon pubblica: è la stessa spedita nel bundle frontend a ogni
       # visitatore (protetta dalle policy RLS, non da segretezza), quindi non
       # è un segreto da mettere in un secret di repository.
+      #
+      # Perché una RPC e non più `/rest/v1/users?select=id&limit=1`: dalla
+      # migrazione 20260806170000 il ruolo `anon` non ha più alcun GRANT sulle
+      # tabelle di `public` (S-16), quindi quella GET risponderebbe "permission
+      # denied" e `curl -f` uscirebbe in errore — il workflow che deve tenere
+      # sveglio il progetto tornerebbe rosso senza che nessuno lo abbia
+      # toccato, che è esattamente il guasto silenzioso descritto qui sopra per
+      # l'header apikey mancante. get_migrazioni_applicate() è concessa ad anon
+      # apposta, è STABLE (quindi interrogabile in GET, senza eseguire nulla di
+      # volatile) e legge comunque da Postgres, che è lo scopo del ping.
       - name: Ping REST (PostgREST + Postgres)
         run: |
-          curl -sS -f -o /dev/null "https://vmxvnxsqfisucugcpqlc.supabase.co/rest/v1/users?select=id&limit=1" \
+          curl -sS -f -o /dev/null "https://vmxvnxsqfisucugcpqlc.supabase.co/rest/v1/rpc/get_migrazioni_applicate" \
             -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZteHZueHNxZmlzdWN1Z2NwcWxjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjcyNjYsImV4cCI6MjA5NjI0MzI2Nn0.HzrIVB-ykHYbOPeA8IH9x-NO3U8Gzc9OqixAVD4noug"

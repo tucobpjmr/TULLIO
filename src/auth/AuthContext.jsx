@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Users as UsersAPI } from '../lib/api.js';
+import { toDbRole } from '../lib/taskConstants.js';
 
 const AuthContext = createContext(null);
 
@@ -122,10 +123,21 @@ export function AuthProvider({ children }) {
               // (per approvarli) e disabilitati. Le viste task usano getAssignableTeam()
               // che filtra a sua volta active=true + pending=false (lib/permissions.js).
               supabase.from('users').select('*').order('name'),
-              // email/phone vivono in public.user_contacts (RLS own+admin). Le carico
-              // solo per l'utente loggato e le rimergio nel profilo e nella sua entry
-              // di team, così ProfileEditor le mostra (gli altri membri non le hanno,
-              // by-design privacy hardening). Vedi migrazione 20260613100833.
+              // email/phone vivono in public.user_contacts. Le carico solo per
+              // l'utente loggato e le rimergio nel profilo e nella sua entry di
+              // team, così ProfileEditor le mostra.
+              //
+              // ATTENZIONE a cosa NON dice questo: caricarne una sola non è una
+              // restrizione di sicurezza, è solo ciò che serve qui. La policy di
+              // SELECT è `using (true)` per ogni utente autenticato — la rubrica
+              // interna è una scelta di prodotto esplicita (migrazione
+              // 20260629222802_user_contacts_select_team, che ha sostituito il
+              // precedente own+admin della 20260613100833). Questo commento
+              // affermava ancora il contrario ("gli altri membri non le hanno,
+              // by-design privacy hardening") molto dopo che la policy era
+              // cambiata: chi lo leggeva credeva di avere una garanzia che il
+              // database non dà. INSERT/UPDATE restano own+admin, quindi
+              // nessuno può modificare i contatti altrui.
               supabase.from('user_contacts').select('email, phone').eq('user_id', userId).maybeSingle(),
             ]),
             AUTH_TIMEOUT_MS,
@@ -231,16 +243,12 @@ export function AuthProvider({ children }) {
   const signIn = (email, password) =>
     supabase.auth.signInWithPassword({ email, password });
 
-  // Registrazione self-service: il trigger handle_new_auth_user crea il profilo
-  // applicativo con pending=true (vedi 20260619_security_dedupe_signup_trigger).
-  // Il trigger notify_user_pending avvisa gli admin (Block 3). L'admin deve poi
-  // approvare l'utente dal pannello Team prima dell'accesso.
-  const signUp = (email, password, name) =>
-    supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { name } },
-    });
+  // La registrazione self-service è stata rimossa (S-13): l'unico modo di
+  // entrare nel gestionale è l'invito (Edge Function invite-user). Il trigger
+  // handle_new_auth_user resta al suo posto e continua a creare il profilo con
+  // pending=true — è la rete di sicurezza se un account nascesse comunque, per
+  // esempio da una chiamata diretta a /auth/v1/signup finché il signup non è
+  // disattivato anche nella dashboard Supabase.
 
   // scope:'local' → esce SOLO dalla scheda/dispositivo corrente. Senza scope,
   // supabase-js usa di default 'global' e revoca TUTTE le sessioni dell'utente
@@ -300,12 +308,19 @@ export function AuthProvider({ children }) {
     authError,
     recovery,
     recoveryKind,
-    isAdmin: profile?.role === 'admin',
-    isManager: profile?.role === 'manager',
-    isAgent: profile?.role === 'agent',
-    isDriver: profile?.role === 'driver',
+    // Il ruolo passa da toDbRole come ovunque altrove (permissions.js,
+    // reducer, persistenza): erano due definizioni diverse di "admin" sulla
+    // stessa domanda — qui il confronto era sul valore grezzo della colonna,
+    // là normalizzato. Su un profilo con un ruolo storico ("Senior Agent") o
+    // con maiuscole diverse i due moduli rispondevano in modo diverso, e
+    // quello che decide cosa mostrare non era quello che decide cosa è
+    // permesso. toDbRole ritorna null fuori enum: nessuno dei quattro flag si
+    // accende, che è il verdetto più restrittivo.
+    isAdmin: toDbRole(profile?.role) === 'admin',
+    isManager: toDbRole(profile?.role) === 'manager',
+    isAgent: toDbRole(profile?.role) === 'agent',
+    isDriver: toDbRole(profile?.role) === 'driver',
     signIn,
-    signUp,
     resetPassword,
     resendConfirmation,
     updatePassword,

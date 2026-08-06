@@ -23,6 +23,17 @@
 // non risolvibile romperebbe `npm ci`. In attesa della migrazione mitighiamo
 // il rischio a livello applicativo (vedi sotto): il parsing è comunque
 // client-side, quindi il blast radius è il browser di chi importa il file.
+//
+// Riverificato (analisi sicurezza S-06, 2026-08-06): stesso 403 dalla policy
+// di rete della sessione — CONNECT tunnel failed, response 403 — quindi il
+// blocco non è specifico di un ambiente passato, persiste anche oggi. Chi ha
+// accesso di rete al CDN può applicare il comando sopra ed eseguire
+// `npm test && npm run build` per verificarlo; nel frattempo la mitigazione
+// applicativa qui sotto resta il fix effettivo, non un placeholder: copre
+// entrambi i punti che analizzano file arbitrari (ImportTab, ClientImport-
+// Modal), più un limite sincrono su file.size prima ancora di leggerli in
+// memoria (vedi i due componenti — MAX_IMPORT_BYTES controllato lì PRIMA di
+// FileReader.readAsArrayBuffer, non solo qui dopo).
 // ────────────────────────────────────────────────────────────────────────────
 let _xlsxPromise = null;
 export const loadXLSX = () => (_xlsxPromise ||= import("xlsx"));

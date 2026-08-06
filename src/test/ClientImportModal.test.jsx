@@ -87,4 +87,25 @@ describe("ClientImportModal", () => {
     expect(imported).toHaveLength(1);
     expect(imported[0].name).toBe("ANNA VERDI");
   });
+
+  // Regressione S-06: il limite dentro readFirstSheetRowsAutoHeader scattava
+  // solo DOPO che FileReader aveva già caricato l'intero file in memoria. Un
+  // file oltre soglia deve essere rifiutato guardando file.size, prima di
+  // qualunque lettura — qui lo verifichiamo dal solo esito visibile (errore
+  // mostrato, nessuna riga in anteprima), senza dover costruire davvero 15MB
+  // di contenuto XLSX: basta che l'oggetto File dichiari quella dimensione.
+  it("rifiuta un file oltre il limite prima di leggerlo, senza mostrare righe in anteprima", async () => {
+    const onImport = vi.fn();
+    render(<ClientImportModal existingClients={[]} onImport={onImport} onClose={vi.fn()} />);
+
+    const oversized = new File([new Uint8Array(16 * 1024 * 1024)], "enorme.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const input = document.querySelector('input[type="file"]');
+    fireEvent.change(input, { target: { files: [oversized] } });
+
+    expect(await screen.findByText(/File troppo grande/)).toBeInTheDocument();
+    expect(screen.queryByText(/MARIO ROSSI/)).not.toBeInTheDocument();
+    expect(onImport).not.toHaveBeenCalled();
+  });
 });

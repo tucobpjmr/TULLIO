@@ -20,14 +20,7 @@ import {
 import { ModalPortal } from "../ui/ModalPortal.jsx";
 import { Users } from "../../lib/api.js";
 import { EMAIL_RX } from "../../lib/validators.js";
-
-const ROLE_TO_DB = {
-  "Manager": "manager",
-  "Senior Agent": "agent",
-  "Junior Agent": "agent",
-  "Driver": "driver",
-  "Admin": "admin",
-};
+import { DB_ROLES, ROLE_LABELS, toDbRole } from "../../lib/taskConstants.js";
 
 // "anna.bianchi" → "Anna Bianchi". Spezza su . _ - e capitalizza.
 const guessNameFromLocal = (local) => {
@@ -39,22 +32,24 @@ const guessNameFromLocal = (local) => {
     .join(" ");
 };
 
-// Parsa una riga: "email[,nome[,ruolo]]". Ritorna { email, name, roleLabel } o
+// Parsa una riga: "email[,nome[,ruolo]]". Ritorna { email, name, role } o
 // { error: '...' } se la riga è inutilizzabile (email mancante/invalida).
-const parseLine = (raw, defaultRoleLabel) => {
+// Il ruolo è normalizzato all'enum DB da toDbRole, che accetta anche le vecchie
+// label ("Senior Agent") già circolate negli elenchi incollati qui.
+const parseLine = (raw, defaultRole) => {
   const line = raw.trim();
   if (!line) return null;
   const parts = line.split(",").map(s => s.trim());
   const email = (parts[0] || "").toLowerCase();
   if (!EMAIL_RX.test(email)) return { error: `Email non valida: "${parts[0] || raw}"` };
   const name = parts[1] || guessNameFromLocal(email.split("@")[0]);
-  const roleLabel = parts[2] && ROLE_TO_DB[parts[2]] ? parts[2] : defaultRoleLabel;
-  return { email, name, roleLabel };
+  const role = toDbRole(parts[2]) ?? defaultRole;
+  return { email, name, role };
 };
 
 export const BulkInviteModal = ({ onClose, onInvited }) => {
   const [text, setText] = useState("");
-  const [defaultRole, setDefaultRole] = useState("Junior Agent");
+  const [defaultRole, setDefaultRole] = useState("agent");
   const [color, setColor] = useState("#3B82F6");
   const [busy, setBusy] = useState(false);
   // results: per ogni email tentata, { email, status: 'ok'|'err', message?: '...' }
@@ -93,7 +88,7 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
       const { error } = await Users.invite({
         email: p.email,
         name: p.name,
-        role: ROLE_TO_DB[p.roleLabel] || "agent",
+        role: p.role,
         color,
       });
       out.push(error
@@ -144,11 +139,7 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
               <div>
                 <label style={labelStyle}>Ruolo default</label>
                 <select value={defaultRole} onChange={e => setDefaultRole(e.target.value)} disabled={busy} style={fieldStyle}>
-                  <option>Manager</option>
-                  <option>Senior Agent</option>
-                  <option>Junior Agent</option>
-                  <option>Driver</option>
-                  <option>Admin</option>
+                  {DB_ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                 </select>
               </div>
               <div>

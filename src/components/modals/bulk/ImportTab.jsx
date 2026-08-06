@@ -7,7 +7,8 @@ import { PriorityBadge } from "../../ui/PriorityBadge.jsx";
 import { STATUS_LABELS } from "../../../lib/taskConstants.js";
 import { formatDate } from "../../../lib/taskUtils.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
-import { readFirstSheetRows } from "../../../lib/xlsx.js";
+import { readFirstSheetRows, MAX_IMPORT_BYTES } from "../../../lib/xlsx.js";
+import { formatFileSize } from "../../../lib/fileUtils.js";
 import {
   normCat, isRecognizedCat, normPrio, isRecognizedPrio, normStat, isRecognizedStat,
   normAssignee, normDate, detectColumns,
@@ -34,6 +35,16 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
   const handleFile = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Il limite dentro readFirstSheetRows scatta solo dopo che FileReader ha già
+    // caricato l'intero file in memoria: su un file da centinaia di MB il tab
+    // resterebbe comunque a corto di risorse prima ancora di arrivare al parse.
+    // file.size è sincrono e non richiede di leggere il file: il rifiuto arriva
+    // prima di qualunque lettura, non dopo.
+    if (file.size > MAX_IMPORT_BYTES) {
+      setError(`File troppo grande (${formatFileSize(file.size)}, max ${formatFileSize(MAX_IMPORT_BYTES)}).`);
+      e.target.value = "";
+      return;
+    }
     setFileName(file.name);
     setError(null);
     const reader = new FileReader();

@@ -8,7 +8,8 @@
 // intestazione, che romperebbero l'assunzione "riga 0 = header".
 import { useState, useRef, useMemo, useEffect } from "react";
 import { useViewport } from "../Viewport.jsx";
-import { readFirstSheetRowsAutoHeader } from "../../lib/xlsx.js";
+import { readFirstSheetRowsAutoHeader, MAX_IMPORT_BYTES } from "../../lib/xlsx.js";
+import { formatFileSize } from "../../lib/fileUtils.js";
 import { Modal } from "../ui/Modal.jsx";
 
 const inputStyle = {
@@ -112,6 +113,14 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
   const handleFile = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Come in ImportTab: il limite dentro readFirstSheetRowsAutoHeader scatta
+    // solo dopo che FileReader ha già caricato l'intero file in memoria.
+    // file.size è sincrono, quindi il rifiuto arriva prima di qualunque lettura.
+    if (file.size > MAX_IMPORT_BYTES) {
+      setError(`File troppo grande (${formatFileSize(file.size)}, max ${formatFileSize(MAX_IMPORT_BYTES)}).`);
+      e.target.value = "";
+      return;
+    }
     setFileName(file.name);
     setError(null);
     const reader = new FileReader();

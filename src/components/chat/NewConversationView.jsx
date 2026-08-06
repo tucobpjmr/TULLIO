@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Avatar } from "../ui/Avatar.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
+import { roleLabel } from "../../lib/taskConstants.js";
 
 // ─── CHAT: NEW CONVERSATION ────────────────────────────────────────────────
 export const NewConversationView = ({ onCreate, onCancel, existing }) => {
@@ -78,7 +79,7 @@ export const NewConversationView = ({ onCreate, onCancel, existing }) => {
                 <Avatar memberId={m.id} size={38} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13.5, fontWeight: 600 }}>{m.name}</div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{m.role}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{roleLabel(m)}</div>
                 </div>
               </div>
             ))}
@@ -114,7 +115,7 @@ export const NewConversationView = ({ onCreate, onCancel, existing }) => {
                   <Avatar memberId={m.id} size={36} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600 }}>{m.name}</div>
-                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{m.role}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{roleLabel(m)}</div>
                   </div>
                   <div style={{
                     width: 22, height: 22, borderRadius: "50%",

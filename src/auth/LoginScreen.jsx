@@ -39,9 +39,16 @@ function localizeAuthError(error) {
 }
 
 export default function LoginScreen() {
-  const { signIn, signUp, resetPassword, resendConfirmation } = useAuth();
-  const [mode, setMode] = useState('login'); // 'login' | 'forgot' | 'signup'
-  const [name, setName] = useState('');
+  const { signIn, resetPassword, resendConfirmation } = useAuth();
+  // La registrazione self-service è stata rimossa (S-13): su un gestionale
+  // interno con un flusso di invito completo (Edge Function invite-user) non
+  // aveva una funzione chiara, e lasciava a chiunque conoscesse l'URL la
+  // possibilità di creare account — che restavano pending e senza accesso ai
+  // dati, ma generavano una notifica a ogni admin e facevano crescere
+  // auth.users senza controllo. Il signup va disattivato ANCHE lato Supabase
+  // (Auth → "Allow new users to sign up"): togliere il modulo qui rimuove la
+  // strada, non l'endpoint, e /auth/v1/signup resta chiamabile direttamente.
+  const [mode, setMode] = useState('login'); // 'login' | 'forgot'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [err, setErr] = useState(null);
@@ -75,12 +82,6 @@ export default function LoginScreen() {
         const { error } = await resetPassword(mail);
         if (error) setErr(localizeAuthError(error));
         else setInfo('Se l\'email è registrata, riceverai un link per reimpostare la password.');
-      } else if (mode === 'signup') {
-        if (!name.trim()) { setErr('Inserisci il tuo nome.'); setLoading(false); return; }
-        if (password.length < 8) { setErr('La password deve avere almeno 8 caratteri.'); setLoading(false); return; }
-        const { error } = await signUp(mail, password, name.trim());
-        if (error) setErr(localizeAuthError(error));
-        else setInfo('Registrazione inviata! Un amministratore deve approvare il tuo accesso. Se richiesto, conferma prima l\'email.');
       }
     } catch (e) {
       setErr(localizeAuthError(e));
@@ -111,13 +112,11 @@ export default function LoginScreen() {
   const subtitle = {
     login: 'Accedi al gestionale agenzia',
     forgot: 'Reimposta la tua password',
-    signup: 'Richiedi un account',
   }[mode];
 
   const submitLabel = {
     login: loading ? 'Accesso…' : 'Accedi',
     forgot: loading ? 'Invio…' : 'Invia link di reset',
-    signup: loading ? 'Registrazione…' : 'Registrati',
   }[mode];
 
   return (
@@ -125,17 +124,6 @@ export default function LoginScreen() {
       <form onSubmit={onSubmit} style={cardStyle}>
         <h1 style={titleStyle}>VoyageDesk</h1>
         <p style={{ margin: '0 0 24px', fontSize: 13, opacity: 0.7 }}>{subtitle}</p>
-
-        {mode === 'signup' && (
-          <>
-            <label style={labelStyle}>Nome completo</label>
-            <input
-              type="text" autoComplete="name" required
-              value={name} onChange={e => setName(e.target.value)}
-              style={{ ...inputStyle, marginBottom: 14 }}
-            />
-          </>
-        )}
 
         <label style={labelStyle}>Email</label>
         <input
@@ -149,7 +137,7 @@ export default function LoginScreen() {
             <label style={{ ...labelStyle, margin: '14px 0 6px' }}>Password</label>
             <PasswordField
               inputStyle={inputStyle}
-              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+              autoComplete="current-password"
               required
               value={password} onChange={e => setPassword(e.target.value)}
             />
@@ -183,9 +171,6 @@ export default function LoginScreen() {
             <>
               <button type="button" onClick={() => switchMode('forgot')} style={linkBtn}>
                 Password dimenticata?
-              </button>
-              <button type="button" onClick={() => switchMode('signup')} style={linkBtn}>
-                Richiedi un account
               </button>
             </>
           )}

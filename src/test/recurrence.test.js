@@ -1,4 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+// CalendarPlanner importa (transitivamente) Avatar, che da S-10 risolve le
+// signed URL degli avatar via lib/api.js → client Supabase condiviso, non
+// costruibile senza VITE_SUPABASE_URL. Mockato e mai usato: qui servono
+// solo gli helper puri.
+vi.mock("../lib/supabase", () => ({ supabase: {}, default: {} }));
 import { expandRecurring, nthRecurrence } from "../components/calendar/CalendarPlanner.jsx";
 
 // Helper: costruisce un task ricorrente con dueDate in ora locale.

@@ -14,9 +14,11 @@ import { withAppData } from "./helpers/appData.jsx";
 // render, ma props del provider. Restano impostabili con le stesse due
 // chiamate — `ctxTeam` / `ctxUser` — così ogni test dichiara da quale team
 // dipende, e `render` le applica montando l'albero dentro <AppDataProvider>.
-let appCtx = { team: [], categories: {}, currentUserId: null };
+let appCtx = { team: [], categories: {}, currentUserId: null, tasks: [], clients: [] };
 const ctxTeam = (t) => { appCtx = { ...appCtx, team: t }; };
 const ctxUser = (id) => { appCtx = { ...appCtx, currentUserId: id }; };
+const ctxTasks = (t) => { appCtx = { ...appCtx, tasks: t }; };
+const ctxClients = (c) => { appCtx = { ...appCtx, clients: c }; };
 const render = (ui, options) => {
   const utils = rtlRender(withAppData(ui, appCtx), options);
   // `appCtx` è letto al momento del rerender, non a quello del primo render:
@@ -68,7 +70,13 @@ const baseState = (uid) => ({
   categories: {},
 });
 
-const asUser = (uid) => { ctxTeam(TEAM.map(m => ({ ...m }))); ctxUser(uid); };
+const asUser = (uid) => {
+  const s = baseState(uid);
+  ctxTeam(TEAM.map(m => ({ ...m })));
+  ctxUser(uid);
+  ctxTasks(s.tasks);
+  ctxClients(s.clients);
+};
 
 describe("Dashboard — bottone Liste viaggio", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -76,7 +84,7 @@ describe("Dashboard — bottone Liste viaggio", () => {
   it("è visibile ai non-Driver e apre la vista liste", () => {
     asUser("marco");
     const dispatch = vi.fn();
-    render(<Dashboard state={baseState("marco")} dispatch={dispatch} />);
+    render(<Dashboard dispatch={dispatch} />);
 
     const btn = screen.getByRole("button", { name: /Liste viaggio/i });
     fireEvent.click(btn);
@@ -85,7 +93,7 @@ describe("Dashboard — bottone Liste viaggio", () => {
 
   it("non è mostrato al Driver", () => {
     asUser("giulia");
-    render(<Dashboard state={baseState("giulia")} dispatch={vi.fn()} />);
+    render(<Dashboard dispatch={vi.fn()} />);
     expect(screen.queryByRole("button", { name: /Liste viaggio/i })).toBeNull();
   });
 });
@@ -96,7 +104,7 @@ describe("Scheda cliente — tab Liste viaggio", () => {
   const openCliente = (uid) => {
     asUser(uid);
     const dispatch = vi.fn();
-    render(<ClientiView state={baseState(uid)} dispatch={dispatch} />);
+    render(<ClientiView dispatch={dispatch} />);
     fireEvent.click(screen.getByText("MARIO ROSSI"));
     return dispatch;
   };
@@ -129,13 +137,13 @@ describe("Scheda cliente — tab Liste viaggio", () => {
   it("se il tab Liste era aperto e l'utente diventa Driver, il pannello torna su Task", () => {
     const dispatch = vi.fn();
     asUser("marco");
-    const { rerender } = render(<ClientiView state={baseState("marco")} dispatch={dispatch} />);
+    const { rerender } = render(<ClientiView dispatch={dispatch} />);
     fireEvent.click(screen.getByText("MARIO ROSSI"));
     fireEvent.click(screen.getByRole("button", { name: "Liste viaggio" }));
     expect(screen.queryByText(/Nessun task associato a questo cliente/)).toBeNull();
 
     asUser("giulia");
-    rerender(<ClientiView state={baseState("giulia")} dispatch={dispatch} />);
+    rerender(<ClientiView dispatch={dispatch} />);
 
     expect(screen.queryByRole("button", { name: "Liste viaggio" })).toBeNull();
     expect(screen.getByText(/Nessun task associato a questo cliente/)).toBeTruthy();

@@ -1,6 +1,6 @@
 // ─── TRASH ───────────────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
-import { useState } from "react";
+import { memo, useState } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
@@ -8,6 +8,7 @@ import { CategoryChip } from "../ui/CategoryChip.jsx";
 import { PRIORITIES, STATUS_LABELS } from "../../lib/taskConstants.js";
 import { formatDate, getTrashedTasks } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
+import { useTasks } from "../../state/TasksContext.jsx";
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";
 import { Z } from "../../styles/tokens.js";
 
@@ -40,12 +41,17 @@ const filterByPeriod = (tasks, period) => {
   });
 };
 
-export const Trash = ({ state, dispatch }) => {
+// `memo` + lettura dal contesto: senza il memo il provider non servirebbe a
+// nulla, perché il genitore ri-renderizza a ogni azione (vedi
+// state/TasksContext.jsx). `dispatch` ha identità stabile, quindi il confronto
+// shallow riesce e il render si salta finché non cambiano davvero i task.
+export const Trash = memo(function Trash({ dispatch }) {
   const { isMobile } = useViewport();
-  const { categories, getAssignableTeam, canEditTask, getVisibleTasks } = useAppData();
+  const { categories, currentUserId, getAssignableTeam, canEditTask, getVisibleTasks } = useAppData();
+  const tasks = useTasks();
   const [restoring, setRestoring] = useState(null); // task being restored/edited
   const [period, setPeriod] = useState("all");
-  const me = state.currentUserId;
+  const me = currentUserId;
   // La LISTA mostra tutti i task cestinati che l'utente può VEDERE (canViewTask,
   // via getVisibleTasks) — stesso pattern di Archive.jsx: chi ha solo permesso di
   // visualizzazione su un task (es. stakeholder in sola lettura, o ruolo che vede
@@ -55,7 +61,7 @@ export const Trash = ({ state, dispatch }) => {
   // (admin: tutti; manager/agent: propri + coda globale; driver: solo transfer
   // propri/globali) — prerogativa di status, applicata sia qui in UI (toast di
   // errore) sia a valle nel reducer (RESTORE_TASK/PURGE_TASK/EMPTY_TRASH).
-  const trashed = getVisibleTasks(getTrashedTasks(state.tasks), me)
+  const trashed = getVisibleTasks(getTrashedTasks(tasks), me)
     .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt));
   const visible = filterByPeriod(trashed, period);
   const editableCount = trashed.filter(t => canEditTask(t, me)).length;
@@ -461,4 +467,4 @@ export const Trash = ({ state, dispatch }) => {
       )}
     </div>
   );
-};
+});

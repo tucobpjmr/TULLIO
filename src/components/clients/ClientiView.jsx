@@ -2,13 +2,15 @@
 // Anagrafica Clienti: elenco, ricerca, ordinamento e apertura del pannello di
 // dettaglio. Modale, card e pannello vivono in moduli propri — erano sei
 // componenti in questo file, di cui uno (la modale) da 120 righe.
-import { useState, useMemo, useEffect } from "react";
+import { memo, useState, useMemo, useEffect } from "react";
 import { ClienteModal } from "./ClienteModal.jsx";
 import { ClienteCard } from "./ClienteCard.jsx";
 import { ClienteDetailPanel } from "./ClienteDetailPanel.jsx";
 import { useViewport } from "../Viewport.jsx";
 import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
+import { useTasks } from "../../state/TasksContext.jsx";
+import { useClients } from "../../state/ClientsContext.jsx";
 import { ClientImportModal } from "./ClientImportModal.jsx";
 // L'anagrafica chiede al modulo Liste un conteggio per cliente, non le sue
 // query: vedi components/liste/listeModuleApi.js.
@@ -35,9 +37,13 @@ const LINK_FILTERS = [
   { key: "soloCrm",  label: "Solo anagrafica" },
 ];
 
-export function ClientiView({ state, dispatch, loading = false }) {
+// `memo` + lettura dal contesto: vedi state/TasksContext.jsx sul perché il
+// provider da solo non basterebbe. Le prop rimaste — `dispatch` e il flag
+// `loading` dell'idratazione CRM — hanno identità stabile.
+export const ClientiView = memo(function ClientiView({ dispatch, loading = false }) {
   const { isMobile } = useViewport();
-  const { getRoleType } = useAppData();
+  const { currentUserId, canAccessListe } = useAppData();
+  const tasks = useTasks();
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("name"); // v2.8 Round 8
   const [linkFilter, setLinkFilter] = useState("all");
@@ -51,14 +57,17 @@ export function ClientiView({ state, dispatch, loading = false }) {
   // usabile. Non è un dato di cui bloccare la vista.
   const [listeByClient, setListeByClient] = useState(null);
 
-  // Memoizzato perché è una dipendenza di più useMemo: `state.clients || []`
-  // creerebbe un array nuovo a ogni render quando la lista è ancora vuota.
-  const clients = useMemo(() => state.clients || [], [state.clients]);
+  // Il contesto normalizza già a `[]` e mantiene l'identità stabile finché il
+  // reducer non sostituisce l'array: l'useMemo che serviva a non ricreare
+  // `state.clients || []` a ogni render non serve più.
+  const clients = useClients();
 
-  // Il modulo Liste viaggio è precluso al ruolo Driver (RLS lato DB, migrazione
-  // 20260728190100): senza questo gate il tab comparirebbe e mostrerebbe solo
-  // una lista vuota filtrata dalle policy.
-  const showListe = getRoleType(state.currentUserId) !== "driver";
+  // Accesso al modulo Liste viaggio: senza il gate il tab comparirebbe e
+  // mostrerebbe solo una lista vuota filtrata dalle policy. Era scritto qui
+  // come `getRoleType(...) !== "driver"` — la sesta formulazione della stessa
+  // regola, e l'unica che canAccessListe non aveva ancora assorbito perché non
+  // passava da isDriver.
+  const showListe = canAccessListe(currentUserId);
 
   // Quante liste viaggio ha ciascun cliente. Serve PRIMA di modificare o
   // eliminare, non dopo: è la differenza tra sapere che cosa si sta toccando
@@ -248,7 +257,7 @@ export function ClientiView({ state, dispatch, loading = false }) {
       {selectedClient && (
         <ClienteDetailPanel
           cliente={selectedClient}
-          tasks={state.tasks || []}
+          tasks={tasks}
           dispatch={dispatch}
           onClose={() => { setSelectedClient(null); setPanelTab(null); }}
           showListe={showListe}
@@ -264,7 +273,7 @@ export function ClientiView({ state, dispatch, loading = false }) {
           onSave={handleSave}
           onClose={() => setModal(null)}
           liste={listeDi(modal.cliente)}
-          tasksCollegati={modal.cliente ? tasksDelCliente(state.tasks, modal.cliente.name) : []}
+          tasksCollegati={modal.cliente ? tasksDelCliente(tasks, modal.cliente.name) : []}
         />
       )}
 
@@ -343,4 +352,4 @@ export function ClientiView({ state, dispatch, loading = false }) {
       })()}
     </div>
   );
-}
+});

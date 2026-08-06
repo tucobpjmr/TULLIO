@@ -71,14 +71,10 @@ const TEAM = [
 
 const asUser = (uid) => { ctxTeam(TEAM.map((m) => ({ ...m }))); ctxUser(uid); };
 
-const baseState = (uid) => ({
-  currentUserId: uid, team: TEAM, clients: [], listeTarget: null,
-});
-
 const renderListe = (uid = "marco") => {
   asUser(uid);
   const dispatch = vi.fn();
-  const utils = render(<ListeViaggio state={baseState(uid)} dispatch={dispatch} />);
+  const utils = render(<ListeViaggio dispatch={dispatch} />);
   return { dispatch, ...utils };
 };
 

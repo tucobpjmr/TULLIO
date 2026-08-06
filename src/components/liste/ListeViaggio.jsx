@@ -10,10 +10,11 @@
 // Il CONTENUTO mantiene di proposito lo stile originale (blu #0F4C81, font
 // Inter, impaginazione "foglio cartaceo"); solo la chrome di navigazione —
 // breadcrumb e testata — segue lo stile Tullio (navy/oro, Playfair).
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { useListeData } from "./useListeData.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
+import { useClients } from "../../state/ClientsContext.jsx";
 import {
   ListeAPI, beneficiariNomi, downloadBlob, eur, fmtDate, intestazioneLista,
   saldoClass, todayISO,
@@ -138,10 +139,15 @@ export function ListaRow({ lista, saldo, onOpen, trashed = false, children }) {
 }
 
 // ─── Modulo ────────────────────────────────────────────────────────────────
-export function ListeViaggio({ state, dispatch }) {
+// `memo` + lettura dal contesto: vedi state/TasksContext.jsx. Il modulo non
+// guarda i task, quindi consuma il solo contesto clienti; `listeTarget` (la
+// lista da aprire, richiesta dal tab della scheda cliente) resta una prop,
+// piccola e con identità stabile.
+export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget = null }) {
   const { isMobile } = useViewport();
-  const { isAdmin, canAccessListe } = useAppData();
-  const uid = state.currentUserId;
+  const { team, currentUserId, isAdmin, canAccessListe } = useAppData();
+  const clientsRaw = useClients();
+  const uid = currentUserId;
   // Chi può usare il modulo: una domanda sola, la stessa del reducer, delle
   // viste del core che ci linkano e di can_liste() sul database. Qui era
   // `getRoleType(uid) === "driver"`, cioè la quinta formulazione della stessa
@@ -179,14 +185,14 @@ export function ListeViaggio({ state, dispatch }) {
   // dell'app (stesse tabelle `clients`/`users` del modulo): li riusiamo invece
   // di rifare le due query che faceva la SPA.
   const clients = useMemo(
-    () => [...(state.clients || [])].sort((a, b) => (a.name || "").localeCompare(b.name || "", "it")),
-    [state.clients],
+    () => [...clientsRaw].sort((a, b) => (a.name || "").localeCompare(b.name || "", "it")),
+    [clientsRaw],
   );
   const usersById = useMemo(() => {
     const m = {};
-    for (const t of state.team || []) m[t.id] = t.name;
+    for (const t of team || []) m[t.id] = t.name;
     return m;
-  }, [state.team]);
+  }, [team]);
 
   const loadDetail = useCallback(async (id) => {
     const [rLista, rMovs, rHist] = await Promise.all([
@@ -210,7 +216,7 @@ export function ListeViaggio({ state, dispatch }) {
   // cliente): SET_VIEW porta con sé l'id della lista da aprire. Il seq
   // incrementale fa scattare l'effetto anche se si richiede due volte di
   // fila la stessa lista. Stesso meccanismo di state.dashboardQueue.
-  const target = state.listeTarget;
+  const target = listeTarget;
   useEffect(() => {
     if (!target?.id) return;
     setOpenId(target.id);
@@ -621,6 +627,6 @@ export function ListeViaggio({ state, dispatch }) {
       </div>
     </div>
   );
-}
+});
 
 export default ListeViaggio;

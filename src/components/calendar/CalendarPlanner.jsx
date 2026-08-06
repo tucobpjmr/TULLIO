@@ -1,6 +1,6 @@
 // ─── CALENDAR PLANNER ────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
-import { useState, useCallback } from "react";
+import { memo, useState, useCallback } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { SwipeActions } from "../SwipeActions.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
@@ -9,6 +9,7 @@ import { StatusBadge } from "../ui/StatusBadge.jsx";
 import { TaskRow } from "../tasks/TaskCard.jsx";
 import { formatTime, isActiveTask } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
+import { useTasks } from "../../state/TasksContext.jsx";
 import { Z } from "../../styles/tokens.js";
 
 // ─── iCal export (Step G) ────────────────────────────────────────────────
@@ -212,23 +213,30 @@ function layoutColumns(dayTasks) {
   });
 }
 
-export const CalendarPlanner = ({ state, dispatch }) => {
+// `memo` è la seconda metà del lavoro fatto dai provider, non un extra: il
+// genitore (VoyageDeskInner) si ri-renderizza a ogni azione — toast compreso —
+// e senza questo il calendario si ri-renderizzerebbe con lui, provider o no.
+// Le prop rimaste sono solo `dispatch`, che useSyncedDispatch tiene a identità
+// stabile: il confronto shallow riesce e il render si salta. I task arrivano
+// da useTasks(), quindi il componente si aggiorna quando cambiano loro.
+export const CalendarPlanner = memo(function CalendarPlanner({ dispatch }) {
   const { isMobile } = useViewport();
-  const { categories, getAssignableTeam, canViewTask } = useAppData();
+  const { categories, currentUserId, getAssignableTeam, canViewTask } = useAppData();
+  const tasks = useTasks();
   const [viewMode, setViewMode] = useState("month"); // "month" | "week" | "week-full" | "day"
   const [dayDate, setDayDate] = useState(new Date());
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState(null);
   const [catFilter, setCatFilter] = useState(null); // v2.8 Round 12: null = tutti
-  const uid = state.currentUserId;
+  const uid = currentUserId;
   // Stabile per la memoizzazione di TaskRow (vedi components/tasks/TaskCard.jsx).
   const openTask = useCallback(
     (task) => dispatch({ type: "SET_SELECTED_TASK", payload: task }), [dispatch]);
 
   // Categorie presenti nei task con dueDate (per mostrare solo i chip utili)
   const presentCats = [...new Set(
-    state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate).map(t => t.category)
+    tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate).map(t => t.category)
   )].filter(Boolean);
 
   // Filtro base applicato a tutti i getter di task
@@ -258,7 +266,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
   const dayNames = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
   // ── Pre-expand recurring tasks for each visible range ──
-  const baseTasks = state.tasks.filter(t => isActiveTask(t) && canViewTask(t, uid));
+  const baseTasks = tasks.filter(t => isActiveTask(t) && canViewTask(t, uid));
 
   const monthStart = new Date(year, month, 1, 0, 0, 0);
   const monthEnd = new Date(year, month + 1, 0, 23, 59, 59);
@@ -357,7 +365,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
               background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8,
               width: 34, height: 34, cursor: "pointer", fontSize: 14
             }}>→</button>
-            <button onClick={() => exportTasksToIcs(state.tasks, (t) => canViewTask(t, uid))} title="Esporta calendario in iCal (.ics)" style={{
+            <button onClick={() => exportTasksToIcs(tasks, (t) => canViewTask(t, uid))} title="Esporta calendario in iCal (.ics)" style={{
               background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8,
               padding: "0 12px", height: 34, cursor: "pointer", fontSize: 12, fontWeight: 600,
               color: "var(--heading)",
@@ -617,7 +625,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                   const cat = categories[t.category] || {};
                   const colW = 100 / totalCols;
                   const taskToOpen = t.isRecurringInstance
-                    ? (state.tasks.find(x => x.id === t.originalId) || t)
+                    ? (tasks.find(x => x.id === t.originalId) || t)
                     : t;
                   return (
                     <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: taskToOpen })} style={{
@@ -718,7 +726,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                         const cat = categories[t.category] || {};
                         const colW = 100 / totalCols;
                         const taskToOpen = t.isRecurringInstance
-                          ? (state.tasks.find(x => x.id === t.originalId) || t)
+                          ? (tasks.find(x => x.id === t.originalId) || t)
                           : t;
                         return (
                           <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: taskToOpen })} style={{
@@ -778,7 +786,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                     </div>
                   </td>
                   {agentWeekDays.map((day, i) => {
-                    const count = state.tasks.filter(t =>
+                    const count = tasks.filter(t =>
                       isActiveTask(t) && t.assignees?.includes(m.id) && t.dueDate &&
                       new Date(t.dueDate).toDateString() === day.toDateString() && matchesCat(t)
                     ).length;
@@ -794,7 +802,7 @@ export const CalendarPlanner = ({ state, dispatch }) => {
                     );
                   })}
                   <td style={{ padding: "8px 12px", textAlign: "center", borderBottom: "1px solid var(--border)", fontWeight: 700, color: "var(--heading)" }}>
-                    {state.tasks.filter(t =>
+                    {tasks.filter(t =>
                       isActiveTask(t) && t.assignees?.includes(m.id) && t.dueDate &&
                       agentWeekDays.some(d => new Date(t.dueDate).toDateString() === d.toDateString()) && matchesCat(t)
                     ).length}
@@ -807,4 +815,4 @@ export const CalendarPlanner = ({ state, dispatch }) => {
       </div>
     </div>
   );
-};
+});

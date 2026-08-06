@@ -3,7 +3,7 @@
 // Le code vivono in ./queues/ — erano quattro componenti da ~200 righe l'uno
 // dentro questo file, per un totale di oltre mille righe in cui la logica della
 // vista era indistinguibile da quella delle singole liste.
-import { useState, useEffect } from "react";
+import { memo, useState, useEffect } from "react";
 import { PersonalQueue } from "./queues/PersonalQueue.jsx";
 import { UrgentQueue } from "./queues/UrgentQueue.jsx";
 import { UnassignedQueue } from "./queues/UnassignedQueue.jsx";
@@ -17,6 +17,7 @@ import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { TaskRow } from "../tasks/TaskCard.jsx";
 import { formatDate, isOverdue, isUrgent, isMyTask, isInGlobalQueue, getActiveTasks } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
+import { useTasks } from "../../state/TasksContext.jsx";
 import { NoticeBoard } from "./NoticeBoard.jsx";
 import { roleLabel } from "../../lib/taskConstants.js";
 
@@ -25,37 +26,42 @@ import { roleLabel } from "../../lib/taskConstants.js";
 // filtro data/ora — i transfer sono time-sensitive, Giulia filtra la coda per
 // giornata (Tutte / Oggi / Domani / data specifica).
 // ─── DASHBOARD ─────────────────────────────────────────────────────────────
-export const Dashboard = ({ state, dispatch, onOpenChat }) => {
+// `memo` + lettura dal contesto: vedi state/TasksContext.jsx. Le due fette
+// rimaste come prop — gli avvisi della bacheca e la tab coda richiesta da una
+// notifica — sono piccole e con identità stabile: cambiano quando cambia il
+// loro dato, non a ogni azione come faceva `state`.
+export const Dashboard = memo(function Dashboard({ dispatch, onOpenChat, notices = [], dashboardQueue = null }) {
   const { isMobile } = useViewport();
   const {
-    getMember, getRoleType, getAssignableTeam,
+    currentUserId, getMember, getRoleType, getAssignableTeam,
     canViewTask, getVisibleTasks, isJuniorAgent,
   } = useAppData();
+  const tasks = useTasks();
   const [activeQueue, setActiveQueue] = useState("personal");
   const openTask = useOpenTask(dispatch);
-  const uid = state.currentUserId;
+  const uid = currentUserId;
   const role = getRoleType(uid);
   // Apertura da notifica: il digest della coda globale chiede la tab "global"
   // (SET_VIEW con action.queue → state.dashboardQueue). Il seq cambia a ogni
   // richiesta, così il tap funziona anche a tab già visitata. Il Driver non ha
   // la coda globale: per lui la richiesta viene ignorata (tab inesistente).
-  const queueReq = state.dashboardQueue;
+  const queueReq = dashboardQueue;
   useEffect(() => {
     if (!queueReq?.tab) return;
     if (queueReq.tab === "global" && role === "driver") return;
     setActiveQueue(queueReq.tab);
   }, [queueReq?.tab, queueReq?.seq, role]);
   const me = getMember(uid);
-  const allTasks = getActiveTasks(state.tasks);
+  const allTasks = getActiveTasks(tasks);
   // Filtro permessi: solo task visibili all'utente
-  const tasks = getVisibleTasks(allTasks, uid);
+  const visibleTasks = getVisibleTasks(allTasks, uid);
 
   const agentWorkload = getAssignableTeam().map(m => ({
     ...m,
     count: allTasks.filter(t => t.assignees?.includes(m.id) && t.status !== "done").length
   }));
 
-  const next7 = tasks
+  const next7 = visibleTasks
     .filter(t => t.status !== "done" && t.dueDate)
     .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
     .slice(0, 6);
@@ -93,7 +99,7 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
   const showUrgent = role !== "driver";
   const WINDOW_72H = 72 * 60 * 60 * 1000;
   const urgentCandidates = showUrgent
-    ? tasks
+    ? visibleTasks
       .filter(t => {
         if (!t.dueDate || t.status === "done") return false;
         const diff = new Date(t.dueDate).getTime() - Date.now();
@@ -104,7 +110,7 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
   const urgentTasks = urgentCandidates.filter(t => isUrgent(t));
 
   // Scadute: tutti i task visibili scaduti, non completati
-  const overdueTasks = tasks
+  const overdueTasks = visibleTasks
     .filter(t => t.status !== "done" && isOverdue(t))
     .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
 
@@ -173,7 +179,7 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
       </div>
 
       {/* ─── BACHECA AVVISI ─── */}
-      <NoticeBoard notices={state.notices} dispatch={dispatch} />
+      <NoticeBoard notices={notices} dispatch={dispatch} />
 
       {/* ─── TAB CODE ─── */}
       <div style={{
@@ -272,4 +278,4 @@ export const Dashboard = ({ state, dispatch, onOpenChat }) => {
       </div>
     </div>
   );
-};
+});

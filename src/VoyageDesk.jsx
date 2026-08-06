@@ -8,6 +8,8 @@ import { getActiveTasks } from "./lib/taskUtils.js";
 import { canAccessAdmin } from "./lib/permissions.js";
 import { reducer, makeInitialState } from "./state/reducer.js";
 import { AppDataProvider } from "./state/AppDataContext.jsx";
+import { TasksProvider } from "./state/TasksContext.jsx";
+import { ClientsProvider } from "./state/ClientsContext.jsx";
 import { INITIAL_CONVERSATIONS, INITIAL_MESSAGES } from "./state/mockData.js";
 
 // ── Hook di dominio ────────────────────────────────────────────────────────
@@ -211,13 +213,21 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     setShowFABModal(false);
   }, [state.currentUserId]);
 
+  // Le viste NON ricevono più `state`: leggono task e clienti dai provider e si
+  // fanno passare solo le fette piccole che consumano davvero (notices, la tab
+  // coda richiesta, la lista da aprire). `state` cambia identità dopo qualunque
+  // azione — un toast, un carattere nella ricerca — e finché era una prop
+  // costringeva la vista attiva a ri-renderizzarsi per intero ogni volta. Le
+  // prop rimaste hanno identità stabile, quindi il `memo` sulle viste può
+  // davvero saltare il render (vedi state/TasksContext.jsx: senza memo il
+  // provider da solo non basta).
   const renderView = () => {
     switch (state.activeView) {
-      case "dashboard":  return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
-      case "calendar":   return <CalendarPlanner state={state} dispatch={dispatch} />;
-      case "clienti":    return <ClientiView state={state} dispatch={dispatch} loading={crmLoading} />;
-      case "archivio":   return <Archive state={state} dispatch={dispatch} />;
-      case "trash":      return <Trash state={state} dispatch={dispatch} />;
+      case "dashboard":  return <Dashboard dispatch={dispatch} onOpenChat={openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} />;
+      case "calendar":   return <CalendarPlanner dispatch={dispatch} />;
+      case "clienti":    return <ClientiView dispatch={dispatch} loading={crmLoading} />;
+      case "archivio":   return <Archive dispatch={dispatch} />;
+      case "trash":      return <Trash dispatch={dispatch} />;
       // Il guard qui è ridondante per costruzione — il reducer rifiuta
       // SET_VIEW → "admin" per i non-admin (reducer.js:95) e riporta la vista
       // a dashboard al cambio utente (reducer.js:145) — ma è la ridondanza che
@@ -228,9 +238,9 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       // modo di impostare activeView.
       case "admin":      return canAccessAdmin(state.team, state.currentUserId)
         ? <AdminView state={state} dispatch={dispatch} />
-        : <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
-      case "liste":      return <ListeViaggio state={state} dispatch={dispatch} />;
-      default:           return <Dashboard state={state} dispatch={dispatch} onOpenChat={openChatTo} />;
+        : <Dashboard dispatch={dispatch} onOpenChat={openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} />;
+      case "liste":      return <ListeViaggio dispatch={dispatch} listeTarget={state.listeTarget} />;
+      default:           return <Dashboard dispatch={dispatch} onOpenChat={openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} />;
     }
   };
 
@@ -245,6 +255,11 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       categories={state.categories}
       currentUserId={state.currentUserId}
     >
+     {/* Task e clienti viaggiano per contesto, non come prop: due provider
+         distinti e non uno solo, così l'arrivo di un cliente importato non
+         invalida le viste che guardano i task (vedi state/ClientsContext.jsx). */}
+     <TasksProvider tasks={state.tasks}>
+      <ClientsProvider clients={state.clients}>
       <GlobalStyles />
       {/* vd-app-shell = height 100dvh con fallback 100vh (vedi FontLoader): su iOS
           "vh" è il viewport GRANDE, con la barra del browser visibile il guscio
@@ -346,6 +361,8 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         {/* Toast */}
         <Toast toast={state.toast} dispatch={dispatch} />
       </div>
+      </ClientsProvider>
+     </TasksProvider>
     </AppDataProvider>
   );
 }

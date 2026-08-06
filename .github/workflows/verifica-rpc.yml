@@ -1,16 +1,26 @@
 name: Verifica RPC
 
-# Controlla che ogni RPC chiamata dal frontend esista davvero sul database.
+# Controlla che il database di produzione sia allineato col repository, su
+# tre fronti: le RPC chiamate dal frontend esistono davvero (S-05, sintomo
+# diretto: senza questo, un utente vede "Could not find the function ... in
+# the schema cache"), ogni migrazione in supabase/migrations/ risulta
+# applicata (S-05, controllo diretto: si accorge anche dello scarto che non
+# tocca nessuna RPC — RLS, grant, colonne), e gli advisor di sicurezza/
+# performance di Supabase non segnalano nulla di livello ERROR.
 #
-# Perché serve un workflow a parte e non un passo dentro CI: questo controllo
-# interroga il database di produzione, mentre CI gira anche sulle pull request,
-# dove il codice per definizione precede le migrazioni. Un nuovo RPC aggiunto
-# in una PR risulterebbe "mancante" fino all'applicazione della migrazione, e
-# CI diventerebbe rossa per un motivo giusto ma nel momento sbagliato.
+# Perché serve un workflow a parte e non un passo dentro CI: questi controlli
+# interrogano il database di produzione, mentre CI gira anche sulle pull
+# request, dove il codice per definizione precede le migrazioni. Una RPC o una
+# migrazione nuova aggiunta in una PR risulterebbe "mancante" fino
+# all'applicazione, e CI diventerebbe rossa per un motivo giusto ma nel
+# momento sbagliato.
 #
 # Le migrazioni di questo progetto si applicano a mano: lo scarto tra il
 # repository e il database non è un caso limite ma una possibilità permanente,
-# ed è già successo (vedi scripts/verifica-rpc/index.js).
+# ed è già successo più volte — vedi scripts/verifica-rpc/index.js per il caso
+# che ha originato questo workflow, e scripts/verifica-rpc/migrazioni.js per
+# le due migrazioni che il controllo diretto ha trovato già in produzione
+# (applicate contestualmente all'aggiunta del controllo stesso).
 #
 # Perché anche su push a main, e non solo di notte: lo scarto nasce nel momento
 # del merge, e main è ciò che Vercel manda in produzione. Con il solo controllo
@@ -30,6 +40,7 @@ on:
       - 'src/**'
       - 'supabase/migrations/**'
       - 'scripts/verifica-rpc/**'
+      - 'scripts/verifica-advisor/**'
       - '.github/workflows/verifica-rpc.yml'
   schedule:
     - cron: '30 6 * * *'
@@ -43,7 +54,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 24
-      # Nessun `npm ci`: la sonda usa solo moduli nativi di Node.
+      # Nessun `npm ci`: le sonde usano solo moduli nativi di Node.
 
       # Chiave anon pubblica: è la stessa spedita nel bundle frontend a ogni
       # visitatore (protetta dalle policy RLS, non dalla segretezza), quindi
@@ -55,3 +66,23 @@ jobs:
           SUPABASE_URL: https://vmxvnxsqfisucugcpqlc.supabase.co
           SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZteHZueHNxZmlzdWN1Z2NwcWxjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjcyNjYsImV4cCI6MjA5NjI0MzI2Nn0.HzrIVB-ykHYbOPeA8IH9x-NO3U8Gzc9OqixAVD4noug
         run: npm run verifica:rpc
+
+      # Stessa chiave: get_migrazioni_applicate() espone solo version/name di
+      # supabase_migrations.schema_migrations, gli stessi nomi dei file già
+      # pubblici nel repository Git (vedi la migrazione che la introduce).
+      - name: Verifica che le migrazioni del repository siano applicate
+        if: always()
+        env:
+          SUPABASE_URL: https://vmxvnxsqfisucugcpqlc.supabase.co
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZteHZueHNxZmlzdWN1Z2NwcWxjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjcyNjYsImV4cCI6MjA5NjI0MzI2Nn0.HzrIVB-ykHYbOPeA8IH9x-NO3U8Gzc9OqixAVD4noug
+        run: npm run verifica:migrazioni
+
+      # Richiede il secret SUPABASE_ACCESS_TOKEN (token Management API, non la
+      # chiave anon): se non è ancora stato configurato lo script si dichiara
+      # inconcludente ed esce 0, non fa fallire il workflow — vedi il commento
+      # in cima a scripts/verifica-advisor/index.js per come crearlo.
+      - name: Verifica gli advisor di sicurezza e performance di Supabase
+        if: always()
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: npm run verifica:advisor

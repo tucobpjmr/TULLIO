@@ -351,6 +351,19 @@ describe("persistence — UPDATE_OWN_PROFILE scrive entrambe le tabelle", () => 
     expect(spec.rollback).toBeTypeOf("function");
   });
 
+  it("NON è admin-only: ognuno modifica il proprio profilo", () => {
+    // useSyncedDispatch nega qualunque azione in ADMIN_ONLY_ACTIONS prima di
+    // toccare il server. Ora che la scrittura passa di lì, aggiungere questa
+    // action a quell'elenco farebbe smettere in silenzio di salvarsi il
+    // profilo a tutti tranne gli admin — e la modale, che si fida dell'esito,
+    // resterebbe aperta senza spiegare perché.
+    expect(ADMIN_ONLY_ACTIONS.has("UPDATE_OWN_PROFILE")).toBe(false);
+    for (const uid of ["senior1", "junior1", "driver1"]) {
+      const state = statoCon([], uid);
+      expect(reducerHaApplicato(state, azione()), uid).toBe(true);
+    }
+  });
+
   it("scrive public.users e public.user_contacts sulla riga dell'utente corrente", async () => {
     const state = statoCon([], "senior1");
     const res = await PERSISTENCE.UPDATE_OWN_PROFILE.persist(state, azione(), "senior1");

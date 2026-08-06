@@ -23,10 +23,11 @@ import { useListeWrite } from "./listePersistence.js";
 import { matchTermini, terminiRicerca } from "../../lib/searchUtils.js";
 import { ListeStyles } from "./listeStyles.jsx";
 import { ListaDetail } from "./ListaDetail.jsx";
-import {
-  ConfirmModal, ImportaBackupConfirmModal, NuovaListaModal, ResetTotaleModal,
-  StrumentiDatiModal,
-} from "./listeModals.jsx";
+import { ConfirmModal } from "./modals/ConfirmModal.jsx";
+import { ImportaBackupConfirmModal } from "./modals/ImportaBackupConfirmModal.jsx";
+import { NuovaListaModal } from "./modals/NuovaListaModal.jsx";
+import { ResetTotaleModal } from "./modals/ResetTotaleModal.jsx";
+import { StrumentiDatiModal } from "./modals/StrumentiDatiModal.jsx";
 
 const HOME_PAGE_SIZE = 10;
 

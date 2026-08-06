@@ -5,7 +5,7 @@ import { describe, it, expect, vi } from "vitest";
 // costruibile senza VITE_SUPABASE_URL. Mockato e mai usato: qui servono
 // solo gli helper puri.
 vi.mock("../lib/supabase", () => ({ supabase: {}, default: {} }));
-import { expandRecurring, nthRecurrence } from "../components/calendar/CalendarPlanner.jsx";
+import { expandRecurring, nthRecurrence } from "../components/calendar/calendarRecurrence.js";
 
 // Helper: costruisce un task ricorrente con dueDate in ora locale.
 const task = (recurrence, base) => ({

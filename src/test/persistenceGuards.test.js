@@ -473,3 +473,128 @@ describe("persistence — rollback dichiarati", () => {
     expect(PERSISTENCE.DELETE_CLIENT.mapError({ code: "500", message: "boom" })).toBe("boom");
   });
 });
+
+// ─── COMPLETEZZA DEL REGISTRY ────────────────────────────────────────────────
+// I test qui sopra verificano che guard e reducer concordino sulle azioni
+// PRESENTI nel registry. Nessuno di loro nota un'azione che nel registry non
+// c'è: aggiungere un case al reducer e dimenticare la entry produce una UI che
+// si aggiorna e un database che non riceve niente — il difetto più silenzioso
+// di tutti, perché a schermo sembra funzionare finché non si ricarica.
+//
+// I case si leggono dal SORGENTE del reducer, non da una lista scritta a mano
+// qui: una lista sarebbe una terza copia da tenere allineata, cioè esattamente
+// il tipo di divergenza che questo file esiste per impedire.
+// `?raw` di Vite: importa il file come testo senza eseguirlo.
+const SORGENTE_REDUCER = (await import("../state/reducer.js?raw")).default;
+const AZIONI_DEL_REDUCER = [...SORGENTE_REDUCER.matchAll(/case "([A-Z_]+)"/g)].map(m => m[1]);
+
+// Ogni azione che il reducer gestisce e che NON sta nel registry deve stare in
+// uno di questi quattro elenchi, con la sua ragione. È la parte che rende il
+// test una decisione invece di un'omissione: chi aggiunge un case deve dire
+// dove sta, e se non lo dice il test si ferma.
+const SOLO_CLIENT = [
+  // Stato che non esiste sul server: pannelli aperti, filtri, selezione, toast.
+  "SHOW_TOAST", "CLEAR_TOAST", "SET_VIEW", "SET_FILTER", "SET_SEARCH",
+  "SET_SELECTED_TASK", "TOGGLE_SIDEBAR", "TOGGLE_NOTIF", "CLEAR_LISTE_TARGET",
+  // Il log attività è ricostruito in memoria dalle azioni (buildLogEntry):
+  // svuotarlo è un'operazione locale perché il log stesso lo è.
+  "CLEAR_ACTIVITY_LOG",
+];
+
+const IDRATAZIONE = [
+  // Direzione opposta: sono i dati che ARRIVANO dal server. Le scrive
+  // src/hooks/useAppHydration.js, e persisterle rimanderebbe indietro ciò che
+  // si è appena letto.
+  "SET_TASKS", "SET_NOTICES", "SET_CLIENTS", "SET_CATEGORIES", "SET_TEAM",
+  "SET_CURRENT_USER",
+];
+
+const COMPENSAZIONE = [
+  // Le dispatcha il registry stesso quando una scrittura fallisce: sono il
+  // rollback, non una scrittura. Persisterle significherebbe scrivere sul
+  // server l'annullamento di qualcosa che sul server non è mai arrivato.
+  "ROLLBACK_TASKS_BULK", "RESTORE_CLIENT", "CANCEL_ADMIN_ROLLBACK",
+];
+
+// Questo quarto elenco non è una categoria: è un registro di lacune note.
+// Sono azioni che modificano dati che l'utente si aspetta di ritrovare, e che
+// oggi vivono solo in memoria — al reload spariscono. Nessuna ha un endpoint
+// (né tabella, né RPC), quindi non è "una entry dimenticata": è lavoro che
+// manca a monte, nel data layer.
+//
+// Stanno scritte qui perché un test che le allowlist-asse in silenzio insieme
+// ai toast sarebbe peggio di nessun test. Quando una viene persistita per
+// davvero, il caso "nessuna azione sta in due posti" qui sotto obbliga a
+// toglierla da questa lista.
+const NON_PERSISTITE_OGGI = [
+  // I template di messaggio si creano dal pannello admin e vivono in
+  // state.messageTemplates: nessuno li rilegge all'avvio.
+  "ADD_MESSAGE_TEMPLATE", "UPDATE_MESSAGE_TEMPLATE", "DELETE_MESSAGE_TEMPLATE",
+  // Le reazioni agli avvisi hanno lo stesso shape di quelle della chat, che
+  // invece passano dalla RPC messages_toggle_reaction. Per gli avvisi la RPC
+  // corrispondente non esiste.
+  "TOGGLE_NOTICE_REACTION",
+  // Ramo legacy "agente senza account": con l'email si passa da Users.invite
+  // (Edge Function) e il team si ricarica dal server; senza, il membro viene
+  // aggiunto solo allo stato locale e la prima idratazione lo fa sparire.
+  "ADD_TEAM_MEMBER",
+  // Nessun componente la dispatcha: il nome agenzia si modifica solo via
+  // RESTORE_BACKUP. Case raggiungibile da nessuno, non una lacuna di scrittura.
+  "SET_AGENCY_NAME",
+];
+
+const DICHIARATE_FUORI_REGISTRY = [
+  ...SOLO_CLIENT, ...IDRATAZIONE, ...COMPENSAZIONE, ...NON_PERSISTITE_OGGI,
+];
+
+describe("persistence — completezza del registry", () => {
+  it("ogni azione del reducer o è nel registry o è dichiarata qui", () => {
+    const dichiarate = new Set([...Object.keys(PERSISTENCE), ...DICHIARATE_FUORI_REGISTRY]);
+    const orfane = [...new Set(AZIONI_DEL_REDUCER)].filter(a => !dichiarate.has(a));
+    expect(
+      orfane,
+      "azioni del reducer senza entry di persistenza e non dichiarate: " +
+      `${orfane.join(", ")}. Se scrivono un dato che deve sopravvivere al reload, ` +
+      "aggiungi la entry in src/state/persistence.js; altrimenti mettile nell'elenco " +
+      "giusto qui sopra, con il perché.",
+    ).toEqual([]);
+  });
+
+  it("nessuna azione sta in due posti", () => {
+    // Se un'azione è nel registry E in un elenco di esenzione, l'esenzione
+    // vince nella lettura di chi passa di qui e nasconde la scrittura vera.
+    // Vale anche al contrario: quando una lacuna di NON_PERSISTITE_OGGI viene
+    // chiusa, questo caso obbliga a rimuoverla dal registro.
+    const doppie = DICHIARATE_FUORI_REGISTRY.filter(a => PERSISTENCE[a]);
+    expect(doppie, `dichiarate fuori dal registry ma presenti nel registry: ${doppie.join(", ")}`).toEqual([]);
+
+    const conteggio = new Map();
+    for (const a of DICHIARATE_FUORI_REGISTRY) conteggio.set(a, (conteggio.get(a) ?? 0) + 1);
+    expect([...conteggio].filter(([, n]) => n > 1).map(([a]) => a)).toEqual([]);
+  });
+
+  it("il registry non contiene entry morte", () => {
+    // Una entry per un'azione che il reducer non gestisce più non scrive mai:
+    // useSyncedDispatch la consulta partendo dall'azione dispatchata.
+    const gestite = new Set(AZIONI_DEL_REDUCER);
+    const morte = Object.keys(PERSISTENCE).filter(a => !gestite.has(a));
+    expect(morte, `entry di persistenza senza case nel reducer: ${morte.join(", ")}`).toEqual([]);
+  });
+
+  it("ogni entry del registry sa scrivere", () => {
+    // Una entry con solo guard/rollback passerebbe tutti i test qui sopra
+    // senza mandare niente al server.
+    const senzaPersist = Object.entries(PERSISTENCE)
+      .filter(([, spec]) => typeof spec.persist !== "function")
+      .map(([a]) => a);
+    expect(senzaPersist, `entry senza persist(): ${senzaPersist.join(", ")}`).toEqual([]);
+  });
+
+  it("le esenzioni dichiarate esistono davvero nel reducer", () => {
+    // Un'azione rinominata lascerebbe qui il vecchio nome, e l'elenco
+    // smetterebbe di descrivere il codice senza che nulla lo segnali.
+    const gestite = new Set(AZIONI_DEL_REDUCER);
+    const fantasmi = DICHIARATE_FUORI_REGISTRY.filter(a => !gestite.has(a));
+    expect(fantasmi, `dichiarate qui ma non gestite dal reducer: ${fantasmi.join(", ")}`).toEqual([]);
+  });
+});

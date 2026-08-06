@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ListeAPI, eur, fmtDate, intestazioneLista, saldoClass } from "../../lib/listeApi.js";
 import { useListeWrite } from "./listePersistence.js";
 import { ListeStyles } from "./listeStyles.jsx";
-import { NuovaListaModal } from "./listeModals.jsx";
+import { NuovaListaModal } from "./modals/NuovaListaModal.jsx";
 
 export function ClienteListePanel({ cliente, dispatch }) {
   const [liste, setListe] = useState([]);

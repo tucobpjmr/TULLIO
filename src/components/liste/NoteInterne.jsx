@@ -1,0 +1,62 @@
+// Note interne della lista, modificabili in linea (estratto da ListaDetail.jsx).
+import { useEffect, useRef, useState } from "react";
+import { useListeWrite } from "./listePersistence.js";
+
+// Note interne: sezione a uso del team, separata dal "foglio" dei movimenti.
+// Non finisce mai nel riepilogo cliente: riepilogoTesto/RiepilogoClienteModal
+// leggono solo `movimenti`, mai `lista.note` (vedi listeApi.js/listeModals.jsx).
+export function NoteInterne({ lista, dispatch, onSaved }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(lista.note || "");
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef(null);
+  const esegui = useListeWrite(dispatch);
+
+  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+
+  const open = () => { setValue(lista.note || ""); setEditing(true); };
+
+  const save = async () => {
+    if (saving) return;
+    const note = value.trim() || null;
+    if (note === (lista.note || null)) { setEditing(false); return; }
+    setSaving(true);
+    const { ok } = await esegui("modificaNote", { id: lista.id, note });
+    setSaving(false);
+    if (!ok) return;
+    setEditing(false);
+    await onSaved();
+  };
+
+  return (
+    <div className="lv-card lv-note-card" style={{ marginTop: 16 }}>
+      <div className="lv-note-head">
+        <h3>Note interne</h3>
+        <span className="lv-note-hint">Solo per il team — escluse dal riepilogo cliente</span>
+      </div>
+      {editing ? (
+        <>
+          <textarea
+            ref={inputRef}
+            className="lv-note-text"
+            rows={4}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="Es. accordi presi, promemoria per l'agenzia…"
+            onKeyDown={(e) => { if (e.key === "Escape") setEditing(false); }}
+          />
+          <div className="lv-cell-edit-actions">
+            <button className="lv-btn sm" onClick={() => setEditing(false)}>Annulla</button>
+            <button className="lv-btn primary sm" disabled={saving} onClick={save}>
+              {saving ? "Salvo…" : "Salva"}
+            </button>
+          </div>
+        </>
+      ) : lista.note ? (
+        <p className="lv-note-body" onClick={open} title="Tocca per modificare">{lista.note}</p>
+      ) : (
+        <button className="lv-btn sm" onClick={open}>+ Aggiungi nota interna</button>
+      )}
+    </div>
+  );
+}

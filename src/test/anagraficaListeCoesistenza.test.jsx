@@ -52,7 +52,7 @@ vi.mock("../lib/listeApi.js", async (importOriginal) => {
 });
 
 const { ClientiView } = await import("../components/clients/ClientiView.jsx");
-const { EditListaModal } = await import("../components/liste/listeModals.jsx");
+const { EditListaModal } = await import("../components/liste/modals/EditListaModal.jsx");
 
 const TEAM = [{ id: "marco", name: "Marco Rossi", role: "admin", active: true, pending: false }];
 

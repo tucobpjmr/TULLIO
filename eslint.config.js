@@ -115,14 +115,31 @@ export default [
         ignoreRestSiblings: true,
       }],
       'no-empty': ['warn', { allowEmptyCatch: true }],
-      // docs/CLAUDE.md prescrive di spezzare sopra le ~500 righe e di non
-      // tenere un secondo componente "solo per ora" in un file che ne ha già
-      // uno. Era una convenzione scritta e mai misurata: quindici file la
-      // violavano, il peggiore con sei componenti dentro. Warning e non error
-      // perché alcuni file grandi sono legittimi (il reducer È uno switch, il
-      // data layer È un elenco di query): serve un segnale in review, non un
-      // blocco.
-      'max-lines': ['warn', { max: 500, skipBlankLines: true, skipComments: true }],
+      // docs/CLAUDE.md prescrive di spezzare sopra le ~500 righe. È nata come
+      // warning perché quindici file la violavano: un errore avrebbe bloccato
+      // tutto il lavoro in corso il giorno in cui è stata introdotta.
+      //
+      // Ora è un errore, e la differenza non è di severità ma di significato.
+      // Un warning con un arretrato aperto è rumore che si impara a saltare —
+      // sei file lo hanno dimostrato restando sopra soglia per intere sessioni
+      // senza che nessuno li leggesse più. Un errore a zero violazioni dice
+      // una cosa sola e verificabile: nessun file supera la soglia, e il
+      // prossimo che lo farà si ferma qui invece che in code review.
+      //
+      // L'unica eccezione è dichiarata più sotto, con la sua ragione.
+      'max-lines': ['error', { max: 500, skipBlankLines: true, skipComments: true }],
+      // "Mai un secondo componente 'solo per ora' in un file che ne ha già
+      // uno" (docs/CLAUDE.md) era l'altra metà della stessa convenzione, e non
+      // era misurata affatto: listeModals.jsx ne conteneva tredici, ListaDetail
+      // quattro, TaskSlideOver e ProfileEditor due ciascuno.
+      //
+      // Warning e non errore, a differenza di max-lines, perché qui l'arretrato
+      // non è a zero: restano diciannove casi in dodici file (Sidebar/BottomNav,
+      // TaskCard/TaskRow, i tre chip di QueueShell…), tutti in file ampiamente
+      // sotto soglia, che spezzare oggi sarebbe churn senza una misura che lo
+      // giustifichi. La differenza rispetto a prima è che ora quel numero
+      // esiste: è scritto in docs/CLAUDE.md e lo si vede scendere o salire.
+      'react/no-multi-comp': 'warn',
       // Lo shim state/appGlobals.js (tre `let` di modulo con TEAM/CATEGORIES/
       // CURRENT_USER) è stato eliminato: la fonte di verità è lo state del
       // reducer, esposta ai componenti da useAppData(). La regola esiste perché
@@ -166,8 +183,34 @@ export default [
       'no-restricted-properties': ['error', ...VIETATE_MUTAZIONI_TEAM],
     },
   },
+  // ─── L'UNICA ECCEZIONE A max-lines ─────────────────────────────────────────
+  // Il reducer è UNO switch: 504 righe effettive di cui 495 sono i suoi case.
+  // Spezzarlo per dimensione significherebbe distribuire su più file le
+  // transizioni di un'unica macchina a stati, e la proprietà che rende questo
+  // file leggibile — vedere in un colpo solo tutto ciò che può succedere allo
+  // state — è esattamente quella che si perderebbe. È una decisione, quindi sta
+  // scritta qui con un tetto suo invece di restare un warning che nessuno legge.
+  //
+  // Il tetto è 550 e non "nessun limite": la deroga vale per la forma del file,
+  // non è un permesso di crescere senza fine. Se il reducer arriva lì, la
+  // domanda giusta non è alzare ancora il numero — è se una fetta di dominio
+  // meriti un reducer suo.
+  //
+  // Nota su src/lib/api.js, l'altro candidato naturale a questa deroga: oggi
+  // sta a 376 righe effettive e non gli serve. Esentarlo per categoria ("è un
+  // elenco di query, quindi può essere lungo") gli regalerebbe 130 righe di
+  // margine che nessuno ha chiesto, ed è il modo in cui un'eccezione motivata
+  // diventa un'esenzione permanente.
+  {
+    files: ['src/state/reducer.js'],
+    rules: { 'max-lines': ['error', { max: 550, skipBlankLines: true, skipComments: true }] },
+  },
   {
     files: ['**/*.test.{js,jsx}', 'src/test/**'],
     languageOptions: { globals: { ...globals.node } },
+    // Un file di test dichiara sonde usa-e-getta (un componente che registra
+    // cosa ha letto dal contesto, un guscio che simula il genitore): sono lo
+    // strumento della misura, non "un secondo componente solo per ora".
+    rules: { 'react/no-multi-comp': 'off' },
   },
 ];

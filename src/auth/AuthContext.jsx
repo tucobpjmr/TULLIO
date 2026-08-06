@@ -243,16 +243,12 @@ export function AuthProvider({ children }) {
   const signIn = (email, password) =>
     supabase.auth.signInWithPassword({ email, password });
 
-  // Registrazione self-service: il trigger handle_new_auth_user crea il profilo
-  // applicativo con pending=true (vedi 20260619_security_dedupe_signup_trigger).
-  // Il trigger notify_user_pending avvisa gli admin (Block 3). L'admin deve poi
-  // approvare l'utente dal pannello Team prima dell'accesso.
-  const signUp = (email, password, name) =>
-    supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { name } },
-    });
+  // La registrazione self-service è stata rimossa (S-13): l'unico modo di
+  // entrare nel gestionale è l'invito (Edge Function invite-user). Il trigger
+  // handle_new_auth_user resta al suo posto e continua a creare il profilo con
+  // pending=true — è la rete di sicurezza se un account nascesse comunque, per
+  // esempio da una chiamata diretta a /auth/v1/signup finché il signup non è
+  // disattivato anche nella dashboard Supabase.
 
   // scope:'local' → esce SOLO dalla scheda/dispositivo corrente. Senza scope,
   // supabase-js usa di default 'global' e revoca TUTTE le sessioni dell'utente
@@ -325,7 +321,6 @@ export function AuthProvider({ children }) {
     isAgent: toDbRole(profile?.role) === 'agent',
     isDriver: toDbRole(profile?.role) === 'driver',
     signIn,
-    signUp,
     resetPassword,
     resendConfirmation,
     updatePassword,

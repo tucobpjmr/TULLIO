@@ -126,6 +126,34 @@ export const canCreateTaskCategory = (team, category, userId) => {
 
 export const canAccessAdmin = (team, userId) => isAdmin(team, userId);
 
+// ─── MODULO LISTE VIAGGIO ────────────────────────────────────────────────────
+// Rispecchia `private.can_liste()` lato database (migrazione 20260728190100):
+// role IN (admin, manager, agent) AND active.
+//
+// PERCHÉ ESISTE. La stessa domanda — "questo utente può usare il modulo Liste?"
+// — aveva cinque risposte scritte in cinque punti: il reducer e le due viste
+// del core la ponevano come `!isDriver(...)`, il modulo come
+// `role === "driver"`, e il database come `can_liste()`. Sono equivalenti solo
+// finché ogni membro ha un ruolo dentro l'enum ed è attivo; fuori da lì
+// divergono, e a divergere è il livello che decide che cosa mostrare rispetto a
+// quello che decide che cosa è permesso. È lo stesso motivo per cui `isAdmin`
+// è una funzione sola e non un confronto ripetuto (vedi AuthContext).
+//
+// Le due differenze rispetto a `!isDriver` sono volute, ed entrambe rendono il
+// verdetto più vicino a quello del database:
+//   • un utente non più nel team non ottiene l'accesso per assenza di prove;
+//   • un utente disattivato nemmeno — la RLS lo rifiuterebbe comunque, ma qui
+//     riceve un diniego pulito invece di una vista piena di errori.
+// Il confronto passa da toDbRole come ovunque: un ruolo fuori enum non
+// corrisponde a nessun ramo di can_liste() e qui non deve corrispondere.
+const RUOLI_LISTE = ['admin', 'manager', 'agent'];
+
+export const canAccessListe = (team, userId) => {
+  const m = getMember(team, userId);
+  if (!m || m.active === false) return false;
+  return RUOLI_LISTE.includes(toDbRole(m.role));
+};
+
 export const getVisibleTasks = (team, tasks, userId) =>
   (tasks || []).filter(t => canViewTask(team, t, userId));
 

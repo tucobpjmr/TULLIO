@@ -16,8 +16,9 @@ import { useListeData } from "./useListeData.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import {
   ListeAPI, beneficiariNomi, downloadBlob, eur, fmtDate, intestazioneLista,
-  runListeCall, saldoClass, todayISO,
+  saldoClass, todayISO,
 } from "../../lib/listeApi.js";
+import { useListeWrite } from "./listePersistence.js";
 import { matchTermini, terminiRicerca } from "../../lib/searchUtils.js";
 import { ListeStyles } from "./listeStyles.jsx";
 import { ListaDetail } from "./ListaDetail.jsx";
@@ -139,10 +140,14 @@ export function ListaRow({ lista, saldo, onOpen, trashed = false, children }) {
 // ─── Modulo ────────────────────────────────────────────────────────────────
 export function ListeViaggio({ state, dispatch }) {
   const { isMobile } = useViewport();
-  const { getRoleType, isAdmin } = useAppData();
+  const { isAdmin, canAccessListe } = useAppData();
   const uid = state.currentUserId;
-  const role = getRoleType(uid);
-  const isDriver = role === "driver";
+  // Chi può usare il modulo: una domanda sola, la stessa del reducer, delle
+  // viste del core che ci linkano e di can_liste() sul database. Qui era
+  // `getRoleType(uid) === "driver"`, cioè la quinta formulazione della stessa
+  // regola — quella che, per un ruolo fuori enum o un utente disattivato,
+  // rispondeva diversamente dalle altre quattro.
+  const listeAllowed = canAccessListe(uid);
   const isAdminUser = isAdmin(uid);
 
   // Dati della home + realtime: vedi useListeData. Prima erano cinque useState
@@ -150,7 +155,8 @@ export function ListeViaggio({ state, dispatch }) {
   // refetch completo per ogni modifica, e nessun evento quando a scrivere era
   // un altro utente.
   const { liste, cestino, saldi, loading, loadError, reload: loadHome } =
-    useListeData({ enabled: !isDriver });
+    useListeData({ enabled: listeAllowed });
+  const esegui = useListeWrite(dispatch);
 
   const [openId, setOpenId] = useState(null);
   const [detail, setDetail] = useState(null); // { lista, movimenti, history }
@@ -274,7 +280,7 @@ export function ListeViaggio({ state, dispatch }) {
   ));
 
   const ripristina = async (id) => {
-    const { ok } = await runListeCall(dispatch, ListeAPI.ripristina(id), "Lista ripristinata");
+    const { ok } = await esegui("ripristinaLista", id);
     if (ok) await loadHome();
   };
 
@@ -285,7 +291,7 @@ export function ListeViaggio({ state, dispatch }) {
     danger: true,
     onOk: async () => {
       setConfirm(null);
-      const { ok } = await runListeCall(dispatch, ListeAPI.eliminaDefinitiva(l.id), "Lista eliminata definitivamente");
+      const { ok } = await esegui("eliminaListaDefinitivamente", l.id);
       if (ok) await loadHome();
     },
   });
@@ -347,9 +353,7 @@ export function ListeViaggio({ state, dispatch }) {
     // bloccato. L'avanzamento arriva dal layer dati, che sa quanti blocchi ha
     // già scritto.
     setImportProgress({ done: 0, total: 0 });
-    const { ok, data: res } = await runListeCall(
-      dispatch, ListeAPI.importaBackup(pendingImport.payload, setImportProgress), null,
-    );
+    const { ok, data: res } = await esegui("importaBackup", pendingImport.payload, setImportProgress);
     setImportProgress(null);
     if (!ok) return false;
     setPendingImport(null);
@@ -362,7 +366,7 @@ export function ListeViaggio({ state, dispatch }) {
   };
 
   const confermaReset = async () => {
-    const { ok, data: res } = await runListeCall(dispatch, ListeAPI.resetCompleto("RESET TOTALE"), null);
+    const { ok, data: res } = await esegui("resetTotale");
     if (!ok) return false;
     setResetOpen(false);
     dispatch({
@@ -410,10 +414,10 @@ export function ListeViaggio({ state, dispatch }) {
     </div>
   );
 
-  // Il Driver non ha accesso al modulo (RLS lato DB + gate lato client). Il
-  // reducer riporta comunque alla Dashboard chi passa a un utente driver
-  // mentre la vista è aperta: questo ramo copre il caso residuo.
-  if (isDriver) {
+  // Chi non ha accesso al modulo (RLS lato DB + gate lato client). Il reducer
+  // riporta comunque alla Dashboard chi passa a un utente senza accesso mentre
+  // la vista è aperta: questo ramo copre il caso residuo.
+  if (!listeAllowed) {
     return (
       <div className="fade-in">
         {chrome}
@@ -555,7 +559,7 @@ export function ListeViaggio({ state, dispatch }) {
               onCreate={{
                 onError: (message) => dispatch({ type: "SHOW_TOAST", payload: { type: "error", message } }),
                 run: async (payload) => {
-                  const { ok, data: id } = await runListeCall(dispatch, ListeAPI.crea(payload), "Lista creata");
+                  const { ok, data: id } = await esegui("creaLista", payload);
                   if (!ok) return false;
                   setNuovaOpen(false);
                   await loadHome();

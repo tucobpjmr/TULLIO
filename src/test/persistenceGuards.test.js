@@ -22,7 +22,7 @@ vi.mock("../lib/api.js", () => {
     Tasks:      { create: vi.fn(ok), createMany: vi.fn(ok), update: vi.fn(ok), softDelete: vi.fn(ok), restore: vi.fn(ok), hardDelete: vi.fn(ok) },
     Comments:   { create: vi.fn(ok) },
     Notices:    { create: vi.fn(ok), update: vi.fn(ok), remove: vi.fn(ok), togglePin: vi.fn(ok) },
-    Users:      { approve: vi.fn(ok), deleteUser: vi.fn(ok), setActive: vi.fn(ok), updateProfile: vi.fn(ok) },
+    Users:      { approve: vi.fn(ok), deleteUser: vi.fn(ok), setActive: vi.fn(ok), updateProfile: vi.fn(ok), updateContact: vi.fn(ok) },
     Clients:    { create: vi.fn(ok), update: vi.fn(ok), remove: vi.fn(ok) },
     Categories: { create: vi.fn(ok), update: vi.fn(ok), remove: vi.fn(ok) },
   };
@@ -328,6 +328,90 @@ describe("persistence — UPDATE_TEAM_MEMBER raggiunge il database", () => {
       type: "UPDATE_TEAM_MEMBER",
       payload: state.team.find(m => m.id === "senior1"),
     });
+  });
+});
+
+// UPDATE_OWN_PROFILE era l'ultima mutazione su un'entità dello state a vivere
+// fuori dal registry: ProfileEditor dispatchava in ottimistico e poi chiamava
+// UsersAPI a mano, con un toast per scrittura e nessun rollback. Il fallimento
+// lasciava lo state React aggiornato e il database no.
+describe("persistence — UPDATE_OWN_PROFILE scrive entrambe le tabelle", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  const PAYLOAD = {
+    name: "Marco Ferretti", avatar: "MF", color: "#0F2044",
+    photoUrl: "senior1/avatar.jpg", email: "marco@agenzia.it", phone: "+39 333 1234567",
+  };
+  const azione = (over = {}) => ({ type: "UPDATE_OWN_PROFILE", payload: { ...PAYLOAD, ...over } });
+
+  it("la entry esiste ed è persistita (regressione: la scrittura viveva nel componente)", () => {
+    const spec = PERSISTENCE.UPDATE_OWN_PROFILE;
+    expect(spec, "senza entry la modale profilo torna a persistere da sé, senza rollback").toBeDefined();
+    expect(spec.persist).toBeTypeOf("function");
+    expect(spec.rollback).toBeTypeOf("function");
+  });
+
+  it("scrive public.users e public.user_contacts sulla riga dell'utente corrente", async () => {
+    const state = statoCon([], "senior1");
+    const res = await PERSISTENCE.UPDATE_OWN_PROFILE.persist(state, azione(), "senior1");
+
+    expect(res.error).toBeNull();
+    expect(UsersAPI.updateProfile).toHaveBeenCalledTimes(1);
+    const [id, patch] = UsersAPI.updateProfile.mock.calls[0];
+    // L'id è quello del reducer, non un valore che arriva dal payload: la riga
+    // scritta è per costruzione la propria.
+    expect(id).toBe("senior1");
+    expect(patch).toEqual({ name: "Marco Ferretti", avatar: "MF", color: "#0F2044", photo_url: "senior1/avatar.jpg" });
+
+    expect(UsersAPI.updateContact).toHaveBeenCalledWith("senior1", {
+      email: "marco@agenzia.it", phone: "+39 333 1234567",
+    });
+  });
+
+  it("email e telefono vuoti diventano null, non stringhe vuote", async () => {
+    const state = statoCon([], "senior1");
+    await PERSISTENCE.UPDATE_OWN_PROFILE.persist(state, azione({ email: "", phone: "" }), "senior1");
+    expect(UsersAPI.updateContact).toHaveBeenCalledWith("senior1", { email: null, phone: null });
+  });
+
+  it("se public.users rifiuta, i contatti NON vengono scritti e l'errore risale", async () => {
+    // Metà scrittura andata a buon fine è il caso peggiore: nessun rollback
+    // potrebbe più riportare indietro l'insieme.
+    UsersAPI.updateProfile.mockResolvedValueOnce({ data: null, error: { code: "42501", message: "permission denied" } });
+
+    const state = statoCon([], "senior1");
+    const res = await PERSISTENCE.UPDATE_OWN_PROFILE.persist(state, azione(), "senior1");
+
+    expect(res.error).toMatchObject({ code: "42501" });
+    expect(UsersAPI.updateContact).not.toHaveBeenCalled();
+  });
+
+  it("il rollback riporta indietro TUTTI i campi, anche quelli assenti dal membro", () => {
+    // `prev` senza email/phone: il reducer ignora le chiavi undefined, quindi
+    // uno snapshot che non le elenca lascerebbe a video i valori ottimistici.
+    const state = { ...statoCon([], "senior1") };
+    state.team = state.team.map(m => (m.id === "senior1" ? { ...m, name: "Senior", color: "#111" } : m));
+
+    const undo = PERSISTENCE.UPDATE_OWN_PROFILE.rollback(state, azione());
+    expect(undo.type).toBe("UPDATE_OWN_PROFILE");
+    expect(Object.keys(undo.payload).sort())
+      .toEqual(["avatar", "color", "email", "name", "phone", "photoUrl"]);
+    expect(undo.payload.name).toBe("Senior");
+    expect(undo.payload.color).toBe("#111");
+    expect(undo.payload.email).toBeNull();
+    expect(undo.payload.phone).toBeNull();
+  });
+
+  it("il rollback applicato dal reducer ripristina davvero lo stato precedente", () => {
+    const prima = statoCon([], "senior1");
+    const dopo = reducer(prima, azione());
+    expect(dopo.team.find(m => m.id === "senior1").name).toBe("Marco Ferretti");
+
+    const undo = PERSISTENCE.UPDATE_OWN_PROFILE.rollback(prima, azione());
+    const ripristinato = reducer(dopo, undo);
+    const membro = ripristinato.team.find(m => m.id === "senior1");
+    expect(membro.name).toBe("Senior");
+    expect(membro.avatar).toBe(prima.team.find(m => m.id === "senior1").avatar ?? null);
   });
 });
 

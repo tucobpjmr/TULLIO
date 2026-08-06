@@ -81,7 +81,7 @@ const FilterDropdown = ({ options, selected, onToggle }) => {
 // task e liste viaggio, ed è quello dove le due ricerche devono coincidere.
 export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword, currentUserId }) => {
   const { isMobile } = useViewport();
-  const { team, categories, isDriver } = useAppData();
+  const { team, categories, canAccessListe } = useAppData();
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [cats, setCats] = useState([]);
@@ -89,9 +89,9 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
   const [agents, setAgents] = useState([]);
   const [includeTrashed, setIncludeTrashed] = useState(false);
 
-  // Liste viaggio: il modulo è precluso ai Driver (stessa RLS del modulo
-  // stesso), quindi per loro non ha senso caricarle né mostrarle qui.
-  const listeAllowed = !isDriver(currentUserId);
+  // Liste viaggio: chi non ha accesso al modulo non ha motivo di vederle qui
+  // (stessa RLS del modulo stesso), quindi niente fetch e niente filtri.
+  const listeAllowed = canAccessListe(currentUserId);
   const [liste, setListe] = useState([]);
   const [listeStati, setListeStati] = useState([]);
   const [listeClienti, setListeClienti] = useState([]);

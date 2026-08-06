@@ -4,9 +4,10 @@
 // vanilla, con lo stato dei campi in useState invece che in variabili globali.
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ListeAPI, METODI, actionLabel, docHtml, downloadBlob, eur, fmtDate,
-  parseImporto, runListeCall, saldoClass, todayISO,
+  METODI, actionLabel, docHtml, downloadBlob, eur, fmtDate,
+  parseImporto, saldoClass, todayISO,
 } from "../../lib/listeApi.js";
+import { useListeWrite } from "./listePersistence.js";
 import {
   AggiungiBeneficiarioModal, BulkMovimentiModal, ConfirmModal, EditListaModal,
   EditMovimentoModal, RiepilogoClienteModal, SegnoSeg, SpostaTitolareModal,
@@ -23,6 +24,7 @@ function AddMovBox({ listaId, dispatch, onSaved, onClose, onBulk }) {
   const [metodo, setMetodo] = useState("");
   const [saving, setSaving] = useState(false);
   const descRef = useRef(null);
+  const esegui = useListeWrite(dispatch);
 
   useEffect(() => { descRef.current?.focus(); }, []);
 
@@ -34,11 +36,9 @@ function AddMovBox({ listaId, dispatch, onSaved, onClose, onBulk }) {
       return;
     }
     setSaving(true);
-    const { ok } = await runListeCall(
-      dispatch,
-      ListeAPI.addMovimento({ listaId, data, descrizione: desc.trim(), importo, metodo: metodo || null }),
-      "Movimento registrato",
-    );
+    const { ok } = await esegui("registraMovimento", {
+      listaId, data, descrizione: desc.trim(), importo, metodo: metodo || null,
+    });
     setSaving(false);
     if (!ok) return;
     // Il riquadro resta aperto e pronto per il movimento successivo: azzeriamo
@@ -107,6 +107,7 @@ function CellEditor({ movimento, campo, dispatch, onSaved, onCancel }) {
   });
   const [saving, setSaving] = useState(false);
   const inputRef = useRef(null);
+  const esegui = useListeWrite(dispatch);
 
   useEffect(() => {
     const el = inputRef.current;
@@ -140,11 +141,7 @@ function CellEditor({ movimento, campo, dispatch, onSaved, onCancel }) {
     }
 
     setSaving(true);
-    const { ok } = await runListeCall(
-      dispatch,
-      ListeAPI.modificaMovimento({ id: movimento.id, data, descrizione, importo, metodo }),
-      "Movimento aggiornato",
-    );
+    const { ok } = await esegui("modificaMovimento", { id: movimento.id, data, descrizione, importo, metodo });
     setSaving(false);
     if (ok) await onSaved();
   };
@@ -200,6 +197,7 @@ function TitoloTestata({ lista, dispatch, onSaved }) {
   const [value, setValue] = useState(lista.titolo || "");
   const [saving, setSaving] = useState(false);
   const inputRef = useRef(null);
+  const esegui = useListeWrite(dispatch);
 
   useEffect(() => {
     if (!editing) return;
@@ -214,12 +212,7 @@ function TitoloTestata({ lista, dispatch, onSaved }) {
     const titolo = value.trim() || null; // vuoto = lista senza titolo
     if (titolo === (lista.titolo || null)) { setEditing(false); return; } // niente da salvare
     setSaving(true);
-    // clientName null: la RPC lascia il nome cliente invariato.
-    const { ok } = await runListeCall(
-      dispatch,
-      ListeAPI.modifica({ id: lista.id, titolo, clientName: null }),
-      titolo ? "Titolo aggiornato" : "Titolo rimosso",
-    );
+    const { ok } = await esegui("modificaTitolo", { id: lista.id, titolo });
     setSaving(false);
     if (!ok) return;
     setEditing(false);
@@ -263,6 +256,7 @@ function NoteInterne({ lista, dispatch, onSaved }) {
   const [value, setValue] = useState(lista.note || "");
   const [saving, setSaving] = useState(false);
   const inputRef = useRef(null);
+  const esegui = useListeWrite(dispatch);
 
   useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
 
@@ -273,11 +267,7 @@ function NoteInterne({ lista, dispatch, onSaved }) {
     const note = value.trim() || null;
     if (note === (lista.note || null)) { setEditing(false); return; }
     setSaving(true);
-    const { ok } = await runListeCall(
-      dispatch,
-      ListeAPI.modificaNote({ id: lista.id, note }),
-      note ? "Note interne aggiornate" : "Note interne rimosse",
-    );
+    const { ok } = await esegui("modificaNote", { id: lista.id, note });
     setSaving(false);
     if (!ok) return;
     setEditing(false);
@@ -363,6 +353,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
 
   const err = (message) => dispatch({ type: "SHOW_TOAST", payload: { type: "error", message } });
   const helper = { run: null, onError: err };
+  const esegui = useListeWrite(dispatch);
 
   const toggleStato = async () => {
     if (attiva && Math.abs(saldo) > 0.004) {
@@ -375,13 +366,13 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
       return;
     }
     if (attiva) return chiudi();
-    const { ok } = await runListeCall(dispatch, ListeAPI.cambiaStato(lista.id, "attiva"), "Lista riaperta");
+    const { ok } = await esegui("riapriLista", lista.id);
     if (ok) await onReload();
   };
 
   const chiudi = async () => {
     setConfirm(null);
-    const { ok } = await runListeCall(dispatch, ListeAPI.cambiaStato(lista.id, "esaurita"), "Lista segnata come ESAURITA");
+    const { ok } = await esegui("esaurisciLista", lista.id);
     if (ok) await onReload();
   };
 
@@ -392,27 +383,19 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
     danger: true,
     onOk: async () => {
       setConfirm(null);
-      const { ok } = await runListeCall(dispatch, ListeAPI.archivia(lista.id), "Lista spostata nel cestino");
+      const { ok } = await esegui("cestinaLista", lista.id);
       if (ok) await onArchived();
     },
   });
 
   const spostaTitolare = async (nuovoClientId) => {
-    const { ok } = await runListeCall(
-      dispatch,
-      ListeAPI.spostaTitolare(lista.id, nuovoClientId),
-      "Titolare spostato",
-    );
+    const { ok } = await esegui("spostaTitolare", lista.id, nuovoClientId);
     if (ok) { setModal(null); await onReload(); }
     return ok;
   };
 
   const aggiungiBenef = async (payload) => {
-    const { ok } = await runListeCall(
-      dispatch,
-      ListeAPI.aggiungiBeneficiario({ listaId: lista.id, ...payload }),
-      "Cointestatario aggiunto",
-    );
+    const { ok } = await esegui("aggiungiCointestatario", { listaId: lista.id, ...payload });
     if (ok) { setModal(null); await onReload(); }
     return ok;
   };
@@ -424,7 +407,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
     danger: true,
     onOk: async () => {
       setConfirm(null);
-      const { ok } = await runListeCall(dispatch, ListeAPI.rimuoviBeneficiario(lista.id, b.client_id), "Cointestatario rimosso");
+      const { ok } = await esegui("rimuoviCointestatario", lista.id, b.client_id);
       if (ok) await onReload();
     },
   });
@@ -445,7 +428,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
     danger: true,
     onOk: async () => {
       setConfirm(null);
-      const { ok } = await runListeCall(dispatch, ListeAPI.annullaMovimento(m.id), "Movimento eliminato (tracciato nello storico)");
+      const { ok } = await esegui("annullaMovimento", m.id);
       if (ok) await onReload();
     },
   });
@@ -616,7 +599,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
           onSave={{
             ...helper,
             run: async (payload) => {
-              const { ok } = await runListeCall(dispatch, ListeAPI.modifica(payload), "Dati lista aggiornati");
+              const { ok } = await esegui("modificaLista", payload);
               if (ok) { setModal(null); await onReload(); }
               return ok;
             },
@@ -648,11 +631,9 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
           onSave={{
             ...helper,
             run: async ({ data, movimenti: righe, metodo }) => {
-              const { ok, data: n } = await runListeCall(
-                dispatch,
-                ListeAPI.addMovimenti({ listaId: lista.id, data, movimenti: righe, metodo }),
-                null,
-              );
+              const { ok, data: n } = await esegui("registraMovimenti", {
+                listaId: lista.id, data, movimenti: righe, metodo,
+              });
               if (!ok) return false;
               dispatch({ type: "SHOW_TOAST", payload: { type: "success", message: `${n} movimenti registrati` } });
               setModal(null);
@@ -670,7 +651,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
           onSave={{
             ...helper,
             run: async (payload) => {
-              const { ok } = await runListeCall(dispatch, ListeAPI.modificaMovimento(payload), "Movimento aggiornato");
+              const { ok } = await esegui("modificaMovimento", payload);
               if (ok) { setModal(null); await onReload(); }
               return ok;
             },

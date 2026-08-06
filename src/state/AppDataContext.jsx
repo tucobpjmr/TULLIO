@@ -72,6 +72,10 @@ export function AppDataProvider({ team, categories, currentUserId, children }) {
       canEditTask: (task, userId) => P.canEditTask(t, task, userId),
       canCreateTaskCategory: (category, userId) => P.canCreateTaskCategory(t, category, userId),
       canAccessAdmin: (userId) => P.canAccessAdmin(t, userId),
+      // Accesso al modulo Liste viaggio. Le viste che ci linkano lo chiedevano
+      // ciascuna a modo suo (`!isDriver(...)`): ora la domanda è una sola, e
+      // rispecchia can_liste() del database.
+      canAccessListe: (userId) => P.canAccessListe(t, userId),
       getVisibleTasks: (tasks, userId) => P.getVisibleTasks(t, tasks, userId),
 
       // Categorie disponibili al ruolo

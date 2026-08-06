@@ -18,11 +18,11 @@ import { ArchivedListe } from "../liste/ArchivedListe.jsx";
 
 export const Archive = ({ state, dispatch }) => {
   const { isMobile } = useViewport();
-  const { categories, getVisibleTasks, canEditTask, isDriver } = useAppData();
+  const { categories, getVisibleTasks, canEditTask, canAccessListe } = useAppData();
   const me = state.currentUserId;
-  // Le liste buoni viaggio sono precluse ai Driver (stessa RLS del modulo
-  // Liste Viaggio): niente tab, niente fetch, per chi non può comunque accedervi.
-  const listeAllowed = !isDriver(me);
+  // Le liste buoni viaggio seguono l'accesso al modulo Liste Viaggio (stessa
+  // RLS): niente tab, niente fetch, per chi non può comunque accedervi.
+  const listeAllowed = canAccessListe(me);
   const [tab, setTab] = useState("task");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");

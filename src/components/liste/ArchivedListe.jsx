@@ -9,7 +9,8 @@
 // Ora l'Archivio monta questo componente per composizione e non sa nulla di
 // come le liste vengano lette.
 import { useCallback, useEffect, useState } from "react";
-import { ListeAPI, eur, fmtDate, runListeCall, saldoClass } from "../../lib/listeApi.js";
+import { ListeAPI, eur, fmtDate, saldoClass } from "../../lib/listeApi.js";
+import { useListeWrite } from "./listePersistence.js";
 import { PERIOD_OPTIONS, filterByPeriod, thStyle, chipStyle } from "../views/archiveFilters.js";
 
 const SALDO_COLORS = { pos: "var(--success)", neg: "var(--danger)", zero: "var(--text-muted)" };
@@ -24,6 +25,7 @@ export const ArchivedListe = ({ dispatch, isMobile }) => {
   const [loadError, setLoadError] = useState(null);
   const [query, setQuery] = useState("");
   const [period, setPeriod] = useState("all");
+  const esegui = useListeWrite(dispatch);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -55,13 +57,13 @@ export const ArchivedListe = ({ dispatch, isMobile }) => {
   const apri = (l) => dispatch({ type: "SET_VIEW", payload: "liste", lista: l.id });
 
   const handleReopen = async (l) => {
-    const { ok } = await runListeCall(dispatch, ListeAPI.cambiaStato(l.id, "attiva"), "Lista riaperta");
+    const { ok } = await esegui("riapriLista", l.id);
     if (ok) load();
   };
 
   const handleTrash = async (l) => {
     if (!window.confirm(`Spostare la lista di "${l.clients?.name || "—"}" nel cestino?`)) return;
-    const { ok } = await runListeCall(dispatch, ListeAPI.archivia(l.id), "Lista spostata nel cestino");
+    const { ok } = await esegui("cestinaLista", l.id);
     if (ok) load();
   };
 

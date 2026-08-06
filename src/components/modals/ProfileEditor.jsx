@@ -258,32 +258,26 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
       phone: phone.trim(),
       photoUrl: finalPhotoUrl,
     };
-    // Aggiornamento ottimistico in memoria (immediato per l'UI).
-    dispatch({ type: "UPDATE_OWN_PROFILE", payload });
-    // Persistenza su Supabase (solo con sessione attiva):
-    //  - name/avatar/color/photo_url su public.users (caveat #25: prima erano
-    //    solo in-memory). Il trigger anti-escalation lascia passare questi
-    //    campi (blocca solo role/active/pending/capacity).
-    //  - email/phone su public.user_contacts (Step S): non sono più colonne di
-    //    public.users → vanno via Users.updateContact.
-    if (session) {
-      const { error: profileErr } = await UsersAPI.updateProfile(member.id, {
-        name: payload.name,
-        avatar: payload.avatar,
-        color: payload.color,
-        photo_url: payload.photoUrl,
-      });
-      if (profileErr) {
-        dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Profilo non salvato: ${profileErr.message}` } });
-      }
-      const { error } = await UsersAPI.updateContact(member.id, {
-        email: payload.email || null,
-        phone: payload.phone || null,
-      });
-      if (error) {
-        dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Contatti non salvati: ${error.message}` } });
-      }
-    }
+    // Aggiornamento ottimistico e persistenza sono UNA sola operazione,
+    // dichiarata in state/persistence.js (entry UPDATE_OWN_PROFILE): il registry
+    // scrive public.users (nome/iniziali/colore/foto, il trigger
+    // anti-escalation lascia passare questi campi) e public.user_contacts
+    // (email/telefono, che dallo Step S non sono più colonne di public.users), e
+    // se una delle due fallisce riporta indietro lo state e mostra il toast.
+    //
+    // Qui resta solo la decisione che spetta alla modale: se chiudersi. Prima
+    // le due scritture stavano in questo corpo, senza rollback e con onClose()
+    // incondizionato — l'utente vedeva il profilo aggiornato e la modale
+    // chiusa anche quando sul database non era arrivato nulla.
+    //
+    // Il dispatch sincronizzato ritorna { error }; in modalità mock e nei test
+    // può essere una spia che ritorna undefined, da cui l'accesso opzionale.
+    const res = await dispatch({ type: "UPDATE_OWN_PROFILE", payload });
+    // In errore la modale resta APERTA: chiuderla butterebbe via quanto è stato
+    // digitato e, subito dopo un rollback che ha appena rimesso i valori
+    // precedenti, lascerebbe l'utente davanti al profilo di prima senza un modo
+    // ovvio di riprovare.
+    if (res?.error) return;
     onClose();
   };
 

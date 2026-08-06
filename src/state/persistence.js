@@ -343,4 +343,58 @@ export const PERSISTENCE = {
       return ops.length ? Promise.all(ops) : NOOP;
     },
   },
+
+  // ─── PROFILO PERSONALE ─────────────────────────────────────────────────────
+  // L'unica azione che l'utente esegue su SE STESSO, e l'unica che tocca due
+  // tabelle: public.users (nome, iniziali, colore, foto) e public.user_contacts
+  // (email, telefono), separate dalla migrazione 20260613100833.
+  //
+  // Finché non era qui, ProfileEditor faceva da sé: dispatch ottimistico, poi
+  // due await a UsersAPI scritti a mano nel corpo del componente, un toast per
+  // ciascuno e NESSUN rollback. Se la scrittura falliva — RLS, rete, trigger
+  // anti-escalation — lo state React conservava i valori nuovi e la modale si
+  // chiudeva lo stesso: l'utente vedeva il proprio profilo aggiornato mentre il
+  // database non aveva ricevuto nulla, e se ne accorgeva solo al reload
+  // successivo, quando il nome tornava indietro da solo. È lo stesso
+  // disallineamento descritto in UPDATE_TEAM_MEMBER qui sopra, in un altro
+  // punto dell'app: la ragione per cui questo registry esiste è che quella
+  // classe di bug non si vede in review, si vede in produzione.
+  //
+  // Nessun guard: la riga scritta è sempre la PROPRIA (uid arriva dal reducer,
+  // non dal payload), e le policy own-row lo confermano lato server.
+  UPDATE_OWN_PROFILE: {
+    persist: async (s, a, uid) => {
+      const { name, avatar, color, photoUrl, email, phone } = a.payload || {};
+      // Sequenziale e non Promise.all: se public.users rifiuta la scrittura,
+      // mandare comunque i contatti lascerebbe il profilo aggiornato a metà sul
+      // server — il caso peggiore, perché a quel punto nessun rollback può più
+      // riportare indietro l'insieme.
+      const prof = await UsersAPI.updateProfile(uid, {
+        name, avatar, color, photo_url: photoUrl,
+      });
+      if (prof?.error) return prof;
+      return UsersAPI.updateContact(uid, { email: email || null, phone: phone || null });
+    },
+    // Lo snapshot elenca i sei campi per esteso invece di passare `prev` intero:
+    // il reducer applica solo le chiavi !== undefined, quindi un campo assente
+    // dallo snapshot NON verrebbe riportato indietro e resterebbe al valore
+    // ottimistico — un rollback parziale, che è peggio di nessun rollback
+    // perché sembra riuscito. `?? null` lo rende totale.
+    rollback: (s) => {
+      const prev = (s.team || []).find(m => m.id === s.currentUserId);
+      if (!prev) return null;
+      return {
+        type: "UPDATE_OWN_PROFILE",
+        payload: {
+          name: prev.name ?? null,
+          avatar: prev.avatar ?? null,
+          color: prev.color ?? null,
+          photoUrl: prev.photoUrl ?? null,
+          email: prev.email ?? null,
+          phone: prev.phone ?? null,
+        },
+      };
+    },
+    mapError: (err) => err?.message || "profilo non aggiornato",
+  },
 };

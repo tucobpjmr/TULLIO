@@ -1,6 +1,18 @@
 # Sicurezza & gestione dei dati
 
-Stato al 4 agosto 2026. Progetto Supabase `vmxvnxsqfisucugcpqlc` (tullio), 93 migrazioni nel repo.
+Stato al 7 agosto 2026. Progetto Supabase `vmxvnxsqfisucugcpqlc` (tullio), 103
+migrazioni nel repo.
+
+> **Revisione del 7 agosto 2026 (A-3 di `docs/AUDIT_ARCHITETTURA_2026-08.md`).**
+> La stesura precedente di questo documento (4 agosto) affermava due cose non
+> più vere: che la CSP fosse Report-Only (§5, §8 — **blocca** dal 6 agosto) e
+> che il vincolo del Junior Agent non fosse applicato dal database (§4 — **lo
+> è**, dallo stesso giorno). Non sono imprecisioni di stile: sono le premesse
+> su cui §6 costruiva le sue raccomandazioni, ed entrambe rendevano il
+> documento più ottimista di quanto la realtà giustificasse in un verso
+> (autorizzava a trattare la CSP come non vincolante) e più pessimista
+> nell'altro (dava il Junior come vincolo di sola UI). Le sezioni corrette
+> portano questa marcatura.
 
 **Come leggere questo documento.** Ogni affermazione è marcata con la sua fonte:
 
@@ -17,16 +29,35 @@ descrive l'intento, non necessariamente ciò che è deployato.
 
 ## 1. Esito del security advisor (✅ live)
 
-`get_advisors(type: security)` sul progetto di produzione: **0 errori, 9 warning**.
-Nessun warning di RLS mancante o disabilitata.
+`get_advisors(type: security)` sul progetto di produzione: **0 errori, 10
+warning**. Nessun warning di RLS mancante o disabilitata. Il warning
+`function_search_path_mutable` della stesura precedente **non compare più**
+(vedi §6 punto 2: la correzione è applicata, sotto una versione diversa da
+quella che il file in repo dichiara).
 
 | # | Warning | Conta | Valutazione |
 |---|---------|-------|-------------|
-| 1 | `function_search_path_mutable` su `public.set_updated_at` | 1 | **Da correggere** — vedi §6 |
-| 2 | `authenticated_security_definer_function_executable` | 7 | **Atteso e mitigato** — vedi sotto |
+| 1 | `anon_security_definer_function_executable` su `get_migrazioni_applicate()` | 1 | **Atteso e voluto** — vedi sotto |
+| 2 | `authenticated_security_definer_function_executable` | 8 | **Atteso e mitigato** — vedi sotto |
 | 3 | `auth_leaked_password_protection` disabilitata | 1 | **Da attivare** — vedi §6 |
 
-### Le 7 funzioni SECURITY DEFINER: perché il warning non è un buco
+### `get_migrazioni_applicate()` è raggiungibile da `anon`, ed è intenzionale
+
+Nuovo dal 6 agosto (migrazione `get_migrazioni_applicate`), e va spiegato
+perché altrimenti sembra una regressione rispetto a `revoke_anon_table_grants`,
+che nella stessa sessione toglie ad `anon` ogni privilegio sulle tabelle.
+
+La funzione espone `version`/`name` di `supabase_migrations.schema_migrations`
+— gli stessi nomi dei file già pubblici nel repository Git, non il testo SQL
+applicato (colonna `statements`, mai selezionata). Serve al controllo di scarto
+repo↔produzione (`npm run verifica:migrazioni`), che gira anche da CI dove non
+c'è un token utente. È concessa ad `anon` con lo stesso ragionamento già
+applicato alla chiave anon stessa: protetta dal non essere un segreto, non
+dalla segretezza. Il grant sostituisce il ping di `keep-supabase-warm.yml`, che
+prima dell'8-06 interrogava `/rest/v1/users` con la chiave anon e dalla revoca
+dei GRANT avrebbe iniziato a fallire con "permission denied".
+
+### Le 8 funzioni SECURITY DEFINER raggiungibili da `authenticated`: perché il warning non è un buco
 
 L'advisor segnala che un utente autenticato può invocarle via
 `/rest/v1/rpc/<nome>`. Non può però guardare *dentro* il corpo della funzione,
@@ -41,10 +72,13 @@ dove sta il controllo di ruolo. Verificato uno per uno (📄):
 | `sposta_titolare_lista(uuid,uuid)` | `private.can_liste()` | ok |
 | `send_test_push()` | `private.is_active_user()`, scrive solo sulla propria riga | ok |
 | `get_vapid_public_key()` | nessuna — **ed è corretto**: restituisce la metà *pubblica* della coppia VAPID, che il browser deve avere per sottoscriversi | ok |
+| `get_migrazioni_applicate()` | nessuna — voluto, vedi sopra: non espone nulla che non sia già nel repo | ok |
 
-> ⚠️ **Non "risolvere" questo warning revocando EXECUTE.** Le RPC sono il modo in
-> cui l'app chiama queste operazioni: revocare romperebbe il modulo Liste e il
-> push. Il warning è informativo; la difesa è nel corpo della funzione.
+> ⚠️ **Non "risolvere" questi warning revocando EXECUTE.** Le RPC sono il modo
+> in cui l'app chiama queste operazioni: revocare romperebbe il modulo Liste,
+> il push e il controllo di scarto delle migrazioni. Il warning è informativo;
+> la difesa è nel corpo della funzione (o, per `get_migrazioni_applicate`,
+> nell'assenza di qualunque dato sensibile da difendere).
 > `get_push_secrets()` — quella che espone la chiave *privata* — è già ristretta
 > a `service_role` e infatti non compare nell'elenco.
 
@@ -147,20 +181,50 @@ Due regole che è facile leggere male:
   concede, `canEditTask` nega. In UI il bottone "Prendi in carico" è sostituito
   da "Chiedi a un Senior".
 
-### Lato database (📄)
+### Lato database (📄 + ✅, corretto il 7 agosto — vedi nota di revisione in testa al documento)
 
-Il DB conosce quattro ruoli — `admin`, `manager`, `agent`, `driver` — e
-**non ha il sotto-ruolo Junior/Senior**: nello schema sono entrambi `agent`.
+Il DB conosce quattro ruoli — `admin`, `manager`, `agent`, `driver` — e il
+sotto-ruolo Junior/Senior **ha un posto proprio**, separato da `role` per non
+sovraccaricare la colonna su cui poggiano gli helper di ruolo:
+`public.users.seniority` (`'senior' | 'junior'`, default `'senior'` —
+migrazione `users_seniority`, 6 agosto).
 
-> ⚠️ **Asimmetria da conoscere.** La restrizione del Junior Agent (niente task
-> dalla coda globale, niente categorie payment/admin) è applicata dal client e
-> dal guard di persistenza, **non dalla RLS**. Un Junior che chiamasse l'API
-> Supabase direttamente, con il proprio token, passerebbe: per il database è un
-> `agent`. Non è un buco di riservatezza (i dati sono comunque quelli del suo
-> team) ma è un limite reale del modello, e va tenuto presente prima di
-> descrivere il vincolo Junior come una garanzia di sicurezza. Renderlo tale
-> richiede una colonna sotto-ruolo in `public.users` e un predicato RLS che la
-> legga.
+La restrizione del Junior Agent (niente categorie `payment`/`admin`) e quella
+del Driver (solo `transfer`) sono cablate in `private.can_use_task_category(text)`
+e applicate dal `WITH CHECK` di `tasks_insert` e `tasks_update` (migrazione
+`rls_task_category_and_pending_gate`, stesso giorno):
+
+```sql
+create or replace function private.can_use_task_category(p_category text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select case
+    when p_category is null then true
+    else exists (
+      select 1 from public.users u
+      where u.id = (select auth.uid()) and u.active and coalesce(u.pending, false) = false
+        and case
+          when u.role = 'driver' then p_category = 'transfer'
+          when u.role = 'agent' and coalesce(u.seniority, 'senior') = 'junior'
+            then p_category not in ('payment', 'admin')
+          else true
+        end
+    )
+  end;
+$$;
+```
+
+Un Junior che chiamasse l'API Supabase direttamente, con il proprio token, **non
+passa più**: il vincolo era di sola UI, ora è anche di RLS. `seniority` è
+protetto dal self-update esattamente come `role`/`active`/`pending`/`capacity`
+— stesso trigger `BEFORE UPDATE` che già li ripristinava (§2), esteso nella
+stessa migrazione — altrimenti un Junior si sarebbe promosso Senior con un
+`PATCH` sulla propria riga.
+
+> Il vincolo va SOLO nel `WITH CHECK` di `tasks_update`, non nello `USING`:
+> nello `USING` impedirebbe a un Driver di chiudere un task che ha già in
+> carico se nel frattempo un manager ne ha cambiato la categoria — bloccandolo
+> fuori dal proprio lavoro invece di limitarsi a impedirgli di assegnarsene di
+> nuove categorie non sue.
 
 ### Edge Function (📄)
 
@@ -186,8 +250,9 @@ per un renderer HTML, viene sempre interpolato da React (che fa escaping).
 > il che è meglio, ma la ragione dichiarata era sbagliata.
 
 Superficie residua: il token in `localStorage` (§3) è leggibile da qualunque JS
-in esecuzione sull'origin. Con zero sink HTML l'esposizione è teorica, ma la
-mitigazione strutturale — una CSP — **non c'è**.
+in esecuzione sull'origin. Con zero sink HTML l'esposizione è teorica, e dal 6
+agosto è coperta anche dalla mitigazione strutturale — la CSP **blocca**
+(§8), non solo segnala.
 
 ### CSRF
 
@@ -203,11 +268,15 @@ CSRF classica non si applica.
 | `X-Frame-Options` | `DENY` |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` |
 | `Strict-Transport-Security` | `max-age=63072000; includeSubDomains` |
-| `Content-Security-Policy-Report-Only` | vedi §8 |
+| `Permissions-Policy` | `camera=(), microphone=(self), geolocation=(), payment=(), usb=(), interest-cohort=()` |
+| `Cross-Origin-Opener-Policy` | `same-origin` |
+| `Content-Security-Policy` | vedi §8 |
 
-La CSP è stata aggiunta **in modalità Report-Only** (§8): oggi non blocca nulla,
-segnala soltanto. Fino a quando non viene promossa a header bloccante, la
-mitigazione strutturale contro l'esfiltrazione del token resta assente.
+La CSP è **bloccante** dal 6 agosto (§8): non solo segnala le violazioni, le
+impedisce. Ogni nuova origine — script, font, endpoint, CDN — va aggiunta a
+`vercel.json` **prima** di essere usata: senza, la richiesta viene bloccata in
+produzione, senza il periodo di osservazione che una fase Report-Only avrebbe
+dato.
 
 ---
 
@@ -215,38 +284,36 @@ mitigazione strutturale contro l'esfiltrazione del token resta assente.
 
 1. **Attivare la leaked password protection** (⚠️ dashboard → Auth → Password).
    Un interruttore. Supabase confronta le password con HaveIBeenPwned.
-   **Non fattibile da qui**: è impostazione di progetto, non DDL.
-2. ~~**`SET search_path` su `public.set_updated_at`**~~ → migrazione **scritta**
-   in `20260804230000_set_updated_at_search_path.sql`, **non applicata**: vedi
-   la nota sotto.
-3. ~~**Aggiungere una CSP**~~ → **fatta in Report-Only**, vedi §8. Resta da
-   **promuoverla a bloccante** dopo qualche giorno di osservazione.
-4. **Decidere sul sotto-ruolo Junior.** O si porta a schema (colonna + RLS), o
-   si documenta esplicitamente come vincolo di UI e non di sicurezza. Oggi non
-   è né l'una né l'altra cosa.
+   **Non fattibile da qui**: è impostazione di progetto, non DDL. Ancora
+   aperto — unico punto rimasto su questa lista.
+2. ~~**`SET search_path` su `public.set_updated_at`**~~ → **✅ applicata**, ma
+   sotto una versione diversa da quella che il file nel repo dichiara: vedi la
+   nota sotto. `function_search_path_mutable` infatti non compare più
+   nell'advisor (§1).
+3. ~~**Aggiungere una CSP**~~ → **fatta, e promossa a bloccante il 6 agosto**
+   (§8). Non c'è più un passo successivo su questo punto.
+4. ~~**Decidere sul sotto-ruolo Junior**~~ → **fatto**: colonna
+   `users.seniority` + predicato RLS `private.can_use_task_category` cablato
+   nel `WITH CHECK` di `tasks_insert`/`tasks_update` (§4).
 
-> ⚠️ **La migrazione del punto 2 non è stata applicata al database.** Il file è
-> nel repo e la PR lo porta con sé, ma scrivere DDL sulla produzione è una
-> decisione di chi possiede il progetto, non un effetto collaterale di un
-> refactor.
+> ✅ **Nota sulla migrazione del punto 2 — riconciliata, non fantasma.** Il
+> file resta `20260804230000_set_updated_at_search_path.sql`, ma la versione
+> **effettivamente applicata e registrata** in
+> `supabase_migrations.schema_migrations` è `20260806090457`, stesso nome. È
+> lo scarto fra nomi di file e versioni registrate di cui avvisa
+> `docs/CLAUDE.md` (nota ⛔ sulle migrazioni): non un file mai eseguito, ma
+> eseguito sotto un'altra versione — probabilmente riscritto e riapplicato in
+> un secondo passaggio senza rinominare il file nel repo. `verifica:migrazioni`
+> confronta per **nome**, non per versione, ed è per questo che non lo segnala
+> come mancante.
 >
-> Su questo progetto la distinzione è già costata tre incidenti — il peggiore
-> lasciò il modulo Liste in produzione senza controlli di ruolo per giorni,
-> con `reset_completo` chiamabile da chiunque (vedi
-> `docs/MIGRAZIONI_SUPABASE.md`). **Committare non è applicare.**
->
-> Procedura completa in `docs/MIGRAZIONI_SUPABASE.md`; in breve: applicare da
-> SQL Editor o `apply_migration` (**mai** `db push`), poi registrare la
-> versione, che via SQL Editor non si scrive da sola:
->
-> ```sql
-> insert into supabase_migrations.schema_migrations (version, name)
-> values ('20260804230000', 'set_updated_at_search_path')
-> on conflict (version) do nothing;
-> ```
->
-> Infine rilanciare `get_advisors(security)`: se il warning
-> `function_search_path_mutable` sparisce, la correzione è arrivata davvero.
+> Resta vera la lezione di fondo, che vale la pena ripetere perché su questo
+> progetto è già costata tre incidenti — il peggiore lasciò il modulo Liste in
+> produzione senza controlli di ruolo per giorni, con `reset_completo`
+> chiamabile da chiunque (vedi `docs/MIGRAZIONI_SUPABASE.md`): **committare
+> non è applicare**, e la verifica va fatta leggendo lo stato del database, non
+> supponendolo dal contenuto del repo. Procedura completa in
+> `docs/MIGRAZIONI_SUPABASE.md`.
 
 Non urgenti, ma da mettere a piano: audit log sulle operazioni sensibili
 (cambio ruolo, eliminazione categorie), e una rilettura periodica delle policy
@@ -269,20 +336,37 @@ RLS — `get_advisors` è gratis e va rilanciato dopo ogni DDL.
 > case": quel numero era ottenuto sommando le **righe** dei file di test, non i
 > test. Il valore reale, misurato, è 137.
 
-Questi test coprono il livello client. **Non c'è copertura automatica delle
-policy RLS**: nessun test apre una connessione con il token di un `driver` per
-verificare che il database rifiuti davvero. È il buco di copertura più
-significativo dell'area sicurezza — la conformità fra i due livelli oggi è
-garantita dalla lettura, non da un test.
+Questi test coprono il livello client, e dal 6 agosto le regole che
+verificano sono scritte **due volte** — anche in `private.can_use_task_category`
+e nelle policy RLS (§4). È esattamente la configurazione a rischio di
+divergenza silenziosa che il registry di persistenza (`persistence.js`) esiste
+per evitare in un altro strato.
+
+**M-4 (`docs/AUDIT_ARCHITETTURA_2026-08.md`), risolto il 7 agosto:**
+`src/test/integration/rls.test.js` attraversa il confine che gli altri quattro
+file non attraversano — apre una connessione autenticata con il token di un
+`driver`, di un `agent` con `seniority='junior'` e di un utente `pending`, e
+verifica che **il database** rifiuti davvero (codice `42501`), oltre a un
+tentativo di auto-escalation di `role` che il trigger deve neutralizzare senza
+errore. Richiede un progetto di **staging** con tre utenti provisionati, mai
+produzione: senza `RLS_TEST_URL`/`RLS_TEST_ANON_KEY` il file resta `describe.skip`
+— zero rete, zero side effect — sia in `vitest run` di default sia in CI.
+Lanciarlo davvero con `npm run test:rls`; setup dettagliato nell'intestazione
+del file.
+
+Non è più vero, quindi, che «la conformità fra i due livelli è garantita dalla
+lettura, non da un test»: lo è ancora per chi non ha ancora configurato un
+progetto di staging, ma il test esiste ed è pronto a intercettare la
+divergenza il giorno in cui quel progetto c'è.
 
 ---
 
-## 8. Content-Security-Policy (Report-Only)
+## 8. Content-Security-Policy (bloccante dal 6 agosto 2026)
 
-Aggiunta in `vercel.json`. **`Content-Security-Policy-Report-Only` non blocca
-nulla**: il browser valuta la policy e segnala le violazioni in console, la
-pagina continua a funzionare esattamente come prima. È il modo di scoprire cosa
-si romperebbe senza romperlo.
+Aggiunta in `vercel.json`, prima in modalità Report-Only, poi **promossa a
+bloccante** il 6 agosto dopo il periodo di osservazione descritto più sotto:
+il browser rifiuta ogni richiesta o esecuzione che violi la policy, non si
+limita più a segnalarla in console.
 
 ```
 default-src 'self';
@@ -290,12 +374,17 @@ script-src  'self';
 style-src   'self' 'unsafe-inline' https://fonts.googleapis.com;
 font-src    'self' https://fonts.gstatic.com;
 img-src     'self' data: blob: https://vmxvnxsqfisucugcpqlc.supabase.co;
-media-src   'self' blob:;
+media-src   'self' blob: https://vmxvnxsqfisucugcpqlc.supabase.co;
 connect-src 'self' https://vmxvnxsqfisucugcpqlc.supabase.co
                    wss://vmxvnxsqfisucugcpqlc.supabase.co;
 worker-src 'self'; manifest-src 'self';
 base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'
 ```
+
+📄 Trascritta da `vercel.json`, non riscritta a mano: `media-src` include
+l'origine Supabase (i messaggi vocali della chat sono file firmati serviti da
+lì, non `blob:` puro) — un dettaglio che la stesura precedente di questo
+documento ometteva.
 
 ### Perché ogni direttiva è così
 
@@ -340,25 +429,37 @@ verso Google Fonts (iniettando gli stessi identici blocchi `<style>` di
 autenticata), una richiesta di login verso Supabase, e URL `blob:`/`data:` per
 media e immagini.
 
-> ⚠️ **Limiti della verifica, dichiarati.** (1) La sessione di prova non era
-> autenticata — l'app oltre il login non è stata percorsa, quindi restano non
-> esercitati il realtime WebSocket, gli upload su Storage e le immagini
-> profilo. (2) Il recupero dei file di font da `fonts.gstatic.com` non è
-> osservabile da questo ambiente, che non raggiunge Google Fonts dal browser:
-> so che la CSP **non blocca** l'`@import` (nessuna violazione sollevata), non
-> che i font arrivino. La direttiva `font-src` è quella canonica per Google
-> Fonts, ma è l'anello non provato.
+> ⚠️ **Limiti della verifica, dichiarati — e ancora validi dopo la promozione.**
+> (1) La sessione di prova non era autenticata — l'app oltre il login non è
+> stata percorsa, quindi restano non esercitati il realtime WebSocket, gli
+> upload su Storage e le immagini profilo. (2) Il recupero dei file di font da
+> `fonts.gstatic.com` non è osservabile da questo ambiente, che non raggiunge
+> Google Fonts dal browser: si sa che la CSP **non blocca** l'`@import`
+> (nessuna violazione sollevata), non che i font arrivino davvero. La
+> direttiva `font-src` è quella canonica per Google Fonts, ma resta l'anello
+> non provato.
 >
-> È esattamente il motivo per cui la policy parte in **Report-Only**: se una di
-> queste direttive è troppo stretta, lo si scopre da un report e non da
-> un'applicazione rotta.
+> La promozione a bloccante (§6, 6 agosto) **non ha richiuso questi due
+> limiti**: non c'è stata una seconda sessione di verifica sulle aree non
+> coperte dalla prima, e restano il punto da guardare per primo se qualcosa
+> smette di funzionare in una di quelle quattro aree (chat con vocali, upload
+> allegati/foto profilo, modulo Liste dietro login, o più in generale il
+> realtime).
 
-### Come promuoverla a bloccante
+### Cosa monitorare, ora che è bloccante
 
 Le violazioni compaiono nella **console del browser** — non c'è endpoint di
 raccolta, quindi niente `report-uri`/`report-to`: aggiungerne uno significa
-scegliere (e pagare) un servizio, decisione separata. Dopo qualche giorno d'uso
-reale, se la console resta pulita anche nelle aree non coperte dalla prova
-(chat con vocali, upload allegati, modulo Liste, foto profilo), basta
-rinominare la chiave in `vercel.json` da `Content-Security-Policy-Report-Only`
-a `Content-Security-Policy`.
+scegliere (e pagare) un servizio, decisione ancora aperta e separata da questo
+documento. Senza quell'endpoint, una direttiva troppo stretta su un percorso
+poco battuto **fallisce in silenzio per chiunque non abbia i DevTools aperti**:
+una richiesta bloccata dalla CSP non produce un errore di rete distinguibile
+per l'utente, produce una funzionalità che "non fa niente".
+
+Conseguenza pratica: se in produzione compare un problema che ricade in una
+delle quattro aree del riquadro sopra — un vocale che non parte, un upload che
+non completa, una foto profilo che non carica — **il primo sospetto va alla
+CSP**, non al codice applicativo, proprio perché è l'unica parte del percorso
+mai stata esercitata prima della promozione. Aprire la console e cercare righe
+`Content-Security-Policy: … blocked` è la diagnosi di un minuto che evita ore
+sul codice sbagliato.

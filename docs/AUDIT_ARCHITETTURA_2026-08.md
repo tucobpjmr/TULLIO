@@ -84,11 +84,11 @@ esattamente questo caso.
 | — | **CRITICI** | — | **Nessuno.** Nessuna vulnerabilità sfruttabile né difetto che comprometta i dati. | — |
 | A-1 | ~~Alta~~ ✔ **risolto** | Performance | Refetch completo di liste + cestino + saldi a ogni evento su `movimenti_lista` (5.315 righe) | `useListeData.js:46-68` |
 | A-2 | ~~Alta~~ ✔ **risolto** | Correttezza | `clients` (818 righe) è l'unica entità senza subscription realtime: le modifiche altrui non arrivano mai | `useAppHydration.js:143-153` |
-| A-3 | **Alta** | Sicurezza (doc) | `SICUREZZA.md` afferma che la CSP non blocca e che il vincolo Junior non è nel DB: entrambe false oggi | `docs/SICUREZZA.md` §4-§6-§8 |
+| A-3 | ~~Alta~~ ✔ **risolto** | Sicurezza (doc) | `SICUREZZA.md` afferma che la CSP non blocca e che il vincolo Junior non è nel DB: entrambe false oggi | `docs/SICUREZZA.md` §4-§6-§8 |
 | M-1 | Media | Architettura | `AdminView` è l'unica vista che riceve `state` intero e lo drilla in 5 tab | `AdminView.jsx:13,65-69` |
 | M-2 | Media | Duplicazione | Autocomplete cliente triplicato (logica + markup dropdown) | `TaskSlideOver.jsx:79-85`, `QuickAddTask.jsx:61-69`, `ManualTab.jsx:141-144` |
 | M-3 | Media | Sicurezza | Macchinario di cambio-utente (`SET_CURRENT_USER` + banner rollback) vivo nel bundle di produzione | `reducer.js:139-179`, `AdminRollbackBanner.jsx` |
-| M-4 | Media | Test | Nessun test verifica le policy RLS: il livello che conta davvero non è coperto | `src/test/**` |
+| M-4 | ~~Media~~ ✔ **risolto** | Test | Nessun test verifica le policy RLS: il livello che conta davvero non è coperto | `src/test/**` |
 | M-5 | Media | Correttezza | `stateRef` aggiornato in `useEffect`: finestra di stato stale su dispatch multipli nello stesso tick | `useSyncedDispatch.js:27` |
 | B-1 | Bassa | Performance | Refetch completo anche su `tasks` (246 task + 569 righe di cronologia) | `useAppHydration.js:32-46` |
 | B-2 | Bassa | Config | `leaked_password_protection` ancora disabilitata | dashboard Supabase |
@@ -99,8 +99,8 @@ esattamente questo caso.
 
 ## 2-bis. Stato di avanzamento (7 agosto 2026, stessa sessione)
 
-**A-1 e A-2 sono stati risolti e sono in questa stessa PR.** Il resto della
-tabella è aperto.
+**A-1, A-2, A-3 e M-4 sono stati risolti e sono in questa stessa PR.** Restano
+aperti M-1, M-2, M-3, M-5 e i quattro rilievi Bassa priorità.
 
 Questa sezione esiste per una ragione precisa: il rilievo A-3 di questo stesso
 documento riguarda una documentazione che afferma cose non più vere. Sarebbe
@@ -111,7 +111,9 @@ segnala.
 |---|---|
 | A-1 | `useDebouncedTableSubscription` passa ora al reload l'insieme delle tabelle che hanno emesso (`null` = idratazione iniziale); `useListeData` ricarica i soli saldi quando `liste_viaggio` non è fra queste. Da 3 query complete a 1 sull'evento più frequente. |
 | A-2 | `clients` ha la sua subscription, e la migrazione `20260807215625_clients_realtime` **è applicata** al database ✅ (verificato: la tabella è in `pg_publication_tables`, la RLS è rimasta attiva, l'advisor non ha warning nuovi). |
-| Test | 806 verdi (789 + 17 nuovi in `realtimeGranularita.test.jsx` e `clientiRealtime.test.jsx`), 0 errori ESLint, build ok. |
+| A-3 | `docs/SICUREZZA.md` riscritto sui tre punti scaduti: CSP descritta come bloccante (lo è), vincolo Junior descritto con il meccanismo reale (colonna `seniority` + RLS), migrazione `set_updated_at_search_path` riconciliata (applicata sotto una versione diversa da quella nel nome del file, non "mai applicata" come diceva prima). Aggiornati anche i 10 warning attesi dell'advisor (prima 9: mancava `anon_security_definer_function_executable` su `get_migrazioni_applicate()`, funzione nuova dal 6 agosto) e il conteggio migrazioni (103, non più 93). |
+| M-4 | `src/test/integration/rls.test.js`: quattro casi (driver/categoria, junior/categoria, utente `pending`, escalation di `users.role`) che aprono una connessione autenticata vera e verificano che **il database** rifiuti, non solo il client. `describe.skip` senza `RLS_TEST_URL` — zero rete se non configurato, quindi non richiede nulla per restare verde in questa PR. Lanciabile con `npm run test:rls` una volta provisionato un progetto di staging (mai produzione). |
+| Test | 813 verdi + 7 skipped (806 + 17 in `realtimeGranularita.test.jsx`/`clientiRealtime.test.jsx` + 4 casi RLS skippati senza credenziali), 0 errori ESLint, build ok. |
 
 ### Un difetto trovato implementando A-2, e corretto insieme
 
@@ -334,6 +336,15 @@ sostituzione è quasi meccanica, e `crmLoading` continua a funzionare perché
 ---
 
 ### A-3 · `docs/SICUREZZA.md` afferma il falso su due punti di sicurezza
+
+> ✔ **Risolto** in questa PR. Le correzioni descritte come "da applicare" nel
+> testo che segue sono state applicate: CSP e vincolo Junior riscritti sullo
+> stato reale, migrazione `set_updated_at_search_path` riconciliata (era
+> "non applicata" perché il file nel repo dichiara una versione diversa da
+> quella effettivamente eseguita — non un file mai eseguito), warning
+> dell'advisor e conteggio migrazioni aggiornati. Non toccato: il punto 1 di
+> §6 (`leaked_password_protection`), che resta un interruttore di dashboard,
+> come segnalato anche in B-2.
 
 **File.** `docs/SICUREZZA.md`, §4 (matrice permessi), §5 (XSS), §6 (cosa fare),
 §8 (CSP)
@@ -662,6 +673,16 @@ fra le due dipende da quanto il test multi-ruolo manuale sia ancora usato, che
 
 ### M-4 · Nessun test verifica le policy RLS
 
+> ✔ **Risolto** in questa PR. `src/test/integration/rls.test.js` implementa
+> l'idea descritta sotto con quattro casi invece di due (driver/categoria,
+> junior/categoria, utente `pending`, escalation di `users.role`), con lo
+> stesso meccanismo di skip senza credenziali. Non è stato provisionato un
+> progetto di staging in questa sessione — il test esiste e resta pronto, ma
+> è ancora `describe.skip` per chiunque non abbia configurato
+> `RLS_TEST_URL`/`RLS_TEST_ANON_KEY` e i tre utenti richiesti (setup
+> nell'intestazione del file). Non è quindi ancora una misura, resta una
+> capacità di misurare.
+
 **File.** `src/test/**`
 
 **Perché.** 🔬 789 test verdi, di cui una parte consistente dedicata ai permessi:
@@ -859,20 +880,29 @@ proteggere dalle risposte fuori ordine.
 
 ### 2. Portare a misura ciò che oggi è affermato: RLS testata, documentazione verificata
 
+> ✔ **Eseguito in questa PR** (A-3, M-4) — vedi §2-bis. Il testo che segue è la
+> diagnosi originale, lasciata perché spiega il *perché* della correzione, non
+> solo il *cosa*.
+
 Il progetto ha una qualità non comune, e la deve a un metodo esplicito: scrivere
 accanto a ogni scelta il perché, e verificare invece di supporre. I due rilievi
 A-3 e M-4 sono la stessa crepa in quel metodo, ai due estremi. Da un lato
-`SICUREZZA.md` afferma cose che erano vere e non lo sono più — con l'effetto
+`SICUREZZA.md` affermava cose che erano vere e non lo erano più — con l'effetto
 paradossale di **sottostimare** la postura reale (la CSP blocca, il Junior è
 applicato dal DB) e insieme di autorizzare mosse pericolose (aggiungere uno
 script inline "tanto è Report-Only"). Dall'altro, la conformità fra i permessi
-client e le policy RLS è garantita «dalla lettura, non da un test» — parole del
-documento stesso — proprio ora che quelle regole sono scritte in due posti.
+client e le policy RLS era garantita «dalla lettura, non da un test» — parole
+del documento stesso — proprio mentre quelle regole sono scritte in due posti.
 
-Concretamente: correggere le quattro affermazioni scadute di `SICUREZZA.md`, e
-aggiungere quattro test d'integrazione RLS (driver/categoria, junior/categoria,
-utente `pending`, escalation di `users.role`). È mezza giornata, e trasforma la
-frase più importante del documento da opinione informata a fatto misurato.
+Resta una differenza fra le due correzioni, ed è la stessa notata in §2-bis per
+M-4: `SICUREZZA.md` oggi descrive lo stato vero, misurato — non richiede altro.
+I quattro test d'integrazione RLS invece esistono ma restano `describe.skip`
+finché nessuno provisiona un progetto di staging: la frase più importante del
+documento è passata da opinione informata a *misurabile*, non ancora a
+*misurata*. L'ultimo passo — creare i tre utenti di test e impostare le
+variabili d'ambiente — è deliberatamente rimasto fuori da questa sessione:
+tocca un progetto Supabase reale (per quanto di staging) e non è una decisione
+che spetti a un'analisi di codice.
 
 ### 3. Rendere l'architettura verificabile, non solo documentata
 
@@ -921,7 +951,9 @@ guardato, e perché la prossima persona non rifaccia lo stesso lavoro.
 ---
 
 *L'analisi (§1-§4) è stata prodotta senza modificare nulla. Le correzioni di
-A-1 e A-2 sono state applicate in un secondo momento, su richiesta esplicita, e
-sono registrate in §2-bis; la sola DDL eseguita sul database è
-`20260807215625_clients_realtime`, autorizzata singolarmente. Tutti gli altri
-rilievi restano aperti e non hanno prodotto modifiche.*
+A-1, A-2, A-3 e M-4 sono state applicate in momenti successivi, su richiesta
+esplicita, e sono registrate in §2-bis; la sola DDL eseguita sul database in
+tutta la sessione è `20260807215625_clients_realtime`, autorizzata
+singolarmente — A-3 e M-4 non hanno toccato il database, solo documentazione,
+codice di test e configurazione. M-1, M-2, M-3, M-5 e i quattro rilievi Bassa
+priorità restano aperti e non hanno prodotto modifiche.*

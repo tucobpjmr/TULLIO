@@ -82,8 +82,8 @@ esattamente questo caso.
 | # | Priorità | Area | Problema | File |
 |---|---|---|---|---|
 | — | **CRITICI** | — | **Nessuno.** Nessuna vulnerabilità sfruttabile né difetto che comprometta i dati. | — |
-| A-1 | **Alta** | Performance | Refetch completo di liste + cestino + saldi a ogni evento su `movimenti_lista` (5.315 righe) | `useListeData.js:46-68` |
-| A-2 | **Alta** | Correttezza | `clients` (818 righe) è l'unica entità senza subscription realtime: le modifiche altrui non arrivano mai | `useAppHydration.js:143-153` |
+| A-1 | ~~Alta~~ ✔ **risolto** | Performance | Refetch completo di liste + cestino + saldi a ogni evento su `movimenti_lista` (5.315 righe) | `useListeData.js:46-68` |
+| A-2 | ~~Alta~~ ✔ **risolto** | Correttezza | `clients` (818 righe) è l'unica entità senza subscription realtime: le modifiche altrui non arrivano mai | `useAppHydration.js:143-153` |
 | A-3 | **Alta** | Sicurezza (doc) | `SICUREZZA.md` afferma che la CSP non blocca e che il vincolo Junior non è nel DB: entrambe false oggi | `docs/SICUREZZA.md` §4-§6-§8 |
 | M-1 | Media | Architettura | `AdminView` è l'unica vista che riceve `state` intero e lo drilla in 5 tab | `AdminView.jsx:13,65-69` |
 | M-2 | Media | Duplicazione | Autocomplete cliente triplicato (logica + markup dropdown) | `TaskSlideOver.jsx:79-85`, `QuickAddTask.jsx:61-69`, `ManualTab.jsx:141-144` |
@@ -97,9 +97,55 @@ esattamente questo caso.
 
 ---
 
+## 2-bis. Stato di avanzamento (7 agosto 2026, stessa sessione)
+
+**A-1 e A-2 sono stati risolti e sono in questa stessa PR.** Il resto della
+tabella è aperto.
+
+Questa sezione esiste per una ragione precisa: il rilievo A-3 di questo stesso
+documento riguarda una documentazione che afferma cose non più vere. Sarebbe
+singolare lasciare che l'audit diventi il primo esempio del problema che
+segnala.
+
+| | Esito |
+|---|---|
+| A-1 | `useDebouncedTableSubscription` passa ora al reload l'insieme delle tabelle che hanno emesso (`null` = idratazione iniziale); `useListeData` ricarica i soli saldi quando `liste_viaggio` non è fra queste. Da 3 query complete a 1 sull'evento più frequente. |
+| A-2 | `clients` ha la sua subscription, e la migrazione `20260807215625_clients_realtime` **è applicata** al database ✅ (verificato: la tabella è in `pg_publication_tables`, la RLS è rimasta attiva, l'advisor non ha warning nuovi). |
+| Test | 806 verdi (789 + 17 nuovi in `realtimeGranularita.test.jsx` e `clientiRealtime.test.jsx`), 0 errori ESLint, build ok. |
+
+### Un difetto trovato implementando A-2, e corretto insieme
+
+Non era nell'elenco iniziale perché A-2 lo teneva nascosto, ed è il motivo per
+cui le due correzioni non potevano essere separate.
+
+`toDbClient` non spediva l'`id`, e `clients.id` ha default `gen_random_uuid()`:
+il database assegnava quindi un id **proprio**, diverso da quello che
+`ADD_CLIENT.normalize` aveva già scritto nello stato React. Siccome
+`UPDATE_CLIENT` e `DELETE_CLIENT` usano quell'id come clausola `WHERE`, **ogni
+modifica a un cliente creato nella stessa sessione colpiva zero righe sul
+server**, mentre la UI confermava "Cliente aggiornato!". Lo scarto restava
+invisibile proprio perché i clienti erano l'unica entità senza realtime:
+nessuna ri-idratazione arrivava a smentire lo stato locale prima del reload.
+
+Aggiungere la subscription senza correggerlo avrebbe trasformato un difetto
+latente in uno visibile entro 200 ms — la ri-idratazione avrebbe sostituito la
+riga locale con quella del server, con un id diverso, e qualunque pannello
+aperto su quell'id si sarebbe rotto. `toDbClient` porta ora l'id; le UPDATE
+passano dal nuovo `toDbClientPatch`, che non lo contiene (stessa separazione di
+`toDbNotice`/`toDbNoticePatch`).
+
+È anche il miglior argomento a favore del suggerimento strategico n. 3: il
+difetto viveva esattamente nel punto in cui i clienti erano l'**eccezione** al
+pattern comune. Chiudere l'eccezione l'ha fatto emergere.
+
+---
+
 ## 3. Action Plan dettagliato
 
 ### A-1 · Refetch completo del modulo Liste a ogni movimento
+
+> ✔ **Risolto** in questa PR — vedi §2-bis. Il testo che segue descrive il
+> problema e la correzione applicata.
 
 **File.** `src/components/liste/useListeData.js:46-68`
 
@@ -211,6 +257,12 @@ gen-counter e il debounce restano quelli).
 ---
 
 ### A-2 · `clients` non ha subscription realtime
+
+> ✔ **Risolto** in questa PR, migrazione compresa e applicata — vedi §2-bis.
+> Il prerequisito segnalato qui sotto ("va confermato che `public.clients` sia
+> pubblicata") si è rivelato **non soddisfatto**: la tabella non era in
+> `supabase_realtime`, esattamente come l'inciampo del modulo Liste. È il
+> motivo per cui la correzione ha richiesto una migrazione e non solo codice.
 
 **File.** `src/hooks/useAppHydration.js:143-153`
 
@@ -868,5 +920,8 @@ guardato, e perché la prossima persona non rifaccia lo stesso lavoro.
 
 ---
 
-*Documento di sola analisi: nessuna modifica al codice applicativo, alle
-migrazioni o alla configurazione è stata effettuata in questa sessione.*
+*L'analisi (§1-§4) è stata prodotta senza modificare nulla. Le correzioni di
+A-1 e A-2 sono state applicate in un secondo momento, su richiesta esplicita, e
+sono registrate in §2-bis; la sola DDL eseguita sul database è
+`20260807215625_clients_realtime`, autorizzata singolarmente. Tutti gli altri
+rilievi restano aperti e non hanno prodotto modifiche.*

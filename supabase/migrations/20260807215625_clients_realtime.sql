@@ -1,5 +1,12 @@
 -- A-2 — `public.clients` entra nella publication realtime.
 --
+-- ✅ APPLICATA al progetto vmxvnxsqfisucugcpqlc il 7 agosto 2026, versione
+-- 20260807215625 (il nome del file combacia con la versione registrata in
+-- supabase_migrations.schema_migrations: nessuno scarto da riconciliare).
+-- Verificato dopo l'applicazione: clients risulta in pg_publication_tables,
+-- la RLS sulla tabella è rimasta attiva, e get_advisors(security) riporta gli
+-- stessi 10 warning di prima — nessuno nuovo, nessun errore.
+--
 -- IL PROBLEMA. I clienti erano l'unica entità di dominio senza subscription
 -- realtime lato client: `useAppHydration` li caricava con una useEffect al
 -- mount e nient'altro. Chi creava un cliente lo vedeva subito grazie

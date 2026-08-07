@@ -12,7 +12,7 @@
 // nulla su DB, si legge soltanto) e riceve i due flag di caricamento che le
 // viste usano per mostrare gli scheletri invece di un vuoto ingannevole.
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Tasks as TasksAPI, Notices as NoticesAPI, Users as UsersAPI,
   Clients as ClientsAPI, Categories as CategoriesAPI,
@@ -140,17 +140,33 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
   // Senza login parte già false (nessuna idratazione: si usano i dati mock).
   const [crmLoading, setCrmLoading] = useState(enabled);
 
-  useEffect(() => {
-    if (!enabled) return;
-    let cancelled = false;
-    ClientsAPI.list()
-      .then((cRes) => {
-        if (cancelled) return;
-        if (!cRes.error) dispatch({ type: "SET_CLIENTS", payload: (cRes.data || []).map(fromDbClient) });
-      }).catch(e => console.error("[CRM] hydration", e))
-      .finally(() => { if (!cancelled) setCrmLoading(false); });
-    return () => { cancelled = true; };
-  }, [enabled, dispatch]);
+  // I clienti erano l'unica entità di dominio senza subscription: una
+  // useEffect al mount e nient'altro. Chi creava un cliente lo vedeva subito
+  // (aggiornamento ottimistico del reducer), CHIUNQUE ALTRO no — fino a un
+  // reload completo della pagina.
+  //
+  // Non è un caso di laboratorio, e il sintomo non è "un dato che manca": il
+  // modulo Liste crea clienti per conto proprio (AggiungiBeneficiarioModal →
+  // newClientName), quindi l'utente B non trovava nell'autocomplete un cliente
+  // che l'utente A aveva appena creato, e lo ricreava a mano. Il risultato
+  // osservabile era il DOPPIONE in anagrafica, che a posteriori non è banale
+  // da deduplicare.
+  //
+  // Il gate `enabled` resta identico: senza login si usano i mock, quindi
+  // niente fetch e niente subscription. crmLoading si chiude qui perché
+  // useDebouncedTableSubscription esegue l'idratazione iniziale al mount.
+  useDebouncedTableSubscription(["clients"], async (isCurrent) => {
+    const { data, error } = await ClientsAPI.list();
+    if (!isCurrent()) return;
+    if (error) {
+      console.error("[CRM] hydration", error);
+      onError(`Caricamento clienti fallito: ${error.message || ""}`);
+      setCrmLoading(false);
+      return;
+    }
+    dispatch({ type: "SET_CLIENTS", payload: (data || []).map(fromDbClient) });
+    setCrmLoading(false);
+  }, { enabled, deps: [enabled] });
 
   return { crmLoading };
 }

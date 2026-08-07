@@ -1,0 +1,49 @@
+-- A-2 — `public.clients` entra nella publication realtime.
+--
+-- ✅ APPLICATA al progetto vmxvnxsqfisucugcpqlc il 7 agosto 2026, versione
+-- 20260807215625 (il nome del file combacia con la versione registrata in
+-- supabase_migrations.schema_migrations: nessuno scarto da riconciliare).
+-- Verificato dopo l'applicazione: clients risulta in pg_publication_tables,
+-- la RLS sulla tabella è rimasta attiva, e get_advisors(security) riporta gli
+-- stessi 10 warning di prima — nessuno nuovo, nessun errore.
+--
+-- IL PROBLEMA. I clienti erano l'unica entità di dominio senza subscription
+-- realtime lato client: `useAppHydration` li caricava con una useEffect al
+-- mount e nient'altro. Chi creava un cliente lo vedeva subito grazie
+-- all'aggiornamento ottimistico del reducer; chiunque altro no, fino a un
+-- reload completo della pagina.
+--
+-- Il sintomo osservabile non è "un dato che manca" — che sarebbe evidente e
+-- quindi innocuo — ma il DOPPIONE in anagrafica. Il modulo Liste crea clienti
+-- per conto proprio (AggiungiBeneficiarioModal passa newClientName quando si
+-- aggiunge un beneficiario non ancora in anagrafica): l'utente B non trovava
+-- nell'autocomplete il cliente che l'utente A aveva appena creato e lo
+-- inseriva a mano. Con oltre 800 righe già in tabella, deduplicare a
+-- posteriori non è un'operazione banale.
+--
+-- PERCHÉ SERVE QUESTA MIGRAZIONE E NON BASTA IL CODICE. Una subscription su
+-- una tabella non pubblicata su `supabase_realtime` non riceve MAI un evento,
+-- e non lo segnala in alcun modo: il canale si sottoscrive, risponde
+-- SUBSCRIBED, e resta muto per sempre. È esattamente l'inciampo già incontrato
+-- dal modulo Liste, che ha avuto bisogno della migrazione
+-- 20260806090000_liste_realtime.sql per lo stesso motivo — lì il commento lo
+-- dice: "prima non lo erano, e una subscription su di esse non avrebbe mai
+-- ricevuto un evento". Senza questa riga la correzione lato client è un no-op
+-- silenzioso, cioè il modo peggiore in cui una correzione possa fallire.
+--
+-- REPLICA IDENTITY. Non serve alzarla a FULL. Il consumatore
+-- (useDebouncedTableSubscription) ricarica l'elenco intero a ogni evento e non
+-- legge `payload.old`: l'identità di default (chiave primaria) basta a far
+-- arrivare anche i DELETE. È la differenza con `public.users`, dove la
+-- REPLICA IDENTITY FULL della 20260611173409 serve al filtro che confronta il
+-- pre-image per saltare gli heartbeat di presence.
+--
+-- ORIGIN_CLIENT. La tabella non ha la colonna `origin_client` e non la
+-- aggiungiamo: subscribeToTable la usa per scartare l'eco delle proprie
+-- scritture, e in sua assenza legge `undefined` e lascia passare l'evento.
+-- L'unica conseguenza è un refetch in più subito dopo una scrittura locale,
+-- già coalescato dal debounce — e non è del tutto sprecato, perché è ciò che
+-- riallinea lo stato ottimistico alla verità del server. Aggiungere la colonna
+-- significherebbe toccare anche ClientsAPI.create/update per taggarla:
+-- decisione separata, che questa migrazione non deve trascinarsi dietro.
+alter publication supabase_realtime add table public.clients;

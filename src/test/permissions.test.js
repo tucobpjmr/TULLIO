@@ -9,7 +9,7 @@ import { describe, it, expect } from "vitest";
 import {
   getMember, getAssignableTeam, getRoleType,
   isAdmin, isDriver, isJuniorAgent, isSeniorAgent,
-  canViewTask, canEditTask, canCreateTaskCategory, canAccessAdmin,
+  canViewTask, canEditTask, canCreateTaskCategory, canAccessAdmin, canAccessListe,
   getVisibleTasks, getAvailableCategories,
 } from "../lib/permissions.js";
 
@@ -226,5 +226,47 @@ describe("permissions — purezza", () => {
     const t = task({ assignees: [] });
     expect(canEditTask(comeAdmin, t, "u")).toBe(true);
     expect(canEditTask(comeJunior, t, "u")).toBe(false);
+  });
+});
+
+// canAccessListe rispecchia `private.can_liste()` del database (role IN
+// (admin, manager, agent) AND active). Esiste perché la stessa domanda aveva
+// cinque risposte scritte in cinque punti — reducer, Archivio, ricerca
+// avanzata, modulo Liste e database — formulate quattro volte su cinque come
+// "non è un driver". Sono equivalenti solo per i casi ordinari: questi test
+// fissano proprio i casi in cui non lo erano.
+describe("permissions — accesso al modulo Liste viaggio", () => {
+  it("admin, manager e agent attivi hanno accesso", () => {
+    for (const uid of ["admin1", "mgr1", "senior1", "junior1"]) {
+      expect(canAccessListe(TEAM, uid), uid).toBe(true);
+    }
+  });
+
+  it("il Driver no", () => {
+    expect(canAccessListe(TEAM, "driver1")).toBe(false);
+  });
+
+  it("un utente disattivato no, benché non sia un driver", () => {
+    // `!isDriver(...)` — la formulazione precedente — gli dava accesso, e la
+    // RLS lo respingeva poi con una vista piena di errori.
+    expect(isDriver(TEAM, "spento")).toBe(false);
+    expect(canAccessListe(TEAM, "spento")).toBe(false);
+  });
+
+  it("un utente che non è nel team no", () => {
+    expect(canAccessListe(TEAM, "fantasma")).toBe(false);
+    expect(canAccessListe([], "admin1")).toBe(false);
+  });
+
+  it("un ruolo fuori dall'enum del database no", () => {
+    // Nessun ramo di can_liste() corrisponderebbe: qui non deve corrispondere.
+    const team = [{ id: "u", role: "Amministrativo", active: true, pending: false }];
+    expect(canAccessListe(team, "u")).toBe(false);
+  });
+
+  it("un utente ancora in attesa di approvazione conserva l'accesso al modulo", () => {
+    // Il gate dei pending è a monte (PendingScreen non monta l'app): qui non
+    // si aggiunge una seconda regola che il database non ha.
+    expect(canAccessListe(TEAM, "attesa")).toBe(true);
   });
 });

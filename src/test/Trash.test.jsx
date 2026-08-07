@@ -14,9 +14,10 @@ vi.mock("../lib/supabase", () => ({ supabase: {}, default: {} }));
 // globali eliminati. Le funzioni di permesso (canViewTask/canEditTask) arrivano
 // da useAppData(), quindi il team e l'utente vanno passati al provider — è il
 // render stesso a montarli, non uno stato di modulo impostato prima.
-let appCtx = { team: [], categories: {}, currentUserId: null };
+let appCtx = { team: [], categories: {}, currentUserId: null, tasks: [], clients: [] };
 const ctxTeam = (t) => { appCtx = { ...appCtx, team: t }; };
 const ctxUser = (id) => { appCtx = { ...appCtx, currentUserId: id }; };
+const ctxTasks = (t) => { appCtx = { ...appCtx, tasks: t }; };
 const render = (ui, options) => {
   const utils = rtlRender(withAppData(ui, appCtx), options);
   // `appCtx` è letto al momento del rerender, non a quello del primo render:
@@ -44,7 +45,8 @@ describe("Trash — la lista usa canViewTask, le azioni usano canEditTask", () =
   it("un driver vede in lista un proprio task cestinato anche se non di categoria transfer (canView=true anche se canEdit=false)", () => {
     ctxUser("dario");
     const task = trashedTask();
-    render(<Trash state={{ currentUserId: "dario", tasks: [task] }} dispatch={vi.fn()} />);
+    ctxTasks([task]);
+    render(<Trash dispatch={vi.fn()} />);
     expect(screen.getByText("Prenotazione hotel")).toBeInTheDocument();
   });
 
@@ -52,7 +54,8 @@ describe("Trash — la lista usa canViewTask, le azioni usano canEditTask", () =
     ctxUser("dario");
     const task = trashedTask();
     const dispatch = vi.fn();
-    render(<Trash state={{ currentUserId: "dario", tasks: [task] }} dispatch={dispatch} />);
+    ctxTasks([task]);
+    render(<Trash dispatch={dispatch} />);
 
     fireEvent.click(screen.getByTitle("Ripristina con modifica"));
     expect(dispatch).toHaveBeenCalledWith({
@@ -75,7 +78,8 @@ describe("Trash — la lista usa canViewTask, le azioni usano canEditTask", () =
   it("un task cestinato non assegnato al driver e non visibile (canView=false) non compare affatto in lista", () => {
     ctxUser("dario");
     const task = trashedTask({ id: "t2", title: "Volo Milano", assignees: ["marco"] });
-    render(<Trash state={{ currentUserId: "dario", tasks: [task] }} dispatch={vi.fn()} />);
+    ctxTasks([task]);
+    render(<Trash dispatch={vi.fn()} />);
     expect(screen.queryByText("Volo Milano")).not.toBeInTheDocument();
     expect(screen.getByText("Cestino vuoto")).toBeInTheDocument();
   });
@@ -84,7 +88,8 @@ describe("Trash — la lista usa canViewTask, le azioni usano canEditTask", () =
     ctxUser("marco");
     const task = trashedTask();
     const dispatch = vi.fn();
-    render(<Trash state={{ currentUserId: "marco", tasks: [task] }} dispatch={dispatch} />);
+    ctxTasks([task]);
+    render(<Trash dispatch={dispatch} />);
 
     fireEvent.click(screen.getByTitle("Ripristina con modifica"));
     expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: "SHOW_TOAST" }));

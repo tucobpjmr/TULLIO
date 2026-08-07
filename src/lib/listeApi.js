@@ -390,22 +390,16 @@ export const ListeAPI = {
   },
 };
 
-// Esegue una chiamata (query o RPC) e instrada l'esito nel Toast dell'app.
-// Sostituisce la coppia `must()` + `toast()` della SPA sorgente, che scriveva
-// direttamente nel div #toast. Ritorna { ok, data } così il chiamante può
-// riabilitare il proprio bottone quando la scrittura fallisce.
-export const runListeCall = async (dispatch, promise, successMsg) => {
-  const { data, error } = await promise;
-  if (error) {
-    console.error('[liste]', error);
-    dispatch({ type: 'SHOW_TOAST', payload: { type: 'error', message: `Errore: ${error.message}` } });
-    return { ok: false, data: null };
-  }
-  if (successMsg) {
-    dispatch({ type: 'SHOW_TOAST', payload: { type: 'success', message: successMsg } });
-  }
-  return { ok: true, data };
-};
+// `runListeCall(dispatch, ListeAPI.x(args), 'messaggio')` viveva qui ed è stata
+// sostituita da useListeWrite() in components/liste/listePersistence.js.
+//
+// Non è un rename. La firma vecchia prendeva una PROMISE già costruita: il
+// chiamante sceglieva quale RPC invocare e con quale messaggio annunciarla, e
+// nessun punto del codice sapeva quali fossero, nel loro insieme, le scritture
+// di questo modulo. Da lì i due "Lista creata" scritti in file diversi, e il
+// reset totale — l'unica operazione irreversibile — senza altro controllo di
+// ruolo che un bottone non renderizzato. La firma nuova prende il NOME di
+// un'operazione dichiarata nel registry, che porta con sé messaggio e guard.
 
 // ─── formattazione (identica alla SPA sorgente) ───────────────────────────
 export const eur = (v) =>

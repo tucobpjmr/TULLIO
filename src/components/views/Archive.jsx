@@ -3,7 +3,7 @@
 // in una sezione dedicata, le liste buoni viaggio chiuse (stato "esaurita",
 // non cestinate). Il sistema convoglia qui gli elementi chiusi: spariscono
 // dalle code/home attive e restano consultabili/riapribili in questa sezione.
-import { useState, useCallback } from "react";
+import { memo, useState, useCallback } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
@@ -11,18 +11,24 @@ import { CategoryChip } from "../ui/CategoryChip.jsx";
 import { TaskCard } from "../tasks/TaskCard.jsx";
 import { formatDate, getArchivedTasks } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
+import { useTasks } from "../../state/TasksContext.jsx";
 import { PERIOD_OPTIONS, filterByPeriod, thStyle, chipStyle } from "./archiveFilters.js";
 // La sezione "liste buoni viaggio" è del modulo Liste e viene montata per
 // composizione: questa vista non conosce il suo data layer.
 import { ArchivedListe } from "../liste/ArchivedListe.jsx";
 
-export const Archive = ({ state, dispatch }) => {
+// `memo` + lettura dal contesto: senza il memo il provider non servirebbe a
+// nulla, perché il genitore ri-renderizza a ogni azione (vedi
+// state/TasksContext.jsx). `dispatch` ha identità stabile, quindi il confronto
+// shallow riesce e il render si salta finché non cambiano davvero i task.
+export const Archive = memo(function Archive({ dispatch }) {
   const { isMobile } = useViewport();
-  const { categories, getVisibleTasks, canEditTask, isDriver } = useAppData();
-  const me = state.currentUserId;
-  // Le liste buoni viaggio sono precluse ai Driver (stessa RLS del modulo
-  // Liste Viaggio): niente tab, niente fetch, per chi non può comunque accedervi.
-  const listeAllowed = !isDriver(me);
+  const { categories, currentUserId, getVisibleTasks, canEditTask, canAccessListe } = useAppData();
+  const tasks = useTasks();
+  const me = currentUserId;
+  // Le liste buoni viaggio seguono l'accesso al modulo Liste Viaggio (stessa
+  // RLS): niente tab, niente fetch, per chi non può comunque accedervi.
+  const listeAllowed = canAccessListe(me);
   const [tab, setTab] = useState("task");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
@@ -31,7 +37,7 @@ export const Archive = ({ state, dispatch }) => {
   // Solo le task completate che l'utente può vedere (rispetta i permessi).
   // Ordinate per data di completamento (completedAt) decrescente; fallback su
   // dueDate per task completate prima dell'introduzione di completed_at.
-  const archived = getVisibleTasks(getArchivedTasks(state.tasks), me)
+  const archived = getVisibleTasks(getArchivedTasks(tasks), me)
     .sort((a, b) => new Date(b.completedAt || b.dueDate || 0) - new Date(a.completedAt || a.dueDate || 0));
 
   const visible = filterByPeriod(archived, period, "completedAt").filter(t => {
@@ -286,7 +292,7 @@ export const Archive = ({ state, dispatch }) => {
       )}
     </div>
   );
-};
+});
 
 const tabStyle = (active) => ({
   padding: "7px 14px", borderRadius: 8, cursor: "pointer",

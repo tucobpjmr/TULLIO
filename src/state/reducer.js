@@ -21,8 +21,8 @@
 
 import { STATUS_LABELS, toDbRole, toSeniority, roleLabel } from "../lib/taskConstants.js";
 import {
-  getMember, isAdmin, isDriver,
-  canAccessAdmin, canViewTask, canEditTask, canCreateTaskCategory,
+  getMember, isAdmin,
+  canAccessAdmin, canAccessListe, canViewTask, canEditTask, canCreateTaskCategory,
 } from "../lib/permissions.js";
 import { INITIAL_TEAM, INITIAL_CATEGORIES, INITIAL_TASKS, INITIAL_NOTICES } from "./mockData.js";
 import { chiaveNome } from "../lib/clientNotes.js";
@@ -95,10 +95,13 @@ function baseReducer(state, action) {
       if (action.payload === "admin" && !canAccessAdmin(state.team, uid)) {
         return _denied("Non hai i permessi per accedere all'Admin");
       }
-      // Il modulo Liste viaggio è precluso al ruolo Driver: la RLS lo blocca
-      // comunque lato DB (migrazione 20260728190100), qui evitiamo di aprire
-      // una vista che mostrerebbe solo errori.
-      if (action.payload === "liste" && isDriver(state.team, uid)) {
+      // Il modulo Liste viaggio è riservato ad admin/manager/agent attivi: la
+      // RLS lo blocca comunque lato DB (migrazione 20260728190100), qui
+      // evitiamo di aprire una vista che mostrerebbe solo errori. Il verdetto
+      // arriva da canAccessListe, che rispecchia can_liste() del database: era
+      // scritto qui come `isDriver(...)`, cioè una seconda definizione della
+      // stessa regola che coincideva con la prima solo per i casi ordinari.
+      if (action.payload === "liste" && !canAccessListe(state.team, uid)) {
         return _denied("Il modulo Liste viaggio non è disponibile per il tuo ruolo");
       }
       const next = { ...state, activeView: action.payload };
@@ -143,7 +146,7 @@ function baseReducer(state, action) {
       // un Driver resterebbe bloccato su una vista che non può né usare né
       // abbandonare da un elemento di navigazione evidenziato.
       const viewLocked = (state.activeView === "admin" && !canAccessAdmin(state.team, newId))
-        || (state.activeView === "liste" && isDriver(state.team, newId));
+        || (state.activeView === "liste" && !canAccessListe(state.team, newId));
       const activeView = viewLocked ? "dashboard" : state.activeView;
       // Sicurezza operativa (v2.8): warning visibile quando si passa a un ruolo
       // privilegiato (admin), per evitare di lasciare la sessione aperta come

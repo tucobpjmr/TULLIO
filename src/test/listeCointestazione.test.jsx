@@ -254,14 +254,12 @@ describe("ListaDetail — sposta il titolare su un altro cliente", () => {
 
 describe("ListeViaggio — la ricerca trova anche i cointestatari", () => {
   const TEAM = [{ id: "marco", name: "Marco Rossi", role: "admin", active: true, pending: false }];
-  const baseState = () => ({ currentUserId: "marco", team: TEAM, clients: [], listeTarget: null });
-
   beforeEach(() => vi.clearAllMocks());
 
   it("cerca 'BIANCHI': trova la lista intestata a ROSSI con BIANCHI cointestataria", async () => {
     ctxTeam(TEAM.map((m) => ({ ...m })));
     ctxUser("marco");
-    render(<ListeViaggio state={baseState()} dispatch={vi.fn()} />);
+    render(<ListeViaggio dispatch={vi.fn()} />);
     await waitFor(() => expect(ListeAPIMock.list).toHaveBeenCalled());
 
     expect(await screen.findByText("MARIO ROSSI e MARIA BIANCHI")).toBeTruthy();

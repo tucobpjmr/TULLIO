@@ -10,21 +10,24 @@
 // Il CONTENUTO mantiene di proposito lo stile originale (blu #0F4C81, font
 // Inter, impaginazione "foglio cartaceo"); solo la chrome di navigazione —
 // breadcrumb e testata — segue lo stile Tullio (navy/oro, Playfair).
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { useListeData } from "./useListeData.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
+import { useClients } from "../../state/ClientsContext.jsx";
 import {
   ListeAPI, beneficiariNomi, downloadBlob, eur, fmtDate, intestazioneLista,
-  runListeCall, saldoClass, todayISO,
+  saldoClass, todayISO,
 } from "../../lib/listeApi.js";
+import { useListeWrite } from "./listePersistence.js";
 import { matchTermini, terminiRicerca } from "../../lib/searchUtils.js";
 import { ListeStyles } from "./listeStyles.jsx";
 import { ListaDetail } from "./ListaDetail.jsx";
-import {
-  ConfirmModal, ImportaBackupConfirmModal, NuovaListaModal, ResetTotaleModal,
-  StrumentiDatiModal,
-} from "./listeModals.jsx";
+import { ConfirmModal } from "./modals/ConfirmModal.jsx";
+import { ImportaBackupConfirmModal } from "./modals/ImportaBackupConfirmModal.jsx";
+import { NuovaListaModal } from "./modals/NuovaListaModal.jsx";
+import { ResetTotaleModal } from "./modals/ResetTotaleModal.jsx";
+import { StrumentiDatiModal } from "./modals/StrumentiDatiModal.jsx";
 
 const HOME_PAGE_SIZE = 10;
 
@@ -137,12 +140,21 @@ export function ListaRow({ lista, saldo, onOpen, trashed = false, children }) {
 }
 
 // ─── Modulo ────────────────────────────────────────────────────────────────
-export function ListeViaggio({ state, dispatch }) {
+// `memo` + lettura dal contesto: vedi state/TasksContext.jsx. Il modulo non
+// guarda i task, quindi consuma il solo contesto clienti; `listeTarget` (la
+// lista da aprire, richiesta dal tab della scheda cliente) resta una prop,
+// piccola e con identità stabile.
+export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget = null }) {
   const { isMobile } = useViewport();
-  const { getRoleType, isAdmin } = useAppData();
-  const uid = state.currentUserId;
-  const role = getRoleType(uid);
-  const isDriver = role === "driver";
+  const { team, currentUserId, isAdmin, canAccessListe } = useAppData();
+  const clientsRaw = useClients();
+  const uid = currentUserId;
+  // Chi può usare il modulo: una domanda sola, la stessa del reducer, delle
+  // viste del core che ci linkano e di can_liste() sul database. Qui era
+  // `getRoleType(uid) === "driver"`, cioè la quinta formulazione della stessa
+  // regola — quella che, per un ruolo fuori enum o un utente disattivato,
+  // rispondeva diversamente dalle altre quattro.
+  const listeAllowed = canAccessListe(uid);
   const isAdminUser = isAdmin(uid);
 
   // Dati della home + realtime: vedi useListeData. Prima erano cinque useState
@@ -150,7 +162,8 @@ export function ListeViaggio({ state, dispatch }) {
   // refetch completo per ogni modifica, e nessun evento quando a scrivere era
   // un altro utente.
   const { liste, cestino, saldi, loading, loadError, reload: loadHome } =
-    useListeData({ enabled: !isDriver });
+    useListeData({ enabled: listeAllowed });
+  const esegui = useListeWrite(dispatch);
 
   const [openId, setOpenId] = useState(null);
   const [detail, setDetail] = useState(null); // { lista, movimenti, history }
@@ -173,14 +186,14 @@ export function ListeViaggio({ state, dispatch }) {
   // dell'app (stesse tabelle `clients`/`users` del modulo): li riusiamo invece
   // di rifare le due query che faceva la SPA.
   const clients = useMemo(
-    () => [...(state.clients || [])].sort((a, b) => (a.name || "").localeCompare(b.name || "", "it")),
-    [state.clients],
+    () => [...clientsRaw].sort((a, b) => (a.name || "").localeCompare(b.name || "", "it")),
+    [clientsRaw],
   );
   const usersById = useMemo(() => {
     const m = {};
-    for (const t of state.team || []) m[t.id] = t.name;
+    for (const t of team || []) m[t.id] = t.name;
     return m;
-  }, [state.team]);
+  }, [team]);
 
   const loadDetail = useCallback(async (id) => {
     const [rLista, rMovs, rHist] = await Promise.all([
@@ -204,7 +217,7 @@ export function ListeViaggio({ state, dispatch }) {
   // cliente): SET_VIEW porta con sé l'id della lista da aprire. Il seq
   // incrementale fa scattare l'effetto anche se si richiede due volte di
   // fila la stessa lista. Stesso meccanismo di state.dashboardQueue.
-  const target = state.listeTarget;
+  const target = listeTarget;
   useEffect(() => {
     if (!target?.id) return;
     setOpenId(target.id);
@@ -274,7 +287,7 @@ export function ListeViaggio({ state, dispatch }) {
   ));
 
   const ripristina = async (id) => {
-    const { ok } = await runListeCall(dispatch, ListeAPI.ripristina(id), "Lista ripristinata");
+    const { ok } = await esegui("ripristinaLista", id);
     if (ok) await loadHome();
   };
 
@@ -285,7 +298,7 @@ export function ListeViaggio({ state, dispatch }) {
     danger: true,
     onOk: async () => {
       setConfirm(null);
-      const { ok } = await runListeCall(dispatch, ListeAPI.eliminaDefinitiva(l.id), "Lista eliminata definitivamente");
+      const { ok } = await esegui("eliminaListaDefinitivamente", l.id);
       if (ok) await loadHome();
     },
   });
@@ -347,9 +360,7 @@ export function ListeViaggio({ state, dispatch }) {
     // bloccato. L'avanzamento arriva dal layer dati, che sa quanti blocchi ha
     // già scritto.
     setImportProgress({ done: 0, total: 0 });
-    const { ok, data: res } = await runListeCall(
-      dispatch, ListeAPI.importaBackup(pendingImport.payload, setImportProgress), null,
-    );
+    const { ok, data: res } = await esegui("importaBackup", pendingImport.payload, setImportProgress);
     setImportProgress(null);
     if (!ok) return false;
     setPendingImport(null);
@@ -362,7 +373,7 @@ export function ListeViaggio({ state, dispatch }) {
   };
 
   const confermaReset = async () => {
-    const { ok, data: res } = await runListeCall(dispatch, ListeAPI.resetCompleto("RESET TOTALE"), null);
+    const { ok, data: res } = await esegui("resetTotale");
     if (!ok) return false;
     setResetOpen(false);
     dispatch({
@@ -410,10 +421,10 @@ export function ListeViaggio({ state, dispatch }) {
     </div>
   );
 
-  // Il Driver non ha accesso al modulo (RLS lato DB + gate lato client). Il
-  // reducer riporta comunque alla Dashboard chi passa a un utente driver
-  // mentre la vista è aperta: questo ramo copre il caso residuo.
-  if (isDriver) {
+  // Chi non ha accesso al modulo (RLS lato DB + gate lato client). Il reducer
+  // riporta comunque alla Dashboard chi passa a un utente senza accesso mentre
+  // la vista è aperta: questo ramo copre il caso residuo.
+  if (!listeAllowed) {
     return (
       <div className="fade-in">
         {chrome}
@@ -555,7 +566,7 @@ export function ListeViaggio({ state, dispatch }) {
               onCreate={{
                 onError: (message) => dispatch({ type: "SHOW_TOAST", payload: { type: "error", message } }),
                 run: async (payload) => {
-                  const { ok, data: id } = await runListeCall(dispatch, ListeAPI.crea(payload), "Lista creata");
+                  const { ok, data: id } = await esegui("creaLista", payload);
                   if (!ok) return false;
                   setNuovaOpen(false);
                   await loadHome();
@@ -617,6 +628,6 @@ export function ListeViaggio({ state, dispatch }) {
       </div>
     </div>
   );
-}
+});
 
 export default ListeViaggio;

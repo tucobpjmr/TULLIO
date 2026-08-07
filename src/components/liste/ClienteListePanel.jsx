@@ -7,9 +7,10 @@
 // significherebbe due copie della stessa UI da tenere allineate, e la scheda
 // cliente non è il contesto in cui si registra un movimento.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ListeAPI, eur, fmtDate, intestazioneLista, runListeCall, saldoClass } from "../../lib/listeApi.js";
+import { ListeAPI, eur, fmtDate, intestazioneLista, saldoClass } from "../../lib/listeApi.js";
+import { useListeWrite } from "./listePersistence.js";
 import { ListeStyles } from "./listeStyles.jsx";
-import { NuovaListaModal } from "./listeModals.jsx";
+import { NuovaListaModal } from "./modals/NuovaListaModal.jsx";
 
 export function ClienteListePanel({ cliente, dispatch }) {
   const [liste, setListe] = useState([]);
@@ -17,6 +18,7 @@ export function ClienteListePanel({ cliente, dispatch }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [nuovaOpen, setNuovaOpen] = useState(false);
+  const esegui = useListeWrite(dispatch);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -117,7 +119,7 @@ export function ClienteListePanel({ cliente, dispatch }) {
             onCreate={{
               onError: (message) => dispatch({ type: "SHOW_TOAST", payload: { type: "error", message } }),
               run: async (payload) => {
-                const { ok, data: id } = await runListeCall(dispatch, ListeAPI.crea(payload), "Lista creata");
+                const { ok, data: id } = await esegui("creaLista", payload);
                 if (!ok) return false;
                 setNuovaOpen(false);
                 apri(id); // si continua nel modulo, dove si registrano i movimenti

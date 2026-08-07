@@ -21,6 +21,8 @@
 
 import { render } from "@testing-library/react";
 import { AppDataProvider } from "../../state/AppDataContext.jsx";
+import { TasksProvider } from "../../state/TasksContext.jsx";
+import { ClientsProvider } from "../../state/ClientsContext.jsx";
 import { INITIAL_TEAM, INITIAL_CATEGORIES } from "../../state/mockData.js";
 
 // Contesto demo: gli stessi valori che appGlobals aveva come default di modulo
@@ -32,10 +34,22 @@ export const DEMO_APP_CTX = {
   currentUserId: "marco",
 };
 
-export function withAppData(ui, { team = [], categories = {}, currentUserId = null } = {}) {
+// `tasks` e `clients` viaggiano per contesto come team/categorie/utente (vedi
+// state/TasksContext.jsx). Sono qui e non in una seconda funzione perché la
+// firma di questo helper accetta già uno state del reducer intero —
+// `renderWithAppData(<Dashboard … />, s)` — e in quello `s.tasks` e `s.clients`
+// ci sono di loro: chi passa uno state non deve cambiare nulla.
+export function withAppData(
+  ui,
+  { team = [], categories = {}, currentUserId = null, tasks = [], clients = [] } = {},
+) {
   return (
     <AppDataProvider team={team} categories={categories} currentUserId={currentUserId}>
-      {ui}
+      <TasksProvider tasks={tasks}>
+        <ClientsProvider clients={clients}>
+          {ui}
+        </ClientsProvider>
+      </TasksProvider>
     </AppDataProvider>
   );
 }

@@ -5,7 +5,7 @@ import { describe, it, expect, vi } from "vitest";
 // costruibile senza VITE_SUPABASE_URL. Mockato e mai usato: qui servono
 // solo gli helper puri.
 vi.mock("../lib/supabase", () => ({ supabase: {}, default: {} }));
-import { foldIcsLine, buildIcs, icsEscape } from "../components/calendar/CalendarPlanner.jsx";
+import { foldIcsLine, buildIcs, icsEscape } from "../components/calendar/calendarIcs.js";
 
 const enc = new TextEncoder();
 const byteLen = (s) => enc.encode(s).length;

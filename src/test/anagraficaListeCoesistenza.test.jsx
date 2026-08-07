@@ -17,9 +17,11 @@ import { withAppData } from "./helpers/appData.jsx";
 // render, ma props del provider. Restano impostabili con le stesse due
 // chiamate — `ctxTeam` / `ctxUser` — così ogni test dichiara da quale team
 // dipende, e `render` le applica montando l'albero dentro <AppDataProvider>.
-let appCtx = { team: [], categories: {}, currentUserId: null };
+let appCtx = { team: [], categories: {}, currentUserId: null, tasks: [], clients: [] };
 const ctxTeam = (t) => { appCtx = { ...appCtx, team: t }; };
 const ctxUser = (id) => { appCtx = { ...appCtx, currentUserId: id }; };
+const ctxTasks = (t) => { appCtx = { ...appCtx, tasks: t }; };
+const ctxClients = (c) => { appCtx = { ...appCtx, clients: c }; };
 const render = (ui, options) => {
   const utils = rtlRender(withAppData(ui, appCtx), options);
   // `appCtx` è letto al momento del rerender, non a quello del primo render:
@@ -50,7 +52,7 @@ vi.mock("../lib/listeApi.js", async (importOriginal) => {
 });
 
 const { ClientiView } = await import("../components/clients/ClientiView.jsx");
-const { EditListaModal } = await import("../components/liste/listeModals.jsx");
+const { EditListaModal } = await import("../components/liste/modals/EditListaModal.jsx");
 
 const TEAM = [{ id: "marco", name: "Marco Rossi", role: "admin", active: true, pending: false }];
 
@@ -69,10 +71,13 @@ const baseState = () => ({
 });
 
 const renderView = () => {
+  const s = baseState();
   ctxTeam(TEAM.map(m => ({ ...m })));
   ctxUser("marco");
+  ctxTasks(s.tasks);
+  ctxClients(s.clients);
   const dispatch = vi.fn();
-  render(<ClientiView state={baseState()} dispatch={dispatch} />);
+  render(<ClientiView dispatch={dispatch} />);
   return dispatch;
 };
 

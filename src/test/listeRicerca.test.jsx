@@ -84,8 +84,7 @@ const renderElenco = async (liste, cestino = []) => {
   ListeAPI.list.mockResolvedValue({ data: liste, error: null });
   ListeAPI.listTrash.mockResolvedValue({ data: cestino, error: null });
   ListeAPI.saldi.mockResolvedValue({ data: [], error: null });
-  const state = { currentUserId: "marco", clients: [], team: TEAM, listeTarget: null };
-  render(<ListeViaggio state={state} dispatch={vi.fn()} />);
+  render(<ListeViaggio dispatch={vi.fn()} />);
   await waitFor(() => expect(screen.queryByText("Caricamento…")).toBeNull());
 };
 

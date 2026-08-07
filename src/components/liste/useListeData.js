@@ -28,6 +28,12 @@ import { useDebouncedTableSubscription } from "../../hooks/useDebouncedTableSubs
 
 const VUOTO = { liste: [], cestino: [], saldi: {} };
 
+// Indicizza le righe della vista `liste_saldi` per lista_id: è la forma in cui
+// l'elenco le consuma. Fuori dal componente perché è pura e non deve entrare
+// nelle deps di useCallback.
+const perListaId = (righe) =>
+  Object.fromEntries((righe || []).map((s) => [s.lista_id, s]));
+
 /**
  * @param {object}  opts
  * @param {boolean} opts.enabled  false per i ruoli senza accesso al modulo
@@ -42,23 +48,56 @@ export function useListeData({ enabled = true } = {}) {
   // ogni await, altrimenti una risposta lenta di un reload vecchio può
   // sovrascrivere quella di uno più recente (il classico last-write-wins fra
   // due fetch concorrenti).
-  const reload = useCallback(async (isCurrent = () => true) => {
+  const reload = useCallback(async (isCurrent = () => true, tabelle = null) => {
+    // Chiuso sui soli setter di React (identità stabile per contratto), così
+    // `reload` può restare con deps vuote: la sua identità è passata a
+    // useDebouncedTableSubscription, dove cambiarla a ogni render
+    // provocherebbe una ri-sottoscrizione continua.
+    const fallisci = (errore) => {
+      console.error("[liste] caricamento", errore);
+      setLoadError(errore.message);
+      setLoading(false);
+    };
+
     setLoadError(null);
+
+    // Un movimento cambia i SALDI e nient'altro: l'elenco delle liste e il
+    // cestino non possono essere stati invalidati da una scrittura su
+    // movimenti_lista. Finché reload non sapeva quale tabella avesse generato
+    // l'evento era costretto a ricaricare tutto per costruzione, e siccome
+    // registrare un movimento è l'operazione più frequente del modulo, ogni
+    // singolo movimento faceva scaricare l'intero elenco (centinaia di liste)
+    // e l'intero cestino a OGNI client connesso. Qui ricarichiamo la sola
+    // parte che quell'evento può aver toccato.
+    //
+    // `tabelle === null` è l'idratazione iniziale (nessun evento): serve
+    // tutto. Un Set che contiene liste_viaggio pure: una lista creata,
+    // rinominata, archiviata o ripristinata cambia elenco e cestino.
+    const soloSaldi = tabelle !== null && tabelle.size > 0 && !tabelle.has("liste_viaggio");
+
+    if (soloSaldi) {
+      const rSaldi = await ListeAPI.saldi();
+      if (!isCurrent()) return;
+      if (rSaldi.error) return fallisci(rSaldi.error);
+      // Aggiornamento funzionale: liste e cestino restano quelli già in stato,
+      // e non vanno letti dalle deps di useCallback (che deve restare vuoto
+      // perché `reload` è passato a useDebouncedTableSubscription, dove
+      // un'identità instabile provocherebbe una ri-sottoscrizione a ogni render).
+      setDati((d) => ({ ...d, saldi: perListaId(rSaldi.data) }));
+      setLoading(false);
+      return;
+    }
+
     const [rListe, rCestino, rSaldi] = await Promise.all([
       ListeAPI.list(), ListeAPI.listTrash(), ListeAPI.saldi(),
     ]);
     if (!isCurrent()) return;
     const fallita = [rListe, rCestino, rSaldi].find((r) => r.error);
-    if (fallita) {
-      console.error("[liste] caricamento", fallita.error);
-      setLoadError(fallita.error.message);
-      setLoading(false);
-      return;
-    }
+    if (fallita) return fallisci(fallita.error);
     setDati({
       liste: rListe.data || [],
       cestino: rCestino.data || [],
-      saldi: Object.fromEntries((rSaldi.data || []).map((s) => [s.lista_id, s])),
+      saldi: perListaId(rSaldi.data),
     });
     setLoading(false);
   }, []);

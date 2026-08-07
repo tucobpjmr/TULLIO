@@ -36,7 +36,7 @@ import {
 } from "../lib/api.js";
 import {
   toDbTask, toDbTaskPatch, toDbNotice, toDbNoticePatch,
-  toDbClient, toDbCategory, newId, isUuid,
+  toDbClient, toDbClientPatch, toDbCategory, newId, isUuid,
 } from "../lib/mappers.js";
 import { canEditTask, canViewTask, canCreateTaskCategory } from "../lib/permissions.js";
 import { toDbRole, toSeniority } from "../lib/taskConstants.js";
@@ -182,8 +182,16 @@ export const PERSISTENCE = {
   },
 
   // ─── CRM: CLIENTI ──────────────────────────────────────────────────────────
+  // L'id generato qui è ora quello che finisce anche sul database (toDbClient
+  // lo porta con sé): prima il DB ne assegnava uno proprio via
+  // gen_random_uuid() e lo stato React conservava l'altro, rendendo
+  // UPDATE_CLIENT/DELETE_CLIENT no-op fino al reload successivo.
+  // `isUuid` come per i task: un id già valido non va rigenerato.
   ADD_CLIENT: {
-    normalize: (a) => ({ ...a, payload: { ...a.payload, id: newId() } }),
+    normalize: (a) => ({
+      ...a,
+      payload: { ...a.payload, id: isUuid(a.payload?.id) ? a.payload.id : newId() },
+    }),
     persist: (s, a) => ClientsAPI.create(toDbClient(a.payload)),
   },
 
@@ -197,7 +205,10 @@ export const PERSISTENCE = {
       : NOOP),
   },
 
-  UPDATE_CLIENT: { persist: (s, a) => ClientsAPI.update(a.payload.id, toDbClient(a.payload)) },
+  // toDbClientPatch e non toDbClient: l'id è già nella clausola WHERE, e
+  // mandarlo anche fra i campi da scrivere significherebbe riscrivere la
+  // chiave primaria della riga che si sta modificando.
+  UPDATE_CLIENT: { persist: (s, a) => ClientsAPI.update(a.payload.id, toDbClientPatch(a.payload)) },
 
   // Propagazione del rename cliente sui task che lo citano per nome
   // (task.client è testo libero, non una FK). Il filtro deve essere lo STESSO

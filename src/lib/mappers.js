@@ -248,8 +248,23 @@ export function fromDbClient(row) {
   };
 }
 
+// App client → riga DB per l'INSERT. Come toDbTask/toDbNotice porta con sé
+// l'id: `clients.id` ha default gen_random_uuid(), quindi finché l'id non
+// veniva spedito il database ne assegnava uno PROPRIO, diverso da quello che
+// il registry di persistenza aveva già generato (ADD_CLIENT.normalize → newId)
+// e messo nello stato React.
+//
+// Le conseguenze non erano teoriche: UPDATE_CLIENT e DELETE_CLIENT usano
+// quell'id come clausola WHERE, quindi ogni modifica o eliminazione di un
+// cliente creato nella STESSA sessione colpiva zero righe sul server. La UI
+// mostrava "Cliente aggiornato!" e il database non riceveva nulla; lo scarto
+// diventava visibile solo al reload successivo, quando il valore tornava
+// indietro da solo. Restava nascosto perché i clienti erano l'unica entità
+// senza subscription realtime: nessuna ri-idratazione arrivava a smentire lo
+// stato locale prima del reload.
 export function toDbClient(client) {
   return {
+    id: isUuid(client.id) ? client.id : newId(),
     name: client.name,
     email: client.email ?? null,
     phone: client.phone ?? null,
@@ -257,6 +272,22 @@ export function toDbClient(client) {
     city: client.city ?? null,
     notes: client.notes ?? null,
   };
+}
+
+// App client → patch DB per l'UPDATE. Stessa separazione di
+// toDbNotice/toDbNoticePatch: l'id identifica la riga nella clausola WHERE e
+// non va fra i campi da riscrivere — spedirlo qui significherebbe, su un
+// payload senza id valido, generarne uno nuovo e riscrivere la chiave primaria
+// della riga che si sta modificando.
+export function toDbClientPatch(patch) {
+  const out = {};
+  if ('name' in patch) out.name = patch.name;
+  if ('email' in patch) out.email = patch.email ?? null;
+  if ('phone' in patch) out.phone = patch.phone ?? null;
+  if ('address' in patch) out.address = patch.address ?? null;
+  if ('city' in patch) out.city = patch.city ?? null;
+  if ('notes' in patch) out.notes = patch.notes ?? null;
+  return out;
 }
 
 // ----------------- CATEGORIES -----------------

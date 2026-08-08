@@ -19,6 +19,17 @@ import { CellEditor } from "./CellEditor.jsx";
 import { NoteInterne } from "./NoteInterne.jsx";
 import { TitoloTestata } from "./TitoloTestata.jsx";
 
+// `onReload` (== `reloadAll` di ListeViaggio) ricarica la home in modo
+// selettivo secondo `tabelle` (vedi useListeData — soloSaldi). Qui, dopo ogni
+// scrittura, sappiamo con certezza cosa può essere stato invalidato: un
+// movimento tocca i saldi e non l'elenco, una modifica alla lista (titolo,
+// note, stato, titolare, cointestatari) tocca l'elenco. Dichiararlo qui
+// invece di chiamare `onReload()` a vuoto è ciò che rende selettivo anche il
+// reload manuale, non solo quello realtime — altrimenti la correzione A-1
+// (vedi useListeData) vale solo per metà dei chiamanti.
+const TABELLE_MOVIMENTO = new Set(["movimenti_lista"]);
+const TABELLE_LISTA = new Set(["liste_viaggio"]);
+
 // ─── Dettaglio ─────────────────────────────────────────────────────────────
 export function ListaDetail({ lista, movimenti, history, usersById, dispatch, onReload, onArchived, clients = [] }) {
   const [addOpen, setAddOpen] = useState(false);
@@ -79,13 +90,13 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
     }
     if (attiva) return chiudi();
     const { ok } = await esegui("riapriLista", lista.id);
-    if (ok) await onReload();
+    if (ok) await onReload(TABELLE_LISTA);
   };
 
   const chiudi = async () => {
     setConfirm(null);
     const { ok } = await esegui("esaurisciLista", lista.id);
-    if (ok) await onReload();
+    if (ok) await onReload(TABELLE_LISTA);
   };
 
   const cestina = () => setConfirm({
@@ -102,13 +113,13 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
 
   const spostaTitolare = async (nuovoClientId) => {
     const { ok } = await esegui("spostaTitolare", lista.id, nuovoClientId);
-    if (ok) { setModal(null); await onReload(); }
+    if (ok) { setModal(null); await onReload(TABELLE_LISTA); }
     return ok;
   };
 
   const aggiungiBenef = async (payload) => {
     const { ok } = await esegui("aggiungiCointestatario", { listaId: lista.id, ...payload });
-    if (ok) { setModal(null); await onReload(); }
+    if (ok) { setModal(null); await onReload(TABELLE_LISTA); }
     return ok;
   };
 
@@ -120,7 +131,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
     onOk: async () => {
       setConfirm(null);
       const { ok } = await esegui("rimuoviCointestatario", lista.id, b.client_id);
-      if (ok) await onReload();
+      if (ok) await onReload(TABELLE_LISTA);
     },
   });
 
@@ -141,7 +152,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
     onOk: async () => {
       setConfirm(null);
       const { ok } = await esegui("annullaMovimento", m.id);
-      if (ok) await onReload();
+      if (ok) await onReload(TABELLE_MOVIMENTO);
     },
   });
 
@@ -182,7 +193,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
             </button>
           </div>
           <div className="sub">
-            <TitoloTestata lista={lista} dispatch={dispatch} onSaved={onReload} />
+            <TitoloTestata lista={lista} dispatch={dispatch} onSaved={() => onReload(TABELLE_LISTA)} />
             <span className={`lv-badge ${lista.stato}`}>{lista.stato}</span>
           </div>
         </div>
@@ -211,7 +222,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
           <AddMovBox
             listaId={lista.id}
             dispatch={dispatch}
-            onSaved={onReload}
+            onSaved={() => onReload(TABELLE_MOVIMENTO)}
             onClose={() => setAddOpen(false)}
             onBulk={() => setModal("bulk")}
           />
@@ -237,7 +248,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
                         movimento={m}
                         campo={editCell.campo}
                         dispatch={dispatch}
-                        onSaved={async () => { setEditCell(null); await onReload(); }}
+                        onSaved={async () => { setEditCell(null); await onReload(TABELLE_MOVIMENTO); }}
                         onCancel={() => setEditCell(null)}
                       />
                     ) : (
@@ -283,7 +294,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
         )}
       </div>
 
-      <NoteInterne lista={lista} dispatch={dispatch} onSaved={onReload} />
+      <NoteInterne lista={lista} dispatch={dispatch} onSaved={() => onReload(TABELLE_LISTA)} />
 
       <div className="lv-card" style={{ marginTop: 16 }}>
         <details>
@@ -312,7 +323,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
             ...helper,
             run: async (payload) => {
               const { ok } = await esegui("modificaLista", payload);
-              if (ok) { setModal(null); await onReload(); }
+              if (ok) { setModal(null); await onReload(TABELLE_LISTA); }
               return ok;
             },
           }}
@@ -349,7 +360,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
               if (!ok) return false;
               dispatch({ type: "SHOW_TOAST", payload: { type: "success", message: `${n} movimenti registrati` } });
               setModal(null);
-              await onReload();
+              await onReload(TABELLE_MOVIMENTO);
               return true;
             },
           }}
@@ -364,7 +375,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
             ...helper,
             run: async (payload) => {
               const { ok } = await esegui("modificaMovimento", payload);
-              if (ok) { setModal(null); await onReload(); }
+              if (ok) { setModal(null); await onReload(TABELLE_MOVIMENTO); }
               return ok;
             },
           }}

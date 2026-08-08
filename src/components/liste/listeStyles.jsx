@@ -209,12 +209,20 @@ export const ListeStyles = () => (
     .lv-riepilogo .rp-foot{font-size:11px;color:var(--lv-muted);margin-top:16px}
 
     /* Stampa/PDF del solo riepilogo: nasconde tutto il resto della pagina
-       (chrome dell'app compresa) tramite il trucco classico visibility, così
-       non serve sapere dove l'overlay finisce nell'albero React. */
+       (chrome dell'app compresa) escludendo ogni figlio diretto di <body>
+       che non sia il portale del modale (index.html ha solo #root come
+       figlio di body, quindi ":not(.lv-root)" lo becca senza dover sapere
+       nulla dell'albero React). Il modale e l'overlay vengono riportati a
+       flusso normale (niente più position:fixed/max-height/overflow:auto):
+       un riepilogo con tabella lunga andava troncato alla prima pagina e
+       perdeva il saldo totale perché un elemento fixed non si impagina su
+       più fogli in stampa, resta ancorato a una sola pagina. */
     @media print{
-      body *{visibility:hidden}
-      .lv-riepilogo,.lv-riepilogo *{visibility:visible}
-      .lv-riepilogo{position:fixed;inset:0;padding:24px;background:#fff;overflow:visible}
+      body > :not(.lv-root){display:none}
+      .no-print{display:none}
+      .lv-overlay{position:static;display:block;background:none;padding:0}
+      .lv-overlay .lv-modal{max-height:none;overflow:visible}
+      .lv-riepilogo{padding:24px;background:#fff}
       .lv-riepilogo table.lv-mov td{border-bottom:1px solid #ddd}
     }
 

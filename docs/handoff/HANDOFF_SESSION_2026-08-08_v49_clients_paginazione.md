@@ -37,17 +37,28 @@ il valore reale di `db-max-rows` (1000, 500, illimitato). In v48 non era stata
 applicata solo per perimetro (B-1 riguardava altro); questo branch nasce
 apposta su questo punto, quindi il perimetro c'è.
 
-## Cosa resta davvero aperto
+## Il cap, misurato a mano (stesso giorno, dopo il push)
 
-Il valore effettivo di `db-max-rows` **non è verificabile da sessione**, né
-ora né in v48: non è in `pg_db_role_setting`, non lo espone nessun tool
-Supabase MCP disponibile (sono management-plane ma non coprono
-Settings → API → Max rows), e il test empirico alternativo — una GET REST
-senza `.range()` su una tabella sopra il cap, per contare quante righe tornano
-davvero — richiede un JWT autenticato con ruolo admin/manager/agent che non è
-disponibile qui (RLS blocca l'anon key). **Va guardato a mano in dashboard**,
-una tantum: non per decidere se applicare questa correzione (già fatto), ma
-per sapere se restano altre query non paginate a rischio nel progetto.
+Il valore effettivo di `db-max-rows` non era verificabile da sessione: non è
+in `pg_db_role_setting`, non lo espone nessun tool Supabase MCP (sono
+management-plane ma non coprono Settings → API → Max rows), e il test
+empirico alternativo via REST richiede un JWT autenticato che non c'è qui.
+Controllato a mano in dashboard: **1000** (il default Supabase).
+
+**Deciso di non alzarlo.** Il cap è una rete di sicurezza lato server
+indipendente dal codice client: se in futuro una query "prendi tutto"
+dimenticasse `fetchAllRows`, il cap è l'unica cosa che limita il danno a un
+payload grande invece che a un troncamento silenzioso a una soglia più alta e
+altrettanto invisibile — esattamente il meccanismo che ha innescato questa
+indagine. Alzarlo sposterebbe il problema più in là senza risolverlo; la
+difesa vera resta la paginazione lato client, che infatti non dipende dal
+valore del cap.
+
+Misurate anche le altre tabelle lette senza `.range()` in `lib/api.js`:
+`tasks` 247, `messages` 13, `comments` 7, `notifications` 11, `notices` 0,
+`users` 7 — tutte ben sotto soglia. Nessun'altra query a rischio oggi.
+
+Con questo il punto B-1 sul cap `db-max-rows` è **chiuso**.
 
 ## Stato misurato
 

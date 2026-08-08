@@ -188,10 +188,19 @@ posto del `select('*')` nudo. `clients` era a **818 righe** al momento della
 scrittura di questa nota: se il cap fosse il default storico di 1000,
 l'anagrafica sarebbe stata a meno di 200 clienti dal troncamento silenzioso.
 5 nuovi test in `src/test/clientsPaginazione.test.js` (stesso pattern di
-`listePaginazione.test.js`) bloccano la regressione. Il valore reale del cap
-resta comunque da verificare a mano — non per giustificare questa correzione,
-che ormai non ne dipende, ma perché resta l'unico modo di sapere se altre
-query non paginate nel progetto sono a rischio.
+`listePaginazione.test.js`) bloccano la regressione.
+
+✅ **Verificato a mano in dashboard l'8 agosto 2026:** `db-max-rows` = **1000**
+(il default Supabase). **Deciso di non alzarlo**: il cap lato server è una
+rete di sicurezza indipendente dal codice client — se in futuro una nuova
+query "prendi tutto" dimenticasse `fetchAllRows`, il cap è l'unica cosa che
+limita il danno a un payload grande invece che a un troncamento silenzioso a
+una soglia più alta e altrettanto invisibile. Alzarlo sposterebbe solo più in
+là nel tempo lo stesso problema che ha causato questa indagine, senza
+risolverlo. Misurate anche le altre tabelle lette senza paginazione in
+`lib/api.js`: `tasks` 247, `messages` 13, `comments` 7, `notifications` 11,
+`notices` 0, `users` 7 — tutte ben sotto soglia, nessun'altra query a rischio
+oggi. Con questo il punto B-1 sul cap è chiuso.
 
 ---
 

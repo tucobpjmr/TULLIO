@@ -195,10 +195,19 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
     return m;
   }, [team]);
 
+  // Guardia di staleness del dettaglio: stessa disciplina di useListeData,
+  // generazione propria. Senza, il dettaglio di una lista chiusa (o
+  // sostituita da un'altra appena aperta) può arrivare in ritardo e
+  // sovrascrivere quello della lista che l'utente sta guardando ora — un
+  // `setDetail` di A che atterra dopo che si è già passati a B.
+  const detailGenRef = useRef(0);
+
   const loadDetail = useCallback(async (id) => {
+    const mia = ++detailGenRef.current;
     const [rLista, rMovs, rHist] = await Promise.all([
       ListeAPI.get(id), ListeAPI.movimenti(id), ListeAPI.history(id),
     ]);
+    if (mia !== detailGenRef.current) return; // una loadDetail più recente è già partita
     const failed = [rLista, rMovs, rHist].find((r) => r.error);
     if (failed) {
       console.error("[liste] dettaglio", failed.error);
@@ -209,7 +218,10 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
   }, [dispatch]);
 
   useEffect(() => {
-    if (!openId) { setDetail(null); return; }
+    // Chiusura: nessuna loadDetail in volo resta legittima. Bump esplicito
+    // (nessuna nuova loadDetail la farebbe da sola) così una risposta tardiva
+    // per la lista appena chiusa non può riapparire nel dettaglio.
+    if (!openId) { detailGenRef.current += 1; setDetail(null); return; }
     loadDetail(openId);
   }, [openId, loadDetail]);
 
@@ -223,10 +235,19 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
     setOpenId(target.id);
   }, [target?.id, target?.seq]);
 
-  // Ricarica dopo una scrittura: il dettaglio e i saldi della home vanno
-  // entrambi aggiornati (il saldo cambia la riga in elenco).
-  const reloadAll = useCallback(async () => {
-    await Promise.all([loadHome(), openId ? loadDetail(openId) : Promise.resolve()]);
+  // Ricarica dopo una scrittura: il dettaglio va SEMPRE ricaricato (il saldo,
+  // i movimenti o i campi della lista possono essere cambiati), la home solo
+  // per la parte che `tabelle` dichiara invalidata — è ListaDetail, che sa
+  // quale scrittura ha appena fatto, a passarla. Nessun argomento (default
+  // `null`) è il default prudente per chi non si esprime: reload completo
+  // della home, cioè il comportamento precedente a questa correzione.
+  //
+  // `loadHome(undefined, tabelle)`: il primo argomento resta `undefined` così
+  // useListeData applica il proprio default (`() => true`) — la protezione
+  // anti-race qui non dipende più da questo argomento, viene dal generation
+  // counter condiviso dentro useListeData stesso.
+  const reloadAll = useCallback(async (tabelle = null) => {
+    await Promise.all([loadHome(undefined, tabelle), openId ? loadDetail(openId) : Promise.resolve()]);
   }, [loadHome, loadDetail, openId]);
 
   const backToHome = useCallback(async () => {

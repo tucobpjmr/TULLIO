@@ -499,6 +499,16 @@ const SOLO_CLIENT = [
   // Il log attività è ricostruito in memoria dalle azioni (buildLogEntry):
   // svuotarlo è un'operazione locale perché il log stesso lo è.
   "CLEAR_ACTIVITY_LOG",
+  // Registro delle scritture in volo (state.pendingWrites). Non è un dato: è
+  // bookkeeping sul CICLO DI VITA di una scrittura, dispatchato da
+  // useSyncedDispatch prima e dopo spec.persist() per impedire che un refetch
+  // concorrente sovrascriva una riga la cui UPDATE non ha ancora fatto commit.
+  // Sul server non esiste niente da marcare — la marcatura riguarda proprio il
+  // fatto che il server non sa ancora della scrittura — e persisterla sarebbe
+  // una scrittura in più su una tabella che non c'è. Non stanno in
+  // COMPENSAZIONE perché non compensano un fallimento: si smarcano SEMPRE, che
+  // la scrittura riesca o no.
+  "MARK_PENDING_WRITE", "UNMARK_PENDING_WRITE",
 ];
 
 const IDRATAZIONE = [

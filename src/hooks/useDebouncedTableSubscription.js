@@ -21,6 +21,23 @@
 // sottoscrizione, non da `payload.table`: è vero che supabase-js lo espone,
 // ma qui lo conosciamo già per costruzione e non c'è motivo di dipendere
 // dalla forma del payload per un'informazione che abbiamo in mano.
+//
+// ─── S-2 · ripresa dopo un buco di connessione ─────────────────────────────
+// Postgres Changes (Supabase Realtime) non offre ripresa da offset: se il
+// socket cade — schermo bloccato, cambio rete, tab in background — il canale
+// si riaggancia da solo (supabase-js lo fa internamente), ma gli eventi
+// emessi nel frattempo non vengono MAI consegnati. Non c'è un ID di
+// sequenza da cui ripartire: l'unico modo per sapere cosa si è perso è non
+// saperlo, e ricaricare tutto — esattamente come all'idratazione iniziale
+// (`tabelle = null`, stesso branch che ogni reload già gestisce).
+//
+// Due segnali, entrambi euristici e non affidabili al 100% ma correlati con
+// un'interruzione: `online` (la rete è tornata) e `visibilitychange` verso
+// `visible` (la scheda/app torna in primo piano — su iOS è il caso più
+// comune: schermo bloccato per qualche minuto droppa il websocket). Nessuno
+// dei due prova che qualcosa sia stato perso, ma il costo di un reload di
+// troppo è una query; il costo di un reload mancato è dati muti finché
+// l'utente non ricarica la pagina a mano.
 import { useEffect, useRef } from "react";
 import { subscribeToTable } from "../lib/api.js";
 
@@ -77,9 +94,34 @@ export function useDebouncedTableSubscription(
     const list = Array.isArray(tables) ? tables : [tables];
     const unsubs = list.map((tbl) => subscribeToTable(tbl, (p) => debounced(tbl, p)));
 
+    // `online`/`visibilitychange` possono arrivare quasi insieme (sbloccare lo
+    // schermo spesso significa anche riagganciare la rete): un piccolo debounce
+    // dedicato coalesce i due in un solo reload, invece di due ravvicinati.
+    let reconnectTimer = null;
+    const onReconnectSignal = () => {
+      // Un reload parziale può già essere in coda (con un `delay` di default
+      // più corto dei 300ms qui sotto, scatterebbe per primo): il reload
+      // completo che sta per partire lo copre comunque, quindi lo assorbiamo
+      // SUBITO, non quando il timer di ripresa scatta — altrimenti la corsa
+      // fra i due timer la vincerebbe il parziale ed entrambi girerebbero.
+      clearTimeout(timer);
+      pending = new Set();
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(() => run(null), 300);
+    };
+    const onOnline = () => onReconnectSignal();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") onReconnectSignal();
+    };
+    window.addEventListener("online", onOnline);
+    document.addEventListener("visibilitychange", onVisibility);
+
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      clearTimeout(reconnectTimer);
+      window.removeEventListener("online", onOnline);
+      document.removeEventListener("visibilitychange", onVisibility);
       unsubs.forEach((u) => u?.());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

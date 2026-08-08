@@ -22,7 +22,7 @@
 // dalla migrazione 20260806090000_liste_realtime.sql: prima non lo erano, e
 // una subscription su di esse non avrebbe mai ricevuto un evento.
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { ListeAPI } from "../../lib/listeApi.js";
 import { useDebouncedTableSubscription } from "../../hooks/useDebouncedTableSubscription.js";
 
@@ -44,15 +44,37 @@ export function useListeData({ enabled = true } = {}) {
   const [loading, setLoading] = useState(enabled);
   const [loadError, setLoadError] = useState(null);
 
-  // `isCurrent` arriva da useDebouncedTableSubscription: va interrogato DOPO
-  // ogni await, altrimenti una risposta lenta di un reload vecchio può
-  // sovrascrivere quella di uno più recente (il classico last-write-wins fra
-  // due fetch concorrenti).
+  // Generazione condivisa fra IL RELOAD MANUALE (chiamato da ListeViaggio dopo
+  // ogni scrittura, `loadHome()` senza argomenti) e IL RELOAD REALTIME
+  // (chiamato da useDebouncedTableSubscription con il proprio `isCurrent`).
+  // Prima, un `reload()` senza argomenti riceveva `isCurrent = () => true` —
+  // la guardia anti-stale del realtime era semplicemente ASSENTE per quella
+  // chiamata, e un reload manuale lento poteva sovrascrivere una risposta
+  // realtime più recente ma più veloce (vince il più vecchio). Incrementando
+  // `genRef` a OGNI reload, da qualunque origine, l'ordine di ARRIVO delle
+  // risposte smette di contare: conta solo l'ordine di PARTENZA, e l'ultimo
+  // partito è sempre quello che vince, indipendentemente da chi lo ha
+  // lanciato o da quanto ci mette a rispondere.
+  const genRef = useRef(0);
+
+  // `isCurrent` arriva da useDebouncedTableSubscription per il ramo realtime
+  // (default `() => true` per il ramo manuale, che non ha un effetto da cui
+  // dedurne uno proprio): va interrogato DOPO ogni await, altrimenti una
+  // risposta lenta di un reload vecchio può sovrascrivere quella di uno più
+  // recente (il classico last-write-wins fra due fetch concorrenti). La
+  // generazione qui sopra copre ANCHE il caso in cui isCurrent resti il
+  // default: le due condizioni si compongono in AND, non si sostituiscono.
   const reload = useCallback(async (isCurrent = () => true, tabelle = null) => {
     // Chiuso sui soli setter di React (identità stabile per contratto), così
     // `reload` può restare con deps vuote: la sua identità è passata a
     // useDebouncedTableSubscription, dove cambiarla a ogni render
-    // provocherebbe una ri-sottoscrizione continua.
+    // provocherebbe una ri-sottoscrizione continua. `genRef` è un ref: la
+    // stessa ragione vale per lui.
+    const mia = ++genRef.current;
+    // «La mia è ancora l'ultima partita» E «l'effetto/chiamante che mi ha
+    // lanciata non è stato smontato/superato» (quest'ultima è `isCurrent`).
+    const attuale = () => mia === genRef.current && isCurrent();
+
     const fallisci = (errore) => {
       console.error("[liste] caricamento", errore);
       setLoadError(errore.message);
@@ -77,7 +99,7 @@ export function useListeData({ enabled = true } = {}) {
 
     if (soloSaldi) {
       const rSaldi = await ListeAPI.saldi();
-      if (!isCurrent()) return;
+      if (!attuale()) return;
       if (rSaldi.error) return fallisci(rSaldi.error);
       // Aggiornamento funzionale: liste e cestino restano quelli già in stato,
       // e non vanno letti dalle deps di useCallback (che deve restare vuoto
@@ -91,7 +113,7 @@ export function useListeData({ enabled = true } = {}) {
     const [rListe, rCestino, rSaldi] = await Promise.all([
       ListeAPI.list(), ListeAPI.listTrash(), ListeAPI.saldi(),
     ]);
-    if (!isCurrent()) return;
+    if (!attuale()) return;
     const fallita = [rListe, rCestino, rSaldi].find((r) => r.error);
     if (fallita) return fallisci(fallita.error);
     setDati({

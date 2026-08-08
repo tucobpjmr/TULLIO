@@ -143,13 +143,19 @@ describe("useSyncedDispatch — fallimenti di persistenza", () => {
       await dispatch({ type: "ADD_TASKS_BULK", payload: [task({ id: uuid(1) }), task({ id: uuid(2) })] });
     });
 
+    // L'ordine è parte del contratto: la marcatura precede la scrittura e la
+    // liberazione segue il rollback, così una ri-idratazione concorrente non
+    // può sovrascrivere né lo stato ottimistico né la sua compensazione.
     const tipi = azioniDispatchate(rawDispatch).map(a => a.type);
-    expect(tipi).toEqual(["ADD_TASKS_BULK", "ROLLBACK_TASKS_BULK", "SHOW_TOAST"]);
+    expect(tipi).toEqual([
+      "ADD_TASKS_BULK", "MARK_PENDING_WRITE",
+      "ROLLBACK_TASKS_BULK", "SHOW_TOAST", "UNMARK_PENDING_WRITE",
+    ]);
 
-    const rollback = azioniDispatchate(rawDispatch)[1];
+    const rollback = azioniDispatchate(rawDispatch)[2];
     expect(rollback.payload).toEqual([uuid(1), uuid(2)]);
 
-    const toast = azioniDispatchate(rawDispatch)[2];
+    const toast = azioniDispatchate(rawDispatch)[3];
     expect(toast.payload.type).toBe("error");
     expect(toast.payload.message).toContain("vincolo violato");
   });
@@ -187,7 +193,8 @@ describe("useSyncedDispatch — fallimenti di persistenza", () => {
 
     await act(async () => { await dispatch({ type: "DELETE_TASK", payload: uuid(1) }); });
 
-    expect(azioniDispatchate(rawDispatch).map(a => a.type)).toEqual(["DELETE_TASK", "SHOW_TOAST"]);
+    expect(azioniDispatchate(rawDispatch).map(a => a.type))
+      .toEqual(["DELETE_TASK", "MARK_PENDING_WRITE", "SHOW_TOAST", "UNMARK_PENDING_WRITE"]);
   });
 
   it("in un Promise.all basta un errore per far scattare la gestione", async () => {

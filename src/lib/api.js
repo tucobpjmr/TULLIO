@@ -646,13 +646,22 @@ export const Categories = {
 // client, l'evento è l'eco della nostra stessa scrittura — l'UI è già
 // aggiornata in modo ottimistico, quindi lo scartiamo per evitare flash.
 //
-// ⚠️ Su DELETE l'origine NON è affidabile: `.delete()` non trasporta payload,
-// quindi payload.old.origin_client è l'origine dell'ULTIMA SCRITTURA della
-// riga, non di chi la cancella — chi aveva modificato quella riga per ultimo
-// scarta la cancellazione altrui e se la tiene in lista. Vale oggi sulle sette
-// tabelle a REPLICA IDENTITY FULL; le tabelle aggiunte dopo non ci sono state
-// portate apposta (migrazione 20260808120000, blocco (a)), così il caso non si
-// allarga mentre aspetta la sua correzione, che è qui e non in una migrazione.
+// Su DELETE l'origine NON è affidabile e infatti non viene più letta.
+// `.delete()` non trasporta un payload, quindi `payload.old.origin_client` non
+// è l'origine di CHI CANCELLA: è quella dell'ultima scrittura che ha toccato
+// la riga. Fidarsene invertiva il senso del filtro proprio per l'utente più
+// coinvolto —
+//
+//   A modifica un task (origin = A) → B lo purga dal cestino → l'evento DELETE
+//   arriva ad A con origin = A → A lo scarta come eco propria → nella lista di
+//   A quel task resta, e resta finché A non ricarica la pagina.
+//
+// — sulle sette tabelle a REPLICA IDENTITY FULL, `tasks` compresa. Ignorando
+// l'origine sui DELETE ogni cancellazione provoca un refetch: una richiesta in
+// più, sempre corretta. Non è una perdita, perché l'eco della PROPRIA DELETE
+// non era comunque filtrabile (non porta il tag), quindi il ramo scartava solo
+// cancellazioni altrui. Vedi il blocco (a) della migrazione 20260808120000,
+// che per la stessa ragione NON ha portato a FULL le tabelle nuove.
 // Contatore monotono per generare topic di canale UNIVOCI a ogni chiamata.
 // Più subscriber possono ascoltare la STESSA tabella: `users`, ad esempio, è
 // osservata sia dal refresh team sia dalla presence. Con un topic fisso
@@ -675,8 +684,15 @@ export function subscribeToTable(tableName, handler) {
   const channel = supabase
     .channel(`realtime:${tableName}:${getClientId()}:${++channelSeq}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: tableName }, (payload) => {
-      const origin = payload?.new?.origin_client ?? payload?.old?.origin_client;
-      if (origin && origin === getClientId()) return;
+      // Solo INSERT/UPDATE possono portare un'origine attendibile: sono le sole
+      // che passano da un payload nostro (withOrigin). Sui DELETE l'origine si
+      // ignora — vedi la nota sopra: è quella dell'ultima scrittura, non del
+      // cancellante, e filtrarci sopra nascondeva la cancellazione a chi aveva
+      // toccato la riga per ultimo.
+      if (payload?.eventType !== 'DELETE') {
+        const origin = payload?.new?.origin_client;
+        if (origin && origin === getClientId()) return;
+      }
       handler(payload);
     })
     .subscribe();

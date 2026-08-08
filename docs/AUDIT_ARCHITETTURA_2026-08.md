@@ -161,29 +161,37 @@ pattern comune. Chiudere l'eccezione l'ha fatto emergere.
 | B-4 | 🔬 Il conteggio dell'audit era già stale quando è stato scritto: misurati **19** `react/no-multi-comp` e **4** `exhaustive-deps`, non 22 e 1. Sui primi la decisione era già stata presa e motivata in `eslint.config.js` (arretrato dichiarato, 19 casi in 12 file, tracciato in `docs/CLAUDE.md`) — non c'era nulla da decidere. I quattro `exhaustive-deps` erano tutti omissioni **volute** — callback del genitore che, se inclusi, avrebbero fatto ripartire l'effetto a ogni render del genitore, con conseguenze reali (un toast che non sparisce più, una RPC di mark-as-read per messaggio in arrivo) — e portano ora un `eslint-disable-next-line` con la ragione accanto. L'arretrato di quella regola è a zero: il prossimo warning è nuovo per definizione. |
 | Test | 🔬 **831 verdi + 7 skipped** su 69 file (erano 813+7): +6 `adminView`, +13 `clientAutocomplete`, +6 in `realtimeGranularita`. 0 errori ESLint, 19 warning (tutti `no-multi-comp`, l'arretrato dichiarato). Build di produzione ok. |
 
-### Una verifica chiesta da B-1 che resta parziale
+### Una verifica chiesta da B-1 che resta parziale, e la correzione applicata a parte
 
 B-1 chiedeva anche di verificare se il progetto abbia un cap di righe lato
 PostgREST (`db-max-rows`): con una query senza `.range()` un cap tronca la
 risposta **in silenzio**, e il sintomo — "alcune righe non si vedono" — è fra i
 più difficili da attribuire.
 
-Quello che ho potuto verificare: ✅ `pg_db_role_setting` non contiene
+Quello che si è potuto verificare: ✅ `pg_db_role_setting` non contiene
 `pgrst.db_max_rows` per `authenticator`, `anon` o `authenticated`. Quello che
-**non** ho potuto verificare: il valore effettivo, perché su Supabase quel
+**non** si è potuto verificare: il valore effettivo, perché su Supabase quel
 parametro vive nella configurazione della piattaforma (dashboard → Settings →
-API → Max rows) e non è leggibile né da SQL né dalle API di gestione. Va quindi
-guardato a mano, una volta.
+API → Max rows) e non è leggibile né da SQL né dalle API di gestione — nemmeno
+dai tool Supabase MCP, che sono management-plane ma non espongono questa voce.
+Un test empirico (una GET REST senza `.range()` su una tabella sopra qualunque
+cap plausibile, per vedere quante righe tornano davvero) richiederebbe un JWT
+autenticato con ruolo admin/manager/agent, non disponibile in sessione: resta
+**da guardare a mano**, una tantum, in dashboard.
 
-Il motivo per cui vale la pena guardarlo adesso e non fra sei mesi: ✅
-`clients` è a **818 righe** e `Clients.list()` non ha `.range()`. Se il cap
-fosse il default storico di 1000, l'anagrafica sarebbe a meno di 200 clienti
-dal troncamento silenzioso. Il modulo Liste ha già l'infrastruttura giusta —
-`fetchAllRows` in `listeApi.js` pagina con `.range()` e si ferma sul `count`
-esatto del `Content-Range`, cioè senza dipendere dal valore del cap — quindi la
-correzione, se serve, è un riuso e non un impianto nuovo. Non l'ho applicata
-qui perché è un cambiamento di comportamento fuori dal perimetro di B-1, e
-perché la misura che la giustifica è appunto quella che manca.
+✅ **Sessione successiva (8 agosto 2026, stesso giorno):** la correzione non
+aspetta più quella misura. `fetchAllRows` — che pagina con `.range()` e si
+ferma sul `count` esatto del `Content-Range`, quindi senza dipendere dal
+valore del cap — è stato estratto da `listeApi.js` nel modulo condiviso
+`src/lib/fetchAllRows.js`, e `Clients.list()` in `lib/api.js` lo usa ora al
+posto del `select('*')` nudo. `clients` era a **818 righe** al momento della
+scrittura di questa nota: se il cap fosse il default storico di 1000,
+l'anagrafica sarebbe stata a meno di 200 clienti dal troncamento silenzioso.
+5 nuovi test in `src/test/clientsPaginazione.test.js` (stesso pattern di
+`listePaginazione.test.js`) bloccano la regressione. Il valore reale del cap
+resta comunque da verificare a mano — non per giustificare questa correzione,
+che ormai non ne dipende, ma perché resta l'unico modo di sapere se altre
+query non paginate nel progetto sono a rischio.
 
 ---
 

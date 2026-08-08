@@ -3,6 +3,7 @@
 // Le policy RLS sul DB filtrano automaticamente i risultati per utente loggato.
 import { supabase } from './supabase';
 import { getClientId } from './clientId';
+import { fetchAllRows, WITH_COUNT } from './fetchAllRows';
 
 // Step L: allega l'origin client a ogni payload di mutation sulle tabelle
 // live (tasks/notices/conversations/messages). I subscriber realtime usano
@@ -587,8 +588,12 @@ export const Push = {
 
 // ----------------- CLIENTS -----------------
 export const Clients = {
+  // PostgREST tronca ogni select oltre `db-max-rows` senza errore: qui non ci
+  // si può fermare alla prima pagina come per le altre entità (`.range()` +
+  // `count`, condiviso con `lib/listeApi.js` in `lib/fetchAllRows.js`), perché
+  // `clients` è l'unica anagrafica letta per intero a ogni avvio dell'app.
   list: () =>
-    supabase.from('clients').select('*').order('name'),
+    fetchAllRows(() => supabase.from('clients').select('*', WITH_COUNT).order('name')),
   get: (id) =>
     supabase.from('clients').select('*').eq('id', id).single(),
   create: (client) =>

@@ -48,6 +48,12 @@ export const ConversationView = ({ conv, messages, setMessages, commands, markCo
       cvd({ type: "PREFILL", text: initialInput, taskRef: initialTaskRef ?? null });
       if (onInitialInputConsumed) onInitialInputConsumed();
     }
+    // `onInitialInputConsumed` volutamente fuori: è un callback del genitore,
+    // tipicamente ricreato a ogni suo render. Includendolo, questo effetto
+    // ri-scriverebbe il prefill sopra il testo che l'utente sta digitando ogni
+    // volta che il genitore si ri-renderizza — cioè a ogni messaggio in
+    // arrivo. Il prefill si consuma una volta sola, quando cambia.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialInput, initialTaskRef]);
 
   const msgs = messages[conv.id] || [];
@@ -81,6 +87,13 @@ export const ConversationView = ({ conv, messages, setMessages, commands, markCo
         return m;
       })
     }));
+    // `markConversationRead` e `setMessages` volutamente fuori: sono callback
+    // del genitore e includerli farebbe ripartire il mark-as-read a ogni suo
+    // render, cioè una RPC per messaggio in arrivo. Le condizioni che DEVONO
+    // farlo ripartire sono già tutte e tre nelle deps — conversazione aperta,
+    // quanti non letti restano, chi sono io — e il guard `unreadCount === 0`
+    // chiude comunque il ciclo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conv.id, unreadCount, myId]);
 
   // ── Typing indicator realtime (broadcast) ────────────────────────────────

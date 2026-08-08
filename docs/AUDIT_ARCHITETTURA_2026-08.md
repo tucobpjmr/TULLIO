@@ -25,8 +25,8 @@ documentazione. Le prove:
 
 | Indicatore | Valore | Fonte |
 |---|---|---|
-| Test | **789 verdi su 789**, 64 file | 🔬 |
-| ESLint | **0 errori**, 23 warning (22 stilistici + 1 deps) | 🔬 |
+| Test | **831 verdi + 7 skipped**, 69 file (789 su 64 al 7 agosto) | 🔬 |
+| ESLint | **0 errori**, 19 warning (tutti `no-multi-comp`, arretrato dichiarato) | 🔬 |
 | Advisor sicurezza Supabase | **0 errori**, 10 warning, tutti attesi | ✅ |
 | Tabelle senza RLS | **0** | ✅ |
 | GRANT su `public` per il ruolo `anon` | **0** | ✅ |
@@ -85,22 +85,27 @@ esattamente questo caso.
 | A-1 | ~~Alta~~ ✔ **risolto** | Performance | Refetch completo di liste + cestino + saldi a ogni evento su `movimenti_lista` (5.315 righe) | `useListeData.js:46-68` |
 | A-2 | ~~Alta~~ ✔ **risolto** | Correttezza | `clients` (818 righe) è l'unica entità senza subscription realtime: le modifiche altrui non arrivano mai | `useAppHydration.js:143-153` |
 | A-3 | ~~Alta~~ ✔ **risolto** | Sicurezza (doc) | `SICUREZZA.md` afferma che la CSP non blocca e che il vincolo Junior non è nel DB: entrambe false oggi | `docs/SICUREZZA.md` §4-§6-§8 |
-| M-1 | Media | Architettura | `AdminView` è l'unica vista che riceve `state` intero e lo drilla in 5 tab | `AdminView.jsx:13,65-69` |
-| M-2 | Media | Duplicazione | Autocomplete cliente triplicato (logica + markup dropdown) | `TaskSlideOver.jsx:79-85`, `QuickAddTask.jsx:61-69`, `ManualTab.jsx:141-144` |
-| M-3 | Media | Sicurezza | Macchinario di cambio-utente (`SET_CURRENT_USER` + banner rollback) vivo nel bundle di produzione | `reducer.js:139-179`, `AdminRollbackBanner.jsx` |
+| M-1 | ~~Media~~ ✔ **risolto** | Architettura | `AdminView` è l'unica vista che riceve `state` intero e lo drilla in 5 tab | `AdminView.jsx:13,65-69` |
+| M-2 | ~~Media~~ ✔ **risolto** | Duplicazione | Autocomplete cliente **quadruplicato** (logica + markup dropdown) — `TemplateTab` era sfuggito al conteggio | `TaskSlideOver.jsx:79-85`, `QuickAddTask.jsx:61-69`, `ManualTab.jsx:141-144`, `TemplateTab.jsx:101-105` |
+| M-3 | ~~Media~~ ✔ **risolto** | Sicurezza | Macchinario di cambio-utente (`SET_CURRENT_USER` + banner rollback) vivo nel bundle di produzione | `reducer.js:139-179`, `AdminRollbackBanner.jsx` |
 | M-4 | ~~Media~~ ✔ **risolto** | Test | Nessun test verifica le policy RLS: il livello che conta davvero non è coperto | `src/test/**` |
-| M-5 | Media | Correttezza | `stateRef` aggiornato in `useEffect`: finestra di stato stale su dispatch multipli nello stesso tick | `useSyncedDispatch.js:27` |
-| B-1 | Bassa | Performance | Refetch completo anche su `tasks` (246 task + 569 righe di cronologia) | `useAppHydration.js:32-46` |
+| M-5 | ~~Media~~ ✔ **risolto** | Correttezza | `stateRef` aggiornato in `useEffect`: finestra di stato stale su dispatch multipli nello stesso tick | `useSyncedDispatch.js:27` |
+| B-1 | ~~Bassa~~ ✔ **risolto** | Performance | Refetch completo anche su `tasks` (246 task + 569 righe di cronologia) | `useAppHydration.js:32-46` |
 | B-2 | Bassa | Config | `leaked_password_protection` ancora disabilitata | dashboard Supabase |
-| B-3 | Bassa | Duplicazione | Due formattatori di data e due limiti di dimensione file non riconciliati | `taskUtils.js:4`, `listeApi.js:411`, `fileUtils.js:6`, `chatFiles.js:9` |
-| B-4 | Bassa | Lint | 22 `react/no-multi-comp` + 1 `exhaustive-deps` | vari |
+| B-3 | ~~Bassa~~ ✔ **risolto** | Duplicazione | Due formattatori di data e due limiti di dimensione file non riconciliati — sono divergenze **volute**, ora dichiarate | `taskUtils.js:4`, `listeApi.js:411`, `fileUtils.js:6`, `chatFiles.js:9` |
+| B-4 | ~~Bassa~~ ✔ **risolto** | Lint | Il conteggio era già stale: 19 `react/no-multi-comp` (decisi e documentati in `eslint.config.js`) + **4** `exhaustive-deps`, non 22+1 | vari |
 
 ---
 
-## 2-bis. Stato di avanzamento (7 agosto 2026, stessa sessione)
+## 2-bis. Stato di avanzamento
 
-**A-1, A-2, A-3 e M-4 sono stati risolti e sono in questa stessa PR.** Restano
-aperti M-1, M-2, M-3, M-5 e i quattro rilievi Bassa priorità.
+**Tutti i rilievi sono chiusi tranne B-2**, che non è codice: è un interruttore
+nella dashboard Supabase (Auth → Password) e nessuna PR può girarlo.
+
+La chiusura è avvenuta in due passaggi:
+
+- **7 agosto** — A-1, A-2, A-3, M-4.
+- **8 agosto** — M-1, M-2, M-3, M-5, B-1, B-3, B-4 (sezione 2-ter).
 
 Questa sezione esiste per una ragione precisa: il rilievo A-3 di questo stesso
 documento riguarda una documentazione che afferma cose non più vere. Sarebbe
@@ -139,6 +144,46 @@ passano dal nuovo `toDbClientPatch`, che non lo contiene (stessa separazione di
 È anche il miglior argomento a favore del suggerimento strategico n. 3: il
 difetto viveva esattamente nel punto in cui i clienti erano l'**eccezione** al
 pattern comune. Chiudere l'eccezione l'ha fatto emergere.
+
+---
+
+## 2-ter. Stato di avanzamento (8 agosto 2026, sessione successiva)
+
+| | Esito |
+|---|---|
+| M-1 | `AdminView` non riceve più `state`, e nessuna delle sue cinque tab neppure: team/categorie/utente arrivano da `AppDataContext`, i task da `TasksContext`, e restano quattro prop mirate (`agencyName`, `notices`, `activityLog`, `messageTemplates`) con identità stabile. La vista è ora avvolta in `memo` come le altre cinque — prima era l'unica dove non poteva agganciarsi a nulla. Blindato da `src/test/adminView.test.jsx`, che monta ogni tab senza `state`: l'invariante è passata da convenzione a misura. |
+| M-2 | Estratto `src/components/ui/ClientAutocomplete.jsx` (hook `useClientSuggestions` + componente `ClientSuggestions`). **Le copie erano quattro, non tre**: a `TaskSlideOver`, `QuickAddTask` e `ManualTab` si aggiungeva `TemplateTab`, sfuggito al conteggio dell'audit — che è precisamente il modo in cui questa duplicazione cresceva. Le due varianti di stile superstiti (normale e `compact` per i modali bulk) sono dichiarate in un solo posto, con la ragione dello z-index più alto. 13 test nuovi. |
+| M-3 | `case "SET_CURRENT_USER"` esce dal reducer di produzione con un guard `import.meta.env.DEV`, e il montaggio di `AdminRollbackBanner` con lo stesso. 🔬 **Verificato sul bundle buildato**, non dedotto: nessuna delle stringhe del banner sopravvive (`"Sessione Admin attiva"`, `"Rimani come Admin"`, `"Rollback automatico"` → 0 occorrenze), e il case si riduce a `case"SET_CURRENT_USER":return e;`. Il corpo — controllo ruolo, view lock, toast di elevazione, bookkeeping del rollback — non c'è più. |
+| M-5 | `stateRef.current = state` assegnato in render invece che in `useEffect`. Il ref non è mai letto durante il render, solo dentro il callback: nessuna impurità osservabile, e la finestra di stato stale fra due dispatch nello stesso handler si chiude. |
+| B-1 | Stessa forma di A-1 un piano più in basso. Un evento su `comments` o `task_history` ricarica ora **solo** la tabella figlia che ha emesso, via `TaskThreads` + l'azione `SET_TASK_THREADS`, invece di far girare `TASK_SELECT_WITH_COMMENTS` (join sui nomi, cestino incluso, nessuna paginazione) su ogni client connesso. Un evento su `tasks` — anche coalescato insieme a un commento nella stessa finestra di debounce — continua a ricaricare tutto, che lì è la cosa giusta. 6 test nuovi. |
+| B-2 | **Resta aperto.** ✅ Riconfermato sull'advisor live l'8 agosto: `auth_leaked_password_protection` è ancora `WARN`. Non è fattibile da codice — dashboard Supabase → Auth → Password. Costo nullo, valore reale visto che l'accesso è a sola password. |
+| B-3 | Non erano due doppioni da riconciliare, ed è il motivo per cui la correzione è un commento e non una fusione. ✅ Verificato su `storage.buckets`: `task-files` ha `file_size_limit` 52428800 e `chat-files` 26214400 — ciascuna costante rispecchia il **proprio** bucket, e allinearle romperebbe la corrispondenza col server che è l'unica ragione per cui esistono. I due formattatori di data ricevono input diversi (timestamp ISO contro colonna `date`) e rendono formati diversi di proposito. Tutti e quattro i punti portano ora il rimando incrociato e la ragione. |
+| B-4 | 🔬 Il conteggio dell'audit era già stale quando è stato scritto: misurati **19** `react/no-multi-comp` e **4** `exhaustive-deps`, non 22 e 1. Sui primi la decisione era già stata presa e motivata in `eslint.config.js` (arretrato dichiarato, 19 casi in 12 file, tracciato in `docs/CLAUDE.md`) — non c'era nulla da decidere. I quattro `exhaustive-deps` erano tutti omissioni **volute** — callback del genitore che, se inclusi, avrebbero fatto ripartire l'effetto a ogni render del genitore, con conseguenze reali (un toast che non sparisce più, una RPC di mark-as-read per messaggio in arrivo) — e portano ora un `eslint-disable-next-line` con la ragione accanto. L'arretrato di quella regola è a zero: il prossimo warning è nuovo per definizione. |
+| Test | 🔬 **831 verdi + 7 skipped** su 69 file (erano 813+7): +6 `adminView`, +13 `clientAutocomplete`, +6 in `realtimeGranularita`. 0 errori ESLint, 19 warning (tutti `no-multi-comp`, l'arretrato dichiarato). Build di produzione ok. |
+
+### Una verifica chiesta da B-1 che resta parziale
+
+B-1 chiedeva anche di verificare se il progetto abbia un cap di righe lato
+PostgREST (`db-max-rows`): con una query senza `.range()` un cap tronca la
+risposta **in silenzio**, e il sintomo — "alcune righe non si vedono" — è fra i
+più difficili da attribuire.
+
+Quello che ho potuto verificare: ✅ `pg_db_role_setting` non contiene
+`pgrst.db_max_rows` per `authenticator`, `anon` o `authenticated`. Quello che
+**non** ho potuto verificare: il valore effettivo, perché su Supabase quel
+parametro vive nella configurazione della piattaforma (dashboard → Settings →
+API → Max rows) e non è leggibile né da SQL né dalle API di gestione. Va quindi
+guardato a mano, una volta.
+
+Il motivo per cui vale la pena guardarlo adesso e non fra sei mesi: ✅
+`clients` è a **818 righe** e `Clients.list()` non ha `.range()`. Se il cap
+fosse il default storico di 1000, l'anagrafica sarebbe a meno di 200 clienti
+dal troncamento silenzioso. Il modulo Liste ha già l'infrastruttura giusta —
+`fetchAllRows` in `listeApi.js` pagina con `.range()` e si ferma sul `count`
+esatto del `Content-Range`, cioè senza dipendere dal valore del cap — quindi la
+correzione, se serve, è un riuso e non un impianto nuovo. Non l'ho applicata
+qui perché è un cambiamento di comportamento fuori dal perimetro di B-1, e
+perché la misura che la giustifica è appunto quella che manca.
 
 ---
 
@@ -430,6 +475,12 @@ cancellato dal documento.
 
 ### M-1 · `AdminView` riceve `state` intero
 
+> ✔ **Risolto** l'8 agosto, come descritto sotto e con un passo in più: le
+> prop residue sono passate da `VoyageDesk.jsx` invece che estratte da un
+> `state` che `AdminView` continuava a ricevere, quindi la vista esce
+> dall'eccezione del tutto e può essere avvolta in `memo` come le altre.
+> `src/test/adminView.test.jsx` monta ogni tab senza `state`.
+
 **File.** `src/components/admin/AdminView.jsx:13,65-69`
 
 **Perché.** `VoyageDesk.jsx` documenta esplicitamente l'invariante architetturale
@@ -488,6 +539,15 @@ quali campi ciascuna legge davvero prima di tagliare.
 ---
 
 ### M-2 · Autocomplete cliente triplicato
+
+> ✔ **Risolto** l'8 agosto in `src/components/ui/ClientAutocomplete.jsx`.
+> Una correzione al conteggio: le copie erano **quattro**, non tre —
+> `TemplateTab.jsx:101-105` non compare nell'analisi qui sotto. Il markup
+> estratto è quello reale (ogni voce mostra anche telefono/città/email, che lo
+> schizzo sotto omette) e conserva le due varianti di stile già in uso: quella
+> dentro i modali bulk ha uno z-index più alto perché deve scavalcare il
+> pannello, non solo la card. Il passaggio da `onClick` a `onMouseDown` è già
+> in questa estrazione, perché tutte e quattro le copie lo usavano già.
 
 **File.** `TaskSlideOver.jsx:79-85` · `QuickAddTask.jsx:61-69` ·
 `ManualTab.jsx:141-144`
@@ -600,6 +660,13 @@ mescolare due modifiche.
 ---
 
 ### M-3 · Il cambio-utente vive ancora nel bundle di produzione
+
+> ✔ **Risolto** l'8 agosto con la prima delle due opzioni (guard `DEV`, non
+> rimozione): il cambio-utente demo resta disponibile in sviluppo dietro
+> `VITE_DEMO_SWITCH`. 🔬 Verificato sul bundle buildato e non dedotto — le
+> stringhe del banner spariscono e il case si riduce a
+> `case"SET_CURRENT_USER":return e;`. I test restano verdi: sotto Vitest
+> `import.meta.env.DEV` è `true`, come previsto qui sotto.
 
 **File.** `src/state/reducer.js:139-179` · `src/components/shell/AdminRollbackBanner.jsx`
 · `src/components/shell/UserSwitcher.jsx:41`
@@ -764,6 +831,8 @@ la CI di chi non le ha.
 
 ### M-5 · `stateRef` aggiornato in `useEffect`
 
+> ✔ **Risolto** l'8 agosto esattamente come descritto sotto.
+
 **File.** `src/hooks/useSyncedDispatch.js:26-28`
 
 **Perché.**
@@ -809,6 +878,13 @@ introduce impurità osservabile:
 
 ### B-1 · Refetch completo anche su `tasks`
 
+> ✔ **Risolto** l'8 agosto. La correzione non è però "non ricaricare": i
+> commenti e la cronologia sono annidati nella riga task, quindi un commento
+> nuovo va comunque letto. Ciò che si evita è di rileggerlo passando da
+> `TASK_SELECT_WITH_COMMENTS` — nuova API `TaskThreads` per le sole due tabelle
+> figlie, nuova azione `SET_TASK_THREADS` che le rinnesta sui task già in
+> stato. La verifica sul cap `db-max-rows` resta parziale: vedi §2-ter.
+
 **File.** `src/hooks/useAppHydration.js:32-46`
 
 ✅ `tasks` = 246, `task_history` = 569, `comments` = 7. Oggi il volume è
@@ -836,6 +912,12 @@ codice. Costo nullo, valore reale visto che l'accesso è a sola password.
 
 ### B-3 · Formattatori e limiti duplicati
 
+> ✔ **Risolto** l'8 agosto, e la risposta è quella che il rilievo ipotizzava:
+> sono scelte, non deriva. ✅ Verificato su `storage.buckets` che i due limiti
+> rispecchiano ciascuno il `file_size_limit` del proprio bucket (50 MB
+> `task-files`, 25 MB `chat-files`). Tutti e quattro i punti portano ora il
+> rimando incrociato e il motivo per cui divergono.
+
 📄 `taskUtils.js:4` (`formatDate`) e `listeApi.js:411` (`fmtDate`) formattano
 entrambi date per la UI, con nomi e comportamenti diversi. `fileUtils.js:6`
 fissa 50 MB per gli allegati task, `chatFiles.js:9` 25 MB per la chat.
@@ -847,6 +929,11 @@ uno dei due non sa se sta allineando o divergendo. Basta un commento incrociato
 su ciascuno che rimandi all'altro e dica perché differiscono.
 
 ### B-4 · Warning ESLint
+
+> ✔ **Risolto** l'8 agosto. 🔬 Il conteggio qui sotto era già stale: 19
+> `no-multi-comp` e 4 `exhaustive-deps`, non 22 e 1. Sui primi la decisione era
+> già stata presa e scritta in `eslint.config.js`; i quattro `exhaustive-deps`
+> portano ora un disable mirato con la ragione, e quell'arretrato è a zero.
 
 🔬 22 `react/no-multi-comp` e 1 `react-hooks/exhaustive-deps`
 (`Toast.jsx:14`, dipendenza `dispatch` mancante — innocua, `dispatch` ha

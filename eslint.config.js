@@ -107,6 +107,16 @@ export default [
       'react/jsx-no-undef': 'error',
       // Solo le due regole hook classiche: violazioni reali = errore,
       // dipendenze mancanti = warning (fix mirato, non bloccante).
+      //
+      // L'arretrato di exhaustive-deps è a ZERO. I quattro casi che restavano
+      // (Toast, ChatPanel, i due di ConversationView) erano tutti omissioni
+      // volute — callback del genitore che, se inclusi, avrebbero fatto
+      // ripartire l'effetto a ogni render del genitore — e ora portano un
+      // `eslint-disable-next-line` con la ragione accanto. La differenza non è
+      // cosmetica: finché quei quattro erano warning permanenti, il quinto —
+      // che magari conta — sarebbe comparso nello stesso output che si era
+      // imparato a saltare. Ora un warning di questa regola è nuovo per
+      // definizione.
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
       'no-unused-vars': ['warn', {

@@ -11,6 +11,7 @@ import { useAppData } from "../../state/AppDataContext.jsx";
 import { MentionText } from "../ui/MentionText.jsx";
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";
 import { ContactText } from "../ui/ContactActions.jsx";
+import { useClientSuggestions, ClientSuggestions } from "../ui/ClientAutocomplete.jsx";
 import { Z } from "../../styles/tokens.js";
 
 import { TaskAttachments } from "./TaskAttachments.jsx";
@@ -24,7 +25,6 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
   } = useAppData();
   const [newComment, setNewComment] = useState("");
   const [showAssigneePicker, setShowAssigneePicker] = useState(false);
-  const [clientFocus, setClientFocus] = useState(false);
   // Bozza locale dei campi testo: si scrive in locale e si persiste al blur
   // (un solo UPDATE_TASK per modifica, non a ogni tasto → niente toast a raffica
   // né un round-trip DB per carattere). I select/data persistono subito.
@@ -46,9 +46,15 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task?.id]);
 
+  // Calcolati PRIMA dell'early return: `useClientSuggestions` è un hook, e un
+  // hook dopo un return condizionale cambierebbe l'ordine delle chiamate fra i
+  // render (react-hooks/rules-of-hooks). `editable` gli serve come argomento,
+  // quindi sale con lui.
+  const editable = !!task && canEditTask(task, currentUserId);
+  const cli = useClientSuggestions(clients, draft.client, { enabled: editable });
+
   if (!task) return null;
 
-  const editable = canEditTask(task, currentUserId);
   const currentAssignees = task.assignees || [];
   const availableMembers = editable
     ? getAssignableTeam().filter(m => !currentAssignees.includes(m.id))
@@ -76,16 +82,9 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
     updateField(field, next);
   };
 
-  const clientQuery = draft.client.trim().toLowerCase();
-  const clientMatches = (clientQuery
-    ? clients.filter(c => c.name?.toLowerCase().includes(clientQuery))
-    : clients
-  ).slice(0, 6);
-  const showClientList = editable && clientFocus && clientMatches.length > 0 &&
-    !(clientMatches.length === 1 && clientMatches[0].name?.toLowerCase() === clientQuery);
   const pickClient = (c) => {
     const name = c.name;
-    setClientFocus(false);
+    cli.close();
     if (name !== (task.client ?? null)) updateField("client", name);
     // Eredita i contatti dall'anagrafica solo se il campo è ancora vuoto: non
     // sovrascrive un contatto già digitato a mano o già presente sul task.
@@ -335,43 +334,14 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
                   <input
                     value={draft.client}
                     onChange={e => setDraft(d => ({ ...d, client: e.target.value }))}
-                    onFocus={() => setClientFocus(true)}
-                    onBlur={() => { setTimeout(() => setClientFocus(false), 150); commitText("client", { nullable: true }); }}
+                    {...cli.inputProps}
+                    // L'onBlur del suggeritore va CHIAMATO, non sostituito:
+                    // qui serve anche persistere il campo.
+                    onBlur={() => { cli.inputProps.onBlur(); commitText("client", { nullable: true }); }}
                     placeholder={clients.length ? "Cerca o scrivi un nome…" : "Es. Famiglia Rossi…"}
-                    autoComplete="off"
                     style={fieldStyle}
                   />
-                  {showClientList && (
-                    <div style={{
-                      position: "absolute", top: "100%", left: 0, right: 0, zIndex: Z.localRaised,
-                      marginTop: 4, background: "var(--card)", border: "1px solid var(--border)",
-                      borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-                      maxHeight: 200, overflowY: "auto",
-                    }}>
-                      {clientMatches.map(c => (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onMouseDown={() => pickClient(c)}
-                          style={{
-                            display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1,
-                            width: "100%", textAlign: "left", padding: "8px 10px", border: "none",
-                            borderBottom: "1px solid var(--border)", background: "transparent",
-                            cursor: "pointer", fontFamily: "inherit",
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-                          onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                        >
-                          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{c.name}</span>
-                          {(c.phone || c.city || c.email) && (
-                            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                              {[c.phone, c.city, c.email].filter(Boolean).join(" · ")}
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  <ClientSuggestions matches={cli.matches} visible={cli.visible} onPick={pickClient} />
                 </>
               ) : (
                 <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>

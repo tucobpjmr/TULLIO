@@ -201,6 +201,13 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
         pd({ type: "PREFILL", text, taskRef: t.id });
       }
     }
+    // `commands`, `conversations` e `tasks` sono volutamente fuori dalle deps:
+    // questo effetto consuma un INTENT (apri la chat verso X, magari con un
+    // link a un task) e deve girare quando l'intent arriva, non quando il
+    // realtime aggiorna l'elenco conversazioni o i task. Includendoli,
+    // ogni messaggio in arrivo riaprirebbe la conversazione dell'intent e
+    // riscriverebbe il prefill sopra quanto l'utente sta digitando.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, intent, me]);
 
   if (!open) return null;

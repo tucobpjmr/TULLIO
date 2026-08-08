@@ -11,6 +11,12 @@ export const Toast = ({ toast, dispatch }) => {
     const duration = toast.undoable ? 5000 : 3000;
     const t = setTimeout(() => dispatch({ type: "CLEAR_TOAST" }), duration);
     return () => clearTimeout(t);
+    // `dispatch` volutamente fuori dalle deps: quello di useSyncedDispatch ha
+    // identità stabile per costruzione, quindi includerlo non cambierebbe
+    // nulla oggi — ma se un chiamante ne passasse uno instabile l'effetto si
+    // ri-armerebbe a ogni render e il toast non sparirebbe MAI da solo.
+    // L'unica dipendenza che deve far ripartire il timer è il toast stesso.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toast]);
   if (!toast) return null;
   const handleUndo = () => {

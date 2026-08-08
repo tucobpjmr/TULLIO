@@ -237,7 +237,8 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       // dell'app poggia interamente sul fatto che nessuno scriva mai un terzo
       // modo di impostare activeView.
       case "admin":      return canAccessAdmin(state.team, state.currentUserId)
-        ? <AdminView state={state} dispatch={dispatch} />
+        ? <AdminView dispatch={dispatch} agencyName={state.agencyName} notices={state.notices}
+                     activityLog={state.activityLog} messageTemplates={state.messageTemplates} />
         : <Dashboard dispatch={dispatch} onOpenChat={openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} />;
       case "liste":      return <ListeViaggio dispatch={dispatch} listeTarget={state.listeTarget} />;
       default:           return <Dashboard dispatch={dispatch} onOpenChat={openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} />;
@@ -276,7 +277,13 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           onOpenTask={openTaskById}
           onOpenChat={openConversationById}
         />
-        {state.adminRollbackTo && state.adminSwitchedAt && (
+        {/* Il banner esiste solo per il cambio-utente demo, che il reducer
+            accetta solo in DEV (reducer.js, case SET_CURRENT_USER). In
+            produzione `import.meta.env.DEV` è la costante `false`: il ramo
+            collassa a build time e l'import di AdminRollbackBanner resta senza
+            referenti, quindi il modulo esce dal bundle invece di restarci
+            semplicemente irraggiungibile. */}
+        {import.meta.env.DEV && state.adminRollbackTo && state.adminSwitchedAt && (
           <AdminRollbackBanner
             rollbackTo={state.adminRollbackTo}
             switchedAt={state.adminSwitchedAt}

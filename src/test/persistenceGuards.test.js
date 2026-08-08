@@ -505,7 +505,7 @@ const IDRATAZIONE = [
   // Direzione opposta: sono i dati che ARRIVANO dal server. Le scrive
   // src/hooks/useAppHydration.js, e persisterle rimanderebbe indietro ciò che
   // si è appena letto.
-  "SET_TASKS", "SET_NOTICES", "SET_CLIENTS", "SET_CATEGORIES", "SET_TEAM",
+  "SET_TASKS", "SET_TASK_THREADS", "SET_NOTICES", "SET_CLIENTS", "SET_CATEGORIES", "SET_TEAM",
   "SET_CURRENT_USER",
 ];
 

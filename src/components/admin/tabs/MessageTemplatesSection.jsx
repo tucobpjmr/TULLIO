@@ -4,13 +4,11 @@ import { useState } from "react";
 import { cardStyle, cardH } from "../adminStyles.js";
 
 // ─── TEMPLATE MESSAGGI CHAT (v2.8) ─────────────────────────────────────────
-export const MessageTemplatesSection = ({ state, dispatch }) => {
+export const MessageTemplatesSection = ({ templates = [], dispatch }) => {
   const [editingId, setEditingId] = useState(null);
   const [draftLabel, setDraftLabel] = useState("");
   const [draftText, setDraftText] = useState("");
   const [creating, setCreating] = useState(false);
-
-  const templates = state.messageTemplates || [];
 
   const startEdit = (t) => {
     setEditingId(t.id);

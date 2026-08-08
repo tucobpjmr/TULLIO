@@ -6,14 +6,14 @@ import { cardStyle, btnGhost, btnDanger } from "../adminStyles.js";
 import { downloadFile, escapeCSV } from "../adminExport.js";
 
 // ─── ADMIN TAB: LOG ATTIVITÀ ───────────────────────────────────────────────
-export const AdminLogTab = ({ state, dispatch }) => {
+export const AdminLogTab = ({ dispatch, activityLog = [] }) => {
   const [filter, setFilter] = useState("all");
 
   const groups = {
-    all: () => state.activityLog,
-    task: () => state.activityLog.filter(l => ["ADD_TASK","ADD_TASKS_BULK","UPDATE_TASK","MOVE_TASK","ADD_COMMENT"].includes(l.type)),
-    trash: () => state.activityLog.filter(l => ["DELETE_TASK","RESTORE_TASK","PURGE_TASK","EMPTY_TRASH"].includes(l.type)),
-    admin: () => state.activityLog.filter(l => l.type.includes("TEAM_MEMBER") || l.type.includes("CATEGORY") || l.type === "RESTORE_BACKUP"),
+    all: () => activityLog,
+    task: () => activityLog.filter(l => ["ADD_TASK","ADD_TASKS_BULK","UPDATE_TASK","MOVE_TASK","ADD_COMMENT"].includes(l.type)),
+    trash: () => activityLog.filter(l => ["DELETE_TASK","RESTORE_TASK","PURGE_TASK","EMPTY_TRASH"].includes(l.type)),
+    admin: () => activityLog.filter(l => l.type.includes("TEAM_MEMBER") || l.type.includes("CATEGORY") || l.type === "RESTORE_BACKUP"),
   };
   const list = groups[filter]();
 
@@ -74,7 +74,7 @@ export const AdminLogTab = ({ state, dispatch }) => {
             }}>{f.label}</button>
           ))}
         </div>
-        {state.activityLog.length > 0 && (
+        {activityLog.length > 0 && (
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={exportLogCSV} disabled={list.length === 0} style={{
               ...btnGhost, opacity: list.length === 0 ? 0.5 : 1,

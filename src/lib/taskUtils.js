@@ -1,6 +1,16 @@
 // src/lib/taskUtils.js
 // Utility pure (niente TEAM/CATEGORIES/CURRENT_USER) per task e date.
 
+// Formatta un TIMESTAMP ISO per la UI dei task ("08 ago 2026"), con "—" per il
+// valore assente perché nei task la scadenza è opzionale e va detta.
+//
+// NON è un doppione di `fmtDate` in lib/listeApi.js, che formatta "28/07/2026":
+// quello riceve una colonna `date` ("YYYY-MM-DD", non un timestamp) e la
+// spezza a mano proprio per NON passare da `new Date`, che la
+// interpreterebbe come UTC-mezzanotte e in Italia renderebbe il giorno
+// precedente. Input diversi e formati di uscita diversi — il modulo Liste ha
+// di proposito una sua identità visiva. Chi ne tocca uno non sta divergendo
+// dall'altro.
 export const formatDate = iso => {
   if (!iso) return "—";
   const d = new Date(iso);

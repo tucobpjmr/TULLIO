@@ -4,18 +4,23 @@
 // sostituisce team e categorie è la cosa più pericolosa che l'app accetti.
 import { useState, useRef } from "react";
 import { useAppData } from "../../../state/AppDataContext.jsx";
+import { useTasks } from "../../../state/TasksContext.jsx";
 import { cardStyle, cardH, cardP, btnPrimary, btnWarning } from "../adminStyles.js";
 import { validateBackup } from "../../../lib/backupValidation.js";
 import { loadXLSX } from "../../../lib/xlsx.js";
 import { downloadFile, escapeCSV } from "../adminExport.js";
 
 // ─── ADMIN TAB: IMPORT / EXPORT ────────────────────────────────────────────
-export const AdminIOTab = ({ state, dispatch }) => {
-  const { getMember } = useAppData();
+// `agencyName` e `notices` arrivano come prop perché sono le uniche due fette
+// dello state che il backup usa e che non vivono già in un contesto: team,
+// categorie e utente corrente sono in AppDataContext, i task in TasksContext.
+export const AdminIOTab = ({ dispatch, agencyName, notices = [] }) => {
+  const { getMember, team, categories } = useAppData();
+  const tasks = useTasks();
   const [includeTrashed, setIncludeTrashed] = useState(false);
   const fileInputRef = useRef(null);
 
-  const tasksToExport = () => includeTrashed ? state.tasks : state.tasks.filter(t => !t.deletedAt);
+  const tasksToExport = () => includeTrashed ? tasks : tasks.filter(t => !t.deletedAt);
 
   const exportCSV = () => {
     const headers = ["ID","Titolo","Categoria","Priorità","Status","Cliente","Scadenza","Assegnati","Descrizione","Cestinato"];
@@ -50,11 +55,11 @@ export const AdminIOTab = ({ state, dispatch }) => {
     const backup = {
       version: "0.5",
       exportedAt: new Date().toISOString(),
-      agencyName: state.agencyName,
-      tasks: state.tasks,
-      team: state.team,
-      categories: state.categories,
-      notices: state.notices,
+      agencyName,
+      tasks,
+      team,
+      categories,
+      notices,
     };
     downloadFile(
       new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }),

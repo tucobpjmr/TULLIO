@@ -31,7 +31,7 @@ conclusa mesi prima. Questo indice risponde a quella domanda.
 
 ## Storico — non normativo
 
-- [`handoff/`](handoff/) — 39 resoconti di sessione (`HANDOFF_SESSION_*.md`) e
+- [`handoff/`](handoff/) — 40 resoconti di sessione (`HANDOFF_SESSION_*.md`) e
   [`HANDOFF.md`](HANDOFF.md).
 
 Sono un **log**, non una specifica. Documentano com'era il progetto al termine

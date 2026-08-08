@@ -2,7 +2,20 @@
 // Il guscio dell'area Admin: barra dei tab e instradamento. I cinque tab
 // vivono in ./tabs/ — erano cinque componenti nello stesso file, ognuno con la
 // propria logica di export, validazione e chiamate API.
-import { useState } from "react";
+//
+// Come le altre cinque viste, questa NON riceve più `state` (vedi
+// VoyageDesk.jsx e state/TasksContext.jsx sul perché): era l'unica eccezione, e
+// la drillava a tutte e cinque le tab. `state` cambia identità dopo qualunque
+// azione — un toast, un carattere nella ricerca della Topbar — quindi finché
+// era una prop ogni carattere digitato ridisegnava l'intera area Admin,
+// statistiche comprese, ed era anche l'unica vista dove `memo` non poteva
+// agganciarsi a nulla.
+//
+// Le prop rimaste sono le sole fette che non vivono già in un contesto e hanno
+// identità stabile finché quella fetta non cambia davvero. Team, categorie e
+// utente corrente non compaiono perché le tab li leggono da AppDataContext; i
+// task da TasksContext.
+import { memo, useState } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { AdminTeamTab } from "./tabs/AdminTeamTab.jsx";
 import { AdminIOTab } from "./tabs/AdminIOTab.jsx";
@@ -10,7 +23,9 @@ import { AdminStatsTab } from "./tabs/AdminStatsTab.jsx";
 import { AdminCategoriesTab } from "./tabs/AdminCategoriesTab.jsx";
 import { AdminLogTab } from "./tabs/AdminLogTab.jsx";
 
-export const AdminView = ({ state, dispatch }) => {
+export const AdminView = memo(function AdminView({
+  dispatch, agencyName, notices, activityLog, messageTemplates,
+}) {
   const [tab, setTab] = useState("team");
   const { isMobile } = useViewport();
 
@@ -62,13 +77,13 @@ export const AdminView = ({ state, dispatch }) => {
 
       {/* Tab content */}
       <div className="fade-in" key={tab}>
-        {tab === "team" && <AdminTeamTab state={state} dispatch={dispatch} />}
-        {tab === "io" && <AdminIOTab state={state} dispatch={dispatch} />}
-        {tab === "stats" && <AdminStatsTab state={state} dispatch={dispatch} />}
-        {tab === "cats" && <AdminCategoriesTab state={state} dispatch={dispatch} />}
-        {tab === "log" && <AdminLogTab state={state} dispatch={dispatch} />}
+        {tab === "team" && <AdminTeamTab dispatch={dispatch} />}
+        {tab === "io" && <AdminIOTab dispatch={dispatch} agencyName={agencyName} notices={notices} />}
+        {tab === "stats" && <AdminStatsTab dispatch={dispatch} messageTemplates={messageTemplates} />}
+        {tab === "cats" && <AdminCategoriesTab dispatch={dispatch} />}
+        {tab === "log" && <AdminLogTab dispatch={dispatch} activityLog={activityLog} />}
       </div>
     </div>
   );
-};
+});
 

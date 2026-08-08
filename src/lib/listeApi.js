@@ -408,6 +408,11 @@ export const eur = (v) =>
 // Le date dei movimenti sono `date` (YYYY-MM-DD), non timestamp: vanno
 // formattate a mano. new Date("2026-07-28") sarebbe interpretata come UTC e
 // in Italia potrebbe rendere il giorno precedente.
+//
+// Convive di proposito con `formatDate` in lib/taskUtils.js, che rende
+// "08 ago 2026" partendo da un timestamp ISO: input diverso, formato diverso,
+// e il modulo Liste ha una sua identità visiva. Non sono due copie da
+// riconciliare.
 export const fmtDate = (d) => {
   if (!d) return '';
   const [y, m, g] = String(d).split('-');

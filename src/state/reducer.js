@@ -137,6 +137,23 @@ function baseReducer(state, action) {
       return { ...state, selectedTask: action.payload };
     }
     case "SET_CURRENT_USER": {
+      // Cambio-utente DEMO. Cambia SOLO `currentUserId` lato client, mentre
+      // auth.uid() lato server resta l'utente reale: non concede quindi alcun
+      // dato — le scritture fallirebbero comunque via RLS — ma monta viste
+      // decise da currentUserId, Admin compresa (VoyageDesk.jsx:239 chiama
+      // canAccessAdmin(state.team, state.currentUserId)).
+      //
+      // L'unico ingresso UI è già gate-ato in UserSwitcher.jsx:42, quindi in
+      // produzione questo case è irraggiungibile. Il guard qui sotto lo fa
+      // sparire dal bundle invece di limitarsi a renderlo irraggiungibile:
+      // `import.meta.env.DEV` è una costante `false` a build time, quindi il
+      // bundler elimina tutto ciò che segue. Stessa logica della migrazione
+      // revoke_anon_table_grants — un privilegio non sfruttabile resta un
+      // privilegio da non concedere.
+      //
+      // Sotto Vitest DEV è `true`: i test che dispatchano SET_CURRENT_USER per
+      // esercitare la matrice permessi continuano a funzionare.
+      if (!import.meta.env.DEV) return state;
       const newId = action.payload;
       const m = getMember(state.team, newId);
       if (!m) return state;
@@ -180,6 +197,28 @@ function baseReducer(state, action) {
     case "SET_TASKS": {
       // Sostituisce in blocco l'array tasks (usato per idratazione iniziale da DB).
       return { ...state, tasks: Array.isArray(action.payload) ? action.payload : [] };
+    }
+    case "SET_TASK_THREADS": {
+      // Idratazione parziale: solo commenti e/o cronologia, indicizzati per
+      // task. La dispatcha useAppHydration quando l'evento realtime arriva da
+      // `comments` o `task_history` e NON da `tasks` — in quel caso i campi del
+      // task non possono essere cambiati, e riscaricarli tutti (con i join sui
+      // nomi e il cestino incluso) per un commento in più è sproporzionato.
+      //
+      // Una chiave assente = quella fetta non è stata ricaricata e resta com'è:
+      // è la differenza fra "nessun commento su questo task" (mappa presente,
+      // voce mancante → array vuoto) e "i commenti non sono stati riletti"
+      // (mappa assente → si tiene il valore corrente).
+      const { comments, history } = action.payload || {};
+      if (!comments && !history) return state;
+      return {
+        ...state,
+        tasks: state.tasks.map(t => ({
+          ...t,
+          ...(comments ? { comments: comments[t.id] || [] } : {}),
+          ...(history ? { history: history[t.id] || [] } : {}),
+        })),
+      };
     }
     case "MOVE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload.taskId);

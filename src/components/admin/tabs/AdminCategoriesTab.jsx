@@ -2,15 +2,19 @@
 // Dizionario delle categorie task: creazione, rinomina, eliminazione.
 import { useState } from "react";
 import { fieldStyle, btnPrimary, btnGhost, btnDanger } from "../adminStyles.js";
+import { useAppData } from "../../../state/AppDataContext.jsx";
+import { useTasks } from "../../../state/TasksContext.jsx";
 import { AddCategoryModal } from "../../modals/AddCategoryModal.jsx";
 
 // ─── ADMIN TAB: CATEGORIE ──────────────────────────────────────────────────
-export const AdminCategoriesTab = ({ state, dispatch }) => {
+export const AdminCategoriesTab = ({ dispatch }) => {
+  const { categories } = useAppData();
+  const tasks = useTasks();
   const [editingKey, setEditingKey] = useState(null);
   const [draft, setDraft] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
 
-  const usageCount = (key) => state.tasks.filter(t => !t.deletedAt && t.category === key).length;
+  const usageCount = (key) => tasks.filter(t => !t.deletedAt && t.category === key).length;
 
   const startEdit = (key, c) => { setEditingKey(key); setDraft({ key, ...c }); };
   const cancelEdit = () => { setEditingKey(null); setDraft(null); };
@@ -24,13 +28,13 @@ export const AdminCategoriesTab = ({ state, dispatch }) => {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
-          🏷️ <b>{Object.keys(state.categories).length}</b> categorie definite
+          🏷️ <b>{Object.keys(categories).length}</b> categorie definite
         </div>
         <button onClick={() => setShowAdd(true)} style={btnPrimary}>+ Aggiungi categoria</button>
       </div>
 
       <div style={{ display: "grid", gap: 10 }}>
-        {Object.entries(state.categories).map(([key, c]) => {
+        {Object.entries(categories).map(([key, c]) => {
           const isEditing = editingKey === key;
           const count = usageCount(key);
           return (
@@ -90,7 +94,7 @@ export const AdminCategoriesTab = ({ state, dispatch }) => {
         })}
       </div>
 
-      {showAdd && <AddCategoryModal onClose={() => setShowAdd(false)} dispatch={dispatch} existingKeys={Object.keys(state.categories)} />}
+      {showAdd && <AddCategoryModal onClose={() => setShowAdd(false)} dispatch={dispatch} existingKeys={Object.keys(categories)} />}
     </div>
   );
 };

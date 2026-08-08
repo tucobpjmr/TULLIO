@@ -15,12 +15,23 @@
 import { useState } from "react";
 import {
   Tasks as TasksAPI, Notices as NoticesAPI, Users as UsersAPI,
-  Clients as ClientsAPI, Categories as CategoriesAPI,
+  Clients as ClientsAPI, Categories as CategoriesAPI, TaskThreads as TaskThreadsAPI,
 } from "../lib/api.js";
 import {
   fromDbTask, fromDbNotice, fromDbClient, fromDbCategory,
+  fromDbComment, fromDbHistory,
 } from "../lib/mappers.js";
 import { useDebouncedTableSubscription } from "./useDebouncedTableSubscription.js";
+
+// Indicizza per task_id le righe di una tabella figlia dei task, applicando il
+// mapper della sua entità. Fuori dall'hook perché è pura.
+const perTaskId = (righe, mapper) => {
+  const out = {};
+  for (const row of righe || []) {
+    (out[row.task_id] ||= []).push(mapper(row));
+  }
+  return out;
+};
 
 export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
   // Idratazione tasks + notices dal DB al primo mount in modalità Supabase,
@@ -29,7 +40,44 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
   // Caveat #10: il pattern reload+debounce+gen-counter vive in
   // useDebouncedTableSubscription; le tasks ascoltano anche comments e
   // task_history (cronologia per-task, sessione 42).
-  useDebouncedTableSubscription(["tasks", "comments", "task_history"], async (isCurrent) => {
+  useDebouncedTableSubscription(["tasks", "comments", "task_history"], async (isCurrent, tabelle) => {
+    // Un commento aggiunto o una riga di cronologia NON cambiano i campi del
+    // task: cambiano solo il thread appeso al task. Finché il reload non
+    // sapeva quale tabella avesse generato l'evento era costretto a
+    // riscaricare tutto per costruzione, e `TASK_SELECT_WITH_COMMENTS` non è
+    // una query leggera — porta con sé commenti e cronologia con i join sui
+    // nomi, include il cestino (includeDeleted) e non è paginata. Con tre
+    // tabelle sottoscritte, il caso più frequente (qualcuno commenta) era
+    // anche il più caro.
+    //
+    // `tabelle === null` è l'idratazione iniziale (nessun evento): serve tutto.
+    // Stesso schema di useListeData (A-1).
+    const soloThread = tabelle !== null && tabelle.size > 0 && !tabelle.has("tasks");
+
+    if (soloThread) {
+      // Ricarica SOLO le tabelle che hanno davvero emesso: chi commenta non
+      // fa riscaricare la cronologia, e viceversa.
+      const [rCommenti, rCronologia] = await Promise.all([
+        tabelle.has("comments") ? TaskThreadsAPI.comments() : Promise.resolve(null),
+        tabelle.has("task_history") ? TaskThreadsAPI.history() : Promise.resolve(null),
+      ]);
+      if (!isCurrent()) return;
+      const fallita = [rCommenti, rCronologia].find(r => r?.error);
+      if (fallita) {
+        console.error("[VoyageDesk] TaskThreads", fallita.error);
+        onError(`Caricamento commenti fallito: ${fallita.error.message || ""}`);
+        return;
+      }
+      dispatch({
+        type: "SET_TASK_THREADS",
+        payload: {
+          comments: rCommenti ? perTaskId(rCommenti.data, fromDbComment) : undefined,
+          history: rCronologia ? perTaskId(rCronologia.data, fromDbHistory) : undefined,
+        },
+      });
+      return;
+    }
+
     // includeDeleted: true → portiamo anche le task soft-deleted nello stato,
     // altrimenti la ri-idratazione realtime (che parte subito dopo un DELETE_TASK)
     // le filtrerebbe via, svuotando il Cestino. Le viste attive (Dashboard,

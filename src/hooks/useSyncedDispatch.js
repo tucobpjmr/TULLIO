@@ -14,7 +14,7 @@
 // await-arla. L'identità della funzione è STABILE tra i render: i figli
 // memoizzati che ricevono `dispatch` non si invalidano a ogni mutazione.
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
 import { PERSISTENCE } from "../state/persistence.js";
 import { ADMIN_ONLY_ACTIONS } from "../state/reducer.js";
 import { isAdmin } from "../lib/permissions.js";
@@ -23,8 +23,17 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true } = {}) {
   // Snapshot vivo dello state: leggendolo da un ref invece che dalle deps,
   // `dispatch` resta un'identità stabile. Con [state] nelle deps verrebbe
   // ricreato a ogni mutazione, rompendo la memoizzazione dei figli.
+  //
+  // Assegnato in RENDER e non in useEffect: l'effetto gira dopo il commit,
+  // quindi fra due dispatch nello stesso handler il ref conserverebbe lo stato
+  // precedente al PRIMO. I guard non se ne accorgono (sono idempotenti), ma le
+  // entry che dal vecchio stato CALCOLANO il valore da scrivere — il
+  // `!curr.active` di TOGGLE_TEAM_MEMBER_ACTIVE, il `!prev.pinned` di
+  // TOGGLE_PIN_NOTICE — sceglierebbero sul valore sbagliato. Il ref non viene
+  // mai letto durante il render, solo dentro il callback: l'assegnazione non
+  // rende quindi questo componente impuro.
   const stateRef = useRef(state);
-  useEffect(() => { stateRef.current = state; }, [state]);
+  stateRef.current = state;
 
   return useCallback((action) => {
     if (!enabled) {

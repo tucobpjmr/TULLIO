@@ -247,6 +247,23 @@ export const Tasks = {
   },
 };
 
+// Le due tabelle figlie dei task, lette per intero (la RLS restringe già alle
+// righe dei task visibili). Servono al reload selettivo di useAppHydration: un
+// commento aggiunto non richiede di riscaricare i task con tutti i loro campi,
+// solo il thread che è cambiato. La select rispecchia i due rami annidati di
+// TASK_SELECT_WITH_COMMENTS, così i mapper fromDbComment/fromDbHistory
+// ricevono la stessa forma di riga in entrambi i percorsi.
+export const TaskThreads = {
+  comments: () =>
+    supabase.from('comments')
+      .select('id, task_id, user_id, text, created_at, users(name)')
+      .order('created_at'),
+  history: () =>
+    supabase.from('task_history')
+      .select('id, task_id, actor_id, action, old_value, new_value, created_at, users(name)')
+      .order('created_at'),
+};
+
 // ----------------- COMMENTS -----------------
 export const Comments = {
   listForTask: (taskId) =>

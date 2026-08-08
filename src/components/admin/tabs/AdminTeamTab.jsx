@@ -2,6 +2,8 @@
 // Gestione del team: invito, approvazione dei pending, ruoli, attivazione.
 import { useState, useEffect } from "react";
 import { useViewport } from "../../Viewport.jsx";
+import { useAppData } from "../../../state/AppDataContext.jsx";
+import { useTasks } from "../../../state/TasksContext.jsx";
 import { sectionH, fieldStyle, btnPrimary, btnGold, btnGhost, btnDanger, btnWarning } from "../adminStyles.js";
 import {
   DB_ROLES, ROLE_LABELS, SENIORITY_LEVELS, SENIORITY_LABELS, roleLabel, toSeniority,
@@ -12,8 +14,10 @@ import { BulkInviteModal } from "../../modals/BulkInviteModal.jsx";
 import { ContactActions } from "../../ui/ContactActions.jsx";
 
 // ─── ADMIN TAB: TEAM ───────────────────────────────────────────────────────
-export const AdminTeamTab = ({ state, dispatch }) => {
+export const AdminTeamTab = ({ dispatch }) => {
   const { isMobile } = useViewport();
+  const { team } = useAppData();
+  const tasks = useTasks();
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -53,11 +57,11 @@ export const AdminTeamTab = ({ state, dispatch }) => {
     setTimeout(() => setResendMap(prev => { const n = {...prev}; delete n[m.id]; return n; }), 3500);
   };
 
-  const pending = state.team.filter(m => m.pending);
-  const active = state.team.filter(m => !m.pending && m.active);
-  const disabled = state.team.filter(m => !m.pending && !m.active);
+  const pending = team.filter(m => m.pending);
+  const active = team.filter(m => !m.pending && m.active);
+  const disabled = team.filter(m => !m.pending && !m.active);
 
-  const taskCount = (id) => state.tasks.filter(t => !t.deletedAt && (t.assignees || []).includes(id)).length;
+  const taskCount = (id) => tasks.filter(t => !t.deletedAt && (t.assignees || []).includes(id)).length;
 
   // seniority normalizzata già nel draft: il <select> qui sotto è controllato e
   // con un valore undefined React lo renderebbe non controllato.
@@ -260,7 +264,7 @@ export const AdminTeamTab = ({ state, dispatch }) => {
         </div>
       )}
 
-      {showAdd && <AddTeamMemberModal onClose={() => setShowAdd(false)} dispatch={dispatch} existingIds={state.team.map(m => m.id)} />}
+      {showAdd && <AddTeamMemberModal onClose={() => setShowAdd(false)} dispatch={dispatch} existingIds={team.map(m => m.id)} />}
       {showBulk && (
         <BulkInviteModal
           onClose={() => setShowBulk(false)}

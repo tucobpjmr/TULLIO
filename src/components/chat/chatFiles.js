@@ -5,7 +5,14 @@
 // all'utente PRIMA di iniziare un upload che il server rifiuterebbe.
 import { formatFileSize as formatBytes } from "../../lib/fileUtils.js";
 
-// Replicato qui per validazione client prima di iniziare l'upload.
+// Replicato qui per validazione client prima di iniziare l'upload: rispecchia
+// `file_size_limit` del bucket 'chat-files' (26214400 byte, verificato su
+// storage.buckets).
+//
+// DIVERGE DI PROPOSITO da MAX_TASK_FILE_SIZE in lib/fileUtils.js, che vale
+// 50 MB perché il bucket 'task-files' ha quel tetto. Due bucket, due limiti:
+// allinearli "per coerenza" romperebbe la corrispondenza con il server, che è
+// l'unica ragione per cui queste costanti esistono.
 export const MAX_FILE_SIZE = 25 * 1024 * 1024;
 // Deduce il "kind" UI (icona) dall'estensione del file caricato.
 export const fileKindFromName = (name = "") => {

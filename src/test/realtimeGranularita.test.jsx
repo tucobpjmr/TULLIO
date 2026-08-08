@@ -15,6 +15,12 @@
 //        un altro utente non arrivava MAI in sessione, e il sintomo era il
 //        doppione in anagrafica (l'autocomplete non lo trovava e l'utente lo
 //        ricreava a mano), non un dato visibilmente mancante.
+//
+//   B-1  Lo stesso di A-1 sui task: `useAppHydration` si sottoscrive a tre
+//        tabelle (tasks, comments, task_history) e ricaricava il grafo
+//        completo per ognuna. Un commento aggiunto faceva girare
+//        TASK_SELECT_WITH_COMMENTS — join sui nomi, cestino incluso, nessuna
+//        paginazione — su ogni client connesso.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 
@@ -36,11 +42,34 @@ const ListeAPI = {
   saldi: vi.fn(async () => ({ data: [{ lista_id: "l1", saldo: 10 }], error: null })),
 };
 
-vi.mock("../lib/api.js", () => ({ subscribeToTable: (...a) => subscribeToTable(...a) }));
+// Le API di dominio che useAppHydration idrata. Solo `tasks` e le sue due
+// tabelle figlie hanno un comportamento da verificare qui (B-1); le altre
+// esistono perché l'hook le sottoscrive comunque al mount.
+const vuoto = async () => ({ data: [], error: null });
+const TasksAPI = { list: vi.fn(async () => ({ data: [{ id: "t1", title: "Volo" }], error: null })) };
+const TaskThreadsAPI = {
+  comments: vi.fn(async () => ({ data: [{ id: "k1", task_id: "t1", text: "ok", created_at: "2026-08-01T10:00:00Z", users: { name: "Marco" } }], error: null })),
+  history: vi.fn(async () => ({ data: [{ id: "h1", task_id: "t1", action: "status", created_at: "2026-08-01T10:00:00Z", users: { name: "Marco" } }], error: null })),
+};
+const NoticesAPI = { list: vi.fn(vuoto) };
+const UsersAPI = { listAll: vi.fn(vuoto), getContacts: vi.fn(async () => ({ data: null })) };
+const ClientsAPI = { list: vi.fn(vuoto) };
+const CategoriesAPI = { list: vi.fn(vuoto) };
+
+vi.mock("../lib/api.js", () => ({
+  subscribeToTable: (...a) => subscribeToTable(...a),
+  Tasks: TasksAPI,
+  TaskThreads: TaskThreadsAPI,
+  Notices: NoticesAPI,
+  Users: UsersAPI,
+  Clients: ClientsAPI,
+  Categories: CategoriesAPI,
+}));
 vi.mock("../lib/listeApi.js", () => ({ ListeAPI }));
 
 const { useDebouncedTableSubscription } = await import("../hooks/useDebouncedTableSubscription.js");
 const { useListeData } = await import("../components/liste/useListeData.js");
+const { useAppHydration } = await import("../hooks/useAppHydration.js");
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -166,6 +195,108 @@ describe("useListeData — un movimento non ricarica l'elenco", () => {
     });
 
     expect(result.current.loadError).toBe("RLS negata");
+    spy.mockRestore();
+  });
+});
+
+// ─── B-1 · un commento non ricarica il grafo dei task ────────────────────────
+// Stessa forma di A-1, un piano più in basso. `TASK_SELECT_WITH_COMMENTS` porta
+// con sé commenti e cronologia con i join sui nomi, include il cestino e non è
+// paginata: farla girare perché qualcuno ha commentato è il caso più frequente
+// e insieme il più caro.
+describe("useAppHydration — un commento non ricarica i task", () => {
+  const idrata = () => {
+    const dispatch = vi.fn();
+    const utils = renderHook(() => useAppHydration({
+      enabled: true, currentUserId: "marco", dispatch, onError: vi.fn(),
+    }));
+    return { dispatch, ...utils };
+  };
+
+  it("l'idratazione iniziale carica i task per intero", async () => {
+    const { dispatch } = idrata();
+    await waitFor(() => expect(TasksAPI.list).toHaveBeenCalledTimes(1));
+    // Nessun evento: non c'è modo di sapere cosa è cambiato, quindi si carica
+    // tutto. È il caso in cui `tabelle` vale null e non un Set vuoto.
+    expect(TaskThreadsAPI.comments).not.toHaveBeenCalled();
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "SET_TASKS" }));
+  });
+
+  it("un evento su comments ricarica SOLO i commenti", async () => {
+    const { dispatch } = idrata();
+    await waitFor(() => expect(TasksAPI.list).toHaveBeenCalledTimes(1));
+    vi.clearAllMocks();
+
+    await act(async () => { emetti("comments"); await new Promise(r => setTimeout(r, 250)); });
+
+    expect(TasksAPI.list).not.toHaveBeenCalled();
+    expect(TaskThreadsAPI.comments).toHaveBeenCalledTimes(1);
+    // Nemmeno la cronologia: un commento non la tocca.
+    expect(TaskThreadsAPI.history).not.toHaveBeenCalled();
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "SET_TASK_THREADS",
+      payload: {
+        comments: { t1: [{ id: "k1", user: "Marco", user_id: undefined, text: "ok", time: "2026-08-01T10:00:00Z" }] },
+        history: undefined,
+      },
+    });
+  });
+
+  it("un evento su task_history ricarica SOLO la cronologia", async () => {
+    const { dispatch } = idrata();
+    await waitFor(() => expect(TasksAPI.list).toHaveBeenCalledTimes(1));
+    vi.clearAllMocks();
+
+    await act(async () => { emetti("task_history"); await new Promise(r => setTimeout(r, 250)); });
+
+    expect(TasksAPI.list).not.toHaveBeenCalled();
+    expect(TaskThreadsAPI.comments).not.toHaveBeenCalled();
+    expect(TaskThreadsAPI.history).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "SET_TASK_THREADS" }));
+  });
+
+  it("un evento su tasks ricarica tutto", async () => {
+    idrata();
+    await waitFor(() => expect(TasksAPI.list).toHaveBeenCalledTimes(1));
+    vi.clearAllMocks();
+
+    await act(async () => { emetti("tasks"); await new Promise(r => setTimeout(r, 250)); });
+
+    // Un task creato, modificato, cestinato o ripristinato cambia i campi del
+    // task: qui il refetch completo è quello giusto, non uno spreco.
+    expect(TasksAPI.list).toHaveBeenCalledTimes(1);
+    expect(TaskThreadsAPI.comments).not.toHaveBeenCalled();
+  });
+
+  it("tasks nella stessa finestra di debounce vince sul reload parziale", async () => {
+    idrata();
+    await waitFor(() => expect(TasksAPI.list).toHaveBeenCalledTimes(1));
+    vi.clearAllMocks();
+
+    await act(async () => {
+      emetti("comments"); emetti("tasks");
+      await new Promise(r => setTimeout(r, 250));
+    });
+
+    // Il debounce coalesce le due tabelle: se fra loro c'è `tasks`, il reload
+    // parziale non basta — e la query completa riporta comunque i commenti.
+    expect(TasksAPI.list).toHaveBeenCalledTimes(1);
+    expect(TaskThreadsAPI.comments).not.toHaveBeenCalled();
+  });
+
+  it("un errore sul reload parziale arriva a onError e non tocca lo stato", async () => {
+    const dispatch = vi.fn();
+    const onError = vi.fn();
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    renderHook(() => useAppHydration({ enabled: true, currentUserId: "marco", dispatch, onError }));
+    await waitFor(() => expect(TasksAPI.list).toHaveBeenCalledTimes(1));
+    dispatch.mockClear();
+    TaskThreadsAPI.comments.mockResolvedValueOnce({ data: null, error: { message: "RLS negata" } });
+
+    await act(async () => { emetti("comments"); await new Promise(r => setTimeout(r, 250)); });
+
+    expect(onError).toHaveBeenCalledWith(expect.stringContaining("RLS negata"));
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: "SET_TASK_THREADS" }));
     spy.mockRestore();
   });
 });

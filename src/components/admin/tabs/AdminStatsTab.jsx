@@ -3,12 +3,16 @@
 import { cardStyle, cardH } from "../adminStyles.js";
 import { STATUSES, STATUS_LABELS, STATUS_COLORS } from "../../../lib/taskConstants.js";
 import { isOverdue } from "../../../lib/taskUtils.js";
+import { useAppData } from "../../../state/AppDataContext.jsx";
+import { useTasks } from "../../../state/TasksContext.jsx";
 import { MessageTemplatesSection } from "./MessageTemplatesSection.jsx";
 
 // ─── ADMIN TAB: SISTEMA / STATS ────────────────────────────────────────────
-export const AdminStatsTab = ({ state, dispatch }) => {
-  const active = state.tasks.filter(t => !t.deletedAt);
-  const trashed = state.tasks.filter(t => t.deletedAt);
+export const AdminStatsTab = ({ dispatch, messageTemplates = [] }) => {
+  const { team, categories } = useAppData();
+  const tasks = useTasks();
+  const active = tasks.filter(t => !t.deletedAt);
+  const trashed = tasks.filter(t => t.deletedAt);
   const overdue = active.filter(t => isOverdue(t));
   const done = active.filter(t => t.status === "done");
   const completionRate = active.length ? Math.round((done.length / active.length) * 100) : 0;
@@ -18,12 +22,12 @@ export const AdminStatsTab = ({ state, dispatch }) => {
     count: active.filter(t => t.status === s).length,
   }));
 
-  const byCategory = Object.entries(state.categories).map(([k, c]) => ({
+  const byCategory = Object.entries(categories).map(([k, c]) => ({
     k, label: c.label, color: c.color, icon: c.icon,
     count: active.filter(t => t.category === k).length,
   })).sort((a,b) => b.count - a.count);
 
-  const byMember = state.team.filter(m => !m.pending).map(m => {
+  const byMember = team.filter(m => !m.pending).map(m => {
     const count = active.filter(t => (t.assignees || []).includes(m.id) && t.status !== "done").length;
     return { m, count };
   });
@@ -43,7 +47,7 @@ export const AdminStatsTab = ({ state, dispatch }) => {
         {kpiCard("Task attivi", active.length, `${trashed.length} nel cestino`)}
         {kpiCard("Completati", done.length, `${completionRate}% completion`, "var(--success)")}
         {kpiCard("Scaduti", overdue.length, "task non chiusi oltre data", "var(--danger)")}
-        {kpiCard("Agenti", state.team.filter(m => m.active && !m.pending).length, `${state.team.filter(m => m.pending).length} in attesa`)}
+        {kpiCard("Agenti", team.filter(m => m.active && !m.pending).length, `${team.filter(m => m.pending).length} in attesa`)}
       </div>
 
       {/* Distribuzione per status */}
@@ -109,7 +113,7 @@ export const AdminStatsTab = ({ state, dispatch }) => {
       </div>
 
       {/* Template messaggi chat (v2.8) */}
-      <MessageTemplatesSection state={state} dispatch={dispatch} />
+      <MessageTemplatesSection templates={messageTemplates} dispatch={dispatch} />
     </div>
   );
 };

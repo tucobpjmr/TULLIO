@@ -8,7 +8,7 @@ import { TaskFiles } from "../../lib/api.js";
 import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit } from "../../lib/fileUtils.js";
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";
 import { Modal } from "../ui/Modal.jsx";
-import { Z } from "../../styles/tokens.js";
+import { useClientSuggestions, ClientSuggestions } from "../ui/ClientAutocomplete.jsx";
 
 // v2.8 Round 6: auto-suggerisci la categoria in base a keyword nel titolo.
 // Regole: primo match vince (ordine top-down). Solo per categorie disponibili all'utente.
@@ -52,21 +52,18 @@ export const QuickAddTask = ({ onAdd, onClose, clients = [] }) => {
   const [pendingFiles, setPendingFiles] = useState([]);
   const [busy, setBusy] = useState(false);
   const [fileError, setFileError] = useState("");
+  const fileInputRef = useRef(null);
+
   // Autocomplete cliente: mostra la tendina dei clienti in anagrafica mentre si
   // digita. Il campo resta testo libero (task.client è una stringa), così si può
   // anche inserire un cliente non ancora presente in anagrafica.
-  const [clientFocus, setClientFocus] = useState(false);
-  const fileInputRef = useRef(null);
-
-  const clientQuery = form.client.trim().toLowerCase();
-  const clientMatches = (clientQuery
-    ? clients.filter(c => c.name?.toLowerCase().includes(clientQuery))
-    : clients
-  ).slice(0, 6);
-  // Nasconde la tendina quando l'unico match coincide esattamente con quanto
-  // digitato (cliente già selezionato → niente suggerimento ridondante).
-  const showClientList = clientFocus && clientMatches.length > 0 &&
-    !(clientMatches.length === 1 && clientMatches[0].name?.toLowerCase() === clientQuery);
+  const cli = useClientSuggestions(clients, form.client);
+  const pickClient = (c) => {
+    // Eredita i contatti dall'anagrafica solo se il campo è ancora vuoto: non
+    // sovrascrive un contatto già digitato a mano.
+    setForm(p => ({ ...p, client: c.name, contact: p.contact.trim() ? p.contact : clientContact(c) }));
+    cli.close();
+  };
 
   const addFiles = (fileList) => {
     const arr = Array.from(fileList || []);
@@ -224,47 +221,9 @@ export const QuickAddTask = ({ onAdd, onClose, clients = [] }) => {
             <input
               {...inp("client")}
               placeholder={clients.length ? "Cerca in anagrafica o scrivi un nome…" : "Es. Famiglia Rossi…"}
-              autoComplete="off"
-              onFocus={() => setClientFocus(true)}
-              // Ritardo la chiusura per dare tempo al click sull'opzione (mousedown).
-              onBlur={() => setTimeout(() => setClientFocus(false), 150)}
+              {...cli.inputProps}
             />
-            {showClientList && (
-              <div style={{
-                position: "absolute", top: "100%", left: 0, right: 0, zIndex: Z.localRaised,
-                marginTop: 4, background: "var(--card)", border: "1px solid var(--border)",
-                borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-                maxHeight: 200, overflowY: "auto",
-              }}>
-                {clientMatches.map(c => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onMouseDown={() => {
-                      // Eredita i contatti dall'anagrafica solo se il campo è ancora
-                      // vuoto: non sovrascrive un contatto già digitato a mano.
-                      setForm(p => ({ ...p, client: c.name, contact: p.contact.trim() ? p.contact : clientContact(c) }));
-                      setClientFocus(false);
-                    }}
-                    style={{
-                      display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1,
-                      width: "100%", textAlign: "left", padding: "8px 10px", border: "none",
-                      borderBottom: "1px solid var(--border)", background: "transparent",
-                      cursor: "pointer", fontFamily: "inherit",
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                  >
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{c.name}</span>
-                    {(c.phone || c.city || c.email) && (
-                      <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                        {[c.phone, c.city, c.email].filter(Boolean).join(" · ")}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
+            <ClientSuggestions matches={cli.matches} visible={cli.visible} onPick={pickClient} />
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>

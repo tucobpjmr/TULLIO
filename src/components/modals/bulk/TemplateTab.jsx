@@ -7,7 +7,7 @@ import { clientContact } from "../../../lib/taskUtils.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { DateTimePicker } from "../../ui/DateTimePicker.jsx";
 import { bulkInputStyle, bulkBtnPrimary, bulkBtnGhost } from "./bulkStyles.js";
-import { Z } from "../../../styles/tokens.js";
+import { useClientSuggestions, ClientSuggestions } from "../../ui/ClientAutocomplete.jsx";
 
 
 // ─── BULK: TEMPLATE TAB ────────────────────────────────────────────────────
@@ -15,13 +15,19 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
   const { categories, getAssignableTeam } = useAppData();
   const [selectedId, setSelectedId] = useState(null);
   const [client, setClient] = useState("");
-  const [clientFocus, setClientFocus] = useState(false);
   const [eventDate, setEventDate] = useState("");
   const [defaultAssignee, setDefaultAssignee] = useState("");
   const [praticaRef, setPraticaRef] = useState("");
   const [contact, setContact] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  const cli = useClientSuggestions(clients, client);
+  const pickClient = (c) => {
+    setClient(c.name);
+    setContact(prev => prev.trim() ? prev : clientContact(c));
+    cli.close();
+  };
 
   useEffect(() => { onDirty?.(!!selectedId); }, [selectedId, onDirty]);
 
@@ -98,60 +104,16 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
             <div>
               <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>CLIENTE</div>
-              {(() => {
-                const q = client.trim().toLowerCase();
-                const matches = (q ? clients.filter(c => c.name?.toLowerCase().includes(q)) : clients).slice(0, 6);
-                const showList = clientFocus && matches.length > 0 &&
-                  !(matches.length === 1 && matches[0].name?.toLowerCase() === q);
-                return (
-                  <div style={{ position: "relative" }}>
-                    <input
-                      value={client}
-                      onChange={e => setClient(e.target.value)}
-                      placeholder={clients.length ? "Cerca in anagrafica…" : "Es. Famiglia Rossi"}
-                      style={bulkInputStyle}
-                      autoComplete="off"
-                      onFocus={() => setClientFocus(true)}
-                      onBlur={() => setTimeout(() => setClientFocus(false), 150)}
-                    />
-                    {showList && (
-                      <div style={{
-                        position: "absolute", top: "100%", left: 0, right: 0, zIndex: Z.swipePanel,
-                        marginTop: 3, background: "var(--card)", border: "1px solid var(--border)",
-                        borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-                        maxHeight: 180, overflowY: "auto",
-                      }}>
-                        {matches.map(c => (
-                          <button
-                            key={c.id}
-                            type="button"
-                            onMouseDown={() => {
-                              setClient(c.name);
-                              setContact(prev => prev.trim() ? prev : clientContact(c));
-                              setClientFocus(false);
-                            }}
-                            style={{
-                              display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1,
-                              width: "100%", textAlign: "left", padding: "7px 10px", border: "none",
-                              borderBottom: "1px solid var(--border)", background: "transparent",
-                              cursor: "pointer", fontFamily: "inherit",
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-                            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                          >
-                            <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text)" }}>{c.name}</span>
-                            {(c.phone || c.city || c.email) && (
-                              <span style={{ fontSize: 10.5, color: "var(--text-muted)" }}>
-                                {[c.phone, c.city, c.email].filter(Boolean).join(" · ")}
-                              </span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
+              <div style={{ position: "relative" }}>
+                <input
+                  value={client}
+                  onChange={e => setClient(e.target.value)}
+                  placeholder={clients.length ? "Cerca in anagrafica…" : "Es. Famiglia Rossi"}
+                  style={bulkInputStyle}
+                  {...cli.inputProps}
+                />
+                <ClientSuggestions matches={cli.matches} visible={cli.visible} onPick={pickClient} compact />
+              </div>
             </div>
             <div>
               <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>DATA EVENTO *</div>

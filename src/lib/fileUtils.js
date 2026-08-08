@@ -2,7 +2,14 @@
 // Block 5 — helper puri per gli allegati (task e in generale).
 // Funzioni senza side-effect → facilmente testabili (Vitest).
 
-// Limite dimensione per allegato task (coerente col bucket 'task-files': 50 MB).
+// Limite dimensione per allegato task: rispecchia `file_size_limit` del bucket
+// 'task-files' (52428800 byte, verificato su storage.buckets), replicato qui
+// per rifiutare il file PRIMA di iniziare un upload che il server scarterebbe.
+//
+// DIVERGE DI PROPOSITO da MAX_FILE_SIZE in components/chat/chatFiles.js, che
+// vale 25 MB. Non è una svista da allineare: sono due bucket distinti con due
+// `file_size_limit` distinti, e ciascuna costante rispecchia il proprio. Chi
+// alza uno dei due deve alzare il bucket corrispondente, non l'altra costante.
 export const MAX_TASK_FILE_SIZE = 50 * 1024 * 1024;
 
 // Formatta una dimensione in byte in stringa leggibile (B / KB / MB).

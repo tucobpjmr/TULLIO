@@ -27,6 +27,27 @@
 //                                    "niente da fare".
 //   rollback(state, action)        → action da dispatchare se persist fallisce.
 //   mapError(err)                  → testo utente al posto del messaggio grezzo.
+//   entityId(action)               → id (o array di id) delle righe che questa
+//                                    azione sta scrivendo. Serve a marcarle come
+//                                    "scrittura in volo" finché persist non si è
+//                                    conclusa: vedi sotto.
+//
+// PERCHÉ ESISTE entityId. Fra il dispatch ottimistico e il commit della scrittura
+// passano centinaia di ms, e in quella finestra un evento realtime causato da un
+// ALTRO utente fa ri-scaricare la lista intera (useAppHydration → SET_TASKS). Se
+// la SELECT del refetch arriva al server prima che la nostra UPDATE abbia fatto
+// commit, la risposta è più recente per tutte le altre righe e più VECCHIA per la
+// nostra: SET_TASKS sostituisce l'array e il valore ottimistico sparisce. Quando
+// poi la UPDATE committa, la sua eco realtime porta il nostro `origin_client` e
+// viene scartata — quindi nessun secondo refetch viene a correggere la UI, che
+// resta indietro rispetto al database finché un evento non correlato non passa di
+// lì. `entityId` dichiara quali id sono in volo; il reducer li tiene fuori dalla
+// sostituzione (case MARK_PENDING_WRITE / UNMARK_PENDING_WRITE e SET_TASKS).
+//
+// Lo dichiarano oggi le sole entry sui TASK: il registro dei pendenti è
+// consultato da SET_TASKS, e dichiararlo su clienti o avvisi marcherebbe id che
+// nessuno rilegge. Il meccanismo è generico — quando SET_CLIENTS/SET_NOTICES
+// avranno lo stesso trattamento, basterà aggiungere il campo alle loro entry.
 //
 // L'orchestratore che le esegue è src/hooks/useSyncedDispatch.js.
 
@@ -66,6 +87,9 @@ export const PERSISTENCE = {
       ...a,
       payload: { ...a.payload, id: isUuid(a.payload?.id) ? a.payload.id : newId() },
     }),
+    // La riga inserita in ottimistico non esiste ancora per il server: senza
+    // marcarla, un refetch concorrente la farebbe sparire dalla lista.
+    entityId: (a) => a.payload?.id,
     persist: (s, a) => TasksAPI.create(toDbTask(a.payload)),
   },
 
@@ -75,6 +99,9 @@ export const PERSISTENCE = {
       ...a,
       payload: (a.payload || []).map(t => ({ ...t, id: isUuid(t?.id) ? t.id : newId() })),
     }),
+    // Un import bulk è proprio il momento in cui il traffico realtime è più
+    // fitto: tutte le righe del batch restano protette fino al commit.
+    entityId: (a) => (a.payload || []).map(t => t.id),
     persist: (s, a) => (a.payload.length ? TasksAPI.createMany(a.payload.map(toDbTask)) : NOOP),
     // L'insert multi-riga è atomica: se fallisce NESSUNA task è stata creata,
     // quindi le righe già aggiunte in ottimistico vanno tolte. Senza rollback
@@ -88,6 +115,7 @@ export const PERSISTENCE = {
       const prev = findTask(s, a.payload.id);
       return !!prev && canEditTask(s.team, prev, uid);
     },
+    entityId: (a) => a.payload?.id,
     persist: (s, a) => TasksAPI.update(a.payload.id, toDbTaskPatch(a.payload)),
   },
 
@@ -96,6 +124,7 @@ export const PERSISTENCE = {
       const prev = findTask(s, a.payload.taskId);
       return !!prev && canEditTask(s.team, prev, uid);
     },
+    entityId: (a) => a.payload?.taskId,
     persist: (s, a) => TasksAPI.update(a.payload.taskId, { status: a.payload.newStatus }),
   },
 
@@ -104,6 +133,7 @@ export const PERSISTENCE = {
       const prev = findTask(s, a.payload);
       return !!prev && canEditTask(s.team, prev, uid);
     },
+    entityId: (a) => a.payload,
     persist: (s, a) => TasksAPI.softDelete(a.payload),
   },
 
@@ -112,6 +142,7 @@ export const PERSISTENCE = {
       const prev = findTask(s, a.payload);
       return !!prev && canEditTask(s.team, prev, uid);
     },
+    entityId: (a) => a.payload,
     persist: (s, a) => TasksAPI.restore(a.payload),
   },
 
@@ -120,6 +151,7 @@ export const PERSISTENCE = {
       const prev = findTask(s, a.payload);
       return !!prev && canEditTask(s.team, prev, uid);
     },
+    entityId: (a) => a.payload,
     persist: (s, a) => TasksAPI.hardDelete(a.payload),
   },
 
@@ -153,6 +185,10 @@ export const PERSISTENCE = {
       const prev = findTask(s, a.payload.taskId);
       return !!prev && canViewTask(s.team, prev, uid);
     },
+    // Il commento è appeso al task: la riga da proteggere è quella del task,
+    // altrimenti un refetch concorrente riporta il thread senza il commento
+    // appena scritto.
+    entityId: (a) => a.payload?.taskId,
     persist: (s, a, uid) => CommentsAPI.create({
       task_id: a.payload.taskId,
       user_id: uid,

@@ -8,6 +8,14 @@
 // mano accanto a ogni chiamata DB: guard e reducer invocano le stesse funzioni
 // pure di lib/permissions.js sullo stesso state.team.
 //
+// Oltre a permessi, normalizzazione, scrittura e rollback, qui vive anche il
+// CICLO DI VITA di una scrittura in volo: l'id della riga che si sta scrivendo
+// viene marcato prima di persist() e liberato quando la promise si chiude (in
+// un `finally`, quindi anche quando fallisce). Serve a impedire che un refetch
+// concorrente — innescato da un evento realtime di un altro utente — riporti a
+// schermo il valore pre-scrittura. Anche questo è ORCHESTRAZIONE: quali id
+// siano coinvolti lo dichiara la entry (`entityId`), non questo file.
+//
 // Ritorna sempre una Promise<{ error }>, così i chiamanti che devono
 // concatenare operazioni dipendenti dalla persistenza (es. upload allegati
 // subito dopo ADD_TASK, che via RLS richiede la riga task già scritta) possono
@@ -64,6 +72,21 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true } = {}) {
 
     if (!spec?.persist) return Promise.resolve({ error: null });
 
+    // Ciclo di vita della SCRITTURA IN VOLO. Fra il dispatch ottimistico qui
+    // sopra e il commit su Supabase passano centinaia di ms: se in quella
+    // finestra un evento realtime altrui fa ri-scaricare la lista, la risposta
+    // del server è più recente per tutte le altre righe e più VECCHIA per la
+    // nostra, e SET_TASKS riporterebbe a schermo il valore di prima. Peggio: la
+    // successiva eco della nostra scrittura porta il nostro origin_client e
+    // viene scartata, quindi nessun refetch verrebbe poi a correggere la UI.
+    //
+    // Quali id siano coinvolti lo sa la entry, non l'orchestratore: le action
+    // hanno forme diverse (payload.id, payload.taskId, payload nudo, un array
+    // per il bulk) e riconoscerle qui rimetterebbe in questo file la conoscenza
+    // di entità specifiche che il registry esiste per togliergli.
+    const ids = [].concat(spec.entityId?.(toDispatch) ?? []).filter(Boolean);
+    if (ids.length) rawDispatch({ type: "MARK_PENDING_WRITE", payload: ids });
+
     // Percorso d'errore condiviso: rollback dello stato ottimistico (se
     // previsto) e toast con il messaggio più comprensibile disponibile.
     const fail = (err, fallback) => {
@@ -86,6 +109,14 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true } = {}) {
         const err = Array.isArray(res) ? res.find(r => r?.error)?.error : res?.error;
         return err ? fail(err, "errore sconosciuto") : { error: null };
       })
-      .catch((e) => fail(e, "errore di rete"));
+      .catch((e) => fail(e, "errore di rete"))
+      // finally e non .then(): un errore di rete che lasciasse l'id marcato per
+      // sempre sarebbe un difetto PEGGIORE di quello che questo meccanismo
+      // chiude — quel task smetterebbe di aggiornarsi da realtime per il resto
+      // della sessione. Lo smarcamento avviene DOPO il rollback dispatchato da
+      // fail(), così nemmeno la compensazione può essere sovrascritta.
+      .finally(() => {
+        if (ids.length) rawDispatch({ type: "UNMARK_PENDING_WRITE", payload: ids });
+      });
   }, [enabled, rawDispatch]);
 }

@@ -194,9 +194,52 @@ function baseReducer(state, action) {
     case "CANCEL_ADMIN_ROLLBACK": {
       return { ...state, adminRollbackTo: null, adminSwitchedAt: null };
     }
+    // ─── SCRITTURE IN VOLO ───
+    // Registro degli id che hanno una scrittura partita e non ancora conclusa.
+    // Li marca e li smarca useSyncedDispatch attorno a spec.persist(), leggendo
+    // `entityId` dalla entry del registry (src/state/persistence.js): qui non si
+    // sa nulla né dell'entità né dell'azione che sta scrivendo.
+    //
+    // È una Map id → numero di scritture in volo, non un Set. Con un Set, due
+    // scritture ravvicinate sullo stesso task (sposta e poi rinomina, o un campo
+    // salvato mentre il precedente è ancora in viaggio) si smarcherebbero a
+    // vicenda: la prima che si conclude libererebbe l'id mentre la seconda è
+    // ancora in volo, riaprendo esattamente la finestra che questo registro
+    // chiude. Col contatore l'id resta marcato finché l'ULTIMA si è conclusa.
+    case "MARK_PENDING_WRITE":
+    case "UNMARK_PENDING_WRITE": {
+      const ids = [].concat(action.payload ?? []).filter(Boolean);
+      if (!ids.length) return state;
+      const delta = action.type === "MARK_PENDING_WRITE" ? 1 : -1;
+      const pendingWrites = new Map(state.pendingWrites);
+      for (const id of ids) {
+        const n = (pendingWrites.get(id) ?? 0) + delta;
+        if (n > 0) pendingWrites.set(id, n); else pendingWrites.delete(id);
+      }
+      return { ...state, pendingWrites };
+    }
     case "SET_TASKS": {
-      // Sostituisce in blocco l'array tasks (usato per idratazione iniziale da DB).
-      return { ...state, tasks: Array.isArray(action.payload) ? action.payload : [] };
+      // Sostituisce in blocco l'array tasks (idratazione iniziale + ogni refetch
+      // realtime). Il refetch è però più recente solo per le righe che NON
+      // stiamo scrivendo noi in questo momento: per le altre il server può
+      // ancora servire il pre-immagine, e sostituirle riporterebbe a schermo il
+      // valore vecchio senza che nulla venga poi a correggerlo (l'eco della
+      // nostra scrittura è taggata col nostro origin_client e viene scartata).
+      //
+      // Per un id con scrittura in volo vince quindi SEMPRE la riga locale —
+      // compreso il caso in cui localmente non esista più (DELETE/PURGE
+      // ottimistici: il server la serve ancora) o non esista ancora sul server
+      // (ADD_TASK/ADD_TASKS_BULK in volo: senza questo il refetch la farebbe
+      // sparire dalla lista).
+      const incoming = Array.isArray(action.payload) ? action.payload : [];
+      const pending = state.pendingWrites;
+      if (!pending?.size) return { ...state, tasks: incoming };
+      const locali = new Map((state.tasks || []).map(t => [t.id, t]));
+      const tasks = incoming.filter(t => !pending.has(t.id) || locali.has(t.id))
+        .map(t => (pending.has(t.id) ? locali.get(t.id) : t));
+      const serviti = new Set(incoming.map(t => t.id));
+      const nonAncoraSulServer = (state.tasks || []).filter(t => pending.has(t.id) && !serviti.has(t.id));
+      return { ...state, tasks: nonAncoraSulServer.length ? [...nonAncoraSulServer, ...tasks] : tasks };
     }
     case "SET_TASK_THREADS": {
       // Idratazione parziale: solo commenti e/o cronologia, indicizzati per
@@ -211,9 +254,13 @@ function baseReducer(state, action) {
       // (mappa assente → si tiene il valore corrente).
       const { comments, history } = action.payload || {};
       if (!comments && !history) return state;
+      // Stessa protezione di SET_TASKS: un task con una scrittura in volo (es.
+      // ADD_COMMENT appena dispatchato) non si lascia sovrascrivere dal thread
+      // riletto dal server, che può non contenerla ancora.
+      const pending = state.pendingWrites;
       return {
         ...state,
-        tasks: state.tasks.map(t => ({
+        tasks: state.tasks.map(t => (pending?.has(t.id) ? t : {
           ...t,
           ...(comments ? { comments: comments[t.id] || [] } : {}),
           ...(history ? { history: history[t.id] || [] } : {}),
@@ -663,6 +710,11 @@ function makeInitialState({ team, currentUserId } = {}) {
     agencyName: "VoyageDesk",
     notices: hasRealTeam ? [] : INITIAL_NOTICES,
     clients: [],
+    // Scritture partite e non ancora concluse: id → quante ne sono in volo.
+    // Vuota all'avvio; la riempie e la svuota useSyncedDispatch attorno a
+    // spec.persist(). SET_TASKS/SET_TASK_THREADS la leggono per non sovrascrivere
+    // una riga con la risposta di un refetch partito prima del nostro commit.
+    pendingWrites: new Map(),
     activityLog: [],
     activeView: "dashboard",
     // Richiesta di aprire la Dashboard su una tab coda precisa ({ tab, seq }),

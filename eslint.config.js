@@ -194,7 +194,8 @@ export default [
     },
   },
   // ─── L'UNICA ECCEZIONE A max-lines ─────────────────────────────────────────
-  // Il reducer è UNO switch: 504 righe effettive di cui 495 sono i suoi case.
+  // Il reducer è UNO switch: 539 righe effettive, quasi tutte i suoi case (il
+  // numero qui era fermo a 504 e va rimisurato quando lo si tocca, non dedotto).
   // Spezzarlo per dimensione significherebbe distribuire su più file le
   // transizioni di un'unica macchina a stati, e la proprietà che rende questo
   // file leggibile — vedere in un colpo solo tutto ciò che può succedere allo

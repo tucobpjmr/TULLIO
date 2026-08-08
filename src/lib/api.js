@@ -5,8 +5,18 @@ import { supabase } from './supabase';
 import { getClientId } from './clientId';
 
 // Step L: allega l'origin client a ogni payload di mutation sulle tabelle
-// live (tasks/notices/conversations/messages). I subscriber realtime usano
-// questo tag per scartare gli eventi che hanno generato loro stessi.
+// live. I subscriber realtime usano questo tag per scartare gli eventi che
+// hanno generato loro stessi.
+//
+// Il tag funziona SOLO se la tabella ha davvero la colonna `origin_client`:
+// altrimenti PostgREST rifiuta la scrittura con PGRST204. La colonna c'è su
+// tasks, notices, conversations, messages, comments, users, categories,
+// notifications e — dalla migrazione 20260808120000 — clients e task_history.
+// Le tabelle del modulo Liste (liste_viaggio, movimenti_lista) sono in
+// realtime ma NON hanno la colonna: le loro scritture passano tutte da RPC e
+// non sono taggate (vedi il blocco (b) della stessa migrazione). L'invariante
+// «pubblicata su realtime ⇒ ha origin_client» è misurata da
+// src/test/realtimeOriginContract.test.js.
 const withOrigin = (payload) => ({ ...payload, origin_client: getClientId() });
 
 // Normalizza un errore (stringa, oggetto Error, oggetto serializzato) in un
@@ -586,15 +596,29 @@ export const Push = {
 };
 
 // ----------------- CLIENTS -----------------
+// `clients` è in realtime dalla 20260807215625 e ha origin_client dalla
+// 20260808120000 (S-1). Prima di quest'ultima erano le uniche mutazioni del
+// data layer a non passare da withOrigin: chi salvava una scheda in anagrafica
+// riceveva l'eco della propria scrittura e si riscaricava le 818 righe
+// dell'elenco, che aveva già aggiornato in ottimistico.
 export const Clients = {
   list: () =>
     supabase.from('clients').select('*').order('name'),
   get: (id) =>
     supabase.from('clients').select('*').eq('id', id).single(),
   create: (client) =>
-    supabase.from('clients').insert(client).select().single(),
+    supabase.from('clients').insert(withOrigin(client)).select().single(),
   update: (id, patch) =>
-    supabase.from('clients').update(patch).eq('id', id).select().single(),
+    supabase.from('clients').update(withOrigin(patch)).eq('id', id).select().single(),
+  // Niente withOrigin qui: .delete() non accetta un payload (stesso limite di
+  // Notifications.remove e Categories.remove), quindi l'eco della DELETE non è
+  // filtrabile e ogni client ricarica l'elenco. È il comportamento corretto,
+  // non una lacuna: l'unico modo per rendere leggibile un'origine su una
+  // DELETE sarebbe la REPLICA IDENTITY FULL, che però esporrebbe l'origine
+  // dell'ULTIMA SCRITTURA — quella di chi ha modificato la scheda per ultimo,
+  // non di chi la sta cancellando — e farebbe scartare a QUELL'utente la
+  // cancellazione altrui, lasciandogli in lista un cliente che non esiste più.
+  // Vedi il blocco (a) in fondo alla migrazione 20260808120000.
   remove: (id) =>
     supabase.from('clients').delete().eq('id', id),
 };
@@ -616,11 +640,19 @@ export const Categories = {
 
 // ----------------- REALTIME -----------------
 // Step L: i payload realtime hanno origin_client se generati da una mutation
-// taggata: su INSERT/UPDATE sta in payload.new, su DELETE in payload.old
-// (serve REPLICA IDENTITY FULL sulle tabelle, vedi migration
+// taggata: su INSERT/UPDATE sta in payload.new, su DELETE in payload.old (solo
+// dove la tabella è a REPLICA IDENTITY FULL, vedi migration
 // 20260611_replica_identity_full.sql). Se il tag coincide con il nostro
 // client, l'evento è l'eco della nostra stessa scrittura — l'UI è già
 // aggiornata in modo ottimistico, quindi lo scartiamo per evitare flash.
+//
+// ⚠️ Su DELETE l'origine NON è affidabile: `.delete()` non trasporta payload,
+// quindi payload.old.origin_client è l'origine dell'ULTIMA SCRITTURA della
+// riga, non di chi la cancella — chi aveva modificato quella riga per ultimo
+// scarta la cancellazione altrui e se la tiene in lista. Vale oggi sulle sette
+// tabelle a REPLICA IDENTITY FULL; le tabelle aggiunte dopo non ci sono state
+// portate apposta (migrazione 20260808120000, blocco (a)), così il caso non si
+// allarga mentre aspetta la sua correzione, che è qui e non in una migrazione.
 // Contatore monotono per generare topic di canale UNIVOCI a ogni chiamata.
 // Più subscriber possono ascoltare la STESSA tabella: `users`, ad esempio, è
 // osservata sia dal refresh team sia dalla presence. Con un topic fisso

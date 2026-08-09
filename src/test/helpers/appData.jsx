@@ -23,7 +23,8 @@ import { render } from "@testing-library/react";
 import { AppDataProvider } from "../../state/AppDataContext.jsx";
 import { TasksProvider } from "../../state/TasksContext.jsx";
 import { ClientsProvider } from "../../state/ClientsContext.jsx";
-import { INITIAL_TEAM, INITIAL_CATEGORIES } from "../../state/mockData.js";
+import { INITIAL_TEAM } from "../../state/mockData.js";
+import { INITIAL_CATEGORIES } from "../../state/taskCategories.js";
 
 // Contesto demo: gli stessi valori che appGlobals aveva come default di modulo
 // (INITIAL_TEAM / INITIAL_CATEGORIES / "marco"). I test che non hanno un'opinione

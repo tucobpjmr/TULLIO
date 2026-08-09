@@ -1,14 +1,20 @@
 // src/components/shell/UserSwitcher.jsx
 // Il menù dell'utente in Topbar: profilo, logout e — solo dietro env var in
 // dev — lo switch demo fra ruoli.
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, lazy, Suspense } from "react";
 import { Users as UsersAPI } from "../../lib/api.js";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
-import { ProfileEditor } from "../modals/ProfileEditor.jsx";
 import { AvatarImg } from "../ui/Avatar.jsx";
+import { LazyFallback } from "../ui/LazyFallback.jsx";
 import { Z } from "../../styles/tokens.js";
 import { roleLabel, toDbRole, toSeniority } from "../../lib/taskConstants.js";
+
+// Chunk async: porta con sé CropModal.jsx — 14.2 kB insieme, aperti solo da
+// "Modifica profilo" nel menù utente, non dal primo render della Topbar.
+const ProfileEditor = lazy(() =>
+  import("../modals/ProfileEditor.jsx").then(m => ({ default: m.ProfileEditor }))
+);
 
 // ─── USER SWITCHER (v0.8) ──────────────────────────────────────────────────
 // Dropdown nella Topbar per cambiare l'utente loggato (mock multi-utente).
@@ -187,7 +193,11 @@ export const UserSwitcher = ({ state, dispatch }) => {
       )}
 
       {/* Profile Editor Modal */}
-      {showProfile && <ProfileEditor member={curr} dispatch={dispatch} onClose={() => setShowProfile(false)} />}
+      {showProfile && (
+        <Suspense fallback={<LazyFallback overlay />}>
+          <ProfileEditor member={curr} dispatch={dispatch} onClose={() => setShowProfile(false)} />
+        </Suspense>
+      )}
     </div>
   );
 };

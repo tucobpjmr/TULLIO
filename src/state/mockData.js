@@ -1,6 +1,13 @@
 // src/state/mockData.js
 // Dati iniziali per la modalità offline/demo (nessun utente loggato o DB assente).
 // Questi record NON vengono mai scritti su Supabase: sono solo il fallback locale.
+//
+// Questo modulo va importato SOLO da state/demoState.js, e mai direttamente:
+// è il punto in cui l'accesso è gated dietro `import.meta.env.DEV`, che a
+// build time è una costante `false` in produzione — senza quel confine
+// mockData.js (17.9 kB, il modulo più pesante del bundle prima di questa
+// modifica: team, task, avvisi, notifiche e chat demo) resterebbe nel bundle
+// di produzione anche se irraggiungibile a runtime.
 
 // ─── TEAM MOCK ───────────────────────────────────────────────────────────────
 // role usa i valori dell'enum del database (DB_ROLES), non le label: la demo
@@ -16,19 +23,6 @@ export const INITIAL_TEAM = [
   { id: "elena",   name: "Elena Marini",     role: "agent",   seniority: "junior", avatar: "EM", color: "#0EA5E9", capacity:  8, active: false, pending: true  },
   { id: "matteo",  name: "Matteo De Luca",   role: "agent",   seniority: "senior", avatar: "MD", color: "#DB2777", capacity: 10, active: false, pending: true  },
 ];
-
-// ─── CATEGORIE MOCK ───────────────────────────────────────────────────────────
-export const INITIAL_CATEGORIES = {
-  booking:     { label: "Booking",               icon: "✈️",  color: "#3B82F6", bg: "#EFF6FF" },
-  itinerary:   { label: "Preventivo",            icon: "📝",  color: "#F97316", bg: "#FFF7ED" },
-  visa:        { label: "Visa & Doc.",           icon: "🛂",  color: "#EF4444", bg: "#FEF2F2" },
-  client:      { label: "Scadenza OPT",          icon: "⏳",  color: "#06B6D4", bg: "#ECFEFF" },
-  payment:     { label: "Pagamenti & Fornitori", icon: "💰",  color: "#F59E0B", bg: "#FFFBEB" },
-  marketing:   { label: "Marketing",             icon: "📣",  color: "#EC4899", bg: "#FDF2F8" },
-  admin:       { label: "Check-in",              icon: "✅",  color: "#6B7280", bg: "#F9FAFB" },
-  appointment: { label: "Appuntamento",          icon: "📅",  color: "#6366F1", bg: "#EEF2FF" },
-  transfer:    { label: "Transfer",              icon: "🚐",  color: "#7B4F9E", bg: "#F3F0F9" },
-};
 
 // ─── TASK MOCK ────────────────────────────────────────────────────────────────
 // d() genera date relative a "adesso" al momento del caricamento del modulo.

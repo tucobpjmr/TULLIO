@@ -2,16 +2,16 @@
 // Anagrafica Clienti: elenco, ricerca, ordinamento e apertura del pannello di
 // dettaglio. Modale, card e pannello vivono in moduli propri — erano sei
 // componenti in questo file, di cui uno (la modale) da 120 righe.
-import { memo, useState, useMemo, useEffect } from "react";
+import { memo, useState, useMemo, useEffect, lazy, Suspense } from "react";
 import { ClienteModal } from "./ClienteModal.jsx";
 import { ClienteCard } from "./ClienteCard.jsx";
 import { ClienteDetailPanel } from "./ClienteDetailPanel.jsx";
 import { useViewport } from "../Viewport.jsx";
 import { SkeletonCards } from "../ui/SkeletonCards.jsx";
+import { LazyFallback } from "../ui/LazyFallback.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useTasks } from "../../state/TasksContext.jsx";
 import { useClients } from "../../state/ClientsContext.jsx";
-import { ClientImportModal } from "./ClientImportModal.jsx";
 // L'anagrafica chiede al modulo Liste un conteggio per cliente, non le sue
 // query: vedi components/liste/listeModuleApi.js.
 import { conteggioListePerCliente } from "../liste/listeModuleApi.js";
@@ -19,6 +19,12 @@ import { tasksDelCliente } from "../../lib/clientNotes.js";
 import { matchTermini, terminiRicerca } from "../../lib/searchUtils.js";
 import { fieldStyle } from "./clientStyles.js";
 import { Z } from "../../styles/tokens.js";
+
+// Chunk async: porta con sé lib/xlsx.js e resta chiuso nella grande
+// maggioranza delle sessioni (import CSV/Excel, non il percorso comune).
+const ClientImportModal = lazy(() =>
+  import("./ClientImportModal.jsx").then(m => ({ default: m.ClientImportModal }))
+);
 
 const CLIENT_SORT_OPTS = [
   { key: "name",    label: "Nome A-Z" },
@@ -279,11 +285,13 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
 
       {/* Import anagrafica da Excel/CSV */}
       {importOpen && (
-        <ClientImportModal
-          existingClients={clients}
-          onImport={(newClients) => dispatch({ type: "ADD_CLIENTS_BULK", payload: newClients })}
-          onClose={() => setImportOpen(false)}
-        />
+        <Suspense fallback={<LazyFallback overlay />}>
+          <ClientImportModal
+            existingClients={clients}
+            onImport={(newClients) => dispatch({ type: "ADD_CLIENTS_BULK", payload: newClients })}
+            onClose={() => setImportOpen(false)}
+          />
+        </Suspense>
       )}
 
       {/* Conferma eliminazione — o spiegazione del perché non si può */}

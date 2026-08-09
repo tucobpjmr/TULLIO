@@ -14,7 +14,9 @@
     "importa:liste": "node scripts/importa-liste/index.js",
     "verifica:rpc": "node scripts/verifica-rpc/index.js",
     "verifica:migrazioni": "node scripts/verifica-rpc/verifica-migrazioni.js",
-    "verifica:advisor": "node scripts/verifica-advisor/index.js"
+    "verifica:advisor": "node scripts/verifica-advisor/index.js",
+    "verifica:bundle": "node scripts/verifica-bundle/index.js",
+    "misura:render": "node scripts/misura-render/index.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

@@ -5,21 +5,34 @@
 // toggle push e il pannello notifiche — quattro feature indipendenti in un
 // file che si chiama "barra superiore". Ora sono moduli propri e questo file
 // fa solo layout e composizione.
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, lazy, Suspense } from "react";
 import { useViewport } from "../Viewport.jsx";
-import { MOCK_NOTIFICATIONS } from "../../state/mockData.js";
-import { AdvancedSearchPanel } from "../search/AdvancedSearchPanel.jsx";
-import { NotificationsPanel } from "../notifications/NotificationsPanel.jsx";
+import { demoState } from "../../state/demoState.js";
+import { LazyFallback } from "../ui/LazyFallback.jsx";
 import { UserSwitcher } from "./UserSwitcher.jsx";
 import { Z } from "../../styles/tokens.js";
+
+// Chunk async: entrambi sono pannelli a scomparsa (ricerca avanzata dietro il
+// focus dell'input, notifiche dietro la campanella), mai visibili al primo
+// render. AdvancedSearchPanel porta con sé lib/listeApi.js via
+// listeModuleApi.js: renderla lazy toglie anche quello dal bundle eager.
+const AdvancedSearchPanel = lazy(() =>
+  import("../search/AdvancedSearchPanel.jsx").then(m => ({ default: m.AdvancedSearchPanel }))
+);
+const NotificationsPanel = lazy(() =>
+  import("../notifications/NotificationsPanel.jsx").then(m => ({ default: m.NotificationsPanel }))
+);
 
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
 export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMarkRead, onMarkAllRead, onRemoveNotification, onClearAllNotifications, onOpenTask, onOpenChat }) => {
   const { isMobile } = useViewport();
-  // Fix #11: notifiche mock gate-ate dietro env var (default off in prod)
+  // Fix #11: notifiche mock gate-ate dietro env var (default off in prod).
+  // demoState() è dentro lo stesso `&&` di import.meta.env.DEV: in produzione
+  // quella costante è `false` a build time, quindi né la chiamata né
+  // mockData.js sopravvivono nel bundle (vedi state/demoState.js).
   const SHOW_MOCK_NOTIFS = import.meta.env.DEV && import.meta.env.VITE_SHOW_MOCK_NOTIFICATIONS === 'true';
   const realNotifs = Array.isArray(notificationsProp) ? notificationsProp : [];
-  const notifList = SHOW_MOCK_NOTIFS ? [...realNotifs, ...MOCK_NOTIFICATIONS] : realNotifs;
+  const notifList = SHOW_MOCK_NOTIFS ? [...realNotifs, ...demoState().notifications] : realNotifs;
   const unread = notifList.filter(n => !n.read).length;
   const [searchOpen, setSearchOpen] = useState(false);
   const searchWrapRef = useRef(null);
@@ -99,14 +112,16 @@ export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMa
           />
         </div>
         {searchOpen && (
-          <AdvancedSearchPanel
-            tasks={state.tasks}
-            dispatch={dispatch}
-            keyword={state.searchQuery}
-            onKeyword={v => dispatch({ type: "SET_SEARCH", payload: v })}
-            onClose={() => setSearchOpen(false)}
-            currentUserId={state.currentUserId}
-          />
+          <Suspense fallback={<LazyFallback />}>
+            <AdvancedSearchPanel
+              tasks={state.tasks}
+              dispatch={dispatch}
+              keyword={state.searchQuery}
+              onKeyword={v => dispatch({ type: "SET_SEARCH", payload: v })}
+              onClose={() => setSearchOpen(false)}
+              currentUserId={state.currentUserId}
+            />
+          </Suspense>
         )}
       </div>
 
@@ -126,17 +141,21 @@ export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMa
             color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center"
           }}>{unread}</span>}
         </button>
-        {state.showNotif && <NotificationsPanel
-          dispatch={dispatch}
-          notifications={notifList}
-          isReal={!SHOW_MOCK_NOTIFS}
-          onMarkRead={onMarkRead}
-          onMarkAllRead={onMarkAllRead}
-          onRemoveNotification={onRemoveNotification}
-          onClearAllNotifications={onClearAllNotifications}
-          onOpenTask={onOpenTask}
-          onOpenChat={onOpenChat}
-        />}
+        {state.showNotif && (
+          <Suspense fallback={<LazyFallback />}>
+            <NotificationsPanel
+              dispatch={dispatch}
+              notifications={notifList}
+              isReal={!SHOW_MOCK_NOTIFS}
+              onMarkRead={onMarkRead}
+              onMarkAllRead={onMarkAllRead}
+              onRemoveNotification={onRemoveNotification}
+              onClearAllNotifications={onClearAllNotifications}
+              onOpenTask={onOpenTask}
+              onOpenChat={onOpenChat}
+            />
+          </Suspense>
+        )}
       </div>
 
       {/* User switcher (v0.8) */}

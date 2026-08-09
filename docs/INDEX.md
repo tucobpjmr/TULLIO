@@ -21,6 +21,18 @@ conclusa mesi prima. Questo indice risponde a quella domanda.
 | [`ANAGRAFICA_E_LISTE.md`](ANAGRAFICA_E_LISTE.md) | Modello dati di clienti e liste buoni viaggio |
 | [`IMPORT_LISTE_VIAGGIO.md`](IMPORT_LISTE_VIAGGIO.md) | Formato e regole dell'import liste |
 
+## Audit
+
+Fotografie datate dello stato del progetto, con rilievi e piano d'azione. A
+differenza degli handoff **restano normativi finché i rilievi sono aperti**:
+ciascuno porta lo stato di avanzamento dei propri, aggiornato quando vengono
+chiusi.
+
+| Documento | Perimetro | Rilievi aperti |
+|---|---|---|
+| [`AUDIT_ARCHITETTURA_2026-08.md`](AUDIT_ARCHITETTURA_2026-08.md) | Architettura, sicurezza, correttezza, flusso dati (7-8 agosto 2026) | B-2 (interruttore in dashboard Supabase) |
+| [`AUDIT_PERFORMANCE_2026-08.md`](AUDIT_PERFORMANCE_2026-08.md) | Performance e scalabilità lato client: bundle, code-splitting, memoizzazione, costo di render (9 agosto 2026) | tutti (P2-1 … P2-10) |
+
 ## Pianificazione
 
 | Documento | Cosa contiene |

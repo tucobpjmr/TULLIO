@@ -24,14 +24,14 @@ describe("reducer — accesso al modulo Liste viaggio", () => {
     for (const uid of ["marco", "gina"]) {
       const next = reducer(freshState(uid), { type: "SET_VIEW", payload: "liste" });
       expect(next.activeView).toBe("liste");
-      expect(next.toast).toBeNull();
+      expect(next.toasts).toHaveLength(0);
     }
   });
 
   it("SET_VIEW liste è negata al Driver", () => {
     const next = reducer(freshState("giulia"), { type: "SET_VIEW", payload: "liste" });
     expect(next.activeView).not.toBe("liste");
-    expect(next.toast.type).toBe("error");
+    expect(next.toasts.at(-1).type).toBe("error");
   });
 
   it("passando a un utente Driver la vista liste torna a dashboard", () => {

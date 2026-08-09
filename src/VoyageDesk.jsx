@@ -30,7 +30,7 @@ import { GlobalStyles } from "./styles/GlobalStyles.jsx";
 import { ViewportProvider } from "./components/Viewport.jsx";
 import { ViewErrorBoundary } from "./components/ViewErrorBoundary.jsx";
 import { OverlayErrorBoundary } from "./components/OverlayErrorBoundary.jsx";
-import { Toast } from "./components/ui/Toast.jsx";
+import { ToastStack } from "./components/ui/Toast.jsx";
 import { LazyFallback } from "./components/ui/LazyFallback.jsx";
 import { KeyboardHelpOverlay } from "./components/ui/KeyboardHelpOverlay.jsx";
 import { Topbar } from "./components/shell/Topbar.jsx";
@@ -421,7 +421,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         )}
 
         {/* Toast */}
-        <Toast toast={state.toast} dispatch={dispatch} />
+        <ToastStack toasts={state.toasts} dispatch={dispatch} />
       </div>
       </ClientsProvider>
      </TasksProvider>

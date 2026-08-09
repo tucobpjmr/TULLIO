@@ -28,7 +28,7 @@ describe("reducer — task lifecycle (admin)", () => {
     const next = reducer(s, { type: "ADD_TASK", payload: task() });
     expect(next.tasks).toHaveLength(1);
     expect(next.tasks[0].id).toBe(UUID);
-    expect(next.toast.type).toBe("success");
+    expect(next.toasts.at(-1).type).toBe("success");
   });
 
   // L'insert in blocco su Supabase è atomica: se fallisce non esiste NESSUNA
@@ -109,7 +109,7 @@ describe("reducer — permessi", () => {
     const s = freshState("gina");
     const next = reducer(s, { type: "ADD_TASK", payload: task({ category: "payment" }) });
     expect(next.tasks).toHaveLength(0);
-    expect(next.toast.type).toBe("error");
+    expect(next.toasts.at(-1).type).toBe("error");
   });
 
   it("junior agent può creare task di categoria normale", () => {
@@ -122,14 +122,14 @@ describe("reducer — permessi", () => {
     const s = freshState("gina");
     const next = reducer(s, { type: "ADD_CATEGORY", payload: { key: "x", label: "X" } });
     expect(next.categories.x).toBeUndefined();
-    expect(next.toast.type).toBe("error");
+    expect(next.toasts.at(-1).type).toBe("error");
   });
 
   it("SET_VIEW admin è negata ai non-admin", () => {
     const s = freshState("gina");
     const next = reducer(s, { type: "SET_VIEW", payload: "admin" });
     expect(next.activeView).not.toBe("admin");
-    expect(next.toast.type).toBe("error");
+    expect(next.toasts.at(-1).type).toBe("error");
   });
 });
 
@@ -236,7 +236,7 @@ describe("reducer — CRM clienti", () => {
     });
     expect(s.clients).toHaveLength(2);
     expect(s.clients.map(c => c.name)).toEqual(["Rossi", "Bianchi"]);
-    expect(s.toast.type).toBe("success");
+    expect(s.toasts.at(-1).type).toBe("success");
   });
 
   // `task.client` è testo libero (colonna client_id text), non una FK verso
@@ -253,7 +253,7 @@ describe("reducer — CRM clienti", () => {
       ] };
       s = reducer(s, { type: "RENAME_CLIENT_IN_TASKS", payload: { from: "ROSSI MARIO", to: "MARIO ROSSI" } });
       expect(s.tasks.map(t => t.client)).toEqual(["MARIO ROSSI", "ALTRO CLIENTE"]);
-      expect(s.toast).toEqual({ message: "1 task aggiornato col nuovo nome cliente", type: "success" });
+      expect(s.toasts.at(-1)).toEqual(expect.objectContaining({ message: "1 task aggiornato col nuovo nome cliente", type: "success" }));
     });
 
     it("non tocca nulla se nessun task cita quel cliente", () => {
@@ -280,12 +280,13 @@ describe("reducer — activity log & toast", () => {
     expect(s.activityLog[0].type).toBe("ADD_TASK");
   });
 
-  it("CLEAR_TOAST azzera il toast", () => {
+  it("CLEAR_TOAST rimuove il toast indicato", () => {
     let s = freshState("marco");
     s = reducer(s, { type: "ADD_TASK", payload: task() });
-    expect(s.toast).not.toBeNull();
-    s = reducer(s, { type: "CLEAR_TOAST" });
-    expect(s.toast).toBeNull();
+    expect(s.toasts).toHaveLength(1);
+    const id = s.toasts[0].id;
+    s = reducer(s, { type: "CLEAR_TOAST", payload: id });
+    expect(s.toasts).toHaveLength(0);
   });
 
   it("azione sconosciuta ritorna lo stesso stato", () => {

@@ -24,7 +24,8 @@ import {
   getMember, isAdmin,
   canAccessAdmin, canAccessListe, canViewTask, canEditTask, canCreateTaskCategory,
 } from "../lib/permissions.js";
-import { INITIAL_TEAM, INITIAL_CATEGORIES, INITIAL_TASKS, INITIAL_NOTICES } from "./mockData.js";
+import { INITIAL_CATEGORIES } from "./taskCategories.js";
+import { demoState } from "./demoState.js";
 import { chiaveNome } from "../lib/clientNotes.js";
 
 // Utente di default in modalità demo (nessun login, dati mock).
@@ -698,17 +699,24 @@ function reducer(state, action) {
 // nulla da allineare fuori dallo state.
 function makeInitialState({ team, currentUserId } = {}) {
   const hasRealTeam = Array.isArray(team) && team.length > 0;
+  // Dati demo (team/task/avvisi fittizi): solo sviluppo e preview senza
+  // login. `import.meta.env.DEV` è una costante `false` a build time, quindi
+  // in produzione questo `if` non entra mai — il bundler esclude demoState()
+  // e mockData.js dal bundle invece di lasciarli solo irraggiungibili
+  // (stessa tecnica di SET_CURRENT_USER più sotto in questo file).
+  let demo = null;
+  if (import.meta.env.DEV && !hasRealTeam) demo = demoState();
   return {
     // Quando il team viene dal DB le task in-memory non hanno più assignees validi:
     // partiamo da vuoto, le task reali arriveranno dal prossimo wire-up Supabase.
-    tasks: hasRealTeam ? [] : INITIAL_TASKS,
+    tasks: hasRealTeam ? [] : (demo?.tasks || []),
     // Spread per creare copie: lo state non deve condividere il riferimento con
     // gli array sorgente (altrimenti una mutazione esterna passerebbe inosservata
     // a React, che confronta per identità).
-    team: hasRealTeam ? [...team] : [...INITIAL_TEAM],
+    team: hasRealTeam ? [...team] : (demo ? [...demo.team] : []),
     categories: { ...INITIAL_CATEGORIES },
     agencyName: "VoyageDesk",
-    notices: hasRealTeam ? [] : INITIAL_NOTICES,
+    notices: hasRealTeam ? [] : (demo?.notices || []),
     clients: [],
     // Scritture partite e non ancora concluse: id → quante ne sono in volo.
     // Vuota all'avvio; la riempie e la svuota useSyncedDispatch attorno a

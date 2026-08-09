@@ -3,19 +3,23 @@
 // in una sezione dedicata, le liste buoni viaggio chiuse (stato "esaurita",
 // non cestinate). Il sistema convoglia qui gli elementi chiusi: spariscono
 // dalle code/home attive e restano consultabili/riapribili in questa sezione.
-import { memo, useState, useCallback } from "react";
+import { memo, useState, useCallback, lazy, Suspense } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { CategoryChip } from "../ui/CategoryChip.jsx";
 import { TaskCard } from "../tasks/TaskCard.jsx";
+import { LazyFallback } from "../ui/LazyFallback.jsx";
 import { formatDate, getArchivedTasks } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useTasks } from "../../state/TasksContext.jsx";
 import { PERIOD_OPTIONS, filterByPeriod, thStyle, chipStyle } from "./archiveFilters.js";
 // La sezione "liste buoni viaggio" è del modulo Liste e viene montata per
-// composizione: questa vista non conosce il suo data layer.
-import { ArchivedListe } from "../liste/ArchivedListe.jsx";
+// composizione: questa vista non conosce il suo data layer. Chunk async per lo
+// stesso motivo di ClienteDetailPanel.jsx — porta con sé lib/listeApi.js.
+const ArchivedListe = lazy(() =>
+  import("../liste/ArchivedListe.jsx").then(m => ({ default: m.ArchivedListe }))
+);
 
 // `memo` + lettura dal contesto: senza il memo il provider non servirebbe a
 // nulla, perché il genitore ri-renderizza a ogni azione (vedi
@@ -288,7 +292,9 @@ export const Archive = memo(function Archive({ dispatch }) {
           )}
         </>
       ) : (
-        <ArchivedListe dispatch={dispatch} isMobile={isMobile} />
+        <Suspense fallback={<LazyFallback />}>
+          <ArchivedListe dispatch={dispatch} isMobile={isMobile} />
+        </Suspense>
       )}
     </div>
   );

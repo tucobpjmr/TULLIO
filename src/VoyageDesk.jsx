@@ -10,7 +10,7 @@ import { reducer, makeInitialState } from "./state/reducer.js";
 import { AppDataProvider } from "./state/AppDataContext.jsx";
 import { TasksProvider } from "./state/TasksContext.jsx";
 import { ClientsProvider } from "./state/ClientsContext.jsx";
-import { INITIAL_CONVERSATIONS, INITIAL_MESSAGES } from "./state/mockData.js";
+import { demoState } from "./state/demoState.js";
 
 // ── Hook di dominio ────────────────────────────────────────────────────────
 // Questo file è un ORCHESTRATORE: compone hook e viste, non implementa.
@@ -37,11 +37,12 @@ import { FAB } from "./components/shell/FAB.jsx";
 import { AdminRollbackBanner } from "./components/shell/AdminRollbackBanner.jsx";
 
 // ── Viste ──────────────────────────────────────────────────────────────────
+// Dashboard e ClientiView restano eager: sono le due viste d'ingresso più
+// frequenti (l'app apre su Dashboard, ClientiView è la seconda per uso), e
+// renderle lazy sposterebbe il costo dal caricamento a un flash di fallback
+// su ogni sessione invece di risparmiarlo davvero.
 import { Dashboard } from "./components/dashboard/Dashboard.jsx";
-import { CalendarPlanner } from "./components/calendar/CalendarPlanner.jsx";
 import { ClientiView } from "./components/clients/ClientiView.jsx";
-import { Trash } from "./components/views/Trash.jsx";
-import { Archive } from "./components/views/Archive.jsx";
 import { ChatPanel } from "./components/chat/ChatPanel.jsx";
 import { QuickAddTask } from "./components/modals/QuickAddTask.jsx";
 
@@ -57,6 +58,18 @@ const AdminView = lazy(() =>
 );
 const ListeViaggio = lazy(() =>
   import("./components/liste/ListeViaggio.jsx").then(m => ({ default: m.ListeViaggio }))
+);
+// Viste secondarie: aperte da una minoranza di sessioni, ciascuna dietro un
+// item di navigazione — differirle sposta ~55 kB fuori dal chunk iniziale
+// senza cambiare cosa vede l'utente, solo quando lo scarica.
+const CalendarPlanner = lazy(() =>
+  import("./components/calendar/CalendarPlanner.jsx").then(m => ({ default: m.CalendarPlanner }))
+);
+const Trash = lazy(() =>
+  import("./components/views/Trash.jsx").then(m => ({ default: m.Trash }))
+);
+const Archive = lazy(() =>
+  import("./components/views/Archive.jsx").then(m => ({ default: m.Archive }))
 );
 // Dove è finito il resto del monolite:
 //   utility pure          → src/lib/{taskUtils,permissions,chatUtils,mappers}.js
@@ -87,6 +100,13 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // Modalità DB: attiva solo se AuthContext ha fornito un team reale.
   // Senza, l'app resta sui mock (dev/preview senza login).
   const useSupabase = Array.isArray(initialTeam) && initialTeam.length > 0;
+
+  // Conversazioni/messaggi demo per useChatData sotto: stessa tecnica di
+  // reducer.js/makeInitialState. `import.meta.env.DEV` collassa a `false` in
+  // produzione, quindi il ramo — e con esso demoState()/mockData.js — esce
+  // dal bundle invece di restare solo irraggiungibile.
+  let demo = null;
+  if (import.meta.env.DEV && !useSupabase) demo = demoState();
 
   // Il wrapper dispatch (283 righe di switch: permessi + mapping + chiamate DB
   // + rollback) è stato sostituito dal registry dichiarativo in
@@ -147,8 +167,8 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     enabled: useSupabase,
     team: state.team,
     currentUserId: state.currentUserId,
-    mockConversations: INITIAL_CONVERSATIONS,
-    mockMessages: INITIAL_MESSAGES,
+    mockConversations: demo?.conversations || [],
+    mockMessages: demo?.messages || {},
     onError: showError,
     onSuccess: showSuccess,
     onConversationRead: markChatNotificationsRead,
@@ -293,9 +313,9 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
           <Sidebar state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} onOpenChat={() => { setChatIntent(null); setShowChat(true); }} unreadChat={chat.unreadChat} />
           <main className="vd-main-scroll" style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
-            {/* Suspense per la vista attiva: solo AdminView (Phase 2g) e il
-                modulo Liste viaggio sono lazy, le altre viste risolvono
-                sincronicamente.
+            {/* Suspense per la vista attiva: Dashboard e ClientiView risolvono
+                sincronicamente (viste d'ingresso, aperte da ogni sessione);
+                Admin, Liste viaggio, Calendario, Cestino e Archivio sono lazy.
                 ViewErrorBoundary confina alla vista un eventuale errore di
                 render: senza, l'unico boundary è quello in main.jsx, che
                 sostituisce tutta l'app con una schermata di errore a tutta

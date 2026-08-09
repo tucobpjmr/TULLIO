@@ -1,15 +1,23 @@
 // src/components/clients/ClienteDetailPanel.jsx
 // Il pannello contestuale di un cliente: due tab, i suoi task e le sue liste
 // viaggio. Il tab Liste è precluso al Driver (stessa RLS del modulo).
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, lazy, Suspense } from "react";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { StatusBadge } from "../ui/StatusBadge.jsx";
 import { TaskRow } from "../tasks/TaskCard.jsx";
 import { formatDate, isActiveTask } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
-import { ClienteListePanel } from "../liste/ClienteListePanel.jsx";
+import { LazyFallback } from "../ui/LazyFallback.jsx";
 import { ListeChip } from "./ClienteCard.jsx";
 import { parseClientNotes } from "../../lib/clientNotes.js";
+
+// Chunk async: trascina con sé listeStyles.jsx (16.3 kB) e lib/listeApi.js
+// (8.7 kB) — senza import() finiscono nel chunk eager e vanificano il lazy()
+// di ListeViaggio.jsx, che di quello stesso CSS/data-layer è l'altro punto
+// d'ingresso (già lazy in VoyageDesk.jsx).
+const ClienteListePanel = lazy(() =>
+  import("../liste/ClienteListePanel.jsx").then(m => ({ default: m.ClienteListePanel }))
+);
 
 export function ClienteTaskTab({ cliente, tasks, dispatch }) {
   const { currentUserId: uid, canViewTask } = useAppData();
@@ -157,7 +165,11 @@ export function ClienteDetailPanel({ cliente, tasks, dispatch, onClose, showList
       )}
 
       {tab === "liste"
-        ? <ClienteListePanel cliente={cliente} dispatch={dispatch} />
+        ? (
+          <Suspense fallback={<LazyFallback />}>
+            <ClienteListePanel cliente={cliente} dispatch={dispatch} />
+          </Suspense>
+        )
         : <ClienteTaskTab cliente={cliente} tasks={tasks} dispatch={dispatch} />}
     </div>
   );

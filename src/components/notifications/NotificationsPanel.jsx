@@ -8,7 +8,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { useAuth } from "../../auth/AuthContext.jsx";
-import { MOCK_NOTIFICATIONS } from "../../state/mockData.js";
 import { getPushSupport, getPushState, enablePush, disablePush, syncPushSubscription, sendTestPush } from "../../lib/push.js";
 import { NOTIF_ICONS, NOTIF_CATEGORIES, notifTitle, notifSubtitle, notifTime, notifTarget } from "../../lib/notifUtils.js";
 import { Z } from "../../styles/tokens.js";
@@ -17,6 +16,11 @@ import { Z } from "../../styles/tokens.js";
 // Helpers per il rendering delle notifiche reali (Step F): icona, titolo,
 // sottotitolo, tempo e destinazione del tap vivono in lib/notifUtils.js
 // (funzioni pure, testate in src/test/notifUtils.test.js).
+
+// Identità stabile per il fallback di `list` sotto: un `[]` inline nella
+// ternaria sarebbe un array nuovo a ogni render in cui scatta, invalidando le
+// dipendenze dei due useMemo che leggono `list`.
+const EMPTY_NOTIFICATIONS = [];
 
 // computePresence + PRESENCE_COLORS (usati solo dalla chat) → src/components/chat/ChatPanel.jsx (Step P Phase 2f)
 
@@ -168,7 +172,10 @@ const PushToggle = ({ dispatch }) => {
 export const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMarkAllRead, onRemoveNotification, onClearAllNotifications, onOpenTask, onOpenChat }) => {
   const { isMobile } = useViewport();
   const [filter, setFilter] = useState("all"); // all | unread | task | mention | chat
-  const list = Array.isArray(notifications) ? notifications : MOCK_NOTIFICATIONS;
+  // `notifications` è sempre un array a runtime (Topbar lo costruisce con
+  // spread da state vuoto o idratato, mai altro): il fallback non serviva a
+  // mostrare dati demo, solo a non rompersi se qualcuno passasse `undefined`.
+  const list = Array.isArray(notifications) ? notifications : EMPTY_NOTIFICATIONS;
   const hasUnread = list.some(n => !n.read);
   // Filtri (Fase 2 notifiche): conteggi e applicazione filtro.
   const counts = useMemo(() => {

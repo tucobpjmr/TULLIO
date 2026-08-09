@@ -416,6 +416,18 @@ oggi sono funzioni anonime ricreate dentro ogni `sort`.
 deps, ed è il motivo per cui P2-9 (stabilizzare quelle closure) moltiplica il
 valore di questo rilievo invece di essere indipendente da esso.
 
+**✅ Implementato**, dopo P2-7 e dopo aver misurato (suggerimento strategico
+#3). `useMemo` su tutte e sei le passate di Dashboard (`allTasks`,
+`visibleTasks`, `agentWorkload`, `next7`, `unassigned`, `personalQueue`,
+`urgentCandidates`, `urgentTasks`, `overdueTasks`) e su `baseTasks`/
+`presentCats`/`range`/`expanded` di CalendarPlanner — un solo intervallo
+espanso per render, quello della vista attiva, non più tre. `byDueDate`/
+`byPriorityThenDueDate` estratti a livello di modulo in `Dashboard.jsx`, come
+proposto sopra. `npm run misura:render` (nuovo, vedi P2-7) misura
+`expandRecurring` isolata: a 248 task sintetici, tre chiamate/render costano
+~3.4 ms contro ~1.5 ms per una — non il "forse un millisecondo" ipotizzato,
+ma nemmeno il problema in sé. Il problema era il moltiplicatore di P2-7.
+
 ---
 
 ### P2-5 · `Clients.list()` senza `.range()` a 818 righe — Alta
@@ -584,6 +596,30 @@ viewport. Con questa modifica `width` si aggiorna solo al cambio di fascia
 viewport, quindi quelle soglie vanno riconciliate — o si espone anche la fascia
 `narrow` dal provider. Va verificato con `src/test/` prima di considerare
 chiusa la modifica.
+
+**✅ Implementato**, per primo fra P2-4/P2-7 (suggerimento strategico #3: P2-7
+rimuove l'invalidazione, poi P2-4 rimuove il ricalcolo che quell'invalidazione
+innescava). La riconciliazione scelta: le soglie di `setWidth` che decidono se
+un resize produce un render includono anche 1280 (quella di `Sidebar.jsx`),
+non solo 640/1024 — `Sidebar.jsx` non ha dovuto cambiare, riceve `width`
+aggiornato esattamente ai cambi che già gestiva. Verificato in
+`src/test/viewport.test.jsx` (nuovo): il `value` del context non cambia per un
+resize dentro la stessa fascia, cambia alle tre soglie, e l'auto-collapse di
+Sidebar scatta/si annulla nei punti giusti senza dispatch spuri dentro la
+stessa fascia desktop.
+
+`npm run misura:render` (nuovo — `scripts/misura-render/index.js`, non un
+gate di CI: uno strumento, come richiesto dal suggerimento #3) quantifica
+perché l'ordine P2-7-poi-P2-4 conta: un trascinamento del bordo finestra
+produceva fino a ~400 render (uno per frame, il resize event coalescente ma
+non eliminato dal `requestAnimationFrame` esistente), ciascuno con tre
+chiamate a `expandRecurring` se la vista Calendario era aperta — **~1.37 s**
+di solo calcolo sul thread principale per un singolo trascinamento, a 248 task
+sintetici. Dopo entrambi i fix: al più 3 render (le tre soglie di fascia), una
+chiamata ciascuno — **~4.5 ms**. La cifra "un millisecondo" ipotizzata
+dall'audit sottostimava il costo per render (~1.5 ms, non sub-ms) ma
+sovrastimava quanto contasse da solo: il moltiplicatore di P2-7 era il vero
+problema.
 
 ---
 
@@ -776,6 +812,33 @@ i volumi di produzione (248 task, 818 clienti — già disponibili), poi P2-7
 (rimuove l'invalidazione), poi P2-4 (rimuove il ricalcolo), e la stessa misura
 ripetuta per verificare che i due interventi abbiano fatto quello che promettono
 invece di essere creduti sulla parola.
+
+**✅ Implementato, in quest'ordine.**
+
+1. **Misura.** `<Profiler>` attorno alla vista attiva in `VoyageDesk.jsx`,
+   dietro `VITE_PROFILE_VIEWS=true` in dev (stessa tecnica di gating di
+   `demoState.js`: fuori da quel guard esce dal bundle di produzione). E — dato
+   che un profiler React richiede un browser per dare un numero, mentre la
+   domanda "quanto costa `expandRecurring` a 248 task" è rispondibile subito,
+   senza avviare l'app — `npm run misura:render`
+   (`scripts/misura-render/index.js`): benchmark Node sulla funzione pura,
+   invariata, con 248 task sintetici alla scala di produzione. Non è un gate:
+   uno strumento, ripetibile, che prima non esisteva.
+2. **P2-7.** Fatto per primo, come consigliato: rimuove l'invalidazione.
+3. **P2-4.** Fatto dopo: rimuove il ricalcolo che quell'invalidazione
+   innescava.
+
+**Risposta misurata, non stimata.** Una chiamata a `expandRecurring` su 248
+task costa **~1.5 ms** — misurabile, non il "forse un millisecondo" buttato lì
+come ipotesi, ma nemmeno abbastanza da giustificare da solo il rilievo. Il
+motivo vero era P2-7: un trascinamento del bordo finestra, che prima
+produceva fino a ~400 render (uno a frame), portava quel ~1.5 ms a
+**~1.37 secondi** di solo calcolo se la vista Calendario era aperta — un
+numero che un `console.log` sporadico non avrebbe mai fatto notare, perché
+dipende da COME si ridimensiona la finestra, non da SE. Dopo P2-7+P2-4: al più
+tre render (le soglie di fascia), una chiamata ciascuno, **~4.5 ms** — la
+stessa misura, ripetuta, non creduta sulla parola. Dettagli e numero esatto
+delle iterazioni in P2-4/P2-7 sopra.
 
 ---
 

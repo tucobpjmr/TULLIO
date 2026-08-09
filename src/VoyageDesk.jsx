@@ -1,5 +1,5 @@
 
-import { useState, useReducer, useEffect, useCallback, lazy, Suspense } from "react";
+import { useState, useReducer, useEffect, useCallback, lazy, Suspense, Profiler } from "react";
 
 // ── Stato ──────────────────────────────────────────────────────────────────
 import { Notifications as NotificationsAPI } from "./lib/api.js";
@@ -71,6 +71,19 @@ const Trash = lazy(() =>
 const Archive = lazy(() =>
   import("./components/views/Archive.jsx").then(m => ({ default: m.Archive }))
 );
+// Suggerimento strategico #3 (docs/AUDIT_PERFORMANCE_2026-08.md): un
+// React.Profiler attorno alla vista attiva, per rispondere "quanto costa un
+// render" con un numero invece che a sensazione — la stessa domanda a cui
+// `npm run misura:render` risponde per la sola `expandRecurring`, qui estesa
+// al render React completo (reconciliation e commit inclusi, non solo il
+// calcolo). Dietro VITE_PROFILE_VIEWS=true in dev: fuori da quel guard
+// `import.meta.env.DEV` è `false` a build time e il ramo — Profiler incluso —
+// esce dal bundle di produzione (stessa tecnica di demoState.js).
+const PROFILE_VIEWS = import.meta.env.DEV && import.meta.env.VITE_PROFILE_VIEWS === 'true';
+const onViewRender = (id, phase, actualDuration, baseDuration) => {
+  console.log(`[profile] ${id} ${phase}: actual=${actualDuration.toFixed(2)}ms base=${baseDuration.toFixed(2)}ms`);
+};
+
 // Dove è finito il resto del monolite:
 //   utility pure          → src/lib/{taskUtils,permissions,chatUtils,mappers}.js
 //   reducer + persistenza → src/state/{reducer,persistence}.js
@@ -325,7 +338,9 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
                 viewKey={state.activeView}
                 onReset={() => dispatch({ type: "SET_VIEW", payload: "dashboard" })}
               >
-                {renderView()}
+                {PROFILE_VIEWS
+                  ? <Profiler id={state.activeView} onRender={onViewRender}>{renderView()}</Profiler>
+                  : renderView()}
               </ViewErrorBoundary>
             </Suspense>
           </main>

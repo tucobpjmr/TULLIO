@@ -3,7 +3,7 @@
 // Le code vivono in ./queues/ — erano quattro componenti da ~200 righe l'uno
 // dentro questo file, per un totale di oltre mille righe in cui la logica della
 // vista era indistinguibile da quella delle singole liste.
-import { memo, useState, useEffect } from "react";
+import { memo, useState, useEffect, useMemo } from "react";
 import { PersonalQueue } from "./queues/PersonalQueue.jsx";
 import { UrgentQueue } from "./queues/UrgentQueue.jsx";
 import { UnassignedQueue } from "./queues/UnassignedQueue.jsx";
@@ -20,6 +20,22 @@ import { useAppData } from "../../state/AppDataContext.jsx";
 import { useTasks } from "../../state/TasksContext.jsx";
 import { NoticeBoard } from "./NoticeBoard.jsx";
 import { roleLabel } from "../../lib/taskConstants.js";
+
+// P2-4: comparatori a livello di modulo — erano funzioni anonime ricreate
+// dentro ogni `sort`, quindi un array nuovo (a parità di contenuto) a ogni
+// singolo render, mentre solo il cambio di tab della coda dovrebbe invalidarli.
+const byDueDate = (a, b) => {
+  if (!a.dueDate && !b.dueDate) return 0;
+  if (!a.dueDate) return 1;
+  if (!b.dueDate) return -1;
+  return new Date(a.dueDate) - new Date(b.dueDate);
+};
+const PRIORITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3 };
+const byPriorityThenDueDate = (a, b) => {
+  const dp = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+  return dp !== 0 ? dp : byDueDate(a, b);
+};
+const WINDOW_72H = 72 * 60 * 60 * 1000;
 
 // ─── PERSONAL QUEUE (le mie task — v0.8) ───────────────────────────────────
 // enableDateFilter (v22): per il Driver (vista transfer-oriented) abilita un
@@ -52,44 +68,35 @@ export const Dashboard = memo(function Dashboard({ dispatch, onOpenChat, notices
     setActiveQueue(queueReq.tab);
   }, [queueReq?.tab, queueReq?.seq, role]);
   const me = getMember(uid);
-  const allTasks = getActiveTasks(tasks);
+  // P2-4: sei passate filter+sort su 248 task a ogni render di Dashboard —
+  // ricalcolate anche per un cambio estraneo (toast, un carattere in ricerca
+  // altrove). `useMemo` con le dipendenze reali le limita al cambio di ciò da
+  // cui dipendono davvero (tasks, team, tab attiva).
+  const allTasks = useMemo(() => getActiveTasks(tasks), [tasks]);
   // Filtro permessi: solo task visibili all'utente
-  const visibleTasks = getVisibleTasks(allTasks, uid);
+  const visibleTasks = useMemo(() => getVisibleTasks(allTasks, uid), [allTasks, getVisibleTasks, uid]);
 
-  const agentWorkload = getAssignableTeam().map(m => ({
+  const agentWorkload = useMemo(() => getAssignableTeam().map(m => ({
     ...m,
     count: allTasks.filter(t => t.assignees?.includes(m.id) && t.status !== "done").length
-  }));
+  })), [allTasks, getAssignableTeam]);
 
-  const next7 = visibleTasks
+  const next7 = useMemo(() => visibleTasks
     .filter(t => t.status !== "done" && t.dueDate)
-    .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
-    .slice(0, 6);
+    .sort(byDueDate)
+    .slice(0, 6), [visibleTasks]);
 
   // ─── 3 code distinte (v0.8) ───
   // Coda globale: task non assegnati (Driver non la vede)
   const showGlobalQueue = role !== "driver";
-  const unassigned = showGlobalQueue
-    ? allTasks.filter(t => t.status !== "done" && isInGlobalQueue(t) && canViewTask(t, uid)).sort((a, b) => {
-        const prioOrder = { critical: 0, high: 1, medium: 2, low: 3 };
-        const dp = prioOrder[a.priority] - prioOrder[b.priority];
-        if (dp !== 0) return dp;
-        if (!a.dueDate && !b.dueDate) return 0;
-        if (!a.dueDate) return 1;
-        if (!b.dueDate) return -1;
-        return new Date(a.dueDate) - new Date(b.dueDate);
-      })
-    : [];
+  const unassigned = useMemo(() => showGlobalQueue
+    ? allTasks.filter(t => t.status !== "done" && isInGlobalQueue(t) && canViewTask(t, uid)).sort(byPriorityThenDueDate)
+    : [], [showGlobalQueue, allTasks, canViewTask, uid]);
 
   // Coda personale: task dove sono assegnatario, non completati
-  const personalQueue = allTasks
+  const personalQueue = useMemo(() => allTasks
     .filter(t => isMyTask(t, uid) && t.status !== "done")
-    .sort((a, b) => {
-      if (!a.dueDate && !b.dueDate) return 0;
-      if (!a.dueDate) return 1;
-      if (!b.dueDate) return -1;
-      return new Date(a.dueDate) - new Date(b.dueDate);
-    });
+    .sort(byDueDate), [allTasks, uid]);
 
   // Urgenti: task visibili con scadenza imminente (Driver non le vede).
   // Visibile a tutti gli altri ruoli, admin inclusi. La tab Urgenti permette
@@ -97,22 +104,21 @@ export const Dashboard = memo(function Dashboard({ dispatch, onOpenChat, notices
   // e lasciamo il filtro temporale al componente. Il badge della tab usa la
   // finestra di default (24h) via isUrgent.
   const showUrgent = role !== "driver";
-  const WINDOW_72H = 72 * 60 * 60 * 1000;
-  const urgentCandidates = showUrgent
+  const urgentCandidates = useMemo(() => showUrgent
     ? visibleTasks
       .filter(t => {
         if (!t.dueDate || t.status === "done") return false;
         const diff = new Date(t.dueDate).getTime() - Date.now();
         return diff >= 0 && diff <= WINDOW_72H;
       })
-      .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
-    : [];
-  const urgentTasks = urgentCandidates.filter(t => isUrgent(t));
+      .sort(byDueDate)
+    : [], [showUrgent, visibleTasks]);
+  const urgentTasks = useMemo(() => urgentCandidates.filter(t => isUrgent(t)), [urgentCandidates]);
 
   // Scadute: tutti i task visibili scaduti, non completati
-  const overdueTasks = visibleTasks
+  const overdueTasks = useMemo(() => visibleTasks
     .filter(t => t.status !== "done" && isOverdue(t))
-    .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+    .sort(byDueDate), [visibleTasks]);
 
   const takeOwnership = (task) => {
     // Step I: auto-assegna + auto-move "In Corso" se la task è in todo,

@@ -1,6 +1,6 @@
 // ─── CALENDAR PLANNER ────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
-import { memo, useState, useCallback } from "react";
+import { memo, useState, useCallback, useMemo } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { SwipeActions } from "../SwipeActions.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
@@ -31,10 +31,20 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch }) {
   const openTask = useCallback(
     (task) => dispatch({ type: "SET_SELECTED_TASK", payload: task }), [dispatch]);
 
+  // P2-4: `tasks` cambia identità a ogni azione qualunque (un toast, un
+  // carattere in ricerca altrove) grazie a `useTasks()`, ma qui il filtro
+  // dipende solo da `tasks`/`canViewTask`/`uid` — non da `viewMode` o dalla
+  // data corrente. Senza `useMemo` girava a ogni render comunque.
+  const baseTasks = useMemo(
+    () => tasks.filter(t => isActiveTask(t) && canViewTask(t, uid)),
+    [tasks, canViewTask, uid],
+  );
+
   // Categorie presenti nei task con dueDate (per mostrare solo i chip utili)
-  const presentCats = [...new Set(
-    tasks.filter(t => isActiveTask(t) && canViewTask(t, uid) && t.dueDate).map(t => t.category)
-  )].filter(Boolean);
+  const presentCats = useMemo(
+    () => [...new Set(baseTasks.filter(t => t.dueDate).map(t => t.category))].filter(Boolean),
+    [baseTasks],
+  );
 
   // Filtro base applicato a tutti i getter di task
   const matchesCat = (t) => !catFilter || t.category === catFilter;
@@ -62,28 +72,42 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch }) {
   const weekDays = getWeekDays(weekOffset);
   const dayNames = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
-  // ── Pre-expand recurring tasks for each visible range ──
-  const baseTasks = tasks.filter(t => isActiveTask(t) && canViewTask(t, uid));
+  // P2-4: espandere le ricorrenze costava tre passate su `baseTasks` — mese,
+  // settimana, giorno — mentre `viewMode` ne mostra una sola: due terzi del
+  // lavoro erano per intervalli fuori schermo, ripetuti a ogni render (inclusi
+  // quelli innescati da P2-7, il resize). Un solo intervallo, quello della
+  // vista attiva: cambiare `viewMode` ricalcola, ed è esattamente quando serve.
+  //
+  // `weekStartMs`/`weekEndMs` invece di `weekDays[0]`/`weekDays[6]` dentro la
+  // callback: `getWeekDays()` sopra non è memoizzato e restituisce un array
+  // nuovo a ogni render, quindi `weekDays` in dipendenza invaliderebbe il memo
+  // a ogni render — la dipendenza reale è il giorno che rappresenta, letta qui
+  // come timestamp primitivo.
+  const weekStartMs = weekDays[0]?.getTime();
+  const weekEndMs = weekDays[6]?.getTime();
+  const range = useMemo(() => {
+    if (viewMode === "day") {
+      const s = new Date(dayDate); s.setHours(0, 0, 0, 0);
+      const e = new Date(dayDate); e.setHours(23, 59, 59, 999);
+      return [s, e];
+    }
+    if (viewMode.startsWith("week")) {
+      const s = new Date(weekStartMs); s.setHours(0, 0, 0, 0);
+      const e = new Date(weekEndMs); e.setHours(23, 59, 59, 999);
+      return [s, e];
+    }
+    return [new Date(year, month, 1, 0, 0, 0), new Date(year, month + 1, 0, 23, 59, 59)];
+  }, [viewMode, dayDate, weekStartMs, weekEndMs, year, month]);
 
-  const monthStart = new Date(year, month, 1, 0, 0, 0);
-  const monthEnd = new Date(year, month + 1, 0, 23, 59, 59);
-  const expandedMonth = expandRecurring(baseTasks, monthStart, monthEnd);
-
-  const _wkS = new Date(weekDays[0]); _wkS.setHours(0, 0, 0, 0);
-  const _wkE = new Date(weekDays[6]); _wkE.setHours(23, 59, 59, 999);
-  const expandedWeek = expandRecurring(baseTasks, _wkS, _wkE);
-
-  const _dyS = new Date(dayDate); _dyS.setHours(0, 0, 0, 0);
-  const _dyE = new Date(dayDate); _dyE.setHours(23, 59, 59, 999);
-  const expandedDay = expandRecurring(baseTasks, _dyS, _dyE);
+  const expanded = useMemo(() => expandRecurring(baseTasks, range[0], range[1]), [baseTasks, range]);
 
   const getTasksForCalDay = (day) => {
     const d = new Date(year, month, day).toDateString();
-    return expandedMonth.filter(t => t.dueDate && new Date(t.dueDate).toDateString() === d && matchesCat(t));
+    return expanded.filter(t => t.dueDate && new Date(t.dueDate).toDateString() === d && matchesCat(t));
   };
 
   const getTasksForDay = (day) =>
-    expandedWeek.filter(t => t.dueDate && new Date(t.dueDate).toDateString() === day.toDateString() && matchesCat(t));
+    expanded.filter(t => t.dueDate && new Date(t.dueDate).toDateString() === day.toDateString() && matchesCat(t));
 
   // ── Distribuzione agenti ──
   // Caveat #8: nelle viste settimanali (week / week-full) le frecce ←/→ guidano
@@ -363,7 +387,7 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch }) {
       {viewMode === "day" && (
         <CalendarDayGrid
           dayDate={dayDate}
-          expandedDay={expandedDay}
+          expandedDay={expanded}
           catFilter={catFilter}
           tasks={tasks}
           categories={categories}

@@ -732,6 +732,30 @@ scendere. Il peso del bundle merita lo stesso trattamento:
 Il valore non è il numero: è che il ventunesimo import di troppo diventa un
 errore di build invece di un rilievo fra sei mesi.
 
+**✅ Implementato.** Due meccanismi distinti, sullo stesso modello di
+`VIETATO_APPGLOBALS`:
+
+- `no-restricted-imports` in `eslint.config.js` (`VIETATI_IMPORT_LISTE_EAGER`,
+  `VIETATO_MOCKDATA_DIRETTO`) vieta per nome l'import statico dei quattro
+  moduli coinvolti in P2-1/P2-2 — `ClienteListePanel.jsx`, `ArchivedListe.jsx`,
+  `mockData.js` — fuori dai punti d'ingresso ammessi. `no-restricted-imports`
+  colpisce solo `ImportDeclaration`/`export … from`, non `ImportExpression`:
+  `lazy(() => import(...))` resta permesso per costruzione, non per
+  eccezione elencata a mano. Verificato riaprendo a mano l'import in
+  `ClienteDetailPanel.jsx`: `eslint` si ferma con errore prima ancora del
+  build.
+- `npm run verifica:bundle` (`scripts/verifica-bundle/index.js`, in CI dopo
+  `npm run build`) legge `dist/index.html` — `<script type="module">` +
+  `<link rel="modulepreload">`, cioè l'esatto insieme che Vite fa scaricare
+  prima del primo render — e fallisce se il chunk d'ingresso supera 84 kB gzip
+  o il first load completo supera 184 kB (misurato dopo P2-1/2/3: 77.95 kB /
+  177.90 kB, +6 kB di margine su entrambe). È il backstop generico per
+  qualunque nuovo modulo non ancora nominato dalla regola ESLint sopra.
+
+Le soglie di CI sono più basse di quella originariamente proposta qui (70 kB)
+perché si basano sul risultato reale post-fix (77.95 kB), non su una stima:
+l'obiettivo non era indovinare un numero ma smettere di doverlo indovinare.
+
 ### 3. Misurare i due componenti caldi prima di ottimizzarli — e poi ottimizzarli (P2-4 + P2-7)
 
 Metto la misura prima della correzione di proposito. `expandRecurring` chiamata

@@ -46,6 +46,43 @@ const VIETATE_ENTITA_DELLO_STATE = {
     'Users.uploadAvatar/getAvatarUrl, Users.invite).',
 };
 
+// Confine dei chunk lazy per import statico: due componenti che ClienteDetail
+// Panel.jsx e Archive.jsx importano volutamente con lazy(() => import(...)),
+// perché trascinano moduli condivisi con l'altro punto d'ingresso dello
+// stesso modulo (ListeViaggio.jsx, già lazy in VoyageDesk.jsx). Un import
+// statico rimette quei moduli nel chunk eager senza che nessun test se ne
+// accorga: è passato in review due volte prima di essere misurato a mano
+// decodificando le sourcemap (docs/AUDIT_PERFORMANCE_2026-08.md, P2-1). La
+// regola non vieta il componente, vieta la forma statica: `import()`
+// dinamico non è un ImportDeclaration e resta permesso.
+const VIETATI_IMPORT_LISTE_EAGER = {
+  group: [
+    '**/liste/ClienteListePanel', '**/liste/ClienteListePanel.jsx',
+    '**/liste/ArchivedListe', '**/liste/ArchivedListe.jsx',
+  ],
+  message:
+    'ClienteListePanel/ArchivedListe si importano con lazy(() => import(...)) ' +
+    '(vedi ClienteDetailPanel.jsx/Archive.jsx): un import statico li rimette nel ' +
+    'chunk eager insieme a listeStyles.jsx e lib/listeApi.js, che ListeViaggio.jsx ' +
+    'tiene già fuori (docs/AUDIT_PERFORMANCE_2026-08.md, P2-1).',
+};
+
+// Stesso principio per mockData.js: 17.9 kB di dati demo che devono restare
+// irraggiungibili (quindi fuori dal bundle) in produzione. L'unico punto
+// d'ingresso ammesso è state/demoState.js, che lo chiama sempre dentro
+// `if (import.meta.env.DEV && …)` — il guard che permette al bundler di
+// eliminare il ramo (docs/AUDIT_PERFORMANCE_2026-08.md, P2-2). Import diretti
+// altrove bypassano quel guard e mockData.js torna nel bundle di produzione,
+// invisibile finché qualcuno non rilegge le sourcemap.
+const VIETATO_MOCKDATA_DIRETTO = {
+  group: ['**/state/mockData', '**/state/mockData.js'],
+  message:
+    'mockData.js si importa solo da state/demoState.js, dietro il guard ' +
+    'import.meta.env.DEV: altrove finisce nel bundle di produzione anche se ' +
+    'irraggiungibile a runtime. Per stato iniziale non-demo (es. categorie) usa ' +
+    'state/taskCategories.js.',
+};
+
 // Su `Users` la granularità dell'import non basta: lo stesso namespace porta
 // operazioni legittime dal componente (invito via Edge Function, avatar sul
 // bucket, presence, preferenze personali) e mutazioni del team che appartengono
@@ -157,7 +194,9 @@ export default [
       // componente aggiunto copiava l'import legacy dal vicino, e la migrazione
       // è rimasta ferma a zero consumatori per intere sessioni. Se il file
       // riappare, questo errore lo intercetta prima della review.
-      'no-restricted-imports': ['error', { patterns: [VIETATO_APPGLOBALS] }],
+      'no-restricted-imports': ['error', {
+        patterns: [VIETATO_APPGLOBALS, VIETATI_IMPORT_LISTE_EAGER, VIETATO_MOCKDATA_DIRETTO],
+      }],
     },
   },
   // Il confine vale per i COMPONENTI. Non per src/hooks/ (è lì che i dati
@@ -173,9 +212,22 @@ export default [
     files: ['src/components/**/*.{js,jsx}'],
     rules: {
       'no-restricted-imports': ['error', {
-        patterns: [VIETATO_APPGLOBALS, VIETATE_ENTITA_DELLO_STATE],
+        patterns: [
+          VIETATO_APPGLOBALS, VIETATE_ENTITA_DELLO_STATE,
+          VIETATI_IMPORT_LISTE_EAGER, VIETATO_MOCKDATA_DIRETTO,
+        ],
       }],
       'no-restricted-properties': ['error', ...VIETATE_MUTAZIONI_TEAM],
+    },
+  },
+  // state/demoState.js è l'unico punto ammesso a importare mockData.js
+  // (staticamente, dietro il proprio guard DEV a ogni chiamata): senza questa
+  // eccezione VIETATO_MOCKDATA_DIRETTO, ereditato dal blocco base sopra,
+  // vieterebbe l'unico file che deve poter fare quell'import.
+  {
+    files: ['src/state/demoState.js'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [VIETATO_APPGLOBALS, VIETATI_IMPORT_LISTE_EAGER] }],
     },
   },
   {
@@ -219,9 +271,18 @@ export default [
   {
     files: ['**/*.test.{js,jsx}', 'src/test/**'],
     languageOptions: { globals: { ...globals.node } },
-    // Un file di test dichiara sonde usa-e-getta (un componente che registra
-    // cosa ha letto dal contesto, un guscio che simula il genitore): sono lo
-    // strumento della misura, non "un secondo componente solo per ora".
-    rules: { 'react/no-multi-comp': 'off' },
+    rules: {
+      // Un file di test dichiara sonde usa-e-getta (un componente che registra
+      // cosa ha letto dal contesto, un guscio che simula il genitore): sono lo
+      // strumento della misura, non "un secondo componente solo per ora".
+      'react/no-multi-comp': 'off',
+      // I test (e i loro helper, es. test/helpers/appData.jsx) leggono
+      // INITIAL_TEAM da mockData.js direttamente: non finiscono nel bundle di
+      // produzione, quindi il confine di VIETATO_MOCKDATA_DIRETTO non li
+      // riguarda. VIETATI_IMPORT_LISTE_EAGER resta: i test che montano
+      // ClienteListePanel/ArchivedListe lo fanno con `await import(...)`
+      // dinamico, mai colpito da questa regola.
+      'no-restricted-imports': ['error', { patterns: [VIETATO_APPGLOBALS, VIETATI_IMPORT_LISTE_EAGER] }],
+    },
   },
 ];

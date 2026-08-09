@@ -4,6 +4,7 @@ import { useState, useReducer, useEffect, useCallback, lazy, Suspense, Profiler 
 // ── Stato ──────────────────────────────────────────────────────────────────
 import { Notifications as NotificationsAPI } from "./lib/api.js";
 import { isUuid } from "./lib/mappers.js";
+import { registraSinkErrori } from "./lib/errorReporting.js";
 import { getActiveTasks } from "./lib/taskUtils.js";
 import { canAccessAdmin } from "./lib/permissions.js";
 import { reducer, makeInitialState } from "./state/reducer.js";
@@ -133,6 +134,13 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     (message) => rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message } }), []);
   const showSuccess = useCallback(
     (message) => rawDispatch({ type: "SHOW_TOAST", payload: { type: "success", message } }), []);
+
+  // Gli handler globali installati in main.jsx sanno intercettare gli errori
+  // ma non hanno modo di mostrarli: qui diamo loro il canale. Finché nessuno
+  // è registrato si limitano alla console — è la fase in cui l'app non è
+  // montata e un toast non avrebbe dove comparire. Il cleanup di useEffect è
+  // la funzione di deregistrazione ritornata da registraSinkErrori.
+  useEffect(() => registraSinkErrori(showError), [showError]);
 
   const { crmLoading } = useAppHydration({
     enabled: useSupabase,

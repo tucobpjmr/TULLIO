@@ -7,9 +7,9 @@ import {
   actionLabel, docHtml, downloadBlob, eur, fmtDate, saldoClass,
 } from "../../lib/listeApi.js";
 import { useListeWrite } from "./listePersistence.js";
+import { useConfirm } from "../../state/ConfirmContext.jsx";
 import { AggiungiBeneficiarioModal } from "./modals/AggiungiBeneficiarioModal.jsx";
 import { BulkMovimentiModal } from "./modals/BulkMovimentiModal.jsx";
-import { ConfirmModal } from "./modals/ConfirmModal.jsx";
 import { EditListaModal } from "./modals/EditListaModal.jsx";
 import { EditMovimentoModal } from "./modals/EditMovimentoModal.jsx";
 import { RiepilogoClienteModal } from "./modals/RiepilogoClienteModal.jsx";
@@ -35,8 +35,8 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
   const [addOpen, setAddOpen] = useState(false);
   const [editCell, setEditCell] = useState(null); // { id, campo }
   const [modal, setModal] = useState(null);       // null | "editLista" | "bulk" | "addBeneficiario" | { mov }
-  const [confirm, setConfirm] = useState(null);   // conferme distruttive / saldo non a zero
   const [riepilogoOpen, setRiepilogoOpen] = useState(false);
+  const conferma = useConfirm();
 
   // Cointestatari già presenti (client_id + nome, dalla LISTA_SELECT). Chi
   // sceglie "+ cointestatario" non deve poter riscegliere il titolare o uno
@@ -65,7 +65,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
   // Cambiando lista si richiude tutto: gli editor aperti si riferivano a
   // movimenti di un'altra lista.
   useEffect(() => {
-    setAddOpen(false); setEditCell(null); setModal(null); setConfirm(null); setRiepilogoOpen(false);
+    setAddOpen(false); setEditCell(null); setModal(null); setRiepilogoOpen(false);
   }, [lista.id]);
 
   const saldo = useMemo(
@@ -80,13 +80,12 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
 
   const toggleStato = async () => {
     if (attiva && Math.abs(saldo) > 0.004) {
-      setConfirm({
+      if (!(await conferma({
         title: "Chiudere la lista?",
         body: `Il saldo è ${eur(saldo)}, non zero. Chiudere comunque la lista?`,
         cta: "Segna ESAURITA",
-        onOk: () => chiudi(),
-      });
-      return;
+      }))) return;
+      return chiudi();
     }
     if (attiva) return chiudi();
     const { ok } = await esegui("riapriLista", lista.id);
@@ -94,22 +93,20 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
   };
 
   const chiudi = async () => {
-    setConfirm(null);
     const { ok } = await esegui("esaurisciLista", lista.id);
     if (ok) await onReload(TABELLE_LISTA);
   };
 
-  const cestina = () => setConfirm({
-    title: "Spostare nel cestino?",
-    body: "Potrai ripristinarla o eliminarla definitivamente dalla sezione Cestino.",
-    cta: "Sposta nel cestino",
-    danger: true,
-    onOk: async () => {
-      setConfirm(null);
-      const { ok } = await esegui("cestinaLista", lista.id);
-      if (ok) await onArchived();
-    },
-  });
+  const cestina = async () => {
+    if (!(await conferma({
+      title: "Spostare nel cestino?",
+      body: "Potrai ripristinarla o eliminarla definitivamente dalla sezione Cestino.",
+      cta: "Sposta nel cestino",
+      danger: true,
+    }))) return;
+    const { ok } = await esegui("cestinaLista", lista.id);
+    if (ok) await onArchived();
+  };
 
   const spostaTitolare = async (nuovoClientId) => {
     const { ok } = await esegui("spostaTitolare", lista.id, nuovoClientId);
@@ -123,17 +120,16 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
     return ok;
   };
 
-  const rimuoviBenef = (b) => setConfirm({
-    title: "Rimuovere il cointestatario?",
-    body: `"${b.clients?.name}" non sarà più cointestatario di questa lista. Resta tracciato nello storico delle modifiche.`,
-    cta: "Rimuovi",
-    danger: true,
-    onOk: async () => {
-      setConfirm(null);
-      const { ok } = await esegui("rimuoviCointestatario", lista.id, b.client_id);
-      if (ok) await onReload(TABELLE_LISTA);
-    },
-  });
+  const rimuoviBenef = async (b) => {
+    if (!(await conferma({
+      title: "Rimuovere il cointestatario?",
+      body: `"${b.clients?.name}" non sarà più cointestatario di questa lista. Resta tracciato nello storico delle modifiche.`,
+      cta: "Rimuovi",
+      danger: true,
+    }))) return;
+    const { ok } = await esegui("rimuoviCointestatario", lista.id, b.client_id);
+    if (ok) await onReload(TABELLE_LISTA);
+  };
 
   // Export Word "copia agente": documento a uso interno (metodo di pagamento
   // e storico inclusi), da distinguere dal riepilogo per il cliente qui sotto.
@@ -144,17 +140,16 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
     dispatch({ type: "SHOW_TOAST", payload: { type: "success", message: "Copia agente scaricata (Word)" } });
   };
 
-  const eliminaMov = (m) => setConfirm({
-    title: "Eliminare il movimento?",
-    body: `"${m.descrizione}" del ${fmtDate(m.data_movimento)} verrà eliminato. L'operazione resta tracciata nello storico.`,
-    cta: "Elimina",
-    danger: true,
-    onOk: async () => {
-      setConfirm(null);
-      const { ok } = await esegui("annullaMovimento", m.id);
-      if (ok) await onReload(TABELLE_MOVIMENTO);
-    },
-  });
+  const eliminaMov = async (m) => {
+    if (!(await conferma({
+      title: "Eliminare il movimento?",
+      body: `"${m.descrizione}" del ${fmtDate(m.data_movimento)} verrà eliminato. L'operazione resta tracciata nello storico.`,
+      cta: "Elimina",
+      danger: true,
+    }))) return;
+    const { ok } = await esegui("annullaMovimento", m.id);
+    if (ok) await onReload(TABELLE_MOVIMENTO);
+  };
 
   const cell = (m, campo, className, content) => (
     <td
@@ -388,19 +383,6 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
           movimenti={movimenti}
           dispatch={dispatch}
           onClose={() => setRiepilogoOpen(false)}
-        />
-      )}
-
-      {/* Conferme: la SPA usava confirm() nativo, qui una modale coerente col
-          resto del modulo (e non bloccante per il thread). */}
-      {confirm && (
-        <ConfirmModal
-          title={confirm.title}
-          body={confirm.body}
-          cta={confirm.cta}
-          danger={confirm.danger}
-          onCancel={() => setConfirm(null)}
-          onConfirm={confirm.onOk}
         />
       )}
     </>

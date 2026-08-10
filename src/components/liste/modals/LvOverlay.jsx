@@ -24,19 +24,35 @@ import { createPortal } from "react-dom";
 // <select> Cliente compreso). .lv-root non ha transform/filter, quindi non
 // reintroduce il bug della positioning: contribuisce zero altezza al layout
 // perché il suo unico figlio è position:fixed.
-export function LvOverlay({ children, onClose, wide = false }) {
+export function LvOverlay({ children, onClose, wide = false, labelledBy }) {
   const boxRef = useRef(null);
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    // Blocco dello scroll di fondo: la stessa ragione di ui/Modal.jsx — su
+    // mobile lo scroll "attraversa" il modale e la pagina sotto si muove
+    // mentre si compila il form. Qui mancava, e i modali di questo modulo sono
+    // quelli con i form più lunghi dell'app (ST-5).
+    const precedente = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     window.addEventListener("keydown", onKey);
     boxRef.current?.querySelector("input, select")?.focus();
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = precedente;
+      window.removeEventListener("keydown", onKey);
+    };
   }, [onClose]);
   return createPortal(
     <div className="lv-root">
       <div className="lv-overlay" onClick={onClose}>
+        {/* role/aria-modal: senza, per uno screen reader questi undici modali
+            sono div in mezzo alla pagina, non finestre che catturano il
+            contesto (ST-5). Lo stile resta quello del modulo: qui cambia solo
+            ciò che l'accessibility tree legge. */}
         <div
           ref={boxRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={labelledBy}
           className={`lv-modal${wide ? " wide" : ""}`}
           onClick={(e) => e.stopPropagation()}
         >

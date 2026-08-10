@@ -20,8 +20,11 @@ const ProfileEditor = lazy(() =>
 // Dropdown nella Topbar per cambiare l'utente loggato (mock multi-utente).
 // ProfileEditor (+ AVATAR_EMOJIS/AVATAR_COLORS) → src/components/modals/ProfileEditor.jsx (Step P Phase 2f)
 
-export const UserSwitcher = ({ state, dispatch }) => {
-  const { team, getMember, isJuniorAgent } = useAppData();
+// ST-2: `currentUserId` arriva da AppDataContext e non da una prop `state`.
+// Era l'unico campo che questo componente leggeva dallo state del reducer, e
+// riceverlo intero legava il menù utente a ogni azione dell'app.
+export const UserSwitcher = ({ dispatch }) => {
+  const { team, currentUserId, getMember, isJuniorAgent } = useAppData();
   const [open, setOpen] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -34,14 +37,14 @@ export const UserSwitcher = ({ state, dispatch }) => {
   const handleLogout = async () => {
     if (signingOut) return;
     setSigningOut(true);
-    try { await UsersAPI.setPresence(state.currentUserId, "offline"); } catch { /* best effort */ }
+    try { await UsersAPI.setPresence(currentUserId, "offline"); } catch { /* best effort */ }
     const { error } = await signOut();
     if (error) {
       setSigningOut(false);
       dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Logout fallito: ${error.message}` } });
     }
   };
-  const curr = getMember(state.currentUserId) || { name: "—", role: "—", avatar: "??", color: "#999" };
+  const curr = getMember(currentUserId) || { name: "—", role: "—", avatar: "??", color: "#999" };
   // Fix #14: demo switch gate-ato dietro env var (default off in prod e in dev)
   // Cambia solo currentUser lato UI; auth.uid() server-side resta l'utente reale → confonde RLS.
   // Attivare con VITE_DEMO_SWITCH=true in .env.local solo per test multi-ruolo.
@@ -129,7 +132,7 @@ export const UserSwitcher = ({ state, dispatch }) => {
                 ACCEDI COME (DEMO MULTI-RUOLO)
               </div>
               {candidates.map(m => {
-                const active = m.id === state.currentUserId;
+                const active = m.id === currentUserId;
                 return (
                   <button
                     key={m.id}

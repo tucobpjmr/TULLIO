@@ -3,6 +3,7 @@
 // Le policy RLS sul DB filtrano automaticamente i risultati per utente loggato.
 import { supabase } from './supabase';
 import { getClientId } from './clientId';
+import { fetchAllRows, WITH_COUNT } from './pagination.js';
 
 // Step L: allega l'origin client a ogni payload di mutation sulle tabelle
 // live. I subscriber realtime usano questo tag per scartare gli eventi che
@@ -602,8 +603,28 @@ export const Push = {
 // riceveva l'eco della propria scrittura e si riscaricava le 818 righe
 // dell'elenco, che aveva già aggiornato in ottimistico.
 export const Clients = {
+  // Paginata (ST-3). La tabella è a 818 righe e PostgREST tronca ogni select a
+  // `db-max-rows` (1000 di default) rispondendo 200 SENZA errore: sarebbe
+  // bastata la crescita normale dell'anagrafica — che si alimenta a blocchi
+  // via ClientImportModal, non una riga alla volta — perché i clienti in fondo
+  // all'ordinamento smettessero di esistere per l'app. Con `.order('name')` le
+  // prime a sparire sarebbero le ultime dell'alfabeto, e il sintomo ("non
+  // trovo più il cliente Z") non assomiglia a un problema di paginazione.
+  // Cadono in silenzio con essa anche l'autocomplete cliente sui task, il
+  // conteggio liste per cliente e la ricerca globale.
+  //
+  // `order('name', ...).order('id')`: fetchAllRows richiede un ordinamento
+  // deterministico, e `name` non è unico (due schede omonime esistono e sono
+  // legittime — cliente e cointestatario con lo stesso nome). Senza la seconda
+  // chiave, due pagine consecutive potrebbero ripetere o saltare una riga.
+  //
+  // Il prossimo candidato alla stessa correzione è `Tasks.list` (256 righe
+  // oggi, cestino incluso): non è qui perché porta commenti e cronologia
+  // annidati, dove `count: 'exact'` ha un costo per richiesta che va misurato
+  // prima — mentre su clients la select è piatta.
   list: () =>
-    supabase.from('clients').select('*').order('name'),
+    fetchAllRows(() => supabase.from('clients')
+      .select('*', WITH_COUNT).order('name').order('id')),
   get: (id) =>
     supabase.from('clients').select('*').eq('id', id).single(),
   create: (client) =>

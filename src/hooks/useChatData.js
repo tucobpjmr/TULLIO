@@ -59,9 +59,19 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
   // Idratazione chat (conversations + messages) + realtime.
   // chatLoading parte da `useSupabase`: senza login è già false, quindi non
   // serve azzerarlo qui (l'hook non gira affatto quando enabled=false).
-  useDebouncedTableSubscription(["conversations", "messages"], async (isCurrent) => {
+  //
+  // ST-4: un messaggio nuovo cambia i MESSAGGI e non l'elenco delle
+  // conversazioni (updated_at si muove solo su create/rename/pin, non su ogni
+  // invio) — stessa forma della correzione A-1 in useListeData.js. La chat è
+  // il sottosistema con la frequenza di scrittura più alta dell'app: prima di
+  // questa correzione ogni messaggio inviato da chiunque faceva ricaricare
+  // listMine() a ogni client connesso per niente.
+  // `tabelle === null` = idratazione iniziale (o ripresa dopo un buco di
+  // connessione), dove serve tutto.
+  useDebouncedTableSubscription(["conversations", "messages"], async (isCurrent, tabelle) => {
+    const soloMessaggi = tabelle !== null && tabelle.size > 0 && !tabelle.has("conversations");
     const [convsRes, msgsRes] = await Promise.all([
-      ConversationsAPI.listMine(),
+      soloMessaggi ? Promise.resolve({ data: null, error: null }) : ConversationsAPI.listMine(),
       MessagesAPI.listAll(),
     ]);
     if (!isCurrent()) return;
@@ -73,13 +83,17 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
       console.error("[chat] msgs.list", msgsRes.error);
       onError(`Chat: caricamento messaggi fallito: ${msgsRes.error.message || ""}`);
     }
-    const convs = (convsRes.data || []).map(fromDbConversation);
     const msgsByConv = {};
     for (const r of msgsRes.data || []) {
       const m = fromDbMessage(r);
       (msgsByConv[m.conversation_id] ||= []).push(m);
     }
-    setConversationsRaw(convs);
+    // Se `soloMessaggi`, le conversazioni già in stato non sono state
+    // invalidate: non chiamare setConversationsRaw le lascia com'erano,
+    // invece di sostituirle con `[]` perché qui `convsRes.data` non arriva.
+    if (!soloMessaggi) {
+      setConversationsRaw((convsRes.data || []).map(fromDbConversation));
+    }
     setMessagesRaw(msgsByConv);
     setChatLoading(false);
   }, { enabled, deps: [enabled] });

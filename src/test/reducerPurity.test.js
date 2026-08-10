@@ -28,7 +28,7 @@ const TEAM = [
 
 const statoBase = (uid = "admin1") => ({
   ...makeInitialState({ team: TEAM, currentUserId: uid }),
-  toast: null,
+  toasts: [],
 });
 
 // Snapshot profondo, per confrontare uno state prima/dopo l'invocazione.
@@ -65,10 +65,12 @@ describe("reducer — nessun effetto collaterale sull'input", () => {
     const base = statoBase();
     const a = reducer(base, action);
     const b = reducer(base, action);
-    // Il log attività porta un timestamp e un suffisso casuale per riga: è
-    // l'unico campo legittimamente diverso tra due invocazioni.
-    expect(snapshot({ ...a, activityLog: null })).toEqual(snapshot({ ...b, activityLog: null }));
+    // Il log attività porta un timestamp e un suffisso casuale per riga, e i
+    // toast portano un id generato da pushToast ad ogni chiamata: sono gli
+    // unici campi legittimamente diversi tra due invocazioni.
+    expect(snapshot({ ...a, activityLog: null, toasts: null })).toEqual(snapshot({ ...b, activityLog: null, toasts: null }));
     expect(a.activityLog?.length).toBe(b.activityLog?.length);
+    expect(a.toasts?.length).toBe(b.toasts?.length);
   });
 });
 
@@ -99,7 +101,7 @@ describe("reducer — i permessi si leggono da state.team", () => {
   it("un non-admin secondo state.team viene respinto", () => {
     const next = reducer(statoBase("agent1"), { type: "SET_VIEW", payload: "admin" });
     expect(next.activeView).not.toBe("admin");
-    expect(next.toast.type).toBe("error");
+    expect(next.toasts.at(-1).type).toBe("error");
   });
 
   it("cambiare SOLO lo state.team cambia il verdetto sullo stesso utente", () => {

@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './auth/AuthContext.jsx';
 import LoginScreen from './auth/LoginScreen.jsx';
 import UpdatePasswordScreen from './auth/UpdatePasswordScreen.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
+import { installaHandlerGlobali } from './lib/errorReporting.js';
 
 const screenWrap = {
   minHeight: '100vh', display: 'grid', placeItems: 'center',
@@ -140,6 +141,13 @@ function AuthGate() {
     />
   );
 }
+
+// Rete di sicurezza per gli errori che NON passano dai registry di persistenza
+// e che quindi nessuno mostrerebbe: promise non gestite, errori in handler
+// async, chunk lazy mancanti dopo un deploy. L'ErrorBoundary qui sotto copre
+// solo il render — vedi lib/errorReporting.js. Installata prima di createRoot:
+// un errore avvenuto prima dell'aggancio è per definizione fuori portata.
+installaHandlerGlobali();
 
 // Service worker per le Web Push (public/sw.js): solo notifiche, nessun
 // caching. La sottoscrizione vera avviene dal toggle nel pannello notifiche;

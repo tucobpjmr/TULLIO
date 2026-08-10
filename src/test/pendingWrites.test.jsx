@@ -143,7 +143,7 @@ describe("scritture in volo — la sequenza t0→t3", () => {
     await act(async () => { rete.rifiuta(new Error("connessione persa")); await esito; });
 
     expect(inVolo(view).size).toBe(0);
-    expect(view.result.current.state.toast?.type).toBe("error");
+    expect(view.result.current.state.toasts?.at(-1)?.type).toBe("error");
 
     // E il task torna a seguire il server.
     act(() => { view.result.current.raw({ type: "SET_TASKS", payload: [task({ title: "Verità del server" })] }); });
@@ -284,7 +284,7 @@ describe("scritture in volo — le altre forme di action", () => {
 describe("scritture in volo — il reducer da solo", () => {
   const statoCon = (tasks, pendingWrites = new Map()) => ({
     ...makeInitialState({ team: TEAM, currentUserId: "admin1" }),
-    tasks, pendingWrites, toast: null,
+    tasks, pendingWrites, toasts: [],
   });
 
   it("senza pendenti SET_TASKS resta la sostituzione in blocco di prima", () => {

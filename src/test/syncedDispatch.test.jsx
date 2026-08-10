@@ -36,7 +36,7 @@ const task = (over = {}) => ({
 
 function setup({ uid = "admin1", tasks = [], clients = [], enabled = true } = {}) {
   const rawDispatch = vi.fn();
-  const state = { ...makeInitialState({ team: TEAM, currentUserId: uid }), tasks, clients, toast: null };
+  const state = { ...makeInitialState({ team: TEAM, currentUserId: uid }), tasks, clients, toasts: [] };
   const view = renderHook(
     ({ s }) => useSyncedDispatch(s, rawDispatch, { enabled }),
     { initialProps: { s: state } },

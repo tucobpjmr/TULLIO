@@ -49,7 +49,7 @@ const task = (over = {}) => ({
 
 function statoCon(tasks, uid) {
   const base = makeInitialState({ team: TEAM, currentUserId: uid });
-  return { ...base, tasks, toast: null };
+  return { ...base, tasks, toasts: [] };
 }
 
 // Il reducer ha davvero applicato l'azione? Un rifiuto per permessi produce un
@@ -57,7 +57,7 @@ function statoCon(tasks, uid) {
 // oggetto state. Entrambi significano "non persistere".
 const reducerHaApplicato = (state, action) => {
   const next = reducer(state, action);
-  return next !== state && next.toast?.type !== "error";
+  return next !== state && next.toasts?.at(-1)?.type !== "error";
 };
 
 // ─── Casi: per ogni azione con guard, uno scenario e i ruoli da provare ──────
@@ -154,7 +154,7 @@ describe("persistence — gate admin-only", () => {
   it.each([...ADMIN_ONLY_ACTIONS])("%s è negata a un non-admin", (type) => {
     const state = statoCon([], "senior1");
     const next = reducer(state, { type, payload: {} });
-    expect(next.toast?.type).toBe("error");
+    expect(next.toasts?.at(-1)?.type).toBe("error");
     expect(next).not.toBe(state);
   });
 

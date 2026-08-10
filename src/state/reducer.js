@@ -85,10 +85,28 @@ const completedAtPatch = (prevStatus, nextStatus) => {
   return { completedAt: null };
 };
 
+// Accoda un toast invece di sovrascrivere quello corrente: prima di questa
+// funzione ogni azione scriveva `toast: {...}` e cancellava un errore critico
+// non ancora letto se nel frattempo arrivava un successo (o viceversa) — vedi
+// useAppHydration, che può emettere fino a 5 errori nella stessa finestra.
+// Funzione di modulo (non dentro baseReducer) perché serve anche al guard
+// ADMIN_ONLY_ACTIONS del wrapper `reducer`, fuori da baseReducer: un'unica
+// definizione di dedup/cap, niente logica duplicata fra i due punti.
+// Pura: non muta `toasts`, ritorna un nuovo array.
+function pushToast(toasts, { message, type, undoable }) {
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  // Dedup per messaggio: cinque fetch falliti sulla stessa rete giù producono
+  // lo stesso testo — cinque righe identiche in colonna non informano più di una.
+  const senzaDuplicati = (toasts || []).filter(t => t.message !== message);
+  const next = [...senzaDuplicati, { id, message, type, undoable: !!undoable }];
+  // Cap a 3: oltre, la pila di toast copre la bottom-nav su mobile.
+  return next.slice(-3);
+}
+
 function baseReducer(state, action) {
   const uid = state.currentUserId;
   const _denied = (msg = "Non hai i permessi per questa azione") =>
-    ({ ...state, toast: { message: msg, type: "error" } });
+    ({ ...state, toasts: pushToast(state.toasts, { message: msg, type: "error" }) });
 
   switch (action.type) {
     case "SET_VIEW": {
@@ -176,9 +194,9 @@ function baseReducer(state, action) {
       const prevIsAdmin = isAdmin(state.team, state.currentUserId);
       const adminRollbackTo = elevated && !prevIsAdmin ? state.currentUserId : null;
       const adminSwitchedAt = elevated && !prevIsAdmin ? new Date().toISOString() : null;
-      const toast = elevated
-        ? { message: `⚠️ Ora stai usando l'app come ${m.name} (Admin). Rollback automatico in 60s.`, type: "warning" }
-        : { message: `Ora stai usando l'app come ${m.name} (${roleLabel(m)})`, type: "success" };
+      const toasts = elevated
+        ? pushToast(state.toasts, { message: `⚠️ Ora stai usando l'app come ${m.name} (Admin). Rollback automatico in 60s.`, type: "warning" })
+        : pushToast(state.toasts, { message: `Ora stai usando l'app come ${m.name} (${roleLabel(m)})`, type: "success" });
       return {
         ...state,
         currentUserId: newId,
@@ -187,7 +205,7 @@ function baseReducer(state, action) {
         // mirata di una lista non ha più un modulo dove essere consumata.
         listeTarget: viewLocked ? null : state.listeTarget,
         selectedTask: null,
-        toast,
+        toasts,
         adminRollbackTo,
         adminSwitchedAt,
       };
@@ -278,26 +296,26 @@ function baseReducer(state, action) {
           ? { ...t, status: action.payload.newStatus, ...completedAtPatch(t.status, action.payload.newStatus) }
           : t
       );
-      const toast = action.swipe
-        ? { message: `✓ Spostato in "${STATUS_LABELS[action.payload.newStatus]}"`, type: "success", undoable: true }
-        : { message: `Task spostato in "${STATUS_LABELS[action.payload.newStatus]}"`, type: "success" };
+      const toasts = action.swipe
+        ? pushToast(state.toasts, { message: `✓ Spostato in "${STATUS_LABELS[action.payload.newStatus]}"`, type: "success", undoable: true })
+        : pushToast(state.toasts, { message: `Task spostato in "${STATUS_LABELS[action.payload.newStatus]}"`, type: "success" });
       const lastAction = action.swipe
         ? { type: "MOVE_TASK", taskId: action.payload.taskId, prevStatus }
         : state.lastAction;
-      return { ...state, tasks, toast, lastAction };
+      return { ...state, tasks, toasts, lastAction };
     }
     case "ADD_TASK": {
       if (!canCreateTaskCategory(state.team, action.payload.category, uid)) {
         return _denied("Non puoi creare task di questa categoria");
       }
       const tasks = [action.payload, ...state.tasks];
-      return { ...state, tasks, toast: { message: "Task creato con successo!", type: "success" } };
+      return { ...state, tasks, toasts: pushToast(state.toasts, { message: "Task creato con successo!", type: "success" }) };
     }
     case "ADD_TASKS_BULK": {
       const bad = action.payload.find(t => !canCreateTaskCategory(state.team, t.category, uid));
       if (bad) return _denied("Alcune task hanno categorie che non puoi creare");
       const tasks = [...action.payload, ...state.tasks];
-      return { ...state, tasks, toast: { message: `${action.payload.length} task creati!`, type: "success" } };
+      return { ...state, tasks, toasts: pushToast(state.toasts, { message: `${action.payload.length} task creati!`, type: "success" }) };
     }
     // Annulla l'inserimento ottimistico di ADD_TASKS_BULK quando l'insert su
     // Supabase è fallita (l'insert in blocco è atomica: nessuna delle task
@@ -319,13 +337,13 @@ function baseReducer(state, action) {
       const selectedTask = state.selectedTask?.id === action.payload.id
         ? { ...state.selectedTask, ...action.payload, ...statusPatch }
         : state.selectedTask;
-      const toast = action.swipe
-        ? { message: action.toastMessage || "Task aggiornato!", type: "success", undoable: true }
-        : { message: "Task aggiornato!", type: "success" };
+      const toasts = action.swipe
+        ? pushToast(state.toasts, { message: action.toastMessage || "Task aggiornato!", type: "success", undoable: true })
+        : pushToast(state.toasts, { message: "Task aggiornato!", type: "success" });
       const lastAction = action.swipe && prev
         ? { type: "UPDATE_TASK", taskId: action.payload.id, prevSnapshot: prev }
         : state.lastAction;
-      return { ...state, tasks, selectedTask, toast, lastAction };
+      return { ...state, tasks, selectedTask, toasts, lastAction };
     }
     case "ADD_COMMENT": {
       const prev = state.tasks.find(t => t.id === action.payload.taskId);
@@ -349,13 +367,13 @@ function baseReducer(state, action) {
         t.id === action.payload ? { ...t, deletedAt: new Date().toISOString() } : t
       );
       const selectedTask = state.selectedTask?.id === action.payload ? null : state.selectedTask;
-      const toast = action.swipe
-        ? { message: "🗑️ Spostato nel cestino", type: "success", undoable: true }
-        : { message: "Task spostato nel cestino", type: "success" };
+      const toasts = action.swipe
+        ? pushToast(state.toasts, { message: "🗑️ Spostato nel cestino", type: "success", undoable: true })
+        : pushToast(state.toasts, { message: "Task spostato nel cestino", type: "success" });
       const lastAction = action.swipe
         ? { type: "DELETE_TASK", taskId: action.payload }
         : state.lastAction;
-      return { ...state, tasks, selectedTask, toast, lastAction };
+      return { ...state, tasks, selectedTask, toasts, lastAction };
     }
     case "RESTORE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload);
@@ -365,14 +383,14 @@ function baseReducer(state, action) {
       const tasks = state.tasks.map(t =>
         t.id === action.payload ? { ...t, deletedAt: null } : t
       );
-      return { ...state, tasks, toast: { message: "Task ripristinato!", type: "success" } };
+      return { ...state, tasks, toasts: pushToast(state.toasts, { message: "Task ripristinato!", type: "success" }) };
     }
     case "PURGE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload);
       if (!prev) return state;
       if (!canEditTask(state.team, prev, uid)) return _denied("Non puoi eliminare questo task");
       const tasks = state.tasks.filter(t => t.id !== action.payload);
-      return { ...state, tasks, toast: { message: "Task eliminato definitivamente", type: "success" } };
+      return { ...state, tasks, toasts: pushToast(state.toasts, { message: "Task eliminato definitivamente", type: "success" }) };
     }
     case "EMPTY_TRASH": {
       // Svuota solo i task cestinati che l'utente corrente può gestire
@@ -381,7 +399,7 @@ function baseReducer(state, action) {
       );
       const count = purgeIds.size;
       const tasks = state.tasks.filter(t => !purgeIds.has(t.id));
-      return { ...state, tasks, toast: { message: `Cestino svuotato (${count} task eliminati)`, type: "success" } };
+      return { ...state, tasks, toasts: pushToast(state.toasts, { message: `Cestino svuotato (${count} task eliminati)`, type: "success" }) };
     }
 
     // ─── ADMIN: TEAM ───
@@ -397,7 +415,7 @@ function baseReducer(state, action) {
     }
     case "ADD_TEAM_MEMBER": {
       const team = [...state.team, action.payload];
-      return { ...state, team, toast: { message: `Agente "${action.payload.name}" aggiunto`, type: "success" } };
+      return { ...state, team, toasts: pushToast(state.toasts, { message: `Agente "${action.payload.name}" aggiunto`, type: "success" }) };
     }
     case "UPDATE_TEAM_MEMBER": {
       // Gli stessi due rifiuti dichiarati nel guard di state/persistence.js.
@@ -413,37 +431,37 @@ function baseReducer(state, action) {
       }
       const patch = { ...action.payload, role: nextRole, seniority: toSeniority(action.payload) };
       const team = state.team.map(m => m.id === patch.id ? { ...m, ...patch } : m);
-      return { ...state, team, toast: { message: "Agente aggiornato", type: "success" } };
+      return { ...state, team, toasts: pushToast(state.toasts, { message: "Agente aggiornato", type: "success" }) };
     }
     case "APPROVE_TEAM_MEMBER": {
       const team = state.team.map(m => m.id === action.payload ? { ...m, pending: false, active: true } : m);
-      return { ...state, team, toast: { message: "Agente approvato e attivato!", type: "success" } };
+      return { ...state, team, toasts: pushToast(state.toasts, { message: "Agente approvato e attivato!", type: "success" }) };
     }
     case "TOGGLE_TEAM_MEMBER_ACTIVE": {
       const team = state.team.map(m => m.id === action.payload ? { ...m, active: !m.active } : m);
       const target = team.find(m => m.id === action.payload);
-      return { ...state, team, toast: { message: target?.active ? "Agente attivato" : "Agente disattivato", type: "success" } };
+      return { ...state, team, toasts: pushToast(state.toasts, { message: target?.active ? "Agente attivato" : "Agente disattivato", type: "success" }) };
     }
     case "REMOVE_TEAM_MEMBER": {
       // Non rimuove davvero se ha task assegnati: si limita a disattivare e segnare pending=false
       const team = state.team.filter(m => m.id !== action.payload);
-      return { ...state, team, toast: { message: "Agente rimosso", type: "success" } };
+      return { ...state, team, toasts: pushToast(state.toasts, { message: "Agente rimosso", type: "success" }) };
     }
 
     // ─── ADMIN: CATEGORIES ───
     case "ADD_CATEGORY": {
       const { key, ...rest } = action.payload;
       const categories = { ...state.categories, [key]: rest };
-      return { ...state, categories, toast: { message: `Categoria "${rest.label}" aggiunta`, type: "success" } };
+      return { ...state, categories, toasts: pushToast(state.toasts, { message: `Categoria "${rest.label}" aggiunta`, type: "success" }) };
     }
     case "UPDATE_CATEGORY": {
       const { key, ...rest } = action.payload;
       const categories = { ...state.categories, [key]: { ...state.categories[key], ...rest } };
-      return { ...state, categories, toast: { message: "Categoria aggiornata", type: "success" } };
+      return { ...state, categories, toasts: pushToast(state.toasts, { message: "Categoria aggiornata", type: "success" }) };
     }
     case "REMOVE_CATEGORY": {
       const { [action.payload]: _, ...rest } = state.categories;
-      return { ...state, categories: rest, toast: { message: "Categoria rimossa", type: "success" } };
+      return { ...state, categories: rest, toasts: pushToast(state.toasts, { message: "Categoria rimossa", type: "success" }) };
     }
     // SET_CATEGORIES: rimpiazza l'intero dizionario con quello idratato da DB
     // (mount + refresh realtime). Come SET_TEAM, non tocca nulla fuori dallo
@@ -485,11 +503,11 @@ function baseReducer(state, action) {
         categories: nextCategories,
         agencyName: agencyName ?? state.agencyName,
         notices: nextNotices,
-        toast: { message: "Backup ripristinato: dati uniti a quelli esistenti", type: "success" }
+        toasts: pushToast(state.toasts, { message: "Backup ripristinato: dati uniti a quelli esistenti", type: "success" })
       };
     }
     case "CLEAR_ACTIVITY_LOG": {
-      return { ...state, activityLog: [], toast: { message: "Log attività svuotato", type: "success" } };
+      return { ...state, activityLog: [], toasts: pushToast(state.toasts, { message: "Log attività svuotato", type: "success" }) };
     }
 
     // ─── BACHECA AVVISI ───
@@ -498,7 +516,7 @@ function baseReducer(state, action) {
     }
     case "ADD_NOTICE": {
       const notices = [action.payload, ...state.notices];
-      return { ...state, notices, toast: { message: "Avviso pubblicato in bacheca", type: "success" } };
+      return { ...state, notices, toasts: pushToast(state.toasts, { message: "Avviso pubblicato in bacheca", type: "success" }) };
     }
     case "UPDATE_NOTICE": {
       const notices = state.notices.map(n =>
@@ -506,11 +524,11 @@ function baseReducer(state, action) {
           ? { ...n, ...action.payload, updatedAt: new Date().toISOString() }
           : n
       );
-      return { ...state, notices, toast: { message: "Avviso aggiornato", type: "success" } };
+      return { ...state, notices, toasts: pushToast(state.toasts, { message: "Avviso aggiornato", type: "success" }) };
     }
     case "DELETE_NOTICE": {
       const notices = state.notices.filter(n => n.id !== action.payload);
-      return { ...state, notices, toast: { message: "Avviso rimosso dalla bacheca", type: "success" } };
+      return { ...state, notices, toasts: pushToast(state.toasts, { message: "Avviso rimosso dalla bacheca", type: "success" }) };
     }
     case "TOGGLE_PIN_NOTICE": {
       const notices = state.notices.map(n =>
@@ -544,19 +562,19 @@ function baseReducer(state, action) {
     case "SET_CLIENTS":
       return { ...state, clients: Array.isArray(action.payload) ? action.payload : [] };
     case "ADD_CLIENT":
-      return { ...state, clients: [action.payload, ...(state.clients || [])], toast: { message: "Cliente aggiunto!", type: "success" } };
+      return { ...state, clients: [action.payload, ...(state.clients || [])], toasts: pushToast(state.toasts, { message: "Cliente aggiunto!", type: "success" }) };
     case "ADD_CLIENTS_BULK": {
       const n = action.payload.length;
       const clients = [...action.payload, ...(state.clients || [])];
-      return { ...state, clients, toast: { message: `${n} client${n === 1 ? "e" : "i"} importat${n === 1 ? "o" : "i"}!`, type: "success" } };
+      return { ...state, clients, toasts: pushToast(state.toasts, { message: `${n} client${n === 1 ? "e" : "i"} importat${n === 1 ? "o" : "i"}!`, type: "success" }) };
     }
     case "UPDATE_CLIENT": {
       const clients = (state.clients || []).map(c => c.id === action.payload.id ? { ...c, ...action.payload } : c);
-      return { ...state, clients, toast: { message: "Cliente aggiornato!", type: "success" } };
+      return { ...state, clients, toasts: pushToast(state.toasts, { message: "Cliente aggiornato!", type: "success" }) };
     }
     case "DELETE_CLIENT": {
       const clients = (state.clients || []).filter(c => c.id !== action.payload);
-      return { ...state, clients, toast: { message: "Cliente rimosso", type: "success" } };
+      return { ...state, clients, toasts: pushToast(state.toasts, { message: "Cliente rimosso", type: "success" }) };
     }
     // Rinomina il cliente dentro i task che lo citano. `task.client` è testo
     // libero (colonna `client_id text`, non una foreign key): senza questo,
@@ -587,7 +605,7 @@ function baseReducer(state, action) {
         : state.selectedTask;
       return {
         ...state, tasks, selectedTask,
-        toast: { message: `${n} task aggiornat${n === 1 ? "o" : "i"} col nuovo nome cliente`, type: "success" },
+        toasts: pushToast(state.toasts, { message: `${n} task aggiornat${n === 1 ? "o" : "i"} col nuovo nome cliente`, type: "success" }),
       };
     }
     // Riporta in lista un cliente la cui DELETE_CLIENT ottimistica è stata
@@ -606,7 +624,7 @@ function baseReducer(state, action) {
       return {
         ...state,
         messageTemplates: [...(state.messageTemplates || []), tpl],
-        toast: { message: "Template aggiunto", type: "success" },
+        toasts: pushToast(state.toasts, { message: "Template aggiunto", type: "success" }),
       };
     }
     case "UPDATE_MESSAGE_TEMPLATE": {
@@ -614,30 +632,30 @@ function baseReducer(state, action) {
       const messageTemplates = (state.messageTemplates || []).map(t =>
         t.id === id ? { ...t, ...(label !== undefined ? { label } : {}), ...(text !== undefined ? { text } : {}) } : t
       );
-      return { ...state, messageTemplates, toast: { message: "Template aggiornato", type: "success" } };
+      return { ...state, messageTemplates, toasts: pushToast(state.toasts, { message: "Template aggiornato", type: "success" }) };
     }
     case "DELETE_MESSAGE_TEMPLATE": {
       const messageTemplates = (state.messageTemplates || []).filter(t => t.id !== action.payload);
-      return { ...state, messageTemplates, toast: { message: "Template rimosso", type: "success" } };
+      return { ...state, messageTemplates, toasts: pushToast(state.toasts, { message: "Template rimosso", type: "success" }) };
     }
 
-    case "SHOW_TOAST": return { ...state, toast: { message: action.payload?.message ?? "", type: action.payload?.type ?? "error" } };
-    case "CLEAR_TOAST": return { ...state, toast: null };
+    case "SHOW_TOAST": return { ...state, toasts: pushToast(state.toasts, { message: action.payload?.message ?? "", type: action.payload?.type ?? "error", undoable: !!action.payload?.undoable }) };
+    case "CLEAR_TOAST": return { ...state, toasts: (state.toasts || []).filter(t => t.id !== action.payload) };
     case "UNDO_LAST_ACTION": {
       const la = state.lastAction;
       if (!la) return state;
       if (la.type === "MOVE_TASK") {
         const tasks = state.tasks.map(t => t.id === la.taskId ? { ...t, status: la.prevStatus } : t);
-        return { ...state, tasks, toast: { message: "Azione annullata", type: "success" }, lastAction: null };
+        return { ...state, tasks, toasts: pushToast(state.toasts, { message: "Azione annullata", type: "success" }), lastAction: null };
       }
       if (la.type === "DELETE_TASK") {
         const tasks = state.tasks.map(t => t.id === la.taskId ? { ...t, deletedAt: null } : t);
-        return { ...state, tasks, toast: { message: "Azione annullata", type: "success" }, lastAction: null };
+        return { ...state, tasks, toasts: pushToast(state.toasts, { message: "Azione annullata", type: "success" }), lastAction: null };
       }
       if (la.type === "UPDATE_TASK") {
         const tasks = state.tasks.map(t => t.id === la.taskId ? la.prevSnapshot : t);
         const selectedTask = state.selectedTask?.id === la.taskId ? la.prevSnapshot : state.selectedTask;
-        return { ...state, tasks, selectedTask, toast: { message: "Azione annullata", type: "success" }, lastAction: null };
+        return { ...state, tasks, selectedTask, toasts: pushToast(state.toasts, { message: "Azione annullata", type: "success" }), lastAction: null };
       }
       return state;
     }
@@ -658,7 +676,7 @@ function baseReducer(state, action) {
       if (phone !== undefined) updates.phone = phone;
       if (photoUrl !== undefined) updates.photoUrl = photoUrl;
       const team = state.team.map(m => m.id === uid ? { ...m, ...updates } : m);
-      return { ...state, team, toast: { message: "Profilo aggiornato!", type: "success" } };
+      return { ...state, team, toasts: pushToast(state.toasts, { message: "Profilo aggiornato!", type: "success" }) };
     }
 
     default: return state;
@@ -678,7 +696,7 @@ const ADMIN_ONLY_ACTIONS = new Set([
 function reducer(state, action) {
   // Pre-check permessi Admin (centralizzato — non sporca i singoli case)
   if (ADMIN_ONLY_ACTIONS.has(action.type) && !isAdmin(state.team, state.currentUserId)) {
-    return { ...state, toast: { message: "Solo Admin può eseguire questa azione", type: "error" } };
+    return { ...state, toasts: pushToast(state.toasts, { message: "Solo Admin può eseguire questa azione", type: "error" }) };
   }
   const next = baseReducer(state, action);
   if (LOGGED_ACTIONS.has(action.type) && next !== state) {
@@ -732,7 +750,7 @@ function makeInitialState({ team, currentUserId } = {}) {
     // usata dal tab "Liste viaggio" della scheda cliente. null = elenco.
     listeTarget: null,
     selectedTask: null,
-    toast: null,
+    toasts: [],
     searchQuery: "",
     showNotif: false,
     sidebarCollapsed: false,

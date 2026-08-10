@@ -4,6 +4,7 @@ import { useState, useReducer, useEffect, useCallback, lazy, Suspense, Profiler 
 // ── Stato ──────────────────────────────────────────────────────────────────
 import { Notifications as NotificationsAPI } from "./lib/api.js";
 import { isUuid } from "./lib/mappers.js";
+import { registraSinkErrori } from "./lib/errorReporting.js";
 import { getActiveTasks } from "./lib/taskUtils.js";
 import { canAccessAdmin } from "./lib/permissions.js";
 import { reducer, makeInitialState } from "./state/reducer.js";
@@ -28,7 +29,8 @@ import { useChatData } from "./hooks/useChatData.js";
 import { GlobalStyles } from "./styles/GlobalStyles.jsx";
 import { ViewportProvider } from "./components/Viewport.jsx";
 import { ViewErrorBoundary } from "./components/ViewErrorBoundary.jsx";
-import { Toast } from "./components/ui/Toast.jsx";
+import { OverlayErrorBoundary } from "./components/OverlayErrorBoundary.jsx";
+import { ToastStack } from "./components/ui/Toast.jsx";
 import { LazyFallback } from "./components/ui/LazyFallback.jsx";
 import { KeyboardHelpOverlay } from "./components/ui/KeyboardHelpOverlay.jsx";
 import { Topbar } from "./components/shell/Topbar.jsx";
@@ -133,6 +135,13 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     (message) => rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message } }), []);
   const showSuccess = useCallback(
     (message) => rawDispatch({ type: "SHOW_TOAST", payload: { type: "success", message } }), []);
+
+  // Gli handler globali installati in main.jsx sanno intercettare gli errori
+  // ma non hanno modo di mostrarli: qui diamo loro il canale. Finché nessuno
+  // è registrato si limitano alla console — è la fase in cui l'app non è
+  // montata e un toast non avrebbe dove comparire. Il cleanup di useEffect è
+  // la funzione di deregistrazione ritornata da registraSinkErrori.
+  useEffect(() => registraSinkErrori(showError), [showError]);
 
   const { crmLoading } = useAppHydration({
     enabled: useSupabase,
@@ -349,10 +358,18 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         {/* Bottom nav mobile/tablet */}
         <BottomNav state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} onOpenChat={() => { setChatIntent(null); setShowChat(true); }} unreadChat={chat.unreadChat} />
 
-        {/* Slide-over (lazy, Phase 2g) */}
+        {/* Slide-over (lazy, Phase 2g). OverlayErrorBoundary confina un
+            eventuale errore (chunk 404 dopo un deploy, o crash di render) al
+            pannello: senza, l'unico boundary sarebbe quello di main.jsx, che
+            sostituirebbe l'intera app mentre la dashboard sotto è integra. */}
         {state.selectedTask && (
           <Suspense fallback={<LazyFallback overlay />}>
-            <TaskSlideOver task={state.selectedTask} dispatch={dispatch} clients={state.clients || []} />
+            <OverlayErrorBoundary
+              resetKey={state.selectedTask?.id}
+              onReset={() => dispatch({ type: "SET_SELECTED_TASK", payload: null })}
+            >
+              <TaskSlideOver task={state.selectedTask} dispatch={dispatch} clients={state.clients || []} />
+            </OverlayErrorBoundary>
           </Suspense>
         )}
 
@@ -388,20 +405,23 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         {/* Overlay scorciatoie tastiera (v2.8 Round 10) */}
         {showKeyHelp && <KeyboardHelpOverlay onClose={() => setShowKeyHelp(false)} />}
 
-        {/* Bulk Task Creator (lazy, Phase 2g) */}
+        {/* Bulk Task Creator (lazy, Phase 2g). Stessa ragione dello slide-over
+            qui sopra: un crash non deve portare via l'intera app. */}
         {showBulkModal && (
           <Suspense fallback={<LazyFallback overlay />}>
-            <BulkTaskCreator
-              existingTasks={getActiveTasks(state.tasks)}
-              onCreate={(tasks) => dispatch({ type: "ADD_TASKS_BULK", payload: tasks })}
-              onClose={() => setShowBulkModal(false)}
-              clients={state.clients || []}
-            />
+            <OverlayErrorBoundary resetKey="bulk" onReset={() => setShowBulkModal(false)}>
+              <BulkTaskCreator
+                existingTasks={getActiveTasks(state.tasks)}
+                onCreate={(tasks) => dispatch({ type: "ADD_TASKS_BULK", payload: tasks })}
+                onClose={() => setShowBulkModal(false)}
+                clients={state.clients || []}
+              />
+            </OverlayErrorBoundary>
           </Suspense>
         )}
 
         {/* Toast */}
-        <Toast toast={state.toast} dispatch={dispatch} />
+        <ToastStack toasts={state.toasts} dispatch={dispatch} />
       </div>
       </ClientsProvider>
      </TasksProvider>

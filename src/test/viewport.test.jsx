@@ -66,7 +66,7 @@ describe("Sidebar — l'auto-collapse a 1280 resta corretto dopo P2-7", () => {
     const dispatch = vi.fn();
     render(
       <ViewportProvider>
-        {withAppData(<Sidebar state={{ sidebarCollapsed: false }} dispatch={dispatch} />, DEMO_APP_CTX)}
+        {withAppData(<Sidebar collapsed={false} dispatch={dispatch} />, DEMO_APP_CTX)}
       </ViewportProvider>,
     );
     setWidth(1200);
@@ -79,7 +79,7 @@ describe("Sidebar — l'auto-collapse a 1280 resta corretto dopo P2-7", () => {
     const dispatch = vi.fn();
     render(
       <ViewportProvider>
-        {withAppData(<Sidebar state={{ sidebarCollapsed: true }} dispatch={dispatch} />, DEMO_APP_CTX)}
+        {withAppData(<Sidebar collapsed dispatch={dispatch} />, DEMO_APP_CTX)}
       </ViewportProvider>,
     );
     setWidth(1400);
@@ -92,7 +92,7 @@ describe("Sidebar — l'auto-collapse a 1280 resta corretto dopo P2-7", () => {
     const dispatch = vi.fn();
     render(
       <ViewportProvider>
-        {withAppData(<Sidebar state={{ sidebarCollapsed: false }} dispatch={dispatch} />, DEMO_APP_CTX)}
+        {withAppData(<Sidebar collapsed={false} dispatch={dispatch} />, DEMO_APP_CTX)}
       </ViewportProvider>,
     );
     setWidth(1350); // resta sopra 1280

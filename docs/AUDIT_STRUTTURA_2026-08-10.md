@@ -89,9 +89,9 @@ scavalchino un permesso o rompano una funzionalità.
 | # | Priorità | Area | Problema | File |
 |---|---|---|---|---|
 | — | **CRITICI** | — | **Nessuno.** | — |
-| ST-1 | **Alta** | Render / invariante | Il `memo` della Dashboard è annullato da `openChatTo`, callback non memoizzata: 🔬 1 render completo per carattere digitato | `VoyageDesk.jsx:211,274` |
-| ST-2 | **Alta** | Architettura | Il guscio riceve `state` intero e non è `memo`; la causa a monte è lo **stato effimero di UI dentro il reducer globale** (6 fette) | `VoyageDesk.jsx:322,353,376` · `state/reducer.js:662-665,752-757` |
-| ST-3 | **Alta** | Scalabilità | `Clients.list()` senza `.range()` con ✅ 818 righe: troncamento silenzioso al cap PostgREST | `lib/api.js:605-606` |
+| ST-1 | ~~Alta~~ ✔ **risolto** | Render / invariante | Il `memo` della Dashboard è annullato da `openChatTo`, callback non memoizzata: 🔬 1 render completo per carattere digitato | `VoyageDesk.jsx:211,274` |
+| ST-2 | ~~Alta~~ ✔ **risolto** (parte 1 di 2) | Architettura | Il guscio riceve `state` intero e non è `memo`; la causa a monte è lo **stato effimero di UI dentro il reducer globale** (6 fette) | `VoyageDesk.jsx:322,353,376` · `state/reducer.js:662-665,752-757` |
+| ST-3 | ~~Alta~~ ✔ **risolto** | Scalabilità | `Clients.list()` senza `.range()` con ✅ 818 righe: troncamento silenzioso al cap PostgREST | `lib/api.js:605-606` |
 | ST-4 | Media | Scalabilità | La chat ricarica **tutti** i messaggi a ogni evento (`listAll(2000)`), e oltre 2000 la cronologia sparisce in silenzio | `hooks/useChatData.js:62-66` · `lib/api.js:351` |
 | ST-5 | Media | Duplicazione / a11y | Due modi di chiedere conferma **dentro lo stesso modulo**; 12 modali del modulo Liste senza `role="dialog"`, `aria-modal`, blocco scroll | `liste/modals/ConfirmModal.jsx` · `liste/modals/LvOverlay.jsx` |
 | ST-6 | Media | Organizzazione | `lib/listeApi.js` (530 righe) è il data layer **privato** del modulo Liste ma vive nel layer condiviso: 12 import interni, 0 esterni | `lib/listeApi.js` |
@@ -105,6 +105,26 @@ scavalchino un permesso o rompano una funzionalità.
 | ST-14 | Bassa | Config | `leaked_password_protection` ancora disabilitata (✅ riconfermato oggi sull'advisor) | dashboard Supabase |
 | ST-15 | Bassa | Render | `AppDataContext` ricrea ~20 closure a ogni sostituzione di `team` (P2-9, aperto) | `state/AppDataContext.jsx:50` |
 
+## 2-bis. Stato di avanzamento — i tre rilievi Alta sono chiusi
+
+Applicati su richiesta subito dopo l'analisi, nello stesso branch. Questa
+sezione esiste perché il rilievo ST-13 di questo stesso documento riguarda
+audit che non portano lo stato dei propri rilievi: sarebbe singolare diventarne
+il prossimo esempio.
+
+| | Esito |
+|---|---|
+| **ST-1** | `openChatTo` avvolta in `useCallback`. 🔬 La misura è ora un test: `src/test/memoViste.test.jsx` monta l'app con la vista attiva e la nav sostituite da stub `memo` che contano i propri render, digita nella ricerca e asserisce che i contatori non si muovano — con un controllo positivo (`input.value === "abc"`) che impedisce al test di passare perché non è successo niente. **Verificato che fallisca senza la correzione**: rimettendo la funzione nuda il test riporta 4 render invece di 1 su tre caratteri e 11 invece di 1 su dieci. Non è più un'invariante letta: è misurata. |
+| **ST-2** | Fatta la **parte meccanica** (che è ciò che chiudeva P2-6): `Topbar` riceve `activeView`/`searchQuery`/`showNotif`, `Sidebar` riceve `activeView`/`collapsed`, `BottomNav` riceve `activeView`; tutti e tre sono `memo`. `team`, `currentUserId` e `tasks` arrivano dai context dove già vivevano — `UserSwitcher` non riceve più `state` affatto e `getNavBadges` prende `team` invece dello stato intero. I due callback della nav (`openBulk`, `openChatPanel`) sono passati da arrow inline a `useCallback`, **nello stesso commit del `memo`**: senza, si aggiungeva un confronto che non poteva mai riuscire (è la lezione di ST-1). Effetto misurato dallo stesso test: digitando nella ricerca, Sidebar e BottomNav ora non si ri-renderizzano affatto, mentre la Topbar continua a farlo — deve, contiene il campo. |
+| **ST-2** (parte 2) | **Resta aperta, e volutamente.** Portare `searchQuery`/`showNotif`/`sidebarCollapsed` fuori dal reducer globale è una decisione di architettura, non una correzione: `SET_SEARCH`/`TOGGLE_NOTIF`/`TOGGLE_SIDEBAR` sono dispatchate da cinque punti (Topbar, AdvancedSearchPanel, NotificationsPanel, Sidebar) e `selectedTask` passa dai permessi (`canViewTask` in `SET_SELECTED_TASK`), che è un controllo da conservare dov'è. La parte 1 cattura il beneficio pratico; la parte 2 va decisa, non dedotta da un audit. |
+| **ST-3** | `fetchAllRows` promossa da funzione privata di `listeApi.js` a `src/lib/pagination.js`, con `PAGE_SIZE`/`WITH_COUNT`: `Clients.list()` la usa, `listeApi.js` la importa da lì invece di tenerne una copia — la regola esiste in **un** posto e si applica in due. Aggiunto `.order('id')` come seconda chiave: `name` non è unico (omonimi legittimi fra titolari e cointestatari) e senza una chiave stabile due pagine consecutive possono ripetere o saltare una riga. 6 test nuovi in `src/test/paginazione.test.js`, di cui uno asserisce il caso che conta — 1500 righe servite in pagine da 1000 tornano **tutte e 1500**, non le prime 1000. |
+| Test | 🔬 **977 verdi + 7 skipped** su 87 file (erano 969 su 85): +6 `paginazione`, +2 `memoViste`. 0 errori ESLint (20 warning, l'arretrato dichiarato). Build ok: `index` 291.17 kB / 81.79 kB gzip, +140 byte per l'helper di paginazione e i suoi commenti. |
+
+**Cosa NON è stato toccato**, perché fuori dai tre rilievi richiesti: ST-4…ST-15
+restano aperti come descritti in §3.
+
+---
+
 **Stato dei rilievi degli audit precedenti, rimisurato oggi** — perché un audit
 che elenca rilievi altrui senza ricontrollarli è la fonte della prossima deriva:
 
@@ -115,7 +135,8 @@ che elenca rilievi altrui senza ricontrollarli è la fonte della prossima deriva
 | P2-3 (6 viste secondarie eager) | ✔ chiuso | 🔬 `Trash`, `Archive`, `CalendarPlanner`, `ProfileEditor`, `ClientImportModal`, `AdvancedSearchPanel` sono chunk propri; `index` da 423 a 291 kB |
 | P2-4 (zero `useMemo`) | ✔ chiuso | 🔬 11 `useMemo` in `Dashboard`, 6 in `CalendarPlanner` |
 | P2-7 (`ViewportContext`) | ✔ chiuso | 📄 `width` aggiornato solo al cambio di fascia (`SOGLIE_FASCIA`) |
-| P2-5, P2-6, P2-8, P2-9, P2-10 | **aperti** | qui rispettivamente ST-3, ST-2, ST-9, ST-15, ST-12 |
+| P2-5, P2-6 | ✔ **chiusi il 10 agosto** | come ST-3 e ST-2 (parte 1) — vedi §2-bis |
+| P2-8, P2-9, P2-10 | **aperti** | qui ST-9, ST-15, ST-12 |
 | A-1…B-4 (audit architettura) | chiusi tranne B-2 | ✅ B-2 = ST-14, ancora `WARN` sull'advisor oggi |
 
 ---
@@ -123,6 +144,10 @@ che elenca rilievi altrui senza ricontrollarli è la fonte della prossima deriva
 ## 3. Action Plan dettagliato
 
 ### ST-1 · Il `memo` della Dashboard è annullato da una prop callback — Alta
+
+> ✔ **Risolto** — vedi §2-bis. La correzione applicata è quella descritta qui
+> sotto, sonda di regressione compresa (`src/test/memoViste.test.jsx`), e la
+> sonda è stata verificata contro il difetto: senza `useCallback` fallisce.
 
 **File.** `src/VoyageDesk.jsx:211` (definizione), `:274` (uso)
 
@@ -207,6 +232,11 @@ it("digitare nella ricerca non ri-renderizza la vista attiva", () => {
 
 ### ST-2 · Il guscio riceve `state` intero, e lo stato effimero di UI vive nel reducer globale — Alta
 
+> ✔ **Risolto il primo passo** (le fette + `memo` + i callback della nav da
+> `useCallback`) — vedi §2-bis. Il secondo passo, portare lo stato effimero di
+> UI fuori dal reducer, **resta aperto di proposito**: è una decisione di
+> architettura e non una correzione, per le ragioni in §2-bis.
+
 **File.** `src/VoyageDesk.jsx:322` (`Topbar`), `:353` (`Sidebar`), `:376`
 (`BottomNav`) · `src/state/reducer.js:662-665`, `:752-757`
 
@@ -280,6 +310,12 @@ estesa al guscio.
 ---
 
 ### ST-3 · `Clients.list()` senza paginazione, con 818 righe — Alta
+
+> ✔ **Risolto** — vedi §2-bis. Con una differenza rispetto allo schizzo qui
+> sotto: l'helper non sta in `lib/api.js` ma in `src/lib/pagination.js`, per non
+> accoppiare il modulo Liste al data layer del core (`listeApi.js` importa da
+> lì, non da `api.js`), e l'ordinamento porta `.order('id')` come seconda
+> chiave perché `name` non è unico.
 
 **File.** `src/lib/api.js:605-606` · consumatore: `src/hooks/useAppHydration.js`
 
@@ -1087,9 +1123,9 @@ guardato.
 
 ---
 
-*Analisi prodotta senza modificare il codice dell'applicazione. Le due misure di
-ST-1 sono state ottenute applicando la correzione in locale e rimisurando; la
-modifica è stata revertita e non fa parte di questa PR. Le uniche modifiche qui
-sono questo documento e le due correzioni di ST-13 in `docs/INDEX.md` e
-`docs/CLAUDE.md`, applicate nello stesso commit che scopre la discrepanza come
-prescrive `INDEX.md`.*
+*L'analisi (§1-§4) è stata prodotta senza modificare il codice
+dell'applicazione. I tre rilievi Alta — ST-1, ST-2 (primo passo) e ST-3 — sono
+stati applicati in un secondo momento su richiesta esplicita e sono registrati
+in §2-bis; ST-4…ST-15 restano aperti e non hanno prodotto modifiche. Nessuna
+DDL è stata eseguita sul database in tutta la sessione: le query a Supabase
+sono state di sola lettura (`count(*)` e advisor).*

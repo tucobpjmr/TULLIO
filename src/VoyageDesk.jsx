@@ -207,18 +207,41 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   const [showChat, setShowChat] = useState(false);
   const [chatIntent, setChatIntent] = useState(null); // { toUser, taskLink } per aprire chat preconfezionata
   const [showBulkModal, setShowBulkModal] = useState(false);
-  // Apre la chat verso un utente specifico, opzionalmente con link a task
-  const openChatTo = (intent) => {
+  // Apre la chat verso un utente specifico, opzionalmente con link a task.
+  //
+  // ⚠️ useCallback e non una funzione nuda: questa prop arriva a <Dashboard>,
+  // che è `memo`. Una funzione ricreata a ogni render è una prop diversa a
+  // ogni render, quindi il memo non ha MAI potuto saltare un render — ed è
+  // stato così per diverse sessioni, mentre tutto il lavoro attorno (provider
+  // di dominio, prop a identità stabile, `memo` su sei viste) veniva fatto
+  // proprio per ottenere quel bail-out. Misurato prima della correzione: un
+  // render completo della Dashboard per OGNI carattere digitato nella ricerca
+  // della Topbar; dopo: zero. Blindato da src/test/memoViste.test.jsx.
+  //
+  // Le due setState non entrano nelle dipendenze: React ne garantisce
+  // l'identità stabile per tutta la vita del componente.
+  const openChatTo = useCallback((intent) => {
     if (intent && intent.toUser) {
       setChatIntent(intent);
     }
     setShowChat(true);
-  };
+  }, []);
 
   // Apre una conversazione già esistente (tap su una notifica di chat).
   const openConversationById = useCallback((conversationId) => {
     if (!conversationId) return;
     setChatIntent({ convId: conversationId });
+    setShowChat(true);
+  }, []);
+
+  // I due callback della navigazione (ST-2). Erano arrow inline nel JSX di
+  // Sidebar e BottomNav: con quelli, rendere `memo` i due componenti non
+  // avrebbe saltato un solo render — è lo stesso difetto di openChatTo qui
+  // sopra, e va corretto nello stesso momento in cui si aggiunge il memo,
+  // altrimenti si aggiunge un confronto che non può mai riuscire.
+  const openBulk = useCallback(() => setShowBulkModal(true), []);
+  const openChatPanel = useCallback(() => {
+    setChatIntent(null);
     setShowChat(true);
   }, []);
 
@@ -319,8 +342,16 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           "vh" è il viewport GRANDE, con la barra del browser visibile il guscio
           sfora in basso e la bottom-nav finisce fuori schermo. */}
       <div className="vd-app-shell" style={{ display: "flex", flexDirection: "column", overflow: "hidden", background: "var(--surface)", fontFamily: "'DM Sans', sans-serif" }}>
+        {/* Il guscio dichiara le fette che consuma, come le viste (ST-2):
+            `state` cambia identità dopo qualunque azione, e finché era una
+            prop ri-renderizzava Topbar, Sidebar e BottomNav a ogni toast e a
+            ogni carattere digitato. Team, categorie e utente corrente non
+            compaiono qui: i tre componenti li leggono da AppDataContext, e la
+            Topbar prende i task da TasksContext per il pannello di ricerca. */}
         <Topbar
-          state={state}
+          activeView={state.activeView}
+          searchQuery={state.searchQuery}
+          showNotif={state.showNotif}
           dispatch={dispatch}
           notifications={notif.notifications}
           onMarkRead={notif.markRead}
@@ -350,7 +381,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           />
         )}
         <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-          <Sidebar state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} onOpenChat={() => { setChatIntent(null); setShowChat(true); }} unreadChat={chat.unreadChat} />
+          <Sidebar activeView={state.activeView} collapsed={state.sidebarCollapsed} dispatch={dispatch} onOpenBulk={openBulk} onOpenChat={openChatPanel} unreadChat={chat.unreadChat} />
           <main className="vd-main-scroll" style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
             {/* Suspense per la vista attiva: Dashboard e ClientiView risolvono
                 sincronicamente (viste d'ingresso, aperte da ogni sessione);
@@ -373,7 +404,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         </div>
 
         {/* Bottom nav mobile/tablet */}
-        <BottomNav state={state} dispatch={dispatch} onOpenBulk={() => setShowBulkModal(true)} onOpenChat={() => { setChatIntent(null); setShowChat(true); }} unreadChat={chat.unreadChat} />
+        <BottomNav activeView={state.activeView} dispatch={dispatch} onOpenBulk={openBulk} onOpenChat={openChatPanel} unreadChat={chat.unreadChat} />
 
         {/* Slide-over (lazy, Phase 2g). OverlayErrorBoundary confina un
             eventuale errore (chunk 404 dopo un deploy, o crash di render) al

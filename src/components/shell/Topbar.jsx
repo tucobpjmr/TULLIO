@@ -5,9 +5,11 @@
 // toggle push e il pannello notifiche — quattro feature indipendenti in un
 // file che si chiama "barra superiore". Ora sono moduli propri e questo file
 // fa solo layout e composizione.
-import { useState, useRef, useEffect, lazy, Suspense } from "react";
+import { useState, useRef, useEffect, memo, lazy, Suspense } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { demoState } from "../../state/demoState.js";
+import { useTasks } from "../../state/TasksContext.jsx";
+import { useAppData } from "../../state/AppDataContext.jsx";
 import { LazyFallback } from "../ui/LazyFallback.jsx";
 import { UserSwitcher } from "./UserSwitcher.jsx";
 import { Z } from "../../styles/tokens.js";
@@ -24,8 +26,31 @@ const NotificationsPanel = lazy(() =>
 );
 
 // ─── TOPBAR ────────────────────────────────────────────────────────────────
-export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMarkRead, onMarkAllRead, onRemoveNotification, onClearAllNotifications, onOpenTask, onOpenChat }) => {
+// ST-2: riceve le tre fette che consuma e non `state`, ed è `memo` — la stessa
+// regola già applicata alle sei viste e ad AdminView. `state` cambia identità
+// dopo QUALUNQUE azione (un toast che compare, lo stesso toast che sparisce
+// dopo tre secondi, un evento realtime su una tabella che la barra non
+// mostra), e finché era una prop ognuna di quelle azioni ri-renderizzava
+// l'intero guscio.
+//
+// `tasks` e `currentUserId` non sono prop: arrivano dai context di dominio e
+// servono solo a alimentare AdvancedSearchPanel. Consumare TasksContext
+// significa ri-renderizzare quando i task cambiano — che è raro rispetto a
+// "qualunque azione", ed è comunque necessario perché il pannello di ricerca
+// cerchi sui dati aggiornati.
+//
+// Questa barra contiene l'input di ricerca, quindi DEVE ri-renderizzarsi a
+// ogni carattere: `searchQuery` è una prop che cambia per costruzione. Ciò che
+// il memo evita è tutto il resto. Sidebar e BottomNav, che non hanno campi di
+// input, non si ri-renderizzano più affatto quando si digita.
+export const Topbar = memo(function Topbar({
+  activeView, searchQuery, showNotif, dispatch,
+  notifications: notificationsProp, onMarkRead, onMarkAllRead,
+  onRemoveNotification, onClearAllNotifications, onOpenTask, onOpenChat,
+}) {
   const { isMobile } = useViewport();
+  const tasks = useTasks();
+  const { currentUserId } = useAppData();
   // Fix #11: notifiche mock gate-ate dietro env var (default off in prod).
   // demoState() è dentro lo stesso `&&` di import.meta.env.DEV: in produzione
   // quella costante è `false` a build time, quindi né la chiamata né
@@ -39,7 +64,7 @@ export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMa
 
   // Il logo aeroplano funge da pulsante Dashboard (la voce dedicata è stata
   // rimossa da sidebar/bottom-nav).
-  const dashActive = state.activeView === "dashboard";
+  const dashActive = activeView === "dashboard";
   const goDashboard = () => dispatch({ type: "SET_VIEW", payload: "dashboard" });
 
   // Chiude il pannello di ricerca al click fuori dal wrapper (input + pannello)
@@ -98,7 +123,7 @@ export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMa
         <div style={{ position: "relative" }}>
           <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(15,32,68,0.7)", fontSize: 14 }}>🔍</div>
           <input
-            value={state.searchQuery}
+            value={searchQuery}
             onChange={e => { dispatch({ type: "SET_SEARCH", payload: e.target.value }); setSearchOpen(true); }}
             onFocus={e => { setSearchOpen(true); e.target.style.borderColor = "var(--gold)"; }}
             onBlur={e => { e.target.style.borderColor = "rgba(15,32,68,0.15)"; }}
@@ -114,12 +139,12 @@ export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMa
         {searchOpen && (
           <Suspense fallback={<LazyFallback />}>
             <AdvancedSearchPanel
-              tasks={state.tasks}
+              tasks={tasks}
               dispatch={dispatch}
-              keyword={state.searchQuery}
+              keyword={searchQuery}
               onKeyword={v => dispatch({ type: "SET_SEARCH", payload: v })}
               onClose={() => setSearchOpen(false)}
-              currentUserId={state.currentUserId}
+              currentUserId={currentUserId}
             />
           </Suspense>
         )}
@@ -141,7 +166,7 @@ export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMa
             color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center"
           }}>{unread}</span>}
         </button>
-        {state.showNotif && (
+        {showNotif && (
           <Suspense fallback={<LazyFallback />}>
             <NotificationsPanel
               dispatch={dispatch}
@@ -158,10 +183,11 @@ export const Topbar = ({ state, dispatch, notifications: notificationsProp, onMa
         )}
       </div>
 
-      {/* User switcher (v0.8) */}
-      <UserSwitcher state={state} dispatch={dispatch} />
+      {/* User switcher (v0.8) — non riceve `state`: l'unico campo che leggeva
+          (currentUserId) è già in AppDataContext. */}
+      <UserSwitcher dispatch={dispatch} />
     </div>
   );
-};
+});
 
 // ─── SIDEBAR ───────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 // ─── SIDEBAR / BOTTOM NAV ────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f). NAV_ITEMS/getNavItemsForUser/
 // getNavBadges + NavBadge (module-local) + Sidebar e BottomNav (esportati).
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, memo } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
 
@@ -24,8 +24,12 @@ const getNavItemsForRole = (role) =>
 // Calcola i contatori per i badge sidebar/bottom-nav (Step F).
 // Il badge Dashboard (coda + urgenze) è migrato sul logo aeroplano in Topbar
 // insieme alla voce; qui resta solo il badge "pending" della voce Admin.
-function getNavBadges(state) {
-  const pending = (state.team || []).filter(m => m.pending).length;
+//
+// Riceve `team` e non `state` (ST-2): era l'unico campo che leggeva, ed è già
+// in AppDataContext — chiederlo come state costringeva i due componenti qui
+// sotto a ricevere l'intero stato dell'app per contare gli utenti in attesa.
+function getNavBadges(team) {
+  const pending = (team || []).filter(m => m.pending).length;
   return { admin: pending };
 }
 
@@ -51,9 +55,18 @@ const NavBadge = ({ count, collapsed = false, mobile = false }) => {
   return <span style={{ ...base, marginLeft: "auto" }}>{count > 99 ? "99+" : count}</span>;
 };
 
-export const Sidebar = ({ state, dispatch, onOpenBulk, onOpenChat, unreadChat = 0 }) => {
+// ST-2: due fette (`activeView`, `collapsed`) invece di `state`, e `memo`.
+// Team e utente corrente arrivano da AppDataContext, dov'erano già.
+//
+// Il guadagno è concreto e misurato: prima ogni carattere digitato nella
+// ricerca della Topbar — che passa da `SET_SEARCH`, cioè dallo stesso reducer —
+// ri-renderizzava questa nav insieme a tutto il resto. Ora la nav si
+// ri-renderizza solo quando cambia una delle due cose che mostra (la voce
+// attiva, se è collassata) o il team (per il badge "in attesa").
+// Blindato da src/test/memoViste.test.jsx.
+export const Sidebar = memo(function Sidebar({ activeView, collapsed = false, dispatch, onOpenBulk, onOpenChat, unreadChat = 0 }) {
   const { isDesktop, width } = useViewport();
-  const { getRoleType, getAssignableTeam } = useAppData();
+  const { team, getRoleType, currentUserId, getAssignableTeam } = useAppData();
   // Auto-collassa la sidebar nella fascia "desktop stretto" (1025–1280px) dove
   // 210px di nav rubano troppo spazio orizzontale; si ri-espande sopra i 1280px.
   // Guardia per banda: agisce solo sulle transizioni, così il toggle manuale
@@ -65,16 +78,16 @@ export const Sidebar = ({ state, dispatch, onOpenBulk, onOpenChat, unreadChat = 
     const prev = prevBandRef.current;
     prevBandRef.current = band;
     if (prev === band) return;
-    if (band === "narrow" && !state.sidebarCollapsed) {
+    if (band === "narrow" && !collapsed) {
       dispatch({ type: "TOGGLE_SIDEBAR" });
-    } else if (band === "wide" && prev !== null && state.sidebarCollapsed) {
+    } else if (band === "wide" && prev !== null && collapsed) {
       dispatch({ type: "TOGGLE_SIDEBAR" });
     }
-  }, [width, isDesktop, state.sidebarCollapsed, dispatch]);
+  }, [width, isDesktop, collapsed, dispatch]);
   if (!isDesktop) return null;
-  const col = state.sidebarCollapsed;
-  const navItems = getNavItemsForRole(getRoleType(state.currentUserId));
-  const badges = getNavBadges(state);
+  const col = collapsed;
+  const navItems = getNavItemsForRole(getRoleType(currentUserId));
+  const badges = getNavBadges(team);
   return (
     <div style={{
       width: col ? 60 : 210, background: "var(--sky)", color: "var(--navy)",
@@ -93,7 +106,7 @@ export const Sidebar = ({ state, dispatch, onOpenBulk, onOpenChat, unreadChat = 
 
       <div style={{ marginTop: 48, padding: col ? "0 8px" : "0 12px", display: "flex", flexDirection: "column", gap: 2 }}>
         {navItems.map(item => {
-          const active = state.activeView === item.id;
+          const active = activeView === item.id;
           return (
             <button key={item.id} onClick={() => dispatch({ type: "SET_VIEW", payload: item.id })} style={{
               display: "flex", alignItems: "center", gap: 10,
@@ -176,17 +189,18 @@ export const Sidebar = ({ state, dispatch, onOpenBulk, onOpenChat, unreadChat = 
       )}
     </div>
   );
-};
+});
 
 // ─── BOTTOM NAV (mobile/tablet) ────────────────────────────────────────────
-export const BottomNav = ({ state, dispatch, onOpenBulk, onOpenChat, unreadChat = 0 }) => {
-  const { getRoleType } = useAppData();
-  const navItems = getNavItemsForRole(getRoleType(state.currentUserId));
-  const badges = getNavBadges(state);
+// Stessa correzione di Sidebar (ST-2): una fetta sola invece di `state`, memo.
+export const BottomNav = memo(function BottomNav({ activeView, dispatch, onOpenBulk, onOpenChat, unreadChat = 0 }) {
+  const { team, getRoleType, currentUserId } = useAppData();
+  const navItems = getNavItemsForRole(getRoleType(currentUserId));
+  const badges = getNavBadges(team);
   return (
     <nav className="vd-bottom-nav" aria-label="Navigazione principale">
       {navItems.map(item => {
-        const active = state.activeView === item.id;
+        const active = activeView === item.id;
         const badge = badges[item.id] || 0;
         return (
           <button
@@ -250,7 +264,7 @@ export const BottomNav = ({ state, dispatch, onOpenBulk, onOpenChat, unreadChat 
       </button>
     </nav>
   );
-};
+});
 
 // BulkTaskCreator cluster → src/components/modals/BulkTaskCreator.jsx (Step P Phase 2f)
 //   include: ManualTab, DuplicateTab, ImportTab, TemplateTab, BulkTaskCreator

@@ -12,6 +12,7 @@ import { useTasks } from "../../state/TasksContext.jsx";
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";
 import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { Z } from "../../styles/tokens.js";
+import { useConfirm } from "../../state/ConfirmContext.jsx";
 
 const PERIOD_OPTIONS = [
   { key: "all",       label: "Tutti" },
@@ -50,6 +51,7 @@ const filterByPeriod = (tasks, period) => {
 // è particolarmente insidioso — è la vista in cui si va a cercare qualcosa che
 // si crede eliminato per sbaglio, e la risposta sbagliata chiude la ricerca.
 export const Trash = memo(function Trash({ dispatch, loading = false }) {
+  const conferma = useConfirm();
   const { isMobile } = useViewport();
   const { categories, currentUserId, getAssignableTeam, canEditTask, getVisibleTasks } = useAppData();
   const tasks = useTasks();
@@ -88,23 +90,31 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
     setRestoring(null);
   };
 
-  const handlePurge = (task) => {
+  const handlePurge = async (task) => {
     if (!canEditTask(task, me)) {
       dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "Non puoi eliminare definitivamente questo task" } });
       return;
     }
-    if (window.confirm(`Eliminare definitivamente "${task.title}"?\n\nQuesta azione è irreversibile.`)) {
+    if (await conferma({
+      title: "Eliminare definitivamente?",
+      body: `"${task.title}" verrà rimosso per sempre. L'azione è irreversibile.`,
+      cta: "Elimina per sempre", danger: true,
+    })) {
       dispatch({ type: "PURGE_TASK", payload: task.id });
     }
   };
 
-  const handleEmpty = () => {
+  const handleEmpty = async () => {
     if (trashed.length === 0) return;
     if (editableCount === 0) {
       dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "Non hai permessi per svuotare il cestino" } });
       return;
     }
-    if (window.confirm(`Svuotare il cestino?\n\n${editableCount} task verranno eliminati definitivamente. Azione irreversibile.`)) {
+    if (await conferma({
+      title: "Svuotare il cestino?",
+      body: `${editableCount} task verranno eliminati definitivamente. Azione irreversibile.`,
+      cta: "Svuota il cestino", danger: true,
+    })) {
       dispatch({ type: "EMPTY_TRASH" });
     }
   };

@@ -9,12 +9,14 @@ import { cardStyle, cardH, cardP, btnPrimary, btnWarning } from "../adminStyles.
 import { validateBackup } from "../../../lib/backupValidation.js";
 import { loadXLSX } from "../../../lib/xlsx.js";
 import { downloadFile, escapeCSV } from "../adminExport.js";
+import { useConfirm } from "../../../state/ConfirmContext.jsx";
 
 // ─── ADMIN TAB: IMPORT / EXPORT ────────────────────────────────────────────
 // `agencyName` e `notices` arrivano come prop perché sono le uniche due fette
 // dello state che il backup usa e che non vivono già in un contesto: team,
 // categorie e utente corrente sono in AppDataContext, i task in TasksContext.
 export const AdminIOTab = ({ dispatch, agencyName, notices = [] }) => {
+  const conferma = useConfirm();
   const { getMember, team, categories } = useAppData();
   const tasks = useTasks();
   const [includeTrashed, setIncludeTrashed] = useState(false);
@@ -67,15 +69,27 @@ export const AdminIOTab = ({ dispatch, agencyName, notices = [] }) => {
     );
   };
 
-  const importBackup = (e) => {
+  // Criticità #8: due `window.confirm` e un `alert` in un solo flusso. Il
+  // secondo confirm era anche il caso peggiore per un modale di sistema —
+  // ci finiva dentro un elenco di problemi lungo fino a dieci righe, in una
+  // finestra che non sa formattare né far scorrere il testo.
+  const importBackup = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!window.confirm("Il ripristino UNISCE il backup ai dati correnti: i record con lo stesso id/chiave (task, categorie, avvisi) vengono aggiornati, i nuovi aggiunti. Nulla viene eliminato. Continuare?")) {
-      e.target.value = "";
-      return;
-    }
+    // Il campo va azzerato SUBITO: fra l'apertura della conferma e la
+    // risposta passa tempo reale (prima il thread era bloccato e la cosa non
+    // si poneva), e senza reset ri-selezionare lo stesso file non emette un
+    // nuovo `change`.
+    e.target.value = "";
+    const procedi = await conferma({
+      title: "Ripristinare questo backup?",
+      body: "Il ripristino UNISCE il backup ai dati correnti: i record con lo stesso id/chiave (task, categorie, avvisi) vengono aggiornati, i nuovi aggiunti. Nulla viene eliminato.",
+      cta: "Ripristina",
+    });
+    if (!procedi) return;
+
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       try {
         const data = JSON.parse(ev.target.result);
         const { fatalError, sanitized, warnings } = validateBackup(data);
@@ -84,22 +98,20 @@ export const AdminIOTab = ({ dispatch, agencyName, notices = [] }) => {
           const MAX_SHOWN = 10;
           const preview = warnings.slice(0, MAX_SHOWN).join("\n")
             + (warnings.length > MAX_SHOWN ? `\n… e altri ${warnings.length - MAX_SHOWN} problemi` : "");
-          const proceed = window.confirm(
-            `Il backup contiene ${warnings.length} problema/i su righe non valide o non riconosciute:\n\n${preview}\n\n` +
-            `Le righe interessate verranno escluse o corrette con valori di default. Continuare comunque con il ripristino?`
-          );
-          if (!proceed) {
-            e.target.value = "";
-            return;
-          }
+          const proceed = await conferma({
+            title: `Il backup contiene ${warnings.length} problema/i`,
+            body: `Righe non valide o non riconosciute:\n\n${preview}\n\nLe righe interessate verranno escluse o corrette con valori di default.`,
+            cta: "Ripristina comunque",
+            danger: true,
+          });
+          if (!proceed) return;
         }
         dispatch({ type: "RESTORE_BACKUP", payload: sanitized });
       } catch (err) {
-        alert("Errore nel ripristino: " + err.message);
+        dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Ripristino non riuscito: ${err.message}` } });
       }
     };
     reader.readAsText(file);
-    e.target.value = "";
   };
 
   const total = tasksToExport().length;

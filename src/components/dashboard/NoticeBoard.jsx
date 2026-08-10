@@ -7,6 +7,7 @@ import { NoticeEditorModal } from "../modals/NoticeEditorModal.jsx";
 import { MentionText } from "../ui/MentionText.jsx";
 import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { Z } from "../../styles/tokens.js";
+import { useConfirm } from "../../state/ConfirmContext.jsx";
 
 // v2.8: emoji disponibili per le reazioni rapide sui post-it.
 // Tenuto basso (6) per non rompere il layout del post-it. Stesso shape della chat.
@@ -17,6 +18,7 @@ const NOTICE_REACTION_EMOJI = ["👍", "❤️", "🎉", "👀", "🔥", "✅"];
 // aver caricato gli avvisi invita a saltare esattamente ciò che non si è
 // ancora visto.
 export const NoticeBoard = ({ notices, dispatch, loading = false }) => {
+  const conferma = useConfirm();
   const { getMember, currentUserId } = useAppData();
   const [editing, setEditing] = useState(null); // null | { id?, text, color }
   const [creating, setCreating] = useState(false);
@@ -217,8 +219,8 @@ export const NoticeBoard = ({ notices, dispatch, loading = false }) => {
                     style={noticeBtnStyle}
                   >✏️</button>
                   <button
-                    onClick={() => {
-                      if (window.confirm("Eliminare questo avviso?")) {
+                    onClick={async () => {
+                      if (await conferma({ title: "Eliminare questo avviso?", cta: "Elimina", danger: true })) {
                         dispatch({ type: "DELETE_NOTICE", payload: n.id });
                       }
                     }}

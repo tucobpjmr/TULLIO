@@ -5,9 +5,11 @@ import { fieldStyle, btnPrimary, btnGhost, btnDanger } from "../adminStyles.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useTasks } from "../../../state/TasksContext.jsx";
 import { AddCategoryModal } from "../../modals/AddCategoryModal.jsx";
+import { useConfirm } from "../../../state/ConfirmContext.jsx";
 
 // ─── ADMIN TAB: CATEGORIE ──────────────────────────────────────────────────
 export const AdminCategoriesTab = ({ dispatch }) => {
+  const conferma = useConfirm();
   const { categories } = useAppData();
   const tasks = useTasks();
   const [editingKey, setEditingKey] = useState(null);
@@ -77,14 +79,18 @@ export const AdminCategoriesTab = ({ dispatch }) => {
                 ) : (
                   <>
                     <button onClick={() => startEdit(key, c)} style={btnGhost}>✏️ Modifica</button>
-                    <button onClick={() => {
+                    <button onClick={async () => {
+                      // Criticità #8: `alert()` → toast (è un errore vero),
+                      // `window.confirm` → conferma dell'app.
                       if (count > 0) {
-                        alert(`Impossibile rimuovere: ${count} task usano questa categoria.`);
+                        dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Impossibile rimuovere "${c.label}": ${count} task usano questa categoria.` } });
                         return;
                       }
-                      if (window.confirm(`Rimuovere categoria "${c.label}"?`)) {
-                        dispatch({ type: "REMOVE_CATEGORY", payload: key });
-                      }
+                      const ok = await conferma({
+                        title: `Rimuovere la categoria "${c.label}"?`,
+                        cta: "Rimuovi", danger: true,
+                      });
+                      if (ok) dispatch({ type: "REMOVE_CATEGORY", payload: key });
                     }} style={btnDanger}>🗑️</button>
                   </>
                 )}

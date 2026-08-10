@@ -16,8 +16,10 @@ import { Z } from "../../styles/tokens.js";
 
 import { TaskAttachments } from "./TaskAttachments.jsx";
 import { HISTORY_ICONS, historyDescribe } from "./taskHistory.js";
+import { useConfirm } from "../../state/ConfirmContext.jsx";
 
 export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
+  const conferma = useConfirm();
   const { isMobile } = useViewport();
   const {
     categories, currentUserId, getMember, getAssignableTeam,
@@ -122,10 +124,13 @@ export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
     dispatch({ type: "UPDATE_TASK", payload: { id: task.id, status: e.target.value } });
   };
 
-  const handleDelete = () => {
-    if (window.confirm(`Spostare nel cestino "${task.title}"?`)) {
-      dispatch({ type: "DELETE_TASK", payload: task.id });
-    }
+  const handleDelete = async () => {
+    const ok = await conferma({
+      title: "Spostare nel cestino?",
+      body: `"${task.title}" resterà recuperabile dal Cestino.`,
+      cta: "Sposta nel cestino", danger: true,
+    });
+    if (ok) dispatch({ type: "DELETE_TASK", payload: task.id });
   };
 
   const labelStyle = { fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 };

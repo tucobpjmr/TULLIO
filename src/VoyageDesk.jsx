@@ -11,6 +11,7 @@ import { reducer, makeInitialState } from "./state/reducer.js";
 import { AppDataProvider } from "./state/AppDataContext.jsx";
 import { TasksProvider } from "./state/TasksContext.jsx";
 import { ClientsProvider } from "./state/ClientsContext.jsx";
+import { ConfirmProvider } from "./state/ConfirmContext.jsx";
 import { demoState } from "./state/demoState.js";
 
 // ── Hook di dominio ────────────────────────────────────────────────────────
@@ -308,6 +309,11 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
          invalida le viste che guardano i task (vedi state/ClientsContext.jsx). */}
      <TasksProvider tasks={state.tasks}>
       <ClientsProvider clients={state.clients}>
+      {/* Criticità #8: le conferme distruttive passano da qui — `useConfirm()`
+          al posto dei `window.confirm` bloccanti. Sta dentro i provider di
+          dominio perché la finestra di conferma è parte dell'app, non della
+          shell del browser. */}
+      <ConfirmProvider>
       <GlobalStyles />
       {/* vd-app-shell = height 100dvh con fallback 100vh (vedi FontLoader): su iOS
           "vh" è il viewport GRANDE, con la barra del browser visibile il guscio
@@ -434,6 +440,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         {/* Toast */}
         <ToastStack toasts={state.toasts} dispatch={dispatch} />
       </div>
+      </ConfirmProvider>
       </ClientsProvider>
      </TasksProvider>
     </AppDataProvider>

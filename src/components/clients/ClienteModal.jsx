@@ -2,10 +2,23 @@
 // Creazione e modifica di un cliente. In modifica mostra anche cosa è collegato
 // (task e liste viaggio): serve PRIMA di salvare o eliminare, non dopo — è la
 // differenza fra sapere cosa si sta toccando e scoprirlo da un errore di FK.
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useIsMounted } from "../../hooks/useIsMounted.js";
+import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
+import { validaCampi, obbligatorio, emailValida, primoCampoInvalido } from "../../lib/validators.js";
 import { chiaveNome } from "../../lib/clientNotes.js";
 import { EMPTY_FORM, fieldStyle, labelStyle, noticeStyle } from "./clientStyles.js";
 import { Z } from "../../styles/tokens.js";
+
+// Criticità #10 — l'email è opzionale, il nome no. Prima il form NON diceva
+// nulla di nessuno dei due: `if (!form.name.trim()) return;` usciva in
+// silenzio, e l'unico segnale era il bottone disabilitato — che a form
+// appena aperto sembra un'app rotta più che un campo mancante.
+const REGOLE = {
+  name: obbligatorio("Il nome è obbligatorio: è con questo che il cliente compare in liste e task."),
+  email: emailValida(),
+};
+const ORDINE = ["name", "email"];
 
 export function ClienteModal({ cliente, onSave, onClose, liste = null, tasksCollegati = [] }) {
   const [form, setForm] = useState(cliente
@@ -14,8 +27,20 @@ export function ClienteModal({ cliente, onSave, onClose, liste = null, tasksColl
   );
   const [saving, setSaving] = useState(false);
   const [renameTasks, setRenameTasks] = useState(true);
+  // Criticità #11: `onSave` è ClientiView.handleSave, che termina con
+  // setModal(null) — cioè smonta QUESTO componente. Lo smontaggio è l'esito
+  // normale del salvataggio riuscito, non un caso limite.
+  const montato = useIsMounted();
+  const [errori, setErrori] = useState({});
+  const nameRef = useRef(null);
+  const emailRef = useRef(null);
+  const rifCampo = { name: nameRef, email: emailRef };
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  // L'errore di un campo si spegne appena lo si tocca (vedi AddMovBox).
+  const set = (k, v) => {
+    setForm(f => ({ ...f, [k]: v }));
+    setErrori(prec => (prec[k] ? { ...prec, [k]: undefined } : prec));
+  };
 
   // Il nome è l'unico campo condiviso con altri moduli: le liste viaggio lo
   // mostrano come intestazione (join su client_id) e i task ne conservano una
@@ -28,12 +53,20 @@ export function ClienteModal({ cliente, onSave, onClose, liste = null, tasksColl
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.name.trim()) return;
+    const trovati = validaCampi(form, REGOLE);
+    const primo = primoCampoInvalido(trovati, ORDINE);
+    if (primo) {
+      setErrori(trovati);
+      rifCampo[primo]?.current?.focus();
+      return;
+    }
+    setErrori({});
     setSaving(true);
     await onSave(
       { ...form, name: form.name.trim() },
       { renameTasks: nomeCambiato && renameTasks ? tasksCollegati : [] },
     );
+    if (!montato()) return;
     setSaving(false);
   };
 
@@ -82,12 +115,30 @@ export function ClienteModal({ cliente, onSave, onClose, liste = null, tasksColl
           )}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Nome *</label>
-              <input style={fieldStyle} value={form.name} onChange={e => set("name", e.target.value)} placeholder="Nome completo o ragione sociale" required />
+              <label style={labelStyle} htmlFor="cli-name">Nome *</label>
+              <input
+                id="cli-name" ref={nameRef} style={fieldStyle} value={form.name}
+                onChange={e => set("name", e.target.value)}
+                placeholder="Nome completo o ragione sociale"
+                {...ariaCampo("cli-name-err", errori.name)}
+              />
+              <FieldError id="cli-name-err">{errori.name}</FieldError>
             </div>
             <div>
-              <label style={labelStyle}>Email</label>
-              <input style={fieldStyle} type="email" value={form.email} onChange={e => set("email", e.target.value)} placeholder="email@esempio.it" />
+              <label style={labelStyle} htmlFor="cli-email">Email</label>
+              <input
+                /* `type="text" inputMode="email"` e non `type="email"`: la
+                   validazione nativa del browser bloccherebbe il submit PRIMA
+                   del nostro handler, mostrando la sua bolla al posto del
+                   messaggio inline — due meccanismi di validazione sullo stesso
+                   campo, di cui uno non traducibile e non collegabile all'input
+                   via aria-describedby. `inputMode` conserva la tastiera giusta
+                   su mobile, che è l'altra ragione per cui `type="email"` era lì. */
+                id="cli-email" ref={emailRef} style={fieldStyle} type="text" inputMode="email" value={form.email}
+                onChange={e => set("email", e.target.value)} placeholder="email@esempio.it"
+                {...ariaCampo("cli-email-err", errori.email)}
+              />
+              <FieldError id="cli-email-err">{errori.email}</FieldError>
             </div>
             <div>
               <label style={labelStyle}>Telefono</label>
@@ -111,10 +162,14 @@ export function ClienteModal({ cliente, onSave, onClose, liste = null, tasksColl
               padding: "9px 20px", borderRadius: 8, border: "1px solid var(--border)",
               background: "var(--card)", cursor: "pointer", fontSize: 14, color: "var(--text-muted)",
             }}>Annulla</button>
-            <button type="submit" disabled={saving || !form.name.trim()} style={{
+            {/* Criticità #10: il bottone NON è più disabilitato dal nome
+                mancante. Un bottone spento non dice cosa manca — e a form
+                appena aperto si legge come un'app rotta; premuto, ora il form
+                dice quale campo e sposta il focus lì. */}
+            <button type="submit" disabled={saving} style={{
               padding: "9px 20px", borderRadius: 8, border: "none",
               background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 600,
-              opacity: (!form.name.trim() || saving) ? 0.5 : 1,
+              opacity: saving ? 0.5 : 1,
             }}>{saving ? "Salvataggio..." : (cliente ? "Salva" : "Aggiungi")}</button>
           </div>
         </form>

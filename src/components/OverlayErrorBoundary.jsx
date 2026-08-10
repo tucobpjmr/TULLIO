@@ -17,30 +17,34 @@
 // crash sul task precedente resterebbe visibile aprendo quello nuovo.
 import React from 'react';
 import { Z } from '../styles/tokens.js';
+import { codiceSegnalazione } from '../lib/errorReporting.js';
+import { ErrorDetails } from './ui/ErrorDetails.jsx';
 
 export class OverlayErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { error: null, resetKey: props.resetKey };
+    this.state = { error: null, info: null, codice: null, resetKey: props.resetKey };
   }
 
   static getDerivedStateFromError(error) {
-    return { error };
+    // Criticità #9: vedi ui/ErrorDetails.jsx per la policy dev/produzione.
+    return { error, codice: codiceSegnalazione() };
   }
 
   static getDerivedStateFromProps(props, state) {
     if (props.resetKey !== state.resetKey) {
-      return { error: null, resetKey: props.resetKey };
+      return { error: null, info: null, codice: null, resetKey: props.resetKey };
     }
     return null;
   }
 
   componentDidCatch(error, info) {
-    console.error('[VoyageDesk] Errore in un modale:', error, info);
+    console.error(`[VoyageDesk] Errore in un modale (${this.state.codice}):`, error, info);
+    this.setState({ info });
   }
 
   render() {
-    const { error } = this.state;
+    const { error, info, codice } = this.state;
     if (!error) return this.props.children;
 
     return (
@@ -61,17 +65,9 @@ export class OverlayErrorBoundary extends React.Component {
             margin: '0 0 16px', fontSize: 13.5, color: 'var(--text-muted)', lineHeight: 1.5,
           }}>
             Il resto di Tullio continua a funzionare. Se il problema si ripete,
-            segnala il testo qui sotto.
+            segnala il codice qui sotto.
           </p>
-          <pre style={{
-            margin: '0 0 16px', padding: 12, borderRadius: 10,
-            background: 'var(--surface)', border: '1px solid var(--border)',
-            color: 'var(--danger, #b91c1c)', fontSize: 12, lineHeight: 1.45,
-            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-            maxHeight: 200, overflow: 'auto',
-          }}>
-            {String(error?.message || error)}
-          </pre>
+          <ErrorDetails error={error} info={info} codice={codice} />
           <button
             onClick={this.props.onReset}
             style={{

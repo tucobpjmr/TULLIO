@@ -86,17 +86,39 @@ describe("ProfileEditor — salvataggio", () => {
     expect(screen.getByDisplayValue("Marco Ferretti")).toBeTruthy();
   });
 
-  it("non tenta il salvataggio con un'email non valida", async () => {
+  it("non tenta il salvataggio con un'email non valida, e lo dice SUL campo", async () => {
+    // Criticità #10: prima l'unico segnale era un toast in un angolo dello
+    // schermo, mentre il campo sbagliato restava identico agli altri. Ora il
+    // messaggio è sotto l'input, l'input è marcato `aria-invalid` e il focus
+    // ci torna sopra — e non parte alcun dispatch, nemmeno per il toast.
     const dispatch = vi.fn(async () => ({ error: null }));
     const { onClose } = montaConDispatch(dispatch);
 
-    fireEvent.change(screen.getByPlaceholderText("nome@agenzia.it"), { target: { value: "non-una-email" } });
+    const campo = screen.getByPlaceholderText("nome@agenzia.it");
+    fireEvent.change(campo, { target: { value: "non-una-email" } });
     salva();
 
-    await waitFor(() => expect(dispatch).toHaveBeenCalled());
-    // L'unica azione è il toast di validazione: nessun UPDATE_OWN_PROFILE.
-    expect(dispatch.mock.calls.every(([a]) => a.type !== "UPDATE_OWN_PROFILE")).toBe(true);
+    const avviso = await screen.findByRole("alert");
+    expect(avviso.textContent).toMatch(/Email non valida/);
+    expect(campo.getAttribute("aria-invalid")).toBe("true");
+    expect(campo.getAttribute("aria-describedby")).toBe(avviso.id);
+    expect(document.activeElement).toBe(campo);
+    expect(dispatch).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("l'errore sul campo si spegne appena lo si corregge", async () => {
+    const dispatch = vi.fn(async () => ({ error: null }));
+    montaConDispatch(dispatch);
+
+    const campo = screen.getByPlaceholderText("nome@agenzia.it");
+    fireEvent.change(campo, { target: { value: "non-una-email" } });
+    salva();
+    expect(await screen.findByRole("alert")).toBeTruthy();
+
+    fireEvent.change(campo, { target: { value: "marco@agenzia.it" } });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(campo.getAttribute("aria-invalid")).toBeNull();
   });
 
   it("regge un dispatch che non ritorna nulla (modalità mock, senza Supabase)", async () => {

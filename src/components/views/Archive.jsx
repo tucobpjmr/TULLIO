@@ -15,6 +15,7 @@ import { formatDate, getArchivedTasks } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useTasks } from "../../state/TasksContext.jsx";
 import { PERIOD_OPTIONS, filterByPeriod, thStyle, chipStyle } from "./archiveFilters.js";
+import { useConfirm } from "../../state/ConfirmContext.jsx";
 // La sezione "liste buoni viaggio" è del modulo Liste e viene montata per
 // composizione: questa vista non conosce il suo data layer. Chunk async per lo
 // stesso motivo di ClienteDetailPanel.jsx — porta con sé lib/listeApi.js.
@@ -29,6 +30,7 @@ const ArchivedListe = lazy(() =>
 // `loading` (criticità #6): "Archivio vuoto" e "archivio non ancora caricato"
 // sono due frasi diverse, e finora l'utente vedeva sempre la prima.
 export const Archive = memo(function Archive({ dispatch, loading = false }) {
+  const conferma = useConfirm();
   const { isMobile } = useViewport();
   const { categories, currentUserId, getVisibleTasks, canEditTask, canAccessListe } = useAppData();
   const tasks = useTasks();
@@ -74,10 +76,13 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
     dispatch({ type: "UPDATE_TASK", payload: { id: task.id, status: "inprogress" } });
   };
 
-  const handleTrash = (task) => {
-    if (window.confirm(`Spostare "${task.title}" nel cestino?`)) {
-      dispatch({ type: "DELETE_TASK", payload: task.id });
-    }
+  const handleTrash = async (task) => {
+    const ok = await conferma({
+      title: "Spostare nel cestino?",
+      body: `"${task.title}" resterà recuperabile dal Cestino.`,
+      cta: "Sposta nel cestino", danger: true,
+    });
+    if (ok) dispatch({ type: "DELETE_TASK", payload: task.id });
   };
 
   // Categorie effettivamente presenti tra le task archiviate (per il filtro).

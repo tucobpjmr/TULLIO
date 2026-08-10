@@ -6,11 +6,22 @@ import { useAuth } from "../../auth/AuthContext.jsx";
 import { Users as UsersAPI } from "../../lib/api.js";
 import { PasswordField } from "../ui/PasswordField.jsx";
 import { useAvatarSrc } from "../ui/Avatar.jsx";
-import { isValidEmail } from "../../lib/validators.js";
+import { validaCampi, emailValida, obbligatorio, primoCampoInvalido } from "../../lib/validators.js";
+import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { Z } from "../../styles/tokens.js";
 import { roleLabel } from "../../lib/taskConstants.js";
 
 import { CropModal, dataUrlToBlob } from "./CropModal.jsx";
+
+// Criticità #10 — il nome è obbligatorio e l'email, se compilata, dev'essere
+// valida. Prima il primo usciva in silenzio (`if (!name.trim()) return;`) e la
+// seconda finiva in un toast in un angolo, mentre il campo sbagliato restava
+// indistinguibile da quelli giusti.
+const REGOLE = {
+  name: obbligatorio("Il nome visualizzato non può essere vuoto."),
+  email: emailValida(),
+};
+const ORDINE = ["name", "email"];
 
 
 export const ProfileEditor = ({ member, dispatch, onClose }) => {
@@ -26,6 +37,15 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
   const photoPreview = useAvatarSrc(photoUrl || null);
   const [cropSrc, setCropSrc] = useState(null);
   const fileRef = useRef(null);
+  const [errori, setErrori] = useState({});
+  const nameRef = useRef(null);
+  const emailRef = useRef(null);
+  const rifCampo = { name: nameRef, email: emailRef };
+  // L'errore di un campo si spegne appena lo si tocca (vedi AddMovBox).
+  const scrivi = (campo, set) => (valore) => {
+    set(valore);
+    setErrori(prec => (prec[campo] ? { ...prec, [campo]: undefined } : prec));
+  };
   const [showPwd, setShowPwd] = useState(false);
   const [revealPwd, setRevealPwd] = useState(false); // visibilità testo password (icona occhio)
   const [newPwd, setNewPwd] = useState("");
@@ -69,7 +89,10 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
     if (!file) return;
     e.target.value = ""; // reset so the same file can be re-selected
     if (file.size > 5 * 1024 * 1024) {
-      alert("Immagine troppo grande (max 5 MB)");
+      // Criticità #8: era un `alert()` — modale bloccante del browser, fuori
+      // dal tema dell'app e impossibile da leggere per chi sta guardando
+      // altrove. È un errore vero, quindi va nel canale degli errori veri.
+      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "Immagine troppo grande: il limite è 5 MB." } });
       return;
     }
     const reader = new FileReader();
@@ -78,12 +101,15 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
   };
 
   const handleSave = async () => {
-    if (!name.trim()) return;
-    const trimmedEmail = email.trim();
-    if (trimmedEmail && !isValidEmail(trimmedEmail)) {
-      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "Email non valida." } });
+    const trovati = validaCampi({ name, email }, REGOLE);
+    const primo = primoCampoInvalido(trovati, ORDINE);
+    if (primo) {
+      setErrori(trovati);
+      rifCampo[primo]?.current?.focus();
       return;
     }
+    setErrori({});
+    const trimmedEmail = email.trim();
     // Foto: se è una nuova immagine (data-URL dal crop, o una vecchia base64
     // ancora in photo_url), caricala sul bucket 'avatars' e sostituiscila con
     // la public URL. Così users.photo_url non contiene più il base64 (riga
@@ -221,11 +247,14 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
           <div>
             {fieldLabel("NOME VISUALIZZATO")}
             <input
-              value={name} onChange={e => setName(e.target.value)}
+              ref={nameRef}
+              value={name} onChange={e => scrivi("name", setName)(e.target.value)}
               style={inputStyle} placeholder="Il tuo nome"
               onFocus={e => e.target.style.borderColor = "var(--gold)"}
               onBlur={e => e.target.style.borderColor = "var(--border)"}
+              {...ariaCampo("prof-name-err", errori.name)}
             />
+            <FieldError id="prof-name-err">{errori.name}</FieldError>
           </div>
 
           {/* ── Email + Telefono ── */}
@@ -233,11 +262,14 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
             <div>
               {fieldLabel("EMAIL")}
               <input
-                value={email} onChange={e => setEmail(e.target.value)}
+                ref={emailRef}
+                value={email} onChange={e => scrivi("email", setEmail)(e.target.value)}
                 type="email" style={inputStyle} placeholder="nome@agenzia.it"
                 onFocus={e => e.target.style.borderColor = "var(--gold)"}
                 onBlur={e => e.target.style.borderColor = "var(--border)"}
+                {...ariaCampo("prof-email-err", errori.email)}
               />
+              <FieldError id="prof-email-err">{errori.email}</FieldError>
             </div>
             <div>
               {fieldLabel("TELEFONO")}
@@ -399,17 +431,16 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
             padding: "10px 20px", borderRadius: 8, cursor: "pointer", fontSize: 13,
             fontWeight: 600, fontFamily: "inherit",
           }}>Annulla</button>
+          {/* Criticità #10: il bottone resta attivo anche a nome vuoto.
+              Disabilitarlo nascondeva il problema invece di dirlo — premuto,
+              ora il form indica il campo e ci porta il focus. */}
           <button
             onClick={handleSave}
-            disabled={!name.trim()}
             style={{
-              background: name.trim() ? "var(--navy)" : "var(--surface3)",
-              color: name.trim() ? "#fff" : "var(--text-muted)",
-              border: "none",
-              padding: "10px 20px", borderRadius: 8,
-              cursor: name.trim() ? "pointer" : "not-allowed",
+              background: "var(--navy)", color: "#fff", border: "none",
+              padding: "10px 20px", borderRadius: 8, cursor: "pointer",
               fontSize: 13, fontWeight: 700, fontFamily: "inherit",
-              boxShadow: name.trim() ? "0 4px 14px rgba(15,32,68,0.3)" : "none",
+              boxShadow: "0 4px 14px rgba(15,32,68,0.3)",
             }}
           >✓ Salva profilo</button>
         </div>

@@ -1,5 +1,80 @@
 # CHANGELOG — VoyageDesk
 
+## Conferme, errori e validazione: chiude le criticità #8–#12
+
+> Stesso branch. Cinque rilievi di media/bassa priorità, tutti su cosa l'app
+> dice all'utente nei momenti in cui non sta mostrando dati.
+
+### 🗨️ Criticità #8 — via i modali bloccanti del browser (21 call site, 14 file)
+
+**`src/state/ConfirmContext.jsx`** (NEW) — `ConfirmProvider` + `useConfirm()`:
+`if (!(await conferma({ title, body, cta, danger }))) return;`.
+**`src/components/ui/ConfirmDialog.jsx`** (NEW) — la finestra, costruita su
+`ui/Modal.jsx` (portale, Esc, `role="dialog"`), `layer="modalFull"` perché una
+conferma nasce quasi sempre da un altro modale.
+
+Perché non era cosmetica: `confirm()` blocca il thread (niente render, niente
+timer, eventi realtime in coda), non è nella lingua né nel tema dell'app, non
+distingue un'azione distruttiva da una innocua e — soprattutto — è
+**sopprimibile**: con "impedisci a questa pagina di creare altre finestre di
+dialogo" ritorna `false` senza chiedere nulla, e da quel momento eliminare un
+allegato smette di funzionare in silenzio.
+
+- 17 `window.confirm` → `useConfirm()`, con `danger: true` sulle azioni
+  irreversibili (focus iniziale su **Annulla**: un Invio per abitudine non
+  svuota il cestino).
+- 4 `alert()` → toast: erano errori veri (agente con task assegnati, categoria
+  in uso, ripristino backup fallito, immagine oltre i 5 MB).
+- `AdminIOTab`: il secondo confirm elencava fino a dieci problemi del backup in
+  una finestra di sistema che non sa formattare né far scorrere il testo.
+
+### 🐞 Criticità #9 — lo stack non è per l'utente
+
+**`src/components/ui/ErrorDetails.jsx`** (NEW) — una policy sola per i **tre**
+boundary (globale, di vista, di overlay), che avevano tre riquadri copiati:
+in DEV messaggio + `componentStack`; in produzione un **codice di segnalazione**
+(`codiceSegnalazione()` in `lib/errorReporting.js`, formato `VD-<istante>-<4>`),
+col dettaglio completo in `console.error` accanto allo stesso codice.
+
+Rumore per chi legge, e una mappa della struttura interna dell'app mostrata a
+chiunque guardi lo schermo o riceva uno screenshot.
+
+### ✍️ Criticità #10 — validazione inline, con ARIA e focus
+
+**`src/lib/validators.js`** — da un solo controllo (l'email) a validatori
+componibili (`obbligatorio` / `emailValida` / `interpretabile`) + runner
+(`validaCampi`, `primoCampoInvalido`).
+**`src/components/ui/FieldError.jsx`** (NEW) — messaggio `role="alert"` sotto il
+campo + `ariaCampo(id, errore)` che sparge `aria-invalid` e `aria-describedby`
+insieme (una senza l'altra non serve).
+
+Applicata a `AddMovBox` (era un toast che nominava tre campi senza dire quale),
+`ClienteModal` e `ProfileEditor` (dove il nome mancante usciva **in silenzio**).
+I bottoni di salvataggio non sono più disabilitati dal campo mancante: un
+bottone spento non dice cosa manca. L'errore si spegne appena si tocca il campo.
+
+### ⏱️ Criticità #11 — `await` in un componente smontabile
+
+**`src/hooks/useIsMounted.js`** (NEW) — `if (!montato()) return;` dopo l'await,
+stesso contratto di `isCurrent()` in `useDebouncedTableSubscription`. Applicato a
+`ClienteModal` (dove `onSave` termina con `setModal(null)`, quindi lo smontaggio
+è l'esito NORMALE del salvataggio), `TaskAttachments` e `ClienteListePanel`.
+
+### 🔊 Criticità #12 — l'attesa era muta
+
+**`src/components/ui/LazyFallback.jsx`** — `role="status"` + `aria-live` + un
+testo visibile; il cerchio animato diventa `aria-hidden`. Uno spinner muto e una
+pagina rotta si assomigliano molto, e con uno screen reader non si distinguono.
+
+### ✅ Test
+
+29 nuovi (969 verdi in totale, 84 file):
+`confermeApp.test.jsx` (9), `validazioneInline.test.jsx` (11),
+`attesaEdErrori.test.jsx` (9). Riscritto `chatConvDelete.test.jsx`: non pilota
+più una spia su `window.confirm` ma clicca i pulsanti della finestra vera — un
+test più forte, perché verifica che la domanda a schermo sia leggibile e che i
+due pulsanti facciano due cose diverse.
+
 ## Stati di attesa onesti: loading per tutte le entità + stato di rete (criticità #6 e #7)
 
 > Branch `claude/loading-states-offline-detection-lyu3gv`. Due difetti della

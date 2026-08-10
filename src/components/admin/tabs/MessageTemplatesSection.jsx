@@ -2,9 +2,11 @@
 // Le risposte rapide riutilizzabili in chat, gestite dall'admin.
 import { useState } from "react";
 import { cardStyle, cardH } from "../adminStyles.js";
+import { useConfirm } from "../../../state/ConfirmContext.jsx";
 
 // ─── TEMPLATE MESSAGGI CHAT (v2.8) ─────────────────────────────────────────
 export const MessageTemplatesSection = ({ templates = [], dispatch }) => {
+  const conferma = useConfirm();
   const [editingId, setEditingId] = useState(null);
   const [draftLabel, setDraftLabel] = useState("");
   const [draftText, setDraftText] = useState("");
@@ -94,7 +96,10 @@ export const MessageTemplatesSection = ({ templates = [], dispatch }) => {
               <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
                 <button onClick={() => startEdit(t)} title="Modifica" style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 12 }}>✏️</button>
                 <button
-                  onClick={() => { if (window.confirm(`Rimuovere il template "${t.label}"?`)) dispatch({ type: "DELETE_MESSAGE_TEMPLATE", payload: t.id }); }}
+                  onClick={async () => {
+                    const ok = await conferma({ title: `Rimuovere il template "${t.label}"?`, cta: "Rimuovi", danger: true });
+                    if (ok) dispatch({ type: "DELETE_MESSAGE_TEMPLATE", payload: t.id });
+                  }}
                   title="Elimina"
                   style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 12, color: "var(--danger)" }}
                 >✕</button>

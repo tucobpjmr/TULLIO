@@ -1,5 +1,69 @@
 # CHANGELOG — VoyageDesk
 
+## Stati di attesa onesti: loading per tutte le entità + stato di rete (criticità #6 e #7)
+
+> Branch `claude/loading-states-offline-detection-lyu3gv`. Due difetti della
+> stessa famiglia: l'app affermava con sicurezza cose che non era in grado di
+> sapere. "Nessuna task in scadenza" mostrato mentre i dati stanno ancora
+> arrivando, e la stessa schermata mostrata identica quando la rete non c'è più.
+
+### ⏳ Criticità #6 — un flag di caricamento per ogni entità
+
+**`src/hooks/useAppHydration.js`**
+- Il flag esisteva per i soli clienti (`crmLoading`, sessione 23). Ora `loading`
+  è un oggetto con una chiave per entità — `tasks` / `notices` / `categories` /
+  `team` / `clients` — e `crmLoading` ne resta l'alias storico.
+- Ogni flag si chiude sia sul **successo** sia sull'**errore** del primo fetch:
+  uno scheletro perpetuo è disonesto quanto un vuoto dichiarato troppo presto.
+- L'identità dell'oggetto `loading` non cambia ai reload realtime (le viste sono
+  `memo`: un oggetto nuovo le sveglierebbe tutte per nulla).
+
+**`src/components/ui/SkeletonCards.jsx`** — nuovi `minWidth` (allinea la griglia
+dello scheletro a quella che sostituisce: 280px code, 240px bacheca, 340px CRM),
+`compact` (card di task, senza il blocco avatar) e `label` (`aria-label`).
+**`src/components/ui/SkeletonRows.jsx`** (NEW) — variante a righe per i pannelli
+in colonna della Dashboard.
+
+**Viste che smettono di dichiarare un vuoto che non conoscono:**
+- Le quattro code (`PersonalQueue` / `UnassignedQueue` / `OverdueQueue` /
+  `UrgentQueue`): scheletro al posto di "Buon lavoro!", "Tutti gli incarichi
+  hanno un proprietario", "Tutto in regola!", "Nessuna task in scadenza".
+- `Dashboard`: linguette a `…` invece di `0`, scheletro su "Scadenze Prossime"
+  (che non aveva alcuno stato vuoto: a lista vuota restava un box col solo
+  titolo) e su "Carico di Lavoro Team" (che mostrava l'organico al completo con
+  "0 task" a testa — un carico inventato, non un carico vuoto).
+- `NoticeBoard`, `Archive`, `Trash`: scheletro al posto di "Nessun avviso in
+  bacheca" / "Archivio vuoto" / "Cestino vuoto".
+- `CalendarPlanner`: riga di stato sopra la griglia — qui non c'è una lista da
+  sostituire, sono gli eventi a mancare, e un mese di celle vuote si legge come
+  "agenda libera".
+- Guardia comune `loading && dati.length === 0`: un reload realtime a dati già
+  presenti non nasconde nulla sotto uno scheletro.
+
+### 📡 Criticità #7 — rilevamento offline
+
+**`src/hooks/useOnlineStatus.js`** (NEW) — `navigator.onLine` come stato React,
+con riallineamento al mount (fra primo render ed effetto la rete può essere già
+caduta) e fallback a "online" dove il browser non espone il campo.
+**`src/components/shell/OfflineBanner.jsx`** (NEW) — striscia `--danger`
+persistente e non chiudibile sotto la topbar, sopra il banner di rollback admin.
+Dice entrambe le conseguenze: i dati sono fermi all'ultimo aggiornamento **e** le
+modifiche non verranno salvate. `role="status"` + `aria-live="assertive"`.
+
+Limite dichiarato: `navigator.onLine === false` è affidabile, `=== true` no
+(captive portal, DNS rotto, backend giù). Il banner non mente per eccesso, ma non
+copre quei casi: servirebbe un segnale applicativo (stato del canale realtime).
+
+### ✅ Test
+
+- `src/test/statiDiAttesa.test.jsx` (NEW, 10) — asserzioni in **negativo**: la
+  frase rassicurante NON deve comparire in caricamento, e deve tornare a
+  comparire quando il fetch è davvero tornato vuoto.
+- `src/test/idratazioneLoading.test.jsx` (NEW, 6) — i flag per entità, la
+  chiusura anche in errore, l'identità stabile di `loading`.
+- `src/test/offlineBanner.test.jsx` (NEW, 6) — comparsa/scomparsa sugli eventi,
+  rete già assente al mount, nessun falso allarme senza `navigator.onLine`.
+
 ## v3.2-dev — Block 4: Account Management (sessione 33 — 2026-06-21)
 
 > Branch `claude/pr-73-merge-preview-02y67z`. Base: `main` post-merge #74 (Block 3). Shell più chiara, presenza admin, cambio password, eliminazione account self-service.

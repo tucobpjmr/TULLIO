@@ -9,15 +9,21 @@ import { formatDate, isOverdue } from "../../../lib/taskUtils.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useOpenTask } from "./queueShared.js";
 import { QueueShell } from "./QueueShell.jsx";
+import { SkeletonCards } from "../../ui/SkeletonCards.jsx";
 
 // ─── UNASSIGNED QUEUE (coda globale) ───────────────────────────────────────
-export const UnassignedQueue = ({ tasks, dispatch, onTake, uid }) => {
+// `loading` (criticità #6): finché il primo fetch non torna, la coda non è
+// vuota — è ignota. "Tutti gli incarichi hanno un proprietario" detto su zero
+// task caricati è la bugia più cara di questa vista: è la coda su cui si
+// decide se prendere in carico qualcosa.
+export const UnassignedQueue = ({ tasks, dispatch, onTake, uid, loading = false }) => {
   const { categories, isJuniorAgent } = useAppData();
   const isJunior = isJuniorAgent(uid);
   const openTask = useOpenTask(dispatch);
   const [categoryFilter, setCategoryFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
-  const empty = tasks.length === 0;
+  const caricando = loading && tasks.length === 0;
+  const empty = tasks.length === 0 && !caricando;
 
   // Categorie e priorità presenti nelle task della coda (no chip vuoti).
   const presentCategories = Array.from(new Set(tasks.map(t => t.category).filter(Boolean)));
@@ -39,7 +45,7 @@ export const UnassignedQueue = ({ tasks, dispatch, onTake, uid }) => {
       icon="🙋"
       title="Coda globale"
       tight={empty}
-      badge={empty ? null : (hasFilter ? `${filtered.length}/${tasks.length}` : `${tasks.length} in attesa`)}
+      badge={caricando ? "…" : empty ? null : (hasFilter ? `${filtered.length}/${tasks.length}` : `${tasks.length} in attesa`)}
     >
 
       {/* Filtri categoria + priorità */}
@@ -89,7 +95,9 @@ export const UnassignedQueue = ({ tasks, dispatch, onTake, uid }) => {
       )}
 
       {/* Lista */}
-      {empty ? (
+      {caricando ? (
+        <SkeletonCards count={3} minWidth={280} compact label="Caricamento della coda globale" />
+      ) : empty ? (
         <div style={{
           padding: "14px 0 4px", display: "flex", alignItems: "center", gap: 10,
           color: "var(--text-muted)", fontSize: 13,

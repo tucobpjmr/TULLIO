@@ -16,7 +16,7 @@ import { expandRecurring } from "./calendarRecurrence.js";
 import { CalendarDayGrid } from "./CalendarDayGrid.jsx";
 import { CalendarWeekGrid } from "./CalendarWeekGrid.jsx";
 
-export const CalendarPlanner = memo(function CalendarPlanner({ dispatch }) {
+export const CalendarPlanner = memo(function CalendarPlanner({ dispatch, loading = false }) {
   const { isMobile } = useViewport();
   const { categories, currentUserId, getAssignableTeam, canViewTask } = useAppData();
   const tasks = useTasks();
@@ -39,6 +39,9 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch }) {
     () => tasks.filter(t => isActiveTask(t) && canViewTask(t, uid)),
     [tasks, canViewTask, uid],
   );
+
+  // "Sto ancora caricando e non ho ancora nulla": vedi Dashboard.jsx.
+  const caricando = loading && tasks.length === 0;
 
   // Categorie presenti nei task con dueDate (per mostrare solo i chip utili)
   const presentCats = useMemo(
@@ -135,6 +138,27 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch }) {
 
   return (
     <div className="fade-in" style={{ padding: isMobile ? 16 : 28, display: "flex", flexDirection: "column", gap: isMobile ? 16 : 22 }}>
+
+      {/* Criticità #6 — qui non c'è una lista da sostituire con uno scheletro:
+          la griglia del mese esiste comunque, sono gli EVENTI a mancare, e una
+          griglia di giorni vuoti si legge come "agenda libera". Una riga sopra
+          il calendario è il minimo che distingua "libero" da "non ancora
+          caricato" senza inventare uno stato di caricamento per 42 celle. */}
+      {caricando && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            display: "flex", alignItems: "center", gap: 8,
+            background: "var(--surface2)", border: "1px solid var(--border)",
+            borderRadius: 10, padding: "8px 12px",
+            fontSize: 12, color: "var(--text-muted)", fontWeight: 600,
+          }}
+        >
+          <span className="skeleton" style={{ width: 14, height: 14, borderRadius: "50%" }} />
+          Caricamento delle task: il calendario è ancora incompleto.
+        </div>
+      )}
 
       {/* ─── Header con toggle + navigazione ─── */}
       <div className="vd-row-wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>

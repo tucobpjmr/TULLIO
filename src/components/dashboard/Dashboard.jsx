@@ -15,6 +15,7 @@ import { SwipeActions } from "../SwipeActions.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { TaskRow } from "../tasks/TaskCard.jsx";
+import { SkeletonRows } from "../ui/SkeletonRows.jsx";
 import { formatDate, isOverdue, isUrgent, isMyTask, isInGlobalQueue, getActiveTasks } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useTasks } from "../../state/TasksContext.jsx";
@@ -46,7 +47,15 @@ const WINDOW_72H = 72 * 60 * 60 * 1000;
 // rimaste come prop — gli avvisi della bacheca e la tab coda richiesta da una
 // notifica — sono piccole e con identità stabile: cambiano quando cambia il
 // loro dato, non a ogni azione come faceva `state`.
-export const Dashboard = memo(function Dashboard({ dispatch, onOpenChat, notices = [], dashboardQueue = null }) {
+//
+// `tasksLoading` / `noticesLoading` (criticità #6) arrivano da useAppHydration
+// e sono BOOLEANI e non un oggetto `loading`: una prop primitiva non ha
+// identità da preservare, quindi non c'è modo che questa scelta rompa il
+// bail-out del `memo` (vedi src/test/domainProviders.test.jsx).
+export const Dashboard = memo(function Dashboard({
+  dispatch, onOpenChat, notices = [], dashboardQueue = null,
+  tasksLoading = false, noticesLoading = false,
+}) {
   const { isMobile } = useViewport();
   const {
     currentUserId, getMember, getRoleType, getAssignableTeam,
@@ -120,6 +129,15 @@ export const Dashboard = memo(function Dashboard({ dispatch, onOpenChat, notices
     .filter(t => t.status !== "done" && isOverdue(t))
     .sort(byDueDate), [visibleTasks]);
 
+  // "Sto ancora caricando E non ho ancora niente da mostrare": è la sola
+  // condizione in cui i conteggi a schermo non descrivono la realtà. Un reload
+  // realtime a dati già presenti non passa di qui — i vecchi valori restano
+  // visibili finché non arrivano i nuovi, che è il comportamento giusto.
+  const caricando = tasksLoading && allTasks.length === 0;
+  // Conteggio della linguetta: "…" e non 0 mentre il dato non c'è. Zero è una
+  // risposta; i puntini sono l'assenza di risposta, ed è quella la verità.
+  const conteggio = (n) => (caricando ? "…" : n);
+
   const takeOwnership = (task) => {
     // Step I: auto-assegna + auto-move "In Corso" se la task è in todo,
     // più toast personalizzato che cita il titolo.
@@ -185,7 +203,7 @@ export const Dashboard = memo(function Dashboard({ dispatch, onOpenChat, notices
       </div>
 
       {/* ─── BACHECA AVVISI ─── */}
-      <NoticeBoard notices={notices} dispatch={dispatch} />
+      <NoticeBoard notices={notices} dispatch={dispatch} loading={noticesLoading} />
 
       {/* ─── TAB CODE ─── */}
       <div style={{
@@ -199,27 +217,27 @@ export const Dashboard = memo(function Dashboard({ dispatch, onOpenChat, notices
           <QueueTab
             active={activeQueue === "global"}
             onClick={() => setActiveQueue("global")}
-            icon="🌐" label="Coda Globale" count={unassigned.length}
+            icon="🌐" label="Coda Globale" count={conteggio(unassigned.length)}
             isMobile={isMobile}
           />
         )}
         <QueueTab
           active={activeQueue === "personal"}
           onClick={() => setActiveQueue("personal")}
-          icon="👤" label="Coda Personale" count={personalQueue.length}
+          icon="👤" label="Coda Personale" count={conteggio(personalQueue.length)}
           isMobile={isMobile}
         />
         <QueueTab
           active={activeQueue === "overdue"}
           onClick={() => setActiveQueue("overdue")}
-          icon="📅" label="Scadute" count={overdueTasks.length}
+          icon="📅" label="Scadute" count={conteggio(overdueTasks.length)}
           isMobile={isMobile} dangerCount
         />
         {showUrgent && (
           <QueueTab
             active={activeQueue === "urgent"}
             onClick={() => setActiveQueue("urgent")}
-            icon="⚠️" label="Urgenti" count={urgentTasks.length}
+            icon="⚠️" label="Urgenti" count={conteggio(urgentTasks.length)}
             isMobile={isMobile} dangerCount
           />
         )}
@@ -227,22 +245,33 @@ export const Dashboard = memo(function Dashboard({ dispatch, onOpenChat, notices
 
       {/* ─── SEZIONE CODA FILTRATA ─── */}
       {activeQueue === "personal" && (
-        <PersonalQueue tasks={personalQueue} dispatch={dispatch} me={me} enableDateFilter={role === "driver"} />
+        <PersonalQueue tasks={personalQueue} dispatch={dispatch} me={me} enableDateFilter={role === "driver"} loading={caricando} />
       )}
       {activeQueue === "global" && showGlobalQueue && (
-        <UnassignedQueue tasks={unassigned} dispatch={dispatch} onTake={takeOwnership} uid={uid} />
+        <UnassignedQueue tasks={unassigned} dispatch={dispatch} onTake={takeOwnership} uid={uid} loading={caricando} />
       )}
       {activeQueue === "overdue" && (
-        <OverdueQueue tasks={overdueTasks} dispatch={dispatch} />
+        <OverdueQueue tasks={overdueTasks} dispatch={dispatch} loading={caricando} />
       )}
       {activeQueue === "urgent" && showUrgent && (
-        <UrgentQueue tasks={urgentCandidates} dispatch={dispatch} onOpenChat={onOpenChat} uid={uid} />
+        <UrgentQueue tasks={urgentCandidates} dispatch={dispatch} onOpenChat={onOpenChat} uid={uid} loading={caricando} />
       )}
 
       <div className="vd-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         {/* Upcoming deadlines */}
         <div style={{ background: "var(--card)", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
           <div className="playfair" style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>Scadenze Prossime</div>
+          {/* Il riquadro non aveva alcuno stato vuoto: a lista vuota restava un
+              box con solo il titolo, che si legge come "non c'è nulla in
+              scadenza" tanto durante il caricamento quanto dopo. Ora i due casi
+              si distinguono, ed entrambi lo dicono. */}
+          {caricando ? (
+            <SkeletonRows count={4} avatar={false} label="Caricamento delle scadenze" />
+          ) : next7.length === 0 ? (
+            <div style={{ color: "var(--text-muted)", fontSize: 13 }}>
+              Nessuna scadenza in programma.
+            </div>
+          ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {next7.map(t => (
               <SwipeActions key={t.id} task={t} dispatch={dispatch}>
@@ -261,11 +290,18 @@ export const Dashboard = memo(function Dashboard({ dispatch, onOpenChat, notices
               </SwipeActions>
             ))}
           </div>
+          )}
         </div>
 
         {/* Agent workload */}
         <div style={{ background: "var(--card)", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
           <div className="playfair" style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>Carico di Lavoro Team</div>
+          {/* Il team c'è già (arriva da AuthContext), i TASK no: senza questo
+              ramo il pannello mostrerebbe l'organico al completo con "0 task"
+              a testa — un carico di lavoro inventato, non un carico vuoto. */}
+          {caricando ? (
+            <SkeletonRows count={4} label="Caricamento del carico di lavoro" />
+          ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {agentWorkload.map(m => (
               <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -280,6 +316,7 @@ export const Dashboard = memo(function Dashboard({ dispatch, onOpenChat, notices
               </div>
             ))}
           </div>
+          )}
         </div>
       </div>
     </div>

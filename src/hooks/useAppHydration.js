@@ -9,10 +9,28 @@
 // dell'eco locale.
 //
 // Il chiamante passa `dispatch` (quello grezzo del reducer: qui non si scrive
-// nulla su DB, si legge soltanto) e riceve i due flag di caricamento che le
-// viste usano per mostrare gli scheletri invece di un vuoto ingannevole.
+// nulla su DB, si legge soltanto) e riceve i flag di caricamento che le viste
+// usano per mostrare gli scheletri invece di un vuoto ingannevole.
+//
+// ─── CRITICITÀ #6 · un flag per ENTITÀ, non solo per il CRM ────────────────
+// Il flag esisteva per i soli clienti (`crmLoading`). Tutte le altre entità
+// partivano da un array vuoto nel reducer e restavano tali finché il primo
+// fetch non tornava: nel frattempo la Dashboard mostrava "Nessuna task aperta
+// a tuo nome. Buon lavoro!", la bacheca "Nessun avviso", l'Archivio "Archivio
+// vuoto". Non è un dettaglio estetico — è l'app che afferma con sicurezza
+// qualcosa di falso su dati operativi, in una finestra in cui l'unica risposta
+// vera è "non lo so ancora", e chi legge (persona o agente) può agirci sopra.
+//
+// `loading` è un oggetto con una chiave per entità. Chiude a `false` sia sul
+// successo sia sull'ERRORE del primo fetch: uno scheletro che gira per sempre
+// è disonesto quanto un vuoto — dopo un errore il canale è il toast, e sotto
+// va mostrato lo stato reale (vuoto) di ciò che si è riusciti a caricare.
+//
+// Come già per `crmLoading`, il valore iniziale è `enabled` valutato al primo
+// render: senza login non c'è idratazione (si usano i mock) e i flag nascono
+// già chiusi.
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   Tasks as TasksAPI, Notices as NoticesAPI, Users as UsersAPI,
   Clients as ClientsAPI, Categories as CategoriesAPI, TaskThreads as TaskThreadsAPI,
@@ -33,7 +51,22 @@ const perTaskId = (righe, mapper) => {
   return out;
 };
 
+// Entità idratate qui, nell'ordine in cui compaiono sotto. Una lista e non
+// cinque `useState`: i consumatori leggono `loading.tasks`, e aggiungere
+// un'entità non richiede di ricordarsi di propagare un sesto flag.
+const ENTITA = ["tasks", "notices", "categories", "team", "clients"];
+
 export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
+  const [loading, setLoading] = useState(
+    () => Object.fromEntries(ENTITA.map(k => [k, enabled])));
+  // Idempotente e stabile: chiude il flag di un'entità la prima volta e poi
+  // non tocca più l'oggetto, così l'identità di `loading` non cambia a ogni
+  // reload realtime (le viste sono `memo`: un oggetto nuovo le sveglierebbe
+  // tutte per nulla).
+  const segnaCaricata = useCallback((entita) => {
+    setLoading(prev => (prev[entita] ? { ...prev, [entita]: false } : prev));
+  }, []);
+
   // Idratazione tasks + notices dal DB al primo mount in modalità Supabase,
   // più subscription realtime: ad ogni evento postgres ricarico la lista
   // intera (debounced) — semplice e robusto al duplicate dell'eco locale.
@@ -88,9 +121,11 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
     if (error) {
       console.error("[VoyageDesk] Tasks.list", error);
       onError(`Caricamento task fallito: ${error.message || ""}`);
+      segnaCaricata("tasks");
       return;
     }
     dispatch({ type: "SET_TASKS", payload: (data || []).map(fromDbTask) });
+    segnaCaricata("tasks");
   }, { enabled, deps: [enabled] });
 
   useDebouncedTableSubscription(["notices"], async (isCurrent) => {
@@ -99,9 +134,11 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
     if (error) {
       console.error("[VoyageDesk] Notices.list", error);
       onError(`Caricamento avvisi fallito: ${error.message || ""}`);
+      segnaCaricata("notices");
       return;
     }
     dispatch({ type: "SET_NOTICES", payload: (data || []).map(fromDbNotice) });
+    segnaCaricata("notices");
   }, { enabled, deps: [enabled] });
 
   // Idratazione + realtime categorie task (Admin → Categorie). Prima di questa
@@ -114,6 +151,7 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
     if (error) {
       console.error("[VoyageDesk] Categories.list", error);
       onError(`Caricamento categorie fallito: ${error.message || ""}`);
+      segnaCaricata("categories");
       return;
     }
     const categories = {};
@@ -122,6 +160,7 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
       categories[c.key] = { label: c.label, icon: c.icon, color: c.color, bg: c.bg };
     }
     dispatch({ type: "SET_CATEGORIES", payload: categories });
+    segnaCaricata("categories");
   }, { enabled, deps: [enabled] });
 
   // Refresh team live (sessione 29). Senza questo sub, l'admin invita o
@@ -155,6 +194,7 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
     if (!isCurrent()) return;
     if (error) {
       console.error("[VoyageDesk] Users.listAll", error);
+      segnaCaricata("team");
       return;
     }
     const myContacts = {
@@ -166,6 +206,7 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
       return u.id === currentUserId ? { ...base, ...myContacts } : base;
     });
     dispatch({ type: "SET_TEAM", payload: team });
+    segnaCaricata("team");
   }, {
     enabled,
     delay: 800,
@@ -184,10 +225,6 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
     },
   });
 
-  // Loading state CRM: true finché non completa il primo fetch da Supabase.
-  // Senza login parte già false (nessuna idratazione: si usano i dati mock).
-  const [crmLoading, setCrmLoading] = useState(enabled);
-
   // I clienti erano l'unica entità di dominio senza subscription: una
   // useEffect al mount e nient'altro. Chi creava un cliente lo vedeva subito
   // (aggiornamento ottimistico del reducer), CHIUNQUE ALTRO no — fino a un
@@ -201,7 +238,7 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
   // da deduplicare.
   //
   // Il gate `enabled` resta identico: senza login si usano i mock, quindi
-  // niente fetch e niente subscription. crmLoading si chiude qui perché
+  // niente fetch e niente subscription. Il flag si chiude qui perché
   // useDebouncedTableSubscription esegue l'idratazione iniziale al mount.
   useDebouncedTableSubscription(["clients"], async (isCurrent) => {
     const { data, error } = await ClientsAPI.list();
@@ -209,12 +246,15 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
     if (error) {
       console.error("[CRM] hydration", error);
       onError(`Caricamento clienti fallito: ${error.message || ""}`);
-      setCrmLoading(false);
+      segnaCaricata("clients");
       return;
     }
     dispatch({ type: "SET_CLIENTS", payload: (data || []).map(fromDbClient) });
-    setCrmLoading(false);
+    segnaCaricata("clients");
   }, { enabled, deps: [enabled] });
 
-  return { crmLoading };
+  // `crmLoading` resta esposto come alias di `loading.clients`: è il nome con
+  // cui ClientiView e i suoi test conoscono questo flag da sessione 23, e
+  // rinominarlo non aggiungerebbe nulla.
+  return { loading, crmLoading: loading.clients };
 }

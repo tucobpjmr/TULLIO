@@ -246,7 +246,8 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 |---|---|---|---|
 | Vista settimanale Calendario | ✅ | — | Completata in v0.7 (CalendarPlanner: week + week-full) |
 | Comprimi automaticamente Sidebar desktop tra 1024–1280px | ✅ | — | Auto-collapse a transizione di banda in `Sidebar` (guardia `prevBandRef`, non contrasta il toggle manuale) |
-| Skeleton loading su prime render | ✅ | — | `SkeletonCards` (shimmer) nelle viste Clienti/Fornitori/Pratiche durante l'idratazione CRM (`crmLoading`) |
+| Skeleton loading su prime render | ✅ | — | `SkeletonCards`/`SkeletonRows` (shimmer) su TUTTE le entità idratate: code e pannelli della Dashboard, bacheca, Archivio, Cestino, viste CRM. Un flag per entità da `useAppHydration` (`loading.tasks`…), `crmLoading` ne è l'alias (criticità #6) |
+| Rilevamento offline | ✅ | — | `useOnlineStatus` + `OfflineBanner`: striscia persistente sotto la topbar quando `navigator.onLine` è falso — i dati sono fermi e le scritture falliranno (criticità #7) |
 | Dark mode | ✅ | — | Token `--card`/`--heading` + blocco `[data-theme="dark"]`, toggle 🌙/☀️ in Topbar (solo-sessione). Shell resta brand-celeste. v2.8-dev |
 | Test responsive automatici (Playwright) | ⬜ | ⚪ | ⚙️**B** |
 

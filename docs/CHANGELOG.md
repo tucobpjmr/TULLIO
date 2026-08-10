@@ -1,5 +1,144 @@
 # CHANGELOG — VoyageDesk
 
+## Conferme, errori e validazione: chiude le criticità #8–#12
+
+> Stesso branch. Cinque rilievi di media/bassa priorità, tutti su cosa l'app
+> dice all'utente nei momenti in cui non sta mostrando dati.
+
+### 🗨️ Criticità #8 — via i modali bloccanti del browser (21 call site, 14 file)
+
+**`src/state/ConfirmContext.jsx`** (NEW) — `ConfirmProvider` + `useConfirm()`:
+`if (!(await conferma({ title, body, cta, danger }))) return;`.
+**`src/components/ui/ConfirmDialog.jsx`** (NEW) — la finestra, costruita su
+`ui/Modal.jsx` (portale, Esc, `role="dialog"`), `layer="modalFull"` perché una
+conferma nasce quasi sempre da un altro modale.
+
+Perché non era cosmetica: `confirm()` blocca il thread (niente render, niente
+timer, eventi realtime in coda), non è nella lingua né nel tema dell'app, non
+distingue un'azione distruttiva da una innocua e — soprattutto — è
+**sopprimibile**: con "impedisci a questa pagina di creare altre finestre di
+dialogo" ritorna `false` senza chiedere nulla, e da quel momento eliminare un
+allegato smette di funzionare in silenzio.
+
+- 17 `window.confirm` → `useConfirm()`, con `danger: true` sulle azioni
+  irreversibili (focus iniziale su **Annulla**: un Invio per abitudine non
+  svuota il cestino).
+- 4 `alert()` → toast: erano errori veri (agente con task assegnati, categoria
+  in uso, ripristino backup fallito, immagine oltre i 5 MB).
+- `AdminIOTab`: il secondo confirm elencava fino a dieci problemi del backup in
+  una finestra di sistema che non sa formattare né far scorrere il testo.
+
+### 🐞 Criticità #9 — lo stack non è per l'utente
+
+**`src/components/ui/ErrorDetails.jsx`** (NEW) — una policy sola per i **tre**
+boundary (globale, di vista, di overlay), che avevano tre riquadri copiati:
+in DEV messaggio + `componentStack`; in produzione un **codice di segnalazione**
+(`codiceSegnalazione()` in `lib/errorReporting.js`, formato `VD-<istante>-<4>`),
+col dettaglio completo in `console.error` accanto allo stesso codice.
+
+Rumore per chi legge, e una mappa della struttura interna dell'app mostrata a
+chiunque guardi lo schermo o riceva uno screenshot.
+
+### ✍️ Criticità #10 — validazione inline, con ARIA e focus
+
+**`src/lib/validators.js`** — da un solo controllo (l'email) a validatori
+componibili (`obbligatorio` / `emailValida` / `interpretabile`) + runner
+(`validaCampi`, `primoCampoInvalido`).
+**`src/components/ui/FieldError.jsx`** (NEW) — messaggio `role="alert"` sotto il
+campo + `ariaCampo(id, errore)` che sparge `aria-invalid` e `aria-describedby`
+insieme (una senza l'altra non serve).
+
+Applicata a `AddMovBox` (era un toast che nominava tre campi senza dire quale),
+`ClienteModal` e `ProfileEditor` (dove il nome mancante usciva **in silenzio**).
+I bottoni di salvataggio non sono più disabilitati dal campo mancante: un
+bottone spento non dice cosa manca. L'errore si spegne appena si tocca il campo.
+
+### ⏱️ Criticità #11 — `await` in un componente smontabile
+
+**`src/hooks/useIsMounted.js`** (NEW) — `if (!montato()) return;` dopo l'await,
+stesso contratto di `isCurrent()` in `useDebouncedTableSubscription`. Applicato a
+`ClienteModal` (dove `onSave` termina con `setModal(null)`, quindi lo smontaggio
+è l'esito NORMALE del salvataggio), `TaskAttachments` e `ClienteListePanel`.
+
+### 🔊 Criticità #12 — l'attesa era muta
+
+**`src/components/ui/LazyFallback.jsx`** — `role="status"` + `aria-live` + un
+testo visibile; il cerchio animato diventa `aria-hidden`. Uno spinner muto e una
+pagina rotta si assomigliano molto, e con uno screen reader non si distinguono.
+
+### ✅ Test
+
+29 nuovi (969 verdi in totale, 84 file):
+`confermeApp.test.jsx` (9), `validazioneInline.test.jsx` (11),
+`attesaEdErrori.test.jsx` (9). Riscritto `chatConvDelete.test.jsx`: non pilota
+più una spia su `window.confirm` ma clicca i pulsanti della finestra vera — un
+test più forte, perché verifica che la domanda a schermo sia leggibile e che i
+due pulsanti facciano due cose diverse.
+
+## Stati di attesa onesti: loading per tutte le entità + stato di rete (criticità #6 e #7)
+
+> Branch `claude/loading-states-offline-detection-lyu3gv`. Due difetti della
+> stessa famiglia: l'app affermava con sicurezza cose che non era in grado di
+> sapere. "Nessuna task in scadenza" mostrato mentre i dati stanno ancora
+> arrivando, e la stessa schermata mostrata identica quando la rete non c'è più.
+
+### ⏳ Criticità #6 — un flag di caricamento per ogni entità
+
+**`src/hooks/useAppHydration.js`**
+- Il flag esisteva per i soli clienti (`crmLoading`, sessione 23). Ora `loading`
+  è un oggetto con una chiave per entità — `tasks` / `notices` / `categories` /
+  `team` / `clients` — e `crmLoading` ne resta l'alias storico.
+- Ogni flag si chiude sia sul **successo** sia sull'**errore** del primo fetch:
+  uno scheletro perpetuo è disonesto quanto un vuoto dichiarato troppo presto.
+- L'identità dell'oggetto `loading` non cambia ai reload realtime (le viste sono
+  `memo`: un oggetto nuovo le sveglierebbe tutte per nulla).
+
+**`src/components/ui/SkeletonCards.jsx`** — nuovi `minWidth` (allinea la griglia
+dello scheletro a quella che sostituisce: 280px code, 240px bacheca, 340px CRM),
+`compact` (card di task, senza il blocco avatar) e `label` (`aria-label`).
+**`src/components/ui/SkeletonRows.jsx`** (NEW) — variante a righe per i pannelli
+in colonna della Dashboard.
+
+**Viste che smettono di dichiarare un vuoto che non conoscono:**
+- Le quattro code (`PersonalQueue` / `UnassignedQueue` / `OverdueQueue` /
+  `UrgentQueue`): scheletro al posto di "Buon lavoro!", "Tutti gli incarichi
+  hanno un proprietario", "Tutto in regola!", "Nessuna task in scadenza".
+- `Dashboard`: linguette a `…` invece di `0`, scheletro su "Scadenze Prossime"
+  (che non aveva alcuno stato vuoto: a lista vuota restava un box col solo
+  titolo) e su "Carico di Lavoro Team" (che mostrava l'organico al completo con
+  "0 task" a testa — un carico inventato, non un carico vuoto).
+- `NoticeBoard`, `Archive`, `Trash`: scheletro al posto di "Nessun avviso in
+  bacheca" / "Archivio vuoto" / "Cestino vuoto".
+- `CalendarPlanner`: riga di stato sopra la griglia — qui non c'è una lista da
+  sostituire, sono gli eventi a mancare, e un mese di celle vuote si legge come
+  "agenda libera".
+- Guardia comune `loading && dati.length === 0`: un reload realtime a dati già
+  presenti non nasconde nulla sotto uno scheletro.
+
+### 📡 Criticità #7 — rilevamento offline
+
+**`src/hooks/useOnlineStatus.js`** (NEW) — `navigator.onLine` come stato React,
+con riallineamento al mount (fra primo render ed effetto la rete può essere già
+caduta) e fallback a "online" dove il browser non espone il campo.
+**`src/components/shell/OfflineBanner.jsx`** (NEW) — striscia `--danger`
+persistente e non chiudibile sotto la topbar, sopra il banner di rollback admin.
+Dice entrambe le conseguenze: i dati sono fermi all'ultimo aggiornamento **e** le
+modifiche non verranno salvate. `role="status"` + `aria-live="assertive"`.
+
+Limite dichiarato: `navigator.onLine === false` è affidabile, `=== true` no
+(captive portal, DNS rotto, backend giù). Il banner non mente per eccesso, ma non
+copre quei casi: servirebbe un segnale applicativo (stato del canale realtime).
+
+### ✅ Test
+
+- `src/test/statiDiAttesa.test.jsx` (NEW, 10) — asserzioni in **negativo**: la
+  frase rassicurante NON deve comparire in caricamento, e deve tornare a
+  comparire quando il fetch è davvero tornato vuoto.
+- `src/test/idratazioneLoading.test.jsx` (NEW, 6) — i flag per entità, la
+  chiusura anche in errore, l'identità stabile di `loading`.
+- `src/test/offlineBanner.test.jsx` (NEW, 6) — comparsa/scomparsa sugli eventi,
+  rete già assente al mount, nessun falso allarme senza `navigator.onLine`.
+
 ## v3.2-dev — Block 4: Account Management (sessione 33 — 2026-06-21)
 
 > Branch `claude/pr-73-merge-preview-02y67z`. Base: `main` post-merge #74 (Block 3). Shell più chiara, presenza admin, cambio password, eliminazione account self-service.

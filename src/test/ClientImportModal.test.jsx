@@ -1,7 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, fireEvent, waitFor } from "@testing-library/react";
 import * as XLSX from "xlsx";
 import { ClientImportModal } from "../components/clients/ClientImportModal.jsx";
+import { ConfirmProvider } from "../state/ConfirmContext.jsx";
+
+// Criticità #8: chiudere con un file caricato e non importato chiede conferma
+// (era un window.confirm), e useConfirm() solleva fuori dal provider.
+const render = (ui) => rtlRender(<ConfirmProvider>{ui}</ConfirmProvider>);
 
 // Export sintetico nello stesso formato del gestionale legacy citato
 // dall'utente ("ExportAnagrafica"): righe di titolo/metadati vuote prima

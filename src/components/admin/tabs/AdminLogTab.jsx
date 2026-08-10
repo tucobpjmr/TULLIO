@@ -4,9 +4,11 @@
 import { useState } from "react";
 import { cardStyle, btnGhost, btnDanger } from "../adminStyles.js";
 import { downloadFile, escapeCSV } from "../adminExport.js";
+import { useConfirm } from "../../../state/ConfirmContext.jsx";
 
 // ─── ADMIN TAB: LOG ATTIVITÀ ───────────────────────────────────────────────
 export const AdminLogTab = ({ dispatch, activityLog = [] }) => {
+  const conferma = useConfirm();
   const [filter, setFilter] = useState("all");
 
   const groups = {
@@ -80,10 +82,13 @@ export const AdminLogTab = ({ dispatch, activityLog = [] }) => {
               ...btnGhost, opacity: list.length === 0 ? 0.5 : 1,
               cursor: list.length === 0 ? "not-allowed" : "pointer",
             }}>📄 Esporta CSV</button>
-            <button onClick={() => {
-              if (window.confirm("Svuotare il log attività? Non è reversibile.")) {
-                dispatch({ type: "CLEAR_ACTIVITY_LOG" });
-              }
+            <button onClick={async () => {
+              const ok = await conferma({
+                title: "Svuotare il log attività?",
+                body: "La cronologia delle azioni viene cancellata. L'operazione non è reversibile.",
+                cta: "Svuota", danger: true,
+              });
+              if (ok) dispatch({ type: "CLEAR_ACTIVITY_LOG" });
             }} style={btnDanger}>🔥 Svuota log</button>
           </div>
         )}

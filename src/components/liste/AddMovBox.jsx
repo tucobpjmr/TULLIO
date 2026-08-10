@@ -6,6 +6,21 @@ import { useEffect, useRef, useState } from "react";
 import { METODI, parseImporto, todayISO } from "../../lib/listeApi.js";
 import { useListeWrite } from "./listePersistence.js";
 import { SegnoSeg } from "./modals/SegnoSeg.jsx";
+import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
+import { validaCampi, obbligatorio, interpretabile, primoCampoInvalido } from "../../lib/validators.js";
+
+// Criticità #10 — le regole del riquadro, dichiarate una volta e fuori dal
+// componente perché sono costanti. `importo` si interpreta col SEGNO scelto
+// nel form, ed è il motivo per cui un validatore riceve anche gli altri
+// valori: "1.000,00" è valido o no a seconda del segno solo per il parser.
+const REGOLE = {
+  data: obbligatorio("Indica la data del movimento."),
+  desc: obbligatorio("La descrizione non può essere vuota."),
+  imp: interpretabile((v, f) => parseImporto(v, f.segno), "Importo non valido: usa una cifra come 1.250,00."),
+};
+// Ordine VISIVO dei campi: è quello che decide dove va il focus (vedi
+// primoCampoInvalido), e nel riquadro il tipo sta fra descrizione e importo.
+const ORDINE = ["data", "desc", "imp"];
 
 // Riquadro "Nuovo movimento": sta in cima al foglio e si apre col tasto ＋
 // della barra. In fondo alla pagina, su liste lunghe, richiedeva di scorrere
@@ -17,18 +32,39 @@ export function AddMovBox({ listaId, dispatch, onSaved, onClose, onBulk }) {
   const [imp, setImp] = useState("");
   const [metodo, setMetodo] = useState("");
   const [saving, setSaving] = useState(false);
+  // Criticità #10: un messaggio PER CAMPO, non un toast che li nomina tutti e
+  // tre e sparisce da solo lasciando il form identico a com'era.
+  const [errori, setErrori] = useState({});
   const descRef = useRef(null);
+  const dataRef = useRef(null);
+  const impRef = useRef(null);
+  const rifCampo = { data: dataRef, desc: descRef, imp: impRef };
   const esegui = useListeWrite(dispatch);
 
   useEffect(() => { descRef.current?.focus(); }, []);
 
+  // L'errore di un campo si spegne appena lo si tocca: tenerlo acceso mentre
+  // l'utente sta correggendo proprio quel campo è rumore, e la ri-validazione
+  // arriva comunque al prossimo invio.
+  const aggiorna = (campo, set) => (valore) => {
+    set(valore);
+    setErrori((prec) => (prec[campo] ? { ...prec, [campo]: undefined } : prec));
+  };
+
   const submit = async () => {
     if (saving) return;
-    const importo = parseImporto(imp, segno);
-    if (!data || !desc.trim() || importo === null) {
-      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "Compila data, descrizione e importo" } });
+    const valori = { data, desc, imp, segno };
+    const trovati = validaCampi(valori, REGOLE);
+    const primo = primoCampoInvalido(trovati, ORDINE);
+    if (primo) {
+      setErrori(trovati);
+      // Il focus sul primo campo sbagliato è metà del rimedio: senza, chi usa
+      // la tastiera resta sul bottone e deve ritrovare il campo da sé.
+      rifCampo[primo]?.current?.focus();
       return;
     }
+    setErrori({});
+    const importo = parseImporto(imp, segno);
     setSaving(true);
     const { ok } = await esegui("registraMovimento", {
       listaId, data, descrizione: desc.trim(), importo, metodo: metodo || null,
@@ -39,6 +75,7 @@ export function AddMovBox({ listaId, dispatch, onSaved, onClose, onBulk }) {
     // solo descrizione e importo, data e metodo si ripetono quasi sempre.
     setDesc("");
     setImp("");
+    setErrori({});
     await onSaved();
     descRef.current?.focus();
   };
@@ -52,11 +89,22 @@ export function AddMovBox({ listaId, dispatch, onSaved, onClose, onBulk }) {
       <div className="lv-form-grid">
         <div className="lv-field">
           <label htmlFor="mv-data">Data</label>
-          <input id="mv-data" type="date" value={data} onChange={(e) => setData(e.target.value)} />
+          <input
+            id="mv-data" type="date" ref={dataRef} value={data}
+            onChange={(e) => aggiorna("data", setData)(e.target.value)}
+            {...ariaCampo("mv-data-err", errori.data)}
+          />
+          <FieldError id="mv-data-err">{errori.data}</FieldError>
         </div>
         <div className="lv-field">
           <label htmlFor="mv-desc">Descrizione</label>
-          <input id="mv-desc" ref={descRef} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Es. BONIFICO DA ROSSI MARIO" />
+          <input
+            id="mv-desc" ref={descRef} value={desc}
+            onChange={(e) => aggiorna("desc", setDesc)(e.target.value)}
+            placeholder="Es. BONIFICO DA ROSSI MARIO"
+            {...ariaCampo("mv-desc-err", errori.desc)}
+          />
+          <FieldError id="mv-desc-err">{errori.desc}</FieldError>
         </div>
         <div className="lv-field">
           <label>Tipo</label>
@@ -64,7 +112,13 @@ export function AddMovBox({ listaId, dispatch, onSaved, onClose, onBulk }) {
         </div>
         <div className="lv-field">
           <label htmlFor="mv-imp">Importo €</label>
-          <input id="mv-imp" inputMode="decimal" value={imp} onChange={(e) => setImp(e.target.value)} placeholder="0,00" />
+          <input
+            id="mv-imp" inputMode="decimal" ref={impRef} value={imp}
+            onChange={(e) => aggiorna("imp", setImp)(e.target.value)}
+            placeholder="0,00"
+            {...ariaCampo("mv-imp-err", errori.imp)}
+          />
+          <FieldError id="mv-imp-err">{errori.imp}</FieldError>
         </div>
         <div className="lv-field">
           <label htmlFor="mv-met">Metodo</label>

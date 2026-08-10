@@ -34,6 +34,7 @@ import { ConversationList } from "./ConversationList.jsx";
 import { NewConversationView } from "./NewConversationView.jsx";
 import { ForwardPicker } from "./ForwardPicker.jsx";
 import { Z } from "../../styles/tokens.js";
+import { useConfirm } from "../../state/ConfirmContext.jsx";
 
 // Il badge dei non letti in VoyageDesk.jsx importa getUnreadCount da qui:
 // ri-esportato per non toccare i punti d'importazione esistenti.
@@ -41,6 +42,7 @@ export { getUnreadCount };
 
 
 export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, commands: commandsProp, markConversationRead, onToggleReaction, onDeleteConversation, intent, tasks, currentUserId, dispatch, presenceMap, messageTemplates = [], loading = false, myBusy = false, onToggleBusy }) => {
+  const conferma = useConfirm();
   const { isMobile } = useViewport();
   const { currentUserId: appUserId, getMember } = useAppData();
   // La prop ha la precedenza sul contesto: i test montano il pannello isolato
@@ -59,12 +61,15 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
   // Eliminazione conversazione/gruppo: conferma esplicita (azione irreversibile
   // per TUTTI i partecipanti: messaggi in cascade, allegati rimossi dallo
   // storage). Se la conv eliminata è quella aperta, si torna prima alla lista.
-  const handleDeleteConv = (conv) => {
+  const handleDeleteConv = async (conv) => {
     if (!onDeleteConversation || !conv) return;
     const label = getConversationName(conv, me, getMember);
-    const ok = window.confirm(conv.type === "group"
-      ? `Eliminare il gruppo "${label}"?\n\nTutti i messaggi e gli allegati verranno eliminati per tutti i partecipanti. Azione irreversibile.`
-      : `Eliminare la conversazione con ${label}?\n\nTutti i messaggi e gli allegati verranno eliminati per entrambi. Azione irreversibile.`);
+    const gruppo = conv.type === "group";
+    const ok = await conferma({
+      title: gruppo ? `Eliminare il gruppo "${label}"?` : `Eliminare la conversazione con ${label}?`,
+      body: `Tutti i messaggi e gli allegati verranno eliminati per ${gruppo ? "tutti i partecipanti" : "entrambi"}. Azione irreversibile.`,
+      cta: "Elimina", danger: true,
+    });
     if (!ok) return;
     if (activeConv?.id === conv.id) pd({ type: "BACK" });
     onDeleteConversation(conv.id);

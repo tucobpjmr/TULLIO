@@ -12,6 +12,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ListeAPI, eur, fmtDate, saldoClass } from "../../lib/listeApi.js";
 import { useListeWrite } from "./listePersistence.js";
 import { PERIOD_OPTIONS, filterByPeriod, thStyle, chipStyle } from "../views/archiveFilters.js";
+import { useConfirm } from "../../state/ConfirmContext.jsx";
 
 const SALDO_COLORS = { pos: "var(--success)", neg: "var(--danger)", zero: "var(--text-muted)" };
 
@@ -19,6 +20,7 @@ const SALDO_COLORS = { pos: "var(--success)", neg: "var(--danger)", zero: "var(-
 // Le liste non vivono nello state globale come i task (il modulo Liste le
 // fetcha sempre on-demand da Supabase): stesso pattern qui, con stato locale.
 export const ArchivedListe = ({ dispatch, isMobile }) => {
+  const conferma = useConfirm();
   const [liste, setListe] = useState([]);
   const [saldi, setSaldi] = useState({});
   const [loading, setLoading] = useState(true);
@@ -62,7 +64,12 @@ export const ArchivedListe = ({ dispatch, isMobile }) => {
   };
 
   const handleTrash = async (l) => {
-    if (!window.confirm(`Spostare la lista di "${l.clients?.name || "—"}" nel cestino?`)) return;
+    const confermato = await conferma({
+      title: "Spostare la lista nel cestino?",
+      body: `Lista di "${l.clients?.name || "—"}". Resterà recuperabile dal cestino delle liste.`,
+      cta: "Sposta nel cestino", danger: true,
+    });
+    if (!confermato) return;
     const { ok } = await esegui("cestinaLista", l.id);
     if (ok) load();
   };

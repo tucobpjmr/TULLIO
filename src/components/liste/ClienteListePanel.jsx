@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ListeAPI, eur, fmtDate, intestazioneLista, saldoClass } from "../../lib/listeApi.js";
 import { useListeWrite } from "./listePersistence.js";
+import { useIsMounted } from "../../hooks/useIsMounted.js";
 import { ListeStyles } from "./listeStyles.jsx";
 import { NuovaListaModal } from "./modals/NuovaListaModal.jsx";
 
@@ -19,12 +20,16 @@ export function ClienteListePanel({ cliente, dispatch }) {
   const [loadError, setLoadError] = useState(null);
   const [nuovaOpen, setNuovaOpen] = useState(false);
   const esegui = useListeWrite(dispatch);
+  const montato = useIsMounted();
 
   const load = useCallback(async () => {
     setLoadError(null);
     const [rListe, rSaldi] = await Promise.all([
       ListeAPI.listByClient(cliente.id), ListeAPI.saldiByClient(cliente.id),
     ]);
+    // Criticità #11: il pannello sta dentro la scheda cliente, che si chiude
+    // mentre le due query sono ancora in volo.
+    if (!montato()) return;
     const failed = [rListe, rSaldi].find((r) => r.error);
     if (failed) {
       console.error("[liste] scheda cliente", failed.error);
@@ -35,7 +40,7 @@ export function ClienteListePanel({ cliente, dispatch }) {
     setListe(rListe.data || []);
     setSaldi(Object.fromEntries((rSaldi.data || []).map((s) => [s.lista_id, s])));
     setLoading(false);
-  }, [cliente.id]);
+  }, [cliente.id, montato]);
 
   useEffect(() => { setLoading(true); load(); }, [load]);
 

@@ -10,10 +10,12 @@ import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { CategoryChip } from "../ui/CategoryChip.jsx";
 import { TaskCard } from "../tasks/TaskCard.jsx";
 import { LazyFallback } from "../ui/LazyFallback.jsx";
+import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { formatDate, getArchivedTasks } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useTasks } from "../../state/TasksContext.jsx";
 import { PERIOD_OPTIONS, filterByPeriod, thStyle, chipStyle } from "./archiveFilters.js";
+import { useConfirm } from "../../state/ConfirmContext.jsx";
 // La sezione "liste buoni viaggio" è del modulo Liste e viene montata per
 // composizione: questa vista non conosce il suo data layer. Chunk async per lo
 // stesso motivo di ClienteDetailPanel.jsx — porta con sé lib/listeApi.js.
@@ -25,7 +27,10 @@ const ArchivedListe = lazy(() =>
 // nulla, perché il genitore ri-renderizza a ogni azione (vedi
 // state/TasksContext.jsx). `dispatch` ha identità stabile, quindi il confronto
 // shallow riesce e il render si salta finché non cambiano davvero i task.
-export const Archive = memo(function Archive({ dispatch }) {
+// `loading` (criticità #6): "Archivio vuoto" e "archivio non ancora caricato"
+// sono due frasi diverse, e finora l'utente vedeva sempre la prima.
+export const Archive = memo(function Archive({ dispatch, loading = false }) {
+  const conferma = useConfirm();
   const { isMobile } = useViewport();
   const { categories, currentUserId, getVisibleTasks, canEditTask, canAccessListe } = useAppData();
   const tasks = useTasks();
@@ -54,6 +59,8 @@ export const Archive = memo(function Archive({ dispatch }) {
     return true;
   });
 
+  // "Sto ancora caricando e non ho ancora nulla": vedi Dashboard.jsx.
+  const caricando = loading && tasks.length === 0;
   const hasActiveFilter = category !== "all" || query.trim() || period !== "all";
   const resetFilters = () => { setCategory("all"); setQuery(""); setPeriod("all"); };
 
@@ -69,10 +76,13 @@ export const Archive = memo(function Archive({ dispatch }) {
     dispatch({ type: "UPDATE_TASK", payload: { id: task.id, status: "inprogress" } });
   };
 
-  const handleTrash = (task) => {
-    if (window.confirm(`Spostare "${task.title}" nel cestino?`)) {
-      dispatch({ type: "DELETE_TASK", payload: task.id });
-    }
+  const handleTrash = async (task) => {
+    const ok = await conferma({
+      title: "Spostare nel cestino?",
+      body: `"${task.title}" resterà recuperabile dal Cestino.`,
+      cta: "Sposta nel cestino", danger: true,
+    });
+    if (ok) dispatch({ type: "DELETE_TASK", payload: task.id });
   };
 
   // Categorie effettivamente presenti tra le task archiviate (per il filtro).
@@ -100,7 +110,9 @@ export const Archive = memo(function Archive({ dispatch }) {
       {showTaskTab ? (
         <>
           <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>
-            {archived.length === 0
+            {caricando
+              ? "Caricamento dell'archivio…"
+              : archived.length === 0
               ? "Nessuna task completata"
               : hasActiveFilter
                 ? `${visible.length} di ${archived.length} task — filtrate`
@@ -145,7 +157,9 @@ export const Archive = memo(function Archive({ dispatch }) {
           )}
 
           {/* Empty state */}
-          {archived.length === 0 ? (
+          {caricando ? (
+            <SkeletonCards count={4} label="Caricamento dell'archivio" />
+          ) : archived.length === 0 ? (
             <div style={{
               background: "var(--card)", borderRadius: 12, padding: "60px 20px",
               textAlign: "center", border: "1px solid var(--border)",

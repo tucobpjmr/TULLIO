@@ -10,7 +10,9 @@ import { formatDate, getTrashedTasks } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useTasks } from "../../state/TasksContext.jsx";
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";
+import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { Z } from "../../styles/tokens.js";
+import { useConfirm } from "../../state/ConfirmContext.jsx";
 
 const PERIOD_OPTIONS = [
   { key: "all",       label: "Tutti" },
@@ -45,7 +47,11 @@ const filterByPeriod = (tasks, period) => {
 // nulla, perché il genitore ri-renderizza a ogni azione (vedi
 // state/TasksContext.jsx). `dispatch` ha identità stabile, quindi il confronto
 // shallow riesce e il render si salta finché non cambiano davvero i task.
-export const Trash = memo(function Trash({ dispatch }) {
+// `loading` (criticità #6): un cestino "vuoto" mostrato prima del caricamento
+// è particolarmente insidioso — è la vista in cui si va a cercare qualcosa che
+// si crede eliminato per sbaglio, e la risposta sbagliata chiude la ricerca.
+export const Trash = memo(function Trash({ dispatch, loading = false }) {
+  const conferma = useConfirm();
   const { isMobile } = useViewport();
   const { categories, currentUserId, getAssignableTeam, canEditTask, getVisibleTasks } = useAppData();
   const tasks = useTasks();
@@ -65,6 +71,8 @@ export const Trash = memo(function Trash({ dispatch }) {
     .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt));
   const visible = filterByPeriod(trashed, period);
   const editableCount = trashed.filter(t => canEditTask(t, me)).length;
+  // "Sto ancora caricando e non ho ancora nulla": vedi Dashboard.jsx.
+  const caricando = loading && tasks.length === 0;
 
   const handleRestore = (task) => {
     if (!canEditTask(task, me)) {
@@ -82,23 +90,31 @@ export const Trash = memo(function Trash({ dispatch }) {
     setRestoring(null);
   };
 
-  const handlePurge = (task) => {
+  const handlePurge = async (task) => {
     if (!canEditTask(task, me)) {
       dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "Non puoi eliminare definitivamente questo task" } });
       return;
     }
-    if (window.confirm(`Eliminare definitivamente "${task.title}"?\n\nQuesta azione è irreversibile.`)) {
+    if (await conferma({
+      title: "Eliminare definitivamente?",
+      body: `"${task.title}" verrà rimosso per sempre. L'azione è irreversibile.`,
+      cta: "Elimina per sempre", danger: true,
+    })) {
       dispatch({ type: "PURGE_TASK", payload: task.id });
     }
   };
 
-  const handleEmpty = () => {
+  const handleEmpty = async () => {
     if (trashed.length === 0) return;
     if (editableCount === 0) {
       dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "Non hai permessi per svuotare il cestino" } });
       return;
     }
-    if (window.confirm(`Svuotare il cestino?\n\n${editableCount} task verranno eliminati definitivamente. Azione irreversibile.`)) {
+    if (await conferma({
+      title: "Svuotare il cestino?",
+      body: `${editableCount} task verranno eliminati definitivamente. Azione irreversibile.`,
+      cta: "Svuota il cestino", danger: true,
+    })) {
       dispatch({ type: "EMPTY_TRASH" });
     }
   };
@@ -114,7 +130,9 @@ export const Trash = memo(function Trash({ dispatch }) {
             🗑️ Cestino
           </div>
           <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
-            {trashed.length === 0
+            {caricando
+              ? "Caricamento del cestino…"
+              : trashed.length === 0
               ? "Nessun task nel cestino"
               : period !== "all"
                 ? `${visible.length} di ${trashed.length} task — filtrati per periodo`
@@ -155,7 +173,9 @@ export const Trash = memo(function Trash({ dispatch }) {
       )}
 
       {/* Empty state */}
-      {trashed.length === 0 ? (
+      {caricando ? (
+        <SkeletonCards count={4} label="Caricamento del cestino" />
+      ) : trashed.length === 0 ? (
         <div style={{
           background: "var(--card)", borderRadius: 12, padding: "60px 20px",
           textAlign: "center", border: "1px solid var(--border)",

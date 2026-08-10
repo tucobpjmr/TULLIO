@@ -6,10 +6,13 @@
 // resta fuori dal confine delle scritture dichiarato in eslint.config.js.
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useAppData } from "../../state/AppDataContext.jsx";
+import { useIsMounted } from "../../hooks/useIsMounted.js";
 import { TaskFiles } from "../../lib/api.js";
 import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit, sourceBadge, mediaKind } from "../../lib/fileUtils.js";
+import { useConfirm } from "../../state/ConfirmContext.jsx";
 
 export function TaskAttachments({ taskId, editable }) {
+  const conferma = useConfirm();
   const { currentUserId } = useAppData();
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,12 +24,17 @@ export function TaskAttachments({ taskId, editable }) {
   const [previewUrls, setPreviewUrls] = useState({});
   const inputRef = useRef(null);
 
+  // Criticità #11: lo slide-over che ospita questo pannello si chiude con un
+  // tap sull'overlay, e le risposte dello storage arrivano quando arrivano.
+  const montato = useIsMounted();
+
   const load = useCallback(async () => {
     setLoading(true);
     const { data, error: e } = await TaskFiles.listForTask(taskId);
+    if (!montato()) return;
     if (!e) setFiles(data || []);
     setLoading(false);
-  }, [taskId]);
+  }, [taskId, montato]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -41,6 +49,7 @@ export function TaskAttachments({ taskId, editable }) {
       }
       setUploading(true);
       const { data, error: e } = await TaskFiles.upload(f, taskId, { uploadedBy: currentUserId });
+      if (!montato()) return;
       setUploading(false);
       if (e) { setError(`Upload di "${f.name}" fallito: ${e.message || "errore"}`); continue; }
       if (data) setFiles(prev => [data, ...prev]);
@@ -55,7 +64,12 @@ export function TaskAttachments({ taskId, editable }) {
   };
 
   const handleRemove = async (file) => {
-    if (!window.confirm(`Eliminare "${file.file_name}"?`)) return;
+    const ok = await conferma({
+      title: "Eliminare l'allegato?",
+      body: `"${file.file_name}" verrà rimosso definitivamente dallo storage.`,
+      cta: "Elimina", danger: true,
+    });
+    if (!ok) return;
     const { error: e } = await TaskFiles.remove(file.id, file.file_url);
     if (e) setError("Eliminazione fallita");
     else {

@@ -17,15 +17,19 @@
 // bottom-nav restano vive e navigabili, e si torna alla Dashboard senza
 // ricaricare la pagina (quindi senza perdere sessione e stato in memoria).
 import React from 'react';
+import { codiceSegnalazione } from '../lib/errorReporting.js';
+import { ErrorDetails } from './ui/ErrorDetails.jsx';
 
 export class ViewErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { error: null, viewKey: props.viewKey };
+    this.state = { error: null, info: null, codice: null, viewKey: props.viewKey };
   }
 
   static getDerivedStateFromError(error) {
-    return { error };
+    // Criticità #9: il codice nasce col pannello e non a ogni render, così
+    // quello dettato dall'utente è quello scritto in console.
+    return { error, codice: codiceSegnalazione() };
   }
 
   // Cambiando vista il boundary si riarma da solo: senza questo, dopo un
@@ -33,17 +37,21 @@ export class ViewErrorBoundary extends React.Component {
   // perché React non rimonta il boundary al cambio di children.
   static getDerivedStateFromProps(props, state) {
     if (props.viewKey !== state.viewKey) {
-      return { error: null, viewKey: props.viewKey };
+      return { error: null, info: null, codice: null, viewKey: props.viewKey };
     }
     return null;
   }
 
   componentDidCatch(error, info) {
-    console.error(`[VoyageDesk] Errore nella vista "${this.props.viewKey}":`, error, info);
+    console.error(
+      `[VoyageDesk] Errore nella vista "${this.props.viewKey}" (${this.state.codice}):`,
+      error, info,
+    );
+    this.setState({ info });
   }
 
   render() {
-    const { error } = this.state;
+    const { error, info, codice } = this.state;
     if (!error) return this.props.children;
 
     return (
@@ -60,17 +68,9 @@ export class ViewErrorBoundary extends React.Component {
             margin: '0 0 16px', fontSize: 13.5, color: 'var(--text-muted)', lineHeight: 1.5,
           }}>
             Il resto di Tullio continua a funzionare: puoi tornare alla Dashboard
-            e riprendere da lì. Se il problema si ripete, segnala il testo qui sotto.
+            e riprendere da lì. Se il problema si ripete, segnala il codice qui sotto.
           </p>
-          <pre style={{
-            margin: '0 0 16px', padding: 12, borderRadius: 10,
-            background: 'var(--surface)', border: '1px solid var(--border)',
-            color: 'var(--danger, #b91c1c)', fontSize: 12, lineHeight: 1.45,
-            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-            maxHeight: 200, overflow: 'auto',
-          }}>
-            {String(error?.message || error)}
-          </pre>
+          <ErrorDetails error={error} info={info} codice={codice} />
           <button
             onClick={this.props.onReset}
             style={{

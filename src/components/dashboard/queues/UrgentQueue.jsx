@@ -10,6 +10,7 @@ import { formatDate, formatTime } from "../../../lib/taskUtils.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useOpenTask } from "./queueShared.js";
 import { QueueShell } from "./QueueShell.jsx";
+import { SkeletonCards } from "../../ui/SkeletonCards.jsx";
 
 // ─── URGENT QUEUE (tutte le task in scadenza <24h — visibile a non-driver) ──
 // Mostra sia le proprie task urgenti (editabili dal dettaglio) sia quelle
@@ -21,11 +22,15 @@ const URGENT_WINDOWS = [
   { h: 72, label: "Entro 72h" },
 ];
 
-export const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
+// `loading` (criticità #6): "Nessuna task in scadenza entro 24h" mostrato
+// mentre i dati stanno ancora arrivando è l'esempio da cui è nata questa
+// modifica — una scadenza imminente non vista è una scadenza mancata.
+export const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid, loading = false }) => {
   const { getMember, canEditTask } = useAppData();
   const [filterAgent, setFilterAgent] = useState(null);
   const [windowH, setWindowH] = useState(24);
   const openTask = useOpenTask(dispatch);
+  const caricando = loading && tasks.length === 0;
 
   // `tasks` arriva già limitato a 72h dal parent: qui restringo alla finestra
   // selezionata, poi (eventualmente) al singolo agente.
@@ -48,7 +53,7 @@ export const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
       accent="urgent"
       icon="⏱"
       title="Urgenti"
-      badge={`${visibleTasks.length}${filterAgent ? `/${inWindow.length}` : ""}`}
+      badge={caricando ? "…" : `${visibleTasks.length}${filterAgent ? `/${inWindow.length}` : ""}`}
     >
 
       {/* Selettore finestra temporale (24/48/72h) */}
@@ -79,7 +84,7 @@ export const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
                 background: on ? "rgba(255,255,255,0.25)" : "var(--surface2)",
                 borderRadius: 999, padding: "1px 6px", fontSize: 11,
                 color: on ? "#fff" : "var(--text-muted)",
-              }}>{n}</span>
+              }}>{caricando ? "…" : n}</span>
             </button>
           );
         })}
@@ -134,7 +139,9 @@ export const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid }) => {
         </div>
       )}
 
-      {visibleTasks.length === 0 ? (
+      {caricando ? (
+        <SkeletonCards count={2} minWidth={320} compact label="Caricamento delle task urgenti" />
+      ) : visibleTasks.length === 0 ? (
         <div style={{
           padding: "26px 20px", textAlign: "center", color: "var(--text-muted)",
           fontSize: 13, fontStyle: "italic",

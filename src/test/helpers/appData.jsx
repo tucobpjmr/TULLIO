@@ -23,6 +23,7 @@ import { render } from "@testing-library/react";
 import { AppDataProvider } from "../../state/AppDataContext.jsx";
 import { TasksProvider } from "../../state/TasksContext.jsx";
 import { ClientsProvider } from "../../state/ClientsContext.jsx";
+import { ConfirmProvider } from "../../state/ConfirmContext.jsx";
 import { INITIAL_TEAM } from "../../state/mockData.js";
 import { INITIAL_CATEGORIES } from "../../state/taskCategories.js";
 
@@ -48,7 +49,11 @@ export function withAppData(
     <AppDataProvider team={team} categories={categories} currentUserId={currentUserId}>
       <TasksProvider tasks={tasks}>
         <ClientsProvider clients={clients}>
-          {ui}
+          {/* Criticità #8: useConfirm() solleva fuori dal provider, come
+              useAppData(). Sta qui e non nei singoli test perché la conferma è
+              infrastruttura dell'app — un test che monta una vista non deve
+              sapere che quella vista, in fondo a un handler, chiede conferma. */}
+          <ConfirmProvider>{ui}</ConfirmProvider>
         </ClientsProvider>
       </TasksProvider>
     </AppDataProvider>

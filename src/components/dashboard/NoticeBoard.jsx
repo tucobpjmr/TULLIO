@@ -5,13 +5,20 @@ import { useViewport } from "../Viewport.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { NoticeEditorModal } from "../modals/NoticeEditorModal.jsx";
 import { MentionText } from "../ui/MentionText.jsx";
+import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { Z } from "../../styles/tokens.js";
+import { useConfirm } from "../../state/ConfirmContext.jsx";
 
 // v2.8: emoji disponibili per le reazioni rapide sui post-it.
 // Tenuto basso (6) per non rompere il layout del post-it. Stesso shape della chat.
 const NOTICE_REACTION_EMOJI = ["👍", "❤️", "🎉", "👀", "🔥", "✅"];
 
-export const NoticeBoard = ({ notices, dispatch }) => {
+// `loading` (criticità #6): la bacheca è il canale con cui l'agenzia comunica
+// "leggi questo prima di lavorare". Dire "Nessun avviso in bacheca" prima di
+// aver caricato gli avvisi invita a saltare esattamente ciò che non si è
+// ancora visto.
+export const NoticeBoard = ({ notices, dispatch, loading = false }) => {
+  const conferma = useConfirm();
   const { getMember, currentUserId } = useAppData();
   const [editing, setEditing] = useState(null); // null | { id?, text, color }
   const [creating, setCreating] = useState(false);
@@ -140,7 +147,11 @@ export const NoticeBoard = ({ notices, dispatch }) => {
       )}
 
       {/* Board */}
-      {sorted.length === 0 ? (
+      {loading && notices.length === 0 ? (
+        <div style={{ padding: "6px 4px" }}>
+          <SkeletonCards count={3} minWidth={240} compact label="Caricamento della bacheca" />
+        </div>
+      ) : sorted.length === 0 ? (
         <div style={{
           padding: "30px 20px", textAlign: "center", color: "#8b6f3a",
           fontSize: 13, fontStyle: "italic",
@@ -208,8 +219,8 @@ export const NoticeBoard = ({ notices, dispatch }) => {
                     style={noticeBtnStyle}
                   >✏️</button>
                   <button
-                    onClick={() => {
-                      if (window.confirm("Eliminare questo avviso?")) {
+                    onClick={async () => {
+                      if (await conferma({ title: "Eliminare questo avviso?", cta: "Elimina", danger: true })) {
                         dispatch({ type: "DELETE_NOTICE", payload: n.id });
                       }
                     }}

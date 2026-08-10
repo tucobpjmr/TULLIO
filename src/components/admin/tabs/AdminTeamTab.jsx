@@ -12,9 +12,11 @@ import { Users } from "../../../lib/api.js";
 import { AddTeamMemberModal } from "../../modals/AddTeamMemberModal.jsx";
 import { BulkInviteModal } from "../../modals/BulkInviteModal.jsx";
 import { ContactActions } from "../../ui/ContactActions.jsx";
+import { useConfirm } from "../../../state/ConfirmContext.jsx";
 
 // ─── ADMIN TAB: TEAM ───────────────────────────────────────────────────────
 export const AdminTeamTab = ({ dispatch }) => {
+  const conferma = useConfirm();
   const { isMobile } = useViewport();
   const { team } = useAppData();
   const tasks = useTasks();
@@ -203,14 +205,19 @@ export const AdminTeamTab = ({ dispatch }) => {
                   </button>
                 </>
               )}
-              <button onClick={() => {
+              <button onClick={async () => {
+                // Criticità #8: era `alert()` — un errore vero, quindi va nel
+                // canale degli errori veri, non in un modale del browser.
                 if (count > 0) {
-                  alert(`Impossibile rimuovere: l'agente ha ${count} task assegnati. Riassegnali prima di procedere.`);
+                  dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Impossibile rimuovere ${m.name}: ha ${count} task assegnati. Riassegnali prima di procedere.` } });
                   return;
                 }
-                if (window.confirm(`Rimuovere definitivamente "${m.name}"?`)) {
-                  dispatch({ type: "REMOVE_TEAM_MEMBER", payload: m.id });
-                }
+                const ok = await conferma({
+                  title: `Rimuovere "${m.name}"?`,
+                  body: "Il membro perde l'accesso a Tullio. L'operazione non è reversibile.",
+                  cta: "Rimuovi", danger: true,
+                });
+                if (ok) dispatch({ type: "REMOVE_TEAM_MEMBER", payload: m.id });
               }} style={btnDanger} title="Rimuovi">🗑️</button>
             </>
           )}

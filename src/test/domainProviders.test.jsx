@@ -46,6 +46,10 @@ const { getActiveTasks } = await import("../lib/taskUtils.js");
 const { AppDataProvider } = await import("../state/AppDataContext.jsx");
 const { TasksProvider, useTasks } = await import("../state/TasksContext.jsx");
 const { ClientsProvider, useClients } = await import("../state/ClientsContext.jsx");
+// Criticità #8: la Dashboard monta la bacheca, che chiede conferma prima di
+// eliminare un avviso. Il guscio del test replica quello dell'app, provider
+// compreso — se non lo facesse, misurerebbe un albero che non esiste.
+const { ConfirmProvider } = await import("../state/ConfirmContext.jsx");
 const { Dashboard } = await import("../components/dashboard/Dashboard.jsx");
 
 const TEAM = [{ id: "marco", name: "Marco", role: "admin", active: true, pending: false }];
@@ -146,8 +150,10 @@ describe("Viste — un'azione che non le riguarda non le fa ri-renderizzare", ()
       <AppDataProvider team={TEAM} categories={CATEGORIE} currentUserId="marco">
         <TasksProvider tasks={tasks}>
           <ClientsProvider clients={NESSUN_CLIENTE}>
-            <button onClick={() => setTick((n) => n + 1)}>azione non correlata {tick}</button>
-            <Dashboard dispatch={dispatch} notices={NESSUN_AVVISO} dashboardQueue={null} />
+            <ConfirmProvider>
+              <button onClick={() => setTick((n) => n + 1)}>azione non correlata {tick}</button>
+              <Dashboard dispatch={dispatch} notices={NESSUN_AVVISO} dashboardQueue={null} />
+            </ConfirmProvider>
           </ClientsProvider>
         </TasksProvider>
       </AppDataProvider>

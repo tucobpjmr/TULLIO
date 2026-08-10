@@ -11,6 +11,7 @@ import { DuplicateTab } from "./bulk/DuplicateTab.jsx";
 import { ImportTab } from "./bulk/ImportTab.jsx";
 import { TemplateTab } from "./bulk/TemplateTab.jsx";
 import { Modal } from "../ui/Modal.jsx";
+import { useConfirm } from "../../state/ConfirmContext.jsx";
 
 
 // Descrizione breve di ogni modalità: mostrata sotto le tab per orientare
@@ -24,6 +25,7 @@ const TAB_META = [
 
 // ─── BULK TASK CREATOR (modale principale) ─────────────────────────────────
 export const BulkTaskCreator = ({ existingTasks, onCreate, onClose, clients = [] }) => {
+  const conferma = useConfirm();
   const { isMobile } = useViewport();
   const [tab, setTab] = useState("manual");
   // Fase 2: si parte da una schermata di scelta ("Come vuoi creare i task?")
@@ -36,8 +38,15 @@ export const BulkTaskCreator = ({ existingTasks, onCreate, onClose, clients = []
   const [dirty, setDirty] = useState({});
   const markDirty = (id) => (v) => setDirty(d => (d[id] === v ? d : { ...d, [id]: v }));
   const anyDirty = Object.values(dirty).some(Boolean);
-  const requestClose = () => {
-    if (anyDirty && !window.confirm("Ci sono dati inseriti non ancora creati. Vuoi chiudere e perderli?")) return;
+  const requestClose = async () => {
+    if (anyDirty) {
+      const ok = await conferma({
+        title: "Chiudere senza creare?",
+        body: "Ci sono dati inseriti che non sono ancora stati trasformati in task: chiudendo vanno persi.",
+        cta: "Chiudi e perdi", danger: true,
+      });
+      if (!ok) return;
+    }
     onClose();
   };
 

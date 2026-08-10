@@ -10,8 +10,12 @@ import { PRIORITIES } from "../../../lib/taskConstants.js";
 import { formatDate, formatTime, isOverdue, isUrgent, getDayKey } from "../../../lib/taskUtils.js";
 import { QUEUE_SORT_OPTIONS, PRIO_ORDER, STATUS_ORDER, useOpenTask } from "./queueShared.js";
 import { QueueShell, FilterChip, FilterLabel, FilterRow } from "./QueueShell.jsx";
+import { SkeletonCards } from "../../ui/SkeletonCards.jsx";
 
-export const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false }) => {
+// `loading` (criticità #6): true finché il primo fetch dei task non è tornato.
+// Serve a NON dire "Buon lavoro!" a chi ha una coda piena che non è ancora
+// arrivata — la coda vuota e la coda ignota sono due cose diverse.
+export const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false, loading = false }) => {
   const [dateFilter, setDateFilter] = useState("all"); // "all" | "today" | "tomorrow" | "YYYY-MM-DD"
   const [sortBy, setSortBy] = useState("date"); // "date" | "priority" | "client" | "status"
   const openTask = useOpenTask(dispatch);
@@ -49,7 +53,11 @@ export const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false })
     if (!b.dueDate) return -1;
     return new Date(a.dueDate) - new Date(b.dueDate);
   });
-  const empty = filtered.length === 0;
+  // In caricamento solo se non c'è ancora NULLA da mostrare: un reload
+  // realtime a coda già popolata non deve far sparire i task sotto uno
+  // scheletro.
+  const caricando = loading && tasks.length === 0;
+  const empty = filtered.length === 0 && !caricando;
 
   const customDate = !["all", "today", "tomorrow"].includes(dateFilter) ? dateFilter : "";
   const chip = (key, label) => (
@@ -102,7 +110,9 @@ export const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false })
         </div>
       )}
 
-      {empty ? (
+      {caricando ? (
+        <SkeletonCards count={3} minWidth={280} compact label="Caricamento della coda personale" />
+      ) : empty ? (
         <div style={{
           padding: "14px 0 4px", display: "flex", alignItems: "center", gap: 10,
           color: "var(--text-muted)", fontSize: 13,

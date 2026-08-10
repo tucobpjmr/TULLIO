@@ -9,13 +9,18 @@ import { formatDate } from "../../../lib/taskUtils.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useOpenTask } from "./queueShared.js";
 import { QueueShell } from "./QueueShell.jsx";
+import { SkeletonCards } from "../../ui/SkeletonCards.jsx";
 
 // ─── OVERDUE QUEUE (task scaduti visibili) ────────────────────────────────
-export const OverdueQueue = ({ tasks, dispatch }) => {
+// `loading` (criticità #6): "Tutto in regola!" su zero task caricati è la
+// rassicurazione più pericolosa dell'app — è esattamente la coda che esiste
+// per non far passare inosservato ciò che è già in ritardo.
+export const OverdueQueue = ({ tasks, dispatch, loading = false }) => {
   const { getMember } = useAppData();
   const [filterAssignee, setFilterAssignee] = useState(null);
   const openTask = useOpenTask(dispatch);
-  const empty = tasks.length === 0;
+  const caricando = loading && tasks.length === 0;
+  const empty = tasks.length === 0 && !caricando;
 
   const presentAssignees = Array.from(new Set(
     tasks.flatMap(t => t.assignees || [])
@@ -30,7 +35,7 @@ export const OverdueQueue = ({ tasks, dispatch }) => {
       icon="📅"
       title="Task scadute"
       tight={empty}
-      badge={empty ? null : (filterAssignee ? `${visible.length}/${tasks.length}` : tasks.length)}
+      badge={caricando ? "…" : empty ? null : (filterAssignee ? `${visible.length}/${tasks.length}` : tasks.length)}
     >
 
       {/* Filtro assegnatario — solo se più di un assegnatario presente */}
@@ -81,7 +86,9 @@ export const OverdueQueue = ({ tasks, dispatch }) => {
         </div>
       )}
 
-      {empty ? (
+      {caricando ? (
+        <SkeletonCards count={3} minWidth={280} compact label="Caricamento delle task scadute" />
+      ) : empty ? (
         <div style={{
           padding: "14px 0 4px", display: "flex", alignItems: "center", gap: 10,
           color: "var(--text-muted)", fontSize: 13,

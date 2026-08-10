@@ -1,10 +1,16 @@
 // Eliminazione conversazioni/gruppi dalla chat.
-// Il bottone 🗑 (lista e header conversazione) chiede conferma via
-// window.confirm e delega a onDeleteConversation(convId); l'annullamento non
-// deve produrre alcuna chiamata. Se la conv eliminata è quella aperta, si
-// torna alla lista.
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { screen, fireEvent } from "@testing-library/react";
+// Il bottone 🗑 (lista e header conversazione) chiede conferma e delega a
+// onDeleteConversation(convId); l'annullamento non deve produrre alcuna
+// chiamata. Se la conv eliminata è quella aperta, si torna alla lista.
+//
+// Criticità #8: la conferma era `window.confirm`, e questi test la pilotavano
+// con una spia su window. Ora è la finestra dell'app (useConfirm), quindi il
+// test fa quello che fa l'utente — clicca "Elimina" o "Annulla". È un test
+// PIÙ forte di prima: prima verificava che venisse chiesto qualcosa al
+// browser, ora che a schermo compaia una domanda leggibile e che i due
+// pulsanti facciano due cose diverse.
+import { describe, it, expect, vi } from "vitest";
+import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { renderWithAppData, DEMO_APP_CTX } from "./helpers/appData.jsx";
 import { ChatPanel } from "../components/chat/ChatPanel.jsx";
 
@@ -62,39 +68,50 @@ function renderPanel({ onDeleteConversation }) {
   );
 }
 
-let confirmSpy;
-beforeEach(() => {
-  confirmSpy = vi.spyOn(window, "confirm");
-});
-afterEach(() => {
-  confirmSpy.mockRestore();
-});
+// La finestra di conferma è un <dialog> dell'app: si risponde cliccando.
+const rispondi = async (etichetta) => {
+  const dialogo = await screen.findByRole("dialog");
+  fireEvent.click(within(dialogo).getByRole("button", { name: etichetta }));
+};
 
 describe("eliminazione conversazioni/gruppi", () => {
-  it("lista: 🗑 con conferma chiama onDeleteConversation con l'id", () => {
-    confirmSpy.mockReturnValue(true);
+  it("lista: 🗑 con conferma chiama onDeleteConversation con l'id", async () => {
     const onDelete = vi.fn();
     renderPanel({ onDeleteConversation: onDelete });
 
     fireEvent.click(screen.getByTitle("Elimina gruppo"));
 
-    expect(confirmSpy).toHaveBeenCalledTimes(1);
-    expect(confirmSpy.mock.calls[0][0]).toContain('Eliminare il gruppo "Gruppo QA"?');
-    expect(onDelete).toHaveBeenCalledWith(GROUP.id);
+    // La domanda è a schermo, in italiano, e nomina il gruppo: è quello che
+    // un window.confirm non poteva garantire (lingua e forma erano del browser).
+    expect(await screen.findByText('Eliminare il gruppo "Gruppo QA"?')).toBeTruthy();
+    await rispondi("Elimina");
+    await waitFor(() => expect(onDelete).toHaveBeenCalledWith(GROUP.id));
   });
 
-  it("lista: annullando la conferma non elimina nulla", () => {
-    confirmSpy.mockReturnValue(false);
+  it("lista: annullando la conferma non elimina nulla", async () => {
     const onDelete = vi.fn();
     renderPanel({ onDeleteConversation: onDelete });
 
     fireEvent.click(screen.getByTitle("Elimina gruppo"));
+    await rispondi("Annulla");
 
     expect(onDelete).not.toHaveBeenCalled();
+    // E la finestra si chiude: una conferma annullata non lascia residui.
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("su un'azione irreversibile il focus parte da Annulla, non da Elimina", async () => {
+    // Un Invio premuto per abitudine non deve cancellare la conversazione di
+    // qualcun altro: `danger` sposta il focus iniziale sull'uscita sicura.
+    renderPanel({ onDeleteConversation: vi.fn() });
+    fireEvent.click(screen.getByTitle("Elimina gruppo"));
+
+    const dialogo = await screen.findByRole("dialog");
+    await waitFor(() =>
+      expect(document.activeElement).toBe(within(dialogo).getByRole("button", { name: "Annulla" })));
   });
 
   it("conversazione aperta: 🗑 in header elimina e torna alla lista", async () => {
-    confirmSpy.mockReturnValue(true);
     const onDelete = vi.fn();
     renderPanel({ onDeleteConversation: onDelete });
 
@@ -102,8 +119,9 @@ describe("eliminazione conversazioni/gruppi", () => {
     fireEvent.click(screen.getByText("Gruppo QA"));
     // Header conversazione: bottone elimina
     fireEvent.click(screen.getByTitle("Elimina gruppo"));
+    await rispondi("Elimina");
 
-    expect(onDelete).toHaveBeenCalledWith(GROUP.id);
+    await waitFor(() => expect(onDelete).toHaveBeenCalledWith(GROUP.id));
     // Tornati alla lista conversazioni
     expect(await screen.findByPlaceholderText("Cerca conversazione...")).toBeTruthy();
   });

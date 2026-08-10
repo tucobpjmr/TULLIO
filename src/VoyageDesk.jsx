@@ -11,6 +11,7 @@ import { reducer, makeInitialState } from "./state/reducer.js";
 import { AppDataProvider } from "./state/AppDataContext.jsx";
 import { TasksProvider } from "./state/TasksContext.jsx";
 import { ClientsProvider } from "./state/ClientsContext.jsx";
+import { ConfirmProvider } from "./state/ConfirmContext.jsx";
 import { demoState } from "./state/demoState.js";
 
 // ── Hook di dominio ────────────────────────────────────────────────────────
@@ -37,6 +38,7 @@ import { Topbar } from "./components/shell/Topbar.jsx";
 import { Sidebar, BottomNav } from "./components/shell/Sidebar.jsx";
 import { FAB } from "./components/shell/FAB.jsx";
 import { AdminRollbackBanner } from "./components/shell/AdminRollbackBanner.jsx";
+import { OfflineBanner } from "./components/shell/OfflineBanner.jsx";
 
 // ── Viste ──────────────────────────────────────────────────────────────────
 // Dashboard e ClientiView restano eager: sono le due viste d'ingresso più
@@ -143,7 +145,11 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // la funzione di deregistrazione ritornata da registraSinkErrori.
   useEffect(() => registraSinkErrori(showError), [showError]);
 
-  const { crmLoading } = useAppHydration({
+  // `loading` porta un flag per ENTITÀ (criticità #6): finché il primo fetch
+  // di una di esse non è tornato, le viste che la mostrano devono dire "sto
+  // caricando" e non "non c'è niente". `crmLoading` è l'alias storico di
+  // `loading.clients`.
+  const { loading, crmLoading } = useAppHydration({
     enabled: useSupabase,
     currentUserId: initialCurrentUserId,
     dispatch: rawDispatch,
@@ -265,11 +271,11 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // provider da solo non basta).
   const renderView = () => {
     switch (state.activeView) {
-      case "dashboard":  return <Dashboard dispatch={dispatch} onOpenChat={openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} />;
-      case "calendar":   return <CalendarPlanner dispatch={dispatch} />;
+      case "dashboard":  return <Dashboard dispatch={dispatch} onOpenChat={openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={loading.tasks} noticesLoading={loading.notices} />;
+      case "calendar":   return <CalendarPlanner dispatch={dispatch} loading={loading.tasks} />;
       case "clienti":    return <ClientiView dispatch={dispatch} loading={crmLoading} />;
-      case "archivio":   return <Archive dispatch={dispatch} />;
-      case "trash":      return <Trash dispatch={dispatch} />;
+      case "archivio":   return <Archive dispatch={dispatch} loading={loading.tasks} />;
+      case "trash":      return <Trash dispatch={dispatch} loading={loading.tasks} />;
       // Il guard qui è ridondante per costruzione — il reducer rifiuta
       // SET_VIEW → "admin" per i non-admin (reducer.js:95) e riporta la vista
       // a dashboard al cambio utente (reducer.js:145) — ma è la ridondanza che
@@ -281,9 +287,9 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       case "admin":      return canAccessAdmin(state.team, state.currentUserId)
         ? <AdminView dispatch={dispatch} agencyName={state.agencyName} notices={state.notices}
                      activityLog={state.activityLog} messageTemplates={state.messageTemplates} />
-        : <Dashboard dispatch={dispatch} onOpenChat={openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} />;
+        : <Dashboard dispatch={dispatch} onOpenChat={openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={loading.tasks} noticesLoading={loading.notices} />;
       case "liste":      return <ListeViaggio dispatch={dispatch} listeTarget={state.listeTarget} />;
-      default:           return <Dashboard dispatch={dispatch} onOpenChat={openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} />;
+      default:           return <Dashboard dispatch={dispatch} onOpenChat={openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={loading.tasks} noticesLoading={loading.notices} />;
     }
   };
 
@@ -303,6 +309,11 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
          invalida le viste che guardano i task (vedi state/ClientsContext.jsx). */}
      <TasksProvider tasks={state.tasks}>
       <ClientsProvider clients={state.clients}>
+      {/* Criticità #8: le conferme distruttive passano da qui — `useConfirm()`
+          al posto dei `window.confirm` bloccanti. Sta dentro i provider di
+          dominio perché la finestra di conferma è parte dell'app, non della
+          shell del browser. */}
+      <ConfirmProvider>
       <GlobalStyles />
       {/* vd-app-shell = height 100dvh con fallback 100vh (vedi FontLoader): su iOS
           "vh" è il viewport GRANDE, con la barra del browser visibile il guscio
@@ -319,6 +330,12 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           onOpenTask={openTaskById}
           onOpenChat={openConversationById}
         />
+        {/* Banner offline (criticità #7). Sopra a tutto il resto perché è la
+            condizione che invalida tutto il resto: senza rete i numeri a
+            schermo sono l'ultimo stato noto, non lo stato attuale, e ogni
+            salvataggio fallirà. Il componente si nasconde da sé quando la rete
+            c'è, quindi non ha un guard qui. */}
+        <OfflineBanner />
         {/* Il banner esiste solo per il cambio-utente demo, che il reducer
             accetta solo in DEV (reducer.js, case SET_CURRENT_USER). In
             produzione `import.meta.env.DEV` è la costante `false`: il ramo
@@ -423,6 +440,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         {/* Toast */}
         <ToastStack toasts={state.toasts} dispatch={dispatch} />
       </div>
+      </ConfirmProvider>
       </ClientsProvider>
      </TasksProvider>
     </AppDataProvider>

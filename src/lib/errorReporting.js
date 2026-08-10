@@ -45,6 +45,24 @@
 // UI possibile è comunque l'ErrorBoundary di main.jsx.
 let sink = null;
 
+// ─── CODICE DI SEGNALAZIONE (criticità #9) ─────────────────────────────────
+// Quando un boundary scatta, l'utente ha bisogno di qualcosa da COMUNICARE, e
+// gli sviluppatori di qualcosa da CERCARE. Finora quel qualcosa era lo stack
+// dei componenti stampato a schermo: illeggibile per il primo (rumore) e
+// inutile al secondo (nessuno lo trascrive davvero), e per giunta racconta a
+// chiunque guardi lo schermo com'è fatta l'app dentro.
+//
+// Un codice breve fa entrambe le cose meglio: l'utente lo detta al telefono,
+// e la stessa stringa compare accanto all'errore completo in console — che è
+// dove il dettaglio va, non a schermo. Il formato è deliberatamente parlante:
+// `VD-<istante in base36>-<4 caratteri casuali>`, quindi ordinabile nel tempo
+// e senza collisioni pratiche fra sessioni diverse.
+export function codiceSegnalazione() {
+  const istante = Date.now().toString(36).toUpperCase();
+  const casuale = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `VD-${istante}-${casuale}`;
+}
+
 export function registraSinkErrori(fn) {
   sink = fn;
   // Ritorna la funzione di deregistrazione, così il chiamante può usarla come

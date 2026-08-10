@@ -11,6 +11,7 @@ import { useAuth } from "../../auth/AuthContext.jsx";
 import { getPushSupport, getPushState, enablePush, disablePush, syncPushSubscription, sendTestPush } from "../../lib/push.js";
 import { NOTIF_ICONS, NOTIF_CATEGORIES, notifTitle, notifSubtitle, notifTime, notifTarget } from "../../lib/notifUtils.js";
 import { Z } from "../../styles/tokens.js";
+import { useConfirm } from "../../state/ConfirmContext.jsx";
 
 // ─── NOTIFICATIONS PANEL ───────────────────────────────────────────────────
 // Helpers per il rendering delle notifiche reali (Step F): icona, titolo,
@@ -170,6 +171,7 @@ const PushToggle = ({ dispatch }) => {
 };
 
 export const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMarkAllRead, onRemoveNotification, onClearAllNotifications, onOpenTask, onOpenChat }) => {
+  const conferma = useConfirm();
   const { isMobile } = useViewport();
   const [filter, setFilter] = useState("all"); // all | unread | task | mention | chat
   // `notifications` è sempre un array a runtime (Topbar lo costruisce con
@@ -252,10 +254,13 @@ export const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead
           )}
           {isReal && list.length > 0 && (
             <button
-              onClick={() => {
-                if (window.confirm(`Cancellare tutte le notifiche?\n\n${list.length} ${list.length === 1 ? "notifica verrà eliminata" : "notifiche verranno eliminate"}. Azione irreversibile.`)) {
-                  onClearAllNotifications?.();
-                }
+              onClick={async () => {
+                const ok = await conferma({
+                  title: "Cancellare tutte le notifiche?",
+                  body: `${list.length} ${list.length === 1 ? "notifica verrà eliminata" : "notifiche verranno eliminate"}. Azione irreversibile.`,
+                  cta: "Cancella tutte", danger: true,
+                });
+                if (ok) onClearAllNotifications?.();
               }}
               title="Cancella tutte le notifiche"
               aria-label="Cancella tutte le notifiche"

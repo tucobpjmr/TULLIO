@@ -11,6 +11,7 @@ import { useViewport } from "../Viewport.jsx";
 import { readFirstSheetRowsAutoHeader, MAX_IMPORT_BYTES } from "../../lib/xlsx.js";
 import { formatFileSize } from "../../lib/fileUtils.js";
 import { Modal } from "../ui/Modal.jsx";
+import { useConfirm } from "../../state/ConfirmContext.jsx";
 
 const inputStyle = {
   width: "100%", border: "1px solid var(--border)", borderRadius: 6,
@@ -93,6 +94,7 @@ const normName = (s) => String(s || "")
   .replace(/\s+/g, " ").trim();
 
 export const ClientImportModal = ({ existingClients = [], onImport, onClose }) => {
+  const conferma = useConfirm();
   const { isMobile } = useViewport();
   const [fileName, setFileName] = useState("");
   const [rows, setRows] = useState([]);
@@ -243,8 +245,15 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
   ];
 
   const isDirty = rows.length > 0;
-  const requestClose = () => {
-    if (isDirty && !window.confirm("Il file caricato non è ancora stato importato. Vuoi chiudere e perderlo?")) return;
+  const requestClose = async () => {
+    if (isDirty) {
+      const ok = await conferma({
+        title: "Chiudere senza importare?",
+        body: "Il file caricato non è ancora stato importato: chiudendo va perso.",
+        cta: "Chiudi e perdi", danger: true,
+      });
+      if (!ok) return;
+    }
     onClose();
   };
 

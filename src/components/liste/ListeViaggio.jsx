@@ -22,8 +22,8 @@ import {
 import { useListeWrite } from "./listePersistence.js";
 import { matchTermini, terminiRicerca } from "../../lib/searchUtils.js";
 import { ListeStyles } from "./listeStyles.jsx";
+import { useConfirm } from "../../state/ConfirmContext.jsx";
 import { ListaDetail } from "./ListaDetail.jsx";
-import { ConfirmModal } from "./modals/ConfirmModal.jsx";
 import { ImportaBackupConfirmModal } from "./modals/ImportaBackupConfirmModal.jsx";
 import { NuovaListaModal } from "./modals/NuovaListaModal.jsx";
 import { ResetTotaleModal } from "./modals/ResetTotaleModal.jsx";
@@ -179,7 +179,7 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
   const [resetOpen, setResetOpen] = useState(false);
   const [pendingImport, setPendingImport] = useState(null); // { payload, nL, nM }
   const [importProgress, setImportProgress] = useState(null); // { done, total }
-  const [confirm, setConfirm] = useState(null); // { title, body, cta, danger, onOk }
+  const conferma = useConfirm();
   const fileInputRef = useRef(null);
 
   // L'anagrafica clienti e il team sono già idratati nello state globale
@@ -312,17 +312,16 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
     if (ok) await loadHome();
   };
 
-  const eliminaDefinitiva = (l) => setConfirm({
-    title: "Eliminare definitivamente?",
-    body: `"${l.clients?.name || "questa lista"}" e tutti i suoi movimenti e storico verranno eliminati. L'operazione NON è reversibile.`,
-    cta: "Elimina definitivamente",
-    danger: true,
-    onOk: async () => {
-      setConfirm(null);
-      const { ok } = await esegui("eliminaListaDefinitivamente", l.id);
-      if (ok) await loadHome();
-    },
-  });
+  const eliminaDefinitiva = async (l) => {
+    if (!(await conferma({
+      title: "Eliminare definitivamente?",
+      body: `"${l.clients?.name || "questa lista"}" e tutti i suoi movimenti e storico verranno eliminati. L'operazione NON è reversibile.`,
+      cta: "Elimina definitivamente",
+      danger: true,
+    }))) return;
+    const { ok } = await esegui("eliminaListaDefinitivamente", l.id);
+    if (ok) await loadHome();
+  };
 
   // ── Strumenti dati: backup JSON, ripristino da backup, reset totale ──
   const scaricaBackup = async () => {
@@ -632,17 +631,6 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
             <ResetTotaleModal
               onClose={() => setResetOpen(false)}
               onSave={{ run: confermaReset, onError: toastError }}
-            />
-          )}
-
-          {confirm && (
-            <ConfirmModal
-              title={confirm.title}
-              body={confirm.body}
-              cta={confirm.cta}
-              danger={confirm.danger}
-              onCancel={() => setConfirm(null)}
-              onConfirm={confirm.onOk}
             />
           )}
         </div>

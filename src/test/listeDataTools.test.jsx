@@ -202,7 +202,9 @@ describe("ListeViaggio — cestino: eliminazione definitiva", () => {
     fireEvent.click(screen.getByRole("button", { name: "Elimina definitivamente" }));
     expect(ListeAPIMock.eliminaDefinitiva).not.toHaveBeenCalled();
 
-    const confirmDialog = screen.getByText("Eliminare definitivamente?").closest(".lv-modal");
+    // ST-5: la conferma passa da useConfirm(), non più dal ConfirmModal locale
+    // del modulo Liste — il markup è quello di ui/Modal.jsx (role="dialog").
+    const confirmDialog = screen.getByText("Eliminare definitivamente?").closest('[role="dialog"]');
     expect(confirmDialog).toBeTruthy();
     fireEvent.click(within(confirmDialog).getByRole("button", { name: "Elimina definitivamente" }));
     await waitFor(() => expect(ListeAPIMock.eliminaDefinitiva).toHaveBeenCalledWith("lista-cestino"));

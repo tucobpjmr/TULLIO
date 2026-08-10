@@ -92,8 +92,8 @@ scavalchino un permesso o rompano una funzionalità.
 | ST-1 | ~~Alta~~ ✔ **risolto** | Render / invariante | Il `memo` della Dashboard è annullato da `openChatTo`, callback non memoizzata: 🔬 1 render completo per carattere digitato | `VoyageDesk.jsx:211,274` |
 | ST-2 | ~~Alta~~ ✔ **risolto** (parte 1 di 2) | Architettura | Il guscio riceve `state` intero e non è `memo`; la causa a monte è lo **stato effimero di UI dentro il reducer globale** (6 fette) | `VoyageDesk.jsx:322,353,376` · `state/reducer.js:662-665,752-757` |
 | ST-3 | ~~Alta~~ ✔ **risolto** | Scalabilità | `Clients.list()` senza `.range()` con ✅ 818 righe: troncamento silenzioso al cap PostgREST | `lib/api.js:605-606` |
-| ST-4 | Media | Scalabilità | La chat ricarica **tutti** i messaggi a ogni evento (`listAll(2000)`), e oltre 2000 la cronologia sparisce in silenzio | `hooks/useChatData.js:62-66` · `lib/api.js:351` |
-| ST-5 | Media | Duplicazione / a11y | Due modi di chiedere conferma **dentro lo stesso modulo**; 12 modali del modulo Liste senza `role="dialog"`, `aria-modal`, blocco scroll | `liste/modals/ConfirmModal.jsx` · `liste/modals/LvOverlay.jsx` |
+| ST-4 | ~~Media~~ ✔ **risolto** (parte 1 di 2) | Scalabilità | La chat ricaricava **tutti** i messaggi a ogni evento, e su `conversations` anche l'elenco intero senza motivo | `hooks/useChatData.js:71-99` · `lib/api.js:351` |
+| ST-5 | ~~Media~~ ✔ **risolto** | Duplicazione / a11y | Due modi di chiedere conferma **dentro lo stesso modulo**; 12 modali del modulo Liste senza `role="dialog"`, `aria-modal`, blocco scroll | `liste/modals/LvOverlay.jsx` · `liste/ListaDetail.jsx` · `liste/ListeViaggio.jsx` |
 | ST-6 | Media | Organizzazione | `lib/listeApi.js` (530 righe) è il data layer **privato** del modulo Liste ma vive nel layer condiviso: 12 import interni, 0 esterni | `lib/listeApi.js` |
 | ST-7 | Media | Complessità | Due componenti con una macchina a stati di modali scritta a mano: 14 e 18 `useState` | `liste/ListeViaggio.jsx:167-181` · `modals/ProfileEditor.jsx` |
 | ST-8 | Media | Duplicazione | Formattazione date: 🔬 16 call site in 9 file, 6 forme diverse, nessun modulo comune | `lib/taskUtils.js:14` · `lib/listeApi.js:416` · +7 file |
@@ -105,12 +105,13 @@ scavalchino un permesso o rompano una funzionalità.
 | ST-14 | Bassa | Config | `leaked_password_protection` ancora disabilitata (✅ riconfermato oggi sull'advisor) | dashboard Supabase |
 | ST-15 | Bassa | Render | `AppDataContext` ricrea ~20 closure a ogni sostituzione di `team` (P2-9, aperto) | `state/AppDataContext.jsx:50` |
 
-## 2-bis. Stato di avanzamento — i tre rilievi Alta sono chiusi
+## 2-bis. Stato di avanzamento — cinque rilievi chiusi
 
-Applicati su richiesta subito dopo l'analisi, nello stesso branch. Questa
-sezione esiste perché il rilievo ST-13 di questo stesso documento riguarda
-audit che non portano lo stato dei propri rilievi: sarebbe singolare diventarne
-il prossimo esempio.
+Applicati su richiesta subito dopo l'analisi, nello stesso branch, in due
+passaggi (ST-1/2/3 il 10 agosto, ST-4/5 subito dopo). Questa sezione esiste
+perché il rilievo ST-13 di questo stesso documento riguarda audit che non
+portano lo stato dei propri rilievi: sarebbe singolare diventarne il prossimo
+esempio.
 
 | | Esito |
 |---|---|
@@ -118,10 +119,14 @@ il prossimo esempio.
 | **ST-2** | Fatta la **parte meccanica** (che è ciò che chiudeva P2-6): `Topbar` riceve `activeView`/`searchQuery`/`showNotif`, `Sidebar` riceve `activeView`/`collapsed`, `BottomNav` riceve `activeView`; tutti e tre sono `memo`. `team`, `currentUserId` e `tasks` arrivano dai context dove già vivevano — `UserSwitcher` non riceve più `state` affatto e `getNavBadges` prende `team` invece dello stato intero. I due callback della nav (`openBulk`, `openChatPanel`) sono passati da arrow inline a `useCallback`, **nello stesso commit del `memo`**: senza, si aggiungeva un confronto che non poteva mai riuscire (è la lezione di ST-1). Effetto misurato dallo stesso test: digitando nella ricerca, Sidebar e BottomNav ora non si ri-renderizzano affatto, mentre la Topbar continua a farlo — deve, contiene il campo. |
 | **ST-2** (parte 2) | **Resta aperta, e volutamente.** Portare `searchQuery`/`showNotif`/`sidebarCollapsed` fuori dal reducer globale è una decisione di architettura, non una correzione: `SET_SEARCH`/`TOGGLE_NOTIF`/`TOGGLE_SIDEBAR` sono dispatchate da cinque punti (Topbar, AdvancedSearchPanel, NotificationsPanel, Sidebar) e `selectedTask` passa dai permessi (`canViewTask` in `SET_SELECTED_TASK`), che è un controllo da conservare dov'è. La parte 1 cattura il beneficio pratico; la parte 2 va decisa, non dedotta da un audit. |
 | **ST-3** | `fetchAllRows` promossa da funzione privata di `listeApi.js` a `src/lib/pagination.js`, con `PAGE_SIZE`/`WITH_COUNT`: `Clients.list()` la usa, `listeApi.js` la importa da lì invece di tenerne una copia — la regola esiste in **un** posto e si applica in due. Aggiunto `.order('id')` come seconda chiave: `name` non è unico (omonimi legittimi fra titolari e cointestatari) e senza una chiave stabile due pagine consecutive possono ripetere o saltare una riga. 6 test nuovi in `src/test/paginazione.test.js`, di cui uno asserisce il caso che conta — 1500 righe servite in pagine da 1000 tornano **tutte e 1500**, non le prime 1000. |
-| Test | 🔬 **977 verdi + 7 skipped** su 87 file (erano 969 su 85): +6 `paginazione`, +2 `memoViste`. 0 errori ESLint (20 warning, l'arretrato dichiarato). Build ok: `index` 291.17 kB / 81.79 kB gzip, +140 byte per l'helper di paginazione e i suoi commenti. |
+| **ST-4** (parte 1 di 2) | `useChatData.js` usa ora il parametro `tabelle` di `useDebouncedTableSubscription`, esattamente come `useListeData.js` (A-1): un evento su `messages` non ricarica più `Conversations.listMine()`, perché un messaggio nuovo non tocca l'elenco delle conversazioni (`updated_at` si muove solo su create/rename/pin, non su ogni invio). `tabelle === null` (idratazione iniziale o ripresa dopo un buco di connessione) continua a caricare tutto. 5 test nuovi in `src/test/realtimeGranularita.test.jsx`, che segue lo stesso stile di quelli già lì per A-1/A-2/B-1 — inclusa la prova che il reload parziale non azzera le conversazioni già in stato. |
+| **ST-4** (parte 2) | **Resta aperta, come previsto dal rilievo stesso.** Caricare i messaggi per conversazione aperta con `Messages.listForConversation()` invece del corpus intero è un cambio di modello dati lato client che tocca i read receipt e il badge dei non letti: a ✅ 13 messaggi non si ripaga. La soglia scritta nel rilievo (`messages > ~1500`) resta il segnale per riaprirlo. |
+| **ST-5** | `ConfirmModal.jsx` è sparito: i suoi tre call site (`ListaDetail.jsx` — chiudere/cestinare una lista, rimuovere un cointestatario, eliminare un movimento; `ListeViaggio.jsx` — eliminazione definitiva dal cestino) passano ora da `useConfirm()`, lo stesso meccanismo già usato da `ArchivedListe.jsx` nello stesso modulo. `LvOverlay.jsx` (gli undici modali con portale) ha preso `role="dialog"`, `aria-modal="true"`, `aria-labelledby` opzionale e blocco dello scroll di fondo — sei righe, stile del modulo invariato. Un test esistente (`listeDataTools.test.jsx`) assumeva il vecchio markup (`.lv-modal` come contenitore della conferma) ed è stato aggiornato a cercare `[role="dialog"]`, che è precisamente la differenza che questo rilievo introduce. |
+| Test | 🔬 **982 verdi + 7 skipped** su 87 file (erano 977 su 87): +5 `realtimeGranularita` (ST-4). 0 errori ESLint (20 warning, l'arretrato dichiarato). Build ok: `index` 291.26 kB / 81.82 kB gzip. |
 
-**Cosa NON è stato toccato**, perché fuori dai tre rilievi richiesti: ST-4…ST-15
-restano aperti come descritti in §3.
+**Cosa NON è stato toccato**, perché fuori dai cinque rilievi risolti: ST-6…ST-15
+restano aperti come descritti in §3, così come la parte 2 di ST-2 e la parte 2
+di ST-4.
 
 ---
 
@@ -408,6 +413,10 @@ it("Clients.list pagina: non può essere troncata dal cap PostgREST", async () =
 
 ### ST-4 · La chat è l'ultimo sottosistema che ricarica tutto — Media
 
+> ✔ **Risolto il primo passo** — vedi §2-bis. Il secondo (`listForConversation`
+> per conversazione aperta) resta aperto per la soglia scritta più sotto
+> (`messages > ~1500`), non per mancanza di tempo.
+
 **File.** `src/hooks/useChatData.js:62-66` · `src/lib/api.js:351`
 
 **Misura.** ✅ `messages` = 13, `conversations` = 4. Oggi il volume è
@@ -472,6 +481,10 @@ evento.
 ---
 
 ### ST-5 · Due modi di chiedere conferma dentro lo stesso modulo, e 12 modali senza semantica di dialogo — Media
+
+> ✔ **Risolto** — vedi §2-bis. `ConfirmModal.jsx` è stato rimosso, non solo
+> sostituito nei call site; `LvOverlay.jsx` porta la correzione descritta qui
+> sotto quasi alla lettera.
 
 **File.** `src/components/liste/modals/ConfirmModal.jsx` ·
 `src/components/liste/modals/LvOverlay.jsx` ·
@@ -1124,8 +1137,9 @@ guardato.
 ---
 
 *L'analisi (§1-§4) è stata prodotta senza modificare il codice
-dell'applicazione. I tre rilievi Alta — ST-1, ST-2 (primo passo) e ST-3 — sono
-stati applicati in un secondo momento su richiesta esplicita e sono registrati
-in §2-bis; ST-4…ST-15 restano aperti e non hanno prodotto modifiche. Nessuna
+dell'applicazione. Cinque rilievi — ST-1, ST-2 (primo passo), ST-3, ST-4 (primo
+passo) e ST-5 — sono stati applicati in un secondo momento su richiesta
+esplicita e sono registrati in §2-bis; ST-6…ST-15 restano aperti e non hanno
+prodotto modifiche, così come la parte 2 di ST-2 e la parte 2 di ST-4. Nessuna
 DDL è stata eseguita sul database in tutta la sessione: le query a Supabase
 sono state di sola lettura (`count(*)` e advisor).*

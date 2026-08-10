@@ -32,7 +32,7 @@ chiusi.
 |---|---|---|
 | [`AUDIT_ARCHITETTURA_2026-08.md`](AUDIT_ARCHITETTURA_2026-08.md) | Architettura, sicurezza, correttezza, flusso dati (7-8 agosto 2026) | B-2 (interruttore in dashboard Supabase) |
 | [`AUDIT_PERFORMANCE_2026-08.md`](AUDIT_PERFORMANCE_2026-08.md) | Performance e scalabilità lato client: bundle, code-splitting, memoizzazione, costo di render (9 agosto 2026) | P2-8, P2-9, P2-10 — P2-1/2/3 chiusi dal commit `8d3afb3`, P2-4 e P2-7 verificati chiusi il 10 agosto, P2-5 e P2-6 chiusi come ST-3 e ST-2 (il documento non porta il proprio stato di avanzamento: rilievo ST-13) |
-| [`AUDIT_STRUTTURA_2026-08-10.md`](AUDIT_STRUTTURA_2026-08-10.md) | Struttura del codice: organizzazione dei moduli, separazione delle responsabilità, duplicazione, anti-pattern React, componenti troppo estesi (10 agosto 2026) | ST-4 … ST-15 — i tre rilievi Alta (ST-1, ST-2 primo passo, ST-3) sono chiusi, vedi §2-bis del documento; resta aperto il secondo passo di ST-2 (stato effimero di UI fuori dal reducer), che è una decisione di architettura |
+| [`AUDIT_STRUTTURA_2026-08-10.md`](AUDIT_STRUTTURA_2026-08-10.md) | Struttura del codice: organizzazione dei moduli, separazione delle responsabilità, duplicazione, anti-pattern React, componenti troppo estesi (10 agosto 2026) | ST-6 … ST-15 — cinque rilievi sono chiusi (ST-1, ST-2 primo passo, ST-3, ST-4 primo passo, ST-5), vedi §2-bis del documento; restano aperti il secondo passo di ST-2 (stato effimero di UI fuori dal reducer) e il secondo passo di ST-4 (messaggi per conversazione, sotto una soglia di volume), entrambi decisioni rimandate per motivi scritti nel documento |
 
 ## Pianificazione
 

@@ -14,6 +14,7 @@
 // admin/manager/agent. Il gate lato client (role !== "driver") è difesa in
 // profondità, non la garanzia: quella è e resta la RLS.
 import { supabase } from './supabase';
+import { fetchAllRows, WITH_COUNT } from './fetchAllRows';
 
 // Le liste portano sempre con sé il nome del titolare (clients) e degli
 // eventuali cointestatari (lista_beneficiari → clients, es. marito e moglie):
@@ -54,22 +55,9 @@ export const intestazioneLista = (lista) => {
 // restituendo HTTP 200 senza errore: le righe oltre la soglia semplicemente
 // non arrivano, e il chiamante non ha modo di accorgersene guardando
 // `error`. Le query che devono restituire *tutto* (elenco liste, saldi,
-// backup) vanno quindi paginate a mano.
-const PAGE_SIZE = 1000;
+// backup) vanno quindi paginate con `fetchAllRows` (condiviso con
+// `lib/api.js`, definizione in `lib/fetchAllRows.js`) invece che a mano qui.
 
-// Chiedere il conteggio esatto insieme alle righe: `count` arriva dal
-// Content-Range ed è il totale che soddisfa il filtro, NON il numero di righe
-// consegnate. È il solo dato che dice quando la paginazione è finita senza
-// dipendere dal valore del cap lato server.
-const WITH_COUNT = { count: 'exact' };
-
-// Scarica tutte le righe di una query paginando con .range().
-//
-// `buildQuery` deve costruire un builder NUOVO a ogni chiamata (i builder
-// PostgREST sono thenable monouso) e deve avere un ordinamento
-// DETERMINISTICO, cioè chiudersi su una colonna unica: senza ORDER BY stabile
-// Postgres non garantisce lo stesso ordine tra due query, e pagine successive
-// potrebbero ripetere o saltare righe.
 // Righe per chiamata nel ripristino da backup. Tenuto basso di proposito: a
 // 1000 movimenti la RPC misura ~150ms contro un tetto di 8s, così il margine
 // regge anche su un'istanza carica o una connessione lenta.
@@ -81,21 +69,6 @@ const chunk = (rows) => {
     out.push(rows.slice(i, i + IMPORT_CHUNK_SIZE));
   }
   return out;
-};
-
-const fetchAllRows = async (buildQuery) => {
-  const rows = [];
-  for (;;) {
-    const { data, count, error } = await buildQuery()
-      .range(rows.length, rows.length + PAGE_SIZE - 1);
-    if (error) return { data: null, error };
-    const page = data || [];
-    rows.push(...page);
-    // Pagina vuota: il database ha finito le righe (vale anche come rete di
-    // sicurezza se `count` non arrivasse, così il ciclo non è infinito).
-    if (page.length === 0) return { data: rows, error: null };
-    if (typeof count === 'number' && rows.length >= count) return { data: rows, error: null };
-  }
 };
 
 // Id delle liste non archiviate in cui il cliente compare, come titolare o

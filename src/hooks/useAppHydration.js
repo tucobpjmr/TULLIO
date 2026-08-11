@@ -30,7 +30,7 @@
 // render: senza login non c'è idratazione (si usano i mock) e i flag nascono
 // già chiusi.
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   Tasks as TasksAPI, Notices as NoticesAPI, Users as UsersAPI,
   Clients as ClientsAPI, Categories as CategoriesAPI, TaskThreads as TaskThreadsAPI,
@@ -40,6 +40,7 @@ import {
   fromDbComment, fromDbHistory,
 } from "../lib/mappers.js";
 import { useDebouncedTableSubscription } from "./useDebouncedTableSubscription.js";
+import { stessaLista, stessaMappa } from "../lib/confrontoIdratazione.js";
 
 // Indicizza per task_id le righe di una tabella figlia dei task, applicando il
 // mapper della sua entità. Fuori dall'hook perché è pura.
@@ -66,6 +67,20 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
   const segnaCaricata = useCallback((entita) => {
     setLoading(prev => (prev[entita] ? { ...prev, [entita]: false } : prev));
   }, []);
+
+  // ST-15 · L'ultimo payload consegnato al reducer per team e categorie.
+  //
+  // `SET_TEAM` sostituisce l'array anche quando i dati sono identici, quindi un
+  // evento realtime innocuo su `users` invalidava il value di AppDataContext e
+  // con esso i venti metodi che espone, per tutti i consumatori. Qui si
+  // confronta prima di dispatchare. Il ref ricorda ciò che ABBIAMO consegnato,
+  // non ciò che c'è nello state: è la stessa cosa nel caso che conta (siamo
+  // l'unico scrittore di questi due campi durante l'idratazione), e nel caso in
+  // cui non lo sia — una mutazione ottimistica del registry sul team — il
+  // payload che arriva dal server è diverso da quello di prima, quindi il
+  // dispatch parte comunque.
+  const ultimoTeam = useRef(null);
+  const ultimeCategorie = useRef(null);
 
   // Idratazione tasks + notices dal DB al primo mount in modalità Supabase,
   // più subscription realtime: ad ogni evento postgres ricarico la lista
@@ -159,7 +174,10 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
       const c = fromDbCategory(row);
       categories[c.key] = { label: c.label, icon: c.icon, color: c.color, bg: c.bg };
     }
-    dispatch({ type: "SET_CATEGORIES", payload: categories });
+    if (!stessaMappa(ultimeCategorie.current, categories)) {
+      ultimeCategorie.current = categories;
+      dispatch({ type: "SET_CATEGORIES", payload: categories });
+    }
     segnaCaricata("categories");
   }, { enabled, deps: [enabled] });
 
@@ -205,7 +223,14 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
       const base = { ...u, photoUrl: u.photo_url ?? null };
       return u.id === currentUserId ? { ...base, ...myContacts } : base;
     });
-    dispatch({ type: "SET_TEAM", payload: team });
+    // Un reload che rilegge le stesse righe non deve sostituire l'array: vedi
+    // il commento su `ultimoTeam`. `segnaCaricata` resta FUORI dal ramo — il
+    // primo fetch chiude lo scheletro anche quando non cambia niente (team
+    // vuoto che resta vuoto), altrimenti la vista girerebbe per sempre.
+    if (!stessaLista(ultimoTeam.current, team)) {
+      ultimoTeam.current = team;
+      dispatch({ type: "SET_TEAM", payload: team });
+    }
     segnaCaricata("team");
   }, {
     enabled,

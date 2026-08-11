@@ -8,6 +8,7 @@ import { CategoryChip } from "../ui/CategoryChip.jsx";
 import { STATUSES, STATUS_LABELS, PRIORITIES, roleLabel } from "../../lib/taskConstants.js";
 import { formatDate, formatTime, isOverdue, clientContact } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
+import { useClients } from "../../state/ClientsContext.jsx";
 import { MentionText } from "../ui/MentionText.jsx";
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";
 import { ContactText } from "../ui/ContactActions.jsx";
@@ -18,13 +19,18 @@ import { TaskAttachments } from "./TaskAttachments.jsx";
 import { HISTORY_ICONS, historyDescribe } from "./taskHistory.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 
-export const TaskSlideOver = ({ task, dispatch, clients = [] }) => {
+export const TaskSlideOver = ({ task, dispatch }) => {
   const conferma = useConfirm();
   const { isMobile } = useViewport();
   const {
     categories, currentUserId, getMember, getAssignableTeam,
     canEditTask, getAvailableCategories,
   } = useAppData();
+  // L'anagrafica arriva dal contesto, non come prop (ST-11): era `state.clients
+  // || []` sul call site, cioè un array NUOVO a ogni render quando l'anagrafica
+  // è vuota — bastava a disinnescare il `memo` di un componente lazy e pesante
+  // come questo. Il default vive nel provider, una volta sola.
+  const clients = useClients();
   const [newComment, setNewComment] = useState("");
   const [showAssigneePicker, setShowAssigneePicker] = useState(false);
   // Bozza locale dei campi testo: si scrive in locale e si persiste al blur

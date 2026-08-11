@@ -126,7 +126,8 @@ function schemaDaiFile() {
 // diventato obsoleto (vedi "l'elenco delle eccezioni non invecchia").
 //
 // liste_viaggio / movimenti_lista — tutte le scritture del modulo Liste sono
-// RPC (src/lib/listeApi.js), sedici, e nessuna trasporta l'origine. La colonna
+// RPC (src/components/liste/listeApi.js), sedici, e nessuna trasporta l'origine.
+// La colonna
 // da sola resterebbe NULL per sempre; aggiungere `p_origin` alle RPC richiede
 // un `drop function` + `create function` per ciascuna (un parametro in più su
 // `create or replace` produce un OVERLOAD, non una sostituzione) e, poiché qui

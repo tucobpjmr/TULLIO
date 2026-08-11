@@ -4,9 +4,14 @@
 // mentre la chat restava aperta non veniva mai marcato come letto finché
 // l'utente non chiudeva e riapriva la conversazione.
 import { describe, it, expect, vi } from "vitest";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
-import { ChatPanel } from "../components/chat/ChatPanel.jsx";
+// ST-12 · Import DINAMICO: `ChatPanel` è ora un chunk lazy e una regola di
+// lint vieta la forma statica (la stessa che protegge ClienteListePanel e
+// ArchivedListe). Un `import` statico qui non romperebbe il test — romperebbe
+// il chunk, che è precisamente il difetto che nessuno vede in review.
+const { ChatPanel } = await import("../components/chat/ChatPanel.jsx");
+import { makeChatCommands } from "../components/chat/chatCommands.js";
 import { INITIAL_TEAM } from "../state/mockData.js";
 import { renderWithAppData } from "./helpers/appData.jsx";
 
@@ -48,10 +53,14 @@ const APP_CTX = { team: INITIAL_TEAM, currentUserId: ME };
 const render = (ui) => renderWithAppData(ui, APP_CTX);
 const CONV_ID = "conv-test-1"; // non-uuid: nessuna chiamata Supabase (vedi isUuid guard)
 
-// Harness: tiene lo stato messaggi "lato genitore" come farebbe VoyageDesk.jsx
-// e passa setMessages/markConversationRead=undefined (fallback usato nei test,
-// vedi commento in ChatPanel.jsx). Un bottone simula l'arrivo realtime di un
-// nuovo messaggio non letto nella conversazione già aperta.
+// Harness: tiene lo stato messaggi "lato genitore" come fa VoyageDesk.jsx e ne
+// costruisce i COMANDI, invece di passare al pannello il setter grezzo perché
+// ricostruisca gli stessi comandi per conto suo (ST-10). È il punto del
+// rilievo: il mark-as-read aveva due implementazioni — quella dei comandi e un
+// fallback dentro ConversationView "per i test" — e a divergere sarebbe stata
+// proprio quella che questo file esercitava. Ora ne resta una sola, ed è quella
+// di produzione. Un bottone simula l'arrivo realtime di un nuovo messaggio non
+// letto nella conversazione già aperta.
 function ChatHarness({ onMessagesChange }) {
   const [messages, setMessagesState] = useState({
     [CONV_ID]: [
@@ -66,6 +75,14 @@ function ChatHarness({ onMessagesChange }) {
       return next;
     });
   };
+  const commands = useMemo(
+    () => makeChatCommands({ setMessages, getCurrentUserId: () => ME, enabled: false }),
+    // `setMessages` è ricreata a ogni render dell'harness ma chiude solo su
+    // setState e su una callback stabile: tenerla nelle deps ricostruirebbe i
+    // comandi a ogni render, che è ciò che ConversationView non deve vedere.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   const conv = { id: CONV_ID, type: "direct", participants: [ME, OTHER_USER], name: null };
 
@@ -84,9 +101,8 @@ function ChatHarness({ onMessagesChange }) {
         open
         onClose={() => {}}
         conversations={[conv]}
-        setConversations={() => {}}
         messages={messages}
-        setMessages={setMessages}
+        commands={commands}
         intent={{ toUser: OTHER_USER }}
       />
     </div>

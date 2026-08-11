@@ -13,10 +13,11 @@
 // browser — anch'esso soggetto a sforare fuori dallo schermo su mobile.
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { Z } from "../../styles/tokens.js";
+import { dataNumerica, meseAnno, oraBreve } from "../../lib/dates.js";
 
 const WEEKDAYS = ["lu", "ma", "me", "gi", "ve", "sa", "do"];
 const pad2 = n => String(n).padStart(2, "0");
-const monthLabel = d => d.toLocaleDateString("it-IT", { month: "long", year: "numeric" });
+const monthLabel = d => meseAnno(d);
 
 // Come il campo mostra un valore selezionato. Esportata perché chi deve
 // esibire una data *ereditata* senza selezionarla davvero (es. la scadenza
@@ -26,9 +27,9 @@ const monthLabel = d => d.toLocaleDateString("it-IT", { month: "long", year: "nu
 export const formatPickerValue = (value, withTime = true) => {
   if (!value) return "";
   const d = new Date(value);
-  const date = d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const date = dataNumerica(d);
   return withTime
-    ? `${date} ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`
+    ? `${date} ${oraBreve(d)}`
     : date;
 };
 

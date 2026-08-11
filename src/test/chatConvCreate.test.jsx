@@ -8,8 +8,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { renderWithAppData, DEMO_APP_CTX } from "./helpers/appData.jsx";
-import { ChatPanel } from "../components/chat/ChatPanel.jsx";
+// ST-12 · Import DINAMICO: `ChatPanel` è ora un chunk lazy e una regola di
+// lint vieta la forma statica (la stessa che protegge ClienteListePanel e
+// ArchivedListe). Un `import` statico qui non romperebbe il test — romperebbe
+// il chunk, che è precisamente il difetto che nessuno vede in review.
+const { ChatPanel } = await import("../components/chat/ChatPanel.jsx");
 import { isUuid } from "../lib/mappers.js";
+import { useMemo, useState } from "react";
+import { makeChatCommands } from "../components/chat/chatCommands.js";
 
 // I componenti sotto test leggono team/categorie/utente da useAppData(): prima
 // li prendevano dai default di modulo di appGlobals, ora vanno montati dentro
@@ -45,25 +51,38 @@ if (!Element.prototype.scrollTo) {
   Element.prototype.scrollTo = () => {};
 }
 
-// Harness minimale: cattura le conversazioni che ChatPanel inserisce in lista.
-// Il setter è un normale setState (updater PURO): la persistenza non passa più
-// da qui ma da commands.createConversation — vedi chatCommands.test.js.
+// Harness minimale: fa quello che fa VoyageDesk.jsx — possiede lo stato e
+// costruisce i COMANDI su di esso, invece di passare al pannello i setter
+// grezzi (ST-10). Prima il setter arrivava come prop e ChatPanel se ne
+// costruiva i comandi per conto del genitore: era la stessa factory, ma per una
+// strada che in produzione non esisteva. `enabled: false` = nessuna chiamata a
+// Supabase, identici aggiornamenti di stato.
 function renderPanel({ onConversations }) {
-  const setConversations = (updater) => {
-    const next = typeof updater === "function" ? updater([]) : updater;
-    onConversations(next);
-  };
-  return render(
-    <ChatPanel
-      open
-      onClose={() => {}}
-      conversations={[]}
-      setConversations={setConversations}
-      messages={{}}
-      setMessages={() => {}}
-      intent={null}
-    />
-  );
+  function Harness() {
+    const [conversations, setConversations] = useState([]);
+    const [messages, setMessages] = useState({});
+    const commands = useMemo(() => makeChatCommands({
+      setConversations: (updater) => setConversations(prev => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        onConversations(next);
+        return next;
+      }),
+      setMessages,
+      getCurrentUserId: () => DEMO_APP_CTX.currentUserId,
+      enabled: false,
+    }), []);
+    return (
+      <ChatPanel
+        open
+        onClose={() => {}}
+        conversations={conversations}
+        messages={messages}
+        commands={commands}
+        intent={null}
+      />
+    );
+  }
+  return render(<Harness />);
 }
 
 beforeEach(() => subscribeToTypingSpy.mockClear());

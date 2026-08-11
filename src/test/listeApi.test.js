@@ -10,7 +10,7 @@ vi.mock("../lib/supabase", () => ({ supabase: {}, default: {} }));
 
 const {
   docHtml, eur, fmtDate, parseImporto, riepilogoTesto, saldoClass, todayISO,
-} = await import("../lib/listeApi.js");
+} = await import("../components/liste/listeApi.js");
 const { ordinaListe } = await import("../components/liste/ListeViaggio.jsx");
 
 describe("listeApi — formattazione", () => {

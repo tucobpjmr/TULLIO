@@ -17,7 +17,7 @@
 //   ConversationList    elenco conversazioni
 //   NewConversationView creazione conversazione
 //   ForwardPicker       scelta destinatario per l'inoltro
-import { useReducer, useEffect, useMemo, useRef } from "react";
+import { useReducer, useEffect, useMemo, useRef, useState } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { Messages as MessagesAPI } from "../../lib/api.js";
 import { isUuid, newId } from "../../lib/mappers.js";
@@ -25,7 +25,7 @@ import { formatDate, formatTime } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { ChatContext } from "./chatContext.js";
 import { PRESENCE_COLORS } from "./chatPresence.js";
-import { getConversationName, getUnreadCount } from "./chatFormat.js";
+import { getConversationName } from "./chatFormat.js";
 import { syncRecentReactionsFromServer } from "./chatReactions.js";
 import { chatPanelInitial, chatPanelReducer } from "./chatReducers.js";
 import { makeChatCommands } from "./chatCommands.js";
@@ -36,25 +36,45 @@ import { ForwardPicker } from "./ForwardPicker.jsx";
 import { Z } from "../../styles/tokens.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 
-// Il badge dei non letti in VoyageDesk.jsx importa getUnreadCount da qui:
-// ri-esportato per non toccare i punti d'importazione esistenti.
-export { getUnreadCount };
 
-
-export const ChatPanel = ({ open, onClose, conversations, setConversations, messages, setMessages, commands: commandsProp, markConversationRead, onToggleReaction, onDeleteConversation, intent, tasks, currentUserId, dispatch, presenceMap, messageTemplates = [], loading = false, myBusy = false, onToggleBusy }) => {
+export const ChatPanel = ({ open, onClose, conversations: convProp, messages: msgProp, commands: commandsProp, onDeleteConversation, intent, tasks, currentUserId, dispatch, presenceMap, messageTemplates = [], loading = false, myBusy = false, onToggleBusy }) => {
   const conferma = useConfirm();
   const { isMobile } = useViewport();
   const { currentUserId: appUserId, getMember } = useAppData();
   // La prop ha la precedenza sul contesto: i test montano il pannello isolato
   // passando l'utente esplicitamente.
   const me = currentUserId || appUserId;
-  // Senza `commands` (mock senza login, test che montano il pannello isolato)
-  // si usa la variante locale della stessa factory: identici aggiornamenti di
-  // stato, nessuna chiamata a Supabase.
-  const commands = useMemo(
-    () => commandsProp || makeChatCommands({ setConversations, setMessages, enabled: false }),
-    [commandsProp, setConversations, setMessages],
+  // ST-10 · I setter grezzi non attraversano più il confine del componente.
+  //
+  // Prima `useChatData` ritornava anche `setConversations`/`setMessages`,
+  // VoyageDesk li passava qui fra 18 prop e ConversationView li usava in due
+  // punti come fallback "eg. test": erano la SECONDA implementazione di segna-
+  // letto e toggla-reazione, compilata in produzione, e nessun test verificava
+  // che concordasse con la prima. Ora il pannello possiede lo stato del proprio
+  // caso degenere (nessun `commands`: modalità mock senza login, test che
+  // montano il pannello isolato) e ne costruisce i comandi con la STESSA
+  // factory, `enabled: false` — identici aggiornamenti di stato, nessuna
+  // chiamata a Supabase. Fuori di qui esistono solo comandi.
+  const [convLocali, setConvLocali] = useState(convProp || []);
+  const [msgLocali, setMsgLocali] = useState(msgProp || {});
+  const commandsLocali = useMemo(
+    () => makeChatCommands({
+      setConversations: setConvLocali, setMessages: setMsgLocali,
+      getCurrentUserId: () => me, enabled: false,
+    }),
+    [me],
   );
+  const commands = commandsProp || commandsLocali;
+  // Con `commands` dal genitore la fonte di verità è la sua: lo stato locale
+  // esiste solo nell'altro caso, e tenerlo allineato sarebbe una terza copia.
+  const conversations = commandsProp ? convProp : convLocali;
+  const messages = commandsProp ? msgProp : msgLocali;
+  // Nel caso degenere le prop restano comunque la sorgente: quando il genitore
+  // ne sostituisce una (idratazione arrivata dopo il montaggio — è il caso
+  // dell'apertura da notifica push a lista ancora vuota) lo stato locale
+  // riparte da lì. Con `commands` presente questi due effetti non fanno nulla.
+  useEffect(() => { if (!commandsProp) setConvLocali(convProp || []); }, [commandsProp, convProp]);
+  useEffect(() => { if (!commandsProp) setMsgLocali(msgProp || {}); }, [commandsProp, msgProp]);
   const [ps, pd] = useReducer(chatPanelReducer, chatPanelInitial);
   const { activeConv, newMode, prefillText, prefillTaskRef, forwardingMsg } = ps;
 
@@ -326,9 +346,14 @@ export const ChatPanel = ({ open, onClose, conversations, setConversations, mess
             <ConversationView
               conv={activeConv}
               messages={messages}
-              setMessages={setMessages}
-              markConversationRead={markConversationRead}
-              onToggleReaction={onToggleReaction}
+              // ⚠️ `commands` NON era passato: ConversationView lo riceveva
+              // `undefined` e `commands.sendMessage` avrebbe sollevato al primo
+              // invio da una conversazione aperta. Nessun test se n'era accorto
+              // perché i due percorsi che i test esercitavano — segna-letto e
+              // reazioni — avevano ciascuno il proprio fallback che NON passava
+              // dai comandi (ST-10): è precisamente il difetto che una seconda
+              // implementazione "solo per i test" nasconde.
+              commands={commands}
               onBack={() => pd({ type: "BACK" })}
               onDelete={onDeleteConversation ? () => handleDeleteConv(activeConv) : undefined}
               initialInput={prefillText}

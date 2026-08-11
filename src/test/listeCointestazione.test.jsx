@@ -60,12 +60,12 @@ const ListeAPIMock = {
 };
 const downloadBlobMock = vi.fn();
 
-vi.mock("../lib/listeApi.js", async (importOriginal) => {
+vi.mock("../components/liste/listeApi.js", async (importOriginal) => {
   const actual = await importOriginal();
   return { ...actual, ListeAPI: { ...actual.ListeAPI, ...ListeAPIMock }, downloadBlob: downloadBlobMock };
 });
 
-const { beneficiariNomi, intestazioneLista } = await import("../lib/listeApi.js");
+const { beneficiariNomi, intestazioneLista } = await import("../components/liste/listeApi.js");
 const { ListaDetail } = await import("../components/liste/ListaDetail.jsx");
 const { ListeViaggio } = await import("../components/liste/ListeViaggio.jsx");
 const { ClienteListePanel } = await import("../components/liste/ClienteListePanel.jsx");

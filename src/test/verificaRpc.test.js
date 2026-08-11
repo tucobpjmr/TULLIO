@@ -316,7 +316,7 @@ describe('estrazione sul codice vero', () => {
   // Sorgente vero, non un campione: se un domani il client cambiasse il modo
   // di chiamare le RPC e l'estrattore non lo seguisse, la sonda comincerebbe a
   // interrogare firme sbagliate senza che nessun test se ne accorga.
-  const listeApi = () => readFileSync(join(process.cwd(), 'src/lib/listeApi.js'), 'utf8');
+  const listeApi = () => readFileSync(join(process.cwd(), 'src/components/liste/listeApi.js'), 'utf8');
 
   it('trova le RPC realmente chiamate da listeApi.js', () => {
     const nomi = raggruppaPerNome(estraiChiamateRpc(listeApi())).map((v) => v.nome);

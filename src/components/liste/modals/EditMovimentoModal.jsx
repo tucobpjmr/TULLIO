@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { parseImporto } from "../../../lib/listeApi.js";
+import { parseImporto } from "../listeApi.js";
 import { LvOverlay } from "./LvOverlay.jsx";
 import { MetodoSelect } from "./MetodoSelect.jsx";
 import { SegnoSeg } from "./SegnoSeg.jsx";

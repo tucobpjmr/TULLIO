@@ -21,7 +21,7 @@ import { MessageComposer } from "./MessageComposer.jsx";
 import { parseTaskLink } from "./message/MessageTextContent.jsx";
 
 // ─── CHAT: CONVERSATION VIEW ───────────────────────────────────────────────
-export const ConversationView = ({ conv, messages, setMessages, commands, markConversationRead, onToggleReaction, onBack, onDelete, initialInput, initialTaskRef, onInitialInputConsumed }) => {
+export const ConversationView = ({ conv, messages, commands, onBack, onDelete, initialInput, initialTaskRef, onInitialInputConsumed }) => {
   const [cv, cvd] = useReducer(convViewReducer, convViewInitial);
   // Il composer riceve `cv` intero e si destruttura da sé i campi che usa
   // (input, recording, replyingTo, showAttach, showTemplates): qui restano
@@ -73,23 +73,16 @@ export const ConversationView = ({ conv, messages, setMessages, commands, markCo
   const unreadCount = msgs.filter(m => m.sender !== myId && !m.readBy?.includes(myId)).length;
   useEffect(() => {
     if (unreadCount === 0) return;
-    if (markConversationRead) {
-      markConversationRead(conv.id);
-      return;
-    }
-    // Fallback per i call site che non passano il callback (eg. test)
-    setMessages(prev => ({
-      ...prev,
-      [conv.id]: (prev[conv.id] || []).map(m => {
-        if (m.sender !== myId && !m.readBy?.includes(myId)) {
-          return { ...m, readBy: [...(m.readBy || []), myId] };
-        }
-        return m;
-      })
-    }));
-    // `markConversationRead` e `setMessages` volutamente fuori: sono callback
-    // del genitore e includerli farebbe ripartire il mark-as-read a ogni suo
-    // render, cioè una RPC per messaggio in arrivo. Le condizioni che DEVONO
+    // ST-10 · Un percorso solo. Qui c'era un fallback che rifaceva a mano lo
+    // stesso aggiornamento di `commands.markConversationRead` per i call site
+    // che non passavano il callback ("eg. test"): due implementazioni della
+    // stessa regola, mai confrontate fra loro, e a divergere sarebbe stata
+    // proprio quella che i test esercitavano. `commands` c'è sempre — ChatPanel
+    // costruisce la variante locale senza rete quando il genitore non la passa.
+    commands.markConversationRead(conv.id);
+    // `commands` volutamente fuori: è un oggetto del genitore e includerlo
+    // farebbe ripartire il mark-as-read a ogni suo render, cioè una RPC per
+    // messaggio in arrivo. Le condizioni che DEVONO
     // farlo ripartire sono già tutte e tre nelle deps — conversazione aperta,
     // quanti non letti restano, chi sono io — e il guard `unreadCount === 0`
     // chiude comunque il ciclo.
@@ -252,27 +245,13 @@ export const ConversationView = ({ conv, messages, setMessages, commands, markCo
   };
 
   const handleReact = (msgId, emoji) => {
-    // Percorso reale: toggle atomico via RPC (ottimistico + persistenza gestiti
-    // dal parent, come markConversationRead). Evita di scrivere l'intero oggetto
-    // reactions dal client (race last-write-wins tra utenti concorrenti).
-    if (onToggleReaction) { onToggleReaction(conv.id, msgId, emoji); return; }
-    // Fallback mock/test (nessun parent handler): toggle SOLO locale — nessuna
-    // persistenza, il setter è un normale setState.
-    setMessages(prev => ({
-      ...prev,
-      [conv.id]: prev[conv.id].map(m => {
-        if (m.id !== msgId) return m;
-        const reactions = { ...(m.reactions || {}) };
-        const users = reactions[emoji] || [];
-        if (users.includes(myId)) {
-          reactions[emoji] = users.filter(u => u !== myId);
-          if (reactions[emoji].length === 0) delete reactions[emoji];
-        } else {
-          reactions[emoji] = [...users, myId];
-        }
-        return { ...m, reactions };
-      })
-    }));
+    // Toggle atomico via RPC: l'aggiornamento ottimistico e la persistenza
+    // stanno nel comando, che evita di scrivere l'intero oggetto `reactions`
+    // dal client (race last-write-wins fra utenti che reagiscono insieme).
+    // Anche qui c'era un secondo toggle scritto a mano come "fallback
+    // mock/test" (ST-10): faceva la stessa cosa in un posto in cui nessuno
+    // l'avrebbe aggiornata insieme all'altra.
+    commands.toggleReaction(conv.id, msgId, emoji);
   };
 
   // Fase 3 pin: stato group-level, condiviso da tutti i partecipanti. Il

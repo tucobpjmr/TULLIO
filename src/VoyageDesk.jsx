@@ -47,10 +47,21 @@ import { OfflineBanner } from "./components/shell/OfflineBanner.jsx";
 // su ogni sessione invece di risparmiarlo davvero.
 import { Dashboard } from "./components/dashboard/Dashboard.jsx";
 import { ClientiView } from "./components/clients/ClientiView.jsx";
-import { ChatPanel } from "./components/chat/ChatPanel.jsx";
 import { QuickAddTask } from "./components/modals/QuickAddTask.jsx";
 
 // Chunk async: viste pesanti o riservate a un ruolo, scaricate on-demand.
+// ST-12 · La chat era l'ultimo gruppo differibile grande rimasto: ~54 kB
+// (pannello, conversazioni, composer, vocali) nel chunk iniziale di OGNI
+// sessione, benché il pannello chiuso ritorni null. Attenzione al dettaglio
+// che rendeva questo rilievo non banale: ChatPanel ri-esportava
+// `getUnreadCount` per il badge dei non letti, che si calcola FUORI dal
+// pannello (in useChatData) — con quel ri-export in piedi il modulo sarebbe
+// rimasto agganciato al chunk eager e il lazy() non avrebbe spostato niente.
+// È esattamente il difetto di P2-1. Ora chi serve `getUnreadCount` lo importa
+// da chat/chatFormat.js, e una regola di lint tiene chiuso il percorso.
+const ChatPanel = lazy(() =>
+  import("./components/chat/ChatPanel.jsx").then(m => ({ default: m.ChatPanel }))
+);
 const BulkTaskCreator = lazy(() =>
   import("./components/modals/BulkTaskCreator.jsx").then(m => ({ default: m.BulkTaskCreator }))
 );
@@ -416,39 +427,47 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
               resetKey={state.selectedTask?.id}
               onReset={() => dispatch({ type: "SET_SELECTED_TASK", payload: null })}
             >
-              <TaskSlideOver task={state.selectedTask} dispatch={dispatch} clients={state.clients || []} />
+              <TaskSlideOver task={state.selectedTask} dispatch={dispatch} />
             </OverlayErrorBoundary>
           </Suspense>
         )}
 
-        {/* Chat Panel */}
-        <ChatPanel
-          open={showChat}
-          onClose={() => { setShowChat(false); setChatIntent(null); }}
-          conversations={chat.conversations}
-          setConversations={chat.setConversations}
-          messages={chat.messages}
-          setMessages={chat.setMessages}
-          commands={chat.commands}
-          markConversationRead={chat.commands.markConversationRead}
-          onToggleReaction={chat.commands.toggleReaction}
-          onDeleteConversation={chat.commands.removeConversation}
-          intent={chatIntent}
-          tasks={state.tasks}
-          currentUserId={state.currentUserId}
-          dispatch={dispatch}
-          presenceMap={presenceMap}
-          messageTemplates={state.messageTemplates}
-          loading={chat.loading}
-          myBusy={myBusy}
-          onToggleBusy={toggleMyBusy}
-        />
+        {/* Chat Panel — montato solo da aperto (ST-12). Prima era sempre nel
+            render e si limitava a ritornare `null` da chiuso: con `lazy()` il
+            chunk si scaricherebbe comunque al primo render, cioè il rilievo
+            resterebbe aperto con il codice che sembra chiuderlo. Il prezzo è
+            che chiudendo la chat si torna all'elenco invece di ritrovare la
+            conversazione aperta — lo stato di navigazione del pannello vive in
+            `chatPanelReducer`, dentro il pannello. I dati non si ricaricano:
+            conversazioni e messaggi stanno in useChatData, che resta montato.
+            `chat.unreadChat` per il badge si calcola lì, fuori dal chunk. */}
+        {showChat && (
+          <Suspense fallback={<LazyFallback overlay />}>
+            <ChatPanel
+              open
+              onClose={() => { setShowChat(false); setChatIntent(null); }}
+              conversations={chat.conversations}
+              messages={chat.messages}
+              commands={chat.commands}
+              onDeleteConversation={chat.commands.removeConversation}
+              intent={chatIntent}
+              tasks={state.tasks}
+              currentUserId={state.currentUserId}
+              dispatch={dispatch}
+              presenceMap={presenceMap}
+              messageTemplates={state.messageTemplates}
+              loading={chat.loading}
+              myBusy={myBusy}
+              onToggleBusy={toggleMyBusy}
+            />
+          </Suspense>
+        )}
 
         {/* FAB principale (singolo task). La creazione bulk/multi-task è ora in Sidebar/BottomNav. */}
         {state.activeView !== "trash" && state.activeView !== "archivio" && state.activeView !== "admin" && (
           <FAB onClick={() => setShowFABModal(true)} />
         )}
-        {showFABModal && <QuickAddTask clients={state.clients || []} onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} />}
+        {showFABModal && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} />}
 
         {/* Overlay scorciatoie tastiera (v2.8 Round 10) */}
         {showKeyHelp && <KeyboardHelpOverlay onClose={() => setShowKeyHelp(false)} />}
@@ -462,7 +481,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
                 existingTasks={getActiveTasks(state.tasks)}
                 onCreate={(tasks) => dispatch({ type: "ADD_TASKS_BULK", payload: tasks })}
                 onClose={() => setShowBulkModal(false)}
-                clients={state.clients || []}
+               
               />
             </OverlayErrorBoundary>
           </Suspense>

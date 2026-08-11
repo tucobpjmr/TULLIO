@@ -8,6 +8,7 @@ import { useAppData } from "../../../state/AppDataContext.jsx";
 import { DateTimePicker } from "../../ui/DateTimePicker.jsx";
 import { bulkInputStyle, bulkBtnPrimary, bulkBtnGhost } from "./bulkStyles.js";
 import { useClientSuggestions, ClientSuggestions } from "../../ui/ClientAutocomplete.jsx";
+import { dataMedia } from "../../../lib/dates.js";
 
 
 // ─── BULK: TEMPLATE TAB ────────────────────────────────────────────────────
@@ -156,7 +157,7 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 500 }}>{t.title}</div>
                       <div style={{ fontSize: 10, color: "var(--text-muted)" }}>
-                        📅 {new Date(t.dueDate).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" })}
+                        📅 {dataMedia(t.dueDate)}
                       </div>
                     </div>
                     <PriorityBadge priority={t.priority} />

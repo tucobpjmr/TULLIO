@@ -16,6 +16,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      # Fa fallire la build quando un numero scritto in docs/ non è più quello
+      # misurato (ST-13): sta qui accanto al lint perché misura lo stesso
+      # oggetto — questo repo — e non richiede né rete né credenziali.
+      - run: npm run verifica:convenzioni
       - run: npm test
       - run: npm run build
       - run: npm run verifica:bundle

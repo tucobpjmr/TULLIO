@@ -38,7 +38,7 @@
 // L'esecutore è useListeWrite(), in fondo a questo file.
 
 import { useCallback } from "react";
-import { ListeAPI } from "../../lib/listeApi.js";
+import { ListeAPI } from "./listeApi.js";
 import { isAdmin } from "../../lib/permissions.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 

@@ -39,7 +39,7 @@ const RIGHE_LISTE = [
   { client_id: "cl1", deleted_at: "2026-07-30T10:00:00Z" },
 ];
 
-vi.mock("../lib/listeApi.js", async (importOriginal) => {
+vi.mock("../components/liste/listeApi.js", async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,

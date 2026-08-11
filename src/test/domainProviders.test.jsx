@@ -33,7 +33,7 @@ vi.mock("../lib/taskUtils.js", async (importOriginal) => {
 
 // ClientiView (montata da un test più sotto) interroga il modulo Liste al
 // mount: qui interessano i render, non le query.
-vi.mock("../lib/listeApi.js", async (importOriginal) => ({
+vi.mock("../components/liste/listeApi.js", async (importOriginal) => ({
   ...(await importOriginal()),
   ListeAPI: {
     listByClient: vi.fn(async () => ({ data: [], error: null })),

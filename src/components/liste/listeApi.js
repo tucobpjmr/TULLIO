@@ -1,4 +1,4 @@
-// src/lib/listeApi.js
+// src/components/liste/listeApi.js
 // Layer dati del modulo "Liste Viaggio" (buoni viaggio / liste cliente).
 // Porting della SPA vanilla `liste-buoni-viaggio` dentro VoyageDesk: le query
 // e le RPC sono le stesse, ma passano dal client Supabase condiviso invece che
@@ -13,13 +13,24 @@
 // Gating ruoli: la RLS (migrazione 20260728190100) concede il modulo solo a
 // admin/manager/agent. Il gate lato client (role !== "driver") è difesa in
 // profondità, non la garanzia: quella è e resta la RLS.
-import { supabase } from './supabase';
+//
+// PERCHÉ STA QUI E NON IN src/lib/ (ST-6 di docs/AUDIT_STRUTTURA_2026-08-10.md).
+// Questo file è PRIVATO del modulo Liste: i suoi importatori sono tutti dentro
+// components/liste/, nessuno fuori. Stava in src/lib/ — la cartella dei moduli
+// condivisi da tutta l'app — ed è esattamente il posto da cui tre viste del core
+// (Topbar/ricerca, ClientiView, Archive) l'avevano raggiunto la prima volta,
+// assemblando query sulle tabelle di un modulo altrui. La porta d'ingresso dal
+// core è e resta ./listeModuleApi.js, che espone domande e non query; ora il
+// confine non è più solo una convenzione, ed è verificato da
+// no-restricted-imports (VIETATO_LISTEAPI_DA_FUORI in eslint.config.js).
+import { supabase } from '../../lib/supabase';
 // La paginazione contro il cap `db-max-rows` di PostgREST viveva qui come
 // funzione privata di questo modulo. Ora sta in lib/pagination.js: `clients`
 // (818 righe) ne aveva bisogno quanto liste_viaggio e movimenti_lista, e la
 // regola non doveva esistere in due copie per essere applicata in due posti
 // (ST-3 di docs/AUDIT_STRUTTURA_2026-08-10.md).
-import { fetchAllRows, WITH_COUNT } from './pagination.js';
+import { fetchAllRows, WITH_COUNT } from '../../lib/pagination.js';
+import { dataNumerica } from "../../lib/dates.js";
 
 // Le liste portano sempre con sé il nome del titolare (clients) e degli
 // eventuali cointestatari (lista_beneficiari → clients, es. marito e moglie):
@@ -384,11 +395,13 @@ export const eur = (v) =>
 // "08 ago 2026" partendo da un timestamp ISO: input diverso, formato diverso,
 // e il modulo Liste ha una sua identità visiva. Non sono due copie da
 // riconciliare.
-export const fmtDate = (d) => {
-  if (!d) return '';
-  const [y, m, g] = String(d).split('-');
-  return `${g}/${m}/${y}`;
-};
+// La forma numerica del modulo Liste ("28/07/2026"). Da ST-8 il formato vive
+// in lib/dates.js insieme agli altri sei: questa resta l'API pubblica del
+// modulo (undici call site) e il caveat che la fa esistere — `data_movimento` è
+// una colonna `date`, non un timestamp, e passarla per `new Date` la
+// interpreterebbe come UTC-mezzanotte — è ora gestito da `aData` in quel
+// modulo, per TUTTI i formati e non solo per questo.
+export const fmtDate = (d) => dataNumerica(d);
 
 export const todayISO = () => {
   // Data locale, non `toISOString()`: quest'ultima è in UTC e dopo le 22:00
@@ -472,7 +485,7 @@ export const docHtml = (lista, movimenti, storico, usersById = {}) => {
     <p style="margin-top:14pt"><b>SALDO: € ${saldo.toLocaleString('it-IT', { minimumFractionDigits: 2 })}</b></p>
     ${lista.stato === 'esaurita' ? '<p style="color:#C0392B"><b>LISTA ESAURITA</b></p>' : ''}
     ${storicoHtml}
-    <p style="font-size:9pt;color:#888">Esportato il ${new Date().toLocaleDateString('it-IT')} — Gestione Liste Viaggio</p>
+    <p style="font-size:9pt;color:#888">Esportato il ${dataNumerica(new Date())} — Gestione Liste Viaggio</p>
     </body></html>`;
 };
 

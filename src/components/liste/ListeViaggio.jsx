@@ -10,7 +10,7 @@
 // Il CONTENUTO mantiene di proposito lo stile originale (blu #0F4C81, font
 // Inter, impaginazione "foglio cartaceo"); solo la chrome di navigazione —
 // breadcrumb e testata — segue lo stile Tullio (navy/oro, Playfair).
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { useListeData } from "./useListeData.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
@@ -18,8 +18,9 @@ import { useClients } from "../../state/ClientsContext.jsx";
 import {
   ListeAPI, beneficiariNomi, downloadBlob, eur, fmtDate, intestazioneLista,
   saldoClass, todayISO,
-} from "../../lib/listeApi.js";
+} from "./listeApi.js";
 import { useListeWrite } from "./listePersistence.js";
+import { overlayIniziale, overlayReducer } from "./listeReducers.js";
 import { matchTermini, terminiRicerca } from "../../lib/searchUtils.js";
 import { ListeStyles } from "./listeStyles.jsx";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
@@ -168,17 +169,23 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
   const [openId, setOpenId] = useState(null);
   const [detail, setDetail] = useState(null); // { lista, movimenti, history }
 
+  // Quattro valori INDIPENDENTI dell'elenco: si cerca dentro un filtro, con un
+  // ordinamento, mostrando N righe. Restano useState separati di proposito —
+  // non sono una macchina a stati e accorparli è la parte del rilievo ST-7 che
+  // non va fatta (vedi il commento in listeReducers.js).
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("attive");
   const [sort, setSort] = useState("recenti");
   const [limit, setLimit] = useState(HOME_PAGE_SIZE);
-  const [nuovaOpen, setNuovaOpen] = useState(false);
 
-  // Strumenti dati (backup/ripristino/reset) e hard delete dal cestino.
-  const [strumentiOpen, setStrumentiOpen] = useState(false);
-  const [resetOpen, setResetOpen] = useState(false);
-  const [pendingImport, setPendingImport] = useState(null); // { payload, nL, nM }
-  const [importProgress, setImportProgress] = useState(null); // { done, total }
+  // Gli overlay del modulo — nuova lista, strumenti dati, reset totale,
+  // conferma del ripristino da backup — in UNA macchina a stati: erano quattro
+  // useState mutuamente esclusivi per costruzione ma non per rappresentazione
+  // (ST-7). `dati` porta il corredo dell'overlay aperto: per "import" è
+  // { payload, nL, nM, progress }.
+  const [overlay, overlayDispatch] = useReducer(overlayReducer, overlayIniziale);
+  const apriOverlay = (tipo, dati = null) => overlayDispatch({ type: "APRI", overlay: tipo, dati });
+  const chiudiOverlay = () => overlayDispatch({ type: "CHIUDI" });
   const conferma = useConfirm();
   const fileInputRef = useRef(null);
 
@@ -344,7 +351,7 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
   };
 
   const apriCaricaBackup = () => {
-    setStrumentiOpen(false);
+    chiudiOverlay();
     fileInputRef.current?.click();
   };
 
@@ -366,24 +373,32 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
       dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "Il file non sembra un backup di questa app." } });
       return;
     }
-    setPendingImport({
+    apriOverlay("import", {
       payload: { clients: data.clients || [], liste: data.liste || [], movimenti: data.movimenti || [] },
       nL: (data.liste || []).length,
       nM: (data.movimenti || []).length,
+      progress: null,
     });
   };
 
   const confermaImport = async () => {
-    if (!pendingImport) return false;
+    if (overlay.tipo !== "import") return false;
     // Il ripristino ora è spezzato in più chiamate: su un backup grande può
     // durare parecchi secondi, e un bottone fermo su "Carico…" sembrerebbe
     // bloccato. L'avanzamento arriva dal layer dati, che sa quanti blocchi ha
-    // già scritto.
-    setImportProgress({ done: 0, total: 0 });
-    const { ok, data: res } = await esegui("importaBackup", pendingImport.payload, setImportProgress);
-    setImportProgress(null);
+    // già scritto — ed è l'unico dato che cambia mentre l'overlay resta aperto,
+    // quindi PROGRESSO e non una transizione.
+    overlayDispatch({ type: "PROGRESSO", progress: { done: 0, total: 0 } });
+    const { ok, data: res } = await esegui(
+      "importaBackup",
+      overlay.dati.payload,
+      (progress) => overlayDispatch({ type: "PROGRESSO", progress }),
+    );
+    // Fallito: l'avanzamento sparisce ma la modale resta aperta, così si può
+    // riprovare senza riscegliere il file.
+    overlayDispatch({ type: "PROGRESSO", progress: null });
     if (!ok) return false;
-    setPendingImport(null);
+    chiudiOverlay();
     dispatch({
       type: "SHOW_TOAST",
       payload: { type: "success", message: `Backup caricato: +${res.clients_added} clienti, +${res.liste_added} liste, +${res.movimenti_added} movimenti` },
@@ -395,7 +410,7 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
   const confermaReset = async () => {
     const { ok, data: res } = await esegui("resetTotale");
     if (!ok) return false;
-    setResetOpen(false);
+    chiudiOverlay();
     dispatch({
       type: "SHOW_TOAST",
       payload: { type: "success", message: `Reset eseguito: ${res.liste_deleted} liste e ${res.movimenti_deleted} movimenti eliminati` },
@@ -514,10 +529,10 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
                     ))}
                   </select>
                 </label>
-                <button className="lv-btn" title="Strumenti dati (backup e reset)" onClick={() => setStrumentiOpen(true)}>
+                <button className="lv-btn" title="Strumenti dati (backup e reset)" onClick={() => apriOverlay("strumenti")}>
                   Strumenti dati
                 </button>
-                <button className="lv-btn primary" onClick={() => setNuovaOpen(true)}>+ Nuova lista</button>
+                <button className="lv-btn primary" onClick={() => apriOverlay("nuova")}>+ Nuova lista</button>
               </div>
 
               {/* Risultati nascosti dal filtro: si dice sempre, anche quando
@@ -579,16 +594,16 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
             </>
           )}
 
-          {nuovaOpen && (
+          {overlay.tipo === "nuova" && (
             <NuovaListaModal
               clients={clients}
-              onClose={() => setNuovaOpen(false)}
+              onClose={chiudiOverlay}
               onCreate={{
                 onError: (message) => dispatch({ type: "SHOW_TOAST", payload: { type: "error", message } }),
                 run: async (payload) => {
                   const { ok, data: id } = await esegui("creaLista", payload);
                   if (!ok) return false;
-                  setNuovaOpen(false);
+                  chiudiOverlay();
                   await loadHome();
                   setOpenId(id);
                   return true;
@@ -607,29 +622,33 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
             onChange={onBackupFile}
           />
 
-          {strumentiOpen && (
+          {/* "Vai al reset" era due scritture per una transizione sola
+              (`setStrumentiOpen(false); setResetOpen(true);`): fra le due, lo
+              stato "due overlay aperti" era rappresentabile. Ora è una APRI, e
+              la sostituzione la garantisce il reducer. */}
+          {overlay.tipo === "strumenti" && (
             <StrumentiDatiModal
               isAdminUser={isAdminUser}
-              onClose={() => setStrumentiOpen(false)}
-              onScaricaBackup={async () => { setStrumentiOpen(false); await scaricaBackup(); }}
+              onClose={chiudiOverlay}
+              onScaricaBackup={async () => { chiudiOverlay(); await scaricaBackup(); }}
               onCaricaBackup={apriCaricaBackup}
-              onReset={() => { setStrumentiOpen(false); setResetOpen(true); }}
+              onReset={() => apriOverlay("reset")}
             />
           )}
 
-          {pendingImport && (
+          {overlay.tipo === "import" && (
             <ImportaBackupConfirmModal
-              nL={pendingImport.nL}
-              nM={pendingImport.nM}
-              progress={importProgress}
-              onClose={() => setPendingImport(null)}
+              nL={overlay.dati.nL}
+              nM={overlay.dati.nM}
+              progress={overlay.dati.progress}
+              onClose={chiudiOverlay}
               onSave={{ run: confermaImport, onError: toastError }}
             />
           )}
 
-          {resetOpen && (
+          {overlay.tipo === "reset" && (
             <ResetTotaleModal
-              onClose={() => setResetOpen(false)}
+              onClose={chiudiOverlay}
               onSave={{ run: confermaReset, onError: toastError }}
             />
           )}

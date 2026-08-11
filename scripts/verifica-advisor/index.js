@@ -55,12 +55,23 @@ async function main() {
   ]);
   const lints = [...sicurezza, ...performance];
 
-  const { fallisce, errori, avvisi } = valutaLints(lints);
+  const { fallisce, errori, avvisi, nonAccettati } = valutaLints(lints);
 
-  for (const l of avvisi) console.log(`  ⚠ [${l.categories?.join(',')}] ${l.title}: ${l.detail}`);
+  const accettati = avvisi.filter((l) => !nonAccettati.includes(l));
+  for (const l of accettati) console.log(`  ⚠ [${l.categories?.join(',')}] ${l.title}: ${l.detail}`);
+  // ST-14: gli avvisi che nessuno ha accettato si stampano come i fallimenti,
+  // non in mezzo agli altri. `auth_leaked_password_protection` è aperto da
+  // agosto proprio perché era indistinguibile dai nove motivati.
+  for (const l of nonAccettati) {
+    console.log(`  ✗ AVVISO NON ACCETTATO [${l.name}] ${l.title}: ${l.detail}`);
+    console.log(`    ${l.remediation ?? ''}`);
+    console.log('    Se è una scelta consapevole, nominala in AVVISI_ACCETTATI ' +
+      'con il motivo accanto; altrimenti va chiusa.');
+  }
   for (const l of errori) console.log(`  ✗ [${l.categories?.join(',')}] ${l.title}: ${l.detail}\n    ${l.remediation ?? ''}`);
 
-  console.log(`\n${errori.length} errori, ${avvisi.length} avvisi (${lints.length} lint totali).`);
+  console.log(`\n${errori.length} errori, ${nonAccettati.length} avvisi non accettati, ` +
+    `${accettati.length} avvisi motivati (${lints.length} lint totali).`);
 
   if (fallisce) {
     process.exit(1);

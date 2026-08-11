@@ -59,12 +59,21 @@ const VIETATI_IMPORT_LISTE_EAGER = {
   group: [
     '**/liste/ClienteListePanel', '**/liste/ClienteListePanel.jsx',
     '**/liste/ArchivedListe', '**/liste/ArchivedListe.jsx',
+    // ChatPanel dal 2026-08-11 (ST-6…ST-15): stessa forma, stesso rischio, e
+    // qui il modo di rompere il chunk è già stato trovato una volta — il
+    // pannello ri-esportava `getUnreadCount`, che serve al badge dei non letti
+    // e si calcola FUORI dal pannello. Bastava quel ri-export a tenere i ~54 kB
+    // della chat nel chunk iniziale con il `lazy()` già scritto: chi serve
+    // quella funzione la importa da chat/chatFormat.js.
+    '**/chat/ChatPanel', '**/chat/ChatPanel.jsx',
   ],
   message:
-    'ClienteListePanel/ArchivedListe si importano con lazy(() => import(...)) ' +
-    '(vedi ClienteDetailPanel.jsx/Archive.jsx): un import statico li rimette nel ' +
-    'chunk eager insieme a listeStyles.jsx e lib/listeApi.js, che ListeViaggio.jsx ' +
-    'tiene già fuori (docs/AUDIT_PERFORMANCE_2026-08.md, P2-1).',
+    'ClienteListePanel/ArchivedListe/ChatPanel si importano con lazy(() => import(...)) ' +
+    '(vedi ClienteDetailPanel.jsx/Archive.jsx/VoyageDesk.jsx): un import statico li rimette nel ' +
+    'chunk eager insieme a listeStyles.jsx e liste/listeApi.js, che ListeViaggio.jsx ' +
+    'tiene già fuori (docs/AUDIT_PERFORMANCE_2026-08.md, P2-1; ST-12). Le funzioni ' +
+    'pure della chat che servono fuori dal pannello (getUnreadCount per il badge) ' +
+    'si importano da chat/chatFormat.js, che non trascina il pannello.',
 };
 
 // Stesso principio per mockData.js: 17.9 kB di dati demo che devono restare
@@ -81,6 +90,29 @@ const VIETATO_MOCKDATA_DIRETTO = {
     'import.meta.env.DEV: altrove finisce nel bundle di produzione anche se ' +
     'irraggiungibile a runtime. Per stato iniziale non-demo (es. categorie) usa ' +
     'state/taskCategories.js.',
+};
+
+// Quarta regola di confine, stessa forma delle tre sopra. `listeApi.js` è il
+// data layer PRIVATO del modulo Liste: dodici importatori, tutti dentro
+// components/liste/, nessuno fuori. La facciata listeModuleApi.js aveva già
+// chiuso la superficie verso il core — ma finché il file stava in `src/lib/`,
+// la cartella dei moduli condivisi, quel confine era una CONVENZIONE e non una
+// struttura: era esattamente il posto da cui Topbar/ricerca, ClientiView e
+// Archive l'avevano raggiunto la prima volta, assemblando query sulle tabelle
+// di un modulo altrui (ST-6 di docs/AUDIT_STRUTTURA_2026-08-10.md).
+//
+// Ora il file sta accanto ai suoi consumatori e questa regola dice la stessa
+// cosa al linter. Come per appGlobals, il problema non era scrivere la facciata
+// nuova: era che ogni vista aggiunta copiava l'import dal vicino. La regola
+// passa a zero violazioni — non chiede un refactor, impedisce la prossima
+// regressione, che si è presentata solo per distrazione.
+const VIETATO_LISTEAPI_DA_FUORI = {
+  group: ['**/liste/listeApi', '**/liste/listeApi.js'],
+  message:
+    'listeApi.js è PRIVATO del modulo Liste: dal core si passa da ' +
+    'components/liste/listeModuleApi.js, che espone domande e non query. ' +
+    'Tre viste del core (Topbar/ricerca, ClientiView, Archive) conoscevano la ' +
+    'forma delle tabelle di un modulo altrui prima che quella facciata esistesse.',
 };
 
 // Su `Users` la granularità dell'import non basta: lo stesso namespace porta
@@ -195,7 +227,10 @@ export default [
       // è rimasta ferma a zero consumatori per intere sessioni. Se il file
       // riappare, questo errore lo intercetta prima della review.
       'no-restricted-imports': ['error', {
-        patterns: [VIETATO_APPGLOBALS, VIETATI_IMPORT_LISTE_EAGER, VIETATO_MOCKDATA_DIRETTO],
+        patterns: [
+          VIETATO_APPGLOBALS, VIETATI_IMPORT_LISTE_EAGER, VIETATO_MOCKDATA_DIRETTO,
+          VIETATO_LISTEAPI_DA_FUORI,
+        ],
       }],
     },
   },
@@ -215,6 +250,7 @@ export default [
         patterns: [
           VIETATO_APPGLOBALS, VIETATE_ENTITA_DELLO_STATE,
           VIETATI_IMPORT_LISTE_EAGER, VIETATO_MOCKDATA_DIRETTO,
+          VIETATO_LISTEAPI_DA_FUORI,
         ],
       }],
       'no-restricted-properties': ['error', ...VIETATE_MUTAZIONI_TEAM],
@@ -227,13 +263,29 @@ export default [
   {
     files: ['src/state/demoState.js'],
     rules: {
-      'no-restricted-imports': ['error', { patterns: [VIETATO_APPGLOBALS, VIETATI_IMPORT_LISTE_EAGER] }],
+      'no-restricted-imports': ['error', {
+        patterns: [VIETATO_APPGLOBALS, VIETATI_IMPORT_LISTE_EAGER, VIETATO_LISTEAPI_DA_FUORI],
+      }],
     },
   },
   {
     files: ['src/components/liste/**/*.{js,jsx}'],
     rules: {
       'no-restricted-properties': ['error', ...VIETATE_MUTAZIONI_TEAM, ...VIETATE_SCRITTURE_LISTE],
+      // Il modulo È il proprietario di listeApi.js: qui l'import è la cosa
+      // normale (dodici file lo fanno), quindi VIETATO_LISTEAPI_DA_FUORI si
+      // toglie — senza questa riga il modulo vieterebbe se stesso.
+      //
+      // Le altre quattro pattern vanno RIPETUTE: in flat config le opzioni di
+      // una regola non si fondono fra blocchi, si sostituiscono, quindi questo
+      // blocco non eredita nulla da quelli sopra. Ometterle qui toglierebbe a
+      // components/liste/** proprio le protezioni comuni a tutti i componenti.
+      'no-restricted-imports': ['error', {
+        patterns: [
+          VIETATO_APPGLOBALS, VIETATE_ENTITA_DELLO_STATE,
+          VIETATI_IMPORT_LISTE_EAGER, VIETATO_MOCKDATA_DIRETTO,
+        ],
+      }],
     },
   },
   // Il registry È il posto in cui le scritture del modulo si nominano: qui la
@@ -282,7 +334,15 @@ export default [
       // riguarda. VIETATI_IMPORT_LISTE_EAGER resta: i test che montano
       // ClienteListePanel/ArchivedListe lo fanno con `await import(...)`
       // dinamico, mai colpito da questa regola.
-      'no-restricted-imports': ['error', { patterns: [VIETATO_APPGLOBALS, VIETATI_IMPORT_LISTE_EAGER] }],
+      // VIETATO_LISTEAPI_DA_FUORI vale anche qui: un test che monta il modulo
+      // Liste lo fa dai suoi componenti, e quando gli serve il data layer lo
+      // mocka o lo importa dinamicamente — nessuna delle due forme è un
+      // ImportDeclaration, quindi la regola non le tocca. Un `import` statico
+      // di listeApi.js in un test, invece, è il primo passo con cui il percorso
+      // torna a circolare fuori dal modulo.
+      'no-restricted-imports': ['error', {
+        patterns: [VIETATO_APPGLOBALS, VIETATI_IMPORT_LISTE_EAGER, VIETATO_LISTEAPI_DA_FUORI],
+      }],
     },
   },
 ];

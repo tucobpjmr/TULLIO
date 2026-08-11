@@ -26,6 +26,10 @@ const ClientImportModal = lazy(() =>
   import("./ClientImportModal.jsx").then(m => ({ default: m.ClientImportModal }))
 );
 
+// ST-9 · Quante card si disegnano alla volta. 24 = tre file da otto sulla
+// griglia desktop (`minmax(340px, 1fr)`), una schermata piena su mobile.
+const PAGINA = 24;
+
 const CLIENT_SORT_OPTS = [
   { key: "name",    label: "Nome A-Z" },
   { key: "name_z",  label: "Nome Z-A" },
@@ -122,6 +126,23 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
       return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
     });
   }, [clients, search, sortBy, linkFilter, listeByClient]);
+
+  // ST-9 · La finestra visibile. ✅ 818 clienti in anagrafica: senza limite si
+  // montavano 818 ClienteCard, ognuna con il proprio useMemo sulle note e il
+  // chip del conteggio liste. Non è una libreria di virtualizzazione — sarebbe
+  // la risposta giusta a 10.000 righe, non a 818, e porterebbe una dipendenza
+  // in un progetto che ne ha volutamente una sola. È lo STESSO pattern che il
+  // modulo Liste applica già a 616 liste (`HOME_PAGE_SIZE` in ListeViaggio):
+  // la differenza fra le due viste non era una decisione, era che sono state
+  // scritte in momenti diversi.
+  const [limite, setLimite] = useState(PAGINA);
+  // Ogni restringimento riazzera la finestra: chi cerca "Rossi" si aspetta di
+  // vedere i Rossi, non i primi 24 di una finestra aperta su un'altra ricerca.
+  // L'ordinamento è nell'elenco per la stessa ragione — cambiarlo ridefinisce
+  // *quali* sono i primi 24.
+  useEffect(() => { setLimite(PAGINA); }, [search, linkFilter, sortBy]);
+  const visibili = useMemo(() => filtered.slice(0, limite), [filtered, limite]);
+  const restanti = filtered.length - visibili.length;
 
   const handleSave = async (form, { renameTasks = [] } = {}) => {
     if (modal?.mode === "edit" && modal.cliente) {
@@ -244,19 +265,40 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
           )}
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(340px, 1fr))", gap: 14 }}>
-          {filtered.map(c => (
-            <ClienteCard
-              key={c.id}
-              cliente={c}
-              onEdit={c => setModal({ mode: "edit", cliente: c })}
-              onDelete={c => setConfirmDelete(c)}
-              onSelect={c => { setPanelTab(null); setSelectedClient(sc => sc?.id === c.id ? null : c); }}
-              selected={selectedClient?.id === c.id}
-              liste={listeDi(c)}
-            />
-          ))}
-        </div>
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(340px, 1fr))", gap: 14 }}>
+            {visibili.map(c => (
+              <ClienteCard
+                key={c.id}
+                cliente={c}
+                onEdit={c => setModal({ mode: "edit", cliente: c })}
+                onDelete={c => setConfirmDelete(c)}
+                onSelect={c => { setPanelTab(null); setSelectedClient(sc => sc?.id === c.id ? null : c); }}
+                selected={selectedClient?.id === c.id}
+                liste={listeDi(c)}
+              />
+            ))}
+          </div>
+          {/* Il totale resta VERO anche a finestra ridotta: "24 di 818" e "24"
+              sono due affermazioni diverse su dati operativi, e questa vista
+              serve a rispondere alla domanda "quanti clienti ho". */}
+          {restanti > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginTop: 18 }}>
+              <button
+                onClick={() => setLimite(l => l + PAGINA)}
+                style={{
+                  background: "var(--card)", color: "var(--text)",
+                  border: "1px solid var(--border)", borderRadius: 10,
+                  padding: "10px 22px", cursor: "pointer",
+                  fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+                }}
+              >Mostra altri {Math.min(PAGINA, restanti)} di {restanti}</button>
+              <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
+                {visibili.length} di {filtered.length} clienti
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Pannello del cliente selezionato (v2.8 Round 9): task + liste viaggio */}

@@ -15,6 +15,7 @@ import { exportTasksToIcs } from "./calendarIcs.js";
 import { expandRecurring } from "./calendarRecurrence.js";
 import { CalendarDayGrid } from "./CalendarDayGrid.jsx";
 import { CalendarWeekGrid } from "./CalendarWeekGrid.jsx";
+import { giornoLungo, giornoMese, giornoMeseAnno, meseAnno } from "../../lib/dates.js";
 
 export const CalendarPlanner = memo(function CalendarPlanner({ dispatch, loading = false }) {
   const { isMobile } = useViewport();
@@ -58,7 +59,7 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch, loading
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const today = new Date();
-  const monthName = currentMonth.toLocaleDateString("it-IT", { month: "long", year: "numeric" });
+  const monthName = meseAnno(currentMonth);
   const startOffset = firstDay === 0 ? 6 : firstDay - 1;
 
   // ── Week helpers ──
@@ -167,11 +168,11 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch, loading
             {viewMode === "month" && monthName}
             {viewMode === "week" && "Settimana"}
             {viewMode === "week-full" && "Settimana piena"}
-            {viewMode === "day" && dayDate.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
+            {viewMode === "day" && giornoLungo(dayDate)}
           </div>
           {(viewMode === "week" || viewMode === "week-full") && (
             <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
-              {weekDays[0].toLocaleDateString("it-IT", { day: "numeric", month: "short" })} — {weekDays[6].toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" })}
+              {giornoMese(weekDays[0])} — {giornoMeseAnno(weekDays[6])}
             </div>
           )}
         </div>

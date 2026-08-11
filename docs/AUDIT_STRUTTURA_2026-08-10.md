@@ -94,16 +94,16 @@ scavalchino un permesso o rompano una funzionalità.
 | ST-3 | ~~Alta~~ ✔ **risolto** | Scalabilità | `Clients.list()` senza `.range()` con ✅ 818 righe: troncamento silenzioso al cap PostgREST | `lib/api.js:605-606` |
 | ST-4 | ~~Media~~ ✔ **risolto** (parte 1 di 2) | Scalabilità | La chat ricaricava **tutti** i messaggi a ogni evento, e su `conversations` anche l'elenco intero senza motivo | `hooks/useChatData.js:71-99` · `lib/api.js:351` |
 | ST-5 | ~~Media~~ ✔ **risolto** | Duplicazione / a11y | Due modi di chiedere conferma **dentro lo stesso modulo**; 12 modali del modulo Liste senza `role="dialog"`, `aria-modal`, blocco scroll | `liste/modals/LvOverlay.jsx` · `liste/ListaDetail.jsx` · `liste/ListeViaggio.jsx` |
-| ST-6 | Media | Organizzazione | `lib/listeApi.js` (530 righe) è il data layer **privato** del modulo Liste ma vive nel layer condiviso: 12 import interni, 0 esterni | `lib/listeApi.js` |
-| ST-7 | Media | Complessità | Due componenti con una macchina a stati di modali scritta a mano: 14 e 18 `useState` | `liste/ListeViaggio.jsx:167-181` · `modals/ProfileEditor.jsx` |
-| ST-8 | Media | Duplicazione | Formattazione date: 🔬 16 call site in 9 file, 6 forme diverse, nessun modulo comune | `lib/taskUtils.js:14` · `lib/listeApi.js:416` · +7 file |
-| ST-9 | Media | Scalabilità | `ClientiView` disegna tutte le ✅ 818 card senza paginazione, mentre il modulo Liste ha già il pattern (`HOME_PAGE_SIZE`) | `clients/ClientiView.jsx` |
-| ST-10 | Bassa | Architettura | `ChatPanel`: 18 prop fra cui i setter grezzi dello stato chat; due write path di fallback **solo-test** compilati in produzione | `chat/ChatPanel.jsx:43` · `chat/ConversationView.jsx:81,261` |
-| ST-11 | Bassa | Duplicazione | `clients` arriva come prop `state.clients \|\| []` a tre componenti benché esista `ClientsProvider` — e il `\|\| []` crea un array nuovo a ogni render | `VoyageDesk.jsx:388,420,434` |
-| ST-12 | Bassa | Bundle | La chat (~54 kB) è ancora eager benché il pannello chiuso ritorni `null` (P2-10, aperto) | `VoyageDesk.jsx:50` |
-| ST-13 | Bassa | Documentazione | Deriva già ricomparsa: `INDEX.md` dà per aperti 10 rilievi P2 su 10 (5 sono chiusi); `CLAUDE.md` conta 19 `no-multi-comp` in 12 file (🔬 20 in 10) | `docs/INDEX.md` · `docs/CLAUDE.md:41` |
+| ST-6 | ~~Media~~ ✔ **risolto** (il data layer è in components/liste/ + quarta regola di lint) | Organizzazione | `lib/listeApi.js` (530 righe) è il data layer **privato** del modulo Liste ma vive nel layer condiviso: 12 import interni, 0 esterni | `lib/listeApi.js` |
+| ST-7 | ~~Media~~ ✔ **risolto** (overlayReducer in ListeViaggio, bozza unica in ProfileEditor) | Complessità | Due componenti con una macchina a stati di modali scritta a mano: 14 e 18 `useState` | `liste/ListeViaggio.jsx:167-181` · `modals/ProfileEditor.jsx` |
+| ST-8 | ~~Media~~ ✔ **risolto** (src/lib/dates.js, sette formati nominati) | Duplicazione | Formattazione date: 🔬 16 call site in 9 file, 6 forme diverse, nessun modulo comune | `lib/taskUtils.js:14` · `lib/listeApi.js:416` · +7 file |
+| ST-9 | ~~Media~~ ✔ **risolto** (finestra da 24 card in ClientiView) | Scalabilità | `ClientiView` disegna tutte le ✅ 818 card senza paginazione, mentre il modulo Liste ha già il pattern (`HOME_PAGE_SIZE`) | `clients/ClientiView.jsx` |
+| ST-10 | ~~Bassa~~ ✔ **risolto** (un percorso solo: i fallback solo-test sono spariti) | Architettura | `ChatPanel`: 18 prop fra cui i setter grezzi dello stato chat; due write path di fallback **solo-test** compilati in produzione | `chat/ChatPanel.jsx:43` · `chat/ConversationView.jsx:81,261` |
+| ST-11 | ~~Bassa~~ ✔ **risolto** (i tre componenti leggono useClients()) | Duplicazione | `clients` arriva come prop `state.clients \|\| []` a tre componenti benché esista `ClientsProvider` — e il `\|\| []` crea un array nuovo a ogni render | `VoyageDesk.jsx:388,420,434` |
+| ST-12 | ~~Bassa~~ ✔ **risolto** (ChatPanel è un chunk lazy: index da 291 a 239 kB) | Bundle | La chat (~54 kB) è ancora eager benché il pannello chiuso ritorni `null` (P2-10, aperto) | `VoyageDesk.jsx:50` |
+| ST-13 | ~~Bassa~~ ✔ **risolto** (scripts/verifica-convenzioni/) | Documentazione | Deriva già ricomparsa: `INDEX.md` dà per aperti 10 rilievi P2 su 10 (5 sono chiusi); `CLAUDE.md` conta 19 `no-multi-comp` in 12 file (🔬 20 in 10) | `docs/INDEX.md` · `docs/CLAUDE.md:41` |
 | ST-14 | Bassa | Config | `leaked_password_protection` ancora disabilitata (✅ riconfermato oggi sull'advisor) | dashboard Supabase |
-| ST-15 | Bassa | Render | `AppDataContext` ricrea ~20 closure a ogni sostituzione di `team` (P2-9, aperto) | `state/AppDataContext.jsx:50` |
+| ST-15 | ~~Bassa~~ ✔ **risolto** (confronto prima di SET_TEAM/SET_CATEGORIES) | Render | `AppDataContext` ricrea ~20 closure a ogni sostituzione di `team` (P2-9, aperto) | `state/AppDataContext.jsx:50` |
 
 ## 2-bis. Stato di avanzamento — cinque rilievi chiusi
 
@@ -124,9 +124,33 @@ esempio.
 | **ST-5** | `ConfirmModal.jsx` è sparito: i suoi tre call site (`ListaDetail.jsx` — chiudere/cestinare una lista, rimuovere un cointestatario, eliminare un movimento; `ListeViaggio.jsx` — eliminazione definitiva dal cestino) passano ora da `useConfirm()`, lo stesso meccanismo già usato da `ArchivedListe.jsx` nello stesso modulo. `LvOverlay.jsx` (gli undici modali con portale) ha preso `role="dialog"`, `aria-modal="true"`, `aria-labelledby` opzionale e blocco dello scroll di fondo — sei righe, stile del modulo invariato. Un test esistente (`listeDataTools.test.jsx`) assumeva il vecchio markup (`.lv-modal` come contenitore della conferma) ed è stato aggiornato a cercare `[role="dialog"]`, che è precisamente la differenza che questo rilievo introduce. |
 | Test | 🔬 **982 verdi + 7 skipped** su 87 file (erano 977 su 87): +5 `realtimeGranularita` (ST-4). 0 errori ESLint (20 warning, l'arretrato dichiarato). Build ok: `index` 291.26 kB / 81.82 kB gzip. |
 
-**Cosa NON è stato toccato**, perché fuori dai cinque rilievi risolti: ST-6…ST-15
-restano aperti come descritti in §3, così come la parte 2 di ST-2 e la parte 2
-di ST-4.
+**Cosa NON era stato toccato in quel passaggio**: ST-6…ST-15, chiusi il giorno
+dopo — vedi §2-ter, che li registra uno per uno. Restano aperti solo ST-14 (non
+correggibile da codice) e le due decisioni dichiarate, la parte 2 di ST-2 e la
+parte 2 di ST-4.
+
+---
+
+## 2-ter. Stato di avanzamento — nove rilievi chiusi l'11 agosto
+
+Applicati su richiesta nello stesso branch, il giorno dopo. Restano aperti
+**ST-14** (non correggibile da codice) e le due decisioni dichiarate: il secondo
+passo di ST-2 e il secondo passo di ST-4, entrambe rimandate per i motivi
+scritti in §2-bis, non per mancanza di tempo.
+
+| | Esito |
+|---|---|
+| **ST-6** | `lib/listeApi.js` → `components/liste/listeApi.js`, accanto ai suoi dodici importatori. La quarta regola `no-restricted-imports` vieta l'import da fuori il modulo, con l'eccezione per il modulo stesso — e in flat config le opzioni non si fondono fra blocchi, quindi la pattern è ripetuta nei quattro blocchi che ridichiarano la regola. 🔬 **Verificata contro il difetto**: un import da `components/views/` fallisce il lint. |
+| **ST-7** | `liste/listeReducers.js`: i quattro `useState` di overlay di ListeViaggio (più l'avanzamento dell'import) sono una transizione sola — lo stato "due finestre aperte" non è più *rappresentabile*, invece di essere tenuto impossibile a mano in ogni handler. `search`/`filter`/`sort`/`limit` restano `useState`, che è la parte del rilievo che non andava fatta. In `ProfileEditor` i 17 `useState` diventano 10: una bozza per i campi del profilo (come `TaskSlideOver`), una per il sotto-form password, e una fase per ciascuna delle due operazioni asincrone al posto di due coppie booleano+messaggio. Cinque valori restano separati **con il motivo scritto nel file**. |
+| **ST-8** | `lib/dates.js` nomina **sette** formati, non sei: il settimo (`giornoMese`, senza zero iniziale) esiste solo per gli estremi di una settimana di calendario, e la ragione è scritta accanto. I formatter `Intl` si costruiscono al primo import invece che a ogni chiamata. Il caveat che teneva separate `formatDate` e `fmtDate` non è sparito, è stato **promosso**: `aData` costruisce un `Date` locale dai tre numeri di una colonna `date`, quindi la protezione dallo slittamento di un giorno vale ora per tutti i formati e non per il solo numerico. Il test che conta è il confronto **carattere per carattere** fra la nuova strada e la chiamata che sostituisce, forma per forma: quasi nessun test funzionale asserisce su una data, quindi questo refactor poteva cambiare ciò che l'utente legge restando verde. |
+| **ST-9** | Finestra di 24 card in `ClientiView`, con "Mostra altri N di M" e riazzeramento a ogni restringimento (ricerca, filtro, **ordinamento** — cambiare l'ordine ridefinisce quali sono i primi 24). Il totale resta visibile: "24 di 818" e "24" sono due affermazioni diverse su dati operativi. 9 test che **contano le card montate**, perché una finestra si riapre in silenzio. |
+| **ST-10** | I due fallback "eg. test" di `ConversationView` sono spariti: un percorso solo, quello dei comandi. `useChatData` non esporta più i setter grezzi. ⚠️ **Togliendoli è emerso il difetto che coprivano**: `ChatPanel` non passava affatto `commands` a `ConversationView`, quindi `sendText` avrebbe sollevato un `TypeError` al primo invio da una conversazione aperta. Nessun test era rosso perché i due percorsi esercitati dai test erano esattamente i due fallback. È la dimostrazione del rilievo, meglio di quanto il rilievo stesso sapesse. |
+| **ST-11** | `TaskSlideOver`, `QuickAddTask` e `BulkTaskCreator` leggono `useClients()`; le tre prop `clients={state.clients \|\| []}` sono sparite da `VoyageDesk.jsx` insieme all'array nuovo a ogni render. |
+| **ST-12** | 🔬 Misurato: chunk `ChatPanel` **53.20 kB / 14.69 kB gzip** fuori dall'iniziale, `index` da **291.26 → 239.68 kB** (81.82 → 68.63 kB gzip). Il ri-export di `getUnreadCount` da `ChatPanel` è stato rimosso *prima* del `lazy()`: con quello in piedi il modulo sarebbe rimasto agganciato al chunk eager e il lazy non avrebbe spostato niente — il difetto di P2-1. La regola di lint che protegge `ClienteListePanel`/`ArchivedListe` copre ora anche `ChatPanel`, e i quattro test della chat importano il pannello dinamicamente. |
+| **ST-13** | `scripts/verifica-convenzioni/`, in CI accanto al lint. Confronta sette numeri dichiarati in `docs/` con la misura reale: `no-multi-comp` (casi e file, letti dall'**API** di ESLint e non dal testo dell'output), le violazioni `max-lines`, e per ciascun audit i rilievi chiusi/totali della sua tabella contro il marcatore `⟦stato: N/M chiusi⟧` in `INDEX.md`. ⛔ Ogni lettura da documento **solleva** se il pattern non c'è: uno script che passa perché non ha trovato niente da verificare è peggio del problema che risolve. 🔬 Verificato contro il difetto: alterando il numero in `CLAUDE.md` lo script esce 1 con lo scarto. Prima misura: il numero scritto era ancora sbagliato — 20 casi in **13** file, non in 10. |
+| **ST-15** | `lib/confrontoIdratazione.js`: `SET_TEAM` e `SET_CATEGORIES` non partono più quando il payload riletto è equivalente a quello consegnato prima, quindi un evento realtime innocuo su `users` non invalida più i venti metodi di `AppDataContext`. Il confronto è puro e testato sui casi limite, non sul caso normale: niente `JSON.stringify` (sensibile all'ordine delle chiavi: non fallirebbe mai, e la correzione sarebbe finta), l'ordine delle righe **conta**, e `null` non è mai equivalente a una lista — saltare un dispatch è corretto solo se il payload è davvero completo. |
+| **ST-14** | **Resta aperto, e non è correggibile da codice**: è un interruttore in Supabase → Authentication → Password → *Enable leaked password protection*. ✅ Riconfermato `WARN` sull'advisor live l'11 agosto. Ciò che è stato fatto è togliergli il silenzio: `verifica-advisor` non accetta più i WARN per **categoria** ma per **nome**, con l'elenco dei nove SECURITY DEFINER motivati scritto accanto alla ragione. Da ora questo rilievo fa fallire il controllo invece di confondersi con quelli accettati — e, cosa che conta di più, lo fa anche un avviso *nuovo* su una tabella aggiunta domani. |
+| Test | 🔬 **1057 verdi + 7 skipped** su 93 file (erano 982 su 87). 0 errori ESLint (20 warning in 13 file, l'arretrato dichiarato e ora verificato da uno script). Build ok. |
 
 ---
 

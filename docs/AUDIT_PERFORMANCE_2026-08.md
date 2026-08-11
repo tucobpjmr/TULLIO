@@ -119,16 +119,16 @@ il chunk iniziale scende a **~60 kB gzip contro i 112 attuali**.
 | # | Priorità | Area | Problema | File |
 |---|---|---|---|---|
 | — | **CRITICI** | — | **Nessuno.** | — |
-| P2-1 | **Alta** | Bundle | Il chunk `lazy` del modulo Liste è aggirato: 40 kB su 42 stanno nel bundle eager, importati da fuori il modulo | `clients/ClienteDetailPanel.jsx:10`, `views/Archive.jsx:18` |
-| P2-2 | **Alta** | Bundle | `mockData.js` (17.9 kB) è il modulo più pesante del bundle di produzione, e serve solo in sviluppo | `state/mockData.js`, `state/reducer.js:27` |
-| P2-3 | **Alta** | Bundle | Sei viste/modali secondarie (~90 kB) sono nel primo download: solo 4 moduli su ~140 sono `lazy` | `VoyageDesk.jsx:41-46`, `shell/Topbar.jsx:11` |
-| P2-4 | **Alta** | Render | Dashboard e CalendarPlanner non hanno **un solo `useMemo`**: 6 ordinamenti su 248 task e 3 espansioni di ricorrenze a ogni render, comprese 2 fuori schermo | `dashboard/Dashboard.jsx:54-110`, `calendar/CalendarPlanner.jsx:63-78` |
-| P2-5 | **Alta** | Scalabilità | `Clients.list()` senza `.range()` con la tabella a 818 righe: troncamento **silenzioso** al cap PostgREST (default 1000) | `lib/api.js:606` |
-| P2-6 | Media | Render | `Topbar`/`Sidebar`/`BottomNav` ricevono `state` intero e non sono `memo`: ri-render del guscio a ogni azione, toast compresi | `VoyageDesk.jsx:269,294,315` |
-| P2-7 | Media | Render | `ViewportContext` pubblica `width` grezzo con value non memoizzato: ogni frame di resize invalida 40 consumatori | `components/Viewport.jsx:29-33` |
-| P2-8 | Media | Scalabilità | Nessuna virtualizzazione né paginazione lato client in nessuna vista: 818 clienti e 616 liste si renderizzano interi | `clients/ClientiView.jsx`, `liste/ListeViaggio.jsx` |
-| P2-9 | Bassa | Render | `AppDataContext` ricrea 20 closure a ogni sostituzione di `team`, e `SET_TEAM` sostituisce l'array anche quando i dati sono identici | `state/AppDataContext.jsx:50`, `hooks/useAppHydration.js:170` |
-| P2-10 | Bassa | Bundle | La chat (54.5 kB) è eager benché il pannello ritorni `null` da chiuso | `VoyageDesk.jsx:45`, `chat/ChatPanel.jsx:213` |
+| P2-1 | ~~**Alta**~~ ✔ **risolto** (commit `8d3afb3`) | Bundle | Il chunk `lazy` del modulo Liste è aggirato: 40 kB su 42 stanno nel bundle eager, importati da fuori il modulo | `clients/ClienteDetailPanel.jsx:10`, `views/Archive.jsx:18` |
+| P2-2 | ~~**Alta**~~ ✔ **risolto** (commit `8d3afb3`) | Bundle | `mockData.js` (17.9 kB) è il modulo più pesante del bundle di produzione, e serve solo in sviluppo | `state/mockData.js`, `state/reducer.js:27` |
+| P2-3 | ~~**Alta**~~ ✔ **risolto** (commit `8d3afb3`) | Bundle | Sei viste/modali secondarie (~90 kB) sono nel primo download: solo 4 moduli su ~140 sono `lazy` | `VoyageDesk.jsx:41-46`, `shell/Topbar.jsx:11` |
+| P2-4 | ~~**Alta**~~ ✔ **risolto** (verificato il 10 agosto) | Render | Dashboard e CalendarPlanner non hanno **un solo `useMemo`**: 6 ordinamenti su 248 task e 3 espansioni di ricorrenze a ogni render, comprese 2 fuori schermo | `dashboard/Dashboard.jsx:54-110`, `calendar/CalendarPlanner.jsx:63-78` |
+| P2-5 | ~~**Alta**~~ ✔ **risolto** (come ST-3) | Scalabilità | `Clients.list()` senza `.range()` con la tabella a 818 righe: troncamento **silenzioso** al cap PostgREST (default 1000) | `lib/api.js:606` |
+| P2-6 | ~~Media~~ ✔ **risolto** (come ST-2 (parte 1)) | Render | `Topbar`/`Sidebar`/`BottomNav` ricevono `state` intero e non sono `memo`: ri-render del guscio a ogni azione, toast compresi | `VoyageDesk.jsx:269,294,315` |
+| P2-7 | ~~Media~~ ✔ **risolto** (verificato il 10 agosto) | Render | `ViewportContext` pubblica `width` grezzo con value non memoizzato: ogni frame di resize invalida 40 consumatori | `components/Viewport.jsx:29-33` |
+| P2-8 | ~~Media~~ ✔ **risolto** (come ST-9, l'11 agosto) | Scalabilità | Nessuna virtualizzazione né paginazione lato client in nessuna vista: 818 clienti e 616 liste si renderizzano interi | `clients/ClientiView.jsx`, `liste/ListeViaggio.jsx` |
+| P2-9 | ~~Bassa~~ ✔ **risolto** (come ST-15, l'11 agosto) | Render | `AppDataContext` ricrea 20 closure a ogni sostituzione di `team`, e `SET_TEAM` sostituisce l'array anche quando i dati sono identici | `state/AppDataContext.jsx:50`, `hooks/useAppHydration.js:170` |
+| P2-10 | ~~Bassa~~ ✔ **risolto** (come ST-12, l'11 agosto) | Bundle | La chat (54.5 kB) è eager benché il pannello ritorni `null` da chiuso | `VoyageDesk.jsx:45`, `chat/ChatPanel.jsx:213` |
 
 ---
 

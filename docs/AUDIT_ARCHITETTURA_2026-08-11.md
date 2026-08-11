@@ -62,7 +62,7 @@ if (caller?.role !== "admin") { … 403 }   // invite-user:75 · delete-user:49
 ```
 
 Il database, per la stessa domanda, ne guarda tre: `role = 'admin' AND active`
-(`public.is_admin()`), più il muro RESTRICTIVE `rls_active_only` su ogni tabella
+(`private.is_admin()`), più il muro RESTRICTIVE `rls_active_only` su ogni tabella
 e il gate `pending` della `20260806130000`. La conseguenza è concreta e non
 teorica: **un admin disattivato, e un admin invitato ma non ancora approvato,
 conservano il potere di invitare chiunque e di hard-eliminare qualunque utente**
@@ -177,7 +177,7 @@ della `20260806130000`, che ha aggiunto il gate `pending` **dentro** l'helper �
 quindi le condizioni sono tre, non due:
 
 ```sql
-create or replace function public.is_admin() ... as $$
+create or replace function private.is_admin() ... as $$
   SELECT EXISTS (SELECT 1 FROM public.users
                  WHERE id = auth.uid() AND role = 'admin'
                    AND active = true AND coalesce(pending, false) = false);
@@ -222,7 +222,7 @@ più debole. Nuovo file:
 // Queste funzioni girano con la service_role e quindi scavalcano la RLS: il
 // controllo qui dentro NON è una difesa in profondità, è l'unica difesa.
 // Deve perciò rispecchiare esattamente il predicato che il database applica a
-// tutto il resto — public.is_admin() richiede `active`, e il gate della
+// tutto il resto — private.is_admin() richiede `active`, e il gate della
 // migrazione 20260806130000 richiede `pending = false`. Verificare il solo
 // `role`, come si faceva prima, lasciava passare due categorie di chiamante
 // che ogni altro strato del sistema respinge: l'admin disattivato (che è il
@@ -354,10 +354,10 @@ alter table public.message_templates enable row level security;
 -- is_admin() include già `active`, ed è l'helper da usare invece di riscrivere
 -- il predicato (è la lezione di C-1 nello stesso audit).
 create policy message_templates_select on public.message_templates
-  for select to authenticated using ((select public.is_active_user()));
+  for select to authenticated using ((select private.is_active_user()));
 create policy message_templates_write on public.message_templates
   for all to authenticated
-  using ((select public.is_admin())) with check ((select public.is_admin()));
+  using ((select private.is_admin())) with check ((select private.is_admin()));
 
 alter publication supabase_realtime add table public.message_templates;
 ```
@@ -1011,9 +1011,9 @@ chiude un rilievo — è la disciplina che ST-13 ha introdotto e che
 
 | Rilievo | Stato |
 |---|---|
-| **C-1** | ✔ **corretto nel repo l'11 agosto** — ⚠️ **da deployare**, vedi sotto |
-| **A-1** | ✔ **corretto nel repo l'11 agosto** — tabella `message_templates` + registry + idratazione (a), nota di onestà in `AdminLogTab` (b) |
-| **A-2** | ✔ **corretto nel repo l'11 agosto** — `ClientsAPI.createMany` a blocchi + `ROLLBACK_CLIENTS_BULK` |
+| **C-1** | ✔ **corretto e deployato in produzione l'11 agosto** — `invite-user` v9, `delete-user` v4 |
+| **A-1** | ✔ **corretto e deployato in produzione l'11 agosto** — tabella `message_templates` + registry + idratazione (a), nota di onestà in `AdminLogTab` (b) |
+| **A-2** | ✔ **corretto nel repo l'11 agosto** — `ClientsAPI.createMany` a blocchi + `ROLLBACK_CLIENTS_BULK` (codice applicativo, nessun deploy separato: arriva con il merge) |
 | A-3 | 🟠 aperto |
 | M-1 … M-5 | 🟡 aperti |
 | B-1, B-2, B-3 | 🟢 aperti |
@@ -1022,7 +1022,7 @@ chiude un rilievo — è la disciplina che ST-13 ha introdotto e che
 
 | | |
 |---|---|
-| **Predicato** | `supabase/functions/_shared/adminPredicate.ts` — `puoAgireComeAdmin()` rispecchia `public.is_admin()` nella forma della `20260806130000`, tutte e tre le condizioni. Modulo **puro e senza import**, nemmeno di tipo: è ciò che lo rende eseguibile da Vitest, che gira su Node e non risolverebbe gli specificatori `jsr:` del runtime Deno. |
+| **Predicato** | `supabase/functions/_shared/adminPredicate.ts` — `puoAgireComeAdmin()` rispecchia `private.is_admin()` nella forma della `20260806130000`, tutte e tre le condizioni. Modulo **puro e senza import**, nemmeno di tipo: è ciò che lo rende eseguibile da Vitest, che gira su Node e non risolverebbe gli specificatori `jsr:` del runtime Deno. |
 | **Preambolo** | `supabase/functions/_shared/requireActiveAdmin.ts` — verifica il JWT, rilegge il profilo con la `service_role` e applica il predicato. Era copiato nelle due funzioni, con lo **stesso identico difetto** in entrambe: è il modo in cui i controlli duplicati sbagliano — non divergono, restano uguali e sbagliati insieme. |
 | **Call site** | `invite-user:66-73`, `delete-user:41-50`. In `delete-user` anche il confronto "non puoi eliminare te stesso" passa da `esito.userId`, così l'identità del chiamante ha una sola origine. |
 | **Test** | `src/test/edgeFunctionAdminGate.test.js` — 13 casi, **il primo test di questo repo sul terzo livello di autorizzazione**. |
@@ -1048,17 +1048,18 @@ controllo debole in `invite-user` falliscono i 2 casi di cablaggio;
 riducendo il predicato a `role === "admin"` ne falliscono 4, fra cui i due
 nominati sui percorsi 1 e 2 di C-1.
 
-> ⚠️ **Il rilievo NON è chiuso in produzione.** Le Edge Function non si
-> deployano da CI in questo progetto: finché non si esegue
-> `supabase functions deploy invite-user delete-user`, in produzione gira
-> ancora la versione con il controllo debole. È la stessa lezione che
-> `docs/MIGRAZIONI_SUPABASE.md` ripete per le migrazioni — **committare non è
-> applicare** — e qui vale identica.
+> ✔ **Deployato in produzione l'11 agosto**, via MCP `deploy_edge_function`
+> (le Edge Function non partono da CI in questo progetto — committare non è
+> applicare, la stessa lezione di `docs/MIGRAZIONI_SUPABASE.md` per le
+> migrazioni). `invite-user` v8→v9, `delete-user` v3→v4. Verificato rileggendo
+> il sorgente effettivamente live (`get_edge_function`): contiene
+> `requireActiveAdmin`, non il controllo debole. Nessun avviso nuovo su
+> `get_advisors` dopo il deploy.
 
 ### A-1 — cosa è stato fatto
 
 **(a) Template messaggi → tabella + registry**, esattamente come proposto:
-migrazione `20260811210000_message_templates.sql` (tabella, RLS — lettura a
+migrazione `20260811224053_message_templates.sql` (tabella, RLS — lettura a
 tutti gli utenti attivi, scrittura solo admin via `is_admin()` — realtime,
 seed con i quattro template che prima vivevano solo in `makeInitialState`);
 `MessageTemplates` in `lib/api.js`; le tre entry `ADD/UPDATE/DELETE_MESSAGE_TEMPLATE`
@@ -1074,6 +1075,20 @@ I quattro template hard-coded sono usciti da `makeInitialState` come dato
 finale: restano nel seed della migrazione, quindi il primo avvio in
 produzione li trova identici a prima, ma da lì in poi sono righe vere — un
 template cancellato dall'admin non ricompare più al reload.
+
+> ✔ **Deployata in produzione l'11 agosto**, via MCP `apply_migration`, e
+> registrata come `20260811224053` — non `20260811210000`, il timestamp con
+> cui il file era stato scritto: è lo scarto fra nome-file e versione
+> registrata che `docs/MIGRAZIONI_SUPABASE.md` descrive per altri 56 file, e
+> qui è stato chiuso subito rinominando il file appena committato invece di
+> lasciarlo un cinquantasettesimo caso. **Il primo tentativo di applicazione è
+> fallito**: la bozza (copiata da `20260630_categories_table`) referenziava
+> `public.is_admin()`/`public.is_active_user()`, che non esistono più da
+> quando `20260706181011` li ha spostati in schema `private` — uno scarto fra
+> **questo stesso documento** (§4 C-1, che li citava come `public.*`) e il
+> database live, scoperto solo provando a applicare per davvero. Corretto
+> nella migrazione e in tutti i punti di questo documento e di
+> `docs/SICUREZZA.md` che citavano `public.is_admin()`/`public.is_active_user()`.
 
 **(b) Log attività → onesto**, non server-side (quella resta lavoro a sé, il
 suggerimento strategico n. 2): `AdminLogTab` dichiara ora esplicitamente,

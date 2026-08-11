@@ -105,12 +105,22 @@ nella sessione 24: le tabelle restano, protette, ma nessun codice le usa.)
 ### Gerarchia degli helper (📄)
 
 ```
-public.is_admin()            role = 'admin'            AND active
-public.is_manager_or_admin() role IN (admin, manager)  AND active
-public.is_active_user()      active
-private.is_admin()           idem, fuori dallo schema esposto
-private.can_liste()          role IN (admin, manager, agent) AND active
+private.is_admin()            role = 'admin'            AND active
+private.is_manager_or_admin() role IN (admin, manager)  AND active
+private.is_active_user()      active
+private.can_liste()           role IN (admin, manager, agent) AND active
 ```
+
+Tutti e quattro hanno vissuto in `public` fino alla migrazione `20260706181011`
+(`is_active_user()` era già in `private`): spostati per l'advisor
+`function_search_path_mutable`, restando raggiungibili da `authenticated` (le
+policy RLS li valutano comunque, `private` non è esposto da PostgREST). Una
+`ALTER FUNCTION … SET SCHEMA` sposta l'oggetto, non lo ricrea: le policy già
+scritte con `public.is_admin()` continuano a funzionare (referenziano la
+funzione per OID), ma un SQL scritto **oggi** deve usare `private.*` — è lo
+scarto che ha fatto fallire il primo tentativo della migrazione `A-1`
+(`message_templates`, 11 agosto): copiata da `20260630_categories_table`, che
+è precedente allo spostamento e quindi ancora scritta con `public.*`.
 
 Tutti `SECURITY DEFINER` + `SET search_path`. Il controllo `active` è stato
 aggiunto in `20260621_rls_hardening_active_users`: prima un utente invitato ma
@@ -240,7 +250,7 @@ stessa migrazione — altrimenti un Junior si sarebbe promosso Senior con un
 > descrizione era **esatta**, ed è per questo che questo documento non si è mai
 > accorto del problema: il difetto non era uno scarto fra documento e codice —
 > di quelli il repo ha già imparato a difendersi — ma fra **la stessa regola
-> scritta in due linguaggi**. `public.is_admin()`, dopo la migrazione
+> scritta in due linguaggi**. `private.is_admin()`, dopo la migrazione
 > `20260806130000`, è `role = 'admin' AND active = true AND coalesce(pending,
 > false) = false`; le due Edge Function guardavano il solo `role`. E siccome
 > girano con la `service_role`, che bypassa integralmente la RLS, quel

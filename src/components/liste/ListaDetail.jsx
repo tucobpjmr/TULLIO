@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   actionLabel, docHtml, downloadBlob, eur, fmtDate, saldoClass,
-} from "../../lib/listeApi.js";
+} from "./listeApi.js";
 import { useListeWrite } from "./listePersistence.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import { AggiungiBeneficiarioModal } from "./modals/AggiungiBeneficiarioModal.jsx";

@@ -1,7 +1,8 @@
 // src/components/liste/listeModuleApi.js
 // La superficie PUBBLICA del modulo Liste viaggio verso il resto dell'app.
 //
-// PERCHÉ ESISTE. `lib/listeApi.js` era importato da sette file, di cui tre
+// PERCHÉ ESISTE. `listeApi.js` (allora in `src/lib/`) era importato da sette
+// file, di cui tre
 // appartengono al core e non hanno niente a che fare con le liste: la ricerca
 // globale della Topbar, l'anagrafica clienti e la vista Archivio. Ognuno
 // assemblava le proprie query — quali chiamare, come combinarle, come contare —
@@ -16,8 +17,18 @@
 // Nota: questa è la superficie di SOLA LETTURA usata da fuori. Le scritture
 // restano interne al modulo (ListeAPI + le RPC transazionali), perché nessuna
 // vista del core ne ha bisogno.
+//
+// Dal 10 agosto (ST-6) il confine non è più solo questa facciata: `listeApi.js`
+// è stato spostato QUI ACCANTO, da `src/lib/` — la cartella dei moduli
+// condivisi, cioè il posto da cui quelle tre viste l'avevano raggiunto — e una
+// regola `no-restricted-imports` (VIETATO_LISTEAPI_DA_FUORI in
+// eslint.config.js) fa fallire il lint su chiunque lo importi da fuori
+// `src/components/liste/**`. Prima il confine era una convenzione che reggeva
+// finché qualcuno la ricordava in review; ora è struttura, e la violazione —
+// che si è presentata solo per distrazione, copiando l'import dal vicino — si
+// ferma prima del commit.
 
-import { ListeAPI, beneficiariNomi, intestazioneLista } from "../../lib/listeApi.js";
+import { ListeAPI, beneficiariNomi, intestazioneLista } from "./listeApi.js";
 
 // Formattazione dei nomi di una lista (intestatario e beneficiari): pure, ma
 // ri-esportate da qui perché il core abbia UNA sola porta d'ingresso al modulo

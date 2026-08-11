@@ -1,4 +1,4 @@
-import { eur, fmtDate, intestazioneLista, riepilogoTesto, saldoClass } from "../../../lib/listeApi.js";
+import { eur, fmtDate, intestazioneLista, riepilogoTesto, saldoClass } from "../listeApi.js";
 import { LvOverlay } from "./LvOverlay.jsx";
 
 // ─── Riepilogo cliente: anteprima stampabile/condivisibile ─────────────────

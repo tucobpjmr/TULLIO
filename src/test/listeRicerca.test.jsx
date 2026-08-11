@@ -63,7 +63,7 @@ const LISTA_COINTESTATA = {
   lista_beneficiari: [{ client_id: "c-dam", clients: { name: "D'AMATO PATRIZIA" } }],
 };
 
-vi.mock("../lib/listeApi.js", async (importOriginal) => {
+vi.mock("../components/liste/listeApi.js", async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
@@ -75,7 +75,7 @@ vi.mock("../lib/listeApi.js", async (importOriginal) => {
   };
 });
 
-const { ListeAPI } = await import("../lib/listeApi.js");
+const { ListeAPI } = await import("../components/liste/listeApi.js");
 const { ListeViaggio, filtraListe } = await import("../components/liste/ListeViaggio.jsx");
 
 const TEAM = [{ id: "marco", name: "Marco", role: "admin", active: true, pending: false }];

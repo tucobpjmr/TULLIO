@@ -39,7 +39,7 @@ const ListeAPIMock = {
   resetCompleto: vi.fn(() => ok({ liste_deleted: 3, movimenti_deleted: 5 })),
 };
 
-vi.mock("../lib/listeApi.js", async (importOriginal) => ({
+vi.mock("../components/liste/listeApi.js", async (importOriginal) => ({
   ...(await importOriginal()),
   ListeAPI: ListeAPIMock,
 }));

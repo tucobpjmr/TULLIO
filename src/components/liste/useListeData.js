@@ -23,7 +23,7 @@
 // una subscription su di esse non avrebbe mai ricevuto un evento.
 
 import { useState, useCallback, useRef } from "react";
-import { ListeAPI } from "../../lib/listeApi.js";
+import { ListeAPI } from "./listeApi.js";
 import { useDebouncedTableSubscription } from "../../hooks/useDebouncedTableSubscription.js";
 
 const VUOTO = { liste: [], cestino: [], saldi: {} };

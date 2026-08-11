@@ -30,7 +30,7 @@ const render = (ui, options) => {
 vi.mock("../lib/supabase", () => ({ supabase: {}, default: {} }));
 
 // Il pannello legge le liste al mount; i task arrivano per prop.
-vi.mock("../lib/listeApi.js", async (importOriginal) => {
+vi.mock("../components/liste/listeApi.js", async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
@@ -51,7 +51,7 @@ vi.mock("../lib/push.js", () => ({
   sendTestPush: vi.fn(),
 }));
 
-const { ListeAPI } = await import("../lib/listeApi.js");
+const { ListeAPI } = await import("../components/liste/listeApi.js");
 const { AdvancedSearchPanel } = await import("../components/search/AdvancedSearchPanel.jsx");
 
 const TEAM = [{ id: "marco", name: "Marco", role: "admin", active: true, pending: false }];

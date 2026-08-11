@@ -66,7 +66,7 @@ const ListeAPIMock = {
 // invece di comporsi con la prima.
 vi.mock("../lib/supabase", () => ({ supabase: {}, default: {} }));
 vi.mock("../lib/api.js", () => ({ subscribeToTable: (...a) => subscribeToTable(...a) }));
-vi.mock("../lib/listeApi.js", async (importOriginal) => {
+vi.mock("../components/liste/listeApi.js", async (importOriginal) => {
   const actual = await importOriginal();
   return { ...actual, ListeAPI: { ...actual.ListeAPI, ...ListeAPIMock } };
 });

@@ -56,7 +56,7 @@ const ListeAPIMock = {
 
 const downloadBlobMock = vi.fn();
 
-vi.mock("../lib/listeApi.js", async (importOriginal) => {
+vi.mock("../components/liste/listeApi.js", async (importOriginal) => {
   const actual = await importOriginal();
   return { ...actual, ListeAPI: ListeAPIMock, downloadBlob: downloadBlobMock };
 });

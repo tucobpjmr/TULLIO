@@ -4,12 +4,13 @@
 //
 // Vive QUI e non in views/Archive.jsx per una ragione di dipendenze: una vista
 // "archivio generico" non deve conoscere il data layer di un modulo specifico.
-// Prima Archive.jsx importava direttamente lib/listeApi.js — insieme a Topbar e
+// Prima Archive.jsx importava direttamente il data layer delle liste — insieme a
+// Topbar e
 // ClientiView, faceva tre viste del core accoppiate alle query delle liste.
 // Ora l'Archivio monta questo componente per composizione e non sa nulla di
 // come le liste vengano lette.
 import { useCallback, useEffect, useState } from "react";
-import { ListeAPI, eur, fmtDate, saldoClass } from "../../lib/listeApi.js";
+import { ListeAPI, eur, fmtDate, saldoClass } from "./listeApi.js";
 import { useListeWrite } from "./listePersistence.js";
 import { PERIOD_OPTIONS, filterByPeriod, thStyle, chipStyle } from "../views/archiveFilters.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";

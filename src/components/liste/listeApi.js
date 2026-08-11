@@ -1,4 +1,4 @@
-// src/lib/listeApi.js
+// src/components/liste/listeApi.js
 // Layer dati del modulo "Liste Viaggio" (buoni viaggio / liste cliente).
 // Porting della SPA vanilla `liste-buoni-viaggio` dentro VoyageDesk: le query
 // e le RPC sono le stesse, ma passano dal client Supabase condiviso invece che
@@ -13,13 +13,23 @@
 // Gating ruoli: la RLS (migrazione 20260728190100) concede il modulo solo a
 // admin/manager/agent. Il gate lato client (role !== "driver") è difesa in
 // profondità, non la garanzia: quella è e resta la RLS.
-import { supabase } from './supabase';
+//
+// PERCHÉ STA QUI E NON IN src/lib/ (ST-6 di docs/AUDIT_STRUTTURA_2026-08-10.md).
+// Questo file è PRIVATO del modulo Liste: i suoi importatori sono tutti dentro
+// components/liste/, nessuno fuori. Stava in src/lib/ — la cartella dei moduli
+// condivisi da tutta l'app — ed è esattamente il posto da cui tre viste del core
+// (Topbar/ricerca, ClientiView, Archive) l'avevano raggiunto la prima volta,
+// assemblando query sulle tabelle di un modulo altrui. La porta d'ingresso dal
+// core è e resta ./listeModuleApi.js, che espone domande e non query; ora il
+// confine non è più solo una convenzione, ed è verificato da
+// no-restricted-imports (VIETATO_LISTEAPI_DA_FUORI in eslint.config.js).
+import { supabase } from '../../lib/supabase';
 // La paginazione contro il cap `db-max-rows` di PostgREST viveva qui come
 // funzione privata di questo modulo. Ora sta in lib/pagination.js: `clients`
 // (818 righe) ne aveva bisogno quanto liste_viaggio e movimenti_lista, e la
 // regola non doveva esistere in due copie per essere applicata in due posti
 // (ST-3 di docs/AUDIT_STRUTTURA_2026-08-10.md).
-import { fetchAllRows, WITH_COUNT } from './pagination.js';
+import { fetchAllRows, WITH_COUNT } from '../../lib/pagination.js';
 
 // Le liste portano sempre con sé il nome del titolare (clients) e degli
 // eventuali cointestatari (lista_beneficiari → clients, es. marito e moglie):

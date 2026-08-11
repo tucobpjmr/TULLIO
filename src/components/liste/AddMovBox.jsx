@@ -3,7 +3,7 @@
 // e i due campi in linea della testata. Ognuno ha stato e salvataggio propri e
 // con gli altri condivide solo il `dispatch`.
 import { useEffect, useRef, useState } from "react";
-import { METODI, parseImporto, todayISO } from "../../lib/listeApi.js";
+import { METODI, parseImporto, todayISO } from "./listeApi.js";
 import { useListeWrite } from "./listePersistence.js";
 import { SegnoSeg } from "./modals/SegnoSeg.jsx";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";

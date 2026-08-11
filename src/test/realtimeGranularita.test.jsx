@@ -73,7 +73,7 @@ vi.mock("../lib/api.js", () => ({
   Conversations: ConversationsAPI,
   Messages: MessagesAPI,
 }));
-vi.mock("../lib/listeApi.js", () => ({ ListeAPI }));
+vi.mock("../components/liste/listeApi.js", () => ({ ListeAPI }));
 
 const { useDebouncedTableSubscription } = await import("../hooks/useDebouncedTableSubscription.js");
 const { useListeData } = await import("../components/liste/useListeData.js");

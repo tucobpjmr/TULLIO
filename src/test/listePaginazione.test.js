@@ -59,7 +59,7 @@ const fakeFrom = (table) => {
 
 vi.mock("../lib/supabase", () => ({ supabase: { from: fakeFrom, rpc: fakeRpc }, default: {} }));
 
-const { ListeAPI } = await import("../lib/listeApi.js");
+const { ListeAPI } = await import("../components/liste/listeApi.js");
 
 beforeEach(() => {
   db.tables = {};

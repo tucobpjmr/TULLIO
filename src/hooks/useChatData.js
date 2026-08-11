@@ -114,11 +114,14 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
     0
   );
 
+  // ST-10 · I setter grezzi NON escono di qui. `setConversations`/`setMessages`
+  // finivano in VoyageDesk e da lì in ChatPanel, dove ConversationView li usava
+  // per riscrivere a mano ciò che i comandi già facevano. Chi deve mutare lo
+  // stato della chat passa da `commands`, che è il registry di questo
+  // sottosistema — la stessa regola che `state/persistence.js` applica al core.
   return {
     conversations: chatConversations,
-    setConversations: setConversationsRaw,
     messages,
-    setMessages: setMessagesRaw,
     commands: chatCommands,
     unreadChat,
     loading: chatLoading,

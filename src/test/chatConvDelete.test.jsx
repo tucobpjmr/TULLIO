@@ -12,7 +12,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { renderWithAppData, DEMO_APP_CTX } from "./helpers/appData.jsx";
-import { ChatPanel } from "../components/chat/ChatPanel.jsx";
+// ST-12 · Import DINAMICO: `ChatPanel` è ora un chunk lazy e una regola di
+// lint vieta la forma statica (la stessa che protegge ClienteListePanel e
+// ArchivedListe). Un `import` statico qui non romperebbe il test — romperebbe
+// il chunk, che è precisamente il difetto che nessuno vede in review.
+const { ChatPanel } = await import("../components/chat/ChatPanel.jsx");
 
 // I componenti sotto test leggono team/categorie/utente da useAppData(): prima
 // li prendevano dai default di modulo di appGlobals, ora vanno montati dentro
@@ -59,9 +63,7 @@ function renderPanel({ onDeleteConversation }) {
       open
       onClose={() => {}}
       conversations={[GROUP]}
-      setConversations={() => {}}
       messages={{}}
-      setMessages={() => {}}
       onDeleteConversation={onDeleteConversation}
       intent={null}
     />
@@ -132,9 +134,7 @@ describe("eliminazione conversazioni/gruppi", () => {
         open
         onClose={() => {}}
         conversations={[GROUP]}
-        setConversations={() => {}}
         messages={{}}
-        setMessages={() => {}}
         intent={null}
       />
     );

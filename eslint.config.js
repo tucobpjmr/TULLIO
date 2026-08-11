@@ -59,12 +59,21 @@ const VIETATI_IMPORT_LISTE_EAGER = {
   group: [
     '**/liste/ClienteListePanel', '**/liste/ClienteListePanel.jsx',
     '**/liste/ArchivedListe', '**/liste/ArchivedListe.jsx',
+    // ChatPanel dal 2026-08-11 (ST-6…ST-15): stessa forma, stesso rischio, e
+    // qui il modo di rompere il chunk è già stato trovato una volta — il
+    // pannello ri-esportava `getUnreadCount`, che serve al badge dei non letti
+    // e si calcola FUORI dal pannello. Bastava quel ri-export a tenere i ~54 kB
+    // della chat nel chunk iniziale con il `lazy()` già scritto: chi serve
+    // quella funzione la importa da chat/chatFormat.js.
+    '**/chat/ChatPanel', '**/chat/ChatPanel.jsx',
   ],
   message:
-    'ClienteListePanel/ArchivedListe si importano con lazy(() => import(...)) ' +
-    '(vedi ClienteDetailPanel.jsx/Archive.jsx): un import statico li rimette nel ' +
+    'ClienteListePanel/ArchivedListe/ChatPanel si importano con lazy(() => import(...)) ' +
+    '(vedi ClienteDetailPanel.jsx/Archive.jsx/VoyageDesk.jsx): un import statico li rimette nel ' +
     'chunk eager insieme a listeStyles.jsx e liste/listeApi.js, che ListeViaggio.jsx ' +
-    'tiene già fuori (docs/AUDIT_PERFORMANCE_2026-08.md, P2-1).',
+    'tiene già fuori (docs/AUDIT_PERFORMANCE_2026-08.md, P2-1; ST-12). Le funzioni ' +
+    'pure della chat che servono fuori dal pannello (getUnreadCount per il badge) ' +
+    'si importano da chat/chatFormat.js, che non trascina il pannello.',
 };
 
 // Stesso principio per mockData.js: 17.9 kB di dati demo che devono restare

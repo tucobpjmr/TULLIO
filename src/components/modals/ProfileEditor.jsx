@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { useAuth } from "../../auth/AuthContext.jsx";
+import { useIsMounted } from "../../hooks/useIsMounted.js";
 import { Users as UsersAPI } from "../../lib/api.js";
 import { PasswordField } from "../ui/PasswordField.jsx";
 import { useAvatarSrc } from "../ui/Avatar.jsx";
@@ -23,64 +24,114 @@ const REGOLE = {
 };
 const ORDINE = ["name", "email"];
 
+// ST-7 · Stato "a riposo" delle due operazioni asincrone della modale (cambio
+// password, eliminazione account). Una fase sola per operazione, e non un
+// booleano "in corso" accanto a un messaggio: vedi la classificazione qui sotto.
+const ESITO_PRONTO = { fase: "pronto", testo: null };
+const BOZZA_PWD = { nuova: "", conferma: "" };
 
+// ─── ST-7 · CLASSIFICAZIONE DEGLI STATI ──────────────────────────────────────
+// Prima questo componente coordinava 17 `useState` indipendenti (18 nel conteggio
+// dell'audit, che includeva la riga di import). Il numero non era il problema:
+// lo era il fatto che nulla nel codice dicesse QUALI di quei valori sono la
+// stessa cosa. Classificati una volta per tutte:
+//
+//   • CAMPI DEL PROFILO (name, color, email, phone, photoUrl) → un solo oggetto
+//     `draft` con un setter per campo, esattamente come `TaskSlideOver`. Sono i
+//     cinque valori che compongono il payload di UPDATE_OWN_PROFILE: nascono
+//     insieme da `member`, si leggono insieme al salvataggio e si buttano via
+//     insieme quando si preme Annulla.
+//   • CAMPI DEL SOTTO-FORM PASSWORD (newPwd, confirmPwd) → `bozzaPwd`. Sono un
+//     SECONDO form, con un proprio submit (`updatePassword`, che non passa dal
+//     registry perché non tocca un'entità dello state): tenerli in `draft` li
+//     avrebbe portati a un passo dal finire nel payload del profilo.
+//   • ESITO DI UN'OPERAZIONE ASINCRONA (savingPwd + pwdMsg, deletingAccount +
+//     deleteMsg) → una fase sola per operazione, `esitoPwd` / `esitoElim`.
+//     "In volo" e "ho un esito da mostrare" sono mutuamente esclusivi per
+//     costruzione — ogni handler azzera il messaggio prima di partire — mentre
+//     due stati separati rendevano rappresentabile "sto salvando e intanto
+//     mostro l'esito di prima", che nessun handler doveva mai produrre.
+//
+// Restano DELIBERATAMENTE separati, perché sono valori indipendenti e accorparli
+// è la parte del rilievo che non va fatta:
+//   • `errori` — non è un valore del form ma il verdetto sull'ultimo tentativo di
+//     salvataggio, con un ciclo di vita opposto a quello di `draft` (si spegne
+//     quando il campo cambia, si riaccende al submit). Dentro `draft` un
+//     `setDraft` di routine finirebbe per riscriverlo o azzerarlo.
+//   • `cropSrc` — è l'immagine SORGENTE del ritaglio, non la foto del profilo:
+//     esiste solo mentre la CropModal è aperta e annullarla non deve toccare
+//     `draft.photoUrl`.
+//   • `pwdAperta` / `elimAperta` — due sezioni a fisarmonica INDIPENDENTI: oggi
+//     possono essere aperte entrambe insieme, e fonderle in un'unica "sezione
+//     attiva" (come si è fatto per gli overlay di ListeViaggio, che invece sono
+//     mutuamente esclusivi) sarebbe un cambiamento di comportamento visibile.
+//   • `rivelaPwd` — preferenza di visualizzazione (icona occhio) condivisa dai
+//     due campi password: deve sopravvivere allo svuotamento di `bozzaPwd`, che
+//     dopo un cambio riuscito azzera i campi ma non deve richiudere l'occhio.
+//   • `confermaElim` — la parola digitata nella zona pericolosa È un campo, ma
+//     uno solo: un oggetto bozza di una chiave non aggiungerebbe nulla, e non
+//     può stare in `draft` perché non si salva, si confronta con "ELIMINA".
 export const ProfileEditor = ({ member, dispatch, onClose }) => {
   const { isMobile } = useViewport();
   const { session, updatePassword, deleteAccount } = useAuth();
-  const [name, setName] = useState(member.name || "");
-  const [color] = useState(member.color || "#0F2044");
-  const [email, setEmail] = useState(member.email || "");
-  const [phone, setPhone] = useState(member.phone || "");
-  const [photoUrl, setPhotoUrl] = useState(member.photoUrl || "");
-  // photoUrl può essere un path del bucket privato (S-10), un data URI appena
-  // ritagliato o una vecchia public URL: l'anteprima passa sempre da qui.
-  const photoPreview = useAvatarSrc(photoUrl || null);
+  const montato = useIsMounted();
+  const [draft, setDraft] = useState({
+    name: member.name || "",
+    // Il colore non è modificabile da questa modale, ma è un campo del profilo:
+    // viaggia nel payload e va letto da lì, non ricalcolato al salvataggio.
+    color: member.color || "#0F2044",
+    email: member.email || "",
+    phone: member.phone || "",
+    photoUrl: member.photoUrl || "",
+  });
+  // draft.photoUrl può essere un path del bucket privato (S-10), un data URI
+  // appena ritagliato o una vecchia public URL: l'anteprima passa sempre da qui.
+  const photoPreview = useAvatarSrc(draft.photoUrl || null);
   const [cropSrc, setCropSrc] = useState(null);
   const fileRef = useRef(null);
   const [errori, setErrori] = useState({});
   const nameRef = useRef(null);
   const emailRef = useRef(null);
   const rifCampo = { name: nameRef, email: emailRef };
-  // L'errore di un campo si spegne appena lo si tocca (vedi AddMovBox).
-  const scrivi = (campo, set) => (valore) => {
-    set(valore);
+  // Il riduttore di campo della bozza: un solo punto di scrittura per tutti i
+  // campi del profilo. L'errore di un campo si spegne appena lo si tocca
+  // (vedi AddMovBox).
+  const scrivi = (campo, valore) => {
+    setDraft(prec => ({ ...prec, [campo]: valore }));
     setErrori(prec => (prec[campo] ? { ...prec, [campo]: undefined } : prec));
   };
-  const [showPwd, setShowPwd] = useState(false);
-  const [revealPwd, setRevealPwd] = useState(false); // visibilità testo password (icona occhio)
-  const [newPwd, setNewPwd] = useState("");
-  const [confirmPwd, setConfirmPwd] = useState("");
-  const [savingPwd, setSavingPwd] = useState(false);
-  const [pwdMsg, setPwdMsg] = useState(null); // { type: 'ok'|'err', text }
-  const [showDeleteZone, setShowDeleteZone] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState("");
-  const [deletingAccount, setDeletingAccount] = useState(false);
-  const [deleteMsg, setDeleteMsg] = useState(null);
+  const [pwdAperta, setPwdAperta] = useState(false);
+  const [rivelaPwd, setRivelaPwd] = useState(false); // visibilità testo password (icona occhio)
+  const [bozzaPwd, setBozzaPwd] = useState(BOZZA_PWD);
+  const [esitoPwd, setEsitoPwd] = useState(ESITO_PRONTO); // { fase: pronto|invio|ok|errore, testo }
+  const [elimAperta, setElimAperta] = useState(false);
+  const [confermaElim, setConfermaElim] = useState("");
+  const [esitoElim, setEsitoElim] = useState(ESITO_PRONTO); // { fase: pronto|invio|errore, testo }
 
   const handleDeleteAccount = async () => {
-    if (deleteConfirm !== "ELIMINA") return;
-    setDeletingAccount(true);
-    setDeleteMsg(null);
+    if (confermaElim !== "ELIMINA") return;
+    setEsitoElim({ fase: "invio", testo: null });
     const { error } = await deleteAccount();
-    setDeletingAccount(false);
-    if (error) {
-      setDeleteMsg(error.message || "Eliminazione non riuscita.");
-    }
-    // On success, deleteAccount() already called signOut() → app unmounts this modal automatically.
+    // On success, deleteAccount() already called signOut() → app unmounts this
+    // modal automatically: qui lo smontaggio è l'esito NORMALE, quindi il guard
+    // di useIsMounted() non è una precauzione ma la descrizione del caso.
+    if (!montato()) return;
+    setEsitoElim(error
+      ? { fase: "errore", testo: error.message || "Eliminazione non riuscita." }
+      : ESITO_PRONTO);
   };
 
   const handleChangePwd = async () => {
-    setPwdMsg(null);
-    if (newPwd.length < 8) { setPwdMsg({ type: "err", text: "La password deve avere almeno 8 caratteri." }); return; }
-    if (newPwd !== confirmPwd) { setPwdMsg({ type: "err", text: "Le due password non coincidono." }); return; }
-    setSavingPwd(true);
-    const { error } = await updatePassword(newPwd);
-    setSavingPwd(false);
+    if (bozzaPwd.nuova.length < 8) { setEsitoPwd({ fase: "errore", testo: "La password deve avere almeno 8 caratteri." }); return; }
+    if (bozzaPwd.nuova !== bozzaPwd.conferma) { setEsitoPwd({ fase: "errore", testo: "Le due password non coincidono." }); return; }
+    setEsitoPwd({ fase: "invio", testo: null });
+    const { error } = await updatePassword(bozzaPwd.nuova);
+    if (!montato()) return;
     if (error) {
-      setPwdMsg({ type: "err", text: error.message || "Cambio password non riuscito." });
+      setEsitoPwd({ fase: "errore", testo: error.message || "Cambio password non riuscito." });
     } else {
-      setPwdMsg({ type: "ok", text: "Password aggiornata." });
-      setNewPwd(""); setConfirmPwd("");
+      setEsitoPwd({ fase: "ok", testo: "Password aggiornata." });
+      setBozzaPwd(BOZZA_PWD);
     }
   };
 
@@ -101,7 +152,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
   };
 
   const handleSave = async () => {
-    const trovati = validaCampi({ name, email }, REGOLE);
+    const trovati = validaCampi(draft, REGOLE);
     const primo = primoCampoInvalido(trovati, ORDINE);
     if (primo) {
       setErrori(trovati);
@@ -109,27 +160,29 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
       return;
     }
     setErrori({});
-    const trimmedEmail = email.trim();
+    const trimmedEmail = draft.email.trim();
     // Foto: se è una nuova immagine (data-URL dal crop, o una vecchia base64
     // ancora in photo_url), caricala sul bucket 'avatars' e sostituiscila con
     // la public URL. Così users.photo_url non contiene più il base64 (riga
     // enorme riscaricata per tutto il team ad ogni evento realtime), ma una
     // URL leggera. Le URL http già presenti (foto invariata) non si ricaricano.
-    let finalPhotoUrl = photoUrl || null;
-    if (session && typeof photoUrl === "string" && photoUrl.startsWith("data:")) {
-      const { url, error: upErr } = await UsersAPI.uploadAvatar(member.id, dataUrlToBlob(photoUrl));
+    let finalPhotoUrl = draft.photoUrl || null;
+    if (session && typeof draft.photoUrl === "string" && draft.photoUrl.startsWith("data:")) {
+      const { url, error: upErr } = await UsersAPI.uploadAvatar(member.id, dataUrlToBlob(draft.photoUrl));
+      if (!montato()) return;
       if (upErr || !url) {
         dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Foto non caricata: ${upErr?.message || "errore sconosciuto"}` } });
         return; // non salvo: l'utente può ritentare senza perdere la foto scelta
       }
       finalPhotoUrl = url;
     }
+    const nome = draft.name.trim();
     const payload = {
-      name: name.trim(),
-      avatar: name.trim().split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
-      color,
+      name: nome,
+      avatar: nome.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
+      color: draft.color,
       email: trimmedEmail,
-      phone: phone.trim(),
+      phone: draft.phone.trim(),
       photoUrl: finalPhotoUrl,
     };
     // Aggiornamento ottimistico e persistenza sono UNA sola operazione,
@@ -155,7 +208,11 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
     onClose();
   };
 
-  const initials = name.trim().split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "??";
+  const initials = draft.name.trim().split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "??";
+  // Le due operazioni asincrone leggono la propria fase in un punto solo: il
+  // resto del render chiede "sta partendo?" e non incrocia due booleani.
+  const pwdInVolo = esitoPwd.fase === "invio";
+  const elimInVolo = esitoElim.fase === "invio";
 
   const fieldLabel = (text) => (
     <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5, marginBottom: 4, display: "block" }}>{text}</label>
@@ -171,7 +228,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
       {cropSrc && (
         <CropModal
           src={cropSrc}
-          onConfirm={(dataUrl) => { setPhotoUrl(dataUrl); setCropSrc(null); }}
+          onConfirm={(dataUrl) => { scrivi("photoUrl", dataUrl); setCropSrc(null); }}
           onCancel={() => setCropSrc(null)}
         />
       )}
@@ -196,7 +253,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
               <img src={photoPreview} alt="" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "3px solid rgba(255,255,255,0.3)" }} />
             ) : (
               <div style={{
-                width: 52, height: 52, borderRadius: "50%", background: color,
+                width: 52, height: 52, borderRadius: "50%", background: draft.color,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 18, fontWeight: 700, color: "#fff",
                 border: "3px solid rgba(255,255,255,0.3)",
@@ -221,7 +278,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
             {photoPreview ? (
               <div style={{ position: "relative" }}>
                 <img src={photoPreview} alt="" style={{ width: 100, height: 100, borderRadius: "50%", objectFit: "cover", border: "3px solid var(--border)" }} />
-                <button onClick={() => setPhotoUrl("")} style={{
+                <button onClick={() => scrivi("photoUrl", "")} style={{
                   position: "absolute", top: -4, right: -4,
                   width: 24, height: 24, borderRadius: "50%", background: "var(--danger)", color: "#fff",
                   border: "2px solid #fff", cursor: "pointer", fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center",
@@ -239,7 +296,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
               background: "var(--surface2)", border: "1px solid var(--border)",
               padding: "8px 20px", borderRadius: 8, cursor: "pointer",
               fontSize: 13, fontWeight: 600, fontFamily: "inherit", color: "var(--text)",
-            }}>📷 {photoUrl ? "Cambia foto" : "Carica foto"}</button>
+            }}>📷 {draft.photoUrl ? "Cambia foto" : "Carica foto"}</button>
             <div style={{ fontSize: 11, color: "var(--text-muted)" }}>JPG, PNG — max 5 MB • potrai ritagliare dopo il caricamento</div>
           </div>
 
@@ -248,7 +305,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
             {fieldLabel("NOME VISUALIZZATO")}
             <input
               ref={nameRef}
-              value={name} onChange={e => scrivi("name", setName)(e.target.value)}
+              value={draft.name} onChange={e => scrivi("name", e.target.value)}
               style={inputStyle} placeholder="Il tuo nome"
               onFocus={e => e.target.style.borderColor = "var(--gold)"}
               onBlur={e => e.target.style.borderColor = "var(--border)"}
@@ -263,7 +320,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
               {fieldLabel("EMAIL")}
               <input
                 ref={emailRef}
-                value={email} onChange={e => scrivi("email", setEmail)(e.target.value)}
+                value={draft.email} onChange={e => scrivi("email", e.target.value)}
                 type="email" style={inputStyle} placeholder="nome@agenzia.it"
                 onFocus={e => e.target.style.borderColor = "var(--gold)"}
                 onBlur={e => e.target.style.borderColor = "var(--border)"}
@@ -274,7 +331,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
             <div>
               {fieldLabel("TELEFONO")}
               <input
-                value={phone} onChange={e => setPhone(e.target.value)}
+                value={draft.phone} onChange={e => scrivi("phone", e.target.value)}
                 type="tel" style={inputStyle} placeholder="+39 333 123 4567"
                 onFocus={e => e.target.style.borderColor = "var(--gold)"}
                 onBlur={e => e.target.style.borderColor = "var(--border)"}
@@ -295,7 +352,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
           {session && (
             <div>
               <button
-                onClick={() => { setShowPwd(v => !v); setPwdMsg(null); setNewPwd(""); setConfirmPwd(""); }}
+                onClick={() => { setPwdAperta(v => !v); setEsitoPwd(ESITO_PRONTO); setBozzaPwd(BOZZA_PWD); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 8,
                   background: "none", border: "none", cursor: "pointer",
@@ -305,17 +362,17 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
               >
                 <span style={{ fontSize: 15 }}>🔑</span>
                 Cambia password
-                <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 2 }}>{showPwd ? "▲" : "▼"}</span>
+                <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 2 }}>{pwdAperta ? "▲" : "▼"}</span>
               </button>
-              {showPwd && (
+              {pwdAperta && (
                 <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
                   <div>
                     {fieldLabel("NUOVA PASSWORD")}
                     <PasswordField
                       inputStyle={inputStyle} autoComplete="new-password"
-                      value={newPwd} onChange={e => setNewPwd(e.target.value)}
+                      value={bozzaPwd.nuova} onChange={e => setBozzaPwd(p => ({ ...p, nuova: e.target.value }))}
                       placeholder="Minimo 8 caratteri"
-                      show={revealPwd} onToggle={() => setRevealPwd(s => !s)}
+                      show={rivelaPwd} onToggle={() => setRivelaPwd(s => !s)}
                       onFocus={e => e.target.style.borderColor = "var(--gold)"}
                       onBlur={e => e.target.style.borderColor = "var(--border)"}
                     />
@@ -324,34 +381,37 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
                     {fieldLabel("CONFERMA PASSWORD")}
                     <PasswordField
                       inputStyle={inputStyle} autoComplete="new-password"
-                      value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)}
+                      value={bozzaPwd.conferma} onChange={e => setBozzaPwd(p => ({ ...p, conferma: e.target.value }))}
                       placeholder="Ripeti la password"
-                      show={revealPwd} onToggle={() => setRevealPwd(s => !s)}
+                      show={rivelaPwd} onToggle={() => setRivelaPwd(s => !s)}
                       onFocus={e => e.target.style.borderColor = "var(--gold)"}
                       onBlur={e => e.target.style.borderColor = "var(--border)"}
                       onKeyDown={e => { if (e.key === "Enter") handleChangePwd(); }}
                     />
                   </div>
-                  {pwdMsg && (
-                    <div style={{
+                  {/* Un messaggio da mostrare c'è solo nelle fasi terminali: la
+                      fase "invio" azzera `testo`, quindi l'esito di prima non
+                      può più convivere con un salvataggio in corso. */}
+                  {esitoPwd.testo && (
+                    <div role="status" style={{
                       fontSize: 12.5, borderRadius: 8, padding: "8px 10px",
-                      background: pwdMsg.type === "ok" ? "rgba(45,122,79,0.1)" : "rgba(192,57,43,0.08)",
-                      border: `1px solid ${pwdMsg.type === "ok" ? "var(--success)" : "var(--danger)"}`,
-                      color: pwdMsg.type === "ok" ? "var(--success)" : "var(--danger)",
-                    }}>{pwdMsg.text}</div>
+                      background: esitoPwd.fase === "ok" ? "rgba(45,122,79,0.1)" : "rgba(192,57,43,0.08)",
+                      border: `1px solid ${esitoPwd.fase === "ok" ? "var(--success)" : "var(--danger)"}`,
+                      color: esitoPwd.fase === "ok" ? "var(--success)" : "var(--danger)",
+                    }}>{esitoPwd.testo}</div>
                   )}
                   <div style={{ display: "flex", justifyContent: "flex-end" }}>
                     <button
                       onClick={handleChangePwd}
-                      disabled={savingPwd || !newPwd}
+                      disabled={pwdInVolo || !bozzaPwd.nuova}
                       style={{
-                        background: savingPwd || !newPwd ? "var(--surface3)" : "var(--navy)",
-                        color: savingPwd || !newPwd ? "var(--text-muted)" : "#fff",
+                        background: pwdInVolo || !bozzaPwd.nuova ? "var(--surface3)" : "var(--navy)",
+                        color: pwdInVolo || !bozzaPwd.nuova ? "var(--text-muted)" : "#fff",
                         border: "none", padding: "9px 18px", borderRadius: 8,
-                        cursor: savingPwd || !newPwd ? "not-allowed" : "pointer",
+                        cursor: pwdInVolo || !bozzaPwd.nuova ? "not-allowed" : "pointer",
                         fontSize: 13, fontWeight: 600, fontFamily: "inherit",
                       }}
-                    >{savingPwd ? "Salvataggio…" : "Aggiorna password"}</button>
+                    >{pwdInVolo ? "Salvataggio…" : "Aggiorna password"}</button>
                   </div>
                 </div>
               )}
@@ -364,7 +424,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
               borderTop: "1px solid var(--border)", paddingTop: 14, marginTop: 2,
             }}>
               <button
-                onClick={() => { setShowDeleteZone(v => !v); setDeleteConfirm(""); setDeleteMsg(null); }}
+                onClick={() => { setElimAperta(v => !v); setConfermaElim(""); setEsitoElim(ESITO_PRONTO); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 8,
                   background: "none", border: "none", cursor: "pointer",
@@ -374,9 +434,9 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
               >
                 <span style={{ fontSize: 15 }}>🗑️</span>
                 Elimina account
-                <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 2 }}>{showDeleteZone ? "▲" : "▼"}</span>
+                <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 2 }}>{elimAperta ? "▲" : "▼"}</span>
               </button>
-              {showDeleteZone && (
+              {elimAperta && (
                 <div style={{
                   marginTop: 10, padding: "14px 16px", borderRadius: 10,
                   background: "rgba(192,57,43,0.05)", border: "1px solid rgba(192,57,43,0.25)",
@@ -389,31 +449,31 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
                   <div>
                     {fieldLabel('DIGITA "ELIMINA" PER CONFERMARE')}
                     <input
-                      value={deleteConfirm} onChange={e => setDeleteConfirm(e.target.value)}
+                      value={confermaElim} onChange={e => setConfermaElim(e.target.value)}
                       placeholder="ELIMINA" style={{ ...inputStyle, borderColor: "rgba(192,57,43,0.4)" }}
                       onFocus={e => e.target.style.borderColor = "var(--danger)"}
                       onBlur={e => e.target.style.borderColor = "rgba(192,57,43,0.4)"}
                     />
                   </div>
-                  {deleteMsg && (
-                    <div style={{
+                  {esitoElim.testo && (
+                    <div role="status" style={{
                       fontSize: 12.5, borderRadius: 8, padding: "8px 10px",
                       background: "rgba(192,57,43,0.08)", border: "1px solid var(--danger)",
                       color: "var(--danger)",
-                    }}>{deleteMsg}</div>
+                    }}>{esitoElim.testo}</div>
                   )}
                   <div style={{ display: "flex", justifyContent: "flex-end" }}>
                     <button
                       onClick={handleDeleteAccount}
-                      disabled={deletingAccount || deleteConfirm !== "ELIMINA"}
+                      disabled={elimInVolo || confermaElim !== "ELIMINA"}
                       style={{
-                        background: deletingAccount || deleteConfirm !== "ELIMINA" ? "var(--surface3)" : "var(--danger)",
-                        color: deletingAccount || deleteConfirm !== "ELIMINA" ? "var(--text-muted)" : "#fff",
+                        background: elimInVolo || confermaElim !== "ELIMINA" ? "var(--surface3)" : "var(--danger)",
+                        color: elimInVolo || confermaElim !== "ELIMINA" ? "var(--text-muted)" : "#fff",
                         border: "none", padding: "9px 18px", borderRadius: 8,
-                        cursor: deletingAccount || deleteConfirm !== "ELIMINA" ? "not-allowed" : "pointer",
+                        cursor: elimInVolo || confermaElim !== "ELIMINA" ? "not-allowed" : "pointer",
                         fontSize: 13, fontWeight: 600, fontFamily: "inherit",
                       }}
-                    >{deletingAccount ? "Eliminazione…" : "Elimina account definitivamente"}</button>
+                    >{elimInVolo ? "Eliminazione…" : "Elimina account definitivamente"}</button>
                   </div>
                 </div>
               )}

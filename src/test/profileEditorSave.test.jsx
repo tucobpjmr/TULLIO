@@ -133,3 +133,53 @@ describe("ProfileEditor — salvataggio", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 });
+
+// ST-7 · La bozza unica dei campi del profilo.
+//
+// PERCHÉ QUESTI TEST ESISTONO. I diciassette `useState` di questa modale sono
+// diventati un `draft` con un riduttore di campo (più i valori che restano
+// separati di proposito). Un refactor di stato non può rompere un test
+// funzionale se sbaglia solo a PROPAGARE: `setDraft({ name })` al posto di
+// `setDraft(p => ({ ...p, name }))` fa passare ogni test che tocca un campo
+// solo, e cancella gli altri quattro. Qui si asserisce esattamente quello.
+describe("ProfileEditor — la bozza è unica e i campi non si sovrascrivono", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("scrivere in un campo non azzera gli altri", async () => {
+    const dispatch = vi.fn(async () => ({ error: null }));
+    montaConDispatch(dispatch);
+
+    fireEvent.change(screen.getByDisplayValue("Marco"), { target: { value: "Marco Ferretti" } });
+    fireEvent.change(screen.getByPlaceholderText("nome@agenzia.it"), { target: { value: "marco@agenzia.it" } });
+    fireEvent.change(screen.getByPlaceholderText("+39 333 123 4567"), { target: { value: "+39 333 0000000" } });
+    // Il nome scritto per primo deve essere ancora lì dopo altre due scritture.
+    expect(screen.getByDisplayValue("Marco Ferretti")).toBeTruthy();
+    salva();
+
+    await waitFor(() => expect(dispatch).toHaveBeenCalled());
+    expect(dispatch.mock.calls[0][0].payload).toMatchObject({
+      name: "Marco Ferretti", email: "marco@agenzia.it", phone: "+39 333 0000000",
+    });
+  });
+
+  it("il colore del profilo viaggia nel payload anche se la modale non lo modifica", async () => {
+    // Non è un campo dell'interfaccia ma è un campo del profilo: sta in `draft`
+    // e si legge da lì, invece di essere ricalcolato al salvataggio.
+    const dispatch = vi.fn(async () => ({ error: null }));
+    render(<ProfileEditor member={{ ...MEMBER, color: "#D4A843" }} dispatch={dispatch} onClose={vi.fn()} />);
+    salva();
+    await waitFor(() => expect(dispatch).toHaveBeenCalled());
+    expect(dispatch.mock.calls[0][0].payload.color).toBe("#D4A843");
+  });
+
+  it("annullare non persiste la bozza sporca", async () => {
+    const dispatch = vi.fn(async () => ({ error: null }));
+    const { onClose } = montaConDispatch(dispatch);
+
+    fireEvent.change(screen.getByDisplayValue("Marco"), { target: { value: "Nome buttato via" } });
+    fireEvent.click(screen.getByText("Annulla"));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+});

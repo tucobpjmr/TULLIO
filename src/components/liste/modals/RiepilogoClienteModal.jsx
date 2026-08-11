@@ -1,5 +1,6 @@
 import { eur, fmtDate, intestazioneLista, riepilogoTesto, saldoClass } from "../listeApi.js";
 import { LvOverlay } from "./LvOverlay.jsx";
+import { dataNumerica } from "../../../lib/dates.js";
 
 // ─── Riepilogo cliente: anteprima stampabile/condivisibile ─────────────────
 // Copia destinata al cliente: niente metodi di pagamento, niente storico
@@ -57,7 +58,7 @@ export function RiepilogoClienteModal({ lista, movimenti, dispatch, onClose }) {
         )}
         <div className="rp-saldo"><span>Saldo</span><b className={`lv-num ${cls}`}>{eur(saldo)}</b></div>
         {lista.stato === "esaurita" && <div className="rp-esaurita">LISTA ESAURITA</div>}
-        <div className="rp-foot">Documento generato il {new Date().toLocaleDateString("it-IT")}</div>
+        <div className="rp-foot">Documento generato il {dataNumerica(new Date())}</div>
       </div>
       <div className="actions no-print">
         <button className="lv-btn" onClick={onClose}>Chiudi</button>

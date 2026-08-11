@@ -30,6 +30,7 @@ import { supabase } from '../../lib/supabase';
 // regola non doveva esistere in due copie per essere applicata in due posti
 // (ST-3 di docs/AUDIT_STRUTTURA_2026-08-10.md).
 import { fetchAllRows, WITH_COUNT } from '../../lib/pagination.js';
+import { dataNumerica } from "../../lib/dates.js";
 
 // Le liste portano sempre con sé il nome del titolare (clients) e degli
 // eventuali cointestatari (lista_beneficiari → clients, es. marito e moglie):
@@ -394,11 +395,13 @@ export const eur = (v) =>
 // "08 ago 2026" partendo da un timestamp ISO: input diverso, formato diverso,
 // e il modulo Liste ha una sua identità visiva. Non sono due copie da
 // riconciliare.
-export const fmtDate = (d) => {
-  if (!d) return '';
-  const [y, m, g] = String(d).split('-');
-  return `${g}/${m}/${y}`;
-};
+// La forma numerica del modulo Liste ("28/07/2026"). Da ST-8 il formato vive
+// in lib/dates.js insieme agli altri sei: questa resta l'API pubblica del
+// modulo (undici call site) e il caveat che la fa esistere — `data_movimento` è
+// una colonna `date`, non un timestamp, e passarla per `new Date` la
+// interpreterebbe come UTC-mezzanotte — è ora gestito da `aData` in quel
+// modulo, per TUTTI i formati e non solo per questo.
+export const fmtDate = (d) => dataNumerica(d);
 
 export const todayISO = () => {
   // Data locale, non `toISOString()`: quest'ultima è in UTC e dopo le 22:00
@@ -482,7 +485,7 @@ export const docHtml = (lista, movimenti, storico, usersById = {}) => {
     <p style="margin-top:14pt"><b>SALDO: € ${saldo.toLocaleString('it-IT', { minimumFractionDigits: 2 })}</b></p>
     ${lista.stato === 'esaurita' ? '<p style="color:#C0392B"><b>LISTA ESAURITA</b></p>' : ''}
     ${storicoHtml}
-    <p style="font-size:9pt;color:#888">Esportato il ${new Date().toLocaleDateString('it-IT')} — Gestione Liste Viaggio</p>
+    <p style="font-size:9pt;color:#888">Esportato il ${dataNumerica(new Date())} — Gestione Liste Viaggio</p>
     </body></html>`;
 };
 

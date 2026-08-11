@@ -21,6 +21,7 @@ import { useAppData } from "../../state/AppDataContext.jsx";
 import { useTasks } from "../../state/TasksContext.jsx";
 import { NoticeBoard } from "./NoticeBoard.jsx";
 import { roleLabel } from "../../lib/taskConstants.js";
+import { giornoLungo } from "../../lib/dates.js";
 
 // P2-4: comparatori a livello di modulo — erano funzioni anonime ricreate
 // dentro ogni `sort`, quindi un array nuovo (a parità di contenuto) a ogni
@@ -157,7 +158,7 @@ export const Dashboard = memo(function Dashboard({
       <div className="vd-row-wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
         <div>
           <div className="playfair" style={{ fontSize: 35, fontWeight: 700, color: "var(--navy)" }}>
-            {new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
+            {giornoLungo(new Date())}
           </div>
           <div style={{ color: "var(--text-muted)", fontSize: 14, marginTop: 2, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
             {role !== "admin" && (

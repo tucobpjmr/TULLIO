@@ -8,6 +8,7 @@ import { MentionText } from "../ui/MentionText.jsx";
 import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { Z } from "../../styles/tokens.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
+import { dataBreve } from "../../lib/dates.js";
 
 // v2.8: emoji disponibili per le reazioni rapide sui post-it.
 // Tenuto basso (6) per non rompere il layout del post-it. Stesso shape della chat.
@@ -63,7 +64,7 @@ export const NoticeBoard = ({ notices, dispatch, loading = false }) => {
     if (h < 24) return `${h}h fa`;
     const d = Math.floor(h / 24);
     if (d < 7) return `${d} g fa`;
-    return new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "short" });
+    return dataBreve(iso);
   };
 
   return (

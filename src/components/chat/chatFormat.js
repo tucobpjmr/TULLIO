@@ -10,19 +10,21 @@
 // sono funzioni pure: l'utente (e, dove serve, il lookup del team) arrivano
 // come parametro esplicito dal chiamante, che li prende da useAppData().
 
+import { dataBreve, oraBreve } from "../../lib/dates.js";
+
 export const formatChatTime = (iso) => {
   const d = new Date(iso);
   const now = new Date();
   const diffMin = Math.floor((now - d) / 60000);
   if (diffMin < 1) return "Adesso";
   if (diffMin < 60) return `${diffMin} min fa`;
-  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+  if (d.toDateString() === now.toDateString()) return oraBreve(d);
   const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
   if (d.toDateString() === yesterday.toDateString()) return "Ieri";
-  return d.toLocaleDateString("it-IT", { day: "2-digit", month: "short" });
+  return dataBreve(d);
 };
 
-export const formatMsgTime = (iso) => new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+export const formatMsgTime = (iso) => oraBreve(iso);
 
 export const formatDuration = (sec) => {
   const m = Math.floor(sec / 60);

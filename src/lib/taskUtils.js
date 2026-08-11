@@ -11,15 +11,16 @@
 // precedente. Input diversi e formati di uscita diversi — il modulo Liste ha
 // di proposito una sua identità visiva. Chi ne tocca uno non sta divergendo
 // dall'altro.
+import { dataMedia, oraBreve } from "./dates.js";
+
 export const formatDate = iso => {
   if (!iso) return "—";
-  const d = new Date(iso);
-  return d.toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" });
+  return dataMedia(iso);
 };
 
 export const formatTime = iso => {
   if (!iso) return "";
-  return new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+  return oraBreve(iso);
 };
 
 export const getDayKey = iso => iso ? new Date(iso).toDateString() : null;

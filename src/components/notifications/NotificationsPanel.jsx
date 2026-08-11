@@ -170,7 +170,7 @@ const PushToggle = ({ dispatch }) => {
   );
 };
 
-export const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead, onMarkAllRead, onRemoveNotification, onClearAllNotifications, onOpenTask, onOpenChat }) => {
+export const NotificationsPanel = ({ dispatch, onClose, notifications, isReal, onMarkRead, onMarkAllRead, onRemoveNotification, onClearAllNotifications, onOpenTask, onOpenChat }) => {
   const conferma = useConfirm();
   const { isMobile } = useViewport();
   const [filter, setFilter] = useState("all"); // all | unread | task | mention | chat
@@ -208,7 +208,7 @@ export const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead
       if (target.kind === "task") onOpenTask?.(target.taskId);
       else if (target.kind === "chat") onOpenChat?.(target.conversationId);
       else if (target.kind === "view") dispatch({ type: "SET_VIEW", payload: target.view, queue: target.queue });
-      dispatch({ type: "TOGGLE_NOTIF" });
+      onClose?.();
     }
     if (isReal && !n.read) onMarkRead?.(n.id);
   };
@@ -270,7 +270,7 @@ export const NotificationsPanel = ({ dispatch, notifications, isReal, onMarkRead
               }}
             >🗑️</button>
           )}
-          <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
         </div>
       </div>
       {isReal && list.length > 0 && (

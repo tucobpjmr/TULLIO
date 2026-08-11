@@ -43,8 +43,14 @@ const NotificationsPanel = lazy(() =>
 // ogni carattere: `searchQuery` è una prop che cambia per costruzione. Ciò che
 // il memo evita è tutto il resto. Sidebar e BottomNav, che non hanno campi di
 // input, non si ri-renderizzano più affatto quando si digita.
+//
+// `searchQuery` resta nel guscio (VoyageDeskInner la tiene in `useState` e la
+// passa qui insieme a `onSearchChange`) invece di diventare stato locale della
+// Topbar: è candidata a diventare un filtro cross-view, e in quel caso deve
+// restare leggibile da fuori questo componente. `showNotif`, che nessuno
+// legge fuori da qui, è invece `useState` locale — vedi audit ST-2 parte 2.
 export const Topbar = memo(function Topbar({
-  activeView, searchQuery, showNotif, dispatch,
+  activeView, searchQuery, onSearchChange, dispatch,
   notifications: notificationsProp, onMarkRead, onMarkAllRead,
   onRemoveNotification, onClearAllNotifications, onOpenTask, onOpenChat,
 }) {
@@ -60,6 +66,7 @@ export const Topbar = memo(function Topbar({
   const notifList = SHOW_MOCK_NOTIFS ? [...realNotifs, ...demoState().notifications] : realNotifs;
   const unread = notifList.filter(n => !n.read).length;
   const [searchOpen, setSearchOpen] = useState(false);
+  const [showNotif, setShowNotif] = useState(false);
   const searchWrapRef = useRef(null);
 
   // Il logo aeroplano funge da pulsante Dashboard (la voce dedicata è stata
@@ -124,7 +131,7 @@ export const Topbar = memo(function Topbar({
           <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(15,32,68,0.7)", fontSize: 14 }}>🔍</div>
           <input
             value={searchQuery}
-            onChange={e => { dispatch({ type: "SET_SEARCH", payload: e.target.value }); setSearchOpen(true); }}
+            onChange={e => { onSearchChange(e.target.value); setSearchOpen(true); }}
             onFocus={e => { setSearchOpen(true); e.target.style.borderColor = "var(--gold)"; }}
             onBlur={e => { e.target.style.borderColor = "rgba(15,32,68,0.15)"; }}
             placeholder={isMobile ? "Cerca..." : "Cerca task, clienti, categorie... (Ctrl+K)"}
@@ -142,7 +149,7 @@ export const Topbar = memo(function Topbar({
               tasks={tasks}
               dispatch={dispatch}
               keyword={searchQuery}
-              onKeyword={v => dispatch({ type: "SET_SEARCH", payload: v })}
+              onKeyword={onSearchChange}
               onClose={() => setSearchOpen(false)}
               currentUserId={currentUserId}
             />
@@ -154,7 +161,7 @@ export const Topbar = memo(function Topbar({
 
       {/* Notifications */}
       <div style={{ position: "relative" }}>
-        <button onClick={() => dispatch({ type: "TOGGLE_NOTIF" })} style={{
+        <button onClick={() => setShowNotif(v => !v)} style={{
           background: "#fff", border: "1px solid rgba(15,32,68,0.15)",
           borderRadius: 8, width: 36, height: 36, cursor: "pointer",
           display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, position: "relative"
@@ -170,6 +177,7 @@ export const Topbar = memo(function Topbar({
           <Suspense fallback={<LazyFallback />}>
             <NotificationsPanel
               dispatch={dispatch}
+              onClose={() => setShowNotif(false)}
               notifications={notifList}
               isReal={!SHOW_MOCK_NOTIFS}
               onMarkRead={onMarkRead}

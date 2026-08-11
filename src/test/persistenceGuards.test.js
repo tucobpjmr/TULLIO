@@ -493,9 +493,12 @@ const AZIONI_DEL_REDUCER = [...SORGENTE_REDUCER.matchAll(/case "([A-Z_]+)"/g)].m
 // test una decisione invece di un'omissione: chi aggiunge un case deve dire
 // dove sta, e se non lo dice il test si ferma.
 const SOLO_CLIENT = [
-  // Stato che non esiste sul server: pannelli aperti, filtri, selezione, toast.
-  "SHOW_TOAST", "CLEAR_TOAST", "SET_VIEW", "SET_FILTER", "SET_SEARCH",
-  "SET_SELECTED_TASK", "TOGGLE_SIDEBAR", "TOGGLE_NOTIF", "CLEAR_LISTE_TARGET",
+  // Stato che non esiste sul server: vista attiva, selezione, toast.
+  // searchQuery/showNotif/sidebarCollapsed non sono più nel reducer (audit
+  // ST-2 parte 2): sono useState nei componenti che li possiedono, quindi non
+  // compaiono più fra i case del reducer e non hanno bisogno di una entry qui.
+  "SHOW_TOAST", "CLEAR_TOAST", "SET_VIEW",
+  "SET_SELECTED_TASK", "CLEAR_LISTE_TARGET",
   // Il log attività è ricostruito in memoria dalle azioni (buildLogEntry):
   // svuotarlo è un'operazione locale perché il log stesso lo è.
   "CLEAR_ACTIVITY_LOG",

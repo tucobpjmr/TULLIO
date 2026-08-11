@@ -1,7 +1,7 @@
 // ─── SIDEBAR / BOTTOM NAV ────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f). NAV_ITEMS/getNavItemsForUser/
 // getNavBadges + NavBadge (module-local) + Sidebar e BottomNav (esportati).
-import { useEffect, useRef, memo } from "react";
+import { useEffect, useRef, useState, memo } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
 
@@ -55,18 +55,22 @@ const NavBadge = ({ count, collapsed = false, mobile = false }) => {
   return <span style={{ ...base, marginLeft: "auto" }}>{count > 99 ? "99+" : count}</span>;
 };
 
-// ST-2: due fette (`activeView`, `collapsed`) invece di `state`, e `memo`.
-// Team e utente corrente arrivano da AppDataContext, dov'erano già.
+// ST-2: `activeView` invece di `state`, e `memo`. Team e utente corrente
+// arrivano da AppDataContext, dov'erano già.
 //
 // Il guadagno è concreto e misurato: prima ogni carattere digitato nella
-// ricerca della Topbar — che passa da `SET_SEARCH`, cioè dallo stesso reducer —
-// ri-renderizzava questa nav insieme a tutto il resto. Ora la nav si
-// ri-renderizza solo quando cambia una delle due cose che mostra (la voce
-// attiva, se è collassata) o il team (per il badge "in attesa").
-// Blindato da src/test/memoViste.test.jsx.
-export const Sidebar = memo(function Sidebar({ activeView, collapsed = false, dispatch, onOpenBulk, onOpenChat, unreadChat = 0 }) {
+// ricerca della Topbar ri-renderizzava questa nav insieme a tutto il resto.
+// Ora la nav si ri-renderizza solo quando cambia la voce attiva o il team
+// (per il badge "in attesa"). Blindato da src/test/memoViste.test.jsx.
+//
+// `collapsed` è `useState` locale (audit ST-2 parte 2): nessun altro
+// componente lo legge — BottomNav non lo riceve, VoyageDesk non lo passa più —
+// quindi non c'è motivo per cui debba sopravvivere fuori da questo file, né
+// per cui debba invalidare l'identità di `state` ad ogni resize.
+export const Sidebar = memo(function Sidebar({ activeView, dispatch, onOpenBulk, onOpenChat, unreadChat = 0 }) {
   const { isDesktop, width } = useViewport();
   const { team, getRoleType, currentUserId, getAssignableTeam } = useAppData();
+  const [collapsed, setCollapsed] = useState(false);
   // Auto-collassa la sidebar nella fascia "desktop stretto" (1025–1280px) dove
   // 210px di nav rubano troppo spazio orizzontale; si ri-espande sopra i 1280px.
   // Guardia per banda: agisce solo sulle transizioni, così il toggle manuale
@@ -79,11 +83,11 @@ export const Sidebar = memo(function Sidebar({ activeView, collapsed = false, di
     prevBandRef.current = band;
     if (prev === band) return;
     if (band === "narrow" && !collapsed) {
-      dispatch({ type: "TOGGLE_SIDEBAR" });
+      setCollapsed(true);
     } else if (band === "wide" && prev !== null && collapsed) {
-      dispatch({ type: "TOGGLE_SIDEBAR" });
+      setCollapsed(false);
     }
-  }, [width, isDesktop, collapsed, dispatch]);
+  }, [width, isDesktop, collapsed]);
   if (!isDesktop) return null;
   const col = collapsed;
   const navItems = getNavItemsForRole(getRoleType(currentUserId));
@@ -95,7 +99,7 @@ export const Sidebar = memo(function Sidebar({ activeView, collapsed = false, di
       transition: "width 0.25s ease", flexShrink: 0,
       borderRight: "1px solid rgba(212,168,67,0.3)", position: "relative",
     }}>
-      <button onClick={() => dispatch({ type: "TOGGLE_SIDEBAR" })} style={{
+      <button onClick={() => setCollapsed(c => !c)} style={{
         position: "absolute", top: 12, right: col ? "50%" : 8,
         transform: col ? "translateX(50%)" : "none",
         background: "rgba(15,32,68,0.09)", border: "1px solid rgba(15,32,68,0.18)",

@@ -659,11 +659,6 @@ function baseReducer(state, action) {
       }
       return state;
     }
-    case "SET_SEARCH": return { ...state, searchQuery: action.payload };
-    case "TOGGLE_NOTIF": return { ...state, showNotif: !state.showNotif };
-    case "SET_FILTER": return { ...state, filters: { ...state.filters, ...action.payload } };
-    case "TOGGLE_SIDEBAR": return { ...state, sidebarCollapsed: !state.sidebarCollapsed };
-
     // ─── PROFILO PERSONALE (non admin-only) ───
     case "UPDATE_OWN_PROFILE": {
       const uid = state.currentUserId;
@@ -751,10 +746,6 @@ function makeInitialState({ team, currentUserId } = {}) {
     listeTarget: null,
     selectedTask: null,
     toasts: [],
-    searchQuery: "",
-    showNotif: false,
-    sidebarCollapsed: false,
-    filters: { assignee: "", category: "", priority: "", status: "", client: "" },
     lastAction: null, // { type, payload, undo: () => state-patch } per swipe-actions undo
     // Utente loggato (con switcher in Topbar). Senza login si parte dall'utente
     // demo, coerentemente con INITIAL_TEAM.

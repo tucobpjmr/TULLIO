@@ -27,6 +27,7 @@ const { PersonalQueue } = await import("../components/dashboard/queues/PersonalQ
 const { UrgentQueue } = await import("../components/dashboard/queues/UrgentQueue.jsx");
 const { UnassignedQueue } = await import("../components/dashboard/queues/UnassignedQueue.jsx");
 const { OverdueQueue } = await import("../components/dashboard/queues/OverdueQueue.jsx");
+const { WaitingQueue } = await import("../components/dashboard/queues/WaitingQueue.jsx");
 
 const render = (ui) => renderWithAppData(ui, DEMO_APP_CTX);
 
@@ -114,5 +115,32 @@ describe("OverdueQueue", () => {
   it("a coda vuota resta in piedi", () => {
     render(<OverdueQueue tasks={[]} dispatch={dispatch} />);
     expect(screen.getByText(/Nessuna task scaduta/)).toBeTruthy();
+  });
+});
+
+describe("WaitingQueue", () => {
+  it("monta e mostra le task in attesa di cliente/fornitore", () => {
+    render(<WaitingQueue tasks={[task({ status: "awaiting_client" })]} dispatch={dispatch} />);
+    expect(screen.getByText("In attesa di cliente/fornitore")).toBeTruthy();
+    expect(screen.getByText("Volo Roma → Tokyo")).toBeTruthy();
+  });
+
+  it("filtra per sotto-stato quando sono presenti entrambe le attese", () => {
+    render(
+      <WaitingQueue
+        tasks={[
+          task({ id: "t1", title: "Attesa cliente", status: "awaiting_client" }),
+          task({ id: "t2", title: "Attesa fornitore", status: "awaiting_supplier" }),
+        ]}
+        dispatch={dispatch}
+      />,
+    );
+    expect(screen.getByText("Attesa cliente")).toBeTruthy();
+    expect(screen.getByText("Attesa fornitore")).toBeTruthy();
+  });
+
+  it("a coda vuota resta in piedi", () => {
+    render(<WaitingQueue tasks={[]} dispatch={dispatch} />);
+    expect(screen.getByText(/Nessuna task in attesa/)).toBeTruthy();
   });
 });

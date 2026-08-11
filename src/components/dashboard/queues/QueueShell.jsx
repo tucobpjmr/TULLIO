@@ -25,10 +25,11 @@ export const QUEUE_ACCENTS = {
   urgent:     { rgb: "200,131,42", bgA: 0.07, borderA: 0.35, solid: "var(--warning)", fg: "#fff" },
   unassigned: { rgb: "212,168,67", bgA: 0.05, borderA: 0.30, solid: "var(--gold)",    fg: "var(--navy)" },
   overdue:    { rgb: "192,57,43",  bgA: 0.05, borderA: 0.20, solid: "var(--danger)",  fg: "#fff" },
+  waiting:    { rgb: "139,92,246", bgA: 0.06, borderA: 0.30, solid: "#8B5CF6",        fg: "#fff" },
 };
 
 /**
- * @param {'personal'|'urgent'|'unassigned'|'overdue'} accent
+ * @param {'personal'|'urgent'|'unassigned'|'overdue'|'waiting'} accent
  * @param {ReactNode} icon        contenuto del riquadro 34×34 (emoji o iniziali)
  * @param {string}    [iconBg]    override del fondo icona (PersonalQueue usa il colore del membro)
  * @param {string}    [iconFg]

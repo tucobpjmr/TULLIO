@@ -8,6 +8,7 @@ import { PersonalQueue } from "./queues/PersonalQueue.jsx";
 import { UrgentQueue } from "./queues/UrgentQueue.jsx";
 import { UnassignedQueue } from "./queues/UnassignedQueue.jsx";
 import { OverdueQueue } from "./queues/OverdueQueue.jsx";
+import { WaitingQueue } from "./queues/WaitingQueue.jsx";
 import { QueueTab } from "./queues/QueueTab.jsx";
 import { useOpenTask } from "./queues/queueShared.js";
 import { useViewport } from "../Viewport.jsx";
@@ -130,6 +131,16 @@ export const Dashboard = memo(function Dashboard({
     .filter(t => t.status !== "done" && isOverdue(t))
     .sort(byDueDate), [visibleTasks]);
 
+  // In attesa: task visibili ferme su un riscontro esterno (Driver non le vede,
+  // stesso gating di Coda globale/Urgenti — non gestisce rapporti con
+  // cliente/fornitore).
+  const showWaiting = role !== "driver";
+  const waitingTasks = useMemo(() => showWaiting
+    ? visibleTasks
+      .filter(t => t.status === "awaiting_client" || t.status === "awaiting_supplier")
+      .sort(byDueDate)
+    : [], [showWaiting, visibleTasks]);
+
   // "Sto ancora caricando E non ho ancora niente da mostrare": è la sola
   // condizione in cui i conteggi a schermo non descrivono la realtà. Un reload
   // realtime a dati già presenti non passa di qui — i vecchi valori restano
@@ -211,7 +222,7 @@ export const Dashboard = memo(function Dashboard({
         background: "var(--card)", borderRadius: 12, padding: isMobile ? 8 : 10,
         boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)",
         display: "grid",
-        gridTemplateColumns: `repeat(${(showGlobalQueue ? 1 : 0) + 1 + 1 + (showUrgent ? 1 : 0)}, 1fr)`,
+        gridTemplateColumns: `repeat(${(showGlobalQueue ? 1 : 0) + 1 + 1 + (showUrgent ? 1 : 0) + (showWaiting ? 1 : 0)}, 1fr)`,
         gap: isMobile ? 6 : 8,
       }}>
         {showGlobalQueue && (
@@ -242,6 +253,14 @@ export const Dashboard = memo(function Dashboard({
             isMobile={isMobile} dangerCount
           />
         )}
+        {showWaiting && (
+          <QueueTab
+            active={activeQueue === "waiting"}
+            onClick={() => setActiveQueue("waiting")}
+            icon="⏳" label="In Attesa" count={conteggio(waitingTasks.length)}
+            isMobile={isMobile}
+          />
+        )}
       </div>
 
       {/* ─── SEZIONE CODA FILTRATA ─── */}
@@ -256,6 +275,9 @@ export const Dashboard = memo(function Dashboard({
       )}
       {activeQueue === "urgent" && showUrgent && (
         <UrgentQueue tasks={urgentCandidates} dispatch={dispatch} onOpenChat={onOpenChat} uid={uid} loading={caricando} />
+      )}
+      {activeQueue === "waiting" && showWaiting && (
+        <WaitingQueue tasks={waitingTasks} dispatch={dispatch} loading={caricando} />
       )}
 
       <div className="vd-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>

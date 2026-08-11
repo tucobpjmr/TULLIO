@@ -176,7 +176,13 @@ Famiglia Rossi (Maldive), Coppia Bianchi (Giappone), Azienda TechCorp (Incentive
 ## Reducer actions disponibili
 
 ### View/UI
-`SET_VIEW`, `SET_SELECTED_TASK`, `CLEAR_TOAST`, `SET_SEARCH`, `TOGGLE_NOTIF`, `SET_FILTER`, `TOGGLE_SIDEBAR`
+`SET_VIEW`, `SET_SELECTED_TASK`, `CLEAR_TOAST`
+
+> `SET_SEARCH`/`TOGGLE_NOTIF`/`SET_FILTER`/`TOGGLE_SIDEBAR` sono usciti dal
+> reducer l'11 agosto (ST-2, parte 2): `searchQuery` è `useState` nel guscio,
+> `showNotif`/`sidebarCollapsed` sono locali a `Topbar`/`Sidebar`, `filters`
+> era codice morto ed è stato rimosso. `selectedTask` resta nel reducer per il
+> controllo permessi in `SET_SELECTED_TASK`.
 
 ### Task CRUD
 `ADD_TASK`, `ADD_TASKS_BULK`, `UPDATE_TASK`, `MOVE_TASK`, `ADD_COMMENT`

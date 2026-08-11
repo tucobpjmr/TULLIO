@@ -90,7 +90,7 @@ scavalchino un permesso o rompano una funzionalità.
 |---|---|---|---|---|
 | — | **CRITICI** | — | **Nessuno.** | — |
 | ST-1 | ~~Alta~~ ✔ **risolto** | Render / invariante | Il `memo` della Dashboard è annullato da `openChatTo`, callback non memoizzata: 🔬 1 render completo per carattere digitato | `VoyageDesk.jsx:211,274` |
-| ST-2 | ~~Alta~~ ✔ **risolto** (parte 1 di 2) | Architettura | Il guscio riceve `state` intero e non è `memo`; la causa a monte è lo **stato effimero di UI dentro il reducer globale** (6 fette) | `VoyageDesk.jsx:322,353,376` · `state/reducer.js:662-665,752-757` |
+| ST-2 | ~~Alta~~ ✔ **risolto** (entrambi i passi — parte 2 l'11 agosto, PR #171) | Architettura | Il guscio riceve `state` intero e non è `memo`; la causa a monte era lo **stato effimero di UI dentro il reducer globale** (6 fette) | `VoyageDesk.jsx:322,353,376` · `state/reducer.js:662-665,752-757` |
 | ST-3 | ~~Alta~~ ✔ **risolto** | Scalabilità | `Clients.list()` senza `.range()` con ✅ 818 righe: troncamento silenzioso al cap PostgREST | `lib/api.js:605-606` |
 | ST-4 | ~~Media~~ ✔ **risolto** (parte 1 di 2) | Scalabilità | La chat ricaricava **tutti** i messaggi a ogni evento, e su `conversations` anche l'elenco intero senza motivo | `hooks/useChatData.js:71-99` · `lib/api.js:351` |
 | ST-5 | ~~Media~~ ✔ **risolto** | Duplicazione / a11y | Due modi di chiedere conferma **dentro lo stesso modulo**; 12 modali del modulo Liste senza `role="dialog"`, `aria-modal`, blocco scroll | `liste/modals/LvOverlay.jsx` · `liste/ListaDetail.jsx` · `liste/ListeViaggio.jsx` |
@@ -117,7 +117,7 @@ esempio.
 |---|---|
 | **ST-1** | `openChatTo` avvolta in `useCallback`. 🔬 La misura è ora un test: `src/test/memoViste.test.jsx` monta l'app con la vista attiva e la nav sostituite da stub `memo` che contano i propri render, digita nella ricerca e asserisce che i contatori non si muovano — con un controllo positivo (`input.value === "abc"`) che impedisce al test di passare perché non è successo niente. **Verificato che fallisca senza la correzione**: rimettendo la funzione nuda il test riporta 4 render invece di 1 su tre caratteri e 11 invece di 1 su dieci. Non è più un'invariante letta: è misurata. |
 | **ST-2** | Fatta la **parte meccanica** (che è ciò che chiudeva P2-6): `Topbar` riceve `activeView`/`searchQuery`/`showNotif`, `Sidebar` riceve `activeView`/`collapsed`, `BottomNav` riceve `activeView`; tutti e tre sono `memo`. `team`, `currentUserId` e `tasks` arrivano dai context dove già vivevano — `UserSwitcher` non riceve più `state` affatto e `getNavBadges` prende `team` invece dello stato intero. I due callback della nav (`openBulk`, `openChatPanel`) sono passati da arrow inline a `useCallback`, **nello stesso commit del `memo`**: senza, si aggiungeva un confronto che non poteva mai riuscire (è la lezione di ST-1). Effetto misurato dallo stesso test: digitando nella ricerca, Sidebar e BottomNav ora non si ri-renderizzano affatto, mentre la Topbar continua a farlo — deve, contiene il campo. |
-| **ST-2** (parte 2) | **Resta aperta, e volutamente.** Portare `searchQuery`/`showNotif`/`sidebarCollapsed` fuori dal reducer globale è una decisione di architettura, non una correzione: `SET_SEARCH`/`TOGGLE_NOTIF`/`TOGGLE_SIDEBAR` sono dispatchate da cinque punti (Topbar, AdvancedSearchPanel, NotificationsPanel, Sidebar) e `selectedTask` passa dai permessi (`canViewTask` in `SET_SELECTED_TASK`), che è un controllo da conservare dov'è. La parte 1 cattura il beneficio pratico; la parte 2 va decisa, non dedotta da un audit. |
+| **ST-2** (parte 2) | Era rimasta aperta di proposito: portare `searchQuery`/`showNotif`/`sidebarCollapsed` fuori dal reducer globale è una decisione di architettura, non una correzione, e `selectedTask` passa dai permessi (`canViewTask` in `SET_SELECTED_TASK`), un controllo da conservare dov'è. **Decisione presa e chiusa l'11 agosto** (PR #171, branch separato) — vedi §2-quater per cosa è stato deciso. |
 | **ST-3** | `fetchAllRows` promossa da funzione privata di `listeApi.js` a `src/lib/pagination.js`, con `PAGE_SIZE`/`WITH_COUNT`: `Clients.list()` la usa, `listeApi.js` la importa da lì invece di tenerne una copia — la regola esiste in **un** posto e si applica in due. Aggiunto `.order('id')` come seconda chiave: `name` non è unico (omonimi legittimi fra titolari e cointestatari) e senza una chiave stabile due pagine consecutive possono ripetere o saltare una riga. 6 test nuovi in `src/test/paginazione.test.js`, di cui uno asserisce il caso che conta — 1500 righe servite in pagine da 1000 tornano **tutte e 1500**, non le prime 1000. |
 | **ST-4** (parte 1 di 2) | `useChatData.js` usa ora il parametro `tabelle` di `useDebouncedTableSubscription`, esattamente come `useListeData.js` (A-1): un evento su `messages` non ricarica più `Conversations.listMine()`, perché un messaggio nuovo non tocca l'elenco delle conversazioni (`updated_at` si muove solo su create/rename/pin, non su ogni invio). `tabelle === null` (idratazione iniziale o ripresa dopo un buco di connessione) continua a caricare tutto. 5 test nuovi in `src/test/realtimeGranularita.test.jsx`, che segue lo stesso stile di quelli già lì per A-1/A-2/B-1 — inclusa la prova che il reload parziale non azzera le conversazioni già in stato. |
 | **ST-4** (parte 2) | **Resta aperta, come previsto dal rilievo stesso.** Caricare i messaggi per conversazione aperta con `Messages.listForConversation()` invece del corpus intero è un cambio di modello dati lato client che tocca i read receipt e il badge dei non letti: a ✅ 13 messaggi non si ripaga. La soglia scritta nel rilievo (`messages > ~1500`) resta il segnale per riaprirlo. |
@@ -125,18 +125,20 @@ esempio.
 | Test | 🔬 **982 verdi + 7 skipped** su 87 file (erano 977 su 87): +5 `realtimeGranularita` (ST-4). 0 errori ESLint (20 warning, l'arretrato dichiarato). Build ok: `index` 291.26 kB / 81.82 kB gzip. |
 
 **Cosa NON era stato toccato in quel passaggio**: ST-6…ST-15, chiusi il giorno
-dopo — vedi §2-ter, che li registra uno per uno. Restano aperti solo ST-14 (non
+dopo — vedi §2-ter, che li registra uno per uno. Restava aperto ST-14 (non
 correggibile da codice) e le due decisioni dichiarate, la parte 2 di ST-2 e la
-parte 2 di ST-4.
+parte 2 di ST-4 — la prima è stata chiusa l'11 agosto stesso, in un passaggio
+successivo (§2-quater); la parte 2 di ST-4 resta aperta sotto soglia.
 
 ---
 
 ## 2-ter. Stato di avanzamento — nove rilievi chiusi l'11 agosto
 
 Applicati su richiesta nello stesso branch, il giorno dopo. Restano aperti
-**ST-14** (non correggibile da codice) e le due decisioni dichiarate: il secondo
-passo di ST-2 e il secondo passo di ST-4, entrambe rimandate per i motivi
-scritti in §2-bis, non per mancanza di tempo.
+**ST-14** (non correggibile da codice) e, al momento di questa sezione, le due
+decisioni dichiarate: il secondo passo di ST-2 e il secondo passo di ST-4,
+entrambe rimandate per i motivi scritti in §2-bis, non per mancanza di tempo.
+La prima delle due è stata chiusa più tardi lo stesso giorno — vedi §2-quater.
 
 | | Esito |
 |---|---|
@@ -151,6 +153,53 @@ scritti in §2-bis, non per mancanza di tempo.
 | **ST-15** | `lib/confrontoIdratazione.js`: `SET_TEAM` e `SET_CATEGORIES` non partono più quando il payload riletto è equivalente a quello consegnato prima, quindi un evento realtime innocuo su `users` non invalida più i venti metodi di `AppDataContext`. Il confronto è puro e testato sui casi limite, non sul caso normale: niente `JSON.stringify` (sensibile all'ordine delle chiavi: non fallirebbe mai, e la correzione sarebbe finta), l'ordine delle righe **conta**, e `null` non è mai equivalente a una lista — saltare un dispatch è corretto solo se il payload è davvero completo. |
 | **ST-14** | **Resta aperto, e non è correggibile da codice**: è un interruttore in Supabase → Authentication → Password → *Enable leaked password protection*. ✅ Riconfermato `WARN` sull'advisor live l'11 agosto. Ciò che è stato fatto è togliergli il silenzio: `verifica-advisor` non accetta più i WARN per **categoria** ma per **nome**, con l'elenco dei nove SECURITY DEFINER motivati scritto accanto alla ragione. Da ora questo rilievo fa fallire il controllo invece di confondersi con quelli accettati — e, cosa che conta di più, lo fa anche un avviso *nuovo* su una tabella aggiunta domani. |
 | Test | 🔬 **1057 verdi + 7 skipped** su 93 file (erano 982 su 87). 0 errori ESLint (20 warning in 13 file, l'arretrato dichiarato e ora verificato da uno script). Build ok. |
+
+---
+
+## 2-quater. Le due decisioni dichiarate — prese, 11 agosto
+
+Questa sezione esiste per la stessa ragione di ST-13: un documento che elenca
+una decisione come "da prendere" senza tornarci sopra è la deriva successiva,
+non un caso a parte.
+
+**ST-2 (parte 2) — chiusa.** Decisa e applicata lo stesso giorno, in un
+passaggio separato da questo audit (PR #171, branch `claude/reducer-state-
+architecture-wcr9cb`, mergiata su `main`). La decisione presa, fra le opzioni
+lasciate aperte in §3 (`ST-2`):
+
+- `showNotif` e `sidebarCollapsed` diventano `useState` locale rispettivamente
+  di `Topbar` e `Sidebar`: 📄 verificato che non avessero consumatori fuori dal
+  componente che li possiede — il reducer globale faceva solo da tramite.
+- `searchQuery` **non** diventa locale a `Topbar`: resta `useState` nel guscio
+  (`VoyageDeskInner`), perché è candidato a diventare un filtro cross-view, e in
+  quel caso deve restare leggibile da fuori la Topbar. Esce comunque dal
+  reducer di dominio, che era il punto del rilievo.
+- `filters`/`SET_FILTER` risultavano codice morto (nessun dispatch, nessuna
+  lettura) e sono stati rimossi, non migrati.
+- `selectedTask` **resta nel reducer**, deliberatamente fuori da questo
+  cambiamento: sei case lo tengono allineato ai task nello stesso passaggio
+  (`UPDATE_TASK`, `ADD_COMMENT`, `DELETE_TASK`, `RENAME_CLIENT_IN_TASKS`,
+  `UNDO_LAST_ACTION`, `SET_CURRENT_USER`) oltre al controllo permessi
+  (`canViewTask`) in `SET_SELECTED_TASK` — portarlo fuori avrebbe reintrodotto
+  un effetto di ri-sincronizzazione fra due fonti di verità, il difetto
+  opposto a quello che il rilievo voleva chiudere.
+
+📄 Verificato oggi sul reducer: `SET_SEARCH`, `TOGGLE_NOTIF`, `TOGGLE_SIDEBAR` e
+`SET_FILTER` non sono più case di `state/reducer.js`. 🔬 Suite completa
+rimisurata: 1057 verdi + 7 skipped su 93 file, invariata rispetto a §2-ter —
+la modifica ha spostato dove vive lo stato, non ha aggiunto né tolto
+comportamento coperto da test.
+
+**ST-4 (parte 2) — riconfermata aperta, sotto soglia.** Non una decisione
+diversa da quella scritta nell'Action Plan: la soglia (`messages > ~1500`) non
+è stata raggiunta, quindi non c'è ancora nulla da decidere sul merito. ✅
+Rimisurato in diretta sul progetto Supabase (`select count(*) from messages`):
+**13 messaggi**, lo stesso numero del 10 e dell'11 agosto — il volume non è
+cambiato, quindi il ragionamento in §3 (ST-4) non è cambiato. Alzare il
+`limit` di `Messages.listAll` resterebbe la mossa sbagliata per lo stesso
+motivo scritto lì: sposterebbe il troncamento in avanti aumentando il costo di
+ogni evento. Il segnale per riaprire il rilievo resta lo stesso: quando
+`messages` supera ~1500, non prima.
 
 ---
 
@@ -261,10 +310,12 @@ it("digitare nella ricerca non ri-renderizza la vista attiva", () => {
 
 ### ST-2 · Il guscio riceve `state` intero, e lo stato effimero di UI vive nel reducer globale — Alta
 
-> ✔ **Risolto il primo passo** (le fette + `memo` + i callback della nav da
-> `useCallback`) — vedi §2-bis. Il secondo passo, portare lo stato effimero di
-> UI fuori dal reducer, **resta aperto di proposito**: è una decisione di
-> architettura e non una correzione, per le ragioni in §2-bis.
+> ✔ **Risolto interamente.** Il primo passo (le fette + `memo` + i callback
+> della nav da `useCallback`) è in §2-bis. Il secondo passo — portare lo stato
+> effimero di UI fuori dal reducer — era stato lasciato aperto di proposito
+> come decisione di architettura, non come correzione: la decisione è stata
+> presa e applicata l'11 agosto, in un passaggio separato (PR #171). Vedi
+> §2-quater.
 
 **File.** `src/VoyageDesk.jsx:322` (`Topbar`), `:353` (`Sidebar`), `:376`
 (`BottomNav`) · `src/state/reducer.js:662-665`, `:752-757`
@@ -1163,7 +1214,9 @@ guardato.
 *L'analisi (§1-§4) è stata prodotta senza modificare il codice
 dell'applicazione. Cinque rilievi — ST-1, ST-2 (primo passo), ST-3, ST-4 (primo
 passo) e ST-5 — sono stati applicati in un secondo momento su richiesta
-esplicita e sono registrati in §2-bis; ST-6…ST-15 restano aperti e non hanno
-prodotto modifiche, così come la parte 2 di ST-2 e la parte 2 di ST-4. Nessuna
-DDL è stata eseguita sul database in tutta la sessione: le query a Supabase
-sono state di sola lettura (`count(*)` e advisor).*
+esplicita e sono registrati in §2-bis; ST-6…ST-15 sono stati chiusi il giorno
+dopo (§2-ter). Delle due decisioni dichiarate, la parte 2 di ST-2 è stata presa
+e chiusa l'11 agosto in un passaggio successivo (§2-quater); la parte 2 di
+ST-4 resta aperta, riconfermata sotto soglia lo stesso giorno (§2-quater).
+Nessuna DDL è stata eseguita sul database in tutta la sessione: le query a
+Supabase sono state di sola lettura (`count(*)` e advisor).*

@@ -12,6 +12,7 @@ import { ImportTab } from "./bulk/ImportTab.jsx";
 import { TemplateTab } from "./bulk/TemplateTab.jsx";
 import { Modal } from "../ui/Modal.jsx";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
+import { useClients } from "../../state/ClientsContext.jsx";
 
 
 // Descrizione breve di ogni modalità: mostrata sotto le tab per orientare
@@ -24,8 +25,12 @@ const TAB_META = [
 ];
 
 // ─── BULK TASK CREATOR (modale principale) ─────────────────────────────────
-export const BulkTaskCreator = ({ existingTasks, onCreate, onClose, clients = [] }) => {
+export const BulkTaskCreator = ({ existingTasks, onCreate, onClose }) => {
   const conferma = useConfirm();
+  // ST-11 · L'anagrafica dal contesto, non come prop (vedi QuickAddTask). Alle
+  // due tab che la usano continua ad arrivare come prop: il rilievo riguarda il
+  // confine con VoyageDesk, non la composizione interna della modale.
+  const clients = useClients();
   const { isMobile } = useViewport();
   const [tab, setTab] = useState("manual");
   // Fase 2: si parte da una schermata di scelta ("Come vuoi creare i task?")

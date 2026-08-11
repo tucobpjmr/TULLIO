@@ -5,7 +5,11 @@ import { renderWithAppData, DEMO_APP_CTX } from "./helpers/appData.jsx";
 // I componenti sotto test leggono team/categorie/utente da useAppData(): prima
 // li prendevano dai default di modulo di appGlobals, ora vanno montati dentro
 // il provider. DEMO_APP_CTX è esattamente quel default, reso esplicito.
-const render = (ui, options) => renderWithAppData(ui, DEMO_APP_CTX, options);
+// ST-11 · `clients` non è più una prop: QuickAddTask legge l'anagrafica da
+// useClients(), quindi qui viaggia nel contesto come team/categorie/utente. È
+// il punto del rilievo — prima esisteva una seconda strada per lo stesso dato,
+// ed era quella che i test esercitavano.
+const render = (ui, clients = []) => renderWithAppData(ui, { ...DEMO_APP_CTX, clients });
 
 
 // Mock di api.js per non istanziare il client Supabase reale (stesso pattern
@@ -24,7 +28,7 @@ const CLIENT = { id: "cl1", name: "Mario Rossi", city: "Roma", phone: "333 12345
 
 describe("QuickAddTask — eredità contatti dall'anagrafica cliente", () => {
   it("selezionando un cliente dall'autocomplete, il campo Contatti si precompila da telefono/email", () => {
-    render(<QuickAddTask onAdd={vi.fn()} onClose={vi.fn()} clients={[CLIENT]} />);
+    render(<QuickAddTask onAdd={vi.fn()} onClose={vi.fn()} />, [CLIENT]);
 
     const clientInput = screen.getByPlaceholderText("Cerca in anagrafica o scrivi un nome…");
     fireEvent.focus(clientInput);
@@ -38,7 +42,7 @@ describe("QuickAddTask — eredità contatti dall'anagrafica cliente", () => {
   });
 
   it("non sovrascrive un contatto già digitato a mano", () => {
-    render(<QuickAddTask onAdd={vi.fn()} onClose={vi.fn()} clients={[CLIENT]} />);
+    render(<QuickAddTask onAdd={vi.fn()} onClose={vi.fn()} />, [CLIENT]);
 
     const contactInput = screen.getByPlaceholderText("Telefono, email…");
     fireEvent.change(contactInput, { target: { value: "già inserito a mano" } });
@@ -58,7 +62,7 @@ describe("QuickAddTask — eredità contatti dall'anagrafica cliente", () => {
   // comunque ereditato nel campo Contatti alla selezione.
   it("mostra ed eredita il telefono anche se il cliente non ha città né email", () => {
     const phoneOnly = { id: "cl2", name: "malagnino angelo", city: "", email: "", phone: "+39 338 918 5756" };
-    render(<QuickAddTask onAdd={vi.fn()} onClose={vi.fn()} clients={[phoneOnly]} />);
+    render(<QuickAddTask onAdd={vi.fn()} onClose={vi.fn()} />, [phoneOnly]);
 
     const clientInput = screen.getByPlaceholderText("Cerca in anagrafica o scrivi un nome…");
     fireEvent.focus(clientInput);

@@ -9,6 +9,7 @@ import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit } from 
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";
 import { Modal } from "../ui/Modal.jsx";
 import { useClientSuggestions, ClientSuggestions } from "../ui/ClientAutocomplete.jsx";
+import { useClients } from "../../state/ClientsContext.jsx";
 
 // v2.8 Round 6: auto-suggerisci la categoria in base a keyword nel titolo.
 // Regole: primo match vince (ordine top-down). Solo per categorie disponibili all'utente.
@@ -33,8 +34,12 @@ const suggestCategory = (title, availableCats) => {
   return null;
 };
 
-export const QuickAddTask = ({ onAdd, onClose, clients = [] }) => {
+export const QuickAddTask = ({ onAdd, onClose }) => {
   const { currentUserId, getAssignableTeam, getAvailableCategories } = useAppData();
+  // ST-11 · L'anagrafica dal contesto, non come prop: sul call site era
+  // `clients={state.clients || []}`, cioè un array NUOVO a ogni render quando
+  // l'anagrafica è vuota. Il default vive nel provider, in un punto solo.
+  const clients = useClients();
   // Categorie filtrate per il ruolo dell'utente loggato (v0.8)
   const availableCats = getAvailableCategories(currentUserId);
   const firstCatKey = Object.keys(availableCats)[0] || "booking";

@@ -416,7 +416,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
               resetKey={state.selectedTask?.id}
               onReset={() => dispatch({ type: "SET_SELECTED_TASK", payload: null })}
             >
-              <TaskSlideOver task={state.selectedTask} dispatch={dispatch} clients={state.clients || []} />
+              <TaskSlideOver task={state.selectedTask} dispatch={dispatch} />
             </OverlayErrorBoundary>
           </Suspense>
         )}
@@ -448,7 +448,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         {state.activeView !== "trash" && state.activeView !== "archivio" && state.activeView !== "admin" && (
           <FAB onClick={() => setShowFABModal(true)} />
         )}
-        {showFABModal && <QuickAddTask clients={state.clients || []} onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} />}
+        {showFABModal && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} />}
 
         {/* Overlay scorciatoie tastiera (v2.8 Round 10) */}
         {showKeyHelp && <KeyboardHelpOverlay onClose={() => setShowKeyHelp(false)} />}
@@ -462,7 +462,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
                 existingTasks={getActiveTasks(state.tasks)}
                 onCreate={(tasks) => dispatch({ type: "ADD_TASKS_BULK", payload: tasks })}
                 onClose={() => setShowBulkModal(false)}
-                clients={state.clients || []}
+               
               />
             </OverlayErrorBoundary>
           </Suspense>

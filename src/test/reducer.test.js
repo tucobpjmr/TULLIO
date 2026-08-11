@@ -239,6 +239,27 @@ describe("reducer — CRM clienti", () => {
     expect(s.toasts.at(-1).type).toBe("success");
   });
 
+  // A-2: gemello di ROLLBACK_TASKS_BULK per ADD_CLIENTS_BULK. `createMany`
+  // scrive a blocchi (lib/api.js), quindi un fallimento a metà lascia i
+  // blocchi già scritti in lista — solo la coda va tolta.
+  it("ROLLBACK_CLIENTS_BULK toglie solo i clienti indicati, non l'intero batch", () => {
+    let s = freshState("marco");
+    s = reducer(s, {
+      type: "ADD_CLIENTS_BULK",
+      payload: [{ id: "cl1", name: "Rossi" }, { id: "cl2", name: "Bianchi" }, { id: "cl3", name: "Verdi" }],
+    });
+    expect(s.clients).toHaveLength(3);
+    // Solo cl3 (il terzo, non arrivato sul server) va tolto.
+    const next = reducer(s, { type: "ROLLBACK_CLIENTS_BULK", payload: ["cl3"] });
+    expect(next.clients.map(c => c.id)).toEqual(["cl1", "cl2"]);
+  });
+
+  it("ROLLBACK_CLIENTS_BULK con lista vuota lascia lo stato intatto", () => {
+    let s = freshState("marco");
+    s = reducer(s, { type: "ADD_CLIENT", payload: { id: "cl1", name: "Rossi" } });
+    expect(reducer(s, { type: "ROLLBACK_CLIENTS_BULK", payload: [] })).toBe(s);
+  });
+
   // `task.client` è testo libero (colonna client_id text), non una FK verso
   // clients: rinominare l'anagrafica lascia indietro i task che la citano, e
   // la scheda cliente — che li cerca per nome — smette di mostrarli.
@@ -269,6 +290,60 @@ describe("reducer — CRM clienti", () => {
       const next = reducer(s, { type: "RENAME_CLIENT_IN_TASKS", payload: { from: "ROSSI", to: "BIANCHI" } });
       expect(next.tasks[0].client).toBe("ROSSI");
     });
+  });
+});
+
+// A-1 dell'audit dell'11 agosto: prima ADD_MESSAGE_TEMPLATE generava un id
+// locale ("mt" + Date.now()) a prescindere da persistence.js — il template
+// non aveva alcuna riga corrispondente sul server con cui far coincidere
+// l'id. Ora usa l'id già assegnato da normalize() (come ADD_CLIENT/
+// ADD_NOTICE), lo stesso che persistence.persist scrive su
+// public.message_templates.
+describe("reducer — template messaggi chat", () => {
+  it("ADD_MESSAGE_TEMPLATE usa l'id del payload quando presente (persistenza sincronizzata)", () => {
+    let s = freshState("marco");
+    const id = "11111111-2222-4333-8444-555555555555";
+    s = reducer(s, { type: "ADD_MESSAGE_TEMPLATE", payload: { id, label: "Sollecito", text: "Testo" } });
+    const aggiunto = s.messageTemplates.find(t => t.label === "Sollecito");
+    expect(aggiunto.id).toBe(id);
+  });
+
+  it("ADD_MESSAGE_TEMPLATE genera un id locale in modalità demo (payload senza id)", () => {
+    let s = freshState("marco");
+    s = reducer(s, { type: "ADD_MESSAGE_TEMPLATE", payload: { label: "Demo", text: "Testo" } });
+    const aggiunto = s.messageTemplates.find(t => t.label === "Demo");
+    expect(aggiunto.id).toBeTruthy();
+  });
+
+  it("ADD_MESSAGE_TEMPLATE ignora label/text vuoti", () => {
+    const s = freshState("marco");
+    expect(reducer(s, { type: "ADD_MESSAGE_TEMPLATE", payload: { label: "  ", text: "x" } })).toBe(s);
+  });
+
+  it("UPDATE_MESSAGE_TEMPLATE e DELETE_MESSAGE_TEMPLATE modificano solo il template indicato", () => {
+    let s = freshState("marco");
+    s = reducer(s, { type: "ADD_MESSAGE_TEMPLATE", payload: { id: "mt1", label: "A", text: "x" } });
+    s = reducer(s, { type: "UPDATE_MESSAGE_TEMPLATE", payload: { id: "mt1", label: "B" } });
+    expect(s.messageTemplates.find(t => t.id === "mt1").label).toBe("B");
+    s = reducer(s, { type: "DELETE_MESSAGE_TEMPLATE", payload: "mt1" });
+    expect(s.messageTemplates.find(t => t.id === "mt1")).toBeUndefined();
+  });
+
+  // Idratazione (useAppHydration): sostituisce l'intero elenco, come
+  // SET_CATEGORIES/SET_NOTICES — non un patch.
+  it("SET_MESSAGE_TEMPLATES sostituisce l'intero elenco", () => {
+    let s = freshState("marco");
+    s = reducer(s, { type: "ADD_MESSAGE_TEMPLATE", payload: { id: "mt1", label: "Locale", text: "x" } });
+    s = reducer(s, {
+      type: "SET_MESSAGE_TEMPLATES",
+      payload: [{ id: "db1", label: "Dal server", text: "y" }],
+    });
+    expect(s.messageTemplates).toEqual([{ id: "db1", label: "Dal server", text: "y" }]);
+  });
+
+  it("SET_MESSAGE_TEMPLATES con un payload non-array svuota l'elenco invece di esplodere", () => {
+    const s = freshState("marco");
+    expect(reducer(s, { type: "SET_MESSAGE_TEMPLATES", payload: null }).messageTemplates).toEqual([]);
   });
 });
 

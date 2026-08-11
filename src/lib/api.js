@@ -642,6 +642,24 @@ export const Clients = {
   // Vedi il blocco (a) in fondo alla migrazione 20260808120000.
   remove: (id) =>
     supabase.from('clients').delete().eq('id', id),
+  // Import anagrafica (A-2): insert multi-riga a BLOCCHI invece di N
+  // `create()` in Promise.all. Ogni blocco è atomico — o entra tutto o
+  // niente — quindi un fallimento a metà lascia uno stato NOTO (i blocchi già
+  // scritti) invece di un insieme casuale di righe passate e righe respinte,
+  // scoperto solo al reload successivo. 200 è il compromesso fra numero di
+  // round-trip e dimensione del payload: oltre, PostgREST inizia a rifiutare
+  // per lunghezza della richiesta. `scritti` dice al rollback quante righe
+  // NON togliere dalla UI.
+  createMany: async (clients, { chunk = 200 } = {}) => {
+    let scritti = 0;
+    for (let i = 0; i < clients.length; i += chunk) {
+      const blocco = clients.slice(i, i + chunk).map(withOrigin);
+      const { error } = await supabase.from('clients').insert(blocco);
+      if (error) return { error, scritti };
+      scritti += blocco.length;
+    }
+    return { error: null, scritti };
+  },
 };
 
 // ----------------- CATEGORIES -----------------
@@ -657,6 +675,23 @@ export const Categories = {
       .eq('key', key).select().single(),
   remove: (key) =>
     supabase.from('categories').delete().eq('key', key),
+};
+
+// ----------------- MESSAGE TEMPLATES (chat, Admin → Sistema) -----------------
+// Stesso trattamento di Categories: dati di dominio letti da tutto il team
+// (il composer chat), scritti solo dall'admin (A-1 dell'audit dell'11 agosto —
+// prima vivevano solo in state.messageTemplates, senza tabella).
+export const MessageTemplates = {
+  list: () =>
+    supabase.from('message_templates').select('*').order('created_at'),
+  create: (tpl) =>
+    supabase.from('message_templates').insert(withOrigin(tpl)).select().single(),
+  update: (id, patch) =>
+    supabase.from('message_templates')
+      .update(withOrigin({ ...patch, updated_at: new Date().toISOString() }))
+      .eq('id', id).select().single(),
+  remove: (id) =>
+    supabase.from('message_templates').delete().eq('id', id),
 };
 
 // ----------------- REALTIME -----------------

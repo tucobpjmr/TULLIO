@@ -99,6 +99,7 @@ vi.mock("../lib/api.js", () => ({
   Categories: { list: vi.fn(async () => vuoto) },
   Users: { listAll: vi.fn(async () => vuoto), getContacts: vi.fn(async () => ({ data: null })) },
   Clients: { list: vi.fn(async () => ({ data: [{ id: UUID, name: "Rossi" }], error: null })) },
+  MessageTemplates: { list: vi.fn(async () => vuoto) },
 }));
 
 const { useAppHydration } = await import("../hooks/useAppHydration.js");

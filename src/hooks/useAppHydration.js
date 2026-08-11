@@ -34,10 +34,11 @@ import { useState, useCallback, useRef } from "react";
 import {
   Tasks as TasksAPI, Notices as NoticesAPI, Users as UsersAPI,
   Clients as ClientsAPI, Categories as CategoriesAPI, TaskThreads as TaskThreadsAPI,
+  MessageTemplates as MessageTemplatesAPI,
 } from "../lib/api.js";
 import {
   fromDbTask, fromDbNotice, fromDbClient, fromDbCategory,
-  fromDbComment, fromDbHistory,
+  fromDbComment, fromDbHistory, fromDbMessageTemplate,
 } from "../lib/mappers.js";
 import { useDebouncedTableSubscription } from "./useDebouncedTableSubscription.js";
 import { stessaLista, stessaMappa } from "../lib/confrontoIdratazione.js";
@@ -55,7 +56,7 @@ const perTaskId = (righe, mapper) => {
 // Entità idratate qui, nell'ordine in cui compaiono sotto. Una lista e non
 // cinque `useState`: i consumatori leggono `loading.tasks`, e aggiungere
 // un'entità non richiede di ricordarsi di propagare un sesto flag.
-const ENTITA = ["tasks", "notices", "categories", "team", "clients"];
+const ENTITA = ["tasks", "notices", "categories", "team", "clients", "messageTemplates"];
 
 export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
   const [loading, setLoading] = useState(
@@ -276,6 +277,24 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
     }
     dispatch({ type: "SET_CLIENTS", payload: (data || []).map(fromDbClient) });
     segnaCaricata("clients");
+  }, { enabled, deps: [enabled] });
+
+  // Idratazione + realtime dei template di messaggio chat (A-1 dell'audit
+  // dell'11 agosto). Stesso trattamento di `categories`: prima non c'era
+  // alcuna subscription perché non c'era alcuna tabella da cui idratare — i
+  // quattro template di makeInitialState erano l'unico stato possibile, e
+  // ADD/UPDATE/DELETE_MESSAGE_TEMPLATE scrivevano solo lo state React.
+  useDebouncedTableSubscription(["message_templates"], async (isCurrent) => {
+    const { data, error } = await MessageTemplatesAPI.list();
+    if (!isCurrent()) return;
+    if (error) {
+      console.error("[VoyageDesk] MessageTemplates.list", error);
+      onError(`Caricamento template messaggio fallito: ${error.message || ""}`);
+      segnaCaricata("messageTemplates");
+      return;
+    }
+    dispatch({ type: "SET_MESSAGE_TEMPLATES", payload: (data || []).map(fromDbMessageTemplate) });
+    segnaCaricata("messageTemplates");
   }, { enabled, deps: [enabled] });
 
   // `crmLoading` resta esposto come alias di `loading.clients`: è il nome con

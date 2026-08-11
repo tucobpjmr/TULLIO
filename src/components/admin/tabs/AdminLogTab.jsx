@@ -59,6 +59,19 @@ export const AdminLogTab = ({ dispatch, activityLog = [] }) => {
 
   return (
     <div>
+      {/* A-1 dell'audit dell'11 agosto: questo log vive nello state React di
+          QUESTA scheda del browser, per QUESTO utente, da quando l'ha aperta.
+          Non è un registro server-side (nessun trigger DB lo scrive), quindi
+          non contiene le azioni di nessun altro utente né quelle precedenti
+          all'apertura della pagina, e si azzera al reload. Chiamarlo "log
+          attività" senza dirlo — con filtri per tipo ed export CSV, come un
+          audit trail vero — è la parte del difetto che costa meno correggere
+          e di più lasciare com'è: un registro che sembra completo ed è solo
+          la propria vista parziale è peggio di nessun registro. */}
+      <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 0, marginBottom: 12 }}>
+        Sessione corrente, questo dispositivo · non include le azioni di altri utenti
+        né quelle precedenti all'apertura di questa pagina, e non viene conservato dopo la chiusura.
+      </p>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div style={{ display: "flex", gap: 4 }}>
           {[

@@ -300,6 +300,20 @@ export function toDbCategory(cat) {
   return { key: cat.key, label: cat.label, icon: cat.icon ?? "", color: cat.color, bg: cat.bg };
 }
 
+// ----------------- TEMPLATE MESSAGGI CHAT -----------------
+export function fromDbMessageTemplate(row) {
+  if (!row) return null;
+  return { id: row.id, label: row.label, text: row.text };
+}
+
+export function toDbMessageTemplate(tpl) {
+  return {
+    id: isUuid(tpl.id) ? tpl.id : newId(),
+    label: tpl.label,
+    text: tpl.text,
+  };
+}
+
 // ----------------- NOTIFICATIONS -----------------
 // DB row → app notification. Payload arbitrario per tipo.
 export function fromDbNotification(row) {

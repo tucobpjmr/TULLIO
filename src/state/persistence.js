@@ -54,10 +54,11 @@
 import {
   Tasks as TasksAPI, Comments as CommentsAPI, Notices as NoticesAPI,
   Users as UsersAPI, Clients as ClientsAPI, Categories as CategoriesAPI,
+  MessageTemplates as MessageTemplatesAPI,
 } from "../lib/api.js";
 import {
   toDbTask, toDbTaskPatch, toDbNotice, toDbNoticePatch,
-  toDbClient, toDbClientPatch, toDbCategory, newId, isUuid,
+  toDbClient, toDbClientPatch, toDbCategory, toDbMessageTemplate, newId, isUuid,
 } from "../lib/mappers.js";
 import { canEditTask, canViewTask, canCreateTaskCategory } from "../lib/permissions.js";
 import { toDbRole, toSeniority } from "../lib/taskConstants.js";
@@ -231,14 +232,36 @@ export const PERSISTENCE = {
     persist: (s, a) => ClientsAPI.create(toDbClient(a.payload)),
   },
 
+  // A-2 dell'audit dell'11 agosto: N `create()` in Promise.all non è né
+  // atomico (una riga rifiutata da vincolo/RLS/rete lascia passare le altre)
+  // né compensato (nessun rollback), mentre il gemello ADD_TASKS_BULK ha
+  // entrambi. Su un import che arriva a centinaia di righe per file, un
+  // fallimento a metà lasciava in lista clienti che sul server non
+  // esistevano — scoperto solo al reload, e con il sintomo peggiore possibile
+  // su un'anagrafica: il doppione, che non si deduplica da solo.
   ADD_CLIENTS_BULK: {
     normalize: (a) => ({
       ...a,
       payload: (a.payload || []).map(c => ({ ...c, id: isUuid(c?.id) ? c.id : newId() })),
     }),
     persist: (s, a) => (a.payload.length
-      ? Promise.all(a.payload.map(c => ClientsAPI.create(toDbClient(c))))
+      ? ClientsAPI.createMany(a.payload.map(toDbClient))
       : NOOP),
+    // Toglie dalla lista SOLO i clienti che non sono arrivati sul server
+    // (`res.scritti` conta i blocchi già scritti prima del blocco fallito).
+    // Un rollback totale sarebbe sbagliato quanto nessuno: cancellerebbe
+    // dalla UI righe che sul database ci sono davvero, e l'operatore le
+    // reimporterebbe creando esattamente il doppione che questa entry esiste
+    // per evitare.
+    rollback: (s, a, res) => {
+      const daTogliere = (a.payload || []).slice(res?.scritti ?? 0).map(c => c.id);
+      return daTogliere.length
+        ? { type: "ROLLBACK_CLIENTS_BULK", payload: daTogliere }
+        : null;
+    },
+    mapError: (err) => (err?.code === "23505"
+      ? "alcune righe erano già presenti in anagrafica: import interrotto, i clienti già inseriti restano"
+      : err?.message),
   },
 
   // toDbClientPatch e non toDbClient: l'id è già nella clausola WHERE, e
@@ -285,6 +308,29 @@ export const PERSISTENCE = {
     },
   },
   REMOVE_CATEGORY: { persist: (s, a) => CategoriesAPI.remove(a.payload) },
+
+  // ─── ADMIN: TEMPLATE MESSAGGI CHAT ─────────────────────────────────────────
+  // A-1 dell'audit dell'11 agosto: prima erano solo case del reducer che
+  // scrivevano state.messageTemplates — nessuna tabella, il reducer
+  // rispondeva "Template aggiunto" e al reload non restava nulla (i quattro
+  // di default in makeInitialState tornavano identici, il che rendeva il
+  // difetto più difficile da notare). Stesso trattamento delle categorie:
+  // dati di dominio letti da tutto il team, scritti solo dall'admin — il
+  // guard è già coperto da ADMIN_ONLY_ACTIONS in useSyncedDispatch, come per
+  // ADD_CATEGORY.
+  ADD_MESSAGE_TEMPLATE: {
+    normalize: (a) => ({
+      ...a,
+      payload: { ...a.payload, id: isUuid(a.payload?.id) ? a.payload.id : newId() },
+    }),
+    persist: (s, a) => MessageTemplatesAPI.create(toDbMessageTemplate(a.payload)),
+  },
+  UPDATE_MESSAGE_TEMPLATE: {
+    persist: (s, a) => MessageTemplatesAPI.update(a.payload.id, {
+      label: a.payload.label, text: a.payload.text,
+    }),
+  },
+  DELETE_MESSAGE_TEMPLATE: { persist: (s, a) => MessageTemplatesAPI.remove(a.payload) },
 
   // ─── ADMIN: TEAM ───────────────────────────────────────────────────────────
   // ADD_TEAM_MEMBER resta locale: senza email non esiste una riga auth.users da

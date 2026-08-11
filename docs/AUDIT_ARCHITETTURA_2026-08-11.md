@@ -1012,7 +1012,9 @@ chiude un rilievo — è la disciplina che ST-13 ha introdotto e che
 | Rilievo | Stato |
 |---|---|
 | **C-1** | ✔ **corretto nel repo l'11 agosto** — ⚠️ **da deployare**, vedi sotto |
-| A-1, A-2, A-3 | 🟠 aperti |
+| **A-1** | ✔ **corretto nel repo l'11 agosto** — tabella `message_templates` + registry + idratazione (a), nota di onestà in `AdminLogTab` (b) |
+| **A-2** | ✔ **corretto nel repo l'11 agosto** — `ClientsAPI.createMany` a blocchi + `ROLLBACK_CLIENTS_BULK` |
+| A-3 | 🟠 aperto |
 | M-1 … M-5 | 🟡 aperti |
 | B-1, B-2, B-3 | 🟢 aperti |
 
@@ -1052,3 +1054,62 @@ nominati sui percorsi 1 e 2 di C-1.
 > ancora la versione con il controllo debole. È la stessa lezione che
 > `docs/MIGRAZIONI_SUPABASE.md` ripete per le migrazioni — **committare non è
 > applicare** — e qui vale identica.
+
+### A-1 — cosa è stato fatto
+
+**(a) Template messaggi → tabella + registry**, esattamente come proposto:
+migrazione `20260811210000_message_templates.sql` (tabella, RLS — lettura a
+tutti gli utenti attivi, scrittura solo admin via `is_admin()` — realtime,
+seed con i quattro template che prima vivevano solo in `makeInitialState`);
+`MessageTemplates` in `lib/api.js`; le tre entry `ADD/UPDATE/DELETE_MESSAGE_TEMPLATE`
+in `state/persistence.js` (nessun guard proprio: il gate è `ADMIN_ONLY_ACTIONS`,
+come per `ADD_CATEGORY`); idratazione + subscription realtime su
+`message_templates` in `useAppHydration.js` (nuova action `SET_MESSAGE_TEMPLATES`,
+stesso trattamento di `SET_CATEGORIES`). `reducer.js` non genera più un id
+locale (`"mt" + Date.now()`) quando la scrittura è sincronizzata: usa quello
+già assegnato da `normalize()`, lo stesso che finisce sulla riga DB — il
+fallback locale resta solo per la modalità demo (dispatch non sincronizzato).
+
+I quattro template hard-coded sono usciti da `makeInitialState` come dato
+finale: restano nel seed della migrazione, quindi il primo avvio in
+produzione li trova identici a prima, ma da lì in poi sono righe vere — un
+template cancellato dall'admin non ricompare più al reload.
+
+**(b) Log attività → onesto**, non server-side (quella resta lavoro a sé, il
+suggerimento strategico n. 2): `AdminLogTab` dichiara ora esplicitamente,
+sopra i filtri, che il registro è per questa scheda del browser, per questo
+utente, dall'apertura della pagina — non un audit trail.
+
+**Test**: `src/test/reducer.test.js` (`ADD_MESSAGE_TEMPLATE` usa l'id del
+payload quando presente, genera un fallback locale in demo, `SET_MESSAGE_TEMPLATES`
+sostituisce l'intero elenco) e `src/test/persistenceGuards.test.js` (le tre
+entry chiamano `MessageTemplatesAPI.create/update/remove`, il non-admin non
+raggiunge il database). 🔬 Verificato che i test sulla forma dell'id e su
+`SET_MESSAGE_TEMPLATES` falliscano senza la correzione (12 casi, fra A-1 e
+A-2, verificati stash-e-riprova sui soli file sorgente).
+
+### A-2 — cosa è stato fatto
+
+`ClientsAPI.createMany` in `lib/api.js`: insert a blocchi da 200 righe (non
+una sola insert multi-riga come per i task — un import da centinaia di righe
+supera i limiti pratici di payload di PostgREST), ciascuno atomico. Il
+blocco fallito interrompe il ciclo e ritorna `{ error, scritti }`.
+`ADD_CLIENTS_BULK` in `persistence.js` guadagna un `rollback` che non aveva
+mai avuto: toglie dalla UI **solo** i clienti oltre `res.scritti` — non tutti
+(cancellerebbe righe che sul server ci sono davvero, producendo il doppione
+che questa correzione esiste per evitare) e non nessuno (lascerebbe in lista
+clienti mai scritti). La nuova action `ROLLBACK_CLIENTS_BULK` è il gemello
+silenzioso di `ROLLBACK_TASKS_BULK`.
+
+Per farlo, `rollback()` doveva ricevere il risultato di `persist()`:
+`useSyncedDispatch.js` passa ora un terzo argomento (`res`) a `fail()` e a
+`rollback()`, letto dal solo `.then()` (un `.catch()` non ha un `res` del
+genere — un errore di rete prima di qualunque blocco si comporta come
+`scritti: undefined`, cioè rollback totale). I rollback esistenti lo
+ignorano: retrocompatibile.
+
+**Test**: `src/test/reducer.test.js` (`ROLLBACK_CLIENTS_BULK` toglie solo gli
+id indicati) e `src/test/persistenceGuards.test.js` (il rollback usa
+`res.scritti` per decidere la coda, `persist` chiama `createMany` una volta
+sola e non `create` N volte). 🔬 Verificato che falliscano senza la
+correzione.

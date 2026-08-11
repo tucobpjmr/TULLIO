@@ -23,14 +23,15 @@ vi.mock("../lib/api.js", () => {
     Comments:   { create: vi.fn(ok) },
     Notices:    { create: vi.fn(ok), update: vi.fn(ok), remove: vi.fn(ok), togglePin: vi.fn(ok) },
     Users:      { approve: vi.fn(ok), deleteUser: vi.fn(ok), setActive: vi.fn(ok), updateProfile: vi.fn(ok), updateContact: vi.fn(ok) },
-    Clients:    { create: vi.fn(ok), update: vi.fn(ok), remove: vi.fn(ok) },
+    Clients:    { create: vi.fn(ok), createMany: vi.fn(() => Promise.resolve({ error: null, scritti: 0 })), update: vi.fn(ok), remove: vi.fn(ok) },
     Categories: { create: vi.fn(ok), update: vi.fn(ok), remove: vi.fn(ok) },
+    MessageTemplates: { create: vi.fn(ok), update: vi.fn(ok), remove: vi.fn(ok) },
   };
 });
 
 const { PERSISTENCE } = await import("../state/persistence.js");
 const { reducer, makeInitialState, ADMIN_ONLY_ACTIONS } = await import("../state/reducer.js");
-const { Tasks: TasksAPI, Users: UsersAPI } = await import("../lib/api.js");
+const { Tasks: TasksAPI, Users: UsersAPI, Clients: ClientsAPI, MessageTemplates: MessageTemplatesAPI } = await import("../lib/api.js");
 const { isAdmin } = await import("../lib/permissions.js");
 
 const TEAM = [
@@ -472,6 +473,91 @@ describe("persistence — rollback dichiarati", () => {
     // Gli altri errori passano invariati.
     expect(PERSISTENCE.DELETE_CLIENT.mapError({ code: "500", message: "boom" })).toBe("boom");
   });
+
+  // A-2 dell'audit dell'11 agosto: prima ADD_CLIENTS_BULK non aveva ALCUN
+  // rollback (a differenza del suo gemello ADD_TASKS_BULK), quindi un import
+  // fallito a metà lasciava in lista clienti che sul server non esistevano —
+  // scoperto solo al reload. Ora `res.scritti` (quanti blocchi createMany ha
+  // scritto prima di quello fallito) decide COSA togliere: non tutto, e non
+  // niente — solo la coda che sul server non è mai arrivata.
+  it("ADD_CLIENTS_BULK rimanda indietro SOLO i clienti non arrivati sul server", () => {
+    const state = statoCon([], "admin1");
+    const clienti = [{ id: uuid(1) }, { id: uuid(2) }, { id: uuid(3) }];
+    const action = { type: "ADD_CLIENTS_BULK", payload: clienti };
+    // Due blocchi su tre sono arrivati prima che il terzo fallisse.
+    expect(PERSISTENCE.ADD_CLIENTS_BULK.rollback(state, action, { scritti: 2 }))
+      .toEqual({ type: "ROLLBACK_CLIENTS_BULK", payload: [uuid(3)] });
+  });
+
+  it("ADD_CLIENTS_BULK non fa rollback se sono arrivati tutti i blocchi", () => {
+    const state = statoCon([], "admin1");
+    const clienti = [{ id: uuid(1) }, { id: uuid(2) }];
+    const action = { type: "ADD_CLIENTS_BULK", payload: clienti };
+    expect(PERSISTENCE.ADD_CLIENTS_BULK.rollback(state, action, { scritti: 2 })).toBeNull();
+  });
+
+  it("ADD_CLIENTS_BULK senza `res` (nessun blocco arrivato) rimanda tutto indietro", () => {
+    const state = statoCon([], "admin1");
+    const clienti = [{ id: uuid(1) }, { id: uuid(2) }];
+    const action = { type: "ADD_CLIENTS_BULK", payload: clienti };
+    expect(PERSISTENCE.ADD_CLIENTS_BULK.rollback(state, action))
+      .toEqual({ type: "ROLLBACK_CLIENTS_BULK", payload: [uuid(1), uuid(2)] });
+  });
+
+  it("ADD_CLIENTS_BULK scrive con un'unica insert multi-riga, non N create() in parallelo", async () => {
+    const state = statoCon([], "admin1");
+    const clienti = [{ id: uuid(1), name: "A" }, { id: uuid(2), name: "B" }];
+    const action = { type: "ADD_CLIENTS_BULK", payload: clienti };
+    await PERSISTENCE.ADD_CLIENTS_BULK.persist(state, action, "admin1");
+    expect(ClientsAPI.createMany).toHaveBeenCalledTimes(1);
+    expect(ClientsAPI.create).not.toHaveBeenCalled();
+  });
+});
+
+// A-1 dell'audit dell'11 agosto: prima i template di messaggio non avevano
+// alcuna entry — vivevano solo in state.messageTemplates, e ADD/UPDATE/
+// DELETE_MESSAGE_TEMPLATE erano dichiarati in NON_PERSISTITE_OGGI qui sotto.
+// Ora hanno lo stesso trattamento delle categorie: nessun guard proprio (il
+// gate è ADMIN_ONLY_ACTIONS, verificato dal wrapper useSyncedDispatch), un
+// persist per ciascuna delle tre operazioni.
+describe("persistence — template messaggi raggiungono il database", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("ADD_MESSAGE_TEMPLATE normalizza l'id e scrive via MessageTemplates.create", async () => {
+    const state = statoCon([], "admin1");
+    const action = { type: "ADD_MESSAGE_TEMPLATE", payload: { label: "Sollecito", text: "Testo" } };
+    const norm = PERSISTENCE.ADD_MESSAGE_TEMPLATE.normalize(action, state, "admin1");
+    expect(norm.payload.id).toMatch(/^[0-9a-f-]{36}$/i);
+
+    await PERSISTENCE.ADD_MESSAGE_TEMPLATE.persist(state, norm, "admin1");
+    expect(MessageTemplatesAPI.create).toHaveBeenCalledTimes(1);
+    const [row] = MessageTemplatesAPI.create.mock.calls[0];
+    expect(row).toMatchObject({ id: norm.payload.id, label: "Sollecito", text: "Testo" });
+  });
+
+  it("UPDATE_MESSAGE_TEMPLATE e DELETE_MESSAGE_TEMPLATE raggiungono l'API", async () => {
+    const state = statoCon([], "admin1");
+    await PERSISTENCE.UPDATE_MESSAGE_TEMPLATE.persist(
+      state, { type: "UPDATE_MESSAGE_TEMPLATE", payload: { id: "mt1", label: "L", text: "T" } }, "admin1",
+    );
+    expect(MessageTemplatesAPI.update).toHaveBeenCalledWith("mt1", { label: "L", text: "T" });
+
+    await PERSISTENCE.DELETE_MESSAGE_TEMPLATE.persist(
+      state, { type: "DELETE_MESSAGE_TEMPLATE", payload: "mt1" }, "admin1",
+    );
+    expect(MessageTemplatesAPI.remove).toHaveBeenCalledWith("mt1");
+  });
+
+  it("un non-admin non raggiunge il database (gate ADMIN_ONLY_ACTIONS)", () => {
+    // Nessun guard proprio sulle tre entry: il gate è quello che
+    // useSyncedDispatch applica PRIMA di consultare la entry, uguale per
+    // tutte le azioni ADMIN_ONLY (ADD_CATEGORY compresa). Qui si verifica che
+    // le tre azioni dei template ci siano dentro.
+    const state = statoCon([], "senior1");
+    for (const tipo of ["ADD_MESSAGE_TEMPLATE", "UPDATE_MESSAGE_TEMPLATE", "DELETE_MESSAGE_TEMPLATE"]) {
+      expect(ADMIN_ONLY_ACTIONS.has(tipo) && !isAdmin(state.team, "senior1"), tipo).toBe(true);
+    }
+  });
 });
 
 // ─── COMPLETEZZA DEL REGISTRY ────────────────────────────────────────────────
@@ -520,6 +606,10 @@ const IDRATAZIONE = [
   // si è appena letto.
   "SET_TASKS", "SET_TASK_THREADS", "SET_NOTICES", "SET_CLIENTS", "SET_CATEGORIES", "SET_TEAM",
   "SET_CURRENT_USER",
+  // Idratazione dei template di messaggio (A-1 dell'audit dell'11 agosto,
+  // stesso trattamento di SET_CATEGORIES): da quando message_templates ha una
+  // tabella, SET_MESSAGE_TEMPLATES ne rilegge il contenuto al mount/refresh.
+  "SET_MESSAGE_TEMPLATES",
 ];
 
 const COMPENSAZIONE = [
@@ -527,6 +617,9 @@ const COMPENSAZIONE = [
   // rollback, non una scrittura. Persisterle significherebbe scrivere sul
   // server l'annullamento di qualcosa che sul server non è mai arrivato.
   "ROLLBACK_TASKS_BULK", "RESTORE_CLIENT", "CANCEL_ADMIN_ROLLBACK",
+  // A-2: gemello di ROLLBACK_TASKS_BULK per ADD_CLIENTS_BULK, dispatchato dal
+  // registry quando ClientsAPI.createMany si ferma a metà.
+  "ROLLBACK_CLIENTS_BULK",
 ];
 
 // Questo quarto elenco non è una categoria: è un registro di lacune note.
@@ -540,9 +633,10 @@ const COMPENSAZIONE = [
 // davvero, il caso "nessuna azione sta in due posti" qui sotto obbliga a
 // toglierla da questa lista.
 const NON_PERSISTITE_OGGI = [
-  // I template di messaggio si creano dal pannello admin e vivono in
-  // state.messageTemplates: nessuno li rilegge all'avvio.
-  "ADD_MESSAGE_TEMPLATE", "UPDATE_MESSAGE_TEMPLATE", "DELETE_MESSAGE_TEMPLATE",
+  // I template di messaggio (ADD/UPDATE/DELETE_MESSAGE_TEMPLATE) sono usciti
+  // da questa lista l'11 agosto: hanno una entry nel registry e una tabella
+  // da cui SET_MESSAGE_TEMPLATES li rilegge (A-1 dell'audit).
+  //
   // Le reazioni agli avvisi hanno lo stesso shape di quelle della chat, che
   // invece passano dalla RPC messages_toggle_reaction. Per gli avvisi la RPC
   // corrispondente non esiste.

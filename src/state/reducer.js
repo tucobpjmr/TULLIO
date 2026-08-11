@@ -615,12 +615,29 @@ function baseReducer(state, action) {
       if (!action.payload || (state.clients || []).some(c => c.id === action.payload.id)) return state;
       return { ...state, clients: [...(state.clients || []), action.payload] };
     }
+    // Annulla l'inserimento ottimistico di ADD_CLIENTS_BULK per i soli
+    // clienti che NON sono arrivati sul server (A-2): un blocco fallito a
+    // metà lascia `res.scritti` blocchi già scritti, che restano in lista
+    // perché ci sono davvero. Puramente locale e senza toast, come
+    // ROLLBACK_TASKS_BULK — quello d'errore lo mostra già fail() in
+    // useSyncedDispatch.
+    case "ROLLBACK_CLIENTS_BULK": {
+      const ids = new Set(action.payload || []);
+      if (!ids.size) return state;
+      return { ...state, clients: (state.clients || []).filter(c => !ids.has(c.id)) };
+    }
 
     // ─── TEMPLATE MESSAGGI CHAT (v2.8, admin-only) ───
     case "ADD_MESSAGE_TEMPLATE": {
       const { label, text } = action.payload || {};
       if (!label?.trim() || !text?.trim()) return state;
-      const tpl = { id: "mt" + Date.now(), label: label.trim(), text: text.trim() };
+      // L'id normale arriva già assegnato da persistence.js (normalize, come
+      // ADD_CLIENT/ADD_NOTICE): è lo stesso che finisce sulla riga DB, quindi
+      // UPDATE/DELETE successivi nella stessa sessione colpiscono la riga
+      // giusta. In modalità demo (dispatch non sincronizzato, niente
+      // persistence.normalize) il payload non ha id: si genera un
+      // placeholder locale, come prima di questa correzione.
+      const tpl = { id: action.payload.id || ("mt" + Date.now()), label: label.trim(), text: text.trim() };
       return {
         ...state,
         messageTemplates: [...(state.messageTemplates || []), tpl],
@@ -637,6 +654,12 @@ function baseReducer(state, action) {
     case "DELETE_MESSAGE_TEMPLATE": {
       const messageTemplates = (state.messageTemplates || []).filter(t => t.id !== action.payload);
       return { ...state, messageTemplates, toasts: pushToast(state.toasts, { message: "Template rimosso", type: "success" }) };
+    }
+    // Idratazione (useAppHydration, come SET_CATEGORIES): sostituisce
+    // l'intero elenco con quello letto da public.message_templates. Niente
+    // toast, come le altre SET_* di idratazione silenziosa.
+    case "SET_MESSAGE_TEMPLATES": {
+      return { ...state, messageTemplates: Array.isArray(action.payload) ? action.payload : [] };
     }
 
     case "SHOW_TOAST": return { ...state, toasts: pushToast(state.toasts, { message: action.payload?.message ?? "", type: action.payload?.type ?? "error", undoable: !!action.payload?.undoable }) };

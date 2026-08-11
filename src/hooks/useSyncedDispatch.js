@@ -89,9 +89,15 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true } = {}) {
 
     // Percorso d'errore condiviso: rollback dello stato ottimistico (se
     // previsto) e toast con il messaggio più comprensibile disponibile.
-    const fail = (err, fallback) => {
+    // `res` (terzo argomento, opzionale) è ciò che `persist()` ha RISOLTO
+    // prima di essere riconosciuto come fallimento — non un'eccezione, ma un
+    // esito con `error` dentro (es. ADD_CLIENTS_BULK, dove `res.scritti` dice
+    // quanti blocchi sono comunque arrivati sul server prima di quello
+    // fallito). Un `.catch` non ha un `res` del genere: lì il rollback riceve
+    // `undefined`, esattamente come prima di questo parametro.
+    const fail = (err, fallback, res) => {
       console.error(`[VoyageDesk] sync ${action.type}`, err);
-      const undo = spec.rollback?.(s, toDispatch);
+      const undo = spec.rollback?.(s, toDispatch, res);
       if (undo) rawDispatch(undo);
       const testo = (spec.mapError ? spec.mapError(err) : err?.message) || fallback;
       rawDispatch({
@@ -107,7 +113,7 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true } = {}) {
         // supabase-js ritorna { error }; le entry che usano Promise.all
         // ritornano un array di quei risultati.
         const err = Array.isArray(res) ? res.find(r => r?.error)?.error : res?.error;
-        return err ? fail(err, "errore sconosciuto") : { error: null };
+        return err ? fail(err, "errore sconosciuto", res) : { error: null };
       })
       .catch((e) => fail(e, "errore di rete"))
       // finally e non .then(): un errore di rete che lasciasse l'id marcato per

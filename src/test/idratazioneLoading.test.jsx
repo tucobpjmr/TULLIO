@@ -40,6 +40,7 @@ vi.mock("../lib/api.js", () => ({
   TaskThreads: { comments: vi.fn(async () => vuoto), history: vi.fn(async () => vuoto) },
   Users: { listAll: vi.fn(async () => vuoto), getContacts: vi.fn(async () => ({ data: null })) },
   Clients: { list: vi.fn(async () => vuoto) },
+  MessageTemplates: { list: vi.fn(async () => vuoto) },
 }));
 
 const { useAppHydration } = await import("../hooks/useAppHydration.js");
@@ -59,6 +60,7 @@ describe("useAppHydration — un flag di caricamento per entità", () => {
     await waitFor(() => expect(result.current.loading.tasks).toBe(false));
     expect(result.current.loading).toEqual({
       tasks: false, notices: false, categories: false, team: false, clients: false,
+      messageTemplates: false,
     });
   });
 
@@ -66,6 +68,7 @@ describe("useAppHydration — un flag di caricamento per entità", () => {
     const { result } = monta({ enabled: false, currentUserId: null });
     expect(result.current.loading).toEqual({
       tasks: false, notices: false, categories: false, team: false, clients: false,
+      messageTemplates: false,
     });
     expect(result.current.crmLoading).toBe(false);
     expect(handlers.size).toBe(0);

@@ -5,6 +5,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { requireActiveAdmin } from "../_shared/requireActiveAdmin.ts";
 
 const VALID_ROLES = new Set(["admin", "manager", "agent", "driver"]);
 
@@ -62,19 +63,14 @@ Deno.serve(async (req: Request) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const { data: { user }, error: userErr } = await supabaseUser.auth.getUser();
-    if (userErr || !user) return json({ error: "Token non valido" }, 401);
-
-    // Controlla che il chiamante sia admin
-    const { data: caller } = await supabaseAdmin
-      .from("users")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    if (caller?.role !== "admin") {
-      return json({ error: "Solo gli admin possono invitare nuovi utenti" }, 403);
-    }
+    // Identità + ruolo del chiamante, con lo stesso predicato del database
+    // (role = 'admin' AND active AND NOT pending). Il controllo precedente
+    // guardava il solo `role`, quindi un admin disattivato o un admin invitato
+    // e mai approvato poteva ancora invitare chiunque: vedi
+    // _shared/adminPredicate.ts per il perché delle tre condizioni.
+    const esito = await requireActiveAdmin(supabaseAdmin, supabaseUser);
+    if (!esito.ok) return json({ error: esito.error }, esito.status);
+    const callerId = esito.userId;
 
     const body = await req.json();
     const email: string = (body.email ?? "").trim().toLowerCase();
@@ -107,7 +103,7 @@ Deno.serve(async (req: Request) => {
     // già confermato, Auth restituisce "already been registered".
     const { data: inviteData, error: inviteErr } =
       await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-        data: { name, role, capacity, color, invited_by: user.id },
+        data: { name, role, capacity, color, invited_by: callerId },
         ...(redirectTo ? { redirectTo } : {}),
       });
 
@@ -141,7 +137,7 @@ Deno.serve(async (req: Request) => {
 
       // Pre-crea profilo (il trigger DB fa lo stesso come safety-net).
       await supabaseAdmin.from("users").upsert(
-        { id: uid, name, role, avatar, color, capacity, pending: true, active: false, invited_by: user.id },
+        { id: uid, name, role, avatar, color, capacity, pending: true, active: false, invited_by: callerId },
         { onConflict: "id" }
       );
 

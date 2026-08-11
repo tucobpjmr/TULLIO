@@ -55,6 +55,7 @@ const NoticesAPI = { list: vi.fn(vuoto) };
 const UsersAPI = { listAll: vi.fn(vuoto), getContacts: vi.fn(async () => ({ data: null })) };
 const ClientsAPI = { list: vi.fn(vuoto) };
 const CategoriesAPI = { list: vi.fn(vuoto) };
+const MessageTemplatesAPI = { list: vi.fn(vuoto) };
 
 // ST-4: la chat, come i task (B-1), ricaricava tutto a ogni evento su
 // `messages` o `conversations`. `ConversationsAPI` conta le chiamate a
@@ -70,6 +71,7 @@ vi.mock("../lib/api.js", () => ({
   Users: UsersAPI,
   Clients: ClientsAPI,
   Categories: CategoriesAPI,
+  MessageTemplates: MessageTemplatesAPI,
   Conversations: ConversationsAPI,
   Messages: MessagesAPI,
 }));

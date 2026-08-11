@@ -105,12 +105,22 @@ nella sessione 24: le tabelle restano, protette, ma nessun codice le usa.)
 ### Gerarchia degli helper (📄)
 
 ```
-public.is_admin()            role = 'admin'            AND active
-public.is_manager_or_admin() role IN (admin, manager)  AND active
-public.is_active_user()      active
-private.is_admin()           idem, fuori dallo schema esposto
-private.can_liste()          role IN (admin, manager, agent) AND active
+private.is_admin()            role = 'admin'            AND active
+private.is_manager_or_admin() role IN (admin, manager)  AND active
+private.is_active_user()      active
+private.can_liste()           role IN (admin, manager, agent) AND active
 ```
+
+Tutti e quattro hanno vissuto in `public` fino alla migrazione `20260706181011`
+(`is_active_user()` era già in `private`): spostati per l'advisor
+`function_search_path_mutable`, restando raggiungibili da `authenticated` (le
+policy RLS li valutano comunque, `private` non è esposto da PostgREST). Una
+`ALTER FUNCTION … SET SCHEMA` sposta l'oggetto, non lo ricrea: le policy già
+scritte con `public.is_admin()` continuano a funzionare (referenziano la
+funzione per OID), ma un SQL scritto **oggi** deve usare `private.*` — è lo
+scarto che ha fatto fallire il primo tentativo della migrazione `A-1`
+(`message_templates`, 11 agosto): copiata da `20260630_categories_table`, che
+è precedente allo spostamento e quindi ancora scritta con `public.*`.
 
 Tutti `SECURITY DEFINER` + `SET search_path`. Il controllo `active` è stato
 aggiunto in `20260621_rls_hardening_active_users`: prima un utente invitato ma
@@ -230,10 +240,50 @@ stessa migrazione — altrimenti un Junior si sarebbe promosso Senior con un
 
 | Funzione | Controllo |
 |----------|-----------|
-| `invite-user` | token valido + `caller.role === 'admin'`, altrimenti 403; ruolo richiesto filtrato su whitelist |
-| `delete-user` | token valido + `caller.role === 'admin'`, altrimenti 403 |
+| `invite-user` | token valido + `requireActiveAdmin`, altrimenti 401/403; ruolo richiesto filtrato su whitelist |
+| `delete-user` | token valido + `requireActiveAdmin`, altrimenti 401/403 |
 | `delete-account` | solo token valido — corretto: è self-service sul proprio account |
 | `send-push` | 401 senza autorizzazione; i segreti via `get_push_secrets()`, solo `service_role` |
+
+> 🔴 **Revisione dell'11 agosto 2026 (C-1 di `docs/AUDIT_ARCHITETTURA_2026-08-11.md`).**
+> Le prime due righe dicevano «token valido + `caller.role === 'admin'`». La
+> descrizione era **esatta**, ed è per questo che questo documento non si è mai
+> accorto del problema: il difetto non era uno scarto fra documento e codice —
+> di quelli il repo ha già imparato a difendersi — ma fra **la stessa regola
+> scritta in due linguaggi**. `private.is_admin()`, dopo la migrazione
+> `20260806130000`, è `role = 'admin' AND active = true AND coalesce(pending,
+> false) = false`; le due Edge Function guardavano il solo `role`. E siccome
+> girano con la `service_role`, che bypassa integralmente la RLS, quel
+> controllo non era una difesa in profondità: era l'unica difesa.
+>
+> Ne passavano due categorie di chiamante che **ogni altro strato del sistema
+> respinge**:
+>
+> 1. **l'admin disattivato** — `active = false` è il modo con cui il pannello
+>    Team revoca i privilegi (`TOGGLE_TEAM_MEMBER_ACTIVE`), ma è una colonna
+>    applicativa e non tocca la sessione di autenticazione. Poteva ancora
+>    invitare chiunque e **hard-eliminare qualunque utente**, compresi gli
+>    admin che lo avevano appena revocato;
+> 2. **l'admin invitato e mai approvato** — `invite-user` pre-crea la riga con
+>    `pending: true` e l'invitato ottiene una sessione valida dal link. L'app lo
+>    ferma (`PendingScreen`), il database lo ferma, le due funzioni no: il gate
+>    di approvazione non copriva le due operazioni più distruttive del sistema.
+>
+> Il predicato ora è uno solo, puro e testato
+> (`supabase/functions/_shared/adminPredicate.ts`), applicato da
+> `requireActiveAdmin`. **Committare non è applicare** (§6): finché le due
+> funzioni non sono ridistribuite con `supabase functions deploy invite-user
+> delete-user`, in produzione vale ancora la versione vecchia.
+>
+> Resta aperto il difetto di fondo che rendeva sfruttabile il punto 1, e che è
+> più largo di C-1: **disattivare un utente non revoca la sua sessione.**
+> `active` è una colonna, non un ban. La RLS lo copre su ogni tabella (policy
+> RESTRICTIVE `rls_active_only`), quindi oggi non c'è un secondo percorso noto
+> — ma ogni futuro percorso server-side che non attraversi la RLS ricadrà nella
+> stessa trappola, e dipenderà da chi si ricorda di controllare `active` al suo
+> interno. La correzione strutturale è accompagnare la disattivazione a un
+> `auth.admin.updateUserById(id, { ban_duration })`, com'è già per
+> `delete-account`: suggerimento strategico n. 3 dell'audit dell'11 agosto.
 
 ---
 

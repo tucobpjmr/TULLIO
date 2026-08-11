@@ -172,12 +172,15 @@ if (caller?.role !== "admin") {
 }
 ```
 
-Confronto con la stessa domanda posta al database (`20260621153006`):
+Confronto con la stessa domanda posta al database. La forma corrente è quella
+della `20260806130000`, che ha aggiunto il gate `pending` **dentro** l'helper —
+quindi le condizioni sono tre, non due:
 
 ```sql
 create or replace function public.is_admin() ... as $$
   SELECT EXISTS (SELECT 1 FROM public.users
-                 WHERE id = auth.uid() AND role = 'admin' AND active = true);
+                 WHERE id = auth.uid() AND role = 'admin'
+                   AND active = true AND coalesce(pending, false) = false);
 $$;
 ```
 
@@ -1008,7 +1011,44 @@ chiude un rilievo — è la disciplina che ST-13 ha introdotto e che
 
 | Rilievo | Stato |
 |---|---|
-| C-1 | 🔴 aperto |
+| **C-1** | ✔ **corretto nel repo l'11 agosto** — ⚠️ **da deployare**, vedi sotto |
 | A-1, A-2, A-3 | 🟠 aperti |
 | M-1 … M-5 | 🟡 aperti |
 | B-1, B-2, B-3 | 🟢 aperti |
+
+### C-1 — cosa è stato fatto
+
+| | |
+|---|---|
+| **Predicato** | `supabase/functions/_shared/adminPredicate.ts` — `puoAgireComeAdmin()` rispecchia `public.is_admin()` nella forma della `20260806130000`, tutte e tre le condizioni. Modulo **puro e senza import**, nemmeno di tipo: è ciò che lo rende eseguibile da Vitest, che gira su Node e non risolverebbe gli specificatori `jsr:` del runtime Deno. |
+| **Preambolo** | `supabase/functions/_shared/requireActiveAdmin.ts` — verifica il JWT, rilegge il profilo con la `service_role` e applica il predicato. Era copiato nelle due funzioni, con lo **stesso identico difetto** in entrambe: è il modo in cui i controlli duplicati sbagliano — non divergono, restano uguali e sbagliati insieme. |
+| **Call site** | `invite-user:66-73`, `delete-user:41-50`. In `delete-user` anche il confronto "non puoi eliminare te stesso" passa da `esito.userId`, così l'identità del chiamante ha una sola origine. |
+| **Test** | `src/test/edgeFunctionAdminGate.test.js` — 13 casi, **il primo test di questo repo sul terzo livello di autorizzazione**. |
+
+Due correzioni sono nate **dal** test, non prima:
+
+- `maybeSingle()` al posto di `single()` e **l'errore della query letto**. Prima
+  il risultato era destrutturato ignorando l'errore (`const { data: caller } =
+  await …`): con `caller` a `null` il vecchio confronto rispondeva comunque
+  403, quindi il difetto non c'era — ma reggeva *per coincidenza*, e bastava
+  invertire il senso di un confronto per trasformare un errore di rete in un
+  via libera.
+- **`pending: undefined` ≠ `pending: null`.** Da PostgREST una colonna
+  selezionata torna `null`, mai `undefined`: `undefined` significa che il campo
+  non è stato chiesto, cioè una `select` incompleta a monte. Su `pending` —
+  dove il valore assente è quello *permissivo* — trattarlo come NULL avrebbe
+  riaperto in silenzio il percorso 2. La prima stesura del predicato li
+  confondeva, e a dirlo è stato il test.
+
+**Verificato che il test fallisca senza la correzione**, nelle due metà
+separatamente (🔬, la disciplina di `memoViste.test.jsx`): rimettendo il
+controllo debole in `invite-user` falliscono i 2 casi di cablaggio;
+riducendo il predicato a `role === "admin"` ne falliscono 4, fra cui i due
+nominati sui percorsi 1 e 2 di C-1.
+
+> ⚠️ **Il rilievo NON è chiuso in produzione.** Le Edge Function non si
+> deployano da CI in questo progetto: finché non si esegue
+> `supabase functions deploy invite-user delete-user`, in produzione gira
+> ancora la versione con il controllo debole. È la stessa lezione che
+> `docs/MIGRAZIONI_SUPABASE.md` ripete per le migrazioni — **committare non è
+> applicare** — e qui vale identica.

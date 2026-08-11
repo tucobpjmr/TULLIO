@@ -10,6 +10,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { requireActiveAdmin } from "../_shared/requireActiveAdmin.ts";
 
 Deno.serve(async (req: Request) => {
   const cors = corsHeaders(req);
@@ -37,18 +38,16 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_ANON_KEY")!,
       { global: { headers: { Authorization: authHeader } } }
     );
-    const { data: { user }, error: userErr } = await supabaseUser.auth.getUser();
-    if (userErr || !user) return json({ error: "Token non valido" }, 401);
-
-    // Solo gli admin possono eliminare altri utenti
-    const { data: caller } = await supabaseAdmin
-      .from("users")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-    if (caller?.role !== "admin") {
-      return json({ error: "Solo gli admin possono eliminare utenti" }, 403);
-    }
+    // Solo gli admin ATTIVI e già approvati possono eliminare altri utenti,
+    // con lo stesso predicato del database (role = 'admin' AND active AND NOT
+    // pending). Il controllo precedente guardava il solo `role`: su una
+    // funzione che hard-elimina una riga di auth.users girando con la
+    // service_role, questo era il buco più grave del progetto — un admin
+    // appena disattivato poteva cancellare gli admin che lo avevano
+    // disattivato. Vedi _shared/adminPredicate.ts.
+    const esito = await requireActiveAdmin(supabaseAdmin, supabaseUser);
+    if (!esito.ok) return json({ error: esito.error }, esito.status);
+    const callerId = esito.userId;
 
     const body = await req.json();
     const targetId: string = (body.userId ?? "").trim();
@@ -56,7 +55,7 @@ Deno.serve(async (req: Request) => {
 
     // Un admin non può eliminare se stesso da qui: deve usare "Elimina account"
     // (delete-account) per non rimuovere la propria sessione a metà operazione.
-    if (targetId === user.id) {
+    if (targetId === callerId) {
       return json({ error: "Non puoi eliminare il tuo account da qui: usa Elimina account dal profilo" }, 400);
     }
 

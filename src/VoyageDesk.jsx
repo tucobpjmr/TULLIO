@@ -213,6 +213,14 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     onConversationRead: markChatNotificationsRead,
   });
 
+  // Stato di UI effimero che il reducer di dominio non deve conoscere (audit
+  // ST-2 parte 2): non è persistito, non sopravvive al reload, e portarlo nel
+  // reducer globale invalidava l'identità di `state` — e quindi ri-renderizzava
+  // l'intero guscio — a ogni carattere digitato. Resta qui (invece che
+  // `useState` locale della Topbar) perché è candidato a diventare un filtro
+  // cross-view: il giorno in cui dovrà farlo, il guscio è già il punto giusto
+  // da cui distribuirlo.
+  const [searchQuery, setSearchQuery] = useState("");
   const [showFABModal, setShowFABModal] = useState(false);
   const [showKeyHelp, setShowKeyHelp] = useState(false); // v2.8 Round 10
   const [showChat, setShowChat] = useState(false);
@@ -361,8 +369,8 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
             Topbar prende i task da TasksContext per il pannello di ricerca. */}
         <Topbar
           activeView={state.activeView}
-          searchQuery={state.searchQuery}
-          showNotif={state.showNotif}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
           dispatch={dispatch}
           notifications={notif.notifications}
           onMarkRead={notif.markRead}
@@ -392,7 +400,7 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           />
         )}
         <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-          <Sidebar activeView={state.activeView} collapsed={state.sidebarCollapsed} dispatch={dispatch} onOpenBulk={openBulk} onOpenChat={openChatPanel} unreadChat={chat.unreadChat} />
+          <Sidebar activeView={state.activeView} dispatch={dispatch} onOpenBulk={openBulk} onOpenChat={openChatPanel} unreadChat={chat.unreadChat} />
           <main className="vd-main-scroll" style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
             {/* Suspense per la vista attiva: Dashboard e ClientiView risolvono
                 sincronicamente (viste d'ingresso, aperte da ogni sessione);

@@ -60,43 +60,48 @@ describe("ViewportProvider — fasce, non pixel (P2-7)", () => {
   });
 });
 
+// `collapsed` è `useState` locale di Sidebar (audit ST-2 parte 2, non più nel
+// reducer): l'unico modo di osservare l'auto-collapse da fuori è la larghezza
+// resa (60px collassata, 210px espansa), non più una `dispatch` intercettata.
+const larghezzaSidebar = () => screen.getByRole("button", { name: "Crea più task" })
+  .closest("div[style]").parentElement.style.width;
+
 describe("Sidebar — l'auto-collapse a 1280 resta corretto dopo P2-7", () => {
   it("si collassa entrando nella fascia desktop stretta (1025–1280)", async () => {
     window.innerWidth = 1400;
-    const dispatch = vi.fn();
     render(
       <ViewportProvider>
-        {withAppData(<Sidebar collapsed={false} dispatch={dispatch} />, DEMO_APP_CTX)}
+        {withAppData(<Sidebar dispatch={vi.fn()} />, DEMO_APP_CTX)}
       </ViewportProvider>,
     );
+    expect(larghezzaSidebar()).toBe("210px");
     setWidth(1200);
     await flushRaf();
-    expect(dispatch).toHaveBeenCalledWith({ type: "TOGGLE_SIDEBAR" });
+    expect(larghezzaSidebar()).toBe("60px");
   });
 
   it("si ri-espande tornando sopra i 1280", async () => {
     window.innerWidth = 1200;
-    const dispatch = vi.fn();
     render(
       <ViewportProvider>
-        {withAppData(<Sidebar collapsed dispatch={dispatch} />, DEMO_APP_CTX)}
+        {withAppData(<Sidebar dispatch={vi.fn()} />, DEMO_APP_CTX)}
       </ViewportProvider>,
     );
+    expect(larghezzaSidebar()).toBe("60px");
     setWidth(1400);
     await flushRaf();
-    expect(dispatch).toHaveBeenCalledWith({ type: "TOGGLE_SIDEBAR" });
+    expect(larghezzaSidebar()).toBe("210px");
   });
 
-  it("non tocca sidebarCollapsed per un resize dentro la stessa fascia desktop", async () => {
+  it("non tocca lo stato collassato per un resize dentro la stessa fascia desktop", async () => {
     window.innerWidth = 1400;
-    const dispatch = vi.fn();
     render(
       <ViewportProvider>
-        {withAppData(<Sidebar collapsed={false} dispatch={dispatch} />, DEMO_APP_CTX)}
+        {withAppData(<Sidebar dispatch={vi.fn()} />, DEMO_APP_CTX)}
       </ViewportProvider>,
     );
     setWidth(1350); // resta sopra 1280
     await flushRaf();
-    expect(dispatch).not.toHaveBeenCalled();
+    expect(larghezzaSidebar()).toBe("210px");
   });
 });

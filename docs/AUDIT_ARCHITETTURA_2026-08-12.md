@@ -13,8 +13,10 @@ Verifiche eseguite: `npm run lint` (0 errori), `npm test` (**1138 test
 passati**, 7 skip, 99 file), `npm run build`, conteggi diretti sul database di
 produzione, advisor di sicurezza Supabase, storico dei run di GitHub Actions.
 
-> **Stato al 12 agosto, sera** — **C-1** e **A-1** sono stati corretti nello
-> stesso giorno dell'audit: vedi §4. I test sono ora **1150**. Gli altri undici
+> **Stato al 12 agosto, sera** — **C-1**, **A-1** e **A-3** sono stati corretti
+> nello stesso giorno dell'audit; **A-2** è parzialmente chiuso (il codice del
+> controllo è corretto, il secret che lo attiva resta da configurare da chi
+> amministra il repository). Vedi §4. I test sono ora **1150**. Gli altri nove
 > rilievi restano aperti.
 
 ---
@@ -55,11 +57,12 @@ E c'è **una bomba a orologeria datata**: `TaskThreads.comments()` /
 2026). Quando arriverà, non ci sarà nessun errore: la cronologia dei task
 sparirà dalla UI a ogni evento realtime e ricomparirà a ogni reload.
 
-Sul fronte struttura del codice il debito è modesto e concentrato in due punti:
-il **CSS-in-JS inline** (1.528 oggetti `style={{}}`, che è il vero motivo per
-cui i componenti grandi sono grandi) e una **duplicazione rimasta aperta a metà**
-— `views/archiveFilters.js` è stato creato per unificare tre copie della stessa
-logica e `Trash.jsx` è restato indietro con la terza.
+Sul fronte struttura del codice il debito principale rimasto è il **CSS-in-JS
+inline** (1.528 oggetti `style={{}}`, che è il vero motivo per cui i componenti
+grandi sono grandi). Il secondo punto — una **duplicazione lasciata aperta a
+metà**, `views/archiveFilters.js` creato per unificare tre copie della stessa
+logica e `Trash.jsx` restato indietro con la terza — **è stato chiuso lo stesso
+giorno** (A-3, §4).
 
 | Indicatore | Valore |
 |---|---|
@@ -79,8 +82,8 @@ logica e `Trash.jsx` è restato indietro con la terza.
 |---|---|---|---|
 | **C-1** ✔ | Letture non paginate su tabelle a crescita monotona: troncamento silenzioso previsto per **inizio settembre 2026** — **chiuso il 12 agosto** (§4) | `lib/api.js:289-298` | 🔴 **Critica** |
 | **A-1** ✔ | Workflow "Verifica RPC" rosso a ogni run dall'8 agosto: la guardia contro il drift non è più un segnale — **chiuso il 12 agosto** (§4) | `scripts/verifica-rpc/migrazioni.js:52` | 🟠 Alta |
-| **A-2** | Il controllo advisor non ha mai girato: secret assente, exit 0 silenzioso | `.github/workflows/verifica-rpc.yml:80` | 🟠 Alta |
-| **A-3** | Terza copia di `filterByPeriod` + `PERIOD_OPTIONS` + `chipStyle`, mentre il modulo condiviso esiste già | `views/Trash.jsx:17-43,157-169` | 🟠 Alta |
+| **A-2** ◐ | Il controllo advisor non ha mai girato: secret assente, exit 0 silenzioso — **il salto è ora visibile in CI** (§4), il secret resta da configurare | `.github/workflows/verifica-rpc.yml:80` | 🟠 Alta |
+| **A-3** ✔ | Terza copia di `filterByPeriod` + `PERIOD_OPTIONS` + `chipStyle`, mentre il modulo condiviso esiste già — **chiuso il 12 agosto** (§4) | `views/Trash.jsx:17-43,157-169` | 🟠 Alta |
 | **A-4** | `ListeViaggio.jsx` a 495/500 righe: il prossimo intervento sbatte contro il lint | `liste/ListeViaggio.jsx` | 🟠 Alta |
 | **M-1** | 1.528 stili inline: componenti gonfi, nessun design system, `unsafe-inline` obbligato in CSP | trasversale | 🟡 Media |
 | **M-2** | "Elimina account" non elimina: ban + `active=false`, nessuna cancellazione dei dati personali | `functions/delete-account/index.ts:39` | 🟡 Media |
@@ -257,6 +260,12 @@ repository, quindi nulla farebbe ripartire il controllo da solo.
 
 ### 🟠 A-2 · Il controllo advisor non ha mai valutato un lint
 
+> **◐ Parzialmente chiuso il 12 agosto 2026 — vedi §4.** La parte 2 (rendere
+> visibile il salto) è fatta. La parte 1 (configurare il secret) resta
+> **da fare da chi amministra il repository**: richiede un token creato dalla
+> dashboard Supabase e un secret creato dalle impostazioni GitHub del repository
+> — due azioni fuori dalla portata di questa sessione.
+
 **File**: `.github/workflows/verifica-rpc.yml:80` · `scripts/verifica-advisor/index.js:47`
 
 Dal log del run del 12 agosto:
@@ -301,6 +310,8 @@ if (!token) {
 ---
 
 ### 🟠 A-3 · La terza copia del filtro per periodo
+
+> **✔ Chiuso il 12 agosto 2026 — vedi §4.**
 
 **File**: `src/components/views/Trash.jsx:17-43` e `:157-169`
 
@@ -782,6 +793,71 @@ da solo.
 > in locale risponde `HTTP 403: Host not in allowlist` (la stessa egress policy
 > di B-2 nell'audit dell'11 agosto, lì sulla CDN di SheetJS). Il controllo va
 > letto da GitHub Actions, che la raggiunge.
+
+### ✔ A-3 — la terza copia è sparita
+
+`src/components/views/Trash.jsx` importa ora `PERIOD_OPTIONS`, `filterByPeriod`
+e `chipStyle` da `./archiveFilters.js`, esattamente come proposto: nessuna
+generalizzazione, `filterByPeriod` accettava già il nome del campo data e non
+lo usava solo questo call site.
+
+```jsx
+import { PERIOD_OPTIONS, filterByPeriod, chipStyle } from "./archiveFilters.js";
+// …
+const visible = filterByPeriod(trashed, period, "deletedAt");
+// …
+{PERIOD_OPTIONS.map(opt => (
+  <button key={opt.key} type="button" onClick={() => setPeriod(opt.key)}
+          style={chipStyle(period === opt.key)}>
+    {opt.label}
+  </button>
+))}
+```
+
+Effetto misurato: **458 righe** (da 490), tre viste su tre ora sulla stessa
+definizione, e la stessa etichetta ovunque — il primo periodo si chiama
+**"Sempre"** anche nel Cestino, non più **"Tutti"**. Nessun test verificava quel
+testo (cercato in `Trash.test.jsx`: nessuna occorrenza), quindi il cambio
+lessicale non ha richiesto di toccare i test.
+
+Non fatta la regola ESLint proposta a chiusura del paragrafo (sul modello di
+`VIETATI_IMPORT_LISTE_EAGER`): con l'unica copia rimasta ora quella condivisa,
+non c'è più un secondo percorso da cui la regola dovrebbe difendere — resta un
+miglioramento a sé, non parte della correzione di A-3.
+
+### ◐ A-2 — il salto ora si vede, il secret resta da configurare
+
+Fatta solo la parte 2 delle due proposte. `scripts/verifica-advisor/index.js`,
+nel ramo che si prende quando `SUPABASE_ACCESS_TOKEN` non è impostato, emette
+ora anche un'annotazione GitHub oltre ai due `console.log` che già c'erano:
+
+```js
+console.log('::warning title=Advisor non verificati::' +
+  'SUPABASE_ACCESS_TOKEN assente: gli advisor Supabase non sono stati controllati.');
+```
+
+Verificato eseguendo lo script senza il token in locale: l'annotazione compare,
+`exit 0` invariato (un controllo nuovo non deve rendere rosso il workflow di
+chi non l'ha richiesto — resta vero anche dopo la correzione). In GitHub
+Actions questa riga produce un avviso in cima al log del job e nel riepilogo
+del run: da qui in avanti "saltato" e "passato" hanno un aspetto diverso.
+
+**La parte 1 — configurare il secret — non è stata fatta, e non poteva
+esserlo da questa sessione.** Richiede due azioni fuori dalla portata degli
+strumenti disponibili:
+
+1. generare un Personal Access Token dalla dashboard Supabase
+   (Account → Access Tokens) — un'operazione legata all'account di chi
+   amministra il progetto, non al progetto stesso;
+2. salvarlo come secret `SUPABASE_ACCESS_TOKEN` nelle impostazioni GitHub del
+   repository (Settings → Secrets and variables → Actions).
+
+Ho verificato con `get_advisors` (Management API, la stessa che lo script
+chiamerebbe) che a oggi non ci sono sorprese in attesa: **0 ERROR**, i 10 WARN
+sono esattamente quelli già in `AVVISI_ACCETTATI`. Il controllo advisor tornerà
+a valutare qualcosa in CI solo dopo che chi amministra il repository avrà
+completato i due passi sopra — finché non succede, l'annotazione appena
+aggiunta è l'unico segnale che il controllo non sta guardando nulla.
 
 ---
 

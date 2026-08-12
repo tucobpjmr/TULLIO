@@ -13,35 +13,11 @@ import { DateTimePicker } from "../ui/DateTimePicker.jsx";
 import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { Modal } from "../ui/Modal.jsx";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
-
-const PERIOD_OPTIONS = [
-  { key: "all",       label: "Tutti" },
-  { key: "week",      label: "Ultimi 7 gg" },
-  { key: "month",     label: "Questo mese" },
-  { key: "lastMonth", label: "Mese scorso" },
-];
-
-const filterByPeriod = (tasks, period) => {
-  if (period === "all") return tasks;
-  const now = new Date();
-  return tasks.filter(t => {
-    if (!t.deletedAt) return false;
-    const d = new Date(t.deletedAt);
-    if (period === "week") {
-      const cutoff = new Date(now); cutoff.setDate(cutoff.getDate() - 7);
-      return d >= cutoff;
-    }
-    if (period === "month") {
-      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-    }
-    if (period === "lastMonth") {
-      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const end   = new Date(now.getFullYear(), now.getMonth(), 1);
-      return d >= start && d < end;
-    }
-    return true;
-  });
-};
+// Filtro per periodo e chip di selezione: condivisi con Archive.jsx e
+// ArchivedListe.jsx (A-3, audit del 12 agosto). Erano una terza copia locale,
+// identica salvo il campo data cablato su `deletedAt` — la stessa domanda
+// ("mostrami solo l'ultimo mese") ridefinita tre volte invece di una.
+import { PERIOD_OPTIONS, filterByPeriod, chipStyle } from "./archiveFilters.js";
 
 // `memo` + lettura dal contesto: senza il memo il provider non servirebbe a
 // nulla, perché il genitore ri-renderizza a ogni azione (vedi
@@ -69,7 +45,7 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
   // errore) sia a valle nel reducer (RESTORE_TASK/PURGE_TASK/EMPTY_TRASH).
   const trashed = getVisibleTasks(getTrashedTasks(tasks), me)
     .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt));
-  const visible = filterByPeriod(trashed, period);
+  const visible = filterByPeriod(trashed, period, "deletedAt");
   const editableCount = trashed.filter(t => canEditTask(t, me)).length;
   // "Sto ancora caricando e non ho ancora nulla": vedi Dashboard.jsx.
   const caricando = loading && tasks.length === 0;
@@ -159,14 +135,7 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
               key={opt.key}
               type="button"
               onClick={() => setPeriod(opt.key)}
-              style={{
-                padding: "5px 12px", borderRadius: 999, cursor: "pointer",
-                fontSize: 12, fontWeight: 600, fontFamily: "inherit",
-                border: `1px solid ${period === opt.key ? "var(--navy)" : "var(--border)"}`,
-                background: period === opt.key ? "var(--navy)" : "var(--card)",
-                color: period === opt.key ? "#fff" : "var(--text-muted)",
-                transition: "background 0.15s, color 0.15s",
-              }}
+              style={chipStyle(period === opt.key)}
             >{opt.label}</button>
           ))}
         </div>

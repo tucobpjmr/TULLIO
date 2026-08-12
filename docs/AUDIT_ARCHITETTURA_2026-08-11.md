@@ -123,7 +123,7 @@ admin" in due linguaggi, senza nessun test che le metta l'una accanto all'altra
 | **M-5** | ~~🟡 Media~~ ✔ **risolto** | Render | `unreadChat` è ricalcolato nel corpo di `useChatData` a ogni render del guscio — quindi a **ogni carattere digitato nella ricerca** — scandendo fino a 2000 messaggi per conversazione | `hooks/useChatData.js:112-115` |
 | **B-1** | ~~🟢 Bassa~~ ✔ **risolto** | Anti-pattern React | `useNotifications` cattura lo snapshot di rollback **dentro** l'updater di `setState` (updater impuro): è il pattern da cui `chatCommands` è stato rifattorizzato via | `hooks/useNotifications.js:61-85` |
 | **B-2** | 🟢 Bassa | Dipendenze | `xlsx@0.18.5` con due CVE note, mitigate in-app ma non risolte: la migrazione al tarball CDN resta bloccata dalla egress policy | `package.json:29` · `lib/xlsx.js:1-40` |
-| **B-3** | 🟢 Bassa | Config | `leaked_password_protection` ancora disabilitata (già ST-14 / B-2, riportato qui solo per continuità) | dashboard Supabase |
+| **B-3** | ~~🟢 Bassa~~ ✔ **accettato** | Config | `leaked_password_protection` disabilitata di proposito (già ST-14 / B-2): richiede il piano Supabase Pro, il progetto resta sul Free per scelta | dashboard Supabase |
 
 ---
 
@@ -1016,7 +1016,8 @@ presidia.
 | A-3 | 🟠 aperto |
 | **M-1 … M-5** | ✔ **corretti nel repo il 12 agosto** — vedi §6-bis |
 | **B-1** | ✔ **corretto nel repo il 12 agosto** — vedi §6-bis |
-| B-2, B-3 | 🟢 aperti — **nessuno dei due è correggibile da questo repo**, e il 12 agosto è stato riverificato che il blocco persiste: vedi §6-ter |
+| B-2 | 🟢 aperto — **non correggibile da questo repo**, e il 12 agosto è stato riverificato che il blocco persiste: vedi §6-ter |
+| **B-3** | ~~🟢 aperto~~ ✔ **accettato il 12 agosto** — richiede il piano Supabase Pro, il progetto resta sul Free per scelta: vedi §6-ter |
 | **Suggerimento strategico n. 3** (§5) | ✔ **fatto e deployato in produzione il 12 agosto** — Edge Function `set-user-active`, vedi §6-quater |
 
 ---
@@ -1137,15 +1138,32 @@ fetta che si può togliere senza spezzare la macchina a stati su due file.
 
 ---
 
-## 6-ter. B-2 e B-3 — riverificati aperti il 12 agosto
+## 6-ter. B-2 — riverificato aperto il 12 agosto; B-3 — accettato
 
-Restano aperti perché **nessuno dei due si chiude da questo repo**. Riverificati
-oggi, non dedotti da una sessione precedente:
+**B-2 resta aperto perché non si chiude da questo repo.** Riverificato oggi,
+non dedotto da una sessione precedente: `curl
+https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz` → **`CONNECT tunnel
+failed, response 403`**, la stessa egress policy dell'11 agosto e
+dell'analisi S-06 del 6. Senza accesso al CDN non si può né rigenerare il
+lockfile né verificare build e test, e una entry URL non risolvibile
+romperebbe `npm ci`. La mitigazione applicativa resta il fix effettivo e non
+un segnaposto: limite di dimensione **prima** della lettura in memoria +
+guard anti prototype-pollution attorno all'intero parse, su entrambi i punti
+che analizzano file arbitrari. Il comando da eseguire da una rete che
+raggiunge il CDN è scritto in testa a `src/lib/xlsx.js`.
 
-| | |
-|---|---|
-| **B-2** `xlsx@0.18.5` | `curl https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz` → **`CONNECT tunnel failed, response 403`**, la stessa egress policy dell'11 agosto e dell'analisi S-06 del 6. Senza accesso al CDN non si può né rigenerare il lockfile né verificare build e test, e una entry URL non risolvibile romperebbe `npm ci`. La mitigazione applicativa resta il fix effettivo e non un segnaposto: limite di dimensione **prima** della lettura in memoria + guard anti prototype-pollution attorno all'intero parse, su entrambi i punti che analizzano file arbitrari. Il comando da eseguire da una rete che raggiunge il CDN è scritto in testa a `src/lib/xlsx.js`. |
-| **B-3** `leaked_password_protection` | Riletto **sull'advisor live** (`get_advisors`, progetto `tullio`): `auth_leaked_password_protection` è ancora `WARN`. È un interruttore in Supabase → Authentication → Password → *Enable leaked password protection*, non esposto da API né da MCP. È lo stesso rilievo di ST-14 e del B-2 dell'audit dell'8 agosto: **tre audit di fila**, su un'app il cui accesso è a sola password. Gli altri nove WARN dello stesso advisor sono i `SECURITY DEFINER` esposti di proposito, nominati uno per uno in `AVVISI_ACCETTATI` di `verifica-advisor`. |
+**B-3 (`leaked_password_protection`) è stato accettato, non riverificato come
+ancora da fare.** Sull'advisor live è tuttora `WARN` — è lo stesso rilievo di
+ST-14 e del B-2 dell'audit dell'8 agosto, riconfermato per tre audit di fila —
+ma il 12 agosto chi amministra il progetto ha dichiarato esplicitamente di non
+volerlo attivare: la verifica contro HaveIBeenPwned è una funzione del piano
+Supabase **Pro**, e il progetto resta sul piano **Free** per scelta. Non un
+interruttore dimenticato: un costo ricorrente non approvato. Il lint
+`auth_leaked_password_protection` è ora nominato in `AVVISI_ACCETTATI` di
+`scripts/verifica-advisor/advisor.js`, esattamente come i nove `SECURITY
+DEFINER` esposti di proposito — non fa più fallire il controllo periodico. Se
+il piano cambiasse, il punto da riaprire è questo: riattivare dalla dashboard
+e togliere il nome dall'elenco.
 
 ---
 

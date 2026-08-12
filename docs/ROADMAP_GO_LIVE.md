@@ -61,7 +61,7 @@ Passi:
 
 | Attività | Dove | Urgenza |
 |---|---|---|
-| Attivare HIBP (leaked password check) | Supabase → Auth → Password Protection | Bassa |
+| ~~Attivare HIBP (leaked password check)~~ — ⛔ accettato: richiede piano Supabase Pro, progetto sul Free per scelta (12 agosto) | Supabase → Auth → Password Protection | — |
 | Aggiungere dominio personalizzato (`tuaagenzia.it`) | Vercel → Domains + Resend → Domains | Quando disponibile |
 | Template email personalizzati | Supabase → Auth → Emails | Estetica |
 | Test bulk invite con email reali | AdminView → Invito multiplo | Dopo primo utente reale |

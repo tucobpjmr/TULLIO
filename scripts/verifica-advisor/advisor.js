@@ -18,16 +18,13 @@
 // progetto sono in parte accettati consapevolmente». In parte. Fra i dieci WARN
 // dell'advisor, nove sono le funzioni SECURITY DEFINER esposte di proposito
 // (motivate in docs/SICUREZZA.md) e uno — `auth_leaked_password_protection` —
-// non è accettato da nessuno: è il rilievo B-2 dell'audit di architettura, poi
-// ST-14 di quello di struttura, aperto da agosto e mai chiuso perché non è
-// correggibile da codice (Supabase → Authentication → Password → Enable leaked
-// password protection). Trattandolo come "un WARN come gli altri" lo si è reso
-// invisibile per due audit di fila.
+// per due audit di fila (B-2 dell'8 agosto, ST-14 del 10) non era accettato da
+// nessuno: trattarlo come "un WARN come gli altri" lo aveva reso invisibile.
 //
 // Da qui in avanti l'accettazione è NOMINATA: i lint in questo elenco non fanno
 // fallire, tutti gli altri sì — compresi quelli che non esistono ancora, che è
 // il caso che conta davvero (un WARN nuovo su una tabella nuova oggi si
-// perderebbe in mezzo ai nove noti).
+// perderebbe in mezzo a quelli noti).
 const AVVISI_ACCETTATI = new Set([
   // Funzioni SECURITY DEFINER richiamabili da `authenticated`: sono le RPC
   // transazionali del modulo Liste e le due letture di configurazione. Il gate
@@ -37,6 +34,17 @@ const AVVISI_ACCETTATI = new Set([
   // Indici non ancora usati su tabelle nuove: informativo per definizione.
   'unused_index',
   'unindexed_foreign_keys',
+  // ─── auth_leaked_password_protection · accettato il 12 agosto ────────────
+  // Non era un rilievo aperto per mancanza di tempo: era aperto perché fino ad
+  // allora nessuno aveva deciso esplicitamente. La decisione è arrivata da chi
+  // amministra il progetto — la verifica contro HaveIBeenPwned è una funzione
+  // del piano Supabase **Pro**, e il progetto resta sul piano Free per scelta.
+  // Non è quindi "da attivare quando qualcuno se ne ricorda": è un costo
+  // ricorrente non approvato, non un interruttore dimenticato. Se il piano
+  // cambiasse, va tolta da qui e riattivata dalla dashboard — finché non
+  // cambia, farla fallire ogni volta sarebbe un allarme su una scelta già
+  // presa, esattamente il rumore che questo elenco esiste per evitare.
+  'auth_leaked_password_protection',
 ]);
 
 export function valutaLints(lints) {

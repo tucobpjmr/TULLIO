@@ -39,7 +39,7 @@ quella che il file in repo dichiara).
 |---|---------|-------|-------------|
 | 1 | `anon_security_definer_function_executable` su `get_migrazioni_applicate()` | 1 | **Atteso e voluto** — vedi sotto |
 | 2 | `authenticated_security_definer_function_executable` | 8 | **Atteso e mitigato** — vedi sotto |
-| 3 | `auth_leaked_password_protection` disabilitata | 1 | **Da attivare** — vedi §6 |
+| 3 | `auth_leaked_password_protection` disabilitata | 1 | **Accettata** (12 agosto): richiede il piano Supabase Pro, il progetto resta sul Free per scelta — vedi §6 |
 
 ### `get_migrazioni_applicate()` è raggiungibile da `anon`, ed è intenzionale
 
@@ -332,17 +332,17 @@ dato.
 
 ## 6. Cosa fare, in ordine di rapporto valore/costo
 
-1. **Attivare la leaked password protection** (⚠️ dashboard → Auth → Password).
-   Un interruttore. Supabase confronta le password con HaveIBeenPwned.
-   **Non fattibile da qui**: è impostazione di progetto, non DDL — non è
-   esposta né dall'API né dall'MCP, quindi nessuna sessione di lavoro sul
-   codice potrà mai chiuderla. Ancora aperto — unico punto rimasto su questa
-   lista, e **riverificato sull'advisor live il 12 agosto**: `auth_leaked_
-   password_protection` è ancora `WARN`. È il terzo audit di fila che lo
-   riporta (ST-14 del 10 agosto, B-2 dell'8, B-3 dell'11) su un'app il cui
-   accesso è a **sola password**: nessuna 2FA, nessun SSO, nessun secondo
-   fattore. Una password già comparsa in una violazione nota è, qui, l'intero
-   perimetro.
+1. ~~**Attivare la leaked password protection**~~ → **accettata così com'è
+   (12 agosto)**: dashboard → Auth → Password, un interruttore che confronta
+   le password con HaveIBeenPwned — ma è una funzione del piano Supabase
+   **Pro**, e chi amministra il progetto ha deciso di restare sul piano
+   **Free**. Non è un interruttore dimenticato: è un costo ricorrente non
+   approvato, deciso esplicitamente dopo tre audit di fila che lo avevano
+   riconfermato `WARN` (ST-14 del 10 agosto, B-2 dell'8, B-3 dell'11).
+   `auth_leaked_password_protection` è ora nominato in `AVVISI_ACCETTATI` di
+   `scripts/verifica-advisor/advisor.js`, con lo stesso motivo. Se il piano
+   cambiasse, questo è il punto da riaprire: riattivare dalla dashboard e
+   togliere il nome da quell'elenco.
 2. ~~**`SET search_path` su `public.set_updated_at`**~~ → **✅ applicata**, ma
    sotto una versione diversa da quella che il file nel repo dichiara: vedi la
    nota sotto. `function_search_path_mutable` infatti non compare più

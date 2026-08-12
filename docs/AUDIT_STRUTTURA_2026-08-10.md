@@ -102,7 +102,7 @@ scavalchino un permesso o rompano una funzionalità.
 | ST-11 | ~~Bassa~~ ✔ **risolto** (i tre componenti leggono useClients()) | Duplicazione | `clients` arriva come prop `state.clients \|\| []` a tre componenti benché esista `ClientsProvider` — e il `\|\| []` crea un array nuovo a ogni render | `VoyageDesk.jsx:388,420,434` |
 | ST-12 | ~~Bassa~~ ✔ **risolto** (ChatPanel è un chunk lazy: index da 291 a 239 kB) | Bundle | La chat (~54 kB) è ancora eager benché il pannello chiuso ritorni `null` (P2-10, aperto) | `VoyageDesk.jsx:50` |
 | ST-13 | ~~Bassa~~ ✔ **risolto** (scripts/verifica-convenzioni/) | Documentazione | Deriva già ricomparsa: `INDEX.md` dà per aperti 10 rilievi P2 su 10 (5 sono chiusi); `CLAUDE.md` conta 19 `no-multi-comp` in 12 file (🔬 20 in 10) | `docs/INDEX.md` · `docs/CLAUDE.md:41` |
-| ST-14 | Bassa | Config | `leaked_password_protection` ancora disabilitata (✅ riconfermato oggi sull'advisor) | dashboard Supabase |
+| ST-14 | ~~Bassa~~ ✔ **accettato** | Config | `leaked_password_protection` disabilitata di proposito: richiede il piano Supabase Pro, il progetto resta sul Free per scelta | dashboard Supabase |
 | ST-15 | ~~Bassa~~ ✔ **risolto** (confronto prima di SET_TEAM/SET_CATEGORIES) | Render | `AppDataContext` ricrea ~20 closure a ogni sostituzione di `team` (P2-9, aperto) | `state/AppDataContext.jsx:50` |
 
 ## 2-bis. Stato di avanzamento — cinque rilievi chiusi
@@ -125,18 +125,20 @@ esempio.
 | Test | 🔬 **982 verdi + 7 skipped** su 87 file (erano 977 su 87): +5 `realtimeGranularita` (ST-4). 0 errori ESLint (20 warning, l'arretrato dichiarato). Build ok: `index` 291.26 kB / 81.82 kB gzip. |
 
 **Cosa NON era stato toccato in quel passaggio**: ST-6…ST-15, chiusi il giorno
-dopo — vedi §2-ter, che li registra uno per uno. Restano aperti solo ST-14 (non
-correggibile da codice) e le due decisioni dichiarate, la parte 2 di ST-2 e la
-parte 2 di ST-4.
+dopo — vedi §2-ter, che li registra uno per uno. A quel punto restava aperto
+anche ST-14 (non correggibile da codice), oggi **accettato** — vedi §2-ter e la
+nota del 12 agosto. Restano invece aperte le due decisioni dichiarate, la parte
+2 di ST-2 e la parte 2 di ST-4.
 
 ---
 
 ## 2-ter. Stato di avanzamento — nove rilievi chiusi l'11 agosto
 
-Applicati su richiesta nello stesso branch, il giorno dopo. Restano aperti
-**ST-14** (non correggibile da codice) e le due decisioni dichiarate: il secondo
-passo di ST-2 e il secondo passo di ST-4, entrambe rimandate per i motivi
-scritti in §2-bis, non per mancanza di tempo.
+Applicati su richiesta nello stesso branch, il giorno dopo. A quel punto
+restava aperto anche **ST-14** (non correggibile da codice — oggi
+**accettato**, vedi la riga sua sotto). Restano aperte le due decisioni
+dichiarate: il secondo passo di ST-2 e il secondo passo di ST-4, entrambe
+rimandate per i motivi scritti in §2-bis, non per mancanza di tempo.
 
 | | Esito |
 |---|---|
@@ -149,7 +151,7 @@ scritti in §2-bis, non per mancanza di tempo.
 | **ST-12** | 🔬 Misurato: chunk `ChatPanel` **53.20 kB / 14.69 kB gzip** fuori dall'iniziale, `index` da **291.26 → 239.68 kB** (81.82 → 68.63 kB gzip). Il ri-export di `getUnreadCount` da `ChatPanel` è stato rimosso *prima* del `lazy()`: con quello in piedi il modulo sarebbe rimasto agganciato al chunk eager e il lazy non avrebbe spostato niente — il difetto di P2-1. La regola di lint che protegge `ClienteListePanel`/`ArchivedListe` copre ora anche `ChatPanel`, e i quattro test della chat importano il pannello dinamicamente. |
 | **ST-13** | `scripts/verifica-convenzioni/`, in CI accanto al lint. Confronta sette numeri dichiarati in `docs/` con la misura reale: `no-multi-comp` (casi e file, letti dall'**API** di ESLint e non dal testo dell'output), le violazioni `max-lines`, e per ciascun audit i rilievi chiusi/totali della sua tabella contro il marcatore `⟦stato: N/M chiusi⟧` in `INDEX.md`. ⛔ Ogni lettura da documento **solleva** se il pattern non c'è: uno script che passa perché non ha trovato niente da verificare è peggio del problema che risolve. 🔬 Verificato contro il difetto: alterando il numero in `CLAUDE.md` lo script esce 1 con lo scarto. Prima misura: il numero scritto era ancora sbagliato — 20 casi in **13** file, non in 10. |
 | **ST-15** | `lib/confrontoIdratazione.js`: `SET_TEAM` e `SET_CATEGORIES` non partono più quando il payload riletto è equivalente a quello consegnato prima, quindi un evento realtime innocuo su `users` non invalida più i venti metodi di `AppDataContext`. Il confronto è puro e testato sui casi limite, non sul caso normale: niente `JSON.stringify` (sensibile all'ordine delle chiavi: non fallirebbe mai, e la correzione sarebbe finta), l'ordine delle righe **conta**, e `null` non è mai equivalente a una lista — saltare un dispatch è corretto solo se il payload è davvero completo. |
-| **ST-14** | **Resta aperto, e non è correggibile da codice**: è un interruttore in Supabase → Authentication → Password → *Enable leaked password protection*. ✅ Riconfermato `WARN` sull'advisor live l'11 agosto. Ciò che è stato fatto è togliergli il silenzio: `verifica-advisor` non accetta più i WARN per **categoria** ma per **nome**, con l'elenco dei nove SECURITY DEFINER motivati scritto accanto alla ragione. Da ora questo rilievo fa fallire il controllo invece di confondersi con quelli accettati — e, cosa che conta di più, lo fa anche un avviso *nuovo* su una tabella aggiunta domani. |
+| **ST-14** | Non correggibile da codice: è un interruttore in Supabase → Authentication → Password → *Enable leaked password protection*. ✅ Riconfermato `WARN` sull'advisor live l'11 agosto. Ciò che è stato fatto quel giorno è togliergli il silenzio: `verifica-advisor` non accetta più i WARN per **categoria** ma per **nome**, con l'elenco dei nove SECURITY DEFINER motivati scritto accanto alla ragione — così questo rilievo faceva fallire il controllo invece di confondersi con quelli accettati (e lo stesso vale per un avviso *nuovo* su una tabella aggiunta domani). **Nota del 12 agosto — ✔ accettato**: chi amministra il progetto ha deciso esplicitamente di non attivarlo, perché la verifica contro HaveIBeenPwned è una funzione del piano Supabase Pro e il progetto resta sul Free per scelta. `auth_leaked_password_protection` è ora nominato in `AVVISI_ACCETTATI` esattamente come i nove SECURITY DEFINER — non è più un rilievo aperto, è una decisione registrata. |
 | Test | 🔬 **1057 verdi + 7 skipped** su 93 file (erano 982 su 87). 0 errori ESLint (20 warning in 13 file, l'arretrato dichiarato e ora verificato da uno script). Build ok. |
 
 ---
@@ -166,7 +168,7 @@ che elenca rilievi altrui senza ricontrollarli è la fonte della prossima deriva
 | P2-7 (`ViewportContext`) | ✔ chiuso | 📄 `width` aggiornato solo al cambio di fascia (`SOGLIE_FASCIA`) |
 | P2-5, P2-6 | ✔ **chiusi il 10 agosto** | come ST-3 e ST-2 (parte 1) — vedi §2-bis |
 | P2-8, P2-9, P2-10 | **aperti** | qui ST-9, ST-15, ST-12 |
-| A-1…B-4 (audit architettura) | chiusi tranne B-2 | ✅ B-2 = ST-14, ancora `WARN` sull'advisor oggi |
+| A-1…B-4 (audit architettura) | tutti chiusi o accettati | ✅ B-2 = ST-14, `WARN` confermato ma **accettato** il 12 agosto (piano Supabase Pro richiesto, progetto sul Free per scelta) |
 
 ---
 
@@ -1037,12 +1039,21 @@ prossimo scarto si presenta come un test rosso e non come una frase falsa.
 
 ---
 
-### ST-14 · `leaked_password_protection` disabilitata — Bassa
+### ST-14 · `leaked_password_protection` disabilitata — ✔ accettato
 
-✅ Riconfermato oggi sull'advisor live: `auth_leaked_password_protection` è
-ancora `WARN`. È B-2 dell'audit di agosto, l'unico rilievo di quel documento
-mai chiuso, e non è fattibile da codice: dashboard Supabase → Authentication →
-Password. Costo nullo, valore reale visto che l'accesso è a sola password.
+✅ Riconfermato l'11 agosto sull'advisor live: `auth_leaked_password_protection`
+era ancora `WARN`. È B-2 dell'audit di agosto, non fattibile da codice:
+dashboard Supabase → Authentication → Password.
+
+**Il 12 agosto è stato accettato esplicitamente**: la verifica contro
+HaveIBeenPwned è una funzione del piano Supabase **Pro**, e il progetto resta
+sul piano **Free** per scelta di chi lo amministra — non un interruttore
+dimenticato, un costo ricorrente non approvato. `auth_leaked_password_
+protection` è ora nominato in `AVVISI_ACCETTATI` di
+`scripts/verifica-advisor/advisor.js`, con lo stesso motivo scritto accanto:
+non fa più fallire il controllo, come i nove `SECURITY DEFINER` qui sotto. Se
+il piano cambiasse, il punto da riaprire è questo: riattivare dalla dashboard e
+togliere il nome dall'elenco.
 
 Gli altri nove warning dell'advisor sono ✅ quelli attesi e già motivati in
 `SICUREZZA.md` (funzioni `SECURITY DEFINER` esposte di proposito: le RPC

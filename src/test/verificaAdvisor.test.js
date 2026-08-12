@@ -38,10 +38,14 @@ describe('valutaLints', () => {
 // ST-14 · Gli avvisi accettati sono un ELENCO, non una categoria.
 //
 // PERCHÉ QUESTI TEST ESISTONO. Finché "WARN" significava "accettato", il
-// rilievo `auth_leaked_password_protection` — che nessuno ha mai deciso di
-// accettare, e che è aperto da agosto — era indistinguibile dalle nove funzioni
-// SECURITY DEFINER esposte di proposito. Un controllo che accetta tutto per
-// categoria non è un controllo permissivo: è un controllo che non c'è.
+// rilievo `auth_leaked_password_protection` era indistinguibile dalle nove
+// funzioni SECURITY DEFINER esposte di proposito. Un controllo che accetta
+// tutto per categoria non è un controllo permissivo: è un controllo che non
+// c'è. Il 12 agosto chi amministra il progetto ha deciso esplicitamente di
+// NON attivarla: la verifica HaveIBeenPwned è una funzione del piano Supabase
+// Pro, e il progetto resta sul piano Free per scelta — non un interruttore
+// dimenticato, un costo ricorrente non approvato. Il lint è quindi nominato
+// nell'elenco come gli altri, con il motivo scritto accanto in `advisor.js`.
 describe('valutaLints — avvisi accettati per nome', () => {
   const HIBP = { level: 'WARN', name: 'auth_leaked_password_protection', title: 'Leaked Password Protection Disabled' };
   const DEFINER = { level: 'WARN', name: 'authenticated_security_definer_function_executable', title: 'Signed-In Users Can Execute…' };
@@ -52,11 +56,10 @@ describe('valutaLints — avvisi accettati per nome', () => {
     expect(r.nonAccettati).toEqual([]);
   });
 
-  it('la protezione password compromesse fa fallire: nessuno l\'ha accettata', () => {
+  it('la protezione password compromesse è accettata (piano Free, decisione esplicita del 12 agosto)', () => {
     const r = valutaLints([DEFINER, HIBP]);
-    expect(r.fallisce).toBe(true);
-    expect(r.nonAccettati).toHaveLength(1);
-    expect(r.nonAccettati[0].name).toBe('auth_leaked_password_protection');
+    expect(r.fallisce).toBe(false);
+    expect(r.nonAccettati).toEqual([]);
   });
 
   it('un avviso NUOVO, mai visto prima, fa fallire', () => {

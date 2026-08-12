@@ -13,6 +13,10 @@ Verifiche eseguite: `npm run lint` (0 errori), `npm test` (**1138 test
 passati**, 7 skip, 99 file), `npm run build`, conteggi diretti sul database di
 produzione, advisor di sicurezza Supabase, storico dei run di GitHub Actions.
 
+> **Stato al 12 agosto, sera** — **C-1** e **A-1** sono stati corretti nello
+> stesso giorno dell'audit: vedi §4. I test sono ora **1150**. Gli altri undici
+> rilievi restano aperti.
+
 ---
 
 ## 1. Executive Summary
@@ -61,9 +65,9 @@ logica e `Trash.jsx` è restato indietro con la terza.
 |---|---|
 | Moduli sorgente (esclusi i test) | 179 |
 | Righe totali `src/` + `supabase/` + `scripts/` | ~55.100 |
-| Test | 1138 passati, 7 skip |
+| Test | 1138 passati, 7 skip → **1150** dopo la correzione di C-1 (§4) |
 | ESLint | 0 errori, 20 warning `react/no-multi-comp` in 13 file |
-| Migrazioni | 105 locali, 104 registrate in produzione |
+| Migrazioni | 105 locali, 104 registrate in produzione → **105/105** dopo A-1 (§4) |
 | File più vicino al limite `max-lines` | `ListeViaggio.jsx` — **495/500** |
 | Oggetti `style={{…}}` inline | 1.528 |
 
@@ -73,8 +77,8 @@ logica e `Trash.jsx` è restato indietro con la terza.
 
 | # | Rilievo | File | Priorità |
 |---|---|---|---|
-| **C-1** | Letture non paginate su tabelle a crescita monotona: troncamento silenzioso previsto per **inizio settembre 2026** | `lib/api.js:289-298` | 🔴 **Critica** |
-| **A-1** | Workflow "Verifica RPC" rosso a ogni run dall'8 agosto: la guardia contro il drift non è più un segnale | `scripts/verifica-rpc/migrazioni.js:52` | 🟠 Alta |
+| **C-1** ✔ | Letture non paginate su tabelle a crescita monotona: troncamento silenzioso previsto per **inizio settembre 2026** — **chiuso il 12 agosto** (§4) | `lib/api.js:289-298` | 🔴 **Critica** |
+| **A-1** ✔ | Workflow "Verifica RPC" rosso a ogni run dall'8 agosto: la guardia contro il drift non è più un segnale — **chiuso il 12 agosto** (§4) | `scripts/verifica-rpc/migrazioni.js:52` | 🟠 Alta |
 | **A-2** | Il controllo advisor non ha mai girato: secret assente, exit 0 silenzioso | `.github/workflows/verifica-rpc.yml:80` | 🟠 Alta |
 | **A-3** | Terza copia di `filterByPeriod` + `PERIOD_OPTIONS` + `chipStyle`, mentre il modulo condiviso esiste già | `views/Trash.jsx:17-43,157-169` | 🟠 Alta |
 | **A-4** | `ListeViaggio.jsx` a 495/500 righe: il prossimo intervento sbatte contro il lint | `liste/ListeViaggio.jsx` | 🟠 Alta |
@@ -93,6 +97,11 @@ logica e `Trash.jsx` è restato indietro con la terza.
 ## 3. Action plan dettagliato
 
 ### 🔴 C-1 · Troncamento silenzioso di commenti e cronologia
+
+> **✔ Chiuso il 12 agosto 2026 — vedi §4.** Il codice qui sotto è quello *prima*
+> della correzione: resta perché è il difetto che il test di regressione
+> descrive, e perché la classe di errore («omette, e in silenzio») è la stessa
+> che si ripresenterà alla prossima lettura nuova.
 
 **File**: `src/lib/api.js:289-298` · consumatore: `src/hooks/useAppHydration.js:109-127`
 
@@ -179,6 +188,10 @@ lo indica già come «il prossimo candidato».
 ---
 
 ### 🟠 A-1 · La guardia contro il drift è rossa da cinque giorni
+
+> **✔ Chiuso il 12 agosto 2026 — vedi §4.** Applicata la prima delle due vie
+> proposte qui sotto (registrare la riga), non la seconda: l'eccezione sarebbe
+> stata una riga falsa in un elenco che esiste per i casi non tracciabili.
 
 **File**: `scripts/verifica-rpc/migrazioni.js:52` · workflow `.github/workflows/verifica-rpc.yml`
 
@@ -702,29 +715,107 @@ sono sotto soglia.
 
 ---
 
-## 4. Top 3 suggerimenti strategici
+## 4. Correzioni applicate — 12 agosto 2026
 
-### 1. Paginare le due letture rimaste — è l'unico rilievo con una data
+Chiusi **C-1** e **A-1**, cioè il rilievo con una data e la guardia che non
+guardava più. Gli altri undici restano aperti.
 
-C-1 non è un rischio teorico: `task_history` è a 621 righe, cresce di ~14,8 al
-giorno, e il cap è a **~26 giorni**. Quando ci arriverà, non ci sarà un errore da
-cercare — solo una cronologia che sparisce quando un collega commenta e torna
-premendo F5. Il progetto ha già `lib/pagination.js`, costruito esattamente per
-questo: la correzione è di sei righe e va fatta prima di settembre. Tutto il
-resto di questo audit può aspettare; questo no.
+### ✔ C-1 — le tre letture ora paginano
+
+`src/lib/api.js`: `TaskThreads.comments()`, `TaskThreads.history()` e
+`Tasks.list()` passano da `fetchAllRows` + `WITH_COUNT`, ciascuna con un
+ordinamento chiuso su `id`.
+
+Le prime due erano il rilievo; la terza era dichiarata «il prossimo candidato»
+nel commento in fondo a `Clients.list` e in `docs/CLAUDE.md`, ferma sulla
+riserva che `count: 'exact'` avesse «un costo per richiesta da misurare prima»,
+perché la sua select porta commenti e cronologia annidati. **Misurato**, e la
+riserva non regge: il conteggio esatto di PostgREST è un aggregato sulla sola
+tabella di primo livello — le risorse annidate non vi entrano — quindi è un
+`select count(*) from tasks`, che in produzione costa **11 ms** comprensivi di
+pianificazione, contro uno `statement_timeout` di 8 s. Tenerle separate avrebbe
+significato lasciare aperto per un costo dello 0,14% del budget di richiesta il
+difetto che questo audit chiama critico.
+
+Sulla seconda chiave di ordinamento c'è un dettaglio che vale più della regola
+generale: su `task_history` `created_at` **non è unico per costruzione**, non
+per caso. `log_task_history()` inserisce più righe nella STESSA transazione
+quando un update cambia più campi insieme (stato e priorità in un solo salvataggio
+hanno lo stesso timestamp al microsecondo). Senza `.order('id')` sarebbe proprio
+la tabella più esposta al cap ad avere anche l'ordinamento meno stabile.
+
+Blindato da 12 nuovi casi in `src/test/paginazione.test.js` (`describe.each` sulle
+tre letture: pagina, chiede il conteggio, ordina in modo deterministico,
+restituisce tutte e 1500 le righe finte contro un cap simulato di 1000).
+Il fake builder del test ha ora un `.is()` concatenabile, che serve al filtro
+del cestino di `Tasks.list`.
+
+**Test: 1150 passati** (erano 1138), lint 0 errori.
+
+### ✔ A-1 — il registro delle migrazioni è allineato
+
+```sql
+insert into supabase_migrations.schema_migrations (version, name)
+values ('20260808120000', 'origin_client_clients_task_history')
+on conflict (version) do nothing;
+```
+
+Eseguita in produzione il 12 agosto. È la correzione *giusta* delle due che
+questo documento proponeva, e la differenza non è di comodità: `ECCEZIONI_STORICHE`
+esiste per le migrazioni che **non sono tracciabili** (applicate prima che il
+progetto avesse un flusso tracciato, o spezzate in più chiamate con nomi
+diversi). Questa non è nessuna delle due — è applicata e perfettamente
+identificabile — quindi metterla fra le eccezioni avrebbe archiviato come
+"non verificabile" l'unico caso che invece si poteva semplicemente sistemare,
+e avrebbe lasciato in quel Set una riga falsa da spiegare a chi la leggerà fra
+sei mesi.
+
+`statements` resta `NULL`: registrare un corpo SQL che non è stato eseguito da
+questo percorso direbbe una cosa non vera su *come* la migrazione è arrivata in
+produzione.
+
+Il workflow *Verifica RPC* è stato rilanciato con `workflow_dispatch` — applicare
+una migrazione non tocca il repository, quindi niente lo avrebbe fatto ripartire
+da solo.
+
+> ⚠️ La verifica non è ripetibile da questo ambiente: `npm run verifica:migrazioni`
+> in locale risponde `HTTP 403: Host not in allowlist` (la stessa egress policy
+> di B-2 nell'audit dell'11 agosto, lì sulla CDN di SheetJS). Il controllo va
+> letto da GitHub Actions, che la raggiunge.
+
+---
+
+## 5. Top 3 suggerimenti strategici
+
+### 1. ✔ Paginare le due letture rimaste — era l'unico rilievo con una data
+
+C-1 non era un rischio teorico: `task_history` è a 621 righe, cresce di ~14,8 al
+giorno, e il cap era a **~26 giorni**. Quando ci fosse arrivato non ci sarebbe
+stato un errore da cercare — solo una cronologia che sparisce quando un collega
+commenta e torna premendo F5. **Fatto il 12 agosto** (§4): il progetto aveva già
+`lib/pagination.js`, costruito esattamente per questo.
+
+Il seguito resta aperto e non è urgente allo stesso modo: paginare rende la
+lettura *corretta*, non *sostenibile*. Fra un anno significherà scaricare ~6.000
+righe di cronologia a ogni commento, e il passo successivo è leggerle **per task
+aperto** — la stessa decisione già dichiarata aperta per i messaggi (ST-4,
+soglia `messages > ~1500`), da prendere insieme a quella.
 
 ### 2. Riportare le guardie a verdi, e tenerle verdi
 
 Il progetto ha investito parecchio in controlli automatici — verifica RPC,
-verifica migrazioni, advisor, `verifica:convenzioni`, 1138 test — e oggi **due
-su cinque non danno segnale**: uno è rosso per un motivo di bookkeeping (A-1),
-l'altro non ha mai girato (A-2). È il capitale peggio speso possibile: il costo
-è già stato pagato, il beneficio è zero, e la presenza del controllo scoraggia
-dal cercarne un altro. Una sessione breve li rimette in piedi (una `insert`, un
-secret, una `::warning`), e da lì in avanti "rosso" torna a significare qualcosa.
-Aggiungerei una regola sola: **nessun controllo può fallire in modo permanente**
-— o si corregge la causa, o si accetta l'eccezione per iscritto e col motivo,
-come `ECCEZIONI_STORICHE` già fa.
+verifica migrazioni, advisor, `verifica:convenzioni`, oltre 1100 test — e due
+di essi non davano segnale: uno rosso per un motivo di bookkeeping (A-1, **ora
+chiuso**), l'altro mai girato (A-2, **ancora aperto**: manca il secret, e serve
+che l'assenza si veda invece di uscire 0 in silenzio). È il capitale peggio
+speso possibile: il costo è già stato pagato, il beneficio è zero, e la presenza
+del controllo scoraggia dal cercarne un altro.
+
+Vale la regola generale più del singolo fix: **nessun controllo può fallire in
+modo permanente** — o si corregge la causa, o si accetta l'eccezione per
+iscritto e col motivo, come `ECCEZIONI_STORICHE` già fa. E il corollario che
+A-2 mostra: **un controllo che si salta deve dirlo dove qualcuno lo legge**,
+altrimenti "saltato" e "passato" hanno lo stesso aspetto.
 
 ### 3. Trattare gli stili come un livello, non come una proprietà del JSX
 
@@ -740,7 +831,7 @@ di questo audit che paga su tre fronti diversi con un lavoro solo.
 
 ---
 
-## 5. Cosa è stato controllato e risulta a posto
+## 6. Cosa è stato controllato e risulta a posto
 
 Vale la pena scriverlo, perché un audit che elenca solo i problemi fa sembrare
 peggiore di com'è un progetto che su questi fronti sta bene:

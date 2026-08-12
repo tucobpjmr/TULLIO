@@ -34,6 +34,10 @@ const builder = (tabella) => {
   const self = {
     select: (_cols, opts) => { stato.conteggio = opts?.count === "exact"; return self; },
     order: (col) => { stato.ordini.push(col); return self; },
+    // `Tasks.list()` filtra il cestino con `.is('deleted_at', null)` DOPO la
+    // select: il builder deve restare concatenabile, altrimenti il test
+    // fallirebbe per la forma della catena e non per ciò che misura.
+    is: () => self,
     range: (da, a) => {
       const richieste = a - da + 1;
       const consegnate = Math.min(richieste, CAP);
@@ -54,7 +58,7 @@ vi.mock("../lib/supabase", () => ({
   supabase: { from: vi.fn((tabella) => builder(tabella)) },
 }));
 
-const { Clients } = await import("../lib/api.js");
+const { Clients, Tasks, TaskThreads } = await import("../lib/api.js");
 const { fetchAllRows } = await import("../lib/pagination.js");
 
 beforeEach(() => { chiamate.length = 0; });
@@ -88,6 +92,53 @@ describe("Clients.list — non può essere troncata dal cap PostgREST", () => {
     expect(error).toBeNull();
     expect(data).toHaveLength(TOTALE);
     expect(data[0].id).toBe("c0000");
+    expect(data[TOTALE - 1].id).toBe("c1499");
+  });
+});
+
+// ─── C-1 · le tre letture aggiunte il 12 agosto 2026 ────────────────────────
+// `clients` era il caso NOTO (818 righe contro un cap di 1000). Queste tre
+// erano il caso che nessuno stava guardando, e una di esse aveva una data:
+// `task_history` guadagna una riga per ogni cambio di stato, priorità,
+// scadenza, assegnatario o cestinamento, e a 621 righe con ~14,8 al giorno era
+// a ~26 giorni dal cap.
+//
+// Il sintomo che questi test impediscono non è "mancano dei dati". Il reload
+// completo passa dalle risorse ANNIDATE di TASK_SELECT_WITH_COMMENTS, che il
+// cap del primo livello non tocca; è il reload SELETTIVO (`soloThread` in
+// useAppHydration, quello che scatta quando un collega commenta) a rileggere
+// queste due tabelle piatte. Con l'ordine ascendente a cadere sono le righe
+// più RECENTI, e `SET_TASK_THREADS` traduce una riga assente in `[]`. Cioè: la
+// cronologia sparisce quando qualcun altro commenta e torna premendo F5.
+describe.each([
+  ["Tasks.list", () => Tasks.list(), ["due_date", "id"]],
+  ["TaskThreads.comments", () => TaskThreads.comments(), ["created_at", "id"]],
+  ["TaskThreads.history", () => TaskThreads.history(), ["created_at", "id"]],
+])("%s — non può essere troncata dal cap PostgREST", (_nome, chiama, ordiniAttesi) => {
+  it("pagina con .range() invece di fare una select nuda", async () => {
+    await chiama();
+    expect(chiamate.length).toBeGreaterThan(0);
+    expect(chiamate[0].da).toBe(0);
+  });
+
+  it("chiede il conteggio esatto", async () => {
+    await chiama();
+    expect(chiamate[0].conteggio).toBe(true);
+  });
+
+  it("ordina in modo DETERMINISTICO, chiudendo su una colonna unica", async () => {
+    // Né `due_date` né `created_at` sono unici: il trigger log_task_history()
+    // inserisce più righe nella STESSA transazione (stato e priorità cambiati
+    // insieme hanno lo stesso timestamp al microsecondo), e senza una chiave
+    // di spareggio due pagine consecutive possono ripetere o saltare una riga.
+    await chiama();
+    expect(chiamate[0].ordini).toEqual(ordiniAttesi);
+  });
+
+  it("restituisce TUTTE le 1500 righe, non le prime 1000", async () => {
+    const { data, error } = await chiama();
+    expect(error).toBeNull();
+    expect(data).toHaveLength(TOTALE);
     expect(data[TOTALE - 1].id).toBe("c1499");
   });
 });

@@ -38,6 +38,10 @@ const byPriorityThenDueDate = (a, b) => {
   const dp = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
   return dp !== 0 ? dp : byDueDate(a, b);
 };
+// Una task in attesa di cliente/fornitore è bloccata da un fattore esterno,
+// non in ritardo per conto di chi la possiede: appartiene solo alla coda "In
+// attesa", anche a scadenza superata — non deve raddoppiare nella coda Scadute.
+const isWaitingStatus = status => status === "awaiting_client" || status === "awaiting_supplier";
 const WINDOW_72H = 72 * 60 * 60 * 1000;
 
 // ─── PERSONAL QUEUE (le mie task — v0.8) ───────────────────────────────────
@@ -126,9 +130,11 @@ export const Dashboard = memo(function Dashboard({
     : [], [showUrgent, visibleTasks]);
   const urgentTasks = useMemo(() => urgentCandidates.filter(t => isUrgent(t)), [urgentCandidates]);
 
-  // Scadute: tutti i task visibili scaduti, non completati
+  // Scadute: tutti i task visibili scaduti, non completati. Le task in attesa
+  // di cliente/fornitore restano escluse anche se la scadenza è passata: sono
+  // bloccate dall'esterno, non in ritardo, e vivono solo nella coda "In attesa".
   const overdueTasks = useMemo(() => visibleTasks
-    .filter(t => t.status !== "done" && isOverdue(t))
+    .filter(t => t.status !== "done" && !isWaitingStatus(t.status) && isOverdue(t))
     .sort(byDueDate), [visibleTasks]);
 
   // In attesa: task visibili ferme su un riscontro esterno (Driver non le vede,
@@ -137,7 +143,7 @@ export const Dashboard = memo(function Dashboard({
   const showWaiting = role !== "driver";
   const waitingTasks = useMemo(() => showWaiting
     ? visibleTasks
-      .filter(t => t.status === "awaiting_client" || t.status === "awaiting_supplier")
+      .filter(t => isWaitingStatus(t.status))
       .sort(byDueDate)
     : [], [showWaiting, visibleTasks]);
 

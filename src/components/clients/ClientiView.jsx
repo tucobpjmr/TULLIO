@@ -18,7 +18,7 @@ import { conteggioListePerCliente } from "../liste/listeModuleApi.js";
 import { tasksDelCliente } from "../../lib/clientNotes.js";
 import { matchTermini, terminiRicerca } from "../../lib/searchUtils.js";
 import { fieldStyle } from "./clientStyles.js";
-import { Z } from "../../styles/tokens.js";
+import { Modal } from "../ui/Modal.jsx";
 
 // Chunk async: porta con sé lib/xlsx.js e resta chiuso nella grande
 // maggioranza delle sessioni (import CSV/Excel, non il percorso comune).
@@ -345,59 +345,57 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
         // che far premere "Rimuovi" e restituire un errore.
         const bloccato = (l?.totali || 0) > 0;
         return (
-          <div style={{
-            position: "fixed", inset: 0, zIndex: Z.chatBackdrop,
-            background: "rgba(8,21,45,0.45)", display: "flex", alignItems: "center", justifyContent: "center",
-          }} onClick={() => setConfirmDelete(null)}>
-            <div style={{
-              background: "var(--card)", borderRadius: 12, padding: 24, width: "min(420px, 92vw)",
-              boxShadow: "0 12px 40px rgba(0,0,0,0.18)", animation: "slideUp 0.2s ease",
-            }} onClick={e => e.stopPropagation()}>
-              <div style={{ fontWeight: 700, fontSize: 16, color: "var(--heading)", marginBottom: 8 }}>
-                {bloccato ? "Non si può rimuovere" : "Rimuovi cliente"}
-              </div>
-              {bloccato ? (
-                <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 20, lineHeight: 1.5 }}>
-                  <strong>{confirmDelete.name}</strong> è collegato a{" "}
-                  {l.totali === 1 ? "una lista viaggio" : `${l.totali} liste viaggio`}{" "}
-                  (come titolare o cointestatario)
-                  {l.totali > l.attive && `, di cui ${l.totali - l.attive} nel cestino: restano collegate anche lì`}.
-                  <div style={{ marginTop: 8 }}>
-                    Le liste sono agganciate a questa scheda: per rimuoverla vanno prima
-                    eliminate definitivamente dal cestino del modulo Liste viaggio, o questo
-                    cliente va rimosso come cointestatario dalle liste dove non è titolare.
-                  </div>
-                </div>
-              ) : (
-                <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 20 }}>
-                  Rimuovere <strong>{confirmDelete.name}</strong> dall'anagrafica?
-                </div>
-              )}
-              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                <button onClick={() => setConfirmDelete(null)} style={{
-                  padding: "8px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)",
-                  cursor: "pointer", fontSize: 14, color: "var(--text-muted)",
-                }}>{bloccato ? "Chiudi" : "Annulla"}</button>
-                {bloccato ? (
-                  showListe && (
-                    <button onClick={() => {
-                      setSelectedClient(confirmDelete);
-                      setPanelTab("liste");
-                      setConfirmDelete(null);
-                    }} style={{
-                      padding: "8px 16px", borderRadius: 8, border: "none",
-                      background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 600,
-                    }}>Vedi le liste</button>
-                  )
-                ) : (
-                  <button onClick={() => handleDelete(confirmDelete)} style={{
-                    padding: "8px 16px", borderRadius: 8, border: "none",
-                    background: "var(--danger)", color: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 600,
-                  }}>Rimuovi</button>
-                )}
-              </div>
+          <Modal
+            open
+            onClose={() => setConfirmDelete(null)}
+            labelledBy="vd-cliente-del-title"
+            width="min(420px, 92vw)"
+            cardStyle={{ borderRadius: 12, padding: 24, boxShadow: "0 12px 40px rgba(0,0,0,0.18)" }}
+          >
+            <div id="vd-cliente-del-title" style={{ fontWeight: 700, fontSize: 16, color: "var(--heading)", marginBottom: 8 }}>
+              {bloccato ? "Non si può rimuovere" : "Rimuovi cliente"}
             </div>
-          </div>
+            {bloccato ? (
+              <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 20, lineHeight: 1.5 }}>
+                <strong>{confirmDelete.name}</strong> è collegato a{" "}
+                {l.totali === 1 ? "una lista viaggio" : `${l.totali} liste viaggio`}{" "}
+                (come titolare o cointestatario)
+                {l.totali > l.attive && `, di cui ${l.totali - l.attive} nel cestino: restano collegate anche lì`}.
+                <div style={{ marginTop: 8 }}>
+                  Le liste sono agganciate a questa scheda: per rimuoverla vanno prima
+                  eliminate definitivamente dal cestino del modulo Liste viaggio, o questo
+                  cliente va rimosso come cointestatario dalle liste dove non è titolare.
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 20 }}>
+                Rimuovere <strong>{confirmDelete.name}</strong> dall'anagrafica?
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+              <button onClick={() => setConfirmDelete(null)} style={{
+                padding: "8px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)",
+                cursor: "pointer", fontSize: 14, color: "var(--text-muted)",
+              }}>{bloccato ? "Chiudi" : "Annulla"}</button>
+              {bloccato ? (
+                showListe && (
+                  <button onClick={() => {
+                    setSelectedClient(confirmDelete);
+                    setPanelTab("liste");
+                    setConfirmDelete(null);
+                  }} style={{
+                    padding: "8px 16px", borderRadius: 8, border: "none",
+                    background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 600,
+                  }}>Vedi le liste</button>
+                )
+              ) : (
+                <button onClick={() => handleDelete(confirmDelete)} style={{
+                  padding: "8px 16px", borderRadius: 8, border: "none",
+                  background: "var(--danger)", color: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 600,
+                }}>Rimuovi</button>
+              )}
+            </div>
+          </Modal>
         );
       })()}
     </div>

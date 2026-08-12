@@ -108,10 +108,21 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
     return scopeConversationsForUser(conversations, currentUserId, teamIds);
   }, [conversations, team, currentUserId, enabled]);
 
-  // Conta non letti totali per badge topbar (dallo stato vivo della chat)
-  const unreadChat = chatConversations.reduce(
-    (acc, c) => acc + getUnreadCount(messages, c.id, currentUserId),
-    0
+  // Conta non letti totali per badge topbar (dallo stato vivo della chat).
+  //
+  // M-5 · memoizzato. Questo hook vive in VoyageDesk, che ri-renderizza a ogni
+  // battuta nella barra di ricerca, a ogni toast, a ogni azione: senza useMemo
+  // la riduzione ripartiva da capo ogni volta e attraversava TUTTI i messaggi
+  // di TUTTE le conversazioni (fino a ~2000 in memoria) per produrre un numero
+  // che cambia solo quando arriva o si legge un messaggio. Le dipendenze sono
+  // le tre da cui il conteggio dipende davvero — e `chatConversations` è già
+  // memoizzato qui sopra, quindi la sua identità non si muove per conto suo.
+  const unreadChat = useMemo(
+    () => chatConversations.reduce(
+      (acc, c) => acc + getUnreadCount(messages, c.id, currentUserId),
+      0
+    ),
+    [chatConversations, messages, currentUserId]
   );
 
   // ST-10 · I setter grezzi NON escono di qui. `setConversations`/`setMessages`

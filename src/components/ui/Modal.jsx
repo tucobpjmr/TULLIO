@@ -14,7 +14,7 @@
 // incorporato una volta sola, e con lui arrivano gratis anche le tre cose che
 // prima erano a macchia di leopardo.
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Z } from "../../styles/tokens.js";
 
@@ -22,6 +22,18 @@ import { Z } from "../../styles/tokens.js";
 // accumulata, non gerarchia: nessuna vista mostra due overlay sovrapposti in
 // cui la differenza di tono comunichi qualcosa.
 const VELO = "rgba(15,32,68,0.5)";
+
+// ─── PILA DEI MODALI APERTI ──────────────────────────────────────────────────
+// Esc deve chiudere UN modale: quello in cima. Il listener è su `window`, quindi
+// senza questa pila ogni Modal montato riceve lo stesso keydown e li chiude
+// TUTTI insieme — con i modali annidati che l'app ha davvero (la CropModal si
+// apre da ProfileEditor, una ConfirmDialog si apre dall'import clienti) un Esc
+// per annullare il ritaglio butterebbe via anche il form del profilo sotto.
+//
+// Un array di token opachi e non un contatore: l'ordine di smontaggio non è
+// garantito essere l'inverso di quello di montaggio (React può smontare un
+// sottoalbero intero), quindi la rimozione avviene per identità.
+const pila = [];
 
 /**
  * @param {boolean}   open
@@ -37,19 +49,38 @@ export function Modal({
   open, onClose, labelledBy, width = 500, padding = 16,
   layer = "modal", cardStyle, closeOnOverlay = true, children,
 }) {
+  // `onClose` in un ref, e `open` unica dipendenza dell'effetto: se l'effetto si
+  // ri-eseguisse a ogni cambio d'identità della callback (che i chiamanti
+  // passano quasi sempre come arrow inline) questo modale uscirebbe e
+  // rientrerebbe in cima alla pila a ogni render del genitore, scavalcando
+  // quello che gli si è aperto sopra.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     if (!open) return;
-    const onKey = (e) => { if (e.key === "Escape") onClose?.(); };
+    const token = {};
+    pila.push(token);
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      if (pila[pila.length - 1] !== token) return;   // non sono io quello in cima
+      onCloseRef.current?.();
+    };
     // Blocco dello scroll di fondo: senza, su mobile lo scroll "attraversa" il
-    // modale e la pagina sotto si muove mentre l'utente compila il form.
+    // modale e la pagina sotto si muove mentre l'utente compila il form. Con i
+    // modali annidati il salva/ripristina si impila da sé: il secondo salva
+    // "hidden" (messo dal primo) e lo rimette chiudendosi, quindi il fondo resta
+    // bloccato finché non si chiude anche il primo.
     const precedente = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", onKey);
     return () => {
+      const i = pila.indexOf(token);
+      if (i >= 0) pila.splice(i, 1);
       document.body.style.overflow = precedente;
       window.removeEventListener("keydown", onKey);
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

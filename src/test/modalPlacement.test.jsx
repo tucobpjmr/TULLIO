@@ -96,12 +96,17 @@ describe("Modali dentro viste animate — montati via portale su document.body",
 // animation-fill-mode), quindi rende la card containing block per i propri
 // discendenti position:fixed — nel Cestino ci finiva dentro il backdrop mobile
 // del DateTimePicker, confinato e scrollabile dentro la card invece che sullo
-// schermo. La centratura equivalente `inset:0 + margin:auto + height:fit-content`
-// non introduce alcun transform.
-const cardOf = (el) => el.closest('[style*="position: fixed"][style*="margin"]');
+// schermo.
+//
+// M-2: le due card non ricostruiscono più il guscio a mano (overlay flex +
+// card senza transform, portale, Esc, blocco dello scroll, role="dialog"
+// arrivano da ui/Modal.jsx). L'invariante da difendere non è più COME sono
+// centrate — è che il guscio le renda finestre di dialogo vere e che nessuno
+// dei due nodi reintroduca un transform.
+const dialogoDi = (el) => el.closest('[role="dialog"]');
 
-describe("Card modali — centratura senza transform", () => {
-  it("ProfileEditor centra la card senza transform", () => {
+describe("Card modali — semantica di dialogo e nessun transform", () => {
+  it("ProfileEditor è un dialogo montato su document.body, senza transform", () => {
     render(
       <ProfileEditor
         member={{ id: "marco", name: "Marco", color: "#0F2044" }}
@@ -110,15 +115,18 @@ describe("Card modali — centratura senza transform", () => {
       />
     );
 
-    const card = cardOf(screen.getByDisplayValue("Marco"));
+    const card = dialogoDi(screen.getByDisplayValue("Marco"));
     expect(card).not.toBeNull();
+    expect(card.getAttribute("aria-modal")).toBe("true");
+    expect(card.getAttribute("aria-labelledby")).toBe("vd-profile-title");
+    // Né la card né l'overlay che la centra introducono un containing block per
+    // i position:fixed discendenti.
     expect(card.style.transform).toBe("");
-    // La centratura passa da inset + margin auto.
-    expect(card.style.margin).toBe("auto");
-    expect(card.style.inset).toBe("0px");
+    expect(card.parentElement.style.transform).toBe("");
+    expect(card.parentElement.parentElement).toBe(document.body);
   });
 
-  it("Trash centra la card di ripristino senza transform (ci vive dentro il DateTimePicker)", () => {
+  it("Trash: la card di ripristino è un dialogo senza transform (ci vive dentro il DateTimePicker)", () => {
     ctxTeam([{ id: "marco", name: "Marco", role: "admin", active: true, pending: false }]);
     ctxUser("marco");
     const task = {
@@ -131,10 +139,11 @@ describe("Card modali — centratura senza transform", () => {
 
     fireEvent.click(screen.getByTitle("Ripristina con modifica"));
 
-    const card = cardOf(screen.getByText("↻ Ripristina task"));
+    const card = dialogoDi(screen.getByText("↻ Ripristina task"));
     expect(card).not.toBeNull();
+    expect(card.getAttribute("aria-modal")).toBe("true");
     expect(card.style.transform).toBe("");
-    expect(card.style.margin).toBe("auto");
-    expect(card.style.inset).toBe("0px");
+    expect(card.parentElement.style.transform).toBe("");
+    expect(card.parentElement.parentElement).toBe(document.body);
   });
 });

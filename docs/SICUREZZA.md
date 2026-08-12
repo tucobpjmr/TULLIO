@@ -334,8 +334,15 @@ dato.
 
 1. **Attivare la leaked password protection** (⚠️ dashboard → Auth → Password).
    Un interruttore. Supabase confronta le password con HaveIBeenPwned.
-   **Non fattibile da qui**: è impostazione di progetto, non DDL. Ancora
-   aperto — unico punto rimasto su questa lista.
+   **Non fattibile da qui**: è impostazione di progetto, non DDL — non è
+   esposta né dall'API né dall'MCP, quindi nessuna sessione di lavoro sul
+   codice potrà mai chiuderla. Ancora aperto — unico punto rimasto su questa
+   lista, e **riverificato sull'advisor live il 12 agosto**: `auth_leaked_
+   password_protection` è ancora `WARN`. È il terzo audit di fila che lo
+   riporta (ST-14 del 10 agosto, B-2 dell'8, B-3 dell'11) su un'app il cui
+   accesso è a **sola password**: nessuna 2FA, nessun SSO, nessun secondo
+   fattore. Una password già comparsa in una violazione nota è, qui, l'intero
+   perimetro.
 2. ~~**`SET search_path` su `public.set_updated_at`**~~ → **✅ applicata**, ma
    sotto una versione diversa da quella che il file nel repo dichiara: vedi la
    nota sotto. `function_search_path_mutable` infatti non compare più

@@ -98,7 +98,16 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true } = {}) {
     const fail = (err, fallback, res) => {
       console.error(`[VoyageDesk] sync ${action.type}`, err);
       const undo = spec.rollback?.(s, toDispatch, res);
-      if (undo) rawDispatch(undo);
+      // `meta.compensazione`: i rollback riusano le action di mutazione (l'undo
+      // di UPDATE_OWN_PROFILE è un altro UPDATE_OWN_PROFILE con i valori di
+      // prima), e il case del reducer accoderebbe il proprio toast di successo
+      // accanto all'errore che stiamo per mostrare — "Profilo aggiornato!"
+      // sopra "Salvataggio fallito". Il flag lo mette QUI e non nelle entry
+      // perché descrive il percorso, non l'azione: la stessa action è una
+      // mutazione quando la chiede l'utente e una compensazione quando la
+      // chiede questo ramo d'errore. Il reducer lo legge in un punto solo (vedi
+      // state/reducer.js): toast invariati e nessuna voce nel log attività.
+      if (undo) rawDispatch({ ...undo, meta: { ...undo.meta, compensazione: true } });
       const testo = (spec.mapError ? spec.mapError(err) : err?.message) || fallback;
       rawDispatch({
         type: "SHOW_TOAST",

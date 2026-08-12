@@ -8,7 +8,7 @@ import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { validaCampi, obbligatorio, emailValida, primoCampoInvalido } from "../../lib/validators.js";
 import { chiaveNome } from "../../lib/clientNotes.js";
 import { EMPTY_FORM, fieldStyle, labelStyle, noticeStyle } from "./clientStyles.js";
-import { Z } from "../../styles/tokens.js";
+import { Modal } from "../ui/Modal.jsx";
 
 // Criticità #10 — l'email è opzionale, il nome no. Prima il form NON diceva
 // nulla di nessuno dei due: `if (!form.name.trim()) return;` usciva in
@@ -71,110 +71,111 @@ export function ClienteModal({ cliente, onSave, onClose, liste = null, tasksColl
   };
 
   return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: Z.slideOver,
-      background: "rgba(8,21,45,0.45)", display: "flex", alignItems: "center", justifyContent: "center",
-    }} onClick={onClose}>
-      <div className="vd-modal-mh" style={{
-        background: "var(--card)", borderRadius: 14, padding: 28, width: "min(540px, 96vw)",
-        overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
-        animation: "slideUp 0.25s ease",
-      }} onClick={e => e.stopPropagation()}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-          <h2 className="playfair" style={{ fontSize: 20, color: "var(--heading)" }}>
-            {cliente ? "Modifica Cliente" : "Nuovo Cliente"}
-          </h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text-muted)" }}>✕</button>
-        </div>
-        <form onSubmit={handleSubmit}>
-          {cliente && (nListe > 0 || nTask > 0) && (
-            <div style={{ ...noticeStyle, marginBottom: 14, background: nomeCambiato ? "#FEF3C7" : "var(--surface2)", borderColor: nomeCambiato ? "rgba(200,131,42,0.35)" : "var(--border)" }}>
-              <div style={{ fontWeight: 700, marginBottom: 4 }}>
-                {nomeCambiato ? "⚠️ Stai cambiando un nome condiviso" : "Questa scheda è collegata"}
-              </div>
-              {nListe > 0 && (
-                <div>
-                  {nListe === 1 ? "1 lista viaggio usa" : `${nListe} liste viaggio usano`} questo nome come intestazione
-                  {nListe > nAttive && ` (${nListe - nAttive} nel cestino)`}.
-                  {nomeCambiato && " Cambiandolo cambia l'intestazione di tutte, compresi i riepiloghi e i documenti generati da qui in avanti."}
-                </div>
-              )}
-              {nTask > 0 && (
-                <div style={{ marginTop: nListe > 0 ? 4 : 0 }}>
-                  {nTask === 1 ? "1 task riporta" : `${nTask} task riportano`} questo nome nel campo Cliente, che è testo libero e non un collegamento:
-                  {nomeCambiato ? " rinominando qui, senza aggiornarli, resterebbero legati al vecchio nome." : " restano allineati finché i due nomi coincidono."}
-                </div>
-              )}
-              {nomeCambiato && nTask > 0 && (
-                <label style={{ display: "flex", alignItems: "flex-start", gap: 7, marginTop: 8, cursor: "pointer", fontWeight: 600 }}>
-                  <input type="checkbox" checked={renameTasks} onChange={e => setRenameTasks(e.target.checked)} style={{ marginTop: 2, cursor: "pointer" }} />
-                  <span>Aggiorna anche {nTask === 1 ? "il task collegato" : `i ${nTask} task collegati`}</span>
-                </label>
-              )}
-            </div>
-          )}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle} htmlFor="cli-name">Nome *</label>
-              <input
-                id="cli-name" ref={nameRef} style={fieldStyle} value={form.name}
-                onChange={e => set("name", e.target.value)}
-                placeholder="Nome completo o ragione sociale"
-                {...ariaCampo("cli-name-err", errori.name)}
-              />
-              <FieldError id="cli-name-err">{errori.name}</FieldError>
-            </div>
-            <div>
-              <label style={labelStyle} htmlFor="cli-email">Email</label>
-              <input
-                /* `type="text" inputMode="email"` e non `type="email"`: la
-                   validazione nativa del browser bloccherebbe il submit PRIMA
-                   del nostro handler, mostrando la sua bolla al posto del
-                   messaggio inline — due meccanismi di validazione sullo stesso
-                   campo, di cui uno non traducibile e non collegabile all'input
-                   via aria-describedby. `inputMode` conserva la tastiera giusta
-                   su mobile, che è l'altra ragione per cui `type="email"` era lì. */
-                id="cli-email" ref={emailRef} style={fieldStyle} type="text" inputMode="email" value={form.email}
-                onChange={e => set("email", e.target.value)} placeholder="email@esempio.it"
-                {...ariaCampo("cli-email-err", errori.email)}
-              />
-              <FieldError id="cli-email-err">{errori.email}</FieldError>
-            </div>
-            <div>
-              <label style={labelStyle}>Telefono</label>
-              <input style={fieldStyle} value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="+39 000 000 0000" />
-            </div>
-            <div>
-              <label style={labelStyle}>Indirizzo</label>
-              <input style={fieldStyle} value={form.address} onChange={e => set("address", e.target.value)} placeholder="Via, numero civico" />
-            </div>
-            <div>
-              <label style={labelStyle}>Città</label>
-              <input style={fieldStyle} value={form.city} onChange={e => set("city", e.target.value)} placeholder="Città" />
-            </div>
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Note</label>
-              <textarea style={{ ...fieldStyle, minHeight: 72, resize: "vertical" }} value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Preferenze, note speciali..." />
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
-            <button type="button" onClick={onClose} style={{
-              padding: "9px 20px", borderRadius: 8, border: "1px solid var(--border)",
-              background: "var(--card)", cursor: "pointer", fontSize: 14, color: "var(--text-muted)",
-            }}>Annulla</button>
-            {/* Criticità #10: il bottone NON è più disabilitato dal nome
-                mancante. Un bottone spento non dice cosa manca — e a form
-                appena aperto si legge come un'app rotta; premuto, ora il form
-                dice quale campo e sposta il focus lì. */}
-            <button type="submit" disabled={saving} style={{
-              padding: "9px 20px", borderRadius: 8, border: "none",
-              background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 600,
-              opacity: saving ? 0.5 : 1,
-            }}>{saving ? "Salvataggio..." : (cliente ? "Salva" : "Aggiungi")}</button>
-          </div>
-        </form>
+    <Modal
+      open
+      onClose={onClose}
+      labelledBy="vd-cliente-title"
+      width="min(540px, 96vw)"
+      closeOnOverlay={false}
+      cardStyle={{
+        borderRadius: 14, padding: 28,
+        boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <h2 id="vd-cliente-title" className="playfair" style={{ fontSize: 20, color: "var(--heading)" }}>
+          {cliente ? "Modifica Cliente" : "Nuovo Cliente"}
+        </h2>
+        <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text-muted)" }}>✕</button>
       </div>
-    </div>
+      <form onSubmit={handleSubmit}>
+        {cliente && (nListe > 0 || nTask > 0) && (
+          <div style={{ ...noticeStyle, marginBottom: 14, background: nomeCambiato ? "#FEF3C7" : "var(--surface2)", borderColor: nomeCambiato ? "rgba(200,131,42,0.35)" : "var(--border)" }}>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>
+              {nomeCambiato ? "⚠️ Stai cambiando un nome condiviso" : "Questa scheda è collegata"}
+            </div>
+            {nListe > 0 && (
+              <div>
+                {nListe === 1 ? "1 lista viaggio usa" : `${nListe} liste viaggio usano`} questo nome come intestazione
+                {nListe > nAttive && ` (${nListe - nAttive} nel cestino)`}.
+                {nomeCambiato && " Cambiandolo cambia l'intestazione di tutte, compresi i riepiloghi e i documenti generati da qui in avanti."}
+              </div>
+            )}
+            {nTask > 0 && (
+              <div style={{ marginTop: nListe > 0 ? 4 : 0 }}>
+                {nTask === 1 ? "1 task riporta" : `${nTask} task riportano`} questo nome nel campo Cliente, che è testo libero e non un collegamento:
+                {nomeCambiato ? " rinominando qui, senza aggiornarli, resterebbero legati al vecchio nome." : " restano allineati finché i due nomi coincidono."}
+              </div>
+            )}
+            {nomeCambiato && nTask > 0 && (
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 7, marginTop: 8, cursor: "pointer", fontWeight: 600 }}>
+                <input type="checkbox" checked={renameTasks} onChange={e => setRenameTasks(e.target.checked)} style={{ marginTop: 2, cursor: "pointer" }} />
+                <span>Aggiorna anche {nTask === 1 ? "il task collegato" : `i ${nTask} task collegati`}</span>
+              </label>
+            )}
+          </div>
+        )}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle} htmlFor="cli-name">Nome *</label>
+            <input
+              id="cli-name" ref={nameRef} style={fieldStyle} value={form.name}
+              onChange={e => set("name", e.target.value)}
+              placeholder="Nome completo o ragione sociale"
+              {...ariaCampo("cli-name-err", errori.name)}
+            />
+            <FieldError id="cli-name-err">{errori.name}</FieldError>
+          </div>
+          <div>
+            <label style={labelStyle} htmlFor="cli-email">Email</label>
+            <input
+              /* `type="text" inputMode="email"` e non `type="email"`: la
+                 validazione nativa del browser bloccherebbe il submit PRIMA
+                 del nostro handler, mostrando la sua bolla al posto del
+                 messaggio inline — due meccanismi di validazione sullo stesso
+                 campo, di cui uno non traducibile e non collegabile all'input
+                 via aria-describedby. `inputMode` conserva la tastiera giusta
+                 su mobile, che è l'altra ragione per cui `type="email"` era lì. */
+              id="cli-email" ref={emailRef} style={fieldStyle} type="text" inputMode="email" value={form.email}
+              onChange={e => set("email", e.target.value)} placeholder="email@esempio.it"
+              {...ariaCampo("cli-email-err", errori.email)}
+            />
+            <FieldError id="cli-email-err">{errori.email}</FieldError>
+          </div>
+          <div>
+            <label style={labelStyle}>Telefono</label>
+            <input style={fieldStyle} value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="+39 000 000 0000" />
+          </div>
+          <div>
+            <label style={labelStyle}>Indirizzo</label>
+            <input style={fieldStyle} value={form.address} onChange={e => set("address", e.target.value)} placeholder="Via, numero civico" />
+          </div>
+          <div>
+            <label style={labelStyle}>Città</label>
+            <input style={fieldStyle} value={form.city} onChange={e => set("city", e.target.value)} placeholder="Città" />
+          </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>Note</label>
+            <textarea style={{ ...fieldStyle, minHeight: 72, resize: "vertical" }} value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Preferenze, note speciali..." />
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+          <button type="button" onClick={onClose} style={{
+            padding: "9px 20px", borderRadius: 8, border: "1px solid var(--border)",
+            background: "var(--card)", cursor: "pointer", fontSize: 14, color: "var(--text-muted)",
+          }}>Annulla</button>
+          {/* Criticità #10: il bottone NON è più disabilitato dal nome
+              mancante. Un bottone spento non dice cosa manca — e a form
+              appena aperto si legge come un'app rotta; premuto, ora il form
+              dice quale campo e sposta il focus lì. */}
+          <button type="submit" disabled={saving} style={{
+            padding: "9px 20px", borderRadius: 8, border: "none",
+            background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 600,
+            opacity: saving ? 0.5 : 1,
+          }}>{saving ? "Salvataggio..." : (cliente ? "Salva" : "Aggiungi")}</button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

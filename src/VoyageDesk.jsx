@@ -287,9 +287,13 @@ function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       } else if (e.key === "?") {
         e.preventDefault();
         setShowKeyHelp(p => !p);
-      } else if (e.key === "Escape") {
-        setShowKeyHelp(false);
       }
+      // Escape NON è più gestito qui: da quando l'overlay delle scorciatoie è
+      // un ui/Modal.jsx, la chiusura con Esc arriva dal guscio — e passa dalla
+      // pila dei modali aperti, che la consegna solo a quello in cima. Un
+      // secondo handler globale la chiuderebbe anche quando le sta sopra
+      // qualcos'altro, e comunque non scattava affatto mentre il focus era in
+      // un campo (il guard `inInput` qui sopra).
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);

@@ -2,7 +2,6 @@
 // Reducer dello stato applicativo estratto dal monolite (Step P Phase 2d).
 //
 // Contiene:
-//  - LOGGED_ACTIONS / buildLogEntry  → voci del log attività
 //  - baseReducer                     → logica pura di transizione dello state
 //  - ADMIN_ONLY_ACTIONS / reducer    → wrapper con pre-check permessi + logging
 //  - makeInitialState                → factory dell'initial state (mock o DB)
@@ -24,56 +23,16 @@ import {
   getMember, isAdmin,
   canAccessAdmin, canAccessListe, canViewTask, canEditTask, canCreateTaskCategory,
 } from "../lib/permissions.js";
+// Le voci del log attività (quali azioni ci finiscono e come si leggono) hanno
+// un file loro: non sono transizioni di stato, sono il dizionario che le
+// racconta. Vedi state/activityLog.js per il perché della separazione.
+import { LOGGED_ACTIONS, buildLogEntry } from "./activityLog.js";
 import { INITIAL_CATEGORIES } from "./taskCategories.js";
 import { demoState } from "./demoState.js";
 import { chiaveNome } from "../lib/clientNotes.js";
 
 // Utente di default in modalità demo (nessun login, dati mock).
 const DEMO_CURRENT_USER = "marco";
-
-// Azioni che generano una voce nel log attività
-const LOGGED_ACTIONS = new Set([
-  "ADD_TASK", "ADD_TASKS_BULK", "UPDATE_TASK", "MOVE_TASK", "ADD_COMMENT",
-  "DELETE_TASK", "RESTORE_TASK", "PURGE_TASK", "EMPTY_TRASH",
-  "ADD_TEAM_MEMBER", "UPDATE_TEAM_MEMBER", "APPROVE_TEAM_MEMBER", "TOGGLE_TEAM_MEMBER_ACTIVE", "REMOVE_TEAM_MEMBER",
-  "ADD_CATEGORY", "UPDATE_CATEGORY", "REMOVE_CATEGORY",
-  "RESTORE_BACKUP",
-  "ADD_NOTICE", "UPDATE_NOTICE", "DELETE_NOTICE",
-  "ADD_MESSAGE_TEMPLATE", "UPDATE_MESSAGE_TEMPLATE", "DELETE_MESSAGE_TEMPLATE",
-]);
-
-const buildLogEntry = (action, state) => {
-  const t = action.type;
-  const stamp = new Date().toISOString();
-  const taskOf = id => state.tasks.find(x => x.id === id)?.title || id;
-  const map = {
-    ADD_TASK: () => `Creato task "${action.payload.title}"`,
-    ADD_TASKS_BULK: () => `Creati ${action.payload.length} task in blocco`,
-    UPDATE_TASK: () => `Aggiornato task "${taskOf(action.payload.id)}"`,
-    MOVE_TASK: () => `Task "${taskOf(action.payload.taskId)}" spostato in ${STATUS_LABELS[action.payload.newStatus]}`,
-    ADD_COMMENT: () => `Commento su "${taskOf(action.payload.taskId)}"`,
-    DELETE_TASK: () => `Task "${taskOf(action.payload)}" nel cestino`,
-    RESTORE_TASK: () => `Ripristinato task "${taskOf(action.payload)}"`,
-    PURGE_TASK: () => `Eliminato definitivamente "${taskOf(action.payload)}"`,
-    EMPTY_TRASH: () => `Cestino svuotato`,
-    ADD_TEAM_MEMBER: () => `Aggiunto agente "${action.payload.name}"`,
-    UPDATE_TEAM_MEMBER: () => `Modificato agente "${action.payload.name || action.payload.id}"`,
-    APPROVE_TEAM_MEMBER: () => `Approvato agente "${getMember(state.team, action.payload)?.name || action.payload}"`,
-    TOGGLE_TEAM_MEMBER_ACTIVE: () => `Agente "${getMember(state.team, action.payload)?.name || action.payload}" attivato/disattivato`,
-    REMOVE_TEAM_MEMBER: () => `Rimosso agente "${getMember(state.team, action.payload)?.name || action.payload}"`,
-    ADD_CATEGORY: () => `Aggiunta categoria "${action.payload.label}"`,
-    UPDATE_CATEGORY: () => `Modificata categoria "${action.payload.key}"`,
-    REMOVE_CATEGORY: () => `Rimossa categoria "${action.payload}"`,
-    RESTORE_BACKUP: () => `Backup ripristinato`,
-    ADD_NOTICE: () => `Pubblicato avviso in bacheca`,
-    UPDATE_NOTICE: () => `Modificato avviso in bacheca`,
-    DELETE_NOTICE: () => `Rimosso avviso dalla bacheca`,
-    ADD_MESSAGE_TEMPLATE: () => `Template messaggio creato: "${action.payload?.label || ""}"`,
-    UPDATE_MESSAGE_TEMPLATE: () => `Template messaggio modificato`,
-    DELETE_MESSAGE_TEMPLATE: () => `Template messaggio rimosso`,
-  };
-  return { id: `log-${stamp}-${Math.random().toString(36).slice(2,7)}`, time: stamp, type: t, text: (map[t] || (() => t))() };
-};
 
 // Mantiene completedAt coerente lato app (UI ottimistica + modalità mock).
 // Sul DB la fonte di verità è il trigger set_task_completed_at; qui replichiamo
@@ -401,6 +360,18 @@ function baseReducer(state, action) {
       const tasks = state.tasks.filter(t => !purgeIds.has(t.id));
       return { ...state, tasks, toasts: pushToast(state.toasts, { message: `Cestino svuotato (${count} task eliminati)`, type: "success" }) };
     }
+    // Compensazione di EMPTY_TRASH (M-4): la `delete … in (…)` è atomica, quindi
+    // se fallisce sul server non è stato eliminato NIENTE e i task tolti in
+    // ottimistico vanno rimessi tutti. Arrivano come oggetti interi dallo stato
+    // pre-dispatch (vedi state/persistence.js): la purge non ha un inverso da
+    // cui rileggerli. Nessun toast, come ROLLBACK_TASKS_BULK — quello d'errore
+    // lo mostra già fail() in useSyncedDispatch.
+    case "ROLLBACK_EMPTY_TRASH": {
+      const presenti = new Set(state.tasks.map(t => t.id));
+      const tornati = (action.payload || []).filter(t => t?.id && !presenti.has(t.id));
+      if (!tornati.length) return state;
+      return { ...state, tasks: [...state.tasks, ...tornati] };
+    }
 
     // ─── ADMIN: TEAM ───
     // SET_TEAM: rimpiazza l'intero team con la lista fornita (idratazione o
@@ -717,6 +688,27 @@ function reducer(state, action) {
     return { ...state, toasts: pushToast(state.toasts, { message: "Solo Admin può eseguire questa azione", type: "error" }) };
   }
   const next = baseReducer(state, action);
+
+  // ─── COMPENSAZIONE (M-1) ───────────────────────────────────────────────────
+  // I rollback di useSyncedDispatch RIUSANO le action di mutazione: annullare
+  // un UPDATE_OWN_PROFILE fallito significa dispatchare un altro
+  // UPDATE_OWN_PROFILE con i valori di prima. Il case però non sa di essere una
+  // compensazione e accoda il suo toast di successo, quindi un salvataggio
+  // RIFIUTATO dal server produceva "Profilo aggiornato!" accanto a
+  // "Salvataggio fallito: …" — i due messaggi restano insieme nella pila (il
+  // cap è 3) e il primo è quello che l'utente crede. Stessa cosa per
+  // UPDATE_TEAM_MEMBER ("Agente aggiornato") e DELETE_CLIENT (via
+  // RESTORE_CLIENT, che invece è già silenzioso).
+  //
+  // Il flag lo mette l'orchestratore, non le entry del registry: è una
+  // proprietà del PERCORSO (siamo nel ramo d'errore), non dell'azione. Qui si
+  // riportano indietro i toast — la transizione di stato resta quella del case,
+  // che è esattamente ciò che il rollback vuole — e si salta il log attività:
+  // un annullamento tecnico non è un'azione che l'utente ha compiuto.
+  if (action.meta?.compensazione) {
+    return next === state ? state : { ...next, toasts: state.toasts };
+  }
+
   if (LOGGED_ACTIONS.has(action.type) && next !== state) {
     const entry = buildLogEntry(action, state);
     const activityLog = [entry, ...(next.activityLog || [])].slice(0, 100);

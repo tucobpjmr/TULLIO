@@ -4,7 +4,7 @@
 // che vedere. Qui dentro resta anche `dataUrlToBlob`, che è l'inverso esatto di
 // ciò che questo componente produce (toDataURL JPEG) e fuori da qui non ha senso.
 import { useState, useRef } from "react";
-import { Z } from "../../styles/tokens.js";
+import { Modal } from "../ui/Modal.jsx";
 
 // Converte un data-URL (prodotto dal crop canvas) in Blob per l'upload sul
 // bucket 'avatars'. Il crop emette sempre JPEG (toDataURL("image/jpeg")).
@@ -71,91 +71,92 @@ export const CropModal = ({ src, onConfirm, onCancel }) => {
   const imgL = PREVIEW / 2 + offset.x - (imgSize.w * totalScale) / 2;
   const imgT = PREVIEW / 2 + offset.y - (imgSize.h * totalScale) / 2;
 
+  // `layer="modalFull"`: il ritaglio si apre DA ProfileEditor (layer `modal`) e
+  // deve scavalcarlo, non finirci sotto. `closeOnOverlay={false}`: qui si
+  // trascina l'immagine per centrarla e il gesto finisce spesso col rilascio
+  // fuori dalla card — chiudere lì butterebbe via il ritaglio in corso.
   return (
-    <>
-      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: Z.modalFullBackdrop }} />
-      {/* Centratura con inset:0 + margin:auto invece di translate(-50%,-50%):
-          un transform != none renderebbe questa card containing block per i
-          discendenti position:fixed, che si posizionerebbero rispetto alla card
-          invece che allo schermo (vedi ui/ModalPortal.jsx per il meccanismo e
-          i casi in cui si è manifestato). Qui oggi non ci sono fixed annidati,
-          ma il crop è la card in cui è più probabile che ne arrivino. */}
-      <div style={{
-        position: "fixed", inset: 0, margin: "auto", height: "fit-content",
-        background: "var(--card)", borderRadius: 16, zIndex: Z.modalFull,
-        padding: "22px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 16,
-        width: 330, maxWidth: "calc(100vw - 32px)",
+    <Modal
+      open
+      onClose={onCancel}
+      labelledBy="vd-crop-title"
+      layer="modalFull"
+      width={330}
+      closeOnOverlay={false}
+      cardStyle={{
+        borderRadius: 16, padding: "22px 20px",
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 16,
         boxShadow: "0 24px 64px rgba(0,0,0,0.4)",
-      }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", alignSelf: "flex-start" }}>Ritaglia foto</div>
+      }}
+    >
+      <div id="vd-crop-title" style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", alignSelf: "flex-start" }}>Ritaglia foto</div>
 
-        {/* Circular crop preview */}
-        <div
-          onMouseDown={e => { e.preventDefault(); startDrag(e.clientX, e.clientY); }}
-          onMouseMove={e => moveDrag(e.clientX, e.clientY)}
-          onMouseUp={endDrag}
-          onMouseLeave={endDrag}
-          onTouchStart={e => { const t = e.touches[0]; startDrag(t.clientX, t.clientY); }}
-          onTouchMove={e => { const t = e.touches[0]; moveDrag(t.clientX, t.clientY); }}
-          onTouchEnd={endDrag}
+      {/* Circular crop preview */}
+      <div
+        onMouseDown={e => { e.preventDefault(); startDrag(e.clientX, e.clientY); }}
+        onMouseMove={e => moveDrag(e.clientX, e.clientY)}
+        onMouseUp={endDrag}
+        onMouseLeave={endDrag}
+        onTouchStart={e => { const t = e.touches[0]; startDrag(t.clientX, t.clientY); }}
+        onTouchMove={e => { const t = e.touches[0]; moveDrag(t.clientX, t.clientY); }}
+        onTouchEnd={endDrag}
+        style={{
+          width: PREVIEW, height: PREVIEW, borderRadius: "50%", overflow: "hidden",
+          position: "relative", cursor: "grab", userSelect: "none",
+          border: "3px solid var(--gold)", boxShadow: "0 0 0 5px rgba(212,168,67,0.18)",
+          flexShrink: 0,
+        }}
+      >
+        <img
+          ref={imgRef}
+          src={src}
+          alt=""
+          onLoad={handleLoad}
+          draggable={false}
           style={{
-            width: PREVIEW, height: PREVIEW, borderRadius: "50%", overflow: "hidden",
-            position: "relative", cursor: "grab", userSelect: "none",
-            border: "3px solid var(--gold)", boxShadow: "0 0 0 5px rgba(212,168,67,0.18)",
-            flexShrink: 0,
+            position: "absolute",
+            width: imgSize.w * totalScale,
+            height: imgSize.h * totalScale,
+            left: imgL, top: imgT,
+            pointerEvents: "none", userSelect: "none",
           }}
-        >
-          <img
-            ref={imgRef}
-            src={src}
-            alt=""
-            onLoad={handleLoad}
-            draggable={false}
-            style={{
-              position: "absolute",
-              width: imgSize.w * totalScale,
-              height: imgSize.h * totalScale,
-              left: imgL, top: imgT,
-              pointerEvents: "none", userSelect: "none",
-            }}
-          />
+        />
+      </div>
+
+      {/* Zoom slider */}
+      <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 5 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5 }}>
+          <span>ZOOM</span><span>{Math.round(zoom * 100)}%</span>
         </div>
-
-        {/* Zoom slider */}
-        <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 5 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5 }}>
-            <span>ZOOM</span><span>{Math.round(zoom * 100)}%</span>
-          </div>
-          <input
-            type="range" min={100} max={300} value={Math.round(zoom * 100)}
-            onChange={e => {
-              const z = parseInt(e.target.value) / 100;
-              const ts = baseScale * z;
-              setZoom(z);
-              setOffset(prev => clamp(prev, ts));
-            }}
-            style={{ width: "100%", cursor: "pointer", accentColor: "var(--gold)" }}
-          />
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-muted)" }}>
-            <span>1×</span><span>3×</span>
-          </div>
-        </div>
-
-        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Trascina per centrare • usa lo slider per zoomare</div>
-
-        <canvas ref={canvasRef} style={{ display: "none" }} />
-
-        <div style={{ display: "flex", gap: 10, width: "100%" }}>
-          <button onClick={onCancel} style={{
-            flex: 1, background: "var(--card)", color: "var(--text)", border: "1px solid var(--border)",
-            padding: "10px 0", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit",
-          }}>Annulla</button>
-          <button onClick={handleConfirm} style={{
-            flex: 1, background: "var(--navy)", color: "#fff", border: "none",
-            padding: "10px 0", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: "inherit",
-          }}>✓ Conferma</button>
+        <input
+          type="range" min={100} max={300} value={Math.round(zoom * 100)}
+          onChange={e => {
+            const z = parseInt(e.target.value) / 100;
+            const ts = baseScale * z;
+            setZoom(z);
+            setOffset(prev => clamp(prev, ts));
+          }}
+          style={{ width: "100%", cursor: "pointer", accentColor: "var(--gold)" }}
+        />
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-muted)" }}>
+          <span>1×</span><span>3×</span>
         </div>
       </div>
-    </>
+
+      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Trascina per centrare • usa lo slider per zoomare</div>
+
+      <canvas ref={canvasRef} style={{ display: "none" }} />
+
+      <div style={{ display: "flex", gap: 10, width: "100%" }}>
+        <button onClick={onCancel} style={{
+          flex: 1, background: "var(--card)", color: "var(--text)", border: "1px solid var(--border)",
+          padding: "10px 0", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+        }}>Annulla</button>
+        <button onClick={handleConfirm} style={{
+          flex: 1, background: "var(--navy)", color: "#fff", border: "none",
+          padding: "10px 0", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: "inherit",
+        }}>✓ Conferma</button>
+      </div>
+    </Modal>
   );
 };

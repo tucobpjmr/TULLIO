@@ -9,7 +9,7 @@ import { PasswordField } from "../ui/PasswordField.jsx";
 import { useAvatarSrc } from "../ui/Avatar.jsx";
 import { validaCampi, emailValida, obbligatorio, primoCampoInvalido } from "../../lib/validators.js";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
-import { Z } from "../../styles/tokens.js";
+import { Modal } from "../ui/Modal.jsx";
 import { roleLabel } from "../../lib/taskConstants.js";
 
 import { CropModal, dataUrlToBlob } from "./CropModal.jsx";
@@ -232,15 +232,19 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
           onCancel={() => setCropSrc(null)}
         />
       )}
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,32,68,0.4)", zIndex: Z.modalBackdrop }} />
-      {/* Stessa centratura senza transform della CropModal qui sopra. */}
-      <div className="vd-modal-mh" style={{
-        position: "fixed", inset: 0, margin: "auto", height: "fit-content",
-        background: "var(--card)", borderRadius: 16, zIndex: Z.modal,
-        width: isMobile ? "calc(100vw - 32px)" : 480, maxWidth: "100%",
-        overflowY: "auto",
-        boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-      }}>
+      {/* `closeOnOverlay={false}`: questo form ha sei campi, due sotto-form e
+          nessun salvataggio automatico — un click di troppo sul velo buttava via
+          tutto senza chiedere. Si chiude da ✕, da Annulla o con Esc, che la pila
+          di ui/Modal.jsx consegna al modale in cima (la CropModal, quando è
+          aperta). */}
+      <Modal
+        open
+        onClose={onClose}
+        labelledBy="vd-profile-title"
+        width={isMobile ? "calc(100vw - 32px)" : 480}
+        closeOnOverlay={false}
+        cardStyle={{ borderRadius: 16, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}
+      >
         {/* Header */}
         <div style={{
           background: "var(--navy)", padding: "20px 22px",
@@ -260,7 +264,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
               }}>{initials}</div>
             )}
             <div>
-              <div className="playfair" style={{ fontSize: 18, fontWeight: 700, color: "#fff" }}>Modifica profilo</div>
+              <div id="vd-profile-title" className="playfair" style={{ fontSize: 18, fontWeight: 700, color: "#fff" }}>Modifica profilo</div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>{roleLabel(member)}</div>
             </div>
           </div>
@@ -504,7 +508,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
             }}
           >✓ Salva profilo</button>
         </div>
-      </div>
+      </Modal>
     </>
   );
 };

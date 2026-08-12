@@ -70,6 +70,14 @@ const NOOP = { error: null };
 
 const findTask = (state, id) => (state.tasks || []).find(t => t.id === id);
 
+// I task che EMPTY_TRASH deve davvero eliminare: cestinati E gestibili
+// dall'utente corrente. Una definizione sola, letta da `persist` e da
+// `rollback`, perché le due devono parlare esattamente dello stesso insieme —
+// e perché è lo stesso filtro che il reducer applica allo state (vedi il case
+// EMPTY_TRASH e src/test/persistenceGuards.test.js).
+const daPurgare = (s, uid) =>
+  (s.tasks || []).filter(t => t.deletedAt && canEditTask(s.team, t, uid));
+
 // Riconosce l'errore "questa colonna non esiste" da PostgREST (PGRST204, schema
 // cache) o da Postgres (42703, undefined_column). Serve a distinguere uno schema
 // non ancora migrato da un errore vero, che va invece mostrato all'utente.
@@ -173,12 +181,34 @@ export const PERSISTENCE = {
   // Il filtro DEVE coincidere con quello del reducer: altrimenti un utente
   // non-admin, che nel proprio Cestino vede solo un sottoinsieme dei task,
   // finirebbe per farne eliminare sul DB anche di altri. Ora entrambi passano
-  // per canEditTask(state.team, …) e persistenceGuards.test.js lo verifica.
+  // per daPurgare() → canEditTask(state.team, …) e persistenceGuards.test.js lo
+  // verifica.
+  //
+  // M-4 dell'audit del 12 agosto. Prima: `Promise.all(ids.map(hardDelete))`,
+  // cioè tre round-trip per task tutti in volo insieme (180 richieste su un
+  // cestino da 60), nessuna atomicità e NESSUN rollback. Un fallimento a metà
+  // — RLS, rete, una riga referenziata — lasciava parte dei task eliminati sul
+  // server e il cestino svuotato per intero in UI, cioè la divergenza fra
+  // schermo e database che questo registry esiste per chiudere, sull'unica
+  // azione dell'app che è irreversibile per definizione.
+  //
+  // Ora è UNA `delete … in (…)`: o cadono tutte o nessuna. È quella atomicità a
+  // rendere sensato il rollback qui sotto — con la cancellazione parziale di
+  // prima, rimettere in lista TUTTI i task avrebbe mostrato come presenti anche
+  // quelli che sul server erano già spariti.
   EMPTY_TRASH: {
     persist: (s, a, uid) => {
-      const ids = (s.tasks || []).filter(t => t.deletedAt && canEditTask(s.team, t, uid)).map(t => t.id);
-      return ids.length ? Promise.all(ids.map(id => TasksAPI.hardDelete(id))) : NOOP;
+      const ids = daPurgare(s, uid).map(t => t.id);
+      return ids.length ? TasksAPI.hardDeleteMany(ids) : NOOP;
     },
+    // `s` è lo stato PRE-dispatch: i task cestinati ci sono ancora tutti, con
+    // ogni loro campo. Si rimettono quelli — non un id, l'oggetto intero —
+    // perché la purge non ha un inverso sul server da cui rileggerli.
+    rollback: (s) => {
+      const tornati = daPurgare(s, s.currentUserId);
+      return tornati.length ? { type: "ROLLBACK_EMPTY_TRASH", payload: tornati } : null;
+    },
+    mapError: (err) => err?.message || "cestino non svuotato",
   },
 
   ADD_COMMENT: {

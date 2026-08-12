@@ -38,8 +38,34 @@
 // dei due prova che qualcosa sia stato perso, ma il costo di un reload di
 // troppo è una query; il costo di un reload mancato è dati muti finché
 // l'utente non ricarica la pagina a mano.
+//
+// ─── M-3 · il ritorno in primo piano ha una SOGLIA ─────────────────────────
+// "Il costo è una query" era vero per una sottoscrizione sola. Ma di questo
+// hook ce ne sono NOVE istanze vive insieme (sei in useAppHydration, più chat,
+// notifiche e liste viaggio), e ognuna ricarica le proprie tabelle INTERE: un
+// singolo `visibilitychange` verso `visible` costava quindi nove SELECT
+// complete, task e messaggi compresi. Su mobile quell'evento non significa
+// affatto "sono stato via a lungo": lo emettono il commutatore di app, la
+// tendina delle notifiche, il selettore di file, il picker della fotocamera —
+// cioè proprio i gesti con cui si allega un file o si risponde a una notifica,
+// più volte nella stessa manciata di secondi.
+//
+// Un buco di consegna richiede però che il websocket sia caduto, e non cade
+// perché la tab è passata in secondo piano per due secondi. Teniamo quindi il
+// momento in cui si è passati a `hidden` e ricarichiamo solo se la pausa è
+// stata abbastanza lunga da poter aver droppato il socket. Sotto la soglia non
+// si perde nulla: la sottoscrizione era viva per tutto il tempo e gli eventi
+// sono arrivati normalmente. `online` resta invece senza soglia — lì la
+// caduta della rete è un fatto, non un'euristica.
 import { useEffect, useRef } from "react";
 import { subscribeToTable } from "../lib/api.js";
+
+// Quanto deve essere durata la permanenza in secondo piano perché il ritorno
+// valga come possibile buco di consegna. Trenta secondi: sopra c'è il
+// congelamento dei timer/socket che i browser mobili applicano alle tab
+// nascoste, sotto ci sono i gesti di pochi secondi (allega file, leggi una
+// notifica, cambia app e torna) durante i quali il canale resta agganciato.
+export const SOGLIA_RIPRESA_MS = 30_000;
 
 export function useDebouncedTableSubscription(
   tables,
@@ -110,8 +136,21 @@ export function useDebouncedTableSubscription(
       reconnectTimer = setTimeout(() => run(null), 300);
     };
     const onOnline = () => onReconnectSignal();
+
+    // `null` = non siamo (mai stati) in secondo piano da quando l'effetto è
+    // partito. Se il montaggio avviene a scheda già nascosta partiamo dal
+    // momento del montaggio: prima non c'era nulla da perdere, la
+    // sottoscrizione non esisteva.
+    let nascostoDa = document.visibilityState === "hidden" ? Date.now() : null;
     const onVisibility = () => {
-      if (document.visibilityState === "visible") onReconnectSignal();
+      if (document.visibilityState === "hidden") {
+        nascostoDa = Date.now();
+        return;
+      }
+      const pausa = nascostoDa === null ? 0 : Date.now() - nascostoDa;
+      nascostoDa = null;
+      if (pausa < SOGLIA_RIPRESA_MS) return;
+      onReconnectSignal();
     };
     window.addEventListener("online", onOnline);
     document.addEventListener("visibilitychange", onVisibility);

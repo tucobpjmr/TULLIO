@@ -9,10 +9,10 @@ import { renderHook, act } from "@testing-library/react";
 vi.mock("../lib/api.js", () => {
   const ok = () => Promise.resolve({ data: null, error: null });
   return {
-    Tasks:      { create: vi.fn(ok), createMany: vi.fn(ok), update: vi.fn(ok), softDelete: vi.fn(ok), restore: vi.fn(ok), hardDelete: vi.fn(ok) },
+    Tasks:      { create: vi.fn(ok), createMany: vi.fn(ok), update: vi.fn(ok), softDelete: vi.fn(ok), restore: vi.fn(ok), hardDelete: vi.fn(ok), hardDeleteMany: vi.fn(ok) },
     Comments:   { create: vi.fn(ok) },
     Notices:    { create: vi.fn(ok), update: vi.fn(ok), remove: vi.fn(ok), togglePin: vi.fn(ok) },
-    Users:      { approve: vi.fn(ok), deleteUser: vi.fn(ok), setActive: vi.fn(ok) },
+    Users:      { approve: vi.fn(ok), deleteUser: vi.fn(ok), setActive: vi.fn(ok), updateProfile: vi.fn(ok), updateContact: vi.fn(ok) },
     Clients:    { create: vi.fn(ok), update: vi.fn(ok), remove: vi.fn(ok) },
     Categories: { create: vi.fn(ok), update: vi.fn(ok), remove: vi.fn(ok) },
   };
@@ -20,7 +20,7 @@ vi.mock("../lib/api.js", () => {
 
 const { useSyncedDispatch } = await import("../hooks/useSyncedDispatch.js");
 const { makeInitialState } = await import("../state/reducer.js");
-const { Tasks: TasksAPI, Clients: ClientsAPI } = await import("../lib/api.js");
+const { Tasks: TasksAPI, Clients: ClientsAPI, Users: UsersAPI } = await import("../lib/api.js");
 
 const TEAM = [
   { id: "admin1",  name: "Admin",  role: "Admin",        active: true, pending: false },
@@ -182,7 +182,9 @@ describe("useSyncedDispatch — fallimenti di persistenza", () => {
     await act(async () => { await dispatch({ type: "DELETE_CLIENT", payload: "c1" }); });
 
     const azioni = azioniDispatchate(rawDispatch);
-    expect(azioni[1]).toEqual({ type: "RESTORE_CLIENT", payload: cliente });
+    expect(azioni[1]).toEqual({
+      type: "RESTORE_CLIENT", payload: cliente, meta: { compensazione: true },
+    });
     expect(azioni[2].payload.message).toMatch(/liste viaggio collegate/i);
     expect(azioni[2].payload.message).not.toMatch(/foreign key/i);
   });
@@ -198,9 +200,57 @@ describe("useSyncedDispatch — fallimenti di persistenza", () => {
   });
 
   it("in un Promise.all basta un errore per far scattare la gestione", async () => {
-    TasksAPI.hardDelete
+    // RENAME_CLIENT_IN_TASKS resta una delle entry che ventilano N update in
+    // parallelo: l'orchestratore deve accorgersi dell'errore anche quando è
+    // sepolto in mezzo a un array di esiti riusciti.
+    TasksAPI.update
       .mockResolvedValueOnce({ error: null })
       .mockResolvedValueOnce({ error: { message: "riga bloccata" } });
+    const tasks = [
+      task({ id: uuid(1), client: "Rossi Mario", assignees: ["junior1"] }),
+      task({ id: uuid(2), client: "rossi  mario", assignees: ["junior1"] }),
+    ];
+    const { dispatch, rawDispatch } = setup({ tasks });
+
+    await act(async () => {
+      await dispatch({ type: "RENAME_CLIENT_IN_TASKS", payload: { from: "Rossi Mario", to: "Bianchi" } });
+    });
+
+    const toast = azioniDispatchate(rawDispatch).find(a => a.type === "SHOW_TOAST");
+    expect(toast.payload.message).toContain("riga bloccata");
+  });
+
+  // ─── M-1 · i rollback non si annunciano come successi ─────────────────────
+  // Il rollback di UPDATE_OWN_PROFILE è un altro UPDATE_OWN_PROFILE: il case
+  // del reducer non sa di essere una compensazione e accodava il proprio
+  // "Profilo aggiornato!" accanto all'errore, che nella pila (cap 3) restano
+  // fianco a fianco — e il primo è quello a cui l'utente crede. Il flag lo
+  // mette l'orchestratore perché descrive il percorso, non l'azione.
+  it("marca il rollback con meta.compensazione", async () => {
+    UsersAPI.updateProfile.mockResolvedValueOnce({ error: { message: "rls" } });
+    const { dispatch, rawDispatch } = setup();
+
+    await act(async () => {
+      await dispatch({ type: "UPDATE_OWN_PROFILE", payload: { name: "Nuovo" } });
+    });
+
+    const undo = azioniDispatchate(rawDispatch).find(
+      (a, i) => i > 0 && a.type === "UPDATE_OWN_PROFILE",
+    );
+    expect(undo?.meta?.compensazione).toBe(true);
+  });
+
+  it("l'azione originale NON è marcata come compensazione", async () => {
+    const { dispatch, rawDispatch } = setup();
+    await act(async () => {
+      await dispatch({ type: "UPDATE_OWN_PROFILE", payload: { name: "Nuovo" } });
+    });
+    expect(azioniDispatchate(rawDispatch)[0].meta).toBeUndefined();
+  });
+
+  // ─── M-4 · EMPTY_TRASH ────────────────────────────────────────────────────
+  it("EMPTY_TRASH purga in blocco e, se fallisce, rimette i task in lista", async () => {
+    TasksAPI.hardDeleteMany.mockResolvedValueOnce({ error: { message: "riga bloccata" } });
     const cestinati = [
       { ...task({ id: uuid(1) }), deletedAt: "2026-01-01T10:00:00Z" },
       { ...task({ id: uuid(2) }), deletedAt: "2026-01-01T10:00:00Z" },
@@ -209,8 +259,64 @@ describe("useSyncedDispatch — fallimenti di persistenza", () => {
 
     await act(async () => { await dispatch({ type: "EMPTY_TRASH" }); });
 
-    const toast = azioniDispatchate(rawDispatch).find(a => a.type === "SHOW_TOAST");
-    expect(toast.payload.message).toContain("riga bloccata");
+    // Una chiamata sola con tutti gli id, non una per task.
+    expect(TasksAPI.hardDeleteMany).toHaveBeenCalledTimes(1);
+    expect(TasksAPI.hardDeleteMany.mock.calls[0][0]).toEqual([uuid(1), uuid(2)]);
+
+    const azioni = azioniDispatchate(rawDispatch);
+    const undo = azioni.find(a => a.type === "ROLLBACK_EMPTY_TRASH");
+    // Gli oggetti interi, non gli id: la purge non ha un inverso sul server da
+    // cui rileggere i task.
+    expect(undo.payload.map(t => t.id)).toEqual([uuid(1), uuid(2)]);
+    expect(undo.meta.compensazione).toBe(true);
+    expect(azioni.find(a => a.type === "SHOW_TOAST").payload.message).toContain("riga bloccata");
+  });
+
+  it("EMPTY_TRASH riuscito non dispatcha nessun rollback", async () => {
+    const cestinati = [{ ...task({ id: uuid(1) }), deletedAt: "2026-01-01T10:00:00Z" }];
+    const { dispatch, rawDispatch } = setup({ tasks: cestinati });
+
+    await act(async () => { await dispatch({ type: "EMPTY_TRASH" }); });
+
+    expect(azioniDispatchate(rawDispatch).map(a => a.type)).toEqual(["EMPTY_TRASH"]);
+  });
+
+  // ─── Suggerimento strategico n. 3 · TOGGLE_TEAM_MEMBER_ACTIVE ──────────────
+  // "Disattivare" ora chiama la Edge Function set-user-active (ban lato auth),
+  // non più una scrittura diretta sulla tabella: qui si copre l'orchestrazione
+  // vera, dal guard al rollback, passando dallo stesso useSyncedDispatch che
+  // gira in produzione.
+  it("un admin disattiva un altro membro: la Edge Function riceve l'id giusto", async () => {
+    const { dispatch, rawDispatch } = setup();
+    await act(async () => { await dispatch({ type: "TOGGLE_TEAM_MEMBER_ACTIVE", payload: "junior1" }); });
+
+    expect(UsersAPI.setActive).toHaveBeenCalledWith("junior1", false); // junior1 parte attivo
+    expect(azioniDispatchate(rawDispatch).map(a => a.type)).toEqual(["TOGGLE_TEAM_MEMBER_ACTIVE"]);
+  });
+
+  it("un admin non può disattivare se stesso: il guard blocca PRIMA della rete", async () => {
+    const { dispatch, rawDispatch } = setup();
+    await act(async () => { await dispatch({ type: "TOGGLE_TEAM_MEMBER_ACTIVE", payload: "admin1" }); });
+
+    expect(UsersAPI.setActive).not.toHaveBeenCalled();
+    const azioni = azioniDispatchate(rawDispatch);
+    expect(azioni).toHaveLength(1);
+    expect(azioni[0]).toEqual({ type: "TOGGLE_TEAM_MEMBER_ACTIVE", payload: "admin1" });
+  });
+
+  it("se la Edge Function fallisce, il rollback ritoggla e si marca come compensazione", async () => {
+    UsersAPI.setActive.mockResolvedValueOnce({ error: { message: "sessione non revocata" } });
+    const { dispatch, rawDispatch } = setup();
+
+    await act(async () => { await dispatch({ type: "TOGGLE_TEAM_MEMBER_ACTIVE", payload: "junior1" }); });
+
+    const azioni = azioniDispatchate(rawDispatch);
+    const undo = azioni.find((a, i) => i > 0 && a.type === "TOGGLE_TEAM_MEMBER_ACTIVE");
+    expect(undo).toEqual({
+      type: "TOGGLE_TEAM_MEMBER_ACTIVE", payload: "junior1",
+      meta: { compensazione: true },
+    });
+    expect(azioni.find(a => a.type === "SHOW_TOAST").payload.message).toContain("sessione non revocata");
   });
 });
 

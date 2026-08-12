@@ -116,14 +116,14 @@ admin" in due linguaggi, senza nessun test che le metta l'una accanto all'altra
 | **A-1** | 🟠 Alta | Persistenza / integrità | `messageTemplates`, `activityLog` e `agencyName` non sono persistiti e non hanno tabella, ma la UI conferma con un toast di successo. Il "Log attività" è per-scheda ed esportabile in CSV come se fosse un audit trail | `state/reducer.js:475-477,509-511,620-640,691-703` · `state/persistence.js` (entry assenti) · `components/admin/tabs/AdminLogTab.jsx` |
 | **A-2** | 🟠 Alta | Integrità dati | `ADD_CLIENTS_BULK` scrive con `Promise.all(map(create))`: N richieste, non atomico, **nessun rollback**. È il percorso dell'import anagrafica (centinaia di righe per file) | `state/persistence.js:234-242` · `components/clients/ClientiView.jsx:333` |
 | **A-3** | 🟠 Alta | Scalabilità | `Tasks.list()` senza paginazione né `count`, con join annidati e cestino incluso: stesso troncamento silenzioso che ST-3 ha chiuso per i clienti | `lib/api.js:212-217` · `hooks/useAppHydration.js:134` |
-| **M-1** | 🟡 Media | Correttezza / UX | I rollback riusano le action di mutazione, che emettono un toast di **successo**: un salvataggio fallito mostra "Profilo aggiornato!" accanto all'errore | `state/persistence.js:346-349,430-446` · `state/reducer.js:434,674` |
-| **M-2** | 🟡 Media | Duplicazione / a11y | Sette overlay modali scritti a mano bypassano `ui/Modal.jsx`: zero `role="dialog"`, zero `aria-modal`, nessuna chiusura con Esc, nessun blocco dello scroll. ST-5 ha chiuso lo stesso difetto **solo dentro il modulo Liste** | `modals/ProfileEditor.jsx:235-243` · `modals/CropModal.jsx:76-88` · `clients/ClienteModal.jsx:75` · `chat/ForwardPicker.jsx:41` · `ui/KeyboardHelpOverlay.jsx:16` · `views/Trash.jsx:276-290` · `clients/ClientiView.jsx:349` |
-| **M-3** | 🟡 Media | Performance / rete | `visibilitychange` e `online` fanno ripartire un reload **completo** di ogni sottoscrizione: 7 hook, quindi ~7 refetch di tabella intera a ogni ritorno in primo piano, anche dopo due secondi in background | `hooks/useDebouncedTableSubscription.js:100-117` |
-| **M-4** | 🟡 Media | Scalabilità | `EMPTY_TRASH` esegue N `hardDelete`, ciascuna con select + rimozione storage + delete: 3N round-trip in parallelo, nessun rollback, nessun resoconto parziale | `state/persistence.js:176-181` · `lib/api.js:244-258` |
-| **M-5** | 🟡 Media | Render | `unreadChat` è ricalcolato nel corpo di `useChatData` a ogni render del guscio — quindi a **ogni carattere digitato nella ricerca** — scandendo fino a 2000 messaggi per conversazione | `hooks/useChatData.js:112-115` |
-| **B-1** | 🟢 Bassa | Anti-pattern React | `useNotifications` cattura lo snapshot di rollback **dentro** l'updater di `setState` (updater impuro): è il pattern da cui `chatCommands` è stato rifattorizzato via | `hooks/useNotifications.js:61-85` |
+| **M-1** | ~~🟡 Media~~ ✔ **risolto** | Correttezza / UX | I rollback riusano le action di mutazione, che emettono un toast di **successo**: un salvataggio fallito mostra "Profilo aggiornato!" accanto all'errore | `state/persistence.js:346-349,430-446` · `state/reducer.js:434,674` |
+| **M-2** | ~~🟡 Media~~ ✔ **risolto** | Duplicazione / a11y | Sette overlay modali scritti a mano bypassano `ui/Modal.jsx`: zero `role="dialog"`, zero `aria-modal`, nessuna chiusura con Esc, nessun blocco dello scroll. ST-5 ha chiuso lo stesso difetto **solo dentro il modulo Liste** | `modals/ProfileEditor.jsx:235-243` · `modals/CropModal.jsx:76-88` · `clients/ClienteModal.jsx:75` · `chat/ForwardPicker.jsx:41` · `ui/KeyboardHelpOverlay.jsx:16` · `views/Trash.jsx:276-290` · `clients/ClientiView.jsx:349` |
+| **M-3** | ~~🟡 Media~~ ✔ **risolto** | Performance / rete | `visibilitychange` e `online` fanno ripartire un reload **completo** di ogni sottoscrizione: 7 hook, quindi ~7 refetch di tabella intera a ogni ritorno in primo piano, anche dopo due secondi in background | `hooks/useDebouncedTableSubscription.js:100-117` |
+| **M-4** | ~~🟡 Media~~ ✔ **risolto** | Scalabilità | `EMPTY_TRASH` esegue N `hardDelete`, ciascuna con select + rimozione storage + delete: 3N round-trip in parallelo, nessun rollback, nessun resoconto parziale | `state/persistence.js:176-181` · `lib/api.js:244-258` |
+| **M-5** | ~~🟡 Media~~ ✔ **risolto** | Render | `unreadChat` è ricalcolato nel corpo di `useChatData` a ogni render del guscio — quindi a **ogni carattere digitato nella ricerca** — scandendo fino a 2000 messaggi per conversazione | `hooks/useChatData.js:112-115` |
+| **B-1** | ~~🟢 Bassa~~ ✔ **risolto** | Anti-pattern React | `useNotifications` cattura lo snapshot di rollback **dentro** l'updater di `setState` (updater impuro): è il pattern da cui `chatCommands` è stato rifattorizzato via | `hooks/useNotifications.js:61-85` |
 | **B-2** | 🟢 Bassa | Dipendenze | `xlsx@0.18.5` con due CVE note, mitigate in-app ma non risolte: la migrazione al tarball CDN resta bloccata dalla egress policy | `package.json:29` · `lib/xlsx.js:1-40` |
-| **B-3** | 🟢 Bassa | Config | `leaked_password_protection` ancora disabilitata (già ST-14 / B-2, riportato qui solo per continuità) | dashboard Supabase |
+| **B-3** | ~~🟢 Bassa~~ ✔ **accettato** | Config | `leaked_password_protection` disabilitata di proposito (già ST-14 / B-2): richiede il piano Supabase Pro, il progetto resta sul Free per scelta | dashboard Supabase |
 
 ---
 
@@ -971,7 +971,7 @@ fallisce il giorno in cui qualcuno aggiunge la quarta impostazione locale che si
 dichiara salvata. E la marcatura `action.rollback` di M-1 rende la stessa
 invariante vera anche nel percorso d'errore.
 
-### 3. Portare il gate `active` dove la sessione lo sente: revocare, non solo disattivare
+### 3. Portare il gate `active` dove la sessione lo sente: revocare, non solo disattivare — ✔ **fatto e deployato il 12 agosto**, vedi §6-quater
 
 **Il problema che risolve.** C-1 mostra un caso particolare di un difetto più
 generale: `public.users.active = false` è un flag **applicativo**, e
@@ -1004,10 +1004,9 @@ concedere.
 
 ## 6. Stato dei rilievi
 
-Nessuno ancora chiuso: questo documento è l'analisi, non la correzione. Come per
-gli audit precedenti, questa sezione va aggiornata **nello stesso commit** che
-chiude un rilievo — è la disciplina che ST-13 ha introdotto e che
-`npm run verifica:convenzioni` ora presidia.
+Questa sezione va aggiornata **nello stesso commit** che chiude un rilievo — è
+la disciplina che ST-13 ha introdotto e che `npm run verifica:convenzioni` ora
+presidia.
 
 | Rilievo | Stato |
 |---|---|
@@ -1015,8 +1014,214 @@ chiude un rilievo — è la disciplina che ST-13 ha introdotto e che
 | **A-1** | ✔ **corretto e deployato in produzione l'11 agosto** — tabella `message_templates` + registry + idratazione (a), nota di onestà in `AdminLogTab` (b) |
 | **A-2** | ✔ **corretto nel repo l'11 agosto** — `ClientsAPI.createMany` a blocchi + `ROLLBACK_CLIENTS_BULK` (codice applicativo, nessun deploy separato: arriva con il merge) |
 | A-3 | 🟠 aperto |
-| M-1 … M-5 | 🟡 aperti |
-| B-1, B-2, B-3 | 🟢 aperti |
+| **M-1 … M-5** | ✔ **corretti nel repo il 12 agosto** — vedi §6-bis |
+| **B-1** | ✔ **corretto nel repo il 12 agosto** — vedi §6-bis |
+| B-2 | 🟢 aperto — **non correggibile da questo repo**, e il 12 agosto è stato riverificato che il blocco persiste: vedi §6-ter |
+| **B-3** | ~~🟢 aperto~~ ✔ **accettato il 12 agosto** — richiede il piano Supabase Pro, il progetto resta sul Free per scelta: vedi §6-ter |
+| **Suggerimento strategico n. 3** (§5) | ✔ **fatto e deployato in produzione il 12 agosto** — Edge Function `set-user-active`, vedi §6-quater |
+
+---
+
+## 6-bis. M-1 … M-5 e B-1 — cosa è stato fatto (12 agosto)
+
+Tutti e sei sono codice applicativo: arrivano con il merge, nessun deploy
+separato. Suite a **1119 test verdi** (94 in più della baseline), `npm run lint`
+e `npm run verifica:convenzioni` puliti.
+
+### M-1 — i rollback non si annunciano come successi
+
+Il difetto non era in una singola entry, era nel fatto che **la stessa action è
+una mutazione quando la chiede l'utente e una compensazione quando la chiede il
+ramo d'errore** — e nulla nel dispatch distingueva i due casi. Correggerlo entry
+per entry (una `ROLLBACK_OWN_PROFILE`, una `ROLLBACK_TEAM_MEMBER`…) avrebbe
+duplicato ogni case del reducer per la sua versione muta.
+
+La correzione è un flag messo dall'**orchestratore**, non dalle entry, perché
+descrive il percorso e non l'azione (`hooks/useSyncedDispatch.js`):
+
+```js
+if (undo) rawDispatch({ ...undo, meta: { ...undo.meta, compensazione: true } });
+```
+
+e letto in **un punto solo**, il wrapper `reducer` (`state/reducer.js`): la
+transizione di stato resta quella del case — è esattamente ciò che il rollback
+vuole — mentre i toast tornano quelli di prima e non viene scritta alcuna voce
+nel log attività, perché un annullamento tecnico non è un'azione che l'utente ha
+compiuto. Vale da subito per **tutti** i rollback, compresi quelli aggiunti
+dopo. Coperto da `reducer.test.js` (4 casi) e `syncedDispatch.test.jsx` (2).
+
+### M-2 — otto overlay a mano, non sette
+
+Convertiti a `ui/Modal.jsx`: `ProfileEditor`, `CropModal`, `NoticeEditorModal`,
+`Trash` (ripristino), `ForwardPicker`, `KeyboardHelpOverlay`, `ClienteModal` e
+la conferma di eliminazione in `ClientiView` — l'ottavo che la tabella di §2 non
+contava. Nessun `Z.*` resta importato in quei file: il livello lo decide il
+guscio (`layer="modal"` / `"modalFull"`).
+
+Un difetto è emerso **dalla** conversione, ed è la ragione per cui `Modal.jsx`
+non è rimasto invariato: il listener di Esc è su `window`, quindi ogni modale
+montato riceve lo stesso keydown. Con i modali annidati che l'app ha davvero —
+la `CropModal` si apre da `ProfileEditor`, una `ConfirmDialog` dall'import
+clienti — **un Esc per annullare il ritaglio avrebbe chiuso anche il form
+sotto**, con quello che c'era scritto. `Modal.jsx` tiene ora una pila dei modali
+aperti e consegna Esc solo a quello in cima; `onClose` sta in un ref così un
+re-render del genitore non fa risalire in cima quello sotto. Quattro casi in
+`modal.test.jsx`.
+
+Dove il form ha contenuto da perdere (profilo, avviso, ripristino task, scheda
+cliente, ritaglio) il click sull'overlay **non** chiude più: `closeOnOverlay={false}`.
+Prima chiudeva, ed era il modo più rapido di buttare via dieci campi compilati.
+
+`VoyageDesk.jsx` non gestisce più Escape a mano per l'overlay delle scorciatoie:
+lo faceva **fuori** dalla pila e non scattava affatto mentre il focus era in un
+campo.
+
+### M-3 — il ritorno in primo piano ha una soglia
+
+`visibilitychange → visible` non significa "sono stato via a lungo": su mobile
+lo emettono il commutatore di app, la tendina delle notifiche, il selettore di
+file e il picker della fotocamera — cioè proprio i gesti con cui si allega un
+file o si risponde a una notifica, più volte in pochi secondi. Con **nove**
+istanze dell'hook vive insieme (sei in `useAppHydration`, più chat, notifiche e
+liste viaggio), ognuno di quei ritorni costava nove SELECT di tabella intera.
+
+`useDebouncedTableSubscription` tiene ora il momento del passaggio a `hidden` e
+ricarica solo se la pausa ha superato `SOGLIA_RIPRESA_MS` (30 s): sopra c'è il
+congelamento di timer e socket che i browser mobili applicano alle tab nascoste,
+sotto c'è una finestra in cui il canale è rimasto agganciato e **non si è perso
+nulla**. `online` resta senza soglia: lì la caduta della rete è un fatto, non
+un'euristica. Tre casi nuovi in `realtimeReconnect.test.jsx`.
+
+### M-4 — `EMPTY_TRASH` in una sola istruzione
+
+`Tasks.hardDelete` e il nuovo `Tasks.hardDeleteMany` condividono una sola
+implementazione (`purgeTasks`), che filtra con `in` anche per un id solo — due
+varianti separate erano il modo in cui la seconda si sarebbe dimenticata i file
+orfani nello storage. Su un cestino da 60 task si passa da **180 richieste
+concorrenti a 3**.
+
+Il guadagno che conta però non è il numero: è che `delete … in (…)` è **una
+istruzione atomica**. Con la cancellazione parziale di prima nessun rollback
+poteva essere corretto — rimettere in lista tutti i task avrebbe mostrato come
+presenti anche quelli già spariti dal server. Ora la entry dichiara un
+`rollback` che rimette **gli oggetti interi** (la purge non ha un inverso da cui
+rileggerli) presi dallo stato pre-dispatch, tramite `daPurgare()`, lo stesso
+filtro che `persist` usa — la conformità col reducer che `persistenceGuards`
+verifica resta su un'unica definizione.
+
+### M-5 — il badge dei non letti
+
+`useMemo` su `[chatConversations, messages, currentUserId]`. Il test non asserisce
+un tempo: avvolge `getUnreadCount` in una spia e conta le invocazioni su tre
+re-render a vuoto (`chatUnreadMemo.test.jsx`).
+
+### B-1 — lo snapshot fuori dall'updater
+
+Fatto come suggerito (stato vivo in un ref, updater puro), **più** una seconda
+correzione che l'audit non aveva chiesto e che si vede scrivendo il test: la
+campanella è un feed vivo, e fra il click e la risposta del server il realtime
+può aver già consegnato. `setNotifications(snapshot)` cancellava quelle notifiche
+dalla campanella senza che nulla le riportasse, perché la loro eco era già
+passata. La compensazione è quindi **mirata**: `remove` rimette al suo indice
+solo la notifica che il server non ha eliminato, `clearAll` unisce lo snapshot a
+ciò che è arrivato invece di sostituirlo. Otto casi in `useNotifications.test.jsx`.
+
+### Un effetto collaterale sul tetto di `max-lines`
+
+M-1 e M-4 hanno portato `state/reducer.js` a 557 righe effettive, 7 oltre la
+deroga di 550 che `eslint.config.js` gli concede. Il numero **non** è stato
+alzato: il commento accanto a quella deroga dice che alla soglia la domanda
+giusta è quale fetta meriti un file suo. È uscito `buildLogEntry` +
+`LOGGED_ACTIONS` → `state/activityLog.js` (517 righe effettive residue). Non
+sono transizioni di stato: sono il dizionario che le racconta, ed è l'unica
+fetta che si può togliere senza spezzare la macchina a stati su due file.
+
+---
+
+## 6-ter. B-2 — riverificato aperto il 12 agosto; B-3 — accettato
+
+**B-2 resta aperto perché non si chiude da questo repo.** Riverificato oggi,
+non dedotto da una sessione precedente: `curl
+https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz` → **`CONNECT tunnel
+failed, response 403`**, la stessa egress policy dell'11 agosto e
+dell'analisi S-06 del 6. Senza accesso al CDN non si può né rigenerare il
+lockfile né verificare build e test, e una entry URL non risolvibile
+romperebbe `npm ci`. La mitigazione applicativa resta il fix effettivo e non
+un segnaposto: limite di dimensione **prima** della lettura in memoria +
+guard anti prototype-pollution attorno all'intero parse, su entrambi i punti
+che analizzano file arbitrari. Il comando da eseguire da una rete che
+raggiunge il CDN è scritto in testa a `src/lib/xlsx.js`.
+
+**B-3 (`leaked_password_protection`) è stato accettato, non riverificato come
+ancora da fare.** Sull'advisor live è tuttora `WARN` — è lo stesso rilievo di
+ST-14 e del B-2 dell'audit dell'8 agosto, riconfermato per tre audit di fila —
+ma il 12 agosto chi amministra il progetto ha dichiarato esplicitamente di non
+volerlo attivare: la verifica contro HaveIBeenPwned è una funzione del piano
+Supabase **Pro**, e il progetto resta sul piano **Free** per scelta. Non un
+interruttore dimenticato: un costo ricorrente non approvato. Il lint
+`auth_leaked_password_protection` è ora nominato in `AVVISI_ACCETTATI` di
+`scripts/verifica-advisor/advisor.js`, esattamente come i nove `SECURITY
+DEFINER` esposti di proposito — non fa più fallire il controllo periodico. Se
+il piano cambiasse, il punto da riaprire è questo: riattivare dalla dashboard
+e togliere il nome dall'elenco.
+
+---
+
+## 6-quater. Suggerimento strategico n. 3 — "disattivare" ora REVOCA (12 agosto)
+
+**Cosa era.** `TOGGLE_TEAM_MEMBER_ACTIVE` scriveva `public.users.active`
+direttamente sulla tabella (`UsersAPI.setActive` → `supabase.from('users')
+.update({ active })`). La RLS (`rls_active_only`) lo fa rispettare su ogni
+query dell'app — ma non tocca la sessione: il token dell'utente disattivato
+restava valido fino a scadenza, e il refresh token continuava a rinnovarlo.
+"Disattivare" nel pannello Team era un'etichetta applicativa, non una revoca.
+
+**Cosa è stato fatto.** Una nuova Edge Function, `supabase/functions/set-user-
+active/index.ts`, con lo stesso gate `requireActiveAdmin` di `invite-user` e
+`delete-user` (gira con la `service_role`: qui il controllo non è difesa in
+profondità, è l'unica difesa). Riceve `{ userId, active }` e fa, in
+quest'ordine:
+
+1. `auth.admin.updateUserById(targetId, { ban_duration })` — `"none"` per
+   riattivare (la convenzione GoTrue per rimuovere un ban), una durata lunga
+   (`87600h`, la stessa di `delete-account`) per disattivare. L'operazione che
+   tocca DAVVERO la sessione va **prima**, nello stesso ordine e per la stessa
+   ragione di `delete-account`: se fallisce si esce senza aver scritto nulla,
+   invece di lasciare `public.users.active` disallineato dalla sessione reale.
+2. Solo dopo, `public.users.active`.
+
+Un admin non può disattivare se stesso da qui (stesso principio del self-
+delete in `delete-user` e del self-demote in `UPDATE_TEAM_MEMBER`): si
+bannerebbe la propria sessione nello stesso istante in cui preme il bottone.
+
+`state/persistence.js` porta ora un `guard` (`payload !== uid`) e un
+`rollback`: `TOGGLE_TEAM_MEMBER_ACTIVE` è la propria inversa (applica sempre
+`!active` sul valore corrente), quindi ridispatcharla una seconda volta torna
+esattamente al punto di partenza — senza rollback, un fallimento della Edge
+Function avrebbe mostrato "Agente disattivato" con la sessione dell'utente
+ancora perfettamente valida: la stessa classe di disallineamento di M-1, qui
+con la posta più alta, perché il dato che si scosta è CHI può ancora accedere.
+Il reducer rifiuta lo stesso self-toggle quando il guard nega e l'action
+originale gli arriva comunque (lo stesso pattern di `UPDATE_TEAM_MEMBER`).
+
+Nel pannello Team, disattivare un membro ora chiede conferma (`useConfirm()`):
+prima non ne chiedeva nessuna, ed era coerente quando l'azione era solo un
+flag — ora toglie l'accesso nello stesso istante, sessione già aperta
+compresa. Riattivare resta senza conferma: espande l'accesso, non lo toglie.
+
+**Deployato in produzione il 12 agosto** via MCP `deploy_edge_function`:
+`set-user-active` v1, `verify_jwt: true`. Nessun avviso nuovo su
+`get_advisors` dopo il deploy.
+
+**Test**: `src/test/adminToggleActivePersistence.test.js` (guard, rollback,
+gate admin-only — estratto in un file suo perché `persistenceGuards.test.js`
+era già alla soglia delle 500 righe), `src/test/reducer.test.js` (rifiuto del
+self-toggle), `src/test/syncedDispatch.test.jsx` (l'orchestrazione end-to-end:
+successo, guard, compensazione), `src/test/edgeFunctionAdminGate.test.js`
+(`set-user-active` aggiunta a `FUNZIONI_PRIVILEGIATE`, cablaggio verificato
+staticamente), `src/test/adminTeamToggleActive.test.jsx` (la conferma in UI).
+
+---
 
 ### C-1 — cosa è stato fatto
 

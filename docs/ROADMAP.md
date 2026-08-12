@@ -5,7 +5,7 @@ Documento di pianificazione. Idee organizzate in **blocchi sequenziali** basate 
 **Legenda**
 Priorità: 🔴 Alta · 🟡 Media · ⚪ Bassa
 Sforzo: `S` piccolo (~1 sessione) · `M` medio (2-3) · `L` grande (4+)
-Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
+Stato: ✅ fatto · 🔶 parziale · ⬜ da fare · ⛔ accettato/non applicabile (decisione, non lavoro da fare)
 
 ---
 
@@ -57,14 +57,14 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare
 
 | Modulo | Stato | Priorità | Sforzo |
 |---|---|---|---|
-| **HIBP** protezione password compromesse (toggle Dashboard, non via codice) | ⬜ | 🔴 | S |
+| ~~**HIBP** protezione password compromesse (toggle Dashboard, non via codice)~~ | ⛔ accettato: richiede piano Supabase Pro, progetto sul Free per scelta (12 agosto, vedi `SICUREZZA.md` §6.1) | — | — |
 | Email confirmation enforcement + UI "reinvia" | ⬜ | 🟡 | S |
 | Admin **bulk** invite + invio link | ⬜ | 🟡 | M |
 | Block 2 — RLS hardening pending users (quando ci sono utenti reali) | ⬜ | 🟡 | S |
 | Bacheca @menzioni con notifica · Calendario eventi ricorrenti | ⬜ | 🟡 | M |
 | TypeScript migration · copertura test estesa | ⬜ | ⚪ | L |
 
-**Sequenza consigliata**: 5 → 6 → 7 → 8. Block 5 sblocca tutto; HIBP è un quick-win di sicurezza inseribile in qualsiasi momento.
+**Sequenza consigliata**: 5 → 6 → 7 → 8. Block 5 sblocca tutto.
 
 ---
 

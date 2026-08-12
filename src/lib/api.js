@@ -132,8 +132,15 @@ export const Users = {
     if (url) avatarUrlCache.set(value, { url, expiresAt: Date.now() + 55 * 60 * 1000 });
     return { url, error };
   },
+  // Attiva/disattiva un membro passando dalla Edge Function 'set-user-active'
+  // (Admin-only), che oltre alla colonna applicativa REVOCA davvero la sessione
+  // (ban_duration lato auth.admin) — suggerimento strategico n. 3 dell'audit
+  // dell'11 agosto. Prima era una scrittura diretta sulla tabella: la RLS
+  // bloccava un utente disattivato su ogni query, ma il suo token restava
+  // valido fino a scadenza. ⛔ Non tornare a `supabase.from('users').update(…)`
+  // per questa colonna: sarebbe di nuovo un'etichetta, non una revoca.
   setActive: (id, active) =>
-    supabase.from('users').update(withOrigin({ active })).eq('id', id),
+    invokeFn('set-user-active', { userId: id, active }, 'Aggiornamento non riuscito.'),
   // Approvazione admin di un utente registrato (pending → attivo). Le policy
   // RLS (users_admin_all) consentono l'update solo a un admin.
   approve: (id) =>
@@ -209,6 +216,28 @@ export const Users = {
 const TASK_SELECT_WITH_COMMENTS =
   '*, comments(id, user_id, text, created_at, users(name)), task_history(id, actor_id, action, old_value, new_value, created_at, users(name))';
 
+// Purge definitiva di uno o più task, con la pulizia dello storage che la FK
+// non fa. Un'unica implementazione per il caso singolo e per quello in blocco:
+// le due varianti differivano solo nel filtro (`eq` vs `in`), e tenerne due
+// significava che la seconda poteva dimenticarsi i file orfani.
+const purgeTasks = async (ids) => {
+  const lista = (ids || []).filter(Boolean);
+  if (!lista.length) return { error: null };
+  const filesRes = await supabase.from('task_files').select('file_url').in('task_id', lista);
+  if (filesRes.error) {
+    console.warn('TasksAPI.purge: lettura allegati task_files fallita, procedo comunque', filesRes.error);
+  } else {
+    const paths = (filesRes.data || []).map((f) => f.file_url).filter(Boolean);
+    if (paths.length) {
+      const { error: removeError } = await supabase.storage.from('task-files').remove(paths);
+      if (removeError) {
+        console.warn('TasksAPI.purge: rimozione allegati da storage fallita, procedo comunque', removeError);
+      }
+    }
+  }
+  return supabase.from('tasks').delete().in('id', lista);
+};
+
 export const Tasks = {
   list: ({ includeDeleted = false, withComments = false } = {}) => {
     const select = withComments ? TASK_SELECT_WITH_COMMENTS : '*';
@@ -236,26 +265,19 @@ export const Tasks = {
   // righe metadati ma NON tocca i file fisici nel bucket privato 'task-files'
   // (path <task_id>/<uuid>-<nomefile>, vedi TaskFiles.upload). Senza questo step
   // ogni purge di un task con allegati lascia file orfani nello storage per
-  // sempre. Leggiamo quindi i path prima di eliminare la riga task e rimuoviamo
-  // in un'unica chiamata batch; solo dopo cancelliamo il task (che innesca la
-  // cascade sui metadati). Se la lettura o la rimozione storage falliscono
-  // (es. bucket già ripulito), logghiamo un warning ma non blocchiamo comunque
-  // l'eliminazione del task — stesso principio non-bloccante di TaskFiles.remove.
-  hardDelete: async (id) => {
-    const filesRes = await supabase.from('task_files').select('file_url').eq('task_id', id);
-    if (filesRes.error) {
-      console.warn('TasksAPI.hardDelete: lettura allegati task_files fallita, procedo comunque', filesRes.error);
-    } else {
-      const paths = (filesRes.data || []).map((f) => f.file_url).filter(Boolean);
-      if (paths.length) {
-        const { error: removeError } = await supabase.storage.from('task-files').remove(paths);
-        if (removeError) {
-          console.warn('TasksAPI.hardDelete: rimozione allegati da storage fallita, procedo comunque', removeError);
-        }
-      }
-    }
-    return supabase.from('tasks').delete().eq('id', id);
-  },
+  // sempre — vedi purgeTasks qui sopra.
+  hardDelete: (id) => purgeTasks([id]),
+  // Purge in BLOCCO (M-4 dell'audit del 12 agosto). EMPTY_TRASH chiamava
+  // `Promise.all(ids.map(hardDelete))`: tre round-trip PER TASK (select
+  // allegati, remove storage, delete riga) tutti in volo insieme — su un
+  // cestino da 60 task sono 180 richieste concorrenti. E la cancellazione non
+  // era atomica: un fallimento a metà lasciava il database con una parte dei
+  // task già eliminata e la UI con il cestino svuotato per intero, senza alcun
+  // rollback che rimettesse a posto la differenza. Qui i round-trip sono tre in
+  // TOTALE e la cancellazione è una sola istruzione `delete … in (…)`: o cadono
+  // tutte o nessuna, che è la premessa perché il rollback dichiarato in
+  // state/persistence.js sia corretto.
+  hardDeleteMany: (ids) => purgeTasks(ids),
 };
 
 // Le due tabelle figlie dei task, lette per intero (la RLS restringe già alle

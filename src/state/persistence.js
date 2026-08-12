@@ -70,6 +70,14 @@ const NOOP = { error: null };
 
 const findTask = (state, id) => (state.tasks || []).find(t => t.id === id);
 
+// I task che EMPTY_TRASH deve davvero eliminare: cestinati E gestibili
+// dall'utente corrente. Una definizione sola, letta da `persist` e da
+// `rollback`, perché le due devono parlare esattamente dello stesso insieme —
+// e perché è lo stesso filtro che il reducer applica allo state (vedi il case
+// EMPTY_TRASH e src/test/persistenceGuards.test.js).
+const daPurgare = (s, uid) =>
+  (s.tasks || []).filter(t => t.deletedAt && canEditTask(s.team, t, uid));
+
 // Riconosce l'errore "questa colonna non esiste" da PostgREST (PGRST204, schema
 // cache) o da Postgres (42703, undefined_column). Serve a distinguere uno schema
 // non ancora migrato da un errore vero, che va invece mostrato all'utente.
@@ -173,12 +181,34 @@ export const PERSISTENCE = {
   // Il filtro DEVE coincidere con quello del reducer: altrimenti un utente
   // non-admin, che nel proprio Cestino vede solo un sottoinsieme dei task,
   // finirebbe per farne eliminare sul DB anche di altri. Ora entrambi passano
-  // per canEditTask(state.team, …) e persistenceGuards.test.js lo verifica.
+  // per daPurgare() → canEditTask(state.team, …) e persistenceGuards.test.js lo
+  // verifica.
+  //
+  // M-4 dell'audit del 12 agosto. Prima: `Promise.all(ids.map(hardDelete))`,
+  // cioè tre round-trip per task tutti in volo insieme (180 richieste su un
+  // cestino da 60), nessuna atomicità e NESSUN rollback. Un fallimento a metà
+  // — RLS, rete, una riga referenziata — lasciava parte dei task eliminati sul
+  // server e il cestino svuotato per intero in UI, cioè la divergenza fra
+  // schermo e database che questo registry esiste per chiudere, sull'unica
+  // azione dell'app che è irreversibile per definizione.
+  //
+  // Ora è UNA `delete … in (…)`: o cadono tutte o nessuna. È quella atomicità a
+  // rendere sensato il rollback qui sotto — con la cancellazione parziale di
+  // prima, rimettere in lista TUTTI i task avrebbe mostrato come presenti anche
+  // quelli che sul server erano già spariti.
   EMPTY_TRASH: {
     persist: (s, a, uid) => {
-      const ids = (s.tasks || []).filter(t => t.deletedAt && canEditTask(s.team, t, uid)).map(t => t.id);
-      return ids.length ? Promise.all(ids.map(id => TasksAPI.hardDelete(id))) : NOOP;
+      const ids = daPurgare(s, uid).map(t => t.id);
+      return ids.length ? TasksAPI.hardDeleteMany(ids) : NOOP;
     },
+    // `s` è lo stato PRE-dispatch: i task cestinati ci sono ancora tutti, con
+    // ogni loro campo. Si rimettono quelli — non un id, l'oggetto intero —
+    // perché la purge non ha un inverso sul server da cui rileggerli.
+    rollback: (s) => {
+      const tornati = daPurgare(s, s.currentUserId);
+      return tornati.length ? { type: "ROLLBACK_EMPTY_TRASH", payload: tornati } : null;
+    },
+    mapError: (err) => err?.message || "cestino non svuotato",
   },
 
   ADD_COMMENT: {
@@ -403,11 +433,36 @@ export const PERSISTENCE = {
   // libera e l'invito può essere rifatto da zero.
   REMOVE_TEAM_MEMBER: { persist: (s, a) => UsersAPI.deleteUser(a.payload) },
 
+  // Suggerimento strategico n. 3 dell'audit dell'11 agosto: `UsersAPI.setActive`
+  // passa oggi dalla Edge Function 'set-user-active', che oltre al flag
+  // applicativo revoca davvero la sessione (ban lato auth.admin) — vedi
+  // lib/api.js e supabase/functions/set-user-active. "Disattivare" nel
+  // pannello Team ora significa quello che dice, a prescindere da quali
+  // percorsi server-side esisteranno domani.
   TOGGLE_TEAM_MEMBER_ACTIVE: {
+    // Un admin non disattiva se stesso da qui: la Edge Function bannerebbe la
+    // propria sessione nello stesso istante in cui la chiama, tagliandogli
+    // l'accesso senza che nessun altro admin l'abbia deciso. Stesso principio
+    // del guard su UPDATE_TEAM_MEMBER (self-demote) e del rifiuto in
+    // delete-user (self-delete) — lì scritto nel corpo della Edge Function,
+    // qui ripetuto perché deve fermare l'azione PRIMA della chiamata di rete,
+    // non dopo un 400 che il ban ha già rifiutato.
+    guard: (s, a, uid) => a.payload !== uid,
     persist: (s, a) => {
       const curr = (s.team || []).find(m => m.id === a.payload);
       return UsersAPI.setActive(a.payload, !curr?.active);
     },
+    // Se la Edge Function fallisce (rete, l'utente target è sparito nel
+    // frattempo) lo stato ottimistico va riportato indietro. TOGGLE_TEAM_
+    // MEMBER_ACTIVE è la propria inversa — applica sempre `!active` sul valore
+    // CORRENTE — quindi ridispatcharla una seconda volta con lo stesso payload
+    // torna esattamente al punto di partenza, senza bisogno di uno snapshot.
+    // Senza questo rollback la UI direbbe "Agente disattivato" mentre la
+    // sessione dell'utente resta valida: la stessa classe di disallineamento
+    // (M-1) che il resto di questo registro esiste per chiudere — qui con la
+    // posta più alta, perché il dato che si scosta è chi può ancora accedere.
+    rollback: (s, a) => ({ type: "TOGGLE_TEAM_MEMBER_ACTIVE", payload: a.payload }),
+    mapError: (err) => err?.message || "stato di attivazione non aggiornato",
   },
 
   // ─── ADMIN: RESTORE BACKUP ─────────────────────────────────────────────────

@@ -298,8 +298,9 @@ export default [
     },
   },
   // ─── L'UNICA ECCEZIONE A max-lines ─────────────────────────────────────────
-  // Il reducer è UNO switch: 539 righe effettive, quasi tutte i suoi case (il
-  // numero qui era fermo a 504 e va rimisurato quando lo si tocca, non dedotto).
+  // Il reducer è UNO switch: 517 righe effettive, quasi tutte i suoi case (il
+  // numero qui era fermo a 504, poi 539, e va rimisurato quando lo si tocca,
+  // non dedotto).
   // Spezzarlo per dimensione significherebbe distribuire su più file le
   // transizioni di un'unica macchina a stati, e la proprietà che rende questo
   // file leggibile — vedere in un colpo solo tutto ciò che può succedere allo
@@ -310,6 +311,13 @@ export default [
   // non è un permesso di crescere senza fine. Se il reducer arriva lì, la
   // domanda giusta non è alzare ancora il numero — è se una fetta di dominio
   // meriti un reducer suo.
+  //
+  // Successo, il 12 agosto: aggiungendo la compensazione (M-1) e
+  // ROLLBACK_EMPTY_TRASH (M-4) il file ha sfondato il tetto di 7 righe. Il
+  // numero NON è stato alzato: è uscito `buildLogEntry` + `LOGGED_ACTIONS`
+  // (→ state/activityLog.js), che non sono transizioni di stato ma il
+  // dizionario che le racconta — l'unica fetta che si può togliere senza
+  // spezzare la macchina a stati su due file.
   //
   // Nota su src/lib/api.js, l'altro candidato naturale a questa deroga: oggi
   // sta a 376 righe effettive e non gli serve. Esentarlo per categoria ("è un

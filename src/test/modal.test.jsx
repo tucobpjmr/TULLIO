@@ -96,3 +96,102 @@ describe("Modal — scroll di fondo", () => {
     expect(document.body.style.overflow).toBe("clip");
   });
 });
+
+// ─── M-2 · pila dei modali ──────────────────────────────────────────────────
+// Il listener di Esc è su `window`, quindi ogni Modal montato riceve lo stesso
+// keydown. Con i modali annidati che l'app ha davvero — la CropModal si apre da
+// ProfileEditor, una ConfirmDialog dall'import clienti — un Esc per annullare
+// il ritaglio chiudeva ANCHE il form sotto, con tutto quello che c'era scritto.
+describe("Modal — modali annidati", () => {
+  const dueModali = ({ onCloseSotto, onCloseSopra, sopraAperto = true }) => render(
+    <>
+      <Modal open onClose={onCloseSotto} labelledBy="a"><h2 id="a">Sotto</h2></Modal>
+      <Modal open={sopraAperto} onClose={onCloseSopra} labelledBy="b"><h2 id="b">Sopra</h2></Modal>
+    </>
+  );
+
+  it("Esc chiude SOLO quello in cima", () => {
+    const onCloseSotto = vi.fn();
+    const onCloseSopra = vi.fn();
+    dueModali({ onCloseSotto, onCloseSopra });
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(onCloseSopra).toHaveBeenCalledTimes(1);
+    expect(onCloseSotto).not.toHaveBeenCalled();
+  });
+
+  it("chiuso quello in cima, Esc torna a quello sotto", () => {
+    const onCloseSotto = vi.fn();
+    const onCloseSopra = vi.fn();
+    const { rerender } = dueModali({ onCloseSotto, onCloseSopra });
+
+    rerender(
+      <>
+        <Modal open onClose={onCloseSotto} labelledBy="a"><h2 id="a">Sotto</h2></Modal>
+        <Modal open={false} onClose={onCloseSopra} labelledBy="b"><h2 id="b">Sopra</h2></Modal>
+      </>
+    );
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(onCloseSotto).toHaveBeenCalledTimes(1);
+  });
+
+  it("un re-render del genitore non fa risalire in cima il modale sotto", () => {
+    // `onClose` passato come arrow inline cambia identità a ogni render: se
+    // fosse una dipendenza dell'effetto, il modale sotto uscirebbe e
+    // rientrerebbe nella pila scavalcando quello che gli sta sopra.
+    const onCloseSotto = vi.fn();
+    const onCloseSopra = vi.fn();
+    const albero = () => (
+      <>
+        <Modal open onClose={() => onCloseSotto()} labelledBy="a"><h2 id="a">Sotto</h2></Modal>
+        <Modal open onClose={() => onCloseSopra()} labelledBy="b"><h2 id="b">Sopra</h2></Modal>
+      </>
+    );
+    const { rerender } = render(albero());
+    rerender(albero());
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(onCloseSopra).toHaveBeenCalledTimes(1);
+    expect(onCloseSotto).not.toHaveBeenCalled();
+  });
+
+  it("un modale aperto DOPO va in cima, anche se in JSX è dichiarato prima", () => {
+    // È la forma reale del caso: `ProfileEditor` dichiara la `CropModal` PRIMA
+    // della propria, ma quella si monta solo quando c'è un'immagine da
+    // ritagliare. Conta l'ordine di montaggio, non quello nel sorgente.
+    const onCloseSotto = vi.fn();
+    const onCloseSopra = vi.fn();
+    const albero = (sopraAperto) => (
+      <>
+        <Modal open={sopraAperto} onClose={onCloseSopra} labelledBy="b"><h2 id="b">Sopra</h2></Modal>
+        <Modal open onClose={onCloseSotto} labelledBy="a"><h2 id="a">Sotto</h2></Modal>
+      </>
+    );
+    const { rerender } = render(albero(false));
+    rerender(albero(true));
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(onCloseSopra).toHaveBeenCalledTimes(1);
+    expect(onCloseSotto).not.toHaveBeenCalled();
+  });
+
+  it("il fondo resta bloccato finché non si chiude anche il modale sotto", () => {
+    const { rerender, unmount } = dueModali({ onCloseSotto: vi.fn(), onCloseSopra: vi.fn() });
+    expect(document.body.style.overflow).toBe("hidden");
+
+    rerender(
+      <>
+        <Modal open onClose={vi.fn()} labelledBy="a"><h2 id="a">Sotto</h2></Modal>
+        <Modal open={false} onClose={vi.fn()} labelledBy="b"><h2 id="b">Sopra</h2></Modal>
+      </>
+    );
+    expect(document.body.style.overflow).toBe("hidden");
+
+    unmount();
+    expect(document.body.style.overflow).toBe("");
+  });
+});

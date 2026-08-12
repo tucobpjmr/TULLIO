@@ -199,8 +199,24 @@ export const AdminTeamTab = ({ dispatch }) => {
               {!m.pending && (
                 <>
                   <button onClick={() => startEdit(m)} style={btnGhost} title="Modifica">✏️</button>
-                  <button onClick={() => dispatch({ type: "TOGGLE_TEAM_MEMBER_ACTIVE", payload: m.id })}
-                    style={m.active ? btnWarning : btnPrimary} title={m.active ? "Disattiva" : "Riattiva"}>
+                  <button onClick={async () => {
+                    // Disattivare ora REVOCA davvero l'accesso (ban lato auth,
+                    // suggerimento strategico n. 3 dell'audit dell'11 agosto):
+                    // non è più solo un'etichetta che la RLS applica al giro
+                    // successivo, è la sessione dell'utente che finisce nello
+                    // stesso istante. Merita una conferma, come le altre azioni
+                    // che tolgono qualcosa a qualcuno — riattivare no: espande
+                    // l'accesso, non lo toglie.
+                    if (m.active) {
+                      const ok = await conferma({
+                        title: `Disattivare "${m.name}"?`,
+                        body: "L'utente perde l'accesso immediatamente, sessione già aperta compresa. Potrai riattivarlo in qualsiasi momento.",
+                        cta: "Disattiva", danger: true,
+                      });
+                      if (!ok) return;
+                    }
+                    dispatch({ type: "TOGGLE_TEAM_MEMBER_ACTIVE", payload: m.id });
+                  }} style={m.active ? btnWarning : btnPrimary} title={m.active ? "Disattiva" : "Riattiva"}>
                     {m.active ? "⏸️ Disattiva" : "▶️ Riattiva"}
                   </button>
                 </>

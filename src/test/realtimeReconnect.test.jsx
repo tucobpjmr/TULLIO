@@ -27,13 +27,37 @@ vi.mock("../lib/api.js", () => ({
   subscribeToTable: (...a) => subscribeToTable(...a),
 }));
 
-const { useDebouncedTableSubscription } = await import("../hooks/useDebouncedTableSubscription.js");
+const { useDebouncedTableSubscription, SOGLIA_RIPRESA_MS } =
+  await import("../hooks/useDebouncedTableSubscription.js");
 
 let visibilityState = "visible";
 Object.defineProperty(document, "visibilityState", {
   configurable: true,
   get: () => visibilityState,
 });
+
+// Passa in secondo piano e torna in primo dopo `pausaMs` di orologio. Il tempo
+// è simulato spostando Date.now: la soglia è di trenta secondi reali, e farli
+// passare davvero renderebbe la suite inutilizzabile.
+const vaiInBackgroundETorna = async (pausaMs) => {
+  const vero = Date.now();
+  const orologio = vi.spyOn(Date, "now");
+  orologio.mockReturnValue(vero);
+
+  await act(async () => {
+    visibilityState = "hidden";
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+
+  orologio.mockReturnValue(vero + pausaMs);
+
+  await act(async () => {
+    visibilityState = "visible";
+    document.dispatchEvent(new Event("visibilitychange"));
+    orologio.mockRestore();
+    await new Promise((r) => setTimeout(r, 350));
+  });
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -60,7 +84,38 @@ describe("useDebouncedTableSubscription — ripresa dopo un buco di connessione"
     expect(reload.mock.calls[1][1]).toBeNull();
   });
 
-  it("tornare visibile fa scattare un reload completo", async () => {
+  it("tornare visibile dopo una lunga assenza fa scattare un reload completo", async () => {
+    const reload = vi.fn();
+    renderHook(() => useDebouncedTableSubscription(["tasks"], reload, { enabled: true, delay: 1 }));
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+
+    await vaiInBackgroundETorna(SOGLIA_RIPRESA_MS + 1000);
+
+    expect(reload).toHaveBeenCalledTimes(2);
+    expect(reload.mock.calls[1][1]).toBeNull();
+  });
+
+  // ─── M-3 · la soglia ──────────────────────────────────────────────────────
+  // Su mobile `visibilitychange` verso `visible` lo emettono il commutatore di
+  // app, la tendina delle notifiche, il selettore di file e il picker della
+  // fotocamera — cioè proprio i gesti con cui si allega un file o si risponde a
+  // una notifica, più volte in pochi secondi. Con nove istanze di questo hook
+  // vive insieme, ognuno di quei ritorni costava nove SELECT di tabella intera,
+  // mentre il websocket non era mai caduto e nessun evento era andato perso.
+  it("un ritorno in primo piano dopo pochi secondi non ricarica nulla", async () => {
+    const reload = vi.fn();
+    renderHook(() => useDebouncedTableSubscription(["tasks"], reload, { enabled: true, delay: 1 }));
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+
+    await vaiInBackgroundETorna(2000);
+
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("un visibilitychange verso 'visible' senza essere mai passati da 'hidden' non ricarica", async () => {
+    // Alcuni browser lo emettono anche solo cambiando scheda avanti e indietro
+    // nella stessa finestra: senza una permanenza in secondo piano non c'è
+    // nessuna finestra temporale in cui si possa aver perso qualcosa.
     const reload = vi.fn();
     renderHook(() => useDebouncedTableSubscription(["tasks"], reload, { enabled: true, delay: 1 }));
     await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
@@ -71,8 +126,7 @@ describe("useDebouncedTableSubscription — ripresa dopo un buco di connessione"
       await new Promise((r) => setTimeout(r, 350));
     });
 
-    expect(reload).toHaveBeenCalledTimes(2);
-    expect(reload.mock.calls[1][1]).toBeNull();
+    expect(reload).toHaveBeenCalledTimes(1);
   });
 
   it("passare a 'hidden' non fa scattare nessun reload", async () => {
@@ -96,10 +150,19 @@ describe("useDebouncedTableSubscription — ripresa dopo un buco di connessione"
     renderHook(() => useDebouncedTableSubscription(["tasks"], reload, { enabled: true, delay: 1 }));
     await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
 
+    const vero = Date.now();
+    const orologio = vi.spyOn(Date, "now").mockReturnValue(vero);
+    await act(async () => {
+      visibilityState = "hidden";
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    orologio.mockReturnValue(vero + SOGLIA_RIPRESA_MS + 1000);
+
     await act(async () => {
       window.dispatchEvent(new Event("online"));
       visibilityState = "visible";
       document.dispatchEvent(new Event("visibilitychange"));
+      orologio.mockRestore();
       await new Promise((r) => setTimeout(r, 350));
     });
 

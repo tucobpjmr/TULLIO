@@ -60,8 +60,10 @@ async function main() {
   const accettati = avvisi.filter((l) => !nonAccettati.includes(l));
   for (const l of accettati) console.log(`  ⚠ [${l.categories?.join(',')}] ${l.title}: ${l.detail}`);
   // ST-14: gli avvisi che nessuno ha accettato si stampano come i fallimenti,
-  // non in mezzo agli altri. `auth_leaked_password_protection` è aperto da
-  // agosto proprio perché era indistinguibile dai nove motivati.
+  // non in mezzo agli altri — è così che `auth_leaked_password_protection` è
+  // rimasto invisibile per due audit di fila, prima di essere nominato in
+  // AVVISI_ACCETTATI (accettato il 12 agosto: richiede il piano Supabase Pro,
+  // il progetto resta sul Free per scelta).
   for (const l of nonAccettati) {
     console.log(`  ✗ AVVISO NON ACCETTATO [${l.name}] ${l.title}: ${l.detail}`);
     console.log(`    ${l.remediation ?? ''}`);

@@ -19,7 +19,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("../lib/api.js", () => {
   const ok = () => Promise.resolve({ data: null, error: null });
   return {
-    Tasks:      { create: vi.fn(ok), createMany: vi.fn(ok), update: vi.fn(ok), softDelete: vi.fn(ok), restore: vi.fn(ok), hardDelete: vi.fn(ok) },
+    Tasks:      { create: vi.fn(ok), createMany: vi.fn(ok), update: vi.fn(ok), softDelete: vi.fn(ok), restore: vi.fn(ok), hardDelete: vi.fn(ok), hardDeleteMany: vi.fn(ok) },
     Comments:   { create: vi.fn(ok) },
     Notices:    { create: vi.fn(ok), update: vi.fn(ok), remove: vi.fn(ok), togglePin: vi.fn(ok) },
     Users:      { approve: vi.fn(ok), deleteUser: vi.fn(ok), setActive: vi.fn(ok), updateProfile: vi.fn(ok), updateContact: vi.fn(ok) },
@@ -186,9 +186,12 @@ describe("persistence — insiemi calcolati (EMPTY_TRASH, RENAME_CLIENT_IN_TASKS
       .map(t => t.id);
 
     await PERSISTENCE.EMPTY_TRASH.persist(state, action, "junior1");
-    const eliminatiSulServer = TasksAPI.hardDelete.mock.calls.map(([id]) => id);
+    // M-4: una sola chiamata in blocco, non una hardDelete per id.
+    expect(TasksAPI.hardDeleteMany).toHaveBeenCalledTimes(1);
+    expect(TasksAPI.hardDelete).not.toHaveBeenCalled();
+    const eliminatiSulServer = TasksAPI.hardDeleteMany.mock.calls[0][0];
 
-    expect(eliminatiSulServer.sort()).toEqual(rimossiDalReducer.sort());
+    expect([...eliminatiSulServer].sort()).toEqual(rimossiDalReducer.sort());
     // Il caso concreto che il commento originale segnalava come rischio: il
     // Junior non deve trascinarsi dietro i task cestinati degli altri.
     expect(eliminatiSulServer).toEqual([uuid(1)]);
@@ -331,6 +334,13 @@ describe("persistence — UPDATE_TEAM_MEMBER raggiunge il database", () => {
     });
   });
 });
+
+// TOGGLE_TEAM_MEMBER_ACTIVE (12 agosto, suggerimento strategico n. 3): guard,
+// rollback e il gate admin-only sono coperti in
+// src/test/adminToggleActivePersistence.test.js — un file a sé, non una
+// sezione qui, perché questo file era già alla soglia delle 500 righe
+// effettive e "un file, una responsabilità" (docs/CLAUDE.md) vale anche per i
+// test.
 
 // UPDATE_OWN_PROFILE era l'ultima mutazione su un'entità dello state a vivere
 // fuori dal registry: ProfileEditor dispatchava in ottimistico e poi chiamava
@@ -620,6 +630,11 @@ const COMPENSAZIONE = [
   // A-2: gemello di ROLLBACK_TASKS_BULK per ADD_CLIENTS_BULK, dispatchato dal
   // registry quando ClientsAPI.createMany si ferma a metà.
   "ROLLBACK_CLIENTS_BULK",
+  // M-4: rimette in lista i task cestinati quando la purge in blocco di
+  // EMPTY_TRASH fallisce. La `delete … in (…)` è atomica, quindi o si rimettono
+  // tutti o nessuno — e non c'è nulla da riscrivere sul server, il fallimento è
+  // proprio "non è stato cancellato niente".
+  "ROLLBACK_EMPTY_TRASH",
 ];
 
 // Questo quarto elenco non è una categoria: è un registro di lacune note.

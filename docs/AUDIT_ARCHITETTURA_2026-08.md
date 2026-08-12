@@ -91,7 +91,7 @@ esattamente questo caso.
 | M-4 | ~~Media~~ ✔ **risolto** | Test | Nessun test verifica le policy RLS: il livello che conta davvero non è coperto | `src/test/**` |
 | M-5 | ~~Media~~ ✔ **risolto** | Correttezza | `stateRef` aggiornato in `useEffect`: finestra di stato stale su dispatch multipli nello stesso tick | `useSyncedDispatch.js:27` |
 | B-1 | ~~Bassa~~ ✔ **risolto** | Performance | Refetch completo anche su `tasks` (246 task + 569 righe di cronologia) | `useAppHydration.js:32-46` |
-| B-2 | Bassa | Config | `leaked_password_protection` ancora disabilitata | dashboard Supabase |
+| B-2 | ~~Bassa~~ ✔ **accettato** | Config | `leaked_password_protection` disabilitata di proposito: richiede il piano Supabase Pro, il progetto resta sul Free per scelta | dashboard Supabase |
 | B-3 | ~~Bassa~~ ✔ **risolto** | Duplicazione | Due formattatori di data e due limiti di dimensione file non riconciliati — sono divergenze **volute**, ora dichiarate | `taskUtils.js:4`, `listeApi.js:411`, `fileUtils.js:6`, `chatFiles.js:9` |
 | B-4 | ~~Bassa~~ ✔ **risolto** | Lint | Il conteggio era già stale: 19 `react/no-multi-comp` (decisi e documentati in `eslint.config.js`) + **4** `exhaustive-deps`, non 22+1 | vari |
 
@@ -156,7 +156,7 @@ pattern comune. Chiudere l'eccezione l'ha fatto emergere.
 | M-3 | `case "SET_CURRENT_USER"` esce dal reducer di produzione con un guard `import.meta.env.DEV`, e il montaggio di `AdminRollbackBanner` con lo stesso. 🔬 **Verificato sul bundle buildato**, non dedotto: nessuna delle stringhe del banner sopravvive (`"Sessione Admin attiva"`, `"Rimani come Admin"`, `"Rollback automatico"` → 0 occorrenze), e il case si riduce a `case"SET_CURRENT_USER":return e;`. Il corpo — controllo ruolo, view lock, toast di elevazione, bookkeeping del rollback — non c'è più. |
 | M-5 | `stateRef.current = state` assegnato in render invece che in `useEffect`. Il ref non è mai letto durante il render, solo dentro il callback: nessuna impurità osservabile, e la finestra di stato stale fra due dispatch nello stesso handler si chiude. |
 | B-1 | Stessa forma di A-1 un piano più in basso. Un evento su `comments` o `task_history` ricarica ora **solo** la tabella figlia che ha emesso, via `TaskThreads` + l'azione `SET_TASK_THREADS`, invece di far girare `TASK_SELECT_WITH_COMMENTS` (join sui nomi, cestino incluso, nessuna paginazione) su ogni client connesso. Un evento su `tasks` — anche coalescato insieme a un commento nella stessa finestra di debounce — continua a ricaricare tutto, che lì è la cosa giusta. 6 test nuovi. |
-| B-2 | **Resta aperto.** ✅ Riconfermato sull'advisor live l'8 agosto: `auth_leaked_password_protection` è ancora `WARN`. Non è fattibile da codice — dashboard Supabase → Auth → Password. Costo nullo, valore reale visto che l'accesso è a sola password. |
+| B-2 | ✅ Riconfermato sull'advisor live l'8 agosto: `auth_leaked_password_protection` è ancora `WARN`. Non fattibile da codice — dashboard Supabase → Auth → Password. **Accettato il 12 agosto**: è una funzione del piano Supabase Pro, il progetto resta sul Free per scelta — non un interruttore dimenticato. Nominato in `AVVISI_ACCETTATI` di `scripts/verifica-advisor/advisor.js`. |
 | B-3 | Non erano due doppioni da riconciliare, ed è il motivo per cui la correzione è un commento e non una fusione. ✅ Verificato su `storage.buckets`: `task-files` ha `file_size_limit` 52428800 e `chat-files` 26214400 — ciascuna costante rispecchia il **proprio** bucket, e allinearle romperebbe la corrispondenza col server che è l'unica ragione per cui esistono. I due formattatori di data ricevono input diversi (timestamp ISO contro colonna `date`) e rendono formati diversi di proposito. Tutti e quattro i punti portano ora il rimando incrociato e la ragione. |
 | B-4 | 🔬 Il conteggio dell'audit era già stale quando è stato scritto: misurati **19** `react/no-multi-comp` e **4** `exhaustive-deps`, non 22 e 1. Sui primi la decisione era già stata presa e motivata in `eslint.config.js` (arretrato dichiarato, 19 casi in 12 file, tracciato in `docs/CLAUDE.md`) — non c'era nulla da decidere. I quattro `exhaustive-deps` erano tutti omissioni **volute** — callback del genitore che, se inclusi, avrebbero fatto ripartire l'effetto a ogni render del genitore, con conseguenze reali (un toast che non sparisce più, una RPC di mark-as-read per messaggio in arrivo) — e portano ora un `eslint-disable-next-line` con la ragione accanto. L'arretrato di quella regola è a zero: il prossimo warning è nuovo per definizione. |
 | Test | 🔬 **831 verdi + 7 skipped** su 69 file (erano 813+7): +6 `adminView`, +13 `clientAutocomplete`, +6 in `realtimeGranularita`. 0 errori ESLint, 19 warning (tutti `no-multi-comp`, l'arretrato dichiarato). Build di produzione ok. |
@@ -387,9 +387,10 @@ sostituzione è quasi meccanica, e `crmLoading` continua a funzionare perché
 > stato reale, migrazione `set_updated_at_search_path` riconciliata (era
 > "non applicata" perché il file nel repo dichiara una versione diversa da
 > quella effettivamente eseguita — non un file mai eseguito), warning
-> dell'advisor e conteggio migrazioni aggiornati. Non toccato: il punto 1 di
-> §6 (`leaked_password_protection`), che resta un interruttore di dashboard,
-> come segnalato anche in B-2.
+> dell'advisor e conteggio migrazioni aggiornati. Non toccato allora: il punto
+> 1 di §6 (`leaked_password_protection`), lasciato come interruttore di
+> dashboard — come segnalato anche in B-2. **Accettato il 12 agosto** (vedi
+> B-2): richiede il piano Supabase Pro, non è più un passo in sospeso.
 
 **File.** `docs/SICUREZZA.md`, §4 (matrice permessi), §5 (XSS), §6 (cosa fare),
 §8 (CSP)
@@ -904,11 +905,15 @@ Va inoltre verificato ✅ se il progetto ha un cap di righe lato PostgREST
 risposta **in silenzio**, e il sintomo sarebbe "alcuni task non si vedono", che
 è difficilissimo da attribuire.
 
-### B-2 · `leaked_password_protection` disabilitata
+### B-2 · `leaked_password_protection` disabilitata — ✔ accettato
 
-✅ Confermato dall'advisor live, già elencato in `SICUREZZA.md` §6 punto 1.
-Resta un interruttore nella dashboard (Auth → Password), non fattibile da
-codice. Costo nullo, valore reale visto che l'accesso è a sola password.
+✅ Confermato dall'advisor live, già elencato in `SICUREZZA.md` §6 punto 1. È
+un interruttore nella dashboard (Auth → Password), non fattibile da codice —
+ma **il 12 agosto è stato accettato esplicitamente**: la verifica contro
+HaveIBeenPwned è una funzione del piano Supabase Pro, e il progetto resta sul
+Free per scelta. Non un interruttore dimenticato: un costo ricorrente non
+approvato. `auth_leaked_password_protection` è nominato in `AVVISI_ACCETTATI`
+di `scripts/verifica-advisor/advisor.js`, con lo stesso motivo.
 
 ### B-3 · Formattatori e limiti duplicati
 

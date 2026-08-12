@@ -401,3 +401,124 @@ describe("reducer — RESTORE_BACKUP (merge non distruttivo)", () => {
     expect(Object.keys(s.categories).length).toBe(before + 1);
   });
 });
+
+// ─── M-1 · le compensazioni non parlano ───────────────────────────────────────
+// I rollback di useSyncedDispatch riusano le action di mutazione: annullare un
+// UPDATE_OWN_PROFILE fallito significa dispatchare un altro UPDATE_OWN_PROFILE
+// con i valori di prima. Il case non sa di essere una compensazione e accodava
+// il proprio toast di successo — "Profilo aggiornato!" restava nella pila
+// accanto a "Salvataggio fallito", e il primo è quello a cui l'utente crede.
+// `meta.compensazione` lo mette l'orchestratore; qui si verifica cosa il
+// reducer ne fa: applica la transizione, non tocca i toast, non logga.
+describe("reducer — meta.compensazione", () => {
+  it("UPDATE_OWN_PROFILE di compensazione riporta i valori ma non accoda toast", () => {
+    let s = freshState("marco");
+    s = reducer(s, { type: "UPDATE_OWN_PROFILE", payload: { name: "Marco Nuovo" } });
+    expect(s.toasts).toHaveLength(1);
+    const toastPrima = s.toasts;
+
+    s = reducer(s, {
+      type: "UPDATE_OWN_PROFILE",
+      payload: { name: "Marco" },
+      meta: { compensazione: true },
+    });
+
+    // La transizione di stato è quella del case: il rollback deve funzionare.
+    expect(s.team.find(m => m.id === "marco").name).toBe("Marco");
+    // Ma la pila dei toast è esattamente quella di prima.
+    expect(s.toasts).toBe(toastPrima);
+  });
+
+  it("UPDATE_TEAM_MEMBER di compensazione non annuncia 'Agente aggiornato'", () => {
+    let s = freshState("marco");
+    s = reducer(s, {
+      type: "UPDATE_TEAM_MEMBER",
+      payload: { id: "gina", name: "Gina", role: "junior agent" },
+      meta: { compensazione: true },
+    });
+    expect(s.toasts).toHaveLength(0);
+  });
+
+  it("una compensazione non finisce nel log attività", () => {
+    let s = freshState("marco");
+    s = reducer(s, {
+      type: "UPDATE_TEAM_MEMBER",
+      payload: { id: "gina", name: "Gina", role: "senior agent" },
+      meta: { compensazione: true },
+    });
+    // Un annullamento tecnico non è un'azione che l'utente ha compiuto.
+    expect(s.activityLog).toHaveLength(0);
+    // …ma lo stato è tornato indietro davvero (toDbRole normalizza il ruolo e
+    // toSeniority estrae il sotto-livello, come per un UPDATE normale).
+    expect(s.team.find(m => m.id === "gina").seniority).toBe("senior");
+  });
+
+  it("senza il flag la stessa azione toasta e logga come sempre", () => {
+    let s = freshState("marco");
+    s = reducer(s, { type: "UPDATE_TEAM_MEMBER", payload: { id: "gina", name: "Gina", role: "senior agent" } });
+    expect(s.toasts).toHaveLength(1);
+    expect(s.activityLog).toHaveLength(1);
+  });
+});
+
+// ─── M-4 · rollback di EMPTY_TRASH ────────────────────────────────────────────
+describe("reducer — ROLLBACK_EMPTY_TRASH", () => {
+  const cestinato = (id) => task({ id, deletedAt: "2026-01-01T10:00:00Z" });
+  const T1 = "11111111-2222-4333-8444-555555555551";
+  const T2 = "11111111-2222-4333-8444-555555555552";
+
+  it("rimette in lista i task che EMPTY_TRASH aveva tolto", () => {
+    let s = { ...freshState("marco"), tasks: [cestinato(T1), cestinato(T2)] };
+    const prima = s.tasks;
+    s = reducer(s, { type: "EMPTY_TRASH" });
+    expect(s.tasks).toHaveLength(0);
+
+    s = reducer(s, { type: "ROLLBACK_EMPTY_TRASH", payload: prima, meta: { compensazione: true } });
+    expect(s.tasks.map(t => t.id).sort()).toEqual([T1, T2].sort());
+  });
+
+  it("non duplica un task che nel frattempo è già tornato (eco realtime)", () => {
+    const t = cestinato(T1);
+    let s = { ...freshState("marco"), tasks: [t] };
+    s = reducer(s, { type: "ROLLBACK_EMPTY_TRASH", payload: [t] });
+    expect(s.tasks).toHaveLength(1);
+  });
+
+  it("con payload vuoto non tocca lo stato", () => {
+    const s = { ...freshState("marco"), tasks: [cestinato(T1)] };
+    expect(reducer(s, { type: "ROLLBACK_EMPTY_TRASH", payload: [] })).toBe(s);
+  });
+
+  it("non accoda alcun toast: quello d'errore lo mostra già l'orchestratore", () => {
+    let s = { ...freshState("marco"), tasks: [] };
+    s = reducer(s, { type: "ROLLBACK_EMPTY_TRASH", payload: [cestinato(T1)] });
+    expect(s.toasts).toHaveLength(0);
+  });
+});
+
+// ─── Suggerimento strategico n. 3 · TOGGLE_TEAM_MEMBER_ACTIVE non si autoapplica ──
+// "Disattivare" ora revoca davvero la sessione (ban lato auth, in
+// state/persistence.js / supabase/functions/set-user-active): un admin che
+// disattiva se stesso da qui bannerebbe la propria sessione nello stesso
+// istante in cui preme il bottone. Il reducer deve rifiutarlo ANCHE quando
+// arriva l'action originale (percorso del guard negato in useSyncedDispatch),
+// non solo quando la persistenza lo blocca a monte.
+describe("reducer — TOGGLE_TEAM_MEMBER_ACTIVE non ammette il self-toggle", () => {
+  it("un admin non può disattivare se stesso", () => {
+    const s = freshState("marco");
+    const next = reducer(s, { type: "TOGGLE_TEAM_MEMBER_ACTIVE", payload: "marco" });
+    expect(next.toasts.at(-1).type).toBe("error");
+    // Lo stato del team non è cambiato: nessun flip locale a fronte di
+    // nessuna scrittura sul server.
+    expect(next.team.find(m => m.id === "marco").active)
+      .toBe(s.team.find(m => m.id === "marco").active);
+  });
+
+  it("un admin può disattivare un ALTRO membro", () => {
+    const s = freshState("marco");
+    const next = reducer(s, { type: "TOGGLE_TEAM_MEMBER_ACTIVE", payload: "gina" });
+    expect(next.toasts.at(-1).type).toBe("success");
+    expect(next.team.find(m => m.id === "gina").active)
+      .toBe(!s.team.find(m => m.id === "gina").active);
+  });
+});

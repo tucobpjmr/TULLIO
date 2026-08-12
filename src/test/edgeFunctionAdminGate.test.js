@@ -42,7 +42,11 @@ import {
   COLONNE_PROFILO_ADMIN,
 } from "../../supabase/functions/_shared/adminPredicate.ts";
 
-const FUNZIONI_PRIVILEGIATE = ["invite-user", "delete-user"];
+// set-user-active (12 agosto, suggerimento strategico n. 3): banna/sbanna la
+// sessione di un membro del team con auth.admin.updateUserById, girando con la
+// stessa service_role di invite-user/delete-user — stesso gate, per la stessa
+// ragione: qui il controllo non è difesa in profondità, è l'unica difesa.
+const FUNZIONI_PRIVILEGIATE = ["invite-user", "delete-user", "set-user-active"];
 
 const sorgente = (nome) =>
   readFileSync(join(process.cwd(), "supabase", "functions", nome, "index.ts"), "utf8");

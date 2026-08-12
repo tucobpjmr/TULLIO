@@ -280,6 +280,44 @@ describe("useSyncedDispatch — fallimenti di persistenza", () => {
 
     expect(azioniDispatchate(rawDispatch).map(a => a.type)).toEqual(["EMPTY_TRASH"]);
   });
+
+  // ─── Suggerimento strategico n. 3 · TOGGLE_TEAM_MEMBER_ACTIVE ──────────────
+  // "Disattivare" ora chiama la Edge Function set-user-active (ban lato auth),
+  // non più una scrittura diretta sulla tabella: qui si copre l'orchestrazione
+  // vera, dal guard al rollback, passando dallo stesso useSyncedDispatch che
+  // gira in produzione.
+  it("un admin disattiva un altro membro: la Edge Function riceve l'id giusto", async () => {
+    const { dispatch, rawDispatch } = setup();
+    await act(async () => { await dispatch({ type: "TOGGLE_TEAM_MEMBER_ACTIVE", payload: "junior1" }); });
+
+    expect(UsersAPI.setActive).toHaveBeenCalledWith("junior1", false); // junior1 parte attivo
+    expect(azioniDispatchate(rawDispatch).map(a => a.type)).toEqual(["TOGGLE_TEAM_MEMBER_ACTIVE"]);
+  });
+
+  it("un admin non può disattivare se stesso: il guard blocca PRIMA della rete", async () => {
+    const { dispatch, rawDispatch } = setup();
+    await act(async () => { await dispatch({ type: "TOGGLE_TEAM_MEMBER_ACTIVE", payload: "admin1" }); });
+
+    expect(UsersAPI.setActive).not.toHaveBeenCalled();
+    const azioni = azioniDispatchate(rawDispatch);
+    expect(azioni).toHaveLength(1);
+    expect(azioni[0]).toEqual({ type: "TOGGLE_TEAM_MEMBER_ACTIVE", payload: "admin1" });
+  });
+
+  it("se la Edge Function fallisce, il rollback ritoggla e si marca come compensazione", async () => {
+    UsersAPI.setActive.mockResolvedValueOnce({ error: { message: "sessione non revocata" } });
+    const { dispatch, rawDispatch } = setup();
+
+    await act(async () => { await dispatch({ type: "TOGGLE_TEAM_MEMBER_ACTIVE", payload: "junior1" }); });
+
+    const azioni = azioniDispatchate(rawDispatch);
+    const undo = azioni.find((a, i) => i > 0 && a.type === "TOGGLE_TEAM_MEMBER_ACTIVE");
+    expect(undo).toEqual({
+      type: "TOGGLE_TEAM_MEMBER_ACTIVE", payload: "junior1",
+      meta: { compensazione: true },
+    });
+    expect(azioni.find(a => a.type === "SHOW_TOAST").payload.message).toContain("sessione non revocata");
+  });
 });
 
 describe("useSyncedDispatch — identità stabile", () => {

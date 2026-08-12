@@ -335,6 +335,13 @@ describe("persistence — UPDATE_TEAM_MEMBER raggiunge il database", () => {
   });
 });
 
+// TOGGLE_TEAM_MEMBER_ACTIVE (12 agosto, suggerimento strategico n. 3): guard,
+// rollback e il gate admin-only sono coperti in
+// src/test/adminToggleActivePersistence.test.js — un file a sé, non una
+// sezione qui, perché questo file era già alla soglia delle 500 righe
+// effettive e "un file, una responsabilità" (docs/CLAUDE.md) vale anche per i
+// test.
+
 // UPDATE_OWN_PROFILE era l'ultima mutazione su un'entità dello state a vivere
 // fuori dal registry: ProfileEditor dispatchava in ottimistico e poi chiamava
 // UsersAPI a mano, con un toast per scrittura e nessun rollback. Il fallimento

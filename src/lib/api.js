@@ -132,8 +132,15 @@ export const Users = {
     if (url) avatarUrlCache.set(value, { url, expiresAt: Date.now() + 55 * 60 * 1000 });
     return { url, error };
   },
+  // Attiva/disattiva un membro passando dalla Edge Function 'set-user-active'
+  // (Admin-only), che oltre alla colonna applicativa REVOCA davvero la sessione
+  // (ban_duration lato auth.admin) — suggerimento strategico n. 3 dell'audit
+  // dell'11 agosto. Prima era una scrittura diretta sulla tabella: la RLS
+  // bloccava un utente disattivato su ogni query, ma il suo token restava
+  // valido fino a scadenza. ⛔ Non tornare a `supabase.from('users').update(…)`
+  // per questa colonna: sarebbe di nuovo un'etichetta, non una revoca.
   setActive: (id, active) =>
-    supabase.from('users').update(withOrigin({ active })).eq('id', id),
+    invokeFn('set-user-active', { userId: id, active }, 'Aggiornamento non riuscito.'),
   // Approvazione admin di un utente registrato (pending → attivo). Le policy
   // RLS (users_admin_all) consentono l'update solo a un admin.
   approve: (id) =>

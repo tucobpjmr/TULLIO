@@ -409,6 +409,15 @@ function baseReducer(state, action) {
       return { ...state, team, toasts: pushToast(state.toasts, { message: "Agente approvato e attivato!", type: "success" }) };
     }
     case "TOGGLE_TEAM_MEMBER_ACTIVE": {
+      // Lo stesso rifiuto dichiarato nel guard di state/persistence.js. Deve
+      // stare anche qui: quando il guard nega, useSyncedDispatch dispatcha
+      // comunque l'azione originale ed è il reducer a doverla respingere —
+      // senza, lo stato locale flipperebbe "active" mentre nessuna Edge
+      // Function è mai stata chiamata, e l'admin si vedrebbe "disattivato" in
+      // UI con la propria sessione ancora perfettamente valida.
+      if (action.payload === uid) {
+        return _denied("Non puoi disattivare te stesso: chiedi a un altro admin");
+      }
       const team = state.team.map(m => m.id === action.payload ? { ...m, active: !m.active } : m);
       const target = team.find(m => m.id === action.payload);
       return { ...state, team, toasts: pushToast(state.toasts, { message: target?.active ? "Agente attivato" : "Agente disattivato", type: "success" }) };

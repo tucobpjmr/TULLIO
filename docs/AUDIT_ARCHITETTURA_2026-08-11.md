@@ -971,7 +971,7 @@ fallisce il giorno in cui qualcuno aggiunge la quarta impostazione locale che si
 dichiara salvata. E la marcatura `action.rollback` di M-1 rende la stessa
 invariante vera anche nel percorso d'errore.
 
-### 3. Portare il gate `active` dove la sessione lo sente: revocare, non solo disattivare
+### 3. Portare il gate `active` dove la sessione lo sente: revocare, non solo disattivare — ✔ **fatto e deployato il 12 agosto**, vedi §6-quater
 
 **Il problema che risolve.** C-1 mostra un caso particolare di un difetto più
 generale: `public.users.active = false` è un flag **applicativo**, e
@@ -1017,6 +1017,7 @@ presidia.
 | **M-1 … M-5** | ✔ **corretti nel repo il 12 agosto** — vedi §6-bis |
 | **B-1** | ✔ **corretto nel repo il 12 agosto** — vedi §6-bis |
 | B-2, B-3 | 🟢 aperti — **nessuno dei due è correggibile da questo repo**, e il 12 agosto è stato riverificato che il blocco persiste: vedi §6-ter |
+| **Suggerimento strategico n. 3** (§5) | ✔ **fatto e deployato in produzione il 12 agosto** — Edge Function `set-user-active`, vedi §6-quater |
 
 ---
 
@@ -1145,6 +1146,64 @@ oggi, non dedotti da una sessione precedente:
 |---|---|
 | **B-2** `xlsx@0.18.5` | `curl https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz` → **`CONNECT tunnel failed, response 403`**, la stessa egress policy dell'11 agosto e dell'analisi S-06 del 6. Senza accesso al CDN non si può né rigenerare il lockfile né verificare build e test, e una entry URL non risolvibile romperebbe `npm ci`. La mitigazione applicativa resta il fix effettivo e non un segnaposto: limite di dimensione **prima** della lettura in memoria + guard anti prototype-pollution attorno all'intero parse, su entrambi i punti che analizzano file arbitrari. Il comando da eseguire da una rete che raggiunge il CDN è scritto in testa a `src/lib/xlsx.js`. |
 | **B-3** `leaked_password_protection` | Riletto **sull'advisor live** (`get_advisors`, progetto `tullio`): `auth_leaked_password_protection` è ancora `WARN`. È un interruttore in Supabase → Authentication → Password → *Enable leaked password protection*, non esposto da API né da MCP. È lo stesso rilievo di ST-14 e del B-2 dell'audit dell'8 agosto: **tre audit di fila**, su un'app il cui accesso è a sola password. Gli altri nove WARN dello stesso advisor sono i `SECURITY DEFINER` esposti di proposito, nominati uno per uno in `AVVISI_ACCETTATI` di `verifica-advisor`. |
+
+---
+
+## 6-quater. Suggerimento strategico n. 3 — "disattivare" ora REVOCA (12 agosto)
+
+**Cosa era.** `TOGGLE_TEAM_MEMBER_ACTIVE` scriveva `public.users.active`
+direttamente sulla tabella (`UsersAPI.setActive` → `supabase.from('users')
+.update({ active })`). La RLS (`rls_active_only`) lo fa rispettare su ogni
+query dell'app — ma non tocca la sessione: il token dell'utente disattivato
+restava valido fino a scadenza, e il refresh token continuava a rinnovarlo.
+"Disattivare" nel pannello Team era un'etichetta applicativa, non una revoca.
+
+**Cosa è stato fatto.** Una nuova Edge Function, `supabase/functions/set-user-
+active/index.ts`, con lo stesso gate `requireActiveAdmin` di `invite-user` e
+`delete-user` (gira con la `service_role`: qui il controllo non è difesa in
+profondità, è l'unica difesa). Riceve `{ userId, active }` e fa, in
+quest'ordine:
+
+1. `auth.admin.updateUserById(targetId, { ban_duration })` — `"none"` per
+   riattivare (la convenzione GoTrue per rimuovere un ban), una durata lunga
+   (`87600h`, la stessa di `delete-account`) per disattivare. L'operazione che
+   tocca DAVVERO la sessione va **prima**, nello stesso ordine e per la stessa
+   ragione di `delete-account`: se fallisce si esce senza aver scritto nulla,
+   invece di lasciare `public.users.active` disallineato dalla sessione reale.
+2. Solo dopo, `public.users.active`.
+
+Un admin non può disattivare se stesso da qui (stesso principio del self-
+delete in `delete-user` e del self-demote in `UPDATE_TEAM_MEMBER`): si
+bannerebbe la propria sessione nello stesso istante in cui preme il bottone.
+
+`state/persistence.js` porta ora un `guard` (`payload !== uid`) e un
+`rollback`: `TOGGLE_TEAM_MEMBER_ACTIVE` è la propria inversa (applica sempre
+`!active` sul valore corrente), quindi ridispatcharla una seconda volta torna
+esattamente al punto di partenza — senza rollback, un fallimento della Edge
+Function avrebbe mostrato "Agente disattivato" con la sessione dell'utente
+ancora perfettamente valida: la stessa classe di disallineamento di M-1, qui
+con la posta più alta, perché il dato che si scosta è CHI può ancora accedere.
+Il reducer rifiuta lo stesso self-toggle quando il guard nega e l'action
+originale gli arriva comunque (lo stesso pattern di `UPDATE_TEAM_MEMBER`).
+
+Nel pannello Team, disattivare un membro ora chiede conferma (`useConfirm()`):
+prima non ne chiedeva nessuna, ed era coerente quando l'azione era solo un
+flag — ora toglie l'accesso nello stesso istante, sessione già aperta
+compresa. Riattivare resta senza conferma: espande l'accesso, non lo toglie.
+
+**Deployato in produzione il 12 agosto** via MCP `deploy_edge_function`:
+`set-user-active` v1, `verify_jwt: true`. Nessun avviso nuovo su
+`get_advisors` dopo il deploy.
+
+**Test**: `src/test/adminToggleActivePersistence.test.js` (guard, rollback,
+gate admin-only — estratto in un file suo perché `persistenceGuards.test.js`
+era già alla soglia delle 500 righe), `src/test/reducer.test.js` (rifiuto del
+self-toggle), `src/test/syncedDispatch.test.jsx` (l'orchestrazione end-to-end:
+successo, guard, compensazione), `src/test/edgeFunctionAdminGate.test.js`
+(`set-user-active` aggiunta a `FUNZIONI_PRIVILEGIATE`, cablaggio verificato
+staticamente), `src/test/adminTeamToggleActive.test.jsx` (la conferma in UI).
+
+---
 
 ### C-1 — cosa è stato fatto
 

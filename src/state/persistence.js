@@ -433,11 +433,36 @@ export const PERSISTENCE = {
   // libera e l'invito può essere rifatto da zero.
   REMOVE_TEAM_MEMBER: { persist: (s, a) => UsersAPI.deleteUser(a.payload) },
 
+  // Suggerimento strategico n. 3 dell'audit dell'11 agosto: `UsersAPI.setActive`
+  // passa oggi dalla Edge Function 'set-user-active', che oltre al flag
+  // applicativo revoca davvero la sessione (ban lato auth.admin) — vedi
+  // lib/api.js e supabase/functions/set-user-active. "Disattivare" nel
+  // pannello Team ora significa quello che dice, a prescindere da quali
+  // percorsi server-side esisteranno domani.
   TOGGLE_TEAM_MEMBER_ACTIVE: {
+    // Un admin non disattiva se stesso da qui: la Edge Function bannerebbe la
+    // propria sessione nello stesso istante in cui la chiama, tagliandogli
+    // l'accesso senza che nessun altro admin l'abbia deciso. Stesso principio
+    // del guard su UPDATE_TEAM_MEMBER (self-demote) e del rifiuto in
+    // delete-user (self-delete) — lì scritto nel corpo della Edge Function,
+    // qui ripetuto perché deve fermare l'azione PRIMA della chiamata di rete,
+    // non dopo un 400 che il ban ha già rifiutato.
+    guard: (s, a, uid) => a.payload !== uid,
     persist: (s, a) => {
       const curr = (s.team || []).find(m => m.id === a.payload);
       return UsersAPI.setActive(a.payload, !curr?.active);
     },
+    // Se la Edge Function fallisce (rete, l'utente target è sparito nel
+    // frattempo) lo stato ottimistico va riportato indietro. TOGGLE_TEAM_
+    // MEMBER_ACTIVE è la propria inversa — applica sempre `!active` sul valore
+    // CORRENTE — quindi ridispatcharla una seconda volta con lo stesso payload
+    // torna esattamente al punto di partenza, senza bisogno di uno snapshot.
+    // Senza questo rollback la UI direbbe "Agente disattivato" mentre la
+    // sessione dell'utente resta valida: la stessa classe di disallineamento
+    // (M-1) che il resto di questo registro esiste per chiudere — qui con la
+    // posta più alta, perché il dato che si scosta è chi può ancora accedere.
+    rollback: (s, a) => ({ type: "TOGGLE_TEAM_MEMBER_ACTIVE", payload: a.payload }),
+    mapError: (err) => err?.message || "stato di attivazione non aggiornato",
   },
 
   // ─── ADMIN: RESTORE BACKUP ─────────────────────────────────────────────────

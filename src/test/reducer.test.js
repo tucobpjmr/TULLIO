@@ -495,3 +495,30 @@ describe("reducer — ROLLBACK_EMPTY_TRASH", () => {
     expect(s.toasts).toHaveLength(0);
   });
 });
+
+// ─── Suggerimento strategico n. 3 · TOGGLE_TEAM_MEMBER_ACTIVE non si autoapplica ──
+// "Disattivare" ora revoca davvero la sessione (ban lato auth, in
+// state/persistence.js / supabase/functions/set-user-active): un admin che
+// disattiva se stesso da qui bannerebbe la propria sessione nello stesso
+// istante in cui preme il bottone. Il reducer deve rifiutarlo ANCHE quando
+// arriva l'action originale (percorso del guard negato in useSyncedDispatch),
+// non solo quando la persistenza lo blocca a monte.
+describe("reducer — TOGGLE_TEAM_MEMBER_ACTIVE non ammette il self-toggle", () => {
+  it("un admin non può disattivare se stesso", () => {
+    const s = freshState("marco");
+    const next = reducer(s, { type: "TOGGLE_TEAM_MEMBER_ACTIVE", payload: "marco" });
+    expect(next.toasts.at(-1).type).toBe("error");
+    // Lo stato del team non è cambiato: nessun flip locale a fronte di
+    // nessuna scrittura sul server.
+    expect(next.team.find(m => m.id === "marco").active)
+      .toBe(s.team.find(m => m.id === "marco").active);
+  });
+
+  it("un admin può disattivare un ALTRO membro", () => {
+    const s = freshState("marco");
+    const next = reducer(s, { type: "TOGGLE_TEAM_MEMBER_ACTIVE", payload: "gina" });
+    expect(next.toasts.at(-1).type).toBe("success");
+    expect(next.team.find(m => m.id === "gina").active)
+      .toBe(!s.team.find(m => m.id === "gina").active);
+  });
+});

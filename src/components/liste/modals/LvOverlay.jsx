@@ -18,7 +18,7 @@ import { createPortal } from "react-dom";
 //
 // Il wrapper .lv-root qui sotto è necessario quanto il portale stesso: TUTTO
 // il CSS del modulo (bottoni, select/input, font Inter, variabili colore
-// --lv-*) è scopato come discendente di .lv-root (vedi listeStyles.jsx) —
+// --lv-*) è scopato come discendente di .lv-root (vedi liste.css) —
 // senza di lui il portale porta il modale fuori dalla sua stessa gerarchia
 // di stile, e bottoni/select tornano al default del browser (overflow del
 // <select> Cliente compreso). .lv-root non ha transform/filter, quindi non

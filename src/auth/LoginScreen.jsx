@@ -3,6 +3,10 @@ import React, { useState } from 'react';
 import { useAuth } from './AuthContext';
 import { PasswordField } from '../components/ui/PasswordField.jsx';
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const txtF13Op07 = { margin: '0 0 24px', fontSize: 13, opacity: 0.7 };
+
 function isEmailNotConfirmed(error) {
   if (!error) return false;
   const code = error.code || error.error || '';
@@ -123,7 +127,7 @@ export default function LoginScreen() {
     <div style={wrapStyle}>
       <form onSubmit={onSubmit} style={cardStyle}>
         <h1 style={titleStyle}>VoyageDesk</h1>
-        <p style={{ margin: '0 0 24px', fontSize: 13, opacity: 0.7 }}>{subtitle}</p>
+        <p style={txtF13Op07}>{subtitle}</p>
 
         <label style={labelStyle}>Email</label>
         <input

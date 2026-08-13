@@ -6,8 +6,21 @@ import { LazyFallback } from "../ui/LazyFallback.jsx";
 import { ListeChip } from "./ListeChip.jsx";
 import { ClienteTaskTab } from "./ClienteTaskTab.jsx";
 import { DatiAnagrafici } from "./DatiAnagrafici.jsx";
+import { btnChiudi } from "../../styles/common.js";
 
-// Chunk async: trascina con sé listeStyles.jsx (16.3 kB) e lib/listeApi.js
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const boxMb8Mt6 = {
+  background: "var(--card)", borderRadius: 12, padding: "20px 22px",
+  border: "1px solid var(--border)", boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
+  marginTop: 6, marginBottom: 8,
+};
+const rowStartBetween = { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 };
+const rowCenterGap10 = { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minWidth: 0 };
+const txtF16Bold = { fontWeight: 700, fontSize: 16 };
+const rowGap4Mb14 = { display: "flex", gap: 4, marginBottom: 14, borderBottom: "1px solid var(--border)" };
+
+// Chunk async: trascina con sé liste.css (16.3 kB) e lib/listeApi.js
 // (8.7 kB) — senza import() finiscono nel chunk eager e vanificano il lazy()
 // di ListeViaggio.jsx, che di quello stesso CSS/data-layer è l'altro punto
 // d'ingresso (già lazy in VoyageDesk.jsx).
@@ -42,23 +55,19 @@ export function ClienteDetailPanel({ cliente, tasks, dispatch, onClose, showList
   ];
 
   return (
-    <div className="slide-up" style={{
-      background: "var(--card)", borderRadius: 12, padding: "20px 22px",
-      border: "1px solid var(--border)", boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
-      marginTop: 6, marginBottom: 8,
-    }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minWidth: 0 }}>
-          <span className="playfair" style={{ fontWeight: 700, fontSize: 16 }}>{cliente.name}</span>
+    <div className="slide-up" style={boxMb8Mt6}>
+      <div style={rowStartBetween}>
+        <div style={rowCenterGap10}>
+          <span className="playfair" style={txtF16Bold}>{cliente.name}</span>
           <ListeChip liste={liste} />
         </div>
-        <button onClick={onClose} aria-label="Chiudi il pannello" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
+        <button onClick={onClose} aria-label="Chiudi il pannello" style={btnChiudi}>✕</button>
       </div>
 
       <DatiAnagrafici notes={cliente.notes} />
 
       {tabs.length > 1 && (
-        <div style={{ display: "flex", gap: 4, marginBottom: 14, borderBottom: "1px solid var(--border)" }}>
+        <div style={rowGap4Mb14}>
           {tabs.map(t => (
             <button
               key={t.key}

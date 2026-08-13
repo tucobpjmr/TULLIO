@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { LvOverlay } from "./LvOverlay.jsx";
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const txtF14LvMuted = { fontSize: 14, color: "var(--lv-muted)" };
+const txtF13LvMuted = { fontSize: 13, color: "var(--lv-muted)" };
+
 // ─── Conferma caricamento backup ────────────────────────────────────────────
 // Il merge (importa_backup) somma ai dati esistenti e salta i duplicati per
 // id: non cancella nulla, ma un file sbagliato può comunque aggiungere righe
@@ -24,13 +29,13 @@ export function ImportaBackupConfirmModal({ nL, nM, progress = null, onClose, on
   return (
     <LvOverlay onClose={onClose}>
       <h2>Caricare il backup?</h2>
-      <p style={{ fontSize: 14, color: "var(--lv-muted)" }}>
+      <p style={txtF14LvMuted}>
         Il file contiene {nL} liste e {nM} movimenti. I dati verranno AGGIUNTI a
         quelli esistenti; i duplicati (stesso identificativo) vengono saltati.
         Nulla viene cancellato.
       </p>
       {perc !== null && (
-        <p style={{ fontSize: 13, color: "var(--lv-muted)" }} role="status">
+        <p style={txtF13LvMuted} role="status">
           Caricamento: {progress.done} di {progress.total} righe ({perc}%)
         </p>
       )}

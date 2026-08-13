@@ -8,6 +8,23 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { getPushSupport, getPushState, enablePush, disablePush, syncPushSubscription, sendTestPush } from "../../lib/push.js";
+import { txtF13Bold, txtF16 } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowStartGap10 = {
+  padding: "12px 16px", borderTop: "1px solid var(--border)",
+  background: "var(--surface2)", display: "flex", gap: 10, alignItems: "flex-start",
+  flexShrink: 0,
+};
+const txtF11Muted = { fontSize: 11, color: "var(--text-muted)", marginTop: 2, lineHeight: 1.4 };
+const txtF11Danger = { fontSize: 11, color: "var(--danger)", marginTop: 6, lineHeight: 1.4 };
+const rowGap8Mt8 = { display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" };
+const boxF11Bold = {
+  background: "var(--navy)", color: "#fff", border: "none", borderRadius: 6,
+  padding: "5px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+};
+const boxW18H18 = { width: 18, height: 18, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" };
 
 const PUSH_HINTS = {
   "needs-install": "Su iPhone: apri da Safari → Condividi → \"Aggiungi alla schermata Home\" (richiede iOS 16.4+), poi riapri l'app installata dalla Home.",
@@ -93,30 +110,23 @@ export const PushToggle = ({ dispatch }) => {
   const interactive = status === "on" || status === "off";
 
   return (
-    <div style={{
-      padding: "12px 16px", borderTop: "1px solid var(--border)",
-      background: "var(--surface2)", display: "flex", gap: 10, alignItems: "flex-start",
-      flexShrink: 0,
-    }}>
-      <span style={{ fontSize: 16, flexShrink: 0 }}>📲</span>
+    <div style={rowStartGap10}>
+      <span style={txtF16}>📲</span>
       <div className="vd-flex-1-min0">
-        <div style={{ fontSize: 13, fontWeight: 600 }}>Notifiche push</div>
-        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, lineHeight: 1.4 }}>
+        <div style={txtF13Bold}>Notifiche push</div>
+        <div style={txtF11Muted}>
           {status === "busy" ? "Attendere…" : PUSH_HINTS[status]}
         </div>
         {enabled && outOfSync && (
-          <div style={{ fontSize: 11, color: "var(--danger)", marginTop: 6, lineHeight: 1.4 }}>
+          <div style={txtF11Danger}>
             ⚠️ Questo dispositivo non risulta registrato sul server: le notifiche
             non arrivano finché non lo ricolleghi.
           </div>
         )}
         {enabled && (
-          <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+          <div style={rowGap8Mt8}>
             {outOfSync && (
-              <button onClick={repair} style={{
-                background: "var(--navy)", color: "#fff", border: "none", borderRadius: 6,
-                padding: "5px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-              }}>Ricollega dispositivo</button>
+              <button onClick={repair} style={boxF11Bold}>Ricollega dispositivo</button>
             )}
             <button onClick={test} disabled={testing} style={{
               background: "transparent", color: "var(--text-muted)",
@@ -143,7 +153,7 @@ export const PushToggle = ({ dispatch }) => {
             opacity: status === "busy" ? 0.6 : 1,
           }}
         >
-          <span style={{ width: 18, height: 18, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
+          <span style={boxW18H18} />
         </button>
       )}
     </div>

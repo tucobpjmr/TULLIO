@@ -21,6 +21,17 @@ import { ModalPortal } from "../ui/ModalPortal.jsx";
 import { Users } from "../../lib/api.js";
 import { EMAIL_RX } from "../../lib/validators.js";
 import { DB_ROLES, ROLE_LABELS, toDbRole } from "../../lib/taskConstants.js";
+import { gridGap12, rowGap8Mt20, txtMuted } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const txtHeadingMb8 = { margin: 0, marginBottom: 8, color: "var(--heading)" };
+const txtF125Muted = { fontSize: 12.5, color: "var(--text-muted)", marginBottom: 16, lineHeight: 1.5 };
+const gridGap10 = { display: "grid", gridTemplateColumns: "1fr 80px", gap: 10 };
+const txtBoldMb4 = { fontWeight: 600, marginBottom: 4 };
+const txtBoldText = { fontWeight: 600, marginBottom: 6, color: "var(--text)" };
+const txtF125 = { maxHeight: 140, overflowY: "auto", fontSize: 12.5 };
+const flex1 = { flex: 1, wordBreak: "break-all" };
 
 // "anna.bianchi" → "Anna Bianchi". Spezza su . _ - e capitalizza.
 const guessNameFromLocal = (local) => {
@@ -111,17 +122,17 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
     <ModalPortal>
       <div onClick={busy ? undefined : onClose} style={modalOverlay}>
         <div onClick={e => e.stopPropagation()} style={{ ...modalCard, maxWidth: 560 }}>
-          <h3 className="playfair" style={{ margin: 0, marginBottom: 8, color: "var(--heading)" }}>
+          <h3 className="playfair" style={txtHeadingMb8}>
             Invito multiplo
           </h3>
-          <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginBottom: 16, lineHeight: 1.5 }}>
+          <div style={txtF125Muted}>
             Una riga per invito. Formati supportati:<br />
             <code style={codeStyle}>anna@agenzia.it</code><br />
             <code style={codeStyle}>anna@agenzia.it, Anna Bianchi</code><br />
             <code style={codeStyle}>anna@agenzia.it, Anna Bianchi, Senior Agent</code>
           </div>
 
-          <div style={{ display: "grid", gap: 12 }}>
+          <div style={gridGap12}>
             <div>
               <label style={labelStyle}>Inviti</label>
               <textarea
@@ -135,7 +146,7 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
               />
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 80px", gap: 10 }}>
+            <div style={gridGap10}>
               <div>
                 <label style={labelStyle}>Ruolo default</label>
                 <select value={defaultRole} onChange={e => setDefaultRole(e.target.value)} disabled={busy} style={fieldStyle}>
@@ -151,7 +162,7 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
 
             {parseErrors.length > 0 && (
               <div style={warnBoxStyle}>
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>Righe ignorate ({parseErrors.length})</div>
+                <div style={txtBoldMb4}>Righe ignorate ({parseErrors.length})</div>
                 {parseErrors.slice(0, 6).map((e, i) => <div key={i}>• {e}</div>)}
                 {parseErrors.length > 6 && <div>…e altre {parseErrors.length - 6}</div>}
               </div>
@@ -159,17 +170,17 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
 
             {results && (
               <div style={resultBoxStyle}>
-                <div style={{ fontWeight: 600, marginBottom: 6, color: "var(--text)" }}>
+                <div style={txtBoldText}>
                   {busy
                     ? `Invio… ${results.length}/${total}`
                     : `Riepilogo — ✅ ${okCount} inviati${errCount ? ` · ❌ ${errCount} falliti` : ""}`}
                 </div>
-                <div style={{ maxHeight: 140, overflowY: "auto", fontSize: 12.5 }}>
+                <div style={txtF125}>
                   {results.map((r, i) => (
                     <div key={i} style={{ display: "flex", gap: 8, padding: "2px 0", color: r.status === "ok" ? "var(--success)" : "var(--danger)" }}>
                       <span>{r.status === "ok" ? "✅" : "❌"}</span>
-                      <span style={{ flex: 1, wordBreak: "break-all" }}>{r.email}</span>
-                      {r.message && <span style={{ color: "var(--text-muted)" }}>{r.message}</span>}
+                      <span style={flex1}>{r.email}</span>
+                      {r.message && <span style={txtMuted}>{r.message}</span>}
                     </div>
                   ))}
                 </div>
@@ -177,7 +188,7 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
             )}
           </div>
 
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 }}>
+          <div style={rowGap8Mt20}>
             <button onClick={onClose} disabled={busy} style={btnGhost}>
               {allDone ? "Chiudi" : "Annulla"}
             </button>

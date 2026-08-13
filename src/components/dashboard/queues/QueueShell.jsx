@@ -17,6 +17,11 @@
 // che spariscono erano deriva accumulata, non scelte di design.
 
 import { useViewport } from "../../Viewport.jsx";
+import { rowCenterGap10 } from "../../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const txtF17Bold = { fontSize: 17, fontWeight: 700, color: "var(--heading)" };
 
 // Tinte delle code. `rgb` alimenta gradiente e bordo (che vogliono alpha),
 // `solid` il riquadro icona e il badge (che vogliono la variabile di tema).
@@ -56,14 +61,14 @@ export function QueueShell({
         display: "flex", alignItems: "center", justifyContent: "space-between",
         marginBottom: tight ? 0 : 14, flexWrap: "wrap", gap: 8,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={rowCenterGap10}>
           <div style={{
             width: 34, height: 34, borderRadius: 10,
             background: iconBg || a.solid, color: iconFg || a.fg,
             display: "flex", alignItems: "center", justifyContent: "center",
             fontSize: iconSize, fontWeight: 700,
           }}>{icon}</div>
-          <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
+          <div className="playfair" style={txtF17Bold}>
             {title}
           </div>
         </div>

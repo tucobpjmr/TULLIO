@@ -11,6 +11,35 @@ import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useOpenTask } from "./queueShared.js";
 import { QueueShell } from "./QueueShell.jsx";
 import { SkeletonCards } from "../../ui/SkeletonCards.jsx";
+import { txtF11Muted } from "../../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowGap6Mb12 = { display: "flex", gap: 6, marginBottom: 12 };
+const rowGap6Mb122 = { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 };
+const txtF13Muted = {
+  padding: "26px 20px", textAlign: "center", color: "var(--text-muted)",
+  fontSize: 13, fontStyle: "italic",
+};
+const gridGap10 = {
+  display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 320px), 1fr))",
+  gap: 10,
+};
+const rowCenterGap6 = { display: "flex", alignItems: "center", gap: 6 };
+const rowCenterGap3 = {
+  fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+  background: "var(--surface2)", color: "var(--text-muted)",
+  display: "inline-flex", alignItems: "center", gap: 3,
+  textTransform: "uppercase", letterSpacing: 0.4,
+};
+const txtBoldWarning = { color: "var(--warning)", fontWeight: 700 };
+const rowCenterGap8 = {
+  display: "flex", alignItems: "center", gap: 8, padding: "6px 10px",
+  background: "var(--surface2)", border: "1px solid var(--border)",
+  borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+  transition: "background 0.15s",
+};
+const txtF12Bold = { fontSize: 12, fontWeight: 600, color: "var(--text)" };
 
 // ─── URGENT QUEUE (tutte le task in scadenza <24h — visibile a non-driver) ──
 // Mostra sia le proprie task urgenti (editabili dal dettaglio) sia quelle
@@ -57,7 +86,7 @@ export const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid, loading = false 
     >
 
       {/* Selettore finestra temporale (24/48/72h) */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+      <div style={rowGap6Mb12}>
         {URGENT_WINDOWS.map(w => {
           const on = windowH === w.h;
           const n = tasks.filter(t => {
@@ -92,7 +121,7 @@ export const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid, loading = false 
 
       {/* Filtro per agente — Round 15 */}
       {presentAgents.length > 1 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+        <div style={rowGap6Mb122}>
           <button
             type="button"
             onClick={() => setFilterAgent(null)}
@@ -142,18 +171,12 @@ export const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid, loading = false 
       {caricando ? (
         <SkeletonCards count={2} minWidth={320} compact label="Caricamento delle task urgenti" />
       ) : visibleTasks.length === 0 ? (
-        <div style={{
-          padding: "26px 20px", textAlign: "center", color: "var(--text-muted)",
-          fontSize: 13, fontStyle: "italic",
-        }}>
+        <div style={txtF13Muted}>
           ✅ Nessuna task in scadenza entro {windowH}h{filterAgent ? " per questo agente" : ""}.
           {windowH < 72 && " Prova ad allargare la finestra."}
         </div>
       ) : (
-      <div style={{
-        display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 320px), 1fr))",
-        gap: 10,
-      }}>
+      <div style={gridGap10}>
         {visibleTasks.map(t => {
           const prio = PRIORITIES[t.priority];
           const owner = getMember(t.assignees?.[0]);
@@ -170,16 +193,11 @@ export const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid, loading = false 
                 tooltip={mine ? "Tua task in scadenza — clicca per i dettagli" : editable ? "Task in scadenza — clicca per i dettagli" : "Task di un altro agente in scadenza"}
                 border={mine ? "1px solid rgba(200,131,42,0.45)" : "1.5px dashed rgba(200,131,42,0.45)"}
                 badges={
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={rowCenterGap6}>
                     {!editable && (
                       <span
                         aria-label="Solo visualizzazione"
-                        style={{
-                          fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
-                          background: "var(--surface2)", color: "var(--text-muted)",
-                          display: "inline-flex", alignItems: "center", gap: 3,
-                          textTransform: "uppercase", letterSpacing: 0.4,
-                        }}
+                        style={rowCenterGap3}
                       >🔒 Read-only</span>
                     )}
                     <div style={{
@@ -189,7 +207,7 @@ export const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid, loading = false 
                   </div>
                 }
                 meta={t.dueDate && (
-                  <span style={{ color: "var(--warning)", fontWeight: 700 }}>
+                  <span style={txtBoldWarning}>
                     ⏱ {formatDate(t.dueDate)} ({formatTime(t.dueDate)})
                   </span>
                 )}
@@ -197,19 +215,14 @@ export const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid, loading = false 
                 footer={owner && !mine && (
                   <button
                     onClick={() => onOpenChat && onOpenChat({ toUser: owner.id, taskLink: t.id })}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 8, padding: "6px 10px",
-                      background: "var(--surface2)", border: "1px solid var(--border)",
-                      borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
-                      transition: "background 0.15s",
-                    }}
+                    style={rowCenterGap8}
                     onMouseEnter={e => e.currentTarget.style.background = "var(--surface3)"}
                     onMouseLeave={e => e.currentTarget.style.background = "var(--surface2)"}
                     title={`Scrivi a ${owner.name}`}
                   >
                     <Avatar memberId={owner.id} size={24} />
-                    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>{owner.name}</span>
-                    <span style={{ fontSize: 11, color: "var(--text-muted)" }}>💬 contatta</span>
+                    <span style={txtF12Bold}>{owner.name}</span>
+                    <span style={txtF11Muted}>💬 contatta</span>
                   </button>
                 )}
               />

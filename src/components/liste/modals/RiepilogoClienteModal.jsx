@@ -2,10 +2,14 @@ import { eur, fmtDate, intestazioneLista, riepilogoTesto, saldoClass } from "../
 import { LvOverlay } from "./LvOverlay.jsx";
 import { dataNumerica } from "../../../lib/dates.js";
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const txtRight = { textAlign: "right" };
+
 // ─── Riepilogo cliente: anteprima stampabile/condivisibile ─────────────────
 // Copia destinata al cliente: niente metodi di pagamento, niente storico
 // (quella è la copia agente, vedi copiaAgente in ListaDetail). La stampa
-// isola questo blocco dal resto dell'app via @media print in listeStyles.jsx;
+// isola questo blocco dal resto dell'app via @media print in liste.css;
 // "Invia" usa la Web Share API se disponibile, altrimenti copia negli appunti.
 export function RiepilogoClienteModal({ lista, movimenti, dispatch, onClose }) {
   const saldo = movimenti.reduce((s, m) => s + Number(m.importo), 0);
@@ -41,7 +45,7 @@ export function RiepilogoClienteModal({ lista, movimenti, dispatch, onClose }) {
         {movimenti.length > 0 ? (
           <table className="lv-mov">
             <thead>
-              <tr><th>Data</th><th>Descrizione</th><th style={{ textAlign: "right" }}>Importo</th></tr>
+              <tr><th>Data</th><th>Descrizione</th><th style={txtRight}>Importo</th></tr>
             </thead>
             <tbody>
               {movimenti.map((m) => (

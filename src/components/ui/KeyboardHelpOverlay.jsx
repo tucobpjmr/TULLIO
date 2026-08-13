@@ -4,6 +4,21 @@
 // la aggiunge anche qui, altrimenti resta invisibile all'utente.
 // ─── KEYBOARD SHORTCUTS OVERLAY (v2.8 Round 10) ────────────────────────────
 import { Modal } from "./Modal.jsx";
+import { colGap10, txtF13Muted } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowCenterBetween = { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 };
+const txtF18Bold = { fontSize: 18, fontWeight: 700, color: "var(--heading)" };
+const boxF18Muted = { background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--text-muted)" };
+const rowCenterBetween2 = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 };
+const rowCenterMiddle = {
+  display: "inline-flex", alignItems: "center", justifyContent: "center",
+  padding: "3px 10px", borderRadius: 6, fontSize: 12, fontFamily: "monospace",
+  background: "var(--surface2)", border: "1px solid var(--border)",
+  color: "var(--text)", fontWeight: 600, whiteSpace: "nowrap",
+};
+const txtF12Muted = { marginTop: 18, fontSize: 12, color: "var(--text-muted)", textAlign: "center" };
 
 const SHORTCUTS = [
   { key: "K",       desc: "Nuovo task rapido" },
@@ -25,24 +40,19 @@ export function KeyboardHelpOverlay({ onClose }) {
       width="min(420px, 96vw)"
       cardStyle={{ borderRadius: 14, padding: "28px 32px", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <div id="vd-shortcuts-title" className="playfair" style={{ fontSize: 18, fontWeight: 700, color: "var(--heading)" }}>Scorciatoie tastiera</div>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--text-muted)" }}>✕</button>
+      <div style={rowCenterBetween}>
+        <div id="vd-shortcuts-title" className="playfair" style={txtF18Bold}>Scorciatoie tastiera</div>
+        <button onClick={onClose} style={boxF18Muted}>✕</button>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={colGap10}>
         {SHORTCUTS.map(s => (
-          <div key={s.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-            <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{s.desc}</span>
-            <kbd style={{
-              display: "inline-flex", alignItems: "center", justifyContent: "center",
-              padding: "3px 10px", borderRadius: 6, fontSize: 12, fontFamily: "monospace",
-              background: "var(--surface2)", border: "1px solid var(--border)",
-              color: "var(--text)", fontWeight: 600, whiteSpace: "nowrap",
-            }}>{s.key}</kbd>
+          <div key={s.key} style={rowCenterBetween2}>
+            <span style={txtF13Muted}>{s.desc}</span>
+            <kbd style={rowCenterMiddle}>{s.key}</kbd>
           </div>
         ))}
       </div>
-      <div style={{ marginTop: 18, fontSize: 12, color: "var(--text-muted)", textAlign: "center" }}>
+      <div style={txtF12Muted}>
         Premi <strong>Esc</strong> o clicca fuori per chiudere
       </div>
     </Modal>

@@ -20,12 +20,17 @@ produzione, advisor di sicurezza Supabase, storico dei run di GitHub Actions.
 > test sono **1150**.
 >
 > **Stesso 13 agosto, secondo intervento** — **M-2, M-3, M-4, M-5, M-6, B-1,
-> B-2 e B-3 sono chiusi**: vedi §4-bis. **M-1 resta aperto**, ma non fermo: un
-> avvio mirato (utility CSS per i tre pattern `style={{…}}` più ripetuti alla
-> lettera, 40 occorrenze su 21+9+10) più il resto documentato invece di
-> lasciato implicito — è la stessa scelta già fatta per B-2 dell'8 agosto
-> (`auth_leaked_password_protection`, accettato con motivo invece che
-> forzato). I test sono **1164** (erano 1150), 7 skip.
+> B-2 e B-3 sono chiusi**: vedi §4-bis. **M-1 era rimasto aperto** con un avvio
+> mirato (40 occorrenze convertite in classi utility). I test sono **1164**
+> (erano 1150), 7 skip.
+>
+> **Terzo intervento, 13 agosto — M-1 è chiuso** (§4-ter). 1.153 `style={{…}}`
+> costanti sollevati a costanti di modulo (1.487 → **334**, tutti dinamici per
+> costruzione), i due `<style>` iniettati a runtime diventati fogli `.css`
+> emessi da Vite, e `'unsafe-inline'` **tolto da `style-src`** — l'ultima
+> direttiva permissiva della CSP. Il passo che §4-bis dava per impossibile si
+> è rivelato possibile: quella sezione conteneva un errore tecnico, corretto e
+> spiegato in §4-ter. **14 rilievi su 14 chiusi.**
 
 ---
 
@@ -80,7 +85,8 @@ giorno** (A-3, §4).
 | ESLint | 0 errori, 20 warning `react/no-multi-comp` in 13 file → **0 in 0 file** (✔ risolto, B-3, §4-bis) |
 | Migrazioni | 105 locali, 104 registrate in produzione → **105/105** dopo A-1 (§4) |
 | File più vicino al limite `max-lines` | `ListeViaggio.jsx` era a **495/500** (✔ risolto, A-4) — ora `TaskSlideOver.jsx`, ~448 |
-| Oggetti `style={{…}}` inline | 1.528 → **1.487** dopo l'avvio di M-1 (§4-bis, aperto) |
+| Oggetti `style={{…}}` inline | 1.528 → 1.487 (avvio di M-1, §4-bis) → **334** (M-1 chiuso, §4-ter), tutti con almeno una proprietà dinamica. Il numero è ora misurato da `npm run verifica:convenzioni` |
+| `'unsafe-inline'` in `style-src` | presente → **rimosso** (§4-ter): la CSP non ha più direttive permissive |
 
 ---
 
@@ -93,7 +99,7 @@ giorno** (A-3, §4).
 | **A-2** ✔ | Il controllo advisor non ha mai girato: secret assente, exit 0 silenzioso — **chiuso il 13 agosto** (§4): secret configurato, il log conferma una valutazione reale | `.github/workflows/verifica-rpc.yml:80` | 🟠 Alta |
 | **A-3** ✔ | Terza copia di `filterByPeriod` + `PERIOD_OPTIONS` + `chipStyle`, mentre il modulo condiviso esiste già — **chiuso il 12 agosto** (§4) | `views/Trash.jsx:17-43,157-169` | 🟠 Alta |
 | **A-4** ✔ | `ListeViaggio.jsx` a 495/500 righe: il prossimo intervento sbatte contro il lint — **chiuso il 13 agosto** (§4) | `liste/ListeViaggio.jsx` | 🟠 Alta |
-| **M-1** ⚙ | 1.528 stili inline: componenti gonfi, nessun design system, `unsafe-inline` obbligato in CSP — **avviato il 13 agosto** (§4-bis): 40 occorrenze convertite in classi utility, 1.487 restano. Resta aperto, per scelta esplicita: vedi §4-bis | trasversale | 🟡 Media |
+| **M-1** ✔ | 1.528 stili inline: componenti gonfi, nessun design system, `unsafe-inline` obbligato in CSP — **avviato il 13 agosto** (§4-bis, 40 occorrenze in classi utility) e **chiuso lo stesso giorno** (§4-ter): 1.153 sollevati a costanti di modulo, 334 dinamici restano per costruzione, `'unsafe-inline'` via da `style-src` | trasversale | 🟡 Media |
 | **M-2** ✔ | "Elimina account" non elimina: ban + `active=false`, nessuna cancellazione dei dati personali — **chiuso il 13 agosto** (§4-bis) | `functions/delete-account/index.ts:39` | 🟡 Media |
 | **M-3** ✔ | `AVVISI_ACCETTATI` accetta per *nome del lint*, non per oggetto: una futura funzione `SECURITY DEFINER` esposta ad `anon` passerebbe muta — **chiuso il 13 agosto** (§4-bis) | `verifica-advisor/advisor.js:28` | 🟡 Media |
 | **M-4** ✔ | `canAccessListe` non controlla `pending`, `private.can_liste()` sì: divergenza UI/DB nella stessa domanda — **chiuso il 13 agosto** (§4-bis) | `lib/permissions.js:151-155` | 🟡 Media |
@@ -406,6 +412,11 @@ Stesso trattamento, con meno urgenza, per `TaskSlideOver.jsx` (448) e
 ---
 
 ### 🟡 M-1 · 1.528 stili inline: la vera ragione per cui i componenti sono lunghi
+
+> ✔ **Chiuso il 13 agosto — vedi §4-ter.** Quel che segue è il rilievo come
+> era scritto, tenuto perché la sua terza conseguenza (la CSP) è stata chiusa
+> per una via che questa analisi dava per impraticabile. Il punto (c)
+> dell'ordine consigliato, in fondo, contiene l'errore.
 
 **File**: trasversale — `Trash.jsx` 68 occorrenze, `TaskSlideOver.jsx` 67,
 `CalendarPlanner.jsx` 58, `AdvancedSearchPanel.jsx` 50.
@@ -901,8 +912,10 @@ solo "con meno urgenza" — non erano parte di A-4.
 ## 4-bis. Correzioni applicate — 13 agosto 2026 (M-2…M-6, B-1…B-3)
 
 Secondo intervento della stessa giornata di A-2/A-4. Sette dei nove rilievi
-Media/Bassa sono chiusi con codice; **M-1 resta aperto** — vedi la sua
-sottosezione per il perché e per cosa è stato comunque fatto.
+Media/Bassa sono chiusi con codice; M-1 restava aperto — vedi la sua
+sottosezione per il perché di allora e per cosa era stato comunque fatto.
+**È stato poi chiuso nel terzo intervento della stessa giornata: §4-ter**, che
+corregge anche l'errore tecnico contenuto in quella sottosezione.
 
 ### ✔ M-2 — "Elimina account" ora anonimizza, non solo banna
 
@@ -1018,6 +1031,13 @@ esiste per far scattare).
 
 ### ⚙ M-1 — avviato, non chiuso: perché e cosa è stato fatto
 
+> ⚠️ **Superato da §4-ter (M-1 è chiuso), e su un punto SBAGLIATO.** La
+> parentesi qui sotto sulla CSP — «il risultato passa comunque dall'attributo
+> `style`, che la CSP governa a prescindere» — non è vera, ed è stata l'unica
+> ragione per cui il terzo effetto sembrava irraggiungibile. La sezione resta
+> integrale: un errore cancellato non insegna niente a chi legge, e questo ha
+> quasi tenuto chiuso un fix per sempre. La correzione è in §4-ter.
+
 **Non è risolvibile in una sessione senza il rischio che questo audit
 esiste per evitare.** 1.528 `style={{…}}` sparsi su 104 file: anche
 convertirne la maggioranza a mano, senza poter verificare visivamente ogni
@@ -1059,6 +1079,108 @@ stesso documento, risolve il costo di render e la leggibilità, non la CSP).
    in classe: spostarlo in un `.css` importato da Vite e togliere
    `'unsafe-inline'` da `style-src` in `vercel.json` — l'unico passo che
    incassa il terzo effetto, e l'ultimo da fare per costruzione.
+
+---
+
+## 4-ter. M-1 chiuso, e la frase che stava per impedirlo
+
+*(terzo intervento del 13 agosto)*
+
+### Cosa è stato fatto
+
+**1 — I 1.153 `style={{…}}` costanti sono costanti di modulo.** Su 1.487
+oggetti, 1.153 erano fatti di soli letterali: nessuna proprietà che dipenda
+dallo stato, ricostruiti identici a ogni render. Ora sono `const` di modulo e
+il JSX li passa per nome. Restano **334** oggetti inline, ognuno con almeno una
+proprietà dinamica — quelli vanno costruiti a ogni render, ed è giusto che lo
+siano.
+
+Dove sono finiti: 61 forme che ricorrono in tre o più file stanno in
+`src/styles/common.js` (la stessa card, lo stesso bottone di chiusura, la
+stessa cella di tabella sono UN oggetto per tutta l'app); 12 componenti fra i
+più densi hanno il loro `*Styles.js` accanto — `trashStyles.js`,
+`taskSlideOverStyles.js`, `calendarPlannerStyles.js`… — come già facevano
+`adminStyles.js` e `clientStyles.js`; gli altri stanno in cima al proprio file.
+
+**2 — I due `<style>` iniettati a runtime sono fogli `.css`.** `GlobalStyles`
+e `ListeStyles` erano componenti React che inserivano un `<style>` nel
+documento: sono diventati `src/styles/global.css` (importato da `main.jsx`) e
+`src/components/liste/liste.css` (importato dai due componenti che aprono il
+modulo). Vite li emette come `<link>` serviti da `self`. Con loro è passato in
+`global.css` anche il blocco safe-area che stava in un `<style>` dentro
+`index.html`, che ora non ha più CSS proprio.
+
+**3 — `'unsafe-inline'` è fuori da `style-src`.** Era l'ultima direttiva
+permissiva della CSP. Oggi: `style-src 'self' https://fonts.googleapis.com`.
+
+**4 — La guardia, perché il numero non risalga da solo.** Una regola
+`no-restricted-syntax` in `eslint.config.js` segnala un `style={{…}}` fatto di
+soli letterali (niente spread, niente chiavi calcolate): a zero violazioni. E
+`npm run verifica:convenzioni` **rimisura** i 334 rimasti e fa fallire la CI se
+divergono da quanto scritto in `docs/CLAUDE.md` — lo stesso meccanismo di
+ST-13, applicato al numero che in tre sessioni è stato riscritto a mano quattro
+volte (1.528 → 1.487 → 334).
+
+### Perché si poteva fare senza guardare ogni schermata
+
+§4-bis si era fermato qui, e la cautela era giusta per il refactor che aveva in
+mente: convertire stili inline in **classi CSS** sposta le regole nella
+cascata, dove possono incrociarne altre, e quello senza browser non si fa.
+
+Ma il sollevamento a costante non è quel refactor. L'inizializzatore di ogni
+costante è la **fetta di sorgente originale** dell'oggetto: stesse chiavi,
+stessi valori, stesso ordine, virgolette comprese. React riceve un oggetto
+uguale a quello di prima; l'unica differenza è che è sempre lo stesso oggetto —
+che è precisamente il difetto da correggere. Non c'è un pixel che possa
+cambiare, e non perché lo si spera: perché la trasformazione non tocca i valori.
+
+E non è stato dedotto, è stato **verificato**: per ognuno dei 1.153 attributi
+riscritti la costante è stata risolta (nel file, in `common.js` o nel
+`*Styles.js`) e la sua forma canonica confrontata con quella di prima, presa da
+`git`. Zero difformità. Stesso metodo per i due fogli CSS: 4.441 e 13.880
+caratteri di regole identici a commenti rimossi.
+
+### La frase sbagliata, e cosa insegna
+
+§4-bis scriveva che `style-src` non può perdere `'unsafe-inline'` finché
+sopravvive un solo `style={{…}}`, perché «React applica gli stili via CSSOM, ma
+il risultato passa comunque dall'attributo `style`, che la CSP governa a
+prescindere». **Non è così.** La CSP controlla l'attributo `style` quando viene
+*parsato* — nel markup o via `setAttribute` — non quando le proprietà sono
+scritte via CSSOM (`node.style.setProperty`), che è ciò che fa React. Nel
+codice non c'è un solo `setAttribute("style", …)`, e nell'HTML costruito non
+c'è un solo attributo `style`.
+
+Verificato in un browser vero, non su una lettura di specifica: il build reale,
+servito in locale con la nuova policy come header e caricato in Chromium, rende
+la schermata di login con 13 elementi che portano un attributo `style` non
+vuoto, i due fogli di stile applicati e **zero violazioni CSP**. La stessa
+prova era già in `docs/SICUREZZA.md` §8 dal 6 agosto, in una riga che diceva
+esattamente il contrario di §4-bis — e nessuno dei due documenti citava
+l'altro.
+
+Vale più della correzione: **una frase tecnica scritta con sicurezza dentro un
+audit diventa il motivo per cui nessuno riprova**. Quella parentesi era perfino
+marcata come «un dettaglio verificato qui perché non è ovvio» — il tono della
+verifica senza la verifica. È la stessa classe di difetto che ST-13 e questo
+audit inseguono nei numeri, applicata a un'affermazione: la cura è la stessa,
+scrivere accanto come la si è controllata, così che chi legge sappia se sta
+guardando una misura o una convinzione.
+
+### Cosa resta aperto, e non è M-1
+
+- **Nessun design system.** `styles/common.js` è un registro delle forme in uso,
+  non un vocabolario: `rowCenterGap8` descrive la forma, non il ruolo. È
+  onesto — un nome meccanico segnala che quella forma non ha (ancora) un
+  significato nell'app — ma la promozione in `tokens.js` di quelle che un
+  significato ce l'hanno resta da fare, una alla volta e con una ragione.
+- **334 stili dinamici.** Non sono un arretrato: dipendono dallo stato. Alcuni
+  potrebbero diventare classi con una custom property (`style={{ "--n": n }}`),
+  che è un refactor visivo — quello sì da fare con un browser davanti.
+- **Le classi utility restano tre.** Convertire forme costanti in classi CSS
+  (invece che in oggetti di modulo) toglierebbe l'attributo `style` dal DOM,
+  non solo l'allocazione. È il passo migliore e quello che va guardato: la
+  cautela di §4-bis, qui, resta valida per intero.
 
 ---
 
@@ -1110,10 +1232,14 @@ ripetuti, e — quando lo `<style>` globale sarà l'ultimo consumatore — spost
 in un `.css` e togliere `'unsafe-inline'` da `style-src`. È l'unico intervento
 di questo audit che paga su tre fronti diversi con un lavoro solo.
 
-**Avviato il 13 agosto** (M-1, §4-bis): i pattern ripetuti alla lettera sono
-diventati classi (−40 oggetti, 1.487 restano). Il grosso — i quattro file
-densi e la migrazione del `<style>` globale — resta il lavoro descritto qui
-sopra, non ancora fatto.
+**Fatto il 13 agosto** (M-1, §4-bis e §4-ter): prima i pattern ripetuti alla
+lettera come classi (−40), poi i 1.153 oggetti costanti sollevati a costanti di
+modulo (1.487 → 334, tutti dinamici) e i due `<style>` iniettati a runtime
+diventati fogli `.css`. I tre fronti sono incassati tutti e tre: i componenti
+densi hanno il loro `*Styles.js`, `memo` vede prop di stile stabili, e
+`style-src` ha perso `'unsafe-inline'`. Quel che resta non è più questo
+rilievo: è la promozione da registro di forme (`styles/common.js`) a
+vocabolario (`tokens.js`), che si fa un nome alla volta e quando un nome c'è.
 
 ---
 

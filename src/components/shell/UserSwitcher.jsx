@@ -9,6 +9,36 @@ import { AvatarImg } from "../ui/AvatarImg.jsx";
 import { LazyFallback } from "../ui/LazyFallback.jsx";
 import { Z } from "../../styles/tokens.js";
 import { roleLabel, toDbRole, toSeniority } from "../../lib/taskConstants.js";
+import { nomeTroncato, relative } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowCenterGap8 = {
+  display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
+  background: "#fff", border: "1px solid rgba(15,32,68,0.15)",
+  borderRadius: 8, padding: "3px 8px 3px 4px", fontFamily: "inherit",
+};
+const boxW30H30 = { width: 30, height: 30, borderRadius: "50%", objectFit: "cover" };
+const textAlign2 = { textAlign: "left" };
+const txtF12Bold = { color: "var(--navy)", fontSize: 12, fontWeight: 600, lineHeight: 1.2 };
+const txtF10 = { color: "rgba(15,32,68,0.75)", fontSize: 10 };
+const txtF102 = { color: "rgba(15,32,68,0.7)", fontSize: 10, marginLeft: 2 };
+const rowCenterGap10 = {
+  width: "100%", display: "flex", alignItems: "center", gap: 10,
+  padding: "10px 10px", background: "transparent",
+  border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontSize: 13,
+  color: "var(--navy)", textAlign: "left", borderBottom: "1px solid var(--border)", marginBottom: 4,
+};
+const txtF16 = { fontSize: 16 };
+const txtBold = { fontWeight: 600 };
+const txtF10Bold = { fontSize: 10, fontWeight: 700, color: "var(--text-muted)", padding: "8px 10px 4px", letterSpacing: 1 };
+const boxW30H302 = { width: 30, height: 30, borderRadius: "50%", objectFit: "cover", flexShrink: 0 };
+const rowCenterGap5 = { fontSize: 11, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 5 };
+const boxF9Bold = {
+  background: "#FFF3CD", color: "#856404", fontSize: 9, fontWeight: 700,
+  padding: "1px 5px", borderRadius: 4, letterSpacing: 0.3,
+};
+const txtF14Success = { color: "var(--success)", fontSize: 14 };
 
 // Chunk async: porta con sé CropModal.jsx — 14.2 kB insieme, aperti solo da
 // "Modifica profilo" nel menù utente, non dal primo render della Topbar.
@@ -76,19 +106,15 @@ export const UserSwitcher = ({ dispatch }) => {
     .sort((a, b) => rank(a) - rank(b));
 
   return (
-    <div ref={ref} style={{ position: "relative" }}>
+    <div ref={ref} style={relative}>
       <button
         onClick={() => setOpen(o => !o)}
         title="Cambia utente"
         aria-label="Cambia utente loggato"
-        style={{
-          display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
-          background: "#fff", border: "1px solid rgba(15,32,68,0.15)",
-          borderRadius: 8, padding: "3px 8px 3px 4px", fontFamily: "inherit",
-        }}
+        style={rowCenterGap8}
       >
         {curr.photoUrl ? (
-          <AvatarImg photo={curr.photoUrl} style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover" }} />
+          <AvatarImg photo={curr.photoUrl} style={boxW30H30} />
         ) : (
           <div style={{
             width: 30, height: 30, borderRadius: "50%", background: curr.color,
@@ -96,11 +122,11 @@ export const UserSwitcher = ({ dispatch }) => {
             fontSize: 11, fontWeight: 700, color: "#fff",
           }}>{curr.avatar}</div>
         )}
-        <div className="vd-hide-mobile" style={{ textAlign: "left" }}>
-          <div style={{ color: "var(--navy)", fontSize: 12, fontWeight: 600, lineHeight: 1.2 }}>{curr.name}</div>
-          <div style={{ color: "rgba(15,32,68,0.75)", fontSize: 10 }}>{roleLabel(curr)}</div>
+        <div className="vd-hide-mobile" style={textAlign2}>
+          <div style={txtF12Bold}>{curr.name}</div>
+          <div style={txtF10}>{roleLabel(curr)}</div>
         </div>
-        <span style={{ color: "rgba(15,32,68,0.7)", fontSize: 10, marginLeft: 2 }}>▾</span>
+        <span style={txtF102}>▾</span>
       </button>
 
       {open && (
@@ -113,22 +139,17 @@ export const UserSwitcher = ({ dispatch }) => {
           {/* Profilo personale */}
           <button
             onClick={() => { setShowProfile(true); setOpen(false); }}
-            style={{
-              width: "100%", display: "flex", alignItems: "center", gap: 10,
-              padding: "10px 10px", background: "transparent",
-              border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontSize: 13,
-              color: "var(--navy)", textAlign: "left", borderBottom: "1px solid var(--border)", marginBottom: 4,
-            }}
+            style={rowCenterGap10}
             onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
             onMouseLeave={e => e.currentTarget.style.background = "transparent"}
           >
-            <span style={{ fontSize: 16 }}>👤</span>
-            <span style={{ fontWeight: 600 }}>Modifica profilo</span>
+            <span style={txtF16}>👤</span>
+            <span style={txtBold}>Modifica profilo</span>
           </button>
 
           {SHOW_DEMO_SWITCH && (
             <>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", padding: "8px 10px 4px", letterSpacing: 1 }}>
+              <div style={txtF10Bold}>
                 ACCEDI COME (DEMO MULTI-RUOLO)
               </div>
               {candidates.map(m => {
@@ -147,7 +168,7 @@ export const UserSwitcher = ({ dispatch }) => {
                     onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
                   >
                     {m.photoUrl ? (
-                      <AvatarImg photo={m.photoUrl} style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                      <AvatarImg photo={m.photoUrl} style={boxW30H302} />
                     ) : (
                       <div style={{
                         width: 30, height: 30, borderRadius: "50%", background: m.color,
@@ -156,18 +177,15 @@ export const UserSwitcher = ({ dispatch }) => {
                       }}>{m.avatar}</div>
                     )}
                     <div className="vd-flex-1-min0">
-                      <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.name}</div>
-                      <div style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 5 }}>
+                      <div style={nomeTroncato}>{m.name}</div>
+                      <div style={rowCenterGap5}>
                         {roleLabel(m)}
                         {isJuniorAgent(m.id) && (
-                          <span style={{
-                            background: "#FFF3CD", color: "#856404", fontSize: 9, fontWeight: 700,
-                            padding: "1px 5px", borderRadius: 4, letterSpacing: 0.3,
-                          }}>JUNIOR</span>
+                          <span style={boxF9Bold}>JUNIOR</span>
                         )}
                       </div>
                     </div>
-                    {active && <span style={{ color: "var(--success)", fontSize: 14 }}>✓</span>}
+                    {active && <span style={txtF14Success}>✓</span>}
                   </button>
                 );
               })}
@@ -189,8 +207,8 @@ export const UserSwitcher = ({ dispatch }) => {
             onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
             onMouseLeave={e => e.currentTarget.style.background = "transparent"}
           >
-            <span style={{ fontSize: 16 }}>🚪</span>
-            <span style={{ fontWeight: 600 }}>{signingOut ? "Uscita…" : "Esci"}</span>
+            <span style={txtF16}>🚪</span>
+            <span style={txtBold}>{signingOut ? "Uscita…" : "Esci"}</span>
           </button>
         </div>
       )}

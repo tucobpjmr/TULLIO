@@ -14,6 +14,13 @@ import { isValidEmail } from "../../lib/validators.js";
 import {
   DB_ROLES, ROLE_LABELS, SENIORITY_LEVELS, SENIORITY_LABELS,
 } from "../../lib/taskConstants.js";
+import { gridGap12, rowGap8Mt20, txtHeadingMb16 } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const txtF115Muted = { fontSize: 11.5, color: "var(--text-muted)", marginTop: 4 };
+const rowCenterGap8 = { display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text)", cursor: "pointer", marginTop: 4 };
+const boxF125Danger = { fontSize: 12.5, color: "var(--danger)", background: "rgba(192,57,43,0.08)", border: "1px solid var(--danger)", borderRadius: 8, padding: "8px 10px" };
 
 // La mappa label→enum che stava qui (e, identica, in BulkInviteModal) è
 // diventata DB_ROLES/ROLE_LABELS in lib/taskConstants.js: erano due copie della
@@ -76,8 +83,8 @@ export const AddTeamMemberModal = ({ onClose, dispatch, existingIds, onInvited }
     <ModalPortal>
       <div onClick={onClose} style={modalOverlay}>
         <div onClick={e => e.stopPropagation()} style={{ ...modalCard, maxWidth: 480 }}>
-          <h3 className="playfair" style={{ margin: 0, marginBottom: 16, color: "var(--heading)" }}>Aggiungi nuovo agente</h3>
-          <div style={{ display: "grid", gap: 12 }}>
+          <h3 className="playfair" style={txtHeadingMb16}>Aggiungi nuovo agente</h3>
+          <div style={gridGap12}>
             <div>
               <label style={labelStyle}>Nome completo *</label>
               <input value={name} onChange={e => setName(e.target.value)} placeholder="Es. Anna Bianchi" style={fieldStyle} autoFocus />
@@ -85,7 +92,7 @@ export const AddTeamMemberModal = ({ onClose, dispatch, existingIds, onInvited }
             <div>
               <label style={labelStyle}>Email (per invitare via email)</label>
               <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="anna@agenzia.it" style={fieldStyle} />
-              <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 4 }}>
+              <div style={txtF115Muted}>
                 Con email: invio un invito reale (l'utente crea la password e resta in attesa di approvazione). Senza email: aggiungo solo un agente locale.
               </div>
             </div>
@@ -106,18 +113,18 @@ export const AddTeamMemberModal = ({ onClose, dispatch, existingIds, onInvited }
               <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{...fieldStyle, height: 38, padding: 2}} />
             </div>
             {!email.trim() && (
-              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text)", cursor: "pointer", marginTop: 4 }}>
+              <label style={rowCenterGap8}>
                 <input type="checkbox" checked={pending} onChange={e => setPending(e.target.checked)} />
                 Crea come "in attesa di approvazione" (simula iscrizione)
               </label>
             )}
             {err && (
-              <div style={{ fontSize: 12.5, color: "var(--danger)", background: "rgba(192,57,43,0.08)", border: "1px solid var(--danger)", borderRadius: 8, padding: "8px 10px" }}>
+              <div style={boxF125Danger}>
                 {typeof err === "string" ? err : (err?.message || "Errore imprevisto.")}
               </div>
             )}
           </div>
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 }}>
+          <div style={rowGap8Mt20}>
             <button onClick={onClose} style={btnGhost} disabled={busy}>Annulla</button>
             <button onClick={submit} style={btnPrimary} disabled={busy}>
               {busy ? "Invio…" : (email.trim() ? "Invia invito" : "Crea agente")}

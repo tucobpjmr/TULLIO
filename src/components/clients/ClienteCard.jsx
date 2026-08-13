@@ -4,6 +4,32 @@ import { useState, useMemo } from "react";
 import { ContactActions } from "../ui/ContactActions.jsx";
 import { notesPreview, parseClientNotes } from "../../lib/clientNotes.js";
 import { ListeChip } from "./ListeChip.jsx";
+import { rowGap4, txtF12Muted, txtF13 } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowStartBetween = { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 };
+const flex1MinW0 = { flex: 1, minWidth: 0, cursor: "pointer" };
+const rowCenterGap8 = { display: "flex", alignItems: "center", gap: 8, marginBottom: 4 };
+const txtF15Bold = { fontWeight: 600, color: "var(--heading)", fontSize: 15 };
+const rowGapMt6 = { display: "flex", flexWrap: "wrap", gap: "4px 16px", marginTop: 6 };
+const txtF13NavyLight = { fontSize: 13, color: "var(--navy-light)", textDecoration: "none" };
+const txtF12Muted2 = { marginTop: 6, fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" };
+const rowGap6Mt8 = { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 };
+const boxF105Bold = {
+  fontSize: 10.5, fontWeight: 600, color: "var(--text-muted)",
+  background: "var(--surface2)", border: "1px solid var(--border)",
+  borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap",
+};
+const colEndGap6 = { display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 };
+const boxF12Muted = {
+  padding: "5px 10px", borderRadius: 6, border: "1px solid var(--border)",
+  background: "var(--card)", cursor: "pointer", fontSize: 12, color: "var(--text-muted)",
+};
+const boxF12Danger = {
+  padding: "5px 10px", borderRadius: 6, border: "1px solid #fecaca",
+  background: "var(--card)", cursor: "pointer", fontSize: 12, color: "var(--danger)",
+};
 
 export function ClienteCard({ cliente, onEdit, onDelete, onSelect, selected, liste = null }) {
   const [hovered, setHovered] = useState(false);
@@ -22,9 +48,9 @@ export function ClienteCard({ cliente, onEdit, onDelete, onSelect, selected, lis
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-        <div style={{ flex: 1, minWidth: 0, cursor: "pointer" }} onClick={() => onSelect(cliente)}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+      <div style={rowStartBetween}>
+        <div style={flex1MinW0} onClick={() => onSelect(cliente)}>
+          <div style={rowCenterGap8}>
             <div style={{
               width: 34, height: 34, borderRadius: "50%",
               background: selected ? "var(--navy)" : "var(--navy-light)",
@@ -34,40 +60,36 @@ export function ClienteCard({ cliente, onEdit, onDelete, onSelect, selected, lis
               {cliente.name.slice(0, 2).toUpperCase()}
             </div>
             <div>
-              <div style={{ fontWeight: 600, color: "var(--heading)", fontSize: 15 }}>{cliente.name}</div>
-              {cliente.city && <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{cliente.city}</div>}
+              <div style={txtF15Bold}>{cliente.name}</div>
+              {cliente.city && <div style={txtF12Muted}>{cliente.city}</div>}
             </div>
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px", marginTop: 6 }}>
+          <div style={rowGapMt6}>
             {cliente.email && (
               <a
                 href={`mailto:${cliente.email}`}
                 onClick={e => e.stopPropagation()}
-                style={{ fontSize: 13, color: "var(--navy-light)", textDecoration: "none" }}
+                style={txtF13NavyLight}
               >
                 ✉️ {cliente.email}
               </a>
             )}
             {cliente.phone && (
-              <ContactActions phone={cliente.phone} style={{ fontSize: 13 }} />
+              <ContactActions phone={cliente.phone} style={txtF13} />
             )}
           </div>
           {text && (
-            <div style={{ marginTop: 6, fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>
+            <div style={txtF12Muted2}>
               {notesPreview(cliente.notes)}
             </div>
           )}
           {(fields.length > 0 || (liste?.totali || 0) > 0) && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+            <div style={rowGap6Mt8}>
               <ListeChip liste={liste} />
               {fields.length > 0 && (
                 <span
                   title={fields.map(f => `${f.label}: ${f.value}`).join("\n")}
-                  style={{
-                    fontSize: 10.5, fontWeight: 600, color: "var(--text-muted)",
-                    background: "var(--surface2)", border: "1px solid var(--border)",
-                    borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap",
-                  }}
+                  style={boxF105Bold}
                 >
                   📇 {fields.length} dat{fields.length === 1 ? "o" : "i"} anagrafic{fields.length === 1 ? "o" : "i"}
                 </span>
@@ -75,16 +97,10 @@ export function ClienteCard({ cliente, onEdit, onDelete, onSelect, selected, lis
             </div>
           )}
         </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
-          <div style={{ display: "flex", gap: 4 }}>
-            <button onClick={() => onEdit(cliente)} style={{
-              padding: "5px 10px", borderRadius: 6, border: "1px solid var(--border)",
-              background: "var(--card)", cursor: "pointer", fontSize: 12, color: "var(--text-muted)",
-            }}>✏️</button>
-            <button onClick={() => onDelete(cliente)} style={{
-              padding: "5px 10px", borderRadius: 6, border: "1px solid #fecaca",
-              background: "var(--card)", cursor: "pointer", fontSize: 12, color: "var(--danger)",
-            }}>🗑️</button>
+        <div style={colEndGap6}>
+          <div style={rowGap4}>
+            <button onClick={() => onEdit(cliente)} style={boxF12Muted}>✏️</button>
+            <button onClick={() => onDelete(cliente)} style={boxF12Danger}>🗑️</button>
           </div>
         </div>
       </div>

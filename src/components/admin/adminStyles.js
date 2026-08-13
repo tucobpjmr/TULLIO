@@ -2,14 +2,14 @@
 // Stili condivisi dall'area Admin.
 //
 // Era uno dei TRE sistemi di stile paralleli della codebase (con
-// modals/bulk/bulkStyles.js e liste/listeStyles.jsx): lo stesso bottone
+// modals/bulk/bulkStyles.js e liste/liste.css): lo stesso bottone
 // primario esisteva in quattro varianti non intercambiabili. Ora le forme che
 // coincidono derivano da styles/tokens.js; restano qui solo le varianti
 // specifiche dell'area e i pochi delta, che sono ESPLICITI invece di essere
 // una copia divergente che nessuno sa più se sia voluta.
 //
 // Nota: i `#fff` hardcoded sono stati sostituiti da `var(--card)`. È lo stesso
-// colore (--card: #ffffff in GlobalStyles), ma passa dalla variabile di tema
+// colore (--card: #ffffff in styles/global.css), ma passa dalla variabile di tema
 // come il resto dell'app — un tema scuro non dovrà rincorrere questi valori.
 import { btn, field, Z } from "../../styles/tokens.js";
 

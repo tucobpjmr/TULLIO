@@ -6,6 +6,14 @@ import { StatusBadge } from "../ui/StatusBadge.jsx";
 import { TaskRow } from "../tasks/TaskRow.jsx";
 import { formatDate, isActiveTask } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
+import { txtF12Muted } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowGap12Mb12 = { display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap" };
+const txtF12Success = { fontSize: 12, color: "var(--success)" };
+const txtF13Muted = { textAlign: "center", padding: "24px 0", color: "var(--text-muted)", fontSize: 13 };
+const colGap7 = { display: "flex", flexDirection: "column", gap: 7 };
 
 export function ClienteTaskTab({ cliente, tasks, dispatch }) {
   const { currentUserId: uid, canViewTask } = useAppData();
@@ -25,21 +33,21 @@ export function ClienteTaskTab({ cliente, tasks, dispatch }) {
   const done = clientTasks.filter(t => t.status === "done");
   return (
     <>
-      <div style={{ display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+      <div style={rowGap12Mb12}>
+        <span style={txtF12Muted}>
           {open.length} aperti
         </span>
-        <span style={{ fontSize: 12, color: "var(--success)" }}>
+        <span style={txtF12Success}>
           {done.length} completati
         </span>
       </div>
 
       {clientTasks.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "24px 0", color: "var(--text-muted)", fontSize: 13 }}>
+        <div style={txtF13Muted}>
           Nessun task associato a questo cliente
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+        <div style={colGap7}>
           {clientTasks.map(t => (
             <TaskRow
               key={t.id}

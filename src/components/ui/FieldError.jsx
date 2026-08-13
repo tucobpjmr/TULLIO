@@ -9,16 +9,20 @@
 // testo nuovo. È la coppia con `aria-describedby` sull'input a chiudere il
 // cerchio: l'annuncio dice cosa c'è che non va, e riportando il focus sul
 // campo il messaggio viene riletto come sua descrizione.
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const txtF115Bold = {
+  marginTop: 4, fontSize: 11.5, fontWeight: 600, lineHeight: 1.35,
+  color: "var(--danger)",
+};
 export function FieldError({ id, children }) {
   if (!children) return null;
   return (
     <div
       id={id}
       role="alert"
-      style={{
-        marginTop: 4, fontSize: 11.5, fontWeight: 600, lineHeight: 1.35,
-        color: "var(--danger)",
-      }}
+      style={txtF115Bold}
     >
       {children}
     </div>

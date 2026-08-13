@@ -35,6 +35,39 @@ import { NewConversationView } from "./NewConversationView.jsx";
 import { ForwardPicker } from "./ForwardPicker.jsx";
 import { Z } from "../../styles/tokens.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
+import { btnChiudiSuScuro, rowCenterGap10, rowCenterGap8 } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowCenterBetween = {
+  background: "linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%)",
+  padding: "calc(14px + var(--safe-top)) 16px 14px",
+  display: "flex", alignItems: "center", justifyContent: "space-between",
+  flexShrink: 0, borderBottom: "1px solid rgba(212,168,67,0.2)",
+};
+const rowCenterMiddle = {
+  width: 32, height: 32, background: "var(--gold)", borderRadius: 8,
+  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14,
+};
+const txtF15Bold = { color: "#fff", fontSize: 15, fontWeight: 700, lineHeight: 1 };
+const txtF10Mt2 = { color: "rgba(255,255,255,0.5)", fontSize: 10, letterSpacing: 1.5, marginTop: 2 };
+const rowCenterGap6 = {
+  display: "flex", alignItems: "center", gap: 6,
+  background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.22)",
+  color: "#fff", height: 28, padding: "0 10px", borderRadius: 14,
+  cursor: "pointer", fontSize: 11, fontWeight: 600,
+};
+const flex1 = { flex: 1, overflow: "hidden" };
+const colCenterMiddle = {
+  height: "100%", display: "flex", flexDirection: "column",
+  alignItems: "center", justifyContent: "center", gap: 12, color: "var(--heading)",
+};
+const boxW28H28 = {
+  width: 28, height: 28, borderRadius: "50%",
+  border: "3px solid rgba(15,32,68,0.15)", borderTopColor: "var(--gold)",
+  animation: "spin 0.8s linear infinite",
+};
+const txtF12Op07 = { fontSize: 12, opacity: 0.7, letterSpacing: 1 };
 
 
 export const ChatPanel = ({ open, onClose, conversations: convProp, messages: msgProp, commands: commandsProp, onDeleteConversation, intent, tasks, currentUserId, dispatch, presenceMap, messageTemplates = [], loading = false, myBusy = false, onToggleBusy }) => {
@@ -264,37 +297,24 @@ export const ChatPanel = ({ open, onClose, conversations: convProp, messages: ms
             finisce sotto la status bar: il padding-top include l'inset così
             "Online", ✏️ e ✕ restano tappabili (lo sfondo navy riempie comunque
             la zona della status bar). */}
-        <div style={{
-          background: "linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%)",
-          padding: "calc(14px + var(--safe-top)) 16px 14px",
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          flexShrink: 0, borderBottom: "1px solid rgba(212,168,67,0.2)",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{
-              width: 32, height: 32, background: "var(--gold)", borderRadius: 8,
-              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14,
-            }}>💬</div>
+        <div style={rowCenterBetween}>
+          <div style={rowCenterGap10}>
+            <div style={rowCenterMiddle}>💬</div>
             <div>
-              <div className="playfair" style={{ color: "#fff", fontSize: 15, fontWeight: 700, lineHeight: 1 }}>
+              <div className="playfair" style={txtF15Bold}>
                 Messaggi
               </div>
-              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, letterSpacing: 1.5, marginTop: 2 }}>
+              <div style={txtF10Mt2}>
                 CHAT INTERNA TEAM
               </div>
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={rowCenterGap8}>
             {onToggleBusy && (
               <button
                 onClick={onToggleBusy}
                 title={myBusy ? "Sei Occupato — clicca per tornare Online" : "Imposta il tuo stato su Occupato"}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.22)",
-                  color: "#fff", height: 28, padding: "0 10px", borderRadius: 14,
-                  cursor: "pointer", fontSize: 11, fontWeight: 600,
-                }}
+                style={rowCenterGap6}
               >
                 <span style={{
                   width: 8, height: 8, borderRadius: "50%",
@@ -313,26 +333,16 @@ export const ChatPanel = ({ open, onClose, conversations: convProp, messages: ms
                   width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 15,
                 }}>✏️</button>
             )}
-            <button onClick={onClose} style={{
-              background: "rgba(255,255,255,0.1)", border: "none", color: "#fff",
-              width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 14,
-            }}>✕</button>
+            <button onClick={onClose} style={btnChiudiSuScuro}>✕</button>
           </div>
         </div>
 
         {/* Body */}
-        <div style={{ flex: 1, overflow: "hidden" }}>
+        <div style={flex1}>
           {loading ? (
-            <div style={{
-              height: "100%", display: "flex", flexDirection: "column",
-              alignItems: "center", justifyContent: "center", gap: 12, color: "var(--heading)",
-            }}>
-              <div style={{
-                width: 28, height: 28, borderRadius: "50%",
-                border: "3px solid rgba(15,32,68,0.15)", borderTopColor: "var(--gold)",
-                animation: "spin 0.8s linear infinite",
-              }} />
-              <div style={{ fontSize: 12, opacity: 0.7, letterSpacing: 1 }}>
+            <div style={colCenterMiddle}>
+              <div style={boxW28H28} />
+              <div style={txtF12Op07}>
                 Caricamento chat…
               </div>
             </div>

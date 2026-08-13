@@ -9,6 +9,14 @@ import { sanitizePhone, toWhatsAppNumber } from "../../lib/phoneUtils.js";
 import { Z } from "../../styles/tokens.js";
 import { ContactMenuItem } from "./ContactMenuItem.jsx";
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowCenterGap6 = {
+  background: "none", border: "none", padding: 0, cursor: "pointer",
+  font: "inherit", color: "var(--navy-light)", display: "inline-flex",
+  alignItems: "center", gap: 6,
+};
+
 export function ContactActions({ phone, label, style }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
@@ -40,11 +48,7 @@ export function ContactActions({ phone, label, style }) {
         type="button"
         onClick={toggle}
         title="Chiama, SMS o WhatsApp"
-        style={{
-          background: "none", border: "none", padding: 0, cursor: "pointer",
-          font: "inherit", color: "var(--navy-light)", display: "inline-flex",
-          alignItems: "center", gap: 6,
-        }}
+        style={rowCenterGap6}
       >📞 {label ?? phone}</button>
 
       {open && (

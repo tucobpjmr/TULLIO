@@ -8,6 +8,12 @@ import { useListeWrite } from "./listePersistence.js";
 import { SegnoSeg } from "./modals/SegnoSeg.jsx";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { validaCampi, obbligatorio, interpretabile, primoCampoInvalido } from "../../lib/validators.js";
+import { mt12 } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowEnd = { display: "flex", alignItems: "flex-end" };
+const wFull = { width: "100%" };
 
 // Criticità #10 — le regole del riquadro, dichiarate una volta e fuori dal
 // componente perché sono costanti. `importo` si interpreta col SEGNO scelto
@@ -126,13 +132,13 @@ export function AddMovBox({ listaId, dispatch, onSaved, onClose, onBulk }) {
             {METODI.map((v) => <option key={v || "none"} value={v}>{v ? v.toUpperCase() : "—"}</option>)}
           </select>
         </div>
-        <div className="lv-field" style={{ display: "flex", alignItems: "flex-end" }}>
-          <button className="lv-btn primary" style={{ width: "100%" }} disabled={saving} onClick={submit}>
+        <div className="lv-field" style={rowEnd}>
+          <button className="lv-btn primary" style={wFull} disabled={saving} onClick={submit}>
             {saving ? "Registro…" : "Registra"}
           </button>
         </div>
       </div>
-      <button className="lv-btn sm" style={{ marginTop: 12 }} onClick={onBulk}>
+      <button className="lv-btn sm" style={mt12} onClick={onBulk}>
         + Inserisci più movimenti insieme
       </button>
     </div>

@@ -9,6 +9,12 @@ import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { Z } from "../../styles/tokens.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import { dataBreve } from "../../lib/dates.js";
+import { rowCenterGap10 } from "../../styles/common.js";
+import {
+  boxF11Bold, boxF16R4, gridGap16, marginLeft2, padding2, rowAbsoluteGap2, rowCenterBetween,
+  rowCenterGap5, rowCenterGap6, rowCenterGap62, rowCenterMiddle, rowGap4Mt8, txtAbsoluteF18,
+  txtBold, txtF10Bold, txtF13TxtCenter, txtF17Bold, txtFlex1F13,
+} from "./noticeBoardStyles.js";
 
 // v2.8: emoji disponibili per le reazioni rapide sui post-it.
 // Tenuto basso (6) per non rompere il layout del post-it. Stesso shape della chat.
@@ -78,29 +84,18 @@ export const NoticeBoard = ({ notices, dispatch, loading = false }) => {
       minWidth: 0, overflow: "hidden",
     }}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: 8,
-            background: "var(--navy)", color: "var(--gold)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 18,
-          }}>📌</div>
+      <div style={rowCenterBetween}>
+        <div style={rowCenterGap10}>
+          <div style={rowCenterMiddle}>📌</div>
           <div>
-            <div className="playfair" style={{ fontSize: 17, fontWeight: 700, color: "var(--heading)" }}>
+            <div className="playfair" style={txtF17Bold}>
               Bacheca avvisi
             </div>
           </div>
         </div>
         <button
           onClick={() => setCreating(true)}
-          style={{
-            background: "var(--navy)", color: "#fff", border: "none",
-            padding: "8px 14px", borderRadius: 8, cursor: "pointer",
-            fontSize: 12, fontWeight: 700, fontFamily: "inherit",
-            display: "flex", alignItems: "center", gap: 5,
-            boxShadow: "0 2px 8px rgba(15,32,68,0.3)",
-          }}
+          style={rowCenterGap5}
         >
           + Nuovo avviso
         </button>
@@ -108,11 +103,8 @@ export const NoticeBoard = ({ notices, dispatch, loading = false }) => {
 
       {/* Filtro tag (v2.8): visibile solo se ci sono tag in uso */}
       {allTags.length > 0 && (
-        <div style={{
-          display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6,
-          marginBottom: 14, padding: "0 2px",
-        }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: "#8b6f3a", textTransform: "uppercase", letterSpacing: 1, marginRight: 2 }}>
+        <div style={rowCenterGap6}>
+          <span style={txtF10Bold}>
             Tag:
           </span>
           {allTags.map(t => {
@@ -137,11 +129,7 @@ export const NoticeBoard = ({ notices, dispatch, loading = false }) => {
             <button
               type="button"
               onClick={() => setActiveTags(new Set())}
-              style={{
-                background: "none", border: "none", color: "#8b6f3a",
-                fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-                marginLeft: 4, textDecoration: "underline",
-              }}
+              style={boxF11Bold}
             >azzera</button>
           )}
         </div>
@@ -149,21 +137,15 @@ export const NoticeBoard = ({ notices, dispatch, loading = false }) => {
 
       {/* Board */}
       {loading && notices.length === 0 ? (
-        <div style={{ padding: "6px 4px" }}>
+        <div style={padding2}>
           <SkeletonCards count={3} minWidth={240} compact label="Caricamento della bacheca" />
         </div>
       ) : sorted.length === 0 ? (
-        <div style={{
-          padding: "30px 20px", textAlign: "center", color: "#8b6f3a",
-          fontSize: 13, fontStyle: "italic",
-        }}>
+        <div style={txtF13TxtCenter}>
           ✨ Nessun avviso in bacheca. Clicca "+ Nuovo avviso" per pubblicarne uno.
         </div>
       ) : (
-        <div style={{
-          display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
-          gap: 16, padding: "6px 4px",
-        }}>
+        <div style={gridGap16}>
           {sorted.map((n) => {
             const author = getMember(n.author);
             const rotation = ((n.id.charCodeAt(n.id.length - 1) % 5) - 2) * 0.7; // -1.4 a +1.4 deg
@@ -193,17 +175,11 @@ export const NoticeBoard = ({ notices, dispatch, loading = false }) => {
               >
                 {/* Pin in alto */}
                 {n.pinned && (
-                  <div style={{
-                    position: "absolute", top: -8, left: "50%", transform: "translateX(-50%)",
-                    fontSize: 18, filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))",
-                  }}>📌</div>
+                  <div style={txtAbsoluteF18}>📌</div>
                 )}
 
                 {/* Toolbar actions */}
-                <div style={{
-                  position: "absolute", top: 6, right: 6,
-                  display: "flex", gap: 2, opacity: 0.6,
-                }}>
+                <div style={rowAbsoluteGap2}>
                   <button
                     onClick={() => setReactingId(reactingId === n.id ? null : n.id)}
                     title="Reagisci"
@@ -251,11 +227,7 @@ export const NoticeBoard = ({ notices, dispatch, loading = false }) => {
                           dispatch({ type: "TOGGLE_NOTICE_REACTION", payload: { noticeId: n.id, emoji: em } });
                           setReactingId(null);
                         }}
-                        style={{
-                          background: "none", border: "none", padding: "2px 4px",
-                          cursor: "pointer", fontSize: 16, lineHeight: 1,
-                          borderRadius: 4,
-                        }}
+                        style={boxF16R4}
                         onMouseEnter={e => { e.currentTarget.style.background = "rgba(15,32,68,0.08)"; }}
                         onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
                       >{em}</button>
@@ -264,17 +236,13 @@ export const NoticeBoard = ({ notices, dispatch, loading = false }) => {
                 )}
 
                 {/* Testo avviso (con @menzioni evidenziate) */}
-                <div style={{
-                  fontSize: 13, lineHeight: 1.45, color: "#3d2f10",
-                  whiteSpace: "pre-wrap", wordBreak: "break-word",
-                  flex: 1, marginTop: 10, marginRight: 50,
-                }}>
+                <div style={txtFlex1F13}>
                   <MentionText text={n.text} />
                 </div>
 
                 {/* Chip riassuntive reazioni (v2.8): click toggla la mia reazione */}
                 {n.reactions && Object.keys(n.reactions).length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
+                  <div style={rowGap4Mt8}>
                     {Object.entries(n.reactions).map(([em, users]) => {
                       if (!Array.isArray(users) || users.length === 0) return null;
                       const mine = users.includes(currentUserId);
@@ -304,7 +272,7 @@ export const NoticeBoard = ({ notices, dispatch, loading = false }) => {
 
                 {/* Tag chips (v2.8) */}
                 {Array.isArray(n.tags) && n.tags.length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
+                  <div style={rowGap4Mt8}>
                     {n.tags.map(t => (
                       <span
                         key={t}
@@ -323,12 +291,7 @@ export const NoticeBoard = ({ notices, dispatch, loading = false }) => {
                 )}
 
                 {/* Footer: autore + data */}
-                <div style={{
-                  marginTop: 10, paddingTop: 8,
-                  borderTop: "1px dashed rgba(61,47,16,0.2)",
-                  display: "flex", alignItems: "center", gap: 6,
-                  fontSize: 10, color: "#5d4920",
-                }}>
+                <div style={rowCenterGap62}>
                   {author && (
                     <>
                       <div style={{
@@ -336,10 +299,10 @@ export const NoticeBoard = ({ notices, dispatch, loading = false }) => {
                         color: "#fff", fontSize: 8, fontWeight: 700,
                         display: "flex", alignItems: "center", justifyContent: "center",
                       }}>{author.avatar}</div>
-                      <span style={{ fontWeight: 600 }}>{author.name.split(" ")[0]}</span>
+                      <span style={txtBold}>{author.name.split(" ")[0]}</span>
                     </>
                   )}
-                  <span style={{ marginLeft: "auto" }}>{formatRel(n.updatedAt || n.createdAt)}</span>
+                  <span style={marginLeft2}>{formatRel(n.updatedAt || n.createdAt)}</span>
                 </div>
               </div>
             );

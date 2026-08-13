@@ -18,6 +18,18 @@ import { useConfirm } from "../../state/ConfirmContext.jsx";
 // identica salvo il campo data cablato su `deletedAt` — la stessa domanda
 // ("mostrami solo l'ultimo mese") ridefinita tre volte invece di una.
 import { PERIOD_OPTIONS, filterByPeriod, chipStyle } from "./archiveFilters.js";
+import {
+  btnChiudiSuScuro, btnDangerMini, btnGhostMini, btnNavyMini, card, cardVuota, cardVuotaAlta,
+  cella, cellaAzioni, cellaMuted, grid2ColGap12, rigaIntestazione, rowCenterGap82, rowGap4,
+  rowGap62, tabella, txtF11Bold, txtF12Muted, txtF13Muted, txtF14Bold, txtF16Bold, txtF36Mb12,
+  txtF48Mb16, txtMuted,
+} from "../../styles/common.js";
+import {
+  borderBottom2, boxF13Bold, boxF13Bold2, boxF13WFull, boxF13WFull2, boxF14WFull, colGap16,
+  maxW1200, padding2, padding3, rowCenterBetween, rowCenterGap6, rowGap10, rowGap6,
+  rowStartBetween, txtBoldHeading, txtF11Bold2, txtF11Bold3, txtF11Bold4, txtF11Mt2, txtF18Bold,
+  txtF28Bold, txtWhite,
+} from "./trashStyles.js";
 
 // `memo` + lettura dal contesto: senza il memo il provider non servirebbe a
 // nulla, perché il genitore ri-renderizza a ogni azione (vedi
@@ -98,14 +110,14 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
   const updateField = (field, value) => setRestoring(prev => ({ ...prev, [field]: value }));
 
   return (
-    <div className="vd-pad" style={{ padding: "24px 32px", maxWidth: 1200, margin: "0 auto" }}>
+    <div className="vd-pad" style={maxW1200}>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, gap: 16, flexWrap: "wrap" }}>
+      <div style={rowStartBetween}>
         <div>
-          <div className="playfair" style={{ fontSize: 28, fontWeight: 700, color: "var(--heading)", marginBottom: 4 }}>
+          <div className="playfair" style={txtF28Bold}>
             🗑️ Cestino
           </div>
-          <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
+          <div style={txtF13Muted}>
             {caricando
               ? "Caricamento del cestino…"
               : trashed.length === 0
@@ -117,19 +129,14 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
           </div>
         </div>
         {trashed.length > 0 && (
-          <button onClick={handleEmpty} style={{
-            background: "var(--danger)", color: "#fff", border: "none",
-            padding: "10px 16px", borderRadius: 8, cursor: "pointer", fontSize: 13,
-            fontWeight: 600, fontFamily: "inherit",
-            boxShadow: "0 2px 8px rgba(220,38,38,0.25)",
-          }}>🔥 Svuota cestino</button>
+          <button onClick={handleEmpty} style={boxF13Bold}>🔥 Svuota cestino</button>
         )}
       </div>
 
       {/* Filtro periodo — solo se ci sono task */}
       {trashed.length > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>Periodo:</span>
+        <div style={rowCenterGap82}>
+          <span style={txtF11Bold}>Periodo:</span>
           {PERIOD_OPTIONS.map(opt => (
             <button
               key={opt.key}
@@ -145,90 +152,71 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
       {caricando ? (
         <SkeletonCards count={4} label="Caricamento del cestino" />
       ) : trashed.length === 0 ? (
-        <div style={{
-          background: "var(--card)", borderRadius: 12, padding: "60px 20px",
-          textAlign: "center", border: "1px solid var(--border)",
-        }}>
-          <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>🗑️</div>
-          <div style={{ fontSize: 16, fontWeight: 600, color: "var(--heading)", marginBottom: 6 }}>
+        <div style={cardVuotaAlta}>
+          <div style={txtF48Mb16}>🗑️</div>
+          <div style={txtF16Bold}>
             Cestino vuoto
           </div>
-          <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
+          <div style={txtF13Muted}>
             I task eliminati appariranno qui. Potrai ripristinarli o rimuoverli definitivamente.
           </div>
         </div>
       ) : visible.length === 0 ? (
-        <div style={{
-          background: "var(--card)", borderRadius: 12, padding: "40px 20px",
-          textAlign: "center", border: "1px solid var(--border)",
-        }}>
-          <div style={{ fontSize: 36, marginBottom: 12, opacity: 0.3 }}>📭</div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--heading)", marginBottom: 4 }}>
+        <div style={cardVuota}>
+          <div style={txtF36Mb12}>📭</div>
+          <div style={txtF14Bold}>
             Nessun task nel periodo selezionato
           </div>
-          <button type="button" onClick={() => setPeriod("all")} style={{
-            marginTop: 8, padding: "6px 14px", borderRadius: 8,
-            border: "1px solid var(--border)", background: "var(--card)",
-            color: "var(--text-muted)", fontSize: 12, fontWeight: 600,
-            cursor: "pointer", fontFamily: "inherit",
-          }}>Mostra tutti</button>
+          <button type="button" onClick={() => setPeriod("all")} style={btnGhostMini}>Mostra tutti</button>
         </div>
       ) : (
         /* Trash table */
-        <div style={{ background: "var(--card)", borderRadius: 12, border: "1px solid var(--border)", overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+        <div style={card}>
+          <table style={tabella}>
             <thead>
-              <tr style={{ background: "var(--surface2)", borderBottom: "1px solid var(--border)" }}>
-                <th style={{ padding: "12px 16px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5 }}>TASK</th>
-                <th style={{ padding: "12px 8px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5 }}>CATEGORIA</th>
-                <th style={{ padding: "12px 8px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5 }}>CLIENTE</th>
-                <th style={{ padding: "12px 8px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5 }}>ASSEGNATI</th>
-                <th style={{ padding: "12px 8px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5 }}>ELIMINATO</th>
-                <th style={{ padding: "12px 16px", textAlign: "right", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5 }}>AZIONI</th>
+              <tr style={rigaIntestazione}>
+                <th style={txtF11Bold2}>TASK</th>
+                <th style={txtF11Bold3}>CATEGORIA</th>
+                <th style={txtF11Bold3}>CLIENTE</th>
+                <th style={txtF11Bold3}>ASSEGNATI</th>
+                <th style={txtF11Bold3}>ELIMINATO</th>
+                <th style={txtF11Bold4}>AZIONI</th>
               </tr>
             </thead>
             <tbody>
               {visible.map(task => (
-                <tr key={task.id} style={{ borderBottom: "1px solid var(--border)", transition: "background 0.15s" }}
+                <tr key={task.id} style={borderBottom2}
                   onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                 >
-                  <td style={{ padding: "12px 16px" }}>
-                    <div style={{ fontWeight: 600, color: "var(--heading)", marginBottom: 2 }}>{task.title}</div>
-                    <div style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 11, color: "var(--text-muted)" }}>
+                  <td style={padding2}>
+                    <div style={txtBoldHeading}>{task.title}</div>
+                    <div style={rowCenterGap6}>
                       <PriorityBadge priority={task.priority} />
                       <span>• {STATUS_LABELS[task.status]}</span>
                     </div>
                   </td>
-                  <td style={{ padding: "12px 8px" }}>
+                  <td style={padding3}>
                     <CategoryChip category={task.category} />
                   </td>
-                  <td style={{ padding: "12px 8px", color: "var(--text)" }}>
-                    {task.client || <span style={{ color: "var(--text-muted)" }}>—</span>}
+                  <td style={cella}>
+                    {task.client || <span style={txtMuted}>—</span>}
                   </td>
-                  <td style={{ padding: "12px 8px" }}>
-                    <div style={{ display: "flex", gap: 4 }}>
+                  <td style={padding3}>
+                    <div style={rowGap4}>
                       {task.assignees?.length
                         ? task.assignees.map(id => <Avatar key={id} memberId={id} size={22} />)
-                        : <span style={{ fontSize: 12, color: "var(--text-muted)" }}>—</span>
+                        : <span style={txtF12Muted}>—</span>
                       }
                     </div>
                   </td>
-                  <td style={{ padding: "12px 8px", color: "var(--text-muted)", fontSize: 12 }}>
+                  <td style={cellaMuted}>
                     {formatDate(task.deletedAt)}
                   </td>
-                  <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                    <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                      <button onClick={() => handleRestore(task)} title="Ripristina con modifica" style={{
-                        background: "var(--navy)", color: "#fff", border: "none",
-                        padding: "6px 12px", borderRadius: 6, cursor: "pointer", fontSize: 12,
-                        fontWeight: 600, fontFamily: "inherit",
-                      }}>↻ Ripristina</button>
-                      <button onClick={() => handlePurge(task)} title="Elimina definitivamente" style={{
-                        background: "var(--card)", color: "var(--danger)", border: "1px solid var(--danger)",
-                        padding: "6px 10px", borderRadius: 6, cursor: "pointer", fontSize: 12,
-                        fontWeight: 600, fontFamily: "inherit",
-                      }}>✕</button>
+                  <td style={cellaAzioni}>
+                    <div style={rowGap62}>
+                      <button onClick={() => handleRestore(task)} title="Ripristina con modifica" style={btnNavyMini}>↻ Ripristina</button>
+                      <button onClick={() => handlePurge(task)} title="Elimina definitivamente" style={btnDangerMini}>✕</button>
                     </div>
                   </td>
                 </tr>
@@ -259,51 +247,36 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
           }}
         >
           {/* Modal header */}
-          <div style={{
-            background: "var(--navy)", padding: "18px 22px",
-            borderRadius: "16px 16px 0 0",
-            display: "flex", justifyContent: "space-between", alignItems: "center",
-          }}>
-            <div style={{ color: "#fff" }}>
-              <div id="vd-trash-restore-title" className="playfair" style={{ fontSize: 18, fontWeight: 700 }}>↻ Ripristina task</div>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>Modifica i campi se necessario, poi conferma</div>
+          <div style={rowCenterBetween}>
+            <div style={txtWhite}>
+              <div id="vd-trash-restore-title" className="playfair" style={txtF18Bold}>↻ Ripristina task</div>
+              <div style={txtF11Mt2}>Modifica i campi se necessario, poi conferma</div>
             </div>
-            <button onClick={() => setRestoring(null)} style={{
-              background: "rgba(255,255,255,0.1)", border: "none", color: "#fff",
-              width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 14,
-            }}>✕</button>
+            <button onClick={() => setRestoring(null)} style={btnChiudiSuScuro}>✕</button>
           </div>
 
           {/* Modal body */}
-          <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={colGap16}>
             {/* Titolo */}
             <div>
               <label className="vd-field-label">TITOLO</label>
               <input
                 value={restoring.title}
                 onChange={e => updateField("title", e.target.value)}
-                style={{
-                  width: "100%", padding: "10px 12px", borderRadius: 8,
-                  border: "1px solid var(--border)", fontSize: 14, fontFamily: "inherit",
-                  outline: "none",
-                }}
+                style={boxF14WFull}
                 onFocus={e => e.target.style.borderColor = "var(--gold)"}
                 onBlur={e => e.target.style.borderColor = "var(--border)"}
               />
             </div>
 
             {/* Categoria + Priorità */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={grid2ColGap12}>
               <div>
                 <label className="vd-field-label">CATEGORIA</label>
                 <select
                   value={restoring.category}
                   onChange={e => updateField("category", e.target.value)}
-                  style={{
-                    width: "100%", padding: "10px 12px", borderRadius: 8,
-                    border: "1px solid var(--border)", fontSize: 13, fontFamily: "inherit",
-                    background: "var(--card)", cursor: "pointer",
-                  }}
+                  style={boxF13WFull}
                 >
                   {Object.entries(categories).map(([k, v]) => (
                     <option key={k} value={k}>{v.icon} {v.label}</option>
@@ -315,11 +288,7 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
                 <select
                   value={restoring.priority}
                   onChange={e => updateField("priority", e.target.value)}
-                  style={{
-                    width: "100%", padding: "10px 12px", borderRadius: 8,
-                    border: "1px solid var(--border)", fontSize: 13, fontFamily: "inherit",
-                    background: "var(--card)", cursor: "pointer",
-                  }}
+                  style={boxF13WFull}
                 >
                   {Object.entries(PRIORITIES).map(([k, v]) => (
                     <option key={k} value={k}>{v.icon} {v.label}</option>
@@ -329,17 +298,13 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
             </div>
 
             {/* Stato + Scadenza */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={grid2ColGap12}>
               <div>
                 <label className="vd-field-label">STATO</label>
                 <select
                   value={restoring.status}
                   onChange={e => updateField("status", e.target.value)}
-                  style={{
-                    width: "100%", padding: "10px 12px", borderRadius: 8,
-                    border: "1px solid var(--border)", fontSize: 13, fontFamily: "inherit",
-                    background: "var(--card)", cursor: "pointer",
-                  }}
+                  style={boxF13WFull}
                 >
                   {Object.entries(STATUS_LABELS).map(([k, v]) => (
                     <option key={k} value={k}>{v}</option>
@@ -362,11 +327,7 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
               <input
                 value={restoring.client || ""}
                 onChange={e => updateField("client", e.target.value)}
-                style={{
-                  width: "100%", padding: "10px 12px", borderRadius: 8,
-                  border: "1px solid var(--border)", fontSize: 14, fontFamily: "inherit",
-                  outline: "none",
-                }}
+                style={boxF14WFull}
                 placeholder="Nome cliente"
                 onFocus={e => e.target.style.borderColor = "var(--gold)"}
                 onBlur={e => e.target.style.borderColor = "var(--border)"}
@@ -376,7 +337,7 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
             {/* Assegnatari */}
             <div>
               <label className="vd-field-label">ASSEGNATARI</label>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              <div style={rowGap6}>
                 {getAssignableTeam().map(m => {
                   const sel = restoring.assignees?.includes(m.id);
                   return (
@@ -415,11 +376,7 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
                 value={restoring.description || ""}
                 onChange={e => updateField("description", e.target.value)}
                 rows={3}
-                style={{
-                  width: "100%", padding: "10px 12px", borderRadius: 8,
-                  border: "1px solid var(--border)", fontSize: 13, fontFamily: "inherit",
-                  resize: "vertical", outline: "none",
-                }}
+                style={boxF13WFull2}
                 placeholder="Descrizione task..."
                 onFocus={e => e.target.style.borderColor = "var(--gold)"}
                 onBlur={e => e.target.style.borderColor = "var(--border)"}
@@ -428,15 +385,8 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
           </div>
 
           {/* Modal footer */}
-          <div style={{
-            padding: "14px 22px 18px", borderTop: "1px solid var(--border)",
-            display: "flex", justifyContent: "flex-end", gap: 10,
-          }}>
-            <button onClick={() => setRestoring(null)} style={{
-              background: "var(--card)", color: "var(--text)", border: "1px solid var(--border)",
-              padding: "10px 20px", borderRadius: 8, cursor: "pointer", fontSize: 13,
-              fontWeight: 600, fontFamily: "inherit",
-            }}>Annulla</button>
+          <div style={rowGap10}>
+            <button onClick={() => setRestoring(null)} style={boxF13Bold2}>Annulla</button>
             <button
               onClick={handleConfirmRestore}
               disabled={!restoring.title?.trim()}

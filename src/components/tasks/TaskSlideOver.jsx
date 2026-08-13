@@ -18,6 +18,17 @@ import { Z } from "../../styles/tokens.js";
 import { TaskAttachments } from "./TaskAttachments.jsx";
 import { HISTORY_ICONS, historyDescribe } from "./taskHistory.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
+import {
+  btnChiudiSuScuro, colGap10, flex1, grid2ColGap12, relative, rowGap6, txtF10Muted, txtF11Muted,
+  txtF12Muted2, txtF13Muted, txtMuted,
+} from "../../styles/common.js";
+import {
+  boxF11Bold, boxF12Muted, boxF13R8, boxF13Text, boxF13White, boxF13White2, boxF18Bold,
+  boxFlex1F12, colFlex1Gap20, colGap8, rowCenterGap5, rowCenterGap6, rowCenterGap8,
+  rowCenterMiddle, rowCenterMiddle2, rowFlex1Gap6, rowGap10, rowGap8, rowGap82, rowGap8Mb8,
+  rowGap8Mt6, rowStartBetween, rowStartGap10, txtF11Bold, txtF11Bold2, txtF12, txtF12Bold,
+  txtF12Light, txtF13Text, txtF14TxtCenter, txtF18Bold,
+} from "./taskSlideOverStyles.js";
 
 export const TaskSlideOver = ({ task, dispatch }) => {
   const conferma = useConfirm();
@@ -163,15 +174,12 @@ export const TaskSlideOver = ({ task, dispatch }) => {
         {/* Header — pannello fixed a top:0: su iPhone il padding-top include
             l'inset della status bar, altrimenti chip e pulsante di chiusura
             finiscono sotto ora/batteria. */}
-        <div style={{
-          background: "var(--navy)", padding: "calc(18px + var(--safe-top)) 22px 18px",
-          display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexShrink: 0
-        }}>
+        <div style={rowStartBetween}>
           <div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+            <div style={rowGap8Mb8}>
               <CategoryChip category={task.category} />
               <PriorityBadge priority={task.priority} />
-              {isOverdue(task) && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--danger)", background: "#FEE2E2", padding: "2px 8px", borderRadius: 99 }}>⚠️ Scaduto</span>}
+              {isOverdue(task) && <span style={boxF11Bold}>⚠️ Scaduto</span>}
             </div>
             {editable ? (
               <input
@@ -181,43 +189,24 @@ export const TaskSlideOver = ({ task, dispatch }) => {
                 onBlur={() => commitText("title")}
                 onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
                 placeholder="Titolo del task"
-                style={{
-                  color: "#fff", fontSize: 18, fontWeight: 700, lineHeight: 1.3,
-                  background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)",
-                  borderRadius: 6, padding: "4px 8px", width: "100%", fontFamily: "inherit", outline: "none",
-                }}
+                style={boxF18Bold}
               />
             ) : (
-              <div className="playfair" style={{ color: "#fff", fontSize: 18, fontWeight: 700, lineHeight: 1.3 }}>{task.title}</div>
+              <div className="playfair" style={txtF18Bold}>{task.title}</div>
             )}
           </div>
-          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-            <button onClick={handleDelete} title="Sposta nel cestino" style={{
-              background: "rgba(220,38,38,0.15)", border: "none", color: "#fff",
-              width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 13,
-              transition: "background 0.2s"
-            }}
+          <div style={rowGap6}>
+            <button onClick={handleDelete} title="Sposta nel cestino" style={boxF13White}
               onMouseEnter={e => e.currentTarget.style.background = "rgba(220,38,38,0.4)"}
               onMouseLeave={e => e.currentTarget.style.background = "rgba(220,38,38,0.15)"}
             >🗑️</button>
-            <button onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: null })} style={{
-              background: "rgba(255,255,255,0.1)", border: "none", color: "#fff",
-              width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 14
-            }}>✕</button>
+            <button onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: null })} style={btnChiudiSuScuro}>✕</button>
           </div>
         </div>
 
-        <div style={{
-          flex: 1, minHeight: 0, overflowY: "auto",
-          WebkitOverflowScrolling: "touch", overscrollBehavior: "contain",
-          // padding-bottom con safe-area: l'ultimo elemento (box commento) resta
-          // sopra l'home-indicator / la toolbar inferiore di Safari/Chrome iOS.
-          padding: "20px 22px",
-          paddingBottom: "calc(28px + env(safe-area-inset-bottom, 0px))",
-          display: "flex", flexDirection: "column", gap: 20,
-        }}>
+        <div style={colFlex1Gap20}>
           {/* Status + Scadenza */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div style={grid2ColGap12}>
             <div>
               <div style={labelStyle}>STATO</div>
               {editable ? (
@@ -225,7 +214,7 @@ export const TaskSlideOver = ({ task, dispatch }) => {
                   {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
                 </select>
               ) : (
-                <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>
+                <div style={boxF13R8}>
                   {STATUS_LABELS[task.status] || task.status}
                 </div>
               )}
@@ -250,7 +239,7 @@ export const TaskSlideOver = ({ task, dispatch }) => {
 
           {/* Categoria + Priorità (modificabili) */}
           {editable && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={grid2ColGap12}>
               <div>
                 <div style={labelStyle}>CATEGORIA</div>
                 <select value={task.category || ""} onChange={e => updateField("category", e.target.value)} style={{ ...fieldStyle, cursor: "pointer" }}>
@@ -267,25 +256,21 @@ export const TaskSlideOver = ({ task, dispatch }) => {
           )}
 
           {/* Meta */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div style={{ position: "relative" }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>ASSEGNATI</div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          <div style={grid2ColGap12}>
+            <div style={relative}>
+              <div style={txtF11Bold}>ASSEGNATI</div>
+              <div style={rowCenterGap6}>
                 {currentAssignees.map(id => {
                   const m = getMember(id);
                   return m ? (
-                    <div key={id} style={{ display: "flex", alignItems: "center", gap: 5, background: "var(--surface2)", padding: "4px 8px", borderRadius: 99 }}>
+                    <div key={id} style={rowCenterGap5}>
                       <Avatar memberId={id} size={20} />
-                      <span style={{ fontSize: 12 }}>{m.name.split(" ")[0]}</span>
+                      <span style={txtF12}>{m.name.split(" ")[0]}</span>
                       {editable && (
                         <button
                           onClick={() => removeAssignee(id)}
                           title="Rimuovi assegnatario"
-                          style={{
-                            background: "none", border: "none", cursor: "pointer",
-                            color: "var(--text-muted)", fontSize: 12, lineHeight: 1, padding: 0,
-                            marginLeft: 2,
-                          }}
+                          style={boxF12Muted}
                           onMouseEnter={e => e.currentTarget.style.color = "var(--danger)"}
                           onMouseLeave={e => e.currentTarget.style.color = "var(--text-muted)"}
                         >✕</button>
@@ -294,7 +279,7 @@ export const TaskSlideOver = ({ task, dispatch }) => {
                   ) : null;
                 })}
                 {!currentAssignees.length && (
-                  <span style={{ fontSize: 13, color: "var(--text-muted)" }}>Non assegnato</span>
+                  <span style={txtF13Muted}>Non assegnato</span>
                 )}
                 {editable && availableMembers.length > 0 && (
                   <button
@@ -321,24 +306,19 @@ export const TaskSlideOver = ({ task, dispatch }) => {
                     <button
                       key={m.id}
                       onClick={() => addAssignee(m.id)}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 8, width: "100%",
-                        padding: "6px 8px", borderRadius: 6, border: "none",
-                        background: "transparent", cursor: "pointer", fontSize: 13,
-                        fontFamily: "inherit", color: "var(--text)", textAlign: "left",
-                      }}
+                      style={rowCenterGap8}
                       onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
                       onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                     >
                       <Avatar memberId={m.id} size={22} />
-                      <span style={{ flex: 1 }}>{m.name}</span>
-                      <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{roleLabel(m)}</span>
+                      <span style={flex1}>{m.name}</span>
+                      <span style={txtF10Muted}>{roleLabel(m)}</span>
                     </button>
                   ))}
                 </div>
               )}
             </div>
-            <div style={{ position: "relative" }}>
+            <div style={relative}>
               <div style={labelStyle}>CLIENTE</div>
               {editable ? (
                 <>
@@ -355,15 +335,15 @@ export const TaskSlideOver = ({ task, dispatch }) => {
                   <ClientSuggestions matches={cli.matches} visible={cli.visible} onPick={pickClient} />
                 </>
               ) : (
-                <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>
-                  {task.client || <span style={{ color: "var(--text-muted)" }}>—</span>}
+                <div style={boxF13R8}>
+                  {task.client || <span style={txtMuted}>—</span>}
                 </div>
               )}
             </div>
           </div>
 
           {/* Pratica (n° libero) + Contatti */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div style={grid2ColGap12}>
             <div>
               <div style={labelStyle}>N° PRATICA</div>
               {editable ? (
@@ -375,8 +355,8 @@ export const TaskSlideOver = ({ task, dispatch }) => {
                   style={fieldStyle}
                 />
               ) : (
-                <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>
-                  {task.praticaRef || <span style={{ color: "var(--text-muted)" }}>—</span>}
+                <div style={boxF13R8}>
+                  {task.praticaRef || <span style={txtMuted}>—</span>}
                 </div>
               )}
             </div>
@@ -391,10 +371,10 @@ export const TaskSlideOver = ({ task, dispatch }) => {
                   style={fieldStyle}
                 />
               ) : (
-                <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" }}>
+                <div style={boxF13R8}>
                   {task.contact
                     ? <ContactText text={task.contact} />
-                    : <span style={{ color: "var(--text-muted)" }}>—</span>}
+                    : <span style={txtMuted}>—</span>}
                 </div>
               )}
             </div>
@@ -413,8 +393,8 @@ export const TaskSlideOver = ({ task, dispatch }) => {
                 style={{ ...fieldStyle, lineHeight: 1.6, resize: "vertical" }}
               />
             ) : (
-              <div style={{ fontSize: 13, lineHeight: 1.7, color: "var(--text)", background: "var(--surface2)", padding: 12, borderRadius: 8 }}>
-                {task.description || <span style={{ color: "var(--text-muted)" }}>Nessuna descrizione.</span>}
+              <div style={boxF13Text}>
+                {task.description || <span style={txtMuted}>Nessuna descrizione.</span>}
               </div>
             )}
           </div>
@@ -424,50 +404,36 @@ export const TaskSlideOver = ({ task, dispatch }) => {
 
           {/* Comments */}
           <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 10 }}>
+            <div style={txtF11Bold2}>
               ATTIVITÀ & COMMENTI ({task.comments?.length || 0})
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={colGap10}>
               {(task.comments || []).map((c, i) => (
-                <div key={i} style={{ display: "flex", gap: 10 }}>
-                  <div style={{
-                    width: 28, height: 28, borderRadius: "50%", background: "var(--navy)",
-                    fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center",
-                    justifyContent: "center", color: "#fff", flexShrink: 0
-                  }}>
+                <div key={i} style={rowGap10}>
+                  <div style={rowCenterMiddle}>
                     {c.user.split(" ").map(w => w[0]).join("").slice(0, 2)}
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
-                      <span style={{ fontSize: 12, fontWeight: 600 }}>{c.user}</span>
-                      <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{formatDate(c.time)}</span>
+                  <div style={flex1}>
+                    <div style={rowGap8}>
+                      <span style={txtF12Bold}>{c.user}</span>
+                      <span style={txtF11Muted}>{formatDate(c.time)}</span>
                     </div>
-                    <div style={{ fontSize: 13, color: "var(--text)", marginTop: 2, lineHeight: 1.5 }}><MentionText text={c.text} /></div>
+                    <div style={txtF13Text}><MentionText text={c.text} /></div>
                   </div>
                 </div>
               ))}
 
               {/* New comment */}
-              <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-                <div style={{
-                  width: 28, height: 28, borderRadius: "50%", background: "var(--gold)",
-                  fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center",
-                  justifyContent: "center", color: "var(--navy)", flexShrink: 0
-                }}>{myInitials}</div>
-                <div style={{ flex: 1, display: "flex", gap: 6 }}>
+              <div style={rowGap8Mt6}>
+                <div style={rowCenterMiddle2}>{myInitials}</div>
+                <div style={rowFlex1Gap6}>
                   <input
                     value={newComment}
                     onChange={e => setNewComment(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && handleComment()}
                     placeholder="Aggiungi un commento..."
-                    style={{
-                      flex: 1, border: "1px solid var(--border)", borderRadius: 8,
-                      padding: "7px 10px", fontSize: 12, fontFamily: "inherit"
-                    }} />
-                  <button onClick={handleComment} style={{
-                    background: "var(--navy)", color: "#fff", border: "none",
-                    borderRadius: 8, padding: "0 12px", cursor: "pointer", fontSize: 13
-                  }}>↑</button>
+                    style={boxFlex1F12} />
+                  <button onClick={handleComment} style={boxF13White2}>↑</button>
                 </div>
               </div>
             </div>
@@ -476,28 +442,28 @@ export const TaskSlideOver = ({ task, dispatch }) => {
           {/* Cronologia (sessione 42): chi ha creato + modifiche di stato, priorità,
               assegnatari, scadenza, cestino/ripristino. Sola lettura. */}
           <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 10 }}>
+            <div style={txtF11Bold2}>
               CRONOLOGIA ({task.history?.length || 0})
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={colGap8}>
               {[...(task.history || [])]
                 .sort((a, b) => new Date(a.time) - new Date(b.time))
                 .map(h => (
-                  <div key={h.id} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                    <div style={{ width: 28, textAlign: "center", fontSize: 14, flexShrink: 0 }}>
+                  <div key={h.id} style={rowStartGap10}>
+                    <div style={txtF14TxtCenter}>
                       {HISTORY_ICONS[h.action] || "•"}
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
-                        <span style={{ fontSize: 12, fontWeight: 600 }}>{h.actor || "Sistema"}</span>
-                        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{formatDate(h.time)}</span>
+                    <div style={flex1}>
+                      <div style={rowGap82}>
+                        <span style={txtF12Bold}>{h.actor || "Sistema"}</span>
+                        <span style={txtF11Muted}>{formatDate(h.time)}</span>
                       </div>
-                      <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{historyDescribe(h, getMember)}</div>
+                      <div style={txtF12Muted2}>{historyDescribe(h, getMember)}</div>
                     </div>
                   </div>
                 ))}
               {(!task.history || task.history.length === 0) && (
-                <div style={{ fontSize: 12, color: "var(--text-light)" }}>Nessuna cronologia disponibile.</div>
+                <div style={txtF12Light}>Nessuna cronologia disponibile.</div>
               )}
             </div>
           </div>

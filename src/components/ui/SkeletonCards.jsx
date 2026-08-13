@@ -10,6 +10,17 @@
 // task non ne hanno uno, e uno scheletro che promette un cerchio inesistente è
 // esso stesso una piccola bugia.
 import { useViewport } from "../Viewport.jsx";
+import { flex1 } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowCenterGap8 = { display: "flex", alignItems: "center", gap: 8, marginBottom: 12 };
+const boxW34H34 = { width: 34, height: 34, borderRadius: "50%" };
+const boxMb6H12 = { height: 12, width: "55%", borderRadius: 4, marginBottom: 6 };
+const boxH10R4 = { height: 10, width: "35%", borderRadius: 4 };
+const boxMb10H12 = { height: 12, width: "70%", borderRadius: 4, marginBottom: 10 };
+const boxMb6H10 = { height: 10, width: "80%", borderRadius: 4, marginBottom: 6 };
+const boxH10R42 = { height: 10, width: "60%", borderRadius: 4 };
 
 export function SkeletonCards({ count = 6, minWidth = 340, compact = false, label = "Caricamento in corso" }) {
   const { isMobile } = useViewport();
@@ -31,19 +42,19 @@ export function SkeletonCards({ count = 6, minWidth = 340, compact = false, labe
           border: "1px solid var(--border)",
         }}>
           {!compact && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-              <div className="skeleton" style={{ width: 34, height: 34, borderRadius: "50%" }} />
-              <div style={{ flex: 1 }}>
-                <div className="skeleton" style={{ height: 12, width: "55%", borderRadius: 4, marginBottom: 6 }} />
-                <div className="skeleton" style={{ height: 10, width: "35%", borderRadius: 4 }} />
+            <div style={rowCenterGap8}>
+              <div className="skeleton" style={boxW34H34} />
+              <div style={flex1}>
+                <div className="skeleton" style={boxMb6H12} />
+                <div className="skeleton" style={boxH10R4} />
               </div>
             </div>
           )}
           {compact && (
-            <div className="skeleton" style={{ height: 12, width: "70%", borderRadius: 4, marginBottom: 10 }} />
+            <div className="skeleton" style={boxMb10H12} />
           )}
-          <div className="skeleton" style={{ height: 10, width: "80%", borderRadius: 4, marginBottom: 6 }} />
-          <div className="skeleton" style={{ height: 10, width: "60%", borderRadius: 4 }} />
+          <div className="skeleton" style={boxMb6H10} />
+          <div className="skeleton" style={boxH10R42} />
         </div>
       ))}
     </div>

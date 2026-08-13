@@ -7,6 +7,12 @@ import { useAppData } from "../../state/AppDataContext.jsx";
 import { useChatContext } from "./chatContext.js";
 import { computePresence, PRESENCE_COLORS, PRESENCE_LABELS } from "./chatPresence.js";
 import { formatChatTime, getConversationName, getLastMessage, getUnreadCount } from "./chatFormat.js";
+import { relative, txtF13, txtMuted } from "../../styles/common.js";
+import {
+  boxF10Bold, boxF13WFull, boxF14Muted, colHFull, flex1, padding2, relative2, rowCenterBetween,
+  rowCenterBetween2, rowCenterFlex1, rowCenterGap1, rowCenterMiddle, rowCenterMiddle2,
+  rowGap6Mt10, txtAbsoluteF13, txtF10Gold, txtF10Muted, txtF40Mb8, txtMutedTxtCenter,
+} from "./conversationListStyles.js";
 
 // ─── CHAT: LIST OF CONVERSATIONS ───────────────────────────────────────────
 export const ConversationList = ({ conversations, messages, onSelect, onNew, onDelete }) => {
@@ -52,24 +58,20 @@ export const ConversationList = ({ conversations, messages, onSelect, onNew, onD
   const totalUnread = conversations.reduce((acc, c) => acc + unreadOf(c.id), 0);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div style={colHFull}>
       {/* Search */}
-      <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)" }}>
-        <div style={{ position: "relative" }}>
-          <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", fontSize: 13 }}>🔍</div>
+      <div style={padding2}>
+        <div style={relative}>
+          <div style={txtAbsoluteF13}>🔍</div>
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Cerca conversazione..."
-            style={{
-              width: "100%", border: "1px solid var(--border)", borderRadius: 8,
-              padding: "8px 12px 8px 34px", fontSize: 13, fontFamily: "inherit",
-              outline: "none", background: "var(--surface)",
-            }}
+            style={boxF13WFull}
           />
         </div>
 
-        <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+        <div style={rowGap6Mt10}>
           {[
             { id: "all", label: "Tutti" },
             { id: "unread", label: `Non letti${totalUnread ? ` (${totalUnread})` : ""}` },
@@ -88,7 +90,7 @@ export const ConversationList = ({ conversations, messages, onSelect, onNew, onD
       </div>
 
       {/* List */}
-      <div style={{ flex: 1, overflowY: "auto" }}>
+      <div style={flex1}>
         {filtered.map(c => {
           const last = getLastMessage(messages, c.id);
           const unread = unreadOf(c.id);
@@ -108,7 +110,7 @@ export const ConversationList = ({ conversations, messages, onSelect, onNew, onD
               onMouseLeave={e => e.currentTarget.style.background = unread > 0 ? "rgba(212,168,67,0.05)" : "transparent"}
             >
               {c.type === "direct" ? (
-                <div style={{ position: "relative", flexShrink: 0 }}>
+                <div style={relative2}>
                   <Avatar memberId={otherUser} size={42} />
                   {(() => {
                     const u = (presenceMap || {})[otherUser];
@@ -123,26 +125,22 @@ export const ConversationList = ({ conversations, messages, onSelect, onNew, onD
                   })()}
                 </div>
               ) : (
-                <div style={{
-                  width: 42, height: 42, borderRadius: "50%", background: "var(--gold)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 20, flexShrink: 0,
-                }}>{c.icon || "👥"}</div>
+                <div style={rowCenterMiddle}>{c.icon || "👥"}</div>
               )}
 
               <div className="vd-flex-1-min0">
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0, flex: 1 }}>
-                    {c.pinned && <span style={{ fontSize: 10, color: "var(--gold)" }}>📌</span>}
+                <div style={rowCenterBetween}>
+                  <div style={rowCenterFlex1}>
+                    {c.pinned && <span style={txtF10Gold}>📌</span>}
                     <span style={{ fontSize: 13.5, fontWeight: unread > 0 ? 700 : 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {convName(c)}
                     </span>
                   </div>
-                  <span style={{ fontSize: 10, color: "var(--text-muted)", flexShrink: 0 }}>
+                  <span style={txtF10Muted}>
                     {last && formatChatTime(last.time)}
                   </span>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 2 }}>
+                <div style={rowCenterBetween2}>
                   <div style={{
                     fontSize: 12, color: unread > 0 ? "var(--text)" : "var(--text-muted)",
                     fontWeight: unread > 0 ? 500 : 400,
@@ -150,7 +148,7 @@ export const ConversationList = ({ conversations, messages, onSelect, onNew, onD
                   }}>
                     {last ? (
                       <>
-                        {last.sender === me && <span style={{ color: "var(--text-muted)" }}>Tu: </span>}
+                        {last.sender === me && <span style={txtMuted}>Tu: </span>}
                         {c.type === "group" && last.sender !== me && (
                           <span style={{ color: lastSender?.color, fontWeight: 600 }}>
                             {lastSender?.name.split(" ")[0]}:{" "}
@@ -163,16 +161,10 @@ export const ConversationList = ({ conversations, messages, onSelect, onNew, onD
                     ) : "Nessun messaggio"}
                   </div>
                   {pinnedCount > 0 && (
-                    <div title={`${pinnedCount} ${pinnedCount === 1 ? "messaggio fissato" : "messaggi fissati"}`} style={{
-                      display: "flex", alignItems: "center", gap: 1,
-                      fontSize: 10, color: "var(--gold)", fontWeight: 700, flexShrink: 0,
-                    }}>📌{pinnedCount}</div>
+                    <div title={`${pinnedCount} ${pinnedCount === 1 ? "messaggio fissato" : "messaggi fissati"}`} style={rowCenterGap1}>📌{pinnedCount}</div>
                   )}
                   {unread > 0 && (
-                    <div style={{
-                      background: "var(--gold)", color: "var(--navy)", fontSize: 10, fontWeight: 700,
-                      borderRadius: 99, padding: "1px 6px", minWidth: 18, textAlign: "center", flexShrink: 0,
-                    }}>{unread}</div>
+                    <div style={boxF10Bold}>{unread}</div>
                   )}
                 </div>
               </div>
@@ -182,11 +174,7 @@ export const ConversationList = ({ conversations, messages, onSelect, onNew, onD
                   onClick={e => { e.stopPropagation(); onDelete(c); }}
                   title={c.type === "group" ? "Elimina gruppo" : "Elimina conversazione"}
                   aria-label={c.type === "group" ? "Elimina gruppo" : "Elimina conversazione"}
-                  style={{
-                    background: "none", border: "none", cursor: "pointer",
-                    fontSize: 14, color: "var(--text-muted)", padding: "6px 4px",
-                    borderRadius: 6, flexShrink: 0, opacity: 0.65,
-                  }}
+                  style={boxF14Muted}
                   onMouseEnter={e => { e.currentTarget.style.opacity = 1; e.currentTarget.style.color = "var(--danger)"; }}
                   onMouseLeave={e => { e.currentTarget.style.opacity = 0.65; e.currentTarget.style.color = "var(--text-muted)"; }}
                 >🗑</button>
@@ -196,18 +184,14 @@ export const ConversationList = ({ conversations, messages, onSelect, onNew, onD
         })}
 
         {filtered.length === 0 && (
-          <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-muted)" }}>
-            <div style={{ fontSize: 40, marginBottom: 8 }}>💬</div>
-            <div style={{ fontSize: 13 }}>Nessuna conversazione trovata</div>
+          <div style={txtMutedTxtCenter}>
+            <div style={txtF40Mb8}>💬</div>
+            <div style={txtF13}>Nessuna conversazione trovata</div>
           </div>
         )}
       </div>
 
-      <button onClick={onNew} style={{
-        margin: 14, padding: "10px", background: "var(--navy)", color: "#fff",
-        border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600,
-        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-      }}>✏️ Nuova chat</button>
+      <button onClick={onNew} style={rowCenterMiddle2}>✏️ Nuova chat</button>
     </div>
   );
 };

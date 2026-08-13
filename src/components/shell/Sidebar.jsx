@@ -8,6 +8,15 @@ import { useViewport } from "../Viewport.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { getNavItemsForRole, getNavBadges } from "./navHelpers.js";
 import { NavBadge } from "./NavBadge.jsx";
+import { txtF16 } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const whiteSpace2 = { whiteSpace: "nowrap", overflow: "hidden" };
+const marginTop2 = { marginTop: "auto", padding: "16px 12px", borderTop: "1px solid rgba(15,32,68,0.12)" };
+const txtF10Mb8 = { fontSize: 10, color: "rgba(15,32,68,0.65)", letterSpacing: 1, marginBottom: 8 };
+const rowGap4 = { display: "flex", flexWrap: "wrap", gap: 4 };
+const boxAbsoluteW7 = { position: "absolute", bottom: 0, right: 0, width: 7, height: 7, borderRadius: "50%", background: "#2D7A4F", border: "1px solid var(--sky)" };
 
 // ST-2: `activeView` invece di `state`, e `memo`. Team e utente corrente
 // arrivano da AppDataContext, dov'erano già.
@@ -77,8 +86,8 @@ export const Sidebar = memo(function Sidebar({ activeView, dispatch, onOpenBulk,
               borderLeft: active ? "2px solid var(--gold)" : "2px solid transparent",
               position: "relative",
             }}>
-              <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
-              {!col && <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>{item.label}</span>}
+              <span style={txtF16}>{item.icon}</span>
+              {!col && <span style={whiteSpace2}>{item.label}</span>}
               <NavBadge count={badges[item.id] || 0} collapsed={col} />
             </button>
           );
@@ -99,8 +108,8 @@ export const Sidebar = memo(function Sidebar({ activeView, dispatch, onOpenBulk,
             justifyContent: col ? "center" : "flex-start",
           }}
         >
-          <span style={{ fontSize: 16, flexShrink: 0 }}>💬</span>
-          {!col && <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>Chat</span>}
+          <span style={txtF16}>💬</span>
+          {!col && <span style={whiteSpace2}>Chat</span>}
           <NavBadge count={unreadChat} collapsed={col} />
         </button>
 
@@ -122,15 +131,15 @@ export const Sidebar = memo(function Sidebar({ activeView, dispatch, onOpenBulk,
           onMouseEnter={e => { e.currentTarget.style.background = "rgba(212,168,67,0.22)"; }}
           onMouseLeave={e => { e.currentTarget.style.background = "rgba(212,168,67,0.12)"; }}
         >
-          <span style={{ fontSize: 16, flexShrink: 0 }}>📑</span>
-          {!col && <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>Più task</span>}
+          <span style={txtF16}>📑</span>
+          {!col && <span style={whiteSpace2}>Più task</span>}
         </button>
       </div>
 
       {!col && (
-        <div style={{ marginTop: "auto", padding: "16px 12px", borderTop: "1px solid rgba(15,32,68,0.12)" }}>
-          <div style={{ fontSize: 10, color: "rgba(15,32,68,0.65)", letterSpacing: 1, marginBottom: 8 }}>TEAM ONLINE</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+        <div style={marginTop2}>
+          <div style={txtF10Mb8}>TEAM ONLINE</div>
+          <div style={rowGap4}>
             {getAssignableTeam().slice(0, 4).map(m => (
               <div key={m.id} title={m.name} style={{
                 width: 26, height: 26, borderRadius: "50%", background: m.color,
@@ -139,7 +148,7 @@ export const Sidebar = memo(function Sidebar({ activeView, dispatch, onOpenBulk,
                 position: "relative"
               }}>
                 {m.avatar}
-                <div style={{ position: "absolute", bottom: 0, right: 0, width: 7, height: 7, borderRadius: "50%", background: "#2D7A4F", border: "1px solid var(--sky)" }} />
+                <div style={boxAbsoluteW7} />
               </div>
             ))}
           </div>

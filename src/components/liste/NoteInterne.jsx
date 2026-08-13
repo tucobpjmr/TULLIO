@@ -2,6 +2,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useListeWrite } from "./listePersistence.js";
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const mt16 = { marginTop: 16 };
+
 // Note interne: sezione a uso del team, separata dal "foglio" dei movimenti.
 // Non finisce mai nel riepilogo cliente: riepilogoTesto/RiepilogoClienteModal
 // leggono solo `movimenti`, mai `lista.note` (vedi listeApi.js/listeModals.jsx).
@@ -29,7 +33,7 @@ export function NoteInterne({ lista, dispatch, onSaved }) {
   };
 
   return (
-    <div className="lv-card lv-note-card" style={{ marginTop: 16 }}>
+    <div className="lv-card lv-note-card" style={mt16}>
       <div className="lv-note-head">
         <h3>Note interne</h3>
         <span className="lv-note-hint">Solo per il team — escluse dal riepilogo cliente</span>

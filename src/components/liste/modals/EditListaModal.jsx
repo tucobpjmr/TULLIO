@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { LvOverlay } from "./LvOverlay.jsx";
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowStartGap8 = { display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, marginTop: 2, cursor: "pointer" };
+const mt3 = { marginTop: 3, cursor: "pointer" };
+const txtF12LvMuted = { fontSize: 12, color: "var(--lv-muted)", marginTop: 6 };
+
 // ─── Modifica dati lista (titolo +, volendo, nome cliente) ─────────────────
 // Il titolo appartiene alla lista; il nome cliente NO: è la riga
 // dell'anagrafica condivisa (`clients`), la stessa che usano le altre liste
@@ -48,16 +54,16 @@ export function EditListaModal({ lista, onSave, onClose }) {
           style={rinomina ? undefined : { opacity: 0.6 }}
         />
       </div>
-      <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, marginTop: 2, cursor: "pointer" }}>
+      <label style={rowStartGap8}>
         <input
           type="checkbox"
           checked={rinomina}
           onChange={(e) => { setRinomina(e.target.checked); if (!e.target.checked) setName(nomeOriginale); }}
-          style={{ marginTop: 3, cursor: "pointer" }}
+          style={mt3}
         />
         <span>Rinomina il titolare in anagrafica</span>
       </label>
-      <p style={{ fontSize: 12, color: "var(--lv-muted)", marginTop: 6 }}>
+      <p style={txtF12LvMuted}>
         {rinomina
           ? "Il nome è quello dell'anagrafica: cambiarlo cambia l'intestazione di tutte le liste di questo cliente, della sua scheda e dei riepiloghi generati da qui in avanti."
           : "Per correggere solo questa lista basta il titolo: il nome del titolare resta com'è. I cointestatari (se presenti) si aggiungono e rimuovono dal dettaglio della lista, non da qui."}

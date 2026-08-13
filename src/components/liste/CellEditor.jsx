@@ -4,6 +4,10 @@ import { METODI, parseImporto } from "./listeApi.js";
 import { useListeWrite } from "./listePersistence.js";
 import { SegnoSeg } from "./modals/SegnoSeg.jsx";
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const mb8 = { marginBottom: 8 };
+
 // Modifica in linea: un campo per volta. La riga toccata viene sostituita da
 // un editor a tutta larghezza — su schermo stretto un input dentro la cella
 // sarebbe troppo piccolo da centrare col dito. Il salvataggio è esplicito e
@@ -70,7 +74,7 @@ export function CellEditor({ movimento, campo, dispatch, onSaved, onCancel }) {
         <div className="lv-cell-edit">
           <label htmlFor="lv-cell-input">{CAMPO_LABELS[campo]}</label>
           {campo === "importo" && (
-            <div style={{ marginBottom: 8 }}>
+            <div style={mb8}>
               <SegnoSeg segno={segno} onChange={setSegno} />
             </div>
           )}

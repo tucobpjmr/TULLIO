@@ -10,6 +10,13 @@ import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useOpenTask } from "./queueShared.js";
 import { QueueShell } from "./QueueShell.jsx";
 import { SkeletonCards } from "../../ui/SkeletonCards.jsx";
+import { gridGap102, intestazioneSezione, txtF18 } from "../../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowCenterGap6 = { display: "flex", alignItems: "center", gap: 6, marginBottom: 12, flexWrap: "wrap" };
+const rowGap8F13 = { padding: "14px 0 4px", color: "var(--text-muted)", fontSize: 13, display: "flex", gap: 8 };
+const txtBoldDanger = { color: "var(--danger)", fontWeight: 700 };
 
 // ─── OVERDUE QUEUE (task scaduti visibili) ────────────────────────────────
 // `loading` (criticità #6): "Tutto in regola!" su zero task caricati è la
@@ -40,7 +47,7 @@ export const OverdueQueue = ({ tasks, dispatch, loading = false }) => {
 
       {/* Filtro assegnatario — solo se più di un assegnatario presente */}
       {!empty && presentAssignees.length > 1 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+        <div style={rowCenterGap6}>
           <button
             type="button"
             onClick={() => setFilterAssignee(null)}
@@ -89,22 +96,16 @@ export const OverdueQueue = ({ tasks, dispatch, loading = false }) => {
       {caricando ? (
         <SkeletonCards count={3} minWidth={280} compact label="Caricamento delle task scadute" />
       ) : empty ? (
-        <div style={{
-          padding: "14px 0 4px", display: "flex", alignItems: "center", gap: 10,
-          color: "var(--text-muted)", fontSize: 13,
-        }}>
-          <span style={{ fontSize: 18 }}>✅</span>
+        <div style={intestazioneSezione}>
+          <span style={txtF18}>✅</span>
           Nessuna task scaduta. Tutto in regola!
         </div>
       ) : visible.length === 0 ? (
-        <div style={{ padding: "14px 0 4px", color: "var(--text-muted)", fontSize: 13, display: "flex", gap: 8 }}>
+        <div style={rowGap8F13}>
           <span>📭</span> Nessuna task scaduta per l&#39;agente selezionato.
         </div>
       ) : (
-        <div style={{
-          display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))",
-          gap: 10,
-        }}>
+        <div style={gridGap102}>
           {visible.map(t => {
             const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
             return (
@@ -118,7 +119,7 @@ export const OverdueQueue = ({ tasks, dispatch, loading = false }) => {
                   badges={<StatusBadge status={t.status} />}
                   meta={<>
                     {t.dueDate && (
-                      <span style={{ color: "var(--danger)", fontWeight: 700 }}>
+                      <span style={txtBoldDanger}>
                         📅 {formatDate(t.dueDate)} ⚠ scaduto
                       </span>
                     )}

@@ -15,6 +15,16 @@ import { useEffect, useRef } from "react";
 import { Modal } from "./Modal.jsx";
 import { btn } from "../../styles/tokens.js";
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const padding2 = { padding: "22px 24px 18px" };
+const txtF19Heading = { margin: "0 0 10px", fontSize: 19, color: "var(--heading)" };
+const txtF135Muted = {
+  margin: "0 0 20px", fontSize: 13.5, lineHeight: 1.5,
+  color: "var(--text-muted)", whiteSpace: "pre-line",
+};
+const rowGap10 = { display: "flex", gap: 10, justifyContent: "flex-end" };
+
 export function ConfirmDialog({
   open, title, body, cta = "Conferma", annulla = "Annulla",
   danger = false, onConfirm, onCancel,
@@ -34,19 +44,16 @@ export function ConfirmDialog({
 
   return (
     <Modal open={open} onClose={onCancel} labelledBy="vd-confirm-title" width={420}>
-      <div style={{ padding: "22px 24px 18px" }}>
+      <div style={padding2}>
         <h2
           id="vd-confirm-title"
           className="playfair"
-          style={{ margin: "0 0 10px", fontSize: 19, color: "var(--heading)" }}
+          style={txtF19Heading}
         >{title}</h2>
         {body && (
-          <div style={{
-            margin: "0 0 20px", fontSize: 13.5, lineHeight: 1.5,
-            color: "var(--text-muted)", whiteSpace: "pre-line",
-          }}>{body}</div>
+          <div style={txtF135Muted}>{body}</div>
         )}
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+        <div style={rowGap10}>
           <button
             ref={annullaRef}
             type="button"

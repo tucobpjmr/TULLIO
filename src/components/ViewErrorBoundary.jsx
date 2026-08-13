@@ -20,6 +20,26 @@ import React from 'react';
 import { codiceSegnalazione } from '../lib/errorReporting.js';
 import { ErrorDetails } from './ui/ErrorDetails.jsx';
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const p28MaxW620 = { padding: 28, maxWidth: 620 };
+const boxP24R14 = {
+  background: 'var(--card)', border: '1px solid var(--border)',
+  borderRadius: 14, padding: 24,
+};
+const txtF30Mb10 = { fontSize: 30, marginBottom: 10 };
+const txtF20Heading = {
+  margin: '0 0 8px', fontSize: 20, color: 'var(--heading)',
+};
+const txtF135Muted = {
+  margin: '0 0 16px', fontSize: 13.5, color: 'var(--text-muted)', lineHeight: 1.5,
+};
+const boxF13Bold = {
+  padding: '9px 18px', borderRadius: 9, border: '1px solid var(--border)',
+  background: 'var(--card)', color: 'var(--navy)', fontWeight: 600,
+  cursor: 'pointer', fontSize: 13, fontFamily: 'inherit',
+};
+
 export class ViewErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -55,29 +75,18 @@ export class ViewErrorBoundary extends React.Component {
     if (!error) return this.props.children;
 
     return (
-      <div className="fade-in" style={{ padding: 28, maxWidth: 620 }}>
-        <div style={{
-          background: 'var(--card)', border: '1px solid var(--border)',
-          borderRadius: 14, padding: 24,
-        }}>
-          <div style={{ fontSize: 30, marginBottom: 10 }}>⚠️</div>
-          <h2 className="playfair" style={{
-            margin: '0 0 8px', fontSize: 20, color: 'var(--heading)',
-          }}>Questa sezione ha avuto un problema</h2>
-          <p style={{
-            margin: '0 0 16px', fontSize: 13.5, color: 'var(--text-muted)', lineHeight: 1.5,
-          }}>
+      <div className="fade-in" style={p28MaxW620}>
+        <div style={boxP24R14}>
+          <div style={txtF30Mb10}>⚠️</div>
+          <h2 className="playfair" style={txtF20Heading}>Questa sezione ha avuto un problema</h2>
+          <p style={txtF135Muted}>
             Il resto di Tullio continua a funzionare: puoi tornare alla Dashboard
             e riprendere da lì. Se il problema si ripete, segnala il codice qui sotto.
           </p>
           <ErrorDetails error={error} info={info} codice={codice} />
           <button
             onClick={this.props.onReset}
-            style={{
-              padding: '9px 18px', borderRadius: 9, border: '1px solid var(--border)',
-              background: 'var(--card)', color: 'var(--navy)', fontWeight: 600,
-              cursor: 'pointer', fontSize: 13, fontFamily: 'inherit',
-            }}
+            style={boxF13Bold}
           >← Torna alla Dashboard</button>
         </div>
       </div>

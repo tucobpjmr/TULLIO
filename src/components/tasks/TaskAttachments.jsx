@@ -10,6 +10,37 @@ import { useIsMounted } from "../../hooks/useIsMounted.js";
 import { TaskFiles } from "../../lib/api.js";
 import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit, sourceBadge, mediaKind } from "../../lib/fileUtils.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
+import { hidden } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const txtF11Bold = { fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 };
+const txtF13Muted = { fontSize: 13, color: "var(--text-muted)", padding: "8px 0" };
+const colR8 = {
+  display: "flex", flexDirection: "column",
+  background: "var(--surface2)", borderRadius: 8, overflow: "hidden",
+};
+const rowCenterGap10 = { display: "flex", alignItems: "center", gap: 10, padding: "8px 10px" };
+const txtF18 = { fontSize: 18, flexShrink: 0 };
+const txtF13Bold = {
+  fontSize: 13, fontWeight: 600, color: "var(--text)",
+  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+};
+const rowGap6F11 = { fontSize: 11, color: "var(--text-muted)", display: "flex", gap: 6, flexWrap: "wrap" };
+const boxF15Navy = {
+  background: "none", border: "none", cursor: "pointer", fontSize: 15, padding: 4, color: "var(--navy)",
+};
+const boxF13Muted = {
+  background: "none", border: "none", cursor: "pointer", fontSize: 13, padding: 4, color: "var(--text-muted)",
+};
+const rowMiddle = { padding: "0 10px 10px", display: "flex", justifyContent: "center" };
+const boxMaxWFullR6 = {
+  maxWidth: "100%", maxHeight: 360, borderRadius: 6, objectFit: "contain",
+};
+const boxMaxWFullR62 = { maxWidth: "100%", maxHeight: 360, borderRadius: 6 };
+const wFull = { width: "100%" };
+const txtF11Light = { fontSize: 11, color: "var(--text-light)", marginTop: 4 };
+const txtF12Danger = { fontSize: 12, color: "var(--danger)", marginTop: 6 };
 
 export function TaskAttachments({ taskId, editable }) {
   const conferma = useConfirm();
@@ -93,13 +124,13 @@ export function TaskAttachments({ taskId, editable }) {
 
   return (
     <div>
-      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>
+      <div style={txtF11Bold}>
         ALLEGATI {files.length > 0 && `(${files.length})`}
       </div>
 
       {/* Lista allegati */}
       {loading ? (
-        <div style={{ fontSize: 13, color: "var(--text-muted)", padding: "8px 0" }}>Caricamento…</div>
+        <div style={txtF13Muted}>Caricamento…</div>
       ) : files.length > 0 ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: editable ? 10 : 0 }}>
           {files.map(file => {
@@ -108,18 +139,12 @@ export function TaskAttachments({ taskId, editable }) {
             const isOpen = previewId === file.id;
             const url = previewUrls[file.id];
             return (
-              <div key={file.id} style={{
-                display: "flex", flexDirection: "column",
-                background: "var(--surface2)", borderRadius: 8, overflow: "hidden",
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px" }}>
-                  <span style={{ fontSize: 18, flexShrink: 0 }}>{fileIcon(file.file_type || file.file_name)}</span>
+              <div key={file.id} style={colR8}>
+                <div style={rowCenterGap10}>
+                  <span style={txtF18}>{fileIcon(file.file_type || file.file_name)}</span>
                   <div className="vd-flex-1-min0">
-                    <div style={{
-                      fontSize: 13, fontWeight: 600, color: "var(--text)",
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                    }}>{file.file_name}</div>
-                    <div style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <div style={txtF13Bold}>{file.file_name}</div>
+                    <div style={rowGap6F11}>
                       {file.file_size != null && <span>{formatFileSize(file.file_size)}</span>}
                       {file.users?.name && <span>· {file.users.name.split(" ")[0]}</span>}
                       {badge && <span>· {badge}</span>}
@@ -131,13 +156,9 @@ export function TaskAttachments({ taskId, editable }) {
                       color: isOpen ? "var(--gold-dark)" : "var(--navy)",
                     }}>{isOpen ? "🔽" : "👁️"}</button>
                   )}
-                  <button onClick={() => handleDownload(file)} title="Apri / scarica" style={{
-                    background: "none", border: "none", cursor: "pointer", fontSize: 15, padding: 4, color: "var(--navy)",
-                  }}>⬇️</button>
+                  <button onClick={() => handleDownload(file)} title="Apri / scarica" style={boxF15Navy}>⬇️</button>
                   {editable && (
-                    <button onClick={() => handleRemove(file)} title="Elimina allegato" style={{
-                      background: "none", border: "none", cursor: "pointer", fontSize: 13, padding: 4, color: "var(--text-muted)",
-                    }}
+                    <button onClick={() => handleRemove(file)} title="Elimina allegato" style={boxF13Muted}
                       onMouseEnter={e => e.currentTarget.style.color = "var(--danger)"}
                       onMouseLeave={e => e.currentTarget.style.color = "var(--text-muted)"}
                     >🗑️</button>
@@ -146,17 +167,15 @@ export function TaskAttachments({ taskId, editable }) {
 
                 {/* Anteprima inline media (immagine / audio / video) */}
                 {isOpen && url && (
-                  <div style={{ padding: "0 10px 10px", display: "flex", justifyContent: "center" }}>
+                  <div style={rowMiddle}>
                     {kind === "image" && (
-                      <img src={url} alt={file.file_name} style={{
-                        maxWidth: "100%", maxHeight: 360, borderRadius: 6, objectFit: "contain",
-                      }} />
+                      <img src={url} alt={file.file_name} style={boxMaxWFullR6} />
                     )}
                     {kind === "video" && (
-                      <video src={url} controls style={{ maxWidth: "100%", maxHeight: 360, borderRadius: 6 }} />
+                      <video src={url} controls style={boxMaxWFullR62} />
                     )}
                     {kind === "audio" && (
-                      <audio src={url} controls style={{ width: "100%" }} />
+                      <audio src={url} controls style={wFull} />
                     )}
                   </div>
                 )}
@@ -165,7 +184,7 @@ export function TaskAttachments({ taskId, editable }) {
           })}
         </div>
       ) : (
-        !editable && <div style={{ fontSize: 13, color: "var(--text-muted)", padding: "8px 0" }}>Nessun allegato.</div>
+        !editable && <div style={txtF13Muted}>Nessun allegato.</div>
       )}
 
       {/* Dropzone / upload (solo se può editare) */}
@@ -175,7 +194,7 @@ export function TaskAttachments({ taskId, editable }) {
             ref={inputRef}
             type="file"
             multiple
-            style={{ display: "none" }}
+            style={hidden}
             onChange={e => handleFiles(e.target.files)}
           />
           <div
@@ -194,14 +213,14 @@ export function TaskAttachments({ taskId, editable }) {
           >
             {uploading ? "⏳ Caricamento in corso…" : "📎 Trascina file qui o clicca per caricare"}
           </div>
-          <div style={{ fontSize: 11, color: "var(--text-light)", marginTop: 4 }}>
+          <div style={txtF11Light}>
             Immagini, video, audio e documenti · max {formatFileSize(MAX_TASK_FILE_SIZE)} per file.
           </div>
         </>
       )}
 
       {error && (
-        <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 6 }}>{error}</div>
+        <div style={txtF12Danger}>{error}</div>
       )}
     </div>
   );

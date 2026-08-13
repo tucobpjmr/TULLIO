@@ -13,6 +13,37 @@ import { useAppData } from "../../state/AppDataContext.jsx";
 import { LazyFallback } from "../ui/LazyFallback.jsx";
 import { UserSwitcher } from "./UserSwitcher.jsx";
 import { Z } from "../../styles/tokens.js";
+import { flex1, relative } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowCenterMiddle = {
+  width: 32, height: 32, background: "#fff", borderRadius: 8,
+  display: "flex", alignItems: "center", justifyContent: "center",
+  flexShrink: 0, cursor: "pointer", padding: 0, position: "relative",
+  border: "none", overflow: "hidden",
+};
+const w266H266 = { display: "block", width: 26.6, height: 26.6 };
+const boxP0 = { background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" };
+const txtF15Bold = { color: "var(--navy)", fontSize: 15, fontWeight: 700, lineHeight: 1 };
+const txtF10 = { color: "rgba(15,32,68,0.75)", fontSize: 10, letterSpacing: 1.5 };
+const relativeFlex1MaxW520 = { flex: 1, maxWidth: 520, position: "relative" };
+const txtAbsoluteF14 = { position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(15,32,68,0.7)", fontSize: 14 };
+const boxF13Navy = {
+  width: "100%", background: "#fff", border: "1px solid rgba(15,32,68,0.15)",
+  borderRadius: 8, padding: "7px 12px 7px 36px", color: "var(--navy)", fontSize: 13,
+  outline: "none", transition: "all 0.2s", boxSizing: "border-box",
+};
+const rowCenterMiddle2 = {
+  background: "#fff", border: "1px solid rgba(15,32,68,0.15)",
+  borderRadius: 8, width: 36, height: 36, cursor: "pointer",
+  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, position: "relative"
+};
+const rowCenterMiddle3 = {
+  position: "absolute", top: -4, right: -4, background: "var(--gold)",
+  borderRadius: "50%", width: 16, height: 16, fontSize: 10, fontWeight: 700,
+  color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center"
+};
 
 // Chunk async: entrambi sono pannelli a scomparsa (ricerca avanzata dietro il
 // focus dell'input, notifiche dietro la campanella), mai visibili al primo
@@ -104,31 +135,26 @@ export const Topbar = memo(function Topbar({
           title="Dashboard"
           aria-label="Dashboard"
           aria-current={dashActive ? "page" : undefined}
-          style={{
-            width: 32, height: 32, background: "#fff", borderRadius: 8,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            flexShrink: 0, cursor: "pointer", padding: 0, position: "relative",
-            border: "none", overflow: "hidden",
-          }}
+          style={rowCenterMiddle}
         >
           {/* Variante del logo per le dimensioni piccole: ritaglio pieno e tratto
               ispessito, altrimenti a queste dimensioni le linee del disegno spariscono. */}
-          <img src="/logo-mark-64.png" alt="" style={{ display: "block", width: 26.6, height: 26.6 }} />
+          <img src="/logo-mark-64.png" alt="" style={w266H266} />
         </button>
         <button
           onClick={goDashboard}
           className="vd-hide-mobile"
-          style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
+          style={boxP0}
         >
-          <div className="playfair" style={{ color: "var(--navy)", fontSize: 15, fontWeight: 700, lineHeight: 1 }}>VoyageDesk</div>
-          <div style={{ color: "rgba(15,32,68,0.75)", fontSize: 10, letterSpacing: 1.5 }}>TRAVEL MANAGEMENT</div>
+          <div className="playfair" style={txtF15Bold}>VoyageDesk</div>
+          <div style={txtF10}>TRAVEL MANAGEMENT</div>
         </button>
       </div>
 
       {/* Ricerca unificata (testuale + filtri avanzati) */}
-      <div ref={searchWrapRef} style={{ flex: 1, maxWidth: 520, position: "relative" }}>
-        <div style={{ position: "relative" }}>
-          <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(15,32,68,0.7)", fontSize: 14 }}>🔍</div>
+      <div ref={searchWrapRef} style={relativeFlex1MaxW520}>
+        <div style={relative}>
+          <div style={txtAbsoluteF14}>🔍</div>
           <input
             value={searchQuery}
             onChange={e => { onSearchChange(e.target.value); setSearchOpen(true); }}
@@ -136,11 +162,7 @@ export const Topbar = memo(function Topbar({
             onBlur={e => { e.target.style.borderColor = "rgba(15,32,68,0.15)"; }}
             placeholder={isMobile ? "Cerca..." : "Cerca task, clienti, categorie... (Ctrl+K)"}
             aria-label="Cerca"
-            style={{
-              width: "100%", background: "#fff", border: "1px solid rgba(15,32,68,0.15)",
-              borderRadius: 8, padding: "7px 12px 7px 36px", color: "var(--navy)", fontSize: 13,
-              outline: "none", transition: "all 0.2s", boxSizing: "border-box",
-            }}
+            style={boxF13Navy}
           />
         </div>
         {searchOpen && (
@@ -157,21 +179,13 @@ export const Topbar = memo(function Topbar({
         )}
       </div>
 
-      <div className="vd-hide-mobile" style={{ flex: 1 }} />
+      <div className="vd-hide-mobile" style={flex1} />
 
       {/* Notifications */}
-      <div style={{ position: "relative" }}>
-        <button onClick={() => setShowNotif(v => !v)} style={{
-          background: "#fff", border: "1px solid rgba(15,32,68,0.15)",
-          borderRadius: 8, width: 36, height: 36, cursor: "pointer",
-          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, position: "relative"
-        }}>
+      <div style={relative}>
+        <button onClick={() => setShowNotif(v => !v)} style={rowCenterMiddle2}>
           🔔
-          {unread > 0 && <span style={{
-            position: "absolute", top: -4, right: -4, background: "var(--gold)",
-            borderRadius: "50%", width: 16, height: 16, fontSize: 10, fontWeight: 700,
-            color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center"
-          }}>{unread}</span>}
+          {unread > 0 && <span style={rowCenterMiddle3}>{unread}</span>}
         </button>
         {showNotif && (
           <Suspense fallback={<LazyFallback />}>

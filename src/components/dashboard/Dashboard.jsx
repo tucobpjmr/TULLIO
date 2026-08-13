@@ -23,6 +23,27 @@ import { useTasks } from "../../state/TasksContext.jsx";
 import { NoticeBoard } from "./NoticeBoard.jsx";
 import { roleLabel } from "../../lib/taskConstants.js";
 import { giornoLungo } from "../../lib/dates.js";
+import { colGap10, colGap14, flex1, rowCenterGap10, txtF11Muted } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowEndBetween = { display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 };
+const txtF35Bold = { fontSize: 35, fontWeight: 700, color: "var(--navy)" };
+const rowCenterGap8 = { color: "var(--text-muted)", fontSize: 14, marginTop: 2, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 };
+const rowCenterGap5 = { display: "inline-flex", alignItems: "center", gap: 5 };
+const boxF11Bold = { fontSize: 11, padding: "2px 8px", background: "var(--surface3)", borderRadius: 99, color: "var(--text-muted)", fontWeight: 600, letterSpacing: 0.3 };
+const boxF10Bold = { fontSize: 10, padding: "1px 6px", background: "#FFF3CD", color: "#856404", borderRadius: 99, fontWeight: 700, letterSpacing: 0.3 };
+const boxF11Bold2 = {
+  fontSize: 11, padding: "2px 9px", borderRadius: 99, fontWeight: 700,
+  background: "rgba(192,57,43,0.08)", color: "var(--danger)",
+  border: "1px solid rgba(192,57,43,0.2)",
+};
+const grid2ColGap20 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 };
+const boxR12 = { background: "var(--card)", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" };
+const txtF16Bold = { fontSize: 16, fontWeight: 600, marginBottom: 14 };
+const txtF13Muted = { color: "var(--text-muted)", fontSize: 13 };
+const txtF13 = { fontSize: 13, fontWeight: 500 };
+const txtF12Bold = { fontSize: 12, fontWeight: 600, color: "var(--text-muted)" };
 
 // P2-4: comparatori a livello di modulo — erano funzioni anonime ricreate
 // dentro ogni `sort`, quindi un array nuovo (a parità di contenuto) a ogni
@@ -172,26 +193,22 @@ export const Dashboard = memo(function Dashboard({
   return (
     <div className="fade-in" style={{ padding: isMobile ? 16 : 28, display: "flex", flexDirection: "column", gap: isMobile ? 18 : 24, minWidth: 0, overflow: "hidden" }}>
       {/* Header */}
-      <div className="vd-row-wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
+      <div className="vd-row-wrap" style={rowEndBetween}>
         <div>
-          <div className="playfair" style={{ fontSize: 35, fontWeight: 700, color: "var(--navy)" }}>
+          <div className="playfair" style={txtF35Bold}>
             {giornoLungo(new Date())}
           </div>
-          <div style={{ color: "var(--text-muted)", fontSize: 14, marginTop: 2, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+          <div style={rowCenterGap8}>
             {role !== "admin" && (
               <>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                  <span style={{ fontSize: 11, padding: "2px 8px", background: "var(--surface3)", borderRadius: 99, color: "var(--text-muted)", fontWeight: 600, letterSpacing: 0.3 }}>{me ? roleLabel(me) : ""}</span>
+                <span style={rowCenterGap5}>
+                  <span style={boxF11Bold}>{me ? roleLabel(me) : ""}</span>
                   {isJuniorAgent(uid) && (
-                    <span style={{ fontSize: 10, padding: "1px 6px", background: "#FFF3CD", color: "#856404", borderRadius: 99, fontWeight: 700, letterSpacing: 0.3 }}>JUNIOR</span>
+                    <span style={boxF10Bold}>JUNIOR</span>
                   )}
                 </span>
                 {overdueTasks.length > 0 && (
-                  <span style={{
-                    fontSize: 11, padding: "2px 9px", borderRadius: 99, fontWeight: 700,
-                    background: "rgba(192,57,43,0.08)", color: "var(--danger)",
-                    border: "1px solid rgba(192,57,43,0.2)",
-                  }}>⚠ {overdueTasks.length} scadut{overdueTasks.length === 1 ? "a" : "e"}</span>
+                  <span style={boxF11Bold2}>⚠ {overdueTasks.length} scadut{overdueTasks.length === 1 ? "a" : "e"}</span>
                 )}
               </>
             )}
@@ -286,10 +303,10 @@ export const Dashboard = memo(function Dashboard({
         <WaitingQueue tasks={waitingTasks} dispatch={dispatch} loading={caricando} />
       )}
 
-      <div className="vd-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+      <div className="vd-grid-2col" style={grid2ColGap20}>
         {/* Upcoming deadlines */}
-        <div style={{ background: "var(--card)", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
-          <div className="playfair" style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>Scadenze Prossime</div>
+        <div style={boxR12}>
+          <div className="playfair" style={txtF16Bold}>Scadenze Prossime</div>
           {/* Il riquadro non aveva alcuno stato vuoto: a lista vuota restava un
               box con solo il titolo, che si legge come "non c'è nulla in
               scadenza" tanto durante il caricamento quanto dopo. Ora i due casi
@@ -297,11 +314,11 @@ export const Dashboard = memo(function Dashboard({
           {caricando ? (
             <SkeletonRows count={4} avatar={false} label="Caricamento delle scadenze" />
           ) : next7.length === 0 ? (
-            <div style={{ color: "var(--text-muted)", fontSize: 13 }}>
+            <div style={txtF13Muted}>
               Nessuna scadenza in programma.
             </div>
           ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={colGap10}>
             {next7.map(t => (
               <SwipeActions key={t.id} task={t} dispatch={dispatch}>
                 <TaskRow
@@ -323,23 +340,23 @@ export const Dashboard = memo(function Dashboard({
         </div>
 
         {/* Agent workload */}
-        <div style={{ background: "var(--card)", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
-          <div className="playfair" style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>Carico di Lavoro Team</div>
+        <div style={boxR12}>
+          <div className="playfair" style={txtF16Bold}>Carico di Lavoro Team</div>
           {/* Il team c'è già (arriva da AuthContext), i TASK no: senza questo
               ramo il pannello mostrerebbe l'organico al completo con "0 task"
               a testa — un carico di lavoro inventato, non un carico vuoto. */}
           {caricando ? (
             <SkeletonRows count={4} label="Caricamento del carico di lavoro" />
           ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={colGap14}>
             {agentWorkload.map(m => (
-              <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div key={m.id} style={rowCenterGap10}>
                 <Avatar memberId={m.id} size={30} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 500 }}>{m.name}</div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{roleLabel(m)}</div>
+                <div style={flex1}>
+                  <div style={txtF13}>{m.name}</div>
+                  <div style={txtF11Muted}>{roleLabel(m)}</div>
                 </div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>
+                <div style={txtF12Bold}>
                   {m.count} task
                 </div>
               </div>

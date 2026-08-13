@@ -11,10 +11,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { Modal } from "../components/ui/Modal.jsx";
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const transform2 = { transform: "translateY(0)" };
+
 beforeEach(() => { document.body.style.overflow = ""; });
 
 const apri = (props = {}) => render(
-  <div className="fade-in" style={{ transform: "translateY(0)" }}>
+  <div className="fade-in" style={transform2}>
     <Modal open onClose={props.onClose || vi.fn()} labelledBy="t" {...props}>
       <h2 id="t">Titolo</h2>
       <input aria-label="campo" />

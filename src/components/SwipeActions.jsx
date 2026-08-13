@@ -9,6 +9,38 @@ import { useAppData } from "../state/AppDataContext.jsx";
 import { Avatar } from "./ui/Avatar.jsx";
 import { Z } from "../styles/tokens.js";
 import { roleLabel } from "../lib/taskConstants.js";
+import { nomeTroncato, txtF11Muted, txtF18 } from "../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const relative2 = { position: "relative", overflow: "visible", touchAction: "pan-y" };
+const colCenterMiddle = {
+  flex: 1, background: "var(--success)", color: "#fff", border: "none",
+  cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 11,
+  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+  gap: 4, padding: "0 4px",
+};
+const txtF20 = { fontSize: 20 };
+const colCenterMiddle2 = {
+  flex: 1, background: "var(--danger)", color: "#fff", border: "none",
+  cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 11,
+  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+  gap: 4, padding: "0 4px",
+};
+const colCenterMiddle3 = {
+  flex: 1, background: "var(--gold)", color: "var(--navy)", border: "none",
+  cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 11,
+  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+  gap: 4, padding: "0 4px", position: "relative",
+};
+const txtF11Bold = { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", padding: "6px 10px 4px", letterSpacing: 0.5 };
+const rowCenterGap10 = {
+  width: "100%", display: "flex", alignItems: "center", gap: 10,
+  padding: "8px 10px", background: "transparent", border: "none",
+  borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontSize: 13,
+  color: "var(--text)", textAlign: "left",
+};
+const flex1 = { flex: 1, overflow: "hidden" };
 
 export const SwipeActions = ({ task, dispatch, children, disabled = false }) => {
   const { isDesktop } = useViewport();
@@ -138,7 +170,7 @@ export const SwipeActions = ({ task, dispatch, children, disabled = false }) => 
   return (
     <div
       ref={containerRef}
-      style={{ position: "relative", overflow: "visible", touchAction: "pan-y" }}
+      style={relative2}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
@@ -157,42 +189,27 @@ export const SwipeActions = ({ task, dispatch, children, disabled = false }) => 
           <button
             onClick={handleComplete}
             aria-label="Completato"
-            style={{
-              flex: 1, background: "var(--success)", color: "#fff", border: "none",
-              cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 11,
-              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-              gap: 4, padding: "0 4px",
-            }}
+            style={colCenterMiddle}
           >
-            <span style={{ fontSize: 20 }}>✓</span>
+            <span style={txtF20}>✓</span>
             <span>Fatto</span>
           </button>
           {/* Cestino */}
           <button
             onClick={handleDelete}
             aria-label="Cestino"
-            style={{
-              flex: 1, background: "var(--danger)", color: "#fff", border: "none",
-              cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 11,
-              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-              gap: 4, padding: "0 4px",
-            }}
+            style={colCenterMiddle2}
           >
-            <span style={{ fontSize: 20 }}>🗑</span>
+            <span style={txtF20}>🗑</span>
             <span>Cestino</span>
           </button>
           {/* Inoltra */}
           <button
             onClick={handleForwardToggle}
             aria-label="Inoltra"
-            style={{
-              flex: 1, background: "var(--gold)", color: "var(--navy)", border: "none",
-              cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 11,
-              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-              gap: 4, padding: "0 4px", position: "relative",
-            }}
+            style={colCenterMiddle3}
           >
-            <span style={{ fontSize: 18 }}>↪</span>
+            <span style={txtF18}>↪</span>
             <span>Inoltra</span>
           </button>
         </div>
@@ -211,26 +228,21 @@ export const SwipeActions = ({ task, dispatch, children, disabled = false }) => 
             padding: 6,
           }}
         >
-          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", padding: "6px 10px 4px", letterSpacing: 0.5 }}>
+          <div style={txtF11Bold}>
             INOLTRA A
           </div>
           {assignable.map(m => (
             <button
               key={m.id}
               onClick={e => handleForwardTo(e, m.id)}
-              style={{
-                width: "100%", display: "flex", alignItems: "center", gap: 10,
-                padding: "8px 10px", background: "transparent", border: "none",
-                borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontSize: 13,
-                color: "var(--text)", textAlign: "left",
-              }}
+              style={rowCenterGap10}
               onMouseDown={e => e.currentTarget.style.background = "var(--surface2)"}
               onMouseUp={e => e.currentTarget.style.background = "transparent"}
             >
               <Avatar memberId={m.id} size={26} />
-              <div style={{ flex: 1, overflow: "hidden" }}>
-                <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.name}</div>
-                <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{roleLabel(m)}</div>
+              <div style={flex1}>
+                <div style={nomeTroncato}>{m.name}</div>
+                <div style={txtF11Muted}>{roleLabel(m)}</div>
               </div>
             </button>
           ))}

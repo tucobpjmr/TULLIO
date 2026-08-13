@@ -19,6 +19,12 @@ import { tasksDelCliente } from "../../lib/clientNotes.js";
 import { matchTermini, terminiRicerca } from "../../lib/searchUtils.js";
 import { fieldStyle } from "./clientStyles.js";
 import { Modal } from "../ui/Modal.jsx";
+import { rowGap8, txtF13, txtF13Muted, txtF40Mb12 } from "../../styles/common.js";
+import {
+  boxF13Bold, boxF14Bold, boxF14Bold2, boxF14Muted, colCenterGap6, maxW1100, mb20, mt8,
+  rowCenterBetween, rowCenterGap6, rowCenterGap62, rowCenterGap63, rowGap10, rowGap6Mt10,
+  txtBoldMb6, txtF115Muted, txtF14Muted, txtF14Muted2, txtF16Bold, txtMutedTxtCenter,
+} from "./clientiViewStyles.js";
 
 // Chunk async: porta con sé lib/xlsx.js e resta chiuso nella grande
 // maggioranza delle sessioni (import CSV/Excel, non il percorso comune).
@@ -168,37 +174,29 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
   };
 
   return (
-    <div className="vd-pad" style={{ maxWidth: 1100, margin: "0 auto" }}>
+    <div className="vd-pad" style={maxW1100}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+      <div style={rowCenterBetween}>
         <div>
           <h1 className="playfair" style={{ fontSize: isMobile ? 22 : 26, color: "var(--heading)", marginBottom: 4 }}>
             Clienti
           </h1>
-          <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
+          <div style={txtF13Muted}>
             {loading && clients.length === 0
               ? "Caricamento…"
               : `${clients.length} ${clients.length === 1 ? "cliente" : "clienti"} in anagrafica`}
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={rowGap8}>
           <button
             onClick={() => setImportOpen(true)}
-            style={{
-              padding: "10px 16px", borderRadius: 9, border: "1px solid var(--border)",
-              background: "var(--card)", color: "var(--navy)", cursor: "pointer",
-              fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 6,
-            }}
+            style={rowCenterGap6}
           >
             📥 Importa da Excel
           </button>
           <button
             onClick={() => setModal({ mode: "add" })}
-            style={{
-              padding: "10px 18px", borderRadius: 9, border: "none",
-              background: "var(--navy)", color: "#fff", cursor: "pointer",
-              fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 6,
-            }}
+            style={rowCenterGap62}
           >
             + Nuovo cliente
           </button>
@@ -206,14 +204,14 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
       </div>
 
       {/* Search + Sort */}
-      <div style={{ marginBottom: 20 }}>
+      <div style={mb20}>
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Cerca per nome, email, città, telefono…"
           style={{ ...fieldStyle, maxWidth: 360 }}
         />
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+        <div style={rowGap6Mt10}>
           {CLIENT_SORT_OPTS.map(opt => (
             <button
               key={opt.key}
@@ -231,7 +229,7 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
           ))}
         </div>
         {conteggi && conteggi.conListe > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8, alignItems: "center" }}>
+          <div style={rowCenterGap63}>
             {LINK_FILTERS.map(opt => (
               <button
                 key={opt.key}
@@ -255,12 +253,12 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
       {loading && clients.length === 0 ? (
         <SkeletonCards />
       ) : filtered.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "64px 24px", color: "var(--text-muted)" }}>
+        <div style={txtMutedTxtCenter}>
           {search ? "Nessun cliente trovato" : (
             <div>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>👤</div>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>Nessun cliente ancora</div>
-              <div style={{ fontSize: 13 }}>Aggiungi il primo cliente per iniziare</div>
+              <div style={txtF40Mb12}>👤</div>
+              <div style={txtBoldMb6}>Nessun cliente ancora</div>
+              <div style={txtF13}>Aggiungi il primo cliente per iniziare</div>
             </div>
           )}
         </div>
@@ -283,17 +281,12 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
               sono due affermazioni diverse su dati operativi, e questa vista
               serve a rispondere alla domanda "quanti clienti ho". */}
           {restanti > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginTop: 18 }}>
+            <div style={colCenterGap6}>
               <button
                 onClick={() => setLimite(l => l + PAGINA)}
-                style={{
-                  background: "var(--card)", color: "var(--text)",
-                  border: "1px solid var(--border)", borderRadius: 10,
-                  padding: "10px 22px", cursor: "pointer",
-                  fontSize: 13, fontWeight: 600, fontFamily: "inherit",
-                }}
+                style={boxF13Bold}
               >Mostra altri {Math.min(PAGINA, restanti)} di {restanti}</button>
-              <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
+              <div style={txtF115Muted}>
                 {visibili.length} di {filtered.length} clienti
               </div>
             </div>
@@ -352,47 +345,38 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
             width="min(420px, 92vw)"
             cardStyle={{ borderRadius: 12, padding: 24, boxShadow: "0 12px 40px rgba(0,0,0,0.18)" }}
           >
-            <div id="vd-cliente-del-title" style={{ fontWeight: 700, fontSize: 16, color: "var(--heading)", marginBottom: 8 }}>
+            <div id="vd-cliente-del-title" style={txtF16Bold}>
               {bloccato ? "Non si può rimuovere" : "Rimuovi cliente"}
             </div>
             {bloccato ? (
-              <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 20, lineHeight: 1.5 }}>
+              <div style={txtF14Muted}>
                 <strong>{confirmDelete.name}</strong> è collegato a{" "}
                 {l.totali === 1 ? "una lista viaggio" : `${l.totali} liste viaggio`}{" "}
                 (come titolare o cointestatario)
                 {l.totali > l.attive && `, di cui ${l.totali - l.attive} nel cestino: restano collegate anche lì`}.
-                <div style={{ marginTop: 8 }}>
+                <div style={mt8}>
                   Le liste sono agganciate a questa scheda: per rimuoverla vanno prima
                   eliminate definitivamente dal cestino del modulo Liste viaggio, o questo
                   cliente va rimosso come cointestatario dalle liste dove non è titolare.
                 </div>
               </div>
             ) : (
-              <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 20 }}>
+              <div style={txtF14Muted2}>
                 Rimuovere <strong>{confirmDelete.name}</strong> dall'anagrafica?
               </div>
             )}
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
-              <button onClick={() => setConfirmDelete(null)} style={{
-                padding: "8px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)",
-                cursor: "pointer", fontSize: 14, color: "var(--text-muted)",
-              }}>{bloccato ? "Chiudi" : "Annulla"}</button>
+            <div style={rowGap10}>
+              <button onClick={() => setConfirmDelete(null)} style={boxF14Muted}>{bloccato ? "Chiudi" : "Annulla"}</button>
               {bloccato ? (
                 showListe && (
                   <button onClick={() => {
                     setSelectedClient(confirmDelete);
                     setPanelTab("liste");
                     setConfirmDelete(null);
-                  }} style={{
-                    padding: "8px 16px", borderRadius: 8, border: "none",
-                    background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 600,
-                  }}>Vedi le liste</button>
+                  }} style={boxF14Bold}>Vedi le liste</button>
                 )
               ) : (
-                <button onClick={() => handleDelete(confirmDelete)} style={{
-                  padding: "8px 16px", borderRadius: 8, border: "none",
-                  background: "var(--danger)", color: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 600,
-                }}>Rimuovi</button>
+                <button onClick={() => handleDelete(confirmDelete)} style={boxF14Bold2}>Rimuovi</button>
               )}
             </div>
           </Modal>

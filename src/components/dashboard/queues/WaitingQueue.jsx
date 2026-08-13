@@ -12,6 +12,12 @@ import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useOpenTask } from "./queueShared.js";
 import { QueueShell } from "./QueueShell.jsx";
 import { SkeletonCards } from "../../ui/SkeletonCards.jsx";
+import { gridGap102, intestazioneSezione, txtF18 } from "../../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowCenterGap6 = { display: "flex", alignItems: "center", gap: 6, marginBottom: 12, flexWrap: "wrap" };
+const rowGap8F13 = { padding: "14px 0 4px", color: "var(--text-muted)", fontSize: 13, display: "flex", gap: 8 };
 
 const WAITING_STATUSES = ["awaiting_client", "awaiting_supplier"];
 const WAITING_ACCENT = "#8B5CF6";
@@ -37,7 +43,7 @@ export const WaitingQueue = ({ tasks, dispatch, loading = false }) => {
 
       {/* Filtro sotto-stato — solo se sono presenti entrambe le attese */}
       {!empty && presentStatuses.length > 1 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+        <div style={rowCenterGap6}>
           <button
             type="button"
             onClick={() => setStatusFilter(null)}
@@ -80,22 +86,16 @@ export const WaitingQueue = ({ tasks, dispatch, loading = false }) => {
       {caricando ? (
         <SkeletonCards count={3} minWidth={280} compact label="Caricamento delle task in attesa" />
       ) : empty ? (
-        <div style={{
-          padding: "14px 0 4px", display: "flex", alignItems: "center", gap: 10,
-          color: "var(--text-muted)", fontSize: 13,
-        }}>
-          <span style={{ fontSize: 18 }}>✅</span>
+        <div style={intestazioneSezione}>
+          <span style={txtF18}>✅</span>
           Nessuna task in attesa di cliente o fornitore.
         </div>
       ) : visible.length === 0 ? (
-        <div style={{ padding: "14px 0 4px", color: "var(--text-muted)", fontSize: 13, display: "flex", gap: 8 }}>
+        <div style={rowGap8F13}>
           <span>📭</span> Nessuna task per il filtro selezionato.
         </div>
       ) : (
-        <div style={{
-          display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))",
-          gap: 10,
-        }}>
+        <div style={gridGap102}>
           {visible.map(t => {
             const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
             const overdue = isOverdue(t);

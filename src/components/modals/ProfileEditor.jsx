@@ -13,6 +13,15 @@ import { Modal } from "../ui/Modal.jsx";
 import { roleLabel } from "../../lib/taskConstants.js";
 
 import { CropModal, dataUrlToBlob } from "./CropModal.jsx";
+import {
+  btnChiudiSuScuro, grid2ColGap12, hidden, relative, txtF11Muted, txtF15,
+} from "../../styles/common.js";
+import {
+  boxF125Danger, boxF13Bold, boxF13Bold2, boxF13Bold3, boxF14Muted, boxW100H100, boxW52H52,
+  colCenterGap12, colGap10Mt10, colGap10Mt102, colGap18, mt2, row, rowCenterBetween,
+  rowCenterGap14, rowCenterGap8, rowCenterGap82, rowCenterMiddle, rowCenterMiddle2, rowGap10,
+  txtF11Mt2, txtF11Muted2, txtF13Text, txtF18Bold,
+} from "./profileEditorStyles.js";
 
 // Criticità #10 — il nome è obbligatorio e l'email, se compilata, dev'essere
 // valida. Prima il primo usciva in silenzio (`if (!name.trim()) return;`) e la
@@ -246,15 +255,11 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
         cardStyle={{ borderRadius: 16, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}
       >
         {/* Header */}
-        <div style={{
-          background: "var(--navy)", padding: "20px 22px",
-          borderRadius: "16px 16px 0 0",
-          display: "flex", justifyContent: "space-between", alignItems: "center",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <div style={rowCenterBetween}>
+          <div style={rowCenterGap14}>
             {/* Preview avatar */}
             {photoPreview ? (
-              <img src={photoPreview} alt="" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "3px solid rgba(255,255,255,0.3)" }} />
+              <img src={photoPreview} alt="" style={boxW52H52} />
             ) : (
               <div style={{
                 width: 52, height: 52, borderRadius: "50%", background: draft.color,
@@ -264,44 +269,29 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
               }}>{initials}</div>
             )}
             <div>
-              <div id="vd-profile-title" className="playfair" style={{ fontSize: 18, fontWeight: 700, color: "#fff" }}>Modifica profilo</div>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>{roleLabel(member)}</div>
+              <div id="vd-profile-title" className="playfair" style={txtF18Bold}>Modifica profilo</div>
+              <div style={txtF11Mt2}>{roleLabel(member)}</div>
             </div>
           </div>
-          <button onClick={onClose} style={{
-            background: "rgba(255,255,255,0.1)", border: "none", color: "#fff",
-            width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 14,
-          }}>✕</button>
+          <button onClick={onClose} style={btnChiudiSuScuro}>✕</button>
         </div>
 
         {/* Body */}
-        <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 18 }}>
+        <div style={colGap18}>
 
           {/* ── Foto profilo ── */}
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+          <div style={colCenterGap12}>
             {photoPreview ? (
-              <div style={{ position: "relative" }}>
-                <img src={photoPreview} alt="" style={{ width: 100, height: 100, borderRadius: "50%", objectFit: "cover", border: "3px solid var(--border)" }} />
-                <button onClick={() => scrivi("photoUrl", "")} style={{
-                  position: "absolute", top: -4, right: -4,
-                  width: 24, height: 24, borderRadius: "50%", background: "var(--danger)", color: "#fff",
-                  border: "2px solid #fff", cursor: "pointer", fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center",
-                }}>✕</button>
+              <div style={relative}>
+                <img src={photoPreview} alt="" style={boxW100H100} />
+                <button onClick={() => scrivi("photoUrl", "")} style={rowCenterMiddle}>✕</button>
               </div>
             ) : (
-              <div style={{
-                width: 100, height: 100, borderRadius: "50%", border: "2px dashed var(--border)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                color: "var(--text-muted)", fontSize: 12,
-              }}>Nessuna foto</div>
+              <div style={rowCenterMiddle2}>Nessuna foto</div>
             )}
-            <input ref={fileRef} type="file" accept="image/*" onChange={handlePhotoUpload} style={{ display: "none" }} />
-            <button onClick={() => fileRef.current?.click()} style={{
-              background: "var(--surface2)", border: "1px solid var(--border)",
-              padding: "8px 20px", borderRadius: 8, cursor: "pointer",
-              fontSize: 13, fontWeight: 600, fontFamily: "inherit", color: "var(--text)",
-            }}>📷 {draft.photoUrl ? "Cambia foto" : "Carica foto"}</button>
-            <div style={{ fontSize: 11, color: "var(--text-muted)" }}>JPG, PNG — max 5 MB • potrai ritagliare dopo il caricamento</div>
+            <input ref={fileRef} type="file" accept="image/*" onChange={handlePhotoUpload} style={hidden} />
+            <button onClick={() => fileRef.current?.click()} style={boxF13Bold}>📷 {draft.photoUrl ? "Cambia foto" : "Carica foto"}</button>
+            <div style={txtF11Muted}>JPG, PNG — max 5 MB • potrai ritagliare dopo il caricamento</div>
           </div>
 
           {/* ── Nome ── */}
@@ -319,7 +309,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
           </div>
 
           {/* ── Email + Telefono ── */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div style={grid2ColGap12}>
             <div>
               {fieldLabel("EMAIL")}
               <input
@@ -346,10 +336,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
           {/* ── Ruolo (read-only) ── */}
           <div>
             {fieldLabel("RUOLO (non modificabile)")}
-            <div style={{
-              padding: "10px 12px", borderRadius: 8, background: "var(--surface2)",
-              fontSize: 14, color: "var(--text-muted)", fontWeight: 500,
-            }}>{roleLabel(member)}</div>
+            <div style={boxF14Muted}>{roleLabel(member)}</div>
           </div>
 
           {/* ── Cambia password (solo con sessione reale) ── */}
@@ -357,19 +344,14 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
             <div>
               <button
                 onClick={() => { setPwdAperta(v => !v); setEsitoPwd(ESITO_PRONTO); setBozzaPwd(BOZZA_PWD); }}
-                style={{
-                  display: "flex", alignItems: "center", gap: 8,
-                  background: "none", border: "none", cursor: "pointer",
-                  color: "var(--navy)", fontSize: 13, fontWeight: 600,
-                  padding: "6px 0", fontFamily: "inherit",
-                }}
+                style={rowCenterGap8}
               >
-                <span style={{ fontSize: 15 }}>🔑</span>
+                <span style={txtF15}>🔑</span>
                 Cambia password
-                <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 2 }}>{pwdAperta ? "▲" : "▼"}</span>
+                <span style={txtF11Muted2}>{pwdAperta ? "▲" : "▼"}</span>
               </button>
               {pwdAperta && (
-                <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={colGap10Mt10}>
                   <div>
                     {fieldLabel("NUOVA PASSWORD")}
                     <PasswordField
@@ -404,7 +386,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
                       color: esitoPwd.fase === "ok" ? "var(--success)" : "var(--danger)",
                     }}>{esitoPwd.testo}</div>
                   )}
-                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <div style={row}>
                     <button
                       onClick={handleChangePwd}
                       disabled={pwdInVolo || !bozzaPwd.nuova}
@@ -424,29 +406,18 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
 
           {/* ── Elimina account (zona pericolosa, solo con sessione reale) ── */}
           {session && (
-            <div style={{
-              borderTop: "1px solid var(--border)", paddingTop: 14, marginTop: 2,
-            }}>
+            <div style={mt2}>
               <button
                 onClick={() => { setElimAperta(v => !v); setConfermaElim(""); setEsitoElim(ESITO_PRONTO); }}
-                style={{
-                  display: "flex", alignItems: "center", gap: 8,
-                  background: "none", border: "none", cursor: "pointer",
-                  color: "var(--danger)", fontSize: 13, fontWeight: 600,
-                  padding: "6px 0", fontFamily: "inherit",
-                }}
+                style={rowCenterGap82}
               >
-                <span style={{ fontSize: 15 }}>🗑️</span>
+                <span style={txtF15}>🗑️</span>
                 Elimina account
-                <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 2 }}>{elimAperta ? "▲" : "▼"}</span>
+                <span style={txtF11Muted2}>{elimAperta ? "▲" : "▼"}</span>
               </button>
               {elimAperta && (
-                <div style={{
-                  marginTop: 10, padding: "14px 16px", borderRadius: 10,
-                  background: "rgba(192,57,43,0.05)", border: "1px solid rgba(192,57,43,0.25)",
-                  display: "flex", flexDirection: "column", gap: 10,
-                }}>
-                  <p style={{ fontSize: 13, color: "var(--text)", margin: 0, lineHeight: 1.5 }}>
+                <div style={colGap10Mt102}>
+                  <p style={txtF13Text}>
                     Questa azione <strong>disabilita permanentemente</strong> il tuo account e impedisce futuri accessi.
                     I tuoi messaggi e commenti vengono conservati. L'operazione è irreversibile.
                   </p>
@@ -460,13 +431,9 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
                     />
                   </div>
                   {esitoElim.testo && (
-                    <div role="status" style={{
-                      fontSize: 12.5, borderRadius: 8, padding: "8px 10px",
-                      background: "rgba(192,57,43,0.08)", border: "1px solid var(--danger)",
-                      color: "var(--danger)",
-                    }}>{esitoElim.testo}</div>
+                    <div role="status" style={boxF125Danger}>{esitoElim.testo}</div>
                   )}
-                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <div style={row}>
                     <button
                       onClick={handleDeleteAccount}
                       disabled={elimInVolo || confermaElim !== "ELIMINA"}
@@ -486,26 +453,14 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
         </div>
 
         {/* Footer */}
-        <div style={{
-          padding: "14px 22px 18px", borderTop: "1px solid var(--border)",
-          display: "flex", justifyContent: "flex-end", gap: 10,
-        }}>
-          <button onClick={onClose} style={{
-            background: "var(--card)", color: "var(--text)", border: "1px solid var(--border)",
-            padding: "10px 20px", borderRadius: 8, cursor: "pointer", fontSize: 13,
-            fontWeight: 600, fontFamily: "inherit",
-          }}>Annulla</button>
+        <div style={rowGap10}>
+          <button onClick={onClose} style={boxF13Bold2}>Annulla</button>
           {/* Criticità #10: il bottone resta attivo anche a nome vuoto.
               Disabilitarlo nascondeva il problema invece di dirlo — premuto,
               ora il form indica il campo e ci porta il focus. */}
           <button
             onClick={handleSave}
-            style={{
-              background: "var(--navy)", color: "#fff", border: "none",
-              padding: "10px 20px", borderRadius: 8, cursor: "pointer",
-              fontSize: 13, fontWeight: 700, fontFamily: "inherit",
-              boxShadow: "0 4px 14px rgba(15,32,68,0.3)",
-            }}
+            style={boxF13Bold3}
           >✓ Salva profilo</button>
         </div>
       </Modal>

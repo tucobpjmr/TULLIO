@@ -16,6 +16,13 @@ import { expandRecurring } from "./calendarRecurrence.js";
 import { CalendarDayGrid } from "./CalendarDayGrid.jsx";
 import { CalendarWeekGrid } from "./CalendarWeekGrid.jsx";
 import { giornoLungo, giornoMese, giornoMeseAnno, meseAnno } from "../../lib/dates.js";
+import { rowCenterGap12, rowCenterGap8, rowGap4, txtMuted } from "../../styles/common.js";
+import {
+  boxF11Bold, boxF11Bold2, boxF12Bold, boxF12Bold2, boxF14W34, boxR14, boxW14H14, colGap2MinW0,
+  colGap4, colGap8, grid2, grid3, overflowX2, padding2, rowCenterBetween, rowCenterGap6,
+  rowCenterGap82, rowGap4P3, rowGap6MtNeg8, rowMiddleGap3, txt, txtBoldHeading, txtF10Muted,
+  txtF12Bold, txtF12Muted, txtF12WFull, txtF16Bold, txtF16Bold2,
+} from "./calendarPlannerStyles.js";
 
 export const CalendarPlanner = memo(function CalendarPlanner({ dispatch, loading = false }) {
   const { isMobile } = useViewport();
@@ -149,21 +156,16 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch, loading
         <div
           role="status"
           aria-live="polite"
-          style={{
-            display: "flex", alignItems: "center", gap: 8,
-            background: "var(--surface2)", border: "1px solid var(--border)",
-            borderRadius: 10, padding: "8px 12px",
-            fontSize: 12, color: "var(--text-muted)", fontWeight: 600,
-          }}
+          style={rowCenterGap82}
         >
-          <span className="skeleton" style={{ width: 14, height: 14, borderRadius: "50%" }} />
+          <span className="skeleton" style={boxW14H14} />
           Caricamento delle task: il calendario è ancora incompleto.
         </div>
       )}
 
       {/* ─── Header con toggle + navigazione ─── */}
-      <div className="vd-row-wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div className="vd-row-wrap" style={rowCenterBetween}>
+        <div style={rowCenterGap12}>
           <div className="playfair" style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, textTransform: viewMode === "month" ? "capitalize" : "none" }}>
             {viewMode === "month" && monthName}
             {viewMode === "week" && "Settimana"}
@@ -171,58 +173,45 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch, loading
             {viewMode === "day" && giornoLungo(dayDate)}
           </div>
           {(viewMode === "week" || viewMode === "week-full") && (
-            <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
+            <div style={txtF12Muted}>
               {giornoMese(weekDays[0])} — {giornoMeseAnno(weekDays[6])}
             </div>
           )}
         </div>
-        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={rowCenterGap6}>
           {/* View toggle */}
-          <div style={{ display: "flex", gap: 4, background: "var(--surface2)", borderRadius: 10, padding: 3 }}>
+          <div style={rowGap4P3}>
             {toggleBtn("day", isMobile ? "Gior." : "🕒 Giorno")}
             {toggleBtn("week", isMobile ? "Sett." : "📆 Settimana")}
             {toggleBtn("week-full", isMobile ? "Sett.+" : "🗓️ Sett. piena")}
             {toggleBtn("month", isMobile ? "Mese" : "📅 Mese")}
           </div>
           {/* Nav buttons */}
-          <div style={{ display: "flex", gap: 4 }}>
+          <div style={rowGap4}>
             <button onClick={() => {
               if (viewMode === "month") setCurrentMonth(new Date(year, month - 1));
               else if (viewMode === "day") setDayDate(d => { const x = new Date(d); x.setDate(x.getDate() - 1); return x; });
               else setWeekOffset(w => w - 1);
-            }} style={{
-              background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8,
-              width: 34, height: 34, cursor: "pointer", fontSize: 14
-            }}>←</button>
+            }} style={boxF14W34}>←</button>
             <button onClick={() => {
               if (viewMode === "month") setCurrentMonth(new Date());
               else if (viewMode === "day") setDayDate(new Date());
               else setWeekOffset(0);
               setSelectedDay(null);
-            }} style={{
-              background: "var(--gold)", color: "var(--navy)", border: "none",
-              borderRadius: 8, padding: "0 14px", height: 34, cursor: "pointer", fontSize: 12, fontWeight: 700
-            }}>Oggi</button>
+            }} style={boxF12Bold}>Oggi</button>
             <button onClick={() => {
               if (viewMode === "month") setCurrentMonth(new Date(year, month + 1));
               else if (viewMode === "day") setDayDate(d => { const x = new Date(d); x.setDate(x.getDate() + 1); return x; });
               else setWeekOffset(w => w + 1);
-            }} style={{
-              background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8,
-              width: 34, height: 34, cursor: "pointer", fontSize: 14
-            }}>→</button>
-            <button onClick={() => exportTasksToIcs(tasks, (t) => canViewTask(t, uid))} title="Esporta calendario in iCal (.ics)" style={{
-              background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8,
-              padding: "0 12px", height: 34, cursor: "pointer", fontSize: 12, fontWeight: 600,
-              color: "var(--heading)",
-            }}>⤓ iCal</button>
+            }} style={boxF14W34}>→</button>
+            <button onClick={() => exportTasksToIcs(tasks, (t) => canViewTask(t, uid))} title="Esporta calendario in iCal (.ics)" style={boxF12Bold2}>⤓ iCal</button>
           </div>
         </div>
       </div>
 
       {/* ─── Filtro categoria (v2.8 Round 12) ─── */}
       {presentCats.length > 1 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: -8 }}>
+        <div style={rowGap6MtNeg8}>
           <button
             type="button"
             onClick={() => setCatFilter(null)}
@@ -260,16 +249,16 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch, loading
 
       {/* ─── VISTA MESE ─── */}
       {viewMode === "month" && (
-        <div style={{ background: "var(--card)", borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)", overflow: "hidden" }}>
+        <div style={boxR14}>
           {/* Day headers */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", background: "var(--navy)", padding: "10px 0" }}>
+          <div style={grid2}>
             {dayNames.map(d => (
-              <div key={d} style={{ textAlign: "center", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.7)", minWidth: 0 }}>{d}</div>
+              <div key={d} style={txtF12Bold}>{d}</div>
             ))}
           </div>
           {/* Cells — minmax(0,1fr) evita che i titoli dei task (nowrap) allarghino
               le colonne oltre il contenitore facendo tagliare la domenica */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }}>
+          <div style={grid3}>
             {Array.from({ length: startOffset }, (_, i) => (
               <div key={`e${i}`} style={{ minHeight: isMobile ? 52 : 100, minWidth: 0, borderRight: "1px solid var(--border)", borderBottom: "1px solid var(--border)", background: "var(--surface2)" }} />
             ))}
@@ -294,14 +283,14 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch, loading
                   }}>{day}</div>
                   {isMobile ? (
                     hasContent && (
-                      <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "center" }}>
+                      <div style={rowMiddleGap3}>
                         {dayTasks.slice(0, 4).map(t => (
                           <span key={t.id} style={{ width: 6, height: 6, borderRadius: "50%", background: categories[t.category]?.color || "var(--navy)" }} />
                         ))}
                       </div>
                     )
                   ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                    <div style={colGap2MinW0}>
                       {dayTasks.slice(0, 3).map(t => (
                         <div key={t.id} onClick={e => { e.stopPropagation(); dispatch({ type: "SET_SELECTED_TASK", payload: t }); }} style={{
                           fontSize: 10, fontWeight: 500, padding: "1px 5px", borderRadius: 3,
@@ -312,7 +301,7 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch, loading
                         }}>{categories[t.category]?.icon} {t.title}</div>
                       ))}
                       {dayTasks.length > 3 && (
-                        <div style={{ fontSize: 10, color: "var(--text-muted)", paddingLeft: 4 }}>
+                        <div style={txtF10Muted}>
                           +{dayTasks.length - 3} altri
                         </div>
                       )}
@@ -334,10 +323,10 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch, loading
             background: "var(--card)", borderRadius: 12, padding: isMobile ? "14px 12px" : "18px 20px",
             boxShadow: "0 4px 20px rgba(0,0,0,0.1)", border: "1px solid var(--border)"
           }}>
-            <div className="playfair" style={{ fontWeight: 600, fontSize: 16, marginBottom: 12 }}>
+            <div className="playfair" style={txtF16Bold}>
               Agenda del {selectedDay} {monthName}
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={colGap8}>
               {dayTasks.map(t => (
                 <SwipeActions key={t.id} task={t} dispatch={dispatch}>
                   <TaskRow
@@ -384,7 +373,7 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch, loading
                       {day.getDate()}
                     </div>
                   </div>
-                  <div style={{ padding: "8px 6px", display: "flex", flexDirection: "column", gap: 4, minHeight: 160 }}>
+                  <div style={colGap4}>
                     {dayTasks.length === 0 ? (
                       <div style={{ fontSize: 10, color: isToday ? "rgba(255,255,255,0.4)" : "var(--text-muted)", textAlign: "center", marginTop: 20 }}>Nessun task</div>
                     ) : dayTasks.slice(0, 6).map(t => (
@@ -434,12 +423,12 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch, loading
 
       {/* ─── DISTRIBUZIONE AGENTI (sempre visibile) ─── */}
       <div style={{ background: "var(--card)", borderRadius: 12, padding: isMobile ? "14px 12px" : "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
-        <div className="playfair" style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>Distribuzione Settimanale per Agente</div>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+        <div className="playfair" style={txtF16Bold2}>Distribuzione Settimanale per Agente</div>
+        <div style={overflowX2}>
+          <table style={txtF12WFull}>
             <thead>
               <tr>
-                <th style={{ textAlign: "left", padding: "8px 12px", background: "var(--surface2)", borderRadius: "8px 0 0 0", fontWeight: 600, fontSize: 11, color: "var(--text-muted)", width: 150 }}>Agente</th>
+                <th style={boxF11Bold}>Agente</th>
                 {agentWeekDays.map((d, i) => (
                   <th key={i} style={{
                     padding: "8px 6px", background: "var(--surface2)", fontSize: 11, fontWeight: 600,
@@ -449,16 +438,16 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch, loading
                     {dayNames[i]}<br />{d.getDate()}
                   </th>
                 ))}
-                <th style={{ padding: "8px 6px", background: "var(--surface2)", textAlign: "center", fontSize: 11, fontWeight: 600, color: "var(--text-muted)", borderRadius: "0 8px 0 0" }}>TOT</th>
+                <th style={boxF11Bold2}>TOT</th>
               </tr>
             </thead>
             <tbody>
               {getAssignableTeam().map(m => (
                 <tr key={m.id}>
-                  <td style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <td style={padding2}>
+                    <div style={rowCenterGap8}>
                       <Avatar memberId={m.id} size={24} />
-                      <span style={{ fontWeight: 500 }}>{m.name.split(" ")[0]}</span>
+                      <span style={txt}>{m.name.split(" ")[0]}</span>
                     </div>
                   </td>
                   {agentWeekDays.map((day, i) => {
@@ -473,11 +462,11 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch, loading
                       }}>
                         {count > 0 ? (
                           <span style={{ fontWeight: 700, color: m.color, fontSize: 14 }}>{count}</span>
-                        ) : <span style={{ color: "var(--text-muted)" }}>—</span>}
+                        ) : <span style={txtMuted}>—</span>}
                       </td>
                     );
                   })}
-                  <td style={{ padding: "8px 12px", textAlign: "center", borderBottom: "1px solid var(--border)", fontWeight: 700, color: "var(--heading)" }}>
+                  <td style={txtBoldHeading}>
                     {tasks.filter(t =>
                       isActiveTask(t) && t.assignees?.includes(m.id) && t.dueDate &&
                       agentWeekDays.some(d => new Date(t.dueDate).toDateString() === d.toDateString()) && matchesCat(t)

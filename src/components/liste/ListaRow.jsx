@@ -5,6 +5,10 @@
 // 495/500 righe, senza dipendere da nessuno stato o hook del genitore.
 import { eur, fmtDate, intestazioneLista, saldoClass } from "./listeApi.js";
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const cursor2 = { cursor: "default" };
+
 export function ListaRow({ lista, saldo, onOpen, trashed = false, children }) {
   const s = saldo || { saldo: 0, num_movimenti: 0 };
   // Nel cestino conta da quanto la lista è archiviata, non il dettaglio dei
@@ -38,7 +42,7 @@ export function ListaRow({ lista, saldo, onOpen, trashed = false, children }) {
   // Nel cestino la riga non è cliccabile (porta i propri bottoni): resta un
   // div, così i bottoni interni non finiscono annidati dentro un <button>.
   if (!onOpen) {
-    return <div className="lv-lista-row" style={{ cursor: "default" }}>{content}</div>;
+    return <div className="lv-lista-row" style={cursor2}>{content}</div>;
   }
   return (
     <button type="button" className="lv-lista-row" onClick={onOpen}>{content}</button>

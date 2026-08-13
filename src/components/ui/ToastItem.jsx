@@ -4,6 +4,22 @@
 // file diverso, così ToastStack resta l'unico componente esportato da Toast.jsx.
 import { useEffect } from "react";
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowCenterGap8 = { display: "flex", alignItems: "center", gap: 8, minWidth: 0 };
+const flexShrink2 = { flexShrink: 0 };
+const wordBreak2 = { wordBreak: "break-word" };
+const boxF12Bold = {
+  background: "var(--gold)", color: "var(--navy)", border: "none",
+  padding: "5px 12px", borderRadius: 6, fontSize: 12, fontWeight: 700,
+  cursor: "pointer", fontFamily: "inherit", letterSpacing: 0.3, flexShrink: 0,
+};
+const boxF14White = {
+  background: "transparent", color: "#fff", border: "none",
+  fontSize: 14, lineHeight: 1, cursor: "pointer", padding: 4,
+  opacity: 0.8, flexShrink: 0,
+};
+
 export const ToastItem = ({ toast, dispatch }) => {
   useEffect(() => {
     // Un errore resta finché l'utente non lo chiude a mano: un messaggio
@@ -49,30 +65,22 @@ export const ToastItem = ({ toast, dispatch }) => {
         pointerEvents: "auto",
       }}
     >
-      <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-        <span style={{ flexShrink: 0 }}>{icon}</span>
+      <span style={rowCenterGap8}>
+        <span style={flexShrink2}>{icon}</span>
         {/* Niente ellissi: un messaggio lungo (es. errore RLS di Postgres)
             deve restare leggibile per intero, non troncato. */}
-        <span style={{ wordBreak: "break-word" }}>{toast.message}</span>
+        <span style={wordBreak2}>{toast.message}</span>
       </span>
       {toast.undoable && (
         <button
           onClick={handleUndo}
-          style={{
-            background: "var(--gold)", color: "var(--navy)", border: "none",
-            padding: "5px 12px", borderRadius: 6, fontSize: 12, fontWeight: 700,
-            cursor: "pointer", fontFamily: "inherit", letterSpacing: 0.3, flexShrink: 0,
-          }}
+          style={boxF12Bold}
         >↶ Annulla</button>
       )}
       <button
         onClick={handleClose}
         aria-label="Chiudi notifica"
-        style={{
-          background: "transparent", color: "#fff", border: "none",
-          fontSize: 14, lineHeight: 1, cursor: "pointer", padding: 4,
-          opacity: 0.8, flexShrink: 0,
-        }}
+        style={boxF14White}
       >✕</button>
     </div>
   );

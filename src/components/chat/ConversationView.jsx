@@ -19,6 +19,12 @@ import { ChatMessage } from "./message/ChatMessage.jsx";
 import { randomWaveform } from "./message/VoiceRecorder.jsx";
 import { MessageComposer } from "./MessageComposer.jsx";
 import { parseTaskLink } from "./message/MessageTextContent.jsx";
+import { btnChiudiSuScuro } from "../../styles/common.js";
+import {
+  animation2, animation3, animation4, boxF13White, boxF16, boxFlex1, boxFlex1F12, boxW6H6,
+  boxW6H62, boxW6H63, colHFull, rowCenterGap10, rowCenterGap3, rowCenterGap5, rowCenterGap8,
+  rowCenterMiddle, rowEndGap8, txtF11, txtF112, txtF14Bold, txtGoldLight,
+} from "./conversationViewStyles.js";
 
 // ─── CHAT: CONVERSATION VIEW ───────────────────────────────────────────────
 export const ConversationView = ({ conv, messages, commands, onBack, onDelete, initialInput, initialTaskRef, onInitialInputConsumed }) => {
@@ -282,42 +288,31 @@ export const ConversationView = ({ conv, messages, commands, onBack, onDelete, i
   });
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--surface2)" }}>
+    <div style={colHFull}>
       {/* Header */}
-      <div style={{
-        background: "var(--navy)", padding: "12px 16px", display: "flex",
-        alignItems: "center", gap: 10, flexShrink: 0,
-        borderBottom: "1px solid rgba(212,168,67,0.2)",
-      }}>
-        <button onClick={onBack} style={{
-          background: "rgba(255,255,255,0.1)", border: "none", color: "#fff",
-          width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 14,
-        }}>←</button>
+      <div style={rowCenterGap10}>
+        <button onClick={onBack} style={btnChiudiSuScuro}>←</button>
 
         {conv.type === "direct" ? (
           <Avatar memberId={otherTypingMember} size={36} />
         ) : (
-          <div style={{
-            width: 36, height: 36, borderRadius: "50%", background: "var(--gold)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 18, flexShrink: 0,
-          }}>{conv.icon || "👥"}</div>
+          <div style={rowCenterMiddle}>{conv.icon || "👥"}</div>
         )}
 
         <div className="vd-flex-1-min0">
-          <div style={{ color: "#fff", fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          <div style={txtF14Bold}>
             {getConversationName(conv, myId, getMember)}
           </div>
-          <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 11 }}>
+          <div style={txtF11}>
             {isTyping ? (
-              <span style={{ color: "var(--gold-light)" }}>
+              <span style={txtGoldLight}>
                 {typingLabel}
-                <span style={{ animation: "typing 1s infinite", animationDelay: "0s", display: "inline-block" }}>.</span>
-                <span style={{ animation: "typing 1s infinite", animationDelay: "0.2s", display: "inline-block" }}>.</span>
-                <span style={{ animation: "typing 1s infinite", animationDelay: "0.4s", display: "inline-block" }}>.</span>
+                <span style={animation2}>.</span>
+                <span style={animation3}>.</span>
+                <span style={animation4}>.</span>
               </span>
             ) : conv.type === "direct" ? (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <span style={rowCenterGap5}>
                 <span style={{
                   width: 7, height: 7, borderRadius: "50%",
                   background: PRESENCE_COLORS[otherPresence] || PRESENCE_COLORS.offline,
@@ -365,47 +360,31 @@ export const ConversationView = ({ conv, messages, commands, onBack, onDelete, i
             onClick={onDelete}
             title={conv.type === "group" ? "Elimina gruppo" : "Elimina conversazione"}
             aria-label={conv.type === "group" ? "Elimina gruppo" : "Elimina conversazione"}
-            style={{
-              background: "rgba(255,255,255,0.1)", border: "none", color: "#fff",
-              width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 13,
-            }}>🗑</button>
+            style={boxF13White}>🗑</button>
         )}
       </div>
 
       {/* Search bar (v2.8 Round 13) */}
       {showMsgSearch && (
-        <div style={{
-          background: "var(--navy-dark)", padding: "8px 12px",
-          display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
-          borderBottom: "1px solid rgba(212,168,67,0.15)",
-        }}>
+        <div style={rowCenterGap8}>
           <input
             autoFocus
             value={msgSearch}
             onChange={e => cvd({ type: "SEARCH", v: e.target.value })}
             placeholder="Cerca nei messaggi…"
-            style={{
-              flex: 1, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)",
-              borderRadius: 8, padding: "6px 10px", fontSize: 12, color: "#fff",
-              outline: "none", fontFamily: "inherit",
-            }}
+            style={boxFlex1F12}
           />
           {msgSearch && (
-            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", whiteSpace: "nowrap" }}>
+            <span style={txtF112}>
               {msgs.filter(m => m.text?.toLowerCase().includes(msgSearch.toLowerCase())).length} risultati
             </span>
           )}
-          <button onClick={() => cvd({ type: "CLOSE_SEARCH" })} style={{
-            background: "none", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 16,
-          }}>✕</button>
+          <button onClick={() => cvd({ type: "CLOSE_SEARCH" })} style={boxF16}>✕</button>
         </div>
       )}
 
       {/* Messages */}
-      <div ref={scrollRef} style={{
-        flex: 1, overflowY: "auto", padding: "12px 14px",
-        background: "var(--surface2)",
-      }}>
+      <div ref={scrollRef} style={boxFlex1}>
         {(() => {
           const q = msgSearch.toLowerCase();
           // Filtro: pinned-only + ricerca testo (AND). Mantengo il riferimento
@@ -433,16 +412,12 @@ export const ConversationView = ({ conv, messages, commands, onBack, onDelete, i
           });
         })()}
         {isTyping && (
-          <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "flex-end" }}>
+          <div style={rowEndGap8}>
             <Avatar memberId={typingIds[0]} size={28} />
-            <div style={{
-              background: "var(--card)", border: "1px solid var(--border)",
-              borderRadius: 14, borderTopLeftRadius: 4, padding: "8px 12px",
-              display: "flex", gap: 3, alignItems: "center",
-            }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--text-muted)", animation: "typing 1s infinite" }} />
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--text-muted)", animation: "typing 1s infinite", animationDelay: "0.2s" }} />
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--text-muted)", animation: "typing 1s infinite", animationDelay: "0.4s" }} />
+            <div style={rowCenterGap3}>
+              <span style={boxW6H6} />
+              <span style={boxW6H62} />
+              <span style={boxW6H63} />
             </div>
           </div>
         )}

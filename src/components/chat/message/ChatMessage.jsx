@@ -12,6 +12,27 @@ import { ReactionPicker } from "./ReactionPicker.jsx";
 import { VoicePlayer } from "./VoicePlayer.jsx";
 import { MessageTextContent } from "./MessageTextContent.jsx";
 import { Z } from "../../../styles/tokens.js";
+import { txtF13 } from "../../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const w28 = { width: 28, flexShrink: 0 };
+const txtF9 = { fontSize: 9 };
+const maxW200Op08 = { opacity: 0.8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 };
+const txtF13Bold = { fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+const txtF11Op07 = { fontSize: 11, opacity: 0.7 };
+const txtF16Op07 = { fontSize: 16, opacity: 0.7 };
+const rowCenterGap4 = {
+  display: "flex", alignItems: "center", gap: 4, justifyContent: "flex-end",
+  marginTop: 3, fontSize: 10, opacity: 0.7,
+};
+const rowCenterGap3 = {
+  background: "var(--card)", border: "1px solid var(--border)",
+  borderRadius: 99, padding: "2px 7px", fontSize: 11,
+  boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+  display: "flex", alignItems: "center", gap: 3,
+};
+const txtBoldMuted = { color: "var(--text-muted)", fontWeight: 600 };
 
 // ─── CHAT: MESSAGE ─────────────────────────────────────────────────────────
 export const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onTogglePin }) => {
@@ -63,7 +84,7 @@ export const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply,
         position: "relative",
       }}>
       {/* Avatar */}
-      <div style={{ width: 28, flexShrink: 0 }}>
+      <div style={w28}>
         {!isMine && showAvatar && <Avatar memberId={msg.sender} size={28} />}
       </div>
 
@@ -103,7 +124,7 @@ export const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply,
                 padding: "1px 6px", display: "flex", alignItems: "center", gap: 3,
                 boxShadow: "0 1px 3px rgba(0,0,0,0.15)", cursor: "default",
               }}>
-                <span style={{ fontSize: 9 }}>📌</span>
+                <span style={txtF9}>📌</span>
                 <span>FISSATO</span>
               </div>
             );
@@ -134,7 +155,7 @@ export const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply,
               <div style={{ fontWeight: 600, color: isMine ? "var(--gold)" : replyAuthor?.color }}>
                 {replyAuthor?.name}
               </div>
-              <div style={{ opacity: 0.8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }}>
+              <div style={maxW200Op08}>
                 {replyMsg.type === "voice" ? "🎙️ Vocale" : replyMsg.type === "file" ? `📎 ${replyMsg.fileName}` : replyMsg.text}
               </div>
             </div>
@@ -163,18 +184,15 @@ export const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply,
                 justifyContent: "center", fontSize: 20, flexShrink: 0,
               }}>{fileIcons[msg.fileType] || fileIcons.default}</div>
               <div className="vd-flex-1-min0">
-                <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{msg.fileName}</div>
-                <div style={{ fontSize: 11, opacity: 0.7 }}>{formatFileSize(msg.fileSize)}</div>
+                <div style={txtF13Bold}>{msg.fileName}</div>
+                <div style={txtF11Op07}>{formatFileSize(msg.fileSize)}</div>
               </div>
-              {msg.fileUrl && <div style={{ fontSize: 16, opacity: 0.7 }}>{fileOpening ? "⏳" : "⬇"}</div>}
+              {msg.fileUrl && <div style={txtF16Op07}>{fileOpening ? "⏳" : "⬇"}</div>}
             </div>
           )}
 
           {/* Timestamp + read indicator inside bubble */}
-          <div style={{
-            display: "flex", alignItems: "center", gap: 4, justifyContent: "flex-end",
-            marginTop: 3, fontSize: 10, opacity: 0.7,
-          }}>
+          <div style={rowCenterGap4}>
             <span>{formatMsgTime(msg.time)}</span>
             {isMine && (
               <span style={{ fontSize: 12, lineHeight: 1, color: readByAll ? "var(--gold-light)" : "currentColor" }}>
@@ -191,14 +209,9 @@ export const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply,
             marginLeft: isMine ? 0 : 4, marginRight: isMine ? 4 : 0,
           }}>
             {Object.entries(msg.reactions).map(([emoji, users]) => (
-              <div key={emoji} style={{
-                background: "var(--card)", border: "1px solid var(--border)",
-                borderRadius: 99, padding: "2px 7px", fontSize: 11,
-                boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-                display: "flex", alignItems: "center", gap: 3,
-              }}>
-                <span style={{ fontSize: 13 }}>{emoji}</span>
-                <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>{users.length}</span>
+              <div key={emoji} style={rowCenterGap3}>
+                <span style={txtF13}>{emoji}</span>
+                <span style={txtBoldMuted}>{users.length}</span>
               </div>
             ))}
           </div>

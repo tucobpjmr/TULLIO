@@ -28,21 +28,59 @@ export function leggiConteggioMultiComp(testo) {
 }
 
 /**
+ * Legge da docs/CLAUDE.md quanti `style={{…}}` inline restano, nella forma
+ * «N style inline dinamici».
+ *
+ * È il numero di M-1 (audit del 12 agosto), ed è il candidato ideale a
+ * marcire: 1.528 → 1.487 → 335 in tre sessioni, ogni volta riscritto a mano in
+ * quattro documenti. Misurarlo costa una regola ESLint già scritta.
+ */
+export function leggiStiliInline(testo) {
+  const m = /(\d+)\s+style inline dinamici/.exec(testo);
+  if (!m) {
+    throw new LetturaFallita(
+      'docs/CLAUDE.md: non trovo la frase «N style inline dinamici». Se è ' +
+      'stata riscritta, aggiorna QUESTO script insieme al documento: un ' +
+      'controllo che non trova più il proprio pattern smette di controllare ' +
+      'in silenzio.');
+  }
+  return Number(m[1]);
+}
+
+/**
  * Stato dei rilievi di un audit, letto dalla sua tabella delle priorità.
- * Una riga è `| ST-6 | Media | … |`; un rilievo chiuso porta `✔` nella riga
- * (la convenzione del repo è `~~Media~~ ✔ **risolto**`).
+ * Una riga è `| ST-6 | Media | … |` oppure `| **M-1** ✔ | … |`; un rilievo
+ * chiuso porta `✔` nella riga (la convenzione del repo è `~~Media~~ ✔
+ * **risolto**`).
+ *
+ * `prefisso` può essere un elenco: un audit può numerare i rilievi con più
+ * prefissi (C, A, M, B in quello del 12 agosto) e il numero che INDEX.md
+ * dichiara è il totale.
+ *
+ * Si conta per IDENTIFICATIVO, non per riga: un documento può nominare lo
+ * stesso rilievo in due tabelle (la priorità e il dettaglio delle correzioni),
+ * ed è quel che fa AUDIT_STRUTTURA — contando le righe i suoi quindici rilievi
+ * diventavano ventinove.
  */
 export function leggiStatoAudit(testo, prefisso) {
-  const righe = testo.split("\n").filter(r => new RegExp(`^\\|\\s*${prefisso}-\\d+\\s*\\|`).test(r));
-  if (righe.length === 0) {
+  const prefissi = Array.isArray(prefisso) ? prefisso : [prefisso];
+  // La prima cella deve APRIRE con l'identificativo; quel che segue (✔, ⚙,
+  // «(parte 2 di 2)») è libero, perché un rilievo ancora aperto porta un
+  // marcatore diverso da ✔ e non deve sparire dal totale.
+  const re = new RegExp(`^\\|\\s*\\*{0,2}((?:${prefissi.join("|")})-\\d+)\\*{0,2}[^|]*\\|`);
+  const perId = new Map();
+  for (const riga of testo.split("\n")) {
+    const m = re.exec(riga);
+    if (!m) continue;
+    perId.set(m[1], (perId.get(m[1]) || false) || riga.includes("✔"));
+  }
+  if (perId.size === 0) {
     throw new LetturaFallita(
-      `Nessuna riga di tabella «| ${prefisso}-N |» trovata nel documento: la ` +
+      `Nessuna riga di tabella «| ${prefissi.join("/")}-N |» trovata nel documento: la ` +
       'tabella delle priorità è la fonte di questo controllo e senza di essa ' +
       'non c\'è niente da confrontare.');
   }
-  const totale = righe.length;
-  const chiusi = righe.filter(r => r.includes("✔")).length;
-  return { totale, chiusi };
+  return { totale: perId.size, chiusi: [...perId.values()].filter(Boolean).length };
 }
 
 /**

@@ -10,8 +10,24 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ListeAPI, eur, fmtDate, intestazioneLista, saldoClass } from "./listeApi.js";
 import { useListeWrite } from "./listePersistence.js";
 import { useIsMounted } from "../../hooks/useIsMounted.js";
-import { ListeStyles } from "./listeStyles.jsx";
+import "./liste.css";
 import { NuovaListaModal } from "./modals/NuovaListaModal.jsx";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const txtF13Muted = { padding: "20px 0", color: "var(--text-muted)", fontSize: 13 };
+const txtF13Muted2 = { padding: "16px 0", color: "var(--text-muted)", fontSize: 13 };
+const txtF12Mt4 = { fontSize: 12, marginTop: 4 };
+const boxF13Bold = {
+  marginTop: 10, padding: "6px 14px", borderRadius: 8,
+  border: "1px solid var(--border)", background: "var(--card)",
+  color: "var(--navy)", cursor: "pointer", fontSize: 13, fontWeight: 600,
+  fontFamily: "inherit",
+};
+const boxMt4 = { background: "transparent", marginTop: 4 };
+const txtF13Muted3 = { textAlign: "center", padding: "24px 0", color: "var(--text-muted)", fontSize: 13 };
+const rowCenterBetween = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 12, flexWrap: "wrap" };
+const txtF13LvMuted = { fontSize: 13, color: "var(--lv-muted)" };
 
 export function ClienteListePanel({ cliente, dispatch }) {
   const [liste, setListe] = useState([]);
@@ -54,22 +70,17 @@ export function ClienteListePanel({ cliente, dispatch }) {
   const apri = (id) => dispatch({ type: "SET_VIEW", payload: "liste", lista: id });
 
   if (loading) {
-    return <div style={{ padding: "20px 0", color: "var(--text-muted)", fontSize: 13 }}>Caricamento liste…</div>;
+    return <div style={txtF13Muted}>Caricamento liste…</div>;
   }
 
   if (loadError) {
     return (
-      <div style={{ padding: "16px 0", color: "var(--text-muted)", fontSize: 13 }}>
+      <div style={txtF13Muted2}>
         Non riesco a caricare le liste di questo cliente.
-        <div style={{ fontSize: 12, marginTop: 4 }}>{loadError}</div>
+        <div style={txtF12Mt4}>{loadError}</div>
         <button
           onClick={() => { setLoading(true); load(); }}
-          style={{
-            marginTop: 10, padding: "6px 14px", borderRadius: 8,
-            border: "1px solid var(--border)", background: "var(--card)",
-            color: "var(--navy)", cursor: "pointer", fontSize: 13, fontWeight: 600,
-            fontFamily: "inherit",
-          }}
+          style={boxF13Bold}
         >Riprova</button>
       </div>
     );
@@ -77,10 +88,9 @@ export function ClienteListePanel({ cliente, dispatch }) {
 
   return (
     <>
-      <ListeStyles />
-      <div className="lv-root" style={{ background: "transparent", marginTop: 4 }}>
+      <div className="lv-root" style={boxMt4}>
         {liste.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "24px 0", color: "var(--text-muted)", fontSize: 13 }}>
+          <div style={txtF13Muted3}>
             Nessuna lista viaggio per questo cliente
           </div>
         ) : (
@@ -106,10 +116,10 @@ export function ClienteListePanel({ cliente, dispatch }) {
           </div>
         )}
 
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
+        <div style={rowCenterBetween}>
           <button className="lv-btn sm" onClick={() => setNuovaOpen(true)}>+ Nuova lista per questo cliente</button>
           {liste.length > 1 && (
-            <span style={{ fontSize: 13, color: "var(--lv-muted)" }}>
+            <span style={txtF13LvMuted}>
               Totale su {liste.length} liste:{" "}
               <b className={`lv-saldo lv-num ${saldoClass(totale)}`}>{eur(totale)}</b>
             </span>

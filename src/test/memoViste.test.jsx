@@ -45,6 +45,8 @@ vi.mock("../components/shell/Sidebar.jsx", () => ({
     conteggio.sidebar += 1;
     return <div data-testid="sidebar" />;
   }),
+}));
+vi.mock("../components/shell/BottomNav.jsx", () => ({
   BottomNav: memo(function BottomNav() {
     conteggio.bottomNav += 1;
     return <div data-testid="bottomnav" />;

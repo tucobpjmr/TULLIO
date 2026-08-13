@@ -274,7 +274,7 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
                       display: "flex", alignItems: "center", gap: 10, fontSize: 12,
                     }}>
                       <span style={{ fontSize: 14 }}>{categories[t.category]?.icon}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="vd-flex-1-min0">
                         <div style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
                         <div style={{ fontSize: 10, color: "var(--text-muted)", display: "flex", flexWrap: "wrap", gap: 8, marginTop: 2 }}>
                           <span>{categories[t.category]?.label}</span>

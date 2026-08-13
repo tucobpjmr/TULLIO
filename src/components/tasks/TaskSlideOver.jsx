@@ -11,7 +11,7 @@ import { useAppData } from "../../state/AppDataContext.jsx";
 import { useClients } from "../../state/ClientsContext.jsx";
 import { MentionText } from "../ui/MentionText.jsx";
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";
-import { ContactText } from "../ui/ContactActions.jsx";
+import { ContactText } from "../ui/ContactText.jsx";
 import { useClientSuggestions, ClientSuggestions } from "../ui/ClientAutocomplete.jsx";
 import { Z } from "../../styles/tokens.js";
 

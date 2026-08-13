@@ -80,39 +80,3 @@ export function QueueShell({
     </div>
   );
 }
-
-/**
- * Chip di filtro/ordinamento. Esisteva in quattro varianti divergenti; `accent`
- * è il colore dello stato attivo, che cambia per coda.
- */
-export const FilterChip = ({ active, onClick, accent = "var(--navy)", title, children }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    title={title}
-    style={{
-      display: "inline-flex", alignItems: "center", gap: 6,
-      padding: "4px 11px", borderRadius: 999, cursor: "pointer",
-      fontSize: 11, fontWeight: 600, fontFamily: "inherit",
-      border: `1px solid ${active ? accent : "var(--border)"}`,
-      background: active ? accent : "var(--card)",
-      color: active ? "#fff" : "var(--text-muted)",
-      transition: "background 0.15s, color 0.15s",
-    }}
-  >{children}</button>
-);
-
-/** Etichetta che precede una riga di chip ("Ordina:", "Agente:"). */
-export const FilterLabel = ({ children }) => (
-  <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, marginRight: 2 }}>
-    {children}
-  </span>
-);
-
-/** Riga contenitore dei filtri, sotto la testata. */
-export const FilterRow = ({ divider = false, accentRgb, children }) => (
-  <div style={{
-    display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, marginBottom: 12,
-    ...(divider ? { paddingBottom: 12, borderBottom: `1px solid rgba(${accentRgb},0.2)` } : null),
-  }}>{children}</div>
-);

@@ -130,7 +130,7 @@ export const ConversationList = ({ conversations, messages, onSelect, onNew, onD
                 }}>{c.icon || "👥"}</div>
               )}
 
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="vd-flex-1-min0">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0, flex: 1 }}>
                     {c.pinned && <span style={{ fontSize: 10, color: "var(--gold)" }}>📌</span>}

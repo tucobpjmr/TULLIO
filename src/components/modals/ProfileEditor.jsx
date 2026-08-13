@@ -215,7 +215,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
   const elimInVolo = esitoElim.fase === "invio";
 
   const fieldLabel = (text) => (
-    <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5, marginBottom: 4, display: "block" }}>{text}</label>
+    <label className="vd-field-label">{text}</label>
   );
 
   const inputStyle = {

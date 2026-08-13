@@ -43,17 +43,6 @@ export const useAvatarSrc = (photo) => {
   return src;
 };
 
-// Solo l'<img> risolta, con stile a carico del chiamante: serve dove la foto
-// è renderizzata con una grafica propria e montare <Avatar> cambierebbe
-// l'aspetto (UserSwitcher). Ritorna null finché la signed URL non è pronta —
-// che per i data URI e le URL http è immediato (risolti in modo sincrono
-// dall'inizializzatore di stato), quindi il vuoto transitorio riguarda solo
-// gli avatar che vivono davvero nel bucket.
-export const AvatarImg = ({ photo, style, alt = "" }) => {
-  const src = useAvatarSrc(photo ?? null);
-  return src ? <img src={src} alt={alt} style={style} /> : null;
-};
-
 export const Avatar = ({ memberId, size = 28 }) => {
   const { getMember } = useAppData();
   const m = getMember(memberId);

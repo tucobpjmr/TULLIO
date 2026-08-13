@@ -9,10 +9,13 @@
 // logica di idratazione e subscription.
 export const GlobalStyles = () => (
   <style>{`
-    /* UNICA richiesta di font dell'app. Inter è usato dal solo modulo Liste
-       viaggio (listeStyles.jsx), che prima lo scaricava con un @import suo: un
-       secondo round-trip bloccante verso una CDN esterna per un modulo solo. */
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+    /* UNICA richiesta di font dell'app (Playfair Display, DM Sans, Inter —
+       quest'ultimo per il solo modulo Liste viaggio, listeStyles.jsx).
+       M-6 dell'audit del 13 agosto: era un @import qui dentro, scoperto dal
+       browser solo dopo che React monta questo componente — bundle JS,
+       parse ed esecuzione già passati. Il <link rel="stylesheet"> in
+       index.html (con i preconnect a googleapis/gstatic) lo scarica invece
+       in parallelo al parse dell'HTML iniziale, senza aspettare il mount. */
     * { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       --navy: #0F2044;
@@ -78,6 +81,21 @@ export const GlobalStyles = () => (
     .skeleton { animation: pulse 1.5s ease infinite; background: linear-gradient(90deg, var(--surface2) 25%, var(--surface3) 50%, var(--surface2) 75%); background-size: 200% 100%; }
     .hover-lift { transition: transform 0.2s ease, box-shadow 0.2s ease; }
     .hover-lift:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(15,32,68,0.12); }
+
+    /* ─── UTILITY (M-1, avvio) ───
+       Inizio del design system tracciato da M-1 (audit del 13 agosto,
+       docs/AUDIT_ARCHITETTURA_2026-08-13.md): i tre pattern qui sotto erano
+       ripetuti IDENTICI — stessa stringa, stesso valore — in 21+9+10 punti del
+       codice (misurato via grep sul valore esatto della proprietà style,
+       non una stima). Convertirli in classi non cambia un solo pixel reso: i
+       valori sono copiati, non normalizzati. Non è l'intero rilievo (restano
+       oltre 1400 style inline sparsi su un'ottantina di file): è la parte che
+       si può chiudere in una sessione senza una verifica visiva del browser
+       su ognuno degli 104 file coinvolti — vedi il documento sopra per lo
+       stato reale e il percorso per il resto. */
+    .vd-flex-1-min0 { flex: 1; min-width: 0; }
+    .vd-field-label { font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 4px; display: block; }
+    .vd-field-label-lg { font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 5px; }
 
     /* ─── RESPONSIVE ─── */
     /* Griglie adattive: collassano su tablet/mobile via media query.

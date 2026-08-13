@@ -391,7 +391,7 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
                         background: selected[c.key] ? "rgba(212,168,67,0.06)" : "transparent",
                       }}>
                         <input type="checkbox" checked={!!selected[c.key]} readOnly style={{ cursor: "pointer" }} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="vd-flex-1-min0">
                           <div style={{ fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
                             {c.name}
                             {c.isDuplicate && (

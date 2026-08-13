@@ -15,7 +15,7 @@ import { useViewport } from "../Viewport.jsx";
 import { SwipeActions } from "../SwipeActions.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
-import { TaskRow } from "../tasks/TaskCard.jsx";
+import { TaskRow } from "../tasks/TaskRow.jsx";
 import { SkeletonRows } from "../ui/SkeletonRows.jsx";
 import { formatDate, isOverdue, isUrgent, isMyTask, isInGlobalQueue, getActiveTasks } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";

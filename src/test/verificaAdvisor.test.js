@@ -10,7 +10,7 @@ describe('valutaLints', () => {
     // scritto con i nomi veri — altrimenti il test descriverebbe una regola
     // che non esiste più.
     const lints = [
-      { level: 'WARN', name: 'authenticated_security_definer_function_executable', title: 'Signed-In Users Can Execute SECURITY DEFINER Function' },
+      { level: 'WARN', name: 'authenticated_security_definer_function_executable', title: 'Signed-In Users Can Execute SECURITY DEFINER Function', metadata: { name: 'reset_completo', schema: 'public' } },
       { level: 'INFO', name: 'unused_index', title: 'Unused Index' },
     ];
     const r = valutaLints(lints);
@@ -48,10 +48,16 @@ describe('valutaLints', () => {
 // nell'elenco come gli altri, con il motivo scritto accanto in `advisor.js`.
 describe('valutaLints — avvisi accettati per nome', () => {
   const HIBP = { level: 'WARN', name: 'auth_leaked_password_protection', title: 'Leaked Password Protection Disabled' };
-  const DEFINER = { level: 'WARN', name: 'authenticated_security_definer_function_executable', title: 'Signed-In Users Can Execute…' };
+  const definer = (fnName) => ({
+    level: 'WARN',
+    name: 'authenticated_security_definer_function_executable',
+    title: 'Signed-In Users Can Execute…',
+    metadata: { name: fnName, schema: 'public' },
+  });
+  const DEFINER = definer('reset_completo');
 
   it('i nove SECURITY DEFINER motivati non fanno fallire', () => {
-    const r = valutaLints([DEFINER, DEFINER]);
+    const r = valutaLints([DEFINER, definer('send_test_push')]);
     expect(r.fallisce).toBe(false);
     expect(r.nonAccettati).toEqual([]);
   });
@@ -73,5 +79,42 @@ describe('valutaLints — avvisi accettati per nome', () => {
     const r = valutaLints([{ level: 'ERROR', name: 'rls_disabled_in_public', title: 'RLS Disabled in Public' }]);
     expect(r.fallisce).toBe(true);
     expect(r.errori).toHaveLength(1);
+  });
+});
+
+// M-3 dell'audit del 13 agosto: il nome del lint da solo non basta per i due
+// lint SECURITY DEFINER — si applicano a qualunque funzione futura, non solo
+// alle otto già verificate in docs/SICUREZZA.md §1.
+describe('valutaLints — M-3: il lint SECURITY DEFINER si accetta per funzione, non per nome', () => {
+  const definer = (fnName) => ({
+    level: 'WARN',
+    name: 'anon_security_definer_function_executable',
+    title: 'Anonymous Users Can Execute SECURITY DEFINER Function',
+    metadata: fnName ? { name: fnName, schema: 'public' } : undefined,
+  });
+
+  it('una funzione SECURITY DEFINER già verificata non fa fallire', () => {
+    const r = valutaLints([definer('get_migrazioni_applicate')]);
+    expect(r.fallisce).toBe(false);
+    expect(r.nonAccettati).toEqual([]);
+  });
+
+  it('una funzione SECURITY DEFINER nuova, mai verificata, con lo STESSO nome di lint fa fallire', () => {
+    // Il caso che il rilievo descrive: una futura funzione esposta ad anon,
+    // mai passata in rassegna, che l'elenco per-nome avrebbe accettato muta.
+    const r = valutaLints([definer('sgancia_pagamento_senza_controlli')]);
+    expect(r.fallisce).toBe(true);
+    expect(r.nonAccettati).toHaveLength(1);
+  });
+
+  it('un lint senza metadata.name (formato inatteso) non viene accettato al buio', () => {
+    const r = valutaLints([definer(undefined)]);
+    expect(r.fallisce).toBe(true);
+    expect(r.nonAccettati).toHaveLength(1);
+  });
+
+  it('gli altri lint accettati per nome (unused_index) restano insensibili a metadata', () => {
+    const r = valutaLints([{ level: 'WARN', name: 'unused_index', title: 'Unused Index' }]);
+    expect(r.fallisce).toBe(false);
   });
 });

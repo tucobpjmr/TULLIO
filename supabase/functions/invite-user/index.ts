@@ -77,8 +77,22 @@ Deno.serve(async (req: Request) => {
     const name: string = (body.name ?? "").trim();
     const rawRole: string = body.role ?? "agent";
     const role: string = VALID_ROLES.has(rawRole) ? rawRole : "agent";
-    const capacity: number = Number(body.capacity) || 8;
-    const color: string = body.color || "#3B82F6";
+    // B-1 dell'audit del 13 agosto: `Number(body.capacity) || 8` accettava
+    // qualunque numero — negativo, frazionario, 1e9 — perché `||` scarta solo
+    // 0/NaN, non i valori fuori range. Stesso trattamento di VALID_ROLES sopra:
+    // fuori dal range plausibile (1-100 task) si ricade sul default invece di
+    // rifiutare la richiesta, l'edge function resta permissiva come per role.
+    const rawCapacity = Number(body.capacity);
+    const capacity: number =
+      Number.isInteger(rawCapacity) && rawCapacity >= 1 && rawCapacity <= 100 ? rawCapacity : 8;
+    // `body.color || "#3B82F6"` accettava qualunque stringa non vuota: l'unico
+    // punto d'ingresso di questo campo in UI è <input type="color">, che
+    // produce sempre un #rrggbb valido, ma l'edge function è raggiungibile
+    // anche a bocce ferme via /functions/v1/invite-user con un body qualsiasi.
+    const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+    const color: string = typeof body.color === "string" && HEX_COLOR.test(body.color)
+      ? body.color
+      : "#3B82F6";
     const resend: boolean = body.resend === true;
     // redirectTo passato dal client (window.location.origin): garantisce che
     // il link nell'email punti all'ambiente corretto (preview o produzione)

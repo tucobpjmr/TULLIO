@@ -278,7 +278,7 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
           <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 16 }}>
             {/* Titolo */}
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5, marginBottom: 4, display: "block" }}>TITOLO</label>
+              <label className="vd-field-label">TITOLO</label>
               <input
                 value={restoring.title}
                 onChange={e => updateField("title", e.target.value)}
@@ -295,7 +295,7 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
             {/* Categoria + Priorità */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
-                <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5, marginBottom: 4, display: "block" }}>CATEGORIA</label>
+                <label className="vd-field-label">CATEGORIA</label>
                 <select
                   value={restoring.category}
                   onChange={e => updateField("category", e.target.value)}
@@ -311,7 +311,7 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
                 </select>
               </div>
               <div>
-                <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5, marginBottom: 4, display: "block" }}>PRIORITÀ</label>
+                <label className="vd-field-label">PRIORITÀ</label>
                 <select
                   value={restoring.priority}
                   onChange={e => updateField("priority", e.target.value)}
@@ -331,7 +331,7 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
             {/* Stato + Scadenza */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
-                <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5, marginBottom: 4, display: "block" }}>STATO</label>
+                <label className="vd-field-label">STATO</label>
                 <select
                   value={restoring.status}
                   onChange={e => updateField("status", e.target.value)}
@@ -347,7 +347,7 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
                 </select>
               </div>
               <div>
-                <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5, marginBottom: 4, display: "block" }}>SCADENZA</label>
+                <label className="vd-field-label">SCADENZA</label>
                 <DateTimePicker
                   value={restoring.dueDate || null}
                   onChange={iso => updateField("dueDate", iso)}
@@ -358,7 +358,7 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
 
             {/* Cliente */}
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5, marginBottom: 4, display: "block" }}>CLIENTE</label>
+              <label className="vd-field-label">CLIENTE</label>
               <input
                 value={restoring.client || ""}
                 onChange={e => updateField("client", e.target.value)}
@@ -375,7 +375,7 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
 
             {/* Assegnatari */}
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5, marginBottom: 4, display: "block" }}>ASSEGNATARI</label>
+              <label className="vd-field-label">ASSEGNATARI</label>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {getAssignableTeam().map(m => {
                   const sel = restoring.assignees?.includes(m.id);
@@ -410,7 +410,7 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
 
             {/* Descrizione */}
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5, marginBottom: 4, display: "block" }}>DESCRIZIONE</label>
+              <label className="vd-field-label">DESCRIZIONE</label>
               <textarea
                 value={restoring.description || ""}
                 onChange={e => updateField("description", e.target.value)}

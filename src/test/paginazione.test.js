@@ -58,8 +58,8 @@ vi.mock("../lib/supabase", () => ({
   supabase: { from: vi.fn((tabella) => builder(tabella)) },
 }));
 
-const { Clients, Tasks, TaskThreads } = await import("../lib/api.js");
-const { fetchAllRows } = await import("../lib/pagination.js");
+const { Clients, Tasks, TaskThreads, Messages } = await import("../lib/api.js");
+const { fetchAllRows, fetchRowsUpTo } = await import("../lib/pagination.js");
 
 beforeEach(() => { chiamate.length = 0; });
 
@@ -143,6 +143,35 @@ describe.each([
   });
 });
 
+// ─── B-2 · Messages.listAll dichiarava un limite (2000) che il cap del
+// server (1000) troncava in silenzio, restituendo sempre e solo i 1000
+// messaggi più recenti anche quando ne erano stati chiesti 2000.
+describe("Messages.listAll — il limite dichiarato deve essere davvero consegnato", () => {
+  it("pagina con .range() invece di un .limit() nudo", async () => {
+    await Messages.listAll(2000);
+    expect(chiamate.length).toBeGreaterThan(0);
+    expect(chiamate[0].da).toBe(0);
+  });
+
+  it("ordina in modo deterministico, chiudendo su id", async () => {
+    await Messages.listAll(2000);
+    expect(chiamate[0].ordini).toEqual(["created_at", "id"]);
+  });
+
+  it("restituisce fino a 2000 righe, non le prime 1000 troncate dal cap", async () => {
+    const { data, error } = await Messages.listAll(2000);
+    expect(error).toBeNull();
+    expect(data).toHaveLength(TOTALE); // 1500: sotto il limite di 2000, sopra il cap di 1000
+  });
+
+  it("non richiede più pagine di quelle necessarie a coprire il limite", async () => {
+    chiamate.length = 0;
+    await Messages.listAll(2000);
+    // 2000 / 1000 (PAGE_SIZE) = al più due richieste, non una scarica-tutto.
+    expect(chiamate.length).toBeLessThanOrEqual(2);
+  });
+});
+
 describe("fetchAllRows — il contratto della paginazione", () => {
   it("propaga l'errore invece di restituire una lista parziale", async () => {
     const { data, error } = await fetchAllRows(() => ({
@@ -165,5 +194,53 @@ describe("fetchAllRows — il contratto della paginazione", () => {
     }));
     expect(error).toBeNull();
     expect(data).toHaveLength(1);
+  });
+});
+
+// B-2 · fetchRowsUpTo: come fetchAllRows, ma con un tetto — smette di
+// chiedere pagine appena raggiunge `limit`, non solo a fine tabella.
+describe("fetchRowsUpTo — pagina fino a un tetto, non fino a fine tabella", () => {
+  it("propaga l'errore invece di restituire una lista parziale", async () => {
+    const { data, error } = await fetchRowsUpTo(() => ({
+      range: () => Promise.resolve({ data: null, error: { message: "boom" } }),
+    }), 2000);
+    expect(data).toBeNull();
+    expect(error).toEqual({ message: "boom" });
+  });
+
+  it("si ferma su una pagina più corta di quella richiesta anche sotto il limite", async () => {
+    let n = 0;
+    const { data, error } = await fetchRowsUpTo(() => ({
+      range: () => Promise.resolve({
+        data: n++ === 0 ? [{ id: 1 }] : [],
+        error: null,
+      }),
+    }), 2000);
+    expect(error).toBeNull();
+    expect(data).toHaveLength(1);
+  });
+
+  it("non supera `limit` righe anche se il server ne avrebbe di più", async () => {
+    const range = vi.fn((da, a) =>
+      Promise.resolve({
+        data: Array.from({ length: a - da + 1 }, (_, i) => ({ id: da + i })),
+        error: null,
+      }));
+    const { data, error } = await fetchRowsUpTo(() => ({ range }), 1500);
+    expect(error).toBeNull();
+    expect(data).toHaveLength(1500);
+    // L'ultima .range() chiesta non deve mai sforare oltre l'indice 1499.
+    const ultima = range.mock.calls.at(-1);
+    expect(ultima[1]).toBe(1499);
+  });
+
+  it("chiede al più due pagine per un limite di 2000 righe (PAGE_SIZE=1000)", async () => {
+    const range = vi.fn((da, a) =>
+      Promise.resolve({
+        data: Array.from({ length: a - da + 1 }, (_, i) => ({ id: da + i })),
+        error: null,
+      }));
+    await fetchRowsUpTo(() => ({ range }), 2000);
+    expect(range).toHaveBeenCalledTimes(2);
   });
 });

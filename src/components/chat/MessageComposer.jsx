@@ -36,7 +36,7 @@ export const MessageComposer = ({ cv, cvd, fileInputRef, sendText, sendVoice, se
         display: "flex", alignItems: "center", gap: 10,
       }}>
         <div style={{ width: 3, alignSelf: "stretch", background: "var(--gold)", borderRadius: 2 }} />
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="vd-flex-1-min0">
           <div style={{ fontSize: 11, fontWeight: 600, color: "var(--gold-dark)" }}>
             Rispondi a {getMember(replyingTo.sender)?.name}
           </div>

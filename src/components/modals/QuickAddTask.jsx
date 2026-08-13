@@ -155,13 +155,13 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>TITOLO *</label>
+            <label className="vd-field-label-lg">TITOLO *</label>
             <input {...inp("title")} placeholder="Descrivi brevemente il task..." />
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>
+              <label className="vd-field-label-lg">
                 CATEGORIA
                 {suggested && (
                   <span style={{
@@ -194,7 +194,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
               )}
             </div>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>PRIORITÀ</label>
+              <label className="vd-field-label-lg">PRIORITÀ</label>
               <select {...inp("priority")} style={{ ...inp("priority").style, cursor: "pointer" }}>
                 {Object.entries(PRIORITIES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
@@ -203,7 +203,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>ASSEGNA A</label>
+              <label className="vd-field-label-lg">ASSEGNA A</label>
               <select
                 value={form.assignees[0] || ""}
                 onChange={e => setForm(p => ({ ...p, assignees: e.target.value ? [e.target.value] : [] }))}
@@ -213,7 +213,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
               </select>
             </div>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>SCADENZA</label>
+              <label className="vd-field-label-lg">SCADENZA</label>
               <DateTimePicker
                 value={form.dueDate || null}
                 onChange={iso => setForm(p => ({ ...p, dueDate: iso || "" }))}
@@ -222,7 +222,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
           </div>
 
           <div style={{ position: "relative" }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>CLIENTE</label>
+            <label className="vd-field-label-lg">CLIENTE</label>
             <input
               {...inp("client")}
               placeholder={clients.length ? "Cerca in anagrafica o scrivi un nome…" : "Es. Famiglia Rossi…"}
@@ -233,23 +233,23 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>N° PRATICA</label>
+              <label className="vd-field-label-lg">N° PRATICA</label>
               <input {...inp("praticaRef")} placeholder="es. PR-2026-001" />
             </div>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>CONTATTI</label>
+              <label className="vd-field-label-lg">CONTATTI</label>
               <input {...inp("contact")} placeholder="Telefono, email…" />
             </div>
           </div>
 
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>DESCRIZIONE</label>
+            <label className="vd-field-label-lg">DESCRIZIONE</label>
             <textarea {...inp("description")} rows={3} placeholder="Dettagli del task..." style={{ ...inp("description").style, resize: "vertical" }} />
           </div>
 
           {/* Allegati (immagini, video, audio, documenti) */}
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 5 }}>ALLEGATI</label>
+            <label className="vd-field-label-lg">ALLEGATI</label>
             {pendingFiles.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
                 {pendingFiles.map((f, i) => (
@@ -258,7 +258,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
                     background: "var(--surface2)", borderRadius: 8,
                   }}>
                     <span style={{ fontSize: 16, flexShrink: 0 }}>{fileIcon(f.type || f.name)}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="vd-flex-1-min0">
                       <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</div>
                       <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{formatFileSize(f.size)}</div>
                     </div>

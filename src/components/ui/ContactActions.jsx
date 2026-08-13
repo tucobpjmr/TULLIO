@@ -5,8 +5,9 @@
 // nulla di visibile e — quando annidato in una card cliccabile — veniva
 // "mangiato" dall'onClick del genitore (stopPropagation qui risolve).
 import { useState, useRef, useEffect } from "react";
-import { sanitizePhone, toWhatsAppNumber, firstPhoneIn } from "../../lib/phoneUtils.js";
+import { sanitizePhone, toWhatsAppNumber } from "../../lib/phoneUtils.js";
 import { Z } from "../../styles/tokens.js";
+import { ContactMenuItem } from "./ContactMenuItem.jsx";
 
 export function ContactActions({ phone, label, style }) {
   const [open, setOpen] = useState(false);
@@ -60,42 +61,6 @@ export function ContactActions({ phone, label, style }) {
           />
         </div>
       )}
-    </span>
-  );
-}
-
-const ContactMenuItem = ({ href, onClick, icon, label, target, rel }) => (
-  <a
-    href={href}
-    target={target}
-    rel={rel}
-    onClick={onClick}
-    style={{
-      display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
-      borderRadius: 7, textDecoration: "none", color: "var(--text)", fontSize: 13,
-      fontFamily: "inherit", whiteSpace: "nowrap",
-    }}
-    onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-  >
-    <span style={{ fontSize: 15 }}>{icon}</span>{label}
-  </a>
-);
-
-// Rende un testo libero (es. tasks.contact = "Mario 340 123 4567 / mail@x.it")
-// individuando la prima porzione telefonica e rendendola cliccabile. Il resto
-// del testo resta invariato. Se non trova un numero, ritorna il testo semplice.
-export function ContactText({ text, style }) {
-  const phone = firstPhoneIn(text);
-  if (!phone) return <span style={style}>{text}</span>;
-  const idx = text.indexOf(phone);
-  const before = text.slice(0, idx);
-  const after = text.slice(idx + phone.length);
-  return (
-    <span style={style}>
-      {before}
-      <ContactActions phone={phone} label={phone} />
-      {after}
     </span>
   );
 }

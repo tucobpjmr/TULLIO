@@ -304,7 +304,7 @@ export const ConversationView = ({ conv, messages, commands, onBack, onDelete, i
           }}>{conv.icon || "👥"}</div>
         )}
 
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="vd-flex-1-min0">
           <div style={{ color: "#fff", fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {getConversationName(conv, myId, getMember)}
           </div>

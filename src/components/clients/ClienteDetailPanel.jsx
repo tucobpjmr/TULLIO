@@ -1,15 +1,11 @@
 // src/components/clients/ClienteDetailPanel.jsx
 // Il pannello contestuale di un cliente: due tab, i suoi task e le sue liste
 // viaggio. Il tab Liste è precluso al Driver (stessa RLS del modulo).
-import { useState, useMemo, useEffect, useCallback, lazy, Suspense } from "react";
-import { PriorityBadge } from "../ui/PriorityBadge.jsx";
-import { StatusBadge } from "../ui/StatusBadge.jsx";
-import { TaskRow } from "../tasks/TaskCard.jsx";
-import { formatDate, isActiveTask } from "../../lib/taskUtils.js";
-import { useAppData } from "../../state/AppDataContext.jsx";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { LazyFallback } from "../ui/LazyFallback.jsx";
-import { ListeChip } from "./ClienteCard.jsx";
-import { parseClientNotes } from "../../lib/clientNotes.js";
+import { ListeChip } from "./ListeChip.jsx";
+import { ClienteTaskTab } from "./ClienteTaskTab.jsx";
+import { DatiAnagrafici } from "./DatiAnagrafici.jsx";
 
 // Chunk async: trascina con sé listeStyles.jsx (16.3 kB) e lib/listeApi.js
 // (8.7 kB) — senza import() finiscono nel chunk eager e vanificano il lazy()
@@ -19,93 +15,10 @@ const ClienteListePanel = lazy(() =>
   import("../liste/ClienteListePanel.jsx").then(m => ({ default: m.ClienteListePanel }))
 );
 
-export function ClienteTaskTab({ cliente, tasks, dispatch }) {
-  const { currentUserId: uid, canViewTask } = useAppData();
-  // Stabile per la memoizzazione di TaskRow (vedi components/tasks/TaskCard.jsx).
-  const openTask = useCallback(
-    (task) => dispatch({ type: "SET_SELECTED_TASK", payload: task }), [dispatch]);
-  const clientTasks = useMemo(() => {
-    const q = (cliente.name || "").toLowerCase();
-    return tasks.filter(t =>
-      isActiveTask(t) &&
-      canViewTask(t, uid) &&
-      (t.client || "").toLowerCase().includes(q)
-    );
-  }, [tasks, cliente.name, uid, canViewTask]);
-
-  const open = clientTasks.filter(t => t.status !== "done");
-  const done = clientTasks.filter(t => t.status === "done");
-  return (
-    <>
-      <div style={{ display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
-          {open.length} aperti
-        </span>
-        <span style={{ fontSize: 12, color: "var(--success)" }}>
-          {done.length} completati
-        </span>
-      </div>
-
-      {clientTasks.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "24px 0", color: "var(--text-muted)", fontSize: 13 }}>
-          Nessun task associato a questo cliente
-        </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-          {clientTasks.map(t => (
-            <TaskRow
-              key={t.id}
-              task={t}
-              onOpen={openTask}
-              padding="9px 12px"
-              subtitle={t.dueDate ? `📅 ${formatDate(t.dueDate)}` : null}
-              trailing={<>
-                <PriorityBadge priority={t.priority} />
-                <StatusBadge status={t.status} />
-              </>}
-            />
-          ))}
-        </div>
-      )}
-    </>
-  );
-}
-
 // Pannello contestuale del cliente selezionato: testata + tab.
 // Il tab "Liste viaggio" è il secondo punto d'ingresso al modulo Liste (il
 // primo è il bottone nell'header della Dashboard). Il modulo non ha una voce
 // di sidebar/bottom-nav: si arriva da qui e da lì.
-// I campi "Etichetta: valore" ereditati dall'import, resi come scheda invece
-// che come blocco di testo. Nessun dato viene riscritto: è solo il modo di
-// mostrarlo. Le note vere restano sotto, in chiaro.
-export function DatiAnagrafici({ notes }) {
-  const { fields, text } = useMemo(() => parseClientNotes(notes), [notes]);
-  if (!fields.length && !text) return null;
-  return (
-    <div style={{ marginBottom: 14 }}>
-      {fields.length > 0 && (
-        <div style={{
-          display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))",
-          gap: "6px 16px", padding: "10px 12px", borderRadius: 10,
-          background: "var(--surface2)", border: "1px solid var(--border)",
-        }}>
-          {fields.map((f, i) => (
-            <div key={`${f.label}-${i}`} style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-light)", letterSpacing: 0.4, textTransform: "uppercase" }}>{f.label}</div>
-              <div style={{ fontSize: 12.5, wordBreak: "break-word" }}>{f.value}</div>
-            </div>
-          ))}
-        </div>
-      )}
-      {text && (
-        <div style={{ marginTop: fields.length ? 8 : 0, fontSize: 12.5, color: "var(--text-muted)", whiteSpace: "pre-line" }}>
-          {text}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function ClienteDetailPanel({ cliente, tasks, dispatch, onClose, showListe, liste = null, initialTab = null }) {
   const [tab, setTab] = useState("task");
 

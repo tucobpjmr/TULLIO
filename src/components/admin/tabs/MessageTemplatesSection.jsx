@@ -89,7 +89,7 @@ export const MessageTemplatesSection = ({ templates = [], dispatch }) => {
               padding: 12, background: "var(--surface2)", borderRadius: 8,
               display: "flex", alignItems: "flex-start", gap: 10,
             }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="vd-flex-1-min0">
                 <div style={{ fontSize: 13, fontWeight: 700, color: "var(--heading)", marginBottom: 3 }}>{t.label}</div>
                 <div style={{ fontSize: 12, color: "var(--text-muted)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{t.text}</div>
               </div>

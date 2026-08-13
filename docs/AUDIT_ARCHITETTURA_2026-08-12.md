@@ -17,7 +17,15 @@ produzione, advisor di sicurezza Supabase, storico dei run di GitHub Actions.
 > A-2 si è chiuso in due tempi — il 12 la correzione di codice (annotazione
 > sul salto), il 13 chi amministra il repository ha configurato il secret, e
 > il rilancio del workflow conferma che l'advisor valuta davvero un lint. I
-> test sono **1150**. Gli altri otto rilievi restano aperti.
+> test sono **1150**.
+>
+> **Stesso 13 agosto, secondo intervento** — **M-2, M-3, M-4, M-5, M-6, B-1,
+> B-2 e B-3 sono chiusi**: vedi §4-bis. **M-1 resta aperto**, ma non fermo: un
+> avvio mirato (utility CSS per i tre pattern `style={{…}}` più ripetuti alla
+> lettera, 40 occorrenze su 21+9+10) più il resto documentato invece di
+> lasciato implicito — è la stessa scelta già fatta per B-2 dell'8 agosto
+> (`auth_leaked_password_protection`, accettato con motivo invece che
+> forzato). I test sono **1164** (erano 1150), 7 skip.
 
 ---
 
@@ -68,11 +76,11 @@ giorno** (A-3, §4).
 |---|---|
 | Moduli sorgente (esclusi i test) | 179 |
 | Righe totali `src/` + `supabase/` + `scripts/` | ~55.100 |
-| Test | 1138 passati, 7 skip → **1150** dopo la correzione di C-1 (§4) |
-| ESLint | 0 errori, 20 warning `react/no-multi-comp` in 13 file |
+| Test | 1138 passati, 7 skip → **1150** dopo la correzione di C-1 (§4) → **1164** dopo M-2…M-6/B-1…B-3 (§4-bis) |
+| ESLint | 0 errori, 20 warning `react/no-multi-comp` in 13 file → **0 in 0 file** (✔ risolto, B-3, §4-bis) |
 | Migrazioni | 105 locali, 104 registrate in produzione → **105/105** dopo A-1 (§4) |
 | File più vicino al limite `max-lines` | `ListeViaggio.jsx` era a **495/500** (✔ risolto, A-4) — ora `TaskSlideOver.jsx`, ~448 |
-| Oggetti `style={{…}}` inline | 1.528 |
+| Oggetti `style={{…}}` inline | 1.528 → **1.487** dopo l'avvio di M-1 (§4-bis, aperto) |
 
 ---
 
@@ -85,15 +93,15 @@ giorno** (A-3, §4).
 | **A-2** ✔ | Il controllo advisor non ha mai girato: secret assente, exit 0 silenzioso — **chiuso il 13 agosto** (§4): secret configurato, il log conferma una valutazione reale | `.github/workflows/verifica-rpc.yml:80` | 🟠 Alta |
 | **A-3** ✔ | Terza copia di `filterByPeriod` + `PERIOD_OPTIONS` + `chipStyle`, mentre il modulo condiviso esiste già — **chiuso il 12 agosto** (§4) | `views/Trash.jsx:17-43,157-169` | 🟠 Alta |
 | **A-4** ✔ | `ListeViaggio.jsx` a 495/500 righe: il prossimo intervento sbatte contro il lint — **chiuso il 13 agosto** (§4) | `liste/ListeViaggio.jsx` | 🟠 Alta |
-| **M-1** | 1.528 stili inline: componenti gonfi, nessun design system, `unsafe-inline` obbligato in CSP | trasversale | 🟡 Media |
-| **M-2** | "Elimina account" non elimina: ban + `active=false`, nessuna cancellazione dei dati personali | `functions/delete-account/index.ts:39` | 🟡 Media |
-| **M-3** | `AVVISI_ACCETTATI` accetta per *nome del lint*, non per oggetto: una futura funzione `SECURITY DEFINER` esposta ad `anon` passerebbe muta | `verifica-advisor/advisor.js:28` | 🟡 Media |
-| **M-4** | `canAccessListe` non controlla `pending`, `private.can_liste()` sì: divergenza UI/DB nella stessa domanda | `lib/permissions.js:151-155` | 🟡 Media |
-| **M-5** | `UPDATE_TEAM_MEMBER` senza guard admin: il trigger DB reverte **in silenzio**, quindi nessun rollback scatta | `state/persistence.js:381` | 🟡 Media |
-| **M-6** | Font Google via `@import` dentro lo `<style>` iniettato da React: download dopo il mount, nessun preconnect | `styles/GlobalStyles.jsx:15` | 🟡 Media |
-| **B-1** | `invite-user`: `capacity` e `color` non validati | `functions/invite-user/index.ts:57-59` | 🔵 Bassa |
-| **B-2** | `Messages.listAll(2000)`: limite dichiarato oltre il cap del server | `lib/api.js:374` | 🔵 Bassa |
-| **B-3** | 20 warning `react/no-multi-comp` in 13 file | trasversale | 🔵 Bassa |
+| **M-1** ⚙ | 1.528 stili inline: componenti gonfi, nessun design system, `unsafe-inline` obbligato in CSP — **avviato il 13 agosto** (§4-bis): 40 occorrenze convertite in classi utility, 1.487 restano. Resta aperto, per scelta esplicita: vedi §4-bis | trasversale | 🟡 Media |
+| **M-2** ✔ | "Elimina account" non elimina: ban + `active=false`, nessuna cancellazione dei dati personali — **chiuso il 13 agosto** (§4-bis) | `functions/delete-account/index.ts:39` | 🟡 Media |
+| **M-3** ✔ | `AVVISI_ACCETTATI` accetta per *nome del lint*, non per oggetto: una futura funzione `SECURITY DEFINER` esposta ad `anon` passerebbe muta — **chiuso il 13 agosto** (§4-bis) | `verifica-advisor/advisor.js:28` | 🟡 Media |
+| **M-4** ✔ | `canAccessListe` non controlla `pending`, `private.can_liste()` sì: divergenza UI/DB nella stessa domanda — **chiuso il 13 agosto** (§4-bis) | `lib/permissions.js:151-155` | 🟡 Media |
+| **M-5** ✔ | `UPDATE_TEAM_MEMBER` senza guard admin: il trigger DB reverte **in silenzio**, quindi nessun rollback scatta — **chiuso il 13 agosto** (§4-bis) | `state/persistence.js:381` | 🟡 Media |
+| **M-6** ✔ | Font Google via `@import` dentro lo `<style>` iniettato da React: download dopo il mount, nessun preconnect — **chiuso il 13 agosto** (§4-bis) | `styles/GlobalStyles.jsx:15` | 🟡 Media |
+| **B-1** ✔ | `invite-user`: `capacity` e `color` non validati — **chiuso il 13 agosto** (§4-bis) | `functions/invite-user/index.ts:57-59` | 🔵 Bassa |
+| **B-2** ✔ | `Messages.listAll(2000)`: limite dichiarato oltre il cap del server — **chiuso il 13 agosto** (§4-bis) | `lib/api.js:374` | 🔵 Bassa |
+| **B-3** ✔ | 20 warning `react/no-multi-comp` in 13 file — **chiuso il 13 agosto** (§4-bis): 0 in 0 file | trasversale | 🔵 Bassa |
 
 ---
 
@@ -890,6 +898,170 @@ solo "con meno urgenza" — non erano parte di A-4.
 
 ---
 
+## 4-bis. Correzioni applicate — 13 agosto 2026 (M-2…M-6, B-1…B-3)
+
+Secondo intervento della stessa giornata di A-2/A-4. Sette dei nove rilievi
+Media/Bassa sono chiusi con codice; **M-1 resta aperto** — vedi la sua
+sottosezione per il perché e per cosa è stato comunque fatto.
+
+### ✔ M-2 — "Elimina account" ora anonimizza, non solo banna
+
+`supabase/functions/delete-account/index.ts`: dopo il ban (invariato, resta
+l'operazione critica che va a buon fine per prima), tre operazioni in
+parallelo con `Promise.allSettled` — nessuna deve poter far fallire la
+richiesta il cui passo critico è già passato:
+
+```ts
+adminClient.from("users").update({
+  active: false, name: "Utente eliminato",
+  avatar: null, color: null, photo_url: null,
+}).eq("id", user.id),
+adminClient.from("user_contacts").delete().eq("user_id", user.id),
+adminClient.from("push_subscriptions").delete().eq("user_id", user.id),
+adminClient.storage.from("avatars").remove([`${user.id}/avatar.jpg`]),
+```
+
+Come proposto: `user_contacts` (email/telefono, l'unica vera PII fuori da
+`public.users` dal 20260613100833) sparisce, il nome diventa un segnaposto
+leggibile nei thread preservati invece di restare quello vero. Aggiunta
+rispetto alla proposta: anche le sottoscrizioni push (endpoint del
+dispositivo — inutili con l'account bannato, e comunque PII) e il file
+avatar nel bucket privato. `comments`/`messages`/`tasks` restano intatti,
+per la stessa ragione già scritta nel file: sono cronologia condivisa del
+team, non dati personali dell'account che se ne va.
+
+### ✔ M-3 — l'accettazione per lint-e-oggetto, non solo per lint
+
+`scripts/verifica-advisor/advisor.js`: `FUNZIONI_SECURITY_DEFINER_VERIFICATE`
+(le otto funzioni di `docs/SICUREZZA.md` §1) più
+`LINT_PER_FUNZIONE_SECURITY_DEFINER` (i due soli lint per cui il nome non
+basta). `valutaLints` ora
+richiede, per quei due, che `metadata.name` sia una delle otto — **fail
+closed**: un lint senza `metadata.name` leggibile non è accettato al buio,
+resta un rilievo aperto invece di sparire in silenzio, la stessa scelta già
+fatta per gli avvisi nuovi in generale. Quattro test nuovi in
+`verificaAdvisor.test.js`, incluso il caso che il rilievo descrive: una
+funzione mai vista con lo stesso nome di lint delle otto note.
+
+### ✔ M-4 — `canAccessListe` rifiuta anche i pending
+
+`src/lib/permissions.js`: aggiunto `|| m.pending` esattamente come proposto.
+Il test che prima fissava il comportamento vecchio (`permissions.test.js`,
+"un utente ancora in attesa di approvazione conserva l'accesso al modulo") è
+stato riscritto per il nuovo: era la codifica del difetto, non una garanzia
+da preservare.
+
+### ✔ M-5 — guard esplicito + rilevazione del revert silenzioso
+
+`src/state/persistence.js`, entry `UPDATE_TEAM_MEMBER`: `guard` ora controlla
+`isAdmin(s.team, uid)` prima del resto (non solo l'auto-declassamento), come
+proposto — anche se ridondante con `ADMIN_ONLY_ACTIONS` del wrapper
+`reducer` (che già nega la stessa cosa), perché l'entry non deve dipendere
+per intero da un elenco esterno per la sua unica barriera critica. In più,
+non nella proposta: `persist()` ora confronta il ruolo tornato dalla
+`.select()` con quello richiesto (`rispecchiaRuoloScritto`) — copre il caso
+che il guard locale non può vedere, un chiamante che è admin sullo state
+React ma non lo è più per il database (demote concorrente, team stale), dove
+il trigger reverte senza errore e senza questo confronto `res.error`
+resterebbe `null`. Due test nuovi in `persistenceGuards.test.js`.
+
+### ✔ M-6 — preconnect + `<link>` nell'HTML iniziale
+
+`index.html`: `preconnect` a `fonts.googleapis.com`/`fonts.gstatic.com` più
+un `<link rel="stylesheet">` nell'head, visto dal preload scanner prima
+ancora che il parser raggiunga `<body>`. `GlobalStyles.jsx` non contiene più
+l'`@import`. **Non** il `media="print" onload="this.media='all'"`
+suggerito: quell'attributo `onload` è JavaScript inline sull'attributo HTML,
+e la CSP di questo progetto ha `script-src 'self'` **senza** `unsafe-inline`
+— il trucco proposto sarebbe stato bloccato dalla stessa CSP che M-1 vuole
+proteggere. Il `<link>` semplice costa un frame di render bloccante in meno
+di ottimizzazione ma non viola nulla; `font-display: swap` (già presente)
+copre comunque il FOUT.
+
+### ✔ B-1 — `capacity` e `color` validati lato server
+
+`supabase/functions/invite-user/index.ts`: `capacity` accettato solo se
+intero fra 1 e 100 (altrimenti default 8, stesso trattamento permissivo di
+`role`), `color` solo se `/^#[0-9a-fA-F]{6}$/` (altrimenti il default
+`#3B82F6`). Stessa forma della proposta, range più largo (1-100 invece di
+1-40: nessuna capacità nota nell'app la richiede, ma non c'è motivo di
+stringere oltre "positivo e non assurdo").
+
+### ✔ B-2 — `Messages.listAll` pagina davvero fino al limite dichiarato
+
+A differenza della proposta (che rimandava, «non è un problema oggi»): il
+limite di 2000 ora è consegnato per davvero. `fetchRowsUpTo` in
+`src/lib/pagination.js` — variante di `fetchAllRows` con un tetto invece che
+"fino a fine tabella" — pagina con `.range()` in blocchi da `PAGE_SIZE`
+(1000, lo stesso cap) finché non raggiunge `limit` o il database finisce le
+righe. Aggiunto anche un secondo ordinamento (`.order('id')`) per la
+determinismo richiesto da qualunque paginazione con `.range()` — mancava,
+ed era lo stesso genere di lacuna già chiuso da C-1 sulle altre tre letture.
+Test in `paginazione.test.js` (`Messages.listAll`) e `fetchRowsUpTo` a sé.
+
+### ✔ B-3 — 0 in 0 file
+
+Ogni secondo componente locale flagged da `react/no-multi-comp` è ora in un
+file suo: `Sidebar`/`BottomNav` (+ `navHelpers.js`, `NavBadge.jsx`),
+`TaskCard`/`TaskRow`/`CategoryPill` (+ `taskCardShared.js`), i tre chip di
+`QueueShell` (`FilterChip`/`FilterLabel`/`FilterRow`), `ToastItem`,
+`AvatarImg`, `ContactMenuItem`/`ContactText`, `ListeChip`,
+`ClienteTaskTab`/`DatiAnagrafici`, `PushToggle`, `FilterDropdown`,
+`VoyageDeskInner` (estratto da `VoyageDesk.jsx`, che resta il thin wrapper
+`ViewportProvider`), `PendingScreen`/`ProfileErrorScreen`/`AuthGate`
+(estratti da `main.jsx`, ora privo di qualunque componente proprio). Nessuna
+fusione di responsabilità: dove due componenti condividevano un helper puro
+(`catMeta`, `getNavBadges`…) l'helper è finito in un `*.js` a sé, non
+duplicato. `npm run verifica:convenzioni` misura 0/0 e la frase in
+`CLAUDE.md` è aggiornata di conseguenza (era proprio il meccanismo che ST-13
+esiste per far scattare).
+
+### ⚙ M-1 — avviato, non chiuso: perché e cosa è stato fatto
+
+**Non è risolvibile in una sessione senza il rischio che questo audit
+esiste per evitare.** 1.528 `style={{…}}` sparsi su 104 file: anche
+convertirne la maggioranza a mano, senza poter verificare visivamente ogni
+schermata in un browser reale, è la stessa classe di scommessa che un audit
+dovrebbe segnalare, non prendere di nascosto. La scelta — deliberata, non
+per mancanza di tempo — è la stessa già fatta per `auth_leaked_password_
+protection` (B-2 dell'8 agosto): accettare esplicitamente lo stato reale
+invece di produrre una chiusura cosmetica.
+
+**Cosa è stato fatto**: i tre pattern `style={{…}}` ripetuti **alla lettera**
+in più punti (misurato per stringa esatta, non per somiglianza) sono ora
+classi CSS in `GlobalStyles.jsx` — `.vd-flex-1-min0` (21 occorrenze in 19
+file), `.vd-field-label` (9, in `Trash.jsx`/`ProfileEditor.jsx`),
+`.vd-field-label-lg` (10, in `QuickAddTask.jsx`). 40 oggetti in meno, **1.487
+restano**. Zero cambiamento visivo per costruzione: i valori sono copiati
+dagli originali, non normalizzati — a differenza di un refactor "a occhio",
+questo è verificabile leggendo il diff. `npm run build` e l'intera suite
+(1164 test) restano verdi.
+
+Questo chiude una fetta piccola e verificabile dei tre effetti che M-1
+descrive (componenti gonfi, costo di render, `unsafe-inline` in CSP) — la
+terza in particolare resta lontana: finché anche un solo `style={{…}}`
+sopravvive in un componente React, `style-src` non può perdere
+`unsafe-inline` (React applica gli stili via CSSOM, ma il risultato passa
+comunque dall'attributo `style`, che la CSP governa a prescindere da dove
+l'oggetto JS è definito — un dettaglio verificato qui perché **non è
+ovvio**: un `const` a livello di modulo, come suggerito più sotto in questo
+stesso documento, risolve il costo di render e la leggibilità, non la CSP).
+
+**Percorso per chi lo riprenderà**, nell'ordine di rischio crescente:
+1. Altri pattern esatti ripetuti (misurabili con lo stesso metodo usato qui:
+   `grep` sul valore letterale di `style={{…}}`, non a occhio) → altre classi
+   utility. Stesso rischio di questo intervento: ~zero.
+2. I quattro file più densi (`Trash.jsx`, `TaskSlideOver.jsx`,
+   `CalendarPlanner.jsx`, `AdvancedSearchPanel.jsx`) verso `*Styles.js` per
+   modulo, come già `listeStyles.jsx`/`adminStyles.js`/`clientStyles.js` —
+   richiede la verifica visiva che questa sessione non poteva dare.
+3. Solo quando il `<style>` globale resta l'ultimo consumatore di stili non
+   in classe: spostarlo in un `.css` importato da Vite e togliere
+   `'unsafe-inline'` da `style-src` in `vercel.json` — l'unico passo che
+   incassa il terzo effetto, e l'ultimo da fare per costruzione.
+
+---
+
 ## 5. Top 3 suggerimenti strategici
 
 ### 1. ✔ Paginare le due letture rimaste — era l'unico rilievo con una data
@@ -938,6 +1110,11 @@ ripetuti, e — quando lo `<style>` globale sarà l'ultimo consumatore — spost
 in un `.css` e togliere `'unsafe-inline'` da `style-src`. È l'unico intervento
 di questo audit che paga su tre fronti diversi con un lavoro solo.
 
+**Avviato il 13 agosto** (M-1, §4-bis): i pattern ripetuti alla lettera sono
+diventati classi (−40 oggetti, 1.487 restano). Il grosso — i quattro file
+densi e la migrazione del `<style>` globale — resta il lavoro descritto qui
+sopra, non ancora fatto.
+
 ---
 
 ## 6. Cosa è stato controllato e risulta a posto
@@ -950,8 +1127,8 @@ peggiore di com'è un progetto che su questi fronti sta bene:
   violazioni e reggono da sole.
 - **Doppio livello di permessi**: reducer e registry chiamano le stesse funzioni
   pure di `lib/permissions.js` sullo stesso `state.team`, e
-  `persistenceGuards.test.js` lo verifica azione per azione. M-5 è l'unica
-  eccezione trovata.
+  `persistenceGuards.test.js` lo verifica azione per azione. M-5 era l'unica
+  eccezione trovata — **chiusa il 13 agosto** (§4-bis).
 - **RLS**: gate RESTRICTIVE "utente attivo e approvato" su tutte le tabelle
   sensibili, matrice categoria/ruolo nelle policy e non solo nella UI,
   `users_block_privileged_self_update` a protezione delle colonne di privilegio,

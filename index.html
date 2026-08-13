@@ -12,6 +12,21 @@
     <meta name="apple-mobile-web-app-title" content="VoyageDesk" />
     <link rel="apple-touch-icon" sizes="192x192" href="/apple-touch-icon-192.png" />
     <link rel="apple-touch-icon" sizes="512x512" href="/apple-touch-icon-512.png" />
+    <!-- M-6 dell'audit del 13 agosto: era un @import dentro il <style> che
+         GlobalStyles.jsx inietta a runtime (styles/GlobalStyles.jsx). Un
+         @import in un foglio di stile scoperto solo dopo il mount di React
+         parte dopo il bundle JS, il parse e il primo render — un round-trip
+         extra e completamente seriale verso fonts.googleapis.com. Un <link>
+         nell'HTML iniziale è invece visto dal preload scanner del browser
+         prima ancora che il parser raggiunga <body>, e i preconnect qui sotto
+         aprono la connessione (DNS+TLS) a googleapis/gstatic in anticipo
+         invece di scoprirla solo quando il CSS del font arriva. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=Inter:wght@400;500;600;700&display=swap"
+    />
     <style>
       /* ─── SAFE AREA (iPhone) ───
          Con viewport-fit=cover + apple-mobile-web-app-status-bar-style

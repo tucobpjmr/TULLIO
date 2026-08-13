@@ -60,7 +60,7 @@ import {
   toDbTask, toDbTaskPatch, toDbNotice, toDbNoticePatch,
   toDbClient, toDbClientPatch, toDbCategory, toDbMessageTemplate, newId, isUuid,
 } from "../lib/mappers.js";
-import { canEditTask, canViewTask, canCreateTaskCategory } from "../lib/permissions.js";
+import { canEditTask, canViewTask, canCreateTaskCategory, isAdmin } from "../lib/permissions.js";
 import { toDbRole, toSeniority } from "../lib/taskConstants.js";
 import { chiaveNome } from "../lib/clientNotes.js";
 
@@ -86,6 +86,30 @@ const isMissingColumn = (err, column) => {
   const code = err.code ?? '';
   if (code !== 'PGRST204' && code !== '42703') return false;
   return String(err.message ?? '').includes(column);
+};
+
+// M-5 dell'audit del 13 agosto (seconda metà, vedi il guard di
+// UPDATE_TEAM_MEMBER). Il trigger `fix_users_privilege_escalation`
+// (migrazione 20260613080033) ripristina in silenzio role/active/pending/
+// capacity/id quando chi scrive non è admin PER IL DATABASE — nessun errore,
+// la UPDATE "riesce" e basta. Il guard controlla `isAdmin` sullo state React,
+// che può essere disallineato dal verdetto del database (un secondo admin ha
+// appena revocato il chiamante in un'altra sessione e l'evento realtime non è
+// ancora arrivato, per esempio): in quella finestra la richiesta passa il
+// guard locale, il trigger la neutralizza, e senza questo confronto
+// `res.error` resterebbe null — nessun rollback, nessun toast d'errore,
+// "Agente aggiornato" mostrato su un ruolo che il server non ha cambiato.
+// `.select().single()` in UsersAPI.updateProfile ritorna la riga DOPO il
+// trigger: confrontare il ruolo tornato con quello richiesto smaschera
+// esattamente questo caso. Se `data` non arriva (mock, o un client diverso
+// senza `.select()`) non c'è nulla da confrontare: si lascia passare `res`
+// invariato invece di far fallire un caso che non può essere verificato.
+const rispecchiaRuoloScritto = (res, ruoloRichiesto) => {
+  if (res?.error || !res?.data) return res;
+  if (res.data.role !== ruoloRichiesto) {
+    return { data: res.data, error: { message: 'la modifica è stata rifiutata dal database (permessi insufficienti)' } };
+  }
+  return res;
 };
 
 export const PERSISTENCE = {
@@ -379,7 +403,19 @@ export const PERSISTENCE = {
   // toDbRole normalizza il valore e seniority ha una colonna sua
   // (migrazione 20260806120000).
   UPDATE_TEAM_MEMBER: {
+    // M-5 dell'audit del 13 agosto: questo guard controllava solo
+    // l'auto-declassamento, appoggiandosi per l'admin-check SOLO ad
+    // ADMIN_ONLY_ACTIONS (state/reducer.js) e al pre-check duplicato in
+    // useSyncedDispatch — mai a una verifica propria. Una entry che revoca i
+    // privilegi di un account non dovrebbe dipendere per intero da un elenco
+    // esterno per la sua unica vera barriera: se UPDATE_TEAM_MEMBER sparisse
+    // da quell'elenco (o venisse dispatchata da un percorso che non lo
+    // consulta) qui non ci sarebbe più nulla a fermarla, e il trigger DB
+    // `fix_users_privilege_escalation` (20260613080033) la ripristinerebbe sì,
+    // ma IN SILENZIO — vedi persist() qui sotto per la seconda metà del
+    // problema.
     guard: (s, a, uid) => {
+      if (!isAdmin(s.team, uid)) return false;
       const next = toDbRole(a.payload?.role);
       if (!next) return false;                 // ruolo fuori enum → non si scrive
       // Un admin non può declassare se stesso: se è l'ultimo rimasto, il
@@ -411,9 +447,9 @@ export const PERSISTENCE = {
     persist: async (s, a) => {
       const { id, name, role, color, capacity, seniority } = a.payload;
       const res = await UsersAPI.updateProfile(id, { name, role, color, capacity, seniority });
-      if (!isMissingColumn(res?.error, 'seniority')) return res;
+      if (!isMissingColumn(res?.error, 'seniority')) return rispecchiaRuoloScritto(res, role);
       console.warn('[VoyageDesk] colonna users.seniority assente: applicare la migrazione 20260806120000. Salvo il ruolo senza sotto-livello.');
-      return UsersAPI.updateProfile(id, { name, role, color, capacity });
+      return rispecchiaRuoloScritto(await UsersAPI.updateProfile(id, { name, role, color, capacity }), role);
     },
     // Se la scrittura fallisce (o la RLS la rifiuta perché il chiamante non è
     // admin lato DB) lo stato ottimistico va riportato indietro: senza, la UI

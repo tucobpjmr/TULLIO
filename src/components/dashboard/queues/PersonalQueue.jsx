@@ -9,7 +9,10 @@ import { TaskCard } from "../../tasks/TaskCard.jsx";
 import { PRIORITIES } from "../../../lib/taskConstants.js";
 import { formatDate, formatTime, isOverdue, isUrgent, getDayKey } from "../../../lib/taskUtils.js";
 import { QUEUE_SORT_OPTIONS, PRIO_ORDER, STATUS_ORDER, useOpenTask } from "./queueShared.js";
-import { QueueShell, FilterChip, FilterLabel, FilterRow } from "./QueueShell.jsx";
+import { QueueShell } from "./QueueShell.jsx";
+import { FilterChip } from "./FilterChip.jsx";
+import { FilterLabel } from "./FilterLabel.jsx";
+import { FilterRow } from "./FilterRow.jsx";
 import { SkeletonCards } from "../../ui/SkeletonCards.jsx";
 
 // `loading` (criticità #6): true finché il primo fetch dei task non è tornato.

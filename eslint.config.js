@@ -25,6 +25,33 @@ import reactHooks from 'eslint-plugin-react-hooks';
 // scrivere il modulo nuovo, era che ogni componente aggiunto copiava l'import
 // dal vicino. Vale identico qui. Le due regole passano già oggi a zero
 // violazioni: non chiedono un refactor, impediscono la prossima regressione.
+// M-1 (audit del 12 agosto). 1.153 `style={{…}}` fatti di soli letterali sono
+// stati sollevati a costanti di modulo: un oggetto per l'intera vita del
+// modulo invece di uno nuovo a ogni render, quindi una prop stabile e un
+// `memo` che può finalmente saltare il lavoro. Senza questa regola il numero
+// risale da solo — è la forma che si copia dal vicino, esattamente come
+// l'import legacy di appGlobals qui sotto.
+//
+// Il selettore accetta solo il caso PROVATO: nessuno spread, nessuna chiave
+// calcolata, tutti i valori letterali. Un oggetto con anche una sola
+// proprietà che dipende dallo stato passa, ed è giusto che passi: quello va
+// costruito a ogni render. Restano fuori anche i letterali negativi
+// (`marginTop: -8`, che nell'AST è una UnaryExpression) e i template string:
+// la regola sotto-segnala di proposito, così non c'è modo che fermi codice
+// legittimo.
+const STILE_INLINE_COSTANTE = {
+  selector: "JSXAttribute[name.name='style'] > JSXExpressionContainer > ObjectExpression"
+    + ':not(:has(> SpreadElement))'
+    + ':not(:has(> Property[computed=true]))'
+    + ':not(:has(> Property:not(:has(> Literal.value))))',
+  message:
+    'Questo style è fatto di soli valori costanti: definiscilo come const a '
+    + 'livello di modulo (in cima al file, nel suo *Styles.js, o in '
+    + 'styles/common.js se la forma ricorre in tre o più file) e passalo per '
+    + 'nome. Un oggetto letterale nel JSX è nuovo a ogni render — vedi M-1 in '
+    + 'docs/AUDIT_ARCHITETTURA_2026-08-12.md.',
+};
+
 const VIETATO_APPGLOBALS = {
   group: ['**/state/appGlobals', '**/state/appGlobals.js'],
   message:
@@ -232,6 +259,7 @@ export default [
           VIETATO_LISTEAPI_DA_FUORI,
         ],
       }],
+      'no-restricted-syntax': ['error', STILE_INLINE_COSTANTE],
     },
   },
   // Il confine vale per i COMPONENTI. Non per src/hooks/ (è lì che i dati

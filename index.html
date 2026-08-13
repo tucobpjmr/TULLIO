@@ -12,9 +12,9 @@
     <meta name="apple-mobile-web-app-title" content="VoyageDesk" />
     <link rel="apple-touch-icon" sizes="192x192" href="/apple-touch-icon-192.png" />
     <link rel="apple-touch-icon" sizes="512x512" href="/apple-touch-icon-512.png" />
-    <!-- M-6 dell'audit del 13 agosto: era un @import dentro il <style> che
-         GlobalStyles.jsx inietta a runtime (styles/GlobalStyles.jsx). Un
-         @import in un foglio di stile scoperto solo dopo il mount di React
+    <!-- M-6 dell'audit del 13 agosto: era un @import dentro un <style> che
+         un componente React iniettava al mount (oggi src/styles/global.css).
+         Un @import in un foglio di stile scoperto solo dopo il mount di React
          parte dopo il bundle JS, il parse e il primo render — un round-trip
          extra e completamente seriale verso fonts.googleapis.com. Un <link>
          nell'HTML iniziale è invece visto dal preload scanner del browser
@@ -27,24 +27,13 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=Inter:wght@400;500;600;700&display=swap"
     />
-    <style>
-      /* ─── SAFE AREA (iPhone) ───
-         Con viewport-fit=cover + apple-mobile-web-app-status-bar-style
-         black-translucent (vedi meta sopra) la web view occupa TUTTO lo schermo,
-         status bar (ora, batteria, Dynamic Island) e home indicator compresi:
-         senza compensazione le testate finiscono sotto la status bar e i loro
-         pulsanti diventano intoccabili.
-         I token stanno qui e non nel FontLoader di VoyageDesk.jsx perché servono
-         anche alle schermate montate fuori dall'app (login, reset password,
-         ErrorBoundary). Valgono 0px dove non c'è una tacca, quindi si sommano
-         sempre senza condizionali. */
-      :root {
-        --safe-top: env(safe-area-inset-top, 0px);
-        --safe-bottom: env(safe-area-inset-bottom, 0px);
-        --safe-left: env(safe-area-inset-left, 0px);
-        --safe-right: env(safe-area-inset-right, 0px);
-      }
-    </style>
+    <!-- I token safe-area (--safe-top/bottom/left/right) stavano qui, in un
+         <style> inline. Sono passati in src/styles/global.css: Vite lo emette
+         come <link> in questo stesso <head>, quindi valgono ancora prima del
+         primo paint e anche per le schermate montate fuori dall'app (login,
+         reset password, ErrorBoundary) — ma smettono di richiedere
+         'unsafe-inline' agli <style> nella CSP (M-1, vedi vercel.json). Questo
+         file non ha più CSS proprio: se ne servisse, va in global.css. -->
   </head>
   <body>
     <div id="root"></div>

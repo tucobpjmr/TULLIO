@@ -20,7 +20,7 @@ const rowCenterGap10 = { display: "flex", alignItems: "center", gap: 10, flexWra
 const txtF16Bold = { fontWeight: 700, fontSize: 16 };
 const rowGap4Mb14 = { display: "flex", gap: 4, marginBottom: 14, borderBottom: "1px solid var(--border)" };
 
-// Chunk async: trascina con sé listeStyles.jsx (16.3 kB) e lib/listeApi.js
+// Chunk async: trascina con sé liste.css (16.3 kB) e lib/listeApi.js
 // (8.7 kB) — senza import() finiscono nel chunk eager e vanificano il lazy()
 // di ListeViaggio.jsx, che di quello stesso CSS/data-layer è l'altro punto
 // d'ingresso (già lazy in VoyageDesk.jsx).

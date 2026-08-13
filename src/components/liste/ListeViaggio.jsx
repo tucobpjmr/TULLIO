@@ -19,7 +19,7 @@ import { ListeAPI, downloadBlob, todayISO } from "./listeApi.js";
 import { useListeWrite } from "./listePersistence.js";
 import { overlayIniziale, overlayReducer } from "./listeReducers.js";
 import { terminiRicerca } from "../../lib/searchUtils.js";
-import { ListeStyles } from "./listeStyles.jsx";
+import "./liste.css";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import { ListaDetail } from "./ListaDetail.jsx";
 import { ImportaBackupConfirmModal } from "./modals/ImportaBackupConfirmModal.jsx";
@@ -373,7 +373,6 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
 
   return (
     <div className="fade-in">
-      <ListeStyles />
       {chrome}
       <div className="lv-root">
         <div className="lv-main">

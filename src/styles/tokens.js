@@ -3,7 +3,7 @@
 //
 // PERCHÉ ESISTE. Prima convivevano tre sistemi di stile paralleli e
 // incompatibili — `admin/adminStyles.js`, `modals/bulk/bulkStyles.js` e
-// `liste/listeStyles.jsx` — più stili inline ovunque. Lo stesso bottone
+// `liste/liste.css` — più stili inline ovunque. Lo stesso bottone
 // primario esisteva in almeno quattro varianti non intercambiabili, e i
 // `zIndex` erano 23 valori magici sparsi da 1 a 9999 senza alcuna scala
 // documentata: la causa strutturale dei bug di sovrapposizione che i commenti
@@ -44,12 +44,12 @@ export const Z = {
 
   // Elementi flottanti del guscio.
   fab: 400,
-  bottomNav: 450, // definito anche in GlobalStyles.jsx (.vd-bottom-nav)
+  bottomNav: 450, // definito anche in styles/global.css (.vd-bottom-nav)
 
   // Slide-over: l'overlay sta SOTTO il pannello che oscura.
   slideOverBackdrop: 500,
   slideOver: 600,
-  listeOverlay: 650, // .lv-overlay del modulo Liste (listeStyles.jsx)
+  listeOverlay: 650, // .lv-overlay del modulo Liste (liste/liste.css)
 
   // Chat: stesso schema overlay/pannello, sopra gli slide-over perché può
   // essere aperta mentre uno di essi è già visibile.

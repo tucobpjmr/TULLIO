@@ -428,7 +428,7 @@ limita più a segnalarla in console.
 ```
 default-src 'self';
 script-src  'self';
-style-src   'self' 'unsafe-inline' https://fonts.googleapis.com;
+style-src   'self' https://fonts.googleapis.com;
 font-src    'self' https://fonts.gstatic.com;
 img-src     'self' data: blob: https://vmxvnxsqfisucugcpqlc.supabase.co;
 media-src   'self' blob: https://vmxvnxsqfisucugcpqlc.supabase.co;
@@ -451,14 +451,29 @@ documento ometteva.
   inline, solo `<script type="module" src="/assets/…">`) e perché **nessun
   bundle usa `eval` o `new Function`** — verificato su tutti i chunk prodotti,
   SheetJS compreso, che era il candidato più probabile.
-- **`style-src` con `'unsafe-inline'`.** Non è evitabile oggi: `FontLoader`
-  (`VoyageDesk.jsx`) e `ListeStyles` (`liste/listeStyles.jsx`) inseriscono
-  blocchi `<style>` nel documento. L'origine `fonts.googleapis.com` serve
-  perché quei blocchi contengono `@import url(https://fonts.googleapis.com/…)`.
-  Va detto che `'unsafe-inline'` sugli stili è una concessione molto meno grave
-  di quella sugli script — non permette esecuzione di codice.
-  *(Gli `style={{…}}` di React non c'entrano: React scrive via CSSOM, che la
-  CSP non intercetta.)*
+- **`style-src 'self'`, senza `'unsafe-inline'` — dal 13 agosto.** Era
+  l'**unica direttiva permissiva rimasta** in questa policy, e non lo è più:
+  i due componenti che iniettavano un `<style>` nel documento (`GlobalStyles`
+  e `ListeStyles`) sono diventati `src/styles/global.css` e
+  `src/components/liste/liste.css`, importati da Vite ed emessi come `<link>`
+  serviti da `self`. Era il terzo effetto di M-1 (audit del 12 agosto) e il
+  solo che pagasse sulla sicurezza. L'origine `fonts.googleapis.com` resta
+  perché il foglio dei font è caricato da lì con un `<link>` in `index.html`.
+
+  *Gli `style={{…}}` di React non c'entrano, e questa volta è stato
+  verificato invece che dedotto*: React scrive le proprietà via CSSOM
+  (`node.style.setProperty`), che la CSP non intercetta — solo l'**attributo**
+  `style` scritto nel markup o via `setAttribute` lo sarebbe. Il build reale,
+  servito con la policy qui sopra e caricato in Chromium, rende la schermata di
+  login con 13 elementi che portano un attributo `style` non vuoto e solleva
+  **zero violazioni**. È una correzione a quanto §4-bis dell'audit del 12
+  agosto aveva scritto («il risultato passa comunque dall'attributo style»):
+  era sbagliato, e sarebbe costato il fix se nessuno l'avesse riprovato.
+
+  Resta vero che `'unsafe-inline'` sugli stili sarebbe stata una concessione
+  meno grave di quella sugli script — non permette esecuzione di codice — ma
+  un `<style>` iniettato basta a coprire la pagina con un falso login o a
+  esfiltrare per selettore d'attributo: questa direttiva ora lo nega.
 - **`connect-src` con l'origine Supabase esatta**, non `https://*.supabase.co`.
   Il wildcard lascerebbe esfiltrare dati verso un progetto Supabase
   dell'attaccante. ⚠️ **Va aggiornata se il progetto cambia ref.**
@@ -485,6 +500,14 @@ verso Google Fonts (iniettando gli stessi identici blocchi `<style>` di
 `FontLoader` e `ListeStyles`, che altrimenti non montano fuori dall'area
 autenticata), una richiesta di login verso Supabase, e URL `blob:`/`data:` per
 media e immagini.
+
+**Ripetuta il 13 agosto** sulla policy senza `'unsafe-inline'`, con la stessa
+procedura (build reale servito in locale con l'header, Chromium): 0 violazioni,
+2 fogli di stile applicati (il `<link>` di Vite e quello di Google Fonts), 13
+elementi con attributo `style` non vuoto correttamente resi, schermata di login
+invariata. La riga «i blocchi `<style>` iniettati a mano» qui sopra descrive la
+verifica del 6 agosto: quei blocchi **non esistono più**, e la nuova policy li
+rifiuterebbe — che è esattamente il punto.
 
 > ⚠️ **Limiti della verifica, dichiarati — e ancora validi dopo la promozione.**
 > (1) La sessione di prova non era autenticata — l'app oltre il login non è

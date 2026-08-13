@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ListeAPI, eur, fmtDate, intestazioneLista, saldoClass } from "./listeApi.js";
 import { useListeWrite } from "./listePersistence.js";
 import { useIsMounted } from "../../hooks/useIsMounted.js";
-import { ListeStyles } from "./listeStyles.jsx";
+import "./liste.css";
 import { NuovaListaModal } from "./modals/NuovaListaModal.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
@@ -88,7 +88,6 @@ export function ClienteListePanel({ cliente, dispatch }) {
 
   return (
     <>
-      <ListeStyles />
       <div className="lv-root" style={boxMt4}>
         {liste.length === 0 ? (
           <div style={txtF13Muted3}>

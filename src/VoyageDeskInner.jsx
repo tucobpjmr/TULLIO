@@ -33,7 +33,6 @@ import { usePushNavigation } from "./hooks/usePushNavigation.js";
 import { useChatData } from "./hooks/useChatData.js";
 
 // ── Guscio e primitive ─────────────────────────────────────────────────────
-import { GlobalStyles } from "./styles/GlobalStyles.jsx";
 import { ViewErrorBoundary } from "./components/ViewErrorBoundary.jsx";
 import { OverlayErrorBoundary } from "./components/OverlayErrorBoundary.jsx";
 import { ToastStack } from "./components/ui/Toast.jsx";
@@ -114,7 +113,7 @@ const onViewRender = (id, phase, actualDuration, baseDuration) => {
 // Dove è finito il resto del monolite:
 //   utility pure          → src/lib/{taskUtils,permissions,chatUtils,mappers}.js
 //   reducer + persistenza → src/state/{reducer,persistence}.js
-//   CSS globale e tema    → src/styles/GlobalStyles.jsx
+//   CSS globale e tema    → src/styles/global.css (importato da main.jsx)
 //   dati demo             → src/state/mockData.js
 //   viste e primitive     → src/components/**
 
@@ -360,7 +359,6 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           dominio perché la finestra di conferma è parte dell'app, non della
           shell del browser. */}
       <ConfirmProvider>
-      <GlobalStyles />
       {/* vd-app-shell = height 100dvh con fallback 100vh (vedi FontLoader): su iOS
           "vh" è il viewport GRANDE, con la barra del browser visibile il guscio
           sfora in basso e la bottom-nav finisce fuori schermo. */}

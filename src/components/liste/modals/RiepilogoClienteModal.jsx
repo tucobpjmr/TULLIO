@@ -9,7 +9,7 @@ const txtRight = { textAlign: "right" };
 // ─── Riepilogo cliente: anteprima stampabile/condivisibile ─────────────────
 // Copia destinata al cliente: niente metodi di pagamento, niente storico
 // (quella è la copia agente, vedi copiaAgente in ListaDetail). La stampa
-// isola questo blocco dal resto dell'app via @media print in listeStyles.jsx;
+// isola questo blocco dal resto dell'app via @media print in liste.css;
 // "Invia" usa la Web Share API se disponibile, altrimenti copia negli appunti.
 export function RiepilogoClienteModal({ lista, movimenti, dispatch, onClose }) {
   const saldo = movimenti.reduce((s, m) => s + Number(m.importo), 0);

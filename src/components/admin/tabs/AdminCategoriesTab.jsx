@@ -49,7 +49,7 @@ export const AdminCategoriesTab = ({ dispatch }) => {
                 display: "flex", alignItems: "center", justifyContent: "center",
                 background: c.bg, color: c.color, flexShrink: 0,
               }}>{isEditing ? draft.icon : c.icon}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="vd-flex-1-min0">
                 {isEditing ? (
                   <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: "1fr 70px 90px 90px", gap: 8 }}>
                     <input value={draft.label} onChange={e => setDraft({...draft, label: e.target.value})}

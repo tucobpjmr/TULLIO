@@ -264,9 +264,11 @@ describe("permissions — accesso al modulo Liste viaggio", () => {
     expect(canAccessListe(team, "u")).toBe(false);
   });
 
-  it("un utente ancora in attesa di approvazione conserva l'accesso al modulo", () => {
-    // Il gate dei pending è a monte (PendingScreen non monta l'app): qui non
-    // si aggiunge una seconda regola che il database non ha.
-    expect(canAccessListe(TEAM, "attesa")).toBe(true);
+  it("un utente ancora in attesa di approvazione no (M-4: private.can_liste() esclude i pending dal 6 agosto)", () => {
+    // Il gate dei pending è ANCHE a monte (PendingScreen non monta l'app),
+    // ma canAccessListe deve comunque rispecchiare can_liste(): prima di M-4
+    // restituiva true qui, mentre il database (migrazione 20260806130000)
+    // rifiuta un pending a prescindere da `active`.
+    expect(canAccessListe(TEAM, "attesa")).toBe(false);
   });
 });

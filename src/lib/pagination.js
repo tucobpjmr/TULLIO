@@ -57,3 +57,28 @@ export const fetchAllRows = async (buildQuery) => {
     if (typeof count === 'number' && rows.length >= count) return { data: rows, error: null };
   }
 };
+
+// B-2 dell'audit del 13 agosto. `fetchAllRows` scarica TUTTO — corretto per
+// una tabella che deve arrivare intera (clients, task_history…), sbagliato
+// per una lettura che dichiara volutamente un tetto (es. Messages.listAll):
+// non c'è un `limit` da rispettare, solo un `count` da esaurire. Serviva una
+// terza via fra ".limit(n)" (tronca a `n` SOLO se n <= db-max-rows, altrimenti
+// PostgREST tronca lui a 1000 senza dirlo — il difetto che B-2 descrive: un
+// `.limit(2000)` dichiarato ma mai davvero consegnato) e `fetchAllRows` (nessun
+// tetto). Pagina con `.range()` come sopra, ma si ferma alle prime `limit`
+// righe invece che a fine tabella.
+export const fetchRowsUpTo = async (buildQuery, limit) => {
+  const rows = [];
+  while (rows.length < limit) {
+    const end = Math.min(rows.length + PAGE_SIZE, limit) - 1;
+    const { data, error } = await buildQuery().range(rows.length, end);
+    if (error) return { data: null, error };
+    const page = data || [];
+    const richieste = end - rows.length + 1;
+    rows.push(...page);
+    // Pagina più corta di quella richiesta: il database ha finito le righe
+    // prima di raggiungere `limit`, non serve un'altra richiesta.
+    if (page.length < richieste) break;
+  }
+  return { data: rows, error: null };
+};

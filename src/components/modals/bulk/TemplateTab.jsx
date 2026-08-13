@@ -154,7 +154,7 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
                     display: "flex", alignItems: "center", gap: 10, fontSize: 12,
                   }}>
                     <span style={{ fontSize: 14 }}>{categories[t.category]?.icon}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="vd-flex-1-min0">
                       <div style={{ fontWeight: 500 }}>{t.title}</div>
                       <div style={{ fontSize: 10, color: "var(--text-muted)" }}>
                         📅 {dataMedia(t.dueDate)}

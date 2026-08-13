@@ -111,7 +111,7 @@ export const DuplicateTab = ({ tasks, onCreate, onClose, onCancel, onDirty }) =>
             }} onClick={() => toggle(t.id)}>
               <input type="checkbox" checked={isSel} readOnly style={{ cursor: "pointer" }} />
               <span style={{ fontSize: 14 }}>{categories[t.category]?.icon}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="vd-flex-1-min0">
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{t.title}</div>
                 <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
                   {categories[t.category]?.label} • {t.client || "—"} • {formatDate(t.dueDate)}

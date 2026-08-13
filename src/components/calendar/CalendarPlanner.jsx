@@ -6,7 +6,7 @@ import { SwipeActions } from "../SwipeActions.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { StatusBadge } from "../ui/StatusBadge.jsx";
-import { TaskRow } from "../tasks/TaskCard.jsx";
+import { TaskRow } from "../tasks/TaskRow.jsx";
 import { formatTime, isActiveTask } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useTasks } from "../../state/TasksContext.jsx";

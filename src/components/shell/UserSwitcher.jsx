@@ -5,7 +5,7 @@ import { useState, useRef, useEffect, lazy, Suspense } from "react";
 import { Users as UsersAPI } from "../../lib/api.js";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
-import { AvatarImg } from "../ui/Avatar.jsx";
+import { AvatarImg } from "../ui/AvatarImg.jsx";
 import { LazyFallback } from "../ui/LazyFallback.jsx";
 import { Z } from "../../styles/tokens.js";
 import { roleLabel, toDbRole, toSeniority } from "../../lib/taskConstants.js";
@@ -155,7 +155,7 @@ export const UserSwitcher = ({ dispatch }) => {
                         fontSize: 11, fontWeight: 700, color: "#fff", flexShrink: 0,
                       }}>{m.avatar}</div>
                     )}
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="vd-flex-1-min0">
                       <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.name}</div>
                       <div style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 5 }}>
                         {roleLabel(m)}

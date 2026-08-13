@@ -139,18 +139,31 @@ export const canAccessAdmin = (team, userId) => isAdmin(team, userId);
 // quello che decide che cosa è permesso. È lo stesso motivo per cui `isAdmin`
 // è una funzione sola e non un confronto ripetuto (vedi AuthContext).
 //
-// Le due differenze rispetto a `!isDriver` sono volute, ed entrambe rendono il
+// Le tre differenze rispetto a `!isDriver` sono volute, e tutte rendono il
 // verdetto più vicino a quello del database:
 //   • un utente non più nel team non ottiene l'accesso per assenza di prove;
 //   • un utente disattivato nemmeno — la RLS lo rifiuterebbe comunque, ma qui
-//     riceve un diniego pulito invece di una vista piena di errori.
+//     riceve un diniego pulito invece di una vista piena di errori;
+//   • un utente ancora pending nemmeno (M-4 dell'audit del 13 agosto).
+//
+// Il terzo punto era mancante fino a M-4: `private.can_liste()` è stata
+// estesa il 6 agosto (migrazione 20260806130000) ad escludere anche i pending
+// — coalesce(pending, false) = false, come is_active_user/is_admin/
+// is_manager_or_admin/can_view_global_queue nella stessa migrazione — ma
+// questa funzione non lo era mai stata aggiornata di conseguenza, e restava
+// vera per un utente pending: la stessa domanda con due risposte diverse fra
+// UI e database che questo file esiste per evitare (vedi il commento in
+// cima). In pratica il gate resta comunque a monte (PendingScreen non monta
+// l'app finché l'admin non approva), ma questa funzione deve rispecchiare
+// can_liste() a prescindere da dove altro il caso sia già intercettato — è
+// la stessa ragione per cui esiste come funzione a sé e non come `!isDriver`.
 // Il confronto passa da toDbRole come ovunque: un ruolo fuori enum non
 // corrisponde a nessun ramo di can_liste() e qui non deve corrispondere.
 const RUOLI_LISTE = ['admin', 'manager', 'agent'];
 
 export const canAccessListe = (team, userId) => {
   const m = getMember(team, userId);
-  if (!m || m.active === false) return false;
+  if (!m || m.active === false || m.pending) return false;
   return RUOLI_LISTE.includes(toDbRole(m.role));
 };
 

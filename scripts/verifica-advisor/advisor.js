@@ -47,12 +47,63 @@ const AVVISI_ACCETTATI = new Set([
   'auth_leaked_password_protection',
 ]);
 
+// ─── M-3 · GLI AVVISI ACCETTATI SONO UN ELENCO DI FUNZIONI, NON SOLO DI NOMI ─
+// AVVISI_ACCETTATI accetta i due lint qui sotto per il NOME del lint — cioè
+// per categoria: qualunque funzione SECURITY DEFINER raggiungibile da
+// anon/authenticated produce lo stesso `name`. Le otto funzioni di oggi sono
+// state verificate una per una (📄 docs/SICUREZZA.md §1: ognuna ha una guardia
+// di ruolo interna, o — per get_vapid_public_key/get_migrazioni_applicate —
+// non ha nulla da proteggere). Ma il nome del lint non distingue "una delle
+// otto già viste" da "una funzione nuova, di ieri, mai controllata da
+// nessuno": una futura SECURITY DEFINER esposta ad anon senza guardia
+// produrrebbe lo STESSO warning, con lo stesso nome, e passerebbe muta in
+// mezzo alle otto note. È esattamente il difetto che ST-14 aveva chiuso per
+// auth_leaked_password_protection, riaperto qui su un asse diverso (funzione
+// invece di lint).
+//
+// Elenco sincronizzato a mano con la tabella di docs/SICUREZZA.md §1 — la
+// stessa scelta di AVVISI_ACCETTATI: nominare, non categorizzare.
+const FUNZIONI_SECURITY_DEFINER_VERIFICATE = new Set([
+  'reset_completo',
+  'elimina_lista_definitivamente',
+  'importa_backup',
+  'rimuovi_beneficiario_lista',
+  'sposta_titolare_lista',
+  'send_test_push',
+  'get_vapid_public_key',
+  'get_migrazioni_applicate',
+]);
+
+// I due soli lint, in AVVISI_ACCETTATI, il cui `name` non basta a giudicare
+// l'oggetto innocuo: si applicano a QUALUNQUE funzione SECURITY DEFINER
+// futura, non a un fatto fisso del progetto (a differenza di unused_index o
+// auth_leaked_password_protection, che restano accettati per nome).
+const LINT_PER_FUNZIONE_SECURITY_DEFINER = new Set([
+  'anon_security_definer_function_executable',
+  'authenticated_security_definer_function_executable',
+]);
+
+// Supabase riporta l'identità dell'oggetto in `metadata.name` (schema a parte
+// in `metadata.schema`) — l'unico campo strutturato dei due; `detail` e
+// `description` sono testo pensato per essere letto, non parsato.
+const nomeOggetto = (lint) => lint.metadata?.name;
+
 export function valutaLints(lints) {
   const errori = lints.filter((l) => l.level === 'ERROR');
   const avvisi = lints.filter((l) => l.level === 'WARN');
   // Un WARN non nominato nell'elenco è un rilievo aperto che nessuno ha
   // deciso di accettare: va detto, e va detto in modo che qualcuno lo chiuda.
-  const nonAccettati = avvisi.filter((l) => !AVVISI_ACCETTATI.has(l.name));
+  // Per i due lint per-funzione, il nome accettato non basta: l'oggetto deve
+  // essere una delle funzioni già verificate, altrimenti — mancasse pure
+  // `metadata.name`, e quindi la possibilità di verificarlo — resta un
+  // rilievo aperto invece di sparire in silenzio: meglio un falso allarme da
+  // richiudere a mano che un buco muto.
+  const nonAccettati = avvisi.filter((l) => {
+    if (!AVVISI_ACCETTATI.has(l.name)) return true;
+    if (!LINT_PER_FUNZIONE_SECURITY_DEFINER.has(l.name)) return false;
+    const fn = nomeOggetto(l);
+    return !fn || !FUNZIONI_SECURITY_DEFINER_VERIFICATE.has(fn);
+  });
   return {
     fallisce: errori.length > 0 || nonAccettati.length > 0,
     errori,
@@ -61,4 +112,4 @@ export function valutaLints(lints) {
   };
 }
 
-export { AVVISI_ACCETTATI };
+export { AVVISI_ACCETTATI, FUNZIONI_SECURITY_DEFINER_VERIFICATE };

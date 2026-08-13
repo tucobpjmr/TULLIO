@@ -117,7 +117,7 @@ export const AdminTeamTab = ({ dispatch }) => {
               }} title={m.status === "online" ? "Online" : m.status === "busy" ? "Occupato" : "Offline"} />
             )}
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="vd-flex-1-min0">
             {isEditing ? (
               <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: draft.role === "agent" ? "1fr 1fr 1fr 100px" : "1fr 1fr 100px", gap: 8 }}>
                 <input value={draft.name} onChange={e => setDraft({...draft, name: e.target.value})}

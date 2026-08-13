@@ -114,7 +114,7 @@ export function TaskAttachments({ taskId, editable }) {
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px" }}>
                   <span style={{ fontSize: 18, flexShrink: 0 }}>{fileIcon(file.file_type || file.file_name)}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="vd-flex-1-min0">
                     <div style={{
                       fontSize: 13, fontWeight: 600, color: "var(--text)",
                       overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",

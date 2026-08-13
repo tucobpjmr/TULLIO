@@ -295,6 +295,32 @@ describe("persistence — UPDATE_TEAM_MEMBER raggiunge il database", () => {
     expect(UsersAPI.updateProfile).toHaveBeenCalledTimes(1);
   });
 
+  // M-5 dell'audit del 13 agosto: il trigger `fix_users_privilege_escalation`
+  // ripristina in silenzio i campi sensibili quando chi scrive non è admin
+  // per il database — nessun `error`, la UPDATE "riesce" e basta. Il guard
+  // locale non può intercettarlo (giudica sullo state React, che qui è per
+  // ipotesi disallineato dal verdetto reale del server); solo confrontare il
+  // ruolo tornato dalla `.select()` con quello richiesto lo smaschera.
+  it("un ruolo ripristinato in silenzio dal trigger DB viene trattato come fallimento", async () => {
+    UsersAPI.updateProfile.mockResolvedValueOnce({
+      data: { id: "senior1", role: "agent" }, // il trigger ha annullato il cambio: role invariato
+      error: null,
+    });
+    const state = statoCon([], "admin1");
+    const res = await PERSISTENCE.UPDATE_TEAM_MEMBER.persist(state, azione({ role: "driver" }), "admin1");
+    expect(res.error).toBeTruthy();
+  });
+
+  it("un ruolo scritto correttamente non viene segnalato come fallimento", async () => {
+    UsersAPI.updateProfile.mockResolvedValueOnce({
+      data: { id: "senior1", role: "driver" },
+      error: null,
+    });
+    const state = statoCon([], "admin1");
+    const res = await PERSISTENCE.UPDATE_TEAM_MEMBER.persist(state, azione({ role: "driver" }), "admin1");
+    expect(res.error).toBeNull();
+  });
+
   it("normalize appiattisce le vecchie label sull'enum prima del dispatch", () => {
     const state = statoCon([], "admin1");
     const norm = PERSISTENCE.UPDATE_TEAM_MEMBER.normalize(azione({ role: "Junior Agent" }), state, "admin1");

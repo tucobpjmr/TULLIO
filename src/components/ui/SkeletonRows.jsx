@@ -18,7 +18,7 @@ export function SkeletonRows({ count = 4, avatar = true, label = "Caricamento in
           {avatar && (
             <div className="skeleton" style={{ width: 30, height: 30, borderRadius: "50%", flexShrink: 0 }} />
           )}
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="vd-flex-1-min0">
             <div className="skeleton" style={{ height: 11, width: "60%", borderRadius: 4, marginBottom: 6 }} />
             <div className="skeleton" style={{ height: 9, width: "35%", borderRadius: 4 }} />
           </div>

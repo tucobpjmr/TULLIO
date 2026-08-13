@@ -105,7 +105,7 @@ export const ForwardPicker = ({ msg, conversations, messages, onPick, onClose })
                   fontSize: 14, flexShrink: 0,
                 }}>{c.icon || "👥"}</div>
               )}
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="vd-flex-1-min0">
                 <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {getConversationName(c, currentUserId, getMember)}
                 </div>

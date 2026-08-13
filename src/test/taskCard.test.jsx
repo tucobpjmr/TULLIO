@@ -8,7 +8,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { screen, fireEvent, within } from "@testing-library/react";
 import { renderWithAppData, DEMO_APP_CTX } from "./helpers/appData.jsx";
-import { TaskCard, TaskRow } from "../components/tasks/TaskCard.jsx";
+import { TaskCard } from "../components/tasks/TaskCard.jsx";
+import { TaskRow } from "../components/tasks/TaskRow.jsx";
 
 // I componenti sotto test leggono team/categorie/utente da useAppData(): prima
 // li prendevano dai default di modulo di appGlobals, ora vanno montati dentro

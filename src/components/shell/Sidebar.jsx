@@ -1,59 +1,13 @@
-// ─── SIDEBAR / BOTTOM NAV ────────────────────────────────────────────────────
-// Estratto dal monolite (Step P Phase 2f). NAV_ITEMS/getNavItemsForUser/
-// getNavBadges + NavBadge (module-local) + Sidebar e BottomNav (esportati).
+// ─── SIDEBAR ─────────────────────────────────────────────────────────────
+// Estratto dal monolite (Step P Phase 2f). BottomNav e gli helper condivisi
+// (NAV_ITEMS/getNavItemsForRole/getNavBadges, NavBadge) sono stati spostati
+// in file propri (B-3 dell'audit del 13 agosto: un file, un componente —
+// vedi docs/CLAUDE.md, e BottomNav.jsx/navHelpers.js/NavBadge.jsx qui accanto).
 import { useEffect, useRef, useState, memo } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
-
-// La Dashboard è raggiungibile dal logo aeroplano nella Topbar (la voce
-// dedicata in sidebar/bottom-nav è stata rimossa per alleggerire la nav).
-const NAV_ITEMS = [
-  { id: "calendar",   icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
-  { id: "clienti",    icon: "👤", label: "Clienti",    roles: ["admin", "manager", "agent"] },
-  { id: "archivio",   icon: "📦", label: "Archivio",   roles: ["admin", "manager", "agent", "driver"] },
-  { id: "trash",      icon: "🗑️", label: "Cestino",    roles: ["admin", "manager", "agent", "driver"] },
-  { id: "admin",      icon: "⚙️", label: "Admin",      roles: ["admin"] },
-];
-
-// Filtra NAV_ITEMS in base al ruolo dell'utente loggato. Riceve il RUOLO già
-// risolto (non l'userId) perché è una funzione pura di modulo: il lookup del
-// ruolo richiede il team, che i componenti prendono da useAppData().
-const getNavItemsForRole = (role) =>
-  NAV_ITEMS.filter(it => !it.roles || it.roles.includes(role));
-
-// Calcola i contatori per i badge sidebar/bottom-nav (Step F).
-// Il badge Dashboard (coda + urgenze) è migrato sul logo aeroplano in Topbar
-// insieme alla voce; qui resta solo il badge "pending" della voce Admin.
-//
-// Riceve `team` e non `state` (ST-2): era l'unico campo che leggeva, ed è già
-// in AppDataContext — chiederlo come state costringeva i due componenti qui
-// sotto a ricevere l'intero stato dell'app per contare gli utenti in attesa.
-function getNavBadges(team) {
-  const pending = (team || []).filter(m => m.pending).length;
-  return { admin: pending };
-}
-
-// Componente helper per renderizzare il badge numerico
-const NavBadge = ({ count, collapsed = false, mobile = false }) => {
-  if (!count) return null;
-  const base = {
-    background: "var(--gold)", color: "var(--navy)", fontWeight: 700,
-    borderRadius: 999, fontSize: 10, padding: "1px 6px", minWidth: 16,
-    height: 16, display: "inline-flex", alignItems: "center", justifyContent: "center",
-    lineHeight: 1,
-  };
-  if (mobile) {
-    return <span style={{
-      ...base, position: "absolute", top: 2, right: "calc(50% - 18px)",
-    }}>{count > 99 ? "99+" : count}</span>;
-  }
-  if (collapsed) {
-    return <span style={{
-      ...base, position: "absolute", top: 4, right: 4,
-    }}>{count > 9 ? "9+" : count}</span>;
-  }
-  return <span style={{ ...base, marginLeft: "auto" }}>{count > 99 ? "99+" : count}</span>;
-};
+import { getNavItemsForRole, getNavBadges } from "./navHelpers.js";
+import { NavBadge } from "./NavBadge.jsx";
 
 // ST-2: `activeView` invece di `state`, e `memo`. Team e utente corrente
 // arrivano da AppDataContext, dov'erano già.
@@ -194,102 +148,3 @@ export const Sidebar = memo(function Sidebar({ activeView, dispatch, onOpenBulk,
     </div>
   );
 });
-
-// ─── BOTTOM NAV (mobile/tablet) ────────────────────────────────────────────
-// Stessa correzione di Sidebar (ST-2): una fetta sola invece di `state`, memo.
-export const BottomNav = memo(function BottomNav({ activeView, dispatch, onOpenBulk, onOpenChat, unreadChat = 0 }) {
-  const { team, getRoleType, currentUserId } = useAppData();
-  const navItems = getNavItemsForRole(getRoleType(currentUserId));
-  const badges = getNavBadges(team);
-  return (
-    <nav className="vd-bottom-nav" aria-label="Navigazione principale">
-      {navItems.map(item => {
-        const active = activeView === item.id;
-        const badge = badges[item.id] || 0;
-        return (
-          <button
-            key={item.id}
-            onClick={() => dispatch({ type: "SET_VIEW", payload: item.id })}
-            aria-label={item.label}
-            aria-current={active ? "page" : undefined}
-            style={{
-              flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
-              justifyContent: "center", gap: 3, padding: "6px 2px",
-              background: "transparent", border: "none", cursor: "pointer",
-              color: active ? "var(--navy)" : "rgba(15,32,68,0.75)",
-              borderTop: active ? "2px solid var(--gold)" : "2px solid transparent",
-              transition: "color 0.2s", position: "relative",
-            }}
-          >
-            <span style={{ fontSize: 19, lineHeight: 1, position: "relative" }}>
-              {item.icon}
-              <NavBadge count={badge} mobile />
-            </span>
-            <span style={{ fontSize: 9, fontWeight: active ? 700 : 500, whiteSpace: "nowrap" }}>
-              {item.label.split(" ")[0]}
-            </span>
-          </button>
-        );
-      })}
-
-      {/* Chat team (spostata dalla Topbar) */}
-      <button
-        onClick={onOpenChat}
-        aria-label="Messaggi team"
-        style={{
-          flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
-          justifyContent: "center", gap: 3, padding: "6px 2px",
-          background: "transparent", border: "none", cursor: "pointer",
-          color: "rgba(15,32,68,0.75)", borderTop: "2px solid transparent",
-          transition: "color 0.2s", position: "relative",
-        }}
-      >
-        <span style={{ fontSize: 19, lineHeight: 1, position: "relative" }}>
-          💬
-          <NavBadge count={unreadChat} mobile />
-        </span>
-        <span style={{ fontSize: 9, fontWeight: 500, whiteSpace: "nowrap" }}>Chat</span>
-      </button>
-
-      {/* Azione: crea più task (spostata dal FAB secondario) */}
-      <button
-        onClick={onOpenBulk}
-        aria-label="Crea più task"
-        style={{
-          flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
-          justifyContent: "center", gap: 3, padding: "6px 2px",
-          background: "transparent", border: "none", cursor: "pointer",
-          color: "var(--navy)", borderTop: "2px solid transparent",
-          transition: "color 0.2s", position: "relative",
-        }}
-      >
-        <span style={{ fontSize: 19, lineHeight: 1 }}>📑</span>
-        <span style={{ fontSize: 9, fontWeight: 600, whiteSpace: "nowrap" }}>Più task</span>
-      </button>
-    </nav>
-  );
-});
-
-// BulkTaskCreator cluster → src/components/modals/BulkTaskCreator.jsx (Step P Phase 2f)
-//   include: ManualTab, DuplicateTab, ImportTab, TemplateTab, BulkTaskCreator
-//   (+ stili helper bulkInputStyle/bulkBtnPrimary/bulkBtnGhost/bulkIconBtnSmall)
-
-// AIDayPlanner → src/components/modals/AIDayPlanner.jsx (Step P Phase 2f)
-
-// NoticeBoard (+ noticeBtnStyle) → src/components/dashboard/NoticeBoard.jsx (Step P Phase 2f)
-
-// NoticeEditorModal → src/components/modals/NoticeEditorModal.jsx (Step P Phase 2f)
-
-// Dashboard (+ queues PersonalQueue/UnassignedQueue/UrgentOthersQueue/OverdueQueue, QueueTab) → src/components/dashboard/Dashboard.jsx (Step P Phase 2f)
-
-// ─── QUICK ADD TASK FORM ───────────────────────────────────────────────────
-// QuickAddTask → src/components/modals/QuickAddTask.jsx (Step P Phase 2f)
-
-// ─── TASK DETAIL SLIDE-OVER ────────────────────────────────────────────────
-// TaskSlideOver → src/components/tasks/TaskSlideOver.jsx (Step P Phase 2f)
-
-// CalendarPlanner (+ iCal export helpers) → src/components/calendar/CalendarPlanner.jsx (Step P Phase 2f)
-
-// ─── CHAT: MOCK DATA ───────────────────────────────────────────────────────
-// CURRENT_USER è dichiarato in cima al file (sezione MOCK DATA)
-// ChatContext spostato in src/components/chat/ChatPanel.jsx (Step P Phase 2f)

@@ -3,7 +3,7 @@
 // (props keyword / onKeyword), i filtri avanzati restano locali al pannello.
 // Cerca su due domini distinti — task e liste viaggio — perché per l'utente
 // "cerca Bianchi" è una domanda sola, anche se sotto sono due tabelle.
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { SwipeActions } from "../SwipeActions.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
@@ -15,67 +15,7 @@ import { useAppData } from "../../state/AppDataContext.jsx";
 import { listeRicercabili, beneficiariNomi, intestazioneLista } from "../liste/listeModuleApi.js";
 import { matchTermini, terminiRicerca } from "../../lib/searchUtils.js";
 import { Z } from "../../styles/tokens.js";
-
-// Menù a tendina multi-selezione (Categoria/Status/Agente nel pannello Ricerca).
-// Sostituisce i chip toggle: trigger compatto + pannello a scomparsa con checkbox.
-const FilterDropdown = ({ options, selected, onToggle }) => {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  const count = selected.length;
-
-  return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-          width: "100%", padding: "7px 10px", borderRadius: 6,
-          border: `1px solid ${count ? "var(--gold)" : "var(--border)"}`,
-          background: "#fff", fontSize: 12, fontWeight: 600, color: "var(--text)",
-          cursor: "pointer", fontFamily: "inherit", boxSizing: "border-box",
-        }}
-      >
-        <span>{count ? `${count} selezionat${count === 1 ? "a" : "e"}` : "Tutte"}</span>
-        <span style={{ fontSize: 10, color: "var(--text-muted)", transform: open ? "rotate(180deg)" : "none" }}>▾</span>
-      </button>
-      {open && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, minWidth: 200,
-          maxHeight: 240, overflowY: "auto", background: "#fff",
-          border: "1px solid var(--border)", borderRadius: 8,
-          boxShadow: "0 12px 30px rgba(0,0,0,0.15)", zIndex: Z.panelRaised, padding: 6,
-        }}>
-          {options.map(opt => {
-            const active = selected.includes(opt.value);
-            return (
-              <label
-                key={opt.value}
-                style={{
-                  display: "flex", alignItems: "center", gap: 8, padding: "6px 8px",
-                  borderRadius: 6, cursor: "pointer", fontSize: 12,
-                  background: active ? "var(--surface2)" : "transparent",
-                }}
-              >
-                <input type="checkbox" checked={active} onChange={() => onToggle(opt.value)} />
-                {opt.icon}
-                {opt.label}
-              </label>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-};
+import { FilterDropdown } from "./FilterDropdown.jsx";
 
 // Esportato per i test: la ricerca globale è l'unico punto che cerca insieme
 // task e liste viaggio, ed è quello dove le due ricerche devono coincidere.
@@ -399,7 +339,7 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
                     display: "flex", alignItems: "center", justifyContent: "center",
                     fontSize: 14, flexShrink: 0,
                   }}>{cat.icon}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="vd-flex-1-min0">
                     <div style={{
                       fontSize: 13, fontWeight: 600, color: "var(--text)",
                       whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
@@ -466,7 +406,7 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontSize: 14, flexShrink: 0,
                 }}>🧾</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="vd-flex-1-min0">
                   <div style={{
                     fontSize: 13, fontWeight: 600, color: "var(--text)",
                     whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",

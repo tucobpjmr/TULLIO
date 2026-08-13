@@ -3,7 +3,7 @@
 // Le policy RLS sul DB filtrano automaticamente i risultati per utente loggato.
 import { supabase } from './supabase';
 import { getClientId } from './clientId';
-import { fetchAllRows, WITH_COUNT } from './pagination.js';
+import { fetchAllRows, fetchRowsUpTo, WITH_COUNT } from './pagination.js';
 
 // Step L: allega l'origin client a ogni payload di mutation sulle tabelle
 // live. I subscriber realtime usano questo tag per scartare gli eventi che
@@ -426,10 +426,26 @@ export const Messages = {
   // Poi si reinverte per ripristinare l'ordine cronologico atteso dai
   // consumer (msgsByConv in VoyageDesk.jsx costruisce gli array assumendo
   // ordine ascendente).
+  //
+  // B-2 dell'audit del 13 agosto: `.limit(2000)` dichiara un tetto oltre
+  // `db-max-rows` (1000 di default su Supabase, vedi lib/pagination.js), che
+  // PostgREST applica troncando la risposta a 1000 righe con HTTP 200 — SENZA
+  // errore. Il limite dichiarato non era mai stato davvero consegnato oltre
+  // le prime 1000 righe. `fetchRowsUpTo` pagina con `.range()` in blocchi da
+  // `PAGE_SIZE` (1000, lo stesso cap) finché non raggiunge `limit` o il
+  // database finisce le righe: con `limit` di default (2000) sono due
+  // richieste invece di una, ma è la differenza fra "i 2000 messaggi più
+  // recenti" dichiarati e "i 1000 più recenti, in silenzio".
+  // `.order('id')` come spareggio: fetchRowsUpTo pagina con `.range()`, che
+  // richiede una chiave d'ordinamento deterministica (vedi pagination.js) —
+  // senza, due messaggi con lo stesso `created_at` (stesso millisecondo, non
+  // impossibile con più mittenti) potrebbero ripetersi o saltare fra due pagine.
   listAll: async (limit = 2000) => {
-    const { data, error } = await supabase.from('messages').select('*')
-      .order('created_at', { ascending: false })
-      .limit(limit);
+    const { data, error } = await fetchRowsUpTo(
+      () => supabase.from('messages').select('*')
+        .order('created_at', { ascending: false }).order('id', { ascending: false }),
+      limit
+    );
     return { data: data ? [...data].reverse() : data, error };
   },
   send: (m) =>

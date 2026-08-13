@@ -162,7 +162,7 @@ export const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply,
                 borderRadius: 8, display: "flex", alignItems: "center",
                 justifyContent: "center", fontSize: 20, flexShrink: 0,
               }}>{fileIcons[msg.fileType] || fileIcons.default}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="vd-flex-1-min0">
                 <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{msg.fileName}</div>
                 <div style={{ fontSize: 11, opacity: 0.7 }}>{formatFileSize(msg.fileSize)}</div>
               </div>

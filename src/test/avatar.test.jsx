@@ -16,7 +16,7 @@ vi.mock("../lib/api.js", () => ({
   Users: { getAvatarUrl: (...a) => getAvatarUrl(...a) },
 }));
 
-const { AvatarImg } = await import("../components/ui/Avatar.jsx");
+const { AvatarImg } = await import("../components/ui/AvatarImg.jsx");
 
 beforeEach(() => {
   getAvatarUrl.mockReset();

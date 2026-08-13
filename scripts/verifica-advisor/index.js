@@ -46,6 +46,13 @@ async function main() {
   if (!token) {
     console.log('⚠  SUPABASE_ACCESS_TOKEN non configurato: controllo advisor saltato.');
     console.log('   Vedi il commento in cima a questo file per come crearlo.');
+    // Annotazione GitHub (A-2, audit del 12 agosto): compare in cima al run e
+    // nel riepilogo della PR. Senza, "saltato" e "passato" hanno lo stesso
+    // aspetto nell'interfaccia — ed è così che questo controllo è rimasto
+    // inerte per giorni dopo essere stato aggiunto, senza che nessuno se ne
+    // accorgesse: l'exit 0 silenzioso restava indistinguibile da un successo.
+    console.log('::warning title=Advisor non verificati::' +
+      'SUPABASE_ACCESS_TOKEN assente: gli advisor Supabase non sono stati controllati.');
     process.exit(0);
   }
 

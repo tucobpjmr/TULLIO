@@ -76,7 +76,8 @@ vi.mock("../components/liste/listeApi.js", async (importOriginal) => {
 });
 
 const { ListeAPI } = await import("../components/liste/listeApi.js");
-const { ListeViaggio, filtraListe } = await import("../components/liste/ListeViaggio.jsx");
+const { ListeViaggio } = await import("../components/liste/ListeViaggio.jsx");
+const { filtraListe } = await import("../components/liste/listeOrdinamento.js");
 
 const TEAM = [{ id: "marco", name: "Marco", role: "admin", active: true, pending: false }];
 

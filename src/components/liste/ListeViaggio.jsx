@@ -15,13 +15,10 @@ import { useViewport } from "../Viewport.jsx";
 import { useListeData } from "./useListeData.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useClients } from "../../state/ClientsContext.jsx";
-import {
-  ListeAPI, beneficiariNomi, downloadBlob, eur, fmtDate, intestazioneLista,
-  saldoClass, todayISO,
-} from "./listeApi.js";
+import { ListeAPI, downloadBlob, todayISO } from "./listeApi.js";
 import { useListeWrite } from "./listePersistence.js";
 import { overlayIniziale, overlayReducer } from "./listeReducers.js";
-import { matchTermini, terminiRicerca } from "../../lib/searchUtils.js";
+import { terminiRicerca } from "../../lib/searchUtils.js";
 import { ListeStyles } from "./listeStyles.jsx";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import { ListaDetail } from "./ListaDetail.jsx";
@@ -29,116 +26,14 @@ import { ImportaBackupConfirmModal } from "./modals/ImportaBackupConfirmModal.js
 import { NuovaListaModal } from "./modals/NuovaListaModal.jsx";
 import { ResetTotaleModal } from "./modals/ResetTotaleModal.jsx";
 import { StrumentiDatiModal } from "./modals/StrumentiDatiModal.jsx";
+// Filtro, insiemi e ordinamento della home + la riga dell'elenco: estratti da
+// questo file in A-4 (audit del 12 agosto), quando aveva raggiunto 495/500
+// righe. Pure funzioni e un componente senza stato proprio — nessun
+// consumatore oltre a questo modulo e ai test che li esercitano direttamente.
+import { FILTRI, FILTRI_ALTROVE, filtraListe, ORDINAMENTI, ordinaListe } from "./listeOrdinamento.js";
+import { ListaRow } from "./ListaRow.jsx";
 
 const HOME_PAGE_SIZE = 10;
-
-// Etichette dei quattro insiemi dell'elenco. Servono anche fuori dal menu a
-// tendina: quando la ricerca trova risultati in un insieme che il filtro
-// corrente esclude, il nome dell'insieme va detto all'utente.
-const FILTRI = {
-  attive: "Attive",
-  esaurite: "Esaurite",
-  tutte: "Tutte",
-  cestino: "Cestino",
-};
-
-// Insiemi che il filtro attivo NON copre. Cercando fra le "Attive" una lista
-// esaurita, l'elenco resta vuoto pur esistendo la lista: senza questa mappa
-// non c'è modo di dirlo, e l'utente conclude che la lista sia sparita (o che
-// la ricerca sia rotta). "Tutte" contiene attive ed esaurite ma non il
-// cestino, che è archiviato a parte.
-const FILTRI_ALTROVE = {
-  attive: ["esaurite", "cestino"],
-  esaurite: ["attive", "cestino"],
-  tutte: ["cestino"],
-  cestino: ["tutte"],
-};
-
-// Filtro testuale dell'elenco: titolare, titolo e cointestatari, con la
-// normalizzazione condivisa con l'anagrafica (vedi lib/searchUtils.js — la
-// ricerca ignora accenti, apostrofi e ordine delle parole). Esportata per i
-// test: è la funzione che decide se una lista si trova o no.
-export function filtraListe(liste, search) {
-  const termini = terminiRicerca(search);
-  if (!termini.length) return liste;
-  return liste.filter((l) => matchTermini(termini, l.clients?.name, l.titolo, beneficiariNomi(l)));
-}
-
-// Criteri di ordinamento della home. 'recenti' è l'ordine in cui il database
-// restituisce le liste (updated_at DESC): ordinare qui, sul client, evita di
-// rifare la query a ogni cambio di criterio.
-const ORDINAMENTI = {
-  recenti: "Ultima modifica",
-  mov_recente: "Movimento più recente",
-  mov_vecchio: "Movimento più vecchio",
-  nome: "Cliente A–Z",
-  saldo: "Saldo più alto",
-};
-
-// Le liste senza movimenti non hanno una data: vanno in fondo in entrambi i
-// versi, altrimenti ordinando dal più vecchio occuperebbero le prime righe.
-const cmpData = (a, b, verso) => {
-  if (!a && !b) return 0;
-  if (!a) return 1;
-  if (!b) return -1;
-  return a === b ? 0 : (a < b ? -verso : verso);
-};
-
-export function ordinaListe(liste, saldi, sort) {
-  const nome = (l) => l.clients?.name || "";
-  const mov = (l) => saldi[l.id]?.ultimo_movimento || "";
-  const saldo = (l) => Number(saldi[l.id]?.saldo || 0);
-  const perNome = (a, b) => nome(a).localeCompare(nome(b), "it");
-  const arr = liste.slice(); // mai riordinare l'array in state
-  switch (sort) {
-    case "mov_recente": return arr.sort((a, b) => cmpData(mov(a), mov(b), -1) || perNome(a, b));
-    case "mov_vecchio": return arr.sort((a, b) => cmpData(mov(a), mov(b), 1) || perNome(a, b));
-    case "nome": return arr.sort(perNome);
-    case "saldo": return arr.sort((a, b) => saldo(b) - saldo(a) || perNome(a, b));
-    default: return arr; // 'recenti': ordine del database
-  }
-}
-
-// Riga della home: cliente, titolo, numero movimenti, stato e saldo.
-export function ListaRow({ lista, saldo, onOpen, trashed = false, children }) {
-  const s = saldo || { saldo: 0, num_movimenti: 0 };
-  // Nel cestino conta da quanto la lista è archiviata, non il dettaglio dei
-  // movimenti: la vista `liste_saldi` esclude comunque le liste archiviate,
-  // quindi lì num_movimenti/ultimo_movimento sarebbero sempre a zero.
-  const sub = trashed
-    ? `${lista.titolo ? `${lista.titolo} · ` : ""}nel cestino dal ${fmtDate((lista.deleted_at || "").slice(0, 10))}`
-    : [
-      lista.titolo,
-      `${s.num_movimenti} movimenti`,
-      s.ultimo_movimento ? `ultimo ${fmtDate(s.ultimo_movimento)}` : null,
-    ].filter(Boolean).join(" · ");
-
-  const content = (
-    <>
-      <div className="who">
-        <b>{intestazioneLista(lista) || "—"}</b>
-        <span>{sub}</span>
-      </div>
-      {!trashed && <span className={`lv-badge ${lista.stato}`}>{lista.stato}</span>}
-      {/* Nel cestino il saldo non si mostra: `liste_saldi` filtra le liste
-          archiviate, quindi il valore sarebbe uno 0,00 € fuorviante e non il
-          saldo reale della lista (la SPA sorgente lo mostrava comunque). */}
-      {!trashed && (
-        <span className={`lv-saldo lv-num ${saldoClass(Number(s.saldo))}`}>{eur(s.saldo)}</span>
-      )}
-      {children}
-    </>
-  );
-
-  // Nel cestino la riga non è cliccabile (porta i propri bottoni): resta un
-  // div, così i bottoni interni non finiscono annidati dentro un <button>.
-  if (!onOpen) {
-    return <div className="lv-lista-row" style={{ cursor: "default" }}>{content}</div>;
-  }
-  return (
-    <button type="button" className="lv-lista-row" onClick={onOpen}>{content}</button>
-  );
-}
 
 // ─── Modulo ────────────────────────────────────────────────────────────────
 // `memo` + lettura dal contesto: vedi state/TasksContext.jsx. Il modulo non

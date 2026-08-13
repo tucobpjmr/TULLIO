@@ -239,10 +239,33 @@ const purgeTasks = async (ids) => {
 };
 
 export const Tasks = {
+  // Paginata (C-1). Era la terza lettura "che deve arrivare intera" rimasta su
+  // una select nuda, dopo `clients` (ST-3) e le due tabelle figlie qui sotto.
+  // 276 righe oggi, cestino incluso: sotto il cap `db-max-rows`, ma è la
+  // tabella che alimenta OGNI vista dell'app — quando lo supererà, le task in
+  // fondo all'ordinamento smetteranno semplicemente di esistere per il client,
+  // senza che `error` dica nulla.
+  //
+  // `count: 'exact'` era il motivo per cui questa correzione era rimasta
+  // indietro: il commento in fondo a questo file la dichiarava «il prossimo
+  // candidato» ma con «un costo per richiesta che va misurato prima», perché a
+  // differenza di `clients` la select porta con sé commenti e cronologia
+  // annidati. Misurato il 12 agosto 2026 sul database di produzione: il count
+  // esatto è un aggregato sulla sola tabella di PRIMO livello (le risorse
+  // annidate non entrano nel conteggio), quindi `select count(*) from tasks` —
+  // 11 ms comprensivi di pianificazione, contro un `statement_timeout` di 8 s.
+  //
+  // `.order('id')` come seconda chiave: `due_date` è nullable e non è unica,
+  // e senza un ordinamento deterministico due pagine consecutive possono
+  // ripetere o saltare una riga (stessa ragione del `.order('name').order('id')`
+  // su Clients.list).
   list: ({ includeDeleted = false, withComments = false } = {}) => {
     const select = withComments ? TASK_SELECT_WITH_COMMENTS : '*';
-    const q = supabase.from('tasks').select(select).order('due_date', { ascending: true });
-    return includeDeleted ? q : q.is('deleted_at', null);
+    return fetchAllRows(() => {
+      const q = supabase.from('tasks').select(select, WITH_COUNT)
+        .order('due_date', { ascending: true }).order('id');
+      return includeDeleted ? q : q.is('deleted_at', null);
+    });
   },
   get: (id) =>
     supabase.from('tasks').select('*').eq('id', id).single(),
@@ -286,15 +309,47 @@ export const Tasks = {
 // solo il thread che è cambiato. La select rispecchia i due rami annidati di
 // TASK_SELECT_WITH_COMMENTS, così i mapper fromDbComment/fromDbHistory
 // ricevono la stessa forma di riga in entrambi i percorsi.
+//
+// ─── PERCHÉ SONO PAGINATE (C-1) ────────────────────────────────────────────
+// Sono le uniche due letture dell'app su tabelle che CRESCONO E NON SI POTANO
+// MAI: `task_history` guadagna una riga per ogni cambio di stato, priorità,
+// scadenza, assegnatario o cestinamento di un task. Misurata il 12 agosto 2026
+// in produzione: 621 righe, ~14,8 al giorno dal 1° luglio — cioè ~26 giorni dal
+// cap `db-max-rows`, che PostgREST applica rispondendo 200 senza errore.
+//
+// Il difetto che si sarebbe manifestato non è "mancano dei dati", ed è la
+// ragione per cui vale la pena descriverlo qui invece di fidarsi del solo
+// `fetchAllRows`:
+//
+//   1. l'idratazione completa passa da TASK_SELECT_WITH_COMMENTS, dove i due
+//      thread sono risorse ANNIDATE e il cap del primo livello non li tocca:
+//      dopo un reload la cronologia è giusta;
+//   2. ma al primo evento realtime su `comments`/`task_history`,
+//      useAppHydration prende la strada `soloThread` e rilegge queste due
+//      tabelle PIATTE, dove il cap morde;
+//   3. `SET_TASK_THREADS` traduce una riga assente in `[]` (reducer.js), non in
+//      "invariato": i task oltre la soglia perdono il thread;
+//   4. l'ordine è `created_at` ASCENDENTE, quindi a cadere sono le righe più
+//      RECENTI — quelle che si stanno guardando.
+//
+// Cioè: la cronologia sparisce quando un collega commenta e ricompare
+// premendo F5. Intermittente e auto-guarente, che è il modo migliore per
+// essere attribuito alla rete per settimane.
+//
+// `.order('id')` come seconda chiave: `created_at` NON è unico — il trigger
+// log_task_history() inserisce più righe nella stessa transazione (stato e
+// priorità cambiati insieme hanno lo stesso timestamp), e senza una chiave
+// unica di spareggio due pagine consecutive possono ripetere o saltare una
+// riga. È il caso che si manifesta solo oltre il cap, cioè dove nessuno guarda.
 export const TaskThreads = {
   comments: () =>
-    supabase.from('comments')
-      .select('id, task_id, user_id, text, created_at, users(name)')
-      .order('created_at'),
+    fetchAllRows(() => supabase.from('comments')
+      .select('id, task_id, user_id, text, created_at, users(name)', WITH_COUNT)
+      .order('created_at').order('id')),
   history: () =>
-    supabase.from('task_history')
-      .select('id, task_id, actor_id, action, old_value, new_value, created_at, users(name)')
-      .order('created_at'),
+    fetchAllRows(() => supabase.from('task_history')
+      .select('id, task_id, actor_id, action, old_value, new_value, created_at, users(name)', WITH_COUNT)
+      .order('created_at').order('id')),
 };
 
 // ----------------- COMMENTS -----------------
@@ -640,10 +695,12 @@ export const Clients = {
   // legittime — cliente e cointestatario con lo stesso nome). Senza la seconda
   // chiave, due pagine consecutive potrebbero ripetere o saltare una riga.
   //
-  // Il prossimo candidato alla stessa correzione è `Tasks.list` (256 righe
-  // oggi, cestino incluso): non è qui perché porta commenti e cronologia
-  // annidati, dove `count: 'exact'` ha un costo per richiesta che va misurato
-  // prima — mentre su clients la select è piatta.
+  // Non è più l'unica: dal 12 agosto (C-1) passano da `fetchAllRows` anche
+  // `Tasks.list` e le due tabelle figlie `TaskThreads.comments/history`. Il
+  // costo di `count: 'exact'` sulla select annidata dei task — l'unica ragione
+  // per cui la correzione era rimasta indietro — è stato misurato: 11 ms, vedi
+  // il commento su Tasks.list. Con quelle tre, ogni lettura del data layer che
+  // deve arrivare INTERA è paginata.
   list: () =>
     fetchAllRows(() => supabase.from('clients')
       .select('*', WITH_COUNT).order('name').order('id')),

@@ -10,6 +10,22 @@ import { chiaveNome } from "../../lib/clientNotes.js";
 import { EMPTY_FORM, fieldStyle, labelStyle, noticeStyle } from "./clientStyles.js";
 import { Modal } from "../ui/Modal.jsx";
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowCenterBetween = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 };
+const txtF20Heading = { fontSize: 20, color: "var(--heading)" };
+const boxF20Muted = { background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text-muted)" };
+const txtBoldMb4 = { fontWeight: 700, marginBottom: 4 };
+const rowStartGap7 = { display: "flex", alignItems: "flex-start", gap: 7, marginTop: 8, cursor: "pointer", fontWeight: 600 };
+const mt2 = { marginTop: 2, cursor: "pointer" };
+const grid2ColGap14 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 };
+const gridColumn2 = { gridColumn: "1 / -1" };
+const rowGap10Mt20 = { display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 };
+const boxF14Muted = {
+  padding: "9px 20px", borderRadius: 8, border: "1px solid var(--border)",
+  background: "var(--card)", cursor: "pointer", fontSize: 14, color: "var(--text-muted)",
+};
+
 // Criticità #10 — l'email è opzionale, il nome no. Prima il form NON diceva
 // nulla di nessuno dei due: `if (!form.name.trim()) return;` usciva in
 // silenzio, e l'unico segnale era il bottone disabilitato — che a form
@@ -82,16 +98,16 @@ export function ClienteModal({ cliente, onSave, onClose, liste = null, tasksColl
         boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <h2 id="vd-cliente-title" className="playfair" style={{ fontSize: 20, color: "var(--heading)" }}>
+      <div style={rowCenterBetween}>
+        <h2 id="vd-cliente-title" className="playfair" style={txtF20Heading}>
           {cliente ? "Modifica Cliente" : "Nuovo Cliente"}
         </h2>
-        <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text-muted)" }}>✕</button>
+        <button onClick={onClose} style={boxF20Muted}>✕</button>
       </div>
       <form onSubmit={handleSubmit}>
         {cliente && (nListe > 0 || nTask > 0) && (
           <div style={{ ...noticeStyle, marginBottom: 14, background: nomeCambiato ? "#FEF3C7" : "var(--surface2)", borderColor: nomeCambiato ? "rgba(200,131,42,0.35)" : "var(--border)" }}>
-            <div style={{ fontWeight: 700, marginBottom: 4 }}>
+            <div style={txtBoldMb4}>
               {nomeCambiato ? "⚠️ Stai cambiando un nome condiviso" : "Questa scheda è collegata"}
             </div>
             {nListe > 0 && (
@@ -108,15 +124,15 @@ export function ClienteModal({ cliente, onSave, onClose, liste = null, tasksColl
               </div>
             )}
             {nomeCambiato && nTask > 0 && (
-              <label style={{ display: "flex", alignItems: "flex-start", gap: 7, marginTop: 8, cursor: "pointer", fontWeight: 600 }}>
-                <input type="checkbox" checked={renameTasks} onChange={e => setRenameTasks(e.target.checked)} style={{ marginTop: 2, cursor: "pointer" }} />
+              <label style={rowStartGap7}>
+                <input type="checkbox" checked={renameTasks} onChange={e => setRenameTasks(e.target.checked)} style={mt2} />
                 <span>Aggiorna anche {nTask === 1 ? "il task collegato" : `i ${nTask} task collegati`}</span>
               </label>
             )}
           </div>
         )}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-          <div style={{ gridColumn: "1 / -1" }}>
+        <div style={grid2ColGap14}>
+          <div style={gridColumn2}>
             <label style={labelStyle} htmlFor="cli-name">Nome *</label>
             <input
               id="cli-name" ref={nameRef} style={fieldStyle} value={form.name}
@@ -154,16 +170,13 @@ export function ClienteModal({ cliente, onSave, onClose, liste = null, tasksColl
             <label style={labelStyle}>Città</label>
             <input style={fieldStyle} value={form.city} onChange={e => set("city", e.target.value)} placeholder="Città" />
           </div>
-          <div style={{ gridColumn: "1 / -1" }}>
+          <div style={gridColumn2}>
             <label style={labelStyle}>Note</label>
             <textarea style={{ ...fieldStyle, minHeight: 72, resize: "vertical" }} value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Preferenze, note speciali..." />
           </div>
         </div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
-          <button type="button" onClick={onClose} style={{
-            padding: "9px 20px", borderRadius: 8, border: "1px solid var(--border)",
-            background: "var(--card)", cursor: "pointer", fontSize: 14, color: "var(--text-muted)",
-          }}>Annulla</button>
+        <div style={rowGap10Mt20}>
+          <button type="button" onClick={onClose} style={boxF14Muted}>Annulla</button>
           {/* Criticità #10: il bottone NON è più disabilitato dal nome
               mancante. Un bottone spento non dice cosa manca — e a form
               appena aperto si legge come un'app rotta; premuto, ora il form

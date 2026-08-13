@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { LvOverlay } from "./LvOverlay.jsx";
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const txtF12LvMuted = { fontSize: 12, color: "var(--lv-muted)", marginTop: 4 };
+
 // ─── Aggiungi cointestatario ────────────────────────────────────────────────
 // Come NuovaListaModal per il cliente: uno esistente dall'anagrafica o un nome
 // nuovo (creato contestualmente, stessa RPC-in-una-transazione di crea_lista).
@@ -41,7 +45,7 @@ export function AggiungiBeneficiarioModal({ clients, onCreate, onClose }) {
           <input id="ab-newname" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Es. BIANCHI MARIA" />
         </div>
       )}
-      <p style={{ fontSize: 12, color: "var(--lv-muted)", marginTop: 4 }}>
+      <p style={txtF12LvMuted}>
         Il cointestatario ha una propria scheda in anagrafica: comparirà anche
         nella sua scheda cliente, con questa lista e il saldo condiviso.
       </p>

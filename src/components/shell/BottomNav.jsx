@@ -8,6 +8,27 @@ import { useAppData } from "../../state/AppDataContext.jsx";
 import { getNavItemsForRole, getNavBadges } from "./navHelpers.js";
 import { NavBadge } from "./NavBadge.jsx";
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const txtRelativeF19 = { fontSize: 19, lineHeight: 1, position: "relative" };
+const colCenterMiddle = {
+  flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
+  justifyContent: "center", gap: 3, padding: "6px 2px",
+  background: "transparent", border: "none", cursor: "pointer",
+  color: "rgba(15,32,68,0.75)", borderTop: "2px solid transparent",
+  transition: "color 0.2s", position: "relative",
+};
+const txtF9 = { fontSize: 9, fontWeight: 500, whiteSpace: "nowrap" };
+const colCenterMiddle2 = {
+  flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
+  justifyContent: "center", gap: 3, padding: "6px 2px",
+  background: "transparent", border: "none", cursor: "pointer",
+  color: "var(--navy)", borderTop: "2px solid transparent",
+  transition: "color 0.2s", position: "relative",
+};
+const txtF19 = { fontSize: 19, lineHeight: 1 };
+const txtF9Bold = { fontSize: 9, fontWeight: 600, whiteSpace: "nowrap" };
+
 export const BottomNav = memo(function BottomNav({ activeView, dispatch, onOpenBulk, onOpenChat, unreadChat = 0 }) {
   const { team, getRoleType, currentUserId } = useAppData();
   const navItems = getNavItemsForRole(getRoleType(currentUserId));
@@ -32,7 +53,7 @@ export const BottomNav = memo(function BottomNav({ activeView, dispatch, onOpenB
               transition: "color 0.2s", position: "relative",
             }}
           >
-            <span style={{ fontSize: 19, lineHeight: 1, position: "relative" }}>
+            <span style={txtRelativeF19}>
               {item.icon}
               <NavBadge count={badge} mobile />
             </span>
@@ -47,35 +68,23 @@ export const BottomNav = memo(function BottomNav({ activeView, dispatch, onOpenB
       <button
         onClick={onOpenChat}
         aria-label="Messaggi team"
-        style={{
-          flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
-          justifyContent: "center", gap: 3, padding: "6px 2px",
-          background: "transparent", border: "none", cursor: "pointer",
-          color: "rgba(15,32,68,0.75)", borderTop: "2px solid transparent",
-          transition: "color 0.2s", position: "relative",
-        }}
+        style={colCenterMiddle}
       >
-        <span style={{ fontSize: 19, lineHeight: 1, position: "relative" }}>
+        <span style={txtRelativeF19}>
           💬
           <NavBadge count={unreadChat} mobile />
         </span>
-        <span style={{ fontSize: 9, fontWeight: 500, whiteSpace: "nowrap" }}>Chat</span>
+        <span style={txtF9}>Chat</span>
       </button>
 
       {/* Azione: crea più task (spostata dal FAB secondario) */}
       <button
         onClick={onOpenBulk}
         aria-label="Crea più task"
-        style={{
-          flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
-          justifyContent: "center", gap: 3, padding: "6px 2px",
-          background: "transparent", border: "none", cursor: "pointer",
-          color: "var(--navy)", borderTop: "2px solid transparent",
-          transition: "color 0.2s", position: "relative",
-        }}
+        style={colCenterMiddle2}
       >
-        <span style={{ fontSize: 19, lineHeight: 1 }}>📑</span>
-        <span style={{ fontSize: 9, fontWeight: 600, whiteSpace: "nowrap" }}>Più task</span>
+        <span style={txtF19}>📑</span>
+        <span style={txtF9Bold}>Più task</span>
       </button>
     </nav>
   );

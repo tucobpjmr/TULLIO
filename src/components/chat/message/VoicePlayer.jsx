@@ -4,6 +4,11 @@ import { useState, useEffect, useRef } from "react";
 import { Messages as MessagesAPI } from "../../../lib/api.js";
 import { formatDuration } from "../chatFormat.js";
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowCenterGap10 = { display: "flex", alignItems: "center", gap: 10, minWidth: 200 };
+const rowCenterFlex1 = { display: "flex", alignItems: "center", gap: 2, flex: 1, height: 28 };
+
 // simulati senza audio) si ricade sulla progressione finta a timer.
 export const VoicePlayer = ({ duration, waveform, isMine, fileUrl }) => {
   const [playing, setPlaying] = useState(false);
@@ -58,7 +63,7 @@ export const VoicePlayer = ({ duration, waveform, isMine, fileUrl }) => {
   const onToggle = hasRealAudio ? toggleReal : () => setPlaying(p => !p);
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 200 }}>
+    <div style={rowCenterGap10}>
       <button onClick={onToggle} disabled={loadingAudio} style={{
         width: 32, height: 32, borderRadius: "50%",
         background: isMine ? "rgba(255,255,255,0.2)" : "var(--gold)",
@@ -68,7 +73,7 @@ export const VoicePlayer = ({ duration, waveform, isMine, fileUrl }) => {
         flexShrink: 0,
       }}>{loadingAudio ? "…" : playing ? "⏸" : "▶"}</button>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 2, flex: 1, height: 28 }}>
+      <div style={rowCenterFlex1}>
         {waveform.map((h, i) => {
           const barProgress = (i / waveform.length) * 100;
           const filled = barProgress <= progress;

@@ -18,6 +18,13 @@ import { AddMovBox } from "./AddMovBox.jsx";
 import { CellEditor } from "./CellEditor.jsx";
 import { NoteInterne } from "./NoteInterne.jsx";
 import { TitoloTestata } from "./TitoloTestata.jsx";
+import { flex1, mt12 } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const txtRight = { textAlign: "right" };
+const mt16 = { marginTop: 16 };
+const txtF11 = { fontSize: 11 };
 
 // `onReload` (== `reloadAll` di ListeViaggio) ricarica la home in modo
 // selettivo secondo `tabelle` (vedi useListeData — soloSaldi). Qui, dopo ogni
@@ -207,7 +214,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
         <button className="lv-btn" onClick={() => setRiepilogoOpen(true)}>Riepilogo cliente</button>
         <button className="lv-btn" onClick={copiaAgente}>Copia agente</button>
         <button className="lv-btn" onClick={toggleStato}>{attiva ? "Segna ESAURITA" : "Riapri lista"}</button>
-        <div style={{ flex: 1 }} />
+        <div style={flex1} />
         <button className="lv-btn danger sm" onClick={cestina}>🗑 Cestina</button>
       </div>
 
@@ -230,7 +237,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
                   <tr>
                     <th>Data</th>
                     <th>Descrizione</th>
-                    <th style={{ textAlign: "right" }}>Importo</th>
+                    <th style={txtRight}>Importo</th>
                     <th className="met">Metodo</th>
                     <th />
                   </tr>
@@ -280,7 +287,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
             {attiva && (
               <>
                 <br />
-                <button className="lv-btn primary" style={{ marginTop: 12 }} onClick={() => setAddOpen(true)}>
+                <button className="lv-btn primary" style={mt12} onClick={() => setAddOpen(true)}>
                   <span className="plus">＋</span> Registra il primo
                 </button>
               </>
@@ -291,7 +298,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
 
       <NoteInterne lista={lista} dispatch={dispatch} onSaved={() => onReload(TABELLE_LISTA)} />
 
-      <div className="lv-card" style={{ marginTop: 16 }}>
+      <div className="lv-card" style={mt16}>
         <details>
           <summary>Storico modifiche ({history.length})</summary>
           <ul className="lv-hist">
@@ -303,7 +310,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
                 {h.old_value && <><br /><s>{h.old_value}</s></>}
                 {h.new_value && <><br />{h.new_value}</>}
                 <br />
-                <span style={{ fontSize: 11 }}>{new Date(h.created_at).toLocaleString("it-IT")}</span>
+                <span style={txtF11}>{new Date(h.created_at).toLocaleString("it-IT")}</span>
               </li>
             ))}
           </ul>

@@ -11,6 +11,11 @@
 import { memo } from "react";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { catMeta } from "./taskCardShared.js";
+import { txtF11Muted } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const txtF13 = { fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
 
 export const TaskRow = memo(function TaskRow({
   task,
@@ -39,11 +44,11 @@ export const TaskRow = memo(function TaskRow({
     >
       <span style={{ fontSize: iconSize }}>{catMeta(categories, task.category).icon}</span>
       <div className="vd-flex-1-min0">
-        <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        <div style={txtF13}>
           {task.title}
         </div>
         {subtitle != null && (
-          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{subtitle}</div>
+          <div style={txtF11Muted}>{subtitle}</div>
         )}
       </div>
       {trailing}

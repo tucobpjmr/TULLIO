@@ -1,6 +1,26 @@
 // src/components/shell/AdminRollbackBanner.jsx
 import { useState, useEffect, useRef } from "react";
 import { useAppData } from "../../state/AppDataContext.jsx";
+import { rowGap8 } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowCenterBetween = {
+  background: "#C8832A", color: "#fff", fontSize: 13, fontWeight: 500,
+  padding: "6px 16px", display: "flex", alignItems: "center", gap: 10,
+  justifyContent: "space-between", flexWrap: "wrap",
+  boxShadow: "0 2px 8px rgba(200,131,42,0.35)",
+};
+const boxF12Bold = {
+  background: "rgba(255,255,255,0.25)", border: "1px solid rgba(255,255,255,0.5)",
+  color: "#fff", borderRadius: 6, padding: "3px 10px", cursor: "pointer",
+  fontSize: 12, fontWeight: 600,
+};
+const boxF12Bold2 = {
+  background: "#fff", border: "none",
+  color: "#C8832A", borderRadius: 6, padding: "3px 10px", cursor: "pointer",
+  fontSize: 12, fontWeight: 700,
+};
 
 // ─── ADMIN ROLLBACK BANNER ────────────────────────────────────────────────
 // Mostrato quando si passa come Admin: countdown 60s → auto-ripristino utente.
@@ -35,36 +55,23 @@ export function AdminRollbackBanner({ rollbackTo, switchedAt, dispatch }) {
   const rollbackMember = rollbackTo ? getMember(rollbackTo) : null;
 
   return (
-    <div style={{
-      background: "#C8832A", color: "#fff", fontSize: 13, fontWeight: 500,
-      padding: "6px 16px", display: "flex", alignItems: "center", gap: 10,
-      justifyContent: "space-between", flexWrap: "wrap",
-      boxShadow: "0 2px 8px rgba(200,131,42,0.35)",
-    }}>
+    <div style={rowCenterBetween}>
       <span>
         ⏱ Sessione Admin attiva — ripristino automatico
         {rollbackMember ? ` a ${rollbackMember.name}` : ""} tra{" "}
         <strong>{secs}s</strong>
       </span>
-      <div style={{ display: "flex", gap: 8 }}>
+      <div style={rowGap8}>
         <button
           onClick={() => dispatch({ type: "CANCEL_ADMIN_ROLLBACK" })}
-          style={{
-            background: "rgba(255,255,255,0.25)", border: "1px solid rgba(255,255,255,0.5)",
-            color: "#fff", borderRadius: 6, padding: "3px 10px", cursor: "pointer",
-            fontSize: 12, fontWeight: 600,
-          }}
+          style={boxF12Bold}
         >
           Rimani come Admin
         </button>
         {rollbackTo && (
           <button
             onClick={() => dispatch({ type: "SET_CURRENT_USER", payload: rollbackTo })}
-            style={{
-              background: "#fff", border: "none",
-              color: "#C8832A", borderRadius: 6, padding: "3px 10px", cursor: "pointer",
-              fontSize: 12, fontWeight: 700,
-            }}
+            style={boxF12Bold2}
           >
             Torna ora →
           </button>

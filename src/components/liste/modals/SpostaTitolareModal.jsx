@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { LvOverlay } from "./LvOverlay.jsx";
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const txtF13LvMuted = { fontSize: 13, color: "var(--lv-muted)", marginTop: -8, marginBottom: 12 };
+const txtF12LvMuted = { fontSize: 12, color: "var(--lv-muted)", marginTop: 4 };
+
 // ─── Sposta il titolare su un cliente diverso ──────────────────────────────
 // Chiude il cerchio dell'anagrafica: un "intestatario-evento" nato
 // dall'import dei documenti Word (es. "50° RICCARDO SCAMARCIO") può essere
@@ -26,7 +31,7 @@ export function SpostaTitolareModal({ clients, cointestatariIds, titolareAttuale
   return (
     <LvOverlay onClose={onClose}>
       <h2>Sposta su un altro cliente</h2>
-      <p style={{ fontSize: 13, color: "var(--lv-muted)", marginTop: -8, marginBottom: 12 }}>
+      <p style={txtF13LvMuted}>
         La lista di <b>{titolareAttuale}</b> passa a un altro cliente già in
         anagrafica. Nessuno dei due nomi cambia: cambia solo a chi è intestata
         questa lista.
@@ -39,7 +44,7 @@ export function SpostaTitolareModal({ clients, cointestatariIds, titolareAttuale
         </select>
       </div>
       {promuove && (
-        <p style={{ fontSize: 12, color: "var(--lv-muted)", marginTop: 4 }}>
+        <p style={txtF12LvMuted}>
           È già cointestatario di questa lista: diventando titolare verrà
           tolto dai cointestatari.
         </p>

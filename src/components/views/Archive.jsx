@@ -16,6 +16,17 @@ import { useAppData } from "../../state/AppDataContext.jsx";
 import { useTasks } from "../../state/TasksContext.jsx";
 import { PERIOD_OPTIONS, filterByPeriod, thStyle, chipStyle } from "./archiveFilters.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
+import {
+  btnDangerMini, btnGhostMini, btnNavyMini, card, cardVuota, cardVuotaAlta, cella, cellaAzioni,
+  cellaMuted, colGap10, rigaIntestazione, rowCenterGap82, rowGap4, rowGap6, rowGap62, tabella,
+  txtF11Bold, txtF12Muted, txtF13Muted, txtF14Bold, txtF16Bold, txtF36Mb12, txtF48Mb16,
+  txtMuted,
+} from "../../styles/common.js";
+import {
+  borderBottom2, boxF12Bold, boxF12Bold2, boxF13MinW0, mb20, padding2, padding3,
+  rowCenterBetween, rowCenterGap10, rowCenterGap6, rowCenterGap62, rowCenterGap8, rowGap3,
+  rowGap8Mt12, txtBoldHeading, txtBoldSuccess, txtF11Bold2, txtF13Muted2,
+} from "./archiveStyles.js";
 // La sezione "liste buoni viaggio" è del modulo Liste e viene montata per
 // composizione: questa vista non conosce il suo data layer. Chunk async per lo
 // stesso motivo di ClienteDetailPanel.jsx — porta con sé lib/listeApi.js.
@@ -94,13 +105,13 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
   return (
     <div className="vd-pad" style={{ padding: pad, maxWidth: 1200, margin: "0 auto", boxSizing: "border-box" }}>
       {/* Header */}
-      <div style={{ marginBottom: 20 }}>
+      <div style={mb20}>
         <div className="playfair" style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, color: "var(--heading)", marginBottom: 4 }}>
           📦 Archivio
         </div>
 
         {listeAllowed && (
-          <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+          <div style={rowGap8Mt12}>
             <button type="button" onClick={() => setTab("task")} style={tabStyle(tab === "task")}>📋 Task</button>
             <button type="button" onClick={() => setTab("liste")} style={tabStyle(tab === "liste")}>🧾 Liste buoni viaggio</button>
           </div>
@@ -109,7 +120,7 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
 
       {showTaskTab ? (
         <>
-          <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>
+          <div style={txtF13Muted2}>
             {caricando
               ? "Caricamento dell'archivio…"
               : archived.length === 0
@@ -122,16 +133,12 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
 
           {/* Filtri — solo se ci sono task */}
           {archived.length > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+            <div style={rowCenterGap8}>
               <input
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 placeholder="Cerca per titolo, cliente, pratica…"
-                style={{
-                  flex: "1 1 100%", minWidth: 0, padding: "8px 12px", borderRadius: 8,
-                  border: "1px solid var(--border)", fontSize: 13, fontFamily: "inherit",
-                  outline: "none", boxSizing: "border-box",
-                }}
+                style={boxF13MinW0}
                 onFocus={e => e.target.style.borderColor = "var(--gold)"}
                 onBlur={e => e.target.style.borderColor = "var(--border)"}
               />
@@ -146,8 +153,8 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
 
           {/* Filtro periodo (per data di completamento) — solo se ci sono task */}
           {archived.length > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>Completate:</span>
+            <div style={rowCenterGap82}>
+              <span style={txtF11Bold}>Completate:</span>
               {PERIOD_OPTIONS.map(opt => (
                 <button key={opt.key} type="button" onClick={() => setPeriod(opt.key)} style={chipStyle(period === opt.key)}>
                   {opt.label}
@@ -160,35 +167,24 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
           {caricando ? (
             <SkeletonCards count={4} label="Caricamento dell'archivio" />
           ) : archived.length === 0 ? (
-            <div style={{
-              background: "var(--card)", borderRadius: 12, padding: "60px 20px",
-              textAlign: "center", border: "1px solid var(--border)",
-            }}>
-              <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>📦</div>
-              <div style={{ fontSize: 16, fontWeight: 600, color: "var(--heading)", marginBottom: 6 }}>Archivio vuoto</div>
-              <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
+            <div style={cardVuotaAlta}>
+              <div style={txtF48Mb16}>📦</div>
+              <div style={txtF16Bold}>Archivio vuoto</div>
+              <div style={txtF13Muted}>
                 Le task completate verranno raccolte qui. Potrai riaprirle o spostarle nel cestino.
               </div>
             </div>
           ) : visible.length === 0 ? (
-            <div style={{
-              background: "var(--card)", borderRadius: 12, padding: "40px 20px",
-              textAlign: "center", border: "1px solid var(--border)",
-            }}>
-              <div style={{ fontSize: 36, marginBottom: 12, opacity: 0.3 }}>📭</div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--heading)", marginBottom: 4 }}>
+            <div style={cardVuota}>
+              <div style={txtF36Mb12}>📭</div>
+              <div style={txtF14Bold}>
                 Nessuna task per i filtri selezionati
               </div>
-              <button type="button" onClick={resetFilters} style={{
-                marginTop: 8, padding: "6px 14px", borderRadius: 8,
-                border: "1px solid var(--border)", background: "var(--card)",
-                color: "var(--text-muted)", fontSize: 12, fontWeight: 600,
-                cursor: "pointer", fontFamily: "inherit",
-              }}>Azzera filtri</button>
+              <button type="button" onClick={resetFilters} style={btnGhostMini}>Azzera filtri</button>
             </div>
           ) : isMobile ? (
             /* Mobile: card list — no horizontal overflow */
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={colGap10}>
               {visible.map(task => (
                 <TaskCard
                   key={task.id}
@@ -203,38 +199,30 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
                   /* I badge stanno SOTTO il titolo, non sopra: qui la card è una
                      riga d'archivio, il titolo è l'informazione principale. */
                   subheader={
-                    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                    <div style={rowCenterGap6}>
                       <PriorityBadge priority={task.priority} />
                       <CategoryChip category={task.category} />
-                      <span style={{ fontSize: 11, color: "var(--success)", fontWeight: 600 }}>✓ Completata</span>
+                      <span style={txtF11Bold2}>✓ Completata</span>
                     </div>
                   }
                   footer={
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                    <div style={rowCenterBetween}>
+                      <div style={rowCenterGap10}>
                         {task.client && (
-                          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{task.client}</span>
+                          <span style={txtF12Muted}>{task.client}</span>
                         )}
                         {task.completedAt && (
-                          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{formatDate(task.completedAt)}</span>
+                          <span style={txtF12Muted}>{formatDate(task.completedAt)}</span>
                         )}
                         {task.assignees?.length > 0 && (
-                          <div style={{ display: "flex", gap: 3 }}>
+                          <div style={rowGap3}>
                             {task.assignees.map(id => <Avatar key={id} memberId={id} size={20} />)}
                           </div>
                         )}
                       </div>
-                      <div style={{ display: "flex", gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-                        <button onClick={() => handleReopen(task)} style={{
-                          background: "var(--navy)", color: "#fff", border: "none",
-                          padding: "5px 10px", borderRadius: 6, cursor: "pointer", fontSize: 12,
-                          fontWeight: 600, fontFamily: "inherit",
-                        }}>↩ Riapri</button>
-                        <button onClick={() => handleTrash(task)} style={{
-                          background: "var(--card)", color: "var(--danger)", border: "1px solid var(--danger)",
-                          padding: "5px 8px", borderRadius: 6, cursor: "pointer", fontSize: 12,
-                          fontWeight: 600, fontFamily: "inherit",
-                        }}>🗑️</button>
+                      <div style={rowGap6} onClick={e => e.stopPropagation()}>
+                        <button onClick={() => handleReopen(task)} style={boxF12Bold}>↩ Riapri</button>
+                        <button onClick={() => handleTrash(task)} style={boxF12Bold2}>🗑️</button>
                       </div>
                     </div>
                   }
@@ -243,10 +231,10 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
             </div>
           ) : (
             /* Desktop: table */
-            <div style={{ background: "var(--card)", borderRadius: 12, border: "1px solid var(--border)", overflow: "hidden" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <div style={card}>
+              <table style={tabella}>
                 <thead>
-                  <tr style={{ background: "var(--surface2)", borderBottom: "1px solid var(--border)" }}>
+                  <tr style={rigaIntestazione}>
                     <th style={thStyle("left", "16px")}>TASK</th>
                     <th style={thStyle("left")}>CATEGORIA</th>
                     <th style={thStyle("left")}>CLIENTE</th>
@@ -257,45 +245,37 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
                 </thead>
                 <tbody>
                   {visible.map(task => (
-                    <tr key={task.id} style={{ borderBottom: "1px solid var(--border)", transition: "background 0.15s", cursor: "pointer" }}
+                    <tr key={task.id} style={borderBottom2}
                       onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: task })}
                       onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
                       onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                     >
-                      <td style={{ padding: "12px 16px" }}>
-                        <div style={{ fontWeight: 600, color: "var(--heading)", marginBottom: 2 }}>{task.title}</div>
-                        <div style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 11, color: "var(--text-muted)" }}>
+                      <td style={padding2}>
+                        <div style={txtBoldHeading}>{task.title}</div>
+                        <div style={rowCenterGap62}>
                           <PriorityBadge priority={task.priority} />
-                          <span style={{ color: "var(--success)", fontWeight: 600 }}>✓ Completata</span>
+                          <span style={txtBoldSuccess}>✓ Completata</span>
                         </div>
                       </td>
-                      <td style={{ padding: "12px 8px" }}><CategoryChip category={task.category} /></td>
-                      <td style={{ padding: "12px 8px", color: "var(--text)" }}>
-                        {task.client || <span style={{ color: "var(--text-muted)" }}>—</span>}
+                      <td style={padding3}><CategoryChip category={task.category} /></td>
+                      <td style={cella}>
+                        {task.client || <span style={txtMuted}>—</span>}
                       </td>
-                      <td style={{ padding: "12px 8px" }}>
-                        <div style={{ display: "flex", gap: 4 }}>
+                      <td style={padding3}>
+                        <div style={rowGap4}>
                           {task.assignees?.length
                             ? task.assignees.map(id => <Avatar key={id} memberId={id} size={22} />)
-                            : <span style={{ fontSize: 12, color: "var(--text-muted)" }}>—</span>
+                            : <span style={txtF12Muted}>—</span>
                           }
                         </div>
                       </td>
-                      <td style={{ padding: "12px 8px", color: "var(--text-muted)", fontSize: 12 }}>
+                      <td style={cellaMuted}>
                         {task.completedAt ? formatDate(task.completedAt) : "—"}
                       </td>
-                      <td style={{ padding: "12px 16px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
-                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                          <button onClick={() => handleReopen(task)} title="Riapri (rimetti in lavorazione)" style={{
-                            background: "var(--navy)", color: "#fff", border: "none",
-                            padding: "6px 12px", borderRadius: 6, cursor: "pointer", fontSize: 12,
-                            fontWeight: 600, fontFamily: "inherit",
-                          }}>↩ Riapri</button>
-                          <button onClick={() => handleTrash(task)} title="Sposta nel cestino" style={{
-                            background: "var(--card)", color: "var(--danger)", border: "1px solid var(--danger)",
-                            padding: "6px 10px", borderRadius: 6, cursor: "pointer", fontSize: 12,
-                            fontWeight: 600, fontFamily: "inherit",
-                          }}>🗑️</button>
+                      <td style={cellaAzioni} onClick={e => e.stopPropagation()}>
+                        <div style={rowGap62}>
+                          <button onClick={() => handleReopen(task)} title="Riapri (rimetti in lavorazione)" style={btnNavyMini}>↩ Riapri</button>
+                          <button onClick={() => handleTrash(task)} title="Sposta nel cestino" style={btnDangerMini}>🗑️</button>
                         </div>
                       </td>
                     </tr>

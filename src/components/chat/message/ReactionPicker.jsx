@@ -7,6 +7,26 @@ import {
 } from "../chatReactions.js";
 import { Z } from "../../../styles/tokens.js";
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const txtF11Bold = { fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 };
+const rowGap2Mb8 = { display: "flex", flexWrap: "wrap", gap: 2, marginBottom: 8 };
+const rowCenterBetween = { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 };
+const txtF11Bold2 = { fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: 0.5 };
+const boxF11Muted = {
+  background: "none", border: "none", cursor: "pointer",
+  color: "var(--text-muted)", fontSize: 11, padding: "2px 6px",
+};
+const gridGap2 = {
+  display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 2,
+  maxHeight: 200, overflowY: "auto",
+};
+const boxF14Bold = {
+  background: "var(--surface2)", border: "none", cursor: "pointer",
+  fontSize: 14, padding: "4px 8px", borderRadius: 6,
+  color: "var(--text-muted)", fontWeight: 700,
+};
+
 
 export const ReactionPicker = ({ onPick, onClose }) => {
   const [expanded, setExpanded] = useState(false);
@@ -37,10 +57,10 @@ export const ReactionPicker = ({ onPick, onClose }) => {
         <>
           {recents.length > 0 && (
             <>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>
+              <div style={txtF11Bold}>
                 RECENTI
               </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 2, marginBottom: 8 }}>
+              <div style={rowGap2Mb8}>
                 {recents.map(e => (
                   <button key={"r" + e} onClick={() => pick(e)} style={emojiBtn}
                     onMouseEnter={hoverOn} onMouseLeave={hoverOff}>{e}</button>
@@ -48,19 +68,13 @@ export const ReactionPicker = ({ onPick, onClose }) => {
               </div>
             </>
           )}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: 0.5 }}>
+          <div style={rowCenterBetween}>
+            <span style={txtF11Bold2}>
               EMOJI ESTESE
             </span>
-            <button onClick={() => setExpanded(false)} style={{
-              background: "none", border: "none", cursor: "pointer",
-              color: "var(--text-muted)", fontSize: 11, padding: "2px 6px",
-            }}>← Indietro</button>
+            <button onClick={() => setExpanded(false)} style={boxF11Muted}>← Indietro</button>
           </div>
-          <div style={{
-            display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 2,
-            maxHeight: 200, overflowY: "auto",
-          }}>
+          <div style={gridGap2}>
             {EMOJI_EXPANDED.map(e => (
               <button key={e} onClick={() => pick(e)} style={emojiBtn}
                 onMouseEnter={hoverOn} onMouseLeave={hoverOff}>{e}</button>
@@ -76,11 +90,7 @@ export const ReactionPicker = ({ onPick, onClose }) => {
           <button
             onClick={() => setExpanded(true)}
             title="Altre emoji"
-            style={{
-              background: "var(--surface2)", border: "none", cursor: "pointer",
-              fontSize: 14, padding: "4px 8px", borderRadius: 6,
-              color: "var(--text-muted)", fontWeight: 700,
-            }}
+            style={boxF14Bold}
           >+</button>
         </>
       )}

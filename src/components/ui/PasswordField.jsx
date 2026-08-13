@@ -6,6 +6,7 @@
 // Ogni altra prop (value, onChange, placeholder, autoComplete, onFocus…) viene
 // inoltrata all'<input>.
 import { useState } from "react";
+import { relative } from "../../styles/common.js";
 
 export function PasswordField({ inputStyle, show: showProp, onToggle, eyeColor, ...inputProps }) {
   const [showInner, setShowInner] = useState(false);
@@ -14,7 +15,7 @@ export function PasswordField({ inputStyle, show: showProp, onToggle, eyeColor, 
   const toggle = controlled ? onToggle : () => setShowInner(s => !s);
 
   return (
-    <div style={{ position: "relative" }}>
+    <div style={relative}>
       <input
         {...inputProps}
         type={show ? "text" : "password"}

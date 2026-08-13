@@ -33,6 +33,11 @@
 import { memo } from "react";
 import { CategoryPill } from "./CategoryPill.jsx";
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowCenterBetween = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 };
+const rowGap10F11 = { display: "flex", flexWrap: "wrap", gap: 10, fontSize: 11, color: "var(--text-muted)" };
+
 const lift = (on) => (e) => {
   e.currentTarget.style.transform = on ? "translateY(-1px)" : "none";
   e.currentTarget.style.boxShadow = on ? "0 4px 14px rgba(0,0,0,0.08)" : "none";
@@ -96,7 +101,7 @@ export const TaskCard = memo(function TaskCard({
       }}
     >
       {hasHeader && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <div style={rowCenterBetween}>
           {showCategory ? <CategoryPill category={task.category} /> : <span />}
           {badges}
         </div>
@@ -115,7 +120,7 @@ export const TaskCard = memo(function TaskCard({
       {subheader}
 
       {hasMeta && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, fontSize: 11, color: "var(--text-muted)" }}>
+        <div style={rowGap10F11}>
           {showClient && task.client && <span>👤 {task.client}</span>}
           {meta}
         </div>

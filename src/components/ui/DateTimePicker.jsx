@@ -14,6 +14,29 @@
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { Z } from "../../styles/tokens.js";
 import { dataNumerica, meseAnno, oraBreve } from "../../lib/dates.js";
+import { txtF11Bold } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowCenterBetween = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 };
+const txtF14Bold = { fontSize: 14, fontWeight: 700, textTransform: "capitalize" };
+const gridGap2Mb4 = { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 4 };
+const txtF10Bold = { fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textAlign: "center", padding: "2px 0" };
+const gridGap2Mb10 = { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 10 };
+const rowCenterGap8 = { display: "flex", alignItems: "center", gap: 8, marginBottom: 12 };
+const txtF13Bold = { fontSize: 13, fontWeight: 700, color: "var(--text-muted)" };
+const rowCenterBetween2 = { display: "flex", justifyContent: "space-between", alignItems: "center" };
+const boxF13Bold = { background: "none", border: "none", color: "var(--text-muted)", fontSize: 13, fontWeight: 600, cursor: "pointer", padding: "6px 8px", fontFamily: "inherit" };
+const boxF13Bold2 = {
+  background: "var(--navy)", color: "#fff", border: "none", borderRadius: 8,
+  padding: "8px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+};
+const op06 = { opacity: 0.6 };
+const boxP16R14 = {
+  width: "min(320px, 100%)", maxHeight: "calc(100vh - 32px)", overflowY: "auto",
+  background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14,
+  boxShadow: "0 20px 50px rgba(0,0,0,0.30)", padding: 16,
+};
 
 const WEEKDAYS = ["lu", "ma", "me", "gi", "ve", "sa", "do"];
 const pad2 = n => String(n).padStart(2, "0");
@@ -234,14 +257,14 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
   // dropdown desktop e la card centrata mobile.
   const panel = (
     <>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+      <div style={rowCenterBetween}>
         <button
           type="button"
           onClick={() => setViewDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))}
           style={navBtnStyle}
           aria-label="Mese precedente"
         >‹</button>
-        <span style={{ fontSize: 14, fontWeight: 700, textTransform: "capitalize" }}>{monthLabel(viewDate)}</span>
+        <span style={txtF14Bold}>{monthLabel(viewDate)}</span>
         <button
           type="button"
           onClick={() => setViewDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))}
@@ -250,12 +273,12 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
         >›</button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 4 }}>
+      <div style={gridGap2Mb4}>
         {WEEKDAYS.map(w => (
-          <div key={w} style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textAlign: "center", padding: "2px 0" }}>{w}</div>
+          <div key={w} style={txtF10Bold}>{w}</div>
         ))}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 10 }}>
+      <div style={gridGap2Mb10}>
         {days.map(d => {
           const outside = d.getMonth() !== currentMonth;
           const isToday = sameDay(d, today);
@@ -279,8 +302,8 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
       </div>
 
       {withTime && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>Ora</span>
+        <div style={rowCenterGap8}>
+          <span style={txtF11Bold}>Ora</span>
           <select
             value={draftH}
             onChange={e => setHour(e.target.value)}
@@ -289,7 +312,7 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
           >
             {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
           </select>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-muted)" }}>:</span>
+          <span style={txtF13Bold}>:</span>
           <select
             value={draftM}
             onChange={e => setMinute(e.target.value)}
@@ -301,19 +324,16 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
         </div>
       )}
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={rowCenterBetween2}>
         <button
           type="button"
           onClick={clear}
-          style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 13, fontWeight: 600, cursor: "pointer", padding: "6px 8px", fontFamily: "inherit" }}
+          style={boxF13Bold}
         >Cancella</button>
         <button
           type="button"
           onClick={confirm}
-          style={{
-            background: "var(--navy)", color: "#fff", border: "none", borderRadius: 8,
-            padding: "8px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-          }}
+          style={boxF13Bold2}
         >OK</button>
       </div>
     </>
@@ -334,7 +354,7 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
         }}
       >
         <span>{label}</span>
-        <span aria-hidden="true" style={{ opacity: 0.6 }}>📅</span>
+        <span aria-hidden="true" style={op06}>📅</span>
       </button>
 
       {open && (isMobile ? (
@@ -349,11 +369,7 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
             padding: 16,
           }}
         >
-          <div style={{
-            width: "min(320px, 100%)", maxHeight: "calc(100vh - 32px)", overflowY: "auto",
-            background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14,
-            boxShadow: "0 20px 50px rgba(0,0,0,0.30)", padding: 16,
-          }}>
+          <div style={boxP16R14}>
             {panel}
           </div>
         </div>

@@ -10,6 +10,35 @@ import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useOpenTask } from "./queueShared.js";
 import { QueueShell } from "./QueueShell.jsx";
 import { SkeletonCards } from "../../ui/SkeletonCards.jsx";
+import { gridGap102, intestazioneSezione, txtF18 } from "../../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowCenterGap6 = {
+  display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center",
+  marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid rgba(212,168,67,0.2)",
+};
+const boxF11Muted = {
+  padding: "3px 9px", borderRadius: 99, border: "1px solid var(--border)",
+  background: "var(--card)", color: "var(--text-muted)",
+  fontSize: 11, cursor: "pointer", fontFamily: "inherit",
+};
+const rowCenterMiddle = {
+  background: "var(--surface2)", color: "var(--text-muted)",
+  borderRadius: 8, padding: "7px 12px", fontSize: 11, fontWeight: 600,
+  display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+  marginTop: 2,
+};
+const rowCenterMiddle2 = {
+  background: "var(--gold)", color: "var(--navy)",
+  border: "none", borderRadius: 8,
+  padding: "8px 12px", fontSize: 12, fontWeight: 700,
+  cursor: "pointer", display: "flex", alignItems: "center",
+  justifyContent: "center", gap: 6,
+  fontFamily: "inherit",
+  transition: "background 0.15s, transform 0.15s",
+  marginTop: 2,
+};
 
 // ─── UNASSIGNED QUEUE (coda globale) ───────────────────────────────────────
 // `loading` (criticità #6): finché il primo fetch non torna, la coda non è
@@ -50,10 +79,7 @@ export const UnassignedQueue = ({ tasks, dispatch, onTake, uid, loading = false 
 
       {/* Filtri categoria + priorità */}
       {!empty && (presentCategories.length > 1 || presentPriorities.length > 1 || hasFilter) && (
-        <div style={{
-          display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center",
-          marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid rgba(212,168,67,0.2)",
-        }}>
+        <div style={rowCenterGap6}>
           {presentPriorities.length > 1 && presentPriorities.map(p => {
             const meta = PRIORITIES[p];
             if (!meta) return null;
@@ -85,11 +111,7 @@ export const UnassignedQueue = ({ tasks, dispatch, onTake, uid, loading = false 
             );
           })}
           {hasFilter && (
-            <button onClick={() => { setCategoryFilter(""); setPriorityFilter(""); }} style={{
-              padding: "3px 9px", borderRadius: 99, border: "1px solid var(--border)",
-              background: "var(--card)", color: "var(--text-muted)",
-              fontSize: 11, cursor: "pointer", fontFamily: "inherit",
-            }}>✕ Reset</button>
+            <button onClick={() => { setCategoryFilter(""); setPriorityFilter(""); }} style={boxF11Muted}>✕ Reset</button>
           )}
         </div>
       )}
@@ -98,26 +120,17 @@ export const UnassignedQueue = ({ tasks, dispatch, onTake, uid, loading = false 
       {caricando ? (
         <SkeletonCards count={3} minWidth={280} compact label="Caricamento della coda globale" />
       ) : empty ? (
-        <div style={{
-          padding: "14px 0 4px", display: "flex", alignItems: "center", gap: 10,
-          color: "var(--text-muted)", fontSize: 13,
-        }}>
-          <span style={{ fontSize: 18 }}>✨</span>
+        <div style={intestazioneSezione}>
+          <span style={txtF18}>✨</span>
           Nessun task in coda. Tutti gli incarichi hanno un proprietario!
         </div>
       ) : filteredEmpty ? (
-        <div style={{
-          padding: "14px 0 4px", display: "flex", alignItems: "center", gap: 10,
-          color: "var(--text-muted)", fontSize: 13,
-        }}>
-          <span style={{ fontSize: 18 }}>🔍</span>
+        <div style={intestazioneSezione}>
+          <span style={txtF18}>🔍</span>
           Nessun task per i filtri selezionati.
         </div>
       ) : (
-        <div style={{
-          display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))",
-          gap: 10,
-        }}>
+        <div style={gridGap102}>
           {filtered.map(t => {
             const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
             const overdue = isOverdue(t);
@@ -143,27 +156,13 @@ export const UnassignedQueue = ({ tasks, dispatch, onTake, uid, loading = false 
                   )}
                   /* Take ownership — nascosto per Junior Agent */
                   footer={isJunior ? (
-                    <div style={{
-                      background: "var(--surface2)", color: "var(--text-muted)",
-                      borderRadius: 8, padding: "7px 12px", fontSize: 11, fontWeight: 600,
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-                      marginTop: 2,
-                    }}>
+                    <div style={rowCenterMiddle}>
                       🔒 Chiedi a un Senior per l&#39;assegnazione
                     </div>
                   ) : (
                     <button
                       onClick={e => { e.stopPropagation(); onTake(t); }}
-                      style={{
-                        background: "var(--gold)", color: "var(--navy)",
-                        border: "none", borderRadius: 8,
-                        padding: "8px 12px", fontSize: 12, fontWeight: 700,
-                        cursor: "pointer", display: "flex", alignItems: "center",
-                        justifyContent: "center", gap: 6,
-                        fontFamily: "inherit",
-                        transition: "background 0.15s, transform 0.15s",
-                        marginTop: 2,
-                      }}
+                      style={rowCenterMiddle2}
                       onMouseEnter={e => { e.currentTarget.style.background = "var(--gold-light)"; }}
                       onMouseLeave={e => { e.currentTarget.style.background = "var(--gold)"; }}
                     >

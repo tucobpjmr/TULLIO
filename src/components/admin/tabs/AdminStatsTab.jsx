@@ -6,6 +6,31 @@ import { isOverdue } from "../../../lib/taskUtils.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useTasks } from "../../../state/TasksContext.jsx";
 import { MessageTemplatesSection } from "./MessageTemplatesSection.jsx";
+import {
+  flex1, gridGap10, rowCenterGap12, txtF11Muted, txtF12Muted2, txtF13Bold,
+} from "../../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const txtF11Bold = { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1 };
+const gridGap20 = { display: "grid", gap: 20 };
+const gridGap12 = { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 };
+const gridGap8 = { display: "grid", gap: 8 };
+const txtF13Text = { width: 140, fontSize: 13, color: "var(--text)" };
+const boxFlex1H18 = { flex: 1, height: 18, background: "var(--surface2)", borderRadius: 9, overflow: "hidden" };
+const txtF13Bold2 = { width: 60, textAlign: "right", fontSize: 13, fontWeight: 600, color: "var(--text)" };
+const txtFlex1F13 = { flex: 1, fontSize: 13 };
+const txtF12Bold = { fontSize: 12, fontWeight: 600, color: "var(--text-muted)" };
+const gridGap102 = { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 };
+const rowCenterGap10 = {
+  padding: 12, background: "var(--surface2)", borderRadius: 8,
+  display: "flex", alignItems: "center", gap: 10,
+};
+const rowCenterMiddle = {
+  width: 32, height: 32, borderRadius: 8, fontSize: 16,
+  display: "flex", alignItems: "center", justifyContent: "center",
+  background: "var(--card)",
+};
 
 // ─── ADMIN TAB: SISTEMA / STATS ────────────────────────────────────────────
 export const AdminStatsTab = ({ dispatch, messageTemplates = [] }) => {
@@ -34,16 +59,16 @@ export const AdminStatsTab = ({ dispatch, messageTemplates = [] }) => {
 
   const kpiCard = (label, value, sub, color) => (
     <div style={cardStyle}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1 }}>{label}</div>
+      <div style={txtF11Bold}>{label}</div>
       <div style={{ fontSize: 32, fontWeight: 700, color: color || "var(--navy)", marginTop: 4 }}>{value}</div>
-      {sub && <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{sub}</div>}
+      {sub && <div style={txtF12Muted2}>{sub}</div>}
     </div>
   );
 
   return (
-    <div style={{ display: "grid", gap: 20 }}>
+    <div style={gridGap20}>
       {/* KPI */}
-      <div className="vd-grid-kpi" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+      <div className="vd-grid-kpi" style={gridGap12}>
         {kpiCard("Task attivi", active.length, `${trashed.length} nel cestino`)}
         {kpiCard("Completati", done.length, `${completionRate}% completion`, "var(--success)")}
         {kpiCard("Scaduti", overdue.length, "task non chiusi oltre data", "var(--danger)")}
@@ -53,16 +78,16 @@ export const AdminStatsTab = ({ dispatch, messageTemplates = [] }) => {
       {/* Distribuzione per status */}
       <div style={cardStyle}>
         <h3 style={cardH}>📊 Distribuzione per status</h3>
-        <div style={{ display: "grid", gap: 8 }}>
+        <div style={gridGap8}>
           {byStatus.map(s => {
             const pct = active.length ? (s.count / active.length) * 100 : 0;
             return (
-              <div key={s.s} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 140, fontSize: 13, color: "var(--text)" }}>{s.label}</div>
-                <div style={{ flex: 1, height: 18, background: "var(--surface2)", borderRadius: 9, overflow: "hidden" }}>
+              <div key={s.s} style={rowCenterGap12}>
+                <div style={txtF13Text}>{s.label}</div>
+                <div style={boxFlex1H18}>
                   <div style={{ width: `${pct}%`, height: "100%", background: s.color, transition: "width 0.3s" }} />
                 </div>
-                <div style={{ width: 60, textAlign: "right", fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{s.count}</div>
+                <div style={txtF13Bold2}>{s.count}</div>
               </div>
             );
           })}
@@ -72,16 +97,16 @@ export const AdminStatsTab = ({ dispatch, messageTemplates = [] }) => {
       {/* Carico team */}
       <div style={cardStyle}>
         <h3 style={cardH}>👥 Carico di lavoro per agente</h3>
-        <div style={{ display: "grid", gap: 10 }}>
+        <div style={gridGap10}>
           {byMember.map(({ m, count }) => (
-            <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div key={m.id} style={rowCenterGap12}>
               <div style={{
                 width: 32, height: 32, borderRadius: "50%", background: m.color,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 color: "#fff", fontWeight: 700, fontSize: 11, flexShrink: 0,
               }}>{m.avatar}</div>
-              <div style={{ flex: 1, fontSize: 13 }}>{m.name}</div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>
+              <div style={txtFlex1F13}>{m.name}</div>
+              <div style={txtF12Bold}>
                 {count} task attivi
               </div>
             </div>
@@ -92,20 +117,13 @@ export const AdminStatsTab = ({ dispatch, messageTemplates = [] }) => {
       {/* Categorie */}
       <div style={cardStyle}>
         <h3 style={cardH}>🏷️ Distribuzione per categoria</h3>
-        <div className="vd-grid-3col" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+        <div className="vd-grid-3col" style={gridGap102}>
           {byCategory.map(c => (
-            <div key={c.k} style={{
-              padding: 12, background: "var(--surface2)", borderRadius: 8,
-              display: "flex", alignItems: "center", gap: 10,
-            }}>
-              <div style={{
-                width: 32, height: 32, borderRadius: 8, fontSize: 16,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                background: "var(--card)",
-              }}>{c.icon}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{c.label}</div>
-                <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{c.count} task</div>
+            <div key={c.k} style={rowCenterGap10}>
+              <div style={rowCenterMiddle}>{c.icon}</div>
+              <div style={flex1}>
+                <div style={txtF13Bold}>{c.label}</div>
+                <div style={txtF11Muted}>{c.count} task</div>
               </div>
             </div>
           ))}

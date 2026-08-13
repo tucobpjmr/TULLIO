@@ -5,6 +5,24 @@
 // ciò che questo componente produce (toDataURL JPEG) e fuori da qui non ha senso.
 import { useState, useRef } from "react";
 import { Modal } from "../ui/Modal.jsx";
+import { hidden, txtF11Muted } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const txtF15Bold = { fontSize: 15, fontWeight: 700, color: "var(--text)", alignSelf: "flex-start" };
+const colGap5WFull = { width: "100%", display: "flex", flexDirection: "column", gap: 5 };
+const rowBetweenF10 = { display: "flex", justifyContent: "space-between", fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5 };
+const wFull = { width: "100%", cursor: "pointer", accentColor: "var(--gold)" };
+const rowBetweenF102 = { display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-muted)" };
+const rowGap10WFull = { display: "flex", gap: 10, width: "100%" };
+const boxFlex1F13 = {
+  flex: 1, background: "var(--card)", color: "var(--text)", border: "1px solid var(--border)",
+  padding: "10px 0", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+};
+const boxFlex1F132 = {
+  flex: 1, background: "var(--navy)", color: "#fff", border: "none",
+  padding: "10px 0", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: "inherit",
+};
 
 // Converte un data-URL (prodotto dal crop canvas) in Blob per l'upload sul
 // bucket 'avatars'. Il crop emette sempre JPEG (toDataURL("image/jpeg")).
@@ -89,7 +107,7 @@ export const CropModal = ({ src, onConfirm, onCancel }) => {
         boxShadow: "0 24px 64px rgba(0,0,0,0.4)",
       }}
     >
-      <div id="vd-crop-title" style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", alignSelf: "flex-start" }}>Ritaglia foto</div>
+      <div id="vd-crop-title" style={txtF15Bold}>Ritaglia foto</div>
 
       {/* Circular crop preview */}
       <div
@@ -124,8 +142,8 @@ export const CropModal = ({ src, onConfirm, onCancel }) => {
       </div>
 
       {/* Zoom slider */}
-      <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 5 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 0.5 }}>
+      <div style={colGap5WFull}>
+        <div style={rowBetweenF10}>
           <span>ZOOM</span><span>{Math.round(zoom * 100)}%</span>
         </div>
         <input
@@ -136,26 +154,20 @@ export const CropModal = ({ src, onConfirm, onCancel }) => {
             setZoom(z);
             setOffset(prev => clamp(prev, ts));
           }}
-          style={{ width: "100%", cursor: "pointer", accentColor: "var(--gold)" }}
+          style={wFull}
         />
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-muted)" }}>
+        <div style={rowBetweenF102}>
           <span>1×</span><span>3×</span>
         </div>
       </div>
 
-      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Trascina per centrare • usa lo slider per zoomare</div>
+      <div style={txtF11Muted}>Trascina per centrare • usa lo slider per zoomare</div>
 
-      <canvas ref={canvasRef} style={{ display: "none" }} />
+      <canvas ref={canvasRef} style={hidden} />
 
-      <div style={{ display: "flex", gap: 10, width: "100%" }}>
-        <button onClick={onCancel} style={{
-          flex: 1, background: "var(--card)", color: "var(--text)", border: "1px solid var(--border)",
-          padding: "10px 0", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit",
-        }}>Annulla</button>
-        <button onClick={handleConfirm} style={{
-          flex: 1, background: "var(--navy)", color: "#fff", border: "none",
-          padding: "10px 0", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: "inherit",
-        }}>✓ Conferma</button>
+      <div style={rowGap10WFull}>
+        <button onClick={onCancel} style={boxFlex1F13}>Annulla</button>
+        <button onClick={handleConfirm} style={boxFlex1F132}>✓ Conferma</button>
       </div>
     </Modal>
   );

@@ -1,4 +1,9 @@
 import { LvOverlay } from "./LvOverlay.jsx";
+import { colGap10 } from "../../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const middle = { justifyContent: "center" };
 
 // ─── Strumenti dati: backup JSON e reset totale ────────────────────────────
 // Raccoglie in un'unica modale le operazioni sui dati, come faceva la SPA.
@@ -9,15 +14,15 @@ export function StrumentiDatiModal({ isAdminUser, onClose, onScaricaBackup, onCa
   return (
     <LvOverlay onClose={onClose}>
       <h2>Strumenti dati</h2>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <button className="lv-btn" style={{ justifyContent: "center" }} onClick={onScaricaBackup}>
+      <div style={colGap10}>
+        <button className="lv-btn" style={middle} onClick={onScaricaBackup}>
           ⬇ Scarica backup (JSON)
         </button>
-        <button className="lv-btn" style={{ justifyContent: "center" }} onClick={onCaricaBackup}>
+        <button className="lv-btn" style={middle} onClick={onCaricaBackup}>
           ⬆ Carica backup
         </button>
         {isAdminUser && (
-          <button className="lv-btn danger" style={{ justifyContent: "center" }} onClick={onReset}>
+          <button className="lv-btn danger" style={middle} onClick={onReset}>
             Reset totale…
           </button>
         )}

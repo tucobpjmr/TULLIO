@@ -12,6 +12,31 @@ import { Avatar } from "../ui/Avatar.jsx";
 import { formatTime } from "../../lib/taskUtils.js";
 import { Z } from "../../styles/tokens.js";
 import { layoutColumns } from "./calendarLayout.js";
+import { txtF10Muted } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const boxR14 = {
+  background: "var(--card)", borderRadius: 14, border: "1px solid var(--border)",
+  boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden",
+};
+const rowCenterBetween = {
+  padding: "10px 14px", background: "var(--surface2)",
+  fontSize: 12, color: "var(--text-muted)", fontWeight: 600,
+  display: "flex", justifyContent: "space-between", alignItems: "center",
+};
+const txtGold = { color: "var(--gold)" };
+const rowRelative = { position: "relative", display: "flex", maxHeight: 640, overflowY: "auto" };
+const w56 = { width: 56, flexShrink: 0, borderRight: "1px solid var(--border)" };
+const relativeFlex1 = { flex: 1, position: "relative" };
+const boxAbsoluteW10 = {
+  position: "absolute", left: -4, top: -4, width: 10, height: 10,
+  borderRadius: "50%", background: "var(--gold)",
+};
+const txtBoldText = { fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+const rowCenterBetween2 = { display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 1 };
+const rowGap2 = { display: "flex", gap: 2, flexShrink: 0 };
+const txtF9Muted = { fontSize: 9, color: "var(--text-muted)" };
 
 export function CalendarDayGrid({ dayDate, expandedDay, catFilter, tasks, categories, onOpenTask }) {
   const matchesCat = (t) => !catFilter || t.category === catFilter;
@@ -24,21 +49,14 @@ export function CalendarDayGrid({ dayDate, expandedDay, catFilter, tasks, catego
   const isToday = dayDate.toDateString() === new Date().toDateString();
   const nowMinutes = isToday ? new Date().getHours() * 60 + new Date().getMinutes() : null;
   return (
-    <div style={{
-      background: "var(--card)", borderRadius: 14, border: "1px solid var(--border)",
-      boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden",
-    }}>
-      <div style={{
-        padding: "10px 14px", background: "var(--surface2)",
-        fontSize: 12, color: "var(--text-muted)", fontWeight: 600,
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-      }}>
+    <div style={boxR14}>
+      <div style={rowCenterBetween}>
         <span>{dayTasks.length} task in agenda</span>
-        {isToday && <span style={{ color: "var(--gold)" }}>● Oggi</span>}
+        {isToday && <span style={txtGold}>● Oggi</span>}
       </div>
-      <div style={{ position: "relative", display: "flex", maxHeight: 640, overflowY: "auto" }}>
+      <div style={rowRelative}>
         {/* Colonna ore */}
-        <div style={{ width: 56, flexShrink: 0, borderRight: "1px solid var(--border)" }}>
+        <div style={w56}>
           {HOURS.map(h => (
             <div key={h} style={{
               height: SLOT_H, padding: "2px 8px", fontSize: 10, color: "var(--text-muted)",
@@ -47,7 +65,7 @@ export function CalendarDayGrid({ dayDate, expandedDay, catFilter, tasks, catego
           ))}
         </div>
         {/* Colonna eventi */}
-        <div style={{ flex: 1, position: "relative" }}>
+        <div style={relativeFlex1}>
           {HOURS.map(h => (
             <div key={h} style={{
               height: SLOT_H, borderBottom: "1px solid var(--surface2)",
@@ -60,10 +78,7 @@ export function CalendarDayGrid({ dayDate, expandedDay, catFilter, tasks, catego
               top: (nowMinutes / 60) * SLOT_H,
               height: 2, background: "var(--gold)", zIndex: Z.cardRaised,
             }}>
-              <div style={{
-                position: "absolute", left: -4, top: -4, width: 10, height: 10,
-                borderRadius: "50%", background: "var(--gold)",
-              }} />
+              <div style={boxAbsoluteW10} />
             </div>
           )}
           {/* Eventi con layout colonne anti-overlap */}
@@ -91,18 +106,18 @@ export function CalendarDayGrid({ dayDate, expandedDay, catFilter, tasks, catego
                 boxShadow: "0 1px 3px rgba(0,0,0,0.08)", zIndex: Z.inCard,
                 outline: t.isRecurringInstance ? `1px dashed ${cat.color || "#94a3b8"}66` : "none",
               }}>
-                <div style={{ fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                <div style={txtBoldText}>
                   {cat.icon} {t.title}{t.isRecurringInstance ? " ↻" : ""}
                 </div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 1 }}>
-                  <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{formatTime(t.dueDate)}</span>
+                <div style={rowCenterBetween2}>
+                  <span style={txtF10Muted}>{formatTime(t.dueDate)}</span>
                   {t.assignees?.length > 0 && height >= 42 && (
-                    <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+                    <div style={rowGap2}>
                       {t.assignees.slice(0, 3).map(id => (
                         <Avatar key={id} memberId={id} size={14} />
                       ))}
                       {t.assignees.length > 3 && (
-                        <span style={{ fontSize: 9, color: "var(--text-muted)" }}>+{t.assignees.length - 3}</span>
+                        <span style={txtF9Muted}>+{t.assignees.length - 3}</span>
                       )}
                     </div>
                   )}

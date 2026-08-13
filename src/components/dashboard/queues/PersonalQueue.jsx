@@ -14,6 +14,14 @@ import { FilterChip } from "./FilterChip.jsx";
 import { FilterLabel } from "./FilterLabel.jsx";
 import { FilterRow } from "./FilterRow.jsx";
 import { SkeletonCards } from "../../ui/SkeletonCards.jsx";
+import { gridGap102, intestazioneSezione, txtF18 } from "../../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowCenterGap8 = { display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" };
+const boxF13Bold = {
+  background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: 13, fontWeight: 600,
+};
 
 // `loading` (criticità #6): true finché il primo fetch dei task non è tornato.
 // Serve a NON dire "Buon lavoro!" a chi ha una coda piena che non è ancora
@@ -90,7 +98,7 @@ export const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false, l
     >
 
       {enableDateFilter && (
-        <div className="vd-row-wrap" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+        <div className="vd-row-wrap" style={rowCenterGap8}>
           {chip("all", "Tutte")}
           {chip("today", "Oggi")}
           {chip("tomorrow", "Domani")}
@@ -106,9 +114,7 @@ export const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false, l
             }}
           />
           {customDate && (
-            <button type="button" onClick={() => setDateFilter("all")} title="Azzera filtro" style={{
-              background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: 13, fontWeight: 600,
-            }}>✕ azzera</button>
+            <button type="button" onClick={() => setDateFilter("all")} title="Azzera filtro" style={boxF13Bold}>✕ azzera</button>
           )}
         </div>
       )}
@@ -116,18 +122,12 @@ export const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false, l
       {caricando ? (
         <SkeletonCards count={3} minWidth={280} compact label="Caricamento della coda personale" />
       ) : empty ? (
-        <div style={{
-          padding: "14px 0 4px", display: "flex", alignItems: "center", gap: 10,
-          color: "var(--text-muted)", fontSize: 13,
-        }}>
-          <span style={{ fontSize: 18 }}>{enableDateFilter && dateFilter !== "all" ? "📭" : "🎉"}</span>
+        <div style={intestazioneSezione}>
+          <span style={txtF18}>{enableDateFilter && dateFilter !== "all" ? "📭" : "🎉"}</span>
           {enableDateFilter && dateFilter !== "all" ? "Nessun transfer per la giornata selezionata." : "Nessuna task aperta a tuo nome. Buon lavoro!"}
         </div>
       ) : (
-        <div style={{
-          display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))",
-          gap: 10,
-        }}>
+        <div style={gridGap102}>
           {filtered.map(t => {
             const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
             const overdue = isOverdue(t);

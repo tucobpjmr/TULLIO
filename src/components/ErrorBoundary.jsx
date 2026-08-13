@@ -29,6 +29,25 @@ import React from 'react';
 import { codiceSegnalazione } from '../lib/errorReporting.js';
 import { ErrorDetails } from './ui/ErrorDetails.jsx';
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const boxP28WFull = {
+  maxWidth: 560, width: '100%', background: '#0b1220',
+  border: '1px solid #1e293b', borderRadius: 16, padding: 28,
+  boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+};
+const txtF36Mb10 = { fontSize: 36, marginBottom: 10 };
+const txtF22Bold = {
+  margin: '0 0 8px', fontFamily: '"Playfair Display",serif',
+  fontSize: 22, fontWeight: 700,
+};
+const txtF135Op075 = { margin: '0 0 16px', fontSize: 13.5, opacity: 0.75, lineHeight: 1.5 };
+const boxF13Bold = {
+  padding: '10px 18px', borderRadius: 10, border: 'none',
+  background: '#d4a843', color: '#0f172a', fontWeight: 700,
+  cursor: 'pointer', fontSize: 13, fontFamily: 'inherit',
+};
+
 const wrap = {
   minHeight: '100vh', display: 'grid', placeItems: 'center',
   background: '#0f172a', color: '#e2e8f0',
@@ -65,26 +84,15 @@ export class ErrorBoundary extends React.Component {
 
     return (
       <div style={wrap}>
-        <div style={{
-          maxWidth: 560, width: '100%', background: '#0b1220',
-          border: '1px solid #1e293b', borderRadius: 16, padding: 28,
-          boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
-        }}>
-          <div style={{ fontSize: 36, marginBottom: 10 }}>⚠️</div>
-          <h1 style={{
-            margin: '0 0 8px', fontFamily: '"Playfair Display",serif',
-            fontSize: 22, fontWeight: 700,
-          }}>Qualcosa è andato storto</h1>
-          <p style={{ margin: '0 0 16px', fontSize: 13.5, opacity: 0.75, lineHeight: 1.5 }}>
+        <div style={boxP28WFull}>
+          <div style={txtF36Mb10}>⚠️</div>
+          <h1 style={txtF22Bold}>Qualcosa è andato storto</h1>
+          <p style={txtF135Op075}>
             L&#39;app ha incontrato un errore imprevisto durante il caricamento.
             Ricarica la pagina; se il problema persiste, segnala il codice qui sotto.
           </p>
           <ErrorDetails error={error} info={info} codice={codice} tone="dark" />
-          <button onClick={() => window.location.reload()} style={{
-            padding: '10px 18px', borderRadius: 10, border: 'none',
-            background: '#d4a843', color: '#0f172a', fontWeight: 700,
-            cursor: 'pointer', fontSize: 13, fontFamily: 'inherit',
-          }}>Ricarica</button>
+          <button onClick={() => window.location.reload()} style={boxF13Bold}>Ricarica</button>
         </div>
       </div>
     );

@@ -4,6 +4,38 @@ import { useState } from "react";
 import { Avatar } from "../ui/Avatar.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { roleLabel } from "../../lib/taskConstants.js";
+import { btnChiudiSuScuro, flex1, txtF11Muted, txtF13Bold, txtF18 } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const colHFull = { display: "flex", flexDirection: "column", height: "100%" };
+const rowCenterGap10 = {
+  background: "var(--navy)", padding: "12px 16px", display: "flex",
+  alignItems: "center", gap: 10, flexShrink: 0,
+};
+const txtF15Bold = { color: "#fff", fontSize: 15, fontWeight: 600 };
+const p14 = { padding: 14, borderBottom: "1px solid var(--border)" };
+const rowCenterGap102 = {
+  width: "100%", padding: "10px 14px", background: "var(--surface2)",
+  border: "1px solid var(--border)", borderRadius: 8, cursor: "pointer",
+  fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 10,
+};
+const flex12 = { flex: 1, overflowY: "auto" };
+const txtF10Bold = { padding: "10px 14px 4px", fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1 };
+const rowCenterGap103 = {
+  padding: "10px 14px", display: "flex", gap: 10, alignItems: "center",
+  cursor: "pointer", transition: "background 0.15s",
+};
+const txtF135Bold = { fontSize: 13.5, fontWeight: 600 };
+const boxF13WFull = {
+  width: "100%", border: "1px solid var(--border)", borderRadius: 8,
+  padding: "9px 12px", fontSize: 13, fontFamily: "inherit", outline: "none",
+};
+const rowGap8P14 = { padding: 14, borderTop: "1px solid var(--border)", display: "flex", gap: 8 };
+const boxFlex1F13 = {
+  flex: 1, padding: "10px", background: "transparent", border: "1px solid var(--border)",
+  borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 500,
+};
 
 // ─── CHAT: NEW CONVERSATION ────────────────────────────────────────────────
 export const NewConversationView = ({ onCreate, onCancel, existing }) => {
@@ -39,47 +71,34 @@ export const NewConversationView = ({ onCreate, onCancel, existing }) => {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div style={{
-        background: "var(--navy)", padding: "12px 16px", display: "flex",
-        alignItems: "center", gap: 10, flexShrink: 0,
-      }}>
-        <button onClick={onCancel} style={{
-          background: "rgba(255,255,255,0.1)", border: "none", color: "#fff",
-          width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 14,
-        }}>←</button>
-        <div className="playfair" style={{ color: "#fff", fontSize: 15, fontWeight: 600 }}>
+    <div style={colHFull}>
+      <div style={rowCenterGap10}>
+        <button onClick={onCancel} style={btnChiudiSuScuro}>←</button>
+        <div className="playfair" style={txtF15Bold}>
           {mode === "select" ? "Nuova conversazione" : "Nuovo gruppo"}
         </div>
       </div>
 
       {mode === "select" && (
         <>
-          <div style={{ padding: 14, borderBottom: "1px solid var(--border)" }}>
-            <button onClick={() => setMode("group")} style={{
-              width: "100%", padding: "10px 14px", background: "var(--surface2)",
-              border: "1px solid var(--border)", borderRadius: 8, cursor: "pointer",
-              fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 10,
-            }}>
-              <span style={{ fontSize: 18 }}>👥</span> Crea nuovo gruppo
+          <div style={p14}>
+            <button onClick={() => setMode("group")} style={rowCenterGap102}>
+              <span style={txtF18}>👥</span> Crea nuovo gruppo
             </button>
           </div>
-          <div style={{ flex: 1, overflowY: "auto" }}>
-            <div style={{ padding: "10px 14px 4px", fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1 }}>
+          <div style={flex12}>
+            <div style={txtF10Bold}>
               MEMBRI DEL TEAM
             </div>
             {available.map(m => (
-              <div key={m.id} onClick={() => createDirect(m.id)} style={{
-                padding: "10px 14px", display: "flex", gap: 10, alignItems: "center",
-                cursor: "pointer", transition: "background 0.15s",
-              }}
+              <div key={m.id} onClick={() => createDirect(m.id)} style={rowCenterGap103}
                 onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
                 onMouseLeave={e => e.currentTarget.style.background = "transparent"}
               >
                 <Avatar memberId={m.id} size={38} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600 }}>{m.name}</div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{roleLabel(m)}</div>
+                <div style={flex1}>
+                  <div style={txtF135Bold}>{m.name}</div>
+                  <div style={txtF11Muted}>{roleLabel(m)}</div>
                 </div>
               </div>
             ))}
@@ -89,19 +108,16 @@ export const NewConversationView = ({ onCreate, onCancel, existing }) => {
 
       {mode === "group" && (
         <>
-          <div style={{ padding: 14, borderBottom: "1px solid var(--border)" }}>
+          <div style={p14}>
             <input
               value={groupName}
               onChange={e => setGroupName(e.target.value)}
               placeholder="Nome del gruppo..."
-              style={{
-                width: "100%", border: "1px solid var(--border)", borderRadius: 8,
-                padding: "9px 12px", fontSize: 13, fontFamily: "inherit", outline: "none",
-              }}
+              style={boxF13WFull}
             />
           </div>
-          <div style={{ flex: 1, overflowY: "auto" }}>
-            <div style={{ padding: "10px 14px 4px", fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1 }}>
+          <div style={flex12}>
+            <div style={txtF10Bold}>
               SELEZIONA MEMBRI ({selected.length} selezionati)
             </div>
             {available.map(m => {
@@ -113,9 +129,9 @@ export const NewConversationView = ({ onCreate, onCancel, existing }) => {
                   transition: "background 0.15s",
                 }}>
                   <Avatar memberId={m.id} size={36} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>{m.name}</div>
-                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{roleLabel(m)}</div>
+                  <div style={flex1}>
+                    <div style={txtF13Bold}>{m.name}</div>
+                    <div style={txtF11Muted}>{roleLabel(m)}</div>
                   </div>
                   <div style={{
                     width: 22, height: 22, borderRadius: "50%",
@@ -128,11 +144,8 @@ export const NewConversationView = ({ onCreate, onCancel, existing }) => {
               );
             })}
           </div>
-          <div style={{ padding: 14, borderTop: "1px solid var(--border)", display: "flex", gap: 8 }}>
-            <button onClick={() => setMode("select")} style={{
-              flex: 1, padding: "10px", background: "transparent", border: "1px solid var(--border)",
-              borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 500,
-            }}>Indietro</button>
+          <div style={rowGap8P14}>
+            <button onClick={() => setMode("select")} style={boxFlex1F13}>Indietro</button>
             <button onClick={createGroup} disabled={!groupName.trim() || selected.length < 2} style={{
               flex: 2, padding: "10px", background: "var(--navy)", color: "#fff",
               border: "none", borderRadius: 8,

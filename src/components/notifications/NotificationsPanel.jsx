@@ -11,6 +11,39 @@ import { NOTIF_ICONS, NOTIF_CATEGORIES, notifTitle, notifSubtitle, notifTime, no
 import { Z } from "../../styles/tokens.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import { PushToggle } from "./PushToggle.jsx";
+import { btnChiudi } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowCenterBetween = { padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexShrink: 0 };
+const txtF15Bold = { fontWeight: 600, fontSize: 15 };
+const rowCenterGap8 = { display: "flex", gap: 8, alignItems: "center" };
+const boxF11Muted = {
+  background: "transparent", border: "1px solid var(--border)", borderRadius: 6,
+  padding: "4px 8px", cursor: "pointer", fontSize: 11, color: "var(--text-muted)",
+};
+const boxF13Muted = {
+  background: "transparent", border: "1px solid var(--border)", borderRadius: 6,
+  padding: "4px 8px", cursor: "pointer", fontSize: 13, color: "var(--text-muted)",
+};
+const rowGap5 = {
+  padding: "8px 12px", borderBottom: "1px solid var(--border)",
+  display: "flex", gap: 5, flexWrap: "wrap", background: "var(--surface2)", flexShrink: 0,
+};
+const flex1 = { flex: 1, minHeight: 0, maxHeight: 420, overflowY: "auto" };
+const txtF12Muted = { padding: "24px 16px", textAlign: "center", color: "var(--text-muted)", fontSize: 12 };
+const txtF18 = { fontSize: 18, flexShrink: 0 };
+const txtF11Muted = {
+  fontSize: 11, color: "var(--text-muted)", marginTop: 3, lineHeight: 1.35,
+  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+};
+const txtF11Muted2 = { fontSize: 11, color: "var(--text-muted)", marginTop: 2 };
+const rowCenterGap6 = { display: "flex", alignItems: "center", gap: 6, flexShrink: 0, marginTop: 2 };
+const boxW7H7 = { width: 7, height: 7, borderRadius: "50%", background: "var(--gold)" };
+const boxF13Muted2 = {
+  background: "none", border: "none", cursor: "pointer", padding: 2,
+  fontSize: 13, lineHeight: 1, color: "var(--text-muted)", opacity: 0.6,
+};
 
 // ─── NOTIFICATIONS PANEL ───────────────────────────────────────────────────
 // Helpers per il rendering delle notifiche reali (Step F): icona, titolo,
@@ -97,14 +130,11 @@ export const NotificationsPanel = ({ dispatch, onClose, notifications, isReal, o
       background: "#fff", borderRadius: 12, boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
       border: "1px solid var(--border)", overflow: "hidden", zIndex: Z.panel,
     }}>
-      <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexShrink: 0 }}>
-        <div className="playfair" style={{ fontWeight: 600, fontSize: 15 }}>Notifiche</div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <div style={rowCenterBetween}>
+        <div className="playfair" style={txtF15Bold}>Notifiche</div>
+        <div style={rowCenterGap8}>
           {isReal && hasUnread && (
-            <button onClick={() => onMarkAllRead?.()} style={{
-              background: "transparent", border: "1px solid var(--border)", borderRadius: 6,
-              padding: "4px 8px", cursor: "pointer", fontSize: 11, color: "var(--text-muted)",
-            }}>Segna tutte lette</button>
+            <button onClick={() => onMarkAllRead?.()} style={boxF11Muted}>Segna tutte lette</button>
           )}
           {isReal && list.length > 0 && (
             <button
@@ -118,20 +148,14 @@ export const NotificationsPanel = ({ dispatch, onClose, notifications, isReal, o
               }}
               title="Cancella tutte le notifiche"
               aria-label="Cancella tutte le notifiche"
-              style={{
-                background: "transparent", border: "1px solid var(--border)", borderRadius: 6,
-                padding: "4px 8px", cursor: "pointer", fontSize: 13, color: "var(--text-muted)",
-              }}
+              style={boxF13Muted}
             >🗑️</button>
           )}
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-muted)" }}>✕</button>
+          <button onClick={onClose} style={btnChiudi}>✕</button>
         </div>
       </div>
       {isReal && list.length > 0 && (
-        <div style={{
-          padding: "8px 12px", borderBottom: "1px solid var(--border)",
-          display: "flex", gap: 5, flexWrap: "wrap", background: "var(--surface2)", flexShrink: 0,
-        }}>
+        <div style={rowGap5}>
           {filterBtn("all", "Tutte")}
           {filterBtn("unread", "Non lette")}
           {counts.task > 0 && filterBtn("task", "📋 Task")}
@@ -142,9 +166,9 @@ export const NotificationsPanel = ({ dispatch, onClose, notifications, isReal, o
       {/* flex:1 + minHeight:0 — su mobile il pannello ha un'altezza massima
           legata al viewport (safe area inclusa): la lista è l'unica parte che
           scrolla, testata e toggle push restano sempre visibili. */}
-      <div style={{ flex: 1, minHeight: 0, maxHeight: 420, overflowY: "auto" }}>
+      <div style={flex1}>
         {filteredList.length === 0 && (
-          <div style={{ padding: "24px 16px", textAlign: "center", color: "var(--text-muted)", fontSize: 12 }}>
+          <div style={txtF12Muted}>
             {list.length === 0 ? "Nessuna notifica" : "Nessuna notifica per questo filtro"}
           </div>
         )}
@@ -162,28 +186,22 @@ export const NotificationsPanel = ({ dispatch, onClose, notifications, isReal, o
             onMouseEnter={e => { if (isNavigable(n)) e.currentTarget.style.background = "rgba(212,168,67,0.12)"; }}
             onMouseLeave={e => { e.currentTarget.style.background = n.read ? "transparent" : "rgba(212,168,67,0.07)"; }}
           >
-            <span style={{ fontSize: 18, flexShrink: 0 }}>{NOTIF_ICONS[n.type] || "🔔"}</span>
+            <span style={txtF18}>{NOTIF_ICONS[n.type] || "🔔"}</span>
             <div className="vd-flex-1-min0">
               <div style={{ fontSize: 13, fontWeight: n.read ? 400 : 600 }}>{notifTitle(n)}</div>
               {notifSubtitle(n) && (
-                <div style={{
-                  fontSize: 11, color: "var(--text-muted)", marginTop: 3, lineHeight: 1.35,
-                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                }}>{notifSubtitle(n)}</div>
+                <div style={txtF11Muted}>{notifSubtitle(n)}</div>
               )}
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{notifTime(n)}</div>
+              <div style={txtF11Muted2}>{notifTime(n)}</div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, marginTop: 2 }}>
-              {!n.read && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--gold)" }} />}
+            <div style={rowCenterGap6}>
+              {!n.read && <div style={boxW7H7} />}
               {isReal && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onRemoveNotification?.(n.id); }}
                   title="Elimina notifica"
                   aria-label="Elimina notifica"
-                  style={{
-                    background: "none", border: "none", cursor: "pointer", padding: 2,
-                    fontSize: 13, lineHeight: 1, color: "var(--text-muted)", opacity: 0.6,
-                  }}
+                  style={boxF13Muted2}
                   onMouseEnter={e => { e.currentTarget.style.opacity = 1; }}
                   onMouseLeave={e => { e.currentTarget.style.opacity = 0.6; }}
                 >✕</button>

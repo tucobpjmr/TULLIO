@@ -16,6 +16,12 @@ import { listeRicercabili, beneficiariNomi, intestazioneLista } from "../liste/l
 import { matchTermini, terminiRicerca } from "../../lib/searchUtils.js";
 import { Z } from "../../styles/tokens.js";
 import { FilterDropdown } from "./FilterDropdown.jsx";
+import { flex1, mb14, rowGap8 } from "../../styles/common.js";
+import {
+  box2, boxF12Muted, boxF12WFull, boxF18Muted, boxFlex1, boxStickyF11, padding2, row,
+  rowCenterBetween, rowCenterGap10, rowCenterGap8, rowCenterMiddle, rowGap10F11,
+  txtBoldNavyLight, txtDanger, txtF11Muted, txtF13Bold, txtF13Muted, txtF15Bold,
+} from "./advancedSearchPanelStyles.js";
 
 // Esportato per i test: la ricerca globale è l'unico punto che cerca insieme
 // task e liste viaggio, ed è quello dove le due ricerche devono coincidere.
@@ -182,55 +188,38 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
         zIndex: Z.panel,
       }}
     >
-      <div style={{
-        padding: "14px 18px", borderBottom: "1px solid var(--border)",
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        background: "#fff",
-      }}>
-        <div className="playfair" style={{ fontSize: 15, fontWeight: 700, color: "var(--navy)" }}>
+      <div style={rowCenterBetween}>
+        <div className="playfair" style={txtF15Bold}>
           🔍 Ricerca
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={rowGap8}>
           {hasFilters && (
-            <button onClick={resetAll} style={{
-              background: "transparent", border: "1px solid var(--border)",
-              borderRadius: 6, padding: "5px 10px", fontSize: 12, color: "var(--text-muted)",
-              cursor: "pointer", fontWeight: 500,
-            }}>Reset</button>
+            <button onClick={resetAll} style={boxF12Muted}>Reset</button>
           )}
-          <button onClick={onClose} style={{
-            background: "transparent", border: "none", fontSize: 18,
-            cursor: "pointer", color: "var(--text-muted)", lineHeight: 1,
-          }}>✕</button>
+          <button onClick={onClose} style={boxF18Muted}>✕</button>
         </div>
       </div>
 
       {/* Scroll unico: filtri + risultati scorrono insieme. Prima erano due aree
           di scroll annidate con altezze fisse (380 + 320 px) → su mobile lo
           scroll era a scatti e poco agevole. Ora un solo contenitore scrollabile. */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", background: "var(--surface)" }}>
-      <div style={{ padding: "16px 18px", borderBottom: "1px solid var(--border)" }}>
-        <div style={{ marginBottom: 14 }}>
+      <div style={boxFlex1}>
+      <div style={padding2}>
+        <div style={mb14}>
           <div style={sectionTitle}>Scadenza</div>
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 3 }}>Da</label>
-              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{
-                width: "100%", padding: "7px 10px", borderRadius: 6,
-                border: "1px solid var(--border)", fontSize: 12, outline: "none", fontFamily: "inherit", boxSizing: "border-box",
-              }} />
+          <div style={rowCenterGap10}>
+            <div style={flex1}>
+              <label style={txtF11Muted}>Da</label>
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={boxF12WFull} />
             </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 3 }}>A</label>
-              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{
-                width: "100%", padding: "7px 10px", borderRadius: 6,
-                border: "1px solid var(--border)", fontSize: 12, outline: "none", fontFamily: "inherit", boxSizing: "border-box",
-              }} />
+            <div style={flex1}>
+              <label style={txtF11Muted}>A</label>
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={boxF12WFull} />
             </div>
           </div>
         </div>
 
-        <div style={{ marginBottom: 14 }}>
+        <div style={mb14}>
           <div style={sectionTitle}>Categoria</div>
           <FilterDropdown
             options={Object.entries(categories).map(([key, c]) => ({
@@ -241,7 +230,7 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
           />
         </div>
 
-        <div style={{ marginBottom: 14 }}>
+        <div style={mb14}>
           <div style={sectionTitle}>Status</div>
           <FilterDropdown
             options={STATUSES.map(s => ({ value: s, label: STATUS_LABELS[s] }))}
@@ -250,7 +239,7 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
           />
         </div>
 
-        <div style={{ marginBottom: 14 }}>
+        <div style={mb14}>
           <div style={sectionTitle}>Agente</div>
           <FilterDropdown
             options={team.filter(m => !m.pending).map(m => ({
@@ -270,7 +259,7 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
 
         {listeAllowed && (
           <>
-            <div style={{ marginBottom: 14 }}>
+            <div style={mb14}>
               <div style={sectionTitle}>✈️ Stato Lista</div>
               <FilterDropdown
                 options={availableListeStati.map(s => ({
@@ -281,7 +270,7 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
               />
             </div>
 
-            <div style={{ marginBottom: 14 }}>
+            <div style={mb14}>
               <div style={sectionTitle}>✈️ Cliente Lista</div>
               <FilterDropdown
                 options={availableListeClienti.map(c => ({
@@ -294,26 +283,22 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
           </>
         )}
 
-        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "var(--text)" }}>
+        <label style={rowCenterGap8}>
           <input type="checkbox" checked={includeTrashed} onChange={e => setIncludeTrashed(e.target.checked)} />
           🗑️ Includi {listeAllowed ? "task e liste" : "task"} nel cestino
         </label>
       </div>
 
-      <div style={{ background: "#fff" }}>
+      <div style={box2}>
 
         {hasFilters && results.length === 0 && (
-          <div style={{ padding: "32px 20px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+          <div style={txtF13Muted}>
             Nessun task corrisponde ai filtri
           </div>
         )}
         {hasFilters && results.length > 0 && (
           <>
-            <div style={{
-              padding: "8px 18px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)",
-              textTransform: "uppercase", letterSpacing: 1, background: "var(--surface2)",
-              borderBottom: "1px solid var(--border)", position: "sticky", top: 0,
-            }}>
+            <div style={boxStickyF11}>
               {results.length} {results.length === 1 ? "risultato" : "risultati"}
             </div>
             {results.map(t => {
@@ -340,17 +325,14 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
                     fontSize: 14, flexShrink: 0,
                   }}>{cat.icon}</div>
                   <div className="vd-flex-1-min0">
-                    <div style={{
-                      fontSize: 13, fontWeight: 600, color: "var(--text)",
-                      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                    }}>
-                      {t.deletedAt && <span style={{ color: "var(--danger)", marginRight: 6 }}>🗑️</span>}
+                    <div style={txtF13Bold}>
+                      {t.deletedAt && <span style={txtDanger}>🗑️</span>}
                       {t.title}
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, display: "flex", gap: 10 }}>
+                    <div style={rowGap10F11}>
                       <span>{STATUS_LABELS[t.status]}</span>
                       {t.praticaRef && (
-                        <span style={{ color: "var(--navy-light)", fontWeight: 600 }}>• {t.praticaRef}</span>
+                        <span style={txtBoldNavyLight}>• {t.praticaRef}</span>
                       )}
                       {t.client && <span>• {t.client}</span>}
                       {t.dueDate && (
@@ -364,7 +346,7 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
                     fontSize: 10, fontWeight: 700, padding: "3px 7px", borderRadius: 4,
                     background: prio.bg, color: prio.color, flexShrink: 0,
                   }}>{prio.label}</div>
-                  <div style={{ display: "flex", marginLeft: 4 }}>
+                  <div style={row}>
                     {(t.assignees || []).slice(0, 3).map((aid, i) => (
                       <div key={aid} style={{ marginLeft: i ? -6 : 0 }}>
                         <Avatar memberId={aid} size={22} />
@@ -380,11 +362,7 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
 
         {listeAllowed && (keyword.trim() || listeStati.length || listeClienti.length) && listaResults.length > 0 && (
           <>
-            <div style={{
-              padding: "8px 18px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)",
-              textTransform: "uppercase", letterSpacing: 1, background: "var(--surface2)",
-              borderBottom: "1px solid var(--border)", position: "sticky", top: 0,
-            }}>
+            <div style={boxStickyF11}>
               {listaResults.length} {listaResults.length === 1 ? "lista" : "liste"} viaggio ✈️
             </div>
             {listaResults.map(l => (
@@ -400,25 +378,17 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
                 onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
                 onMouseLeave={e => e.currentTarget.style.background = "#fff"}
               >
-                <div style={{
-                  width: 28, height: 28, borderRadius: 6,
-                  background: "#F9FAFB", color: "#6B7280",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 14, flexShrink: 0,
-                }}>🧾</div>
+                <div style={rowCenterMiddle}>🧾</div>
                 <div className="vd-flex-1-min0">
-                  <div style={{
-                    fontSize: 13, fontWeight: 600, color: "var(--text)",
-                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                  }}>
-                    {l.deleted_at && <span style={{ color: "var(--danger)", marginRight: 6 }}>🗑️</span>}
+                  <div style={txtF13Bold}>
+                    {l.deleted_at && <span style={txtDanger}>🗑️</span>}
                     {/* Titolare E cointestatari, come nell'elenco del modulo:
                         una lista trovata cercando il cointestatario deve
                         mostrare il nome che l'ha fatta trovare, altrimenti la
                         riga sembra un risultato sbagliato. */}
                     {intestazioneLista(l) || "—"}
                   </div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, display: "flex", gap: 10 }}>
+                  <div style={rowGap10F11}>
                     <span>Lista viaggio</span>
                     {l.titolo && <span>• {l.titolo}</span>}
                   </div>

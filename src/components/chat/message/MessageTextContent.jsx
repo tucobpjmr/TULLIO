@@ -5,6 +5,13 @@
 import { MentionText } from "../../ui/MentionText.jsx";
 import { useChatContext } from "../chatContext.js";
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const txtF135 = { fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" };
+const txtF11Bold = { fontSize: 11, fontWeight: 700, opacity: 0.7, letterSpacing: 0.5 };
+const txtF13Bold = { fontSize: 13, fontWeight: 600, marginTop: 2 };
+const txtF11Mt2 = { fontSize: 11, opacity: 0.7, marginTop: 2 };
+
 // Ritorna { taskTitle, taskDue, rest } o null se non match.
 const TASK_LINK_RE = /^🔗 Riferimento task: "([^"]+)"\n📅 Scadenza:([^\n]*)\n\n([\s\S]*)$/;
 export function parseTaskLink(text) {
@@ -22,7 +29,7 @@ export const MessageTextContent = ({ text, isMine, taskRef }) => {
   const { tasks, dispatch } = useChatContext();
   const link = parseTaskLink(text);
   if (!link) {
-    return <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}><MentionText text={text} /></div>;
+    return <div style={txtF135}><MentionText text={text} /></div>;
   }
   // Step K: prima cerca per UUID, poi fallback al match titolo.
   const tByRef = taskRef ? (tasks || []).find(x => x.id === taskRef && !x.deletedAt) : null;
@@ -33,7 +40,7 @@ export const MessageTextContent = ({ text, isMine, taskRef }) => {
     dispatch?.({ type: "SET_SELECTED_TASK", payload: t });
   };
   return (
-    <div style={{ fontSize: 13.5, lineHeight: 1.45, wordBreak: "break-word" }}>
+    <div style={txtF135}>
       <button
         type="button"
         onClick={handleOpen}
@@ -49,14 +56,14 @@ export const MessageTextContent = ({ text, isMine, taskRef }) => {
           fontFamily: "inherit",
         }}
       >
-        <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.7, letterSpacing: 0.5 }}>
+        <div style={txtF11Bold}>
           🔗 RIFERIMENTO TASK
         </div>
-        <div style={{ fontSize: 13, fontWeight: 600, marginTop: 2 }}>
+        <div style={txtF13Bold}>
           {link.taskTitle}
         </div>
         {link.taskDue && (
-          <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>
+          <div style={txtF11Mt2}>
             📅 {link.taskDue}
           </div>
         )}

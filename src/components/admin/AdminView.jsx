@@ -23,6 +23,17 @@ import { AdminStatsTab } from "./tabs/AdminStatsTab.jsx";
 import { AdminCategoriesTab } from "./tabs/AdminCategoriesTab.jsx";
 import { AdminLogTab } from "./tabs/AdminLogTab.jsx";
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const mb24 = { marginBottom: 24 };
+const txtF28Bold = { fontSize: 28, color: "var(--heading)", margin: 0, fontWeight: 700 };
+const txtF14Muted = { color: "var(--text-muted)", fontSize: 14, marginTop: 4 };
+const rowGap4Mb20 = {
+  display: "flex", gap: 4, marginBottom: 20,
+  borderBottom: "1px solid var(--border)",
+  overflowX: "auto", whiteSpace: "nowrap",
+};
+
 export const AdminView = memo(function AdminView({
   dispatch, agencyName, notices, activityLog, messageTemplates,
 }) {
@@ -39,21 +50,17 @@ export const AdminView = memo(function AdminView({
 
   return (
     <div className="vd-pad" style={{ padding: isMobile ? 16 : 32, maxWidth: 1200, margin: "0 auto" }}>
-      <div style={{ marginBottom: 24 }}>
-        <h1 className="playfair" style={{ fontSize: 28, color: "var(--heading)", margin: 0, fontWeight: 700 }}>
+      <div style={mb24}>
+        <h1 className="playfair" style={txtF28Bold}>
           ⚙️ Amministrazione
         </h1>
-        <p style={{ color: "var(--text-muted)", fontSize: 14, marginTop: 4 }}>
+        <p style={txtF14Muted}>
           Gestione team, categorie, import/export, statistiche e log attività
         </p>
       </div>
 
       {/* Tab nav */}
-      <div style={{
-        display: "flex", gap: 4, marginBottom: 20,
-        borderBottom: "1px solid var(--border)",
-        overflowX: "auto", whiteSpace: "nowrap",
-      }}>
+      <div style={rowGap4Mb20}>
         {tabs.map(t => {
           const active = tab === t.id;
           return (

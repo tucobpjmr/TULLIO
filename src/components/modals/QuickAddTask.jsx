@@ -10,6 +10,33 @@ import { DateTimePicker } from "../ui/DateTimePicker.jsx";
 import { Modal } from "../ui/Modal.jsx";
 import { useClientSuggestions, ClientSuggestions } from "../ui/ClientAutocomplete.jsx";
 import { useClients } from "../../state/ClientsContext.jsx";
+import {
+  colGap14, grid2ColGap12, hidden, relative, txtF11Muted, txtF16,
+} from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowCenterBetween = { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 };
+const txtF20Bold = { fontSize: 20, fontWeight: 700 };
+const boxF18Muted = { background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--text-muted)" };
+const boxF10Bold = {
+  marginLeft: 8, fontSize: 10, fontWeight: 700,
+  background: "#E0F2FE", color: "#0369A1",
+  padding: "1px 6px", borderRadius: 4,
+};
+const boxF11Mt5 = {
+  marginTop: 5, fontSize: 11, color: "#0369A1", background: "none",
+  border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit",
+};
+const colGap6Mb8 = { display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 };
+const rowCenterGap10 = {
+  display: "flex", alignItems: "center", gap: 10, padding: "6px 10px",
+  background: "var(--surface2)", borderRadius: 8,
+};
+const txtF13Bold = { fontSize: 13, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+const txtF11Light = { fontSize: 11, color: "var(--text-light)", marginTop: 4 };
+const txtF12Danger = { fontSize: 12, color: "var(--danger)", marginTop: 6 };
+const rowGap10Mt20 = { display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" };
 
 // v2.8 Round 6: auto-suggerisci la categoria in base a keyword nel titolo.
 // Regole: primo match vince (ordine top-down). Solo per categorie disponibili all'utente.
@@ -148,27 +175,23 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
   return (
     <Modal open onClose={onClose} labelledBy="quick-add-title" width={500} cardStyle={{ padding: 28 }}>
       <>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <div id="quick-add-title" className="playfair" style={{ fontSize: 20, fontWeight: 700 }}>Nuovo Task</div>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--text-muted)" }}>✕</button>
+        <div style={rowCenterBetween}>
+          <div id="quick-add-title" className="playfair" style={txtF20Bold}>Nuovo Task</div>
+          <button onClick={onClose} style={boxF18Muted}>✕</button>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={colGap14}>
           <div>
             <label className="vd-field-label-lg">TITOLO *</label>
             <input {...inp("title")} placeholder="Descrivi brevemente il task..." />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div style={grid2ColGap12}>
             <div>
               <label className="vd-field-label-lg">
                 CATEGORIA
                 {suggested && (
-                  <span style={{
-                    marginLeft: 8, fontSize: 10, fontWeight: 700,
-                    background: "#E0F2FE", color: "#0369A1",
-                    padding: "1px 6px", borderRadius: 4,
-                  }}>💡 auto</span>
+                  <span style={boxF10Bold}>💡 auto</span>
                 )}
               </label>
               <select
@@ -184,10 +207,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
                 <button
                   type="button"
                   onClick={() => { setCatManual(false); const s = suggestCategory(form.title, availableCats); if (s) setForm(p => ({ ...p, category: s })); }}
-                  style={{
-                    marginTop: 5, fontSize: 11, color: "#0369A1", background: "none",
-                    border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit",
-                  }}
+                  style={boxF11Mt5}
                 >
                   💡 Usa categoria suggerita: {availableCats[suggestCategory(form.title, availableCats)]?.label}
                 </button>
@@ -201,7 +221,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div style={grid2ColGap12}>
             <div>
               <label className="vd-field-label-lg">ASSEGNA A</label>
               <select
@@ -221,7 +241,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
             </div>
           </div>
 
-          <div style={{ position: "relative" }}>
+          <div style={relative}>
             <label className="vd-field-label-lg">CLIENTE</label>
             <input
               {...inp("client")}
@@ -231,7 +251,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
             <ClientSuggestions matches={cli.matches} visible={cli.visible} onPick={pickClient} />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div style={grid2ColGap12}>
             <div>
               <label className="vd-field-label-lg">N° PRATICA</label>
               <input {...inp("praticaRef")} placeholder="es. PR-2026-001" />
@@ -251,16 +271,13 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
           <div>
             <label className="vd-field-label-lg">ALLEGATI</label>
             {pendingFiles.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
+              <div style={colGap6Mb8}>
                 {pendingFiles.map((f, i) => (
-                  <div key={i} style={{
-                    display: "flex", alignItems: "center", gap: 10, padding: "6px 10px",
-                    background: "var(--surface2)", borderRadius: 8,
-                  }}>
-                    <span style={{ fontSize: 16, flexShrink: 0 }}>{fileIcon(f.type || f.name)}</span>
+                  <div key={i} style={rowCenterGap10}>
+                    <span style={txtF16}>{fileIcon(f.type || f.name)}</span>
                     <div className="vd-flex-1-min0">
-                      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</div>
-                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{formatFileSize(f.size)}</div>
+                      <div style={txtF13Bold}>{f.name}</div>
+                      <div style={txtF11Muted}>{formatFileSize(f.size)}</div>
                     </div>
                     <button type="button" onClick={() => removeFile(i)} disabled={busy} title="Rimuovi" style={{
                       background: "none", border: "none", cursor: busy ? "default" : "pointer", fontSize: 13, padding: 4, color: "var(--text-muted)",
@@ -273,7 +290,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
               ref={fileInputRef}
               type="file"
               multiple
-              style={{ display: "none" }}
+              style={hidden}
               onChange={e => addFiles(e.target.files)}
             />
             <button
@@ -285,14 +302,14 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
                 cursor: busy ? "default" : "pointer", background: "transparent", fontFamily: "inherit",
               }}
             >📎 Aggiungi file</button>
-            <div style={{ fontSize: 11, color: "var(--text-light)", marginTop: 4 }}>
+            <div style={txtF11Light}>
               Immagini, video, audio e documenti · max {formatFileSize(MAX_TASK_FILE_SIZE)} per file.
             </div>
-            {fileError && <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 6 }}>{fileError}</div>}
+            {fileError && <div style={txtF12Danger}>{fileError}</div>}
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" }}>
+        <div style={rowGap10Mt20}>
           <button onClick={onClose} disabled={busy} style={{
             padding: "9px 18px", borderRadius: 8, border: "1px solid var(--border)",
             background: "transparent", cursor: busy ? "default" : "pointer", fontSize: 13, fontWeight: 500,

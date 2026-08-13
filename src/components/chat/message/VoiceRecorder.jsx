@@ -4,6 +4,15 @@
 import { useState, useEffect, useRef } from "react";
 import { formatDuration } from "../chatFormat.js";
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowCenterFlex1 = {
+  display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
+  background: "var(--surface)", borderRadius: 24, border: "1px solid var(--border)",
+  flex: 1,
+};
+const rowCenterFlex12 = { display: "flex", gap: 2, flex: 1, alignItems: "center", height: 20 };
+
 // ─── CHAT: VOICE RECORDER ──────────────────────────────────────────────────
 const VOICE_BARS = 30;
 
@@ -126,17 +135,13 @@ export const VoiceRecorder = ({ onSend, onCancel }) => {
   };
 
   return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
-      background: "var(--surface)", borderRadius: 24, border: "1px solid var(--border)",
-      flex: 1,
-    }}>
+    <div style={rowCenterFlex1}>
       <div className="record-pulse" style={{
         width: 10, height: 10, borderRadius: "50%",
         background: sending ? "var(--text-muted)" : "var(--danger)",
         flexShrink: 0,
       }} />
-      <div style={{ display: "flex", gap: 2, flex: 1, alignItems: "center", height: 20 }}>
+      <div style={rowCenterFlex12}>
         {Array.from({ length: 24 }).map((_, i) => (
           <div key={i} style={{
             flex: 1, background: "var(--navy)",

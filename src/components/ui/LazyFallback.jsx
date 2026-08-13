@@ -19,6 +19,15 @@
 // volte.
 import { Z } from "../../styles/tokens.js";
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const txtF13Bold = { color: "#fff", fontSize: 13, fontWeight: 600 };
+const colCenterMiddle = {
+  display: "flex", flexDirection: "column", gap: 12,
+  alignItems: "center", justifyContent: "center", padding: 48,
+};
+const txtF13Bold2 = { color: "var(--text-muted)", fontSize: 13, fontWeight: 600 };
+
 export const LazyFallback = ({ overlay = false, label = "Caricamento in corso…" }) => {
   const ring = (size, track, top) => (
     <div
@@ -43,7 +52,7 @@ export const LazyFallback = ({ overlay = false, label = "Caricamento in corso…
         }}
       >
         {ring(40, "rgba(255,255,255,0.3)", "var(--gold)")}
-        <span style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{label}</span>
+        <span style={txtF13Bold}>{label}</span>
       </div>
     );
   }
@@ -51,13 +60,10 @@ export const LazyFallback = ({ overlay = false, label = "Caricamento in corso…
     <div
       role="status"
       aria-live="polite"
-      style={{
-        display: "flex", flexDirection: "column", gap: 12,
-        alignItems: "center", justifyContent: "center", padding: 48,
-      }}
+      style={colCenterMiddle}
     >
       {ring(34, "var(--surface3)", "var(--gold)")}
-      <span style={{ color: "var(--text-muted)", fontSize: 13, fontWeight: 600 }}>{label}</span>
+      <span style={txtF13Bold2}>{label}</span>
     </div>
   );
 };

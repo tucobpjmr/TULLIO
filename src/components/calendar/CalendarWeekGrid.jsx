@@ -5,18 +5,27 @@
 // avatar — se un giorno le misure convergono, è il punto da unificare.
 import { formatTime } from "../../lib/taskUtils.js";
 import { layoutColumns } from "./calendarLayout.js";
+import { nomeTroncato } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const boxR14 = {
+  background: "var(--card)", borderRadius: 14, border: "1px solid var(--border)",
+  boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden",
+};
+const grid2 = { display: "grid", gridTemplateColumns: `56px repeat(7, minmax(0, 1fr))`, background: "var(--surface2)" };
+const maxHeight2 = { maxHeight: 560, overflowY: "auto" };
+const gridRelative = { display: "grid", gridTemplateColumns: `56px repeat(7, minmax(0, 1fr))`, position: "relative" };
+const txtF9Muted = { fontSize: 9, color: "var(--text-muted)" };
 
 export function CalendarWeekGrid({ weekDays, dayNames, getTasksForDay, tasks, categories, onOpenTask }) {
   const HOURS = Array.from({ length: 24 }, (_, h) => h);
   const SLOT_H = 36;
   const today = new Date().toDateString();
   return (
-    <div style={{
-      background: "var(--card)", borderRadius: 14, border: "1px solid var(--border)",
-      boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden",
-    }}>
+    <div style={boxR14}>
       {/* Header giorni */}
-      <div style={{ display: "grid", gridTemplateColumns: `56px repeat(7, minmax(0, 1fr))`, background: "var(--surface2)" }}>
+      <div style={grid2}>
         <div />
         {weekDays.map((d, i) => {
           const isToday = d.toDateString() === today;
@@ -32,8 +41,8 @@ export function CalendarWeekGrid({ weekDays, dayNames, getTasksForDay, tasks, ca
         })}
       </div>
       {/* Griglia oraria scrollabile */}
-      <div style={{ maxHeight: 560, overflowY: "auto" }}>
-        <div style={{ display: "grid", gridTemplateColumns: `56px repeat(7, minmax(0, 1fr))`, position: "relative" }}>
+      <div style={maxHeight2}>
+        <div style={gridRelative}>
           {/* Colonna ore */}
           <div>
             {HOURS.map(h => (
@@ -80,10 +89,10 @@ export function CalendarWeekGrid({ weekDays, dayNames, getTasksForDay, tasks, ca
                       cursor: "pointer", overflow: "hidden", fontSize: 10, lineHeight: 1.2,
                       outline: t.isRecurringInstance ? `1px dashed ${cat.color || "#94a3b8"}66` : "none",
                     }}>
-                      <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      <div style={nomeTroncato}>
                         {cat.icon} {t.title}{t.isRecurringInstance ? " ↻" : ""}
                       </div>
-                      <div style={{ fontSize: 9, color: "var(--text-muted)" }}>{formatTime(t.dueDate)}</div>
+                      <div style={txtF9Muted}>{formatTime(t.dueDate)}</div>
                     </div>
                   );
                 })}

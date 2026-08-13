@@ -8,6 +8,43 @@ import { useAppData } from "../../state/AppDataContext.jsx";
 import { getConversationName, getLastMessage } from "./chatFormat.js";
 import { Modal } from "../ui/Modal.jsx";
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const padding2 = { padding: "14px 16px", borderBottom: "1px solid var(--border)" };
+const txtF16Bold = { fontSize: 16, fontWeight: 700, color: "var(--heading)", marginBottom: 6 };
+const boxF12Muted = {
+  fontSize: 12, color: "var(--text-muted)", background: "var(--surface2)",
+  padding: "6px 10px", borderRadius: 6, borderLeft: "3px solid var(--gold)",
+  maxHeight: 56, overflow: "hidden", lineHeight: 1.4,
+};
+const padding3 = { padding: "10px 12px", borderBottom: "1px solid var(--border)" };
+const boxF13Text = {
+  width: "100%", padding: "8px 10px", borderRadius: 8,
+  border: "1px solid var(--border)", background: "var(--surface)",
+  color: "var(--text)", fontSize: 13, fontFamily: "inherit", outline: "none",
+};
+const flex1 = { overflowY: "auto", flex: 1 };
+const txtF13Muted = { padding: "24px 16px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 };
+const rowCenterGap10 = {
+  width: "100%", display: "flex", alignItems: "center", gap: 10,
+  padding: "10px 14px", background: "none", border: "none",
+  borderBottom: "1px solid var(--border)", cursor: "pointer",
+  fontFamily: "inherit", textAlign: "left",
+};
+const rowCenterMiddle = {
+  width: 32, height: 32, borderRadius: "50%", background: "var(--gold)",
+  display: "flex", alignItems: "center", justifyContent: "center",
+  fontSize: 14, flexShrink: 0,
+};
+const txtF13Bold = { fontSize: 13, fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+const txtF11Muted = { fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 1 };
+const txtRight = { padding: "10px 14px", borderTop: "1px solid var(--border)", textAlign: "right" };
+const boxF125Text = {
+  background: "transparent", border: "1px solid var(--border)",
+  padding: "6px 14px", borderRadius: 8, cursor: "pointer", fontSize: 12.5,
+  color: "var(--text)", fontFamily: "inherit",
+};
+
 // messaggio decrescente) → l'admin trova subito chi ha contattato per ultimo.
 export const ForwardPicker = ({ msg, conversations, messages, onPick, onClose }) => {
   const { currentUserId, getMember } = useAppData();
@@ -48,34 +85,26 @@ export const ForwardPicker = ({ msg, conversations, messages, onPick, onClose })
         boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
       }}
     >
-      <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
-        <div id="vd-forward-title" className="playfair" style={{ fontSize: 16, fontWeight: 700, color: "var(--heading)", marginBottom: 6 }}>
+      <div style={padding2}>
+        <div id="vd-forward-title" className="playfair" style={txtF16Bold}>
           ↪ Inoltra a…
         </div>
         {preview && (
-          <div style={{
-            fontSize: 12, color: "var(--text-muted)", background: "var(--surface2)",
-            padding: "6px 10px", borderRadius: 6, borderLeft: "3px solid var(--gold)",
-            maxHeight: 56, overflow: "hidden", lineHeight: 1.4,
-          }}>{preview}</div>
+          <div style={boxF12Muted}>{preview}</div>
         )}
       </div>
-      <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)" }}>
+      <div style={padding3}>
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Cerca conversazione…"
           autoFocus
-          style={{
-            width: "100%", padding: "8px 10px", borderRadius: 8,
-            border: "1px solid var(--border)", background: "var(--surface)",
-            color: "var(--text)", fontSize: 13, fontFamily: "inherit", outline: "none",
-          }}
+          style={boxF13Text}
         />
       </div>
-      <div style={{ overflowY: "auto", flex: 1 }}>
+      <div style={flex1}>
         {filtered.length === 0 ? (
-          <div style={{ padding: "24px 16px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+          <div style={txtF13Muted}>
             Nessuna conversazione disponibile.
           </div>
         ) : filtered.map(c => {
@@ -87,30 +116,21 @@ export const ForwardPicker = ({ msg, conversations, messages, onPick, onClose })
             <button
               key={c.id}
               onClick={() => onPick(c.id)}
-              style={{
-                width: "100%", display: "flex", alignItems: "center", gap: 10,
-                padding: "10px 14px", background: "none", border: "none",
-                borderBottom: "1px solid var(--border)", cursor: "pointer",
-                fontFamily: "inherit", textAlign: "left",
-              }}
+              style={rowCenterGap10}
               onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
               onMouseLeave={e => e.currentTarget.style.background = "transparent"}
             >
               {c.type === "direct" && otherUid ? (
                 <Avatar memberId={otherUid} size={32} />
               ) : (
-                <div style={{
-                  width: 32, height: 32, borderRadius: "50%", background: "var(--gold)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 14, flexShrink: 0,
-                }}>{c.icon || "👥"}</div>
+                <div style={rowCenterMiddle}>{c.icon || "👥"}</div>
               )}
               <div className="vd-flex-1-min0">
-                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                <div style={txtF13Bold}>
                   {getConversationName(c, currentUserId, getMember)}
                 </div>
                 {last && (
-                  <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 1 }}>
+                  <div style={txtF11Muted}>
                     {last.type === "text" ? last.text : last.type === "file" ? `📎 ${last.fileName}` : "🎙️ Vocale"}
                   </div>
                 )}
@@ -119,12 +139,8 @@ export const ForwardPicker = ({ msg, conversations, messages, onPick, onClose })
           );
         })}
       </div>
-      <div style={{ padding: "10px 14px", borderTop: "1px solid var(--border)", textAlign: "right" }}>
-        <button onClick={onClose} style={{
-          background: "transparent", border: "1px solid var(--border)",
-          padding: "6px 14px", borderRadius: 8, cursor: "pointer", fontSize: 12.5,
-          color: "var(--text)", fontFamily: "inherit",
-        }}>Annulla</button>
+      <div style={txtRight}>
+        <button onClick={onClose} style={boxF125Text}>Annulla</button>
       </div>
     </Modal>
   );

@@ -6,6 +6,17 @@ import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useTasks } from "../../../state/TasksContext.jsx";
 import { AddCategoryModal } from "../../modals/AddCategoryModal.jsx";
 import { useConfirm } from "../../../state/ConfirmContext.jsx";
+import { gridGap10, rowCenterBetween, txtF12Muted2, txtF13Muted } from "../../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowCenterGap14 = {
+  background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10,
+  padding: 14, display: "flex", alignItems: "center", gap: 14,
+};
+const gridGap8 = { display: "grid", gridTemplateColumns: "1fr 70px 90px 90px", gap: 8 };
+const txtF15Bold = { fontSize: 15, fontWeight: 600, color: "var(--text)" };
+const rowGap6 = { display: "flex", gap: 6 };
 
 // ─── ADMIN TAB: CATEGORIE ──────────────────────────────────────────────────
 export const AdminCategoriesTab = ({ dispatch }) => {
@@ -28,22 +39,19 @@ export const AdminCategoriesTab = ({ dispatch }) => {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
+      <div style={rowCenterBetween}>
+        <div style={txtF13Muted}>
           🏷️ <b>{Object.keys(categories).length}</b> categorie definite
         </div>
         <button onClick={() => setShowAdd(true)} style={btnPrimary}>+ Aggiungi categoria</button>
       </div>
 
-      <div style={{ display: "grid", gap: 10 }}>
+      <div style={gridGap10}>
         {Object.entries(categories).map(([key, c]) => {
           const isEditing = editingKey === key;
           const count = usageCount(key);
           return (
-            <div key={key} style={{
-              background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10,
-              padding: 14, display: "flex", alignItems: "center", gap: 14,
-            }}>
+            <div key={key} style={rowCenterGap14}>
               <div style={{
                 width: 42, height: 42, borderRadius: 8, fontSize: 22,
                 display: "flex", alignItems: "center", justifyContent: "center",
@@ -51,7 +59,7 @@ export const AdminCategoriesTab = ({ dispatch }) => {
               }}>{isEditing ? draft.icon : c.icon}</div>
               <div className="vd-flex-1-min0">
                 {isEditing ? (
-                  <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: "1fr 70px 90px 90px", gap: 8 }}>
+                  <div className="vd-grid-collapse" style={gridGap8}>
                     <input value={draft.label} onChange={e => setDraft({...draft, label: e.target.value})}
                       placeholder="Etichetta" style={fieldStyle} />
                     <input value={draft.icon} onChange={e => setDraft({...draft, icon: e.target.value})}
@@ -63,14 +71,14 @@ export const AdminCategoriesTab = ({ dispatch }) => {
                   </div>
                 ) : (
                   <>
-                    <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text)" }}>{c.label}</div>
-                    <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+                    <div style={txtF15Bold}>{c.label}</div>
+                    <div style={txtF12Muted2}>
                       Chiave: <code>{key}</code> • {count} task usano questa categoria
                     </div>
                   </>
                 )}
               </div>
-              <div style={{ display: "flex", gap: 6 }}>
+              <div style={rowGap6}>
                 {isEditing ? (
                   <>
                     <button onClick={saveEdit} style={btnPrimary}>💾 Salva</button>

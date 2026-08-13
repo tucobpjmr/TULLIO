@@ -5,6 +5,10 @@ import React, { useState } from 'react';
 import { useAuth } from './AuthContext';
 import { PasswordField } from '../components/ui/PasswordField.jsx';
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const txtF13Op07 = { margin: '0 0 24px', fontSize: 13, opacity: 0.7 };
+
 export default function UpdatePasswordScreen() {
   const { updatePassword, signOut, recoveryKind } = useAuth();
   const isInvite = recoveryKind === 'invite';
@@ -41,7 +45,7 @@ export default function UpdatePasswordScreen() {
     <div style={wrapStyle}>
       <form onSubmit={onSubmit} style={cardStyle}>
         <h1 style={titleStyle}>VoyageDesk</h1>
-        <p style={{ margin: '0 0 24px', fontSize: 13, opacity: 0.7 }}>
+        <p style={txtF13Op07}>
           {isInvite ? 'Benvenuto! Imposta la tua password per attivare l’account' : 'Imposta una nuova password'}
         </p>
 

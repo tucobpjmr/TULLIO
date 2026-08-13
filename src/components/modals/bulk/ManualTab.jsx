@@ -11,6 +11,28 @@ import { MAX_TASK_FILE_SIZE, formatFileSize, isWithinSizeLimit } from "../../../
 import { bulkInputStyle, bulkTextareaStyle, bulkBtnPrimary, bulkBtnGhost } from "./bulkStyles.js";
 import { RowAttachments } from "./RowAttachments.jsx";
 import { useClientSuggestions, ClientSuggestions } from "../../ui/ClientAutocomplete.jsx";
+import {
+  colGap2F12, relative, rowCenterGap8, rowGap8, txtBoldDanger, txtF10Bold, txtF10Bold2,
+} from "../../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const colGap16 = { display: "flex", flexDirection: "column", gap: 16 };
+const boxR10 = { background: "var(--surface2)", borderRadius: 10, padding: "12px 14px" };
+const gridGap6F10 = { display: "grid", gridTemplateColumns: "26px 1fr 130px 100px 120px 130px 28px", gap: 6, fontSize: 10, fontWeight: 700, color: "var(--text-muted)", padding: "0 4px", letterSpacing: 0.5 };
+const txtF11Bold = { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", flexShrink: 0 };
+const txtF105Bold = { fontSize: 10.5, color: "var(--warning)", fontWeight: 600 };
+const grid2ColGap8 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 };
+const gridCenterGap6 = { display: "grid", gridTemplateColumns: "26px 1fr 130px 100px 120px 130px 28px", gap: 6, alignItems: "center" };
+const txtF11Muted = { fontSize: 11, color: "var(--text-muted)", textAlign: "center" };
+const gridColumn2 = { gridColumn: "2 / -2" };
+const boxF125Bold = {
+  background: "transparent", border: "1px dashed var(--border)", borderRadius: 8,
+  padding: "9px", cursor: "pointer", fontSize: 12.5, fontWeight: 600,
+  color: "var(--text-muted)", marginTop: 4,
+};
+const rowCenterBetween = { display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 10, borderTop: "1px solid var(--border)", flexWrap: "wrap", gap: 8 };
+const txtBoldWarning = { color: "var(--warning)", fontWeight: 600 };
 
 
 // ─── BULK: MANUAL TAB ──────────────────────────────────────────────────────
@@ -136,13 +158,13 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ background: "var(--surface2)", borderRadius: 10, padding: "12px 14px" }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 8 }}>
+    <div style={colGap16}>
+      <div style={boxR10}>
+        <div style={txtF10Bold2}>
           IMPOSTAZIONI COMUNI (usate se la riga non specifica)
         </div>
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: 8 }}>
-          <div style={{ position: "relative" }}>
+          <div style={relative}>
             <input
               value={common.client}
               onChange={e => setCommon({ ...common, client: e.target.value })}
@@ -165,15 +187,15 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
         </div>
         <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 8, maxWidth: isMobile ? "100%" : 900 }}>
           <div>
-            <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>N° PRATICA</div>
+            <div style={txtF10Bold}>N° PRATICA</div>
             <input value={common.praticaRef} onChange={e => setCommon({ ...common, praticaRef: e.target.value })} placeholder="es. PR-2026-001" style={bulkInputStyle} />
           </div>
           <div>
-            <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>CONTATTI</div>
+            <div style={txtF10Bold}>CONTATTI</div>
             <input value={common.contact} onChange={e => setCommon({ ...common, contact: e.target.value })} placeholder="Telefono, email…" style={bulkInputStyle} />
           </div>
           <div>
-            <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>SCADENZA</div>
+            <div style={txtF10Bold}>SCADENZA</div>
             <DateTimePicker
               value={common.dueDate || null}
               onChange={iso => setCommon({ ...common, dueDate: iso || "" })}
@@ -185,7 +207,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
 
       <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 10 : 6 }}>
         {!isMobile && (
-          <div style={{ display: "grid", gridTemplateColumns: "26px 1fr 130px 100px 120px 130px 28px", gap: 6, fontSize: 10, fontWeight: 700, color: "var(--text-muted)", padding: "0 4px", letterSpacing: 0.5 }}>
+          <div style={gridGap6F10}>
             <div>#</div><div>TITOLO *</div><div>CATEGORIA</div><div>PRIORITÀ</div><div>ASSEGNATO</div><div>SCADENZA</div><div></div>
           </div>
         )}
@@ -196,8 +218,8 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
               border: `1px solid ${!r.title.trim() && rowHasData(r) ? "var(--warning)" : "var(--border)"}`,
               borderRadius: 10, padding: 10, background: "var(--surface)", display: "flex", flexDirection: "column", gap: 8,
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", flexShrink: 0 }}>#{idx + 1}</span>
+              <div style={rowCenterGap8}>
+                <span style={txtF11Bold}>#{idx + 1}</span>
                 <input value={r.title} onChange={e => updateRow(r.key, "title", e.target.value)} placeholder="Titolo task..." style={{
                   ...bulkInputStyle, flex: 1,
                   borderColor: !r.title.trim() && rowHasData(r) ? "var(--warning)" : "var(--border)",
@@ -208,9 +230,9 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
                 }}>✕</button>
               </div>
               {!r.title.trim() && rowHasData(r) && (
-                <div style={{ fontSize: 10.5, color: "var(--warning)", fontWeight: 600 }}>⚠ Aggiungi un titolo o questa riga verrà ignorata</div>
+                <div style={txtF105Bold}>⚠ Aggiungi un titolo o questa riga verrà ignorata</div>
               )}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <div style={grid2ColGap8}>
                 <select value={r.category} onChange={e => updateRow(r.key, "category", e.target.value)} style={bulkInputStyle}>
                   <option value="">{commonCatLabel} (comune)</option>
                   {Object.entries(categories).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
@@ -245,8 +267,8 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
               />
             </div>
           ) : (
-            <div key={r.key} style={{ display: "grid", gridTemplateColumns: "26px 1fr 130px 100px 120px 130px 28px", gap: 6, alignItems: "center" }}>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", textAlign: "center" }}>{idx + 1}</div>
+            <div key={r.key} style={gridCenterGap6}>
+              <div style={txtF11Muted}>{idx + 1}</div>
               <input value={r.title} onChange={e => updateRow(r.key, "title", e.target.value)} placeholder="Titolo task..." style={{
                 ...bulkInputStyle,
                 borderColor: !r.title.trim() && rowHasData(r) ? "var(--warning)" : "var(--border)",
@@ -289,33 +311,29 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
                 onAdd={fl => addRowFiles(r.key, fl)}
                 onRemove={i => removeRowFile(r.key, i)}
                 disabled={busy}
-                style={{ gridColumn: "2 / -2" }}
+                style={gridColumn2}
               />
             </div>
           )
         ))}
-        <button onClick={addRow} style={{
-          background: "transparent", border: "1px dashed var(--border)", borderRadius: 8,
-          padding: "9px", cursor: "pointer", fontSize: 12.5, fontWeight: 600,
-          color: "var(--text-muted)", marginTop: 4,
-        }}>+ Aggiungi riga</button>
+        <button onClick={addRow} style={boxF125Bold}>+ Aggiungi riga</button>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 10, borderTop: "1px solid var(--border)", flexWrap: "wrap", gap: 8 }}>
-        <div style={{ fontSize: 12, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 2 }}>
+      <div style={rowCenterBetween}>
+        <div style={colGap2F12}>
           <span>
             {validRows.length} task da creare
             {totalFiles > 0 && ` · ${totalFiles} allegat${totalFiles === 1 ? "o" : "i"}`}
           </span>
           {ignoredRows.length > 0 && (
-            <span style={{ color: "var(--warning)", fontWeight: 600 }}>
+            <span style={txtBoldWarning}>
               ⚠ {ignoredRows.length} rig{ignoredRows.length === 1 ? "a" : "he"} senza titolo {ignoredRows.length === 1 ? "verrà ignorata" : "verranno ignorate"}
               {ignoredRows.some(r => r.files.length > 0) && " (allegati compresi)"}
             </span>
           )}
-          {fileError && <span style={{ color: "var(--danger)", fontWeight: 600 }}>{fileError}</span>}
+          {fileError && <span style={txtBoldDanger}>{fileError}</span>}
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={rowGap8}>
           <button onClick={onCancel || onClose} disabled={busy} style={{ ...bulkBtnGhost, opacity: busy ? 0.6 : 1, cursor: busy ? "not-allowed" : "pointer" }}>Annulla</button>
           <button onClick={handleCreate} disabled={validRows.length === 0 || busy} style={{
             ...bulkBtnPrimary,

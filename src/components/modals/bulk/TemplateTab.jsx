@@ -9,6 +9,28 @@ import { DateTimePicker } from "../../ui/DateTimePicker.jsx";
 import { bulkInputStyle, bulkBtnPrimary, bulkBtnGhost } from "./bulkStyles.js";
 import { useClientSuggestions, ClientSuggestions } from "../../ui/ClientAutocomplete.jsx";
 import { dataMedia } from "../../../lib/dates.js";
+import {
+  btnOutlineMini, colGap14, colGap2F12, grid2ColGap12, relative, rowCenterBetween2,
+  rowCenterGap10, rowGap8, txtBoldDanger, txtF10Bold, txtF10Bold2, txtF10Muted, txtF11Muted,
+  txtF14,
+} from "../../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const boxR12 = {
+  padding: "16px 18px", borderRadius: 12, border: "1px solid var(--border)",
+  cursor: "pointer", background: "var(--card)",
+};
+const rowCenterGap102 = { display: "flex", alignItems: "center", gap: 10, marginBottom: 8 };
+const txtF28 = { fontSize: 28 };
+const txtF14Bold = { fontSize: 14, fontWeight: 700 };
+const txtF12Muted = { fontSize: 12, color: "var(--text-muted)", lineHeight: 1.4 };
+const rowCenterBetween = { display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--surface2)", borderRadius: 8, padding: "10px 14px" };
+const txtF22 = { fontSize: 22 };
+const txtF13Bold = { fontSize: 13, fontWeight: 700 };
+const gridGap10 = { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 };
+const boxR8 = { maxHeight: 240, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 8 };
+const txt = { fontWeight: 500 };
 
 
 // ─── BULK: TEMPLATE TAB ────────────────────────────────────────────────────
@@ -70,42 +92,39 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    <div style={colGap14}>
       {!selectedId ? (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div style={grid2ColGap12}>
           {TASK_TEMPLATES.map(t => (
-            <div key={t.id} onClick={() => setSelectedId(t.id)} className="hover-lift" style={{
-              padding: "16px 18px", borderRadius: 12, border: "1px solid var(--border)",
-              cursor: "pointer", background: "var(--card)",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                <div style={{ fontSize: 28 }}>{t.icon}</div>
+            <div key={t.id} onClick={() => setSelectedId(t.id)} className="hover-lift" style={boxR12}>
+              <div style={rowCenterGap102}>
+                <div style={txtF28}>{t.icon}</div>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 700 }}>{t.name}</div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{t.tasks.length} task</div>
+                  <div style={txtF14Bold}>{t.name}</div>
+                  <div style={txtF11Muted}>{t.tasks.length} task</div>
                 </div>
               </div>
-              <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.4 }}>{t.description}</div>
+              <div style={txtF12Muted}>{t.description}</div>
             </div>
           ))}
         </div>
       ) : (
         <>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--surface2)", borderRadius: 8, padding: "10px 14px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ fontSize: 22 }}>{tpl.icon}</div>
+          <div style={rowCenterBetween}>
+            <div style={rowCenterGap10}>
+              <div style={txtF22}>{tpl.icon}</div>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 700 }}>{tpl.name}</div>
-                <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{tpl.tasks.length} task</div>
+                <div style={txtF13Bold}>{tpl.name}</div>
+                <div style={txtF11Muted}>{tpl.tasks.length} task</div>
               </div>
             </div>
-            <button onClick={() => setSelectedId(null)} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 6, padding: "5px 10px", cursor: "pointer", fontSize: 11, fontWeight: 500 }}>Cambia</button>
+            <button onClick={() => setSelectedId(null)} style={btnOutlineMini}>Cambia</button>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+          <div style={gridGap10}>
             <div>
-              <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>CLIENTE</div>
-              <div style={{ position: "relative" }}>
+              <div style={txtF10Bold}>CLIENTE</div>
+              <div style={relative}>
                 <input
                   value={client}
                   onChange={e => setClient(e.target.value)}
@@ -117,7 +136,7 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
               </div>
             </div>
             <div>
-              <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>DATA EVENTO *</div>
+              <div style={txtF10Bold}>DATA EVENTO *</div>
               <DateTimePicker
                 value={eventDate || null}
                 onChange={iso => setEventDate(iso || "")}
@@ -126,37 +145,37 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
               />
             </div>
             <div>
-              <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>ASSEGNA A</div>
+              <div style={txtF10Bold}>ASSEGNA A</div>
               <select value={defaultAssignee} onChange={e => setDefaultAssignee(e.target.value)} style={bulkInputStyle}>
                 <option value="">— Non assegnato —</option>
                 {getAssignableTeam().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
             </div>
             <div>
-              <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>N° PRATICA</div>
+              <div style={txtF10Bold}>N° PRATICA</div>
               <input value={praticaRef} onChange={e => setPraticaRef(e.target.value)} placeholder="es. PR-2026-001" style={bulkInputStyle} />
             </div>
             <div>
-              <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 }}>CONTATTI</div>
+              <div style={txtF10Bold}>CONTATTI</div>
               <input value={contact} onChange={e => setContact(e.target.value)} placeholder="Telefono, email…" style={bulkInputStyle} />
             </div>
           </div>
 
           {eventDate && (
             <div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 8 }}>
+              <div style={txtF10Bold2}>
                 ANTEPRIMA — {previewTasks.length} TASK
               </div>
-              <div style={{ maxHeight: 240, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 8 }}>
+              <div style={boxR8}>
                 {previewTasks.map((t, idx) => (
                   <div key={idx} style={{
                     padding: "8px 12px", borderBottom: idx === previewTasks.length - 1 ? "none" : "1px solid var(--border)",
                     display: "flex", alignItems: "center", gap: 10, fontSize: 12,
                   }}>
-                    <span style={{ fontSize: 14 }}>{categories[t.category]?.icon}</span>
+                    <span style={txtF14}>{categories[t.category]?.icon}</span>
                     <div className="vd-flex-1-min0">
-                      <div style={{ fontWeight: 500 }}>{t.title}</div>
-                      <div style={{ fontSize: 10, color: "var(--text-muted)" }}>
+                      <div style={txt}>{t.title}</div>
+                      <div style={txtF10Muted}>
                         📅 {dataMedia(t.dueDate)}
                       </div>
                     </div>
@@ -169,12 +188,12 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
         </>
       )}
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: "1px solid var(--border)" }}>
-        <div style={{ fontSize: 12, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 2 }}>
+      <div style={rowCenterBetween2}>
+        <div style={colGap2F12}>
           <span>{previewTasks.length} task pronti</span>
-          {error && <span style={{ color: "var(--danger)", fontWeight: 600 }}>{error}</span>}
+          {error && <span style={txtBoldDanger}>{error}</span>}
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={rowGap8}>
           <button onClick={onCancel || onClose} disabled={busy} style={{ ...bulkBtnGhost, opacity: busy ? 0.6 : 1, cursor: busy ? "not-allowed" : "pointer" }}>Annulla</button>
           <button onClick={handleCreate} disabled={!tpl || !eventDate || busy} style={{
             ...bulkBtnPrimary,

@@ -5,6 +5,22 @@ import { useState } from "react";
 import { cardStyle, btnGhost, btnDanger } from "../adminStyles.js";
 import { downloadFile, escapeCSV } from "../adminExport.js";
 import { useConfirm } from "../../../state/ConfirmContext.jsx";
+import { rowCenterBetween, rowGap4, rowGap8, txtF14 } from "../../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const txtF12Muted = { fontSize: 12, color: "var(--text-muted)", marginTop: 0, marginBottom: 12 };
+const txtMutedTxtCenter = { padding: "40px 20px", textAlign: "center", color: "var(--text-muted)" };
+const txtF32Mb8 = { fontSize: 32, marginBottom: 8 };
+const txtF11Mt6 = { fontSize: 11, marginTop: 6 };
+const gridGap2 = { display: "grid", gap: 2 };
+const rowCenterGap12 = {
+  display: "flex", alignItems: "center", gap: 12,
+  padding: "8px 4px", borderBottom: "1px solid var(--surface2)",
+};
+const txtF16TxtCenter = { fontSize: 16, width: 24, textAlign: "center" };
+const txtFlex1F13 = { flex: 1, fontSize: 13, color: "var(--text)" };
+const txtF11Muted = { fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" };
 
 // ─── ADMIN TAB: LOG ATTIVITÀ ───────────────────────────────────────────────
 export const AdminLogTab = ({ dispatch, activityLog = [] }) => {
@@ -68,12 +84,12 @@ export const AdminLogTab = ({ dispatch, activityLog = [] }) => {
           audit trail vero — è la parte del difetto che costa meno correggere
           e di più lasciare com'è: un registro che sembra completo ed è solo
           la propria vista parziale è peggio di nessun registro. */}
-      <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 0, marginBottom: 12 }}>
+      <p style={txtF12Muted}>
         Sessione corrente, questo dispositivo · non include le azioni di altri utenti
         né quelle precedenti all'apertura di questa pagina, e non viene conservato dopo la chiusura.
       </p>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <div style={{ display: "flex", gap: 4 }}>
+      <div style={rowCenterBetween}>
+        <div style={rowGap4}>
           {[
             { id: "all", label: "Tutte" },
             { id: "task", label: "Task" },
@@ -90,7 +106,7 @@ export const AdminLogTab = ({ dispatch, activityLog = [] }) => {
           ))}
         </div>
         {activityLog.length > 0 && (
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={rowGap8}>
             <button onClick={exportLogCSV} disabled={list.length === 0} style={{
               ...btnGhost, opacity: list.length === 0 ? 0.5 : 1,
               cursor: list.length === 0 ? "not-allowed" : "pointer",
@@ -109,21 +125,18 @@ export const AdminLogTab = ({ dispatch, activityLog = [] }) => {
 
       <div style={cardStyle}>
         {list.length === 0 ? (
-          <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--text-muted)" }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
-            <div style={{ fontSize: 14 }}>Nessuna attività registrata{filter !== "all" ? " in questo filtro" : " ancora"}</div>
-            <div style={{ fontSize: 11, marginTop: 6 }}>Le azioni effettuate appariranno qui (ultime 100)</div>
+          <div style={txtMutedTxtCenter}>
+            <div style={txtF32Mb8}>📋</div>
+            <div style={txtF14}>Nessuna attività registrata{filter !== "all" ? " in questo filtro" : " ancora"}</div>
+            <div style={txtF11Mt6}>Le azioni effettuate appariranno qui (ultime 100)</div>
           </div>
         ) : (
-          <div style={{ display: "grid", gap: 2 }}>
+          <div style={gridGap2}>
             {list.map(l => (
-              <div key={l.id} style={{
-                display: "flex", alignItems: "center", gap: 12,
-                padding: "8px 4px", borderBottom: "1px solid var(--surface2)",
-              }}>
-                <div style={{ fontSize: 16, width: 24, textAlign: "center" }}>{iconFor(l.type)}</div>
-                <div style={{ flex: 1, fontSize: 13, color: "var(--text)" }}>{l.text}</div>
-                <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" }}>{formatRel(l.time)}</div>
+              <div key={l.id} style={rowCenterGap12}>
+                <div style={txtF16TxtCenter}>{iconFor(l.type)}</div>
+                <div style={txtFlex1F13}>{l.text}</div>
+                <div style={txtF11Muted}>{formatRel(l.time)}</div>
               </div>
             ))}
           </div>

@@ -4,6 +4,43 @@ import { useState, useRef, useEffect } from "react";
 import { NOTICE_COLORS } from "../../lib/taskConstants.js";
 import { MentionText } from "../ui/MentionText.jsx";
 import { Modal } from "../ui/Modal.jsx";
+import { rowGap8, rowGap8Mt20, txtF11Muted, txtHeadingMb16 } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const txt = { color: "#8b6f3a", fontStyle: "italic" };
+const boxF13WFull = {
+  width: "100%", padding: "10px 12px", borderRadius: 8,
+  border: "1px solid var(--border)", fontSize: 13,
+  outline: "none", fontFamily: "inherit", resize: "vertical",
+  boxSizing: "border-box", lineHeight: 1.45,
+};
+const rowBetweenMt4 = { display: "flex", justifyContent: "space-between", marginTop: 4 };
+const mt14 = { marginTop: 14 };
+const txtF11Bold = { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 };
+const txt2 = { fontWeight: 400, textTransform: "none", letterSpacing: 0 };
+const rowCenterGap6 = {
+  display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center",
+  padding: "6px 8px", borderRadius: 8, border: "1px solid var(--border)",
+  minHeight: 38,
+};
+const rowCenterGap4 = {
+  display: "inline-flex", alignItems: "center", gap: 4,
+  background: "var(--surface2)", color: "var(--heading)",
+  padding: "3px 8px", borderRadius: 999, fontSize: 11, fontWeight: 600,
+};
+const boxF12Muted = { background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: 12, lineHeight: 1, padding: 0 };
+const boxFlex1F12 = {
+  flex: 1, minWidth: 100, border: "none", outline: "none",
+  fontSize: 12, fontFamily: "inherit", padding: "3px 2px",
+  background: "transparent", color: "var(--text)",
+};
+const rowCenterGap8 = { display: "flex", alignItems: "center", gap: 8, marginTop: 14, fontSize: 13, cursor: "pointer", color: "var(--text)" };
+const boxF12Text = {
+  padding: "8px 14px", borderRadius: 6, border: "1px solid var(--border)",
+  background: "var(--card)", color: "var(--text)", fontSize: 12, fontWeight: 500,
+  cursor: "pointer", fontFamily: "inherit",
+};
 
 export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
   const [text, setText] = useState(notice?.text || "");
@@ -51,7 +88,7 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
       closeOnOverlay={false}
       cardStyle={{ borderRadius: 12, padding: 24, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}
     >
-      <h3 id="vd-notice-title" className="playfair" style={{ margin: 0, marginBottom: 16, color: "var(--heading)" }}>
+      <h3 id="vd-notice-title" className="playfair" style={txtHeadingMb16}>
         {notice ? "✏️ Modifica avviso" : "📌 Nuovo avviso"}
       </h3>
 
@@ -65,7 +102,7 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
       }}>
         {text
           ? <MentionText text={text} />
-          : <span style={{ color: "#8b6f3a", fontStyle: "italic" }}>Anteprima dell'avviso...</span>}
+          : <span style={txt}>Anteprima dell'avviso...</span>}
       </div>
 
       {/* Textarea */}
@@ -76,28 +113,23 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
         placeholder="Scrivi qui il tuo avviso... usa @nome per menzionare un membro del team"
         rows={4}
         maxLength={500}
-        style={{
-          width: "100%", padding: "10px 12px", borderRadius: 8,
-          border: "1px solid var(--border)", fontSize: 13,
-          outline: "none", fontFamily: "inherit", resize: "vertical",
-          boxSizing: "border-box", lineHeight: 1.45,
-        }}
+        style={boxF13WFull}
         onFocus={e => e.target.style.borderColor = "var(--gold)"}
         onBlur={e => e.target.style.borderColor = "var(--border)"}
       />
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+      <div style={rowBetweenMt4}>
+        <span style={txtF11Muted}>
           💡 Scrivi <b>@nome</b> per notificare un collega
         </span>
-        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{text.length}/500</span>
+        <span style={txtF11Muted}>{text.length}/500</span>
       </div>
 
       {/* Colore */}
-      <div style={{ marginTop: 14 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+      <div style={mt14}>
+        <div style={txtF11Bold}>
           Colore post-it
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={rowGap8}>
           {NOTICE_COLORS.map(c => (
             <div
               key={c}
@@ -115,27 +147,19 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
       </div>
 
       {/* Tag (v2.8): chip + input. Enter o virgola conferma; Backspace su input vuoto rimuove ultimo */}
-      <div style={{ marginTop: 14 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
-          Tag <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(opzionali, max 5 — premi Invio per aggiungere)</span>
+      <div style={mt14}>
+        <div style={txtF11Bold}>
+          Tag <span style={txt2}>(opzionali, max 5 — premi Invio per aggiungere)</span>
         </div>
-        <div style={{
-          display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center",
-          padding: "6px 8px", borderRadius: 8, border: "1px solid var(--border)",
-          minHeight: 38,
-        }}>
+        <div style={rowCenterGap6}>
           {tags.map(t => (
-            <span key={t} style={{
-              display: "inline-flex", alignItems: "center", gap: 4,
-              background: "var(--surface2)", color: "var(--heading)",
-              padding: "3px 8px", borderRadius: 999, fontSize: 11, fontWeight: 600,
-            }}>
+            <span key={t} style={rowCenterGap4}>
               #{t}
               <button
                 type="button"
                 onClick={() => setTags(tags.filter(x => x !== t))}
                 aria-label={`Rimuovi tag ${t}`}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: 12, lineHeight: 1, padding: 0 }}
+                style={boxF12Muted}
               >×</button>
             </span>
           ))}
@@ -147,29 +171,21 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
               onBlur={() => { if (tagDraft) { addTag(tagDraft); setTagDraft(""); } }}
               placeholder={tags.length === 0 ? "es. urgente, partenza, fornitori…" : ""}
               maxLength={20}
-              style={{
-                flex: 1, minWidth: 100, border: "none", outline: "none",
-                fontSize: 12, fontFamily: "inherit", padding: "3px 2px",
-                background: "transparent", color: "var(--text)",
-              }}
+              style={boxFlex1F12}
             />
           )}
         </div>
       </div>
 
       {/* Pin */}
-      <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, fontSize: 13, cursor: "pointer", color: "var(--text)" }}>
+      <label style={rowCenterGap8}>
         <input type="checkbox" checked={pinned} onChange={e => setPinned(e.target.checked)} />
         📌 Fissa questo avviso in cima alla bacheca
       </label>
 
       {/* Footer buttons */}
-      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 }}>
-        <button onClick={onClose} style={{
-          padding: "8px 14px", borderRadius: 6, border: "1px solid var(--border)",
-          background: "var(--card)", color: "var(--text)", fontSize: 12, fontWeight: 500,
-          cursor: "pointer", fontFamily: "inherit",
-        }}>Annulla</button>
+      <div style={rowGap8Mt20}>
+        <button onClick={onClose} style={boxF12Text}>Annulla</button>
         <button onClick={submit} disabled={!text.trim()} style={{
           padding: "8px 16px", borderRadius: 6, border: "none",
           background: text.trim() ? "var(--navy)" : "var(--text-light)",

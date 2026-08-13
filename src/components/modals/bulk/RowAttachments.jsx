@@ -3,6 +3,13 @@
 import { useRef } from "react";
 import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon } from "../../../lib/fileUtils.js";
 import { bulkAttachBtn, bulkFileChip } from "./bulkStyles.js";
+import { hidden } from "../../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const flexShrink2 = { flexShrink: 0 };
+const minW0 = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 };
+const txtMuted = { color: "var(--text-muted)", flexShrink: 0 };
 
 
 // ─── BULK: ALLEGATI DI RIGA ────────────────────────────────────────────────
@@ -18,7 +25,7 @@ export const RowAttachments = ({ files, onAdd, onRemove, disabled, style }) => {
         ref={inputRef}
         type="file"
         multiple
-        style={{ display: "none" }}
+        style={hidden}
         onChange={e => { onAdd(e.target.files); if (inputRef.current) inputRef.current.value = ""; }}
       />
       <button
@@ -30,9 +37,9 @@ export const RowAttachments = ({ files, onAdd, onRemove, disabled, style }) => {
       >📎 Allega{files.length > 0 ? ` (${files.length})` : ""}</button>
       {files.map((f, i) => (
         <span key={`${f.name}-${i}`} style={bulkFileChip} title={`${f.name} · ${formatFileSize(f.size)}`}>
-          <span style={{ flexShrink: 0 }}>{fileIcon(f.type || f.name)}</span>
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{f.name}</span>
-          <span style={{ color: "var(--text-muted)", flexShrink: 0 }}>{formatFileSize(f.size)}</span>
+          <span style={flexShrink2}>{fileIcon(f.type || f.name)}</span>
+          <span style={minW0}>{f.name}</span>
+          <span style={txtMuted}>{formatFileSize(f.size)}</span>
           <button
             type="button"
             disabled={disabled}

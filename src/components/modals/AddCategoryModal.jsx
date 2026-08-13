@@ -6,6 +6,13 @@ import {
   modalOverlay, modalCard, labelStyle, fieldStyle, btnPrimary, btnGhost,
 } from "../admin/adminStyles.js";
 import { ModalPortal } from "../ui/ModalPortal.jsx";
+import { gridGap12, rowGap8Mt20, txtHeadingMb16 } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const gridGap122 = { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 };
+const boxP12R8 = { padding: 12, background: "var(--surface2)", borderRadius: 8, border: "1px dashed var(--border)" };
+const txtF11Muted = { fontSize: 11, color: "var(--text-muted)", marginBottom: 6 };
 
 export const AddCategoryModal = ({ onClose, dispatch, existingKeys }) => {
   const [label, setLabel] = useState("");
@@ -31,13 +38,13 @@ export const AddCategoryModal = ({ onClose, dispatch, existingKeys }) => {
     <ModalPortal>
       <div onClick={onClose} style={modalOverlay}>
         <div onClick={e => e.stopPropagation()} style={{ ...modalCard, maxWidth: 480 }}>
-          <h3 className="playfair" style={{ margin: 0, marginBottom: 16, color: "var(--heading)" }}>Aggiungi nuova categoria</h3>
-          <div style={{ display: "grid", gap: 12 }}>
+          <h3 className="playfair" style={txtHeadingMb16}>Aggiungi nuova categoria</h3>
+          <div style={gridGap12}>
             <div>
               <label style={labelStyle}>Nome *</label>
               <input value={label} onChange={e => setLabel(e.target.value)} placeholder="Es. Trasferimenti" style={fieldStyle} autoFocus />
             </div>
-            <div className="vd-grid-3col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+            <div className="vd-grid-3col" style={gridGap122}>
               <div>
                 <label style={labelStyle}>Icona (emoji)</label>
                 <input value={icon} onChange={e => setIcon(e.target.value)} maxLength={2} style={{ ...fieldStyle, textAlign: "center", fontSize: 18 }} />
@@ -52,8 +59,8 @@ export const AddCategoryModal = ({ onClose, dispatch, existingKeys }) => {
               </div>
             </div>
             {/* Preview */}
-            <div style={{ padding: 12, background: "var(--surface2)", borderRadius: 8, border: "1px dashed var(--border)" }}>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>Anteprima</div>
+            <div style={boxP12R8}>
+              <div style={txtF11Muted}>Anteprima</div>
               <div style={{
                 display: "inline-flex", alignItems: "center", gap: 6,
                 padding: "4px 10px", borderRadius: 999, background: bg, color: color,
@@ -63,7 +70,7 @@ export const AddCategoryModal = ({ onClose, dispatch, existingKeys }) => {
               </div>
             </div>
           </div>
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 }}>
+          <div style={rowGap8Mt20}>
             <button onClick={onClose} style={btnGhost}>Annulla</button>
             <button onClick={submit} style={btnPrimary}>Crea categoria</button>
           </div>

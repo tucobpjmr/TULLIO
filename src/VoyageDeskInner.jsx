@@ -55,6 +55,12 @@ import { Dashboard } from "./components/dashboard/Dashboard.jsx";
 import { ClientiView } from "./components/clients/ClientiView.jsx";
 import { QuickAddTask } from "./components/modals/QuickAddTask.jsx";
 
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const col = { display: "flex", flexDirection: "column", overflow: "hidden", background: "var(--surface)", fontFamily: "'DM Sans', sans-serif" };
+const rowFlex1 = { display: "flex", flex: 1, overflow: "hidden" };
+const flex1 = { flex: 1, overflowY: "auto", overflowX: "hidden" };
+
 // Chunk async: viste pesanti o riservate a un ruolo, scaricate on-demand.
 // ST-12 · La chat era l'ultimo gruppo differibile grande rimasto: ~54 kB
 // (pannello, conversazioni, composer, vocali) nel chunk iniziale di OGNI
@@ -358,7 +364,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       {/* vd-app-shell = height 100dvh con fallback 100vh (vedi FontLoader): su iOS
           "vh" è il viewport GRANDE, con la barra del browser visibile il guscio
           sfora in basso e la bottom-nav finisce fuori schermo. */}
-      <div className="vd-app-shell" style={{ display: "flex", flexDirection: "column", overflow: "hidden", background: "var(--surface)", fontFamily: "'DM Sans', sans-serif" }}>
+      <div className="vd-app-shell" style={col}>
         {/* Il guscio dichiara le fette che consuma, come le viste (ST-2):
             `state` cambia identità dopo qualunque azione, e finché era una
             prop ri-renderizzava Topbar, Sidebar e BottomNav a ogni toast e a
@@ -397,9 +403,9 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
             dispatch={dispatch}
           />
         )}
-        <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        <div style={rowFlex1}>
           <Sidebar activeView={state.activeView} dispatch={dispatch} onOpenBulk={openBulk} onOpenChat={openChatPanel} unreadChat={chat.unreadChat} />
-          <main className="vd-main-scroll" style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
+          <main className="vd-main-scroll" style={flex1}>
             {/* Suspense per la vista attiva: Dashboard e ClientiView risolvono
                 sincronicamente (viste d'ingresso, aperte da ogni sessione);
                 Admin, Liste viaggio, Calendario, Cestino e Archivio sono lazy.

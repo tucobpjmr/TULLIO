@@ -13,6 +13,18 @@ import { AddTeamMemberModal } from "../../modals/AddTeamMemberModal.jsx";
 import { BulkInviteModal } from "../../modals/BulkInviteModal.jsx";
 import { ContactActions } from "../../ui/ContactActions.jsx";
 import { useConfirm } from "../../../state/ConfirmContext.jsx";
+import { gridGap10, rowCenterBetween, rowGap8, txtF12Muted2 } from "../../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowCenterFlex1 = { display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0 };
+const relative2 = { position: "relative", flexShrink: 0 };
+const txtF15Bold = { fontSize: 15, fontWeight: 600, color: "var(--text)" };
+const rowGap12F12 = { display: "flex", flexWrap: "wrap", gap: 12, marginTop: 4, fontSize: 12 };
+const txtNavy = { color: "var(--navy)", textDecoration: "none" };
+const rowGap16F13 = { display: "flex", gap: 16, fontSize: 13, color: "var(--text-muted)" };
+const txtGoldDark = { color: "var(--gold-dark)" };
+const mb24 = { marginBottom: 24 };
 
 // ─── ADMIN TAB: TEAM ───────────────────────────────────────────────────────
 export const AdminTeamTab = ({ dispatch }) => {
@@ -102,8 +114,8 @@ export const AdminTeamTab = ({ dispatch }) => {
         opacity: opts.dim ? 0.65 : 1,
       }}>
         {/* Avatar + Info — sempre su una riga */}
-        <div style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0 }}>
-          <div style={{ position: "relative", flexShrink: 0 }}>
+        <div style={rowCenterFlex1}>
+          <div style={relative2}>
             <div style={{
               width: 48, height: 48, borderRadius: "50%", background: m.color,
               display: "flex", alignItems: "center", justifyContent: "center",
@@ -141,8 +153,8 @@ export const AdminTeamTab = ({ dispatch }) => {
               </div>
             ) : (
               <>
-                <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text)" }}>{m.name}</div>
-                <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+                <div style={txtF15Bold}>{m.name}</div>
+                <div style={txtF12Muted2}>
                   {roleLabel(m)} • {count} task assegnati
                   {seenLabel && <span> • ultimo accesso {seenLabel}</span>}
                 </div>
@@ -150,9 +162,9 @@ export const AdminTeamTab = ({ dispatch }) => {
                   const c = contactsMap[m.id];
                   if (!c || (!c.email && !c.phone)) return null;
                   return (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 4, fontSize: 12 }}>
+                    <div style={rowGap12F12}>
                       {c.email && (
-                        <a href={`mailto:${c.email}`} style={{ color: "var(--navy)", textDecoration: "none" }}>✉️ {c.email}</a>
+                        <a href={`mailto:${c.email}`} style={txtNavy}>✉️ {c.email}</a>
                       )}
                       {c.phone && (
                         <ContactActions phone={c.phone} />
@@ -245,13 +257,13 @@ export const AdminTeamTab = ({ dispatch }) => {
   return (
     <div>
       {/* Header con pulsante aggiungi */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <div style={{ display: "flex", gap: 16, fontSize: 13, color: "var(--text-muted)" }}>
+      <div style={rowCenterBetween}>
+        <div style={rowGap16F13}>
           <span>✅ <b>{active.length}</b> attivi</span>
-          {pending.length > 0 && <span>⏳ <b style={{ color: "var(--gold-dark)" }}>{pending.length}</b> in attesa</span>}
+          {pending.length > 0 && <span>⏳ <b style={txtGoldDark}>{pending.length}</b> in attesa</span>}
           {disabled.length > 0 && <span>⏸️ <b>{disabled.length}</b> disabilitati</span>}
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={rowGap8}>
           <button onClick={() => setShowBulk(true)} style={btnGhost} title="Invita più utenti in un colpo solo">
             ✉️ Invito multiplo
           </button>
@@ -261,27 +273,27 @@ export const AdminTeamTab = ({ dispatch }) => {
 
       {/* Pending */}
       {pending.length > 0 && (
-        <div style={{ marginBottom: 24 }}>
+        <div style={mb24}>
           <div style={sectionH}>⏳ Iscrizioni in attesa di approvazione</div>
-          <div style={{ display: "grid", gap: 10 }}>
+          <div style={gridGap10}>
             {pending.map(m => card(m, { canApprove: true, dim: true }))}
           </div>
         </div>
       )}
 
       {/* Attivi */}
-      <div style={{ marginBottom: 24 }}>
+      <div style={mb24}>
         <div style={sectionH}>✅ Agenti attivi</div>
-        <div style={{ display: "grid", gap: 10 }}>
+        <div style={gridGap10}>
           {active.map(m => card(m))}
         </div>
       </div>
 
       {/* Disabilitati */}
       {disabled.length > 0 && (
-        <div style={{ marginBottom: 24 }}>
+        <div style={mb24}>
           <div style={sectionH}>⏸️ Agenti disabilitati</div>
-          <div style={{ display: "grid", gap: 10 }}>
+          <div style={gridGap10}>
             {disabled.map(m => card(m, { dim: true }))}
           </div>
         </div>

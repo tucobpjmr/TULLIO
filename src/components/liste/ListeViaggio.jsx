@@ -32,6 +32,12 @@ import { StrumentiDatiModal } from "./modals/StrumentiDatiModal.jsx";
 // consumatore oltre a questo modulo e ai test che li esercitano direttamente.
 import { FILTRI, FILTRI_ALTROVE, filtraListe, ORDINAMENTI, ordinaListe } from "./listeOrdinamento.js";
 import { ListaRow } from "./ListaRow.jsx";
+import { hidden, mt12, txtF13 } from "../../styles/common.js";
+
+// Stili costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+const rowMiddleGap8 = { display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginTop: 10 };
+const txtCenter = { padding: "14px 16px", textAlign: "center" };
 
 const HOME_PAGE_SIZE = 10;
 
@@ -378,9 +384,9 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
               <div className="lv-empty">
                 Non riesco a caricare le liste.
                 <br />
-                <span style={{ fontSize: 13 }}>{loadError}</span>
+                <span style={txtF13}>{loadError}</span>
                 <br />
-                <button className="lv-btn" style={{ marginTop: 12 }} onClick={() => loadHome()}>
+                <button className="lv-btn" style={mt12} onClick={() => loadHome()}>
                   Riprova
                 </button>
               </div>
@@ -449,8 +455,8 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
                         {altrove.length > 0 && (
                           <>
                             <br />
-                            <span style={{ fontSize: 13 }}>Ma c’è altrove:</span>
-                            <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginTop: 10 }}>
+                            <span style={txtF13}>Ma c’è altrove:</span>
+                            <div style={rowMiddleGap8}>
                               {altroveChips}
                             </div>
                           </>
@@ -477,7 +483,7 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
                       <ListaRow key={l.id} lista={l} saldo={saldi[l.id]} onOpen={() => setOpenId(l.id)} />
                     ))}
                     {visibili.length > limit && (
-                      <div style={{ padding: "14px 16px", textAlign: "center" }}>
+                      <div style={txtCenter}>
                         <button className="lv-btn" onClick={() => setLimit((n) => n + HOME_PAGE_SIZE)}>
                           Mostra altre liste ({visibili.length - limit} rimanenti)
                         </button>
@@ -513,7 +519,7 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
             ref={fileInputRef}
             type="file"
             accept="application/json,.json"
-            style={{ display: "none" }}
+            style={hidden}
             onChange={onBackupFile}
           />
 

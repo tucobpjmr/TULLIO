@@ -14,6 +14,16 @@ import {
   normAssignee, normDate, detectColumns,
 } from "../../../lib/bulkImport.js";
 import { bulkInputStyle, bulkBtnPrimary, bulkBtnGhost } from "./bulkStyles.js";
+import {
+  btnOutlineMini, colGap14, hidden, rowCenterBetween2, rowGap8, txtF10Bold2, txtF12Muted,
+  txtF13, txtF14,
+} from "../../../styles/common.js";
+import {
+  boxF12Bold, boxF12Warning, boxF13Danger, boxR8, boxR82, boxStickyBold, boxTxtCenterR12,
+  boxW8H8, gridGap8, maxW180, mt4Op085, rowCenterBetween, rowCenterBetween3, rowCenterGap5,
+  rowGap8F10, txt, txtBoldMb2, txtF10Bold, txtF10Bold3, txtF11Muted, txtF11WFull, txtF14Bold,
+  txtF40Mb10, txtSuccess,
+} from "./importTabStyles.js";
 
 
 // ─── BULK: IMPORT TAB ──────────────────────────────────────────────────────
@@ -175,72 +185,64 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
   ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    <div style={colGap14}>
       {!rows.length && (
-        <div onClick={() => fileInputRef.current?.click()} style={{
-          border: "2px dashed var(--border)", borderRadius: 12,
-          padding: "40px 20px", textAlign: "center", cursor: "pointer", background: "var(--surface)",
-          transition: "all 0.15s",
-        }}
+        <div onClick={() => fileInputRef.current?.click()} style={boxTxtCenterR12}
           onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--gold)"; e.currentTarget.style.background = "rgba(212,168,67,0.04)"; }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--surface)"; }}
         >
-          <div style={{ fontSize: 40, marginBottom: 10 }}>📥</div>
-          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Clicca per caricare CSV o Excel</div>
-          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Formati supportati: .csv, .xlsx, .xls</div>
+          <div style={txtF40Mb10}>📥</div>
+          <div style={txtF14Bold}>Clicca per caricare CSV o Excel</div>
+          <div style={txtF12Muted}>Formati supportati: .csv, .xlsx, .xls</div>
           <button
             type="button"
             onClick={e => { e.stopPropagation(); downloadTemplate(); }}
-            style={{
-              marginTop: 14, background: "transparent", border: "1px solid var(--border)",
-              borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontSize: 12, fontWeight: 600,
-              color: "var(--navy)", fontFamily: "inherit",
-            }}
+            style={boxF12Bold}
           >⬇ Scarica un file modello</button>
-          <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleFile} style={{ display: "none" }} />
+          <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleFile} style={hidden} />
         </div>
       )}
 
       {error && (
-        <div style={{ background: "#FEE2E2", border: "1px solid rgba(192,57,43,0.3)", color: "var(--danger)", padding: "12px 14px", borderRadius: 10, fontSize: 13 }}>
+        <div style={boxF13Danger}>
           ⚠️ {error}
         </div>
       )}
 
       {importWarnings && (
-        <div style={{ background: "#FEF3C7", border: "1px solid rgba(200,131,42,0.35)", color: "var(--warning)", padding: "12px 14px", borderRadius: 10, fontSize: 12, lineHeight: 1.6 }}>
-          <div style={{ fontWeight: 700, marginBottom: 2 }}>⚠️ Valori non riconosciuti nel file</div>
+        <div style={boxF12Warning}>
+          <div style={txtBoldMb2}>⚠️ Valori non riconosciuti nel file</div>
           {importWarnings.badCategory > 0 && <div>{importWarnings.badCategory} righe con categoria non riconosciuta → verrà usata "Amministrazione"</div>}
           {importWarnings.badPriority > 0 && <div>{importWarnings.badPriority} righe con priorità non riconosciuta → verrà usata "Media"</div>}
           {importWarnings.badStatus > 0 && <div>{importWarnings.badStatus} righe con stato non riconosciuto → verrà usato "Da fare"</div>}
           {importWarnings.badDate > 0 && <div>{importWarnings.badDate} righe con data non interpretabile → scadenza lasciata vuota</div>}
           {importWarnings.badAssignee > 0 && <div>{importWarnings.badAssignee} righe con assegnatario non trovato nel team → task lasciata non assegnata</div>}
-          <div style={{ marginTop: 4, opacity: 0.85 }}>Controlla l'anteprima sotto prima di importare, o correggi il file sorgente.</div>
+          <div style={mt4Op085}>Controlla l'anteprima sotto prima di importare, o correggi il file sorgente.</div>
         </div>
       )}
 
       {rows.length > 0 && (
         <>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--surface2)", borderRadius: 8, padding: "10px 14px" }}>
-            <div style={{ fontSize: 13 }}>📄 <strong>{fileName}</strong> — {rows.length} righe, {columns.length} colonne</div>
-            <button onClick={reset} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 6, padding: "5px 10px", cursor: "pointer", fontSize: 11, fontWeight: 500 }}>Cambia file</button>
+          <div style={rowCenterBetween}>
+            <div style={txtF13}>📄 <strong>{fileName}</strong> — {rows.length} righe, {columns.length} colonne</div>
+            <button onClick={reset} style={btnOutlineMini}>Cambia file</button>
           </div>
 
           <div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 6 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1 }}>MAPPATURA COLONNE</div>
-              <div style={{ fontSize: 10.5, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 5 }}>
-                <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--success)", display: "inline-block" }} />
+            <div style={rowCenterBetween3}>
+              <div style={txtF10Bold}>MAPPATURA COLONNE</div>
+              <div style={rowCenterGap5}>
+                <span style={boxW8H8} />
                 rilevato automaticamente — verifica
               </div>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+            <div style={gridGap8}>
               {fields.map(f => {
                 const isAuto = autoDetected[f.key] && mapping[f.key];
                 return (
                   <div key={f.key}>
-                    <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 3 }}>
-                      {f.label}{isAuto && <span style={{ color: "var(--success)", marginLeft: 4 }}>✓</span>}
+                    <div style={txtF10Bold3}>
+                      {f.label}{isAuto && <span style={txtSuccess}>✓</span>}
                     </div>
                     <select
                       value={mapping[f.key] || ""}
@@ -262,10 +264,10 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
 
           {normalizedPreview.length > 0 && (
             <div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 8 }}>
+              <div style={txtF10Bold2}>
                 ANTEPRIMA TASK — COME VERRANNO CREATI
               </div>
-              <div style={{ maxHeight: 240, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 8 }}>
+              <div style={boxR8}>
                 {normalizedPreview.map((t, i) => {
                   const assigneeName = t.assigneeId ? (team.find(m => m.id === t.assigneeId)?.name || t.assigneeId) : null;
                   return (
@@ -273,10 +275,10 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
                       padding: "8px 12px", borderBottom: i === normalizedPreview.length - 1 ? "none" : "1px solid var(--border)",
                       display: "flex", alignItems: "center", gap: 10, fontSize: 12,
                     }}>
-                      <span style={{ fontSize: 14 }}>{categories[t.category]?.icon}</span>
+                      <span style={txtF14}>{categories[t.category]?.icon}</span>
                       <div className="vd-flex-1-min0">
-                        <div style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
-                        <div style={{ fontSize: 10, color: "var(--text-muted)", display: "flex", flexWrap: "wrap", gap: 8, marginTop: 2 }}>
+                        <div style={txt}>{t.title}</div>
+                        <div style={rowGap8F10}>
                           <span>{categories[t.category]?.label}</span>
                           <span>{STATUS_LABELS[t.status]}</span>
                           {t.client && <span>👤 {t.client}</span>}
@@ -294,7 +296,7 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
                 })}
               </div>
               {validRows.length > normalizedPreview.length && (
-                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6 }}>
+                <div style={txtF11Muted}>
                   …e altri {validRows.length - normalizedPreview.length} task non mostrati in anteprima.
                 </div>
               )}
@@ -302,20 +304,20 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
           )}
 
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 8 }}>
+            <div style={txtF10Bold2}>
               FILE SORGENTE (prime 5 righe)
             </div>
-            <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: 8, maxHeight: 200, overflowY: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+            <div style={boxR82}>
+              <table style={txtF11WFull}>
                 <thead>
                   <tr>{columns.map(c => (
-                    <th key={c} style={{ padding: "8px 10px", background: "var(--surface2)", textAlign: "left", fontWeight: 600, borderBottom: "1px solid var(--border)", position: "sticky", top: 0 }}>{c}</th>
+                    <th key={c} style={boxStickyBold}>{c}</th>
                   ))}</tr>
                 </thead>
                 <tbody>
                   {rows.slice(0, 5).map((r, i) => (
                     <tr key={i}>{columns.map(c => (
-                      <td key={c} style={{ padding: "6px 10px", borderBottom: "1px solid var(--border)", whiteSpace: "nowrap", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }}>
+                      <td key={c} style={maxW180}>
                         {String(r[c] || "")}
                       </td>
                     ))}</tr>
@@ -327,11 +329,11 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
         </>
       )}
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: "1px solid var(--border)" }}>
-        <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+      <div style={rowCenterBetween2}>
+        <div style={txtF12Muted}>
           {validRows.length} task validi {!mapping.title && rows.length > 0 && "(mappa il TITOLO)"}
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={rowGap8}>
           <button onClick={onCancel || onClose} disabled={busy} style={{ ...bulkBtnGhost, opacity: busy ? 0.6 : 1, cursor: busy ? "not-allowed" : "pointer" }}>Annulla</button>
           <button onClick={handleCreate} disabled={validRows.length === 0 || !mapping.title || busy} style={{
             ...bulkBtnPrimary,

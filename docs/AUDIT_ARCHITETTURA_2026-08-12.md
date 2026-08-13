@@ -13,11 +13,11 @@ Verifiche eseguite: `npm run lint` (0 errori), `npm test` (**1138 test
 passati**, 7 skip, 99 file), `npm run build`, conteggi diretti sul database di
 produzione, advisor di sicurezza Supabase, storico dei run di GitHub Actions.
 
-> **Stato al 12 agosto, sera** — **C-1**, **A-1** e **A-3** sono stati corretti
-> nello stesso giorno dell'audit; **A-2** è parzialmente chiuso (il codice del
-> controllo è corretto, il secret che lo attiva resta da configurare da chi
-> amministra il repository). Vedi §4. I test sono ora **1150**. Gli altri nove
-> rilievi restano aperti.
+> **Stato al 13 agosto** — **C-1, A-1, A-2, A-3 e A-4** sono chiusi: vedi §4.
+> A-2 si è chiuso in due tempi — il 12 la correzione di codice (annotazione
+> sul salto), il 13 chi amministra il repository ha configurato il secret, e
+> il rilancio del workflow conferma che l'advisor valuta davvero un lint. I
+> test sono **1150**. Gli altri otto rilievi restano aperti.
 
 ---
 
@@ -71,7 +71,7 @@ giorno** (A-3, §4).
 | Test | 1138 passati, 7 skip → **1150** dopo la correzione di C-1 (§4) |
 | ESLint | 0 errori, 20 warning `react/no-multi-comp` in 13 file |
 | Migrazioni | 105 locali, 104 registrate in produzione → **105/105** dopo A-1 (§4) |
-| File più vicino al limite `max-lines` | `ListeViaggio.jsx` — **495/500** |
+| File più vicino al limite `max-lines` | `ListeViaggio.jsx` era a **495/500** (✔ risolto, A-4) — ora `TaskSlideOver.jsx`, ~448 |
 | Oggetti `style={{…}}` inline | 1.528 |
 
 ---
@@ -82,9 +82,9 @@ giorno** (A-3, §4).
 |---|---|---|---|
 | **C-1** ✔ | Letture non paginate su tabelle a crescita monotona: troncamento silenzioso previsto per **inizio settembre 2026** — **chiuso il 12 agosto** (§4) | `lib/api.js:289-298` | 🔴 **Critica** |
 | **A-1** ✔ | Workflow "Verifica RPC" rosso a ogni run dall'8 agosto: la guardia contro il drift non è più un segnale — **chiuso il 12 agosto** (§4) | `scripts/verifica-rpc/migrazioni.js:52` | 🟠 Alta |
-| **A-2** ◐ | Il controllo advisor non ha mai girato: secret assente, exit 0 silenzioso — **il salto è ora visibile in CI** (§4), il secret resta da configurare | `.github/workflows/verifica-rpc.yml:80` | 🟠 Alta |
+| **A-2** ✔ | Il controllo advisor non ha mai girato: secret assente, exit 0 silenzioso — **chiuso il 13 agosto** (§4): secret configurato, il log conferma una valutazione reale | `.github/workflows/verifica-rpc.yml:80` | 🟠 Alta |
 | **A-3** ✔ | Terza copia di `filterByPeriod` + `PERIOD_OPTIONS` + `chipStyle`, mentre il modulo condiviso esiste già — **chiuso il 12 agosto** (§4) | `views/Trash.jsx:17-43,157-169` | 🟠 Alta |
-| **A-4** | `ListeViaggio.jsx` a 495/500 righe: il prossimo intervento sbatte contro il lint | `liste/ListeViaggio.jsx` | 🟠 Alta |
+| **A-4** ✔ | `ListeViaggio.jsx` a 495/500 righe: il prossimo intervento sbatte contro il lint — **chiuso il 13 agosto** (§4) | `liste/ListeViaggio.jsx` | 🟠 Alta |
 | **M-1** | 1.528 stili inline: componenti gonfi, nessun design system, `unsafe-inline` obbligato in CSP | trasversale | 🟡 Media |
 | **M-2** | "Elimina account" non elimina: ban + `active=false`, nessuna cancellazione dei dati personali | `functions/delete-account/index.ts:39` | 🟡 Media |
 | **M-3** | `AVVISI_ACCETTATI` accetta per *nome del lint*, non per oggetto: una futura funzione `SECURITY DEFINER` esposta ad `anon` passerebbe muta | `verifica-advisor/advisor.js:28` | 🟡 Media |
@@ -260,11 +260,11 @@ repository, quindi nulla farebbe ripartire il controllo da solo.
 
 ### 🟠 A-2 · Il controllo advisor non ha mai valutato un lint
 
-> **◐ Parzialmente chiuso il 12 agosto 2026 — vedi §4.** La parte 2 (rendere
-> visibile il salto) è fatta. La parte 1 (configurare il secret) resta
-> **da fare da chi amministra il repository**: richiede un token creato dalla
-> dashboard Supabase e un secret creato dalle impostazioni GitHub del repository
-> — due azioni fuori dalla portata di questa sessione.
+> **✔ Chiuso il 13 agosto 2026 — vedi §4.** Chiuso in due tempi: il 12 la
+> correzione di codice (annotazione sul salto), il 13 chi amministra il
+> repository ha generato il token e configurato il secret. Il rilancio del
+> workflow (run #91) conferma nel log una valutazione reale: 20 lint, 0
+> errori, 0 avvisi non accettati.
 
 **File**: `.github/workflows/verifica-rpc.yml:80` · `scripts/verifica-advisor/index.js:47`
 
@@ -362,6 +362,8 @@ percorso può seguire, sul modello di `VIETATI_IMPORT_LISTE_EAGER`.
 ---
 
 ### 🟠 A-4 · `ListeViaggio.jsx` è a 495 righe su 500
+
+> **✔ Chiuso il 13 agosto 2026 — vedi §4.**
 
 **File**: `src/components/liste/ListeViaggio.jsx`
 
@@ -718,11 +720,12 @@ quindi il valore reale è il cap, non 2000. Oggi `messages` è a 13 righe e non 
 un problema; rientra nella stessa decisione già aperta di ST-4 (messaggi per
 conversazione). Da allineare quando si chiuderà C-1, con cui condivide la causa.
 
-### 🔵 B-3 · 20 warning `react/no-multi-comp`
+### 🔵 B-3 · 19 warning `react/no-multi-comp` (era 20)
 
-Arretrato dichiarato e stabile. L'estrazione di `ListaRow` (A-4) ne chiude uno
-senza lavoro aggiuntivo; gli altri restano churn non giustificato finché i file
-sono sotto soglia.
+Arretrato dichiarato e stabile. L'estrazione di `ListaRow` (A-4, §4) lo ha già
+chiuso di uno senza lavoro aggiuntivo — misurato: 19 casi in 12 file, contro i
+20 in 13 di apertura. Gli altri diciotto restano churn non giustificato
+finché i file sono sotto soglia.
 
 ---
 
@@ -825,11 +828,11 @@ Non fatta la regola ESLint proposta a chiusura del paragrafo (sul modello di
 non c'è più un secondo percorso da cui la regola dovrebbe difendere — resta un
 miglioramento a sé, non parte della correzione di A-3.
 
-### ◐ A-2 — il salto ora si vede, il secret resta da configurare
+### ✔ A-2 — chiuso in due tempi: il codice il 12, il secret il 13
 
-Fatta solo la parte 2 delle due proposte. `scripts/verifica-advisor/index.js`,
-nel ramo che si prende quando `SUPABASE_ACCESS_TOKEN` non è impostato, emette
-ora anche un'annotazione GitHub oltre ai due `console.log` che già c'erano:
+Il 12 agosto, la sola parte di codice: `scripts/verifica-advisor/index.js`, nel
+ramo che si prende quando `SUPABASE_ACCESS_TOKEN` non è impostato, emette
+un'annotazione GitHub oltre ai due `console.log` che già c'erano:
 
 ```js
 console.log('::warning title=Advisor non verificati::' +
@@ -838,26 +841,52 @@ console.log('::warning title=Advisor non verificati::' +
 
 Verificato eseguendo lo script senza il token in locale: l'annotazione compare,
 `exit 0` invariato (un controllo nuovo non deve rendere rosso il workflow di
-chi non l'ha richiesto — resta vero anche dopo la correzione). In GitHub
-Actions questa riga produce un avviso in cima al log del job e nel riepilogo
-del run: da qui in avanti "saltato" e "passato" hanno un aspetto diverso.
+chi non l'ha richiesto — resta vero anche dopo la correzione).
 
-**La parte 1 — configurare il secret — non è stata fatta, e non poteva
-esserlo da questa sessione.** Richiede due azioni fuori dalla portata degli
-strumenti disponibili:
+Configurare il secret — generare un Personal Access Token dalla dashboard
+Supabase e salvarlo come `SUPABASE_ACCESS_TOKEN` nelle impostazioni GitHub del
+repository — era fuori dalla portata degli strumenti disponibili: **il 13
+agosto** l'ha fatto chi amministra il repository.
 
-1. generare un Personal Access Token dalla dashboard Supabase
-   (Account → Access Tokens) — un'operazione legata all'account di chi
-   amministra il progetto, non al progetto stesso;
-2. salvarlo come secret `SUPABASE_ACCESS_TOKEN` nelle impostazioni GitHub del
-   repository (Settings → Secrets and variables → Actions).
+Il workflow è stato rilanciato con `workflow_dispatch` (run #91, `success`).
+Il log dello step "Verifica gli advisor" non è più il messaggio di skip:
 
-Ho verificato con `get_advisors` (Management API, la stessa che lo script
-chiamerebbe) che a oggi non ci sono sorprese in attesa: **0 ERROR**, i 10 WARN
-sono esattamente quelli già in `AVVISI_ACCETTATI`. Il controllo advisor tornerà
-a valutare qualcosa in CI solo dopo che chi amministra il repository avrà
-completato i due passi sopra — finché non succede, l'annotazione appena
-aggiunta è l'unico segnale che il controllo non sta guardando nulla.
+```
+0 errori, 0 avvisi non accettati, 10 avvisi motivati (20 lint totali).
+```
+
+**20 lint totali** è la somma di `security` + `performance`: la prova diretta
+che lo script sta chiamando davvero la Management API e classificando ogni
+lint, non limitandosi a uscire 0. Coincide con quanto verificato il 12 agosto
+con `get_advisors` (0 ERROR, i 10 WARN tutti in `AVVISI_ACCETTATI`): nessuna
+sorpresa, come previsto.
+
+### ✔ A-4 — `ListaRow` e la logica di ordinamento hanno il proprio file
+
+Estratte, come proposto, le due parti separabili senza discussione:
+
+```
+src/components/liste/
+├── listeOrdinamento.js   ← FILTRI, FILTRI_ALTROVE, ORDINAMENTI, cmpData,
+│                            filtraListe, ordinaListe        (pure)
+├── ListaRow.jsx          ← il componente riga
+└── ListeViaggio.jsx      ← il solo contenitore
+```
+
+`filtraListe` e `ordinaListe` erano già esportate per i test (`listeApi.test.js`,
+`listeRicerca.test.jsx`): spostarle ha richiesto aggiornare quei due import,
+nessun altro consumatore. `ListaRow` non dipendeva da alcuno stato del
+genitore — solo da `listeApi.js` per la formattazione.
+
+Effetto: `ListeViaggio.jsx` esce dalla zona rossa di `max-lines`, e
+l'estrazione di `ListaRow` chiude anche uno dei venti casi `react/no-multi-comp`
+aperti (**B-3**, ora 19 in 12 file — rimisurato da `npm run verifica:convenzioni`,
+che ha anche imposto l'aggiornamento del numero scritto a mano in `CLAUDE.md`,
+esattamente come previsto da ST-13).
+
+Non fatta l'estrazione equivalente su `TaskSlideOver.jsx` (448) e `Trash.jsx`
+(417 dopo A-3): restano sotto soglia, quindi il rilievo originale li segnalava
+solo "con meno urgenza" — non erano parte di A-4.
 
 ---
 
@@ -877,21 +906,25 @@ righe di cronologia a ogni commento, e il passo successivo è leggerle **per tas
 aperto** — la stessa decisione già dichiarata aperta per i messaggi (ST-4,
 soglia `messages > ~1500`), da prendere insieme a quella.
 
-### 2. Riportare le guardie a verdi, e tenerle verdi
+### 2. ✔ Riportare le guardie a verdi, e tenerle verdi
 
 Il progetto ha investito parecchio in controlli automatici — verifica RPC,
 verifica migrazioni, advisor, `verifica:convenzioni`, oltre 1100 test — e due
-di essi non davano segnale: uno rosso per un motivo di bookkeeping (A-1, **ora
-chiuso**), l'altro mai girato (A-2, **ancora aperto**: manca il secret, e serve
-che l'assenza si veda invece di uscire 0 in silenzio). È il capitale peggio
-speso possibile: il costo è già stato pagato, il beneficio è zero, e la presenza
-del controllo scoraggia dal cercarne un altro.
+di essi non davano segnale: uno rosso per un motivo di bookkeeping (**A-1**),
+l'altro mai girato (**A-2**, perché mancava il secret e l'uscita 0 era
+indistinguibile da un successo). **Entrambi chiusi** (§4): il 13 agosto il
+rilancio del workflow ha confermato che l'advisor valuta davvero 20 lint. È
+stato il capitale peggio speso possibile fino a quel momento: il costo era
+già pagato, il beneficio zero, e la presenza del controllo scoraggiava dal
+cercarne un altro.
 
 Vale la regola generale più del singolo fix: **nessun controllo può fallire in
 modo permanente** — o si corregge la causa, o si accetta l'eccezione per
 iscritto e col motivo, come `ECCEZIONI_STORICHE` già fa. E il corollario che
-A-2 mostra: **un controllo che si salta deve dirlo dove qualcuno lo legge**,
-altrimenti "saltato" e "passato" hanno lo stesso aspetto.
+A-2 ha mostrato: **un controllo che si salta deve dirlo dove qualcuno lo
+legge**, altrimenti "saltato" e "passato" hanno lo stesso aspetto — è il pezzo
+di questa correzione che resta anche dopo che il secret è stato configurato,
+per la prossima volta che mancherà una credenziale.
 
 ### 3. Trattare gli stili come un livello, non come una proprietà del JSX
 

@@ -8,7 +8,8 @@
 // test sui casi "pattern assente" sono quindi i più importanti del file.
 import { describe, it, expect } from 'vitest';
 import {
-  LetturaFallita, leggiConteggioMultiComp, leggiStatoAudit, leggiStatoIndex, confronta,
+  LetturaFallita, leggiConteggioMultiComp, leggiStatoAudit, leggiStatoIndex,
+  leggiStiliInline, confronta,
 } from '../../scripts/verifica-convenzioni/convenzioni.js';
 
 describe('leggiConteggioMultiComp', () => {
@@ -19,6 +20,18 @@ describe('leggiConteggioMultiComp', () => {
 
   it('SOLLEVA se la frase non c\'è più, invece di passare a vuoto', () => {
     expect(() => leggiConteggioMultiComp('un documento riscritto senza quel numero'))
+      .toThrow(LetturaFallita);
+  });
+});
+
+describe('leggiStiliInline', () => {
+  it('legge il numero dalla frase di CLAUDE.md', () => {
+    const testo = '…1.153 occorrenze sollevate, restano **334 style inline dinamici**, ognuno…';
+    expect(leggiStiliInline(testo)).toBe(334);
+  });
+
+  it('SOLLEVA se la frase non c\'è più, invece di passare a vuoto', () => {
+    expect(() => leggiStiliInline('gli stili inline sono ormai pochi'))
       .toThrow(LetturaFallita);
   });
 });
@@ -44,6 +57,28 @@ describe('leggiStatoAudit', () => {
     const misto = tabella + '\n| P2-1 | ~~Alta~~ ✔ **risolto** | Bundle |';
     expect(leggiStatoAudit(misto, 'ST').totale).toBe(3);
     expect(leggiStatoAudit(misto, 'P2')).toEqual({ totale: 1, chiusi: 1 });
+  });
+
+  it('conta più prefissi insieme, come nell\'audit con C/A/M/B', () => {
+    const misto = [
+      '| **C-1** ✔ | letture non paginate | `lib/api.js` | Critica |',
+      '| **A-1** ✔ | workflow rosso | `scripts/` | Alta |',
+      '| **M-1** ⚙ | stili inline | trasversale | Media |',
+    ].join('\n');
+    expect(leggiStatoAudit(misto, ['C', 'A', 'M', 'B'])).toEqual({ totale: 3, chiusi: 2 });
+  });
+
+  it('conta per identificativo: lo stesso rilievo in due tabelle è UNO', () => {
+    // AUDIT_STRUTTURA nomina i suoi rilievi due volte — nella tabella delle
+    // priorità e in quella delle correzioni. Contando le righe, quindici
+    // rilievi diventavano ventinove.
+    const due = [
+      '| ST-1 | ~~Alta~~ ✔ **risolto** | Render | … |',
+      '| ST-2 | Media | Architettura | … |',
+      '| **ST-1** | come è stato corretto |',
+      '| **ST-2** | come è stato corretto |',
+    ].join('\n');
+    expect(leggiStatoAudit(due, 'ST')).toEqual({ totale: 2, chiusi: 1 });
   });
 
   it('SOLLEVA se il documento non ha una tabella dei rilievi', () => {

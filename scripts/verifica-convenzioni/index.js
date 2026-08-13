@@ -19,13 +19,16 @@
 import { readFile } from 'node:fs/promises';
 import { ESLint } from 'eslint';
 import {
-  LetturaFallita, leggiConteggioMultiComp, leggiStatoAudit, leggiStatoIndex, confronta,
+  LetturaFallita, leggiConteggioMultiComp, leggiStatoAudit, leggiStatoIndex,
+  leggiStiliInline, confronta,
 } from './convenzioni.js';
 
 // Gli audit sotto controllo: nome del file, prefisso dei suoi rilievi.
 const AUDIT = [
   { file: 'AUDIT_STRUTTURA_2026-08-10.md', prefisso: 'ST' },
   { file: 'AUDIT_PERFORMANCE_2026-08.md', prefisso: 'P2' },
+  // Quattro prefissi in una tabella sola: Critici, Alta, Media, Bassa.
+  { file: 'AUDIT_ARCHITETTURA_2026-08-12.md', prefisso: ['C', 'A', 'M', 'B'] },
 ];
 
 // Misura i warning di una regola sul sorgente dell'app.
@@ -47,6 +50,28 @@ async function misuraRegola(regola) {
   }
   return { casi, file: file.size };
 }
+
+// Conta i nodi che corrispondono a un selettore, riusando il parser di ESLint
+// invece di aggiungere un parser JSX a questo script.
+//
+// La regola `no-restricted-syntax` della configurazione del progetto viene
+// sovrascritta per questa istanza: qui serve contare TUTTI gli `style={{…}}`,
+// mentre quella in eslint.config.js segnala solo i costanti (che sono zero).
+async function contaSelettore(selettore) {
+  const eslint = new ESLint({
+    overrideConfig: {
+      rules: { 'no-restricted-syntax': ['warn', { selector: selettore, message: 'conteggio' }] },
+    },
+  });
+  const risultati = await eslint.lintFiles(['src']);
+  return risultati.reduce(
+    (n, r) => n + r.messages.filter(m => m.ruleId === 'no-restricted-syntax').length, 0);
+}
+
+// Ogni oggetto letterale passato a un attributo `style`. Dopo M-1 sono per
+// costruzione tutti dinamici: quelli costanti sono costanti di modulo, e la
+// regola in eslint.config.js impedisce che ne rientrino.
+const STILE_INLINE = "JSXAttribute[name.name='style'] > JSXExpressionContainer > ObjectExpression";
 
 async function main() {
   const claudeMd = await readFile('docs/CLAUDE.md', 'utf8');
@@ -78,7 +103,17 @@ async function main() {
     rimedio: 'Spezza il file oltre soglia: la deroga dichiarata è una sola (state/reducer.js).',
   });
 
-  // 3. Stato dei rilievi: quello che l'indice dichiara contro quello che il
+  // 3. Stili inline (M-1). Il numero che è stato riscritto a mano in quattro
+  //    documenti per tre sessioni di fila: 1.528 → 1.487 → 335. Ora si misura.
+  const stiliDichiarati = leggiStiliInline(claudeMd);
+  const stiliMisurati = await contaSelettore(STILE_INLINE);
+  controlli.push({
+    nome: 'style inline (dinamici)', dove: 'docs/CLAUDE.md',
+    dichiarato: stiliDichiarati, misurato: stiliMisurati,
+    rimedio: 'Aggiorna la frase «N style inline dinamici» in docs/CLAUDE.md.',
+  });
+
+  // 4. Stato dei rilievi: quello che l'indice dichiara contro quello che il
   //    documento di audit porta nella propria tabella delle priorità.
   for (const { file, prefisso } of AUDIT) {
     const testo = await readFile(`docs/${file}`, 'utf8');

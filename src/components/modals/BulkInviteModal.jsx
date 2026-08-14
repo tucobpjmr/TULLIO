@@ -96,23 +96,30 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
     // restano sotto al secondo a una a una).
     const out = [];
     for (const p of parsed) {
-      const { error } = await Users.invite({
+      const { data, error } = await Users.invite({
         email: p.email,
         name: p.name,
         role: p.role,
         color,
       });
+      // M-2 dell'audit del 14 agosto: l'invito può essere partito (l'email è
+      // uscita) mentre la pre-creazione di profilo o contatto è fallita lato
+      // server. Un terzo stato, distinto da "ok" ed "err": non è un
+      // fallimento dell'invito, ma non è nemmeno un successo pulito.
       out.push(error
         ? { email: p.email, status: "err", message: error.message || "Errore" }
-        : { email: p.email, status: "ok" });
+        : data?.warning
+          ? { email: p.email, status: "warn", message: data.warning }
+          : { email: p.email, status: "ok" });
       // Aggiorno la lista a ogni step così l'admin vede il progresso live.
       setResults([...out]);
     }
     setBusy(false);
-    if (out.some(r => r.status === "ok")) onInvited?.();
+    if (out.some(r => r.status === "ok" || r.status === "warn")) onInvited?.();
   };
 
   const okCount = (results || []).filter(r => r.status === "ok").length;
+  const warnCount = (results || []).filter(r => r.status === "warn").length;
   const errCount = (results || []).filter(r => r.status === "err").length;
   const allDone = results && !busy && results.length > 0;
 
@@ -173,12 +180,20 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
                 <div style={txtBoldText}>
                   {busy
                     ? `Invio… ${results.length}/${total}`
-                    : `Riepilogo — ✅ ${okCount} inviati${errCount ? ` · ❌ ${errCount} falliti` : ""}`}
+                    : `Riepilogo — ✅ ${okCount} inviati`
+                      + `${warnCount ? ` · ⚠️ ${warnCount} con avviso` : ""}`
+                      + `${errCount ? ` · ❌ ${errCount} falliti` : ""}`}
                 </div>
                 <div style={txtF125}>
                   {results.map((r, i) => (
-                    <div key={i} style={{ display: "flex", gap: 8, padding: "2px 0", color: r.status === "ok" ? "var(--success)" : "var(--danger)" }}>
-                      <span>{r.status === "ok" ? "✅" : "❌"}</span>
+                    <div
+                      key={i}
+                      style={{
+                        display: "flex", gap: 8, padding: "2px 0",
+                        color: r.status === "ok" ? "var(--success)" : r.status === "warn" ? "var(--warning)" : "var(--danger)",
+                      }}
+                    >
+                      <span>{r.status === "ok" ? "✅" : r.status === "warn" ? "⚠️" : "❌"}</span>
                       <span style={flex1}>{r.email}</span>
                       {r.message && <span style={txtMuted}>{r.message}</span>}
                     </div>

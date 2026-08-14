@@ -75,8 +75,8 @@ database contiene.
 |---|---|---|---|---|
 | **C-1** | 🔴 **Critico** — ✔ chiuso 14/8 | Il ripristino da backup delle Liste scarta i cointestatari: il payload è costruito senza `beneficiari` | `components/liste/ListeViaggio.jsx:278` | Perdita dati silenziosa e non segnalata nel percorso di disaster recovery |
 | **A-1** | 🟠 **Alta** — ✔ chiuso 14/8 | Bacheca avvisi: nessun `guard`, nessun `rollback`, pulsanti mostrati a tutti | `state/persistence.js:266-273`, `components/dashboard/NoticeBoard.jsx:182-207` | UI che diverge dal DB in modo sistematico + due toast contraddittori |
-| **M-1** | 🟡 Media | `delete-user` non rimuove l'avatar dallo storage (`delete-account` sì) | `supabase/functions/delete-user/index.ts:391-423` | PII orfana a tempo indefinito dopo l'eliminazione definitiva di un utente |
-| **M-2** | 🟡 Media | `invite-user` ignora l'esito dei due `upsert` e risponde comunque `success` | `supabase/functions/invite-user/index.ts:581-597` | Invito "riuscito" con profilo o contatto non scritti, senza alcun segnale |
+| **M-1** | 🟡 Media — ✔ chiuso 14/8 | `delete-user` non rimuove l'avatar dallo storage (`delete-account` sì) | `supabase/functions/delete-user/index.ts:391-423` | PII orfana a tempo indefinito dopo l'eliminazione definitiva di un utente |
+| **M-2** | 🟡 Media — ✔ chiuso 14/8 | `invite-user` ignora l'esito dei due `upsert` e risponde comunque `success` | `supabase/functions/invite-user/index.ts:581-597` | Invito "riuscito" con profilo o contatto non scritti, senza alcun segnale |
 | **M-3** | 🟡 Media | Tre implementazioni della stessa "signed URL + cache TTL" | `lib/api.js:121-134, 547-558, 606-615` | Duplicazione a tre copie: un fix di TTL o di invalidazione ne raggiunge una sola |
 | **M-4** | 🟡 Media | Il controllo di scarto migrazioni è mono-direzionale per costruzione | `scripts/verifica-rpc/migrazioni.js:78-81` | Una migrazione applicata solo in produzione non è rilevabile da nessun controllo |
 | **B-1** | 🟢 Bassa | Schema `backup_liste_20260729` ancora in produzione (3 tabelle, ~2.323 righe) | produzione, non nel repo | Copia di dati di luglio senza RLS né retention dichiarata |
@@ -460,6 +460,20 @@ invece che una promessa.
 
 ### 🟡 M-1 — `delete-user` lascia l'avatar nello storage
 
+> **✔ CHIUSO il 14 agosto.** `rimuoviAvatar()` chiama
+> `storage.from("avatars").remove(...)` in **entrambi** i punti in cui la
+> funzione conclude che l'utente è sparito — la hard-delete riuscita e il ramo
+> "not found" (utente già assente da `auth.users`, ripulito solo lato
+> `public.users`) — non nel solo percorso principale del diff proposto: il
+> secondo ramo perde l'avatar con la stessa certezza del primo, e ometterlo
+> avrebbe chiuso il rilievo solo a metà. Best-effort, come previsto: un errore
+> di storage non fa fallire una hard-delete già committata su `auth.users`.
+> Guardia di regressione per lettura di sorgente (lo stesso approccio di
+> `edgeFunctionAdminGate.test.js`, perché questi `.ts` non entrano nel
+> perimetro eseguibile di Vitest) in
+> `src/test/edgeFunctionsPiiEsitoScritture.test.js`: verifica che la rimozione
+> compaia almeno due volte nel file, non una.
+
 **File:** `supabase/functions/delete-user/index.ts:391-423`
 
 L'eliminazione **self-service** (`delete-account`) fa la pulizia PII completa,
@@ -501,6 +515,28 @@ CASCADE, a differenza dell'oggetto nel bucket.
 ---
 
 ### 🟡 M-2 — `invite-user` risponde `success` anche se i due upsert falliscono
+
+> **✔ CHIUSO il 14 agosto.** L'Edge Function legge ora l'esito di entrambi gli
+> upsert e ritorna `{ success: true, userId, warning }` quando uno dei due
+> fallisce, come da piano. **La metà client, assente dal piano originale, è
+> stata implementata comunque**: `data.warning` restava un campo morto se
+> nessuno dei tre chiamanti lo avesse letto. `AddTeamMemberModal` mostra un
+> toast `type: "warning"` (non `"error"`: l'invito è comunque riuscito —
+> `ToastItem.jsx` distingue già i due tipi, arancione contro rosso, e il
+> warning non intercetta lo screen reader con `role="alert"`) al posto del
+> solito "Invito inviato". `BulkInviteModal` guadagna un terzo stato per riga
+> (`"warn"`, accanto a `"ok"`/`"err"`) con il proprio conteggio nel riepilogo —
+> un invito con warning non è né un successo pulito né un fallimento, ed è
+> l'unico dei tre punti d'ingresso dove più righe sullo stesso invio possono
+> avere esiti diversi tra loro. `AdminTeamTab` (reinvio) non ha bisogno di
+> alcuna modifica: la funzione salta l'upsert quando `resend: true`, quindi
+> `warning` non è mai presente su quel percorso. Guardie in due file:
+> `edgeFunctionsPiiEsitoScritture.test.js` per il cablaggio server (lettura di
+> sorgente) e `inviteWarning.test.jsx` per il comportamento dei due componenti
+> (il warning sostituisce il successo, non si accumula con esso; la riga
+> "con avviso" non conta né fra gli inviati né fra i falliti). Test:
+> **1178 verdi** su questo branch (base 1169 + 9), lint 0 errori,
+> `verifica:convenzioni` nessuna divergenza.
 
 **File:** `supabase/functions/invite-user/index.ts:581-597`
 

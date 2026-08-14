@@ -149,17 +149,43 @@ Deno.serve(async (req: Request) => {
     if (!resend) {
       const uid = inviteData.user.id;
 
-      // Pre-crea profilo (il trigger DB fa lo stesso come safety-net).
-      await supabaseAdmin.from("users").upsert(
-        { id: uid, name, role, avatar, color, capacity, pending: true, active: false, invited_by: callerId },
-        { onConflict: "id" }
-      );
+      // Pre-crea profilo (il trigger DB fa lo stesso come safety-net) e contatto.
+      const [profilo, contatto] = await Promise.all([
+        supabaseAdmin.from("users").upsert(
+          { id: uid, name, role, avatar, color, capacity, pending: true, active: false, invited_by: callerId },
+          { onConflict: "id" }
+        ),
+        supabaseAdmin.from("user_contacts").upsert(
+          { user_id: uid, email },
+          { onConflict: "user_id" }
+        ),
+      ]);
 
-      // Pre-crea contatto
-      await supabaseAdmin.from("user_contacts").upsert(
-        { user_id: uid, email },
-        { onConflict: "user_id" }
-      );
+      // M-2 dell'audit del 14 agosto. L'esito dei due upsert veniva scartato:
+      // il commento sopra ("il trigger DB fa lo stesso come safety-net") vale
+      // per public.users (handle_new_auth_user), ma NON per user_contacts, che
+      // nessun trigger popola. Se quell'upsert falliva l'admin leggeva
+      // "success" e l'email dell'invitato restava fuori dalla rubrica, senza
+      // alcun segnale che collegasse il vuoto a questo momento.
+      //
+      // Non si fa fallire la richiesta: l'email d'invito è GIÀ partita
+      // (supabaseAdmin.auth.admin.inviteUserByEmail sopra), e un 500 qui
+      // spingerebbe l'admin a riprovare generando un secondo invito per lo
+      // stesso indirizzo. Si risponde quindi comunque success, ma con un
+      // avviso — il silenzio era l'unica opzione da escludere.
+      const problemi = [
+        profilo.error && "profilo",
+        contatto.error && "contatto (email)",
+      ].filter(Boolean);
+      if (problemi.length) {
+        console.error("[invite-user] upsert", profilo.error?.message, contatto.error?.message);
+        return json({
+          success: true,
+          userId: uid,
+          warning: `Invito inviato, ma non è stato possibile pre-creare: ${problemi.join(", ")}. `
+            + "Controlla la scheda del membro nel pannello Team dopo il primo accesso.",
+        });
+      }
     }
 
     return json({ success: true, userId: inviteData.user.id });

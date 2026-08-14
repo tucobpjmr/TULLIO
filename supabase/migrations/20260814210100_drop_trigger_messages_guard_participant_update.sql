@@ -1,0 +1,23 @@
+-- B-3 (audit architettura 14 agosto) — trigger ridondante su messages.
+--
+-- public.messages ha due trigger BEFORE UPDATE sovrapposti, con strategie
+-- opposte:
+--   trg_messages_blocca_modifiche_altrui (20260806150000) — allowlist su
+--     to_jsonb, solleva eccezione su modifiche vietate;
+--   trg_messages_guard_participant_update (20260613092421) — enumerazione di
+--     15 colonne, le ripristina in silenzio.
+--
+-- I trigger scattano in ordine alfabetico di nome: blocca_… viene prima e
+-- solleva, quindi guard_… non è mai raggiunto per una modifica vietata —
+-- irraggiungibile in pratica. Ma la migrazione del 6 agosto argomenta
+-- esplicitamente perché l'enumerazione di colonne è la strategia sbagliata
+-- ("una colonna aggiunta domani nasce NON protetta"), e la sua implementazione
+-- restava installata accanto alla sostituta.
+--
+-- Verificato prima di droppare (come richiesto dall'audit) che nessuna
+-- scrittura legittima dipenda dal ripristino silenzioso: le RPC
+-- messages_mark_read (20260702084600) e messages_toggle_reaction
+-- (20260706142315) toccano solo read_by/reactions e origin_client, tutte e
+-- tre già nell'allowlist di messages_blocca_modifiche_altrui.
+drop trigger if exists trg_messages_guard_participant_update on public.messages;
+drop function if exists public.messages_guard_participant_update();

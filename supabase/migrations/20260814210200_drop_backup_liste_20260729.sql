@@ -1,0 +1,13 @@
+-- B-1 (audit architettura 14 agosto) — schema di backup di luglio in produzione.
+--
+-- Istantanea pre-migrazione del 29 luglio, conservata durante il
+-- consolidamento del modulo Liste (3 tabelle: liste_viaggio, movimenti_lista,
+-- lista_history — ~2.323 righe stimate, nessuna RLS, nessuna primary key).
+--
+-- Decisione (14 agosto): il modulo Liste è in produzione stabile da quel
+-- giorno e ha il proprio backup JSON scaricabile (ListeAPI.backupData()) —
+-- questa copia non ha più un lettore. Non raggiungibile da anon/authenticated
+-- (verificato: nessun USAGE sullo schema, nessun SELECT sulle tabelle), ma
+-- restavano copie di dati di clienti reali senza scadenza dichiarata,
+-- accessibili a service_role.
+drop schema if exists backup_liste_20260729 cascade;

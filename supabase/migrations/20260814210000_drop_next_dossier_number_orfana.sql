@@ -1,0 +1,11 @@
+-- B-2 (audit architettura 14 agosto) — public.next_dossier_number() orfana.
+--
+-- 20260616221642_remove_pratiche_fornitori.sql ha rimosso il modulo pratiche:
+-- droppate generate_dossier_number(), le tabelle e la sequence
+-- dossier_number_seq — ma non next_dossier_number(), che di quella sequence
+-- si serviva. La funzione è rimasta in produzione e fallirebbe se invocata.
+--
+-- Non è un rischio di sicurezza: 20260613092355 e 20260616055351 le hanno
+-- già revocato EXECUTE da public, anon e authenticated. È solo un residuo
+-- morto del modulo pratiche/fornitori, rimosso definitivamente in sessione 24.
+drop function if exists public.next_dossier_number();

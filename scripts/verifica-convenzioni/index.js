@@ -29,6 +29,7 @@ const AUDIT = [
   { file: 'AUDIT_PERFORMANCE_2026-08.md', prefisso: 'P2' },
   // Quattro prefissi in una tabella sola: Critici, Alta, Media, Bassa.
   { file: 'AUDIT_ARCHITETTURA_2026-08-12.md', prefisso: ['C', 'A', 'M', 'B'] },
+  { file: 'AUDIT_ARCHITETTURA_2026-08-14.md', prefisso: ['C', 'A', 'M', 'B'] },
 ];
 
 // Misura i warning di una regola sul sorgente dell'app.

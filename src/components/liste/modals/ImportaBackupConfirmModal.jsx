@@ -10,7 +10,7 @@ const txtF13LvMuted = { fontSize: 13, color: "var(--lv-muted)" };
 // Il merge (importa_backup) somma ai dati esistenti e salta i duplicati per
 // id: non cancella nulla, ma un file sbagliato può comunque aggiungere righe
 // indesiderate, quindi resta una conferma esplicita prima della RPC.
-export function ImportaBackupConfirmModal({ nL, nM, progress = null, onClose, onSave }) {
+export function ImportaBackupConfirmModal({ nL, nB = 0, nM, progress = null, onClose, onSave }) {
   const [saving, setSaving] = useState(false);
 
   const submit = async () => {
@@ -30,9 +30,9 @@ export function ImportaBackupConfirmModal({ nL, nM, progress = null, onClose, on
     <LvOverlay onClose={onClose}>
       <h2>Caricare il backup?</h2>
       <p style={txtF14LvMuted}>
-        Il file contiene {nL} liste e {nM} movimenti. I dati verranno AGGIUNTI a
-        quelli esistenti; i duplicati (stesso identificativo) vengono saltati.
-        Nulla viene cancellato.
+        Il file contiene {nL} liste{nB ? `, ${nB} cointestatari` : ""} e {nM} movimenti.
+        I dati verranno AGGIUNTI a quelli esistenti; i duplicati (stesso
+        identificativo) vengono saltati. Nulla viene cancellato.
       </p>
       {perc !== null && (
         <p style={txtF13LvMuted} role="status">

@@ -275,8 +275,20 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
       return;
     }
     apriOverlay("import", {
-      payload: { clients: data.clients || [], liste: data.liste || [], movimenti: data.movimenti || [] },
+      // `beneficiari` NON è opzionale per distrazione: i backup prodotti prima
+      // della cointestazione (2 agosto) non hanno il campo, e per quelli `[]`
+      // è la risposta giusta. Ometterlo del tutto invece — com'era fino al 14
+      // agosto (C-1) — fa sparire i cointestatari anche dai backup che LI
+      // CONTENGONO, senza errore: `chunk(undefined)` ritorna `[]` e il passo
+      // non viene nemmeno costruito (listeApi.js: chunk, importaBackup).
+      payload: {
+        clients: data.clients || [],
+        liste: data.liste || [],
+        beneficiari: data.beneficiari || [],
+        movimenti: data.movimenti || [],
+      },
       nL: (data.liste || []).length,
+      nB: (data.beneficiari || []).length,
       nM: (data.movimenti || []).length,
       progress: null,
     });
@@ -302,7 +314,11 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
     chiudiOverlay();
     dispatch({
       type: "SHOW_TOAST",
-      payload: { type: "success", message: `Backup caricato: +${res.clients_added} clienti, +${res.liste_added} liste, +${res.movimenti_added} movimenti` },
+      payload: {
+        type: "success",
+        message: `Backup caricato: +${res.clients_added} clienti, +${res.liste_added} liste, `
+          + `+${res.beneficiari_added} cointestatari, +${res.movimenti_added} movimenti`,
+      },
     });
     await loadHome();
     return true;
@@ -539,6 +555,7 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
           {overlay.tipo === "import" && (
             <ImportaBackupConfirmModal
               nL={overlay.dati.nL}
+              nB={overlay.dati.nB}
               nM={overlay.dati.nM}
               progress={overlay.dati.progress}
               onClose={chiudiOverlay}

@@ -60,7 +60,7 @@ import {
   toDbTask, toDbTaskPatch, toDbNotice, toDbNoticePatch,
   toDbClient, toDbClientPatch, toDbCategory, toDbMessageTemplate, newId, isUuid,
 } from "../lib/mappers.js";
-import { canEditTask, canViewTask, canCreateTaskCategory, isAdmin } from "../lib/permissions.js";
+import { canEditTask, canViewTask, canCreateTaskCategory, canEditNotice, isAdmin } from "../lib/permissions.js";
 import { toDbRole, toSeniority } from "../lib/taskConstants.js";
 import { chiaveNome } from "../lib/clientNotes.js";
 
@@ -69,6 +69,7 @@ import { chiaveNome } from "../lib/clientNotes.js";
 const NOOP = { error: null };
 
 const findTask = (state, id) => (state.tasks || []).find(t => t.id === id);
+const findNotice = (state, id) => (state.notices || []).find(n => n.id === id);
 
 // I task che EMPTY_TRASH deve davvero eliminare: cestinati E gestibili
 // dall'utente corrente. Una definizione sola, letta da `persist` e da
@@ -263,13 +264,54 @@ export const PERSISTENCE = {
     }),
     persist: (s, a) => NoticesAPI.create(toDbNotice(a.payload)),
   },
-  UPDATE_NOTICE: { persist: (s, a) => NoticesAPI.update(a.payload.id, toDbNoticePatch(a.payload)) },
-  DELETE_NOTICE: { persist: (s, a) => NoticesAPI.remove(a.payload) },
+  // A-1 dell'audit del 14 agosto: erano le uniche tre mutazioni del registry
+  // senza guard NÉ rollback, mentre sono anche le uniche su cui la RLS nega
+  // davvero qualcosa (`author_id = auth.uid() OR is_manager_or_admin()`, vedi
+  // canEditNotice in lib/permissions.js). Senza il guard, un non-autore
+  // vedeva il reducer applicare in ottimistico e mostrare "Avviso aggiornato/
+  // rimosso" — poi la RLS rifiutava la scrittura e, senza rollback, l'avviso
+  // restava disallineato dal database fino al prossimo reload (una DELETE
+  // fallita non produce un evento realtime che la corregga).
+  UPDATE_NOTICE: {
+    guard: (s, a, uid) => canEditNotice(s.team, findNotice(s, a.payload?.id), uid),
+    persist: (s, a) => NoticesAPI.update(a.payload.id, toDbNoticePatch(a.payload)),
+    // Rimanda un altro UPDATE_NOTICE con l'avviso INTERO pre-dispatch, come
+    // UPDATE_TEAM_MEMBER: il case del reducer fa merge di `...action.payload`
+    // sulla riga ESISTENTE, quindi rimandare indietro un sottoinsieme
+    // lascerebbe a video i campi che il patch aveva cambiato — un rollback
+    // parziale, che sembra riuscito ed è peggio di nessuno. Riusare
+    // UPDATE_NOTICE (invece di un case dedicato) è anche ciò che fa
+    // scattare `meta.compensazione` nel wrapper reducer, che riporta indietro
+    // i toast: senza, "Avviso aggiornato" comparirebbe accanto a
+    // "Salvataggio fallito" sullo stesso gesto.
+    rollback: (s, a) => {
+      const prev = findNotice(s, a.payload?.id);
+      return prev ? { type: "UPDATE_NOTICE", payload: prev } : null;
+    },
+    mapError: () => "avviso non aggiornato",
+  },
+  DELETE_NOTICE: {
+    guard: (s, a, uid) => canEditNotice(s.team, findNotice(s, a.payload), uid),
+    persist: (s, a) => NoticesAPI.remove(a.payload),
+    // Come RESTORE_CLIENT: si rimanda l'oggetto intero, non l'id — la riga
+    // cancellata in ottimistico non è più rileggibile dal server.
+    rollback: (s, a) => {
+      const prev = findNotice(s, a.payload);
+      return prev ? { type: "RESTORE_NOTICE", payload: prev } : null;
+    },
+    mapError: () => "avviso non eliminato",
+  },
   TOGGLE_PIN_NOTICE: {
+    guard: (s, a, uid) => canEditNotice(s.team, findNotice(s, a.payload), uid),
     persist: (s, a) => {
-      const prev = (s.notices || []).find(n => n.id === a.payload);
+      const prev = findNotice(s, a.payload);
       return NoticesAPI.togglePin(a.payload, !prev?.pinned);
     },
+    // TOGGLE_PIN_NOTICE è la propria inversa (applica sempre `!pinned` sul
+    // valore corrente): ridispatcharla torna al punto di partenza, senza
+    // bisogno di uno snapshot — stessa proprietà di TOGGLE_TEAM_MEMBER_ACTIVE.
+    rollback: (s, a) => ({ type: "TOGGLE_PIN_NOTICE", payload: a.payload }),
+    mapError: () => "pin non aggiornato",
   },
 
   // ─── CRM: CLIENTI ──────────────────────────────────────────────────────────

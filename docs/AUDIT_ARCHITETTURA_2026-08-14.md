@@ -74,7 +74,7 @@ database contiene.
 | # | Priorità | Rilievo | File | Impatto |
 |---|---|---|---|---|
 | **C-1** | 🔴 **Critico** — ✔ chiuso 14/8 | Il ripristino da backup delle Liste scarta i cointestatari: il payload è costruito senza `beneficiari` | `components/liste/ListeViaggio.jsx:278` | Perdita dati silenziosa e non segnalata nel percorso di disaster recovery |
-| **A-1** | 🟠 **Alta** | Bacheca avvisi: nessun `guard`, nessun `rollback`, pulsanti mostrati a tutti | `state/persistence.js:266-273`, `components/dashboard/NoticeBoard.jsx:182-207` | UI che diverge dal DB in modo sistematico + due toast contraddittori |
+| **A-1** | 🟠 **Alta** — ✔ chiuso 14/8 | Bacheca avvisi: nessun `guard`, nessun `rollback`, pulsanti mostrati a tutti | `state/persistence.js:266-273`, `components/dashboard/NoticeBoard.jsx:182-207` | UI che diverge dal DB in modo sistematico + due toast contraddittori |
 | **M-1** | 🟡 Media | `delete-user` non rimuove l'avatar dallo storage (`delete-account` sì) | `supabase/functions/delete-user/index.ts:391-423` | PII orfana a tempo indefinito dopo l'eliminazione definitiva di un utente |
 | **M-2** | 🟡 Media | `invite-user` ignora l'esito dei due `upsert` e risponde comunque `success` | `supabase/functions/invite-user/index.ts:581-597` | Invito "riuscito" con profilo o contatto non scritti, senza alcun segnale |
 | **M-3** | 🟡 Media | Tre implementazioni della stessa "signed URL + cache TTL" | `lib/api.js:121-134, 547-558, 606-615` | Duplicazione a tre copie: un fix di TTL o di invalidazione ne raggiunge una sola |
@@ -242,6 +242,52 @@ it("ogni insieme esportato nel backup viene rimandato al ripristino", async () =
 ---
 
 ### 🟠 A-1 — La bacheca avvisi diverge dal database, in modo sistematico
+
+> **✔ CHIUSO il 14 agosto, stesso giorno.** I tre pezzi proposti sono stati
+> implementati: `canEditNotice` in `lib/permissions.js`, `guard`+`rollback`
+> nelle tre entry di `persistence.js`, gating dei pulsanti in
+> `NoticeBoard.jsx`. **Un quarto pezzo, non previsto dal piano originale, si
+> è rivelato necessario implementando gli altri tre.** Il reducer stesso
+> (`baseReducer`) non controllava ALCUN permesso su `UPDATE_NOTICE`/
+> `DELETE_NOTICE`/`TOGGLE_PIN_NOTICE` — a differenza di `UPDATE_TASK`/
+> `DELETE_TASK`, che negano con `canEditTask` prima di applicare. Il registry
+> di persistenza da solo non basta a chiudere il rilievo: quando un `guard`
+> nega, `useSyncedDispatch` non blocca l'azione — la dispatcha comunque al
+> reducer, **contando sul reducer per produrre il toast di rifiuto** (è il
+> pattern documentato in testa a quel file). Senza un controllo nel reducer,
+> quella richiesta negata veniva applicata in locale lo stesso: "Avviso
+> aggiornato" mostrato a un utente la cui scrittura la RLS avrebbe respinto,
+> e nessun rollback la correggeva perché dal punto di vista
+> dell'orchestratore l'azione non era stata negata affatto — il guard aveva
+> fatto il suo lavoro fermando la RETE, ma non fermava lo STATO locale.
+> Aggiunto lo stesso pattern dei task (`if (!prev) return state` per un
+> record fantasma, poi `if (!canEditNotice(...)) return _denied()`) alle tre
+> case del reducer. Aggiunto anche il case `RESTORE_NOTICE` (gemello
+> silenzioso di `RESTORE_CLIENT`, per il rollback di `DELETE_NOTICE`); il
+> rollback di `UPDATE_NOTICE` non ne ha bisogno, rimanda un altro
+> `UPDATE_NOTICE` con lo snapshot intero — stesso pattern di
+> `UPDATE_TEAM_MEMBER`, che fa scattare `meta.compensazione` e sopprime il
+> toast di successo.
+>
+> Guardie di regressione in due file nuovi (il terzo — la sezione originale
+> di `persistenceGuards.test.js` — superava le 500 righe effettive appena
+> aggiunta, e "un file, una responsabilità" vale anche per i test, come già
+> per `TOGGLE_TEAM_MEMBER_ACTIVE`): `noticeGuardsPersistence.test.js` (guard
+> per i cinque ruoli × tre azioni, rollback, il caso del record fantasma) e
+> `noticeBoardPermessi.test.jsx` (i pulsanti compaiono solo per chi la RLS
+> lascerebbe agire; la reazione resta a tutti, confermato local-only — vedi
+> nota su `TOGGLE_NOTICE_REACTION` più sotto). Test: **1200 verdi** (era
+> 1169, +31), lint 0 errori, `verifica:convenzioni` nessuna divergenza.
+>
+> **La domanda che l'audit aveva lasciato aperta su `TOGGLE_NOTICE_REACTION`
+> è risolta, non per verifica RLS ma per lettura del codice**: l'azione non
+> ha ALCUNA entry nel registry di persistenza — è dichiarata esplicitamente
+> in `NON_PERSISTITE_OGGI` di `persistenceGuards.test.js` ("Per gli avvisi la
+> RPC corrispondente non esiste"). Nessuna scrittura di rete parte mai per
+> questa azione: il sospetto che la RLS potesse rifiutarla in silenzio era
+> fondato sulla forma sbagliata del problema — non c'è nulla che la RLS possa
+> rifiutare, perché non c'è nessuna richiesta. Il pulsante 😀 resta quindi
+> visibile a tutti, senza gating.
 
 **File:** `src/state/persistence.js:266-273` e
 `src/components/dashboard/NoticeBoard.jsx:182-207`

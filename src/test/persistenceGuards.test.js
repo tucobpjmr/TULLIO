@@ -368,6 +368,13 @@ describe("persistence — UPDATE_TEAM_MEMBER raggiunge il database", () => {
 // effettive e "un file, una responsabilità" (docs/CLAUDE.md) vale anche per i
 // test.
 
+// UPDATE_NOTICE/DELETE_NOTICE/TOGGLE_PIN_NOTICE (A-1 dell'audit del 14
+// agosto): guard, rollback e la concordanza col reducer sono coperti in
+// src/test/noticeGuardsPersistence.test.js — un file a sé, per lo stesso
+// motivo di TOGGLE_TEAM_MEMBER_ACTIVE qui sopra. La metà UI (i pulsanti
+// compaiono solo per chi la RLS lascerebbe agire) è in
+// noticeBoardPermessi.test.jsx.
+
 // UPDATE_OWN_PROFILE era l'ultima mutazione su un'entità dello state a vivere
 // fuori dal registry: ProfileEditor dispatchava in ottimistico e poi chiamava
 // UsersAPI a mano, con un toast per scrittura e nessun rollback. Il fallimento
@@ -653,6 +660,12 @@ const COMPENSAZIONE = [
   // rollback, non una scrittura. Persisterle significherebbe scrivere sul
   // server l'annullamento di qualcosa che sul server non è mai arrivato.
   "ROLLBACK_TASKS_BULK", "RESTORE_CLIENT", "CANCEL_ADMIN_ROLLBACK",
+  // A-1 dell'audit del 14 agosto: gemello di RESTORE_CLIENT per DELETE_NOTICE
+  // — riporta in bacheca un avviso la cui cancellazione ottimistica è stata
+  // respinta dalla RLS. UPDATE_NOTICE non ne ha bisogno: il suo rollback
+  // rimanda un altro UPDATE_NOTICE (come UPDATE_TEAM_MEMBER), che il reducer
+  // applica come merge sulla riga esistente.
+  "RESTORE_NOTICE",
   // A-2: gemello di ROLLBACK_TASKS_BULK per ADD_CLIENTS_BULK, dispatchato dal
   // registry quando ClientsAPI.createMany si ferma a metà.
   "ROLLBACK_CLIENTS_BULK",

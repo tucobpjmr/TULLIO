@@ -77,8 +77,8 @@ database contiene.
 | **A-1** | 🟠 **Alta** — ✔ chiuso 14/8 | Bacheca avvisi: nessun `guard`, nessun `rollback`, pulsanti mostrati a tutti | `state/persistence.js:266-273`, `components/dashboard/NoticeBoard.jsx:182-207` | UI che diverge dal DB in modo sistematico + due toast contraddittori |
 | **M-1** | 🟡 Media — ✔ chiuso 14/8 | `delete-user` non rimuove l'avatar dallo storage (`delete-account` sì) | `supabase/functions/delete-user/index.ts:391-423` | PII orfana a tempo indefinito dopo l'eliminazione definitiva di un utente |
 | **M-2** | 🟡 Media — ✔ chiuso 14/8 | `invite-user` ignora l'esito dei due `upsert` e risponde comunque `success` | `supabase/functions/invite-user/index.ts:581-597` | Invito "riuscito" con profilo o contatto non scritti, senza alcun segnale |
-| **M-3** | 🟡 Media | Tre implementazioni della stessa "signed URL + cache TTL" | `lib/api.js:121-134, 547-558, 606-615` | Duplicazione a tre copie: un fix di TTL o di invalidazione ne raggiunge una sola |
-| **M-4** | 🟡 Media | Il controllo di scarto migrazioni è mono-direzionale per costruzione | `scripts/verifica-rpc/migrazioni.js:78-81` | Una migrazione applicata solo in produzione non è rilevabile da nessun controllo |
+| **M-3** | 🟡 Media — ✔ chiuso 14/8 | Tre implementazioni della stessa "signed URL + cache TTL" | `lib/api.js:121-134, 547-558, 606-615` | Duplicazione a tre copie: un fix di TTL o di invalidazione ne raggiunge una sola |
+| **M-4** | 🟡 Media — ✔ chiuso 14/8 | Il controllo di scarto migrazioni è mono-direzionale per costruzione | `scripts/verifica-rpc/migrazioni.js:78-81` | Una migrazione applicata solo in produzione non è rilevabile da nessun controllo |
 | **B-1** | 🟢 Bassa | Schema `backup_liste_20260729` ancora in produzione (3 tabelle, ~2.323 righe) | produzione, non nel repo | Copia di dati di luglio senza RLS né retention dichiarata |
 | **B-2** | 🟢 Bassa | `public.next_dossier_number()` orfana: la sua sequence è stata droppata | `migrations/20260616221642` | Funzione morta che fallirebbe se invocata; nessuno può invocarla |
 | **B-3** | 🟢 Bassa | Due trigger sovrapposti su `messages` con strategie opposte | `migrations/20260613092421` vs `20260806150000` | Il più vecchio è irraggiungibile; enumera colonne, cioè la strategia che il nuovo dichiara sbagliata |
@@ -605,6 +605,19 @@ toast di avvertimento quando presente.
 
 ### 🟡 M-3 — Tre copie della stessa "signed URL con cache"
 
+> **✔ CHIUSO 2026-08-14.** Implementata la fabbrica `creaSignedUrlGetter`
+> esattamente come proposto sotto — `Users.getAvatarUrl` (conservando il ramo
+> data:/http, non generalizzabile), `Messages.getFileUrl` e
+> `TaskFiles.getFileUrl` la condividono, con `avatarUrlCache`/`signedUrlCache`
+> passate come argomento. Rimossa la dichiarazione tardiva duplicata di
+> `signedUrlCache`. Verificato con un file di test dedicato
+> (`src/test/signedUrlSharedGetter.test.js`) che il comportamento OSSERVABILE
+> non è cambiato per nessuna delle tre: bucket giusto per ciascuna, i due
+> formati storici di `getAvatarUrl` passano invariati, cache hit/miss,
+> condivisione intenzionale della cache fra Messages e TaskFiles, e il confine
+> esatto del margine di scadenza (54min59s ancora in cache, 55min01s no) con
+> `vi.useFakeTimers()`.
+
 **File:** `src/lib/api.js:121-134` (`Users.getAvatarUrl`), `:547-558`
 (`Messages.getFileUrl`), `:606-615` (`TaskFiles.getFileUrl`)
 
@@ -683,6 +696,40 @@ sta sopra ogni suo uso.
 ---
 
 ### 🟡 M-4 — Il controllo di scarto migrazioni guarda in una direzione sola
+
+> **✔ CHIUSO 2026-08-14.** Implementati `ALIAS_APPLICATE` e
+> `trovaNonVersionate` in `scripts/verifica-rpc/migrazioni.js`, richiamati dal
+> runner con un'annotazione `::warning` non bloccante — stessa scelta e stesso
+> motivo di A-2 (12 agosto) per il salto dell'advisor. **Correzione al testo
+> qui sotto**: il "**15 voci**" verificato quel giorno veniva da un confronto
+> per **solo nome**; rifatto per **versione O nome** — lo stesso criterio a due
+> vie che usa già `confrontaMigrazioni`, e che è anche il criterio con cui
+> `trovaNonVersionate` doveva comunque essere scritta — 10 di quelle 15 voci
+> risultano già agganciate per versione (stesso caso già noto:
+> `step_j_fix3_tasks_set_created_by` è applicata con `version = 20260609174842`,
+> uguale al prefisso del file locale `20260609174842_step_j_fix3.sql`, pur
+> avendo un nome applicato diverso dallo slug). Restano **5** voci senza alcun
+> aggancio, né per versione né per nome, ed è a queste che `ALIAS_APPLICATE`
+> è stato ridotto — un elenco più corto di quello proposto sotto, perché la
+> metà "versione" del confronto a due vie assorbe da sola la maggior parte dei
+> casi che il confronto per solo nome aveva marcato come mismatch:
+> ```
+> mention_find_users_function              → 20260614_mention_composite_names
+> mention_find_users_function_v2           → 20260614_mention_composite_names
+> mention_triggers_comments_and_messages   → 20260614_mention_composite_names
+> 20260702_notifications_origin_client     → 20260702084658_notifications_origin_client
+> messages_blocca_modifiche_altrui_fix_sender_anchor
+>                                           → 20260806150000_messages_solo_mittente_modifica_contenuto
+> ```
+> Le tre voci `mention_*` sono la stessa applicazione a tre chiamate separate
+> già documentata in `ECCEZIONI_STORICHE` (verso opposto, stesso file);
+> `20260702_notifications_origin_client` è un secondo nome applicato allo
+> stesso file — verificato che esiste anche una voce gemella applicata a
+> `version = 20260702084658`, che aggancia per versione senza bisogno di alias.
+> Un test (`src/test/verificaMigrazioni.test.js`) verifica che ogni voce di
+> `ALIAS_APPLICATE` punti a un file davvero presente nel repository, oltre al
+> comportamento di `trovaNonVersionate` per i tre casi (match per versione,
+> match per nome, match per alias, nessun match).
 
 **File:** `scripts/verifica-rpc/migrazioni.js:76-81`
 

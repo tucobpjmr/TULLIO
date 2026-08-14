@@ -46,7 +46,7 @@ export const AddTeamMemberModal = ({ onClose, dispatch, existingIds, onInvited }
     // Con email → invito reale via Edge Function (account auth + profilo pending).
     if (trimmedEmail) {
       setBusy(true);
-      const { error } = await Users.invite({
+      const { data, error } = await Users.invite({
         email: trimmedEmail,
         name: name.trim(),
         role,
@@ -54,9 +54,15 @@ export const AddTeamMemberModal = ({ onClose, dispatch, existingIds, onInvited }
       });
       setBusy(false);
       if (error) { setErr(error.message || "Invito non riuscito."); return; }
+      // M-2 dell'audit del 14 agosto: l'invito è comunque partito, ma la
+      // pre-creazione di profilo o contatto può essere fallita lato server
+      // (nessun trigger di riserva per user_contacts). Un avviso invece del
+      // solito successo, così il vuoto non passa per inosservato.
       dispatch({
         type: "SHOW_TOAST",
-        payload: { type: "success", message: `Invito inviato a ${trimmedEmail}.` },
+        payload: data?.warning
+          ? { type: "warning", message: data.warning }
+          : { type: "success", message: `Invito inviato a ${trimmedEmail}.` },
       });
       onInvited?.();
       onClose();

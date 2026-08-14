@@ -32,6 +32,20 @@ Deno.serve(async (req: Request) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
+    // M-1 dell'audit del 14 agosto. La FK CASCADE su public.users(id) ripulisce
+    // public.users e user_contacts quando la riga auth.users sparisce, ma una
+    // foreign key non raggiunge un bucket: il file <user_id>/avatar.jpg nello
+    // storage 'avatars' (Users.uploadAvatar, lib/api.js) restava per sempre —
+    // la fotografia di una persona il cui account è stato eliminato su
+    // richiesta. delete-account (self-service, MENO distruttiva) fa già questa
+    // pulizia; qui mancava. Best-effort e non bloccante: un errore qui non deve
+    // far fallire la risposta quando l'hard-delete è già stato deciso — e
+    // `.remove()` su un file assente non è comunque un errore.
+    const rimuoviAvatar = async (userId: string) => {
+      const { error } = await supabaseAdmin.storage.from("avatars").remove([`${userId}/avatar.jpg`]);
+      if (error) console.error("[delete-user] avatar residuo", error.message);
+    };
+
     // Verifica identità del chiamante tramite il suo JWT
     const supabaseUser = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -74,6 +88,7 @@ Deno.serve(async (req: Request) => {
       // comunque l'eventuale riga residua in public.users per sicurezza.
       if (lower.includes("not found")) {
         await supabaseAdmin.from("users").delete().eq("id", targetId);
+        await rimuoviAvatar(targetId);
         return json({ success: true });
       }
 
@@ -93,6 +108,7 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Impossibile eliminare l'utente: " + rawMsg }, 500);
     }
 
+    await rimuoviAvatar(targetId);
     return json({ success: true });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Errore interno";

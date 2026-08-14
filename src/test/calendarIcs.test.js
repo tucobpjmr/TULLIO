@@ -87,6 +87,27 @@ describe("foldIcsLine", () => {
   });
 });
 
+// B-1 dell'audit del 14 agosto (secondo passaggio): icsEscape neutralizzava
+// \n ma non \r, quindi un CR nudo (terminatore Windows, frequente nel testo
+// che arriva da un import CSV/Excel) finiva grezzo dentro una content line —
+// non conforme a RFC 5545 §3.1, che vieta un ritorno a capo non escapato.
+describe("icsEscape", () => {
+  it("neutralizza LF, CR nudo e CRLF nella stessa sequenza di escape", () => {
+    expect(icsEscape("riga1\nriga2")).toBe("riga1\\nriga2");
+    expect(icsEscape("riga1\rriga2")).toBe("riga1\\nriga2");
+    expect(icsEscape("riga1\r\nriga2")).toBe("riga1\\nriga2");
+  });
+
+  it("il risultato non contiene mai un \\r o \\n grezzo", () => {
+    const escaped = icsEscape("titolo\r\ncon più\rritorni\na capo misti");
+    expect(escaped).not.toMatch(/\r|\n/);
+  });
+
+  it("continua a escapare backslash, virgola e punto e virgola", () => {
+    expect(icsEscape("a\\b,c;d")).toBe("a\\\\b\\,c\\;d");
+  });
+});
+
 describe("buildIcs", () => {
   it("produce righe DESCRIPTION foldate quando descrizione + priorità superano 75 ottetti", () => {
     const tasks = [{

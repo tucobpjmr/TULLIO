@@ -97,12 +97,19 @@ export function ClienteCard({ cliente, onEdit, onDelete, onSelect, selected, lis
             </div>
           )}
         </div>
-        <div style={colEndGap6}>
-          <div style={rowGap4}>
-            <button onClick={() => onEdit(cliente)} style={boxF12Muted}>✏️</button>
-            <button onClick={() => onDelete(cliente)} style={boxF12Danger}>🗑️</button>
+        {/* A-1 dell'audit del 14 agosto (secondo passaggio): il chiamante passa
+            `null` quando il ruolo corrente non ha il permesso (canEditClient/
+            canDeleteClient) — stesso trattamento dei tre pulsanti di
+            NoticeBoard. Prima i due bottoni erano mostrati a chiunque e solo
+            la RLS decideva davvero, senza che l'utente lo scoprisse. */}
+        {(onEdit || onDelete) && (
+          <div style={colEndGap6}>
+            <div style={rowGap4}>
+              {onEdit && <button onClick={() => onEdit(cliente)} style={boxF12Muted}>✏️</button>}
+              {onDelete && <button onClick={() => onDelete(cliente)} style={boxF12Danger}>🗑️</button>}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

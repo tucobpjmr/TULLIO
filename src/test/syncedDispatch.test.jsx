@@ -199,10 +199,13 @@ describe("useSyncedDispatch — fallimenti di persistenza", () => {
       .toEqual(["DELETE_TASK", "MARK_PENDING_WRITE", "SHOW_TOAST", "UNMARK_PENDING_WRITE"]);
   });
 
-  it("in un Promise.all basta un errore per far scattare la gestione", async () => {
-    // RENAME_CLIENT_IN_TASKS resta una delle entry che ventilano N update in
-    // parallelo: l'orchestratore deve accorgersi dell'errore anche quando è
-    // sepolto in mezzo a un array di esiti riusciti.
+  // M-2 dell'audit del 14 agosto (secondo passaggio): RENAME_CLIENT_IN_TASKS
+  // è passata da Promise.all (un solo errore fa fallire l'intero fan-out,
+  // esito degli altri N-1 ignoto) a Promise.allSettled con compensazione
+  // mirata sui soli id falliti — l'orchestratore deve accorgersi comunque
+  // dell'errore, e il messaggio ora conta quanti invece di riportare il testo
+  // grezzo di Postgrest.
+  it("un update fallito su N non impedisce agli altri di procedere, e il toast conta quanti", async () => {
     TasksAPI.update
       .mockResolvedValueOnce({ error: null })
       .mockResolvedValueOnce({ error: { message: "riga bloccata" } });
@@ -216,8 +219,41 @@ describe("useSyncedDispatch — fallimenti di persistenza", () => {
       await dispatch({ type: "RENAME_CLIENT_IN_TASKS", payload: { from: "Rossi Mario", to: "Bianchi" } });
     });
 
+    expect(TasksAPI.update).toHaveBeenCalledTimes(2); // entrambi tentati, nessuno short-circuit
     const toast = azioniDispatchate(rawDispatch).find(a => a.type === "SHOW_TOAST");
-    expect(toast.payload.message).toContain("riga bloccata");
+    expect(toast.payload.message).toContain("1 task su 2 non aggiornati");
+  });
+
+  it("il task fallito torna al nome PRECEDENTE, quello riuscito resta rinominato", async () => {
+    TasksAPI.update
+      .mockResolvedValueOnce({ error: { message: "riga bloccata" } })
+      .mockResolvedValueOnce({ error: null });
+    const tasks = [
+      task({ id: uuid(1), client: "Rossi Mario", assignees: ["junior1"] }),
+      task({ id: uuid(2), client: "rossi  mario", assignees: ["junior1"] }),
+    ];
+    const { dispatch, rawDispatch } = setup({ tasks });
+
+    await act(async () => {
+      await dispatch({ type: "RENAME_CLIENT_IN_TASKS", payload: { from: "Rossi Mario", to: "Bianchi" } });
+    });
+
+    const undo = azioniDispatchate(rawDispatch).find(a => a.type === "ROLLBACK_RENAME_CLIENT_IN_TASKS");
+    expect(undo).toBeTruthy();
+    expect(undo.payload).toEqual({ ids: [uuid(1)], from: "Rossi Mario" });
+    expect(undo.meta.compensazione).toBe(true);
+  });
+
+  it("se tutte le update riescono non c'è alcun rollback", async () => {
+    const tasks = [task({ id: uuid(1), client: "Rossi Mario", assignees: ["junior1"] })];
+    const { dispatch, rawDispatch } = setup({ tasks });
+
+    await act(async () => {
+      await dispatch({ type: "RENAME_CLIENT_IN_TASKS", payload: { from: "Rossi Mario", to: "Bianchi" } });
+    });
+
+    expect(azioniDispatchate(rawDispatch).some(a => a.type === "ROLLBACK_RENAME_CLIENT_IN_TASKS")).toBe(false);
+    expect(azioniDispatchate(rawDispatch).some(a => a.type === "SHOW_TOAST")).toBe(false);
   });
 
   // ─── M-1 · i rollback non si annunciano come successi ─────────────────────

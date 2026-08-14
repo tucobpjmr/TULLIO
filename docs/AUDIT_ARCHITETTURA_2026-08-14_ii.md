@@ -14,7 +14,20 @@ evidente che la stessa lacuna era rimasta aperta sull'**anagrafica clienti**,
 che è l'entità più grande del progetto (835 righe) e l'unica che contiene PII
 di persone esterne al team.
 
-Verifiche eseguite: `npm ci && npx vitest run` (**1234 passati**, 7 skip, 104
+> **Tutti e otto i rilievi ✔ chiusi, lo stesso 14 agosto.** Applicati in
+> sequenza — C-1 prima di A-1 (così la guardia di C-1 poteva verificare
+> entrambi i livelli sullo stesso caso), poi A-2, poi M-1/M-2/M-3, poi
+> B-1/B-2 — nello stesso branch di questo audit. `npx vitest run` finale:
+> **1282 passati** (era 1234), 7 skip, 109 file + 1 skip; `npm run lint`: 0
+> errori; `npm run verifica:convenzioni`: nessuna divergenza (`max-lines` 0
+> violazioni, incluso durante il passaggio — due estrazioni di test in file a
+> sé, `restoreBackupRollback.js` estratto dal reducer per la stessa ragione
+> di `activityLog.js`, sono servite a restare sotto soglia). Il dettaglio per
+> rilievo è nella sezione 3, nel blocco `> **✔ CHIUSO…**` sotto ciascun
+> titolo.
+
+Verifiche eseguite al momento dell'analisi: `npm ci && npx vitest run` (**1234
+passati**, 7 skip, 104
 file + 1 file skip — la suite RLS di integrazione, che senza credenziali di
 staging non tocca la rete), lettura integrale del data layer
 (`lib/api.js`), del registry di persistenza e del suo orchestratore, dei due
@@ -84,7 +97,9 @@ cioè scartando i messaggi arrivati nel frattempo.
 **Il resto sono rilievi di manutenibilità:** due fan-out `Promise.all` non
 compensati (ripristino backup e rinomina cliente), tre copie della stessa
 funzione «scarica un Blob» già **divergenti** fra loro, un escape ICS
-incompleto e cinque metodi del data layer senza più chiamanti.
+incompleto e quattro metodi del data layer senza più chiamanti (un quinto,
+inizialmente incluso qui, si è rivelato preparazione dichiarata per un rilievo
+precedente — vedi la correzione in B-2).
 
 **Nessun rilievo di questo audit è sfruttabile da un utente non autenticato, e
 nessuno permette a un utente di ottenere privilegi che non ha.** Il database
@@ -97,14 +112,14 @@ alcuni percorsi, non si accorge di essere stata rifiutata.
 
 | # | Priorità | Rilievo | File | Impatto |
 |---|---|---|---|---|
-| **C-1** | 🔴 **Critico** | Una scrittura **rifiutata dalla RLS è indistinguibile da una riuscita** per ogni metodo del data layer che non richiede indietro la riga scritta. Caso vivo: i 3 `agent` in produzione «eliminano» un cliente che resta nel database | `lib/api.js:749`, `state/persistence.js:384`, `hooks/useSyncedDispatch.js:121-125` | Successo dichiarato su una scrittura mai avvenuta, senza errore né rollback né correzione da realtime — su cancellazione di PII |
-| **A-1** | 🟠 **Alta** | Anagrafica clienti: le tre mutazioni sono le uniche del registry senza `guard`, e `ADD`/`UPDATE_CLIENT` anche senza `rollback`. Manca del tutto un `canEditClient` in `permissions.js`, e la UI mostra i pulsanti a ogni ruolo | `state/persistence.js:323,366,384`, `lib/permissions.js`, `components/clients/ClientiView.jsx:153-175,379` | La stessa lacuna chiusa il 14/8 sugli avvisi, rimasta aperta sull'entità più grande (835 righe) e con PII |
-| **A-2** | 🟠 **Alta** | Chat senza protezione delle scritture in volo: l'idratazione sostituisce l'intera mappa messaggi; `sendMessage` non ha compensazione; il rollback di `toggleReaction` ripristina uno snapshot **totale** | `hooks/useChatData.js:71-99`, `components/chat/chatCommands.js:133-149,233` | Messaggio inviato che sparisce e riappare (e che l'utente rimanda → doppione); reazione annullata che porta via i messaggi arrivati nel frattempo |
-| **M-1** | 🟡 Media | `RESTORE_BACKUP`: `Promise.all` con **una richiesta per riga** del file di backup, senza blocchi e senza rollback | `state/persistence.js:551-571` | Su un backup da centinaia di task: centinaia di richieste concorrenti, fallimento parziale non compensato, UI che mostra tutto ripristinato |
-| **M-2** | 🟡 Media | `RENAME_CLIENT_IN_TASKS`: `Promise.all` di N update senza rollback, mentre il reducer ha già rinominato tutto | `state/persistence.js:372-382` | Rinomina applicata a schermo su task che sul server hanno ancora il nome vecchio |
-| **M-3** | 🟡 Media | Tre copie di «scarica un Blob», **già divergenti**: la terza revoca l'object URL a `0 ms` invece di `500 ms` | `admin/adminExport.js:4`, `liste/listeApi.js:505`, `calendar/calendarIcs.js:92-101` | Stessa classe di M-3 del primo passaggio (signed URL): qui la divergenza non è ipotetica, è già nel codice |
-| **B-1** | 🟢 Bassa | `icsEscape` neutralizza `\n` ma **non `\r`**: un titolo con CR produce una content line non conforme a RFC 5545 | `calendar/calendarIcs.js:16-22` | File `.ics` che un parser leniente spezza in righe extra; il contenuto arriva da testo scritto dagli utenti |
-| **B-2** | 🟢 Bassa | Cinque metodi del data layer senza più alcun chiamante | `lib/api.js:115,303,390,447,735` | Superficie morta che descrive letture che l'app non fa più |
+| **C-1** | 🔴 **Critico** — ✔ chiuso 14/8 | Una scrittura **rifiutata dalla RLS è indistinguibile da una riuscita** per ogni metodo del data layer che non richiede indietro la riga scritta. Caso vivo: i 3 `agent` in produzione «eliminano» un cliente che resta nel database | `lib/api.js:749`, `state/persistence.js:384`, `hooks/useSyncedDispatch.js:121-125` | Successo dichiarato su una scrittura mai avvenuta, senza errore né rollback né correzione da realtime — su cancellazione di PII |
+| **A-1** | 🟠 **Alta** — ✔ chiuso 14/8 | Anagrafica clienti: le tre mutazioni sono le uniche del registry senza `guard`, e `ADD`/`UPDATE_CLIENT` anche senza `rollback`. Manca del tutto un `canEditClient` in `permissions.js`, e la UI mostra i pulsanti a ogni ruolo | `state/persistence.js:323,366,384`, `lib/permissions.js`, `components/clients/ClientiView.jsx:153-175,379` | La stessa lacuna chiusa il 14/8 sugli avvisi, rimasta aperta sull'entità più grande (835 righe) e con PII |
+| **A-2** | 🟠 **Alta** — ✔ chiuso 14/8 | Chat senza protezione delle scritture in volo: l'idratazione sostituisce l'intera mappa messaggi; `sendMessage` non ha compensazione; il rollback di `toggleReaction` ripristina uno snapshot **totale** | `hooks/useChatData.js:71-99`, `components/chat/chatCommands.js:133-149,233` | Messaggio inviato che sparisce e riappare (e che l'utente rimanda → doppione); reazione annullata che porta via i messaggi arrivati nel frattempo |
+| **M-1** | 🟡 Media — ✔ chiuso 14/8 | `RESTORE_BACKUP`: `Promise.all` con **una richiesta per riga** del file di backup, senza blocchi e senza rollback | `state/persistence.js:551-571` | Su un backup da centinaia di task: centinaia di richieste concorrenti, fallimento parziale non compensato, UI che mostra tutto ripristinato |
+| **M-2** | 🟡 Media — ✔ chiuso 14/8 | `RENAME_CLIENT_IN_TASKS`: `Promise.all` di N update senza rollback, mentre il reducer ha già rinominato tutto | `state/persistence.js:372-382` | Rinomina applicata a schermo su task che sul server hanno ancora il nome vecchio |
+| **M-3** | 🟡 Media — ✔ chiuso 14/8 | Tre copie di «scarica un Blob», **già divergenti**: la terza revoca l'object URL a `0 ms` invece di `500 ms` | `admin/adminExport.js:4`, `liste/listeApi.js:505`, `calendar/calendarIcs.js:92-101` | Stessa classe di M-3 del primo passaggio (signed URL): qui la divergenza non è ipotetica, è già nel codice |
+| **B-1** | 🟢 Bassa — ✔ chiuso 14/8 | `icsEscape` neutralizza `\n` ma **non `\r`**: un titolo con CR produce una content line non conforme a RFC 5545 | `calendar/calendarIcs.js:16-22` | File `.ics` che un parser leniente spezza in righe extra; il contenuto arriva da testo scritto dagli utenti |
+| **B-2** | 🟢 Bassa — ✔ chiuso 14/8 | Quattro metodi del data layer senza più alcun chiamante (un quinto era preparazione dichiarata, non rimosso — vedi correzione) | `lib/api.js` | Superficie morta che descrive letture che l'app non fa più |
 
 **Accettati, non rilievi** (riverificati oggi): `auth_leaked_password_protection`
 (richiede il piano Pro), le sette RPC `SECURITY DEFINER` eseguibili da
@@ -122,6 +137,17 @@ dal volume: dipende dai tempi, ed è vera anche a 13 messaggi.
 ## 3. Action plan dettagliato
 
 ### 🔴 C-1 — Una scrittura rifiutata dalla RLS non è distinguibile da una riuscita
+
+> **✔ CHIUSO il 14 agosto, stesso giorno.** `CONTA_RIGHE` (`{ count: 'exact' }`)
+> aggiunto agli otto metodi del data layer che mirano a una riga per chiave
+> primaria (`Clients.update/remove`, `Tasks.softDelete/restore`,
+> `Notices.togglePin/remove`, `Users.approve`, `Messages.setPinned`);
+> `useSyncedDispatch` tratta `count === 0` come `RIFIUTO_RLS` con lo stesso
+> percorso di un `error` esplicito — rollback e toast compresi. Guardia:
+> `src/test/rifiutoSilenzioso.test.jsx`, che riproduce il caso vivo
+> (`DELETE_CLIENT` con `count: 0`) e verifica che `count: 1` resti un
+> successo e che l'assenza di `count` (metodo non migrato) non cambi
+> comportamento.
 
 **File:** `src/lib/api.js:749-750` (il metodo), `src/state/persistence.js:384-396`
 (l'entry), `src/hooks/useSyncedDispatch.js:121-125` (il punto che decide).
@@ -290,6 +316,25 @@ il comportamento *del database* invece di quello del mock.
 
 ### 🟠 A-1 — L'anagrafica clienti è l'ultima entità del registry senza `guard`
 
+> **✔ CHIUSO il 14 agosto, stesso giorno.** `canEditClient`/`canDeleteClient`
+> in `lib/permissions.js` (verificate contro le policy RLS lette **dal
+> database di produzione**, non dedotte dal solo repository — vedi la
+> correzione sull'insert più sotto); `guard`+`rollback` sulle tre entry;
+> `baseReducer` nega per davvero sui tre case (stessa lezione del primo
+> passaggio: senza, un guard negato dall'orchestratore non impedisce
+> l'applicazione locale); i pulsanti «Modifica»/«Rimuovi»/«Nuovo
+> cliente»/«Importa» in `ClientiView.jsx` e `ClienteCard.jsx` compaiono solo
+> per chi la RLS lascerebbe agire. **Un dettaglio emerso implementando la
+> correzione**: la stesura originale di questo rilievo leggeva l'insert come
+> aperto a «qualunque utente attivo» — sbagliato, verificato dopo con
+> `pg_policies` in produzione: `20260622213034` **stringe** un `with check
+> (true)` introdotto dalla migrazione precedente, non lo allenta. Insert,
+> select e update condividono lo stesso elenco di ruoli, ed è per questo che
+> `canEditClient` li copre entrambi con un'unica lista. Guardie:
+> `src/test/clientGuardsPersistence.test.jsx` (guard/rollback/UI, stesso
+> schema di `noticeGuardsPersistence.test.js`), estensione di
+> `persistenceGuards.test.js`. Test: **1256 verdi** (era 1234).
+
 **File:** `src/state/persistence.js:323-329` (ADD), `:366` (UPDATE), `:384-396`
 (DELETE); `src/lib/permissions.js` (la funzione che manca);
 `src/components/clients/ClientiView.jsx:153-175` e `:379` (la UI).
@@ -307,19 +352,24 @@ DELETE_CLIENT: { persist: …, rollback: …, mapError: … },   // rollback sì
 ```
 
 Nessuna delle tre ha un `guard`; `ADD_CLIENT` e `UPDATE_CLIENT` non hanno
-nemmeno un `rollback`. Il database, invece, discrimina eccome — tre policy
-diverse per le tre operazioni:
+nemmeno un `rollback`. Il database, invece, discrimina eccome — verificato
+leggendo le policy **direttamente dal database di produzione** (non dedotto
+dal solo repository, dove `20260622213034` sembra a prima vista aprire
+l'insert a «qualunque utente attivo»: in realtà quella migrazione **stringe**
+un `with check (true)` introdotto dalla precedente, non lo allenta):
 
 | operazione | ruoli ammessi | fonte |
 |---|---|---|
 | `select` | admin, manager, agent | `20260613092440_restrict_pii_select.sql:5` |
-| `insert` | qualunque utente **attivo** | `20260622213034_fix_clients_insert_rls.sql:5` |
+| `insert` | admin, manager, agent | `20260622213034_fix_clients_insert_rls.sql:5` |
 | `update` | admin, manager, agent | `20260622213133:27` |
 | `delete` | admin, manager | `20260622213133:36` |
 
 più la policy **restrittiva** `rls_active_only`
 (`20260621153006_rls_hardening_active_users.sql:54`) che, in `AND` con tutte,
-blocca qualunque utente disattivato.
+blocca qualunque utente disattivato. Insert, select e update condividono oggi
+lo stesso elenco di ruoli — è per questo che `canEditClient` qui sotto copre
+entrambe le scritture con un'unica lista.
 
 E in `lib/permissions.js` — il file che esiste proprio perché «la stessa
 domanda non abbia due risposte diverse fra UI e database» — **non esiste alcuna
@@ -344,12 +394,11 @@ stessa forma:
 ```js
 // src/lib/permissions.js — in fondo, dopo canEditNotice
 // ─── CRM: ANAGRAFICA CLIENTI ─────────────────────────────────────────────────
-// Rispecchia le policy RLS su public.clients, che sono TRE e diverse fra loro:
-//   select/update → admin, manager, agent   (20260613092440, 20260622213133)
-//   delete        → admin, manager          (20260622213133)
-//   insert        → qualunque utente attivo (20260622213034)
+// Rispecchia le policy RLS su public.clients — verificate lette dal database:
+//   select/insert/update → admin, manager, agent (20260613092440, 20260622213034, 20260622213133)
+//   delete                → admin, manager        (20260622213133)
 // più la policy restrittiva rls_active_only, che le AND-a tutte con "utente
-// attivo". Il driver è fuori da select e update per disegno: non ha accesso ai
+// attivo". Il driver è fuori da tutte e quattro per disegno: non ha accesso ai
 // dati commerciali.
 //
 // Sono due funzioni e non una perché il database ne ha due: unificarle
@@ -455,6 +504,20 @@ l'assenza del pulsante «Rimuovi».
 ---
 
 ### 🟠 A-2 — La chat è l'unico sottosistema senza protezione delle scritture in volo
+
+> **✔ CHIUSO il 14 agosto, stesso giorno.** Registro delle scritture in volo
+> in `useChatData.js` (`inVoloRef` + `messaggiInVolo`, l'equivalente di
+> `pendingWrites` per la chat), `marcaInVolo`/`smarcaInVolo` iniettati in
+> `makeChatCommands`; `sendMessage` compensa togliendo il messaggio
+> ottimistico se l'INSERT fallisce (o se la conversazione a cui appartiene
+> non è mai stata creata); il rollback di `toggleReaction` ripristina le sole
+> `reactions` del messaggio toccato, non più uno snapshot totale. Guardie:
+> `src/test/useChatData.test.jsx` (riproduce la sequenza — un evento realtime
+> altrui fa ripartire `listAll()` prima del commit, il messaggio resta a
+> schermo), estensione di `src/test/chatCommands.test.js` (compensazione
+> dell'invio, e il caso che il vecchio snapshot totale non copriva: un
+> messaggio arrivato DURANTE il round-trip del toggle non sparisce se la RPC
+> fallisce).
 
 **File:** `src/hooks/useChatData.js:71-99` (l'idratazione),
 `src/components/chat/chatCommands.js:133-149` (`sendMessage`), `:207-237`
@@ -627,6 +690,19 @@ non deve perdere un messaggio arrivato nel frattempo.
 
 ### 🟡 M-1 — `RESTORE_BACKUP`: una richiesta per riga, senza blocchi né rollback
 
+> **✔ CHIUSO il 14 agosto, stesso giorno.** `persist` costruisce un job per
+> riga (tipo/chiave/se esisteva già) ed esegue a blocchi di 50 con
+> `Promise.allSettled`, senza short-circuit: un job fallito non impedisce
+> agli altri di procedere. `rollback` compensa in modo mirato — le righe
+> ESISTENTI fallite tornano al valore pre-dispatch, quelle CREATE e mai
+> arrivate sul server vengono tolte — via il nuovo case
+> `ROLLBACK_RESTORE_BACKUP`, il cui calcolo è in `state/restoreBackupRollback.js`
+> (estratto per non sforare il tetto di 550 righe effettive del reducer, la
+> stessa ragione per cui esiste `activityLog.js`). Guardie:
+> `src/test/restoreBackupChunking.test.js` (chunking, un fallimento non ferma
+> gli altri, la forma di `res.falliti`), estensione di
+> `src/test/reducer.test.js` per il nuovo case.
+
 **File:** `src/state/persistence.js:551-571`.
 
 ```js
@@ -669,6 +745,16 @@ mentire sul proprio esito.
 
 ### 🟡 M-2 — `RENAME_CLIENT_IN_TASKS`: N update senza compensazione
 
+> **✔ CHIUSO il 14 agosto, stesso giorno.** `Promise.allSettled` invece di
+> `Promise.all` (nessuno short-circuit: ogni update procede indipendentemente
+> dagli altri); il toast conta quanti («N task su M non aggiornati») invece
+> di riportare il testo grezzo di Postgrest; il nuovo case
+> `ROLLBACK_RENAME_CLIENT_IN_TASKS` riporta al nome PRECEDENTE i soli task
+> falliti. Guardie: estensione di `src/test/syncedDispatch.test.jsx` (un
+> update fallito su N non ferma gli altri; il fallito torna al nome vecchio,
+> il riuscito resta rinominato; nessun rollback se tutto riesce) e di
+> `src/test/reducer.test.js` per il nuovo case.
+
 **File:** `src/state/persistence.js:372-382`.
 
 ```js
@@ -707,6 +793,16 @@ rollback: (s, a, res) => (res?.falliti?.length
 ---
 
 ### 🟡 M-3 — Tre copie di «scarica un Blob», già divergenti
+
+> **✔ CHIUSO il 14 agosto, stesso giorno.** `scaricaBlob` in
+> `lib/fileUtils.js` è l'unica implementazione, col margine di 500ms prima
+> della revoca; `adminExport.downloadFile` e `listeApi.downloadBlob` restano
+> come alias di una riga (`export { scaricaBlob as … }`) per non toccare i
+> loro undici call site nello stesso commit; `calendarIcs.exportTasksToIcs`
+> chiama direttamente `scaricaBlob`. Guardia:
+> `src/test/fileUtils.test.js` blinda in particolare il dettaglio su cui la
+> terza copia divergeva — nessuna revoca nello stesso tick, revoca dopo
+> esattamente 500ms.
 
 **File:** `src/components/admin/adminExport.js:4-11`,
 `src/components/liste/listeApi.js:505-514`,
@@ -767,6 +863,11 @@ undici call site nello stesso commit.
 
 ### 🟢 B-1 — `icsEscape` non neutralizza il ritorno a capo `\r`
 
+> **✔ CHIUSO il 14 agosto, stesso giorno.** `\r\n|\r|\n` in un'unica
+> sostituzione, prima delle altre. Guardia: tre casi nuovi in
+> `src/test/calendarIcs.test.js` (CRLF, CR nudo, LF — stessa sequenza di
+> escape per tutti e tre; il risultato non contiene mai un `\r`/`\n` grezzo).
+
 **File:** `src/components/calendar/calendarIcs.js:16-22`.
 
 ```js
@@ -812,17 +913,33 @@ dai separatori di riga generati da `buildIcs`.
 
 ---
 
-### 🟢 B-2 — Cinque metodi del data layer senza chiamanti
+### 🟢 B-2 — Quattro metodi del data layer senza chiamanti
 
-**File:** `src/lib/api.js` — `Users.get` (:115), `Tasks.get` (:303),
-`Comments.listForTask` (:390), `Messages.listForConversation` (:447),
-`Clients.get` (:735).
+> **✔ CHIUSO il 14 agosto, stesso giorno.** `Users.get`, `Tasks.get`,
+> `Comments.listForTask`, `Clients.get` rimossi da `lib/api.js`. Verificato
+> zero chiamanti prima della rimozione (`grep` su tutto `src/`) e lint pulito
+> dopo.
 
-Nessuno dei cinque ha un chiamante in `src/` (né nei test). Non fanno danno, ma
-descrivono letture che l'app non fa: `Messages.listForConversation` in
-particolare è la lettura *per conversazione* che ST-4 indica come secondo passo
-quando i messaggi supereranno ~1500 — tenerla lì mezza pronta e mai chiamata è
-la premessa perché qualcuno concluda che quel passo sia già stato fatto.
+> **Correzione, in fase di applicazione.** La stesura originale di questo
+> rilievo elencava CINQUE metodi, `Messages.listForConversation` compreso.
+> È sbagliato: quel metodo è citato **per nome** in
+> `docs/AUDIT_STRUTTURA_2026-08-10.md` (ST-4, parte 2) come preparazione
+> DELIBERATA per la lettura per-conversazione da collegare quando `messages`
+> supererà la soglia scritta lì (~1500, oggi 13) — «va scritto come rilievo
+> Media […] non per mancanza di tempo». La ricerca che ha prodotto questo
+> rilievo ha guardato solo gli USI nel repository, senza incrociare gli AUDIT
+> precedenti che lo citano per nome: un errore di metodo, lo stesso genere di
+> «due metà da verificare insieme» richiamato nell'audit del 14 agosto
+> (mattina). `Messages.listForConversation` NON va rimossa. Restano quattro.
+
+**File:** `src/lib/api.js` — `Users.get`, `Tasks.get`, `Comments.listForTask`,
+`Clients.get`.
+
+Nessuno dei quattro ha un chiamante in `src/` (né nei test), e nessuno dei
+quattro è citato per nome in un audit precedente come preparazione
+intenzionale — verificato con `grep` su `docs/*.md` prima di applicare la
+correzione qui sopra, non solo dedotto. Non fanno danno, ma descrivono letture
+che l'app non fa.
 
 **Soluzione:** rimuoverli, e annotare in `docs/AUDIT_STRUTTURA_2026-08-10.md`
 (dove ST-4 vive) che la lettura per conversazione **va scritta quando servirà**,
@@ -877,15 +994,20 @@ guardato.
 
 ---
 
-## 5. Ordine di intervento consigliato
+## 5. Ordine di intervento — applicato
 
 1. **C-1** — è il rilievo che cambia la classe di garanzia del registry, e i
    due pezzi (`CONTA_RIGHE` nei metodi, `esito()` nell'orchestratore) sono
    piccoli e testabili senza rete.
 2. **A-1** — chiude il percorso concreto di C-1 e allinea l'ultima entità
-   rimasta al trattamento che le altre hanno già. Da fare **dopo** C-1, così
-   la guardia di regressione può verificare entrambi i livelli sullo stesso
+   rimasta al trattamento che le altre hanno già. Fatto **dopo** C-1, così la
+   guardia di regressione poteva verificare entrambi i livelli sullo stesso
    caso.
 3. **A-2** — indipendente dai primi due; tocca solo la chat.
-4. **M-1, M-2, M-3** — manutenzione, in qualunque ordine.
-5. **B-1, B-2** — igiene, una riga ciascuno.
+4. **M-1, M-2, M-3** — manutenzione.
+5. **B-1, B-2** — igiene, una riga ciascuno (B-2 corretto in corsa: era
+   scritto per cinque metodi, uno si è rivelato preparazione dichiarata per
+   un rilievo precedente — vedi la nota in B-2).
+
+Eseguito in questo ordine, nello stesso branch, lo stesso 14 agosto. Nessun
+rilievo è rimasto parzialmente applicato.

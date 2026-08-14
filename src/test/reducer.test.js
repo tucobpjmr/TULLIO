@@ -291,6 +291,27 @@ describe("reducer — CRM clienti", () => {
       expect(next.tasks[0].client).toBe("ROSSI");
     });
   });
+
+  // M-2 dell'audit del 14 agosto (secondo passaggio): compensazione mirata
+  // quando una parte delle update di RENAME_CLIENT_IN_TASKS non arriva sul
+  // server — vedi state/persistence.js per come si costruisce `ids`.
+  describe("ROLLBACK_RENAME_CLIENT_IN_TASKS", () => {
+    const conCliente = (id, client) => task({ id, client, assignees: ["marco"] });
+    const T1 = "55555555-2222-4333-8444-555555555551";
+    const T2 = "55555555-2222-4333-8444-555555555552";
+
+    it("riporta al nome precedente SOLO i task falliti, lascia rinominati gli altri", () => {
+      let s = { ...freshState("marco"), tasks: [conCliente(T1, "Bianchi"), conCliente(T2, "Bianchi")] };
+      s = reducer(s, { type: "ROLLBACK_RENAME_CLIENT_IN_TASKS", payload: { ids: [T1], from: "Rossi Mario" } });
+      expect(s.tasks.find(t => t.id === T1).client).toBe("Rossi Mario");
+      expect(s.tasks.find(t => t.id === T2).client).toBe("Bianchi");
+    });
+
+    it("senza id non cambia nulla", () => {
+      const s = { ...freshState("marco"), tasks: [conCliente(T1, "Bianchi")] };
+      expect(reducer(s, { type: "ROLLBACK_RENAME_CLIENT_IN_TASKS", payload: { ids: [], from: "Rossi" } })).toBe(s);
+    });
+  });
 });
 
 // A-1 dell'audit dell'11 agosto: prima ADD_MESSAGE_TEMPLATE generava un id
@@ -399,6 +420,83 @@ describe("reducer — RESTORE_BACKUP (merge non distruttivo)", () => {
     }});
     expect(s.categories.nuovacat.label).toBe("Nuova");
     expect(Object.keys(s.categories).length).toBe(before + 1);
+  });
+});
+
+// M-1 dell'audit del 14 agosto (secondo passaggio): RESTORE_BACKUP passa da
+// Promise.all senza rollback a job a blocchi con compensazione mirata — vedi
+// state/persistence.js. Qui si verifica il SOLO comportamento del reducer:
+// dato il payload che persistence.js costruisce da `res.falliti`, la
+// compensazione tocca esattamente le righe fallite e nient'altro.
+describe("reducer — ROLLBACK_RESTORE_BACKUP (compensazione mirata)", () => {
+  const T1 = "44444444-2222-4333-8444-555555555551";
+  const T2 = "44444444-2222-4333-8444-555555555552";
+  const T3 = "44444444-2222-4333-8444-555555555553";
+
+  it("riporta al valore pre-dispatch le righe ESISTENTI fallite, lascia intatte le altre", () => {
+    let s = freshState("marco");
+    s = reducer(s, { type: "ADD_TASK", payload: task({ id: T1, title: "Originale 1" }) });
+    s = reducer(s, { type: "ADD_TASK", payload: task({ id: T2, title: "Originale 2" }) });
+    // Il restore ha già scritto in ottimistico entrambi gli aggiornamenti…
+    s = reducer(s, { type: "RESTORE_BACKUP", payload: {
+      tasks: [task({ id: T1, title: "Agg 1 (fallito sul server)" }), task({ id: T2, title: "Agg 2 (riuscito)" })],
+    }});
+    expect(s.tasks.find(t => t.id === T1).title).toBe("Agg 1 (fallito sul server)");
+
+    // …ma solo T1 non è arrivato: il rollback lo riporta al valore ORIGINALE
+    // (pre-dispatch), T2 resta come il restore lo ha scritto.
+    s = reducer(s, { type: "ROLLBACK_RESTORE_BACKUP", payload: {
+      daRipristinare: { tasks: [task({ id: T1, title: "Originale 1" })], categories: {}, notices: [] },
+      daRimuovere: { tasks: [], categories: [], notices: [] },
+    }});
+    expect(s.tasks.find(t => t.id === T1).title).toBe("Originale 1");
+    expect(s.tasks.find(t => t.id === T2).title).toBe("Agg 2 (riuscito)");
+  });
+
+  it("toglie le righe CREATE dal restore che non sono mai arrivate sul server (nessun record fantasma)", () => {
+    let s = freshState("marco");
+    // Il restore ha creato T3 in ottimistico (non esisteva prima)…
+    s = reducer(s, { type: "RESTORE_BACKUP", payload: {
+      tasks: [task({ id: T3, title: "Nuovo 3" })],
+    }});
+    expect(s.tasks.some(t => t.id === T3)).toBe(true);
+
+    // …ma l'INSERT è fallita: va tolto, non riportato a un valore precedente
+    // che non esiste (la riga non c'era).
+    s = reducer(s, { type: "ROLLBACK_RESTORE_BACKUP", payload: {
+      daRipristinare: { tasks: [], categories: {}, notices: [] },
+      daRimuovere: { tasks: [T3], categories: [], notices: [] },
+    }});
+    expect(s.tasks.some(t => t.id === T3)).toBe(false);
+  });
+
+  it("compensa anche categorie e avvisi con lo stesso trattamento", () => {
+    let s = freshState("marco");
+    const primaCat = { ...s.categories };
+    s = reducer(s, { type: "RESTORE_BACKUP", payload: {
+      tasks: [],
+      categories: { booking: { label: "Modificata (fallita)", color: "#000", bg: "#fff", icon: "★" } },
+      notices: [{ id: "n1", text: "Nuovo avviso (fallito)", author: "marco", pinned: false }],
+    }});
+    expect(s.categories.booking.label).toBe("Modificata (fallita)");
+    expect(s.notices.some(n => n.id === "n1")).toBe(true);
+
+    s = reducer(s, { type: "ROLLBACK_RESTORE_BACKUP", payload: {
+      daRipristinare: { tasks: [], categories: { booking: primaCat.booking }, notices: [] },
+      daRimuovere: { tasks: [], categories: [], notices: ["n1"] },
+    }});
+    expect(s.categories.booking).toEqual(primaCat.booking);
+    expect(s.notices.some(n => n.id === "n1")).toBe(false);
+  });
+
+  it("senza righe fallite (payload vuoto) non cambia nulla", () => {
+    let s = freshState("marco");
+    s = reducer(s, { type: "ADD_TASK", payload: task({ id: T1 }) });
+    const dopo = reducer(s, { type: "ROLLBACK_RESTORE_BACKUP", payload: {
+      daRipristinare: { tasks: [], categories: {}, notices: [] },
+      daRimuovere: { tasks: [], categories: [], notices: [] },
+    }});
+    expect(dopo.tasks).toEqual(s.tasks);
   });
 });
 

@@ -1,14 +1,12 @@
 // src/components/admin/adminExport.js
 // Download di un blob e escaping CSV: condivisi dal tab Import/Export e dal
 // tab Log, che esportano entrambi.
-export const downloadFile = (blob, filename) => {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 500);
-};
+//
+// M-3 dell'audit del 14 agosto (secondo passaggio): `downloadFile` era una di
+// TRE copie identiche (o quasi — vedi lib/fileUtils.js) dello stesso corpo.
+// Resta qui come alias di una riga per non toccare i due call site di questo
+// modulo nello stesso commit: l'implementazione unica è `scaricaBlob`.
+export { scaricaBlob as downloadFile } from "../../lib/fileUtils.js";
 
 // Excel e LibreOffice valutano come FORMULA ogni cella che inizia con =, +, -,
 // @ (o con TAB/CR). L'escaping RFC 4180 qui sotto è corretto ma non c'entra:

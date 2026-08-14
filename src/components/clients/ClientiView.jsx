@@ -58,7 +58,14 @@ const LINK_FILTERS = [
 // `loading` dell'idratazione CRM — hanno identità stabile.
 export const ClientiView = memo(function ClientiView({ dispatch, loading = false }) {
   const { isMobile } = useViewport();
-  const { currentUserId, canAccessListe } = useAppData();
+  const { currentUserId, canAccessListe, canEditClient, canDeleteClient } = useAppData();
+  // A-1 dell'audit del 14 agosto (secondo passaggio): la RLS su public.clients
+  // distingue chi può scrivere (admin/manager/agent) da chi può eliminare
+  // (solo admin/manager) — prima la UI mostrava «Modifica»/«Rimuovi» a
+  // chiunque, e solo il database decideva davvero, senza che l'utente lo
+  // scoprisse (nessun errore su una DELETE che la RLS filtra a zero righe).
+  const puoModificare = canEditClient(currentUserId);
+  const puoEliminare = canDeleteClient(currentUserId);
   const tasks = useTasks();
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("name"); // v2.8 Round 8
@@ -187,6 +194,11 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
               : `${clients.length} ${clients.length === 1 ? "cliente" : "clienti"} in anagrafica`}
           </div>
         </div>
+        {/* Import e "Nuovo cliente" scrivono entrambi via un insert su
+            clients (ADD_CLIENT/ADD_CLIENTS_BULK), governato dalla stessa
+            policy RLS di canEditClient — nasconderli a chi non ha il
+            permesso evita di offrire un'azione che il database respingerebbe. */}
+        {puoModificare && (
         <div style={rowGap8}>
           <button
             onClick={() => setImportOpen(true)}
@@ -201,6 +213,7 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
             + Nuovo cliente
           </button>
         </div>
+        )}
       </div>
 
       {/* Search + Sort */}
@@ -269,8 +282,8 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
               <ClienteCard
                 key={c.id}
                 cliente={c}
-                onEdit={c => setModal({ mode: "edit", cliente: c })}
-                onDelete={c => setConfirmDelete(c)}
+                onEdit={puoModificare ? (c => setModal({ mode: "edit", cliente: c })) : null}
+                onDelete={puoEliminare ? (c => setConfirmDelete(c)) : null}
                 onSelect={c => { setPanelTab(null); setSelectedClient(sc => sc?.id === c.id ? null : c); }}
                 selected={selectedClient?.id === c.id}
                 liste={listeDi(c)}

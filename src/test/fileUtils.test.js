@@ -1,7 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   MAX_TASK_FILE_SIZE,
   formatFileSize, fileIcon, isWithinSizeLimit, sourceBadge, mediaKind,
+  scaricaBlob,
 } from "../lib/fileUtils.js";
 
 describe("formatFileSize", () => {
@@ -110,5 +111,47 @@ describe("sourceBadge", () => {
     expect(sourceBadge(undefined)).toBe("");
     expect(sourceBadge("onedrive")).toBe("☁️ OneDrive");
     expect(sourceBadge("whatsapp")).toBe("🟢 WhatsApp");
+  });
+});
+
+// M-3 dell'audit del 14 agosto (secondo passaggio): erano tre copie dello
+// stesso corpo, e avevano già smesso di coincidere — questo file blinda
+// l'unica implementazione rimasta, in particolare il margine prima della
+// revoca (il dettaglio su cui la terza copia divergeva).
+describe("scaricaBlob", () => {
+  let createSpy, revokeSpy, clickSpy;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    createSpy = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mock-url");
+    revokeSpy = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    createSpy.mockRestore();
+    revokeSpy.mockRestore();
+    clickSpy.mockRestore();
+  });
+
+  it("crea l'anchor con l'URL e il filename giusti, e clicca", () => {
+    const blob = new Blob(["ciao"], { type: "text/plain" });
+    scaricaBlob(blob, "report.txt");
+
+    expect(createSpy).toHaveBeenCalledWith(blob);
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("NON revoca l'object URL nello stesso tick (la revoca immediata rompe il download su Safari/iOS)", () => {
+    scaricaBlob(new Blob(["x"]), "f.txt");
+    expect(revokeSpy).not.toHaveBeenCalled();
+  });
+
+  it("revoca l'object URL dopo 500ms", () => {
+    scaricaBlob(new Blob(["x"]), "f.txt");
+    vi.advanceTimersByTime(499);
+    expect(revokeSpy).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(revokeSpy).toHaveBeenCalledWith("blob:mock-url");
   });
 });

@@ -199,3 +199,43 @@ export const canEditNotice = (team, notice, userId) => {
   const role = getRoleType(team, userId);
   return role === 'admin' || role === 'manager';
 };
+
+// ─── CRM: ANAGRAFICA CLIENTI ─────────────────────────────────────────────────
+// Rispecchia le policy RLS su public.clients — verificate lette dal database
+// di produzione, non dedotte dal solo repository: `20260622213034` non
+// AGGIUNGE una restrizione a un insert prima aperto, lo STRINGE — sostituisce
+// il `with check (true)` che la migrazione precedente (20260621153006) aveva
+// introdotto. Il risultato è che insert, select e update hanno oggi lo STESSO
+// elenco di ruoli:
+//   select/insert/update → admin, manager, agent (20260613092440, 20260622213034, 20260622213133)
+//   delete                → admin, manager        (20260622213133)
+// più la policy restrittiva `rls_active_only`, che le AND-a tutte con "utente
+// attivo". Il driver è fuori da tutte e quattro per disegno: non ha accesso ai
+// dati commerciali. Per questo `canEditClient` copre sia insert che update con
+// la stessa lista di ruoli — non è una semplificazione, è ciò che il database
+// applica davvero.
+//
+// PERCHÉ ESISTE (A-1 dell'audit del 14 agosto, secondo passaggio). L'anagrafica
+// era l'ultima entità di dominio senza alcuna funzione qui — e senza,
+// `ADD_CLIENT`/`UPDATE_CLIENT`/`DELETE_CLIENT` in state/persistence.js erano
+// le uniche mutazioni del registry senza `guard`, e `components/clients/` non
+// aveva un solo controllo di ruolo: i pulsanti «Modifica»/«Rimuovi» venivano
+// mostrati a chiunque. Stessa classe di lacuna già chiusa sugli avvisi qui
+// sopra, rimasta aperta sull'entità più grande del progetto (835 righe) e
+// l'unica con PII di persone esterne al team.
+//
+// Sono due funzioni e non una perché il database ne ha due: unificarle
+// significherebbe scegliere quale delle due policy tradire.
+const RUOLI_CLIENTI_SCRITTURA = ['admin', 'manager', 'agent'];
+const RUOLI_CLIENTI_ELIMINAZIONE = ['admin', 'manager'];
+
+const clienteConsentito = (team, userId, ruoli) => {
+  const m = getMember(team, userId);
+  if (!m || m.active === false || m.pending) return false;
+  return ruoli.includes(toDbRole(m.role));
+};
+
+export const canEditClient = (team, userId) =>
+  clienteConsentito(team, userId, RUOLI_CLIENTI_SCRITTURA);
+export const canDeleteClient = (team, userId) =>
+  clienteConsentito(team, userId, RUOLI_CLIENTI_ELIMINAZIONE);

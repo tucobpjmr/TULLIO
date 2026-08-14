@@ -207,7 +207,7 @@ describe("chatCommands — modalità locale (nessun login)", () => {
 });
 
 describe("chatCommands — rollback della reazione", () => {
-  it("ripristina lo snapshot se la RPC fallisce", async () => {
+  it("ripristina le reazioni del SOLO messaggio toccato se la RPC fallisce", async () => {
     MessagesAPI.toggleReaction.mockImplementationOnce(async () => ({ error: { message: "boom" } }));
     const partenza = { [UUID_CONV]: [{ id: UUID_MSG, sender: "b", reactions: {} }] };
     let msg = partenza;
@@ -223,7 +223,98 @@ describe("chatCommands — rollback della reazione", () => {
     expect(msg[UUID_CONV][0].reactions["👍"]).toEqual(["u1"]); // ottimistico
 
     await new Promise(r => setTimeout(r, 0));
-    expect(msg).toBe(partenza); // rollback allo snapshot esatto
+    // Deep-equal, non `toBe`: il rollback non ripristina più la REFERENZA
+    // esatta di prima (uno snapshot totale), costruisce una mappa nuova con
+    // le sole reactions del messaggio toccate riportate indietro — vedi il
+    // test sotto per la ragione (un messaggio concorrente non deve sparire).
+    expect(msg).toEqual(partenza);
+    expect(onError).toHaveBeenCalledTimes(1);
+  });
+
+  // A-2 dell'audit del 14 agosto (secondo passaggio). Prima il rollback
+  // ripristinava lo SNAPSHOT INTERO catturato al momento del toggle: un
+  // messaggio arrivato da realtime nella finestra fra il toggle e la risposta
+  // della RPC veniva cancellato dallo stato — un rollback che, per annullare
+  // un'emoji, portava via un messaggio mai toccato sul server.
+  it("un messaggio arrivato DOPO il toggle non sparisce se la RPC fallisce", async () => {
+    let risolviRpc;
+    MessagesAPI.toggleReaction.mockImplementationOnce(
+      () => new Promise((_, rej) => { risolviRpc = () => rej(new Error("nope")); })
+        .catch(() => ({ error: { message: "boom" } }))
+    );
+    let msg = { [UUID_CONV]: [{ id: UUID_MSG, sender: "b", reactions: {} }] };
+    const onError = vi.fn();
+    const commands = makeChatCommands({
+      setMessages: (u) => { msg = typeof u === "function" ? u(msg) : u; },
+      enabled: true,
+      getCurrentUserId: () => "u1",
+      onError,
+    });
+
+    commands.toggleReaction(UUID_CONV, UUID_MSG, "👍");
+
+    // Un secondo messaggio arriva da realtime MENTRE la RPC del toggle è
+    // ancora in volo — esattamente la finestra che il vecchio snapshot totale
+    // non teneva conto.
+    const NUOVO_MSG = { id: "22222222-2222-4333-8444-555555555555", sender: "c", text: "ciao", reactions: {} };
+    msg = { ...msg, [UUID_CONV]: [...msg[UUID_CONV], NUOVO_MSG] };
+
+    risolviRpc();
+    await new Promise(r => setTimeout(r, 0));
+
+    // Il rollback ha tolto la reazione ottimistica dal primo messaggio…
+    expect(msg[UUID_CONV].find(m => m.id === UUID_MSG).reactions).toEqual({});
+    // …ma il messaggio arrivato nel frattempo è ancora lì.
+    expect(msg[UUID_CONV].find(m => m.id === NUOVO_MSG.id)).toEqual(NUOVO_MSG);
+  });
+});
+
+// A-2 dell'audit del 14 agosto (secondo passaggio). sendMessage marca/smarca
+// il messaggio come "in volo" tramite i due callback iniettati da
+// useChatData (marcaInVolo/smarcaInVolo) — qui verificati come spie, il
+// comportamento di fusione col reload sta in useChatData.test (indiretto:
+// non esiste un file a sé perché la logica di fusione è una funzione pura
+// interna a quel modulo, esercitata dai test end-to-end della chat).
+describe("chatCommands — sendMessage: registro delle scritture in volo e compensazione", () => {
+  it("marca il messaggio in volo prima dell'INSERT e lo smarca dopo il successo", async () => {
+    const marcaInVolo = vi.fn();
+    const smarcaInVolo = vi.fn();
+    let msg = {};
+    const commands = makeChatCommands({
+      setMessages: (u) => { msg = typeof u === "function" ? u(msg) : u; },
+      enabled: true,
+      getCurrentUserId: () => "u1",
+      marcaInVolo,
+      smarcaInVolo,
+    });
+
+    const normalized = commands.sendMessage(UUID_CONV, { id: "m-provv", sender: "u1", type: "text", text: "ciao" });
+    expect(marcaInVolo).toHaveBeenCalledWith(UUID_CONV, expect.objectContaining({ id: normalized.id }));
+    expect(smarcaInVolo).not.toHaveBeenCalled();
+
+    await new Promise(r => setTimeout(r, 0));
+    expect(smarcaInVolo).toHaveBeenCalledWith(normalized.id);
+  });
+
+  it("se l'INSERT fallisce, toglie il messaggio ottimistico E lo smarca (nessun fantasma a schermo)", async () => {
+    MessagesAPI.send.mockImplementationOnce(async () => ({ error: { message: "boom" } }));
+    const smarcaInVolo = vi.fn();
+    let msg = {};
+    const onError = vi.fn();
+    const commands = makeChatCommands({
+      setMessages: (u) => { msg = typeof u === "function" ? u(msg) : u; },
+      enabled: true,
+      getCurrentUserId: () => "u1",
+      onError,
+      smarcaInVolo,
+    });
+
+    const normalized = commands.sendMessage(UUID_CONV, { id: "m-provv", sender: "u1", type: "text", text: "ciao" });
+    expect(msg[UUID_CONV]).toHaveLength(1); // ottimistico
+
+    await new Promise(r => setTimeout(r, 0));
+    expect(msg[UUID_CONV]).toHaveLength(0); // compensato: il fantasma è tolto
+    expect(smarcaInVolo).toHaveBeenCalledWith(normalized.id);
     expect(onError).toHaveBeenCalledTimes(1);
   });
 });

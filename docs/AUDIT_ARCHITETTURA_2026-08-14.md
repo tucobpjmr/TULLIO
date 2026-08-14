@@ -73,7 +73,7 @@ database contiene.
 
 | # | Priorità | Rilievo | File | Impatto |
 |---|---|---|---|---|
-| **C-1** | 🔴 **Critico** | Il ripristino da backup delle Liste scarta i cointestatari: il payload è costruito senza `beneficiari` | `components/liste/ListeViaggio.jsx:278` | Perdita dati silenziosa e non segnalata nel percorso di disaster recovery |
+| **C-1** | 🔴 **Critico** — ✔ chiuso 14/8 | Il ripristino da backup delle Liste scarta i cointestatari: il payload è costruito senza `beneficiari` | `components/liste/ListeViaggio.jsx:278` | Perdita dati silenziosa e non segnalata nel percorso di disaster recovery |
 | **A-1** | 🟠 **Alta** | Bacheca avvisi: nessun `guard`, nessun `rollback`, pulsanti mostrati a tutti | `state/persistence.js:266-273`, `components/dashboard/NoticeBoard.jsx:182-207` | UI che diverge dal DB in modo sistematico + due toast contraddittori |
 | **M-1** | 🟡 Media | `delete-user` non rimuove l'avatar dallo storage (`delete-account` sì) | `supabase/functions/delete-user/index.ts:391-423` | PII orfana a tempo indefinito dopo l'eliminazione definitiva di un utente |
 | **M-2** | 🟡 Media | `invite-user` ignora l'esito dei due `upsert` e risponde comunque `success` | `supabase/functions/invite-user/index.ts:581-597` | Invito "riuscito" con profilo o contatto non scritti, senza alcun segnale |
@@ -97,6 +97,26 @@ ragionamento regge), e le sette RPC `SECURITY DEFINER` eseguibili da
 ## 3. Action plan dettagliato
 
 ### 🔴 C-1 — Il ripristino da backup perde i cointestatari
+
+> **✔ CHIUSO il 14 agosto, stesso giorno.** `onBackupFile` costruisce ora il
+> payload con `beneficiari`, `confermaImport` lo conta nel toast finale, e
+> `ImportaBackupConfirmModal` lo mostra nella conferma. **Un dettaglio emerso
+> solo implementando la correzione**: la firma del componente aveva già
+> ricevuto `nB = 0` nel diff proposto qui sotto, ma il punto in cui
+> `<ImportaBackupConfirmModal>` viene istanziato in `ListeViaggio.jsx`
+> continuava a passare solo `nL`/`nM` — senza quella riga la modale avrebbe
+> sempre mostrato "0 cointestatari" (anzi, nessuna clausola, per via del
+> default), nonostante il payload inviato alla RPC fosse già corretto. Trovato
+> perché la guardia di regressione (sotto) verifica il testo mostrato E il
+> payload effettivo, non solo uno dei due — è la stessa lezione dell'audit:
+> due metà di un percorso vanno verificate insieme, mai una sola. Guardia
+> aggiunta in `src/test/listeDataTools.test.jsx` ("i cointestatari nel file di
+> backup arrivano fino alla RPC di ripristino"): costruisce un file di backup
+> con `beneficiari`, e asserisce sia il testo della conferma sia
+> `ListeAPIMock.importaBackup.mock.calls[0][0].beneficiari` — il payload
+> *davvero* passato alla RPC, non quello che il componente dichiara di avere
+> costruito. Test: **1169 verdi** (era 1168), lint 0 errori,
+> `verifica:convenzioni` nessuna divergenza.
 
 **File:** `src/components/liste/ListeViaggio.jsx:262-283` (la riga che rompe è
 la **278**)

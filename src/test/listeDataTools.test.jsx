@@ -39,7 +39,7 @@ const apiState = {
   listTrash: [TRASHED_LISTA],
   saldi: [],
   backupData: { clients: [{ id: "c1" }], liste: [{ id: "l1" }], movimenti: [{ id: "m1" }, { id: "m2" }] },
-  importaBackup: { clients_added: 0, liste_added: 1, movimenti_added: 2 },
+  importaBackup: { clients_added: 0, liste_added: 1, beneficiari_added: 1, movimenti_added: 2 },
   resetCompleto: { liste_deleted: 3, movimenti_deleted: 5 },
 };
 
@@ -129,13 +129,54 @@ describe("ListeViaggio — Strumenti dati (backup e reset)", () => {
     fireEvent.change(input, { target: { files: [file] } });
 
     expect(await screen.findByText("Caricare il backup?")).toBeTruthy();
+    // Nessun cointestatario nel file: la clausola è omessa, non "0 cointestatari".
     expect(screen.getByText(/1 liste e 2 movimenti/)).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Carica backup" }));
     await waitFor(() => expect(ListeAPIMock.importaBackup).toHaveBeenCalled());
     expect(dispatch).toHaveBeenCalledWith({
       type: "SHOW_TOAST",
-      payload: { type: "success", message: "Backup caricato: +0 clienti, +1 liste, +2 movimenti" },
+      payload: { type: "success", message: "Backup caricato: +0 clienti, +1 liste, +1 cointestatari, +2 movimenti" },
+    });
+  });
+
+  // Guardia di regressione per C-1: il ripristino perdeva in silenzio i
+  // cointestatari fra la lettura del file e la RPC. `chunk(undefined)` in
+  // listeApi.js torna `[]` senza sollevare, quindi il campo omesso dal
+  // payload non produceva nessun errore — solo un ripristino "riuscito" con
+  // meno righe di quelle nel file. Questo test verifica l'intero percorso:
+  // il file contiene beneficiari, la conferma li conta, e soprattutto il
+  // payload che arriva DAVVERO alla RPC li porta con sé.
+  it("i cointestatari nel file di backup arrivano fino alla RPC di ripristino", async () => {
+    const { container, dispatch } = renderListe("marco");
+    await waitFor(() => expect(ListeAPIMock.list).toHaveBeenCalled());
+
+    const beneficiari = [{ lista_id: "l1", client_id: "b1" }];
+    const file = new File(
+      [JSON.stringify({
+        app: "liste-viaggio",
+        liste: [{ id: "l1" }],
+        beneficiari,
+        movimenti: [{ id: "m1" }, { id: "m2" }],
+      })],
+      "backup.json",
+      { type: "application/json" },
+    );
+    const input = container.querySelector('input[type="file"]');
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(await screen.findByText("Caricare il backup?")).toBeTruthy();
+    expect(screen.getByText(/1 liste, 1 cointestatari e 2 movimenti/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Carica backup" }));
+    await waitFor(() => expect(ListeAPIMock.importaBackup).toHaveBeenCalled());
+
+    const [payloadInviato] = ListeAPIMock.importaBackup.mock.calls[0];
+    expect(payloadInviato.beneficiari).toEqual(beneficiari);
+
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "SHOW_TOAST",
+      payload: { type: "success", message: "Backup caricato: +0 clienti, +1 liste, +1 cointestatari, +2 movimenti" },
     });
   });
 

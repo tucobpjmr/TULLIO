@@ -15,7 +15,7 @@
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { analizzaNomeFile, confrontaMigrazioni, ECCEZIONI_STORICHE } from './migrazioni.js';
+import { analizzaNomeFile, confrontaMigrazioni, trovaNonVersionate, ECCEZIONI_STORICHE } from './migrazioni.js';
 
 const RADICE = fileURLToPath(new URL('../..', import.meta.url));
 const DIR_MIGRAZIONI = join(RADICE, 'supabase', 'migrations');
@@ -57,6 +57,22 @@ async function main() {
   }
 
   const { mancanti } = confrontaMigrazioni({ locali, applicate, eccezioni: ECCEZIONI_STORICHE });
+
+  // M-4 dell'audit del 14 agosto: il verso opposto (produzione → repository)
+  // non fa fallire il workflow — vedi il commento su trovaNonVersionate in
+  // migrazioni.js sul perché — ma va nominato, non lasciato invisibile come
+  // prima di questo controllo.
+  const nonVersionate = trovaNonVersionate({ locali, applicate });
+  if (nonVersionate.length) {
+    console.log(`⚠ ${nonVersionate.length} migrazioni applicate al database senza un file locale corrispondente:\n`);
+    for (const a of nonVersionate) console.log(`    ${a.version} ${a.name}`);
+    console.log('\nSe è una rinomina legittima (lo strumento di applicazione ha generato il');
+    console.log('proprio nome o la propria versione) aggiungila a ALIAS_APPLICATE in');
+    console.log('migrazioni.js; se è uno scarto vero, committa il file mancante.\n');
+    console.log(`::warning title=Migrazioni non versionate::${nonVersionate.length} migrazioni ` +
+      `applicate al database non hanno un file locale corrispondente: ` +
+      `${nonVersionate.map((a) => a.name).join(', ')}`);
+  }
 
   if (mancanti.length) {
     console.log(`✗ ${mancanti.length} migrazioni presenti nel repository non risultano applicate:\n`);

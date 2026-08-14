@@ -8,7 +8,9 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { analizzaNomeFile, confrontaMigrazioni } from '../../scripts/verifica-rpc/migrazioni.js';
+import {
+  analizzaNomeFile, confrontaMigrazioni, trovaNonVersionate, ALIAS_APPLICATE,
+} from '../../scripts/verifica-rpc/migrazioni.js';
 
 describe('analizzaNomeFile', () => {
   it('separa il prefisso dallo slug al primo underscore', () => {
@@ -77,6 +79,41 @@ describe('confrontaMigrazioni', () => {
   it('riporta il conteggio delle migrazioni applicate', () => {
     const applicate = [{ version: 'a', name: 'x' }, { version: 'b', name: 'y' }];
     expect(confrontaMigrazioni({ locali: [], applicate, eccezioni: new Set() }).applicate).toBe(2);
+  });
+});
+
+describe('trovaNonVersionate — il verso opposto, produzione → repository', () => {
+  it('non segnala una voce applicata che matcha un file locale per versione', () => {
+    const locali = [{ file: '20260609174842_step_j_fix3', prefix: '20260609174842', slug: 'step_j_fix3' }];
+    const applicate = [{ version: '20260609174842', name: 'step_j_fix3_tasks_set_created_by' }];
+    expect(trovaNonVersionate({ locali, applicate, alias: new Map() })).toEqual([]);
+  });
+
+  it('non segnala una voce applicata che matcha un file locale per nome', () => {
+    const locali = [{ file: '20260806150000_notifications_origin_client', prefix: '20260806150000', slug: 'notifications_origin_client' }];
+    const applicate = [{ version: '99999999999999', name: 'notifications_origin_client' }];
+    expect(trovaNonVersionate({ locali, applicate, alias: new Map() })).toEqual([]);
+  });
+
+  it('non segnala una voce coperta da un alias esplicito', () => {
+    const locali = [{ file: '20260614_mention_composite_names', prefix: '20260614', slug: 'mention_composite_names' }];
+    const applicate = [{ version: '20260614173005', name: 'mention_find_users_function' }];
+    const alias = new Map([['mention_find_users_function', '20260614_mention_composite_names']]);
+    expect(trovaNonVersionate({ locali, applicate, alias })).toEqual([]);
+  });
+
+  it('segnala una voce applicata senza corrispondenza né per versione né per nome né in alias', () => {
+    const locali = [{ file: '20260806150000_altro', prefix: '20260806150000', slug: 'altro' }];
+    const applicate = [{ version: '20260101000000', name: 'qualcosa_mai_committato' }];
+    expect(trovaNonVersionate({ locali, applicate, alias: new Map() })).toEqual(applicate);
+  });
+
+  it('con i dati reali: ogni alias dichiarato punta a un file davvero presente nel repository', () => {
+    const dir = join(process.cwd(), 'supabase', 'migrations');
+    const slugFile = new Set(readdirSync(dir).filter((f) => f.endsWith('.sql')).map((f) => f.slice(0, -4)));
+    for (const [applicato, fileLocale] of ALIAS_APPLICATE) {
+      expect(slugFile, `alias "${applicato}" punta a ${fileLocale}, che non esiste nel repository`).toContain(fileLocale);
+    }
   });
 });
 

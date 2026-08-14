@@ -62,10 +62,46 @@ const invokeFn = async (name, body = {}, fallback = 'Operazione non riuscita.') 
 
 // ----------------- USERS / TEAM -----------------
 // Cache delle signed URL degli avatar. Separata da quella degli allegati
-// (signedUrlCache, più in basso) perché ha una frequenza d'uso diversa: un
+// (signedUrlCache, subito sotto) perché ha una frequenza d'uso diversa: un
 // avatar è richiesto da decine di componenti nello stesso render, quindi
 // senza cache si genererebbe una richiesta per ogni <Avatar> montato.
 const avatarUrlCache = new Map();
+// Cache condivisa dagli allegati di chat e di task (Messages.getFileUrl,
+// TaskFiles.getFileUrl): stessa pressione d'uso — un click alla volta —
+// quindi le due si accontentano di una Map sola, a differenza degli avatar.
+const signedUrlCache = new Map();
+
+// Signed URL con cache in memoria, per i tre bucket privati (M-3 dell'audit
+// del 14 agosto). Prima era lo stesso corpo scritto tre volte — qui, in
+// Messages.getFileUrl e in TaskFiles.getFileUrl — differendo solo per il nome
+// del bucket: un fix al TTL o all'invalidazione ne avrebbe raggiunta una sola
+// delle tre per distrazione, non per scelta.
+//
+// Il MARGINE fra il TTL richiesto e la scadenza salvata in cache è
+// l'invariante che questa funzione esiste per rendere esplicito: la URL si
+// considera scaduta cinque minuti PRIMA che il server la rifiuti, così un
+// click che parte poco prima della scadenza non riceve un 400 dal bucket.
+// Finché la coppia era scritta a mano in tre punti (`60 * 60` e
+// `55 * 60 * 1000`), il margine non era una regola: era una coincidenza fra
+// sei numeri che nessuno dei tre call site dichiarava di voler mantenere.
+const TTL_SIGNED_URL_S = 60 * 60;
+const MARGINE_SCADENZA_MS = 5 * 60 * 1000;
+
+const creaSignedUrlGetter = (bucket, cache) => async (path) => {
+  if (!path) return { url: null, error: null };
+  const cached = cache.get(path);
+  if (cached && cached.expiresAt > Date.now()) return { url: cached.url, error: null };
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, TTL_SIGNED_URL_S);
+  const url = data?.signedUrl ?? null;
+  if (url) cache.set(path, { url, expiresAt: Date.now() + TTL_SIGNED_URL_S * 1000 - MARGINE_SCADENZA_MS });
+  return { url, error };
+};
+
+// Bucket fisso: l'unico dei tre call site che ha bisogno di RICORDARE quale
+// bucket usa, perché getAvatarUrl lo richiama al posto di ripetere
+// 'avatars' — Messages/TaskFiles passano invece il proprio bucket in linea,
+// visto che ciascuna entry lo dichiara una volta sola.
+const avatarSignedUrl = creaSignedUrlGetter('avatars', avatarUrlCache);
 
 export const Users = {
   list: () =>
@@ -111,26 +147,23 @@ export const Users = {
     avatarUrlCache.delete(path);
     return { url: path, error: null };
   },
-  // Signed URL per un avatar (1h, con cache in memoria).
+  // Signed URL per un avatar (1h, con cache in memoria — vedi
+  // creaSignedUrlGetter più in alto).
   //
   // Accetta anche i valori NON-path già presenti in users.photo_url e li
   // restituisce invariati: i data URI base64 delle foto caricate prima che
   // esistesse il bucket, e le eventuali public URL http salvate quando il
   // bucket era pubblico. Così il passaggio a bucket privato non ha richiesto
-  // nessuna migrazione dei dati e nessuna foto esistente si è rotta.
+  // nessuna migrazione dei dati e nessuna foto esistente si è rotta. È il
+  // solo ramo dei tre getFileUrl/getAvatarUrl che non generalizza —
+  // Messages/TaskFiles non hanno un equivalente storico — quindi resta qui e
+  // non nella fabbrica condivisa.
   getAvatarUrl: async (value) => {
     if (!value) return { url: null, error: null };
     if (value.startsWith('data:') || value.startsWith('http')) {
       return { url: value, error: null };
     }
-    const cached = avatarUrlCache.get(value);
-    if (cached && cached.expiresAt > Date.now()) return { url: cached.url, error: null };
-    const { data, error } = await supabase.storage
-      .from('avatars')
-      .createSignedUrl(value, 60 * 60);
-    const url = data?.signedUrl ?? null;
-    if (url) avatarUrlCache.set(value, { url, expiresAt: Date.now() + 55 * 60 * 1000 });
-    return { url, error };
+    return avatarSignedUrl(value);
   },
   // Attiva/disattiva un membro passando dalla Edge Function 'set-user-active'
   // (Admin-only), che oltre alla colonna applicativa REVOCA davvero la sessione
@@ -542,23 +575,10 @@ export const Messages = {
     return { error: rmError };
   },
   // Signed URL temporanea (1h) per scaricare/visualizzare un allegato.
-  // Cache in-memory: scade 5 min prima del TTL, così click ripetuti sullo
-  // stesso allegato non rigenerano una signed URL per ogni interazione.
-  getFileUrl: async (path) => {
-    const cached = signedUrlCache.get(path);
-    if (cached && cached.expiresAt > Date.now()) {
-      return { url: cached.url, error: null };
-    }
-    const { data, error } = await supabase.storage
-      .from('chat-files')
-      .createSignedUrl(path, 60 * 60);
-    const url = data?.signedUrl ?? null;
-    if (url) signedUrlCache.set(path, { url, expiresAt: Date.now() + 55 * 60 * 1000 });
-    return { url, error };
-  },
+  // Cache in-memory condivisa con TaskFiles.getFileUrl (stessa fabbrica,
+  // stesso TTL/margine — vedi creaSignedUrlGetter).
+  getFileUrl: creaSignedUrlGetter('chat-files', signedUrlCache),
 };
-
-const signedUrlCache = new Map();
 
 // ----------------- TASK FILES (allegati task) -----------------
 // Block 5: allegati reali sui task. Bucket privato 'task-files', metadati in
@@ -603,16 +623,7 @@ export const TaskFiles = {
   },
 
   // Signed URL temporanea (1h) con cache in-memory condivisa (stessa di chat).
-  getFileUrl: async (path) => {
-    const cached = signedUrlCache.get(path);
-    if (cached && cached.expiresAt > Date.now()) return { url: cached.url, error: null };
-    const { data, error } = await supabase.storage
-      .from('task-files')
-      .createSignedUrl(path, 60 * 60);
-    const url = data?.signedUrl ?? null;
-    if (url) signedUrlCache.set(path, { url, expiresAt: Date.now() + 55 * 60 * 1000 });
-    return { url, error };
-  },
+  getFileUrl: creaSignedUrlGetter('task-files', signedUrlCache),
 };
 
 // ----------------- NOTIFICATIONS -----------------

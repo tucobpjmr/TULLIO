@@ -80,3 +80,59 @@ export function confrontaMigrazioni({ locali, applicate, eccezioni = ECCEZIONI_S
   ));
   return { mancanti, applicate: applicate.length };
 }
+
+// ── Il verso opposto: produzione → repository ──────────────────────────────
+// `confrontaMigrazioni` parte dai file locali e non può, per costruzione,
+// accorgersi di una migrazione applicata al database e mai committata: è la
+// direzione più insidiosa delle due, perché il sintomo non è un errore ma
+// un'assenza — nulla si rompe finché qualcuno non ricostruisce lo schema dai
+// file (staging, ripartenza da zero, disaster recovery), e a quel punto la
+// logica manca senza che nessun controllo l'abbia mai nominata (M-4
+// dell'audit del 14 agosto).
+//
+// Una prima verifica per solo nome aveva contato 15 voci applicate senza
+// omonimo locale; un confronto più corretto — per versione O per nome, esatto
+// come fa già `confrontaMigrazioni` — ne lascia solo 5 davvero senza
+// corrispondenza: le altre 10 hanno versione applicata coincidente col
+// prefisso del file locale (stesso caso già documentato per
+// `confrontaMigrazioni`: lo strumento di applicazione genera il proprio nome,
+// non la propria versione). Restano davvero senza aggancio solo le migrazioni
+// applicate con nome E versione diversi da OGNI file locale.
+export const ALIAS_APPLICATE = new Map([
+  // Applicata come tre chiamate separate (poi consolidate in un solo file
+  // locale per version control — vedi ECCEZIONI_STORICHE sopra e il commento
+  // in testa a 20260614_mention_composite_names.sql).
+  ['mention_find_users_function', '20260614_mention_composite_names'],
+  ['mention_find_users_function_v2', '20260614_mention_composite_names'],
+  ['mention_triggers_comments_and_messages', '20260614_mention_composite_names'],
+  // Nome applicato con un secondo prefisso di data incorporato, diverso dallo
+  // slug del file locale (che ha solo "notifications_origin_client").
+  ['20260702_notifications_origin_client', '20260702084658_notifications_origin_client'],
+  // Applicata in due tempi (base + fix dell'ancora sul mittente), consolidata
+  // in un solo file: verificato il 14 agosto che il corpo in produzione
+  // corrisponde a quello del file.
+  ['messages_blocca_modifiche_altrui_fix_sender_anchor',
+    '20260806150000_messages_solo_mittente_modifica_contenuto'],
+]);
+
+/**
+ * Trova le migrazioni applicate al database senza corrispondenza — né per
+ * versione né per nome né in alias — fra i file locali. NON fa fallire il
+ * workflow: le rinominazioni legittime sono la maggioranza, e un rosso
+ * permanente è il modo per cui un controllo smette di essere creduto (vedi
+ * sonda.js). Serve solo a nominare ciò che oggi non compare in nessun
+ * controllo.
+ *
+ * @param locali    Array di { file, prefix, slug } (da analizzaNomeFile).
+ * @param applicate Array di { version, name } (da get_migrazioni_applicate).
+ * @param alias     Map nome applicato → nome file locale corrispondente
+ *                   (ALIAS_APPLICATE di default nel chiamante).
+ * @returns Array delle voci applicate senza corrispondenza né in alias.
+ */
+export function trovaNonVersionate({ locali, applicate, alias = ALIAS_APPLICATE }) {
+  const prefissiLocali = new Set(locali.filter(Boolean).map((l) => l.prefix));
+  const slugLocali = new Set(locali.filter(Boolean).map((l) => l.slug));
+  return applicate.filter((a) => (
+    !prefissiLocali.has(a.version) && !slugLocali.has(a.name) && !alias.has(a.name)
+  ));
+}

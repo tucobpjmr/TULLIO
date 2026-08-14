@@ -25,7 +25,10 @@ export function formatFileSize(bytes) {
 // Emoji-icona dal mime-type o dal nome file (estensione).
 export function fileIcon(mimeOrName = "") {
   const s = String(mimeOrName).toLowerCase();
-  if (/^image\/|\.(png|jpe?g|gif|webp|svg|heic|bmp)$/.test(s)) return "🖼️";
+  // SVG escluso apposta: nessun bucket lo accetta fra gli allowed_mime_types
+  // (è un documento eseguibile) — un'icona immagine qui prometterebbe
+  // un'anteprima a un upload che il server rifiuta (B-4, audit 14/8).
+  if (/^image\/|\.(png|jpe?g|gif|webp|heic|bmp)$/.test(s)) return "🖼️";
   if (/^video\/|\.(mp4|mov|avi|mkv|webm)$/.test(s)) return "🎬";
   if (/^audio\/|\.(mp3|wav|ogg|m4a|aac)$/.test(s)) return "🎵";
   if (/pdf|\.pdf$/.test(s)) return "📕";
@@ -40,7 +43,10 @@ export function fileIcon(mimeOrName = "") {
 // Usa sia il mime-type (file_type) sia, come fallback, l'estensione del nome.
 export function mediaKind(mimeOrName = "") {
   const s = String(mimeOrName).toLowerCase();
-  if (/^image\/|\.(png|jpe?g|gif|webp|svg|bmp)$/.test(s)) return "image";
+  // SVG tolto: nessun bucket lo accetta (allowed_mime_types non include
+  // image/svg+xml, ed è voluto — un SVG è un documento eseguibile). Tenerlo
+  // qui prometteva un'anteprima a un file che l'upload rifiuta (B-4, audit 14/8).
+  if (/^image\/|\.(png|jpe?g|gif|webp|bmp)$/.test(s)) return "image";
   if (/^video\/|\.(mp4|mov|webm|ogv)$/.test(s)) return "video";
   if (/^audio\/|\.(mp3|wav|ogg|m4a|aac)$/.test(s)) return "audio";
   return null;

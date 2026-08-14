@@ -79,10 +79,10 @@ database contiene.
 | **M-2** | 🟡 Media — ✔ chiuso 14/8 | `invite-user` ignora l'esito dei due `upsert` e risponde comunque `success` | `supabase/functions/invite-user/index.ts:581-597` | Invito "riuscito" con profilo o contatto non scritti, senza alcun segnale |
 | **M-3** | 🟡 Media — ✔ chiuso 14/8 | Tre implementazioni della stessa "signed URL + cache TTL" | `lib/api.js:121-134, 547-558, 606-615` | Duplicazione a tre copie: un fix di TTL o di invalidazione ne raggiunge una sola |
 | **M-4** | 🟡 Media — ✔ chiuso 14/8 | Il controllo di scarto migrazioni è mono-direzionale per costruzione | `scripts/verifica-rpc/migrazioni.js:78-81` | Una migrazione applicata solo in produzione non è rilevabile da nessun controllo |
-| **B-1** | 🟢 Bassa | Schema `backup_liste_20260729` ancora in produzione (3 tabelle, ~2.323 righe) | produzione, non nel repo | Copia di dati di luglio senza RLS né retention dichiarata |
-| **B-2** | 🟢 Bassa | `public.next_dossier_number()` orfana: la sua sequence è stata droppata | `migrations/20260616221642` | Funzione morta che fallirebbe se invocata; nessuno può invocarla |
-| **B-3** | 🟢 Bassa | Due trigger sovrapposti su `messages` con strategie opposte | `migrations/20260613092421` vs `20260806150000` | Il più vecchio è irraggiungibile; enumera colonne, cioè la strategia che il nuovo dichiara sbagliata |
-| **B-4** | 🟢 Bassa | `.svg` classificato come immagine, ma i bucket lo rifiutano | `lib/fileUtils.js:41-47`, `chat/chatFiles.js:19-25` | Ramo morto; l'utente vede l'anteprima promessa e l'upload fallisce |
+| **B-1** | 🟢 Bassa — ✔ chiuso 14/8 | Schema `backup_liste_20260729` ancora in produzione (3 tabelle, ~2.323 righe) | produzione, non nel repo | Copia di dati di luglio senza RLS né retention dichiarata |
+| **B-2** | 🟢 Bassa — ✔ chiuso 14/8 | `public.next_dossier_number()` orfana: la sua sequence è stata droppata | `migrations/20260616221642` | Funzione morta che fallirebbe se invocata; nessuno può invocarla |
+| **B-3** | 🟢 Bassa — ✔ chiuso 14/8 | Due trigger sovrapposti su `messages` con strategie opposte | `migrations/20260613092421` vs `20260806150000` | Il più vecchio è irraggiungibile; enumera colonne, cioè la strategia che il nuovo dichiara sbagliata |
+| **B-4** | 🟢 Bassa — ✔ chiuso 14/8 | `.svg` classificato come immagine, ma i bucket lo rifiutano | `lib/fileUtils.js:41-47`, `chat/chatFiles.js:19-25` | Ramo morto; l'utente vede l'anteprima promessa e l'upload fallisce |
 
 **Accettati, non rilievi** (già decisi in audit precedenti, riverificati oggi e
 tuttora coerenti): `auth_leaked_password_protection` (richiede il piano Pro),
@@ -812,6 +812,16 @@ può fallire deve almeno essere visibile.
 
 ### 🟢 B-1 — Lo schema `backup_liste_20260729` è ancora in produzione
 
+> **✔ CHIUSO il 14 agosto.** Decisione (richiesta all'utente, non deducibile
+> dal solo codice: droppare dati di produzione è una scelta di prodotto, non
+> tecnica): il modulo Liste è in produzione stabile dal 29 luglio e ha il
+> proprio backup JSON scaricabile, quindi la copia non ha più un lettore.
+> Applicato `drop schema if exists backup_liste_20260729 cascade` in
+> produzione (migrazione `20260814210200_drop_backup_liste_20260729.sql`).
+> Verificato dopo l'esecuzione: lo schema non compare più in `pg_namespace`,
+> e i tre avvisi `no_primary_key` sulle sue tabelle sono spariti
+> dall'advisor di performance.
+
 Verificato oggi: lo schema esiste con 3 tabelle (`liste_viaggio`,
 `movimenti_lista`, `lista_history`) e **~2.323 righe stimate**, istantanea del
 29 luglio. Nessuna RLS (`relrowsecurity = false`), nessuna primary key — gli
@@ -838,6 +848,12 @@ drop schema if exists backup_liste_20260729 cascade;
 
 ### 🟢 B-2 — `public.next_dossier_number()` è orfana
 
+> **✔ CHIUSO il 14 agosto.** `drop function if exists
+> public.next_dossier_number()` applicato in produzione (migrazione
+> `20260814210000_drop_next_dossier_number_orfana.sql`). Verificato dopo
+> l'esecuzione: la funzione non compare più in `pg_proc`; gli advisor di
+> sicurezza e performance non segnalano nulla di nuovo.
+
 `20260616221642_remove_pratiche_fornitori.sql` rimuove il modulo pratiche: droppa
 `generate_dossier_number()`, le tabelle e la sequence `dossier_number_seq` — ma
 **non** `next_dossier_number()`, che di quella sequence si serviva. La funzione è
@@ -860,6 +876,19 @@ drop function if exists public.next_dossier_number();
 ---
 
 ### 🟢 B-3 — Due trigger sovrapposti su `messages`, con strategie opposte
+
+> **✔ CHIUSO il 14 agosto.** Verificata prima la premessa che l'audit
+> lasciava come prova da fare: letti i corpi di `messages_mark_read`
+> (`20260702084600`) e `messages_toggle_reaction` (`20260706142315`) —
+> toccano solo `read_by`/`reactions` più `origin_client`, tutte e tre già
+> nell'allowlist di `messages_blocca_modifiche_altrui`. Nessuna scrittura
+> legittima dipende quindi dal ripristino silenzioso del trigger più vecchio.
+> Applicati `drop trigger if exists trg_messages_guard_participant_update on
+> public.messages` e `drop function if exists
+> public.messages_guard_participant_update()` in produzione (migrazione
+> `20260814210100_drop_trigger_messages_guard_participant_update.sql`).
+> Verificato dopo l'esecuzione: su `public.messages` resta un solo trigger
+> `BEFORE UPDATE` (`trg_messages_blocca_modifiche_altrui`).
 
 Verificato in produzione: `public.messages` ha **entrambi** i trigger
 `BEFORE UPDATE`.
@@ -896,6 +925,22 @@ prima e non un'inferenza da fare dopo.
 ---
 
 ### 🟢 B-4 — `.svg` promesso come immagine, rifiutato dal bucket
+
+> **✔ CHIUSO il 14 agosto.** `.svg` tolto dai tre punti: `mediaKind` e
+> `fileIcon` in `lib/fileUtils.js`, `fileKindFromName` in
+> `components/chat/chatFiles.js`. La classificazione per mime-type
+> (`^image\/`) resta invariata — non ha bisogno di correzione: `mediaKind`/
+> `fileIcon` ricevono `file_type` da righe già scritte sul database, dove un
+> `image/svg+xml` non può comparire perché il bucket lo rifiuta all'upload;
+> solo il ramo per ESTENSIONE, che classifica anche file non ancora
+> caricati, prometteva l'anteprima sbagliata. Guardie di regressione in
+> `src/test/fileUtils.test.js` (nuovo caso per `mediaKind`/`fileIcon`) e nel
+> nuovo `src/test/chatFiles.test.js` (`fileKindFromName`, che non aveva
+> ancora un file di test). Non implementato il "meglio ancora" del rilievo
+> (rifiutare l'SVG prima dell'upload con un messaggio che lo nomini): fuori
+> perimetro per un rilievo Bassa la cui correzione minima è già la rimozione
+> del ramo morto. Test: **1234 verdi**, lint 0 errori, `verifica:convenzioni`
+> nessuna divergenza.
 
 `lib/fileUtils.js:41-47` (`mediaKind`) e `chat/chatFiles.js:19-25`
 (`fileKindFromName`) classificano `.svg` come immagine. Verificato in

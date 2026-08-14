@@ -53,6 +53,10 @@ describe("mediaKind", () => {
     expect(mediaKind("contratto.docx")).toBe(null);
     expect(mediaKind("")).toBe(null);
   });
+
+  it("non classifica .svg come immagine per estensione (B-4: nessun bucket lo accetta)", () => {
+    expect(mediaKind("logo.svg")).toBe(null);
+  });
 });
 
 describe("fileIcon", () => {
@@ -74,6 +78,10 @@ describe("fileIcon", () => {
   it("falls back to paperclip", () => {
     expect(fileIcon("")).toBe("📎");
     expect(fileIcon("qualcosa.xyz")).toBe("📎");
+  });
+
+  it("non promette un'anteprima per .svg per estensione (B-4: nessun bucket lo accetta)", () => {
+    expect(fileIcon("logo.svg")).toBe("📎");
   });
 });
 

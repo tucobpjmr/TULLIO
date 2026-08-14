@@ -501,14 +501,8 @@ export const riepilogoTesto = (lista, movimenti) => {
 };
 
 // Innesca il download lato client di un Blob già pronto (doc Word, JSON di
-// backup...). Stesso pattern di `downloadFile` in AdminView.jsx.
-export const downloadBlob = (blob, filename) => {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 500);
-};
+// backup...). M-3 dell'audit del 14 agosto (secondo passaggio): era una di
+// TRE copie identiche dello stesso corpo (con adminExport.js e
+// calendar/calendarIcs.js) — l'implementazione unica è `scaricaBlob`. Resta
+// qui come alias di una riga per non toccare i call site di questo modulo.
+export { scaricaBlob as downloadBlob } from "../../lib/fileUtils.js";

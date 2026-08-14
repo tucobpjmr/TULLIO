@@ -1,6 +1,10 @@
 // src/lib/fileUtils.js
 // Block 5 — helper puri per gli allegati (task e in generale).
 // Funzioni senza side-effect → facilmente testabili (Vitest).
+//
+// Un'eccezione dichiarata: `scaricaBlob` in fondo al file tocca il DOM per
+// costruzione (innesca un download) — vedi il commento lì per il motivo per
+// cui vive comunque qui.
 
 // Limite dimensione per allegato task: rispecchia `file_size_limit` del bucket
 // 'task-files' (52428800 byte, verificato su storage.buckets), replicato qui
@@ -62,4 +66,29 @@ export function sourceBadge(source) {
   if (source === "onedrive") return "☁️ OneDrive";
   if (source === "whatsapp") return "🟢 WhatsApp";
   return "";
+}
+
+// M-3 dell'audit del 14 agosto (secondo passaggio). Innesca il download lato
+// client di un Blob già pronto — CSV/JSON dal pannello Admin, .doc e backup
+// JSON del modulo Liste, .ics dal calendario.
+//
+// Erano TRE copie dello stesso corpo, e avevano già smesso di coincidere:
+// `admin/adminExport.js` e `liste/listeApi.js` revocavano l'object URL dopo
+// 500ms, `calendar/calendarIcs.js` lo faceva nello stesso tick del click. Il
+// RITARDO è l'invariante che conta, non un dettaglio estetico: il browser
+// deve avere il tempo di iniziare il download prima che la URL diventi
+// invalida — su Safari/iOS revocarla subito lo fa fallire in silenzio.
+// Finché il numero era scritto a mano in due punti su tre, i 500ms non erano
+// una regola: erano una coincidenza che il terzo call site non condivideva.
+const RITARDO_REVOKE_MS = 500;
+
+export function scaricaBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), RITARDO_REVOKE_MS);
 }

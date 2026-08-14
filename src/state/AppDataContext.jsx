@@ -78,6 +78,12 @@ export function AppDataProvider({ team, categories, currentUserId, children }) {
       canAccessListe: (userId) => P.canAccessListe(t, userId),
       getVisibleTasks: (tasks, userId) => P.getVisibleTasks(t, tasks, userId),
 
+      // Anagrafica clienti (A-1 dell'audit del 14 agosto, secondo passaggio):
+      // due funzioni perché il database ha due policy diverse per update e
+      // delete — vedi lib/permissions.js.
+      canEditClient: (userId) => P.canEditClient(t, userId),
+      canDeleteClient: (userId) => P.canDeleteClient(t, userId),
+
       // Categorie disponibili al ruolo
       getAvailableCategories: (userId) => P.getAvailableCategories(c, t, userId),
     };

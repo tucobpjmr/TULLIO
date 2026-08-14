@@ -27,6 +27,29 @@ import { PERSISTENCE } from "../state/persistence.js";
 import { ADMIN_ONLY_ACTIONS } from "../state/reducer.js";
 import { isAdmin } from "../lib/permissions.js";
 
+// C-1 dell'audit del 14 agosto (secondo passaggio). Una scrittura respinta
+// dalla RLS NON mette nulla in `error`: la clausola USING di una policy non
+// solleva un'eccezione, filtra le righe — una UPDATE/DELETE mirata a una riga
+// che la RLS nasconde ne tocca zero, e PostgREST risponde 2xx come per
+// qualunque altra scrittura riuscita. Senza questo controllo l'unica ragione
+// per cui alcune entry se ne accorgevano era una coincidenza: i metodi che
+// terminano con `.select().single()` falliscono su zero righe con PGRST116
+// (mancava sempre almeno un carattere in comune), tutti gli altri no.
+//
+// `count` arriva SOLO dai metodi del data layer che lo hanno richiesto
+// esplicitamente (CONTA_RIGHE in lib/api.js, sui soli metodi che mirano a una
+// riga per chiave primaria): dove non c'è, `typeof r?.count === 'number'` è
+// falso e il comportamento resta quello di sempre. L'adozione è quindi
+// per-metodo, non un cambiamento globale del contratto.
+const RIFIUTO_RLS = {
+  message: "operazione non consentita dal database (permessi insufficienti)",
+};
+const esito = (r) => {
+  if (r?.error) return r.error;
+  if (typeof r?.count === "number" && r.count === 0) return RIFIUTO_RLS;
+  return null;
+};
+
 export function useSyncedDispatch(state, rawDispatch, { enabled = true } = {}) {
   // Snapshot vivo dello state: leggendolo da un ref invece che dalle deps,
   // `dispatch` resta un'identità stabile. Con [state] nelle deps verrebbe
@@ -119,9 +142,12 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true } = {}) {
     return Promise.resolve()
       .then(() => spec.persist(s, toDispatch, uid))
       .then((res) => {
-        // supabase-js ritorna { error }; le entry che usano Promise.all
-        // ritornano un array di quei risultati.
-        const err = Array.isArray(res) ? res.find(r => r?.error)?.error : res?.error;
+        // supabase-js ritorna { error, count? }; le entry che usano
+        // Promise.all ritornano un array di quegli esiti. `esito()` tratta
+        // "zero righe toccate da una scrittura mirata a una riga" come un
+        // rifiuto, non solo un `error` esplicito — vedi il commento su
+        // `esito` in cima al file.
+        const err = Array.isArray(res) ? res.map(esito).find(Boolean) : esito(res);
         return err ? fail(err, "errore sconosciuto", res) : { error: null };
       })
       .catch((e) => fail(e, "errore di rete"))

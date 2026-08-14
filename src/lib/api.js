@@ -103,6 +103,24 @@ const creaSignedUrlGetter = (bucket, cache) => async (path) => {
 // visto che ciascuna entry lo dichiara una volta sola.
 const avatarSignedUrl = creaSignedUrlGetter('avatars', avatarUrlCache);
 
+// C-1 dell'audit del 14 agosto (secondo passaggio). Chiede a PostgREST quante
+// righe una UPDATE/DELETE ha DAVVERO toccato.
+//
+// Serve a distinguere "riuscita" da "rifiutata dalla RLS", che senza questo
+// sono la stessa risposta: la clausola USING di una policy non solleva un
+// errore, rende le righe invisibili — e una UPDATE/DELETE su zero righe è
+// indistinguibile da una su un id inesistente. `res.error` resta null in
+// entrambi i casi.
+//
+// Va aggiunta SOLO ai metodi che mirano a UNA riga già esistente per chiave
+// primaria (.eq('id', …) o equivalente): lì `count === 0` significa "il
+// database non me l'ha lasciata toccare". Non va aggiunta alle scritture che
+// possono legittimamente non toccare nulla (markAllRead su zero non lette,
+// hardDeleteMany su un cestino vuoto): là zero è un esito normale, non un
+// rifiuto. useSyncedDispatch (hooks/useSyncedDispatch.js) legge `count` solo
+// dove il metodo lo fornisce: l'adozione è per-metodo, non tutto-o-niente.
+const CONTA_RIGHE = { count: 'exact' };
+
 export const Users = {
   list: () =>
     supabase.from('users').select('*').eq('active', true).order('name'),
@@ -112,8 +130,6 @@ export const Users = {
   // utenti autenticati possono leggere l'elenco completo (è un team condiviso).
   listAll: () =>
     supabase.from('users').select('*').order('name'),
-  get: (id) =>
-    supabase.from('users').select('*').eq('id', id).single(),
   // Nota: email/phone NON sono più colonne di public.users (migrazione
   // 20260613100833_user_contacts_table). Vivono in public.user_contacts via
   // getContacts/updateContact. updateProfile le scarta difensivamente per
@@ -177,7 +193,7 @@ export const Users = {
   // Approvazione admin di un utente registrato (pending → attivo). Le policy
   // RLS (users_admin_all) consentono l'update solo a un admin.
   approve: (id) =>
-    supabase.from('users').update(withOrigin({ pending: false, active: true })).eq('id', id),
+    supabase.from('users').update(withOrigin({ pending: false, active: true }), CONTA_RIGHE).eq('id', id),
   // Invito admin di un nuovo utente via email (Block 3). Chiama la Edge
   // Function 'invite-user' (verify_jwt) che usa la Auth Admin API per inviare
   // l'invito e pre-crea il profilo public.users con pending=true. L'admin
@@ -300,8 +316,6 @@ export const Tasks = {
       return includeDeleted ? q : q.is('deleted_at', null);
     });
   },
-  get: (id) =>
-    supabase.from('tasks').select('*').eq('id', id).single(),
   create: (task) =>
     supabase.from('tasks').insert(withOrigin(task)).select().single(),
   // Creazione in blocco (BulkTaskCreator): UNA insert multi-riga invece di N
@@ -314,9 +328,9 @@ export const Tasks = {
   update: (id, patch) =>
     supabase.from('tasks').update(withOrigin(patch)).eq('id', id).select().single(),
   softDelete: (id) =>
-    supabase.from('tasks').update(withOrigin({ deleted_at: new Date().toISOString() })).eq('id', id),
+    supabase.from('tasks').update(withOrigin({ deleted_at: new Date().toISOString() }), CONTA_RIGHE).eq('id', id),
   restore: (id) =>
-    supabase.from('tasks').update(withOrigin({ deleted_at: null })).eq('id', id),
+    supabase.from('tasks').update(withOrigin({ deleted_at: null }), CONTA_RIGHE).eq('id', id),
   // Purge definitiva: la FK task_files.task_id ON DELETE CASCADE ripulisce le
   // righe metadati ma NON tocca i file fisici nel bucket privato 'task-files'
   // (path <task_id>/<uuid>-<nomefile>, vedi TaskFiles.upload). Senza questo step
@@ -387,9 +401,6 @@ export const TaskThreads = {
 
 // ----------------- COMMENTS -----------------
 export const Comments = {
-  listForTask: (taskId) =>
-    supabase.from('comments').select('*, users(name, color, photo_url)')
-      .eq('task_id', taskId).order('created_at'),
   create: ({ task_id, user_id, text }) =>
     supabase.from('comments').insert(withOrigin({ task_id, user_id, text })).select().single(),
   remove: (id) =>
@@ -407,9 +418,9 @@ export const Notices = {
   update: (id, patch) =>
     supabase.from('notices').update(withOrigin(patch)).eq('id', id).select().single(),
   togglePin: (id, pinned) =>
-    supabase.from('notices').update(withOrigin({ pinned })).eq('id', id),
+    supabase.from('notices').update(withOrigin({ pinned }), CONTA_RIGHE).eq('id', id),
   remove: (id) =>
-    supabase.from('notices').delete().eq('id', id),
+    supabase.from('notices').delete(CONTA_RIGHE).eq('id', id),
 };
 
 // ----------------- CONVERSATIONS -----------------
@@ -444,6 +455,14 @@ const sanitizeFileName = (name = 'file') => name.replace(/[^\w.-]+/g, '_');
 const baseMimeType = (tipo) => (tipo || '').split(';')[0].trim() || 'application/octet-stream';
 
 export const Messages = {
+  // Non chiamata da nessuna parte, DI PROPOSITO: è il secondo passo di ST-4
+  // (docs/AUDIT_STRUTTURA_2026-08-10.md), la lettura per-conversazione che
+  // sostituirà il corpus intero di listAll() quando `messages` supererà la
+  // soglia scritta lì (~1500) — oggi 13. Rimossa una prima volta in questo
+  // stesso intervento (B-2, secondo audit del 14 agosto) scambiandola per
+  // codice morto: era una lettura degli USI nel repository, senza incrociare
+  // gli AUDIT che la citano per nome come preparazione dichiarata. Non
+  // toccare senza aver letto ST-4 (parte 2) per intero.
   listForConversation: (conversation_id, limit = 200) =>
     supabase.from('messages').select('*')
       .eq('conversation_id', conversation_id)
@@ -506,7 +525,7 @@ export const Messages = {
       pinned,
       pinned_by: pinned ? pinnedBy : null,
       pinned_at: pinned ? new Date().toISOString() : null,
-    })).eq('id', id),
+    }), CONTA_RIGHE).eq('id', id),
   markRead: (id, readBy) =>
     supabase.from('messages').update(withOrigin({ read_by: readBy })).eq('id', id),
   // Step Q.4: RPC bulk markRead. Un singolo UPDATE su tutti i messaggi non
@@ -731,8 +750,6 @@ export const Clients = {
   list: () =>
     fetchAllRows(() => supabase.from('clients')
       .select('*', WITH_COUNT).order('name').order('id')),
-  get: (id) =>
-    supabase.from('clients').select('*').eq('id', id).single(),
   create: (client) =>
     supabase.from('clients').insert(withOrigin(client)).select().single(),
   update: (id, patch) =>
@@ -747,7 +764,7 @@ export const Clients = {
   // cancellazione altrui, lasciandogli in lista un cliente che non esiste più.
   // Vedi il blocco (a) in fondo alla migrazione 20260808120000.
   remove: (id) =>
-    supabase.from('clients').delete().eq('id', id),
+    supabase.from('clients').delete(CONTA_RIGHE).eq('id', id),
   // Import anagrafica (A-2): insert multi-riga a BLOCCHI invece di N
   // `create()` in Promise.all. Ogni blocco è atomico — o entra tutto o
   // niente — quindi un fallimento a metà lascia uno stato NOTO (i blocchi già

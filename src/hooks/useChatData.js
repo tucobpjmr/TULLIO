@@ -17,10 +17,44 @@ import { makeChatCommands } from "../components/chat/chatCommands.js";
 import { getUnreadCount } from "../components/chat/chatFormat.js";
 import { useDebouncedTableSubscription } from "./useDebouncedTableSubscription.js";
 
+// A-2 dell'audit del 14 agosto (secondo passaggio). Messaggi la cui INSERT è
+// ancora in volo, raggruppati per conversazione — la stessa forma di
+// `messages`, così la fusione col risultato del reload è un semplice merge
+// per conversazione. È l'equivalente di `pendingWrites` nel reducer del core,
+// per la STESSA ragione: fra il dispatch ottimistico e il commit su Supabase
+// passano centinaia di ms, e in quella finestra un evento realtime ALTRUI fa
+// ripartire `listAll()`. La risposta è più recente per tutti i messaggi tranne
+// il nostro, che non c'è ancora — sostituire la mappa intera lo farebbe
+// sparire, e nulla verrebbe poi a rimetterlo: l'eco della nostra INSERT porta
+// il nostro `origin_client` e viene scartata da `subscribeToTable`.
+//
+// `sendMessage` normalizza l'id a un uuid PRIMA dell'INSERT (vedi
+// chatCommands.js), quindi l'id locale e quello sul database coincidono: la
+// fusione è per id, senza euristiche sul contenuto.
+const messaggiInVolo = (mappaDalServer, inVolo) => {
+  if (!inVolo.size) return mappaDalServer;
+  const out = { ...mappaDalServer };
+  for (const { convId, msg } of inVolo.values()) {
+    const presenti = out[convId] || [];
+    if (presenti.some(m => m.id === msg.id)) continue;
+    out[convId] = [...presenti, msg];
+  }
+  return out;
+};
+
 export function useChatData({ enabled, team, currentUserId, mockConversations, mockMessages, onError, onSuccess, onConversationRead }) {
   // Loading: true finché non completa il primo reload da Supabase. Evita il
   // flash "nessun messaggio" mentre l'idratazione è in volo.
   const [chatLoading, setChatLoading] = useState(enabled);
+
+  // Registro delle scritture in volo (vedi messaggiInVolo qui sopra): id →
+  // { convId, msg }. In un ref e non in uno state, perché non deve MAI
+  // provocare un render da solo — cambia solo insieme al messaggio che
+  // rappresenta, che è già in `messages` via l'aggiornamento ottimistico di
+  // sendMessage.
+  const inVoloRef = useRef(new Map());
+  const marcaInVolo = useRef((convId, msg) => { inVoloRef.current.set(msg.id, { convId, msg }); }).current;
+  const smarcaInVolo = useRef((msgId) => { inVoloRef.current.delete(msgId); }).current;
 
   // currentUserId "vivo": i comandi lo leggono al momento della chiamata invece
   // di riceverlo come dipendenza. Senza il ref, `commands` cambierebbe identità
@@ -54,7 +88,12 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
     // bookkeeping delle notifiche, non della chat, quindi il chiamante lo
     // fornisce dall'esterno.
     onConversationRead,
-  }), [enabled, onError, onSuccess, onConversationRead]);
+    // A-2: il registro delle scritture in volo (vedi messaggiInVolo qui
+    // sopra). marcaInVolo/smarcaInVolo hanno identità stabile (useRef), quindi
+    // comparire nelle deps non fa ricreare `chatCommands` a ogni render.
+    marcaInVolo,
+    smarcaInVolo,
+  }), [enabled, onError, onSuccess, onConversationRead, marcaInVolo, smarcaInVolo]);
 
   // Idratazione chat (conversations + messages) + realtime.
   // chatLoading parte da `useSupabase`: senza login è già false, quindi non
@@ -94,7 +133,12 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
     if (!soloMessaggi) {
       setConversationsRaw((convsRes.data || []).map(fromDbConversation));
     }
-    setMessagesRaw(msgsByConv);
+    // A-2: un messaggio la cui INSERT è ancora in volo può non essere ancora
+    // nella risposta del server. Senza questa fusione, sostituire la mappa
+    // qui lo farebbe sparire dallo schermo di chi l'ha appena scritto, fino a
+    // quando (se mai) un altro reload arriva dopo il commit — l'eco della
+    // nostra stessa INSERT viene invece scartata da subscribeToTable.
+    setMessagesRaw(messaggiInVolo(msgsByConv, inVoloRef.current));
     setChatLoading(false);
   }, { enabled, deps: [enabled] });
 

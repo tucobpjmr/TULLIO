@@ -46,6 +46,13 @@ export function makeChatCommands({
   onError = noop,
   onSuccess = noop,
   onConversationRead = noop,
+  // A-2 dell'audit del 14 agosto (secondo passaggio): il registro delle
+  // scritture in volo che vive in useChatData (messaggiInVolo). Di default
+  // sono no-op, così i chiamanti che non passano protezione contro le
+  // scritture in volo (i test, i mock) restano invariati — l'adozione è
+  // opt-in dal lato di chi possiede lo stato.
+  marcaInVolo = noop,
+  smarcaInVolo = noop,
 } = {}) {
   // convId → Promise dell'INSERT conversazione ancora in volo. Serve a
   // serializzare il primo messaggio dietro la creazione della conversazione:
@@ -134,17 +141,56 @@ export function makeChatCommands({
     const normalized = !enabled || isUuid(msg.id) ? msg : { ...msg, id: newId() };
     setMessages(prev => ({ ...prev, [convId]: [...(prev[convId] || []), normalized] }));
     if (!enabled) return normalized;
-    const invia = () => MessagesAPI.send(toDbMessage(normalized, convId)).then(r => {
-      if (r?.error) {
-        fallito("msg.send", r.error, `Chat: invio messaggio fallito: ${r.error.message || ""}`);
-      }
-    });
+
+    // A-2: marca il messaggio come "in volo" PRIMA di qualunque await — è la
+    // stessa finestra di rischio descritta in state/persistence.js per i
+    // task: un evento realtime altrui può far ripartire il reload della chat
+    // (il sottosistema con la frequenza di scrittura più alta dell'app)
+    // prima che questa INSERT abbia fatto commit.
+    marcaInVolo(convId, normalized);
+
+    // Il messaggio non è mai arrivato sul server: lasciarlo a schermo lo
+    // rende indistinguibile da uno consegnato, e sparirebbe da solo al
+    // reload — cioè nel momento in cui l'utente non lo sta più guardando.
+    // Toglierlo qui, insieme al toast, è l'unica versione onesta di "non è
+    // partito". Prima non c'era alcuna compensazione: il messaggio fantasma
+    // restava a schermo fino al refresh successivo.
+    const scartaOttimistico = () => {
+      setMessages(prev => ({
+        ...prev,
+        [convId]: (prev[convId] || []).filter(m => m.id !== normalized.id),
+      }));
+    };
+
+    const invia = () => MessagesAPI.send(toDbMessage(normalized, convId))
+      .then(r => {
+        if (r?.error) {
+          scartaOttimistico();
+          fallito("msg.send", r.error, `Chat: invio messaggio fallito: ${r.error.message || ""}`);
+        }
+      })
+      // finally e non .then(): un errore di rete che lasciasse l'id marcato
+      // per sempre bloccherebbe quel messaggio dal realtime per il resto
+      // della sessione — stessa ragione del finally in useSyncedDispatch.
+      .finally(() => smarcaInVolo(normalized.id));
+
     // Se la conversazione è appena stata creata e l'INSERT è ancora in volo,
     // aspetta. Se quella creazione è fallita non si tenta l'invio: il toast
-    // d'errore è già stato mostrato e un secondo errore non aggiunge nulla.
+    // d'errore è già stato mostrato per la conversazione, ma il messaggio
+    // fantasma va comunque tolto e smarcato — non lo farà mai nessun altro.
     const attesa = creazioniInVolo.get(convId);
-    if (attesa) attesa.then(r => { if (!r?.error) invia(); });
-    else invia();
+    if (attesa) {
+      attesa.then(r => {
+        if (r?.error) {
+          scartaOttimistico();
+          smarcaInVolo(normalized.id);
+        } else {
+          invia();
+        }
+      });
+    } else {
+      invia();
+    }
     return normalized;
   };
 
@@ -203,18 +249,31 @@ export function makeChatCommands({
   // messages_toggle_reaction fa read-modify-write sotto lock di riga e usa
   // sempre auth.uid() come reactor. Scrivere l'intero oggetto `reactions`
   // calcolato qui sarebbe last-write-wins fra due utenti che reagiscono
-  // insieme. In caso di errore si torna allo snapshot pre-toggle.
+  // insieme. In caso di errore si torna alle SOLE reazioni precedenti del
+  // messaggio toccato.
+  //
+  // A-2 dell'audit del 14 agosto (secondo passaggio): prima il rollback
+  // ripristinava uno snapshot dell'INTERA mappa `messages` — tutte le
+  // conversazioni, non solo quella toccata. Fra il toggle e la risposta della
+  // RPC passa un round-trip, e in quella finestra possono arrivare messaggi
+  // nuovi da realtime: ripristinare lo snapshot totale li cancellava dallo
+  // stato, in ogni conversazione — un rollback che per annullare un'emoji
+  // portava via dei messaggi, senza che nulla poi li rimettesse (non erano
+  // mai stati toccati sul server). Qui si ricorda solo `reactions` del
+  // messaggio toccato, e si applica un merge puntuale.
   const toggleReaction = (convId, msgId, emoji) => {
     const uid = getCurrentUserId();
     if (!convId || !msgId || !emoji || !uid) return;
-    let snapshot = null;
+    let reazioniPrima;
+    let trovato = false;
     setMessages(prev => {
       const list = prev[convId];
       if (!list) return prev;
-      snapshot = prev;
       const next = list.map(m => {
         if (m.id !== msgId) return m;
-        const reactions = { ...(m.reactions || {}) };
+        trovato = true;
+        reazioniPrima = m.reactions || {};
+        const reactions = { ...reazioniPrima };
         const users = reactions[emoji] || [];
         if (users.includes(uid)) {
           const rimasti = users.filter(u => u !== uid);
@@ -225,12 +284,18 @@ export function makeChatCommands({
         }
         return { ...m, reactions };
       });
-      return { ...prev, [convId]: next };
+      return trovato ? { ...prev, [convId]: next } : prev;
     });
     if (!enabled || !isUuid(msgId)) return;
     MessagesAPI.toggleReaction(msgId, emoji).then(r => {
       if (r?.error) {
-        if (snapshot) setMessages(snapshot);
+        if (trovato) {
+          setMessages(prev => ({
+            ...prev,
+            [convId]: (prev[convId] || []).map(m =>
+              (m.id === msgId ? { ...m, reactions: reazioniPrima } : m)),
+          }));
+        }
         fallito("toggleReaction", r.error, `Chat: reazione non salvata: ${r.error.message || ""}`);
       }
     });

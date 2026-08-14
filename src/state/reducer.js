@@ -22,11 +22,13 @@ import { STATUS_LABELS, toDbRole, toSeniority, roleLabel } from "../lib/taskCons
 import {
   getMember, isAdmin,
   canAccessAdmin, canAccessListe, canViewTask, canEditTask, canCreateTaskCategory, canEditNotice,
+  canEditClient, canDeleteClient,
 } from "../lib/permissions.js";
 // Le voci del log attività (quali azioni ci finiscono e come si leggono) hanno
 // un file loro: non sono transizioni di stato, sono il dizionario che le
 // racconta. Vedi state/activityLog.js per il perché della separazione.
 import { LOGGED_ACTIONS, buildLogEntry } from "./activityLog.js";
+import { applyRestoreBackupRollback } from "./restoreBackupRollback.js";
 import { INITIAL_CATEGORIES } from "./taskCategories.js";
 import { demoState } from "./demoState.js";
 import { chiaveNome } from "../lib/clientNotes.js";
@@ -486,6 +488,13 @@ function baseReducer(state, action) {
         toasts: pushToast(state.toasts, { message: "Backup ripristinato: dati uniti a quelli esistenti", type: "success" })
       };
     }
+    // M-1 dell'audit del 14 agosto (secondo passaggio): compensa SOLO le
+    // righe che RESTORE_BACKUP non è riuscita a scrivere sul server. Il
+    // calcolo è in restoreBackupRollback.js (non una transizione di stato in
+    // sé, vedi il commento lì). Nessun toast: quello d'errore lo mostra già
+    // `fail()` in useSyncedDispatch, come ROLLBACK_TASKS_BULK.
+    case "ROLLBACK_RESTORE_BACKUP":
+      return applyRestoreBackupRollback(state, action.payload);
     case "CLEAR_ACTIVITY_LOG": {
       return { ...state, activityLog: [], toasts: pushToast(state.toasts, { message: "Log attività svuotato", type: "success" }) };
     }
@@ -575,7 +584,15 @@ function baseReducer(state, action) {
     // ─── CRM: CLIENTI ───
     case "SET_CLIENTS":
       return { ...state, clients: Array.isArray(action.payload) ? action.payload : [] };
+    // A-1 dell'audit del 14 agosto (secondo passaggio): stesso pattern già
+    // applicato agli avvisi lo stesso giorno. Senza questi tre controlli, un
+    // ruolo a cui useSyncedDispatch nega la scrittura (guard in
+    // state/persistence.js) vedrebbe comunque l'azione applicata IN LOCALE —
+    // il pre-check dell'orchestratore impedisce solo la richiesta di rete, non
+    // il dispatch che arriva qui, ed è proprio questo reducer a dover
+    // rifiutare per davvero.
     case "ADD_CLIENT":
+      if (!canEditClient(state.team, uid)) return _denied("Non hai i permessi per aggiungere un cliente");
       return { ...state, clients: [action.payload, ...(state.clients || [])], toasts: pushToast(state.toasts, { message: "Cliente aggiunto!", type: "success" }) };
     case "ADD_CLIENTS_BULK": {
       const n = action.payload.length;
@@ -583,10 +600,12 @@ function baseReducer(state, action) {
       return { ...state, clients, toasts: pushToast(state.toasts, { message: `${n} client${n === 1 ? "e" : "i"} importat${n === 1 ? "o" : "i"}!`, type: "success" }) };
     }
     case "UPDATE_CLIENT": {
+      if (!canEditClient(state.team, uid)) return _denied("Non hai i permessi per modificare questo cliente");
       const clients = (state.clients || []).map(c => c.id === action.payload.id ? { ...c, ...action.payload } : c);
       return { ...state, clients, toasts: pushToast(state.toasts, { message: "Cliente aggiornato!", type: "success" }) };
     }
     case "DELETE_CLIENT": {
+      if (!canDeleteClient(state.team, uid)) return _denied("Solo Admin e Manager possono rimuovere un cliente");
       const clients = (state.clients || []).filter(c => c.id !== action.payload);
       return { ...state, clients, toasts: pushToast(state.toasts, { message: "Cliente rimosso", type: "success" }) };
     }
@@ -621,6 +640,17 @@ function baseReducer(state, action) {
         ...state, tasks, selectedTask,
         toasts: pushToast(state.toasts, { message: `${n} task aggiornat${n === 1 ? "o" : "i"} col nuovo nome cliente`, type: "success" }),
       };
+    }
+    // M-2 dell'audit del 14 agosto (secondo passaggio): riporta al nome
+    // PRECEDENTE (`from`) i soli task il cui update non è arrivato sul
+    // server — gli altri restano rinominati, perché sul server lo sono
+    // davvero. Nessun toast: quello d'errore lo mostra già `fail()`.
+    case "ROLLBACK_RENAME_CLIENT_IN_TASKS": {
+      const { ids, from } = action.payload || {};
+      const idSet = new Set(ids || []);
+      if (!idSet.size) return state;
+      const tasks = (state.tasks || []).map(t => (idSet.has(t.id) ? { ...t, client: from } : t));
+      return { ...state, tasks };
     }
     // Riporta in lista un cliente la cui DELETE_CLIENT ottimistica è stata
     // respinta dal DB (es. foreign key su liste_viaggio): senza questo la UI

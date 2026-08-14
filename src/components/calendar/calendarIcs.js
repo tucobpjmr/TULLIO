@@ -3,6 +3,7 @@
 // download, che tocca il DOM ma non lo stato): stavano in testa a
 // CalendarPlanner.jsx e con il calendario non condividevano nulla.
 import { isActiveTask } from "../../lib/taskUtils.js";
+import { scaricaBlob } from "../../lib/fileUtils.js";
 
 function pad2(n) { return String(n).padStart(2, "0"); }
 function icsDate(d) {
@@ -16,7 +17,18 @@ function icsDate(d) {
 export function icsEscape(s) {
   return String(s ?? "")
     .replace(/\\/g, "\\\\")
-    .replace(/\n/g, "\\n")
+    // B-1 dell'audit del 14 agosto (secondo passaggio). Una content line RFC
+    // 5545 §3.1 non può contenere un ritorno a capo GREZZO: CRLF, CR nudo e LF
+    // nudo diventano tutti la stessa sequenza di escape. Prima la regola
+    // guardava solo \n — un CR nudo (arriva dai file importati con
+    // terminatore Windows, es. un titolo copiato da un CSV/Excel via
+    // ImportTab/ClientImportModal) passava indenne, e il testo dopo il CR
+    // finiva come contenuto grezzo dentro la content line: un parser stretto
+    // la considera non conforme, uno leniente la spezza — la stessa premessa
+    // con cui si inietterebbero proprietà nel calendario di chi importa il
+    // file. L'ordine conta: va PRIMA delle sostituzioni di virgola/punto e
+    // virgola, che non toccano \r\n.
+    .replace(/\r\n|\r|\n/g, "\\n")
     .replace(/,/g, "\\,")
     .replace(/;/g, "\\;");
 }
@@ -90,15 +102,14 @@ export function exportTasksToIcs(allTasks, canView) {
   if (tasks.length === 0) return;
   const ics = buildIcs(tasks);
   const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
   const ts = new Date().toISOString().slice(0, 10);
-  a.href = url;
-  a.download = `voyagedesk-tasks-${ts}.ics`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  // M-3 dell'audit del 14 agosto (secondo passaggio): questo era il terzo
+  // call site della stessa "scarica un Blob", e l'unico dei tre a revocare
+  // l'object URL nello STESSO TICK del click invece che dopo un margine — su
+  // Safari/iOS revocarla subito può far fallire il download. `scaricaBlob`
+  // (lib/fileUtils.js) è l'unica implementazione, con il margine di 500ms
+  // che gli altri due call site avevano già.
+  scaricaBlob(blob, `voyagedesk-tasks-${ts}.ics`);
 }
 
 

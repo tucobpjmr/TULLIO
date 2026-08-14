@@ -60,7 +60,10 @@ import {
   toDbTask, toDbTaskPatch, toDbNotice, toDbNoticePatch,
   toDbClient, toDbClientPatch, toDbCategory, toDbMessageTemplate, newId, isUuid,
 } from "../lib/mappers.js";
-import { canEditTask, canViewTask, canCreateTaskCategory, canEditNotice, isAdmin } from "../lib/permissions.js";
+import {
+  canEditTask, canViewTask, canCreateTaskCategory, canEditNotice, isAdmin,
+  canEditClient, canDeleteClient,
+} from "../lib/permissions.js";
 import { toDbRole, toSeniority } from "../lib/taskConstants.js";
 import { chiaveNome } from "../lib/clientNotes.js";
 
@@ -320,12 +323,25 @@ export const PERSISTENCE = {
   // gen_random_uuid() e lo stato React conservava l'altro, rendendo
   // UPDATE_CLIENT/DELETE_CLIENT no-op fino al reload successivo.
   // `isUuid` come per i task: un id già valido non va rigenerato.
+  //
+  // A-1 dell'audit del 14 agosto (secondo passaggio): le tre mutazioni erano
+  // le uniche del registry senza `guard` — stessa lacuna già chiusa sugli
+  // avvisi lo stesso giorno, rimasta aperta qui. canEditClient rispecchia le
+  // policy RLS clients_insert/update (vedi lib/permissions.js).
   ADD_CLIENT: {
+    guard: (s, a, uid) => canEditClient(s.team, uid),
     normalize: (a) => ({
       ...a,
       payload: { ...a.payload, id: isUuid(a.payload?.id) ? a.payload.id : newId() },
     }),
     persist: (s, a) => ClientsAPI.create(toDbClient(a.payload)),
+    // La riga inserita in ottimistico non esiste sul server se l'INSERT non
+    // arriva: senza rimuoverla, l'utente ci lavora sopra (una lista viaggio,
+    // un task) e la scrittura successiva fallisce per foreign key su un
+    // cliente che non è mai esistito. Riusa ROLLBACK_CLIENTS_BULK (accetta un
+    // array di id) invece di un case nuovo che farebbe la stessa cosa.
+    rollback: (s, a) => ({ type: "ROLLBACK_CLIENTS_BULK", payload: [a.payload.id] }),
+    mapError: (err) => err?.message || "cliente non salvato",
   },
 
   // A-2 dell'audit dell'11 agosto: N `create()` in Promise.all non è né
@@ -363,25 +379,61 @@ export const PERSISTENCE = {
   // toDbClientPatch e non toDbClient: l'id è già nella clausola WHERE, e
   // mandarlo anche fra i campi da scrivere significherebbe riscrivere la
   // chiave primaria della riga che si sta modificando.
-  UPDATE_CLIENT: { persist: (s, a) => ClientsAPI.update(a.payload.id, toDbClientPatch(a.payload)) },
+  UPDATE_CLIENT: {
+    guard: (s, a, uid) => canEditClient(s.team, uid),
+    persist: (s, a) => ClientsAPI.update(a.payload.id, toDbClientPatch(a.payload)),
+    // Si rimanda la scheda INTERA pre-dispatch, non un patch: il case del
+    // reducer fa merge di `...action.payload` sulla riga esistente, quindi un
+    // sottoinsieme lascerebbe a video i campi che il patch aveva cambiato — un
+    // rollback parziale, che sembra riuscito ed è peggio di nessuno. Stessa
+    // ragione di UPDATE_NOTICE e UPDATE_TEAM_MEMBER.
+    rollback: (s, a) => {
+      const prev = (s.clients || []).find(c => c.id === a.payload?.id);
+      return prev ? { type: "UPDATE_CLIENT", payload: prev } : null;
+    },
+    mapError: (err) => err?.message || "cliente non aggiornato",
+  },
 
   // Propagazione del rename cliente sui task che lo citano per nome
   // (task.client è testo libero, non una FK). Il filtro deve essere lo STESSO
   // del reducer — chiave normalizzata + canEditTask — altrimenti UI e database
   // toccherebbero righe diverse.
+  //
+  // M-2 dell'audit del 14 agosto (secondo passaggio). Prima era un
+  // `Promise.all` di N update senza alcuna compensazione: il reducer ha già
+  // rinominato TUTTI i task idonei, e se una delle N update falliva (rete,
+  // RLS su un task riassegnato nel frattempo) lo schermo mostrava il nome
+  // nuovo ovunque mentre il server ne aveva una parte con quello vecchio — e
+  // siccome la scheda cliente trova i task PER NOME, quelli rimasti indietro
+  // smettevano di comparirci, in silenzio. `Promise.allSettled` (non `.all`,
+  // che si fermerebbe al primo rifiuto lasciando ignoto l'esito degli altri)
+  // fa procedere ogni update indipendentemente dagli altri, e i soli id
+  // falliti tornano al nome precedente.
   RENAME_CLIENT_IN_TASKS: {
-    persist: (s, a, uid) => {
+    persist: async (s, a, uid) => {
       const { from, to } = a.payload || {};
       const k = chiaveNome(from);
       if (!k || !to || chiaveNome(to) === k) return NOOP;
       const daAggiornare = (s.tasks || [])
         .filter(t => chiaveNome(t.client) === k && canEditTask(s.team, t, uid));
       if (!daAggiornare.length) return NOOP;
-      return Promise.all(daAggiornare.map(t => TasksAPI.update(t.id, { client_id: to })));
+      const esiti = await Promise.allSettled(
+        daAggiornare.map(t => TasksAPI.update(t.id, { client_id: to })));
+      const falliti = daAggiornare.filter((_, i) =>
+        esiti[i].status === "rejected" || esiti[i].value?.error);
+      // Il messaggio conta quanti — "N task su M non aggiornati" è
+      // actionable, "Salvataggio fallito" da solo non lo è.
+      return falliti.length
+        ? { error: { message: `${falliti.length} task su ${daAggiornare.length} non aggiornati` }, falliti }
+        : { error: null };
     },
+    rollback: (s, a, res) => (res?.falliti?.length
+      ? { type: "ROLLBACK_RENAME_CLIENT_IN_TASKS", payload: { ids: res.falliti.map(t => t.id), from: a.payload?.from } }
+      : null),
   },
 
   DELETE_CLIENT: {
+    guard: (s, a, uid) => canDeleteClient(s.team, uid),
     persist: (s, a) => ClientsAPI.remove(a.payload),
     rollback: (s, a) => {
       const prev = (s.clients || []).find(c => c.id === a.payload);
@@ -548,26 +600,92 @@ export const PERSISTENCE = {
   // merge non distruttivo del reducer. Il team resta local-only come
   // ADD/UPDATE_TEAM_MEMBER: i membri sono righe auth.users, non ricreabili né
   // cancellabili da un restore client-side.
+  //
+  // M-1 dell'audit del 14 agosto (secondo passaggio). Prima era un
+  // `Promise.all` con UNA richiesta per riga del file — su un backup completo
+  // (289 task in produzione) centinaia di richieste concorrenti in un colpo
+  // solo, nessun rollback nonostante il reducer avesse già fuso l'intero
+  // backup nello stato: un fallimento parziale mostrava "ripristino
+  // completo" a schermo con una parte non arrivata sul server. Qui i job
+  // (una entry per riga, di ogni tipo) vengono eseguiti a BLOCCHI di
+  // `RESTORE_CHUNK`, e ogni fallimento — riga per riga, non a blocco intero:
+  // a differenza di ADD_CLIENTS_BULK questi non sono un'unica insert
+  // multi-riga, sono chiamate indipendenti — viene tracciato con abbastanza
+  // informazione (tipo, chiave, se la riga esisteva già) da poter essere
+  // compensato con precisione chirurgica invece che con un rollback totale.
   RESTORE_BACKUP: {
-    persist: (s, a) => {
+    persist: async (s, a) => {
       const payload = a.payload || {};
       const taskIds = new Set((s.tasks || []).map(t => t.id));
       const categoryKeys = new Set(Object.keys(s.categories || {}));
       const noticeIds = new Set((s.notices || []).map(n => n.id));
-      const ops = [
-        ...(Array.isArray(payload.tasks) ? payload.tasks.map(t => (taskIds.has(t.id)
-          ? TasksAPI.update(t.id, toDbTaskPatch(t))
-          : TasksAPI.create(toDbTask(t)))) : []),
+
+      // `esisteva` distingue le due compensazioni possibili per un job
+      // fallito: una riga che ESISTEVA va riportata al proprio valore
+      // pre-dispatch (recuperabile da `s`); una riga CREATA da questo
+      // restore non è mai arrivata sul server, quindi va tolta dalla UI
+      // invece di restarci come record fantasma.
+      const jobs = [
+        ...(Array.isArray(payload.tasks) ? payload.tasks.map(t => ({
+          tipo: "tasks", key: t.id, esisteva: taskIds.has(t.id),
+          run: () => (taskIds.has(t.id) ? TasksAPI.update(t.id, toDbTaskPatch(t)) : TasksAPI.create(toDbTask(t))),
+        })) : []),
         ...(payload.categories && typeof payload.categories === "object"
-          ? Object.entries(payload.categories).map(([key, cat]) => (categoryKeys.has(key)
-            ? CategoriesAPI.update(key, cat)
-            : CategoriesAPI.create(toDbCategory({ key, ...cat })))) : []),
-        ...(Array.isArray(payload.notices) ? payload.notices.map(n => (noticeIds.has(n.id)
-          ? NoticesAPI.update(n.id, toDbNoticePatch(n))
-          : NoticesAPI.create(toDbNotice(n)))) : []),
+          ? Object.entries(payload.categories).map(([key, cat]) => ({
+            tipo: "categories", key, esisteva: categoryKeys.has(key),
+            run: () => (categoryKeys.has(key) ? CategoriesAPI.update(key, cat) : CategoriesAPI.create(toDbCategory({ key, ...cat }))),
+          })) : []),
+        ...(Array.isArray(payload.notices) ? payload.notices.map(n => ({
+          tipo: "notices", key: n.id, esisteva: noticeIds.has(n.id),
+          run: () => (noticeIds.has(n.id) ? NoticesAPI.update(n.id, toDbNoticePatch(n)) : NoticesAPI.create(toDbNotice(n))),
+        })) : []),
       ];
-      return ops.length ? Promise.all(ops) : NOOP;
+      if (!jobs.length) return NOOP;
+
+      const RESTORE_CHUNK = 50;
+      const falliti = [];
+      for (let i = 0; i < jobs.length; i += RESTORE_CHUNK) {
+        const blocco = jobs.slice(i, i + RESTORE_CHUNK);
+        const esiti = await Promise.allSettled(blocco.map(j => j.run()));
+        esiti.forEach((esito, idx) => {
+          const errore = esito.status === "rejected" ? esito.reason : esito.value?.error;
+          if (errore) falliti.push({ ...blocco[idx], error: errore });
+        });
+        // Nessuno short-circuit: un job fallito (RLS, vincolo, rete) non
+        // implica che i successivi falliranno — ogni riga è una chiamata
+        // indipendente, non un'unica insert atomica.
+      }
+      return falliti.length ? { error: falliti[0].error, falliti } : { error: null };
     },
+    // Riporta indietro SOLO le righe che non sono arrivate sul server:
+    // `res.falliti` (popolato da `persist`, sopra) porta tipo/chiave/se
+    // esisteva già per ciascuna. Le altre — la stragrande maggioranza di un
+    // fallimento parziale — restano quelle che il reducer ha già fuso, che è
+    // corretto: sul server ci sono arrivate davvero.
+    rollback: (s, a, res) => {
+      const falliti = res?.falliti || [];
+      if (!falliti.length) return null;
+      const daRipristinare = { tasks: [], categories: {}, notices: [] };
+      const daRimuovere = { tasks: [], categories: [], notices: [] };
+      for (const f of falliti) {
+        if (f.esisteva) {
+          if (f.tipo === "tasks") {
+            const prev = (s.tasks || []).find(t => t.id === f.key);
+            if (prev) daRipristinare.tasks.push(prev);
+          } else if (f.tipo === "categories") {
+            const prev = (s.categories || {})[f.key];
+            if (prev) daRipristinare.categories[f.key] = prev;
+          } else if (f.tipo === "notices") {
+            const prev = (s.notices || []).find(n => n.id === f.key);
+            if (prev) daRipristinare.notices.push(prev);
+          }
+        } else {
+          daRimuovere[f.tipo].push(f.key);
+        }
+      }
+      return { type: "ROLLBACK_RESTORE_BACKUP", payload: { daRipristinare, daRimuovere } };
+    },
+    mapError: (err) => err?.message || "ripristino backup incompleto: alcune righe non sono state salvate",
   },
 
   // ─── PROFILO PERSONALE ─────────────────────────────────────────────────────

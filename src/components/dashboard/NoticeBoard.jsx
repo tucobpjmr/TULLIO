@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
+import { canEditNotice } from "../../lib/permissions.js";
 import { NoticeEditorModal } from "../modals/NoticeEditorModal.jsx";
 import { MentionText } from "../ui/MentionText.jsx";
 import { SkeletonCards } from "../ui/SkeletonCards.jsx";
@@ -26,7 +27,7 @@ const NOTICE_REACTION_EMOJI = ["👍", "❤️", "🎉", "👀", "🔥", "✅"];
 // ancora visto.
 export const NoticeBoard = ({ notices, dispatch, loading = false }) => {
   const conferma = useConfirm();
-  const { getMember, currentUserId } = useAppData();
+  const { team, getMember, currentUserId } = useAppData();
   const [editing, setEditing] = useState(null); // null | { id?, text, color }
   const [creating, setCreating] = useState(false);
   // v2.8: filtro per tag (Set di tag attivi; vuoto = mostra tutto).
@@ -148,6 +149,16 @@ export const NoticeBoard = ({ notices, dispatch, loading = false }) => {
         <div style={gridGap16}>
           {sorted.map((n) => {
             const author = getMember(n.author);
+            // A-1 dell'audit del 14 agosto: la RLS nega update/delete/pin a
+            // chi non è l'autore né un manager/admin (canEditNotice rispecchia
+            // esattamente quella policy). Prima i tre pulsanti comparivano su
+            // OGNI avviso: chi non era autore vedeva il reducer applicare
+            // l'azione in ottimistico, poi la scrittura fallire lato server —
+            // due toast contraddittori sullo stesso gesto. Nascondere il
+            // pulsante non sostituisce guard/rollback (è una scelta di
+            // layout, non un controllo), ma senza di esso l'utente prova
+            // un'azione che il database rifiuterà sempre.
+            const modificabile = canEditNotice(team, n, currentUserId);
             const rotation = ((n.id.charCodeAt(n.id.length - 1) % 5) - 2) * 0.7; // -1.4 a +1.4 deg
             return (
               <div
@@ -178,32 +189,39 @@ export const NoticeBoard = ({ notices, dispatch, loading = false }) => {
                   <div style={txtAbsoluteF18}>📌</div>
                 )}
 
-                {/* Toolbar actions */}
+                {/* Toolbar actions. La reazione resta a chiunque (v2.8: è
+                    puramente locale, nessuna RPC — TOGGLE_NOTICE_REACTION è
+                    in NON_PERSISTITE_OGGI di persistenceGuards.test.js);
+                    pin/modifica/elimina solo a chi la RLS lo concederebbe. */}
                 <div style={rowAbsoluteGap2}>
                   <button
                     onClick={() => setReactingId(reactingId === n.id ? null : n.id)}
                     title="Reagisci"
                     style={noticeBtnStyle}
                   >😀</button>
-                  <button
-                    onClick={() => dispatch({ type: "TOGGLE_PIN_NOTICE", payload: n.id })}
-                    title={n.pinned ? "Rimuovi pin" : "Fissa in alto"}
-                    style={noticeBtnStyle}
-                  >{n.pinned ? "📍" : "📌"}</button>
-                  <button
-                    onClick={() => setEditing({ id: n.id, text: n.text, color: n.color, pinned: n.pinned, tags: n.tags })}
-                    title="Modifica"
-                    style={noticeBtnStyle}
-                  >✏️</button>
-                  <button
-                    onClick={async () => {
-                      if (await conferma({ title: "Eliminare questo avviso?", cta: "Elimina", danger: true })) {
-                        dispatch({ type: "DELETE_NOTICE", payload: n.id });
-                      }
-                    }}
-                    title="Elimina"
-                    style={noticeBtnStyle}
-                  >✕</button>
+                  {modificabile && (
+                    <>
+                      <button
+                        onClick={() => dispatch({ type: "TOGGLE_PIN_NOTICE", payload: n.id })}
+                        title={n.pinned ? "Rimuovi pin" : "Fissa in alto"}
+                        style={noticeBtnStyle}
+                      >{n.pinned ? "📍" : "📌"}</button>
+                      <button
+                        onClick={() => setEditing({ id: n.id, text: n.text, color: n.color, pinned: n.pinned, tags: n.tags })}
+                        title="Modifica"
+                        style={noticeBtnStyle}
+                      >✏️</button>
+                      <button
+                        onClick={async () => {
+                          if (await conferma({ title: "Eliminare questo avviso?", cta: "Elimina", danger: true })) {
+                            dispatch({ type: "DELETE_NOTICE", payload: n.id });
+                          }
+                        }}
+                        title="Elimina"
+                        style={noticeBtnStyle}
+                      >✕</button>
+                    </>
+                  )}
                 </div>
 
                 {/* Picker reazioni (v2.8): si apre cliccando 😀 */}

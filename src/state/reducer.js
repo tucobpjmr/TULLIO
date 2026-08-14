@@ -21,7 +21,7 @@
 import { STATUS_LABELS, toDbRole, toSeniority, roleLabel } from "../lib/taskConstants.js";
 import {
   getMember, isAdmin,
-  canAccessAdmin, canAccessListe, canViewTask, canEditTask, canCreateTaskCategory,
+  canAccessAdmin, canAccessListe, canViewTask, canEditTask, canCreateTaskCategory, canEditNotice,
 } from "../lib/permissions.js";
 // Le voci del log attività (quali azioni ci finiscono e come si leggono) hanno
 // un file loro: non sono transizioni di stato, sono il dizionario che le
@@ -498,7 +498,23 @@ function baseReducer(state, action) {
       const notices = [action.payload, ...state.notices];
       return { ...state, notices, toasts: pushToast(state.toasts, { message: "Avviso pubblicato in bacheca", type: "success" }) };
     }
+    // A-1 dell'audit del 14 agosto: prima queste tre azioni non controllavano
+    // ALCUN permesso qui — a differenza di UPDATE_TASK/DELETE_TASK, che
+    // negano con canEditTask prima di applicare. Il gate viveva solo nel
+    // guard di persistence.js, e useSyncedDispatch, quando un guard nega,
+    // dispatcha comunque l'AZIONE ORIGINALE contando sul reducer per
+    // produrre il toast di rifiuto (vedi il commento in cima a quel file).
+    // Senza canEditNotice anche qui, quella richiesta veniva applicata in
+    // locale lo stesso — "Avviso aggiornato" mostrato a un utente la cui
+    // scrittura la RLS avrebbe respinto, e nessun rollback lo correggeva
+    // perché dal punto di vista dell'orchestratore l'azione non era stata
+    // negata affatto. Stesso pattern dei task: `if (!prev) return state`
+    // (record fantasma, no-op silenzioso) poi `if (!canEditNotice(...))
+    // return _denied()`.
     case "UPDATE_NOTICE": {
+      const prev = state.notices.find(n => n.id === action.payload.id);
+      if (!prev) return state;
+      if (!canEditNotice(state.team, prev, uid)) return _denied("Non hai i permessi per modificare questo avviso");
       const notices = state.notices.map(n =>
         n.id === action.payload.id
           ? { ...n, ...action.payload, updatedAt: new Date().toISOString() }
@@ -507,14 +523,32 @@ function baseReducer(state, action) {
       return { ...state, notices, toasts: pushToast(state.toasts, { message: "Avviso aggiornato", type: "success" }) };
     }
     case "DELETE_NOTICE": {
+      const prev = state.notices.find(n => n.id === action.payload);
+      if (!prev) return state;
+      if (!canEditNotice(state.team, prev, uid)) return _denied("Non hai i permessi per eliminare questo avviso");
       const notices = state.notices.filter(n => n.id !== action.payload);
       return { ...state, notices, toasts: pushToast(state.toasts, { message: "Avviso rimosso dalla bacheca", type: "success" }) };
     }
     case "TOGGLE_PIN_NOTICE": {
+      const prev = state.notices.find(n => n.id === action.payload);
+      if (!prev) return state;
+      if (!canEditNotice(state.team, prev, uid)) return _denied("Non hai i permessi per fissare questo avviso");
       const notices = state.notices.map(n =>
         n.id === action.payload ? { ...n, pinned: !n.pinned } : n
       );
       return { ...state, notices };
+    }
+    // Riporta in bacheca un avviso la cui DELETE_NOTICE ottimistica è stata
+    // respinta dal DB (RLS: non è l'autore né un manager/admin) — gemello
+    // silenzioso di RESTORE_CLIENT. Senza questo case la UI resterebbe
+    // disallineata dal database finché non arriva un reload completo: una
+    // DELETE fallita non produce un evento realtime che la corregga (A-1
+    // dell'audit del 14 agosto). UPDATE_NOTICE non ne ha bisogno: il suo
+    // rollback rimanda un altro UPDATE_NOTICE, che il case sopra applica come
+    // un merge sulla riga esistente.
+    case "RESTORE_NOTICE": {
+      if (!action.payload || (state.notices || []).some(n => n.id === action.payload.id)) return state;
+      return { ...state, notices: [...(state.notices || []), action.payload] };
     }
     case "TOGGLE_NOTICE_REACTION": {
       // v2.8: stesso shape della chat — { emoji: [userId, ...] }. Toggle del

@@ -177,3 +177,25 @@ export const getAvailableCategories = (categories, team, userId) => {
   if (isDriver(team, userId)) return { transfer: (categories || {}).transfer };
   return categories || {};
 };
+
+// ─── BACHECA AVVISI ──────────────────────────────────────────────────────────
+// Rispecchia le policy RLS `notices_update`/`notices_delete`
+// (`author_id = auth.uid() OR is_manager_or_admin()`, migrazione iniziale):
+// solo l'autore, un manager o un admin possono modificare/eliminare/pinnare un
+// avviso altrui. `notice.author` è il campo camelCase che i mapper (toDbNotice/
+// fromDbNotice) fanno corrispondere a `author_id` — non un id diverso.
+//
+// PERCHÉ ESISTE (A-1 dell'audit del 14 agosto). Prima UPDATE_NOTICE/
+// DELETE_NOTICE/TOGGLE_PIN_NOTICE erano le uniche mutazioni del registry di
+// persistenza senza guard: la UI mostrava i tre pulsanti a chiunque, il
+// reducer applicava sempre l'azione in ottimistico, e solo la RLS — che
+// nessun rollback ascoltava — la rifiutava davvero. L'utente vedeva "Avviso
+// rimosso dalla bacheca" e "Salvataggio fallito" sullo stesso gesto, e
+// l'avviso restava sparito dalla UI fino al reload (la DELETE fallita non
+// genera un evento realtime che lo riporti).
+export const canEditNotice = (team, notice, userId) => {
+  if (!notice || !userId) return false;
+  if (notice.author === userId) return true;
+  const role = getRoleType(team, userId);
+  return role === 'admin' || role === 'manager';
+};

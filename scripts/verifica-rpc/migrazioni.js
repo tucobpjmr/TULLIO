@@ -136,3 +136,32 @@ export function trovaNonVersionate({ locali, applicate, alias = ALIAS_APPLICATE 
     !prefissiLocali.has(a.version) && !slugLocali.has(a.name) && !alias.has(a.name)
   ));
 }
+
+// ── Riapplicazioni: un nome, più versioni ───────────────────────────────────
+// M-2 dell'audit del 15 agosto. `confrontaMigrazioni` e `trovaNonVersionate`
+// costruiscono entrambe un `Set` dei nomi applicati: un nome che compare due
+// volte nel ledger (la stessa migrazione applicata due volte, con due
+// `version` diverse) collassa nello stesso elemento del Set e diventa
+// indistinguibile da un nome applicato una volta sola. Nessuno dei due
+// controlli può quindi accorgersi che è successo — non è un difetto loro, è
+// una domanda che non si sono mai posti.
+//
+// La riapplicazione in sé non è un allarme: succede quando si corregge una
+// migrazione già viva (`messages_blocca_modifiche_altrui_fix_sender_anchor`,
+// sopra, è lo stesso caso, solo con un file consolidato dopo). Il punto è che
+// SE il corpo SQL applicato è cambiato fra le due volte, la produzione oggi
+// esegue una versione del file che il repository non ha più — e nessun
+// controllo esistente lo direbbe. Questa funzione nomina il fatto; verificare
+// se il corpo corrisponde resta un controllo manuale (vedi il commento in
+// testa a questo file per l'ultimo verificato).
+//
+// @param applicate Array di { version, name } (da get_migrazioni_applicate).
+// @returns Array di [nome, versioni[]] per ogni nome applicato più di una
+//          volta, versioni in ordine di apparizione.
+export function trovaRiapplicate(applicate) {
+  const versioniPerNome = new Map();
+  for (const a of applicate) {
+    versioniPerNome.set(a.name, [...(versioniPerNome.get(a.name) ?? []), a.version]);
+  }
+  return [...versioniPerNome].filter(([, versioni]) => versioni.length > 1);
+}

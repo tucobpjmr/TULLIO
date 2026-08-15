@@ -594,14 +594,17 @@ export const PERSISTENCE = {
   // rollback qui, un rifiuto della RLS diventa finalmente osservabile su
   // entrambi i lati — toast rosso E stato riportato indietro.
   APPROVE_TEAM_MEMBER: {
-    persist: (s, a) => UsersAPI.approve(a.payload),
+    // C-1 dell'audit del 15 agosto: `payload` è ora `{ id, role }` — il
+    // ruolo che l'admin ha scelto in AdminTeamTab al momento dell'approvazione,
+    // non quello che la riga si porta dietro dalla creazione dell'account.
+    persist: (s, a) => UsersAPI.approve(a.payload.id, a.payload.role),
     // Si rimanda il membro INTERO pre-dispatch: il case di UPDATE_TEAM_MEMBER
     // fa merge sulla riga esistente, quindi rimandare `{ pending: true }` da
     // solo lascerebbe a video l'`active` che l'approvazione ha cambiato — un
     // rollback parziale, che sembra riuscito ed è peggio di nessuno (stessa
     // ragione di UPDATE_NOTICE e UPDATE_CLIENT).
     rollback: (s, a) => {
-      const prev = (s.team || []).find(m => m.id === a.payload);
+      const prev = (s.team || []).find(m => m.id === a.payload.id);
       return prev ? { type: "UPDATE_TEAM_MEMBER", payload: prev } : null;
     },
     mapError: (err) => err?.message || "utente non approvato",

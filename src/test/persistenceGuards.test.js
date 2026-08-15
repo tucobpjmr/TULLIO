@@ -391,12 +391,28 @@ describe("persistence — rollback dichiarati", () => {
   it("APPROVE_TEAM_MEMBER riporta indietro il membro INTERO pre-approvazione", () => {
     const membro = { id: "u9", name: "Nuovo", role: "agent", active: false, pending: true };
     const state = { ...statoCon([], "admin1"), team: [...TEAM, membro] };
-    const action = { type: "APPROVE_TEAM_MEMBER", payload: "u9" };
+    const action = { type: "APPROVE_TEAM_MEMBER", payload: { id: "u9", role: "agent" } };
     // Il membro intero, non `{ pending: true }`: il case del reducer fa merge,
     // quindi un patch parziale lascerebbe a video l'`active` che
     // l'approvazione ha cambiato.
     expect(PERSISTENCE.APPROVE_TEAM_MEMBER.rollback(state, action))
       .toEqual({ type: "UPDATE_TEAM_MEMBER", payload: membro });
+  });
+
+  // C-1 dell'audit del 15 agosto: il ruolo con cui si approva è quello
+  // dichiarato dall'azione (scelto dall'admin in AdminTeamTab), non quello
+  // già presente sulla riga pending — che per un account auto-registrato era
+  // il ruolo scelto dal registrante stesso. Un `persist` che leggesse il
+  // ruolo dallo state invece che dal payload reintrodurrebbe esattamente la
+  // vulnerabilità che questo fix chiude.
+  it("APPROVE_TEAM_MEMBER scrive il ruolo dell'AZIONE, non quello già sulla riga", async () => {
+    const membro = { id: "u9", name: "Nuovo", role: "admin", active: false, pending: true };
+    const state = { ...statoCon([], "admin1"), team: [...TEAM, membro] };
+    const action = { type: "APPROVE_TEAM_MEMBER", payload: { id: "u9", role: "agent" } };
+
+    await PERSISTENCE.APPROVE_TEAM_MEMBER.persist(state, action);
+
+    expect(UsersAPI.approve).toHaveBeenCalledWith("u9", "agent");
   });
 
   it("REMOVE_TEAM_MEMBER rimette in lista l'utente che il server non ha eliminato", () => {
@@ -413,9 +429,9 @@ describe("persistence — rollback dichiarati", () => {
     const membro = { id: "u9", name: "Nuovo", role: "agent", active: false, pending: true };
     const state = { ...statoCon([], "admin1"), team: [...TEAM, membro] };
 
-    const dopoApprove = reducer(state, { type: "APPROVE_TEAM_MEMBER", payload: "u9" });
+    const dopoApprove = reducer(state, { type: "APPROVE_TEAM_MEMBER", payload: { id: "u9", role: "agent" } });
     expect(dopoApprove.team.find(m => m.id === "u9").pending).toBe(false);
-    const undo = PERSISTENCE.APPROVE_TEAM_MEMBER.rollback(state, { type: "APPROVE_TEAM_MEMBER", payload: "u9" });
+    const undo = PERSISTENCE.APPROVE_TEAM_MEMBER.rollback(state, { type: "APPROVE_TEAM_MEMBER", payload: { id: "u9", role: "agent" } });
     const ripristinato = reducer(dopoApprove, { ...undo, meta: { compensazione: true } });
     expect(ripristinato.team.find(m => m.id === "u9").pending).toBe(true);
     expect(ripristinato.team.find(m => m.id === "u9").active).toBe(false);

@@ -15,7 +15,7 @@
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { analizzaNomeFile, confrontaMigrazioni, trovaNonVersionate, ECCEZIONI_STORICHE } from './migrazioni.js';
+import { analizzaNomeFile, confrontaMigrazioni, trovaNonVersionate, trovaRiapplicate, ECCEZIONI_STORICHE } from './migrazioni.js';
 
 const RADICE = fileURLToPath(new URL('../..', import.meta.url));
 const DIR_MIGRAZIONI = join(RADICE, 'supabase', 'migrations');
@@ -72,6 +72,25 @@ async function main() {
     console.log(`::warning title=Migrazioni non versionate::${nonVersionate.length} migrazioni ` +
       `applicate al database non hanno un file locale corrispondente: ` +
       `${nonVersionate.map((a) => a.name).join(', ')}`);
+  }
+
+  // M-2 dell'audit del 15 agosto: un nome applicato più volte è invisibile a
+  // confrontaMigrazioni/trovaNonVersionate (entrambe usano Set). Non fa
+  // fallire il workflow per la stessa ragione di trovaNonVersionate — una
+  // riapplicazione legittima (correggere una migrazione già viva) è la norma,
+  // non l'eccezione — ma se il corpo SQL è cambiato fra le due applicazioni,
+  // la produzione esegue oggi qualcosa che il repository non ha più: va
+  // nominato, e verificato a mano quando compare.
+  const riapplicate = trovaRiapplicate(applicate);
+  if (riapplicate.length) {
+    console.log(`⚠ ${riapplicate.length} migrazioni applicate più di una volta:\n`);
+    for (const [nome, versioni] of riapplicate) console.log(`    ${nome}: ${versioni.join(', ')}`);
+    console.log('\nSe il corpo SQL non è cambiato fra le applicazioni non serve fare nulla.');
+    console.log('Se è cambiato, la produzione esegue una versione diversa da quella nel file');
+    console.log('locale: verifica il corpo vivo (pg_get_functiondef o pg_policies) contro il');
+    console.log('file corrispondente prima di fidarti di uno dei due.\n');
+    console.log(`::warning title=Migrazioni riapplicate::${riapplicate.length} nomi applicati ` +
+      `più di una volta: ${riapplicate.map(([nome]) => nome).join(', ')}`);
   }
 
   if (mancanti.length) {

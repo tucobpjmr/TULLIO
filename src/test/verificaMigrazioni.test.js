@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  analizzaNomeFile, confrontaMigrazioni, trovaNonVersionate, ALIAS_APPLICATE,
+  analizzaNomeFile, confrontaMigrazioni, trovaNonVersionate, trovaRiapplicate, ALIAS_APPLICATE,
 } from '../../scripts/verifica-rpc/migrazioni.js';
 
 describe('analizzaNomeFile', () => {
@@ -114,6 +114,60 @@ describe('trovaNonVersionate — il verso opposto, produzione → repository', (
     for (const [applicato, fileLocale] of ALIAS_APPLICATE) {
       expect(slugFile, `alias "${applicato}" punta a ${fileLocale}, che non esiste nel repository`).toContain(fileLocale);
     }
+  });
+});
+
+// M-2 dell'audit del 15 agosto: confrontaMigrazioni e trovaNonVersionate
+// costruiscono entrambe un Set dei nomi applicati, quindi un nome che
+// compare due volte nel ledger collassa nello stesso elemento e sparisce.
+describe('trovaRiapplicate — nomi applicati più di una volta, invisibili ai due controlli sopra', () => {
+  it('non segnala nulla quando ogni nome compare una sola volta', () => {
+    const applicate = [
+      { version: '20260806140000', name: 'get_migrazioni_applicate' },
+      { version: '20260806150000', name: 'storage_allowed_mime_types' },
+    ];
+    expect(trovaRiapplicate(applicate)).toEqual([]);
+  });
+
+  it('segnala un nome applicato due volte, con entrambe le versioni in ordine', () => {
+    // Caso reale: chat_files_delete_orfani applicata il 14 e riapplicata il
+    // 15 agosto con una versione diversa.
+    const applicate = [
+      { version: '20260814220000', name: 'chat_files_delete_orfani' },
+      { version: '20260815155307', name: 'chat_files_delete_orfani' },
+    ];
+    expect(trovaRiapplicate(applicate)).toEqual([
+      ['chat_files_delete_orfani', ['20260814220000', '20260815155307']],
+    ]);
+  });
+
+  it('non confonde due nomi diversi con lo stesso prefisso', () => {
+    const applicate = [
+      { version: '20260806093134', name: 'messages_solo_mittente_modifica_contenuto' },
+      { version: '20260806093254', name: 'messages_blocca_modifiche_altrui_fix_sender_anchor' },
+    ];
+    expect(trovaRiapplicate(applicate)).toEqual([]);
+  });
+
+  it('con i dati reali del ledger di produzione: tre nomi risultano applicati due volte', () => {
+    // Fotografia presa il 15 agosto durante l'audit — non un invariante che
+    // debba restare vero per sempre (una futura pulizia del ledger, se mai
+    // avvenisse, lo cambierebbe), ma il fatto concreto che ha motivato
+    // questa funzione: senza di lei, questi tre nomi non comparivano in
+    // NESSUN controllo di scarto.
+    const applicate = [
+      { version: '20260702084658', name: '20260702_notifications_origin_client' },
+      { version: '20260702084720', name: '20260702_notifications_origin_client' },
+      { version: '20260730120000', name: 'queue_stale_notif_direct_task' },
+      { version: '20260730194136', name: 'queue_stale_notif_direct_task' },
+      { version: '20260814220000', name: 'chat_files_delete_orfani' },
+      { version: '20260815155307', name: 'chat_files_delete_orfani' },
+    ];
+    expect(trovaRiapplicate(applicate).map(([nome]) => nome)).toEqual([
+      '20260702_notifications_origin_client',
+      'queue_stale_notif_direct_task',
+      'chat_files_delete_orfani',
+    ]);
   });
 });
 

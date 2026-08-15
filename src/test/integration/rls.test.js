@@ -151,4 +151,32 @@ suite("RLS: la matrice di autorizzazione è applicata dal database, non solo dal
       expect(data.role).not.toBe("admin");
     });
   });
+
+  describe("user_contacts — la rubrica è del team, non solo del proprietario", () => {
+    let client, userId;
+    beforeAll(async () => {
+      // Il driver: il ruolo con meno privilegi del sistema (niente Liste,
+      // niente coda globale). Se anche lui legge i contatti di altri, la
+      // policy non discrimina per ruolo — è `using (true)` per davvero, non
+      // solo per gli utenti che qualcun altro ha già verificato a mano.
+      ({ client, userId } = await accedi(
+        process.env.RLS_TEST_DRIVER_EMAIL, process.env.RLS_TEST_DRIVER_PASSWORD));
+    });
+
+    // M-4 dell'audit del 15 agosto. Il commento in lib/api.js e AuthContext.jsx
+    // che descrive questa policy come `using (true)` — rubrica interna,
+    // leggibile da chiunque sia autenticato, non solo dal proprietario — è
+    // corretto OGGI, ma per un'intera fase del progetto era il contrario:
+    // AuthContext.jsx:139-152 documenta un commento che affermava
+    // «by-design privacy hardening, solo proprietario+admin» molto dopo che
+    // la migrazione 20260629222802 aveva aperto la SELECT a tutto il team.
+    // Questo test lega l'affermazione alla realtà: se la policy tornasse
+    // own+admin, fallisce qui — non in un commento che nessuno ricontrolla.
+    it("legge i contatti di ALTRI membri del team, non solo i propri", async () => {
+      const { data, error } = await client.from("user_contacts").select("user_id, email, phone");
+      expect(error).toBeNull();
+      expect(data.length).toBeGreaterThan(1);
+      expect(data.some((c) => c.user_id !== userId)).toBe(true);
+    });
+  });
 });

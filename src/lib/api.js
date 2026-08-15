@@ -192,8 +192,16 @@ export const Users = {
     invokeFn('set-user-active', { userId: id, active }, 'Aggiornamento non riuscito.'),
   // Approvazione admin di un utente registrato (pending → attivo). Le policy
   // RLS (users_admin_all) consentono l'update solo a un admin.
-  approve: (id) =>
-    supabase.from('users').update(withOrigin({ pending: false, active: true }), CONTA_RIGHE).eq('id', id),
+  //
+  // C-1 dell'audit del 15 agosto: il ruolo viaggia CON l'approvazione invece
+  // di essere ereditato dalla riga. Approvare non è "sbloccare un account":
+  // è concedere un ruolo, e chi lo concede deve dirlo — non scoprirlo dalla
+  // riga, che per un account auto-registrato era scritta dal registrante
+  // stesso (chiuso lato trigger dalla migrazione
+  // 20260815230000_handle_new_auth_user_stop_trusting_role_metadata, ma
+  // questo resta il posto giusto per non farlo dipendere solo da quello).
+  approve: (id, role = 'agent') =>
+    supabase.from('users').update(withOrigin({ pending: false, active: true, role }), CONTA_RIGHE).eq('id', id),
   // Invito admin di un nuovo utente via email (Block 3). Chiama la Edge
   // Function 'invite-user' (verify_jwt) che usa la Auth Admin API per inviare
   // l'invito e pre-crea il profilo public.users con pending=true. L'admin

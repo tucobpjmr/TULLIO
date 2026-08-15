@@ -45,7 +45,7 @@ export const buildLogEntry = (action, state) => {
     EMPTY_TRASH: () => `Cestino svuotato`,
     ADD_TEAM_MEMBER: () => `Aggiunto agente "${action.payload.name}"`,
     UPDATE_TEAM_MEMBER: () => `Modificato agente "${action.payload.name || action.payload.id}"`,
-    APPROVE_TEAM_MEMBER: () => `Approvato agente "${getMember(state.team, action.payload)?.name || action.payload}"`,
+    APPROVE_TEAM_MEMBER: () => `Approvato agente "${getMember(state.team, action.payload.id)?.name || action.payload.id}"`,
     TOGGLE_TEAM_MEMBER_ACTIVE: () => `Agente "${getMember(state.team, action.payload)?.name || action.payload}" attivato/disattivato`,
     REMOVE_TEAM_MEMBER: () => `Rimosso agente "${getMember(state.team, action.payload)?.name || action.payload}"`,
     ADD_CATEGORY: () => `Aggiunta categoria "${action.payload.label}"`,

@@ -103,6 +103,17 @@ describe("ListeViaggio — Strumenti dati (backup e reset)", () => {
     expect(screen.queryByText("Reset totale…")).toBeNull();
   });
 
+  // M-1 dell'audit del 15 agosto: importa_backup ora richiede private.is_admin()
+  // lato DB (era can_liste(), admin/manager/agent). Prima di questo fix il
+  // bottone restava visibile a un senior agent e falliva sempre alla RPC —
+  // esattamente il caso che il commento sopra "Reset totale…" descrive già.
+  it("'Carica backup' NON compare per un ruolo non-admin", async () => {
+    renderListe("gina");
+    await waitFor(() => expect(ListeAPIMock.list).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "Strumenti dati" }));
+    expect(screen.queryByText("⬆ Carica backup")).toBeNull();
+  });
+
   it("'Scarica backup' innesca il download e mostra i conteggi nel toast", async () => {
     const { dispatch } = renderListe("marco");
     await waitFor(() => expect(ListeAPIMock.list).toHaveBeenCalled());

@@ -403,7 +403,13 @@ function baseReducer(state, action) {
       return { ...state, team, toasts: pushToast(state.toasts, { message: "Agente aggiornato", type: "success" }) };
     }
     case "APPROVE_TEAM_MEMBER": {
-      const team = state.team.map(m => m.id === action.payload ? { ...m, pending: false, active: true } : m);
+      // C-1 dell'audit del 15 agosto: `payload` è `{ id, role }`. Il ruolo
+      // viaggia CON l'approvazione — l'ottimistico deve rispecchiare lo
+      // stesso valore che UsersAPI.approve scrive, non lasciare il ruolo
+      // esistente della riga (che per un account auto-registrato era quello
+      // scelto dal registrante, non dall'admin che approva).
+      const { id, role } = action.payload;
+      const team = state.team.map(m => m.id === id ? { ...m, pending: false, active: true, role } : m);
       return { ...state, team, toasts: pushToast(state.toasts, { message: "Agente approvato e attivato!", type: "success" }) };
     }
     case "TOGGLE_TEAM_MEMBER_ACTIVE": {

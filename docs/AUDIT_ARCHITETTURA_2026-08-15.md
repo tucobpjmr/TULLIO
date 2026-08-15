@@ -86,7 +86,25 @@ prima di qualsiasi altra cosa.
 
 ## Action Plan dettagliato
 
-### 🔴 C-1 · Escalation a `admin` attraverso la registrazione
+### 🔴 C-1 · Escalation a `admin` attraverso la registrazione — ✅ chiuso lo stesso 15 agosto
+
+> **Chiuso.** Le tre modifiche proposte sotto sono state applicate: (a) il
+> trigger `handle_new_auth_user` non legge più `role` dai metadata (migrazione
+> `20260815230000_handle_new_auth_user_stop_trusting_role_metadata`, **applicata
+> in produzione e verificata** — `pg_get_functiondef` non contiene più `urole`,
+> inserisce sempre `'agent'`); (b) `Users.approve(id, role)` scrive il ruolo
+> passato dal chiamante, non più solo `pending`/`active`; (c)
+> `APPROVE_TEAM_MEMBER` porta ora `{ id, role }` end-to-end (reducer,
+> `persistence.js`, `activityLog.js`) e `AdminTeamTab.jsx` mostra un selettore
+> di ruolo accanto a "✓ Approva" sulle card pending, di default sul ruolo già
+> sulla riga ma sempre modificabile prima di concedere l'accesso. Nuovo test
+> (`persistenceGuards.test.js`): il ruolo scritto è quello dell'azione, non
+> quello nello state — la regressione che riaprirebbe il difetto rompe questo
+> caso. Punto (d), la verifica di *Enable sign-ups* sulla dashboard, resta
+> **da fare a mano** (fuori dalla portata di questo ambiente): la correzione
+> qui sopra non ne dipende, per costruzione.
+>
+> Test: 1317 verdi (era 1316). Lint: 0 errori.
 
 **File**
 - `supabase/migrations/20260619214725_security_dedupe_signup_trigger.sql:27-35`

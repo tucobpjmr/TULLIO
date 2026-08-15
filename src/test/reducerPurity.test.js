@@ -39,7 +39,7 @@ describe("reducer — nessun effetto collaterale sull'input", () => {
     ["SET_TEAM",                  { type: "SET_TEAM", payload: [{ id: "nuovo", name: "Nuovo", role: "Admin", active: true, pending: false }] }],
     ["ADD_TEAM_MEMBER",           { type: "ADD_TEAM_MEMBER", payload: { id: "x", name: "X", role: "Manager", active: true, pending: false } }],
     ["UPDATE_TEAM_MEMBER",        { type: "UPDATE_TEAM_MEMBER", payload: { id: "agent1", name: "Rinominato" } }],
-    ["APPROVE_TEAM_MEMBER",       { type: "APPROVE_TEAM_MEMBER", payload: "agent1" }],
+    ["APPROVE_TEAM_MEMBER",       { type: "APPROVE_TEAM_MEMBER", payload: { id: "agent1", role: "agent" } }],
     ["TOGGLE_TEAM_MEMBER_ACTIVE", { type: "TOGGLE_TEAM_MEMBER_ACTIVE", payload: "agent1" }],
     ["REMOVE_TEAM_MEMBER",        { type: "REMOVE_TEAM_MEMBER", payload: "agent1" }],
     ["SET_CATEGORIES",            { type: "SET_CATEGORIES", payload: { nuova: { label: "Nuova" } } }],

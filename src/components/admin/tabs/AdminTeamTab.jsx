@@ -41,6 +41,12 @@ export const AdminTeamTab = ({ dispatch }) => {
   // Rubrica contatti: { [userId]: { email, phone } }. Caricata una volta sola;
   // l'admin ha accesso RLS a tutte le righe di user_contacts.
   const [contactsMap, setContactsMap] = useState({});
+  // C-1 dell'audit del 15 agosto: il ruolo con cui approvare è una scelta
+  // esplicita dell'admin, non un'eredità della riga pending — che per un
+  // account auto-registrato porta il ruolo scelto dal registrante stesso.
+  // { [memberId]: role }, inizializzato dal ruolo della riga (già affidabile
+  // per gli inviti, validato lato server) ma sempre modificabile qui.
+  const [approveRoleMap, setApproveRoleMap] = useState({});
 
   useEffect(() => {
     let alive = true;
@@ -204,9 +210,31 @@ export const AdminTeamTab = ({ dispatch }) => {
                 );
               })()}
               {opts.canApprove && (
-                <button onClick={() => dispatch({ type: "APPROVE_TEAM_MEMBER", payload: m.id })} style={btnGold}>
-                  ✓ Approva
-                </button>
+                <>
+                  {/* C-1 dell'audit del 15 agosto: il ruolo si sceglie QUI,
+                      prima di concederlo — non dopo, quando è già attivo.
+                      Default al ruolo già sulla riga (per un invito è già
+                      quello scelto dall'admin in fase di invito, validato
+                      lato server; per un self-signup è ormai sempre 'agent',
+                      vedi la migrazione handle_new_auth_user_stop_trusting_role_metadata). */}
+                  <select
+                    value={approveRoleMap[m.id] ?? m.role ?? "agent"}
+                    onChange={e => setApproveRoleMap(prev => ({ ...prev, [m.id]: e.target.value }))}
+                    aria-label={`Ruolo da assegnare a ${m.name}`}
+                    style={{ ...fieldStyle, width: "auto", fontSize: 12, padding: "4px 8px" }}
+                  >
+                    {DB_ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                  </select>
+                  <button
+                    onClick={() => dispatch({
+                      type: "APPROVE_TEAM_MEMBER",
+                      payload: { id: m.id, role: approveRoleMap[m.id] ?? m.role ?? "agent" },
+                    })}
+                    style={btnGold}
+                  >
+                    ✓ Approva
+                  </button>
+                </>
               )}
               {!m.pending && (
                 <>

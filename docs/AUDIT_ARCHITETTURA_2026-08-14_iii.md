@@ -241,9 +241,14 @@ essere rimosso da qualunque utente autenticato. Si applica ai soli oggetti già
 irraggiungibili (nessuna policy di SELECT li rende leggibili, nessun messaggio
 li referenzia più) e non allarga di un millimetro l'accesso ai file vivi.
 
-⚠️ **Da applicare a mano** secondo `docs/MIGRAZIONI_SUPABASE.md` — il codice
-funziona anche senza (degrada al solo `owner_id`, con un `console.warn`), ma
-finché non è applicata la bonifica degli allegati altrui non avviene.
+✔ **Applicata in produzione il 15 agosto** via MCP `apply_migration` (che
+registra la propria versione, `20260815155307`; la versione del file,
+`20260814220000`, è stata inserita a mano in
+`supabase_migrations.schema_migrations` per allineare repository e database —
+vedi `docs/MIGRAZIONI_SUPABASE.md`). Verificata `pg_policies`: i quattro rami
+sono tutti presenti, `private.is_admin()` e non `public.is_admin()` (vedi nota
+nel file). `get_advisors` (security e performance) non segnala nulla di nuovo:
+tutti gli avvisi restituiti sono preesistenti e già noti.
 
 ---
 

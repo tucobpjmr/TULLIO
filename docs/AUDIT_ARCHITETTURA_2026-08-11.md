@@ -1013,7 +1013,7 @@ presidia.
 | **C-1** | ✔ **corretto e deployato in produzione l'11 agosto** — `invite-user` v9, `delete-user` v4 |
 | **A-1** | ✔ **corretto e deployato in produzione l'11 agosto** — tabella `message_templates` + registry + idratazione (a), nota di onestà in `AdminLogTab` (b) |
 | **A-2** | ✔ **corretto nel repo l'11 agosto** — `ClientsAPI.createMany` a blocchi + `ROLLBACK_CLIENTS_BULK` (codice applicativo, nessun deploy separato: arriva con il merge) |
-| A-3 | 🟠 aperto |
+| **A-3** | ~~🟠 aperto~~ ✔ **chiuso il 12 agosto** — non da questo documento ma come effetto collaterale di C-1 dell'`AUDIT_ARCHITETTURA_2026-08-12.md`: quell'intervento paginava `TaskThreads.comments()`/`history()` e, «da chiudere nello stesso commit, per la stessa ragione» (quel documento, §3), anche `Tasks.list()` — lo stesso troncamento silenzioso segnalato qui. Verificato oggi (15 agosto) su `src/lib/api.js:311-318`: `Tasks.list` passa da `fetchAllRows` + `WITH_COUNT`, ordinamento chiuso su `id`. Nessuna delle due tabelle di stato lo aveva mai registrato come chiuso — trovato controllando il codice, non deducendolo dai documenti. |
 | **M-1 … M-5** | ✔ **corretti nel repo il 12 agosto** — vedi §6-bis |
 | **B-1** | ✔ **corretto nel repo il 12 agosto** — vedi §6-bis |
 | B-2 | 🟢 aperto — **non correggibile da questo repo**, e il 12 agosto è stato riverificato che il blocco persiste: vedi §6-ter |

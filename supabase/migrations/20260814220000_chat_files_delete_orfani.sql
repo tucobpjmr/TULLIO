@@ -39,6 +39,16 @@
 -- partecipanti), quindi non è possibile creare un path "orfano" a piacere per
 -- poi cancellarci sopra: non ci sarebbe comunque nulla di altrui da toccare.
 
+-- ⚠️ `private.is_admin()` e non `public.is_admin()`. La policy che questa
+-- migrazione sostituisce (20260705092239) fu scritta quando la helper stava in
+-- `public`; la 20260706181011 l'ha spostata in `private` (schema non esposto da
+-- PostgREST) con `alter function … set schema`, che aggiorna da sé i
+-- riferimenti già compilati nelle policy — quindi la policy VIVA punta già a
+-- `private.is_admin()` e questa riscrittura ne conserva il comportamento
+-- esatto. Ricopiare il testo originale, invece, farebbe fallire l'intera
+-- migrazione con «function public.is_admin() does not exist»: è già successo
+-- una volta, applicando A-1 dell'audit dell'11 agosto.
+
 drop policy if exists "chat_files_delete" on storage.objects;
 create policy "chat_files_delete" on storage.objects
   for delete to authenticated
@@ -46,7 +56,7 @@ create policy "chat_files_delete" on storage.objects
     bucket_id = 'chat-files'
     and (
       owner_id = (select auth.uid())::text
-      or (select public.is_admin())
+      or (select private.is_admin())
       or exists (
         select 1 from public.conversations c
         where c.id::text = (storage.foldername(objects.name))[1]

@@ -181,12 +181,17 @@ describe("useSyncedDispatch — fallimenti di persistenza", () => {
 
     await act(async () => { await dispatch({ type: "DELETE_CLIENT", payload: "c1" }); });
 
+    // Le azioni si cercano per TIPO e non per posizione: da A-1 del terzo
+    // passaggio anche DELETE_CLIENT dichiara `entityId`, quindi fra l'azione
+    // e la sua compensazione c'è ora un MARK_PENDING_WRITE. Un indice fisso
+    // qui avrebbe fatto fallire un test che verifica tutt'altro.
     const azioni = azioniDispatchate(rawDispatch);
-    expect(azioni[1]).toEqual({
+    expect(azioni.find(a => a.type === "RESTORE_CLIENT")).toEqual({
       type: "RESTORE_CLIENT", payload: cliente, meta: { compensazione: true },
     });
-    expect(azioni[2].payload.message).toMatch(/liste viaggio collegate/i);
-    expect(azioni[2].payload.message).not.toMatch(/foreign key/i);
+    const toastErrore = azioni.find(a => a.type === "SHOW_TOAST");
+    expect(toastErrore.payload.message).toMatch(/liste viaggio collegate/i);
+    expect(toastErrore.payload.message).not.toMatch(/foreign key/i);
   });
 
   it("senza rollback dichiarato si mostra solo il toast", async () => {

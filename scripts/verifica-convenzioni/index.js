@@ -31,6 +31,7 @@ const AUDIT = [
   { file: 'AUDIT_ARCHITETTURA_2026-08-12.md', prefisso: ['C', 'A', 'M', 'B'] },
   { file: 'AUDIT_ARCHITETTURA_2026-08-14.md', prefisso: ['C', 'A', 'M', 'B'] },
   { file: 'AUDIT_ARCHITETTURA_2026-08-14_ii.md', prefisso: ['C', 'A', 'M', 'B'] },
+  { file: 'AUDIT_ARCHITETTURA_2026-08-14_iii.md', prefisso: ['C', 'A', 'M', 'B'] },
 ];
 
 // Misura i warning di una regola sul sorgente dell'app.

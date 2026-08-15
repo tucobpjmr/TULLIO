@@ -44,10 +44,16 @@
 // lì. `entityId` dichiara quali id sono in volo; il reducer li tiene fuori dalla
 // sostituzione (case MARK_PENDING_WRITE / UNMARK_PENDING_WRITE e SET_TASKS).
 //
-// Lo dichiarano oggi le sole entry sui TASK: il registro dei pendenti è
-// consultato da SET_TASKS, e dichiararlo su clienti o avvisi marcherebbe id che
-// nessuno rilegge. Il meccanismo è generico — quando SET_CLIENTS/SET_NOTICES
-// avranno lo stesso trattamento, basterà aggiungere il campo alle loro entry.
+// Lo dichiarano le entry su TASK, CLIENTI e AVVISI: le tre entità le cui
+// SET_* fondono il registro dei pendenti (vedi state/pendingWrites.js). Per i
+// clienti è arrivato tardi e la ragione è databile: finché `clients` non era
+// una tabella in realtime (migrazione 20260807215625) non esisteva il refetch
+// concorrente da cui proteggersi, quindi marcarne gli id sarebbe stato codice
+// senza un lettore. Da quella migrazione la finestra è viva — su PII di
+// persone esterne al team — ed è A-1 del terzo passaggio del 14 agosto.
+//
+// Restano senza `entityId` le entità che nessuna SET_* rilegge in blocco
+// (team, categorie, template): lì il campo marcherebbe id che nessuno consulta.
 //
 // L'orchestratore che le esegue è src/hooks/useSyncedDispatch.js.
 
@@ -265,6 +271,7 @@ export const PERSISTENCE = {
         author: a.payload.author ?? uid,
       },
     }),
+    entityId: (a) => a.payload?.id,
     persist: (s, a) => NoticesAPI.create(toDbNotice(a.payload)),
   },
   // A-1 dell'audit del 14 agosto: erano le uniche tre mutazioni del registry
@@ -277,6 +284,7 @@ export const PERSISTENCE = {
   // fallita non produce un evento realtime che la corregga).
   UPDATE_NOTICE: {
     guard: (s, a, uid) => canEditNotice(s.team, findNotice(s, a.payload?.id), uid),
+    entityId: (a) => a.payload?.id,
     persist: (s, a) => NoticesAPI.update(a.payload.id, toDbNoticePatch(a.payload)),
     // Rimanda un altro UPDATE_NOTICE con l'avviso INTERO pre-dispatch, come
     // UPDATE_TEAM_MEMBER: il case del reducer fa merge di `...action.payload`
@@ -295,6 +303,7 @@ export const PERSISTENCE = {
   },
   DELETE_NOTICE: {
     guard: (s, a, uid) => canEditNotice(s.team, findNotice(s, a.payload), uid),
+    entityId: (a) => a.payload,
     persist: (s, a) => NoticesAPI.remove(a.payload),
     // Come RESTORE_CLIENT: si rimanda l'oggetto intero, non l'id — la riga
     // cancellata in ottimistico non è più rileggibile dal server.
@@ -306,6 +315,7 @@ export const PERSISTENCE = {
   },
   TOGGLE_PIN_NOTICE: {
     guard: (s, a, uid) => canEditNotice(s.team, findNotice(s, a.payload), uid),
+    entityId: (a) => a.payload,
     persist: (s, a) => {
       const prev = findNotice(s, a.payload);
       return NoticesAPI.togglePin(a.payload, !prev?.pinned);
@@ -334,6 +344,7 @@ export const PERSISTENCE = {
       ...a,
       payload: { ...a.payload, id: isUuid(a.payload?.id) ? a.payload.id : newId() },
     }),
+    entityId: (a) => a.payload?.id,
     persist: (s, a) => ClientsAPI.create(toDbClient(a.payload)),
     // La riga inserita in ottimistico non esiste sul server se l'INSERT non
     // arriva: senza rimuoverla, l'utente ci lavora sopra (una lista viaggio,
@@ -352,10 +363,20 @@ export const PERSISTENCE = {
   // esistevano — scoperto solo al reload, e con il sintomo peggiore possibile
   // su un'anagrafica: il doppione, che non si deduplica da solo.
   ADD_CLIENTS_BULK: {
+    // M-1 dell'audit del 14 agosto (terzo passaggio). A-1 del secondo
+    // passaggio ha dato un guard ad ADD_CLIENT/UPDATE_CLIENT/DELETE_CLIENT e
+    // ha saltato il gemello in blocco: l'import restava l'unica scrittura
+    // sull'anagrafica protetta dal solo fatto che ClientiView non renderizzi
+    // il pulsante per chi non ha `canEditClient`. È esattamente ciò che il
+    // registry delle Liste dichiara di non voler più accettare — «nascondere
+    // un bottone non è un controllo: è una scelta di layout» — e su un
+    // percorso che scrive centinaia di righe di PII in un colpo solo.
+    guard: (s, a, uid) => canEditClient(s.team, uid),
     normalize: (a) => ({
       ...a,
       payload: (a.payload || []).map(c => ({ ...c, id: isUuid(c?.id) ? c.id : newId() })),
     }),
+    entityId: (a) => (a.payload || []).map(c => c.id),
     persist: (s, a) => (a.payload.length
       ? ClientsAPI.createMany(a.payload.map(toDbClient))
       : NOOP),
@@ -381,6 +402,7 @@ export const PERSISTENCE = {
   // chiave primaria della riga che si sta modificando.
   UPDATE_CLIENT: {
     guard: (s, a, uid) => canEditClient(s.team, uid),
+    entityId: (a) => a.payload?.id,
     persist: (s, a) => ClientsAPI.update(a.payload.id, toDbClientPatch(a.payload)),
     // Si rimanda la scheda INTERA pre-dispatch, non un patch: il case del
     // reducer fa merge di `...action.payload` sulla riga esistente, quindi un
@@ -434,6 +456,7 @@ export const PERSISTENCE = {
 
   DELETE_CLIENT: {
     guard: (s, a, uid) => canDeleteClient(s.team, uid),
+    entityId: (a) => a.payload,
     persist: (s, a) => ClientsAPI.remove(a.payload),
     rollback: (s, a) => {
       const prev = (s.clients || []).find(c => c.id === a.payload);
@@ -556,12 +579,50 @@ export const PERSISTENCE = {
     mapError: () => "ruolo non aggiornato, la modifica non è stata salvata",
   },
 
-  APPROVE_TEAM_MEMBER: { persist: (s, a) => UsersAPI.approve(a.payload) },
+  // M-2 dell'audit del 14 agosto (terzo passaggio). Queste due erano le sole
+  // mutazioni sul team senza compensazione, mentre UPDATE_TEAM_MEMBER e
+  // TOGGLE_TEAM_MEMBER_ACTIVE — le altre due dello stesso pannello — ce
+  // l'hanno entrambe. Il difetto è quello di sempre, sull'entità che decide
+  // chi può fare cosa: il reducer ha già tolto il `pending` (o la riga
+  // intera), la scrittura fallisce, e il pannello Team mostra un utente
+  // approvato che il database considera ancora in attesa. Nessun evento
+  // realtime lo corregge — una scrittura fallita non ne emette — quindi la
+  // divergenza dura fino al prossimo reload del team, e nel frattempo
+  // l'admin crede di aver dato un accesso che non ha dato.
+  //
+  // `UsersAPI.approve` chiede già `count: 'exact'` (CONTA_RIGHE): con il
+  // rollback qui, un rifiuto della RLS diventa finalmente osservabile su
+  // entrambi i lati — toast rosso E stato riportato indietro.
+  APPROVE_TEAM_MEMBER: {
+    persist: (s, a) => UsersAPI.approve(a.payload),
+    // Si rimanda il membro INTERO pre-dispatch: il case di UPDATE_TEAM_MEMBER
+    // fa merge sulla riga esistente, quindi rimandare `{ pending: true }` da
+    // solo lascerebbe a video l'`active` che l'approvazione ha cambiato — un
+    // rollback parziale, che sembra riuscito ed è peggio di nessuno (stessa
+    // ragione di UPDATE_NOTICE e UPDATE_CLIENT).
+    rollback: (s, a) => {
+      const prev = (s.team || []).find(m => m.id === a.payload);
+      return prev ? { type: "UPDATE_TEAM_MEMBER", payload: prev } : null;
+    },
+    mapError: (err) => err?.message || "utente non approvato",
+  },
 
   // Eliminazione definitiva via Edge Function delete-user: rimuove la riga
   // auth.users (CASCADE → public.users + user_contacts), così l'email torna
   // libera e l'invito può essere rifatto da zero.
-  REMOVE_TEAM_MEMBER: { persist: (s, a) => UsersAPI.deleteUser(a.payload) },
+  REMOVE_TEAM_MEMBER: {
+    persist: (s, a) => UsersAPI.deleteUser(a.payload),
+    // La riga tolta in ottimistico non è più rileggibile dal server: si
+    // rimanda l'oggetto intero, come RESTORE_CLIENT e RESTORE_NOTICE.
+    // ADD_TEAM_MEMBER lo rimette in coda invece che al suo posto
+    // nell'ordinamento per nome: è irrilevante, il primo refresh realtime di
+    // `users` riporta la lista ordinata dal server.
+    rollback: (s, a) => {
+      const prev = (s.team || []).find(m => m.id === a.payload);
+      return prev ? { type: "ADD_TEAM_MEMBER", payload: prev } : null;
+    },
+    mapError: (err) => err?.message || "utente non eliminato",
+  },
 
   // Suggerimento strategico n. 3 dell'audit dell'11 agosto: `UsersAPI.setActive`
   // passa oggi dalla Edge Function 'set-user-active', che oltre al flag

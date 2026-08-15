@@ -177,6 +177,16 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // purgato o non più visibile per riassegnazione/permessi — il pannello si
   // chiude comunque e la notifica viene marcata come letta lato chiamante: senza
   // un toast esplicito l'utente clicca e non vede succedere nulla, in silenzio.
+  //
+  // Le dipendenze includono `state.tasks`, quindi questa callback cambia
+  // identità a ogni mutazione dei task e la prop `onOpenTask` invalida il
+  // `memo` di <Topbar>. NON è un difetto da correggere con un ref, ed è stato
+  // verificato invece che dedotto (audit del 14 agosto, terzo passaggio): la
+  // Topbar chiama `useTasks()` (Topbar.jsx:89), cioè è ISCRITTA a
+  // TasksContext, il cui value è memoizzato su `[tasks]` — la stessa
+  // identità. Si ri-renderizza quando i task cambiano comunque, con o senza
+  // questa dipendenza. Stabilizzare la callback aggiungerebbe un ref e
+  // toglierebbe zero render.
   const openTaskById = useCallback((taskId) => {
     if (!taskId) return;
     const t = (state.tasks || []).find(x => x.id === taskId && !x.deletedAt);

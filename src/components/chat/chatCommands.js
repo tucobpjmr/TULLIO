@@ -35,6 +35,13 @@ import {
   Messages as MessagesAPI,
 } from "../../lib/api.js";
 import { toDbConversation, toDbMessage, newId, isUuid } from "../../lib/mappers.js";
+// A-2 (terzo passaggio): "è andata bene" non è `!res.error`. Una scrittura che
+// la RLS rifiuta risponde 2xx senza errore — vedi lib/esitoScrittura.js. Fino a
+// questo intervento il controllo esisteva solo in hooks/useSyncedDispatch.js,
+// cioè per il core: la chat, che è il sottosistema che scrive di più, aveva la
+// versione cieca. `Messages.setPinned` chiedeva già `count: 'exact'` e nessuno
+// lo leggeva.
+import { esitoScrittura } from "../../lib/esitoScrittura.js";
 
 const noop = () => {};
 
@@ -78,8 +85,14 @@ export function makeChatCommands({
     if (!enabled) return normalized;
     const p = ConversationsAPI.create(toDbConversation(normalized))
       .then(r => {
-        if (r?.error) {
-          fallito("conv.create", r.error, `Chat: creazione conversazione fallita: ${r.error.message || ""}`);
+        const errore = esitoScrittura(r);
+        if (errore) {
+          fallito("conv.create", errore, `Chat: creazione conversazione fallita: ${errore.message || ""}`);
+          // `sendMessage` distingue "creazione fallita" da "riuscita" leggendo
+          // `r.error`: normalizziamo l'esito, così un rifiuto silenzioso della
+          // RLS non fa partire l'INSERT del primo messaggio verso una
+          // conversazione che sul server non esiste.
+          return { ...r, error: errore };
         }
         return r;
       })
@@ -99,35 +112,82 @@ export function makeChatCommands({
       name: conv.name ?? null,
       icon: conv.icon ?? null,
     }).then(r => {
-      if (r?.error) {
-        fallito("conv.update", r.error, `Chat: aggiornamento conversazione fallito: ${r.error.message || ""}`);
+      const errore = esitoScrittura(r);
+      if (errore) {
+        fallito("conv.update", errore, `Chat: aggiornamento conversazione fallito: ${errore.message || ""}`);
       }
     });
   };
 
-  // Eliminazione conversazione/gruppo. Rimozione locale ottimistica + due passi
-  // sul server nell'ordine che conta: prima il cleanup best-effort degli
-  // allegati (dopo il DELETE della conversazione le policy sul bucket non
-  // permetterebbero più di rimuoverli → orfani permanenti), poi la riga (i
-  // messaggi seguono via FK ON DELETE CASCADE). Gli altri client si allineano
-  // via realtime.
-  const removeConversation = (convId) => {
-    setConversations(prev => prev.filter(c => c.id !== convId));
-    setMessages(prev => {
+  // Eliminazione conversazione/gruppo.
+  //
+  // C-1 dell'audit del 14 agosto (terzo passaggio). L'ORDINE dei due passi
+  // server era invertito, e la ragione scritta accanto era corretta ma
+  // incompleta: «prima il cleanup degli allegati, perché dopo il DELETE della
+  // conversazione le policy sul bucket non permetterebbero più di rimuoverli →
+  // orfani permanenti». Vero. Ma quell'ordine rende la prima operazione —
+  // l'unica IRREVERSIBILE delle due — condizionata a nulla:
+  //
+  //   1. `removeConversationFiles` cancella dal bucket gli allegati di TUTTI i
+  //      partecipanti (vocali, documenti di pratica, foto di passaporti);
+  //   2. poi parte la DELETE della riga. Se fallisce — rete caduta fra i due
+  //      await, che su mobile è il caso normale, sessione revocata, utente
+  //      tolto dai `participants` nel frattempo — la conversazione resta viva
+  //      per tutti gli altri, con ogni allegato distrutto e nessun modo di
+  //      recuperarlo;
+  //   3. e la DELETE poteva anche non fallire affatto pur non facendo nulla:
+  //      `ConversationsAPI.remove` non chiedeva `count`, quindi un rifiuto
+  //      della RLS (che filtra le righe invece di sollevare un errore) era
+  //      indistinguibile da una riuscita — toast verde «Conversazione
+  //      eliminata» compreso.
+  //
+  // Ora l'ordine è: DELETE della riga (con `count`, letto da esitoScrittura),
+  // e SOLO se ha davvero tolto la riga si passa alla pulizia degli allegati.
+  // Il costo dichiarato di questa inversione è il rovescio dell'osservazione
+  // originale: dopo la DELETE la policy `chat_files_delete` autorizza il
+  // chiamante solo sui file di cui è `owner_id` (o su tutti, se è admin),
+  // quindi gli allegati caricati dagli ALTRI partecipanti restano nel bucket
+  // come orfani. È un costo recuperabile — byte e una bonifica — contro una
+  // perdita di dati che non lo è; e la migrazione
+  // 20260814220000_chat_files_delete_orfani.sql lo azzera del tutto,
+  // autorizzando la cancellazione degli oggetti la cui conversazione non
+  // esiste più (finché non è applicata, il ramo qui sotto degrada al solo
+  // `owner_id` e lo dice a log).
+  //
+  // Il parametro è la conversazione INTERA e non il solo id: serve a
+  // rimetterla in lista se la DELETE non passa, ed è lo stesso motivo per cui
+  // `setMessagePinned` riceve `pinned` esplicito invece di dedurlo. I messaggi
+  // NON si tolgono più prima della conferma: senza la conversazione in lista
+  // sono comunque invisibili, e tenerli è ciò che rende il ripristino completo
+  // invece che una conversazione vuota.
+  const removeConversation = (conv) => {
+    const convId = typeof conv === "string" ? conv : conv?.id;
+    if (!convId) return;
+    const snapshot = typeof conv === "string" ? null : conv;
+    const scartaMessaggi = () => setMessages(prev => {
       if (!(convId in prev)) return prev;
       const next = { ...prev };
       delete next[convId];
       return next;
     });
-    if (!enabled || !isUuid(convId)) return;
+
+    setConversations(prev => prev.filter(c => c.id !== convId));
+    if (!enabled || !isUuid(convId)) { scartaMessaggi(); return; }
+
     (async () => {
-      const filesRes = await MessagesAPI.removeConversationFiles(convId);
-      if (filesRes?.error) console.warn("[chat] conv files cleanup", filesRes.error);
-      const { error } = await ConversationsAPI.remove(convId);
-      if (error) {
-        fallito("conv.delete", error, `Chat: eliminazione conversazione fallita: ${error.message || ""}`);
+      const errore = esitoScrittura(await ConversationsAPI.remove(convId));
+      if (errore) {
+        // La riga è ancora lì: si rimette la conversazione dov'era (i messaggi
+        // non sono mai stati tolti) e NON si tocca lo storage.
+        if (snapshot) {
+          setConversations(prev => (prev.some(c => c.id === convId) ? prev : [snapshot, ...prev]));
+        }
+        fallito("conv.delete", errore, `Chat: eliminazione conversazione fallita: ${errore.message || ""}`);
         return;
       }
+      scartaMessaggi();
+      const filesRes = await MessagesAPI.removeConversationFiles(convId);
+      if (filesRes?.error) console.warn("[chat] conv files cleanup", filesRes.error);
       onSuccess("Conversazione eliminata");
     })();
   };
@@ -164,9 +224,10 @@ export function makeChatCommands({
 
     const invia = () => MessagesAPI.send(toDbMessage(normalized, convId))
       .then(r => {
-        if (r?.error) {
+        const errore = esitoScrittura(r);
+        if (errore) {
           scartaOttimistico();
-          fallito("msg.send", r.error, `Chat: invio messaggio fallito: ${r.error.message || ""}`);
+          fallito("msg.send", errore, `Chat: invio messaggio fallito: ${errore.message || ""}`);
         }
       })
       // finally e non .then(): un errore di rete che lasciasse l'id marcato
@@ -198,7 +259,12 @@ export function makeChatCommands({
   // esplicito — il chiamante ha già il messaggio sotto mano e sa se sta
   // fissando o togliendo, non serve dedurlo da un confronto. pinnedBy/pinnedAt
   // sono l'audit: valorizzati al pin, azzerati all'unpin.
-  const setMessagePinned = (convId, msgId, pinned, pinnedBy = null) => {
+  // `precedente` è lo stato del pin PRIMA del comando ({ pinned, pinnedBy,
+  // pinnedAt }): lo passa il chiamante, che il messaggio ce l'ha già sotto
+  // mano (ConversationView lo cerca comunque per calcolare `!target.pinned`).
+  // Serve al ripristino qui sotto: senza, un unpin fallito potrebbe essere
+  // riportato indietro solo indovinando chi aveva fissato il messaggio.
+  const setMessagePinned = (convId, msgId, pinned, pinnedBy = null, precedente = null) => {
     const quando = pinned ? new Date().toISOString() : null;
     setMessages(prev => ({
       ...prev,
@@ -208,8 +274,23 @@ export function makeChatCommands({
     }));
     if (!enabled || !isUuid(msgId)) return;
     MessagesAPI.setPinned(msgId, pinned, pinned ? pinnedBy : null).then(r => {
-      if (r?.error) {
-        fallito("msg.pinned", r.error, `Chat: pin fallito: ${r.error.message || ""}`);
+      // `setPinned` chiede `count: 'exact'`: qui quel conteggio viene
+      // finalmente letto (A-2). Il pin è la scrittura più esposta al rifiuto
+      // silenzioso — è l'unica che si fa sul messaggio ALTRUI, e il trigger
+      // `messages_blocca_modifiche_altrui` (20260806150000) sorveglia proprio
+      // quelle colonne.
+      const errore = esitoScrittura(r);
+      if (errore) {
+        // Il pin ottimistico va riportato indietro: senza, il messaggio resta
+        // fissato a schermo per chi ha cliccato e per nessun altro.
+        const prima = precedente || { pinned: !pinned, pinnedBy: null, pinnedAt: null };
+        setMessages(prev => ({
+          ...prev,
+          [convId]: (prev[convId] || []).map(m => (m.id === msgId
+            ? { ...m, pinned: !!prima.pinned, pinnedBy: prima.pinnedBy ?? null, pinnedAt: prima.pinnedAt ?? null }
+            : m)),
+        }));
+        fallito("msg.pinned", errore, `Chat: pin fallito: ${errore.message || ""}`);
       }
     });
   };
@@ -261,42 +342,59 @@ export function makeChatCommands({
   // portava via dei messaggi, senza che nulla poi li rimettesse (non erano
   // mai stati toccati sul server). Qui si ricorda solo `reactions` del
   // messaggio toccato, e si applica un merge puntuale.
-  const toggleReaction = (convId, msgId, emoji) => {
+  // M-3 dell'audit del 14 agosto (terzo passaggio). Lo snapshot da cui
+  // dipende il rollback (`reazioniPrima`, e il flag `trovato` che dice se
+  // c'era qualcosa da annullare) veniva ASSEGNATO DENTRO l'updater di
+  // setMessages — cioè dentro la funzione che l'intestazione di questo stesso
+  // file dichiara di aver reso pura, e per una ragione precisa: React 18 la
+  // invoca due volte in StrictMode e può rieseguirla in Concurrent Rendering.
+  // Scriverci sopra variabili lette poi in un callback asincrono è la stessa
+  // forma di prima («dedurre l'intento dalla differenza di stato»), solo più
+  // piccola: il valore su cui si basa la compensazione dipende da quante volte
+  // React ha deciso di eseguire l'updater e da quale `prev` gli ha passato.
+  //
+  // Il messaggio ce l'ha già il chiamante — `handleTogglePin`, nello stesso
+  // componente, lo cerca con `msgs.find` da sempre — quindi qui si riceve
+  // `reazioniPrima` invece di estrarlo di nascosto. L'updater torna una
+  // funzione pura di `prev`, e chi compensa sa cosa sta ripristinando.
+  const toggleReaction = (convId, msgId, emoji, reazioniPrima = null) => {
     const uid = getCurrentUserId();
     if (!convId || !msgId || !emoji || !uid) return;
-    let reazioniPrima;
-    let trovato = false;
     setMessages(prev => {
       const list = prev[convId];
-      if (!list) return prev;
-      const next = list.map(m => {
-        if (m.id !== msgId) return m;
-        trovato = true;
-        reazioniPrima = m.reactions || {};
-        const reactions = { ...reazioniPrima };
-        const users = reactions[emoji] || [];
-        if (users.includes(uid)) {
-          const rimasti = users.filter(u => u !== uid);
-          if (rimasti.length === 0) delete reactions[emoji];
-          else reactions[emoji] = rimasti;
-        } else {
-          reactions[emoji] = [...users, uid];
-        }
-        return { ...m, reactions };
-      });
-      return trovato ? { ...prev, [convId]: next } : prev;
+      if (!list || !list.some(m => m.id === msgId)) return prev;
+      return {
+        ...prev,
+        [convId]: list.map(m => {
+          if (m.id !== msgId) return m;
+          const reactions = { ...(m.reactions || {}) };
+          const users = reactions[emoji] || [];
+          if (users.includes(uid)) {
+            const rimasti = users.filter(u => u !== uid);
+            if (rimasti.length === 0) delete reactions[emoji];
+            else reactions[emoji] = rimasti;
+          } else {
+            reactions[emoji] = [...users, uid];
+          }
+          return { ...m, reactions };
+        }),
+      };
     });
     if (!enabled || !isUuid(msgId)) return;
     MessagesAPI.toggleReaction(msgId, emoji).then(r => {
-      if (r?.error) {
-        if (trovato) {
+      const errore = esitoScrittura(r);
+      if (errore) {
+        // Si ripristinano le SOLE reazioni del messaggio toccato (A-2 del
+        // secondo passaggio): uno snapshot dell'intera mappa porterebbe via i
+        // messaggi arrivati nel frattempo.
+        if (reazioniPrima) {
           setMessages(prev => ({
             ...prev,
             [convId]: (prev[convId] || []).map(m =>
               (m.id === msgId ? { ...m, reactions: reazioniPrima } : m)),
           }));
         }
-        fallito("toggleReaction", r.error, `Chat: reazione non salvata: ${r.error.message || ""}`);
+        fallito("toggleReaction", errore, `Chat: reazione non salvata: ${errore.message || ""}`);
       }
     });
   };

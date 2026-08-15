@@ -251,13 +251,18 @@ export const ConversationView = ({ conv, messages, commands, onBack, onDelete, i
   };
 
   const handleReact = (msgId, emoji) => {
+    // Le reazioni PRECEDENTI viaggiano esplicite verso il comando (M-3): il
+    // messaggio è già qui in `msgs`, come per `handleTogglePin` qui sotto, e
+    // farle estrarre al comando dall'interno di un updater di setState
+    // significava dipendere da quante volte React lo esegue.
+    const target = msgs.find(m => m.id === msgId);
     // Toggle atomico via RPC: l'aggiornamento ottimistico e la persistenza
     // stanno nel comando, che evita di scrivere l'intero oggetto `reactions`
     // dal client (race last-write-wins fra utenti che reagiscono insieme).
     // Anche qui c'era un secondo toggle scritto a mano come "fallback
     // mock/test" (ST-10): faceva la stessa cosa in un posto in cui nessuno
     // l'avrebbe aggiornata insieme all'altra.
-    commands.toggleReaction(conv.id, msgId, emoji);
+    commands.toggleReaction(conv.id, msgId, emoji, target?.reactions || null);
   };
 
   // Fase 3 pin: stato group-level, condiviso da tutti i partecipanti. Il
@@ -266,7 +271,9 @@ export const ConversationView = ({ conv, messages, commands, onBack, onDelete, i
   const handleTogglePin = (msgId) => {
     const target = msgs.find(m => m.id === msgId);
     if (!target) return;
-    commands.setMessagePinned(conv.id, msgId, !target.pinned, myId);
+    commands.setMessagePinned(conv.id, msgId, !target.pinned, myId, {
+      pinned: !!target.pinned, pinnedBy: target.pinnedBy ?? null, pinnedAt: target.pinnedAt ?? null,
+    });
   };
 
   const otherTypingMember = conv.participants.find(p => p !== myId);

@@ -268,10 +268,13 @@ export const ListeAPI = {
   // ── Cestino: hard delete e strumenti dati ──
   // Le tre RPC seguenti sono SECURITY DEFINER lato DB (bypassano la RLS di
   // proposito) e hanno un controllo di ruolo esplicito nel loro corpo:
-  // elimina_lista_definitivamente/importaBackup per admin/manager/agent,
-  // resetCompleto solo per admin (vedi migrazione 20260728190100). Il client
-  // non duplica quel controllo se non nella UI (bottone Reset nascosto ai
-  // non-admin): il gate che conta resta quello nel database.
+  // elimina_lista_definitivamente per admin/manager/agent, importaBackup e
+  // resetCompleto SOLO per admin (rispettivamente migrazione 20260815231000 —
+  // M-1 dell'audit del 15 agosto, prima era can_liste() come le altre due —
+  // e 20260728190100). Il client duplica quel controllo in
+  // listePersistence.js (guard) e nella UI (StrumentiDatiModal nasconde i
+  // due bottoni ai non-admin): il gate che conta resta comunque quello nel
+  // database.
   eliminaDefinitiva: (id) => supabase.rpc('elimina_lista_definitivamente', { p_id: id }),
 
   // Ripristino da backup, a blocchi.

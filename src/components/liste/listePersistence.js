@@ -39,7 +39,7 @@
 
 import { useCallback } from "react";
 import { ListeAPI } from "./listeApi.js";
-import { isAdmin } from "../../lib/permissions.js";
+import { isAdmin, canImportBackup } from "../../lib/permissions.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 
 // La conferma testuale che reset_completo() pretende lato database. Vive qui e
@@ -141,7 +141,14 @@ export const LISTE_WRITES = {
   // ─── STRUMENTI DATI ────────────────────────────────────────────────────────
   // Il messaggio di successo elenca le righe importate: lo compone il chiamante
   // dai contatori di ritorno.
+  //
+  // guard (M-1 dell'audit del 15 agosto): la RPC importa_backup ora richiede
+  // private.is_admin() lato DB (era can_liste(), admin/manager/agent — più
+  // largo dell'unico ingresso in UI, riservato agli admin). Il guard qui è
+  // la stessa difesa in profondità che resetTotale ha già sotto: il bottone
+  // nascosto agli altri ruoli non è un controllo, è un layout.
   importaBackup: {
+    guard: (team, uid) => canImportBackup(team, uid),
     run: (payload, onProgress) => ListeAPI.importaBackup(payload, onProgress),
   },
 

@@ -239,3 +239,15 @@ export const canEditClient = (team, userId) =>
   clienteConsentito(team, userId, RUOLI_CLIENTI_SCRITTURA);
 export const canDeleteClient = (team, userId) =>
   clienteConsentito(team, userId, RUOLI_CLIENTI_ELIMINAZIONE);
+
+// ─── STRUMENTI DATI: IMPORT BACKUP ───────────────────────────────────────────
+// Rispecchia public.importa_backup (M-1 dell'audit del 15 agosto, migrazione
+// 20260815231000): il gate lato DB era private.can_liste() — admin, manager
+// E agent — mentre l'unico ingresso in UI (AdminIOTab) è riservato ai soli
+// admin. Un agent senza il pannello Admin poteva comunque chiamare la RPC a
+// mano e scrivere in clients (PII di persone esterne al team), liste_viaggio,
+// lista_beneficiari, movimenti_lista. Il DB ora richiede is_admin(); questa
+// funzione fa la stessa domanda lato client, così i due livelli tornano ad
+// accordarsi — com'è per resetTotale nello stesso registry
+// (listePersistence.js).
+export const canImportBackup = (team, userId) => isAdmin(team, userId);

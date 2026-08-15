@@ -193,4 +193,31 @@ describe("useListeWrite — guard di ruolo", () => {
     expect(esito.ok).toBe(true);
     expect(ListeAPIMock.addMovimento).toHaveBeenCalled();
   });
+
+  // M-1 dell'audit del 15 agosto: importa_backup era protetta solo da
+  // can_liste() (admin/manager/agent), più larga dell'unico ingresso in UI.
+  // Il DB ora richiede is_admin() (migrazione 20260815231000); questo guard è
+  // la stessa difesa in profondità che resetTotale ha già, così un agent che
+  // raggiunga il registry senza passare dal bottone (nascosto per lui in
+  // StrumentiDatiModal) viene fermato qui, prima della rete.
+  it("l'import backup è negato a un non-admin, senza toccare la rete", async () => {
+    const { esegui, dispatch } = montaEsecutore("agent1");
+
+    let esito;
+    await act(async () => { esito = await esegui("importaBackup", { clients: [] }); });
+
+    expect(esito).toEqual({ ok: false, data: null });
+    expect(ListeAPIMock.importaBackup).not.toHaveBeenCalled();
+    expect(toastDi(dispatch, "error")).toEqual(["Non hai i permessi per questa operazione"]);
+  });
+
+  it("un admin può importare un backup", async () => {
+    const { esegui } = montaEsecutore("admin1");
+
+    let esito;
+    await act(async () => { esito = await esegui("importaBackup", { clients: [] }); });
+
+    expect(ListeAPIMock.importaBackup).toHaveBeenCalledWith({ clients: [] }, undefined);
+    expect(esito.ok).toBe(true);
+  });
 });

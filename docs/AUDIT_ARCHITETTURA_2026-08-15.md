@@ -70,8 +70,8 @@ prima di qualsiasi altra cosa.
 | ID | Priorità | Area | Rilievo | Verificato su |
 |----|----------|------|---------|---------------|
 | **C-1** | 🔴 **Critica** | Sicurezza | Escalation a `admin` via metadata di signup: il ruolo arriva dal client, sopravvive fino all'approvazione, e la UI non consente di correggerlo prima di concederlo | Trigger live in produzione + `AdminTeamTab.jsx` |
-| **A-1** | 🟠 Alta | Architettura | Due architetture dati parallele (core vs modulo Liste): stesse invarianti mantenute in due implementazioni separate | `src/state/` vs `src/components/liste/` |
-| **M-1** | 🟡 Media | Sicurezza | `importa_backup` è più permissiva al DB (`can_liste()` = admin/manager/agent) di ogni percorso UI che la raggiunge (solo pannello Admin) | DB produzione |
+| **A-1** | 🟠 Alta | Architettura | Due architetture dati parallele (core vs modulo Liste) — 🔧 **rivisto il 15 agosto**, non chiuso: uno dei tre passi proposti era sbagliato | `src/state/` vs `src/components/liste/` |
+| **M-1** | 🟡 Media | Sicurezza | `importa_backup` — ✅ **chiuso lo stesso 15 agosto**: era più permissiva al DB (`can_liste()`) di quanto creduto, e l'ingresso UI reale non era quello descritto | DB produzione |
 | **M-2** | 🟡 Media | Sicurezza / Ops | Il ledger prova che una migrazione è stata *registrata*, non che il corpo applicato sia quello del file; 3 migrazioni risultano applicate due volte e i controlli non possono vederlo (usano `Set`) | `schema_migrations` + `migrazioni.js` |
 | **M-3** | 🟡 Media | Architettura | `VoyageDeskInner.jsx`: 518 righe, 6 hook di dominio + 8 stati UI + provider annidati in un solo componente | `src/VoyageDeskInner.jsx` |
 | **M-4** | 🟡 Media | Architettura | Densità di commento molto alta: il commento è diventato la specifica, e ha già divergito dal database su una policy di sicurezza | `src/lib/api.js`, `AuthContext.jsx` |
@@ -268,7 +268,44 @@ presente nello state — la regressione si chiude lì.
 
 ---
 
-### 🟠 A-1 · Due architetture dati parallele
+### 🟠 A-1 · Due architetture dati parallele — 🔧 rivisto il 15 agosto, non chiuso
+
+> **Il passo (1) proposto sotto era sbagliato, e lo dico prima del resto.**
+> «Data layer al suo piano: `listeApi.js` → `src/lib/listeApi.js`» inverte un
+> refactor già fatto e già verificato: `docs/AUDIT_STRUTTURA_2026-08-10.md`,
+> rilievo **ST-6**, ha spostato quel file **da** `src/lib/` **a**
+> `src/components/liste/` esattamente perché stare nella cartella condivisa lo
+> rendeva raggiungibile da fuori — Topbar, `ClientiView`, `Archive` lo
+> importavano già, assemblando query su tabelle di un modulo altrui. La quarta
+> regola `no-restricted-imports` (`VIETATO_LISTEAPI_DA_FUORI`) esiste apposta e
+> il commento in `eslint.config.js:122-135` lo dice esplicitamente. Rileggendo
+> quel commento **dopo** aver scritto la proposta, invece che prima: la
+> posizione attuale non «ratifica una collocazione sbagliata», è la
+> collocazione corretta con la regola che la presidia. Ritiro il passo (1).
+>
+> **I passi (2) e (3) non sono stati implementati**, e non per mancanza di
+> tempo: entrambi contraddicono una scelta di design **dichiarata nel codice
+> stesso**. `listePersistence.js:19-25` spiega perché il modulo Liste non ha
+> update ottimistico né rollback — «il modulo non mostra MAI uno stato che il
+> database non abbia già confermato […] aggiungere qui un livello ottimistico
+> introdurrebbe la classe di disallineamenti che il registry del core esiste
+> per chiudere». Convertire le sue diciotto operazioni in entry `PERSISTENCE`
+> (pensato per l'aggiornamento ottimistico) non è la fusione meccanica che
+> immaginavo scrivendo la proposta: è annullare quella decisione, su un modulo
+> che gestisce **saldi e movimenti finanziari** (`movimenti_lista`,
+> 5.573 righe), senza una revisione di design dedicata. Lo stesso vale per
+> `useListeData.js`/`useAppHydration.js`: sono già convergenti dove conta
+> davvero (`useDebouncedTableSubscription`, lo stesso schema `soloX`/reload
+> selettivo) — la parte rimasta separata è uno `useState` locale vs il
+> reducer, non una duplicazione cieca.
+>
+> **Quel che resta vero della diagnosi**: l'invariante `esitoScrittura` è
+> stata scoperta due volte in due implementazioni che non condividono codice —
+> è un fatto verificabile nel repository, non ritrattato. Il fix non è un
+> refactor di weekend; è un lavoro con un proprio design (probabilmente:
+> un modo per il registry di dichiarare "questa entry non fa update
+> ottimistico" invece di richiederlo sempre) che merita la propria sessione,
+> non tre righe infilate mentre si chiude M-1. **A-1 resta aperto.**
 
 **Dove**: `src/state/` (12 file, 2419 righe) + `src/hooks/` (9 file, 1223)
 contro `src/components/liste/` (28 file, 3606 righe).
@@ -320,7 +357,38 @@ dover essere richiuso a mano nel modulo.
 
 ---
 
-### 🟡 M-1 · `importa_backup`: il DB è più permissivo di ogni percorso che lo raggiunge
+### 🟡 M-1 · `importa_backup`: il DB è più permissivo di ogni percorso che lo raggiunge — ✅ chiuso lo stesso 15 agosto
+
+> **Chiuso, con una correzione al rilievo stesso.** Il DB ora richiede
+> `private.is_admin()` invece di `private.can_liste()`
+> (migrazione `20260815231000_importa_backup_solo_admin`, **applicata in
+> produzione e verificata** — `pg_get_functiondef` non contiene più
+> `can_liste`, contiene `is_admin`). `lib/permissions.js` guadagna
+> `canImportBackup`, e `listePersistence.js` la usa come `guard` sull'entry
+> `importaBackup` — stessa difesa in profondità che `resetTotale` ha già.
+>
+> **La frase «l'unico ingresso in UI è il pannello Admin» era sbagliata**, e
+> vale la pena dire come me ne sono accorto scrivendo il fix invece di
+> lasciarlo scritto. `AdminIOTab.jsx` ha davvero un bottone "Ripristina da
+> backup" — ma dispatcha `RESTORE_BACKUP` al reducer core (task/team/
+> categorie), **non chiama `importa_backup`**: è una feature diversa che
+> condivide solo il nome. Il vero (e unico) ingresso della RPC è "⬆ Carica
+> backup" dentro `StrumentiDatiModal`, la modale "Strumenti dati" del modulo
+> Liste stesso — visibile a **admin, manager e agent**, esattamente come il
+> `can_liste()` che proteggeva la RPC. Non c'era nessuno scarto UI↔DB da
+> "un agent che chiama la RPC a mano scavalcando l'Admin panel": uno scarto
+> più semplice, un agent poteva vedere e premere un bottone vero che la RPC
+> avrebbe comunque accettato. Corretto anche quello: il bottone ora compare
+> **solo per l'admin** in `StrumentiDatiModal.jsx`, sullo stesso modello già
+> in uso per "Reset totale…". Aggiornato anche il commento ormai impreciso in
+> `listeApi.js:268-274` (M-4: un commento che descrive un gate del database
+> non deve restare quando quel gate cambia).
+>
+> Test nuovi: guard negato/concesso su `importaBackup` nel registry
+> (`listePersistence.test.jsx`), bottone assente per un ruolo non-admin
+> (`listeDataTools.test.jsx`).
+>
+> Test: 1324 verdi (era 1321). Lint: 0 errori.
 
 **Dove**: `public.importa_backup(jsonb)` in produzione;
 `supabase/migrations/20260728190100_hardening_liste_viaggio_ruoli.sql:158`;

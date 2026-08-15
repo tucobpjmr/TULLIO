@@ -362,7 +362,42 @@ i due livelli continuano a rispondere insieme — che è la convenzione del file
 
 ---
 
-### 🟡 M-2 · Il ledger prova la riga, non il corpo applicato
+### 🟡 M-2 · Il ledger prova la riga, non il corpo applicato — ✅ chiuso lo stesso 15 agosto
+
+> **Chiuso, con uno scope ridotto deliberatamente.** La parte
+> (1) — le riapplicazioni invisibili ai due controlli esistenti — è chiusa:
+> `trovaRiapplicate(applicate)` in `migrazioni.js` (pura, nessuna rete) trova i
+> nomi applicati più di una volta ripercorrendo lo stesso array che
+> `verifica-migrazioni.js` già scarica da `get_migrazioni_applicate()`, ed è
+> ora richiamata dal runner con lo stesso trattamento non bloccante di
+> `trovaNonVersionate` (annotazione `::warning`, non fa fallire il workflow).
+> Quattro nuovi casi in `verificaMigrazioni.test.js`, incluso uno con i tre
+> nomi reali del ledger di produzione.
+>
+> La verifica puntuale proposta sotto — il corpo di `chat_files_delete_orfani`
+> contro il file corrente — è stata fatta **durante questa stessa sessione**,
+> via lettura diretta della policy live (`pg_policy`/`pg_get_expr`): **il corpo
+> corrisponde esattamente**, stessi quattro rami, stesso `to authenticated`.
+> Nessuna deriva nella riapplicazione del 15 agosto.
+>
+> **Non implementata, per scelta**: la parte (2), `INVARIANTI_SICUREZZA` come
+> nuova RPC `SECURITY DEFINER` interrogabile dal runner CI. Il motivo non è
+> tecnico — costruirla è immediato, lo schema è lì sotto — è di esposizione:
+> avrebbe richiesto decidere a chi concederne l'`EXECUTE` (`anon`, per essere
+> chiamabile dal runner CI non autenticato con la sola anon key, come
+> `get_migrazioni_applicate`), e B-2 di questo stesso documento segnala che la
+> la premessa con cui quella prima funzione fu aperta ad `anon` («i nomi sono già
+> pubblici nel repository Git») non è vera — il repository è privato. Aprire
+> una SECONDA funzione ad `anon` sulla stessa premessa contestata nella riga
+> sopra non è una correzione, è la stessa scelta ripetuta. La verifica per
+> contenuto resta quindi manuale — esattamente come è stata fatta qui, con
+> accesso diretto al progetto — finché B-2 non è deciso in una direzione o
+> nell'altra. **`docs/CLAUDE.md`** guadagna la disciplina gemella lato test
+> (vedi M-4): non risolve questo specifico problema (le migrazioni non sono
+> asserzioni in un commento), ma è lo stesso principio applicato dove si
+> poteva applicare senza aprire nuova superficie.
+>
+> Test: 1321 verdi (era 1317 dopo C-1, +4 di questi due rilievi). Lint: 0 errori.
 
 **Dove**: `supabase_migrations.schema_migrations` (113 righe) vs
 `supabase/migrations/` (109 file) vs `scripts/verifica-rpc/migrazioni.js`.
@@ -448,8 +483,13 @@ export function trovaRiapplicate(applicate) {
 
 Nell'immediato, a costo quasi nullo: verificare che il corpo di
 `chat_files_delete_orfani` in produzione sia quello del file corrente (è la
-riapplicazione più recente e riguarda una policy di storage), e deduplicare le
-tre voci ripetute.
+riapplicazione più recente e riguarda una policy di storage) — fatto, vedi la
+nota di chiusura sopra. Non deduplicare le tre voci nel ledger: sono la
+cronaca vera di cosa è stato eseguito e quando, non un difetto da correggere —
+`schema_migrations` è lo storico delle applicazioni, non un elenco di nomi
+univoci. Il difetto era che gli strumenti non se ne accorgessero, non che il
+ledger le contenesse; `trovaRiapplicate` chiude il primo senza toccare il
+secondo.
 
 ---
 
@@ -505,7 +545,25 @@ cosa sola: comporre.
 
 ---
 
-### 🟡 M-4 · Il commento è diventato la specifica
+### 🟡 M-4 · Il commento è diventato la specifica — ✅ chiuso lo stesso 15 agosto
+
+> **Chiuso.** Il caso concreto proposto sotto è stato scritto per davvero — non
+> nella forma d'esempio con `clientAgent` immaginario, ma dentro
+> `src/test/integration/rls.test.js`, riusando `RLS_TEST_DRIVER_EMAIL` (l'unico
+> utente già provisionato con meno privilegi del sistema: nessun accesso al
+> modulo Liste, niente coda globale). Il driver legge i contatti di ALTRI
+> membri del team — se anche lui ci riesce, la policy non discrimina per
+> ruolo. Come ogni altro caso in quel file, resta `.skip` senza le credenziali
+> di staging: non eseguibile da questo ambiente, ma scritto e pronto per la
+> prossima sessione che le ha.
+>
+> La regola operativa è entrata in `docs/CLAUDE.md`, accanto a **Permessi**
+> (stessa famiglia tematica): un commento che afferma cosa fa una policy RLS,
+> un grant o un predicato lato server va accompagnato da un caso in
+> `rls.test.js`. Non è retroattiva sui commenti esistenti — solo sul prossimo
+> che qualcuno scrive.
+>
+> Test: 1321 verdi (era 1317 dopo C-1, +4 di questi due rilievi). Lint: 0 errori.
 
 **Dove**: trasversale. `src/lib/api.js` è 914 righe fisiche ma sta sotto il tetto
 di 500 al netto di commenti e righe vuote: **oltre il 45% del file è prosa**.

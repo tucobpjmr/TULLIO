@@ -125,7 +125,10 @@ export const ChatPanel = ({ open, onClose, conversations: convProp, messages: ms
     });
     if (!ok) return;
     if (activeConv?.id === conv.id) pd({ type: "BACK" });
-    onDeleteConversation(conv.id);
+    // La conversazione INTERA, non il solo id (C-1 del terzo passaggio): il
+    // comando la rimette in lista se il DELETE non passa. Qui l'oggetto c'è
+    // già — è quello su cui è stata mostrata la conferma.
+    onDeleteConversation(conv);
   };
 
   // Se la conversazione aperta sparisce dalla lista (eliminata da un altro

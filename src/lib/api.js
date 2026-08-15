@@ -400,11 +400,18 @@ export const TaskThreads = {
 };
 
 // ----------------- COMMENTS -----------------
+// B-2 dell'audit del 14 agosto (terzo passaggio): `Comments.remove` è stato
+// tolto perché non aveva chiamanti — nessuna UI cancella un commento, nessuna
+// entry del registry la dichiara, nessun documento la cita come preparazione
+// dichiarata (la verifica che mancò al primo tentativo di B-2 nel secondo
+// passaggio, quando `Messages.listForConversation` fu rimossa per errore
+// leggendo i soli usi nel repository). Un metodo di scrittura senza chiamanti
+// nel data layer non è inerte: è una scorciatoia già pronta per chi domani
+// vorrà cancellare un commento senza passare dal registry, cioè senza guard,
+// senza rollback e senza tag origin.
 export const Comments = {
   create: ({ task_id, user_id, text }) =>
     supabase.from('comments').insert(withOrigin({ task_id, user_id, text })).select().single(),
-  remove: (id) =>
-    supabase.from('comments').delete().eq('id', id),
 };
 
 // ----------------- NOTICES (bacheca) -----------------
@@ -437,8 +444,15 @@ export const Conversations = {
       .eq('id', id).select().single(),
   // Eliminazione conversazione/gruppo: i messaggi seguono via FK ON DELETE
   // CASCADE; le RLS (20260705) permettono il delete a ogni partecipante.
+  //
+  // CONTA_RIGHE (C-1 del terzo passaggio del 14 agosto): è una DELETE mirata a
+  // UNA riga per chiave primaria, quindi `count === 0` significa "la RLS non
+  // me l'ha lasciata toccare" e non "non c'era niente da fare". Qui il
+  // conteggio non è difesa in profondità ma la CONDIZIONE che decide se
+  // ripulire lo storage: chatCommands.removeConversation rimuove gli allegati
+  // solo DOPO che questa DELETE ha davvero tolto la riga.
   remove: (id) =>
-    supabase.from('conversations').delete().eq('id', id),
+    supabase.from('conversations').delete(CONTA_RIGHE).eq('id', id),
 };
 
 // ----------------- MESSAGES -----------------
@@ -502,8 +516,11 @@ export const Messages = {
   },
   send: (m) =>
     supabase.from('messages').insert(withOrigin(m)).select().single(),
-  remove: (id) =>
-    supabase.from('messages').delete().eq('id', id),
+  // `remove` (cancellazione di un singolo messaggio) è stata tolta con lo
+  // stesso criterio di `Comments.remove` — vedi lì: nessun chiamante, nessun
+  // comando in chatCommands.js, nessun audit che la dichiari preparata. La
+  // cancellazione della CONVERSAZIONE resta e passa da Conversations.remove,
+  // che i messaggi se li porta dietro in CASCADE.
   // Toggle atomico di una reazione (RPC messages_toggle_reaction, migration
   // 20260706). Sostituisce il vecchio setReactions che scriveva l'intero
   // oggetto reactions calcolato lato client: due utenti che reagivano allo

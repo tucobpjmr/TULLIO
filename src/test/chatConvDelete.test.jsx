@@ -1,7 +1,9 @@
 // Eliminazione conversazioni/gruppi dalla chat.
 // Il bottone 🗑 (lista e header conversazione) chiede conferma e delega a
-// onDeleteConversation(convId); l'annullamento non deve produrre alcuna
-// chiamata. Se la conv eliminata è quella aperta, si torna alla lista.
+// onDeleteConversation(conv); l'annullamento non deve produrre alcuna
+// chiamata. Il parametro è la conversazione INTERA e non il solo id (C-1 del
+// terzo passaggio del 14 agosto): serve al comando per rimetterla in lista se
+// il DELETE sul server non passa. Se la conv eliminata è quella aperta, si torna alla lista.
 //
 // Criticità #8: la conferma era `window.confirm`, e questi test la pilotavano
 // con una spia su window. Ora è la finestra dell'app (useConfirm), quindi il
@@ -77,7 +79,7 @@ const rispondi = async (etichetta) => {
 };
 
 describe("eliminazione conversazioni/gruppi", () => {
-  it("lista: 🗑 con conferma chiama onDeleteConversation con l'id", async () => {
+  it("lista: 🗑 con conferma chiama onDeleteConversation con la conversazione", async () => {
     const onDelete = vi.fn();
     renderPanel({ onDeleteConversation: onDelete });
 
@@ -87,7 +89,7 @@ describe("eliminazione conversazioni/gruppi", () => {
     // un window.confirm non poteva garantire (lingua e forma erano del browser).
     expect(await screen.findByText('Eliminare il gruppo "Gruppo QA"?')).toBeTruthy();
     await rispondi("Elimina");
-    await waitFor(() => expect(onDelete).toHaveBeenCalledWith(GROUP.id));
+    await waitFor(() => expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: GROUP.id })));
   });
 
   it("lista: annullando la conferma non elimina nulla", async () => {
@@ -123,7 +125,7 @@ describe("eliminazione conversazioni/gruppi", () => {
     fireEvent.click(screen.getByTitle("Elimina gruppo"));
     await rispondi("Elimina");
 
-    await waitFor(() => expect(onDelete).toHaveBeenCalledWith(GROUP.id));
+    await waitFor(() => expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: GROUP.id })));
     // Tornati alla lista conversazioni
     expect(await screen.findByPlaceholderText("Cerca conversazione...")).toBeTruthy();
   });

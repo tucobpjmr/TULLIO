@@ -125,6 +125,17 @@ const SCENARI = [
     tasks: [T_PROPRIO_SENIOR],
     action: { type: "ADD_COMMENT", payload: { taskId: uuid(1), comment: { text: "ciao" } } },
   },
+  // M-1 dell'audit del 14 agosto (terzo passaggio). A-1 del secondo passaggio
+  // aveva dato un guard alle tre mutazioni singole sull'anagrafica e saltato
+  // quella IN BLOCCO: l'import restava protetto dal solo fatto che
+  // ClientiView non renderizzasse il pulsante per chi non ha `canEditClient`.
+  // Qui la parità è misurata come per le altre — se qualcuno toglie il guard,
+  // o il controllo nel reducer, questo caso diventa rosso.
+  {
+    nome: "ADD_CLIENTS_BULK (import anagrafica)",
+    tasks: [],
+    action: { type: "ADD_CLIENTS_BULK", payload: [{ id: uuid(5), name: "Rossi Mario" }] },
+  },
 ];
 
 const RUOLI = ["admin1", "senior1", "junior1", "driver1"];
@@ -373,6 +384,52 @@ describe("persistence — normalizzazione degli id", () => {
 });
 
 describe("persistence — rollback dichiarati", () => {
+  // M-2 dell'audit del 14 agosto (terzo passaggio). Erano le uniche due
+  // mutazioni sul TEAM senza compensazione: il pannello mostrava un utente
+  // approvato (o rimosso) che sul database non lo era, e nessun evento
+  // realtime veniva a correggerlo — una scrittura fallita non ne emette.
+  it("APPROVE_TEAM_MEMBER riporta indietro il membro INTERO pre-approvazione", () => {
+    const membro = { id: "u9", name: "Nuovo", role: "agent", active: false, pending: true };
+    const state = { ...statoCon([], "admin1"), team: [...TEAM, membro] };
+    const action = { type: "APPROVE_TEAM_MEMBER", payload: "u9" };
+    // Il membro intero, non `{ pending: true }`: il case del reducer fa merge,
+    // quindi un patch parziale lascerebbe a video l'`active` che
+    // l'approvazione ha cambiato.
+    expect(PERSISTENCE.APPROVE_TEAM_MEMBER.rollback(state, action))
+      .toEqual({ type: "UPDATE_TEAM_MEMBER", payload: membro });
+  });
+
+  it("REMOVE_TEAM_MEMBER rimette in lista l'utente che il server non ha eliminato", () => {
+    const membro = { id: "u9", name: "Nuovo", role: "agent", active: true, pending: false };
+    const state = { ...statoCon([], "admin1"), team: [...TEAM, membro] };
+    const action = { type: "REMOVE_TEAM_MEMBER", payload: "u9" };
+    expect(PERSISTENCE.REMOVE_TEAM_MEMBER.rollback(state, action))
+      .toEqual({ type: "ADD_TEAM_MEMBER", payload: membro });
+  });
+
+  it("le due compensazioni sul team sono applicabili davvero dal reducer", () => {
+    // Un rollback che il reducer scarta è peggio di nessun rollback: dice di
+    // aver rimesso le cose a posto senza farlo. Qui si esegue davvero.
+    const membro = { id: "u9", name: "Nuovo", role: "agent", active: false, pending: true };
+    const state = { ...statoCon([], "admin1"), team: [...TEAM, membro] };
+
+    const dopoApprove = reducer(state, { type: "APPROVE_TEAM_MEMBER", payload: "u9" });
+    expect(dopoApprove.team.find(m => m.id === "u9").pending).toBe(false);
+    const undo = PERSISTENCE.APPROVE_TEAM_MEMBER.rollback(state, { type: "APPROVE_TEAM_MEMBER", payload: "u9" });
+    const ripristinato = reducer(dopoApprove, { ...undo, meta: { compensazione: true } });
+    expect(ripristinato.team.find(m => m.id === "u9").pending).toBe(true);
+    expect(ripristinato.team.find(m => m.id === "u9").active).toBe(false);
+    // `meta.compensazione` riporta indietro anche i toast: nessun "Agente
+    // aggiornato" accanto al "Salvataggio fallito" che sta per comparire.
+    expect(ripristinato.toasts).toBe(dopoApprove.toasts);
+
+    const dopoRemove = reducer(state, { type: "REMOVE_TEAM_MEMBER", payload: "u9" });
+    expect(dopoRemove.team.some(m => m.id === "u9")).toBe(false);
+    const undoRemove = PERSISTENCE.REMOVE_TEAM_MEMBER.rollback(state, { type: "REMOVE_TEAM_MEMBER", payload: "u9" });
+    const tornato = reducer(dopoRemove, { ...undoRemove, meta: { compensazione: true } });
+    expect(tornato.team.find(m => m.id === "u9")).toEqual(membro);
+  });
+
   it("ADD_TASKS_BULK rimanda indietro esattamente gli id del batch", () => {
     const state = statoCon([], "admin1");
     const action = { type: "ADD_TASKS_BULK", payload: [task({ id: uuid(1) }), task({ id: uuid(2) })] };

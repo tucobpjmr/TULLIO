@@ -29,6 +29,7 @@ import {
 // racconta. Vedi state/activityLog.js per il perché della separazione.
 import { LOGGED_ACTIONS, buildLogEntry } from "./activityLog.js";
 import { applyRestoreBackupRollback } from "./restoreBackupRollback.js";
+import { fondiScrittureInVolo } from "./pendingWrites.js";
 import { INITIAL_CATEGORIES } from "./taskCategories.js";
 import { demoState } from "./demoState.js";
 import { chiaveNome } from "../lib/clientNotes.js";
@@ -211,15 +212,10 @@ function baseReducer(state, action) {
       // ottimistici: il server la serve ancora) o non esista ancora sul server
       // (ADD_TASK/ADD_TASKS_BULK in volo: senza questo il refetch la farebbe
       // sparire dalla lista).
-      const incoming = Array.isArray(action.payload) ? action.payload : [];
-      const pending = state.pendingWrites;
-      if (!pending?.size) return { ...state, tasks: incoming };
-      const locali = new Map((state.tasks || []).map(t => [t.id, t]));
-      const tasks = incoming.filter(t => !pending.has(t.id) || locali.has(t.id))
-        .map(t => (pending.has(t.id) ? locali.get(t.id) : t));
-      const serviti = new Set(incoming.map(t => t.id));
-      const nonAncoraSulServer = (state.tasks || []).filter(t => pending.has(t.id) && !serviti.has(t.id));
-      return { ...state, tasks: nonAncoraSulServer.length ? [...nonAncoraSulServer, ...tasks] : tasks };
+      // La fusione vive in state/pendingWrites.js: la stessa invariante vale
+      // per clienti e avvisi (A-1 del terzo passaggio del 14 agosto), e
+      // scriverla tre volte significherebbe tre occasioni di divergere.
+      return { ...state, tasks: fondiScrittureInVolo(action.payload, state.tasks, state.pendingWrites) };
     }
     case "SET_TASK_THREADS": {
       // Idratazione parziale: solo commenti e/o cronologia, indicizzati per
@@ -501,7 +497,10 @@ function baseReducer(state, action) {
 
     // ─── BACHECA AVVISI ───
     case "SET_NOTICES": {
-      return { ...state, notices: Array.isArray(action.payload) ? action.payload : [] };
+      // Stessa protezione di SET_TASKS (A-1, terzo passaggio): un avviso con
+      // una scrittura in volo non va sostituito con il pre-immagine che il
+      // server sta ancora servendo.
+      return { ...state, notices: fondiScrittureInVolo(action.payload, state.notices, state.pendingWrites) };
     }
     case "ADD_NOTICE": {
       const notices = [action.payload, ...state.notices];
@@ -582,8 +581,12 @@ function baseReducer(state, action) {
     }
 
     // ─── CRM: CLIENTI ───
+    // `clients` è in realtime dalla 20260807215625: da allora un evento di un
+    // altro utente fa ripartire ClientsAPI.list() mentre la NOSTRA scrittura è
+    // ancora in volo, ed è esattamente la finestra per cui pendingWrites esiste
+    // (A-1, terzo passaggio del 14 agosto).
     case "SET_CLIENTS":
-      return { ...state, clients: Array.isArray(action.payload) ? action.payload : [] };
+      return { ...state, clients: fondiScrittureInVolo(action.payload, state.clients, state.pendingWrites) };
     // A-1 dell'audit del 14 agosto (secondo passaggio): stesso pattern già
     // applicato agli avvisi lo stesso giorno. Senza questi tre controlli, un
     // ruolo a cui useSyncedDispatch nega la scrittura (guard in
@@ -595,6 +598,11 @@ function baseReducer(state, action) {
       if (!canEditClient(state.team, uid)) return _denied("Non hai i permessi per aggiungere un cliente");
       return { ...state, clients: [action.payload, ...(state.clients || [])], toasts: pushToast(state.toasts, { message: "Cliente aggiunto!", type: "success" }) };
     case "ADD_CLIENTS_BULK": {
+      // M-1 (terzo passaggio): stesso gate di ADD_CLIENT. Il guard del
+      // registry impedisce la richiesta di rete, non il dispatch che arriva
+      // qui — quando nega, useSyncedDispatch dispatcha comunque l'azione
+      // originale ed è questo reducer a doverla respingere.
+      if (!canEditClient(state.team, uid)) return _denied("Non hai i permessi per importare clienti");
       const n = action.payload.length;
       const clients = [...action.payload, ...(state.clients || [])];
       return { ...state, clients, toasts: pushToast(state.toasts, { message: `${n} client${n === 1 ? "e" : "i"} importat${n === 1 ? "o" : "i"}!`, type: "success" }) };

@@ -219,7 +219,11 @@ describe("chatCommands — rollback della reazione", () => {
       onError,
     });
 
-    commands.toggleReaction(UUID_CONV, UUID_MSG, "👍");
+    // M-3 (terzo passaggio): le reazioni precedenti arrivano dal chiamante,
+    // che il messaggio ce l'ha già. Prima il comando le estraeva DENTRO
+    // l'updater di setMessages — impuro, e quindi dipendente da quante volte
+    // React lo esegue.
+    commands.toggleReaction(UUID_CONV, UUID_MSG, "👍", {});
     expect(msg[UUID_CONV][0].reactions["👍"]).toEqual(["u1"]); // ottimistico
 
     await new Promise(r => setTimeout(r, 0));
@@ -251,7 +255,7 @@ describe("chatCommands — rollback della reazione", () => {
       onError,
     });
 
-    commands.toggleReaction(UUID_CONV, UUID_MSG, "👍");
+    commands.toggleReaction(UUID_CONV, UUID_MSG, "👍", {});
 
     // Un secondo messaggio arriva da realtime MENTRE la RPC del toggle è
     // ancora in volo — esattamente la finestra che il vecchio snapshot totale

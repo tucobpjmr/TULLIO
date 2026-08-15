@@ -27,28 +27,13 @@ import { PERSISTENCE } from "../state/persistence.js";
 import { ADMIN_ONLY_ACTIONS } from "../state/reducer.js";
 import { isAdmin } from "../lib/permissions.js";
 
-// C-1 dell'audit del 14 agosto (secondo passaggio). Una scrittura respinta
-// dalla RLS NON mette nulla in `error`: la clausola USING di una policy non
-// solleva un'eccezione, filtra le righe — una UPDATE/DELETE mirata a una riga
-// che la RLS nasconde ne tocca zero, e PostgREST risponde 2xx come per
-// qualunque altra scrittura riuscita. Senza questo controllo l'unica ragione
-// per cui alcune entry se ne accorgevano era una coincidenza: i metodi che
-// terminano con `.select().single()` falliscono su zero righe con PGRST116
-// (mancava sempre almeno un carattere in comune), tutti gli altri no.
-//
-// `count` arriva SOLO dai metodi del data layer che lo hanno richiesto
-// esplicitamente (CONTA_RIGHE in lib/api.js, sui soli metodi che mirano a una
-// riga per chiave primaria): dove non c'è, `typeof r?.count === 'number'` è
-// falso e il comportamento resta quello di sempre. L'adozione è quindi
-// per-metodo, non un cambiamento globale del contratto.
-const RIFIUTO_RLS = {
-  message: "operazione non consentita dal database (permessi insufficienti)",
-};
-const esito = (r) => {
-  if (r?.error) return r.error;
-  if (typeof r?.count === "number" && r.count === 0) return RIFIUTO_RLS;
-  return null;
-};
+// C-1 dell'audit del 14 agosto (secondo passaggio): una scrittura respinta
+// dalla RLS NON mette nulla in `error`, quindi "è andata bene" non è
+// `!res.error`. Il ragionamento e la funzione vivono in lib/esitoScrittura.js —
+// spostati lì da A-2 del terzo passaggio, perché il contratto è del data layer
+// e non di questo orchestratore: la chat e il modulo Liste scrivono senza
+// passare da qui e avevano ciascuno la propria copia cieca del controllo.
+import { esitoScrittura as esito } from "../lib/esitoScrittura.js";
 
 export function useSyncedDispatch(state, rawDispatch, { enabled = true } = {}) {
   // Snapshot vivo dello state: leggendolo da un ref invece che dalle deps,

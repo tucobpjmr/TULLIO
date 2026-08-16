@@ -67,14 +67,21 @@ prima di qualsiasi altra cosa.
 
 ## Tabella delle priorità
 
+> B-7 dell'audit del 16 agosto: le righe chiuse portano ora anche il `✔` della
+> convenzione del repository, oltre al `✅ chiuso` in prosa. Non è cosmesi —
+> `scripts/verifica-convenzioni/convenzioni.js` conta i rilievi chiusi cercando
+> quel carattere, e finché non c'era il marcatore `⟦stato: 4/12 chiusi⟧` di
+> `INDEX.md` non corrispondeva a nulla di misurabile (questo documento non era
+> nemmeno nel registro dei file controllati).
+
 | ID | Priorità | Area | Rilievo | Verificato su |
 |----|----------|------|---------|---------------|
-| **C-1** | 🔴 **Critica** | Sicurezza | Escalation a `admin` via metadata di signup: il ruolo arriva dal client, sopravvive fino all'approvazione, e la UI non consente di correggerlo prima di concederlo | Trigger live in produzione + `AdminTeamTab.jsx` |
+| **C-1** ✔ | 🔴 **Critica** | Sicurezza | ✅ **chiuso lo stesso 15 agosto.** Escalation a `admin` via metadata di signup: il ruolo arriva dal client, sopravvive fino all'approvazione, e la UI non consente di correggerlo prima di concederlo | Trigger live in produzione + `AdminTeamTab.jsx` |
 | **A-1** | 🟠 Alta | Architettura | Due architetture dati parallele (core vs modulo Liste) — 🔧 **rivisto il 15 agosto**, non chiuso: uno dei tre passi proposti era sbagliato | `src/state/` vs `src/components/liste/` |
-| **M-1** | 🟡 Media | Sicurezza | `importa_backup` — ✅ **chiuso lo stesso 15 agosto**: era più permissiva al DB (`can_liste()`) di quanto creduto, e l'ingresso UI reale non era quello descritto | DB produzione |
-| **M-2** | 🟡 Media | Sicurezza / Ops | Il ledger prova che una migrazione è stata *registrata*, non che il corpo applicato sia quello del file; 3 migrazioni risultano applicate due volte e i controlli non possono vederlo (usano `Set`) | `schema_migrations` + `migrazioni.js` |
+| **M-1** ✔ | 🟡 Media | Sicurezza | `importa_backup` — ✅ **chiuso lo stesso 15 agosto**: era più permissiva al DB (`can_liste()`) di quanto creduto, e l'ingresso UI reale non era quello descritto | DB produzione |
+| **M-2** ✔ | 🟡 Media | Sicurezza / Ops | ✅ **chiuso lo stesso 15 agosto.** Il ledger prova che una migrazione è stata *registrata*, non che il corpo applicato sia quello del file; 3 migrazioni risultano applicate due volte e i controlli non possono vederlo (usano `Set`) | `schema_migrations` + `migrazioni.js` |
 | **M-3** | 🟡 Media | Architettura | `VoyageDeskInner.jsx`: 518 righe, 6 hook di dominio + 8 stati UI + provider annidati in un solo componente | `src/VoyageDeskInner.jsx` |
-| **M-4** | 🟡 Media | Architettura | Densità di commento molto alta: il commento è diventato la specifica, e ha già divergito dal database su una policy di sicurezza | `src/lib/api.js`, `AuthContext.jsx` |
+| **M-4** ✔ | 🟡 Media | Architettura | ✅ **chiuso lo stesso 15 agosto.** Densità di commento molto alta: il commento è diventato la specifica, e ha già divergito dal database su una policy di sicurezza | `src/lib/api.js`, `AuthContext.jsx` |
 | **B-1** | 🟢 Bassa | Sicurezza | `notify_user_pending` usa `lower(role) = 'admin'`: unico gate del sistema non allineato al confronto esatto | DB produzione |
 | **B-2** | 🟢 Bassa | Sicurezza | La motivazione dell'esposizione di `get_migrazioni_applicate()` ad `anon` poggia su una premessa non più vera (il repository è privato) | `SICUREZZA.md:50` vs `README.md` |
 | **B-3** | 🟢 Bassa | Architettura | 4 componenti oltre 400 righe con 9–10 `useState` | `src/components/` |

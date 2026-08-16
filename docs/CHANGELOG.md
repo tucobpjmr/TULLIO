@@ -1,5 +1,82 @@
 # CHANGELOG — VoyageDesk
 
+## Audit del 16 agosto — stato/flusso dati, performance e UX (punti 3, 4, 5)
+
+> Seguito dichiarato dell'audit del 15 agosto (punti 1 e 2). Dodici rilievi,
+> **nessuno critico**, sei chiusi nello stesso giorno. La diagnosi comune ai
+> tre più gravi: le regole del progetto valgono dove qualcuno le ha applicate,
+> e i due sottosistemi che non passano dal reducer — chat e modulo Liste — sono
+> quelli in cui sono arrivate ultime.
+
+### 🟠 A-1 — la cointestazione di una lista non arrivava agli altri client
+
+**`supabase/migrations/20260815235446_lista_beneficiari_realtime.sql`** (NEW,
+**applicata in produzione e verificata**) — `lista_beneficiari` entra nella
+publication `supabase_realtime`. **`src/components/liste/useListeData.js`** — la
+tabella entra nella sottoscrizione, e il ramo di reload parziale è riscritto in
+positivo (`solo movimenti_lista ⇒ solo saldi`).
+
+Nessuno dei due percorsi emetteva un evento: la tabella non era pubblicata e le
+due RPC che la scrivono non toccano la riga padre. Siccome `LISTA_SELECT`
+incorpora i cointestatari e `intestazioneLista()` ne compone la testata —
+quella del riepilogo cliente e della copia agente — chi aggiungeva un
+cointestatario era l'unico a vederlo, per tutti gli altri fino al reload della
+pagina. Tabella a 0 righe in produzione: chiuso prima che costasse qualcosa.
+
+### 🟠 A-2 — la chat si ridisegnava a ogni toast
+
+**`src/VoyageDeskInner.jsx`**, **`src/components/chat/ChatPanel.jsx`** —
+`markChatNotificationsRead` dipendeva da `notif` (oggetto letterale ritornato da
+`useNotifications`, nuovo a ogni render) invece che dal suo `setNotifications`:
+da lì l'instabilità arrivava a `onConversationRead`, quindi al `useMemo` di
+`commands`, che non ha mai potuto saltare un render pur dichiarando in un
+commento di farlo. Sotto, `ChatPanel` non era `memo` e il value del suo
+`ChatContext` era un letterale nel JSX, quindi ogni bolla di messaggio si
+ridisegnava insieme a lui — a ogni carattere digitato nella ricerca globale, a
+ogni toast, a ogni tick di presenza. Corretto in tutti e quattro i punti;
+`src/test/chatMemo.test.jsx` (NEW) **verificato rosso senza la correzione**.
+
+### 🟡 M-1 — rete dentro l'updater di `setState`, nella presenza
+
+**`src/hooks/usePresence.js`** — il toggle "Occupato" faceva
+`UsersAPI.setPresence` e una seconda `setState` dentro l'updater di
+`setMyBusy`: due scritture di presenza per click in StrictMode. È testualmente
+la regola che `chatCommands.js` porta a lettere maiuscole dopo lo stesso
+difetto nella chat. `src/test/presenceToggle.test.jsx` (NEW).
+
+### 🟡 M-2 — il salvataggio del profilo non si vedeva e si poteva ripetere
+
+**`src/components/modals/ProfileEditor.jsx`** — era l'unica delle tre
+operazioni asincrone della modale senza stato in volo, ed è la più lenta
+(carica l'avatar e poi scrive): nessun feedback per tutta la durata
+dell'upload, e un secondo click ripartiva da capo. Ora `disabled` +
+`aria-busy` + «Salvataggio…» per la sola durata della scrittura — non da
+confondere con il bottone spento a form incompleto, che resta vietato.
+
+### 🟡 M-3 — la validazione inline valeva per 3 form su 8
+
+**`NoticeEditorModal`**, **`AddCategoryModal`**, **`AdminCategoriesTab`**,
+**`MessageTemplatesSection`**, **`AdminTeamTab`** — due uscivano con il bottone
+spento, tre con un `return` muto: si premeva "Salva" e non succedeva niente.
+Tutti e cinque passano ora da `validaCampi` + `<FieldError>` + `ariaCampo` +
+focus sul primo campo sbagliato. Gli style inline dinamici scendono da 335 a
+333.
+
+### 🟢 B-7 — due audit fuori dal registro di `verifica:convenzioni`
+
+**`scripts/verifica-convenzioni/index.js`** — mancavano questo audit e quello
+del 15 agosto, il più aperto: il loro `⟦stato: N/M chiusi⟧` non lo verificava
+nessuno. Aggiunti entrambi, e la prima esecuzione ha subito trovato una
+divergenza reale (la tabella del 15 agosto non marcava i quattro rilievi
+chiusi con il `✔` che lo script conta). 20 controlli, nessuna divergenza.
+
+**B-1…B-6 restano aperti o dichiarati** e sono elencati in
+[`docs/AUDIT_ARCHITETTURA_2026-08-16.md`](AUDIT_ARCHITETTURA_2026-08-16.md).
+
+Lint 0, **1337 test verdi** (era 1324), first load 170,63 kB gzip su una soglia
+di 184.
+
+
 ## Conferme, errori e validazione: chiude le criticità #8–#12
 
 > Stesso branch. Cinque rilievi di media/bassa priorità, tutti su cosa l'app

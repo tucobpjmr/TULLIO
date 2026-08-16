@@ -136,9 +136,21 @@ function schemaDaiFile() {
 // follow-up dichiarato nel blocco (b) della migrazione 20260808120000. Il
 // modulo è anche quello che ci perde meno: ricarica comunque tutto a ogni
 // scrittura per scelta esplicita (docs/CLAUDE.md, niente ottimismo nelle Liste).
+//
+// lista_beneficiari — pubblicata dalla 20260815235446 (A-1 dell'audit del 16
+// agosto: senza, aggiungere un cointestatario non emetteva alcun evento e
+// l'intestazione della lista restava vecchia su ogni altro client). Ricade
+// nella STESSA eccezione delle due sopra e per la stessa ragione, non per una
+// nuova: si scrive solo via RPC (`aggiungi_beneficiario_lista`,
+// `rimuovi_beneficiario_lista`), che non trasportano l'origine. Il prezzo è un
+// reload in più per chi ha appena scritto — che nel modulo Liste ricarica
+// comunque a mano dopo ogni scrittura — contro un'intestazione sbagliata per
+// tutti gli altri. Esce da questo elenco insieme alle altre due, quando le RPC
+// del modulo prenderanno `p_origin`.
 const ECCEZIONI = new Map([
   ['liste_viaggio', 'scritture solo via RPC non taggate — follow-up p_origin'],
   ['movimenti_lista', 'scritture solo via RPC non taggate — follow-up p_origin'],
+  ['lista_beneficiari', 'scritture solo via RPC non taggate — follow-up p_origin'],
 ]);
 
 // ─── 1. L'invariante ──────────────────────────────────────────────────────

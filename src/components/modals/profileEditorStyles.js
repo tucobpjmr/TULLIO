@@ -80,3 +80,12 @@ export const boxF13Bold3 = {
   fontSize: 13, fontWeight: 700, fontFamily: "inherit",
   boxShadow: "0 4px 14px rgba(15,32,68,0.3)",
 };
+// Lo stesso bottone mentre il salvataggio è in volo (M-2 dell'audit del 16
+// agosto): spento, senza ombra e senza cursore a mano — le stesse tre cose che
+// dicono "non premere di nuovo" agli altri due bottoni in volo di questa
+// modale (password, eliminazione account).
+export const boxF13Bold3InVolo = {
+  ...boxF13Bold3,
+  background: "var(--surface3)", color: "var(--text-muted)",
+  cursor: "not-allowed", boxShadow: "none",
+};

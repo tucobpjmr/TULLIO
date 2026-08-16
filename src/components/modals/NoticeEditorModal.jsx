@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import { NOTICE_COLORS } from "../../lib/taskConstants.js";
 import { MentionText } from "../ui/MentionText.jsx";
 import { Modal } from "../ui/Modal.jsx";
+import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
+import { obbligatorio, validaCampi } from "../../lib/validators.js";
 import { rowGap8, rowGap8Mt20, txtF11Muted, txtHeadingMb16 } from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
@@ -36,11 +38,23 @@ const boxFlex1F12 = {
   background: "transparent", color: "var(--text)",
 };
 const rowCenterGap8 = { display: "flex", alignItems: "center", gap: 8, marginTop: 14, fontSize: 13, cursor: "pointer", color: "var(--text)" };
+const boxF12Pubblica = {
+  padding: "8px 16px", borderRadius: 6, border: "none",
+  background: "var(--navy)", color: "#fff", fontSize: 12, fontWeight: 700,
+  cursor: "pointer", fontFamily: "inherit",
+};
 const boxF12Text = {
   padding: "8px 14px", borderRadius: 6, border: "1px solid var(--border)",
   background: "var(--card)", color: "var(--text)", fontSize: 12, fontWeight: 500,
   cursor: "pointer", fontFamily: "inherit",
 };
+
+// M-3 dell'audit del 16 agosto. Un avviso senza testo non si pubblica, e va
+// DETTO: il bottone spento più il `return` muto lasciavano l'utente davanti a
+// un comando che non rispondeva e non spiegava perché (docs/CLAUDE.md,
+// «Validazione dei form: inline, non via toast» — ⛔ niente bottone
+// disabilitato al posto del messaggio).
+const REGOLE = { text: obbligatorio("L'avviso non può essere vuoto.") };
 
 export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
   const [text, setText] = useState(notice?.text || "");
@@ -50,6 +64,7 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
   // Persistono come array di stringhe normalizzate (lowercase, trim).
   const [tags, setTags] = useState(Array.isArray(notice?.tags) ? notice.tags : []);
   const [tagDraft, setTagDraft] = useState("");
+  const [errori, setErrori] = useState({});
   const textareaRef = useRef(null);
 
   useEffect(() => { textareaRef.current?.focus(); }, []);
@@ -70,7 +85,13 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
   };
 
   const submit = () => {
-    if (!text.trim()) return;
+    const trovati = validaCampi({ text }, REGOLE);
+    if (trovati.text) {
+      setErrori(trovati);
+      textareaRef.current?.focus();
+      return;
+    }
+    setErrori({});
     onSave({ text: text.trim(), color, pinned, tags });
   };
 
@@ -109,7 +130,11 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
       <textarea
         ref={textareaRef}
         value={text}
-        onChange={e => setText(e.target.value)}
+        onChange={e => {
+          setText(e.target.value);
+          setErrori(prec => (prec.text ? {} : prec));
+        }}
+        {...ariaCampo("vd-notice-text-err", errori.text)}
         placeholder="Scrivi qui il tuo avviso... usa @nome per menzionare un membro del team"
         rows={4}
         maxLength={500}
@@ -117,6 +142,7 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
         onFocus={e => e.target.style.borderColor = "var(--gold)"}
         onBlur={e => e.target.style.borderColor = "var(--border)"}
       />
+      <FieldError id="vd-notice-text-err">{errori.text}</FieldError>
       <div style={rowBetweenMt4}>
         <span style={txtF11Muted}>
           💡 Scrivi <b>@nome</b> per notificare un collega
@@ -186,12 +212,10 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
       {/* Footer buttons */}
       <div style={rowGap8Mt20}>
         <button onClick={onClose} style={boxF12Text}>Annulla</button>
-        <button onClick={submit} disabled={!text.trim()} style={{
-          padding: "8px 16px", borderRadius: 6, border: "none",
-          background: text.trim() ? "var(--navy)" : "var(--text-light)",
-          color: "#fff", fontSize: 12, fontWeight: 700,
-          cursor: text.trim() ? "pointer" : "not-allowed", fontFamily: "inherit",
-        }}>{notice ? "💾 Salva modifiche" : "📌 Pubblica avviso"}</button>
+        {/* Il bottone resta PREMIBILE anche a testo vuoto: è premendolo che si
+            ottiene il messaggio sotto il campo e il focus dentro l'area di
+            testo. Spento non diceva cosa mancasse. */}
+        <button onClick={submit} style={boxF12Pubblica}>{notice ? "💾 Salva modifiche" : "📌 Pubblica avviso"}</button>
       </div>
     </Modal>
   );

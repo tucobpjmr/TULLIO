@@ -199,8 +199,20 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
 
   // Spegne la notifica in campanella della conversazione che si sta aprendo:
   // bookkeeping delle notifiche, non della chat, quindi vive qui.
+  //
+  // ⚠️ La dipendenza è `setNotifications`, NON l'oggetto `notif` (A-2
+  // dell'audit del 16 agosto). `useNotifications` ritorna un oggetto letterale,
+  // quindi `notif` è NUOVO a ogni render del guscio — cioè a ogni toast, a ogni
+  // carattere digitato nella ricerca, a ogni tick di presenza. Con `notif`
+  // nelle deps questa callback cambiava identità altrettanto spesso, e siccome
+  // è `onConversationRead` di useChatData, si portava dietro l'intero registro
+  // `commands` della chat: il `useMemo` che lo costruisce non ha MAI potuto
+  // saltare un render, e con lui il `memo` di ChatPanel. Il setter di useState
+  // ha invece identità garantita da React per tutta la vita del componente, ed
+  // è l'unica cosa di `notif` che serve qui.
+  const { setNotifications: setNotifiche } = notif;
   const markChatNotificationsRead = useCallback((convId) => {
-    notif.setNotifications(prev => prev.map(n => (
+    setNotifiche(prev => prev.map(n => (
       n.type === "chat_message" && n.payload?.conversation_id === convId && !n.read
         ? { ...n, read: true }
         : n
@@ -209,7 +221,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     NotificationsAPI.markReadForConversation(convId).then(r => {
       if (r?.error) console.error("[notifications] markReadForConversation", r.error);
     });
-  }, [useSupabase, notif]);
+  }, [useSupabase, setNotifiche]);
 
   const chat = useChatData({
     enabled: useSupabase,
@@ -271,6 +283,13 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   const openChatPanel = useCallback(() => {
     setChatIntent(null);
     setShowChat(true);
+  }, []);
+  // Stessa ragione di openChatTo/openBulk, e va nello stesso commit del `memo`
+  // su ChatPanel (A-2): una arrow inline nel JSX è una prop nuova a ogni render
+  // del guscio, cioè un confronto che non può mai riuscire.
+  const closeChatPanel = useCallback(() => {
+    setShowChat(false);
+    setChatIntent(null);
   }, []);
 
   usePushNavigation({
@@ -465,7 +484,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           <Suspense fallback={<LazyFallback overlay />}>
             <ChatPanel
               open
-              onClose={() => { setShowChat(false); setChatIntent(null); }}
+              onClose={closeChatPanel}
               conversations={chat.conversations}
               messages={chat.messages}
               commands={chat.commands}

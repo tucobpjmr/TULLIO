@@ -32,6 +32,12 @@ const AUDIT = [
   { file: 'AUDIT_ARCHITETTURA_2026-08-14.md', prefisso: ['C', 'A', 'M', 'B'] },
   { file: 'AUDIT_ARCHITETTURA_2026-08-14_ii.md', prefisso: ['C', 'A', 'M', 'B'] },
   { file: 'AUDIT_ARCHITETTURA_2026-08-14_iii.md', prefisso: ['C', 'A', 'M', 'B'] },
+  // B-6 dell'audit del 16 agosto: questi due mancavano dal registro, quindi il
+  // loro ⟦stato: N/M chiusi⟧ in INDEX.md non lo verificava nessuno — un
+  // marcatore machine-readable che nessuna macchina legge è una nota a
+  // margine, e l'audit del 15 agosto è quello con più rilievi ANCORA APERTI.
+  { file: 'AUDIT_ARCHITETTURA_2026-08-15.md', prefisso: ['C', 'A', 'M', 'B'] },
+  { file: 'AUDIT_ARCHITETTURA_2026-08-16.md', prefisso: ['C', 'A', 'M', 'B'] },
 ];
 
 // Misura i warning di una regola sul sorgente dell'app.

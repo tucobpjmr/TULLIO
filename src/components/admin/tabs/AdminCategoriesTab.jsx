@@ -5,6 +5,8 @@ import { fieldStyle, btnPrimary, btnGhost, btnDanger } from "../adminStyles.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useTasks } from "../../../state/TasksContext.jsx";
 import { AddCategoryModal } from "../../modals/AddCategoryModal.jsx";
+import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
+import { obbligatorio, validaCampi } from "../../../lib/validators.js";
 import { useConfirm } from "../../../state/ConfirmContext.jsx";
 import { gridGap10, rowCenterBetween, txtF12Muted2, txtF13Muted } from "../../../styles/common.js";
 
@@ -18,21 +20,29 @@ const gridGap8 = { display: "grid", gridTemplateColumns: "1fr 70px 90px 90px", g
 const txtF15Bold = { fontSize: 15, fontWeight: 600, color: "var(--text)" };
 const rowGap6 = { display: "flex", gap: 6 };
 
+// M-3 dell'audit del 16 agosto: la rinomina in linea usciva in silenzio a
+// etichetta vuota (`if (!draft.label?.trim()) return;`), lasciando la riga in
+// modifica senza dire perché "💾 Salva" non facesse nulla.
+const REGOLE = { label: obbligatorio("L'etichetta non può essere vuota.") };
+
 // ─── ADMIN TAB: CATEGORIE ──────────────────────────────────────────────────
 export const AdminCategoriesTab = ({ dispatch }) => {
   const conferma = useConfirm();
   const { categories } = useAppData();
   const tasks = useTasks();
   const [editingKey, setEditingKey] = useState(null);
+  const [errori, setErrori] = useState({});
   const [draft, setDraft] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
 
   const usageCount = (key) => tasks.filter(t => !t.deletedAt && t.category === key).length;
 
-  const startEdit = (key, c) => { setEditingKey(key); setDraft({ key, ...c }); };
-  const cancelEdit = () => { setEditingKey(null); setDraft(null); };
+  const startEdit = (key, c) => { setEditingKey(key); setDraft({ key, ...c }); setErrori({}); };
+  const cancelEdit = () => { setEditingKey(null); setDraft(null); setErrori({}); };
   const saveEdit = () => {
-    if (!draft.label?.trim()) return;
+    const trovati = validaCampi({ label: draft.label }, REGOLE);
+    if (trovati.label) { setErrori(trovati); return; }
+    setErrori({});
     dispatch({ type: "UPDATE_CATEGORY", payload: draft });
     cancelEdit();
   };
@@ -60,8 +70,16 @@ export const AdminCategoriesTab = ({ dispatch }) => {
               <div className="vd-flex-1-min0">
                 {isEditing ? (
                   <div className="vd-grid-collapse" style={gridGap8}>
-                    <input value={draft.label} onChange={e => setDraft({...draft, label: e.target.value})}
-                      placeholder="Etichetta" style={fieldStyle} />
+                    <div>
+                      <input value={draft.label}
+                        onChange={e => {
+                          setDraft({ ...draft, label: e.target.value });
+                          setErrori(prec => (prec.label ? {} : prec));
+                        }}
+                        placeholder="Etichetta" style={fieldStyle}
+                        {...ariaCampo(`vd-cat-edit-err-${key}`, errori.label)} />
+                      <FieldError id={`vd-cat-edit-err-${key}`}>{errori.label}</FieldError>
+                    </div>
                     <input value={draft.icon} onChange={e => setDraft({...draft, icon: e.target.value})}
                       placeholder="Icona" style={fieldStyle} maxLength={2} />
                     <input type="color" value={draft.color} onChange={e => setDraft({...draft, color: e.target.value})}

@@ -198,6 +198,35 @@ describe("useListeData — un movimento non ricarica l'elenco", () => {
     expect(ListeAPI.saldi).toHaveBeenCalledTimes(1);
   });
 
+  // A-1 dell'audit del 16 agosto. `lista_beneficiari` non era né sottoscritta
+  // né pubblicata su supabase_realtime: aggiungere un cointestatario non
+  // emetteva alcun evento, e l'intestazione della lista (che LISTA_SELECT
+  // incorpora e `intestazioneLista` compone) restava vecchia su ogni altro
+  // client fino al reload della pagina.
+  it("si sottoscrive anche a lista_beneficiari", async () => {
+    const { result } = renderHook(() => useListeData({ enabled: true }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect([...handlers.keys()]).toContain("lista_beneficiari");
+  });
+
+  it("un evento su lista_beneficiari ricarica l'ELENCO, non i soli saldi", async () => {
+    const { result } = renderHook(() => useListeData({ enabled: true }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    vi.clearAllMocks();
+
+    await act(async () => {
+      emetti("lista_beneficiari");
+      await new Promise(r => setTimeout(r, 250));
+    });
+
+    // Il cointestatario cambia le RIGHE dell'elenco, non un saldo: se cadesse
+    // nel ramo parziale la sottoscrizione ci sarebbe ma non servirebbe a
+    // nulla, che è il modo più silenzioso di lasciare aperto il difetto.
+    expect(ListeAPI.list).toHaveBeenCalledTimes(1);
+    expect(ListeAPI.listTrash).toHaveBeenCalledTimes(1);
+  });
+
   it("un errore sul reload parziale diventa loadError", async () => {
     const { result } = renderHook(() => useListeData({ enabled: true }));
     await waitFor(() => expect(result.current.loading).toBe(false));

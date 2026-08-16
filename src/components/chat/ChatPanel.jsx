@@ -17,7 +17,7 @@
 //   ConversationList    elenco conversazioni
 //   NewConversationView creazione conversazione
 //   ForwardPicker       scelta destinatario per l'inoltro
-import { useReducer, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useReducer, useEffect, useMemo, useRef, useState } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { Messages as MessagesAPI } from "../../lib/api.js";
 import { isUuid, newId } from "../../lib/mappers.js";
@@ -69,8 +69,24 @@ const boxW28H28 = {
 };
 const txtF12Op07 = { fontSize: 12, opacity: 0.7, letterSpacing: 1 };
 
+// Fallback del value del contesto, a livello di modulo: `|| {}` scritto dentro
+// il useMemo sarebbe un oggetto nuovo a ogni valutazione, cioè esattamente ciò
+// che il memo esiste per evitare.
+const noop = () => {};
+const vuoto = {};
+const vuotaLista = [];
 
-export const ChatPanel = ({ open, onClose, conversations: convProp, messages: msgProp, commands: commandsProp, onDeleteConversation, intent, tasks, currentUserId, dispatch, presenceMap, messageTemplates = [], loading = false, myBusy = false, onToggleBusy }) => {
+
+// `memo` (A-2 dell'audit del 16 agosto). Il pannello non è una vista fra le
+// altre — è montato dal guscio, che si ri-renderizza a ogni toast, a ogni
+// carattere digitato nella ricerca globale e a ogni tick di presenza (30 s) —
+// e sotto di sé ha l'intera conversazione aperta, messaggio per messaggio,
+// nessuno dei quali è memoizzato. Senza questo `memo` quella catena ripartiva
+// per intero a ogni render del guscio, per motivi che con la chat non
+// c'entravano nulla. Come per le sei viste, il `memo` regge solo se reggono
+// anche le prop: `onClose` è ora un `useCallback` nel guscio e `commands` è
+// finalmente stabile (vedi la nota su `notif` in VoyageDeskInner.jsx).
+export const ChatPanel = memo(function ChatPanel({ open, onClose, conversations: convProp, messages: msgProp, commands: commandsProp, onDeleteConversation, intent, tasks, currentUserId, dispatch, presenceMap, messageTemplates = [], loading = false, myBusy = false, onToggleBusy }) {
   const conferma = useConfirm();
   const { isMobile } = useViewport();
   const { currentUserId: appUserId, getMember } = useAppData();
@@ -147,9 +163,17 @@ export const ChatPanel = ({ open, onClose, conversations: convProp, messages: ms
     }
   }, [activeConv, conversations]);
 
-  const handleForwardStart = (msg) => {
-    pd({ type: "FWD_START", payload: { ...msg, __sourceConvId: activeConv?.id ?? null } });
-  };
+  // `useCallback` perché entra nel value del ChatContext qui sotto: una
+  // funzione nuova a ogni render renderebbe nuovo anche il value, cioè
+  // annullerebbe il `useMemo` che lo protegge. `pd` è il dispatch di
+  // useReducer (identità stabile per contratto) e `activeConv` si legge da un
+  // ref, così l'identità non si muove quando si apre una conversazione: il
+  // valore letto al momento della chiamata è comunque quello corrente.
+  const activeConvRef = useRef(activeConv);
+  activeConvRef.current = activeConv;
+  const handleForwardStart = useCallback((msg) => {
+    pd({ type: "FWD_START", payload: { ...msg, __sourceConvId: activeConvRef.current?.id ?? null } });
+  }, []);
 
   const handleForwardPick = async (destConvId) => {
     const src = forwardingMsg;
@@ -271,6 +295,22 @@ export const ChatPanel = ({ open, onClose, conversations: convProp, messages: ms
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, intent, me]);
 
+  // Il value del contesto era un oggetto letterale nel JSX: nuovo a ogni
+  // render del pannello, quindi OGNI consumatore (la conversazione aperta,
+  // l'elenco, ogni bolla di messaggio) si ri-renderizzava anche quando nessuno
+  // dei sei campi era cambiato. È lo stesso difetto che la regola
+  // no-restricted-syntax chiude per gli `style={{…}}` costanti — qui però il
+  // valore non è costante, quindi la risposta è memoizzarlo sulle sue
+  // dipendenze vere (A-2 dell'audit del 16 agosto).
+  const ctxValue = useMemo(() => ({
+    tasks: tasks || [],
+    currentUserId: me,
+    dispatch: dispatch || noop,
+    presenceMap: presenceMap || vuoto,
+    messageTemplates: messageTemplates || vuotaLista,
+    onForward: handleForwardStart,
+  }), [tasks, me, dispatch, presenceMap, messageTemplates, handleForwardStart]);
+
   if (!open) return null;
 
   // Le conv nuove nascono in NewConversationView con id locale "c<timestamp>".
@@ -286,7 +326,7 @@ export const ChatPanel = ({ open, onClose, conversations: convProp, messages: ms
   };
 
   return (
-    <ChatContext.Provider value={{ tasks: tasks || [], currentUserId: me, dispatch: dispatch || (() => {}), presenceMap: presenceMap || {}, messageTemplates: messageTemplates || [], onForward: handleForwardStart }}>
+    <ChatContext.Provider value={ctxValue}>
     <>
       <div onClick={onClose} style={{
         position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: Z.chatBackdrop,
@@ -399,4 +439,4 @@ export const ChatPanel = ({ open, onClose, conversations: convProp, messages: ms
     </>
     </ChatContext.Provider>
   );
-};
+});

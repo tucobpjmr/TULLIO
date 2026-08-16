@@ -1,5 +1,55 @@
 # CHANGELOG — VoyageDesk
 
+## Suggerimento strategico n.3 (audit del 16 agosto) — il modulo Liste sotto il contratto realtime del core
+
+> Stesso giorno, quarto commit. A-1 era il terzo rilievo consecutivo nato
+> dall'architettura dati parallela del modulo Liste; questo chiude la
+> lacuna che li univa tutti — il contratto `origin_client` del core, che nel
+> modulo valeva come eccezione dichiarata su tre tabelle su tre.
+
+**Migrazione `20260816110000_p_origin_modulo_liste`** (applicata in
+produzione) — colonna `origin_client uuid` su `liste_viaggio`,
+`movimenti_lista`, `lista_beneficiari` (628 + 5.573 + 0 righe esistenti,
+tutte restate `NULL`), e **tredici** delle sedici RPC del modulo ricreate con
+`p_origin uuid DEFAULT NULL` in coda alla firma (`drop function` +
+`create function`, mai `create or replace`: un parametro in più cambia la
+signature e produrrebbe un overload che PostgREST non saprebbe risolvere).
+Le tre RPC lasciate fuori — `rimuovi_beneficiario_lista`,
+`elimina_lista_definitivamente`, `reset_completo` — scrivono solo con
+DELETE/TRUNCATE: un'origine su una riga che sta per sparire non è mai
+attendibile (stessa regola per cui nessuna tabella è a REPLICA IDENTITY
+FULL), quindi non hanno guadagnato un parametro che nessun corpo di funzione
+avrebbe potuto usare. Gli INSERT su `clients` dentro tre di queste tredici
+(cliente creato al volo) restano `origin_client = NULL` di proposito: il
+modulo Liste non tocca mai `state.clients` del core, e taggarli con la
+propria origine nasconderebbe il cliente nuovo a chi lo ha appena creato.
+
+**Corretto nella stessa sessione**: il primo giro di drop+create ha
+ereditato il default privilege dello schema, che concede EXECUTE ad `anon`
+su ogni funzione nuova — un `revoke all ... from public` non basta, perché
+`anon` ha un proprio ACL esplicito. Rilevato leggendo `pg_proc.proacl` in
+produzione subito dopo la migrazione, corretto con una seconda migrazione
+dedicata prima di proseguire, e la `revoke execute ... from anon` è stata
+riportata nel file committato così una nuova applicazione da zero è corretta
+al primo colpo.
+
+**`src/components/liste/listeApi.js`** — tredici call site aggiungono
+`p_origin: getClientId()`; i tre rimasti (`rimuoviBeneficiario`,
+`eliminaDefinitiva`, `resetCompleto`) restano invariati, con un commento che
+dice perché.
+
+Test aggiornati (nessun test nuovo): `src/test/realtimeOriginContract.test.js`
+(l'elenco `ECCEZIONI` è ora vuoto — le tre tabelle hanno `origin_client` come
+tutte le altre), `src/test/verificaRpc.test.js` (firma reale di
+`modifica_note_lista` con `p_origin` in coda).
+
+Lint 0, **1368 test verdi** (invariato — solo asserzioni aggiornate),
+`verifica:convenzioni` 20 controlli senza divergenze, bundle 171,15 kB gzip
+di first load su soglia 184.
+
+Dettaglio completo in
+[`docs/AUDIT_ARCHITETTURA_2026-08-16.md`](AUDIT_ARCHITETTURA_2026-08-16.md#3-portare-il-modulo-liste-sotto-lo-stesso-contratto-realtime-del-core).
+
 ## Suggerimento strategico n.2 (audit del 16 agosto) — lint sul value dei Context
 
 > Stesso giorno, terzo commit. A-2 era costato quattro livelli di

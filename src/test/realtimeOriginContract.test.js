@@ -120,38 +120,20 @@ function schemaDaiFile() {
   return { pubblicate, conOrigin };
 }
 
-// ── Le due eccezioni dichiarate ────────────────────────────────────────────
-// Non un modo per far tacere il controllo: un elenco che costa quanto
-// scriverci accanto il motivo, e che il test stesso verifica non essere
-// diventato obsoleto (vedi "l'elenco delle eccezioni non invecchia").
-//
-// liste_viaggio / movimenti_lista — tutte le scritture del modulo Liste sono
-// RPC (src/components/liste/listeApi.js), sedici, e nessuna trasporta l'origine.
-// La colonna
-// da sola resterebbe NULL per sempre; aggiungere `p_origin` alle RPC richiede
-// un `drop function` + `create function` per ciascuna (un parametro in più su
-// `create or replace` produce un OVERLOAD, non una sostituzione) e, poiché qui
-// le migrazioni si applicano a mano, un client che mandasse `p_origin` a un
-// database non ancora migrato farebbe fallire OGNI scrittura del modulo. È il
-// follow-up dichiarato nel blocco (b) della migrazione 20260808120000. Il
-// modulo è anche quello che ci perde meno: ricarica comunque tutto a ogni
-// scrittura per scelta esplicita (docs/CLAUDE.md, niente ottimismo nelle Liste).
-//
-// lista_beneficiari — pubblicata dalla 20260815235446 (A-1 dell'audit del 16
-// agosto: senza, aggiungere un cointestatario non emetteva alcun evento e
-// l'intestazione della lista restava vecchia su ogni altro client). Ricade
-// nella STESSA eccezione delle due sopra e per la stessa ragione, non per una
-// nuova: si scrive solo via RPC (`aggiungi_beneficiario_lista`,
-// `rimuovi_beneficiario_lista`), che non trasportano l'origine. Il prezzo è un
-// reload in più per chi ha appena scritto — che nel modulo Liste ricarica
-// comunque a mano dopo ogni scrittura — contro un'intestazione sbagliata per
-// tutti gli altri. Esce da questo elenco insieme alle altre due, quando le RPC
-// del modulo prenderanno `p_origin`.
-const ECCEZIONI = new Map([
-  ['liste_viaggio', 'scritture solo via RPC non taggate — follow-up p_origin'],
-  ['movimenti_lista', 'scritture solo via RPC non taggate — follow-up p_origin'],
-  ['lista_beneficiari', 'scritture solo via RPC non taggate — follow-up p_origin'],
-]);
+// ── Nessuna eccezione dichiarata ────────────────────────────────────────────
+// Fino al 16 agosto qui c'erano tre eccezioni — liste_viaggio, movimenti_lista,
+// lista_beneficiari — perché tutte le scritture del modulo Liste sono RPC
+// (src/components/liste/listeApi.js) e nessuna trasportava l'origine. Chiuse
+// dal suggerimento strategico n.3 dello stesso audit (migrazione
+// 20260816110000_p_origin_modulo_liste): tredici delle sedici RPC del modulo
+// hanno guadagnato `p_origin uuid DEFAULT NULL` (drop+create, non create or
+// replace — un parametro in più cambia la signature) e il client lo passa da
+// `listeApi.js`. Le tre RPC rimaste fuori (rimuovi_beneficiario_lista,
+// elimina_lista_definitivamente, reset_completo) scrivono solo con
+// DELETE/TRUNCATE: non serviva un'eccezione qui per loro, perché non toccano
+// la domanda di questo blocco — sono le TABELLE a dover avere la colonna, non
+// ogni singola RPC a dover taggare ogni riga.
+const ECCEZIONI = new Map();
 
 // ─── 1. L'invariante ──────────────────────────────────────────────────────
 

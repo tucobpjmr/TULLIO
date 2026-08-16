@@ -707,20 +707,73 @@ un altro file.
 
 ### 3. Portare il modulo Liste sotto lo stesso contratto realtime del core
 
-A-1 non è un caso isolato: è il terzo rilievo consecutivo che nasce dal fatto
-che il modulo Liste ha un'architettura dati parallela (A-1 del 15 agosto lo dice
-per l'architettura, A-2 del 14 agosto — terzo passaggio — per `esitoScrittura`,
-questo per il realtime). La tabella non era pubblicata, le RPC non taggano
-l'origine, e il contratto che il core ha — «ogni tabella in realtime ha
-`origin_client`, ogni scrittura lo trasporta» — nel modulo vale come eccezione
-dichiarata su tre tabelle su tre.
+> ✔ **Fatto lo stesso 16 agosto.** Migrazione `20260816110000_p_origin_modulo_liste`,
+> applicata in produzione e verificata: le tre tabelle del modulo hanno ora
+> `origin_client` (`uuid`, nullable — 628 righe di `liste_viaggio` e 5.573 di
+> `movimenti_lista` restano tutte `NULL`, coerente con una colonna aggiunta a
+> schema esistente) e **tredici** delle sedici RPC del modulo hanno guadagnato
+> `p_origin uuid DEFAULT NULL` (sempre ultimo parametro, sempre con default —
+> un client che non lo passa si comporta come prima, `drop function` +
+> `create function` per ciascuna, mai `create or replace`: un parametro in più
+> cambia la signature e produrrebbe un overload). Il client (`listeApi.js`)
+> passa `p_origin: getClientId()` sulle stesse tredici.
+>
+> **Perché tredici e non sedici.** Le tre RPC restate fuori —
+> `rimuovi_beneficiario_lista`, `elimina_lista_definitivamente`,
+> `reset_completo` — scrivono solo con DELETE o TRUNCATE, mai INSERT/UPDATE
+> su una delle tre tabelle. `subscribeToTable` (`src/lib/api.js`) non si fida
+> mai dell'origine su un evento DELETE — la stessa ragione per cui il blocco
+> (a) della `20260808120000` non ha alzato nessuna tabella a REPLICA IDENTITY
+> FULL — quindi un `p_origin` lì sarebbe un parametro che nessun corpo di
+> funzione potrebbe mai usare. La lettura di tutte le sedici definizioni
+> (`pg_get_functiondef` in produzione) prima di scrivere una riga di SQL è
+> stata quello che ha reso possibile la distinzione, invece di taggare alla
+> cieca sedici RPC come il testo di questo suggerimento, scritto prima di
+> quella lettura, prevedeva.
+>
+> **Perché `clients` resta `NULL` anche da dentro queste tredici.** Tre di
+> loro (`crea_lista`, `aggiungi_beneficiario_lista`, `importa_backup`)
+> possono inserire una riga nuova in `clients`. Quell'INSERT non prende
+> `origin_client = p_origin` — stessa regola già scritta nel blocco 4 della
+> `20260808120000` per l'UPDATE di `modifica_lista`: il modulo Liste non
+> tocca mai `state.clients` del core, quindi taggare la riga con la propria
+> origine farebbe sì che il PROPRIO `subscribeToTable` scarti l'evento come
+> eco già vista — che non è mai stata vista, perché nessun percorso
+> ottimistico del modulo scrive in quello state. Il cliente appena creato
+> sparirebbe dalla propria anagrafica finché non si ricarica la pagina: un
+> difetto peggiore di quello che questa migrazione chiude.
+>
+> **Un errore trovato e corretto nella stessa sessione.** Il primo giro di
+> `drop` + `create` ha lasciato le tredici funzioni eseguibili anche da
+> `anon`: lo schema ha un `pg_default_acl` che concede EXECUTE ad `anon` su
+> ogni funzione NUOVA creata dal proprietario dello schema, e `revoke all …
+> from public` non lo tocca — `anon` è un ruolo con un proprio ACL esplicito,
+> non il chiamante implicito PUBLIC. Verificato leggendo `pg_proc.proacl`
+> subito dopo la prima migrazione (non dando per scontato che il `revoke`
+> scritto bastasse), corretto con una seconda migrazione dedicata
+> (`revoke_anon_p_origin_liste_rpc`) prima di proseguire, e la stessa
+> `revoke execute … from anon` è stata poi riportata nel file committato:
+> chi lo applicasse da zero su un nuovo ambiente ottiene subito l'ACL
+> corretto, senza il passaggio intermedio. Nessuna delle tredici RPC era
+> comunque scrivibile da `anon` senza autenticazione (RLS sulle tabelle
+> sottostanti, più due sono `SECURITY DEFINER` con un controllo di ruolo
+> esplicito), ma la difesa in profondità va ripristinata subito, non lasciata
+> al livello sotto.
+>
+> Client: `src/components/liste/listeApi.js` (tredici call site con
+> `p_origin: getClientId()`, tre invariati con un commento che dice perché).
+> Test: `src/test/realtimeOriginContract.test.js` (l'elenco `ECCEZIONI` è ora
+> vuoto — le tre tabelle del modulo hanno `origin_client` come tutte le
+> altre), `src/test/verificaRpc.test.js` aggiornato sulla firma reale di
+> `modifica_note_lista`. Verificato: lint 0, 1368 test verdi (invariato — solo
+> asserzioni aggiornate, nessun test nuovo), `verifica:convenzioni` 20
+> controlli senza divergenze, bundle 171,15 kB gzip (soglia 184).
 
-Il lavoro concreto è quello già scritto come follow-up nella migrazione
-`20260808120000`: aggiungere `p_origin` alle sedici RPC del modulo (con `drop` +
-`create`, non `create or replace`, che produrrebbe un overload) e taggare le
-scritture lato client. Va fatto in un passaggio dedicato perché tocca saldi e
-movimenti finanziari e perché, applicando le migrazioni a mano, un client che
-mandi `p_origin` a un database non ancora migrato farebbe fallire **ogni**
-scrittura del modulo — l'ordine è quindi: prima il database, poi il client. Il
-guadagno è togliere tre eccezioni da un contratto che, per il resto dell'app, è
-verificato da un test.
+**Il problema originale, per la cronaca.** A-1 non era un caso isolato: era
+il terzo rilievo consecutivo nato dal fatto che il modulo Liste ha
+un'architettura dati parallela (A-1 del 15 agosto lo diceva per
+l'architettura, A-2 del 14 agosto — terzo passaggio — per `esitoScrittura`,
+questo per il realtime). La tabella non era pubblicata, le RPC non taggavano
+l'origine, e il contratto che il core ha — «ogni tabella in realtime ha
+`origin_client`, ogni scrittura lo trasporta» — nel modulo valeva come
+eccezione dichiarata su tre tabelle su tre.

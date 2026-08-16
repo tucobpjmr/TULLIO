@@ -59,3 +59,53 @@ export function fondiScrittureInVolo(incoming, locali, pending) {
   const nonAncoraSulServer = correnti.filter(r => pending.has(r.id) && !serviti.has(r.id));
   return nonAncoraSulServer.length ? [...nonAncoraSulServer, ...tenute] : tenute;
 }
+
+// ─── applicaRigaRealtime — suggerimento strategico n.1, audit del 16 agosto ──
+// «Il passo non è riscrivere l'idratazione: è aggiungere ai payload realtime,
+// che già contengono la riga, un percorso "applica questa riga" per le
+// tabelle in cui la riga è autosufficiente — tasks, clients, notices.»
+//
+// Fino a questa correzione OGNI evento realtime su queste tre tabelle
+// ricaricava l'ENTITÀ INTERA (`Tasks.list()`, `Clients.list()`,
+// `Notices.list()`), indipendentemente da quante righe l'evento avesse
+// davvero toccato — una sola. Il costo cresce col PRODOTTO fra righe e
+// frequenza di scrittura, ed è quello che questa funzione elimina: applica
+// la riga arrivata nel payload, senza toccare la rete.
+//
+// STESSA INVARIANTE di fondiScrittureInVolo, applicata a UN evento invece che
+// a un refetch intero: per un id con una scrittura in volo vince SEMPRE lo
+// stato locale. Qui il caso concreto non è "il server serve ancora il
+// pre-immagine" (non c'è alcuna query in corso) ma "l'evento arrivato è di un
+// ALTRO client che ha toccato la STESSA riga mentre la nostra scrittura non
+// ha ancora fatto commit" — raro, ma la stessa finestra di rischio descritta
+// sopra per SET_CLIENTS, e la stessa risposta: si scarta, il nostro stato
+// ottimistico resta. L'eco della NOSTRA scrittura non arriva nemmeno fin qui:
+// `subscribeToTable` la filtra per `origin_client` prima di invocare
+// l'handler (lib/api.js).
+//
+// @param {Array<{id: string}>} collezione righe attualmente nello state
+// @param {Map<string, number>|undefined} pending id → scritture in volo
+// @param {{ eventType: 'INSERT'|'UPDATE'|'DELETE', id: string, row?: object }} evento
+//   `row` è già nella forma app (mappata da chi chiama, fuori da qui: questo
+//   modulo non conosce la forma del DB, come pendingWrites.js non l'ha mai
+//   conosciuta). Assente su DELETE, dove serve solo l'id da togliere.
+// @param {(prev: object, row: object) => object} [fondiRiga] su UPDATE/INSERT,
+//   come combinare la riga arrivata con quella già in stato — di norma la
+//   sostituzione totale basta (`row`), ma un payload realtime porta le SOLE
+//   colonne della tabella: se la forma app ha campi che vivono altrove (i
+//   `comments`/`history` del task, popolati da una query separata), un merge
+//   totale li azzererebbe. Il chiamante che ne ha bisogno passa questa
+//   funzione; default: sostituzione.
+export function applicaRigaRealtime(collezione, pending, evento, fondiRiga) {
+  const { eventType, id, row } = evento;
+  const correnti = collezione || [];
+  // Scrittura in volo su questa riga → vince il locale, l'evento si scarta.
+  if (pending?.has(id)) return correnti;
+  if (eventType === "DELETE") return correnti.filter(r => r.id !== id);
+  const idx = correnti.findIndex(r => r.id === id);
+  if (idx < 0) return [...correnti, row]; // INSERT (o un UPDATE mai visto prima)
+  const merged = fondiRiga ? fondiRiga(correnti[idx], row) : row;
+  const next = [...correnti];
+  next[idx] = merged;
+  return next;
+}

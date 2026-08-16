@@ -24,6 +24,15 @@
 // confine non è più solo una convenzione, ed è verificato da
 // no-restricted-imports (VIETATO_LISTEAPI_DA_FUORI in eslint.config.js).
 import { supabase } from '../../lib/supabase';
+// Suggerimento strategico n.3 (audit del 16 agosto): tredici delle sedici RPC
+// sotto accettano ora p_origin, aggiunto lato database dalla migrazione
+// 20260816110000 (drop+create, non create or replace: un parametro in più
+// cambia la signature). Le altre tre — rimuoviBeneficiario, eliminaDefinitiva,
+// resetCompleto — NON lo passano: le loro RPC non l'hanno, perché scrivono
+// solo con DELETE/TRUNCATE, dove l'origine non è mai attendibile (stessa
+// regola già in subscribeToTable per gli eventi DELETE). Passarlo a una RPC
+// che non lo dichiara farebbe fallire la chiamata con PGRST202.
+import { getClientId } from '../../lib/clientId.js';
 // La paginazione contro il cap `db-max-rows` di PostgREST viveva qui come
 // funzione privata di questo modulo. Ora sta in lib/pagination.js: `clients`
 // (818 righe) ne aveva bisogno quanto liste_viaggio e movimenti_lista, e la
@@ -184,13 +193,16 @@ export const ListeAPI = {
       p_client_id: clientId,
       p_titolo: titolo,
       p_new_client_name: newClientName,
+      p_origin: getClientId(),
     }),
 
   // p_client_name null → la RPC lascia invariato il nome cliente.
   // Attenzione: il nome cliente è l'anagrafica condivisa, rinominarlo si
   // riflette su tutte le liste di quel cliente.
   modifica: ({ id, titolo = null, clientName = null }) =>
-    supabase.rpc('modifica_lista', { p_id: id, p_titolo: titolo, p_client_name: clientName }),
+    supabase.rpc('modifica_lista', {
+      p_id: id, p_titolo: titolo, p_client_name: clientName, p_origin: getClientId(),
+    }),
 
   // Sposta il TITOLARE su un cliente diverso, già esistente in anagrafica
   // (client_id cambia; il nome di entrambi i clienti resta intatto). Da non
@@ -200,7 +212,9 @@ export const ListeAPI = {
   // cointestatario di questa stessa lista, la RPC lo promuove: lo toglie da
   // cointestatario e lo rende titolare nella stessa transazione.
   spostaTitolare: (id, nuovoClientId) =>
-    supabase.rpc('sposta_titolare_lista', { p_id: id, p_nuovo_client_id: nuovoClientId }),
+    supabase.rpc('sposta_titolare_lista', {
+      p_id: id, p_nuovo_client_id: nuovoClientId, p_origin: getClientId(),
+    }),
 
   // ── Cointestazione: cointestatari oltre al titolare (client_id) ──
   // Stesso pattern di crea_lista per il cliente: o uno esistente (clientId)
@@ -212,20 +226,22 @@ export const ListeAPI = {
       p_lista_id: listaId,
       p_client_id: clientId,
       p_new_client_name: newClientName,
+      p_origin: getClientId(),
     }),
 
   // SECURITY DEFINER lato DB (vedi migrazione 20260802214946): niente GRANT
   // DELETE diretto su lista_beneficiari, la rimozione passa solo da qui, così
-  // la voce di storico è garantita nella stessa transazione.
+  // la voce di storico è garantita nella stessa transazione. Niente p_origin:
+  // è un DELETE, la RPC non lo accetta (vedi il commento in testa al file).
   rimuoviBeneficiario: (listaId, clientId) =>
     supabase.rpc('rimuovi_beneficiario_lista', { p_lista_id: listaId, p_client_id: clientId }),
 
   cambiaStato: (id, stato) =>
-    supabase.rpc('cambia_stato_lista', { p_id: id, p_stato: stato }),
+    supabase.rpc('cambia_stato_lista', { p_id: id, p_stato: stato, p_origin: getClientId() }),
 
-  archivia: (id) => supabase.rpc('archivia_lista', { p_id: id }),
+  archivia: (id) => supabase.rpc('archivia_lista', { p_id: id, p_origin: getClientId() }),
 
-  ripristina: (id) => supabase.rpc('ripristina_lista', { p_id: id }),
+  ripristina: (id) => supabase.rpc('ripristina_lista', { p_id: id, p_origin: getClientId() }),
 
   addMovimento: ({ listaId, data, descrizione, importo, metodo = null }) =>
     supabase.rpc('registra_movimento_lista', {
@@ -234,6 +250,7 @@ export const ListeAPI = {
       p_descrizione: descrizione,
       p_importo: importo,
       p_metodo: metodo,
+      p_origin: getClientId(),
     }),
 
   // p_movimenti: array di { descrizione, importo }. Data e metodo sono comuni
@@ -244,6 +261,7 @@ export const ListeAPI = {
       p_data: data,
       p_movimenti: movimenti,
       p_metodo: metodo,
+      p_origin: getClientId(),
     }),
 
   modificaMovimento: ({ id, data, descrizione, importo, metodo = null }) =>
@@ -253,17 +271,18 @@ export const ListeAPI = {
       p_descrizione: descrizione,
       p_importo: importo,
       p_metodo: metodo,
+      p_origin: getClientId(),
     }),
 
   // Note interne: campo libero visibile solo al team, mai incluso nel
   // riepilogo per il cliente (vedi riepilogoTesto/RiepilogoClienteModal, che
   // non leggono `note`). note null/vuoto svuota il campo.
   modificaNote: ({ id, note }) =>
-    supabase.rpc('modifica_note_lista', { p_id: id, p_note: note || null }),
+    supabase.rpc('modifica_note_lista', { p_id: id, p_note: note || null, p_origin: getClientId() }),
 
   // Soft delete del movimento: resta in tabella con deleted_at valorizzato e
   // una voce nello storico.
-  annullaMovimento: (id) => supabase.rpc('annulla_movimento_lista', { p_id: id }),
+  annullaMovimento: (id) => supabase.rpc('annulla_movimento_lista', { p_id: id, p_origin: getClientId() }),
 
   // ── Cestino: hard delete e strumenti dati ──
   // Le tre RPC seguenti sono SECURITY DEFINER lato DB (bypassano la RLS di
@@ -274,7 +293,7 @@ export const ListeAPI = {
   // e 20260728190100). Il client duplica quel controllo in
   // listePersistence.js (guard) e nella UI (StrumentiDatiModal nasconde i
   // due bottoni ai non-admin): il gate che conta resta comunque quello nel
-  // database.
+  // database. Niente p_origin: è un DELETE a cascata, la RPC non lo accetta.
   eliminaDefinitiva: (id) => supabase.rpc('elimina_lista_definitivamente', { p_id: id }),
 
   // Ripristino da backup, a blocchi.
@@ -313,7 +332,7 @@ export const ListeAPI = {
     let fatte = 0;
 
     for (const p_data of steps) {
-      const { data, error } = await supabase.rpc('importa_backup', { p_data });
+      const { data, error } = await supabase.rpc('importa_backup', { p_data, p_origin: getClientId() });
       if (error) {
         // Errore a metà strada: i blocchi precedenti sono già stati scritti e
         // restano validi. Il messaggio deve dirlo, altrimenti l'utente crede
@@ -338,6 +357,7 @@ export const ListeAPI = {
     return { data: totali, error: null };
   },
 
+  // Niente p_origin: è un TRUNCATE/DELETE totale, la RPC non lo accetta.
   resetCompleto: (conferma) => supabase.rpc('reset_completo', { p_conferma: conferma }),
 
   // Dati grezzi per il backup JSON scaricabile: le stesse tabelle che

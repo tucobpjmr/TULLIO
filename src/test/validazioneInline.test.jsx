@@ -20,6 +20,9 @@ import {
   isValidEmail,
 } from "../lib/validators.js";
 import { ClienteModal } from "../components/clients/ClienteModal.jsx";
+import { NoticeEditorModal } from "../components/modals/NoticeEditorModal.jsx";
+import { AddCategoryModal } from "../components/modals/AddCategoryModal.jsx";
+import { renderWithAppData, DEMO_APP_CTX } from "./helpers/appData.jsx";
 
 // ─── La metà pura ───────────────────────────────────────────────────────────
 describe("validators — validatori componibili", () => {
@@ -133,5 +136,79 @@ describe("ClienteModal — il nome mancante lo dice, non lo tace", () => {
     // Il nome arriva già ripulito: la validazione non deve essere l'unico
     // punto in cui gli spazi contano.
     expect(onSave.mock.calls[0][0].name).toBe("Rossi");
+  });
+});
+
+// ─── M-3 dell'audit del 16 agosto — gli ultimi cinque call site ─────────────
+// La regola («inline, non via toast; ⛔ niente `if (!campo) return;` muto e
+// niente bottone disabilitato al posto del messaggio») valeva per tre form su
+// otto. Gli altri cinque erano rimasti alla forma di prima, due con il bottone
+// spento e tre senza nemmeno quello: si premeva "Salva" e non succedeva nulla.
+// Qui ne sono coperti i due percorsi più frequenti — pubblicare un avviso in
+// bacheca e creare una categoria — con le stesse tre proprietà di sopra.
+describe("NoticeEditorModal — un avviso vuoto lo dice", () => {
+  const monta = () => {
+    const onSave = vi.fn();
+    // L'anteprima dell'avviso passa da MentionText, che legge il team da
+    // useAppData(): serve il provider, come per ogni componente che lo consuma.
+    renderWithAppData(
+      <NoticeEditorModal notice={null} onSave={onSave} onClose={vi.fn()} />,
+      DEMO_APP_CTX,
+    );
+    return onSave;
+  };
+  const pubblica = () => fireEvent.click(screen.getByText("📌 Pubblica avviso"));
+
+  it("il bottone è premibile e spiega cosa manca", async () => {
+    const onSave = monta();
+    // Prima era `disabled`: nessun messaggio, e un modale che nasce con il
+    // proprio comando spento si legge come rotto.
+    expect(screen.getByText("📌 Pubblica avviso").disabled).toBe(false);
+
+    pubblica();
+
+    const avviso = await screen.findByRole("alert");
+    expect(avviso.textContent).toMatch(/non può essere vuoto/);
+    const campo = screen.getByPlaceholderText(/Scrivi qui il tuo avviso/);
+    expect(campo.getAttribute("aria-describedby")).toBe(avviso.id);
+    expect(document.activeElement).toBe(campo);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("l'errore si spegne appena si scrive, e poi il salvataggio parte", async () => {
+    const onSave = monta();
+    pubblica();
+    expect(await screen.findByRole("alert")).toBeTruthy();
+
+    fireEvent.change(screen.getByPlaceholderText(/Scrivi qui il tuo avviso/), {
+      target: { value: "Riunione lunedì" },
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    pubblica();
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0][0].text).toBe("Riunione lunedì");
+  });
+});
+
+describe("AddCategoryModal — il nome della categoria è obbligatorio e lo dice", () => {
+  it("il messaggio è legato al campo e la creazione non parte", async () => {
+    const dispatch = vi.fn();
+    render(<AddCategoryModal dispatch={dispatch} onClose={vi.fn()} existingKeys={[]} />);
+
+    fireEvent.click(screen.getByText("Crea categoria"));
+
+    const avviso = await screen.findByRole("alert");
+    expect(avviso.textContent).toMatch(/obbligatorio/);
+    const campo = screen.getByPlaceholderText("Es. Trasferimenti");
+    expect(campo.getAttribute("aria-invalid")).toBe("true");
+    expect(campo.getAttribute("aria-describedby")).toBe(avviso.id);
+    expect(dispatch).not.toHaveBeenCalled();
+
+    fireEvent.change(campo, { target: { value: "Trasferimenti" } });
+    expect(screen.queryByRole("alert")).toBeNull();
+    fireEvent.click(screen.getByText("Crea categoria"));
+    await waitFor(() => expect(dispatch).toHaveBeenCalled());
+    expect(dispatch.mock.calls[0][0].type).toBe("ADD_CATEGORY");
   });
 });

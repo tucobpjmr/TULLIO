@@ -67,18 +67,39 @@ import { subscribeToTable } from "../lib/api.js";
 // notifica, cambia app e torna) durante i quali il canale resta agganciato.
 export const SOGLIA_RIPRESA_MS = 30_000;
 
+// ─── applyRow (suggerimento strategico n.1, audit del 16 agosto) ──────────
+// `reload` ricarica un'ENTITÀ INTERA: la risposta giusta quando un evento può
+// aver invalidato più righe (una lista creata cambia elenco E cestino) o
+// quando non c'è altro modo di saperlo (l'idratazione iniziale, la ripresa
+// dopo un buco di connessione — `tabelle = null` in entrambi i casi, MAI
+// passato da qui). Ma un evento su una tabella "piatta" — nessun join
+// annidato di cui perdere traccia, nessuna riga figlia da capire se
+// invalidata — porta già tutto il necessario nel proprio payload
+// (`payload.new`/`payload.old`), e ricaricare l'intera lista per applicarne
+// UNA riga è il costo che questo parametro esiste per evitare.
+//
+// `applyRow(tabella, payload) => boolean`: se ritorna `true`, il chiamante ha
+// già gestito l'evento (tipicamente dispatchando una `MERGE_*_ROW` che
+// applica la riga allo state) e l'evento NON entra nel debounce — nessun
+// reload, di nessun tipo. Se ritorna `false` (o non è passato), il
+// comportamento è quello di sempre: l'evento alimenta il debounce e innesca
+// `reload` con l'insieme di tabelle toccate. Una sottoscrizione a più
+// tabelle può gestirne alcune per riga e lasciare le altre al reload
+// (`applyRow` riceve `tabella` proprio per poter scegliere caso per caso).
 export function useDebouncedTableSubscription(
   tables,
   reload,
-  { enabled = true, delay = 200, deps = [], filterEvent } = {}
+  { enabled = true, delay = 200, deps = [], filterEvent, applyRow } = {}
 ) {
-  // reload e filterEvent possono catturare closure che cambiano ad ogni render:
-  // li teniamo in ref così l'effetto non si ri-sottoscrive ad ogni render, ma
-  // la reload vede sempre i valori freschi. Le dipendenze "vere" sono in `deps`.
+  // reload/filterEvent/applyRow possono catturare closure che cambiano ad ogni
+  // render: li teniamo in ref così l'effetto non si ri-sottoscrive ad ogni
+  // render, ma vedono sempre i valori freschi. Le dipendenze "vere" sono in `deps`.
   const reloadRef = useRef(reload);
   reloadRef.current = reload;
   const filterRef = useRef(filterEvent);
   filterRef.current = filterEvent;
+  const applyRowRef = useRef(applyRow);
+  applyRowRef.current = applyRow;
 
   useEffect(() => {
     if (!enabled) return;
@@ -108,6 +129,10 @@ export function useDebouncedTableSubscription(
     const debounced = (tbl, payload) => {
       const fn = filterRef.current;
       if (fn && !fn(payload)) return;
+      // applyRow PRIMA di alimentare il debounce: se ha già gestito l'evento
+      // (riga applicata allo state), non c'è nulla da coalescere né da
+      // ricaricare — l'evento si ferma qui, non finisce mai in `pending`.
+      if (applyRowRef.current?.(tbl, payload)) return;
       pending.add(tbl);
       clearTimeout(timer);
       timer = setTimeout(() => {

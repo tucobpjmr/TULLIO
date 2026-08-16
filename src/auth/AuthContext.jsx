@@ -1,5 +1,5 @@
 // src/auth/AuthContext.jsx
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Users as UsersAPI } from '../lib/api.js';
 import { toDbRole } from '../lib/taskConstants.js';
@@ -240,8 +240,14 @@ export function AuthProvider({ children }) {
     return () => { mounted = false; sub.subscription.unsubscribe(); };
   }, [loadProfile]);
 
-  const signIn = (email, password) =>
-    supabase.auth.signInWithPassword({ email, password });
+  // Tutte le funzioni qui sotto sono useCallback: sono nelle dipendenze del
+  // useMemo di `value` più sotto, e senza identità stabile lo vanificherebbero
+  // — un value "memoizzato" le cui dipendenze cambiano a ogni render è di
+  // nuovo un oggetto nuovo a ogni render (VIETATO_CONTEXT_VALUE_LETTERALE
+  // in eslint.config.js, suggerimento strategico n.2 dell'audit del 16
+  // agosto — nato proprio per impedire che questo file tornasse qui).
+  const signIn = useCallback((email, password) =>
+    supabase.auth.signInWithPassword({ email, password }), []);
 
   // La registrazione self-service è stata rimossa (S-13): l'unico modo di
   // entrare nel gestionale è l'invito (Edge Function invite-user). Il trigger
@@ -256,50 +262,50 @@ export function AuthProvider({ children }) {
   // anche le altre schede ancora aperte, che restavano con una sessione "morta"
   // in memoria → la successiva azione privilegiata (es. invito via Edge
   // Function) falliva con "Token non valido" (session_not_found).
-  const signOut = () => supabase.auth.signOut({ scope: 'local' });
+  const signOut = useCallback(() => supabase.auth.signOut({ scope: 'local' }), []);
 
   // Invia l'email con il link per reimpostare la password. redirectTo riporta
   // l'utente sull'app, dove detectSessionInUrl genera l'evento PASSWORD_RECOVERY.
-  const resetPassword = (email) =>
+  const resetPassword = useCallback((email) =>
     supabase.auth.resetPasswordForEmail(email, {
       redirectTo: window.location.origin,
-    });
+    }), []);
 
   // Reinvia l'email di conferma signup (utile quando l'utente ha registrato un
   // account ma non ha cliccato il link in tempo, o lo ha perso). Supabase
   // emette lo stesso link OTP del signup. Usata dal LoginScreen quando il
   // tentativo di login fallisce con email_not_confirmed.
-  const resendConfirmation = (email) =>
+  const resendConfirmation = useCallback((email) =>
     supabase.auth.resend({
       type: 'signup',
       email,
       options: { emailRedirectTo: window.location.origin },
-    });
+    }), []);
 
   // Aggiorna la password dell'utente nella sessione di recovery, poi esce
   // dalla modalità recovery così l'app monta normalmente.
-  const updatePassword = async (password) => {
+  const updatePassword = useCallback(async (password) => {
     const res = await supabase.auth.updateUser({ password });
     if (!res.error) { setRecovery(false); setRecoveryKind(null); }
     return res;
-  };
+  }, []);
 
-  const refreshTeam = () => loadProfile(session?.user?.id);
+  const refreshTeam = useCallback(() => loadProfile(session?.user?.id), [session, loadProfile]);
 
   // Retry per quando è la sessione stessa a non essere mai stata ottenuta
   // (getSession() fallita o rimasta appesa in timeout): rieseguono tutta la
   // sequenza init, non solo il caricamento profilo.
-  const retryInit = () => initAuthRef.current?.();
+  const retryInit = useCallback(() => initAuthRef.current?.(), []);
 
   // Self-service account deletion: delegates to delete-account Edge Function,
   // then signs out so the banned user is immediately logged out.
-  const deleteAccount = async () => {
+  const deleteAccount = useCallback(async () => {
     const result = await UsersAPI.deleteAccount();
     if (!result.error) await supabase.auth.signOut();
     return result;
-  };
+  }, []);
 
-  const value = {
+  const value = useMemo(() => ({
     session,
     user: session?.user ?? null,
     profile,
@@ -328,7 +334,10 @@ export function AuthProvider({ children }) {
     signOut,
     refreshTeam,
     retryInit,
-  };
+  }), [
+    session, profile, team, loading, authError, recovery, recoveryKind,
+    signIn, resetPassword, resendConfirmation, updatePassword, deleteAccount, signOut, refreshTeam, retryInit,
+  ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

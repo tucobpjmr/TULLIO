@@ -1,5 +1,219 @@
 # CHANGELOG — VoyageDesk
 
+## Suggerimento strategico n.3 (audit del 16 agosto) — il modulo Liste sotto il contratto realtime del core
+
+> Stesso giorno, quarto commit. A-1 era il terzo rilievo consecutivo nato
+> dall'architettura dati parallela del modulo Liste; questo chiude la
+> lacuna che li univa tutti — il contratto `origin_client` del core, che nel
+> modulo valeva come eccezione dichiarata su tre tabelle su tre.
+
+**Migrazione `20260816110000_p_origin_modulo_liste`** (applicata in
+produzione) — colonna `origin_client uuid` su `liste_viaggio`,
+`movimenti_lista`, `lista_beneficiari` (628 + 5.573 + 0 righe esistenti,
+tutte restate `NULL`), e **tredici** delle sedici RPC del modulo ricreate con
+`p_origin uuid DEFAULT NULL` in coda alla firma (`drop function` +
+`create function`, mai `create or replace`: un parametro in più cambia la
+signature e produrrebbe un overload che PostgREST non saprebbe risolvere).
+Le tre RPC lasciate fuori — `rimuovi_beneficiario_lista`,
+`elimina_lista_definitivamente`, `reset_completo` — scrivono solo con
+DELETE/TRUNCATE: un'origine su una riga che sta per sparire non è mai
+attendibile (stessa regola per cui nessuna tabella è a REPLICA IDENTITY
+FULL), quindi non hanno guadagnato un parametro che nessun corpo di funzione
+avrebbe potuto usare. Gli INSERT su `clients` dentro tre di queste tredici
+(cliente creato al volo) restano `origin_client = NULL` di proposito: il
+modulo Liste non tocca mai `state.clients` del core, e taggarli con la
+propria origine nasconderebbe il cliente nuovo a chi lo ha appena creato.
+
+**Corretto nella stessa sessione**: il primo giro di drop+create ha
+ereditato il default privilege dello schema, che concede EXECUTE ad `anon`
+su ogni funzione nuova — un `revoke all ... from public` non basta, perché
+`anon` ha un proprio ACL esplicito. Rilevato leggendo `pg_proc.proacl` in
+produzione subito dopo la migrazione, corretto con una seconda migrazione
+dedicata prima di proseguire, e la `revoke execute ... from anon` è stata
+riportata nel file committato così una nuova applicazione da zero è corretta
+al primo colpo.
+
+**`src/components/liste/listeApi.js`** — tredici call site aggiungono
+`p_origin: getClientId()`; i tre rimasti (`rimuoviBeneficiario`,
+`eliminaDefinitiva`, `resetCompleto`) restano invariati, con un commento che
+dice perché.
+
+Test aggiornati (nessun test nuovo): `src/test/realtimeOriginContract.test.js`
+(l'elenco `ECCEZIONI` è ora vuoto — le tre tabelle hanno `origin_client` come
+tutte le altre), `src/test/verificaRpc.test.js` (firma reale di
+`modifica_note_lista` con `p_origin` in coda).
+
+Lint 0, **1368 test verdi** (invariato — solo asserzioni aggiornate),
+`verifica:convenzioni` 20 controlli senza divergenze, bundle 171,15 kB gzip
+di first load su soglia 184.
+
+Dettaglio completo in
+[`docs/AUDIT_ARCHITETTURA_2026-08-16.md`](AUDIT_ARCHITETTURA_2026-08-16.md#3-portare-il-modulo-liste-sotto-lo-stesso-contratto-realtime-del-core).
+
+## Suggerimento strategico n.2 (audit del 16 agosto) — lint sul value dei Context
+
+> Stesso giorno, terzo commit. A-2 era costato quattro livelli di
+> propagazione da un `value={{…}}` letterale su un `ChatContext.Provider`;
+> questo chiude la categoria invece del singolo caso.
+
+**`eslint.config.js`** — nuova entry `no-restricted-syntax`,
+`VIETATO_CONTEXT_VALUE_LETTERALE`: vieta `<X.Provider value={{…}}>` e
+`value={[…]}` letterali su qualunque Context. Gemella di
+`STILE_INLINE_COSTANTE` (lo `style={{…}}` costante) ma senza la sua
+eccezione per gli oggetti "tutti letterali": qui anche un solo campo
+derivato dallo stato non basta a far passare la regola, perché è
+l'IDENTITÀ del value — non il suo contenuto — che ogni consumatore osserva,
+ed è nuova a ogni render comunque.
+
+**`src/auth/AuthContext.jsx`** — l'unica violazione reale (B-2): `value`
+era un oggetto letterale ricostruito a ogni render, e le otto funzioni che
+porta (`signIn`/`signOut`/`resetPassword`/`resendConfirmation`/
+`updatePassword`/`deleteAccount`/`refreshTeam`/`retryInit`) erano a loro
+volta funzioni nuove a ogni render — un `useMemo` sul solo `value` non
+sarebbe bastato, le sue dipendenze sarebbero cambiate comunque. Le otto sono
+passate a `useCallback` (tutte `[]`, tranne `refreshTeam` che dipende da
+`session`/`loadProfile`), poi `value` a `useMemo` sulle dipendenze vere.
+
+Verificato: lint 0 (i restanti sei Provider del progetto erano già
+`useMemo` o costanti di modulo — nessun altro file toccato), **1368 test
+verdi**, `verifica:convenzioni` 20 controlli invariati.
+
+Dettaglio completo in
+[`docs/AUDIT_ARCHITETTURA_2026-08-16.md`](AUDIT_ARCHITETTURA_2026-08-16.md#2-una-regola-di-lint-per-il-value-di-un-context).
+
+## Suggerimento strategico n.1 (audit del 16 agosto) — merge per riga
+
+> Stesso giorno del punto precedente. Il primo dei tre suggerimenti ad alto
+> impatto dell'audit stato/flusso dati, fatto invece di lasciato scritto.
+
+**`src/hooks/useDebouncedTableSubscription.js`** — nuova opzione `applyRow
+(tabella, payload) => boolean`: se ritorna `true`, l'evento non entra mai nel
+debounce di reload — nessuna query parte, né subito né coalescendo con
+un'altra. Additiva: i nove call site esistenti, che non la passano, restano
+bit-per-bit invariati.
+
+**`src/state/pendingWrites.js`** — `applicaRigaRealtime`, gemella di
+`fondiScrittureInVolo` per un evento singolo invece che per un refetch
+intero: stessa invariante, «per un id con una scrittura in volo vince SEMPRE
+il locale».
+
+**`src/state/reducer.js`** — tre nuovi case, `MERGE_TASK_ROW`/
+`MERGE_NOTICE_ROW`/`MERGE_CLIENT_ROW`. `MERGE_TASK_ROW` preserva
+`comments`/`history` già in stato: il payload realtime della tabella `tasks`
+non li porta (vivono in due query separate), e un merge totale li avrebbe
+azzerati a ogni evento.
+
+**`src/hooks/useAppHydration.js`** — `applyRow` collegato sulle sottoscrizioni
+di `tasks`, `notices` e `clients`: un evento su una di queste tre tabelle non
+ricarica più l'entità intera (`Tasks.list`/`Notices.list`/`Clients.list`),
+applica la riga. Non toccate — per ragioni diverse, tutte scritte nel commento
+in cima al file: `comments`/`task_history` (restano sul reload selettivo
+esistente), `categories`/`team`/`messageTemplates` (tabelle piccole, nessun
+risparmio misurabile), l'idratazione iniziale e la ripresa dopo un buco di
+connessione (`tabelle = null`, sempre reload completo per costruzione).
+
+Perché ora costa meno: prima, un singolo campo cambiato su un task faceva
+girare `TASK_SELECT_WITH_COMMENTS` — join sui nomi, cestino incluso, non
+paginata — per ogni client connesso; un avviso o una scheda cliente
+modificati ricaricavano l'intera bacheca o l'intera anagrafica. Il costo
+cresceva col prodotto fra righe e frequenza di scrittura; ora un evento su
+queste tre tabelle non genera più alcuna query.
+
+Test nuovi: `src/test/realtimeApplyRow.test.jsx` (il contratto sull'hook,
+isolato dal resto), `src/test/realtimeRowMerge.test.jsx`
+(`applicaRigaRealtime` allo stato puro + i tre case reducer, inclusa la
+protezione delle scritture in volo), più l'estensione di
+`src/test/realtimeGranularita.test.jsx` con le dipendenze reali del progetto —
+che ha anche richiesto riscrivere due asserzioni preesistenti («un evento su
+tasks ricarica tutto», «tasks vince la finestra di debounce di comments»):
+descrivevano il comportamento vecchio, e con questa correzione sarebbero
+diventate la specifica di un difetto.
+
+Lint 0, **1368 test verdi** (era 1337), bundle 171,06 kB gzip di first load
+su una soglia di 184 (+0,03 kB: il costo del codice nuovo, nessun confine
+lazy rientrato in eager), `verifica:convenzioni` 20 controlli senza
+divergenze.
+
+Dettaglio completo in
+[`docs/AUDIT_ARCHITETTURA_2026-08-16.md`](AUDIT_ARCHITETTURA_2026-08-16.md#1-ricaricare-la-riga-non-il-corpus--un-merge-per-riga-in-usedebouncedtablesubscription).
+
+## Audit del 16 agosto — stato/flusso dati, performance e UX (punti 3, 4, 5)
+
+> Seguito dichiarato dell'audit del 15 agosto (punti 1 e 2). Dodici rilievi,
+> **nessuno critico**, sei chiusi nello stesso giorno. La diagnosi comune ai
+> tre più gravi: le regole del progetto valgono dove qualcuno le ha applicate,
+> e i due sottosistemi che non passano dal reducer — chat e modulo Liste — sono
+> quelli in cui sono arrivate ultime.
+
+### 🟠 A-1 — la cointestazione di una lista non arrivava agli altri client
+
+**`supabase/migrations/20260815235446_lista_beneficiari_realtime.sql`** (NEW,
+**applicata in produzione e verificata**) — `lista_beneficiari` entra nella
+publication `supabase_realtime`. **`src/components/liste/useListeData.js`** — la
+tabella entra nella sottoscrizione, e il ramo di reload parziale è riscritto in
+positivo (`solo movimenti_lista ⇒ solo saldi`).
+
+Nessuno dei due percorsi emetteva un evento: la tabella non era pubblicata e le
+due RPC che la scrivono non toccano la riga padre. Siccome `LISTA_SELECT`
+incorpora i cointestatari e `intestazioneLista()` ne compone la testata —
+quella del riepilogo cliente e della copia agente — chi aggiungeva un
+cointestatario era l'unico a vederlo, per tutti gli altri fino al reload della
+pagina. Tabella a 0 righe in produzione: chiuso prima che costasse qualcosa.
+
+### 🟠 A-2 — la chat si ridisegnava a ogni toast
+
+**`src/VoyageDeskInner.jsx`**, **`src/components/chat/ChatPanel.jsx`** —
+`markChatNotificationsRead` dipendeva da `notif` (oggetto letterale ritornato da
+`useNotifications`, nuovo a ogni render) invece che dal suo `setNotifications`:
+da lì l'instabilità arrivava a `onConversationRead`, quindi al `useMemo` di
+`commands`, che non ha mai potuto saltare un render pur dichiarando in un
+commento di farlo. Sotto, `ChatPanel` non era `memo` e il value del suo
+`ChatContext` era un letterale nel JSX, quindi ogni bolla di messaggio si
+ridisegnava insieme a lui — a ogni carattere digitato nella ricerca globale, a
+ogni toast, a ogni tick di presenza. Corretto in tutti e quattro i punti;
+`src/test/chatMemo.test.jsx` (NEW) **verificato rosso senza la correzione**.
+
+### 🟡 M-1 — rete dentro l'updater di `setState`, nella presenza
+
+**`src/hooks/usePresence.js`** — il toggle "Occupato" faceva
+`UsersAPI.setPresence` e una seconda `setState` dentro l'updater di
+`setMyBusy`: due scritture di presenza per click in StrictMode. È testualmente
+la regola che `chatCommands.js` porta a lettere maiuscole dopo lo stesso
+difetto nella chat. `src/test/presenceToggle.test.jsx` (NEW).
+
+### 🟡 M-2 — il salvataggio del profilo non si vedeva e si poteva ripetere
+
+**`src/components/modals/ProfileEditor.jsx`** — era l'unica delle tre
+operazioni asincrone della modale senza stato in volo, ed è la più lenta
+(carica l'avatar e poi scrive): nessun feedback per tutta la durata
+dell'upload, e un secondo click ripartiva da capo. Ora `disabled` +
+`aria-busy` + «Salvataggio…» per la sola durata della scrittura — non da
+confondere con il bottone spento a form incompleto, che resta vietato.
+
+### 🟡 M-3 — la validazione inline valeva per 3 form su 8
+
+**`NoticeEditorModal`**, **`AddCategoryModal`**, **`AdminCategoriesTab`**,
+**`MessageTemplatesSection`**, **`AdminTeamTab`** — due uscivano con il bottone
+spento, tre con un `return` muto: si premeva "Salva" e non succedeva niente.
+Tutti e cinque passano ora da `validaCampi` + `<FieldError>` + `ariaCampo` +
+focus sul primo campo sbagliato. Gli style inline dinamici scendono da 335 a
+333.
+
+### 🟢 B-7 — due audit fuori dal registro di `verifica:convenzioni`
+
+**`scripts/verifica-convenzioni/index.js`** — mancavano questo audit e quello
+del 15 agosto, il più aperto: il loro `⟦stato: N/M chiusi⟧` non lo verificava
+nessuno. Aggiunti entrambi, e la prima esecuzione ha subito trovato una
+divergenza reale (la tabella del 15 agosto non marcava i quattro rilievi
+chiusi con il `✔` che lo script conta). 20 controlli, nessuna divergenza.
+
+**B-1…B-6 restano aperti o dichiarati** e sono elencati in
+[`docs/AUDIT_ARCHITETTURA_2026-08-16.md`](AUDIT_ARCHITETTURA_2026-08-16.md).
+
+Lint 0, **1337 test verdi** (era 1324), first load 170,63 kB gzip su una soglia
+di 184.
+
+
 ## Conferme, errori e validazione: chiude le criticità #8–#12
 
 > Stesso branch. Cinque rilievi di media/bassa priorità, tutti su cosa l'app

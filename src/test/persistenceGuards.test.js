@@ -600,6 +600,12 @@ const IDRATAZIONE = [
   // si è appena letto.
   "SET_TASKS", "SET_TASK_THREADS", "SET_NOTICES", "SET_CLIENTS", "SET_CATEGORIES", "SET_TEAM",
   "SET_CURRENT_USER",
+  // Gemelli "per riga" di SET_TASKS/SET_NOTICES/SET_CLIENTS (suggerimento
+  // strategico n.1 dell'audit del 16 agosto): li dispatcha lo stesso
+  // useAppHydration.js quando `applyRow` intercetta un evento realtime che
+  // porta già la riga intera, invece del reload completo. Stessa direzione —
+  // dati che ARRIVANO dal server — stessa ragione per non persisterli.
+  "MERGE_TASK_ROW", "MERGE_NOTICE_ROW", "MERGE_CLIENT_ROW",
   // Idratazione dei template di messaggio (A-1 dell'audit dell'11 agosto,
   // stesso trattamento di SET_CATEGORIES): da quando message_templates ha una
   // tabella, SET_MESSAGE_TEMPLATES ne rilegge il contenuto al mount/refresh.

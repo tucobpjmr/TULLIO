@@ -13,6 +13,8 @@ import { AddTeamMemberModal } from "../../modals/AddTeamMemberModal.jsx";
 import { BulkInviteModal } from "../../modals/BulkInviteModal.jsx";
 import { ContactActions } from "../../ui/ContactActions.jsx";
 import { useConfirm } from "../../../state/ConfirmContext.jsx";
+import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
+import { obbligatorio, validaCampi } from "../../../lib/validators.js";
 import { gridGap10, rowCenterBetween, rowGap8, txtF12Muted2 } from "../../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
@@ -26,6 +28,8 @@ const rowGap16F13 = { display: "flex", gap: 16, fontSize: 13, color: "var(--text
 const txtGoldDark = { color: "var(--gold-dark)" };
 const mb24 = { marginBottom: 24 };
 
+const REGOLE_MEMBRO = { name: obbligatorio("Il nome del membro non può essere vuoto.") };
+
 // ─── ADMIN TAB: TEAM ───────────────────────────────────────────────────────
 export const AdminTeamTab = ({ dispatch }) => {
   const conferma = useConfirm();
@@ -34,6 +38,9 @@ export const AdminTeamTab = ({ dispatch }) => {
   const tasks = useTasks();
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState(null);
+  // M-3 dell'audit del 16 agosto: la modifica in linea di un membro usciva in
+  // silenzio a nome vuoto, e il nome è l'unico campo obbligatorio della riga.
+  const [errori, setErrori] = useState({});
   const [showAdd, setShowAdd] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
   // resendMap: { [memberId]: 'loading' | 'ok' | 'err' | string(errMsg) }
@@ -85,10 +92,12 @@ export const AdminTeamTab = ({ dispatch }) => {
 
   // seniority normalizzata già nel draft: il <select> qui sotto è controllato e
   // con un valore undefined React lo renderebbe non controllato.
-  const startEdit = (m) => { setEditingId(m.id); setDraft({ ...m, seniority: toSeniority(m) }); };
-  const cancelEdit = () => { setEditingId(null); setDraft(null); };
+  const startEdit = (m) => { setEditingId(m.id); setDraft({ ...m, seniority: toSeniority(m) }); setErrori({}); };
+  const cancelEdit = () => { setEditingId(null); setDraft(null); setErrori({}); };
   const saveEdit = () => {
-    if (!draft.name?.trim()) return;
+    const trovati = validaCampi({ name: draft.name }, REGOLE_MEMBRO);
+    if (trovati.name) { setErrori(trovati); return; }
+    setErrori({});
     dispatch({ type: "UPDATE_TEAM_MEMBER", payload: draft });
     cancelEdit();
   };
@@ -138,8 +147,16 @@ export const AdminTeamTab = ({ dispatch }) => {
           <div className="vd-flex-1-min0">
             {isEditing ? (
               <div className="vd-grid-collapse" style={{ display: "grid", gridTemplateColumns: draft.role === "agent" ? "1fr 1fr 1fr 100px" : "1fr 1fr 100px", gap: 8 }}>
-                <input value={draft.name} onChange={e => setDraft({...draft, name: e.target.value})}
+                <div>
+                <input value={draft.name}
+                  onChange={e => {
+                    setDraft({ ...draft, name: e.target.value });
+                    setErrori(prec => (prec.name ? {} : prec));
+                  }}
+                  {...ariaCampo(`vd-team-name-err-${editingId}`, errori.name)}
                   placeholder="Nome" style={fieldStyle} />
+                <FieldError id={`vd-team-name-err-${editingId}`}>{errori.name}</FieldError>
+                </div>
                 {/* I valori sono quelli dell'enum del database (DB_ROLES), non
                     le etichette: prima il select scriveva "Senior Agent"/"Admin"
                     in una colonna che gli helper RLS confrontano con 'agent' e

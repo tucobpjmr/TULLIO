@@ -183,3 +183,60 @@ describe("ProfileEditor — la bozza è unica e i campi non si sovrascrivono", (
     expect(dispatch).not.toHaveBeenCalled();
   });
 });
+
+// M-2 dell'audit del 16 agosto — il salvataggio in volo si vede e non si
+// ripete. Era l'unica delle tre operazioni asincrone della modale senza uno
+// stato in volo: nessun feedback per tutta la durata dell'upload dell'avatar
+// (che precede la scrittura del profilo) e nessun freno al secondo click.
+describe("ProfileEditor — salvataggio in volo", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  // Dispatch che resta appeso finché il test non lo risolve: è la finestra in
+  // cui l'utente guarda lo schermo e non sa se il click è arrivato.
+  const dispatchSospeso = () => {
+    let risolvi;
+    const promessa = new Promise((r) => { risolvi = r; });
+    const dispatch = vi.fn(() => promessa);
+    return { dispatch, concludi: () => risolvi({ error: null }) };
+  };
+
+  it("mentre scrive, il bottone lo dice ed è spento", async () => {
+    const { dispatch, concludi } = dispatchSospeso();
+    montaConDispatch(dispatch);
+
+    salva();
+
+    const bottone = await screen.findByText("Salvataggio…");
+    expect(bottone.disabled).toBe(true);
+    expect(bottone.getAttribute("aria-busy")).toBe("true");
+
+    concludi();
+    await waitFor(() => expect(dispatch).toHaveBeenCalledTimes(1));
+  });
+
+  it("due click ravvicinati restano UNA sola scrittura", async () => {
+    const { dispatch, concludi } = dispatchSospeso();
+    montaConDispatch(dispatch);
+
+    salva();
+    await screen.findByText("Salvataggio…");
+    // Il secondo click: prima ripartiva da capo, upload dell'avatar compreso.
+    fireEvent.click(screen.getByText("Salvataggio…"));
+
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    concludi();
+  });
+
+  it("dopo un errore il bottone torna premibile", async () => {
+    const dispatch = vi.fn(async () => ({ error: { message: "permission denied" } }));
+    montaConDispatch(dispatch);
+
+    salva();
+
+    // La modale resta aperta (vedi sopra): se il bottone restasse spento,
+    // l'utente avrebbe davanti un form che non può più inviare.
+    await waitFor(() => expect(screen.getByText("✓ Salva profilo").disabled).toBe(false));
+    salva();
+    await waitFor(() => expect(dispatch).toHaveBeenCalledTimes(2));
+  });
+});

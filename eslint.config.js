@@ -52,6 +52,34 @@ const STILE_INLINE_COSTANTE = {
     + 'docs/AUDIT_ARCHITETTURA_2026-08-12.md.',
 };
 
+// A-2 dell'audit del 16 agosto è nato da un oggetto letterale scritto nel JSX
+// di un Provider (ChatContext): quattro livelli di propagazione da un value
+// nuovo a ogni render, che nessun useMemo/memo a valle poteva mai bypassare.
+// Stessa forma della regola sullo `style={{…}}` costante qui sopra, stesso
+// obiettivo: chiudere la CATEGORIA — un `<X.Provider value={{…}}>` o
+// `value={[…]}` letterale, invece del singolo caso già corretto.
+//
+// A differenza dello `style` costante, qui non si esenta il caso "con almeno
+// una proprietà dinamica": un oggetto Provider con anche un solo campo
+// derivato dallo stato è COMUNQUE un riferimento nuovo a ogni render, e la
+// sua identità è esattamente ciò che ogni consumatore osserva. La risposta è
+// sempre la stessa — `useMemo` sulle dipendenze vere, o una costante di
+// modulo se è davvero invariante — quindi la regola non prova a distinguere
+// i due casi come fa STILE_INLINE_COSTANTE.
+const VIETATO_CONTEXT_VALUE_LETTERALE = {
+  selector: "JSXOpeningElement[name.type='JSXMemberExpression'][name.property.name='Provider']"
+    + " > JSXAttribute[name.name='value']"
+    + ' > JSXExpressionContainer'
+    + ' > :matches(ObjectExpression, ArrayExpression)',
+  message:
+    'Il value di un Context.Provider letterale è un riferimento nuovo a ogni '
+    + 'render: ogni consumatore si ri-renderizza anche quando il contenuto non '
+    + 'è cambiato, e nessun memo/useMemo a valle può saltare il lavoro. '
+    + 'Costruiscilo con useMemo (dipendenze quelle che cambiano davvero) o, se '
+    + 'è davvero costante, come const di modulo — vedi A-2 in '
+    + 'docs/AUDIT_ARCHITETTURA_2026-08-16.md.',
+};
+
 const VIETATO_APPGLOBALS = {
   group: ['**/state/appGlobals', '**/state/appGlobals.js'],
   message:
@@ -259,7 +287,7 @@ export default [
           VIETATO_LISTEAPI_DA_FUORI,
         ],
       }],
-      'no-restricted-syntax': ['error', STILE_INLINE_COSTANTE],
+      'no-restricted-syntax': ['error', STILE_INLINE_COSTANTE, VIETATO_CONTEXT_VALUE_LETTERALE],
     },
   },
   // Il confine vale per i COMPONENTI. Non per src/hooks/ (è lì che i dati

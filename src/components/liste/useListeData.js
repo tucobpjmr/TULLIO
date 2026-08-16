@@ -94,8 +94,16 @@ export function useListeData({ enabled = true } = {}) {
     //
     // `tabelle === null` è l'idratazione iniziale (nessun evento): serve
     // tutto. Un Set che contiene liste_viaggio pure: una lista creata,
-    // rinominata, archiviata o ripristinata cambia elenco e cestino.
-    const soloSaldi = tabelle !== null && tabelle.size > 0 && !tabelle.has("liste_viaggio");
+    // rinominata, archiviata o ripristinata cambia elenco e cestino — e così
+    // `lista_beneficiari`, che l'elenco porta con sé (A-1 dell'audit del 16
+    // agosto): `LISTA_SELECT` incorpora i cointestatari e `intestazioneLista`
+    // ne costruisce la testata, quindi un cointestatario aggiunto o rimosso
+    // invalida le righe esattamente come un rename. La condizione è scritta
+    // in positivo — «solo movimenti» — così una tabella aggiunta domani alla
+    // sottoscrizione ricade nel ramo completo (più lento, mai sbagliato)
+    // invece di finire per default in quello parziale.
+    const soloSaldi = tabelle !== null && tabelle.size > 0
+      && [...tabelle].every((t) => t === "movimenti_lista");
 
     if (soloSaldi) {
       const rSaldi = await ListeAPI.saldi();
@@ -124,10 +132,16 @@ export function useListeData({ enabled = true } = {}) {
     setLoading(false);
   }, []);
 
-  useDebouncedTableSubscription(["liste_viaggio", "movimenti_lista"], reload, {
-    enabled,
-    deps: [enabled],
-  });
+  // `lista_beneficiari` è la terza tabella (A-1 dell'audit del 16 agosto): la
+  // cointestazione vive lì, l'elenco la porta con sé dentro `LISTA_SELECT` e
+  // fino alla migrazione 20260815235446 quella tabella non era nemmeno
+  // pubblicata su `supabase_realtime` — nessun evento partiva, quindi nessun
+  // altro client sapeva che l'intestazione di una lista era cambiata.
+  useDebouncedTableSubscription(
+    ["liste_viaggio", "movimenti_lista", "lista_beneficiari"],
+    reload,
+    { enabled, deps: [enabled] },
+  );
 
   return { ...dati, loading, loadError, reload };
 }

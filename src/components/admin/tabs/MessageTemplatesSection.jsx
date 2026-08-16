@@ -1,8 +1,10 @@
 // src/components/admin/tabs/MessageTemplatesSection.jsx
 // Le risposte rapide riutilizzabili in chat, gestite dall'admin.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { cardStyle, cardH } from "../adminStyles.js";
 import { useConfirm } from "../../../state/ConfirmContext.jsx";
+import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
+import { obbligatorio, primoCampoInvalido, validaCampi } from "../../../lib/validators.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -30,6 +32,19 @@ const rowStartGap10 = {
 const txtF13Bold = { fontSize: 13, fontWeight: 700, color: "var(--heading)", marginBottom: 3 };
 const txtF12Muted2 = { fontSize: 12, color: "var(--text-muted)", whiteSpace: "pre-wrap", wordBreak: "break-word" };
 const rowGap4 = { display: "flex", gap: 4, flexShrink: 0 };
+const boxF12Salva = {
+  padding: "6px 14px", borderRadius: 6, border: "none",
+  background: "var(--navy)", color: "#fff", fontSize: 12, fontWeight: 700,
+  cursor: "pointer", fontFamily: "inherit",
+};
+
+// Etichetta e testo sono entrambi obbligatori, e `ORDINE` è quello VISIVO:
+// il focus va sul primo campo sbagliato dall'alto, non sul primo dichiarato.
+const REGOLE = {
+  label: obbligatorio("L'etichetta è obbligatoria."),
+  text: obbligatorio("Il testo del template non può essere vuoto."),
+};
+const ORDINE = ["label", "text"];
 const boxF12W28 = { background: "var(--card)", border: "1px solid var(--border)", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 12 };
 const boxF12Danger = { background: "var(--card)", border: "1px solid var(--border)", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 12, color: "var(--danger)" };
 
@@ -40,6 +55,9 @@ export const MessageTemplatesSection = ({ templates = [], dispatch }) => {
   const [draftLabel, setDraftLabel] = useState("");
   const [draftText, setDraftText] = useState("");
   const [creating, setCreating] = useState(false);
+  const [errori, setErrori] = useState({});
+  const rifLabel = useRef(null);
+  const rifText = useRef(null);
 
   const startEdit = (t) => {
     setEditingId(t.id);
@@ -47,9 +65,19 @@ export const MessageTemplatesSection = ({ templates = [], dispatch }) => {
     setDraftText(t.text);
     setCreating(false);
   };
-  const cancel = () => { setEditingId(null); setCreating(false); setDraftLabel(""); setDraftText(""); };
+  const cancel = () => { setEditingId(null); setCreating(false); setDraftLabel(""); setDraftText(""); setErrori({}); };
   const save = () => {
-    if (!draftLabel.trim() || !draftText.trim()) return;
+    // M-3 dell'audit del 16 agosto: bottone spento + `return` muto. Due campi
+    // obbligatori e nessuno dei due indicato — l'utente doveva indovinare
+    // quale mancasse.
+    const trovati = validaCampi({ label: draftLabel, text: draftText }, REGOLE);
+    const primo = primoCampoInvalido(trovati, ORDINE);
+    if (primo) {
+      setErrori(trovati);
+      (primo === "label" ? rifLabel : rifText).current?.focus();
+      return;
+    }
+    setErrori({});
     if (creating) dispatch({ type: "ADD_MESSAGE_TEMPLATE", payload: { label: draftLabel, text: draftText } });
     else dispatch({ type: "UPDATE_MESSAGE_TEMPLATE", payload: { id: editingId, label: draftLabel.trim(), text: draftText.trim() } });
     cancel();
@@ -72,30 +100,40 @@ export const MessageTemplatesSection = ({ templates = [], dispatch }) => {
 
       {(creating || editingId) && (
         <div style={colGap8Mb12}>
-          <input
-            value={draftLabel}
-            onChange={e => setDraftLabel(e.target.value)}
-            placeholder="Etichetta (es. Sollecito acconto)"
-            maxLength={40}
-            style={boxF13R6}
-          />
-          <textarea
-            value={draftText}
-            onChange={e => setDraftText(e.target.value)}
-            placeholder="Testo completo del messaggio…"
-            rows={3}
-            maxLength={500}
-            style={boxF13R62}
-          />
+          <div>
+            <input
+              ref={rifLabel}
+              value={draftLabel}
+              onChange={e => {
+                setDraftLabel(e.target.value);
+                setErrori(prec => (prec.label ? { ...prec, label: undefined } : prec));
+              }}
+              placeholder="Etichetta (es. Sollecito acconto)"
+              maxLength={40}
+              style={boxF13R6}
+              {...ariaCampo("vd-tpl-label-err", errori.label)}
+            />
+            <FieldError id="vd-tpl-label-err">{errori.label}</FieldError>
+          </div>
+          <div>
+            <textarea
+              ref={rifText}
+              value={draftText}
+              onChange={e => {
+                setDraftText(e.target.value);
+                setErrori(prec => (prec.text ? { ...prec, text: undefined } : prec));
+              }}
+              placeholder="Testo completo del messaggio…"
+              rows={3}
+              maxLength={500}
+              style={boxF13R62}
+              {...ariaCampo("vd-tpl-text-err", errori.text)}
+            />
+            <FieldError id="vd-tpl-text-err">{errori.text}</FieldError>
+          </div>
           <div style={rowGap8}>
             <button onClick={cancel} style={boxF12R6}>Annulla</button>
-            <button onClick={save} disabled={!draftLabel.trim() || !draftText.trim()} style={{
-              padding: "6px 14px", borderRadius: 6, border: "none",
-              background: draftLabel.trim() && draftText.trim() ? "var(--navy)" : "var(--text-light)",
-              color: "#fff", fontSize: 12, fontWeight: 700,
-              cursor: draftLabel.trim() && draftText.trim() ? "pointer" : "not-allowed",
-              fontFamily: "inherit",
-            }}>{creating ? "Crea" : "Salva"}</button>
+            <button onClick={save} style={boxF12Salva}>{creating ? "Crea" : "Salva"}</button>
           </div>
         </div>
       )}

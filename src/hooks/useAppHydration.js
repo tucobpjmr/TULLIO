@@ -2,11 +2,20 @@
 // Idratazione + realtime dei dati di dominio che vivono nel reducer: task
 // (con commenti e cronologia), avvisi, categorie, team e clienti.
 //
-// Tutte le sottoscrizioni seguono lo stesso pattern — ricarico la lista intera
-// a ogni evento postgres, debounced, con un gen-counter che scarta le risposte
-// obsolete: vedi useDebouncedTableSubscription (caveat #10). È volutamente più
-// semplice di un merge incrementale per-riga, ed è robusto al duplicato
-// dell'eco locale.
+// Tutte le sottoscrizioni condividono la stessa base — reload debounced con un
+// gen-counter che scarta le risposte obsolete: vedi useDebouncedTableSubscription
+// (caveat #10) — ma non tutte ricaricano più la lista intera a ogni evento.
+// `tasks`, `notices` e `clients` applicano la riga arrivata nel payload
+// (`applyRow`, suggerimento strategico n.1 dell'audit del 16 agosto: la riga è
+// già nell'evento, ricaricare l'entità intera per applicarne una era il costo
+// che cresce col prodotto fra righe e frequenza di scrittura). `categories`,
+// `team` e `messageTemplates` restano al reload completo — tabelle piccole,
+// dove il merge per riga non avrebbe risparmiato nulla di misurabile; `tasks`
+// lo fa SOLO per la tabella `tasks` in senso stretto, non per `comments`/
+// `task_history`, che restano sul reload selettivo esistente (SET_TASK_THREADS).
+// Il reload intero resta comunque l'unica via per l'idratazione iniziale e per
+// la ripresa dopo un buco di connessione (`tabelle = null` in entrambi i casi):
+// lì non c'è un payload da applicare, solo l'incertezza su cosa si è perso.
 //
 // Il chiamante passa `dispatch` (quello grezzo del reducer: qui non si scrive
 // nulla su DB, si legge soltanto) e riceve i flag di caricamento che le viste
@@ -142,7 +151,37 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
     }
     dispatch({ type: "SET_TASKS", payload: (data || []).map(fromDbTask) });
     segnaCaricata("tasks");
-  }, { enabled, deps: [enabled] });
+  }, {
+    enabled, deps: [enabled],
+    // Suggerimento strategico n.1 dell'audit del 16 agosto. Un evento sulla
+    // tabella `tasks` porta la riga intera nel payload (`payload.new`): non
+    // serve più il reload sopra, che scarica TASK_SELECT_WITH_COMMENTS —
+    // join sui nomi, cestino incluso, non paginata — per aggiornare UN campo
+    // di UN task. `comments`/`task_history` restano fuori (`return false`):
+    // quegli eventi non portano righe di `tasks`, e il ramo `soloThread` qui
+    // sopra è già la versione selettiva per loro.
+    //
+    // Sincrono e non async: a differenza del reload qui sopra non c'è alcuna
+    // query di rete da attendere, quindi non serve `isCurrent()` — non esiste
+    // una risposta che possa arrivare "in ritardo" rispetto a un'altra.
+    applyRow: (tbl, payload) => {
+      if (tbl !== "tasks") return false;
+      if (payload.eventType === "DELETE") {
+        // Reale solo per PURGE_TASK/EMPTY_TRASH: il soft-delete (DELETE_TASK)
+        // è un UPDATE che valorizza deleted_at, gestito dal ramo sotto — la
+        // task resta in stato con deletedAt impostato, come già faceva
+        // `includeDeleted: true` sul reload completo.
+        const id = payload.old?.id;
+        if (!id) return false; // rete di sicurezza: senza id, reload completo
+        dispatch({ type: "MERGE_TASK_ROW", payload: { eventType: "DELETE", id } });
+        return true;
+      }
+      const row = fromDbTask(payload.new);
+      if (!row?.id) return false;
+      dispatch({ type: "MERGE_TASK_ROW", payload: { eventType: payload.eventType, row } });
+      return true;
+    },
+  });
 
   useDebouncedTableSubscription(["notices"], async (isCurrent) => {
     const { data, error } = await NoticesAPI.list();
@@ -155,7 +194,28 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
     }
     dispatch({ type: "SET_NOTICES", payload: (data || []).map(fromDbNotice) });
     segnaCaricata("notices");
-  }, { enabled, deps: [enabled] });
+  }, {
+    enabled, deps: [enabled],
+    // Suggerimento strategico n.1 dell'audit del 16 agosto: `notices` è una
+    // tabella piatta — nessun join, nessuna riga figlia — quindi `fromDbNotice`
+    // sul payload realtime è già la stessa forma di una riga di `Notices.list()`
+    // per quel che serve all'app (ignora `row.users`, mai letto: vedi
+    // NoticeBoard.jsx). L'ordinamento (pinned prima, poi più recenti) lo
+    // ricalcola NoticeBoard da solo a ogni render — l'array in stato non deve
+    // essere già ordinato, quindi push/replace/filter bastano.
+    applyRow: (tbl, payload) => {
+      if (payload.eventType === "DELETE") {
+        const id = payload.old?.id;
+        if (!id) return false;
+        dispatch({ type: "MERGE_NOTICE_ROW", payload: { eventType: "DELETE", id } });
+        return true;
+      }
+      const row = fromDbNotice(payload.new);
+      if (!row?.id) return false;
+      dispatch({ type: "MERGE_NOTICE_ROW", payload: { eventType: payload.eventType, row } });
+      return true;
+    },
+  });
 
   // Idratazione + realtime categorie task (Admin → Categorie). Prima di questa
   // sub, ADD_CATEGORY/UPDATE_CATEGORY/REMOVE_CATEGORY toccavano solo lo stato
@@ -277,7 +337,28 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
     }
     dispatch({ type: "SET_CLIENTS", payload: (data || []).map(fromDbClient) });
     segnaCaricata("clients");
-  }, { enabled, deps: [enabled] });
+  }, {
+    enabled, deps: [enabled],
+    // Suggerimento strategico n.1 dell'audit del 16 agosto. `clients` è
+    // l'entità con la finestra di rischio più alta descritta in
+    // pendingWrites.js — l'unica con PII di persone esterne al team — ed era
+    // anche l'unica delle tre a ricaricare l'INTERA anagrafica (818+ righe
+    // storiche, prima di ST-3) per un singolo campo cambiato da un altro
+    // agente. `fromDbClient` è flat come `fromDbNotice`: nessun join da
+    // perdere applicando la sola riga.
+    applyRow: (tbl, payload) => {
+      if (payload.eventType === "DELETE") {
+        const id = payload.old?.id;
+        if (!id) return false;
+        dispatch({ type: "MERGE_CLIENT_ROW", payload: { eventType: "DELETE", id } });
+        return true;
+      }
+      const row = fromDbClient(payload.new);
+      if (!row?.id) return false;
+      dispatch({ type: "MERGE_CLIENT_ROW", payload: { eventType: payload.eventType, row } });
+      return true;
+    },
+  });
 
   // Idratazione + realtime dei template di messaggio chat (A-1 dell'audit
   // dell'11 agosto). Stesso trattamento di `categories`: prima non c'era

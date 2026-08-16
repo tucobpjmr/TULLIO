@@ -326,7 +326,10 @@ describe('estrazione sul codice vero', () => {
   });
 
   it('legge la firma di modifica_note_lista come la manda il client', () => {
+    // p_origin dal suggerimento strategico n.3 (audit del 16 agosto,
+    // migrazione 20260816110000_p_origin_modulo_liste): il client lo manda
+    // ora su questa e su altre dodici RPC del modulo.
     const voce = raggruppaPerNome(estraiChiamateRpc(listeApi())).find((v) => v.nome === 'modifica_note_lista');
-    expect(voce.firme[0].argomenti).toEqual(['p_id', 'p_note']);
+    expect(voce.firme[0].argomenti).toEqual(['p_id', 'p_note', 'p_origin']);
   });
 });

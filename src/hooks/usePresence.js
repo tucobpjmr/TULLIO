@@ -21,21 +21,33 @@ export function usePresence({ enabled, userId, team }) {
   // così il beat() lo legge senza far ripartire l'effetto presence.
   const [myBusy, setMyBusy] = useState(false);
   const myBusyRef = useRef(false);
+  // M-1 dell'audit del 16 agosto. Il nuovo valore si calcola dal REF e le due
+  // conseguenze (la scrittura su Supabase e l'aggiornamento della mappa di
+  // presenza) stanno FUORI dall'updater di `setMyBusy`.
+  //
+  // Prima erano dentro, ed è la stessa forma che `chatCommands.js` documenta
+  // come vietata (⛔ «mai chiamate di rete dentro l'updater di setState»): un
+  // updater deve essere PURO perché React 18 può invocarlo più di una volta —
+  // StrictMode lo fa di proposito, il Concurrent rendering può scartare un
+  // render già calcolato e rigiocare la coda su una base più recente. Con la
+  // rete lì dentro, un click su "Occupato" partiva due volte in sviluppo, e in
+  // produzione l'aggiornamento della presenza dipendeva da quante volte React
+  // avesse scelto di girare. Il ref è già il mirror di `myBusy` per il beat,
+  // quindi leggerlo qui non aggiunge una seconda fonte di verità: la toglie
+  // dall'updater, dove non poteva stare.
   const toggleMyBusy = useCallback(() => {
-    setMyBusy(prev => {
-      const nv = !prev;
-      myBusyRef.current = nv;
-      const myId = userId;
-      if (enabled && myId) {
-        const st = nv ? 'busy' : 'online';
-        UsersAPI.setPresence(myId, st).then(() => {});
-        setPresenceMap(p => ({
-          ...p,
-          [myId]: { ...(p[myId] || {}), status: st, last_seen_at: new Date().toISOString() },
-        }));
-      }
-      return nv;
+    const nv = !myBusyRef.current;
+    myBusyRef.current = nv;
+    setMyBusy(nv);
+    if (!enabled || !userId) return;
+    const st = nv ? 'busy' : 'online';
+    UsersAPI.setPresence(userId, st).then(r => {
+      if (r?.error) console.warn("[presence] toggleMyBusy", r.error);
     });
+    setPresenceMap(p => ({
+      ...p,
+      [userId]: { ...(p[userId] || {}), status: st, last_seen_at: new Date().toISOString() },
+    }));
   }, [enabled, userId]);
   useEffect(() => {
     if (!enabled) return;

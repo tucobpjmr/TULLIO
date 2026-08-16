@@ -17,7 +17,7 @@ import {
   btnChiudiSuScuro, grid2ColGap12, hidden, relative, txtF11Muted, txtF15,
 } from "../../styles/common.js";
 import {
-  boxF125Danger, boxF13Bold, boxF13Bold2, boxF13Bold3, boxF14Muted, boxW100H100, boxW52H52,
+  boxF125Danger, boxF13Bold, boxF13Bold2, boxF13Bold3, boxF13Bold3InVolo, boxF14Muted, boxW100H100, boxW52H52,
   colCenterGap12, colGap10Mt10, colGap10Mt102, colGap18, mt2, row, rowCenterBetween,
   rowCenterGap14, rowCenterGap8, rowCenterGap82, rowCenterMiddle, rowCenterMiddle2, rowGap10,
   txtF11Mt2, txtF11Muted2, txtF13Text, txtF18Bold,
@@ -160,7 +160,23 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
     reader.readAsDataURL(file);
   };
 
+  // M-2 dell'audit del 16 agosto. Il salvataggio del profilo è l'operazione
+  // più LENTA di questa modale — se la foto è nuova carica un blob sul bucket
+  // `avatars` PRIMA di scrivere il profilo — ed era l'unica delle tre senza
+  // alcuno stato in volo: nessun feedback per l'intera durata dell'upload
+  // (schermo immobile, come se il click non fosse arrivato) e nessun freno al
+  // secondo click, che ricaricava l'avatar da capo e dispatchava una seconda
+  // UPDATE_OWN_PROFILE. Le altre due operazioni del file — cambio password ed
+  // eliminazione account — avevano già `esitoPwd.fase === "invio"` /
+  // `esitoElim.fase === "invio"`: qui manca solo la terza.
+  //
+  // ⚠️ Non è il bottone disabilitato che la validazione vieta (criticità #10):
+  // quello nasconde un campo mancante invece di dirlo, e resta attivo. Questo
+  // si spegne SOLO per la durata di una scrittura già partita.
+  const [salvaInVolo, setSalvaInVolo] = useState(false);
+
   const handleSave = async () => {
+    if (salvaInVolo) return;
     const trovati = validaCampi(draft, REGOLE);
     const primo = primoCampoInvalido(trovati, ORDINE);
     if (primo) {
@@ -169,6 +185,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
       return;
     }
     setErrori({});
+    setSalvaInVolo(true);
     const trimmedEmail = draft.email.trim();
     // Foto: se è una nuova immagine (data-URL dal crop, o una vecchia base64
     // ancora in photo_url), caricala sul bucket 'avatars' e sostituiscila con
@@ -181,6 +198,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
       if (!montato()) return;
       if (upErr || !url) {
         dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Foto non caricata: ${upErr?.message || "errore sconosciuto"}` } });
+        setSalvaInVolo(false);
         return; // non salvo: l'utente può ritentare senza perdere la foto scelta
       }
       finalPhotoUrl = url;
@@ -209,6 +227,11 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
     // Il dispatch sincronizzato ritorna { error }; in modalità mock e nei test
     // può essere una spia che ritorna undefined, da cui l'accesso opzionale.
     const res = await dispatch({ type: "UPDATE_OWN_PROFILE", payload });
+    // La modale può essere già smontata: il salvataggio riuscito la chiude, e
+    // `dispatch` è awaitato — è lo stesso contratto di useIsMounted() usato
+    // sopra per l'upload.
+    if (!montato()) return;
+    setSalvaInVolo(false);
     // In errore la modale resta APERTA: chiuderla butterebbe via quanto è stato
     // digitato e, subito dopo un rollback che ha appena rimesso i valori
     // precedenti, lascerebbe l'utente davanti al profilo di prima senza un modo
@@ -218,7 +241,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
   };
 
   const initials = draft.name.trim().split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "??";
-  // Le due operazioni asincrone leggono la propria fase in un punto solo: il
+  // Le TRE operazioni asincrone leggono la propria fase in un punto solo: il
   // resto del render chiede "sta partendo?" e non incrocia due booleani.
   const pwdInVolo = esitoPwd.fase === "invio";
   const elimInVolo = esitoElim.fase === "invio";
@@ -460,8 +483,10 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
               ora il form indica il campo e ci porta il focus. */}
           <button
             onClick={handleSave}
-            style={boxF13Bold3}
-          >✓ Salva profilo</button>
+            disabled={salvaInVolo}
+            aria-busy={salvaInVolo}
+            style={salvaInVolo ? boxF13Bold3InVolo : boxF13Bold3}
+          >{salvaInVolo ? "Salvataggio…" : "✓ Salva profilo"}</button>
         </div>
       </Modal>
     </>

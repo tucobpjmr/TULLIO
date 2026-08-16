@@ -1,5 +1,36 @@
 # CHANGELOG — VoyageDesk
 
+## Suggerimento strategico n.2 (audit del 16 agosto) — lint sul value dei Context
+
+> Stesso giorno, terzo commit. A-2 era costato quattro livelli di
+> propagazione da un `value={{…}}` letterale su un `ChatContext.Provider`;
+> questo chiude la categoria invece del singolo caso.
+
+**`eslint.config.js`** — nuova entry `no-restricted-syntax`,
+`VIETATO_CONTEXT_VALUE_LETTERALE`: vieta `<X.Provider value={{…}}>` e
+`value={[…]}` letterali su qualunque Context. Gemella di
+`STILE_INLINE_COSTANTE` (lo `style={{…}}` costante) ma senza la sua
+eccezione per gli oggetti "tutti letterali": qui anche un solo campo
+derivato dallo stato non basta a far passare la regola, perché è
+l'IDENTITÀ del value — non il suo contenuto — che ogni consumatore osserva,
+ed è nuova a ogni render comunque.
+
+**`src/auth/AuthContext.jsx`** — l'unica violazione reale (B-2): `value`
+era un oggetto letterale ricostruito a ogni render, e le otto funzioni che
+porta (`signIn`/`signOut`/`resetPassword`/`resendConfirmation`/
+`updatePassword`/`deleteAccount`/`refreshTeam`/`retryInit`) erano a loro
+volta funzioni nuove a ogni render — un `useMemo` sul solo `value` non
+sarebbe bastato, le sue dipendenze sarebbero cambiate comunque. Le otto sono
+passate a `useCallback` (tutte `[]`, tranne `refreshTeam` che dipende da
+`session`/`loadProfile`), poi `value` a `useMemo` sulle dipendenze vere.
+
+Verificato: lint 0 (i restanti sei Provider del progetto erano già
+`useMemo` o costanti di modulo — nessun altro file toccato), **1368 test
+verdi**, `verifica:convenzioni` 20 controlli invariati.
+
+Dettaglio completo in
+[`docs/AUDIT_ARCHITETTURA_2026-08-16.md`](AUDIT_ARCHITETTURA_2026-08-16.md#2-una-regola-di-lint-per-il-value-di-un-context).
+
 ## Suggerimento strategico n.1 (audit del 16 agosto) — merge per riga
 
 > Stesso giorno del punto precedente. Il primo dei tre suggerimenti ad alto

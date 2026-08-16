@@ -676,16 +676,34 @@ refetch completo per una ragione già scritta altrove, non per omissione.
 
 ### 2. Una regola di lint per il value di un Context
 
-A-2 è costato quattro livelli di propagazione ed è nato da un oggetto letterale
-scritto nel JSX di un `Provider`. Il progetto ha già la regola gemella per gli
-`style={{…}}` costanti (`no-restricted-syntax`, zero violazioni, con
-`verifica:convenzioni` a rimisurare i residui) e sa quanto vale: chiude la
-*categoria* invece del singolo caso. Una regola che vieti
-`<X.Provider value={{…}}>` e `value={[…]}` — cioè che imponga `useMemo` o una
-costante di modulo — costa poche righe di configurazione e rende impossibile
-riaprire A-2 da un altro file. Oggi le violazioni sarebbero **una** (quella di
-`AuthContext`, B-2): il momento giusto per introdurla è quello in cui l'arretrato
-è di un caso.
+> ✔ **Fatto lo stesso 16 agosto.** Nuova entry `no-restricted-syntax`,
+> `VIETATO_CONTEXT_VALUE_LETTERALE` in `eslint.config.js`, gemella di
+> `STILE_INLINE_COSTANTE` ma senza la sua eccezione: qui non si distingue fra
+> "tutti i campi costanti" e "almeno uno dinamico" perché anche un oggetto con
+> un solo campo derivato dallo stato è comunque un riferimento nuovo a ogni
+> render, ed è l'identità — non il contenuto — che ogni consumatore osserva.
+> Selettore su `JSXOpeningElement` il cui nome è un `JSXMemberExpression` con
+> `property.name === 'Provider'`, che porta un `value` la cui espressione è un
+> `ObjectExpression` o `ArrayExpression` letterale. L'unica violazione reale
+> era `AuthContext.jsx` (B-2): `value` era un oggetto letterale ricostruito a
+> ogni render, e le otto funzioni che porta (`signIn`/`signOut`/…) erano a
+> loro volta nuove a ogni render — quindi anche avvolgerlo in un `useMemo` da
+> solo non sarebbe bastato: le dipendenze sarebbero cambiate comunque. Le
+> otto sono passate a `useCallback` (tutte con `[]`, tranne `refreshTeam`, che
+> dipende da `session`/`loadProfile`), poi `value` a `useMemo` sulle sue
+> dipendenze vere. Verificato: lint 0 (nessun altro Provider del progetto
+> passava un letterale — i restanti sei erano già `useMemo` o costanti di
+> modulo), 1368 test verdi, `verifica:convenzioni` 20 controlli invariati.
+
+**Il problema originale, per la cronaca.** A-2 è costato quattro livelli di
+propagazione ed è nato da un oggetto letterale scritto nel JSX di un
+`Provider`. Il progetto aveva già la regola gemella per gli `style={{…}}`
+costanti (`no-restricted-syntax`, zero violazioni, con `verifica:convenzioni`
+a rimisurare i residui) e sapeva quanto vale: chiude la *categoria* invece del
+singolo caso. Una regola che vietasse `<X.Provider value={{…}}>` e
+`value={[…]}` — cioè che imponesse `useMemo` o una costante di modulo —
+costava poche righe di configurazione e rendeva impossibile riaprire A-2 da
+un altro file.
 
 ### 3. Portare il modulo Liste sotto lo stesso contratto realtime del core
 

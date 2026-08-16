@@ -8,8 +8,8 @@
 // test sui casi "pattern assente" sono quindi i più importanti del file.
 import { describe, it, expect } from 'vitest';
 import {
-  LetturaFallita, leggiConteggioMultiComp, leggiStatoAudit, leggiStatoIndex,
-  leggiStiliInline, montaggiLazySenzaRete, confronta,
+  LetturaFallita, leggiCallSiteSalvataggio, leggiConteggioMultiComp, leggiStatoAudit,
+  leggiStatoIndex, leggiStiliInline, montaggiLazySenzaRete, usiSalvataggio, confronta,
 } from '../../scripts/verifica-convenzioni/convenzioni.js';
 
 describe('leggiConteggioMultiComp', () => {
@@ -169,5 +169,30 @@ describe('montaggiLazySenzaRete', () => {
     // Il modo peggiore di fallire: verde perché non ha controllato niente.
     expect(() => montaggiLazySenzaRete([{ path: 'a.js', testo: 'export const x = 1;' }]))
       .toThrow(LetturaFallita);
+  });
+});
+
+describe('usiSalvataggio / leggiCallSiteSalvataggio', () => {
+  const IMPORTA = 'import { useSalvataggio } from "../../hooks/useSalvataggio.js";';
+
+  it('elenca i file che importano l\'hook, non quelli che lo nominano', () => {
+    const sorgenti = [
+      { path: 'src/components/modals/QuickAddTask.jsx', testo: `${IMPORTA}\nconst { salva } = useSalvataggio(f);` },
+      // Il file dell'hook stesso, e un commento che ne parla: nessuno dei due
+      // è un call site.
+      { path: 'src/hooks/useSalvataggio.js', testo: 'export function useSalvataggio() {}' },
+      { path: 'src/components/liste/AddMovBox.jsx', testo: '// da convertire a useSalvataggio\nexport const AddMovBox = () => null;' },
+    ];
+    expect(usiSalvataggio(sorgenti)).toEqual(['src/components/modals/QuickAddTask.jsx']);
+  });
+
+  it('SOLLEVA se nessun file lo importa: l\'hook è sparito o la forma è cambiata', () => {
+    expect(() => usiSalvataggio([{ path: 'a.jsx', testo: 'export const A = () => null;' }]))
+      .toThrow(LetturaFallita);
+  });
+
+  it('legge il numero dichiarato in CLAUDE.md e solleva se la frase non c\'è', () => {
+    expect(leggiCallSiteSalvataggio('… **3 call site usano `useSalvataggio`**: il numero …')).toBe(3);
+    expect(() => leggiCallSiteSalvataggio('nessuna frase del genere')).toThrow(LetturaFallita);
   });
 });

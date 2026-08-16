@@ -13,6 +13,8 @@ import { MentionText } from "../ui/MentionText.jsx";
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";
 import { ContactText } from "../ui/ContactText.jsx";
 import { useClientSuggestions, ClientSuggestions } from "../ui/ClientAutocomplete.jsx";
+import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
+import { useSalvataggio } from "../../hooks/useSalvataggio.js";
 import { Z } from "../../styles/tokens.js";
 
 import { TaskAttachments } from "./TaskAttachments.jsx";
@@ -72,6 +74,30 @@ export const TaskSlideOver = ({ task, dispatch }) => {
   const editable = !!task && canEditTask(task, currentUserId);
   const cli = useClientSuggestions(clients, draft.client, { enabled: editable });
 
+  // M-4 · La casella si svuota DOPO la conferma, non prima (vedi
+  // hooks/useSalvataggio.js). Il testo digitato è l'unico dato di questa
+  // pagina che non esista già altrove: i campi persistono al blur sul task,
+  // il commento vive solo qui finché non è scritto.
+  const {
+    salva: inviaCommento, inVolo: commentoInVolo, errore: erroreCommento,
+  } = useSalvataggio(
+    (testo) => dispatch({
+      type: "ADD_COMMENT",
+      payload: {
+        taskId: task.id,
+        comment: {
+          user: getMember(currentUserId)?.name || "Utente",
+          text: testo,
+          time: new Date().toISOString(),
+        },
+      },
+    }),
+    {
+      alSuccesso: () => setNewComment(""),
+      messaggioErrore: "Commento non inviato. Il testo è ancora qui, riprova.",
+    },
+  );
+
   if (!task) return null;
 
   const currentAssignees = task.assignees || [];
@@ -126,15 +152,9 @@ export const TaskSlideOver = ({ task, dispatch }) => {
   };
 
   const handleComment = () => {
-    if (!newComment.trim()) return;
-    const authorName = getMember(currentUserId)?.name || "Utente";
-    dispatch({
-      type: "ADD_COMMENT", payload: {
-        taskId: task.id,
-        comment: { user: authorName, text: newComment, time: new Date().toISOString() }
-      }
-    });
-    setNewComment("");
+    const testo = newComment.trim();
+    if (!testo) return;
+    inviaCommento(testo);
   };
 
   const handleStatusChange = (e) => {
@@ -426,14 +446,24 @@ export const TaskSlideOver = ({ task, dispatch }) => {
               {/* New comment */}
               <div style={rowGap8Mt6}>
                 <div style={rowCenterMiddle2}>{myInitials}</div>
-                <div style={rowFlex1Gap6}>
-                  <input
-                    value={newComment}
-                    onChange={e => setNewComment(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && handleComment()}
-                    placeholder="Aggiungi un commento..."
-                    style={boxFlex1F12} />
-                  <button onClick={handleComment} style={boxF13White2}>↑</button>
+                <div style={flex1}>
+                  <div style={rowFlex1Gap6}>
+                    <input
+                      id="vd-commento"
+                      value={newComment}
+                      onChange={e => setNewComment(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && handleComment()}
+                      placeholder="Aggiungi un commento..."
+                      style={boxFlex1F12}
+                      {...ariaCampo("vd-commento-err", erroreCommento)} />
+                    {/* Spento solo per la durata della scrittura: è la stessa
+                        distinzione di ProfileEditor fra «operazione già
+                        partita» e «campo mancante», che invece va detto. */}
+                    <button onClick={handleComment} disabled={commentoInVolo} style={boxF13White2}>
+                      {commentoInVolo ? "…" : "↑"}
+                    </button>
+                  </div>
+                  <FieldError id="vd-commento-err">{erroreCommento}</FieldError>
                 </div>
               </div>
             </div>

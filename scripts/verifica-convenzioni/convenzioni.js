@@ -156,6 +156,52 @@ export function montaggiLazySenzaRete(sorgenti) {
 }
 
 /**
+ * Il numero di call site di `useSalvataggio` dichiarato in docs/CLAUDE.md
+ * (A-2/M-1/M-4 dell'audit performance/UX del 16 agosto, secondo passaggio).
+ */
+export function leggiCallSiteSalvataggio(testo) {
+  const m = /(\d+)\s+call site usano\s+`useSalvataggio`/.exec(testo);
+  if (!m) {
+    throw new LetturaFallita(
+      'docs/CLAUDE.md: non trovo la frase «N call site usano `useSalvataggio`». ' +
+      'Se è stata riscritta, aggiorna QUESTO script insieme al documento.');
+  }
+  return Number(m[1]);
+}
+
+/**
+ * I file dell'app che usano il contratto «salva e chiudi».
+ *
+ * PERCHÉ ESISTE, e cosa NON fa. A differenza di `montaggiLazySenzaRete` questo
+ * non è un controllo di correttezza: «questo form si chiude prima di conoscere
+ * l'esito della scrittura» non è una domanda a cui un sorgente risponda da
+ * solo — dipende da chi passa `onSave`, da cosa quel `onSave` attende e da chi
+ * chiama `setModal(null)`, cioè da tre file diversi. Quella proprietà la
+ * fissano i test di `salvaEChiudi.test.jsx`, che la osservano invece di
+ * dedurla.
+ *
+ * Questo tiene onesto il NUMERO scritto nel documento, che è il mestiere di
+ * questo script: se un form viene riscritto a mano e smette di passare
+ * dall'hook, il conteggio scende e la CI lo dice — invece di lasciare in
+ * `docs/CLAUDE.md` una regola che il codice non applica più, che è esattamente
+ * il modo in cui il rilievo era nato.
+ *
+ * @param {{path: string, testo: string}[]} sorgenti
+ * @returns {string[]} i percorsi che importano l'hook
+ */
+export function usiSalvataggio(sorgenti) {
+  const IMPORTA = /import\s*\{[^}]*\buseSalvataggio\b[^}]*\}\s*from/;
+  const usi = (sorgenti || []).filter(f => IMPORTA.test(f.testo)).map(f => f.path);
+  if (usi.length === 0) {
+    throw new LetturaFallita(
+      'Nessun file di src/ importa `useSalvataggio`: o l\'hook è stato rimosso, o ' +
+      'la forma dell\'import è cambiata. In entrambi i casi questo controllo non ' +
+      'sta più verificando niente.');
+  }
+  return usi;
+}
+
+/**
  * Confronta dichiarato e misurato e produce l'elenco degli scarti.
  * Ogni scarto dice ENTRAMBI i numeri e cosa aggiornare: la divergenza è il
  * difetto, non il numero — chi legge deve poter decidere se ha sbagliato il

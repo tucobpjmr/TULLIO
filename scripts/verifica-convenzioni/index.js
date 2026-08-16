@@ -19,8 +19,8 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { ESLint } from 'eslint';
 import {
-  LetturaFallita, leggiConteggioMultiComp, leggiStatoAudit, leggiStatoIndex,
-  leggiStiliInline, montaggiLazySenzaRete, confronta,
+  LetturaFallita, leggiCallSiteSalvataggio, leggiConteggioMultiComp, leggiStatoAudit,
+  leggiStatoIndex, leggiStiliInline, montaggiLazySenzaRete, usiSalvataggio, confronta,
 } from './convenzioni.js';
 
 // Gli audit sotto controllo: nome del file, prefisso dei suoi rilievi.
@@ -150,14 +150,27 @@ async function main() {
   //    un punto di montaggio scoperto non è una cifra che invecchia, è un
   //    deploy che porta via l'app a chi ha la scheda aperta. L'elenco dei file
   //    in violazione finisce nel rimedio, così il messaggio dice DOVE.
-  const scoperti = montaggiLazySenzaRete(await sorgentiApp());
+  const sorgenti = await sorgentiApp();
+  const scoperti = montaggiLazySenzaRete(sorgenti);
   controlli.push({
     nome: 'lazy() senza boundary', dove: 'docs/CLAUDE.md',
     dichiarato: 0, misurato: scoperti.length,
     rimedio: `Monta con components/ui/LazyPanel.jsx (Suspense + boundary insieme): ${scoperti.join(', ')}`,
   });
 
-  // 5. Stato dei rilievi: quello che l'indice dichiara contro quello che il
+  // 5. Call site del contratto «salva e chiudi» (A-2/M-1/M-4). Qui il numero
+  //    torna a essere un numero dichiarato, non un atteso: serve a far rumore
+  //    quando un form smette di passare dall'hook. Che i form NON si chiudano
+  //    prima di conoscere l'esito lo verificano i test, non un sorgente letto
+  //    a stringhe — vedi il commento di `usiSalvataggio`.
+  const salvataggi = usiSalvataggio(sorgenti);
+  controlli.push({
+    nome: 'call site di useSalvataggio', dove: 'docs/CLAUDE.md',
+    dichiarato: leggiCallSiteSalvataggio(claudeMd), misurato: salvataggi.length,
+    rimedio: `Aggiorna la frase «N call site usano \`useSalvataggio\`» (misurati: ${salvataggi.join(', ')}).`,
+  });
+
+  // 6. Stato dei rilievi: quello che l'indice dichiara contro quello che il
   //    documento di audit porta nella propria tabella delle priorità.
   for (const { file, prefisso } of AUDIT) {
     const testo = await readFile(`docs/${file}`, 'utf8');

@@ -25,8 +25,9 @@ Numeri di partenza, misurati oggi:
 | `clients` | **835 righe** |
 | Task create | **167 negli ultimi 30 giorni** (~5,6/giorno) |
 
-> **Stato: 1 rilievo su 11 chiuso** — A-1, lo stesso 16 agosto, su richiesta
-> esplicita (era il suggerimento strategico n.1). Il resto è analisi.
+> **Stato: 4 rilievi su 11 chiusi** — A-1, poi A-2, M-1 e M-4 insieme, lo
+> stesso 16 agosto, su richiesta esplicita (erano i suggerimenti strategici
+> n.1 e n.2). Il resto è analisi.
 >
 > **Nessun rilievo critico.** I tre rilievi di priorità Alta non perdono dati
 > in silenzio e non aggirano permessi: due riguardano ciò che l'utente vede
@@ -71,7 +72,9 @@ regola giusta, scritta e motivata, applicata a una parte dei call site.**
   percorso di creazione che, se la scrittura fallisce, chiude la modale e
   butta via quello che l'utente ha scritto — mentre le quattro tab del
   BulkTaskCreator fanno esattamente il contrario, con tanto di commento che
-  spiega perché.
+  spiega perché. ✔ **Chiuso lo stesso 16 agosto** insieme a M-1 e M-4, che
+  sono lo stesso difetto altrove: `hooks/useSalvataggio.js` rende «salva e
+  chiudi» un contratto solo invece di una cosa che ogni call site si ricorda.
 - La finestra sugli elenchi lunghi («24 card alla volta, non 818») è una
   convenzione documentata, con la motivazione e il caveat sul riazzeramento —
   e vale per **2 viste su 7** (M-2).
@@ -92,12 +95,12 @@ riletta per intero a ogni avvio a freddo. Non è un difetto di correttezza:
 | # | Priorità | Area | Rilievo | File |
 |---|---|---|---|---|
 | A-1 ✔ | 🟠 **Alta** | UX / errori | 7 punti di montaggio `lazy()` su 9 senza error boundary proprio: un chunk 404 dopo un deploy porta via l'intera app (4) o l'intera vista (3) — **chiuso lo stesso 16 agosto** | `VoyageDeskInner.jsx:484`, `shell/Topbar.jsx:169,191`, `shell/UserSwitcher.jsx:218`, `clients/ClientiView.jsx:336`, `clients/ClienteDetailPanel.jsx:91`, `views/Archive.jsx:289` |
-| A-2 | 🟠 **Alta** | UX / errori | `QuickAddTask` — il form più usato dell'app — esce in silenzio a titolo vuoto E perde i dati se la scrittura fallisce | `modals/QuickAddTask.jsx:118-149` |
+| A-2 ✔ | 🟠 **Alta** | UX / errori | `QuickAddTask` — il form più usato dell'app — esce in silenzio a titolo vuoto E perde i dati se la scrittura fallisce — **chiuso lo stesso 16 agosto** | `modals/QuickAddTask.jsx:118-149` |
 | A-3 | 🟠 **Alta** | Scalabilità | L'idratazione scarica lo storico completo dei task: 82,5% del payload è non operativo, cresce ~13 righe/giorno senza tetto | `hooks/useAppHydration.js:144`, `lib/api.js:319` |
-| M-1 | 🟡 Media | UX / errori | `ClientiView.handleSave` chiude la modale senza attendere la scrittura: `saving` non si vede mai, doppio invio possibile, dati persi in caso d'errore | `clients/ClientiView.jsx:160-176`, `clients/ClienteModal.jsx:44,81,184` |
+| M-1 ✔ | 🟡 Media | UX / errori | `ClientiView.handleSave` chiude la modale senza attendere la scrittura: `saving` non si vede mai, doppio invio possibile, dati persi in caso d'errore — **chiuso lo stesso 16 agosto** | `clients/ClientiView.jsx:160-176`, `clients/ClienteModal.jsx:44,81,184` |
 | M-2 | 🟡 Media | Performance | La finestra sugli elenchi lunghi è applicata a 2 viste su 7: Archivio, Cestino e le cinque code disegnano l'array intero | `views/Archive.jsx:188,247`, `views/Trash.jsx:187`, `dashboard/queues/*` |
 | M-3 | 🟡 Media | Performance | Ricerca a testo libero senza debounce né indice: **6,32 ms per battuta** su 835 clienti, contro 0,19 ms con indice precalcolato | `clients/ClientiView.jsx:124-141`, `views/Archive.jsx:63-71`, `lib/searchUtils.js:50` |
-| M-4 | 🟡 Media | UX / errori | Il commento digitato viene cancellato prima che la scrittura sia confermata | `tasks/TaskSlideOver.jsx:128-138` |
+| M-4 ✔ | 🟡 Media | UX / errori | Il commento digitato viene cancellato prima che la scrittura sia confermata — **chiuso lo stesso 16 agosto** | `tasks/TaskSlideOver.jsx:128-138` |
 | B-1 | 🟢 Bassa | Performance | L'intera app è nel chunk d'ingresso anche per chi è fermo alla schermata di login | `auth/AuthGate.jsx:3` |
 | B-2 | 🟢 Bassa | UX / errori | Il toast «Task aggiornato!» precede la conferma del server e può essere smentito dal toast successivo | `state/reducer.js:307-309` |
 | B-3 | 🟢 Bassa | UX / errori | Quattro call site ancora fuori dalla regola di M-3, tutti nella variante «bottone spento» | `views/Trash.jsx:392`, `chat/NewConversationView.jsx:149`, `modals/bulk/TemplateTab.jsx:198`, `liste/modals/EditListaModal.jsx:51` |
@@ -252,7 +255,7 @@ sicurezza. Due dettagli non ovvi, entrambi emersi facendolo:
 
 ---
 
-### 🟠 A-2 · `QuickAddTask`: il form più usato esce in silenzio e perde i dati
+### 🟠 A-2 · `QuickAddTask`: il form più usato esce in silenzio e perde i dati ✔
 
 **Dove.** `src/components/modals/QuickAddTask.jsx:118-149`.
 
@@ -310,24 +313,37 @@ intatti, altrimenti l'operatore dovrebbe ricaricare il CSV e rimappare tutto»),
 `TemplateTab`, `DuplicateTab` e `ProfileEditor`. Il percorso singolo — quello
 che si usa cento volte al giorno — è l'unico rimasto fuori.
 
-**Soluzione.** Entrambe le metà, con gli helper che il progetto già ha
+**Correzione (applicata).** La metà (a) con gli helper che il progetto già ha
 (`validaCampi`/`primoCampoInvalido`/`FieldError`/`ariaCampo`, esattamente come
-`AddMovBox` e `ClienteModal`):
+`AddMovBox` e `ClienteModal`); la metà (b) **non** riscrivendo a mano il
+`setBusy`/`await`/`if (error)` — che è il gesto che tre call site su dieci
+sbagliano — ma dietro il contratto condiviso descritto nel suggerimento
+strategico n.2, `src/hooks/useSalvataggio.js`:
 
 ```jsx
-// in cima al file, fuori dal componente: le regole sono costanti
-const REGOLE = { title: obbligatorio("Il titolo è obbligatorio.") };
+// fuori dal componente: le regole sono costanti
+const REGOLE = { title: obbligatorio("Il titolo è obbligatorio: è con questo che il task compare in elenco, nelle code e nelle notifiche.") };
 const ORDINE = ["title"];
 ```
 
 ```jsx
-const [errori, setErrori] = useState({});
-const [saveError, setSaveError] = useState("");
-const titleRef = useRef(null);
-const rifCampo = { title: titleRef };
+const { salva, inVolo: busy, errore: erroreSalvataggio, avviso, bloccato } = useSalvataggio(
+  async () => {
+    const id = crypto.randomUUID();
+    const res = await onAdd({ id, ...form, … });
+    if (res?.error) return res;                 // niente upload: senza la riga
+                                                // task la RLS del bucket rifiuta
+    for (const f of pendingFiles) {
+      const { error } = await TaskFiles.upload(f, id, { uploadedBy: currentUserId });
+      // `avviso` e non `error`: la task ESISTE già.
+      if (error) return { avviso: `Task creata, ma l'allegato "${f.name}" non è stato caricato. Riprova dal dettaglio della task: la task è salva.` };
+    }
+    return { error: null };
+  },
+  { alSuccesso: onClose },
+);
 
 const handleSubmit = async () => {
-  if (busy) return;
   const trovati = validaCampi(form, REGOLE);
   const primo = primoCampoInvalido(trovati, ORDINE);
   if (primo) {
@@ -336,48 +352,39 @@ const handleSubmit = async () => {
     return;
   }
   setErrori({});
-  setSaveError("");
-  setBusy(true);
-
-  const id = crypto.randomUUID();
-  const result = await onAdd({ id, ...form, … });
-
-  // La modale RESTA APERTA con i dati: il registry ha già fatto rollback e
-  // mostrato il toast, ma il toast sparisce e quello che l'utente ha scritto
-  // non deve sparire con lui. Stesso contratto di ManualTab/ImportTab.
-  if (result && result.error) {
-    setSaveError("Creazione non riuscita. I dati sono ancora qui, riprova.");
-    setBusy(false);
-    return;
-  }
-
-  for (const f of pendingFiles) {
-    const { error: e } = await TaskFiles.upload(f, id, { uploadedBy: currentUserId });
-    if (e) {
-      setFileError(`Task creata, ma l'upload di "${f.name}" è fallito. Riprova dal dettaglio della task.`);
-      setBusy(false);
-      return;
-    }
-  }
-  setBusy(false);
-  onClose();
+  await salva();
 };
 ```
 
 ```diff
- <label className="vd-field-label-lg">TITOLO *</label>
+-<label className="vd-field-label-lg">TITOLO *</label>
 -<input {...inp("title")} placeholder="Descrivi brevemente il task..." />
++<label className="vd-field-label-lg" htmlFor="qat-title">TITOLO *</label>
 +<input
-+  {...inp("title")}
-+  ref={titleRef}
++  id="qat-title" ref={titleRef} {...inp("title")}
 +  placeholder="Descrivi brevemente il task..."
-+  {...ariaCampo("qa-title-err", errori.title)}
++  {...ariaCampo("qat-title-err", errori.title)}
 +/>
-+<FieldError id="qa-title-err">{errori.title}</FieldError>
++<FieldError id="qat-title-err">{errori.title}</FieldError>
 ```
 
-L'errore va spento appena si scrive nel campo, come negli altri form: dentro
+L'errore si spegne appena si scrive nel campo, come negli altri form: dentro
 `inp()`, `setErrori(prec => (prec[field] ? { ...prec, [field]: undefined } : prec))`.
+
+**Un terzo esito che la prima stesura non aveva previsto.** Questa scheda
+diceva «la modale resta aperta con i dati» come se i casi fossero due,
+riuscito e fallito. Scrivendo il codice se ne è visto un terzo, ed è quello
+che rende il rilievo più che cosmetico: **la task creata con un allegato non
+caricato**. Lì la modale deve restare aperta *ma riprovare è la cosa
+sbagliata* — la task esiste, un secondo «Crea Task» ne farebbe una seconda. Il
+codice originale aveva già questo buco (`setFileError(...); setBusy(false);
+return;` lascia il bottone premibile), e riprodurlo dietro l'hook sarebbe
+stato un refactoring che conserva il difetto. Da qui il ritorno `{ avviso }`:
+il pannello resta aperto, dice dove recuperare l'allegato, e il bottone di
+conferma sparisce lasciando solo «Chiudi». Lo stesso buco è ancora aperto in
+`ManualTab` e `ImportTab`, che non sono stati toccati da questo passo — sono
+corretti sull'asse del rilievo e sbagliati su questo, ed è materiale per un
+rilievo a sé, non per una modifica non richiesta a un file che funziona.
 
 ---
 
@@ -465,7 +472,7 @@ la metà che rende onesto il passo 1.
 
 ---
 
-### 🟡 M-1 · `ClientiView.handleSave` chiude la modale senza attendere la scrittura
+### 🟡 M-1 · `ClientiView.handleSave` chiude la modale senza attendere la scrittura ✔
 
 **Dove.** `clients/ClientiView.jsx:160-176`, con `clients/ClienteModal.jsx:44,81,184`.
 
@@ -495,8 +502,9 @@ turno. Tre conseguenze:
    personali di persone esterne al team, e che il modulo Liste crea clienti per
    conto proprio: il doppione in anagrafica è già un problema noto.
 
-**Soluzione.** `handleSave` attende e riporta l'esito; la modale decide se
-chiudersi. Il contratto diventa quello che `ClienteModal` già si aspetta:
+**Correzione (applicata).** `handleSave` attende e riporta l'esito senza
+chiudere niente; a chiudere è la modale, che è anche l'unica a sapere se ha
+ancora qualcosa da perdere:
 
 ```js
 const handleSave = async (form, { renameTasks = [] } = {}) => {
@@ -504,30 +512,47 @@ const handleSave = async (form, { renameTasks = [] } = {}) => {
     ? await dispatch({ type: "UPDATE_CLIENT", payload: { ...modal.cliente, ...form } })
     : await dispatch({ type: "ADD_CLIENT", payload: { id: crypto.randomUUID(), ...form, createdAt: new Date().toISOString() } });
 
-  // Il rename dei task segue solo se il cliente è stato scritto davvero:
-  // rinominarli dopo una scrittura fallita li disallineerebbe dall'anagrafica.
-  if (!res?.error && renameTasks.length) {
+  if (res?.error) return res;
+
+  // Il rename dei task segue solo se il cliente è stato scritto DAVVERO:
+  // rinominarli dopo una scrittura fallita li allontanerebbe da un'anagrafica
+  // rimasta com'era.
+  if (renameTasks.length && modal?.cliente) {
     await dispatch({ type: "RENAME_CLIENT_IN_TASKS", payload: { from: modal.cliente.name, to: form.name } });
   }
-  if (res?.error) return res;    // la modale resta aperta con i dati
-  setModal(null);
   return { error: null };
 };
 ```
 
+e nella modale il ciclo di vita del salvataggio è tutto nell'hook:
+
 ```diff
- // ClienteModal.jsx
--await onSave({ ...form, name: form.name.trim() }, { renameTasks: … });
--if (!montato()) return;
--setSaving(false);
-+const res = await onSave({ ...form, name: form.name.trim() }, { renameTasks: … });
-+if (!montato()) return;              // salvataggio riuscito: il padre ci ha smontati
-+setSaving(false);
-+if (res?.error) setSaveError("Salvataggio non riuscito. I dati sono ancora qui, riprova.");
+-const [saving, setSaving] = useState(false);
+-const montato = useIsMounted();
++const { salva, inVolo: saving, errore: erroreSalvataggio } = useSalvataggio(onSave, { alSuccesso: onClose });
+…
+-  setSaving(true);
+-  await onSave({ ...form, name: form.name.trim() }, { renameTasks: … });
+-  if (!montato()) return;
+-  setSaving(false);
++  await salva({ ...form, name: form.name.trim() }, { renameTasks: … });
 ```
 
-`useIsMounted` resta e resta necessario: sul percorso riuscito lo smontaggio
-avviene ancora, ed è l'esito normale.
+più un `<FieldError id="cli-save-err">{erroreSalvataggio}</FieldError>` sopra i
+bottoni.
+
+La scheda diceva «`useIsMounted` resta e resta necessario»: resta necessario,
+ma **non qui** — è passato dentro `useSalvataggio`, che è anche il punto in cui
+lo smontaggio viene provocato (è `alSuccesso` a chiamare `onClose`). `ClienteModal`
+non lo importa più. Il guard resta a carico del chiamante per ogni altra
+`await`: le fetch al mount dei pannelli, l'upload dell'avatar in `ProfileEditor`.
+
+Effetto collaterale che vale il rilievo da solo: **«Salvataggio...» ora si può
+vedere**. Era già scritto nel file, ma nessuno poteva incontrarlo — il
+componente veniva smontato nello stesso turno del click. Il caso di test che
+lo osserva (`salvaEChiudi.test.jsx`) tiene la scrittura in volo con una promise
+differita, ed è l'unico modo di distinguere «il feedback c'è» da «il feedback è
+scritto».
 
 ---
 
@@ -653,7 +678,7 @@ costo invece di toglierlo.
 
 ---
 
-### 🟡 M-4 · Il commento digitato si perde se la scrittura fallisce
+### 🟡 M-4 · Il commento digitato si perde se la scrittura fallisce ✔
 
 **Dove.** `tasks/TaskSlideOver.jsx:128-138`.
 
@@ -673,20 +698,35 @@ non sono monosillabi. È lo stesso difetto di A-2 in miniatura, e sulla stessa
 pagina in cui il resto è fatto bene (i campi testo persistono al blur con
 un solo `UPDATE_TASK`, non uno per carattere).
 
-**Soluzione.** Svuotare **dopo** la conferma, e tenere lo stato in volo:
+**Correzione (applicata).** Svuotare **dopo** la conferma, con lo stesso
+contratto degli altri due — non con un `useState` in più scritto a mano, che è
+esattamente il modo in cui i tre call site avevano finito per divergere:
 
-```js
-const [inviando, setInviando] = useState(false);
+```jsx
+const { salva: inviaCommento, inVolo: commentoInVolo, errore: erroreCommento } = useSalvataggio(
+  (testo) => dispatch({
+    type: "ADD_COMMENT",
+    payload: { taskId: task.id, comment: { user: getMember(currentUserId)?.name || "Utente", text: testo, time: new Date().toISOString() } },
+  }),
+  {
+    alSuccesso: () => setNewComment(""),
+    messaggioErrore: "Commento non inviato. Il testo è ancora qui, riprova.",
+  },
+);
 
-const handleComment = async () => {
+const handleComment = () => {
   const testo = newComment.trim();
-  if (!testo || inviando) return;
-  setInviando(true);
-  const res = await dispatch({ type: "ADD_COMMENT", payload: { taskId: task.id, comment: { user: authorName, text: testo, time: new Date().toISOString() } } });
-  setInviando(false);
-  if (!res?.error) setNewComment("");   // il toast d'errore lo mostra già il registry
+  if (!testo) return;
+  inviaCommento(testo);       // il testo passa come ARGOMENTO, non per closure
 };
 ```
+
+Il testo viaggia come argomento e non catturato dalla closure: così `esegui`
+non dipende da `newComment` e non si ricostruisce a ogni battuta. Il bottone
+`↑` si spegne per la sola durata della scrittura, e il messaggio compare sotto
+la casella legato all'input via `ariaCampo`/`FieldError` — la stessa forma della
+validazione inline, perché è lo stesso problema: dire cosa non ha funzionato
+**dove** è successo.
 
 ---
 
@@ -794,9 +834,10 @@ scopre la discrepanza». Questo audit ne scopre due, entrambe scritte in buona
 fede al momento in cui erano vere per il perimetro allora considerato:
 
 1. **Validazione dei form** — «✅ Dal 16 agosto (M-3) non resta un solo call
-   site fuori». Ne restano cinque: `QuickAddTask` (A-2) e i quattro di B-3. La
-   frase va sostituita con il conteggio reale nello stesso commit che chiude
-   A-2.
+   site fuori». Ne restavano cinque: `QuickAddTask` (A-2) e i quattro di B-3.
+   ✔ **Corretta** nello stesso commit che ha chiuso A-2: la frase ora dice che
+   il censimento di M-3 contava otto form su nove, che il nono è rientrato, e
+   nomina i quattro di B-3 ancora fuori.
 2. **Elenchi lunghi** — la regola descrive `ClientiView` e `ListeViaggio` come
    se fossero l'insieme degli elenchi lunghi dell'app. Non lo sono: Archivio,
    Cestino e le cinque code non hanno finestra (M-2). Va detto quali viste la
@@ -870,36 +911,49 @@ finché la regola vive nei commenti di chi l'ha applicata, il prossimo form la
 riprodurrà o no a seconda di quale file si è aperto per copiarne la forma.
 
 Un hook condiviso la rende la strada di minor resistenza:
+`src/hooks/useSalvataggio.js`, `{ salva, inVolo, errore, avviso, bloccato }`.
 
-```js
-// src/hooks/useSalvataggio.js
-// Le tre cose che ogni salvataggio di questa app deve fare, in un posto solo:
-// stato in volo (niente doppio invio), la modale RESTA APERTA sull'errore, e
-// l'input si svuota solo dopo la conferma. Il toast lo mostra già il registry:
-// qui non se ne aggiunge un secondo.
-export function useSalvataggio(esegui, { alSuccesso } = {}) {
-  const [inVolo, setInVolo] = useState(false);
-  const [errore, setErrore] = useState("");
-  const montato = useIsMounted();
+**Applicato il 16 agosto**: 3 call site (`QuickAddTask`, `ClienteModal`,
+il box commenti di `TaskSlideOver`), +19 casi di test (1.378 → **1.397**
+verdi), controllo `call site di useSalvataggio` in `verifica:convenzioni`,
+chunk d'ingresso da 71,34 a **72,07 kB** gzip su una soglia di 84.
 
-  const salva = useCallback(async (...args) => {
-    if (inVolo) return { error: new Error("in volo") };
-    setInVolo(true); setErrore("");
-    const res = await esegui(...args);
-    if (!montato()) return res;
-    setInVolo(false);
-    if (res?.error) { setErrore("Salvataggio non riuscito. I dati sono ancora qui, riprova."); return res; }
-    alSuccesso?.();
-    return res;
-  }, [esegui, inVolo, montato, alSuccesso]);
+Tre cose sono cambiate rispetto alla bozza qui sopra, tutte scrivendo il
+codice:
 
-  return { salva, inVolo, errore };
-}
-```
+1. **Il freno al doppio invio è un ref, non lo stato `inVolo`.** La bozza
+   leggeva `if (inVolo) return` da una variabile di render: fra due click
+   ravvicinati React può non aver ancora ri-renderizzato, quindi entrambi i
+   gestori la leggerebbero `false`. Lo stato resta, ma per l'unico compito che
+   gli spetta davvero — *dipingere* l'attesa.
+2. **`esegui` e `alSuccesso` vivono in un ref aggiornato dopo il commit**, così
+   `salva` ha identità stabile (passabile a un componente `memo` senza
+   rianimarlo, che è la premessa dichiarata della memoizzazione in questo
+   progetto) e il call site non deve avvolgere `esegui` in un `useCallback` con
+   la lista di dipendenze giusta — cosa che con un form intero nella closure si
+   sbaglia in silenzio, salvando i valori di due render fa.
+3. **Un terzo esito, `{ avviso }`**, per la riuscita parziale. Vedi A-2: è il
+   caso in cui riprovare è la cosa sbagliata, e senza un posto dove esprimerlo
+   il call site più importante sarebbe tornato a scriversi il proprio ciclo a
+   mano — cioè il difetto, ricostruito dentro la sua correzione.
 
-Con questo, `QuickAddTask`, `ClienteModal`, il box commenti e i prossimi form
-condividono lo stesso comportamento perché usano la stessa funzione, non perché
-qualcuno si è ricordato la regola.
+Una cosa che l'hook **non** fa, e che vale la pena dire: non è un controllo
+statico. «Questo form si chiude prima di conoscere l'esito» non è una domanda
+a cui un sorgente risponda da solo — dipende da chi passa `onSave`, da cosa
+quel `onSave` attende e da chi chiama `setModal(null)`, cioè da tre file
+diversi. Per questo la guardia qui è un test e non un grep: `salvaEChiudi.test.jsx`
+verifica per ogni call site, insieme, che il pannello **non** sia stato chiuso
+e che i valori digitati siano **ancora nel DOM** — il solo messaggio d'errore
+passerebbe anche su una modale che si chiude subito dopo averlo mostrato. Il
+controllo in `verifica:convenzioni` fa il mestiere di quello script, che è
+diverso: tiene onesto il numero scritto in `CLAUDE.md`, così un form riscritto
+a mano fuori dal contratto fa scendere il conteggio e la CI lo dice.
+
+Restano fuori dal contratto i salvataggi già corretti a mano (le quattro tab
+del `BulkTaskCreator`, `ProfileEditor`): convertirli è lavoro meccanico e
+senza rischio, ma è anche l'unico modo perché non resti una seconda forma
+corretta accanto a quella canonica — la stessa ragione per cui A-1 ha
+convertito anche i due punti di montaggio che il boundary ce l'avevano già.
 
 ### 3. Decidere adesso la finestra di idratazione, mentre è una scelta
 

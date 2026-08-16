@@ -16,11 +16,11 @@
 //
 // Non richiede rete né credenziali: misura questo repo. Esce 1 su qualunque
 // divergenza, 2 su un errore imprevisto.
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { ESLint } from 'eslint';
 import {
   LetturaFallita, leggiConteggioMultiComp, leggiStatoAudit, leggiStatoIndex,
-  leggiStiliInline, confronta,
+  leggiStiliInline, montaggiLazySenzaRete, confronta,
 } from './convenzioni.js';
 
 // Gli audit sotto controllo: nome del file, prefisso dei suoi rilievi.
@@ -86,6 +86,24 @@ async function contaSelettore(selettore) {
 // regola in eslint.config.js impedisce che ne rientrino.
 const STILE_INLINE = "JSXAttribute[name.name='style'] > JSXExpressionContainer > ObjectExpression";
 
+// I sorgenti dell'app, esclusi i test: una sonda che monta un `lazy()` apposta
+// per farlo fallire (src/test/lazyPanel.test.jsx) non è un punto di montaggio
+// dell'app, ed è anzi il test di questo stesso controllo.
+async function sorgentiApp(dir = 'src') {
+  const voci = await readdir(dir, { withFileTypes: true });
+  const out = [];
+  for (const v of voci) {
+    const path = `${dir}/${v.name}`;
+    if (v.isDirectory()) {
+      if (v.name === 'test') continue;
+      out.push(...await sorgentiApp(path));
+    } else if (/\.jsx?$/.test(v.name)) {
+      out.push({ path, testo: await readFile(path, 'utf8') });
+    }
+  }
+  return out;
+}
+
 async function main() {
   const claudeMd = await readFile('docs/CLAUDE.md', 'utf8');
   const indexMd = await readFile('docs/INDEX.md', 'utf8');
@@ -126,7 +144,20 @@ async function main() {
     rimedio: 'Aggiorna la frase «N style inline dinamici» in docs/CLAUDE.md.',
   });
 
-  // 4. Stato dei rilievi: quello che l'indice dichiara contro quello che il
+  // 4. `lazy()` senza rete di sicurezza (A-1 dell'audit performance/UX del 16
+  //    agosto, secondo passaggio). A differenza dei tre sopra non confronta un
+  //    numero scritto in un documento: l'atteso è zero e non è negoziabile —
+  //    un punto di montaggio scoperto non è una cifra che invecchia, è un
+  //    deploy che porta via l'app a chi ha la scheda aperta. L'elenco dei file
+  //    in violazione finisce nel rimedio, così il messaggio dice DOVE.
+  const scoperti = montaggiLazySenzaRete(await sorgentiApp());
+  controlli.push({
+    nome: 'lazy() senza boundary', dove: 'docs/CLAUDE.md',
+    dichiarato: 0, misurato: scoperti.length,
+    rimedio: `Monta con components/ui/LazyPanel.jsx (Suspense + boundary insieme): ${scoperti.join(', ')}`,
+  });
+
+  // 5. Stato dei rilievi: quello che l'indice dichiara contro quello che il
   //    documento di audit porta nella propria tabella delle priorità.
   for (const { file, prefisso } of AUDIT) {
     const testo = await readFile(`docs/${file}`, 'utf8');

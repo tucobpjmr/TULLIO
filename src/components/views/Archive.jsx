@@ -3,13 +3,13 @@
 // in una sezione dedicata, le liste buoni viaggio chiuse (stato "esaurita",
 // non cestinate). Il sistema convoglia qui gli elementi chiusi: spariscono
 // dalle code/home attive e restano consultabili/riapribili in questa sezione.
-import { memo, useState, useCallback, lazy, Suspense } from "react";
+import { memo, useState, useCallback, lazy } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { CategoryChip } from "../ui/CategoryChip.jsx";
 import { TaskCard } from "../tasks/TaskCard.jsx";
-import { LazyFallback } from "../ui/LazyFallback.jsx";
+import { LazyPanel } from "../ui/LazyPanel.jsx";
 import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { formatDate, getArchivedTasks } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
@@ -286,9 +286,9 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
           )}
         </>
       ) : (
-        <Suspense fallback={<LazyFallback />}>
+        <LazyPanel resetKey="archivio-liste" onReset={() => setTab("task")}>
           <ArchivedListe dispatch={dispatch} isMobile={isMobile} />
-        </Suspense>
+        </LazyPanel>
       )}
     </div>
   );

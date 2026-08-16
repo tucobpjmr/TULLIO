@@ -109,6 +109,53 @@ export function leggiStatoIndex(testo, nomeFile) {
 }
 
 /**
+ * I file che montano un componente `lazy()` senza avere in casa una rete di
+ * sicurezza (A-1 dell'audit performance/UX del 16 agosto, secondo passaggio).
+ *
+ * PERCHÉ ESISTE. `Suspense` gestisce l'attesa, non l'errore: un chunk che
+ * risponde 404 — cosa che succede a ogni deploy con una scheda aperta — fa
+ * salire l'eccezione fino al primo boundary sopra di sé, che per sette dei
+ * nove punti di montaggio dell'app era il boundary della VISTA (si perde la
+ * vista per non aver aperto un modale) o quello di `main.jsx` (si perde
+ * l'intera app). Il rimedio è `components/ui/LazyPanel.jsx`, che compone i due
+ * pezzi; questo controllo esiste perché il decimo call site non possa
+ * ricominciare da capo.
+ *
+ * ⚠️ È un controllo PER FILE e non per punto di montaggio, e la scelta è
+ * deliberata: sapere se un dato `<Suspense>` abbia un antenato boundary
+ * richiede di risalire l'albero JSX — e attraverso i confini di file, dove un
+ * sorgente non arriva. La domanda "questo file monta un lazy e non nomina
+ * nessuna rete di sicurezza" si risponde invece con certezza, ed è vera
+ * esattamente nei casi che il rilievo descrive. Il costo è un falso negativo
+ * possibile (un file che importa `LazyPanel` per un pannello e lascia un
+ * secondo `Suspense` nudo per un altro); il test di `lazyPanel.test.jsx`
+ * copre quello che questo controllo non vede.
+ *
+ * @param {{path: string, testo: string}[]} sorgenti
+ * @returns {string[]} i percorsi in violazione (vuoto = tutto a posto)
+ */
+export function montaggiLazySenzaRete(sorgenti) {
+  // L'IMPORT di `lazy` da react, non la sua chiamata: `/\blazy\s*\(/` sembra
+  // il controllo più diretto ma prende anche la prosa dei commenti — «lo
+  // spinner mostrato mentre un chunk lazy (AdminView, …) viene scaricato» in
+  // ui/LazyFallback.jsx, che è il file del FALLBACK e non monta niente. Il
+  // primo giro di questo controllo lo ha segnalato davvero. L'import invece
+  // c'è se e solo se il file può montare un lazy, e non può restare per
+  // sbaglio: `no-unused-vars` lo toglierebbe.
+  const IMPORTA_LAZY = /import\s*\{[^}]*\blazy\b[^}]*\}\s*from\s*["']react["']/;
+  const HA_RETE = /LazyPanel|ViewErrorBoundary|OverlayErrorBoundary/;
+  const conLazy = (sorgenti || []).filter(f => IMPORTA_LAZY.test(f.testo));
+  // Stessa regola non negoziabile del resto del file: se NESSUN file chiama
+  // `lazy()`, questo controllo non ha verificato niente — e passerebbe.
+  if (conLazy.length === 0) {
+    throw new LetturaFallita(
+      'Nessun file che importi `lazy` da react trovato in src/: il code splitting è la ' +
+      'premessa di questo controllo e senza di esso non c\'è niente da verificare.');
+  }
+  return conLazy.filter(f => !HA_RETE.test(f.testo)).map(f => f.path);
+}
+
+/**
  * Confronta dichiarato e misurato e produce l'elenco degli scarti.
  * Ogni scarto dice ENTRAMBI i numeri e cosa aggiornare: la divergenza è il
  * difetto, non il numero — chi legge deve poter decidere se ha sbagliato il

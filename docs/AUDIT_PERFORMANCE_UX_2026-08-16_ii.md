@@ -25,6 +25,9 @@ Numeri di partenza, misurati oggi:
 | `clients` | **835 righe** |
 | Task create | **167 negli ultimi 30 giorni** (~5,6/giorno) |
 
+> **Stato: 1 rilievo su 11 chiuso** — A-1, lo stesso 16 agosto, su richiesta
+> esplicita (era il suggerimento strategico n.1). Il resto è analisi.
+>
 > **Nessun rilievo critico.** I tre rilievi di priorità Alta non perdono dati
 > in silenzio e non aggirano permessi: due riguardano ciò che l'utente vede
 > quando qualcosa va storto (una schermata d'errore sproporzionata, un form che
@@ -54,9 +57,13 @@ Ciò che emerge da questo passaggio ha una forma sola, ripetuta tre volte: **una
 regola giusta, scritta e motivata, applicata a una parte dei call site.**
 
 - Il boundary sugli overlay lazy esiste, ha un file suo e un commento che
-  spiega perché serve — ed è applicato a **2 punti di montaggio su 9** (A-1).
-  Gli altri sette, ChatPanel e i due pannelli della Topbar compresi, in caso di
-  chunk 404 dopo un deploy portano via **l'intera app**.
+  spiega perché serve — ed era applicato a **2 punti di montaggio su 9** (A-1).
+  Degli altri sette, quattro — ChatPanel, i due pannelli della Topbar e
+  ProfileEditor — in caso di chunk 404 dopo un deploy portavano via **l'intera
+  app**; gli altri tre, montati dentro una vista, l'intera **vista**.
+  ✔ **Chiuso lo stesso 16 agosto** con `ui/LazyPanel.jsx` (Suspense e boundary
+  in un gesto solo), applicato a tutti e nove, più un controllo in
+  `verifica:convenzioni` perché il decimo non possa ricominciare da capo.
 - La regola «⛔ niente `if (!campo) return;` muto» è scritta in `CLAUDE.md`,
   blindata da un test e applicata a otto form dopo M-3 — ma il censimento
   contava otto form e i form sono nove: **manca quello aperto dal FAB su ogni
@@ -84,7 +91,7 @@ riletta per intero a ogni avvio a freddo. Non è un difetto di correttezza:
 
 | # | Priorità | Area | Rilievo | File |
 |---|---|---|---|---|
-| A-1 | 🟠 **Alta** | UX / errori | 7 punti di montaggio `lazy()` su 9 senza error boundary: un chunk 404 dopo un deploy sostituisce l'INTERA app | `VoyageDeskInner.jsx:484`, `shell/Topbar.jsx:169,191`, `shell/UserSwitcher.jsx:218`, `clients/ClientiView.jsx:336`, `clients/ClienteDetailPanel.jsx:91`, `views/Archive.jsx:289` |
+| A-1 ✔ | 🟠 **Alta** | UX / errori | 7 punti di montaggio `lazy()` su 9 senza error boundary proprio: un chunk 404 dopo un deploy porta via l'intera app (4) o l'intera vista (3) — **chiuso lo stesso 16 agosto** | `VoyageDeskInner.jsx:484`, `shell/Topbar.jsx:169,191`, `shell/UserSwitcher.jsx:218`, `clients/ClientiView.jsx:336`, `clients/ClienteDetailPanel.jsx:91`, `views/Archive.jsx:289` |
 | A-2 | 🟠 **Alta** | UX / errori | `QuickAddTask` — il form più usato dell'app — esce in silenzio a titolo vuoto E perde i dati se la scrittura fallisce | `modals/QuickAddTask.jsx:118-149` |
 | A-3 | 🟠 **Alta** | Scalabilità | L'idratazione scarica lo storico completo dei task: 82,5% del payload è non operativo, cresce ~13 righe/giorno senza tetto | `hooks/useAppHydration.js:144`, `lib/api.js:319` |
 | M-1 | 🟡 Media | UX / errori | `ClientiView.handleSave` chiude la modale senza attendere la scrittura: `saving` non si vede mai, doppio invio possibile, dati persi in caso d'errore | `clients/ClientiView.jsx:160-176`, `clients/ClienteModal.jsx:44,81,184` |
@@ -100,13 +107,34 @@ riletta per intero a ogni avvio a freddo. Non è un difetto di correttezza:
 
 ## Action plan dettagliato
 
-### 🟠 A-1 · Sette punti di montaggio `lazy()` senza error boundary
+### 🟠 A-1 · Sette punti di montaggio `lazy()` senza error boundary ✔
 
-**Dove.** `VoyageDeskInner.jsx:484` (ChatPanel), `shell/Topbar.jsx:169`
-(AdvancedSearchPanel) e `:191` (NotificationsPanel), `shell/UserSwitcher.jsx:218`
-(ProfileEditor), `clients/ClientiView.jsx:336` (ClientImportModal),
-`clients/ClienteDetailPanel.jsx:91` (ClienteListePanel), `views/Archive.jsx:289`
-(ArchivedListe).
+> **Chiuso lo stesso 16 agosto** — vedi «Correzione» in fondo alla sezione.
+>
+> ⚠️ **Correzione a questo stesso rilievo, emersa implementando il fix.** La
+> prima stesura diceva che tutti e sette portavano via «l'INTERA app». È vero
+> per **quattro**; per gli altri tre — ClientImportModal, ClienteListePanel,
+> ArchivedListe — il primo boundary sopra di sé è `ViewErrorBoundary`, perché
+> sono montati *dentro* una vista. Lì si perde l'intera **vista** (con un
+> "riprova" che riporta alla Dashboard) per non essere riusciti ad aprire un
+> modale sopra di essa: sproporzionato allo stesso modo, ma non la stessa
+> cosa. Il rilievo e la correzione non cambiano, la sua descrizione sì.
+
+**Dove.** Con il boundary che ciascuno aveva *ereditato* prima della correzione:
+
+| Punto di montaggio | Primo boundary sopra | Cosa si perdeva |
+|---|---|---|
+| `VoyageDeskInner.jsx:484` — ChatPanel | `main.jsx` | **tutta l'app** |
+| `shell/Topbar.jsx:169` — AdvancedSearchPanel | `main.jsx` | **tutta l'app** |
+| `shell/Topbar.jsx:191` — NotificationsPanel | `main.jsx` | **tutta l'app** |
+| `shell/UserSwitcher.jsx:218` — ProfileEditor | `main.jsx` | **tutta l'app** |
+| `clients/ClientiView.jsx:336` — ClientImportModal | `ViewErrorBoundary` | l'intera vista |
+| `clients/ClienteDetailPanel.jsx:91` — ClienteListePanel | `ViewErrorBoundary` | l'intera vista |
+| `views/Archive.jsx:289` — ArchivedListe | `ViewErrorBoundary` | l'intera vista |
+
+I quattro con `main.jsx` sono quelli montati **fuori** dal `<main>` della vista
+attiva: la Topbar sta sopra `ViewErrorBoundary` nella gerarchia, ChatPanel le è
+fratello.
 
 **Perché è un difetto.** Non è una deduzione: la motivazione è già scritta nel
 progetto, in cima a `components/OverlayErrorBoundary.jsx`.
@@ -119,8 +147,7 @@ progetto, in cima a `components/OverlayErrorBoundary.jsx`.
 Quel file esiste, è corretto, ed è usato in **due** dei nove punti in cui
 l'app monta un componente `lazy()`: TaskSlideOver e BulkTaskCreator. Negli
 altri sette c'è `<Suspense>` da solo — e `Suspense` non intercetta errori,
-gestisce solo l'attesa. La conseguenza è esattamente quella descritta sopra,
-con due aggravanti:
+gestisce solo l'attesa. Due aggravanti:
 
 1. **Lo scenario non è teorico, è il più frequente in produzione.** Lo dice
    `lib/errorReporting.js`: «un chunk lazy che risponde 404 è il caso più
@@ -129,9 +156,10 @@ con due aggravanti:
    aperta. Chi in quel momento apre la campanella delle notifiche non vede un
    pannello che non si apre: vede l'app sparire e sostituirsi con la schermata
    nera «Qualcosa è andato storto».
-2. **Due dei sette stanno nella Topbar**, cioè SOPRA `ViewErrorBoundary` nella
-   gerarchia. Per loro non esiste alcun boundary intermedio nemmeno in teoria:
-   la risalita va diritta a quello di `main.jsx`.
+2. **Tre dei quattro casi peggiori stanno nella shell** (i due pannelli della
+   Topbar e ProfileEditor dentro UserSwitcher), cioè SOPRA `ViewErrorBoundary`
+   nella gerarchia. Per loro non esiste alcun boundary intermedio nemmeno in
+   teoria: la risalita va diritta a quello di `main.jsx`.
 
 Il caso peggiore è ChatPanel, e per una ragione che si vede solo mettendo in
 fila due decisioni entrambe giuste: da ST-12 il pannello è montato **solo da
@@ -139,10 +167,10 @@ aperto**, quindi il chunk (15,48 kB gzip, il più grande fra i lazy) si scarica
 per la prima volta nel momento in cui l'utente clicca — cioè il momento in cui
 la finestra di rischio del 404 post-deploy è aperta.
 
-**Soluzione.** Il boundary c'è già, manca l'applicazione uniforme. La forma che
-non lascia spazio a un ottavo call site dimenticato è una primitiva che compone
-i due pezzi, così «montare un lazy» e «avere un boundary» diventano la stessa
-operazione:
+**Correzione (applicata).** Il boundary c'era già, mancava l'applicazione
+uniforme. La forma che non lascia spazio a un ottavo call site dimenticato è
+una primitiva che compone i due pezzi, così «montare un lazy» e «avere un
+boundary» diventano la stessa operazione:
 
 ```jsx
 // src/components/ui/LazyPanel.jsx
@@ -183,7 +211,7 @@ e quello della campanella in `Topbar.jsx`:
 ```diff
  {showNotif && (
 -  <Suspense fallback={<LazyFallback />}>
-+  <LazyPanel resetKey="notif" onReset={() => setShowNotif(false)}>
++  <LazyPanel resetKey="notifiche" onReset={() => setShowNotif(false)}>
      <NotificationsPanel … />
 -  </Suspense>
 +  </LazyPanel>
@@ -193,21 +221,34 @@ e quello della campanella in `Topbar.jsx`:
 `onReset` non è un dettaglio: senza, il pannello d'errore ha un bottone
 «Chiudi» che non chiude niente e lo stato `showNotif` resta `true`.
 
-**Guardia.** La correzione va bloccata, altrimenti il decimo `lazy()` ripete il
-difetto. Il controllo più semplice che coglie il caso reale — un file che monta
-un lazy senza avere il boundary a portata — sta in
-`scripts/verifica-convenzioni/index.js`, accanto agli altri:
+Tutti e nove i punti di montaggio passano ora da qui — inclusi i due che il
+boundary ce l'avevano già, così non resta una seconda forma corretta accanto a
+quella canonica. `ViewErrorBoundary` resta dov'era: è il boundary della vista
+attiva, un'altra cosa dal boundary di un pannello montato sopra di essa.
 
-```js
-{
-  nome: 'lazy() senza error boundary', dove: 'docs/CLAUDE.md',
-  atteso: 0,
-  effettivo: () => sorgenti()
-    .filter(f => /\blazy\(/.test(f.testo))
-    .filter(f => !/(Overlay|View)ErrorBoundary|LazyPanel/.test(f.testo))
-    .length,
-}
-```
+**Guardia — due, e fanno due lavori diversi.**
+
+`src/test/lazyPanel.test.jsx` (5 casi) fissa la proprietà vera, che non è «il
+riquadro d'errore compare» ma «l'errore NON sale». Il primo caso è un
+**controllo positivo**: monta lo stesso chunk rotto con il solo `<Suspense>` e
+verifica che l'antenato esploda davvero. Senza quel caso, gli altri
+passerebbero identici anche con un `LazyPanel` che non fa niente, perché in
+`render()` non c'è nessun antenato a cui l'eccezione possa arrivare.
+
+`montaggiLazySenzaRete` in `scripts/verifica-convenzioni/convenzioni.js`
+(controllo `lazy() senza boundary`, atteso **0**) impedisce la ricaduta: segnala
+per nome ogni file che importi `lazy` da react senza nominare alcuna rete di
+sicurezza. Due dettagli non ovvi, entrambi emersi facendolo:
+
+- **il segnale è l'IMPORT, non la chiamata.** La prima versione cercava
+  `/\blazy\s*\(/` e al primo giro ha segnalato `ui/LazyFallback.jsx` — che
+  dice «mentre un chunk lazy (AdminView, …) viene scaricato» in un commento ed
+  è il file del *fallback*, non un punto di montaggio. L'import di `lazy` da
+  react c'è se e solo se il file può montarne uno, e non può restare per
+  sbaglio: `no-unused-vars` lo toglierebbe;
+- **solleva se NESSUN file importa `lazy`**, come ogni altra lettura di quello
+  script: un controllo verde perché non ha trovato niente da controllare è il
+  difetto che `verifica:convenzioni` esiste per chiudere.
 
 ---
 
@@ -802,14 +843,19 @@ Elencati perché l'assenza di rilievo sia una constatazione e non una svista.
 
 ## Top 3 suggerimenti strategici
 
-### 1. Rendere impossibile montare un `lazy()` senza rete di sicurezza
+### 1. Rendere impossibile montare un `lazy()` senza rete di sicurezza ✔ FATTO
 
 La primitiva `LazyPanel` di A-1 più il controllo in `verifica:convenzioni`
 chiudono sette difetti oggi e il decimo call site fra sei mesi. È l'intervento
-con il rapporto costo/beneficio più alto dell'intero audit: **~40 righe**, e
-toglie di mezzo lo scenario in cui l'evento più frequente in produzione — un
-deploy con le schede aperte — trasforma «un pannello non si apre» in «l'app è
-sparita». Vale la pena notare *perché* il difetto è sopravvissuto a sette
+con il rapporto costo/beneficio più alto dell'intero audit: **~40 righe di
+primitiva** (più guardie e test), e toglie di mezzo lo scenario in cui l'evento
+più frequente in produzione — un deploy con le schede aperte — trasforma «un
+pannello non si apre» in «l'app è sparita».
+
+**Applicato il 16 agosto**: 9 punti di montaggio su 9 passano da `LazyPanel`,
++10 casi di test (1.368 → **1.378** verdi), controllo `lazy() senza boundary`
+attivo in CI (atteso 0), entry chunk da 71,21 a **71,34 kB** gzip su una soglia
+di 84. Vale la pena notare *perché* il difetto è sopravvissuto a sette
 audit: il boundary esiste, il commento che lo motiva è ottimo, e leggendo
 `OverlayErrorBoundary.jsx` si conclude che il problema è risolto. Era vero per
 i due call site che quel commento nomina.

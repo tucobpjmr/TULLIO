@@ -1,12 +1,12 @@
 // src/components/shell/UserSwitcher.jsx
 // Il menù dell'utente in Topbar: profilo, logout e — solo dietro env var in
 // dev — lo switch demo fra ruoli.
-import { useState, useRef, useEffect, lazy, Suspense } from "react";
+import { useState, useRef, useEffect, lazy } from "react";
 import { Users as UsersAPI } from "../../lib/api.js";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { AvatarImg } from "../ui/AvatarImg.jsx";
-import { LazyFallback } from "../ui/LazyFallback.jsx";
+import { LazyPanel } from "../ui/LazyPanel.jsx";
 import { Z } from "../../styles/tokens.js";
 import { roleLabel, toDbRole, toSeniority } from "../../lib/taskConstants.js";
 import { nomeTroncato, relative } from "../../styles/common.js";
@@ -215,9 +215,9 @@ export const UserSwitcher = ({ dispatch }) => {
 
       {/* Profile Editor Modal */}
       {showProfile && (
-        <Suspense fallback={<LazyFallback overlay />}>
+        <LazyPanel resetKey="profilo" onReset={() => setShowProfile(false)} overlay>
           <ProfileEditor member={curr} dispatch={dispatch} onClose={() => setShowProfile(false)} />
-        </Suspense>
+        </LazyPanel>
       )}
     </div>
   );

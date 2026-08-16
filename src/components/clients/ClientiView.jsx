@@ -2,13 +2,13 @@
 // Anagrafica Clienti: elenco, ricerca, ordinamento e apertura del pannello di
 // dettaglio. Modale, card e pannello vivono in moduli propri — erano sei
 // componenti in questo file, di cui uno (la modale) da 120 righe.
-import { memo, useState, useMemo, useEffect, lazy, Suspense } from "react";
+import { memo, useState, useMemo, useEffect, lazy } from "react";
 import { ClienteModal } from "./ClienteModal.jsx";
 import { ClienteCard } from "./ClienteCard.jsx";
 import { ClienteDetailPanel } from "./ClienteDetailPanel.jsx";
 import { useViewport } from "../Viewport.jsx";
 import { SkeletonCards } from "../ui/SkeletonCards.jsx";
-import { LazyFallback } from "../ui/LazyFallback.jsx";
+import { LazyPanel } from "../ui/LazyPanel.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useTasks } from "../../state/TasksContext.jsx";
 import { useClients } from "../../state/ClientsContext.jsx";
@@ -333,13 +333,13 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
 
       {/* Import anagrafica da Excel/CSV */}
       {importOpen && (
-        <Suspense fallback={<LazyFallback overlay />}>
+        <LazyPanel resetKey="import-clienti" onReset={() => setImportOpen(false)} overlay>
           <ClientImportModal
             existingClients={clients}
             onImport={(newClients) => dispatch({ type: "ADD_CLIENTS_BULK", payload: newClients })}
             onClose={() => setImportOpen(false)}
           />
-        </Suspense>
+        </LazyPanel>
       )}
 
       {/* Conferma eliminazione — o spiegazione del perché non si può */}

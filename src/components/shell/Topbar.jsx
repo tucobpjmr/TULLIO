@@ -5,12 +5,12 @@
 // toggle push e il pannello notifiche — quattro feature indipendenti in un
 // file che si chiama "barra superiore". Ora sono moduli propri e questo file
 // fa solo layout e composizione.
-import { useState, useRef, useEffect, memo, lazy, Suspense } from "react";
+import { useState, useRef, useEffect, memo, lazy } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { demoState } from "../../state/demoState.js";
 import { useTasks } from "../../state/TasksContext.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
-import { LazyFallback } from "../ui/LazyFallback.jsx";
+import { LazyPanel } from "../ui/LazyPanel.jsx";
 import { UserSwitcher } from "./UserSwitcher.jsx";
 import { Z } from "../../styles/tokens.js";
 import { flex1, relative } from "../../styles/common.js";
@@ -166,7 +166,7 @@ export const Topbar = memo(function Topbar({
           />
         </div>
         {searchOpen && (
-          <Suspense fallback={<LazyFallback />}>
+          <LazyPanel resetKey="ricerca" onReset={() => setSearchOpen(false)}>
             <AdvancedSearchPanel
               tasks={tasks}
               dispatch={dispatch}
@@ -175,7 +175,7 @@ export const Topbar = memo(function Topbar({
               onClose={() => setSearchOpen(false)}
               currentUserId={currentUserId}
             />
-          </Suspense>
+          </LazyPanel>
         )}
       </div>
 
@@ -188,7 +188,7 @@ export const Topbar = memo(function Topbar({
           {unread > 0 && <span style={rowCenterMiddle3}>{unread}</span>}
         </button>
         {showNotif && (
-          <Suspense fallback={<LazyFallback />}>
+          <LazyPanel resetKey="notifiche" onReset={() => setShowNotif(false)}>
             <NotificationsPanel
               dispatch={dispatch}
               onClose={() => setShowNotif(false)}
@@ -201,7 +201,7 @@ export const Topbar = memo(function Topbar({
               onOpenTask={onOpenTask}
               onOpenChat={onOpenChat}
             />
-          </Suspense>
+          </LazyPanel>
         )}
       </div>
 

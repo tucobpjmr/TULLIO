@@ -597,23 +597,82 @@ Restano a verbale, come nei passaggi precedenti:
 
 ### 1. Ricaricare la riga, non il corpus — un merge per-riga in `useDebouncedTableSubscription`
 
-Oggi ogni evento realtime provoca il refetch di un'entità **intera**: tutti i
-task con commenti e cronologia (290 righe, ~73 kB di sole tasks più 67 kB di
-cronologia, prima del JSON e dei join sui nomi), tutti i messaggi, tutto
-l'elenco liste. È robusto, è semplice, ed è la ragione per cui questo progetto
-non ha mai avuto un bug di merge — ma il costo cresce col **prodotto** fra
-numero di righe e frequenza di scrittura, e sono le due cose che crescono
-insieme quando l'agenzia usa davvero il gestionale.
+> ✔ **Fatto lo stesso 16 agosto**, su `tasks`, `notices` e `clients` — le tre
+> tabelle "piatte" indicate qui sotto. Due meccanismi nuovi, additivi e non
+> invasivi sui nove call site esistenti dell'hook:
+>
+> - **`applyRow(tabella, payload) => boolean`**, un'opzione in più su
+>   `useDebouncedTableSubscription` (`hooks/useDebouncedTableSubscription.js`).
+>   Gira PRIMA che un evento alimenti il debounce: se ritorna `true`, l'evento
+>   non entra mai in `pending` e non innesca alcun reload — né subito, né
+>   coalescendo con un altro. Se ritorna `false` (o non è passato), il
+>   comportamento resta quello di sempre. `useAppHydration` lo passa su tre
+>   delle sue sette sottoscrizioni; le altre quattro (`categories`, `team`,
+>   `messageTemplates`, e le due tabelle figlie `comments`/`task_history`
+>   DENTRO la sottoscrizione di `tasks`) restano al reload — piccole o
+>   annidate, dove il merge per riga non avrebbe risparmiato nulla di
+>   misurabile o avrebbe richiesto riscrivere la logica di `SET_TASK_THREADS`.
+> - **`applicaRigaRealtime`** (`state/pendingWrites.js`, accanto a
+>   `fondiScrittureInVolo`, di cui riusa l'INVARIANTE — «per un id in volo
+>   vince sempre il locale» — applicata a un evento singolo invece che a un
+>   refetch intero) e tre nuovi case reducer, `MERGE_TASK_ROW`/
+>   `MERGE_NOTICE_ROW`/`MERGE_CLIENT_ROW`, dichiarati in `persistenceGuards
+>   .test.js` come idratazione (dati che arrivano dal server, mai persistiti).
+>   `MERGE_TASK_ROW` porta l'unica asimmetria: il payload realtime della
+>   tabella `tasks` non contiene `comments`/`history` (join separati, popolati
+>   da `TaskThreadsAPI`), quindi il merge preserva quelli già in stato invece
+>   di sostituire l'intero oggetto.
+>
+> Non toccati: l'idratazione iniziale e la ripresa dopo un buco di connessione
+> (`tabelle = null` in entrambe) chiamano `reload` direttamente, PRIMA di
+> `debounced()` — dove vive `applyRow` — quindi restano sempre un refetch
+> completo, com'era già corretto che fossero (nessun payload da applicare,
+> solo l'incertezza su cosa si è perso). Un evento senza un `id` utilizzabile
+> nel payload (rete di sicurezza contro un payload malformato) ricade sullo
+> stesso reload completo di prima, non silenziosamente su niente.
+>
+> Test: `src/test/realtimeApplyRow.test.jsx` (il contratto sull'hook, isolato),
+> `src/test/realtimeRowMerge.test.jsx` (`applicaRigaRealtime` allo stato puro
+> + i tre case reducer, inclusa la protezione delle scritture in volo), e
+> l'estensione di `src/test/realtimeGranularita.test.jsx` con le reali
+> dipendenze del progetto (`fromDbTask`/`fromDbNotice`/`fromDbClient`,
+> `dispatch`) — che ha anche dovuto RISCRIVERE due asserzioni preesistenti
+> («un evento su tasks ricarica tutto», «tasks vince la finestra di debounce
+> di comments»): erano la specifica del comportamento vecchio, e con questa
+> correzione descrivevano un difetto, non più un requisito. 32 test nuovi, 0
+> regressioni: **1368 verdi** (era 1337), lint 0, bundle 171,06 kB gzip di
+> first load (soglia 184, +0,03 kB — il costo del codice nuovo, non di un
+> confine lazy rientrato in eager).
 
-Il passo non è riscrivere l'idratazione: è aggiungere ai payload realtime, che
-già contengono la riga (`payload.new`), un percorso «applica questa riga» per le
-tabelle in cui la riga è autosufficiente — `tasks`, `clients`, `notices` — e
-tenere il refetch completo per gli eventi che non lo sono (DELETE senza replica
-identity full, tabelle figlie, ripresa dopo un buco di connessione). Le difese
-che servono esistono già tutte: `origin_client` per scartare la propria eco,
-`pendingWrites` per non sovrascrivere una scrittura in volo, il gen-counter per
-l'ordine. Fatto bene, elimina la classe di costo invece di spostarla, e rende
-`SOGLIA_RIPRESA_MS` l'unico posto in cui si ricarica tutto.
+**Il problema originale, per la cronaca — cosa chiudeva questa correzione.**
+Prima di oggi ogni evento realtime provocava il refetch di un'entità
+**intera**: tutti i task con commenti e cronologia (290 righe, ~73 kB di sole
+tasks più 67 kB di cronologia, prima del JSON e dei join sui nomi), tutti gli
+avvisi, tutta l'anagrafica clienti. Era robusto, era semplice, ed è la ragione
+per cui questo progetto non ha mai avuto un bug di merge — ma il costo
+cresceva col **prodotto** fra numero di righe e frequenza di scrittura, e sono
+le due cose che crescono insieme quando l'agenzia usa davvero il gestionale.
+
+Il passo non era riscrivere l'idratazione: era aggiungere ai payload realtime,
+che già contengono la riga (`payload.new`), un percorso «applica questa riga»
+per le tabelle in cui la riga è autosufficiente — `tasks`, `clients`,
+`notices`, per l'appunto — e tenere il refetch completo per gli eventi che non
+lo sono (tabelle figlie, ripresa dopo un buco di connessione). Le difese che
+servivano esistevano già tutte: `origin_client` per scartare la propria eco,
+`pendingWrites`/`fondiScrittureInVolo` per non sovrascrivere una scrittura in
+volo (riusate, non duplicate — vedi `applicaRigaRealtime` sopra), il
+gen-counter per l'ordine. `SOGLIA_RIPRESA_MS` resta l'unico posto in cui si
+ricarica tutto per una tabella già coperta dal merge per riga — esattamente
+come previsto.
+
+**Ancora aperto, deliberatamente fuori da questo passaggio**: `messages`
+(B-4, sotto una soglia dichiarata — 13 messaggi reali, lontanissima) e
+`liste_viaggio`/`movimenti_lista`/`lista_beneficiari` (il modulo Liste scrive
+solo via RPC senza `origin_client`, e non ha update ottimistico per scelta —
+vedi `listePersistence.js`: introdurre un merge per riga lì contraddirebbe
+quella scelta di design invece di applicare questa). Nessuno dei due è un
+rilievo di questo audit: sono le uniche due entità realtime rimaste sul
+refetch completo per una ragione già scritta altrove, non per omissione.
 
 ### 2. Una regola di lint per il value di un Context
 

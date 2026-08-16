@@ -29,7 +29,7 @@ import {
 // racconta. Vedi state/activityLog.js per il perché della separazione.
 import { LOGGED_ACTIONS, buildLogEntry } from "./activityLog.js";
 import { applyRestoreBackupRollback } from "./restoreBackupRollback.js";
-import { fondiScrittureInVolo } from "./pendingWrites.js";
+import { fondiScrittureInVolo, applicaRigaRealtime } from "./pendingWrites.js";
 import { INITIAL_CATEGORIES } from "./taskCategories.js";
 import { demoState } from "./demoState.js";
 import { chiaveNome } from "../lib/clientNotes.js";
@@ -242,6 +242,16 @@ function baseReducer(state, action) {
           ...(history ? { history: history[t.id] || [] } : {}),
         })),
       };
+    }
+    // Gemello "per riga" di SET_TASKS (suggerimento strategico n.1, audit del
+    // 16 agosto): applica UN evento sulla tabella `tasks` invece di
+    // ricaricare l'elenco — vedi applyRow in useAppHydration.js e
+    // applicaRigaRealtime in pendingWrites.js per il perché e l'invariante.
+    // `comments`/`history` non sono colonne di `tasks`: si preservano quelle
+    // già in stato, altrimenti ogni evento le azzererebbe.
+    case "MERGE_TASK_ROW": {
+      const fondiTask = (prev, row) => ({ ...row, comments: prev.comments, history: prev.history });
+      return { ...state, tasks: applicaRigaRealtime(state.tasks, state.pendingWrites, action.payload, fondiTask) };
     }
     case "MOVE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload.taskId);
@@ -508,6 +518,10 @@ function baseReducer(state, action) {
       // server sta ancora servendo.
       return { ...state, notices: fondiScrittureInVolo(action.payload, state.notices, state.pendingWrites) };
     }
+    // Gemello di MERGE_TASK_ROW per la bacheca: nessun campo derivato da
+    // altrove, quindi nessun `fondiRiga` da passare.
+    case "MERGE_NOTICE_ROW":
+      return { ...state, notices: applicaRigaRealtime(state.notices, state.pendingWrites, action.payload) };
     case "ADD_NOTICE": {
       const notices = [action.payload, ...state.notices];
       return { ...state, notices, toasts: pushToast(state.toasts, { message: "Avviso pubblicato in bacheca", type: "success" }) };
@@ -593,6 +607,10 @@ function baseReducer(state, action) {
     // (A-1, terzo passaggio del 14 agosto).
     case "SET_CLIENTS":
       return { ...state, clients: fondiScrittureInVolo(action.payload, state.clients, state.pendingWrites) };
+    // Gemello di MERGE_NOTICE_ROW per l'anagrafica: stesso motivo, nessun
+    // campo da preservare oltre a quelli della riga.
+    case "MERGE_CLIENT_ROW":
+      return { ...state, clients: applicaRigaRealtime(state.clients, state.pendingWrites, action.payload) };
     // A-1 dell'audit del 14 agosto (secondo passaggio): stesso pattern già
     // applicato agli avvisi lo stesso giorno. Senza questi tre controlli, un
     // ruolo a cui useSyncedDispatch nega la scrittura (guard in

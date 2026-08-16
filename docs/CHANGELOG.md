@@ -1,5 +1,61 @@
 # CHANGELOG — VoyageDesk
 
+## Suggerimento strategico n.1 (audit del 16 agosto) — merge per riga
+
+> Stesso giorno del punto precedente. Il primo dei tre suggerimenti ad alto
+> impatto dell'audit stato/flusso dati, fatto invece di lasciato scritto.
+
+**`src/hooks/useDebouncedTableSubscription.js`** — nuova opzione `applyRow
+(tabella, payload) => boolean`: se ritorna `true`, l'evento non entra mai nel
+debounce di reload — nessuna query parte, né subito né coalescendo con
+un'altra. Additiva: i nove call site esistenti, che non la passano, restano
+bit-per-bit invariati.
+
+**`src/state/pendingWrites.js`** — `applicaRigaRealtime`, gemella di
+`fondiScrittureInVolo` per un evento singolo invece che per un refetch
+intero: stessa invariante, «per un id con una scrittura in volo vince SEMPRE
+il locale».
+
+**`src/state/reducer.js`** — tre nuovi case, `MERGE_TASK_ROW`/
+`MERGE_NOTICE_ROW`/`MERGE_CLIENT_ROW`. `MERGE_TASK_ROW` preserva
+`comments`/`history` già in stato: il payload realtime della tabella `tasks`
+non li porta (vivono in due query separate), e un merge totale li avrebbe
+azzerati a ogni evento.
+
+**`src/hooks/useAppHydration.js`** — `applyRow` collegato sulle sottoscrizioni
+di `tasks`, `notices` e `clients`: un evento su una di queste tre tabelle non
+ricarica più l'entità intera (`Tasks.list`/`Notices.list`/`Clients.list`),
+applica la riga. Non toccate — per ragioni diverse, tutte scritte nel commento
+in cima al file: `comments`/`task_history` (restano sul reload selettivo
+esistente), `categories`/`team`/`messageTemplates` (tabelle piccole, nessun
+risparmio misurabile), l'idratazione iniziale e la ripresa dopo un buco di
+connessione (`tabelle = null`, sempre reload completo per costruzione).
+
+Perché ora costa meno: prima, un singolo campo cambiato su un task faceva
+girare `TASK_SELECT_WITH_COMMENTS` — join sui nomi, cestino incluso, non
+paginata — per ogni client connesso; un avviso o una scheda cliente
+modificati ricaricavano l'intera bacheca o l'intera anagrafica. Il costo
+cresceva col prodotto fra righe e frequenza di scrittura; ora un evento su
+queste tre tabelle non genera più alcuna query.
+
+Test nuovi: `src/test/realtimeApplyRow.test.jsx` (il contratto sull'hook,
+isolato dal resto), `src/test/realtimeRowMerge.test.jsx`
+(`applicaRigaRealtime` allo stato puro + i tre case reducer, inclusa la
+protezione delle scritture in volo), più l'estensione di
+`src/test/realtimeGranularita.test.jsx` con le dipendenze reali del progetto —
+che ha anche richiesto riscrivere due asserzioni preesistenti («un evento su
+tasks ricarica tutto», «tasks vince la finestra di debounce di comments»):
+descrivevano il comportamento vecchio, e con questa correzione sarebbero
+diventate la specifica di un difetto.
+
+Lint 0, **1368 test verdi** (era 1337), bundle 171,06 kB gzip di first load
+su una soglia di 184 (+0,03 kB: il costo del codice nuovo, nessun confine
+lazy rientrato in eager), `verifica:convenzioni` 20 controlli senza
+divergenze.
+
+Dettaglio completo in
+[`docs/AUDIT_ARCHITETTURA_2026-08-16.md`](AUDIT_ARCHITETTURA_2026-08-16.md#1-ricaricare-la-riga-non-il-corpus--un-merge-per-riga-in-usedebouncedtablesubscription).
+
 ## Audit del 16 agosto — stato/flusso dati, performance e UX (punti 3, 4, 5)
 
 > Seguito dichiarato dell'audit del 15 agosto (punti 1 e 2). Dodici rilievi,

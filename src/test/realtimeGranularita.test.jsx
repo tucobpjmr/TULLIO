@@ -299,33 +299,82 @@ describe("useAppHydration — un commento non ricarica i task", () => {
     expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "SET_TASK_THREADS" }));
   });
 
-  it("un evento su tasks ricarica tutto", async () => {
-    idrata();
+  // Suggerimento strategico n.1 dell'audit del 16 agosto: un evento su `tasks`
+  // NON ricarica più tutto — applica la riga arrivata nel payload. Il
+  // comportamento precedente ("un evento su tasks ricarica tutto") era
+  // l'esatto costo che questa correzione elimina: TASK_SELECT_WITH_COMMENTS
+  // per un solo campo cambiato di un solo task.
+  it("un evento su tasks APPLICA LA RIGA, non ricarica tutto", async () => {
+    const { dispatch } = idrata();
     await waitFor(() => expect(TasksAPI.list).toHaveBeenCalledTimes(1));
     vi.clearAllMocks();
 
-    await act(async () => { emetti("tasks"); await new Promise(r => setTimeout(r, 250)); });
+    await act(async () => {
+      emetti("tasks", { eventType: "UPDATE", new: { id: "t1", title: "Aggiornato da un altro agente" } });
+      await new Promise(r => setTimeout(r, 250));
+    });
 
-    // Un task creato, modificato, cestinato o ripristinato cambia i campi del
-    // task: qui il refetch completo è quello giusto, non uno spreco.
-    expect(TasksAPI.list).toHaveBeenCalledTimes(1);
+    expect(TasksAPI.list).not.toHaveBeenCalled();
     expect(TaskThreadsAPI.comments).not.toHaveBeenCalled();
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "MERGE_TASK_ROW",
+      payload: { eventType: "UPDATE", row: expect.objectContaining({ id: "t1", title: "Aggiornato da un altro agente" }) },
+    });
   });
 
-  it("tasks nella stessa finestra di debounce vince sul reload parziale", async () => {
+  it("un DELETE su tasks (purge/svuota cestino altrove) applica la rimozione, non ricarica", async () => {
+    const { dispatch } = idrata();
+    await waitFor(() => expect(TasksAPI.list).toHaveBeenCalledTimes(1));
+    vi.clearAllMocks();
+
+    await act(async () => {
+      emetti("tasks", { eventType: "DELETE", old: { id: "t1" } });
+      await new Promise(r => setTimeout(r, 250));
+    });
+
+    expect(TasksAPI.list).not.toHaveBeenCalled();
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "MERGE_TASK_ROW",
+      payload: { eventType: "DELETE", id: "t1" },
+    });
+  });
+
+  // `comments`/`task_history` non passano da applyRow (restano sul reload
+  // selettivo esistente): un evento su `tasks` insieme a uno su `comments`
+  // nella stessa finestra di debounce deve applicare la riga di `tasks` FUORI
+  // dal debounce e lasciare `comments` seguire il proprio percorso invariato
+  // — non più "tasks vince e la query completa riporta comunque i commenti"
+  // (comportamento di prima), perché non c'è più alcuna query completa da
+  // vincere.
+  it("tasks (applicato per riga) e comments (reload selettivo) restano indipendenti nella stessa finestra", async () => {
+    const { dispatch } = idrata();
+    await waitFor(() => expect(TasksAPI.list).toHaveBeenCalledTimes(1));
+    vi.clearAllMocks();
+
+    await act(async () => {
+      emetti("comments");
+      emetti("tasks", { eventType: "UPDATE", new: { id: "t1", title: "Aggiornato" } });
+      await new Promise(r => setTimeout(r, 250));
+    });
+
+    expect(TasksAPI.list).not.toHaveBeenCalled();
+    expect(TaskThreadsAPI.comments).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "MERGE_TASK_ROW" }));
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "SET_TASK_THREADS" }));
+  });
+
+  it("un evento su tasks senza id utilizzabile ricade sul reload completo (rete di sicurezza)", async () => {
     idrata();
     await waitFor(() => expect(TasksAPI.list).toHaveBeenCalledTimes(1));
     vi.clearAllMocks();
 
     await act(async () => {
-      emetti("comments"); emetti("tasks");
+      // Payload malformato: nessun `new.id` da cui costruire la riga.
+      emetti("tasks", { eventType: "UPDATE", new: {} });
       await new Promise(r => setTimeout(r, 250));
     });
 
-    // Il debounce coalesce le due tabelle: se fra loro c'è `tasks`, il reload
-    // parziale non basta — e la query completa riporta comunque i commenti.
     expect(TasksAPI.list).toHaveBeenCalledTimes(1);
-    expect(TaskThreadsAPI.comments).not.toHaveBeenCalled();
   });
 
   it("un errore sul reload parziale arriva a onError e non tocca lo stato", async () => {
@@ -342,6 +391,109 @@ describe("useAppHydration — un commento non ricarica i task", () => {
     expect(onError).toHaveBeenCalledWith(expect.stringContaining("RLS negata"));
     expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: "SET_TASK_THREADS" }));
     spy.mockRestore();
+  });
+});
+
+// ─── Suggerimento strategico n.1 (audit del 16 agosto) · notices e clients ──
+// Stessa forma del blocco tasks qui sopra, per le altre due entità "piatte":
+// nessun join annidato, quindi nessuna ragione per riscaricare l'elenco
+// intero quando l'evento porta già la riga.
+describe("useAppHydration — un evento su notices applica la riga, non ricarica tutto", () => {
+  const idrata = () => {
+    const dispatch = vi.fn();
+    const utils = renderHook(() => useAppHydration({
+      enabled: true, currentUserId: "marco", dispatch, onError: vi.fn(),
+    }));
+    return { dispatch, ...utils };
+  };
+
+  it("un UPDATE applica la riga senza richiamare Notices.list", async () => {
+    const { dispatch } = idrata();
+    await waitFor(() => expect(NoticesAPI.list).toHaveBeenCalledTimes(1));
+    vi.clearAllMocks();
+
+    await act(async () => {
+      emetti("notices", { eventType: "UPDATE", new: { id: "n1", text: "Riunione spostata", pinned: true } });
+      await new Promise(r => setTimeout(r, 250));
+    });
+
+    expect(NoticesAPI.list).not.toHaveBeenCalled();
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "MERGE_NOTICE_ROW",
+      payload: { eventType: "UPDATE", row: expect.objectContaining({ id: "n1", text: "Riunione spostata", pinned: true }) },
+    });
+  });
+
+  it("un DELETE applica la rimozione senza richiamare Notices.list", async () => {
+    const { dispatch } = idrata();
+    await waitFor(() => expect(NoticesAPI.list).toHaveBeenCalledTimes(1));
+    vi.clearAllMocks();
+
+    await act(async () => {
+      emetti("notices", { eventType: "DELETE", old: { id: "n1" } });
+      await new Promise(r => setTimeout(r, 250));
+    });
+
+    expect(NoticesAPI.list).not.toHaveBeenCalled();
+    expect(dispatch).toHaveBeenCalledWith({ type: "MERGE_NOTICE_ROW", payload: { eventType: "DELETE", id: "n1" } });
+  });
+});
+
+describe("useAppHydration — un evento su clients applica la riga, non ricarica tutto", () => {
+  const idrata = () => {
+    const dispatch = vi.fn();
+    const utils = renderHook(() => useAppHydration({
+      enabled: true, currentUserId: "marco", dispatch, onError: vi.fn(),
+    }));
+    return { dispatch, ...utils };
+  };
+
+  it("un UPDATE applica la riga senza richiamare Clients.list", async () => {
+    const { dispatch } = idrata();
+    await waitFor(() => expect(ClientsAPI.list).toHaveBeenCalledTimes(1));
+    vi.clearAllMocks();
+
+    await act(async () => {
+      emetti("clients", { eventType: "UPDATE", new: { id: "c1", name: "Rossi Mario", city: "Milano" } });
+      await new Promise(r => setTimeout(r, 250));
+    });
+
+    expect(ClientsAPI.list).not.toHaveBeenCalled();
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "MERGE_CLIENT_ROW",
+      payload: { eventType: "UPDATE", row: expect.objectContaining({ id: "c1", name: "Rossi Mario", city: "Milano" }) },
+    });
+  });
+
+  it("un INSERT applica l'aggiunta senza richiamare Clients.list", async () => {
+    const { dispatch } = idrata();
+    await waitFor(() => expect(ClientsAPI.list).toHaveBeenCalledTimes(1));
+    vi.clearAllMocks();
+
+    await act(async () => {
+      emetti("clients", { eventType: "INSERT", new: { id: "c2", name: "Bianchi Ada" } });
+      await new Promise(r => setTimeout(r, 250));
+    });
+
+    expect(ClientsAPI.list).not.toHaveBeenCalled();
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "MERGE_CLIENT_ROW",
+      payload: { eventType: "INSERT", row: expect.objectContaining({ id: "c2", name: "Bianchi Ada" }) },
+    });
+  });
+
+  it("un DELETE applica la rimozione senza richiamare Clients.list", async () => {
+    const { dispatch } = idrata();
+    await waitFor(() => expect(ClientsAPI.list).toHaveBeenCalledTimes(1));
+    vi.clearAllMocks();
+
+    await act(async () => {
+      emetti("clients", { eventType: "DELETE", old: { id: "c1" } });
+      await new Promise(r => setTimeout(r, 250));
+    });
+
+    expect(ClientsAPI.list).not.toHaveBeenCalled();
+    expect(dispatch).toHaveBeenCalledWith({ type: "MERGE_CLIENT_ROW", payload: { eventType: "DELETE", id: "c1" } });
   });
 });
 

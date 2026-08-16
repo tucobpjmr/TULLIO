@@ -38,6 +38,10 @@ const AUDIT = [
   // margine, e l'audit del 15 agosto è quello con più rilievi ANCORA APERTI.
   { file: 'AUDIT_ARCHITETTURA_2026-08-15.md', prefisso: ['C', 'A', 'M', 'B'] },
   { file: 'AUDIT_ARCHITETTURA_2026-08-16.md', prefisso: ['C', 'A', 'M', 'B'] },
+  // Registrato insieme al documento, non dopo: è la lezione di B-6/B-7 sopra —
+  // un audit fuori dal registro ha un ⟦stato: N/M chiusi⟧ che nessuno verifica,
+  // e questo è quello con tutti gli undici rilievi ancora aperti.
+  { file: 'AUDIT_PERFORMANCE_UX_2026-08-16_ii.md', prefisso: ['C', 'A', 'M', 'B'] },
 ];
 
 // Misura i warning di una regola sul sorgente dell'app.

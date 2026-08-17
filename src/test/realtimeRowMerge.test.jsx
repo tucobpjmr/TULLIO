@@ -102,27 +102,29 @@ describe("applicaRigaRealtime — l'invariante per un evento singolo", () => {
 });
 
 describe("reducer — MERGE_TASK_ROW", () => {
-  it("un UPDATE aggiorna i campi del task E preserva comments/history", () => {
+  it("un UPDATE aggiorna i campi del task E preserva i commenti", () => {
     const state = statoBase({
-      tasks: [{ id: "t1", title: "Volo Roma", status: "todo", comments: [{ id: "c1" }], history: [{ id: "h1" }] }],
+      tasks: [{ id: "t1", title: "Volo Roma", status: "todo", comments: [{ id: "c1" }] }],
     });
     const next = reducer(state, {
       type: "MERGE_TASK_ROW",
       payload: { eventType: "UPDATE", id: "t1", row: { id: "t1", title: "Volo Roma", status: "done" } },
     });
     const t = next.tasks.find(t => t.id === "t1");
-    // Il payload realtime non porta comments/history (colonne di un'altra
-    // tabella): un merge totale le avrebbe azzerate ad ogni evento.
+    // Il payload realtime non porta i commenti (colonna di un'altra tabella):
+    // un merge totale li avrebbe azzerati ad ogni evento. La cronologia non
+    // compare più in questa coppia — da A-3 (passo 3) non è un campo del task,
+    // vive nello stato locale di TaskHistoryPanel.
     expect(t.status).toBe("done");
     expect(t.comments).toEqual([{ id: "c1" }]);
-    expect(t.history).toEqual([{ id: "h1" }]);
+    expect("history" in t).toBe(false);
   });
 
-  it("un INSERT aggiunge un task nuovo, con comments/history vuoti", () => {
+  it("un INSERT aggiunge un task nuovo, con i commenti vuoti", () => {
     const state = statoBase({ tasks: [] });
     const next = reducer(state, {
       type: "MERGE_TASK_ROW",
-      payload: { eventType: "INSERT", id: "t2", row: { id: "t2", title: "Task di un altro agente", comments: [], history: [] } },
+      payload: { eventType: "INSERT", id: "t2", row: { id: "t2", title: "Task di un altro agente", comments: [] } },
     });
     expect(next.tasks.map(t => t.id)).toEqual(["t2"]);
   });
@@ -135,7 +137,7 @@ describe("reducer — MERGE_TASK_ROW", () => {
 
   it("un task con scrittura in volo non viene toccato dall'evento altrui", () => {
     const state = statoBase({
-      tasks: [{ id: "t1", title: "Il mio titolo ancora in volo", comments: [], history: [] }],
+      tasks: [{ id: "t1", title: "Il mio titolo ancora in volo", comments: [] }],
       pendingWrites: inVolo("t1"),
     });
     const next = reducer(state, {

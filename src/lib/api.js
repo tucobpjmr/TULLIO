@@ -268,10 +268,24 @@ export const Users = {
 };
 
 // ----------------- TASKS -----------------
-// Select riusabile che porta dietro i commenti e la cronologia (chi ha
-// creato/modificato il task), entrambi con il nome dell'attore via join.
+// Select riusabile che porta dietro i commenti, col nome dell'autore via join.
+//
+// ─── LA CRONOLOGIA NON C'È PIÙ (A-3, passo 3) ──────────────────────────────
+// Fino al 17 agosto questa select portava anche `task_history(...)`: la
+// cronologia INTERA di OGNI task, a ogni idratazione. È la tabella che cresce e
+// non si pota mai — una riga per ogni cambio di stato, priorità, scadenza,
+// assegnatario o cestinamento — e nessuna vista d'elenco la guardava: l'unico
+// lettore è il pannello CRONOLOGIA dello slide-over, cioè UN task per volta,
+// quello che si sta guardando.
+//
+// I commenti restano, e la differenza fra i due non è la dimensione ma il
+// numero di lettori: `AdvancedSearchPanel` cerca DENTRO il testo dei commenti
+// (`matchTermini(… (t.comments || []).map(c => c.text))`), quindi il corpus dei
+// commenti serve davvero per intero a una funzione che l'utente usa. Nessuno
+// cerca dentro la cronologia. Il nome della costante, che diceva già
+// «WITH_COMMENTS», torna a essere esatto.
 const TASK_SELECT_WITH_COMMENTS =
-  '*, comments(id, user_id, text, created_at, users(name)), task_history(id, actor_id, action, old_value, new_value, created_at, users(name))';
+  '*, comments(id, user_id, text, created_at, users(name))';
 
 // Purge definitiva di uno o più task, con la pulizia dello storage che la FK
 // non fa. Un'unica implementazione per il caso singolo e per quello in blocco:
@@ -395,52 +409,64 @@ export const Tasks = {
   hardDeleteMany: (ids) => purgeTasks(ids),
 };
 
-// Le due tabelle figlie dei task, lette per intero (la RLS restringe già alle
-// righe dei task visibili). Servono al reload selettivo di useAppHydration: un
-// commento aggiunto non richiede di riscaricare i task con tutti i loro campi,
-// solo il thread che è cambiato. La select rispecchia i due rami annidati di
-// TASK_SELECT_WITH_COMMENTS, così i mapper fromDbComment/fromDbHistory
-// ricevono la stessa forma di riga in entrambi i percorsi.
+// Le letture dei thread appesi ai task. Sono DUE, e da A-3 (passo 3) hanno
+// forme diverse perché hanno lettori diversi.
 //
-// ─── PERCHÉ SONO PAGINATE (C-1) ────────────────────────────────────────────
-// Sono le uniche due letture dell'app su tabelle che CRESCONO E NON SI POTANO
-// MAI: `task_history` guadagna una riga per ogni cambio di stato, priorità,
-// scadenza, assegnatario o cestinamento di un task. Misurata il 12 agosto 2026
-// in produzione: 621 righe, ~14,8 al giorno dal 1° luglio — cioè ~26 giorni dal
-// cap `db-max-rows`, che PostgREST applica rispondendo 200 senza errore.
+// ─── `comments()`: PER CORPUS, e paginata (C-1) ────────────────────────────
+// Serve al reload selettivo di useAppHydration — un commento aggiunto non
+// richiede di riscaricare i task con tutti i loro campi, solo il thread
+// cambiato — e la select rispecchia il ramo annidato di
+// TASK_SELECT_WITH_COMMENTS, così `fromDbComment` riceve la stessa forma di
+// riga in entrambi i percorsi. Resta per corpus perché il corpus lo usa
+// qualcuno: `AdvancedSearchPanel` cerca dentro il testo dei commenti.
 //
-// Il difetto che si sarebbe manifestato non è "mancano dei dati", ed è la
-// ragione per cui vale la pena descriverlo qui invece di fidarsi del solo
-// `fetchAllRows`:
+// La paginazione con `fetchAllRows` è C-1 e non si tocca: PostgREST tronca a
+// `db-max-rows` rispondendo 200 senza errore, e il difetto che ne seguirebbe
+// non è «mancano dei dati» — è che il reload completo passa dalle risorse
+// ANNIDATE, che il cap del primo livello non tocca, mentre è il reload
+// SELETTIVO (`soloThread` in useAppHydration, quello che scatta quando un
+// collega commenta) a rileggere questa tabella PIATTA, dove il cap morde. Con
+// l'ordine ascendente a cadere sarebbero le righe più RECENTI, che
+// `SET_TASK_THREADS` traduce in `[]`: il thread sparisce quando qualcun altro
+// commenta e torna premendo F5.
 //
-//   1. l'idratazione completa passa da TASK_SELECT_WITH_COMMENTS, dove i due
-//      thread sono risorse ANNIDATE e il cap del primo livello non li tocca:
-//      dopo un reload la cronologia è giusta;
-//   2. ma al primo evento realtime su `comments`/`task_history`,
-//      useAppHydration prende la strada `soloThread` e rilegge queste due
-//      tabelle PIATTE, dove il cap morde;
-//   3. `SET_TASK_THREADS` traduce una riga assente in `[]` (reducer.js), non in
-//      "invariato": i task oltre la soglia perdono il thread;
-//   4. l'ordine è `created_at` ASCENDENTE, quindi a cadere sono le righe più
-//      RECENTI — quelle che si stanno guardando.
+// `.order('id')` come seconda chiave: `created_at` NON è unico, e senza una
+// chiave di spareggio due pagine consecutive possono ripetere o saltare una
+// riga — il caso che si manifesta solo oltre il cap, cioè dove nessuno guarda.
 //
-// Cioè: la cronologia sparisce quando un collega commenta e ricompare
-// premendo F5. Intermittente e auto-guarente, che è il modo migliore per
-// essere attribuito alla rete per settimane.
+// ─── `historyForTask()`: PER TASK APERTO (A-3, passo 3) ────────────────────
+// La cronologia era l'altra metà di questa coppia, letta per corpus con la
+// stessa forma. Era anche l'unica tabella dell'app che CRESCE E NON SI POTA
+// MAI — una riga per ogni cambio di stato, priorità, scadenza, assegnatario o
+// cestinamento — misurata a 660 righe il 17 agosto 2026, ~14,8 al giorno, e
+// con la proiezione a dodici mesi (~5.500 righe) il percorso `soloThread`
+// sarebbe arrivato a SEI round-trip in fila, seriali per costruzione dentro
+// `fetchAllRows`, su un percorso che scatta a ogni commento scritto da
+// chiunque.
 //
-// `.order('id')` come seconda chiave: `created_at` NON è unico — il trigger
-// log_task_history() inserisce più righe nella stessa transazione (stato e
-// priorità cambiati insieme hanno lo stesso timestamp), e senza una chiave
-// unica di spareggio due pagine consecutive possono ripetere o saltare una
-// riga. È il caso che si manifesta solo oltre il cap, cioè dove nessuno guarda.
+// Il lettore però è UNO SOLO e guarda UN task per volta: il pannello
+// CRONOLOGIA dello slide-over (components/tasks/TaskHistoryPanel.jsx). Da qui
+// il filtro `.eq('task_id', …)`: la lettura passa da «tutta la cronologia di
+// tutti i task, a ogni evento» a «la cronologia di questo task, quando lo si
+// apre», ed è una quantità che non cresce con l'anzianità
+// dell'installazione ma con la vita del singolo task.
+//
+// ⛔ NON ha un `.limit(50)` come `ListeAPI.history`, ed è una divergenza
+// deliberata dal precedente. Un tetto dichiarato è la risposta giusta quando
+// si vuole davvero mostrare «gli ultimi n» (là è un pannello di attività
+// recenti); qui il pannello mostra la cronologia COMPLETA di un task, e un
+// `limit` taglierebbe in silenzio le righe più vecchie — a partire da «task
+// creata», che è quella che si va a cercare. `fetchAllRows` su una singola
+// riga padre costa lo stesso round-trip e non ha un limite da sbagliare.
 export const TaskThreads = {
   comments: () =>
     fetchAllRows(() => supabase.from('comments')
       .select('id, task_id, user_id, text, created_at, users(name)', WITH_COUNT)
       .order('created_at').order('id')),
-  history: () =>
+  historyForTask: (taskId) =>
     fetchAllRows(() => supabase.from('task_history')
       .select('id, task_id, actor_id, action, old_value, new_value, created_at, users(name)', WITH_COUNT)
+      .eq('task_id', taskId)
       .order('created_at').order('id')),
 };
 

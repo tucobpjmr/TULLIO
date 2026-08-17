@@ -28,6 +28,11 @@ vi.mock("../lib/api.js", () => ({
     getFileUrl: vi.fn(async () => ({ url: "", error: null })),
     remove: vi.fn(async () => ({ error: null })),
   },
+  // A-3 (passo 3): lo slide-over monta TaskHistoryPanel, che si carica la
+  // cronologia del task aperto e si sottoscrive a `task_history`. Qui non è
+  // ciò che si misura — servono solo perché il pannello non sollevi.
+  TaskThreads: { historyForTask: vi.fn(async () => ({ data: [], error: null })) },
+  subscribeToTable: vi.fn(() => () => {}),
 }));
 
 const { QuickAddTask } = await import("../components/modals/QuickAddTask.jsx");

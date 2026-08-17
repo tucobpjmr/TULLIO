@@ -1,6 +1,7 @@
 // src/hooks/useAppHydration.js
 // Idratazione + realtime dei dati di dominio che vivono nel reducer: task
-// (con commenti e cronologia), avvisi, categorie, team e clienti.
+// (con i commenti; la cronologia no — vedi A-3 passo 3 sotto), avvisi,
+// categorie, team e clienti.
 //
 // Tutte le sottoscrizioni condividono la stessa base — reload debounced con un
 // gen-counter che scarta le risposte obsolete: vedi useDebouncedTableSubscription
@@ -11,8 +12,8 @@
 // che cresce col prodotto fra righe e frequenza di scrittura). `categories`,
 // `team` e `messageTemplates` restano al reload completo — tabelle piccole,
 // dove il merge per riga non avrebbe risparmiato nulla di misurabile; `tasks`
-// lo fa SOLO per la tabella `tasks` in senso stretto, non per `comments`/
-// `task_history`, che restano sul reload selettivo esistente (SET_TASK_THREADS).
+// lo fa SOLO per la tabella `tasks` in senso stretto, non per `comments`, che
+// restano sul reload selettivo esistente (SET_TASK_THREADS).
 // Il reload intero resta comunque l'unica via per l'idratazione iniziale e per
 // la ripresa dopo un buco di connessione (`tabelle = null` in entrambi i casi):
 // lì non c'è un payload da applicare, solo l'incertezza su cosa si è perso.
@@ -70,7 +71,7 @@ import {
 } from "../lib/api.js";
 import {
   fromDbTask, fromDbNotice, fromDbClient, fromDbCategory,
-  fromDbComment, fromDbHistory, fromDbMessageTemplate,
+  fromDbComment, fromDbMessageTemplate,
 } from "../lib/mappers.js";
 import { useDebouncedTableSubscription } from "./useDebouncedTableSubscription.js";
 import { stessaLista, stessaMappa } from "../lib/confrontoIdratazione.js";
@@ -155,42 +156,45 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
   // più subscription realtime: ad ogni evento postgres ricarico la lista
   // intera (debounced) — semplice e robusto al duplicate dell'eco locale.
   // Caveat #10: il pattern reload+debounce+gen-counter vive in
-  // useDebouncedTableSubscription; le tasks ascoltano anche comments e
-  // task_history (cronologia per-task, sessione 42).
-  useDebouncedTableSubscription(["tasks", "comments", "task_history"], async (isCurrent, tabelle) => {
-    // Un commento aggiunto o una riga di cronologia NON cambiano i campi del
-    // task: cambiano solo il thread appeso al task. Finché il reload non
-    // sapeva quale tabella avesse generato l'evento era costretto a
-    // riscaricare tutto per costruzione, e `TASK_SELECT_WITH_COMMENTS` non è
-    // una query leggera — porta con sé commenti e cronologia con i join sui
-    // nomi, include il cestino (includeDeleted) e non è paginata. Con tre
-    // tabelle sottoscritte, il caso più frequente (qualcuno commenta) era
-    // anche il più caro.
+  // useDebouncedTableSubscription; le tasks ascoltano anche `comments`.
+  //
+  // ─── `task_history` NON È PIÙ QUI (A-3, passo 3) ──────────────────────────
+  // Era la terza tabella sottoscritta, e il suo evento faceva rileggere la
+  // cronologia INTERA di TUTTI i task. Era l'unica tabella dell'app che cresce
+  // e non si pota mai (660 righe il 17 agosto, ~14,8 al giorno), letta su un
+  // percorso che scatta a ogni modifica di stato/priorità/scadenza/assegnatario
+  // fatta da chiunque — con la proiezione a dodici mesi, sei round-trip
+  // SERIALI dentro `fetchAllRows` per aggiornare un pannello che quasi sempre
+  // non è aperto.
+  //
+  // La cronologia ha un lettore solo e guarda un task per volta: ora se la
+  // carica e se la tiene aggiornata quel lettore, con una sottoscrizione che
+  // vive solo mentre il pannello è montato e filtra sul proprio `task_id`
+  // (components/tasks/TaskHistoryPanel.jsx). Qui non resta niente da fare:
+  // togliere la tabella dall'elenco è la correzione, non una sua conseguenza.
+  useDebouncedTableSubscription(["tasks", "comments"], async (isCurrent, tabelle) => {
+    // Un commento aggiunto NON cambia i campi del task: cambia solo il thread
+    // appeso al task. Finché il reload non sapeva quale tabella avesse generato
+    // l'evento era costretto a riscaricare tutto per costruzione, e
+    // `TASK_SELECT_WITH_COMMENTS` non è una query leggera — porta con sé i
+    // commenti con i join sui nomi e non è paginata. Il caso più frequente
+    // (qualcuno commenta) era anche il più caro.
     //
     // `tabelle === null` è l'idratazione iniziale (nessun evento): serve tutto.
     // Stesso schema di useListeData (A-1).
     const soloThread = tabelle !== null && tabelle.size > 0 && !tabelle.has("tasks");
 
     if (soloThread) {
-      // Ricarica SOLO le tabelle che hanno davvero emesso: chi commenta non
-      // fa riscaricare la cronologia, e viceversa.
-      const [rCommenti, rCronologia] = await Promise.all([
-        tabelle.has("comments") ? TaskThreadsAPI.comments() : Promise.resolve(null),
-        tabelle.has("task_history") ? TaskThreadsAPI.history() : Promise.resolve(null),
-      ]);
+      const rCommenti = await TaskThreadsAPI.comments();
       if (!isCurrent()) return;
-      const fallita = [rCommenti, rCronologia].find(r => r?.error);
-      if (fallita) {
-        console.error("[VoyageDesk] TaskThreads", fallita.error);
-        onError(`Caricamento commenti fallito: ${fallita.error.message || ""}`);
+      if (rCommenti?.error) {
+        console.error("[VoyageDesk] TaskThreads", rCommenti.error);
+        onError(`Caricamento commenti fallito: ${rCommenti.error.message || ""}`);
         return;
       }
       dispatch({
         type: "SET_TASK_THREADS",
-        payload: {
-          comments: rCommenti ? perTaskId(rCommenti.data, fromDbComment) : undefined,
-          history: rCronologia ? perTaskId(rCronologia.data, fromDbHistory) : undefined,
-        },
+        payload: { comments: perTaskId(rCommenti.data, fromDbComment) },
       });
       return;
     }
@@ -233,9 +237,9 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
     // tabella `tasks` porta la riga intera nel payload (`payload.new`): non
     // serve più il reload sopra, che scarica TASK_SELECT_WITH_COMMENTS —
     // join sui nomi, cestino incluso, non paginata — per aggiornare UN campo
-    // di UN task. `comments`/`task_history` restano fuori (`return false`):
-    // quegli eventi non portano righe di `tasks`, e il ramo `soloThread` qui
-    // sopra è già la versione selettiva per loro.
+    // di UN task. `comments` resta fuori (`return false`): quegli eventi non
+    // portano righe di `tasks`, e il ramo `soloThread` qui sopra è già la
+    // versione selettiva per loro.
     //
     // Sincrono e non async: a differenza del reload qui sopra non c'è alcuna
     // query di rete da attendere, quindi non serve `isCurrent()` — non esiste

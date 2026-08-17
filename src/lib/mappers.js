@@ -36,9 +36,12 @@ export function fromDbTask(row) {
     comments: Array.isArray(row.comments)
       ? row.comments.map(fromDbComment)
       : [],
-    history: Array.isArray(row.task_history)
-      ? row.task_history.map(fromDbHistory)
-      : [],
+    // `history` NON è un campo del task (A-3, passo 3). La cronologia si legge
+    // per task aperto — `TaskThreads.historyForTask`, letta da
+    // components/tasks/TaskHistoryPanel.jsx — e non viaggia più annidata nella
+    // select di ogni idratazione: era la sola tabella dell'app che cresce e
+    // non si pota mai, con un unico lettore che ne guarda un task per volta.
+    // `fromDbHistory` resta esportato e usato: è quel pannello a chiamarlo.
   };
 }
 

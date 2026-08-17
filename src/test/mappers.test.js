@@ -211,13 +211,29 @@ describe("task history mapping", () => {
     expect(h.actorId).toBeUndefined();
   });
 
-  it("fromDbTask popola history da task_history embedded, default []", () => {
-    expect(fromDbTask({ id: UUID, title: "x" }).history).toEqual([]);
+  // A-3, passo 3 · L'ASSENZA è il contratto, e va verificata come tale.
+  //
+  // `fromDbTask` popolava `history` dal ramo annidato `task_history` della
+  // select di idratazione. Quel ramo non c'è più: la cronologia si legge per
+  // task aperto (`TaskThreads.historyForTask` → TaskHistoryPanel), e `history`
+  // non è più un campo del task.
+  //
+  // Il caso serve perché la regressione sarebbe MUTA: rimettere
+  // `task_history(...)` nella select farebbe ricomparire il campo, tutto
+  // continuerebbe a funzionare, e la sola conseguenza sarebbe che l'app torna
+  // a scaricare l'intera cronologia di tutti i task a ogni avvio — cioè A-3
+  // riaperto senza che nulla fallisca. La seconda asserzione è quella che
+  // conta: non «vale []», ma «la chiave non c'è», così nemmeno un default
+  // vuoto lasciato per inerzia passa inosservato.
+  it("fromDbTask NON porta più la cronologia, nemmeno se la riga la contiene", () => {
     const t = fromDbTask({
       id: UUID, title: "x",
       task_history: [{ id: "h1", action: "created", created_at: "t", users: { name: "Sofia" } }],
     });
-    expect(t.history).toHaveLength(1);
-    expect(t.history[0].actor).toBe("Sofia");
+    expect(t.history).toBeUndefined();
+    expect("history" in t).toBe(false);
+    // I commenti restano: `AdvancedSearchPanel` cerca dentro il loro testo,
+    // quindi quel corpus serve davvero per intero.
+    expect(fromDbTask({ id: UUID, title: "x" }).comments).toEqual([]);
   });
 });

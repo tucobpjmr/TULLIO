@@ -18,18 +18,18 @@ import { useSalvataggio } from "../../hooks/useSalvataggio.js";
 import { Z } from "../../styles/tokens.js";
 
 import { TaskAttachments } from "./TaskAttachments.jsx";
-import { HISTORY_ICONS, historyDescribe } from "./taskHistory.js";
+import { TaskHistoryPanel } from "./TaskHistoryPanel.jsx";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import {
   btnChiudiSuScuro, colGap10, flex1, grid2ColGap12, relative, rowGap6, txtF10Muted, txtF11Muted,
-  txtF12Muted2, txtF13Muted, txtMuted,
+  txtF13Muted, txtMuted,
 } from "../../styles/common.js";
 import {
   boxF11Bold, boxF12Muted, boxF13R8, boxF13Text, boxF13White, boxF13White2, boxF18Bold,
-  boxFlex1F12, colFlex1Gap20, colGap8, rowCenterGap5, rowCenterGap6, rowCenterGap8,
-  rowCenterMiddle, rowCenterMiddle2, rowFlex1Gap6, rowGap10, rowGap8, rowGap82, rowGap8Mb8,
-  rowGap8Mt6, rowStartBetween, rowStartGap10, txtF11Bold, txtF11Bold2, txtF12, txtF12Bold,
-  txtF12Light, txtF13Text, txtF14TxtCenter, txtF18Bold,
+  boxFlex1F12, colFlex1Gap20, rowCenterGap5, rowCenterGap6, rowCenterGap8,
+  rowCenterMiddle, rowCenterMiddle2, rowFlex1Gap6, rowGap10, rowGap8, rowGap8Mb8,
+  rowGap8Mt6, rowStartBetween, txtF11Bold, txtF11Bold2, txtF12, txtF12Bold,
+  txtF13Text, txtF18Bold,
 } from "./taskSlideOverStyles.js";
 
 export const TaskSlideOver = ({ task, dispatch }) => {
@@ -470,33 +470,11 @@ export const TaskSlideOver = ({ task, dispatch }) => {
           </div>
 
           {/* Cronologia (sessione 42): chi ha creato + modifiche di stato, priorità,
-              assegnatari, scadenza, cestino/ripristino. Sola lettura. */}
-          <div>
-            <div style={txtF11Bold2}>
-              CRONOLOGIA ({task.history?.length || 0})
-            </div>
-            <div style={colGap8}>
-              {[...(task.history || [])]
-                .sort((a, b) => new Date(a.time) - new Date(b.time))
-                .map(h => (
-                  <div key={h.id} style={rowStartGap10}>
-                    <div style={txtF14TxtCenter}>
-                      {HISTORY_ICONS[h.action] || "•"}
-                    </div>
-                    <div style={flex1}>
-                      <div style={rowGap82}>
-                        <span style={txtF12Bold}>{h.actor || "Sistema"}</span>
-                        <span style={txtF11Muted}>{formatDate(h.time)}</span>
-                      </div>
-                      <div style={txtF12Muted2}>{historyDescribe(h, getMember)}</div>
-                    </div>
-                  </div>
-                ))}
-              {(!task.history || task.history.length === 0) && (
-                <div style={txtF12Light}>Nessuna cronologia disponibile.</div>
-              )}
-            </div>
-          </div>
+              assegnatari, scadenza, cestino/ripristino. Sola lettura.
+              Dal 17 agosto (A-3, passo 3) se la carica da sé per il solo task
+              aperto, come già fa TaskAttachments qui sopra: non è più un campo
+              dello stato globale riempito a ogni idratazione. */}
+          <TaskHistoryPanel taskId={task.id} />
         </div>
       </div>
     </>

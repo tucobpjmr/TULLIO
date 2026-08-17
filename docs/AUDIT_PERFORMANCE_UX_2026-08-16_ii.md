@@ -470,7 +470,7 @@ finestra quel numero diventa «le completate degli ultimi 60 giorni» finché la
 vista non ha caricato le proprie. Il passo 2 non è opzionale né rinviabile — è
 la metà che rende onesto il passo 1.
 
-#### ✔ Chiuso il 17 agosto 2026 — passi 1 e 2 (il 3 resta aperto)
+#### ✔ Chiuso il 17 agosto 2026 — tutti e tre i passi
 
 **Cosa è stato fatto.** `Tasks.list` guadagna `completeDal`, l'idratazione
 chiede la finestra e non chiede più il cestino, e cinque viste chiedono il
@@ -551,12 +551,90 @@ scritto in `CLAUDE.md` in **entrambe** le direzioni: una vista di troppo — una
 vista d'ingresso, che filtra già con `getActiveTasks` — annullerebbe il rilievo
 lasciandone in piedi tutto il codice, senza che nulla fallisca.
 
-**Cosa resta aperto.** Il passo 3, la potatura di `task_history` (660 righe al
-17 agosto, il percorso `soloThread` la rilegge per corpus a ogni commento). Non
-è stato fatto qui perché il rilievo stesso lo dichiara subordinato ai primi due
-— «solo dopo» — e perché leggere la cronologia per task aperto invece che per
-corpus è un cambio di forma del dato in stato, non un parametro in più su una
-query: merita il suo rilievo e la sua misura.
+#### ✔ Passo 3 — la cronologia si legge per task aperto
+
+Fatto subito dopo, verificato il preview del passo 1-2 in produzione. È il
+passo che il rilievo dichiarava subordinato agli altri due («solo dopo»), ed è
+anche — misurandolo — **quello che paga di più oggi**.
+
+**Il difetto, nella sua forma esatta.** `task_history` è l'unica tabella
+dell'app che cresce e non si pota mai, e aveva **un solo lettore**: il pannello
+CRONOLOGIA dello slide-over, che ne guarda un task per volta e solo mentre è
+aperto. Veniva però letta INTERA in due punti diversi:
+
+1. annidata dentro `TASK_SELECT_WITH_COMMENTS`, cioè a ogni idratazione;
+2. piatta, a ogni evento realtime su `task_history` — che scatta a ogni cambio
+   di stato, priorità, scadenza o assegnatario fatto da **chiunque** in
+   agenzia, su **ogni** client connesso.
+
+Il secondo è il costo che cresce peggio: `fetchAllRows` pagina in modo
+SERIALE, quindi la proiezione a dodici mesi (~5.500 righe) sono sei round-trip
+in fila per aggiornare un pannello quasi sempre chiuso.
+
+**Misure di produzione, 17 agosto 2026.**
+
+| | valore |
+|---|---|
+| `task_history` totale | 661 righe |
+| di cui **nel payload d'avvio** (dentro la finestra del passo 1) | **602** |
+| media per task | 2,4 righe |
+| massimo su un singolo task | 11 righe |
+| `comments` (per confronto) | 7 righe |
+
+Il payload d'avvio perde 602 righe annidate e le sostituisce con una lettura di
+~2,4 righe quando un task si apre. **È il contrario del passo 1**, che oggi ne
+toglie 33 ed è preventivo: qui il risparmio è immediato e già la parte
+maggioritaria del grafo che l'idratazione portava con sé.
+
+**Cosa è cambiato.** `task_history` non è più nella select dei task, non è più
+fra le tabelle sottoscritte da `useAppHydration` (che ne ascolta due),
+`history` non è più un campo del task, e `SET_TASK_THREADS` porta i soli
+commenti. Il pannello è `components/tasks/TaskHistoryPanel.jsx`, con lo stesso
+schema di `TaskAttachments` che gli sta accanto nello slide-over: stato locale,
+fetch al mount, `useIsMounted`, più una sottoscrizione che vive solo mentre è
+montato.
+
+**La cosa che rende il passo 3 una correzione e non uno spostamento.** La
+sottoscrizione del pannello **filtra sul proprio `task_id`**. Senza quel
+filtro avremmo sostituito «una lettura grande e rara» con «una lettura piccola
+e frequentissima», a schermo identica e con nessun test che fallisce — cioè
+avremmo scritto il codice di A-3 tenendone il difetto. È il caso su cui
+insiste `cronologiaPerTask.test.jsx`, insieme al suo controllo positivo (un
+evento sul PROPRIO task deve invece rileggere: senza quello, un `filterEvent`
+che scarta tutto passerebbe).
+
+**Una correzione al rilievo, ancora.** Il testo del passo 3 indicava come
+modello `lista_history` con `limit 50`. Non è stato seguito, e la ragione è la
+differenza fra i due pannelli: là è un elenco di *attività recenti*, dove il
+tetto è esattamente ciò che si vuole mostrare; qui è la cronologia COMPLETA di
+un task, e un `limit` taglierebbe in silenzio le righe più vecchie — a partire
+da «task creata», che è quella che si va a cercare. `historyForTask` resta
+quindi su `fetchAllRows`: su una singola riga padre costa lo stesso round-trip
+e non ha un limite da sbagliare.
+
+**Perché i commenti NON hanno seguito la stessa strada.** Sembrano la metà
+gemella della cronologia — stessa tabella figlia, stesso reload selettivo — e
+il censimento dei lettori dice che non lo sono: `AdvancedSearchPanel` cerca
+DENTRO il testo dei commenti (`matchTermini(… t.comments.map(c => c.text))`),
+quindi quel corpus serve davvero per intero a una funzione che l'utente usa.
+Nessuno cerca dentro la cronologia. La differenza fra le due non è la
+dimensione (7 righe contro 661), è il numero di lettori — ed è la ragione per
+cui il passo 3 tocca una sola delle due.
+
+**Guardie.** `src/test/cronologiaPerTask.test.jsx` (9 casi: la lettura per
+task, il filtro realtime e il suo controllo positivo, il pre-image sulle
+DELETE, la disiscrizione allo smontaggio, e i tre stati di attesa —
+caricamento, vuoto ed errore, che qui sono **tre e non due**: «non c'è
+cronologia» e «non sono riuscito a leggerla» portano a due conclusioni diverse
+per chi guarda). Più il caso `historyForTask` in `paginazione.test.js` (il
+filtro `.eq` esiste, e i commenti NON ce l'hanno), l'asserzione di ASSENZA in
+`mappers.test.js` (`fromDbTask` non porta più la cronologia — la regressione
+sarebbe muta: rimettere il ramo annidato farebbe funzionare tutto e
+riaprirebbe A-3 senza che nulla fallisca), e l'inversione di contratto in
+`realtimeGranularita.test.jsx`, dove «un evento su `task_history` ricarica solo
+la cronologia» è diventato «non è più sottoscritta a `task_history`» — che
+asserisce l'assenza dell'**handler**, non solo l'assenza di effetti, altrimenti
+il caso passerebbe anche con un canale vivo che non fa nulla.
 
 ---
 

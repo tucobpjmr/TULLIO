@@ -16,11 +16,13 @@
 //        doppione in anagrafica (l'autocomplete non lo trovava e l'utente lo
 //        ricreava a mano), non un dato visibilmente mancante.
 //
-//   B-1  Lo stesso di A-1 sui task: `useAppHydration` si sottoscrive a tre
+//   B-1  Lo stesso di A-1 sui task: `useAppHydration` si sottoscriveva a tre
 //        tabelle (tasks, comments, task_history) e ricaricava il grafo
 //        completo per ognuna. Un commento aggiunto faceva girare
 //        TASK_SELECT_WITH_COMMENTS — join sui nomi, cestino incluso, nessuna
-//        paginazione — su ogni client connesso.
+//        paginazione — su ogni client connesso. Le tabelle sono poi diventate
+//        DUE (A-3, passo 3): `task_history` è uscita del tutto, vedi il caso
+//        dedicato più sotto.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 
@@ -49,7 +51,10 @@ const vuoto = async () => ({ data: [], error: null });
 const TasksAPI = { list: vi.fn(async () => ({ data: [{ id: "t1", title: "Volo" }], error: null })) };
 const TaskThreadsAPI = {
   comments: vi.fn(async () => ({ data: [{ id: "k1", task_id: "t1", text: "ok", created_at: "2026-08-01T10:00:00Z", users: { name: "Marco" } }], error: null })),
-  history: vi.fn(async () => ({ data: [{ id: "h1", task_id: "t1", action: "status", created_at: "2026-08-01T10:00:00Z", users: { name: "Marco" } }], error: null })),
+  // A-3 (passo 3): non è più una lettura per corpus, e soprattutto non è più
+  // una lettura di questo hook. Resta nel doppio per poter asserire che
+  // useAppHydration NON la chiami mai.
+  historyForTask: vi.fn(async () => ({ data: [], error: null })),
 };
 const NoticesAPI = { list: vi.fn(vuoto) };
 const UsersAPI = { listAll: vi.fn(vuoto), getContacts: vi.fn(async () => ({ data: null })) };
@@ -275,28 +280,48 @@ describe("useAppHydration — un commento non ricarica i task", () => {
 
     expect(TasksAPI.list).not.toHaveBeenCalled();
     expect(TaskThreadsAPI.comments).toHaveBeenCalledTimes(1);
-    // Nemmeno la cronologia: un commento non la tocca.
-    expect(TaskThreadsAPI.history).not.toHaveBeenCalled();
+    // Nemmeno la cronologia: un commento non la tocca — e da A-3 (passo 3)
+    // questo hook non la legge in nessun caso.
+    expect(TaskThreadsAPI.historyForTask).not.toHaveBeenCalled();
     expect(dispatch).toHaveBeenCalledWith({
       type: "SET_TASK_THREADS",
       payload: {
         comments: { t1: [{ id: "k1", user: "Marco", user_id: undefined, text: "ok", time: "2026-08-01T10:00:00Z" }] },
-        history: undefined,
       },
     });
   });
 
-  it("un evento su task_history ricarica SOLO la cronologia", async () => {
+  // A-3, passo 3 · IL CONTRATTO SI È INVERTITO, e questo caso lo dice.
+  //
+  // Fino al 17 agosto qui c'era «un evento su task_history ricarica SOLO la
+  // cronologia», e per allora era la granularità giusta: la cronologia stava
+  // nello stato globale, quindi qualcuno doveva rileggerla. Ora non ci sta
+  // più — `task_history` è l'unica tabella dell'app che cresce e non si pota
+  // mai, e il suo unico lettore è il pannello dello slide-over, che se la
+  // carica per il task aperto e si sottoscrive per conto proprio.
+  //
+  // Quindi l'idratazione non è più sottoscritta a quella tabella: l'asserzione
+  // forte è la prima — `handlers` non ha nemmeno la chiave — perché senza di
+  // essa il caso passerebbe anche con una sottoscrizione viva che si limita a
+  // non fare nulla, cioè con il costo del canale ancora lì.
+  it("non è più sottoscritta a task_history: quel percorso non esiste più", async () => {
     const { dispatch } = idrata();
     await waitFor(() => expect(TasksAPI.list).toHaveBeenCalledTimes(1));
     vi.clearAllMocks();
 
+    expect(handlers.has("task_history")).toBe(false);
+    expect(handlers.has("tasks")).toBe(true);
+    expect(handlers.has("comments")).toBe(true);
+
+    // E se l'evento arrivasse comunque (un'altra sottoscrizione viva sulla
+    // stessa tabella — il pannello ne apre una, filtrata sul proprio task),
+    // questo hook non deve reagirci in alcun modo.
     await act(async () => { emetti("task_history"); await new Promise(r => setTimeout(r, 250)); });
 
     expect(TasksAPI.list).not.toHaveBeenCalled();
     expect(TaskThreadsAPI.comments).not.toHaveBeenCalled();
-    expect(TaskThreadsAPI.history).toHaveBeenCalledTimes(1);
-    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "SET_TASK_THREADS" }));
+    expect(TaskThreadsAPI.historyForTask).not.toHaveBeenCalled();
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: "SET_TASK_THREADS" }));
   });
 
   // Suggerimento strategico n.1 dell'audit del 16 agosto: un evento su `tasks`

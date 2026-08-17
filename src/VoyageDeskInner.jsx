@@ -16,6 +16,7 @@ import { canAccessAdmin } from "./lib/permissions.js";
 import { reducer, makeInitialState } from "./state/reducer.js";
 import { AppDataProvider } from "./state/AppDataContext.jsx";
 import { TasksProvider } from "./state/TasksContext.jsx";
+import { StoricoTaskProvider } from "./state/StoricoTaskContext.jsx";
 import { ClientsProvider } from "./state/ClientsContext.jsx";
 import { ConfirmProvider } from "./state/ConfirmContext.jsx";
 import { demoState } from "./state/demoState.js";
@@ -159,7 +160,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // di una di esse non è tornato, le viste che la mostrano devono dire "sto
   // caricando" e non "non c'è niente". `crmLoading` è l'alias storico di
   // `loading.clients`.
-  const { loading, crmLoading } = useAppHydration({
+  const { loading, crmLoading, storicoTask } = useAppHydration({
     enabled: useSupabase,
     currentUserId: initialCurrentUserId,
     dispatch: rawDispatch,
@@ -382,6 +383,11 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
          distinti e non uno solo, così l'arrivo di un cliente importato non
          invalida le viste che guardano i task (vedi state/ClientsContext.jsx). */}
      <TasksProvider tasks={state.tasks}>
+      {/* A-3: l'idratazione carica una FINESTRA sulle task completate e non il
+          cestino. Le viste che guardano proprio ciò che resta fuori (Archivio,
+          Cestino, statistiche, export, ricerca avanzata) chiedono il corpus
+          intero da qui — vedi state/StoricoTaskContext.jsx per l'elenco. */}
+      <StoricoTaskProvider richiedi={storicoTask.richiedi} caricando={storicoTask.caricando}>
       <ClientsProvider clients={state.clients}>
       {/* Criticità #8: le conferme distruttive passano da qui — `useConfirm()`
           al posto dei `window.confirm` bloccanti. Sta dentro i provider di
@@ -531,6 +537,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       </div>
       </ConfirmProvider>
       </ClientsProvider>
+      </StoricoTaskProvider>
      </TasksProvider>
     </AppDataProvider>
   );

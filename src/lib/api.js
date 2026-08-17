@@ -316,12 +316,49 @@ export const Tasks = {
   // e senza un ordinamento deterministico due pagine consecutive possono
   // ripetere o saltare una riga (stessa ragione del `.order('name').order('id')`
   // su Clients.list).
-  list: ({ includeDeleted = false, withComments = false } = {}) => {
+  //
+  // ─── `completeDal`: LA FINESTRA DELL'IDRATAZIONE (A-3) ────────────────────
+  // Paginare bene una lettura significa scaricarla INTERA senza troncamenti
+  // silenziosi, ed è ciò che C-1 ha reso vero. Ma «intera, per sempre» è a sua
+  // volta una scelta di scalabilità: la quota di `tasks` che serve alle viste
+  // d'ingresso (Dashboard e Calendario filtrano con `getActiveTasks`) cala di
+  // giorno in giorno, mentre il payload cresce con l'anzianità
+  // dell'installazione. `completeDal` è la data oltre la quale una task
+  // COMPLETATA non serve più all'avvio.
+  //
+  // È un PREDICATO e non un limite di righe, e la differenza è il punto: un
+  // `.limit(n)` lascia fuori «quello che è avanzato dopo le prime n» — cioè un
+  // insieme che nessuno sa nominare — mentre qui ciò che resta fuori è
+  // definito ed è ricostruibile da chi lo vuole (vedi
+  // `state/StoricoTaskContext.jsx`: Archivio, Cestino, statistiche, export e
+  // ricerca avanzata chiedono il corpus intero al mount).
+  //
+  // `completed_at.is.null` nella `or` è deliberatamente FAIL-OPEN: per
+  // l'invariante della migration `20260630144254_tasks_completed_at` (trigger
+  // + backfill) una riga `status = 'done'` ha sempre una data, quindi quel
+  // ramo oggi non seleziona nulla; se un giorno la violasse, la riga resta
+  // NELLA finestra invece di sparire da ogni percorso senza che nulla lo dica.
+  // Una task non databile che si vede è un difetto visibile; una che non si
+  // vede è la stessa classe di guasto del troncamento silenzioso.
+  //
+  // La `or` NON tocca il cestino: quello è `includeDeleted`, che resta la sola
+  // chiave per portarsi dietro le righe soft-deleted.
+  //
+  // ⚠️ `completeDal` deve essere una stringa ISO SENZA millisecondi. Dentro
+  // `or=(…)` il punto separa colonna, operatore e valore, quindi un
+  // `…T08:00:00.000Z` mette il separatore dentro il valore e la query dipende
+  // da come il parser risolve l'ambiguità. Il chiamante la produce già così
+  // (`inizioFinestra` in hooks/useAppHydration.js, dove sta la spiegazione
+  // lunga); qui resta scritto perché è un vincolo di QUESTA firma, e il
+  // prossimo chiamante non avrà letto quel file.
+  list: ({ includeDeleted = false, withComments = false, completeDal = null } = {}) => {
     const select = withComments ? TASK_SELECT_WITH_COMMENTS : '*';
     return fetchAllRows(() => {
-      const q = supabase.from('tasks').select(select, WITH_COUNT)
+      let q = supabase.from('tasks').select(select, WITH_COUNT)
         .order('due_date', { ascending: true }).order('id');
-      return includeDeleted ? q : q.is('deleted_at', null);
+      if (!includeDeleted) q = q.is('deleted_at', null);
+      if (completeDal) q = q.or(`status.neq.done,completed_at.is.null,completed_at.gte.${completeDal}`);
+      return q;
     });
   },
   create: (task) =>

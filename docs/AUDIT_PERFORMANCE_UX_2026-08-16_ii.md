@@ -96,7 +96,7 @@ riletta per intero a ogni avvio a freddo. Non è un difetto di correttezza:
 |---|---|---|---|---|
 | A-1 ✔ | 🟠 **Alta** | UX / errori | 7 punti di montaggio `lazy()` su 9 senza error boundary proprio: un chunk 404 dopo un deploy porta via l'intera app (4) o l'intera vista (3) — **chiuso lo stesso 16 agosto** | `VoyageDeskInner.jsx:484`, `shell/Topbar.jsx:169,191`, `shell/UserSwitcher.jsx:218`, `clients/ClientiView.jsx:336`, `clients/ClienteDetailPanel.jsx:91`, `views/Archive.jsx:289` |
 | A-2 ✔ | 🟠 **Alta** | UX / errori | `QuickAddTask` — il form più usato dell'app — esce in silenzio a titolo vuoto E perde i dati se la scrittura fallisce — **chiuso lo stesso 16 agosto** | `modals/QuickAddTask.jsx:118-149` |
-| A-3 | 🟠 **Alta** | Scalabilità | L'idratazione scarica lo storico completo dei task: 82,5% del payload è non operativo, cresce ~13 righe/giorno senza tetto | `hooks/useAppHydration.js:144`, `lib/api.js:319` |
+| A-3 ✔ | 🟠 **Alta** | Scalabilità | L'idratazione scarica lo storico completo dei task: 82,5% del payload è non operativo, cresce ~13 righe/giorno senza tetto — **chiuso il 17 agosto** (§A-3) | `hooks/useAppHydration.js:144`, `lib/api.js:319` |
 | M-1 ✔ | 🟡 Media | UX / errori | `ClientiView.handleSave` chiude la modale senza attendere la scrittura: `saving` non si vede mai, doppio invio possibile, dati persi in caso d'errore — **chiuso lo stesso 16 agosto** | `clients/ClientiView.jsx:160-176`, `clients/ClienteModal.jsx:44,81,184` |
 | M-2 | 🟡 Media | Performance | La finestra sugli elenchi lunghi è applicata a 2 viste su 7: Archivio, Cestino e le cinque code disegnano l'array intero | `views/Archive.jsx:188,247`, `views/Trash.jsx:187`, `dashboard/queues/*` |
 | M-3 | 🟡 Media | Performance | Ricerca a testo libero senza debounce né indice: **6,32 ms per battuta** su 835 clienti, contro 0,19 ms con indice precalcolato | `clients/ClientiView.jsx:124-141`, `views/Archive.jsx:63-71`, `lib/searchUtils.js:50` |
@@ -388,7 +388,7 @@ rilievo a sé, non per una modifica non richiesta a un file che funziona.
 
 ---
 
-### 🟠 A-3 · L'idratazione scarica lo storico completo dei task
+### 🟠 A-3 · L'idratazione scarica lo storico completo dei task ✔
 
 **Dove.** `hooks/useAppHydration.js:144` → `lib/api.js:319`.
 
@@ -469,6 +469,94 @@ invece che per corpus.
 finestra quel numero diventa «le completate degli ultimi 60 giorni» finché la
 vista non ha caricato le proprie. Il passo 2 non è opzionale né rinviabile — è
 la metà che rende onesto il passo 1.
+
+#### ✔ Chiuso il 17 agosto 2026 — passi 1 e 2 (il 3 resta aperto)
+
+**Cosa è stato fatto.** `Tasks.list` guadagna `completeDal`, l'idratazione
+chiede la finestra e non chiede più il cestino, e cinque viste chiedono il
+corpus intero al mount via `state/StoricoTaskContext.jsx`.
+
+**Prima correzione al rilievo, emersa misurando.** La tabella qui sopra dice
+«82,5% del payload non operativo», ed è vero — ma quel numero descrive ciò che
+è *eleggibile* a uscire dal payload, non ciò che esce oggi. Rimisurato in
+produzione il 17 agosto, con la finestra effettivamente implementata a 60
+giorni:
+
+| | righe |
+|---|---|
+| `tasks` totali | 292 |
+| completate (non cestinate) | 209 |
+| cestinate | 33 |
+| **fuori dalla finestra di 60 giorni** | **33 — le sole cestinate** |
+| fuori da una finestra di 30 giorni (non adottata) | 109 |
+
+La prima task del database è dell'11 giugno: **nessuna task completata ha
+ancora sessanta giorni**, quindi oggi la finestra toglie dall'avvio soltanto il
+cestino — l'11% delle righe, non l'82,5%. Questo non indebolisce il rilievo, lo
+precisa: A-3 non era un risparmio da incassare, era il momento in cui la
+correzione costa zero. Fra dodici mesi lo stesso predicato lascia fuori la
+maggioranza del payload, e a quel punto introdurlo significherebbe togliere
+dati a viste che nel frattempo hanno dato per scontato di averli.
+
+**Seconda correzione, sull'ampiezza del passo 2.** Il rilievo nominava due
+viste — Archivio e Cestino. Sono cinque: il censimento dei consumatori di
+`useTasks()` ha trovato anche `AdminStatsTab` (il tasso di completamento è un
+rapporto fra due conteggi di cui la finestra pota UNO SOLO: senza il corpus
+intero non mostrerebbe un numero incompleto ma un numero **sbagliato**),
+`AdminIOTab` (l'export è un backup, e un backup che omette in silenzio le task
+più vecchie è peggio di un export fallito — i tre bottoni restano `disabled`
+finché lo storico non è arrivato) e `AdvancedSearchPanel` (ha una casella
+«includi nel cestino» e un filtro di stato che comprende «completato»: entrambi
+promettono di cercare in ciò che la finestra non carica, e una ricerca che non
+trova non dice «non ho cercato lì», dice «non c'è»). Le due viste del rilievo
+originale erano quelle in cui il difetto si *vede*; queste tre sono quelle in
+cui non si vede, che è la ragione per cui vanno nominate.
+
+**La parte che non si legge nel diff, e che è il vero rischio del passo 1.**
+Una volta che una vista ha chiesto il corpus intero, l'idratazione deve
+restare completa **per il resto della sessione**. `useDebouncedTableSubscription`
+rifà il reload completo su `online` e su `visibilitychange`, e se quel reload
+tornasse alla finestra il Cestino aperto si svuoterebbe da solo: nessuna
+eccezione, nessun toast, e il dato torna premendo F5 — cioè la classe di
+guasto che si attribuisce alla rete per settimane. Da qui il ref
+`storicoCompleto`, letto dal reload al momento della chiamata, alzato **prima**
+della richiesta (così ogni reload concorrente parte già completo) e riabbassato
+se quella fallisce (il ref dice «lo stato *deve* contenere il corpus», e se non
+è mai arrivato tenerlo alzato significherebbe non riprovare mai). Stessa
+famiglia: una risposta della finestra può arrivare **dopo** quella dello
+storico, e `isCurrent()` non la scarta — è il gen-counter delle richieste dello
+stesso tipo, e queste due non lo sono. Il reload confronta il proprio parametro
+di partenza col ref e scarta la propria risposta se nel frattempo il mondo è
+cambiato.
+
+**Terza nota, su `includeDeleted`.** Toglierlo dall'idratazione è stato
+possibile solo grazie al suggerimento strategico n.1 (merge per riga, chiuso il
+16 agosto): il commento che lo cablava a `true` spiegava che senza il cestino
+la ri-idratazione scattata subito dopo un `DELETE_TASK` avrebbe svuotato la
+vista Cestino. Oggi il soft-delete è un UPDATE applicato per riga da `applyRow`
+e **nessun reload parte più per un cestinamento**. Le due correzioni sono state
+scritte in giorni diversi e da percorsi diversi, ma la seconda è la premessa
+della prima: senza, questo passo avrebbe reintrodotto un difetto già visto.
+
+**Guardie.** `src/test/finestraIdratazione.test.js` (6 casi: la forma della
+query, i due assi `completeDal`/`includeDeleted` che non devono confondersi, il
+fail-open sulle righe `done` senza data), `src/test/storicoTask.test.jsx` (14
+casi: le due metà, l'idempotenza, il flag che si chiude anche sull'errore, il
+reload di riconnessione che resta completo, la corsa fra le due risposte, e un
+controllo positivo che verifica che la sonda sappia accorgersi dell'*assenza*
+della richiesta), tre casi nuovi in `src/test/statiDiAttesa.test.jsx` (con lo
+storico in volo l'Archivio non scrive un totale) e il controllo «viste che
+chiedono lo storico» in `verifica:convenzioni`, che tiene onesto il numero
+scritto in `CLAUDE.md` in **entrambe** le direzioni: una vista di troppo — una
+vista d'ingresso, che filtra già con `getActiveTasks` — annullerebbe il rilievo
+lasciandone in piedi tutto il codice, senza che nulla fallisca.
+
+**Cosa resta aperto.** Il passo 3, la potatura di `task_history` (660 righe al
+17 agosto, il percorso `soloThread` la rilegge per corpus a ogni commento). Non
+è stato fatto qui perché il rilievo stesso lo dichiara subordinato ai primi due
+— «solo dopo» — e perché leggere la cronologia per task aperto invece che per
+corpus è un cambio di forma del dato in stato, non un parametro in più su una
+query: merita il suo rilievo e la sua misura.
 
 ---
 

@@ -22,6 +22,7 @@
 import { render } from "@testing-library/react";
 import { AppDataProvider } from "../../state/AppDataContext.jsx";
 import { TasksProvider } from "../../state/TasksContext.jsx";
+import { StoricoTaskProvider } from "../../state/StoricoTaskContext.jsx";
 import { ClientsProvider } from "../../state/ClientsContext.jsx";
 import { ConfirmProvider } from "../../state/ConfirmContext.jsx";
 import { INITIAL_TEAM } from "../../state/mockData.js";
@@ -41,13 +42,25 @@ export const DEMO_APP_CTX = {
 // firma di questo helper accetta già uno state del reducer intero —
 // `renderWithAppData(<Dashboard … />, s)` — e in quello `s.tasks` e `s.clients`
 // ci sono di loro: chi passa uno state non deve cambiare nulla.
+// A-3: `richiediStorico` e `storicoInCorso` esistono perché le viste che
+// guardano lo storico dei task (Archivio, Cestino, statistiche, export,
+// ricerca avanzata) lo chiedono al mount — vedi state/StoricoTaskContext.jsx.
+// Il default è la situazione dei test che non hanno un'opinione in merito: i
+// task passati SONO già tutto ciò che c'è, quindi richiesta no-op e nessuna
+// attesa. Un test che vuole osservare la finestra di caricamento passa
+// `storicoInCorso: true`; uno che vuole verificare che la vista chieda davvero
+// il corpus intero passa una spia come `richiediStorico`.
 export function withAppData(
   ui,
-  { team = [], categories = {}, currentUserId = null, tasks = [], clients = [] } = {},
+  {
+    team = [], categories = {}, currentUserId = null, tasks = [], clients = [],
+    richiediStorico = () => {}, storicoInCorso = false,
+  } = {},
 ) {
   return (
     <AppDataProvider team={team} categories={categories} currentUserId={currentUserId}>
       <TasksProvider tasks={tasks}>
+       <StoricoTaskProvider richiedi={richiediStorico} caricando={storicoInCorso}>
         <ClientsProvider clients={clients}>
           {/* Criticità #8: useConfirm() solleva fuori dal provider, come
               useAppData(). Sta qui e non nei singoli test perché la conferma è
@@ -55,6 +68,7 @@ export function withAppData(
               sapere che quella vista, in fondo a un handler, chiede conferma. */}
           <ConfirmProvider>{ui}</ConfirmProvider>
         </ClientsProvider>
+       </StoricoTaskProvider>
       </TasksProvider>
     </AppDataProvider>
   );

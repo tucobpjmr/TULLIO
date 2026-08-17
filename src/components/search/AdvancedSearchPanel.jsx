@@ -10,6 +10,7 @@ import { Avatar } from "../ui/Avatar.jsx";
 import { PRIORITIES, STATUSES, STATUS_LABELS } from "../../lib/taskConstants.js";
 import { formatDate, isOverdue, startOfLocalDay, endOfLocalDay } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
+import { useStoricoTaskCompleto } from "../../state/StoricoTaskContext.jsx";
 // La ricerca chiede al modulo Liste "quali liste sono indicizzabili", non
 // quali query fare: vedi components/liste/listeModuleApi.js.
 import { listeRicercabili, beneficiariNomi, intestazioneLista } from "../liste/listeModuleApi.js";
@@ -28,6 +29,12 @@ import {
 export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword, currentUserId }) => {
   const { isMobile } = useViewport();
   const { team, categories, canAccessListe } = useAppData();
+  // A-3. Questo pannello ha una casella «includi nel cestino» e un filtro per
+  // stato che comprende «completato»: entrambi PROMETTONO di cercare in ciò
+  // che la finestra dell'idratazione non carica. Una ricerca che non trova non
+  // dice "non ho cercato lì" — dice "non c'è", ed è la risposta su cui si
+  // decide di ricreare una task che esiste già.
+  const caricandoStorico = useStoricoTaskCompleto();
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [cats, setCats] = useState([]);
@@ -291,9 +298,14 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
 
       <div style={box2}>
 
+        {/* Finché lo storico non è arrivato non si dice "nessun task": la
+            ricerca sta ancora guardando la sola finestra dell'idratazione, e
+            un vuoto dichiarato qui è un vuoto sui dati, non sui filtri. */}
         {hasFilters && results.length === 0 && (
           <div style={txtF13Muted}>
-            Nessun task corrisponde ai filtri
+            {caricandoStorico
+              ? "Ricerca nello storico in corso…"
+              : "Nessun task corrisponde ai filtri"}
           </div>
         )}
         {hasFilters && results.length > 0 && (

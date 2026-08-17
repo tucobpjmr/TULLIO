@@ -9,6 +9,7 @@ import { PRIORITIES, STATUS_LABELS } from "../../lib/taskConstants.js";
 import { formatDate, getTrashedTasks } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useTasks } from "../../state/TasksContext.jsx";
+import { useStoricoTaskCompleto } from "../../state/StoricoTaskContext.jsx";
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";
 import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { Modal } from "../ui/Modal.jsx";
@@ -43,6 +44,12 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
   const { isMobile } = useViewport();
   const { categories, currentUserId, getAssignableTeam, canEditTask, getVisibleTasks } = useAppData();
   const tasks = useTasks();
+  // A-3: dal 17 agosto l'idratazione non chiede più `includeDeleted`, quindi
+  // il cestino non è in stato per costruzione — lo carica questa vista. È
+  // anche quella in cui la risposta sbagliata costa di più: ci si viene a
+  // cercare qualcosa che si crede eliminato per sbaglio, e un "Cestino vuoto"
+  // chiude la ricerca invece di sospenderla.
+  const caricandoStorico = useStoricoTaskCompleto();
   const [restoring, setRestoring] = useState(null); // task being restored/edited
   const [period, setPeriod] = useState("all");
   const me = currentUserId;
@@ -59,8 +66,10 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
     .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt));
   const visible = filterByPeriod(trashed, period, "deletedAt");
   const editableCount = trashed.filter(t => canEditTask(t, me)).length;
-  // "Sto ancora caricando e non ho ancora nulla": vedi Dashboard.jsx.
-  const caricando = loading && tasks.length === 0;
+  // "Sto ancora caricando e non ho ancora nulla": vedi Dashboard.jsx. Il
+  // secondo addendo è A-3, senza la condizione sull'array — vedi Archive.jsx:
+  // qui i task della finestra ci sono, ma non sono i cestinati.
+  const caricando = (loading && tasks.length === 0) || caricandoStorico;
 
   const handleRestore = (task) => {
     if (!canEditTask(task, me)) {
@@ -128,13 +137,13 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
             }
           </div>
         </div>
-        {trashed.length > 0 && (
+        {!caricando && trashed.length > 0 && (
           <button onClick={handleEmpty} style={boxF13Bold}>🔥 Svuota cestino</button>
         )}
       </div>
 
       {/* Filtro periodo — solo se ci sono task */}
-      {trashed.length > 0 && (
+      {!caricando && trashed.length > 0 && (
         <div style={rowCenterGap82}>
           <span style={txtF11Bold}>Periodo:</span>
           {PERIOD_OPTIONS.map(opt => (

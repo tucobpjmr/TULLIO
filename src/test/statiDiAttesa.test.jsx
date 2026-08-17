@@ -124,3 +124,44 @@ describe("Archivio e Cestino — in caricamento non si dichiarano vuoti", () => 
     expect(screen.getByText("Cestino vuoto")).toBeTruthy();
   });
 });
+
+// ─── A-3 · lo stesso principio, applicato alla FINESTRA ────────────────────
+// Da qui in poi `loading` (l'entità `tasks`) è CHIUSO: l'idratazione è finita,
+// i task in stato ci sono. Sono quelli della finestra — le non completate più
+// le completate degli ultimi 60 giorni — e sono la ragione per cui questi casi
+// non si sovrappongono a quelli qui sopra: il difetto non è più un vuoto
+// dichiarato troppo presto, è un TOTALE dichiarato su un sottoinsieme.
+//
+// «209 task completate» detto mentre lo storico è ancora in volo è la stessa
+// affermazione falsa di «Archivio vuoto» a dati non caricati, e si legge
+// peggio: un vuoto lo si sospetta, un numero preciso no.
+describe("Archivio e Cestino — con lo storico in volo non dichiarano un totale", () => {
+  const completata = {
+    id: "t-done", title: "Volo Milano", status: "done", priority: "media",
+    category: "biglietteria", assignees: [], completedAt: "2026-08-10T09:00:00Z",
+  };
+  const ctx = { ...DEMO_APP_CTX, tasks: [completata], storicoInCorso: true };
+
+  it("Archive mostra lo scheletro invece del conteggio della sola finestra", () => {
+    render(<Archive dispatch={dispatch} loading={false} />, ctx);
+    expect(screen.queryByText(/task completat/)).toBeNull();
+    expect(screen.queryByText("Archivio vuoto")).toBeNull();
+    expect(scheletro().length).toBe(1);
+  });
+
+  it("Trash non dice 'Cestino vuoto' prima di aver caricato i cestinati", () => {
+    // Il cestino non è nella finestra per costruzione: `includeDeleted` non è
+    // più cablato sull'idratazione. Qui `tasks` non è vuoto e `loading` è
+    // chiuso — senza il flag dello storico questa vista direbbe "vuoto" con
+    // tutta la sicurezza del mondo.
+    render(<Trash dispatch={dispatch} loading={false} />, ctx);
+    expect(screen.queryByText("Cestino vuoto")).toBeNull();
+    expect(scheletro().length).toBe(1);
+  });
+
+  it("a storico arrivato i conteggi tornano a essere dichiarati", () => {
+    render(<Archive dispatch={dispatch} loading={false} />,
+      { ...ctx, storicoInCorso: false });
+    expect(screen.getByText(/1 task completata/)).toBeTruthy();
+  });
+});

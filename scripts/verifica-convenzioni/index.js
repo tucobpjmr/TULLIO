@@ -19,8 +19,9 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { ESLint } from 'eslint';
 import {
-  LetturaFallita, leggiCallSiteSalvataggio, leggiConteggioMultiComp, leggiStatoAudit,
-  leggiStatoIndex, leggiStiliInline, montaggiLazySenzaRete, usiSalvataggio, confronta,
+  LetturaFallita, leggiCallSiteSalvataggio, leggiCallSiteStorico, leggiConteggioMultiComp,
+  leggiStatoAudit, leggiStatoIndex, leggiStiliInline, montaggiLazySenzaRete,
+  usiSalvataggio, usiStoricoTask, confronta,
 } from './convenzioni.js';
 
 // Gli audit sotto controllo: nome del file, prefisso dei suoi rilievi.
@@ -170,7 +171,20 @@ async function main() {
     rimedio: `Aggiorna la frase «N call site usano \`useSalvataggio\`» (misurati: ${salvataggi.join(', ')}).`,
   });
 
-  // 6. Stato dei rilievi: quello che l'indice dichiara contro quello che il
+  // 6. Viste che chiedono il corpus intero dei task (A-3). Stesso mestiere del
+  //    controllo qui sopra, su un equilibrio che si rompe in DUE direzioni: una
+  //    vista in più annulla la finestra dell'idratazione lasciandone in piedi
+  //    il codice, una in meno mostra un conteggio parziale come se fosse un
+  //    totale. Quale sia il numero giusto lo decide l'elenco motivato in
+  //    `src/state/StoricoTaskContext.jsx`; qui si fa rumore quando cambia.
+  const storico = usiStoricoTask(sorgenti);
+  controlli.push({
+    nome: 'viste che chiedono lo storico', dove: 'docs/CLAUDE.md',
+    dichiarato: leggiCallSiteStorico(claudeMd), misurato: storico.length,
+    rimedio: `Aggiorna la frase «N viste chiedono \`useStoricoTaskCompleto\`» (misurate: ${storico.join(', ')}).`,
+  });
+
+  // 7. Stato dei rilievi: quello che l'indice dichiara contro quello che il
   //    documento di audit porta nella propria tabella delle priorità.
   for (const { file, prefisso } of AUDIT) {
     const testo = await readFile(`docs/${file}`, 'utf8');

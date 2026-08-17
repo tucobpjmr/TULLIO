@@ -5,6 +5,7 @@
 import { useState, useRef } from "react";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useTasks } from "../../../state/TasksContext.jsx";
+import { useStoricoTaskCompleto } from "../../../state/StoricoTaskContext.jsx";
 import { cardStyle, cardH, cardP, btnPrimary, btnWarning } from "../adminStyles.js";
 import { validateBackup } from "../../../lib/backupValidation.js";
 import { loadXLSX } from "../../../lib/xlsx.js";
@@ -29,6 +30,12 @@ export const AdminIOTab = ({ dispatch, agencyName, notices = [] }) => {
   const conferma = useConfirm();
   const { getMember, team, categories } = useAppData();
   const tasks = useTasks();
+  // A-3. Qui il corpus intero non è un dettaglio di completezza: un export è
+  // un BACKUP, e un backup che omette in silenzio le task più vecchie è
+  // peggio di un export fallito — quello lo si rifà, questo lo si archivia
+  // credendolo integro. La casella «includi task nel cestino» promette per
+  // giunta righe che la finestra dell'idratazione non carica affatto.
+  const caricandoStorico = useStoricoTaskCompleto();
   const [includeTrashed, setIncludeTrashed] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -124,7 +131,7 @@ export const AdminIOTab = ({ dispatch, agencyName, notices = [] }) => {
     reader.readAsText(file);
   };
 
-  const total = tasksToExport().length;
+  const total = caricandoStorico ? "…" : tasksToExport().length;
 
   return (
     <div style={gridGap20}>
@@ -137,11 +144,17 @@ export const AdminIOTab = ({ dispatch, agencyName, notices = [] }) => {
           Includi task nel cestino
         </label>
         <div style={txtF12Muted}>
-          📦 <b>{total}</b> task pronti per l'export
+          {caricandoStorico
+            ? "📦 Caricamento dello storico task…"
+            : <>📦 <b>{total}</b> task pronti per l'export</>}
         </div>
+        {/* Disabilitati finché lo storico non è arrivato (A-3): un export
+            avviato adesso conterrebbe la sola finestra, senza che il file lo
+            dica. `disabled` e non un avviso: qui l'utente non ha modo di
+            accorgersi da sé di cosa manca. */}
         <div style={rowGap10}>
-          <button onClick={exportCSV} style={btnPrimary}>📄 Scarica CSV</button>
-          <button onClick={exportExcel} style={btnPrimary}>📊 Scarica Excel</button>
+          <button onClick={exportCSV} disabled={caricandoStorico} style={btnPrimary}>📄 Scarica CSV</button>
+          <button onClick={exportExcel} disabled={caricandoStorico} style={btnPrimary}>📊 Scarica Excel</button>
         </div>
       </div>
 
@@ -160,7 +173,9 @@ export const AdminIOTab = ({ dispatch, agencyName, notices = [] }) => {
         <h3 style={cardH}>💾 Backup &amp; Restore completo</h3>
         <p style={cardP}>Esporta o ripristina <b>tutto lo stato dell'applicazione</b> (task, team, categorie, impostazioni) come file JSON.</p>
         <div style={rowGap10}>
-          <button onClick={exportBackup} style={btnPrimary}>⬇️ Esporta backup JSON</button>
+          <button onClick={exportBackup} disabled={caricandoStorico} style={btnPrimary}>
+            {caricandoStorico ? "⏳ Caricamento storico…" : "⬇️ Esporta backup JSON"}
+          </button>
           <button onClick={() => fileInputRef.current?.click()} style={btnWarning}>⬆️ Ripristina da backup</button>
           <input ref={fileInputRef} type="file" accept=".json" onChange={importBackup} style={hidden} />
         </div>

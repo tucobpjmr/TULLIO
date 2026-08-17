@@ -34,9 +34,9 @@ import { useChatData } from "./hooks/useChatData.js";
 
 // ── Guscio e primitive ─────────────────────────────────────────────────────
 import { ViewErrorBoundary } from "./components/ViewErrorBoundary.jsx";
-import { OverlayErrorBoundary } from "./components/OverlayErrorBoundary.jsx";
 import { ToastStack } from "./components/ui/Toast.jsx";
 import { LazyFallback } from "./components/ui/LazyFallback.jsx";
+import { LazyPanel } from "./components/ui/LazyPanel.jsx";
 import { KeyboardHelpOverlay } from "./components/ui/KeyboardHelpOverlay.jsx";
 import { Topbar } from "./components/shell/Topbar.jsx";
 import { Sidebar } from "./components/shell/Sidebar.jsx";
@@ -456,19 +456,22 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         {/* Bottom nav mobile/tablet */}
         <BottomNav activeView={state.activeView} dispatch={dispatch} onOpenBulk={openBulk} onOpenChat={openChatPanel} unreadChat={chat.unreadChat} />
 
-        {/* Slide-over (lazy, Phase 2g). OverlayErrorBoundary confina un
-            eventuale errore (chunk 404 dopo un deploy, o crash di render) al
-            pannello: senza, l'unico boundary sarebbe quello di main.jsx, che
-            sostituirebbe l'intera app mentre la dashboard sotto è integra. */}
+        {/* Slide-over (lazy, Phase 2g). `LazyPanel` = Suspense + boundary: un
+            eventuale errore (chunk 404 dopo un deploy, o crash di render)
+            resta confinato al pannello — senza, l'unico boundary sarebbe
+            quello di main.jsx, che sostituirebbe l'intera app mentre la
+            dashboard sotto è integra. `resetKey` è l'id del task perché il
+            pannello resta MONTATO passando da un task all'altro (apertura da
+            notifica): senza, un crash sul precedente resterebbe visibile
+            aprendo il nuovo. */}
         {state.selectedTask && (
-          <Suspense fallback={<LazyFallback overlay />}>
-            <OverlayErrorBoundary
-              resetKey={state.selectedTask?.id}
-              onReset={() => dispatch({ type: "SET_SELECTED_TASK", payload: null })}
-            >
-              <TaskSlideOver task={state.selectedTask} dispatch={dispatch} />
-            </OverlayErrorBoundary>
-          </Suspense>
+          <LazyPanel
+            resetKey={state.selectedTask?.id}
+            onReset={() => dispatch({ type: "SET_SELECTED_TASK", payload: null })}
+            overlay
+          >
+            <TaskSlideOver task={state.selectedTask} dispatch={dispatch} />
+          </LazyPanel>
         )}
 
         {/* Chat Panel — montato solo da aperto (ST-12). Prima era sempre nel
@@ -481,7 +484,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
             conversazioni e messaggi stanno in useChatData, che resta montato.
             `chat.unreadChat` per il badge si calcola lì, fuori dal chunk. */}
         {showChat && (
-          <Suspense fallback={<LazyFallback overlay />}>
+          <LazyPanel resetKey="chat" onReset={closeChatPanel} overlay>
             <ChatPanel
               open
               onClose={closeChatPanel}
@@ -499,7 +502,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
               myBusy={myBusy}
               onToggleBusy={toggleMyBusy}
             />
-          </Suspense>
+          </LazyPanel>
         )}
 
         {/* FAB principale (singolo task). La creazione bulk/multi-task è ora in Sidebar/BottomNav. */}
@@ -514,16 +517,13 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         {/* Bulk Task Creator (lazy, Phase 2g). Stessa ragione dello slide-over
             qui sopra: un crash non deve portare via l'intera app. */}
         {showBulkModal && (
-          <Suspense fallback={<LazyFallback overlay />}>
-            <OverlayErrorBoundary resetKey="bulk" onReset={() => setShowBulkModal(false)}>
-              <BulkTaskCreator
-                existingTasks={getActiveTasks(state.tasks)}
-                onCreate={(tasks) => dispatch({ type: "ADD_TASKS_BULK", payload: tasks })}
-                onClose={() => setShowBulkModal(false)}
-
-              />
-            </OverlayErrorBoundary>
-          </Suspense>
+          <LazyPanel resetKey="bulk" onReset={() => setShowBulkModal(false)} overlay>
+            <BulkTaskCreator
+              existingTasks={getActiveTasks(state.tasks)}
+              onCreate={(tasks) => dispatch({ type: "ADD_TASKS_BULK", payload: tasks })}
+              onClose={() => setShowBulkModal(false)}
+            />
+          </LazyPanel>
         )}
 
         {/* Toast */}

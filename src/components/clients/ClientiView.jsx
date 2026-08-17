@@ -2,13 +2,13 @@
 // Anagrafica Clienti: elenco, ricerca, ordinamento e apertura del pannello di
 // dettaglio. Modale, card e pannello vivono in moduli propri — erano sei
 // componenti in questo file, di cui uno (la modale) da 120 righe.
-import { memo, useState, useMemo, useEffect, lazy, Suspense } from "react";
+import { memo, useState, useMemo, useEffect, lazy } from "react";
 import { ClienteModal } from "./ClienteModal.jsx";
 import { ClienteCard } from "./ClienteCard.jsx";
 import { ClienteDetailPanel } from "./ClienteDetailPanel.jsx";
 import { useViewport } from "../Viewport.jsx";
 import { SkeletonCards } from "../ui/SkeletonCards.jsx";
-import { LazyFallback } from "../ui/LazyFallback.jsx";
+import { LazyPanel } from "../ui/LazyPanel.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useTasks } from "../../state/TasksContext.jsx";
 import { useClients } from "../../state/ClientsContext.jsx";
@@ -157,22 +157,31 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
   const visibili = useMemo(() => filtered.slice(0, limite), [filtered, limite]);
   const restanti = filtered.length - visibili.length;
 
+  // M-1 · Attende l'esito e lo RIPORTA; chi chiude è la modale (che è anche
+  // l'unica a sapere se ha ancora dati da proteggere). Prima questa funzione
+  // dispatchava senza `await` e terminava con `setModal(null)`: la modale
+  // spariva nello stesso turno, quindi il suo «Salvataggio...» era un ramo
+  // irraggiungibile e su una scrittura rifiutata (RLS, rete) l'anagrafica
+  // digitata se ne andava con lei.
   const handleSave = async (form, { renameTasks = [] } = {}) => {
-    if (modal?.mode === "edit" && modal.cliente) {
-      dispatch({ type: "UPDATE_CLIENT", payload: { ...modal.cliente, ...form } });
-      // Il campo Cliente dei task è una copia testuale del nome, non un
-      // collegamento: se non lo si porta dietro, il rename lo lascia indietro
-      // in silenzio. L'utente ha spuntato la casella, quindi lo aggiorniamo.
-      if (renameTasks.length) {
-        dispatch({
-          type: "RENAME_CLIENT_IN_TASKS",
-          payload: { from: modal.cliente.name, to: form.name },
-        });
-      }
-    } else {
-      dispatch({ type: "ADD_CLIENT", payload: { id: crypto.randomUUID(), ...form, createdAt: new Date().toISOString() } });
+    const res = modal?.mode === "edit" && modal.cliente
+      ? await dispatch({ type: "UPDATE_CLIENT", payload: { ...modal.cliente, ...form } })
+      : await dispatch({ type: "ADD_CLIENT", payload: { id: crypto.randomUUID(), ...form, createdAt: new Date().toISOString() } });
+
+    if (res?.error) return res;
+
+    // Il campo Cliente dei task è una copia testuale del nome, non un
+    // collegamento: se non lo si porta dietro, il rename lo lascia indietro
+    // in silenzio. L'utente ha spuntato la casella, quindi lo aggiorniamo —
+    // ma solo se il cliente è stato scritto DAVVERO: rinominare i task dopo
+    // una scrittura fallita li allontanerebbe da un'anagrafica rimasta com'era.
+    if (renameTasks.length && modal?.cliente) {
+      await dispatch({
+        type: "RENAME_CLIENT_IN_TASKS",
+        payload: { from: modal.cliente.name, to: form.name },
+      });
     }
-    setModal(null);
+    return { error: null };
   };
 
   const handleDelete = (cliente) => {
@@ -333,13 +342,13 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
 
       {/* Import anagrafica da Excel/CSV */}
       {importOpen && (
-        <Suspense fallback={<LazyFallback overlay />}>
+        <LazyPanel resetKey="import-clienti" onReset={() => setImportOpen(false)} overlay>
           <ClientImportModal
             existingClients={clients}
             onImport={(newClients) => dispatch({ type: "ADD_CLIENTS_BULK", payload: newClients })}
             onClose={() => setImportOpen(false)}
           />
-        </Suspense>
+        </LazyPanel>
       )}
 
       {/* Conferma eliminazione — o spiegazione del perché non si può */}

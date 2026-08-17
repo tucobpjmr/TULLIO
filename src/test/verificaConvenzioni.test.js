@@ -8,8 +8,8 @@
 // test sui casi "pattern assente" sono quindi i più importanti del file.
 import { describe, it, expect } from 'vitest';
 import {
-  LetturaFallita, leggiConteggioMultiComp, leggiStatoAudit, leggiStatoIndex,
-  leggiStiliInline, confronta,
+  LetturaFallita, leggiCallSiteSalvataggio, leggiConteggioMultiComp, leggiStatoAudit,
+  leggiStatoIndex, leggiStiliInline, montaggiLazySenzaRete, usiSalvataggio, confronta,
 } from '../../scripts/verifica-convenzioni/convenzioni.js';
 
 describe('leggiConteggioMultiComp', () => {
@@ -127,5 +127,72 @@ describe('confronta', () => {
     expect(msg).toContain('dice 10');
     expect(msg).toContain('misurato 13');
     expect(msg).toContain('Aggiorna la frase.');
+  });
+});
+
+describe('montaggiLazySenzaRete', () => {
+  const IMPORT_LAZY = 'import { useState, lazy } from "react";';
+
+  it('segnala il file che monta un lazy senza nominare alcuna rete di sicurezza', () => {
+    const sorgenti = [
+      { path: 'src/components/shell/Topbar.jsx', testo: `${IMPORT_LAZY}\n<Suspense fallback={<LazyFallback />}>` },
+    ];
+    expect(montaggiLazySenzaRete(sorgenti)).toEqual(['src/components/shell/Topbar.jsx']);
+  });
+
+  it('accetta il file che monta con LazyPanel', () => {
+    const sorgenti = [
+      { path: 'src/components/shell/Topbar.jsx', testo: `${IMPORT_LAZY}\n<LazyPanel resetKey="notifiche">` },
+    ];
+    expect(montaggiLazySenzaRete(sorgenti)).toEqual([]);
+  });
+
+  it('accetta anche i due boundary usati direttamente (la vista, gli overlay)', () => {
+    const conVista = { path: 'a.jsx', testo: `${IMPORT_LAZY}\n<ViewErrorBoundary viewKey={v}>` };
+    const conOverlay = { path: 'b.jsx', testo: `${IMPORT_LAZY}\n<OverlayErrorBoundary resetKey="x">` };
+    expect(montaggiLazySenzaRete([conVista, conOverlay])).toEqual([]);
+  });
+
+  it('ignora i file che NOMINANO lazy in un commento senza importarlo', () => {
+    // Il primo giro di questo controllo segnalava ui/LazyFallback.jsx, che
+    // dice «mentre un chunk lazy (AdminView, …) viene scaricato» ed è il file
+    // del fallback: non monta niente. È la ragione per cui il segnale è
+    // l'import e non la chiamata.
+    const sorgenti = [
+      { path: 'src/components/ui/LazyFallback.jsx', testo: '// spinner per un chunk lazy (AdminView) in arrivo\nexport const LazyFallback = () => null;' },
+      { path: 'src/components/shell/Topbar.jsx', testo: `${IMPORT_LAZY}\n<LazyPanel />` },
+    ];
+    expect(montaggiLazySenzaRete(sorgenti)).toEqual([]);
+  });
+
+  it('SOLLEVA se nessun file importa lazy, invece di passare a vuoto', () => {
+    // Il modo peggiore di fallire: verde perché non ha controllato niente.
+    expect(() => montaggiLazySenzaRete([{ path: 'a.js', testo: 'export const x = 1;' }]))
+      .toThrow(LetturaFallita);
+  });
+});
+
+describe('usiSalvataggio / leggiCallSiteSalvataggio', () => {
+  const IMPORTA = 'import { useSalvataggio } from "../../hooks/useSalvataggio.js";';
+
+  it('elenca i file che importano l\'hook, non quelli che lo nominano', () => {
+    const sorgenti = [
+      { path: 'src/components/modals/QuickAddTask.jsx', testo: `${IMPORTA}\nconst { salva } = useSalvataggio(f);` },
+      // Il file dell'hook stesso, e un commento che ne parla: nessuno dei due
+      // è un call site.
+      { path: 'src/hooks/useSalvataggio.js', testo: 'export function useSalvataggio() {}' },
+      { path: 'src/components/liste/AddMovBox.jsx', testo: '// da convertire a useSalvataggio\nexport const AddMovBox = () => null;' },
+    ];
+    expect(usiSalvataggio(sorgenti)).toEqual(['src/components/modals/QuickAddTask.jsx']);
+  });
+
+  it('SOLLEVA se nessun file lo importa: l\'hook è sparito o la forma è cambiata', () => {
+    expect(() => usiSalvataggio([{ path: 'a.jsx', testo: 'export const A = () => null;' }]))
+      .toThrow(LetturaFallita);
+  });
+
+  it('legge il numero dichiarato in CLAUDE.md e solleva se la frase non c\'è', () => {
+    expect(leggiCallSiteSalvataggio('… **3 call site usano `useSalvataggio`**: il numero …')).toBe(3);
+    expect(() => leggiCallSiteSalvataggio('nessuna frase del genere')).toThrow(LetturaFallita);
   });
 });

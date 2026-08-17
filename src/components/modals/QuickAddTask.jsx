@@ -8,6 +8,9 @@ import { TaskFiles } from "../../lib/api.js";
 import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit } from "../../lib/fileUtils.js";
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";
 import { Modal } from "../ui/Modal.jsx";
+import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
+import { validaCampi, obbligatorio, primoCampoInvalido } from "../../lib/validators.js";
+import { useSalvataggio } from "../../hooks/useSalvataggio.js";
 import { useClientSuggestions, ClientSuggestions } from "../ui/ClientAutocomplete.jsx";
 import { useClients } from "../../state/ClientsContext.jsx";
 import {
@@ -36,6 +39,13 @@ const rowCenterGap10 = {
 const txtF13Bold = { fontSize: 13, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const txtF11Light = { fontSize: 11, color: "var(--text-light)", marginTop: 4 };
 const txtF12Danger = { fontSize: 12, color: "var(--danger)", marginTop: 6 };
+// L'avviso di riuscita parziale non è rosso: la task è stata creata, e un
+// messaggio d'errore direbbe il contrario di quello che è successo.
+const txtF12Avviso = {
+  marginTop: 10, padding: "8px 10px", borderRadius: 8,
+  background: "#FEF3C7", border: "1px solid rgba(200,131,42,0.35)",
+  fontSize: 12, lineHeight: 1.4, color: "var(--text)",
+};
 const rowGap10Mt20 = { display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" };
 
 // v2.8 Round 6: auto-suggerisci la categoria in base a keyword nel titolo.
@@ -51,6 +61,17 @@ const CATEGORY_KEYWORDS = [
   { cat: "marketing",   words: ["newsletter", "social", "post ", "campagna", "promo", "pubblicità", "instagram", "facebook"] },
   { cat: "admin",       words: ["check-in", "checkin", "check in", "riunione", "agenda", "report", "log ", "amministrazion"] },
 ];
+// A-2 · L'etichetta dice `TITOLO *`, e l'asterisco è una promessa: prima
+// `if (!form.title.trim()) return;` la mancava in silenzio — nessun messaggio,
+// nessun focus, e per chi usa uno screen reader nemmeno l'indizio visivo del
+// nulla che succede. È lo stesso rimedio di ClienteModal e ProfileEditor, su
+// quello che è il percorso di creazione task più battuto dell'app (FAB su ogni
+// vista, scorciatoia `K`).
+const REGOLE = {
+  title: obbligatorio("Il titolo è obbligatorio: è con questo che il task compare in elenco, nelle code e nelle notifiche."),
+};
+const ORDINE = ["title"];
+
 const suggestCategory = (title, availableCats) => {
   const lower = (title || "").toLowerCase();
   if (lower.length < 4) return null;
@@ -82,9 +103,13 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
   // subito DOPO che la task è stata persistita (l'upload via RLS richiede la
   // riga task già esistente, e serve il suo UUID definitivo).
   const [pendingFiles, setPendingFiles] = useState([]);
-  const [busy, setBusy] = useState(false);
+  // Solo il limite di dimensione, che è una regola sull'input e si valuta
+  // subito: l'esito della scrittura ha ora il proprio canale (vedi sotto).
   const [fileError, setFileError] = useState("");
+  const [errori, setErrori] = useState({});
   const fileInputRef = useRef(null);
+  const titleRef = useRef(null);
+  const rifCampo = { title: titleRef };
 
   // Autocomplete cliente: mostra la tendina dei clienti in anagrafica mentre si
   // digita. Il campo resta testo libero (task.client è una stringa), così si può
@@ -115,37 +140,59 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
 
   const removeFile = (idx) => setPendingFiles(prev => prev.filter((_, i) => i !== idx));
 
-  const handleSubmit = async () => {
-    if (!form.title.trim() || busy) return;
-    setBusy(true);
-    // UUID generato qui: dispatch lo conserva (è già un uuid valido), così
-    // conosciamo l'id definitivo della task per caricarci gli allegati.
-    const id = crypto.randomUUID();
-    const result = await onAdd({
-      id,
-      ...form,
-      client: form.client.trim() || null,
-      praticaRef: form.praticaRef || null,
-      contact: form.contact.trim() || null,
-      comments: [],
-      estimatedHours: 1,
-      recurrence: "none",
-      dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
-    });
+  // A-2 · La scrittura per intero — la task e i suoi allegati — dietro il
+  // contratto condiviso (hooks/useSalvataggio.js). Prima `onClose()` era
+  // incondizionato: su una creazione rifiutata la modale si chiudeva lo stesso,
+  // il registry faceva rollback (la task appariva e spariva) e titolo,
+  // descrizione, cliente, contatti, numero di pratica e la lista degli allegati
+  // scelti non esistevano più. Le quattro tab del BulkTaskCreator facevano già
+  // il contrario, con il commento che spiega perché.
+  const {
+    salva, inVolo: busy, errore: erroreSalvataggio, avviso, bloccato,
+  } = useSalvataggio(
+    async () => {
+      // UUID generato qui: dispatch lo conserva (è già un uuid valido), così
+      // conosciamo l'id definitivo della task per caricarci gli allegati.
+      const id = crypto.randomUUID();
+      const res = await onAdd({
+        id,
+        ...form,
+        client: form.client.trim() || null,
+        praticaRef: form.praticaRef || null,
+        contact: form.contact.trim() || null,
+        comments: [],
+        estimatedHours: 1,
+        recurrence: "none",
+        dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
+      });
+      if (res?.error) return res;
 
-    // Se la creazione è andata a buon fine, carica gli allegati in sequenza.
-    if (pendingFiles.length && !(result && result.error)) {
+      // Gli allegati dopo, in sequenza: l'upload passa dalla RLS del bucket,
+      // che parte dal task_id — senza la riga già scritta rifiuterebbe.
       for (const f of pendingFiles) {
-        const { error: e } = await TaskFiles.upload(f, id, { uploadedBy: currentUserId });
-        if (e) {
-          setFileError(`Task creata, ma l'upload di "${f.name}" è fallito. Riprova dal dettaglio della task.`);
-          setBusy(false);
-          return; // tieni il modale aperto per dare contesto sull'errore
+        const { error } = await TaskFiles.upload(f, id, { uploadedBy: currentUserId });
+        // `avviso` e non `error`: la task ESISTE. Riprovare ne creerebbe una
+        // seconda, quindi il pannello resta aperto per dire dov'è finito
+        // l'allegato mancante, ma il bottone «Crea» non riparte.
+        if (error) {
+          return { avviso: `Task creata, ma l'allegato "${f.name}" non è stato caricato. Riprova dal dettaglio della task: la task è salva.` };
         }
       }
+      return { error: null };
+    },
+    { alSuccesso: onClose },
+  );
+
+  const handleSubmit = async () => {
+    const trovati = validaCampi(form, REGOLE);
+    const primo = primoCampoInvalido(trovati, ORDINE);
+    if (primo) {
+      setErrori(trovati);
+      rifCampo[primo]?.current?.focus();   // metà del rimedio è il focus
+      return;
     }
-    setBusy(false);
-    onClose();
+    setErrori({});
+    await salva();
   };
 
   // Auto-suggerisci categoria al cambio titolo (se l'utente non ha impostato manualmente)
@@ -155,6 +202,9 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
     value: form[field],
     onChange: e => {
       const val = e.target.value;
+      // L'errore di un campo si spegne appena lo si tocca (vedi AddMovBox e
+      // ClienteModal): il verdetto è sull'ultimo tentativo, non sul campo.
+      setErrori(prec => (prec[field] ? { ...prec, [field]: undefined } : prec));
       setForm(p => {
         const next = { ...p, [field]: val };
         // Auto-applica la categoria suggerita se non è stata modificata manualmente
@@ -182,8 +232,13 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
 
         <div style={colGap14}>
           <div>
-            <label className="vd-field-label-lg">TITOLO *</label>
-            <input {...inp("title")} placeholder="Descrivi brevemente il task..." />
+            <label className="vd-field-label-lg" htmlFor="qat-title">TITOLO *</label>
+            <input
+              id="qat-title" ref={titleRef} {...inp("title")}
+              placeholder="Descrivi brevemente il task..."
+              {...ariaCampo("qat-title-err", errori.title)}
+            />
+            <FieldError id="qat-title-err">{errori.title}</FieldError>
           </div>
 
           <div style={grid2ColGap12}>
@@ -309,17 +364,25 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
           </div>
         </div>
 
+        {/* L'esito accanto al bottone che l'ha avviato. Due canali distinti
+            perché le azioni giuste sono opposte: con `erroreSalvataggio` non è
+            stato scritto niente e riprovare è la cosa da fare; con `avviso` la
+            task c'è già e riprovare la duplicherebbe. */}
+        <FieldError id="qat-save-err">{erroreSalvataggio}</FieldError>
+        {avviso && <div role="alert" style={txtF12Avviso}>{avviso}</div>}
         <div style={rowGap10Mt20}>
           <button onClick={onClose} disabled={busy} style={{
             padding: "9px 18px", borderRadius: 8, border: "1px solid var(--border)",
             background: "transparent", cursor: busy ? "default" : "pointer", fontSize: 13, fontWeight: 500,
             opacity: busy ? 0.6 : 1,
-          }}>Annulla</button>
-          <button onClick={handleSubmit} disabled={busy} style={{
-            padding: "9px 20px", borderRadius: 8, border: "none",
-            background: "var(--navy)", color: "#fff", cursor: busy ? "default" : "pointer", fontSize: 13, fontWeight: 600,
-            opacity: busy ? 0.7 : 1,
-          }}>{busy ? "⏳ Creazione…" : "✓ Crea Task"}</button>
+          }}>{bloccato ? "Chiudi" : "Annulla"}</button>
+          {!bloccato && (
+            <button onClick={handleSubmit} disabled={busy} style={{
+              padding: "9px 20px", borderRadius: 8, border: "none",
+              background: "var(--navy)", color: "#fff", cursor: busy ? "default" : "pointer", fontSize: 13, fontWeight: 600,
+              opacity: busy ? 0.7 : 1,
+            }}>{busy ? "⏳ Creazione…" : "✓ Crea Task"}</button>
+          )}
         </div>
       </>
     </Modal>

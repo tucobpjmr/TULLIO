@@ -1,8 +1,8 @@
 // src/components/clients/ClienteDetailPanel.jsx
 // Il pannello contestuale di un cliente: due tab, i suoi task e le sue liste
 // viaggio. Il tab Liste è precluso al Driver (stessa RLS del modulo).
-import { useState, useEffect, lazy, Suspense } from "react";
-import { LazyFallback } from "../ui/LazyFallback.jsx";
+import { useState, useEffect, lazy } from "react";
+import { LazyPanel } from "../ui/LazyPanel.jsx";
 import { ListeChip } from "./ListeChip.jsx";
 import { ClienteTaskTab } from "./ClienteTaskTab.jsx";
 import { DatiAnagrafici } from "./DatiAnagrafici.jsx";
@@ -88,9 +88,9 @@ export function ClienteDetailPanel({ cliente, tasks, dispatch, onClose, showList
 
       {tab === "liste"
         ? (
-          <Suspense fallback={<LazyFallback />}>
+          <LazyPanel resetKey={cliente?.id} onReset={() => setTab("task")}>
             <ClienteListePanel cliente={cliente} dispatch={dispatch} />
-          </Suspense>
+          </LazyPanel>
         )
         : <ClienteTaskTab cliente={cliente} tasks={tasks} dispatch={dispatch} />}
     </div>

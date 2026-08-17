@@ -3,7 +3,7 @@
 // (task e liste viaggio): serve PRIMA di salvare o eliminare, non dopo — è la
 // differenza fra sapere cosa si sta toccando e scoprirlo da un errore di FK.
 import { useRef, useState } from "react";
-import { useIsMounted } from "../../hooks/useIsMounted.js";
+import { useSalvataggio } from "../../hooks/useSalvataggio.js";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { validaCampi, obbligatorio, emailValida, primoCampoInvalido } from "../../lib/validators.js";
 import { chiaveNome } from "../../lib/clientNotes.js";
@@ -41,12 +41,14 @@ export function ClienteModal({ cliente, onSave, onClose, liste = null, tasksColl
     ? { name: cliente.name, email: cliente.email || "", phone: cliente.phone || "", address: cliente.address || "", city: cliente.city || "", notes: cliente.notes || "" }
     : { ...EMPTY_FORM }
   );
-  const [saving, setSaving] = useState(false);
   const [renameTasks, setRenameTasks] = useState(true);
-  // Criticità #11: `onSave` è ClientiView.handleSave, che termina con
-  // setModal(null) — cioè smonta QUESTO componente. Lo smontaggio è l'esito
-  // normale del salvataggio riuscito, non un caso limite.
-  const montato = useIsMounted();
+  // M-1 · `onSave` è `ClientiView.handleSave`, che ora ATTENDE le scritture e
+  // ne riporta l'esito senza chiudere niente: la decisione di chiudere è qui,
+  // perché è questo componente ad avere qualcosa da perdere. Il guard su
+  // useIsMounted (criticità #11) non è sparito — vive dentro l'hook, che è
+  // anche il posto in cui lo smontaggio avviene, visto che è `alSuccesso` a
+  // provocarlo.
+  const { salva, inVolo: saving, errore: erroreSalvataggio } = useSalvataggio(onSave, { alSuccesso: onClose });
   const [errori, setErrori] = useState({});
   const nameRef = useRef(null);
   const emailRef = useRef(null);
@@ -77,13 +79,10 @@ export function ClienteModal({ cliente, onSave, onClose, liste = null, tasksColl
       return;
     }
     setErrori({});
-    setSaving(true);
-    await onSave(
+    await salva(
       { ...form, name: form.name.trim() },
       { renameTasks: nomeCambiato && renameTasks ? tasksCollegati : [] },
     );
-    if (!montato()) return;
-    setSaving(false);
   };
 
   return (
@@ -175,6 +174,11 @@ export function ClienteModal({ cliente, onSave, onClose, liste = null, tasksColl
             <textarea style={{ ...fieldStyle, minHeight: 72, resize: "vertical" }} value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Preferenze, note speciali..." />
           </div>
         </div>
+        {/* L'esito della scrittura, accanto al bottone che l'ha avviata. Il
+            toast col messaggio del database lo mostra già il registry di
+            persistenza: qui si dice l'unica cosa che il toast non dice, cioè
+            che la scheda è ancora compilata e che riprovare è sensato. */}
+        <FieldError id="cli-save-err">{erroreSalvataggio}</FieldError>
         <div style={rowGap10Mt20}>
           <button type="button" onClick={onClose} style={boxF14Muted}>Annulla</button>
           {/* Criticità #10: il bottone NON è più disabilitato dal nome

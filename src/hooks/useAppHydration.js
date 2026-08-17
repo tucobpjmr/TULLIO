@@ -1,6 +1,7 @@
 // src/hooks/useAppHydration.js
 // Idratazione + realtime dei dati di dominio che vivono nel reducer: task
-// (con commenti e cronologia), avvisi, categorie, team e clienti.
+// (con i commenti; la cronologia no — vedi A-3 passo 3 sotto), avvisi,
+// categorie, team e clienti.
 //
 // Tutte le sottoscrizioni condividono la stessa base — reload debounced con un
 // gen-counter che scarta le risposte obsolete: vedi useDebouncedTableSubscription
@@ -11,8 +12,8 @@
 // che cresce col prodotto fra righe e frequenza di scrittura). `categories`,
 // `team` e `messageTemplates` restano al reload completo — tabelle piccole,
 // dove il merge per riga non avrebbe risparmiato nulla di misurabile; `tasks`
-// lo fa SOLO per la tabella `tasks` in senso stretto, non per `comments`/
-// `task_history`, che restano sul reload selettivo esistente (SET_TASK_THREADS).
+// lo fa SOLO per la tabella `tasks` in senso stretto, non per `comments`, che
+// restano sul reload selettivo esistente (SET_TASK_THREADS).
 // Il reload intero resta comunque l'unica via per l'idratazione iniziale e per
 // la ripresa dopo un buco di connessione (`tabelle = null` in entrambi i casi):
 // lì non c'è un payload da applicare, solo l'incertezza su cosa si è perso.
@@ -38,6 +39,29 @@
 // Come già per `crmLoading`, il valore iniziale è `enabled` valutato al primo
 // render: senza login non c'è idratazione (si usano i mock) e i flag nascono
 // già chiusi.
+//
+// ─── A-3 · LA FINESTRA SULLE TASK COMPLETATE ───────────────────────────────
+// L'idratazione chiedeva `{ withComments: true, includeDeleted: true }` senza
+// alcun filtro temporale: TUTTO lo storico, a ogni avvio a freddo, a ogni
+// ripresa dopo un buco di connessione e in memoria per l'intera sessione. È
+// corretto (nessun troncamento silenzioso, C-1) ed è esattamente il tipo di
+// correttezza che peggiora da sola: la quota di quel payload che serve alle
+// viste d'ingresso cala man mano che l'agenzia usa il gestionale, cioè il
+// tempo di avvio cresce con l'anzianità dell'installazione.
+//
+// Ora l'idratazione chiede una FINESTRA — task non completate, più le
+// completate degli ultimi `FINESTRA_COMPLETATE_GG` giorni — e NON chiede il
+// cestino. Le due metà sono inseparabili: senza la seconda (le viste che
+// vogliono il resto se lo caricano da sé, `caricaStorico` qui sotto) la prima
+// non sarebbe una finestra ma una perdita di dati.
+//
+// `storicoCompleto` è un REF e non uno stato perché non è un dato da
+// disegnare: è il parametro con cui il prossimo reload — incluso quello di
+// riconnessione, che parte da dentro `useDebouncedTableSubscription` e non
+// rilegge le dipendenze — deve interrogare il server. Una volta che una vista
+// ha chiesto il corpus intero, l'idratazione resta completa per il resto della
+// sessione: altrimenti il primo `visibilitychange` svuoterebbe l'Archivio
+// sotto gli occhi di chi lo sta guardando.
 
 import { useState, useCallback, useRef } from "react";
 import {
@@ -47,7 +71,7 @@ import {
 } from "../lib/api.js";
 import {
   fromDbTask, fromDbNotice, fromDbClient, fromDbCategory,
-  fromDbComment, fromDbHistory, fromDbMessageTemplate,
+  fromDbComment, fromDbMessageTemplate,
 } from "../lib/mappers.js";
 import { useDebouncedTableSubscription } from "./useDebouncedTableSubscription.js";
 import { stessaLista, stessaMappa } from "../lib/confrontoIdratazione.js";
@@ -66,6 +90,33 @@ const perTaskId = (righe, mapper) => {
 // cinque `useState`: i consumatori leggono `loading.tasks`, e aggiungere
 // un'entità non richiede di ricordarsi di propagare un sesto flag.
 const ENTITA = ["tasks", "notices", "categories", "team", "clients", "messageTemplates"];
+
+// A-3 · Ampiezza della finestra, in giorni, sulle task COMPLETATE.
+//
+// Sessanta e non trenta perché il numero non deve essere scelto contando i
+// byte risparmiati oggi: deve essere abbastanza largo da coprire il periodo in
+// cui una task chiusa viene ancora riaperta o consultata di riflesso da chi
+// lavora, così che la strada normale non passi mai dal caricamento dello
+// storico. Misurato in produzione il 17 agosto 2026: con 60 giorni restano
+// fuori 33 righe su 292 (le sole cestinate — la prima task è dell'11 giugno,
+// nessuna completata ha ancora sessanta giorni); con 30 ne resterebbero fuori
+// 109. Cioè oggi questa correzione non fa quasi nulla, ed è il momento giusto
+// per farla: fra dodici mesi, al ritmo attuale (~5,6 task/giorno), la parte
+// esclusa è la maggioranza del payload.
+const FINESTRA_COMPLETATE_GG = 60;
+
+// I MILLISECONDI SONO TOLTI DI PROPOSITO, e non per estetica. Questo valore
+// finisce dentro l'espressione `or=(…)` di PostgREST, dove il punto è il
+// separatore fra colonna, operatore e valore: `toISOString()` produce
+// `…T08:00:00.000Z`, cioè un valore che contiene il separatore. Le due letture
+// possibili di quella stringa (il valore è tutto ciò che segue il secondo
+// punto / il valore va citato perché contiene un carattere riservato) danno
+// risultati diversi, e sbagliare significa una 400 su OGNI idratazione.
+// Senza millisecondi il valore non contiene punti e le due letture coincidono:
+// non c'è una domanda a cui rispondere. La precisione persa è irrilevante —
+// il confine di una finestra di sessanta giorni.
+const inizioFinestra = () =>
+  new Date(Date.now() - FINESTRA_COMPLETATE_GG * 864e5).toISOString().replace(/\.\d{3}Z$/, "Z");
 
 export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
   const [loading, setLoading] = useState(
@@ -92,57 +143,86 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
   const ultimoTeam = useRef(null);
   const ultimeCategorie = useRef(null);
 
+  // A-3 · «lo stato deve contenere il corpus intero delle task», non «lo
+  // contiene». È il parametro dei reload futuri (vedi il commento in testa), e
+  // per questo si alza PRIMA della richiesta e si riabbassa se quella fallisce:
+  // fra i due momenti qualunque reload concorrente parte già completo, ed è
+  // l'unica sequenza in cui una risposta più stretta non può arrivare in
+  // ritardo e potare ciò che una vista sta mostrando.
+  const storicoCompleto = useRef(false);
+  const [caricandoStorico, setCaricandoStorico] = useState(false);
+
   // Idratazione tasks + notices dal DB al primo mount in modalità Supabase,
   // più subscription realtime: ad ogni evento postgres ricarico la lista
   // intera (debounced) — semplice e robusto al duplicate dell'eco locale.
   // Caveat #10: il pattern reload+debounce+gen-counter vive in
-  // useDebouncedTableSubscription; le tasks ascoltano anche comments e
-  // task_history (cronologia per-task, sessione 42).
-  useDebouncedTableSubscription(["tasks", "comments", "task_history"], async (isCurrent, tabelle) => {
-    // Un commento aggiunto o una riga di cronologia NON cambiano i campi del
-    // task: cambiano solo il thread appeso al task. Finché il reload non
-    // sapeva quale tabella avesse generato l'evento era costretto a
-    // riscaricare tutto per costruzione, e `TASK_SELECT_WITH_COMMENTS` non è
-    // una query leggera — porta con sé commenti e cronologia con i join sui
-    // nomi, include il cestino (includeDeleted) e non è paginata. Con tre
-    // tabelle sottoscritte, il caso più frequente (qualcuno commenta) era
-    // anche il più caro.
+  // useDebouncedTableSubscription; le tasks ascoltano anche `comments`.
+  //
+  // ─── `task_history` NON È PIÙ QUI (A-3, passo 3) ──────────────────────────
+  // Era la terza tabella sottoscritta, e il suo evento faceva rileggere la
+  // cronologia INTERA di TUTTI i task. Era l'unica tabella dell'app che cresce
+  // e non si pota mai (660 righe il 17 agosto, ~14,8 al giorno), letta su un
+  // percorso che scatta a ogni modifica di stato/priorità/scadenza/assegnatario
+  // fatta da chiunque — con la proiezione a dodici mesi, sei round-trip
+  // SERIALI dentro `fetchAllRows` per aggiornare un pannello che quasi sempre
+  // non è aperto.
+  //
+  // La cronologia ha un lettore solo e guarda un task per volta: ora se la
+  // carica e se la tiene aggiornata quel lettore, con una sottoscrizione che
+  // vive solo mentre il pannello è montato e filtra sul proprio `task_id`
+  // (components/tasks/TaskHistoryPanel.jsx). Qui non resta niente da fare:
+  // togliere la tabella dall'elenco è la correzione, non una sua conseguenza.
+  useDebouncedTableSubscription(["tasks", "comments"], async (isCurrent, tabelle) => {
+    // Un commento aggiunto NON cambia i campi del task: cambia solo il thread
+    // appeso al task. Finché il reload non sapeva quale tabella avesse generato
+    // l'evento era costretto a riscaricare tutto per costruzione, e
+    // `TASK_SELECT_WITH_COMMENTS` non è una query leggera — porta con sé i
+    // commenti con i join sui nomi e non è paginata. Il caso più frequente
+    // (qualcuno commenta) era anche il più caro.
     //
     // `tabelle === null` è l'idratazione iniziale (nessun evento): serve tutto.
     // Stesso schema di useListeData (A-1).
     const soloThread = tabelle !== null && tabelle.size > 0 && !tabelle.has("tasks");
 
     if (soloThread) {
-      // Ricarica SOLO le tabelle che hanno davvero emesso: chi commenta non
-      // fa riscaricare la cronologia, e viceversa.
-      const [rCommenti, rCronologia] = await Promise.all([
-        tabelle.has("comments") ? TaskThreadsAPI.comments() : Promise.resolve(null),
-        tabelle.has("task_history") ? TaskThreadsAPI.history() : Promise.resolve(null),
-      ]);
+      const rCommenti = await TaskThreadsAPI.comments();
       if (!isCurrent()) return;
-      const fallita = [rCommenti, rCronologia].find(r => r?.error);
-      if (fallita) {
-        console.error("[VoyageDesk] TaskThreads", fallita.error);
-        onError(`Caricamento commenti fallito: ${fallita.error.message || ""}`);
+      if (rCommenti?.error) {
+        console.error("[VoyageDesk] TaskThreads", rCommenti.error);
+        onError(`Caricamento commenti fallito: ${rCommenti.error.message || ""}`);
         return;
       }
       dispatch({
         type: "SET_TASK_THREADS",
-        payload: {
-          comments: rCommenti ? perTaskId(rCommenti.data, fromDbComment) : undefined,
-          history: rCronologia ? perTaskId(rCronologia.data, fromDbHistory) : undefined,
-        },
+        payload: { comments: perTaskId(rCommenti.data, fromDbComment) },
       });
       return;
     }
 
-    // includeDeleted: true → portiamo anche le task soft-deleted nello stato,
-    // altrimenti la ri-idratazione realtime (che parte subito dopo un DELETE_TASK)
-    // le filtrerebbe via, svuotando il Cestino. Le viste attive (Dashboard,
-    // Calendario) filtrano comunque con getActiveTasks/isActiveTask, quindi le
-    // cestinate restano confinate alla vista Cestino.
-    const { data, error } = await TasksAPI.list({ withComments: true, includeDeleted: true });
+    // A-3 · La finestra, o il corpus intero se una vista l'ha già chiesto.
+    //
+    // `includeDeleted` non è più cablato a `true`. Lo era per una ragione che
+    // oggi ha un'altra risposta: la ri-idratazione realtime partiva subito dopo
+    // un DELETE_TASK e senza il cestino avrebbe svuotato la vista Cestino. Dal
+    // suggerimento strategico n.1 il soft-delete è un UPDATE applicato per riga
+    // (`applyRow` → MERGE_TASK_ROW), che la task cestinata la TIENE in stato:
+    // nessun reload parte più per un cestinamento. I reload completi rimasti
+    // sono l'idratazione iniziale e la ripresa dopo un buco di connessione, e
+    // in entrambi il cestino lo porta il caricamento dello storico — che
+    // `storicoCompleto` rende permanente per la sessione proprio perché la
+    // riconnessione non deve potare ciò che il Cestino sta mostrando.
+    const completo = storicoCompleto.current;
+    const { data, error } = await TasksAPI.list({
+      withComments: true,
+      includeDeleted: completo,
+      completeDal: completo ? null : inizioFinestra(),
+    });
     if (!isCurrent()) return;
+    // Una vista ha chiesto il corpus intero mentre questa richiesta era in
+    // volo: la risposta che abbiamo in mano è più STRETTA di ciò che lo stato
+    // deve contenere. `isCurrent()` non basta a scartarla — è il gen-counter
+    // delle richieste concorrenti dello stesso tipo, e queste due non lo sono.
+    if (!completo && storicoCompleto.current) return;
     if (error) {
       console.error("[VoyageDesk] Tasks.list", error);
       onError(`Caricamento task fallito: ${error.message || ""}`);
@@ -157,9 +237,9 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
     // tabella `tasks` porta la riga intera nel payload (`payload.new`): non
     // serve più il reload sopra, che scarica TASK_SELECT_WITH_COMMENTS —
     // join sui nomi, cestino incluso, non paginata — per aggiornare UN campo
-    // di UN task. `comments`/`task_history` restano fuori (`return false`):
-    // quegli eventi non portano righe di `tasks`, e il ramo `soloThread` qui
-    // sopra è già la versione selettiva per loro.
+    // di UN task. `comments` resta fuori (`return false`): quegli eventi non
+    // portano righe di `tasks`, e il ramo `soloThread` qui sopra è già la
+    // versione selettiva per loro.
     //
     // Sincrono e non async: a differenza del reload qui sopra non c'è alcuna
     // query di rete da attendere, quindi non serve `isCurrent()` — non esiste
@@ -182,6 +262,45 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
       return true;
     },
   });
+
+  // A-3, seconda metà · Il corpus intero, su richiesta di chi lo guarda.
+  //
+  // La chiamano — una volta sola, al mount — le viste per cui lo storico NON è
+  // materiale d'archivio ma il contenuto: Archivio, Cestino, le statistiche di
+  // sistema, l'export e la ricerca avanzata (vedi state/StoricoTaskContext.jsx
+  // per l'elenco e il perché di ciascuna). Sono tutte già `lazy()` o dietro un
+  // tab, cioè aperte da una minoranza di sessioni: è lo spostamento del costo
+  // su chi lo usa, non la sua rimozione.
+  //
+  // `SET_TASKS` e non un merge: il corpus intero è un SOVRAINSIEME della
+  // finestra, quindi sostituire è già la fusione giusta — e `fondiScrittureInVolo`
+  // continua a proteggere gli id con una scrittura in volo, come per ogni
+  // altro refetch.
+  //
+  // Chiude anche `loading.tasks`: se questa richiesta ha scartato la risposta
+  // dell'idratazione iniziale (il ramo `!completo && storicoCompleto.current`
+  // qui sopra), è l'unica rimasta a poterlo fare, e uno scheletro che gira per
+  // sempre è disonesto quanto un vuoto dichiarato troppo presto.
+  const caricaStorico = useCallback(async () => {
+    if (!enabled || storicoCompleto.current) return;
+    storicoCompleto.current = true;
+    setCaricandoStorico(true);
+    const { data, error } = await TasksAPI.list({ withComments: true, includeDeleted: true });
+    if (error) {
+      // Non ce l'abbiamo: l'idratazione torna alla finestra e un rimontaggio
+      // della vista riprova. Lasciare il ref alzato significherebbe chiedere
+      // per sempre un corpus che non è mai arrivato.
+      storicoCompleto.current = false;
+      setCaricandoStorico(false);
+      segnaCaricata("tasks");
+      console.error("[VoyageDesk] Tasks.list (storico)", error);
+      onError(`Caricamento dello storico task fallito: ${error.message || ""}`);
+      return;
+    }
+    dispatch({ type: "SET_TASKS", payload: (data || []).map(fromDbTask) });
+    setCaricandoStorico(false);
+    segnaCaricata("tasks");
+  }, [enabled, dispatch, onError, segnaCaricata]);
 
   useDebouncedTableSubscription(["notices"], async (isCurrent) => {
     const { data, error } = await NoticesAPI.list();
@@ -381,5 +500,10 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
   // `crmLoading` resta esposto come alias di `loading.clients`: è il nome con
   // cui ClientiView e i suoi test conoscono questo flag da sessione 23, e
   // rinominarlo non aggiungerebbe nulla.
-  return { loading, crmLoading: loading.clients };
+  //
+  // `storicoTask` è la coppia che alimenta <StoricoTaskProvider>: la richiesta
+  // e il flag di attesa. Non è un terzo flag di `loading` perché non descrive
+  // un'ENTITÀ che si sta idratando — le task ci sono già — ma una porzione di
+  // quell'entità che una vista specifica sta aspettando.
+  return { loading, crmLoading: loading.clients, storicoTask: { richiedi: caricaStorico, caricando: caricandoStorico } };
 }

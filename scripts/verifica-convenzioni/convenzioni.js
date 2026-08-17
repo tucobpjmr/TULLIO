@@ -202,6 +202,56 @@ export function usiSalvataggio(sorgenti) {
 }
 
 /**
+ * Il numero di viste che chiedono lo storico INTERO dei task, dichiarato in
+ * docs/CLAUDE.md (A-3 dell'audit performance/UX del 16 agosto, secondo
+ * passaggio).
+ */
+export function leggiCallSiteStorico(testo) {
+  const m = /(\d+)\s+viste chiedono\s+`useStoricoTaskCompleto`/.exec(testo);
+  if (!m) {
+    throw new LetturaFallita(
+      'docs/CLAUDE.md: non trovo la frase «N viste chiedono `useStoricoTaskCompleto`». ' +
+      'Se è stata riscritta, aggiorna QUESTO script insieme al documento.');
+  }
+  return Number(m[1]);
+}
+
+/**
+ * Le viste che dichiarano di aver bisogno del corpus intero dei task.
+ *
+ * PERCHÉ IL NUMERO VA TENUTO ONESTO, e perché in ENTRAMBE le direzioni. A-3
+ * vive su un equilibrio che nessuna delle due metà protegge da sola:
+ *
+ *  • una vista di TROPPO — la Dashboard, il Calendario, una scheda cliente —
+ *    annulla il rilievo lasciandone in piedi tutto il codice. L'app tornerebbe
+ *    a scaricare lo storico intero a ogni avvio, e non fallirebbe niente:
+ *    sarebbe solo di nuovo lenta, con dentro un modulo che dichiara di aver
+ *    risolto il problema.
+ *  • una vista di MENO — un tab nuovo che conta le task completate senza
+ *    chiedere il corpus — mostra un numero plausibile e sbagliato, che è il
+ *    difetto peggiore dei due.
+ *
+ * Come per `usiSalvataggio`, questo NON verifica che le viste giuste siano
+ * quelle giuste: l'elenco motivato sta in `state/StoricoTaskContext.jsx` e il
+ * comportamento è verificato dai test. Qui si fa scadere il numero in modo
+ * rumoroso, che è il mestiere di questo script.
+ *
+ * @param {{path: string, testo: string}[]} sorgenti
+ * @returns {string[]} i percorsi che importano l'hook
+ */
+export function usiStoricoTask(sorgenti) {
+  const IMPORTA = /import\s*\{[^}]*\buseStoricoTaskCompleto\b[^}]*\}\s*from/;
+  const usi = (sorgenti || []).filter(f => IMPORTA.test(f.testo)).map(f => f.path);
+  if (usi.length === 0) {
+    throw new LetturaFallita(
+      'Nessun file di src/ importa `useStoricoTaskCompleto`: o l\'hook è stato rimosso, ' +
+      'o la forma dell\'import è cambiata. In entrambi i casi la finestra ' +
+      'dell\'idratazione (A-3) non ha più nessuno che ne carichi il complemento.');
+  }
+  return usi;
+}
+
+/**
  * Confronta dichiarato e misurato e produce l'elenco degli scarti.
  * Ogni scarto dice ENTRAMBI i numeri e cosa aggiornare: la divergenza è il
  * difetto, non il numero — chi legge deve poter decidere se ha sbagliato il

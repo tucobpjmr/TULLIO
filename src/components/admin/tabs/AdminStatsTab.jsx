@@ -5,6 +5,7 @@ import { STATUSES, STATUS_LABELS, STATUS_COLORS } from "../../../lib/taskConstan
 import { isOverdue } from "../../../lib/taskUtils.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useTasks } from "../../../state/TasksContext.jsx";
+import { useStoricoTaskCompleto } from "../../../state/StoricoTaskContext.jsx";
 import { MessageTemplatesSection } from "./MessageTemplatesSection.jsx";
 import {
   flex1, gridGap10, rowCenterGap12, txtF11Muted, txtF12Muted2, txtF13Bold,
@@ -36,6 +37,16 @@ const rowCenterMiddle = {
 export const AdminStatsTab = ({ dispatch, messageTemplates = [] }) => {
   const { team, categories } = useAppData();
   const tasks = useTasks();
+  // A-3. Il tasso di completamento è un rapporto fra due conteggi sullo stesso
+  // array: la finestra dell'idratazione ne pota UNO SOLO (le completate
+  // vecchie), quindi senza il corpus intero questa scheda non mostrerebbe un
+  // numero incompleto ma un numero SBAGLIATO, e nulla nel valore lo direbbe.
+  const caricandoStorico = useStoricoTaskCompleto();
+  // «Zero è una risposta, i puntini sono l'assenza di risposta» (docs/CLAUDE.md,
+  // stati di attesa onesti). Restano fuori i conteggi che la finestra copre per
+  // costruzione — scaduti, agenti, carico di lavoro: contano solo task NON
+  // completate e non cestinate.
+  const conta = (n) => (caricandoStorico ? "…" : n);
   const active = tasks.filter(t => !t.deletedAt);
   const trashed = tasks.filter(t => t.deletedAt);
   const overdue = active.filter(t => isOverdue(t));
@@ -69,8 +80,8 @@ export const AdminStatsTab = ({ dispatch, messageTemplates = [] }) => {
     <div style={gridGap20}>
       {/* KPI */}
       <div className="vd-grid-kpi" style={gridGap12}>
-        {kpiCard("Task attivi", active.length, `${trashed.length} nel cestino`)}
-        {kpiCard("Completati", done.length, `${completionRate}% completion`, "var(--success)")}
+        {kpiCard("Task attivi", conta(active.length), `${conta(trashed.length)} nel cestino`)}
+        {kpiCard("Completati", conta(done.length), `${conta(completionRate)}% completion`, "var(--success)")}
         {kpiCard("Scaduti", overdue.length, "task non chiusi oltre data", "var(--danger)")}
         {kpiCard("Agenti", team.filter(m => m.active && !m.pending).length, `${team.filter(m => m.pending).length} in attesa`)}
       </div>
@@ -80,14 +91,18 @@ export const AdminStatsTab = ({ dispatch, messageTemplates = [] }) => {
         <h3 style={cardH}>📊 Distribuzione per status</h3>
         <div style={gridGap8}>
           {byStatus.map(s => {
-            const pct = active.length ? (s.count / active.length) * 100 : 0;
+            // La barra resta a zero finché lo storico non è arrivato: una
+            // barra disegnata su un denominatore parziale è un'affermazione
+            // grafica falsa, e a differenza di un numero non ha un "…" da
+            // mostrare al suo posto.
+            const pct = caricandoStorico || !active.length ? 0 : (s.count / active.length) * 100;
             return (
               <div key={s.s} style={rowCenterGap12}>
                 <div style={txtF13Text}>{s.label}</div>
                 <div style={boxFlex1H18}>
                   <div style={{ width: `${pct}%`, height: "100%", background: s.color, transition: "width 0.3s" }} />
                 </div>
-                <div style={txtF13Bold2}>{s.count}</div>
+                <div style={txtF13Bold2}>{conta(s.count)}</div>
               </div>
             );
           })}

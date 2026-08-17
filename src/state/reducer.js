@@ -218,39 +218,38 @@ function baseReducer(state, action) {
       return { ...state, tasks: fondiScrittureInVolo(action.payload, state.tasks, state.pendingWrites) };
     }
     case "SET_TASK_THREADS": {
-      // Idratazione parziale: solo commenti e/o cronologia, indicizzati per
-      // task. La dispatcha useAppHydration quando l'evento realtime arriva da
-      // `comments` o `task_history` e NON da `tasks` — in quel caso i campi del
-      // task non possono essere cambiati, e riscaricarli tutti (con i join sui
-      // nomi e il cestino incluso) per un commento in più è sproporzionato.
+      // Idratazione parziale: solo i commenti, indicizzati per task. La
+      // dispatcha useAppHydration quando l'evento realtime arriva da `comments`
+      // e NON da `tasks` — in quel caso i campi del task non possono essere
+      // cambiati, e riscaricarli tutti (con i join sui nomi) per un commento in
+      // più è sproporzionato.
       //
-      // Una chiave assente = quella fetta non è stata ricaricata e resta com'è:
-      // è la differenza fra "nessun commento su questo task" (mappa presente,
-      // voce mancante → array vuoto) e "i commenti non sono stati riletti"
-      // (mappa assente → si tiene il valore corrente).
-      const { comments, history } = action.payload || {};
-      if (!comments && !history) return state;
+      // Portava anche la CRONOLOGIA, fino ad A-3 (passo 3): ora la cronologia
+      // non è più un campo del task, si legge per task aperto e vive nello
+      // stato locale del pannello che la mostra (TaskHistoryPanel.jsx). Il
+      // ramo è stato tolto e non lasciato inerte: un case che accetta una
+      // chiave che nessuno dispatcha più è una scorciatoia già pronta per
+      // rimettere la cronologia nello stato globale senza accorgersene.
+      const { comments } = action.payload || {};
+      if (!comments) return state;
       // Stessa protezione di SET_TASKS: un task con una scrittura in volo (es.
       // ADD_COMMENT appena dispatchato) non si lascia sovrascrivere dal thread
       // riletto dal server, che può non contenerla ancora.
       const pending = state.pendingWrites;
       return {
         ...state,
-        tasks: state.tasks.map(t => (pending?.has(t.id) ? t : {
-          ...t,
-          ...(comments ? { comments: comments[t.id] || [] } : {}),
-          ...(history ? { history: history[t.id] || [] } : {}),
-        })),
+        tasks: state.tasks.map(t => (pending?.has(t.id) ? t : { ...t, comments: comments[t.id] || [] })),
       };
     }
     // Gemello "per riga" di SET_TASKS (suggerimento strategico n.1, audit del
     // 16 agosto): applica UN evento sulla tabella `tasks` invece di
     // ricaricare l'elenco — vedi applyRow in useAppHydration.js e
     // applicaRigaRealtime in pendingWrites.js per il perché e l'invariante.
-    // `comments`/`history` non sono colonne di `tasks`: si preservano quelle
-    // già in stato, altrimenti ogni evento le azzererebbe.
+    // `comments` non è una colonna di `tasks`: si preservano quelli già in
+    // stato, altrimenti ogni evento li azzererebbe. La cronologia non compare
+    // più qui perché non è più un campo del task (A-3, passo 3).
     case "MERGE_TASK_ROW": {
-      const fondiTask = (prev, row) => ({ ...row, comments: prev.comments, history: prev.history });
+      const fondiTask = (prev, row) => ({ ...row, comments: prev.comments });
       return { ...state, tasks: applicaRigaRealtime(state.tasks, state.pendingWrites, action.payload, fondiTask) };
     }
     case "MOVE_TASK": {

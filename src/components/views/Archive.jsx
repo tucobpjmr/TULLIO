@@ -14,6 +14,7 @@ import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { formatDate, getArchivedTasks } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useTasks } from "../../state/TasksContext.jsx";
+import { useStoricoTaskCompleto } from "../../state/StoricoTaskContext.jsx";
 import { PERIOD_OPTIONS, filterByPeriod, thStyle, chipStyle } from "./archiveFilters.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import {
@@ -45,6 +46,11 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
   const { isMobile } = useViewport();
   const { categories, currentUserId, getVisibleTasks, canEditTask, canAccessListe } = useAppData();
   const tasks = useTasks();
+  // A-3: l'archivio SONO le task completate, cioè esattamente la parte che
+  // l'idratazione lascia fuori dalla finestra. Chiedendo il corpus intero al
+  // mount, «209 task completate» torna a essere il totale e non «quelle degli
+  // ultimi sessanta giorni» detto con la stessa faccia.
+  const caricandoStorico = useStoricoTaskCompleto();
   const me = currentUserId;
   // Le liste buoni viaggio seguono l'accesso al modulo Liste Viaggio (stessa
   // RLS): niente tab, niente fetch, per chi non può comunque accedervi.
@@ -71,7 +77,15 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
   });
 
   // "Sto ancora caricando e non ho ancora nulla": vedi Dashboard.jsx.
-  const caricando = loading && tasks.length === 0;
+  //
+  // Il secondo addendo NON ha la condizione `tasks.length === 0`, e la
+  // differenza è il punto di A-3: qui i task in stato ci sono già — sono
+  // quelli della finestra — e mostrarli mentre lo storico arriva significa
+  // scrivere un conteggio parziale che fra un istante cambia. Il caso che la
+  // condizione originale protegge (un reload realtime che nasconde sotto uno
+  // scheletro ciò che è già a schermo) non si presenta: questa richiesta parte
+  // una volta sola, al primo mount della vista.
+  const caricando = (loading && tasks.length === 0) || caricandoStorico;
   const hasActiveFilter = category !== "all" || query.trim() || period !== "all";
   const resetFilters = () => { setCategory("all"); setQuery(""); setPeriod("all"); };
 
@@ -132,7 +146,7 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
           </div>
 
           {/* Filtri — solo se ci sono task */}
-          {archived.length > 0 && (
+          {!caricando && archived.length > 0 && (
             <div style={rowCenterGap8}>
               <input
                 value={query}
@@ -152,7 +166,7 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
           )}
 
           {/* Filtro periodo (per data di completamento) — solo se ci sono task */}
-          {archived.length > 0 && (
+          {!caricando && archived.length > 0 && (
             <div style={rowCenterGap82}>
               <span style={txtF11Bold}>Completate:</span>
               {PERIOD_OPTIONS.map(opt => (

@@ -30,18 +30,22 @@ const chiamate = [];
 // `.range(da, a)` che tronca al cap come fa il server vero e restituisce il
 // `count` totale nel Content-Range.
 const builder = (tabella) => {
-  const stato = { ordini: [], conteggio: false };
+  const stato = { ordini: [], conteggio: false, eq: [] };
   const self = {
     select: (_cols, opts) => { stato.conteggio = opts?.count === "exact"; return self; },
     order: (col) => { stato.ordini.push(col); return self; },
     // `Tasks.list()` filtra il cestino con `.is('deleted_at', null)` DOPO la
     // select: il builder deve restare concatenabile, altrimenti il test
-    // fallirebbe per la forma della catena e non per ciò che misura.
+    // fallirebbe per la forma della catena e non per ciò che misura. Stesso
+    // discorso per `.eq()`, che `TaskThreads.historyForTask` usa per il
+    // `task_id` (A-3, passo 3); il filtro viene registrato perché c'è un test
+    // che verifica proprio quello.
     is: () => self,
+    eq: (col, val) => { stato.eq.push([col, val]); return self; },
     range: (da, a) => {
       const richieste = a - da + 1;
       const consegnate = Math.min(richieste, CAP);
-      chiamate.push({ tabella, da, a, ordini: [...stato.ordini], conteggio: stato.conteggio });
+      chiamate.push({ tabella, da, a, ordini: [...stato.ordini], conteggio: stato.conteggio, eq: [...stato.eq] });
       return Promise.resolve({
         data: RIGHE.slice(da, da + consegnate),
         count: stato.conteggio ? TOTALE : null,
@@ -107,13 +111,24 @@ describe("Clients.list — non può essere troncata dal cap PostgREST", () => {
 // completo passa dalle risorse ANNIDATE di TASK_SELECT_WITH_COMMENTS, che il
 // cap del primo livello non tocca; è il reload SELETTIVO (`soloThread` in
 // useAppHydration, quello che scatta quando un collega commenta) a rileggere
-// queste due tabelle piatte. Con l'ordine ascendente a cadere sono le righe
-// più RECENTI, e `SET_TASK_THREADS` traduce una riga assente in `[]`. Cioè: la
-// cronologia sparisce quando qualcun altro commenta e torna premendo F5.
+// la tabella piatta. Con l'ordine ascendente a cadere sono le righe più
+// RECENTI, e `SET_TASK_THREADS` traduce una riga assente in `[]`. Cioè: il
+// thread sparisce quando qualcun altro commenta e torna premendo F5.
+//
+// ─── A-3, passo 3 · la cronologia è ancora qui, ma con un'altra forma ──────
+// `TaskThreads.history()` (per corpus) è diventata `historyForTask(taskId)`.
+// Resta in questo elenco — e la paginazione resta il contratto — per una
+// ragione che vale la pena dire, perché a prima vista il filtro `.eq` la
+// renderebbe superflua: il cap di PostgREST non guarda quanto è VEROSIMILE il
+// risultato, guarda quante righe tornano. Una cronologia di un task non
+// arriverà a mille righe, ma è esattamente il ragionamento con cui
+// `Clients.list()` è rimasta una select nuda fino a 818 righe (ST-3). Il costo
+// di tenerla paginata è zero; il costo di dedurre che non serve è una riga che
+// non arriva, senza errore.
 describe.each([
   ["Tasks.list", () => Tasks.list(), ["due_date", "id"]],
   ["TaskThreads.comments", () => TaskThreads.comments(), ["created_at", "id"]],
-  ["TaskThreads.history", () => TaskThreads.history(), ["created_at", "id"]],
+  ["TaskThreads.historyForTask", () => TaskThreads.historyForTask("t1"), ["created_at", "id"]],
 ])("%s — non può essere troncata dal cap PostgREST", (_nome, chiama, ordiniAttesi) => {
   it("pagina con .range() invece di fare una select nuda", async () => {
     await chiama();
@@ -140,6 +155,26 @@ describe.each([
     expect(error).toBeNull();
     expect(data).toHaveLength(TOTALE);
     expect(data[TOTALE - 1].id).toBe("c1499");
+  });
+});
+
+// ─── A-3, passo 3 · la cronologia si legge PER TASK APERTO ────────────────
+// Il filtro è la correzione, non un dettaglio dell'implementazione: senza,
+// questa lettura torna a scaricare la cronologia di TUTTI i task su un
+// percorso che scatta a ogni modifica fatta da chiunque, ed è muta — funziona,
+// costa, e nessun test fallisce.
+describe("TaskThreads.historyForTask — legge la cronologia di UN task", () => {
+  it("filtra per task_id invece di leggere il corpus", async () => {
+    await TaskThreads.historyForTask("task-42");
+    expect(chiamate[0].eq).toEqual([["task_id", "task-42"]]);
+  });
+
+  it("i commenti restano invece per corpus: la ricerca globale ci cerca dentro", async () => {
+    // `AdvancedSearchPanel` fa `matchTermini(… (t.comments || []).map(c => c.text))`.
+    // È la differenza fra le due tabelle figlie, e la ragione per cui il passo
+    // 3 di A-3 tocca solo la cronologia.
+    await TaskThreads.comments();
+    expect(chiamate[0].eq).toEqual([]);
   });
 });
 

@@ -80,14 +80,14 @@ prima di qualsiasi altra cosa.
 | **A-1** | 🟠 Alta | Architettura | Due architetture dati parallele (core vs modulo Liste) — 🔧 **rivisto il 15 agosto**, non chiuso: uno dei tre passi proposti era sbagliato | `src/state/` vs `src/components/liste/` |
 | **M-1** ✔ | 🟡 Media | Sicurezza | `importa_backup` — ✅ **chiuso lo stesso 15 agosto**: era più permissiva al DB (`can_liste()`) di quanto creduto, e l'ingresso UI reale non era quello descritto | DB produzione |
 | **M-2** ✔ | 🟡 Media | Sicurezza / Ops | ✅ **chiuso lo stesso 15 agosto.** Il ledger prova che una migrazione è stata *registrata*, non che il corpo applicato sia quello del file; 3 migrazioni risultano applicate due volte e i controlli non possono vederlo (usano `Set`) | `schema_migrations` + `migrazioni.js` |
-| **M-3** | 🟡 Media | Architettura | `VoyageDeskInner.jsx`: 518 righe, 6 hook di dominio + 8 stati UI + provider annidati in un solo componente | `src/VoyageDeskInner.jsx` |
+| **M-3** ✔ | 🟡 Media | Architettura | ✅ **chiuso il 18 agosto.** `VoyageDeskInner.jsx`: 518 righe, 6 hook di dominio + 8 stati UI + provider annidati in un solo componente | `src/VoyageDeskInner.jsx` |
 | **M-4** ✔ | 🟡 Media | Architettura | ✅ **chiuso lo stesso 15 agosto.** Densità di commento molto alta: il commento è diventato la specifica, e ha già divergito dal database su una policy di sicurezza | `src/lib/api.js`, `AuthContext.jsx` |
-| **B-1** | 🟢 Bassa | Sicurezza | `notify_user_pending` usa `lower(role) = 'admin'`: unico gate del sistema non allineato al confronto esatto | DB produzione |
-| **B-2** | 🟢 Bassa | Sicurezza | La motivazione dell'esposizione di `get_migrazioni_applicate()` ad `anon` poggia su una premessa non più vera (il repository è privato) | `SICUREZZA.md:50` vs `README.md` |
-| **B-3** | 🟢 Bassa | Architettura | 4 componenti oltre 400 righe con 9–10 `useState` | `src/components/` |
+| **B-1** ✔ | 🟢 Bassa | Sicurezza | ✅ **chiuso il 18 agosto**, migrazione applicata in produzione. `notify_user_pending` usava `lower(role) = 'admin'`: unico gate del sistema non allineato al confronto esatto | DB produzione |
+| **B-2** ✔ | 🟢 Bassa | Sicurezza | ✅ **chiuso il 18 agosto**: premessa corretta, decisione confermata con l'argomento vero. La motivazione dell'esposizione di `get_migrazioni_applicate()` ad `anon` poggiava su una premessa non più vera (il repository è privato) | `SICUREZZA.md:50` vs `README.md` |
+| **B-3** ✔ | 🟢 Bassa | Architettura | ✅ **chiuso il 18 agosto.** 4 componenti oltre 400 righe con 9–10 `useState` | `src/components/` |
 | **B-4** | 🟢 Bassa | Sicurezza | CVE `xlsx` 0.18.5 residue — già note, documentate e mitigate; blocco CDN riconfermato | `src/lib/xlsx.js` |
-| **B-5** | 🟢 Bassa | Sicurezza | 5 vulnerabilità high transitive **solo dev** con fix disponibile | `npm audit` |
-| **B-6** | 🟢 Bassa | Architettura | Assenza di TypeScript su 47k righe con dominio a forte tipizzazione implicita | progetto |
+| **B-5** ✔ | 🟢 Bassa | Sicurezza | ✅ **chiuso il 18 agosto**: `npm audit fix`, da 6 high a 1 (resta il solo `xlsx`, cioè B-4). 5 vulnerabilità high transitive **solo dev** con fix disponibile | `npm audit` |
+| **B-6** ✔ | 🟢 Bassa | Architettura | ✅ **chiuso il 18 agosto** con `checkJs` incrementale verificato in CI (`npm run verifica:tipi`, a zero). Assenza di TypeScript su 47k righe con dominio a forte tipizzazione implicita | progetto |
 
 ---
 
@@ -364,6 +364,45 @@ dover essere richiuso a mano nel modulo.
 
 ---
 
+**18 agosto — il residuo è chiuso, il rilievo NO.**
+
+Chiuso ciò che era chiudibile senza una sessione di design: **il terzo registry
+usa ora la definizione condivisa**. `lib/esitoScrittura.js` è nato per dare UNA
+risposta a «è andata bene?» ai tre registry dell'app, e il suo commento li
+nomina tutti e tre — il core, la chat, il modulo Liste. Ne aveva due:
+`listePersistence.js` era rimasto con il proprio `if (error)` scritto a mano,
+cioè con la cecità che quel modulo esiste per togliere di mezzo, e in
+violazione diretta del ⛔ di `docs/CLAUDE.md` («Non riscrivere `if (r?.error)` a
+mano in un sottosistema nuovo»).
+
+⚠️ È una convergenza, non una correzione di comportamento: le diciotto
+operazioni del modulo passano tutte da una RPC, che non ritorna un conteggio di
+righe, quindi `esitoScrittura` si comporta oggi esattamente come l'`if` che
+sostituisce. Il valore è per il giorno in cui una scrittura del modulo toccherà
+una tabella direttamente — il rifiuto silenzioso della RLS sarà già visto qui,
+invece di dover essere scoperto una terza volta. Blindato da
+`src/test/convergenzaRegistry.test.js`, che verifica la proprietà sui SORGENTI
+perché è di forma e non osservabile a runtime su un registry che oggi non ha
+scritture su tabella.
+
+**Perché A-1 resta aperto.** Le due strade che restano — le entry di
+`PERSISTENCE` e l'idratazione unificata — sono quelle che questa stessa
+revisione ha già respinto: contraddicono una decisione di design **dichiarata
+nel codice** (`listePersistence.js`: niente update ottimistico, perché il
+modulo non mostra mai uno stato che il database non abbia confermato), su un
+modulo che gestisce saldi e movimenti finanziari. Farle in una sessione di
+smaltimento arretrato significherebbe annullare quella decisione senza la
+revisione di design che merita — cioè ripetere in grande l'errore che il
+riquadro in cima a questo rilievo documenta in piccolo.
+
+**Cosa serve davvero**, ed è il lavoro da fare quando lo si affronterà: un modo
+per il registry di DICHIARARE che una entry non fa update ottimistico, invece
+di richiederlo sempre. Con quello, la convergenza smette di essere una scelta
+fra due architetture e diventa una migrazione entry per entry, reversibile e
+verificabile una alla volta. Senza, resta un rifacimento.
+
+---
+
 ### 🟡 M-1 · `importa_backup`: il DB è più permissivo di ogni percorso che lo raggiunge — ✅ chiuso lo stesso 15 agosto
 
 > **Chiuso, con una correzione al rilievo stesso.** Il DB ora richiede
@@ -568,7 +607,7 @@ secondo.
 
 ---
 
-### 🟡 M-3 · `VoyageDeskInner.jsx` concentra troppe responsabilità
+### 🟡 M-3 · `VoyageDeskInner.jsx` concentra troppe responsabilità — ✅ chiuso il 18 agosto
 
 **Dove**: `src/VoyageDeskInner.jsx` (518 righe).
 
@@ -617,6 +656,39 @@ export function useShellUi() {
 
 più un `<AppProviders>` che raccolga l'annidamento. Il guscio torna a fare una
 cosa sola: comporre.
+
+**Correzione (applicata il 18 agosto).** Entrambi, come descritto:
+`src/hooks/useShellUi.js` e `src/state/AppProviders.jsx`. `VoyageDeskInner`
+scende da 544 a 486 righe, ma il numero non è il punto — il punto è che i due
+lavori che faceva insieme (montare i sei hook di dominio, tenere i pannelli
+aperti) ora si leggono separatamente.
+
+Tre cose emerse implementando.
+
+1. **`useShellUi` espone COMANDI, non setter.** La bozza del rilievo ritorna
+   `setShowChat`, `setShowFABModal`, `setShowBulkModal`; l'hook ritorna
+   `openChatPanel`/`closeChatPanel`/`openBulk`/`closeBulk`/`openFAB`/`closeFAB`.
+   La differenza non è cosmetica: un setter esposto rimette nel JSX del guscio
+   le arrow inline (`onClose={() => setShowBulkModal(false)}`) che sono
+   esattamente le prop nuove a ogni render contro cui il `memo` di
+   Sidebar/BottomNav/Dashboard non può nulla — il difetto di ST-1, riaperto dal
+   refactoring che doveva ordinare il file.
+2. **Serve un `chiudiPannelli()`.** Al cambio utente il guscio chiudeva chat,
+   bulk e FAB con tre `setState` in un effetto: tre cose da ricordare insieme,
+   e un pannello lasciato aperto attraverso un cambio di identità è il modo in
+   cui si guarda la chat di qualcun altro. È una transizione sola e ora si
+   chiama.
+3. **Gli effetti destrutturano per nome.** `ui` è un oggetto nuovo a ogni
+   render: metterlo nelle dipendenze di un `useEffect` lo farebbe ripartire
+   sempre. Le tre callback che servono dentro un effetto (`openFAB`,
+   `setShowKeyHelp`, `chiudiPannelli`) sono estratte per nome e dichiarate —
+   che è ciò che tiene `exhaustive-deps` a zero warning senza silenziarlo.
+
+`AppProviders` non calcola niente e non costruisce alcun `value`: è
+annidamento, con l'ORDINE motivato riga per riga (perché `AppData` sta sopra,
+perché `Tasks` e `Clients` sono due provider e non uno, perché `Confirm` sta
+dentro e non fuori). Se un giorno dovesse calcolare qualcosa, la domanda giusta
+è a quale provider appartenga quel calcolo.
 
 ---
 
@@ -684,7 +756,7 @@ codice è così — restano esattamente come sono.
 
 ---
 
-### 🟢 B-1 · `notify_user_pending` confronta il ruolo diversamente da ogni altro gate
+### 🟢 B-1 · `notify_user_pending` confronta il ruolo diversamente da ogni altro gate — ✅ chiuso il 18 agosto
 
 **Dove**: `public.notify_user_pending()` (verificata in produzione).
 
@@ -711,9 +783,31 @@ percorso di C-1.
   loop
 ```
 
+**Correzione (applicata il 18 agosto).** Migrazione
+`20260818092812_notify_user_pending_ruolo_esatto`, **applicata in produzione**
+con la procedura di `docs/MIGRAZIONI_SUPABASE.md` e verificata dopo: il corpo
+della funzione non chiama più `lower()` e il trigger è ancora agganciato.
+
+**Verificato prima di applicare**, perché una migrazione che si crede
+equivalente e non lo è vale meno di zero: i due predicati selezionano oggi le
+stesse righe (1 e 1 su produzione).
+
+**Una precisazione al rilievo**: dice «l'enum non ammette 'Admin'». **Non è un
+enum** — `users.role` è una colonna `text` con un CHECK constraint
+(`users_role_check`) che ammette i quattro valori minuscoli. L'effetto oggi è
+identico, ma la differenza conta per chi legge: un CHECK si può allargare con
+una migrazione, e nel giorno in cui succedesse questo predicato divergerebbe
+dagli altri tre in silenzio. Il rilievo non ne esce indebolito — ne esce con la
+ragione giusta.
+
+⚠️ Il file nel repo porta il timestamp con cui `apply_migration` l'ha
+REGISTRATA (`...092812`), non quello che gli avevo dato scrivendolo
+(`...090000`). È la stessa deriva repo↔produzione che quel documento descrive,
+colta al primo giro invece che fra sei mesi da `verifica:migrazioni`.
+
 ---
 
-### 🟢 B-2 · La motivazione dell'esposizione ad `anon` poggia su una premessa non più vera
+### 🟢 B-2 · La motivazione dell'esposizione ad `anon` poggia su una premessa non più vera — ✅ chiuso il 18 agosto
 
 **Dove**: `docs/SICUREZZA.md:50-52` e
 `supabase/migrations/20260806140000_get_migrazioni_applicate.sql:17-24`.
@@ -744,9 +838,27 @@ revoke execute on function public.get_migrazioni_applicate() from anon;
 Se si preferisce lasciarla ad `anon`, va bene — ma allora `SICUREZZA.md` va
 corretto, perché oggi motiva la scelta con un fatto che non è vero.
 
+**Correzione (applicata il 18 agosto): il grant RESTA, la premessa è
+corretta.** È la seconda delle due strade che il rilievo offre, ed è quella
+giusta per una ragione che il rilievo non poteva vedere — il consumatore non è
+uno, sono **due**, e il secondo non può autenticarsi per costruzione.
+
+`keep-supabase-warm.yml` pinga questa RPC proprio perché dalla revoca dei GRANT
+ad `anon` (S-16) non esiste più una tabella che quel ruolo possa interrogare:
+è l'unico endpoint anon rimasto che tocchi davvero Postgres, e il grant esiste
+in questa forma per quello. Revocarlo romperebbe il workflow che tiene sveglio
+il progetto — cioè creerebbe il guasto silenzioso che quel file documenta in
+testa — in cambio della sola riservatezza di un elenco di nomi, in un progetto
+il cui modello di minaccia non include chi conosce URL e chiave anon.
+
+`SICUREZZA.md` porta ora la correzione a vista, in un riquadro invece che
+riscritta in silenzio: **ciò che era sbagliato era l'ARGOMENTO, non la
+conclusione**, ed è il tipo di premessa da correggere subito — chi la legge la
+usa per decidere il caso successivo.
+
 ---
 
-### 🟢 B-3 · Componenti oltre 400 righe con 9–10 `useState`
+### 🟢 B-3 · Componenti oltre 400 righe con 9–10 `useState` — ✅ chiuso il 18 agosto
 
 **Dove**: `ProfileEditor.jsx` (469 righe, 10 `useState`), `ClientiView.jsx`
 (400/10), `AdvancedSearchPanel.jsx` (411/9), `ClientImportModal.jsx` (429/9).
@@ -778,6 +890,48 @@ function editorReducer(s, a) {
 Priorità bassa: sono componenti foglia, il rischio è di manutenzione, non di
 correttezza.
 
+**Correzione (applicata il 18 agosto) — e il rischio NON era solo di
+manutenzione.** Tre dei quattro componenti sono passati a un `useReducer`; il
+quarto non andava toccato. Ma il primo, convertendolo, ha rivelato un difetto
+di correttezza già in produzione.
+
+**`ClientImportModal` (10 → 1 `useState`).** `handleFile` scriveva il nome del
+file nuovo **senza azzerare** righe, colonne, mappatura e selezione del
+precedente: caricare un secondo file illeggibile (vuoto, formato non
+riconosciuto) lasciava a schermo l'anteprima del PRIMO sotto il nome del
+SECONDO, pronta per essere importata. È esattamente ciò che il rilievo
+predice — «le transizioni valide non sono descritte da nessuna parte: sono
+l'intersezione implicita di dieci `setX` sparsi negli handler» — e nessuno dei
+nove setter era sbagliato: mancava il posto in cui dire che «scegliere un file»
+è UNA transizione. Ora `FILE_SCELTO` riparte da `IMPORT_INIZIALE`.
+
+**`AdvancedSearchPanel` (10 → 1).** Otto filtri indipendenti, e la conseguenza
+si vedeva in `resetAll`: otto `setX` da ricordarsi di chiamare insieme. Un
+filtro aggiunto domani e dimenticato lì dentro non produce un errore — produce
+un «Reset» che non azzera, cioè risultati filtrati da un criterio che a schermo
+non risulta più attivo. In un pannello di ricerca è il difetto peggiore
+possibile: la lista è corta e sembra una risposta.
+
+**`ClientiView` (10 → 6).** Solo i tre overlay, che sono mutuamente esclusivi
+per costruzione e non lo erano per rappresentazione (tre booleani ammettono
+otto combinazioni, di cui sette non devono esistere — è ST-7 sugli overlay di
+ListeViaggio). Il pannello di dettaglio resta fuori di proposito: non è un
+overlay ma un pannello affiancato, resta legittimamente aperto mentre si apre
+una modale, e la conferma di eliminazione ci NAVIGA dentro invece di
+escluderlo. Erano due cose diverse che si somigliavano solo perché erano
+entrambe `useState(null)`.
+
+**`ProfileEditor` non è stato toccato, ed è la parte del rilievo che non andava
+fatta.** Era già passato da questo esercizio in una sessione precedente — da 17
+`useState` a 10 — e i dieci rimasti portano in testa al file una
+classificazione motivata riga per riga di quali valori sono la stessa cosa e
+quali sono indipendenti *per scelta* (`errori` ha un ciclo di vita opposto a
+`draft`; `pwdAperta`/`elimAperta` sono due sezioni che possono stare aperte
+insieme, e fonderle sarebbe un cambiamento di comportamento visibile).
+Riaprirlo per far scendere un numero avrebbe annullato una decisione scritta
+senza una ragione di design — che è precisamente ciò che la revisione di A-1,
+in questo stesso documento, insegna a non fare.
+
 ---
 
 ### 🟢 B-4 · CVE `xlsx` residue
@@ -796,9 +950,28 @@ resta corretto che il fix definitivo
 applicato dal primo ambiente con accesso a `cdn.sheetjs.com`. Lo elenco solo
 perché un audit di sicurezza che non lo nomina sembra non averlo guardato.
 
+**18 agosto — quinta conferma, e resta APERTO.** Riprovato:
+`CONNECT tunnel failed, response 403`. `npm audit` continua a rispondere «No
+fix available» per `xlsx`, quindi non c'è una versione corretta sul registry a
+cui passare — dopo `npm audit fix` (B-5) è **l'unica vulnerabilità high
+rimasta** su sei.
+
+**Non lo marco chiuso, ed è una scelta.** Sarebbe stato facile registrarlo come
+«rischio accettato», sulla falsariga di `auth_leaked_password_protection` in
+`AVVISI_ACCETTATI` — ma quello è accettato perché il fix costa un piano Pro,
+cioè un costo ricorrente non approvato. Qui il fix è **gratuito e disponibile**:
+manca solo l'accesso di rete di questo ambiente. Un rilievo bloccato
+dall'ambiente e uno accettato per decisione sono due cose diverse, e confonderle
+è il modo in cui un lavoro rimandato smette di essere richiamato.
+
+Le mitigazioni restano in piedi e coprono entrambe le CVE su entrambi i punti
+d'ingresso (`withPrototypePollutionGuard`, `MAX_IMPORT_BYTES`). **Azione per la
+prossima sessione con rete aperta verso `cdn.sheetjs.com`**: il comando qui
+sopra, poi `npm test && npm run build`.
+
 ---
 
-### 🟢 B-5 · Vulnerabilità npm transitive (solo dev)
+### 🟢 B-5 · Vulnerabilità npm transitive (solo dev) — ✅ chiuso il 18 agosto
 
 `npm audit`: 6 high, di cui 5 in `postcss`, `undici` e `brace-expansion` — tutte
 **dipendenze di sviluppo** (catena Vite/ESLint), nessuna nel bundle di
@@ -809,9 +982,17 @@ cambi di major.
 npm audit fix && npm test && npm run build
 ```
 
+**Correzione (applicata il 18 agosto).** Eseguito esattamente così: da **6 high
+a 1**. Le cinque chiuse sono patch e minor su dipendenze di sviluppo
+(`postcss`, `undici`, `brace-expansion` e due transitive della catena
+Vite/ESLint), nessun cambio di major, nessuna riga di `package.json` toccata
+oltre il lockfile. Test e build verdi dopo.
+
+La sesta è `xlsx`, cioè B-4, e non ha un fix sul registry npm.
+
 ---
 
-### 🟢 B-6 · Assenza di TypeScript
+### 🟢 B-6 · Assenza di TypeScript — ✅ chiuso il 18 agosto
 
 47.605 righe, un dominio con enum (`admin|manager|agent|driver`, 10 categorie, 4
 priorità, 5 stati) e un mapping DB↔UI (`snake_case`↔`camelCase`) mantenuto a
@@ -825,6 +1006,32 @@ ciò che un tipo cattura a costo zero.
 Non raccomando una migrazione, ma **`checkJs` incrementale**: un `jsconfig.json`
 con `checkJs: true` su `src/lib/` e `src/state/`, dove il JSDoc già esiste, per
 poi allargare. Priorità bassa, ma è il debito che cresce da solo.
+
+**Correzione (applicata il 18 agosto) — con una modifica al piano.** Il
+`jsconfig.json` c'è, con lo scope proposto. Ma **un `jsconfig.json` e basta non
+sarebbe stato una correzione**: è un controllo che vive solo nell'editor di chi
+se l'è configurato, cioè passa perché non ha trovato niente da verificare, con
+in più l'apparenza di essere risolto — la forma di debito che ST-13 ha già
+chiuso una volta su questo progetto. È quindi anche `npm run verifica:tipi`
+(`tsc -p jsconfig.json`, con `typescript` come devDependency), accanto a lint
+e test.
+
+**Ed è a ZERO.** All'attivazione erano 54 errori sul sorgente; sono stati
+chiusi nello stesso commit invece di essere silenziati, ed erano quasi tutti la
+stessa cosa: **37 su 54 avevano UNA causa sola**, `pushToast` con i tre campi
+dedotti obbligatori dalla destrutturazione — un `@param` con `undoable?`
+opzionale li ha chiusi tutti. I diciassette restanti erano firme con parametri
+destrutturati e default (`typingUtils`, `Users.invite`, `updateContact`,
+`makeInitialState`), l'accesso non standard a `navigator.standalone` (esiste
+solo su Safari iOS, ed è il motivo per cui lo si legge) e — il più interessante
+— **`TeamMember`, il tipo che il JSDoc di `permissions.js` citava da sempre
+senza che esistesse**: leggibile per una persona, invisibile a qualunque
+verifica. Esattamente il debito che questo rilievo descrive, trovato dal
+controllo che il rilievo chiedeva di introdurre.
+
+Lo scope è un **ratchet**, non un perimetro: si allarga una cartella alla volta,
+e la regola è quella di `max-lines` — si allarga quando la cartella nuova è a
+zero, non prima. `src/components/` e `src/hooks/` sono il prossimo passo.
 
 ---
 

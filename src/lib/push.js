@@ -43,7 +43,10 @@ export function getPushSupport() {
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const standalone =
     window.matchMedia?.('(display-mode: standalone)')?.matches ||
-    window.navigator.standalone === true;
+    // `navigator.standalone` è NON standard: esiste solo su Safari iOS, ed è
+    // il motivo per cui lo si legge (è l'unico modo di sapere se la PWA gira
+    // dalla home). Il cast lo dichiara invece di lasciarlo passare per caso.
+    /** @type {any} */ (window.navigator).standalone === true;
   return { supported, isIOS, standalone, needsInstall: !supported && isIOS && !standalone };
 }
 

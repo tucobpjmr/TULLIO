@@ -5,7 +5,8 @@ import { Avatar } from "../ui/Avatar.jsx";
 import { sortConversationsByRecent } from "../../lib/chatUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useChatContext } from "./chatContext.js";
-import { computePresence, PRESENCE_COLORS, PRESENCE_LABELS } from "./chatPresence.js";
+import { computePresence, PRESENCE_COLORS, PRESENCE_LABELS, TICK_PRESENZA_MS } from "./chatPresence.js";
+import { useTickLento } from "../../hooks/useTickLento.js";
 import { formatChatTime, getConversationName, getLastMessage, getUnreadCount } from "./chatFormat.js";
 import { relative, txtF13, txtMuted } from "../../styles/common.js";
 import {
@@ -18,6 +19,14 @@ import {
 export const ConversationList = ({ conversations, messages, onSelect, onNew, onDelete }) => {
   const { presenceMap, currentUserId: me } = useChatContext();
   const { getMember } = useAppData();
+  // B-6 (audit di architettura del 16 agosto) · L'ageing della presenza vive
+  // QUI, dove i pallini si vedono, e non più in `usePresence` — che lo faceva
+  // sostituendo uno stato del guscio ogni 30 s, cioè un render periodico
+  // dell'intera app per una cosa visibile solo a pannello chat aperto.
+  // `computePresence` legge `Date.now()`: senza qualcosa che ri-renderizzi,
+  // un pallino verde resterebbe verde finché non arriva un evento realtime.
+  // Il valore non serve a nessuno: è il render che conta.
+  useTickLento(TICK_PRESENZA_MS);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
 

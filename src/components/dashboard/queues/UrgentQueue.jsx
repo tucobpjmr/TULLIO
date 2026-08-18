@@ -10,6 +10,7 @@ import { formatDate, formatTime } from "../../../lib/taskUtils.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { QUEUE_PAGINA, useOpenTask } from "./queueShared.js";
 import { useFinestra } from "../../../hooks/useFinestra.js";
+import { useTickLento } from "../../../hooks/useTickLento.js";
 import { MostraAltri } from "../../ui/MostraAltri.jsx";
 import { QueueShell } from "./QueueShell.jsx";
 import { SkeletonCards } from "../../ui/SkeletonCards.jsx";
@@ -47,6 +48,10 @@ const txtF12Bold = { fontSize: 12, fontWeight: 600, color: "var(--text)" };
 // Mostra sia le proprie task urgenti (editabili dal dettaglio) sia quelle
 // altrui (read-only, con scorciatoia "contatta" verso l'assegnatario).
 // windowH: finestra temporale selezionabile (ore). 24 = default (badge tab).
+// B-5 · Ogni quanto rileggere l'ora, come in Dashboard.jsx: la finestra più
+// stretta è di 24 ore, al minuto la transizione è già più fine del percepibile.
+const TICK_URGENZE_MS = 60 * 1000;
+
 const URGENT_WINDOWS = [
   { h: 24, label: "Entro 24h" },
   { h: 48, label: "Entro 48h" },
@@ -66,10 +71,18 @@ export const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid, loading = false 
   // `tasks` arriva già limitato a 72h dal parent: qui restringo alla finestra
   // selezionata, poi (eventualmente) al singolo agente.
   const windowMs = windowH * 60 * 60 * 1000;
+  // B-5 · Stesso tick della Dashboard, e per la stessa ragione: questo
+  // `useMemo` non ha il tempo fra le dipendenze, quindi senza `adesso` una
+  // coda lasciata aperta continuerebbe a mostrare come «entro 24h» una task
+  // scaduta nel frattempo. È anche il punto in cui il difetto è nato due
+  // volte: il filtro girava a ogni render (sempre fresco, sempre ricalcolato)
+  // finché M-2 non l'ha memoizzato — la memoizzazione è giusta, ma congela
+  // l'ora se non gliela si dichiara.
+  const adesso = useTickLento(TICK_URGENZE_MS);
   const inWindow = useMemo(() => tasks.filter(t => {
-    const diff = new Date(t.dueDate).getTime() - Date.now();
+    const diff = new Date(t.dueDate).getTime() - adesso;
     return diff >= 0 && diff <= windowMs;
-  }), [tasks, windowMs]);
+  }), [tasks, windowMs, adesso]);
 
   const presentAgents = useMemo(
     () => [...new Set(inWindow.map(t => t.assignees?.[0]).filter(Boolean))], [inWindow]);
@@ -95,8 +108,11 @@ export const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid, loading = false 
       <div style={rowGap6Mb12}>
         {URGENT_WINDOWS.map(w => {
           const on = windowH === w.h;
+          // `adesso` e non `Date.now()`: i conteggi dei tre chip devono
+          // invecchiare insieme alla lista che descrivono, altrimenti il chip
+          // dice «12» e sotto se ne vedono 11.
           const n = tasks.filter(t => {
-            const diff = new Date(t.dueDate).getTime() - Date.now();
+            const diff = new Date(t.dueDate).getTime() - adesso;
             return diff >= 0 && diff <= w.h * 60 * 60 * 1000;
           }).length;
           return (

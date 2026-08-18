@@ -40,6 +40,15 @@
 import { useCallback } from "react";
 import { ListeAPI } from "./listeApi.js";
 import { isAdmin, canImportBackup } from "../../lib/permissions.js";
+// A-1 (audit di architettura del 15 agosto), residuo concreto. «È andata
+// bene» non è `!res.error`: una scrittura che la RLS rifiuta risponde 2xx
+// senza errore, e `lib/esitoScrittura.js` è nato apposta per dare UNA
+// definizione ai tre registry dell'app — il core, la chat e questo. I primi
+// due l'avevano adottata; questo era rimasto con il proprio `if (error)`
+// scritto a mano, cioè la terza copia cieca che quel modulo esiste per
+// togliere di mezzo (vedi il ⛔ in docs/CLAUDE.md: «Non riscrivere
+// `if (r?.error)` a mano in un sottosistema nuovo»).
+import { esitoScrittura } from "../../lib/esitoScrittura.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 
 // La conferma testuale che reset_completo() pretende lato database. Vive qui e
@@ -205,13 +214,22 @@ export function useListeWrite(dispatch) {
       return { ok: false, data: null };
     }
 
-    const { data, error } = await spec.run(...args);
+    const res = await spec.run(...args);
+    // ⚠️ Oggi le diciotto operazioni di questo registry passano tutte da una
+    // RPC, che non ritorna un conteggio di righe: `esitoScrittura` si comporta
+    // quindi esattamente come l'`if (error)` che sostituisce. È voluto e non
+    // rende l'adozione inutile — il valore è che il giorno in cui una scrittura
+    // del modulo toccherà una tabella direttamente (con `count: 'exact'`), il
+    // rifiuto silenzioso della RLS sarà già visto qui invece di dover essere
+    // scoperto una terza volta.
+    const error = esitoScrittura(res);
     if (error) {
       console.error("[liste]", op, error);
       const testo = (spec.mapError ? spec.mapError(error) : error.message) || "errore sconosciuto";
       dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Errore: ${testo}` } });
       return { ok: false, data: null };
     }
+    const { data } = res;
 
     const msg = messaggioSuccesso(spec, args);
     if (msg) dispatch({ type: "SHOW_TOAST", payload: { type: "success", message: msg } });

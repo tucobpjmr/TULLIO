@@ -44,12 +44,14 @@ vi.mock("../lib/api.js", () => ({
 }));
 
 const { useAppHydration } = await import("../hooks/useAppHydration.js");
+const { Users: UsersAPI } = await import("../lib/api.js");
 
 const monta = (over = {}) => renderHook(() => useAppHydration({
   enabled: true, currentUserId: "u1", dispatch: vi.fn(), onError: vi.fn(), ...over,
 }));
 
 beforeEach(() => {
+  vi.clearAllMocks();
   handlers.clear();
   rispostaTasks = Promise.resolve(vuoto);
 });
@@ -117,5 +119,57 @@ describe("useAppHydration — un flag di caricamento per entità", () => {
     });
 
     expect(result.current.loading).toBe(primo);
+  });
+});
+
+// ─── B-1 (audit di architettura del 16 agosto) · `users` non si rilegge ────
+// All'avvio `AuthContext.loadProfile` legge `users` per intero — deve, perché
+// decide SE montare l'app (caveat #17) — e pochi millisecondi dopo
+// l'idratazione la rileggeva identica: due query uguali a un round-trip di
+// distanza, su ogni avvio di sessione.
+//
+// Le tre proprietà qui sotto sono INSEPARABILI, ed è il motivo per cui stanno
+// nello stesso describe: saltare il fetch senza chiudere il flag di
+// caricamento lascerebbe la vista Team a girare per sempre sotto uno
+// scheletro, che è un difetto peggiore della query risparmiata.
+describe("useAppHydration — il team già caricato non si rilegge (B-1)", () => {
+  const TEAM = [{ id: "u1", name: "Marco", role: "admin", active: true, pending: false }];
+
+  it("con `teamIniziale` NON chiama Users.listAll al mount", async () => {
+    const { result } = monta({ teamIniziale: TEAM });
+    await waitFor(() => expect(result.current.loading.tasks).toBe(false));
+    expect(UsersAPI.listAll).not.toHaveBeenCalled();
+  });
+
+  it("…ma il flag del team si chiude lo stesso: i dati ci sono già", async () => {
+    const { result } = monta({ teamIniziale: TEAM });
+    await waitFor(() => expect(result.current.loading.team).toBe(false));
+  });
+
+  it("…e la sottoscrizione realtime parte comunque", async () => {
+    // Saltare il primo fetch non deve saltare il canale: senza, l'admin che
+    // approva un utente non vedrebbe più aggiornarsi l'elenco Team.
+    const { result } = monta({ teamIniziale: TEAM });
+    await waitFor(() => expect(result.current.loading.tasks).toBe(false));
+    expect(handlers.has("users")).toBe(true);
+  });
+
+  it("un evento realtime rilegge il team: si salta il PRIMO fetch, non tutti", async () => {
+    const { result } = monta({ teamIniziale: TEAM });
+    await waitFor(() => expect(result.current.loading.team).toBe(false));
+    expect(UsersAPI.listAll).not.toHaveBeenCalled();
+
+    await act(async () => {
+      handlers.get("users")?.({ eventType: "INSERT", new: { id: "u2" } });
+    });
+    await waitFor(() => expect(UsersAPI.listAll).toHaveBeenCalled());
+  });
+
+  it("senza `teamIniziale` il comportamento è quello di prima", async () => {
+    // Il controllo positivo: senza, i test sopra passerebbero anche con una
+    // condizione che salta SEMPRE il fetch.
+    const { result } = monta();
+    await waitFor(() => expect(result.current.loading.team).toBe(false));
+    expect(UsersAPI.listAll).toHaveBeenCalled();
   });
 });

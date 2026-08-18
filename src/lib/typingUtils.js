@@ -31,6 +31,11 @@ export const pruneTypingMap = (map, now = Date.now()) => {
 //  - typing:true  → (ri)fissa expiresAt = now + ttl per userId
 //  - typing:false → rimuove userId
 // Esclude sempre selfId: non mostriamo mai "tu stai scrivendo".
+/**
+ * @param {Record<string, number>} map
+ * @param {{userId?: string, typing?: boolean}} [evento]
+ * @param {{selfId?: string, now?: number, ttl?: number}} [opzioni]
+ */
 export const applyTypingEvent = (
   map,
   { userId, typing } = {},
@@ -44,6 +49,10 @@ export const applyTypingEvent = (
 };
 
 // Elenco degli userId che stanno scrivendo (non scaduti), self escluso.
+/**
+ * @param {Record<string, number>} map
+ * @param {{selfId?: string, now?: number}} [opzioni]
+ */
 export const typingUserIds = (map, { selfId, now = Date.now() } = {}) =>
   Object.keys(pruneTypingMap(map, now)).filter((id) => id !== selfId);
 
@@ -53,6 +62,10 @@ export const typingUserIds = (map, { selfId, now = Date.now() } = {}) =>
 //  - group 2 typer:  "Mario e Luca stanno scrivendo"
 //  - group 3+ typer: "3 persone stanno scrivendo"
 // resolveName(userId) deve tornare il nome (breve) da mostrare.
+/**
+ * @param {string[]} userIds
+ * @param {{type?: string, resolveName?: (id: string) => string}} [opzioni]
+ */
 export const buildTypingLabel = (userIds, { type, resolveName } = {}) => {
   if (!Array.isArray(userIds) || userIds.length === 0) return null;
   if (type === "direct") return "sta scrivendo";

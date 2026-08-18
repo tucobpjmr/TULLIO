@@ -5,7 +5,7 @@
 // da useViewport() qui dentro e nei discendenti), questo file è tutto il
 // resto dell'orchestratore.
 
-import { useState, useReducer, useEffect, useCallback, lazy, Suspense, Profiler } from "react";
+import { useReducer, useEffect, useCallback, lazy, Suspense, Profiler } from "react";
 
 // ── Stato ──────────────────────────────────────────────────────────────────
 import { Notifications as NotificationsAPI } from "./lib/api.js";
@@ -14,11 +14,9 @@ import { registraSinkErrori } from "./lib/errorReporting.js";
 import { getActiveTasks } from "./lib/taskUtils.js";
 import { canAccessAdmin } from "./lib/permissions.js";
 import { reducer, makeInitialState } from "./state/reducer.js";
-import { AppDataProvider } from "./state/AppDataContext.jsx";
-import { TasksProvider } from "./state/TasksContext.jsx";
-import { StoricoTaskProvider } from "./state/StoricoTaskContext.jsx";
-import { ClientsProvider } from "./state/ClientsContext.jsx";
-import { ConfirmProvider } from "./state/ConfirmContext.jsx";
+// M-3 (audit del 15 agosto): l'annidamento dei cinque provider di dominio ha
+// un file suo. Qui resta la composizione, non la scaletta di dieci tag.
+import { AppProviders } from "./state/AppProviders.jsx";
 import { demoState } from "./state/demoState.js";
 
 // ── Hook di dominio ────────────────────────────────────────────────────────
@@ -32,6 +30,10 @@ import { useNotifications } from "./hooks/useNotifications.js";
 import { usePresence } from "./hooks/usePresence.js";
 import { usePushNavigation } from "./hooks/usePushNavigation.js";
 import { useChatData } from "./hooks/useChatData.js";
+// M-3 · Lo stato di UI effimera del guscio (pannelli aperti, ricerca) e i suoi
+// callback stabili: sei useState che non appartengono al reducer di dominio e
+// che convivevano qui con i sei hook di dominio — due lavori nello stesso file.
+import { useShellUi } from "./hooks/useShellUi.js";
 
 // ── Guscio e primitive ─────────────────────────────────────────────────────
 import { ViewErrorBoundary } from "./components/ViewErrorBoundary.jsx";
@@ -165,6 +167,10 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     currentUserId: initialCurrentUserId,
     dispatch: rawDispatch,
     onError: showError,
+    // B-1 dell'audit del 16 agosto: il team che AuthContext ha già letto per
+    // decidere se montare questo componente. Passarlo evita che
+    // l'idratazione rilegga `users` un round-trip dopo, con la stessa query.
+    teamIniziale: initialTeam,
   });
 
   const notif = useNotifications({ enabled: useSupabase, onError: showError });
@@ -235,70 +241,24 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     onConversationRead: markChatNotificationsRead,
   });
 
-  // Stato di UI effimero che il reducer di dominio non deve conoscere (audit
-  // ST-2 parte 2): non è persistito, non sopravvive al reload, e portarlo nel
-  // reducer globale invalidava l'identità di `state` — e quindi ri-renderizzava
-  // l'intero guscio — a ogni carattere digitato. Resta qui (invece che
-  // `useState` locale della Topbar) perché è candidato a diventare un filtro
-  // cross-view: il giorno in cui dovrà farlo, il guscio è già il punto giusto
-  // da cui distribuirlo.
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showFABModal, setShowFABModal] = useState(false);
-  const [showKeyHelp, setShowKeyHelp] = useState(false); // v2.8 Round 10
-  const [showChat, setShowChat] = useState(false);
-  const [chatIntent, setChatIntent] = useState(null); // { toUser, taskLink } per aprire chat preconfezionata
-  const [showBulkModal, setShowBulkModal] = useState(false);
-  // Apre la chat verso un utente specifico, opzionalmente con link a task.
-  //
-  // ⚠️ useCallback e non una funzione nuda: questa prop arriva a <Dashboard>,
-  // che è `memo`. Una funzione ricreata a ogni render è una prop diversa a
-  // ogni render, quindi il memo non ha MAI potuto saltare un render — ed è
-  // stato così per diverse sessioni, mentre tutto il lavoro attorno (provider
-  // di dominio, prop a identità stabile, `memo` su sei viste) veniva fatto
-  // proprio per ottenere quel bail-out. Misurato prima della correzione: un
-  // render completo della Dashboard per OGNI carattere digitato nella ricerca
-  // della Topbar; dopo: zero. Blindato da src/test/memoViste.test.jsx.
-  //
-  // Le due setState non entrano nelle dipendenze: React ne garantisce
-  // l'identità stabile per tutta la vita del componente.
-  const openChatTo = useCallback((intent) => {
-    if (intent && intent.toUser) {
-      setChatIntent(intent);
-    }
-    setShowChat(true);
-  }, []);
-
-  // Apre una conversazione già esistente (tap su una notifica di chat).
-  const openConversationById = useCallback((conversationId) => {
-    if (!conversationId) return;
-    setChatIntent({ convId: conversationId });
-    setShowChat(true);
-  }, []);
-
-  // I due callback della navigazione (ST-2). Erano arrow inline nel JSX di
-  // Sidebar e BottomNav: con quelli, rendere `memo` i due componenti non
-  // avrebbe saltato un solo render — è lo stesso difetto di openChatTo qui
-  // sopra, e va corretto nello stesso momento in cui si aggiunge il memo,
-  // altrimenti si aggiunge un confronto che non può mai riuscire.
-  const openBulk = useCallback(() => setShowBulkModal(true), []);
-  const openChatPanel = useCallback(() => {
-    setChatIntent(null);
-    setShowChat(true);
-  }, []);
-  // Stessa ragione di openChatTo/openBulk, e va nello stesso commit del `memo`
-  // su ChatPanel (A-2): una arrow inline nel JSX è una prop nuova a ogni render
-  // del guscio, cioè un confronto che non può mai riuscire.
-  const closeChatPanel = useCallback(() => {
-    setShowChat(false);
-    setChatIntent(null);
-  }, []);
+  // Stato di UI effimera del guscio, con i suoi callback a identità stabile:
+  // vive in `hooks/useShellUi.js` da M-3 (audit del 15 agosto). Il perché di
+  // ogni scelta — non nel reducer, non locale alla Topbar, ogni callback da
+  // `useCallback` — sta lì, accanto al codice che la applica.
+  const ui = useShellUi();
+  // Le tre callback che servono dentro un `useEffect`, estratte per nome:
+  // `ui` è un oggetto nuovo a ogni render, quindi metterlo nelle dipendenze
+  // farebbe ripartire gli effetti sempre. Queste tre hanno identità stabile
+  // (`useCallback` con array vuoto), e dichiararle è ciò che tiene
+  // `exhaustive-deps` a zero warning senza silenziarlo.
+  const { openFAB, setShowKeyHelp, chiudiPannelli } = ui;
 
   usePushNavigation({
     enabled: useSupabase,
     currentUserId: state.currentUserId,
     tasks: state.tasks,
     dispatch,
-    onOpenChat: openConversationById,
+    onOpenChat: ui.openConversationById,
   });
 
   useEffect(() => {
@@ -312,7 +272,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       if (inInput) return;
       if (e.key === "k" || e.key === "K") {
         e.preventDefault();
-        setShowFABModal(true);
+        openFAB();
       } else if (e.key === "?") {
         e.preventDefault();
         setShowKeyHelp(p => !p);
@@ -326,15 +286,13 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, []);
+  }, [openFAB, setShowKeyHelp]);
 
   // Quando l'utente cambia, se la view corrente non è permessa il reducer la riporta a dashboard.
   // Inoltre chiudo eventuali pannelli aperti.
   useEffect(() => {
-    setShowChat(false);
-    setShowBulkModal(false);
-    setShowFABModal(false);
-  }, [state.currentUserId]);
+    chiudiPannelli();
+  }, [state.currentUserId, chiudiPannelli]);
 
   // Le viste NON ricevono più `state`: leggono task e clienti dai provider e si
   // fanno passare solo le fette piccole che consumano davvero (notices, la tab
@@ -346,7 +304,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // provider da solo non basta).
   const renderView = () => {
     switch (state.activeView) {
-      case "dashboard":  return <Dashboard dispatch={dispatch} onOpenChat={openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={loading.tasks} noticesLoading={loading.notices} />;
+      case "dashboard":  return <Dashboard dispatch={dispatch} onOpenChat={ui.openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={loading.tasks} noticesLoading={loading.notices} />;
       case "calendar":   return <CalendarPlanner dispatch={dispatch} loading={loading.tasks} />;
       case "clienti":    return <ClientiView dispatch={dispatch} loading={crmLoading} />;
       case "archivio":   return <Archive dispatch={dispatch} loading={loading.tasks} />;
@@ -362,38 +320,26 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       case "admin":      return canAccessAdmin(state.team, state.currentUserId)
         ? <AdminView dispatch={dispatch} agencyName={state.agencyName} notices={state.notices}
                      activityLog={state.activityLog} messageTemplates={state.messageTemplates} />
-        : <Dashboard dispatch={dispatch} onOpenChat={openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={loading.tasks} noticesLoading={loading.notices} />;
+        : <Dashboard dispatch={dispatch} onOpenChat={ui.openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={loading.tasks} noticesLoading={loading.notices} />;
       case "liste":      return <ListeViaggio dispatch={dispatch} listeTarget={state.listeTarget} />;
-      default:           return <Dashboard dispatch={dispatch} onOpenChat={openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={loading.tasks} noticesLoading={loading.notices} />;
+      default:           return <Dashboard dispatch={dispatch} onOpenChat={ui.openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={loading.tasks} noticesLoading={loading.notices} />;
     }
   };
 
   return (
-    // Il provider è alimentato dallo STESSO state del reducer: non esiste più
-    // una seconda copia di team/categorie/utente da tenere allineata a mano.
-    // Sostituisce syncLegacyGlobals(), che scriveva tre variabili di modulo nel
-    // corpo di questo render — cosa non sicura sotto Concurrent Rendering e che
-    // teneva le decisioni di permesso fuori dal ciclo di render di React.
-    <AppDataProvider
+    // I cinque provider di dominio sono alimentati dallo STESSO state del
+    // reducer: non esiste una seconda copia di team/categorie/utente da tenere
+    // allineata a mano. L'annidamento (e il perché del suo ordine) vive in
+    // state/AppProviders.jsx da M-3 — qui il guscio compone e basta.
+    <AppProviders
       team={state.team}
       categories={state.categories}
       currentUserId={state.currentUserId}
+      tasks={state.tasks}
+      clients={state.clients}
+      richiediStorico={storicoTask.richiedi}
+      storicoInCorso={storicoTask.caricando}
     >
-     {/* Task e clienti viaggiano per contesto, non come prop: due provider
-         distinti e non uno solo, così l'arrivo di un cliente importato non
-         invalida le viste che guardano i task (vedi state/ClientsContext.jsx). */}
-     <TasksProvider tasks={state.tasks}>
-      {/* A-3: l'idratazione carica una FINESTRA sulle task completate e non il
-          cestino. Le viste che guardano proprio ciò che resta fuori (Archivio,
-          Cestino, statistiche, export, ricerca avanzata) chiedono il corpus
-          intero da qui — vedi state/StoricoTaskContext.jsx per l'elenco. */}
-      <StoricoTaskProvider richiedi={storicoTask.richiedi} caricando={storicoTask.caricando}>
-      <ClientsProvider clients={state.clients}>
-      {/* Criticità #8: le conferme distruttive passano da qui — `useConfirm()`
-          al posto dei `window.confirm` bloccanti. Sta dentro i provider di
-          dominio perché la finestra di conferma è parte dell'app, non della
-          shell del browser. */}
-      <ConfirmProvider>
       {/* vd-app-shell = height 100dvh con fallback 100vh (vedi FontLoader): su iOS
           "vh" è il viewport GRANDE, con la barra del browser visibile il guscio
           sfora in basso e la bottom-nav finisce fuori schermo. */}
@@ -406,8 +352,8 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
             Topbar prende i task da TasksContext per il pannello di ricerca. */}
         <Topbar
           activeView={state.activeView}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
+          searchQuery={ui.searchQuery}
+          onSearchChange={ui.setSearchQuery}
           dispatch={dispatch}
           notifications={notif.notifications}
           onMarkRead={notif.markRead}
@@ -415,7 +361,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           onRemoveNotification={notif.remove}
           onClearAllNotifications={notif.clearAll}
           onOpenTask={openTaskById}
-          onOpenChat={openConversationById}
+          onOpenChat={ui.openConversationById}
         />
         {/* Banner offline (criticità #7). Sopra a tutto il resto perché è la
             condizione che invalida tutto il resto: senza rete i numeri a
@@ -437,7 +383,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           />
         )}
         <div style={rowFlex1}>
-          <Sidebar activeView={state.activeView} dispatch={dispatch} onOpenBulk={openBulk} onOpenChat={openChatPanel} unreadChat={chat.unreadChat} />
+          <Sidebar activeView={state.activeView} dispatch={dispatch} onOpenBulk={ui.openBulk} onOpenChat={ui.openChatPanel} unreadChat={chat.unreadChat} />
           <main className="vd-main-scroll" style={flex1}>
             {/* Suspense per la vista attiva: Dashboard e ClientiView risolvono
                 sincronicamente (viste d'ingresso, aperte da ogni sessione);
@@ -460,7 +406,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         </div>
 
         {/* Bottom nav mobile/tablet */}
-        <BottomNav activeView={state.activeView} dispatch={dispatch} onOpenBulk={openBulk} onOpenChat={openChatPanel} unreadChat={chat.unreadChat} />
+        <BottomNav activeView={state.activeView} dispatch={dispatch} onOpenBulk={ui.openBulk} onOpenChat={ui.openChatPanel} unreadChat={chat.unreadChat} />
 
         {/* Slide-over (lazy, Phase 2g). `LazyPanel` = Suspense + boundary: un
             eventuale errore (chunk 404 dopo un deploy, o crash di render)
@@ -489,16 +435,16 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
             `chatPanelReducer`, dentro il pannello. I dati non si ricaricano:
             conversazioni e messaggi stanno in useChatData, che resta montato.
             `chat.unreadChat` per il badge si calcola lì, fuori dal chunk. */}
-        {showChat && (
-          <LazyPanel resetKey="chat" onReset={closeChatPanel} overlay>
+        {ui.showChat && (
+          <LazyPanel resetKey="chat" onReset={ui.closeChatPanel} overlay>
             <ChatPanel
               open
-              onClose={closeChatPanel}
+              onClose={ui.closeChatPanel}
               conversations={chat.conversations}
               messages={chat.messages}
               commands={chat.commands}
               onDeleteConversation={chat.commands.removeConversation}
-              intent={chatIntent}
+              intent={ui.chatIntent}
               tasks={state.tasks}
               currentUserId={state.currentUserId}
               dispatch={dispatch}
@@ -513,21 +459,21 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
 
         {/* FAB principale (singolo task). La creazione bulk/multi-task è ora in Sidebar/BottomNav. */}
         {state.activeView !== "trash" && state.activeView !== "archivio" && state.activeView !== "admin" && (
-          <FAB onClick={() => setShowFABModal(true)} />
+          <FAB onClick={ui.openFAB} />
         )}
-        {showFABModal && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={() => setShowFABModal(false)} />}
+        {ui.showFABModal && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={ui.closeFAB} />}
 
         {/* Overlay scorciatoie tastiera (v2.8 Round 10) */}
-        {showKeyHelp && <KeyboardHelpOverlay onClose={() => setShowKeyHelp(false)} />}
+        {ui.showKeyHelp && <KeyboardHelpOverlay onClose={ui.closeKeyHelp} />}
 
         {/* Bulk Task Creator (lazy, Phase 2g). Stessa ragione dello slide-over
             qui sopra: un crash non deve portare via l'intera app. */}
-        {showBulkModal && (
-          <LazyPanel resetKey="bulk" onReset={() => setShowBulkModal(false)} overlay>
+        {ui.showBulkModal && (
+          <LazyPanel resetKey="bulk" onReset={ui.closeBulk} overlay>
             <BulkTaskCreator
               existingTasks={getActiveTasks(state.tasks)}
               onCreate={(tasks) => dispatch({ type: "ADD_TASKS_BULK", payload: tasks })}
-              onClose={() => setShowBulkModal(false)}
+              onClose={ui.closeBulk}
             />
           </LazyPanel>
         )}
@@ -535,10 +481,6 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         {/* Toast */}
         <ToastStack toasts={state.toasts} dispatch={dispatch} />
       </div>
-      </ConfirmProvider>
-      </ClientsProvider>
-      </StoricoTaskProvider>
-     </TasksProvider>
-    </AppDataProvider>
+    </AppProviders>
   );
 }

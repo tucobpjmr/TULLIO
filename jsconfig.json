@@ -1,0 +1,55 @@
+// jsconfig.json — B-6 dell'audit di architettura del 15 agosto
+//
+// PERCHÉ ESISTE. 47.000 righe di JavaScript su un dominio a forte tipizzazione
+// implicita (quattro ruoli, dieci categorie, quattro priorità, cinque stati) e
+// un mapping DB↔UI snake_case↔camelCase mantenuto a mano in lib/mappers.js. I
+// difetti che un tipo avrebbe intercettato sono documentati nel repo stesso: il
+// caveat #25 (`photo_url` → `photoUrl`) è un errore di FORMA dei dati, cioè
+// esattamente ciò che un tipo cattura a costo zero.
+//
+// PERCHÉ NON È UNA MIGRAZIONE A TypeScript. Non serve: `checkJs` legge il JSDoc
+// che in `src/lib/` e `src/state/` c'è già, e non cambia una riga di runtime né
+// una configurazione di build (Vite non lo legge).
+//
+// ⛔ PERCHÉ NON BASTA IL FILE. Un `jsconfig.json` che nessuno esegue è un
+// controllo che vive solo nell'editor di chi ce l'ha configurato: passa perché
+// non ha trovato niente da verificare, con in più l'apparenza di essere
+// risolto — la forma di debito che ST-13 ha già chiuso una volta. È quindi
+// `npm run verifica:tipi`, ed è a ZERO errori: i diciassette che c'erano
+// all'attivazione sono stati chiusi nello stesso commit, non silenziati.
+//
+// ⚠️ LO SCOPE È UN RATCHET, non un perimetro definitivo. `src/lib/` e
+// `src/state/` sono le due cartelle in cui il JSDoc esiste già e in cui vivono
+// le funzioni pure — permessi, mapper, reducer — cioè dove un tipo sbagliato
+// costa di più. `include` si allarga una cartella alla volta, e la regola è la
+// stessa di max-lines: si allarga quando la cartella nuova è a zero, non
+// prima. `src/components/` e `src/hooks/` sono il prossimo passo.
+{
+  "compilerOptions": {
+    "checkJs": true,
+    "allowJs": true,
+    "noEmit": true,
+    "target": "ES2022",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": false,
+    "jsx": "react-jsx",
+    "skipLibCheck": true,
+    "maxNodeModuleJsDepth": 0,
+    "types": [
+      "vite/client"
+    ]
+  },
+  "include": [
+    "src/lib/**/*.js",
+    "src/state/**/*.js"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

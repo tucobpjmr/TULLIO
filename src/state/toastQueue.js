@@ -23,6 +23,14 @@
  * stessa finestra.
  *
  * PURA: non muta `toasts`, ritorna un nuovo array.
+ *
+ * `undoable` è OPZIONALE e va dichiarato tale: senza il tipo, il controllo di
+ * `verifica:tipi` deduce dalla destrutturazione che i tre campi siano tutti
+ * obbligatori e segnala i trentasette call site che passano solo messaggio e
+ * tipo — cioè quasi tutti (B-6, audit del 15 agosto).
+ *
+ * @param {Array<object>} toasts la coda corrente (null/undefined = vuota)
+ * @param {{message: string, type: string, undoable?: boolean}} nuovo
  */
 export function pushToast(toasts, { message, type, undoable }) {
   const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;

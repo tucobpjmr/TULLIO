@@ -6,7 +6,7 @@
 // ma con auto-detect della riga di intestazione: questi export spesso hanno
 // righe di titolo/metadati (es. "Esportazione del : ...") prima della vera
 // intestazione, che romperebbero l'assunzione "riga 0 = header".
-import { useState, useRef, useMemo, useEffect } from "react";
+import { useState, useReducer, useRef, useMemo, useEffect } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { readFirstSheetRowsAutoHeader, MAX_IMPORT_BYTES } from "../../lib/xlsx.js";
 import { formatFileSize } from "../../lib/fileUtils.js";
@@ -103,18 +103,50 @@ const normName = (s) => String(s || "")
   .toLowerCase().normalize("NFD").replace(DIACRITICS_RE, "")
   .replace(/\s+/g, " ").trim();
 
+// ─── B-3 (audit di architettura del 15 agosto) · un solo stato, transizioni
+// nominate ────────────────────────────────────────────────────────────────
+// Questo componente coordinava NOVE `useState` indipendenti, e le transizioni
+// valide non erano descritte da nessuna parte: erano l'intersezione implicita
+// di nove `setX` sparsi negli handler. Il difetto non è teorico ed era già
+// visibile — `handleFile` scriveva il nome del file nuovo senza azzerare
+// righe, colonne, mappatura e selezione del precedente, quindi un secondo file
+// illeggibile lasciava a schermo i dati del PRIMO sotto il nome del SECONDO,
+// pronti per essere importati. Nessuno dei nove setter era sbagliato; mancava
+// il posto in cui dire che "scegliere un file" è UNA transizione.
+//
+// `foldExtras` resta fuori di proposito: non è uno stato di questo flusso, è
+// una preferenza dell'utente sulla composizione delle note, e deve
+// sopravvivere al cambio di file esattamente come sopravvive a un ordinamento.
+const IMPORT_INIZIALE = {
+  fileName: "", rows: [], columns: [], mapping: {}, autoDetected: {},
+  error: null, search: "", selected: {},
+};
+
+function importReducer(s, a) {
+  switch (a.type) {
+    // La transizione che mancava: un file nuovo azzera TUTTO ciò che
+    // descriveva il precedente, e lascia in piedi solo il proprio nome.
+    case "FILE_SCELTO":  return { ...IMPORT_INIZIALE, fileName: a.fileName };
+    case "FILE_RIFIUTATO": return { ...IMPORT_INIZIALE, error: a.messaggio };
+    case "FILE_LETTO":   return { ...s, rows: a.rows, columns: a.columns, mapping: a.mapping, autoDetected: a.autoDetected, error: null };
+    case "ERRORE":       return { ...s, error: a.messaggio };
+    // Mappare a mano una colonna toglie il marcatore "riconosciuta
+    // automaticamente" da QUEL campo: erano due setState che andavano insieme.
+    case "MAPPA":        return { ...s, mapping: { ...s.mapping, [a.campo]: a.colonna },
+                                  autoDetected: { ...s.autoDetected, [a.campo]: false } };
+    case "CERCA":        return { ...s, search: a.testo };
+    case "SELEZIONE":    return { ...s, selected: a.selected };
+    case "AZZERA":       return IMPORT_INIZIALE;
+    default:             return s;
+  }
+}
+
 export const ClientImportModal = ({ existingClients = [], onImport, onClose }) => {
   const conferma = useConfirm();
   const { isMobile } = useViewport();
-  const [fileName, setFileName] = useState("");
-  const [rows, setRows] = useState([]);
-  const [columns, setColumns] = useState([]);
-  const [mapping, setMapping] = useState({});
-  const [autoDetected, setAutoDetected] = useState({});
+  const [imp, impDispatch] = useReducer(importReducer, IMPORT_INIZIALE);
+  const { fileName, rows, columns, mapping, autoDetected, error, search, selected } = imp;
   const [foldExtras, setFoldExtras] = useState(true);
-  const [error, setError] = useState(null);
-  const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState({}); // { rowKey: true }
   const fileInputRef = useRef(null);
 
   const existingNames = useMemo(
@@ -129,18 +161,18 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
     // solo dopo che FileReader ha già caricato l'intero file in memoria.
     // file.size è sincrono, quindi il rifiuto arriva prima di qualunque lettura.
     if (file.size > MAX_IMPORT_BYTES) {
-      setError(`File troppo grande (${formatFileSize(file.size)}, max ${formatFileSize(MAX_IMPORT_BYTES)}).`);
+      impDispatch({ type: "FILE_RIFIUTATO", messaggio: `File troppo grande (${formatFileSize(file.size)}, max ${formatFileSize(MAX_IMPORT_BYTES)}).` });
       e.target.value = "";
       return;
     }
-    setFileName(file.name);
-    setError(null);
+    // Azzera e nomina in un colpo solo: se la lettura fallisce (file vuoto,
+    // formato illeggibile) a schermo non resta l'anteprima del file di prima.
+    impDispatch({ type: "FILE_SCELTO", fileName: file.name });
     const reader = new FileReader();
     reader.onload = async (evt) => {
       try {
         const { rows: json, columns: cols } = await readFirstSheetRowsAutoHeader(evt.target.result, HEADER_HINTS);
-        if (!json.length) { setError("Il file è vuoto o non contiene righe leggibili."); return; }
-        setRows(json); setColumns(cols);
+        if (!json.length) { impDispatch({ type: "ERRORE", messaggio: "Il file è vuoto o non contiene righe leggibili." }); return; }
         const auto = {
           name: pickBestColumn(cols, json, FIELD_KEYWORDS.name),
           email: pickBestColumn(cols, json, FIELD_KEYWORDS.email),
@@ -149,19 +181,21 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
           city: pickBestColumn(cols, json, FIELD_KEYWORDS.city),
           notes: pickBestColumn(cols, json, FIELD_KEYWORDS.notes),
         };
-        setMapping(auto);
-        setAutoDetected(Object.fromEntries(Object.entries(auto).filter(([, v]) => v).map(([k]) => [k, true])));
+        impDispatch({
+          type: "FILE_LETTO",
+          rows: json,
+          columns: cols,
+          mapping: auto,
+          autoDetected: Object.fromEntries(Object.entries(auto).filter(([, v]) => v).map(([k]) => [k, true])),
+        });
       } catch (err) {
-        setError("Impossibile leggere il file: " + err.message);
+        impDispatch({ type: "ERRORE", messaggio: "Impossibile leggere il file: " + err.message });
       }
     };
     reader.readAsArrayBuffer(file);
   };
 
-  const reset = () => {
-    setRows([]); setColumns([]); setMapping({}); setAutoDetected({});
-    setFileName(""); setError(null); setSelected({}); setSearch("");
-  };
+  const reset = () => impDispatch({ type: "AZZERA" });
 
   // Colonne non mappate come campo primario, riconosciute come dati
   // identificativi utili: ripiegate nelle Note se foldExtras è attivo.
@@ -210,7 +244,7 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
   // Selezione di default: tutte le righe valide tranne i probabili duplicati
   // (già in anagrafica con lo stesso nome) — l'admin può comunque spuntarli.
   useEffect(() => {
-    setSelected(Object.fromEntries(candidates.map(c => [c.key, !c.isDuplicate])));
+    impDispatch({ type: "SELEZIONE", selected: Object.fromEntries(candidates.map(c => [c.key, !c.isDuplicate])) });
   }, [candidates.length, mapping.name]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const duplicateCount = candidates.filter(c => c.isDuplicate).length;
@@ -224,9 +258,9 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
     );
   }, [candidates, search]);
 
-  const toggle = (key) => setSelected(s => ({ ...s, [key]: !s[key] }));
-  const selectAll = () => setSelected(Object.fromEntries(candidates.map(c => [c.key, true])));
-  const selectNone = () => setSelected({});
+  const toggle = (key) => impDispatch({ type: "SELEZIONE", selected: { ...selected, [key]: !selected[key] } });
+  const selectAll = () => impDispatch({ type: "SELEZIONE", selected: Object.fromEntries(candidates.map(c => [c.key, true])) });
+  const selectNone = () => impDispatch({ type: "SELEZIONE", selected: {} });
 
   const handleImport = () => {
     const toImport = candidates.filter(c => selected[c.key]);
@@ -331,7 +365,7 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
                         </div>
                         <select
                           value={mapping[f.key] || ""}
-                          onChange={e => setMapping(m => ({ ...m, [f.key]: e.target.value }))}
+                          onChange={e => impDispatch({ type: "MAPPA", campo: f.key, colonna: e.target.value })}
                           style={{
                             ...inputStyle,
                             borderColor: isAuto ? "var(--success)" : "var(--border)",
@@ -380,7 +414,7 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
                   )}
                   <input
                     value={search}
-                    onChange={e => setSearch(e.target.value)}
+                    onChange={e => impDispatch({ type: "CERCA", testo: e.target.value })}
                     placeholder="🔍 Filtra per nome o città…"
                     style={{ ...inputStyle, marginBottom: 8 }}
                   />

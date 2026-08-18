@@ -71,6 +71,14 @@ export function usePresence({ enabled, userId, team }) {
       if (!myId) return;
       const eff = status || (myBusyRef.current ? 'busy' : 'online');
       UsersAPI.setPresence(myId, eff).then(r => {
+        // `cancelled` è il guard del contratto «la risposta è arrivata tardi,
+        // lasciala cadere» (docs/CLAUDE.md, gemello di useIsMounted): fra la
+        // scrittura e la sua risposta l'effetto può essere stato smontato —
+        // logout, cambio utente. In React 18 la setState sarebbe un no-op
+        // silenzioso, quindi non era un difetto: era codice che dichiarava di
+        // voler fare una cosa che non può fare. Fino a B-6 la variabile
+        // esisteva ma la leggeva solo il tick di ageing, che ora vive altrove.
+        if (cancelled) return;
         if (r?.error) console.warn("[presence] setPresence", r.error);
         // Aggiorno anche localmente per immediatezza
         setPresenceMap(prev => ({
@@ -80,8 +88,13 @@ export function usePresence({ enabled, userId, team }) {
       });
     };
     beat();
-    // Caveat #3: heartbeat ogni 30s (era 45s), allineato al tick di ageing
-    // della presenza → lo stato online/away resta più reattivo.
+    // Caveat #3: heartbeat ogni 30s (era 45s) → lo stato online/away resta
+    // reattivo. È la scrittura del PROPRIO stato, non un render periodico: il
+    // tick che fa invecchiare i pallini altrui vive nei componenti che li
+    // mostrano (B-6), e questo intervallo resta allineato alla sua soglia più
+    // stretta — `computePresence` considera «online» un last_seen di meno di
+    // un minuto, quindi battere ogni 30 s è ciò che tiene il proprio pallino
+    // verde senza sfarfallii.
     hbTimer = setInterval(() => beat(), 30 * 1000);
 
     const onVisibility = () => {
@@ -99,16 +112,26 @@ export function usePresence({ enabled, userId, team }) {
       setPresenceMap(prev => ({ ...prev, [row.id]: { ...(prev[row.id] || {}), ...row } }));
     });
 
-    // Tick di re-render: ogni 30s ricomputo presenza per ageing
-    const tick = setInterval(() => {
-      if (cancelled) return;
-      setPresenceMap(prev => ({ ...prev })); // shallow rerender
-    }, 30 * 1000);
+    // ⛔ Qui NON c'è (più) un tick di re-render per l'ageing dei pallini.
+    //
+    // B-6 dell'audit di architettura del 16 agosto: c'era, ed era
+    // `setInterval(() => setPresenceMap(prev => ({ ...prev })), 30_000)` — cioè
+    // uno stato del GUSCIO sostituito ogni 30 secondi per far invecchiare dei
+    // pallini che si vedono solo dentro il pannello chat, e solo quando è
+    // aperto. Era l'unico render periodico dell'app: con le viste `memo` e le
+    // prop stabili il costo era confinato, ma restava un render dell'intero
+    // albero due volte al minuto per una cosa che nessuno stava guardando nel
+    // 90% delle sessioni.
+    //
+    // L'ageing è ora dove la presenza si MOSTRA — `ConversationList` e
+    // `ConversationView` chiamano `useTickLento` — quindi il timer esiste solo
+    // mentre quei componenti sono montati e sveglia solo loro. `presenceMap`
+    // cambia identità quando cambia DAVVERO: heartbeat proprio, evento
+    // realtime di un collega, toggle "Occupato".
 
     return () => {
       cancelled = true;
       clearInterval(hbTimer);
-      clearInterval(tick);
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('beforeunload', onBeforeUnload);
       unsub?.();

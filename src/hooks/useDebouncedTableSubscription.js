@@ -86,10 +86,28 @@ export const SOGLIA_RIPRESA_MS = 30_000;
 // `reload` con l'insieme di tabelle toccate. Una sottoscrizione a più
 // tabelle può gestirne alcune per riga e lasciare le altre al reload
 // (`applyRow` riceve `tabella` proprio per poter scegliere caso per caso).
+// ─── saltaPrimoCaricamento (B-1, audit di architettura del 16 agosto) ─────
+// Questo hook idrata al mount E si sottoscrive: sono due cose insieme perché
+// nella stragrande maggioranza dei casi vanno insieme. In UN caso no.
+//
+// All'avvio `AuthContext.loadProfile` legge `users` per intero — deve, perché
+// decide SE montare l'app (caveat #17: montarla con team vuoto congela i mock
+// nel reducer) — e pochi millisecondi dopo l'idratazione la rileggeva
+// identica. Due query uguali a un round-trip di distanza, su ogni avvio di
+// sessione, per un dato che il chiamante aveva già in mano.
+//
+// `saltaPrimoCaricamento: true` salta il solo fetch iniziale: la
+// sottoscrizione parte lo stesso, e ogni reload successivo — evento realtime,
+// ripresa dopo un buco di connessione — si comporta esattamente come prima.
+// ⚠️ Chi lo passa si assume DUE responsabilità che il primo fetch assolveva
+// gratis: seminare lo stato con i dati che dice di avere già, e chiudere il
+// proprio flag di caricamento. Ometterne una lascia una vista che gira per
+// sempre sotto uno scheletro, che è il difetto peggiore dei due che questa
+// opzione evita.
 export function useDebouncedTableSubscription(
   tables,
   reload,
-  { enabled = true, delay = 200, deps = [], filterEvent, applyRow } = {}
+  { enabled = true, delay = 200, deps = [], filterEvent, applyRow, saltaPrimoCaricamento = false } = {}
 ) {
   // reload/filterEvent/applyRow possono catturare closure che cambiano ad ogni
   // render: li teniamo in ref così l'effetto non si ri-sottoscrive ad ogni
@@ -114,7 +132,15 @@ export function useDebouncedTableSubscription(
     // Idratazione iniziale: `null`, non un Set vuoto. I due casi vanno
     // distinguibili — "nessun evento, carica tutto" non è "eventi da un
     // insieme vuoto di tabelle", che non esiste.
-    run(null);
+    //
+    // `gen` viene incrementato comunque anche quando si salta (B-1): il
+    // generation counter conta le richieste PARTITE, e saltarne una senza
+    // avanzarlo lascerebbe il primo reload vero con `my === 1` — lo stesso
+    // valore che avrebbe avuto senza il salto, il che è innocuo oggi ma smette
+    // di esserlo il giorno in cui qualcuno legge `gen` come "quante ne sono
+    // partite".
+    if (saltaPrimoCaricamento) gen += 1;
+    else run(null);
 
     let timer = null;
     // Tabelle accumulate dagli eventi che il debounce sta coalescendo. Si

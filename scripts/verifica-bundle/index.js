@@ -45,8 +45,20 @@ const INDEX_HTML = join(DIST, 'index.html');
 // portato con sé listePersistence.js. Verificato riaprendo a mano
 // ClienteDetailPanel.jsx: 77.95→84.60 kB, sopra soglia. Se le tocchi per
 // farle passare, prima capisci quale chunk si è spostato.
-const SOGLIA_INGRESSO_KB = 84;
-const SOGLIA_FIRST_LOAD_KB = 184;
+//
+// ─── RIMISURATE DOPO B-1 (audit performance/UX del 16 agosto, secondo
+// passaggio) ──────────────────────────────────────────────────────────────
+// `auth/AuthGate.jsx` importava VoyageDesk staticamente: l'app intera stava
+// nel chunk d'ingresso anche per chi era fermo al login. Con `lazy()` +
+// prefetch l'ingresso è sceso da 72.46 a 14.47 kB e il first load da 172.40 a
+// 114.41 kB. Le soglie SCENDONO con la misura, altrimenti restano 70 kB di
+// margine che non intercettano più niente — una soglia con quel gioco è la
+// forma in cui un controllo smette di controllare senza diventare rosso. Il
+// margine resta quello dichiarato sopra, +6 kB: un import statico di
+// VoyageDesk rimesso per distrazione riporterebbe l'ingresso a ~72 kB, cioè
+// molto oltre.
+const SOGLIA_INGRESSO_KB = 21;
+const SOGLIA_FIRST_LOAD_KB = 121;
 
 const kb = (bytes) => bytes / 1000;
 

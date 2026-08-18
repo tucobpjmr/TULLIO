@@ -6,7 +6,7 @@
 // discussione: nessun consumatore oltre a ListeViaggio.jsx e ai test che le
 // esercitano direttamente.
 import { beneficiariNomi } from "./listeApi.js";
-import { matchTermini, terminiRicerca } from "../../lib/searchUtils.js";
+import { indicizza, matchIndice, matchTermini, terminiRicerca } from "../../lib/searchUtils.js";
 
 // Etichette dei quattro insiemi dell'elenco. Servono anche fuori dal menu a
 // tendina: quando la ricerca trova risultati in un insieme che il filtro
@@ -30,15 +30,32 @@ export const FILTRI_ALTROVE = {
   cestino: ["tutte"],
 };
 
-// Filtro testuale dell'elenco: titolare, titolo e cointestatari, con la
+// I campi su cui si cerca una lista: titolare, titolo e cointestatari, con la
 // normalizzazione condivisa con l'anagrafica (vedi lib/searchUtils.js — la
-// ricerca ignora accenti, apostrofi e ordine delle parole). Esportata per i
-// test: è la funzione che decide se una lista si trova o no.
+// ricerca ignora accenti, apostrofi e ordine delle parole).
+//
+// M-3 (audit performance/UX del 16 agosto, secondo passaggio): l'indice si
+// costruisce dalla LISTA e non dalla query, quindi una volta per elenco e non
+// una volta per battuta. Qui pesava il doppio che altrove — `filtraListe`
+// gira su QUATTRO insiemi (attive, esaurite, tutte, cestino) a ogni carattere
+// digitato, e `beneficiariNomi` scorre i cointestatari di ogni riga.
+export const indicizzaLista = (l) =>
+  indicizza(l.clients?.name, l.titolo, beneficiariNomi(l));
+
+// Filtro testuale dell'elenco. Esportata per i test: è la funzione che decide
+// se una lista si trova o no. La home passa invece dall'indice precalcolato
+// (`indicizzaLista` + `matchIndice`), che è la stessa semantica senza il
+// lavoro ripetuto — `matchTermini` e `matchIndice` sono definite una sopra
+// l'altra proprio perché non possano divergere.
 export function filtraListe(liste, search) {
   const termini = terminiRicerca(search);
   if (!termini.length) return liste;
   return liste.filter((l) => matchTermini(termini, l.clients?.name, l.titolo, beneficiariNomi(l)));
 }
+
+// Le liste che corrispondono, a partire dall'indice invece che dalle righe.
+export const filtraIndicizzate = (indice, termini) =>
+  (termini.length ? indice.filter((r) => matchIndice(termini, r.idx)) : indice).map((r) => r.l);
 
 // Criteri di ordinamento della home. 'recenti' è l'ordine in cui il database
 // restituisce le liste (updated_at DESC): ordinare qui, sul client, evita di

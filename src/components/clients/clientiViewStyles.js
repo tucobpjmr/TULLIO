@@ -22,14 +22,9 @@ export const rowGap6Mt10 = { display: "flex", flexWrap: "wrap", gap: 6, marginTo
 export const rowCenterGap63 = { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8, alignItems: "center" };
 export const txtMutedTxtCenter = { textAlign: "center", padding: "64px 24px", color: "var(--text-muted)" };
 export const txtBoldMb6 = { fontWeight: 600, marginBottom: 6 };
-export const colCenterGap6 = { display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginTop: 18 };
-export const boxF13Bold = {
-  background: "var(--card)", color: "var(--text)",
-  border: "1px solid var(--border)", borderRadius: 10,
-  padding: "10px 22px", cursor: "pointer",
-  fontSize: 13, fontWeight: 600, fontFamily: "inherit",
-};
-export const txtF115Muted = { fontSize: 11.5, color: "var(--text-muted)" };
+// Il piede della finestra (bottone "Mostra altri" + conteggio) vive ora in
+// components/ui/MostraAltri.jsx con i suoi stili: era qui perché l'anagrafica
+// era l'unica vista del core ad averlo (M-2).
 export const txtF16Bold = { fontWeight: 700, fontSize: 16, color: "var(--heading)", marginBottom: 8 };
 export const txtF14Muted = { fontSize: 14, color: "var(--text-muted)", marginBottom: 20, lineHeight: 1.5 };
 export const mt8 = { marginTop: 8 };

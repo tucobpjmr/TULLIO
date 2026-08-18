@@ -1,13 +1,15 @@
 // src/components/dashboard/queues/UnassignedQueue.jsx
 // Coda globale: task non assegnati a nessuno, che chi ne ha i permessi può
 // prendere in carico. Il Driver non la vede.
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { SwipeActions } from "../../SwipeActions.jsx";
 import { TaskCard } from "../../tasks/TaskCard.jsx";
 import { PRIORITIES } from "../../../lib/taskConstants.js";
 import { formatDate, isOverdue } from "../../../lib/taskUtils.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
-import { useOpenTask } from "./queueShared.js";
+import { QUEUE_PAGINA, useOpenTask } from "./queueShared.js";
+import { useFinestra } from "../../../hooks/useFinestra.js";
+import { MostraAltri } from "../../ui/MostraAltri.jsx";
 import { QueueShell } from "./QueueShell.jsx";
 import { SkeletonCards } from "../../ui/SkeletonCards.jsx";
 import { gridGap102, intestazioneSezione, txtF18 } from "../../../styles/common.js";
@@ -55,16 +57,23 @@ export const UnassignedQueue = ({ tasks, dispatch, onTake, uid, loading = false 
   const empty = tasks.length === 0 && !caricando;
 
   // Categorie e priorità presenti nelle task della coda (no chip vuoti).
-  const presentCategories = Array.from(new Set(tasks.map(t => t.category).filter(Boolean)));
-  const presentPriorities = Array.from(new Set(tasks.map(t => t.priority).filter(Boolean)))
-    .sort((a, b) => {
-      const order = { critical: 0, high: 1, medium: 2, low: 3 };
-      return (order[a] ?? 9) - (order[b] ?? 9);
-    });
-  const filtered = tasks.filter(t =>
-    (!categoryFilter || t.category === categoryFilter) &&
-    (!priorityFilter || t.priority === priorityFilter)
-  );
+  const presentCategories = useMemo(
+    () => Array.from(new Set(tasks.map(t => t.category).filter(Boolean))), [tasks]);
+  const presentPriorities = useMemo(
+    () => Array.from(new Set(tasks.map(t => t.priority).filter(Boolean)))
+      .sort((a, b) => {
+        const order = { critical: 0, high: 1, medium: 2, low: 3 };
+        return (order[a] ?? 9) - (order[b] ?? 9);
+      }),
+    [tasks]);
+  const filtered = useMemo(
+    () => tasks.filter(t =>
+      (!categoryFilter || t.category === categoryFilter) &&
+      (!priorityFilter || t.priority === priorityFilter)),
+    [tasks, categoryFilter, priorityFilter]);
+  // M-2 · La finestra sulla coda. La coda globale è l'altra senza tetto
+  // naturale (con le scadute): si allunga quando nessuno prende in carico.
+  const finestra = useFinestra(filtered, QUEUE_PAGINA, [categoryFilter, priorityFilter]);
   const hasFilter = categoryFilter || priorityFilter;
   const filteredEmpty = !empty && filtered.length === 0;
 
@@ -130,8 +139,9 @@ export const UnassignedQueue = ({ tasks, dispatch, onTake, uid, loading = false 
           Nessun task per i filtri selezionati.
         </div>
       ) : (
+        <>
         <div style={gridGap102}>
-          {filtered.map(t => {
+          {finestra.visibili.map(t => {
             const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
             const overdue = isOverdue(t);
             return (
@@ -174,6 +184,12 @@ export const UnassignedQueue = ({ tasks, dispatch, onTake, uid, loading = false 
             );
           })}
         </div>
+        <MostraAltri
+          finestra={finestra}
+          azione={`Mostra altre ${Math.min(QUEUE_PAGINA, finestra.restanti)} di ${finestra.restanti}`}
+          conteggio={`${finestra.visibili.length} di ${finestra.totale} task`}
+        />
+        </>
       )}
     </QueueShell>
   );

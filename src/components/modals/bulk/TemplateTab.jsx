@@ -1,6 +1,6 @@
 // src/components/modals/bulk/TemplateTab.jsx
 // Generazione da template: una serie di task a partire dalla data di un evento.
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PriorityBadge } from "../../ui/PriorityBadge.jsx";
 import { TASK_TEMPLATES } from "../../../lib/taskConstants.js";
 import { clientContact } from "../../../lib/taskUtils.js";
@@ -9,6 +9,8 @@ import { DateTimePicker } from "../../ui/DateTimePicker.jsx";
 import { bulkInputStyle, bulkBtnPrimary, bulkBtnGhost } from "./bulkStyles.js";
 import { useClientSuggestions, ClientSuggestions } from "../../ui/ClientAutocomplete.jsx";
 import { dataMedia } from "../../../lib/dates.js";
+import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
+import { obbligatorio, primoCampoInvalido, validaCampi } from "../../../lib/validators.js";
 import {
   btnOutlineMini, colGap14, colGap2F12, grid2ColGap12, relative, rowCenterBetween2,
   rowCenterGap10, rowGap8, txtBoldDanger, txtF10Bold, txtF10Bold2, txtF10Muted, txtF11Muted,
@@ -32,6 +34,16 @@ const gridGap10 = { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10
 const boxR8 = { maxHeight: 240, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 8 };
 const txt = { fontWeight: 500 };
 
+// B-3 · Le due cose che devono esserci perché il comando produca qualcosa.
+// `busy` NON è fra queste: è lo stato della scrittura in volo, non una
+// condizione da compilare. `ORDINE` è quello visivo — la scelta del template
+// precede il modulo dei dati, e con entrambi mancanti è lì che serve tornare.
+const REGOLE = {
+  selectedId: obbligatorio("Scegli prima un template: è lui a decidere quali task creare."),
+  eventDate: obbligatorio("Scegli la data dell'evento: le scadenze dei task si contano da lì."),
+};
+const ORDINE = ["selectedId", "eventDate"];
+
 
 // ─── BULK: TEMPLATE TAB ────────────────────────────────────────────────────
 export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
@@ -44,6 +56,9 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
   const [contact, setContact] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [errori, setErrori] = useState({});
+  const rifTemplate = useRef(null);
+  const rifData = useRef(null);
 
   const cli = useClientSuggestions(clients, client);
   const pickClient = (c) => {
@@ -62,7 +77,25 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
   }) : [];
 
   const handleCreate = async () => {
-    if (!tpl || !eventDate || busy) return;
+    // B-3 · Era `disabled={!tpl || !eventDate || busy}` più un `return` muto:
+    // tre condizioni di natura diversa spente insieme in un comando solo. Il
+    // freno al doppio invio (`busy`) resta un `return`, perché non è qualcosa
+    // che l'utente possa correggere; ciò che manca da compilare lo dice ora il
+    // messaggio sotto il campo.
+    if (busy) return;
+    const trovati = validaCampi({ selectedId, eventDate }, REGOLE);
+    const primo = primoCampoInvalido(trovati, ORDINE);
+    if (primo) {
+      setErrori(trovati);
+      const contenitore = (primo === "selectedId" ? rifTemplate : rifData).current;
+      // Il campo da mettere a fuoco è quello DENTRO il contenitore: la data è
+      // un DateTimePicker (un bottone che apre il calendario), il template una
+      // griglia di card cliccabili — nessuno dei due è un `<input>` a cui si
+      // possa passare un ref e basta.
+      (contenitore?.querySelector("button, input") || contenitore)?.focus();
+      return;
+    }
+    setErrori({});
     const tasks = previewTasks.map((t) => ({
       id: crypto.randomUUID(),
       title: t.title,
@@ -94,9 +127,11 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
   return (
     <div style={colGap14}>
       {!selectedId ? (
-        <div style={grid2ColGap12}>
+        <div ref={rifTemplate} tabIndex={-1}>
+          <FieldError id="vd-tpl-scelta-err">{errori.selectedId}</FieldError>
+          <div style={grid2ColGap12}>
           {TASK_TEMPLATES.map(t => (
-            <div key={t.id} onClick={() => setSelectedId(t.id)} className="hover-lift" style={boxR12}>
+            <div key={t.id} onClick={() => { setSelectedId(t.id); setErrori({}); }} className="hover-lift" style={boxR12}>
               <div style={rowCenterGap102}>
                 <div style={txtF28}>{t.icon}</div>
                 <div>
@@ -107,6 +142,7 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
               <div style={txtF12Muted}>{t.description}</div>
             </div>
           ))}
+          </div>
         </div>
       ) : (
         <>
@@ -135,14 +171,15 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
                 <ClientSuggestions matches={cli.matches} visible={cli.visible} onPick={pickClient} compact />
               </div>
             </div>
-            <div>
+            <div ref={rifData} {...ariaCampo("vd-tpl-data-err", errori.eventDate)}>
               <div style={txtF10Bold}>DATA EVENTO *</div>
               <DateTimePicker
                 value={eventDate || null}
-                onChange={iso => setEventDate(iso || "")}
+                onChange={iso => { setEventDate(iso || ""); setErrori({}); }}
                 withTime={false}
                 placeholder="gg/mm/aaaa"
               />
+              <FieldError id="vd-tpl-data-err">{errori.eventDate}</FieldError>
             </div>
             <div>
               <div style={txtF10Bold}>ASSEGNA A</div>
@@ -195,10 +232,14 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
         </div>
         <div style={rowGap8}>
           <button onClick={onCancel || onClose} disabled={busy} style={{ ...bulkBtnGhost, opacity: busy ? 0.6 : 1, cursor: busy ? "not-allowed" : "pointer" }}>Annulla</button>
-          <button onClick={handleCreate} disabled={!tpl || !eventDate || busy} style={{
+          {/* `disabled` resta solo per `busy`: lì il comando è spento perché
+              la scrittura è IN VOLO, non perché manchi qualcosa da compilare —
+              è il freno al doppio invio, e la sua ragione è già a schermo
+              ("⏳ Creazione…"). */}
+          <button onClick={handleCreate} disabled={busy} style={{
             ...bulkBtnPrimary,
-            opacity: (!tpl || !eventDate || busy) ? 0.5 : 1,
-            cursor: (!tpl || !eventDate || busy) ? "not-allowed" : "pointer",
+            opacity: busy ? 0.5 : 1,
+            cursor: busy ? "not-allowed" : "pointer",
           }}>{busy ? "⏳ Creazione…" : `✓ Crea ${previewTasks.length} task`}</button>
         </div>
       </div>

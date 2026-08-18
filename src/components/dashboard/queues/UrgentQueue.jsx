@@ -1,14 +1,16 @@
 // src/components/dashboard/queues/UrgentQueue.jsx
 // Coda urgenze: tutti i task in scadenza entro la finestra scelta, anche di
 // altri (i non-driver devono poter intervenire su ciò che sta per scadere).
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { SwipeActions } from "../../SwipeActions.jsx";
 import { Avatar } from "../../ui/Avatar.jsx";
 import { TaskCard } from "../../tasks/TaskCard.jsx";
 import { PRIORITIES } from "../../../lib/taskConstants.js";
 import { formatDate, formatTime } from "../../../lib/taskUtils.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
-import { useOpenTask } from "./queueShared.js";
+import { QUEUE_PAGINA, useOpenTask } from "./queueShared.js";
+import { useFinestra } from "../../../hooks/useFinestra.js";
+import { MostraAltri } from "../../ui/MostraAltri.jsx";
 import { QueueShell } from "./QueueShell.jsx";
 import { SkeletonCards } from "../../ui/SkeletonCards.jsx";
 import { txtF11Muted } from "../../../styles/common.js";
@@ -64,18 +66,22 @@ export const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid, loading = false 
   // `tasks` arriva già limitato a 72h dal parent: qui restringo alla finestra
   // selezionata, poi (eventualmente) al singolo agente.
   const windowMs = windowH * 60 * 60 * 1000;
-  const inWindow = tasks.filter(t => {
+  const inWindow = useMemo(() => tasks.filter(t => {
     const diff = new Date(t.dueDate).getTime() - Date.now();
     return diff >= 0 && diff <= windowMs;
-  });
+  }), [tasks, windowMs]);
 
-  const presentAgents = [...new Set(
-    inWindow.map(t => t.assignees?.[0]).filter(Boolean)
-  )];
+  const presentAgents = useMemo(
+    () => [...new Set(inWindow.map(t => t.assignees?.[0]).filter(Boolean))], [inWindow]);
 
-  const visibleTasks = filterAgent
-    ? inWindow.filter(t => t.assignees?.[0] === filterAgent)
-    : inWindow;
+  const visibleTasks = useMemo(
+    () => (filterAgent ? inWindow.filter(t => t.assignees?.[0] === filterAgent) : inWindow),
+    [inWindow, filterAgent]);
+
+  // M-2 · La finestra sull'elenco (da non confondere con la finestra TEMPORALE
+  // 24/48/72h di questa coda, che è un filtro sui dati): entrambe la
+  // riazzerano, perché entrambe ridefiniscono quali siano le prime dieci.
+  const finestra = useFinestra(visibleTasks, QUEUE_PAGINA, [filterAgent, windowH]);
 
   return (
     <QueueShell
@@ -176,8 +182,9 @@ export const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid, loading = false 
           {windowH < 72 && " Prova ad allargare la finestra."}
         </div>
       ) : (
+      <>
       <div style={gridGap10}>
-        {visibleTasks.map(t => {
+        {finestra.visibili.map(t => {
           const prio = PRIORITIES[t.priority];
           const owner = getMember(t.assignees?.[0]);
           const mine = (t.assignees || []).includes(uid);
@@ -230,6 +237,12 @@ export const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid, loading = false 
           );
         })}
       </div>
+      <MostraAltri
+        finestra={finestra}
+        azione={`Mostra altre ${Math.min(QUEUE_PAGINA, finestra.restanti)} di ${finestra.restanti}`}
+        conteggio={`${finestra.visibili.length} di ${finestra.totale} task`}
+      />
+      </>
       )}
     </QueueShell>
   );

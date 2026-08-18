@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { LvOverlay } from "./LvOverlay.jsx";
+import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -23,10 +24,27 @@ export function EditListaModal({ lista, onSave, onClose }) {
   const [titolo, setTitolo] = useState(lista.titolo || "");
   const [rinomina, setRinomina] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [errore, setErrore] = useState(null);
+  const rifNome = useRef(null);
 
   const submit = async () => {
     if (saving) return;
-    if (rinomina && !name.trim()) return onSave.onError("Il nome del cliente è obbligatorio");
+    // B-3 · Il messaggio va DOVE è successo. Era `onSave.onError(...)`, cioè un
+    // toast in un angolo dello schermo mentre il campo vuoto restava identico a
+    // quelli giusti — e per chi usa uno screen reader nessun legame fra il
+    // messaggio e l'input. Il campo qui è uno solo, quindi non serve
+    // `primoCampoInvalido`: il focus ha una sola destinazione possibile.
+    //
+    // Il `disabled` del campo NON è quello respinto dalla regola: non è un
+    // comando spento perché il form è incompleto, è un campo in sola lettura
+    // finché non lo si sblocca di proposito — rinominare il titolare cambia
+    // l'anagrafica condivisa di tutta l'agenzia, ed è il senso della spunta.
+    if (rinomina && !name.trim()) {
+      setErrore("Il nome del titolare è obbligatorio: togli la spunta per lasciarlo com'è.");
+      rifNome.current?.focus();
+      return;
+    }
+    setErrore(null);
     setSaving(true);
     const ok = await onSave.run({
       id: lista.id,
@@ -47,18 +65,25 @@ export function EditListaModal({ lista, onSave, onClose }) {
         <label htmlFor="el-client">Nome del titolare (anagrafica condivisa)</label>
         <input
           id="el-client"
+          ref={rifNome}
           value={name}
           disabled={!rinomina}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => { setName(e.target.value); setErrore(null); }}
           placeholder="Es. ROSSI MARIO"
           style={rinomina ? undefined : { opacity: 0.6 }}
+          {...ariaCampo("el-client-err", errore)}
         />
+        <FieldError id="el-client-err">{errore}</FieldError>
       </div>
       <label style={rowStartGap8}>
         <input
           type="checkbox"
           checked={rinomina}
-          onChange={(e) => { setRinomina(e.target.checked); if (!e.target.checked) setName(nomeOriginale); }}
+          onChange={(e) => {
+            setRinomina(e.target.checked);
+            setErrore(null);
+            if (!e.target.checked) setName(nomeOriginale);
+          }}
           style={mt3}
         />
         <span>Rinomina il titolare in anagrafica</span>

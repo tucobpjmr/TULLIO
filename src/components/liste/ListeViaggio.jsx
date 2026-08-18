@@ -30,7 +30,10 @@ import { StrumentiDatiModal } from "./modals/StrumentiDatiModal.jsx";
 // questo file in A-4 (audit del 12 agosto), quando aveva raggiunto 495/500
 // righe. Pure funzioni e un componente senza stato proprio — nessun
 // consumatore oltre a questo modulo e ai test che li esercitano direttamente.
-import { FILTRI, FILTRI_ALTROVE, filtraListe, ORDINAMENTI, ordinaListe } from "./listeOrdinamento.js";
+import {
+  FILTRI, FILTRI_ALTROVE, filtraIndicizzate, indicizzaLista, ORDINAMENTI, ordinaListe,
+} from "./listeOrdinamento.js";
+import { useFinestra } from "../../hooks/useFinestra.js";
 import { ListaRow } from "./ListaRow.jsx";
 import { hidden, mt12, txtF13 } from "../../styles/common.js";
 
@@ -77,7 +80,6 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("attive");
   const [sort, setSort] = useState("recenti");
-  const [limit, setLimit] = useState(HOME_PAGE_SIZE);
 
   // Gli overlay del modulo — nuova lista, strumenti dati, reset totale,
   // conferma del ripristino da backup — in UNA macchina a stati: erano quattro
@@ -167,21 +169,36 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
   // La ricerca si applica a TUTTI e quattro gli insiemi, non solo a quello
   // selezionato: il filtro decide cosa si mostra, ma i conteggi degli altri
   // servono per dire dove sono finiti i risultati che non si vedono.
+  // M-3 · L'indice di ricerca delle liste, ricostruito quando cambiano le
+  // liste e non a ogni battuta: la normalizzazione (accenti, apostrofi,
+  // variante senza spazi) e la raccolta dei cointestatari dipendono dalla
+  // RIGA, non da ciò che si digita.
+  const indiceListe = useMemo(() => liste.map((l) => ({ l, idx: indicizzaLista(l) })), [liste]);
+  const indiceCestino = useMemo(() => cestino.map((l) => ({ l, idx: indicizzaLista(l) })), [cestino]);
+
   const risultati = useMemo(() => {
-    const attive = liste.filter((l) => l.stato === "attiva");
-    const esaurite = liste.filter((l) => l.stato === "esaurita");
+    const termini = terminiRicerca(search);
+    // Un solo passaggio sull'indice, poi la partizione per stato: prima erano
+    // quattro filtri testuali completi sugli stessi dati (attive, esaurite,
+    // tutte, cestino), cioè le liste attive normalizzate due volte per battuta.
+    const tutte = filtraIndicizzate(indiceListe, termini);
     return {
-      attive: filtraListe(attive, search),
-      esaurite: filtraListe(esaurite, search),
-      tutte: filtraListe(liste, search),
-      cestino: filtraListe(cestino, search),
+      attive: tutte.filter((l) => l.stato === "attiva"),
+      esaurite: tutte.filter((l) => l.stato === "esaurita"),
+      tutte,
+      cestino: filtraIndicizzate(indiceCestino, termini),
     };
-  }, [liste, cestino, search]);
+  }, [indiceListe, indiceCestino, search]);
 
   const visibili = useMemo(
     () => ordinaListe(risultati[filter] || [], saldi, sort),
     [risultati, filter, saldi, sort],
   );
+
+  // M-2 · La finestra dell'elenco, ora dall'hook condiviso: era scritta qui e,
+  // identica, in ClientiView — e le altre cinque viste con elenchi lunghi non
+  // l'avevano affatto (vedi hooks/useFinestra.js).
+  const finestra = useFinestra(visibili, HOME_PAGE_SIZE, [search, filter, sort]);
 
   // Conteggi per il menu a tendina del filtro. Senza, l'elenco mostra il
   // totale delle sole "Attive" (il filtro di default) mentre il backup conta
@@ -205,7 +222,7 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
       .filter((x) => x.n > 0);
   }, [search, filter, risultati]);
 
-  const vaiA = (key) => { setFilter(key); setLimit(HOME_PAGE_SIZE); };
+  const vaiA = (key) => setFilter(key);
 
   // "Esaurite (1)" oppure "Esaurite (1) · Cestino (2)", come bottoni che
   // portano dove i risultati sono.
@@ -424,12 +441,12 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
                   type="search"
                   placeholder="Cerca cliente, cointestatario o titolo…"
                   value={search}
-                  onChange={(e) => { setSearch(e.target.value); setLimit(HOME_PAGE_SIZE); }}
+                  onChange={(e) => setSearch(e.target.value)}
                   aria-label="Cerca lista per cliente, cointestatario o titolo"
                 />
                 <select
                   value={filter}
-                  onChange={(e) => { setFilter(e.target.value); setLimit(HOME_PAGE_SIZE); }}
+                  onChange={(e) => setFilter(e.target.value)}
                   aria-label="Filtra le liste"
                 >
                   <option value="attive">Attive ({conteggi.attive})</option>
@@ -494,13 +511,18 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
                   ))
                 ) : (
                   <>
-                    {visibili.slice(0, limit).map((l) => (
+                    {finestra.visibili.map((l) => (
                       <ListaRow key={l.id} lista={l} saldo={saldi[l.id]} onOpen={() => setOpenId(l.id)} />
                     ))}
-                    {visibili.length > limit && (
+                    {finestra.restanti > 0 && (
                       <div style={txtCenter}>
-                        <button className="lv-btn" onClick={() => setLimit((n) => n + HOME_PAGE_SIZE)}>
-                          Mostra altre liste ({visibili.length - limit} rimanenti)
+                        {/* Il bottone resta quello del modulo (`lv-btn`): il
+                            CSS di Liste è scopato sotto `.lv-root`, quindi il
+                            piede condiviso del core (ui/MostraAltri.jsx) qui
+                            arriverebbe senza i propri stili. La meccanica è la
+                            stessa, l'aspetto è quello di casa. */}
+                        <button className="lv-btn" onClick={finestra.ancora}>
+                          Mostra altre liste ({finestra.restanti} rimanenti)
                         </button>
                       </div>
                     )}

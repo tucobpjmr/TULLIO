@@ -1,9 +1,11 @@
 // src/components/chat/NewConversationView.jsx
 // Creazione di una conversazione: diretta o di gruppo.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Avatar } from "../ui/Avatar.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { roleLabel } from "../../lib/taskConstants.js";
+import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
+import { obbligatorio, primoCampoInvalido, validaCampi } from "../../lib/validators.js";
 import { btnChiudiSuScuro, flex1, txtF11Muted, txtF13Bold, txtF18 } from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
@@ -36,6 +38,23 @@ const boxFlex1F13 = {
   flex: 1, padding: "10px", background: "transparent", border: "1px solid var(--border)",
   borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 500,
 };
+// B-3 · Il comando di creazione. Era uno `style={{…}}` inline con opacità e
+// cursore legati alle due condizioni, sopra un `disabled` che le nascondeva
+// entrambe: il comando era spento e non diceva QUALE delle due mancasse.
+const boxFlex2Crea = {
+  flex: 2, padding: "10px", background: "var(--navy)", color: "#fff",
+  border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600,
+};
+const p14SenzaBordo = { padding: 14 };
+
+// Le due condizioni del gruppo, come regole pure e con un messaggio ciascuna.
+// `ORDINE` è quello VISIVO: il nome sta sopra l'elenco dei membri, quindi con
+// entrambi mancanti il messaggio (e il focus) vanno al nome.
+const REGOLE_GRUPPO = {
+  groupName: obbligatorio("Dai un nome al gruppo: è quello che vedranno i partecipanti."),
+  selected: (v) => (v.length >= 2 ? null : "Scegli almeno due membri: per parlare con una persona sola c'è la conversazione diretta."),
+};
+const ORDINE_GRUPPO = ["groupName", "selected"];
 
 // ─── CHAT: NEW CONVERSATION ────────────────────────────────────────────────
 export const NewConversationView = ({ onCreate, onCancel, existing }) => {
@@ -43,11 +62,15 @@ export const NewConversationView = ({ onCreate, onCancel, existing }) => {
   const [mode, setMode] = useState("select"); // select | group
   const [selected, setSelected] = useState([]);
   const [groupName, setGroupName] = useState("");
+  const [errori, setErrori] = useState({});
+  const rifNome = useRef(null);
+  const rifMembri = useRef(null);
 
   const available = team.filter(m => m.id !== currentUserId);
 
   const toggle = (id) => {
     setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
+    setErrori(prec => (prec.selected ? { ...prec, selected: undefined } : prec));
   };
 
   const createDirect = (memberId) => {
@@ -61,7 +84,17 @@ export const NewConversationView = ({ onCreate, onCancel, existing }) => {
   };
 
   const createGroup = () => {
-    if (!groupName.trim() || selected.length < 2) return;
+    // B-3 · Era `disabled={!groupName.trim() || selected.length < 2}` più un
+    // `return` muto: due condizioni riassunte in un comando spento, e nessun
+    // modo di sapere quale delle due mancasse.
+    const trovati = validaCampi({ groupName, selected }, REGOLE_GRUPPO);
+    const primo = primoCampoInvalido(trovati, ORDINE_GRUPPO);
+    if (primo) {
+      setErrori(trovati);
+      (primo === "groupName" ? rifNome : rifMembri).current?.focus();
+      return;
+    }
+    setErrori({});
     const newConv = {
       id: "c" + Date.now(), type: "group",
       participants: [currentUserId, ...selected],
@@ -110,16 +143,37 @@ export const NewConversationView = ({ onCreate, onCancel, existing }) => {
         <>
           <div style={p14}>
             <input
+              ref={rifNome}
               value={groupName}
-              onChange={e => setGroupName(e.target.value)}
+              onChange={e => {
+                setGroupName(e.target.value);
+                setErrori(prec => (prec.groupName ? { ...prec, groupName: undefined } : prec));
+              }}
               placeholder="Nome del gruppo..."
               style={boxF13WFull}
+              aria-label="Nome del gruppo"
+              {...ariaCampo("vd-chat-gruppo-nome-err", errori.groupName)}
             />
+            <FieldError id="vd-chat-gruppo-nome-err">{errori.groupName}</FieldError>
           </div>
           <div style={flex12}>
-            <div style={txtF10Bold}>
+            {/* `tabIndex={-1}`: l'elenco dei membri non è un campo di form —
+                sono righe cliccabili — ma il focus deve poterci arrivare
+                quando è LUI a mancare, altrimenti il messaggio comparirebbe
+                fuori dalla vista di chi ha scrollato.
+                Niente `ariaCampo` qui, a differenza del nome del gruppo:
+                `aria-invalid` è un attributo dei CONTROLLI, e metterlo su
+                un'intestazione sarebbe ARIA che descrive una cosa che non
+                esiste. Il messaggio si annuncia da sé — `FieldError` ha
+                `role="alert"` — e il focus lo porta sotto gli occhi. */}
+            <div ref={rifMembri} tabIndex={-1} style={txtF10Bold}>
               SELEZIONA MEMBRI ({selected.length} selezionati)
             </div>
+            {errori.selected && (
+              <div style={p14SenzaBordo}>
+                <FieldError id="vd-chat-gruppo-membri-err">{errori.selected}</FieldError>
+              </div>
+            )}
             {available.map(m => {
               const isSel = selected.includes(m.id);
               return (
@@ -146,13 +200,7 @@ export const NewConversationView = ({ onCreate, onCancel, existing }) => {
           </div>
           <div style={rowGap8P14}>
             <button onClick={() => setMode("select")} style={boxFlex1F13}>Indietro</button>
-            <button onClick={createGroup} disabled={!groupName.trim() || selected.length < 2} style={{
-              flex: 2, padding: "10px", background: "var(--navy)", color: "#fff",
-              border: "none", borderRadius: 8,
-              cursor: (!groupName.trim() || selected.length < 2) ? "not-allowed" : "pointer",
-              fontSize: 13, fontWeight: 600,
-              opacity: (!groupName.trim() || selected.length < 2) ? 0.5 : 1,
-            }}>Crea gruppo</button>
+            <button onClick={createGroup} style={boxFlex2Crea}>Crea gruppo</button>
           </div>
         </>
       )}

@@ -19,9 +19,20 @@ import {
   validaCampi, primoCampoInvalido, obbligatorio, emailValida, interpretabile,
   isValidEmail,
 } from "../lib/validators.js";
+// NewConversationView monta Avatar → lib/api.js → lib/supabase.js, che senza
+// URL e chiave non si costruisce: stessa mock di dashboardQueues.test.jsx.
+vi.mock("../lib/supabase", () => ({ supabase: {}, default: {} }));
+vi.mock("../lib/api.js", () => ({
+  Users: { getAvatarUrl: vi.fn().mockResolvedValue({ url: null, error: null }) },
+}));
+
 import { ClienteModal } from "../components/clients/ClienteModal.jsx";
 import { NoticeEditorModal } from "../components/modals/NoticeEditorModal.jsx";
 import { AddCategoryModal } from "../components/modals/AddCategoryModal.jsx";
+import { NewConversationView } from "../components/chat/NewConversationView.jsx";
+import { EditListaModal } from "../components/liste/modals/EditListaModal.jsx";
+import { Trash } from "../components/views/Trash.jsx";
+import { TemplateTab } from "../components/modals/bulk/TemplateTab.jsx";
 import { renderWithAppData, DEMO_APP_CTX } from "./helpers/appData.jsx";
 
 // ─── La metà pura ───────────────────────────────────────────────────────────
@@ -210,5 +221,193 @@ describe("AddCategoryModal — il nome della categoria è obbligatorio e lo dice
     fireEvent.click(screen.getByText("Crea categoria"));
     await waitFor(() => expect(dispatch).toHaveBeenCalled());
     expect(dispatch.mock.calls[0][0].type).toBe("ADD_CATEGORY");
+  });
+});
+
+// ─── B-3 · gli ultimi quattro call site della variante «bottone spento» ────
+// Tutti e quattro spegnevano il comando invece di dire cosa mancasse, e due
+// avevano PIÙ condizioni: il comando era disabilitato e non diceva quale delle
+// due o tre non fosse soddisfatta. Le tre proprietà verificate sono le stesse
+// di sopra — messaggio legato al campo, focus sul primo campo sbagliato in
+// ordine visivo, errore che si spegne appena si corregge — più una quarta che
+// riguarda questa famiglia: il comando NON è più `disabled`, perché un bottone
+// spento a form appena aperto si legge come un'app rotta.
+describe("NewConversationView — le due condizioni del gruppo, dette una per una", () => {
+  const monta = () => {
+    const onCreate = vi.fn();
+    renderWithAppData(
+      <NewConversationView onCreate={onCreate} onCancel={vi.fn()} existing={[]} />,
+      DEMO_APP_CTX,
+    );
+    fireEvent.click(screen.getByText(/Crea nuovo gruppo/));
+    return onCreate;
+  };
+  const crea = () => fireEvent.click(screen.getByText("Crea gruppo"));
+
+  it("il comando è premibile e dice ENTRAMBE le condizioni, col focus sulla prima", async () => {
+    const onCreate = monta();
+    expect(screen.getByText("Crea gruppo").disabled).toBe(false);
+
+    crea();
+
+    // Due messaggi, non uno riassuntivo: erano due condizioni spente insieme
+    // in un `disabled`, e l'utente non sapeva quale delle due gli mancasse.
+    const avvisi = await screen.findAllByRole("alert");
+    expect(avvisi.map(a => a.textContent).join(" ")).toMatch(/nome al gruppo/i);
+    expect(avvisi.map(a => a.textContent).join(" ")).toMatch(/almeno due membri/i);
+
+    const campo = screen.getByPlaceholderText(/Nome del gruppo/);
+    const suo = document.getElementById(campo.getAttribute("aria-describedby"));
+    expect(campo.getAttribute("aria-invalid")).toBe("true");
+    expect(suo.textContent).toMatch(/nome al gruppo/i);
+    // Il focus va sul PRIMO campo sbagliato in ordine visivo: il nome sta
+    // sopra l'elenco dei membri.
+    expect(document.activeElement).toBe(campo);
+    expect(onCreate).not.toHaveBeenCalled();
+  });
+
+  it("col nome compilato dice l'ALTRA condizione: servono due membri", async () => {
+    // È il punto del rilievo: due condizioni riassunte in un comando spento
+    // lasciavano indovinare quale delle due mancasse.
+    const onCreate = monta();
+    fireEvent.change(screen.getByPlaceholderText(/Nome del gruppo/), { target: { value: "Operativo" } });
+    crea();
+
+    const avviso = await screen.findByRole("alert");
+    expect(avviso.textContent).toMatch(/almeno due membri/i);
+    expect(onCreate).not.toHaveBeenCalled();
+  });
+
+  it("con nome e due membri il gruppo si crea", async () => {
+    const onCreate = monta();
+    fireEvent.change(screen.getByPlaceholderText(/Nome del gruppo/), { target: { value: "Operativo" } });
+    const altri = DEMO_APP_CTX.team.filter(m => m.id !== "marco").slice(0, 2);
+    for (const m of altri) fireEvent.click(screen.getByText(m.name));
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    crea();
+    await waitFor(() => expect(onCreate).toHaveBeenCalled());
+    expect(onCreate.mock.calls[0][0]).toMatchObject({ type: "group", name: "Operativo" });
+  });
+});
+
+describe("EditListaModal — il nome del titolare lo dice sotto il campo, non in un toast", () => {
+  const lista = { id: "l1", titolo: "Buono 2026", clients: { name: "MARIO ROSSI" } };
+
+  it("il messaggio è legato all'input e la scrittura non parte", async () => {
+    const run = vi.fn(async () => true);
+    const onError = vi.fn();
+    render(<EditListaModal lista={lista} onClose={vi.fn()} onSave={{ run, onError }} />);
+
+    fireEvent.click(screen.getByLabelText("Rinomina il titolare in anagrafica"));
+    const campo = screen.getByLabelText(/Nome del titolare/);
+    fireEvent.change(campo, { target: { value: "   " } });
+    fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
+
+    const avviso = await screen.findByRole("alert");
+    expect(avviso.textContent).toMatch(/obbligatorio/);
+    expect(campo.getAttribute("aria-describedby")).toBe(avviso.id);
+    expect(document.activeElement).toBe(campo);
+    // Il toast era il difetto: un messaggio in un angolo, lontano dal campo.
+    expect(onError).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("l'errore si spegne appena si scrive, e poi il salvataggio parte", async () => {
+    const run = vi.fn(async () => true);
+    render(<EditListaModal lista={lista} onClose={vi.fn()} onSave={{ run, onError: vi.fn() }} />);
+
+    fireEvent.click(screen.getByLabelText("Rinomina il titolare in anagrafica"));
+    fireEvent.change(screen.getByLabelText(/Nome del titolare/), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
+    expect(await screen.findByRole("alert")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText(/Nome del titolare/), { target: { value: "ROSSI MARIO" } });
+    expect(screen.queryByRole("alert")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
+    await waitFor(() => expect(run).toHaveBeenCalledWith({
+      id: "l1", titolo: "Buono 2026", clientName: "ROSSI MARIO",
+    }));
+  });
+});
+
+describe("Trash — il ripristino dice che manca il titolo, invece di spegnere il comando", () => {
+  const TASK = {
+    id: "t1", title: "Prenotazione hotel", category: "booking", priority: "medium",
+    status: "todo", assignees: [], comments: [], deletedAt: new Date().toISOString(),
+  };
+  const apri = () => {
+    const dispatch = vi.fn();
+    renderWithAppData(<Trash dispatch={dispatch} loading={false} />, { ...DEMO_APP_CTX, tasks: [TASK] });
+    fireEvent.click(screen.getByTitle("Ripristina con modifica"));
+    return dispatch;
+  };
+
+  it("il messaggio è legato al campo, il focus ci torna e il ripristino non parte", async () => {
+    const dispatch = apri();
+    const conferma = screen.getByText("↻ Conferma ripristino");
+    expect(conferma.disabled).toBe(false);
+
+    const campo = screen.getByLabelText("TITOLO");
+    fireEvent.change(campo, { target: { value: "   " } });
+    fireEvent.click(conferma);
+
+    const avviso = await screen.findByRole("alert");
+    expect(avviso.textContent).toMatch(/titolo è obbligatorio/i);
+    expect(campo.getAttribute("aria-invalid")).toBe("true");
+    expect(campo.getAttribute("aria-describedby")).toBe(avviso.id);
+    expect(document.activeElement).toBe(campo);
+    // Né UPDATE_TASK né RESTORE_TASK: una task senza titolo non torna indietro.
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("corretto il titolo, il ripristino parte", async () => {
+    const dispatch = apri();
+    fireEvent.change(screen.getByLabelText("TITOLO"), { target: { value: "" } });
+    fireEvent.click(screen.getByText("↻ Conferma ripristino"));
+    expect(await screen.findByRole("alert")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("TITOLO"), { target: { value: "Prenotazione hotel" } });
+    expect(screen.queryByRole("alert")).toBeNull();
+    fireEvent.click(screen.getByText("↻ Conferma ripristino"));
+    await waitFor(() => expect(dispatch.mock.calls.map(c => c[0].type))
+      .toEqual(["UPDATE_TASK", "RESTORE_TASK"]));
+  });
+});
+
+describe("TemplateTab — le tre condizioni spente insieme, ora dette una per una", () => {
+  const monta = () => {
+    const onCreate = vi.fn(async () => ({ error: null }));
+    renderWithAppData(
+      <TemplateTab onCreate={onCreate} onClose={vi.fn()} onCancel={vi.fn()} clients={[]} />,
+      DEMO_APP_CTX,
+    );
+    return onCreate;
+  };
+  const crea = () => fireEvent.click(screen.getByText(/^✓ Crea/));
+
+  it("senza template scelto lo dice, invece di offrire un comando spento che crea zero task", async () => {
+    // Il footer con «✓ Crea 0 task» è a schermo anche nella schermata di
+    // scelta: prima era `disabled`, cioè un comando spento senza spiegazione.
+    const onCreate = monta();
+    expect(screen.getByText(/^✓ Crea/).disabled).toBe(false);
+
+    crea();
+
+    const avviso = await screen.findByRole("alert");
+    expect(avviso.textContent).toMatch(/scegli prima un template/i);
+    expect(onCreate).not.toHaveBeenCalled();
+  });
+
+  it("scelto il template, dice che manca la DATA — l'altra condizione", async () => {
+    const onCreate = monta();
+    fireEvent.click(screen.getByText("Viaggio di nozze"));
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    crea();
+
+    const avviso = await screen.findByRole("alert");
+    expect(avviso.textContent).toMatch(/data dell'evento/i);
+    expect(onCreate).not.toHaveBeenCalled();
   });
 });

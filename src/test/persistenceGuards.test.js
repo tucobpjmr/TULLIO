@@ -577,7 +577,10 @@ const SOLO_CLIENT = [
   // searchQuery/showNotif/sidebarCollapsed non sono più nel reducer (audit
   // ST-2 parte 2): sono useState nei componenti che li possiedono, quindi non
   // compaiono più fra i case del reducer e non hanno bisogno di una entry qui.
-  "SHOW_TOAST", "CLEAR_TOAST", "SET_VIEW",
+  // `RETRACT_TOASTS` (B-2) è dello stesso genere: toglie dalla coda il toast
+  // di successo che il server ha poi smentito. Non c'è niente da scrivere —
+  // è un'affermazione ritirata, non un dato.
+  "SHOW_TOAST", "CLEAR_TOAST", "RETRACT_TOASTS", "SET_VIEW",
   "SET_SELECTED_TASK", "CLEAR_LISTE_TARGET",
   // Il log attività è ricostruito in memoria dalle azioni (buildLogEntry):
   // svuotarlo è un'operazione locale perché il log stesso lo è.

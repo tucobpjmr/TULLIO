@@ -143,7 +143,13 @@ export function montaggiLazySenzaRete(sorgenti) {
   // c'è se e solo se il file può montare un lazy, e non può restare per
   // sbaglio: `no-unused-vars` lo toglierebbe.
   const IMPORTA_LAZY = /import\s*\{[^}]*\blazy\b[^}]*\}\s*from\s*["']react["']/;
-  const HA_RETE = /LazyPanel|ViewErrorBoundary|OverlayErrorBoundary/;
+  // `ErrorBoundary` è sottostringa di ViewErrorBoundary e OverlayErrorBoundary,
+  // quindi questa alternativa da sola copre tutte e tre — più il boundary di
+  // PRIMO livello, che è la rete giusta dell'unico montaggio in cui il chunk è
+  // l'app intera (auth/AuthGate.jsx, B-1): lì non esiste "il resto dell'app" in
+  // cui rientrare, e la pagina con "Ricarica" è la sola uscita. La condizione
+  // verificata resta la stessa — un `lazy()` e un boundary nello stesso file.
+  const HA_RETE = /LazyPanel|ErrorBoundary/;
   const conLazy = (sorgenti || []).filter(f => IMPORTA_LAZY.test(f.testo));
   // Stessa regola non negoziabile del resto del file: se NESSUN file chiama
   // `lazy()`, questo controllo non ha verificato niente — e passerebbe.

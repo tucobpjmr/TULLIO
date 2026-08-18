@@ -16,14 +16,16 @@ import { useClients } from "../../state/ClientsContext.jsx";
 // query: vedi components/liste/listeModuleApi.js.
 import { conteggioListePerCliente } from "../liste/listeModuleApi.js";
 import { tasksDelCliente } from "../../lib/clientNotes.js";
-import { matchTermini, terminiRicerca } from "../../lib/searchUtils.js";
+import { indicizza, matchIndice, terminiRicerca } from "../../lib/searchUtils.js";
+import { useFinestra } from "../../hooks/useFinestra.js";
+import { MostraAltri } from "../ui/MostraAltri.jsx";
 import { fieldStyle } from "./clientStyles.js";
 import { Modal } from "../ui/Modal.jsx";
 import { rowGap8, txtF13, txtF13Muted, txtF40Mb12 } from "../../styles/common.js";
 import {
-  boxF13Bold, boxF14Bold, boxF14Bold2, boxF14Muted, colCenterGap6, maxW1100, mb20, mt8,
+  boxF14Bold, boxF14Bold2, boxF14Muted, maxW1100, mb20, mt8,
   rowCenterBetween, rowCenterGap6, rowCenterGap62, rowCenterGap63, rowGap10, rowGap6Mt10,
-  txtBoldMb6, txtF115Muted, txtF14Muted, txtF14Muted2, txtF16Bold, txtMutedTxtCenter,
+  txtBoldMb6, txtF14Muted, txtF14Muted2, txtF16Bold, txtMutedTxtCenter,
 } from "./clientiViewStyles.js";
 
 // Chunk async: porta con sé lib/xlsx.js e resta chiuso nella grande
@@ -121,13 +123,21 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
     return { all: clients.length, conListe, soloCrm: clients.length - conListe };
   }, [clients, listeByClient]);
 
+  // M-3 · L'indice di ricerca dell'anagrafica. Si ricostruisce solo quando
+  // cambia l'anagrafica (import, realtime, creazione), NON a ogni battuta: la
+  // normalizzazione dipende dalla riga e non dalla query, e rifarla per 835
+  // righe a ogni carattere digitato costava 6,32 ms contro 0,19 (su un
+  // telefono di fascia media, 3-5×, sono 20-30 ms PRIMA del render React).
+  const indice = useMemo(
+    () => clients.map(c => ({ c, idx: indicizza(c.name, c.email, c.city, c.phone, c.notes) })),
+    [clients]);
+
   const filtered = useMemo(() => {
     // Stessa normalizzazione dell'elenco liste viaggio (lib/searchUtils.js):
     // le due ricerche lavorano sugli stessi nomi e devono trovare le stesse
     // cose, altrimenti un cliente visibile qui sembra non avere liste là.
     const termini = terminiRicerca(search);
-    let base = clients.filter(c =>
-      matchTermini(termini, c.name, c.email, c.city, c.phone, c.notes));
+    let base = indice.filter(r => matchIndice(termini, r.idx)).map(r => r.c);
     if (listeByClient && linkFilter !== "all") {
       base = base.filter(c => (linkFilter === "conListe" ? !!listeByClient[c.id] : !listeByClient[c.id]));
     }
@@ -138,24 +148,16 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
       // date: più recenti prima (createdAt desc)
       return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
     });
-  }, [clients, search, sortBy, linkFilter, listeByClient]);
+  }, [indice, search, sortBy, linkFilter, listeByClient]);
 
   // ST-9 · La finestra visibile. ✅ 818 clienti in anagrafica: senza limite si
   // montavano 818 ClienteCard, ognuna con il proprio useMemo sulle note e il
-  // chip del conteggio liste. Non è una libreria di virtualizzazione — sarebbe
-  // la risposta giusta a 10.000 righe, non a 818, e porterebbe una dipendenza
-  // in un progetto che ne ha volutamente una sola. È lo STESSO pattern che il
-  // modulo Liste applica già a 616 liste (`HOME_PAGE_SIZE` in ListeViaggio):
-  // la differenza fra le due viste non era una decisione, era che sono state
-  // scritte in momenti diversi.
-  const [limite, setLimite] = useState(PAGINA);
-  // Ogni restringimento riazzera la finestra: chi cerca "Rossi" si aspetta di
-  // vedere i Rossi, non i primi 24 di una finestra aperta su un'altra ricerca.
-  // L'ordinamento è nell'elenco per la stessa ragione — cambiarlo ridefinisce
-  // *quali* sono i primi 24.
-  useEffect(() => { setLimite(PAGINA); }, [search, linkFilter, sortBy]);
-  const visibili = useMemo(() => filtered.slice(0, limite), [filtered, limite]);
-  const restanti = filtered.length - visibili.length;
+  // chip del conteggio liste. La meccanica (finestra + riazzeramento a ogni
+  // restringimento) vive in `hooks/useFinestra.js` dal rilievo M-2: era scritta
+  // qui e, identica, in ListeViaggio — e le altre cinque viste con elenchi
+  // lunghi non l'avevano affatto.
+  const finestra = useFinestra(filtered, PAGINA, [search, linkFilter, sortBy]);
+  const visibili = finestra.visibili;
 
   // M-1 · Attende l'esito e lo RIPORTA; chi chiude è la modale (che è anche
   // l'unica a sapere se ha ancora dati da proteggere). Prima questa funzione
@@ -302,17 +304,11 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
           {/* Il totale resta VERO anche a finestra ridotta: "24 di 818" e "24"
               sono due affermazioni diverse su dati operativi, e questa vista
               serve a rispondere alla domanda "quanti clienti ho". */}
-          {restanti > 0 && (
-            <div style={colCenterGap6}>
-              <button
-                onClick={() => setLimite(l => l + PAGINA)}
-                style={boxF13Bold}
-              >Mostra altri {Math.min(PAGINA, restanti)} di {restanti}</button>
-              <div style={txtF115Muted}>
-                {visibili.length} di {filtered.length} clienti
-              </div>
-            </div>
-          )}
+          <MostraAltri
+            finestra={finestra}
+            azione={`Mostra altri ${Math.min(PAGINA, finestra.restanti)} di ${finestra.restanti}`}
+            conteggio={`${visibili.length} di ${finestra.totale} clienti`}
+          />
         </>
       )}
 

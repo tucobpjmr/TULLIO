@@ -1,6 +1,13 @@
 // src/components/dashboard/queues/queueShared.js
-// Ordinamenti e hook condivisi dalle quattro code della Dashboard.
+// Ordinamenti e hook condivisi dalle cinque code della Dashboard.
 import { useCallback } from "react";
+
+// M-2 (audit performance/UX del 16 agosto, secondo passaggio) · Quante card
+// disegna una coda alla volta. Dieci come l'elenco liste (`HOME_PAGE_SIZE`):
+// una coda è una CARD della dashboard, non una pagina, e le due che non hanno
+// un tetto naturale — Scadute e Coda globale — si allungano proprio quando
+// l'agenzia va in affanno, cioè quando la dashboard deve essere più reattiva.
+export const QUEUE_PAGINA = 10;
 
 // Ordini disponibili per la coda personale (v2.8 Round 5)
 export const QUEUE_SORT_OPTIONS = [

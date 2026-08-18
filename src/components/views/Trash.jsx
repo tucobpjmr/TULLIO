@@ -1,6 +1,6 @@
 // ─── TRASH ───────────────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
-import { memo, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
@@ -19,6 +19,10 @@ import { useConfirm } from "../../state/ConfirmContext.jsx";
 // identica salvo il campo data cablato su `deletedAt` — la stessa domanda
 // ("mostrami solo l'ultimo mese") ridefinita tre volte invece di una.
 import { PERIOD_OPTIONS, filterByPeriod, chipStyle } from "./archiveFilters.js";
+import { useFinestra } from "../../hooks/useFinestra.js";
+import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
+import { obbligatorio, validaCampi } from "../../lib/validators.js";
+import { MostraAltri } from "../ui/MostraAltri.jsx";
 import {
   btnChiudiSuScuro, btnDangerMini, btnGhostMini, btnNavyMini, card, cardVuota, cardVuotaAlta,
   cella, cellaAzioni, cellaMuted, grid2ColGap12, rigaIntestazione, rowCenterGap82, rowGap4,
@@ -26,11 +30,19 @@ import {
   txtF48Mb16, txtMuted,
 } from "../../styles/common.js";
 import {
-  borderBottom2, boxF13Bold, boxF13Bold2, boxF13WFull, boxF13WFull2, boxF14WFull, colGap16,
+  borderBottom2, boxF13Bold, boxF13Bold2, boxF13Conferma, boxF13WFull, boxF13WFull2, boxF14WFull, colGap16,
   maxW1200, padding2, padding3, rowCenterBetween, rowCenterGap6, rowGap10, rowGap6,
   rowStartBetween, txtBoldHeading, txtF11Bold2, txtF11Bold3, txtF11Bold4, txtF11Mt2, txtF18Bold,
   txtF28Bold, txtWhite,
 } from "./trashStyles.js";
+
+// M-2 · Quante righe si disegnano alla volta, come nell'Archivio.
+const PAGINA = 24;
+
+// B-3 · Il titolo è l'unico campo obbligatorio del ripristino con modifica.
+// Un solo campo, quindi nessun `ORDINE` da dichiarare: il focus torna dove
+// serve senza doverlo scegliere (vedi lib/validators.js).
+const REGOLE_RIPRISTINO = { title: obbligatorio("Il titolo è obbligatorio: senza, la task tornerebbe senza nome.") };
 
 // `memo` + lettura dal contesto: senza il memo il provider non servirebbe a
 // nulla, perché il genitore ri-renderizza a ogni azione (vedi
@@ -51,6 +63,8 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
   // chiude la ricerca invece di sospenderla.
   const caricandoStorico = useStoricoTaskCompleto();
   const [restoring, setRestoring] = useState(null); // task being restored/edited
+  const [erroriRipristino, setErroriRipristino] = useState({});
+  const rifTitolo = useRef(null);
   const [period, setPeriod] = useState("all");
   const me = currentUserId;
   // La LISTA mostra tutti i task cestinati che l'utente può VEDERE (canViewTask,
@@ -62,10 +76,22 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
   // (admin: tutti; manager/agent: propri + coda globale; driver: solo transfer
   // propri/globali) — prerogativa di status, applicata sia qui in UI (toast di
   // errore) sia a valle nel reducer (RESTORE_TASK/PURGE_TASK/EMPTY_TRASH).
-  const trashed = getVisibleTasks(getTrashedTasks(tasks), me)
-    .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt));
-  const visible = filterByPeriod(trashed, period, "deletedAt");
-  const editableCount = trashed.filter(t => canEditTask(t, me)).length;
+  //
+  // `useMemo` per la stessa ragione dell'Archivio (B-4): filtro dei cestinati,
+  // controllo di permesso per riga e ordinamento sono tre passate su tutte le
+  // task, e senza memo si rifacevano a ogni cambio di chip del periodo.
+  const trashed = useMemo(
+    () => getVisibleTasks(getTrashedTasks(tasks), me)
+      .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt)),
+    [tasks, me, getVisibleTasks]);
+  const visible = useMemo(
+    () => filterByPeriod(trashed, period, "deletedAt"), [trashed, period]);
+  const editableCount = useMemo(
+    () => trashed.filter(t => canEditTask(t, me)).length, [trashed, me, canEditTask]);
+  // M-2 · La finestra sull'elenco. Il cestino cresce con ciò che si elimina e
+  // non si svuota da solo: è la seconda vista, dopo l'Archivio, che monta
+  // l'array intero senza un tetto naturale.
+  const finestra = useFinestra(visible, PAGINA, [period]);
   // "Sto ancora caricando e non ho ancora nulla": vedi Dashboard.jsx. Il
   // secondo addendo è A-3, senza la condizione sull'array — vedi Archive.jsx:
   // qui i task della finestra ci sono, ma non sono i cestinati.
@@ -81,6 +107,17 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
 
   const handleConfirmRestore = () => {
     if (!restoring) return;
+    // B-3 · Era `disabled={!restoring.title?.trim()}`: il comando spento e
+    // nessuna indicazione di quale campo mancasse — su una modale con otto
+    // campi. Ora la regola è pura, il messaggio sta sotto il campo e il focus
+    // ci torna sopra (stesso trattamento di MessageTemplatesSection).
+    const trovati = validaCampi(restoring, REGOLE_RIPRISTINO);
+    if (trovati.title) {
+      setErroriRipristino(trovati);
+      rifTitolo.current?.focus();
+      return;
+    }
+    setErroriRipristino({});
     const { deletedAt, ...updates } = restoring;
     dispatch({ type: "UPDATE_TASK", payload: updates });
     dispatch({ type: "RESTORE_TASK", payload: restoring.id });
@@ -116,6 +153,7 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
     }
   };
 
+  const chiudiRipristino = () => { setRestoring(null); setErroriRipristino({}); };
   const updateField = (field, value) => setRestoring(prev => ({ ...prev, [field]: value }));
 
   return (
@@ -193,7 +231,7 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
               </tr>
             </thead>
             <tbody>
-              {visible.map(task => (
+              {finestra.visibili.map(task => (
                 <tr key={task.id} style={borderBottom2}
                   onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}
@@ -235,6 +273,15 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
         </div>
       )}
 
+      {/* Il totale resta VERO anche a finestra ridotta: qui si viene a cercare
+          qualcosa che si crede eliminato per sbaglio, e "24" al posto di
+          "24 di 209" chiuderebbe la ricerca invece di sospenderla. */}
+      <MostraAltri
+        finestra={finestra}
+        azione={`Mostra altri ${Math.min(PAGINA, finestra.restanti)} di ${finestra.restanti}`}
+        conteggio={`${finestra.visibili.length} di ${finestra.totale} task`}
+      />
+
       {/* ─── MODALE RIPRISTINO CON MODIFICA ───
           Il guscio (portale, overlay, Esc, blocco dello scroll di fondo,
           role="dialog") arriva da ui/Modal.jsx. La card NON introduce transform:
@@ -246,7 +293,7 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
       {restoring && (
         <Modal
           open
-          onClose={() => setRestoring(null)}
+          onClose={chiudiRipristino}
           labelledBy="vd-trash-restore-title"
           width={isMobile ? "calc(100vw - 32px)" : 520}
           closeOnOverlay={false}
@@ -261,21 +308,28 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
               <div id="vd-trash-restore-title" className="playfair" style={txtF18Bold}>↻ Ripristina task</div>
               <div style={txtF11Mt2}>Modifica i campi se necessario, poi conferma</div>
             </div>
-            <button onClick={() => setRestoring(null)} style={btnChiudiSuScuro}>✕</button>
+            <button onClick={chiudiRipristino} style={btnChiudiSuScuro}>✕</button>
           </div>
 
           {/* Modal body */}
           <div style={colGap16}>
             {/* Titolo */}
             <div>
-              <label className="vd-field-label">TITOLO</label>
+              <label className="vd-field-label" htmlFor="vd-trash-title">TITOLO</label>
               <input
+                id="vd-trash-title"
+                ref={rifTitolo}
                 value={restoring.title}
-                onChange={e => updateField("title", e.target.value)}
+                onChange={e => {
+                  updateField("title", e.target.value);
+                  setErroriRipristino(prec => (prec.title ? {} : prec));
+                }}
                 style={boxF14WFull}
                 onFocus={e => e.target.style.borderColor = "var(--gold)"}
                 onBlur={e => e.target.style.borderColor = "var(--border)"}
+                {...ariaCampo("vd-trash-title-err", erroriRipristino.title)}
               />
+              <FieldError id="vd-trash-title-err">{erroriRipristino.title}</FieldError>
             </div>
 
             {/* Categoria + Priorità */}
@@ -395,20 +449,8 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
 
           {/* Modal footer */}
           <div style={rowGap10}>
-            <button onClick={() => setRestoring(null)} style={boxF13Bold2}>Annulla</button>
-            <button
-              onClick={handleConfirmRestore}
-              disabled={!restoring.title?.trim()}
-              style={{
-                background: restoring.title?.trim() ? "var(--navy)" : "var(--surface3)",
-                color: restoring.title?.trim() ? "#fff" : "var(--text-muted)",
-                border: "none",
-                padding: "10px 20px", borderRadius: 8, cursor: restoring.title?.trim() ? "pointer" : "not-allowed",
-                fontSize: 13, fontWeight: 700, fontFamily: "inherit",
-                boxShadow: restoring.title?.trim() ? "0 4px 14px rgba(15,32,68,0.3)" : "none",
-                display: "flex", alignItems: "center", gap: 6,
-              }}
-            >↻ Conferma ripristino</button>
+            <button onClick={chiudiRipristino} style={boxF13Bold2}>Annulla</button>
+            <button onClick={handleConfirmRestore} style={boxF13Conferma}>↻ Conferma ripristino</button>
           </div>
         </Modal>
       )}

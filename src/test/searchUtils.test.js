@@ -6,7 +6,9 @@
 // La sottostringa secca non li copriva, e il sintomo era il peggiore
 // possibile: la ricerca non dava errore, dava zero risultati.
 import { describe, it, expect } from "vitest";
-import { matchTermini, normalizzaTesto, terminiRicerca } from "../lib/searchUtils.js";
+import {
+  indicizza, matchIndice, matchTermini, normalizzaTesto, terminiRicerca,
+} from "../lib/searchUtils.js";
 
 const trova = (q, ...campi) => matchTermini(terminiRicerca(q), ...campi);
 
@@ -84,5 +86,52 @@ describe("matchTermini", () => {
 
   it("un record senza nessun campo utile non si trova", () => {
     expect(trova("rossi", null, "", undefined)).toBe(false);
+  });
+});
+
+// ─── M-3 · l'indice precalcolato ───────────────────────────────────────────
+// La normalizzazione dipende dalla RIGA e non dalla query, quindi si calcola
+// quando cambiano i dati e non a ogni battuta (6,32 ms → 0,19 ms per battuta
+// su 835 clienti). Il rischio della correzione è uno solo, ed è ciò che questi
+// test guardano: che l'indice abbia cambiato le REGOLE senza dirlo. Le
+// asserzioni sopra restano quindi la definizione della semantica, e queste
+// verificano che le due strade portino sempre alla stessa risposta.
+describe("indicizza / matchIndice", () => {
+  const CASI = [
+    ["COLUCCI GIA", ["COLUCCI GIANNICOLA"]],
+    ["GIA COLUCCI", ["COLUCCI GIANNICOLA"]],
+    ["d’amato", ["D'AMATO PATRIZIA"]],
+    ["dellacqua", ["DELL'ACQUA CARLO"]],
+    ["colucci massafra", ["COLUCCI ANGELA", "MASSAFRA"]],
+    ["bianchi", ["MARIO ROSSI", null, ["MARIA BIANCHI"]]],
+    ["COLUCCI GIA", ["COLUCCI ANGELA"]],
+    ["rossiluigi", ["ROSSI MARIA"]],
+    ["rossi", [null, "", undefined]],
+    ["", ["QUALSIASI"]],
+  ];
+
+  it("dà sempre la stessa risposta di matchTermini", () => {
+    for (const [query, campi] of CASI) {
+      const termini = terminiRicerca(query);
+      expect([query, matchIndice(termini, indicizza(...campi))])
+        .toEqual([query, matchTermini(termini, ...campi)]);
+    }
+  });
+
+  it("l'indice porta con sé anche la variante senza spazi", () => {
+    // È il pezzo che rende `matchIndice` un confronto e non una seconda
+    // normalizzazione: se `attaccato` non fosse precalcolato, il `replace`
+    // tornerebbe a girare per riga per battuta.
+    expect(indicizza("DELL'ACQUA CARLO")).toEqual({
+      testo: "dell acqua carlo", attaccato: "dellacquacarlo",
+    });
+  });
+
+  it("una riga senza campi utili produce un indice vuoto, che non si trova", () => {
+    const idx = indicizza(null, "", undefined);
+    expect(idx.testo).toBe("");
+    expect(matchIndice(terminiRicerca("rossi"), idx)).toBe(false);
+    // …ma una query vuota non filtra nulla, nemmeno quella riga.
+    expect(matchIndice(terminiRicerca(""), idx)).toBe(true);
   });
 });

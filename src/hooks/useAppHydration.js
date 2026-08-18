@@ -63,7 +63,7 @@
 // sessione: altrimenti il primo `visibilitychange` svuoterebbe l'Archivio
 // sotto gli occhi di chi lo sta guardando.
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   Tasks as TasksAPI, Notices as NoticesAPI, Users as UsersAPI,
   Clients as ClientsAPI, Categories as CategoriesAPI, TaskThreads as TaskThreadsAPI,
@@ -118,7 +118,7 @@ const FINESTRA_COMPLETATE_GG = 60;
 const inizioFinestra = () =>
   new Date(Date.now() - FINESTRA_COMPLETATE_GG * 864e5).toISOString().replace(/\.\d{3}Z$/, "Z");
 
-export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
+export function useAppHydration({ enabled, currentUserId, dispatch, onError, teamIniziale = null }) {
   const [loading, setLoading] = useState(
     () => Object.fromEntries(ENTITA.map(k => [k, enabled])));
   // Idempotente e stabile: chiude il flag di un'entità la prima volta e poi
@@ -373,6 +373,32 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
   // ogni heartbeat di un altro client (ogni 30s) provocava un reload del
   // team. REPLICA IDENTITY FULL su public.users (migration 20260612) ci
   // garantisce il pre-image in payload.old per fare il confronto.
+  //
+  // ─── B-1 · il team NON si rilegge al mount ───────────────────────────────
+  // (audit di architettura del 16 agosto)
+  //
+  // `AuthContext.loadProfile` ha già letto `users` per intero — deve, perché
+  // decide se montare l'app — e produce ESATTAMENTE questa forma: `normalize`
+  // (photo_url → photoUrl) più i contatti dell'utente loggato reinnestati
+  // nella sua sola entry, cioè le due righe qui sotto. Quel risultato arriva
+  // fin qui come `teamIniziale`, quindi il primo fetch di questa sottoscrizione
+  // era una seconda query identica a un round-trip di distanza.
+  //
+  // Le due responsabilità che il primo fetch assolveva e che ora vanno assolte
+  // a mano (vedi il commento su `saltaPrimoCaricamento`): seminare
+  // `ultimoTeam` — senza, il primo reload realtime vero crederebbe che il team
+  // sia cambiato e sostituirebbe l'array, invalidando AppDataContext per
+  // nulla — e chiudere il flag di caricamento, che è già `false` per
+  // costruzione perché i dati ci sono. Sono nell'effetto qui sotto e non in un
+  // `useState` iniziale perché `teamIniziale` non è garantito al primo render
+  // in modalità demo (nessun login, nessun AuthContext).
+  const abbiamoGiaIlTeam = enabled && Array.isArray(teamIniziale) && teamIniziale.length > 0;
+  useEffect(() => {
+    if (!abbiamoGiaIlTeam) return;
+    ultimoTeam.current = teamIniziale;
+    segnaCaricata("team");
+  }, [abbiamoGiaIlTeam, teamIniziale, segnaCaricata]);
+
   useDebouncedTableSubscription(["users"], async (isCurrent) => {
     // listAll() legge solo public.users → NON contiene email/phone, che vivono
     // in public.user_contacts (RLS own+admin). Senza ri-merge, ad ogni refresh
@@ -416,6 +442,7 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError }) {
     enabled,
     delay: 800,
     deps: [enabled],
+    saltaPrimoCaricamento: abbiamoGiaIlTeam,
     filterEvent: (payload) => {
       if (payload?.eventType !== "UPDATE") return true; // INSERT/DELETE sempre
       const oldRow = payload.old;

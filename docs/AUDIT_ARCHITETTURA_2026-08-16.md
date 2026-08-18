@@ -90,12 +90,12 @@ strategico n. 1 propone il passo che la rende superflua senza riscrivere nulla.
 | **M-1** ✔ | Media | 3 | `usePresence.toggleMyBusy` esegue una scrittura di rete e una seconda `setState` **dentro l'updater** di `setMyBusy`: due scritture di presenza per click in StrictMode | ✔ corretto |
 | **M-2** ✔ | Media | 5 | `ProfileEditor`: il salvataggio (upload avatar + scrittura profilo) non ha stato in volo — nessun feedback e doppio click possibile | ✔ corretto |
 | **M-3** ✔ | Media | 5 | Validazione inline applicata a 3 form su 8: cinque call site escono in silenzio o si limitano a spegnere il bottone | ✔ corretto |
-| **B-1** | Bassa | 3 | All'avvio la tabella `users` viene letta due volte in pochi ms (`AuthContext.loadProfile` + idratazione di `useAppHydration`) | aperto |
-| **B-2** | Bassa | 4 | Il value di `AuthContext` è un oggetto letterale non memoizzato | aperto |
-| **B-3** | Bassa | 3 | Sette letture del data layer non passano da `fetchAllRows`; due sono su tabelle che crescono e non si potano (`notices`, `conversations`) | aperto |
-| **B-4** | Bassa | 4 | `Messages.listAll()` rilegge il corpus intero dei messaggi a ogni evento | decisione dichiarata, riconfermata con i numeri |
-| **B-5** | Bassa | 5 | La finestra "Urgenti" della Dashboard calcola `Date.now()` dentro un `useMemo`: non si aggiorna col passare del tempo | aperto |
-| **B-6** | Bassa | 4 | Il tick di presenza (30 s) resta l'unico render periodico dell'app: dopo A-2 tocca il solo pannello chat aperto | residuo dichiarato |
+| **B-1** ✔ | Bassa | 3 | All'avvio la tabella `users` viene letta due volte in pochi ms (`AuthContext.loadProfile` + idratazione di `useAppHydration`) | ✔ corretto il 18 agosto |
+| **B-2** ✔ | Bassa | 4 | Il value di `AuthContext` è un oggetto letterale non memoizzato | ✔ già corretto dalla regola di lint del suggerimento n.2, verificato il 18 agosto |
+| **B-3** ✔ | Bassa | 3 | Sette letture del data layer non passano da `fetchAllRows`; due sono su tabelle che crescono e non si potano (`notices`, `conversations`) | ✔ corretto il 18 agosto: le due che crescono sono paginate |
+| **B-4** ✔ | Bassa | 4 | `Messages.listAll()` rilegge il corpus intero dei messaggi a ogni evento | ✔ decisione confermata il 18 agosto, con la soglia resa un controllo invece di un commento |
+| **B-5** ✔ | Bassa | 5 | La finestra "Urgenti" della Dashboard calcola `Date.now()` dentro un `useMemo`: non si aggiorna col passare del tempo | ✔ corretto il 18 agosto |
+| **B-6** ✔ | Bassa | 4 | Il tick di presenza (30 s) resta l'unico render periodico dell'app: dopo A-2 tocca il solo pannello chat aperto | ✔ corretto il 18 agosto: l'ageing è sceso nei componenti che mostrano la presenza |
 | **B-7** ✔ | Bassa | — | Due audit non erano nel registro di `verifica:convenzioni`: il loro `⟦stato: N/M chiusi⟧` non lo verificava nessuno | ✔ corretto |
 
 ---
@@ -441,7 +441,7 @@ stesse tre proprietà già fissate per `ClienteModal`.
 
 ---
 
-### B-1 · `users` letta due volte all'avvio
+### B-1 · `users` letta due volte all'avvio ✔
 
 **Dove.** `src/auth/AuthContext.jsx:120-160` e `src/hooks/useAppHydration.js:197-252`.
 
@@ -459,7 +459,29 @@ sottoscrizione senza il primo fetch — cioè un parametro in più su
 che tocca tutti e nove i consumatori. Costo attuale: una query su una tabella
 da 7 righe. **Aperto, non urgente.**
 
-### B-2 · Il value di `AuthContext` non è memoizzato
+**Correzione (applicata il 18 agosto).** `saltaPrimoCaricamento` su
+`useDebouncedTableSubscription`, e `useAppHydration` che riceve `teamIniziale`
+da `VoyageDeskInner` — lo stesso array che `AuthContext.loadProfile` ha già
+prodotto, nella stessa forma (`normalize` più i contatti dell'utente loggato
+reinnestati nella sua sola entry).
+
+**Una precisazione al rilievo**: il parametro non «tocca tutti e nove i
+consumatori». È opzionale con default `false`, quindi gli altri otto non
+cambiano di una virgola — ed è il punto, perché un'opzione che obbliga nove
+call site a dichiarare qualcosa che otto non usano è una modifica che nessuno
+farebbe per una query su sette righe.
+
+Ciò che il rilievo non dice, e che si vede solo scrivendolo: **il primo fetch
+faceva DUE cose**, e chi lo salta se le assume entrambe. Oltre a leggere,
+chiudeva il flag di caricamento del team e seminava `ultimoTeam` (il ref che
+evita di sostituire l'array quando un reload rilegge righe identiche). Senza la
+prima, la vista Team girerebbe per sempre sotto uno scheletro — un difetto
+peggiore della query risparmiata; senza la seconda, il primo evento realtime
+crederebbe che il team sia cambiato e invaliderebbe `AppDataContext` per nulla.
+Sono casi espliciti in `src/test/idratazioneLoading.test.jsx`, con il controllo
+positivo che verifica che senza `teamIniziale` il fetch parta come prima.
+
+### B-2 · Il value di `AuthContext` non è memoizzato ✔
 
 **Dove.** `src/auth/AuthContext.jsx:302-333`.
 
@@ -471,7 +493,19 @@ instabilità per quattro livelli, e i consumatori — `AuthGate`, `LoginScreen`,
 `ProfileEditor`, `UserSwitcher` — non hanno modo di difendersi. **Aperto**:
 `useMemo` sulle undici dipendenze, da fare quando si tocca quel file.
 
-### B-3 · Sette letture non passano da `fetchAllRows`
+**Verificato chiuso il 18 agosto — ed era già chiuso.** Il value di
+`AuthContext` è `useMemo` da quando il **suggerimento strategico n.2 di questo
+stesso documento** ha introdotto la regola `VIETATO_CONTEXT_VALUE_LETTERALE` in
+`eslint.config.js`: quella regola non ammette eccezioni, e `AuthContext.jsx` era
+proprio la violazione residua che l'ha fatta nascere. Le otto funzioni del value
+sono passate da `useCallback` nello stesso intervento — la metà senza la quale
+il `useMemo` non avrebbe potuto saltare un render.
+
+**Il rilievo era già superato dal suggerimento del suo stesso audit**, e questa
+riga della tabella non era mai stata aggiornata: è il difetto che B-7 chiude
+per gli audit interi, in scala ridotta. Non serviva codice, serviva rileggere.
+
+### B-3 · Sette letture non passano da `fetchAllRows` ✔
 
 **Dove.** `lib/api.js`: `Users.list`, `Users.listAll`, `Notices.list`,
 `Conversations.listMine`, `Categories.list`, `MessageTemplates.list`;
@@ -495,7 +529,24 @@ raccomandazione di farlo quando si tocca uno dei due metodi, e di correggere
 insieme la frase del 12 agosto: è il tipo di affermazione che la prossima
 persona legge come una garanzia.
 
-### B-4 · `Messages.listAll()` a ogni evento — decisione già presa
+**Correzione (applicata il 18 agosto).** Le due che crescono sono paginate; le
+cinque su tabelle limitate per costruzione (team 7 righe, categorie 12,
+template 4) restano `select` nude, ed è la decisione giusta — paginare una
+tabella che non può avvicinarsi al cap aggiunge un round-trip di conteggio per
+niente. La differenza fra le due categorie è ora scritta in un test invece che
+dedotta: `src/test/paginazione.test.js` include `Notices.list` e
+`Conversations.listMine` nel `describe.each` del contratto, ciascuna col
+proprio ordinamento atteso.
+
+L'**ordinamento chiuso su una colonna unica** è la metà che si dimentica, e qui
+serviva in entrambe: né `pinned` né `created_at` sono unici (due avvisi fissati
+nello stesso secondo bastano), e `updated_at` di una conversazione cambia a
+ogni messaggio — due pagine lette a cavallo di un invio potrebbero saltarne
+una. Entrambe chiudono ora su `.order('id')`.
+
+La frase del 12 agosto è corretta nello stesso commit in `docs/CLAUDE.md`.
+
+### B-4 · `Messages.listAll()` a ogni evento — decisione già presa ✔
 
 **Dove.** `src/hooks/useChatData.js:110-143`, `lib/api.js:517`.
 
@@ -506,7 +557,22 @@ codice (`messages > ~1500`). Riconfermato con il numero reale: **13 messaggi in
 produzione**. Non è un rilievo aperto, è una decisione con una soglia — e la
 soglia è lontana.
 
-### B-5 · La finestra "Urgenti" non invecchia
+**Chiuso il 18 agosto come decisione, con una modifica.** Rimisurato in
+produzione: **13 messaggi**, di cui 12 negli ultimi trenta giorni (~0,4 al
+giorno). Alla soglia di 1500 mancano una decina d'anni, e fino ad allora il
+corpus intero resta la lettura più semplice e con meno modi di sbagliare.
+
+**Il problema non era la decisione: era dove viveva la soglia**, cioè in un
+commento. Un commento non scade, e il giorno in cui i messaggi diventassero
+migliaia nulla lo direbbe — chi lo legge fra due anni non ha modo di sapere se
+il numero accanto sia ancora vero. La soglia è ora una costante che il codice
+CONTROLLA (`SOGLIA_MESSAGGI_CORPUS` in `hooks/useChatData.js`), e quando viene
+superata lo dice una volta per sessione, nominando il lavoro rimandato e la
+funzione già pronta a farlo (`Messages.listForConversation`, in `lib/api.js`
+da ST-4). È ST-13 applicato a una decisione invece che a un numero in un
+documento: farla scadere in modo RUMOROSO invece che silenzioso.
+
+### B-5 · La finestra "Urgenti" non invecchia ✔
 
 **Dove.** `src/components/dashboard/Dashboard.jsx:143-151`.
 
@@ -519,7 +585,27 @@ notato. La correzione onesta non è togliere il `useMemo` (ricalcolerebbe sei
 filtri a ogni render) ma aggiungere un tick lento — la stessa forma che
 `usePresence` usa per l'ageing. **Aperto.**
 
-### B-6 · Il tick di presenza è l'unico render periodico
+**Correzione (applicata il 18 agosto).** `hooks/useTickLento.js`, con `adesso`
+nelle dipendenze del memo: il tempo diventa una dipendenza DICHIARATA invece di
+una lettura nascosta. Intervallo di un minuto — la finestra più stretta è di 24
+ore, e più fine di così si pagherebbe un render periodico per niente. Il tick è
+armato solo per chi vede le urgenze: al Driver non servono, e senza quel guard
+pagherebbe un render al minuto per una lista sempre vuota.
+
+**Il rilievo era più stretto della realtà, e per una ragione che vale la pena
+dire: il difetto era in DUE punti, e il secondo l'ho introdotto io.**
+`UrgentQueue` calcolava lo stesso filtro a ogni render — sempre fresco, sempre
+ricalcolato — finché M-2 dell'audit performance/UX non l'ha memoizzato per far
+funzionare la finestra sull'elenco. Quella memoizzazione è giusta, e ha
+congelato l'ora: ha propagato B-5 in un secondo punto dentro il commit che
+chiudeva un altro rilievo. Passano ora da `adesso` anche i conteggi dei tre
+chip 24/48/72h, che dicevano «12» sopra una lista che ne mostrava 11.
+
+⚠️ Il tick NON è quello di `usePresence`, come suggerisce il rilievo: quello è
+sparito nello stesso commit (B-6). La forma è la stessa, il punto in cui vive
+no — nel componente che mostra la cosa che invecchia, non nel guscio.
+
+### B-6 · Il tick di presenza è l'unico render periodico ✔
 
 **Dove.** `src/hooks/usePresence.js:91-94`.
 
@@ -530,6 +616,26 @@ e solo se è aperto, perché `presenceMap` è una sua prop e cambia identità pe
 costruzione. Confinarlo del tutto significherebbe spostare l'ageing dentro i
 componenti che mostrano la presenza. **Residuo dichiarato**, non un difetto
 aperto.
+
+**Chiuso il 18 agosto, esattamente come il rilievo descrive.** L'ageing è sceso
+in `ConversationList` e `ConversationView`, gli unici due componenti che
+mostrano un pallino di presenza, con lo stesso `useTickLento` di B-5. Il timer
+esiste ora solo mentre quei componenti sono montati — cioè a pannello chat
+aperto — e sveglia solo loro; `presenceMap` cambia identità quando cambia
+DAVVERO: heartbeat proprio, evento realtime di un collega, toggle «Occupato».
+**A chat chiusa l'app non ha più alcun render periodico.**
+
+Due cose emerse spostandolo. La costante dell'intervallo vive in
+`chat/chatPresence.js` accanto alle soglie che la giustificano — 30 secondi è
+la metà della più stretta (60 s per «online»), e cambiare quelle soglie senza
+guardare questo numero è il modo in cui l'ageing smette di funzionare in
+silenzio. E `usePresence` aveva una variabile `cancelled` che, tolto il tick,
+non leggeva più nessuno: era il guard «la risposta è arrivata tardi, lasciala
+cadere» che il progetto prescrive dopo ogni `await` (docs/CLAUDE.md),
+dichiarato e mai applicato all'unico `await` del file. Ora lo applica.
+
+L'heartbeat dei 30 s resta, e non è la stessa cosa: è la scrittura del PROPRIO
+stato su Supabase, non un render.
 
 ### B-7 · Due audit fuori dal registro di `verifica:convenzioni` ✔
 

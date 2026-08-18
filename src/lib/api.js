@@ -209,6 +209,7 @@ export const Users = {
   // La Edge Function ritorna { success } oppure { error } con status non-2xx:
   // in quel caso supabase-js mette il messaggio in error.context (lo
   // normalizziamo qui per esporre il testo localizzato al chiamante).
+  /** @param {{email?: string, name?: string, role?: string, capacity?: number, color?: string, resend?: boolean}} [dati] */
   invite: async ({ email, name, role = 'agent', capacity = 8, color = '#3B82F6', resend = false } = {}) => {
     const body = { email, name, role, capacity, color, resend, redirectTo: window.location.origin };
     const run = () => invokeFn('invite-user', body, 'Invito non riuscito.');
@@ -242,6 +243,10 @@ export const Users = {
   // RLS lato server filtra ciò che non è leggibile; con la policy "team" vede tutti.
   listContacts: () =>
     supabase.from('user_contacts').select('user_id, email, phone'),
+  /**
+   * @param {string} id
+   * @param {{email?: string, phone?: string}} [contatti]
+   */
   updateContact: (id, { email, phone } = {}) =>
     supabase.from('user_contacts')
       .upsert({ user_id: id, email: email ?? null, phone: phone ?? null }, { onConflict: 'user_id' })
@@ -487,10 +492,22 @@ export const Comments = {
 
 // ----------------- NOTICES (bacheca) -----------------
 export const Notices = {
+  // B-3 dell'audit del 16 agosto: era una `select` nuda. La bacheca non ha
+  // potatura — un avviso resta finché qualcuno non lo cancella — quindi è una
+  // delle due letture non paginate su una tabella che CRESCE, e il cap di
+  // PostgREST (1000 righe, HTTP 200 senza errore) è esattamente il difetto che
+  // non fallisce da solo: gli avvisi oltre la soglia semplicemente non
+  // esistono più per la bacheca.
+  //
+  // `.order('id')` come terza chiave: né `pinned` né `created_at` sono unici
+  // (due avvisi fissati nello stesso secondo bastano), e senza una chiave di
+  // spareggio due pagine consecutive possono ripetere o saltare una riga —
+  // stessa ragione del `.order('name').order('id')` di Clients.list.
   list: () =>
-    supabase.from('notices').select('*, users(name, color)')
+    fetchAllRows(() => supabase.from('notices').select('*, users(name, color)', WITH_COUNT)
       .order('pinned', { ascending: false })
-      .order('created_at', { ascending: false }),
+      .order('created_at', { ascending: false })
+      .order('id')),
   create: (n) =>
     supabase.from('notices').insert(withOrigin(n)).select().single(),
   update: (id, patch) =>
@@ -503,8 +520,15 @@ export const Notices = {
 
 // ----------------- CONVERSATIONS -----------------
 export const Conversations = {
+  // B-3 dell'audit del 16 agosto, come Notices.list qui sopra: l'altra lettura
+  // non paginata su una tabella che cresce — una riga per conversazione aperta,
+  // e nessuna si cancella da sola. `.order('id')` chiude l'ordinamento su una
+  // colonna unica: `updated_at` cambia a ogni messaggio, quindi due pagine
+  // lette a cavallo di un invio potrebbero saltare una conversazione.
   listMine: () =>
-    supabase.from('conversations').select('*').order('updated_at', { ascending: false }),
+    fetchAllRows(() => supabase.from('conversations').select('*', WITH_COUNT)
+      .order('updated_at', { ascending: false })
+      .order('id')),
   create: (c) =>
     supabase.from('conversations').insert(withOrigin(c)).select().single(),
   // updated_at va impostato qui: il DB non ha trigger moddatetime e listMine

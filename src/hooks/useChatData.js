@@ -42,6 +42,24 @@ const messaggiInVolo = (mappaDalServer, inVolo) => {
   return out;
 };
 
+// ─── B-4 (audit di architettura del 16 agosto) · la soglia che scade da sola ─
+// `Messages.listAll()` rilegge TUTTI i messaggi a ogni evento su `messages`,
+// non quelli della conversazione toccata. Non è un difetto aperto: è il
+// secondo passo di ST-4, rimandato esplicitamente sotto una soglia. Misurato
+// in produzione il 18 agosto: **13 messaggi**, 12 negli ultimi trenta giorni
+// (~0,4 al giorno) — la soglia è a una decina d'anni di distanza, e finché è
+// così il corpus intero è la lettura più semplice e quella con meno modi di
+// sbagliare.
+//
+// ⚠️ Il problema di una decisione con una soglia è che la soglia vive in un
+// commento, e un commento non scade: il giorno in cui i messaggi diventassero
+// migliaia, nulla lo direbbe. Qui la soglia è un NUMERO che il codice
+// controlla, e quando viene superata lo dice — una volta per sessione, con il
+// nome del lavoro rimandato. È la stessa logica di ST-13 applicata a una
+// decisione invece che a un numero in un documento: farla scadere in modo
+// RUMOROSO invece che silenzioso.
+const SOGLIA_MESSAGGI_CORPUS = 1500;
+
 export function useChatData({ enabled, team, currentUserId, mockConversations, mockMessages, onError, onSuccess, onConversationRead }) {
   // Loading: true finché non completa il primo reload da Supabase. Evita il
   // flash "nessun messaggio" mentre l'idratazione è in volo.
@@ -53,6 +71,10 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
   // rappresenta, che è già in `messages` via l'aggiornamento ottimistico di
   // sendMessage.
   const inVoloRef = useRef(new Map());
+  // B-4: la segnalazione della soglia parte una volta per sessione, non a ogni
+  // reload — altrimenti sarebbe rumore che si impara a saltare, cioè
+  // esattamente ciò che rende inutili gli avvisi.
+  const sogliaSegnalataRef = useRef(false);
   const marcaInVolo = useRef((convId, msg) => { inVoloRef.current.set(msg.id, { convId, msg }); }).current;
   const smarcaInVolo = useRef((msgId) => { inVoloRef.current.delete(msgId); }).current;
 
@@ -140,6 +162,18 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
     // nostra stessa INSERT viene invece scartata da subscribeToTable.
     setMessagesRaw(messaggiInVolo(msgsByConv, inVoloRef.current));
     setChatLoading(false);
+
+    // La soglia di ST-4 passo 2, controllata invece che scritta e basta.
+    const totale = (msgsRes.data || []).length;
+    if (totale > SOGLIA_MESSAGGI_CORPUS && !sogliaSegnalataRef.current) {
+      sogliaSegnalataRef.current = true;
+      console.warn(
+        `[chat] ${totale} messaggi in stato, oltre la soglia dichiarata di ${SOGLIA_MESSAGGI_CORPUS}: ` +
+        "il corpus intero viene riletto a ogni evento su `messages`. È il momento previsto per il " +
+        "secondo passo di ST-4 — caricamento per conversazione aperta invece che per corpus " +
+        "(vedi Messages.listForConversation, già in lib/api.js e pronta allo scopo).",
+      );
+    }
   }, { enabled, deps: [enabled] });
 
   // La lista chat è PERSONALE: mostra solo le conversazioni di cui l'utente è

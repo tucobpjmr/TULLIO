@@ -36,6 +36,30 @@ import { toDbRole, toSeniority } from './taskConstants.js';
 // ─── LOOKUP TEAM ─────────────────────────────────────────────────────────────
 
 /**
+ * Un membro del team, come vive in `state.team`.
+ *
+ * Il JSDoc di questo file citava `TeamMember` da sempre senza che il tipo
+ * esistesse: leggibile per una persona, invisibile a qualunque verifica —
+ * esattamente il debito che B-6 (audit del 15 agosto) descrive. Ora è
+ * dichiarato, e `npm run verifica:tipi` lo controlla.
+ *
+ * `role` è la stringa GREZZA della riga: può essere fuori enum (ruoli scritti
+ * a mano prima dell'unificazione dei vocabolari), ed è la ragione per cui
+ * `getRoleType` la normalizza invece di ritornarla.
+ *
+ * @typedef {object} TeamMember
+ * @property {string} id
+ * @property {string} [name]
+ * @property {string} [role]
+ * @property {string} [seniority]
+ * @property {boolean} [active]
+ * @property {boolean} [pending]
+ * @property {string} [color]
+ * @property {number} [capacity]
+ * @property {string} [photoUrl]
+ */
+
+/**
  * @param {TeamMember[]} team
  * @param {string} id
  * @returns {TeamMember|undefined}
@@ -56,7 +80,11 @@ export const getAssignableTeam = (team) =>
 // - Junior Agent   → solo task esplicitamente assegnati; non crea payment/admin
 // - Driver         → solo task categoria "transfer", solo coda personale
 
-/** @returns {'admin'|'driver'|'manager'|'agent'} */
+/**
+ * @param {TeamMember[]} team
+ * @param {string} userId
+ * @returns {'admin'|'driver'|'manager'|'agent'}
+ */
 export const getRoleType = (team, userId) => {
   const m = getMember(team, userId);
   if (!m) return 'agent';
@@ -65,7 +93,10 @@ export const getRoleType = (team, userId) => {
   // più ristretto (agent, e junior per isJuniorAgent qui sotto) invece di
   // promuoverlo. Non è un caso teorico: era il risultato di ogni ruolo scritto
   // a mano prima che i due vocabolari venissero unificati.
-  return toDbRole(m.role) ?? 'agent';
+  // Il cast è il punto in cui la stringa grezza diventa uno dei quattro valori
+  // dell'enum: `toDbRole` ritorna già solo quelli o `null`, ma la sua firma non
+  // lo dichiara e senza questo il controllo di tipo non può saperlo.
+  return /** @type {'admin'|'driver'|'manager'|'agent'} */ (toDbRole(m.role) ?? 'agent');
 };
 
 // Sotto-livello Agent: un junior ha permessi ridotti (solo task esplicitamente

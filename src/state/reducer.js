@@ -820,6 +820,7 @@ function reducer(state, action) {
 // può eseguirla più di una volta (StrictMode). Prima scriveva i globali di
 // state/appGlobals.js via setter; quel modulo è stato eliminato e non c'è più
 // nulla da allineare fuori dallo state.
+/** @param {{team?: Array<object>, currentUserId?: string}} [iniziale] */
 function makeInitialState({ team, currentUserId } = {}) {
   const hasRealTeam = Array.isArray(team) && team.length > 0;
   // Dati demo (team/task/avvisi fittizi): solo sviluppo e preview senza

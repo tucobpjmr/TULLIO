@@ -62,7 +62,7 @@ vi.mock("../lib/supabase", () => ({
   supabase: { from: vi.fn((tabella) => builder(tabella)) },
 }));
 
-const { Clients, Tasks, TaskThreads, Messages } = await import("../lib/api.js");
+const { Clients, Tasks, TaskThreads, Messages, Notices, Conversations } = await import("../lib/api.js");
 const { fetchAllRows, fetchRowsUpTo } = await import("../lib/pagination.js");
 
 beforeEach(() => { chiamate.length = 0; });
@@ -125,10 +125,23 @@ describe("Clients.list — non può essere troncata dal cap PostgREST", () => {
 // `Clients.list()` è rimasta una select nuda fino a 818 righe (ST-3). Il costo
 // di tenerla paginata è zero; il costo di dedurre che non serve è una riga che
 // non arriva, senza errore.
+//
+// ─── B-3 dell'audit del 16 agosto · le due letture rimaste ─────────────────
+// Il documento del 12 agosto (C-1) chiudeva con «non resta una sola lettura
+// del data layer che possa essere troncata in silenzio». La frase era più
+// larga di ciò che era stato fatto: sette `select` nude erano rimaste, e di
+// quelle cinque sono su tabelle limitate per costruzione (il team, le
+// categorie, i template dei messaggi) dove una paginazione non aggiungerebbe
+// nulla. Due no, ed è la stessa proprietà che conta per `task_history`: la
+// bacheca non ha potatura, e le conversazioni ne guadagnano una per ogni chat
+// aperta. Sono lontanissime dal cap — ma è esattamente il ragionamento con cui
+// `Clients.list()` è rimasta una select nuda fino a 818 righe (ST-3).
 describe.each([
   ["Tasks.list", () => Tasks.list(), ["due_date", "id"]],
   ["TaskThreads.comments", () => TaskThreads.comments(), ["created_at", "id"]],
   ["TaskThreads.historyForTask", () => TaskThreads.historyForTask("t1"), ["created_at", "id"]],
+  ["Notices.list", () => Notices.list(), ["pinned", "created_at", "id"]],
+  ["Conversations.listMine", () => Conversations.listMine(), ["updated_at", "id"]],
 ])("%s — non può essere troncata dal cap PostgREST", (_nome, chiama, ordiniAttesi) => {
   it("pagina con .range() invece di fare una select nuda", async () => {
     await chiama();

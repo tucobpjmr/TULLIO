@@ -47,15 +47,32 @@ Nuovo dal 6 agosto (migrazione `get_migrazioni_applicate`), e va spiegato
 perché altrimenti sembra una regressione rispetto a `revoke_anon_table_grants`,
 che nella stessa sessione toglie ad `anon` ogni privilegio sulle tabelle.
 
-La funzione espone `version`/`name` di `supabase_migrations.schema_migrations`
-— gli stessi nomi dei file già pubblici nel repository Git, non il testo SQL
-applicato (colonna `statements`, mai selezionata). Serve al controllo di scarto
-repo↔produzione (`npm run verifica:migrazioni`), che gira anche da CI dove non
-c'è un token utente. È concessa ad `anon` con lo stesso ragionamento già
-applicato alla chiave anon stessa: protetta dal non essere un segreto, non
-dalla segretezza. Il grant sostituisce il ping di `keep-supabase-warm.yml`, che
-prima dell'8-06 interrogava `/rest/v1/users` con la chiave anon e dalla revoca
-dei GRANT avrebbe iniziato a fallire con "permission denied".
+La funzione espone `version`/`name` di `supabase_migrations.schema_migrations`,
+non il testo SQL applicato (colonna `statements`, mai selezionata). Serve al
+controllo di scarto repo↔produzione (`npm run verifica:migrazioni`), che gira
+anche da CI dove non c'è un token utente, **e** al ping di
+`keep-supabase-warm.yml`, che dalla revoca dei GRANT ad `anon` (S-16) non ha
+più una tabella da interrogare: è l'unico endpoint anon rimasto che tocchi
+davvero Postgres, ed è la ragione per cui il grant esiste in questa forma. È
+concessa ad `anon` con lo stesso ragionamento già applicato alla chiave anon
+stessa: protetta dal non essere un segreto, non dalla segretezza.
+
+> **Correzione del 18 agosto (B-1/B-2 dell'audit del 15 agosto).** Questo
+> paragrafo motivava il grant dicendo che i nomi delle migrazioni sono «gli
+> stessi nomi dei file **già pubblici nel repository Git**». **Non è vero**: il
+> repository è privato (`README.md` chiude con «Progetto privato»), quindi quei
+> nomi — `revoke_anon_table_grants`, `rls_task_category_and_pending_gate`,
+> `fix_users_privilege_escalation`, `messages_solo_mittente_modifica_contenuto`
+> — sono pubblici **solo** attraverso questa funzione, e insieme compongono una
+> cronologia aggiornata di dove il sistema è stato irrobustito e quando.
+>
+> **La decisione resta**, e senza quella premessa regge meglio di prima:
+> revocare il grant romperebbe il ping di keep-warm — che esiste proprio perché
+> `anon` non ha più GRANT sulle tabelle — per un guadagno che è la sola
+> riservatezza di un elenco di nomi, in un progetto il cui modello di minaccia
+> non include chi conosce l'URL e la chiave anon. Ciò che era sbagliato era
+> l'ARGOMENTO, non la conclusione, ed è il tipo di premessa che va corretta
+> subito: chi la legge la usa per decidere il caso successivo.
 
 ### Le 8 funzioni SECURITY DEFINER raggiungibili da `authenticated`: perché il warning non è un buco
 

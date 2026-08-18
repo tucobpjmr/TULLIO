@@ -5,6 +5,14 @@
 // lista conversazioni sia la testata della conversazione aperta, ed è logica
 // pura — nessun hook, testabile senza montare niente.
 
+// B-6 · Ogni quanto i componenti che mostrano la presenza si ri-renderizzano
+// per farla invecchiare. Sta QUI e non nei due call site perché è determinato
+// dalle soglie di `computePresence` qui sotto — 60 s per «online», 5 minuti per
+// «assente»: 30 secondi è la metà della soglia più stretta, cioè il pallino non
+// resta mai sbagliato per più di mezzo passo. Cambiare le soglie senza guardare
+// questo numero è il modo in cui l'ageing smette di funzionare in silenzio.
+export const TICK_PRESENZA_MS = 30 * 1000;
+
 export function computePresence(user) {
   if (!user || !user.last_seen_at) return 'offline';
   if (user.status === 'offline') return 'offline';

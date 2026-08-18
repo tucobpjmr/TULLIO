@@ -2,7 +2,7 @@
 // Anagrafica Clienti: elenco, ricerca, ordinamento e apertura del pannello di
 // dettaglio. Modale, card e pannello vivono in moduli propri — erano sei
 // componenti in questo file, di cui uno (la modale) da 120 righe.
-import { memo, useState, useMemo, useEffect, lazy } from "react";
+import { memo, useReducer, useState, useMemo, useEffect, lazy } from "react";
 import { ClienteModal } from "./ClienteModal.jsx";
 import { ClienteCard } from "./ClienteCard.jsx";
 import { ClienteDetailPanel } from "./ClienteDetailPanel.jsx";
@@ -55,6 +55,36 @@ const LINK_FILTERS = [
   { key: "soloCrm",  label: "Solo anagrafica" },
 ];
 
+// ─── B-3 (audit di architettura del 15 agosto) · gli overlay in UNA macchina
+// a stati ─────────────────────────────────────────────────────────────────
+// I tre overlay dell'anagrafica — la modale nuovo/modifica cliente, l'import
+// da Excel, la conferma di eliminazione — sono mutuamente esclusivi PER
+// COSTRUZIONE (nessun handler ne apre due), ma non lo erano per
+// RAPPRESENTAZIONE: tre `useState` indipendenti ammettono le otto
+// combinazioni, di cui sette non devono esistere. È lo stesso rilievo che ST-7
+// ha chiuso sugli overlay del modulo Liste, e la stessa forma della soluzione:
+// uno stato solo, dove "aperto X" implica "chiuso tutto il resto" senza che
+// nessun handler debba ricordarselo.
+//
+// Il pannello di dettaglio (`selectedClient` + `panelTab`) NON entra qui, ed è
+// una distinzione che vale la pena scrivere: non è un overlay ma un pannello
+// affiancato, resta legittimamente aperto MENTRE si apre una modale, e la
+// conferma di eliminazione ci naviga dentro («Vedi le liste») invece di
+// escluderlo. Sono due cose diverse che si somigliavano solo perché erano
+// entrambe `useState(null)`.
+const OVERLAY_CHIUSO = { tipo: null, cliente: null };
+
+function overlayClientiReducer(_s, a) {
+  switch (a.type) {
+    case "NUOVO":    return { tipo: "modale", cliente: null };
+    case "MODIFICA": return { tipo: "modale", cliente: a.cliente };
+    case "IMPORTA":  return { tipo: "import", cliente: null };
+    case "ELIMINA":  return { tipo: "elimina", cliente: a.cliente };
+    case "CHIUDI":   return OVERLAY_CHIUSO;
+    default:         return _s;
+  }
+}
+
 // `memo` + lettura dal contesto: vedi state/TasksContext.jsx sul perché il
 // provider da solo non basterebbe. Le prop rimaste — `dispatch` e il flag
 // `loading` dell'idratazione CRM — hanno identità stabile.
@@ -74,9 +104,8 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
   const [linkFilter, setLinkFilter] = useState("all");
   const [selectedClient, setSelectedClient] = useState(null); // v2.8 Round 9
   const [panelTab, setPanelTab] = useState(null); // tab da aprire nel pannello
-  const [modal, setModal] = useState(null); // null | { mode: "add" | "edit", cliente?: {} }
-  const [confirmDelete, setConfirmDelete] = useState(null);
-  const [importOpen, setImportOpen] = useState(false);
+  const [overlay, overlayDispatch] = useReducer(overlayClientiReducer, OVERLAY_CHIUSO);
+  const chiudiOverlay = () => overlayDispatch({ type: "CHIUDI" });
   // { [clientId]: { attive, totali } } — vuoto finché la query non risponde,
   // e vuoto per sempre se fallisce: i badge spariscono, l'anagrafica resta
   // usabile. Non è un dato di cui bloccare la vista.
@@ -166,8 +195,8 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
   // irraggiungibile e su una scrittura rifiutata (RLS, rete) l'anagrafica
   // digitata se ne andava con lei.
   const handleSave = async (form, { renameTasks = [] } = {}) => {
-    const res = modal?.mode === "edit" && modal.cliente
-      ? await dispatch({ type: "UPDATE_CLIENT", payload: { ...modal.cliente, ...form } })
+    const res = overlay.cliente
+      ? await dispatch({ type: "UPDATE_CLIENT", payload: { ...overlay.cliente, ...form } })
       : await dispatch({ type: "ADD_CLIENT", payload: { id: crypto.randomUUID(), ...form, createdAt: new Date().toISOString() } });
 
     if (res?.error) return res;
@@ -177,10 +206,10 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
     // in silenzio. L'utente ha spuntato la casella, quindi lo aggiorniamo —
     // ma solo se il cliente è stato scritto DAVVERO: rinominare i task dopo
     // una scrittura fallita li allontanerebbe da un'anagrafica rimasta com'era.
-    if (renameTasks.length && modal?.cliente) {
+    if (renameTasks.length && overlay.cliente) {
       await dispatch({
         type: "RENAME_CLIENT_IN_TASKS",
-        payload: { from: modal.cliente.name, to: form.name },
+        payload: { from: overlay.cliente.name, to: form.name },
       });
     }
     return { error: null };
@@ -188,7 +217,7 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
 
   const handleDelete = (cliente) => {
     dispatch({ type: "DELETE_CLIENT", payload: cliente.id });
-    setConfirmDelete(null);
+    chiudiOverlay();
   };
 
   return (
@@ -212,13 +241,13 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
         {puoModificare && (
         <div style={rowGap8}>
           <button
-            onClick={() => setImportOpen(true)}
+            onClick={() => overlayDispatch({ type: "IMPORTA" })}
             style={rowCenterGap6}
           >
             📥 Importa da Excel
           </button>
           <button
-            onClick={() => setModal({ mode: "add" })}
+            onClick={() => overlayDispatch({ type: "NUOVO" })}
             style={rowCenterGap62}
           >
             + Nuovo cliente
@@ -293,8 +322,8 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
               <ClienteCard
                 key={c.id}
                 cliente={c}
-                onEdit={puoModificare ? (c => setModal({ mode: "edit", cliente: c })) : null}
-                onDelete={puoEliminare ? (c => setConfirmDelete(c)) : null}
+                onEdit={puoModificare ? (c => overlayDispatch({ type: "MODIFICA", cliente: c })) : null}
+                onDelete={puoEliminare ? (c => overlayDispatch({ type: "ELIMINA", cliente: c })) : null}
                 onSelect={c => { setPanelTab(null); setSelectedClient(sc => sc?.id === c.id ? null : c); }}
                 selected={selectedClient?.id === c.id}
                 liste={listeDi(c)}
@@ -326,29 +355,30 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
       )}
 
       {/* Modal add/edit */}
-      {modal && (
+      {overlay.tipo === "modale" && (
         <ClienteModal
-          cliente={modal.cliente}
+          cliente={overlay.cliente}
           onSave={handleSave}
-          onClose={() => setModal(null)}
-          liste={listeDi(modal.cliente)}
-          tasksCollegati={modal.cliente ? tasksDelCliente(tasks, modal.cliente.name) : []}
+          onClose={chiudiOverlay}
+          liste={listeDi(overlay.cliente)}
+          tasksCollegati={overlay.cliente ? tasksDelCliente(tasks, overlay.cliente.name) : []}
         />
       )}
 
       {/* Import anagrafica da Excel/CSV */}
-      {importOpen && (
-        <LazyPanel resetKey="import-clienti" onReset={() => setImportOpen(false)} overlay>
+      {overlay.tipo === "import" && (
+        <LazyPanel resetKey="import-clienti" onReset={chiudiOverlay} overlay>
           <ClientImportModal
             existingClients={clients}
             onImport={(newClients) => dispatch({ type: "ADD_CLIENTS_BULK", payload: newClients })}
-            onClose={() => setImportOpen(false)}
+            onClose={chiudiOverlay}
           />
         </LazyPanel>
       )}
 
       {/* Conferma eliminazione — o spiegazione del perché non si può */}
-      {confirmDelete && (() => {
+      {overlay.tipo === "elimina" && (() => {
+        const confirmDelete = overlay.cliente;
         const l = listeDi(confirmDelete);
         // Le liste viaggio puntano al cliente con una foreign key: finché ne
         // esiste una (anche solo nel cestino, che è un soft delete) il
@@ -358,7 +388,7 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
         return (
           <Modal
             open
-            onClose={() => setConfirmDelete(null)}
+            onClose={chiudiOverlay}
             labelledBy="vd-cliente-del-title"
             width="min(420px, 92vw)"
             cardStyle={{ borderRadius: 12, padding: 24, boxShadow: "0 12px 40px rgba(0,0,0,0.18)" }}
@@ -384,13 +414,13 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
               </div>
             )}
             <div style={rowGap10}>
-              <button onClick={() => setConfirmDelete(null)} style={boxF14Muted}>{bloccato ? "Chiudi" : "Annulla"}</button>
+              <button onClick={chiudiOverlay} style={boxF14Muted}>{bloccato ? "Chiudi" : "Annulla"}</button>
               {bloccato ? (
                 showListe && (
                   <button onClick={() => {
                     setSelectedClient(confirmDelete);
                     setPanelTab("liste");
-                    setConfirmDelete(null);
+                    chiudiOverlay();
                   }} style={boxF14Bold}>Vedi le liste</button>
                 )
               ) : (

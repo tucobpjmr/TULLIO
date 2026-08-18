@@ -11,7 +11,8 @@ import {
 } from "../../lib/typingUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useChatContext } from "./chatContext.js";
-import { computePresence, PRESENCE_COLORS, PRESENCE_LABELS } from "./chatPresence.js";
+import { computePresence, PRESENCE_COLORS, PRESENCE_LABELS, TICK_PRESENZA_MS } from "./chatPresence.js";
+import { useTickLento } from "../../hooks/useTickLento.js";
 import { getConversationName } from "./chatFormat.js";
 import { MAX_FILE_SIZE, fileKindFromName } from "./chatFiles.js";
 import { convViewInitial, convViewReducer } from "./chatReducers.js";
@@ -35,6 +36,9 @@ export const ConversationView = ({ conv, messages, commands, onBack, onDelete, i
   const { input, replyingTo, showMsgSearch, msgSearch, showPinnedOnly,
           typingMap, pendingTaskRef, uploading } = cv;
   const { currentUserId, presenceMap } = useChatContext();
+  // B-6 · Come in ConversationList: il pallino nella testata invecchia perché
+  // questo componente si ri-renderizza, non perché il guscio lo fa per lui.
+  useTickLento(TICK_PRESENZA_MS);
   const scrollRef = useRef(null);
   // Step M: upload allegati reale
   const fileInputRef = useRef(null);

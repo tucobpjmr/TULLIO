@@ -1,5 +1,141 @@
 # CHANGELOG — VoyageDesk
 
+## Audit di architettura del 15 e 16 agosto — chiusi dodici dei quattordici rilievi rimasti
+
+> Il documento del **16 agosto** passa da 6/12 a **12/12**; quello del **15
+> agosto** da 4/12 a **10/12**. Due rilievi restano aperti di proposito, e la
+> ragione è scritta in fondo: non sono stati marcati chiusi.
+
+### Audit del 16 agosto — tutti e sei i rilievi Bassi
+
+**B-1 · `users` non si rilegge al mount.** `saltaPrimoCaricamento` su
+`useDebouncedTableSubscription` e `teamIniziale` passato a `useAppHydration`:
+`AuthContext.loadProfile` legge già `users` per intero — deve, perché decide se
+montare l'app — e l'idratazione la rileggeva identica un round-trip dopo. Il
+parametro NON «tocca tutti e nove i consumatori» come diceva il rilievo: è
+opzionale con default, e gli altri otto non cambiano di una virgola. Il primo
+fetch faceva però **due** cose oltre a leggere — chiudere il flag di
+caricamento e seminare `ultimoTeam` — e chi lo salta se le assume entrambe:
+senza la prima, la vista Team girerebbe per sempre sotto uno scheletro.
+
+**B-2 · era già chiuso.** Il value di `AuthContext` è `useMemo` da quando il
+suggerimento strategico n.2 di quello stesso documento ha introdotto la regola
+`VIETATO_CONTEXT_VALUE_LETTERALE`, che non ammette eccezioni e che è nata
+proprio da quel file. Non serviva codice: serviva rileggere. È il difetto che
+B-7 chiude per gli audit interi, in scala ridotta.
+
+**B-3 · le due letture che crescono sono paginate.** `Notices.list` e
+`Conversations.listMine` passano da `fetchAllRows`; le altre cinque restano
+`select` nude ed è la decisione giusta (team 7 righe, categorie 12, template 4).
+L'ordinamento chiuso su una colonna unica serviva in entrambe: né
+`pinned`+`created_at` né `updated_at` lo sono. Corretta nello stesso commit la
+frase del 12 agosto in `docs/CLAUDE.md`, che era più larga di ciò che era stato
+fatto.
+
+**B-4 · la soglia è un controllo, non un commento.** `Messages.listAll()`
+rilegge il corpus intero a ogni evento, ed è una decisione con una soglia
+(~1500 messaggi) — rimisurata: **13 in produzione**, 12 negli ultimi trenta
+giorni, cioè una decina d'anni di margine. Il problema non era la decisione ma
+dove viveva la soglia: un commento non scade, e chi lo legge fra due anni non
+sa se il numero accanto sia ancora vero. Ora è una costante che il codice
+controlla e che, superata, nomina il lavoro rimandato e la funzione già pronta
+a farlo.
+
+**B-5 · la finestra «Urgenti» invecchia.** `hooks/useTickLento.js`, col tempo
+come dipendenza dichiarata invece che lettura nascosta. **Il rilievo era più
+stretto della realtà, e il secondo punto l'ho introdotto io**: `UrgentQueue`
+ricalcolava a ogni render finché M-2 dell'audit performance/UX non l'ha
+memoizzato per far funzionare la finestra sull'elenco — quella memoizzazione è
+giusta e ha congelato l'ora, propagando B-5 dentro il commit che chiudeva un
+altro rilievo. Passano ora dal tick anche i conteggi dei chip 24/48/72h, che
+dicevano «12» sopra una lista che ne mostrava 11.
+
+**B-6 · niente più render periodici a chat chiusa.** L'ageing della presenza è
+sceso in `ConversationList` e `ConversationView`, gli unici due componenti che
+mostrano un pallino: il timer esiste solo mentre sono montati e sveglia solo
+loro. `usePresence` conserva l'heartbeat dei 30 s, che è la scrittura del
+proprio stato e non un render. Spostandolo è emerso che il file aveva un
+`cancelled` dichiarato e mai applicato al proprio `await`: ora lo applica.
+
+### Audit del 15 agosto — sei rilievi su otto
+
+**M-3 · il guscio compone e basta.** `hooks/useShellUi.js` (lo stato di UI
+effimera) e `state/AppProviders.jsx` (l'annidamento dei cinque provider);
+`VoyageDeskInner` scende da 544 a 486 righe. L'hook espone **comandi e non
+setter**: esporre `setShowBulkModal` rimetterebbe nel JSX le arrow inline che
+sono prop nuove a ogni render, cioè il difetto di ST-1 riaperto dal
+refactoring che doveva ordinare il file. E chiudere i pannelli al cambio utente
+è UNA transizione, non tre `setState` da ricordare insieme.
+
+**B-1 · un solo modo di dire «chi è admin».** Migrazione
+`20260818092812_notify_user_pending_ruolo_esatto`, **applicata in produzione**:
+`lower(role) = 'admin'` → `role = 'admin'`, l'ultimo gate non allineato agli
+altri tre. Verificato prima di applicare che i due predicati selezionino le
+stesse righe. **Precisazione al rilievo**: non è un enum ma un CHECK constraint
+su una colonna `text` — l'effetto oggi è identico, ma un CHECK si può allargare,
+e quel giorno il predicato divergerebbe in silenzio.
+
+**B-2 · la premessa era sbagliata, non la conclusione.** Il grant di
+`get_migrazioni_applicate()` ad `anon` **resta**, e `SICUREZZA.md` porta la
+correzione a vista invece che riscritta in silenzio. Il rilievo non poteva
+vederlo: i consumatori sono **due**, e il secondo non può autenticarsi per
+costruzione — `keep-supabase-warm.yml` pinga questa RPC proprio perché dalla
+revoca dei GRANT `anon` non ha più una tabella da interrogare.
+
+**B-3 · gli stati in macchine a stati, dove serve.** `ClientImportModal` e
+`AdvancedSearchPanel` da 10 `useState` a 1, `ClientiView` da 10 a 6. **E il
+rischio non era solo di manutenzione**: convertendo il primo è emerso un
+difetto già in produzione — `handleFile` scriveva il nome del file nuovo senza
+azzerare righe, colonne e mappatura del precedente, quindi un secondo file
+illeggibile lasciava a schermo l'anteprima del PRIMO sotto il nome del SECONDO,
+pronta per essere importata. `ProfileEditor` **non è stato toccato**: era già
+passato da questo esercizio (17 → 10) e i dieci rimasti portano una
+classificazione motivata riga per riga di cosa è indipendente per scelta.
+
+**B-5 · `npm audit fix`.** Da 6 high a 1: cinque patch/minor su dipendenze di
+sviluppo, nessun major, nessuna riga di `package.json` oltre il lockfile.
+
+**B-6 · `checkJs` incrementale, e verificato.** `jsconfig.json` su `src/lib/` e
+`src/state/`, **più `npm run verifica:tipi`** — perché un jsconfig che nessuno
+esegue vive solo nell'editor di chi se l'è configurato. È a **zero**: i 54
+errori dell'attivazione chiusi nello stesso commit, di cui 37 con una causa
+sola (`pushToast` coi tre campi dedotti obbligatori dalla destrutturazione) e
+uno che è il rilievo stesso in miniatura — `TeamMember`, il tipo che il JSDoc
+di `permissions.js` citava da sempre senza che esistesse.
+
+### I due che restano aperti
+
+**A-1 (due architetture dati parallele) — residuo chiuso, rilievo no.**
+`listePersistence.js` era l'unico dei tre registry a non usare
+`lib/esitoScrittura.js`, cioè la terza copia cieca che quel modulo esiste per
+togliere: ora la importa (blindato da `src/test/convergenzaRegistry.test.js`).
+Le due strade che restano — entry di `PERSISTENCE`, idratazione unificata —
+contraddicono una decisione di design dichiarata nel codice, su un modulo che
+gestisce saldi e movimenti finanziari: farle in una sessione di smaltimento
+arretrato ripeterebbe in grande l'errore che la revisione del rilievo documenta
+in piccolo. Serve prima un modo per il registry di DICHIARARE che una entry non
+fa update ottimistico.
+
+**B-4 (CVE `xlsx`) — bloccato dall'ambiente.** Quinta conferma che
+`cdn.sheetjs.com` è irraggiungibile (403) e nessun fix su npm; dopo B-5 è
+l'unica high rimasta, con le mitigazioni in piedi su entrambi i punti
+d'ingresso. Non marcato «accettato» di proposito: un rilievo bloccato
+dall'ambiente e uno accettato per decisione sono due cose diverse.
+
+File nuovi: `src/hooks/useTickLento.js`, `src/hooks/useShellUi.js`,
+`src/state/AppProviders.jsx`, `jsconfig.json`,
+`supabase/migrations/20260818092812_notify_user_pending_ruolo_esatto.sql`,
+`src/test/tickLento.test.jsx`, `src/test/convergenzaRegistry.test.js`.
+
+Lint 0, **1488 test verdi** (+25), `verifica:tipi` 0, `verifica:convenzioni` 25
+controlli senza divergenze, entry 14,47 kB gzip su 21.
+
+Dettaglio completo in
+[`AUDIT_ARCHITETTURA_2026-08-15.md`](AUDIT_ARCHITETTURA_2026-08-15.md) e
+[`AUDIT_ARCHITETTURA_2026-08-16.md`](AUDIT_ARCHITETTURA_2026-08-16.md).
+
+---
+
 ## Audit performance/UX del 16 agosto (secondo passaggio) — chiusi gli ultimi sei rilievi (M-2, M-3, B-1, B-2, B-3, B-4)
 
 > Il documento passa da 5/11 a **11/11 chiusi**. Erano i sei rimasti dopo A-1,

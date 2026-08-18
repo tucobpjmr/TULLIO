@@ -3,7 +3,7 @@
 // (props keyword / onKeyword), i filtri avanzati restano locali al pannello.
 // Cerca su due domini distinti — task e liste viaggio — perché per l'utente
 // "cerca Bianchi" è una domanda sola, anche se sotto sono due tabelle.
-import { useState, useEffect, useMemo } from "react";
+import { useState, useReducer, useEffect, useMemo } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { SwipeActions } from "../SwipeActions.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
@@ -26,6 +26,44 @@ import {
 
 // Esportato per i test: la ricerca globale è l'unico punto che cerca insieme
 // task e liste viaggio, ed è quello dove le due ricerche devono coincidere.
+// ─── B-3 (audit di architettura del 15 agosto) · i filtri sono UNO stato ───
+// Erano otto `useState` indipendenti, e la conseguenza si vedeva in
+// `resetAll`: otto `setX` che qualcuno deve ricordarsi di chiamare INSIEME,
+// più `onKeyword("")` che non è nemmeno di questo componente. Un filtro
+// aggiunto domani e dimenticato lì dentro non produce un errore — produce un
+// "Reset" che non azzera, cioè risultati filtrati da un criterio che a schermo
+// non risulta più attivo. In un pannello di ricerca è il difetto peggiore
+// possibile: la lista è corta e sembra una risposta.
+//
+// `liste` (le liste viaggio caricate all'apertura) resta fuori: sono DATI su
+// cui si filtra, non un filtro — azzerarle con il Reset svuoterebbe la sezione
+// invece di togliere un criterio.
+const FILTRI_VUOTI = {
+  dateFrom: "", dateTo: "", cats: [], stats: [], agents: [],
+  includeTrashed: false, listeStati: [], listeClienti: [],
+};
+
+function filtriReducer(s, a) {
+  switch (a.type) {
+    case "IMPOSTA": return { ...s, [a.campo]: a.valore };
+    // Aggiunge o toglie un valore da un filtro a scelta multipla: era la
+    // funzione `toggle(arr, setArr, val)`, che per funzionare doveva ricevere
+    // insieme il valore corrente e il proprio setter — cioè ricostruire a mano,
+    // a ogni call site, il legame che il reducer ha per costruzione.
+    case "ALTERNA": {
+      const corrente = s[a.campo];
+      return {
+        ...s,
+        [a.campo]: corrente.includes(a.valore)
+          ? corrente.filter(x => x !== a.valore)
+          : [...corrente, a.valore],
+      };
+    }
+    case "AZZERA":  return FILTRI_VUOTI;
+    default:        return s;
+  }
+}
+
 export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword, currentUserId }) => {
   const { isMobile } = useViewport();
   const { team, categories, canAccessListe } = useAppData();
@@ -35,19 +73,15 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
   // dice "non ho cercato lì" — dice "non c'è", ed è la risposta su cui si
   // decide di ricreare una task che esiste già.
   const caricandoStorico = useStoricoTaskCompleto();
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [cats, setCats] = useState([]);
-  const [stats, setStats] = useState([]);
-  const [agents, setAgents] = useState([]);
-  const [includeTrashed, setIncludeTrashed] = useState(false);
+  const [filtri, filtriDispatch] = useReducer(filtriReducer, FILTRI_VUOTI);
+  const { dateFrom, dateTo, cats, stats, agents, includeTrashed, listeStati, listeClienti } = filtri;
+  const imposta = (campo, valore) => filtriDispatch({ type: "IMPOSTA", campo, valore });
+  const alterna = (campo, valore) => filtriDispatch({ type: "ALTERNA", campo, valore });
 
   // Liste viaggio: chi non ha accesso al modulo non ha motivo di vederle qui
   // (stessa RLS del modulo stesso), quindi niente fetch e niente filtri.
   const listeAllowed = canAccessListe(currentUserId);
   const [liste, setListe] = useState([]);
-  const [listeStati, setListeStati] = useState([]);
-  const [listeClienti, setListeClienti] = useState([]);
 
   // Caricate una sola volta all'apertura del pannello (non vivono nello state
   // globale come i task: il modulo Liste le fetcha on-demand da sempre).
@@ -76,14 +110,12 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  const toggle = (arr, setArr, val) => {
-    setArr(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]);
-  };
-
+  // Il Reset è ora DUE cose e si vedono entrambe: azzerare i filtri di questo
+  // pannello (una transizione sola) e svuotare la parola chiave, che appartiene
+  // al chiamante e per questo resta una chiamata separata.
   const resetAll = () => {
-    onKeyword?.(""); setDateFrom(""); setDateTo("");
-    setCats([]); setStats([]); setAgents([]); setIncludeTrashed(false);
-    setListeStati([]); setListeClienti([]);
+    onKeyword?.("");
+    filtriDispatch({ type: "AZZERA" });
   };
 
   const hasFilters = keyword.trim() || dateFrom || dateTo || cats.length || stats.length || agents.length || includeTrashed || listeStati.length || listeClienti.length;
@@ -217,11 +249,11 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
           <div style={rowCenterGap10}>
             <div style={flex1}>
               <label style={txtF11Muted}>Da</label>
-              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={boxF12WFull} />
+              <input type="date" value={dateFrom} onChange={e => imposta("dateFrom", e.target.value)} style={boxF12WFull} />
             </div>
             <div style={flex1}>
               <label style={txtF11Muted}>A</label>
-              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={boxF12WFull} />
+              <input type="date" value={dateTo} onChange={e => imposta("dateTo", e.target.value)} style={boxF12WFull} />
             </div>
           </div>
         </div>
@@ -233,7 +265,7 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
               value: key, label: c.label, icon: <span>{c.icon}</span>,
             }))}
             selected={cats}
-            onToggle={val => toggle(cats, setCats, val)}
+            onToggle={val => alterna("cats", val)}
           />
         </div>
 
@@ -242,7 +274,7 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
           <FilterDropdown
             options={STATUSES.map(s => ({ value: s, label: STATUS_LABELS[s] }))}
             selected={stats}
-            onToggle={val => toggle(stats, setStats, val)}
+            onToggle={val => alterna("stats", val)}
           />
         </div>
 
@@ -260,7 +292,7 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
               ),
             }))}
             selected={agents}
-            onToggle={val => toggle(agents, setAgents, val)}
+            onToggle={val => alterna("agents", val)}
           />
         </div>
 
@@ -273,7 +305,7 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
                   value: s, label: s.charAt(0).toUpperCase() + s.slice(1),
                 }))}
                 selected={listeStati}
-                onToggle={val => toggle(listeStati, setListeStati, val)}
+                onToggle={val => alterna("listeStati", val)}
               />
             </div>
 
@@ -284,14 +316,14 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
                   value: c, label: c,
                 }))}
                 selected={listeClienti}
-                onToggle={val => toggle(listeClienti, setListeClienti, val)}
+                onToggle={val => alterna("listeClienti", val)}
               />
             </div>
           </>
         )}
 
         <label style={rowCenterGap8}>
-          <input type="checkbox" checked={includeTrashed} onChange={e => setIncludeTrashed(e.target.checked)} />
+          <input type="checkbox" checked={includeTrashed} onChange={e => imposta("includeTrashed", e.target.checked)} />
           🗑️ Includi {listeAllowed ? "task e liste" : "task"} nel cestino
         </label>
       </div>

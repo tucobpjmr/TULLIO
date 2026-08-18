@@ -11,6 +11,7 @@ import { OverdueQueue } from "./queues/OverdueQueue.jsx";
 import { WaitingQueue } from "./queues/WaitingQueue.jsx";
 import { QueueTab } from "./queues/QueueTab.jsx";
 import { useOpenTask } from "./queues/queueShared.js";
+import { useTickLento } from "../../hooks/useTickLento.js";
 import { useViewport } from "../Viewport.jsx";
 import { SwipeActions } from "../SwipeActions.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
@@ -64,6 +65,12 @@ const byPriorityThenDueDate = (a, b) => {
 // attesa", anche a scadenza superata — non deve raddoppiare nella coda Scadute.
 const isWaitingStatus = status => status === "awaiting_client" || status === "awaiting_supplier";
 const WINDOW_72H = 72 * 60 * 60 * 1000;
+// B-5 · Ogni quanto rileggere l'ora per la finestra delle urgenze. Un minuto:
+// la finestra più stretta è di 24 ore e il badge conta le task entro le
+// prossime 24 — al minuto la transizione è già più fine di quanto un utente
+// possa notare, e più fine di così si pagherebbe un render periodico per
+// niente.
+const TICK_URGENZE_MS = 60 * 1000;
 
 // ─── PERSONAL QUEUE (le mie task — v0.8) ───────────────────────────────────
 // enableDateFilter (v22): per il Driver (vista transfer-oriented) abilita un
@@ -140,15 +147,28 @@ export const Dashboard = memo(function Dashboard({
   // e lasciamo il filtro temporale al componente. Il badge della tab usa la
   // finestra di default (24h) via isUrgent.
   const showUrgent = role !== "driver";
+  // B-5 (audit di architettura del 16 agosto) · Il tempo è una DIPENDENZA, non
+  // una lettura nascosta. `Date.now()` dentro questo `useMemo` restava
+  // congelato al momento del calcolo: una Dashboard lasciata aperta non vedeva
+  // una task DIVENTARE urgente finché non cambiava qualcos'altro nei task.
+  // Nella pratica il realtime rimescola `tasks` spesso e il difetto si
+  // auto-guariva — che è anche il motivo per cui non era mai stato notato, e
+  // la ragione per cui va corretto: un difetto che si nasconde da solo non si
+  // trova guardando.
+  //
+  // Il tick è armato solo per chi vede le urgenze: al Driver non servono, e
+  // senza `showUrgent` pagherebbe un render al minuto per una lista sempre
+  // vuota.
+  const adesso = useTickLento(TICK_URGENZE_MS, showUrgent);
   const urgentCandidates = useMemo(() => showUrgent
     ? visibleTasks
       .filter(t => {
         if (!t.dueDate || t.status === "done") return false;
-        const diff = new Date(t.dueDate).getTime() - Date.now();
+        const diff = new Date(t.dueDate).getTime() - adesso;
         return diff >= 0 && diff <= WINDOW_72H;
       })
       .sort(byDueDate)
-    : [], [showUrgent, visibleTasks]);
+    : [], [showUrgent, visibleTasks, adesso]);
   const urgentTasks = useMemo(() => urgentCandidates.filter(t => isUrgent(t)), [urgentCandidates]);
 
   // Scadute: tutti i task visibili scaduti, non completati. Le task in attesa

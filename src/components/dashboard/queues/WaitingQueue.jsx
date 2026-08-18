@@ -2,14 +2,16 @@
 // Coda "in attesa": task aperte ma ferme su un riscontro esterno — cliente o
 // fornitore — quindi non "da fare" per chi le possiede. Restavano mescolate
 // nella coda personale, indistinguibili da ciò che è davvero azionabile ora.
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { SwipeActions } from "../../SwipeActions.jsx";
 import { StatusBadge } from "../../ui/StatusBadge.jsx";
 import { TaskCard } from "../../tasks/TaskCard.jsx";
 import { PRIORITIES, STATUS_LABELS, STATUS_COLORS } from "../../../lib/taskConstants.js";
 import { formatDate, isOverdue } from "../../../lib/taskUtils.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
-import { useOpenTask } from "./queueShared.js";
+import { QUEUE_PAGINA, useOpenTask } from "./queueShared.js";
+import { useFinestra } from "../../../hooks/useFinestra.js";
+import { MostraAltri } from "../../ui/MostraAltri.jsx";
 import { QueueShell } from "./QueueShell.jsx";
 import { SkeletonCards } from "../../ui/SkeletonCards.jsx";
 import { gridGap102, intestazioneSezione, txtF18 } from "../../../styles/common.js";
@@ -29,8 +31,13 @@ export const WaitingQueue = ({ tasks, dispatch, loading = false }) => {
   const caricando = loading && tasks.length === 0;
   const empty = tasks.length === 0 && !caricando;
 
-  const presentStatuses = WAITING_STATUSES.filter(s => tasks.some(t => t.status === s));
-  const visible = statusFilter ? tasks.filter(t => t.status === statusFilter) : tasks;
+  const presentStatuses = useMemo(
+    () => WAITING_STATUSES.filter(s => tasks.some(t => t.status === s)), [tasks]);
+  const visible = useMemo(
+    () => (statusFilter ? tasks.filter(t => t.status === statusFilter) : tasks),
+    [tasks, statusFilter]);
+  // M-2 · La finestra sulla coda: stesso pattern delle altre quattro.
+  const finestra = useFinestra(visible, QUEUE_PAGINA, [statusFilter]);
 
   return (
     <QueueShell
@@ -95,8 +102,9 @@ export const WaitingQueue = ({ tasks, dispatch, loading = false }) => {
           <span>📭</span> Nessuna task per il filtro selezionato.
         </div>
       ) : (
+        <>
         <div style={gridGap102}>
-          {visible.map(t => {
+          {finestra.visibili.map(t => {
             const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
             const overdue = isOverdue(t);
             return (
@@ -123,6 +131,12 @@ export const WaitingQueue = ({ tasks, dispatch, loading = false }) => {
             );
           })}
         </div>
+        <MostraAltri
+          finestra={finestra}
+          azione={`Mostra altre ${Math.min(QUEUE_PAGINA, finestra.restanti)} di ${finestra.restanti}`}
+          conteggio={`${finestra.visibili.length} di ${finestra.totale} task`}
+        />
+        </>
       )}
     </QueueShell>
   );

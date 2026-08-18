@@ -28,6 +28,9 @@ import {
 // un file loro: non sono transizioni di stato, sono il dizionario che le
 // racconta. Vedi state/activityLog.js per il perché della separazione.
 import { LOGGED_ACTIONS, buildLogEntry } from "./activityLog.js";
+// La politica della coda dei toast (dedup, cap, marcatura, ritiro) ha un file
+// suo per la stessa ragione del log attività: non sono transizioni di stato.
+import { pushToast, marcaToast, ritiraToast } from "./toastQueue.js";
 import { applyRestoreBackupRollback } from "./restoreBackupRollback.js";
 import { fondiScrittureInVolo, applicaRigaRealtime } from "./pendingWrites.js";
 import { INITIAL_CATEGORIES } from "./taskCategories.js";
@@ -46,24 +49,6 @@ const completedAtPatch = (prevStatus, nextStatus) => {
   if (nextStatus === "done") return { completedAt: new Date().toISOString() };
   return { completedAt: null };
 };
-
-// Accoda un toast invece di sovrascrivere quello corrente: prima di questa
-// funzione ogni azione scriveva `toast: {...}` e cancellava un errore critico
-// non ancora letto se nel frattempo arrivava un successo (o viceversa) — vedi
-// useAppHydration, che può emettere fino a 5 errori nella stessa finestra.
-// Funzione di modulo (non dentro baseReducer) perché serve anche al guard
-// ADMIN_ONLY_ACTIONS del wrapper `reducer`, fuori da baseReducer: un'unica
-// definizione di dedup/cap, niente logica duplicata fra i due punti.
-// Pura: non muta `toasts`, ritorna un nuovo array.
-function pushToast(toasts, { message, type, undoable }) {
-  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  // Dedup per messaggio: cinque fetch falliti sulla stessa rete giù producono
-  // lo stesso testo — cinque righe identiche in colonna non informano più di una.
-  const senzaDuplicati = (toasts || []).filter(t => t.message !== message);
-  const next = [...senzaDuplicati, { id, message, type, undoable: !!undoable }];
-  // Cap a 3: oltre, la pila di toast copre la bottom-nav su mobile.
-  return next.slice(-3);
-}
 
 function baseReducer(state, action) {
   const uid = state.currentUserId;
@@ -739,6 +724,10 @@ function baseReducer(state, action) {
 
     case "SHOW_TOAST": return { ...state, toasts: pushToast(state.toasts, { message: action.payload?.message ?? "", type: action.payload?.type ?? "error", undoable: !!action.payload?.undoable }) };
     case "CLEAR_TOAST": return { ...state, toasts: (state.toasts || []).filter(t => t.id !== action.payload) };
+    // B-2: il percorso d'errore di useSyncedDispatch ritira il toast di
+    // successo che sta per essere smentito, invece di affiancargli l'errore.
+    // Il perché (e la scelta di filtrare per azione) sta in state/toastQueue.js.
+    case "RETRACT_TOASTS": return { ...state, toasts: ritiraToast(state.toasts, action.payload) };
     case "UNDO_LAST_ACTION": {
       const la = state.lastAction;
       if (!la) return state;
@@ -791,7 +780,9 @@ function reducer(state, action) {
   if (ADMIN_ONLY_ACTIONS.has(action.type) && !isAdmin(state.team, state.currentUserId)) {
     return { ...state, toasts: pushToast(state.toasts, { message: "Solo Admin può eseguire questa azione", type: "error" }) };
   }
-  const next = baseReducer(state, action);
+  // B-2 · Ogni toast porta l'azione che l'ha prodotto, così il percorso
+  // d'errore sa quale ritirare (vedi state/toastQueue.js).
+  const next = marcaToast(state.toasts, baseReducer(state, action), action.type);
 
   // ─── COMPENSAZIONE (M-1) ───────────────────────────────────────────────────
   // I rollback di useSyncedDispatch RIUSANO le action di mutazione: annullare

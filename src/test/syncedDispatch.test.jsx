@@ -146,16 +146,19 @@ describe("useSyncedDispatch — fallimenti di persistenza", () => {
     // L'ordine è parte del contratto: la marcatura precede la scrittura e la
     // liberazione segue il rollback, così una ri-idratazione concorrente non
     // può sovrascrivere né lo stato ottimistico né la sua compensazione.
+    // `RETRACT_TOASTS` sta fra il rollback e il toast d'errore (B-2): ritira il
+    // successo ottimistico DOPO la compensazione — che riporterebbe indietro
+    // anche lui — e PRIMA dell'errore che lo smentisce.
     const tipi = azioniDispatchate(rawDispatch).map(a => a.type);
     expect(tipi).toEqual([
       "ADD_TASKS_BULK", "MARK_PENDING_WRITE",
-      "ROLLBACK_TASKS_BULK", "SHOW_TOAST", "UNMARK_PENDING_WRITE",
+      "ROLLBACK_TASKS_BULK", "RETRACT_TOASTS", "SHOW_TOAST", "UNMARK_PENDING_WRITE",
     ]);
 
     const rollback = azioniDispatchate(rawDispatch)[2];
     expect(rollback.payload).toEqual([uuid(1), uuid(2)]);
 
-    const toast = azioniDispatchate(rawDispatch)[3];
+    const toast = azioniDispatchate(rawDispatch).find(a => a.type === "SHOW_TOAST");
     expect(toast.payload.type).toBe("error");
     expect(toast.payload.message).toContain("vincolo violato");
   });
@@ -200,8 +203,10 @@ describe("useSyncedDispatch — fallimenti di persistenza", () => {
 
     await act(async () => { await dispatch({ type: "DELETE_TASK", payload: uuid(1) }); });
 
+    // Nessun rollback, ma il ritiro del toast ottimistico c'è comunque: è
+    // l'altra metà di B-2, quella che la compensazione da sola non copre.
     expect(azioniDispatchate(rawDispatch).map(a => a.type))
-      .toEqual(["DELETE_TASK", "MARK_PENDING_WRITE", "SHOW_TOAST", "UNMARK_PENDING_WRITE"]);
+      .toEqual(["DELETE_TASK", "MARK_PENDING_WRITE", "RETRACT_TOASTS", "SHOW_TOAST", "UNMARK_PENDING_WRITE"]);
   });
 
   // M-2 dell'audit del 14 agosto (secondo passaggio): RENAME_CLIENT_IN_TASKS

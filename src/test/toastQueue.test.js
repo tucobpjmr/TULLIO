@@ -94,3 +94,51 @@ describe("reducer — coda dei toast", () => {
     expect(next.categories.x).toBeUndefined();
   });
 });
+
+// ─── B-2 · il successo ottimistico si RITIRA quando il server smentisce ────
+// L'UI ottimistica accoda «Task aggiornato!» nel reducer, cioè prima che la
+// scrittura parta. Se fallisce, l'utente vedeva in colonna «Task aggiornato!»
+// e «Salvataggio fallito: …» — due affermazioni contraddittorie, con quella
+// FALSA in cima. In un gestionale dove si registrano movimenti di denaro
+// «credo di aver salvato» è il difetto più costoso possibile.
+describe("reducer — ritiro del toast smentito (B-2)", () => {
+  const TASK = {
+    id: "t1", title: "Pratica Rossi", status: "todo", category: "booking",
+    priority: "medium", assignees: ["marco"], comments: [],
+  };
+  const conTask = () => ({ ...freshState("marco"), tasks: [TASK] });
+
+  it("ogni toast porta l'azione che l'ha prodotto", () => {
+    const s = reducer(conTask(), { type: "UPDATE_TASK", payload: { id: "t1", title: "X" } });
+    expect(s.toasts.at(-1)).toMatchObject({ message: "Task aggiornato!", azione: "UPDATE_TASK" });
+  });
+
+  it("RETRACT_TOASTS toglie il successo di QUELL'azione", () => {
+    let s = reducer(conTask(), { type: "UPDATE_TASK", payload: { id: "t1", title: "X" } });
+    s = reducer(s, { type: "RETRACT_TOASTS", payload: "UPDATE_TASK" });
+    expect(s.toasts).toHaveLength(0);
+  });
+
+  it("non tocca i successi di un'ALTRA azione andata a buon fine", () => {
+    // Ritirare tutti i successi a schermo sarebbe la stessa bugia al contrario:
+    // «Task creato con successo!» è vero, la scrittura è arrivata.
+    let s = reducer(conTask(), { type: "ADD_TASK", payload: { ...TASK, id: "t2", title: "Nuova" } });
+    s = reducer(s, { type: "UPDATE_TASK", payload: { id: "t1", title: "X" } });
+    s = reducer(s, { type: "RETRACT_TOASTS", payload: "UPDATE_TASK" });
+    expect(s.toasts.map(t => t.message)).toEqual(["Task creato con successo!"]);
+  });
+
+  it("non tocca gli ERRORI, nemmeno della stessa azione", () => {
+    // Un rifiuto per permessi è un fatto già accaduto: si ritira ciò che il
+    // server non ha confermato, non ciò che ha respinto.
+    let s = reducer(freshState("gina"), { type: "UPDATE_TASK", payload: { id: "t1", title: "X" } });
+    s = reducer({ ...s, tasks: [TASK] }, { type: "SHOW_TOAST", payload: { message: "Salvataggio fallito: rete", type: "error" } });
+    s = reducer(s, { type: "RETRACT_TOASTS", payload: "SHOW_TOAST" });
+    expect(s.toasts.map(t => t.message)).toEqual(["Salvataggio fallito: rete"]);
+  });
+
+  it("su una coda che non contiene niente di quell'azione non cambia nulla", () => {
+    const s = freshState("marco");
+    expect(reducer(s, { type: "RETRACT_TOASTS", payload: "UPDATE_TASK" }).toasts).toEqual([]);
+  });
+});

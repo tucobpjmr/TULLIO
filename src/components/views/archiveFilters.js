@@ -12,12 +12,17 @@ export const PERIOD_OPTIONS = [
 // Filtra elementi per una data (completamento task o chiusura lista). Gli
 // elementi senza quella data (completati prima dell'introduzione del campo)
 // restano fuori dai filtri temporali ma compaiono in "Sempre".
-export const filterByPeriod = (items, period, dateField) => {
+//
+// `estrai` serve a chi filtra righe che AVVOLGONO l'elemento datato invece di
+// esserlo: l'Archivio scorre `{ task, indiceDiRicerca }` da M-3, e senza
+// questo parametro dovrebbe filtrare due volte o riscrivere qui il calendario.
+export const filterByPeriod = (items, period, dateField, estrai = (it) => it) => {
   if (period === "all") return items;
   const now = new Date();
   return items.filter(it => {
-    if (!it[dateField]) return false;
-    const d = new Date(it[dateField]);
+    const riga = estrai(it);
+    if (!riga[dateField]) return false;
+    const d = new Date(riga[dateField]);
     if (period === "week") {
       const cutoff = new Date(now); cutoff.setDate(cutoff.getDate() - 7);
       return d >= cutoff;

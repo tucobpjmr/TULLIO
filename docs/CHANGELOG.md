@@ -1,5 +1,132 @@
 # CHANGELOG — VoyageDesk
 
+## Audit performance/UX del 16 agosto (secondo passaggio) — chiusi gli ultimi sei rilievi (M-2, M-3, B-1, B-2, B-3, B-4)
+
+> Il documento passa da 5/11 a **11/11 chiusi**. Erano i sei rimasti dopo A-1,
+> A-2, M-1, M-4 (16 agosto) e A-3 (17): due di priorità Media e i quattro
+> Bassi. Ogni rilievo porta ora nel documento la propria sezione «Correzione
+> (applicata)» con ciò che è emerso implementando — in quattro casi su sei il
+> rilievo era più stretto della realtà o indicava una strada che non ha retto
+> alla prova, e una voce è stata respinta.
+
+**M-2 · La finestra sugli elenchi, da 2 viste su 7 a tutte e nove.** La
+meccanica è ora una sola — `src/hooks/useFinestra.js` — con il piede
+dell'elenco in `src/components/ui/MostraAltri.jsx`. Ci passano Archivio,
+Cestino e le cinque code della Dashboard, che montavano l'array intero (209
+card d'archivio oggi, +4 al giorno), più `ClientiView` e `ListeViaggio`, che
+avevano due copie identiche del pattern: migrate anche loro, così non resta
+una seconda forma canonica accanto a quella nuova. Passo 24 per Archivio e
+Cestino, **10** per le code (`QUEUE_PAGINA`): una coda è una *card* della
+dashboard, non una pagina.
+
+Tre cose che il rilievo non poteva vedere. Il riazzeramento **non** è un
+`useEffect` con `deps` passato dal chiamante: sarebbe un array di dipendenze
+dinamico, che `react-hooks/exhaustive-deps` non sa verificare su una regola
+tenuta a zero warning per scelta, e correggerebbe la finestra *dopo* aver
+committato un render con quella vecchia — è un adeguamento di stato **in
+render**. Le due frasi del piede le compone il chiamante, perché «Mostra
+altri» e «Mostra altre» dipendono dal nome che segue e nell'app *task* è
+femminile nell'Archivio e maschile nel Cestino. E la finestra si riazzera sui
+**restringimenti**, non sull'identità dell'elenco: altrimenti un evento
+realtime che aggiunge una riga la richiuderebbe sotto gli occhi di chi ha
+appena premuto «mostra altri».
+
+**M-3 · Ricerca indicizzata: 6,32 ms → 0,19 ms per battuta.**
+`lib/searchUtils.js` espone `indicizza(...campi)` e `matchIndice(termini, idx)`,
+con `matchTermini` scritta **sopra** le due: la semantica (apostrofi, ordine
+delle parole, cognomi elisi) resta definita in un punto solo, e i test che la
+fissano sono anche la prova che l'indice non l'ha cambiata — un caso nuovo
+passa dieci query dai nomi reali per **entrambe** le strade e pretende la
+stessa risposta. Indicizzano `ClientiView`, `Archive` e `ListeViaggio`.
+
+Due scoperte. Nell'elenco liste il costo era il **doppio** del misurato:
+`filtraListe` girava su quattro insiemi (attive, esaurite, tutte, cestino) a
+ogni battuta, quindi le attive venivano normalizzate due volte per carattere
+digitato, cointestatari inclusi — ora si filtra l'indice una volta e si
+partiziona per stato. E l'Archivio non usava affatto `searchUtils`: cercava
+con una sottostringa secca su `title + client + praticaRef`, cioè una
+*seconda* definizione di «trovare», per cui «d amato» non trovava la task di
+D'AMATO che la ricerca clienti trovava.
+
+**B-1 · L'app fuori dal chunk d'ingresso: 72,46 → 14,47 kB gzip (−80%).**
+`auth/AuthGate.jsx` monta `VoyageDesk` con `lazy()` e **prefetch avviato
+subito**, in parallelo a `getSession()`: chi ha una sessione valida non paga
+alcuna cascata, chi arriva al login non paga il parse dell'app che non ha
+ancora aperto. First load 172,40 → **114,41 kB**. Il `Suspense` non aggiunge
+una schermata: il fallback è la splash che `AuthGate` mostrava già.
+
+Il prefetch porta un `catch` vuoto — senza, un chunk mancante sarebbe una
+unhandled rejection *prima* che l'app serva, cioè lo stesso guasto raccontato
+due volte; l'errore vero lo solleva il `lazy()` al mount, dove c'è il
+boundary. Che qui è quello di **primo** livello e non `ViewErrorBoundary`: se
+il chunk manca, manca l'app, e non esiste «il resto di Tullio continua a
+funzionare» in cui rientrare. Le soglie di `verifica:bundle` **scendono con
+la misura** (84 → 21 kB d'ingresso, 184 → 121 di first load, stesso margine
+di +6 kB dichiarato lì): lasciarle dov'erano avrebbe significato 70 kB di
+gioco che non intercettano più niente.
+
+**B-2 · Il toast di successo si ritira quando il server smentisce.** Non per
+messaggio come proponeva il rilievo — avrebbe richiesto dentro `fail()` una
+tabella `tipo azione → frase di successo`, cioè una seconda copia dei messaggi
+del reducer da tenere allineata su una quarantina di `pushToast`, e il primo
+che divergesse fallirebbe in silenzio — ma **per azione**: ogni toast porta il
+tipo che l'ha prodotto, marcato nel wrapper `reducer` che quel tipo ce l'ha
+già sotto mano, e `RETRACT_TOASTS` toglie i soli toast *di successo* di
+quell'azione. Gli errori non si ritirano (un rifiuto per permessi è un fatto
+accaduto) e i successi di altre azioni restano (possono venire da una
+scrittura andata a buon fine un attimo prima). Il ritiro va fatto sempre — la
+compensazione copre solo le azioni che dichiarano `rollback` — e **dopo** il
+rollback, o è lui a riportare indietro il toast appena ritirato.
+
+Il reducer ha toccato il tetto di 550 righe e il numero **non è stato
+alzato**: è uscita la politica della coda dei toast (dedup, cap, marcatura,
+ritiro) in `src/state/toastQueue.js`, come già `activityLog.js`.
+
+**B-3 · Gli ultimi quattro form fuori dalla validazione inline.**
+`views/Trash.jsx`, `chat/NewConversationView.jsx`, `modals/bulk/TemplateTab.jsx`
+e `liste/modals/EditListaModal.jsx` passano ora da `validaCampi` +
+`FieldError`/`ariaCampo`, con il focus sul primo campo sbagliato in ordine
+visivo e nessun `disabled` al posto del messaggio. I due con più condizioni
+(nome gruppo + due membri; template + data evento) le dicono **una per una**.
+
+Tre distinzioni che la conversione ha reso esplicite. `disabled` legato a una
+scrittura **in volo** non è la variante vietata: è il freno al doppio invio, e
+la sua ragione è già a schermo («⏳ Creazione…»). Un campo in **sola lettura**
+dietro un consenso esplicito nemmeno — **`EditListaModal:51` era una voce
+respinta del rilievo**: il nome titolare è `disabled` finché non si spunta
+«rinomina in anagrafica», perché rinominarlo cambia l'anagrafica condivisa di
+tutta l'agenzia; il difetto lì era il messaggio mandato in un **toast**, ed è
+quello che è stato corretto. E su ciò che non è un controllo — l'elenco dei
+membri — non si mette `aria-invalid`: il messaggio si annuncia da sé con
+`role="alert"` mentre il focus lo porta sotto gli occhi.
+
+**B-4 · `useMemo` su filtro, permessi e ordinamento.** Con `getVisibleTasks`
+nelle dipendenze: arriva da `useAppData()`, il cui value è già `useMemo`,
+quindi la memoizzazione regge invece di invalidarsi a ogni render. **Il
+rilievo era più stretto della realtà**: lo stesso difetto era identico nel
+Cestino (`trashed` + `editableCount`) e nelle cinque code, dove filtro e
+ordinamento giravano a ogni render della Dashboard — memoizzati insieme,
+perché è anche la condizione perché la finestra di M-2 non ricalcoli la
+propria `slice` a vuoto.
+
+**Documenti corretti nello stesso commit** (regola di `INDEX.md`): entrambe le
+affermazioni di `docs/CLAUDE.md` che l'audit segnalava. La regola sugli
+elenchi lunghi non descrive più due esempi che si leggevano come l'insieme —
+nomina l'hook e le nove viste; e «non resta un solo call site fuori» dalla
+validazione inline è ora **vera**.
+
+File nuovi: `src/hooks/useFinestra.js`, `src/components/ui/MostraAltri.jsx`,
+`src/state/toastQueue.js`, `src/test/finestraElenchi.test.jsx`.
+
+Lint 0, **1463 test verdi** (+30), chunk d'ingresso **14,47 kB gzip su 21**,
+first load **114,41 su 121**, `verifica:convenzioni` 25 controlli senza
+divergenze.
+
+Dettaglio completo in
+[`AUDIT_PERFORMANCE_UX_2026-08-16_ii.md`](AUDIT_PERFORMANCE_UX_2026-08-16_ii.md).
+
+---
+
 ## Suggerimento strategico n.3 (audit del 16 agosto) — il modulo Liste sotto il contratto realtime del core
 
 > Stesso giorno, quarto commit. A-1 era il terzo rilievo consecutivo nato

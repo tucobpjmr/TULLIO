@@ -1,13 +1,15 @@
 // src/components/dashboard/queues/OverdueQueue.jsx
 // Coda scaduti: tutto ciò che ha superato la scadenza ed è ancora aperto.
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { SwipeActions } from "../../SwipeActions.jsx";
 import { StatusBadge } from "../../ui/StatusBadge.jsx";
 import { TaskCard } from "../../tasks/TaskCard.jsx";
 import { PRIORITIES } from "../../../lib/taskConstants.js";
 import { formatDate } from "../../../lib/taskUtils.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
-import { useOpenTask } from "./queueShared.js";
+import { QUEUE_PAGINA, useOpenTask } from "./queueShared.js";
+import { useFinestra } from "../../../hooks/useFinestra.js";
+import { MostraAltri } from "../../ui/MostraAltri.jsx";
 import { QueueShell } from "./QueueShell.jsx";
 import { SkeletonCards } from "../../ui/SkeletonCards.jsx";
 import { gridGap102, intestazioneSezione, txtF18 } from "../../../styles/common.js";
@@ -29,12 +31,16 @@ export const OverdueQueue = ({ tasks, dispatch, loading = false }) => {
   const caricando = loading && tasks.length === 0;
   const empty = tasks.length === 0 && !caricando;
 
-  const presentAssignees = Array.from(new Set(
-    tasks.flatMap(t => t.assignees || [])
-  )).filter(Boolean);
-  const visible = filterAssignee
-    ? tasks.filter(t => (t.assignees || []).includes(filterAssignee))
-    : tasks;
+  const presentAssignees = useMemo(
+    () => Array.from(new Set(tasks.flatMap(t => t.assignees || []))).filter(Boolean),
+    [tasks]);
+  const visible = useMemo(
+    () => (filterAssignee ? tasks.filter(t => (t.assignees || []).includes(filterAssignee)) : tasks),
+    [tasks, filterAssignee]);
+  // M-2 · La finestra sulla coda. Le scadute sono una delle due code senza
+  // tetto naturale: si allungano proprio quando l'agenzia va in affanno, cioè
+  // quando la dashboard deve essere più reattiva, non meno.
+  const finestra = useFinestra(visible, QUEUE_PAGINA, [filterAssignee]);
 
   return (
     <QueueShell
@@ -105,8 +111,9 @@ export const OverdueQueue = ({ tasks, dispatch, loading = false }) => {
           <span>📭</span> Nessuna task scaduta per l&#39;agente selezionato.
         </div>
       ) : (
+        <>
         <div style={gridGap102}>
-          {visible.map(t => {
+          {finestra.visibili.map(t => {
             const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
             return (
               <SwipeActions key={t.id} task={t} dispatch={dispatch}>
@@ -132,6 +139,12 @@ export const OverdueQueue = ({ tasks, dispatch, loading = false }) => {
             );
           })}
         </div>
+        <MostraAltri
+          finestra={finestra}
+          azione={`Mostra altre ${Math.min(QUEUE_PAGINA, finestra.restanti)} di ${finestra.restanti}`}
+          conteggio={`${finestra.visibili.length} di ${finestra.totale} task`}
+        />
+        </>
       )}
     </QueueShell>
   );

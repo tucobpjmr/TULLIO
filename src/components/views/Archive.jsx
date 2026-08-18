@@ -3,7 +3,7 @@
 // in una sezione dedicata, le liste buoni viaggio chiuse (stato "esaurita",
 // non cestinate). Il sistema convoglia qui gli elementi chiusi: spariscono
 // dalle code/home attive e restano consultabili/riapribili in questa sezione.
-import { memo, useState, useCallback, lazy } from "react";
+import { memo, useState, useCallback, useMemo, lazy } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
@@ -16,6 +16,9 @@ import { useAppData } from "../../state/AppDataContext.jsx";
 import { useTasks } from "../../state/TasksContext.jsx";
 import { useStoricoTaskCompleto } from "../../state/StoricoTaskContext.jsx";
 import { PERIOD_OPTIONS, filterByPeriod, thStyle, chipStyle } from "./archiveFilters.js";
+import { indicizza, matchIndice, terminiRicerca } from "../../lib/searchUtils.js";
+import { useFinestra } from "../../hooks/useFinestra.js";
+import { MostraAltri } from "../ui/MostraAltri.jsx";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import {
   btnDangerMini, btnGhostMini, btnNavyMini, card, cardVuota, cardVuotaAlta, cella, cellaAzioni,
@@ -34,6 +37,11 @@ import {
 const ArchivedListe = lazy(() =>
   import("../liste/ArchivedListe.jsx").then(m => ({ default: m.ArchivedListe }))
 );
+
+// M-2 · Quante righe si disegnano alla volta. 24 come l'anagrafica (`PAGINA`
+// in ClientiView): su mobile è una schermata piena di card, su desktop una
+// tabella che si scorre senza diventare la pagina intera.
+const PAGINA = 24;
 
 // `memo` + lettura dal contesto: senza il memo il provider non servirebbe a
 // nulla, perché il genitore ri-renderizza a ogni azione (vedi
@@ -63,18 +71,42 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
   // Solo le task completate che l'utente può vedere (rispetta i permessi).
   // Ordinate per data di completamento (completedAt) decrescente; fallback su
   // dueDate per task completate prima dell'introduzione di completed_at.
-  const archived = getVisibleTasks(getArchivedTasks(tasks), me)
-    .sort((a, b) => new Date(b.completedAt || b.dueDate || 0) - new Date(a.completedAt || a.dueDate || 0));
+  //
+  // B-4 · `useMemo` e non tre passate a ogni render. Filtro delle archiviate,
+  // controllo di permesso PER RIGA e ordinamento giravano su tutte le task a
+  // ogni battuta nel campo di ricerca e a ogni chip premuto: è lo stesso
+  // rilievo che P2-4 ha corretto sulla Dashboard, sulla vista che quel
+  // perimetro non comprendeva.
+  const archived = useMemo(
+    () => getVisibleTasks(getArchivedTasks(tasks), me)
+      .sort((a, b) => new Date(b.completedAt || b.dueDate || 0) - new Date(a.completedAt || a.dueDate || 0)),
+    [tasks, me, getVisibleTasks]);
 
-  const visible = filterByPeriod(archived, period, "completedAt").filter(t => {
-    if (category !== "all" && t.category !== category) return false;
-    if (query.trim()) {
-      const q = query.trim().toLowerCase();
-      const hay = `${t.title} ${t.client || ""} ${t.praticaRef || ""}`.toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    return true;
-  });
+  // M-3 · L'indice di ricerca delle righe archiviate, ricostruito quando
+  // cambiano le task e non a ogni carattere digitato. Va insieme al `useMemo`
+  // qui sopra: con `archived` di identità nuova a ogni render l'indice si
+  // ricostruirebbe comunque e il guadagno si annullerebbe.
+  //
+  // Il confronto passa da `lib/searchUtils.js` come nell'anagrafica e
+  // nell'elenco liste: era una sottostringa secca su `title + client +
+  // praticaRef`, quindi qui «d amato» non trovava la task di D'AMATO che la
+  // ricerca dei clienti trovava — la stessa domanda con due risposte diverse.
+  const indice = useMemo(
+    () => archived.map(t => ({ t, idx: indicizza(t.title, t.client, t.praticaRef) })),
+    [archived]);
+
+  const visible = useMemo(() => {
+    const termini = terminiRicerca(query);
+    const perPeriodo = filterByPeriod(indice, period, "completedAt", r => r.t);
+    return perPeriodo
+      .filter(r => (category === "all" || r.t.category === category) && matchIndice(termini, r.idx))
+      .map(r => r.t);
+  }, [indice, period, category, query]);
+
+  // M-2 · La finestra sull'elenco: l'Archivio ne montava 209 oggi (+4 al
+  // giorno, senza potatura), ognuna con i propri avatar e chip. Ogni
+  // restringimento la riazzera — vedi hooks/useFinestra.js.
+  const finestra = useFinestra(visible, PAGINA, [query, category, period]);
 
   // "Sto ancora caricando e non ho ancora nulla": vedi Dashboard.jsx.
   //
@@ -111,7 +143,10 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
   };
 
   // Categorie effettivamente presenti tra le task archiviate (per il filtro).
-  const presentCats = Array.from(new Set(archived.map(t => t.category)));
+  // Anche questo `useMemo` è B-4: il `Set` si ricostruiva su tutte le task
+  // archiviate a ogni carattere digitato, per disegnare gli stessi chip.
+  const presentCats = useMemo(
+    () => Array.from(new Set(archived.map(t => t.category))), [archived]);
 
   const pad = isMobile ? "16px" : "24px 32px";
   const showTaskTab = !listeAllowed || tab === "task";
@@ -199,7 +234,7 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
           ) : isMobile ? (
             /* Mobile: card list — no horizontal overflow */
             <div style={colGap10}>
-              {visible.map(task => (
+              {finestra.visibili.map(task => (
                 <TaskCard
                   key={task.id}
                   task={task}
@@ -258,7 +293,7 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {visible.map(task => (
+                  {finestra.visibili.map(task => (
                     <tr key={task.id} style={borderBottom2}
                       onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: task })}
                       onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
@@ -298,6 +333,15 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
               </table>
             </div>
           )}
+
+          {/* Il totale resta VERO anche a finestra ridotta: "24 di 209" e "24"
+              sono due affermazioni diverse, e l'archivio serve a rispondere
+              alla domanda "quante ne ho chiuse". */}
+          <MostraAltri
+            finestra={finestra}
+            azione={`Mostra altre ${Math.min(PAGINA, finestra.restanti)} di ${finestra.restanti}`}
+            conteggio={`${finestra.visibili.length} di ${finestra.totale} task`}
+          />
         </>
       ) : (
         <LazyPanel resetKey="archivio-liste" onReset={() => setTab("task")}>

@@ -116,6 +116,17 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true } = {}) {
       // chiede questo ramo d'errore. Il reducer lo legge in un punto solo (vedi
       // state/reducer.js): toast invariati e nessuna voce nel log attività.
       if (undo) rawDispatch({ ...undo, meta: { ...undo.meta, compensazione: true } });
+      // B-2 (audit performance/UX del 16 agosto, secondo passaggio): l'UI
+      // ottimistica accoda il successo nel reducer, cioè PRIMA che la scrittura
+      // parta. Se fallisce, «Task aggiornato!» resta a schermo sopra
+      // «Salvataggio fallito: …» — due affermazioni contraddittorie, con quella
+      // falsa in cima. La compensazione qui sopra ripristina la coda dei toast
+      // PRECEDENTE all'azione (vedi il ramo `meta.compensazione` del reducer),
+      // ma solo quando un rollback esiste: le azioni senza compensazione — e
+      // quelle il cui successo era già stato accodato prima — restano scoperte.
+      // Il ritiro va quindi fatto sempre, e DOPO il rollback per non essere
+      // riportato indietro da lui.
+      rawDispatch({ type: "RETRACT_TOASTS", payload: action.type });
       const testo = (spec.mapError ? spec.mapError(err) : err?.message) || fallback;
       rawDispatch({
         type: "SHOW_TOAST",

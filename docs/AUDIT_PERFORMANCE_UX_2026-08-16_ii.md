@@ -25,9 +25,25 @@ Numeri di partenza, misurati oggi:
 | `clients` | **835 righe** |
 | Task create | **167 negli ultimi 30 giorni** (~5,6/giorno) |
 
-> **Stato: 4 rilievi su 11 chiusi** — A-1, poi A-2, M-1 e M-4 insieme, lo
-> stesso 16 agosto, su richiesta esplicita (erano i suggerimenti strategici
-> n.1 e n.2). Il resto è analisi.
+> **Stato: 11 rilievi su 11 chiusi.** A-1, poi A-2, M-1 e M-4 insieme, lo
+> stesso 16 agosto (erano i suggerimenti strategici n.1 e n.2); A-3 con i suoi
+> tre passi il 17; **M-2, M-3, B-1, B-2, B-3 e B-4 il 18 agosto**, i sei che
+> restavano.
+>
+> Ogni rilievo chiuso porta la propria sezione «Correzione (applicata)» con
+> ciò che **è emerso implementando** e che il rilievo non poteva vedere. Vale
+> la pena leggerle: in quattro casi su sei il rilievo era più stretto della
+> realtà (B-4 valeva anche per Cestino e code, M-3 anche per l'Archivio, che
+> non usava affatto `searchUtils`) o indicava una strada che non ha retto alla
+> prova (il ritiro del toast «per messaggio» di B-2, il riazzeramento con
+> `useEffect` di M-2). Una sola voce è stata **respinta**: `EditListaModal:51`
+> non era un «bottone spento» ma una sola-lettura voluta — il difetto lì era
+> il messaggio in un toast, ed è quello che è stato corretto.
+>
+> **Misure dopo la chiusura** (18 agosto): chunk d'ingresso **14,47 kB gzip**
+> (era 72,46 — B-1), first load **114,41 kB** (era 172,40), soglie di
+> `verifica:bundle` riportate sulla misura nuova (21 / 121). Lint 0,
+> **1463 test verdi**, `verifica:convenzioni` 25 controlli senza divergenze.
 >
 > **Nessun rilievo critico.** I tre rilievi di priorità Alta non perdono dati
 > in silenzio e non aggirano permessi: due riguardano ciò che l'utente vede
@@ -98,13 +114,13 @@ riletta per intero a ogni avvio a freddo. Non è un difetto di correttezza:
 | A-2 ✔ | 🟠 **Alta** | UX / errori | `QuickAddTask` — il form più usato dell'app — esce in silenzio a titolo vuoto E perde i dati se la scrittura fallisce — **chiuso lo stesso 16 agosto** | `modals/QuickAddTask.jsx:118-149` |
 | A-3 ✔ | 🟠 **Alta** | Scalabilità | L'idratazione scarica lo storico completo dei task: 82,5% del payload è non operativo, cresce ~13 righe/giorno senza tetto — **chiuso il 17 agosto** (§A-3) | `hooks/useAppHydration.js:144`, `lib/api.js:319` |
 | M-1 ✔ | 🟡 Media | UX / errori | `ClientiView.handleSave` chiude la modale senza attendere la scrittura: `saving` non si vede mai, doppio invio possibile, dati persi in caso d'errore — **chiuso lo stesso 16 agosto** | `clients/ClientiView.jsx:160-176`, `clients/ClienteModal.jsx:44,81,184` |
-| M-2 | 🟡 Media | Performance | La finestra sugli elenchi lunghi è applicata a 2 viste su 7: Archivio, Cestino e le cinque code disegnano l'array intero | `views/Archive.jsx:188,247`, `views/Trash.jsx:187`, `dashboard/queues/*` |
-| M-3 | 🟡 Media | Performance | Ricerca a testo libero senza debounce né indice: **6,32 ms per battuta** su 835 clienti, contro 0,19 ms con indice precalcolato | `clients/ClientiView.jsx:124-141`, `views/Archive.jsx:63-71`, `lib/searchUtils.js:50` |
+| M-2 ✔ | 🟡 Media | Performance | La finestra sugli elenchi lunghi è applicata a 2 viste su 7: Archivio, Cestino e le cinque code disegnano l'array intero — **chiuso il 18 agosto** | `hooks/useFinestra.js`, `ui/MostraAltri.jsx`, `views/Archive.jsx`, `views/Trash.jsx`, `dashboard/queues/*` |
+| M-3 ✔ | 🟡 Media | Performance | Ricerca a testo libero senza debounce né indice: **6,32 ms per battuta** su 835 clienti, contro 0,19 ms con indice precalcolato — **chiuso il 18 agosto** | `lib/searchUtils.js`, `clients/ClientiView.jsx`, `views/Archive.jsx`, `liste/listeOrdinamento.js` |
 | M-4 ✔ | 🟡 Media | UX / errori | Il commento digitato viene cancellato prima che la scrittura sia confermata — **chiuso lo stesso 16 agosto** | `tasks/TaskSlideOver.jsx:128-138` |
-| B-1 | 🟢 Bassa | Performance | L'intera app è nel chunk d'ingresso anche per chi è fermo alla schermata di login | `auth/AuthGate.jsx:3` |
-| B-2 | 🟢 Bassa | UX / errori | Il toast «Task aggiornato!» precede la conferma del server e può essere smentito dal toast successivo | `state/reducer.js:307-309` |
-| B-3 | 🟢 Bassa | UX / errori | Quattro call site ancora fuori dalla regola di M-3, tutti nella variante «bottone spento» | `views/Trash.jsx:392`, `chat/NewConversationView.jsx:149`, `modals/bulk/TemplateTab.jsx:198`, `liste/modals/EditListaModal.jsx:51` |
-| B-4 | 🟢 Bassa | Performance | `Archive` ricalcola filtro, permessi e ordinamento a ogni render senza `useMemo` | `views/Archive.jsx:60-71,100` |
+| B-1 ✔ | 🟢 Bassa | Performance | L'intera app è nel chunk d'ingresso anche per chi è fermo alla schermata di login — **chiuso il 18 agosto**: entry 72,46 → **14,47 kB gzip** | `auth/AuthGate.jsx` |
+| B-2 ✔ | 🟢 Bassa | UX / errori | Il toast «Task aggiornato!» precede la conferma del server e può essere smentito dal toast successivo — **chiuso il 18 agosto** | `state/toastQueue.js`, `state/reducer.js`, `hooks/useSyncedDispatch.js` |
+| B-3 ✔ | 🟢 Bassa | UX / errori | Quattro call site ancora fuori dalla regola di M-3, tutti nella variante «bottone spento» — **chiuso il 18 agosto** | `views/Trash.jsx`, `chat/NewConversationView.jsx`, `modals/bulk/TemplateTab.jsx`, `liste/modals/EditListaModal.jsx` |
+| B-4 ✔ | 🟢 Bassa | Performance | `Archive` ricalcola filtro, permessi e ordinamento a ogni render senza `useMemo` — **chiuso il 18 agosto**, insieme a M-3 | `views/Archive.jsx`, `views/Trash.jsx`, `dashboard/queues/*` |
 
 ---
 
@@ -722,7 +738,7 @@ scritto».
 
 ---
 
-### 🟡 M-2 · La finestra sugli elenchi è applicata a 2 viste su 7
+### 🟡 M-2 · La finestra sugli elenchi è applicata a 2 viste su 7 ✔
 
 **Dove.** `views/Archive.jsx:188,247`, `views/Trash.jsx:187`, e le cinque code
 in `dashboard/queues/` (es. `PersonalQueue.jsx:145`, `OverdueQueue.jsx:109`,
@@ -773,9 +789,49 @@ export function useFinestra(elementi, passo, deps) {
 Il totale resta visibile e vero — «24 di 209» e «24» sono due affermazioni
 diverse, ed è la ragione per cui la convenzione lo richiede.
 
+**Correzione (applicata il 18 agosto).** L'hook è
+`src/hooks/useFinestra.js`, e il piede dell'elenco — comando più conteggio —
+è `src/components/ui/MostraAltri.jsx`. Sono **nove** le viste che ci passano:
+le due che avevano già la finestra (`ClientiView`, `ListeViaggio`, migrate
+all'hook così che non resti una seconda forma canonica accanto a quella nuova)
+e le sette che non ce l'avevano — Archivio, Cestino e le cinque code.
+
+Tre cose sono emerse implementando, e nessuna è nel diagramma qui sopra.
+
+1. **Il riazzeramento non è un `useEffect`.** La firma proposta
+   (`useFinestra(elementi, passo, deps)` con `deps` passato a `useEffect`)
+   sarebbe un array di dipendenze *dinamico*, che `react-hooks/exhaustive-deps`
+   non sa verificare — e quella regola è a **zero warning per scelta**, cioè un
+   warning nuovo per definizione. Sarebbe anche una correzione *dopo* il fatto:
+   un render con la finestra vecchia, poi l'effetto che la richiude. L'hook
+   adegua quindi lo stato **in render** confrontando una chiave derivata dai
+   restringimenti: React ri-esegue il componente prima di toccare il DOM, e a
+   schermo non arriva mai lo stato intermedio.
+2. **Le due frasi le compone il chiamante, non il componente.** «Mostra altri
+   24» e «Mostra altre 24» dipendono dal nome che segue, e nell'app *task* è
+   femminile nell'Archivio («task completate») e maschile nel Cestino («task
+   eliminati»). `MostraAltri` prende quindi due stringhe già composte e tiene
+   solo il layout: comporre testo per interpolazione è il modo in cui nasce
+   «Descrizione è obbligatorio» (vedi il commento in `lib/validators.js`).
+3. **La finestra si riazzera sui restringimenti, non sull'elenco.** Se
+   dipendesse dall'identità dell'array, un evento realtime che aggiunge una
+   riga richiuderebbe la finestra sotto gli occhi di chi ha appena premuto
+   «mostra altri». È un caso a sé in `src/test/finestraElenchi.test.jsx`.
+
+Il passo è 24 per Archivio e Cestino (come l'anagrafica) e **10** per le code
+(`QUEUE_PAGINA` in `queueShared.js`): una coda è una *card* della dashboard,
+non una pagina. `ListeViaggio` tiene il proprio bottone `lv-btn` invece di
+`MostraAltri` — il CSS del modulo è scopato sotto `.lv-root`, quindi il piede
+condiviso ci arriverebbe senza i propri stili: stessa meccanica, aspetto di
+casa.
+
+Guardia: `src/test/finestraElenchi.test.jsx` (13 casi) conta le **righe a
+schermo**, non le chiamate interne, ed esercita insieme le due metà che si
+dimenticano una alla volta — il tetto e il riazzeramento.
+
 ---
 
-### 🟡 M-3 · Ricerca a testo libero senza debounce né indice
+### 🟡 M-3 · Ricerca a testo libero senza debounce né indice ✔
 
 **Dove.** `clients/ClientiView.jsx:124-141` (e `views/Archive.jsx:63-71`,
 `liste/ListeViaggio.jsx`), su `lib/searchUtils.js:50`.
@@ -842,6 +898,31 @@ Il debounce **non** serve una volta tolto il lavoro ripetuto, e sarebbe la
 correzione peggiore delle due: introduce un ritardo percepito per nascondere un
 costo invece di toglierlo.
 
+**Correzione (applicata il 18 agosto).** `lib/searchUtils.js` espone
+`indicizza(...campi)` e `matchIndice(termini, idx)`, e `matchTermini` è ora
+scritta **sopra** le due: la semantica (apostrofi, ordine delle parole, cognomi
+elisi) resta definita in un punto solo, e i test che la fissano sono anche il
+modo di verificare che l'indice non l'abbia cambiata — `src/test/searchUtils.test.js`
+ha un caso che passa dieci query dai casi reali per **entrambe** le strade e
+pretende la stessa risposta. Tre viste indicizzano: `ClientiView` (`useMemo` su
+`clients`), `Archive` (su `archived`, insieme a B-4) e `ListeViaggio`.
+
+Due cose sono emerse implementando.
+
+1. **Nell'elenco liste il costo era doppio di quello misurato.**
+   `filtraListe` girava su **quattro** insiemi (attive, esaurite, tutte,
+   cestino) a ogni battuta, quindi le liste attive venivano normalizzate due
+   volte per carattere digitato, cointestatari inclusi. Ora si filtra l'indice
+   una volta sola e si partiziona per stato: `filtraIndicizzate` in
+   `liste/listeOrdinamento.js`. `filtraListe` resta esportata — ha un
+   chiamante che confronta senza avere un elenco da indicizzare, e i suoi test.
+2. **L'Archivio non usava affatto `searchUtils`**: cercava con un
+   `` `${title} ${client} ${praticaRef}`.toLowerCase().includes(q) `` scritto
+   a mano. Oltre a essere lo stesso lavoro ripetuto, era una *seconda*
+   definizione di «trovare»: qui «d amato» non trovava la task di D'AMATO che
+   la ricerca clienti trovava — la stessa domanda con due risposte diverse.
+   Indicizzarlo ha chiuso anche quello.
+
 ---
 
 ### 🟡 M-4 · Il commento digitato si perde se la scrittura fallisce ✔
@@ -896,7 +977,7 @@ validazione inline, perché è lo stesso problema: dire cosa non ha funzionato
 
 ---
 
-### 🟢 B-1 · L'app intera è nel chunk d'ingresso anche alla schermata di login
+### 🟢 B-1 · L'app intera è nel chunk d'ingresso anche alla schermata di login ✔
 
 **Dove.** `auth/AuthGate.jsx:3` — `import VoyageDesk from '../VoyageDesk.jsx';`
 
@@ -927,9 +1008,43 @@ Da misurare con `verifica:bundle` prima e dopo: il beneficio è reale solo se
 l'entry scende in modo visibile, e va confrontato con l'aggiunta di un
 `Suspense` sul percorso d'ingresso.
 
+**Correzione (applicata il 18 agosto).** Misurato prima e dopo, come chiesto:
+
+| | prima | dopo |
+|---|---|---|
+| Chunk d'ingresso | 72,46 kB gzip | **14,47 kB** (−80%) |
+| First load (entry + react + supabase) | 172,40 kB gzip | **114,41 kB** (−34%) |
+
+Il `Suspense` non aggiunge una schermata nuova: il fallback è la **stessa**
+splash che `AuthGate` mostra già mentre `getSession()` risolve — l'attesa del
+chunk e quella dell'auth sono la stessa attesa per chi guarda.
+
+Due cose emerse implementando.
+
+1. **Il prefetch va `catch`-ato.** `caricaApp()` lanciato e non atteso è una
+   promise che, se il chunk manca, diventa una *unhandled rejection* — cioè lo
+   stesso guasto raccontato due volte, e la prima volta prima ancora che
+   l'app serva. Il `catch` è vuoto di proposito: l'errore VERO lo solleva il
+   `lazy()` quando React prova a montare, dove c'è un boundary che gli dà un
+   codice di segnalazione.
+2. **La rete di sicurezza è quella di PRIMO livello**, non
+   `ViewErrorBoundary`/`OverlayErrorBoundary` come negli altri otto montaggi:
+   qui il chunk mancante *è* l'app, non esiste «il resto di Tullio continua a
+   funzionare» in cui rientrare, e la pagina intera con «Ricarica» è la sola
+   uscita sensata. Il controllo `lazy() senza boundary` di
+   `verifica:convenzioni` è stato allargato per riconoscerla — la condizione
+   verificata resta la stessa, un `lazy()` e un boundary nello stesso file.
+
+**Le soglie di `verifica:bundle` sono scese con la misura** (84 → 21 kB
+d'ingresso, 184 → 121 kB di first load, stesso margine di +6 kB dichiarato
+lì): lasciarle dov'erano avrebbe significato 70 kB di gioco che non
+intercettano più niente — un controllo che smette di controllare senza mai
+diventare rosso. Con la soglia nuova, un `import` statico di `VoyageDesk`
+rimesso per distrazione (~72 kB) si ferma in CI.
+
 ---
 
-### 🟢 B-2 · Il toast di successo precede la conferma del server
+### 🟢 B-2 · Il toast di successo precede la conferma del server ✔
 
 **Dove.** `state/reducer.js:307-309`.
 
@@ -947,9 +1062,38 @@ dispatcha la compensazione con `meta.compensazione`, quindi ha il punto giusto
 per farlo — basta che `pushToast` sappia rimuovere per messaggio, cosa che già
 fa per il dedup.
 
+**Correzione (applicata il 18 agosto).** Non per messaggio, però, e la
+differenza è la parte che si è vista solo implementando: **per AZIONE**.
+Rimuovere per testo avrebbe richiesto, dentro `fail()`, una tabella
+`tipo azione → frase di successo` — cioè una seconda copia dei messaggi del
+reducer, da tenere allineata a mano su una quarantina di `pushToast`, e il
+primo che divergesse fallirebbe in silenzio (il toast falso resta, nessun test
+rosso). Ogni toast porta invece il tipo dell'azione che l'ha prodotto, marcato
+**nel wrapper** `reducer` — che quel tipo ce l'ha già sotto mano — e
+`RETRACT_TOASTS` toglie i soli toast *di successo* di quell'azione.
+
+Due proprietà volute, entrambe con un caso in `src/test/toastQueue.test.js`:
+gli **errori** non si ritirano (un rifiuto per permessi è un fatto accaduto, e
+si ritira ciò che il server non ha confermato, non ciò che ha respinto), e i
+successi di **altre** azioni restano (possono venire da una scrittura andata a
+buon fine un attimo prima: toglierli sarebbe la stessa bugia al contrario).
+
+Il ritiro va fatto **sempre**, non solo dove c'è un rollback: la compensazione
+riporta indietro la coda dei toast, ma solo le azioni che dichiarano
+`rollback` ce l'hanno. E va fatto **dopo** il rollback, altrimenti è lui a
+riportare indietro il toast appena ritirato — l'ordine è fissato da
+`src/test/syncedDispatch.test.jsx`, che asserisce la sequenza esatta delle
+azioni dispatchate.
+
+Effetto collaterale strutturale: il reducer ha toccato il tetto di 550 righe.
+Il numero **non è stato alzato** — è uscita la politica della coda dei toast
+(dedup, cap, marcatura, ritiro) in `src/state/toastQueue.js`, che come
+`activityLog.js` non è una transizione di stato ma una regola che il reducer
+applica.
+
 ---
 
-### 🟢 B-3 · Quattro call site ancora fuori dalla regola di M-3
+### 🟢 B-3 · Quattro call site ancora fuori dalla regola di M-3 ✔
 
 `views/Trash.jsx:392` (`disabled={!restoring.title?.trim()}`),
 `chat/NewConversationView.jsx:149` (`disabled={!groupName.trim() || selected.length < 2}`),
@@ -968,9 +1112,43 @@ Fuori dal rilievo, di proposito: `ConversationView.jsx:174`
 casella di chat vuota è un no-op atteso dalla convenzione di ogni client di
 messaggistica, non un form da validare.
 
+**Correzione (applicata il 18 agosto).** Tutti e quattro passano ora da
+`validaCampi` + `FieldError`/`ariaCampo`, con il focus sul primo campo
+sbagliato in ordine visivo e nessun `disabled` al posto del messaggio. Le
+due condizioni di `NewConversationView` e le tre di `TemplateTab` sono ora
+dette **una per una**: è il punto del rilievo, e i test lo esercitano
+mostrando che a nome compilato compare l'*altra* condizione.
+
+Tre precisazioni emerse implementando, che il rilievo non poteva vedere.
+
+1. **`EditListaModal:51` non è un «bottone spento».** `disabled={!rinomina}`
+   è sul CAMPO del nome titolare, ed è una sola-lettura voluta e documentata:
+   rinominare il titolare cambia l'anagrafica condivisa di tutta l'agenzia, e
+   la spunta è il consenso esplicito. Il difetto lì era un altro, della stessa
+   famiglia ma peggiore: `onSave.onError("Il nome del cliente è obbligatorio")`
+   mandava il messaggio in un **toast**, cioè esattamente il difetto che la
+   regola descrive (angolo dello schermo, sparisce da solo, nessun legame con
+   l'input). Il `disabled` del campo resta; il messaggio è sceso sotto il campo.
+2. **`busy` non è una condizione di form.** In `TemplateTab` le tre condizioni
+   spente insieme (`!tpl || !eventDate || busy`) sono di due nature diverse:
+   le prime due sono cose da compilare, la terza è il freno al doppio invio
+   mentre la scrittura è in volo. `disabled={busy}` resta — la sua ragione è
+   già a schermo, «⏳ Creazione…» — e le altre due sono diventate messaggi.
+3. **La scelta del template era una quarta condizione invisibile.** Il piede
+   con «✓ Crea 0 task» è a schermo anche nella schermata di *scelta*: togliendo
+   `!tpl` dal `disabled` senza aggiungerne la regola, il comando avrebbe
+   chiesto una data che in quel momento non è sulla pagina. Ha quindi una
+   regola sua, con `ORDINE` visivo — prima il template, poi la data.
+
+E una nota di ARIA: sull'elenco dei membri di `NewConversationView` non si
+mette `ariaCampo`. `aria-invalid` è un attributo dei **controlli**, e su
+un'intestazione descriverebbe una cosa che non esiste; lì il messaggio si
+annuncia da sé (`FieldError` ha `role="alert"`) e il focus lo porta sotto gli
+occhi.
+
 ---
 
-### 🟢 B-4 · `Archive` ricalcola filtro, permessi e ordinamento a ogni render
+### 🟢 B-4 · `Archive` ricalcola filtro, permessi e ordinamento a ogni render ✔
 
 **Dove.** `views/Archive.jsx:60-71` e `:100`.
 
@@ -990,9 +1168,24 @@ su `visible` (deps `[archived, period, category, query]`) e su `presentCats`
 viene ricostruito da un `archived` con identità nuova a ogni render e il
 guadagno si annulla.
 
+**Correzione (applicata il 18 agosto, insieme a M-3).** Come descritto, con
+`getVisibleTasks` nelle dipendenze — arriva da `useAppData()`, il cui value è
+già `useMemo` su `[team, categories, currentUserId]`, quindi la memoizzazione
+regge davvero invece di invalidarsi a ogni render (una funzione ricreata dal
+provider avrebbe reso i tre `useMemo` decorativi, ed è il modo in cui questa
+correzione si scrive male).
+
+**Il rilievo era più stretto della realtà**: lo stesso difetto, identico, era
+in `Trash` (`trashed` + `editableCount`, tre passate su tutte le task a ogni
+cambio di chip) e nelle cinque code, dove filtro e ordinamento giravano a ogni
+render della Dashboard — compresi quelli che non riguardavano quella card. Sono
+stati memoizzati insieme, perché è anche la condizione perché la finestra di
+M-2 non ricalcoli la propria `slice` a vuoto: elenco con identità nuova a ogni
+render, finestra che si ricostruisce comunque.
+
 ---
 
-## Due affermazioni di `docs/CLAUDE.md` da correggere
+## Due affermazioni di `docs/CLAUDE.md` da correggere ✔
 
 `INDEX.md` fissa la regola: «se `CLAUDE.md` è in disaccordo col codice, il
 codice è la fonte di verità e `CLAUDE.md` va corretto nello stesso commit che
@@ -1008,6 +1201,10 @@ fede al momento in cui erano vere per il perimetro allora considerato:
    se fossero l'insieme degli elenchi lunghi dell'app. Non lo sono: Archivio,
    Cestino e le cinque code non hanno finestra (M-2). Va detto quali viste la
    applicano e quali no, finché non la applicano tutte.
+   ✔ **Corretta il 18 agosto**, insieme a M-2 — e ora la frase può dire
+   *tutte*: la regola nomina `hooks/useFinestra.js` come unica implementazione
+   e le nove viste che ci passano, invece di due esempi che si leggevano come
+   l'insieme.
 
 Nessuna delle due è un difetto di codice — sono il motivo per cui i due difetti
 di codice sono sopravvissuti a un audit: chi legge `CLAUDE.md` prima di

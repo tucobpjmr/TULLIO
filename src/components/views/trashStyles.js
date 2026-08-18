@@ -56,3 +56,16 @@ export const boxF13Bold2 = {
   padding: "10px 20px", borderRadius: 8, cursor: "pointer", fontSize: 13,
   fontWeight: 600, fontFamily: "inherit",
 };
+
+// B-3 · Il comando di conferma del ripristino. Era uno `style={{…}}` inline
+// che cambiava fondo, colore, cursore e ombra a seconda che il titolo fosse
+// compilato — cioè la variante "bottone spento" respinta dalla regola sulla
+// validazione: adesso il comando è sempre premibile e a dire cosa manca è il
+// messaggio sotto il campo.
+export const boxF13Conferma = {
+  background: "var(--navy)", color: "#fff", border: "none",
+  padding: "10px 20px", borderRadius: 8, cursor: "pointer",
+  fontSize: 13, fontWeight: 700, fontFamily: "inherit",
+  boxShadow: "0 4px 14px rgba(15,32,68,0.3)",
+  display: "flex", alignItems: "center", gap: 6,
+};

@@ -26,8 +26,21 @@ import { createPortal } from "react-dom";
 // perché il suo unico figlio è position:fixed.
 export function LvOverlay({ children, onClose, wide = false, labelledBy }) {
   const boxRef = useRef(null);
+  // `onClose` arriva quasi sempre come funzione inline dal chiamante (es.
+  // `onClose={() => setModal(null)}`), quindi cambia identità a ogni render
+  // del genitore — anche i re-render "muti" innescati dal reload debounced
+  // del realtime (vedi useDebouncedTableSubscription), che scattano qualche
+  // secondo dopo l'ultimo evento. Con `onClose` nelle dipendenze l'effetto
+  // ripartiva ad ogni render di questi e richiamava di nuovo il focus sul
+  // primo campo del modale, strappando il cursore da dove l'utente stava
+  // scrivendo (tipicamente la Data, primo campo di "Inserisci più movimenti
+  // insieme"). Il ref tiene `onClose` sempre aggiornato senza che l'effetto
+  // debba rieseguirsi: focus e listener Escape si impostano una sola volta,
+  // al mount del modale.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e) => { if (e.key === "Escape") onCloseRef.current(); };
     // Blocco dello scroll di fondo: la stessa ragione di ui/Modal.jsx — su
     // mobile lo scroll "attraversa" il modale e la pagina sotto si muove
     // mentre si compila il form. Qui mancava, e i modali di questo modulo sono
@@ -40,7 +53,7 @@ export function LvOverlay({ children, onClose, wide = false, labelledBy }) {
       document.body.style.overflow = precedente;
       window.removeEventListener("keydown", onKey);
     };
-  }, [onClose]);
+  }, []);
   return createPortal(
     <div className="lv-root">
       <div className="lv-overlay" onClick={onClose}>

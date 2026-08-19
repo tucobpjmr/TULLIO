@@ -23,12 +23,19 @@ import {
 // URL e chiave non si costruisce: stessa mock di dashboardQueues.test.jsx.
 vi.mock("../lib/supabase", () => ({ supabase: {}, default: {} }));
 vi.mock("../lib/api.js", () => ({
-  Users: { getAvatarUrl: vi.fn().mockResolvedValue({ url: null, error: null }) },
+  Users: {
+    getAvatarUrl: vi.fn().mockResolvedValue({ url: null, error: null }),
+    // B-2: `AddTeamMemberModal` invita via Edge Function quando l'email c'è.
+    // Qui non si arriva mai a chiamarla — i casi si fermano alla validazione —
+    // ma senza la voce il modulo non si importa.
+    invite: vi.fn().mockResolvedValue({ data: null, error: null }),
+  },
 }));
 
 import { ClienteModal } from "../components/clients/ClienteModal.jsx";
 import { NoticeEditorModal } from "../components/modals/NoticeEditorModal.jsx";
 import { AddCategoryModal } from "../components/modals/AddCategoryModal.jsx";
+import { AddTeamMemberModal } from "../components/modals/AddTeamMemberModal.jsx";
 import { NewConversationView } from "../components/chat/NewConversationView.jsx";
 import { EditListaModal } from "../components/liste/modals/EditListaModal.jsx";
 import { Trash } from "../components/views/Trash.jsx";
@@ -409,5 +416,85 @@ describe("TemplateTab — le tre condizioni spente insieme, ora dette una per un
     const avviso = await screen.findByRole("alert");
     expect(avviso.textContent).toMatch(/data dell'evento/i);
     expect(onCreate).not.toHaveBeenCalled();
+  });
+});
+
+
+// ─── B-2 · l'ultimo form fuori da ENTRAMBE le convenzioni ──────────────────
+// (audit performance/UX del 19 agosto)
+//
+// Validava con `if (!name.trim())` e mostrava il messaggio in un `div` rosso:
+// niente `role="alert"`, niente `aria-invalid`/`aria-describedby`, niente
+// focus riportato, e uno slot SOLO per due campi — quindi un nome vuoto e una
+// mail sbagliata mostravano un problema per volta. Le proprietà verificate
+// sono le stesse degli altri tredici call site, più la quarta che riguarda
+// questo form: `email` è valida-se-valorizzata e non obbligatoria, perché
+// senza email il form crea un agente locale.
+describe("AddTeamMemberModal — nome ed email, ciascuno col proprio messaggio", () => {
+  const monta = () => {
+    const dispatch = vi.fn();
+    render(<AddTeamMemberModal dispatch={dispatch} onClose={vi.fn()} existingIds={[]} />);
+    return dispatch;
+  };
+  const crea = () => fireEvent.click(screen.getByText(/Crea agente|Invia invito/));
+
+  it("il nome mancante è legato al campo e il focus ci torna sopra", async () => {
+    const dispatch = monta();
+    crea();
+
+    const avviso = await screen.findByRole("alert");
+    expect(avviso.textContent).toMatch(/obbligatorio/);
+    const campo = screen.getByPlaceholderText("Es. Anna Bianchi");
+    expect(campo.getAttribute("aria-invalid")).toBe("true");
+    expect(campo.getAttribute("aria-describedby")).toBe(avviso.id);
+    expect(document.activeElement).toBe(campo);
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("nome vuoto E mail sbagliata: si vedono ENTRAMBI, non uno per volta", () => {
+    // Era il difetto specifico di questo form: `err` era uno slot singolo.
+    monta();
+    fireEvent.change(screen.getByPlaceholderText("anna@agenzia.it"), {
+      target: { value: "non-una-mail" },
+    });
+    crea();
+
+    const avvisi = screen.getAllByRole("alert");
+    expect(avvisi).toHaveLength(2);
+    expect(avvisi.map(a => a.textContent).join(" ")).toMatch(/obbligatorio/);
+    expect(avvisi.map(a => a.textContent).join(" ")).toMatch(/Email non valida/);
+    // …e il focus va sul PRIMO in ordine visivo, non sull'ultimo valutato.
+    expect(document.activeElement).toBe(screen.getByPlaceholderText("Es. Anna Bianchi"));
+  });
+
+  it("l'email è valida-se-valorizzata: senza, l'agente locale si crea", async () => {
+    // È metà del mestiere di questo form, e la regola lo dice invece di
+    // lasciarlo dedurre dall'assenza dell'asterisco.
+    const dispatch = monta();
+    fireEvent.change(screen.getByPlaceholderText("Es. Anna Bianchi"), {
+      target: { value: "Anna Bianchi" },
+    });
+    crea();
+
+    await waitFor(() => expect(dispatch).toHaveBeenCalled());
+    expect(dispatch.mock.calls[0][0].type).toBe("ADD_TEAM_MEMBER");
+  });
+
+  it("l'errore si spegne appena si corregge il campo", async () => {
+    monta();
+    crea();
+    await screen.findByRole("alert");
+
+    fireEvent.change(screen.getByPlaceholderText("Es. Anna Bianchi"), {
+      target: { value: "Anna" },
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("il campo email non è `type=\"email\"`: la bolla nativa scavalcherebbe il messaggio", () => {
+    monta();
+    const campo = screen.getByPlaceholderText("anna@agenzia.it");
+    expect(campo.getAttribute("type")).toBe("text");
+    expect(campo.getAttribute("inputMode")).toBe("email");
   });
 });

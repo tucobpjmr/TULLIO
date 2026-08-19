@@ -359,7 +359,12 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
       dispatch({ type: "SET_CATEGORIES", payload: categories });
     }
     segnaCaricata("categories");
-  }, { enabled, deps: [enabled] });
+    // B-1 (audit del 19 agosto): niente canale permanente per una tabella da
+    // ~10 righe che cambia quando un admin apre il pannello. L'idratazione e
+    // il reload alla ripresa restano; il prezzo dichiarato è che una categoria
+    // creata compaia sugli altri client al primo ritorno in primo piano invece
+    // che nell'istante — vedi `senzaCanale` in useDebouncedTableSubscription.
+  }, { enabled, deps: [enabled], senzaCanale: true });
 
   // Refresh team live (sessione 29). Senza questo sub, l'admin invita o
   // approva un utente e l'elenco Team non si aggiorna fino a un reload.
@@ -522,7 +527,9 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     }
     dispatch({ type: "SET_MESSAGE_TEMPLATES", payload: (data || []).map(fromDbMessageTemplate) });
     segnaCaricata("messageTemplates");
-  }, { enabled, deps: [enabled] });
+    // B-1: stesso trattamento di `categories` qui sopra, e per la stessa
+    // ragione — quattro righe, gestite dall'admin.
+  }, { enabled, deps: [enabled], senzaCanale: true });
 
   // `crmLoading` resta esposto come alias di `loading.clients`: è il nome con
   // cui ClientiView e i suoi test conoscono questo flag da sessione 23, e

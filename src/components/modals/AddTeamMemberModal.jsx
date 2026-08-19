@@ -4,13 +4,14 @@
 // Block 3: aggiunto invito reale via email (Edge Function invite-user). Se il
 // campo email è valorizzato, l'utente viene invitato davvero (account auth +
 // profilo pending); altrimenti resta il vecchio comportamento "agente locale".
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   modalOverlay, modalCard, labelStyle, fieldStyle, btnPrimary, btnGhost,
 } from "../admin/adminStyles.js";
 import { ModalPortal } from "../ui/ModalPortal.jsx";
 import { Users } from "../../lib/api.js";
-import { isValidEmail } from "../../lib/validators.js";
+import { emailValida, obbligatorio, primoCampoInvalido, validaCampi } from "../../lib/validators.js";
+import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import {
   DB_ROLES, ROLE_LABELS, SENIORITY_LEVELS, SENIORITY_LABELS,
 } from "../../lib/taskConstants.js";
@@ -27,6 +28,28 @@ const boxF125Danger = { fontSize: 12.5, color: "var(--danger)", background: "rgb
 // stessa conversione, e una terza mancava del tutto in AdminTeamTab — che
 // infatti scriveva le label dentro users.role.
 
+// ─── B-2 · l'ultimo form fuori dalle due convenzioni (audit del 19 agosto) ──
+// Validava con `if (!name.trim())` e mostrava il messaggio in un `div` rosso:
+// nessun `role="alert"` (uno screen reader non lo annuncia), nessun
+// `aria-describedby` (non è associato al campo che descrive), nessun focus
+// riportato — e uno slot SOLO per due campi, quindi un nome vuoto E una mail
+// sbagliata mostravano un problema per volta. È lo stesso difetto che M-3 del
+// 16 agosto ha chiuso in `MessageTemplatesSection` («due campi obbligatori e
+// nessuno dei due indicato — l'utente doveva indovinare quale mancasse»),
+// rimasto qui perché questo form ha un percorso suo (l'invito via Edge
+// Function) e nessuno lo aveva riletto insieme agli altri.
+//
+// ⚠️ `email` è VALIDA-SE-VALORIZZATA e non obbligatoria: senza email il form
+// crea un agente locale, che è metà del suo mestiere. La regola lo dice
+// (`v ? emailValida(...) : null`) invece di lasciarlo dedurre dal fatto che il
+// campo non ha l'asterisco.
+const REGOLE = {
+  name: obbligatorio("Il nome dell'agente è obbligatorio."),
+  email: (v) => (v ? emailValida("Email non valida: controlla l'indirizzo.")(v) : null),
+};
+// L'ordine VISIVO dei campi, che è quello in cui il focus deve tornare.
+const ORDINE = ["name", "email"];
+
 export const AddTeamMemberModal = ({ onClose, dispatch, existingIds, onInvited }) => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -35,13 +58,27 @@ export const AddTeamMemberModal = ({ onClose, dispatch, existingIds, onInvited }
   const [color, setColor] = useState("#3B82F6");
   const [pending, setPending] = useState(true);
   const [busy, setBusy] = useState(false);
+  // `err` resta, ma per ciò che è davvero: l'esito del SERVER (l'invito
+  // rifiutato dalla Edge Function). Non è più anche il canale della
+  // validazione, che ora sta sotto i campi.
   const [err, setErr] = useState(null);
+  const [errori, setErrori] = useState({});
+  const rifNome = useRef(null);
+  const rifEmail = useRef(null);
 
   const submit = async () => {
-    if (!name.trim()) { setErr("Il nome è obbligatorio."); return; }
-    setErr(null);
     const trimmedEmail = email.trim().toLowerCase();
-    if (trimmedEmail && !isValidEmail(trimmedEmail)) { setErr("Email non valida."); return; }
+    // B-2 · Entrambi i campi valutati INSIEME: chi sbaglia il nome e la mail
+    // li vede segnati entrambi, e il focus va sul primo in ordine visivo.
+    const trovati = validaCampi({ name, email: trimmedEmail }, REGOLE);
+    const primo = primoCampoInvalido(trovati, ORDINE);
+    if (primo) {
+      setErrori(trovati);
+      (primo === "name" ? rifNome : rifEmail).current?.focus();
+      return;
+    }
+    setErrori({});
+    setErr(null);
 
     // Con email → invito reale via Edge Function (account auth + profilo pending).
     if (trimmedEmail) {
@@ -93,11 +130,36 @@ export const AddTeamMemberModal = ({ onClose, dispatch, existingIds, onInvited }
           <div style={gridGap12}>
             <div>
               <label style={labelStyle}>Nome completo *</label>
-              <input value={name} onChange={e => setName(e.target.value)} placeholder="Es. Anna Bianchi" style={fieldStyle} autoFocus />
+              <input
+                ref={rifNome}
+                value={name}
+                onChange={e => {
+                  setName(e.target.value);
+                  setErrori(prec => (prec.name ? { ...prec, name: undefined } : prec));
+                }}
+                placeholder="Es. Anna Bianchi" style={fieldStyle} autoFocus
+                {...ariaCampo("vd-membro-nome-err", errori.name)}
+              />
+              <FieldError id="vd-membro-nome-err">{errori.name}</FieldError>
             </div>
             <div>
               <label style={labelStyle}>Email (per invitare via email)</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="anna@agenzia.it" style={fieldStyle} />
+              {/* `type="text" inputMode="email"` e non `type="email"`: la
+                  validazione nativa bloccherebbe il submit prima del nostro
+                  handler, mostrando la propria bolla non traducibile al posto
+                  del messaggio inline (docs/CLAUDE.md). */}
+              <input
+                ref={rifEmail}
+                type="text" inputMode="email" autoComplete="email"
+                value={email}
+                onChange={e => {
+                  setEmail(e.target.value);
+                  setErrori(prec => (prec.email ? { ...prec, email: undefined } : prec));
+                }}
+                placeholder="anna@agenzia.it" style={fieldStyle}
+                {...ariaCampo("vd-membro-email-err", errori.email)}
+              />
+              <FieldError id="vd-membro-email-err">{errori.email}</FieldError>
               <div style={txtF115Muted}>
                 Con email: invio un invito reale (l'utente crea la password e resta in attesa di approvazione). Senza email: aggiungo solo un agente locale.
               </div>
@@ -124,8 +186,11 @@ export const AddTeamMemberModal = ({ onClose, dispatch, existingIds, onInvited }
                 Crea come "in attesa di approvazione" (simula iscrizione)
               </label>
             )}
+            {/* L'esito del SERVER (invito rifiutato): `role="alert"` perché
+                compare dopo un'attesa, quando l'utente può aver già distolto
+                lo sguardo dal bottone. */}
             {err && (
-              <div style={boxF125Danger}>
+              <div role="alert" style={boxF125Danger}>
                 {typeof err === "string" ? err : (err?.message || "Errore imprevisto.")}
               </div>
             )}

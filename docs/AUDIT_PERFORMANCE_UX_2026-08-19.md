@@ -49,11 +49,11 @@ sul build vero.
 | A-2 ✔ | 🟠 **Alta** | Performance | La ricerca avanzata normalizza i campi **per riga a ogni battuta**: è M-3 del 16 agosto non applicato all'ultimo call site — e quello con il corpus più grande. **6,21 ms per battuta** oggi, 49,25 ms a 2500 task | `search/AdvancedSearchPanel.jsx:145` |
 | A-3 ✔ | 🟠 **Alta** | Scalabilità | Il battito di presenza è una `UPDATE` su `public.users` ogni 30 s per sessione, su una tabella a `REPLICA IDENTITY FULL` osservata da **due** canali per sessione: il traffico realtime cresce con **U²** | `hooks/usePresence.js:98`, `lib/api.js:966` |
 | A-4 ✔ | 🟠 **Alta** | UX / errori | `useSalvataggio` — «⛔ mai chiudere o svuotare prima di conoscere l'esito» — è su **3 call site**; altri **sei** form chiudono o svuotano nello stesso turno del dispatch. Fra questi l'editor che **revoca i privilegi** di un account | `dashboard/NoticeBoard.jsx:350`, `admin/tabs/AdminTeamTab.jsx:101`, +4 |
-| M-1 | 🟡 Media | Scalabilità | `clients` è l'unica entità rimasta **senza finestra**: l'anagrafica intera a ogni idratazione e a ogni riconnessione — e `public.clients` non ha indici oltre la PK mentre la query ordina per `name` e chiede `count: 'exact'` a ogni pagina | `lib/api.js:862-864`, `hooks/useAppHydration.js:475` |
+| M-1 ⚙ | 🟡 Media | Scalabilità | **Passo 1 fatto (indice), passo 2 aperto.** `clients` è l'unica entità rimasta **senza finestra**: l'anagrafica intera a ogni idratazione e a ogni riconnessione — e `public.clients` non ha indici oltre la PK mentre la query ordina per `name` e chiede `count: 'exact'` a ogni pagina | `lib/api.js:862-864`, `hooks/useAppHydration.js:475` |
 | M-2 ✔ | 🟡 Media | Performance | La lista messaggi della chat è l'unico elenco lungo **senza `memo` sulla riga e senza finestra**, e contiene un `indexOf` dentro la `map` (O(n²)). Si ri-renderizza **ogni 2,5 s** mentre un collega scrive | `chat/ConversationView.jsx:409-410`, `chat/message/ChatMessage.jsx` |
 | M-3 ✔ | 🟡 Media | UX / errori | Il ripristino dal Cestino sono **due scritture dipendenti** (`UPDATE_TASK` poi `RESTORE_TASK`), nessuna delle due attesa: se la prima è rifiutata la task torna con i valori vecchi e le modifiche appena digitate spariscono senza che nulla lo dica | `views/Trash.jsx:121-123` |
-| B-1 | 🔵 Bassa | Scalabilità | **11 canali realtime sempre aperti** per sessione, due dei quali sulla stessa tabella (`users`) e due su tabelle che cambiano poche volte l'anno (`categories`, `message_templates`) | `hooks/useAppHydration.js`, `hooks/usePresence.js:109` |
-| B-2 | 🔵 Bassa | UX / errori | `AddTeamMemberModal` è l'unico form rimasto fuori da **entrambe** le convenzioni di validazione: `if (!name.trim())` invece di `validaCampi`, e il messaggio in un `div` senza `role="alert"`, senza `aria-invalid`/`aria-describedby`, non associato al campo | `modals/AddTeamMemberModal.jsx:43-49` |
+| B-1 ✔ | 🔵 Bassa | Scalabilità | **11 canali realtime sempre aperti** per sessione, due dei quali sulla stessa tabella (`users`) e due su tabelle che cambiano poche volte l'anno (`categories`, `message_templates`) | `hooks/useAppHydration.js`, `hooks/usePresence.js:109` |
+| B-2 ✔ | 🔵 Bassa | UX / errori | `AddTeamMemberModal` è l'unico form rimasto fuori da **entrambe** le convenzioni di validazione: `if (!name.trim())` invece di `validaCampi`, e il messaggio in un `div` senza `role="alert"`, senza `aria-invalid`/`aria-describedby`, non associato al campo | `modals/AddTeamMemberModal.jsx:43-49` |
 
 ---
 
@@ -1246,3 +1246,97 @@ Emerso implementando: `const msgs = messages[conv.id] || []` costruiva un array
 nuovo a ogni render sulle conversazioni vuote, quindi nessuno dei memo nuovi
 avrebbe mai potuto saltare un giro. `exhaustive-deps` — che il progetto tiene a
 zero warning — lo ha detto per nome.
+
+
+---
+
+# §4 · M-1 (passo 1), B-1 e B-2 — 19 agosto
+
+## B-1 ✔ — undici canali sempre aperti, ora cinque
+
+`useDebouncedTableSubscription` ha una nuova opzione, `senzaCanale: true`:
+tiene l'idratazione iniziale e il reload alla ripresa (`online`,
+`visibilitychange` oltre la soglia dei 30 s) — che non dipendevano dai canali,
+sono già scritti lì — e non apre la sottoscrizione. Applicata a `categories`
+(~10 righe) e `message_templates` (4).
+
+I canali permanenti per sessione passano da **11 a 5**:
+
+| | prima | dopo |
+|---|---|---|
+| `tasks`, `comments`, `notices`, `clients` | 4 | 4 |
+| `users` | **2** (idratazione + presenza) | **1** (A-3 ha tolto la seconda) |
+| `categories`, `message_templates` | 2 | **0** |
+| `conversations`, `messages`, `notifications` | 3 | 3 *(vivono in useChatData/useNotifications)* |
+
+⚠️ **Il prezzo, dichiarato**: una categoria creata da un admin compare sugli
+altri client al primo ritorno in primo piano (soglia 30 s) o al reload, non
+nell'istante. Per chi la crea è immediato comunque — il reducer è ottimistico.
+È il compromesso che il rilievo proponeva, e vale per queste due tabelle
+soltanto: applicarlo a una tabella operativa sarebbe un'altra cosa.
+
+Guardia: `canaliRealtime.test.jsx`, 4 casi. Il primo è quello che conta ed è in
+POSITIVO — le tabelle su cui il realtime *è* la funzionalità restano
+sottoscritte: senza, «pochi canali» sarebbe soddisfatto anche da zero, cioè da
+un'app che non si aggiorna più.
+
+## B-2 ✔ — l'ultimo form rientrato
+
+`AddTeamMemberModal` passa da `if (!name.trim())` a `validaCampi` + `REGOLE` +
+`FieldError` + `primoCampoInvalido`, come gli altri tredici call site. Le
+quattro cose che non faceva: annunciare il messaggio (`role="alert"`),
+legarlo al campo (`aria-invalid`/`aria-describedby`), riportare il focus, e
+dire **entrambi** i problemi quando sono due — `err` era uno slot solo.
+
+⚠️ `email` è **valida-se-valorizzata**, non obbligatoria: senza email il form
+crea un agente locale, che è metà del suo mestiere. La regola lo dice
+(`v ? emailValida(...) : null`) invece di lasciarlo dedurre dall'assenza
+dell'asterisco. E il campo passa a `type="text" inputMode="email"`: con
+`type="email"` la validazione nativa bloccherebbe il submit prima del nostro
+handler, mostrando la propria bolla non traducibile al posto del messaggio
+inline (docs/CLAUDE.md).
+
+`err` resta, ma per ciò che è davvero: l'esito del **server**, cioè l'invito
+rifiutato dalla Edge Function. Non è più anche il canale della validazione.
+
+Guardia: cinque casi in `validazioneInline.test.jsx`, compreso quello sui due
+messaggi insieme — che è il difetto specifico di questo form.
+
+## M-1 ⚙ — passo 1 fatto, passo 2 aperto per scelta
+
+**Fatto: l'indice.** `supabase/migrations/20260819230000_clients_indice_name_id.sql`
+crea `idx_clients_name_id on public.clients (name, id)` — le due colonne
+nell'ordine esatto della query, perché `fetchAllRows` chiude l'ordinamento su
+`id` per determinismo e un indice sul solo `name` lascerebbe Postgres a
+ordinare comunque. Senza, ogni pagina di `Clients.list()` costa un ordinamento
+completo più un `count(*)` con la RLS applicata.
+
+⚠️ **Committare una migrazione non significa averla applicata** — è la regola
+in testa a `docs/MIGRAZIONI_SUPABASE.md`, scritta dopo che due migrazioni di
+hardening sono rimaste per giorni in `main` e mai sul database. Questa è
+**committata e non applicata**: applicarla è una scrittura sulla produzione, e
+va fatta con la procedura del documento (non `db push`).
+
+**Non fatto, e perché: la finestra.** È il passo 2, e il rilievo stesso lo
+scopriva come «il lavoro più grande di questo audit e l'unico che cambia un
+contratto del data layer». Il contratto è che `clients` viva per intero nello
+state: lo presuppongono i **cinque** consumatori di `useClients()`
+(`ClientiView`, `QuickAddTask`, `TaskSlideOver`, `BulkTaskCreator`,
+`ListeViaggio`), la tendina `ClientAutocomplete` con i suoi quattro call site,
+e i sette case del reducer che ci scrivono sopra.
+
+E la forma **non si copia da A-3**: un cliente non «scade» come una task
+completata, quindi non esiste un `completeDal` equivalente. La strada è
+un'altra ed è in due mosse: prima `ClientAutocomplete` passa a una ricerca
+lato server (`ilike` + `limit`) — che per un autocomplete è comunque la forma
+giusta, ed è il consumatore che oggi rende la finestra inutile, perché
+QuickAddTask lo apre quasi ogni sessione; **poi** l'idratazione può caricare
+una finestra e `ClientiView` chiedersi il corpus intero, con lo stesso schema
+di `StoricoTaskContext`.
+
+**La soglia che dice quando**: oggi 818 righe, una pagina sola, ~200 kB. Il
+costo diventa reale sopra le **1000** — dove `fetchAllRows` inizia a paginare
+in modo seriale — e l'anagrafica cresce a scalini da 200 righe
+(`ClientImportModal` → `Clients.createMany`). È la stessa forma della soglia
+dichiarata per ST-4 (`messages > ~1500`): una decisione dichiarata, non un
+rilievo dimenticato.

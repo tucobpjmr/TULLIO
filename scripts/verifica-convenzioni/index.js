@@ -43,6 +43,10 @@ const AUDIT = [
   // un audit fuori dal registro ha un ⟦stato: N/M chiusi⟧ che nessuno verifica,
   // e questo è quello con tutti gli undici rilievi ancora aperti.
   { file: 'AUDIT_PERFORMANCE_UX_2026-08-16_ii.md', prefisso: ['C', 'A', 'M', 'B'] },
+  // Stessa regola di sopra, applicata alla riga che la enuncia: registrato
+  // insieme al documento. È l'audit con tutti e nove i rilievi ancora aperti,
+  // cioè quello in cui il marcatore di INDEX.md ha più occasioni di scadere.
+  { file: 'AUDIT_PERFORMANCE_UX_2026-08-19.md', prefisso: ['C', 'A', 'M', 'B'] },
 ];
 
 // Misura i warning di una regola sul sorgente dell'app.

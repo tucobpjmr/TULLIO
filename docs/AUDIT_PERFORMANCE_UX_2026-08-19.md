@@ -50,7 +50,7 @@ sul build vero.
 | A-3 ✔ | 🟠 **Alta** | Scalabilità | Il battito di presenza è una `UPDATE` su `public.users` ogni 30 s per sessione, su una tabella a `REPLICA IDENTITY FULL` osservata da **due** canali per sessione: il traffico realtime cresce con **U²** | `hooks/usePresence.js:98`, `lib/api.js:966` |
 | A-4 ✔ | 🟠 **Alta** | UX / errori | `useSalvataggio` — «⛔ mai chiudere o svuotare prima di conoscere l'esito» — è su **3 call site**; altri **sei** form chiudono o svuotano nello stesso turno del dispatch. Fra questi l'editor che **revoca i privilegi** di un account | `dashboard/NoticeBoard.jsx:350`, `admin/tabs/AdminTeamTab.jsx:101`, +4 |
 | M-1 | 🟡 Media | Scalabilità | `clients` è l'unica entità rimasta **senza finestra**: l'anagrafica intera a ogni idratazione e a ogni riconnessione — e `public.clients` non ha indici oltre la PK mentre la query ordina per `name` e chiede `count: 'exact'` a ogni pagina | `lib/api.js:862-864`, `hooks/useAppHydration.js:475` |
-| M-2 | 🟡 Media | Performance | La lista messaggi della chat è l'unico elenco lungo **senza `memo` sulla riga e senza finestra**, e contiene un `indexOf` dentro la `map` (O(n²)). Si ri-renderizza **ogni 2,5 s** mentre un collega scrive | `chat/ConversationView.jsx:409-410`, `chat/message/ChatMessage.jsx` |
+| M-2 ✔ | 🟡 Media | Performance | La lista messaggi della chat è l'unico elenco lungo **senza `memo` sulla riga e senza finestra**, e contiene un `indexOf` dentro la `map` (O(n²)). Si ri-renderizza **ogni 2,5 s** mentre un collega scrive | `chat/ConversationView.jsx:409-410`, `chat/message/ChatMessage.jsx` |
 | M-3 ✔ | 🟡 Media | UX / errori | Il ripristino dal Cestino sono **due scritture dipendenti** (`UPDATE_TASK` poi `RESTORE_TASK`), nessuna delle due attesa: se la prima è rifiutata la task torna con i valori vecchi e le modifiche appena digitate spariscono senza che nulla lo dica | `views/Trash.jsx:121-123` |
 | B-1 | 🔵 Bassa | Scalabilità | **11 canali realtime sempre aperti** per sessione, due dei quali sulla stessa tabella (`users`) e due su tabelle che cambiano poche volte l'anno (`categories`, `message_templates`) | `hooks/useAppHydration.js`, `hooks/usePresence.js:109` |
 | B-2 | 🔵 Bassa | UX / errori | `AddTeamMemberModal` è l'unico form rimasto fuori da **entrambe** le convenzioni di validazione: `if (!name.trim())` invece di `validaCampi`, e il messaggio in un `div` senza `role="alert"`, senza `aria-invalid`/`aria-describedby`, non associato al campo | `modals/AddTeamMemberModal.jsx:43-49` |
@@ -1148,3 +1148,101 @@ controllo non avrebbe intercettato A-4 e non poteva. Il controllo che negherebbe
 quelli mancanti — sulla forma di `montaggiLazySenzaRete` — resta il
 **suggerimento strategico n. 3**, non fatto qui perché è un intervento sullo
 strumento di verifica e non su uno dei quattro rilievi chiesti.
+
+
+---
+
+# §3 · Suggerimento strategico n. 3, e M-2 — 19 agosto
+
+Il suggerimento e il rilievo sono chiusi **insieme**, e non per comodità: il
+terzo predicato del suggerimento è quello che intercetta M-2, quindi
+agganciarlo prima della correzione avrebbe voluto dire mettere in CI un
+controllo rosso — cioè la cosa che questo progetto chiama «un warning con un
+arretrato aperto», rumore che si impara a saltare.
+
+## Il suggerimento — tre controlli che NEGANO
+
+`verifica:convenzioni` passa da 27 a **30 controlli**. I tre nuovi hanno atteso
+**0** e non un numero letto da un documento:
+
+| Controllo | Forma cercata |
+|---|---|
+| form che scrivono senza attendere l'esito | importa `validaCampi` **e** dispatcha un'azione del registry **e** non ha né `useSalvataggio` né `await dispatch(` |
+| ricerche che normalizzano a ogni battuta | `matchTermini` dentro un `useMemo` |
+| `indexOf`/`findIndex` dentro una `.map()` | la forma O(n²) di M-2 |
+
+**Perché non bastavano quelli che c'erano.** `usiSalvataggio` conta i call site
+e li confronta con `docs/CLAUDE.md`. Non ha intercettato A-4, e **non poteva**:
+«3 call site usano `useSalvataggio`» era vero quando è stato scritto — il
+difetto era che i form fossero nove. Un controllo che conta scade quando l'app
+cresce; uno che nega no. `montaggiLazySenzaRete` lo faceva già ed è il modello.
+
+**Verificati contro il codice di prima**, che è l'unica prova che valga: fatti
+girare su `6b50e55` (il commit dell'audit, prima delle correzioni) trovano
+
+```
+form senza attesa esito : AdminCategoriesTab, AdminTeamTab,
+                          MessageTemplatesSection, AddCategoryModal, Trash
+ricerche senza indice   : AdvancedSearchPanel
+iterazioni quadratiche  : ConversationView
+```
+
+cioè **5 form su 6**, la ricerca di A-2 e l'iterazione di M-2. Un controllo che
+non trova il difetto che esiste per trovare non controlla niente.
+
+⚠️ **Il sesto form non lo trova, e va detto.** `NoticeBoard` dispatchava ma non
+importa `validaCampi` (la validazione è nella modale), e `NoticeEditorModal`
+valida ma non dispatcha — chiama `onSave`. Il predicato guarda un file per
+volta, e quel difetto era distribuito su due. È il limite dichiarato di questi
+controlli: verificano una FORMA leggibile dal sorgente, non un comportamento
+che dipende da tre file. Il comportamento lo fissano i test.
+
+⚠️ **E il predicato dei form è «valida E scrive», non «scrive».** Una
+`DELETE_CLIENT` dietro una conferma, dispatchata e seguita da `chiudiOverlay()`,
+**non** è il difetto: non c'è niente di digitato da perdere, e l'ottimistico con
+rollback e toast è il pattern giusto per quel caso. Restringere a chi ha un
+form è ciò che separa i sei call site del rilievo dai molti che vanno bene così
+— e c'è un caso di test apposta.
+
+Ognuno dei tre **solleva** se non trova il proprio presupposto (nessun file che
+validi, nessuno che usi `matchIndice`, un registry vuoto): «zero ricerche senza
+indice» e «zero ricerche» sono la stessa cifra e due affermazioni diverse.
+
+**Cosa NON è stato fatto, e perché.** Il quarto predicato ipotizzato dal
+suggerimento — «un componente figlio di una `.map()` che non sia `memo`» — è
+stato provato e **scartato**: nella variante praticabile (per convenzione di
+nome: `*Row`, `*Card`, `*Item`, `*Chip`, `*Pill`) sarebbe partito con **10
+segnalazioni su 12**, e nove sono legittime — un chip di categoria e un
+`ToastItem` non hanno niente da memoizzare. Un controllo che nasce rosso su
+casi corretti è la premessa della lista di eccezioni che cresce, cioè del
+controllo che smette di controllare. Al suo posto c'è il terzo predicato,
+stretto sulla forma esatta di M-2.
+
+## M-2 ✔ — la lista messaggi
+
+Tre difetti che si moltiplicavano, corretti insieme perché lo erano:
+
+1. **`msgs.indexOf(m)` dentro la `.map()`** → la coppia `(messaggio,
+   precedente)` si costruisce una volta sola in un `useMemo` su `[msgs]`, dove
+   l'indice ce l'ha già la callback.
+2. **`ChatMessage` non era `memo`** → ora lo è, e le sue tre callback hanno
+   identità stabile (`useCallback` con `msgs`/`commands` in un ref, la stessa
+   tecnica di `useSyncedDispatch`). ⚠️ Le due metà sono arrivate **insieme**:
+   con una sola si aggiunge un confronto che non può mai riuscire.
+3. **Nessuna finestra** → `useFinestra` con `PAGINA_MESSAGGI = 50`.
+
+⚠️ **La finestra apre in CODA**, all'opposto delle altre nove viste. Non è
+un'eccezione alla convenzione ma la stessa convenzione su un elenco che si
+legge dall'ultima riga: si passa l'array rovesciato e si rimette in ordine ciò
+che torna, così la meccanica resta una sola.
+
+⚠️ **Il filtro viene prima della finestra**, e questa è la parte che si sarebbe
+sbagliata volentieri: finestrare e poi filtrare farebbe rispondere «non c'è» a
+una ricerca dentro la conversazione su un messaggio che esiste ma è più vecchio
+di cinquanta — la stessa disonestà che A-3 del 16 agosto ha corretto sulla
+ricerca dei task, in piccolo.
+
+Emerso implementando: `const msgs = messages[conv.id] || []` costruiva un array
+nuovo a ogni render sulle conversazioni vuote, quindi nessuno dei memo nuovi
+avrebbe mai potuto saltare un giro. `exhaustive-deps` — che il progetto tiene a
+zero warning — lo ha detto per nome.

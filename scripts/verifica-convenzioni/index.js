@@ -22,6 +22,10 @@ import {
   LetturaFallita, leggiCallSiteSalvataggio, leggiCallSiteStorico, leggiConteggioMultiComp,
   leggiStatoAudit, leggiStatoIndex, leggiStiliInline, montaggiLazySenzaRete,
   usiSalvataggio, usiStoricoTask, confronta,
+  // Suggerimento strategico n. 3 dell'audit del 19 agosto: controlli che NEGANO
+  // i call site mancanti invece di CONTARE quelli presenti. Vedi il blocco che
+  // li introduce in convenzioni.js.
+  azioniRegistry, formSenzaAttesaEsito, ricercheSenzaIndice, iterazioniQuadratiche,
 } from './convenzioni.js';
 
 // Gli audit sotto controllo: nome del file, prefisso dei suoi rilievi.
@@ -173,6 +177,38 @@ async function main() {
     nome: 'call site di useSalvataggio', dove: 'docs/CLAUDE.md',
     dichiarato: leggiCallSiteSalvataggio(claudeMd), misurato: salvataggi.length,
     rimedio: `Aggiorna la frase «N call site usano \`useSalvataggio\`» (misurati: ${salvataggi.join(', ')}).`,
+  });
+
+  // ─── 5-bis, 5-ter, 5-quater · i controlli che NEGANO ─────────────────────
+  //    (suggerimento strategico n. 3 dell'audit performance/UX del 19 agosto)
+  //
+  //    L'atteso è 0 e non un numero dichiarato in un documento, che è tutta la
+  //    differenza: un controllo che conta scade quando l'app cresce («3 call
+  //    site» era vero quando è stato scritto, e i form erano nove), uno che
+  //    nega no. Stessa forma di `lazy() senza boundary` qui sopra, e stessa
+  //    onestà: ognuno SOLLEVA se non trova il proprio presupposto, invece di
+  //    passare a vuoto.
+  const azioni = azioniRegistry(await readFile('src/state/persistence.js', 'utf8'));
+
+  const senzaAttesa = formSenzaAttesaEsito(sorgenti, azioni);
+  controlli.push({
+    nome: 'form che scrivono senza attendere l\'esito', dove: 'docs/CLAUDE.md',
+    dichiarato: 0, misurato: senzaAttesa.length,
+    rimedio: `Passa da \`useSalvataggio\` (o attendi il dispatch a mano, come ProfileEditor): ${senzaAttesa.join(', ')}`,
+  });
+
+  const senzaIndice = ricercheSenzaIndice(sorgenti);
+  controlli.push({
+    nome: 'ricerche che normalizzano a ogni battuta', dove: 'docs/CLAUDE.md',
+    dichiarato: 0, misurato: senzaIndice.length,
+    rimedio: `Usa \`indicizza\` + \`matchIndice\` invece di \`matchTermini\` dentro il useMemo: ${senzaIndice.join(', ')}`,
+  });
+
+  const quadratiche = iterazioniQuadratiche(sorgenti);
+  controlli.push({
+    nome: 'indexOf/findIndex dentro una .map()', dove: 'docs/CLAUDE.md',
+    dichiarato: 0, misurato: quadratiche.length,
+    rimedio: `O(n²) per render: l'indice ce l'ha già la callback di map, o si porta dietro dalla costruzione della lista: ${quadratiche.join(', ')}`,
   });
 
   // 6. Viste che chiedono il corpus intero dei task (A-3). Stesso mestiere del

@@ -1,7 +1,7 @@
 // src/components/chat/ConversationView.jsx
 // La conversazione aperta: testata con presenza, elenco messaggi, composer
 // (testo, allegati, vocali, template, indicatore "sta scrivendo").
-import { useReducer, useEffect, useRef } from "react";
+import { useReducer, useEffect, useRef, useMemo, useCallback } from "react";
 import { Avatar } from "../ui/Avatar.jsx";
 import { Messages as MessagesAPI, subscribeToTyping } from "../../lib/api.js";
 import { isUuid } from "../../lib/mappers.js";
@@ -13,6 +13,8 @@ import { useAppData } from "../../state/AppDataContext.jsx";
 import { useChatContext } from "./chatContext.js";
 import { computePresence, PRESENCE_COLORS, PRESENCE_LABELS, TICK_PRESENZA_MS } from "../../lib/presenza.js";
 import { useTickLento } from "../../hooks/useTickLento.js";
+import { useFinestra } from "../../hooks/useFinestra.js";
+import { MostraAltri } from "../ui/MostraAltri.jsx";
 import { getConversationName } from "./chatFormat.js";
 import { MAX_FILE_SIZE, fileKindFromName } from "./chatFiles.js";
 import { convViewInitial, convViewReducer } from "./chatReducers.js";
@@ -26,6 +28,13 @@ import {
   boxW6H62, boxW6H63, colHFull, rowCenterGap10, rowCenterGap3, rowCenterGap5, rowCenterGap8,
   rowCenterMiddle, rowEndGap8, txtF11, txtF112, txtF14Bold, txtGoldLight,
 } from "./conversationViewStyles.js";
+
+// M-2 · Quanti messaggi si disegnano. Cinquanta e non 24 come le altre viste:
+// una conversazione si legge a colpo d'occhio scorrendo indietro, e una
+// finestra troppo stretta trasformerebbe la lettura normale in una sequenza di
+// click. È comunque il tetto che tiene fuori le conversazioni lunghe, che sono
+// quelle per cui la finestra esiste.
+const PAGINA_MESSAGGI = 50;
 
 // ─── CHAT: CONVERSATION VIEW ───────────────────────────────────────────────
 export const ConversationView = ({ conv, messages, commands, onBack, onDelete, initialInput, initialTaskRef, onInitialInputConsumed }) => {
@@ -66,7 +75,11 @@ export const ConversationView = ({ conv, messages, commands, onBack, onDelete, i
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialInput, initialTaskRef]);
 
-  const msgs = messages[conv.id] || [];
+  // M-2 · `messages[conv.id] || []` costruiva un array NUOVO a ogni render
+  // quando la conversazione è vuota, quindi i memo che ne dipendono non
+  // avrebbero mai potuto saltare un giro — e `exhaustive-deps`, che questo
+  // progetto tiene a zero warning, lo dice per nome.
+  const msgs = useMemo(() => messages[conv.id] || [], [messages, conv.id]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -254,31 +267,89 @@ export const ConversationView = ({ conv, messages, commands, onBack, onDelete, i
     commands.sendMessage(conv.id, newMsg);
   };
 
-  const handleReact = (msgId, emoji) => {
+  // ─── M-2 · i callback delle righe hanno identità stabile ─────────────────
+  // È la PREMESSA del `memo` su ChatMessage, non un'aggiunta accanto: senza,
+  // ogni riga riceve tre prop nuove a ogni render del pannello — e questo
+  // pannello si ri-renderizza su un TIMER, ogni 2,5 s mentre un collega scrive
+  // (TYPING_PING_MS) e ogni 30 s per l'ageing dei pallini. `memo` senza
+  // callback stabili aggiunge un confronto che non può mai riuscire.
+  //
+  // `msgs` e `commands` vivono in un ref e non nelle dipendenze: cambiano a
+  // ogni messaggio in arrivo, cioè proprio quando i callback devono restare
+  // fermi. È la stessa tecnica di `useSyncedDispatch` (stateRef) e di
+  // `useSalvataggio` (rif.current), per la stessa ragione — e leggere il ref
+  // dentro il callback, non durante il render, è ciò che la rende sicura.
+  const msgsRif = useRef(msgs);
+  const commandsRif = useRef(commands);
+  useEffect(() => { msgsRif.current = msgs; commandsRif.current = commands; });
+
+  const handleReact = useCallback((msgId, emoji) => {
     // Le reazioni PRECEDENTI viaggiano esplicite verso il comando (M-3): il
     // messaggio è già qui in `msgs`, come per `handleTogglePin` qui sotto, e
     // farle estrarre al comando dall'interno di un updater di setState
     // significava dipendere da quante volte React lo esegue.
-    const target = msgs.find(m => m.id === msgId);
+    const target = msgsRif.current.find(m => m.id === msgId);
     // Toggle atomico via RPC: l'aggiornamento ottimistico e la persistenza
     // stanno nel comando, che evita di scrivere l'intero oggetto `reactions`
     // dal client (race last-write-wins fra utenti che reagiscono insieme).
     // Anche qui c'era un secondo toggle scritto a mano come "fallback
     // mock/test" (ST-10): faceva la stessa cosa in un posto in cui nessuno
     // l'avrebbe aggiornata insieme all'altra.
-    commands.toggleReaction(conv.id, msgId, emoji, target?.reactions || null);
-  };
+    commandsRif.current.toggleReaction(conv.id, msgId, emoji, target?.reactions || null);
+  }, [conv.id]);
 
   // Fase 3 pin: stato group-level, condiviso da tutti i partecipanti. Il
   // messaggio è già qui in `msgs`, quindi si sa se si sta fissando o togliendo:
   // il comando riceve `pinned` esplicito invece di farlo dedurre da un diff.
-  const handleTogglePin = (msgId) => {
-    const target = msgs.find(m => m.id === msgId);
+  const handleTogglePin = useCallback((msgId) => {
+    const target = msgsRif.current.find(m => m.id === msgId);
     if (!target) return;
-    commands.setMessagePinned(conv.id, msgId, !target.pinned, myId, {
+    commandsRif.current.setMessagePinned(conv.id, msgId, !target.pinned, myId, {
       pinned: !!target.pinned, pinnedBy: target.pinnedBy ?? null, pinnedAt: target.pinnedAt ?? null,
     });
-  };
+  }, [conv.id, myId]);
+
+  // Era un'arrow inline nel JSX della riga: nuova a ogni render, quindi da
+  // sola bastava a invalidare il `memo` di ogni ChatMessage.
+  const handleReply = useCallback((m) => cvd({ type: "REPLYING", v: m }), []);
+
+  // ─── M-2 · l'elenco dei messaggi: niente O(n²), niente array intero ──────
+  //
+  // Il difetto era `msgs.indexOf(m)` DENTRO la `.map()`: una scansione lineare
+  // dell'array completo per ogni riga disegnata, cioè O(n²) per render — su
+  // una conversazione da 500 messaggi, 125.000 confronti, ripetuti ogni 2,5
+  // secondi mentre un collega scrive. L'indice serviva per `prevMsg`, che deve
+  // venire dalla timeline INTERA perché `visible` è filtrato: la coppia
+  // (messaggio, precedente) si costruisce quindi una volta sola, dove l'indice
+  // ce l'ha già la callback di `map`.
+  const conPrecedente = useMemo(
+    () => msgs.map((m, i) => ({ m, prev: msgs[i - 1] })),
+    [msgs]);
+
+  // ⚠️ Il filtro viene PRIMA della finestra, non dopo. La ricerca dentro la
+  // conversazione deve guardare tutti i messaggi: filtrare la sola finestra
+  // significherebbe rispondere «non c'è» su un messaggio che c'è ma è più
+  // vecchio di cinquanta — cioè la stessa disonestà di A-3 sulla ricerca dei
+  // task, in piccolo.
+  const filtrati = useMemo(() => {
+    if (!showPinnedOnly && !msgSearch) return conPrecedente;
+    const q = msgSearch.toLowerCase();
+    return conPrecedente.filter(({ m }) => {
+      if (showPinnedOnly && !m.pinned) return false;
+      if (msgSearch && !m.text?.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [conPrecedente, msgSearch, showPinnedOnly]);
+
+  // `useFinestra` taglia i PRIMI N: per avere gli ULTIMI N si rovescia, si
+  // finestra, si rimette in ordine. Due `reverse` su un array già memoizzato,
+  // contro una libreria di virtualizzazione che il progetto ha deciso di non
+  // avere (vedi hooks/useFinestra.js).
+  const rovesciati = useMemo(() => [...filtrati].reverse(), [filtrati]);
+  const finestra = useFinestra(rovesciati, PAGINA_MESSAGGI,
+    [conv.id, msgSearch, showPinnedOnly]);
+  const visibili = useMemo(
+    () => [...finestra.visibili].reverse(), [finestra.visibili]);
 
   const otherTypingMember = conv.participants.find(p => p !== myId);
   // Presenza reale dell'interlocutore (solo conv dirette): guida il pallino
@@ -396,32 +467,28 @@ export const ConversationView = ({ conv, messages, commands, onBack, onDelete, i
 
       {/* Messages */}
       <div ref={scrollRef} style={boxFlex1}>
-        {(() => {
-          const q = msgSearch.toLowerCase();
-          // Filtro: pinned-only + ricerca testo (AND). Mantengo il riferimento
-          // a `msgs` per `prevMsg`/`allMessages` (mostra reply/avatar coerenti
-          // con la timeline intera, non solo il sottoinsieme filtrato).
-          const visible = msgs.filter(m => {
-            if (showPinnedOnly && !m.pinned) return false;
-            if (msgSearch && !m.text?.toLowerCase().includes(q)) return false;
-            return true;
-          });
-          return visible.map((m) => {
-            const i = msgs.indexOf(m);
-            return (
-              <ChatMessage
-                key={m.id}
-                msg={m}
-                prevMsg={msgs[i - 1]}
-                conv={conv}
-                allMessages={msgs}
-                onReact={handleReact}
-                onReply={(m) => cvd({ type: "REPLYING", v: m })}
-                onTogglePin={handleTogglePin}
-              />
-            );
-          });
-        })()}
+        {/* M-2 · La finestra apre l'elenco IN CODA, e il «mostra altri» risale.
+            È l'opposto delle altre nove viste, dove `useFinestra` taglia in
+            fondo — e non è un'eccezione alla convenzione ma la stessa
+            convenzione applicata a un elenco che si legge dall'ultima riga.
+            La meccanica resta una sola: si passa l'array ROVESCIATO. */}
+        <MostraAltri
+          finestra={finestra}
+          azione={`Mostra altri ${Math.min(PAGINA_MESSAGGI, finestra.restanti)} messaggi`}
+          conteggio={`${finestra.visibili.length} di ${finestra.totale} messaggi`}
+        />
+        {visibili.map(({ m, prev }) => (
+          <ChatMessage
+            key={m.id}
+            msg={m}
+            prevMsg={prev}
+            conv={conv}
+            allMessages={msgs}
+            onReact={handleReact}
+            onReply={handleReply}
+            onTogglePin={handleTogglePin}
+          />
+        ))}
         {isTyping && (
           <div style={rowEndGap8}>
             <Avatar memberId={typingIds[0]} size={28} />

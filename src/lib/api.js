@@ -862,6 +862,50 @@ export const Clients = {
   list: () =>
     fetchAllRows(() => supabase.from('clients')
       .select('*', WITH_COUNT).order('name').order('id')),
+  // ─── M-1 (passo 2) · la ricerca cliente si fa sul SERVER ────────────────
+  // (audit performance/UX del 19 agosto)
+  //
+  // PERCHÉ ESISTE. `list()` qui sopra scarica l'anagrafica INTERA, e finché la
+  // tendina di suggerimento cliente (`ui/ClientAutocomplete.jsx`) filtrava un
+  // array in memoria, quel download era obbligatorio a ogni sessione: la
+  // tendina si apre da `QuickAddTask` — il FAB su ogni vista, la scorciatoia
+  // `K` — quindi «quasi ogni sessione» non è un'esagerazione. È il consumatore
+  // che rendeva inutile qualunque finestra sull'idratazione, e per questo va
+  // per primo.
+  //
+  // Un autocomplete è comunque il caso in cui la ricerca lato server è la forma
+  // giusta e non un ripiego: si guardano le prime righe che corrispondono a ciò
+  // che si sta digitando, non tutte.
+  //
+  // I TERMINI IN AND, non la stringa intera. `ilike '%mario rossi%'` non trova
+  // «ROSSI MARIO», e in questa anagrafica l'ordine cognome/nome non è una
+  // regola (vedi il commento in testa a lib/searchUtils.js): convivono
+  // «COLUCCI GIANNICOLA» e «ELENA GIANCIPPOLI». Spezzando la query e
+  // richiedendo ogni termine si ottiene l'indipendenza dall'ordine, che è la
+  // proprietà che l'utente si aspetta perché è quella delle altre ricerche
+  // dell'app.
+  //
+  // ⚠️ COSA QUESTA RICERCA NON FA, e va saputo: `ilike` confronta i caratteri
+  // così come sono, quindi NON normalizza accenti e apostrofi come
+  // `lib/searchUtils.js` — «d amato» non trova «D'AMATO» qui, mentre lo trova
+  // nell'anagrafica (`ClientiView`, che lavora sul corpus in memoria con
+  // l'indice). Coprire anche quello lato server richiede `unaccent`/`pg_trgm`,
+  // che su questo progetto non sono installate: abilitare un'estensione è una
+  // decisione a sé, non un effetto collaterale di un autocomplete. Chi cerca
+  // una scheda con la punteggiatura la trova dall'anagrafica; qui si
+  // suggerisce mentre si digita.
+  //
+  // Nessuna paginazione e nessun `count`: qui il tetto è VOLUTO — sono i primi
+  // `limit` suggerimenti, non un insieme che deve arrivare intero (è la
+  // distinzione fra `fetchRowsUpTo` e `fetchAllRows` in lib/pagination.js, e
+  // `limit` è ben sotto `db-max-rows`).
+  cerca: (q, { limit = 20 } = {}) => {
+    const termini = String(q ?? '').trim().split(/\s+/).filter(Boolean);
+    if (termini.length === 0) return Promise.resolve({ data: [], error: null });
+    let query = supabase.from('clients').select('*');
+    for (const t of termini) query = query.ilike('name', `%${t}%`);
+    return query.order('name').limit(limit);
+  },
   create: (client) =>
     supabase.from('clients').insert(withOrigin(client)).select().single(),
   update: (id, patch) =>

@@ -18,7 +18,7 @@
 // latente in uno visibile entro 200 ms: la ri-idratazione avrebbe sostituito
 // la riga locale con quella del server, con un id diverso.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook, waitFor, act } from "@testing-library/react";
 import { toDbClient, toDbClientPatch, isUuid } from "../lib/mappers.js";
 import { PERSISTENCE } from "../state/persistence.js";
 
@@ -92,13 +92,16 @@ const subscribeToTable = vi.fn((tabella, handler) => {
 });
 
 const vuoto = { data: [], error: null };
+// Estratta e non inline: M-1 (passo 2) verifica QUANTE volte l'anagrafica
+// viene scaricata, e per farlo serve poterla interrogare.
+const ClientsList = vi.fn(async () => ({ data: [{ id: UUID, name: "Rossi" }], error: null }));
 vi.mock("../lib/api.js", () => ({
   subscribeToTable: (...a) => subscribeToTable(...a),
   Tasks: { list: vi.fn(async () => vuoto) },
   Notices: { list: vi.fn(async () => vuoto) },
   Categories: { list: vi.fn(async () => vuoto) },
   Users: { listAll: vi.fn(async () => vuoto), getContacts: vi.fn(async () => ({ data: null })) },
-  Clients: { list: vi.fn(async () => ({ data: [{ id: UUID, name: "Rossi" }], error: null })) },
+  Clients: { list: (...a) => ClientsList(...a) },
   MessageTemplates: { list: vi.fn(async () => vuoto) },
 }));
 
@@ -119,17 +122,59 @@ describe("useAppHydration — i clienti sono realtime come le altre entità", ()
     expect([...handlers.keys()]).toContain("clients");
   });
 
-  it("un evento su clients ri-dispatcha SET_CLIENTS", async () => {
+  // ⚠️ M-1 (passo 2), 19 agosto: la sottoscrizione c'è ancora, ma l'anagrafica
+  // non si idrata più all'avvio — la chiede la vista che la guarda. Il
+  // contratto verificato qui è quindi in due tempi, e sono entrambi il punto.
+  it("un evento su clients ri-dispatcha SET_CLIENTS, DOPO che l'anagrafica è stata chiesta", async () => {
     const dispatch = vi.fn();
     const { result } = renderHook(() => useAppHydration({
       enabled: true, currentUserId: "u1", dispatch, onError: vi.fn(),
     }));
+    await act(async () => { await result.current.clientiCompleti.richiedi(); });
     await waitFor(() => expect(result.current.crmLoading).toBe(false));
     dispatch.mockClear();
 
     handlers.get("clients")?.({ eventType: "INSERT", new: {} });
     await waitFor(() =>
       expect(dispatch.mock.calls.some(([a]) => a.type === "SET_CLIENTS")).toBe(true));
+  });
+
+  it("PRIMA che sia stata chiesta, un evento su clients non tocca lo stato", async () => {
+    // Non è un'ottimizzazione: `applicaRigaRealtime` APPENDE le righe che non
+    // conosce, quindi su un elenco vuoto ogni evento costruirebbe
+    // un'anagrafica di uno, due, tre clienti — parziale e indistinguibile da
+    // una vera per chiunque la legga.
+    const dispatch = vi.fn();
+    renderHook(() => useAppHydration({
+      enabled: true, currentUserId: "u1", dispatch, onError: vi.fn(),
+    }));
+    await waitFor(() => expect(handlers.has("clients")).toBe(true));
+    dispatch.mockClear();
+
+    handlers.get("clients")?.({ eventType: "INSERT", new: { id: "c9", name: "Fantasma" } });
+    await new Promise(r => setTimeout(r, 400));
+    const toccati = dispatch.mock.calls
+      .map(([a]) => a.type)
+      .filter(t => t === "SET_CLIENTS" || t === "MERGE_CLIENT_ROW");
+    expect(toccati).toEqual([]);
+  });
+
+  it("l'anagrafica NON si scarica all'avvio: è la vista che la chiede", async () => {
+    // Il rilievo M-1 in una riga. `Clients.list()` resta la lettura giusta —
+    // paginata, intera — ma non parte più da sola.
+    const dispatch = vi.fn();
+    const { result } = renderHook(() => useAppHydration({
+      enabled: true, currentUserId: "u1", dispatch, onError: vi.fn(),
+    }));
+    await waitFor(() => expect(handlers.has("clients")).toBe(true));
+    expect(ClientsList).not.toHaveBeenCalled();
+
+    await act(async () => { await result.current.clientiCompleti.richiedi(); });
+    expect(ClientsList).toHaveBeenCalledTimes(1);
+
+    // Idempotente: una seconda vista che la chiede non rifà la query.
+    await act(async () => { await result.current.clientiCompleti.richiedi(); });
+    expect(ClientsList).toHaveBeenCalledTimes(1);
   });
 
   it("con enabled=false non interroga nulla e non blocca lo spinner", () => {

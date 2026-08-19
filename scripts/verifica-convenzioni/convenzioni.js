@@ -428,6 +428,46 @@ export function iterazioniQuadratiche(sorgenti) {
 }
 
 /**
+ * M-1 (passo 2) · Le viste che chiedono l'anagrafica INTERA.
+ *
+ * Stesso mestiere di `usiStoricoTask`, su un equilibrio che si rompe nelle
+ * stesse due direzioni: una vista di troppo — una che vuole solo SUGGERIRE un
+ * cliente, e per quello c'è la ricerca lato server — annulla la finestra
+ * lasciandone in piedi il codice; una in meno mostra un'anagrafica parziale
+ * come se fosse tutta. Quale sia il numero giusto lo decide l'elenco motivato
+ * in `state/ClientiCompletiContext.jsx`; qui si fa rumore quando cambia.
+ *
+ * @param {{path: string, testo: string}[]} sorgenti
+ * @returns {string[]} i percorsi che importano l'hook
+ */
+export function usiClientiCompleti(sorgenti) {
+  const IMPORTA = /import\s*\{[^}]*\buseClientiCompleti\b[^}]*\}\s*from/;
+  const usi = (sorgenti || []).filter(f => IMPORTA.test(f.testo)).map(f => f.path);
+  if (usi.length === 0) {
+    throw new LetturaFallita(
+      'Nessun file di src/ importa `useClientiCompleti`: o l\'hook è stato ' +
+      'rimosso, o la forma dell\'import è cambiata. In entrambi i casi la ' +
+      'finestra sull\'anagrafica (M-1) non ha più nessuno che ne carichi il ' +
+      'complemento, e le due viste che la guardano mostrano un elenco parziale.');
+  }
+  return usi;
+}
+
+/**
+ * Il numero di viste che chiedono l'anagrafica intera, dichiarato in
+ * docs/CLAUDE.md (M-1, passo 2, dell'audit del 19 agosto).
+ */
+export function leggiCallSiteClienti(testo) {
+  const m = /(\d+)\s+viste chiedono\s+`useClientiCompleti`/.exec(testo);
+  if (!m) {
+    throw new LetturaFallita(
+      'docs/CLAUDE.md: non trovo la frase «N viste chiedono `useClientiCompleti`». ' +
+      'Se è stata riscritta, aggiorna QUESTO script insieme al documento.');
+  }
+  return Number(m[1]);
+}
+
+/**
  * Confronta dichiarato e misurato e produce l'elenco degli scarti.
  * Ogni scarto dice ENTRAMBI i numeri e cosa aggiornare: la divergenza è il
  * difetto, non il numero — chi legge deve poter decidere se ha sbagliato il

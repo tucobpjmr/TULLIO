@@ -26,6 +26,8 @@ import {
   // i call site mancanti invece di CONTARE quelli presenti. Vedi il blocco che
   // li introduce in convenzioni.js.
   azioniRegistry, formSenzaAttesaEsito, ricercheSenzaIndice, iterazioniQuadratiche,
+  // M-1 (passo 2): la finestra sull'anagrafica e chi ne chiede il complemento.
+  usiClientiCompleti, leggiCallSiteClienti,
 } from './convenzioni.js';
 
 // Gli audit sotto controllo: nome del file, prefisso dei suoi rilievi.
@@ -222,6 +224,17 @@ async function main() {
     nome: 'viste che chiedono lo storico', dove: 'docs/CLAUDE.md',
     dichiarato: leggiCallSiteStorico(claudeMd), misurato: storico.length,
     rimedio: `Aggiorna la frase «N viste chiedono \`useStoricoTaskCompleto\`» (misurate: ${storico.join(', ')}).`,
+  });
+
+  // 6-bis. Viste che chiedono l'anagrafica INTERA (M-1, passo 2). Gemello del
+  //    controllo qui sopra, e si rompe nelle stesse due direzioni: una vista
+  //    di troppo annulla la finestra, una in meno mostra un elenco parziale
+  //    come se fosse tutto.
+  const clienti = usiClientiCompleti(sorgenti);
+  controlli.push({
+    nome: 'viste che chiedono l\'anagrafica', dove: 'docs/CLAUDE.md',
+    dichiarato: leggiCallSiteClienti(claudeMd), misurato: clienti.length,
+    rimedio: `Aggiorna la frase «N viste chiedono \`useClientiCompleti\`» (misurate: ${clienti.join(', ')}).`,
   });
 
   // 7. Stato dei rilievi: quello che l'indice dichiara contro quello che il

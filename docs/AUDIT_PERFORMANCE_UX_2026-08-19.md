@@ -49,7 +49,7 @@ sul build vero.
 | A-2 ✔ | 🟠 **Alta** | Performance | La ricerca avanzata normalizza i campi **per riga a ogni battuta**: è M-3 del 16 agosto non applicato all'ultimo call site — e quello con il corpus più grande. **6,21 ms per battuta** oggi, 49,25 ms a 2500 task | `search/AdvancedSearchPanel.jsx:145` |
 | A-3 ✔ | 🟠 **Alta** | Scalabilità | Il battito di presenza è una `UPDATE` su `public.users` ogni 30 s per sessione, su una tabella a `REPLICA IDENTITY FULL` osservata da **due** canali per sessione: il traffico realtime cresce con **U²** | `hooks/usePresence.js:98`, `lib/api.js:966` |
 | A-4 ✔ | 🟠 **Alta** | UX / errori | `useSalvataggio` — «⛔ mai chiudere o svuotare prima di conoscere l'esito» — è su **3 call site**; altri **sei** form chiudono o svuotano nello stesso turno del dispatch. Fra questi l'editor che **revoca i privilegi** di un account | `dashboard/NoticeBoard.jsx:350`, `admin/tabs/AdminTeamTab.jsx:101`, +4 |
-| M-1 ⚙ | 🟡 Media | Scalabilità | **Passo 1 fatto (indice), passo 2 aperto.** `clients` è l'unica entità rimasta **senza finestra**: l'anagrafica intera a ogni idratazione e a ogni riconnessione — e `public.clients` non ha indici oltre la PK mentre la query ordina per `name` e chiede `count: 'exact'` a ogni pagina | `lib/api.js:862-864`, `hooks/useAppHydration.js:475` |
+| M-1 ✔ | 🟡 Media | Scalabilità | `clients` è l'unica entità rimasta **senza finestra**: l'anagrafica intera a ogni idratazione e a ogni riconnessione — e `public.clients` non ha indici oltre la PK mentre la query ordina per `name` e chiede `count: 'exact'` a ogni pagina | `lib/api.js:862-864`, `hooks/useAppHydration.js:475` |
 | M-2 ✔ | 🟡 Media | Performance | La lista messaggi della chat è l'unico elenco lungo **senza `memo` sulla riga e senza finestra**, e contiene un `indexOf` dentro la `map` (O(n²)). Si ri-renderizza **ogni 2,5 s** mentre un collega scrive | `chat/ConversationView.jsx:409-410`, `chat/message/ChatMessage.jsx` |
 | M-3 ✔ | 🟡 Media | UX / errori | Il ripristino dal Cestino sono **due scritture dipendenti** (`UPDATE_TASK` poi `RESTORE_TASK`), nessuna delle due attesa: se la prima è rifiutata la task torna con i valori vecchi e le modifiche appena digitate spariscono senza che nulla lo dica | `views/Trash.jsx:121-123` |
 | B-1 ✔ | 🔵 Bassa | Scalabilità | **11 canali realtime sempre aperti** per sessione, due dei quali sulla stessa tabella (`users`) e due su tabelle che cambiano poche volte l'anno (`categories`, `message_templates`) | `hooks/useAppHydration.js`, `hooks/usePresence.js:109` |
@@ -1302,7 +1302,7 @@ rifiutato dalla Edge Function. Non è più anche il canale della validazione.
 Guardia: cinque casi in `validazioneInline.test.jsx`, compreso quello sui due
 messaggi insieme — che è il difetto specifico di questo form.
 
-## M-1 ⚙ — passo 1 fatto, passo 2 aperto per scelta
+## M-1 — passo 1 (l'indice)
 
 **Fatto: l'indice.** `supabase/migrations/20260819230000_clients_indice_name_id.sql`
 crea `idx_clients_name_id on public.clients (name, id)` — le due colonne
@@ -1311,32 +1311,86 @@ nell'ordine esatto della query, perché `fetchAllRows` chiude l'ordinamento su
 ordinare comunque. Senza, ogni pagina di `Clients.list()` costa un ordinamento
 completo più un `count(*)` con la RLS applicata.
 
-⚠️ **Committare una migrazione non significa averla applicata** — è la regola
-in testa a `docs/MIGRAZIONI_SUPABASE.md`, scritta dopo che due migrazioni di
-hardening sono rimaste per giorni in `main` e mai sul database. Questa è
-**committata e non applicata**: applicarla è una scrittura sulla produzione, e
-va fatta con la procedura del documento (non `db push`).
+✅ **Applicata in produzione e verificata il 19 agosto** (via `apply_migration`,
+non `db push` — è la procedura di `docs/MIGRAZIONI_SUPABASE.md`, scritta dopo
+che due migrazioni di hardening sono rimaste per giorni in `main` e mai sul
+database). `pg_indexes` mostra ora `clients_pkey` e `idx_clients_name_id`, e il
+piano della query di `Clients.list()` conferma che l'indice si usa davvero:
 
-**Non fatto, e perché: la finestra.** È il passo 2, e il rilievo stesso lo
-scopriva come «il lavoro più grande di questo audit e l'unico che cambia un
-contratto del data layer». Il contratto è che `clients` viva per intero nello
-state: lo presuppongono i **cinque** consumatori di `useClients()`
-(`ClientiView`, `QuickAddTask`, `TaskSlideOver`, `BulkTaskCreator`,
-`ListeViaggio`), la tendina `ClientAutocomplete` con i suoi quattro call site,
-e i sette case del reducer che ci scrivono sopra.
+```
+Limit  (actual time=1.715..7.964 rows=874)
+  ->  Index Scan using idx_clients_name_id on clients
+Execution Time: 8.073 ms
+```
 
-E la forma **non si copia da A-3**: un cliente non «scade» come una task
-completata, quindi non esiste un `completeDal` equivalente. La strada è
-un'altra ed è in due mosse: prima `ClientAutocomplete` passa a una ricerca
-lato server (`ilike` + `limit`) — che per un autocomplete è comunque la forma
-giusta, ed è il consumatore che oggi rende la finestra inutile, perché
-QuickAddTask lo apre quasi ogni sessione; **poi** l'idratazione può caricare
-una finestra e `ClientiView` chiedersi il corpus intero, con lo stesso schema
-di `StoricoTaskContext`.
+`Index Scan`, **nessun nodo `Sort`** — che è il punto: prima l'ordinamento lo
+faceva Postgres a mano a ogni pagina. Misurato anche il corpus reale: **874
+righe**, non 818 — l'anagrafica è cresciuta di 56 schede dal 17 agosto, il che
+rende il passo 2 meno teorico di quanto il rilievo lo descrivesse.
 
-**La soglia che dice quando**: oggi 818 righe, una pagina sola, ~200 kB. Il
-costo diventa reale sopra le **1000** — dove `fetchAllRows` inizia a paginare
-in modo seriale — e l'anagrafica cresce a scalini da 200 righe
-(`ClientImportModal` → `Clients.createMany`). È la stessa forma della soglia
-dichiarata per ST-4 (`messages > ~1500`): una decisione dichiarata, non un
-rilievo dimenticato.
+## M-1 ✔ — passo 2 (la finestra)
+
+Fatto nelle due mosse che il rilievo prescriveva, e nell'ordine: la seconda non
+avrebbe avuto senso senza la prima.
+
+**Mossa 1 — la tendina di suggerimento passa al server.** `Clients.cerca(q)`
+(`lib/api.js`) + `hooks/useRicercaClienti.js` (debounce 200 ms, guardia di
+staleness, degradazione senza rete) + `ui/ClientAutocomplete.jsx`. Era questo
+il consumatore che rendeva obbligatorio il download dell'anagrafica intera:
+la tendina si apre da `QuickAddTask` — il FAB su ogni vista, la scorciatoia
+`K` — quindi «quasi ogni sessione» non è un'esagerazione.
+
+⚠️ **La query vive in `src/hooks/` e non nel componente**, e non per gusto:
+`eslint.config.js` vieta a `src/components/**` di importare il data layer, e il
+messaggio della regola dice dove va il codice che legge. Il primo tentativo l'ha
+messa nel componente e il lint l'ha respinta — la regola ha fatto esattamente
+il suo mestiere.
+
+⚠️ **I termini in AND, non la stringa intera**: `ilike '%mario rossi%'` non
+trova «ROSSI MARIO», e in questa anagrafica l'ordine cognome/nome non è una
+regola. Spezzando la query si ottiene l'indipendenza dall'ordine, che è la
+proprietà delle altre ricerche dell'app.
+
+⚠️ **Quello che questa ricerca NON fa**, ed è scritto sia in `api.js` sia in
+`CLAUDE.md`: `ilike` confronta i caratteri così come sono, quindi non
+normalizza accenti e apostrofi come `lib/searchUtils.js` — «d amato» non trova
+«D'AMATO» nella tendina, mentre lo trova nell'anagrafica (che lavora sul corpus
+in memoria con l'indice). Coprirlo lato server richiede `unaccent`/`pg_trgm`,
+**verificate non installate** su questo progetto: abilitare un'estensione è una
+decisione a sé, non l'effetto collaterale di un autocomplete.
+
+I `locali` restano, e non sono l'anagrafica: sono le schede già in stato — una
+creata in questa sessione è suggeribile PRIMA che la scrittura sia confermata,
+e in dev senza Supabase la tendina continua a funzionare. Vanno per primi, i
+duplicati si tolgono per `id`.
+
+**Mossa 2 — la finestra.** `useAppHydration` non chiama più `Clients.list()` al
+mount; la chiamano `ClientiView` e `ListeViaggio` con `useClientiCompleti()`
+(`state/ClientiCompletiContext.jsx`), gemello di `StoricoTaskContext`.
+
+⚠️ **La finestra è VUOTA, e non è una scorciatoia.** Per i task esisteva un
+criterio naturale — «non completate, più le completate degli ultimi 60 giorni»
+— perché una task ha un ciclo di vita. Un cliente non «scade»: qualunque soglia
+temporale taglierebbe fuori proprio le schede vecchie che si vanno a cercare.
+La domanda giusta non era «quali clienti servono all'avvio» ma «a CHI serve
+l'anagrafica», e dopo la mossa 1 la risposta sono due viste — entrambe aperte
+da una minoranza di sessioni.
+
+⚠️ **Una conseguenza emersa implementando, che il rilievo non aveva previsto**:
+finché nessuno ha chiesto l'anagrafica, gli eventi realtime su `clients` vanno
+IGNORATI, non applicati. `applicaRigaRealtime` appende le righe che non conosce
+(`state/pendingWrites.js`, `idx < 0`), quindi su un elenco vuoto ogni evento
+avrebbe costruito un'anagrafica di uno, due, tre clienti — parziale e
+indistinguibile da una vera per chiunque la legga. È lo stesso difetto degli
+stati di attesa disonesti, arrivato da una porta diversa.
+
+**Guardie**: `clientiRealtime.test.jsx` porta ora i DUE lati del contratto (con
+l'anagrafica chiesta il merge funziona come prima; senza, nessun dispatch la
+tocca) più il caso che dice il rilievo in una riga — `Clients.list` non è
+chiamata al mount, lo è alla prima richiesta, e non una seconda volta.
+`clientAutocomplete.test.jsx` copre debounce, locali prima dei remoti,
+deduplica per id, AND dei termini e degradazione su errore.
+`realtimeGranularita.test.jsx` chiede l'anagrafica prima di verificare la
+granularità del merge, che è il contratto nuovo detto in una riga di setup. E
+`verifica:convenzioni` ha un 31° controllo che tiene onesto il numero di viste,
+in entrambe le direzioni.

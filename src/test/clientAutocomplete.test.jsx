@@ -8,9 +8,24 @@
 // modifica ne toccava uno solo.
 //
 // Ora la definizione è una, quindi anche il test può essere uno.
+//
+// ─── M-1 (passo 2), 19 agosto: la ricerca è passata sul SERVER ─────────────
+// L'hook filtrava un array in memoria, e quell'array era l'anagrafica intera —
+// cioè questa tendina era la ragione per cui l'idratazione doveva scaricarla a
+// ogni sessione. Ora interroga `Clients.cerca` (debounce + guardia di
+// staleness in `hooks/useRicercaClienti.js`) e usa i clienti in stato come
+// risultati LOCALI, che restano necessari per due casi: un cliente appena
+// creato è suggeribile prima che la scrittura sia confermata, e in dev senza
+// Supabase la tendina continua a funzionare.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act, render, screen } from "@testing-library/react";
-import { useClientSuggestions, ClientSuggestions } from "../components/ui/ClientAutocomplete.jsx";
+import { renderHook, act, render, screen, waitFor } from "@testing-library/react";
+
+const cerca = vi.fn(async () => ({ data: [], error: null }));
+vi.mock("../lib/supabase", () => ({ supabase: {}, default: {} }));
+vi.mock("../lib/api.js", () => ({ Clients: { cerca: (...a) => cerca(...a) } }));
+
+const { useClientSuggestions, ClientSuggestions } =
+  await import("../components/ui/ClientAutocomplete.jsx");
 
 const CLIENTI = [
   { id: "c1", name: "Famiglia Rossi", phone: "333", city: "Roma" },
@@ -27,15 +42,19 @@ const CLIENTI = [
 const conFocus = (result) => act(() => { result.current.inputProps.onFocus(); });
 
 describe("useClientSuggestions", () => {
-  it("filtra per sottostringa, senza distinzione fra maiuscole e minuscole", () => {
+  it("filtra per sottostringa i risultati LOCALI, senza distinzione di maiuscole", () => {
     const { result } = renderHook(() => useClientSuggestions(CLIENTI, "ROSS"));
     expect(result.current.matches.map(c => c.id)).toEqual(["c1", "c2"]);
   });
 
   it("taglia i suggerimenti a sei anche quando il campo è vuoto", () => {
-    // Campo vuoto = mostra l'anagrafica, ma non tutta: sette clienti, sei righe.
+    // Campo vuoto = mostra ciò che c'è in locale, ma non tutto: sei righe.
+    // ⚠️ A campo vuoto NON si interroga il server: una tendina aperta senza
+    // che si sia digitato niente non è una ricerca, ed è il caso in cui una
+    // query costerebbe di più e servirebbe di meno.
     const { result } = renderHook(() => useClientSuggestions(CLIENTI, ""));
     expect(result.current.matches).toHaveLength(6);
+    expect(cerca).not.toHaveBeenCalled();
   });
 
   it("resta chiusa finché l'input non prende il focus", () => {
@@ -148,5 +167,85 @@ describe("ClientSuggestions", () => {
     );
     const z = (c) => Number(c.firstChild.style.zIndex);
     expect(z(compatta)).toBeGreaterThan(z(normale));
+  });
+});
+
+
+// ─── M-1 (passo 2) · la metà che interroga il server ───────────────────────
+describe("useClientSuggestions — la ricerca sul server", () => {
+  beforeEach(() => { cerca.mockClear(); cerca.mockResolvedValue({ data: [], error: null }); });
+
+  it("interroga il server dopo il debounce, non a ogni carattere", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const { rerender } = renderHook(
+      ({ v }) => useClientSuggestions([], v), { initialProps: { v: "r" } });
+    rerender({ v: "ro" });
+    rerender({ v: "ros" });
+    rerender({ v: "rossi" });
+    // Prima che il debounce scatti: nessuna richiesta, nonostante quattro
+    // battute. È la proprietà che rende sostenibile una ricerca per battuta.
+    expect(cerca).not.toHaveBeenCalled();
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+    expect(cerca).toHaveBeenCalledTimes(1);
+    expect(cerca).toHaveBeenCalledWith("rossi", expect.objectContaining({ limit: 12 }));
+    vi.useRealTimers();
+  });
+
+  it("i risultati del server compaiono fra i suggerimenti", async () => {
+    cerca.mockResolvedValue({
+      data: [{ id: "srv1", name: "ROSSI MARIO", city: "Bari" }], error: null,
+    });
+    const { result } = renderHook(() => useClientSuggestions([], "rossi"));
+
+    await waitFor(() => expect(result.current.matches).toHaveLength(1));
+    expect(result.current.matches[0].id).toBe("srv1");
+  });
+
+  it("i LOCALI vengono per primi e i duplicati si tolgono per id", async () => {
+    // Un cliente appena creato in questa sessione è in stato ma può non essere
+    // ancora nella risposta del server — e se c'è in entrambe, è la stessa
+    // scheda, non due.
+    cerca.mockResolvedValue({
+      data: [
+        { id: "c1", name: "Famiglia Rossi" },
+        { id: "srv2", name: "ROSSI GIUSEPPE" },
+      ],
+      error: null,
+    });
+    const { result } = renderHook(() => useClientSuggestions(CLIENTI, "rossi"));
+
+    // Si aspetta la voce del SERVER e non «più di uno»: i due locali (c1, c2)
+    // ci sono già al primo render, quindi una soglia numerica passerebbe
+    // prima che la risposta arrivi — e il caso non verificherebbe niente.
+    await waitFor(() =>
+      expect(result.current.matches.map(c => c.id)).toContain("srv2"));
+    const ids = result.current.matches.map(c => c.id);
+    expect(ids[0]).toBe("c1");
+    expect(ids.filter(i => i === "c1")).toHaveLength(1);
+    expect(ids).toContain("srv2");
+  });
+
+  it("i termini si applicano in AND anche ai locali, come fa il server", () => {
+    // Senza, digitando due parole i risultati locali sparirebbero mentre
+    // quelli remoti restano: due semantiche nella stessa tendina.
+    const { result } = renderHook(
+      () => useClientSuggestions([{ id: "x", name: "ROSSI MARIO" }], "mario rossi"));
+    expect(result.current.matches.map(c => c.id)).toEqual(["x"]);
+  });
+
+  it("un errore del server non svuota i suggerimenti locali", async () => {
+    cerca.mockResolvedValue({ data: null, error: new Error("rete") });
+    const { result } = renderHook(() => useClientSuggestions(CLIENTI, "rossi"));
+
+    await waitFor(() => expect(cerca).toHaveBeenCalled());
+    // Un suggerimento mancante non è un errore da mostrare: resta ciò che c'è.
+    expect(result.current.matches.map(c => c.id)).toEqual(["c1", "c2"]);
+  });
+
+  it("con enabled: false non interroga affatto il server", async () => {
+    renderHook(() => useClientSuggestions(CLIENTI, "rossi", { enabled: false }));
+    await new Promise(r => setTimeout(r, 320));
+    expect(cerca).not.toHaveBeenCalled();
   });
 });

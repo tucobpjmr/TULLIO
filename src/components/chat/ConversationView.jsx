@@ -11,7 +11,7 @@ import {
 } from "../../lib/typingUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useChatContext } from "./chatContext.js";
-import { computePresence, PRESENCE_COLORS, PRESENCE_LABELS, TICK_PRESENZA_MS } from "./chatPresence.js";
+import { computePresence, PRESENCE_COLORS, PRESENCE_LABELS, TICK_PRESENZA_MS } from "../../lib/presenza.js";
 import { useTickLento } from "../../hooks/useTickLento.js";
 import { getConversationName } from "./chatFormat.js";
 import { MAX_FILE_SIZE, fileKindFromName } from "./chatFiles.js";

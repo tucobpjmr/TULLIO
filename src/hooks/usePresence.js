@@ -1,29 +1,66 @@
 // src/hooks/usePresence.js
-// Presenza degli utenti: heartbeat periodico dell'utente corrente + mappa
-// { userId → riga users } aggiornata via realtime.
+// Presenza degli utenti: lo stato del canale Realtime (chi c'è ADESSO) sopra
+// lo snapshot del team (chi esiste, con nome e colore), in una mappa sola
+// { userId → { …riga users, status, last_seen_at } }.
 //
-// Tre sorgenti di verità sullo stato "online", tenute allineate qui:
-//   - heartbeat ogni 30s (allineato al tick di ageing lato UI);
-//   - visibilitychange → 'away' quando la scheda passa in background;
-//   - beforeunload → 'offline' best-effort alla chiusura.
+// ─── A-3 · COSA È CAMBIATO, E PERCHÉ (audit del 19 agosto) ─────────────────
+// C'era un heartbeat: una `UsersAPI.setPresence` ogni 30 secondi, cioè una
+// `UPDATE` su `public.users`, che è in realtime ed è a REPLICA IDENTITY FULL.
+// Ogni battito diventava un evento consegnato a tutte le sessioni collegate,
+// due volte ciascuna (la sottoscrizione del team e questa) — traffico U²/15
+// messaggi al secondo, prodotto da un messaggio che diceva «sono ancora qui»
+// a un canale già connesso.
+//
+// Ora la presenza LIVE vive nel canale (`subscribeToPresence` in lib/api.js) e
+// non tocca il database. Del vecchio percorso restano tre scritture per
+// sessione, e ciascuna ha una ragione che il canale non copre:
+//
+//   • all'avvio          → `last_seen_at`, cioè «ha aperto l'app»: è ciò che
+//                          il pannello Admin mostra per chi NON è collegato
+//                          ora, e il canale non lascia traccia;
+//   • al toggle Occupato → è un cambio di stato reale, non un battito;
+//   • alla chiusura      → `offline`, così la riga non resta 'online' per
+//                          sempre in attesa che il tempo la faccia invecchiare.
+//
+// ⚠️ NON si scrive più su `visibilitychange`: passare in secondo piano è un
+// cambio di presenza, e la presenza ora sta nel canale — `track('away')` lo
+// pubblica senza toccare il database. Era il caso peggiore del vecchio
+// percorso: su mobile lo emettono il commutatore di app, la tendina delle
+// notifiche e il selettore di file, più volte in pochi secondi.
+//
+// ⚠️ E NON c'è più `subscribeToTable("users")` qui: era il SECONDO canale sulla
+// stessa tabella per ogni sessione (l'altro è il refresh del team in
+// `useAppHydration`), cioè il fattore ×2 del rilievo. Le righe del team
+// arrivano da `team`, che quell'altra sottoscrizione tiene già aggiornato.
 //
 // Il toggle "Occupato" è manuale e vive in ChatPanel: lo teniamo in un ref
-// così il beat lo legge senza far ripartire l'intero effetto (che
-// ricreerebbe timer e subscription a ogni click).
+// così il canale lo legge senza far ripartire l'intero effetto (che
+// ricreerebbe timer e sottoscrizione a ogni click).
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Users as UsersAPI, subscribeToTable } from "../lib/api.js";
+import { Users as UsersAPI, subscribeToPresence } from "../lib/api.js";
+import { daStatoCanale, REFRESH_PRESENZA_MS } from "../lib/presenza.js";
 
 export function usePresence({ enabled, userId, team }) {
   // Mappa { userId -> rowDB } (per leggere last_seen_at e status).
   const [presenceMap, setPresenceMap] = useState({});
   // Stato "Occupato" manuale: il toggle vive in ChatPanel; lo teniamo in un ref
-  // così il beat() lo legge senza far ripartire l'effetto presence.
+  // così il canale lo legge senza far ripartire l'effetto presence.
   const [myBusy, setMyBusy] = useState(false);
   const myBusyRef = useRef(false);
-  // M-1 dell'audit del 16 agosto. Il nuovo valore si calcola dal REF e le due
-  // conseguenze (la scrittura su Supabase e l'aggiornamento della mappa di
-  // presenza) stanno FUORI dall'updater di `setMyBusy`.
+  // Ultimo stato pubblicato sul canale ('online' | 'busy' | 'away'), letto da
+  // `payload()` al momento della pubblicazione. Un ref e non uno stato: lo
+  // legge il canale, non il render, e metterlo nello stato farebbe ripartire
+  // l'effetto — cioè chiuderebbe e riaprirebbe il canale — a ogni cambio.
+  const statoCanaleRef = useRef('online');
+  // La maniglia del canale, per pubblicare da fuori dall'effetto (il toggle
+  // "Occupato", che ha il proprio `useCallback`).
+  const canaleRef = useRef(null);
+
+  // M-1 dell'audit del 16 agosto. Il nuovo valore si calcola dal REF e le
+  // conseguenze (la pubblicazione sul canale, la scrittura su Supabase e
+  // l'aggiornamento della mappa di presenza) stanno FUORI dall'updater di
+  // `setMyBusy`.
   //
   // Prima erano dentro, ed è la stessa forma che `chatCommands.js` documenta
   // come vietata (⛔ «mai chiamate di rete dentro l'updater di setState»): un
@@ -32,15 +69,19 @@ export function usePresence({ enabled, userId, team }) {
   // render già calcolato e rigiocare la coda su una base più recente. Con la
   // rete lì dentro, un click su "Occupato" partiva due volte in sviluppo, e in
   // produzione l'aggiornamento della presenza dipendeva da quante volte React
-  // avesse scelto di girare. Il ref è già il mirror di `myBusy` per il beat,
-  // quindi leggerlo qui non aggiunge una seconda fonte di verità: la toglie
-  // dall'updater, dove non poteva stare.
+  // avesse scelto di girare.
   const toggleMyBusy = useCallback(() => {
     const nv = !myBusyRef.current;
     myBusyRef.current = nv;
     setMyBusy(nv);
     if (!enabled || !userId) return;
     const st = nv ? 'busy' : 'online';
+    statoCanaleRef.current = st;
+    // Il canale è il percorso che gli ALTRI vedono, ed è immediato.
+    canaleRef.current?.track();
+    // A-3 · La scrittura su `users` resta perché «Occupato» è un cambio di
+    // stato reale e non un battito: è uno dei tre eventi per sessione che il
+    // pannello Admin deve poter leggere anche a sessione chiusa.
     UsersAPI.setPresence(userId, st).then(r => {
       if (r?.error) console.warn("[presence] toggleMyBusy", r.error);
     });
@@ -49,94 +90,92 @@ export function usePresence({ enabled, userId, team }) {
       [userId]: { ...(p[userId] || {}), status: st, last_seen_at: new Date().toISOString() },
     }));
   }, [enabled, userId]);
+
   useEffect(() => {
     if (!enabled) return;
     const myId = userId;
     let cancelled = false;
-    let hbTimer = null;
+    let refreshTimer = null;
 
-    // Snapshot iniziale di tutti gli utenti
-    const reload = () => {
-      // Non passare per UsersAPI.list (filtra active=true): vogliamo tutti
-      // gli utenti del team. initialTeam è già lo snapshot completo; uso quello
-      // più aggiornamenti via realtime.
-      const map = {};
-      for (const u of team || []) map[u.id] = u;
-      setPresenceMap(prev => ({ ...map, ...prev }));
-    };
-    reload();
+    // Snapshot iniziale di tutti gli utenti.
+    // Non passare per UsersAPI.list (filtra active=true): vogliamo tutti gli
+    // utenti del team. `team` è già lo snapshot completo — lo tiene aggiornato
+    // la sottoscrizione `users` di useAppHydration — e il canale ci scrive
+    // sopra chi è collegato adesso.
+    const base = {};
+    for (const u of team || []) base[u.id] = u;
+    setPresenceMap(prev => ({ ...base, ...prev }));
 
-    // Se status non è passato esplicitamente, rispetta il toggle "Occupato".
-    const beat = (status) => {
-      if (!myId) return;
-      const eff = status || (myBusyRef.current ? 'busy' : 'online');
-      UsersAPI.setPresence(myId, eff).then(r => {
-        // `cancelled` è il guard del contratto «la risposta è arrivata tardi,
-        // lasciala cadere» (docs/CLAUDE.md, gemello di useIsMounted): fra la
-        // scrittura e la sua risposta l'effetto può essere stato smontato —
-        // logout, cambio utente. In React 18 la setState sarebbe un no-op
-        // silenzioso, quindi non era un difetto: era codice che dichiarava di
-        // voler fare una cosa che non può fare. Fino a B-6 la variabile
-        // esisteva ma la leggeva solo il tick di ageing, che ora vive altrove.
+    if (!myId) return;
+
+    // A-3 · Una sola scrittura all'avvio: è il `last_seen_at` che il pannello
+    // Admin legge per chi non è collegato ora. Il proprio stato LIVE lo
+    // pubblica `track()` dentro subscribeToPresence, senza toccare il database.
+    statoCanaleRef.current = myBusyRef.current ? 'busy' : 'online';
+    UsersAPI.setPresence(myId, statoCanaleRef.current).then(r => {
+      if (cancelled) return;
+      if (r?.error) console.warn("[presence] setPresence", r.error);
+    });
+
+    const canale = subscribeToPresence({
+      key: myId,
+      // Letto AL MOMENTO della pubblicazione: `track` parte anche dal timer e
+      // da `visibilitychange`, cioè dopo che lo stato è cambiato.
+      payload: () => ({ status: statoCanaleRef.current, at: Date.now() }),
+      onSync: (stato) => {
         if (cancelled) return;
-        if (r?.error) console.warn("[presence] setPresence", r.error);
-        // Aggiorno anche localmente per immediatezza
-        setPresenceMap(prev => ({
-          ...prev,
-          [myId]: { ...(prev[myId] || {}), status: eff, last_seen_at: new Date().toISOString() },
-        }));
-      });
-    };
-    beat();
-    // Caveat #3: heartbeat ogni 30s (era 45s) → lo stato online/away resta
-    // reattivo. È la scrittura del PROPRIO stato, non un render periodico: il
-    // tick che fa invecchiare i pallini altrui vive nei componenti che li
-    // mostrano (B-6), e questo intervallo resta allineato alla sua soglia più
-    // stretta — `computePresence` considera «online» un last_seen di meno di
-    // un minuto, quindi battere ogni 30 s è ciò che tiene il proprio pallino
-    // verde senza sfarfallii.
-    hbTimer = setInterval(() => beat(), 30 * 1000);
+        // Il canale ha l'ultima parola su chi c'è ADESSO; sotto resta la riga
+        // del team, che porta nome, colore e avatar. Chi non è nel canale
+        // conserva il proprio `status`/`last_seen_at` dal database, che
+        // `computePresence` fa invecchiare fino a 'offline' da solo.
+        const vivi = daStatoCanale(stato);
+        setPresenceMap(prev => {
+          const next = { ...prev };
+          for (const [id, p] of Object.entries(vivi)) {
+            next[id] = { ...(next[id] || {}), ...p };
+          }
+          return next;
+        });
+      },
+    });
+    canaleRef.current = canale;
+
+    // Rinfresco periodico della PROPRIA voce sul canale. ⚠️ Non è il vecchio
+    // heartbeat: `track()` aggiorna lo stato del canale, non una riga in
+    // realtime — nessun evento `postgres_changes`, nessuna consegna a tutti i
+    // sottoscrittori di `users`. Serve solo a tenere fresco il `last_seen_at`
+    // sintetico che `computePresence` legge, altrimenti dopo 60 secondi il
+    // proprio pallino sbiadirebbe pur essendo connessi.
+    refreshTimer = setInterval(() => canale.track(), REFRESH_PRESENZA_MS);
 
     const onVisibility = () => {
-      if (document.visibilityState === 'hidden') beat('away');
-      else beat();
+      // A-3 · Solo canale, nessuna scrittura: era il percorso che su mobile
+      // scattava più spesso di tutti (commutatore di app, tendina notifiche,
+      // selettore di file).
+      statoCanaleRef.current = document.visibilityState === 'hidden'
+        ? 'away'
+        : (myBusyRef.current ? 'busy' : 'online');
+      canale.track();
     };
-    const onBeforeUnload = () => beat('offline');
+    // `beforeunload` resta una scrittura: è l'ultimo momento in cui possiamo
+    // lasciare sulla riga uno stato coerente per chi guarderà il pannello
+    // Admin domani. Il canale si ritira da sé alla disconnessione — ed è la
+    // ragione per cui questa scrittura, se non parte (il browser ucciso, la
+    // scheda chiusa da mobile), non lascia più nessuno con un pallino verde
+    // eterno: la presenza live non passa più da qui.
+    const onBeforeUnload = () => { UsersAPI.setPresence(myId, 'offline'); };
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('beforeunload', onBeforeUnload);
 
-    // Realtime: aggiorna presenceMap quando un altro utente cambia status
-    const unsub = subscribeToTable("users", (payload) => {
-      const row = payload?.new || payload?.record;
-      if (!row || !row.id) return;
-      setPresenceMap(prev => ({ ...prev, [row.id]: { ...(prev[row.id] || {}), ...row } }));
-    });
-
-    // ⛔ Qui NON c'è (più) un tick di re-render per l'ageing dei pallini.
-    //
-    // B-6 dell'audit di architettura del 16 agosto: c'era, ed era
-    // `setInterval(() => setPresenceMap(prev => ({ ...prev })), 30_000)` — cioè
-    // uno stato del GUSCIO sostituito ogni 30 secondi per far invecchiare dei
-    // pallini che si vedono solo dentro il pannello chat, e solo quando è
-    // aperto. Era l'unico render periodico dell'app: con le viste `memo` e le
-    // prop stabili il costo era confinato, ma restava un render dell'intero
-    // albero due volte al minuto per una cosa che nessuno stava guardando nel
-    // 90% delle sessioni.
-    //
-    // L'ageing è ora dove la presenza si MOSTRA — `ConversationList` e
-    // `ConversationView` chiamano `useTickLento` — quindi il timer esiste solo
-    // mentre quei componenti sono montati e sveglia solo loro. `presenceMap`
-    // cambia identità quando cambia DAVVERO: heartbeat proprio, evento
-    // realtime di un collega, toggle "Occupato".
-
     return () => {
       cancelled = true;
-      clearInterval(hbTimer);
+      clearInterval(refreshTimer);
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('beforeunload', onBeforeUnload);
-      unsub?.();
-      // Best-effort: segnala offline
-      if (myId) UsersAPI.setPresence(myId, 'offline').then(() => {});
+      canale.unsubscribe();
+      canaleRef.current = null;
+      // Best-effort: segnala offline (logout, cambio utente).
+      UsersAPI.setPresence(myId, 'offline').then(() => {});
     };
   }, [enabled, userId, team]);
 

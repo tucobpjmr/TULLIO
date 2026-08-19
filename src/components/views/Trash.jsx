@@ -1,6 +1,7 @@
 // ─── TRASH ───────────────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
 import { memo, useMemo, useRef, useState } from "react";
+import { useSalvataggio } from "../../hooks/useSalvataggio.js";
 import { useViewport } from "../Viewport.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
@@ -105,6 +106,35 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
     setRestoring({ ...task });
   };
 
+  // ─── A-4 / M-3 · due scritture DIPENDENTI, in sequenza e attese ──────────
+  // (audit performance/UX del 19 agosto)
+  //
+  // Erano due `dispatch` di fila senza `await`, seguiti da `setRestoring(null)`
+  // nello stesso turno. La funzionalità è «ripristina MODIFICANDO prima»,
+  // quindi le due non sono indipendenti: il ripristino ha senso solo se le
+  // modifiche sono passate. Partendo entrambe alla cieca l'unica cosa
+  // garantita era l'ordine di INVIO, non quello di esito — e se `UPDATE_TASK`
+  // veniva rifiutata (guard di permesso, RLS, rete) mentre `RESTORE_TASK`
+  // passava, la task tornava dal cestino con i valori VECCHI, le otto caselle
+  // appena compilate non erano da nessuna parte, e la modale si era già
+  // chiusa. Il rollback rimette a posto il database e il toast dice che
+  // qualcosa è fallito; a schermo resta una task ripristinata che sembra a
+  // posto, che è peggio da diagnosticare perché ha l'aspetto della riuscita.
+  const ripristino = useSalvataggio(
+    async () => {
+      const { deletedAt, ...updates } = restoring;
+      const r = await dispatch({ type: "UPDATE_TASK", payload: updates });
+      // La seconda parte solo se la prima è passata davvero: è ciò che rende
+      // questa una sequenza invece di due scritture concorrenti.
+      if (r?.error) return r;
+      return dispatch({ type: "RESTORE_TASK", payload: restoring.id });
+    },
+    {
+      alSuccesso: () => setRestoring(null),
+      messaggioErrore: "Ripristino non riuscito. Le modifiche sono ancora qui, riprova.",
+    },
+  );
+
   const handleConfirmRestore = () => {
     if (!restoring) return;
     // B-3 · Era `disabled={!restoring.title?.trim()}`: il comando spento e
@@ -118,10 +148,7 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
       return;
     }
     setErroriRipristino({});
-    const { deletedAt, ...updates } = restoring;
-    dispatch({ type: "UPDATE_TASK", payload: updates });
-    dispatch({ type: "RESTORE_TASK", payload: restoring.id });
-    setRestoring(null);
+    ripristino.salva();
   };
 
   const handlePurge = async (task) => {
@@ -447,10 +474,17 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
             </div>
           </div>
 
+          {/* A-4 · Il fallimento accanto agli otto campi che sono rimasti
+              compilati. Il toast del registry riporta il messaggio del
+              database; questo dice che non si è perso niente. */}
+          <FieldError id="vd-trash-restore-err">{ripristino.errore}</FieldError>
+
           {/* Modal footer */}
           <div style={rowGap10}>
             <button onClick={chiudiRipristino} style={boxF13Bold2}>Annulla</button>
-            <button onClick={handleConfirmRestore} style={boxF13Conferma}>↻ Conferma ripristino</button>
+            <button onClick={handleConfirmRestore} disabled={ripristino.inVolo} style={boxF13Conferma}>
+              {ripristino.inVolo ? "Ripristino…" : "↻ Conferma ripristino"}
+            </button>
           </div>
         </Modal>
       )}

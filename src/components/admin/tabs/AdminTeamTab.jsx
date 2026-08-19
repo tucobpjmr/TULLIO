@@ -9,6 +9,11 @@ import {
   DB_ROLES, ROLE_LABELS, SENIORITY_LEVELS, SENIORITY_LABELS, roleLabel, toSeniority,
 } from "../../../lib/taskConstants.js";
 import { Users } from "../../../lib/api.js";
+import {
+  computePresence, PRESENCE_COLORS, PRESENCE_LABELS, TICK_PRESENZA_MS,
+} from "../../../lib/presenza.js";
+import { useTickLento } from "../../../hooks/useTickLento.js";
+import { useSalvataggio } from "../../../hooks/useSalvataggio.js";
 import { AddTeamMemberModal } from "../../modals/AddTeamMemberModal.jsx";
 import { BulkInviteModal } from "../../modals/BulkInviteModal.jsx";
 import { ContactActions } from "../../ui/ContactActions.jsx";
@@ -36,6 +41,12 @@ export const AdminTeamTab = ({ dispatch }) => {
   const { isMobile } = useViewport();
   const { team } = useAppData();
   const tasks = useTasks();
+  // A-3 · I pallini invecchiano col tempo, non con i dati: `computePresence`
+  // legge `Date.now()`, quindi senza un tick un «Online» resterebbe verde
+  // finché qualcosa d'altro non ri-renderizza questa tab. Stessa regola e
+  // stesso intervallo dei due call site della chat (docs/CLAUDE.md: il tick
+  // vive dove la cosa si mostra, così esiste solo mentre è a schermo).
+  useTickLento(TICK_PRESENZA_MS);
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState(null);
   // M-3 dell'audit del 16 agosto: la modifica in linea di un membro usciva in
@@ -94,15 +105,53 @@ export const AdminTeamTab = ({ dispatch }) => {
   // con un valore undefined React lo renderebbe non controllato.
   const startEdit = (m) => { setEditingId(m.id); setDraft({ ...m, seniority: toSeniority(m) }); setErrori({}); };
   const cancelEdit = () => { setEditingId(null); setDraft(null); setErrori({}); };
+  // ─── A-4 · l'esito prima della chiusura, e qui più che altrove ───────────
+  // (audit performance/UX del 19 agosto)
+  //
+  // Era `dispatch(...)` senza `await` seguito da `cancelEdit()`, che azzera
+  // `draft` e chiude l'editor nello stesso turno. Su questa card il costo non
+  // si misura in caratteri persi: `state/persistence.js` dice a cosa serve
+  // questa azione — «il cambio di ruolo, cioè il modo con cui un admin REVOCA
+  // i privilegi di un account compromesso o di chi cambia mansione». L'editor
+  // si richiudeva mostrando il ruolo nuovo (ottimistico), poi il rollback lo
+  // riportava indietro e un toast passava. Su una card fra sette, in un
+  // pannello dove si stava facendo altro, «il toast è passato» e «il
+  // declassamento non c'è stato» sono lo stesso fotogramma.
+  //
+  // M-5 del 13 agosto ha irrobustito il GUARD di questa azione; questo è
+  // l'altro lato — che l'esito sia VISTO.
+  const { salva, inVolo, errore: erroreSalvataggio } = useSalvataggio(
+    (payload) => dispatch({ type: "UPDATE_TEAM_MEMBER", payload }),
+    {
+      alSuccesso: () => { setEditingId(null); setDraft(null); setErrori({}); },
+      messaggioErrore: "Membro non salvato: il ruolo sul database è ancora quello di prima. Le modifiche sono qui, riprova.",
+    },
+  );
+
   const saveEdit = () => {
     const trovati = validaCampi({ name: draft.name }, REGOLE_MEMBRO);
     if (trovati.name) { setErrori(trovati); return; }
     setErrori({});
-    dispatch({ type: "UPDATE_TEAM_MEMBER", payload: draft });
-    cancelEdit();
+    salva(draft);
   };
 
-  const PRESENCE_COLOR = { online: "#2D7A4F", busy: "#C8832A", offline: "#9999AA" };
+  // A-3 · Il pallino si calcola con `computePresence`, non leggendo `m.status`
+  // grezzo.
+  //
+  // Da quando la presenza LIVE vive nel canale Realtime (hooks/usePresence.js),
+  // `users.status` non è più «lo stato adesso»: è l'ultimo stato SCRITTO —
+  // all'apertura della sessione, al toggle «Occupato», alla chiusura. Letto
+  // così com'è mostrerebbe «Online» per chi ha chiuso il browser stamattina
+  // senza che `beforeunload` sia partito (su mobile è la norma).
+  //
+  // `computePresence` è la stessa funzione con cui la chat disegna gli stessi
+  // pallini, e applica le soglie: sotto il minuto vale ciò che dice `status`,
+  // fino a cinque minuti «assente», oltre «offline». Cioè questa card diventa
+  // più onesta di prima, non meno: fin qui l'unico modo di accorgersi che un
+  // «Online» era vecchio era leggere il «3h fa» scritto accanto.
+  //
+  // La mappa locale a tre colori è sparita con esso: era la quarta definizione
+  // degli stessi stati e non aveva 'away', che ora esiste davvero.
   const fmtLastSeen = (ts) => {
     if (!ts) return null;
     const ms = Date.now() - new Date(ts).getTime();
@@ -117,7 +166,8 @@ export const AdminTeamTab = ({ dispatch }) => {
   const card = (m, opts = {}) => {
     const isEditing = editingId === m.id;
     const count = taskCount(m.id);
-    const dotColor = PRESENCE_COLOR[m.status] || PRESENCE_COLOR.offline;
+    const stato = computePresence(m);
+    const dotColor = PRESENCE_COLORS[stato];
     const seenLabel = fmtLastSeen(m.last_seen_at);
     return (
       <div key={m.id} style={{
@@ -141,7 +191,7 @@ export const AdminTeamTab = ({ dispatch }) => {
                 position: "absolute", bottom: 1, right: 1,
                 width: 11, height: 11, borderRadius: "50%",
                 background: dotColor, border: "2px solid var(--card)",
-              }} title={m.status === "online" ? "Online" : m.status === "busy" ? "Occupato" : "Offline"} />
+              }} title={PRESENCE_LABELS[stato]} />
             )}
           </div>
           <div className="vd-flex-1-min0">
@@ -173,6 +223,11 @@ export const AdminTeamTab = ({ dispatch }) => {
                 )}
                 <input type="color" value={draft.color} onChange={e => setDraft({...draft, color: e.target.value})}
                   style={{ ...fieldStyle, padding: 2, height: 32 }} />
+                {/* A-4 · Il fallimento accanto alle modifiche rimaste. Su
+                    questa card la frase dice anche COSA non è cambiato: il
+                    ruolo sul database, che è la cosa per cui si apre questo
+                    editor. */}
+                <FieldError id={`vd-team-save-err-${editingId}`}>{erroreSalvataggio}</FieldError>
               </div>
             ) : (
               <>
@@ -203,7 +258,9 @@ export const AdminTeamTab = ({ dispatch }) => {
         <div style={{ display: "flex", gap: 6, ...(isMobile ? { justifyContent: "flex-end" } : {}) }}>
           {isEditing ? (
             <>
-              <button onClick={saveEdit} style={btnPrimary}>💾 Salva</button>
+              <button onClick={saveEdit} disabled={inVolo} style={btnPrimary}>
+                {inVolo ? "Salvataggio…" : "💾 Salva"}
+              </button>
               <button onClick={cancelEdit} style={btnGhost}>Annulla</button>
             </>
           ) : (

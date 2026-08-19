@@ -8,6 +8,7 @@ import {
 import { ModalPortal } from "../ui/ModalPortal.jsx";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { obbligatorio, validaCampi } from "../../lib/validators.js";
+import { useSalvataggio } from "../../hooks/useSalvataggio.js";
 import { gridGap12, rowGap8Mt20, txtHeadingMb16 } from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
@@ -30,6 +31,19 @@ export const AddCategoryModal = ({ onClose, dispatch, existingKeys }) => {
   const [color, setColor] = useState("#3B82F6");
   const [bg, setBg] = useState("#EFF6FF");
 
+  // A-4 · L'esito prima della chiusura (audit del 19 agosto). Era
+  // `dispatch(...)` senza `await` seguito da `onClose()` nello stesso turno: su
+  // una scrittura rifiutata la categoria appariva, spariva col rollback, e
+  // nome/icona/colori scelti non esistevano più. `ADD_CATEGORY` è ADMIN_ONLY e
+  // passa dalla RLS, quindi il rifiuto non è teorico.
+  const { salva, inVolo, errore: erroreSalvataggio } = useSalvataggio(
+    (payload) => dispatch({ type: "ADD_CATEGORY", payload }),
+    {
+      alSuccesso: onClose,
+      messaggioErrore: "Categoria non creata. I dati sono ancora qui, riprova.",
+    },
+  );
+
   const submit = () => {
     const trovati = validaCampi({ label }, REGOLE);
     if (trovati.label) {
@@ -43,8 +57,7 @@ export const AddCategoryModal = ({ onClose, dispatch, existingKeys }) => {
     let suffix = 0;
     while (existingKeys.includes(suffix ? `${key}${suffix}` : key)) suffix++;
     if (suffix) key = `${key}${suffix}`;
-    dispatch({ type: "ADD_CATEGORY", payload: { key, label: label.trim(), icon, color, bg } });
-    onClose();
+    salva({ key, label: label.trim(), icon, color, bg });
   };
 
   // Portale: AdminCategoriesTab è dentro il wrapper .fade-in di AdminView, che
@@ -98,9 +111,15 @@ export const AddCategoryModal = ({ onClose, dispatch, existingKeys }) => {
               </div>
             </div>
           </div>
+          {/* A-4 · Il toast del registry dice cosa ha risposto il database;
+              questo dice che i dati sono ancora qui. */}
+          <FieldError id="vd-cat-save-err">{erroreSalvataggio}</FieldError>
+
           <div style={rowGap8Mt20}>
             <button onClick={onClose} style={btnGhost}>Annulla</button>
-            <button onClick={submit} style={btnPrimary}>Crea categoria</button>
+            <button onClick={submit} disabled={inVolo} style={btnPrimary}>
+              {inVolo ? "Creazione…" : "Crea categoria"}
+            </button>
           </div>
         </div>
       </div>

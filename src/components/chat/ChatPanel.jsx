@@ -7,7 +7,8 @@
 // alla lista conversazioni.
 //
 //   chatContext.js      ponte tasks/dispatch/templates verso i figli
-//   chatPresence.js     record utente → stato di presenza
+//   lib/presenza.js     record utente → stato di presenza (A-3: salito in
+//                       lib/, perché lo legge anche il pannello Admin)
 //   chatFormat.js       orari, nome conversazione, ultimo messaggio, non letti
 //   chatReactions.js    emoji + memoria delle reazioni recenti
 //   chatFiles.js        limite upload e classificazione allegati
@@ -24,7 +25,7 @@ import { isUuid, newId } from "../../lib/mappers.js";
 import { formatDate, formatTime } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { ChatContext } from "./chatContext.js";
-import { PRESENCE_COLORS } from "./chatPresence.js";
+import { PRESENCE_COLORS } from "../../lib/presenza.js";
 import { getConversationName } from "./chatFormat.js";
 import { syncRecentReactionsFromServer } from "./chatReactions.js";
 import { chatPanelInitial, chatPanelReducer } from "./chatReducers.js";

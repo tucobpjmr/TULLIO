@@ -45,13 +45,13 @@ sul build vero.
 
 | # | Priorità | Area | Rilievo | File |
 |---|---|---|---|---|
-| A-1 | 🟠 **Alta** | Performance | Il budget del bundle non copre il chunk che **tutte** le sessioni scaricano: 60,93 kB gzip su 175,34 senza alcuna soglia. Verificato provocando la regressione — un `import` statico di `ChatPanel` sposta 14,47 kB gzip dentro e `verifica:bundle` stampa **OK** | `scripts/verifica-bundle/index.js:60-101` |
-| A-2 | 🟠 **Alta** | Performance | La ricerca avanzata normalizza i campi **per riga a ogni battuta**: è M-3 del 16 agosto non applicato all'ultimo call site — e quello con il corpus più grande. **6,21 ms per battuta** oggi, 49,25 ms a 2500 task | `search/AdvancedSearchPanel.jsx:145` |
-| A-3 | 🟠 **Alta** | Scalabilità | Il battito di presenza è una `UPDATE` su `public.users` ogni 30 s per sessione, su una tabella a `REPLICA IDENTITY FULL` osservata da **due** canali per sessione: il traffico realtime cresce con **U²** | `hooks/usePresence.js:98`, `lib/api.js:966` |
-| A-4 | 🟠 **Alta** | UX / errori | `useSalvataggio` — «⛔ mai chiudere o svuotare prima di conoscere l'esito» — è su **3 call site**; altri **sei** form chiudono o svuotano nello stesso turno del dispatch. Fra questi l'editor che **revoca i privilegi** di un account | `dashboard/NoticeBoard.jsx:350`, `admin/tabs/AdminTeamTab.jsx:101`, +4 |
+| A-1 ✔ | 🟠 **Alta** | Performance | Il budget del bundle non copre il chunk che **tutte** le sessioni scaricano: 60,93 kB gzip su 175,34 senza alcuna soglia. Verificato provocando la regressione — un `import` statico di `ChatPanel` sposta 14,47 kB gzip dentro e `verifica:bundle` stampa **OK** | `scripts/verifica-bundle/index.js:60-101` |
+| A-2 ✔ | 🟠 **Alta** | Performance | La ricerca avanzata normalizza i campi **per riga a ogni battuta**: è M-3 del 16 agosto non applicato all'ultimo call site — e quello con il corpus più grande. **6,21 ms per battuta** oggi, 49,25 ms a 2500 task | `search/AdvancedSearchPanel.jsx:145` |
+| A-3 ✔ | 🟠 **Alta** | Scalabilità | Il battito di presenza è una `UPDATE` su `public.users` ogni 30 s per sessione, su una tabella a `REPLICA IDENTITY FULL` osservata da **due** canali per sessione: il traffico realtime cresce con **U²** | `hooks/usePresence.js:98`, `lib/api.js:966` |
+| A-4 ✔ | 🟠 **Alta** | UX / errori | `useSalvataggio` — «⛔ mai chiudere o svuotare prima di conoscere l'esito» — è su **3 call site**; altri **sei** form chiudono o svuotano nello stesso turno del dispatch. Fra questi l'editor che **revoca i privilegi** di un account | `dashboard/NoticeBoard.jsx:350`, `admin/tabs/AdminTeamTab.jsx:101`, +4 |
 | M-1 | 🟡 Media | Scalabilità | `clients` è l'unica entità rimasta **senza finestra**: l'anagrafica intera a ogni idratazione e a ogni riconnessione — e `public.clients` non ha indici oltre la PK mentre la query ordina per `name` e chiede `count: 'exact'` a ogni pagina | `lib/api.js:862-864`, `hooks/useAppHydration.js:475` |
 | M-2 | 🟡 Media | Performance | La lista messaggi della chat è l'unico elenco lungo **senza `memo` sulla riga e senza finestra**, e contiene un `indexOf` dentro la `map` (O(n²)). Si ri-renderizza **ogni 2,5 s** mentre un collega scrive | `chat/ConversationView.jsx:409-410`, `chat/message/ChatMessage.jsx` |
-| M-3 | 🟡 Media | UX / errori | Il ripristino dal Cestino sono **due scritture dipendenti** (`UPDATE_TASK` poi `RESTORE_TASK`), nessuna delle due attesa: se la prima è rifiutata la task torna con i valori vecchi e le modifiche appena digitate spariscono senza che nulla lo dica | `views/Trash.jsx:121-123` |
+| M-3 ✔ | 🟡 Media | UX / errori | Il ripristino dal Cestino sono **due scritture dipendenti** (`UPDATE_TASK` poi `RESTORE_TASK`), nessuna delle due attesa: se la prima è rifiutata la task torna con i valori vecchi e le modifiche appena digitate spariscono senza che nulla lo dica | `views/Trash.jsx:121-123` |
 | B-1 | 🔵 Bassa | Scalabilità | **11 canali realtime sempre aperti** per sessione, due dei quali sulla stessa tabella (`users`) e due su tabelle che cambiano poche volte l'anno (`categories`, `message_templates`) | `hooks/useAppHydration.js`, `hooks/usePresence.js:109` |
 | B-2 | 🔵 Bassa | UX / errori | `AddTeamMemberModal` è l'unico form rimasto fuori da **entrambe** le convenzioni di validazione: `if (!name.trim())` invece di `validaCampi`, e il messaggio in un `div` senza `role="alert"`, senza `aria-invalid`/`aria-describedby`, non associato al campo | `modals/AddTeamMemberModal.jsx:43-49` |
 
@@ -995,3 +995,156 @@ Il benchmark di A-2 (`bench.mjs`, corpus sintetico sulla funzione reale di
 `lazy()` a import statico, build, `verifica:bundle`) sono stati eseguiti su
 copie temporanee e **il repository è stato riportato allo stato iniziale**:
 `git diff` vuoto prima di scrivere questo documento.
+
+
+---
+
+# §2 · Chiusura dei quattro rilievi Alta — 19 agosto
+
+Chiusi lo stesso giorno, su richiesta esplicita: **A-1, A-2, A-3 e A-4**. Con
+A-4 si chiude anche **M-3**, che non era un quinto intervento ma la stessa
+modifica: il ripristino del Cestino è uno dei sei call site di A-4, e metterlo
+in sequenza dentro `useSalvataggio` *è* la correzione che M-3 chiedeva.
+
+Restano aperti **M-1, M-2, B-1 e B-2**. B-1 esce dimezzato senza essere stato
+toccato: il suo fattore ×2 era la doppia sottoscrizione a `users`, e A-3 ne ha
+tolta una.
+
+| | prima | dopo |
+|---|---|---|
+| Test | 1488 | **1518** (+30) |
+| Lint | 0 | 0 |
+| `verifica:convenzioni` | 27 controlli | 27, nessuna divergenza |
+| Chunk d'ingresso | 14,47 kB gzip | 14,59 (soglia 21) |
+| First load anonimo | 114,41 | 114,53 (soglia 121) |
+| **Chunk dell'app** | 60,93, **senza soglia** | 61,30 (**soglia 67**) |
+| **First load autenticato** | 175,34, **senza soglia** | 175,83 (**soglia 182**) |
+
+## A-1 ✔ — il budget misura anche il percorso di tutti i giorni
+
+`vite.config.js` accende `build.manifest: true`;
+`scripts/verifica-bundle/index.js` legge il grafo dichiarato dal build
+(`imports` statici e `dynamicImports` dell'entry, un livello) e aggiunge due
+soglie: **chunk dell'app 67 kB** e **first load autenticato 182 kB**, misurate
+sul build e con lo stesso margine +6 kB delle altre due.
+
+**La verifica che conta non è che le soglie passino — è che la regressione ora
+fallisca.** Riaperto a mano ST-12 (`ChatPanel` da `lazy()` a import statico in
+`VoyageDeskInner.jsx`):
+
+```
+  chunk dell'app: 75.56 kB gzip (soglia 67 kB)
+  totale autenticato: 190.09 kB gzip (soglia 182 kB)
+
+verifica:bundle: chunk dell'app 75.56 kB > soglia 67 kB.
+verifica:bundle: first load autenticato 190.09 kB > soglia 182 kB.
+```
+
+Exit code **1** (prima: `OK`, exit 0). Il messaggio di rimedio distingue ora i
+due casi: se ha sforato l'anonimo si guarda `dist/index.html`, se ha sforato
+l'autenticato il modulo rientrato non compare lì e la traccia è il chunk lazy
+sparito dall'elenco che `vite build` stampa in console.
+
+Il branch di prova è stato ripristinato: `git diff` vuoto su
+`VoyageDeskInner.jsx`.
+
+## A-2 ✔ — l'indice anche nell'ultimo call site
+
+`AdvancedSearchPanel` costruisce ora **due** indici — `indiceTask` su `[tasks]`
+e `indiceListe` su `[liste]` — e filtra con `matchIndice`. L'import di
+`matchTermini` è sparito dal file.
+
+⚠️ **`indiceListe` non riusa `indicizzaLista`** del modulo Liste, ed è
+deliberato: là i campi sono tre, qui quattro — c'è anche `note`, perché la
+ricerca globale è il punto in cui si cerca dentro tutto. Riusare l'altra
+funzione avrebbe *ristretto* questa ricerca, ed esportarne una variante dal
+modulo Liste violerebbe il confine (il core parla al modulo solo da
+`listeModuleApi.js`). La primitiva condivisa è `indicizza`, non l'indice
+composto — e la regola è ora scritta in `docs/CLAUDE.md`, dove mancava.
+
+Guardia: cinque casi comportamentali in `ricercaGlobale.test.jsx` (commento,
+apostrofi + ordine invertito, numero di pratica, termini tutti obbligatori,
+filtri strutturali) più due di forma, con il controllo positivo che pretende
+i due `useMemo`. I casi comportamentali sono la parte che conta: il rilievo era
+di costo, quindi il rischio della correzione è tutto nel perdere un campo.
+
+## A-3 ✔ — la presenza esce dal database
+
+- `lib/presenza.js` (nuovo): `computePresence`, `PRESENCE_COLORS/LABELS`,
+  `TICK_PRESENZA_MS`, `REFRESH_PRESENZA_MS` e `daStatoCanale`. È
+  `chat/chatPresence.js` salito in `lib/` — non per ordine, ma perché i lettori
+  sono diventati due.
+- `lib/api.js`: `subscribeToPresence({ key, payload, onSync })`, gemello di
+  `subscribeToTyping`, con la stessa degradazione a client non utilizzabile.
+- `hooks/usePresence.js`: niente più `setInterval(() => beat())` e niente più
+  `subscribeToTable("users")`. Restano **tre** `setPresence` per sessione —
+  avvio, toggle «Occupato», chiusura — e ognuna ha una ragione che il canale
+  non copre.
+- `admin/tabs/AdminTeamTab.jsx`: il pallino passa da `computePresence` e la tab
+  arma `useTickLento`.
+
+**La decisione dichiarata nel rilievo, presa:** è l'opzione (a). `last_seen_at`
+resta, con precisione «ha aperto l'app» invece di «due minuti fa» — in
+un'agenzia sapere se un collega ha aperto il gestionale oggi è
+un'informazione operativa, e buttarla via per un'ottimizzazione sarebbe stato
+scambiare un costo per una feature.
+
+⚠️ **Una conseguenza che il rilievo non aveva previsto, emersa
+implementando**: `AdminTeamTab` leggeva `m.status` grezzo, quindi con le
+scritture diradate avrebbe mostrato «Online» per chi ha chiuso il browser
+stamattina. Passandolo a `computePresence` la card diventa **più** onesta di
+prima, non meno: fin qui l'unico modo di accorgersi che un «Online» era vecchio
+era leggere il «3h fa» scritto accanto. È anche il motivo per cui il file è
+salito in `lib/`.
+
+Il traffico che resta, con U sessioni: gli eventi di presenza non passano più
+da `postgres_changes` (nessun WAL, nessuna RLS per riga, nessun payload
+`REPLICA IDENTITY FULL`), e le scritture su `users` passano da ~960 per
+sessione di otto ore a **tre**.
+
+Guardia: `presenzaCanale.test.jsx`, 10 casi. Il metodo è quello che il rilievo
+richiedeva — un difetto di costo non si vede da nessuna schermata, quindi i
+casi sono in NEGATIVO («dieci minuti aperti = una scrittura sola», «nessun
+secondo canale su `users`», «`visibilitychange` non scrive») e **ognuno ha
+accanto il proprio controllo positivo**, altrimenti passerebbero tutti con
+l'hook spento. Aggiornato anche il controllo positivo di B-6 in
+`tickLento.test.jsx`: pretendeva `setInterval(() => beat())`, cioè il difetto
+appena chiuso — ora pretende `setInterval(… .track())` e in più nega la
+scrittura dentro l'intervallo.
+
+## A-4 ✔ — nove call site su nove (e M-3 con loro)
+
+`useSalvataggio` applicato ai sei che restavano fuori:
+
+| File | Azione | Cosa non si perde più |
+|---|---|---|
+| `modals/NoticeEditorModal.jsx` | `ADD_/UPDATE_NOTICE` | testo, tag, colore |
+| `admin/tabs/AdminTeamTab.jsx` | `UPDATE_TEAM_MEMBER` | **il cambio di ruolo** |
+| `admin/tabs/AdminCategoriesTab.jsx` | `UPDATE_CATEGORY` | etichetta, icona, colori |
+| `admin/tabs/MessageTemplatesSection.jsx` | `ADD_/UPDATE_MESSAGE_TEMPLATE` | etichetta e testo |
+| `modals/AddCategoryModal.jsx` | `ADD_CATEGORY` | nome, icona, colori |
+| `views/Trash.jsx` | `UPDATE_TASK` → `RESTORE_TASK` | le otto caselle (e vedi M-3) |
+
+`NoticeBoard.jsx` non chiude più: ritorna la promise del dispatch, e chi chiude
+è la modale — che è anche l'unica a sapere se ha ancora dati da proteggere. Ne
+è uscito anche `id: "n" + Date.now()` → `crypto.randomUUID()`: il registry
+normalizzava comunque, ma generarlo nella forma giusta toglie la domanda.
+
+**M-3 ✔ con lo stesso commit**: le due scritture del ripristino sono ora in
+sequenza dentro `esegui`, con la seconda subordinata all'esito della prima. Il
+test lo verifica in entrambe le direzioni — con l'`UPDATE_TASK` rifiutata il
+`RESTORE_TASK` **non parte** e la modale resta compilata; con entrambe accettate
+partono nell'ordine e la modale si chiude.
+
+Guardia: `salvaEChiudiSeiForm.test.jsx`, 11 casi, con il metodo del file
+gemello — ogni caso guarda **due** cose insieme, che il pannello non si sia
+chiuso *e* che i valori digitati siano ancora nel DOM. Un test che si
+accontentasse del messaggio passerebbe anche su una modale che si chiude subito
+dopo averlo mostrato, che è il difetto.
+
+⚠️ **Che i call site siano 9 e non 3 non chiude la CATEGORIA.**
+`verifica:convenzioni` li CONTA, e 3 era corretto quando è stato scritto: quel
+controllo non avrebbe intercettato A-4 e non poteva. Il controllo che negherebbe
+quelli mancanti — sulla forma di `montaggiLazySenzaRete` — resta il
+**suggerimento strategico n. 3**, non fatto qui perché è un intervento sullo
+strumento di verifica e non su uno dei quattro rilievi chiesti.

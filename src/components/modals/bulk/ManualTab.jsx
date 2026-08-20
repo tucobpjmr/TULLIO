@@ -1,6 +1,6 @@
 // src/components/modals/bulk/ManualTab.jsx
 // Inserimento a mano: N righe con impostazioni comuni e override per riga.
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useViewport } from "../../Viewport.jsx";
 import { PRIORITIES } from "../../../lib/taskConstants.js";
 import { clientContact } from "../../../lib/taskUtils.js";
@@ -50,6 +50,14 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
   // Creazione in corso: blocca il doppio invio (un secondo tap sul pulsante
   // creava un secondo batch identico) e con allegati tiene aperto il modale
   // finché tutti gli upload non sono finiti, così un errore è visibile.
+  //
+  // Il freno vero è `busyRef`, non `busy`: fra due tap ravvicinati (lo stesso
+  // caso descritto in hooks/useSalvataggio.js) React può non aver ancora
+  // ri-renderizzato il bottone disabilitato, quindi un controllo basato solo
+  // sullo stato lascerebbe passare entrambi i gestori. Il ref cambia nello
+  // stesso turno in cui parte la prima scrittura; `busy` resta per dipingere
+  // l'attesa a schermo.
+  const busyRef = useRef(false);
   const [busy, setBusy] = useState(false);
   const [fileError, setFileError] = useState("");
 
@@ -96,7 +104,8 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
   useEffect(() => { onDirty?.(isDirty); }, [isDirty, onDirty]);
 
   const handleCreate = async () => {
-    if (busy) return;
+    if (busyRef.current) return;
+    busyRef.current = true;
     // UUID generati qui: dispatch li conserva perché già validi, così
     // conosciamo l'id definitivo di ogni task e possiamo caricarci gli
     // allegati (il path nel bucket e la RLS partono dal task_id).
@@ -131,11 +140,13 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
     // l'unico segnale era un toast che passava inosservato.
     if (result && result.error) {
       setFileError(`Creazione non riuscita: ${result.error.message || "errore sconosciuto"}. I dati sono ancora qui, riprova.`);
+      busyRef.current = false;
       setBusy(false);
       return;
     }
 
     if (!withFiles.length) {
+      busyRef.current = false;
       setBusy(false);
       onClose();
       return;
@@ -148,11 +159,13 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
           // Le task sono già create: teniamo aperto il modale per dire quale
           // allegato è rimasto indietro e dove recuperarlo.
           setFileError(`Task create, ma l'upload di "${f.name}" su "${task.title}" è fallito. Riprova dal dettaglio della task.`);
+          busyRef.current = false;
           setBusy(false);
           return;
         }
       }
     }
+    busyRef.current = false;
     setBusy(false);
     onClose();
   };

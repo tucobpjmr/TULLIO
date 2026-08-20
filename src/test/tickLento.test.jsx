@@ -88,16 +88,35 @@ describe("usePresence non è più l'unico render periodico dell'app", () => {
     expect(/setInterval[\s\S]{0,120}setPresenceMap/.test(codice)).toBe(false);
   });
 
-  it("l'heartbeat resta: è una SCRITTURA del proprio stato, non un render", () => {
+  it("il rinfresco periodico resta, ma passa dal CANALE e non dal database", () => {
     // Il controllo positivo dell'assertion sopra: se togliessi anche questo,
     // il primo test passerebbe per il motivo sbagliato.
-    expect(/setInterval\(\(\)\s*=>\s*beat\(\)/.test(codice)).toBe(true);
+    //
+    // ⚠️ Era `setInterval(() => beat())`, cioè la UsersAPI.setPresence ogni 30
+    // secondi. A-3 (audit del 19 agosto) l'ha sostituita con `canale.track()`:
+    // stessa cadenza, ma scrive nello stato del canale invece che in una riga
+    // di `public.users`, quindi non genera un evento postgres_changes da
+    // consegnare a tutte le sessioni collegate. La forma da cercare cambia con
+    // il meccanismo — altrimenti questo controllo positivo continuerebbe a
+    // pretendere il difetto appena chiuso.
+    expect(/setInterval\([\s\S]{0,60}\.track\(\)/.test(codice)).toBe(true);
+  });
+
+  it("e NON c'è più una scrittura di presenza dentro un intervallo", () => {
+    // Il rilievo A-3 in negativo: la cadenza può restare, la UPDATE no.
+    expect(/setInterval[\s\S]{0,120}setPresence/.test(codice)).toBe(false);
   });
 });
 
 const CONSUMATORI_PRESENZA = {
   "chat/ConversationList.jsx": (await import("../components/chat/ConversationList.jsx?raw")).default,
   "chat/ConversationView.jsx": (await import("../components/chat/ConversationView.jsx?raw")).default,
+  // A-3 · Il pannello Admin disegna gli stessi pallini con la stessa funzione
+  // (`computePresence` è salita in lib/presenza.js) e quindi deve invecchiarli
+  // con lo stesso tick: da quando la presenza live sta nel canale,
+  // `users.status` è l'ultimo stato SCRITTO e senza ageing mostrerebbe
+  // «Online» per chi ha chiuso il browser stamattina.
+  "admin/tabs/AdminTeamTab.jsx": (await import("../components/admin/tabs/AdminTeamTab.jsx?raw")).default,
 };
 
 describe("l'ageing della presenza vive dove la presenza si mostra", () => {

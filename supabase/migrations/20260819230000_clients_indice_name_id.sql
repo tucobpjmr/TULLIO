@@ -1,0 +1,36 @@
+-- M-1 (passo 1) dell'audit performance/UX del 19 agosto.
+--
+-- `public.clients` non ha alcun indice oltre la primary key
+-- (`20260608115454_fase1_clients_suppliers_dossiers.sql`), mentre `Clients.list()`
+-- interroga così:
+--
+--   .select('*', { count: 'exact' }).order('name').order('id').range(a, b)
+--
+-- Cioè: ordinamento su una colonna non indicizzata, paginazione con `.range()`
+-- e conteggio esatto — a OGNI pagina. Senza indice ogni pagina costa un
+-- ordinamento completo della tabella più un `count(*)` con la RLS applicata.
+--
+-- A 818 righe è una pagina sola e non si misura; a 20.000 sarebbero venti
+-- round-trip SERIALI dentro `fetchAllRows`, ciascuno col proprio sort. E
+-- l'anagrafica di questo progetto non cresce una riga alla volta: si alimenta
+-- a BLOCCHI da `ClientImportModal` (`Clients.createMany`, 200 per volta), cioè
+-- a scalini.
+--
+-- ⚠️ LE DUE COLONNE, NELLO STESSO ORDINE DELLA QUERY. Non è pignoleria: la
+-- seconda chiave esiste perché `fetchAllRows` richiede un ordinamento
+-- DETERMINISTICO e `name` non è unico in questa anagrafica (due schede omonime
+-- sono legittime — cliente e cointestatario con lo stesso nome). Un indice sul
+-- solo `name` lascerebbe Postgres a ordinare comunque per lo spareggio su
+-- `id`, cioè non servirebbe a niente su una query paginata.
+--
+-- ⚠️ QUESTO È IL PASSO 1 DI DUE, e il secondo non è qui. Il rilievo M-1 ha due
+-- metà: l'indice (questa) e la FINESTRA — `Clients.list()` scarica l'anagrafica
+-- INTERA a ogni idratazione e a ogni ripresa dopo un buco di connessione, ed è
+-- l'unica entità rimasta senza. La seconda metà cambia un contratto del data
+-- layer (i cinque consumatori di `useClients()` e la tendina di suggerimento
+-- cliente presuppongono il corpus in memoria) e la sua forma va scelta
+-- guardando quei lettori, non copiata da A-3: un cliente non «scade» come una
+-- task completata. L'indice serve comunque a qualunque forma prenda, ed è per
+-- questo che va per primo.
+create index if not exists idx_clients_name_id
+  on public.clients (name, id);

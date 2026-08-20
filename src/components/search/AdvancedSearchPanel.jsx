@@ -14,7 +14,7 @@ import { useStoricoTaskCompleto } from "../../state/StoricoTaskContext.jsx";
 // La ricerca chiede al modulo Liste "quali liste sono indicizzabili", non
 // quali query fare: vedi components/liste/listeModuleApi.js.
 import { listeRicercabili, beneficiariNomi, intestazioneLista } from "../liste/listeModuleApi.js";
-import { matchTermini, terminiRicerca } from "../../lib/searchUtils.js";
+import { indicizza, matchIndice, terminiRicerca } from "../../lib/searchUtils.js";
 import { Z } from "../../styles/tokens.js";
 import { FilterDropdown } from "./FilterDropdown.jsx";
 import { flex1, mb14, rowGap8 } from "../../styles/common.js";
@@ -120,13 +120,46 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
 
   const hasFilters = keyword.trim() || dateFrom || dateTo || cats.length || stats.length || agents.length || includeTrashed || listeStati.length || listeClienti.length;
 
+  // ─── A-2 · l'indice dipende dalla RIGA, non dalla query ──────────────────
+  // (audit performance/UX del 19 agosto)
+  //
+  // Questo era l'ultimo call site rimasto con `matchTermini`, cioè con la
+  // normalizzazione rifatta per ogni riga a ogni battuta — M-3 del 16 agosto
+  // l'aveva chiusa in `ClientiView`, `Archive` e `listeOrdinamento` ma non
+  // qui. Ed è il call site dove pesa di più, per due ragioni che si sommano:
+  // questo pannello chiede lo storico INTERO (`useStoricoTaskCompleto` qui
+  // sopra), quindi guarda anche completate e cestino, e fra i campi ci sono i
+  // COMMENTI, che sono un array per riga.
+  //
+  // Misurato sulla funzione reale, media su 20 esecuzioni: 6,21 ms per battuta
+  // su 292 task (la produzione al 17 agosto) contro 0,18 con l'indice; 49,25
+  // contro 1,47 su 2500, cioè dove arriva questa installazione in circa un
+  // anno al ritmo attuale di ~5,6 task al giorno. Su un telefono di fascia
+  // media sono 3-5×, e stanno tutti fra il tasto premuto e il carattere che
+  // compare.
+  //
+  // `tasks` come unica dipendenza è il punto: l'indice si ricostruisce quando
+  // cambia il corpus — cioè una volta quando lo storico arriva — e non quando
+  // cambia ciò che si digita.
+  const indiceTask = useMemo(
+    () => tasks.map(t => ({
+      t,
+      idx: indicizza(t.title, t.description, t.client, t.praticaRef,
+        (t.comments || []).map(c => c.text || "")),
+    })),
+    [tasks]);
+
   const results = useMemo(() => {
     if (!hasFilters) return [];
     const termini = terminiRicerca(keyword);
     const from = startOfLocalDay(dateFrom);
     const to = endOfLocalDay(dateTo);
 
-    return tasks.filter(t => {
+    return indiceTask.filter(({ t, idx }) => {
+      // I filtri STRUTTURALI restano davanti al confronto testuale: scartano
+      // una riga con un'uguaglianza, e ogni riga che cade qui è un
+      // `matchIndice` risparmiato. L'ordine era già questo e non è un
+      // dettaglio dell'indice.
       if (!includeTrashed && t.deletedAt) return false;
       if (cats.length && !cats.includes(t.category)) return false;
       if (stats.length && !stats.includes(t.status)) return false;
@@ -141,17 +174,18 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
       }
       // Normalizzazione condivisa con anagrafica e liste (lib/searchUtils.js):
       // il campo `client` del task è il nome dell'anagrafica, e deve trovarsi
-      // digitandolo come lo si digita là.
-      if (!matchTermini(termini, t.title, t.description, t.client, t.praticaRef,
-        (t.comments || []).map(c => c.text || ""))) return false;
+      // digitandolo come lo si digita là. `matchIndice` è la stessa semantica
+      // di `matchTermini` — sono definite una sopra l'altra proprio perché non
+      // possano divergere.
+      if (!matchIndice(termini, idx)) return false;
       return true;
-    }).sort((a,b) => {
+    }).map(r => r.t).sort((a,b) => {
       if (!a.dueDate && !b.dueDate) return 0;
       if (!a.dueDate) return 1;
       if (!b.dueDate) return -1;
       return new Date(a.dueDate) - new Date(b.dueDate);
     });
-  }, [tasks, keyword, dateFrom, dateTo, cats, stats, agents, includeTrashed, hasFilters]);
+  }, [indiceTask, keyword, dateFrom, dateTo, cats, stats, agents, includeTrashed, hasFilters]);
 
   const openTask = (t) => {
     dispatch({ type: "SET_SELECTED_TASK", payload: t });
@@ -175,13 +209,31 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
     return Array.from(seen).sort();
   }, [liste]);
 
+  // A-2 · L'indice delle liste, con la stessa regola dei task qui sopra.
+  //
+  // ⚠️ NON è `indicizzaLista` di `liste/listeOrdinamento.js`, e la differenza è
+  // voluta: là i campi sono tre (titolare, titolo, cointestatari), qui sono
+  // quattro — c'è anche `note`, perché la ricerca globale è il punto in cui si
+  // cerca dentro tutto e le note interne di una lista sono un posto dove la
+  // gente scrive il nome di un cliente. Riusare l'altra funzione qui
+  // RESTRINGEREBBE questa ricerca; esportare da qui una quinta variante nel
+  // modulo Liste violerebbe il confine (il core parla al modulo solo da
+  // `listeModuleApi.js`). `indicizza` è comunque la stessa primitiva, quindi
+  // la semantica — accenti, apostrofi, ordine delle parole — resta una sola.
+  const indiceListe = useMemo(
+    () => liste.map(l => ({
+      l,
+      idx: indicizza(l.clients?.name, l.titolo, l.note, beneficiariNomi(l)),
+    })),
+    [liste]);
+
   // Liste: filtro con keyword + filtri per stato/cliente — categoria/agente/
   // scadenza non hanno un equivalente sulle liste, stessa logica di ricerca
   // già usata dentro il modulo Liste (ListeViaggio.jsx).
   const listaResults = useMemo(() => {
     if (!listeAllowed) return [];
     const termini = terminiRicerca(keyword);
-    return liste.filter(l => {
+    return indiceListe.filter(({ l, idx }) => {
       if (!includeTrashed && l.deleted_at) return false;
       if (listeStati.length && !listeStati.includes(l.stato)) return false;
       if (listeClienti.length && !listeClienti.includes(l.clients?.name)) return false;
@@ -190,9 +242,10 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
       // "BIANCHI" si trova. Qui non si trovava — stessa ricerca, due esiti
       // diversi, e il posto dove l'utente si aspetta di trovare tutto è
       // proprio questo.
-      return matchTermini(termini, l.clients?.name, l.titolo, l.note, beneficiariNomi(l));
-    }).sort((a, b) => (a.clients?.name || "").localeCompare(b.clients?.name || "", "it"));
-  }, [liste, keyword, includeTrashed, listeAllowed, listeStati, listeClienti]);
+      return matchIndice(termini, idx);
+    }).map(r => r.l)
+      .sort((a, b) => (a.clients?.name || "").localeCompare(b.clients?.name || "", "it"));
+  }, [indiceListe, keyword, includeTrashed, listeAllowed, listeStati, listeClienti]);
 
   const openLista = (l) => {
     dispatch({ type: "SET_VIEW", payload: "liste", lista: l.id });

@@ -6,6 +6,7 @@ import { MentionText } from "../ui/MentionText.jsx";
 import { Modal } from "../ui/Modal.jsx";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { obbligatorio, validaCampi } from "../../lib/validators.js";
+import { useSalvataggio } from "../../hooks/useSalvataggio.js";
 import { rowGap8, rowGap8Mt20, txtF11Muted, txtHeadingMb16 } from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
@@ -84,6 +85,18 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
     }
   };
 
+  // ─── A-4 · l'esito PRIMA della chiusura (audit del 19 agosto) ────────────
+  // `onSave` era chiamata e basta, e NoticeBoard chiudeva la modale nello
+  // stesso turno: su una scrittura rifiutata — la RLS nega a chi non è
+  // l'autore (`canEditNotice`), o la rete cade — l'avviso appariva, spariva
+  // con il rollback, e il testo digitato non esisteva più. È lo stesso difetto
+  // che M-1 del 16 agosto ha chiuso in `ClientiView.handleSave`, e questa è la
+  // stessa correzione: chi chiude è la modale, a esito noto.
+  const { salva, inVolo, errore: erroreSalvataggio } = useSalvataggio(onSave, {
+    alSuccesso: onClose,
+    messaggioErrore: "Avviso non salvato. Il testo è ancora qui, riprova.",
+  });
+
   const submit = () => {
     const trovati = validaCampi({ text }, REGOLE);
     if (trovati.text) {
@@ -92,7 +105,7 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
       return;
     }
     setErrori({});
-    onSave({ text: text.trim(), color, pinned, tags });
+    salva({ text: text.trim(), color, pinned, tags });
   };
 
   // Il portale (NoticeBoard è dentro il wrapper .fade-in della Dashboard, il cui
@@ -209,13 +222,22 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
         📌 Fissa questo avviso in cima alla bacheca
       </label>
 
+      {/* A-4 · Il fallimento si dice QUI, accanto ai dati che sono rimasti.
+          Il toast col messaggio del database lo mostra già il registry di
+          persistenza: questo dice l'unica cosa che il toast non dice. */}
+      <FieldError id="vd-notice-save-err">{erroreSalvataggio}</FieldError>
+
       {/* Footer buttons */}
       <div style={rowGap8Mt20}>
         <button onClick={onClose} style={boxF12Text}>Annulla</button>
         {/* Il bottone resta PREMIBILE anche a testo vuoto: è premendolo che si
             ottiene il messaggio sotto il campo e il focus dentro l'area di
-            testo. Spento non diceva cosa mancasse. */}
-        <button onClick={submit} style={boxF12Pubblica}>{notice ? "💾 Salva modifiche" : "📌 Pubblica avviso"}</button>
+            testo. Spento non diceva cosa mancasse. `disabled` mentre la
+            scrittura è in volo è un'altra cosa — è il freno al doppio invio, e
+            la sua ragione è a schermo nell'etichetta. */}
+        <button onClick={submit} disabled={inVolo} style={boxF12Pubblica}>
+          {inVolo ? "Salvataggio…" : (notice ? "💾 Salva modifiche" : "📌 Pubblica avviso")}
+        </button>
       </div>
     </Modal>
   );

@@ -107,7 +107,10 @@ export const SOGLIA_RIPRESA_MS = 30_000;
 export function useDebouncedTableSubscription(
   tables,
   reload,
-  { enabled = true, delay = 200, deps = [], filterEvent, applyRow, saltaPrimoCaricamento = false } = {}
+  {
+    enabled = true, delay = 200, deps = [], filterEvent, applyRow,
+    saltaPrimoCaricamento = false, senzaCanale = false,
+  } = {}
 ) {
   // reload/filterEvent/applyRow possono catturare closure che cambiano ad ogni
   // render: li teniamo in ref così l'effetto non si ri-sottoscrive ad ogni
@@ -168,7 +171,30 @@ export function useDebouncedTableSubscription(
       }, delay);
     };
 
-    const list = Array.isArray(tables) ? tables : [tables];
+    // ─── B-1 · `senzaCanale`: l'idratazione e la ripresa, senza il canale ───
+    // (audit performance/UX del 19 agosto)
+    //
+    // Un canale realtime per tabella è la scelta giusta per le tabelle su cui
+    // il realtime È la funzionalità — task, avvisi, clienti, chat, notifiche.
+    // Non lo è per `categories` (~10 righe) e `message_templates` (4): cambiano
+    // quando un admin apre il pannello, cioè poche volte l'anno, e tenevano
+    // aperto un canale per sessione ciascuna, per sempre.
+    //
+    // Il resto di questo hook — idratazione iniziale, reload su `online` e sul
+    // ritorno in primo piano oltre la soglia — NON dipende dai canali: è già
+    // scritto sotto e continua a funzionare. `tables` resta dichiarato perché
+    // dice a quali tabelle si riferisce il reload, che è informazione utile a
+    // chi legge anche quando nessuno le ascolta.
+    //
+    // ⚠️ IL PREZZO, dichiarato: una categoria creata da un admin compare sugli
+    // altri client al primo ritorno in primo piano (soglia 30 s) o al reload,
+    // non nell'istante in cui viene creata. Per chi la crea è immediato
+    // comunque — il reducer è ottimistico. È il compromesso che B-1 dichiara,
+    // e vale per queste due tabelle soltanto: applicarlo a una tabella
+    // operativa sarebbe un'altra cosa.
+    const list = senzaCanale
+      ? []
+      : (Array.isArray(tables) ? tables : [tables]);
     const unsubs = list.map((tbl) => subscribeToTable(tbl, (p) => debounced(tbl, p)));
 
     // `online`/`visibilitychange` possono arrivare quasi insieme (sbloccare lo

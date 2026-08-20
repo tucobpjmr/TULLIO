@@ -10,6 +10,7 @@ import { describe, it, expect } from 'vitest';
 import {
   LetturaFallita, leggiCallSiteSalvataggio, leggiConteggioMultiComp, leggiStatoAudit,
   leggiStatoIndex, leggiStiliInline, montaggiLazySenzaRete, usiSalvataggio, confronta,
+  azioniRegistry, formSenzaAttesaEsito, ricercheSenzaIndice, iterazioniQuadratiche,
 } from '../../scripts/verifica-convenzioni/convenzioni.js';
 
 describe('leggiConteggioMultiComp', () => {
@@ -194,5 +195,174 @@ describe('usiSalvataggio / leggiCallSiteSalvataggio', () => {
   it('legge il numero dichiarato in CLAUDE.md e solleva se la frase non c\'è', () => {
     expect(leggiCallSiteSalvataggio('… **3 call site usano `useSalvataggio`**: il numero …')).toBe(3);
     expect(() => leggiCallSiteSalvataggio('nessuna frase del genere')).toThrow(LetturaFallita);
+  });
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  I CONTROLLI CHE NEGANO
+//  (suggerimento strategico n. 3 dell'audit performance/UX del 19 agosto)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// I casi che contano qui sono DUE per predicato, e vanno letti in coppia:
+// quello che segnala il difetto (senza, il controllo non intercetta niente) e
+// quello che accetta la forma corretta (senza, il controllo è un allarme che
+// suona sempre e che qualcuno spegnerà). Più il caso «presupposto assente»,
+// che è la regola non negoziabile di questo file.
+
+describe('azioniRegistry', () => {
+  const REGISTRY = `
+export const PERSISTENCE = {
+  ADD_TASK: {
+    persist: (s, a) => TasksAPI.create(a.payload),
+  },
+  UPDATE_NOTICE: {
+    guard: () => true,
+  },
+};`;
+
+  it('legge i tipi dal sorgente invece di elencarli a mano', () => {
+    expect(azioniRegistry(REGISTRY)).toEqual(['ADD_TASK', 'UPDATE_NOTICE']);
+  });
+
+  it('SOLLEVA su un registry vuoto, invece di far passare tutto a vuoto', () => {
+    // Con zero azioni il predicato di `formSenzaAttesaEsito` non corrisponde a
+    // niente, quindi ogni form risulterebbe a posto.
+    expect(() => azioniRegistry('export const PERSISTENCE = {};')).toThrow(LetturaFallita);
+  });
+});
+
+describe('formSenzaAttesaEsito', () => {
+  const AZIONI = ['ADD_CATEGORY', 'UPDATE_TEAM_MEMBER', 'DELETE_CLIENT'];
+  const importaValida = 'import { obbligatorio, validaCampi } from "../../lib/validators.js";';
+
+  it('segnala il form che scrive e chiude senza attendere', () => {
+    const sorgenti = [{
+      path: 'src/components/modals/AddCategoryModal.jsx',
+      testo: `${importaValida}
+        const submit = () => {
+          const trovati = validaCampi({ label }, REGOLE);
+          dispatch({ type: "ADD_CATEGORY", payload: { label } });
+          onClose();
+        };`,
+    }];
+    expect(formSenzaAttesaEsito(sorgenti, AZIONI))
+      .toEqual(['src/components/modals/AddCategoryModal.jsx']);
+  });
+
+  it('accetta il form che passa da useSalvataggio', () => {
+    const sorgenti = [{
+      path: 'src/components/modals/AddCategoryModal.jsx',
+      testo: `${importaValida}
+        import { useSalvataggio } from "../../hooks/useSalvataggio.js";
+        const { salva } = useSalvataggio((p) => dispatch({ type: "ADD_CATEGORY", payload: p }));`,
+    }];
+    expect(formSenzaAttesaEsito(sorgenti, AZIONI)).toEqual([]);
+  });
+
+  it('accetta anche chi attende a mano, come ProfileEditor faceva prima dell\'hook', () => {
+    const sorgenti = [{
+      path: 'src/components/modals/ProfileEditor.jsx',
+      testo: `${importaValida}
+        const salva = async () => {
+          const res = await dispatch({ type: "UPDATE_TEAM_MEMBER", payload: draft });
+          if (res?.error) return;
+          onClose();
+        };`,
+    }];
+    expect(formSenzaAttesaEsito(sorgenti, AZIONI)).toEqual([]);
+  });
+
+  it('NON segnala una scrittura senza form: non c\'è niente di digitato da perdere', () => {
+    // È il caso che separa i sei call site del rilievo dai molti che vanno
+    // bene: una DELETE dietro una conferma, con rollback e toast, è il pattern
+    // giusto. Il predicato è «valida E scrive», non «scrive».
+    const sorgenti = [
+      // Un form a posto perché il presupposto del controllo regga (senza
+      // nessun file che validi, la funzione SOLLEVA — vedi l'ultimo caso).
+      { path: 'src/components/ok.jsx', testo: `${importaValida}\nuseSalvataggio(() => {});` },
+      {
+        path: 'src/components/clients/ClientiView.jsx',
+        testo: `const handleDelete = (c) => {
+          dispatch({ type: "DELETE_CLIENT", payload: c.id });
+          chiudiOverlay();
+        };`,
+      },
+    ];
+    expect(formSenzaAttesaEsito(sorgenti, AZIONI)).toEqual([]);
+  });
+
+  it('SOLLEVA se nessun file valida, invece di passare a vuoto', () => {
+    expect(() => formSenzaAttesaEsito([{ path: 'a.js', testo: 'niente' }], AZIONI))
+      .toThrow(LetturaFallita);
+  });
+});
+
+describe('ricercheSenzaIndice', () => {
+  const conIndice = {
+    path: 'src/components/clients/ClientiView.jsx',
+    testo: `const indice = useMemo(() => clients.map(c => ({ c, idx: indicizza(c.name) })), [clients]);
+      const filtrati = useMemo(() => indice.filter(r => matchIndice(termini, r.idx)), [indice, search]);`,
+  };
+
+  it('segnala il filtro che normalizza dentro un useMemo sulla query', () => {
+    const sorgenti = [conIndice, {
+      path: 'src/components/search/AdvancedSearchPanel.jsx',
+      testo: `const results = useMemo(() => {
+          return tasks.filter(t => matchTermini(termini, t.title, t.client));
+        }, [tasks, keyword]);`,
+    }];
+    expect(ricercheSenzaIndice(sorgenti))
+      .toEqual(['src/components/search/AdvancedSearchPanel.jsx']);
+  });
+
+  it('accetta `matchTermini` FUORI da un useMemo: lì è legittima', () => {
+    // `filtraListe` in liste/listeOrdinamento.js è una funzione pura esportata
+    // per i test, non un memo che riparte a ogni battuta. Il difetto non è la
+    // funzione, è chiamarla in un ciclo che riparte a ogni carattere.
+    const sorgenti = [conIndice, {
+      path: 'src/components/liste/listeOrdinamento.js',
+      testo: `export function filtraListe(liste, search) {
+          const termini = terminiRicerca(search);
+          return liste.filter((l) => matchTermini(termini, l.titolo));
+        }`,
+    }];
+    expect(ricercheSenzaIndice(sorgenti)).toEqual([]);
+  });
+
+  it('SOLLEVA se nessuno usa l\'indice: «zero senza indice» sarebbe «zero ricerche»', () => {
+    expect(() => ricercheSenzaIndice([{ path: 'a.js', testo: 'matchTermini(x)' }]))
+      .toThrow(LetturaFallita);
+  });
+});
+
+describe('iterazioniQuadratiche', () => {
+  it('segnala l\'indexOf dentro la callback di una map', () => {
+    const sorgenti = [{
+      path: 'src/components/chat/ConversationView.jsx',
+      testo: `return visible.map((m) => {
+          const i = msgs.indexOf(m);
+          return <ChatMessage msg={m} prevMsg={msgs[i - 1]} />;
+        });`,
+    }];
+    expect(iterazioniQuadratiche(sorgenti))
+      .toEqual(['src/components/chat/ConversationView.jsx']);
+  });
+
+  it('accetta la forma corretta: l\'indice arriva dalla callback', () => {
+    const sorgenti = [{
+      path: 'src/components/chat/ConversationView.jsx',
+      testo: `const conPrecedente = useMemo(
+          () => msgs.map((m, i) => ({ m, prev: msgs[i - 1] })), [msgs]);`,
+    }];
+    expect(iterazioniQuadratiche(sorgenti)).toEqual([]);
+  });
+
+  it('non segnala un `.map()` che non cerca niente', () => {
+    const sorgenti = [{
+      path: 'src/components/x.jsx',
+      testo: 'const nomi = team.map(m => m.name.toUpperCase());',
+    }];
+    expect(iterazioniQuadratiche(sorgenti)).toEqual([]);
   });
 });

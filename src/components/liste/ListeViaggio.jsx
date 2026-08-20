@@ -15,6 +15,7 @@ import { useViewport } from "../Viewport.jsx";
 import { useListeData } from "./useListeData.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useClients } from "../../state/ClientsContext.jsx";
+import { useClientiCompleti } from "../../state/ClientiCompletiContext.jsx";
 import { ListeAPI, downloadBlob, todayISO } from "./listeApi.js";
 import { useListeWrite } from "./listePersistence.js";
 import { overlayIniziale, overlayReducer } from "./listeReducers.js";
@@ -53,6 +54,12 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
   const { isMobile } = useViewport();
   const { team, currentUserId, isAdmin, canAccessListe } = useAppData();
   const clientsRaw = useClients();
+  // M-1 (passo 2) · `clients` alimenta i due selettori di TITOLARE e
+  // COINTESTATARIO (NuovaListaModal, ListaDetail). Un titolare che non compare
+  // nel selettore non è un dato mancante: è un operatore che ricrea una scheda
+  // che esiste già — il doppione in anagrafica che la sottoscrizione realtime
+  // su `clients` esiste per impedire.
+  useClientiCompleti();
   const uid = currentUserId;
   // Chi può usare il modulo: una domanda sola, la stessa del reducer, delle
   // viste del core che ci linkano e di can_liste() sul database. Qui era

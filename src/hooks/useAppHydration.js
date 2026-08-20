@@ -119,8 +119,13 @@ const inizioFinestra = () =>
   new Date(Date.now() - FINESTRA_COMPLETATE_GG * 864e5).toISOString().replace(/\.\d{3}Z$/, "Z");
 
 export function useAppHydration({ enabled, currentUserId, dispatch, onError, teamIniziale = null }) {
+  // M-1 (passo 2): `clients` parte da `false` e non da `enabled`, perché
+  // all'avvio l'anagrafica NON si sta caricando — nessuno l'ha chiesta. Il
+  // flag si alza quando una vista la chiede (`caricaClienti`), che è il solo
+  // momento in cui uno scheletro dice la verità. Le altre cinque entità
+  // partono da `enabled` come prima.
   const [loading, setLoading] = useState(
-    () => Object.fromEntries(ENTITA.map(k => [k, enabled])));
+    () => Object.fromEntries(ENTITA.map(k => [k, k === "clients" ? false : enabled])));
   // Idempotente e stabile: chiude il flag di un'entità la prima volta e poi
   // non tocca più l'oggetto, così l'identità di `loading` non cambia a ogni
   // reload realtime (le viste sono `memo`: un oggetto nuovo le sveglierebbe
@@ -151,6 +156,17 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
   // ritardo e potare ciò che una vista sta mostrando.
   const storicoCompleto = useRef(false);
   const [caricandoStorico, setCaricandoStorico] = useState(false);
+
+  // M-1 (passo 2) · Lo stesso meccanismo di `storicoCompleto`, per
+  // l'anagrafica: un REF e non uno stato perché è il parametro con cui i
+  // reload futuri — compreso quello di riconnessione, che parte da dentro
+  // `useDebouncedTableSubscription` e non rilegge le dipendenze — devono
+  // decidere se c'è qualcosa da ricaricare. Una volta che una vista ha chiesto
+  // l'anagrafica, resta idratata per il resto della sessione: altrimenti il
+  // primo `visibilitychange` la svuoterebbe sotto gli occhi di chi la sta
+  // guardando.
+  const clientiCompleti = useRef(false);
+  const [caricandoClienti, setCaricandoClienti] = useState(false);
 
   // Idratazione tasks + notices dal DB al primo mount in modalità Supabase,
   // più subscription realtime: ad ogni evento postgres ricarico la lista
@@ -302,6 +318,34 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     segnaCaricata("tasks");
   }, [enabled, dispatch, onError, segnaCaricata]);
 
+  // M-1 (passo 2), seconda metà · L'anagrafica intera, su richiesta di chi la
+  // guarda. La chiamano — una volta sola, al mount — `ClientiView` (dove
+  // l'anagrafica È la vista) e `ListeViaggio` (i due selettori di titolare e
+  // cointestatario): vedi `state/ClientiCompletiContext.jsx` per il perché di
+  // ciascuna e per il perché l'elenco è corto.
+  //
+  // Stessa sequenza di `caricaStorico`: il ref si alza PRIMA della richiesta —
+  // così ogni reload concorrente sa già che l'anagrafica va tenuta — e si
+  // riabbassa se quella fallisce, perché lasciarlo alzato significherebbe
+  // pretendere per sempre un corpus mai arrivato.
+  const caricaClienti = useCallback(async () => {
+    if (!enabled || clientiCompleti.current) return;
+    clientiCompleti.current = true;
+    setCaricandoClienti(true);
+    const { data, error } = await ClientsAPI.list();
+    if (error) {
+      clientiCompleti.current = false;
+      setCaricandoClienti(false);
+      segnaCaricata("clients");
+      console.error("[CRM] anagrafica completa", error);
+      onError(`Caricamento clienti fallito: ${error.message || ""}`);
+      return;
+    }
+    dispatch({ type: "SET_CLIENTS", payload: (data || []).map(fromDbClient) });
+    setCaricandoClienti(false);
+    segnaCaricata("clients");
+  }, [enabled, dispatch, onError, segnaCaricata]);
+
   useDebouncedTableSubscription(["notices"], async (isCurrent) => {
     const { data, error } = await NoticesAPI.list();
     if (!isCurrent()) return;
@@ -359,7 +403,12 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
       dispatch({ type: "SET_CATEGORIES", payload: categories });
     }
     segnaCaricata("categories");
-  }, { enabled, deps: [enabled] });
+    // B-1 (audit del 19 agosto): niente canale permanente per una tabella da
+    // ~10 righe che cambia quando un admin apre il pannello. L'idratazione e
+    // il reload alla ripresa restano; il prezzo dichiarato è che una categoria
+    // creata compaia sugli altri client al primo ritorno in primo piano invece
+    // che nell'istante — vedi `senzaCanale` in useDebouncedTableSubscription.
+  }, { enabled, deps: [enabled], senzaCanale: true });
 
   // Refresh team live (sessione 29). Senza questo sub, l'admin invita o
   // approva un utente e l'elenco Team non si aggiorna fino a un reload.
@@ -470,9 +519,22 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
   // da deduplicare.
   //
   // Il gate `enabled` resta identico: senza login si usano i mock, quindi
-  // niente fetch e niente subscription. Il flag si chiude qui perché
-  // useDebouncedTableSubscription esegue l'idratazione iniziale al mount.
+  // niente fetch e niente subscription.
+  // ─── M-1 (passo 2) · l'anagrafica NON si scarica più all'avvio ───────────
+  // (audit performance/UX del 19 agosto)
+  //
+  // `ClientsAPI.list()` è ancora la lettura giusta — paginata, intera, senza
+  // troncamenti silenziosi — ma non parte più da qui: parte da `caricaClienti`
+  // qui sotto, quando una vista dichiara di averne bisogno. La sottoscrizione
+  // resta, perché il suo `applyRow` è ciò che tiene allineate le schede che
+  // arrivano dal realtime, e resta anche il reload di ripresa — ma entrambi
+  // sono subordinati a `clientiCompleti`: ricaricare un'anagrafica che nessuno
+  // ha chiesto sarebbe il difetto rimesso al suo posto per un'altra strada.
   useDebouncedTableSubscription(["clients"], async (isCurrent) => {
+    // Nessuno ha chiesto l'anagrafica: non c'è niente da ricaricare. Non è un
+    // salto dell'idratazione — è che l'idratazione dei clienti ora la chiede
+    // chi la guarda.
+    if (!clientiCompleti.current) return;
     const { data, error } = await ClientsAPI.list();
     if (!isCurrent()) return;
     if (error) {
@@ -493,6 +555,15 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     // agente. `fromDbClient` è flat come `fromDbNotice`: nessun join da
     // perdere applicando la sola riga.
     applyRow: (tbl, payload) => {
+      // ⚠️ M-1 (passo 2) · Finché nessuno ha chiesto l'anagrafica non c'è
+      // niente da tenere allineato, e applicare la riga sarebbe PEGGIO che
+      // ignorarla: `applicaRigaRealtime` appende le righe che non conosce
+      // (state/pendingWrites.js, `idx < 0`), quindi su un elenco vuoto ogni
+      // evento costruirebbe un'anagrafica di uno, due, tre clienti — parziale
+      // e indistinguibile da una vera per chiunque la legga. `true` e non
+      // `false`: l'evento È stato gestito, la decisione è che non serve fare
+      // nulla; `false` lo farebbe cadere nel debounce e nel reload.
+      if (!clientiCompleti.current) return true;
       if (payload.eventType === "DELETE") {
         const id = payload.old?.id;
         if (!id) return false;
@@ -522,7 +593,9 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     }
     dispatch({ type: "SET_MESSAGE_TEMPLATES", payload: (data || []).map(fromDbMessageTemplate) });
     segnaCaricata("messageTemplates");
-  }, { enabled, deps: [enabled] });
+    // B-1: stesso trattamento di `categories` qui sopra, e per la stessa
+    // ragione — quattro righe, gestite dall'admin.
+  }, { enabled, deps: [enabled], senzaCanale: true });
 
   // `crmLoading` resta esposto come alias di `loading.clients`: è il nome con
   // cui ClientiView e i suoi test conoscono questo flag da sessione 23, e
@@ -532,5 +605,13 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
   // e il flag di attesa. Non è un terzo flag di `loading` perché non descrive
   // un'ENTITÀ che si sta idratando — le task ci sono già — ma una porzione di
   // quell'entità che una vista specifica sta aspettando.
-  return { loading, crmLoading: loading.clients, storicoTask: { richiedi: caricaStorico, caricando: caricandoStorico } };
+  // `crmLoading` resta l'alias con cui ClientiView conosce questo flag da
+  // sessione 23, ma ora è `caricandoClienti`: `loading.clients` descriveva
+  // l'idratazione iniziale, che per i clienti non esiste più.
+  return {
+    loading,
+    crmLoading: caricandoClienti,
+    storicoTask: { richiedi: caricaStorico, caricando: caricandoStorico },
+    clientiCompleti: { richiedi: caricaClienti, caricando: caricandoClienti },
+  };
 }

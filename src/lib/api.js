@@ -862,6 +862,50 @@ export const Clients = {
   list: () =>
     fetchAllRows(() => supabase.from('clients')
       .select('*', WITH_COUNT).order('name').order('id')),
+  // ─── M-1 (passo 2) · la ricerca cliente si fa sul SERVER ────────────────
+  // (audit performance/UX del 19 agosto)
+  //
+  // PERCHÉ ESISTE. `list()` qui sopra scarica l'anagrafica INTERA, e finché la
+  // tendina di suggerimento cliente (`ui/ClientAutocomplete.jsx`) filtrava un
+  // array in memoria, quel download era obbligatorio a ogni sessione: la
+  // tendina si apre da `QuickAddTask` — il FAB su ogni vista, la scorciatoia
+  // `K` — quindi «quasi ogni sessione» non è un'esagerazione. È il consumatore
+  // che rendeva inutile qualunque finestra sull'idratazione, e per questo va
+  // per primo.
+  //
+  // Un autocomplete è comunque il caso in cui la ricerca lato server è la forma
+  // giusta e non un ripiego: si guardano le prime righe che corrispondono a ciò
+  // che si sta digitando, non tutte.
+  //
+  // I TERMINI IN AND, non la stringa intera. `ilike '%mario rossi%'` non trova
+  // «ROSSI MARIO», e in questa anagrafica l'ordine cognome/nome non è una
+  // regola (vedi il commento in testa a lib/searchUtils.js): convivono
+  // «COLUCCI GIANNICOLA» e «ELENA GIANCIPPOLI». Spezzando la query e
+  // richiedendo ogni termine si ottiene l'indipendenza dall'ordine, che è la
+  // proprietà che l'utente si aspetta perché è quella delle altre ricerche
+  // dell'app.
+  //
+  // ⚠️ COSA QUESTA RICERCA NON FA, e va saputo: `ilike` confronta i caratteri
+  // così come sono, quindi NON normalizza accenti e apostrofi come
+  // `lib/searchUtils.js` — «d amato» non trova «D'AMATO» qui, mentre lo trova
+  // nell'anagrafica (`ClientiView`, che lavora sul corpus in memoria con
+  // l'indice). Coprire anche quello lato server richiede `unaccent`/`pg_trgm`,
+  // che su questo progetto non sono installate: abilitare un'estensione è una
+  // decisione a sé, non un effetto collaterale di un autocomplete. Chi cerca
+  // una scheda con la punteggiatura la trova dall'anagrafica; qui si
+  // suggerisce mentre si digita.
+  //
+  // Nessuna paginazione e nessun `count`: qui il tetto è VOLUTO — sono i primi
+  // `limit` suggerimenti, non un insieme che deve arrivare intero (è la
+  // distinzione fra `fetchRowsUpTo` e `fetchAllRows` in lib/pagination.js, e
+  // `limit` è ben sotto `db-max-rows`).
+  cerca: (q, { limit = 20 } = {}) => {
+    const termini = String(q ?? '').trim().split(/\s+/).filter(Boolean);
+    if (termini.length === 0) return Promise.resolve({ data: [], error: null });
+    let query = supabase.from('clients').select('*');
+    for (const t of termini) query = query.ilike('name', `%${t}%`);
+    return query.order('name').limit(limit);
+  },
   create: (client) =>
     supabase.from('clients').insert(withOrigin(client)).select().single(),
   update: (id, patch) =>
@@ -988,6 +1032,79 @@ export function subscribeToTable(tableName, handler) {
     })
     .subscribe();
   return () => supabase.removeChannel(channel);
+}
+
+// ─── A-3 · LA PRESENZA È STATO DI CANALE, NON UNA RIGA DI TABELLA ──────────
+// (audit performance/UX del 19 agosto)
+//
+// Era una `UPDATE` su `public.users` ogni 30 secondi per sessione. Quella
+// tabella è nella publication `supabase_realtime` ed è a `REPLICA IDENTITY
+// FULL`, quindi ogni battito diventava un evento — con la riga intera vecchia
+// E nuova — consegnato a OGNI client sottoscritto a `users`; e ogni sessione
+// la sottoscriveva due volte (il refresh del team e la presenza stessa). Con U
+// sessioni contemporanee il traffico era U²/15 messaggi al secondo: ~2,1
+// milioni al mese con le sette persone di oggi, ~26 con venticinque, in una
+// giornata in cui nessuno tocca una task. Il filtro `filterEvent` in
+// `useAppHydration` scartava quegli eventi, ma nel BROWSER — dopo che erano
+// stati consegnati.
+//
+// Realtime Presence tiene lo stato NEL CANALE: `track()` non scrive niente sul
+// database, non passa dal WAL, non fa valutare una policy RLS per riga, e alla
+// disconnessione la voce si ritira da sola — che è il pezzo che un heartbeat
+// su tabella non ha mai avuto (un browser ucciso senza `beforeunload` lasciava
+// `status='online'` finché il tempo non lo faceva invecchiare).
+//
+// È lo stesso meccanismo di `subscribeToTyping` qui sotto, e per la stessa
+// ragione: uno stato vero finché i client sono connessi non va persistito.
+// Quello che ancora si scrive su `users` — e che il canale non può dare — è
+// «quando questa persona ha aperto l'app l'ultima volta», che il pannello
+// Admin mostra: resta una `setPresence` all'avvio della sessione, una al
+// cambio di «Occupato» e una alla chiusura, cioè tre per sessione invece di
+// una ogni trenta secondi.
+//
+// Un topic solo per tutta l'agenzia: la presenza è una lista di chi c'è, e
+// dividerla per conversazione (come il typing) significherebbe non sapere chi
+// è online finché non gli si apre una chat.
+const CANALE_PRESENZA = 'presenza:agenzia';
+
+/**
+ * Apre il canale di presenza e ci pubblica il proprio stato.
+ *
+ * @param {object} opts
+ * @param {string} opts.key           id dell'utente: è la chiave con cui le
+ *   proprie voci si raggruppano in `presenceState()` (più schede aperte = più
+ *   voci sotto la stessa chiave).
+ * @param {() => object} opts.payload  lo stato da pubblicare, letto AL MOMENTO
+ *   della pubblicazione e non catturato: `track` parte anche da un timer e da
+ *   `visibilitychange`, cioè dopo che il chiamante ha cambiato idea.
+ * @param {(stato: object) => void} opts.onSync  riceve `presenceState()` grezzo
+ *   a ogni sincronizzazione; la traduzione è `daStatoCanale` in lib/presenza.js.
+ * @returns {{ track: () => void, unsubscribe: () => void }}
+ */
+export function subscribeToPresence({ key, payload, onSync }) {
+  // Stessa degradazione di `subscribeToTable`: senza client utilizzabile
+  // (env var assenti, o mockato nei test) la presenza è un miglioramento, non
+  // un requisito — si resta senza pallini invece di sollevare dentro un
+  // useEffect e mostrare una pagina bianca.
+  if (typeof supabase?.channel !== 'function') {
+    return { track: () => {}, unsubscribe: () => {} };
+  }
+  const channel = supabase.channel(CANALE_PRESENZA, {
+    config: { presence: { key } },
+  });
+  channel
+    .on('presence', { event: 'sync' }, () => onSync(channel.presenceState()))
+    .subscribe((stato) => {
+      // La prima pubblicazione va fatta DA QUI e non subito dopo `subscribe()`:
+      // `track()` su un canale non ancora agganciato viene rifiutato, e il
+      // proprio pallino resterebbe spento per tutti gli altri finché il primo
+      // refresh periodico non arriva.
+      if (stato === 'SUBSCRIBED') channel.track(payload());
+    });
+  return {
+    track: () => channel.track(payload()),
+    unsubscribe: () => supabase.removeChannel(channel),
+  };
 }
 
 // Canale realtime di BROADCAST per lo stato EFFIMERO "sta scrivendo".

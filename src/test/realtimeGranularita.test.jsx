@@ -465,16 +465,23 @@ describe("useAppHydration — un evento su notices applica la riga, non ricarica
 });
 
 describe("useAppHydration — un evento su clients applica la riga, non ricarica tutto", () => {
-  const idrata = () => {
+  // ⚠️ M-1 (passo 2), 19 agosto: l'anagrafica non si idrata più all'avvio — la
+  // chiede la vista che la guarda. Questi casi verificano la granularità DEL
+  // MERGE, che vale una volta che l'anagrafica c'è: `idrata()` la chiede
+  // quindi esplicitamente, come farebbe `ClientiView` montandosi. Che PRIMA
+  // della richiesta l'evento non tocchi lo stato è l'altro lato del contratto,
+  // ed è verificato in `clientiRealtime.test.jsx`.
+  const idrata = async () => {
     const dispatch = vi.fn();
     const utils = renderHook(() => useAppHydration({
       enabled: true, currentUserId: "marco", dispatch, onError: vi.fn(),
     }));
+    await act(async () => { await utils.result.current.clientiCompleti.richiedi(); });
     return { dispatch, ...utils };
   };
 
   it("un UPDATE applica la riga senza richiamare Clients.list", async () => {
-    const { dispatch } = idrata();
+    const { dispatch } = await idrata();
     await waitFor(() => expect(ClientsAPI.list).toHaveBeenCalledTimes(1));
     vi.clearAllMocks();
 
@@ -491,7 +498,7 @@ describe("useAppHydration — un evento su clients applica la riga, non ricarica
   });
 
   it("un INSERT applica l'aggiunta senza richiamare Clients.list", async () => {
-    const { dispatch } = idrata();
+    const { dispatch } = await idrata();
     await waitFor(() => expect(ClientsAPI.list).toHaveBeenCalledTimes(1));
     vi.clearAllMocks();
 
@@ -508,7 +515,7 @@ describe("useAppHydration — un evento su clients applica la riga, non ricarica
   });
 
   it("un DELETE applica la rimozione senza richiamare Clients.list", async () => {
-    const { dispatch } = idrata();
+    const { dispatch } = await idrata();
     await waitFor(() => expect(ClientsAPI.list).toHaveBeenCalledTimes(1));
     vi.clearAllMocks();
 

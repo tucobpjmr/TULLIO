@@ -24,27 +24,68 @@
 // non una FK — quindi questo componente suggerisce e non vincola.
 
 import { useState } from "react";
+// La query vive in `src/hooks/`: `eslint.config.js` vieta ai componenti di
+// importare il data layer, e le letture stanno lì (vedi il file per il
+// debounce, la guardia di staleness e la degradazione senza rete).
+import { useRicercaClienti } from "../../hooks/useRicercaClienti.js";
 import { Z } from "../../styles/tokens.js";
 
 const MAX_SUGGERIMENTI = 6;
 
 /**
- * Logica della tendina: filtro, visibilità e handler da spalmare sull'input.
+ * Logica della tendina: ricerca, visibilità e handler da spalmare sull'input.
  *
- * @param {Array}   clients  l'anagrafica (da ClientsContext o prop)
+ * ─── M-1 (passo 2) · la ricerca è sul SERVER ───────────────────────────────
+ * (audit performance/UX del 19 agosto)
+ *
+ * Questo hook filtrava un array in memoria, e quell'array era l'anagrafica
+ * INTERA: finché è stato così, `useAppHydration` DOVEVA scaricarla a ogni
+ * sessione, perché questa tendina si apre da `QuickAddTask` — il FAB su ogni
+ * vista, la scorciatoia `K`. Era il consumatore che rendeva inutile qualunque
+ * finestra sull'idratazione.
+ *
+ * Ora interroga `Clients.cerca` (debounce di ATTESA_MS), che è comunque la
+ * forma giusta per un autocomplete: si guardano le prime righe che
+ * corrispondono, non tutte.
+ *
+ * ⚠️ `locali` NON è l'anagrafica: è ciò che si trova già nello stato — le
+ * schede create in questa sessione, quelle arrivate dal realtime, e in
+ * modalità demo (senza login) i mock. Serve a due cose che la sola ricerca
+ * server non copre: un cliente appena creato è suggeribile PRIMA che la
+ * scrittura sia confermata, e in dev senza Supabase la tendina continua a
+ * funzionare. I risultati locali vanno per primi e i duplicati si tolgono per
+ * `id` — se una scheda arriva da entrambe le parti, è la stessa scheda.
+ *
+ * @param {Array}   locali   i clienti già in stato (da `useClients()`)
  * @param {string}  valore   il testo attualmente nel campo
  * @param {object}  [opts]
  * @param {boolean} [opts.enabled]  false → la tendina non si apre mai
  *                                  (TaskSlideOver in sola lettura)
  */
-export function useClientSuggestions(clients, valore, { enabled = true } = {}) {
+export function useClientSuggestions(locali, valore, { enabled = true } = {}) {
   const [focus, setFocus] = useState(false);
 
   const query = (valore || "").trim().toLowerCase();
-  const matches = (query
-    ? (clients || []).filter(c => c.name?.toLowerCase().includes(query))
-    : (clients || [])
-  ).slice(0, MAX_SUGGERIMENTI);
+  // I termini in AND, come fa il server: senza, digitando «rossi mario» i
+  // risultati locali sparirebbero mentre quelli remoti restano — due
+  // semantiche nella stessa tendina.
+  const termini = query ? query.split(/\s+/).filter(Boolean) : [];
+  const daiLocali = (locali || []).filter(c => {
+    const n = c.name?.toLowerCase() || "";
+    return termini.every(t => n.includes(t));
+  });
+
+  // La richiesta al server, col suo debounce e la sua guardia di staleness.
+  const remoti = useRicercaClienti(query, { enabled, limit: MAX_SUGGERIMENTI * 2 });
+
+  const visti = new Set();
+  const matches = [];
+  for (const c of [...daiLocali, ...remoti]) {
+    if (!c?.id || visti.has(c.id)) continue;
+    visti.add(c.id);
+    matches.push(c);
+    if (matches.length === MAX_SUGGERIMENTI) break;
+  }
 
   // Un solo risultato identico a ciò che è già scritto non è un suggerimento:
   // è la ripetizione di quanto l'utente ha appena selezionato.

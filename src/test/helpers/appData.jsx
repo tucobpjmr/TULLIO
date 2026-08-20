@@ -23,6 +23,7 @@ import { render } from "@testing-library/react";
 import { AppDataProvider } from "../../state/AppDataContext.jsx";
 import { TasksProvider } from "../../state/TasksContext.jsx";
 import { StoricoTaskProvider } from "../../state/StoricoTaskContext.jsx";
+import { ClientiCompletiProvider } from "../../state/ClientiCompletiContext.jsx";
 import { ClientsProvider } from "../../state/ClientsContext.jsx";
 import { ConfirmProvider } from "../../state/ConfirmContext.jsx";
 import { INITIAL_TEAM } from "../../state/mockData.js";
@@ -55,6 +56,7 @@ export function withAppData(
   {
     team = [], categories = {}, currentUserId = null, tasks = [], clients = [],
     richiediStorico = () => {}, storicoInCorso = false,
+    richiediClienti = () => {}, clientiInCorso = false,
   } = {},
 ) {
   return (
@@ -62,11 +64,19 @@ export function withAppData(
       <TasksProvider tasks={tasks}>
        <StoricoTaskProvider richiedi={richiediStorico} caricando={storicoInCorso}>
         <ClientsProvider clients={clients}>
-          {/* Criticità #8: useConfirm() solleva fuori dal provider, come
-              useAppData(). Sta qui e non nei singoli test perché la conferma è
-              infrastruttura dell'app — un test che monta una vista non deve
-              sapere che quella vista, in fondo a un handler, chiede conferma. */}
-          <ConfirmProvider>{ui}</ConfirmProvider>
+          {/* M-1 (passo 2): come sopra per lo storico — i clienti passati SONO
+              già tutto ciò che c'è per un test, quindi richiesta no-op e
+              nessuna attesa. Un test che vuole osservare la finestra passa
+              `clientiInCorso: true`; uno che vuole verificare che la vista
+              chieda davvero l'anagrafica passa una spia come
+              `richiediClienti`. */}
+          <ClientiCompletiProvider richiedi={richiediClienti} caricando={clientiInCorso}>
+            {/* Criticità #8: useConfirm() solleva fuori dal provider, come
+                useAppData(). Sta qui e non nei singoli test perché la conferma è
+                infrastruttura dell'app — un test che monta una vista non deve
+                sapere che quella vista, in fondo a un handler, chiede conferma. */}
+            <ConfirmProvider>{ui}</ConfirmProvider>
+          </ClientiCompletiProvider>
         </ClientsProvider>
        </StoricoTaskProvider>
       </TasksProvider>

@@ -1,6 +1,7 @@
 // src/components/admin/tabs/AdminCategoriesTab.jsx
 // Dizionario delle categorie task: creazione, rinomina, eliminazione.
 import { useState } from "react";
+import { useSalvataggio } from "../../../hooks/useSalvataggio.js";
 import { fieldStyle, btnPrimary, btnGhost, btnDanger } from "../adminStyles.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useTasks } from "../../../state/TasksContext.jsx";
@@ -39,12 +40,24 @@ export const AdminCategoriesTab = ({ dispatch }) => {
 
   const startEdit = (key, c) => { setEditingKey(key); setDraft({ key, ...c }); setErrori({}); };
   const cancelEdit = () => { setEditingKey(null); setDraft(null); setErrori({}); };
+  // A-4 · L'esito prima della chiusura dell'editor in linea (audit del 19
+  // agosto). Era `dispatch(...)` senza `await` seguito da `cancelEdit()`, che
+  // azzera `draft`: su una scrittura rifiutata l'etichetta, l'icona e i colori
+  // appena scelti sparivano insieme all'editor, e restava solo un toast su una
+  // riga tornata com'era.
+  const { salva, inVolo, errore: erroreSalvataggio } = useSalvataggio(
+    (payload) => dispatch({ type: "UPDATE_CATEGORY", payload }),
+    {
+      alSuccesso: () => { setEditingKey(null); setDraft(null); setErrori({}); },
+      messaggioErrore: "Categoria non salvata. Le modifiche sono ancora qui, riprova.",
+    },
+  );
+
   const saveEdit = () => {
     const trovati = validaCampi({ label: draft.label }, REGOLE);
     if (trovati.label) { setErrori(trovati); return; }
     setErrori({});
-    dispatch({ type: "UPDATE_CATEGORY", payload: draft });
-    cancelEdit();
+    salva(draft);
   };
 
   return (
@@ -86,6 +99,10 @@ export const AdminCategoriesTab = ({ dispatch }) => {
                       style={{ ...fieldStyle, padding: 2, height: 32 }} title="Colore primario" />
                     <input type="color" value={draft.bg} onChange={e => setDraft({...draft, bg: e.target.value})}
                       style={{ ...fieldStyle, padding: 2, height: 32 }} title="Colore sfondo" />
+                    {/* A-4 · Il fallimento accanto ai dati rimasti: il toast
+                        del registry riporta il messaggio del database, questo
+                        dice che l'editor non si è svuotato. */}
+                    <FieldError id={`vd-cat-${key}-save-err`}>{erroreSalvataggio}</FieldError>
                   </div>
                 ) : (
                   <>
@@ -99,7 +116,9 @@ export const AdminCategoriesTab = ({ dispatch }) => {
               <div style={rowGap6}>
                 {isEditing ? (
                   <>
-                    <button onClick={saveEdit} style={btnPrimary}>💾 Salva</button>
+                    <button onClick={saveEdit} disabled={inVolo} style={btnPrimary}>
+                      {inVolo ? "Salvataggio…" : "💾 Salva"}
+                    </button>
                     <button onClick={cancelEdit} style={btnGhost}>Annulla</button>
                   </>
                 ) : (

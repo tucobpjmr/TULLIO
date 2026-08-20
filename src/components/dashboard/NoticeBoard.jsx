@@ -332,23 +332,29 @@ export const NoticeBoard = ({ notices, dispatch, loading = false }) => {
         <NoticeEditorModal
           notice={editing}
           onClose={() => { setCreating(false); setEditing(null); }}
-          onSave={(data) => {
-            if (editing) {
-              dispatch({ type: "UPDATE_NOTICE", payload: { id: editing.id, ...data } });
-            } else {
-              dispatch({
-                type: "ADD_NOTICE",
-                payload: {
-                  id: "n" + Date.now(),
-                  ...data,
-                  author: currentUserId,
-                  createdAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString(),
-                }
-              });
-            }
-            setCreating(false); setEditing(null);
-          }}
+          // A-4 · Ritorna la promise del dispatch e NON chiude: chi chiude è la
+          // modale, che è anche l'unica a sapere se ha ancora dati da
+          // proteggere (`useSalvataggio` in NoticeEditorModal). Prima qui si
+          // dispatchava senza `await` e si chiudeva nello stesso turno, quindi
+          // su un rifiuto della RLS l'avviso digitato se ne andava con la
+          // modale — stesso difetto di `ClientiView.handleSave` prima di M-1.
+          //
+          // `crypto.randomUUID()` e non `"n" + Date.now()`: la entry del
+          // registry normalizza comunque gli id non-UUID (`persistence.js`),
+          // ma generarlo già nella forma giusta toglie di mezzo la domanda —
+          // come fa `ClientiView` per i clienti.
+          onSave={(data) => (editing
+            ? dispatch({ type: "UPDATE_NOTICE", payload: { id: editing.id, ...data } })
+            : dispatch({
+              type: "ADD_NOTICE",
+              payload: {
+                id: crypto.randomUUID(),
+                ...data,
+                author: currentUserId,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+            }))}
         />
       )}
     </div>

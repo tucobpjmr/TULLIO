@@ -116,3 +116,91 @@ describe("ricerca globale — liste viaggio", () => {
     await waitFor(() => expect(screen.queryByText(/liste viaggio/)).toBeNull());
   });
 });
+
+// ─── A-2 · l'indice non cambia ciò che si trova ─────────────────────────────
+// (audit performance/UX del 19 agosto)
+//
+// Il rilievo era di costo, non di correttezza: `matchTermini` normalizzava i
+// campi per ogni riga a ogni battuta, e la correzione è precalcolare l'indice
+// sulla riga. Il rischio della correzione è quindi tutto qui — che nel
+// passaggio si perda un campo o una regola, cioè che una task smetta di
+// trovarsi e nessuno se ne accorga finché qualcuno non la cerca.
+//
+// I casi sotto sono le tre regole che `searchUtils.js` dichiara (ordine delle
+// parole libero, apostrofi e accenti ignorati, termini tutti obbligatori) più
+// il campo che questo pannello ha in più di ogni altra ricerca dell'app: i
+// COMMENTI. Il lato liste è già coperto dai tre casi qui sopra, che ora
+// esercitano il proprio indice invece di `matchTermini`.
+const TASK_COMMENTATA = {
+  id: "t-1", title: "Conferma volo", category: "booking", priority: "medium",
+  status: "todo", assignees: [], client: "D'AMATO PATRIZIA", praticaRef: "PR-2026-001",
+  description: "", dueDate: null, deletedAt: null,
+  comments: [{ user: "marco", text: "Cliente ricontattato, attende voucher", time: null }],
+};
+
+const renderTask = async (keyword, tasks) => {
+  ListeAPI.list.mockResolvedValue({ data: [], error: null });
+  ListeAPI.listTrash.mockResolvedValue({ data: [], error: null });
+  render(
+    <AdvancedSearchPanel
+      tasks={tasks}
+      dispatch={vi.fn()}
+      onClose={vi.fn()}
+      keyword={keyword}
+      onKeyword={vi.fn()}
+      currentUserId="marco"
+    />,
+  );
+  await waitFor(() => expect(ListeAPI.list).toHaveBeenCalled());
+};
+
+describe("A-2 · ricerca globale — task, con l'indice precalcolato", () => {
+  it("trova per testo di un COMMENTO, che è il campo esclusivo di questa ricerca", async () => {
+    await renderTask("voucher", [TASK_COMMENTATA]);
+    expect(await screen.findByText("Conferma volo")).toBeInTheDocument();
+  });
+
+  it("trova per cliente senza apostrofo e con le parole invertite", async () => {
+    await renderTask("patrizia d amato", [TASK_COMMENTATA]);
+    expect(await screen.findByText("Conferma volo")).toBeInTheDocument();
+  });
+
+  it("trova per numero di pratica", async () => {
+    await renderTask("PR-2026-001", [TASK_COMMENTATA]);
+    expect(await screen.findByText("Conferma volo")).toBeInTheDocument();
+  });
+
+  it("i termini restano tutti obbligatori: non allarga", async () => {
+    await renderTask("voucher bicicletta", [TASK_COMMENTATA]);
+    await waitFor(() => expect(screen.queryByText("Conferma volo")).toBeNull());
+  });
+
+  it("i filtri strutturali continuano a valere insieme al testo", async () => {
+    // Il testo corrisponde ma la task è cestinata e «includi nel cestino» è
+    // spento: il filtro strutturale deve vincere, come prima dell'indice.
+    await renderTask("voucher", [{ ...TASK_COMMENTATA, deletedAt: "2026-08-01T00:00:00Z" }]);
+    await waitFor(() => expect(screen.queryByText("Conferma volo")).toBeNull());
+  });
+});
+
+// La forma, non il comportamento: che nessuno dei due filtri sia tornato alla
+// normalizzazione per battuta. È il gemello del controllo `lazy() senza
+// boundary` — una proprietà che si legge dal sorgente e che nessun test
+// funzionale può vedere, perché le due strade danno gli stessi risultati.
+const SORGENTE_PANNELLO =
+  (await import("../components/search/AdvancedSearchPanel.jsx?raw")).default;
+
+describe("A-2 · il pannello non normalizza più a ogni battuta", () => {
+  const sorgente = SORGENTE_PANNELLO;
+
+  it("non importa più `matchTermini`", () => {
+    expect(/import\s*\{[^}]*\bmatchTermini\b/.test(sorgente)).toBe(false);
+  });
+
+  it("costruisce DUE indici — task e liste — con `tasks`/`liste` come sola dipendenza", () => {
+    // Il controllo positivo: senza, il test sopra passerebbe anche se il
+    // filtro fosse stato tolto del tutto.
+    expect(/const indiceTask = useMemo\([\s\S]{0,400}\[tasks\]\)/.test(sorgente)).toBe(true);
+    expect(/const indiceListe = useMemo\([\s\S]{0,400}\[liste\]\)/.test(sorgente)).toBe(true);
+  });
+});

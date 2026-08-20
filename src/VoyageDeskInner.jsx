@@ -162,7 +162,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // di una di esse non è tornato, le viste che la mostrano devono dire "sto
   // caricando" e non "non c'è niente". `crmLoading` è l'alias storico di
   // `loading.clients`.
-  const { loading, crmLoading, storicoTask } = useAppHydration({
+  const { loading, crmLoading, storicoTask, clientiCompleti } = useAppHydration({
     enabled: useSupabase,
     currentUserId: initialCurrentUserId,
     dispatch: rawDispatch,
@@ -339,6 +339,8 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       clients={state.clients}
       richiediStorico={storicoTask.richiedi}
       storicoInCorso={storicoTask.caricando}
+      richiediClienti={clientiCompleti.richiedi}
+      clientiInCorso={clientiCompleti.caricando}
     >
       {/* vd-app-shell = height 100dvh con fallback 100vh (vedi FontLoader): su iOS
           "vh" è il viewport GRANDE, con la barra del browser visibile il guscio

@@ -18,6 +18,10 @@
 //   • `StoricoTaskProvider` sta sotto `TasksProvider` perché descrive una
 //     proprietà di ciò che quel provider contiene: se la finestra
 //     dell'idratazione sia già stata completata (A-3);
+//   • `ClientiCompletiProvider` sta sotto `ClientsProvider` per la stessa
+//     ragione simmetrica: descrive una proprietà di ciò che quel provider
+//     contiene — se l'anagrafica in stato sia il corpus intero o le sole
+//     schede arrivate per altre vie (M-1, passo 2);
 //   • `ConfirmProvider` sta DENTRO i provider di dominio e non fuori: la
 //     finestra di conferma è parte dell'app, non della shell del browser, e i
 //     suoi call site sono componenti che leggono anche i dati.
@@ -30,18 +34,22 @@ import { AppDataProvider } from "./AppDataContext.jsx";
 import { TasksProvider } from "./TasksContext.jsx";
 import { StoricoTaskProvider } from "./StoricoTaskContext.jsx";
 import { ClientsProvider } from "./ClientsContext.jsx";
+import { ClientiCompletiProvider } from "./ClientiCompletiContext.jsx";
 import { ConfirmProvider } from "./ConfirmContext.jsx";
 
 export function AppProviders({
   team, categories, currentUserId, tasks, clients,
-  richiediStorico, storicoInCorso, children,
+  richiediStorico, storicoInCorso,
+  richiediClienti, clientiInCorso, children,
 }) {
   return (
     <AppDataProvider team={team} categories={categories} currentUserId={currentUserId}>
       <TasksProvider tasks={tasks}>
         <StoricoTaskProvider richiedi={richiediStorico} caricando={storicoInCorso}>
           <ClientsProvider clients={clients}>
-            <ConfirmProvider>{children}</ConfirmProvider>
+            <ClientiCompletiProvider richiedi={richiediClienti} caricando={clientiInCorso}>
+              <ConfirmProvider>{children}</ConfirmProvider>
+            </ClientiCompletiProvider>
           </ClientsProvider>
         </StoricoTaskProvider>
       </TasksProvider>

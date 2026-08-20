@@ -19,6 +19,10 @@ const setPresence = vi.fn(async () => ({ error: null }));
 vi.mock("../lib/api.js", () => ({
   Users: { setPresence: (...a) => setPresence(...a) },
   subscribeToTable: () => () => {},
+  // A-3 · La presenza live passa da qui e non più da una UPDATE periodica:
+  // qui basta una maniglia inerte, il canale ha i propri test in
+  // `presenzaCanale.test.jsx`.
+  subscribeToPresence: () => ({ track: () => {}, unsubscribe: () => {} }),
 }));
 
 const { usePresence } = await import("../hooks/usePresence.js");
@@ -34,7 +38,7 @@ describe("usePresence — toggle Occupato", () => {
       () => usePresence({ enabled: true, userId: "u1", team: TEAM }),
       { wrapper },
     );
-    // L'heartbeat iniziale è un'altra cosa: si conta da qui in avanti.
+    // La scrittura d'avvio è un'altra cosa: si conta da qui in avanti.
     await waitFor(() => expect(setPresence).toHaveBeenCalled());
     setPresence.mockClear();
 

@@ -12,6 +12,7 @@ import { LazyPanel } from "../ui/LazyPanel.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useTasks } from "../../state/TasksContext.jsx";
 import { useClients } from "../../state/ClientsContext.jsx";
+import { useClientiCompleti } from "../../state/ClientiCompletiContext.jsx";
 // L'anagrafica chiede al modulo Liste un conteggio per cliente, non le sue
 // query: vedi components/liste/listeModuleApi.js.
 import { conteggioListePerCliente } from "../liste/listeModuleApi.js";
@@ -115,6 +116,12 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
   // reducer non sostituisce l'array: l'useMemo che serviva a non ricreare
   // `state.clients || []` a ogni render non serve più.
   const clients = useClients();
+  // M-1 (passo 2) · L'anagrafica È questa vista: elenco, ricerca, conteggi.
+  // Dal 19 agosto l'idratazione non la scarica più all'avvio — la chiede chi
+  // la guarda, e qui la si guarda. Senza questa riga la vista mostrerebbe le
+  // sole schede finite in stato per altre vie (una creazione ottimistica, un
+  // evento realtime) chiamandole anagrafica.
+  useClientiCompleti();
 
   // Accesso al modulo Liste viaggio: senza il gate il tab comparirebbe e
   // mostrerebbe solo una lista vuota filtrata dalle policy. Era scritto qui

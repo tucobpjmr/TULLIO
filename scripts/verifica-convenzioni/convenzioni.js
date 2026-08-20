@@ -257,6 +257,216 @@ export function usiStoricoTask(sorgenti) {
   return usi;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  CONTROLLI CHE NEGANO, NON CHE CONTANO
+//  (suggerimento strategico n. 3 dell'audit performance/UX del 19 agosto)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// I controlli qui sopra fanno due mestieri diversi, e la differenza è la
+// ragione per cui esiste questa sezione:
+//
+//   • `usiSalvataggio` e `usiStoricoTask` CONTANO i call site e li confrontano
+//     con un numero scritto in docs/CLAUDE.md. Tengono onesto il numero. Non
+//     hanno intercettato A-4 e A-2 dell'audit del 19 agosto, e NON POTEVANO:
+//     «3 call site usano useSalvataggio» era vero quando è stato scritto — il
+//     difetto era che i form fossero nove.
+//   • `montaggiLazySenzaRete` NEGA: cerca un `lazy()` che non abbia un
+//     boundary e fallisce se ne trova uno. Non ha bisogno di sapere quanti
+//     dovrebbero essercene, quindi non scade quando l'app cresce.
+//
+// Il secondo tipo chiude una CATEGORIA; il primo la documenta. Quattro dei
+// nove rilievi del 19 agosto avevano la stessa forma — «una regola giusta,
+// con un file suo e un commento che la spiega, applicata a una parte dei call
+// site» — e per la terza volta in tre audit consecutivi. È il salto che
+// `no-restricted-imports` ha già fatto per il bundle: dal ricordarsi al non
+// poter più sbagliare.
+//
+// ⚠️ COSA QUESTI CONTROLLI NON FANNO. Nessuno di loro verifica un
+// COMPORTAMENTO: «questo form si chiude prima di conoscere l'esito» dipende da
+// tre file diversi e lo fissano i test (`salvaEChiudi*.test.jsx`). Qui si
+// verifica una FORMA riconoscibile sul sorgente — la stessa cosa che fa
+// `montaggiLazySenzaRete`, e con lo stesso limite: un file può passare questi
+// controlli ed essere comunque sbagliato. Servono a impedire la ricaduta di un
+// difetto già visto, non a dimostrare che non ce ne siano altri.
+//
+// ⛔ E nessuno di loro deve essere calibrato ALLARGANDO le eccezioni quando
+// diventa rosso: un controllo con una lista di eccezioni che cresce è un
+// controllo che ha smesso di controllare (vedi `AVVISI_ACCETTATI` in
+// verifica-advisor, dove le eccezioni sono nove e ognuna ha un perché scritto).
+
+/**
+ * I tipi d'azione dichiarati nel registry di persistenza, letti dal SORGENTE.
+ *
+ * Non una lista scritta a mano: sarebbe la seconda copia di un elenco che vive
+ * già in `state/persistence.js`, e la copia che diverge in silenzio è
+ * esattamente il modo in cui questi controlli smettono di controllare (stessa
+ * scelta di `persistenceGuards.test.js`, che legge i `case` dal reducer invece
+ * di elencarli).
+ *
+ * @param {string} testo il sorgente di src/state/persistence.js
+ * @returns {string[]}
+ */
+export function azioniRegistry(testo) {
+  const azioni = [...String(testo).matchAll(/^ {2}([A-Z][A-Z_0-9]+):\s*\{/gm)].map(m => m[1]);
+  if (azioni.length === 0) {
+    throw new LetturaFallita(
+      'Nessuna entry trovata in src/state/persistence.js: o il registry ha ' +
+      'cambiato forma, o il file non è quello. In entrambi i casi i controlli ' +
+      'che dipendono da questo elenco passerebbero a vuoto.');
+  }
+  return azioni;
+}
+
+/**
+ * A-4 · I form che scrivono e non aspettano l'esito.
+ *
+ * LA FORMA CERCATA, e perché è questa. Un file che importa `validaCampi` ha un
+ * form con dei campi obbligatori — cioè dati digitati che vale la pena
+ * validare. Se quello stesso file dispatcha un'azione del registry di
+ * persistenza, quella scrittura può essere RIFIUTATA (RLS, rete, guard), e
+ * allora i dati digitati devono sopravvivere al rifiuto. Le due strade
+ * accettate sono `useSalvataggio` (il contratto) o l'attesa a mano (`await
+ * dispatch(`), che è ciò che `ProfileEditor` e le tab del BulkTaskCreator
+ * facevano già bene prima che l'hook esistesse.
+ *
+ * ⚠️ Il predicato è «valida E scrive», non «scrive»: una `DELETE_CLIENT`
+ * dispatchata da una conferma e seguita da `chiudiOverlay()` NON è il difetto —
+ * non c'è niente di digitato da perdere, e l'ottimistico con rollback e toast è
+ * il pattern giusto per quel caso. Restringere a chi ha un form è ciò che
+ * separa i sei call site del rilievo dai molti che vanno bene così.
+ *
+ * @param {{path: string, testo: string}[]} sorgenti
+ * @param {string[]} azioni i tipi del registry (vedi azioniRegistry)
+ * @returns {string[]} i percorsi che scrivono senza attendere
+ */
+export function formSenzaAttesaEsito(sorgenti, azioni) {
+  const HA_FORM = /import\s*\{[^}]*\bvalidaCampi\b[^}]*\}\s*from/;
+  const ATTENDE = /\buseSalvataggio\b|await\s+dispatch\s*\(/;
+  const SCRIVE = new RegExp(
+    `dispatch\\(\\s*\\{\\s*type:\\s*["'](?:${azioni.join('|')})["']`);
+  const conForm = (sorgenti || []).filter(f => HA_FORM.test(f.testo));
+  if (conForm.length === 0) {
+    throw new LetturaFallita(
+      'Nessun file di src/ importa `validaCampi`: o la validazione inline è ' +
+      'stata rimossa, o la forma dell\'import è cambiata. Senza, questo ' +
+      'controllo non ha più nessun form da guardare.');
+  }
+  return conForm
+    .filter(f => SCRIVE.test(f.testo) && !ATTENDE.test(f.testo))
+    .map(f => f.path);
+}
+
+/**
+ * A-2 · Le ricerche che normalizzano a ogni battuta.
+ *
+ * `matchTermini` normalizza i campi della riga a ogni confronto; dentro un
+ * `useMemo` che ha la query fra le dipendenze quel lavoro si rifà per intero a
+ * ogni carattere digitato, su tutte le righe. La forma giusta è l'indice
+ * precalcolato (`indicizza` una volta per riga, `matchIndice` per battuta):
+ * misurato 6,32 ms → 0,19 su 835 clienti (M-3) e 6,21 → 0,18 su 292 task
+ * (A-2), che a 2500 task diventano 49,25 → 1,47.
+ *
+ * ⚠️ Il predicato è «`matchTermini` DENTRO un `useMemo`», non «`matchTermini`»:
+ * la funzione resta legittima per chi ha una riga sola da confrontare e non un
+ * elenco da indicizzare — `filtraListe` in `liste/listeOrdinamento.js` la usa
+ * di proposito ed è una funzione pura esportata, non un memo. Il difetto non è
+ * la funzione: è chiamarla in un ciclo che riparte a ogni battuta.
+ *
+ * @param {{path: string, testo: string}[]} sorgenti
+ * @returns {string[]}
+ */
+export function ricercheSenzaIndice(sorgenti) {
+  // Dal `useMemo(` fino alla sua chiusura approssimata: si guarda una finestra
+  // generosa invece di bilanciare le parentesi, perché un falso positivo qui
+  // costa una riga di commento e un falso NEGATIVO costa il rilievo.
+  const BLOCCO_MEMO = /useMemo\(([\s\S]{0,2000}?)\n\s*\}?,\s*\[/g;
+  const fuori = [];
+  for (const f of sorgenti || []) {
+    for (const m of f.testo.matchAll(BLOCCO_MEMO)) {
+      if (/\bmatchTermini\s*\(/.test(m[1])) { fuori.push(f.path); break; }
+    }
+  }
+  // Il controllo positivo di sé stesso: se NESSUN file usa l'indice, la regola
+  // non è applicata da nessuna parte e questo zero non significa niente.
+  const conIndice = (sorgenti || []).filter(f => /\bmatchIndice\s*\(/.test(f.testo));
+  if (conIndice.length === 0) {
+    throw new LetturaFallita(
+      'Nessun file di src/ usa `matchIndice`: o l\'indice di ricerca è stato ' +
+      'rimosso, o è cambiato nome. Senza, «zero ricerche senza indice» ' +
+      'significa «zero ricerche».');
+  }
+  return [...new Set(fuori)];
+}
+
+/**
+ * M-2 · Le iterazioni quadratiche: `indexOf`/`findIndex` dentro una `.map()`.
+ *
+ * Cercare la posizione di un elemento nell'array mentre lo si sta già
+ * scorrendo è O(n²), e l'indice ce l'ha già il secondo parametro della
+ * callback (o si porta dietro dalla costruzione della lista). Nella lista
+ * messaggi della chat erano 125.000 confronti per render su una conversazione
+ * da 500 messaggi, e quel render riparte ogni 2,5 secondi mentre un collega
+ * scrive (l'evento di typing).
+ *
+ * ⚠️ È il controllo più stretto dei tre di proposito: cerca una forma precisa e
+ * non una categoria di lentezza. Non dice niente su una `.filter()` dentro una
+ * `.map()` o su un `.find()` su un ALTRO array — che è spesso legittimo (una
+ * lookup su un elenco piccolo). Chiude la ricaduta di M-2, non la classe.
+ *
+ * @param {{path: string, testo: string}[]} sorgenti
+ * @returns {string[]}
+ */
+export function iterazioniQuadratiche(sorgenti) {
+  // `.map(` seguita, entro il corpo della callback, da un `.indexOf(`/
+  // `.findIndex(` su un identificatore: la finestra è corta perché la forma da
+  // prendere è «cerco l'indice appena entrato nel ciclo».
+  const MAPPA_CON_RICERCA =
+    /\.map\(\s*\(?\s*[A-Za-z_$][\w$]*[^)]{0,40}\)?\s*=>\s*\{[\s\S]{0,200}?\b[A-Za-z_$][\w$]*\.(indexOf|findIndex)\s*\(/g;
+  return (sorgenti || [])
+    .filter(f => MAPPA_CON_RICERCA.test(f.testo))
+    .map(f => f.path);
+}
+
+/**
+ * M-1 (passo 2) · Le viste che chiedono l'anagrafica INTERA.
+ *
+ * Stesso mestiere di `usiStoricoTask`, su un equilibrio che si rompe nelle
+ * stesse due direzioni: una vista di troppo — una che vuole solo SUGGERIRE un
+ * cliente, e per quello c'è la ricerca lato server — annulla la finestra
+ * lasciandone in piedi il codice; una in meno mostra un'anagrafica parziale
+ * come se fosse tutta. Quale sia il numero giusto lo decide l'elenco motivato
+ * in `state/ClientiCompletiContext.jsx`; qui si fa rumore quando cambia.
+ *
+ * @param {{path: string, testo: string}[]} sorgenti
+ * @returns {string[]} i percorsi che importano l'hook
+ */
+export function usiClientiCompleti(sorgenti) {
+  const IMPORTA = /import\s*\{[^}]*\buseClientiCompleti\b[^}]*\}\s*from/;
+  const usi = (sorgenti || []).filter(f => IMPORTA.test(f.testo)).map(f => f.path);
+  if (usi.length === 0) {
+    throw new LetturaFallita(
+      'Nessun file di src/ importa `useClientiCompleti`: o l\'hook è stato ' +
+      'rimosso, o la forma dell\'import è cambiata. In entrambi i casi la ' +
+      'finestra sull\'anagrafica (M-1) non ha più nessuno che ne carichi il ' +
+      'complemento, e le due viste che la guardano mostrano un elenco parziale.');
+  }
+  return usi;
+}
+
+/**
+ * Il numero di viste che chiedono l'anagrafica intera, dichiarato in
+ * docs/CLAUDE.md (M-1, passo 2, dell'audit del 19 agosto).
+ */
+export function leggiCallSiteClienti(testo) {
+  const m = /(\d+)\s+viste chiedono\s+`useClientiCompleti`/.exec(testo);
+  if (!m) {
+    throw new LetturaFallita(
+      'docs/CLAUDE.md: non trovo la frase «N viste chiedono `useClientiCompleti`». ' +
+      'Se è stata riscritta, aggiorna QUESTO script insieme al documento.');
+  }
+  return Number(m[1]);
+}
+
 /**
  * Confronta dichiarato e misurato e produce l'elenco degli scarti.
  * Ogni scarto dice ENTRAMBI i numeri e cosa aggiornare: la divergenza è il

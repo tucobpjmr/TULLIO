@@ -1,6 +1,7 @@
 // src/components/admin/tabs/MessageTemplatesSection.jsx
 // Le risposte rapide riutilizzabili in chat, gestite dall'admin.
 import { useRef, useState } from "react";
+import { useSalvataggio } from "../../../hooks/useSalvataggio.js";
 import { cardStyle, cardH } from "../adminStyles.js";
 import { useConfirm } from "../../../state/ConfirmContext.jsx";
 import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
@@ -66,6 +67,21 @@ export const MessageTemplatesSection = ({ templates = [], dispatch }) => {
     setCreating(false);
   };
   const cancel = () => { setEditingId(null); setCreating(false); setDraftLabel(""); setDraftText(""); setErrori({}); };
+  // A-4 · L'esito prima di svuotare (audit del 19 agosto). Era `dispatch(...)`
+  // senza `await` seguito da `cancel()`, che azzera `draftLabel` e `draftText`:
+  // su una scrittura rifiutata il template appariva, spariva col rollback, e il
+  // testo appena scritto — che qui è il contenuto stesso, non un campo fra
+  // dieci — non esisteva più. `*_MESSAGE_TEMPLATE` è ADMIN_ONLY e passa dalla
+  // RLS, quindi il rifiuto ha un percorso vero.
+  const { salva, inVolo, errore: erroreSalvataggio } = useSalvataggio(
+    () => (creating
+      ? dispatch({ type: "ADD_MESSAGE_TEMPLATE", payload: { label: draftLabel, text: draftText } })
+      : dispatch({ type: "UPDATE_MESSAGE_TEMPLATE", payload: { id: editingId, label: draftLabel.trim(), text: draftText.trim() } })),
+    {
+      alSuccesso: cancel,
+      messaggioErrore: "Template non salvato. Il testo è ancora qui, riprova.",
+    },
+  );
   const save = () => {
     // M-3 dell'audit del 16 agosto: bottone spento + `return` muto. Due campi
     // obbligatori e nessuno dei due indicato — l'utente doveva indovinare
@@ -78,9 +94,7 @@ export const MessageTemplatesSection = ({ templates = [], dispatch }) => {
       return;
     }
     setErrori({});
-    if (creating) dispatch({ type: "ADD_MESSAGE_TEMPLATE", payload: { label: draftLabel, text: draftText } });
-    else dispatch({ type: "UPDATE_MESSAGE_TEMPLATE", payload: { id: editingId, label: draftLabel.trim(), text: draftText.trim() } });
-    cancel();
+    salva();
   };
 
   return (
@@ -131,9 +145,15 @@ export const MessageTemplatesSection = ({ templates = [], dispatch }) => {
             />
             <FieldError id="vd-tpl-text-err">{errori.text}</FieldError>
           </div>
+          <div>
+            {/* A-4 · Il fallimento accanto al testo che è rimasto. */}
+            <FieldError id="vd-tpl-save-err">{erroreSalvataggio}</FieldError>
+          </div>
           <div style={rowGap8}>
             <button onClick={cancel} style={boxF12R6}>Annulla</button>
-            <button onClick={save} style={boxF12Salva}>{creating ? "Crea" : "Salva"}</button>
+            <button onClick={save} disabled={inVolo} style={boxF12Salva}>
+              {inVolo ? "Salvataggio…" : (creating ? "Crea" : "Salva")}
+            </button>
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 // src/components/chat/message/ChatMessage.jsx
 // La singola bolla: testo, allegati, vocali, reazioni, spunte di lettura.
-import { useState } from "react";
+import { memo, useState } from "react";
 import { Avatar } from "../../ui/Avatar.jsx";
 import { Messages as MessagesAPI } from "../../../lib/api.js";
 import { formatDate } from "../../../lib/taskUtils.js";
@@ -35,7 +35,20 @@ const rowCenterGap3 = {
 const txtBoldMuted = { color: "var(--text-muted)", fontWeight: 600 };
 
 // ─── CHAT: MESSAGE ─────────────────────────────────────────────────────────
-export const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply, onTogglePin }) => {
+// ─── M-2 · `memo`, come TaskRow e TaskCard (audit del 19 agosto) ───────────
+// Era l'unico componente di riga di un elenco lungo senza memoizzazione, e
+// l'elenco che disegna è l'unico che si ri-renderizza su un TIMER: mentre un
+// collega scrive arriva un evento di typing ogni 2,5 secondi (TYPING_PING_MS),
+// e ognuno ricostruiva ogni bolla a schermo — avatar, forme d'onda, reazioni,
+// spunte di lettura — per far lampeggiare tre puntini.
+//
+// ⚠️ Il `memo` regge solo perché le prop lo permettono, e le due metà sono
+// arrivate insieme: `onReact`/`onReply`/`onTogglePin` hanno identità stabile
+// in ConversationView (`useCallback` con `msgs`/`commands` in un ref), e
+// `prevMsg` arriva già appaiato invece di essere ricalcolato con un `indexOf`
+// dentro la `.map()`. Con una sola delle due si aggiungerebbe un confronto che
+// non può mai riuscire — è la nota di docs/CLAUDE.md su TaskCard/TaskRow.
+export const ChatMessage = memo(function ChatMessage({ msg, prevMsg, conv, allMessages, onReact, onReply, onTogglePin }) {
   const [showReactions, setShowReactions] = useState(false);
   const [hovered, setHovered] = useState(false);
   const { onForward, currentUserId: me } = useChatContext();
@@ -254,7 +267,7 @@ export const ChatMessage = ({ msg, prevMsg, conv, allMessages, onReact, onReply,
       </div>
     </div>
   );
-};
+});
 
 const iconBtn = {
   background: "none", border: "none", cursor: "pointer",

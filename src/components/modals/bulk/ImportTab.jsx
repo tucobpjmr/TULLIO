@@ -37,6 +37,11 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
   // li evidenziamo così l'operatore sa cosa verificare (e cosa mappare a mano).
   const [autoDetected, setAutoDetected] = useState({});
   const [error, setError] = useState(null);
+  // Il freno vero al doppio invio è `busyRef`, non lo stato `busy` (stesso
+  // caso descritto in hooks/useSalvataggio.js): fra due tap ravvicinati sul
+  // bottone React può non aver ancora ri-renderizzato il bottone disabilitato,
+  // e un controllo basato solo sullo stato lascia partire due import identici.
+  const busyRef = useRef(false);
   const [busy, setBusy] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -140,7 +145,8 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
   }, [validRows, mapping, team, categories]);
 
   const handleCreate = async () => {
-    if (busy) return;
+    if (busyRef.current) return;
+    busyRef.current = true;
     const tasks = validRows.map((r) => {
       const assignee = mapping.assignee ? normAssignee(team, r[mapping.assignee]) : null;
       return {
@@ -158,7 +164,7 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
         comments: [],
       };
     });
-    if (!tasks.length) return;
+    if (!tasks.length) { busyRef.current = false; return; }
     setBusy(true);
     setError(null);
     const result = await onCreate(tasks);
@@ -166,9 +172,11 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
     // altrimenti l'operatore dovrebbe ricaricare il CSV e rimappare tutto.
     if (result && result.error) {
       setError(`Importazione non riuscita: ${result.error.message || "errore sconosciuto"}. Il file e la mappatura sono ancora qui, riprova.`);
+      busyRef.current = false;
       setBusy(false);
       return;
     }
+    busyRef.current = false;
     setBusy(false);
     onClose();
   };

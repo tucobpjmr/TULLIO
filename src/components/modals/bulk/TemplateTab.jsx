@@ -54,6 +54,11 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
   const [defaultAssignee, setDefaultAssignee] = useState("");
   const [praticaRef, setPraticaRef] = useState("");
   const [contact, setContact] = useState("");
+  // Il freno vero al doppio invio è `busyRef`, non lo stato `busy` (stesso
+  // caso descritto in hooks/useSalvataggio.js): fra due tap ravvicinati sul
+  // bottone React può non aver ancora ri-renderizzato il bottone disabilitato,
+  // e un controllo basato solo sullo stato lascia partire due serie identiche.
+  const busyRef = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [errori, setErrori] = useState({});
@@ -82,10 +87,12 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
     // freno al doppio invio (`busy`) resta un `return`, perché non è qualcosa
     // che l'utente possa correggere; ciò che manca da compilare lo dice ora il
     // messaggio sotto il campo.
-    if (busy) return;
+    if (busyRef.current) return;
+    busyRef.current = true;
     const trovati = validaCampi({ selectedId, eventDate }, REGOLE);
     const primo = primoCampoInvalido(trovati, ORDINE);
     if (primo) {
+      busyRef.current = false;
       setErrori(trovati);
       const contenitore = (primo === "selectedId" ? rifTemplate : rifData).current;
       // Il campo da mettere a fuoco è quello DENTRO il contenitore: la data è
@@ -111,15 +118,17 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
       description: "",
       comments: [],
     }));
-    if (!tasks.length) return;
+    if (!tasks.length) { busyRef.current = false; return; }
     setBusy(true);
     setError("");
     const result = await onCreate(tasks);
     if (result && result.error) {
       setError(`Creazione non riuscita: ${result.error.message || "errore sconosciuto"}. I dati sono ancora qui, riprova.`);
+      busyRef.current = false;
       setBusy(false);
       return;
     }
+    busyRef.current = false;
     setBusy(false);
     onClose();
   };

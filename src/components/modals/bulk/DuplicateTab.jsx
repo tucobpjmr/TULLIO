@@ -1,6 +1,6 @@
 // src/components/modals/bulk/DuplicateTab.jsx
 // Duplicazione di task esistenti, con spostamento delle scadenze.
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { formatDate } from "../../../lib/taskUtils.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { bulkInputStyle, bulkBtnPrimary, bulkBtnGhost, bulkIconBtnSmall } from "./bulkStyles.js";
@@ -28,6 +28,12 @@ export const DuplicateTab = ({ tasks, onCreate, onClose, onCancel, onDirty }) =>
   const [titleSuffix, setTitleSuffix] = useState(" (copia)");
   const [dayOffset, setDayOffset] = useState(0);
   const [search, setSearch] = useState("");
+  // Il freno vero al doppio invio è `busyRef`, non lo stato `busy` (stesso
+  // caso descritto in hooks/useSalvataggio.js e in ManualTab): fra due tap
+  // ravvicinati sul bottone React può non aver ancora ri-renderizzato il
+  // bottone disabilitato, e un controllo basato solo sullo stato lascia
+  // partire due batch di duplicazione identici.
+  const busyRef = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -56,7 +62,8 @@ export const DuplicateTab = ({ tasks, onCreate, onClose, onCancel, onDirty }) =>
   };
 
   const handleCreate = async () => {
-    if (busy) return;
+    if (busyRef.current) return;
+    busyRef.current = true;
     const newTasks = [];
     Object.entries(selected).forEach(([taskId, count]) => {
       const src = tasks.find(t => t.id === taskId);
@@ -81,15 +88,17 @@ export const DuplicateTab = ({ tasks, onCreate, onClose, onCancel, onDirty }) =>
         });
       }
     });
-    if (!newTasks.length) return;
+    if (!newTasks.length) { busyRef.current = false; return; }
     setBusy(true);
     setError("");
     const result = await onCreate(newTasks);
     if (result && result.error) {
       setError(`Creazione non riuscita: ${result.error.message || "errore sconosciuto"}. Le selezioni sono ancora qui, riprova.`);
+      busyRef.current = false;
       setBusy(false);
       return;
     }
+    busyRef.current = false;
     setBusy(false);
     onClose();
   };

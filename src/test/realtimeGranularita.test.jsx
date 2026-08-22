@@ -55,6 +55,8 @@ const TaskThreadsAPI = {
   // una lettura di questo hook. Resta nel doppio per poter asserire che
   // useAppHydration NON la chiami mai.
   historyForTask: vi.fn(async () => ({ data: [], error: null })),
+  // A-1 (22 agosto): la lettura ristretta vive in commentiPerTask.test.jsx.
+  commentsForTasks: vi.fn(async () => ({ data: [], error: null })),
 };
 const NoticesAPI = { list: vi.fn(vuoto) };
 const UsersAPI = { listAll: vi.fn(vuoto), getContacts: vi.fn(async () => ({ data: null })) };

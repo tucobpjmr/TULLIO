@@ -32,7 +32,7 @@ import { LOGGED_ACTIONS, buildLogEntry } from "./activityLog.js";
 // suo per la stessa ragione del log attività: non sono transizioni di stato.
 import { pushToast, marcaToast, ritiraToast } from "./toastQueue.js";
 import { applyRestoreBackupRollback } from "./restoreBackupRollback.js";
-import { fondiScrittureInVolo, applicaRigaRealtime } from "./pendingWrites.js";
+import { fondiScrittureInVolo, applicaRigaRealtime, fondiThreadCommenti } from "./pendingWrites.js";
 import { INITIAL_CATEGORIES } from "./taskCategories.js";
 import { demoState } from "./demoState.js";
 import { chiaveNome } from "../lib/clientNotes.js";
@@ -217,14 +217,20 @@ function baseReducer(state, action) {
       // rimettere la cronologia nello stato globale senza accorgersene.
       const { comments } = action.payload || {};
       if (!comments) return state;
-      // Stessa protezione di SET_TASKS: un task con una scrittura in volo (es.
-      // ADD_COMMENT appena dispatchato) non si lascia sovrascrivere dal thread
-      // riletto dal server, che può non contenerla ancora.
-      const pending = state.pendingWrites;
-      return {
-        ...state,
-        tasks: state.tasks.map(t => (pending?.has(t.id) ? t : { ...t, comments: comments[t.id] || [] })),
-      };
+      // La protezione sulle scritture in volo, e il perché, stanno in
+      // fondiThreadCommenti: qui `comments` è il CORPUS, quindi nessun elenco.
+      return { ...state, tasks: fondiThreadCommenti(state.tasks, state.pendingWrites, comments) };
+    }
+    // A-1 dell'audit del 22 agosto. Fonde i thread di ALCUNI task, lasciando
+    // intatti gli altri: la dispatcha il ramo `soloThread` di useAppHydration
+    // quando l'evento realtime dice QUALI task hanno commenti nuovi, invece di
+    // riscaricare l'intera tabella `comments` per applicarne una riga.
+    // La semantica delle chiavi assenti — che è ciò che distingue questo case
+    // da SET_TASK_THREADS — è in fondiThreadCommenti.
+    case "MERGE_TASK_COMMENTS": {
+      const { taskIds, comments } = action.payload || {};
+      if (!taskIds?.length || !comments) return state;
+      return { ...state, tasks: fondiThreadCommenti(state.tasks, state.pendingWrites, comments, taskIds) };
     }
     // Gemello "per riga" di SET_TASKS (suggerimento strategico n.1, audit del
     // 16 agosto): applica UN evento sulla tabella `tasks` invece di

@@ -1,6 +1,6 @@
 // ─── NOTICE BOARD ────────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { canEditNotice } from "../../lib/permissions.js";
@@ -38,13 +38,15 @@ export const NoticeBoard = ({ notices, dispatch, loading = false }) => {
   const { isMobile } = useViewport();
 
   // Tutti i tag in uso (dedup), ordinati per frequenza decrescente.
-  const allTags = (() => {
+  // Dipende solo dal corpus: si ricostruisce quando arrivano avvisi nuovi,
+  // non quando si apre l'editor o si tocca un filtro.
+  const allTags = useMemo(() => {
     const count = new Map();
     for (const n of notices) {
       for (const t of (n.tags || [])) count.set(t, (count.get(t) || 0) + 1);
     }
     return [...count.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t);
-  })();
+  }, [notices]);
 
   const toggleTag = (t) => {
     setActiveTags(prev => {
@@ -54,13 +56,14 @@ export const NoticeBoard = ({ notices, dispatch, loading = false }) => {
     });
   };
 
-  // Filtro + ordinamento (pinned in alto, poi per data)
-  const sorted = [...notices]
+  // Filtro + ordinamento (pinned in alto, poi per data).
+  // activeTags è un Set ricreato a ogni toggle, quindi funziona come dipendenza.
+  const sorted = useMemo(() => [...notices]
     .filter(n => activeTags.size === 0 || (n.tags || []).some(t => activeTags.has(t)))
     .sort((a, b) => {
       if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
       return new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt);
-    });
+    }), [notices, activeTags]);
 
   const formatRel = (iso) => {
     const diff = Date.now() - new Date(iso).getTime();

@@ -11,12 +11,16 @@ const txtRight = { textAlign: "right" };
 // (quella è la copia agente, vedi copiaAgente in ListaDetail). La stampa
 // isola questo blocco dal resto dell'app via @media print in liste.css;
 // "Invia" usa la Web Share API se disponibile, altrimenti copia negli appunti.
-export function RiepilogoClienteModal({ lista, movimenti, dispatch, onClose }) {
-  const saldo = movimenti.reduce((s, m) => s + Number(m.importo), 0);
+// `saldo`, se passato dal chiamante, è il saldo esatto già letto da
+// `liste_saldi` (B-1 dell'audit del 23 agosto): questo è uno dei due
+// documenti che escono dal sistema, quindi non lo si ricalcola qui in float64
+// se è già disponibile. Il ricalcolo locale resta come fallback.
+export function RiepilogoClienteModal({ lista, movimenti, saldo: saldoEsatto, dispatch, onClose }) {
+  const saldo = saldoEsatto !== undefined ? saldoEsatto : movimenti.reduce((s, m) => s + Number(m.importo), 0);
   const cls = saldoClass(saldo);
 
   const invia = async () => {
-    const testo = riepilogoTesto(lista, movimenti);
+    const testo = riepilogoTesto(lista, movimenti, saldo);
     if (navigator.share) {
       try {
         await navigator.share({ title: "Riepilogo buono viaggio", text: testo });

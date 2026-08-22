@@ -679,3 +679,32 @@ Il canarino inizia per `tullio-` di proposito: così la stessa sonda copre anche
 `safeRedirect` in `invite-user` trattino come fidato qualunque
 `tullio-*.vercel.app` — un insieme che chiunque può ampliare. A-4 resta aperto:
 è la difesa in profondità di C-1 e va chiusa a parte.
+
+### ✅ Verificato in produzione — 22 agosto 2026
+
+La allow-list è stata ristretta nella dashboard e il controllo è stato eseguito
+sul progetto reale ([run 32567591252](https://github.com/tucobpjmr/TULLIO/actions/runs/32567591252)):
+
+```
+sonda positiva  → HTTP 303  Location: https://tullio-seven.vercel.app/#error=access_denied&…
+sonda canarino  → HTTP 303  Location: https://tullio-seven.vercel.app#error=access_denied&…
+
+✓ il canarino tullio-canarino-allowlist.vercel.app è stato rifiutato e GoTrue
+  è ripiegato sul Site URL. La allow-list non ammette domini estranei.
+```
+
+Due cose che questa esecuzione ha stabilito, e che prima erano assunzioni:
+
+1. **GoTrue risponde `303` e ripiega in silenzio sul Site URL**, senza alcun
+   errore. La sonda era stata scritta su questa ipotesi, dedotta dal
+   comportamento documentato e provata solo contro un finto GoTrue locale: ora
+   è confermata sul servizio vero.
+2. **La sonda positiva è stata davvero onorata, non è ripiegata anche lei.** Lo
+   prova una differenza di un carattere: la positiva torna **con** lo slash
+   finale (`…vercel.app/`), cioè esattamente il `redirect_to` inviato, mentre
+   il canarino torna **senza** (`…vercel.app`), cioè il Site URL configurato.
+   Se fossero ripiegate entrambe, le due Location sarebbero identiche. Non è
+   una prova che era stata progettata — è un dettaglio emerso dall'esecuzione
+   reale — ma rafforza il controllo di controllo descritto sopra, e vale la
+   pena saperlo se un domani quelle due righe dovessero coincidere: quello
+   sarebbe il segnale che la sonda ha smesso di distinguere i due casi.

@@ -94,4 +94,38 @@ describe("withPrototypePollutionGuard", () => {
       })
     ).not.toThrow();
   });
+
+  it("rileva la sovrascrittura di una proprietà esistente (toString)", () => {
+    const originale = Object.prototype.toString;
+    let errore = null;
+    try {
+      withPrototypePollutionGuard(() => {
+        // il nome "toString" c'era già: un guard che guarda solo l'insieme
+        // dei nomi non vede questa mutazione, ma è pollution lo stesso
+        Object.prototype.toString = () => "pwned";
+        return "unreachable";
+      });
+    } catch (e) {
+      errore = e;
+    } finally {
+      // il guard non ripristina le sovrascritture (solo le aggiunte): tocca al
+      // test riportare il baseline reale allo stato di partenza — PRIMA di
+      // qualunque expect(), perché i matcher di Vitest usano internamente
+      // Object.prototype.toString.call() e un toString ancora avvelenato li
+      // manda fuori strada
+      Object.prototype.toString = originale;
+    }
+    expect(errore).not.toBeNull();
+    expect(errore.message).toMatch(/prototype pollution/i);
+  });
+
+  it("rileva l'inquinamento di Array.prototype, non solo di Object.prototype", () => {
+    expect(() =>
+      withPrototypePollutionGuard(() => {
+        Array.prototype.__polluted__ = "pwned";
+        return "unreachable";
+      })
+    ).toThrow(/prototype pollution/i);
+    expect(Object.getOwnPropertyNames(Array.prototype)).not.toContain("__polluted__");
+  });
 });

@@ -105,7 +105,12 @@ Deno.serve(async (req: Request) => {
       }
 
       console.error("[delete-user]", rawMsg);
-      return json({ error: "Impossibile eliminare l'utente: " + rawMsg }, 500);
+      // A log il messaggio vero (sopra), al chiamante un testo che non descrive
+      // lo schema: stessa regola di MSG_NON_AUTORIZZATO in adminPredicate.ts.
+      return json({
+        error: "Impossibile eliminare l'utente. L'errore è stato registrato: "
+             + "riprova, e se persiste contatta chi amministra il progetto.",
+      }, 500);
     }
 
     await rimuoviAvatar(targetId);

@@ -31,13 +31,43 @@
 //      RLS_TEST_DRIVER_EMAIL,  RLS_TEST_DRIVER_PASSWORD
 //      RLS_TEST_JUNIOR_EMAIL,  RLS_TEST_JUNIOR_PASSWORD
 //      RLS_TEST_PENDING_EMAIL, RLS_TEST_PENDING_PASSWORD
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 
 const url = process.env.RLS_TEST_URL;
 const anonKey = process.env.RLS_TEST_ANON_KEY;
-// Niente credenziali → skip, non fallimento: è la differenza fra "non
-// verificato qui" e "rotto".
+
+// A-2 dell'audit del 23 agosto. Lo skip qui sotto è la scelta giusta in
+// locale — «non verificato qui» ≠ «rotto» — ma per undici giorni ha
+// significato che questo file non veniva eseguito MAI: nessun workflow gli
+// passava le credenziali, e in una suite da 132 file un solo skipped non si
+// vede. Nel frattempo la divergenza che il file esiste per trovare c'era
+// davvero (A-1: `canViewTask` concedeva le urgenti altrui, `tasks_select`
+// no), ed è stata trovata leggendo il codice a mano.
+//
+// È l'argomento di A-3 dell'audit del 22 agosto — «lo script esisteva a zero
+// errori e non lo eseguiva nessuno» — applicato alla verifica di sicurezza,
+// con un'aggravante: `verifica:tipi` era davvero a zero, questo aveva
+// qualcosa da trovare.
+//
+// Dentro il job che esiste per eseguirlo, lo skip NON è un esito accettabile:
+// è il difetto, non una configurazione mancante. Ovunque altro resta uno skip.
+//
+// ⚠️ Il segnale è `RLS_TEST_REQUIRED`, impostato SOLO da rls.yml, e non
+// `process.env.CI`. Su `CI` la guardia farebbe fallire anche `ci.yml`, che
+// esegue `npm test` — cioè l'intera suite, questo file compreso — senza avere
+// né volere le credenziali dello staging: si sarebbe rotta la CI esistente per
+// difendere un job diverso. Il permesso di saltare non dipende dall'essere in
+// CI, dipende da CHI sta eseguendo.
+if (process.env.RLS_TEST_REQUIRED === "1" && !(url && anonKey)) {
+  throw new Error(
+    "[rls] RLS_TEST_REQUIRED=1 ma RLS_TEST_URL/RLS_TEST_ANON_KEY sono " +
+    "assenti: i segreti dello staging non sono configurati. Vedi " +
+    ".github/workflows/rls.yml — questo file non deve poter essere saltato " +
+    "dal job che esiste per eseguirlo."
+  );
+}
+
 const suite = url && anonKey ? describe : describe.skip;
 
 async function accedi(email, password) {
@@ -177,6 +207,88 @@ suite("RLS: la matrice di autorizzazione è applicata dal database, non solo dal
       expect(error).toBeNull();
       expect(data.length).toBeGreaterThan(1);
       expect(data.some((c) => c.user_id !== userId)).toBe(true);
+    });
+  });
+
+  // A-1 dell'audit del 23 agosto, reso ESEGUIBILE.
+  //
+  // Il rilievo è stato trovato leggendo tre file e confrontandoli con
+  // pg_policy a mano. Questo è il caso che lo avrebbe trovato da solo, ed è
+  // scritto per restare utile dopo la correzione: non asserisce «l'agent vede
+  // le urgenti altrui» come fatto, asserisce che il DATABASE e `canViewTask`
+  // rispondano LO STESSO. Se un domani si decidesse di restringere il client
+  // invece di allargare il database, questo test va aggiornato in un punto
+  // solo — l'atteso — e continua a misurare l'invariante giusta.
+  //
+  // ⚠️ Perché la sonda la crea il DRIVER e la legge il JUNIOR: servono due
+  // identità diverse, e sono le due che lo staging ha già. Il driver è anche
+  // l'unico che può creare solo 'transfer' (private.can_use_task_category),
+  // quindi la categoria non è una scelta estetica.
+  describe("Urgenti altrui — il database concede ciò che canViewTask concede", () => {
+    let driver, junior, taskId;
+
+    beforeAll(async () => {
+      driver = await accedi(
+        process.env.RLS_TEST_DRIVER_EMAIL, process.env.RLS_TEST_DRIVER_PASSWORD);
+      junior = await accedi(
+        process.env.RLS_TEST_JUNIOR_EMAIL, process.env.RLS_TEST_JUNIOR_PASSWORD);
+
+      // Scadenza fra 12 ore: dentro la finestra di 24h sia di isUrgent()
+      // (lib/taskUtils.js) sia di private.is_urgent_task(). Assegnata al
+      // driver, quindi per il junior NON è né propria né in coda globale: il
+      // ramo `isUrgent` è l'unico che possa concederla.
+      const scadenza = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
+      const { data, error } = await driver.client.from("tasks").insert({
+        title: "sonda rls urgente altrui", category: "transfer", status: "todo",
+        created_by: driver.userId, assignees: [driver.userId], due_date: scadenza,
+      }).select().single();
+      if (error) throw new Error(`setup sonda urgente: ${error.message}`);
+      taskId = data.id;
+    });
+
+    afterAll(async () => {
+      if (taskId) await driver.client.from("tasks").delete().eq("id", taskId);
+    });
+
+    it("l'agent riceve la task urgente di un collega", async () => {
+      const { data, error } = await junior.client
+        .from("tasks").select("id").eq("id", taskId);
+      expect(error).toBeNull();
+      // Prima della migrazione 20260822215237 questa riga era 0: la policy
+      // non aveva il ramo urgenza, e la scorciatoia «contatta l'assegnatario»
+      // di UrgentQueue.jsx non compariva mai a un agent.
+      expect(data).toHaveLength(1);
+    });
+
+    it("ma NON può modificarla: urgente ≠ modificabile, come dice canEditTask", async () => {
+      // Il gemello negativo, e non è ridondanza: la migrazione tocca solo
+      // tasks_select proprio perché questa asserzione deve restare vera. Una
+      // UPDATE rifiutata dalla RLS non solleva — filtra le righe — quindi il
+      // verdetto si legge dal CONTEGGIO, non da `error` (lib/esitoScrittura.js).
+      const { count, error } = await junior.client
+        .from("tasks").update({ title: "modificata dal junior" }, { count: "exact" })
+        .eq("id", taskId);
+      expect(error).toBeNull();
+      expect(count).toBe(0);
+    });
+
+    it("il driver, che canViewTask esclude, non la riceve se non è sua", async () => {
+      // Controllo positivo del confine: senza, «l'agent la vede» sarebbe
+      // soddisfatto anche da una policy che l'ha aperta a chiunque. Il driver
+      // qui è l'assegnatario, quindi si usa una seconda sonda NON sua.
+      const scadenza = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
+      const { data: altrui, error: errIns } = await junior.client.from("tasks").insert({
+        title: "sonda rls urgente del junior", category: "booking", status: "todo",
+        created_by: junior.userId, assignees: [junior.userId], due_date: scadenza,
+      }).select().single();
+      expect(errIns).toBeNull();
+
+      const { data, error } = await driver.client
+        .from("tasks").select("id").eq("id", altrui.id);
+      expect(error).toBeNull();
+      expect(data).toHaveLength(0);
+
+      await junior.client.from("tasks").delete().eq("id", altrui.id);
     });
   });
 });

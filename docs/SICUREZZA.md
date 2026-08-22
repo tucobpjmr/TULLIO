@@ -622,11 +622,23 @@ l'ambiente locale. **Nessuna voce con un jolly su `vercel.app`.**
 ### Perché niente jolly per le preview, nemmeno con lo scope del team
 
 La tentazione è `https://tullio-*-tooco-s-projects.vercel.app/**`, che sembra
-sicuro perché lo scope del team non è replicabile. Non lo è: le URL di
-deployment sono `tullio-<hash>-tooco-s-projects.vercel.app`, e un hostname
+sicuro perché lo scope del team non è replicabile. Non lo è: un hostname
 `.vercel.app` che **nessun deployment ha ancora rivendicato** può essere
 occupato da chi crea un progetto con quel nome. Un jolly su quel pattern
 riapre la stessa classe di C-1, solo più stretta.
+
+E gli hostname da coprire non sono nemmeno enumerabili in anticipo. Il branch
+di questa stessa correzione ha prodotto:
+
+```
+tullio-git-claude-app-architecture-secu-cfc668-tooco-s-projects.vercel.app
+```
+
+cioè `tullio-git-<slug troncato>-<hash>-<scope>`: Vercel accorcia i nomi di
+branch lunghi e ci appende un hash, quindi la forma pulita
+`tullio-git-<branch>-<scope>.vercel.app` vale solo per i branch dal nome
+corto — `main` fra questi. Qualsiasi allow-list che voglia coprire le preview
+è perciò costretta a un jolly, ed è il jolly il problema.
 
 E soprattutto: **non serve**. `redirect_to` conta unicamente per i link di
 invito e di reset password, che arrivano per email e puntano alla produzione.

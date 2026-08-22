@@ -470,10 +470,84 @@ produzione: senza `RLS_TEST_URL`/`RLS_TEST_ANON_KEY` il file resta `describe.ski
 Lanciarlo davvero con `npm run test:rls`; setup dettagliato nell'intestazione
 del file.
 
-Non è più vero, quindi, che «la conformità fra i due livelli è garantita dalla
-lettura, non da un test»: lo è ancora per chi non ha ancora configurato un
-progetto di staging, ma il test esiste ed è pronto a intercettare la
-divergenza il giorno in cui quel progetto c'è.
+### ⛔ La coerenza fra i due livelli NON è verificata automaticamente
+
+**Questa è la lacuna dichiarata più importante del documento. Leggila prima di
+toccare `src/lib/permissions.js` o una policy.**
+
+Il paragrafo che stava qui diceva: «Non è più vero che la conformità fra i due
+livelli è garantita dalla lettura, non da un test: il test esiste ed è pronto a
+intercettare la divergenza il giorno in cui c'è un progetto di staging.» Era
+vero alla lettera e fuorviante nella sostanza, e **A-1 dell'audit del 23 agosto
+2026 lo ha dimostrato**: `canViewTask` concedeva a un agent le task urgenti dei
+colleghi, `tasks_select` non aveva quel ramo, e le due copie sono rimaste
+divergenti finché qualcuno non ha letto tre file a mano confrontandoli con
+`pg_policy`. Il test che esisteva «pronto a intercettarla» non l'ha
+intercettata, perché **un test che non gira non è un test** — e in una suite da
+132 file un solo `skipped` non lo nota nessuno.
+
+Il 22 agosto 2026 è stata presa una decisione esplicita: **non si mantiene un
+progetto Supabase di staging.** Costa (schema da tenere allineato, tre utenti,
+otto segreti) e quel costo ricorrente non è approvato — come
+`leaked_password_protection`, che richiede il piano Pro (§1). Di conseguenza
+`.github/workflows/rls.yml` è **parcheggiato su `workflow_dispatch`**: non gira
+su push, non gira di notte, e `src/test/integration/rls.test.js` resta
+`describe.skip` ovunque.
+
+Quindi, senza giri di parole:
+
+> La matrice dei permessi è scritta **due volte** — in `src/lib/permissions.js`
+> e nelle policy/funzioni `private.*` — e **nessun controllo automatico
+> verifica che le due copie dicano la stessa cosa.** I 137 test di questo
+> paragrafo verificano il client contro se stesso. `verifica:rpc` verifica che
+> le funzioni **esistano**, non cosa concedono. `verifica:advisor` verifica i
+> lint di Supabase, non l'accordo con il client.
+
+⚠️ **In che direzione è pericoloso.** In A-1 il database era il livello più
+STRETTO: si perdeva una funzione, non si apriva un accesso. È il verso
+fortunato, e non è garantito. Il verso opposto — il client più stretto del
+database — non produce alcun sintomo visibile: la UI non mostra il pulsante,
+nessuno si lamenta, e il permesso resta concesso a chi chiama PostgREST
+direttamente. **Quello non lo troverebbe nessuna lettura casuale**, perché non
+si manifesta.
+
+#### Cosa resta a carico di chi tocca i permessi
+
+Finché la situazione è questa, la verifica è **manuale e obbligatoria**. Chi
+modifica una regola di autorizzazione da un lato deve controllare l'altro nello
+stesso commit:
+
+1. leggere la policy **dal database**, non dal file di migrazione — i file più
+   vecchi dichiarano gli helper in `public` mentre in produzione vivono in
+   `private`, e questo è stato constatato, non supposto:
+
+   ```sql
+   select polname, pg_get_expr(polqual, polrelid)
+   from pg_policy where polrelid = 'public.tasks'::regclass;
+   ```
+
+2. misurare l'effetto impersonando un utente reale per ruolo, dentro una
+   transazione con `rollback` (procedura in `MIGRAZIONI_SUPABASE.md`, §Dry-run).
+   È così che A-1 è stato quantificato: un agent passa da 227 a 228 task viste
+   e da 0 a 1 urgenti altrui;
+
+3. aggiornare la matrice del §4 di questo documento **nello stesso commit**.
+   Quella tabella ha affermato il falso su tre colonne su cinque per settimane:
+   è normativa, quindi quando mente viene creduta.
+
+#### Come si chiude davvero
+
+Il meccanismo è scritto, provato e completo: mancano solo le credenziali. I
+passi sono elencati nel preambolo di `.github/workflows/rls.yml` — progetto di
+staging, `db push` su di esso, tre utenti, otto segreti, e togliere il commento
+ai due trigger. `RLS_TEST_REQUIRED=1` resta impostato apposta: se qualcuno
+lancia il workflow a mano senza i segreti, **fallisce invece di passare a
+vuoto**.
+
+⚠️ Il rischio di questa decisione è che una lacuna dichiarata diventi una
+lacuna dimenticata. Il presidio contro questo è che sta scritta qui, nel
+documento che `INDEX.md` indica come «da leggere prima di toccare policy, RPC o
+Edge Function», e non in un commento dentro un workflow che non gira.
 
 ---
 

@@ -14,14 +14,25 @@ livelli fra loro** invece che ciascuno con se stesso: `src/lib/permissions.js`,
 È da quel confronto che nasce il rilievo principale, e non è un caso: è
 l'unico controllo che nessuno strumento di questo repository esegue.
 
-⟦stato: 3/9 chiusi⟧
+⟦stato: 2/9 chiusi⟧
 
-> **Aggiornamento del 23 agosto, stessa sessione.** A-1, A-2 e M-2 sono stati
-> chiusi nel repository (A-1 attende l'applicazione della migrazione in
-> produzione). **A-3 è stato RITIRATO**: era sbagliato — vedi la sua sezione,
-> che è stata riscritta invece di essere cancellata. Al suo posto resta B-5,
-> molto più piccolo. Il conteggio 3/9 tiene A-3 fra i rilievi perché ritirarlo
-> è esso stesso un esito da poter rileggere.
+> **Aggiornamento del 22-23 agosto, stessa sessione.** Quattro esiti diversi, e
+> vale la pena distinguerli invece di dire «quattro chiusi»:
+>
+> - **A-1 ✅ chiuso e applicato in produzione**, con l'effetto misurato prima e
+>   dopo impersonando utenti reali.
+> - **M-2 ✅ chiuso**: `verifica:volumi` collegato a `verifica-rpc.yml`.
+> - **A-2 ⚖️ ACCETTATO, non chiuso.** Il codice è scritto e provato, ma
+>   mantenere uno staging è un costo ricorrente che non è stato approvato: il
+>   workflow è parcheggiato su `workflow_dispatch` e la lacuna è **dichiarata**
+>   in `SICUREZZA.md` §7. Stessa forma di `leaked_password_protection` —
+>   una decisione, non un interruttore dimenticato.
+> - **A-3 ⬜ RITIRATO**: era sbagliato. La sezione è riscritta invece che
+>   cancellata; sopravvive come B-5, molto più piccolo.
+>
+> Il conteggio dice **2/9** perché accettato e ritirato non sono chiuso. Un
+> rilievo accettato conta come aperto finché la condizione che lo ha fatto
+> accettare non cambia — è l'unico modo perché resti leggibile.
 
 ## Stato misurato, non riferito
 
@@ -51,7 +62,7 @@ smetteranno di reggere.**
 |---|---|---|---|---|
 | **C** | 🔴 Critica | — | **Nessuno.** Constatazione verificata, non assenza di ricerca | — |
 | **A-1** ✔ | 🟠 Alta | Sicurezza / Correttezza | ✅ **verificato in produzione e corretto nel repo.** `canViewTask` concede le urgenti altrui, `tasks_select` no: client, test e `SICUREZZA.md` concordano fra loro e **tutti e tre divergono dal database**. Migrazioni `20260822215237` + `20260822215520` ✅ **applicate e verificate in produzione** | `src/lib/permissions.js:131` |
-| **A-2** ✔ | 🟠 Alta | Sicurezza / Ops | ✅ **chiuso.** Il **solo** test che attraversa il confine di rete non veniva eseguito da nessuno. Ora `.github/workflows/rls.yml` + `RLS_TEST_REQUIRED` (lo skip solleva nel job che esiste per eseguirlo) + il caso di A-1 | `src/test/integration/rls.test.js` |
+| **A-2** ⚖️ | 🟠 Alta | Sicurezza / Ops | ⚖️ **ACCETTATO il 22 agosto, non chiuso.** Il solo test che attraversa il confine di rete non veniva eseguito da nessuno; il meccanismo è ora scritto e provato, ma **non si mantiene uno staging** — costo ricorrente non approvato. Workflow parcheggiato su `workflow_dispatch`, lacuna **dichiarata** in `SICUREZZA.md` §7 | `src/test/integration/rls.test.js` |
 | ~~**A-3**~~ | ⬜ **RITIRATO** | — | **Il rilievo era sbagliato.** Entrambi gli script emettono già un'annotation `::warning` sul percorso inconcludente (aggiunta come A-2 il 12 agosto), e dai log del run reale nessuno dei due sta tacendo. Vedi la sezione, riscritta | — |
 | **M-1** | 🟡 Media | Documentazione | L'audit del 22 agosto — che ha chiuso un rilievo **critico** — non ha un documento: fuori da `INDEX.md` e fuori dal registro di `verifica:convenzioni` | `docs/` |
 | **M-2** ✔ | 🟡 Media | Scalabilità | ✅ **chiuso.** La soglia era in un documento che nessuno misurava: ora `npm run verifica:volumi` (4 soglie, in `verifica-rpc.yml`) la legge dalla produzione | `src/lib/api.js:634` |
@@ -260,10 +271,40 @@ divergenza nascerà nello stesso silenzio.
 
 ---
 
-## 🟠 A-2 · Il solo test che attraversa il confine non lo esegue nessuno — ✅ chiuso
+## 🟠 A-2 · Il solo test che attraversa il confine non lo esegue nessuno — ⚖️ accettato
 
-> **Chiusura del 23 agosto.** `.github/workflows/rls.yml` esegue `npm run
-> test:rls` su `main`, ogni notte alle 7:00 UTC e a richiesta.
+> **⚖️ ESITO: ACCETTATO, NON CHIUSO — 22 agosto 2026.**
+>
+> Il meccanismo è stato scritto per intero e provato: `.github/workflows/rls.yml`,
+> la guardia `RLS_TEST_REQUIRED`, e il caso di A-1 nella suite. Poi è stata
+> presa la decisione di **non mantenere un progetto Supabase di staging**:
+> schema da tenere allineato, tre utenti, otto segreti: un costo ricorrente che
+> non è approvato.
+>
+> ⛔ **Un workflow che resta rosso in permanenza per una credenziale mancante è
+> peggio di uno assente**: si impara a ignorarlo, e con lui gli altri. Il
+> workflow è quindi parcheggiato su `workflow_dispatch` — non gira su push, non
+> gira di notte — e **non è stato cancellato**: il codice è completo e manca
+> solo il database su cui puntarlo; cancellarlo vorrebbe dire riscriverlo il
+> giorno in cui lo staging esiste, e quel giorno la domanda «come si
+> verificava?» non avrebbe più una risposta leggibile.
+>
+> ⚠️ **La lacuna è DICHIARATA, non chiusa.** `docs/SICUREZZA.md` §7 porta ora
+> una sezione che dice a lettere che la matrice dei permessi è scritta due
+> volte e che **nessun controllo automatico verifica che le due copie
+> concordino**, con la procedura manuale obbligatoria per chi tocca i permessi
+> e i cinque passi per riaccendere il controllo. È la stessa forma con cui il
+> progetto ha accettato `leaked_password_protection` (§1): una decisione con il
+> motivo accanto, non un interruttore dimenticato.
+>
+> ⚠️ E porta anche il verso che fa più paura, che A-1 **non** aveva: lì il
+> database era il livello più stretto, quindi si perdeva una funzione. Il verso
+> opposto — client più stretto del database — non produce alcun sintomo: la UI
+> non mostra il pulsante, nessuno si lamenta, e il permesso resta concesso a
+> chi chiama PostgREST direttamente. Quello nessuna lettura casuale lo trova.
+>
+> Il testo qui sotto descrive il rilievo e ciò che è stato costruito; resta
+> valido, va letto sapendo che il controllo **non è armato**.
 >
 > La metà che conta è che **lo skip non possa passare inosservato dentro il job
 > che esiste per eseguirlo**: `RLS_TEST_REQUIRED=1`, impostato solo da quel

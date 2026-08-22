@@ -29,25 +29,61 @@ name: Verifica RLS
 # doveva proteggerli. Il setup dello staging (tre utenti, un ruolo ciascuno) è
 # in cima a src/test/integration/rls.test.js.
 #
-# ── FINCHÉ I SEGRETI NON CI SONO ────────────────────────────────────────────
-# `RLS_TEST_REQUIRED=1` fa SOLLEVARE il file invece di lasciarlo skippare: il
-# job è rosso finché lo staging non è configurato. È deliberato e non è la
-# scelta di `verifica-advisor` (che esce 0 con un warning quando manca il suo
-# token): là il controllo era nuovo e non poteva rendere rosso un workflow
-# altrui, qui il workflow è SUO e non ha altro da fare. Un job verde che non ha
+# ⛔⛔ QUESTO WORKFLOW È PARCHEGGIATO — NON GIRA DA SOLO ⛔⛔
+#
+# Ha il solo trigger `workflow_dispatch`: non parte su push, non parte di
+# notte. La decisione è del 22 agosto 2026 ed è ESPLICITA: mantenere un
+# progetto Supabase di staging (schema allineato, tre utenti, otto segreti) è
+# un costo ricorrente che non è stato approvato, e un workflow rosso in
+# permanenza per una credenziale mancante è peggio di uno assente — si impara
+# a ignorarlo, e con lui gli altri.
+#
+# ⚠️ CIÒ CHE RESTA SCOPERTO È DICHIARATO, non nascosto: vedi la sezione
+# «Coerenza fra i due livelli di autorizzazione» in docs/SICUREZZA.md. La
+# matrice dei permessi resta scritta due volte — src/lib/permissions.js e le
+# policy — e **nessun controllo automatico verifica che le due copie
+# concordino**. A-1 dell'audit del 23 agosto è la prova che possono divergere
+# senza che nulla lo dica: a trovarlo è stata la lettura a mano di tre file
+# contro pg_policy.
+#
+# ⛔ NON è stato cancellato, ed è una scelta e non una dimenticanza. Il file e
+# i casi in src/test/integration/rls.test.js sono scritti, provati e completi:
+# manca solo il database su cui puntarli. Cancellare significherebbe dover
+# riscrivere tutto il giorno in cui lo staging esiste, e quel giorno la
+# domanda «come si verificava?» non avrebbe più una risposta leggibile.
+#
+# ── COME RIACCENDERLO ──────────────────────────────────────────────────────
+#   1. progetto Supabase di STAGING (Free basta), MAI la produzione — vedi
+#      sotto perché;
+#   2. `supabase db push` su quel progetto (è vuoto: lì il push è sicuro, il
+#      divieto di MIGRAZIONI_SUPABASE.md vale per la produzione);
+#   3. tre utenti con password in Auth + public.users — driver, agent
+#      seniority='junior', e uno lasciato pending=true (setup in cima a
+#      src/test/integration/rls.test.js);
+#   4. gli otto segreti qui sotto;
+#   5. rimettere i trigger `push` e `schedule` commentati in fondo a questo
+#      file, e aggiornare la sezione di SICUREZZA.md che oggi dichiara il buco.
+#
+# `RLS_TEST_REQUIRED=1` resta impostato: se qualcuno lancia il workflow a mano
+# senza i segreti, FALLISCE invece di passare a vuoto. È il punto dell'intero
+# file, e vale anche adesso che gira solo su richiesta. Un job verde che non ha
 # eseguito nulla è esattamente il difetto che questo file chiude.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'src/lib/permissions.js'
-      - 'src/state/persistence.js'
-      - 'supabase/migrations/**'
-      - 'src/test/integration/**'
-      - '.github/workflows/rls.yml'
-  schedule:
-    - cron: '0 7 * * *'
+  # ⛔ I due trigger automatici sono DISATTIVATI (vedi il preambolo). Restano
+  # qui, commentati, perché riaccenderli sia una riga da togliere e non una da
+  # ricordare:
+  #
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - 'src/lib/permissions.js'
+  #     - 'src/state/persistence.js'
+  #     - 'supabase/migrations/**'
+  #     - 'src/test/integration/**'
+  #     - '.github/workflows/rls.yml'
+  # schedule:
+  #   - cron: '0 7 * * *'
   workflow_dispatch: {}
 
 jobs:

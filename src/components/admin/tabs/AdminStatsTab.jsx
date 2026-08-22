@@ -59,7 +59,14 @@ export const AdminStatsTab = ({ dispatch, messageTemplates = [] }) => {
   const byCategory = Object.entries(categories).map(([k, c]) => ({
     k, label: c.label, color: c.color, icon: c.icon,
     count: active.filter(t => t.category === k).length,
-  })).sort((a,b) => b.count - a.count);
+  }))
+    // L'ordine per frequenza si applica solo a corpus completo: `count` qui
+    // include le completate, che la finestra di useStoricoTaskCompleto pota
+    // (a differenza di byMember, che filtra status !== "done"). Ordinare i
+    // conteggi parziali farebbe riordinare le righe sotto gli occhi di chi
+    // legge nel momento in cui lo storico arriva. Durante l'attesa si tiene
+    // l'ordine delle categorie, che è stabile.
+    .sort((a, b) => (caricandoStorico ? 0 : b.count - a.count));
 
   const byMember = team.filter(m => !m.pending).map(m => {
     const count = active.filter(t => (t.assignees || []).includes(m.id) && t.status !== "done").length;
@@ -136,7 +143,11 @@ export const AdminStatsTab = ({ dispatch, messageTemplates = [] }) => {
               <div style={rowCenterMiddle}>{c.icon}</div>
               <div style={stiliComuni.flex1}>
                 <div style={stiliComuni.txtF13Bold}>{c.label}</div>
-                <div style={stiliComuni.txtF11Muted}>{c.count} task</div>
+                {/* `count` include le completate, che la finestra di
+                    useStoricoTaskCompleto pota: è quindi un conteggio che
+                    DIPENDE dallo storico, come byStatus e a differenza di
+                    byMember (che filtra status !== "done"). Passa da conta(). */}
+                <div style={stiliComuni.txtF11Muted}>{conta(c.count)} task</div>
               </div>
             </div>
           ))}

@@ -17,8 +17,8 @@ import * as stiliComuni from "../../styles/common.js";
 import {
   boxF125Danger, boxF13Bold, boxF13Bold2, boxF13Bold3, boxF13Bold3InVolo, boxF14Muted, boxW100H100, boxW52H52,
   colCenterGap12, colGap10Mt10, colGap10Mt102, colGap18, mt2, row, rowCenterBetween,
-  rowCenterGap14, rowCenterGap8, rowCenterGap82, rowCenterMiddle, rowCenterMiddle2, rowGap10,
-  txtF11Mt2, txtF11Muted2, txtF13Text, txtF18Bold,
+  rowCenterGap14, rowCenterGap8, rowCenterGap82, rowCenterGap8Neutral, rowCenterMiddle, rowCenterMiddle2, rowGap10,
+  txtF11Mt2, txtF11Muted2, txtF12Muted, txtF13Text, txtF18Bold,
 } from "./profileEditorStyles.js";
 
 // Criticità #10 — il nome è obbligatorio e l'email, se compilata, dev'essere
@@ -80,7 +80,7 @@ const BOZZA_PWD = { nuova: "", conferma: "" };
 //     può stare in `draft` perché non si salva, si confronta con "ELIMINA".
 export const ProfileEditor = ({ member, dispatch, onClose }) => {
   const { isMobile } = useViewport();
-  const { session, updatePassword, deleteAccount } = useAuth();
+  const { session, updatePassword, deleteAccount, signOutOvunque } = useAuth();
   const montato = useIsMounted();
   const [draft, setDraft] = useState({
     name: member.name || "",
@@ -114,6 +114,21 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
   const [elimAperta, setElimAperta] = useState(false);
   const [confermaElim, setConfermaElim] = useState("");
   const [esitoElim, setEsitoElim] = useState(ESITO_PRONTO); // { fase: pronto|invio|errore, testo }
+  const [esitoSignOutOvunque, setEsitoSignOutOvunque] = useState(ESITO_PRONTO); // { fase: pronto|invio|errore, testo }
+
+  // Uscita da ogni dispositivo: revoca lato server tutti i refresh
+  // token. A differenza di deleteAccount() non smonta questa modale da sola
+  // in caso di successo su QUESTA scheda (onAuthStateChange la farà comunque
+  // sparire non appena il provider aggiorna `session`), quindi il guard
+  // useIsMounted() qui serve davvero, non solo a scopo descrittivo.
+  const handleSignOutOvunque = async () => {
+    setEsitoSignOutOvunque({ fase: "invio", testo: null });
+    const { error } = await signOutOvunque();
+    if (!montato()) return;
+    setEsitoSignOutOvunque(error
+      ? { fase: "errore", testo: error.message || "Non è stato possibile disconnettere gli altri dispositivi." }
+      : ESITO_PRONTO);
+  };
 
   const handleDeleteAccount = async () => {
     if (confermaElim !== "ELIMINA") return;
@@ -422,6 +437,29 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ── Esci da tutti i dispositivi (dispositivo perso, sessione reale) ── */}
+          {session && (
+            <div style={mt2}>
+              <p style={txtF12Muted}>
+                Disconnette ogni telefono, tablet e computer collegato a questo
+                account, incluso questo. Usalo se hai perso un dispositivo.
+              </p>
+              {esitoSignOutOvunque.testo && (
+                <div role="status" style={boxF125Danger}>{esitoSignOutOvunque.testo}</div>
+              )}
+              <div style={row}>
+                <button
+                  onClick={handleSignOutOvunque}
+                  disabled={esitoSignOutOvunque.fase === "invio"}
+                  style={rowCenterGap8Neutral}
+                >
+                  <span style={stiliComuni.txtF15}>🔒</span>
+                  {esitoSignOutOvunque.fase === "invio" ? "Disconnessione…" : "Esci da tutti i dispositivi"}
+                </button>
+              </div>
             </div>
           )}
 

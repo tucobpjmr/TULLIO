@@ -65,6 +65,13 @@ export const boxF125Danger = {
   background: "rgba(192,57,43,0.08)", border: "1px solid var(--danger)",
   color: "var(--danger)",
 };
+export const rowCenterGap8Neutral = {
+  display: "flex", alignItems: "center", gap: 8,
+  background: "none", border: "none", cursor: "pointer",
+  color: "var(--text)", fontSize: 13, fontWeight: 600,
+  padding: "6px 0", fontFamily: "inherit",
+};
+export const txtF12Muted = { fontSize: 12, color: "var(--text-muted)", margin: "0 0 6px" };
 export const rowGap10 = {
   padding: "14px 22px 18px", borderTop: "1px solid var(--border)",
   display: "flex", justifyContent: "flex-end", gap: 10,

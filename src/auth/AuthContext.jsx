@@ -264,6 +264,13 @@ export function AuthProvider({ children }) {
   // Function) falliva con "Token non valido" (session_not_found).
   const signOut = useCallback(() => supabase.auth.signOut({ scope: 'local' }), []);
 
+  // Uscita da OGNI dispositivo: revoca i refresh token lato server. È il
+  // rimedio per un dispositivo perso, e non ha il difetto che ha portato a
+  // 'local' sopra — qui la sessione morta nelle altre schede è ESATTAMENTE
+  // ciò che si vuole, quindi il toast "Sessione scaduta" di api.js è la
+  // risposta giusta e non un effetto collaterale da nascondere.
+  const signOutOvunque = useCallback(() => supabase.auth.signOut({ scope: 'global' }), []);
+
   // Invia l'email con il link per reimpostare la password. redirectTo riporta
   // l'utente sull'app, dove detectSessionInUrl genera l'evento PASSWORD_RECOVERY.
   const resetPassword = useCallback((email) =>
@@ -332,11 +339,12 @@ export function AuthProvider({ children }) {
     updatePassword,
     deleteAccount,
     signOut,
+    signOutOvunque,
     refreshTeam,
     retryInit,
   }), [
     session, profile, team, loading, authError, recovery, recoveryKind,
-    signIn, resetPassword, resendConfirmation, updatePassword, deleteAccount, signOut, refreshTeam, retryInit,
+    signIn, resetPassword, resendConfirmation, updatePassword, deleteAccount, signOut, signOutOvunque, refreshTeam, retryInit,
   ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,5 +1,5 @@
 import { LvOverlay } from "./LvOverlay.jsx";
-import { colGap10 } from "../../../styles/common.js";
+import * as stiliComuni from "../../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -17,7 +17,7 @@ export function StrumentiDatiModal({ isAdminUser, onClose, onScaricaBackup, onCa
   return (
     <LvOverlay onClose={onClose}>
       <h2>Strumenti dati</h2>
-      <div style={colGap10}>
+      <div style={stiliComuni.colGap10}>
         <button className="lv-btn" style={middle} onClick={onScaricaBackup}>
           ⬇ Scarica backup (JSON)
         </button>

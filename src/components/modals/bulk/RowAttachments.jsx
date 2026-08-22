@@ -3,12 +3,12 @@
 import { useRef } from "react";
 import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon } from "../../../lib/fileUtils.js";
 import { bulkAttachBtn, bulkFileChip } from "./bulkStyles.js";
-import { hidden } from "../../../styles/common.js";
+import * as stiliComuni from "../../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
 const flexShrink2 = { flexShrink: 0 };
-const minW0 = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 };
+const minW0 = { overflow: "stiliComuni.hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 };
 const txtMuted = { color: "var(--text-muted)", flexShrink: 0 };
 
 
@@ -25,7 +25,7 @@ export const RowAttachments = ({ files, onAdd, onRemove, disabled, style }) => {
         ref={inputRef}
         type="file"
         multiple
-        style={hidden}
+        style={stiliComuni.hidden}
         onChange={e => { onAdd(e.target.files); if (inputRef.current) inputRef.current.value = ""; }}
       />
       <button

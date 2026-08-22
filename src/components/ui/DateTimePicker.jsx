@@ -14,7 +14,7 @@
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { Z } from "../../styles/tokens.js";
 import { dataNumerica, meseAnno, oraBreve } from "../../lib/dates.js";
-import { txtF11Bold } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -303,7 +303,7 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
 
       {withTime && (
         <div style={rowCenterGap8}>
-          <span style={txtF11Bold}>Ora</span>
+          <span style={stiliComuni.txtF11Bold}>Ora</span>
           <select
             value={draftH}
             onChange={e => setHour(e.target.value)}

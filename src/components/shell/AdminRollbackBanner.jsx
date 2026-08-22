@@ -1,7 +1,7 @@
 // src/components/shell/AdminRollbackBanner.jsx
 import { useState, useEffect, useRef } from "react";
 import { useAppData } from "../../state/AppDataContext.jsx";
-import { rowGap8 } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -61,7 +61,7 @@ export function AdminRollbackBanner({ rollbackTo, switchedAt, dispatch }) {
         {rollbackMember ? ` a ${rollbackMember.name}` : ""} tra{" "}
         <strong>{secs}s</strong>
       </span>
-      <div style={rowGap8}>
+      <div style={stiliComuni.rowGap8}>
         <button
           onClick={() => dispatch({ type: "CANCEL_ADMIN_ROLLBACK" })}
           style={boxF12Bold}

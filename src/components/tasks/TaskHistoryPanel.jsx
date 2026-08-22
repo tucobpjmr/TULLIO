@@ -31,7 +31,7 @@ import { TaskThreads } from "../../lib/api.js";
 import { fromDbHistory } from "../../lib/mappers.js";
 import { HISTORY_ICONS, historyDescribe } from "./taskHistory.js";
 import { formatDate } from "../../lib/taskUtils.js";
-import { flex1, txtF11Muted, txtF12Muted2 } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 import {
   colGap8, rowGap82, rowStartGap10, txtF11Bold2, txtF12Bold, txtF12Light, txtF14TxtCenter,
 } from "./taskSlideOverStyles.js";
@@ -94,12 +94,12 @@ export function TaskHistoryPanel({ taskId }) {
               <div style={txtF14TxtCenter}>
                 {HISTORY_ICONS[h.action] || "•"}
               </div>
-              <div style={flex1}>
+              <div style={stiliComuni.flex1}>
                 <div style={rowGap82}>
                   <span style={txtF12Bold}>{h.actor || "Sistema"}</span>
-                  <span style={txtF11Muted}>{formatDate(h.time)}</span>
+                  <span style={stiliComuni.txtF11Muted}>{formatDate(h.time)}</span>
                 </div>
-                <div style={txtF12Muted2}>{historyDescribe(h, getMember)}</div>
+                <div style={stiliComuni.txtF12Muted2}>{historyDescribe(h, getMember)}</div>
               </div>
             </div>
           ))}

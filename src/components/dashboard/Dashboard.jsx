@@ -24,7 +24,7 @@ import { useTasks } from "../../state/TasksContext.jsx";
 import { NoticeBoard } from "./NoticeBoard.jsx";
 import { roleLabel } from "../../lib/taskConstants.js";
 import { giornoLungo } from "../../lib/dates.js";
-import { colGap10, colGap14, flex1, rowCenterGap10, txtF11Muted } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -42,7 +42,6 @@ const boxF11Bold2 = {
 const grid2ColGap20 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 };
 const boxR12 = { background: "var(--card)", borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" };
 const txtF16Bold = { fontSize: 16, fontWeight: 600, marginBottom: 14 };
-const txtF13Muted = { color: "var(--text-muted)", fontSize: 13 };
 const txtF13 = { fontSize: 13, fontWeight: 500 };
 const txtF12Bold = { fontSize: 12, fontWeight: 600, color: "var(--text-muted)" };
 
@@ -334,11 +333,11 @@ export const Dashboard = memo(function Dashboard({
           {caricando ? (
             <SkeletonRows count={4} avatar={false} label="Caricamento delle scadenze" />
           ) : next7.length === 0 ? (
-            <div style={txtF13Muted}>
+            <div style={stiliComuni.txtF13Muted}>
               Nessuna scadenza in programma.
             </div>
           ) : (
-          <div style={colGap10}>
+          <div style={stiliComuni.colGap10}>
             {next7.map(t => (
               <SwipeActions key={t.id} task={t} dispatch={dispatch}>
                 <TaskRow
@@ -368,13 +367,13 @@ export const Dashboard = memo(function Dashboard({
           {caricando ? (
             <SkeletonRows count={4} label="Caricamento del carico di lavoro" />
           ) : (
-          <div style={colGap14}>
+          <div style={stiliComuni.colGap14}>
             {agentWorkload.map(m => (
-              <div key={m.id} style={rowCenterGap10}>
+              <div key={m.id} style={stiliComuni.rowCenterGap10}>
                 <Avatar memberId={m.id} size={30} />
-                <div style={flex1}>
+                <div style={stiliComuni.flex1}>
                   <div style={txtF13}>{m.name}</div>
-                  <div style={txtF11Muted}>{roleLabel(m)}</div>
+                  <div style={stiliComuni.txtF11Muted}>{roleLabel(m)}</div>
                 </div>
                 <div style={txtF12Bold}>
                   {m.count} task

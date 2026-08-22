@@ -14,10 +14,7 @@ import {
   normAssignee, normDate, detectColumns,
 } from "../../../lib/bulkImport.js";
 import { bulkInputStyle, bulkBtnPrimary, bulkBtnGhost } from "./bulkStyles.js";
-import {
-  btnOutlineMini, colGap14, hidden, rowCenterBetween2, rowGap8, txtF10Bold2, txtF12Muted,
-  txtF13, txtF14,
-} from "../../../styles/common.js";
+import * as stiliComuni from "../../../styles/common.js";
 import {
   boxF12Bold, boxF12Warning, boxF13Danger, boxR8, boxR82, boxStickyBold, boxTxtCenterR12,
   boxW8H8, gridGap8, maxW180, mt4Op085, rowCenterBetween, rowCenterBetween3, rowCenterGap5,
@@ -193,7 +190,7 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
   ];
 
   return (
-    <div style={colGap14}>
+    <div style={stiliComuni.colGap14}>
       {!rows.length && (
         <div onClick={() => fileInputRef.current?.click()} style={boxTxtCenterR12}
           onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--gold)"; e.currentTarget.style.background = "rgba(212,168,67,0.04)"; }}
@@ -201,13 +198,13 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
         >
           <div style={txtF40Mb10}>📥</div>
           <div style={txtF14Bold}>Clicca per caricare CSV o Excel</div>
-          <div style={txtF12Muted}>Formati supportati: .csv, .xlsx, .xls</div>
+          <div style={stiliComuni.txtF12Muted}>Formati supportati: .csv, .xlsx, .xls</div>
           <button
             type="button"
             onClick={e => { e.stopPropagation(); downloadTemplate(); }}
             style={boxF12Bold}
           >⬇ Scarica un file modello</button>
-          <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleFile} style={hidden} />
+          <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleFile} style={stiliComuni.hidden} />
         </div>
       )}
 
@@ -232,8 +229,8 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
       {rows.length > 0 && (
         <>
           <div style={rowCenterBetween}>
-            <div style={txtF13}>📄 <strong>{fileName}</strong> — {rows.length} righe, {columns.length} colonne</div>
-            <button onClick={reset} style={btnOutlineMini}>Cambia file</button>
+            <div style={stiliComuni.txtF13}>📄 <strong>{fileName}</strong> — {rows.length} righe, {columns.length} colonne</div>
+            <button onClick={reset} style={stiliComuni.btnOutlineMini}>Cambia file</button>
           </div>
 
           <div>
@@ -272,7 +269,7 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
 
           {normalizedPreview.length > 0 && (
             <div>
-              <div style={txtF10Bold2}>
+              <div style={stiliComuni.txtF10Bold2}>
                 ANTEPRIMA TASK — COME VERRANNO CREATI
               </div>
               <div style={boxR8}>
@@ -283,7 +280,7 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
                       padding: "8px 12px", borderBottom: i === normalizedPreview.length - 1 ? "none" : "1px solid var(--border)",
                       display: "flex", alignItems: "center", gap: 10, fontSize: 12,
                     }}>
-                      <span style={txtF14}>{categories[t.category]?.icon}</span>
+                      <span style={stiliComuni.txtF14}>{categories[t.category]?.icon}</span>
                       <div className="vd-flex-1-min0">
                         <div style={txt}>{t.title}</div>
                         <div style={rowGap8F10}>
@@ -312,7 +309,7 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
           )}
 
           <div>
-            <div style={txtF10Bold2}>
+            <div style={stiliComuni.txtF10Bold2}>
               FILE SORGENTE (prime 5 righe)
             </div>
             <div style={boxR82}>
@@ -337,11 +334,11 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
         </>
       )}
 
-      <div style={rowCenterBetween2}>
-        <div style={txtF12Muted}>
+      <div style={stiliComuni.rowCenterBetween2}>
+        <div style={stiliComuni.txtF12Muted}>
           {validRows.length} task validi {!mapping.title && rows.length > 0 && "(mappa il TITOLO)"}
         </div>
-        <div style={rowGap8}>
+        <div style={stiliComuni.rowGap8}>
           <button onClick={onCancel || onClose} disabled={busy} style={{ ...bulkBtnGhost, opacity: busy ? 0.6 : 1, cursor: busy ? "not-allowed" : "pointer" }}>Annulla</button>
           <button onClick={handleCreate} disabled={validRows.length === 0 || !mapping.title || busy} style={{
             ...bulkBtnPrimary,

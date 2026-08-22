@@ -4,7 +4,7 @@
 // la aggiunge anche qui, altrimenti resta invisibile all'utente.
 // ─── KEYBOARD SHORTCUTS OVERLAY (v2.8 Round 10) ────────────────────────────
 import { Modal } from "./Modal.jsx";
-import { colGap10, txtF13Muted } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -44,10 +44,10 @@ export function KeyboardHelpOverlay({ onClose }) {
         <div id="vd-shortcuts-title" className="playfair" style={txtF18Bold}>Scorciatoie tastiera</div>
         <button onClick={onClose} style={boxF18Muted}>✕</button>
       </div>
-      <div style={colGap10}>
+      <div style={stiliComuni.colGap10}>
         {SHORTCUTS.map(s => (
           <div key={s.key} style={rowCenterBetween2}>
-            <span style={txtF13Muted}>{s.desc}</span>
+            <span style={stiliComuni.txtF13Muted}>{s.desc}</span>
             <kbd style={rowCenterMiddle}>{s.key}</kbd>
           </div>
         ))}

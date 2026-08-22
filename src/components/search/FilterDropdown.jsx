@@ -5,7 +5,7 @@
 // Sostituisce i chip toggle: trigger compatto + pannello a scomparsa con checkbox.
 import { useState, useRef, useEffect } from "react";
 import { Z } from "../../styles/tokens.js";
-import { relative } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 export const FilterDropdown = ({ options, selected, onToggle }) => {
   const [open, setOpen] = useState(false);
@@ -21,7 +21,7 @@ export const FilterDropdown = ({ options, selected, onToggle }) => {
   const count = selected.length;
 
   return (
-    <div ref={ref} style={relative}>
+    <div ref={ref} style={stiliComuni.relative}>
       <button
         type="button"
         onClick={() => setOpen(o => !o)}

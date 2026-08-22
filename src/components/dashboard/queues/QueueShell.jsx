@@ -17,7 +17,7 @@
 // che spariscono erano deriva accumulata, non scelte di design.
 
 import { useViewport } from "../../Viewport.jsx";
-import { rowCenterGap10 } from "../../../styles/common.js";
+import * as stiliComuni from "../../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -61,7 +61,7 @@ export function QueueShell({
         display: "flex", alignItems: "center", justifyContent: "space-between",
         marginBottom: tight ? 0 : 14, flexWrap: "wrap", gap: 8,
       }}>
-        <div style={rowCenterGap10}>
+        <div style={stiliComuni.rowCenterGap10}>
           <div style={{
             width: 34, height: 34, borderRadius: 10,
             background: iconBg || a.solid, color: iconFg || a.fg,

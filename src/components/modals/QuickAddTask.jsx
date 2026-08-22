@@ -13,9 +13,7 @@ import { validaCampi, obbligatorio, primoCampoInvalido } from "../../lib/validat
 import { useSalvataggio } from "../../hooks/useSalvataggio.js";
 import { useClientSuggestions, ClientSuggestions } from "../ui/ClientAutocomplete.jsx";
 import { useClients } from "../../state/ClientsContext.jsx";
-import {
-  colGap14, grid2ColGap12, hidden, relative, txtF11Muted, txtF16,
-} from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -36,7 +34,7 @@ const rowCenterGap10 = {
   display: "flex", alignItems: "center", gap: 10, padding: "6px 10px",
   background: "var(--surface2)", borderRadius: 8,
 };
-const txtF13Bold = { fontSize: 13, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+const txtF13Bold = { fontSize: 13, fontWeight: 600, color: "var(--text)", overflow: "stiliComuni.hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const txtF11Light = { fontSize: 11, color: "var(--text-light)", marginTop: 4 };
 const txtF12Danger = { fontSize: 12, color: "var(--danger)", marginTop: 6 };
 // L'avviso di riuscita parziale non è rosso: la task è stata creata, e un
@@ -230,7 +228,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
           <button onClick={onClose} style={boxF18Muted}>✕</button>
         </div>
 
-        <div style={colGap14}>
+        <div style={stiliComuni.colGap14}>
           <div>
             <label className="vd-field-label-lg" htmlFor="qat-title">TITOLO *</label>
             <input
@@ -241,7 +239,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
             <FieldError id="qat-title-err">{errori.title}</FieldError>
           </div>
 
-          <div style={grid2ColGap12}>
+          <div style={stiliComuni.grid2ColGap12}>
             <div>
               <label className="vd-field-label-lg">
                 CATEGORIA
@@ -276,7 +274,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
             </div>
           </div>
 
-          <div style={grid2ColGap12}>
+          <div style={stiliComuni.grid2ColGap12}>
             <div>
               <label className="vd-field-label-lg">ASSEGNA A</label>
               <select
@@ -296,7 +294,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
             </div>
           </div>
 
-          <div style={relative}>
+          <div style={stiliComuni.relative}>
             <label className="vd-field-label-lg">CLIENTE</label>
             <input
               {...inp("client")}
@@ -306,7 +304,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
             <ClientSuggestions matches={cli.matches} visible={cli.visible} onPick={pickClient} />
           </div>
 
-          <div style={grid2ColGap12}>
+          <div style={stiliComuni.grid2ColGap12}>
             <div>
               <label className="vd-field-label-lg">N° PRATICA</label>
               <input {...inp("praticaRef")} placeholder="es. PR-2026-001" />
@@ -329,10 +327,10 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
               <div style={colGap6Mb8}>
                 {pendingFiles.map((f, i) => (
                   <div key={i} style={rowCenterGap10}>
-                    <span style={txtF16}>{fileIcon(f.type || f.name)}</span>
+                    <span style={stiliComuni.txtF16}>{fileIcon(f.type || f.name)}</span>
                     <div className="vd-flex-1-min0">
                       <div style={txtF13Bold}>{f.name}</div>
-                      <div style={txtF11Muted}>{formatFileSize(f.size)}</div>
+                      <div style={stiliComuni.txtF11Muted}>{formatFileSize(f.size)}</div>
                     </div>
                     <button type="button" onClick={() => removeFile(i)} disabled={busy} title="Rimuovi" style={{
                       background: "none", border: "none", cursor: busy ? "default" : "pointer", fontSize: 13, padding: 4, color: "var(--text-muted)",
@@ -345,7 +343,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
               ref={fileInputRef}
               type="file"
               multiple
-              style={hidden}
+              style={stiliComuni.hidden}
               onChange={e => addFiles(e.target.files)}
             />
             <button

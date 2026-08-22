@@ -8,7 +8,7 @@ import { useListeWrite } from "./listePersistence.js";
 import { SegnoSeg } from "./modals/SegnoSeg.jsx";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { validaCampi, obbligatorio, interpretabile, primoCampoInvalido } from "../../lib/validators.js";
-import { mt12 } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -138,7 +138,7 @@ export function AddMovBox({ listaId, dispatch, onSaved, onClose, onBulk }) {
           </button>
         </div>
       </div>
-      <button className="lv-btn sm" style={mt12} onClick={onBulk}>
+      <button className="lv-btn sm" style={stiliComuni.mt12} onClick={onBulk}>
         + Inserisci più movimenti insieme
       </button>
     </div>

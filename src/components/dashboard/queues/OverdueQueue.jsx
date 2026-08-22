@@ -12,7 +12,7 @@ import { useFinestra } from "../../../hooks/useFinestra.js";
 import { MostraAltri } from "../../ui/MostraAltri.jsx";
 import { QueueShell } from "./QueueShell.jsx";
 import { SkeletonCards } from "../../ui/SkeletonCards.jsx";
-import { gridGap102, intestazioneSezione, txtF18 } from "../../../styles/common.js";
+import * as stiliComuni from "../../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -102,8 +102,8 @@ export const OverdueQueue = ({ tasks, dispatch, loading = false }) => {
       {caricando ? (
         <SkeletonCards count={3} minWidth={280} compact label="Caricamento delle task scadute" />
       ) : empty ? (
-        <div style={intestazioneSezione}>
-          <span style={txtF18}>✅</span>
+        <div style={stiliComuni.intestazioneSezione}>
+          <span style={stiliComuni.txtF18}>✅</span>
           Nessuna task scaduta. Tutto in regola!
         </div>
       ) : visible.length === 0 ? (
@@ -112,7 +112,7 @@ export const OverdueQueue = ({ tasks, dispatch, loading = false }) => {
         </div>
       ) : (
         <>
-        <div style={gridGap102}>
+        <div style={stiliComuni.gridGap102}>
           {finestra.visibili.map(t => {
             const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
             return (

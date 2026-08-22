@@ -2,7 +2,7 @@
 // — vedi docs/CLAUDE.md). Nessun cambiamento di comportamento.
 import React from 'react';
 import { screenWrap } from './screenWrap.js';
-import { txtF40Mb12 } from "../styles/common.js";
+import * as stiliComuni from "../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -34,7 +34,7 @@ export function ProfileErrorScreen({ onRetry, onSignOut }) {
   return (
     <div style={screenWrap}>
       <div style={boxTxtCenterP32}>
-        <div style={txtF40Mb12}>⚠️</div>
+        <div style={stiliComuni.txtF40Mb12}>⚠️</div>
         <h1 style={txtF24Bold}>Caricamento non riuscito</h1>
         <p style={txtF14Op075}>
           Non è stato possibile caricare il tuo profilo. Può capitare al primo

@@ -3,7 +3,7 @@ import { eur, parseImporto, todayISO } from "../listeApi.js";
 import { LvOverlay } from "./LvOverlay.jsx";
 import { MetodoSelect } from "./MetodoSelect.jsx";
 import { SegnoSeg } from "./SegnoSeg.jsx";
-import { mb14 } from "../../../styles/common.js";
+import * as stiliComuni from "../../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -59,7 +59,7 @@ export function BulkMovimentiModal({ onSave, onClose }) {
         Data e metodo valgono per tutte le righe. Per ogni riga scegli se è un
         versamento (+) o un utilizzo (−).
       </p>
-      <div className="lv-form-grid" style={mb14}>
+      <div className="lv-form-grid" style={stiliComuni.mb14}>
         <div className="lv-field">
           <label htmlFor="bulk-data">Data (comune)</label>
           <input id="bulk-data" type="date" value={data} onChange={(e) => setData(e.target.value)} />

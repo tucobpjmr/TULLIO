@@ -9,7 +9,7 @@ import { AddCategoryModal } from "../../modals/AddCategoryModal.jsx";
 import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
 import { obbligatorio, validaCampi } from "../../../lib/validators.js";
 import { useConfirm } from "../../../state/ConfirmContext.jsx";
-import { gridGap10, rowCenterBetween, txtF12Muted2, txtF13Muted } from "../../../styles/common.js";
+import * as stiliComuni from "../../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -62,14 +62,14 @@ export const AdminCategoriesTab = ({ dispatch }) => {
 
   return (
     <div>
-      <div style={rowCenterBetween}>
-        <div style={txtF13Muted}>
+      <div style={stiliComuni.rowCenterBetween}>
+        <div style={stiliComuni.txtF13Muted}>
           🏷️ <b>{Object.keys(categories).length}</b> categorie definite
         </div>
         <button onClick={() => setShowAdd(true)} style={btnPrimary}>+ Aggiungi categoria</button>
       </div>
 
-      <div style={gridGap10}>
+      <div style={stiliComuni.gridGap10}>
         {Object.entries(categories).map(([key, c]) => {
           const isEditing = editingKey === key;
           const count = usageCount(key);
@@ -107,7 +107,7 @@ export const AdminCategoriesTab = ({ dispatch }) => {
                 ) : (
                   <>
                     <div style={txtF15Bold}>{c.label}</div>
-                    <div style={txtF12Muted2}>
+                    <div style={stiliComuni.txtF12Muted2}>
                       Chiave: <code>{key}</code> • {count} task usano questa categoria
                     </div>
                   </>

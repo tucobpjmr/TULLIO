@@ -12,7 +12,7 @@ import { useAppData } from "../../state/AppDataContext.jsx";
 import { useChatContext } from "./chatContext.js";
 import { VoiceRecorder } from "./message/VoiceRecorder.jsx";
 import { Z } from "../../styles/tokens.js";
-import { btnChiudi, relative, txtF18 } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -28,7 +28,7 @@ const rowCenterRelative = {
   // safe-area in basso: il composer resta sopra l'home-indicator/toolbar iOS.
   paddingBottom: "calc(10px + env(safe-area-inset-bottom, 0px))",
   display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
-  position: "relative",
+  position: "stiliComuni.relative",
 };
 const rowCenterGap102 = {
   display: "flex", alignItems: "center", gap: 10,
@@ -87,7 +87,7 @@ export const MessageComposer = ({ cv, cvd, fileInputRef, sendText, sendVoice, se
             {replyingTo.type === "voice" ? "🎙️ Vocale" : replyingTo.type === "file" ? `📎 ${replyingTo.fileName}` : replyingTo.text}
           </div>
         </div>
-        <button onClick={() => cvd({ type: "REPLYING", v: null })} style={btnChiudi}>✕</button>
+        <button onClick={() => cvd({ type: "REPLYING", v: null })} style={stiliComuni.btnChiudi}>✕</button>
       </div>
     )}
 
@@ -97,7 +97,7 @@ export const MessageComposer = ({ cv, cvd, fileInputRef, sendText, sendVoice, se
         <VoiceRecorder onSend={sendVoice} onCancel={() => cvd({ type: "RECORDING", v: false })} />
       ) : (
         <>
-          <div style={relative}>
+          <div style={stiliComuni.relative}>
             <input
               ref={fileInputRef}
               type="file"
@@ -128,7 +128,7 @@ export const MessageComposer = ({ cv, cvd, fileInputRef, sendText, sendVoice, se
                     onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
                     onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                   >
-                    <span style={txtF18}>{opt.icon}</span> {opt.label}
+                    <span style={stiliComuni.txtF18}>{opt.icon}</span> {opt.label}
                   </button>
                 ))}
               </div>
@@ -137,7 +137,7 @@ export const MessageComposer = ({ cv, cvd, fileInputRef, sendText, sendVoice, se
 
           {/* Template messaggi (v2.8) */}
           {templates.length > 0 && (
-            <div style={relative}>
+            <div style={stiliComuni.relative}>
               <button
                 onClick={() => cvd({ type: "TOGGLE_TMPL" })}
                 title="Inserisci template"

@@ -9,7 +9,7 @@ import { ModalPortal } from "../ui/ModalPortal.jsx";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { obbligatorio, validaCampi } from "../../lib/validators.js";
 import { useSalvataggio } from "../../hooks/useSalvataggio.js";
-import { gridGap12, rowGap8Mt20, txtHeadingMb16 } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -67,8 +67,8 @@ export const AddCategoryModal = ({ onClose, dispatch, existingKeys }) => {
     <ModalPortal>
       <div onClick={onClose} style={modalOverlay}>
         <div onClick={e => e.stopPropagation()} style={{ ...modalCard, maxWidth: 480 }}>
-          <h3 className="playfair" style={txtHeadingMb16}>Aggiungi nuova categoria</h3>
-          <div style={gridGap12}>
+          <h3 className="playfair" style={stiliComuni.txtHeadingMb16}>Aggiungi nuova categoria</h3>
+          <div style={stiliComuni.gridGap12}>
             <div>
               <label style={labelStyle}>Nome *</label>
               <input
@@ -115,7 +115,7 @@ export const AddCategoryModal = ({ onClose, dispatch, existingKeys }) => {
               questo dice che i dati sono ancora qui. */}
           <FieldError id="vd-cat-save-err">{erroreSalvataggio}</FieldError>
 
-          <div style={rowGap8Mt20}>
+          <div style={stiliComuni.rowGap8Mt20}>
             <button onClick={onClose} style={btnGhost}>Annulla</button>
             <button onClick={submit} disabled={inVolo} style={btnPrimary}>
               {inVolo ? "Creazione…" : "Crea categoria"}

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { LvOverlay } from "./LvOverlay.jsx";
-import { mt12 } from "../../../styles/common.js";
+import * as stiliComuni from "../../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -32,7 +32,7 @@ export function ResetTotaleModal({ onClose, onSave }) {
         tutto lo storico</b> (compreso il cestino). L&rsquo;anagrafica clienti e gli
         account restano. Si consiglia di <b>scaricare prima un backup</b>.
       </p>
-      <div className="row lv-field" style={mt12}>
+      <div className="row lv-field" style={stiliComuni.mt12}>
         <label htmlFor="reset-conf">Per confermare digita esattamente: RESET TOTALE</label>
         <input
           id="reset-conf"

@@ -11,11 +11,7 @@ import { useClientSuggestions, ClientSuggestions } from "../../ui/ClientAutocomp
 import { dataMedia } from "../../../lib/dates.js";
 import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
 import { obbligatorio, primoCampoInvalido, validaCampi } from "../../../lib/validators.js";
-import {
-  btnOutlineMini, colGap14, colGap2F12, grid2ColGap12, relative, rowCenterBetween2,
-  rowCenterGap10, rowGap8, txtBoldDanger, txtF10Bold, txtF10Bold2, txtF10Muted, txtF11Muted,
-  txtF14,
-} from "../../../styles/common.js";
+import * as stiliComuni from "../../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -134,18 +130,18 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
   };
 
   return (
-    <div style={colGap14}>
+    <div style={stiliComuni.colGap14}>
       {!selectedId ? (
         <div ref={rifTemplate} tabIndex={-1}>
           <FieldError id="vd-tpl-scelta-err">{errori.selectedId}</FieldError>
-          <div style={grid2ColGap12}>
+          <div style={stiliComuni.grid2ColGap12}>
           {TASK_TEMPLATES.map(t => (
             <div key={t.id} onClick={() => { setSelectedId(t.id); setErrori({}); }} className="hover-lift" style={boxR12}>
               <div style={rowCenterGap102}>
                 <div style={txtF28}>{t.icon}</div>
                 <div>
                   <div style={txtF14Bold}>{t.name}</div>
-                  <div style={txtF11Muted}>{t.tasks.length} task</div>
+                  <div style={stiliComuni.txtF11Muted}>{t.tasks.length} task</div>
                 </div>
               </div>
               <div style={txtF12Muted}>{t.description}</div>
@@ -156,20 +152,20 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
       ) : (
         <>
           <div style={rowCenterBetween}>
-            <div style={rowCenterGap10}>
+            <div style={stiliComuni.rowCenterGap10}>
               <div style={txtF22}>{tpl.icon}</div>
               <div>
                 <div style={txtF13Bold}>{tpl.name}</div>
-                <div style={txtF11Muted}>{tpl.tasks.length} task</div>
+                <div style={stiliComuni.txtF11Muted}>{tpl.tasks.length} task</div>
               </div>
             </div>
-            <button onClick={() => setSelectedId(null)} style={btnOutlineMini}>Cambia</button>
+            <button onClick={() => setSelectedId(null)} style={stiliComuni.btnOutlineMini}>Cambia</button>
           </div>
 
           <div style={gridGap10}>
             <div>
-              <div style={txtF10Bold}>CLIENTE</div>
-              <div style={relative}>
+              <div style={stiliComuni.txtF10Bold}>CLIENTE</div>
+              <div style={stiliComuni.relative}>
                 <input
                   value={client}
                   onChange={e => setClient(e.target.value)}
@@ -181,7 +177,7 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
               </div>
             </div>
             <div ref={rifData} {...ariaCampo("vd-tpl-data-err", errori.eventDate)}>
-              <div style={txtF10Bold}>DATA EVENTO *</div>
+              <div style={stiliComuni.txtF10Bold}>DATA EVENTO *</div>
               <DateTimePicker
                 value={eventDate || null}
                 onChange={iso => { setEventDate(iso || ""); setErrori({}); }}
@@ -191,25 +187,25 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
               <FieldError id="vd-tpl-data-err">{errori.eventDate}</FieldError>
             </div>
             <div>
-              <div style={txtF10Bold}>ASSEGNA A</div>
+              <div style={stiliComuni.txtF10Bold}>ASSEGNA A</div>
               <select value={defaultAssignee} onChange={e => setDefaultAssignee(e.target.value)} style={bulkInputStyle}>
                 <option value="">— Non assegnato —</option>
                 {getAssignableTeam().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
             </div>
             <div>
-              <div style={txtF10Bold}>N° PRATICA</div>
+              <div style={stiliComuni.txtF10Bold}>N° PRATICA</div>
               <input value={praticaRef} onChange={e => setPraticaRef(e.target.value)} placeholder="es. PR-2026-001" style={bulkInputStyle} />
             </div>
             <div>
-              <div style={txtF10Bold}>CONTATTI</div>
+              <div style={stiliComuni.txtF10Bold}>CONTATTI</div>
               <input value={contact} onChange={e => setContact(e.target.value)} placeholder="Telefono, email…" style={bulkInputStyle} />
             </div>
           </div>
 
           {eventDate && (
             <div>
-              <div style={txtF10Bold2}>
+              <div style={stiliComuni.txtF10Bold2}>
                 ANTEPRIMA — {previewTasks.length} TASK
               </div>
               <div style={boxR8}>
@@ -218,10 +214,10 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
                     padding: "8px 12px", borderBottom: idx === previewTasks.length - 1 ? "none" : "1px solid var(--border)",
                     display: "flex", alignItems: "center", gap: 10, fontSize: 12,
                   }}>
-                    <span style={txtF14}>{categories[t.category]?.icon}</span>
+                    <span style={stiliComuni.txtF14}>{categories[t.category]?.icon}</span>
                     <div className="vd-flex-1-min0">
                       <div style={txt}>{t.title}</div>
-                      <div style={txtF10Muted}>
+                      <div style={stiliComuni.txtF10Muted}>
                         📅 {dataMedia(t.dueDate)}
                       </div>
                     </div>
@@ -234,12 +230,12 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
         </>
       )}
 
-      <div style={rowCenterBetween2}>
-        <div style={colGap2F12}>
+      <div style={stiliComuni.rowCenterBetween2}>
+        <div style={stiliComuni.colGap2F12}>
           <span>{previewTasks.length} task pronti</span>
-          {error && <span style={txtBoldDanger}>{error}</span>}
+          {error && <span style={stiliComuni.txtBoldDanger}>{error}</span>}
         </div>
-        <div style={rowGap8}>
+        <div style={stiliComuni.rowGap8}>
           <button onClick={onCancel || onClose} disabled={busy} style={{ ...bulkBtnGhost, opacity: busy ? 0.6 : 1, cursor: busy ? "not-allowed" : "pointer" }}>Annulla</button>
           {/* `disabled` resta solo per `busy`: lì il comando è spento perché
               la scrittura è IN VOLO, non perché manchi qualcosa da compilare —

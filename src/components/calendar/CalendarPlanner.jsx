@@ -16,7 +16,7 @@ import { expandRecurring } from "./calendarRecurrence.js";
 import { CalendarDayGrid } from "./CalendarDayGrid.jsx";
 import { CalendarWeekGrid } from "./CalendarWeekGrid.jsx";
 import { giornoLungo, giornoMese, giornoMeseAnno, meseAnno } from "../../lib/dates.js";
-import { rowCenterGap12, rowCenterGap8, rowGap4, txtMuted } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 import {
   boxF11Bold, boxF11Bold2, boxF12Bold, boxF12Bold2, boxF14W34, boxR14, boxW14H14, colGap2MinW0,
   colGap4, colGap8, grid2, grid3, overflowX2, padding2, rowCenterBetween, rowCenterGap6,
@@ -165,7 +165,7 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch, loading
 
       {/* ─── Header con toggle + navigazione ─── */}
       <div className="vd-row-wrap" style={rowCenterBetween}>
-        <div style={rowCenterGap12}>
+        <div style={stiliComuni.rowCenterGap12}>
           <div className="playfair" style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, textTransform: viewMode === "month" ? "capitalize" : "none" }}>
             {viewMode === "month" && monthName}
             {viewMode === "week" && "Settimana"}
@@ -187,7 +187,7 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch, loading
             {toggleBtn("month", isMobile ? "Mese" : "📅 Mese")}
           </div>
           {/* Nav buttons */}
-          <div style={rowGap4}>
+          <div style={stiliComuni.rowGap4}>
             <button onClick={() => {
               if (viewMode === "month") setCurrentMonth(new Date(year, month - 1));
               else if (viewMode === "day") setDayDate(d => { const x = new Date(d); x.setDate(x.getDate() - 1); return x; });
@@ -445,7 +445,7 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch, loading
               {getAssignableTeam().map(m => (
                 <tr key={m.id}>
                   <td style={padding2}>
-                    <div style={rowCenterGap8}>
+                    <div style={stiliComuni.rowCenterGap8}>
                       <Avatar memberId={m.id} size={24} />
                       <span style={txt}>{m.name.split(" ")[0]}</span>
                     </div>
@@ -462,7 +462,7 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch, loading
                       }}>
                         {count > 0 ? (
                           <span style={{ fontWeight: 700, color: m.color, fontSize: 14 }}>{count}</span>
-                        ) : <span style={txtMuted}>—</span>}
+                        ) : <span style={stiliComuni.txtMuted}>—</span>}
                       </td>
                     );
                   })}

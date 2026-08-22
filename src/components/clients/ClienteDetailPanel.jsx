@@ -6,7 +6,7 @@ import { LazyPanel } from "../ui/LazyPanel.jsx";
 import { ListeChip } from "./ListeChip.jsx";
 import { ClienteTaskTab } from "./ClienteTaskTab.jsx";
 import { DatiAnagrafici } from "./DatiAnagrafici.jsx";
-import { btnChiudi } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -61,7 +61,7 @@ export function ClienteDetailPanel({ cliente, tasks, dispatch, onClose, showList
           <span className="playfair" style={txtF16Bold}>{cliente.name}</span>
           <ListeChip liste={liste} />
         </div>
-        <button onClick={onClose} aria-label="Chiudi il pannello" style={btnChiudi}>✕</button>
+        <button onClick={onClose} aria-label="Chiudi il pannello" style={stiliComuni.btnChiudi}>✕</button>
       </div>
 
       <DatiAnagrafici notes={cliente.notes} />

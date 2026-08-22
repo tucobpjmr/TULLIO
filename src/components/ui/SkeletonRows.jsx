@@ -5,7 +5,7 @@
 // Sta in un file suo e non dentro SkeletonCards.jsx perché è un secondo
 // componente con un layout diverso, non una variante del primo (vedi
 // docs/CLAUDE.md, "Un file, una responsabilità").
-import { rowCenterGap10 } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -22,7 +22,7 @@ export function SkeletonRows({ count = 4, avatar = true, label = "Caricamento in
       style={colGap12}
     >
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} style={rowCenterGap10}>
+        <div key={i} style={stiliComuni.rowCenterGap10}>
           {avatar && (
             <div className="skeleton" style={boxW30H30} />
           )}

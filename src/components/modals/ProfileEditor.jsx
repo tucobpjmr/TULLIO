@@ -13,9 +13,7 @@ import { Modal } from "../ui/Modal.jsx";
 import { roleLabel } from "../../lib/taskConstants.js";
 
 import { CropModal, dataUrlToBlob } from "./CropModal.jsx";
-import {
-  btnChiudiSuScuro, grid2ColGap12, hidden, relative, txtF11Muted, txtF15,
-} from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 import {
   boxF125Danger, boxF13Bold, boxF13Bold2, boxF13Bold3, boxF13Bold3InVolo, boxF14Muted, boxW100H100, boxW52H52,
   colCenterGap12, colGap10Mt10, colGap10Mt102, colGap18, mt2, row, rowCenterBetween,
@@ -296,7 +294,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
               <div style={txtF11Mt2}>{roleLabel(member)}</div>
             </div>
           </div>
-          <button onClick={onClose} style={btnChiudiSuScuro}>✕</button>
+          <button onClick={onClose} style={stiliComuni.btnChiudiSuScuro}>✕</button>
         </div>
 
         {/* Body */}
@@ -305,16 +303,16 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
           {/* ── Foto profilo ── */}
           <div style={colCenterGap12}>
             {photoPreview ? (
-              <div style={relative}>
+              <div style={stiliComuni.relative}>
                 <img src={photoPreview} alt="" style={boxW100H100} />
                 <button onClick={() => scrivi("photoUrl", "")} style={rowCenterMiddle}>✕</button>
               </div>
             ) : (
               <div style={rowCenterMiddle2}>Nessuna foto</div>
             )}
-            <input ref={fileRef} type="file" accept="image/*" onChange={handlePhotoUpload} style={hidden} />
+            <input ref={fileRef} type="file" accept="image/*" onChange={handlePhotoUpload} style={stiliComuni.hidden} />
             <button onClick={() => fileRef.current?.click()} style={boxF13Bold}>📷 {draft.photoUrl ? "Cambia foto" : "Carica foto"}</button>
-            <div style={txtF11Muted}>JPG, PNG — max 5 MB • potrai ritagliare dopo il caricamento</div>
+            <div style={stiliComuni.txtF11Muted}>JPG, PNG — max 5 MB • potrai ritagliare dopo il caricamento</div>
           </div>
 
           {/* ── Nome ── */}
@@ -332,7 +330,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
           </div>
 
           {/* ── Email + Telefono ── */}
-          <div style={grid2ColGap12}>
+          <div style={stiliComuni.grid2ColGap12}>
             <div>
               {fieldLabel("EMAIL")}
               <input
@@ -369,7 +367,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
                 onClick={() => { setPwdAperta(v => !v); setEsitoPwd(ESITO_PRONTO); setBozzaPwd(BOZZA_PWD); }}
                 style={rowCenterGap8}
               >
-                <span style={txtF15}>🔑</span>
+                <span style={stiliComuni.txtF15}>🔑</span>
                 Cambia password
                 <span style={txtF11Muted2}>{pwdAperta ? "▲" : "▼"}</span>
               </button>
@@ -434,7 +432,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
                 onClick={() => { setElimAperta(v => !v); setConfermaElim(""); setEsitoElim(ESITO_PRONTO); }}
                 style={rowCenterGap82}
               >
-                <span style={txtF15}>🗑️</span>
+                <span style={stiliComuni.txtF15}>🗑️</span>
                 Elimina account
                 <span style={txtF11Muted2}>{elimAperta ? "▲" : "▼"}</span>
               </button>

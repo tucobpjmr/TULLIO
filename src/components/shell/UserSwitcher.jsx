@@ -9,7 +9,7 @@ import { AvatarImg } from "../ui/AvatarImg.jsx";
 import { LazyPanel } from "../ui/LazyPanel.jsx";
 import { Z } from "../../styles/tokens.js";
 import { roleLabel, toDbRole, toSeniority } from "../../lib/taskConstants.js";
-import { nomeTroncato, relative } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -106,7 +106,7 @@ export const UserSwitcher = ({ dispatch }) => {
     .sort((a, b) => rank(a) - rank(b));
 
   return (
-    <div ref={ref} style={relative}>
+    <div ref={ref} style={stiliComuni.relative}>
       <button
         onClick={() => setOpen(o => !o)}
         title="Cambia utente"
@@ -177,7 +177,7 @@ export const UserSwitcher = ({ dispatch }) => {
                       }}>{m.avatar}</div>
                     )}
                     <div className="vd-flex-1-min0">
-                      <div style={nomeTroncato}>{m.name}</div>
+                      <div style={stiliComuni.nomeTroncato}>{m.name}</div>
                       <div style={rowCenterGap5}>
                         {roleLabel(m)}
                         {isJuniorAgent(m.id) && (

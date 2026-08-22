@@ -8,7 +8,7 @@ import { useChatContext } from "./chatContext.js";
 import { computePresence, PRESENCE_COLORS, PRESENCE_LABELS, TICK_PRESENZA_MS } from "../../lib/presenza.js";
 import { useTickLento } from "../../hooks/useTickLento.js";
 import { formatChatTime, getConversationName, getLastMessage, getUnreadCount } from "./chatFormat.js";
-import { relative, txtF13, txtMuted } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 import {
   boxF10Bold, boxF13WFull, boxF14Muted, colHFull, flex1, padding2, relative2, rowCenterBetween,
   rowCenterBetween2, rowCenterFlex1, rowCenterGap1, rowCenterMiddle, rowCenterMiddle2,
@@ -70,7 +70,7 @@ export const ConversationList = ({ conversations, messages, onSelect, onNew, onD
     <div style={colHFull}>
       {/* Search */}
       <div style={padding2}>
-        <div style={relative}>
+        <div style={stiliComuni.relative}>
           <div style={txtAbsoluteF13}>🔍</div>
           <input
             value={search}
@@ -157,7 +157,7 @@ export const ConversationList = ({ conversations, messages, onSelect, onNew, onD
                   }}>
                     {last ? (
                       <>
-                        {last.sender === me && <span style={txtMuted}>Tu: </span>}
+                        {last.sender === me && <span style={stiliComuni.txtMuted}>Tu: </span>}
                         {c.type === "group" && last.sender !== me && (
                           <span style={{ color: lastSender?.color, fontWeight: 600 }}>
                             {lastSender?.name.split(" ")[0]}:{" "}
@@ -195,7 +195,7 @@ export const ConversationList = ({ conversations, messages, onSelect, onNew, onD
         {filtered.length === 0 && (
           <div style={txtMutedTxtCenter}>
             <div style={txtF40Mb8}>💬</div>
-            <div style={txtF13}>Nessuna conversazione trovata</div>
+            <div style={stiliComuni.txtF13}>Nessuna conversazione trovata</div>
           </div>
         )}
       </div>

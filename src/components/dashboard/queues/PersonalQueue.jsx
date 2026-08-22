@@ -16,7 +16,7 @@ import { FilterChip } from "./FilterChip.jsx";
 import { FilterLabel } from "./FilterLabel.jsx";
 import { FilterRow } from "./FilterRow.jsx";
 import { SkeletonCards } from "../../ui/SkeletonCards.jsx";
-import { gridGap102, intestazioneSezione, txtF18 } from "../../../styles/common.js";
+import * as stiliComuni from "../../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -135,13 +135,13 @@ export const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false, l
       {caricando ? (
         <SkeletonCards count={3} minWidth={280} compact label="Caricamento della coda personale" />
       ) : empty ? (
-        <div style={intestazioneSezione}>
-          <span style={txtF18}>{enableDateFilter && dateFilter !== "all" ? "📭" : "🎉"}</span>
+        <div style={stiliComuni.intestazioneSezione}>
+          <span style={stiliComuni.txtF18}>{enableDateFilter && dateFilter !== "all" ? "📭" : "🎉"}</span>
           {enableDateFilter && dateFilter !== "all" ? "Nessun transfer per la giornata selezionata." : "Nessuna task aperta a tuo nome. Buon lavoro!"}
         </div>
       ) : (
         <>
-        <div style={gridGap102}>
+        <div style={stiliComuni.gridGap102}>
           {finestra.visibili.map(t => {
             const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
             const overdue = isOverdue(t);

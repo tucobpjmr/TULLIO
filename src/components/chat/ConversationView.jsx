@@ -22,7 +22,7 @@ import { ChatMessage } from "./message/ChatMessage.jsx";
 import { randomWaveform } from "./message/VoiceRecorder.jsx";
 import { MessageComposer } from "./MessageComposer.jsx";
 import { parseTaskLink } from "./message/MessageTextContent.jsx";
-import { btnChiudiSuScuro } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 import {
   animation2, animation3, animation4, boxF13White, boxF16, boxFlex1, boxFlex1F12, boxW6H6,
   boxW6H62, boxW6H63, colHFull, rowCenterGap10, rowCenterGap3, rowCenterGap5, rowCenterGap8,
@@ -373,7 +373,7 @@ export const ConversationView = ({ conv, messages, commands, onBack, onDelete, i
     <div style={colHFull}>
       {/* Header */}
       <div style={rowCenterGap10}>
-        <button onClick={onBack} style={btnChiudiSuScuro}>←</button>
+        <button onClick={onBack} style={stiliComuni.btnChiudiSuScuro}>←</button>
 
         {conv.type === "direct" ? (
           <Avatar memberId={otherTypingMember} size={36} />

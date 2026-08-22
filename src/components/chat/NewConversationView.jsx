@@ -6,7 +6,7 @@ import { useAppData } from "../../state/AppDataContext.jsx";
 import { roleLabel } from "../../lib/taskConstants.js";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { obbligatorio, primoCampoInvalido, validaCampi } from "../../lib/validators.js";
-import { btnChiudiSuScuro, flex1, txtF11Muted, txtF13Bold, txtF18 } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -106,7 +106,7 @@ export const NewConversationView = ({ onCreate, onCancel, existing }) => {
   return (
     <div style={colHFull}>
       <div style={rowCenterGap10}>
-        <button onClick={onCancel} style={btnChiudiSuScuro}>←</button>
+        <button onClick={onCancel} style={stiliComuni.btnChiudiSuScuro}>←</button>
         <div className="playfair" style={txtF15Bold}>
           {mode === "select" ? "Nuova conversazione" : "Nuovo gruppo"}
         </div>
@@ -116,7 +116,7 @@ export const NewConversationView = ({ onCreate, onCancel, existing }) => {
         <>
           <div style={p14}>
             <button onClick={() => setMode("group")} style={rowCenterGap102}>
-              <span style={txtF18}>👥</span> Crea nuovo gruppo
+              <span style={stiliComuni.txtF18}>👥</span> Crea nuovo gruppo
             </button>
           </div>
           <div style={flex12}>
@@ -129,9 +129,9 @@ export const NewConversationView = ({ onCreate, onCancel, existing }) => {
                 onMouseLeave={e => e.currentTarget.style.background = "transparent"}
               >
                 <Avatar memberId={m.id} size={38} />
-                <div style={flex1}>
+                <div style={stiliComuni.flex1}>
                   <div style={txtF135Bold}>{m.name}</div>
-                  <div style={txtF11Muted}>{roleLabel(m)}</div>
+                  <div style={stiliComuni.txtF11Muted}>{roleLabel(m)}</div>
                 </div>
               </div>
             ))}
@@ -183,9 +183,9 @@ export const NewConversationView = ({ onCreate, onCancel, existing }) => {
                   transition: "background 0.15s",
                 }}>
                   <Avatar memberId={m.id} size={36} />
-                  <div style={flex1}>
-                    <div style={txtF13Bold}>{m.name}</div>
-                    <div style={txtF11Muted}>{roleLabel(m)}</div>
+                  <div style={stiliComuni.flex1}>
+                    <div style={stiliComuni.txtF13Bold}>{m.name}</div>
+                    <div style={stiliComuni.txtF11Muted}>{roleLabel(m)}</div>
                   </div>
                   <div style={{
                     width: 22, height: 22, borderRadius: "50%",

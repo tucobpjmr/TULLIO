@@ -12,7 +12,7 @@ import { Avatar } from "../ui/Avatar.jsx";
 import { formatTime } from "../../lib/taskUtils.js";
 import { Z } from "../../styles/tokens.js";
 import { layoutColumns } from "./calendarLayout.js";
-import { txtF10Muted } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -110,7 +110,7 @@ export function CalendarDayGrid({ dayDate, expandedDay, catFilter, tasks, catego
                   {cat.icon} {t.title}{t.isRecurringInstance ? " ↻" : ""}
                 </div>
                 <div style={rowCenterBetween2}>
-                  <span style={txtF10Muted}>{formatTime(t.dueDate)}</span>
+                  <span style={stiliComuni.txtF10Muted}>{formatTime(t.dueDate)}</span>
                   {t.assignees?.length > 0 && height >= 42 && (
                     <div style={rowGap2}>
                       {t.assignees.slice(0, 3).map(id => (

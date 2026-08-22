@@ -20,12 +20,7 @@ import { indicizza, matchIndice, terminiRicerca } from "../../lib/searchUtils.js
 import { useFinestra } from "../../hooks/useFinestra.js";
 import { MostraAltri } from "../ui/MostraAltri.jsx";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
-import {
-  btnDangerMini, btnGhostMini, btnNavyMini, card, cardVuota, cardVuotaAlta, cella, cellaAzioni,
-  cellaMuted, colGap10, rigaIntestazione, rowCenterGap82, rowGap4, rowGap6, rowGap62, tabella,
-  txtF11Bold, txtF12Muted, txtF13Muted, txtF14Bold, txtF16Bold, txtF36Mb12, txtF48Mb16,
-  txtMuted,
-} from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 import {
   borderBottom2, boxF12Bold, boxF12Bold2, boxF13MinW0, mb20, padding2, padding3,
   rowCenterBetween, rowCenterGap10, rowCenterGap6, rowCenterGap62, rowCenterGap8, rowGap3,
@@ -39,8 +34,8 @@ const ArchivedListe = lazy(() =>
 );
 
 // M-2 · Quante righe si disegnano alla volta. 24 come l'anagrafica (`PAGINA`
-// in ClientiView): su mobile è una schermata piena di card, su desktop una
-// tabella che si scorre senza diventare la pagina intera.
+// in ClientiView): su mobile è una schermata piena di stiliComuni.card, su desktop una
+// stiliComuni.tabella che si scorre senza diventare la pagina intera.
 const PAGINA = 24;
 
 // `memo` + lettura dal contesto: senza il memo il provider non servirebbe a
@@ -202,8 +197,8 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
 
           {/* Filtro periodo (per data di completamento) — solo se ci sono task */}
           {!caricando && archived.length > 0 && (
-            <div style={rowCenterGap82}>
-              <span style={txtF11Bold}>Completate:</span>
+            <div style={stiliComuni.rowCenterGap82}>
+              <span style={stiliComuni.txtF11Bold}>Completate:</span>
               {PERIOD_OPTIONS.map(opt => (
                 <button key={opt.key} type="button" onClick={() => setPeriod(opt.key)} style={chipStyle(period === opt.key)}>
                   {opt.label}
@@ -216,24 +211,24 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
           {caricando ? (
             <SkeletonCards count={4} label="Caricamento dell'archivio" />
           ) : archived.length === 0 ? (
-            <div style={cardVuotaAlta}>
-              <div style={txtF48Mb16}>📦</div>
-              <div style={txtF16Bold}>Archivio vuoto</div>
-              <div style={txtF13Muted}>
+            <div style={stiliComuni.cardVuotaAlta}>
+              <div style={stiliComuni.txtF48Mb16}>📦</div>
+              <div style={stiliComuni.txtF16Bold}>Archivio vuoto</div>
+              <div style={stiliComuni.txtF13Muted}>
                 Le task completate verranno raccolte qui. Potrai riaprirle o spostarle nel cestino.
               </div>
             </div>
           ) : visible.length === 0 ? (
-            <div style={cardVuota}>
-              <div style={txtF36Mb12}>📭</div>
-              <div style={txtF14Bold}>
+            <div style={stiliComuni.cardVuota}>
+              <div style={stiliComuni.txtF36Mb12}>📭</div>
+              <div style={stiliComuni.txtF14Bold}>
                 Nessuna task per i filtri selezionati
               </div>
-              <button type="button" onClick={resetFilters} style={btnGhostMini}>Azzera filtri</button>
+              <button type="button" onClick={resetFilters} style={stiliComuni.btnGhostMini}>Azzera filtri</button>
             </div>
           ) : isMobile ? (
-            /* Mobile: card list — no horizontal overflow */
-            <div style={colGap10}>
+            /* Mobile: stiliComuni.card list — no horizontal overflow */
+            <div style={stiliComuni.colGap10}>
               {finestra.visibili.map(task => (
                 <TaskCard
                   key={task.id}
@@ -245,7 +240,7 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
                   titleColor="var(--heading)"
                   showCategory={false}
                   showClient={false}
-                  /* I badge stanno SOTTO il titolo, non sopra: qui la card è una
+                  /* I badge stanno SOTTO il titolo, non sopra: qui la stiliComuni.card è una
                      riga d'archivio, il titolo è l'informazione principale. */
                   subheader={
                     <div style={rowCenterGap6}>
@@ -258,10 +253,10 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
                     <div style={rowCenterBetween}>
                       <div style={rowCenterGap10}>
                         {task.client && (
-                          <span style={txtF12Muted}>{task.client}</span>
+                          <span style={stiliComuni.txtF12Muted}>{task.client}</span>
                         )}
                         {task.completedAt && (
-                          <span style={txtF12Muted}>{formatDate(task.completedAt)}</span>
+                          <span style={stiliComuni.txtF12Muted}>{formatDate(task.completedAt)}</span>
                         )}
                         {task.assignees?.length > 0 && (
                           <div style={rowGap3}>
@@ -269,7 +264,7 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
                           </div>
                         )}
                       </div>
-                      <div style={rowGap6} onClick={e => e.stopPropagation()}>
+                      <div style={stiliComuni.rowGap6} onClick={e => e.stopPropagation()}>
                         <button onClick={() => handleReopen(task)} style={boxF12Bold}>↩ Riapri</button>
                         <button onClick={() => handleTrash(task)} style={boxF12Bold2}>🗑️</button>
                       </div>
@@ -280,10 +275,10 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
             </div>
           ) : (
             /* Desktop: table */
-            <div style={card}>
-              <table style={tabella}>
+            <div style={stiliComuni.card}>
+              <table style={stiliComuni.tabella}>
                 <thead>
-                  <tr style={rigaIntestazione}>
+                  <tr style={stiliComuni.rigaIntestazione}>
                     <th style={thStyle("left", "16px")}>TASK</th>
                     <th style={thStyle("left")}>CATEGORIA</th>
                     <th style={thStyle("left")}>CLIENTE</th>
@@ -307,24 +302,24 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
                         </div>
                       </td>
                       <td style={padding3}><CategoryChip category={task.category} /></td>
-                      <td style={cella}>
-                        {task.client || <span style={txtMuted}>—</span>}
+                      <td style={stiliComuni.cella}>
+                        {task.client || <span style={stiliComuni.txtMuted}>—</span>}
                       </td>
                       <td style={padding3}>
-                        <div style={rowGap4}>
+                        <div style={stiliComuni.rowGap4}>
                           {task.assignees?.length
                             ? task.assignees.map(id => <Avatar key={id} memberId={id} size={22} />)
-                            : <span style={txtF12Muted}>—</span>
+                            : <span style={stiliComuni.txtF12Muted}>—</span>
                           }
                         </div>
                       </td>
-                      <td style={cellaMuted}>
+                      <td style={stiliComuni.cellaMuted}>
                         {task.completedAt ? formatDate(task.completedAt) : "—"}
                       </td>
-                      <td style={cellaAzioni} onClick={e => e.stopPropagation()}>
-                        <div style={rowGap62}>
-                          <button onClick={() => handleReopen(task)} title="Riapri (rimetti in lavorazione)" style={btnNavyMini}>↩ Riapri</button>
-                          <button onClick={() => handleTrash(task)} title="Sposta nel cestino" style={btnDangerMini}>🗑️</button>
+                      <td style={stiliComuni.cellaAzioni} onClick={e => e.stopPropagation()}>
+                        <div style={stiliComuni.rowGap62}>
+                          <button onClick={() => handleReopen(task)} title="Riapri (rimetti in lavorazione)" style={stiliComuni.btnNavyMini}>↩ Riapri</button>
+                          <button onClick={() => handleTrash(task)} title="Sposta nel cestino" style={stiliComuni.btnDangerMini}>🗑️</button>
                         </div>
                       </td>
                     </tr>
@@ -356,7 +351,7 @@ const tabStyle = (active) => ({
   padding: "7px 14px", borderRadius: 8, cursor: "pointer",
   fontSize: 13, fontWeight: 700, fontFamily: "inherit",
   border: `1px solid ${active ? "var(--navy)" : "var(--border)"}`,
-  background: active ? "var(--navy)" : "var(--card)",
+  background: active ? "var(--navy)" : "var(--stiliComuni.card)",
   color: active ? "#fff" : "var(--text)",
   transition: "background 0.15s, color 0.15s",
 });

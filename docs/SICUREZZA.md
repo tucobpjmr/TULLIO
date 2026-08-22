@@ -676,9 +676,26 @@ Due dettagli che rendono il controllo affidabile, entrambi documentati in
 
 Il canarino inizia per `tullio-` di proposito: così la stessa sonda copre anche
 **A-4**, cioè il fatto che `supabase/functions/_shared/cors.ts` e
-`safeRedirect` in `invite-user` trattino come fidato qualunque
-`tullio-*.vercel.app` — un insieme che chiunque può ampliare. A-4 resta aperto:
-è la difesa in profondità di C-1 e va chiusa a parte.
+`safeRedirect` in `invite-user` trattassero come fidato qualunque
+`tullio-*.vercel.app` — un insieme che chiunque può ampliare.
+
+✅ **A-4 è chiuso** (22 agosto). La regola non è più un prefisso scritto in due
+copie: sta in `supabase/functions/_shared/originConsentite.ts`, in un ELENCO
+esatto dei tre host che il progetto possiede, importato da `cors.ts` (per
+l'header CORS) e da `invite-user` (per `redirectTo`). Il modulo è puro e senza
+import — come `adminPredicate.ts` e per la stessa ragione — quindi la regola è
+verificata da `src/test/originConsentite.test.js` senza deployare nulla, con
+un caso per ciascun hostname *registrabile da terzi* che la vecchia regola
+accettava (`tullio-qualsiasi-cosa`, `tullio-git-main`,
+`tullio-git-x-y-tooco-s-projects`, un sottodominio di un host consentito).
+
+⚠️ Il prezzo, dichiarato: dalle URL di deployment **effimere** le Edge Function
+non sono più utilizzabili, perché quegli hostname cambiano a ogni push e non
+possono stare in un elenco. L'alias di branch `tullio-git-main-…` è stabile ed
+è in lista; per una preview diversa si aggiunge il suo host a `ORIGIN_PROPRIE`
+per la durata della prova. È la stessa scelta fatta qui sopra per la allow-list
+di Auth, e le due devono restare d'accordo: una regola più larga da una parte è
+la scorciatoia che riapre l'altra.
 
 ### ✅ Verificato in produzione — 22 agosto 2026
 

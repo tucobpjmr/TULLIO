@@ -82,11 +82,15 @@ describe('valutaSonde — il verdetto sulla allow-list', () => {
 
 describe('il canarino copre anche A-4', () => {
   // Il prefisso non è un dettaglio: `_shared/cors.ts` e `safeRedirect` in
-  // invite-user considerano fidato QUALUNQUE `tullio-*.vercel.app`, che è un
+  // invite-user consideravano fidato QUALUNQUE `tullio-*.vercel.app`, che è un
   // insieme che chiunque può ampliare creando un progetto Vercel con quel
-  // nome. Se un giorno qualcuno "semplificasse" il canarino togliendogli il
-  // prefisso, la sonda smetterebbe di dimostrarlo — e nessuno se ne
-  // accorgerebbe, perché continuerebbe a passare.
+  // nome. A-4 è chiuso (la regola è ora l'elenco esatto di
+  // `_shared/originConsentite.ts`, con i propri test), ma il canarino tiene il
+  // prefisso: è ciò che rende questa sonda una prova anche del fatto che il
+  // lato SERVER — la allow-list di Auth — non accetti quella famiglia di host.
+  // Se un giorno qualcuno "semplificasse" il canarino togliendoglielo, la
+  // sonda smetterebbe di dimostrarlo, e nessuno se ne accorgerebbe perché
+  // continuerebbe a passare.
   it('l\'host canarino inizia per "tullio-" e sta su vercel.app', () => {
     expect(HOST_CANARINO.startsWith('tullio-')).toBe(true);
     expect(HOST_CANARINO.endsWith('.vercel.app')).toBe(true);

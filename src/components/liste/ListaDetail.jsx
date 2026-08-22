@@ -38,7 +38,7 @@ const TABELLE_MOVIMENTO = new Set(["movimenti_lista"]);
 const TABELLE_LISTA = new Set(["liste_viaggio"]);
 
 // ─── Dettaglio ─────────────────────────────────────────────────────────────
-export function ListaDetail({ lista, movimenti, history, usersById, dispatch, onReload, onArchived, clients = [] }) {
+export function ListaDetail({ lista, movimenti, history, usersById, dispatch, onReload, onArchived, clients = [], saldi = {} }) {
   const [addOpen, setAddOpen] = useState(false);
   const [editCell, setEditCell] = useState(null); // { id, campo }
   const [modal, setModal] = useState(null);       // null | "editLista" | "bulk" | "addBeneficiario" | { mov }
@@ -75,9 +75,20 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
     setAddOpen(false); setEditCell(null); setModal(null); setRiepilogoOpen(false);
   }, [lista.id]);
 
+  // B-1 dell'audit del 23 agosto. `liste_saldi.saldo` è calcolato dal database
+  // in numeric(12,2); sommare qui in float64 è una SECONDA definizione della
+  // stessa grandezza, e ricalcolare ciò che è già arrivato esatto non fa
+  // guadagnare nulla. Lo scarto misurato è 9e-11 € su 2000 movimenti — non è
+  // un difetto di correttezza, è una definizione di troppo, sull'unica
+  // grandezza monetaria dell'app e proprio sulla copia che finisce nel
+  // documento Word consegnato all'agente.
+  // Il fallback locale resta per il solo caso in cui la riga di `saldi` non sia
+  // ancora arrivata (primo render dopo una scrittura, prima del reload).
   const saldo = useMemo(
-    () => movimenti.reduce((s, m) => s + Number(m.importo), 0),
-    [movimenti],
+    () => (saldi[lista.id]?.saldo !== undefined
+      ? Number(saldi[lista.id].saldo)
+      : movimenti.reduce((s, m) => s + Number(m.importo), 0)),
+    [saldi, lista.id, movimenti],
   );
   const attiva = lista.stato === "attiva";
 
@@ -142,7 +153,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
   // e storico inclusi), da distinguere dal riepilogo per il cliente qui sotto.
   const copiaAgente = () => {
     const name = `LISTA_${(lista.clients?.name || "CLIENTE").replace(/\s+/g, "_")}_COPIA_AGENTE.doc`;
-    const html = docHtml(lista, movimenti, history, usersById);
+    const html = docHtml(lista, movimenti, history, usersById, saldo);
     downloadBlob(new Blob(["\ufeff" + html], { type: "application/msword" }), name);
     dispatch({ type: "SHOW_TOAST", payload: { type: "success", message: "Copia agente scaricata (Word)" } });
   };
@@ -388,6 +399,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
         <RiepilogoClienteModal
           lista={lista}
           movimenti={movimenti}
+          saldo={saldo}
           dispatch={dispatch}
           onClose={() => setRiepilogoOpen(false)}
         />

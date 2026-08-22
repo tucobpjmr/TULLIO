@@ -379,6 +379,7 @@ CSRF classica non si applica.
 | `Strict-Transport-Security` | `max-age=63072000; includeSubDomains` |
 | `Permissions-Policy` | `camera=(), microphone=(self), geolocation=(), payment=(), usb=(), interest-cohort=()` |
 | `Cross-Origin-Opener-Policy` | `same-origin` |
+| `Cross-Origin-Embedder-Policy` | `credentialless` |
 | `Content-Security-Policy` | vedi §8 |
 
 La CSP è **bloccante** dal 6 agosto (§8): non solo segnala le violazioni, le
@@ -386,6 +387,22 @@ impedisce. Ogni nuova origine — script, font, endpoint, CDN — va aggiunta a
 `vercel.json` **prima** di essere usata: senza, la richiesta viene bloccata in
 produzione, senza il periodo di osservazione che una fase Report-Only avrebbe
 dato.
+
+**`Cross-Origin-Embedder-Policy`** aggiunto il 23 agosto (B-4 dell'audit di
+quel giorno): senza COEP, `COOP: same-origin` da solo non basta a isolare
+completamente l'origine da attacchi a canale laterale (Spectre e simili). Il
+valore è deliberatamente `credentialless` e non `require-corp`: quest'ultimo
+pretenderebbe un header `Cross-Origin-Resource-Policy` su OGNI risorsa
+cross-origin caricata dalla pagina, e l'unica che l'app ha — il foglio di
+stile di Google Fonts (`fonts.googleapis.com`, che a sua volta scarica i file
+da `fonts.gstatic.com`) — non lo manda; con `require-corp` i font
+smetterebbero di caricare. `credentialless` isola comunque l'origine ma
+esenta le richieste cross-origin fatte SENZA credenziali (cookie, header
+`Authorization`), che è esattamente il caso dei font: nessuna richiesta della
+pagina verso `fonts.gstatic.com` porta credenziali. Non ancora verificato in
+Chromium con build reale (stessa riserva di §8 sui limiti dichiarati) — se i
+font smettessero di caricare in produzione, il sospetto va qui prima che al
+codice applicativo.
 
 ---
 
@@ -668,6 +685,13 @@ documento. Senza quell'endpoint, una direttiva troppo stretta su un percorso
 poco battuto **fallisce in silenzio per chiunque non abbia i DevTools aperti**:
 una richiesta bloccata dalla CSP non produce un errore di rete distinguibile
 per l'utente, produce una funzionalità che "non fa niente".
+
+**Riconfermata il 23 agosto** (B-4 dell'audit di quel giorno, che l'aveva
+segnalata insieme all'assenza di COEP sopra): un endpoint di report richiede
+un servizio terzo a pagamento o un'Edge Function propria che raccolga e
+conservi i report — infrastruttura nuova, non una riga di configurazione — ed
+è stato deciso di non aggiungerlo senza una scelta esplicita su dove far
+atterrare quei dati. Resta un rilievo aperto e dichiarato, non un oversight.
 
 Conseguenza pratica: se in produzione compare un problema che ricade in una
 delle quattro aree del riquadro sopra — un vocale che non parte, un upload che

@@ -481,7 +481,13 @@ const escHtml = (s) => (s ?? '').toString().replace(/[&<>"']/g, (c) => ({
 // metodo di pagamento e, se passato lo storico, il registro di chi ha
 // modificato cosa e quando. Il riepilogo per il cliente è un'altra cosa
 // (niente metodi di pagamento, niente storico): vedi riepilogoTesto.
-export const docHtml = (lista, movimenti, storico, usersById = {}) => {
+// `saldoEsatto`, se passato, è il saldo già calcolato dal database
+// (`liste_saldi.saldo`, numeric(12,2) — B-1 dell'audit del 23 agosto): questo
+// documento ESCE dal sistema (copia Word per l'agente), quindi è proprio qui
+// che una cifra ricalcolata in float64 è più difficile da smentire. Il
+// ricalcolo locale resta come fallback per chi non ha ancora il saldo esatto
+// a disposizione (es. i test di questo modulo).
+export const docHtml = (lista, movimenti, storico, usersById = {}, saldoEsatto) => {
   const rows = movimenti.map((m) => `
     <tr>
       <td style="width:90px">${fmtDate(m.data_movimento)}</td>
@@ -489,7 +495,7 @@ export const docHtml = (lista, movimenti, storico, usersById = {}) => {
       <td style="width:110px;text-align:right">${Number(m.importo) < 0 ? '-' : ''}€ ${Math.abs(Number(m.importo)).toLocaleString('it-IT', { minimumFractionDigits: 2 })}</td>
       <td style="width:80px">${m.metodo ? escHtml(m.metodo.toUpperCase()) : ''}</td>
     </tr>`).join('');
-  const saldo = movimenti.reduce((s, m) => s + Number(m.importo), 0);
+  const saldo = saldoEsatto !== undefined ? saldoEsatto : movimenti.reduce((s, m) => s + Number(m.importo), 0);
   const storicoHtml = storico && storico.length ? `
     <h2 style="font-size:12pt;margin-top:18pt">Storico modifiche</h2>
     <table>${storico.map((h) => `
@@ -514,9 +520,9 @@ export const docHtml = (lista, movimenti, storico, usersById = {}) => {
 
 // Testo semplice per il riepilogo cliente (condivisione via navigator.share o
 // clipboard): niente metodi di pagamento, niente storico.
-export const riepilogoTesto = (lista, movimenti) => {
+export const riepilogoTesto = (lista, movimenti, saldoEsatto) => {
   const righe = movimenti.map((m) => `${fmtDate(m.data_movimento)}  ${m.descrizione}  ${eur(m.importo)}`).join('\n');
-  const saldo = movimenti.reduce((s, m) => s + Number(m.importo), 0);
+  const saldo = saldoEsatto !== undefined ? saldoEsatto : movimenti.reduce((s, m) => s + Number(m.importo), 0);
   return `RIEPILOGO BUONO VIAGGIO\n${intestazioneLista(lista)}${lista.titolo ? ' — ' + lista.titolo : ''}\n\n`
     + (righe || 'Nessun movimento registrato.')
     + `\n\nSALDO: ${eur(saldo)}`

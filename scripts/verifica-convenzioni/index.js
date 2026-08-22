@@ -53,6 +53,12 @@ const AUDIT = [
   // insieme al documento. È l'audit con tutti e nove i rilievi ancora aperti,
   // cioè quello in cui il marcatore di INDEX.md ha più occasioni di scadere.
   { file: 'AUDIT_PERFORMANCE_UX_2026-08-19.md', prefisso: ['C', 'A', 'M', 'B'] },
+  // Mancava dal registro fin dalla sua creazione — esattamente la condizione
+  // che B-6 del 16 agosto aveva esteso questo elenco per impedire. Registrato
+  // ora, nella stessa sessione che ne chiude B-1 e B-3: senza, l'aggiornamento
+  // dei loro marcatori ⟦stato: N/9 chiusi⟧ in questo file e in INDEX.md non
+  // sarebbe verificato da nessuno script.
+  { file: 'AUDIT_ARCHITETTURA_2026-08-23.md', prefisso: ['C', 'A', 'M', 'B'] },
 ];
 
 // Misura i warning di una regola sul sorgente dell'app.

@@ -1,6 +1,6 @@
 // ─── PROFILE EDITOR ──────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
-import { useState, useRef } from "react";
+import { useState, useReducer, useRef } from "react";
 import { useViewport } from "../Viewport.jsx";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { useIsMounted } from "../../hooks/useIsMounted.js";
@@ -12,6 +12,7 @@ import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { Modal } from "../ui/Modal.jsx";
 import { roleLabel } from "../../lib/taskConstants.js";
 
+import { ESITO_PRONTO, profileUiIniziale, profileUiReducer } from "./profileEditorReducer.js";
 import { CropModal, dataUrlToBlob } from "./CropModal.jsx";
 import * as stiliComuni from "../../styles/common.js";
 import {
@@ -31,12 +32,6 @@ const REGOLE = {
 };
 const ORDINE = ["name", "email"];
 
-// ST-7 · Stato "a riposo" delle due operazioni asincrone della modale (cambio
-// password, eliminazione account). Una fase sola per operazione, e non un
-// booleano "in corso" accanto a un messaggio: vedi la classificazione qui sotto.
-const ESITO_PRONTO = { fase: "pronto", testo: null };
-const BOZZA_PWD = { nuova: "", conferma: "" };
-
 // ─── ST-7 · CLASSIFICAZIONE DEGLI STATI ──────────────────────────────────────
 // Prima questo componente coordinava 17 `useState` indipendenti (18 nel conteggio
 // dell'audit, che includeva la riga di import). Il numero non era il problema:
@@ -48,16 +43,16 @@ const BOZZA_PWD = { nuova: "", conferma: "" };
 //     cinque valori che compongono il payload di UPDATE_OWN_PROFILE: nascono
 //     insieme da `member`, si leggono insieme al salvataggio e si buttano via
 //     insieme quando si preme Annulla.
-//   • CAMPI DEL SOTTO-FORM PASSWORD (newPwd, confirmPwd) → `bozzaPwd`. Sono un
-//     SECONDO form, con un proprio submit (`updatePassword`, che non passa dal
-//     registry perché non tocca un'entità dello state): tenerli in `draft` li
-//     avrebbe portati a un passo dal finire nel payload del profilo.
-//   • ESITO DI UN'OPERAZIONE ASINCRONA (savingPwd + pwdMsg, deletingAccount +
-//     deleteMsg) → una fase sola per operazione, `esitoPwd` / `esitoElim`.
-//     "In volo" e "ho un esito da mostrare" sono mutuamente esclusivi per
-//     costruzione — ogni handler azzera il messaggio prima di partire — mentre
-//     due stati separati rendevano rappresentabile "sto salvando e intanto
-//     mostro l'esito di prima", che nessun handler doveva mai produrre.
+//   • LE DUE SEZIONI A FISARMONICA (password, elimina account), L'ESITO DELLE
+//     TRE OPERAZIONI ASINCRONE e IL FRENO AL DOPPIO INVIO del salvataggio →
+//     un solo `useReducer`, `profileUiReducer` (`./profileEditorReducer.js`,
+//     B-3 residuo dell'audit del 15 agosto, chiuso il 23). Erano 9 `useState`
+//     indipendenti che cambiavano sempre in GRUPPO: aprire "Cambia password"
+//     azzera insieme esito e bozza, un cambio riuscito azzera la bozza ma non
+//     l'esito. Restano campi DISTINTI e annidati per sezione (`ui.pwd`,
+//     `ui.elim`, `ui.signOut`) — non fusi in un valore solo — per le stesse
+//     ragioni per cui restano separati qui sotto: un reducer raggruppa i
+//     PUNTI DI SCRITTURA, non il significato dei campi.
 //
 // Restano DELIBERATAMENTE separati, perché sono valori indipendenti e accorparli
 // è la parte del rilievo che non va fatta:
@@ -68,15 +63,18 @@ const BOZZA_PWD = { nuova: "", conferma: "" };
 //   • `cropSrc` — è l'immagine SORGENTE del ritaglio, non la foto del profilo:
 //     esiste solo mentre la CropModal è aperta e annullarla non deve toccare
 //     `draft.photoUrl`.
-//   • `pwdAperta` / `elimAperta` — due sezioni a fisarmonica INDIPENDENTI: oggi
-//     possono essere aperte entrambe insieme, e fonderle in un'unica "sezione
-//     attiva" (come si è fatto per gli overlay di ListeViaggio, che invece sono
-//     mutuamente esclusivi) sarebbe un cambiamento di comportamento visibile.
-//   • `rivelaPwd` — preferenza di visualizzazione (icona occhio) condivisa dai
-//     due campi password: deve sopravvivere allo svuotamento di `bozzaPwd`, che
-//     dopo un cambio riuscito azzera i campi ma non deve richiudere l'occhio.
-//   • `confermaElim` — la parola digitata nella zona pericolosa È un campo, ma
-//     uno solo: un oggetto bozza di una chiave non aggiungerebbe nulla, e non
+//   • `ui.pwd.aperta` / `ui.elim.aperta` — due sezioni a fisarmonica
+//     INDIPENDENTI: oggi possono essere aperte entrambe insieme, e fonderle in
+//     un'unica "sezione attiva" (come si è fatto per gli overlay di
+//     ListeViaggio, che invece sono mutuamente esclusivi) sarebbe un cambiamento
+//     di comportamento visibile — restano due chiavi separate dentro il
+//     reducer, non un'unica "sezione aperta".
+//   • `ui.pwd.rivela` — preferenza di visualizzazione (icona occhio) condivisa
+//     dai due campi password: deve sopravvivere allo svuotamento della bozza,
+//     che dopo un cambio riuscito azzera i campi ma non deve richiudere l'occhio
+//     (l'azione `PWD_SUCCESSO` infatti non la tocca).
+//   • `ui.elim.conferma` — la parola digitata nella zona pericolosa È un campo,
+//     ma uno solo: un oggetto bozza di una chiave non aggiungerebbe nulla, e non
 //     può stare in `draft` perché non si salva, si confronta con "ELIMINA".
 export const ProfileEditor = ({ member, dispatch, onClose }) => {
   const { isMobile } = useViewport();
@@ -107,14 +105,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
     setDraft(prec => ({ ...prec, [campo]: valore }));
     setErrori(prec => (prec[campo] ? { ...prec, [campo]: undefined } : prec));
   };
-  const [pwdAperta, setPwdAperta] = useState(false);
-  const [rivelaPwd, setRivelaPwd] = useState(false); // visibilità testo password (icona occhio)
-  const [bozzaPwd, setBozzaPwd] = useState(BOZZA_PWD);
-  const [esitoPwd, setEsitoPwd] = useState(ESITO_PRONTO); // { fase: pronto|invio|ok|errore, testo }
-  const [elimAperta, setElimAperta] = useState(false);
-  const [confermaElim, setConfermaElim] = useState("");
-  const [esitoElim, setEsitoElim] = useState(ESITO_PRONTO); // { fase: pronto|invio|errore, testo }
-  const [esitoSignOutOvunque, setEsitoSignOutOvunque] = useState(ESITO_PRONTO); // { fase: pronto|invio|errore, testo }
+  const [ui, uiDispatch] = useReducer(profileUiReducer, profileUiIniziale);
 
   // Uscita da ogni dispositivo: revoca lato server tutti i refresh
   // token. A differenza di deleteAccount() non smonta questa modale da sola
@@ -122,38 +113,37 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
   // sparire non appena il provider aggiorna `session`), quindi il guard
   // useIsMounted() qui serve davvero, non solo a scopo descrittivo.
   const handleSignOutOvunque = async () => {
-    setEsitoSignOutOvunque({ fase: "invio", testo: null });
+    uiDispatch({ type: "SIGNOUT_ESITO", esito: { fase: "invio", testo: null } });
     const { error } = await signOutOvunque();
     if (!montato()) return;
-    setEsitoSignOutOvunque(error
+    uiDispatch({ type: "SIGNOUT_ESITO", esito: error
       ? { fase: "errore", testo: error.message || "Non è stato possibile disconnettere gli altri dispositivi." }
-      : ESITO_PRONTO);
+      : ESITO_PRONTO });
   };
 
   const handleDeleteAccount = async () => {
-    if (confermaElim !== "ELIMINA") return;
-    setEsitoElim({ fase: "invio", testo: null });
+    if (ui.elim.conferma !== "ELIMINA") return;
+    uiDispatch({ type: "ELIM_ESITO", esito: { fase: "invio", testo: null } });
     const { error } = await deleteAccount();
     // On success, deleteAccount() already called signOut() → app unmounts this
     // modal automatically: qui lo smontaggio è l'esito NORMALE, quindi il guard
     // di useIsMounted() non è una precauzione ma la descrizione del caso.
     if (!montato()) return;
-    setEsitoElim(error
+    uiDispatch({ type: "ELIM_ESITO", esito: error
       ? { fase: "errore", testo: error.message || "Eliminazione non riuscita." }
-      : ESITO_PRONTO);
+      : ESITO_PRONTO });
   };
 
   const handleChangePwd = async () => {
-    if (bozzaPwd.nuova.length < 8) { setEsitoPwd({ fase: "errore", testo: "La password deve avere almeno 8 caratteri." }); return; }
-    if (bozzaPwd.nuova !== bozzaPwd.conferma) { setEsitoPwd({ fase: "errore", testo: "Le due password non coincidono." }); return; }
-    setEsitoPwd({ fase: "invio", testo: null });
-    const { error } = await updatePassword(bozzaPwd.nuova);
+    if (ui.pwd.bozza.nuova.length < 8) { uiDispatch({ type: "PWD_ESITO", esito: { fase: "errore", testo: "La password deve avere almeno 8 caratteri." } }); return; }
+    if (ui.pwd.bozza.nuova !== ui.pwd.bozza.conferma) { uiDispatch({ type: "PWD_ESITO", esito: { fase: "errore", testo: "Le due password non coincidono." } }); return; }
+    uiDispatch({ type: "PWD_ESITO", esito: { fase: "invio", testo: null } });
+    const { error } = await updatePassword(ui.pwd.bozza.nuova);
     if (!montato()) return;
     if (error) {
-      setEsitoPwd({ fase: "errore", testo: error.message || "Cambio password non riuscito." });
+      uiDispatch({ type: "PWD_ESITO", esito: { fase: "errore", testo: error.message || "Cambio password non riuscito." } });
     } else {
-      setEsitoPwd({ fase: "ok", testo: "Password aggiornata." });
-      setBozzaPwd(BOZZA_PWD);
+      uiDispatch({ type: "PWD_SUCCESSO" });
     }
   };
 
@@ -180,16 +170,14 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
   // (schermo immobile, come se il click non fosse arrivato) e nessun freno al
   // secondo click, che ricaricava l'avatar da capo e dispatchava una seconda
   // UPDATE_OWN_PROFILE. Le altre due operazioni del file — cambio password ed
-  // eliminazione account — avevano già `esitoPwd.fase === "invio"` /
-  // `esitoElim.fase === "invio"`: qui manca solo la terza.
+  // eliminazione account — avevano già `ui.pwd.esito.fase === "invio"` /
+  // `ui.elim.esito.fase === "invio"`: qui manca solo la terza.
   //
   // ⚠️ Non è il bottone disabilitato che la validazione vieta (criticità #10):
   // quello nasconde un campo mancante invece di dirlo, e resta attivo. Questo
   // si spegne SOLO per la durata di una scrittura già partita.
-  const [salvaInVolo, setSalvaInVolo] = useState(false);
-
   const handleSave = async () => {
-    if (salvaInVolo) return;
+    if (ui.salvaInVolo) return;
     const trovati = validaCampi(draft, REGOLE);
     const primo = primoCampoInvalido(trovati, ORDINE);
     if (primo) {
@@ -198,7 +186,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
       return;
     }
     setErrori({});
-    setSalvaInVolo(true);
+    uiDispatch({ type: "SALVA_IN_VOLO", valore: true });
     const trimmedEmail = draft.email.trim();
     // Foto: se è una nuova immagine (data-URL dal crop, o una vecchia base64
     // ancora in photo_url), caricala sul bucket 'avatars' e sostituiscila con
@@ -211,7 +199,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
       if (!montato()) return;
       if (upErr || !url) {
         dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Foto non caricata: ${upErr?.message || "errore sconosciuto"}` } });
-        setSalvaInVolo(false);
+        uiDispatch({ type: "SALVA_IN_VOLO", valore: false });
         return; // non salvo: l'utente può ritentare senza perdere la foto scelta
       }
       finalPhotoUrl = url;
@@ -244,7 +232,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
     // `dispatch` è awaitato — è lo stesso contratto di useIsMounted() usato
     // sopra per l'upload.
     if (!montato()) return;
-    setSalvaInVolo(false);
+    uiDispatch({ type: "SALVA_IN_VOLO", valore: false });
     // In errore la modale resta APERTA: chiuderla butterebbe via quanto è stato
     // digitato e, subito dopo un rollback che ha appena rimesso i valori
     // precedenti, lascerebbe l'utente davanti al profilo di prima senza un modo
@@ -256,8 +244,8 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
   const initials = draft.name.trim().split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "??";
   // Le TRE operazioni asincrone leggono la propria fase in un punto solo: il
   // resto del render chiede "sta partendo?" e non incrocia due booleani.
-  const pwdInVolo = esitoPwd.fase === "invio";
-  const elimInVolo = esitoElim.fase === "invio";
+  const pwdInVolo = ui.pwd.esito.fase === "invio";
+  const elimInVolo = ui.elim.esito.fase === "invio";
 
   const fieldLabel = (text) => (
     <label className="vd-field-label">{text}</label>
@@ -379,22 +367,22 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
           {session && (
             <div>
               <button
-                onClick={() => { setPwdAperta(v => !v); setEsitoPwd(ESITO_PRONTO); setBozzaPwd(BOZZA_PWD); }}
+                onClick={() => uiDispatch({ type: "TOGGLE_PWD" })}
                 style={rowCenterGap8}
               >
                 <span style={stiliComuni.txtF15}>🔑</span>
                 Cambia password
-                <span style={txtF11Muted2}>{pwdAperta ? "▲" : "▼"}</span>
+                <span style={txtF11Muted2}>{ui.pwd.aperta ? "▲" : "▼"}</span>
               </button>
-              {pwdAperta && (
+              {ui.pwd.aperta && (
                 <div style={colGap10Mt10}>
                   <div>
                     {fieldLabel("NUOVA PASSWORD")}
                     <PasswordField
                       inputStyle={inputStyle} autoComplete="new-password"
-                      value={bozzaPwd.nuova} onChange={e => setBozzaPwd(p => ({ ...p, nuova: e.target.value }))}
+                      value={ui.pwd.bozza.nuova} onChange={e => uiDispatch({ type: "SET_PWD_CAMPO", campo: "nuova", valore: e.target.value })}
                       placeholder="Minimo 8 caratteri"
-                      show={rivelaPwd} onToggle={() => setRivelaPwd(s => !s)}
+                      show={ui.pwd.rivela} onToggle={() => uiDispatch({ type: "TOGGLE_RIVELA_PWD" })}
                       onFocus={e => e.target.style.borderColor = "var(--gold)"}
                       onBlur={e => e.target.style.borderColor = "var(--border)"}
                     />
@@ -403,9 +391,9 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
                     {fieldLabel("CONFERMA PASSWORD")}
                     <PasswordField
                       inputStyle={inputStyle} autoComplete="new-password"
-                      value={bozzaPwd.conferma} onChange={e => setBozzaPwd(p => ({ ...p, conferma: e.target.value }))}
+                      value={ui.pwd.bozza.conferma} onChange={e => uiDispatch({ type: "SET_PWD_CAMPO", campo: "conferma", valore: e.target.value })}
                       placeholder="Ripeti la password"
-                      show={rivelaPwd} onToggle={() => setRivelaPwd(s => !s)}
+                      show={ui.pwd.rivela} onToggle={() => uiDispatch({ type: "TOGGLE_RIVELA_PWD" })}
                       onFocus={e => e.target.style.borderColor = "var(--gold)"}
                       onBlur={e => e.target.style.borderColor = "var(--border)"}
                       onKeyDown={e => { if (e.key === "Enter") handleChangePwd(); }}
@@ -414,23 +402,23 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
                   {/* Un messaggio da mostrare c'è solo nelle fasi terminali: la
                       fase "invio" azzera `testo`, quindi l'esito di prima non
                       può più convivere con un salvataggio in corso. */}
-                  {esitoPwd.testo && (
+                  {ui.pwd.esito.testo && (
                     <div role="status" style={{
                       fontSize: 12.5, borderRadius: 8, padding: "8px 10px",
-                      background: esitoPwd.fase === "ok" ? "rgba(45,122,79,0.1)" : "rgba(192,57,43,0.08)",
-                      border: `1px solid ${esitoPwd.fase === "ok" ? "var(--success)" : "var(--danger)"}`,
-                      color: esitoPwd.fase === "ok" ? "var(--success)" : "var(--danger)",
-                    }}>{esitoPwd.testo}</div>
+                      background: ui.pwd.esito.fase === "ok" ? "rgba(45,122,79,0.1)" : "rgba(192,57,43,0.08)",
+                      border: `1px solid ${ui.pwd.esito.fase === "ok" ? "var(--success)" : "var(--danger)"}`,
+                      color: ui.pwd.esito.fase === "ok" ? "var(--success)" : "var(--danger)",
+                    }}>{ui.pwd.esito.testo}</div>
                   )}
                   <div style={row}>
                     <button
                       onClick={handleChangePwd}
-                      disabled={pwdInVolo || !bozzaPwd.nuova}
+                      disabled={pwdInVolo || !ui.pwd.bozza.nuova}
                       style={{
-                        background: pwdInVolo || !bozzaPwd.nuova ? "var(--surface3)" : "var(--navy)",
-                        color: pwdInVolo || !bozzaPwd.nuova ? "var(--text-muted)" : "#fff",
+                        background: pwdInVolo || !ui.pwd.bozza.nuova ? "var(--surface3)" : "var(--navy)",
+                        color: pwdInVolo || !ui.pwd.bozza.nuova ? "var(--text-muted)" : "#fff",
                         border: "none", padding: "9px 18px", borderRadius: 8,
-                        cursor: pwdInVolo || !bozzaPwd.nuova ? "not-allowed" : "pointer",
+                        cursor: pwdInVolo || !ui.pwd.bozza.nuova ? "not-allowed" : "pointer",
                         fontSize: 13, fontWeight: 600, fontFamily: "inherit",
                       }}
                     >{pwdInVolo ? "Salvataggio…" : "Aggiorna password"}</button>
@@ -447,17 +435,17 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
                 Disconnette ogni telefono, tablet e computer collegato a questo
                 account, incluso questo. Usalo se hai perso un dispositivo.
               </p>
-              {esitoSignOutOvunque.testo && (
-                <div role="status" style={boxF125Danger}>{esitoSignOutOvunque.testo}</div>
+              {ui.signOut.esito.testo && (
+                <div role="status" style={boxF125Danger}>{ui.signOut.esito.testo}</div>
               )}
               <div style={row}>
                 <button
                   onClick={handleSignOutOvunque}
-                  disabled={esitoSignOutOvunque.fase === "invio"}
+                  disabled={ui.signOut.esito.fase === "invio"}
                   style={rowCenterGap8Neutral}
                 >
                   <span style={stiliComuni.txtF15}>🔒</span>
-                  {esitoSignOutOvunque.fase === "invio" ? "Disconnessione…" : "Esci da tutti i dispositivi"}
+                  {ui.signOut.esito.fase === "invio" ? "Disconnessione…" : "Esci da tutti i dispositivi"}
                 </button>
               </div>
             </div>
@@ -467,14 +455,14 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
           {session && (
             <div style={mt2}>
               <button
-                onClick={() => { setElimAperta(v => !v); setConfermaElim(""); setEsitoElim(ESITO_PRONTO); }}
+                onClick={() => uiDispatch({ type: "TOGGLE_ELIM" })}
                 style={rowCenterGap82}
               >
                 <span style={stiliComuni.txtF15}>🗑️</span>
                 Elimina account
-                <span style={txtF11Muted2}>{elimAperta ? "▲" : "▼"}</span>
+                <span style={txtF11Muted2}>{ui.elim.aperta ? "▲" : "▼"}</span>
               </button>
-              {elimAperta && (
+              {ui.elim.aperta && (
                 <div style={colGap10Mt102}>
                   <p style={txtF13Text}>
                     Questa azione <strong>disabilita permanentemente</strong> il tuo account e impedisce futuri accessi.
@@ -483,24 +471,24 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
                   <div>
                     {fieldLabel('DIGITA "ELIMINA" PER CONFERMARE')}
                     <input
-                      value={confermaElim} onChange={e => setConfermaElim(e.target.value)}
+                      value={ui.elim.conferma} onChange={e => uiDispatch({ type: "SET_CONFERMA_ELIM", valore: e.target.value })}
                       placeholder="ELIMINA" style={{ ...inputStyle, borderColor: "rgba(192,57,43,0.4)" }}
                       onFocus={e => e.target.style.borderColor = "var(--danger)"}
                       onBlur={e => e.target.style.borderColor = "rgba(192,57,43,0.4)"}
                     />
                   </div>
-                  {esitoElim.testo && (
-                    <div role="status" style={boxF125Danger}>{esitoElim.testo}</div>
+                  {ui.elim.esito.testo && (
+                    <div role="status" style={boxF125Danger}>{ui.elim.esito.testo}</div>
                   )}
                   <div style={row}>
                     <button
                       onClick={handleDeleteAccount}
-                      disabled={elimInVolo || confermaElim !== "ELIMINA"}
+                      disabled={elimInVolo || ui.elim.conferma !== "ELIMINA"}
                       style={{
-                        background: elimInVolo || confermaElim !== "ELIMINA" ? "var(--surface3)" : "var(--danger)",
-                        color: elimInVolo || confermaElim !== "ELIMINA" ? "var(--text-muted)" : "#fff",
+                        background: elimInVolo || ui.elim.conferma !== "ELIMINA" ? "var(--surface3)" : "var(--danger)",
+                        color: elimInVolo || ui.elim.conferma !== "ELIMINA" ? "var(--text-muted)" : "#fff",
                         border: "none", padding: "9px 18px", borderRadius: 8,
-                        cursor: elimInVolo || confermaElim !== "ELIMINA" ? "not-allowed" : "pointer",
+                        cursor: elimInVolo || ui.elim.conferma !== "ELIMINA" ? "not-allowed" : "pointer",
                         fontSize: 13, fontWeight: 600, fontFamily: "inherit",
                       }}
                     >{elimInVolo ? "Eliminazione…" : "Elimina account definitivamente"}</button>
@@ -519,10 +507,10 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
               ora il form indica il campo e ci porta il focus. */}
           <button
             onClick={handleSave}
-            disabled={salvaInVolo}
-            aria-busy={salvaInVolo}
-            style={salvaInVolo ? boxF13Bold3InVolo : boxF13Bold3}
-          >{salvaInVolo ? "Salvataggio…" : "✓ Salva profilo"}</button>
+            disabled={ui.salvaInVolo}
+            aria-busy={ui.salvaInVolo}
+            style={ui.salvaInVolo ? boxF13Bold3InVolo : boxF13Bold3}
+          >{ui.salvaInVolo ? "Salvataggio…" : "✓ Salva profilo"}</button>
         </div>
       </Modal>
     </>

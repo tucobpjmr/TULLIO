@@ -440,6 +440,7 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
               onReload={reloadAll}
               onArchived={backToHome}
               clients={clients}
+              saldi={saldi}
             />
           ) : (
             <>

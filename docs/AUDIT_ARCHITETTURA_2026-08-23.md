@@ -14,7 +14,7 @@ livelli fra loro** invece che ciascuno con se stesso: `src/lib/permissions.js`,
 È da quel confronto che nasce il rilievo principale, e non è un caso: è
 l'unico controllo che nessuno strumento di questo repository esegue.
 
-⟦stato: 2/9 chiusi⟧
+⟦stato: 4/9 chiusi⟧
 
 > **Aggiornamento del 22-23 agosto, stessa sessione.** Quattro esiti diversi, e
 > vale la pena distinguerli invece di dire «quattro chiusi»:
@@ -30,9 +30,31 @@ l'unico controllo che nessuno strumento di questo repository esegue.
 > - **A-3 ⬜ RITIRATO**: era sbagliato. La sezione è riscritta invece che
 >   cancellata; sopravvive come B-5, molto più piccolo.
 >
-> Il conteggio dice **2/9** perché accettato e ritirato non sono chiuso. Un
+> Il conteggio diceva **2/9** perché accettato e ritirato non sono chiuso. Un
 > rilievo accettato conta come aperto finché la condizione che lo ha fatto
 > accettare non cambia — è l'unico modo perché resti leggibile.
+>
+> **Aggiornamento del 22 agosto, sessione successiva.** Due dei quattro
+> rilievi Bassa:
+>
+> - **B-1 ✅ chiuso**: il saldo si legge da `liste_saldi` (già in `saldi`,
+>   idratato da `useListeData`) invece di essere ricalcolato in float64 — nella
+>   testata di `ListaDetail`, nella copia agente Word (`docHtml`) e nel
+>   riepilogo cliente (`riepilogoTesto`/`RiepilogoClienteModal`), cioè proprio
+>   le due uscite che il rilievo indicava.
+> - **B-3 ✅ chiuso**: i 9 `useState` di `ProfileEditor.jsx` che cambiavano in
+>   gruppo (le due sezioni a fisarmonica, l'esito delle tre operazioni
+>   asincrone, il freno al doppio invio) sono ora un solo `useReducer`
+>   (`modals/profileEditorReducer.js`), come suggerito per `convViewReducer`.
+>   `draft`/`errori`/`cropSrc` restano dove sono, per le stesse ragioni già
+>   scritte qui sotto.
+> - **B-4 parziale**: aggiunto `Cross-Origin-Embedder-Policy: credentialless`
+>   (non `require-corp`, che avrebbe rotto Google Fonts — vedi `SICUREZZA.md`
+>   §5). Il canale di report CSP resta deliberatamente aperto: richiede un
+>   servizio terzo o un'infrastruttura propria di raccolta, decisione non
+>   presa in questa sessione. Non conta come chiuso.
+>
+> Il conteggio ora è **4/9**.
 
 ## Stato misurato, non riferito
 
@@ -66,10 +88,10 @@ smetteranno di reggere.**
 | ~~**A-3**~~ | ⬜ **RITIRATO** | — | **Il rilievo era sbagliato.** Entrambi gli script emettono già un'annotation `::warning` sul percorso inconcludente (aggiunta come A-2 il 12 agosto), e dai log del run reale nessuno dei due sta tacendo. Vedi la sezione, riscritta | — |
 | **M-1** | 🟡 Media | Documentazione | L'audit del 22 agosto — che ha chiuso un rilievo **critico** — non ha un documento: fuori da `INDEX.md` e fuori dal registro di `verifica:convenzioni` | `docs/` |
 | **M-2** ✔ | 🟡 Media | Scalabilità | ✅ **chiuso.** La soglia era in un documento che nessuno misurava: ora `npm run verifica:volumi` (4 soglie, in `verifica-rpc.yml`) la legge dalla produzione | `src/lib/api.js:634` |
-| **B-1** | 🟢 Bassa | Architettura | Il `saldo` di una lista è definito due volte: esatto nel database, in virgola mobile nel client — ed è la copia client quella che finisce nei documenti che escono | `src/components/liste/ListaDetail.jsx:78` |
+| **B-1** ✔ | 🟢 Bassa | Architettura | ✅ **chiuso.** Il saldo si legge ora da `liste_saldi` (numeric esatto) invece di essere ricalcolato in float64, anche nei due documenti che escono dal sistema | `src/components/liste/ListaDetail.jsx:78` |
 | **B-2** | 🟢 Bassa | Sicurezza | CVE `xlsx` 0.18.5 — sesta conferma del blocco CDN. Resta aperto e mitigato | `src/lib/xlsx.js` |
-| **B-3** | 🟢 Bassa | Struttura | `ProfileEditor.jsx`: 12 `useState` in 530 righe, il residuo di B-3 del 15 agosto | `src/components/modals/ProfileEditor.jsx` |
-| **B-4** | 🟢 Bassa | Sicurezza | Header: manca `Cross-Origin-Embedder-Policy`, la CSP non ha un canale di report | `vercel.json` |
+| **B-3** ✔ | 🟢 Bassa | Struttura | ✅ **chiuso.** I 9 `useState` che cambiavano in gruppo sono un `useReducer` (`modals/profileEditorReducer.js`) | `src/components/modals/ProfileEditor.jsx` |
+| **B-4** | 🟢 Bassa | Sicurezza | ⚙️ **Parziale.** `Cross-Origin-Embedder-Policy: credentialless` aggiunto; il canale di report CSP resta una decisione aperta (richiede infrastruttura propria) | `vercel.json` |
 | **B-5** | 🟢 Bassa | Ops | Ciò che resta di A-3 dopo il ritiro: un controllo inconcludente non **escala**: alla ventesima volta di fila ha lo stesso aspetto della prima | `scripts/verifica-*/` |
 
 ---
@@ -642,7 +664,23 @@ da agganciare a `verifica-rpc.yml` come quinto passo, con lo stesso
 
 ---
 
-## 🟢 B-1 · Il saldo di una lista è definito due volte
+## 🟢 B-1 · Il saldo di una lista è definito due volte — ✅ chiuso
+
+> **Chiusura del 22 agosto, sessione successiva.** La correzione minima
+> proposta qui sotto è stata applicata alla lettera: `ListaDetail.jsx` riceve
+> ora `saldi` da `ListeViaggio.jsx` (che già lo teneva idratato via
+> `useListeData`) e legge `Number(saldi[lista.id].saldo)`, con lo stesso
+> fallback locale per il primo render prima che la riga arrivi.
+>
+> **Estesa ai due documenti che escono dal sistema**, che il rilievo stesso
+> indicava come il punto in cui la copia float64 è più difficile da smentire:
+> `docHtml` e `riepilogoTesto` (`listeApi.js`) accettano ora un quinto/terzo
+> parametro opzionale `saldoEsatto` — il ricalcolo locale resta come fallback
+> per chi non lo passa (i test di questo modulo). `copiaAgente` in
+> `ListaDetail.jsx` e `RiepilogoClienteModal.jsx` lo passano entrambi.
+> `ClienteListePanel.jsx:64` non è stato toccato: somma già `saldi[l.id].saldo`
+> — il valore esatto letto dal database — e non lo ricalcola da `movimenti`,
+> quindi non è un secondo caso del difetto.
 
 **Dove.** vista `liste_saldi` (`20260728190000_sync_modulo_liste_viaggio.sql:98`) contro `ListaDetail.jsx:78`, `RiepilogoClienteModal.jsx:15`, `ClienteListePanel.jsx:64`, `listeApi.js:488` (`docHtml`) e `:518` (`riepilogoTesto`).
 
@@ -716,15 +754,38 @@ registrato, motivato e correttamente non chiuso.
 
 ---
 
-## 🟢 B-3 · `ProfileEditor.jsx`: 12 `useState` in 530 righe
+## 🟢 B-3 · `ProfileEditor.jsx`: 12 `useState` in 530 righe — ✅ chiuso
 
-Il residuo di B-3 del 15 agosto, che aveva ridotto quattro componenti sopra le
-400 righe ma non questo — oggi il primo del progetto per numero di stati
-locali. Non ha difetti funzionali; è il candidato naturale per lo stesso
-trattamento già applicato altrove (un `useReducer` per il form, come
-`convViewReducer` in `chat/chatReducers.js`), quando lo si toccherà per altro.
+> **Chiusura del 22 agosto, sessione successiva.** Fatto il trattamento
+> suggerito qui sotto, non oltre: i 9 `useState` che cambiavano sempre in
+> GRUPPO (le due sezioni a fisarmonica password/elimina account, l'esito delle
+> tre operazioni asincrone, il freno al doppio invio del salvataggio) sono ora
+> un solo `useReducer` — `profileUiReducer`, estratto in
+> `src/components/modals/profileEditorReducer.js` accanto a
+> `profileEditorStyles.js`, sullo stesso modello di `convViewReducer` in
+> `chat/chatReducers.js`. `draft`/`errori` (i campi del profilo) e `cropSrc`
+> (la sorgente del ritaglio) restano `useState` distinti: sono le stesse tre
+> ragioni già scritte sopra nella classificazione ST-7, che il reducer non
+> tocca — un reducer raggruppa i PUNTI DI SCRITTURA che cambiano insieme, non
+> il significato dei campi.
 
-## 🟢 B-4 · Header: due assenze
+## 🟢 B-4 · Header: due assenze — ⚙️ parziale
+
+> **Chiusura parziale del 22 agosto, sessione successiva.** Aggiunto
+> `Cross-Origin-Embedder-Policy: credentialless` a `vercel.json` — non
+> `require-corp`, per la ragione già scritta qui sotto: romperebbe Google
+> Fonts, l'unica risorsa cross-origin della pagina. `credentialless` isola
+> comunque l'origine da attacchi a canale laterale ma esenta le richieste
+> cross-origin fatte SENZA credenziali, che è esattamente il caso dei font.
+> Non ancora verificato in Chromium con build reale — vedi `SICUREZZA.md` §5.
+>
+> **Il canale di report resta deliberatamente aperto**, su decisione esplicita
+> presa in questa sessione e non per dimenticanza: aggiungerlo significa
+> scegliere fra un servizio terzo a pagamento e un'Edge Function propria che
+> raccolga e conservi i report, cioè infrastruttura nuova e non una riga di
+> configurazione. `SICUREZZA.md` §8 lo dichiarava già come «decisione ancora
+> aperta e separata da questo documento»; questa sessione l'ha riconfermato
+> invece di deciderlo a metà.
 
 `vercel.json` porta una CSP restrittiva e completa (niente `unsafe-inline`,
 `frame-ancestors 'none'`, `object-src 'none'`). Mancano due cose, entrambe

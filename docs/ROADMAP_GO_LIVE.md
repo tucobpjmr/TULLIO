@@ -80,7 +80,8 @@ Browser (React SPA)
 Supabase (vmxvnxsqfisucugcpqlc, eu-west-1)
   ├── Auth: email/password, invite, recovery
   │     ├── Site URL: https://tullio-seven.vercel.app
-  │     └── Redirect URLs: *.vercel.app/**
+  │     └── Redirect URLs: i 3 domini del progetto + localhost
+  │           (NON *.vercel.app — vedi SICUREZZA.md §9)
   ├── DB (Postgres): users, tasks, comments, notices, clients,
   │                  conversations, messages, notifications,
   │                  user_contacts, user_app_preferences,
@@ -104,7 +105,10 @@ Supabase (vmxvnxsqfisucugcpqlc, eu-west-1)
 - [x] redirectTo dinamico (invito + reset + resend puntano a Vercel)
 - [x] Delete utente persistente (Edge Function delete-user)
 - [x] Site URL Supabase → tullio-seven.vercel.app
-- [x] Redirect URLs Supabase → *.vercel.app/**
+- [x] Redirect URLs Supabase → ~~`*.vercel.app/**`~~ → elenco esplicito
+      (**corretto il 22 agosto 2026**: il jolly ammetteva domini di terze
+      parti — C-1, vedi [`SICUREZZA.md` §9](SICUREZZA.md). Lo stato atteso è
+      lì, e `npm run verifica:redirect` lo controlla a ogni push su `main`.)
 - [ ] SMTP validato (R1)
 - [ ] Test onboarding end-to-end (R2)
 - [ ] Merge PR #77 → main (R3)

@@ -1,12 +1,20 @@
 name: Verifica RPC
 
-# Controlla che il database di produzione sia allineato col repository, su
-# tre fronti: le RPC chiamate dal frontend esistono davvero (S-05, sintomo
-# diretto: senza questo, un utente vede "Could not find the function ... in
-# the schema cache"), ogni migrazione in supabase/migrations/ risulta
-# applicata (S-05, controllo diretto: si accorge anche dello scarto che non
-# tocca nessuna RPC — RLS, grant, colonne), e gli advisor di sicurezza/
-# performance di Supabase non segnalano nulla di livello ERROR.
+# Controlla che la produzione sia allineata col repository, su quattro fronti:
+# le RPC chiamate dal frontend esistono davvero (S-05, sintomo diretto: senza
+# questo, un utente vede "Could not find the function ... in the schema
+# cache"); ogni migrazione in supabase/migrations/ risulta applicata (S-05,
+# controllo diretto: si accorge anche dello scarto che non tocca nessuna RPC —
+# RLS, grant, colonne); gli advisor di sicurezza/performance di Supabase non
+# segnalano nulla di livello ERROR; e la allow-list dei Redirect URL di Auth
+# non ammette domini di terze parti.
+#
+# L'ultimo è arrivato per ultimo (C-1 dell'audit del 22 agosto) e non è un
+# quarto controllo qualsiasi: è il solo che NON guarda il database, ma un
+# valore che vive unicamente nella dashboard Supabase. È esattamente per
+# questo che era rimasto senza controllo — tutto ciò che sta in
+# supabase/migrations/ aveva già chi lo confrontava con la produzione, ciò che
+# sta nella dashboard non aveva nessuno.
 #
 # Perché serve un workflow a parte e non un passo dentro CI: questi controlli
 # interrogano il database di produzione, mentre CI gira anche sulle pull
@@ -41,6 +49,7 @@ on:
       - 'supabase/migrations/**'
       - 'scripts/verifica-rpc/**'
       - 'scripts/verifica-advisor/**'
+      - 'scripts/verifica-redirect/**'
       - '.github/workflows/verifica-rpc.yml'
   schedule:
     - cron: '30 6 * * *'
@@ -76,6 +85,20 @@ jobs:
           SUPABASE_URL: https://vmxvnxsqfisucugcpqlc.supabase.co
           SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZteHZueHNxZmlzdWN1Z2NwcWxjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjcyNjYsImV4cCI6MjA5NjI0MzI2Nn0.HzrIVB-ykHYbOPeA8IH9x-NO3U8Gzc9OqixAVD4noug
         run: npm run verifica:migrazioni
+
+      # C-1 dell'audit del 22 agosto. Stessa chiave anon degli altri due passi.
+      # È l'unico controllo che guarda un valore che nel repository NON c'è —
+      # la allow-list dei Redirect URL vive solo nella dashboard Supabase, ed è
+      # per questo che ci è rimasto dentro un `*.vercel.app/**` per due mesi
+      # senza che nulla lo dicesse. La sonda usa un token deliberatamente
+      # invalido: nessuna email parte, nessuna sessione viene emessa, e la
+      # risposta non viene mai seguita.
+      - name: Verifica che la allow-list dei Redirect URL non ammetta domini terzi
+        if: always()
+        env:
+          SUPABASE_URL: https://vmxvnxsqfisucugcpqlc.supabase.co
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZteHZueHNxZmlzdWN1Z2NwcWxjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjcyNjYsImV4cCI6MjA5NjI0MzI2Nn0.HzrIVB-ykHYbOPeA8IH9x-NO3U8Gzc9OqixAVD4noug
+        run: npm run verifica:redirect
 
       # Richiede il secret SUPABASE_ACCESS_TOKEN (token Management API, non la
       # chiave anon): se non è ancora stato configurato lo script si dichiara

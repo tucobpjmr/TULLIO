@@ -36,7 +36,7 @@
 // Uscite: 0 tutto sotto soglia (o inconcludente), 1 almeno una superata,
 // 2 errore imprevisto.
 import { appendFileSync } from 'node:fs';
-import { SOGLIE, valutaVolumi } from './volumi.js';
+import { SOGLIE, estraiConteggi, valutaVolumi } from './volumi.js';
 
 const PROJECT_REF_DEFAULT = 'vmxvnxsqfisucugcpqlc';
 
@@ -65,8 +65,11 @@ async function leggiConteggi(ref, token, tabelle) {
   if (!r.ok) {
     throw new Error(`database/query ha risposto HTTP ${r.status}: ${await r.text().catch(() => '')}`);
   }
-  const righe = await r.json();
-  return Object.fromEntries((righe || []).map((x) => [x.tabella, Number(x.righe)]));
+
+  // La normalizzazione della forma è pura e vive in volumi.js, dove è testata:
+  // vedi il preambolo di estraiConteggi() per il perché non ci si fida della
+  // forma della risposta. `null` = non riconosciuta, che è inconcludenza.
+  return estraiConteggi(await r.json());
 }
 
 async function main() {
@@ -85,6 +88,17 @@ async function main() {
   console.log(`verifica:volumi — soglie di scalabilità su ${ref}\n`);
 
   const conteggi = await leggiConteggi(ref, token, SOGLIE.map((s) => s.tabella));
+
+  if (conteggi === null) {
+    console.log('⚠  Risposta della Management API in una forma non riconosciuta: ' +
+      'nessun conteggio estratto.');
+    annota('warning', 'Volumi non verificati',
+      'La Management API ha risposto in una forma che questo script non sa leggere ' +
+      '(atteso un array di righe, o { data: [...] }). Le soglie di scalabilità non ' +
+      'sono state controllate. Va corretto leggiConteggi(), non ignorato.');
+    process.exit(0);
+  }
+
   const { superate, ok, mancanti, fallisce } = valutaVolumi(conteggi);
 
   for (const v of ok) {

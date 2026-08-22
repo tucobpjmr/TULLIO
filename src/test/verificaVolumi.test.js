@@ -8,7 +8,7 @@
 // superate» e «zero soglie guardate» sono la stessa cifra e due affermazioni
 // diverse — è il difetto che l'audit del 23 agosto ha trovato in tre punti.
 import { describe, it, expect } from "vitest";
-import { SOGLIE, valutaVolumi } from "../../scripts/verifica-volumi/volumi.js";
+import { SOGLIE, estraiConteggi, valutaVolumi } from "../../scripts/verifica-volumi/volumi.js";
 
 const soglie = [
   { tabella: "messages", max: 1500, perche: "p", rimedio: "r" },
@@ -79,5 +79,54 @@ describe("SOGLIE — l'elenco reale", () => {
   it("nessuna tabella compare due volte", () => {
     const nomi = SOGLIE.map((s) => s.tabella);
     expect(new Set(nomi).size).toBe(nomi.length);
+  });
+});
+
+describe("estraiConteggi — la forma della risposta non è un contratto nostro", () => {
+  it("legge un array di righe, che è la forma attesa", () => {
+    expect(estraiConteggi([{ tabella: "messages", righe: 13 }])).toEqual({ messages: 13 });
+  });
+
+  it("legge anche { data: [...] }, l'altra forma nota", () => {
+    expect(estraiConteggi({ data: [{ tabella: "clients", righe: 879 }] })).toEqual({ clients: 879 });
+  });
+
+  it("un bigint serializzato come stringa resta un numero", () => {
+    // Il tipo della colonna non è un alias che scegliamo noi: count(*)::bigint
+    // può arrivare come "6115" a seconda di come l'API serializza.
+    expect(estraiConteggi([{ tabella: "movimenti_lista", righe: "6115" }]))
+      .toEqual({ movimenti_lista: 6115 });
+  });
+
+  it("ritorna null su una forma non riconosciuta, non un oggetto vuoto", () => {
+    // È la distinzione che tiene onesto il controllo: {} passerebbe da
+    // valutaVolumi come «nessuna soglia superata», cioè verde, quando in
+    // realtà non si è letto niente. null è inconcludenza.
+    expect(estraiConteggi({ risultato: "boh" })).toBeNull();
+    expect(estraiConteggi(null)).toBeNull();
+    expect(estraiConteggi("stringa")).toBeNull();
+  });
+
+  it("una riga malformata viene saltata, non fa cadere l'intera lettura", () => {
+    const c = estraiConteggi([
+      { tabella: "messages", righe: 13 },
+      { qualcosa: "altro" },
+      null,
+      { tabella: "clients", righe: 879 },
+    ]);
+    expect(c).toEqual({ messages: 13, clients: 879 });
+  });
+
+  it("il ponte con valutaVolumi: una forma ignota non diventa mai un verde", () => {
+    // Il caso che conta davvero, e la ragione per cui estraiConteggi ritorna
+    // null invece di {}: le due funzioni insieme non devono poter produrre
+    // «tutto sotto soglia» partendo da una risposta illeggibile.
+    const c = estraiConteggi({ risultato: "boh" });
+    expect(c).toBeNull();
+    // e se qualcuno un domani lo passasse comunque a valutaVolumi:
+    const e = valutaVolumi({}, SOGLIE);
+    expect(e.fallisce).toBe(false);
+    expect(e.ok).toHaveLength(0);
+    expect(e.mancanti).toHaveLength(SOGLIE.length);
   });
 });

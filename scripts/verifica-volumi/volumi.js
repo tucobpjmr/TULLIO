@@ -111,3 +111,39 @@ export function valutaVolumi(conteggi, soglie = SOGLIE) {
   }
   return { superate, ok, mancanti, fallisce: superate.length > 0 };
 }
+
+/**
+ * Estrae `tabella → righe` dal corpo della Management API.
+ *
+ * ⚠️ ESISTE PERCHÉ LA FORMA DELLA RISPOSTA NON È UN CONTRATTO NOSTRO. La query
+ * è stata provata sul database; il trasporto no — il token vive solo in CI, e
+ * questo script è nato senza poterlo esercitare. Se un giorno l'API incartasse
+ * le righe in `{ data: [...] }`, o cambiasse la serializzazione di un bigint,
+ * un `.map()` su un oggetto solleverebbe e il primo run su `main` sarebbe rosso
+ * per un motivo che NON è una soglia superata.
+ *
+ * Rosso deve voler dire una cosa sola, altrimenti la prima volta che succede si
+ * impara a ignorarlo — ed è il difetto che questo intero controllo esiste per
+ * chiudere, riprodotto un livello più giù.
+ *
+ * Ritorna `null` per ciò che non riconosce: il chiamante lo tratta come
+ * inconcludenza, non come «zero righe» e non come guasto.
+ *
+ * @param {unknown} corpo
+ * @returns {Record<string, number>|null}
+ */
+export function estraiConteggi(corpo) {
+  const righe = Array.isArray(corpo) ? corpo
+    : Array.isArray(/** @type {any} */ (corpo)?.data) ? /** @type {any} */ (corpo).data
+    : null;
+  if (!righe) return null;
+
+  const conteggi = {};
+  for (const x of righe) {
+    // `tabella` e `righe` sono alias nostri nella SELECT, ma il TIPO no: un
+    // bigint può arrivare come numero o come stringa. Number() copre entrambi;
+    // ciò che resta NaN lo classifica valutaVolumi, fra i mancanti.
+    if (x && typeof x.tabella === 'string') conteggi[x.tabella] = Number(x.righe);
+  }
+  return conteggi;
+}

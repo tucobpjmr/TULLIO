@@ -113,6 +113,17 @@ export const ALIAS_APPLICATE = new Map([
   // corrisponde a quello del file.
   ['messages_blocca_modifiche_altrui_fix_sender_anchor',
     '20260806150000_messages_solo_mittente_modifica_contenuto'],
+  // 20260816110000_p_origin_modulo_liste (versione applicata:
+  // 20260816093630) è arrivata in produzione senza le `revoke execute ...
+  // from anon` sulle tredici RPC ricreate — `revoke all ... from public` non
+  // basta, anon ha un ACL proprio (stesso motivo di ALIAS/ECCEZIONI sopra) —
+  // ed è stata corretta 64 secondi dopo da questa migrazione, applicata a
+  // parte. Il fix è stato poi ripiegato nel file locale (ogni blocco ha già
+  // la sua `revoke execute ... from anon`), che quindi copre anche questa:
+  // verificato il 22 agosto confrontando pg_proc.proacl in produzione (nessun
+  // anon sulle tredici funzioni) con quanto il file locale, da solo,
+  // produrrebbe.
+  ['revoke_anon_p_origin_liste_rpc', '20260816110000_p_origin_modulo_liste'],
 ]);
 
 /**

@@ -11,13 +11,12 @@ import { NOTIF_ICONS, NOTIF_CATEGORIES, notifTitle, notifSubtitle, notifTime, no
 import { Z } from "../../styles/tokens.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import { PushToggle } from "./PushToggle.jsx";
-import { btnChiudi } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
 const rowCenterBetween = { padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexShrink: 0 };
 const txtF15Bold = { fontWeight: 600, fontSize: 15 };
-const rowCenterGap8 = { display: "flex", gap: 8, alignItems: "center" };
 const boxF11Muted = {
   background: "transparent", border: "1px solid var(--border)", borderRadius: 6,
   padding: "4px 8px", cursor: "pointer", fontSize: 11, color: "var(--text-muted)",
@@ -132,7 +131,7 @@ export const NotificationsPanel = ({ dispatch, onClose, notifications, isReal, o
     }}>
       <div style={rowCenterBetween}>
         <div className="playfair" style={txtF15Bold}>Notifiche</div>
-        <div style={rowCenterGap8}>
+        <div style={stiliComuni.rowCenterGap8}>
           {isReal && hasUnread && (
             <button onClick={() => onMarkAllRead?.()} style={boxF11Muted}>Segna tutte lette</button>
           )}
@@ -151,7 +150,7 @@ export const NotificationsPanel = ({ dispatch, onClose, notifications, isReal, o
               style={boxF13Muted}
             >🗑️</button>
           )}
-          <button onClick={onClose} style={btnChiudi}>✕</button>
+          <button onClick={onClose} style={stiliComuni.btnChiudi}>✕</button>
         </div>
       </div>
       {isReal && list.length > 0 && (

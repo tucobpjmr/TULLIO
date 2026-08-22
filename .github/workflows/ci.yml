@@ -20,6 +20,14 @@ jobs:
       # misurato (ST-13): sta qui accanto al lint perché misura lo stesso
       # oggetto — questo repo — e non richiede né rete né credenziali.
       - run: npm run verifica:convenzioni
+      # A-3 (audit del 22 agosto). Lo script esisteva dal 15 agosto ed era a
+      # zero errori, ma non lo eseguiva nessuno: viveva sulla macchina di chi
+      # si ricordava di lanciarlo. È esattamente l'argomento che jsconfig.json
+      # usa contro se stesso — «un controllo che nessuno esegue passa perché
+      # non ha trovato niente da verificare, con in più l'apparenza di essere
+      # risolto» — applicato un livello più su. Lo scope è un ratchet
+      # (src/lib/ + src/state/): sta qui perché resti tale.
+      - run: npm run verifica:tipi
       - run: npm test
       - run: npm run build
       - run: npm run verifica:bundle

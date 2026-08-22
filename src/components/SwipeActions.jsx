@@ -9,7 +9,7 @@ import { useAppData } from "../state/AppDataContext.jsx";
 import { Avatar } from "./ui/Avatar.jsx";
 import { Z } from "../styles/tokens.js";
 import { roleLabel } from "../lib/taskConstants.js";
-import { nomeTroncato, txtF11Muted, txtF18 } from "../styles/common.js";
+import * as stiliComuni from "../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -209,7 +209,7 @@ export const SwipeActions = ({ task, dispatch, children, disabled = false }) => 
             aria-label="Inoltra"
             style={colCenterMiddle3}
           >
-            <span style={txtF18}>↪</span>
+            <span style={stiliComuni.txtF18}>↪</span>
             <span>Inoltra</span>
           </button>
         </div>
@@ -241,8 +241,8 @@ export const SwipeActions = ({ task, dispatch, children, disabled = false }) => 
             >
               <Avatar memberId={m.id} size={26} />
               <div style={flex1}>
-                <div style={nomeTroncato}>{m.name}</div>
-                <div style={txtF11Muted}>{roleLabel(m)}</div>
+                <div style={stiliComuni.nomeTroncato}>{m.name}</div>
+                <div style={stiliComuni.txtF11Muted}>{roleLabel(m)}</div>
               </div>
             </button>
           ))}

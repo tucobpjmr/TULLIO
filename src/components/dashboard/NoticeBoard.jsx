@@ -10,7 +10,7 @@ import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { Z } from "../../styles/tokens.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import { dataBreve } from "../../lib/dates.js";
-import { rowCenterGap10 } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 import {
   boxF11Bold, boxF16R4, gridGap16, marginLeft2, padding2, rowAbsoluteGap2, rowCenterBetween,
   rowCenterGap5, rowCenterGap6, rowCenterGap62, rowCenterMiddle, rowGap4Mt8, txtAbsoluteF18,
@@ -86,7 +86,7 @@ export const NoticeBoard = ({ notices, dispatch, loading = false }) => {
     }}>
       {/* Header */}
       <div style={rowCenterBetween}>
-        <div style={rowCenterGap10}>
+        <div style={stiliComuni.rowCenterGap10}>
           <div style={rowCenterMiddle}>📌</div>
           <div>
             <div className="playfair" style={txtF17Bold}>

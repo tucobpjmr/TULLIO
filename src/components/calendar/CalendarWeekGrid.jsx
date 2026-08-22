@@ -5,7 +5,7 @@
 // avatar — se un giorno le misure convergono, è il punto da unificare.
 import { formatTime } from "../../lib/taskUtils.js";
 import { layoutColumns } from "./calendarLayout.js";
-import { nomeTroncato } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -89,7 +89,7 @@ export function CalendarWeekGrid({ weekDays, dayNames, getTasksForDay, tasks, ca
                       cursor: "pointer", overflow: "hidden", fontSize: 10, lineHeight: 1.2,
                       outline: t.isRecurringInstance ? `1px dashed ${cat.color || "#94a3b8"}66` : "none",
                     }}>
-                      <div style={nomeTroncato}>
+                      <div style={stiliComuni.nomeTroncato}>
                         {cat.icon} {t.title}{t.isRecurringInstance ? " ↻" : ""}
                       </div>
                       <div style={txtF9Muted}>{formatTime(t.dueDate)}</div>

@@ -15,7 +15,7 @@ import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import {
   DB_ROLES, ROLE_LABELS, SENIORITY_LEVELS, SENIORITY_LABELS,
 } from "../../lib/taskConstants.js";
-import { gridGap12, rowGap8Mt20, txtHeadingMb16 } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -126,8 +126,8 @@ export const AddTeamMemberModal = ({ onClose, dispatch, existingIds, onInvited }
     <ModalPortal>
       <div onClick={onClose} style={modalOverlay}>
         <div onClick={e => e.stopPropagation()} style={{ ...modalCard, maxWidth: 480 }}>
-          <h3 className="playfair" style={txtHeadingMb16}>Aggiungi nuovo agente</h3>
-          <div style={gridGap12}>
+          <h3 className="playfair" style={stiliComuni.txtHeadingMb16}>Aggiungi nuovo agente</h3>
+          <div style={stiliComuni.gridGap12}>
             <div>
               <label style={labelStyle}>Nome completo *</label>
               <input
@@ -195,7 +195,7 @@ export const AddTeamMemberModal = ({ onClose, dispatch, existingIds, onInvited }
               </div>
             )}
           </div>
-          <div style={rowGap8Mt20}>
+          <div style={stiliComuni.rowGap8Mt20}>
             <button onClick={onClose} style={btnGhost} disabled={busy}>Annulla</button>
             <button onClick={submit} style={btnPrimary} disabled={busy}>
               {busy ? "Invio…" : (email.trim() ? "Invia invito" : "Crea agente")}

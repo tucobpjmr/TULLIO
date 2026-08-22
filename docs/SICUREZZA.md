@@ -560,3 +560,168 @@ CSP**, non al codice applicativo, proprio perché è l'unica parte del percorso
 mai stata esercitata prima della promozione. Aprire la console e cercare righe
 `Content-Security-Policy: … blocked` è la diagnosi di un minuto che evita ore
 sul codice sbagliato.
+
+---
+
+## 9. Redirect URL di Auth: la superficie che vive fuori dal repository (⚠️ + 📄 sonda)
+
+> **Aggiunta il 22 agosto 2026 — C-1 dell'audit di architettura e sicurezza di
+> quel giorno.** Fino a questa sezione il documento descriveva otto superfici,
+> tutte residenti nel repository (RLS, grant, RPC, CSP, header, Edge Function).
+> La nona non c'era, ed è quella che aveva il buco. Non è un caso: tutto ciò
+> che sta in `supabase/migrations/` aveva già uno script che lo confronta con
+> la produzione, ciò che sta nella **dashboard** Supabase non aveva nessuno.
+
+### Il difetto
+
+`docs/ROADMAP_GO_LIVE.md` registrava come stato di go-live:
+
+```
+Redirect URLs: *.vercel.app/**
+```
+
+GoTrue valida il parametro `redirect_to` contro quella lista. Il jolly
+autorizza **qualunque** host sotto `vercel.app` — un dominio in cui chiunque
+può prendersi un sottodominio creando un progetto gratuito.
+
+La catena non richiede alcun privilegio iniziale:
+
+1. l'attaccante registra `<qualcosa>.vercel.app` e vi pubblica una pagina che
+   legge `location.hash`;
+2. chiama `POST /auth/v1/recover` con la chiave `anon` (pubblica per
+   costruzione: sta nel bundle e, in chiaro, in `keep-supabase-warm.yml`),
+   l'email della vittima e `redirect_to` verso il proprio host;
+3. la vittima riceve un'email **autentica**, dal progetto vero, e clicca;
+4. GoTrue verifica il token e redirige all'host dell'attaccante con
+   `#access_token=…&refresh_token=…` nel fragment.
+
+A quel punto l'attaccante ha una sessione **legittima**. Nessuno degli strati
+descritti nelle sezioni precedenti interviene, e non per una loro lacuna: la
+CSP (§8) protegge l'origin del sito, non il browser della vittima su un altro
+dominio; le policy RLS (§2) filtrano per `auth.uid()`, che qui è quello vero;
+`requireActiveAdmin` (§4) verifica un token che è valido davvero. Se la vittima
+è admin seguono `invite-user`, `delete-user`, `reset_completo` e l'intera
+anagrafica clienti.
+
+### Lo stato atteso (⚠️ da tenere allineato a mano nella dashboard)
+
+Supabase → Authentication → URL Configuration:
+
+| Campo | Valore atteso |
+|---|---|
+| Site URL | `https://tullio-seven.vercel.app` |
+| Redirect URLs | `https://tullio-seven.vercel.app/**` |
+| | `https://tullio-tooco-s-projects.vercel.app/**` |
+| | `https://tullio-git-main-tooco-s-projects.vercel.app/**` |
+| | `http://localhost:5173/**` — solo se serve in sviluppo |
+
+Sono i tre domini che il progetto Vercel possiede davvero (verificati il 22
+agosto 2026 sull'account `tooco-s-projects`, progetto `tullio`), più
+l'ambiente locale. **Nessuna voce con un jolly su `vercel.app`.**
+
+### Perché niente jolly per le preview, nemmeno con lo scope del team
+
+La tentazione è `https://tullio-*-tooco-s-projects.vercel.app/**`, che sembra
+sicuro perché lo scope del team non è replicabile. Non lo è: un hostname
+`.vercel.app` che **nessun deployment ha ancora rivendicato** può essere
+occupato da chi crea un progetto con quel nome. Un jolly su quel pattern
+riapre la stessa classe di C-1, solo più stretta.
+
+E gli hostname da coprire non sono nemmeno enumerabili in anticipo. Il branch
+di questa stessa correzione ha prodotto:
+
+```
+tullio-git-claude-app-architecture-secu-cfc668-tooco-s-projects.vercel.app
+```
+
+cioè `tullio-git-<slug troncato>-<hash>-<scope>`: Vercel accorcia i nomi di
+branch lunghi e ci appende un hash, quindi la forma pulita
+`tullio-git-<branch>-<scope>.vercel.app` vale solo per i branch dal nome
+corto — `main` fra questi. Qualsiasi allow-list che voglia coprire le preview
+è perciò costretta a un jolly, ed è il jolly il problema.
+
+E soprattutto: **non serve**. `redirect_to` conta unicamente per i link di
+invito e di reset password, che arrivano per email e puntano alla produzione.
+Il login con password su una preview non usa `redirect_to` e continua a
+funzionare senza alcuna voce in lista. Ciò che si perde togliendo le preview
+dalla allow-list è solo «cliccare un link di reset e atterrare su una
+preview», che non è un flusso che qualcuno usa. Se un giorno servisse davvero,
+la risposta è un **dominio proprio** (`*.dominio-agenzia.it` non è
+rivendicabile da terzi), non un jolly su `vercel.app`.
+
+### Come si verifica che sia ancora così (📄 `scripts/verifica-redirect/`)
+
+`npm run verifica:redirect` — eseguito a ogni push su `main` e ogni notte da
+`.github/workflows/verifica-rpc.yml`.
+
+La sonda chiama `GET /auth/v1/verify` con un token **deliberatamente invalido**
+e un `redirect_to` verso un hostname canarino che il progetto non possiede
+(`tullio-canarino-allowlist.vercel.app`). Nessuna email parte, nessuna sessione
+viene emessa, e la risposta non viene mai seguita: si legge il solo header
+`Location`, che è dove GoTrue dichiara quale `redirect_to` ha accettato.
+
+Due dettagli che rendono il controllo affidabile, entrambi documentati in
+`scripts/verifica-redirect/redirect.js`:
+
+- **GoTrue non risponde con un errore** a un `redirect_to` non consentito:
+  ripiega in silenzio sul Site URL. «Nessun errore» non prova quindi nulla, e
+  il verdetto si legge esclusivamente dall'host del `Location`.
+- **Le sonde sono due.** Con la sola sonda negativa il controllo passerebbe
+  anche se GoTrue smettesse del tutto di onorare `redirect_to` — verde per il
+  motivo sbagliato, la stessa classe di guasto dell'header `apikey` mancante
+  in `keep-supabase-warm.yml` e dell'exit 0 silenzioso di `verifica-advisor`
+  prima di ST-14. La sonda positiva chiede un redirect verso la produzione, che
+  **deve** essere consentito: se non lo è, l'esito è *inconcludente*, che è uno
+  stato distinto sia da «passato» sia da «fallito».
+
+Il canarino inizia per `tullio-` di proposito: così la stessa sonda copre anche
+**A-4**, cioè il fatto che `supabase/functions/_shared/cors.ts` e
+`safeRedirect` in `invite-user` trattassero come fidato qualunque
+`tullio-*.vercel.app` — un insieme che chiunque può ampliare.
+
+✅ **A-4 è chiuso** (22 agosto). La regola non è più un prefisso scritto in due
+copie: sta in `supabase/functions/_shared/originConsentite.ts`, in un ELENCO
+esatto dei tre host che il progetto possiede, importato da `cors.ts` (per
+l'header CORS) e da `invite-user` (per `redirectTo`). Il modulo è puro e senza
+import — come `adminPredicate.ts` e per la stessa ragione — quindi la regola è
+verificata da `src/test/originConsentite.test.js` senza deployare nulla, con
+un caso per ciascun hostname *registrabile da terzi* che la vecchia regola
+accettava (`tullio-qualsiasi-cosa`, `tullio-git-main`,
+`tullio-git-x-y-tooco-s-projects`, un sottodominio di un host consentito).
+
+⚠️ Il prezzo, dichiarato: dalle URL di deployment **effimere** le Edge Function
+non sono più utilizzabili, perché quegli hostname cambiano a ogni push e non
+possono stare in un elenco. L'alias di branch `tullio-git-main-…` è stabile ed
+è in lista; per una preview diversa si aggiunge il suo host a `ORIGIN_PROPRIE`
+per la durata della prova. È la stessa scelta fatta qui sopra per la allow-list
+di Auth, e le due devono restare d'accordo: una regola più larga da una parte è
+la scorciatoia che riapre l'altra.
+
+### ✅ Verificato in produzione — 22 agosto 2026
+
+La allow-list è stata ristretta nella dashboard e il controllo è stato eseguito
+sul progetto reale ([run 32567591252](https://github.com/tucobpjmr/TULLIO/actions/runs/32567591252)):
+
+```
+sonda positiva  → HTTP 303  Location: https://tullio-seven.vercel.app/#error=access_denied&…
+sonda canarino  → HTTP 303  Location: https://tullio-seven.vercel.app#error=access_denied&…
+
+✓ il canarino tullio-canarino-allowlist.vercel.app è stato rifiutato e GoTrue
+  è ripiegato sul Site URL. La allow-list non ammette domini estranei.
+```
+
+Due cose che questa esecuzione ha stabilito, e che prima erano assunzioni:
+
+1. **GoTrue risponde `303` e ripiega in silenzio sul Site URL**, senza alcun
+   errore. La sonda era stata scritta su questa ipotesi, dedotta dal
+   comportamento documentato e provata solo contro un finto GoTrue locale: ora
+   è confermata sul servizio vero.
+2. **La sonda positiva è stata davvero onorata, non è ripiegata anche lei.** Lo
+   prova una differenza di un carattere: la positiva torna **con** lo slash
+   finale (`…vercel.app/`), cioè esattamente il `redirect_to` inviato, mentre
+   il canarino torna **senza** (`…vercel.app`), cioè il Site URL configurato.
+   Se fossero ripiegate entrambe, le due Location sarebbero identiche. Non è
+   una prova che era stata progettata — è un dettaglio emerso dall'esecuzione
+   reale — ma rafforza il controllo di controllo descritto sopra, e vale la
+   pena saperlo se un domani quelle due righe dovessero coincidere: quello
+   sarebbe il segnale che la sonda ha smesso di distinguere i due casi.

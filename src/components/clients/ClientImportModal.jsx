@@ -12,9 +12,7 @@ import { readFirstSheetRowsAutoHeader, MAX_IMPORT_BYTES } from "../../lib/xlsx.j
 import { formatFileSize } from "../../lib/fileUtils.js";
 import { Modal } from "../ui/Modal.jsx";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
-import {
-  btnOutlineMini, hidden, rowCenterGap12, rowGap8, txtF12Muted, txtF13,
-} from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 import {
   boxF125Warning, boxF13Danger, boxF14White, boxF95Bold, boxR8, boxTxtCenterR12, boxW8H8,
   colFlex1Gap14, cursor2, mt2, rowCenterBetween, rowCenterBetween2, rowCenterBetween3,
@@ -305,11 +303,11 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
     <Modal
       open onClose={requestClose} labelledBy="import-clienti-title"
       width={820} padding={20} layer="modalFull"
-      cardStyle={{ borderRadius: 16, display: "flex", flexDirection: "column", overflow: "hidden" }}
+      cardStyle={{ borderRadius: 16, display: "flex", flexDirection: "column", overflow: "stiliComuni.hidden" }}
     >
       <>
         <div style={rowCenterBetween}>
-          <div style={rowCenterGap12}>
+          <div style={stiliComuni.rowCenterGap12}>
             <div style={rowCenterMiddle}>📥</div>
             <div>
               <div id="import-clienti-title" className="playfair" style={txtF17Bold}>Importa anagrafica clienti</div>
@@ -327,10 +325,10 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
             >
               <div style={txtF40Mb10}>📄</div>
               <div style={txtF14Bold}>Clicca per caricare il file dell'anagrafica</div>
-              <div style={txtF12Muted}>
+              <div style={stiliComuni.txtF12Muted}>
                 Formati supportati: .csv, .xlsx, .xls — anche export di altri gestionali con righe di intestazione non in prima posizione
               </div>
-              <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleFile} style={hidden} />
+              <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleFile} style={stiliComuni.hidden} />
             </div>
           )}
 
@@ -343,8 +341,8 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
           {rows.length > 0 && (
             <>
               <div style={rowCenterBetween2}>
-                <div style={txtF13}>📄 <strong>{fileName}</strong> — {rows.length} righe, {columns.length} colonne</div>
-                <button onClick={reset} style={btnOutlineMini}>Cambia file</button>
+                <div style={stiliComuni.txtF13}>📄 <strong>{fileName}</strong> — {rows.length} righe, {columns.length} colonne</div>
+                <button onClick={reset} style={stiliComuni.btnOutlineMini}>Cambia file</button>
               </div>
 
               <div>
@@ -449,8 +447,8 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
         </div>
 
         <div style={rowCenterBetween5}>
-          <div style={txtF12Muted}>{selectedCount} client{selectedCount === 1 ? "e" : "i"} da importare</div>
-          <div style={rowGap8}>
+          <div style={stiliComuni.txtF12Muted}>{selectedCount} client{selectedCount === 1 ? "e" : "i"} da importare</div>
+          <div style={stiliComuni.rowGap8}>
             <button onClick={requestClose} style={btnGhost}>Annulla</button>
             <button onClick={handleImport} disabled={selectedCount === 0} style={{
               ...btnPrimary, opacity: selectedCount === 0 ? 0.5 : 1, cursor: selectedCount === 0 ? "not-allowed" : "pointer",

@@ -2,7 +2,7 @@
 // un componente — vedi docs/CLAUDE.md). Nessun cambiamento di comportamento.
 import { useMemo } from "react";
 import { parseClientNotes } from "../../lib/clientNotes.js";
-import { mb14 } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -22,7 +22,7 @@ export function DatiAnagrafici({ notes }) {
   const { fields, text } = useMemo(() => parseClientNotes(notes), [notes]);
   if (!fields.length && !text) return null;
   return (
-    <div style={mb14}>
+    <div style={stiliComuni.mb14}>
       {fields.length > 0 && (
         <div style={gridGapR10}>
           {fields.map((f, i) => (

@@ -20,7 +20,7 @@ import { ContactActions } from "../../ui/ContactActions.jsx";
 import { useConfirm } from "../../../state/ConfirmContext.jsx";
 import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
 import { obbligatorio, validaCampi } from "../../../lib/validators.js";
-import { gridGap10, rowCenterBetween, rowGap8, txtF12Muted2 } from "../../../styles/common.js";
+import * as stiliComuni from "../../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -232,7 +232,7 @@ export const AdminTeamTab = ({ dispatch }) => {
             ) : (
               <>
                 <div style={txtF15Bold}>{m.name}</div>
-                <div style={txtF12Muted2}>
+                <div style={stiliComuni.txtF12Muted2}>
                   {roleLabel(m)} • {count} task assegnati
                   {seenLabel && <span> • ultimo accesso {seenLabel}</span>}
                 </div>
@@ -359,13 +359,13 @@ export const AdminTeamTab = ({ dispatch }) => {
   return (
     <div>
       {/* Header con pulsante aggiungi */}
-      <div style={rowCenterBetween}>
+      <div style={stiliComuni.rowCenterBetween}>
         <div style={rowGap16F13}>
           <span>✅ <b>{active.length}</b> attivi</span>
           {pending.length > 0 && <span>⏳ <b style={txtGoldDark}>{pending.length}</b> in attesa</span>}
           {disabled.length > 0 && <span>⏸️ <b>{disabled.length}</b> disabilitati</span>}
         </div>
-        <div style={rowGap8}>
+        <div style={stiliComuni.rowGap8}>
           <button onClick={() => setShowBulk(true)} style={btnGhost} title="Invita più utenti in un colpo solo">
             ✉️ Invito multiplo
           </button>
@@ -377,7 +377,7 @@ export const AdminTeamTab = ({ dispatch }) => {
       {pending.length > 0 && (
         <div style={mb24}>
           <div style={sectionH}>⏳ Iscrizioni in attesa di approvazione</div>
-          <div style={gridGap10}>
+          <div style={stiliComuni.gridGap10}>
             {pending.map(m => card(m, { canApprove: true, dim: true }))}
           </div>
         </div>
@@ -386,7 +386,7 @@ export const AdminTeamTab = ({ dispatch }) => {
       {/* Attivi */}
       <div style={mb24}>
         <div style={sectionH}>✅ Agenti attivi</div>
-        <div style={gridGap10}>
+        <div style={stiliComuni.gridGap10}>
           {active.map(m => card(m))}
         </div>
       </div>
@@ -395,7 +395,7 @@ export const AdminTeamTab = ({ dispatch }) => {
       {disabled.length > 0 && (
         <div style={mb24}>
           <div style={sectionH}>⏸️ Agenti disabilitati</div>
-          <div style={gridGap10}>
+          <div style={stiliComuni.gridGap10}>
             {disabled.map(m => card(m, { dim: true }))}
           </div>
         </div>

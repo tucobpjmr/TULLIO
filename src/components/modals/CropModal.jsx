@@ -5,7 +5,7 @@
 // ciò che questo componente produce (toDataURL JPEG) e fuori da qui non ha senso.
 import { useState, useRef } from "react";
 import { Modal } from "../ui/Modal.jsx";
-import { hidden, txtF11Muted } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -119,7 +119,7 @@ export const CropModal = ({ src, onConfirm, onCancel }) => {
         onTouchMove={e => { const t = e.touches[0]; moveDrag(t.clientX, t.clientY); }}
         onTouchEnd={endDrag}
         style={{
-          width: PREVIEW, height: PREVIEW, borderRadius: "50%", overflow: "hidden",
+          width: PREVIEW, height: PREVIEW, borderRadius: "50%", overflow: "stiliComuni.hidden",
           position: "relative", cursor: "grab", userSelect: "none",
           border: "3px solid var(--gold)", boxShadow: "0 0 0 5px rgba(212,168,67,0.18)",
           flexShrink: 0,
@@ -161,9 +161,9 @@ export const CropModal = ({ src, onConfirm, onCancel }) => {
         </div>
       </div>
 
-      <div style={txtF11Muted}>Trascina per centrare • usa lo slider per zoomare</div>
+      <div style={stiliComuni.txtF11Muted}>Trascina per centrare • usa lo slider per zoomare</div>
 
-      <canvas ref={canvasRef} style={hidden} />
+      <canvas ref={canvasRef} style={stiliComuni.hidden} />
 
       <div style={rowGap10WFull}>
         <button onClick={onCancel} style={boxFlex1F13}>Annulla</button>

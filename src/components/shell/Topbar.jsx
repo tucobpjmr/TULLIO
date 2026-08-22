@@ -13,21 +13,21 @@ import { useAppData } from "../../state/AppDataContext.jsx";
 import { LazyPanel } from "../ui/LazyPanel.jsx";
 import { UserSwitcher } from "./UserSwitcher.jsx";
 import { Z } from "../../styles/tokens.js";
-import { flex1, relative } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
 const rowCenterMiddle = {
   width: 32, height: 32, background: "#fff", borderRadius: 8,
   display: "flex", alignItems: "center", justifyContent: "center",
-  flexShrink: 0, cursor: "pointer", padding: 0, position: "relative",
+  flexShrink: 0, cursor: "pointer", padding: 0, position: "stiliComuni.relative",
   border: "none", overflow: "hidden",
 };
 const w266H266 = { display: "block", width: 26.6, height: 26.6 };
 const boxP0 = { background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" };
 const txtF15Bold = { color: "var(--navy)", fontSize: 15, fontWeight: 700, lineHeight: 1 };
 const txtF10 = { color: "rgba(15,32,68,0.75)", fontSize: 10, letterSpacing: 1.5 };
-const relativeFlex1MaxW520 = { flex: 1, maxWidth: 520, position: "relative" };
+const relativeFlex1MaxW520 = { flex: 1, maxWidth: 520, position: "stiliComuni.relative" };
 const txtAbsoluteF14 = { position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(15,32,68,0.7)", fontSize: 14 };
 const boxF13Navy = {
   width: "100%", background: "#fff", border: "1px solid rgba(15,32,68,0.15)",
@@ -37,7 +37,7 @@ const boxF13Navy = {
 const rowCenterMiddle2 = {
   background: "#fff", border: "1px solid rgba(15,32,68,0.15)",
   borderRadius: 8, width: 36, height: 36, cursor: "pointer",
-  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, position: "relative"
+  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, position: "stiliComuni.relative"
 };
 const rowCenterMiddle3 = {
   position: "absolute", top: -4, right: -4, background: "var(--gold)",
@@ -153,7 +153,7 @@ export const Topbar = memo(function Topbar({
 
       {/* Ricerca unificata (testuale + filtri avanzati) */}
       <div ref={searchWrapRef} style={relativeFlex1MaxW520}>
-        <div style={relative}>
+        <div style={stiliComuni.relative}>
           <div style={txtAbsoluteF14}>🔍</div>
           <input
             value={searchQuery}
@@ -179,10 +179,10 @@ export const Topbar = memo(function Topbar({
         )}
       </div>
 
-      <div className="vd-hide-mobile" style={flex1} />
+      <div className="vd-hide-mobile" style={stiliComuni.flex1} />
 
       {/* Notifications */}
-      <div style={relative}>
+      <div style={stiliComuni.relative}>
         <button onClick={() => setShowNotif(v => !v)} style={rowCenterMiddle2}>
           🔔
           {unread > 0 && <span style={rowCenterMiddle3}>{unread}</span>}

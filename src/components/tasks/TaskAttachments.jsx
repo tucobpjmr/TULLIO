@@ -10,7 +10,7 @@ import { useIsMounted } from "../../hooks/useIsMounted.js";
 import { TaskFiles } from "../../lib/api.js";
 import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit, sourceBadge, mediaKind } from "../../lib/fileUtils.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
-import { hidden } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -18,13 +18,13 @@ const txtF11Bold = { fontSize: 11, fontWeight: 600, color: "var(--text-muted)", 
 const txtF13Muted = { fontSize: 13, color: "var(--text-muted)", padding: "8px 0" };
 const colR8 = {
   display: "flex", flexDirection: "column",
-  background: "var(--surface2)", borderRadius: 8, overflow: "hidden",
+  background: "var(--surface2)", borderRadius: 8, overflow: "stiliComuni.hidden",
 };
 const rowCenterGap10 = { display: "flex", alignItems: "center", gap: 10, padding: "8px 10px" };
 const txtF18 = { fontSize: 18, flexShrink: 0 };
 const txtF13Bold = {
   fontSize: 13, fontWeight: 600, color: "var(--text)",
-  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+  overflow: "stiliComuni.hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
 };
 const rowGap6F11 = { fontSize: 11, color: "var(--text-muted)", display: "flex", gap: 6, flexWrap: "wrap" };
 const boxF15Navy = {
@@ -194,7 +194,7 @@ export function TaskAttachments({ taskId, editable }) {
             ref={inputRef}
             type="file"
             multiple
-            style={hidden}
+            style={stiliComuni.hidden}
             onChange={e => handleFiles(e.target.files)}
           />
           <div

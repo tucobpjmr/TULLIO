@@ -12,7 +12,7 @@ import { ReactionPicker } from "./ReactionPicker.jsx";
 import { VoicePlayer } from "./VoicePlayer.jsx";
 import { MessageTextContent } from "./MessageTextContent.jsx";
 import { Z } from "../../../styles/tokens.js";
-import { txtF13 } from "../../../styles/common.js";
+import * as stiliComuni from "../../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -223,7 +223,7 @@ export const ChatMessage = memo(function ChatMessage({ msg, prevMsg, conv, allMe
           }}>
             {Object.entries(msg.reactions).map(([emoji, users]) => (
               <div key={emoji} style={rowCenterGap3}>
-                <span style={txtF13}>{emoji}</span>
+                <span style={stiliComuni.txtF13}>{emoji}</span>
                 <span style={txtBoldMuted}>{users.length}</span>
               </div>
             ))}

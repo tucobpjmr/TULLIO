@@ -13,7 +13,7 @@
 // è un avviso da leggere, è una condizione che invalida ciò che si sta
 // guardando.
 import { useOnlineStatus } from "../../hooks/useOnlineStatus.js";
-import { txtF15 } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -32,7 +32,7 @@ export function OfflineBanner() {
       aria-live="assertive"
       style={rowCenterGap10}
     >
-      <span style={txtF15} aria-hidden="true">📡</span>
+      <span style={stiliComuni.txtF15} aria-hidden="true">📡</span>
       <span>
         <strong>Sei offline.</strong>{" "}
         I dati a schermo sono fermi all&#39;ultimo aggiornamento e le modifiche

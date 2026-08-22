@@ -17,7 +17,7 @@ import { listeRicercabili, beneficiariNomi, intestazioneLista } from "../liste/l
 import { indicizza, matchIndice, terminiRicerca } from "../../lib/searchUtils.js";
 import { Z } from "../../styles/tokens.js";
 import { FilterDropdown } from "./FilterDropdown.jsx";
-import { flex1, mb14, rowGap8 } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 import {
   box2, boxF12Muted, boxF12WFull, boxF18Muted, boxFlex1, boxStickyF11, padding2, row,
   rowCenterBetween, rowCenterGap10, rowCenterGap8, rowCenterMiddle, rowGap10F11,
@@ -284,7 +284,7 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
         <div className="playfair" style={txtF15Bold}>
           🔍 Ricerca
         </div>
-        <div style={rowGap8}>
+        <div style={stiliComuni.rowGap8}>
           {hasFilters && (
             <button onClick={resetAll} style={boxF12Muted}>Reset</button>
           )}
@@ -297,21 +297,21 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
           scroll era a scatti e poco agevole. Ora un solo contenitore scrollabile. */}
       <div style={boxFlex1}>
       <div style={padding2}>
-        <div style={mb14}>
+        <div style={stiliComuni.mb14}>
           <div style={sectionTitle}>Scadenza</div>
           <div style={rowCenterGap10}>
-            <div style={flex1}>
+            <div style={stiliComuni.flex1}>
               <label style={txtF11Muted}>Da</label>
               <input type="date" value={dateFrom} onChange={e => imposta("dateFrom", e.target.value)} style={boxF12WFull} />
             </div>
-            <div style={flex1}>
+            <div style={stiliComuni.flex1}>
               <label style={txtF11Muted}>A</label>
               <input type="date" value={dateTo} onChange={e => imposta("dateTo", e.target.value)} style={boxF12WFull} />
             </div>
           </div>
         </div>
 
-        <div style={mb14}>
+        <div style={stiliComuni.mb14}>
           <div style={sectionTitle}>Categoria</div>
           <FilterDropdown
             options={Object.entries(categories).map(([key, c]) => ({
@@ -322,7 +322,7 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
           />
         </div>
 
-        <div style={mb14}>
+        <div style={stiliComuni.mb14}>
           <div style={sectionTitle}>Status</div>
           <FilterDropdown
             options={STATUSES.map(s => ({ value: s, label: STATUS_LABELS[s] }))}
@@ -331,7 +331,7 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
           />
         </div>
 
-        <div style={mb14}>
+        <div style={stiliComuni.mb14}>
           <div style={sectionTitle}>Agente</div>
           <FilterDropdown
             options={team.filter(m => !m.pending).map(m => ({
@@ -351,7 +351,7 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
 
         {listeAllowed && (
           <>
-            <div style={mb14}>
+            <div style={stiliComuni.mb14}>
               <div style={sectionTitle}>✈️ Stato Lista</div>
               <FilterDropdown
                 options={availableListeStati.map(s => ({
@@ -362,7 +362,7 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
               />
             </div>
 
-            <div style={mb14}>
+            <div style={stiliComuni.mb14}>
               <div style={sectionTitle}>✈️ Cliente Lista</div>
               <FilterDropdown
                 options={availableListeClienti.map(c => ({

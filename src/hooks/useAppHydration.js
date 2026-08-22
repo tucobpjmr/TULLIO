@@ -188,6 +188,16 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
   // vive solo mentre il pannello è montato e filtra sul proprio `task_id`
   // (components/tasks/TaskHistoryPanel.jsx). Qui non resta niente da fare:
   // togliere la tabella dall'elenco è la correzione, non una sua conseguenza.
+  // A-1 dell'audit del 22 agosto. Gli id dei task toccati dagli eventi
+  // `comments` coalescati da questo debounce, raccolti in `applyRow` (che il
+  // payload ce l'ha già in mano) e consumati dal ramo `soloThread`.
+  //
+  // Un ref e non uno stato, per la stessa ragione di `storicoCompleto`: non è
+  // un dato da disegnare, è il parametro con cui la prossima query interroga
+  // il server. Metterlo in stato farebbe anche ripartire l'effetto della
+  // sottoscrizione a ogni commento.
+  const taskConCommentiNuovi = useRef(new Set());
+
   useDebouncedTableSubscription(["tasks", "comments"], async (isCurrent, tabelle) => {
     // Un commento aggiunto NON cambia i campi del task: cambia solo il thread
     // appeso al task. Finché il reload non sapeva quale tabella avesse generato
@@ -201,17 +211,31 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     const soloThread = tabelle !== null && tabelle.size > 0 && !tabelle.has("tasks");
 
     if (soloThread) {
-      const rCommenti = await TaskThreadsAPI.comments();
+      // Gli id si prendono e si azzerano PRIMA dell'await: un evento che
+      // arriva mentre la query è in volo appartiene al giro successivo, e
+      // lasciarlo nel Set lo farebbe scartare insieme a questo.
+      const ids = [...taskConCommentiNuovi.current];
+      taskConCommentiNuovi.current = new Set();
+      // Nessun id raccolto significa che l'evento non portava un `task_id`
+      // leggibile: si ricade sul corpus, che è la risposta corretta quando non
+      // si sa quali task siano cambiati. Il fallback NON è ridondanza
+      // difensiva — è ciò che rende questa correzione fail-safe: se un giorno
+      // il payload smettesse di portare `task_id` si tornerebbe a scaricare
+      // troppo, non a mostrare un thread vuoto, che è il guasto silenzioso
+      // descritto nel preambolo di TaskThreads.comments in lib/api.js.
+      const rCommenti = ids.length
+        ? await TaskThreadsAPI.commentsForTasks(ids)
+        : await TaskThreadsAPI.comments();
       if (!isCurrent()) return;
       if (rCommenti?.error) {
         console.error("[VoyageDesk] TaskThreads", rCommenti.error);
         onError(`Caricamento commenti fallito: ${rCommenti.error.message || ""}`);
         return;
       }
-      dispatch({
-        type: "SET_TASK_THREADS",
-        payload: { comments: perTaskId(rCommenti.data, fromDbComment) },
-      });
+      const perTask = perTaskId(rCommenti.data, fromDbComment);
+      dispatch(ids.length
+        ? { type: "MERGE_TASK_COMMENTS", payload: { taskIds: ids, comments: perTask } }
+        : { type: "SET_TASK_THREADS", payload: { comments: perTask } });
       return;
     }
 
@@ -261,6 +285,20 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     // query di rete da attendere, quindi non serve `isCurrent()` — non esiste
     // una risposta che possa arrivare "in ritardo" rispetto a un'altra.
     applyRow: (tbl, payload) => {
+      // A-1: gli eventi `comments` non portano una riga di `tasks` e restano
+      // sul reload selettivo (`return false` → entrano nel debounce), ma il
+      // loro payload dice QUALE task è cambiato. Raccoglierlo qui è ciò che
+      // permette al ramo `soloThread` di chiedere i commenti di quei soli
+      // task invece dell'intera tabella.
+      //
+      // `old` oltre a `new` perché su una DELETE la riga arriva solo lì; su
+      // INSERT/UPDATE `new` è quella buona. Se non c'è nessuno dei due l'id
+      // non si aggiunge, e il fallback sul corpus fa il resto.
+      if (tbl === "comments") {
+        const tid = payload.new?.task_id ?? payload.old?.task_id;
+        if (tid) taskConCommentiNuovi.current.add(tid);
+        return false;
+      }
       if (tbl !== "tasks") return false;
       if (payload.eventType === "DELETE") {
         // Reale solo per PURGE_TASK/EMPTY_TRASH: il soft-delete (DELETE_TASK)

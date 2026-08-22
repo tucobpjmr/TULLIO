@@ -609,6 +609,11 @@ const IDRATAZIONE = [
   // porta già la riga intera, invece del reload completo. Stessa direzione —
   // dati che ARRIVANO dal server — stessa ragione per non persisterli.
   "MERGE_TASK_ROW", "MERGE_NOTICE_ROW", "MERGE_CLIENT_ROW",
+  // A-1 (22 agosto): la variante per-sottoinsieme di SET_TASK_THREADS,
+  // dispatchata dal ramo `soloThread` quando l'evento realtime dice QUALI
+  // task hanno commenti nuovi. Idratazione come le sorelle: legge dal
+  // server e scrive in stato, non persiste nulla.
+  "MERGE_TASK_COMMENTS",
   // Idratazione dei template di messaggio (A-1 dell'audit dell'11 agosto,
   // stesso trattamento di SET_CATEGORIES): da quando message_templates ha una
   // tabella, SET_MESSAGE_TEMPLATES ne rilegge il contenuto al mount/refresh.

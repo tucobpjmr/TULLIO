@@ -36,7 +36,7 @@ import {
 } from "./listeOrdinamento.js";
 import { useFinestra } from "../../hooks/useFinestra.js";
 import { ListaRow } from "./ListaRow.jsx";
-import { hidden, mt12, txtF13 } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -423,9 +423,9 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
               <div className="lv-empty">
                 Non riesco a caricare le liste.
                 <br />
-                <span style={txtF13}>{loadError}</span>
+                <span style={stiliComuni.txtF13}>{loadError}</span>
                 <br />
-                <button className="lv-btn" style={mt12} onClick={() => loadHome()}>
+                <button className="lv-btn" style={stiliComuni.mt12} onClick={() => loadHome()}>
                   Riprova
                 </button>
               </div>
@@ -494,7 +494,7 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
                         {altrove.length > 0 && (
                           <>
                             <br />
-                            <span style={txtF13}>Ma c’è altrove:</span>
+                            <span style={stiliComuni.txtF13}>Ma c’è altrove:</span>
                             <div style={rowMiddleGap8}>
                               {altroveChips}
                             </div>
@@ -563,7 +563,7 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
             ref={fileInputRef}
             type="file"
             accept="application/json,.json"
-            style={hidden}
+            style={stiliComuni.hidden}
             onChange={onBackupFile}
           />
 

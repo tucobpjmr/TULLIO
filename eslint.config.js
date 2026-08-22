@@ -47,8 +47,10 @@ const STILE_INLINE_COSTANTE = {
   message:
     'Questo style è fatto di soli valori costanti: definiscilo come const a '
     + 'livello di modulo (in cima al file, nel suo *Styles.js, o in '
-    + 'styles/common.js se la forma ricorre in tre o più file) e passalo per '
-    + 'nome. Un oggetto letterale nel JSX è nuovo a ogni render — vedi M-1 in '
+    + 'styles/common.js se la forma ricorre in tre o più file — da lì si '
+    + 'importa il namespace: `stiliComuni.rowCenterGap8`, vedi '
+    + 'VIETATO_COMMON_NOMINATO) e passalo per nome. Un oggetto letterale nel '
+    + 'JSX è nuovo a ogni render — vedi M-1 in '
     + 'docs/AUDIT_ARCHITETTURA_2026-08-12.md.',
 };
 
@@ -161,6 +163,44 @@ const VIETATO_MOCKDATA_DIRETTO = {
 // nuova: era che ogni vista aggiunta copiava l'import dal vicino. La regola
 // passa a zero violazioni — non chiede un refactor, impedisce la prossima
 // regressione, che si è presentata solo per distrazione.
+// A-2 dell'audit del 22 agosto. `styles/common.js` esporta 61 forme con nomi
+// che codificano la FORMA (`rowCenterGap8`, `txtF13Bold`), e la stessa
+// convenzione la usano i file per le proprie costanti locali. Il risultato,
+// misurato: 124 costanti locali che ombreggiavano un export omonimo, e TUTTE
+// e 124 con una forma diversa. `flex1` valeva `{flex:1}` in common.js,
+// `{flex:1, overflowY:"auto", overflowX:"hidden"}` in VoyageDeskInner.jsx e
+// `{flex:1, minHeight:0, maxHeight:420, overflowY:"auto"}` in
+// NotificationsPanel.jsx. Chi leggeva non poteva fidarsi del nome: doveva
+// risalire agli import di quel file.
+//
+// ⛔ NON si è corretto rinominando i 122 locali divergenti, ed è una scelta
+// misurata e non una scorciatoia: generare un nome dalla forma produce
+// identificatori come `rowCenterGap10F13TLeftP810W100BordBgRadCur`, perché una
+// convenzione che codifica la forma nel nome non scala oltre tre proprietà — ed
+// è esattamente il motivo per cui i file avevano riusato il nome comune più
+// vicino invece di inventarne uno. Rinominare avrebbe peggiorato la
+// leggibilità che il rilievo esiste per difendere.
+//
+// La correzione toglie l'ambiguità dall'altro lato: l'import è QUALIFICATO
+// (`import * as stiliComuni`), quindi dentro un file `rowCenterBetween` è
+// sempre e solo la costante locale — dichiarata lì sopra, sotto gli occhi — e
+// `stiliComuni.rowCenterBetween` è sempre e solo quella condivisa. Non c'è più
+// un nome che possa mentire, e nessun locale è stato toccato.
+// Selettore e non `no-restricted-imports`: quella regola blocca l'intero path,
+// namespace compreso, mentre qui il namespace è proprio la forma da PERMETTERE.
+// `ImportSpecifier` è il nodo dei soli import nominati — `import * as x` è un
+// `ImportNamespaceSpecifier` e non viene toccato.
+const VIETATO_COMMON_NOMINATO = {
+  selector: 'ImportDeclaration[source.value=/styles\\u002Fcommon(\\.js)?$/] > ImportSpecifier',
+  message:
+    'Da styles/common.js si importa il NAMESPACE, non i singoli nomi: ' +
+    '`import * as stiliComuni from "…/styles/common.js"` e poi ' +
+    '`stiliComuni.rowCenterBetween`. Un import nominato rimette in circolo un ' +
+    'identificatore che 40+ file usano già per una forma DIVERSA (A-2, audit ' +
+    'del 22 agosto): chi legge non può più dire, guardando il nome, quale dei ' +
+    'due sta guardando.',
+};
+
 const VIETATO_LISTEAPI_DA_FUORI = {
   group: ['**/liste/listeApi', '**/liste/listeApi.js'],
   message:
@@ -287,7 +327,7 @@ export default [
           VIETATO_LISTEAPI_DA_FUORI,
         ],
       }],
-      'no-restricted-syntax': ['error', STILE_INLINE_COSTANTE, VIETATO_CONTEXT_VALUE_LETTERALE],
+      'no-restricted-syntax': ['error', STILE_INLINE_COSTANTE, VIETATO_CONTEXT_VALUE_LETTERALE, VIETATO_COMMON_NOMINATO],
     },
   },
   // Il confine vale per i COMPONENTI. Non per src/hooks/ (è lì che i dati

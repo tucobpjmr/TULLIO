@@ -5,7 +5,7 @@ import { useState } from "react";
 import { cardStyle, btnGhost, btnDanger } from "../adminStyles.js";
 import { downloadFile, escapeCSV } from "../adminExport.js";
 import { useConfirm } from "../../../state/ConfirmContext.jsx";
-import { rowCenterBetween, rowGap4, rowGap8, txtF14 } from "../../../styles/common.js";
+import * as stiliComuni from "../../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -88,8 +88,8 @@ export const AdminLogTab = ({ dispatch, activityLog = [] }) => {
         Sessione corrente, questo dispositivo · non include le azioni di altri utenti
         né quelle precedenti all'apertura di questa pagina, e non viene conservato dopo la chiusura.
       </p>
-      <div style={rowCenterBetween}>
-        <div style={rowGap4}>
+      <div style={stiliComuni.rowCenterBetween}>
+        <div style={stiliComuni.rowGap4}>
           {[
             { id: "all", label: "Tutte" },
             { id: "task", label: "Task" },
@@ -106,7 +106,7 @@ export const AdminLogTab = ({ dispatch, activityLog = [] }) => {
           ))}
         </div>
         {activityLog.length > 0 && (
-          <div style={rowGap8}>
+          <div style={stiliComuni.rowGap8}>
             <button onClick={exportLogCSV} disabled={list.length === 0} style={{
               ...btnGhost, opacity: list.length === 0 ? 0.5 : 1,
               cursor: list.length === 0 ? "not-allowed" : "pointer",
@@ -127,7 +127,7 @@ export const AdminLogTab = ({ dispatch, activityLog = [] }) => {
         {list.length === 0 ? (
           <div style={txtMutedTxtCenter}>
             <div style={txtF32Mb8}>📋</div>
-            <div style={txtF14}>Nessuna attività registrata{filter !== "all" ? " in questo filtro" : " ancora"}</div>
+            <div style={stiliComuni.txtF14}>Nessuna attività registrata{filter !== "all" ? " in questo filtro" : " ancora"}</div>
             <div style={txtF11Mt6}>Le azioni effettuate appariranno qui (ultime 100)</div>
           </div>
         ) : (

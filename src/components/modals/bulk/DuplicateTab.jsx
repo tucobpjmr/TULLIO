@@ -4,10 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { formatDate } from "../../../lib/taskUtils.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { bulkInputStyle, bulkBtnPrimary, bulkBtnGhost, bulkIconBtnSmall } from "./bulkStyles.js";
-import {
-  colGap14, colGap2F12, rowCenterBetween2, rowGap8, txtBoldDanger, txtF10Bold, txtF11Muted,
-  txtF13Bold, txtF14,
-} from "../../../styles/common.js";
+import * as stiliComuni from "../../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -104,15 +101,15 @@ export const DuplicateTab = ({ tasks, onCreate, onClose, onCancel, onDirty }) =>
   };
 
   return (
-    <div style={colGap14}>
+    <div style={stiliComuni.colGap14}>
       <div style={gridGap10R10}>
         <div>
-          <div style={txtF10Bold}>TESTO DA AGGIUNGERE AL TITOLO</div>
+          <div style={stiliComuni.txtF10Bold}>TESTO DA AGGIUNGERE AL TITOLO</div>
           <input value={titleSuffix} onChange={e => setTitleSuffix(e.target.value)} placeholder=" (copia)" style={bulkInputStyle} />
           <div style={txtF10Muted}>Aggiunto in fondo al titolo di ogni copia</div>
         </div>
         <div>
-          <div style={txtF10Bold}>SPOSTA LA SCADENZA DI (giorni)</div>
+          <div style={stiliComuni.txtF10Bold}>SPOSTA LA SCADENZA DI (giorni)</div>
           <input type="number" value={dayOffset} onChange={e => setDayOffset(parseInt(e.target.value) || 0)} style={bulkInputStyle} />
           <div style={txtF10Muted}>+7 = una settimana dopo l'originale, −3 = tre giorni prima</div>
         </div>
@@ -134,10 +131,10 @@ export const DuplicateTab = ({ tasks, onCreate, onClose, onCancel, onDirty }) =>
               cursor: "pointer",
             }} onClick={() => toggle(t.id)}>
               <input type="checkbox" checked={isSel} readOnly style={cursor2} />
-              <span style={txtF14}>{categories[t.category]?.icon}</span>
+              <span style={stiliComuni.txtF14}>{categories[t.category]?.icon}</span>
               <div className="vd-flex-1-min0">
-                <div style={txtF13Bold}>{t.title}</div>
-                <div style={txtF11Muted}>
+                <div style={stiliComuni.txtF13Bold}>{t.title}</div>
+                <div style={stiliComuni.txtF11Muted}>
                   {categories[t.category]?.label} • {t.client || "—"} • {formatDate(t.dueDate)}
                 </div>
                 {isSel && (
@@ -158,12 +155,12 @@ export const DuplicateTab = ({ tasks, onCreate, onClose, onCancel, onDirty }) =>
         })}
       </div>
 
-      <div style={rowCenterBetween2}>
-        <div style={colGap2F12}>
+      <div style={stiliComuni.rowCenterBetween2}>
+        <div style={stiliComuni.colGap2F12}>
           <span>{totalCount} copie da creare</span>
-          {error && <span style={txtBoldDanger}>{error}</span>}
+          {error && <span style={stiliComuni.txtBoldDanger}>{error}</span>}
         </div>
-        <div style={rowGap8}>
+        <div style={stiliComuni.rowGap8}>
           <button onClick={onCancel || onClose} disabled={busy} style={{ ...bulkBtnGhost, opacity: busy ? 0.6 : 1, cursor: busy ? "not-allowed" : "pointer" }}>Annulla</button>
           <button onClick={handleCreate} disabled={totalCount === 0 || busy} style={{
             ...bulkBtnPrimary,

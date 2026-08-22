@@ -13,7 +13,7 @@ import { TemplateTab } from "./bulk/TemplateTab.jsx";
 import { Modal } from "../ui/Modal.jsx";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import { useClients } from "../../state/ClientsContext.jsx";
-import { rowCenterGap12 } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -105,7 +105,7 @@ export const BulkTaskCreator = ({ existingTasks, onCreate, onClose }) => {
     >
       <>
         <div style={rowCenterBetween}>
-          <div style={rowCenterGap12}>
+          <div style={stiliComuni.rowCenterGap12}>
             <div style={rowCenterMiddle}>📑</div>
             <div>
               <div id="bulk-title" className="playfair" style={txtF17Bold}>Crea più task</div>
@@ -176,7 +176,7 @@ export const BulkTaskCreator = ({ existingTasks, onCreate, onClose }) => {
                       display: "flex", flexDirection: "column", gap: 8,
                     }}
                   >
-                    <div style={rowCenterGap12}>
+                    <div style={stiliComuni.rowCenterGap12}>
                       <div style={rowCenterMiddle2}>{t.icon}</div>
                       <div style={txtF15Bold}>{t.label}</div>
                       {dirty[t.id] && (

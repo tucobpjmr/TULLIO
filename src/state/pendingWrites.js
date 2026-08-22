@@ -109,3 +109,44 @@ export function applicaRigaRealtime(collezione, pending, evento, fondiRiga) {
   next[idx] = merged;
   return next;
 }
+
+// ─── fondiThreadCommenti — A-1, audit del 22 agosto ─────────────────────────
+// I commenti non sono una colonna di `tasks`: arrivano da una query separata
+// (`TaskThreads`) e si appoggiano sul task come campo `comments`. Applicarli
+// significa quindi rimappare i task, e il farlo ha la STESSA invariante delle
+// due funzioni qui sopra: per un id con una scrittura in volo vince sempre lo
+// stato locale — un ADD_COMMENT appena dispatchato non si lascia sovrascrivere
+// dal thread riletto dal server, che può non contenerlo ancora.
+//
+// PERCHÉ QUI E NON NEL REDUCER. I chiamanti sono due — SET_TASK_THREADS (il
+// corpus) e MERGE_TASK_COMMENTS (il sottoinsieme che il ramo `soloThread`
+// chiede quando l'evento realtime dice quali task hanno commenti nuovi) — e
+// scriverla due volte significherebbe tenere allineate a mano due copie della
+// stessa protezione sui pendenti: la classe di difetto che questo modulo esiste
+// per chiudere. In più `src/state/reducer.js` ha un tetto di 550 righe che non
+// si alza: quando lo sfonda, ciò che esce è la parte che NON è una transizione
+// di stato (fu così per `buildLogEntry` → activityLog.js), ed è questa.
+//
+// ⚠️ `soloQuesti` distingue due semantiche diverse sulle chiavi ASSENTI, ed è
+// l'unica ragione per cui esiste il parametro:
+//   • assente  → `comments` è il CORPUS: un task che non compare ha davvero
+//                zero commenti, e va scritto a `[]`;
+//   • presente → `comments` è un SOTTOINSIEME: un task fuori dall'elenco non è
+//                stato chiesto e va lasciato intatto, mentre uno DENTRO
+//                l'elenco ma senza chiave ha avuto i commenti cancellati tutti
+//                e va comunque scritto a `[]`.
+// È per questo che l'elenco degli id viaggia esplicito invece di essere dedotto
+// dalle chiavi della mappa: le due cose non coincidono nel secondo caso.
+//
+// @param {Array<{id: string}>} tasks       i task attualmente nello state
+// @param {Map<string, number>|undefined} pending  id → scritture in volo
+// @param {Record<string, object[]>} comments      commenti indicizzati per task_id
+// @param {string[]} [soloQuesti]           gli id da aggiornare; assente = corpus
+export function fondiThreadCommenti(tasks, pending, comments, soloQuesti) {
+  const limite = soloQuesti ? new Set(soloQuesti) : null;
+  return (tasks || []).map(t => (
+    (limite && !limite.has(t.id)) || pending?.has(t.id)
+      ? t
+      : { ...t, comments: comments[t.id] || [] }
+  ));
+}

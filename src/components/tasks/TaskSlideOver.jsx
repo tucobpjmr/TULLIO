@@ -20,10 +20,7 @@ import { Z } from "../../styles/tokens.js";
 import { TaskAttachments } from "./TaskAttachments.jsx";
 import { TaskHistoryPanel } from "./TaskHistoryPanel.jsx";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
-import {
-  btnChiudiSuScuro, colGap10, flex1, grid2ColGap12, relative, rowGap6, txtF10Muted, txtF11Muted,
-  txtF13Muted, txtMuted,
-} from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 import {
   boxF11Bold, boxF12Muted, boxF13R8, boxF13Text, boxF13White, boxF13White2, boxF18Bold,
   boxFlex1F12, colFlex1Gap20, rowCenterGap5, rowCenterGap6, rowCenterGap8,
@@ -215,18 +212,18 @@ export const TaskSlideOver = ({ task, dispatch }) => {
               <div className="playfair" style={txtF18Bold}>{task.title}</div>
             )}
           </div>
-          <div style={rowGap6}>
+          <div style={stiliComuni.rowGap6}>
             <button onClick={handleDelete} title="Sposta nel cestino" style={boxF13White}
               onMouseEnter={e => e.currentTarget.style.background = "rgba(220,38,38,0.4)"}
               onMouseLeave={e => e.currentTarget.style.background = "rgba(220,38,38,0.15)"}
             >🗑️</button>
-            <button onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: null })} style={btnChiudiSuScuro}>✕</button>
+            <button onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: null })} style={stiliComuni.btnChiudiSuScuro}>✕</button>
           </div>
         </div>
 
         <div style={colFlex1Gap20}>
           {/* Status + Scadenza */}
-          <div style={grid2ColGap12}>
+          <div style={stiliComuni.grid2ColGap12}>
             <div>
               <div style={labelStyle}>STATO</div>
               {editable ? (
@@ -259,7 +256,7 @@ export const TaskSlideOver = ({ task, dispatch }) => {
 
           {/* Categoria + Priorità (modificabili) */}
           {editable && (
-            <div style={grid2ColGap12}>
+            <div style={stiliComuni.grid2ColGap12}>
               <div>
                 <div style={labelStyle}>CATEGORIA</div>
                 <select value={task.category || ""} onChange={e => updateField("category", e.target.value)} style={{ ...fieldStyle, cursor: "pointer" }}>
@@ -276,8 +273,8 @@ export const TaskSlideOver = ({ task, dispatch }) => {
           )}
 
           {/* Meta */}
-          <div style={grid2ColGap12}>
-            <div style={relative}>
+          <div style={stiliComuni.grid2ColGap12}>
+            <div style={stiliComuni.relative}>
               <div style={txtF11Bold}>ASSEGNATI</div>
               <div style={rowCenterGap6}>
                 {currentAssignees.map(id => {
@@ -299,7 +296,7 @@ export const TaskSlideOver = ({ task, dispatch }) => {
                   ) : null;
                 })}
                 {!currentAssignees.length && (
-                  <span style={txtF13Muted}>Non assegnato</span>
+                  <span style={stiliComuni.txtF13Muted}>Non assegnato</span>
                 )}
                 {editable && availableMembers.length > 0 && (
                   <button
@@ -331,14 +328,14 @@ export const TaskSlideOver = ({ task, dispatch }) => {
                       onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                     >
                       <Avatar memberId={m.id} size={22} />
-                      <span style={flex1}>{m.name}</span>
-                      <span style={txtF10Muted}>{roleLabel(m)}</span>
+                      <span style={stiliComuni.flex1}>{m.name}</span>
+                      <span style={stiliComuni.txtF10Muted}>{roleLabel(m)}</span>
                     </button>
                   ))}
                 </div>
               )}
             </div>
-            <div style={relative}>
+            <div style={stiliComuni.relative}>
               <div style={labelStyle}>CLIENTE</div>
               {editable ? (
                 <>
@@ -356,14 +353,14 @@ export const TaskSlideOver = ({ task, dispatch }) => {
                 </>
               ) : (
                 <div style={boxF13R8}>
-                  {task.client || <span style={txtMuted}>—</span>}
+                  {task.client || <span style={stiliComuni.txtMuted}>—</span>}
                 </div>
               )}
             </div>
           </div>
 
           {/* Pratica (n° libero) + Contatti */}
-          <div style={grid2ColGap12}>
+          <div style={stiliComuni.grid2ColGap12}>
             <div>
               <div style={labelStyle}>N° PRATICA</div>
               {editable ? (
@@ -376,7 +373,7 @@ export const TaskSlideOver = ({ task, dispatch }) => {
                 />
               ) : (
                 <div style={boxF13R8}>
-                  {task.praticaRef || <span style={txtMuted}>—</span>}
+                  {task.praticaRef || <span style={stiliComuni.txtMuted}>—</span>}
                 </div>
               )}
             </div>
@@ -394,7 +391,7 @@ export const TaskSlideOver = ({ task, dispatch }) => {
                 <div style={boxF13R8}>
                   {task.contact
                     ? <ContactText text={task.contact} />
-                    : <span style={txtMuted}>—</span>}
+                    : <span style={stiliComuni.txtMuted}>—</span>}
                 </div>
               )}
             </div>
@@ -414,7 +411,7 @@ export const TaskSlideOver = ({ task, dispatch }) => {
               />
             ) : (
               <div style={boxF13Text}>
-                {task.description || <span style={txtMuted}>Nessuna descrizione.</span>}
+                {task.description || <span style={stiliComuni.txtMuted}>Nessuna descrizione.</span>}
               </div>
             )}
           </div>
@@ -427,16 +424,16 @@ export const TaskSlideOver = ({ task, dispatch }) => {
             <div style={txtF11Bold2}>
               ATTIVITÀ & COMMENTI ({task.comments?.length || 0})
             </div>
-            <div style={colGap10}>
+            <div style={stiliComuni.colGap10}>
               {(task.comments || []).map((c, i) => (
                 <div key={i} style={rowGap10}>
                   <div style={rowCenterMiddle}>
                     {c.user.split(" ").map(w => w[0]).join("").slice(0, 2)}
                   </div>
-                  <div style={flex1}>
+                  <div style={stiliComuni.flex1}>
                     <div style={rowGap8}>
                       <span style={txtF12Bold}>{c.user}</span>
-                      <span style={txtF11Muted}>{formatDate(c.time)}</span>
+                      <span style={stiliComuni.txtF11Muted}>{formatDate(c.time)}</span>
                     </div>
                     <div style={txtF13Text}><MentionText text={c.text} /></div>
                   </div>
@@ -446,7 +443,7 @@ export const TaskSlideOver = ({ task, dispatch }) => {
               {/* New comment */}
               <div style={rowGap8Mt6}>
                 <div style={rowCenterMiddle2}>{myInitials}</div>
-                <div style={flex1}>
+                <div style={stiliComuni.flex1}>
                   <div style={rowFlex1Gap6}>
                     <input
                       id="vd-commento"

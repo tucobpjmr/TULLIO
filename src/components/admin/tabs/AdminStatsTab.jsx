@@ -7,9 +7,7 @@ import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useTasks } from "../../../state/TasksContext.jsx";
 import { useStoricoTaskCompleto } from "../../../state/StoricoTaskContext.jsx";
 import { MessageTemplatesSection } from "./MessageTemplatesSection.jsx";
-import {
-  flex1, gridGap10, rowCenterGap12, txtF11Muted, txtF12Muted2, txtF13Bold,
-} from "../../../styles/common.js";
+import * as stiliComuni from "../../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -72,7 +70,7 @@ export const AdminStatsTab = ({ dispatch, messageTemplates = [] }) => {
     <div style={cardStyle}>
       <div style={txtF11Bold}>{label}</div>
       <div style={{ fontSize: 32, fontWeight: 700, color: color || "var(--navy)", marginTop: 4 }}>{value}</div>
-      {sub && <div style={txtF12Muted2}>{sub}</div>}
+      {sub && <div style={stiliComuni.txtF12Muted2}>{sub}</div>}
     </div>
   );
 
@@ -97,7 +95,7 @@ export const AdminStatsTab = ({ dispatch, messageTemplates = [] }) => {
             // mostrare al suo posto.
             const pct = caricandoStorico || !active.length ? 0 : (s.count / active.length) * 100;
             return (
-              <div key={s.s} style={rowCenterGap12}>
+              <div key={s.s} style={stiliComuni.rowCenterGap12}>
                 <div style={txtF13Text}>{s.label}</div>
                 <div style={boxFlex1H18}>
                   <div style={{ width: `${pct}%`, height: "100%", background: s.color, transition: "width 0.3s" }} />
@@ -112,9 +110,9 @@ export const AdminStatsTab = ({ dispatch, messageTemplates = [] }) => {
       {/* Carico team */}
       <div style={cardStyle}>
         <h3 style={cardH}>👥 Carico di lavoro per agente</h3>
-        <div style={gridGap10}>
+        <div style={stiliComuni.gridGap10}>
           {byMember.map(({ m, count }) => (
-            <div key={m.id} style={rowCenterGap12}>
+            <div key={m.id} style={stiliComuni.rowCenterGap12}>
               <div style={{
                 width: 32, height: 32, borderRadius: "50%", background: m.color,
                 display: "flex", alignItems: "center", justifyContent: "center",
@@ -136,9 +134,9 @@ export const AdminStatsTab = ({ dispatch, messageTemplates = [] }) => {
           {byCategory.map(c => (
             <div key={c.k} style={rowCenterGap10}>
               <div style={rowCenterMiddle}>{c.icon}</div>
-              <div style={flex1}>
-                <div style={txtF13Bold}>{c.label}</div>
-                <div style={txtF11Muted}>{c.count} task</div>
+              <div style={stiliComuni.flex1}>
+                <div style={stiliComuni.txtF13Bold}>{c.label}</div>
+                <div style={stiliComuni.txtF11Muted}>{c.count} task</div>
               </div>
             </div>
           ))}

@@ -8,7 +8,7 @@ import { useViewport } from "../Viewport.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { getNavItemsForRole, getNavBadges } from "./navHelpers.js";
 import { NavBadge } from "./NavBadge.jsx";
-import { txtF16 } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -86,7 +86,7 @@ export const Sidebar = memo(function Sidebar({ activeView, dispatch, onOpenBulk,
               borderLeft: active ? "2px solid var(--gold)" : "2px solid transparent",
               position: "relative",
             }}>
-              <span style={txtF16}>{item.icon}</span>
+              <span style={stiliComuni.txtF16}>{item.icon}</span>
               {!col && <span style={whiteSpace2}>{item.label}</span>}
               <NavBadge count={badges[item.id] || 0} collapsed={col} />
             </button>
@@ -108,7 +108,7 @@ export const Sidebar = memo(function Sidebar({ activeView, dispatch, onOpenBulk,
             justifyContent: col ? "center" : "flex-start",
           }}
         >
-          <span style={txtF16}>💬</span>
+          <span style={stiliComuni.txtF16}>💬</span>
           {!col && <span style={whiteSpace2}>Chat</span>}
           <NavBadge count={unreadChat} collapsed={col} />
         </button>
@@ -131,7 +131,7 @@ export const Sidebar = memo(function Sidebar({ activeView, dispatch, onOpenBulk,
           onMouseEnter={e => { e.currentTarget.style.background = "rgba(212,168,67,0.22)"; }}
           onMouseLeave={e => { e.currentTarget.style.background = "rgba(212,168,67,0.12)"; }}
         >
-          <span style={txtF16}>📑</span>
+          <span style={stiliComuni.txtF16}>📑</span>
           {!col && <span style={whiteSpace2}>Più task</span>}
         </button>
       </div>

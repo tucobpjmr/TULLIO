@@ -10,7 +10,7 @@
 // task non ne hanno uno, e uno scheletro che promette un cerchio inesistente è
 // esso stesso una piccola bugia.
 import { useViewport } from "../Viewport.jsx";
-import { flex1 } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -44,7 +44,7 @@ export function SkeletonCards({ count = 6, minWidth = 340, compact = false, labe
           {!compact && (
             <div style={rowCenterGap8}>
               <div className="skeleton" style={boxW34H34} />
-              <div style={flex1}>
+              <div style={stiliComuni.flex1}>
                 <div className="skeleton" style={boxMb6H12} />
                 <div className="skeleton" style={boxH10R4} />
               </div>

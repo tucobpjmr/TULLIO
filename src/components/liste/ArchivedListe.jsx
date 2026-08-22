@@ -14,12 +14,7 @@ import { ListeAPI, eur, fmtDate, saldoClass } from "./listeApi.js";
 import { useListeWrite } from "./listePersistence.js";
 import { PERIOD_OPTIONS, filterByPeriod, thStyle, chipStyle } from "../views/archiveFilters.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
-import {
-  btnDangerMini, btnGhostMini, btnNavyMini, card, cardVuota, cardVuotaAlta, cella, cellaAzioni,
-  cellaMuted, colGap10, rigaIntestazione, rowCenterGap82, rowGap6, rowGap62, tabella,
-  txtF11Bold, txtF12Muted, txtF13Muted, txtF14Bold, txtF16Bold, txtF36Mb12, txtF48Mb16,
-  txtMuted,
-} from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -27,7 +22,7 @@ const txtF13Muted2 = { padding: "40px 0", textAlign: "center", color: "var(--tex
 const txtF12Muted2 = { fontSize: 12, color: "var(--text-muted)", marginTop: 4 };
 const boxF13Bold = {
   marginTop: 10, padding: "6px 14px", borderRadius: 8,
-  border: "1px solid var(--border)", background: "var(--card)",
+  border: "1px solid var(--border)", background: "var(--stiliComuni.card)",
   color: "var(--navy)", cursor: "pointer", fontSize: 13, fontWeight: 600,
   fontFamily: "inherit",
 };
@@ -39,7 +34,7 @@ const boxF13MinW0 = {
   outline: "none", boxSizing: "border-box",
 };
 const boxR12 = {
-  background: "var(--card)", borderRadius: 12, border: "1px solid var(--border)",
+  background: "var(--stiliComuni.card)", borderRadius: 12, border: "1px solid var(--border)",
   padding: "14px 16px", cursor: "pointer",
 };
 const txtF14Bold2 = { fontWeight: 600, color: "var(--heading)", fontSize: 14, marginBottom: 6 };
@@ -51,7 +46,7 @@ const boxF12Bold = {
   fontWeight: 600, fontFamily: "inherit",
 };
 const boxF12Bold2 = {
-  background: "var(--card)", color: "var(--danger)", border: "1px solid var(--danger)",
+  background: "var(--stiliComuni.card)", color: "var(--danger)", border: "1px solid var(--danger)",
   padding: "5px 8px", borderRadius: 6, cursor: "pointer", fontSize: 12,
   fontWeight: 600, fontFamily: "inherit",
 };
@@ -124,8 +119,8 @@ export const ArchivedListe = ({ dispatch, isMobile }) => {
 
   if (loadError) {
     return (
-      <div style={cardVuota}>
-        <div style={txtF13Muted}>Non riesco a caricare le liste buoni viaggio.</div>
+      <div style={stiliComuni.cardVuota}>
+        <div style={stiliComuni.txtF13Muted}>Non riesco a caricare le liste buoni viaggio.</div>
         <div style={txtF12Muted2}>{loadError}</div>
         <button onClick={load} style={boxF13Bold}>Riprova</button>
       </div>
@@ -159,8 +154,8 @@ export const ArchivedListe = ({ dispatch, isMobile }) => {
 
       {/* Filtro periodo (per data di chiusura) — solo se ci sono liste chiuse */}
       {liste.length > 0 && (
-        <div style={rowCenterGap82}>
-          <span style={txtF11Bold}>Chiuse:</span>
+        <div style={stiliComuni.rowCenterGap82}>
+          <span style={stiliComuni.txtF11Bold}>Chiuse:</span>
           {PERIOD_OPTIONS.map(opt => (
             <button key={opt.key} type="button" onClick={() => setPeriod(opt.key)} style={chipStyle(period === opt.key)}>
               {opt.label}
@@ -171,24 +166,24 @@ export const ArchivedListe = ({ dispatch, isMobile }) => {
 
       {/* Empty state */}
       {liste.length === 0 ? (
-        <div style={cardVuotaAlta}>
-          <div style={txtF48Mb16}>🧾</div>
-          <div style={txtF16Bold}>Nessuna lista esaurita</div>
-          <div style={txtF13Muted}>
+        <div style={stiliComuni.cardVuotaAlta}>
+          <div style={stiliComuni.txtF48Mb16}>🧾</div>
+          <div style={stiliComuni.txtF16Bold}>Nessuna lista esaurita</div>
+          <div style={stiliComuni.txtF13Muted}>
             Le liste buoni viaggio chiuse verranno raccolte qui. Potrai riaprirle o spostarle nel cestino.
           </div>
         </div>
       ) : visible.length === 0 ? (
-        <div style={cardVuota}>
-          <div style={txtF36Mb12}>📭</div>
-          <div style={txtF14Bold}>
+        <div style={stiliComuni.cardVuota}>
+          <div style={stiliComuni.txtF36Mb12}>📭</div>
+          <div style={stiliComuni.txtF14Bold}>
             Nessuna lista per i filtri selezionati
           </div>
-          <button type="button" onClick={resetFilters} style={btnGhostMini}>Azzera filtri</button>
+          <button type="button" onClick={resetFilters} style={stiliComuni.btnGhostMini}>Azzera filtri</button>
         </div>
       ) : isMobile ? (
-        /* Mobile: card list */
-        <div style={colGap10}>
+        /* Mobile: stiliComuni.card list */
+        <div style={stiliComuni.colGap10}>
           {visible.map(l => {
             const s = saldi[l.id] || { saldo: 0 };
             return (
@@ -201,14 +196,14 @@ export const ArchivedListe = ({ dispatch, isMobile }) => {
                   {l.clients?.name || "—"}
                 </div>
                 <div style={rowCenterGap6}>
-                  {l.titolo && <span style={txtF12Muted}>{l.titolo}</span>}
+                  {l.titolo && <span style={stiliComuni.txtF12Muted}>{l.titolo}</span>}
                   <span style={{ fontSize: 12, fontWeight: 700, color: SALDO_COLORS[saldoClass(Number(s.saldo))] }}>{eur(s.saldo)}</span>
                 </div>
                 <div style={rowCenterBetween}>
-                  <span style={txtF12Muted}>
+                  <span style={stiliComuni.txtF12Muted}>
                     {l.closed_at ? `chiusa ${fmtDate(l.closed_at.slice(0, 10))}` : "—"}
                   </span>
-                  <div style={rowGap6} onClick={e => e.stopPropagation()}>
+                  <div style={stiliComuni.rowGap6} onClick={e => e.stopPropagation()}>
                     <button onClick={() => handleReopen(l)} style={boxF12Bold}>↩ Riapri</button>
                     <button onClick={() => handleTrash(l)} style={boxF12Bold2}>🗑️</button>
                   </div>
@@ -219,10 +214,10 @@ export const ArchivedListe = ({ dispatch, isMobile }) => {
         </div>
       ) : (
         /* Desktop: table */
-        <div style={card}>
-          <table style={tabella}>
+        <div style={stiliComuni.card}>
+          <table style={stiliComuni.tabella}>
             <thead>
-              <tr style={rigaIntestazione}>
+              <tr style={stiliComuni.rigaIntestazione}>
                 <th style={thStyle("left", "16px")}>CLIENTE</th>
                 <th style={thStyle("left")}>TITOLO</th>
                 <th style={thStyle("left")}>SALDO</th>
@@ -240,19 +235,19 @@ export const ArchivedListe = ({ dispatch, isMobile }) => {
                     onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                   >
                     <td style={txtBoldHeading}>{l.clients?.name || "—"}</td>
-                    <td style={cella}>
-                      {l.titolo || <span style={txtMuted}>—</span>}
+                    <td style={stiliComuni.cella}>
+                      {l.titolo || <span style={stiliComuni.txtMuted}>—</span>}
                     </td>
                     <td style={{ padding: "12px 8px", fontWeight: 700, color: SALDO_COLORS[saldoClass(Number(s.saldo))] }}>
                       {eur(s.saldo)}
                     </td>
-                    <td style={cellaMuted}>
+                    <td style={stiliComuni.cellaMuted}>
                       {l.closed_at ? fmtDate(l.closed_at.slice(0, 10)) : "—"}
                     </td>
-                    <td style={cellaAzioni} onClick={e => e.stopPropagation()}>
-                      <div style={rowGap62}>
-                        <button onClick={() => handleReopen(l)} title="Riapri (rimetti attiva)" style={btnNavyMini}>↩ Riapri</button>
-                        <button onClick={() => handleTrash(l)} title="Sposta nel cestino" style={btnDangerMini}>🗑️</button>
+                    <td style={stiliComuni.cellaAzioni} onClick={e => e.stopPropagation()}>
+                      <div style={stiliComuni.rowGap62}>
+                        <button onClick={() => handleReopen(l)} title="Riapri (rimetti attiva)" style={stiliComuni.btnNavyMini}>↩ Riapri</button>
+                        <button onClick={() => handleTrash(l)} title="Sposta nel cestino" style={stiliComuni.btnDangerMini}>🗑️</button>
                       </div>
                     </td>
                   </tr>

@@ -21,7 +21,7 @@ import { ModalPortal } from "../ui/ModalPortal.jsx";
 import { Users } from "../../lib/api.js";
 import { EMAIL_RX } from "../../lib/validators.js";
 import { DB_ROLES, ROLE_LABELS, toDbRole } from "../../lib/taskConstants.js";
-import { gridGap12, rowGap8Mt20, txtMuted } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -139,7 +139,7 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
             <code style={codeStyle}>anna@agenzia.it, Anna Bianchi, Senior Agent</code>
           </div>
 
-          <div style={gridGap12}>
+          <div style={stiliComuni.gridGap12}>
             <div>
               <label style={labelStyle}>Inviti</label>
               <textarea
@@ -195,7 +195,7 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
                     >
                       <span>{r.status === "ok" ? "✅" : r.status === "warn" ? "⚠️" : "❌"}</span>
                       <span style={flex1}>{r.email}</span>
-                      {r.message && <span style={txtMuted}>{r.message}</span>}
+                      {r.message && <span style={stiliComuni.txtMuted}>{r.message}</span>}
                     </div>
                   ))}
                 </div>
@@ -203,7 +203,7 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
             )}
           </div>
 
-          <div style={rowGap8Mt20}>
+          <div style={stiliComuni.rowGap8Mt20}>
             <button onClick={onClose} disabled={busy} style={btnGhost}>
               {allDone ? "Chiudi" : "Annulla"}
             </button>

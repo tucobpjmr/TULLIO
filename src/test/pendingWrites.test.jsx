@@ -20,6 +20,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useReducer } from "react";
 import { renderHook, act } from "@testing-library/react";
+// A-1 (22 agosto): la terza funzione del modulo si testa direttamente —
+// è pura, e le sue due semantiche non sarebbero distinguibili passando
+// dal reducer, dove ciascun case ne esercita una sola.
+import { fondiThreadCommenti } from "../state/pendingWrites.js";
 
 vi.mock("../lib/api.js", () => {
   const ok = () => Promise.resolve({ data: null, error: null });
@@ -322,5 +326,87 @@ describe("scritture in volo — il reducer da solo", () => {
     const stato = statoCon([], new Map([[uuid(1), 1]]));
     const next = reducer(stato, { type: "SET_TASKS", payload: [task()] });
     expect(next.tasks).toEqual([]);
+  });
+});
+
+// ─── fondiThreadCommenti — A-1, audit del 22 agosto ────────────────────────
+// La terza funzione del modulo, e l'unica con DUE semantiche a seconda che il
+// chiamante passi o no l'elenco degli id. È la distinzione che separa
+// SET_TASK_THREADS (corpus) da MERGE_TASK_COMMENTS (sottoinsieme), ed è anche
+// il modo in cui questa correzione potrebbe causare una perdita di dati
+// silenziosa se venisse sbagliata: applicare la semantica del corpus a un
+// sottoinsieme azzererebbe il thread di ogni task non toccato dall'evento.
+describe("fondiThreadCommenti", () => {
+  const tasks = [
+    { id: "t1", title: "Volo", comments: [{ id: "vecchio1" }] },
+    { id: "t2", title: "Hotel", comments: [{ id: "vecchio2" }] },
+    { id: "t3", title: "Visto", comments: [] },
+  ];
+  const perId = (l) => Object.fromEntries(l.map(t => [t.id, t]));
+
+  describe("senza elenco di id — `comments` è il CORPUS", () => {
+    it("applica i thread arrivati e AZZERA quelli non presenti", () => {
+      const out = perId(fondiThreadCommenti(tasks, undefined, { t1: [{ id: "nuovo1" }] }));
+      expect(out.t1.comments).toEqual([{ id: "nuovo1" }]);
+      // t2 non compare nel corpus: ha davvero zero commenti.
+      expect(out.t2.comments).toEqual([]);
+    });
+
+    it("non tocca i campi del task diversi da `comments`", () => {
+      const out = perId(fondiThreadCommenti(tasks, undefined, {}));
+      expect(out.t1.title).toBe("Volo");
+    });
+  });
+
+  describe("con elenco di id — `comments` è un SOTTOINSIEME", () => {
+    it("lascia INTATTI i task fuori dall'elenco", () => {
+      const out = perId(fondiThreadCommenti(tasks, undefined, { t1: [{ id: "nuovo1" }] }, ["t1"]));
+      expect(out.t1.comments).toEqual([{ id: "nuovo1" }]);
+      // Il caso che conta: t2 non è stato CHIESTO, non è "senza commenti".
+      expect(out.t2.comments).toEqual([{ id: "vecchio2" }]);
+      expect(out.t3.comments).toEqual([]);
+    });
+
+    it("azzera un task DENTRO l'elenco ma senza chiave nella risposta", () => {
+      // È il caso in cui tutti i commenti di quel task sono stati cancellati:
+      // il server risponde senza chiave, e il thread va svuotato. È anche la
+      // ragione per cui gli id viaggiano espliciti invece di essere dedotti
+      // dalle chiavi della mappa — qui le due cose non coincidono.
+      const out = perId(fondiThreadCommenti(tasks, undefined, {}, ["t1"]));
+      expect(out.t1.comments).toEqual([]);
+      expect(out.t2.comments).toEqual([{ id: "vecchio2" }]);
+    });
+
+    it("ignora un id che non corrisponde ad alcun task in stato", () => {
+      const out = fondiThreadCommenti(tasks, undefined, { tX: [{ id: "x" }] }, ["tX"]);
+      expect(out).toHaveLength(3);
+      expect(perId(out).t1.comments).toEqual([{ id: "vecchio1" }]);
+    });
+  });
+
+  describe("l'invariante condivisa con le due funzioni sorelle", () => {
+    it("un task con una scrittura in volo non si lascia sovrascrivere", () => {
+      const pending = new Map([["t1", 1]]);
+      const out = perId(fondiThreadCommenti(tasks, pending, { t1: [{ id: "dalServer" }] }, ["t1"]));
+      // ADD_COMMENT appena dispatchato: il server può non averlo ancora.
+      expect(out.t1.comments).toEqual([{ id: "vecchio1" }]);
+    });
+
+    it("vale anche per il percorso del corpus", () => {
+      const pending = new Map([["t1", 1]]);
+      const out = perId(fondiThreadCommenti(tasks, pending, {}));
+      expect(out.t1.comments).toEqual([{ id: "vecchio1" }]);
+      expect(out.t2.comments).toEqual([]);
+    });
+  });
+
+  it("non muta l'array né i task che riceve", () => {
+    const copia = JSON.parse(JSON.stringify(tasks));
+    fondiThreadCommenti(tasks, undefined, { t1: [{ id: "nuovo1" }] }, ["t1"]);
+    expect(tasks).toEqual(copia);
+  });
+
+  it("tollera un elenco di task assente", () => {
+    expect(fondiThreadCommenti(undefined, undefined, {})).toEqual([]);
   });
 });

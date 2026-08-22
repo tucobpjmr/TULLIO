@@ -468,6 +468,36 @@ export const TaskThreads = {
     fetchAllRows(() => supabase.from('comments')
       .select('id, task_id, user_id, text, created_at, users(name)', WITH_COUNT)
       .order('created_at').order('id')),
+  // A-1 dell'audit del 22 agosto. I commenti dei SOLI task toccati da un
+  // evento realtime.
+  //
+  // `comments()` qui sopra resta, ed è ancora la lettura giusta per il CORPUS
+  // (AdvancedSearchPanel cerca dentro il testo dei commenti, che è il lettore
+  // per cui quel metodo esiste). Ma era anche la lettura del percorso
+  // `soloThread` di useAppHydration, cioè quello che scatta a ogni commento
+  // scritto da CHIUNQUE, su OGNI client connesso: la tabella intera, paginata a
+  // blocchi di 1000, per applicare UNA riga che l'evento realtime già portava
+  // con sé.
+  //
+  // È la stessa forma di difetto che A-3 (passo 3) ha chiuso per
+  // `task_history` — e `comments` ha la stessa proprietà che lo rendeva grave:
+  // cresce e non si pota mai, perché nessuna UI cancella un commento (vedi la
+  // nota su `Comments.remove` più sotto). La differenza con la cronologia è il
+  // numero di LETTORI, non la dimensione: la cronologia ne aveva uno solo e ha
+  // potuto scendere per-task del tutto, i commenti ne hanno due — il thread
+  // dello slide-over e la ricerca avanzata — quindi qui il corpus resta
+  // disponibile e a scendere è il solo percorso frequente.
+  //
+  // ⛔ Nessun `.limit()`: il tetto è già l'insieme dei task nominati dal
+  // chiamante. `fetchAllRows` continua a proteggere dal cap di PostgREST nel
+  // caso — improbabile ma non impossibile — di un task con più di 1000
+  // commenti, e dove il cap morde è proprio qui: sul reload SELETTIVO, dove le
+  // righe che cadono sono le più RECENTI (vedi il preambolo di `comments()`).
+  commentsForTasks: (taskIds) =>
+    fetchAllRows(() => supabase.from('comments')
+      .select('id, task_id, user_id, text, created_at, users(name)', WITH_COUNT)
+      .in('task_id', taskIds)
+      .order('created_at').order('id')),
   historyForTask: (taskId) =>
     fetchAllRows(() => supabase.from('task_history')
       .select('id, task_id, actor_id, action, old_value, new_value, created_at, users(name)', WITH_COUNT)

@@ -11,9 +11,7 @@ import { MAX_TASK_FILE_SIZE, formatFileSize, isWithinSizeLimit } from "../../../
 import { bulkInputStyle, bulkTextareaStyle, bulkBtnPrimary, bulkBtnGhost } from "./bulkStyles.js";
 import { RowAttachments } from "./RowAttachments.jsx";
 import { useClientSuggestions, ClientSuggestions } from "../../ui/ClientAutocomplete.jsx";
-import {
-  colGap2F12, relative, rowCenterGap8, rowGap8, txtBoldDanger, txtF10Bold, txtF10Bold2,
-} from "../../../styles/common.js";
+import * as stiliComuni from "../../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -173,11 +171,11 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
   return (
     <div style={colGap16}>
       <div style={boxR10}>
-        <div style={txtF10Bold2}>
+        <div style={stiliComuni.txtF10Bold2}>
           IMPOSTAZIONI COMUNI (usate se la riga non specifica)
         </div>
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: 8 }}>
-          <div style={relative}>
+          <div style={stiliComuni.relative}>
             <input
               value={common.client}
               onChange={e => setCommon({ ...common, client: e.target.value })}
@@ -200,15 +198,15 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
         </div>
         <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 8, maxWidth: isMobile ? "100%" : 900 }}>
           <div>
-            <div style={txtF10Bold}>N° PRATICA</div>
+            <div style={stiliComuni.txtF10Bold}>N° PRATICA</div>
             <input value={common.praticaRef} onChange={e => setCommon({ ...common, praticaRef: e.target.value })} placeholder="es. PR-2026-001" style={bulkInputStyle} />
           </div>
           <div>
-            <div style={txtF10Bold}>CONTATTI</div>
+            <div style={stiliComuni.txtF10Bold}>CONTATTI</div>
             <input value={common.contact} onChange={e => setCommon({ ...common, contact: e.target.value })} placeholder="Telefono, email…" style={bulkInputStyle} />
           </div>
           <div>
-            <div style={txtF10Bold}>SCADENZA</div>
+            <div style={stiliComuni.txtF10Bold}>SCADENZA</div>
             <DateTimePicker
               value={common.dueDate || null}
               onChange={iso => setCommon({ ...common, dueDate: iso || "" })}
@@ -231,7 +229,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
               border: `1px solid ${!r.title.trim() && rowHasData(r) ? "var(--warning)" : "var(--border)"}`,
               borderRadius: 10, padding: 10, background: "var(--surface)", display: "flex", flexDirection: "column", gap: 8,
             }}>
-              <div style={rowCenterGap8}>
+              <div style={stiliComuni.rowCenterGap8}>
                 <span style={txtF11Bold}>#{idx + 1}</span>
                 <input value={r.title} onChange={e => updateRow(r.key, "title", e.target.value)} placeholder="Titolo task..." style={{
                   ...bulkInputStyle, flex: 1,
@@ -333,7 +331,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
       </div>
 
       <div style={rowCenterBetween}>
-        <div style={colGap2F12}>
+        <div style={stiliComuni.colGap2F12}>
           <span>
             {validRows.length} task da creare
             {totalFiles > 0 && ` · ${totalFiles} allegat${totalFiles === 1 ? "o" : "i"}`}
@@ -344,9 +342,9 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
               {ignoredRows.some(r => r.files.length > 0) && " (allegati compresi)"}
             </span>
           )}
-          {fileError && <span style={txtBoldDanger}>{fileError}</span>}
+          {fileError && <span style={stiliComuni.txtBoldDanger}>{fileError}</span>}
         </div>
-        <div style={rowGap8}>
+        <div style={stiliComuni.rowGap8}>
           <button onClick={onCancel || onClose} disabled={busy} style={{ ...bulkBtnGhost, opacity: busy ? 0.6 : 1, cursor: busy ? "not-allowed" : "pointer" }}>Annulla</button>
           <button onClick={handleCreate} disabled={validRows.length === 0 || busy} style={{
             ...bulkBtnPrimary,

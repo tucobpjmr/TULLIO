@@ -11,7 +11,7 @@
 import { memo } from "react";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { catMeta } from "./taskCardShared.js";
-import { txtF11Muted } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -48,7 +48,7 @@ export const TaskRow = memo(function TaskRow({
           {task.title}
         </div>
         {subtitle != null && (
-          <div style={txtF11Muted}>{subtitle}</div>
+          <div style={stiliComuni.txtF11Muted}>{subtitle}</div>
         )}
       </div>
       {trailing}

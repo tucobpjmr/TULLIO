@@ -22,7 +22,7 @@ import { useFinestra } from "../../hooks/useFinestra.js";
 import { MostraAltri } from "../ui/MostraAltri.jsx";
 import { fieldStyle } from "./clientStyles.js";
 import { Modal } from "../ui/Modal.jsx";
-import { rowGap8, txtF13, txtF13Muted, txtF40Mb12 } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 import {
   boxF14Bold, boxF14Bold2, boxF14Muted, maxW1100, mb20, mt8,
   rowCenterBetween, rowCenterGap6, rowCenterGap62, rowCenterGap63, rowGap10, rowGap6Mt10,
@@ -235,7 +235,7 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
           <h1 className="playfair" style={{ fontSize: isMobile ? 22 : 26, color: "var(--heading)", marginBottom: 4 }}>
             Clienti
           </h1>
-          <div style={txtF13Muted}>
+          <div style={stiliComuni.txtF13Muted}>
             {loading && clients.length === 0
               ? "Caricamento…"
               : `${clients.length} ${clients.length === 1 ? "cliente" : "clienti"} in anagrafica`}
@@ -246,7 +246,7 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
             policy RLS di canEditClient — nasconderli a chi non ha il
             permesso evita di offrire un'azione che il database respingerebbe. */}
         {puoModificare && (
-        <div style={rowGap8}>
+        <div style={stiliComuni.rowGap8}>
           <button
             onClick={() => overlayDispatch({ type: "IMPORTA" })}
             style={rowCenterGap6}
@@ -316,9 +316,9 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
         <div style={txtMutedTxtCenter}>
           {search ? "Nessun cliente trovato" : (
             <div>
-              <div style={txtF40Mb12}>👤</div>
+              <div style={stiliComuni.txtF40Mb12}>👤</div>
               <div style={txtBoldMb6}>Nessun cliente ancora</div>
-              <div style={txtF13}>Aggiungi il primo cliente per iniziare</div>
+              <div style={stiliComuni.txtF13}>Aggiungi il primo cliente per iniziare</div>
             </div>
           )}
         </div>

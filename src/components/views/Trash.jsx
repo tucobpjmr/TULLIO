@@ -24,12 +24,7 @@ import { useFinestra } from "../../hooks/useFinestra.js";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { obbligatorio, validaCampi } from "../../lib/validators.js";
 import { MostraAltri } from "../ui/MostraAltri.jsx";
-import {
-  btnChiudiSuScuro, btnDangerMini, btnGhostMini, btnNavyMini, card, cardVuota, cardVuotaAlta,
-  cella, cellaAzioni, cellaMuted, grid2ColGap12, rigaIntestazione, rowCenterGap82, rowGap4,
-  rowGap62, tabella, txtF11Bold, txtF12Muted, txtF13Muted, txtF14Bold, txtF16Bold, txtF36Mb12,
-  txtF48Mb16, txtMuted,
-} from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 import {
   borderBottom2, boxF13Bold, boxF13Bold2, boxF13Conferma, boxF13WFull, boxF13WFull2, boxF14WFull, colGap16,
   maxW1200, padding2, padding3, rowCenterBetween, rowCenterGap6, rowGap10, rowGap6,
@@ -191,7 +186,7 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
           <div className="playfair" style={txtF28Bold}>
             🗑️ Cestino
           </div>
-          <div style={txtF13Muted}>
+          <div style={stiliComuni.txtF13Muted}>
             {caricando
               ? "Caricamento del cestino…"
               : trashed.length === 0
@@ -209,8 +204,8 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
 
       {/* Filtro periodo — solo se ci sono task */}
       {!caricando && trashed.length > 0 && (
-        <div style={rowCenterGap82}>
-          <span style={txtF11Bold}>Periodo:</span>
+        <div style={stiliComuni.rowCenterGap82}>
+          <span style={stiliComuni.txtF11Bold}>Periodo:</span>
           {PERIOD_OPTIONS.map(opt => (
             <button
               key={opt.key}
@@ -226,29 +221,29 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
       {caricando ? (
         <SkeletonCards count={4} label="Caricamento del cestino" />
       ) : trashed.length === 0 ? (
-        <div style={cardVuotaAlta}>
-          <div style={txtF48Mb16}>🗑️</div>
-          <div style={txtF16Bold}>
+        <div style={stiliComuni.cardVuotaAlta}>
+          <div style={stiliComuni.txtF48Mb16}>🗑️</div>
+          <div style={stiliComuni.txtF16Bold}>
             Cestino vuoto
           </div>
-          <div style={txtF13Muted}>
+          <div style={stiliComuni.txtF13Muted}>
             I task eliminati appariranno qui. Potrai ripristinarli o rimuoverli definitivamente.
           </div>
         </div>
       ) : visible.length === 0 ? (
-        <div style={cardVuota}>
-          <div style={txtF36Mb12}>📭</div>
-          <div style={txtF14Bold}>
+        <div style={stiliComuni.cardVuota}>
+          <div style={stiliComuni.txtF36Mb12}>📭</div>
+          <div style={stiliComuni.txtF14Bold}>
             Nessun task nel periodo selezionato
           </div>
-          <button type="button" onClick={() => setPeriod("all")} style={btnGhostMini}>Mostra tutti</button>
+          <button type="button" onClick={() => setPeriod("all")} style={stiliComuni.btnGhostMini}>Mostra tutti</button>
         </div>
       ) : (
         /* Trash table */
-        <div style={card}>
-          <table style={tabella}>
+        <div style={stiliComuni.card}>
+          <table style={stiliComuni.tabella}>
             <thead>
-              <tr style={rigaIntestazione}>
+              <tr style={stiliComuni.rigaIntestazione}>
                 <th style={txtF11Bold2}>TASK</th>
                 <th style={txtF11Bold3}>CATEGORIA</th>
                 <th style={txtF11Bold3}>CLIENTE</th>
@@ -273,24 +268,24 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
                   <td style={padding3}>
                     <CategoryChip category={task.category} />
                   </td>
-                  <td style={cella}>
-                    {task.client || <span style={txtMuted}>—</span>}
+                  <td style={stiliComuni.cella}>
+                    {task.client || <span style={stiliComuni.txtMuted}>—</span>}
                   </td>
                   <td style={padding3}>
-                    <div style={rowGap4}>
+                    <div style={stiliComuni.rowGap4}>
                       {task.assignees?.length
                         ? task.assignees.map(id => <Avatar key={id} memberId={id} size={22} />)
-                        : <span style={txtF12Muted}>—</span>
+                        : <span style={stiliComuni.txtF12Muted}>—</span>
                       }
                     </div>
                   </td>
-                  <td style={cellaMuted}>
+                  <td style={stiliComuni.cellaMuted}>
                     {formatDate(task.deletedAt)}
                   </td>
-                  <td style={cellaAzioni}>
-                    <div style={rowGap62}>
-                      <button onClick={() => handleRestore(task)} title="Ripristina con modifica" style={btnNavyMini}>↻ Ripristina</button>
-                      <button onClick={() => handlePurge(task)} title="Elimina definitivamente" style={btnDangerMini}>✕</button>
+                  <td style={stiliComuni.cellaAzioni}>
+                    <div style={stiliComuni.rowGap62}>
+                      <button onClick={() => handleRestore(task)} title="Ripristina con modifica" style={stiliComuni.btnNavyMini}>↻ Ripristina</button>
+                      <button onClick={() => handlePurge(task)} title="Elimina definitivamente" style={stiliComuni.btnDangerMini}>✕</button>
                     </div>
                   </td>
                 </tr>
@@ -311,10 +306,10 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
 
       {/* ─── MODALE RIPRISTINO CON MODIFICA ───
           Il guscio (portale, overlay, Esc, blocco dello scroll di fondo,
-          role="dialog") arriva da ui/Modal.jsx. La card NON introduce transform:
+          role="dialog") arriva da ui/Modal.jsx. La stiliComuni.card NON introduce transform:
           dentro ci vive il backdrop mobile del DateTimePicker (campo SCADENZA),
           che con un antenato trasformato resterebbe confinato — e scrollabile —
-          dentro la card invece di coprire lo schermo.
+          dentro la stiliComuni.card invece di coprire lo schermo.
           `closeOnOverlay={false}`: qui si modificano otto campi prima di
           confermare, un click a lato non deve buttarli via. */}
       {restoring && (
@@ -335,7 +330,7 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
               <div id="vd-trash-restore-title" className="playfair" style={txtF18Bold}>↻ Ripristina task</div>
               <div style={txtF11Mt2}>Modifica i campi se necessario, poi conferma</div>
             </div>
-            <button onClick={chiudiRipristino} style={btnChiudiSuScuro}>✕</button>
+            <button onClick={chiudiRipristino} style={stiliComuni.btnChiudiSuScuro}>✕</button>
           </div>
 
           {/* Modal body */}
@@ -360,7 +355,7 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
             </div>
 
             {/* Categoria + Priorità */}
-            <div style={grid2ColGap12}>
+            <div style={stiliComuni.grid2ColGap12}>
               <div>
                 <label className="vd-field-label">CATEGORIA</label>
                 <select
@@ -388,7 +383,7 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
             </div>
 
             {/* Stato + Scadenza */}
-            <div style={grid2ColGap12}>
+            <div style={stiliComuni.grid2ColGap12}>
               <div>
                 <label className="vd-field-label">STATO</label>
                 <select
@@ -439,7 +434,7 @@ export const Trash = memo(function Trash({ dispatch, loading = false }) {
                       style={{
                         padding: "6px 12px", borderRadius: 99,
                         border: sel ? "2px solid var(--navy)" : "1px solid var(--border)",
-                        background: sel ? "var(--navy)" : "var(--card)",
+                        background: sel ? "var(--navy)" : "var(--stiliComuni.card)",
                         color: sel ? "#fff" : "var(--text)",
                         fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
                         display: "flex", alignItems: "center", gap: 5,

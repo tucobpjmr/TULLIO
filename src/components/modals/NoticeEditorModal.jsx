@@ -7,7 +7,7 @@ import { Modal } from "../ui/Modal.jsx";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { obbligatorio, validaCampi } from "../../lib/validators.js";
 import { useSalvataggio } from "../../hooks/useSalvataggio.js";
-import { rowGap8, rowGap8Mt20, txtF11Muted, txtHeadingMb16 } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -122,7 +122,7 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
       closeOnOverlay={false}
       cardStyle={{ borderRadius: 12, padding: 24, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}
     >
-      <h3 id="vd-notice-title" className="playfair" style={txtHeadingMb16}>
+      <h3 id="vd-notice-title" className="playfair" style={stiliComuni.txtHeadingMb16}>
         {notice ? "✏️ Modifica avviso" : "📌 Nuovo avviso"}
       </h3>
 
@@ -157,10 +157,10 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
       />
       <FieldError id="vd-notice-text-err">{errori.text}</FieldError>
       <div style={rowBetweenMt4}>
-        <span style={txtF11Muted}>
+        <span style={stiliComuni.txtF11Muted}>
           💡 Scrivi <b>@nome</b> per notificare un collega
         </span>
-        <span style={txtF11Muted}>{text.length}/500</span>
+        <span style={stiliComuni.txtF11Muted}>{text.length}/500</span>
       </div>
 
       {/* Colore */}
@@ -168,7 +168,7 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
         <div style={txtF11Bold}>
           Colore post-it
         </div>
-        <div style={rowGap8}>
+        <div style={stiliComuni.rowGap8}>
           {NOTICE_COLORS.map(c => (
             <div
               key={c}
@@ -228,7 +228,7 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
       <FieldError id="vd-notice-save-err">{erroreSalvataggio}</FieldError>
 
       {/* Footer buttons */}
-      <div style={rowGap8Mt20}>
+      <div style={stiliComuni.rowGap8Mt20}>
         <button onClick={onClose} style={boxF12Text}>Annulla</button>
         {/* Il bottone resta PREMIBILE anche a testo vuoto: è premendolo che si
             ottiene il messaggio sotto il campo e il focus dentro l'area di

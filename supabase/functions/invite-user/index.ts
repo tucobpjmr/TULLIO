@@ -6,35 +6,12 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireActiveAdmin } from "../_shared/requireActiveAdmin.ts";
+// A-4 dell'audit del 22 agosto: `safeRedirect` viveva qui come copia della
+// stessa regola di `_shared/cors.ts`, con lo stesso difetto in entrambe —
+// vedi il preambolo di originConsentite.ts. Ora la regola è una sola.
+import { redirectConsentito } from "../_shared/originConsentite.ts";
 
 const VALID_ROLES = new Set(["admin", "manager", "agent", "driver"]);
-
-// Origin consentiti per il link d'invito: produzione + preview Vercel del
-// progetto. Restituisce l'URL solo se valido, altrimenti undefined (Supabase
-// userà il Site URL configurato nel Dashboard).
-function safeRedirect(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
-  let u: URL;
-  try { u = new URL(value); } catch { return undefined; }
-  if (u.protocol !== "https:") return undefined;
-  const host = u.hostname.toLowerCase();
-  // Produzione.
-  if (host === "tullio-seven.vercel.app") return value;
-  // Preview deployment di QUESTO progetto: Vercel li serve come
-  // <project>-<hash>-<scope>.vercel.app, cioè un'unica label prima di
-  // ".vercel.app" che inizia con "tullio-". Il precedente check
-  // host.endsWith(".vercel.app") accettava QUALSIASI progetto Vercel (anche di
-  // terzi): un redirectTo manipolato avrebbe fatto arrivare il link d'invito
-  // — con il token d'accesso — a un dominio di phishing. Qui restringiamo alla
-  // sola famiglia di host del progetto ed escludiamo le label annidate (nessun
-  // punto extra) così "tullio-x.attacker.vercel.app" non passa.
-  const SUFFIX = ".vercel.app";
-  if (host.endsWith(SUFFIX)) {
-    const label = host.slice(0, -SUFFIX.length);
-    if (label.startsWith("tullio-") && !label.includes(".")) return value;
-  }
-  return undefined;
-}
 
 Deno.serve(async (req: Request) => {
   const cors = corsHeaders(req);
@@ -100,7 +77,7 @@ Deno.serve(async (req: Request) => {
     // Hardening: accettiamo SOLO la produzione e i preview *.vercel.app di
     // questo progetto. Senza whitelist un admin potrebbe (anche per errore)
     // far puntare il link d'invito a un dominio di phishing.
-    const redirectTo: string | undefined = safeRedirect(body.redirectTo);
+    const redirectTo: string | undefined = redirectConsentito(body.redirectTo);
 
     if (!email || (!resend && !name)) {
       return json({ error: "Email e nome sono obbligatori" }, 400);

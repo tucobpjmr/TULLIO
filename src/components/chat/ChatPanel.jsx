@@ -36,7 +36,7 @@ import { NewConversationView } from "./NewConversationView.jsx";
 import { ForwardPicker } from "./ForwardPicker.jsx";
 import { Z } from "../../styles/tokens.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
-import { btnChiudiSuScuro, rowCenterGap10, rowCenterGap8 } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -342,7 +342,7 @@ export const ChatPanel = memo(function ChatPanel({ open, onClose, conversations:
             "Online", ✏️ e ✕ restano tappabili (lo sfondo navy riempie comunque
             la zona della status bar). */}
         <div style={rowCenterBetween}>
-          <div style={rowCenterGap10}>
+          <div style={stiliComuni.rowCenterGap10}>
             <div style={rowCenterMiddle}>💬</div>
             <div>
               <div className="playfair" style={txtF15Bold}>
@@ -353,7 +353,7 @@ export const ChatPanel = memo(function ChatPanel({ open, onClose, conversations:
               </div>
             </div>
           </div>
-          <div style={rowCenterGap8}>
+          <div style={stiliComuni.rowCenterGap8}>
             {onToggleBusy && (
               <button
                 onClick={onToggleBusy}
@@ -377,7 +377,7 @@ export const ChatPanel = memo(function ChatPanel({ open, onClose, conversations:
                   width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 15,
                 }}>✏️</button>
             )}
-            <button onClick={onClose} style={btnChiudiSuScuro}>✕</button>
+            <button onClick={onClose} style={stiliComuni.btnChiudiSuScuro}>✕</button>
           </div>
         </div>
 

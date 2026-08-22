@@ -8,7 +8,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { getPushSupport, getPushState, enablePush, disablePush, syncPushSubscription, sendTestPush } from "../../lib/push.js";
-import { txtF13Bold, txtF16 } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -111,9 +111,9 @@ export const PushToggle = ({ dispatch }) => {
 
   return (
     <div style={rowStartGap10}>
-      <span style={txtF16}>📲</span>
+      <span style={stiliComuni.txtF16}>📲</span>
       <div className="vd-flex-1-min0">
-        <div style={txtF13Bold}>Notifiche push</div>
+        <div style={stiliComuni.txtF13Bold}>Notifiche push</div>
         <div style={txtF11Muted}>
           {status === "busy" ? "Attendere…" : PUSH_HINTS[status]}
         </div>

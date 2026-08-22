@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { ContactActions } from "../ui/ContactActions.jsx";
 import { notesPreview, parseClientNotes } from "../../lib/clientNotes.js";
 import { ListeChip } from "./ListeChip.jsx";
-import { rowGap4, txtF12Muted, txtF13 } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -61,7 +61,7 @@ export function ClienteCard({ cliente, onEdit, onDelete, onSelect, selected, lis
             </div>
             <div>
               <div style={txtF15Bold}>{cliente.name}</div>
-              {cliente.city && <div style={txtF12Muted}>{cliente.city}</div>}
+              {cliente.city && <div style={stiliComuni.txtF12Muted}>{cliente.city}</div>}
             </div>
           </div>
           <div style={rowGapMt6}>
@@ -75,7 +75,7 @@ export function ClienteCard({ cliente, onEdit, onDelete, onSelect, selected, lis
               </a>
             )}
             {cliente.phone && (
-              <ContactActions phone={cliente.phone} style={txtF13} />
+              <ContactActions phone={cliente.phone} style={stiliComuni.txtF13} />
             )}
           </div>
           {text && (
@@ -104,7 +104,7 @@ export function ClienteCard({ cliente, onEdit, onDelete, onSelect, selected, lis
             la RLS decideva davvero, senza che l'utente lo scoprisse. */}
         {(onEdit || onDelete) && (
           <div style={colEndGap6}>
-            <div style={rowGap4}>
+            <div style={stiliComuni.rowGap4}>
               {onEdit && <button onClick={() => onEdit(cliente)} style={boxF12Muted}>✏️</button>}
               {onDelete && <button onClick={() => onDelete(cliente)} style={boxF12Danger}>🗑️</button>}
             </div>

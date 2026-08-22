@@ -11,7 +11,7 @@ import { validateBackup } from "../../../lib/backupValidation.js";
 import { loadXLSX } from "../../../lib/xlsx.js";
 import { downloadFile, escapeCSV } from "../adminExport.js";
 import { useConfirm } from "../../../state/ConfirmContext.jsx";
-import { hidden } from "../../../styles/common.js";
+import * as stiliComuni from "../../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -177,7 +177,7 @@ export const AdminIOTab = ({ dispatch, agencyName, notices = [] }) => {
             {caricandoStorico ? "⏳ Caricamento storico…" : "⬇️ Esporta backup JSON"}
           </button>
           <button onClick={() => fileInputRef.current?.click()} style={btnWarning}>⬆️ Ripristina da backup</button>
-          <input ref={fileInputRef} type="file" accept=".json" onChange={importBackup} style={hidden} />
+          <input ref={fileInputRef} type="file" accept=".json" onChange={importBackup} style={stiliComuni.hidden} />
         </div>
         <div style={txtF11Danger}>
           ⚠️ Il ripristino sovrascrive completamente i dati correnti. Esporta prima un backup di sicurezza.

@@ -6,7 +6,7 @@ import { StatusBadge } from "../ui/StatusBadge.jsx";
 import { TaskRow } from "../tasks/TaskRow.jsx";
 import { formatDate, isActiveTask } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
-import { txtF12Muted } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -34,7 +34,7 @@ export function ClienteTaskTab({ cliente, tasks, dispatch }) {
   return (
     <>
       <div style={rowGap12Mb12}>
-        <span style={txtF12Muted}>
+        <span style={stiliComuni.txtF12Muted}>
           {open.length} aperti
         </span>
         <span style={txtF12Success}>

@@ -18,7 +18,7 @@ import { AddMovBox } from "./AddMovBox.jsx";
 import { CellEditor } from "./CellEditor.jsx";
 import { NoteInterne } from "./NoteInterne.jsx";
 import { TitoloTestata } from "./TitoloTestata.jsx";
-import { flex1, mt12 } from "../../styles/common.js";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -214,7 +214,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
         <button className="lv-btn" onClick={() => setRiepilogoOpen(true)}>Riepilogo cliente</button>
         <button className="lv-btn" onClick={copiaAgente}>Copia agente</button>
         <button className="lv-btn" onClick={toggleStato}>{attiva ? "Segna ESAURITA" : "Riapri lista"}</button>
-        <div style={flex1} />
+        <div style={stiliComuni.flex1} />
         <button className="lv-btn danger sm" onClick={cestina}>🗑 Cestina</button>
       </div>
 
@@ -287,7 +287,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
             {attiva && (
               <>
                 <br />
-                <button className="lv-btn primary" style={mt12} onClick={() => setAddOpen(true)}>
+                <button className="lv-btn primary" style={stiliComuni.mt12} onClick={() => setAddOpen(true)}>
                   <span className="plus">＋</span> Registra il primo
                 </button>
               </>

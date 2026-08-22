@@ -213,14 +213,25 @@ scrittura in `src/state/persistence.js` chiamano **le stesse funzioni**, e
 > su una policy di sicurezza»), sopravvissuta alla propria chiusura nella
 > tabella normativa invece che in un commento.
 >
-> ✅ **Allineato dalla migrazione `20260823090000_tasks_select_urgenti_altrui`**,
+> ✅ **ALLINEATO E VERIFICATO IN PRODUZIONE il 22 agosto 2026** dalle migrazioni
+> `20260822215237_tasks_select_urgenti_altrui` e `20260822215520_is_urgent_task_search_path`,
 > che aggiunge alla sola `tasks_select` il ramo `private.is_urgent_task(due_date,
 > status) AND can_view_global_queue()`, con `deleted_at is null`. ⛔ `tasks_update`
 > NON è stata toccata: «urgente ≠ modificabile» resta, ed è asserito per nome in
-> `src/test/permissions.test.js`. La riga qui sopra torna vera **nel momento in cui
-> quella migrazione è applicata** — committarla non è applicarla (vedi
-> `MIGRAZIONI_SUPABASE.md`), e finché non lo è questo riquadro resta il posto in
-> cui la differenza è scritta.
+> `src/test/permissions.test.js`.
+>
+> **Misurato impersonando utenti reali** (`set local role authenticated` +
+> `request.jwt.claims`, la procedura di `MIGRAZIONI_SUPABASE.md`), prima e dopo:
+>
+> | | prima | dopo |
+> |---|---:|---:|
+> | agent — task viste | 227 | **228** |
+> | agent — urgenti altrui ricevute | **0** | **1** |
+> | agent — righe modificabili su quella task | 0 | **0** |
+> | driver — task viste | 13 | 13 |
+>
+> La terza riga è quella che conta: la vede e non la tocca. La quarta è il
+> controllo positivo del confine — il driver resta fuori, come dice il client.
 >
 > Che la divergenza sia arrivata fin qui è A-2 dello stesso audit:
 > `src/test/integration/rls.test.js` esiste per accorgersene e non lo eseguiva

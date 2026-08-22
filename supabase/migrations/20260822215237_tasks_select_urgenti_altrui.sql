@@ -1,5 +1,16 @@
 -- A-1 dell'audit del 23 agosto 2026 — le urgenti altrui.
 --
+-- ⚠️ IL NOME DEL FILE PORTA IL TIMESTAMP CON CUI LA MIGRAZIONE È REGISTRATA
+-- in supabase_migrations.schema_migrations (20260822215237), non quello con
+-- cui era stata scritta (20260823090000). È la regola di
+-- docs/MIGRAZIONI_SUPABASE.md e non è cosmetica: la CLI decide cosa applicare
+-- confrontando i prefissi di versione dei file con quella tabella, quindi un
+-- file il cui timestamp non compare lì risulta «da applicare» anche quando il
+-- suo contenuto è già vivo sul database. Su questo progetto 56 file sono già
+-- in quella condizione ed è il motivo per cui `supabase db push` è vietato:
+-- rigiocherebbe in blocco 56 migrazioni sulla produzione. Questo file non è
+-- il 57°.
+--
 -- IL DISALLINEAMENTO. `canViewTask` (src/lib/permissions.js:131) concede a un
 -- non-admin la visione di QUALUNQUE task urgente, anche assegnata ad altri:
 --
@@ -70,6 +81,10 @@ create or replace function private.is_urgent_task(p_due timestamptz, p_status te
 returns boolean
 language sql
 stable
+-- ⚠️ `set search_path` aggiunto subito dopo dalla 20260822215520: senza,
+-- l'advisor accende `function_search_path_mutable`, che non è in
+-- AVVISI_ACCETTATI e avrebbe reso rosso verifica:advisor. Vedi quel file.
+set search_path = ''
 as $$
   select p_due is not null
      and p_status is distinct from 'done'

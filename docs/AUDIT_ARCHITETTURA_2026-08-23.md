@@ -50,7 +50,7 @@ smetteranno di reggere.**
 | # | Priorità | Area | Rilievo | Dove |
 |---|---|---|---|---|
 | **C** | 🔴 Critica | — | **Nessuno.** Constatazione verificata, non assenza di ricerca | — |
-| **A-1** ✔ | 🟠 Alta | Sicurezza / Correttezza | ✅ **verificato in produzione e corretto nel repo.** `canViewTask` concede le urgenti altrui, `tasks_select` no: client, test e `SICUREZZA.md` concordano fra loro e **tutti e tre divergono dal database**. Migrazione `20260823090000` — ⚠️ da applicare | `src/lib/permissions.js:131` |
+| **A-1** ✔ | 🟠 Alta | Sicurezza / Correttezza | ✅ **verificato in produzione e corretto nel repo.** `canViewTask` concede le urgenti altrui, `tasks_select` no: client, test e `SICUREZZA.md` concordano fra loro e **tutti e tre divergono dal database**. Migrazioni `20260822215237` + `20260822215520` ✅ **applicate e verificate in produzione** | `src/lib/permissions.js:131` |
 | **A-2** ✔ | 🟠 Alta | Sicurezza / Ops | ✅ **chiuso.** Il **solo** test che attraversa il confine di rete non veniva eseguito da nessuno. Ora `.github/workflows/rls.yml` + `RLS_TEST_REQUIRED` (lo skip solleva nel job che esiste per eseguirlo) + il caso di A-1 | `src/test/integration/rls.test.js` |
 | ~~**A-3**~~ | ⬜ **RITIRATO** | — | **Il rilievo era sbagliato.** Entrambi gli script emettono già un'annotation `::warning` sul percorso inconcludente (aggiunta come A-2 il 12 agosto), e dai log del run reale nessuno dei due sta tacendo. Vedi la sezione, riscritta | — |
 | **M-1** | 🟡 Media | Documentazione | L'audit del 22 agosto — che ha chiuso un rilievo **critico** — non ha un documento: fuori da `INDEX.md` e fuori dal registro di `verifica:convenzioni` | `docs/` |
@@ -73,7 +73,7 @@ smetteranno di reggere.**
 > è scritta di conseguenza.
 >
 > **Direzione scelta: allargare il database** (strada 1). Migrazione
-> `supabase/migrations/20260823090000_tasks_select_urgenti_altrui.sql`, che
+> `supabase/migrations/20260822215237_tasks_select_urgenti_altrui.sql`, che
 > aggiunge `private.is_urgent_task()` e il quinto ramo alla sola
 > `tasks_select`. ⛔ `tasks_update` non è toccata.
 >
@@ -82,11 +82,30 @@ smetteranno di reggere.**
 > — cioè una riga sola diventerebbe visibile agli agent oggi. Nessuna
 > collisione sul nome `private.is_urgent_task`.
 >
-> ⚠️ **La migrazione è committata, NON applicata.** Su questo progetto sono due
-> cose diverse e la differenza è già costata (vedi `MIGRAZIONI_SUPABASE.md`: le
-> due migrazioni di hardening delle Liste sono rimaste in `main` e non sul
-> database per giorni). Va applicata da SQL Editor o `apply_migration`, mai con
-> `db push`, e registrata in `schema_migrations`.
+> ✅ **APPLICATA E VERIFICATA IN PRODUZIONE** il 22 agosto, seguendo i quattro
+> passi di `MIGRAZIONI_SUPABASE.md`. Misurato impersonando utenti reali, prima
+> e dopo: l'agent passa da **227 a 228** task viste e da **0 a 1** urgenti
+> altrui — esattamente la riga prevista dalla misura in sola lettura fatta
+> prima di scrivere la migrazione. Il driver resta a 13, e sulla task nuova
+> l'agent modifica **0 righe**: la vede e non la tocca.
+>
+> ⚠️ **Il passo 4 ha trovato una regressione mia.** Gli advisor hanno acceso
+> `function_search_path_mutable` su `private.is_urgent_task`: l'undicesimo WARN,
+> l'unico nuovo, e l'unico fuori da `AVVISI_ACCETTATI` — cioè `verifica:advisor`
+> sarebbe diventato rosso al primo run su `main`, per colpa della migrazione che
+> chiudeva A-1. Chiusa da `20260822215520` (`set search_path = ''`), advisor
+> tornati a 10 WARN tutti accettati. Vale la pena notarlo: `apply_migration`
+> aveva risposto `success`, la policy funzionava e il dry-run per ruolo dava i
+> numeri attesi. Tre verifiche superate e una regressione lo stesso, trovata
+> solo dalla quarta.
+>
+> ⚠️ **I file portano il timestamp con cui le migrazioni sono REGISTRATE**
+> (`20260822215237`, `20260822215520`), non quello con cui erano state scritte
+> (`20260823090000`). È la regola di `MIGRAZIONI_SUPABASE.md`: la CLI confronta
+> i prefissi dei file con `schema_migrations`, e un file la cui versione non
+> compare lì risulta «da applicare» anche se il contenuto è già vivo. Su questo
+> progetto 56 file sono già così ed è il motivo per cui `db push` è vietato.
+> Questi due non sono il 57° e il 58°.
 
 ### Il rilievo, come è stato trovato
 

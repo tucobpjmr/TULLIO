@@ -254,7 +254,7 @@ suite("RLS: la matrice di autorizzazione è applicata dal database, non solo dal
       const { data, error } = await junior.client
         .from("tasks").select("id").eq("id", taskId);
       expect(error).toBeNull();
-      // Prima della migrazione 20260823090000 questa riga era 0: la policy
+      // Prima della migrazione 20260822215237 questa riga era 0: la policy
       // non aveva il ramo urgenza, e la scorciatoia «contatta l'assegnatario»
       // di UrgentQueue.jsx non compariva mai a un agent.
       expect(data).toHaveLength(1);

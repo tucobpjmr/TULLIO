@@ -109,3 +109,16 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: npm run verifica:advisor
+
+      # M-2 dell'audit del 23 agosto. Stesso token del passo precedente: le
+      # soglie di scalabilità del progetto (ST-4 passo 2 su `messages`, e le
+      # altre tre) erano condizioni su dati di PRODUZIONE scritte dentro
+      # documenti, e nessuno dei controlli esistenti guarda i dati — questo
+      # repository sa misurare solo se stesso. Rosso qui non vuol dire «rotto»:
+      # vuol dire che una decisione presa quando la tabella era piccola è
+      # arrivata al punto in cui era previsto rivederla.
+      - name: Verifica le soglie di scalabilità sui volumi di produzione
+        if: always()
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: npm run verifica:volumi

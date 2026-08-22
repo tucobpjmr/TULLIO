@@ -14,7 +14,14 @@ livelli fra loro** invece che ciascuno con se stesso: `src/lib/permissions.js`,
 È da quel confronto che nasce il rilievo principale, e non è un caso: è
 l'unico controllo che nessuno strumento di questo repository esegue.
 
-⟦stato: 0/9 chiusi⟧
+⟦stato: 3/9 chiusi⟧
+
+> **Aggiornamento del 23 agosto, stessa sessione.** A-1, A-2 e M-2 sono stati
+> chiusi nel repository (A-1 attende l'applicazione della migrazione in
+> produzione). **A-3 è stato RITIRATO**: era sbagliato — vedi la sua sezione,
+> che è stata riscritta invece di essere cancellata. Al suo posto resta B-5,
+> molto più piccolo. Il conteggio 3/9 tiene A-3 fra i rilievi perché ritirarlo
+> è esso stesso un esito da poter rileggere.
 
 ## Stato misurato, non riferito
 
@@ -43,19 +50,45 @@ smetteranno di reggere.**
 | # | Priorità | Area | Rilievo | Dove |
 |---|---|---|---|---|
 | **C** | 🔴 Critica | — | **Nessuno.** Constatazione verificata, non assenza di ricerca | — |
-| **A-1** | 🟠 Alta | Sicurezza / Correttezza | `canViewTask` concede le urgenti altrui, la policy `tasks_select` no: client, test e `SICUREZZA.md` concordano fra loro e **tutti e tre divergono dal database** | `src/lib/permissions.js:131` |
-| **A-2** | 🟠 Alta | Sicurezza / Ops | Il **solo** test che attraversa il confine di rete non viene eseguito da nessuno: nessun job CI, nessuna credenziale | `src/test/integration/rls.test.js` |
-| **A-3** | 🟠 Alta | Sicurezza / Ops | Tre controlli di sicurezza escono **0 anche quando non verificano nulla**: verde e verificato sono lo stesso segno | `scripts/verifica-advisor/`, `scripts/verifica-redirect/` |
+| **A-1** ✔ | 🟠 Alta | Sicurezza / Correttezza | ✅ **verificato in produzione e corretto nel repo.** `canViewTask` concede le urgenti altrui, `tasks_select` no: client, test e `SICUREZZA.md` concordano fra loro e **tutti e tre divergono dal database**. Migrazione `20260823090000` — ⚠️ da applicare | `src/lib/permissions.js:131` |
+| **A-2** ✔ | 🟠 Alta | Sicurezza / Ops | ✅ **chiuso.** Il **solo** test che attraversa il confine di rete non veniva eseguito da nessuno. Ora `.github/workflows/rls.yml` + `RLS_TEST_REQUIRED` (lo skip solleva nel job che esiste per eseguirlo) + il caso di A-1 | `src/test/integration/rls.test.js` |
+| ~~**A-3**~~ | ⬜ **RITIRATO** | — | **Il rilievo era sbagliato.** Entrambi gli script emettono già un'annotation `::warning` sul percorso inconcludente (aggiunta come A-2 il 12 agosto), e dai log del run reale nessuno dei due sta tacendo. Vedi la sezione, riscritta | — |
 | **M-1** | 🟡 Media | Documentazione | L'audit del 22 agosto — che ha chiuso un rilievo **critico** — non ha un documento: fuori da `INDEX.md` e fuori dal registro di `verifica:convenzioni` | `docs/` |
-| **M-2** | 🟡 Media | Scalabilità | `Messages.listAll(2000)` rilegge il corpus chat intero a ogni evento realtime; la soglia che dovrebbe farlo cambiare è scritta in un documento che nessuno misura | `src/lib/api.js:634` |
+| **M-2** ✔ | 🟡 Media | Scalabilità | ✅ **chiuso.** La soglia era in un documento che nessuno misurava: ora `npm run verifica:volumi` (4 soglie, in `verifica-rpc.yml`) la legge dalla produzione | `src/lib/api.js:634` |
 | **B-1** | 🟢 Bassa | Architettura | Il `saldo` di una lista è definito due volte: esatto nel database, in virgola mobile nel client — ed è la copia client quella che finisce nei documenti che escono | `src/components/liste/ListaDetail.jsx:78` |
 | **B-2** | 🟢 Bassa | Sicurezza | CVE `xlsx` 0.18.5 — sesta conferma del blocco CDN. Resta aperto e mitigato | `src/lib/xlsx.js` |
 | **B-3** | 🟢 Bassa | Struttura | `ProfileEditor.jsx`: 12 `useState` in 530 righe, il residuo di B-3 del 15 agosto | `src/components/modals/ProfileEditor.jsx` |
 | **B-4** | 🟢 Bassa | Sicurezza | Header: manca `Cross-Origin-Embedder-Policy`, la CSP non ha un canale di report | `vercel.json` |
+| **B-5** | 🟢 Bassa | Ops | Ciò che resta di A-3 dopo il ritiro: un controllo inconcludente non **escala**: alla ventesima volta di fila ha lo stesso aspetto della prima | `scripts/verifica-*/` |
 
 ---
 
-## 🟠 A-1 · Le urgenti altrui: tre livelli d'accordo fra loro e in disaccordo col database
+## 🟠 A-1 · Le urgenti altrui — ✅ verificato in produzione e corretto nel repo
+
+> **Chiusura del 23 agosto.** La divergenza è stata **verificata leggendo
+> `pg_policy` sul database di produzione**, non dedotta dai file di migrazione:
+> `tasks_select` ha quattro rami e nessuno sull'urgenza. La lettura ha anche
+> corretto un dettaglio che il repository sbaglia — gli helper vivono in
+> `private.`, non in `public.` come dicono i file più vecchi — e la migrazione
+> è scritta di conseguenza.
+>
+> **Direzione scelta: allargare il database** (strada 1). Migrazione
+> `supabase/migrations/20260823090000_tasks_select_urgenti_altrui.sql`, che
+> aggiunge `private.is_urgent_task()` e il quinto ramo alla sola
+> `tasks_select`. ⛔ `tasks_update` non è toccata.
+>
+> **Raggio d'azione misurato prima di scrivere**, in sola lettura sulla
+> produzione: 3 task urgenti in questo momento, di cui **1 assegnata ad altri**
+> — cioè una riga sola diventerebbe visibile agli agent oggi. Nessuna
+> collisione sul nome `private.is_urgent_task`.
+>
+> ⚠️ **La migrazione è committata, NON applicata.** Su questo progetto sono due
+> cose diverse e la differenza è già costata (vedi `MIGRAZIONI_SUPABASE.md`: le
+> due migrazioni di hardening delle Liste sono rimaste in `main` e non sul
+> database per giorni). Va applicata da SQL Editor o `apply_migration`, mai con
+> `db push`, e registrata in `schema_migrations`.
+
+### Il rilievo, come è stato trovato
 
 **Dove.** `src/lib/permissions.js:131`, `supabase/migrations/20260630075528_tasks_global_queue_agent_visibility.sql:35`, `docs/SICUREZZA.md:197`, `src/test/permissions.test.js:136`.
 
@@ -208,7 +241,36 @@ divergenza nascerà nello stesso silenzio.
 
 ---
 
-## 🟠 A-2 · Il solo test che attraversa il confine non lo esegue nessuno
+## 🟠 A-2 · Il solo test che attraversa il confine non lo esegue nessuno — ✅ chiuso
+
+> **Chiusura del 23 agosto.** `.github/workflows/rls.yml` esegue `npm run
+> test:rls` su `main`, ogni notte alle 7:00 UTC e a richiesta.
+>
+> La metà che conta è che **lo skip non possa passare inosservato dentro il job
+> che esiste per eseguirlo**: `RLS_TEST_REQUIRED=1`, impostato solo da quel
+> workflow, fa SOLLEVARE il file invece di lasciarlo skippare.
+>
+> ⚠️ Il segnale non è `process.env.CI`, ed è un errore che ho fatto e corretto
+> mentre scrivevo: su `CI` la guardia avrebbe fatto fallire anche `ci.yml`, che
+> esegue `npm test` — l'intera suite, questo file compreso — senza avere né
+> volere le credenziali dello staging. Si sarebbe rotta la CI esistente per
+> difendere un job diverso. Il permesso di saltare non dipende dall'essere in
+> CI: dipende da CHI sta eseguendo.
+>
+> Alla suite si aggiunge il caso di A-1 (3 asserzioni), scritto per misurare
+> l'INVARIANTE e non l'atteso di oggi: «il database concede ciò che
+> `canViewTask` concede». Se un domani si scegliesse di restringere il client,
+> si aggiorna in un punto solo e continua a misurare la cosa giusta. Porta con
+> sé il gemello negativo (l'agent la vede ma non la modifica) e il controllo
+> positivo del confine (il driver non la riceve).
+>
+> ⚠️ **Resta un prerequisito che non è codice**: i sei segreti di staging. Finché
+> non ci sono, il job è **rosso** — deliberatamente, e non con la scelta di
+> `verifica-advisor`, che esce 0 con un warning quando manca il suo token. Là il
+> controllo era nuovo e non poteva rendere rosso un workflow altrui; qui il
+> workflow è suo e non ha altro da fare.
+
+### Il rilievo
 
 **Dove.** `src/test/integration/rls.test.js`, `package.json:14`, `.github/workflows/ci.yml`.
 
@@ -340,86 +402,57 @@ it("l'agent riceve davvero le urgenti altrui che canViewTask gli concede", async
 
 ---
 
-## 🟠 A-3 · Verde e verificato sono lo stesso segno
+## ⬜ A-3 · RITIRATO — il rilievo era sbagliato
 
-**Dove.** `scripts/verifica-advisor/index.js:47,56`, `scripts/verifica-redirect/index.js:84,104,112`.
+**Cosa avevo scritto.** Che `verifica:advisor` e `verifica:redirect` escono `0`
+quando non concludono e che «su GitHub Actions verde e verificato sono lo stesso
+segno», proponendo di aggiungere annotazioni e riepilogo di job.
 
-**Il fatto.** Due dei quattro passi di `verifica-rpc.yml` escono `0` anche
-quando non hanno verificato nulla:
-
-```js
-// verifica-advisor/index.js:47
-console.log('⚠  SUPABASE_ACCESS_TOKEN non configurato: controllo advisor saltato.');
-…
-process.exit(0);
-```
+**Perché è sbagliato.** Entrambi gli script **emettono già** un'annotation
+`::warning` su ogni percorso inconcludente, e il commento che sta lì accanto
+porta esattamente il ragionamento che avevo presentato come scoperta:
 
 ```js
-// verifica-redirect/index.js:107
-if (stato === 'inconcludente') { … process.exit(0); }
+// scripts/verifica-advisor/index.js
+// Annotazione GitHub (A-2, audit del 12 agosto): compare in cima al run e
+// nel riepilogo della PR. Senza, "saltato" e "passato" hanno lo stesso
+// aspetto nell'interfaccia — ed è così che questo controllo è rimasto
+// inerte per giorni dopo essere stato aggiunto, senza che nessuno se ne
+// accorgesse: l'exit 0 silenzioso restava indistinguibile da un successo.
+console.log('::warning title=Advisor non verificati::' + …);
 ```
 
-La scelta è motivata nel codice ed è ragionevole in sé: un controllo che non
-può concludere non deve dichiarare un guasto. Ma l'esito arriva su GitHub
-Actions come **un segno di spunta verde indistinguibile** da quello di un
-controllo che ha guardato e non ha trovato niente. Chi apre la pagina del
-workflow legge «verificato» in entrambi i casi.
+`verifica-redirect` ne ha due, una per ciascun ramo inconcludente. Il difetto
+che credevo aperto era stato chiuso undici giorni prima, con la stessa
+argomentazione.
 
-**Perché è alta e non media.** `verifica:redirect` è il controllo nato per
-**C-1 del 22 agosto**, cioè per il rilievo *critico* di takeover di account: è
-il solo che guardi un valore che nel repository non c'è (la allow-list vive
-solo nella dashboard Supabase, ed è per questo che ci è rimasto dentro un
-`*.vercel.app/**` per due mesi senza che nulla lo dicesse). Se domani la sonda
-diventasse permanentemente inconcludente — GoTrue cambia forma di risposta, la
-chiave anon ruota, la rete cade — quel critico tornerebbe **senza sorveglianza
-e con la CI verde**, che è esattamente lo stato da cui il progetto è appena
-uscito.
+**E non stavano nemmeno tacendo.** Dai log del run `32597456084` (push su
+`main`, 22 agosto 20:42 UTC): `SUPABASE_ACCESS_TOKEN` è configurato, l'advisor
+ha girato davvero — `0 errori, 0 avvisi non accettati, 10 avvisi motivati (16
+lint totali)` — e `verifica:redirect` ha concluso in positivo: *«il canarino
+tullio-canarino-allowlist.vercel.app è stato rifiutato e GoTrue è ripiegato sul
+Site URL»*. Nessuno dei due percorsi che avevo descritto era in uso.
 
-**La correzione.** Non è far fallire il job — l'inconcludenza resta un esito
-legittimo. È **renderla visibile** e **farla scadere**:
+**Come è nato l'errore, perché è quello che conta.** Ho letto i due rami
+`process.exit(0)`, non ho letto le tre righe sopra di essi, e non ho verificato
+se quei rami fossero mai presi. Cioè ho dedotto lo stato di un sistema in
+esecuzione dal solo sorgente — la stessa cosa che questo audit contesta al
+progetto in A-1, e che `MIGRAZIONI_SUPABASE.md` dice in una riga: «il codice
+corretto in repo non è una garanzia — conta solo ciò che è applicato».
 
-```js
-// scripts/verifica-redirect/index.js
-//
-// A-3 dell'audit del 23 agosto. Uscire 0 quando il controllo non ha potuto
-// concludere è la scelta giusta (un controllo che non ha guardato non deve
-// dichiarare un guasto), ma su GitHub Actions produceva lo stesso segno verde
-// di un controllo riuscito. La distinzione ora esiste in due punti: nel
-// riepilogo del job, che una persona legge, e in un annotation di warning.
-const annota = (livello, testo) => {
-  console.log(`::${livello}::${testo}`);
-  if (process.env.GITHUB_STEP_SUMMARY) {
-    appendFileSync(process.env.GITHUB_STEP_SUMMARY,
-      `### ⚠️ Redirect URL — **NON VERIFICATO**\n\n${testo}\n`);
-  }
-};
+⛔ La sezione resta qui invece di essere cancellata. Un rilievo ritirato in
+silenzio è indistinguibile da uno mai fatto, e il registro di
+`verifica:convenzioni` conta i rilievi: cancellarlo cambierebbe un numero che
+qualcun altro ha già letto.
 
-if (stato === 'inconcludente') {
-  annota('warning',
-    'verifica:redirect inconcludente: la allow-list dei Redirect URL NON è ' +
-    'stata verificata in questa esecuzione. È il controllo di C-1 (takeover ' +
-    'di account, audit del 22 agosto): due esecuzioni inconcludenti di fila ' +
-    'vanno trattate come un guasto del controllo, non come rumore.');
-  process.exit(0);
-}
-```
-
-più, nel workflow, un passo finale che **non** sia condizionato dai precedenti
-e riassuma che cosa è stato davvero verificato:
-
-```yaml
-      - name: Riepilogo — che cosa è stato verificato davvero
-        if: always()
-        run: |
-          echo "## Verifica RPC — esito per controllo" >> "$GITHUB_STEP_SUMMARY"
-          echo "Un ✅ qui sopra NON significa 'verificato': i controlli advisor e" >> "$GITHUB_STEP_SUMMARY"
-          echo "redirect escono 0 anche quando non hanno potuto concludere (A-3)." >> "$GITHUB_STEP_SUMMARY"
-          echo "Le righe ⚠️ sopra dicono quali." >> "$GITHUB_STEP_SUMMARY"
-```
-
-Stesso trattamento per `verifica-advisor/index.js:47`.
-
----
+**Cosa sopravvive**, molto più piccolo, come **B-5 (Bassa)**: nessuno dei due
+controlli **escala**. Un'annotation di warning alla ventesima esecuzione
+inconcludente di fila ha lo stesso aspetto della prima, e nulla trasforma un
+controllo di sicurezza permanentemente cieco in un fallimento. È ipotetico
+oggi — nessuno dei due è inconcludente — ed è per questo che è Bassa e non
+Alta. La forma della correzione sarebbe un contatore di esecuzioni
+inconcludenti consecutive, che però richiede uno stato fra i run: non è
+gratis, e a fronte di un rischio ipotetico va deciso, non fatto.
 
 ## 🟡 M-1 · L'audit del 22 agosto non ha lasciato un documento
 
@@ -464,7 +497,33 @@ aggiungerlo al registro:
 
 ---
 
-## 🟡 M-2 · Il corpus chat intero a ogni evento, con la soglia affidata a un documento
+## 🟡 M-2 · La soglia affidata a un documento — ✅ chiuso
+
+> **Chiusura del 23 agosto.** `npm run verifica:volumi`
+> (`scripts/verifica-volumi/`), quinto passo di `verifica-rpc.yml`.
+>
+> ⛔ **Non ho toccato `Messages.listAll`**, ed è il punto: la decisione è
+> corretta oggi — `messages` ha **13 righe**, misurate in produzione. Il rilievo
+> non era la decisione, era il suo innesco. Ora l'innesco esiste.
+>
+> Quattro soglie, ciascuna con il proprio *perché* e *rimedio* accanto al numero
+> (`messages` 1500 da ST-4 passo 2, `task_history` 5000, `clients` 3000,
+> `movimenti_lista` 50000). Sui volumi reali di stasera: 1%, 14%, 29%, 12% —
+> verde, e con i margini leggibili invece che ignoti.
+>
+> ⚠️ Legge dalla **Management API** con lo stesso `SUPABASE_ACCESS_TOKEN` di
+> `verifica:advisor`, non da una nuova RPC concessa ad `anon`. L'alternativa
+> sarebbe stata modellata su `get_migrazioni_applicate()`, ma quella espone nomi
+> di file già pubblici nel repository, mentre questa esporrebbe quante pratiche,
+> quanti clienti e quanti movimenti contabili ha l'agenzia. Un controllo interno
+> non deve allargare la superficie pubblica per potersi eseguire.
+>
+> ⛔ Una tabella attesa e **non misurata non vale zero**: finisce fra le
+> `mancanti` e il controllo si dichiara non concludente su di essa. Trattarla
+> come zero farebbe passare il controllo proprio quando ha smesso di guardare —
+> `src/test/verificaVolumi.test.js` ha il caso, con il suo gemello positivo.
+
+### Il rilievo
 
 **Dove.** `src/lib/api.js:605-641`, `src/hooks/useChatData.js`.
 

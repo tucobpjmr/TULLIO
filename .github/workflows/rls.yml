@@ -1,0 +1,77 @@
+name: Verifica RLS
+
+# A-2 dell'audit del 23 agosto 2026.
+#
+# `src/test/integration/rls.test.js` è il SOLO test del progetto che attraversi
+# il confine di rete: tutti gli altri verificano che il client si comporti
+# bene, mai che il database rifiuti chi il client non ferma. La matrice di
+# autorizzazione è scritta due volte — `src/lib/permissions.js` e le funzioni
+# `private.*` con le policy — e quel file esiste per accorgersi di quando le due
+# copie divergono.
+#
+# Non lo eseguiva nessuno. Senza `RLS_TEST_URL` il file si auto-skippa, e in una
+# suite da 132 file un solo skipped non si vede: `ci.yml` risultava verde con il
+# controllo inerte. Nel frattempo le due copie ERANO divergenti (A-1: il client
+# concedeva all'agent le urgenti altrui, `tasks_select` non gliele mandava), e a
+# trovarlo è stata la lettura a mano di tre file contro `pg_policy`.
+#
+# ── PERCHÉ UN WORKFLOW A PARTE, E NON UN PASSO IN ci.yml ────────────────────
+# Come `verifica-rpc.yml`, questo job tocca un database vero. Su pull request
+# il codice precede legittimamente le migrazioni — una policy nuova aggiunta in
+# una PR non è ancora applicata — e il job diventerebbe rosso per un motivo
+# giusto nel momento sbagliato. Gira quindi su `main`, di notte, e a richiesta.
+#
+# ── ⚠️ RLS_TEST_URL DEVE PUNTARE A UNO STAGING ─────────────────────────────
+# Mai alla produzione, e non è prudenza generica: i casi negativi inseriscono
+# righe di sonda che RESTANO nella tabella proprio quando falliscono, cioè
+# quando una policy che doveva rifiutare non ha rifiutato. Su produzione
+# sarebbero dati sporchi in mezzo a quelli veri, prodotti dal controllo che
+# doveva proteggerli. Il setup dello staging (tre utenti, un ruolo ciascuno) è
+# in cima a src/test/integration/rls.test.js.
+#
+# ── FINCHÉ I SEGRETI NON CI SONO ────────────────────────────────────────────
+# `RLS_TEST_REQUIRED=1` fa SOLLEVARE il file invece di lasciarlo skippare: il
+# job è rosso finché lo staging non è configurato. È deliberato e non è la
+# scelta di `verifica-advisor` (che esce 0 con un warning quando manca il suo
+# token): là il controllo era nuovo e non poteva rendere rosso un workflow
+# altrui, qui il workflow è SUO e non ha altro da fare. Un job verde che non ha
+# eseguito nulla è esattamente il difetto che questo file chiude.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/lib/permissions.js'
+      - 'src/state/persistence.js'
+      - 'supabase/migrations/**'
+      - 'src/test/integration/**'
+      - '.github/workflows/rls.yml'
+  schedule:
+    - cron: '0 7 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  rls:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+
+      - name: Il database rifiuta ciò che il client non ferma
+        env:
+          # Vedi il preambolo: senza questi, il passo FALLISCE invece di
+          # saltare. È il punto dell'intero workflow.
+          RLS_TEST_REQUIRED: '1'
+          RLS_TEST_URL: ${{ secrets.RLS_TEST_URL }}
+          RLS_TEST_ANON_KEY: ${{ secrets.RLS_TEST_ANON_KEY }}
+          RLS_TEST_DRIVER_EMAIL: ${{ secrets.RLS_TEST_DRIVER_EMAIL }}
+          RLS_TEST_DRIVER_PASSWORD: ${{ secrets.RLS_TEST_DRIVER_PASSWORD }}
+          RLS_TEST_JUNIOR_EMAIL: ${{ secrets.RLS_TEST_JUNIOR_EMAIL }}
+          RLS_TEST_JUNIOR_PASSWORD: ${{ secrets.RLS_TEST_JUNIOR_PASSWORD }}
+          RLS_TEST_PENDING_EMAIL: ${{ secrets.RLS_TEST_PENDING_EMAIL }}
+          RLS_TEST_PENDING_PASSWORD: ${{ secrets.RLS_TEST_PENDING_PASSWORD }}
+        run: npm run test:rls

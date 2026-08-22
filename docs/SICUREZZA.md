@@ -195,6 +195,37 @@ scrittura in `src/state/persistence.js` chiamano **le stesse funzioni**, e
 | Operazione | Admin | Manager | Senior Agent | Junior Agent | Driver |
 |------------|:-----:|:-------:|:------------:|:------------:|:------:|
 | Vede task | tutti | propri + coda globale + urgenti | propri + coda globale + urgenti | propri + coda globale + urgenti | solo propri |
+
+> ⚠️ **La riga «urgenti» è stata falsa fino al 23 agosto**, ed è il rilievo A-1
+> di quell'audit. `canViewTask` (`src/lib/permissions.js:131`) concedeva le
+> task urgenti altrui, ma `tasks_select` non aveva quel ramo: letta dal
+> database di produzione era `is_manager_or_admin() OR uid = ANY(assignees) OR
+> created_by = uid OR (cardinality(assignees)=0 AND can_view_global_queue())`.
+> Per admin e manager il ramo è ininfluente (ricevono tutto comunque) e il
+> driver non lo raggiunge: l'unico ruolo in cui decideva qualcosa era
+> l'**agent**, ed era l'unico a cui la riga non arrivava mai. La scorciatoia
+> «contatta l'assegnatario» di `UrgentQueue.jsx` non è mai comparsa a nessuno.
+>
+> Il database era il livello più STRETTO, quindi non è mai stato un buco di
+> sicurezza — ma questa tabella affermava una capacità che non esisteva, su tre
+> colonne su cinque. È la stessa classe di difetto di M-4 dell'audit del 15
+> agosto («il commento è diventato la specifica e ha già divergito dal database
+> su una policy di sicurezza»), sopravvissuta alla propria chiusura nella
+> tabella normativa invece che in un commento.
+>
+> ✅ **Allineato dalla migrazione `20260823090000_tasks_select_urgenti_altrui`**,
+> che aggiunge alla sola `tasks_select` il ramo `private.is_urgent_task(due_date,
+> status) AND can_view_global_queue()`, con `deleted_at is null`. ⛔ `tasks_update`
+> NON è stata toccata: «urgente ≠ modificabile» resta, ed è asserito per nome in
+> `src/test/permissions.test.js`. La riga qui sopra torna vera **nel momento in cui
+> quella migrazione è applicata** — committarla non è applicarla (vedi
+> `MIGRAZIONI_SUPABASE.md`), e finché non lo è questo riquadro resta il posto in
+> cui la differenza è scritta.
+>
+> Che la divergenza sia arrivata fin qui è A-2 dello stesso audit:
+> `src/test/integration/rls.test.js` esiste per accorgersene e non lo eseguiva
+> nessun workflow. Ora c'è `.github/workflows/rls.yml`, e il caso «l'agent
+> riceve la task urgente di un collega» è dentro quel file.
 | Modifica task | tutti | propri + coda globale | propri + coda globale | **solo assegnati** | solo transfer (propri o in coda) |
 | Crea categoria task | tutte | tutte | tutte | tutte **tranne** payment e admin | solo transfer |
 | Vista Admin | ✅ | ❌ | ❌ | ❌ | ❌ |

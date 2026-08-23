@@ -1,6 +1,7 @@
 // src/components/modals/bulk/TemplateTab.jsx
 // Generazione da template: una serie di task a partire dalla data di un evento.
 import { useEffect, useRef, useState } from "react";
+import { useSalvataggio } from "../../../hooks/useSalvataggio.js";
 import { PriorityBadge } from "../../ui/PriorityBadge.jsx";
 import { TASK_TEMPLATES } from "../../../lib/taskConstants.js";
 import { clientContact } from "../../../lib/taskUtils.js";
@@ -50,13 +51,6 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
   const [defaultAssignee, setDefaultAssignee] = useState("");
   const [praticaRef, setPraticaRef] = useState("");
   const [contact, setContact] = useState("");
-  // Il freno vero al doppio invio è `busyRef`, non lo stato `busy` (stesso
-  // caso descritto in hooks/useSalvataggio.js): fra due tap ravvicinati sul
-  // bottone React può non aver ancora ri-renderizzato il bottone disabilitato,
-  // e un controllo basato solo sullo stato lascia partire due serie identiche.
-  const busyRef = useRef(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
   const [errori, setErrori] = useState({});
   const rifTemplate = useRef(null);
   const rifData = useRef(null);
@@ -77,18 +71,30 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
     return { ...t, dueDate: d.toISOString() };
   }) : [];
 
-  const handleCreate = async () => {
+  // Il freno al doppio invio, l'attesa a schermo e il «i dati sono ancora qui»
+  // vengono da useSalvataggio (A-2 dell'audit del 23 agosto, secondo
+  // passaggio): erano `busyRef` + `busy` + `error` scritti a mano, con il
+  // teardown ricopiato in quattro punti di uscita e nessun try — un throw di
+  // `onCreate` lasciava `busyRef` a `true` per sempre, cioè la modale viva col
+  // bottone spento e nessun messaggio.
+  const { salva, inVolo: busy, errore: error } = useSalvataggio(
+    (tasks) => onCreate(tasks),
+    {
+      alSuccesso: onClose,
+      messaggioErrore: (e) =>
+        `Creazione non riuscita: ${e?.message || "errore sconosciuto"}. I dati sono ancora qui, riprova.`,
+    },
+  );
+
+  const handleCreate = () => {
     // B-3 · Era `disabled={!tpl || !eventDate || busy}` più un `return` muto:
     // tre condizioni di natura diversa spente insieme in un comando solo. Il
-    // freno al doppio invio (`busy`) resta un `return`, perché non è qualcosa
-    // che l'utente possa correggere; ciò che manca da compilare lo dice ora il
-    // messaggio sotto il campo.
-    if (busyRef.current) return;
-    busyRef.current = true;
+    // freno al doppio invio resta muto (lo applica `salva` da sé), perché non
+    // è qualcosa che l'utente possa correggere; ciò che manca da compilare lo
+    // dice il messaggio sotto il campo.
     const trovati = validaCampi({ selectedId, eventDate }, REGOLE);
     const primo = primoCampoInvalido(trovati, ORDINE);
     if (primo) {
-      busyRef.current = false;
       setErrori(trovati);
       const contenitore = (primo === "selectedId" ? rifTemplate : rifData).current;
       // Il campo da mettere a fuoco è quello DENTRO il contenitore: la data è
@@ -114,19 +120,12 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
       description: "",
       comments: [],
     }));
-    if (!tasks.length) { busyRef.current = false; return; }
-    setBusy(true);
-    setError("");
-    const result = await onCreate(tasks);
-    if (result && result.error) {
-      setError(`Creazione non riuscita: ${result.error.message || "errore sconosciuto"}. I dati sono ancora qui, riprova.`);
-      busyRef.current = false;
-      setBusy(false);
-      return;
-    }
-    busyRef.current = false;
-    setBusy(false);
-    onClose();
+    // Zero task da creare non è né un successo né un errore: resta un no-op
+    // silenzioso come prima. Il guard sta QUI e non dentro `esegui` perché per
+    // useSalvataggio un ritorno senza errore è un successo, e chiuderebbe la
+    // modale senza aver scritto nulla.
+    if (!tasks.length) return;
+    return salva(tasks);
   };
 
   return (

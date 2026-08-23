@@ -89,18 +89,40 @@ const VIETATO_APPGLOBALS = {
     '(src/state/AppDataContext.jsx), altrove le funzioni pure di src/lib/permissions.js.',
 };
 
-// Le quattro entità che vivono nello state del reducer. Leggerle o scriverle da
+// Le entità che vivono nello state del reducer. Leggerle o scriverle da
 // un componente scavalca il registry; l'idratazione le legge da hooks/, che
 // resta fuori da questa restrizione perché è il posto in cui i dati entrano.
+//
+// A-1 dell'audit del 23 agosto (secondo passaggio): l'elenco ne copriva
+// quattro e i namespace di dominio scritti dal registry sono OTTO. Mancavano
+// `Comments` e `MessageTemplates` (ADD_COMMENT, ADD/UPDATE/DELETE_MESSAGE_
+// TEMPLATE stanno in state/persistence.js come gli altri) più `Notifications`
+// e `Push`, che il reducer non scrive ma che hanno comunque un proprietario
+// fuori dai componenti — hooks/useNotifications.js e lib/push.js. Nessuno dei
+// quattro era importato da un componente: la regola non chiede un refactor,
+// impedisce che il primo call site sbagliato faccia scuola, che è la ragione
+// per cui esiste anche VIETATO_APPGLOBALS.
+//
+// Cosa resta fuori, e perché. `Users`, `TaskFiles`, `TaskThreads`: sono il
+// quarto gruppo di scritture dell'app — Storage, Edge Function, preferenze
+// personali, letture di pannello — che il reducer non può ospitare, e che è
+// delimitato per METODO da VIETATE_MUTAZIONI_TEAM invece che per namespace.
+// `Conversations` e `Messages`: il registry della chat
+// (components/chat/chatCommands.js) vive dentro components/ ed è il loro
+// proprietario legittimo.
 const VIETATE_ENTITA_DELLO_STATE = {
   group: ['**/lib/api', '**/lib/api.js'],
-  importNames: ['Tasks', 'Notices', 'Clients', 'Categories'],
+  importNames: [
+    'Tasks', 'Notices', 'Clients', 'Categories',
+    'Comments', 'MessageTemplates', 'Notifications', 'Push',
+  ],
   message:
-    'tasks/notices/clients/categories si mutano con dispatch() — la regola è ' +
+    'queste entità si mutano con dispatch() — la regola è ' +
     'dichiarata in src/state/persistence.js, che è l\'unico punto con guard di ' +
     'permesso, rollback e tag origin_client. Le letture stanno in src/hooks/. ' +
-    'Restano diretti storage ed Edge Function (TaskFiles, Messages, ' +
-    'Users.uploadAvatar/getAvatarUrl, Users.invite).',
+    'Notifications e Push hanno per proprietari hooks/useNotifications.js e ' +
+    'lib/push.js. Restano diretti storage ed Edge Function (TaskFiles, ' +
+    'Messages, Users.uploadAvatar/getAvatarUrl, Users.invite).',
 };
 
 // Confine dei chunk lazy per import statico: due componenti che ClienteDetail

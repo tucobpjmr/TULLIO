@@ -1,6 +1,7 @@
 // src/components/modals/bulk/DuplicateTab.jsx
 // Duplicazione di task esistenti, con spostamento delle scadenze.
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import { useSalvataggio } from "../../../hooks/useSalvataggio.js";
 import { formatDate } from "../../../lib/taskUtils.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { bulkInputStyle, bulkBtnPrimary, bulkBtnGhost, bulkIconBtnSmall } from "./bulkStyles.js";
@@ -25,15 +26,6 @@ export const DuplicateTab = ({ tasks, onCreate, onClose, onCancel, onDirty }) =>
   const [titleSuffix, setTitleSuffix] = useState(" (copia)");
   const [dayOffset, setDayOffset] = useState(0);
   const [search, setSearch] = useState("");
-  // Il freno vero al doppio invio è `busyRef`, non lo stato `busy` (stesso
-  // caso descritto in hooks/useSalvataggio.js e in ManualTab): fra due tap
-  // ravvicinati sul bottone React può non aver ancora ri-renderizzato il
-  // bottone disabilitato, e un controllo basato solo sullo stato lascia
-  // partire due batch di duplicazione identici.
-  const busyRef = useRef(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
   const toggle = (id) => setSelected(s => {
     const next = { ...s };
     if (next[id]) delete next[id]; else next[id] = 1;
@@ -58,9 +50,10 @@ export const DuplicateTab = ({ tasks, onCreate, onClose, onCancel, onDirty }) =>
     return formatDate(d.toISOString());
   };
 
-  const handleCreate = async () => {
-    if (busyRef.current) return;
-    busyRef.current = true;
+  // Le copie da creare: funzione PURA di `selected`/`tasks`/suffisso/offset.
+  // Sta fuori dal salvataggio perché serve anche al chiamante, che sul suo
+  // risultato decide se c'è una scrittura da avviare (vedi handleCreate).
+  const costruisciCopie = () => {
     const newTasks = [];
     Object.entries(selected).forEach(([taskId, count]) => {
       const src = tasks.find(t => t.id === taskId);
@@ -85,19 +78,34 @@ export const DuplicateTab = ({ tasks, onCreate, onClose, onCancel, onDirty }) =>
         });
       }
     });
-    if (!newTasks.length) { busyRef.current = false; return; }
-    setBusy(true);
-    setError("");
-    const result = await onCreate(newTasks);
-    if (result && result.error) {
-      setError(`Creazione non riuscita: ${result.error.message || "errore sconosciuto"}. Le selezioni sono ancora qui, riprova.`);
-      busyRef.current = false;
-      setBusy(false);
-      return;
-    }
-    busyRef.current = false;
-    setBusy(false);
-    onClose();
+    return newTasks;
+  };
+
+  // Il freno al doppio invio, l'attesa a schermo e il «le selezioni sono
+  // ancora qui» vengono da useSalvataggio (A-2 dell'audit del 23 agosto,
+  // secondo passaggio): erano `busyRef` + `busy` + `error` scritti a mano, con
+  // il teardown ricopiato in tre punti di uscita e nessun try — un throw di
+  // `onCreate` lasciava `busyRef` a `true` per sempre, cioè la modale viva col
+  // bottone spento e nessun messaggio.
+  const { salva, inVolo: busy, errore: error } = useSalvataggio(
+    (newTasks) => onCreate(newTasks),
+    {
+      alSuccesso: onClose,
+      messaggioErrore: (e) =>
+        `Creazione non riuscita: ${e?.message || "errore sconosciuto"}. Le selezioni sono ancora qui, riprova.`,
+    },
+  );
+
+  // Zero copie da creare non è né un successo né un errore: è "non c'è niente
+  // da fare", e resta un no-op silenzioso come prima. Il caso si raggiunge
+  // solo se una task selezionata è sparita da `tasks` nel frattempo — il
+  // bottone è già disabilitato a selezione vuota. Il guard sta QUI e non
+  // dentro `esegui` perché per useSalvataggio un ritorno senza errore è un
+  // successo, e chiuderebbe la modale senza aver scritto nulla.
+  const handleCreate = () => {
+    const newTasks = costruisciCopie();
+    if (!newTasks.length) return;
+    return salva(newTasks);
   };
 
   return (

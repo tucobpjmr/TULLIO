@@ -14,7 +14,7 @@ livelli fra loro** invece che ciascuno con se stesso: `src/lib/permissions.js`,
 È da quel confronto che nasce il rilievo principale, e non è un caso: è
 l'unico controllo che nessuno strumento di questo repository esegue.
 
-⟦stato: 4/9 chiusi⟧
+⟦stato: 5/9 chiusi⟧
 
 > **Aggiornamento del 22-23 agosto, stessa sessione.** Quattro esiti diversi, e
 > vale la pena distinguerli invece di dire «quattro chiusi»:
@@ -22,17 +22,20 @@ l'unico controllo che nessuno strumento di questo repository esegue.
 > - **A-1 ✅ chiuso e applicato in produzione**, con l'effetto misurato prima e
 >   dopo impersonando utenti reali.
 > - **M-2 ✅ chiuso**: `verifica:volumi` collegato a `verifica-rpc.yml`.
-> - **A-2 ⚖️ ACCETTATO, non chiuso.** Il codice è scritto e provato, ma
->   mantenere uno staging è un costo ricorrente che non è stato approvato: il
->   workflow è parcheggiato su `workflow_dispatch` e la lacuna è **dichiarata**
->   in `SICUREZZA.md` §7. Stessa forma di `leaked_password_protection` —
->   una decisione, non un interruttore dimenticato.
+> - **A-2 ⚖️ ACCETTATO il 22 agosto, non chiuso** — poi **✅ chiuso per davvero
+>   il 23 agosto**, stessa sessione: creato un progetto Supabase di staging
+>   (`tullio-staging`, piano Free), applicato lo schema, provisionati i tre
+>   utenti richiesti dal test e configurati gli otto segreti; `rls.yml` è
+>   tornato a girare su push e ogni notte. Vedi `SICUREZZA.md` §7 per il
+>   dettaglio e la nota su un bug preesistente di una vecchia migrazione trovato
+>   costruendo lo staging.
 > - **A-3 ⬜ RITIRATO**: era sbagliato. La sezione è riscritta invece che
 >   cancellata; sopravvive come B-5, molto più piccolo.
 >
 > Il conteggio diceva **2/9** perché accettato e ritirato non sono chiuso. Un
 > rilievo accettato conta come aperto finché la condizione che lo ha fatto
-> accettare non cambia — è l'unico modo perché resti leggibile.
+> accettare non cambia — è l'unico modo perché resti leggibile. Per A-2 quella
+> condizione **è cambiata lo stesso giorno**: da qui in avanti conta chiuso.
 >
 > **Aggiornamento del 22 agosto, sessione successiva.** Due dei quattro
 > rilievi Bassa:
@@ -84,7 +87,7 @@ smetteranno di reggere.**
 |---|---|---|---|---|
 | **C** | 🔴 Critica | — | **Nessuno.** Constatazione verificata, non assenza di ricerca | — |
 | **A-1** ✔ | 🟠 Alta | Sicurezza / Correttezza | ✅ **verificato in produzione e corretto nel repo.** `canViewTask` concede le urgenti altrui, `tasks_select` no: client, test e `SICUREZZA.md` concordano fra loro e **tutti e tre divergono dal database**. Migrazioni `20260822215237` + `20260822215520` ✅ **applicate e verificate in produzione** | `src/lib/permissions.js:131` |
-| **A-2** ⚖️ | 🟠 Alta | Sicurezza / Ops | ⚖️ **ACCETTATO il 22 agosto, non chiuso.** Il solo test che attraversa il confine di rete non veniva eseguito da nessuno; il meccanismo è ora scritto e provato, ma **non si mantiene uno staging** — costo ricorrente non approvato. Workflow parcheggiato su `workflow_dispatch`, lacuna **dichiarata** in `SICUREZZA.md` §7 | `src/test/integration/rls.test.js` |
+| **A-2** ✔ | 🟠 Alta | Sicurezza / Ops | ⚖️ **ACCETTATO il 22 agosto** — ✅ **chiuso il 23 agosto.** Progetto Supabase di staging creato (`tullio-staging`), schema applicato, tre utenti provisionati, otto segreti configurati. `rls.yml` gira ora su push e ogni notte | `src/test/integration/rls.test.js` |
 | ~~**A-3**~~ | ⬜ **RITIRATO** | — | **Il rilievo era sbagliato.** Entrambi gli script emettono già un'annotation `::warning` sul percorso inconcludente (aggiunta come A-2 il 12 agosto), e dai log del run reale nessuno dei due sta tacendo. Vedi la sezione, riscritta | — |
 | **M-1** | 🟡 Media | Documentazione | L'audit del 22 agosto — che ha chiuso un rilievo **critico** — non ha un documento: fuori da `INDEX.md` e fuori dal registro di `verifica:convenzioni` | `docs/` |
 | **M-2** ✔ | 🟡 Media | Scalabilità | ✅ **chiuso.** La soglia era in un documento che nessuno misurava: ora `npm run verifica:volumi` (4 soglie, in `verifica-rpc.yml`) la legge dalla produzione | `src/lib/api.js:634` |
@@ -293,7 +296,12 @@ divergenza nascerà nello stesso silenzio.
 
 ---
 
-## 🟠 A-2 · Il solo test che attraversa il confine non lo esegue nessuno — ⚖️ accettato
+## 🟠 A-2 · Il solo test che attraversa il confine non lo esegue nessuno — ✅ chiuso il 23 agosto
+
+> **Chiuso lo stesso giorno**: vedi `SICUREZZA.md` §7 per lo stato finale.
+> Quanto segue è la diagnosi originale, lasciata intatta perché è la storia di
+> come si è arrivati alla decisione — accettato prima, chiuso poi nella stessa
+> sessione.
 
 > **⚖️ ESITO: ACCETTATO, NON CHIUSO — 22 agosto 2026.**
 >

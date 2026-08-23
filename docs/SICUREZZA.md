@@ -487,10 +487,12 @@ produzione: senza `RLS_TEST_URL`/`RLS_TEST_ANON_KEY` il file resta `describe.ski
 Lanciarlo davvero con `npm run test:rls`; setup dettagliato nell'intestazione
 del file.
 
-### ⛔ La coerenza fra i due livelli NON è verificata automaticamente
+### ✅ La coerenza fra i due livelli è ora verificata automaticamente (chiuso il 23 agosto 2026)
 
-**Questa è la lacuna dichiarata più importante del documento. Leggila prima di
-toccare `src/lib/permissions.js` o una policy.**
+**Fino al 23 agosto 2026 questa era la lacuna dichiarata più importante del
+documento.** È rimasta la storia di com'è stata trovata, perché la lezione di
+fondo — un test che non gira non è un test — non smette di valere solo perché
+oggi gira.
 
 Il paragrafo che stava qui diceva: «Non è più vero che la conformità fra i due
 livelli è garantita dalla lettura, non da un test: il test esiste ed è pronto a
@@ -503,36 +505,53 @@ divergenti finché qualcuno non ha letto tre file a mano confrontandoli con
 intercettata, perché **un test che non gira non è un test** — e in una suite da
 132 file un solo `skipped` non lo nota nessuno.
 
-Il 22 agosto 2026 è stata presa una decisione esplicita: **non si mantiene un
-progetto Supabase di staging.** Costa (schema da tenere allineato, tre utenti,
-otto segreti) e quel costo ricorrente non è approvato — come
-`leaked_password_protection`, che richiede il piano Pro (§1). Di conseguenza
-`.github/workflows/rls.yml` è **parcheggiato su `workflow_dispatch`**: non gira
-su push, non gira di notte, e `src/test/integration/rls.test.js` resta
-`describe.skip` ovunque.
+Il 22 agosto 2026 era stata presa una decisione esplicita di non mantenere un
+progetto Supabase di staging, per il suo costo ricorrente non approvato. **La
+decisione è stata rivista lo stesso giorno 23**: è stato creato un progetto
+dedicato (`tullio-staging`, piano Free — costo €0/mese, stesso ragionamento già
+fatto per la produzione), con lo schema applicato per intero e i tre utenti di
+test provisionati (driver, agent `seniority='junior'`, un utente lasciato
+`pending=true`) come richiesto dal preambolo di
+`src/test/integration/rls.test.js`. Gli otto segreti sono configurati nel
+repository e `.github/workflows/rls.yml` è tornato a girare su push (sui path
+che toccano permessi, policy o il test stesso) e ogni notte, oltre che a
+richiesta.
 
-Quindi, senza giri di parole:
+> ⚠️ **Nota emersa creando lo staging**: `supabase/migrations/20260610_notifications_extra.sql`
+> contiene un literal regex mal escapato (`'''` invece di `''`) nella funzione
+> `notify_task_comment()`, che non può essere applicato come SQL letterale —
+> il file stesso lo dichiara in testa («applicato via execute_sql MCP, non
+> tracciato in supabase_migrations»), cioè non è mai girato in produzione così
+> com'è scritto nel repo. È esattamente il caso che `docs/CLAUDE.md` descrive
+> alla nota ⛔ sulle migrazioni (repo ≠ prodotto): non corretto nel file
+> sorgente per non riscrivere una migrazione storica, ma vale la pena saperlo
+> se un giorno lo staging va ricostruito da zero con `db push` invece che con
+> l'applicazione a batch usata questa volta.
+
+Quindi, oggi:
 
 > La matrice dei permessi è scritta **due volte** — in `src/lib/permissions.js`
-> e nelle policy/funzioni `private.*` — e **nessun controllo automatico
-> verifica che le due copie dicano la stessa cosa.** I 137 test di questo
-> paragrafo verificano il client contro se stesso. `verifica:rpc` verifica che
-> le funzioni **esistano**, non cosa concedono. `verifica:advisor` verifica i
-> lint di Supabase, non l'accordo con il client.
+> e nelle policy/funzioni `private.*` — ma da oggi **un controllo automatico
+> verifica che le due copie dicano la stessa cosa**, su push e ogni notte. I
+> 137 test di questo paragrafo restano un test del client contro se stesso;
+> `src/test/integration/rls.test.js` è quello che attraversa il confine di
+> rete verso il database vero.
 
-⚠️ **In che direzione è pericoloso.** In A-1 il database era il livello più
-STRETTO: si perdeva una funzione, non si apriva un accesso. È il verso
-fortunato, e non è garantito. Il verso opposto — il client più stretto del
-database — non produce alcun sintomo visibile: la UI non mostra il pulsante,
-nessuno si lamenta, e il permesso resta concesso a chi chiama PostgREST
-direttamente. **Quello non lo troverebbe nessuna lettura casuale**, perché non
-si manifesta.
+⚠️ **In che direzione era pericoloso, e perché contava chiuderlo in fretta.**
+In A-1 il database era il livello più STRETTO: si perdeva una funzione, non si
+apriva un accesso. È il verso fortunato, e non era garantito. Il verso
+opposto — il client più stretto del database — non produce alcun sintomo
+visibile: la UI non mostra il pulsante, nessuno si lamenta, e il permesso resta
+concesso a chi chiama PostgREST direttamente. **Quello non lo troverebbe
+nessuna lettura casuale**, perché non si manifesta — è esattamente la classe di
+difetto che il workflow ora presidia.
 
 #### Cosa resta a carico di chi tocca i permessi
 
-Finché la situazione è questa, la verifica è **manuale e obbligatoria**. Chi
-modifica una regola di autorizzazione da un lato deve controllare l'altro nello
-stesso commit:
+Il workflow copre i casi scritti in `rls.test.js`, non ogni policy futura. Chi
+modifica una regola di autorizzazione da un lato deve continuare a controllare
+l'altro nello stesso commit, e ad aggiungere un caso nuovo in `rls.test.js` se
+la regola non era ancora coperta:
 
 1. leggere la policy **dal database**, non dal file di migrazione — i file più
    vecchi dichiarano gli helper in `public` mentre in produzione vivono in
@@ -552,19 +571,8 @@ stesso commit:
    Quella tabella ha affermato il falso su tre colonne su cinque per settimane:
    è normativa, quindi quando mente viene creduta.
 
-#### Come si chiude davvero
-
-Il meccanismo è scritto, provato e completo: mancano solo le credenziali. I
-passi sono elencati nel preambolo di `.github/workflows/rls.yml` — progetto di
-staging, `db push` su di esso, tre utenti, otto segreti, e togliere il commento
-ai due trigger. `RLS_TEST_REQUIRED=1` resta impostato apposta: se qualcuno
-lancia il workflow a mano senza i segreti, **fallisce invece di passare a
-vuoto**.
-
-⚠️ Il rischio di questa decisione è che una lacuna dichiarata diventi una
-lacuna dimenticata. Il presidio contro questo è che sta scritta qui, nel
-documento che `INDEX.md` indica come «da leggere prima di toccare policy, RPC o
-Edge Function», e non in un commento dentro un workflow che non gira.
+4. lanciare `npm run test:rls` in locale contro lo staging (o aspettare il
+   workflow su push) prima di considerare chiusa una modifica ai permessi.
 
 ---
 

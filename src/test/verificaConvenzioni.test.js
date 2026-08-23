@@ -11,6 +11,7 @@ import {
   LetturaFallita, leggiCallSiteSalvataggio, leggiConteggioMultiComp, leggiStatoAudit,
   leggiStatoIndex, leggiStiliInline, montaggiLazySenzaRete, usiSalvataggio, confronta,
   azioniRegistry, formSenzaAttesaEsito, ricercheSenzaIndice, iterazioniQuadratiche,
+  formeDuplicate, formeGiaInComune,
 } from '../../scripts/verifica-convenzioni/convenzioni.js';
 
 describe('leggiConteggioMultiComp', () => {
@@ -364,5 +365,77 @@ describe('iterazioniQuadratiche', () => {
       testo: 'const nomi = team.map(m => m.name.toUpperCase());',
     }];
     expect(iterazioniQuadratiche(sorgenti)).toEqual([]);
+  });
+});
+
+describe('formeDuplicate', () => {
+  // Il valore arriva già normalizzato da chi estrae (proprietà ordinate,
+  // spazi e virgolette uniformati): queste funzioni confrontano, non
+  // interpretano. È la ragione per cui stanno nella parte pura.
+  const forma = (path, nome, valore) => ({ path, nome, valore });
+
+  it('segnala una forma definita in tre file diversi', () => {
+    const costanti = [
+      forma('src/a.jsx', 'rowCenterGap6', "{ display: 'flex', gap: 6 }"),
+      forma('src/b.jsx', 'chipRow', "{ display: 'flex', gap: 6 }"),
+      forma('src/c/stili.js', 'filaChip', "{ display: 'flex', gap: 6 }"),
+    ];
+    const scoperte = formeDuplicate(costanti);
+    expect(scoperte).toHaveLength(1);
+    // Il messaggio deve dire DOVE: chi legge la CI non ha il repo davanti.
+    expect(scoperte[0]).toContain('src/a.jsx');
+    expect(scoperte[0]).toContain('src/c/stili.js');
+  });
+
+  it('tace sotto soglia: due file non sono ancora un duplicato da promuovere', () => {
+    // La soglia è quella che common.js dichiara di se stesso. Segnalare a due
+    // renderebbe il controllo rumoroso proprio dove la duplicazione è ancora
+    // la scelta giusta.
+    expect(formeDuplicate([
+      forma('src/a.jsx', 'x', "{ gap: 8 }"),
+      forma('src/b.jsx', 'y', "{ gap: 8 }"),
+    ])).toEqual([]);
+  });
+
+  it('conta i FILE e non le occorrenze: due copie nello stesso file non bastano', () => {
+    expect(formeDuplicate([
+      forma('src/a.jsx', 'x', "{ gap: 8 }"),
+      forma('src/a.jsx', 'y', "{ gap: 8 }"),
+      forma('src/b.jsx', 'z', "{ gap: 8 }"),
+    ])).toEqual([]);
+  });
+
+  it('SOLLEVA se non ha trovato nessuna costante', () => {
+    // Il caso che conta: un\'estrazione rotta produrrebbe zero costanti, e
+    // zero costanti danno zero duplicati — cioè un controllo verde che non
+    // sta controllando niente.
+    expect(() => formeDuplicate([])).toThrow(LetturaFallita);
+  });
+});
+
+describe('formeGiaInComune', () => {
+  const comuni = [{ nome: 'rowCenterGap8', valore: "{ display: 'flex', gap: 8 }" }];
+
+  it('segnala chi riscrive una forma già promossa', () => {
+    const scoperte = formeGiaInComune(
+      [{ path: 'src/x/stili.js', nome: 'rowCenterGap8', valore: "{ display: 'flex', gap: 8 }" }],
+      comuni,
+    );
+    expect(scoperte).toHaveLength(1);
+    expect(scoperte[0]).toContain('stiliComuni.rowCenterGap8');
+  });
+
+  it('non guarda il nome ma il valore', () => {
+    // Stesso nome e valore diverso è legittimo (i file importano il namespace,
+    // quindi non c\'è ombreggiamento): è il caso di 122 costanti dell\'app.
+    expect(formeGiaInComune(
+      [{ path: 'src/x.jsx', nome: 'rowCenterGap8', valore: "{ display: 'flex', gap: 8, marginTop: 4 }" }],
+      comuni,
+    )).toEqual([]);
+  });
+
+  it('SOLLEVA se common.js non ha prodotto niente', () => {
+    expect(() => formeGiaInComune([{ path: 'src/x.jsx', nome: 'a', valore: '{}' }], []))
+      .toThrow(LetturaFallita);
   });
 });

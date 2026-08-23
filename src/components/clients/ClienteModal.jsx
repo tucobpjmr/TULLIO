@@ -9,10 +9,10 @@ import { validaCampi, obbligatorio, emailValida, primoCampoInvalido } from "../.
 import { chiaveNome } from "../../lib/clientNotes.js";
 import { EMPTY_FORM, fieldStyle, labelStyle, noticeStyle } from "./clientStyles.js";
 import { Modal } from "../ui/Modal.jsx";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
-const rowCenterBetween = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 };
 const txtF20Heading = { fontSize: 20, color: "var(--heading)" };
 const boxF20Muted = { background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text-muted)" };
 const txtBoldMb4 = { fontWeight: 700, marginBottom: 4 };
@@ -97,7 +97,7 @@ export function ClienteModal({ cliente, onSave, onClose, liste = null, tasksColl
         boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
       }}
     >
-      <div style={rowCenterBetween}>
+      <div style={stiliComuni.testataModale}>
         <h2 id="vd-cliente-title" className="playfair" style={txtF20Heading}>
           {cliente ? "Modifica Cliente" : "Nuovo Cliente"}
         </h2>

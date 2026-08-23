@@ -5,6 +5,7 @@
 // presentazione fuori dal JSX — che è il motivo per cui il componente
 // sembrava più grande di quanto non sia. I valori sono copiati alla
 // lettera dagli originali.
+import * as stiliComuni from "../../styles/common.js";
 export const rowCenterBetween = {
   padding: "14px 18px", borderBottom: "1px solid var(--border)",
   display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -22,7 +23,7 @@ export const boxF18Muted = {
 };
 export const boxFlex1 = { flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", background: "var(--surface)" };
 export const padding2 = { padding: "16px 18px", borderBottom: "1px solid var(--border)" };
-export const rowCenterGap10 = { display: "flex", gap: 10, alignItems: "center" };
+export const rowCenterGap10 = stiliComuni.rowCenterGap10;
 export const txtF11Muted = { fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 3 };
 export const boxF12WFull = {
   width: "100%", padding: "7px 10px", borderRadius: 6,

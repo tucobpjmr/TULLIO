@@ -21,7 +21,7 @@
 import { STATUS_LABELS, toDbRole, toSeniority, roleLabel } from "../lib/taskConstants.js";
 import {
   getMember, isAdmin,
-  canAccessAdmin, canAccessListe, canViewTask, canEditTask, canCreateTaskCategory, canEditNotice,
+  canAccessAdmin, canAccessListe, canViewTask, canEditTask, canCreateTaskCategory,
   canEditClient, canDeleteClient,
 } from "../lib/permissions.js";
 // Le voci del log attività (quali azioni ci finiscono e come si leggono) hanno
@@ -33,6 +33,11 @@ import { LOGGED_ACTIONS, buildLogEntry } from "./activityLog.js";
 import { pushToast, marcaToast, ritiraToast } from "./toastQueue.js";
 import { applyRestoreBackupRollback } from "./restoreBackupRollback.js";
 import { fondiScrittureInVolo, applicaRigaRealtime, fondiThreadCommenti } from "./pendingWrites.js";
+// Due fette di dominio hanno un reducer proprio. Il perché della scelta — e il
+// criterio con cui si decide se una fetta può uscire senza spezzare la macchina
+// a stati — sta in cima a state/noticesReducer.js.
+import { noticesReducer } from "./noticesReducer.js";
+import { messageTemplatesReducer } from "./messageTemplatesReducer.js";
 import { INITIAL_CATEGORIES } from "./taskCategories.js";
 import { demoState } from "./demoState.js";
 import { chiaveNome } from "../lib/clientNotes.js";
@@ -51,6 +56,14 @@ const completedAtPatch = (prevStatus, nextStatus) => {
 };
 
 function baseReducer(state, action) {
+  // Le fette con reducer proprio rispondono `null` a ciò che non possiedono,
+  // quindi questa delega non può cambiare l'esito di nessun altro case: o una
+  // delle due riconosce l'azione, o si prosegue nello switch esattamente come
+  // prima. Sta PRIMA dello switch e non dentro un `case` perché i tipi di
+  // azione che le due gestiscono non sono più nominati qui.
+  const fetta = noticesReducer(state, action) ?? messageTemplatesReducer(state, action);
+  if (fetta) return fetta;
+
   const uid = state.currentUserId;
   const _denied = (msg = "Non hai i permessi per questa azione") =>
     ({ ...state, toasts: pushToast(state.toasts, { message: msg, type: "error" }) });
@@ -501,95 +514,6 @@ function baseReducer(state, action) {
       return { ...state, activityLog: [], toasts: pushToast(state.toasts, { message: "Log attività svuotato", type: "success" }) };
     }
 
-    // ─── BACHECA AVVISI ───
-    case "SET_NOTICES": {
-      // Stessa protezione di SET_TASKS (A-1, terzo passaggio): un avviso con
-      // una scrittura in volo non va sostituito con il pre-immagine che il
-      // server sta ancora servendo.
-      return { ...state, notices: fondiScrittureInVolo(action.payload, state.notices, state.pendingWrites) };
-    }
-    // Gemello di MERGE_TASK_ROW per la bacheca: nessun campo derivato da
-    // altrove, quindi nessun `fondiRiga` da passare.
-    case "MERGE_NOTICE_ROW":
-      return { ...state, notices: applicaRigaRealtime(state.notices, state.pendingWrites, action.payload) };
-    case "ADD_NOTICE": {
-      const notices = [action.payload, ...state.notices];
-      return { ...state, notices, toasts: pushToast(state.toasts, { message: "Avviso pubblicato in bacheca", type: "success" }) };
-    }
-    // A-1 dell'audit del 14 agosto: prima queste tre azioni non controllavano
-    // ALCUN permesso qui — a differenza di UPDATE_TASK/DELETE_TASK, che
-    // negano con canEditTask prima di applicare. Il gate viveva solo nel
-    // guard di persistence.js, e useSyncedDispatch, quando un guard nega,
-    // dispatcha comunque l'AZIONE ORIGINALE contando sul reducer per
-    // produrre il toast di rifiuto (vedi il commento in cima a quel file).
-    // Senza canEditNotice anche qui, quella richiesta veniva applicata in
-    // locale lo stesso — "Avviso aggiornato" mostrato a un utente la cui
-    // scrittura la RLS avrebbe respinto, e nessun rollback lo correggeva
-    // perché dal punto di vista dell'orchestratore l'azione non era stata
-    // negata affatto. Stesso pattern dei task: `if (!prev) return state`
-    // (record fantasma, no-op silenzioso) poi `if (!canEditNotice(...))
-    // return _denied()`.
-    case "UPDATE_NOTICE": {
-      const prev = state.notices.find(n => n.id === action.payload.id);
-      if (!prev) return state;
-      if (!canEditNotice(state.team, prev, uid)) return _denied("Non hai i permessi per modificare questo avviso");
-      const notices = state.notices.map(n =>
-        n.id === action.payload.id
-          ? { ...n, ...action.payload, updatedAt: new Date().toISOString() }
-          : n
-      );
-      return { ...state, notices, toasts: pushToast(state.toasts, { message: "Avviso aggiornato", type: "success" }) };
-    }
-    case "DELETE_NOTICE": {
-      const prev = state.notices.find(n => n.id === action.payload);
-      if (!prev) return state;
-      if (!canEditNotice(state.team, prev, uid)) return _denied("Non hai i permessi per eliminare questo avviso");
-      const notices = state.notices.filter(n => n.id !== action.payload);
-      return { ...state, notices, toasts: pushToast(state.toasts, { message: "Avviso rimosso dalla bacheca", type: "success" }) };
-    }
-    case "TOGGLE_PIN_NOTICE": {
-      const prev = state.notices.find(n => n.id === action.payload);
-      if (!prev) return state;
-      if (!canEditNotice(state.team, prev, uid)) return _denied("Non hai i permessi per fissare questo avviso");
-      const notices = state.notices.map(n =>
-        n.id === action.payload ? { ...n, pinned: !n.pinned } : n
-      );
-      return { ...state, notices };
-    }
-    // Riporta in bacheca un avviso la cui DELETE_NOTICE ottimistica è stata
-    // respinta dal DB (RLS: non è l'autore né un manager/admin) — gemello
-    // silenzioso di RESTORE_CLIENT. Senza questo case la UI resterebbe
-    // disallineata dal database finché non arriva un reload completo: una
-    // DELETE fallita non produce un evento realtime che la corregga (A-1
-    // dell'audit del 14 agosto). UPDATE_NOTICE non ne ha bisogno: il suo
-    // rollback rimanda un altro UPDATE_NOTICE, che il case sopra applica come
-    // un merge sulla riga esistente.
-    case "RESTORE_NOTICE": {
-      if (!action.payload || (state.notices || []).some(n => n.id === action.payload.id)) return state;
-      return { ...state, notices: [...(state.notices || []), action.payload] };
-    }
-    case "TOGGLE_NOTICE_REACTION": {
-      // v2.8: stesso shape della chat — { emoji: [userId, ...] }. Toggle del
-      // userId corrente. Se la lista finisce vuota, l'emoji viene rimosso.
-      const { noticeId, emoji } = action.payload || {};
-      const me = state.currentUserId;
-      if (!noticeId || !emoji || !me) return state;
-      const notices = state.notices.map(n => {
-        if (n.id !== noticeId) return n;
-        const reactions = { ...(n.reactions || {}) };
-        const users = reactions[emoji] || [];
-        if (users.includes(me)) {
-          const next = users.filter(u => u !== me);
-          if (next.length === 0) delete reactions[emoji];
-          else reactions[emoji] = next;
-        } else {
-          reactions[emoji] = [...users, me];
-        }
-        return { ...n, reactions };
-      });
-      return { ...state, notices };
-    }
-
     // ─── CRM: CLIENTI ───
     // `clients` è in realtime dalla 20260807215625: da allora un evento di un
     // altro utente fa ripartire ClientsAPI.list() mentre la NOSTRA scrittura è
@@ -691,41 +615,6 @@ function baseReducer(state, action) {
       const ids = new Set(action.payload || []);
       if (!ids.size) return state;
       return { ...state, clients: (state.clients || []).filter(c => !ids.has(c.id)) };
-    }
-
-    // ─── TEMPLATE MESSAGGI CHAT (v2.8, admin-only) ───
-    case "ADD_MESSAGE_TEMPLATE": {
-      const { label, text } = action.payload || {};
-      if (!label?.trim() || !text?.trim()) return state;
-      // L'id normale arriva già assegnato da persistence.js (normalize, come
-      // ADD_CLIENT/ADD_NOTICE): è lo stesso che finisce sulla riga DB, quindi
-      // UPDATE/DELETE successivi nella stessa sessione colpiscono la riga
-      // giusta. In modalità demo (dispatch non sincronizzato, niente
-      // persistence.normalize) il payload non ha id: si genera un
-      // placeholder locale, come prima di questa correzione.
-      const tpl = { id: action.payload.id || ("mt" + Date.now()), label: label.trim(), text: text.trim() };
-      return {
-        ...state,
-        messageTemplates: [...(state.messageTemplates || []), tpl],
-        toasts: pushToast(state.toasts, { message: "Template aggiunto", type: "success" }),
-      };
-    }
-    case "UPDATE_MESSAGE_TEMPLATE": {
-      const { id, label, text } = action.payload || {};
-      const messageTemplates = (state.messageTemplates || []).map(t =>
-        t.id === id ? { ...t, ...(label !== undefined ? { label } : {}), ...(text !== undefined ? { text } : {}) } : t
-      );
-      return { ...state, messageTemplates, toasts: pushToast(state.toasts, { message: "Template aggiornato", type: "success" }) };
-    }
-    case "DELETE_MESSAGE_TEMPLATE": {
-      const messageTemplates = (state.messageTemplates || []).filter(t => t.id !== action.payload);
-      return { ...state, messageTemplates, toasts: pushToast(state.toasts, { message: "Template rimosso", type: "success" }) };
-    }
-    // Idratazione (useAppHydration, come SET_CATEGORIES): sostituisce
-    // l'intero elenco con quello letto da public.message_templates. Niente
-    // toast, come le altre SET_* di idratazione silenziosa.
-    case "SET_MESSAGE_TEMPLATES": {
-      return { ...state, messageTemplates: Array.isArray(action.payload) ? action.payload : [] };
     }
 
     case "SHOW_TOAST": return { ...state, toasts: pushToast(state.toasts, { message: action.payload?.message ?? "", type: action.payload?.type ?? "error", undoable: !!action.payload?.undoable }) };

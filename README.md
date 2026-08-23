@@ -41,7 +41,7 @@ realtime, notifiche Web Push e cinque Edge Function.
 | Backend | Supabase — PostgreSQL, RLS, Realtime, Storage, Auth, Edge Functions |
 | Stile | CSS-in-JS + variabili di tema; token condivisi in `src/styles/tokens.js` |
 | Import/export | SheetJS (`xlsx`), caricato on-demand |
-| Test | Vitest + Testing Library — 1316 test |
+| Test | Vitest + Testing Library — 1637 test |
 | Qualità | ESLint 9 (flat config) con `max-lines`, `no-restricted-imports` |
 | Font | Playfair Display + DM Sans + Inter |
 | Lingua UI | italiano |
@@ -73,7 +73,7 @@ src/
 │   ├── dashboard/        Dashboard + queues/ (4 code) + NoticeBoard
 │   ├── tasks/ clients/ calendar/ views/ admin/ chat/ liste/ search/
 │   ├── notifications/ modals/ ui/
-└── test/                 1316 test (Vitest)
+└── test/                 1637 test (Vitest)
 
 supabase/
 ├── migrations/           109 migrazioni SQL (schema, RLS, RPC, trigger)

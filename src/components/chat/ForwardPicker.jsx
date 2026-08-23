@@ -7,6 +7,7 @@ import { sortConversationsByRecent } from "../../lib/chatUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { getConversationName, getLastMessage } from "./chatFormat.js";
 import { Modal } from "../ui/Modal.jsx";
+import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -23,7 +24,6 @@ const boxF13Text = {
   border: "1px solid var(--border)", background: "var(--surface)",
   color: "var(--text)", fontSize: 13, fontFamily: "inherit", outline: "none",
 };
-const flex1 = { overflowY: "auto", flex: 1 };
 const txtF13Muted = { padding: "24px 16px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 };
 const rowCenterGap10 = {
   width: "100%", display: "flex", alignItems: "center", gap: 10,
@@ -102,7 +102,7 @@ export const ForwardPicker = ({ msg, conversations, messages, onPick, onClose })
           style={boxF13Text}
         />
       </div>
-      <div style={flex1}>
+      <div style={stiliComuni.areaScorrevole}>
         {filtered.length === 0 ? (
           <div style={txtF13Muted}>
             Nessuna conversazione disponibile.

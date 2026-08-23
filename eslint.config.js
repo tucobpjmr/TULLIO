@@ -415,37 +415,37 @@ export default [
       'no-restricted-properties': ['error', ...VIETATE_MUTAZIONI_TEAM],
     },
   },
-  // ─── L'UNICA ECCEZIONE A max-lines ─────────────────────────────────────────
-  // Il reducer è UNO switch: 517 righe effettive, quasi tutte i suoi case (il
-  // numero qui era fermo a 504, poi 539, e va rimisurato quando lo si tocca,
-  // non dedotto).
-  // Spezzarlo per dimensione significherebbe distribuire su più file le
-  // transizioni di un'unica macchina a stati, e la proprietà che rende questo
-  // file leggibile — vedere in un colpo solo tutto ciò che può succedere allo
-  // state — è esattamente quella che si perderebbe. È una decisione, quindi sta
-  // scritta qui con un tetto suo invece di restare un warning che nessuno legge.
+  // ─── LA DEROGA A max-lines È FINITA (23 agosto, secondo passaggio) ─────────
+  // Qui c'era l'unica eccezione della configurazione: `src/state/reducer.js`
+  // con un tetto suo a 550 invece di 500. La motivazione era che il reducer è
+  // UNO switch, e che spezzarlo per dimensione avrebbe distribuito su più file
+  // le transizioni di un'unica macchina a stati, perdendo la proprietà che lo
+  // rende leggibile — vedere in un colpo solo tutto ciò che può succedere allo
+  // state.
   //
-  // Il tetto è 550 e non "nessun limite": la deroga vale per la forma del file,
-  // non è un permesso di crescere senza fine. Se il reducer arriva lì, la
-  // domanda giusta non è alzare ancora il numero — è se una fetta di dominio
-  // meriti un reducer suo.
+  // Quel commento diceva anche quando sarebbe scaduta: «Il tetto è 550 e non
+  // "nessun limite" […]. Se il reducer arriva lì, la domanda giusta non è
+  // alzare ancora il numero — è se una fetta di dominio meriti un reducer suo».
+  // Il file è arrivato a 543, sette righe dal tetto, ed è stata data quella
+  // risposta invece di scriverne 600: sono uscite la bacheca avvisi
+  // (state/noticesReducer.js, 7 case) e i template messaggi
+  // (state/messageTemplatesReducer.js, 4 case), due fette che toccano un solo
+  // campo dello state ciascuna e che nessun case rimasto legge. Il reducer sta
+  // ora a 464 righe effettive e obbedisce al tetto di tutti gli altri file.
   //
-  // Successo, il 12 agosto: aggiungendo la compensazione (M-1) e
-  // ROLLBACK_EMPTY_TRASH (M-4) il file ha sfondato il tetto di 7 righe. Il
-  // numero NON è stato alzato: è uscito `buildLogEntry` + `LOGGED_ACTIONS`
-  // (→ state/activityLog.js), che non sono transizioni di stato ma il
-  // dizionario che le racconta — l'unica fetta che si può togliere senza
-  // spezzare la macchina a stati su due file.
+  // Il blocco NON è stato lasciato con un numero più basso, ed è il punto: una
+  // deroga inutilizzata è una deroga che il prossimo file grande eredita
+  // ("c'era già un'eccezione, ne aggiungo una"). Se il reducer tornasse sopra
+  // 500 la domanda da farsi è di nuovo quale fetta esca — `notices` e
+  // `messageTemplates` mostrano che si può fare senza rompere nulla — non se
+  // riaprire questa parentesi.
   //
-  // Nota su src/lib/api.js, l'altro candidato naturale a questa deroga: oggi
-  // sta a 376 righe effettive e non gli serve. Esentarlo per categoria ("è un
-  // elenco di query, quindi può essere lungo") gli regalerebbe 130 righe di
-  // margine che nessuno ha chiesto, ed è il modo in cui un'eccezione motivata
-  // diventa un'esenzione permanente.
-  {
-    files: ['src/state/reducer.js'],
-    rules: { 'max-lines': ['error', { max: 550, skipBlankLines: true, skipComments: true }] },
-  },
+  // Nota su src/lib/api.js, l'altro candidato naturale a una deroga: dopo
+  // l'uscita del transport realtime (→ src/lib/realtime.js) sta a 386 righe
+  // effettive e non gli serve. Esentarlo per categoria ("è un elenco di query,
+  // quindi può essere lungo") gli regalerebbe 114 righe di margine che nessuno
+  // ha chiesto, ed è il modo in cui un'eccezione motivata diventa
+  // un'esenzione permanente.
   {
     files: ['**/*.test.{js,jsx}', 'src/test/**'],
     languageOptions: { globals: { ...globals.node } },

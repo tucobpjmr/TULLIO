@@ -5,6 +5,7 @@
 // presentazione fuori dal JSX — che è il motivo per cui il componente
 // sembrava più grande di quanto non sia. I valori sono copiati alla
 // lettera dagli originali.
+import * as stiliComuni from "../../styles/common.js";
 export const rowStartBetween = {
   background: "var(--navy)", padding: "calc(18px + var(--safe-top)) 22px 18px",
   display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexShrink: 0
@@ -33,7 +34,7 @@ export const colFlex1Gap20 = {
 };
 export const boxF13R8 = { fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block" };
 export const txtF11Bold = { fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 };
-export const rowCenterGap6 = { display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" };
+export const rowCenterGap6 = stiliComuni.rowCenterWrapGap6;
 export const rowCenterGap5 = { display: "flex", alignItems: "center", gap: 5, background: "var(--surface2)", padding: "4px 8px", borderRadius: 99 };
 export const txtF12 = { fontSize: 12 };
 export const boxF12Muted = {

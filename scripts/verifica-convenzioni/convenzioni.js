@@ -478,3 +478,73 @@ export function confronta(controlli) {
     .filter(c => c.dichiarato !== c.misurato)
     .map(c => `${c.nome}: ${c.dove} dice ${c.dichiarato}, misurato ${c.misurato}. ${c.rimedio}`);
 }
+
+// ─── A-5 · LE FORME DI STILE DUPLICATE ───────────────────────────────────────
+// `src/styles/common.js` si dichiara in cima «gli oggetti di stile costanti che
+// ricorrono in TRE O PIÙ FILE», e dice anche come ci si arriva: promuovendo una
+// forma già in uso, non scrivendone una nuova. È una buona regola e il progetto
+// l'ha seguita — ma a occhio, confrontando i NOMI. Nessuno ha mai confrontato i
+// VALORI, e sono i valori a dire se due forme sono la stessa cosa: al 23 agosto
+// c'erano 791 costanti di stile a livello di modulo fuori da src/styles/, con
+// 122 casi di stesso nome e valore diverso — e tre forme identiche alla lettera
+// in tre file ciascuna, che la regola avrebbe promosso e che nessuno aveva
+// visto.
+//
+// I due controlli qui sotto NEGANO invece di contare, come `lazy() senza
+// boundary`: l'atteso è 0 e non un numero dichiarato in un documento. «791» era
+// vero il 23 agosto e sarà falso domani; «nessuna forma è definita tre volte»
+// resta vero finché qualcuno non lo rompe, ed è la proprietà che si voleva.
+//
+// ⚠️ Il confronto è sul valore NORMALIZZATO (proprietà ordinate, spazi e
+// virgolette uniformati): `{display:"flex", gap:6}` e `{ gap: 6, display: 'flex' }`
+// sono la stessa forma e devono contare come tale, altrimenti il controllo
+// vedrebbe solo i copia-incolla e non le riscritture — che sono il caso più
+// frequente e più difficile da notare a mano.
+
+/**
+ * Le forme identiche definite a livello di modulo in `soglia` file o più.
+ *
+ * @param {{path: string, nome: string, valore: string}[]} costanti
+ * @param {number} soglia il numero di file oltre il quale la forma va promossa
+ * @returns {string[]} una riga per forma, con i file che la ripetono
+ */
+export function formeDuplicate(costanti, soglia = 3) {
+  if (costanti.length === 0) {
+    throw new LetturaFallita(
+      'Nessuna costante-oggetto trovata a livello di modulo in src/: o il ' +
+      'progetto ha cambiato del tutto forma, o l\'estrazione è rotta. In ' +
+      'entrambi i casi questo controllo passerebbe a vuoto.');
+  }
+  const perValore = new Map();
+  for (const { path, valore } of costanti) {
+    if (!perValore.has(valore)) perValore.set(valore, new Set());
+    perValore.get(valore).add(path);
+  }
+  return [...perValore]
+    .filter(([, file]) => file.size >= soglia)
+    .map(([valore, file]) => `${valore} — in ${[...file].sort().join(', ')}`);
+}
+
+/**
+ * Le costanti locali che ripetono alla lettera una forma GIÀ in common.js.
+ *
+ * È il caso peggiore dei due: la forma è stata promossa, il registro condiviso
+ * ce l'ha, e un file se la riscrive lo stesso — quindi il prossimo che cambia
+ * quella in common.js crede di averle cambiate tutte.
+ *
+ * @param {{path: string, nome: string, valore: string}[]} costanti quelle FUORI da src/styles/
+ * @param {{nome: string, valore: string}[]} comuni quelle esportate da src/styles/common.js
+ * @returns {string[]}
+ */
+export function formeGiaInComune(costanti, comuni) {
+  if (comuni.length === 0) {
+    throw new LetturaFallita(
+      'Nessuna costante esportata da src/styles/common.js: il registro delle ' +
+      'forme condivise è la base di questo confronto e senza di esso non c\'è ' +
+      'niente da confrontare.');
+  }
+  const perValore = new Map(comuni.map(c => [c.valore, c.nome]));
+  return costanti
+    .filter(c => perValore.has(c.valore))
+    .map(c => `${c.path}: \`${c.nome}\` ripete stiliComuni.${perValore.get(c.valore)}`);
+}

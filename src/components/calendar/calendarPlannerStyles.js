@@ -5,6 +5,7 @@
 // presentazione fuori dal JSX — che è il motivo per cui il componente
 // sembrava più grande di quanto non sia. I valori sono copiati alla
 // lettera dagli originali.
+import * as stiliComuni from "../../styles/common.js";
 export const rowCenterGap82 = {
   display: "flex", alignItems: "center", gap: 8,
   background: "var(--surface2)", border: "1px solid var(--border)",
@@ -14,7 +15,7 @@ export const rowCenterGap82 = {
 export const boxW14H14 = { width: 14, height: 14, borderRadius: "50%" };
 export const rowCenterBetween = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 };
 export const txtF12Muted = { fontSize: 12, color: "var(--text-muted)", fontWeight: 500 };
-export const rowCenterGap6 = { display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" };
+export const rowCenterGap6 = stiliComuni.rowCenterWrapGap6;
 export const rowGap4P3 = { display: "flex", gap: 4, background: "var(--surface2)", borderRadius: 10, padding: 3 };
 export const boxF14W34 = {
   background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8,
@@ -30,7 +31,7 @@ export const boxF12Bold2 = {
   color: "var(--heading)",
 };
 export const rowGap6MtNeg8 = { display: "flex", flexWrap: "wrap", gap: 6, marginTop: -8 };
-export const boxR14 = { background: "var(--card)", borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)", overflow: "hidden" };
+export const boxR14 = stiliComuni.cardElevata;
 export const grid2 = { display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", background: "var(--navy)", padding: "10px 0" };
 export const txtF12Bold = { textAlign: "center", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.7)", minWidth: 0 };
 export const grid3 = { display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))" };

@@ -8,7 +8,6 @@ import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
-const rowCenterBetween = { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 };
 const txtF18Bold = { fontSize: 18, fontWeight: 700, color: "var(--heading)" };
 const boxF18Muted = { background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--text-muted)" };
 const rowCenterBetween2 = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 };
@@ -40,7 +39,7 @@ export function KeyboardHelpOverlay({ onClose }) {
       width="min(420px, 96vw)"
       cardStyle={{ borderRadius: 14, padding: "28px 32px", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}
     >
-      <div style={rowCenterBetween}>
+      <div style={stiliComuni.testataModale}>
         <div id="vd-shortcuts-title" className="playfair" style={txtF18Bold}>Scorciatoie tastiera</div>
         <button onClick={onClose} style={boxF18Muted}>✕</button>
       </div>

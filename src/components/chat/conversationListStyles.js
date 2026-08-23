@@ -5,6 +5,7 @@
 // presentazione fuori dal JSX — che è il motivo per cui il componente
 // sembrava più grande di quanto non sia. I valori sono copiati alla
 // lettera dagli originali.
+import * as stiliComuni from "../../styles/common.js";
 export const colHFull = { display: "flex", flexDirection: "column", height: "100%" };
 export const padding2 = { padding: "12px 14px", borderBottom: "1px solid var(--border)" };
 export const txtAbsoluteF13 = { position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", fontSize: 13 };
@@ -14,7 +15,7 @@ export const boxF13WFull = {
   outline: "none", background: "var(--surface)",
 };
 export const rowGap6Mt10 = { display: "flex", gap: 6, marginTop: 10 };
-export const flex1 = { flex: 1, overflowY: "auto" };
+export const flex1 = stiliComuni.areaScorrevole;
 export const relative2 = { position: "relative", flexShrink: 0 };
 export const rowCenterMiddle = {
   width: 42, height: 42, borderRadius: "50%", background: "var(--gold)",

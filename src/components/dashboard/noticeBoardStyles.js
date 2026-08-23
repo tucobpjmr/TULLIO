@@ -5,7 +5,8 @@
 // presentazione fuori dal JSX — che è il motivo per cui il componente
 // sembrava più grande di quanto non sia. I valori sono copiati alla
 // lettera dagli originali.
-export const rowCenterBetween = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 };
+import * as stiliComuni from "../../styles/common.js";
+export const rowCenterBetween = stiliComuni.rowCenterBetween;
 export const rowCenterMiddle = {
   width: 34, height: 34, borderRadius: 8,
   background: "var(--navy)", color: "var(--gold)",

@@ -50,6 +50,12 @@ export const btnGhostMini = {
 
 // ─── CARD E SUPERFICI ────────────────────────────────────────────────────────
 export const card = { background: "var(--card)", borderRadius: 12, border: "1px solid var(--border)", overflow: "hidden" };
+// Come `card` ma con un'ombra e un raggio più ampio: le griglie del calendario.
+// Era `boxR14` in tre file — un nome che descriveva il raggio e taceva l'ombra.
+export const cardElevata = {
+  background: "var(--card)", borderRadius: 14, border: "1px solid var(--border)",
+  boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden",
+};
 // Lo stato vuoto di una lista: stessa card, testo centrato. La variante "alta"
 // è quella delle viste a tutta pagina (cestino, archivio).
 export const cardVuota = { background: "var(--card)", borderRadius: 12, padding: "40px 20px", textAlign: "center", border: "1px solid var(--border)" };
@@ -77,6 +83,22 @@ export const rowCenterGap10 = { display: "flex", alignItems: "center", gap: 10 }
 export const rowCenterGap12 = { display: "flex", alignItems: "center", gap: 12 };
 export const rowCenterBetween = { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 };
 export const rowCenterBetween2 = { display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: "1px solid var(--border)" };
+// Promosse qui il 23 agosto (A-5, secondo passaggio): erano definite alla
+// lettera in tre file ciascuna, cioè oltre la soglia che questo registro
+// dichiara in cima ("ricorrono in tre o più file"). Non erano visibili come
+// duplicati perché il criterio era applicato a occhio: nessuno confrontava i
+// VALORI. Ora lo fa `npm run verifica:stili`, ed è il motivo per cui queste
+// tre chiudono la lista invece di essere le prime di una serie.
+//
+// La testata di un modale o di un overlay: titolo a sinistra, ✕ a destra.
+// Era `rowCenterBetween` in ClienteModal, QuickAddTask e KeyboardHelpOverlay —
+// stesso nome di quello qui sopra ma con `marginBottom: 20`, che è esattamente
+// il tipo di omonimia per cui da questo file si importa il namespace.
+export const testataModale = { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 };
+// Fila di chip/badge che va a capo quando lo spazio finisce. I tre call site la
+// chiamavano `rowCenterGap6`: il nome qui dice anche il `flexWrap`, perché
+// accanto a `rowCenterGap8` (che non va a capo) la differenza conta.
+export const rowCenterWrapGap6 = { display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6 };
 // Titolo di sezione dentro un pannello: icona + etichetta, sopra il contenuto.
 export const intestazioneSezione = {
   padding: "14px 0 4px", display: "flex", alignItems: "center", gap: 10,
@@ -96,6 +118,10 @@ export const gridGap102 = {
 };
 export const hidden = { display: "none" };
 export const flex1 = { flex: 1 };
+// Il corpo scorrevole di un pannello: prende tutto lo spazio che avanza fra
+// testata e piede, e scorre da solo invece di allungare la pagina. Era `flex1`
+// / `flex12` in tre file della chat, dove il nome diceva metà della forma.
+export const areaScorrevole = { flex: 1, overflowY: "auto" };
 export const relative = { position: "relative" };
 
 // ─── TESTO ───────────────────────────────────────────────────────────────────

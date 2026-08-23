@@ -1,7 +1,8 @@
-// src/components/modals/bulk/ManualTab.jsx
+// src/components/tasks/bulk/ManualTab.jsx
 // Inserimento a mano: N righe con impostazioni comuni e override per riga.
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useViewport } from "../../Viewport.jsx";
+import { useSalvataggio } from "../../../hooks/useSalvataggio.js";
 import { PRIORITIES } from "../../../lib/taskConstants.js";
 import { clientContact } from "../../../lib/taskUtils.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
@@ -45,20 +46,13 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
   };
   const emptyRow = () => ({ key: Math.random().toString(36).slice(2), title: "", description: "", category: "", priority: "", assignee: "", dueDate: "", files: [] });
   const [rows, setRows] = useState([emptyRow(), emptyRow(), emptyRow()]);
-  // Creazione in corso: blocca il doppio invio (un secondo tap sul pulsante
-  // creava un secondo batch identico) e con allegati tiene aperto il modale
-  // finché tutti gli upload non sono finiti, così un errore è visibile.
-  //
-  // Il freno vero è `busyRef`, non `busy`: fra due tap ravvicinati (lo stesso
-  // caso descritto in hooks/useSalvataggio.js) React può non aver ancora
-  // ri-renderizzato il bottone disabilitato, quindi un controllo basato solo
-  // sullo stato lascerebbe passare entrambi i gestori. Il ref cambia nello
-  // stesso turno in cui parte la prima scrittura; `busy` resta per dipingere
-  // l'attesa a schermo.
-  const busyRef = useRef(false);
-  const [busy, setBusy] = useState(false);
-  const [fileError, setFileError] = useState("");
-
+  // Allegati scartati perché oltre il limite del bucket. È una validazione
+  // PRE-VOLO, non l'esito di un salvataggio: vive separata da `errore` di
+  // useSalvataggio, che si azzera all'inizio di ogni tentativo. Finché le due
+  // cose condividevano uno stato solo, premere «Crea» cancellava in silenzio
+  // l'avviso sui file scartati — cioè l'unico posto in cui era scritto che
+  // quegli allegati non sarebbero partiti.
+  const [avvisoDimensioni, setAvvisoDimensioni] = useState("");
   const updateRow = (key, field, value) => setRows(rs => rs.map(r => r.key === key ? { ...r, [field]: value } : r));
   const addRow = () => setRows(rs => [...rs, emptyRow()]);
   const removeRow = (key) => setRows(rs => rs.length > 1 ? rs.filter(r => r.key !== key) : rs);
@@ -70,7 +64,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
     if (!arr.length) return;
     const tooBig = arr.filter(f => !isWithinSizeLimit(f.size));
     const ok = arr.filter(f => isWithinSizeLimit(f.size));
-    setFileError(tooBig.length
+    setAvvisoDimensioni(tooBig.length
       ? `${tooBig.map(f => `"${f.name}"`).join(", ")} super${tooBig.length === 1 ? "a" : "ano"} il limite di ${formatFileSize(MAX_TASK_FILE_SIZE)} per file`
       : "");
     if (ok.length) setRows(rs => rs.map(r => r.key === key ? { ...r, files: [...r.files, ...ok] } : r));
@@ -101,72 +95,70 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
     !!(common.client.trim() || common.praticaRef.trim() || common.contact.trim() || common.dueDate);
   useEffect(() => { onDirty?.(isDirty); }, [isDirty, onDirty]);
 
-  const handleCreate = async () => {
-    if (busyRef.current) return;
-    busyRef.current = true;
-    // UUID generati qui: dispatch li conserva perché già validi, così
-    // conosciamo l'id definitivo di ogni task e possiamo caricarci gli
-    // allegati (il path nel bucket e la RLS partono dal task_id).
-    const prepared = validRows.map((r) => ({
-      files: r.files,
-      task: {
-        id: crypto.randomUUID(),
-        title: r.title.trim(),
-        category: r.category || common.category,
-        priority: r.priority || common.priority,
-        status: "todo",
-        assignees: (r.assignee || common.assignee) ? [r.assignee || common.assignee] : [],
-        client: common.client.trim() || null,
-        praticaRef: common.praticaRef || null,
-        contact: common.contact.trim() || null,
-        dueDate: r.dueDate ? new Date(r.dueDate).toISOString() : (common.dueDate ? new Date(common.dueDate).toISOString() : null),
-        estimatedHours: 1,
-        description: r.description.trim(),
-        comments: [],
-      },
-    }));
+  // Creazione: il freno al doppio invio, l'attesa a schermo e il "i dati sono
+  // ancora qui" vengono da useSalvataggio (A-2 dell'audit del 23 agosto,
+  // secondo passaggio). Prima erano `busyRef` + `busy` + `fileError` scritti a
+  // mano, con il teardown `busyRef.current = false; setBusy(false)` ricopiato
+  // in quattro punti di uscita e nessun try: se `onCreate` o `TaskFiles.upload`
+  // SOLLEVAVA — rete che cade a metà upload — nessuno dei quattro veniva
+  // raggiunto, `busyRef` restava `true` per sempre e la guardia in testa
+  // rifiutava ogni tentativo successivo. Modale viva, bottone spento, nessun
+  // messaggio, e l'unica via d'uscita era ricaricare perdendo tutte le righe.
+  // È il caso che il docblock di useSalvataggio dichiara di chiudere, e questo
+  // file lo citava in un commento senza importarlo.
+  const { salva: handleCreate, inVolo: busy, errore: fileError, avviso, bloccato } = useSalvataggio(
+    async () => {
+      // UUID generati qui: dispatch li conserva perché già validi, così
+      // conosciamo l'id definitivo di ogni task e possiamo caricarci gli
+      // allegati (il path nel bucket e la RLS partono dal task_id).
+      const prepared = validRows.map((r) => ({
+        files: r.files,
+        task: {
+          id: crypto.randomUUID(),
+          title: r.title.trim(),
+          category: r.category || common.category,
+          priority: r.priority || common.priority,
+          status: "todo",
+          assignees: (r.assignee || common.assignee) ? [r.assignee || common.assignee] : [],
+          client: common.client.trim() || null,
+          praticaRef: common.praticaRef || null,
+          contact: common.contact.trim() || null,
+          dueDate: r.dueDate ? new Date(r.dueDate).toISOString() : (common.dueDate ? new Date(common.dueDate).toISOString() : null),
+          estimatedHours: 1,
+          description: r.description.trim(),
+          comments: [],
+        },
+      }));
 
-    const withFiles = prepared.filter(p => p.files.length > 0);
-    setBusy(true);
-    setFileError("");
+      const result = await onCreate(prepared.map(p => p.task));
 
-    const result = await onCreate(prepared.map(p => p.task));
+      // Creazione fallita: niente upload (senza la riga task la RLS del bucket
+      // rifiuterebbe comunque) e soprattutto il modale RESTA APERTO con i dati
+      // inseriti. Prima si chiudeva comunque: le task sparivano al reload e
+      // l'unico segnale era un toast che passava inosservato.
+      if (result?.error) return result;
 
-    // Creazione fallita: niente upload (senza la riga task la RLS del bucket
-    // rifiuterebbe comunque) e soprattutto il modale RESTA APERTO con i dati
-    // inseriti. Prima si chiudeva comunque: le task sparivano al reload e
-    // l'unico segnale era un toast che passava inosservato.
-    if (result && result.error) {
-      setFileError(`Creazione non riuscita: ${result.error.message || "errore sconosciuto"}. I dati sono ancora qui, riprova.`);
-      busyRef.current = false;
-      setBusy(false);
-      return;
-    }
-
-    if (!withFiles.length) {
-      busyRef.current = false;
-      setBusy(false);
-      onClose();
-      return;
-    }
-
-    for (const { task, files } of withFiles) {
-      for (const f of files) {
-        const { error } = await TaskFiles.upload(f, task.id, { uploadedBy: currentUserId });
-        if (error) {
-          // Le task sono già create: teniamo aperto il modale per dire quale
-          // allegato è rimasto indietro e dove recuperarlo.
-          setFileError(`Task create, ma l'upload di "${f.name}" su "${task.title}" è fallito. Riprova dal dettaglio della task.`);
-          busyRef.current = false;
-          setBusy(false);
-          return;
+      for (const { task, files } of prepared.filter(p => p.files.length > 0)) {
+        for (const f of files) {
+          const { error } = await TaskFiles.upload(f, task.id, { uploadedBy: currentUserId });
+          // `avviso` e non `error`: le task ESISTONO già. Il ramo precedente
+          // rimetteva `busyRef` a false, quindi «Crea» tornava premibile e un
+          // secondo tentativo creava un SECONDO batch identico. `avviso` alza
+          // `bloccato` e non lo riabbassa: il pannello resta aperto per dire
+          // dov'è finito l'allegato mancante, e la creazione non riparte.
+          if (error) return {
+            avviso: `Task create, ma l'upload di "${f.name}" su "${task.title}" è fallito. Riprova dal dettaglio della task.`,
+          };
         }
       }
-    }
-    busyRef.current = false;
-    setBusy(false);
-    onClose();
-  };
+      return { error: null };
+    },
+    {
+      alSuccesso: onClose,
+      messaggioErrore: (e) =>
+        `Creazione non riuscita: ${e?.message || "errore sconosciuto"}. I dati sono ancora qui, riprova.`,
+    },
+  );
 
   return (
     <div style={colGap16}>
@@ -342,14 +334,21 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
               {ignoredRows.some(r => r.files.length > 0) && " (allegati compresi)"}
             </span>
           )}
+          {avvisoDimensioni && <span style={stiliComuni.txtBoldDanger}>{avvisoDimensioni}</span>}
           {fileError && <span style={stiliComuni.txtBoldDanger}>{fileError}</span>}
+          {/* Riuscito a metà: le task ci sono, un allegato no. Non è un errore
+              da riprovare — è un'istruzione su dove recuperare il pezzo
+              mancante — quindi ha il colore dell'avviso e non del pericolo. */}
+          {avviso && <span style={txtBoldWarning}>{avviso}</span>}
         </div>
         <div style={stiliComuni.rowGap8}>
+          {/* «Annulla» resta premibile anche da `bloccato`: è la sola via
+              d'uscita quando la creazione è riuscita a metà. */}
           <button onClick={onCancel || onClose} disabled={busy} style={{ ...bulkBtnGhost, opacity: busy ? 0.6 : 1, cursor: busy ? "not-allowed" : "pointer" }}>Annulla</button>
-          <button onClick={handleCreate} disabled={validRows.length === 0 || busy} style={{
+          <button onClick={handleCreate} disabled={validRows.length === 0 || busy || bloccato} style={{
             ...bulkBtnPrimary,
-            opacity: (validRows.length === 0 || busy) ? 0.5 : 1,
-            cursor: (validRows.length === 0 || busy) ? "not-allowed" : "pointer",
+            opacity: (validRows.length === 0 || busy || bloccato) ? 0.5 : 1,
+            cursor: (validRows.length === 0 || busy || bloccato) ? "not-allowed" : "pointer",
           }}>{busy ? "⏳ Creazione…" : `✓ Crea ${validRows.length} task`}</button>
         </div>
       </div>

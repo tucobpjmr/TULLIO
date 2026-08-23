@@ -15,7 +15,7 @@ vi.mock("../lib/api.js", () => ({
 }));
 
 const { DateTimePicker } = await import("../components/ui/DateTimePicker.jsx");
-const { BulkTaskCreator } = await import("../components/modals/BulkTaskCreator.jsx");
+const { BulkTaskCreator } = await import("../components/tasks/bulk/BulkTaskCreator.jsx");
 
 // Chiudere il pannello senza premere "OK" (click fuori, Escape, backdrop su
 // mobile) scartava in silenzio il giorno appena scelto — che nel frattempo

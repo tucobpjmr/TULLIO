@@ -62,7 +62,7 @@ const MESSAGGIO_PREDEFINITO = "Salvataggio non riuscito. I dati sono ancora qui,
  * @param {string|((error:any)=>string)} [opzioni.messaggioErrore]  il testo
  *        inline in caso di fallimento. Il default parla di «dati», che è vero
  *        per un form; chi salva altro (un commento) passa il proprio.
- * @returns {{salva: Function, inVolo: boolean, errore: string, avviso: string, bloccato: boolean}}
+ * @returns {{salva: Function, azzera: Function, inVolo: boolean, errore: string, avviso: string, bloccato: boolean}}
  */
 export function useSalvataggio(esegui, { alSuccesso, messaggioErrore = MESSAGGIO_PREDEFINITO } = {}) {
   const [inVolo, setInVolo] = useState(false);
@@ -131,5 +131,19 @@ export function useSalvataggio(esegui, { alSuccesso, messaggioErrore = MESSAGGIO
     return esito;
   }, [montato]);
 
-  return { salva, inVolo, errore, avviso, bloccato: !!avviso };
+  // Spegne il messaggio d'errore senza tentare una scrittura. Serve a chi
+  // MOSTRA l'esito del salvataggio nello stesso posto in cui mostra altro —
+  // ImportTab ha un banner solo per «file illeggibile» e «importazione non
+  // riuscita» — e ha un'azione che riporta il pannello allo stato di partenza
+  // (là è «cambia file»): senza questo, `errore` si spegnerebbe solo al
+  // tentativo successivo, e il banner resterebbe a parlare di un import che
+  // l'utente ha già abbandonato.
+  //
+  // NON tocca `avviso` né `bloccato`, ed è deliberato: quel blocco esiste
+  // perché la scrittura è RIUSCITA a metà, e la cosa da fare non è riprovare —
+  // è chiudere. Un `azzera` che lo spegnesse riaprirebbe esattamente il caso
+  // che `avviso` esiste per chiudere (il secondo batch di task duplicate).
+  const azzera = useCallback(() => setErrore(""), []);
+
+  return { salva, azzera, inVolo, errore, avviso, bloccato: !!avviso };
 }

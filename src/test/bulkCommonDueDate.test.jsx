@@ -15,7 +15,7 @@ vi.mock("../lib/api.js", () => ({
   TaskFiles: { upload: vi.fn(async () => ({ error: null })) },
 }));
 
-const { BulkTaskCreator } = await import("../components/modals/BulkTaskCreator.jsx");
+const { BulkTaskCreator } = await import("../components/tasks/bulk/BulkTaskCreator.jsx");
 const { formatPickerValue } = await import("../components/ui/DateTimePicker.jsx");
 
 // La scadenza delle IMPOSTAZIONI COMUNI deve comportarsi come categoria,

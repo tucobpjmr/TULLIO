@@ -9,10 +9,6 @@ import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
-const boxR14 = {
-  background: "var(--card)", borderRadius: 14, border: "1px solid var(--border)",
-  boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden",
-};
 const grid2 = { display: "grid", gridTemplateColumns: `56px repeat(7, minmax(0, 1fr))`, background: "var(--surface2)" };
 const maxHeight2 = { maxHeight: 560, overflowY: "auto" };
 const gridRelative = { display: "grid", gridTemplateColumns: `56px repeat(7, minmax(0, 1fr))`, position: "relative" };
@@ -23,7 +19,7 @@ export function CalendarWeekGrid({ weekDays, dayNames, getTasksForDay, tasks, ca
   const SLOT_H = 36;
   const today = new Date().toDateString();
   return (
-    <div style={boxR14}>
+    <div style={stiliComuni.cardElevata}>
       {/* Header giorni */}
       <div style={grid2}>
         <div />

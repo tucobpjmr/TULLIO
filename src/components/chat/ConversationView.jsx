@@ -44,14 +44,13 @@ export const ConversationView = ({ conv, messages, commands, onBack, onDelete, i
   // solo quelli che servono alla conversazione.
   const { input, replyingTo, showMsgSearch, msgSearch, showPinnedOnly,
           typingMap, pendingTaskRef, uploading } = cv;
-  const { currentUserId, presenceMap } = useChatContext();
+  const { currentUserId, presenceMap, dispatch } = useChatContext();
   // B-6 · Come in ConversationList: il pallino nella testata invecchia perché
   // questo componente si ri-renderizza, non perché il guscio lo fa per lui.
   useTickLento(TICK_PRESENZA_MS);
   const scrollRef = useRef(null);
   // Step M: upload allegati reale
   const fileInputRef = useRef(null);
-  const { dispatch } = useChatContext();
   const { currentUserId: appUserId, getMember } = useAppData();
   // `currentUserId` del ChatContext ha la precedenza (i test montano la vista
   // isolata passandolo esplicitamente); altrimenti vale l'utente dell'app.

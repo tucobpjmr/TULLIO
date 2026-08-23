@@ -17,7 +17,7 @@
 // Non richiede rete né credenziali: misura questo repo. Esce 1 su qualunque
 // divergenza, 2 su un errore imprevisto.
 import { readFile, readdir } from 'node:fs/promises';
-import { ESLint } from 'eslint';
+import { ESLint, Linter } from 'eslint';
 import {
   LetturaFallita, leggiCallSiteSalvataggio, leggiCallSiteStorico, leggiConteggioMultiComp,
   leggiStatoAudit, leggiStatoIndex, leggiStiliInline, montaggiLazySenzaRete,
@@ -28,6 +28,9 @@ import {
   azioniRegistry, formSenzaAttesaEsito, ricercheSenzaIndice, iterazioniQuadratiche,
   // M-1 (passo 2): la finestra sull'anagrafica e chi ne chiede il complemento.
   usiClientiCompleti, leggiCallSiteClienti,
+  // A-5 (23 agosto, secondo passaggio): le forme di stile confrontate per
+  // VALORE e non per nome. Vedi il blocco che le introduce in convenzioni.js.
+  formeDuplicate, formeGiaInComune,
 } from './convenzioni.js';
 
 // Gli audit sotto controllo: nome del file, prefisso dei suoi rilievi.
@@ -59,6 +62,13 @@ const AUDIT = [
   // dei loro marcatori ⟦stato: N/9 chiusi⟧ in questo file e in INDEX.md non
   // sarebbe verificato da nessuno script.
   { file: 'AUDIT_ARCHITETTURA_2026-08-23.md', prefisso: ['C', 'A', 'M', 'B'] },
+  // Registrato insieme al documento, come i tre sopra. ⚠️ Il prefisso è UNO
+  // solo e non i quattro tiers: in questo audit `A-` è una sequenza
+  // progressiva e la priorità sta nella propria colonna — la deviazione è
+  // dichiarata in cima al documento, e la ragione è che i riferimenti A-3/A-4/
+  // A-5 sono già citati dentro il codice (eslint.config.js, styles/common.js,
+  // lib/realtime.js, questo stesso script).
+  { file: 'AUDIT_ARCHITETTURA_2026-08-23_ii.md', prefisso: 'A' },
 ];
 
 // Misura i warning di una regola sul sorgente dell'app.
@@ -96,6 +106,66 @@ async function contaSelettore(selettore) {
   const risultati = await eslint.lintFiles(['src']);
   return risultati.reduce(
     (n, r) => n + r.messages.filter(m => m.ruleId === 'no-restricted-syntax').length, 0);
+}
+
+// Le costanti-oggetto dichiarate a LIVELLO DI MODULO, con il loro valore
+// normalizzato (A-5). Serve ai due controlli sulle forme di stile duplicate.
+//
+// Passa dall'AST e non da un'espressione regolare, a differenza degli altri
+// controlli testuali di questo script, e la ragione è che qui non si cerca una
+// forma nel testo — si confrontano dei VALORI. `{display:"flex", gap:6}` e
+// `{ gap: 6, display: 'flex' }` sono la stessa costante e devono risultare
+// uguali; una regex vedrebbe due stringhe diverse e il controllo troverebbe
+// solo i copia-incolla, cioè il caso più raro. `Linter` è API pubblica di
+// ESLint e dà il parser (JSX compreso) senza aggiungere una dipendenza.
+//
+// «A livello di modulo» è parte della definizione, non un dettaglio
+// dell'implementazione: una costante dentro un componente è un oggetto nuovo a
+// ogni render — quello è il difetto M-1, e ha già la sua regola
+// (STILE_INLINE_COSTANTE in eslint.config.js). Qui si guarda ciò che M-1 ha
+// prodotto: le forme estratte fuori dal JSX, e quante volte la stessa è stata
+// estratta due volte.
+const SELETTORI_COSTANTI = [
+  'Program > VariableDeclaration > VariableDeclarator[init.type="ObjectExpression"]',
+  'Program > ExportNamedDeclaration > VariableDeclaration > VariableDeclarator[init.type="ObjectExpression"]',
+];
+
+function costantiOggetto(sorgenti) {
+  const linter = new Linter();
+  const regola = {
+    create(context) {
+      const sc = context.sourceCode;
+      const visita = (n) => {
+        // Le proprietà ORDINATE: l'ordine in cui sono scritte non cambia ciò
+        // che il browser disegna, quindi non deve cambiare l'identità della
+        // forma. Spazi e virgolette uniformati per la stessa ragione.
+        const valore = n.init.properties
+          .map(pr => sc.getText(pr).replace(/\s+/g, ' ').replace(/"/g, "'"))
+          .sort().join(', ');
+        context.report({ node: n, message: JSON.stringify({ nome: n.id.name, valore: `{ ${valore} }` }) });
+      };
+      return Object.fromEntries(SELETTORI_COSTANTI.map(s => [s, visita]));
+    },
+  };
+  const config = {
+    files: ['**/*.js', '**/*.jsx'],
+    plugins: { locale: { rules: { estrai: regola } } },
+    rules: { 'locale/estrai': 'error' },
+    languageOptions: {
+      ecmaVersion: 'latest', sourceType: 'module',
+      parserOptions: { ecmaFeatures: { jsx: true } },
+    },
+  };
+  const out = [];
+  for (const { path, testo } of sorgenti) {
+    for (const m of linter.verify(testo, config, path)) {
+      // Gli altri messaggi sono rumore di configurazione (una direttiva
+      // eslint-disable per una regola che questa config minima non carica):
+      // non riguardano la misura.
+      if (m.ruleId === 'locale/estrai') out.push({ path, ...JSON.parse(m.message) });
+    }
+  }
+  return out;
 }
 
 // Ogni oggetto letterale passato a un attributo `style`. Dopo M-1 sono per
@@ -148,7 +218,7 @@ async function main() {
   controlli.push({
     nome: 'max-lines (violazioni)', dove: 'docs/CLAUDE.md («a zero violazioni»)',
     dichiarato: 0, misurato: maxLines.casi,
-    rimedio: 'Spezza il file oltre soglia: la deroga dichiarata è una sola (state/reducer.js).',
+    rimedio: 'Spezza il file oltre soglia: dal 23 agosto non ci sono deroghe (quella di state/reducer.js è stata chiusa estraendone due fette).',
   });
 
   // 3. Stili inline (M-1). Il numero che è stato riscritto a mano in quattro
@@ -217,6 +287,31 @@ async function main() {
     nome: 'indexOf/findIndex dentro una .map()', dove: 'docs/CLAUDE.md',
     dichiarato: 0, misurato: quadratiche.length,
     rimedio: `O(n²) per render: l'indice ce l'ha già la callback di map, o si porta dietro dalla costruzione della lista: ${quadratiche.join(', ')}`,
+  });
+
+  // 5-quinquies e 5-sexies · le forme di stile duplicate (A-5). Stessa
+  //    famiglia dei tre qui sopra: l'atteso è 0. La soglia è quella che
+  //    `src/styles/common.js` dichiara di se stesso in cima — «le forme che
+  //    ricorrono in tre o più file» — e fino al 23 agosto era applicata a
+  //    occhio, confrontando i nomi: quattro forme la superavano senza che
+  //    nessuno le vedesse, e due file riscrivevano alla lettera una forma che
+  //    common.js aveva già.
+  const costanti = costantiOggetto(sorgenti);
+  const fuoriDagliStili = costanti.filter(c => !c.path.startsWith('src/styles/'));
+  const inComune = costanti.filter(c => c.path === 'src/styles/common.js');
+
+  const duplicate = formeDuplicate(fuoriDagliStili);
+  controlli.push({
+    nome: 'forme di stile identiche in 3+ file', dove: 'src/styles/common.js («tre o più file»)',
+    dichiarato: 0, misurato: duplicate.length,
+    rimedio: `Promuovi la forma in src/styles/common.js e importane il namespace: ${duplicate.join(' | ')}`,
+  });
+
+  const gia = formeGiaInComune(fuoriDagliStili, inComune);
+  controlli.push({
+    nome: 'forme già in common.js riscritte altrove', dove: 'src/styles/common.js',
+    dichiarato: 0, misurato: gia.length,
+    rimedio: `Usa quella condivisa invece di ridefinirla: ${gia.join(' | ')}`,
   });
 
   // 6. Viste che chiedono il corpus intero dei task (A-3). Stesso mestiere del

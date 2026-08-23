@@ -17,7 +17,6 @@ import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
-const rowCenterBetween = { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 };
 const txtF20Bold = { fontSize: 20, fontWeight: 700 };
 const boxF18Muted = { background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--text-muted)" };
 const boxF10Bold = {
@@ -223,7 +222,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
   return (
     <Modal open onClose={onClose} labelledBy="quick-add-title" width={500} cardStyle={{ padding: 28 }}>
       <>
-        <div style={rowCenterBetween}>
+        <div style={stiliComuni.testataModale}>
           <div id="quick-add-title" className="playfair" style={txtF20Bold}>Nuovo Task</div>
           <button onClick={onClose} style={boxF18Muted}>✕</button>
         </div>

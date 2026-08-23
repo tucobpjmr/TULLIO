@@ -2,7 +2,7 @@
 // I token di design condivisi: scala z-index, bottoni, campi.
 //
 // PERCHÉ ESISTE. Prima convivevano tre sistemi di stile paralleli e
-// incompatibili — `admin/adminStyles.js`, `modals/bulk/bulkStyles.js` e
+// incompatibili — `admin/adminStyles.js`, `tasks/bulk/bulkStyles.js` e
 // `liste/liste.css` — più stili inline ovunque. Lo stesso bottone
 // primario esisteva in almeno quattro varianti non intercambiabili, e i
 // `zIndex` erano 23 valori magici sparsi da 1 a 9999 senza alcuna scala

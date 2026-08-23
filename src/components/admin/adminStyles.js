@@ -2,7 +2,7 @@
 // Stili condivisi dall'area Admin.
 //
 // Era uno dei TRE sistemi di stile paralleli della codebase (con
-// modals/bulk/bulkStyles.js e liste/liste.css): lo stesso bottone
+// tasks/bulk/bulkStyles.js e liste/liste.css): lo stesso bottone
 // primario esisteva in quattro varianti non intercambiabili. Ora le forme che
 // coincidono derivano da styles/tokens.js; restano qui solo le varianti
 // specifiche dell'area e i pochi delta, che sono ESPLICITI invece di essere

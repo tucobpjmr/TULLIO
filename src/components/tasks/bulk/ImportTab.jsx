@@ -1,8 +1,9 @@
-// src/components/modals/bulk/ImportTab.jsx
+// src/components/tasks/bulk/ImportTab.jsx
 // Import da CSV/Excel: parsing, mappatura colonne, anteprima, validazione.
 // È la tab con più stato locale delle quattro — parsing, mapping e preview
 // sono tre fasi che si passano dati a vicenda.
 import { useState, useRef, useMemo, useEffect } from "react";
+import { useSalvataggio } from "../../../hooks/useSalvataggio.js";
 import { PriorityBadge } from "../../ui/PriorityBadge.jsx";
 import { STATUS_LABELS } from "../../../lib/taskConstants.js";
 import { formatDate } from "../../../lib/taskUtils.js";
@@ -33,13 +34,11 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
   // Campi il cui abbinamento è stato indovinato automaticamente al caricamento:
   // li evidenziamo così l'operatore sa cosa verificare (e cosa mappare a mano).
   const [autoDetected, setAutoDetected] = useState({});
+  // Errori della FASE DI LETTURA (file troppo grande, vuoto, illeggibile).
+  // L'esito del salvataggio vive invece in `erroreImport` più sotto: i due
+  // condividono un banner, non uno stato — il primo lo spegne chi carica un
+  // file nuovo, il secondo si spegne al tentativo successivo.
   const [error, setError] = useState(null);
-  // Il freno vero al doppio invio è `busyRef`, non lo stato `busy` (stesso
-  // caso descritto in hooks/useSalvataggio.js): fra due tap ravvicinati sul
-  // bottone React può non aver ancora ri-renderizzato il bottone disabilitato,
-  // e un controllo basato solo sullo stato lascia partire due import identici.
-  const busyRef = useRef(false);
-  const [busy, setBusy] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => { onDirty?.(rows.length > 0); }, [rows.length, onDirty]);
@@ -59,6 +58,9 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
     }
     setFileName(file.name);
     setError(null);
+    // Anche l'esito di un import precedente: il banner è uno solo, e un file
+    // nuovo rende stantio qualunque messaggio lo stia occupando.
+    azzeraErroreImport();
     const reader = new FileReader();
     reader.onload = async (evt) => {
       try {
@@ -141,9 +143,26 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
     });
   }, [validRows, mapping, team, categories]);
 
-  const handleCreate = async () => {
-    if (busyRef.current) return;
-    busyRef.current = true;
+  // Il freno al doppio invio, l'attesa a schermo e il «file e mappatura sono
+  // ancora qui» vengono da useSalvataggio (A-2 dell'audit del 23 agosto,
+  // secondo passaggio): erano `busyRef` + `busy` scritti a mano, con il
+  // teardown ricopiato in quattro punti di uscita e nessun `finally` — un
+  // throw di `onCreate` lasciava `busyRef` a `true` per sempre, cioè la modale
+  // viva col bottone spento e nessun messaggio. Qui il costo era il più alto
+  // delle quattro tab: ricaricare significa ricaricare il CSV e rimappare
+  // tutte le colonne.
+  const { salva, azzera: azzeraErroreImport, inVolo: busy, errore: erroreImport } = useSalvataggio(
+    // Import fallito: il modale resta aperto con file e mappatura intatti,
+    // altrimenti l'operatore dovrebbe ricaricare il CSV e rimappare tutto.
+    (tasks) => onCreate(tasks),
+    {
+      alSuccesso: onClose,
+      messaggioErrore: (e) =>
+        `Importazione non riuscita: ${e?.message || "errore sconosciuto"}. Il file e la mappatura sono ancora qui, riprova.`,
+    },
+  );
+
+  const handleCreate = () => {
     const tasks = validRows.map((r) => {
       const assignee = mapping.assignee ? normAssignee(team, r[mapping.assignee]) : null;
       return {
@@ -161,24 +180,18 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
         comments: [],
       };
     });
-    if (!tasks.length) { busyRef.current = false; return; }
-    setBusy(true);
-    setError(null);
-    const result = await onCreate(tasks);
-    // Import fallito: il modale resta aperto con file e mappatura intatti,
-    // altrimenti l'operatore dovrebbe ricaricare il CSV e rimappare tutto.
-    if (result && result.error) {
-      setError(`Importazione non riuscita: ${result.error.message || "errore sconosciuto"}. Il file e la mappatura sono ancora qui, riprova.`);
-      busyRef.current = false;
-      setBusy(false);
-      return;
-    }
-    busyRef.current = false;
-    setBusy(false);
-    onClose();
+    // Zero task da importare non è né un successo né un errore: resta un no-op
+    // silenzioso come prima. Il guard sta QUI e non dentro `esegui` perché per
+    // useSalvataggio un ritorno senza errore è un successo, e chiuderebbe la
+    // modale senza aver importato nulla.
+    if (!tasks.length) return;
+    return salva(tasks);
   };
 
-  const reset = () => { setRows([]); setColumns([]); setMapping({}); setAutoDetected({}); setFileName(""); setError(null); };
+  // `azzeraErroreImport` insieme a `setError(null)`: i due messaggi
+  // condividono il banner, e cambiare file deve spegnerlo qualunque delle due
+  // fasi l'abbia acceso.
+  const reset = () => { setRows([]); setColumns([]); setMapping({}); setAutoDetected({}); setFileName(""); setError(null); azzeraErroreImport(); };
 
   const fields = [
     { key: "title", label: "Titolo *" }, { key: "category", label: "Categoria" },
@@ -208,9 +221,13 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
         </div>
       )}
 
-      {error && (
+      {/* Un banner, due fasi: lettura del file ed esito dell'import. Sono
+          mutuamente esclusivi nei fatti — senza righe lette non c'è nulla da
+          importare — ma restano due stati distinti, perché si spengono in
+          momenti diversi. */}
+      {(error || erroreImport) && (
         <div style={boxF13Danger}>
-          ⚠️ {error}
+          ⚠️ {error || erroreImport}
         </div>
       )}
 

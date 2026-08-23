@@ -565,7 +565,22 @@ describe("persistence — template messaggi raggiungono il database", () => {
 // qui: una lista sarebbe una terza copia da tenere allineata, cioè esattamente
 // il tipo di divergenza che questo file esiste per impedire.
 // `?raw` di Vite: importa il file come testo senza eseguirlo.
-const SORGENTE_REDUCER = (await import("../state/reducer.js?raw")).default;
+//
+// TRE FILE, NON UNO. Dal 23 agosto «il reducer» sono tre sorgenti: lo switch
+// principale più due fette con reducer proprio (bacheca avvisi e template
+// messaggi), uscite da state/reducer.js quando la sua deroga a `max-lines` è
+// arrivata a sette righe dal tetto. Leggere il solo file principale
+// dichiarerebbe morte le entry di persistenza di undici azioni che il registry
+// scrive eccome — ed è precisamente il difetto che questo blocco esiste per
+// intercettare, rivolto contro il test stesso. L'elenco resta letto dal
+// SORGENTE e non scritto a mano: una fetta nuova va aggiunta qui, e finché non
+// lo si fa i suoi case risultano orfani invece di passare in silenzio.
+const SORGENTI_REDUCER = await Promise.all([
+  import("../state/reducer.js?raw"),
+  import("../state/noticesReducer.js?raw"),
+  import("../state/messageTemplatesReducer.js?raw"),
+].map(p => p.then(m => m.default)));
+const SORGENTE_REDUCER = SORGENTI_REDUCER.join("\n");
 const AZIONI_DEL_REDUCER = [...SORGENTE_REDUCER.matchAll(/case "([A-Z_]+)"/g)].map(m => m[1]);
 
 // Ogni azione che il reducer gestisce e che NON sta nel registry deve stare in

@@ -1,4 +1,4 @@
-// src/components/modals/bulk/importTabStyles.js
+// src/components/tasks/bulk/importTabStyles.js
 // Gli stili costanti di ImportTab.jsx, estratti dal componente (M-1,
 // audit del 12 agosto): oggetti allocati una volta a livello di modulo
 // invece che ricostruiti a ogni render, e altrettante righe di sola

@@ -22,7 +22,6 @@ const rowCenterGap102 = {
   border: "1px solid var(--border)", borderRadius: 8, cursor: "pointer",
   fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 10,
 };
-const flex12 = { flex: 1, overflowY: "auto" };
 const txtF10Bold = { padding: "10px 14px 4px", fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1 };
 const rowCenterGap103 = {
   padding: "10px 14px", display: "flex", gap: 10, alignItems: "center",
@@ -119,7 +118,7 @@ export const NewConversationView = ({ onCreate, onCancel, existing }) => {
               <span style={stiliComuni.txtF18}>👥</span> Crea nuovo gruppo
             </button>
           </div>
-          <div style={flex12}>
+          <div style={stiliComuni.areaScorrevole}>
             <div style={txtF10Bold}>
               MEMBRI DEL TEAM
             </div>
@@ -156,7 +155,7 @@ export const NewConversationView = ({ onCreate, onCancel, existing }) => {
             />
             <FieldError id="vd-chat-gruppo-nome-err">{errori.groupName}</FieldError>
           </div>
-          <div style={flex12}>
+          <div style={stiliComuni.areaScorrevole}>
             {/* `tabIndex={-1}`: l'elenco dei membri non è un campo di form —
                 sono righe cliccabili — ma il focus deve poterci arrivare
                 quando è LUI a mancare, altrimenti il messaggio comparirebbe

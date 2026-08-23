@@ -16,10 +16,6 @@ import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
-const boxR14 = {
-  background: "var(--card)", borderRadius: 14, border: "1px solid var(--border)",
-  boxShadow: "0 2px 10px rgba(0,0,0,0.06)", overflow: "hidden",
-};
 const rowCenterBetween = {
   padding: "10px 14px", background: "var(--surface2)",
   fontSize: 12, color: "var(--text-muted)", fontWeight: 600,
@@ -49,7 +45,7 @@ export function CalendarDayGrid({ dayDate, expandedDay, catFilter, tasks, catego
   const isToday = dayDate.toDateString() === new Date().toDateString();
   const nowMinutes = isToday ? new Date().getHours() * 60 + new Date().getMinutes() : null;
   return (
-    <div style={boxR14}>
+    <div style={stiliComuni.cardElevata}>
       <div style={rowCenterBetween}>
         <span>{dayTasks.length} task in agenda</span>
         {isToday && <span style={txtGold}>● Oggi</span>}

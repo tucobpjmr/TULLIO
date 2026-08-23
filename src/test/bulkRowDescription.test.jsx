@@ -15,7 +15,7 @@ vi.mock("../lib/api.js", () => ({
   TaskFiles: { upload: vi.fn(async () => ({ error: null })) },
 }));
 
-const { BulkTaskCreator } = await import("../components/modals/BulkTaskCreator.jsx");
+const { BulkTaskCreator } = await import("../components/tasks/bulk/BulkTaskCreator.jsx");
 
 // Ogni riga della modalità manuale ha una descrizione facoltativa: prima le
 // task create in blocco nascevano sempre con description vuota, e l'unico

@@ -1,4 +1,4 @@
-// src/components/modals/bulk/ManualTab.jsx
+// src/components/tasks/bulk/ManualTab.jsx
 // Inserimento a mano: N righe con impostazioni comuni e override per riga.
 import { useState, useEffect } from "react";
 import { useViewport } from "../../Viewport.jsx";

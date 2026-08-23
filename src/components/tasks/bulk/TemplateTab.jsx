@@ -1,4 +1,4 @@
-// src/components/modals/bulk/TemplateTab.jsx
+// src/components/tasks/bulk/TemplateTab.jsx
 // Generazione da template: una serie di task a partire dalla data di un evento.
 import { useEffect, useRef, useState } from "react";
 import { useSalvataggio } from "../../../hooks/useSalvataggio.js";

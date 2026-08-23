@@ -12,7 +12,7 @@ vi.mock("../lib/api.js", () => ({
   TaskFiles: { upload: vi.fn(async () => ({ error: null })) },
 }));
 
-const { BulkTaskCreator } = await import("../components/modals/BulkTaskCreator.jsx");
+const { BulkTaskCreator } = await import("../components/tasks/bulk/BulkTaskCreator.jsx");
 
 // Due tap ravvicinati sullo stesso bottone "Crea" — prima di questa
 // correzione ManualTab, DuplicateTab, ImportTab e TemplateTab tenevano il

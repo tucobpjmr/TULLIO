@@ -1,4 +1,4 @@
-// src/components/modals/bulk/DuplicateTab.jsx
+// src/components/tasks/bulk/DuplicateTab.jsx
 // Duplicazione di task esistenti, con spostamento delle scadenze.
 import { useState, useEffect } from "react";
 import { useSalvataggio } from "../../../hooks/useSalvataggio.js";

@@ -39,7 +39,7 @@ import { AddTeamMemberModal } from "../components/modals/AddTeamMemberModal.jsx"
 import { NewConversationView } from "../components/chat/NewConversationView.jsx";
 import { EditListaModal } from "../components/liste/modals/EditListaModal.jsx";
 import { Trash } from "../components/views/Trash.jsx";
-import { TemplateTab } from "../components/modals/bulk/TemplateTab.jsx";
+import { TemplateTab } from "../components/tasks/bulk/TemplateTab.jsx";
 import { renderWithAppData, DEMO_APP_CTX } from "./helpers/appData.jsx";
 
 // ─── La metà pura ───────────────────────────────────────────────────────────

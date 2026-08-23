@@ -1,4 +1,4 @@
-// src/components/modals/bulk/RowAttachments.jsx
+// src/components/tasks/bulk/RowAttachments.jsx
 // Allegati di una singola riga in creazione.
 import { useRef } from "react";
 import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon } from "../../../lib/fileUtils.js";

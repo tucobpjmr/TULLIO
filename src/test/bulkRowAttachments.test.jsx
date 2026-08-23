@@ -13,7 +13,7 @@ const render = (ui, options) => renderWithAppData(ui, DEMO_APP_CTX, options);
 const upload = vi.fn(async () => ({ error: null }));
 vi.mock("../lib/api.js", () => ({ TaskFiles: { upload } }));
 
-const { BulkTaskCreator } = await import("../components/modals/BulkTaskCreator.jsx");
+const { BulkTaskCreator } = await import("../components/tasks/bulk/BulkTaskCreator.jsx");
 const { MAX_TASK_FILE_SIZE } = await import("../lib/fileUtils.js");
 
 // Ogni riga della modalità manuale può portarsi dietro i propri allegati:

@@ -1,4 +1,4 @@
-// src/components/modals/bulk/ImportTab.jsx
+// src/components/tasks/bulk/ImportTab.jsx
 // Import da CSV/Excel: parsing, mappatura colonne, anteprima, validazione.
 // È la tab con più stato locale delle quattro — parsing, mapping e preview
 // sono tre fasi che si passano dati a vicenda.

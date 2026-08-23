@@ -39,7 +39,7 @@ vi.mock("../lib/api.js", () => ({
   TaskFiles: { upload: (...a) => upload(...a) },
 }));
 
-const { BulkTaskCreator } = await import("../components/modals/BulkTaskCreator.jsx");
+const { BulkTaskCreator } = await import("../components/tasks/bulk/BulkTaskCreator.jsx");
 
 // Compila la tab Manuale con una riga valida e ritorna il bottone «Crea».
 const preparaUnaRiga = (props) => {

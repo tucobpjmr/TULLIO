@@ -62,17 +62,21 @@ src/
 ├── VoyageDesk.jsx        orchestratore: compone hook e viste (~340 righe)
 ├── main.jsx              entry point, AuthGate, service worker
 ├── auth/                 AuthContext, login, recupero password
-├── state/                reducer, persistence (registry), AppDataContext, mockData
+├── state/                reducer (+ noticesReducer, messageTemplatesReducer),
+│                         persistence (registry), AppDataContext, mockData
 ├── hooks/                useAppHydration, useNotifications, usePresence,
 │                         usePushNavigation, useChatData, useSyncedDispatch,
 │                         useDebouncedTableSubscription
-├── lib/                  api (data layer), permissions (pure), mappers, utils
+├── lib/                  api (data layer + porta realtime), realtime (canali,
+│                         origin_client), permissions (pure), mappers, utils
 ├── styles/               GlobalStyles (tema), tokens (z-index, bottoni, campi)
 ├── components/
 │   ├── shell/            Topbar, Sidebar/BottomNav, FAB, UserSwitcher
 │   ├── dashboard/        Dashboard + queues/ (4 code) + NoticeBoard
-│   ├── tasks/ clients/ calendar/ views/ admin/ chat/ liste/ search/
-│   ├── notifications/ modals/ ui/
+│   ├── tasks/            TaskCard/Row/SlideOver + bulk/ (creazione in blocco)
+│   ├── clients/ calendar/ views/ admin/ chat/ liste/ search/ notifications/
+│   ├── modals/           i modali NON ancora ricondotti alla loro funzionalità
+│   ├── ui/               ciò che è davvero trasversale (Modal, Avatar, Toast…)
 └── test/                 1637 test (Vitest)
 
 supabase/

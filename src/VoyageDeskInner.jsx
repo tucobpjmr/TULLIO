@@ -77,7 +77,7 @@ const ChatPanel = lazy(() =>
   import("./components/chat/ChatPanel.jsx").then(m => ({ default: m.ChatPanel }))
 );
 const BulkTaskCreator = lazy(() =>
-  import("./components/modals/BulkTaskCreator.jsx").then(m => ({ default: m.BulkTaskCreator }))
+  import("./components/tasks/bulk/BulkTaskCreator.jsx").then(m => ({ default: m.BulkTaskCreator }))
 );
 const TaskSlideOver = lazy(() =>
   import("./components/tasks/TaskSlideOver.jsx").then(m => ({ default: m.TaskSlideOver }))

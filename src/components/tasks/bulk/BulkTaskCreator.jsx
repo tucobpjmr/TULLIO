@@ -1,19 +1,24 @@
+// src/components/tasks/bulk/BulkTaskCreator.jsx
 // ─── BULK TASK CREATOR ───────────────────────────────────────────────────────
 // Shell della modale: schermata di scelta, barra tab, guardia sulle modifiche
-// non salvate. Le quattro modalità vivono in ./bulk/ — erano quattro
+// non salvate. Le quattro modalità stanno accanto a questo file — erano quattro
 // componenti già separati dentro un file da 1.366 righe, con contratto
 // identico (onCreate, onClose, onCancel, onDirty) ma nessuna possibilità di
 // aprirne uno solo in un test.
+//
+// La cartella è `tasks/bulk/` e non `modals/bulk/` dal 23 agosto (A-6): questa
+// è la creazione di TASK in blocco, e «modale» è come si presenta, non cosa
+// fa. Vedi la regola sulle cartelle in docs/CLAUDE.md.
 import { useState } from "react";
-import { useViewport } from "../Viewport.jsx";
-import { ManualTab } from "./bulk/ManualTab.jsx";
-import { DuplicateTab } from "./bulk/DuplicateTab.jsx";
-import { ImportTab } from "./bulk/ImportTab.jsx";
-import { TemplateTab } from "./bulk/TemplateTab.jsx";
-import { Modal } from "../ui/Modal.jsx";
-import { useConfirm } from "../../state/ConfirmContext.jsx";
-import { useClients } from "../../state/ClientsContext.jsx";
-import * as stiliComuni from "../../styles/common.js";
+import { useViewport } from "../../Viewport.jsx";
+import { ManualTab } from "./ManualTab.jsx";
+import { DuplicateTab } from "./DuplicateTab.jsx";
+import { ImportTab } from "./ImportTab.jsx";
+import { TemplateTab } from "./TemplateTab.jsx";
+import { Modal } from "../../ui/Modal.jsx";
+import { useConfirm } from "../../../state/ConfirmContext.jsx";
+import { useClients } from "../../../state/ClientsContext.jsx";
+import * as stiliComuni from "../../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).

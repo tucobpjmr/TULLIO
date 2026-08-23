@@ -1,4 +1,4 @@
-// src/components/modals/bulk/bulkStyles.js
+// src/components/tasks/bulk/bulkStyles.js
 // Gli oggetti di stile condivisi dalle quattro tab del creatore in blocco.
 // Erano in testa a un file da 1.366 righe: qui restano un posto solo da
 // toccare quando la modale cambia aspetto, senza trascinarsi dietro il resto.

@@ -15,7 +15,7 @@ tre dei sette rilievi qui sotto sono esattamente questo — un confine dichiarat
 in un commento e non in una regola, un tetto che stava per essere sfondato senza
 che nessuno lo sapesse, un criterio applicato a occhio da mesi.
 
-⟦stato: 6/7 chiusi⟧
+⟦stato: 7/7 chiusi⟧
 
 > **Sulla numerazione.** In questo documento il prefisso `A-` è una sequenza
 > progressiva e **non** un livello di priorità: la priorità sta nella sua
@@ -62,7 +62,7 @@ la modale viva col bottone spento per sempre. Chiuso lo stesso giorno.
 | **A-3** ✔ | Media | Struttura | `state/reducer.js` a **543 righe effettive contro il tetto di 550** della propria deroga: sette righe dalla rottura della build | `state/reducer.js` · `eslint.config.js` |
 | **A-4** ✔ | Media | Struttura / leggibilità | `lib/api.js` teneva insieme tredici namespace di dominio e il transport realtime, con le due metà del contratto `origin_client` ai due capi opposti del file | `lib/api.js` |
 | **A-5** ✔ | Media | Stili | «Le forme che ricorrono in tre o più file stanno in `common.js`» era applicato confrontando i **nomi**: quattro forme identiche alla lettera in tre file ciascuna, e due riscritture di forme già promosse | `styles/common.js` · 9 file |
-| **A-6** | Bassa | Struttura | Tassonomia mista delle cartelle: per tipo (`ui/`, `shell/`, `modals/`, `views/`) e per funzionalità (`tasks/`, `chat/`, `liste/`) insieme; la funzionalità «task» si stende su quattro cartelle | `src/components/` |
+| **A-6** ✔ | Bassa | Struttura | Tassonomia mista delle cartelle: per tipo (`ui/`, `shell/`, `modals/`, `views/`) e per funzionalità (`tasks/`, `chat/`, `liste/`) insieme; la funzionalità «task» si stende su quattro cartelle | `src/components/` |
 | **A-7** ✔ | Bassa | Igiene | `ConversationView` chiamava `useChatContext()` due volte nello stesso corpo; `README.md` dichiarava 1316 test contro i 1637 reali | `chat/ConversationView.jsx` · `README.md` |
 
 ---
@@ -258,22 +258,49 @@ costante. Il conteggio totale (**914** costanti-oggetto a livello di modulo
 fuori da `src/styles/`) è riportato qui e **non** scritto in un documento
 verificato: un conteggio scade a ogni componente nuovo, una proprietà no.
 
-## A-6 · Tassonomia mista delle cartelle ⬜ aperto
+## A-6 · Tassonomia mista delle cartelle ✔
 
 `src/components/` mescola due criteri: per tipo (`ui/`, `shell/`, `modals/`,
 `views/`) e per funzionalità (`tasks/`, `chat/`, `liste/`, `clients/`,
 `calendar/`, `dashboard/`, `notifications/`, `search/`, `admin/`). La
-conseguenza concreta è che la funzionalità «task» si stende su quattro cartelle:
-`tasks/`, `modals/bulk/`, `modals/QuickAddTask.jsx`, `views/`.
+conseguenza concreta è che la creazione di task in blocco viveva in **tre
+posti** — `modals/BulkTaskCreator.jsx`, `modals/bulk/` e il resto della
+funzionalità in `tasks/` — mentre è una cosa sola.
 
-**Non è un rinominamento di massa.** Un `git mv` su decine di file produce un
-diff che nessuno rilegge, rompe ogni riferimento nei documenti di audit
-precedenti e non insegna niente al file successivo. La correzione proporzionata
-è scrivere **la regola per il prossimo file** in `docs/CLAUDE.md` — un
-componente che appartiene a una funzionalità va nella cartella della
-funzionalità, `ui/` e `shell/` restano per ciò che è davvero trasversale — e
-spostare `modals/bulk/` → `tasks/bulk/` come primo caso, ora che A-2 ha
-finito di toccare quei file. Resta da fare.
+**La causa è una parola.** «Modale» descrive come una cosa si PRESENTA, non
+cosa fa: `modals/` non è una funzionalità, e ogni componente che ci finisce ci
+finisce per la sua forma. È lo stesso errore di catalogare i libri per colore
+della copertina — funziona finché non si cerca qualcosa.
+
+**Cosa è stato fatto.** La regola è scritta in `docs/CLAUDE.md`, dove la legge
+chi aggiunge il file successivo: se un componente appartiene a una
+funzionalità, va nella cartella di quella funzionalità; `ui/` resta per ciò che
+è davvero trasversale (nessuna conoscenza del dominio) e `shell/` per il guscio.
+Primo caso di applicazione: `modals/BulkTaskCreator.jsx` + `modals/bulk/` →
+**`tasks/bulk/`**, otto file, con i riferimenti aggiornati in `VoyageDeskInner`,
+in sette file di test e nei due commenti che citavano `bulkStyles.js` per
+percorso.
+
+**Il momento del taglio non è casuale.** Quei file erano stati riscritti da A-2
+poche ore prima: spostarli mentre erano ancora la cosa più fresca della
+sessione costa una rilettura che è già stata fatta. È anche il criterio che la
+regola prescrive per il resto — **si sposta un pezzo alla volta, quando lo si
+sta già toccando per un'altra ragione**.
+
+**Perché NON un rinominamento di massa.** Un `git mv` su tutti e otto i modali
+rimasti produrrebbe un diff che nessuno rilegge, e soprattutto falsificherebbe
+i riferimenti dei documenti di audit e degli handoff precedenti, che descrivono
+dov'erano i file **quando sono stati scritti** — un documento storico che punta
+a un percorso inventato è peggio di uno che punta a un percorso vecchio. I
+documenti storici non sono stati toccati; quelli vivi (`CLAUDE.md`, l'albero in
+`README.md`, questo documento) sì.
+
+**L'arretrato è dichiarato con la destinazione già decisa**, in `CLAUDE.md`,
+perché il prossimo non debba deciderla da capo: `QuickAddTask.jsx` → `tasks/`,
+`NoticeEditorModal.jsx` → `dashboard/`, `AddTeamMemberModal.jsx` e
+`BulkInviteModal.jsx` → `admin/`, `AddCategoryModal.jsx` → `admin/`,
+`ProfileEditor.jsx` e i suoi due file → `shell/`, `CropModal.jsx` → `ui/`.
+Quando `modals/` è vuota, sparisce.
 
 ## A-7 · Igiene ✔
 

@@ -26,6 +26,8 @@ import {
   // i call site mancanti invece di CONTARE quelli presenti. Vedi il blocco che
   // li introduce in convenzioni.js.
   azioniRegistry, formSenzaAttesaEsito, ricercheSenzaIndice, iterazioniQuadratiche,
+  // A-4: il tetto FISICO, accanto a quello di max-lines che salta i commenti.
+  fileOltreTettoFisico,
   // M-1 (passo 2): la finestra sull'anagrafica e chi ne chiede il complemento.
   usiClientiCompleti, leggiCallSiteClienti,
   // A-5 (23 agosto, secondo passaggio): le forme di stile confrontate per
@@ -287,6 +289,18 @@ async function main() {
     nome: 'indexOf/findIndex dentro una .map()', dove: 'docs/CLAUDE.md',
     dichiarato: 0, misurato: quadratiche.length,
     rimedio: `O(n²) per render: l'indice ce l'ha già la callback di map, o si porta dietro dalla costruzione della lista: ${quadratiche.join(', ')}`,
+  });
+
+  // A-4 · Il tetto FISICO. `max-lines` misura con `skipComments: true`, e i
+  // commenti qui sono il 28% delle righe: il suo tetto di 500 lasciava passare
+  // un file da 1001. Questo misura ciò che si apre. La soglia è un ratchet
+  // (vedi il docblock di fileOltreTettoFisico): si abbassa a elenco vuoto.
+  const TETTO_FISICO = 850;
+  const troppoLunghi = fileOltreTettoFisico(sorgenti, TETTO_FISICO);
+  controlli.push({
+    nome: `file oltre ${TETTO_FISICO} righe fisiche`, dove: 'scripts/verifica-convenzioni/convenzioni.js',
+    dichiarato: 0, misurato: troppoLunghi.length,
+    rimedio: `La parte NARRATIVA (com'era prima, quale audit lo ha cambiato) va in docs/, non cancellata: ${troppoLunghi.map(f => `${f.path} (${f.righe})`).join(', ')}`,
   });
 
   // 5-quinquies e 5-sexies · le forme di stile duplicate (A-5). Stessa

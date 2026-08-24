@@ -11,10 +11,13 @@
 // ricerca globale, la sidebar che si chiude. Ognuna di queste faceva
 // ri-renderizzare per intero la vista attiva e tutto ciò che conteneva.
 //
-// Il costo non era teorico: CalendarPlanner ricalcola l'espansione delle
-// ricorrenze su tutti i task ad ogni render, e le code della Dashboard
-// ridisegnano ogni card. Digitare "rossi" nella ricerca col calendario aperto
-// significava cinque espansioni complete. È anche il motivo per cui il `memo`
+// Il costo non era teorico: CalendarPlanner rifiltra e ri-dispone tutti i task
+// del periodo a ogni render (`layoutColumns` è quadratico nella giornata), e le
+// code della Dashboard ridisegnano ogni card. Digitare "rossi" nella ricerca
+// col calendario aperto significava cinque ricostruzioni complete.
+// (Fino ad A-3 questa frase citava «l'espansione delle ricorrenze»: era il
+// lavoro che si CREDEVA di fare lì, su un motore che non ha mai espanso nulla.
+// Il rilievo sui render resta, il soggetto era sbagliato.) È anche il motivo per cui il `memo`
 // di TaskCard/TaskRow non produceva alcun effetto: la memoizzazione di un
 // figlio non serve a niente se il genitore viene comunque ri-renderizzato.
 //

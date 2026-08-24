@@ -11,8 +11,8 @@
 // Prima ogni vista riceveva l'intero `state` del reducer, che è un oggetto
 // nuovo dopo QUALUNQUE azione: un toast che compare, lo stesso toast che sparisce
 // da solo dopo tre secondi, un carattere digitato nella ricerca globale. Con il
-// calendario aperto, digitare "rossi" significava cinque espansioni complete
-// delle ricorrenze su tutti i task.
+// calendario aperto, digitare "rossi" significava cinque ricostruzioni
+// complete del layout del calendario su tutti i task.
 //
 // COME SI CONTANO I RENDER. Spiando `getActiveTasks`, che la Dashboard chiama
 // una volta nel proprio corpo: una chiamata in più = un render in più. Il primo

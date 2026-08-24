@@ -5,6 +5,7 @@ import { useSalvataggio } from "../../../hooks/useSalvataggio.js";
 import { PriorityBadge } from "../../ui/PriorityBadge.jsx";
 import { TASK_TEMPLATES } from "../../../lib/taskConstants.js";
 import { clientContact } from "../../../lib/taskUtils.js";
+import { nuovoTask } from "../../../lib/tasks/nuovoTask.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { DateTimePicker } from "../../ui/DateTimePicker.jsx";
 import { bulkInputStyle, bulkBtnPrimary, bulkBtnGhost } from "./bulkStyles.js";
@@ -105,20 +106,14 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
       return;
     }
     setErrori({});
-    const tasks = previewTasks.map((t) => ({
-      id: crypto.randomUUID(),
+    const tasks = previewTasks.map((t) => nuovoTask({
       title: t.title,
       category: t.category,
       priority: t.priority,
-      status: "todo",
-      assignees: defaultAssignee ? [defaultAssignee] : [],
-      client: client.trim() || null,
-      praticaRef: praticaRef || null,
-      contact: contact.trim() || null,
+      assignees: [defaultAssignee],
+      client, praticaRef, contact,
       dueDate: t.dueDate,
       estimatedHours: t.estimatedHours,
-      description: "",
-      comments: [],
     }));
     // Zero task da creare non è né un successo né un errore: resta un no-op
     // silenzioso come prima. Il guard sta QUI e non dentro `esegui` perché per

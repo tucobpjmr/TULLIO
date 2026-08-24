@@ -103,7 +103,7 @@ const Archive = lazy(() =>
 // Suggerimento strategico #3 (docs/AUDIT_PERFORMANCE_2026-08.md): un
 // React.Profiler attorno alla vista attiva, per rispondere "quanto costa un
 // render" con un numero invece che a sensazione — la stessa domanda a cui
-// `npm run misura:render` risponde per la sola `expandRecurring`, qui estesa
+// `npm run misura:render` risponde per la sola `layoutColumns`, qui estesa
 // al render React completo (reconciliation e commit inclusi, non solo il
 // calcolo). Dietro VITE_PROFILE_VIEWS=true in dev: fuori da quel guard
 // `import.meta.env.DEV` è `false` a build time e il ramo — Profiler incluso —

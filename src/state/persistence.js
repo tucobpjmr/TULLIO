@@ -44,16 +44,13 @@
 // lì. `entityId` dichiara quali id sono in volo; il reducer li tiene fuori dalla
 // sostituzione (case MARK_PENDING_WRITE / UNMARK_PENDING_WRITE e SET_TASKS).
 //
-// Lo dichiarano le entry su TASK, CLIENTI e AVVISI: le tre entità le cui
-// SET_* fondono il registro dei pendenti (vedi state/pendingWrites.js). Per i
-// clienti è arrivato tardi e la ragione è databile: finché `clients` non era
-// una tabella in realtime (migrazione 20260807215625) non esisteva il refetch
-// concorrente da cui proteggersi, quindi marcarne gli id sarebbe stato codice
-// senza un lettore. Da quella migrazione la finestra è viva — su PII di
-// persone esterne al team — ed è A-1 del terzo passaggio del 14 agosto.
-//
-// Restano senza `entityId` le entità che nessuna SET_* rilegge in blocco
-// (team, categorie, template): lì il campo marcherebbe id che nessuno consulta.
+// LA REGOLA, che è ciò che serve sapere per scrivere una entry nuova: dichiara
+// `entityId` se e solo se una SET_* rilegge quell'entità IN BLOCCO fondendo il
+// registro dei pendenti (vedi state/pendingWrites.js). Oggi sono task, clienti
+// e avvisi. Su team, categorie e template il campo marcherebbe id che nessuno
+// consulta — e sui clienti sarebbe stato così anche lì finché `clients` non è
+// entrata in realtime: la finestra da cui proteggersi nasce con il refetch
+// concorrente, non con la tabella.
 //
 // L'orchestratore che le esegue è src/hooks/useSyncedDispatch.js.
 

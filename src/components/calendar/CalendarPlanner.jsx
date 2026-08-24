@@ -12,7 +12,6 @@ import { useAppData } from "../../state/AppDataContext.jsx";
 import { useTasks } from "../../state/TasksContext.jsx";
 
 import { exportTasksToIcs } from "./calendarIcs.js";
-import { expandRecurring } from "./calendarRecurrence.js";
 import { CalendarDayGrid } from "./CalendarDayGrid.jsx";
 import { CalendarWeekGrid } from "./CalendarWeekGrid.jsx";
 import { giornoLungo, giornoMese, giornoMeseAnno, meseAnno } from "../../lib/dates.js";
@@ -83,42 +82,35 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch, loading
   const weekDays = getWeekDays(weekOffset);
   const dayNames = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
-  // P2-4: espandere le ricorrenze costava tre passate su `baseTasks` — mese,
-  // settimana, giorno — mentre `viewMode` ne mostra una sola: due terzi del
-  // lavoro erano per intervalli fuori schermo, ripetuti a ogni render (inclusi
-  // quelli innescati da P2-7, il resize). Un solo intervallo, quello della
-  // vista attiva: cambiare `viewMode` ricalcola, ed è esattamente quando serve.
+  // ─── A-3 · QUI C'ERA L'ESPANSIONE DELLE RICORRENZE ────────────────────────
+  // `const expanded = useMemo(() => expandRecurring(baseTasks, range[0],
+  // range[1]), …)`, che trasformava una task ricorrente nelle sue istanze
+  // virtuali dentro l'intervallo visibile. Non ha mai espanso nulla:
+  // `recurrence` non esiste sul database (nessuna delle 109 migrazioni lo
+  // nomina), `toDbTask`/`fromDbTask` non lo mappano, e nessuna UI lo imposta —
+  // l'unico writer in tutta la codebase era `QuickAddTask`, che scriveva la
+  // costante `"none"`. `expandRecurring` prendeva quindi SEMPRE il ramo
+  // `!t.recurrence || t.recurrence === "none"`: era una map identità con 83
+  // righe di gestione degli overflow di calendario dentro.
   //
-  // `weekStartMs`/`weekEndMs` invece di `weekDays[0]`/`weekDays[6]` dentro la
-  // callback: `getWeekDays()` sopra non è memoizzato e restituisce un array
-  // nuovo a ogni render, quindi `weekDays` in dipendenza invaliderebbe il memo
-  // a ogni render — la dipendenza reale è il giorno che rappresenta, letta qui
-  // come timestamp primitivo.
-  const weekStartMs = weekDays[0]?.getTime();
-  const weekEndMs = weekDays[6]?.getTime();
-  const range = useMemo(() => {
-    if (viewMode === "day") {
-      const s = new Date(dayDate); s.setHours(0, 0, 0, 0);
-      const e = new Date(dayDate); e.setHours(23, 59, 59, 999);
-      return [s, e];
-    }
-    if (viewMode.startsWith("week")) {
-      const s = new Date(weekStartMs); s.setHours(0, 0, 0, 0);
-      const e = new Date(weekEndMs); e.setHours(23, 59, 59, 999);
-      return [s, e];
-    }
-    return [new Date(year, month, 1, 0, 0, 0), new Date(year, month + 1, 0, 23, 59, 59)];
-  }, [viewMode, dayDate, weekStartMs, weekEndMs, year, month]);
-
-  const expanded = useMemo(() => expandRecurring(baseTasks, range[0], range[1]), [baseTasks, range]);
+  // È uscito con lui `range` (più `weekStartMs`/`weekEndMs`, che esistevano per
+  // le sue dipendenze): l'unico lettore era l'espansione. Con `range` se ne va
+  // anche l'ottimizzazione P2-4 — «espandere le ricorrenze costava tre passate
+  // su baseTasks, mese/settimana/giorno, mentre viewMode ne mostra una sola» —
+  // che restringeva a un intervallo solo il lavoro di una funzione che non
+  // lavorava. Non è una regressione di performance: è il lavoro che sparisce
+  // invece di essere ridotto.
+  //
+  // Le viste ora filtrano direttamente `baseTasks`, che è ciò che
+  // `expandRecurring` restituiva.
 
   const getTasksForCalDay = (day) => {
     const d = new Date(year, month, day).toDateString();
-    return expanded.filter(t => t.dueDate && new Date(t.dueDate).toDateString() === d && matchesCat(t));
+    return baseTasks.filter(t => t.dueDate && new Date(t.dueDate).toDateString() === d && matchesCat(t));
   };
 
   const getTasksForDay = (day) =>
-    expanded.filter(t => t.dueDate && new Date(t.dueDate).toDateString() === day.toDateString() && matchesCat(t));
+    baseTasks.filter(t => t.dueDate && new Date(t.dueDate).toDateString() === day.toDateString() && matchesCat(t));
 
   // ── Distribuzione agenti ──
   // Caveat #8: nelle viste settimanali (week / week-full) le frecce ←/→ guidano
@@ -401,9 +393,8 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch, loading
       {viewMode === "day" && (
         <CalendarDayGrid
           dayDate={dayDate}
-          expandedDay={expanded}
+          expandedDay={baseTasks}
           catFilter={catFilter}
-          tasks={tasks}
           categories={categories}
           onOpenTask={openTask}
         />
@@ -415,7 +406,6 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch, loading
           weekDays={weekDays}
           dayNames={dayNames}
           getTasksForDay={getTasksForDay}
-          tasks={tasks}
           categories={categories}
           onOpenTask={openTask}
         />

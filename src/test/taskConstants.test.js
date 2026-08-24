@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  PRIORITIES, STATUSES, STATUS_LABELS, STATUS_COLORS, RECURRENCE_OPTIONS, TASK_TEMPLATES,
+  PRIORITIES, STATUSES, STATUS_LABELS, STATUS_COLORS, TASK_TEMPLATES,
   DB_ROLES, ROLE_LABELS, SENIORITY_LEVELS, toDbRole, toSeniority, roleLabel,
 } from "../lib/taskConstants.js";
 
@@ -113,20 +113,6 @@ describe("roleLabel", () => {
     expect(roleLabel({ role: "agent", seniority: "junior" })).toBe("Junior Agent");
     expect(roleLabel({ role: "agent", seniority: "senior" })).toBe("Senior Agent");
     expect(roleLabel({ role: "Junior Agent" })).toBe("Junior Agent");
-  });
-});
-
-describe("RECURRENCE_OPTIONS", () => {
-  const keys = ["none", "daily", "weekly", "monthly"];
-
-  it("has exactly the four expected keys", () => {
-    expect(Object.keys(RECURRENCE_OPTIONS)).toEqual(keys);
-  });
-
-  it("each option has label and icon", () => {
-    for (const k of keys) {
-      expect(RECURRENCE_OPTIONS[k]).toMatchObject({ label: expect.any(String), icon: expect.any(String) });
-    }
   });
 });
 

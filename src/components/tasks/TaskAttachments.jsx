@@ -70,6 +70,23 @@ export function TaskAttachments({ taskId, editable }) {
   useEffect(() => { load(); }, [load]);
 
   const handleFiles = async (fileList) => {
+    // A-1 · Il guard sta nell'AZIONE, non solo nel render.
+    //
+    // La dropzone e il cestino qui sotto sono già dietro `{editable && …}`, e
+    // `editable` è ora un verdetto fresco: da quando il reducer tiene
+    // `selectedTask` identico alla riga di `tasks` (vedi l'invariante in
+    // state/reducer.js), `canEditTask` nello slide-over vede le riassegnazioni
+    // arrivate da realtime invece dell'istantanea presa all'apertura.
+    //
+    // Resta che un gate nel RENDER è un'altra cosa da un gate nell'AZIONE: vale
+    // per l'albero disegnato, non per l'handler, e basta che un domani questo
+    // componente esponga un secondo ingresso (un drop globale, una scorciatoia)
+    // perché la scrittura parta senza passare da quel `&&`. È la stessa ragione
+    // per cui i guard di state/persistence.js stanno nelle entry e non nelle
+    // viste che le dispatchano. La RLS dello storage (migrazione
+    // 20260629210727) rifiuterebbe comunque: questa è difesa in profondità, non
+    // la garanzia.
+    if (!editable) return;
     const arr = Array.from(fileList || []);
     if (!arr.length) return;
     setError("");
@@ -95,6 +112,7 @@ export function TaskAttachments({ taskId, editable }) {
   };
 
   const handleRemove = async (file) => {
+    if (!editable) return;   // vedi handleFiles: il guard sta nell'azione
     const ok = await conferma({
       title: "Eliminare l'allegato?",
       body: `"${file.file_name}" verrà rimosso definitivamente dallo storage.`,

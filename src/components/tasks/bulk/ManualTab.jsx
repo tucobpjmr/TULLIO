@@ -5,6 +5,7 @@ import { useViewport } from "../../Viewport.jsx";
 import { useSalvataggio } from "../../../hooks/useSalvataggio.js";
 import { PRIORITIES } from "../../../lib/taskConstants.js";
 import { clientContact } from "../../../lib/taskUtils.js";
+import { nuovoTask } from "../../../lib/tasks/nuovoTask.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { DateTimePicker, formatPickerValue } from "../../ui/DateTimePicker.jsx";
 import { TaskFiles } from "../../../lib/api.js";
@@ -108,26 +109,25 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
   // file lo citava in un commento senza importarlo.
   const { salva: handleCreate, inVolo: busy, errore: fileError, avviso, bloccato } = useSalvataggio(
     async () => {
-      // UUID generati qui: dispatch li conserva perché già validi, così
-      // conosciamo l'id definitivo di ogni task e possiamo caricarci gli
-      // allegati (il path nel bucket e la RLS partono dal task_id).
+      // Gli uuid li genera `nuovoTask` e il dispatch li conserva perché già
+      // validi, così conosciamo l'id definitivo di ogni task e possiamo
+      // caricarci gli allegati (il path nel bucket e la RLS partono dal
+      // task_id). Trim, "vuoto → null" e conversione della data a ISO stanno
+      // lì: qui resta la sola regola di QUESTA tab, cioè che il valore della
+      // riga vince su quello comune.
       const prepared = validRows.map((r) => ({
         files: r.files,
-        task: {
-          id: crypto.randomUUID(),
-          title: r.title.trim(),
+        task: nuovoTask({
+          title: r.title,
           category: r.category || common.category,
           priority: r.priority || common.priority,
-          status: "todo",
-          assignees: (r.assignee || common.assignee) ? [r.assignee || common.assignee] : [],
-          client: common.client.trim() || null,
-          praticaRef: common.praticaRef || null,
-          contact: common.contact.trim() || null,
-          dueDate: r.dueDate ? new Date(r.dueDate).toISOString() : (common.dueDate ? new Date(common.dueDate).toISOString() : null),
-          estimatedHours: 1,
-          description: r.description.trim(),
-          comments: [],
-        },
+          assignees: [r.assignee || common.assignee],
+          client: common.client,
+          praticaRef: common.praticaRef,
+          contact: common.contact,
+          dueDate: r.dueDate || common.dueDate,
+          description: r.description,
+        }),
       }));
 
       const result = await onCreate(prepared.map(p => p.task));

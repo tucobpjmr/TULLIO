@@ -7,12 +7,12 @@
 //  - makeInitialState                → factory dell'initial state (mock o DB)
 //
 // QUESTO REDUCER È PURO: nessun effetto collaterale, nessuna scrittura su stato
-// esterno. In precedenza chiamava setTeam/setCategories/setCurrentUser per
-// aggiornare i globali mutabili di state/appGlobals.js — cosa che React 18 non
-// garantisce di eseguire una volta sola (StrictMode invoca i reducer due volte,
-// il Concurrent rendering può scartare un render già calcolato). Quel modulo
-// non esiste più: i componenti leggono team/categorie/utente da
-// state/AppDataContext.jsx, alimentato da questo stesso state.
+// esterno — React 18 non garantisce di eseguire un reducer una volta sola
+// (StrictMode li invoca due volte, il Concurrent rendering può scartare un
+// render già calcolato). I componenti leggono team/categorie/utente da
+// state/AppDataContext.jsx, alimentato da questo stesso state; perché i globali
+// mutabili che stavano al suo posto siano spariti lo dice VIETATO_APPGLOBALS in
+// eslint.config.js, che è anche ciò che impedisce loro di tornare.
 //
 // I permessi arrivano da lib/permissions.js (funzioni pure) e ricevono
 // `state.team`: le decisioni di autorizzazione si prendono sulla stessa fonte di
@@ -660,44 +660,25 @@ function baseReducer(state, action) {
 // `selectedTask` è il task aperto nello slide-over. NON è una seconda copia del
 // task: è la STESSA riga che sta in `tasks`, o `null` se lì non c'è più.
 //
-// PERCHÉ È UN'INVARIANTE E NON UNA RIGA IN OGNI CASE. Prima ogni case che
-// toccava `tasks` doveva ricordarsi di riallineare anche il pannello. Quattro
-// lo facevano (UPDATE_TASK, ADD_COMMENT, RENAME_CLIENT_IN_TASKS,
-// UNDO_LAST_ACTION), ricopiando ogni volta la stessa logica di spread; gli
-// altri no. Fra quelli che non lo facevano c'erano MOVE_TASK, SET_TASK_THREADS,
-// MERGE_TASK_COMMENTS, PURGE_TASK, EMPTY_TRASH e — soprattutto — le DUE che
-// portano dentro lo stato ciò che è cambiato sul SERVER: `SET_TASKS` (il
-// refetch, da idratazione e da evento realtime) e `MERGE_TASK_ROW` (la singola
-// riga). Con lo slide-over aperto l'elenco sotto si aggiornava e il pannello
-// restava all'istantanea presa all'apertura.
+// PERCHÉ QUI E NON NEI CASE. Prima ogni case che toccava `tasks` doveva
+// ricordarsi di riallineare anche il pannello: quattro lo facevano, ricopiando
+// lo stesso spread, e gli altri no — fra questi le due che portano dentro ciò
+// che è cambiato sul SERVER (`SET_TASKS`, `MERGE_TASK_ROW`). Applicarla nel
+// wrapper vale anche per i case che verranno, senza che nessuno se ne ricordi.
 //
-// LA CONSEGUENZA CHE HA FATTO NASCERE LA REGOLA. `TaskSlideOver` calcola
-// `editable = canEditTask(task, currentUserId)` su `selectedTask`, e passa quel
-// verdetto a `TaskAttachments` come prop. Gli allegati sono l'unica scrittura
-// dell'app che non passa dal registry di persistenza, e non è una
-// dimenticanza — i file vivono nello storage, non nel reducer, ed
-// eslint.config.js li esenta di proposito da VIETATE_ENTITA_DELLO_STATE. Ma i
-// guard del registry prendono i loro verdetti su `state.tasks`
-// (`state.tasks.find(...)` in ognuno), mentre questo percorso li prendeva su
-// `state.selectedTask`: due fonti per la stessa domanda, e una sola delle due
-// seguiva il server. Riassegnato un task a un altro agente, chi lo aveva aperto
-// continuava a vedere il cestino sugli allegati e la dropzone — comandi che poi
-// la RLS dello storage (migrazione 20260629210727) rifiuta. Non è un buco di
-// sicurezza: è un comando offerto e negato, che è il difetto peggiore da
-// diagnosticare per chi lo usa.
+// PERCHÉ CONTA. `TaskSlideOver` calcola `editable = canEditTask(task, uid)` su
+// `selectedTask` e lo passa a `TaskAttachments`, l'unica scrittura fuori dal
+// registry. I guard del registry decidono su `state.tasks`: due fonti per la
+// stessa domanda, e una sola seguiva il server. Il racconto per esteso — cosa
+// vedeva l'utente, e perché la RLS non bastava a renderlo innocuo — è la nota 4
+// di docs/CLAUDE.md.
 //
-// Applicarla nel wrapper invece che nei case ha il vantaggio che conta: vale
-// anche per i case che verranno, senza che nessuno debba ricordarsene.
-//
-// ⚠️ IL GUARD `next.tasks === prev.tasks` NON È UN'OTTIMIZZAZIONE, è semantica.
-// Un case che non tocca `tasks` non deve poter chiudere il pannello: senza quel
-// confronto, un `SET_SELECTED_TASK` su un task che non sta (ancora) nell'array
-// verrebbe annullato dall'invariante nello stesso dispatch che lo apre.
-//
-// DELETE_TASK resta l'unico case che nomina ancora `selectedTask`: azzera il
-// pannello pur lasciando la riga in `tasks` col `deletedAt`, ed è voluto —
-// cestinare un task chiude il suo dettaglio. L'invariante non lo contraddice,
-// perché un `selectedTask` già `null` non ha nulla da riallineare.
+// ⚠️ IL GUARD `next.tasks === prev.tasks` NON È UN'OTTIMIZZAZIONE, è semantica:
+// senza, un `SET_SELECTED_TASK` su un task che non sta ancora nell'array
+// verrebbe annullato dallo stesso dispatch che lo apre. `DELETE_TASK` resta
+// l'unico case che azzera `selectedTask` di suo, ed è voluto — cestinare
+// chiude il dettaglio, e un `selectedTask` già `null` non ha nulla da
+// riallineare.
 const conSelezionatoAllineato = (next, prev) => {
   if (next === prev || next.tasks === prev.tasks || !next.selectedTask) return next;
   const allineato = (next.tasks || []).find(t => t.id === next.selectedTask.id) ?? null;

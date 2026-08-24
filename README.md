@@ -67,8 +67,9 @@ src/
 ├── hooks/                useAppHydration, useNotifications, usePresence,
 │                         usePushNavigation, useChatData, useSyncedDispatch,
 │                         useDebouncedTableSubscription
-├── lib/                  api (data layer + porta realtime), realtime (canali,
-│                         origin_client), permissions (pure), mappers, utils
+├── lib/                  api.js (PORTA) + api/ (otto moduli di dominio),
+│                         realtime (canali, origin_client), tasks/nuovoTask,
+│                         permissions (pure), mappers, utils
 ├── styles/               GlobalStyles (tema), tokens (z-index, bottoni, campi)
 ├── components/
 │   ├── shell/            Topbar, Sidebar/BottomNav, FAB, UserSwitcher

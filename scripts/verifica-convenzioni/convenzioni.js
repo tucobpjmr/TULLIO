@@ -416,6 +416,52 @@ export function ricercheSenzaIndice(sorgenti) {
  * @param {{path: string, testo: string}[]} sorgenti
  * @returns {string[]}
  */
+/**
+ * A-4 · I file che superano il tetto FISICO.
+ *
+ * PERCHÉ ESISTE, ed è il rilievo in due righe. `max-lines` in eslint.config.js
+ * è configurato `{ max: 500, skipBlankLines: true, skipComments: true }`, e nel
+ * repository i commenti sono il 28% delle righe — il 61% in quello che era
+ * `src/lib/api.js`. Il tetto di 500 su quella metrica lasciava passare un file
+ * da 1001 righe: uno sviluppatore che lo apre le legge tutte. La regola diceva
+ * il vero («nessun file supera la soglia») su una grandezza che non è quella
+ * che si apre.
+ *
+ * Questo controllo misura ciò che si apre. Non sostituisce `max-lines`: gli sta
+ * accanto, come `verifica:tipi` sta accanto al lint.
+ *
+ * ⚠️ LA SOGLIA NON È 500, ED È DELIBERATO. Non chiede di scrivere meno
+ * commenti — quelli che spiegano PERCHÉ il codice è così sono il patrimonio di
+ * questo repository, e una regola che li penalizzasse otterrebbe di farli
+ * cancellare invece che spostare. Chiede che oltre un certo punto la parte
+ * NARRATIVA (il resoconto di com'era prima, quale audit lo ha cambiato) esca
+ * dal file e vada in `docs/`, dove `INDEX.md` sa distinguere ciò che è vigente
+ * da ciò che è storia.
+ *
+ * È un RATCHET, come lo scope di jsconfig.json: si abbassa quando l'elenco è a
+ * zero, mai prima. Parte da 850 perché è appena sopra il file più grande di
+ * oggi (`src/state/persistence.js`, 806 righe; `reducer.js` 805): il valore di
+ * questo controllo è impedire che un file RICRESCA fino a 1001 senza che
+ * nessuno se ne accorga, non condannare retroattivamente due macchine a stati
+ * che il loro "perché" ce l'hanno scritto dentro.
+ *
+ * ⛔ La soglia NON si alza. Se un file la supera, le due risposte legittime
+ * sono spostare la narrativa in `docs/` o spezzare il file lungo un confine che
+ * esisteva già — come ha fatto `lib/api.js`, che aveva tredici sezioni
+ * separate da anni e ha dovuto solo trasformarle in moduli. Alzare il numero è
+ * il modo in cui questo controllo smette di controllare.
+ *
+ * @param {{path: string, testo: string}[]} sorgenti
+ * @param {number} [tetto]
+ * @returns {{path: string, righe: number}[]} i file oltre soglia, dal più grande
+ */
+export function fileOltreTettoFisico(sorgenti, tetto = 850) {
+  return (sorgenti || [])
+    .map(f => ({ path: f.path, righe: f.testo.split('\n').length }))
+    .filter(f => f.righe > tetto)
+    .sort((a, b) => b.righe - a.righe);
+}
+
 export function iterazioniQuadratiche(sorgenti) {
   // `.map(` seguita, entro il corpo della callback, da un `.indexOf(`/
   // `.findIndex(` su un identificatore: la finestra è corta perché la forma da

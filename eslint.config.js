@@ -232,6 +232,32 @@ const VIETATO_LISTEAPI_DA_FUORI = {
     'forma delle tabelle di un modulo altrui prima che quella facciata esistesse.',
 };
 
+// A-4 · I moduli sotto src/lib/api/ sono PRIVATI: l'unico importatore ammesso è
+// src/lib/api.js, che li ri-esporta.
+//
+// PERCHÉ, e non è una preferenza di stile. Il confine che protegge le entità
+// dello stato — VIETATE_ENTITA_DELLO_STATE, qui sopra — è dichiarato SUL
+// PERCORSO `**/lib/api`: vieta ai componenti di importare `Tasks`, `Notices`,
+// `Clients`… perché quelle si mutano con dispatch(), non a mano. Finché il data
+// layer era un file solo, quel percorso era l'unico modo di raggiungerle.
+// Spezzandolo in `lib/api/task.js`, `lib/api/clienti.js` e gli altri, ogni
+// modulo diventa una SECONDA porta verso le stesse entità — e una che quel
+// divieto non nomina. Un `import { Tasks } from '../../lib/api/task.js'` in un
+// componente passerebbe il lint senza che nulla lo segnali.
+//
+// È lo stesso rischio che ST-12 ha già visto una volta: un refactoring di sola
+// forma (il ri-export di `getUnreadCount` da ChatPanel) che apre in silenzio
+// un percorso chiuso altrove. Qui la contromisura precede il rilievo.
+const VIETATI_MODULI_API_INTERNI = {
+  group: ['**/lib/api/*'],
+  message:
+    'i moduli di src/lib/api/ sono privati: si importa da src/lib/api.js, che ' +
+    'è la porta del data layer. Importarli direttamente aggira ' +
+    'VIETATE_ENTITA_DELLO_STATE, che è dichiarato sul percorso `lib/api` e ' +
+    'vieta ai componenti di mutare Tasks/Notices/Clients senza passare da ' +
+    'dispatch() — cioè senza guard di permesso, rollback e tag origin_client.',
+};
+
 // Su `Users` la granularità dell'import non basta: lo stesso namespace porta
 // operazioni legittime dal componente (invito via Edge Function, avatar sul
 // bucket, presence, preferenze personali) e mutazioni del team che appartengono
@@ -346,7 +372,7 @@ export default [
       'no-restricted-imports': ['error', {
         patterns: [
           VIETATO_APPGLOBALS, VIETATI_IMPORT_LISTE_EAGER, VIETATO_MOCKDATA_DIRETTO,
-          VIETATO_LISTEAPI_DA_FUORI,
+          VIETATO_LISTEAPI_DA_FUORI, VIETATI_MODULI_API_INTERNI,
         ],
       }],
       'no-restricted-syntax': ['error', STILE_INLINE_COSTANTE, VIETATO_CONTEXT_VALUE_LETTERALE, VIETATO_COMMON_NOMINATO],
@@ -368,7 +394,7 @@ export default [
         patterns: [
           VIETATO_APPGLOBALS, VIETATE_ENTITA_DELLO_STATE,
           VIETATI_IMPORT_LISTE_EAGER, VIETATO_MOCKDATA_DIRETTO,
-          VIETATO_LISTEAPI_DA_FUORI,
+          VIETATO_LISTEAPI_DA_FUORI, VIETATI_MODULI_API_INTERNI,
         ],
       }],
       'no-restricted-properties': ['error', ...VIETATE_MUTAZIONI_TEAM],
@@ -382,7 +408,8 @@ export default [
     files: ['src/state/demoState.js'],
     rules: {
       'no-restricted-imports': ['error', {
-        patterns: [VIETATO_APPGLOBALS, VIETATI_IMPORT_LISTE_EAGER, VIETATO_LISTEAPI_DA_FUORI],
+        patterns: [VIETATO_APPGLOBALS, VIETATI_IMPORT_LISTE_EAGER, VIETATO_LISTEAPI_DA_FUORI,
+          VIETATI_MODULI_API_INTERNI],
       }],
     },
   },
@@ -401,7 +428,7 @@ export default [
       'no-restricted-imports': ['error', {
         patterns: [
           VIETATO_APPGLOBALS, VIETATE_ENTITA_DELLO_STATE,
-          VIETATI_IMPORT_LISTE_EAGER, VIETATO_MOCKDATA_DIRETTO,
+          VIETATI_IMPORT_LISTE_EAGER, VIETATO_MOCKDATA_DIRETTO, VIETATI_MODULI_API_INTERNI,
         ],
       }],
     },
@@ -440,12 +467,16 @@ export default [
   // `messageTemplates` mostrano che si può fare senza rompere nulla — non se
   // riaprire questa parentesi.
   //
-  // Nota su src/lib/api.js, l'altro candidato naturale a una deroga: dopo
-  // l'uscita del transport realtime (→ src/lib/realtime.js) sta a 386 righe
-  // effettive e non gli serve. Esentarlo per categoria ("è un elenco di query,
-  // quindi può essere lungo") gli regalerebbe 114 righe di margine che nessuno
-  // ha chiesto, ed è il modo in cui un'eccezione motivata diventa
-  // un'esenzione permanente.
+  // Nota su src/lib/api.js, l'altro candidato naturale a una deroga: NON gliene
+  // è stata data una, ed è finita diversamente. Stava a 386 righe effettive e
+  // obbediva al tetto — ma a 1001 FISICHE, perché `skipComments: true` ne
+  // saltava il 61%. È A-4: questa regola misura una grandezza che non è quella
+  // che si apre, e su quel file la differenza era di 615 righe. Oggi `api.js` è
+  // la porta di `src/lib/api/`, otto moduli lungo i confini che le sue tredici
+  // sezioni dichiaravano da sempre, e il tetto FISICO ha un controllo suo
+  // accanto a questo: `fileOltreTettoFisico` in scripts/verifica-convenzioni/.
+  // Le due misure convivono perché rispondono a due domande diverse, e nessuna
+  // delle due da sola descrive un file.
   {
     files: ['**/*.test.{js,jsx}', 'src/test/**'],
     languageOptions: { globals: { ...globals.node } },
@@ -467,7 +498,8 @@ export default [
       // di listeApi.js in un test, invece, è il primo passo con cui il percorso
       // torna a circolare fuori dal modulo.
       'no-restricted-imports': ['error', {
-        patterns: [VIETATO_APPGLOBALS, VIETATI_IMPORT_LISTE_EAGER, VIETATO_LISTEAPI_DA_FUORI],
+        patterns: [VIETATO_APPGLOBALS, VIETATI_IMPORT_LISTE_EAGER, VIETATO_LISTEAPI_DA_FUORI,
+          VIETATI_MODULI_API_INTERNI],
       }],
     },
   },

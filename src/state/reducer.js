@@ -304,16 +304,17 @@ function baseReducer(state, action) {
         ? completedAtPatch(prev.status, action.payload.status)
         : {};
       const tasks = state.tasks.map(t => t.id === action.payload.id ? { ...t, ...action.payload, ...statusPatch } : t);
-      const selectedTask = state.selectedTask?.id === action.payload.id
-        ? { ...state.selectedTask, ...action.payload, ...statusPatch }
-        : state.selectedTask;
+      // Il pannello aperto lo riallinea l'invariante nel wrapper. Qui c'era lo
+      // stesso spread una seconda volta, ma applicato a `state.selectedTask`
+      // invece che alla riga di `tasks`: due sorgenti per lo stesso risultato,
+      // che coincidevano solo finché l'istantanea del pannello era aggiornata.
       const toasts = action.swipe
         ? pushToast(state.toasts, { message: action.toastMessage || "Task aggiornato!", type: "success", undoable: true })
         : pushToast(state.toasts, { message: "Task aggiornato!", type: "success" });
       const lastAction = action.swipe && prev
         ? { type: "UPDATE_TASK", taskId: action.payload.id, prevSnapshot: prev }
         : state.lastAction;
-      return { ...state, tasks, selectedTask, toasts, lastAction };
+      return { ...state, tasks, toasts, lastAction };
     }
     case "ADD_COMMENT": {
       const prev = state.tasks.find(t => t.id === action.payload.taskId);
@@ -324,10 +325,7 @@ function baseReducer(state, action) {
           ? { ...t, comments: [...(t.comments || []), action.payload.comment] }
           : t
       );
-      const selectedTask = state.selectedTask?.id === action.payload.taskId
-        ? { ...state.selectedTask, comments: [...(state.selectedTask.comments || []), action.payload.comment] }
-        : state.selectedTask;
-      return { ...state, tasks, selectedTask };
+      return { ...state, tasks };
     }
     case "DELETE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload);
@@ -575,15 +573,14 @@ function baseReducer(state, action) {
         return { ...t, client: to };
       });
       if (!n) return state;
-      // Il pannello aperto va allineato solo se quel task è stato davvero
-      // rinominato (potrebbe essere uno di quelli saltati per permessi).
-      const rinominato = state.selectedTask
-        && tasks.find(t => t.id === state.selectedTask.id);
-      const selectedTask = rinominato && rinominato.client === to
-        ? { ...state.selectedTask, client: to }
-        : state.selectedTask;
+      // Il pannello aperto lo riallinea l'invariante nel wrapper, e con essa
+      // sparisce anche il controllo `rinominato.client === to` che stava qui:
+      // serviva a non applicare al pannello un rename che il task saltato per
+      // permessi non aveva ricevuto. Riprendendo la riga da `tasks` la
+      // distinzione non è più necessaria — se il task è stato saltato, la riga
+      // è quella di prima.
       return {
-        ...state, tasks, selectedTask,
+        ...state, tasks,
         toasts: pushToast(state.toasts, { message: `${n} task aggiornat${n === 1 ? "o" : "i"} col nuovo nome cliente`, type: "success" }),
       };
     }
@@ -636,8 +633,7 @@ function baseReducer(state, action) {
       }
       if (la.type === "UPDATE_TASK") {
         const tasks = state.tasks.map(t => t.id === la.taskId ? la.prevSnapshot : t);
-        const selectedTask = state.selectedTask?.id === la.taskId ? la.prevSnapshot : state.selectedTask;
-        return { ...state, tasks, selectedTask, toasts: pushToast(state.toasts, { message: "Azione annullata", type: "success" }), lastAction: null };
+        return { ...state, tasks, toasts: pushToast(state.toasts, { message: "Azione annullata", type: "success" }), lastAction: null };
       }
       return state;
     }
@@ -660,6 +656,54 @@ function baseReducer(state, action) {
   }
 }
 
+// ─── L'INVARIANTE DI selectedTask (A-1) ──────────────────────────────────────
+// `selectedTask` è il task aperto nello slide-over. NON è una seconda copia del
+// task: è la STESSA riga che sta in `tasks`, o `null` se lì non c'è più.
+//
+// PERCHÉ È UN'INVARIANTE E NON UNA RIGA IN OGNI CASE. Prima ogni case che
+// toccava `tasks` doveva ricordarsi di riallineare anche il pannello. Quattro
+// lo facevano (UPDATE_TASK, ADD_COMMENT, RENAME_CLIENT_IN_TASKS,
+// UNDO_LAST_ACTION), ricopiando ogni volta la stessa logica di spread; gli
+// altri no. Fra quelli che non lo facevano c'erano MOVE_TASK, SET_TASK_THREADS,
+// MERGE_TASK_COMMENTS, PURGE_TASK, EMPTY_TRASH e — soprattutto — le DUE che
+// portano dentro lo stato ciò che è cambiato sul SERVER: `SET_TASKS` (il
+// refetch, da idratazione e da evento realtime) e `MERGE_TASK_ROW` (la singola
+// riga). Con lo slide-over aperto l'elenco sotto si aggiornava e il pannello
+// restava all'istantanea presa all'apertura.
+//
+// LA CONSEGUENZA CHE HA FATTO NASCERE LA REGOLA. `TaskSlideOver` calcola
+// `editable = canEditTask(task, currentUserId)` su `selectedTask`, e passa quel
+// verdetto a `TaskAttachments` come prop. Gli allegati sono l'unica scrittura
+// dell'app che non passa dal registry di persistenza, e non è una
+// dimenticanza — i file vivono nello storage, non nel reducer, ed
+// eslint.config.js li esenta di proposito da VIETATE_ENTITA_DELLO_STATE. Ma i
+// guard del registry prendono i loro verdetti su `state.tasks`
+// (`state.tasks.find(...)` in ognuno), mentre questo percorso li prendeva su
+// `state.selectedTask`: due fonti per la stessa domanda, e una sola delle due
+// seguiva il server. Riassegnato un task a un altro agente, chi lo aveva aperto
+// continuava a vedere il cestino sugli allegati e la dropzone — comandi che poi
+// la RLS dello storage (migrazione 20260629210727) rifiuta. Non è un buco di
+// sicurezza: è un comando offerto e negato, che è il difetto peggiore da
+// diagnosticare per chi lo usa.
+//
+// Applicarla nel wrapper invece che nei case ha il vantaggio che conta: vale
+// anche per i case che verranno, senza che nessuno debba ricordarsene.
+//
+// ⚠️ IL GUARD `next.tasks === prev.tasks` NON È UN'OTTIMIZZAZIONE, è semantica.
+// Un case che non tocca `tasks` non deve poter chiudere il pannello: senza quel
+// confronto, un `SET_SELECTED_TASK` su un task che non sta (ancora) nell'array
+// verrebbe annullato dall'invariante nello stesso dispatch che lo apre.
+//
+// DELETE_TASK resta l'unico case che nomina ancora `selectedTask`: azzera il
+// pannello pur lasciando la riga in `tasks` col `deletedAt`, ed è voluto —
+// cestinare un task chiude il suo dettaglio. L'invariante non lo contraddice,
+// perché un `selectedTask` già `null` non ha nulla da riallineare.
+const conSelezionatoAllineato = (next, prev) => {
+  if (next === prev || next.tasks === prev.tasks || !next.selectedTask) return next;
+  const allineato = (next.tasks || []).find(t => t.id === next.selectedTask.id) ?? null;
+  return allineato === next.selectedTask ? next : { ...next, selectedTask: allineato };
+};
+
 // Azioni che richiedono ruolo Admin (vedono pre-check nel wrapper sotto)
 const ADMIN_ONLY_ACTIONS = new Set([
   "ADD_TEAM_MEMBER", "UPDATE_TEAM_MEMBER", "APPROVE_TEAM_MEMBER",
@@ -677,7 +721,13 @@ function reducer(state, action) {
   }
   // B-2 · Ogni toast porta l'azione che l'ha prodotto, così il percorso
   // d'errore sa quale ritirare (vedi state/toastQueue.js).
-  const next = marcaToast(state.toasts, baseReducer(state, action), action.type);
+  // A-1 · …e il task aperto nello slide-over resta la stessa riga che sta in
+  // `tasks`, qualunque case l'abbia appena cambiata (vedi
+  // `conSelezionatoAllineato` sopra).
+  const next = conSelezionatoAllineato(
+    marcaToast(state.toasts, baseReducer(state, action), action.type),
+    state,
+  );
 
   // ─── COMPENSAZIONE (M-1) ───────────────────────────────────────────────────
   // I rollback di useSyncedDispatch RIUSANO le action di mutazione: annullare

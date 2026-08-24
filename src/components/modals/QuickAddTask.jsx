@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { PRIORITIES } from "../../lib/taskConstants.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { clientContact } from "../../lib/taskUtils.js";
+import { nuovoTask } from "../../lib/tasks/nuovoTask.js";
 import { TaskFiles } from "../../lib/api.js";
 import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit } from "../../lib/fileUtils.js";
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";
@@ -148,20 +149,13 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
     salva, inVolo: busy, errore: erroreSalvataggio, avviso, bloccato,
   } = useSalvataggio(
     async () => {
-      // UUID generato qui: dispatch lo conserva (è già un uuid valido), così
-      // conosciamo l'id definitivo della task per caricarci gli allegati.
-      const id = crypto.randomUUID();
-      const res = await onAdd({
-        id,
-        ...form,
-        client: form.client.trim() || null,
-        praticaRef: form.praticaRef || null,
-        contact: form.contact.trim() || null,
-        comments: [],
-        estimatedHours: 1,
-        recurrence: "none",
-        dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
-      });
+      // L'uuid lo genera `nuovoTask` e il dispatch lo conserva (è già valido),
+      // così conosciamo l'id definitivo della task per caricarci gli allegati.
+      // Normalizzazione (trim, vuoto → null, data → ISO) e default vivono lì:
+      // qui si passa il form così com'è.
+      const task = nuovoTask(form);
+      const id = task.id;
+      const res = await onAdd(task);
       if (res?.error) return res;
 
       // Gli allegati dopo, in sequenza: l'upload passa dalla RLS del bucket,

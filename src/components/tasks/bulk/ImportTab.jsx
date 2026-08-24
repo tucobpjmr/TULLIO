@@ -7,6 +7,7 @@ import { useSalvataggio } from "../../../hooks/useSalvataggio.js";
 import { PriorityBadge } from "../../ui/PriorityBadge.jsx";
 import { STATUS_LABELS } from "../../../lib/taskConstants.js";
 import { formatDate } from "../../../lib/taskUtils.js";
+import { nuovoTask } from "../../../lib/tasks/nuovoTask.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { readFirstSheetRows, MAX_IMPORT_BYTES } from "../../../lib/xlsx.js";
 import { formatFileSize } from "../../../lib/fileUtils.js";
@@ -23,6 +24,12 @@ import {
   txtF40Mb10, txtSuccess,
 } from "./importTabStyles.js";
 
+
+// Il valore di una colonna mappata, o `null` se quel campo non è mappato. La
+// normalizzazione del testo (trim, vuoto → null) la fa `nuovoTask`: qui serve
+// solo distinguere "colonna non scelta" da "colonna scelta e vuota", che per
+// il risultato coincidono ma nel codice sono due domande diverse.
+const col = (riga, colonna) => (colonna ? riga[colonna] : null);
 
 // ─── BULK: IMPORT TAB ──────────────────────────────────────────────────────
 export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
@@ -83,8 +90,8 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
   // Genera e scarica un CSV modello con intestazioni riconosciute e una riga
   // d'esempio con valori validi, così l'operatore parte da un file corretto.
   const downloadTemplate = () => {
-    const headers = ["Titolo", "Categoria", "Priorità", "Stato", "Cliente", "Scadenza", "Assegnato", "Descrizione", "Contatti"];
-    const example = ["Prenotare volo Roma-Parigi", "Booking", "Alto", "Da Fare", "Mario Rossi", "31/12/2026", "", "Volo diretto andata/ritorno", "mario.rossi@example.com"];
+    const headers = ["Titolo", "Categoria", "Priorità", "Stato", "Cliente", "N. pratica", "Scadenza", "Assegnato", "Ore stimate", "Descrizione", "Contatti"];
+    const example = ["Prenotare volo Roma-Parigi", "Booking", "Alto", "Da Fare", "Mario Rossi", "PR-2026-0142", "31/12/2026", "", "2", "Volo diretto andata/ritorno", "mario.rossi@example.com"];
     const esc = (v) => `"${String(v).replace(/"/g, '""')}"`;
     const csv = "﻿" + [headers, example].map(r => r.map(esc).join(",")).join("\r\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
@@ -165,20 +172,29 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
   const handleCreate = () => {
     const tasks = validRows.map((r) => {
       const assignee = mapping.assignee ? normAssignee(team, r[mapping.assignee]) : null;
-      return {
-        id: crypto.randomUUID(),
-        title: String(r[mapping.title]).trim(),
+      // `nuovoTask` normalizza (trim, "vuoto → null", data a ISO, ore a un
+      // numero positivo): qui resta la sola cosa che riguarda l'import, cioè
+      // leggere la colonna che la mappatura indica. Le `String(… || "").trim()
+      // || null` ricopiate su quattro campi erano la stessa regola detta
+      // quattro volte, ed è quella che il call site non deve più conoscere.
+      return nuovoTask({
+        title: col(r, mapping.title),
         category: normCat(categories, mapping.category ? r[mapping.category] : null),
         priority: normPrio(mapping.priority ? r[mapping.priority] : null),
         status: normStat(mapping.status ? r[mapping.status] : null),
-        assignees: assignee ? [assignee] : [],
-        client: mapping.client ? (String(r[mapping.client] || "").trim() || null) : null,
+        assignees: [assignee],
+        client: col(r, mapping.client),
+        // A-2 · `praticaRef` non era MAI stato aggiunto a questo percorso: un
+        // task importato da CSV non poteva portarsi dietro il numero di
+        // pratica, mentre gli altri quattro percorsi di creazione sì. Non era
+        // una scelta — il campo mancava, e la duplicazione del DTO su cinque
+        // call site lo teneva invisibile.
+        praticaRef: col(r, mapping.praticaRef),
+        contact: col(r, mapping.contact),
         dueDate: mapping.dueDate ? normDate(r[mapping.dueDate]) : null,
-        estimatedHours: mapping.estimatedHours ? (parseFloat(r[mapping.estimatedHours]) || 1) : 1,
-        description: mapping.description ? String(r[mapping.description] || "").trim() : "",
-        contact: mapping.contact ? (String(r[mapping.contact] || "").trim() || null) : null,
-        comments: [],
-      };
+        estimatedHours: mapping.estimatedHours ? parseFloat(r[mapping.estimatedHours]) : 1,
+        description: col(r, mapping.description),
+      });
     });
     // Zero task da importare non è né un successo né un errore: resta un no-op
     // silenzioso come prima. Il guard sta QUI e non dentro `esegui` perché per
@@ -196,8 +212,14 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
   const fields = [
     { key: "title", label: "Titolo *" }, { key: "category", label: "Categoria" },
     { key: "priority", label: "Priorità" }, { key: "status", label: "Stato" },
-    { key: "client", label: "Cliente" }, { key: "dueDate", label: "Scadenza" },
+    { key: "client", label: "Cliente" }, { key: "praticaRef", label: "N. pratica" },
+    { key: "dueDate", label: "Scadenza" },
     { key: "assignee", label: "Assegnato" },
+    // `estimatedHours` era in COLUMN_KEYWORDS (quindi rilevato in automatico e
+    // letto da handleCreate) ma NON qui: l'operatore non poteva né vederlo né
+    // correggerlo, e una colonna "Ore" nel file finiva sulle task senza che
+    // niente lo dicesse. O è mappabile e si mostra, o non si rileva.
+    { key: "estimatedHours", label: "Ore stimate" },
     { key: "description", label: "Descrizione" },
     { key: "contact", label: "Contatti" },
   ];

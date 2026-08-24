@@ -96,6 +96,14 @@ const COLUMN_KEYWORDS = {
   priority:       ["priorit", "priority"],
   status:         ["stato", "status"],
   client:         ["cliente", "client"],
+  // Volutamente STRETTE. "rif"/"ref" sarebbero state la scelta ovvia e sono
+  // proprio quelle da evitare: `find` cerca in SOTTOSTRINGA, quindi
+  // "Preferenze" e "Referente" verrebbero rilevate come numero di pratica —
+  // e "Riferimento cliente" finirebbe rilevata sia qui sia come `client`,
+  // perché i campi si mappano indipendentemente e nulla vieta che due
+  // rivendichino la stessa colonna. Meglio non rilevare che rilevare male:
+  // il campo resta mappabile a mano dalla tendina.
+  praticaRef:     ["pratica", "dossier"],
   dueDate:        ["scadenz", "due", "data"],
   assignee:       ["assegn", "assign", "owner", "responsab"],
   estimatedHours: ["ore", "hours"],

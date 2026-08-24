@@ -244,6 +244,16 @@ getDayKey(iso)                   — stringa data
 isActiveTask(t)                  — true se non cestinato
 getActiveTasks(tasks)            — filtra non-cestinati
 getTrashedTasks(tasks)           — filtra cestinati
+// src/lib/tasks/nuovoTask.js — l'UNICA forma di un task appena creato (A-2)
+nuovoTask(campi)                 — uuid + default + normalizzazione (trim,
+                                   vuoto → null, data → ISO, ore > 0). ⛔ La
+                                   forma è CHIUSA: le chiavi non previste
+                                   vengono scartate. Ogni nuovo percorso di
+                                   creazione passa da qui — erano cinque copie
+                                   a mano, e le differenze fra loro non erano
+                                   scelte (`praticaRef` mancava nell'import,
+                                   `recurrence` sopravviveva in un solo punto)
+DEFAULT_TASK                     — i default, congelati
 useViewport()                    — hook responsive
 // src/lib/permissions.js — funzioni pure, `team` esplicito
 getRoleType(team, userId)        — "admin"|"manager"|"agent"|"driver"
@@ -389,10 +399,12 @@ Vedi `docs/ROADMAP.md` per il dettaglio completo con dipendenze e stime.
 3. **Nessuna chiamata a modelli AI**: la chat è interna al team e passa da Supabase (tabelle `conversations`/`messages` + realtime). Le vecchie note su `fetch` verso `api.anthropic.com` si riferivano a codice non più presente.
 4. **`selectedTask` È la riga di `tasks`, non una copia** (A-1): il task aperto nello slide-over non è un'istantanea presa all'apertura — è lo stesso oggetto che sta in `state.tasks`, o `null` se lì non c'è più. L'invariante è applicata UNA VOLTA nel wrapper del reducer (`conSelezionatoAllineato` in `src/state/reducer.js`), non nei singoli case: un case nuovo che tocca `tasks` la eredita senza doversene ricordare. Prima erano quattro case a riallinearlo a mano (UPDATE_TASK, ADD_COMMENT, RENAME_CLIENT_IN_TASKS, UNDO_LAST_ACTION) e gli altri no — fra questi MOVE_TASK e, soprattutto, le due che portano dentro ciò che è cambiato sul server: `SET_TASKS` (refetch da idratazione e realtime) e `MERGE_TASK_ROW`. La conseguenza non era cosmetica: `TaskSlideOver` calcola `editable = canEditTask(task, uid)` su `selectedTask` e lo passa a `TaskAttachments`, cioè l'unica scrittura fuori dal registry; con un task riassegnato da un altro utente, chi lo aveva aperto continuava a vedere dropzone e cestino su comandi che la RLS dello storage poi rifiuta. ⛔ L'unico case che può ancora azzerare `selectedTask` di suo è `DELETE_TASK` (cestinare chiude il dettaglio, ed è voluto); il guard `next.tasks === prev.tasks` nel wrapper è semantica e non ottimizzazione — senza, un `SET_SELECTED_TASK` su un task non ancora in elenco verrebbe annullato dallo stesso dispatch che lo apre. Testato da `src/test/selectedTaskRealtime.test.js`.
 5. **Le scritture fuori dal registry hanno comunque un guard nell'AZIONE**: `TaskFiles`, `Messages`, `Users.uploadAvatar`, `Users.invite` sono esentate da `VIETATE_ENTITA_DELLO_STATE` perché il loro dato vive nello storage o dietro una Edge Function, non nel reducer. L'esenzione riguarda DOVE vive il dato, non se la scrittura debba essere autorizzata: un `{permesso && <bottone/>}` vale per l'albero disegnato, non per l'handler, e basta un secondo ingresso verso la stessa scrittura perché non scatti. Il guard va nell'handler, come nelle entry di `state/persistence.js`. Difesa in profondità: la garanzia resta la RLS.
-6. **activityLog**: max 100 entry, poi taglia le più vecchie.
-7. **Backup JSON**: Admin → Import/Export include tutto lo stato persistente. Ripristino sovrascrive.
-8. **DnD**: disabilitato su mobile. Usare SwipeActions per azioni rapide.
-9. **CRLF su `src/VoyageDesk.jsx`**: il monolite ha line endings CRLF. Tool che lo riscrivono interamente (Python, alcuni helper) lo normalizzano a LF gonfiando il diff a migliaia di righe. Verifica sempre `git diff --numstat src/VoyageDesk.jsx` prima del push; se anomalo riconverti con `python3 -c "p='src/VoyageDesk.jsx'; d=open(p,'rb').read().replace(b'\r\n',b'\n').replace(b'\n',b'\r\n'); open(p,'wb').write(d)"`.
+6. **Un task nuovo si costruisce con `nuovoTask()`, mai a mano** (A-2): i percorsi di creazione sono cinque (FAB e le quattro tab del Bulk Task Creator) e ognuno costruiva il DTO per conto suo. Le differenze non erano scelte ma il residuo di cinque copie scritte in momenti diversi — `praticaRef` non era mai stato aggiunto all'import da CSV, `estimatedHours` aveva tre regole, `description` quattro normalizzazioni. La forma è **chiusa**: `nuovoTask` nomina i campi che restituisce e scarta le chiavi non previste, ed è ciò che ha eliminato `recurrence` da QuickAddTask e i timestamp di ciclo di vita (`completedAt`/`deletedAt`) dallo spread `{ ...src }` di DuplicateTab. Testato da `src/test/nuovoTask.test.js`, il cui caso «le chiavi sono esattamente quelle attese» è quello che impedisce a un campo di ricomparire in un solo percorso.
+7. **La ricorrenza dei task NON esiste** (A-3): non è «da fare», è stata rimossa. Non c'è colonna sul database (nessuna delle 109 migrazioni la nomina), `toDbTask`/`fromDbTask` non la mappano, nessuna UI la imposta. Fino ad A-3 il repository conteneva un motore di espansione completo (`calendarRecurrence.js`, 83 righe con gestione degli overflow 31 gennaio / 29 febbraio), 165 righe di test verdi, un benchmark dedicato, due rami di rendering nelle griglie del calendario (bordo tratteggiato e marcatore `↻`), una prop `tasks` passata alle due griglie solo per risalire all'`originalId`, e la costante `RECURRENCE_OPTIONS` il cui commento dichiarava due consumatori che non la importavano. L'unico writer era `QuickAddTask`, che scriveva la costante `"none"`: `expandRecurring` prendeva sempre il ramo «non ricorrente». ⛔ Se un giorno la feature serve davvero, il punto di partenza è una migrazione con la colonna, non il motore — che resta recuperabile da `git log` ed era la parte che non mancava.
+8. **activityLog**: max 100 entry, poi taglia le più vecchie.
+9. **Backup JSON**: Admin → Import/Export include tutto lo stato persistente. Ripristino sovrascrive.
+10. **DnD**: disabilitato su mobile. Usare SwipeActions per azioni rapide.
+11. **CRLF su `src/VoyageDesk.jsx`**: il monolite ha line endings CRLF. Tool che lo riscrivono interamente (Python, alcuni helper) lo normalizzano a LF gonfiando il diff a migliaia di righe. Verifica sempre `git diff --numstat src/VoyageDesk.jsx` prima del push; se anomalo riconverti con `python3 -c "p='src/VoyageDesk.jsx'; d=open(p,'rb').read().replace(b'\r\n',b'\n').replace(b'\n',b'\r\n'); open(p,'wb').write(d)"`.
 
 ## Struttura moduli post Step P + Fase 1 CRM — COMPLETA
 

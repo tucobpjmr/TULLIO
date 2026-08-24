@@ -131,7 +131,7 @@ describe("auto-mappatura colonne", () => {
     const m = detectColumns([]);
     expect(Object.keys(m).sort()).toEqual([
       "assignee", "category", "client", "contact", "description",
-      "dueDate", "estimatedHours", "priority", "status", "title",
+      "dueDate", "estimatedHours", "praticaRef", "priority", "status", "title",
     ]);
     expect(Object.values(m).every(v => v === "")).toBe(true);
   });

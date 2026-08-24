@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSalvataggio } from "../../../hooks/useSalvataggio.js";
 import { formatDate } from "../../../lib/taskUtils.js";
+import { nuovoTask } from "../../../lib/tasks/nuovoTask.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { bulkInputStyle, bulkBtnPrimary, bulkBtnGhost, bulkIconBtnSmall } from "./bulkStyles.js";
 import * as stiliComuni from "../../../styles/common.js";
@@ -65,17 +66,28 @@ export const DuplicateTab = ({ tasks, onCreate, onClose, onCancel, onDirty }) =>
           d.setDate(d.getDate() + dayOffset);
           due = d.toISOString();
         }
-        newTasks.push({
-          ...src,
-          // UUID come in ManualTab: gli id "t<timestamp>-<n>" venivano comunque
-          // riscritti dal dispatch, quindi l'id mostrato in UI non era quello
-          // salvato sul DB finché non arrivava il refresh.
-          id: crypto.randomUUID(),
+        // I campi da copiare sono NOMINATI, non ereditati da uno spread di
+        // `src`. Prima era `{ ...src, … }`, che si portava dietro anche ciò che
+        // descrive la VITA della task sorgente e non il suo contenuto:
+        // `completedAt` in testa — duplicare una task conclusa produceva una
+        // copia `status: "todo"` con una data di completamento addosso. Sul
+        // server non si vedeva (`toDbTask` non scrive mai `completed_at`, lo
+        // gestisce il trigger), ma la copia ottimistica a schermo sì, fino al
+        // primo refetch. Con i campi nominati la domanda "cosa si duplica" ha
+        // una risposta leggibile invece di essere "tutto tranne quello che mi
+        // ricordo di sovrascrivere".
+        newTasks.push(nuovoTask({
           title: src.title + titleSuffix + (count > 1 ? ` ${i + 1}` : ""),
-          status: "todo",
-          comments: [],
+          category: src.category,
+          priority: src.priority,
+          assignees: src.assignees,
+          client: src.client,
+          praticaRef: src.praticaRef,
+          contact: src.contact,
+          estimatedHours: src.estimatedHours,
+          description: src.description,
           dueDate: due,
-        });
+        }));
       }
     });
     return newTasks;

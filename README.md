@@ -41,7 +41,7 @@ realtime, notifiche Web Push e cinque Edge Function.
 | Backend | Supabase — PostgreSQL, RLS, Realtime, Storage, Auth, Edge Functions |
 | Stile | CSS-in-JS + variabili di tema; token condivisi in `src/styles/tokens.js` |
 | Import/export | SheetJS (`xlsx`), caricato on-demand |
-| Test | Vitest + Testing Library — 1649 test |
+| Test | Vitest + Testing Library — 1661 test |
 | Qualità | ESLint 9 (flat config) con `max-lines`, `no-restricted-imports` |
 | Font | Playfair Display + DM Sans + Inter |
 | Lingua UI | italiano |
@@ -77,7 +77,7 @@ src/
 │   ├── clients/ calendar/ views/ admin/ chat/ liste/ search/ notifications/
 │   ├── modals/           i modali NON ancora ricondotti alla loro funzionalità
 │   ├── ui/               ciò che è davvero trasversale (Modal, Avatar, Toast…)
-└── test/                 1649 test (Vitest)
+└── test/                 1661 test (Vitest)
 
 supabase/
 ├── migrations/           109 migrazioni SQL (schema, RLS, RPC, trigger)

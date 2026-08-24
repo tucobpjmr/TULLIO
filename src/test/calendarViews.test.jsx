@@ -6,8 +6,9 @@
 // anonime: `{viewMode === "day" && (() => { … })()}`. Diventando componenti,
 // quello che prima erano variabili chiuse dal render sono ora prop, e uno
 // spostamento del genere si rompe in un modo che nessun test esistente vede:
-// `calendarIcs.test.js` e `recurrence.test.js` provano la matematica pura, e
-// il componente non lo montava nessuno.
+// `calendarIcs.test.js` prova la matematica pura, e il componente non lo
+// montava nessuno. (Qui era citato anche `recurrence.test.js`, uscito con il
+// motore delle ricorrenze — vedi A-3.)
 //
 // Qui non si verifica il layout, che è tutto in stili inline: si verifica che
 // ogni vista monti e mostri i task che le competono. È il minimo che distingue

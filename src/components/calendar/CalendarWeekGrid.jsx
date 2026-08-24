@@ -14,7 +14,7 @@ const maxHeight2 = { maxHeight: 560, overflowY: "auto" };
 const gridRelative = { display: "grid", gridTemplateColumns: `56px repeat(7, minmax(0, 1fr))`, position: "relative" };
 const txtF9Muted = { fontSize: 9, color: "var(--text-muted)" };
 
-export function CalendarWeekGrid({ weekDays, dayNames, getTasksForDay, tasks, categories, onOpenTask }) {
+export function CalendarWeekGrid({ weekDays, dayNames, getTasksForDay, categories, onOpenTask }) {
   const HOURS = Array.from({ length: 24 }, (_, h) => h);
   const SLOT_H = 36;
   const today = new Date().toDateString();
@@ -70,11 +70,8 @@ export function CalendarWeekGrid({ weekDays, dayNames, getTasksForDay, tasks, ca
                   const height = Math.max(20, hours * SLOT_H - 2);
                   const cat = categories[t.category] || {};
                   const colW = 100 / totalCols;
-                  const taskToOpen = t.isRecurringInstance
-                    ? (tasks.find(x => x.id === t.originalId) || t)
-                    : t;
                   return (
-                    <div key={t.id} onClick={() => onOpenTask(taskToOpen)} style={{
+                    <div key={t.id} onClick={() => onOpenTask(t)} style={{
                       position: "absolute", top,
                       left: `calc(${col * colW}% + 1px)`,
                       width: `calc(${colW}% - 3px)`,
@@ -83,10 +80,9 @@ export function CalendarWeekGrid({ weekDays, dayNames, getTasksForDay, tasks, ca
                       borderLeft: `2px solid ${cat.color || "#94a3b8"}`,
                       borderRadius: "0 4px 4px 0", padding: "2px 5px",
                       cursor: "pointer", overflow: "hidden", fontSize: 10, lineHeight: 1.2,
-                      outline: t.isRecurringInstance ? `1px dashed ${cat.color || "#94a3b8"}66` : "none",
                     }}>
                       <div style={stiliComuni.nomeTroncato}>
-                        {cat.icon} {t.title}{t.isRecurringInstance ? " ↻" : ""}
+                        {cat.icon} {t.title}
                       </div>
                       <div style={txtF9Muted}>{formatTime(t.dueDate)}</div>
                     </div>

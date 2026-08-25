@@ -38,7 +38,7 @@ caricaApp().catch(() => {});
 // (background_color #FFFFFF), così il passaggio dalla schermata di sistema a
 // quella dell'app non stacca. È anche il fallback del `Suspense`: l'attesa del
 // chunk e l'attesa di `getSession()` sono la stessa attesa per chi guarda.
-const loadingScreen = (
+const schermataDiAttesa = (
   <div style={{
     ...screenWrap, background: '#fff', color: '#64748b',
     display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -50,9 +50,9 @@ const loadingScreen = (
 );
 
 export function AuthGate() {
-  const { session, profile, team, loading, recovery, authError, refreshTeam, retryInit, signOut } = useAuth();
+  const { session, profile, team, caricando, recovery, authError, refreshTeam, retryInit, signOut } = useAuth();
 
-  if (loading) return loadingScreen;
+  if (caricando) return schermataDiAttesa;
 
   // Recovery ha priorità: anche con una session valida, se l'utente arriva da
   // un link "reimposta password" mostriamo prima la schermata di aggiornamento.
@@ -77,7 +77,7 @@ export function AuthGate() {
     // inattività): senza questo ramo restava uno spinner infinito, con
     // l'unico recupero possibile un refresh manuale della pagina.
     if (authError) return <ProfileErrorScreen onRetry={refreshTeam} onSignOut={signOut} />;
-    return loadingScreen;
+    return schermataDiAttesa;
   }
 
   // Gate utenti non approvati: niente accesso all'app finché pending=true.
@@ -92,7 +92,7 @@ export function AuthGate() {
   // main.jsx così che il montaggio e la sua rete si leggano insieme.
   return (
     <ErrorBoundary>
-      <Suspense fallback={loadingScreen}>
+      <Suspense fallback={schermataDiAttesa}>
         <VoyageDesk
           initialTeam={team}
           initialCurrentUserId={profile?.id}

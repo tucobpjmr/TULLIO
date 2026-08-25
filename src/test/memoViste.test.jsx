@@ -75,7 +75,7 @@ describe("digitare nella ricerca non ri-renderizza ciò che non mostra la ricerc
     fireEvent.change(input, { target: { value: "abc" } });
 
     // Il controllo positivo: l'app HA ri-renderizzato — il campo mostra il
-    // testo nuovo, che arriva dal `searchQuery` di VoyageDeskInner attraverso
+    // testo nuovo, che arriva dalla `ricerca` di VoyageDeskInner attraverso
     // la Topbar. Senza questa asserzione il test passerebbe anche se non
     // fosse successo nulla.
     expect(input.value).toBe("abc");

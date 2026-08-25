@@ -115,7 +115,7 @@ describe("useAppHydration — i clienti sono realtime come le altre entità", ()
     const { result } = renderHook(() => useAppHydration({
       enabled: true, currentUserId: "u1", dispatch, onError: vi.fn(),
     }));
-    await waitFor(() => expect(result.current.crmLoading).toBe(false));
+    await waitFor(() => expect(result.current.caricamentoClienti).toBe(false));
 
     // La riga che mancava: senza, un cliente creato da un altro utente non
     // arrivava mai in sessione.
@@ -131,7 +131,7 @@ describe("useAppHydration — i clienti sono realtime come le altre entità", ()
       enabled: true, currentUserId: "u1", dispatch, onError: vi.fn(),
     }));
     await act(async () => { await result.current.clientiCompleti.richiedi(); });
-    await waitFor(() => expect(result.current.crmLoading).toBe(false));
+    await waitFor(() => expect(result.current.caricamentoClienti).toBe(false));
     dispatch.mockClear();
 
     handlers.get("clients")?.({ eventType: "INSERT", new: {} });
@@ -186,6 +186,6 @@ describe("useAppHydration — i clienti sono realtime come le altre entità", ()
     // Senza login si usano i mock: il gate non deve essere stato perso nel
     // passaggio da useEffect a subscription.
     expect(handlers.size).toBe(0);
-    expect(result.current.crmLoading).toBe(false);
+    expect(result.current.caricamentoClienti).toBe(false);
   });
 });

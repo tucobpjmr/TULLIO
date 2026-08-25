@@ -83,7 +83,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
   const [pendingFiles, setPendingFiles] = useState([]);
   // Solo il limite di dimensione, che è una regola sull'input e si valuta
   // subito: l'esito della scrittura ha ora il proprio canale (vedi sotto).
-  const [fileError, setFileError] = useState("");
+  const [erroreFile, impostaErroreFile] = useState("");
   const [errori, setErrori] = useState({});
   const fileInputRef = useRef(null);
   const titleRef = useRef(null);
@@ -103,11 +103,11 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
   const addFiles = (fileList) => {
     const arr = Array.from(fileList || []);
     if (!arr.length) return;
-    setFileError("");
+    impostaErroreFile("");
     const ok = [];
     for (const f of arr) {
       if (!isWithinSizeLimit(f.size)) {
-        setFileError(`"${f.name}" supera il limite di ${formatFileSize(MAX_TASK_FILE_SIZE)}`);
+        impostaErroreFile(`"${f.name}" supera il limite di ${formatFileSize(MAX_TASK_FILE_SIZE)}`);
         continue;
       }
       ok.push(f);
@@ -331,7 +331,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
             <div style={txtF11Light}>
               Immagini, video, audio e documenti · max {formatFileSize(MAX_TASK_FILE_SIZE)} per file.
             </div>
-            {fileError && <div style={txtF12Danger}>{fileError}</div>}
+            {erroreFile && <div style={txtF12Danger}>{erroreFile}</div>}
           </div>
         </div>
 

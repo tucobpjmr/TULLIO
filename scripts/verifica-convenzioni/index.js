@@ -33,6 +33,8 @@ import {
   // A-5 (23 agosto, secondo passaggio): le forme di stile confrontate per
   // VALORE e non per nome. Vedi il blocco che le introduce in convenzioni.js.
   formeDuplicate, formeGiaInComune,
+  // B-3 (25 agosto): due nomi per un concetto solo dentro lo stesso file.
+  doppioNome,
 } from './convenzioni.js';
 
 // Gli audit sotto controllo: nome del file, prefisso dei suoi rilievi.
@@ -331,6 +333,18 @@ async function main() {
     nome: 'forme già in common.js riscritte altrove', dove: 'src/styles/common.js',
     dichiarato: 0, misurato: gia.length,
     rimedio: `Usa quella condivisa invece di ridefinirla: ${gia.join(' | ')}`,
+  });
+
+  // 5-septies · B-3 (audit del 25 agosto). La lingua degli identificatori è
+  //    decisa in docs/CLAUDE.md; qui si misura il suo caso peggiore, cioè la
+  //    stessa cosa chiamata in due modi nello stesso file. L'atteso è 0, e le
+  //    coppie sono un elenco ESPLICITO (COPPIE_SINONIME): niente euristica
+  //    sulla lingua, quindi niente falsi positivi da imparare a saltare.
+  const doppi = doppioNome(sorgenti);
+  controlli.push({
+    nome: 'doppio nome per lo stesso concetto', dove: 'docs/CLAUDE.md (lingua degli identificatori)',
+    dichiarato: 0, misurato: doppi.length,
+    rimedio: `Un concetto, un nome — e in italiano se lo scegliamo noi: ${doppi.join(' | ')}`,
   });
 
   // 6. Viste che chiedono il corpus intero dei task (A-3). Stesso mestiere del

@@ -80,7 +80,7 @@ export const ListeViaggio = memo(function ListeViaggio({ listeTarget = null }) {
     useListeData({ enabled: listeAllowed });
   const esegui = useListeWrite();
 
-  const [openId, setOpenId] = useState(null);
+  const [listaApertaId, impostaListaAperta] = useState(null);
   const [detail, setDetail] = useState(null); // { lista, movimenti, history }
 
   // Quattro valori INDIPENDENTI dell'elenco: si cerca dentro un filtro, con un
@@ -140,9 +140,9 @@ export const ListeViaggio = memo(function ListeViaggio({ listeTarget = null }) {
     // Chiusura: nessuna loadDetail in volo resta legittima. Bump esplicito
     // (nessuna nuova loadDetail la farebbe da sola) così una risposta tardiva
     // per la lista appena chiusa non può riapparire nel dettaglio.
-    if (!openId) { detailGenRef.current += 1; setDetail(null); return; }
-    loadDetail(openId);
-  }, [openId, loadDetail]);
+    if (!listaApertaId) { detailGenRef.current += 1; setDetail(null); return; }
+    loadDetail(listaApertaId);
+  }, [listaApertaId, loadDetail]);
 
   // Apertura mirata da un'altra vista (tab "Liste viaggio" della scheda
   // cliente): SET_VIEW porta con sé l'id della lista da aprire. Il seq
@@ -151,7 +151,7 @@ export const ListeViaggio = memo(function ListeViaggio({ listeTarget = null }) {
   const target = listeTarget;
   useEffect(() => {
     if (!target?.id) return;
-    setOpenId(target.id);
+    impostaListaAperta(target.id);
   }, [target?.id, target?.seq]);
 
   // Ricarica dopo una scrittura: il dettaglio va SEMPRE ricaricato (il saldo,
@@ -166,8 +166,8 @@ export const ListeViaggio = memo(function ListeViaggio({ listeTarget = null }) {
   // anti-race qui non dipende più da questo argomento, viene dal generation
   // counter condiviso dentro useListeData stesso.
   const reloadAll = useCallback(async (tabelle = null) => {
-    await Promise.all([loadHome(undefined, tabelle), openId ? loadDetail(openId) : Promise.resolve()]);
-  }, [loadHome, loadDetail, openId]);
+    await Promise.all([loadHome(undefined, tabelle), listaApertaId ? loadDetail(listaApertaId) : Promise.resolve()]);
+  }, [loadHome, loadDetail, listaApertaId]);
 
   // ── Strumenti dati: backup in giù, backup in su, reset totale ──
   // Un file suo (M-5, audit del 25 agosto): è l'unico dei quattro lavori di
@@ -181,7 +181,7 @@ export const ListeViaggio = memo(function ListeViaggio({ listeTarget = null }) {
   });
 
   const backToHome = useCallback(async () => {
-    setOpenId(null);
+    impostaListaAperta(null);
     dispatch({ type: "CLEAR_LISTE_TARGET" });
     await loadHome();
   }, [dispatch, loadHome]);
@@ -430,7 +430,7 @@ export const ListeViaggio = memo(function ListeViaggio({ listeTarget = null }) {
                 ) : (
                   <>
                     {finestra.visibili.map((l) => (
-                      <ListaRow key={l.id} lista={l} saldo={saldi[l.id]} onOpen={() => setOpenId(l.id)} />
+                      <ListaRow key={l.id} lista={l} saldo={saldi[l.id]} onOpen={() => impostaListaAperta(l.id)} />
                     ))}
                     {finestra.restanti > 0 && (
                       <div style={txtCenter}>
@@ -461,7 +461,7 @@ export const ListeViaggio = memo(function ListeViaggio({ listeTarget = null }) {
                   if (!ok) return false;
                   chiudiOverlay();
                   await loadHome();
-                  setOpenId(id);
+                  impostaListaAperta(id);
                   return true;
                 },
               }}

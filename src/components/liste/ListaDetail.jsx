@@ -41,7 +41,7 @@ const TABELLE_LISTA = new Set(["liste_viaggio"]);
 // ─── Dettaglio ─────────────────────────────────────────────────────────────
 export function ListaDetail({ lista, movimenti, history, usersById, onReload, onArchived, clients = [], saldi = {} }) {
   const dispatch = useDispatch();
-  const [addOpen, setAddOpen] = useState(false);
+  const [aggiuntaAperta, impostaAggiuntaAperta] = useState(false);
   const [editCell, setEditCell] = useState(null); // { id, campo }
   const [modal, setModal] = useState(null);       // null | "editLista" | "bulk" | "addBeneficiario" | { mov }
   const [riepilogoOpen, setRiepilogoOpen] = useState(false);
@@ -74,7 +74,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, onReload, on
   // Cambiando lista si richiude tutto: gli editor aperti si riferivano a
   // movimenti di un'altra lista.
   useEffect(() => {
-    setAddOpen(false); setEditCell(null); setModal(null); setRiepilogoOpen(false);
+    impostaAggiuntaAperta(false); setEditCell(null); setModal(null); setRiepilogoOpen(false);
   }, [lista.id]);
 
   // B-1 dell'audit del 23 agosto. `liste_saldi.saldo` è calcolato dal database
@@ -220,7 +220,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, onReload, on
 
       <div className="lv-toolbar">
         {attiva && (
-          <button className="lv-btn primary" aria-expanded={addOpen} onClick={() => setAddOpen((v) => !v)}>
+          <button className="lv-btn primary" aria-expanded={aggiuntaAperta} onClick={() => impostaAggiuntaAperta((v) => !v)}>
             <span className="plus">＋</span> Nuovo movimento
           </button>
         )}
@@ -233,11 +233,11 @@ export function ListaDetail({ lista, movimenti, history, usersById, onReload, on
 
       <div className="lv-card lv-foglio">
         {!attiva && <div className="lv-stamp">LISTA ESAURITA</div>}
-        {attiva && addOpen && (
+        {attiva && aggiuntaAperta && (
           <AddMovBox
             listaId={lista.id}
             onSaved={() => onReload(TABELLE_MOVIMENTO)}
-            onClose={() => setAddOpen(false)}
+            onClose={() => impostaAggiuntaAperta(false)}
             onBulk={() => setModal("bulk")}
           />
         )}
@@ -298,7 +298,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, onReload, on
             {attiva && (
               <>
                 <br />
-                <button className="lv-btn primary" style={stiliComuni.mt12} onClick={() => setAddOpen(true)}>
+                <button className="lv-btn primary" style={stiliComuni.mt12} onClick={() => impostaAggiuntaAperta(true)}>
                   <span className="plus">＋</span> Registra il primo
                 </button>
               </>

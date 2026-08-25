@@ -48,7 +48,7 @@ export function ClienteModal({ cliente, onSave, onClose, liste = null, tasksColl
   // useIsMounted (criticità #11) non è sparito — vive dentro l'hook, che è
   // anche il posto in cui lo smontaggio avviene, visto che è `alSuccesso` a
   // provocarlo.
-  const { salva, inVolo: saving, errore: erroreSalvataggio } = useSalvataggio(onSave, { alSuccesso: onClose });
+  const { salva, inVolo, errore: erroreSalvataggio } = useSalvataggio(onSave, { alSuccesso: onClose });
   const [errori, setErrori] = useState({});
   const nameRef = useRef(null);
   const emailRef = useRef(null);
@@ -185,11 +185,11 @@ export function ClienteModal({ cliente, onSave, onClose, liste = null, tasksColl
               mancante. Un bottone spento non dice cosa manca — e a form
               appena aperto si legge come un'app rotta; premuto, ora il form
               dice quale campo e sposta il focus lì. */}
-          <button type="submit" disabled={saving} style={{
+          <button type="submit" disabled={inVolo} style={{
             padding: "9px 20px", borderRadius: 8, border: "none",
             background: "var(--navy)", color: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 600,
-            opacity: saving ? 0.5 : 1,
-          }}>{saving ? "Salvataggio..." : (cliente ? "Salva" : "Aggiungi")}</button>
+            opacity: inVolo ? 0.5 : 1,
+          }}>{inVolo ? "Salvataggio..." : (cliente ? "Salva" : "Aggiungi")}</button>
         </div>
       </form>
     </Modal>

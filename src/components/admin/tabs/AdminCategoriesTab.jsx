@@ -55,7 +55,7 @@ export const AdminCategoriesTab = () => {
     },
   );
 
-  const saveEdit = () => {
+  const salvaModifica = () => {
     const trovati = validaCampi({ label: draft.label }, REGOLE);
     if (trovati.label) { setErrori(trovati); return; }
     setErrori({});
@@ -118,7 +118,7 @@ export const AdminCategoriesTab = () => {
               <div style={rowGap6}>
                 {isEditing ? (
                   <>
-                    <button onClick={saveEdit} disabled={inVolo} style={btnPrimary}>
+                    <button onClick={salvaModifica} disabled={inVolo} style={btnPrimary}>
                       {inVolo ? "Salvataggio…" : "💾 Salva"}
                     </button>
                     <button onClick={cancelEdit} style={btnGhost}>Annulla</button>

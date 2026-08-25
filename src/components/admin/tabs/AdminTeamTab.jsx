@@ -130,7 +130,7 @@ export const AdminTeamTab = () => {
     },
   );
 
-  const saveEdit = () => {
+  const salvaModifica = () => {
     const trovati = validaCampi({ name: draft.name }, REGOLE_MEMBRO);
     if (trovati.name) { setErrori(trovati); return; }
     setErrori({});
@@ -260,7 +260,7 @@ export const AdminTeamTab = () => {
         <div style={{ display: "flex", gap: 6, ...(isMobile ? { justifyContent: "flex-end" } : {}) }}>
           {isEditing ? (
             <>
-              <button onClick={saveEdit} disabled={inVolo} style={btnPrimary}>
+              <button onClick={salvaModifica} disabled={inVolo} style={btnPrimary}>
                 {inVolo ? "Salvataggio…" : "💾 Salva"}
               </button>
               <button onClick={cancelEdit} style={btnGhost}>Annulla</button>

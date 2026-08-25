@@ -47,7 +47,7 @@ const txtF12Bold = { fontSize: 12, fontWeight: 600, color: "var(--text)" };
 // ─── URGENT QUEUE (tutte le task in scadenza <24h — visibile a non-driver) ──
 // Mostra sia le proprie task urgenti (editabili dal dettaglio) sia quelle
 // altrui (read-only, con scorciatoia "contatta" verso l'assegnatario).
-// windowH: finestra temporale selezionabile (ore). 24 = default (badge tab).
+// oreUrgenza: finestra temporale selezionabile (ore). 24 = default (badge tab).
 // B-5 · Ogni quanto rileggere l'ora, come in Dashboard.jsx: la finestra più
 // stretta è di 24 ore, al minuto la transizione è già più fine del percepibile.
 const TICK_URGENZE_MS = 60 * 1000;
@@ -64,13 +64,13 @@ const URGENT_WINDOWS = [
 export const UrgentQueue = ({ tasks, onOpenChat, uid, loading = false }) => {
   const { getMember, canEditTask } = useAppData();
   const [filterAgent, setFilterAgent] = useState(null);
-  const [windowH, setWindowH] = useState(24);
+  const [oreUrgenza, impostaOreUrgenza] = useState(24);
   const openTask = useOpenTask();
   const caricando = loading && tasks.length === 0;
 
   // `tasks` arriva già limitato a 72h dal parent: qui restringo alla finestra
   // selezionata, poi (eventualmente) al singolo agente.
-  const windowMs = windowH * 60 * 60 * 1000;
+  const msUrgenza = oreUrgenza * 60 * 60 * 1000;
   // B-5 · Stesso tick della Dashboard, e per la stessa ragione: questo
   // `useMemo` non ha il tempo fra le dipendenze, quindi senza `adesso` una
   // coda lasciata aperta continuerebbe a mostrare come «entro 24h» una task
@@ -81,8 +81,8 @@ export const UrgentQueue = ({ tasks, onOpenChat, uid, loading = false }) => {
   const adesso = useTickLento(TICK_URGENZE_MS);
   const inWindow = useMemo(() => tasks.filter(t => {
     const diff = new Date(t.dueDate).getTime() - adesso;
-    return diff >= 0 && diff <= windowMs;
-  }), [tasks, windowMs, adesso]);
+    return diff >= 0 && diff <= msUrgenza;
+  }), [tasks, msUrgenza, adesso]);
 
   const presentAgents = useMemo(
     () => [...new Set(inWindow.map(t => t.assignees?.[0]).filter(Boolean))], [inWindow]);
@@ -94,7 +94,7 @@ export const UrgentQueue = ({ tasks, onOpenChat, uid, loading = false }) => {
   // M-2 · La finestra sull'elenco (da non confondere con la finestra TEMPORALE
   // 24/48/72h di questa coda, che è un filtro sui dati): entrambe la
   // riazzerano, perché entrambe ridefiniscono quali siano le prime dieci.
-  const finestra = useFinestra(visibleTasks, QUEUE_PAGINA, [filterAgent, windowH]);
+  const finestra = useFinestra(visibleTasks, QUEUE_PAGINA, [filterAgent, oreUrgenza]);
 
   return (
     <QueueShell
@@ -107,7 +107,7 @@ export const UrgentQueue = ({ tasks, onOpenChat, uid, loading = false }) => {
       {/* Selettore finestra temporale (24/48/72h) */}
       <div style={rowGap6Mb12}>
         {URGENT_WINDOWS.map(w => {
-          const on = windowH === w.h;
+          const on = oreUrgenza === w.h;
           // `adesso` e non `Date.now()`: i conteggi dei tre chip devono
           // invecchiare insieme alla lista che descrivono, altrimenti il chip
           // dice «12» e sotto se ne vedono 11.
@@ -119,7 +119,7 @@ export const UrgentQueue = ({ tasks, onOpenChat, uid, loading = false }) => {
             <button
               key={w.h}
               type="button"
-              onClick={() => { setWindowH(w.h); setFilterAgent(null); }}
+              onClick={() => { impostaOreUrgenza(w.h); setFilterAgent(null); }}
               style={{
                 display: "inline-flex", alignItems: "center", gap: 6,
                 padding: "5px 12px", borderRadius: 8, cursor: "pointer",
@@ -194,8 +194,8 @@ export const UrgentQueue = ({ tasks, onOpenChat, uid, loading = false }) => {
         <SkeletonCards count={2} minWidth={320} compact label="Caricamento delle task urgenti" />
       ) : visibleTasks.length === 0 ? (
         <div style={txtF13Muted}>
-          ✅ Nessuna task in scadenza entro {windowH}h{filterAgent ? " per questo agente" : ""}.
-          {windowH < 72 && " Prova ad allargare la finestra."}
+          ✅ Nessuna task in scadenza entro {oreUrgenza}h{filterAgent ? " per questo agente" : ""}.
+          {oreUrgenza < 72 && " Prova ad allargare la finestra."}
         </div>
       ) : (
       <>

@@ -158,11 +158,11 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // la funzione di deregistrazione ritornata da registraSinkErrori.
   useEffect(() => registraSinkErrori(showError), [showError]);
 
-  // `loading` porta un flag per ENTITÀ (criticità #6): finché il primo fetch
-  // di una di esse non è tornato, le viste che la mostrano devono dire "sto
-  // caricando" e non "non c'è niente". `crmLoading` è l'alias storico di
-  // `loading.clients`.
-  const { loading, crmLoading, storicoTask, clientiCompleti } = useAppHydration({
+  // `caricamento` porta un flag per ENTITÀ (criticità #6): finché il primo
+  // fetch di una di esse non è tornato, le viste che la mostrano devono dire
+  // "sto caricando" e non "non c'è niente". `caricamentoClienti` è il flag
+  // dell'anagrafica, che ha una storia sua (vedi hooks/useAppHydration.js).
+  const { caricamento, caricamentoClienti, storicoTask, clientiCompleti } = useAppHydration({
     enabled: useSupabase,
     currentUserId: initialCurrentUserId,
     dispatch: rawDispatch,
@@ -251,14 +251,14 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // farebbe ripartire gli effetti sempre. Queste tre hanno identità stabile
   // (`useCallback` con array vuoto), e dichiararle è ciò che tiene
   // `exhaustive-deps` a zero warning senza silenziarlo.
-  const { openFAB, setShowKeyHelp, chiudiPannelli } = ui;
+  const { apriFAB, alternaScorciatoie, chiudiPannelli } = ui;
 
   usePushNavigation({
     enabled: useSupabase,
     currentUserId: state.currentUserId,
     tasks: state.tasks,
     dispatch,
-    onOpenChat: ui.openConversationById,
+    onOpenChat: ui.apriConversazione,
   });
 
   useEffect(() => {
@@ -272,10 +272,10 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       if (inInput) return;
       if (e.key === "k" || e.key === "K") {
         e.preventDefault();
-        openFAB();
+        apriFAB();
       } else if (e.key === "?") {
         e.preventDefault();
-        setShowKeyHelp(p => !p);
+        alternaScorciatoie();
       }
       // Escape NON è più gestito qui: da quando l'overlay delle scorciatoie è
       // un ui/Modal.jsx, la chiusura con Esc arriva dal guscio — e passa dalla
@@ -286,7 +286,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [openFAB, setShowKeyHelp]);
+  }, [apriFAB, alternaScorciatoie]);
 
   // Quando l'utente cambia, se la view corrente non è permessa il reducer la riporta a dashboard.
   // Inoltre chiudo eventuali pannelli aperti.
@@ -304,11 +304,11 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // provider da solo non basta).
   const renderView = () => {
     switch (state.activeView) {
-      case "dashboard":  return <Dashboard onOpenChat={ui.openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={loading.tasks} noticesLoading={loading.notices} />;
-      case "calendar":   return <CalendarPlanner loading={loading.tasks} />;
-      case "clienti":    return <ClientiView loading={crmLoading} />;
-      case "archivio":   return <Archive loading={loading.tasks} />;
-      case "trash":      return <Trash loading={loading.tasks} />;
+      case "dashboard":  return <Dashboard onOpenChat={ui.apriChatCon} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={caricamento.tasks} noticesLoading={caricamento.notices} />;
+      case "calendar":   return <CalendarPlanner loading={caricamento.tasks} />;
+      case "clienti":    return <ClientiView loading={caricamentoClienti} />;
+      case "archivio":   return <Archive loading={caricamento.tasks} />;
+      case "trash":      return <Trash loading={caricamento.tasks} />;
       // Il guard qui è ridondante per costruzione — il reducer rifiuta
       // SET_VIEW → "admin" per i non-admin (reducer.js:95) e riporta la vista
       // a dashboard al cambio utente (reducer.js:145) — ma è la ridondanza che
@@ -320,9 +320,9 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       case "admin":      return canAccessAdmin(state.team, state.currentUserId)
         ? <AdminView agencyName={state.agencyName} notices={state.notices}
                      activityLog={state.activityLog} messageTemplates={state.messageTemplates} />
-        : <Dashboard onOpenChat={ui.openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={loading.tasks} noticesLoading={loading.notices} />;
+        : <Dashboard onOpenChat={ui.apriChatCon} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={caricamento.tasks} noticesLoading={caricamento.notices} />;
       case "liste":      return <ListeViaggio listeTarget={state.listeTarget} />;
-      default:           return <Dashboard onOpenChat={ui.openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={loading.tasks} noticesLoading={loading.notices} />;
+      default:           return <Dashboard onOpenChat={ui.apriChatCon} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={caricamento.tasks} noticesLoading={caricamento.notices} />;
     }
   };
 
@@ -355,15 +355,15 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
             Topbar prende i task da TasksContext per il pannello di ricerca. */}
         <Topbar
           activeView={state.activeView}
-          searchQuery={ui.searchQuery}
-          onSearchChange={ui.setSearchQuery}
+          ricerca={ui.ricerca}
+          onSearchChange={ui.impostaRicerca}
           notifications={notif.notifications}
           onMarkRead={notif.markRead}
           onMarkAllRead={notif.markAllRead}
           onRemoveNotification={notif.remove}
           onClearAllNotifications={notif.clearAll}
           onOpenTask={openTaskById}
-          onOpenChat={ui.openConversationById}
+          onOpenChat={ui.apriConversazione}
         />
         {/* Banner offline (criticità #7). Sopra a tutto il resto perché è la
             condizione che invalida tutto il resto: senza rete i numeri a
@@ -384,7 +384,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           />
         )}
         <div style={rowFlex1}>
-          <Sidebar activeView={state.activeView} onOpenBulk={ui.openBulk} onOpenChat={ui.openChatPanel} unreadChat={chat.unreadChat} />
+          <Sidebar activeView={state.activeView} onOpenBulk={ui.apriBulk} onOpenChat={ui.apriChat} unreadChat={chat.unreadChat} />
           <main className="vd-main-scroll" style={flex1}>
             {/* Suspense per la vista attiva: Dashboard e ClientiView risolvono
                 sincronicamente (viste d'ingresso, aperte da ogni sessione);
@@ -407,7 +407,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         </div>
 
         {/* Bottom nav mobile/tablet */}
-        <BottomNav activeView={state.activeView} onOpenBulk={ui.openBulk} onOpenChat={ui.openChatPanel} unreadChat={chat.unreadChat} />
+        <BottomNav activeView={state.activeView} onOpenBulk={ui.apriBulk} onOpenChat={ui.apriChat} unreadChat={chat.unreadChat} />
 
         {/* Slide-over (lazy, Phase 2g). `LazyPanel` = Suspense + boundary: un
             eventuale errore (chunk 404 dopo un deploy, o crash di render)
@@ -436,16 +436,16 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
             `chatPanelReducer`, dentro il pannello. I dati non si ricaricano:
             conversazioni e messaggi stanno in useChatData, che resta montato.
             `chat.unreadChat` per il badge si calcola lì, fuori dal chunk. */}
-        {ui.showChat && (
-          <LazyPanel resetKey="chat" onReset={ui.closeChatPanel} overlay>
+        {ui.chatAperta && (
+          <LazyPanel resetKey="chat" onReset={ui.chiudiChat} overlay>
             <ChatPanel
               open
-              onClose={ui.closeChatPanel}
+              onClose={ui.chiudiChat}
               conversations={chat.conversations}
               messages={chat.messages}
               commands={chat.commands}
               onDeleteConversation={chat.commands.removeConversation}
-              intent={ui.chatIntent}
+              intent={ui.intentoChat}
               tasks={state.tasks}
               currentUserId={state.currentUserId}
               presenceMap={presenceMap}
@@ -459,21 +459,21 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
 
         {/* FAB principale (singolo task). La creazione bulk/multi-task è ora in Sidebar/BottomNav. */}
         {state.activeView !== "trash" && state.activeView !== "archivio" && state.activeView !== "admin" && (
-          <FAB onClick={ui.openFAB} />
+          <FAB onClick={ui.apriFAB} />
         )}
-        {ui.showFABModal && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={ui.closeFAB} />}
+        {ui.fabAperto && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={ui.chiudiFAB} />}
 
         {/* Overlay scorciatoie tastiera (v2.8 Round 10) */}
-        {ui.showKeyHelp && <KeyboardHelpOverlay onClose={ui.closeKeyHelp} />}
+        {ui.scorciatoieAperte && <KeyboardHelpOverlay onClose={ui.chiudiScorciatoie} />}
 
         {/* Bulk Task Creator (lazy, Phase 2g). Stessa ragione dello slide-over
             qui sopra: un crash non deve portare via l'intera app. */}
-        {ui.showBulkModal && (
-          <LazyPanel resetKey="bulk" onReset={ui.closeBulk} overlay>
+        {ui.bulkAperto && (
+          <LazyPanel resetKey="bulk" onReset={ui.chiudiBulk} overlay>
             <BulkTaskCreator
               existingTasks={getActiveTasks(state.tasks)}
               onCreate={(tasks) => dispatch({ type: "ADD_TASKS_BULK", payload: tasks })}
-              onClose={ui.closeBulk}
+              onClose={ui.chiudiBulk}
             />
           </LazyPanel>
         )}

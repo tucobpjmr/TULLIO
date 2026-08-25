@@ -55,7 +55,7 @@ const ORDINE = ["name", "email"];
 //   • IL FRENO AL DOPPIO INVIO del salvataggio → `salvaInVolo`, un `useState`
 //     qui. Era la quarta fetta di quel reducer, ed è l'unica delle quattro che
 //     riguarda il PROFILO e non l'account: adesso si legge accanto a
-//     `handleSave`, cioè accanto a ciò che protegge.
+//     `salvaProfilo`, cioè accanto a ciò che protegge.
 //
 // Restano DELIBERATAMENTE separati, perché sono valori indipendenti e accorparli
 // è la parte del rilievo che non va fatta:
@@ -135,7 +135,7 @@ export const ProfileEditor = ({ member, onClose }) => {
   // ⚠️ Non è il bottone disabilitato che la validazione vieta (criticità #10):
   // quello nasconde un campo mancante invece di dirlo, e resta attivo. Questo
   // si spegne SOLO per la durata di una scrittura già partita.
-  const handleSave = async () => {
+  const salvaProfilo = async () => {
     if (salvaInVolo) return;
     const trovati = validaCampi(draft, REGOLE);
     const primo = primoCampoInvalido(trovati, ORDINE);
@@ -327,7 +327,7 @@ export const ProfileEditor = ({ member, onClose }) => {
               Disabilitarlo nascondeva il problema invece di dirlo — premuto,
               ora il form indica il campo e ci porta il focus. */}
           <button
-            onClick={handleSave}
+            onClick={salvaProfilo}
             disabled={salvaInVolo}
             aria-busy={salvaInVolo}
             style={salvaInVolo ? boxF13Bold3InVolo : boxF13Bold3}

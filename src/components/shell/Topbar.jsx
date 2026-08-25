@@ -72,17 +72,17 @@ const NotificationsPanel = lazy(() =>
 // cerchi sui dati aggiornati.
 //
 // Questa barra contiene l'input di ricerca, quindi DEVE ri-renderizzarsi a
-// ogni carattere: `searchQuery` è una prop che cambia per costruzione. Ciò che
+// ogni carattere: `ricerca` è una prop che cambia per costruzione. Ciò che
 // il memo evita è tutto il resto. Sidebar e BottomNav, che non hanno campi di
 // input, non si ri-renderizzano più affatto quando si digita.
 //
-// `searchQuery` resta nel guscio (VoyageDeskInner la tiene in `useState` e la
+// `ricerca` resta nel guscio (VoyageDeskInner la tiene in `useState` e la
 // passa qui insieme a `onSearchChange`) invece di diventare stato locale della
 // Topbar: è candidata a diventare un filtro cross-view, e in quel caso deve
 // restare leggibile da fuori questo componente. `showNotif`, che nessuno
 // legge fuori da qui, è invece `useState` locale — vedi audit ST-2 parte 2.
 export const Topbar = memo(function Topbar({
-  activeView, searchQuery, onSearchChange,
+  activeView, ricerca, onSearchChange,
   notifications: notificationsProp, onMarkRead, onMarkAllRead,
   onRemoveNotification, onClearAllNotifications, onOpenTask, onOpenChat,
 }) {
@@ -158,7 +158,7 @@ export const Topbar = memo(function Topbar({
         <div style={stiliComuni.relative}>
           <div style={txtAbsoluteF14}>🔍</div>
           <input
-            value={searchQuery}
+            value={ricerca}
             onChange={e => { onSearchChange(e.target.value); setSearchOpen(true); }}
             onFocus={e => { setSearchOpen(true); e.target.style.borderColor = "var(--gold)"; }}
             onBlur={e => { e.target.style.borderColor = "rgba(15,32,68,0.15)"; }}
@@ -171,7 +171,7 @@ export const Topbar = memo(function Topbar({
           <LazyPanel resetKey="ricerca" onReset={() => setSearchOpen(false)}>
             <AdvancedSearchPanel
               tasks={tasks}
-              keyword={searchQuery}
+              keyword={ricerca}
               onKeyword={onSearchChange}
               onClose={() => setSearchOpen(false)}
               currentUserId={currentUserId}

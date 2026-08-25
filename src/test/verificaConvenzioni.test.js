@@ -11,7 +11,7 @@ import {
   LetturaFallita, leggiCallSiteSalvataggio, leggiConteggioMultiComp, leggiStatoAudit,
   leggiStatoIndex, leggiStiliInline, montaggiLazySenzaRete, usiSalvataggio, confronta,
   azioniRegistry, formSenzaAttesaEsito, ricercheSenzaIndice, iterazioniQuadratiche,
-  formeDuplicate, formeGiaInComune,
+  formeDuplicate, formeGiaInComune, doppioNome,
 } from '../../scripts/verifica-convenzioni/convenzioni.js';
 
 describe('leggiConteggioMultiComp', () => {
@@ -437,5 +437,48 @@ describe('formeGiaInComune', () => {
   it('SOLLEVA se common.js non ha prodotto niente', () => {
     expect(() => formeGiaInComune([{ path: 'src/x.jsx', nome: 'a', valore: '{}' }], []))
       .toThrow(LetturaFallita);
+  });
+});
+
+// ─── B-3 · due nomi per un concetto solo ───────────────────────────────────
+describe('doppioNome', () => {
+  const file = (testo) => [{ path: 'src/x.jsx', testo }];
+
+  it('trova la stessa cosa chiamata in due lingue nello stesso file', () => {
+    const scoperti = doppioNome(file(`
+      const caricaApp = () => import('./App.jsx');
+      const loadingScreen = <div />;
+    `));
+    expect(scoperti).toHaveLength(1);
+    expect(scoperti[0]).toContain('caricare');
+    expect(scoperti[0]).toContain('caricaApp');
+  });
+
+  it('legge anche le destrutturazioni, dove finisce metà del vocabolario', () => {
+    expect(doppioNome(file('const { salva, inVolo } = useSalvataggio(f); const saveEdit = () => {};')))
+      .toHaveLength(1);
+  });
+
+  // Il caso che tiene il controllo utile invece che rumoroso: `error` nudo è la
+  // forma in cui supabase-js consegna l'esito, non un nome che scegliamo noi.
+  it('non conta i nomi della piattaforma: `error` destrutturato non è una scelta', () => {
+    expect(doppioNome(file('const { data, error } = await ListeAPI.list(); const errori = {};')))
+      .toEqual([]);
+  });
+
+  it('un file coerente non produce nulla', () => {
+    expect(doppioNome(file('const salva = () => {}; const errori = {}; const chiudi = () => {};')))
+      .toEqual([]);
+  });
+
+  // Senza questo, il controllo passerebbe anche con regex che non trovano mai
+  // niente — il modo in cui un controllo smette di controllare restando verde.
+  it('i commenti non contano: un nome citato non è un nome dichiarato', () => {
+    expect(doppioNome(file('// qui una volta c\'era loadingScreen\nconst caricaApp = () => {};')))
+      .toEqual([]);
+  });
+
+  it('SOLLEVA se non ha ricevuto sorgenti', () => {
+    expect(() => doppioNome([])).toThrow(LetturaFallita);
   });
 });

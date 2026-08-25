@@ -7,7 +7,7 @@
 // solo con un refresh manuale. Il fix rende il callback sincrono e rimanda il
 // caricamento profilo fuori dal lock con setTimeout(0). Questi test verificano
 // entrambe le proprietà: callback sincrono (niente Promise di ritorno) e app
-// che esce comunque dal loading con il profilo caricato.
+// che esce comunque dal caricando con il profilo caricato.
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
 import { AuthProvider, useAuth } from "../auth/AuthContext.jsx";
@@ -45,8 +45,8 @@ vi.mock("../lib/supabase", () => {
 });
 
 function Probe() {
-  const { loading, profile } = useAuth();
-  if (loading) return <div>PROBE_LOADING</div>;
+  const { caricando, profile } = useAuth();
+  if (caricando) return <div>PROBE_LOADING</div>;
   return <div>PROBE_READY:{profile?.name ?? "nessuno"}</div>;
 }
 
@@ -69,7 +69,7 @@ describe("AuthContext — avvio senza deadlock sul lock auth", () => {
     expect(returned).toBeUndefined();
   });
 
-  it("esce dal loading e carica il profilo dopo INITIAL_SESSION", async () => {
+  it("esce dal caricando e carica il profilo dopo INITIAL_SESSION", async () => {
     const { __authState } = await import("../lib/supabase");
     render(
       <AuthProvider>

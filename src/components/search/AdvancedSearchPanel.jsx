@@ -8,13 +8,14 @@ import { useViewport } from "../ui/Viewport.jsx";
 import { SwipeActions } from "../tasks/SwipeActions.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { PRIORITIES, STATUSES, STATUS_LABELS } from "../../lib/taskConstants.js";
-import { formatDate, isOverdue, startOfLocalDay, endOfLocalDay } from "../../lib/taskUtils.js";
+import { formatDate, isOverdue } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useStoricoTaskCompleto } from "../../state/StoricoTaskContext.jsx";
 // La ricerca chiede al modulo Liste "quali liste sono indicizzabili", non
 // quali query fare: vedi components/liste/listeModuleApi.js.
 import { listeRicercabili, beneficiariNomi, intestazioneLista } from "../liste/listeModuleApi.js";
-import { indicizza, matchIndice, terminiRicerca } from "../../lib/searchUtils.js";
+import { indicizzaTask, filtraTask } from "../../lib/searchTask.js";
+import { indicizzaListe, filtraListe } from "../../lib/searchListe.js";
 import { Z } from "../../styles/tokens.js";
 import { FilterDropdown } from "./FilterDropdown.jsx";
 import * as stiliComuni from "../../styles/common.js";
@@ -112,72 +113,22 @@ export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, c
 
   const hasFilters = keyword.trim() || dateFrom || dateTo || cats.length || stats.length || agents.length || includeTrashed || listeStati.length || listeClienti.length;
 
-  // ─── A-2 · l'indice dipende dalla RIGA, non dalla query ──────────────────
-  // (audit performance/UX del 19 agosto)
-  //
-  // Questo era l'ultimo call site rimasto con `matchTermini`, cioè con la
-  // normalizzazione rifatta per ogni riga a ogni battuta — M-3 del 16 agosto
-  // l'aveva chiusa in `ClientiView`, `Archive` e `listeOrdinamento` ma non
-  // qui. Ed è il call site dove pesa di più, per due ragioni che si sommano:
-  // questo pannello chiede lo storico INTERO (`useStoricoTaskCompleto` qui
-  // sopra), quindi guarda anche completate e cestino, e fra i campi ci sono i
-  // COMMENTI, che sono un array per riga.
-  //
-  // Misurato sulla funzione reale, media su 20 esecuzioni: 6,21 ms per battuta
-  // su 292 task (la produzione al 17 agosto) contro 0,18 con l'indice; 49,25
-  // contro 1,47 su 2500, cioè dove arriva questa installazione in circa un
-  // anno al ritmo attuale di ~5,6 task al giorno. Su un telefono di fascia
-  // media sono 3-5×, e stanno tutti fra il tasto premuto e il carattere che
-  // compare.
-  //
-  // `tasks` come unica dipendenza è il punto: l'indice si ricostruisce quando
-  // cambia il corpus — cioè una volta quando lo storico arriva — e non quando
-  // cambia ciò che si digita.
-  const indiceTask = useMemo(
-    () => tasks.map(t => ({
-      t,
-      idx: indicizza(t.title, t.description, t.client, t.praticaRef,
-        (t.comments || []).map(c => c.text || "")),
-    })),
-    [tasks]);
+  // M-5 · Indice e filtro vivono in `lib/searchTask.js`: sono puri, e qui
+  // dentro erano ~110 righe che nessun test unitario poteva raggiungere senza
+  // montare il pannello con sei provider. Restano i due `useMemo`, cioè
+  // l'unica parte che dipende da React — e le loro dipendenze, che sono la
+  // ragione per cui l'indice si ricostruisce sul CORPUS e non sulla battuta.
+  const indiceTask = useMemo(() => indicizzaTask(tasks), [tasks]);
 
-  const results = useMemo(() => {
-    if (!hasFilters) return [];
-    const termini = terminiRicerca(keyword);
-    const from = startOfLocalDay(dateFrom);
-    const to = endOfLocalDay(dateTo);
-
-    return indiceTask.filter(({ t, idx }) => {
-      // I filtri STRUTTURALI restano davanti al confronto testuale: scartano
-      // una riga con un'uguaglianza, e ogni riga che cade qui è un
-      // `matchIndice` risparmiato. L'ordine era già questo e non è un
-      // dettaglio dell'indice.
-      if (!includeTrashed && t.deletedAt) return false;
-      if (cats.length && !cats.includes(t.category)) return false;
-      if (stats.length && !stats.includes(t.status)) return false;
-      if (agents.length && !(t.assignees || []).some(a => agents.includes(a))) return false;
-      if (from) {
-        if (!t.dueDate) return false;
-        if (new Date(t.dueDate) < from) return false;
-      }
-      if (to) {
-        if (!t.dueDate) return false;
-        if (new Date(t.dueDate) > to) return false;
-      }
-      // Normalizzazione condivisa con anagrafica e liste (lib/searchUtils.js):
-      // il campo `client` del task è il nome dell'anagrafica, e deve trovarsi
-      // digitandolo come lo si digita là. `matchIndice` è la stessa semantica
-      // di `matchTermini` — sono definite una sopra l'altra proprio perché non
-      // possano divergere.
-      if (!matchIndice(termini, idx)) return false;
-      return true;
-    }).map(r => r.t).sort((a,b) => {
-      if (!a.dueDate && !b.dueDate) return 0;
-      if (!a.dueDate) return 1;
-      if (!b.dueDate) return -1;
-      return new Date(a.dueDate) - new Date(b.dueDate);
-    });
-  }, [indiceTask, keyword, dateFrom, dateTo, cats, stats, agents, includeTrashed, hasFilters]);
+  // `filtri` intero come dipendenza, e non le sei fette che questo filtro
+  // legge davvero: il reducer produce un oggetto nuovo solo quando un filtro
+  // cambia, quindi il costo è un ricalcolo in più quando si tocca un filtro
+  // delle LISTE. È un passaggio sull'indice (0,18 ms su 292 task, 1,47 su
+  // 2500) su un click di dropdown — non su una battuta, che è la corsa che
+  // A-2 aveva misurato e che resta invariata.
+  const results = useMemo(
+    () => (hasFilters ? filtraTask(indiceTask, filtri, keyword) : []),
+    [indiceTask, filtri, keyword, hasFilters]);
 
   const openTask = (t) => {
     dispatch({ type: "SET_SELECTED_TASK", payload: t });
@@ -201,43 +152,15 @@ export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, c
     return Array.from(seen).sort();
   }, [liste]);
 
-  // A-2 · L'indice delle liste, con la stessa regola dei task qui sopra.
-  //
-  // ⚠️ NON è `indicizzaLista` di `liste/listeOrdinamento.js`, e la differenza è
-  // voluta: là i campi sono tre (titolare, titolo, cointestatari), qui sono
-  // quattro — c'è anche `note`, perché la ricerca globale è il punto in cui si
-  // cerca dentro tutto e le note interne di una lista sono un posto dove la
-  // gente scrive il nome di un cliente. Riusare l'altra funzione qui
-  // RESTRINGEREBBE questa ricerca; esportare da qui una quinta variante nel
-  // modulo Liste violerebbe il confine (il core parla al modulo solo da
-  // `listeModuleApi.js`). `indicizza` è comunque la stessa primitiva, quindi
-  // la semantica — accenti, apostrofi, ordine delle parole — resta una sola.
-  const indiceListe = useMemo(
-    () => liste.map(l => ({
-      l,
-      idx: indicizza(l.clients?.name, l.titolo, l.note, beneficiariNomi(l)),
-    })),
-    [liste]);
+  // M-5 · Stessa divisione dei task: l'indice e il filtro sono in
+  // `lib/searchListe.js`, qui restano i memo. `beneficiariNomi` arriva come
+  // ARGOMENTO perché è la facciata del modulo Liste a esporlo, e `lib/` non la
+  // conosce — vedi il preambolo di quel file.
+  const indiceListe = useMemo(() => indicizzaListe(liste, beneficiariNomi), [liste]);
 
-  // Liste: filtro con keyword + filtri per stato/cliente — categoria/agente/
-  // scadenza non hanno un equivalente sulle liste, stessa logica di ricerca
-  // già usata dentro il modulo Liste (ListeViaggio.jsx).
-  const listaResults = useMemo(() => {
-    if (!listeAllowed) return [];
-    const termini = terminiRicerca(keyword);
-    return indiceListe.filter(({ l, idx }) => {
-      if (!includeTrashed && l.deleted_at) return false;
-      if (listeStati.length && !listeStati.includes(l.stato)) return false;
-      if (listeClienti.length && !listeClienti.includes(l.clients?.name)) return false;
-      // I COINTESTATARI contano: una lista intestata a ROSSI con BIANCHI
-      // cointestataria è anche di BIANCHI, e nel modulo Liste cercando
-      // "BIANCHI" si trova. Qui non si trovava — stessa ricerca, due esiti
-      // diversi, e il posto dove l'utente si aspetta di trovare tutto è
-      // proprio questo.
-      return matchIndice(termini, idx);
-    }).map(r => r.l)
-      .sort((a, b) => (a.clients?.name || "").localeCompare(b.clients?.name || "", "it"));
-  }, [indiceListe, keyword, includeTrashed, listeAllowed, listeStati, listeClienti]);
+  const listaResults = useMemo(
+    () => (listeAllowed ? filtraListe(indiceListe, filtri, keyword) : []),
+    [indiceListe, filtri, keyword, listeAllowed]);
 
   const openLista = (l) => {
     dispatch({ type: "SET_VIEW", payload: "liste", lista: l.id });

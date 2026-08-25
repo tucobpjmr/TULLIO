@@ -46,7 +46,7 @@ const flex1 = { flex: 1, overflow: "hidden" };
 export const SwipeActions = ({ task, children, disabled = false }) => {
   const dispatch = useDispatch();
   const { isDesktop } = useViewport();
-  const { currentUserId, getMember, getAssignableTeam, canEditTask } = useAppData();
+  const { getMember, getAssignableTeam, io } = useAppData();
   const [offset, setOffset] = useState(0);          // px di traslazione attuale
   const [opened, setOpened] = useState(false);      // stato "aperto" (bottoni visibili)
   const [showForward, setShowForward] = useState(false);
@@ -61,7 +61,7 @@ export const SwipeActions = ({ task, children, disabled = false }) => {
   // Disabilita su desktop / disabilitato esplicitamente / no permessi di edit (v0.8).
   // L'utente corrente arriva dal contesto app, cioè dallo stesso state che React
   // sta renderizzando: un cambio utente invalida questo componente.
-  const canEdit = canEditTask(task, currentUserId);
+  const canEdit = io.modificaTask(task);
   const swipeEnabled = !isDesktop && !disabled && canEdit;
 
   // tap fuori per chiudere

@@ -70,7 +70,7 @@ function filtriReducer(s, a) {
 export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, currentUserId }) => {
   const dispatch = useDispatch();
   const { isMobile } = useViewport();
-  const { team, categories, canAccessListe } = useAppData();
+  const { team, categories, per } = useAppData();
   // A-3. Questo pannello ha una casella «includi nel cestino» e un filtro per
   // stato che comprende «completato»: entrambi PROMETTONO di cercare in ciò
   // che la finestra dell'idratazione non carica. Una ricerca che non trova non
@@ -84,7 +84,7 @@ export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, c
 
   // Liste viaggio: chi non ha accesso al modulo non ha motivo di vederle qui
   // (stessa RLS del modulo stesso), quindi niente fetch e niente filtri.
-  const listeAllowed = canAccessListe(currentUserId);
+  const listeAllowed = per(currentUserId).accedeListe();
   // Caricate una sola volta all'apertura del pannello (non vivono nello state
   // globale come i task: il modulo Liste le fetcha on-demand da sempre).
   // Prendiamo sia attive che cestinate cosí "Includi... nel cestino" può

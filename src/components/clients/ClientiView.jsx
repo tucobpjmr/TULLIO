@@ -94,14 +94,14 @@ function overlayClientiReducer(_s, a) {
 export const ClientiView = memo(function ClientiView({ loading = false }) {
   const dispatch = useDispatch();
   const { isMobile } = useViewport();
-  const { currentUserId, canAccessListe, canEditClient, canDeleteClient } = useAppData();
+  const { io } = useAppData();
   // A-1 dell'audit del 14 agosto (secondo passaggio): la RLS su public.clients
   // distingue chi può scrivere (admin/manager/agent) da chi può eliminare
   // (solo admin/manager) — prima la UI mostrava «Modifica»/«Rimuovi» a
   // chiunque, e solo il database decideva davvero, senza che l'utente lo
   // scoprisse (nessun errore su una DELETE che la RLS filtra a zero righe).
-  const puoModificare = canEditClient(currentUserId);
-  const puoEliminare = canDeleteClient(currentUserId);
+  const puoModificare = io.modificaCliente();
+  const puoEliminare = io.eliminaCliente();
   const tasks = useTasks();
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("name"); // v2.8 Round 8
@@ -130,7 +130,7 @@ export const ClientiView = memo(function ClientiView({ loading = false }) {
   // come `getRoleType(...) !== "driver"` — la sesta formulazione della stessa
   // regola, e l'unica che canAccessListe non aveva ancora assorbito perché non
   // passava da isDriver.
-  const showListe = canAccessListe(currentUserId);
+  const showListe = io.accedeListe();
 
   // Quante liste viaggio ha ciascun cliente. Serve PRIMA di modificare o
   // eliminare, non dopo: è la differenza tra sapere che cosa si sta toccando

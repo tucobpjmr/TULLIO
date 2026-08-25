@@ -34,7 +34,7 @@ const boxAbsoluteW7 = { position: "absolute", bottom: 0, right: 0, width: 7, hei
 export const Sidebar = memo(function Sidebar({ activeView, onOpenBulk, onOpenChat, unreadChat = 0 }) {
   const dispatch = useDispatch();
   const { isDesktop, width } = useViewport();
-  const { team, getRoleType, currentUserId, getAssignableTeam } = useAppData();
+  const { team, getAssignableTeam, io } = useAppData();
   const [collapsed, setCollapsed] = useState(false);
   // Auto-collassa la sidebar nella fascia "desktop stretto" (1025–1280px) dove
   // 210px di nav rubano troppo spazio orizzontale; si ri-espande sopra i 1280px.
@@ -55,7 +55,7 @@ export const Sidebar = memo(function Sidebar({ activeView, onOpenBulk, onOpenCha
   }, [width, isDesktop, collapsed]);
   if (!isDesktop) return null;
   const col = collapsed;
-  const navItems = getNavItemsForRole(getRoleType(currentUserId));
+  const navItems = getNavItemsForRole(io.ruolo());
   const badges = getNavBadges(team);
   return (
     <div style={{

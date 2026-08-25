@@ -32,8 +32,8 @@ const txtF9Bold = { fontSize: 9, fontWeight: 600, whiteSpace: "nowrap" };
 
 export const BottomNav = memo(function BottomNav({ activeView, onOpenBulk, onOpenChat, unreadChat = 0 }) {
   const dispatch = useDispatch();
-  const { team, getRoleType, currentUserId } = useAppData();
-  const navItems = getNavItemsForRole(getRoleType(currentUserId));
+  const { team, io } = useAppData();
+  const navItems = getNavItemsForRole(io.ruolo());
   const badges = getNavBadges(team);
   return (
     <nav className="vd-bottom-nav" aria-label="Navigazione principale">

@@ -93,14 +93,13 @@ export const Dashboard = memo(function Dashboard({
   const dispatch = useDispatch();
   const { isMobile } = useViewport();
   const {
-    currentUserId, getMember, getRoleType, getAssignableTeam,
-    canViewTask, getVisibleTasks, isJuniorAgent,
+    currentUserId, getMember, getAssignableTeam, io,
   } = useAppData();
   const tasks = useTasks();
   const [activeQueue, setActiveQueue] = useState("personal");
   const openTask = useOpenTask();
   const uid = currentUserId;
-  const role = getRoleType(uid);
+  const role = io.ruolo();
   // Apertura da notifica: il digest della coda globale chiede la tab "global"
   // (SET_VIEW con action.queue → state.dashboardQueue). Il seq cambia a ogni
   // richiesta, così il tap funziona anche a tab già visitata. Il Driver non ha
@@ -118,7 +117,7 @@ export const Dashboard = memo(function Dashboard({
   // cui dipendono davvero (tasks, team, tab attiva).
   const allTasks = useMemo(() => getActiveTasks(tasks), [tasks]);
   // Filtro permessi: solo task visibili all'utente
-  const visibleTasks = useMemo(() => getVisibleTasks(allTasks, uid), [allTasks, getVisibleTasks, uid]);
+  const visibleTasks = useMemo(() => io.taskVisibili(allTasks), [allTasks, io]);
 
   const agentWorkload = useMemo(() => getAssignableTeam().map(m => ({
     ...m,
@@ -134,8 +133,8 @@ export const Dashboard = memo(function Dashboard({
   // Coda globale: task non assegnati (Driver non la vede)
   const showGlobalQueue = role !== "driver";
   const unassigned = useMemo(() => showGlobalQueue
-    ? allTasks.filter(t => t.status !== "done" && isInGlobalQueue(t) && canViewTask(t, uid)).sort(byPriorityThenDueDate)
-    : [], [showGlobalQueue, allTasks, canViewTask, uid]);
+    ? allTasks.filter(t => t.status !== "done" && isInGlobalQueue(t) && io.vedeTask(t)).sort(byPriorityThenDueDate)
+    : [], [showGlobalQueue, allTasks, io]);
 
   // Coda personale: task dove sono assegnatario, non completati
   const personalQueue = useMemo(() => allTasks
@@ -224,7 +223,7 @@ export const Dashboard = memo(function Dashboard({
               <>
                 <span style={rowCenterGap5}>
                   <span style={boxF11Bold}>{me ? roleLabel(me) : ""}</span>
-                  {isJuniorAgent(uid) && (
+                  {io.isJuniorAgent() && (
                     <span style={boxF10Bold}>JUNIOR</span>
                   )}
                 </span>

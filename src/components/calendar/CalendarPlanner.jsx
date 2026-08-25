@@ -22,7 +22,7 @@ import { useDispatch } from "../../state/DispatchContext.jsx";
 export const CalendarPlanner = memo(function CalendarPlanner({ loading = false }) {
   const dispatch = useDispatch();
   const { isMobile } = useViewport();
-  const { categories, currentUserId, getAssignableTeam, canViewTask } = useAppData();
+  const { categories, getAssignableTeam, io } = useAppData();
   const tasks = useTasks();
   const [viewMode, setViewMode] = useState("month"); // "month" | "week" | "week-full" | "day"
   const [dayDate, setDayDate] = useState(new Date());
@@ -30,7 +30,6 @@ export const CalendarPlanner = memo(function CalendarPlanner({ loading = false }
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState(null);
   const [catFilter, setCatFilter] = useState(null); // v2.8 Round 12: null = tutti
-  const uid = currentUserId;
   // Stabile per la memoizzazione di TaskRow (vedi components/tasks/TaskCard.jsx).
   const openTask = useCallback(
     (task) => dispatch({ type: "SET_SELECTED_TASK", payload: task }), [dispatch]);
@@ -40,8 +39,8 @@ export const CalendarPlanner = memo(function CalendarPlanner({ loading = false }
   // dipende solo da `tasks`/`canViewTask`/`uid` — non da `viewMode` o dalla
   // data corrente. Senza `useMemo` girava a ogni render comunque.
   const baseTasks = useMemo(
-    () => tasks.filter(t => isActiveTask(t) && canViewTask(t, uid)),
-    [tasks, canViewTask, uid],
+    () => tasks.filter(t => isActiveTask(t) && io.vedeTask(t)),
+    [tasks, io],
   );
 
   // "Sto ancora caricando e non ho ancora nulla": vedi Dashboard.jsx.
@@ -189,7 +188,7 @@ export const CalendarPlanner = memo(function CalendarPlanner({ loading = false }
               else if (viewMode === "day") setDayDate(d => { const x = new Date(d); x.setDate(x.getDate() + 1); return x; });
               else setWeekOffset(w => w + 1);
             }} style={boxF14W34}>→</button>
-            <button onClick={() => exportTasksToIcs(tasks, (t) => canViewTask(t, uid))} title="Esporta calendario in iCal (.ics)" style={boxF12Bold2}>⤓ iCal</button>
+            <button onClick={() => exportTasksToIcs(tasks, (t) => io.vedeTask(t))} title="Esporta calendario in iCal (.ics)" style={boxF12Bold2}>⤓ iCal</button>
           </div>
         </div>
       </div>

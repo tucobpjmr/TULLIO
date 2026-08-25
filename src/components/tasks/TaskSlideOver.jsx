@@ -38,8 +38,7 @@ export const TaskSlideOver = ({ task }) => {
   const conferma = useConfirm();
   const { isMobile } = useViewport();
   const {
-    categories, currentUserId, getMember, getAssignableTeam,
-    canEditTask, getAvailableCategories,
+    categories, getMember, getAssignableTeam, io,
   } = useAppData();
   // L'anagrafica arriva dal contesto, non come prop (ST-11): era `state.clients
   // || []` sul call site, cioè un array NUOVO a ogni render quando l'anagrafica
@@ -71,7 +70,7 @@ export const TaskSlideOver = ({ task }) => {
   // hook dopo un return condizionale cambierebbe l'ordine delle chiamate fra i
   // render (react-hooks/rules-of-hooks). `editable` gli serve come argomento,
   // quindi sale con lui.
-  const editable = !!task && canEditTask(task, currentUserId);
+  const editable = !!task && io.modificaTask(task);
   const cli = useClientSuggestions(clients, draft.client, { enabled: editable });
 
   if (!task) return null;
@@ -83,7 +82,7 @@ export const TaskSlideOver = ({ task }) => {
 
   // Categorie selezionabili = quelle disponibili al ruolo; includo sempre quella
   // corrente del task così resta visibile anche se fuori dallo scope dell'utente.
-  const availableCats = getAvailableCategories(currentUserId);
+  const availableCats = io.categorieDisponibili();
   const catOptions = task.category && !availableCats[task.category]
     ? { [task.category]: categories[task.category] || { label: task.category, icon: "" }, ...availableCats }
     : availableCats;

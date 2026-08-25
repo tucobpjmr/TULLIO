@@ -18,7 +18,7 @@ const colGap7 = { display: "flex", flexDirection: "column", gap: 7 };
 
 export function ClienteTaskTab({ cliente, tasks }) {
   const dispatch = useDispatch();
-  const { currentUserId: uid, canViewTask } = useAppData();
+  const { io } = useAppData();
   // Stabile per la memoizzazione di TaskRow (vedi components/tasks/TaskCard.jsx).
   const openTask = useCallback(
     (task) => dispatch({ type: "SET_SELECTED_TASK", payload: task }), [dispatch]);
@@ -26,10 +26,10 @@ export function ClienteTaskTab({ cliente, tasks }) {
     const q = (cliente.name || "").toLowerCase();
     return tasks.filter(t =>
       isActiveTask(t) &&
-      canViewTask(t, uid) &&
+      io.vedeTask(t) &&
       (t.client || "").toLowerCase().includes(q)
     );
-  }, [tasks, cliente.name, uid, canViewTask]);
+  }, [tasks, cliente.name, io]);
 
   const open = clientTasks.filter(t => t.status !== "done");
   const done = clientTasks.filter(t => t.status === "done");

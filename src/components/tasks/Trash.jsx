@@ -39,7 +39,7 @@ const PAGINA = 24;
 export const Trash = memo(function Trash({ loading = false }) {
   const dispatch = useDispatch();
   const conferma = useConfirm();
-  const { currentUserId, canEditTask, getVisibleTasks } = useAppData();
+  const { io } = useAppData();
   const tasks = useTasks();
   // A-3: dal 17 agosto l'idratazione non chiede più `includeDeleted`, quindi
   // il cestino non è in stato per costruzione — lo carica questa vista. È
@@ -51,13 +51,12 @@ export const Trash = memo(function Trash({ loading = false }) {
   // modale, che si monta solo quando c'è qualcosa da ripristinare.
   const [restoring, setRestoring] = useState(null);
   const [period, setPeriod] = useState("all");
-  const me = currentUserId;
-  // La LISTA mostra tutti i task cestinati che l'utente può VEDERE (canViewTask,
-  // via getVisibleTasks) — stesso pattern di Archive.jsx: chi ha solo permesso di
+  // La LISTA mostra tutti i task cestinati che l'utente può VEDERE
+  // (`io.taskVisibili`) — stesso pattern di Archive.jsx: chi ha solo permesso di
   // visualizzazione su un task (es. stakeholder in sola lettura, o ruolo che vede
   // ma non gestisce quella categoria) deve poterlo vedere anche cestinato, non
   // solo quando è completato/archiviato.
-  // Le AZIONI di ripristino/eliminazione restano invece gated da canEditTask
+  // Le AZIONI di ripristino/eliminazione restano invece gated da `io.modificaTask`
   // (admin: tutti; manager/agent: propri + coda globale; driver: solo transfer
   // propri/globali) — prerogativa di status, applicata sia qui in UI (toast di
   // errore) sia a valle nel reducer (RESTORE_TASK/PURGE_TASK/EMPTY_TRASH).
@@ -66,13 +65,13 @@ export const Trash = memo(function Trash({ loading = false }) {
   // controllo di permesso per riga e ordinamento sono tre passate su tutte le
   // task, e senza memo si rifacevano a ogni cambio di chip del periodo.
   const trashed = useMemo(
-    () => getVisibleTasks(getTrashedTasks(tasks), me)
+    () => io.taskVisibili(getTrashedTasks(tasks))
       .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt)),
-    [tasks, me, getVisibleTasks]);
+    [tasks, io]);
   const visible = useMemo(
     () => filterByPeriod(trashed, period, "deletedAt"), [trashed, period]);
   const editableCount = useMemo(
-    () => trashed.filter(t => canEditTask(t, me)).length, [trashed, me, canEditTask]);
+    () => trashed.filter(t => io.modificaTask(t)).length, [trashed, io]);
   // M-2 · La finestra sull'elenco. Il cestino cresce con ciò che si elimina e
   // non si svuota da solo: è la seconda vista, dopo l'Archivio, che monta
   // l'array intero senza un tetto naturale.
@@ -83,7 +82,7 @@ export const Trash = memo(function Trash({ loading = false }) {
   const caricando = (loading && tasks.length === 0) || caricandoStorico;
 
   const handleRestore = (task) => {
-    if (!canEditTask(task, me)) {
+    if (!io.modificaTask(task)) {
       dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "Non puoi ripristinare questo task" } });
       return;
     }
@@ -91,7 +90,7 @@ export const Trash = memo(function Trash({ loading = false }) {
   };
 
   const handlePurge = async (task) => {
-    if (!canEditTask(task, me)) {
+    if (!io.modificaTask(task)) {
       dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "Non puoi eliminare definitivamente questo task" } });
       return;
     }

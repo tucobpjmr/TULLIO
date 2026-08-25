@@ -1,30 +1,31 @@
-// src/components/modals/profileEditorReducer.js
-// Stato locale di `ProfileEditor` che NON è un campo del profilo (quello
-// resta `draft`/`errori`, dichiarati nel componente — un oggetto solo con un
-// setter per campo, come `TaskSlideOver`): qui vivono le due sezioni a
-// fisarmonica (cambio password, elimina account), l'esito delle TRE
-// operazioni asincrone del file e il freno al doppio invio del salvataggio.
+// src/components/modals/accountSicurezzaReducer.js
+// Lo stato locale della sezione "sicurezza dell'account" di `ProfileEditor`:
+// le due fisarmoniche (cambio password, elimina account) e l'esito delle tre
+// operazioni asincrone che vivono lì.
 //
 // B-3 residuo dell'audit del 15 agosto, chiuso il 23 agosto: erano 9 `useState`
 // indipendenti in `ProfileEditor.jsx` (12 in tutto col file). Non perché
 // fossero la STESSA cosa — restano campi distinti, annidati per sezione e non
-// fusi in un valore solo, esattamente come la classificazione in
-// `ProfileEditor.jsx` richiede — ma perché cambiano sempre in GRUPPO: aprire
-// la sezione password azzera insieme esito e bozza, un cambio password
-// riuscito azzera la bozza ma non l'esito. Stesso trattamento di
-// `convViewReducer` in `chat/chatReducers.js`: un reducer locale per un form
-// con più sotto-macchine, non un reducer di dominio.
+// fusi in un valore solo — ma perché cambiano sempre in GRUPPO: aprire la
+// sezione password azzera insieme esito e bozza, un cambio password riuscito
+// azzera la bozza ma non l'esito. Stesso trattamento di `convViewReducer` in
+// `chat/chatReducers.js`: un reducer locale per un form con più sotto-macchine,
+// non un reducer di dominio.
+//
+// M-5 (audit del 25 agosto): il reducer aveva una quarta fetta, `salvaInVolo`,
+// che non apparteneva a questa macchina — è il freno al doppio invio del
+// SALVATAGGIO DEL PROFILO, cioè dell'altra metà della modale. È tornata a
+// `ProfileEditor` come `useState`, dove si legge accanto a ciò che protegge.
 export const ESITO_PRONTO = { fase: "pronto", testo: null };
 const BOZZA_PWD = { nuova: "", conferma: "" };
 
-export const profileUiIniziale = {
+export const accountIniziale = {
   pwd: { aperta: false, rivela: false, bozza: BOZZA_PWD, esito: ESITO_PRONTO },
   elim: { aperta: false, conferma: "", esito: ESITO_PRONTO },
   signOut: { esito: ESITO_PRONTO },
-  salvaInVolo: false,
 };
 
-export function profileUiReducer(s, a) {
+export function accountReducer(s, a) {
   switch (a.type) {
     // Aprire/chiudere la fisarmonica azzera SEMPRE esito e bozza insieme:
     // riaprire "Cambia password" dopo un tentativo fallito non deve mostrare
@@ -49,8 +50,6 @@ export function profileUiReducer(s, a) {
       return { ...s, elim: { ...s.elim, esito: a.esito } };
     case "SIGNOUT_ESITO":
       return { ...s, signOut: { esito: a.esito } };
-    case "SALVA_IN_VOLO":
-      return { ...s, salvaInVolo: a.valore };
     default:
       return s;
   }

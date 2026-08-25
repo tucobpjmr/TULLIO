@@ -452,7 +452,8 @@ src/
 │   │   ├── Toast.jsx
 │   │   └── MentionText.jsx  evidenzia @menzioni come chip (caveat #2)
 │   ├── modals/
-│   │   ├── ProfileEditor.jsx
+│   │   ├── ProfileEditor.jsx      i CAMPI del profilo: nome, foto, email, telefono
+│   │   ├── AccountSicurezza.jsx   password, esci ovunque, elimina account (M-5, 25 agosto)
 │   │   ├── BulkTaskCreator.jsx  shell: scelta modalità + tab bar + guardia "non salvato"
 │   │   ├── NoticeEditorModal.jsx
 │   │   ├── QuickAddTask.jsx
@@ -466,7 +467,9 @@ src/
 │   │   ├── Dashboard.jsx (esporta Dashboard; contiene 4 Queue + QueueTab locali)
 │   │   └── NoticeBoard.jsx
 │   ├── calendar/
-│   │   └── CalendarPlanner.jsx (contiene helper iCal locali)
+│   │   ├── CalendarPlanner.jsx    sceglie la vista e la naviga, non la disegna
+│   │   ├── CalendarMonthGrid.jsx / CalendarWeekGrid.jsx / CalendarDayGrid.jsx
+│   │   └── CalendarAgentLoad.jsx  «chi è carico questa settimana» (M-5, 25 agosto)
 │   ├── chat/
 │   │   ├── ChatPanel.jsx        orchestratore: navigazione, ponte Supabase, context
 │   │   ├── ConversationView.jsx / ConversationList.jsx / NewConversationView.jsx

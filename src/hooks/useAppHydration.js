@@ -118,6 +118,81 @@ const FINESTRA_COMPLETATE_GG = 60;
 const inizioFinestra = () =>
   new Date(Date.now() - FINESTRA_COMPLETATE_GG * 864e5).toISOString().replace(/\.\d{3}Z$/, "Z");
 
+// ─── M-1 (audit del 26 agosto) · le due forme ricorrenti di questo file ────
+//
+// Le sottoscrizioni qui sotto sono sei, ma i loro corpi non sono sei programmi
+// diversi: tre idratano un'entità intera con lo STESSO programma a tre token di
+// distanza (leggi, scarta se tardiva, dispatcha, segna il flag) e tre applicano
+// una riga realtime con lo stesso identico ciclo `DELETE / mappa / dispatcha`.
+//
+// Il lato REDUCER di questo problema è già convergente da tempo:
+// `applicaRigaRealtime` in state/pendingWrites.js è una funzione sola che i tre
+// `case MERGE_*_ROW` chiamano. Il lato CHIAMANTE no, ed è quello che si copia:
+// chi aggiunge la settima sottoscrizione parte dalla vicina, e la vicina
+// potrebbe essere `clients`, che ha una riga in più (`clientiCompleti`) il cui
+// significato non è generale.
+//
+// ⚠️ NON tutte e sei entrano qui, e le eccezioni non sono dimenticanze:
+//   · `categories` costruisce una MAPPA (non un array) e la confronta con
+//     `stessaMappa` prima di dispatchare;
+//   · `users` fa due query in parallelo, reinnesta i contatti dell'utente
+//     loggato e confronta con `stessaLista`;
+//   · l'`applyRow` di `tasks` ha davanti il ramo `comments`, che raccoglie gli
+//     id per il reload selettivo e non applica niente.
+// Sono programmi diversi, non varianti: forzarli nella fabbrica vorrebbe dire
+// riaprire il caso per caso dentro la fabbrica, cioè spostare il problema.
+// `tasks` la fabbrica la usa comunque, ma per la CODA del suo applyRow — che
+// quella sì è la stessa.
+
+/**
+ * Il corpo di un refetch d'entità: legge, scarta se tardivo, dispatcha, segna
+ * il flag di caricamento. `tag` è il prefisso di console (`[VoyageDesk] …`,
+ * `[CRM] …`), `etichetta` il nome che l'utente legge nel toast: sono due cose
+ * diverse e i sei call site le avevano già diverse.
+ * `quandoSaltare` è per `clients`, la cui idratazione non parte finché una
+ * vista non l'ha chiesta.
+ */
+const idratazione = ({
+  entita, tag, etichetta, list, mapper, action,
+  dispatch, onError, segnaCaricata, quandoSaltare,
+}) => async (isCurrent) => {
+  if (quandoSaltare?.()) return;
+  const { data, error } = await list();
+  if (!isCurrent()) return;
+  if (error) {
+    console.error(tag, error);
+    onError(`Caricamento ${etichetta} fallito: ${error.message || ""}`);
+    // FUORI dal ramo del successo per costruzione: uno scheletro che gira per
+    // sempre è disonesto quanto un vuoto dichiarato troppo presto (criticità
+    // #6 nel preambolo).
+    segnaCaricata(entita);
+    return;
+  }
+  dispatch({ type: action, payload: (data || []).map(mapper) });
+  segnaCaricata(entita);
+};
+
+/**
+ * `applyRow` per una tabella la cui riga è AUTOSUFFICIENTE — nessun join da
+ * perdere applicando il solo payload. Ritorna `true` se l'evento è stato
+ * gestito (il chiamante non ricarica), `false` per cadere sul reload completo.
+ * `quandoIgnorare` è la terza risposta possibile: gestito, e la cosa giusta da
+ * fare è nulla.
+ */
+const applicaRiga = ({ action, mapper, dispatch, quandoIgnorare }) => (_tbl, payload) => {
+  if (quandoIgnorare?.()) return true;
+  if (payload.eventType === "DELETE") {
+    const id = payload.old?.id;
+    if (!id) return false; // rete di sicurezza: senza id, reload completo
+    dispatch({ type: action, payload: { eventType: "DELETE", id } });
+    return true;
+  }
+  const row = mapper(payload.new);
+  if (!row?.id) return false;
+  dispatch({ type: action, payload: { eventType: payload.eventType, row } });
+  return true;
+};
+
 export function useAppHydration({ enabled, currentUserId, dispatch, onError, teamIniziale = null }) {
   // M-1 (passo 2): `clients` parte da `false` e non da `enabled`, perché
   // all'avvio l'anagrafica NON si sta caricando — nessuno l'ha chiesta. Il
@@ -197,6 +272,12 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
   // il server. Metterlo in stato farebbe anche ripartire l'effetto della
   // sottoscrizione a ogni commento.
   const taskConCommentiNuovi = useRef(new Set());
+
+  // M-1 · La CODA dell'applyRow dei task è la stessa di notices e clients; è
+  // la testa (il ramo `comments`) a essere sua e a restare scritta qui sotto.
+  const applicaRigaTask = applicaRiga({
+    action: "MERGE_TASK_ROW", mapper: fromDbTask, dispatch,
+  });
 
   useDebouncedTableSubscription(["tasks", "comments"], async (isCurrent, tabelle) => {
     // Un commento aggiunto NON cambia i campi del task: cambia solo il thread
@@ -300,20 +381,11 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
         return false;
       }
       if (tbl !== "tasks") return false;
-      if (payload.eventType === "DELETE") {
-        // Reale solo per PURGE_TASK/EMPTY_TRASH: il soft-delete (DELETE_TASK)
-        // è un UPDATE che valorizza deleted_at, gestito dal ramo sotto — la
-        // task resta in stato con deletedAt impostato, come già faceva
-        // `includeDeleted: true` sul reload completo.
-        const id = payload.old?.id;
-        if (!id) return false; // rete di sicurezza: senza id, reload completo
-        dispatch({ type: "MERGE_TASK_ROW", payload: { eventType: "DELETE", id } });
-        return true;
-      }
-      const row = fromDbTask(payload.new);
-      if (!row?.id) return false;
-      dispatch({ type: "MERGE_TASK_ROW", payload: { eventType: payload.eventType, row } });
-      return true;
+      // Il ramo DELETE della fabbrica è reale solo per PURGE_TASK/EMPTY_TRASH:
+      // il soft-delete (DELETE_TASK) è un UPDATE che valorizza deleted_at e
+      // passa dal ramo normale — la task resta in stato con `deletedAt`
+      // impostato, come già faceva `includeDeleted: true` sul reload completo.
+      return applicaRigaTask(tbl, payload);
     },
   });
 
@@ -384,18 +456,11 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     segnaCaricata("clients");
   }, [enabled, dispatch, onError, segnaCaricata]);
 
-  useDebouncedTableSubscription(["notices"], async (isCurrent) => {
-    const { data, error } = await NoticesAPI.list();
-    if (!isCurrent()) return;
-    if (error) {
-      console.error("[VoyageDesk] Notices.list", error);
-      onError(`Caricamento avvisi fallito: ${error.message || ""}`);
-      segnaCaricata("notices");
-      return;
-    }
-    dispatch({ type: "SET_NOTICES", payload: (data || []).map(fromDbNotice) });
-    segnaCaricata("notices");
-  }, {
+  useDebouncedTableSubscription(["notices"], idratazione({
+    entita: "notices", tag: "[VoyageDesk] Notices.list", etichetta: "avvisi",
+    list: () => NoticesAPI.list(), mapper: fromDbNotice, action: "SET_NOTICES",
+    dispatch, onError, segnaCaricata,
+  }), {
     enabled, deps: [enabled],
     // Suggerimento strategico n.1 dell'audit del 16 agosto: `notices` è una
     // tabella piatta — nessun join, nessuna riga figlia — quindi `fromDbNotice`
@@ -404,18 +469,7 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     // NoticeBoard.jsx). L'ordinamento (pinned prima, poi più recenti) lo
     // ricalcola NoticeBoard da solo a ogni render — l'array in stato non deve
     // essere già ordinato, quindi push/replace/filter bastano.
-    applyRow: (tbl, payload) => {
-      if (payload.eventType === "DELETE") {
-        const id = payload.old?.id;
-        if (!id) return false;
-        dispatch({ type: "MERGE_NOTICE_ROW", payload: { eventType: "DELETE", id } });
-        return true;
-      }
-      const row = fromDbNotice(payload.new);
-      if (!row?.id) return false;
-      dispatch({ type: "MERGE_NOTICE_ROW", payload: { eventType: payload.eventType, row } });
-      return true;
-    },
+    applyRow: applicaRiga({ action: "MERGE_NOTICE_ROW", mapper: fromDbNotice, dispatch }),
   });
 
   // Idratazione + realtime categorie task (Admin → Categorie). Prima di questa
@@ -568,22 +622,15 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
   // arrivano dal realtime, e resta anche il reload di ripresa — ma entrambi
   // sono subordinati a `clientiCompleti`: ricaricare un'anagrafica che nessuno
   // ha chiesto sarebbe il difetto rimesso al suo posto per un'altra strada.
-  useDebouncedTableSubscription(["clients"], async (isCurrent) => {
+  useDebouncedTableSubscription(["clients"], idratazione({
+    entita: "clients", tag: "[CRM] hydration", etichetta: "clienti",
+    list: () => ClientsAPI.list(), mapper: fromDbClient, action: "SET_CLIENTS",
+    dispatch, onError, segnaCaricata,
     // Nessuno ha chiesto l'anagrafica: non c'è niente da ricaricare. Non è un
     // salto dell'idratazione — è che l'idratazione dei clienti ora la chiede
     // chi la guarda.
-    if (!clientiCompleti.current) return;
-    const { data, error } = await ClientsAPI.list();
-    if (!isCurrent()) return;
-    if (error) {
-      console.error("[CRM] hydration", error);
-      onError(`Caricamento clienti fallito: ${error.message || ""}`);
-      segnaCaricata("clients");
-      return;
-    }
-    dispatch({ type: "SET_CLIENTS", payload: (data || []).map(fromDbClient) });
-    segnaCaricata("clients");
-  }, {
+    quandoSaltare: () => !clientiCompleti.current,
+  }), {
     enabled, deps: [enabled],
     // Suggerimento strategico n.1 dell'audit del 16 agosto. `clients` è
     // l'entità con la finestra di rischio più alta descritta in
@@ -592,27 +639,18 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     // storiche, prima di ST-3) per un singolo campo cambiato da un altro
     // agente. `fromDbClient` è flat come `fromDbNotice`: nessun join da
     // perdere applicando la sola riga.
-    applyRow: (tbl, payload) => {
-      // ⚠️ M-1 (passo 2) · Finché nessuno ha chiesto l'anagrafica non c'è
-      // niente da tenere allineato, e applicare la riga sarebbe PEGGIO che
-      // ignorarla: `applicaRigaRealtime` appende le righe che non conosce
-      // (state/pendingWrites.js, `idx < 0`), quindi su un elenco vuoto ogni
-      // evento costruirebbe un'anagrafica di uno, due, tre clienti — parziale
-      // e indistinguibile da una vera per chiunque la legga. `true` e non
-      // `false`: l'evento È stato gestito, la decisione è che non serve fare
-      // nulla; `false` lo farebbe cadere nel debounce e nel reload.
-      if (!clientiCompleti.current) return true;
-      if (payload.eventType === "DELETE") {
-        const id = payload.old?.id;
-        if (!id) return false;
-        dispatch({ type: "MERGE_CLIENT_ROW", payload: { eventType: "DELETE", id } });
-        return true;
-      }
-      const row = fromDbClient(payload.new);
-      if (!row?.id) return false;
-      dispatch({ type: "MERGE_CLIENT_ROW", payload: { eventType: payload.eventType, row } });
-      return true;
-    },
+    // ⚠️ M-1 (passo 2) · Finché nessuno ha chiesto l'anagrafica non c'è niente
+    // da tenere allineato, e applicare la riga sarebbe PEGGIO che ignorarla:
+    // `applicaRigaRealtime` appende le righe che non conosce
+    // (state/pendingWrites.js, `idx < 0`), quindi su un elenco vuoto ogni
+    // evento costruirebbe un'anagrafica di uno, due, tre clienti — parziale e
+    // indistinguibile da una vera per chiunque la legga. `quandoIgnorare`
+    // ritorna `true`: l'evento È stato gestito, la decisione è che non serve
+    // fare nulla; un `false` lo farebbe cadere nel debounce e nel reload.
+    applyRow: applicaRiga({
+      action: "MERGE_CLIENT_ROW", mapper: fromDbClient, dispatch,
+      quandoIgnorare: () => !clientiCompleti.current,
+    }),
   });
 
   // Idratazione + realtime dei template di messaggio chat (A-1 dell'audit
@@ -620,20 +658,15 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
   // alcuna subscription perché non c'era alcuna tabella da cui idratare — i
   // quattro template di makeInitialState erano l'unico stato possibile, e
   // ADD/UPDATE/DELETE_MESSAGE_TEMPLATE scrivevano solo lo state React.
-  useDebouncedTableSubscription(["message_templates"], async (isCurrent) => {
-    const { data, error } = await MessageTemplatesAPI.list();
-    if (!isCurrent()) return;
-    if (error) {
-      console.error("[VoyageDesk] MessageTemplates.list", error);
-      onError(`Caricamento template messaggio fallito: ${error.message || ""}`);
-      segnaCaricata("messageTemplates");
-      return;
-    }
-    dispatch({ type: "SET_MESSAGE_TEMPLATES", payload: (data || []).map(fromDbMessageTemplate) });
-    segnaCaricata("messageTemplates");
-    // B-1: stesso trattamento di `categories` qui sopra, e per la stessa
-    // ragione — quattro righe, gestite dall'admin.
-  }, { enabled, deps: [enabled], senzaCanale: true });
+  // B-1: stesso trattamento di `categories` qui sopra, e per la stessa ragione
+  // — quattro righe, gestite dall'admin.
+  useDebouncedTableSubscription(["message_templates"], idratazione({
+    entita: "messageTemplates", tag: "[VoyageDesk] MessageTemplates.list",
+    etichetta: "template messaggio",
+    list: () => MessageTemplatesAPI.list(), mapper: fromDbMessageTemplate,
+    action: "SET_MESSAGE_TEMPLATES",
+    dispatch, onError, segnaCaricata,
+  }), { enabled, deps: [enabled], senzaCanale: true });
 
   // `storicoTask` è la coppia che alimenta <StoricoTaskProvider>: la richiesta
   // e il flag di attesa. Non è un terzo flag di `caricamento` perché non descrive

@@ -1,6 +1,6 @@
 // src/components/admin/tabs/AdminTeamTab.jsx
 // Gestione del team: invito, approvazione dei pending, ruoli, attivazione.
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useViewport } from "../../ui/Viewport.jsx";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useTasks } from "../../../state/TasksContext.jsx";
@@ -22,6 +22,7 @@ import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
 import { obbligatorio, validaCampi } from "../../../lib/validators.js";
 import * as stiliComuni from "../../../styles/common.js";
 import { useDispatch } from "../../../state/DispatchContext.jsx";
+import { useCaricamento } from "../../../hooks/useCaricamento.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -58,9 +59,6 @@ export const AdminTeamTab = () => {
   const [showBulk, setShowBulk] = useState(false);
   // resendMap: { [memberId]: 'loading' | 'ok' | 'err' | string(errMsg) }
   const [resendMap, setResendMap] = useState({});
-  // Rubrica contatti: { [userId]: { email, phone } }. Caricata una volta sola;
-  // l'admin ha accesso RLS a tutte le righe di user_contacts.
-  const [contactsMap, setContactsMap] = useState({});
   // C-1 dell'audit del 15 agosto: il ruolo con cui approvare è una scelta
   // esplicita dell'admin, non un'eredità della riga pending — che per un
   // account auto-registrato porta il ruolo scelto dal registrante stesso.
@@ -68,16 +66,20 @@ export const AdminTeamTab = () => {
   // per gli inviti, validato lato server) ma sempre modificabile qui.
   const [approveRoleMap, setApproveRoleMap] = useState({});
 
-  useEffect(() => {
-    let alive = true;
-    Users.listContacts().then(({ data }) => {
-      if (!alive || !data) return;
-      const map = {};
-      for (const c of data) map[c.user_id] = { email: c.email, phone: c.phone };
-      setContactsMap(map);
-    });
-    return () => { alive = false; };
-  }, []);
+  // Rubrica contatti: { [userId]: { email, phone } }. Caricata una volta sola;
+  // l'admin ha accesso RLS a tutte le righe di user_contacts.
+  //
+  // M-4 · L'errore era silenzioso, e non per una decisione: era il ramo
+  // `if (!alive || !data) return` che copriva lo smontaggio e il fallimento
+  // con la stessa riga. Ora è dichiarato — la colonna contatti resta vuota,
+  // il resto del pannello Team funziona, e in console c'è scritto perché.
+  const { dato: contactsMap } = useCaricamento(async () => {
+    const { data, error } = await Users.listContacts();
+    if (error) throw error;
+    const map = {};
+    for (const c of data || []) map[c.user_id] = { email: c.email, phone: c.phone };
+    return map;
+  }, [], { iniziale: {}, suErrore: (e) => console.error("[admin] rubrica contatti", e) });
 
   const resendInvite = async (m) => {
     setResendMap(prev => ({ ...prev, [m.id]: 'loading' }));

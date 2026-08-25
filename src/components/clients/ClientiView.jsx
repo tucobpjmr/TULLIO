@@ -2,7 +2,7 @@
 // Anagrafica Clienti: elenco, ricerca, ordinamento e apertura del pannello di
 // dettaglio. Modale, card e pannello vivono in moduli propri — erano sei
 // componenti in questo file, di cui uno (la modale) da 120 righe.
-import { memo, useReducer, useState, useMemo, useEffect, lazy } from "react";
+import { memo, useReducer, useState, useMemo, lazy } from "react";
 import { ClienteModal } from "./ClienteModal.jsx";
 import { ClienteCard } from "./ClienteCard.jsx";
 import { ClienteDetailPanel } from "./ClienteDetailPanel.jsx";
@@ -29,6 +29,7 @@ import {
   txtBoldMb6, txtF14Muted, txtF14Muted2, txtF16Bold, txtMutedTxtCenter,
 } from "./clientiViewStyles.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
+import { useCaricamento } from "../../hooks/useCaricamento.js";
 
 // Chunk async: porta con sé lib/xlsx.js e resta chiuso nella grande
 // maggioranza delle sessioni (import CSV/Excel, non il percorso comune).
@@ -112,7 +113,6 @@ export const ClientiView = memo(function ClientiView({ loading = false }) {
   // { [clientId]: { attive, totali } } — vuoto finché la query non risponde,
   // e vuoto per sempre se fallisce: i badge spariscono, l'anagrafica resta
   // usabile. Non è un dato di cui bloccare la vista.
-  const [listeByClient, setListeByClient] = useState(null);
 
   // Il contesto normalizza già a `[]` e mantiene l'identità stabile finché il
   // reducer non sostituisce l'array: l'useMemo che serviva a non ricreare
@@ -135,23 +135,13 @@ export const ClientiView = memo(function ClientiView({ loading = false }) {
   // Quante liste viaggio ha ciascun cliente. Serve PRIMA di modificare o
   // eliminare, non dopo: è la differenza tra sapere che cosa si sta toccando
   // e scoprirlo da un errore di foreign key.
-  useEffect(() => {
-    if (!showListe) { setListeByClient(null); return; }
-    let annullato = false;
-    (async () => {
-      try {
-        const { data, error } = await conteggioListePerCliente();
-        if (annullato) return;
-        if (error) { console.error("[clienti] conteggio liste", error); return; }
-        setListeByClient(data);
-      } catch (ex) {
-        // L'anagrafica deve restare usabile anche se il modulo Liste non
-        // risponde: si perdono i badge, non la vista.
-        console.error("[clienti] conteggio liste", ex);
-      }
-    })();
-    return () => { annullato = true; };
-  }, [showListe]);
+  // L'anagrafica deve restare usabile anche se il modulo Liste non risponde:
+  // si perdono i badge, non la vista. `suErrore` è quella decisione, scritta.
+  const { dato: listeByClient } = useCaricamento(
+    () => (showListe ? conteggioListePerCliente() : { data: null, error: null }),
+    [showListe],
+    { iniziale: null, suErrore: (e) => console.error("[clienti] conteggio liste", e) },
+  );
 
   const listeDi = (c) => (c ? listeByClient?.[c.id] || null : null);
 

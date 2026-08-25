@@ -3,7 +3,7 @@
 // (props keyword / onKeyword), i filtri avanzati restano locali al pannello.
 // Cerca su due domini distinti — task e liste viaggio — perché per l'utente
 // "cerca Bianchi" è una domanda sola, anche se sotto sono due tabelle.
-import { useState, useReducer, useEffect, useMemo } from "react";
+import { useReducer, useEffect, useMemo } from "react";
 import { useViewport } from "../ui/Viewport.jsx";
 import { SwipeActions } from "../tasks/SwipeActions.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
@@ -24,6 +24,7 @@ import {
   txtBoldNavyLight, txtDanger, txtF11Muted, txtF13Bold, txtF13Muted, txtF15Bold,
 } from "./advancedSearchPanelStyles.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
+import { useCaricamento } from "../../hooks/useCaricamento.js";
 
 // Esportato per i test: la ricerca globale è l'unico punto che cerca insieme
 // task e liste viaggio, ed è quello dove le due ricerche devono coincidere.
@@ -83,26 +84,15 @@ export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, c
   // Liste viaggio: chi non ha accesso al modulo non ha motivo di vederle qui
   // (stessa RLS del modulo stesso), quindi niente fetch e niente filtri.
   const listeAllowed = canAccessListe(currentUserId);
-  const [liste, setListe] = useState([]);
-
   // Caricate una sola volta all'apertura del pannello (non vivono nello state
   // globale come i task: il modulo Liste le fetcha on-demand da sempre).
   // Prendiamo sia attive che cestinate cosí "Includi... nel cestino" può
   // valere anche per le liste, con la stessa semantica dei task.
-  useEffect(() => {
-    if (!listeAllowed) return;
-    let alive = true;
-    (async () => {
-      const { data, error } = await listeRicercabili();
-      if (!alive) return;
-      if (error) {
-        console.error("[liste] ricerca", error);
-        return;
-      }
-      setListe(data);
-    })();
-    return () => { alive = false; };
-  }, [listeAllowed]);
+  const { dato: liste } = useCaricamento(
+    () => (listeAllowed ? listeRicercabili() : { data: [], error: null }),
+    [listeAllowed],
+    { iniziale: [], suErrore: (e) => console.error("[liste] ricerca", e) },
+  );
 
   // La chiusura su click esterno è gestita dal wrapper di ricerca nella Topbar
   // (l'input keyword vive lì). Qui resta solo la chiusura con Escape.

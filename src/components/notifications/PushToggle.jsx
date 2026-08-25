@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { getPushSupport, getPushState, enablePush, disablePush, syncPushSubscription, sendTestPush } from "../../lib/push.js";
 import * as stiliComuni from "../../styles/common.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -34,7 +35,8 @@ const PUSH_HINTS = {
   on: "Attive su questo dispositivo.",
 };
 
-export const PushToggle = ({ dispatch }) => {
+export const PushToggle = () => {
+  const dispatch = useDispatch();
   const { profile } = useAuth();
   const [status, setStatus] = useState("loading");
   // Sottoscrizione presente nel browser ma assente dal DB: il server non sa

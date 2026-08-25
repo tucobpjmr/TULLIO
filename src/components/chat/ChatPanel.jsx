@@ -19,7 +19,7 @@
 //   NewConversationView creazione conversazione
 //   ForwardPicker       scelta destinatario per l'inoltro
 import { memo, useCallback, useReducer, useEffect, useMemo, useRef, useState } from "react";
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
 import { Messages as MessagesAPI } from "../../lib/api.js";
 import { isUuid, newId } from "../../lib/mappers.js";
 import { formatDate, formatTime } from "../../lib/taskUtils.js";
@@ -37,6 +37,7 @@ import { ForwardPicker } from "./ForwardPicker.jsx";
 import { Z } from "../../styles/tokens.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../styles/common.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -73,7 +74,6 @@ const txtF12Op07 = { fontSize: 12, opacity: 0.7, letterSpacing: 1 };
 // Fallback del value del contesto, a livello di modulo: `|| {}` scritto dentro
 // il useMemo sarebbe un oggetto nuovo a ogni valutazione, cioè esattamente ciò
 // che il memo esiste per evitare.
-const noop = () => {};
 const vuoto = {};
 const vuotaLista = [];
 
@@ -87,7 +87,8 @@ const vuotaLista = [];
 // c'entravano nulla. Come per le sei viste, il `memo` regge solo se reggono
 // anche le prop: `onClose` è ora un `useCallback` nel guscio e `commands` è
 // finalmente stabile (vedi la nota su `notif` in VoyageDeskInner.jsx).
-export const ChatPanel = memo(function ChatPanel({ open, onClose, conversations: convProp, messages: msgProp, commands: commandsProp, onDeleteConversation, intent, tasks, currentUserId, dispatch, presenceMap, messageTemplates = [], loading = false, myBusy = false, onToggleBusy }) {
+export const ChatPanel = memo(function ChatPanel({ open, onClose, conversations: convProp, messages: msgProp, commands: commandsProp, onDeleteConversation, intent, tasks, currentUserId, presenceMap, messageTemplates = [], loading = false, myBusy = false, onToggleBusy }) {
+  const dispatch = useDispatch();
   const conferma = useConfirm();
   const { isMobile } = useViewport();
   const { currentUserId: appUserId, getMember } = useAppData();
@@ -204,7 +205,7 @@ export const ChatPanel = memo(function ChatPanel({ open, onClose, conversations:
         const { path, error } = await MessagesAPI.copyFile(src.fileUrl, destConvId, voiceName);
         if (error || !path) {
           console.error("[chat] forward voice copyFile", error);
-          if (dispatch) dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Inoltro vocale fallito: ${error?.message || "errore sconosciuto"}` } });
+          dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Inoltro vocale fallito: ${error?.message || "errore sconosciuto"}` } });
           return;
         }
         newMsg.fileUrl = path;
@@ -221,7 +222,7 @@ export const ChatPanel = memo(function ChatPanel({ open, onClose, conversations:
         const { path, error } = await MessagesAPI.copyFile(src.fileUrl, destConvId, src.fileName);
         if (error || !path) {
           console.error("[chat] forward copyFile", error);
-          if (dispatch) dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Inoltro allegato fallito: ${error?.message || "errore sconosciuto"}` } });
+          dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Inoltro allegato fallito: ${error?.message || "errore sconosciuto"}` } });
           return;
         }
         newMsg.fileUrl = path;
@@ -237,9 +238,7 @@ export const ChatPanel = memo(function ChatPanel({ open, onClose, conversations:
       const target = conversations.find(c => c.id === destConvId);
       if (target) pd({ type: "ACTIVATE", conv: target });
     }
-    if (dispatch) {
-      dispatch({ type: "SHOW_TOAST", payload: { type: "success", message: "Messaggio inoltrato" } });
-    }
+    dispatch({ type: "SHOW_TOAST", payload: { type: "success", message: "Messaggio inoltrato" } });
   };
 
   // Fase 3 — reazioni recenti cross-device: all'apertura della chat allinea la
@@ -306,11 +305,10 @@ export const ChatPanel = memo(function ChatPanel({ open, onClose, conversations:
   const ctxValue = useMemo(() => ({
     tasks: tasks || [],
     currentUserId: me,
-    dispatch: dispatch || noop,
     presenceMap: presenceMap || vuoto,
     messageTemplates: messageTemplates || vuotaLista,
     onForward: handleForwardStart,
-  }), [tasks, me, dispatch, presenceMap, messageTemplates, handleForwardStart]);
+  }), [tasks, me, presenceMap, messageTemplates, handleForwardStart]);
 
   if (!open) return null;
 

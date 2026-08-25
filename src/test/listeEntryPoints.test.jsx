@@ -19,11 +19,14 @@ const ctxTeam = (t) => { appCtx = { ...appCtx, team: t }; };
 const ctxUser = (id) => { appCtx = { ...appCtx, currentUserId: id }; };
 const ctxTasks = (t) => { appCtx = { ...appCtx, tasks: t }; };
 const ctxClients = (c) => { appCtx = { ...appCtx, clients: c }; };
-const render = (ui, options) => {
-  const utils = rtlRender(withAppData(ui, appCtx), options);
+// M-2 (25 agosto): `dispatch` arriva per contesto, quindi il render lo prende
+// fra le opzioni invece che come prop del componente sotto esame.
+const render = (ui, { dispatch, ...options } = {}) => {
+  const ctx = () => ({ ...appCtx, dispatch });
+  const utils = rtlRender(withAppData(ui, ctx()), options);
   // `appCtx` è letto al momento del rerender, non a quello del primo render:
   // un test può cambiare utente con ctxUser() e ri-renderizzare.
-  return { ...utils, rerender: (next) => utils.rerender(withAppData(next, appCtx)) };
+  return { ...utils, rerender: (next) => utils.rerender(withAppData(next, ctx())) };
 };
 
 
@@ -84,7 +87,7 @@ describe("Dashboard — bottone Liste viaggio", () => {
   it("è visibile ai non-Driver e apre la vista liste", () => {
     asUser("marco");
     const dispatch = vi.fn();
-    render(<Dashboard dispatch={dispatch} />);
+    render(<Dashboard />, { dispatch });
 
     const btn = screen.getByRole("button", { name: /Liste viaggio/i });
     fireEvent.click(btn);
@@ -93,7 +96,7 @@ describe("Dashboard — bottone Liste viaggio", () => {
 
   it("non è mostrato al Driver", () => {
     asUser("giulia");
-    render(<Dashboard dispatch={vi.fn()} />);
+    render(<Dashboard />, { dispatch: vi.fn() });
     expect(screen.queryByRole("button", { name: /Liste viaggio/i })).toBeNull();
   });
 });
@@ -104,7 +107,7 @@ describe("Scheda cliente — tab Liste viaggio", () => {
   const openCliente = (uid) => {
     asUser(uid);
     const dispatch = vi.fn();
-    render(<ClientiView dispatch={dispatch} />);
+    render(<ClientiView />, { dispatch });
     fireEvent.click(screen.getByText("MARIO ROSSI"));
     return dispatch;
   };
@@ -137,13 +140,13 @@ describe("Scheda cliente — tab Liste viaggio", () => {
   it("se il tab Liste era aperto e l'utente diventa Driver, il pannello torna su Task", () => {
     const dispatch = vi.fn();
     asUser("marco");
-    const { rerender } = render(<ClientiView dispatch={dispatch} />);
+    const { rerender } = render(<ClientiView />, { dispatch });
     fireEvent.click(screen.getByText("MARIO ROSSI"));
     fireEvent.click(screen.getByRole("button", { name: "Liste viaggio" }));
     expect(screen.queryByText(/Nessun task associato a questo cliente/)).toBeNull();
 
     asUser("giulia");
-    rerender(<ClientiView dispatch={dispatch} />);
+    rerender(<ClientiView />);
 
     expect(screen.queryByRole("button", { name: "Liste viaggio" })).toBeNull();
     expect(screen.getByText(/Nessun task associato a questo cliente/)).toBeTruthy();

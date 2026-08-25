@@ -80,7 +80,7 @@ beforeEach(() => {
 describe("useAppHydration — l'idratazione chiede una FINESTRA (A-3)", () => {
   it("all'avvio non chiede il cestino e limita le completate", async () => {
     const { result } = monta();
-    await waitFor(() => expect(result.current.loading.tasks).toBe(false));
+    await waitFor(() => expect(result.current.caricamento.tasks).toBe(false));
 
     const args = TasksAPI.list.mock.calls[0][0];
     expect(args.withComments).toBe(true);
@@ -93,7 +93,7 @@ describe("useAppHydration — l'idratazione chiede una FINESTRA (A-3)", () => {
     // ancora consultata), non un dettaglio: se cambia, deve cambiarlo qualcuno
     // che sta guardando questo test.
     const { result } = monta();
-    await waitFor(() => expect(result.current.loading.tasks).toBe(false));
+    await waitFor(() => expect(result.current.caricamento.tasks).toBe(false));
 
     const giorni = (Date.now() - Date.parse(TasksAPI.list.mock.calls[0][0].completeDal)) / 864e5;
     expect(giorni).toBeGreaterThan(59.9);
@@ -106,7 +106,7 @@ describe("useAppHydration — l'idratazione chiede una FINESTRA (A-3)", () => {
     // Non è un dettaglio di formato — è la differenza fra una query che il
     // server accetta e una 400 a ogni idratazione.
     const { result } = monta();
-    await waitFor(() => expect(result.current.loading.tasks).toBe(false));
+    await waitFor(() => expect(result.current.caricamento.tasks).toBe(false));
 
     const dal = TasksAPI.list.mock.calls[0][0].completeDal;
     expect(dal).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
@@ -127,7 +127,7 @@ describe("useAppHydration — il corpus intero, su richiesta (A-3)", () => {
   it("richiedi() chiede cestino incluso e nessuna finestra", async () => {
     const dispatch = vi.fn();
     const { result } = monta({ dispatch });
-    await waitFor(() => expect(result.current.loading.tasks).toBe(false));
+    await waitFor(() => expect(result.current.caricamento.tasks).toBe(false));
     dispatch.mockClear();
 
     await act(async () => { await result.current.storicoTask.richiedi(); });
@@ -138,7 +138,7 @@ describe("useAppHydration — il corpus intero, su richiesta (A-3)", () => {
 
   it("è idempotente: due viste che la chiedono non fanno due richieste", async () => {
     const { result } = monta();
-    await waitFor(() => expect(result.current.loading.tasks).toBe(false));
+    await waitFor(() => expect(result.current.caricamento.tasks).toBe(false));
     const prima = TasksAPI.list.mock.calls.length;
 
     await act(async () => {
@@ -153,7 +153,7 @@ describe("useAppHydration — il corpus intero, su richiesta (A-3)", () => {
 
   it("il flag `caricando` si alza durante la richiesta e si chiude alla fine", async () => {
     const { result } = monta();
-    await waitFor(() => expect(result.current.loading.tasks).toBe(false));
+    await waitFor(() => expect(result.current.caricamento.tasks).toBe(false));
 
     const { promise, risolvi } = differita();
     rispostaTasks = () => promise;
@@ -168,7 +168,7 @@ describe("useAppHydration — il corpus intero, su richiesta (A-3)", () => {
   it("anche un caricamento FALLITO chiude il flag: niente scheletro perpetuo", async () => {
     const onError = vi.fn();
     const { result } = monta({ onError });
-    await waitFor(() => expect(result.current.loading.tasks).toBe(false));
+    await waitFor(() => expect(result.current.caricamento.tasks).toBe(false));
 
     rispostaTasks = () => Promise.resolve({ data: null, error: { message: "rete assente" } });
     await act(async () => { await result.current.storicoTask.richiedi(); });
@@ -183,7 +183,7 @@ describe("useAppHydration — lo storico, una volta chiesto, non si pota più", 
     // È IL test di questo file: senza, il primo `visibilitychange` svuota il
     // Cestino aperto, in silenzio e in modo auto-guarente premendo F5.
     const { result } = monta();
-    await waitFor(() => expect(result.current.loading.tasks).toBe(false));
+    await waitFor(() => expect(result.current.caricamento.tasks).toBe(false));
     await act(async () => { await result.current.storicoTask.richiedi(); });
 
     await riconnetti();
@@ -197,7 +197,7 @@ describe("useAppHydration — lo storico, una volta chiesto, non si pota più", 
     // non è mai arrivata, tenerlo alzato significherebbe chiedere per sempre
     // qualcosa che non abbiamo — e non riprovare mai.
     const { result } = monta();
-    await waitFor(() => expect(result.current.loading.tasks).toBe(false));
+    await waitFor(() => expect(result.current.caricamento.tasks).toBe(false));
 
     rispostaTasks = () => Promise.resolve({ data: null, error: { message: "rete assente" } });
     await act(async () => { await result.current.storicoTask.richiedi(); });
@@ -217,7 +217,7 @@ describe("useAppHydration — lo storico, una volta chiesto, non si pota più", 
     // sono.
     const dispatch = vi.fn();
     const { result } = monta({ dispatch });
-    await waitFor(() => expect(result.current.loading.tasks).toBe(false));
+    await waitFor(() => expect(result.current.caricamento.tasks).toBe(false));
 
     // Reload di riconnessione con risposta trattenuta: è la finestra.
     const { promise, risolvi } = differita();

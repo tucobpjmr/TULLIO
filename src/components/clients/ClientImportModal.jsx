@@ -7,9 +7,12 @@
 // righe di titolo/metadati (es. "Esportazione del : ...") prima della vera
 // intestazione, che romperebbero l'assunzione "riga 0 = header".
 import { useState, useReducer, useRef, useMemo, useEffect } from "react";
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
 import { readFirstSheetRowsAutoHeader, MAX_IMPORT_BYTES } from "../../lib/xlsx.js";
 import { formatFileSize } from "../../lib/fileUtils.js";
+// M-4 (25 agosto): la deduplica dell'import usa LA chiave d'identità cliente,
+// non una `normName` locale che la punteggiatura faceva divergere dalle altre.
+import { chiaveCliente } from "../../lib/chiaveCliente.js";
 import { Modal } from "../ui/Modal.jsx";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../styles/common.js";
@@ -96,11 +99,6 @@ const EXTRA_FIELD_KEYWORDS = [
 
 const prettifyHeader = (h) => String(h).replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/_/g, " ").trim();
 
-const DIACRITICS_RE = /[̀-ͯ]/g;
-const normName = (s) => String(s || "")
-  .toLowerCase().normalize("NFD").replace(DIACRITICS_RE, "")
-  .replace(/\s+/g, " ").trim();
-
 // ─── B-3 (audit di architettura del 15 agosto) · un solo stato, transizioni
 // nominate ────────────────────────────────────────────────────────────────
 // Questo componente coordinava NOVE `useState` indipendenti, e le transizioni
@@ -148,7 +146,7 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
   const fileInputRef = useRef(null);
 
   const existingNames = useMemo(
-    () => new Set(existingClients.map(c => normName(c.name))),
+    () => new Set(existingClients.map(c => chiaveCliente(c.name))),
     [existingClients]
   );
 
@@ -233,7 +231,7 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
         address: mapping.address ? (String(r[mapping.address] || "").trim() || null) : null,
         city: mapping.city ? (String(r[mapping.city] || "").trim() || null) : null,
         notes: buildNotes(r),
-        isDuplicate: existingNames.has(normName(name)),
+        isDuplicate: existingNames.has(chiaveCliente(name)),
       };
     }).filter(Boolean);
     // eslint-disable-next-line react-hooks/exhaustive-deps

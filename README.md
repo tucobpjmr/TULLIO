@@ -41,7 +41,7 @@ realtime, notifiche Web Push e cinque Edge Function.
 | Backend | Supabase — PostgreSQL, RLS, Realtime, Storage, Auth, Edge Functions |
 | Stile | CSS-in-JS + variabili di tema; token condivisi in `src/styles/tokens.js` |
 | Import/export | SheetJS (`xlsx`), caricato on-demand |
-| Test | Vitest + Testing Library — 1661 test |
+| Test | Vitest + Testing Library — 1702 test |
 | Qualità | ESLint 9 (flat config) con `max-lines`, `no-restricted-imports` |
 | Font | Playfair Display + DM Sans + Inter |
 | Lingua UI | italiano |
@@ -72,13 +72,13 @@ src/
 │                         permissions (pure), mappers, utils
 ├── styles/               GlobalStyles (tema), tokens (z-index, bottoni, campi)
 ├── components/
-│   ├── shell/            Topbar, Sidebar/BottomNav, FAB, UserSwitcher
-│   ├── dashboard/        Dashboard + queues/ (4 code) + NoticeBoard
-│   ├── tasks/            TaskCard/Row/SlideOver + bulk/ (creazione in blocco)
-│   ├── clients/ calendar/ views/ admin/ chat/ liste/ search/ notifications/
-│   ├── modals/           i modali NON ancora ricondotti alla loro funzionalità
-│   ├── ui/               ciò che è davvero trasversale (Modal, Avatar, Toast…)
-└── test/                 1661 test (Vitest)
+│   ├── shell/            Topbar, Sidebar/BottomNav, FAB, UserSwitcher, ProfileEditor
+│   ├── dashboard/        Dashboard + queues/ (4 code) + NoticeBoard + editor avvisi
+│   ├── tasks/            TaskCard/Row/SlideOver, QuickAdd, Archivio, Cestino,
+│   │                     bulk/ (creazione in blocco)
+│   ├── clients/ calendar/ admin/ chat/ liste/ search/ notifications/ errors/
+│   ├── ui/               ciò che è davvero trasversale (Modal, Avatar, Toast, Viewport…)
+└── test/                 1702 test (Vitest)
 
 supabase/
 ├── migrations/           109 migrazioni SQL (schema, RLS, RPC, trigger)

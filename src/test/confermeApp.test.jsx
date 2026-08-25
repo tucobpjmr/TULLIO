@@ -23,7 +23,7 @@ vi.mock("../lib/api.js", () => ({
 }));
 
 const { renderWithAppData } = await import("./helpers/appData.jsx");
-const { Trash } = await import("../components/views/Trash.jsx");
+const { Trash } = await import("../components/tasks/Trash.jsx");
 
 const wrapper = ({ children }) => <ConfirmProvider>{children}</ConfirmProvider>;
 const dialogo = () => screen.findByRole("dialog");
@@ -116,8 +116,8 @@ describe("Cestino — l'eliminazione definitiva passa dalla conferma dell'app", 
   };
   const monta = () => {
     const dispatch = vi.fn();
-    renderWithAppData(<Trash dispatch={dispatch} />, {
-      team: TEAM, categories: {}, currentUserId: "marco", tasks: [task],
+    renderWithAppData(<Trash />, {
+      dispatch, team: TEAM, categories: {}, currentUserId: "marco", tasks: [task],
     });
     return dispatch;
   };

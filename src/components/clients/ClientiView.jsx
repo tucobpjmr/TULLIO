@@ -6,7 +6,7 @@ import { memo, useReducer, useState, useMemo, useEffect, lazy } from "react";
 import { ClienteModal } from "./ClienteModal.jsx";
 import { ClienteCard } from "./ClienteCard.jsx";
 import { ClienteDetailPanel } from "./ClienteDetailPanel.jsx";
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
 import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { LazyPanel } from "../ui/LazyPanel.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
@@ -16,7 +16,7 @@ import { useClientiCompleti } from "../../state/ClientiCompletiContext.jsx";
 // L'anagrafica chiede al modulo Liste un conteggio per cliente, non le sue
 // query: vedi components/liste/listeModuleApi.js.
 import { conteggioListePerCliente } from "../liste/listeModuleApi.js";
-import { tasksDelCliente } from "../../lib/clientNotes.js";
+import { tasksDelCliente } from "../../lib/chiaveCliente.js";
 import { indicizza, matchIndice, terminiRicerca } from "../../lib/searchUtils.js";
 import { useFinestra } from "../../hooks/useFinestra.js";
 import { MostraAltri } from "../ui/MostraAltri.jsx";
@@ -28,6 +28,7 @@ import {
   rowCenterBetween, rowCenterGap6, rowCenterGap62, rowCenterGap63, rowGap10, rowGap6Mt10,
   txtBoldMb6, txtF14Muted, txtF14Muted2, txtF16Bold, txtMutedTxtCenter,
 } from "./clientiViewStyles.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Chunk async: porta con sé lib/xlsx.js e resta chiuso nella grande
 // maggioranza delle sessioni (import CSV/Excel, non il percorso comune).
@@ -89,7 +90,8 @@ function overlayClientiReducer(_s, a) {
 // `memo` + lettura dal contesto: vedi state/TasksContext.jsx sul perché il
 // provider da solo non basterebbe. Le prop rimaste — `dispatch` e il flag
 // `loading` dell'idratazione CRM — hanno identità stabile.
-export const ClientiView = memo(function ClientiView({ dispatch, loading = false }) {
+export const ClientiView = memo(function ClientiView({ loading = false }) {
+  const dispatch = useDispatch();
   const { isMobile } = useViewport();
   const { currentUserId, canAccessListe, canEditClient, canDeleteClient } = useAppData();
   // A-1 dell'audit del 14 agosto (secondo passaggio): la RLS su public.clients
@@ -353,7 +355,6 @@ export const ClientiView = memo(function ClientiView({ dispatch, loading = false
         <ClienteDetailPanel
           cliente={selectedClient}
           tasks={tasks}
-          dispatch={dispatch}
           onClose={() => { setSelectedClient(null); setPanelTab(null); }}
           showListe={showListe}
           liste={listeDi(selectedClient)}

@@ -1,5 +1,5 @@
 // src/state/AppProviders.jsx
-// I cinque provider di dominio, in un componente solo.
+// I provider di dominio, in un componente solo.
 //
 // PERCHÉ ESISTE (M-3, audit di architettura del 15 agosto). L'annidamento
 // viveva nel `return` di `VoyageDeskInner`, dove cinque tag di apertura e
@@ -10,7 +10,11 @@
 //
 // ⚠️ L'ORDINE NON È ARBITRARIO e non va cambiato per estetica:
 //
-//   • `AppDataProvider` sta più in alto perché team/categorie/utente sono ciò
+//   • `DispatchProvider` sta più in alto di tutti (M-2, audit del 25 agosto):
+//     `dispatch` non dipende da nessuno degli altri — la sua identità è stabile
+//     per contratto — e lo usa chiunque scriva, provider di dominio compresi
+//     (`ConfirmProvider` no, ma le viste che ci stanno dentro sì);
+//   • `AppDataProvider` sta subito sotto perché team/categorie/utente sono ciò
 //     da cui dipendono le decisioni di autorizzazione, e le usano tutti;
 //   • `TasksProvider` e `ClientsProvider` sono DUE provider e non uno, così
 //     l'arrivo di un cliente importato non invalida le viste che guardano i
@@ -30,6 +34,7 @@
 // `VIETATO_CONTEXT_VALUE_LETTERALE` in eslint.config.js). Questo file è
 // annidamento e basta — se un giorno dovesse calcolare qualcosa, la domanda
 // giusta è a quale provider appartenga quel calcolo.
+import { DispatchProvider } from "./DispatchContext.jsx";
 import { AppDataProvider } from "./AppDataContext.jsx";
 import { TasksProvider } from "./TasksContext.jsx";
 import { StoricoTaskProvider } from "./StoricoTaskContext.jsx";
@@ -38,21 +43,23 @@ import { ClientiCompletiProvider } from "./ClientiCompletiContext.jsx";
 import { ConfirmProvider } from "./ConfirmContext.jsx";
 
 export function AppProviders({
-  team, categories, currentUserId, tasks, clients,
+  dispatch, team, categories, currentUserId, tasks, clients,
   richiediStorico, storicoInCorso,
   richiediClienti, clientiInCorso, children,
 }) {
   return (
-    <AppDataProvider team={team} categories={categories} currentUserId={currentUserId}>
-      <TasksProvider tasks={tasks}>
-        <StoricoTaskProvider richiedi={richiediStorico} caricando={storicoInCorso}>
-          <ClientsProvider clients={clients}>
-            <ClientiCompletiProvider richiedi={richiediClienti} caricando={clientiInCorso}>
-              <ConfirmProvider>{children}</ConfirmProvider>
-            </ClientiCompletiProvider>
-          </ClientsProvider>
-        </StoricoTaskProvider>
-      </TasksProvider>
-    </AppDataProvider>
+    <DispatchProvider dispatch={dispatch}>
+      <AppDataProvider team={team} categories={categories} currentUserId={currentUserId}>
+        <TasksProvider tasks={tasks}>
+          <StoricoTaskProvider richiedi={richiediStorico} caricando={storicoInCorso}>
+            <ClientsProvider clients={clients}>
+              <ClientiCompletiProvider richiedi={richiediClienti} caricando={clientiInCorso}>
+                <ConfirmProvider>{children}</ConfirmProvider>
+              </ClientiCompletiProvider>
+            </ClientsProvider>
+          </StoricoTaskProvider>
+        </TasksProvider>
+      </AppDataProvider>
+    </DispatchProvider>
   );
 }

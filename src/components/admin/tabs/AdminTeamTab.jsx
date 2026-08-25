@@ -1,7 +1,7 @@
 // src/components/admin/tabs/AdminTeamTab.jsx
 // Gestione del team: invito, approvazione dei pending, ruoli, attivazione.
 import { useState, useEffect } from "react";
-import { useViewport } from "../../Viewport.jsx";
+import { useViewport } from "../../ui/Viewport.jsx";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useTasks } from "../../../state/TasksContext.jsx";
 import { sectionH, fieldStyle, btnPrimary, btnGold, btnGhost, btnDanger, btnWarning } from "../adminStyles.js";
@@ -14,13 +14,14 @@ import {
 } from "../../../lib/presenza.js";
 import { useTickLento } from "../../../hooks/useTickLento.js";
 import { useSalvataggio } from "../../../hooks/useSalvataggio.js";
-import { AddTeamMemberModal } from "../../modals/AddTeamMemberModal.jsx";
-import { BulkInviteModal } from "../../modals/BulkInviteModal.jsx";
+import { AddTeamMemberModal } from "../AddTeamMemberModal.jsx";
+import { BulkInviteModal } from "../BulkInviteModal.jsx";
 import { ContactActions } from "../../ui/ContactActions.jsx";
 import { useConfirm } from "../../../state/ConfirmContext.jsx";
 import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
 import { obbligatorio, validaCampi } from "../../../lib/validators.js";
 import * as stiliComuni from "../../../styles/common.js";
+import { useDispatch } from "../../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -36,7 +37,8 @@ const mb24 = { marginBottom: 24 };
 const REGOLE_MEMBRO = { name: obbligatorio("Il nome del membro non può essere vuoto.") };
 
 // ─── ADMIN TAB: TEAM ───────────────────────────────────────────────────────
-export const AdminTeamTab = ({ dispatch }) => {
+export const AdminTeamTab = () => {
+  const dispatch = useDispatch();
   const conferma = useConfirm();
   const { isMobile } = useViewport();
   const { team } = useAppData();
@@ -128,7 +130,7 @@ export const AdminTeamTab = ({ dispatch }) => {
     },
   );
 
-  const saveEdit = () => {
+  const salvaModifica = () => {
     const trovati = validaCampi({ name: draft.name }, REGOLE_MEMBRO);
     if (trovati.name) { setErrori(trovati); return; }
     setErrori({});
@@ -258,7 +260,7 @@ export const AdminTeamTab = ({ dispatch }) => {
         <div style={{ display: "flex", gap: 6, ...(isMobile ? { justifyContent: "flex-end" } : {}) }}>
           {isEditing ? (
             <>
-              <button onClick={saveEdit} disabled={inVolo} style={btnPrimary}>
+              <button onClick={salvaModifica} disabled={inVolo} style={btnPrimary}>
                 {inVolo ? "Salvataggio…" : "💾 Salva"}
               </button>
               <button onClick={cancelEdit} style={btnGhost}>Annulla</button>
@@ -401,7 +403,7 @@ export const AdminTeamTab = ({ dispatch }) => {
         </div>
       )}
 
-      {showAdd && <AddTeamMemberModal onClose={() => setShowAdd(false)} dispatch={dispatch} existingIds={team.map(m => m.id)} />}
+      {showAdd && <AddTeamMemberModal onClose={() => setShowAdd(false)} existingIds={team.map(m => m.id)} />}
       {showBulk && (
         <BulkInviteModal
           onClose={() => setShowBulk(false)}
@@ -412,4 +414,4 @@ export const AdminTeamTab = ({ dispatch }) => {
   );
 };
 
-// AddTeamMemberModal → src/components/modals/AddTeamMemberModal.jsx (Step P Phase 2f)
+// AddTeamMemberModal → src/components/admin/AddTeamMemberModal.jsx (Step P Phase 2f)

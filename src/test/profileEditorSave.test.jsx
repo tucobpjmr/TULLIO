@@ -29,13 +29,14 @@ vi.mock("../auth/AuthContext.jsx", () => ({
   useAuth: () => ({ session: null, updatePassword: vi.fn(), deleteAccount: vi.fn() }),
 }));
 
-const { ProfileEditor } = await import("../components/modals/ProfileEditor.jsx");
+const { ProfileEditor } = await import("../components/shell/ProfileEditor.jsx");
+const { withDispatch } = await import("./helpers/appData.jsx");
 
 const MEMBER = { id: "marco", name: "Marco", role: "manager", color: "#0F2044", avatar: "M" };
 
 const montaConDispatch = (dispatch) => {
   const onClose = vi.fn();
-  render(<ProfileEditor member={MEMBER} dispatch={dispatch} onClose={onClose} />);
+  render(withDispatch(<ProfileEditor member={MEMBER} onClose={onClose} />, dispatch));
   return { onClose };
 };
 
@@ -166,7 +167,7 @@ describe("ProfileEditor — la bozza è unica e i campi non si sovrascrivono", (
     // Non è un campo dell'interfaccia ma è un campo del profilo: sta in `draft`
     // e si legge da lì, invece di essere ricalcolato al salvataggio.
     const dispatch = vi.fn(async () => ({ error: null }));
-    render(<ProfileEditor member={{ ...MEMBER, color: "#D4A843" }} dispatch={dispatch} onClose={vi.fn()} />);
+    render(withDispatch(<ProfileEditor member={{ ...MEMBER, color: "#D4A843" }} onClose={vi.fn()} />, dispatch));
     salva();
     await waitFor(() => expect(dispatch).toHaveBeenCalled());
     expect(dispatch.mock.calls[0][0].payload.color).toBe("#D4A843");

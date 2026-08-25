@@ -12,6 +12,7 @@ import { useListeWrite } from "./listePersistence.js";
 import { useIsMounted } from "../../hooks/useIsMounted.js";
 import "./liste.css";
 import { NuovaListaModal } from "./modals/NuovaListaModal.jsx";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -29,13 +30,14 @@ const txtF13Muted3 = { textAlign: "center", padding: "24px 0", color: "var(--tex
 const rowCenterBetween = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 12, flexWrap: "wrap" };
 const txtF13LvMuted = { fontSize: 13, color: "var(--lv-muted)" };
 
-export function ClienteListePanel({ cliente, dispatch }) {
+export function ClienteListePanel({ cliente }) {
+  const dispatch = useDispatch();
   const [liste, setListe] = useState([]);
   const [saldi, setSaldi] = useState({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [nuovaOpen, setNuovaOpen] = useState(false);
-  const esegui = useListeWrite(dispatch);
+  const esegui = useListeWrite();
   const montato = useIsMounted();
 
   const load = useCallback(async () => {

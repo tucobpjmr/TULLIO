@@ -23,6 +23,7 @@ import { randomWaveform } from "./message/VoiceRecorder.jsx";
 import { MessageComposer } from "./MessageComposer.jsx";
 import { parseTaskLink } from "./message/MessageTextContent.jsx";
 import * as stiliComuni from "../../styles/common.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 import {
   animation2, animation3, animation4, boxF13White, boxF16, boxFlex1, boxFlex1F12, boxW6H6,
   boxW6H62, boxW6H63, colHFull, rowCenterGap10, rowCenterGap3, rowCenterGap5, rowCenterGap8,
@@ -44,7 +45,8 @@ export const ConversationView = ({ conv, messages, commands, onBack, onDelete, i
   // solo quelli che servono alla conversazione.
   const { input, replyingTo, showMsgSearch, msgSearch, showPinnedOnly,
           typingMap, pendingTaskRef, uploading } = cv;
-  const { currentUserId, presenceMap, dispatch } = useChatContext();
+  const { currentUserId, presenceMap } = useChatContext();
+  const dispatch = useDispatch();
   // B-6 · Come in ConversationList: il pallino nella testata invecchia perché
   // questo componente si ri-renderizza, non perché il guscio lo fa per lui.
   useTickLento(TICK_PRESENZA_MS);

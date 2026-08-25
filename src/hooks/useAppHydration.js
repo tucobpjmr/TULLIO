@@ -23,7 +23,7 @@
 // usano per mostrare gli scheletri invece di un vuoto ingannevole.
 //
 // ─── CRITICITÀ #6 · un flag per ENTITÀ, non solo per il CRM ────────────────
-// Il flag esisteva per i soli clienti (`crmLoading`). Tutte le altre entità
+// Il flag esisteva per i soli clienti (`caricamentoClienti`). Tutte le altre entità
 // partivano da un array vuoto nel reducer e restavano tali finché il primo
 // fetch non tornava: nel frattempo la Dashboard mostrava "Nessuna task aperta
 // a tuo nome. Buon lavoro!", la bacheca "Nessun avviso", l'Archivio "Archivio
@@ -31,12 +31,12 @@
 // qualcosa di falso su dati operativi, in una finestra in cui l'unica risposta
 // vera è "non lo so ancora", e chi legge (persona o agente) può agirci sopra.
 //
-// `loading` è un oggetto con una chiave per entità. Chiude a `false` sia sul
+// `caricamento` è un oggetto con una chiave per entità. Chiude a `false` sia sul
 // successo sia sull'ERRORE del primo fetch: uno scheletro che gira per sempre
 // è disonesto quanto un vuoto — dopo un errore il canale è il toast, e sotto
 // va mostrato lo stato reale (vuoto) di ciò che si è riusciti a caricare.
 //
-// Come già per `crmLoading`, il valore iniziale è `enabled` valutato al primo
+// Come già per `caricamentoClienti`, il valore iniziale è `enabled` valutato al primo
 // render: senza login non c'è idratazione (si usano i mock) e i flag nascono
 // già chiusi.
 //
@@ -87,7 +87,7 @@ const perTaskId = (righe, mapper) => {
 };
 
 // Entità idratate qui, nell'ordine in cui compaiono sotto. Una lista e non
-// cinque `useState`: i consumatori leggono `loading.tasks`, e aggiungere
+// cinque `useState`: i consumatori leggono `caricamento.tasks`, e aggiungere
 // un'entità non richiede di ricordarsi di propagare un sesto flag.
 const ENTITA = ["tasks", "notices", "categories", "team", "clients", "messageTemplates"];
 
@@ -124,14 +124,14 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
   // flag si alza quando una vista la chiede (`caricaClienti`), che è il solo
   // momento in cui uno scheletro dice la verità. Le altre cinque entità
   // partono da `enabled` come prima.
-  const [loading, setLoading] = useState(
+  const [caricamento, impostaCaricamento] = useState(
     () => Object.fromEntries(ENTITA.map(k => [k, k === "clients" ? false : enabled])));
   // Idempotente e stabile: chiude il flag di un'entità la prima volta e poi
-  // non tocca più l'oggetto, così l'identità di `loading` non cambia a ogni
+  // non tocca più l'oggetto, così l'identità di `caricamento` non cambia a ogni
   // reload realtime (le viste sono `memo`: un oggetto nuovo le sveglierebbe
   // tutte per nulla).
   const segnaCaricata = useCallback((entita) => {
-    setLoading(prev => (prev[entita] ? { ...prev, [entita]: false } : prev));
+    impostaCaricamento(prev => (prev[entita] ? { ...prev, [entita]: false } : prev));
   }, []);
 
   // ST-15 · L'ultimo payload consegnato al reducer per team e categorie.
@@ -331,7 +331,7 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
   // continua a proteggere gli id con una scrittura in volo, come per ogni
   // altro refetch.
   //
-  // Chiude anche `loading.tasks`: se questa richiesta ha scartato la risposta
+  // Chiude anche `caricamento.tasks`: se questa richiesta ha scartato la risposta
   // dell'idratazione iniziale (il ramo `!completo && storicoCompleto.current`
   // qui sopra), è l'unica rimasta a poterlo fare, e uno scheletro che gira per
   // sempre è disonesto quanto un vuoto dichiarato troppo presto.
@@ -635,20 +635,18 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     // ragione — quattro righe, gestite dall'admin.
   }, { enabled, deps: [enabled], senzaCanale: true });
 
-  // `crmLoading` resta esposto come alias di `loading.clients`: è il nome con
-  // cui ClientiView e i suoi test conoscono questo flag da sessione 23, e
-  // rinominarlo non aggiungerebbe nulla.
-  //
   // `storicoTask` è la coppia che alimenta <StoricoTaskProvider>: la richiesta
-  // e il flag di attesa. Non è un terzo flag di `loading` perché non descrive
+  // e il flag di attesa. Non è un terzo flag di `caricamento` perché non descrive
   // un'ENTITÀ che si sta idratando — le task ci sono già — ma una porzione di
   // quell'entità che una vista specifica sta aspettando.
-  // `crmLoading` resta l'alias con cui ClientiView conosce questo flag da
-  // sessione 23, ma ora è `caricandoClienti`: `loading.clients` descriveva
-  // l'idratazione iniziale, che per i clienti non esiste più.
+  // `caricamentoClienti` è il flag che ClientiView conosce da sessione 23 (si
+  // chiamava `crmLoading` fino a B-3 del 25 agosto, quando la lingua degli
+  // identificatori è diventata una regola scritta). Vale `caricandoClienti` e
+  // non `caricamento.clients`: quest'ultimo descriveva l'idratazione iniziale,
+  // che per i clienti non esiste più.
   return {
-    loading,
-    crmLoading: caricandoClienti,
+    caricamento,
+    caricamentoClienti: caricandoClienti,
     storicoTask: { richiedi: caricaStorico, caricando: caricandoStorico },
     clientiCompleti: { richiedi: caricaClienti, caricando: caricandoClienti },
   };

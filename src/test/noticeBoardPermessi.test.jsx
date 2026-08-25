@@ -35,8 +35,8 @@ const AVVISO = {
 
 const render = (currentUserId, dispatch = vi.fn()) => {
   const utils = renderWithAppData(
-    <NoticeBoard notices={[AVVISO]} dispatch={dispatch} />,
-    { team: TEAM, currentUserId },
+    <NoticeBoard notices={[AVVISO]} />,
+    { team: TEAM, currentUserId, dispatch },
   );
   return { ...utils, dispatch };
 };
@@ -93,8 +93,8 @@ describe("NoticeBoard — pulsanti pin/modifica/elimina visibili solo a chi può
     const conReazioni = { ...AVVISO, reactions: { "👍": ["marco"] } };
     const dispatch = vi.fn();
     renderWithAppData(
-      <NoticeBoard notices={[conReazioni]} dispatch={dispatch} />,
-      { team: TEAM, currentUserId: "luca" },
+      <NoticeBoard notices={[conReazioni]} />,
+      { team: TEAM, currentUserId: "luca", dispatch },
     );
     fireEvent.click(screen.getByTitle("Marco Ferretti"));
     expect(dispatch).toHaveBeenCalledWith({

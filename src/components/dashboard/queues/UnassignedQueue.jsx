@@ -2,7 +2,7 @@
 // Coda globale: task non assegnati a nessuno, che chi ne ha i permessi può
 // prendere in carico. Il Driver non la vede.
 import { useMemo, useState } from "react";
-import { SwipeActions } from "../../SwipeActions.jsx";
+import { SwipeActions } from "../../tasks/SwipeActions.jsx";
 import { TaskCard } from "../../tasks/TaskCard.jsx";
 import { PRIORITIES } from "../../../lib/taskConstants.js";
 import { formatDate, isOverdue } from "../../../lib/taskUtils.js";
@@ -47,10 +47,10 @@ const rowCenterMiddle2 = {
 // vuota — è ignota. "Tutti gli incarichi hanno un proprietario" detto su zero
 // task caricati è la bugia più cara di questa vista: è la coda su cui si
 // decide se prendere in carico qualcosa.
-export const UnassignedQueue = ({ tasks, dispatch, onTake, uid, loading = false }) => {
+export const UnassignedQueue = ({ tasks, onTake, uid, loading = false }) => {
   const { categories, isJuniorAgent } = useAppData();
   const isJunior = isJuniorAgent(uid);
-  const openTask = useOpenTask(dispatch);
+  const openTask = useOpenTask();
   const [categoryFilter, setCategoryFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
   const caricando = loading && tasks.length === 0;
@@ -145,7 +145,7 @@ export const UnassignedQueue = ({ tasks, dispatch, onTake, uid, loading = false 
             const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
             const overdue = isOverdue(t);
             return (
-              <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+              <SwipeActions key={t.id} task={t}>
                 <TaskCard
                   task={t}
                   onOpen={openTask}

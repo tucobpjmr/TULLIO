@@ -16,7 +16,7 @@
 // utente corrente non compaiono perché le tab li leggono da AppDataContext; i
 // task da TasksContext.
 import { memo, useState } from "react";
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
 import { AdminTeamTab } from "./tabs/AdminTeamTab.jsx";
 import { AdminIOTab } from "./tabs/AdminIOTab.jsx";
 import { AdminStatsTab } from "./tabs/AdminStatsTab.jsx";
@@ -35,7 +35,7 @@ const rowGap4Mb20 = {
 };
 
 export const AdminView = memo(function AdminView({
-  dispatch, agencyName, notices, activityLog, messageTemplates,
+  agencyName, notices, activityLog, messageTemplates,
 }) {
   const [tab, setTab] = useState("team");
   const { isMobile } = useViewport();
@@ -84,11 +84,11 @@ export const AdminView = memo(function AdminView({
 
       {/* Tab content */}
       <div className="fade-in" key={tab}>
-        {tab === "team" && <AdminTeamTab dispatch={dispatch} />}
-        {tab === "io" && <AdminIOTab dispatch={dispatch} agencyName={agencyName} notices={notices} />}
-        {tab === "stats" && <AdminStatsTab dispatch={dispatch} messageTemplates={messageTemplates} />}
-        {tab === "cats" && <AdminCategoriesTab dispatch={dispatch} />}
-        {tab === "log" && <AdminLogTab dispatch={dispatch} activityLog={activityLog} />}
+        {tab === "team" && <AdminTeamTab />}
+        {tab === "io" && <AdminIOTab agencyName={agencyName} notices={notices} />}
+        {tab === "stats" && <AdminStatsTab messageTemplates={messageTemplates} />}
+        {tab === "cats" && <AdminCategoriesTab />}
+        {tab === "log" && <AdminLogTab activityLog={activityLog} />}
       </div>
     </div>
   );

@@ -4,7 +4,7 @@
 // PERCHÉ ESISTE. L'app aveva tre percorsi d'errore, tutti buoni, e tutti
 // parziali:
 //
-//   render          → ErrorBoundary / ViewErrorBoundary (components/)
+//   render          → ErrorBoundary / ViewErrorBoundary (components/errors/)
 //   scritture core  → useSyncedDispatch, che fa rollback e mostra il toast
 //   scritture liste → useListeWrite, stesso trattamento
 //

@@ -1,35 +1,40 @@
 // ─── TASK SLIDE OVER ─────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
+//
+// Il pannello fa UNA cosa: i campi del task — bozza locale, commit al blur, un
+// solo UPDATE_TASK per modifica. Gli altri tre lavori che ospitava hanno un
+// file ciascuno (M-5, audit del 25 agosto): TaskAssegnatari.jsx e
+// TaskCommenti.jsx sono usciti con il proprio stato — il menu aperto, il testo
+// digitato — che finché stava qui faceva ri-renderizzare l'intero pannello a
+// ogni carattere; TaskAttachments.jsx e TaskHistoryPanel.jsx erano già fuori e
+// si caricano da sé i propri dati.
 import { useState, useEffect } from "react";
-import { useViewport } from "../Viewport.jsx";
-import { Avatar } from "../ui/Avatar.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { CategoryChip } from "../ui/CategoryChip.jsx";
-import { STATUSES, STATUS_LABELS, PRIORITIES, roleLabel } from "../../lib/taskConstants.js";
+import { STATUSES, STATUS_LABELS, PRIORITIES } from "../../lib/taskConstants.js";
 import { formatDate, formatTime, isOverdue, clientContact } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useClients } from "../../state/ClientsContext.jsx";
-import { MentionText } from "../ui/MentionText.jsx";
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";
 import { ContactText } from "../ui/ContactText.jsx";
 import { useClientSuggestions, ClientSuggestions } from "../ui/ClientAutocomplete.jsx";
-import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
-import { useSalvataggio } from "../../hooks/useSalvataggio.js";
 import { Z } from "../../styles/tokens.js";
 
+import { TaskAssegnatari } from "./TaskAssegnatari.jsx";
+import { TaskCommenti } from "./TaskCommenti.jsx";
 import { TaskAttachments } from "./TaskAttachments.jsx";
 import { TaskHistoryPanel } from "./TaskHistoryPanel.jsx";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../styles/common.js";
 import {
-  boxF11Bold, boxF12Muted, boxF13R8, boxF13Text, boxF13White, boxF13White2, boxF18Bold,
-  boxFlex1F12, colFlex1Gap20, rowCenterGap5, rowCenterGap6, rowCenterGap8,
-  rowCenterMiddle, rowCenterMiddle2, rowFlex1Gap6, rowGap10, rowGap8, rowGap8Mb8,
-  rowGap8Mt6, rowStartBetween, txtF11Bold, txtF11Bold2, txtF12, txtF12Bold,
-  txtF13Text, txtF18Bold,
+  boxF11Bold, boxF13R8, boxF13Text, boxF13White, boxF18Bold, colFlex1Gap20,
+  rowGap8Mb8, rowStartBetween, txtF18Bold,
 } from "./taskSlideOverStyles.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
-export const TaskSlideOver = ({ task, dispatch }) => {
+export const TaskSlideOver = ({ task }) => {
+  const dispatch = useDispatch();
   const conferma = useConfirm();
   const { isMobile } = useViewport();
   const {
@@ -41,8 +46,6 @@ export const TaskSlideOver = ({ task, dispatch }) => {
   // è vuota — bastava a disinnescare il `memo` di un componente lazy e pesante
   // come questo. Il default vive nel provider, una volta sola.
   const clients = useClients();
-  const [newComment, setNewComment] = useState("");
-  const [showAssigneePicker, setShowAssigneePicker] = useState(false);
   // Bozza locale dei campi testo: si scrive in locale e si persiste al blur
   // (un solo UPDATE_TASK per modifica, non a ogni tasto → niente toast a raffica
   // né un round-trip DB per carattere). I select/data persistono subito.
@@ -70,30 +73,6 @@ export const TaskSlideOver = ({ task, dispatch }) => {
   // quindi sale con lui.
   const editable = !!task && canEditTask(task, currentUserId);
   const cli = useClientSuggestions(clients, draft.client, { enabled: editable });
-
-  // M-4 · La casella si svuota DOPO la conferma, non prima (vedi
-  // hooks/useSalvataggio.js). Il testo digitato è l'unico dato di questa
-  // pagina che non esista già altrove: i campi persistono al blur sul task,
-  // il commento vive solo qui finché non è scritto.
-  const {
-    salva: inviaCommento, inVolo: commentoInVolo, errore: erroreCommento,
-  } = useSalvataggio(
-    (testo) => dispatch({
-      type: "ADD_COMMENT",
-      payload: {
-        taskId: task.id,
-        comment: {
-          user: getMember(currentUserId)?.name || "Utente",
-          text: testo,
-          time: new Date().toISOString(),
-        },
-      },
-    }),
-    {
-      alSuccesso: () => setNewComment(""),
-      messaggioErrore: "Commento non inviato. Il testo è ancora qui, riprova.",
-    },
-  );
 
   if (!task) return null;
 
@@ -136,24 +115,6 @@ export const TaskSlideOver = ({ task, dispatch }) => {
     if (shouldFillContact) updateField("contact", contact);
   };
 
-  const updateAssignees = (next) => {
-    dispatch({ type: "UPDATE_TASK", payload: { id: task.id, assignees: next } });
-  };
-  const addAssignee = (memberId) => {
-    if (!memberId || currentAssignees.includes(memberId)) return;
-    updateAssignees([...currentAssignees, memberId]);
-    setShowAssigneePicker(false);
-  };
-  const removeAssignee = (memberId) => {
-    updateAssignees(currentAssignees.filter(id => id !== memberId));
-  };
-
-  const handleComment = () => {
-    const testo = newComment.trim();
-    if (!testo) return;
-    inviaCommento(testo);
-  };
-
   const handleStatusChange = (e) => {
     dispatch({ type: "UPDATE_TASK", payload: { id: task.id, status: e.target.value } });
   };
@@ -172,9 +133,6 @@ export const TaskSlideOver = ({ task, dispatch }) => {
     width: "100%", border: "1px solid var(--border)", borderRadius: 8,
     padding: "7px 10px", fontSize: 13, fontFamily: "inherit", background: "var(--card)",
   };
-  const myInitials = (getMember(currentUserId)?.name || "")
-    .split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "?";
-
   return (
     <>
       <div onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: null })}
@@ -274,67 +232,13 @@ export const TaskSlideOver = ({ task, dispatch }) => {
 
           {/* Meta */}
           <div style={stiliComuni.grid2ColGap12}>
-            <div style={stiliComuni.relative}>
-              <div style={txtF11Bold}>ASSEGNATI</div>
-              <div style={rowCenterGap6}>
-                {currentAssignees.map(id => {
-                  const m = getMember(id);
-                  return m ? (
-                    <div key={id} style={rowCenterGap5}>
-                      <Avatar memberId={id} size={20} />
-                      <span style={txtF12}>{m.name.split(" ")[0]}</span>
-                      {editable && (
-                        <button
-                          onClick={() => removeAssignee(id)}
-                          title="Rimuovi assegnatario"
-                          style={boxF12Muted}
-                          onMouseEnter={e => e.currentTarget.style.color = "var(--danger)"}
-                          onMouseLeave={e => e.currentTarget.style.color = "var(--text-muted)"}
-                        >✕</button>
-                      )}
-                    </div>
-                  ) : null;
-                })}
-                {!currentAssignees.length && (
-                  <span style={stiliComuni.txtF13Muted}>Non assegnato</span>
-                )}
-                {editable && availableMembers.length > 0 && (
-                  <button
-                    onClick={() => setShowAssigneePicker(v => !v)}
-                    title="Aggiungi assegnatario"
-                    style={{
-                      background: showAssigneePicker ? "var(--navy)" : "var(--surface2)",
-                      color: showAssigneePicker ? "#fff" : "var(--navy)",
-                      border: "1px dashed var(--border)", borderRadius: 99,
-                      padding: "4px 10px", fontSize: 12, fontWeight: 600,
-                      cursor: "pointer", fontFamily: "inherit",
-                    }}
-                  >＋ Aggiungi</button>
-                )}
-              </div>
-              {editable && showAssigneePicker && availableMembers.length > 0 && (
-                <div style={{
-                  position: "absolute", top: "100%", left: 0, marginTop: 6, zIndex: Z.local,
-                  background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10,
-                  boxShadow: "0 10px 30px rgba(0,0,0,0.12)", padding: 6,
-                  minWidth: 180, maxHeight: 220, overflowY: "auto",
-                }}>
-                  {availableMembers.map(m => (
-                    <button
-                      key={m.id}
-                      onClick={() => addAssignee(m.id)}
-                      style={rowCenterGap8}
-                      onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                    >
-                      <Avatar memberId={m.id} size={22} />
-                      <span style={stiliComuni.flex1}>{m.name}</span>
-                      <span style={stiliComuni.txtF10Muted}>{roleLabel(m)}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <TaskAssegnatari
+              assegnati={currentAssignees}
+              disponibili={availableMembers}
+              editable={editable}
+              getMember={getMember}
+              onChange={(next) => updateField("assignees", next)}
+            />
             <div style={stiliComuni.relative}>
               <div style={labelStyle}>CLIENTE</div>
               {editable ? (
@@ -419,52 +323,7 @@ export const TaskSlideOver = ({ task, dispatch }) => {
           {/* Attachments (Block 5 — allegati reali) */}
           <TaskAttachments taskId={task.id} editable={editable} />
 
-          {/* Comments */}
-          <div>
-            <div style={txtF11Bold2}>
-              ATTIVITÀ & COMMENTI ({task.comments?.length || 0})
-            </div>
-            <div style={stiliComuni.colGap10}>
-              {(task.comments || []).map((c, i) => (
-                <div key={i} style={rowGap10}>
-                  <div style={rowCenterMiddle}>
-                    {c.user.split(" ").map(w => w[0]).join("").slice(0, 2)}
-                  </div>
-                  <div style={stiliComuni.flex1}>
-                    <div style={rowGap8}>
-                      <span style={txtF12Bold}>{c.user}</span>
-                      <span style={stiliComuni.txtF11Muted}>{formatDate(c.time)}</span>
-                    </div>
-                    <div style={txtF13Text}><MentionText text={c.text} /></div>
-                  </div>
-                </div>
-              ))}
-
-              {/* New comment */}
-              <div style={rowGap8Mt6}>
-                <div style={rowCenterMiddle2}>{myInitials}</div>
-                <div style={stiliComuni.flex1}>
-                  <div style={rowFlex1Gap6}>
-                    <input
-                      id="vd-commento"
-                      value={newComment}
-                      onChange={e => setNewComment(e.target.value)}
-                      onKeyDown={e => e.key === "Enter" && handleComment()}
-                      placeholder="Aggiungi un commento..."
-                      style={boxFlex1F12}
-                      {...ariaCampo("vd-commento-err", erroreCommento)} />
-                    {/* Spento solo per la durata della scrittura: è la stessa
-                        distinzione di ProfileEditor fra «operazione già
-                        partita» e «campo mancante», che invece va detto. */}
-                    <button onClick={handleComment} disabled={commentoInVolo} style={boxF13White2}>
-                      {commentoInVolo ? "…" : "↑"}
-                    </button>
-                  </div>
-                  <FieldError id="vd-commento-err">{erroreCommento}</FieldError>
-                </div>
-              </div>
-            </div>
-          </div>
+          <TaskCommenti taskId={task.id} commenti={task.comments || []} />
 
           {/* Cronologia (sessione 42): chi ha creato + modifiche di stato, priorità,
               assegnatari, scadenza, cestino/ripristino. Sola lettura.

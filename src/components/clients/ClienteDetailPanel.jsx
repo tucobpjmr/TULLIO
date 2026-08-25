@@ -32,7 +32,7 @@ const ClienteListePanel = lazy(() =>
 // Il tab "Liste viaggio" è il secondo punto d'ingresso al modulo Liste (il
 // primo è il bottone nell'header della Dashboard). Il modulo non ha una voce
 // di sidebar/bottom-nav: si arriva da qui e da lì.
-export function ClienteDetailPanel({ cliente, tasks, dispatch, onClose, showListe, liste = null, initialTab = null }) {
+export function ClienteDetailPanel({ cliente, tasks, onClose, showListe, liste = null, initialTab = null }) {
   const [tab, setTab] = useState("task");
 
   // Cambiando cliente si riparte dal tab Task: il tab Liste rifà comunque la
@@ -89,10 +89,10 @@ export function ClienteDetailPanel({ cliente, tasks, dispatch, onClose, showList
       {tab === "liste"
         ? (
           <LazyPanel resetKey={cliente?.id} onReset={() => setTab("task")}>
-            <ClienteListePanel cliente={cliente} dispatch={dispatch} />
+            <ClienteListePanel cliente={cliente} />
           </LazyPanel>
         )
-        : <ClienteTaskTab cliente={cliente} tasks={tasks} dispatch={dispatch} />}
+        : <ClienteTaskTab cliente={cliente} tasks={tasks} />}
     </div>
   );
 }

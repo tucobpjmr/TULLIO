@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import * as stiliComuni from "../../styles/common.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -27,7 +28,8 @@ const boxF12Bold2 = {
 // La logica tick è locale al componente; non inquina lo state globale con date.
 const ROLLBACK_SECS = 60;
 
-export function AdminRollbackBanner({ rollbackTo, switchedAt, dispatch }) {
+export function AdminRollbackBanner({ rollbackTo, switchedAt }) {
+  const dispatch = useDispatch();
   const { getMember } = useAppData();
   const [secs, setSecs] = useState(() => {
     if (!switchedAt) return ROLLBACK_SECS;

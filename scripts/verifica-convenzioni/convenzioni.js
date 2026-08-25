@@ -594,3 +594,96 @@ export function formeGiaInComune(costanti, comuni) {
     .filter(c => perValore.has(c.valore))
     .map(c => `${c.path}: \`${c.nome}\` ripete stiliComuni.${perValore.get(c.valore)}`);
 }
+
+/**
+ * ─── B-3 · DUE NOMI PER UN CONCETTO SOLO ──────────────────────────────────
+ * (audit del 25 agosto)
+ *
+ * `docs/CLAUDE.md` decide la lingua degli identificatori: inglese solo dove lo
+ * impongono React e lo schema del database, italiano per tutto ciò che
+ * scegliamo noi. Il difetto che questo controllo misura NON è il bilinguismo
+ * dell'app — è il suo caso peggiore: **la stessa cosa chiamata in due modi
+ * dentro lo stesso file**. `caricaApp` otto righe sopra `loadingScreen` non è
+ * una preferenza di stile: è un lettore che deve fermarsi a verificare se siano
+ * la stessa cosa, e a volte lo sono.
+ *
+ * ⚠️ NESSUNA EURISTICA SULLA LINGUA, e la scelta è deliberata. Un
+ * riconoscitore automatico di «questo nome è inglese» sbaglia su `contacts`,
+ * su `ORDINAMENTI` e su ogni sigla, e un controllo con falsi positivi diventa
+ * il rumore che si impara a saltare — è l'argomento con cui questo repo ha
+ * reso `max-lines` un errore invece di un warning. Qui l'elenco delle coppie è
+ * ESPLICITO: copre i concetti che nella codebase compaiono davvero in due
+ * lingue, e cresce quando ne emerge un altro.
+ */
+export const COPPIE_SINONIME = [
+  { concetto: 'errore',     it: /^error[ei]$|^errore[A-Z]\w*$/,      en: /^errors$|^[a-z]\w*Error$/ },
+  { concetto: 'bozza',      it: /^bozza\w*$/,                        en: /^draft\w*$/ },
+  { concetto: 'salvare',    it: /^salva\w*$|^salvataggio\w*$/,       en: /^handleSave$|^save[A-Z]\w*$|^saving$/ },
+  { concetto: 'confermare', it: /^conferm[ae]\w*$/,                  en: /^confirm\w*$/ },
+  { concetto: 'caricare',   it: /^caric[ao]\w*$|^caricando\w*$/,     en: /^loading\w*$|^load[A-Z]\w*$/ },
+  { concetto: 'eliminare',  it: /^elimin[ao]\w*$/,                   en: /^handleDelete$|^remove[A-Z]\w*$/ },
+  { concetto: 'aggiungere', it: /^aggiungi\w*$/,                     en: /^add[A-Z]\w*$/ },
+  { concetto: 'chiudere',   it: /^chiud[io]\w*$/,                    en: /^handleClose$|^close[A-Z]\w*$/ },
+  { concetto: 'aprire',     it: /^apri\w*$|^apert[oa]\w*$/,          en: /^open[A-Z]\w*$/ },
+  { concetto: 'cercare',    it: /^ricerc\w+$|^cerca\w*$/,            en: /^search[A-Z]\w*$/ },
+  { concetto: 'finestra',   it: /^finestra\w*$/,                     en: /^window[A-Z]\w*$/ },
+];
+
+/**
+ * ⚠️ ESENTI, e non per pigrizia: sono nomi del LIVELLO 1 della regola in
+ * `docs/CLAUDE.md` — quelli che non scegliamo noi. `error` nudo è la forma in
+ * cui supabase-js restituisce l'esito (`const { data, error } = await …`) e in
+ * cui il linguaggio consegna un `catch`: rinominarlo significherebbe
+ * ribattezzare il contratto di una libreria dentro casa nostra, che è più
+ * confondente del bilinguismo che questo controllo esiste per togliere. Senza
+ * questa riga il controllo segnalerebbe 40 file e sarebbe rumore.
+ */
+const NOMI_DELLA_PIATTAFORMA = new Set(['error', 'err', 'errore']);
+// Gli identificatori DICHIARATI in un file: `const`/`let`/`function`, incluse
+// le destrutturazioni (`const { salva, inVolo } = …`), che è dove finisce metà
+// del vocabolario di un componente. Non i riferimenti: un nome che il file
+// IMPORTA da altrove non è una scelta di questo file.
+function nomiDichiarati(testo) {
+  const senzaCommenti = testo
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\/\/[^\n]*/g, ' ');
+  const re = /\b(?:const|let|var|function)\s+(?:\{([^}]*)\}|\[([^\]]*)\]|([A-Za-z_$][\w$]*))/g;
+  const out = new Set();
+  for (const m of senzaCommenti.matchAll(re)) {
+    const blocco = m[1] || m[2];
+    if (!blocco) { out.add(m[3]); continue; }
+    for (const pezzo of blocco.split(',')) {
+      let nome = pezzo.split('=')[0].trim();
+      if (nome.includes(':')) nome = nome.split(':')[1].trim();
+      nome = nome.replace(/^\.\.\./, '').trim();
+      if (/^[A-Za-z_$][\w$]*$/.test(nome)) out.add(nome);
+    }
+  }
+  return [...out];
+}
+
+/**
+ * I file che dichiarano DUE nomi, uno per lingua, per lo stesso concetto.
+ *
+ * @param {{path: string, testo: string}[]} sorgenti
+ * @returns {string[]} righe pronte da mostrare, una per collisione
+ */
+export function doppioNome(sorgenti) {
+  if (sorgenti.length === 0) {
+    throw new LetturaFallita(
+      'Nessun sorgente da esaminare: questo controllo passerebbe a vuoto.');
+  }
+  const fuori = [];
+  for (const { path, testo } of sorgenti) {
+    const nomi = nomiDichiarati(testo);
+    const nostri = nomi.filter((n) => !NOMI_DELLA_PIATTAFORMA.has(n));
+    for (const { concetto, it, en } of COPPIE_SINONIME) {
+      const a = nostri.filter((n) => it.test(n)).sort();
+      const b = nostri.filter((n) => en.test(n)).sort();
+      if (a.length && b.length) {
+        fuori.push(`${path}: "${concetto}" è ${a.join('/')} e anche ${b.join('/')}`);
+      }
+    }
+  }
+  return fuori;
+}

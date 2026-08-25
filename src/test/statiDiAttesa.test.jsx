@@ -29,11 +29,10 @@ const { UrgentQueue } = await import("../components/dashboard/queues/UrgentQueue
 const { UnassignedQueue } = await import("../components/dashboard/queues/UnassignedQueue.jsx");
 const { OverdueQueue } = await import("../components/dashboard/queues/OverdueQueue.jsx");
 const { NoticeBoard } = await import("../components/dashboard/NoticeBoard.jsx");
-const { Archive } = await import("../components/views/Archive.jsx");
-const { Trash } = await import("../components/views/Trash.jsx");
+const { Archive } = await import("../components/tasks/Archive.jsx");
+const { Trash } = await import("../components/tasks/Trash.jsx");
 
 const render = (ui, ctx = DEMO_APP_CTX) => renderWithAppData(ui, ctx);
-const dispatch = () => {};
 const me = DEMO_APP_CTX.team.find(m => m.id === "marco");
 
 // Lo scheletro si riconosce da `aria-busy`, non da una classe CSS: è ciò che
@@ -43,19 +42,19 @@ const scheletro = () => document.querySelectorAll('[aria-busy="true"]');
 
 describe("code della Dashboard — in caricamento non dichiarano una coda vuota", () => {
   it("PersonalQueue non dice 'Buon lavoro!' finché i task non sono arrivati", () => {
-    render(<PersonalQueue tasks={[]} dispatch={dispatch} me={me} loading />);
+    render(<PersonalQueue tasks={[]} me={me} loading />);
     expect(screen.queryByText(/Buon lavoro/)).toBeNull();
     expect(scheletro().length).toBe(1);
   });
 
   it("UnassignedQueue non dice 'Tutti gli incarichi hanno un proprietario'", () => {
-    render(<UnassignedQueue tasks={[]} dispatch={dispatch} onTake={dispatch} uid="marco" loading />);
+    render(<UnassignedQueue tasks={[]} onTake={() => {}} uid="marco" loading />);
     expect(screen.queryByText(/hanno un proprietario/)).toBeNull();
     expect(scheletro().length).toBe(1);
   });
 
   it("OverdueQueue non dice 'Tutto in regola!'", () => {
-    render(<OverdueQueue tasks={[]} dispatch={dispatch} loading />);
+    render(<OverdueQueue tasks={[]} loading />);
     expect(screen.queryByText(/Tutto in regola/)).toBeNull();
     expect(scheletro().length).toBe(1);
   });
@@ -63,7 +62,7 @@ describe("code della Dashboard — in caricamento non dichiarano una coda vuota"
   it("UrgentQueue non dice 'Nessuna task in scadenza'", () => {
     // È il caso da cui nasce la criticità: una scadenza imminente che l'app
     // dichiara inesistente perché non l'ha ancora caricata.
-    render(<UrgentQueue tasks={[]} dispatch={dispatch} onOpenChat={dispatch} uid="marco" loading />);
+    render(<UrgentQueue tasks={[]} onOpenChat={() => {}} uid="marco" loading />);
     expect(screen.queryByText(/Nessuna task in scadenza/)).toBeNull();
     expect(scheletro().length).toBe(1);
   });
@@ -72,7 +71,7 @@ describe("code della Dashboard — in caricamento non dichiarano una coda vuota"
     // Il contrario del test precedente, e la ragione per cui `loading` non
     // basta da solo: quando il fetch è tornato davvero vuoto, "Buon lavoro!"
     // è la risposta giusta e deve tornare.
-    render(<PersonalQueue tasks={[]} dispatch={dispatch} me={me} loading={false} />);
+    render(<PersonalQueue tasks={[]} me={me} loading={false} />);
     expect(screen.getByText(/Buon lavoro/)).toBeTruthy();
     expect(scheletro().length).toBe(0);
   });
@@ -86,7 +85,7 @@ describe("code della Dashboard — in caricamento non dichiarano una coda vuota"
       status: "todo", client: "Rossi", assignees: ["marco"],
       dueDate: new Date(Date.now() + 6 * 3600 * 1000).toISOString(),
     };
-    render(<PersonalQueue tasks={[task]} dispatch={dispatch} me={me} loading />);
+    render(<PersonalQueue tasks={[task]} me={me} loading />);
     expect(screen.getByText("Volo Roma → Tokyo")).toBeTruthy();
     expect(scheletro().length).toBe(0);
   });
@@ -94,7 +93,7 @@ describe("code della Dashboard — in caricamento non dichiarano una coda vuota"
 
 describe("bacheca avvisi — in caricamento non dichiara la bacheca vuota", () => {
   it("NoticeBoard non dice 'Nessun avviso in bacheca'", () => {
-    render(<NoticeBoard notices={[]} dispatch={dispatch} loading />);
+    render(<NoticeBoard notices={[]} loading />);
     expect(screen.queryByText(/Nessun avviso in bacheca/)).toBeNull();
     expect(scheletro().length).toBe(1);
   });
@@ -104,7 +103,7 @@ describe("Archivio e Cestino — in caricamento non si dichiarano vuoti", () => 
   const ctx = { ...DEMO_APP_CTX, tasks: [] };
 
   it("Archive non dice 'Archivio vuoto'", () => {
-    render(<Archive dispatch={dispatch} loading />, ctx);
+    render(<Archive loading />, ctx);
     expect(screen.queryByText("Archivio vuoto")).toBeNull();
     expect(scheletro().length).toBe(1);
   });
@@ -112,15 +111,15 @@ describe("Archivio e Cestino — in caricamento non si dichiarano vuoti", () => 
   it("Trash non dice 'Cestino vuoto'", () => {
     // È la vista in cui si va a cercare qualcosa che si crede eliminato per
     // sbaglio: la risposta sbagliata chiude la ricerca.
-    render(<Trash dispatch={dispatch} loading />, ctx);
+    render(<Trash loading />, ctx);
     expect(screen.queryByText("Cestino vuoto")).toBeNull();
     expect(scheletro().length).toBe(1);
   });
 
   it("a caricamento finito i due vuoti tornano a essere dichiarati", () => {
-    render(<Archive dispatch={dispatch} loading={false} />, ctx);
+    render(<Archive loading={false} />, ctx);
     expect(screen.getByText("Archivio vuoto")).toBeTruthy();
-    render(<Trash dispatch={dispatch} loading={false} />, ctx);
+    render(<Trash loading={false} />, ctx);
     expect(screen.getByText("Cestino vuoto")).toBeTruthy();
   });
 });
@@ -143,7 +142,7 @@ describe("Archivio e Cestino — con lo storico in volo non dichiarano un totale
   const ctx = { ...DEMO_APP_CTX, tasks: [completata], storicoInCorso: true };
 
   it("Archive mostra lo scheletro invece del conteggio della sola finestra", () => {
-    render(<Archive dispatch={dispatch} loading={false} />, ctx);
+    render(<Archive loading={false} />, ctx);
     expect(screen.queryByText(/task completat/)).toBeNull();
     expect(screen.queryByText("Archivio vuoto")).toBeNull();
     expect(scheletro().length).toBe(1);
@@ -154,13 +153,13 @@ describe("Archivio e Cestino — con lo storico in volo non dichiarano un totale
     // più cablato sull'idratazione. Qui `tasks` non è vuoto e `loading` è
     // chiuso — senza il flag dello storico questa vista direbbe "vuoto" con
     // tutta la sicurezza del mondo.
-    render(<Trash dispatch={dispatch} loading={false} />, ctx);
+    render(<Trash loading={false} />, ctx);
     expect(screen.queryByText("Cestino vuoto")).toBeNull();
     expect(scheletro().length).toBe(1);
   });
 
   it("a storico arrivato i conteggi tornano a essere dichiarati", () => {
-    render(<Archive dispatch={dispatch} loading={false} />,
+    render(<Archive loading={false} />,
       { ...ctx, storicoInCorso: false });
     expect(screen.getByText(/1 task completata/)).toBeTruthy();
   });

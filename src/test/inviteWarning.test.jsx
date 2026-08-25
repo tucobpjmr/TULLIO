@@ -12,8 +12,9 @@ vi.mock("../lib/api.js", () => ({
   Users: { invite: (...args) => inviteMock(...args) },
 }));
 
-const { AddTeamMemberModal } = await import("../components/modals/AddTeamMemberModal.jsx");
-const { BulkInviteModal } = await import("../components/modals/BulkInviteModal.jsx");
+const { AddTeamMemberModal } = await import("../components/admin/AddTeamMemberModal.jsx");
+const { BulkInviteModal } = await import("../components/admin/BulkInviteModal.jsx");
+const { withDispatch } = await import("./helpers/appData.jsx");
 
 describe("AddTeamMemberModal — mostra il warning invece del solito successo", () => {
   beforeEach(() => { inviteMock.mockReset(); });
@@ -21,7 +22,7 @@ describe("AddTeamMemberModal — mostra il warning invece del solito successo", 
   it("un invito senza warning resta un toast di successo", async () => {
     inviteMock.mockResolvedValue({ data: { success: true, userId: "u1" }, error: null });
     const dispatch = vi.fn();
-    render(<AddTeamMemberModal onClose={vi.fn()} dispatch={dispatch} existingIds={[]} />);
+    render(withDispatch(<AddTeamMemberModal onClose={vi.fn()} existingIds={[]} />, dispatch));
 
     fireEvent.change(screen.getByPlaceholderText("Es. Anna Bianchi"), { target: { value: "Anna Bianchi" } });
     fireEvent.change(screen.getByPlaceholderText("anna@agenzia.it"), { target: { value: "anna@agenzia.it" } });
@@ -43,7 +44,7 @@ describe("AddTeamMemberModal — mostra il warning invece del solito successo", 
       error: null,
     });
     const dispatch = vi.fn();
-    render(<AddTeamMemberModal onClose={vi.fn()} dispatch={dispatch} existingIds={[]} />);
+    render(withDispatch(<AddTeamMemberModal onClose={vi.fn()} existingIds={[]} />, dispatch));
 
     fireEvent.change(screen.getByPlaceholderText("Es. Anna Bianchi"), { target: { value: "Anna Bianchi" } });
     fireEvent.change(screen.getByPlaceholderText("anna@agenzia.it"), { target: { value: "anna@agenzia.it" } });

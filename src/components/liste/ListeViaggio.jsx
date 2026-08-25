@@ -11,13 +11,14 @@
 // Inter, impaginazione "foglio cartaceo"); solo la chrome di navigazione —
 // breadcrumb e testata — segue lo stile Tullio (navy/oro, Playfair).
 import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
 import { useListeData } from "./useListeData.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useClients } from "../../state/ClientsContext.jsx";
 import { useClientiCompleti } from "../../state/ClientiCompletiContext.jsx";
-import { ListeAPI, downloadBlob, todayISO } from "./listeApi.js";
+import { ListeAPI } from "./listeApi.js";
 import { useListeWrite } from "./listePersistence.js";
+import { useStrumentiDati } from "./useStrumentiDati.js";
 import { overlayIniziale, overlayReducer } from "./listeReducers.js";
 import { terminiRicerca } from "../../lib/searchUtils.js";
 import "./liste.css";
@@ -37,6 +38,7 @@ import {
 import { useFinestra } from "../../hooks/useFinestra.js";
 import { ListaRow } from "./ListaRow.jsx";
 import * as stiliComuni from "../../styles/common.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -50,7 +52,8 @@ const HOME_PAGE_SIZE = 10;
 // guarda i task, quindi consuma il solo contesto clienti; `listeTarget` (la
 // lista da aprire, richiesta dal tab della scheda cliente) resta una prop,
 // piccola e con identità stabile.
-export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget = null }) {
+export const ListeViaggio = memo(function ListeViaggio({ listeTarget = null }) {
+  const dispatch = useDispatch();
   const { isMobile } = useViewport();
   const { team, currentUserId, isAdmin, canAccessListe } = useAppData();
   const clientsRaw = useClients();
@@ -75,9 +78,9 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
   // un altro utente.
   const { liste, cestino, saldi, loading, loadError, reload: loadHome } =
     useListeData({ enabled: listeAllowed });
-  const esegui = useListeWrite(dispatch);
+  const esegui = useListeWrite();
 
-  const [openId, setOpenId] = useState(null);
+  const [listaApertaId, impostaListaAperta] = useState(null);
   const [detail, setDetail] = useState(null); // { lista, movimenti, history }
 
   // Quattro valori INDIPENDENTI dell'elenco: si cerca dentro un filtro, con un
@@ -97,7 +100,6 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
   const apriOverlay = (tipo, dati = null) => overlayDispatch({ type: "APRI", overlay: tipo, dati });
   const chiudiOverlay = () => overlayDispatch({ type: "CHIUDI" });
   const conferma = useConfirm();
-  const fileInputRef = useRef(null);
 
   // L'anagrafica clienti e il team sono già idratati nello state globale
   // dell'app (stesse tabelle `clients`/`users` del modulo): li riusiamo invece
@@ -138,9 +140,9 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
     // Chiusura: nessuna loadDetail in volo resta legittima. Bump esplicito
     // (nessuna nuova loadDetail la farebbe da sola) così una risposta tardiva
     // per la lista appena chiusa non può riapparire nel dettaglio.
-    if (!openId) { detailGenRef.current += 1; setDetail(null); return; }
-    loadDetail(openId);
-  }, [openId, loadDetail]);
+    if (!listaApertaId) { detailGenRef.current += 1; setDetail(null); return; }
+    loadDetail(listaApertaId);
+  }, [listaApertaId, loadDetail]);
 
   // Apertura mirata da un'altra vista (tab "Liste viaggio" della scheda
   // cliente): SET_VIEW porta con sé l'id della lista da aprire. Il seq
@@ -149,7 +151,7 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
   const target = listeTarget;
   useEffect(() => {
     if (!target?.id) return;
-    setOpenId(target.id);
+    impostaListaAperta(target.id);
   }, [target?.id, target?.seq]);
 
   // Ricarica dopo una scrittura: il dettaglio va SEMPRE ricaricato (il saldo,
@@ -164,11 +166,22 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
   // anti-race qui non dipende più da questo argomento, viene dal generation
   // counter condiviso dentro useListeData stesso.
   const reloadAll = useCallback(async (tabelle = null) => {
-    await Promise.all([loadHome(undefined, tabelle), openId ? loadDetail(openId) : Promise.resolve()]);
-  }, [loadHome, loadDetail, openId]);
+    await Promise.all([loadHome(undefined, tabelle), listaApertaId ? loadDetail(listaApertaId) : Promise.resolve()]);
+  }, [loadHome, loadDetail, listaApertaId]);
+
+  // ── Strumenti dati: backup in giù, backup in su, reset totale ──
+  // Un file suo (M-5, audit del 25 agosto): è l'unico dei quattro lavori di
+  // questo modulo che non tocca né l'elenco né il dettaglio — legge e riscrive
+  // l'intero corpus da un file su disco.
+  const {
+    fileInputRef, scaricaBackup, apriCaricaBackup, onBackupFile,
+    confermaImport, confermaReset,
+  } = useStrumentiDati({
+    overlay, overlayDispatch, apriOverlay, chiudiOverlay, ricarica: loadHome,
+  });
 
   const backToHome = useCallback(async () => {
-    setOpenId(null);
+    impostaListaAperta(null);
     dispatch({ type: "CLEAR_LISTE_TARGET" });
     await loadHome();
   }, [dispatch, loadHome]);
@@ -255,111 +268,9 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
     if (ok) await loadHome();
   };
 
-  // ── Strumenti dati: backup JSON, ripristino da backup, reset totale ──
-  const scaricaBackup = async () => {
-    const { data, error } = await ListeAPI.backupData();
-    if (error) {
-      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Errore: ${error.message}` } });
-      return;
-    }
-    const backup = {
-      app: "liste-viaggio", versione: 1, esportato_il: new Date().toISOString(), ...data,
-    };
-    downloadBlob(
-      new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }),
-      `backup_liste_viaggio_${todayISO()}.json`,
-    );
-    dispatch({
-      type: "SHOW_TOAST",
-      payload: { type: "success", message: `Backup scaricato: ${data.liste.length} liste, ${data.movimenti.length} movimenti` },
-    });
-  };
-
-  const apriCaricaBackup = () => {
-    chiudiOverlay();
-    fileInputRef.current?.click();
-  };
-
-  // Legge e valida il file scelto; il conteggio va mostrato PRIMA di scrivere,
-  // così l'utente sa cosa sta per aggiungere (importa_backup fa solo merge:
-  // aggiunge, salta i duplicati per id, non cancella nulla).
-  const onBackupFile = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    let data;
-    try {
-      data = JSON.parse(await file.text());
-    } catch {
-      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "File non valido: JSON non leggibile" } });
-      return;
-    }
-    if (!data || data.app !== "liste-viaggio" || !Array.isArray(data.liste)) {
-      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "Il file non sembra un backup di questa app." } });
-      return;
-    }
-    apriOverlay("import", {
-      // `beneficiari` NON è opzionale per distrazione: i backup prodotti prima
-      // della cointestazione (2 agosto) non hanno il campo, e per quelli `[]`
-      // è la risposta giusta. Ometterlo del tutto invece — com'era fino al 14
-      // agosto (C-1) — fa sparire i cointestatari anche dai backup che LI
-      // CONTENGONO, senza errore: `chunk(undefined)` ritorna `[]` e il passo
-      // non viene nemmeno costruito (listeApi.js: chunk, importaBackup).
-      payload: {
-        clients: data.clients || [],
-        liste: data.liste || [],
-        beneficiari: data.beneficiari || [],
-        movimenti: data.movimenti || [],
-      },
-      nL: (data.liste || []).length,
-      nB: (data.beneficiari || []).length,
-      nM: (data.movimenti || []).length,
-      progress: null,
-    });
-  };
-
-  const confermaImport = async () => {
-    if (overlay.tipo !== "import") return false;
-    // Il ripristino ora è spezzato in più chiamate: su un backup grande può
-    // durare parecchi secondi, e un bottone fermo su "Carico…" sembrerebbe
-    // bloccato. L'avanzamento arriva dal layer dati, che sa quanti blocchi ha
-    // già scritto — ed è l'unico dato che cambia mentre l'overlay resta aperto,
-    // quindi PROGRESSO e non una transizione.
-    overlayDispatch({ type: "PROGRESSO", progress: { done: 0, total: 0 } });
-    const { ok, data: res } = await esegui(
-      "importaBackup",
-      overlay.dati.payload,
-      (progress) => overlayDispatch({ type: "PROGRESSO", progress }),
-    );
-    // Fallito: l'avanzamento sparisce ma la modale resta aperta, così si può
-    // riprovare senza riscegliere il file.
-    overlayDispatch({ type: "PROGRESSO", progress: null });
-    if (!ok) return false;
-    chiudiOverlay();
-    dispatch({
-      type: "SHOW_TOAST",
-      payload: {
-        type: "success",
-        message: `Backup caricato: +${res.clients_added} clienti, +${res.liste_added} liste, `
-          + `+${res.beneficiari_added} cointestatari, +${res.movimenti_added} movimenti`,
-      },
-    });
-    await loadHome();
-    return true;
-  };
-
-  const confermaReset = async () => {
-    const { ok, data: res } = await esegui("resetTotale");
-    if (!ok) return false;
-    chiudiOverlay();
-    dispatch({
-      type: "SHOW_TOAST",
-      payload: { type: "success", message: `Reset eseguito: ${res.liste_deleted} liste e ${res.movimenti_deleted} movimenti eliminati` },
-    });
-    await loadHome();
-    return true;
-  };
-
+  // Plain: `onError` delle modali porta anche messaggi di VALIDAZIONE («Digita
+  // esattamente: RESET TOTALE»), non solo esiti di scrittura — `toastErrore`
+  // ci premetterebbe «Salvataggio fallito» a un salvataggio mai partito.
   const toastError = (message) => dispatch({ type: "SHOW_TOAST", payload: { type: "error", message } });
 
   // ─── chrome di navigazione (stile Tullio) ───
@@ -436,7 +347,6 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
               movimenti={detail.movimenti}
               history={detail.history}
               usersById={usersById}
-              dispatch={dispatch}
               onReload={reloadAll}
               onArchived={backToHome}
               clients={clients}
@@ -520,7 +430,7 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
                 ) : (
                   <>
                     {finestra.visibili.map((l) => (
-                      <ListaRow key={l.id} lista={l} saldo={saldi[l.id]} onOpen={() => setOpenId(l.id)} />
+                      <ListaRow key={l.id} lista={l} saldo={saldi[l.id]} onOpen={() => impostaListaAperta(l.id)} />
                     ))}
                     {finestra.restanti > 0 && (
                       <div style={txtCenter}>
@@ -551,7 +461,7 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
                   if (!ok) return false;
                   chiudiOverlay();
                   await loadHome();
-                  setOpenId(id);
+                  impostaListaAperta(id);
                   return true;
                 },
               }}

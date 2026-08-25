@@ -1,10 +1,10 @@
 // ─── NOTICE BOARD ────────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
 import { useState, useMemo } from "react";
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { canEditNotice } from "../../lib/permissions.js";
-import { NoticeEditorModal } from "../modals/NoticeEditorModal.jsx";
+import { NoticeEditorModal } from "./NoticeEditorModal.jsx";
 import { MentionText } from "../ui/MentionText.jsx";
 import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { Z } from "../../styles/tokens.js";
@@ -16,6 +16,7 @@ import {
   rowCenterGap5, rowCenterGap6, rowCenterGap62, rowCenterMiddle, rowGap4Mt8, txtAbsoluteF18,
   txtBold, txtF10Bold, txtF13TxtCenter, txtF17Bold, txtFlex1F13,
 } from "./noticeBoardStyles.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // v2.8: emoji disponibili per le reazioni rapide sui post-it.
 // Tenuto basso (6) per non rompere il layout del post-it. Stesso shape della chat.
@@ -25,7 +26,8 @@ const NOTICE_REACTION_EMOJI = ["👍", "❤️", "🎉", "👀", "🔥", "✅"];
 // "leggi questo prima di lavorare". Dire "Nessun avviso in bacheca" prima di
 // aver caricato gli avvisi invita a saltare esattamente ciò che non si è
 // ancora visto.
-export const NoticeBoard = ({ notices, dispatch, loading = false }) => {
+export const NoticeBoard = ({ notices, loading = false }) => {
+  const dispatch = useDispatch();
   const conferma = useConfirm();
   const { team, getMember, currentUserId } = useAppData();
   const [editing, setEditing] = useState(null); // null | { id?, text, color }

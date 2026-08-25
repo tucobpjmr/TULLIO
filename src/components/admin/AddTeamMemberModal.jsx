@@ -7,7 +7,7 @@
 import { useRef, useState } from "react";
 import {
   modalOverlay, modalCard, labelStyle, fieldStyle, btnPrimary, btnGhost,
-} from "../admin/adminStyles.js";
+} from "./adminStyles.js";
 import { ModalPortal } from "../ui/ModalPortal.jsx";
 import { Users } from "../../lib/api.js";
 import { emailValida, obbligatorio, primoCampoInvalido, validaCampi } from "../../lib/validators.js";
@@ -16,6 +16,7 @@ import {
   DB_ROLES, ROLE_LABELS, SENIORITY_LEVELS, SENIORITY_LABELS,
 } from "../../lib/taskConstants.js";
 import * as stiliComuni from "../../styles/common.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -50,7 +51,8 @@ const REGOLE = {
 // L'ordine VISIVO dei campi, che è quello in cui il focus deve tornare.
 const ORDINE = ["name", "email"];
 
-export const AddTeamMemberModal = ({ onClose, dispatch, existingIds, onInvited }) => {
+export const AddTeamMemberModal = ({ onClose, existingIds, onInvited }) => {
+  const dispatch = useDispatch();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("agent");

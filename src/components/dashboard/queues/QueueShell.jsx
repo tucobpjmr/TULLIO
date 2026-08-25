@@ -16,7 +16,7 @@
 // stessa metrica (chip 4px/11px/600, badge 4px 12px/13px/700). Le differenze
 // che spariscono erano deriva accumulata, non scelte di design.
 
-import { useViewport } from "../../Viewport.jsx";
+import { useViewport } from "../../ui/Viewport.jsx";
 import * as stiliComuni from "../../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,

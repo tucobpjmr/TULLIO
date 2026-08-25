@@ -1,4 +1,4 @@
-// src/components/views/archiveFilters.js
+// src/components/tasks/archiveFilters.js
 // Filtro per periodo e chip di selezione, condivisi dall'archivio task e
 // dall'archivio liste viaggio: due viste diverse, la stessa domanda
 // ("mostrami solo l'ultimo mese") e finora due copie della stessa logica.

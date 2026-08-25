@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render as rtlRender, screen, fireEvent } from "@testing-library/react";
-import { Trash } from "../components/views/Trash.jsx";
+import { Trash } from "../components/tasks/Trash.jsx";
 import { withAppData } from "./helpers/appData.jsx";
 
 // ─── Contesto app per il render ─────────────────────────────────────────────
@@ -13,11 +13,13 @@ let appCtx = { team: [], categories: {}, currentUserId: null, tasks: [], clients
 const ctxTeam = (t) => { appCtx = { ...appCtx, team: t }; };
 const ctxUser = (id) => { appCtx = { ...appCtx, currentUserId: id }; };
 const ctxTasks = (t) => { appCtx = { ...appCtx, tasks: t }; };
-const render = (ui, options) => {
-  const utils = rtlRender(withAppData(ui, appCtx), options);
+// M-2 (25 agosto): `dispatch` arriva per contesto, quindi il render lo prende
+// fra le opzioni invece che come prop del componente sotto esame.
+const render = (ui, { dispatch, ...options } = {}) => {
+  const utils = rtlRender(withAppData(ui, { ...appCtx, dispatch }), options);
   // `appCtx` è letto al momento del rerender, non a quello del primo render:
   // un test può cambiare utente con ctxUser() e ri-renderizzare.
-  return { ...utils, rerender: (next) => utils.rerender(withAppData(next, appCtx)) };
+  return { ...utils, rerender: (next) => utils.rerender(withAppData(next, { ...appCtx, dispatch })) };
 };
 
 // Mock di api.js per non istanziare il client Supabase reale (stesso pattern di
@@ -32,10 +34,10 @@ vi.mock("../auth/AuthContext.jsx", () => ({
   useAuth: () => ({ session: null, updatePassword: vi.fn(), deleteAccount: vi.fn() }),
 }));
 
-const { AddCategoryModal } = await import("../components/modals/AddCategoryModal.jsx");
-const { AddTeamMemberModal } = await import("../components/modals/AddTeamMemberModal.jsx");
-const { NoticeEditorModal } = await import("../components/modals/NoticeEditorModal.jsx");
-const { ProfileEditor } = await import("../components/modals/ProfileEditor.jsx");
+const { AddCategoryModal } = await import("../components/admin/AddCategoryModal.jsx");
+const { AddTeamMemberModal } = await import("../components/admin/AddTeamMemberModal.jsx");
+const { NoticeEditorModal } = await import("../components/dashboard/NoticeEditorModal.jsx");
+const { ProfileEditor } = await import("../components/shell/ProfileEditor.jsx");
 
 // I modali di Amministrazione e della bacheca sono dichiarati dentro viste che
 // entrano con le classi d'animazione .fade-in/.slide-up: i loro keyframe
@@ -59,7 +61,7 @@ const overlayOf = (el) => el.closest('[style*="position: fixed"]');
 describe("Modali dentro viste animate — montati via portale su document.body", () => {
   it("AddCategoryModal non resta dentro il wrapper .fade-in", () => {
     const { container } = renderInAnimatedView(
-      <AddCategoryModal onClose={vi.fn()} dispatch={vi.fn()} existingKeys={[]} />
+      <AddCategoryModal onClose={vi.fn()} existingKeys={[]} />
     );
 
     const overlay = overlayOf(screen.getByText("Aggiungi nuova categoria"));
@@ -70,7 +72,7 @@ describe("Modali dentro viste animate — montati via portale su document.body",
 
   it("AddTeamMemberModal non resta dentro il wrapper .fade-in", () => {
     const { container } = renderInAnimatedView(
-      <AddTeamMemberModal onClose={vi.fn()} dispatch={vi.fn()} existingIds={[]} />
+      <AddTeamMemberModal onClose={vi.fn()} existingIds={[]} />
     );
 
     const overlay = overlayOf(screen.getByText("Aggiungi nuovo agente"));
@@ -110,7 +112,6 @@ describe("Card modali — semantica di dialogo e nessun transform", () => {
     render(
       <ProfileEditor
         member={{ id: "marco", name: "Marco", color: "#0F2044" }}
-        dispatch={vi.fn()}
         onClose={vi.fn()}
       />
     );
@@ -135,7 +136,7 @@ describe("Card modali — semantica di dialogo e nessun transform", () => {
       deletedAt: new Date().toISOString(),
     };
     ctxTasks([task]);
-    render(<Trash dispatch={vi.fn()} />);
+    render(<Trash />, { dispatch: vi.fn() });
 
     fireEvent.click(screen.getByTitle("Ripristina con modifica"));
 

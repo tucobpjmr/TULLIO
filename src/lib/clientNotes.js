@@ -54,25 +54,9 @@ export function notesPreview(notes, max = 80) {
 }
 
 // ─── nome cliente: chiave di confronto ────────────────────────────────────
-// Gemella di `chiaveCliente` in scripts/importa-liste/parser.js e di
-// `normName` in ClientImportModal: maiuscole, accenti e spazi doppi non
-// distinguono due clienti. NON riordina le parole ("ROSSI MARIO" resta
-// diverso da "MARIO ROSSI"): fonderli d'ufficio unirebbe le liste di due
-// persone diverse in caso di omonimia parziale.
-export const chiaveNome = (s) => String(s ?? '')
-  .normalize('NFD').replace(/[̀-ͯ]/g, '')
-  .toUpperCase()
-  .replace(/\s+/g, ' ')
-  .trim();
-
-/**
- * Task collegati a un cliente PER NOME. `tasks.client_id` è testo libero, non
- * una foreign key: il legame regge finché le due stringhe coincidono, quindi
- * rinominare il cliente lo spezza in silenzio. Chi rinomina deve saperlo, e
- * il rename deve poter portarsi dietro i task.
- */
-export const tasksDelCliente = (tasks, name) => {
-  const k = chiaveNome(name);
-  if (!k) return [];
-  return (tasks || []).filter((t) => chiaveNome(t.client) === k);
-};
+// Viveva qui (`chiaveNome`) e ora sta in lib/chiaveCliente.js insieme a
+// `tasksDelCliente`: M-4 dell'audit del 25 agosto. Il commento che la
+// accompagnava diceva di essere «gemella di `chiaveCliente` in
+// scripts/importa-liste/parser.js e di `normName` in ClientImportModal» — e
+// non lo era, perché la punteggiatura divideva le tre in due famiglie. Questo
+// file torna a fare una cosa sola: leggere le note.

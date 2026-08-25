@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render as rtlRender, screen, fireEvent } from "@testing-library/react";
-import { Trash } from "../components/views/Trash.jsx";
+import { Trash } from "../components/tasks/Trash.jsx";
 import { withAppData } from "./helpers/appData.jsx";
 
 // Avatar (montato in profondità da questo albero di componenti) importa
@@ -18,11 +18,14 @@ let appCtx = { team: [], categories: {}, currentUserId: null, tasks: [], clients
 const ctxTeam = (t) => { appCtx = { ...appCtx, team: t }; };
 const ctxUser = (id) => { appCtx = { ...appCtx, currentUserId: id }; };
 const ctxTasks = (t) => { appCtx = { ...appCtx, tasks: t }; };
-const render = (ui, options) => {
-  const utils = rtlRender(withAppData(ui, appCtx), options);
+// M-2 (25 agosto): `dispatch` arriva per contesto, quindi il render lo prende
+// fra le opzioni invece che come prop del componente sotto esame.
+const render = (ui, { dispatch, ...options } = {}) => {
+  const ctx = () => ({ ...appCtx, dispatch });
+  const utils = rtlRender(withAppData(ui, ctx()), options);
   // `appCtx` è letto al momento del rerender, non a quello del primo render:
   // un test può cambiare utente con ctxUser() e ri-renderizzare.
-  return { ...utils, rerender: (next) => utils.rerender(withAppData(next, appCtx)) };
+  return { ...utils, rerender: (next) => utils.rerender(withAppData(next, ctx())) };
 };
 
 // Team di prova: un admin (marco) e un driver (dario).
@@ -46,7 +49,7 @@ describe("Trash — la lista usa canViewTask, le azioni usano canEditTask", () =
     ctxUser("dario");
     const task = trashedTask();
     ctxTasks([task]);
-    render(<Trash dispatch={vi.fn()} />);
+    render(<Trash />, { dispatch: vi.fn() });
     expect(screen.getByText("Prenotazione hotel")).toBeInTheDocument();
   });
 
@@ -55,7 +58,7 @@ describe("Trash — la lista usa canViewTask, le azioni usano canEditTask", () =
     const task = trashedTask();
     const dispatch = vi.fn();
     ctxTasks([task]);
-    render(<Trash dispatch={dispatch} />);
+    render(<Trash />, { dispatch });
 
     fireEvent.click(screen.getByTitle("Ripristina con modifica"));
     expect(dispatch).toHaveBeenCalledWith({
@@ -79,7 +82,7 @@ describe("Trash — la lista usa canViewTask, le azioni usano canEditTask", () =
     ctxUser("dario");
     const task = trashedTask({ id: "t2", title: "Volo Milano", assignees: ["marco"] });
     ctxTasks([task]);
-    render(<Trash dispatch={vi.fn()} />);
+    render(<Trash />, { dispatch: vi.fn() });
     expect(screen.queryByText("Volo Milano")).not.toBeInTheDocument();
     expect(screen.getByText("Cestino vuoto")).toBeInTheDocument();
   });
@@ -89,7 +92,7 @@ describe("Trash — la lista usa canViewTask, le azioni usano canEditTask", () =
     const task = trashedTask();
     const dispatch = vi.fn();
     ctxTasks([task]);
-    render(<Trash dispatch={dispatch} />);
+    render(<Trash />, { dispatch });
 
     fireEvent.click(screen.getByTitle("Ripristina con modifica"));
     expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: "SHOW_TOAST" }));

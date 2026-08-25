@@ -18,7 +18,7 @@
 // seconda che i dati sono ancora lì.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
-import { renderWithAppData, DEMO_APP_CTX } from "./helpers/appData.jsx";
+import { renderWithAppData, withDispatch, DEMO_APP_CTX } from "./helpers/appData.jsx";
 
 vi.mock("../lib/supabase", () => ({ supabase: {}, default: {} }));
 vi.mock("../lib/api.js", () => ({
@@ -37,12 +37,12 @@ vi.mock("../lib/api.js", () => ({
   subscribeToTable: vi.fn(() => () => {}),
 }));
 
-const { NoticeEditorModal } = await import("../components/modals/NoticeEditorModal.jsx");
-const { AddCategoryModal } = await import("../components/modals/AddCategoryModal.jsx");
+const { NoticeEditorModal } = await import("../components/dashboard/NoticeEditorModal.jsx");
+const { AddCategoryModal } = await import("../components/admin/AddCategoryModal.jsx");
 const { AdminCategoriesTab } = await import("../components/admin/tabs/AdminCategoriesTab.jsx");
 const { AdminTeamTab } = await import("../components/admin/tabs/AdminTeamTab.jsx");
 const { MessageTemplatesSection } = await import("../components/admin/tabs/MessageTemplatesSection.jsx");
-const { Trash } = await import("../components/views/Trash.jsx");
+const { Trash } = await import("../components/tasks/Trash.jsx");
 
 // Il rifiuto tipico: la RLS filtra le righe invece di sollevare, quindi
 // `useSyncedDispatch` traduce in `{ error }` e la promise si risolve — non
@@ -121,7 +121,7 @@ describe("A-4 · NoticeEditorModal — l'avviso digitato sopravvive al rifiuto",
 describe("A-4 · AddCategoryModal — la categoria digitata sopravvive al rifiuto", () => {
   const monta = (dispatch) => {
     const onClose = vi.fn();
-    render(<AddCategoryModal onClose={onClose} dispatch={dispatch} existingKeys={[]} />);
+    render(withDispatch(<AddCategoryModal onClose={onClose} existingKeys={[]} />, dispatch));
     return onClose;
   };
 
@@ -141,7 +141,7 @@ describe("A-4 · AddCategoryModal — la categoria digitata sopravvive al rifiut
 // ─── 3. AdminCategoriesTab (editor in linea) ────────────────────────────────
 describe("A-4 · AdminCategoriesTab — l'editor in linea non si svuota sul rifiuto", () => {
   const monta = (dispatch) =>
-    renderWithAppData(<AdminCategoriesTab dispatch={dispatch} />, { ...DEMO_APP_CTX, tasks: [] });
+    renderWithAppData(<AdminCategoriesTab />, { dispatch, ...DEMO_APP_CTX, tasks: [] });
 
   it("scrittura rifiutata: l'editor resta aperto con l'etichetta modificata", async () => {
     monta(RIFIUTA);
@@ -169,7 +169,7 @@ describe("A-4 · AdminCategoriesTab — l'editor in linea non si svuota sul rifi
 // ─── 4. AdminTeamTab — il caso peggiore del rilievo ─────────────────────────
 describe("A-4 · AdminTeamTab — la revoca dei privilegi non si chiude alla cieca", () => {
   const monta = (dispatch) =>
-    renderWithAppData(<AdminTeamTab dispatch={dispatch} />, { ...DEMO_APP_CTX, tasks: [] });
+    renderWithAppData(<AdminTeamTab />, { dispatch, ...DEMO_APP_CTX, tasks: [] });
 
   it("cambio di ruolo rifiutato: l'editor resta aperto e lo DICE", async () => {
     // `state/persistence.js` dice a cosa serve questa azione: «il modo con cui
@@ -201,7 +201,7 @@ describe("A-4 · AdminTeamTab — la revoca dei privilegi non si chiude alla cie
 describe("A-4 · MessageTemplatesSection — il testo del template non si perde", () => {
   const monta = (dispatch) =>
     renderWithAppData(
-      <MessageTemplatesSection templates={[]} dispatch={dispatch} />, DEMO_APP_CTX);
+      <MessageTemplatesSection templates={[]} />, { ...DEMO_APP_CTX, dispatch });
 
   it("scrittura rifiutata: etichetta e testo restano nei campi", async () => {
     monta(RIFIUTA);
@@ -230,7 +230,7 @@ describe("A-4 / M-3 · Cestino — il ripristino con modifica è una sequenza", 
     deletedAt: "2026-08-01T10:00:00Z",
   };
   const monta = (dispatch) =>
-    renderWithAppData(<Trash dispatch={dispatch} />, {
+    renderWithAppData(<Trash />, { dispatch,
       ...DEMO_APP_CTX, tasks: [TASK_CESTINATA],
     });
 

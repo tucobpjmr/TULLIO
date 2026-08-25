@@ -35,7 +35,7 @@ vi.mock("../lib/api.js", () => ({
   subscribeToTable: vi.fn(() => () => {}),
 }));
 
-const { QuickAddTask } = await import("../components/modals/QuickAddTask.jsx");
+const { QuickAddTask } = await import("../components/tasks/QuickAddTask.jsx");
 const { ClienteModal } = await import("../components/clients/ClienteModal.jsx");
 const { TaskSlideOver } = await import("../components/tasks/TaskSlideOver.jsx");
 
@@ -289,7 +289,7 @@ describe("TaskSlideOver — il commento si svuota dopo la conferma", () => {
     praticaRef: null, contact: null, description: "", dueDate: null,
   };
   const monta = (dispatch) => {
-    renderWithAppData(<TaskSlideOver task={TASK} dispatch={dispatch} />, DEMO_APP_CTX);
+    renderWithAppData(<TaskSlideOver task={TASK} />, { ...DEMO_APP_CTX, dispatch });
     return screen.getByPlaceholderText("Aggiungi un commento...");
   };
   const invia = () => fireEvent.click(screen.getByText("↑"));

@@ -21,11 +21,13 @@ import { withAppData } from "./helpers/appData.jsx";
 let appCtx = { team: [], categories: {}, currentUserId: null };
 const ctxTeam = (t) => { appCtx = { ...appCtx, team: t }; };
 const ctxUser = (id) => { appCtx = { ...appCtx, currentUserId: id }; };
-const render = (ui, options) => {
-  const utils = rtlRender(withAppData(ui, appCtx), options);
+// M-2 (25 agosto): `dispatch` arriva per contesto, quindi il render lo prende
+// fra le opzioni invece che come prop del componente sotto esame.
+const render = (ui, { dispatch, ...options } = {}) => {
+  const utils = rtlRender(withAppData(ui, { ...appCtx, dispatch }), options);
   // `appCtx` è letto al momento del rerender, non a quello del primo render:
   // un test può cambiare utente con ctxUser() e ri-renderizzare.
-  return { ...utils, rerender: (next) => utils.rerender(withAppData(next, appCtx)) };
+  return { ...utils, rerender: (next) => utils.rerender(withAppData(next, { ...appCtx, dispatch })) };
 };
 
 
@@ -120,11 +122,11 @@ describe("ListaDetail — cointestatari", () => {
         movimenti={[]}
         history={[]}
         usersById={{}}
-        dispatch={dispatch}
         onReload={onReload}
         onArchived={vi.fn()}
         clients={CLIENTS}
       />,
+      { dispatch },
     );
     return { dispatch };
   };
@@ -209,7 +211,6 @@ describe("ListaDetail — sposta il titolare su un altro cliente", () => {
         movimenti={[]}
         history={[]}
         usersById={{}}
-        dispatch={vi.fn()}
         onReload={onReload}
         onArchived={vi.fn()}
         clients={CLIENTS}
@@ -259,7 +260,7 @@ describe("ListeViaggio — la ricerca trova anche i cointestatari", () => {
   it("cerca 'BIANCHI': trova la lista intestata a ROSSI con BIANCHI cointestataria", async () => {
     ctxTeam(TEAM.map((m) => ({ ...m })));
     ctxUser("marco");
-    render(<ListeViaggio dispatch={vi.fn()} />);
+    render(<ListeViaggio />, { dispatch: vi.fn() });
     await waitFor(() => expect(ListeAPIMock.list).toHaveBeenCalled());
 
     expect(await screen.findByText("MARIO ROSSI e MARIA BIANCHI")).toBeTruthy();
@@ -280,7 +281,7 @@ describe("ClienteListePanel — vista dal lato del cointestatario", () => {
     // dall'id passato: nella realtà è la vista lista_partecipanti (titolare
     // UNION cointestatari) a garantire che la query la trovi anche per
     // "cl-maria", che di questa lista non è la colonna client_id.
-    render(<ClienteListePanel cliente={{ id: "cl-maria", name: "MARIA BIANCHI" }} dispatch={vi.fn()} />);
+    render(<ClienteListePanel cliente={{ id: "cl-maria", name: "MARIA BIANCHI" }} />, { dispatch: vi.fn() });
 
     expect(await screen.findByText("MARIO ROSSI e MARIA BIANCHI")).toBeTruthy();
     expect(ListeAPIMock.listByClient).toHaveBeenCalledWith("cl-maria");

@@ -9,12 +9,12 @@ const mt16 = { marginTop: 16 };
 // Note interne: sezione a uso del team, separata dal "foglio" dei movimenti.
 // Non finisce mai nel riepilogo cliente: riepilogoTesto/RiepilogoClienteModal
 // leggono solo `movimenti`, mai `lista.note` (vedi listeApi.js/listeModals.jsx).
-export function NoteInterne({ lista, dispatch, onSaved }) {
+export function NoteInterne({ lista, onSaved }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(lista.note || "");
   const [saving, setSaving] = useState(false);
   const inputRef = useRef(null);
-  const esegui = useListeWrite(dispatch);
+  const esegui = useListeWrite();
 
   useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
 

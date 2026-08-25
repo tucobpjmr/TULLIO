@@ -1,6 +1,7 @@
 import { eur, fmtDate, intestazioneLista, riepilogoTesto, saldoClass } from "../listeApi.js";
 import { LvOverlay } from "./LvOverlay.jsx";
 import { dataNumerica } from "../../../lib/dates.js";
+import { useDispatch } from "../../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -15,7 +16,8 @@ const txtRight = { textAlign: "right" };
 // `liste_saldi` (B-1 dell'audit del 23 agosto): questo è uno dei due
 // documenti che escono dal sistema, quindi non lo si ricalcola qui in float64
 // se è già disponibile. Il ricalcolo locale resta come fallback.
-export function RiepilogoClienteModal({ lista, movimenti, saldo: saldoEsatto, dispatch, onClose }) {
+export function RiepilogoClienteModal({ lista, movimenti, saldo: saldoEsatto, onClose }) {
+  const dispatch = useDispatch();
   const saldo = saldoEsatto !== undefined ? saldoEsatto : movimenti.reduce((s, m) => s + Number(m.importo), 0);
   const cls = saldoClass(saldo);
 

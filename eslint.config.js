@@ -223,6 +223,35 @@ const VIETATO_COMMON_NOMINATO = {
     'due sta guardando.',
 };
 
+// M-2 dell'audit del 25 agosto. `dispatch` viaggia per contesto
+// (state/DispatchContext.jsx, `useDispatch()`), non come prop: cinquanta
+// componenti lo dichiaravano fra le proprie, e per buona parte di loro non era
+// un dato — era un pacco da consegnare al piano di sotto.
+//
+// La regola esiste per la stessa ragione di VIETATO_APPGLOBALS, e la storia è
+// identica: il problema non era scrivere il context: era che ogni componente
+// aggiunto copiava la firma dal vicino. La prova che sarebbe successo di nuovo
+// c'è già — `chatContext.js` aveva messo `dispatch` nel PROPRIO context per
+// scampare a quattro livelli di prop-drilling, cioè aveva dato la risposta
+// giusta a metà problema senza che nulla la propagasse al resto dell'app.
+//
+// Le eccezioni sono due e sono nominate — i due punti in cui il dispatch ENTRA
+// nell'albero invece di attraversarlo: `<DispatchProvider dispatch={…}>` e
+// `<AppProviders dispatch={…}>`, che non è altro che l'annidamento dei
+// provider di dominio. Passa a zero violazioni: non chiede un refactor,
+// impedisce la prossima regressione.
+const PROVIDER_DEL_DISPATCH = ['DispatchProvider', 'AppProviders'];
+const VIETATO_DISPATCH_PROP = {
+  selector: `JSXOpeningElement:not(${PROVIDER_DEL_DISPATCH.map((n) => `[name.name='${n}']`).join(', ')})`
+    + " > JSXAttribute[name.name='dispatch']",
+  message:
+    '`dispatch` non si passa come prop: si legge con useDispatch() da '
+    + 'src/state/DispatchContext.jsx. La sua identità è stabile per contratto '
+    + '(hooks/useSyncedDispatch.js), quindi il contesto non costa un render in '
+    + 'più — vedi M-2 in docs/AUDIT_ARCHITETTURA_2026-08-25.md. Nei test si '
+    + 'passa a renderWithAppData(ui, { dispatch }) o a withDispatch(ui, dispatch).',
+};
+
 const VIETATO_LISTEAPI_DA_FUORI = {
   group: ['**/liste/listeApi', '**/liste/listeApi.js'],
   message:
@@ -375,7 +404,8 @@ export default [
           VIETATO_LISTEAPI_DA_FUORI, VIETATI_MODULI_API_INTERNI,
         ],
       }],
-      'no-restricted-syntax': ['error', STILE_INLINE_COSTANTE, VIETATO_CONTEXT_VALUE_LETTERALE, VIETATO_COMMON_NOMINATO],
+      'no-restricted-syntax': ['error', STILE_INLINE_COSTANTE, VIETATO_CONTEXT_VALUE_LETTERALE,
+        VIETATO_COMMON_NOMINATO, VIETATO_DISPATCH_PROP],
     },
   },
   // Il confine vale per i COMPONENTI. Non per src/hooks/ (è lì che i dati

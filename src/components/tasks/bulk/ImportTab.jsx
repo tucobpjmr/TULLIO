@@ -45,7 +45,7 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
   // L'esito del salvataggio vive invece in `erroreImport` più sotto: i due
   // condividono un banner, non uno stato — il primo lo spegne chi carica un
   // file nuovo, il secondo si spegne al tentativo successivo.
-  const [error, setError] = useState(null);
+  const [erroreFile, impostaErroreFile] = useState(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => { onDirty?.(rows.length > 0); }, [rows.length, onDirty]);
@@ -59,12 +59,12 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
     // file.size è sincrono e non richiede di leggere il file: il rifiuto arriva
     // prima di qualunque lettura, non dopo.
     if (file.size > MAX_IMPORT_BYTES) {
-      setError(`File troppo grande (${formatFileSize(file.size)}, max ${formatFileSize(MAX_IMPORT_BYTES)}).`);
+      impostaErroreFile(`File troppo grande (${formatFileSize(file.size)}, max ${formatFileSize(MAX_IMPORT_BYTES)}).`);
       e.target.value = "";
       return;
     }
     setFileName(file.name);
-    setError(null);
+    impostaErroreFile(null);
     // Anche l'esito di un import precedente: il banner è uno solo, e un file
     // nuovo rende stantio qualunque messaggio lo stia occupando.
     azzeraErroreImport();
@@ -74,14 +74,14 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
         // Lettura "hardened" (limite dimensione + guard anti prototype-pollution)
         // centralizzata in src/lib/xlsx.js — vedi nota sicurezza SheetJS 0.18.5.
         const json = await readFirstSheetRows(evt.target.result);
-        if (!json.length) { setError("Il file è vuoto o non contiene righe leggibili."); return; }
+        if (!json.length) { impostaErroreFile("Il file è vuoto o non contiene righe leggibili."); return; }
         const cols = Object.keys(json[0]);
         setRows(json); setColumns(cols);
         const auto = detectColumns(cols);
         setMapping(auto);
         setAutoDetected(Object.fromEntries(Object.entries(auto).filter(([, v]) => v).map(([k]) => [k, true])));
       } catch (err) {
-        setError("Impossibile leggere il file: " + err.message);
+        impostaErroreFile("Impossibile leggere il file: " + err.message);
       }
     };
     reader.readAsArrayBuffer(file);
@@ -204,10 +204,10 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
     return salva(tasks);
   };
 
-  // `azzeraErroreImport` insieme a `setError(null)`: i due messaggi
+  // `azzeraErroreImport` insieme a `impostaErroreFile(null)`: i due messaggi
   // condividono il banner, e cambiare file deve spegnerlo qualunque delle due
   // fasi l'abbia acceso.
-  const reset = () => { setRows([]); setColumns([]); setMapping({}); setAutoDetected({}); setFileName(""); setError(null); azzeraErroreImport(); };
+  const reset = () => { setRows([]); setColumns([]); setMapping({}); setAutoDetected({}); setFileName(""); impostaErroreFile(null); azzeraErroreImport(); };
 
   const fields = [
     { key: "title", label: "Titolo *" }, { key: "category", label: "Categoria" },
@@ -247,9 +247,9 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
           mutuamente esclusivi nei fatti — senza righe lette non c'è nulla da
           importare — ma restano due stati distinti, perché si spengono in
           momenti diversi. */}
-      {(error || erroreImport) && (
+      {(erroreFile || erroreImport) && (
         <div style={boxF13Danger}>
-          ⚠️ {error || erroreImport}
+          ⚠️ {erroreFile || erroreImport}
         </div>
       )}
 

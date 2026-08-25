@@ -8,7 +8,7 @@
 // prima di questo file.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
-import { ViewportProvider, useViewport } from "../components/Viewport.jsx";
+import { ViewportProvider, useViewport } from "../components/ui/Viewport.jsx";
 import { Sidebar } from "../components/shell/Sidebar.jsx";
 import { withAppData, DEMO_APP_CTX } from "./helpers/appData.jsx";
 
@@ -71,7 +71,7 @@ describe("Sidebar — l'auto-collapse a 1280 resta corretto dopo P2-7", () => {
     window.innerWidth = 1400;
     render(
       <ViewportProvider>
-        {withAppData(<Sidebar dispatch={vi.fn()} />, DEMO_APP_CTX)}
+        {withAppData(<Sidebar />, { ...DEMO_APP_CTX, dispatch: vi.fn() })}
       </ViewportProvider>,
     );
     expect(larghezzaSidebar()).toBe("210px");
@@ -84,7 +84,7 @@ describe("Sidebar — l'auto-collapse a 1280 resta corretto dopo P2-7", () => {
     window.innerWidth = 1200;
     render(
       <ViewportProvider>
-        {withAppData(<Sidebar dispatch={vi.fn()} />, DEMO_APP_CTX)}
+        {withAppData(<Sidebar />, { ...DEMO_APP_CTX, dispatch: vi.fn() })}
       </ViewportProvider>,
     );
     expect(larghezzaSidebar()).toBe("60px");
@@ -97,7 +97,7 @@ describe("Sidebar — l'auto-collapse a 1280 resta corretto dopo P2-7", () => {
     window.innerWidth = 1400;
     render(
       <ViewportProvider>
-        {withAppData(<Sidebar dispatch={vi.fn()} />, DEMO_APP_CTX)}
+        {withAppData(<Sidebar />, { ...DEMO_APP_CTX, dispatch: vi.fn() })}
       </ViewportProvider>,
     );
     setWidth(1350); // resta sopra 1280

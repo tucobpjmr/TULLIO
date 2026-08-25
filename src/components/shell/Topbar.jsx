@@ -6,7 +6,7 @@
 // file che si chiama "barra superiore". Ora sono moduli propri e questo file
 // fa solo layout e composizione.
 import { useState, useRef, useEffect, memo, lazy } from "react";
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
 import { demoState } from "../../state/demoState.js";
 import { useTasks } from "../../state/TasksContext.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
@@ -14,6 +14,7 @@ import { LazyPanel } from "../ui/LazyPanel.jsx";
 import { UserSwitcher } from "./UserSwitcher.jsx";
 import { Z } from "../../styles/tokens.js";
 import * as stiliComuni from "../../styles/common.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -71,20 +72,21 @@ const NotificationsPanel = lazy(() =>
 // cerchi sui dati aggiornati.
 //
 // Questa barra contiene l'input di ricerca, quindi DEVE ri-renderizzarsi a
-// ogni carattere: `searchQuery` è una prop che cambia per costruzione. Ciò che
+// ogni carattere: `ricerca` è una prop che cambia per costruzione. Ciò che
 // il memo evita è tutto il resto. Sidebar e BottomNav, che non hanno campi di
 // input, non si ri-renderizzano più affatto quando si digita.
 //
-// `searchQuery` resta nel guscio (VoyageDeskInner la tiene in `useState` e la
+// `ricerca` resta nel guscio (VoyageDeskInner la tiene in `useState` e la
 // passa qui insieme a `onSearchChange`) invece di diventare stato locale della
 // Topbar: è candidata a diventare un filtro cross-view, e in quel caso deve
 // restare leggibile da fuori questo componente. `showNotif`, che nessuno
 // legge fuori da qui, è invece `useState` locale — vedi audit ST-2 parte 2.
 export const Topbar = memo(function Topbar({
-  activeView, searchQuery, onSearchChange, dispatch,
+  activeView, ricerca, onSearchChange,
   notifications: notificationsProp, onMarkRead, onMarkAllRead,
   onRemoveNotification, onClearAllNotifications, onOpenTask, onOpenChat,
 }) {
+  const dispatch = useDispatch();
   const { isMobile } = useViewport();
   const tasks = useTasks();
   const { currentUserId } = useAppData();
@@ -156,7 +158,7 @@ export const Topbar = memo(function Topbar({
         <div style={stiliComuni.relative}>
           <div style={txtAbsoluteF14}>🔍</div>
           <input
-            value={searchQuery}
+            value={ricerca}
             onChange={e => { onSearchChange(e.target.value); setSearchOpen(true); }}
             onFocus={e => { setSearchOpen(true); e.target.style.borderColor = "var(--gold)"; }}
             onBlur={e => { e.target.style.borderColor = "rgba(15,32,68,0.15)"; }}
@@ -169,8 +171,7 @@ export const Topbar = memo(function Topbar({
           <LazyPanel resetKey="ricerca" onReset={() => setSearchOpen(false)}>
             <AdvancedSearchPanel
               tasks={tasks}
-              dispatch={dispatch}
-              keyword={searchQuery}
+              keyword={ricerca}
               onKeyword={onSearchChange}
               onClose={() => setSearchOpen(false)}
               currentUserId={currentUserId}
@@ -190,7 +191,6 @@ export const Topbar = memo(function Topbar({
         {showNotif && (
           <LazyPanel resetKey="notifiche" onReset={() => setShowNotif(false)}>
             <NotificationsPanel
-              dispatch={dispatch}
               onClose={() => setShowNotif(false)}
               notifications={notifList}
               isReal={!SHOW_MOCK_NOTIFS}
@@ -207,7 +207,7 @@ export const Topbar = memo(function Topbar({
 
       {/* User switcher (v0.8) — non riceve `state`: l'unico campo che leggeva
           (currentUserId) è già in AppDataContext. */}
-      <UserSwitcher dispatch={dispatch} />
+      <UserSwitcher />
     </div>
   );
 });

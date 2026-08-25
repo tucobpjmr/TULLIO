@@ -19,7 +19,7 @@ import { screen, within, fireEvent } from "@testing-library/react";
 vi.mock("../lib/supabase", () => ({ supabase: {}, default: {} }));
 
 const { renderWithAppData } = await import("./helpers/appData.jsx");
-const { ViewportProvider } = await import("../components/Viewport.jsx");
+const { ViewportProvider } = await import("../components/ui/Viewport.jsx");
 const { CalendarPlanner } = await import("../components/calendar/CalendarPlanner.jsx");
 
 const TEAM = [{ id: "marco", name: "Marco Rossi", role: "Admin", active: true, pending: false }];
@@ -40,8 +40,8 @@ const task = (over = {}) => ({
 
 function montaCalendario(tasks) {
   return renderWithAppData(
-    <ViewportProvider><CalendarPlanner dispatch={vi.fn()} /></ViewportProvider>,
-    { team: TEAM, categories: CATEGORIE, currentUserId: "marco", tasks },
+    <ViewportProvider><CalendarPlanner /></ViewportProvider>,
+    { dispatch: vi.fn(), team: TEAM, categories: CATEGORIE, currentUserId: "marco", tasks },
   );
 }
 
@@ -96,8 +96,8 @@ describe("CalendarPlanner — le quattro viste montano e mostrano i task", () =>
     // un click che non fa più niente non rompe nessun altro test.
     const dispatch = vi.fn();
     renderWithAppData(
-      <ViewportProvider><CalendarPlanner dispatch={dispatch} /></ViewportProvider>,
-      { team: TEAM, categories: CATEGORIE, currentUserId: "marco", tasks: [task()] },
+      <ViewportProvider><CalendarPlanner /></ViewportProvider>,
+      { dispatch, team: TEAM, categories: CATEGORIE, currentUserId: "marco", tasks: [task()] },
     );
     vaiA(/Giorno/);
     dispatch.mockClear();

@@ -4,11 +4,11 @@
 // non cestinate). Il sistema convoglia qui gli elementi chiusi: spariscono
 // dalle code/home attive e restano consultabili/riapribili in questa sezione.
 import { memo, useState, useCallback, useMemo, lazy } from "react";
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { CategoryChip } from "../ui/CategoryChip.jsx";
-import { TaskCard } from "../tasks/TaskCard.jsx";
+import { TaskCard } from "./TaskCard.jsx";
 import { LazyPanel } from "../ui/LazyPanel.jsx";
 import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { formatDate, getArchivedTasks } from "../../lib/taskUtils.js";
@@ -26,6 +26,7 @@ import {
   rowCenterBetween, rowCenterGap10, rowCenterGap6, rowCenterGap62, rowCenterGap8, rowGap3,
   rowGap8Mt12, txtBoldHeading, txtBoldSuccess, txtF11Bold2, txtF13Muted2,
 } from "./archiveStyles.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 // La sezione "liste buoni viaggio" è del modulo Liste e viene montata per
 // composizione: questa vista non conosce il suo data layer. Chunk async per lo
 // stesso motivo di ClienteDetailPanel.jsx — porta con sé lib/listeApi.js.
@@ -44,7 +45,8 @@ const PAGINA = 24;
 // shallow riesce e il render si salta finché non cambiano davvero i task.
 // `loading` (criticità #6): "Archivio vuoto" e "archivio non ancora caricato"
 // sono due frasi diverse, e finora l'utente vedeva sempre la prima.
-export const Archive = memo(function Archive({ dispatch, loading = false }) {
+export const Archive = memo(function Archive({ loading = false }) {
+  const dispatch = useDispatch();
   const conferma = useConfirm();
   const { isMobile } = useViewport();
   const { categories, currentUserId, getVisibleTasks, canEditTask, canAccessListe } = useAppData();
@@ -340,7 +342,7 @@ export const Archive = memo(function Archive({ dispatch, loading = false }) {
         </>
       ) : (
         <LazyPanel resetKey="archivio-liste" onReset={() => setTab("task")}>
-          <ArchivedListe dispatch={dispatch} isMobile={isMobile} />
+          <ArchivedListe isMobile={isMobile} />
         </LazyPanel>
       )}
     </div>
@@ -351,7 +353,7 @@ const tabStyle = (active) => ({
   padding: "7px 14px", borderRadius: 8, cursor: "pointer",
   fontSize: 13, fontWeight: 700, fontFamily: "inherit",
   border: `1px solid ${active ? "var(--navy)" : "var(--border)"}`,
-  background: active ? "var(--navy)" : "var(--stiliComuni.card)",
+  background: active ? "var(--navy)" : "var(--card)",
   color: active ? "#fff" : "var(--text)",
   transition: "background 0.15s, color 0.15s",
 });

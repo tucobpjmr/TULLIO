@@ -41,18 +41,16 @@ const task = (over = {}) => ({
   assignees: ["marco"], dueDate: inOre(6), ...over,
 });
 
-const dispatch = () => {};
-
 describe("PersonalQueue", () => {
   const me = DEMO_APP_CTX.team.find(m => m.id === "marco");
 
   it("monta e mostra i task assegnati", () => {
-    render(<PersonalQueue tasks={[task()]} dispatch={dispatch} me={me} />);
+    render(<PersonalQueue tasks={[task()]} me={me} />);
     expect(screen.getByText("Volo Roma → Tokyo")).toBeTruthy();
   });
 
   it("a coda vuota resta in piedi", () => {
-    render(<PersonalQueue tasks={[]} dispatch={dispatch} me={me} />);
+    render(<PersonalQueue tasks={[]} me={me} />);
     expect(screen.getByText(/Buon lavoro/)).toBeTruthy();
   });
 });
@@ -60,13 +58,13 @@ describe("PersonalQueue", () => {
 describe("UrgentQueue", () => {
   // È la coda che si era rotta: qui il test di montaggio è il punto.
   it("monta e mostra i task in scadenza nella finestra", () => {
-    render(<UrgentQueue tasks={[task()]} dispatch={dispatch} uid="marco" />);
+    render(<UrgentQueue tasks={[task()]} uid="marco" />);
     expect(screen.getByText("Urgenti")).toBeTruthy();
     expect(screen.getByText("Volo Roma → Tokyo")).toBeTruthy();
   });
 
   it("un task oltre le 24h non compare nella finestra di default", () => {
-    render(<UrgentQueue tasks={[task({ dueDate: inOre(40) })]} dispatch={dispatch} uid="marco" />);
+    render(<UrgentQueue tasks={[task({ dueDate: inOre(40) })]} uid="marco" />);
     expect(screen.queryByText("Volo Roma → Tokyo")).toBeNull();
     expect(screen.getByText(/Nessuna task in scadenza entro 24h/)).toBeTruthy();
   });
@@ -76,7 +74,7 @@ describe("UrgentQueue", () => {
     render(
       <UrgentQueue
         tasks={[task({ assignees: ["sofia"] })]}
-        dispatch={dispatch}
+       
         onOpenChat={onOpenChat}
         uid="marco"
       />,
@@ -90,7 +88,7 @@ describe("UnassignedQueue", () => {
     render(
       <UnassignedQueue
         tasks={[task({ assignees: [] })]}
-        dispatch={dispatch}
+       
         onTake={() => {}}
         uid="marco"
       />,
@@ -100,27 +98,27 @@ describe("UnassignedQueue", () => {
   });
 
   it("a coda vuota resta in piedi", () => {
-    render(<UnassignedQueue tasks={[]} dispatch={dispatch} onTake={() => {}} uid="marco" />);
+    render(<UnassignedQueue tasks={[]} onTake={() => {}} uid="marco" />);
     expect(screen.getByText("Coda globale")).toBeTruthy();
   });
 });
 
 describe("OverdueQueue", () => {
   it("monta e mostra i task scaduti", () => {
-    render(<OverdueQueue tasks={[task({ dueDate: inOre(-30) })]} dispatch={dispatch} />);
+    render(<OverdueQueue tasks={[task({ dueDate: inOre(-30) })]} />);
     expect(screen.getByText("Task scadute")).toBeTruthy();
     expect(screen.getByText("Volo Roma → Tokyo")).toBeTruthy();
   });
 
   it("a coda vuota resta in piedi", () => {
-    render(<OverdueQueue tasks={[]} dispatch={dispatch} />);
+    render(<OverdueQueue tasks={[]} />);
     expect(screen.getByText(/Nessuna task scaduta/)).toBeTruthy();
   });
 });
 
 describe("WaitingQueue", () => {
   it("monta e mostra le task in attesa di cliente/fornitore", () => {
-    render(<WaitingQueue tasks={[task({ status: "awaiting_client" })]} dispatch={dispatch} />);
+    render(<WaitingQueue tasks={[task({ status: "awaiting_client" })]} />);
     expect(screen.getByText("In attesa di cliente/fornitore")).toBeTruthy();
     expect(screen.getByText("Volo Roma → Tokyo")).toBeTruthy();
   });
@@ -132,7 +130,7 @@ describe("WaitingQueue", () => {
           task({ id: "t1", title: "Attesa cliente", status: "awaiting_client" }),
           task({ id: "t2", title: "Attesa fornitore", status: "awaiting_supplier" }),
         ]}
-        dispatch={dispatch}
+       
       />,
     );
     expect(screen.getByText("Attesa cliente")).toBeTruthy();
@@ -140,7 +138,7 @@ describe("WaitingQueue", () => {
   });
 
   it("a coda vuota resta in piedi", () => {
-    render(<WaitingQueue tasks={[]} dispatch={dispatch} />);
+    render(<WaitingQueue tasks={[]} />);
     expect(screen.getByText(/Nessuna task in attesa/)).toBeTruthy();
   });
 });

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { METODI, parseImporto } from "./listeApi.js";
 import { useListeWrite } from "./listePersistence.js";
 import { SegnoSeg } from "./modals/SegnoSeg.jsx";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -14,7 +15,8 @@ const mb8 = { marginBottom: 8 };
 // non a perdita di fuoco, che sul telefono scatta anche scorrendo la pagina.
 const CAMPO_LABELS = { data: "Data", descrizione: "Descrizione", importo: "Importo €", metodo: "Metodo di pagamento" };
 
-export function CellEditor({ movimento, campo, dispatch, onSaved, onCancel }) {
+export function CellEditor({ movimento, campo, onSaved, onCancel }) {
+  const dispatch = useDispatch();
   const [segno, setSegno] = useState(Number(movimento.importo) < 0 ? -1 : 1);
   const [value, setValue] = useState(() => {
     if (campo === "data") return movimento.data_movimento;
@@ -24,7 +26,7 @@ export function CellEditor({ movimento, campo, dispatch, onSaved, onCancel }) {
   });
   const [saving, setSaving] = useState(false);
   const inputRef = useRef(null);
-  const esegui = useListeWrite(dispatch);
+  const esegui = useListeWrite();
 
   useEffect(() => {
     const el = inputRef.current;

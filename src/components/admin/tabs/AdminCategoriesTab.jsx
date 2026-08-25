@@ -5,11 +5,12 @@ import { useSalvataggio } from "../../../hooks/useSalvataggio.js";
 import { fieldStyle, btnPrimary, btnGhost, btnDanger } from "../adminStyles.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useTasks } from "../../../state/TasksContext.jsx";
-import { AddCategoryModal } from "../../modals/AddCategoryModal.jsx";
+import { AddCategoryModal } from "../AddCategoryModal.jsx";
 import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
 import { obbligatorio, validaCampi } from "../../../lib/validators.js";
 import { useConfirm } from "../../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../../styles/common.js";
+import { useDispatch } from "../../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -27,7 +28,8 @@ const rowGap6 = { display: "flex", gap: 6 };
 const REGOLE = { label: obbligatorio("L'etichetta non può essere vuota.") };
 
 // ─── ADMIN TAB: CATEGORIE ──────────────────────────────────────────────────
-export const AdminCategoriesTab = ({ dispatch }) => {
+export const AdminCategoriesTab = () => {
+  const dispatch = useDispatch();
   const conferma = useConfirm();
   const { categories } = useAppData();
   const tasks = useTasks();
@@ -53,7 +55,7 @@ export const AdminCategoriesTab = ({ dispatch }) => {
     },
   );
 
-  const saveEdit = () => {
+  const salvaModifica = () => {
     const trovati = validaCampi({ label: draft.label }, REGOLE);
     if (trovati.label) { setErrori(trovati); return; }
     setErrori({});
@@ -116,7 +118,7 @@ export const AdminCategoriesTab = ({ dispatch }) => {
               <div style={rowGap6}>
                 {isEditing ? (
                   <>
-                    <button onClick={saveEdit} disabled={inVolo} style={btnPrimary}>
+                    <button onClick={salvaModifica} disabled={inVolo} style={btnPrimary}>
                       {inVolo ? "Salvataggio…" : "💾 Salva"}
                     </button>
                     <button onClick={cancelEdit} style={btnGhost}>Annulla</button>
@@ -145,9 +147,9 @@ export const AdminCategoriesTab = ({ dispatch }) => {
         })}
       </div>
 
-      {showAdd && <AddCategoryModal onClose={() => setShowAdd(false)} dispatch={dispatch} existingKeys={Object.keys(categories)} />}
+      {showAdd && <AddCategoryModal onClose={() => setShowAdd(false)} existingKeys={Object.keys(categories)} />}
     </div>
   );
 };
 
-// AddCategoryModal → src/components/modals/AddCategoryModal.jsx (Step P Phase 2f)
+// AddCategoryModal → src/components/admin/AddCategoryModal.jsx (Step P Phase 2f)

@@ -160,7 +160,7 @@ describe("ListeViaggio — un movimento non ricarica l'elenco anche a mano (S-3)
   });
 
   it("eliminare un movimento ricarica SOLO i saldi: list() e listTrash() non ripartono", async () => {
-    render(<ListeViaggio dispatch={vi.fn()} />, { team: TEAM, currentUserId: "marco" });
+    render(<ListeViaggio />, { team: TEAM, currentUserId: "marco" });
 
     await screen.findByText("MARIO ROSSI");
     fireEvent.click(screen.getByText("MARIO ROSSI"));
@@ -215,7 +215,7 @@ describe("ListeViaggio — loadDetail non sovrascrive il dettaglio dopo la chius
     const lenta = deferred();
     ListeAPIMock.get.mockImplementationOnce(() => lenta.promise);
 
-    render(<ListeViaggio dispatch={vi.fn()} />, { team: TEAM, currentUserId: "marco" });
+    render(<ListeViaggio />, { team: TEAM, currentUserId: "marco" });
 
     await screen.findByText("MARIO ROSSI");
     fireEvent.click(screen.getByText("MARIO ROSSI"));

@@ -19,6 +19,7 @@ import { CellEditor } from "./CellEditor.jsx";
 import { NoteInterne } from "./NoteInterne.jsx";
 import { TitoloTestata } from "./TitoloTestata.jsx";
 import * as stiliComuni from "../../styles/common.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -38,8 +39,9 @@ const TABELLE_MOVIMENTO = new Set(["movimenti_lista"]);
 const TABELLE_LISTA = new Set(["liste_viaggio"]);
 
 // ─── Dettaglio ─────────────────────────────────────────────────────────────
-export function ListaDetail({ lista, movimenti, history, usersById, dispatch, onReload, onArchived, clients = [], saldi = {} }) {
-  const [addOpen, setAddOpen] = useState(false);
+export function ListaDetail({ lista, movimenti, history, usersById, onReload, onArchived, clients = [], saldi = {} }) {
+  const dispatch = useDispatch();
+  const [aggiuntaAperta, impostaAggiuntaAperta] = useState(false);
   const [editCell, setEditCell] = useState(null); // { id, campo }
   const [modal, setModal] = useState(null);       // null | "editLista" | "bulk" | "addBeneficiario" | { mov }
   const [riepilogoOpen, setRiepilogoOpen] = useState(false);
@@ -72,7 +74,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
   // Cambiando lista si richiude tutto: gli editor aperti si riferivano a
   // movimenti di un'altra lista.
   useEffect(() => {
-    setAddOpen(false); setEditCell(null); setModal(null); setRiepilogoOpen(false);
+    impostaAggiuntaAperta(false); setEditCell(null); setModal(null); setRiepilogoOpen(false);
   }, [lista.id]);
 
   // B-1 dell'audit del 23 agosto. `liste_saldi.saldo` è calcolato dal database
@@ -94,7 +96,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
 
   const err = (message) => dispatch({ type: "SHOW_TOAST", payload: { type: "error", message } });
   const helper = { run: null, onError: err };
-  const esegui = useListeWrite(dispatch);
+  const esegui = useListeWrite();
 
   const toggleStato = async () => {
     if (attiva && Math.abs(saldo) > 0.004) {
@@ -206,7 +208,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
             </button>
           </div>
           <div className="sub">
-            <TitoloTestata lista={lista} dispatch={dispatch} onSaved={() => onReload(TABELLE_LISTA)} />
+            <TitoloTestata lista={lista} onSaved={() => onReload(TABELLE_LISTA)} />
             <span className={`lv-badge ${lista.stato}`}>{lista.stato}</span>
           </div>
         </div>
@@ -218,7 +220,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
 
       <div className="lv-toolbar">
         {attiva && (
-          <button className="lv-btn primary" aria-expanded={addOpen} onClick={() => setAddOpen((v) => !v)}>
+          <button className="lv-btn primary" aria-expanded={aggiuntaAperta} onClick={() => impostaAggiuntaAperta((v) => !v)}>
             <span className="plus">＋</span> Nuovo movimento
           </button>
         )}
@@ -231,12 +233,11 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
 
       <div className="lv-card lv-foglio">
         {!attiva && <div className="lv-stamp">LISTA ESAURITA</div>}
-        {attiva && addOpen && (
+        {attiva && aggiuntaAperta && (
           <AddMovBox
             listaId={lista.id}
-            dispatch={dispatch}
             onSaved={() => onReload(TABELLE_MOVIMENTO)}
-            onClose={() => setAddOpen(false)}
+            onClose={() => impostaAggiuntaAperta(false)}
             onBulk={() => setModal("bulk")}
           />
         )}
@@ -260,7 +261,6 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
                         key={m.id}
                         movimento={m}
                         campo={editCell.campo}
-                        dispatch={dispatch}
                         onSaved={async () => { setEditCell(null); await onReload(TABELLE_MOVIMENTO); }}
                         onCancel={() => setEditCell(null)}
                       />
@@ -298,7 +298,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
             {attiva && (
               <>
                 <br />
-                <button className="lv-btn primary" style={stiliComuni.mt12} onClick={() => setAddOpen(true)}>
+                <button className="lv-btn primary" style={stiliComuni.mt12} onClick={() => impostaAggiuntaAperta(true)}>
                   <span className="plus">＋</span> Registra il primo
                 </button>
               </>
@@ -307,7 +307,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
         )}
       </div>
 
-      <NoteInterne lista={lista} dispatch={dispatch} onSaved={() => onReload(TABELLE_LISTA)} />
+      <NoteInterne lista={lista} onSaved={() => onReload(TABELLE_LISTA)} />
 
       <div className="lv-card" style={mt16}>
         <details>
@@ -400,7 +400,6 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
           lista={lista}
           movimenti={movimenti}
           saldo={saldo}
-          dispatch={dispatch}
           onClose={() => setRiepilogoOpen(false)}
         />
       )}

@@ -9,6 +9,7 @@
 // interne della lista, così l'informazione resta visibile in app anche se non
 // è diventata un movimento.
 import { createHash } from 'node:crypto';
+import { chiaveCliente } from '../../src/lib/chiaveCliente.js';
 
 // ─── UUID v5 deterministici ────────────────────────────────────────────────
 // Gli id non sono casuali: derivano dal percorso del file (per liste e
@@ -197,15 +198,20 @@ export function clienteDaNomeFile(nomeFile) {
 }
 
 // Chiave di deduplica: "ROSSI  MARIO" e "Rossi, Mario" sono lo stesso cliente.
-// L'ordine delle parole NON viene normalizzato di proposito: "ROSSI MARIO" e
-// "MARIO ROSSI" restano distinti, perché fonderli d'ufficio unirebbe le liste
-// di due persone diverse in caso di omonimia parziale.
-export const chiaveCliente = (nome) => String(nome ?? '')
-  .normalize('NFD').replace(/[\u0300-\u036F]/g, '') // accenti irrilevanti per la deduplica
-  .toUpperCase()
-  .replace(/[^A-Z0-9 ]/g, ' ')
-  .replace(/\s+/g, ' ')
-  .trim();
+//
+// M-4 dell'audit del 25 agosto: era scritta QUI, ed era una delle quattro
+// implementazioni della stessa domanda. Contava, perché questo script fa
+// combaciare i clienti dei documenti con quelli del backup dell'app: con due
+// definizioni diverse ai due lati, "FAM. SCURO TEODORO" era lo stesso cliente
+// per lo script e due clienti diversi per l'app, e l'import riusava un id che
+// l'app non avrebbe mai collegato. Ora è la stessa funzione — quella
+// dell'app — e la ri-esportiamo perché `costruisciBackup` e index.js la
+// nominano da sempre così.
+//
+// L'import da `src/` non è un'eccezione per questo script: `misura-render`
+// importa già `calendarLayout.js` per la stessa ragione — misurare o
+// convertire i dati dell'app con la logica dell'app, non con una copia.
+export { chiaveCliente };
 
 // ─── analisi di un singolo file ────────────────────────────────────────────
 /**

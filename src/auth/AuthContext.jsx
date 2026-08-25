@@ -11,7 +11,7 @@ const AuthContext = createContext(null);
 // a lungo in background) una richiesta di rete può restare "appesa" senza
 // mai risolversi né rigettarsi (lock del refresh token bloccato, socket
 // morto non ancora rilevato dal sistema operativo). In quel caso la Promise
-// chain getSession()→loadProfile()→setLoading(false) non arriva mai al
+// chain getSession()→caricaProfilo()→impostaCaricando(false) non arriva mai al
 // finally: niente errore da intercettare, solo uno spinner "Caricamento…"
 // bloccato a tempo indeterminato, risolvibile solo da un refresh manuale
 // (che ricrea la connessione di rete da zero). withTimeout forza quella
@@ -81,7 +81,7 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [team, setTeam] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [caricando, impostaCaricando] = useState(true);
   // recovery=true quando l'utente arriva da un link che richiede di impostare
   // la password: "reimposta password" (evento PASSWORD_RECOVERY) oppure "invito"
   // (type=invite nell'URL). In quel caso mostriamo la schermata di impostazione
@@ -98,18 +98,18 @@ export function AuthProvider({ children }) {
   // ricreare l'effetto (vedi commento sopra all'useEffect).
   const initAuthRef = useRef(null);
   // Deduplica i caricamenti profilo concorrenti sullo stesso utente. All'avvio
-  // loadProfile veniva chiamata DUE volte quasi in contemporanea: una da
+  // caricaProfilo veniva chiamata DUE volte quasi in contemporanea: una da
   // initAuth (dopo getSession) e una dall'evento INITIAL_SESSION che
   // onAuthStateChange emette subito alla sottoscrizione. Due query concorrenti
   // sul DB "a freddo": se una falliva e l'altra riusciva, la prima faceva
   // lampeggiare la schermata d'errore prima che la seconda montasse l'app
   // ("errore, poi si connette"). Con un'unica richiesta in volo per utente il
   // race sparisce.
-  const loadInFlightRef = useRef(null);
+  const caricamentoInVoloRef = useRef(null);
 
-  const loadProfile = useCallback((userId) => {
+  const caricaProfilo = useCallback((userId) => {
     const key = userId ?? null;
-    const inflight = loadInFlightRef.current;
+    const inflight = caricamentoInVoloRef.current;
     if (inflight && inflight.key === key) return inflight.promise;
 
     const promise = (async () => {
@@ -141,7 +141,7 @@ export function AuthProvider({ children }) {
               supabase.from('user_contacts').select('email, phone').eq('user_id', userId).maybeSingle(),
             ]),
             AUTH_TIMEOUT_MS,
-            'loadProfile',
+            'caricaProfilo',
           );
           // Errori/righe mancanti rientrano nel retry: al primo avvio a freddo
           // il token può non essere ancora rinfrescato e le RLS restituiscono
@@ -149,7 +149,7 @@ export function AuthProvider({ children }) {
           if (meError || !me) throw meError || new Error('Profilo non trovato');
           if (allError) throw allError;
           return { me, all, contacts };
-        }, 'loadProfile');
+        }, 'caricaProfilo');
         const myContacts = { email: contacts?.email ?? null, phone: contacts?.phone ?? null };
         // Normalizza la colonna DB photo_url → photoUrl (camelCase) atteso da
         // Avatar/ProfileEditor (caveat #25): senza, la foto persistita non si
@@ -159,16 +159,16 @@ export function AuthProvider({ children }) {
         setTeam((all ?? []).map(u => u.id === userId ? { ...normalize(u), ...myContacts } : normalize(u)));
         setAuthError(null);
       } catch (err) {
-        console.error('[auth] loadProfile fallito dopo i retry', err);
+        console.error('[auth] caricaProfilo fallito dopo i retry', err);
         setAuthError(err);
       }
     })();
 
-    loadInFlightRef.current = { key, promise };
+    caricamentoInVoloRef.current = { key, promise };
     // Libera lo slot a fine caricamento così una richiesta successiva (es.
     // TOKEN_REFRESHED, o un retry esplicito dell'utente) riparte da capo.
     promise.finally(() => {
-      if (loadInFlightRef.current?.promise === promise) loadInFlightRef.current = null;
+      if (caricamentoInVoloRef.current?.promise === promise) caricamentoInVoloRef.current = null;
     });
     return promise;
   }, []);
@@ -184,20 +184,20 @@ export function AuthProvider({ children }) {
         );
         if (!mounted) return;
         setSession(data.session ?? null);
-        await loadProfile(data.session?.user?.id);
+        await caricaProfilo(data.session?.user?.id);
       } catch (err) {
         console.error('[auth] init failed', err);
         if (mounted) setAuthError(err);
       } finally {
         // Sempre eseguito: senza questo, un errore/rifiuto in getSession() o
-        // loadProfile() lasciava `loading` bloccato a true per sempre (nessun
-        // catch a monte → la Promise chain non arrivava mai a setLoading(false)).
-        if (mounted) setLoading(false);
+        // caricaProfilo() lasciava `caricando` bloccato a true per sempre (nessun
+        // catch a monte → la Promise chain non arrivava mai a impostaCaricando(false)).
+        if (mounted) impostaCaricando(false);
       }
     };
     // Esposta via retryInit: se getSession() stessa va in errore/timeout
     // (session mai ottenuta), il retry deve rieseguire l'intera sequenza,
-    // non solo loadProfile (a differenza di refreshTeam, usato quando la
+    // non solo caricaProfilo (a differenza di refreshTeam, usato quando la
     // session c'è già ma il profilo no).
     initAuthRef.current = initAuth;
     initAuth();
@@ -208,14 +208,14 @@ export function AuthProvider({ children }) {
     // auth (navigator.locks) e ASPETTANDO che il callback finisca. Qualsiasi
     // query awaited qui dentro deve prima ottenere l'access token →
     // getSession() → lo STESSO lock: attesa circolare. In pratica all'avvio:
-    // initAuth faceva partire loadProfile, le cui query restavano in coda sul
+    // initAuth faceva partire caricaProfilo, le cui query restavano in coda sul
     // lock; il callback INITIAL_SESSION (che il lock lo deteneva) faceva
-    // await della STESSA promise deduplicata da loadInFlightRef → deadlock.
+    // await della STESSA promise deduplicata da caricamentoInVoloRef → deadlock.
     // Risultato: schermata "Caricamento…" bloccata a ogni avvio (desktop e
     // mobile) finché non scadevano timeout+retry (~45s), risolvibile in
     // pratica solo con un refresh manuale — che a volte vinceva il race sul
     // lock e quindi "funzionava". setTimeout(0) rimanda il lavoro a dopo il
-    // ritorno del callback: il lock si libera subito e loadProfile procede.
+    // ritorno del callback: il lock si libera subito e caricaProfilo procede.
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       if (_event === 'PASSWORD_RECOVERY') {
         setRecovery(true);
@@ -224,21 +224,21 @@ export function AuthProvider({ children }) {
       setSession(s);
       setTimeout(() => {
         if (!mounted) return;
-        loadProfile(s?.user?.id).finally(() => {
+        caricaProfilo(s?.user?.id).finally(() => {
           // Sblocca lo spinner anche da qui, non solo dal finally di initAuth.
           // INITIAL_SESSION è un segnale indipendente da getSession() che lo
           // stato auth iniziale è determinato: su avvio a freddo getSession()
           // può restare appesa (socket morto su mobile/PWA) e in quel caso
-          // session e profilo arrivano da QUI. Chiudendo `loading` in entrambi
+          // session e profilo arrivano da QUI. Chiudendo `caricando` in entrambi
           // i percorsi l'app monta appena i dati sono pronti, da qualunque dei
           // due arrivi per primo.
-          if (mounted) setLoading(false);
+          if (mounted) impostaCaricando(false);
         });
       }, 0);
     });
 
     return () => { mounted = false; sub.subscription.unsubscribe(); };
-  }, [loadProfile]);
+  }, [caricaProfilo]);
 
   // Tutte le funzioni qui sotto sono useCallback: sono nelle dipendenze del
   // useMemo di `value` più sotto, e senza identità stabile lo vanificherebbero
@@ -297,7 +297,7 @@ export function AuthProvider({ children }) {
     return res;
   }, []);
 
-  const refreshTeam = useCallback(() => loadProfile(session?.user?.id), [session, loadProfile]);
+  const refreshTeam = useCallback(() => caricaProfilo(session?.user?.id), [session, caricaProfilo]);
 
   // Retry per quando è la sessione stessa a non essere mai stata ottenuta
   // (getSession() fallita o rimasta appesa in timeout): rieseguono tutta la
@@ -317,7 +317,7 @@ export function AuthProvider({ children }) {
     user: session?.user ?? null,
     profile,
     team,
-    loading,
+    caricando,
     authError,
     recovery,
     recoveryKind,
@@ -343,7 +343,7 @@ export function AuthProvider({ children }) {
     refreshTeam,
     retryInit,
   }), [
-    session, profile, team, loading, authError, recovery, recoveryKind,
+    session, profile, team, caricando, authError, recovery, recoveryKind,
     signIn, resetPassword, resendConfirmation, updatePassword, deleteAccount, signOut, signOutOvunque, refreshTeam, retryInit,
   ]);
 

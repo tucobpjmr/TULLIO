@@ -12,9 +12,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { ListeAPI, eur, fmtDate, saldoClass } from "./listeApi.js";
 import { useListeWrite } from "./listePersistence.js";
-import { PERIOD_OPTIONS, filterByPeriod, thStyle, chipStyle } from "../views/archiveFilters.js";
+import { PERIOD_OPTIONS, filterByPeriod, thStyle, chipStyle } from "../tasks/archiveFilters.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../styles/common.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -22,7 +23,7 @@ const txtF13Muted2 = { padding: "40px 0", textAlign: "center", color: "var(--tex
 const txtF12Muted2 = { fontSize: 12, color: "var(--text-muted)", marginTop: 4 };
 const boxF13Bold = {
   marginTop: 10, padding: "6px 14px", borderRadius: 8,
-  border: "1px solid var(--border)", background: "var(--stiliComuni.card)",
+  border: "1px solid var(--border)", background: "var(--card)",
   color: "var(--navy)", cursor: "pointer", fontSize: 13, fontWeight: 600,
   fontFamily: "inherit",
 };
@@ -34,7 +35,7 @@ const boxF13MinW0 = {
   outline: "none", boxSizing: "border-box",
 };
 const boxR12 = {
-  background: "var(--stiliComuni.card)", borderRadius: 12, border: "1px solid var(--border)",
+  background: "var(--card)", borderRadius: 12, border: "1px solid var(--border)",
   padding: "14px 16px", cursor: "pointer",
 };
 const txtF14Bold2 = { fontWeight: 600, color: "var(--heading)", fontSize: 14, marginBottom: 6 };
@@ -46,7 +47,7 @@ const boxF12Bold = {
   fontWeight: 600, fontFamily: "inherit",
 };
 const boxF12Bold2 = {
-  background: "var(--stiliComuni.card)", color: "var(--danger)", border: "1px solid var(--danger)",
+  background: "var(--card)", color: "var(--danger)", border: "1px solid var(--danger)",
   padding: "5px 8px", borderRadius: 6, cursor: "pointer", fontSize: 12,
   fontWeight: 600, fontFamily: "inherit",
 };
@@ -58,7 +59,8 @@ const SALDO_COLORS = { pos: "var(--success)", neg: "var(--danger)", zero: "var(-
 // ─── Sezione "Liste buoni viaggio" (liste con stato "esaurita", non cestinate) ──
 // Le liste non vivono nello state globale come i task (il modulo Liste le
 // fetcha sempre on-demand da Supabase): stesso pattern qui, con stato locale.
-export const ArchivedListe = ({ dispatch, isMobile }) => {
+export const ArchivedListe = ({ isMobile }) => {
+  const dispatch = useDispatch();
   const conferma = useConfirm();
   const [liste, setListe] = useState([]);
   const [saldi, setSaldi] = useState({});
@@ -66,7 +68,7 @@ export const ArchivedListe = ({ dispatch, isMobile }) => {
   const [loadError, setLoadError] = useState(null);
   const [query, setQuery] = useState("");
   const [period, setPeriod] = useState("all");
-  const esegui = useListeWrite(dispatch);
+  const esegui = useListeWrite();
 
   const load = useCallback(async () => {
     setLoadError(null);

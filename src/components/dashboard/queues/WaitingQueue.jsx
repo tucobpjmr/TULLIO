@@ -3,7 +3,7 @@
 // fornitore — quindi non "da fare" per chi le possiede. Restavano mescolate
 // nella coda personale, indistinguibili da ciò che è davvero azionabile ora.
 import { useMemo, useState } from "react";
-import { SwipeActions } from "../../SwipeActions.jsx";
+import { SwipeActions } from "../../tasks/SwipeActions.jsx";
 import { StatusBadge } from "../../ui/StatusBadge.jsx";
 import { TaskCard } from "../../tasks/TaskCard.jsx";
 import { PRIORITIES, STATUS_LABELS, STATUS_COLORS } from "../../../lib/taskConstants.js";
@@ -24,10 +24,10 @@ const rowGap8F13 = { padding: "14px 0 4px", color: "var(--text-muted)", fontSize
 const WAITING_STATUSES = ["awaiting_client", "awaiting_supplier"];
 const WAITING_ACCENT = "#8B5CF6";
 
-export const WaitingQueue = ({ tasks, dispatch, loading = false }) => {
+export const WaitingQueue = ({ tasks, loading = false }) => {
   const { getMember } = useAppData();
   const [statusFilter, setStatusFilter] = useState(null);
-  const openTask = useOpenTask(dispatch);
+  const openTask = useOpenTask();
   const caricando = loading && tasks.length === 0;
   const empty = tasks.length === 0 && !caricando;
 
@@ -108,7 +108,7 @@ export const WaitingQueue = ({ tasks, dispatch, loading = false }) => {
             const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
             const overdue = isOverdue(t);
             return (
-              <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+              <SwipeActions key={t.id} task={t}>
                 <TaskCard
                   task={t}
                   onOpen={openTask}

@@ -1,26 +1,25 @@
 // ─── PROFILE EDITOR ──────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
-import { useState, useReducer, useRef } from "react";
-import { useViewport } from "../Viewport.jsx";
+import { useState, useRef } from "react";
+import { useViewport } from "../ui/Viewport.jsx";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { useIsMounted } from "../../hooks/useIsMounted.js";
 import { Users as UsersAPI } from "../../lib/api.js";
-import { PasswordField } from "../ui/PasswordField.jsx";
 import { useAvatarSrc } from "../ui/Avatar.jsx";
 import { validaCampi, emailValida, obbligatorio, primoCampoInvalido } from "../../lib/validators.js";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { Modal } from "../ui/Modal.jsx";
 import { roleLabel } from "../../lib/taskConstants.js";
 
-import { ESITO_PRONTO, profileUiIniziale, profileUiReducer } from "./profileEditorReducer.js";
-import { CropModal, dataUrlToBlob } from "./CropModal.jsx";
+import { AccountSicurezza } from "./AccountSicurezza.jsx";
+import { CropModal, dataUrlToBlob } from "../ui/CropModal.jsx";
 import * as stiliComuni from "../../styles/common.js";
 import {
-  boxF125Danger, boxF13Bold, boxF13Bold2, boxF13Bold3, boxF13Bold3InVolo, boxF14Muted, boxW100H100, boxW52H52,
-  colCenterGap12, colGap10Mt10, colGap10Mt102, colGap18, mt2, row, rowCenterBetween,
-  rowCenterGap14, rowCenterGap8, rowCenterGap82, rowCenterGap8Neutral, rowCenterMiddle, rowCenterMiddle2, rowGap10,
-  txtF11Mt2, txtF11Muted2, txtF12Muted, txtF13Text, txtF18Bold,
+  boxF13Bold, boxF13Bold2, boxF13Bold3, boxF13Bold3InVolo, boxF14Muted, boxW100H100,
+  boxW52H52, colCenterGap12, colGap18, inputWFull, rowCenterBetween, rowCenterGap14,
+  rowCenterMiddle, rowCenterMiddle2, rowGap10, txtF11Mt2, txtF18Bold,
 } from "./profileEditorStyles.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Criticità #10 — il nome è obbligatorio e l'email, se compilata, dev'essere
 // valida. Prima il primo usciva in silenzio (`if (!name.trim()) return;`) e la
@@ -43,16 +42,20 @@ const ORDINE = ["name", "email"];
 //     cinque valori che compongono il payload di UPDATE_OWN_PROFILE: nascono
 //     insieme da `member`, si leggono insieme al salvataggio e si buttano via
 //     insieme quando si preme Annulla.
-//   • LE DUE SEZIONI A FISARMONICA (password, elimina account), L'ESITO DELLE
-//     TRE OPERAZIONI ASINCRONE e IL FRENO AL DOPPIO INVIO del salvataggio →
-//     un solo `useReducer`, `profileUiReducer` (`./profileEditorReducer.js`,
-//     B-3 residuo dell'audit del 15 agosto, chiuso il 23). Erano 9 `useState`
-//     indipendenti che cambiavano sempre in GRUPPO: aprire "Cambia password"
-//     azzera insieme esito e bozza, un cambio riuscito azzera la bozza ma non
-//     l'esito. Restano campi DISTINTI e annidati per sezione (`ui.pwd`,
-//     `ui.elim`, `ui.signOut`) — non fusi in un valore solo — per le stesse
+//   • LE DUE SEZIONI A FISARMONICA (password, elimina account) e L'ESITO DELLE
+//     TRE OPERAZIONI ASINCRONE → un solo `useReducer`, che da M-5 (audit del
+//     25 agosto) vive con loro in `./AccountSicurezza.jsx` +
+//     `./accountSicurezzaReducer.js`. Erano 9 `useState` indipendenti che
+//     cambiavano sempre in GRUPPO (B-3 residuo dell'audit del 15 agosto,
+//     chiuso il 23): aprire "Cambia password" azzera insieme esito e bozza, un
+//     cambio riuscito azzera la bozza ma non l'esito. Restano campi DISTINTI e
+//     annidati per sezione — non fusi in un valore solo — per le stesse
 //     ragioni per cui restano separati qui sotto: un reducer raggruppa i
 //     PUNTI DI SCRITTURA, non il significato dei campi.
+//   • IL FRENO AL DOPPIO INVIO del salvataggio → `salvaInVolo`, un `useState`
+//     qui. Era la quarta fetta di quel reducer, ed è l'unica delle quattro che
+//     riguarda il PROFILO e non l'account: adesso si legge accanto a
+//     `salvaProfilo`, cioè accanto a ciò che protegge.
 //
 // Restano DELIBERATAMENTE separati, perché sono valori indipendenti e accorparli
 // è la parte del rilievo che non va fatta:
@@ -63,22 +66,15 @@ const ORDINE = ["name", "email"];
 //   • `cropSrc` — è l'immagine SORGENTE del ritaglio, non la foto del profilo:
 //     esiste solo mentre la CropModal è aperta e annullarla non deve toccare
 //     `draft.photoUrl`.
-//   • `ui.pwd.aperta` / `ui.elim.aperta` — due sezioni a fisarmonica
-//     INDIPENDENTI: oggi possono essere aperte entrambe insieme, e fonderle in
-//     un'unica "sezione attiva" (come si è fatto per gli overlay di
-//     ListeViaggio, che invece sono mutuamente esclusivi) sarebbe un cambiamento
-//     di comportamento visibile — restano due chiavi separate dentro il
-//     reducer, non un'unica "sezione aperta".
-//   • `ui.pwd.rivela` — preferenza di visualizzazione (icona occhio) condivisa
-//     dai due campi password: deve sopravvivere allo svuotamento della bozza,
-//     che dopo un cambio riuscito azzera i campi ma non deve richiudere l'occhio
-//     (l'azione `PWD_SUCCESSO` infatti non la tocca).
-//   • `ui.elim.conferma` — la parola digitata nella zona pericolosa È un campo,
-//     ma uno solo: un oggetto bozza di una chiave non aggiungerebbe nulla, e non
-//     può stare in `draft` perché non si salva, si confronta con "ELIMINA".
-export const ProfileEditor = ({ member, dispatch, onClose }) => {
+//
+// Le distinzioni della sezione account — le due fisarmoniche indipendenti,
+// l'occhio che sopravvive allo svuotamento della bozza, la parola "ELIMINA" che
+// è un campo ma non si salva — sono documentate dove ora vivono, in
+// `./AccountSicurezza.jsx` e nel suo reducer.
+export const ProfileEditor = ({ member, onClose }) => {
+  const dispatch = useDispatch();
   const { isMobile } = useViewport();
-  const { session, updatePassword, deleteAccount, signOutOvunque } = useAuth();
+  const { session } = useAuth();
   const montato = useIsMounted();
   const [draft, setDraft] = useState({
     name: member.name || "",
@@ -105,47 +101,10 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
     setDraft(prec => ({ ...prec, [campo]: valore }));
     setErrori(prec => (prec[campo] ? { ...prec, [campo]: undefined } : prec));
   };
-  const [ui, uiDispatch] = useReducer(profileUiReducer, profileUiIniziale);
-
-  // Uscita da ogni dispositivo: revoca lato server tutti i refresh
-  // token. A differenza di deleteAccount() non smonta questa modale da sola
-  // in caso di successo su QUESTA scheda (onAuthStateChange la farà comunque
-  // sparire non appena il provider aggiorna `session`), quindi il guard
-  // useIsMounted() qui serve davvero, non solo a scopo descrittivo.
-  const handleSignOutOvunque = async () => {
-    uiDispatch({ type: "SIGNOUT_ESITO", esito: { fase: "invio", testo: null } });
-    const { error } = await signOutOvunque();
-    if (!montato()) return;
-    uiDispatch({ type: "SIGNOUT_ESITO", esito: error
-      ? { fase: "errore", testo: error.message || "Non è stato possibile disconnettere gli altri dispositivi." }
-      : ESITO_PRONTO });
-  };
-
-  const handleDeleteAccount = async () => {
-    if (ui.elim.conferma !== "ELIMINA") return;
-    uiDispatch({ type: "ELIM_ESITO", esito: { fase: "invio", testo: null } });
-    const { error } = await deleteAccount();
-    // On success, deleteAccount() already called signOut() → app unmounts this
-    // modal automatically: qui lo smontaggio è l'esito NORMALE, quindi il guard
-    // di useIsMounted() non è una precauzione ma la descrizione del caso.
-    if (!montato()) return;
-    uiDispatch({ type: "ELIM_ESITO", esito: error
-      ? { fase: "errore", testo: error.message || "Eliminazione non riuscita." }
-      : ESITO_PRONTO });
-  };
-
-  const handleChangePwd = async () => {
-    if (ui.pwd.bozza.nuova.length < 8) { uiDispatch({ type: "PWD_ESITO", esito: { fase: "errore", testo: "La password deve avere almeno 8 caratteri." } }); return; }
-    if (ui.pwd.bozza.nuova !== ui.pwd.bozza.conferma) { uiDispatch({ type: "PWD_ESITO", esito: { fase: "errore", testo: "Le due password non coincidono." } }); return; }
-    uiDispatch({ type: "PWD_ESITO", esito: { fase: "invio", testo: null } });
-    const { error } = await updatePassword(ui.pwd.bozza.nuova);
-    if (!montato()) return;
-    if (error) {
-      uiDispatch({ type: "PWD_ESITO", esito: { fase: "errore", testo: error.message || "Cambio password non riuscito." } });
-    } else {
-      uiDispatch({ type: "PWD_SUCCESSO" });
-    }
-  };
+  // Il freno al doppio invio del SALVATAGGIO. Era la quarta fetta del reducer
+  // locale, insieme a tre che appartenevano alla sezione account: da M-5
+  // quelle stanno con lei, e questa torna accanto a ciò che protegge.
+  const [salvaInVolo, setSalvaInVolo] = useState(false);
 
   const handlePhotoUpload = (e) => {
     const file = e.target.files?.[0];
@@ -176,8 +135,8 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
   // ⚠️ Non è il bottone disabilitato che la validazione vieta (criticità #10):
   // quello nasconde un campo mancante invece di dirlo, e resta attivo. Questo
   // si spegne SOLO per la durata di una scrittura già partita.
-  const handleSave = async () => {
-    if (ui.salvaInVolo) return;
+  const salvaProfilo = async () => {
+    if (salvaInVolo) return;
     const trovati = validaCampi(draft, REGOLE);
     const primo = primoCampoInvalido(trovati, ORDINE);
     if (primo) {
@@ -186,7 +145,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
       return;
     }
     setErrori({});
-    uiDispatch({ type: "SALVA_IN_VOLO", valore: true });
+    setSalvaInVolo(true);
     const trimmedEmail = draft.email.trim();
     // Foto: se è una nuova immagine (data-URL dal crop, o una vecchia base64
     // ancora in photo_url), caricala sul bucket 'avatars' e sostituiscila con
@@ -199,7 +158,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
       if (!montato()) return;
       if (upErr || !url) {
         dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Foto non caricata: ${upErr?.message || "errore sconosciuto"}` } });
-        uiDispatch({ type: "SALVA_IN_VOLO", valore: false });
+        setSalvaInVolo(false);
         return; // non salvo: l'utente può ritentare senza perdere la foto scelta
       }
       finalPhotoUrl = url;
@@ -232,7 +191,7 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
     // `dispatch` è awaitato — è lo stesso contratto di useIsMounted() usato
     // sopra per l'upload.
     if (!montato()) return;
-    uiDispatch({ type: "SALVA_IN_VOLO", valore: false });
+    setSalvaInVolo(false);
     // In errore la modale resta APERTA: chiuderla butterebbe via quanto è stato
     // digitato e, subito dopo un rollback che ha appena rimesso i valori
     // precedenti, lascerebbe l'utente davanti al profilo di prima senza un modo
@@ -244,17 +203,6 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
   const initials = draft.name.trim().split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "??";
   // Le TRE operazioni asincrone leggono la propria fase in un punto solo: il
   // resto del render chiede "sta partendo?" e non incrocia due booleani.
-  const pwdInVolo = ui.pwd.esito.fase === "invio";
-  const elimInVolo = ui.elim.esito.fase === "invio";
-
-  const fieldLabel = (text) => (
-    <label className="vd-field-label">{text}</label>
-  );
-
-  const inputStyle = {
-    width: "100%", padding: "10px 12px", borderRadius: 8,
-    border: "1px solid var(--border)", fontSize: 14, fontFamily: "inherit", outline: "none",
-  };
 
   return (
     <>
@@ -320,11 +268,11 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
 
           {/* ── Nome ── */}
           <div>
-            {fieldLabel("NOME VISUALIZZATO")}
+            <label className="vd-field-label">NOME VISUALIZZATO</label>
             <input
               ref={nameRef}
               value={draft.name} onChange={e => scrivi("name", e.target.value)}
-              style={inputStyle} placeholder="Il tuo nome"
+              style={inputWFull} placeholder="Il tuo nome"
               onFocus={e => e.target.style.borderColor = "var(--gold)"}
               onBlur={e => e.target.style.borderColor = "var(--border)"}
               {...ariaCampo("prof-name-err", errori.name)}
@@ -335,11 +283,11 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
           {/* ── Email + Telefono ── */}
           <div style={stiliComuni.grid2ColGap12}>
             <div>
-              {fieldLabel("EMAIL")}
+              <label className="vd-field-label">EMAIL</label>
               <input
                 ref={emailRef}
                 value={draft.email} onChange={e => scrivi("email", e.target.value)}
-                type="email" style={inputStyle} placeholder="nome@agenzia.it"
+                type="email" style={inputWFull} placeholder="nome@agenzia.it"
                 onFocus={e => e.target.style.borderColor = "var(--gold)"}
                 onBlur={e => e.target.style.borderColor = "var(--border)"}
                 {...ariaCampo("prof-email-err", errori.email)}
@@ -347,10 +295,10 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
               <FieldError id="prof-email-err">{errori.email}</FieldError>
             </div>
             <div>
-              {fieldLabel("TELEFONO")}
+              <label className="vd-field-label">TELEFONO</label>
               <input
                 value={draft.phone} onChange={e => scrivi("phone", e.target.value)}
-                type="tel" style={inputStyle} placeholder="+39 333 123 4567"
+                type="tel" style={inputWFull} placeholder="+39 333 123 4567"
                 onFocus={e => e.target.style.borderColor = "var(--gold)"}
                 onBlur={e => e.target.style.borderColor = "var(--border)"}
               />
@@ -359,144 +307,17 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
 
           {/* ── Ruolo (read-only) ── */}
           <div>
-            {fieldLabel("RUOLO (non modificabile)")}
+            <label className="vd-field-label">RUOLO (non modificabile)</label>
             <div style={boxF14Muted}>{roleLabel(member)}</div>
           </div>
 
-          {/* ── Cambia password (solo con sessione reale) ── */}
-          {session && (
-            <div>
-              <button
-                onClick={() => uiDispatch({ type: "TOGGLE_PWD" })}
-                style={rowCenterGap8}
-              >
-                <span style={stiliComuni.txtF15}>🔑</span>
-                Cambia password
-                <span style={txtF11Muted2}>{ui.pwd.aperta ? "▲" : "▼"}</span>
-              </button>
-              {ui.pwd.aperta && (
-                <div style={colGap10Mt10}>
-                  <div>
-                    {fieldLabel("NUOVA PASSWORD")}
-                    <PasswordField
-                      inputStyle={inputStyle} autoComplete="new-password"
-                      value={ui.pwd.bozza.nuova} onChange={e => uiDispatch({ type: "SET_PWD_CAMPO", campo: "nuova", valore: e.target.value })}
-                      placeholder="Minimo 8 caratteri"
-                      show={ui.pwd.rivela} onToggle={() => uiDispatch({ type: "TOGGLE_RIVELA_PWD" })}
-                      onFocus={e => e.target.style.borderColor = "var(--gold)"}
-                      onBlur={e => e.target.style.borderColor = "var(--border)"}
-                    />
-                  </div>
-                  <div>
-                    {fieldLabel("CONFERMA PASSWORD")}
-                    <PasswordField
-                      inputStyle={inputStyle} autoComplete="new-password"
-                      value={ui.pwd.bozza.conferma} onChange={e => uiDispatch({ type: "SET_PWD_CAMPO", campo: "conferma", valore: e.target.value })}
-                      placeholder="Ripeti la password"
-                      show={ui.pwd.rivela} onToggle={() => uiDispatch({ type: "TOGGLE_RIVELA_PWD" })}
-                      onFocus={e => e.target.style.borderColor = "var(--gold)"}
-                      onBlur={e => e.target.style.borderColor = "var(--border)"}
-                      onKeyDown={e => { if (e.key === "Enter") handleChangePwd(); }}
-                    />
-                  </div>
-                  {/* Un messaggio da mostrare c'è solo nelle fasi terminali: la
-                      fase "invio" azzera `testo`, quindi l'esito di prima non
-                      può più convivere con un salvataggio in corso. */}
-                  {ui.pwd.esito.testo && (
-                    <div role="status" style={{
-                      fontSize: 12.5, borderRadius: 8, padding: "8px 10px",
-                      background: ui.pwd.esito.fase === "ok" ? "rgba(45,122,79,0.1)" : "rgba(192,57,43,0.08)",
-                      border: `1px solid ${ui.pwd.esito.fase === "ok" ? "var(--success)" : "var(--danger)"}`,
-                      color: ui.pwd.esito.fase === "ok" ? "var(--success)" : "var(--danger)",
-                    }}>{ui.pwd.esito.testo}</div>
-                  )}
-                  <div style={row}>
-                    <button
-                      onClick={handleChangePwd}
-                      disabled={pwdInVolo || !ui.pwd.bozza.nuova}
-                      style={{
-                        background: pwdInVolo || !ui.pwd.bozza.nuova ? "var(--surface3)" : "var(--navy)",
-                        color: pwdInVolo || !ui.pwd.bozza.nuova ? "var(--text-muted)" : "#fff",
-                        border: "none", padding: "9px 18px", borderRadius: 8,
-                        cursor: pwdInVolo || !ui.pwd.bozza.nuova ? "not-allowed" : "pointer",
-                        fontSize: 13, fontWeight: 600, fontFamily: "inherit",
-                      }}
-                    >{pwdInVolo ? "Salvataggio…" : "Aggiorna password"}</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ── Esci da tutti i dispositivi (dispositivo perso, sessione reale) ── */}
-          {session && (
-            <div style={mt2}>
-              <p style={txtF12Muted}>
-                Disconnette ogni telefono, tablet e computer collegato a questo
-                account, incluso questo. Usalo se hai perso un dispositivo.
-              </p>
-              {ui.signOut.esito.testo && (
-                <div role="status" style={boxF125Danger}>{ui.signOut.esito.testo}</div>
-              )}
-              <div style={row}>
-                <button
-                  onClick={handleSignOutOvunque}
-                  disabled={ui.signOut.esito.fase === "invio"}
-                  style={rowCenterGap8Neutral}
-                >
-                  <span style={stiliComuni.txtF15}>🔒</span>
-                  {ui.signOut.esito.fase === "invio" ? "Disconnessione…" : "Esci da tutti i dispositivi"}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ── Elimina account (zona pericolosa, solo con sessione reale) ── */}
-          {session && (
-            <div style={mt2}>
-              <button
-                onClick={() => uiDispatch({ type: "TOGGLE_ELIM" })}
-                style={rowCenterGap82}
-              >
-                <span style={stiliComuni.txtF15}>🗑️</span>
-                Elimina account
-                <span style={txtF11Muted2}>{ui.elim.aperta ? "▲" : "▼"}</span>
-              </button>
-              {ui.elim.aperta && (
-                <div style={colGap10Mt102}>
-                  <p style={txtF13Text}>
-                    Questa azione <strong>disabilita permanentemente</strong> il tuo account e impedisce futuri accessi.
-                    I tuoi messaggi e commenti vengono conservati. L'operazione è irreversibile.
-                  </p>
-                  <div>
-                    {fieldLabel('DIGITA "ELIMINA" PER CONFERMARE')}
-                    <input
-                      value={ui.elim.conferma} onChange={e => uiDispatch({ type: "SET_CONFERMA_ELIM", valore: e.target.value })}
-                      placeholder="ELIMINA" style={{ ...inputStyle, borderColor: "rgba(192,57,43,0.4)" }}
-                      onFocus={e => e.target.style.borderColor = "var(--danger)"}
-                      onBlur={e => e.target.style.borderColor = "rgba(192,57,43,0.4)"}
-                    />
-                  </div>
-                  {ui.elim.esito.testo && (
-                    <div role="status" style={boxF125Danger}>{ui.elim.esito.testo}</div>
-                  )}
-                  <div style={row}>
-                    <button
-                      onClick={handleDeleteAccount}
-                      disabled={elimInVolo || ui.elim.conferma !== "ELIMINA"}
-                      style={{
-                        background: elimInVolo || ui.elim.conferma !== "ELIMINA" ? "var(--surface3)" : "var(--danger)",
-                        color: elimInVolo || ui.elim.conferma !== "ELIMINA" ? "var(--text-muted)" : "#fff",
-                        border: "none", padding: "9px 18px", borderRadius: 8,
-                        cursor: elimInVolo || ui.elim.conferma !== "ELIMINA" ? "not-allowed" : "pointer",
-                        fontSize: 13, fontWeight: 600, fontFamily: "inherit",
-                      }}
-                    >{elimInVolo ? "Eliminazione…" : "Elimina account definitivamente"}</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+          {/* ── Sicurezza dell'account ──
+              Cambio password, uscita da tutti i dispositivi, eliminazione:
+              tre operazioni di autenticazione che non passano dal reducer
+              dell'app e non hanno un "salva" comune con i campi qui sopra.
+              Un file suo, con il proprio reducer (M-5, audit del 25 agosto);
+              si nasconde da sé quando non c'è una sessione vera. */}
+          <AccountSicurezza />
         </div>
 
         {/* Footer */}
@@ -506,11 +327,11 @@ export const ProfileEditor = ({ member, dispatch, onClose }) => {
               Disabilitarlo nascondeva il problema invece di dirlo — premuto,
               ora il form indica il campo e ci porta il focus. */}
           <button
-            onClick={handleSave}
-            disabled={ui.salvaInVolo}
-            aria-busy={ui.salvaInVolo}
-            style={ui.salvaInVolo ? boxF13Bold3InVolo : boxF13Bold3}
-          >{ui.salvaInVolo ? "Salvataggio…" : "✓ Salva profilo"}</button>
+            onClick={salvaProfilo}
+            disabled={salvaInVolo}
+            aria-busy={salvaInVolo}
+            style={salvaInVolo ? boxF13Bold3InVolo : boxF13Bold3}
+          >{salvaInVolo ? "Salvataggio…" : "✓ Salva profilo"}</button>
         </div>
       </Modal>
     </>

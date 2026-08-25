@@ -6,7 +6,7 @@
 // la dashboard sotto è integra. Qui l'errore resta confinato all'overlay.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { OverlayErrorBoundary } from "../components/OverlayErrorBoundary.jsx";
+import { OverlayErrorBoundary } from "../components/errors/OverlayErrorBoundary.jsx";
 
 function Esplode() {
   throw new Error("crash del modale");

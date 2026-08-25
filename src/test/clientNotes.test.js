@@ -1,7 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  chiaveNome, notesPreview, parseClientNotes, tasksDelCliente,
-} from "../lib/clientNotes.js";
+import { notesPreview, parseClientNotes } from "../lib/clientNotes.js";
 
 // Le note "ereditate" sono quelle che ClientImportModal ripiega dalle colonne
 // extra dell'export del gestionale legacy: una riga "Etichetta: valore" per
@@ -58,26 +56,6 @@ describe("notesPreview — anteprima nella card", () => {
   });
 });
 
-describe("chiaveNome / tasksDelCliente", () => {
-  it("ignora maiuscole, accenti e spazi doppi", () => {
-    expect(chiaveNome("Rossi  Mario")).toBe(chiaveNome("ROSSI MARIO"));
-    expect(chiaveNome("Nicolò Perù")).toBe("NICOLO PERU");
-  });
-
-  // Fondere "ROSSI MARIO" e "MARIO ROSSI" d'ufficio unirebbe le liste di due
-  // persone diverse in caso di omonimia parziale: restano distinti (stessa
-  // scelta di scripts/importa-liste/parser.js).
-  it("non riordina le parole", () => {
-    expect(chiaveNome("ROSSI MARIO")).not.toBe(chiaveNome("MARIO ROSSI"));
-  });
-
-  it("collega i task per nome esatto, non per sottostringa", () => {
-    const tasks = [
-      { id: "t1", client: "rossi mario" },
-      { id: "t2", client: "ROSSI MARIO E FIGLI" },
-      { id: "t3", client: null },
-    ];
-    expect(tasksDelCliente(tasks, "ROSSI MARIO").map(t => t.id)).toEqual(["t1"]);
-    expect(tasksDelCliente(tasks, "")).toEqual([]);
-  });
-});
+// La chiave d'identità e `tasksDelCliente` hanno traslocato in
+// lib/chiaveCliente.js (M-4, 25 agosto): i loro test stanno in
+// src/test/chiaveCliente.test.js.

@@ -14,21 +14,25 @@
 // nulla e conclude che il dato non esista.
 //
 // Da qui passano SOLO le ricerche della UI. Il confronto di IDENTITÀ fra due
-// clienti resta `chiaveNome` in clientNotes.js, che di proposito NON riordina
-// le parole: lì scambiare l'ordine fonderebbe le liste di due persone
+// clienti è `chiaveCliente` in lib/chiaveCliente.js, che di proposito NON
+// riordina le parole: lì scambiare l'ordine fonderebbe le liste di due persone
 // diverse, qui allarga soltanto ciò che l'utente riesce a trovare.
+//
+// M-4 (audit del 25 agosto): quella differenza ora è l'UNICA, ed è visibile nel
+// codice invece che promessa in un commento. `normalizzaTesto` NON riscrive la
+// normalizzazione — è la chiave d'identità in minuscolo — e la tolleranza
+// sull'ordine delle parole è il solo strato che la ricerca aggiunge sopra
+// (`terminiRicerca` + `matchIndice`). Finché erano due funzioni scritte a mano
+// la promessa era falsa: questa toglieva la punteggiatura e `chiaveNome` no.
 
-const DIACRITICI = /[̀-ͯ]/g;
+import { chiaveCliente } from './chiaveCliente.js';
 
-// Tutto ciò che non è lettera o cifra diventa spazio: apostrofi (compreso il
-// ’ tipografico, che sulle tastiere mobili sostituisce l'apice e da solo
-// bastava a non far trovare più nulla), punti, trattini, "°" e la
-// punteggiatura in genere escono dal confronto.
-export const normalizzaTesto = (s) => String(s ?? '')
-  .normalize('NFD').replace(DIACRITICI, '')
-  .toLowerCase()
-  .replace(/[^\p{L}\p{N}]+/gu, ' ')
-  .trim();
+// Accenti, maiuscole e punteggiatura sono già ciò che `chiaveCliente` toglie:
+// apostrofi (compreso il ’ tipografico, che sulle tastiere mobili sostituisce
+// l'apice e da solo bastava a non far trovare più nulla), punti, trattini, "°"
+// e la punteggiatura in genere escono dal confronto. Qui resta solo il
+// minuscolo, che è la convenzione con cui i termini digitati arrivano.
+export const normalizzaTesto = (s) => chiaveCliente(s).toLowerCase();
 
 // La query digitata, spezzata nei suoi termini. Array vuoto = nessun filtro.
 export const terminiRicerca = (q) => {

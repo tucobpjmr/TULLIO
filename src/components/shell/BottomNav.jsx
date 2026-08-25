@@ -7,6 +7,7 @@ import { memo } from "react";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { getNavItemsForRole, getNavBadges } from "./navHelpers.js";
 import { NavBadge } from "./NavBadge.jsx";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -29,7 +30,8 @@ const colCenterMiddle2 = {
 const txtF19 = { fontSize: 19, lineHeight: 1 };
 const txtF9Bold = { fontSize: 9, fontWeight: 600, whiteSpace: "nowrap" };
 
-export const BottomNav = memo(function BottomNav({ activeView, dispatch, onOpenBulk, onOpenChat, unreadChat = 0 }) {
+export const BottomNav = memo(function BottomNav({ activeView, onOpenBulk, onOpenChat, unreadChat = 0 }) {
+  const dispatch = useDispatch();
   const { team, getRoleType, currentUserId } = useAppData();
   const navItems = getNavItemsForRole(getRoleType(currentUserId));
   const badges = getNavBadges(team);

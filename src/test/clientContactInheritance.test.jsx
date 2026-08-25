@@ -19,7 +19,7 @@ vi.mock("../lib/api.js", () => ({
   TaskFiles: { upload: vi.fn(async () => ({ error: null })) },
 }));
 
-const { QuickAddTask } = await import("../components/modals/QuickAddTask.jsx");
+const { QuickAddTask } = await import("../components/tasks/QuickAddTask.jsx");
 
 // Un cliente scelto dall'autocomplete deve portare con sé i contatti già
 // presenti in anagrafica (telefono/email), non solo il nome — prima la

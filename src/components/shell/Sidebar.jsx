@@ -4,11 +4,12 @@
 // in file propri (B-3 dell'audit del 13 agosto: un file, un componente —
 // vedi docs/CLAUDE.md, e BottomNav.jsx/navHelpers.js/NavBadge.jsx qui accanto).
 import { useEffect, useRef, useState, memo } from "react";
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { getNavItemsForRole, getNavBadges } from "./navHelpers.js";
 import { NavBadge } from "./NavBadge.jsx";
 import * as stiliComuni from "../../styles/common.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -30,7 +31,8 @@ const boxAbsoluteW7 = { position: "absolute", bottom: 0, right: 0, width: 7, hei
 // componente lo legge — BottomNav non lo riceve, VoyageDesk non lo passa più —
 // quindi non c'è motivo per cui debba sopravvivere fuori da questo file, né
 // per cui debba invalidare l'identità di `state` ad ogni resize.
-export const Sidebar = memo(function Sidebar({ activeView, dispatch, onOpenBulk, onOpenChat, unreadChat = 0 }) {
+export const Sidebar = memo(function Sidebar({ activeView, onOpenBulk, onOpenChat, unreadChat = 0 }) {
+  const dispatch = useDispatch();
   const { isDesktop, width } = useViewport();
   const { team, getRoleType, currentUserId, getAssignableTeam } = useAppData();
   const [collapsed, setCollapsed] = useState(false);

@@ -4,8 +4,8 @@
 // Cerca su due domini distinti — task e liste viaggio — perché per l'utente
 // "cerca Bianchi" è una domanda sola, anche se sotto sono due tabelle.
 import { useState, useReducer, useEffect, useMemo } from "react";
-import { useViewport } from "../Viewport.jsx";
-import { SwipeActions } from "../SwipeActions.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
+import { SwipeActions } from "../tasks/SwipeActions.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { PRIORITIES, STATUSES, STATUS_LABELS } from "../../lib/taskConstants.js";
 import { formatDate, isOverdue, startOfLocalDay, endOfLocalDay } from "../../lib/taskUtils.js";
@@ -23,6 +23,7 @@ import {
   rowCenterBetween, rowCenterGap10, rowCenterGap8, rowCenterMiddle, rowGap10F11,
   txtBoldNavyLight, txtDanger, txtF11Muted, txtF13Bold, txtF13Muted, txtF15Bold,
 } from "./advancedSearchPanelStyles.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Esportato per i test: la ricerca globale è l'unico punto che cerca insieme
 // task e liste viaggio, ed è quello dove le due ricerche devono coincidere.
@@ -64,7 +65,8 @@ function filtriReducer(s, a) {
   }
 }
 
-export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", onKeyword, currentUserId }) => {
+export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, currentUserId }) => {
+  const dispatch = useDispatch();
   const { isMobile } = useViewport();
   const { team, categories, canAccessListe } = useAppData();
   // A-3. Questo pannello ha una casella «includi nel cestino» e un filtro per
@@ -403,7 +405,7 @@ export const AdvancedSearchPanel = ({ tasks, dispatch, onClose, keyword = "", on
               const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
               const overdue = isOverdue(t);
               return (
-                <SwipeActions key={t.id} task={t} dispatch={dispatch} disabled={!!t.deletedAt}>
+                <SwipeActions key={t.id} task={t} disabled={!!t.deletedAt}>
                 <div
                   onClick={() => openTask(t)}
                   style={{

@@ -1,4 +1,4 @@
-// src/components/modals/profileEditorStyles.js
+// src/components/shell/profileEditorStyles.js
 // Gli stili costanti di ProfileEditor.jsx, estratti dal componente (M-1,
 // audit del 12 agosto): oggetti allocati una volta a livello di modulo
 // invece che ricostruiti a ogni render, e altrettante righe di sola
@@ -95,4 +95,12 @@ export const boxF13Bold3InVolo = {
   ...boxF13Bold3,
   background: "var(--surface3)", color: "var(--text-muted)",
   cursor: "not-allowed", boxShadow: "none",
+};
+
+// M-5 (25 agosto): usato sia dai campi del profilo sia da quelli della sezione
+// account, che ora vivono in due file. Una definizione sola, come tutte le
+// altre di questo foglio.
+export const inputWFull = {
+  width: "100%", padding: "10px 12px", borderRadius: 8,
+  border: "1px solid var(--border)", fontSize: 14, fontFamily: "inherit", outline: "none",
 };

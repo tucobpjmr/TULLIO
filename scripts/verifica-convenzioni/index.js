@@ -26,6 +26,10 @@ import {
   // i call site mancanti invece di CONTARE quelli presenti. Vedi il blocco che
   // li introduce in convenzioni.js.
   azioniRegistry, formSenzaAttesaEsito, ricercheSenzaIndice, iterazioniQuadratiche,
+  // A-1 (26 agosto): il secondo verbo di scrittura dell'app, il controllo
+  // sullo stato di invio a mano, e i due perimetri dichiarati -- senza i quali
+  // un atteso di 0 non distingue "nessun debito" da "non ho guardato".
+  statoInvioScrittoAMano, leggiPerimetroContratto,
   // A-4: il tetto FISICO, accanto a quello di max-lines che salta i commenti.
   fileOltreTettoFisico,
   // M-1 (passo 2): la finestra sull'anagrafica e chi ne chiede il complemento.
@@ -291,8 +295,39 @@ async function main() {
   const senzaAttesa = formSenzaAttesaEsito(sorgenti, azioni);
   controlli.push({
     nome: 'form che scrivono senza attendere l\'esito', dove: 'docs/CLAUDE.md',
-    dichiarato: 0, misurato: senzaAttesa.length,
-    rimedio: `Passa da \`useSalvataggio\` (o attendi il dispatch a mano, come ProfileEditor): ${senzaAttesa.join(', ')}`,
+    dichiarato: 0, misurato: senzaAttesa.fuori.length,
+    rimedio: `Passa da \`useSalvataggio\` (o attendi il dispatch a mano, come ProfileEditor): ${senzaAttesa.fuori.join(', ')}`,
+  });
+
+  // ─── 5-quinquies · A-1 (audit del 26 agosto) ──────────────────────────────
+  //    Lo stato di invio scritto a mano su una scrittura. Controllo a sé e non
+  //    un allargamento del precedente: quello chiede «i dati digitati
+  //    sopravvivono a un rifiuto?», questo «lo stato di invio viene dal
+  //    contratto?» — vedi il commento di statoInvioScrittoAMano per le tre
+  //    garanzie che una copia a mano non ha.
+  const aMano = statoInvioScrittoAMano(sorgenti, azioni);
+  controlli.push({
+    nome: 'stato di invio scritto a mano', dove: 'docs/CLAUDE.md',
+    dichiarato: 0, misurato: aMano.length,
+    rimedio: `\`const [saving, …]\` su una scrittura: prendilo da \`useSalvataggio\` — ${aMano.join(', ')}`,
+  });
+
+  // ─── 5-sexies · il PERIMETRO, dichiarato ─────────────────────────────────
+  //    A-1 e' nato da un controllo verde su un perimetro piu' piccolo del
+  //    codice. Un atteso di 0 non protegge da questo: protegge dal debito che
+  //    CRESCE, non dal perimetro che si RESTRINGE. Questo numero sta in
+  //    docs/CLAUDE.md e rende visibile il restringimento — se una form nuova
+  //    scrive in un modo che `scriveDavvero` non riconosce, il perimetro cala
+  //    e il controllo lo dice, invece di continuare a stampare uno zero.
+  //
+  //    Vale per DUE controlli e non per uno: `statoInvioScrittoAMano` condivide
+  //    `scriveDavvero` e non puo' dichiarare un perimetro proprio (il suo stato
+  //    finale corretto e' zero file), quindi e' questo numero a proteggere
+  //    anche lui. Vedi il commento di quella funzione.
+  controlli.push({
+    nome: 'form nel perimetro del contratto', dove: 'docs/CLAUDE.md',
+    dichiarato: leggiPerimetroContratto(claudeMd), misurato: senzaAttesa.perimetro.length,
+    rimedio: `Aggiorna la frase «il contratto «salva e chiudi» guarda N form» (misurati: ${senzaAttesa.perimetro.join(', ')}).`,
   });
 
   const senzaIndice = ricercheSenzaIndice(sorgenti);

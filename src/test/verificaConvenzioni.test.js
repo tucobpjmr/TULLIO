@@ -11,6 +11,7 @@ import {
   LetturaFallita, leggiCallSiteSalvataggio, leggiConteggioMultiComp, leggiStatoAudit,
   leggiStatoIndex, leggiStiliInline, montaggiLazySenzaRete, usiSalvataggio, confronta,
   azioniRegistry, formSenzaAttesaEsito, ricercheSenzaIndice, iterazioniQuadratiche,
+  statoInvioScrittoAMano, leggiPerimetroContratto,
   formeDuplicate, formeGiaInComune, doppioNome,
 } from '../../scripts/verifica-convenzioni/convenzioni.js';
 
@@ -236,6 +237,12 @@ export const PERSISTENCE = {
 describe('formSenzaAttesaEsito', () => {
   const AZIONI = ['ADD_CATEGORY', 'UPDATE_TEAM_MEMBER', 'DELETE_CLIENT'];
   const importaValida = 'import { obbligatorio, validaCampi } from "../../lib/validators.js";';
+  // Un form conforme che SCRIVE: serve a far reggere il presupposto del
+  // controllo (senza nessun file che validi E scriva, la funzione SOLLEVA).
+  const conforme = {
+    path: 'src/components/ok.jsx',
+    testo: `${importaValida}\nuseSalvataggio(() => dispatch({ type: "ADD_CATEGORY", payload: p }));`,
+  };
 
   it('segnala il form che scrive e chiude senza attendere', () => {
     const sorgenti = [{
@@ -247,8 +254,43 @@ describe('formSenzaAttesaEsito', () => {
           onClose();
         };`,
     }];
-    expect(formSenzaAttesaEsito(sorgenti, AZIONI))
+    expect(formSenzaAttesaEsito(sorgenti, AZIONI).fuori)
       .toEqual(['src/components/admin/AddCategoryModal.jsx']);
+  });
+
+  // ─── A-1 (audit del 26 agosto) · il secondo verbo di scrittura ────────────
+  // È il rilievo, ed è il caso che PRIMA passava: dodici form del modulo Liste
+  // scrivono con `esegui("nomeOperazione", …)` invece che con un dispatch, e
+  // nessuna poteva far scattare il predicato. `AddMovBox.jsx` lo dimostrava —
+  // importa `validaCampi`, gestisce `saving` a mano, ed era esente per un
+  // motivo solo: il verbo con cui scrive.
+  it('segnala il form che scrive con il registry del modulo Liste', () => {
+    const sorgenti = [conforme, {
+      path: 'src/components/liste/AddMovBox.jsx',
+      testo: `${importaValida}
+        const submit = async () => {
+          const trovati = validaCampi({ desc, imp }, REGOLE);
+          setSaving(true);
+          const { ok } = await esegui("registraMovimento", { listaId, descrizione: desc });
+          setSaving(false);
+        };`,
+    }];
+    expect(formSenzaAttesaEsito(sorgenti, AZIONI).fuori)
+      .toEqual(['src/components/liste/AddMovBox.jsx']);
+  });
+
+  it('segnala anche la forma confezionata dal genitore (`onSave.run`)', () => {
+    const sorgenti = [conforme, {
+      path: 'src/components/liste/modals/NuovaListaModal.jsx',
+      testo: `${importaValida}
+        const submit = async () => {
+          validaCampi({ titolo }, REGOLE);
+          const ok = await onCreate.run({ titolo });
+          if (!ok) setSaving(false);
+        };`,
+    }];
+    expect(formSenzaAttesaEsito(sorgenti, AZIONI).fuori)
+      .toEqual(['src/components/liste/modals/NuovaListaModal.jsx']);
   });
 
   it('accetta il form che passa da useSalvataggio', () => {
@@ -258,7 +300,7 @@ describe('formSenzaAttesaEsito', () => {
         import { useSalvataggio } from "../../hooks/useSalvataggio.js";
         const { salva } = useSalvataggio((p) => dispatch({ type: "ADD_CATEGORY", payload: p }));`,
     }];
-    expect(formSenzaAttesaEsito(sorgenti, AZIONI)).toEqual([]);
+    expect(formSenzaAttesaEsito(sorgenti, AZIONI).fuori).toEqual([]);
   });
 
   it('accetta anche chi attende a mano, come ProfileEditor faceva prima dell\'hook', () => {
@@ -271,31 +313,113 @@ describe('formSenzaAttesaEsito', () => {
           onClose();
         };`,
     }];
-    expect(formSenzaAttesaEsito(sorgenti, AZIONI)).toEqual([]);
+    expect(formSenzaAttesaEsito(sorgenti, AZIONI).fuori).toEqual([]);
   });
 
   it('NON segnala una scrittura senza form: non c\'è niente di digitato da perdere', () => {
     // È il caso che separa i sei call site del rilievo dai molti che vanno
     // bene: una DELETE dietro una conferma, con rollback e toast, è il pattern
     // giusto. Il predicato è «valida E scrive», non «scrive».
-    const sorgenti = [
-      // Un form a posto perché il presupposto del controllo regga (senza
-      // nessun file che validi, la funzione SOLLEVA — vedi l'ultimo caso).
-      { path: 'src/components/ok.jsx', testo: `${importaValida}\nuseSalvataggio(() => {});` },
-      {
-        path: 'src/components/clients/ClientiView.jsx',
-        testo: `const handleDelete = (c) => {
-          dispatch({ type: "DELETE_CLIENT", payload: c.id });
-          chiudiOverlay();
-        };`,
-      },
-    ];
-    expect(formSenzaAttesaEsito(sorgenti, AZIONI)).toEqual([]);
+    const sorgenti = [conforme, {
+      path: 'src/components/clients/ClientiView.jsx',
+      testo: `const handleDelete = (c) => {
+        dispatch({ type: "DELETE_CLIENT", payload: c.id });
+        chiudiOverlay();
+      };`,
+    }];
+    expect(formSenzaAttesaEsito(sorgenti, AZIONI).fuori).toEqual([]);
+  });
+
+  // A-1 · Il perimetro torna insieme ai bocciati, ed è metà del rilievo: uno
+  // zero su un insieme che si restringe è indistinguibile da uno zero vero.
+  it('riporta il PERIMETRO, non solo i bocciati', () => {
+    const sorgenti = [conforme, {
+      path: 'src/components/liste/AddMovBox.jsx',
+      testo: `${importaValida}\nawait esegui("registraMovimento", p);`,
+    }, {
+      // Valida ma non scrive: fuori dal perimetro, non "promosso".
+      path: 'src/components/search/FiltriPanel.jsx',
+      testo: `${importaValida}\nconst x = 1;`,
+    }];
+    expect(formSenzaAttesaEsito(sorgenti, AZIONI).perimetro)
+      .toEqual(['src/components/ok.jsx', 'src/components/liste/AddMovBox.jsx']);
   });
 
   it('SOLLEVA se nessun file valida, invece di passare a vuoto', () => {
     expect(() => formSenzaAttesaEsito([{ path: 'a.js', testo: 'niente' }], AZIONI))
       .toThrow(LetturaFallita);
+  });
+
+  it('SOLLEVA se nessun file che valida risulta SCRIVERE', () => {
+    // Il presupposto che A-1 ha visto cadere in silenzio: i verbi di scrittura
+    // non descrivono più come l'app scrive, e il controllo passerebbe a vuoto
+    // su un perimetro vuoto.
+    expect(() => formSenzaAttesaEsito([{ path: 'a.jsx', testo: importaValida }], AZIONI))
+      .toThrow(LetturaFallita);
+  });
+});
+
+// ─── A-1 (audit del 26 agosto), seconda metà ───────────────────────────────
+describe('statoInvioScrittoAMano', () => {
+  const AZIONI = ['ADD_CATEGORY'];
+
+  it('segnala `const [saving, …]` su una scrittura', () => {
+    const sorgenti = [{
+      path: 'src/components/liste/TitoloTestata.jsx',
+      testo: `const [saving, setSaving] = useState(false);
+        const save = async () => {
+          if (saving) return;
+          setSaving(true);
+          const { ok } = await esegui("modificaTitolo", { id, titolo });
+          setSaving(false);
+        };`,
+    }];
+    expect(statoInvioScrittoAMano(sorgenti, AZIONI))
+      .toEqual(['src/components/liste/TitoloTestata.jsx']);
+  });
+
+  it('riconosce anche `busy`, il nome usato dalle modali admin', () => {
+    const sorgenti = [{
+      path: 'src/components/x.jsx',
+      testo: 'const [busy, setBusy] = useState(false);\nawait onSave.run(p);',
+    }];
+    expect(statoInvioScrittoAMano(sorgenti, AZIONI)).toEqual(['src/components/x.jsx']);
+  });
+
+  it('NON segnala uno stato di invio senza scrittura: non c\'è nessun esito da attendere', () => {
+    const sorgenti = [{
+      path: 'src/components/ui/Spinner.jsx',
+      testo: 'const [busy, setBusy] = useState(false);',
+    }];
+    expect(statoInvioScrittoAMano(sorgenti, AZIONI)).toEqual([]);
+  });
+
+  it('accetta chi prende lo stato dal contratto', () => {
+    const sorgenti = [{
+      path: 'src/components/ok.jsx',
+      testo: 'const { inVolo } = useSalvataggio(() => esegui("creaLista", p));',
+    }];
+    expect(statoInvioScrittoAMano(sorgenti, AZIONI)).toEqual([]);
+  });
+
+  // ⚠️ A differenza di ogni altro controllo di questo file, questo NON solleva
+  // sul presupposto vuoto — e il caso è qui perché sia una scelta verificata e
+  // non una dimenticanza. Qui il presupposto È il difetto: lo stato finale
+  // corretto è zero file, e un throw farebbe fallire lo script il giorno in cui
+  // il debito è pagato. A proteggerlo dal restringersi è il perimetro
+  // dichiarato di `formSenzaAttesaEsito`, che condivide `scriveDavvero`.
+  it('NON solleva sul perimetro vuoto: zero è il suo stato finale corretto', () => {
+    expect(statoInvioScrittoAMano([{ path: 'a.js', testo: 'niente' }], AZIONI)).toEqual([]);
+  });
+});
+
+describe('leggiPerimetroContratto', () => {
+  it('legge il numero dalla frase di CLAUDE.md', () => {
+    expect(leggiPerimetroContratto('…il contratto «salva e chiudi» guarda 8 form, e…')).toBe(8);
+  });
+
+  it('SOLLEVA se la frase non c\'è più, invece di passare a vuoto', () => {
+    expect(() => leggiPerimetroContratto('riscritto senza quel numero')).toThrow(LetturaFallita);
   });
 });
 

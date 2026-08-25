@@ -78,6 +78,17 @@ const AUDIT = [
   // scadere. I prefissi sono due — M (media) e B (bassa) — perche' non ha
   // rilievi critici ne' di alta priorita'.
   { file: 'AUDIT_ARCHITETTURA_2026-08-25.md', prefisso: ['M', 'B'] },
+  // Registrato insieme al documento, come i cinque sopra — ed e' l'audit con
+  // TUTTI E UNDICI i rilievi ancora aperti, cioe' quello il cui marcatore
+  // ha piu' occasioni di scadere. I prefissi sono tre: A (alta), M (media),
+  // B (bassa). Nessun rilievo critico, quindi niente C.
+  //
+  // ⚠️ A-1 di quell'audit riguarda QUESTO script: `formSenzaAttesaEsito`
+  // certifica un perimetro piu' piccolo del codice (non vede le dodici form
+  // di components/liste/, che scrivono con `esegui` e non con un dispatch del
+  // registry core). Finche' non e' chiuso, il controllo n. 5-bis qui sotto
+  // stampa uno 0 che vale solo per il core.
+  { file: 'AUDIT_ARCHITETTURA_2026-08-26.md', prefisso: ['A', 'M', 'B'] },
 ];
 
 // Misura i warning di una regola sul sorgente dell'app.

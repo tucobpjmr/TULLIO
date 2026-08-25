@@ -11,11 +11,11 @@ Eseguito su un repository con `lint`, `test`, `verifica:tipi`,
 (secondo passaggio), un audit che parte da lì non cerca difetti che uno
 strumento vede: cerca ciò che nessuno strumento misura.
 
-⟦stato: 5/8 chiusi⟧
+⟦stato: 8/8 chiusi⟧
 
 > **Sulla numerazione.** `M-` = media priorità, `B-` = bassa, come negli audit
-> dal 12 al 16 agosto. I cinque rilievi di priorità media sono chiusi; i tre di
-> bassa priorità restano aperti (B-1 è chiuso per tre quinti — vedi sotto).
+> dal 12 al 16 agosto. Tutti e otto chiusi: i cinque di media nella prima
+> sessione, i tre di bassa nella seconda, su richiesta esplicita.
 
 ---
 
@@ -64,9 +64,9 @@ stile dell'app.
 | **M-3** ✔ | Media | Duplicazione | 3 ErrorBoundary quasi identici, ~40 righe di lifecycle triplicate | `ErrorBoundary` / `ViewErrorBoundary` / `OverlayErrorBoundary` (292 righe) |
 | **M-4** ✔ | Media | Divergenza | Chiave d'identità cliente in 4 implementazioni, e due davano risposte diverse | `clientNotes:63` · `searchUtils:26` · `ClientImportModal:100` · `scripts/importa-liste/parser.js` |
 | **M-5** ✔ | Media | Testabilità | God components: 5 file oltre 380 righe effettive con 3+ responsabilità | `ListeViaggio` 448 · `CalendarPlanner` 430 · `TaskSlideOver` 417 · `Trash` 404 · `ProfileEditor` 388 |
-| **B-1** ⚙ | Bassa | Navigabilità | Cartelle-contenitore senza semantica: `modals/`, `views/`, 5 file sciolti in `components/` | struttura |
-| **B-2** | Bassa | SoC | Regola di dominio (tassonomia keyword→categoria) dentro un file UI | `QuickAddTask.jsx:50-80` |
-| **B-3** | Bassa | Leggibilità | Naming misto IT/EN nello stesso scope | trasversale |
+| **B-1** ✔ | Bassa | Navigabilità | Cartelle-contenitore senza semantica: `modals/`, `views/`, 5 file sciolti in `components/` | struttura |
+| **B-2** ✔ | Bassa | SoC | Regola di dominio (tassonomia keyword→categoria) dentro un file UI | `QuickAddTask.jsx:50-80` |
+| **B-3** ✔ | Bassa | Leggibilità | Naming misto IT/EN nello stesso scope — **ridimensionato**, vedi sotto | trasversale |
 
 ---
 
@@ -222,7 +222,117 @@ Tre note che valgono più delle righe risparmiate:
 
 ---
 
-## Rilievi ancora aperti
+## B-1 · `modals/` e `views/` non esistono più ✔
+
+Erano due cartelle-contenitore in una struttura che altrove raggruppa per
+funzionalità: «modale» e «vista» dicono come una cosa si PRESENTA, non cosa fa.
+È lo stesso rilievo di A-6 del 23 agosto (secondo passaggio) visto da un'altra
+angolazione — e A-6 aveva già fatto la parte difficile, cioè **decidere le
+destinazioni una per una**. Questo spostamento non ha deciso niente: ha
+eseguito un arretrato scritto.
+
+| da | a | perché |
+|---|---|---|
+| `modals/QuickAddTask` | `tasks/` | è la creazione rapida di un task |
+| `modals/NoticeEditorModal` | `dashboard/` | edita un avviso della bacheca |
+| `modals/AddTeamMemberModal`, `BulkInviteModal`, `AddCategoryModal` | `admin/` | team e categorie si amministrano da lì |
+| `modals/ProfileEditor` + `AccountSicurezza` + stili | `shell/` | è il profilo dell'utente loggato, si apre da `UserSwitcher` |
+| `modals/CropModal` | `ui/` | ritaglia un'immagine e non sa di cosa sia |
+| `views/Archive`, `views/Trash` + `RipristinaTaskModal` | `tasks/` | due viste sulla stessa entità |
+| `SwipeActions` (sciolto) | `tasks/` | avvolge una riga task e dispatcha `MOVE_TASK`/`DELETE_TASK` |
+| `Viewport` (sciolto) | `ui/` | trasversale, nessuna conoscenza del dominio |
+
+Il file che dimostra che `Archive` e `Trash` erano un cluster solo e non due
+viste qualsiasi: `archiveFilters.js`, che **le due condividevano già** stando in
+una cartella che non lo diceva.
+
+⚠️ Gli import non sono stati riscritti con una sostituzione testuale ma
+risolvendo ogni specifier relativo al file di destinazione e ricalcolandolo —
+la differenza conta, ed è il motivo per cui lint, tipi, 1676 test, build e
+bundle sono passati invariati al primo colpo. I riferimenti dei documenti di
+audit PRECEDENTI non sono stati toccati, ed è voluto: descrivono dov'erano i
+file quando quei documenti sono stati scritti.
+
+## B-2 · La tassonomia keyword→categoria è dominio, non UI ✔
+
+«Se il titolo dice *volo*, la categoria è *biglietteria*» dice come questa
+agenzia classifica il proprio lavoro: ha lo stesso status delle regole in
+`lib/permissions.js`. Viveva in `QuickAddTask.jsx` fra gli stili e il JSX, con
+tre conseguenze — per leggerla bisognava aprire 300 righe di form; non era
+esercitabile da sola; e il secondo percorso di creazione che avesse voluto
+suggerire una categoria avrebbe copiato l'elenco, cioè come nascono le
+divergenze che M-4 ha appena chiuso sull'anagrafica.
+
+Ora è `lib/tasks/categoriaDaTitolo.js`, accanto a `nuovoTask.js`.
+
+**Il test non elenca esempi: fissa i punti in cui l'ORDINE decide.** `visa` sta
+sopra `booking` perché «documenti sanitari per il volo» è una pratica di visti e
+non una prenotazione, e senza quell'ordine finirebbe altrove. Fissa anche che le
+parole sono PREFISSI e che lo spazio in coda (`"ncc "`, `"tour "`, `"bus "`) è
+significativo e non una svista di formattazione — più due invarianti di forma
+che nessuno controllava: nessuna categoria ripetuta, e nessuna parola in due
+categorie diverse (la seconda sarebbe irraggiungibile, cioè una regola che
+dipende dall'ordine senza dirlo).
+
+## B-3 · La lingua degli identificatori ✔ (ridimensionato)
+
+**Il rilievo, precisato.** «Naming misto IT/EN» suonava come un difetto di
+uniformità, e a leggerlo da vicino non lo è: l'app è bilingue **per strato**, e
+va bene così. Inglese dove lo impongono React (`onClose`, `children`) e lo
+schema del database (`dueDate` ← `due_date`); italiano per tutto ciò che
+scegliamo noi, come la UI, i commenti e i documenti.
+
+**Il difetto vero era che quella regola non era scritta da nessuna parte.** La
+sezione «Convenzioni naming» di `CLAUDE.md` copriva il *casing* e taceva sulla
+lingua — quindi nessuno poteva seguirla, e la codebase è diventata bilingue a
+caso invece che per strato. È lo stesso schema degli altri cinque rilievi di
+questo passaggio: una risposta data una volta e non propagata.
+
+**Chiuso su due assi.**
+
+1. *La regola esiste*: tre livelli con la precedenza dichiarata, in
+   `docs/CLAUDE.md`.
+2. *Il suo caso peggiore è a zero e misurato*: **la stessa cosa chiamata in due
+   modi nello stesso file**. Undici casi trovati, undici chiusi, e il controllo
+   «doppio nome per lo stesso concetto» in `verifica:convenzioni` con l'atteso a
+   0. Le coppie sono un elenco **esplicito**, non un riconoscitore automatico di
+   lingua: un controllo con falsi positivi diventa il rumore che si impara a
+   saltare. `error` nudo è esente, con la ragione accanto — è la forma in cui
+   supabase-js consegna l'esito, non un nome nostro.
+
+Il caso che spiega perché contava: `UrgentQueue` aveva `finestra` (la
+paginazione dell'elenco) e `windowH`/`windowMs` (la finestra temporale delle
+urgenze), **con un commento che avvisava «da non confondere»**. Un commento che
+disambigua due nomi è la misura esatta del costo del difetto. Ora si chiamano
+diverso e il commento non serve.
+
+⚠️ **Cosa NON è stato fatto, e perché.** Restano ~50 file con nomi generici in
+inglese scelti prima che la regola esistesse (`form`, `pendingFiles`,
+`handleSubmit`, `trashed`, `period`). Non sono stati tradotti in blocco: si
+convertono **un file alla volta, quando lo si sta già riscrivendo per un'altra
+ragione** — la stessa dottrina che ha appena chiuso l'arretrato di A-6 in una
+sessione, e che B-1 dimostra funzionare. Il precedente che vieta la scorciatoia
+è dentro questo repository: A-2 del 22 agosto ha sostituito 122 identificatori
+con una regex e si è portato dietro cinque stringhe che identificatori non
+erano.
+
+**Un difetto di documentazione trovato per strada.** `CLAUDE.md` dichiarava
+«`useShellUi` espone COMANDI, non setter» mentre l'hook esponeva ancora
+`setShowKeyHelp`, e il guscio doveva conoscere la forma dello stato per
+invertirlo (`p => !p`). Ora il comando è `alternaScorciatoie` e la riga è di
+nuovo vera.
+
+---
+
+## Nota: come si è arrivati a otto su otto
+
+I cinque rilievi di media priorità sono stati chiusi in una sessione, i tre di
+bassa in quella successiva su richiesta esplicita. La sezione qui sotto è il
+testo con cui i tre erano stati LASCIATI APERTI, conservato perché descrive
+quello che si pensava servisse — ed è utile confrontarlo con ciò che poi è
+bastato: per B-1 l'arretrato era già deciso e mancava solo l'esecuzione, per
+B-3 la diagnosi è cambiata (il difetto non era il bilinguismo ma la regola non
+scritta).
 
 ### B-1 ⚙ · Cartelle-contenitore senza semantica
 

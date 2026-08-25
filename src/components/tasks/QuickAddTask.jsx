@@ -5,6 +5,9 @@ import { PRIORITIES } from "../../lib/taskConstants.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { clientContact } from "../../lib/taskUtils.js";
 import { nuovoTask } from "../../lib/tasks/nuovoTask.js";
+// B-2 (25 agosto): la tassonomia keyword→categoria è una regola di dominio
+// dell'agenzia, non una scelta di questo form. Vive in lib/tasks/.
+import { categoriaDaTitolo } from "../../lib/tasks/categoriaDaTitolo.js";
 import { TaskFiles } from "../../lib/api.js";
 import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit } from "../../lib/fileUtils.js";
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";
@@ -46,19 +49,6 @@ const txtF12Avviso = {
 };
 const rowGap10Mt20 = { display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" };
 
-// v2.8 Round 6: auto-suggerisci la categoria in base a keyword nel titolo.
-// Regole: primo match vince (ordine top-down). Solo per categorie disponibili all'utente.
-const CATEGORY_KEYWORDS = [
-  { cat: "transfer",  words: ["transfer", "navetta", "shuttle", "ncc "] },
-  { cat: "visa",      words: ["visto", "passaporto", "visa", "documenti sanitar", "document"] },
-  { cat: "booking",     words: ["volo", "voli", "aereo", "aerei", "bigliett", "compagnia aerea", "flight"] },
-  { cat: "itinerary",   words: ["itinerario", "programma viaggio", "tappe", "tour ", "percorso", "preventivo", "hotel", "albergo", "resort", "villa", "bed ", "bungalow", "ryokan", "appartament", "ospitalit"] },
-  { cat: "payment",     words: ["pagament", "acconto", "saldo", "fattura", "bonifico", "invoice", "polizza", "tariffa", "fornitore", "contratto", "accordo", "autobus", "bus "] },
-  { cat: "client",      words: ["cliente", "followup", "follow-up", "chiamata", "contatto", "scadenza opt", "opzione"] },
-  { cat: "appointment", words: ["appuntamento", "appointment", "meeting", "incontro"] },
-  { cat: "marketing",   words: ["newsletter", "social", "post ", "campagna", "promo", "pubblicità", "instagram", "facebook"] },
-  { cat: "admin",       words: ["check-in", "checkin", "check in", "riunione", "agenda", "report", "log ", "amministrazion"] },
-];
 // A-2 · L'etichetta dice `TITOLO *`, e l'asterisco è una promessa: prima
 // `if (!form.title.trim()) return;` la mancava in silenzio — nessun messaggio,
 // nessun focus, e per chi usa uno screen reader nemmeno l'indizio visivo del
@@ -69,16 +59,6 @@ const REGOLE = {
   title: obbligatorio("Il titolo è obbligatorio: è con questo che il task compare in elenco, nelle code e nelle notifiche."),
 };
 const ORDINE = ["title"];
-
-const suggestCategory = (title, availableCats) => {
-  const lower = (title || "").toLowerCase();
-  if (lower.length < 4) return null;
-  for (const { cat, words } of CATEGORY_KEYWORDS) {
-    if (!availableCats[cat]) continue;
-    if (words.some(w => lower.includes(w))) return cat;
-  }
-  return null;
-};
 
 export const QuickAddTask = ({ onAdd, onClose }) => {
   const { currentUserId, getAssignableTeam, getAvailableCategories } = useAppData();
@@ -187,7 +167,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
   };
 
   // Auto-suggerisci categoria al cambio titolo (se l'utente non ha impostato manualmente)
-  const suggested = !catManual ? suggestCategory(form.title, availableCats) : null;
+  const suggested = !catManual ? categoriaDaTitolo(form.title, availableCats) : null;
 
   const inp = (field) => ({
     value: form[field],
@@ -200,7 +180,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
         const next = { ...p, [field]: val };
         // Auto-applica la categoria suggerita se non è stata modificata manualmente
         if (field === "title" && !catManual) {
-          const s = suggestCategory(val, availableCats);
+          const s = categoriaDaTitolo(val, availableCats);
           if (s) next.category = s;
         }
         return next;
@@ -249,13 +229,13 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
               >
                 {Object.entries(availableCats).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
               </select>
-              {catManual && form.title.length >= 4 && suggestCategory(form.title, availableCats) && suggestCategory(form.title, availableCats) !== form.category && (
+              {catManual && form.title.length >= 4 && categoriaDaTitolo(form.title, availableCats) && categoriaDaTitolo(form.title, availableCats) !== form.category && (
                 <button
                   type="button"
-                  onClick={() => { setCatManual(false); const s = suggestCategory(form.title, availableCats); if (s) setForm(p => ({ ...p, category: s })); }}
+                  onClick={() => { setCatManual(false); const s = categoriaDaTitolo(form.title, availableCats); if (s) setForm(p => ({ ...p, category: s })); }}
                   style={boxF11Mt5}
                 >
-                  💡 Usa categoria suggerita: {availableCats[suggestCategory(form.title, availableCats)]?.label}
+                  💡 Usa categoria suggerita: {availableCats[categoriaDaTitolo(form.title, availableCats)]?.label}
                 </button>
               )}
             </div>

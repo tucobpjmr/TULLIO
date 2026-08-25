@@ -416,6 +416,9 @@ src/
 │   ├── api.js               Tasks/Notices/Conversations/Messages/Notifications/Users/Clients APIs (Suppliers/Dossiers RIMOSSI sessione 24)
 │   ├── bulkImport.js        normalizzazione valori CSV/Excel + auto-mappatura colonne (puro)
 │   ├── chiaveCliente.js     LA chiave d'identità cliente + tasksDelCliente (M-4, 25 agosto)
+│   ├── tasks/nuovoTask.js   l'UNICA forma di un task appena creato (A-2, 23 agosto)
+│   ├── tasks/categoriaDaTitolo.js  la tassonomia keyword→categoria dell'agenzia:
+│   │                        regola di DOMINIO, non del form che la usa (B-2, 25 agosto)
 │   ├── clientId.js          UUID per tab (origin-tagging realtime)
 │   ├── mappers.js           DB ↔ camelCase (fromDbClient/toDbClient, fromDbNotification; Supplier/Dossier RIMOSSI sessione 24)
 │   ├── supabase.js

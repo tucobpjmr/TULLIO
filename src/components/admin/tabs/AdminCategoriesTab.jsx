@@ -109,7 +109,7 @@ export const AdminCategoriesTab = () => {
                 ) : (
                   <>
                     <div style={txtF15Bold}>{c.label}</div>
-                    <div style={stiliComuni.txtF12Muted2}>
+                    <div style={stiliComuni.sottotitolo}>
                       Chiave: <code>{key}</code> • {count} task usano questa categoria
                     </div>
                   </>

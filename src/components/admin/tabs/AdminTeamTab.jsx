@@ -234,7 +234,7 @@ export const AdminTeamTab = () => {
             ) : (
               <>
                 <div style={txtF15Bold}>{m.name}</div>
-                <div style={stiliComuni.txtF12Muted2}>
+                <div style={stiliComuni.sottotitolo}>
                   {roleLabel(m)} • {count} task assegnati
                   {seenLabel && <span> • ultimo accesso {seenLabel}</span>}
                 </div>

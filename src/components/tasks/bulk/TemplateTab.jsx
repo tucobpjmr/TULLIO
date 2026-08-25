@@ -199,7 +199,7 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
 
           {eventDate && (
             <div>
-              <div style={stiliComuni.txtF10Bold2}>
+              <div style={stiliComuni.etichettaSezione}>
                 ANTEPRIMA — {previewTasks.length} TASK
               </div>
               <div style={boxR8}>
@@ -224,7 +224,7 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
         </>
       )}
 
-      <div style={stiliComuni.rowCenterBetween2}>
+      <div style={stiliComuni.piedeSezione}>
         <div style={stiliComuni.colGap2F12}>
           <span>{previewTasks.length} task pronti</span>
           {error && <span style={stiliComuni.txtBoldDanger}>{error}</span>}

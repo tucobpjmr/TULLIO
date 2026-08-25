@@ -163,7 +163,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
   return (
     <div style={colGap16}>
       <div style={boxR10}>
-        <div style={stiliComuni.txtF10Bold2}>
+        <div style={stiliComuni.etichettaSezione}>
           IMPOSTAZIONI COMUNI (usate se la riga non specifica)
         </div>
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: 8 }}>

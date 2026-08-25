@@ -12,7 +12,7 @@ import {
   leggiStatoIndex, leggiStiliInline, montaggiLazySenzaRete, usiSalvataggio, confronta,
   azioniRegistry, formSenzaAttesaEsito, ricercheSenzaIndice, iterazioniQuadratiche,
   statoInvioScrittoAMano, leggiPerimetroContratto,
-  formeDuplicate, formeGiaInComune, doppioNome,
+  formeDuplicate, formeGiaInComune, suffissoDiCollisione, doppioNome,
 } from '../../scripts/verifica-convenzioni/convenzioni.js';
 
 describe('leggiConteggioMultiComp', () => {
@@ -561,6 +561,45 @@ describe('formeGiaInComune', () => {
   it('SOLLEVA se common.js non ha prodotto niente', () => {
     expect(() => formeGiaInComune([{ path: 'src/x.jsx', nome: 'a', valore: '{}' }], []))
       .toThrow(LetturaFallita);
+  });
+});
+
+// ─── M-3 · il nome che dice una cosa falsa ─────────────────────────────────
+describe('suffissoDiCollisione', () => {
+  const st = (...nomi) => nomi.map(nome => ({ nome, valore: '{}' }));
+
+  it('trova il nome nato da una collisione, e nomina quello con cui ha collisione', () => {
+    const scoperti = suffissoDiCollisione(st('rowGap6', 'rowGap62'));
+    expect(scoperti).toHaveLength(1);
+    expect(scoperti[0]).toContain('`rowGap62`');
+    expect(scoperti[0]).toContain('`rowGap6`');
+  });
+
+  it('NON segnala la cifra che è un valore', () => {
+    // `rowGap4` finisce con una cifra come `rowGap62`, ma `rowGap` non esiste:
+    // il 4 è il gap. È il caso che rende inutile una lista di eccezioni — e
+    // quello che una regola ESLint sintattica segnalerebbe insieme agli altri.
+    expect(suffissoDiCollisione(st('rowGap4', 'gridGap10', 'txtF13', 'grid2ColGap12')))
+      .toEqual([]);
+  });
+
+  it('vede anche la collisione su un nome che finisce già con una cifra', () => {
+    // Il caso che un prefiltro `/[A-Za-z]\d$/` perde: `rowGap62` ha un 6 prima
+    // del 2 perché il nome con cui è entrato in collisione era `rowGap6`.
+    // Metà delle sei collisioni di common.js erano di questa forma.
+    expect(suffissoDiCollisione(st('rowCenterGap8', 'rowCenterGap82'))).toHaveLength(1);
+    expect(suffissoDiCollisione(st('gridGap10', 'gridGap102'))).toHaveLength(1);
+  });
+
+  it('accetta il nome di RUOLO, che è la correzione', () => {
+    expect(suffissoDiCollisione(st('rowGap6', 'rowAzioniInLinea', 'grigliaSchede', 'sottotitolo')))
+      .toEqual([]);
+  });
+
+  it('SOLLEVA se common.js non ha prodotto niente', () => {
+    // «zero collisioni» e «zero nomi» sono la stessa cifra e due affermazioni
+    // diverse.
+    expect(() => suffissoDiCollisione([])).toThrow(LetturaFallita);
   });
 });
 

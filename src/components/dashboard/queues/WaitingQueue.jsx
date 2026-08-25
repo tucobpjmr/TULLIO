@@ -103,7 +103,7 @@ export const WaitingQueue = ({ tasks, loading = false }) => {
         </div>
       ) : (
         <>
-        <div style={stiliComuni.gridGap102}>
+        <div style={stiliComuni.grigliaSchede}>
           {finestra.visibili.map(t => {
             const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
             const overdue = isOverdue(t);

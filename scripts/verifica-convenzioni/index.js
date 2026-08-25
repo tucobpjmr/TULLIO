@@ -37,6 +37,9 @@ import {
   // A-5 (23 agosto, secondo passaggio): le forme di stile confrontate per
   // VALORE e non per nome. Vedi il blocco che le introduce in convenzioni.js.
   formeDuplicate, formeGiaInComune,
+  // M-3 (26 agosto): i nomi di common.js con un suffisso di collisione,
+  // cioè meccanici come gli altri ma su un valore che non hanno.
+  suffissoDiCollisione,
   // B-3 (25 agosto): due nomi per un concetto solo dentro lo stesso file.
   doppioNome,
 } from './convenzioni.js';
@@ -379,6 +382,20 @@ async function main() {
     nome: 'forme già in common.js riscritte altrove', dove: 'src/styles/common.js',
     dichiarato: 0, misurato: gia.length,
     rimedio: `Usa quella condivisa invece di ridefinirla: ${gia.join(' | ')}`,
+  });
+
+  // 5-octies · M-3 (audit del 26 agosto). Terzo della famiglia degli stili, e
+  //    l'unico che guarda i NOMI invece dei valori. `rowGap62` non è «gap 62»:
+  //    è «la seconda forma che somigliava a rowGap6», su un modulo che 85 file
+  //    importano. Il predicato è relazionale (il nome senza l'ultima cifra è
+  //    un altro nome esportato) e non sintattico, perché `rowGap4` e `txtF13`
+  //    hanno cifre che significano qualcosa e devono restare — vedi il
+  //    preambolo di `suffissoDiCollisione`.
+  const collisioni = suffissoDiCollisione(inComune);
+  controlli.push({
+    nome: 'nomi di stile con suffisso di collisione', dove: 'src/styles/common.js (fan-in 85)',
+    dichiarato: 0, misurato: collisioni.length,
+    rimedio: `Dai alla forma il nome del suo RUOLO, non un numero progressivo: ${collisioni.join(' | ')}`,
   });
 
   // 5-septies · B-3 (audit del 25 agosto). La lingua degli identificatori è

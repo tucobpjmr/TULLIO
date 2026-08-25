@@ -99,7 +99,7 @@ export function TaskHistoryPanel({ taskId }) {
                   <span style={txtF12Bold}>{h.actor || "Sistema"}</span>
                   <span style={stiliComuni.txtF11Muted}>{formatDate(h.time)}</span>
                 </div>
-                <div style={stiliComuni.txtF12Muted2}>{historyDescribe(h, getMember)}</div>
+                <div style={stiliComuni.sottotitolo}>{historyDescribe(h, getMember)}</div>
               </div>
             </div>
           ))}

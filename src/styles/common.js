@@ -74,15 +74,23 @@ export const cellaAzioni = { padding: "12px 16px", textAlign: "right" };
 // ─── LAYOUT: RIGHE ───────────────────────────────────────────────────────────
 export const rowGap4 = { display: "flex", gap: 4 };
 export const rowGap6 = { display: "flex", gap: 6, flexShrink: 0 };
-export const rowGap62 = { display: "flex", gap: 6, justifyContent: "flex-end" };
+// M-3 · La coppia di bottoni-azione in fondo a una riga di tabella
+// (Ripristina / ✕). Si chiamava `rowGap62`, che non è «gap 62»: era «la
+// seconda forma che somigliava a rowGap6», e dai tre call site non c'era
+// modo di saperlo.
+export const rowAzioniInLinea = { display: "flex", gap: 6, justifyContent: "flex-end" };
 export const rowGap8 = { display: "flex", gap: 8 };
 export const rowGap8Mt20 = { display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 };
 export const rowCenterGap8 = { display: "flex", alignItems: "center", gap: 8 };
-export const rowCenterGap82 = { display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" };
+// M-3 · La barra dei filtri sopra un elenco: etichetta più una fila di chip
+// che va a capo (Trash, Archive, ArchivedListe). Era `rowCenterGap82`.
+export const rowFiltri = { display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" };
 export const rowCenterGap10 = { display: "flex", alignItems: "center", gap: 10 };
 export const rowCenterGap12 = { display: "flex", alignItems: "center", gap: 12 };
 export const rowCenterBetween = { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 };
-export const rowCenterBetween2 = { display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: "1px solid var(--border)" };
+// M-3 · Il piede di una sezione: riepilogo a sinistra, azioni a destra,
+// separato dal contenuto da un bordo. Era `rowCenterBetween2`.
+export const piedeSezione = { display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: "1px solid var(--border)" };
 // Promosse qui il 23 agosto (A-5, secondo passaggio): erano definite alla
 // lettera in tre file ciascuna, cioè oltre la soglia che questo registro
 // dichiara in cima ("ricorrono in tre o più file"). Non erano visibili come
@@ -112,7 +120,10 @@ export const colGap2F12 = { fontSize: 12, color: "var(--text-muted)", display: "
 export const gridGap10 = { display: "grid", gap: 10 };
 export const gridGap12 = { display: "grid", gap: 12 };
 export const grid2ColGap12 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 };
-export const gridGap102 = {
+// M-3 · La griglia di schede che si riempie da sola, larghezza minima 280px
+// (le quattro code della Dashboard). Era `gridGap102`.
+// ⚠️ Non è la griglia dei CAMPI di un form: quella è `grid2ColGap12`.
+export const grigliaSchede = {
   display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))",
   gap: 10,
 };
@@ -129,11 +140,14 @@ export const txtMuted = { color: "var(--text-muted)" };
 export const txtBoldDanger = { color: "var(--danger)", fontWeight: 600 };
 export const txtF10Muted = { fontSize: 10, color: "var(--text-muted)" };
 export const txtF10Bold = { fontSize: 10, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4, letterSpacing: 0.5 };
-export const txtF10Bold2 = { fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 8 };
+// M-3 · L'INTESTAZIONE IN MAIUSCOLO di un blocco dentro un pannello.
+// Era `txtF10Bold2`, accanto a `txtF10Bold` che è un'altra cosa.
+export const etichettaSezione = { fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 8 };
 export const txtF11Muted = { fontSize: 11, color: "var(--text-muted)" };
 export const txtF11Bold = { fontSize: 11, color: "var(--text-muted)", fontWeight: 600 };
 export const txtF12Muted = { fontSize: 12, color: "var(--text-muted)" };
-export const txtF12Muted2 = { fontSize: 12, color: "var(--text-muted)", marginTop: 2 };
+// M-3 · La riga di dettaglio subito sotto un titolo. Era `txtF12Muted2`.
+export const sottotitolo = { fontSize: 12, color: "var(--text-muted)", marginTop: 2 };
 export const txtF13 = { fontSize: 13 };
 export const txtF13Muted = { fontSize: 13, color: "var(--text-muted)" };
 export const txtF13Bold = { fontSize: 13, fontWeight: 600 };

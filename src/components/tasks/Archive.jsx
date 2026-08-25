@@ -199,7 +199,7 @@ export const Archive = memo(function Archive({ loading = false }) {
 
           {/* Filtro periodo (per data di completamento) — solo se ci sono task */}
           {!caricando && archived.length > 0 && (
-            <div style={stiliComuni.rowCenterGap82}>
+            <div style={stiliComuni.rowFiltri}>
               <span style={stiliComuni.txtF11Bold}>Completate:</span>
               {PERIOD_OPTIONS.map(opt => (
                 <button key={opt.key} type="button" onClick={() => setPeriod(opt.key)} style={chipStyle(period === opt.key)}>
@@ -319,7 +319,7 @@ export const Archive = memo(function Archive({ loading = false }) {
                         {task.completedAt ? formatDate(task.completedAt) : "—"}
                       </td>
                       <td style={stiliComuni.cellaAzioni} onClick={e => e.stopPropagation()}>
-                        <div style={stiliComuni.rowGap62}>
+                        <div style={stiliComuni.rowAzioniInLinea}>
                           <button onClick={() => handleReopen(task)} title="Riapri (rimetti in lavorazione)" style={stiliComuni.btnNavyMini}>↩ Riapri</button>
                           <button onClick={() => handleTrash(task)} title="Sposta nel cestino" style={stiliComuni.btnDangerMini}>🗑️</button>
                         </div>

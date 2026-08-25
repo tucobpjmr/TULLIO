@@ -146,7 +146,7 @@ export const Trash = memo(function Trash({ loading = false }) {
 
       {/* Filtro periodo — solo se ci sono task */}
       {!caricando && trashed.length > 0 && (
-        <div style={stiliComuni.rowCenterGap82}>
+        <div style={stiliComuni.rowFiltri}>
           <span style={stiliComuni.txtF11Bold}>Periodo:</span>
           {PERIOD_OPTIONS.map(opt => (
             <button
@@ -225,7 +225,7 @@ export const Trash = memo(function Trash({ loading = false }) {
                     {formatDate(task.deletedAt)}
                   </td>
                   <td style={stiliComuni.cellaAzioni}>
-                    <div style={stiliComuni.rowGap62}>
+                    <div style={stiliComuni.rowAzioniInLinea}>
                       <button onClick={() => handleRestore(task)} title="Ripristina con modifica" style={stiliComuni.btnNavyMini}>↻ Ripristina</button>
                       <button onClick={() => handlePurge(task)} title="Elimina definitivamente" style={stiliComuni.btnDangerMini}>✕</button>
                     </div>

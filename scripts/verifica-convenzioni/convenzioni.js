@@ -751,6 +751,59 @@ export function formeGiaInComune(costanti, comuni) {
 }
 
 /**
+ * ─── M-3 · IL NOME CHE DICE UNA COSA FALSA ────────────────────────────────
+ * (audit del 26 agosto)
+ *
+ * `src/styles/common.js` è il modulo con il fan-in più alto dell'app — 85 file
+ * su 258 lo importano, più del data layer e più dello stato — e dichiara in
+ * cima che un nome MECCANICO (`txtF13Muted` = testo 13px in `--text-muted`) è
+ * un segnale utile: dice che quella forma non ha ancora un significato
+ * nell'app. È vero, e questo controllo non tocca quei nomi.
+ *
+ * Tocca il caso in cui il segnale mente. `rowGap62` NON è «gap 62»: era «la
+ * seconda forma che somigliava a `rowGap6`», e dai tre call site non c'era modo
+ * di saperlo — bisognava aprire il file. Un nome meccanico che smette di
+ * descrivere il valore ha smesso di essere un segnale ed è diventato una
+ * informazione sbagliata, su un modulo che ottantacinque file leggono.
+ *
+ * ⚠️ IL PREDICATO NON È «finisce con una cifra», ed è la ragione per cui
+ * questo controllo non è una regola ESLint. `rowGap4`, `gridGap10` e `txtF13`
+ * finiscono con una cifra che SIGNIFICA qualcosa, e una regola sintattica le
+ * segnalerebbe insieme alle altre — cioè produrrebbe un controllo da imparare
+ * a saltare (⛔ in `docs/CLAUDE.md`). Il predicato è relazionale: **il nome
+ * senza la sua ultima cifra è un altro nome esportato dallo stesso file.**
+ * `rowGap62` → `rowGap6` esiste, quindi il `2` è una collisione; `rowGap4` →
+ * `rowGap` non esiste, quindi il `4` è il valore. Non serve un elenco di
+ * eccezioni perché il criterio distingue da sé.
+ *
+ * ⚠️ GUARDA SOLO `common.js`, ed è dichiarato. Gli stessi suffissi esistono
+ * nei moduli di stile locali (`trashStyles.js` ha `txtF11Bold2/3/4`), ma lì il
+ * fan-in è 1: il nome si legge accanto alla sua definizione, ed è il caso che
+ * il preambolo di common.js descrive come accettabile. Allargare il controllo
+ * a `src/**` darebbe una trentina di rossi con una correzione discutibile,
+ * che è il modo in cui un controllo si impara a saltare.
+ *
+ * @param {{nome: string, valore: string}[]} comuni le costanti esportate da common.js
+ * @returns {string[]} un nome per riga, con il nome di cui è la collisione
+ */
+export function suffissoDiCollisione(comuni) {
+  if (!comuni || comuni.length === 0) {
+    throw new LetturaFallita(
+      'Nessuna costante esportata da src/styles/common.js: senza il registro ' +
+      'non c\'è alcun nome da confrontare, e «zero collisioni» significherebbe ' +
+      '«zero nomi».');
+  }
+  const nomi = new Set(comuni.map(c => c.nome));
+  return comuni
+    // ⚠️ NESSUN prefiltro sintattico davanti a questo, e non è una svista:
+    // `/[A-Za-z]\d$/` sembra ragionevole e ne perde metà — `rowGap62` ha una
+    // CIFRA prima dell'ultima, perché il nome con cui è entrato in
+    // collisione era già `rowGap6`. La relazione è l'unico criterio.
+    .filter(c => /\d$/.test(c.nome) && nomi.has(c.nome.slice(0, -1)))
+    .map(c => `\`${c.nome}\` è «la seconda forma che somigliava a \`${c.nome.slice(0, -1)}\`», non il valore ${c.nome.slice(-1)}`);
+}
+
+/**
  * ─── B-3 · DUE NOMI PER UN CONCETTO SOLO ──────────────────────────────────
  * (audit del 25 agosto)
  *

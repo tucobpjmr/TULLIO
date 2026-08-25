@@ -16,8 +16,9 @@ import { useListeData } from "./useListeData.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useClients } from "../../state/ClientsContext.jsx";
 import { useClientiCompleti } from "../../state/ClientiCompletiContext.jsx";
-import { ListeAPI, downloadBlob, todayISO } from "./listeApi.js";
+import { ListeAPI } from "./listeApi.js";
 import { useListeWrite } from "./listePersistence.js";
+import { useStrumentiDati } from "./useStrumentiDati.js";
 import { overlayIniziale, overlayReducer } from "./listeReducers.js";
 import { terminiRicerca } from "../../lib/searchUtils.js";
 import "./liste.css";
@@ -99,7 +100,6 @@ export const ListeViaggio = memo(function ListeViaggio({ listeTarget = null }) {
   const apriOverlay = (tipo, dati = null) => overlayDispatch({ type: "APRI", overlay: tipo, dati });
   const chiudiOverlay = () => overlayDispatch({ type: "CHIUDI" });
   const conferma = useConfirm();
-  const fileInputRef = useRef(null);
 
   // L'anagrafica clienti e il team sono già idratati nello state globale
   // dell'app (stesse tabelle `clients`/`users` del modulo): li riusiamo invece
@@ -168,6 +168,17 @@ export const ListeViaggio = memo(function ListeViaggio({ listeTarget = null }) {
   const reloadAll = useCallback(async (tabelle = null) => {
     await Promise.all([loadHome(undefined, tabelle), openId ? loadDetail(openId) : Promise.resolve()]);
   }, [loadHome, loadDetail, openId]);
+
+  // ── Strumenti dati: backup in giù, backup in su, reset totale ──
+  // Un file suo (M-5, audit del 25 agosto): è l'unico dei quattro lavori di
+  // questo modulo che non tocca né l'elenco né il dettaglio — legge e riscrive
+  // l'intero corpus da un file su disco.
+  const {
+    fileInputRef, scaricaBackup, apriCaricaBackup, onBackupFile,
+    confermaImport, confermaReset,
+  } = useStrumentiDati({
+    overlay, overlayDispatch, apriOverlay, chiudiOverlay, ricarica: loadHome,
+  });
 
   const backToHome = useCallback(async () => {
     setOpenId(null);
@@ -257,111 +268,9 @@ export const ListeViaggio = memo(function ListeViaggio({ listeTarget = null }) {
     if (ok) await loadHome();
   };
 
-  // ── Strumenti dati: backup JSON, ripristino da backup, reset totale ──
-  const scaricaBackup = async () => {
-    const { data, error } = await ListeAPI.backupData();
-    if (error) {
-      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Errore: ${error.message}` } });
-      return;
-    }
-    const backup = {
-      app: "liste-viaggio", versione: 1, esportato_il: new Date().toISOString(), ...data,
-    };
-    downloadBlob(
-      new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }),
-      `backup_liste_viaggio_${todayISO()}.json`,
-    );
-    dispatch({
-      type: "SHOW_TOAST",
-      payload: { type: "success", message: `Backup scaricato: ${data.liste.length} liste, ${data.movimenti.length} movimenti` },
-    });
-  };
-
-  const apriCaricaBackup = () => {
-    chiudiOverlay();
-    fileInputRef.current?.click();
-  };
-
-  // Legge e valida il file scelto; il conteggio va mostrato PRIMA di scrivere,
-  // così l'utente sa cosa sta per aggiungere (importa_backup fa solo merge:
-  // aggiunge, salta i duplicati per id, non cancella nulla).
-  const onBackupFile = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    let data;
-    try {
-      data = JSON.parse(await file.text());
-    } catch {
-      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "File non valido: JSON non leggibile" } });
-      return;
-    }
-    if (!data || data.app !== "liste-viaggio" || !Array.isArray(data.liste)) {
-      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "Il file non sembra un backup di questa app." } });
-      return;
-    }
-    apriOverlay("import", {
-      // `beneficiari` NON è opzionale per distrazione: i backup prodotti prima
-      // della cointestazione (2 agosto) non hanno il campo, e per quelli `[]`
-      // è la risposta giusta. Ometterlo del tutto invece — com'era fino al 14
-      // agosto (C-1) — fa sparire i cointestatari anche dai backup che LI
-      // CONTENGONO, senza errore: `chunk(undefined)` ritorna `[]` e il passo
-      // non viene nemmeno costruito (listeApi.js: chunk, importaBackup).
-      payload: {
-        clients: data.clients || [],
-        liste: data.liste || [],
-        beneficiari: data.beneficiari || [],
-        movimenti: data.movimenti || [],
-      },
-      nL: (data.liste || []).length,
-      nB: (data.beneficiari || []).length,
-      nM: (data.movimenti || []).length,
-      progress: null,
-    });
-  };
-
-  const confermaImport = async () => {
-    if (overlay.tipo !== "import") return false;
-    // Il ripristino ora è spezzato in più chiamate: su un backup grande può
-    // durare parecchi secondi, e un bottone fermo su "Carico…" sembrerebbe
-    // bloccato. L'avanzamento arriva dal layer dati, che sa quanti blocchi ha
-    // già scritto — ed è l'unico dato che cambia mentre l'overlay resta aperto,
-    // quindi PROGRESSO e non una transizione.
-    overlayDispatch({ type: "PROGRESSO", progress: { done: 0, total: 0 } });
-    const { ok, data: res } = await esegui(
-      "importaBackup",
-      overlay.dati.payload,
-      (progress) => overlayDispatch({ type: "PROGRESSO", progress }),
-    );
-    // Fallito: l'avanzamento sparisce ma la modale resta aperta, così si può
-    // riprovare senza riscegliere il file.
-    overlayDispatch({ type: "PROGRESSO", progress: null });
-    if (!ok) return false;
-    chiudiOverlay();
-    dispatch({
-      type: "SHOW_TOAST",
-      payload: {
-        type: "success",
-        message: `Backup caricato: +${res.clients_added} clienti, +${res.liste_added} liste, `
-          + `+${res.beneficiari_added} cointestatari, +${res.movimenti_added} movimenti`,
-      },
-    });
-    await loadHome();
-    return true;
-  };
-
-  const confermaReset = async () => {
-    const { ok, data: res } = await esegui("resetTotale");
-    if (!ok) return false;
-    chiudiOverlay();
-    dispatch({
-      type: "SHOW_TOAST",
-      payload: { type: "success", message: `Reset eseguito: ${res.liste_deleted} liste e ${res.movimenti_deleted} movimenti eliminati` },
-    });
-    await loadHome();
-    return true;
-  };
-
+  // Plain: `onError` delle modali porta anche messaggi di VALIDAZIONE («Digita
+  // esattamente: RESET TOTALE»), non solo esiti di scrittura — `toastErrore`
+  // ci premetterebbe «Salvataggio fallito» a un salvataggio mai partito.
   const toastError = (message) => dispatch({ type: "SHOW_TOAST", payload: { type: "error", message } });
 
   // ─── chrome di navigazione (stile Tullio) ───

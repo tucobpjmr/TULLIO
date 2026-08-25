@@ -33,7 +33,14 @@ import { isAdmin } from "../lib/permissions.js";
 // spostati lì da A-2 del terzo passaggio, perché il contratto è del data layer
 // e non di questo orchestratore: la chat e il modulo Liste scrivono senza
 // passare da qui e avevano ciascuno la propria copia cieca del controllo.
-import { esitoScrittura as esito } from "../lib/esitoScrittura.js";
+//
+// M-1 (audit del 25 agosto): la LETTURA di quell'esito — il caso "array di
+// risposte" — e il testo utente dell'errore erano invece ancora scritti qui,
+// cioè per il solo core. Ora stanno in state/registroScritture.js, che è il
+// contratto comune ai due registry a tabella dell'app: da lì arriva anche la
+// forma del toast, così i due non dicono più due frasi diverse per lo stesso
+// evento davanti allo stesso utente.
+import { erroreDiScrittura, testoErrore, toastErrore } from "../state/registroScritture.js";
 
 export function useSyncedDispatch(state, rawDispatch, { enabled = true } = {}) {
   // Snapshot vivo dello state: leggendolo da un ref invece che dalle deps,
@@ -127,11 +134,7 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true } = {}) {
       // Il ritiro va quindi fatto sempre, e DOPO il rollback per non essere
       // riportato indietro da lui.
       rawDispatch({ type: "RETRACT_TOASTS", payload: action.type });
-      const testo = (spec.mapError ? spec.mapError(err) : err?.message) || fallback;
-      rawDispatch({
-        type: "SHOW_TOAST",
-        payload: { type: "error", message: `Salvataggio fallito: ${testo}` },
-      });
+      rawDispatch(toastErrore(testoErrore(spec, err, fallback)));
       return { error: err };
     };
 
@@ -139,11 +142,11 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true } = {}) {
       .then(() => spec.persist(s, toDispatch, uid))
       .then((res) => {
         // supabase-js ritorna { error, count? }; le entry che usano
-        // Promise.all ritornano un array di quegli esiti. `esito()` tratta
-        // "zero righe toccate da una scrittura mirata a una riga" come un
-        // rifiuto, non solo un `error` esplicito — vedi il commento su
-        // `esito` in cima al file.
-        const err = Array.isArray(res) ? res.map(esito).find(Boolean) : esito(res);
+        // Promise.all ritornano un array di quegli esiti, e `erroreDiScrittura`
+        // copre entrambe le forme. Tratta "zero righe toccate da una scrittura
+        // mirata a una riga" come un rifiuto, non solo un `error` esplicito —
+        // vedi il commento sull'import in cima al file.
+        const err = erroreDiScrittura(res);
         return err ? fail(err, "errore sconosciuto", res) : { error: null };
       })
       .catch((e) => fail(e, "errore di rete"))

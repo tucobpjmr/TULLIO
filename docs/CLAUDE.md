@@ -432,6 +432,9 @@ src/
 │   ├── AppDataContext.jsx   team/categorie/utente + permessi per i componenti (useAppData)
 │   ├── DispatchContext.jsx  il dispatch sincronizzato per i componenti (useDispatch) — M-2, 25 agosto
 │   ├── persistence.js       registry action → operazione Supabase (guard/normalize/persist/rollback)
+│   ├── registroScritture.js IL contratto dei due registry a tabella: vocabolario delle entry,
+│   │                        le due famiglie (ottimistico / conferma prima) e le primitive
+│   │                        dell'esecutore — esito, testo d'errore, i due toast (M-1, 25 agosto)
 │   └── reducer.js           baseReducer / reducer / makeInitialState / LOGGED_ACTIONS / ADMIN_ONLY
 ├── components/              (Phase 2e + 2f — ESTRAZIONE COMPLETA + Fase 1 CRM)
 │   ├── Viewport.jsx         ViewportContext / useViewport / ViewportProvider

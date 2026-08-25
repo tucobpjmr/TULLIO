@@ -16,17 +16,29 @@
 // protetto unicamente dal fatto che il bottone fosse nascosto ai non-admin.
 // Nascondere un bottone non è un controllo: è una scelta di layout.
 //
-// COSA NON FA, DI PROPOSITO. Nessun update ottimistico e nessun rollback,
-// a differenza di state/persistence.js. Non è una semplificazione: il modulo
-// non mostra MAI uno stato che il database non abbia già confermato — ogni
-// scrittura è una RPC transazionale (dato + voce di lista_history nella stessa
-// transazione) seguita da un reload. Aggiungere qui un livello ottimistico
-// introdurrebbe la classe di disallineamenti che il registry del core esiste
-// per chiudere, invece di prevenirla.
+// LA FAMIGLIA È «CONFERMA PRIMA», e non è una semplificazione. Nessun update
+// ottimistico e nessun rollback, a differenza di state/persistence.js: il
+// modulo non mostra MAI uno stato che il database non abbia già confermato —
+// ogni scrittura è una RPC transazionale (dato + voce di lista_history nella
+// stessa transazione) seguita da un reload. Qui il dato è denaro (acconti,
+// saldi, movimenti di un buono viaggio), e un saldo mostrato che il database
+// non ha è un difetto di un'altra categoria rispetto a una spunta che torna
+// indietro.
+//
+// M-1 (audit del 25 agosto): quella scelta era descritta QUI a parole, e per
+// questo non la verificava nessuno. Ora le due famiglie sono dichiarate in
+// state/registroScritture.js — che è anche il posto in cui vivono le parti
+// dell'esecutore comuni ai due registry — e la conseguenza sulla FORMA delle
+// entry (niente `rollback`, `entityId`, `normalize`: non c'è nulla da
+// compensare, nulla in volo, nessun dispatch da arricchire prima) è misurata
+// in src/test/registroScritture.test.js.
 //
 // FORMA DI UNA ENTRY:
-//   run(...args)      → l'operazione su Supabase. Ritorna { data, error } come
-//                       qualunque chiamata supabase-js.
+//   persist(...args)  → l'operazione su Supabase. Ritorna { data, error } come
+//                       qualunque chiamata supabase-js. Stesso nome che ha nel
+//                       core: è la stessa cosa, e chiamarla `run` di qua e
+//                       `persist` di là faceva sembrare due mondi ciò che è un
+//                       contratto solo.
 //   successMsg        → testo del toast di successo: stringa, oppure funzione
 //                       degli stessi args (alcuni messaggi dipendono dal
 //                       valore scritto), oppure assente quando è il chiamante a
@@ -47,8 +59,12 @@ import { isAdmin, canImportBackup } from "../../lib/permissions.js";
 // due l'avevano adottata; questo era rimasto con il proprio `if (error)`
 // scritto a mano, cioè la terza copia cieca che quel modulo esiste per
 // togliere di mezzo (vedi il ⛔ in docs/CLAUDE.md: «Non riscrivere
-// `if (r?.error)` a mano in un sottosistema nuovo»).
-import { esitoScrittura } from "../../lib/esitoScrittura.js";
+// `if (r?.error)` a mano in un sottosistema nuovo»). Da M-1 quella lettura
+// arriva da `erroreDiScrittura`, che è `esitoScrittura` più il caso "array di
+// risposte": un'astrazione in meno da ricordare, e la stessa dei due registry.
+import {
+  erroreDiScrittura, messaggioSuccesso, testoErrore, toastErrore, toastSuccesso,
+} from "../../state/registroScritture.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useDispatch } from "../../state/DispatchContext.jsx";
 
@@ -60,7 +76,7 @@ export const CONFERMA_RESET = "RESET TOTALE";
 export const LISTE_WRITES = {
   // ─── LISTE ─────────────────────────────────────────────────────────────────
   creaLista: {
-    run: (payload) => ListeAPI.crea(payload),
+    persist: (payload) => ListeAPI.crea(payload),
     successMsg: "Lista creata",
   },
 
@@ -70,81 +86,81 @@ export const LISTE_WRITES = {
   // diversi, e tenerle separate è ciò che rende il registry leggibile come un
   // elenco di cose che l'utente fa.
   modificaLista: {
-    run: (payload) => ListeAPI.modifica(payload),
+    persist: (payload) => ListeAPI.modifica(payload),
     successMsg: "Dati lista aggiornati",
   },
 
   // clientName null: la RPC lascia il nome cliente invariato.
   modificaTitolo: {
-    run: ({ id, titolo }) => ListeAPI.modifica({ id, titolo, clientName: null }),
+    persist: ({ id, titolo }) => ListeAPI.modifica({ id, titolo, clientName: null }),
     successMsg: ({ titolo }) => (titolo ? "Titolo aggiornato" : "Titolo rimosso"),
   },
 
   modificaNote: {
-    run: ({ id, note }) => ListeAPI.modificaNote({ id, note }),
+    persist: ({ id, note }) => ListeAPI.modificaNote({ id, note }),
     successMsg: ({ note }) => (note ? "Note interne aggiornate" : "Note interne rimosse"),
   },
 
   riapriLista: {
-    run: (id) => ListeAPI.cambiaStato(id, "attiva"),
+    persist: (id) => ListeAPI.cambiaStato(id, "attiva"),
     successMsg: "Lista riaperta",
   },
 
   esaurisciLista: {
-    run: (id) => ListeAPI.cambiaStato(id, "esaurita"),
+    persist: (id) => ListeAPI.cambiaStato(id, "esaurita"),
     successMsg: "Lista segnata come ESAURITA",
   },
 
   cestinaLista: {
-    run: (id) => ListeAPI.archivia(id),
+    persist: (id) => ListeAPI.archivia(id),
     successMsg: "Lista spostata nel cestino",
   },
 
   ripristinaLista: {
-    run: (id) => ListeAPI.ripristina(id),
+    persist: (id) => ListeAPI.ripristina(id),
     successMsg: "Lista ripristinata",
   },
 
   eliminaListaDefinitivamente: {
-    run: (id) => ListeAPI.eliminaDefinitiva(id),
+    persist: (id) => ListeAPI.eliminaDefinitiva(id),
     successMsg: "Lista eliminata definitivamente",
   },
 
   // ─── COINTESTAZIONE ────────────────────────────────────────────────────────
   spostaTitolare: {
-    run: (id, nuovoClientId) => ListeAPI.spostaTitolare(id, nuovoClientId),
+    persist: (id, nuovoClientId) => ListeAPI.spostaTitolare(id, nuovoClientId),
     successMsg: "Titolare spostato",
   },
 
   aggiungiCointestatario: {
-    run: (payload) => ListeAPI.aggiungiBeneficiario(payload),
+    persist: (payload) => ListeAPI.aggiungiBeneficiario(payload),
     successMsg: "Cointestatario aggiunto",
   },
 
   rimuoviCointestatario: {
-    run: (listaId, clientId) => ListeAPI.rimuoviBeneficiario(listaId, clientId),
+    persist: (listaId, clientId) => ListeAPI.rimuoviBeneficiario(listaId, clientId),
     successMsg: "Cointestatario rimosso",
   },
 
   // ─── MOVIMENTI ─────────────────────────────────────────────────────────────
   registraMovimento: {
-    run: (payload) => ListeAPI.addMovimento(payload),
+    persist: (payload) => ListeAPI.addMovimento(payload),
     successMsg: "Movimento registrato",
   },
 
   // Il chiamante compone il messaggio dal numero di righe scritte, che conosce
   // solo dopo la risposta.
   registraMovimenti: {
-    run: (payload) => ListeAPI.addMovimenti(payload),
+    persist: (payload) => ListeAPI.addMovimenti(payload),
   },
 
   modificaMovimento: {
-    run: (payload) => ListeAPI.modificaMovimento(payload),
+    persist: (payload) => ListeAPI.modificaMovimento(payload),
     successMsg: "Movimento aggiornato",
   },
 
   annullaMovimento: {
-    run: (id) => ListeAPI.annullaMovimento(id),
+    persist: (id) => ListeAPI.annullaMovimento(id),
     successMsg: "Movimento eliminato (tracciato nello storico)",
   },
 
@@ -159,7 +175,7 @@ export const LISTE_WRITES = {
   // nascosto agli altri ruoli non è un controllo, è un layout.
   importaBackup: {
     guard: (team, uid) => canImportBackup(team, uid),
-    run: (payload, onProgress) => ListeAPI.importaBackup(payload, onProgress),
+    persist: (payload, onProgress) => ListeAPI.importaBackup(payload, onProgress),
   },
 
   // L'unica operazione distruttiva e irreversibile del modulo. Il gate lato
@@ -170,13 +186,9 @@ export const LISTE_WRITES = {
   // privilegiata dell'app ha già (vedi ADMIN_ONLY_ACTIONS nel reducer).
   resetTotale: {
     guard: (team, uid) => isAdmin(team, uid),
-    run: () => ListeAPI.resetCompleto(CONFERMA_RESET),
+    persist: () => ListeAPI.resetCompleto(CONFERMA_RESET),
   },
 };
-
-// Testo del toast di successo per una entry, dati gli argomenti della chiamata.
-const messaggioSuccesso = (spec, args) =>
-  (typeof spec.successMsg === "function" ? spec.successMsg(...args) : spec.successMsg) || null;
 
 /**
  * Esecutore delle scritture del modulo.
@@ -209,32 +221,28 @@ export function useListeWrite() {
     if (!spec) throw new Error(`[liste] operazione non dichiarata in LISTE_WRITES: "${op}"`);
 
     if (spec.guard && !spec.guard(team, currentUserId)) {
-      dispatch({
-        type: "SHOW_TOAST",
-        payload: { type: "error", message: "Non hai i permessi per questa operazione" },
-      });
+      dispatch(toastErrore("non hai i permessi per questa operazione"));
       return { ok: false, data: null };
     }
 
-    const res = await spec.run(...args);
+    const res = await spec.persist(...args);
     // ⚠️ Oggi le diciotto operazioni di questo registry passano tutte da una
-    // RPC, che non ritorna un conteggio di righe: `esitoScrittura` si comporta
+    // RPC, che non ritorna un conteggio di righe: `erroreDiScrittura` si comporta
     // quindi esattamente come l'`if (error)` che sostituisce. È voluto e non
     // rende l'adozione inutile — il valore è che il giorno in cui una scrittura
     // del modulo toccherà una tabella direttamente (con `count: 'exact'`), il
     // rifiuto silenzioso della RLS sarà già visto qui invece di dover essere
     // scoperto una terza volta.
-    const error = esitoScrittura(res);
+    const error = erroreDiScrittura(res);
     if (error) {
       console.error("[liste]", op, error);
-      const testo = (spec.mapError ? spec.mapError(error) : error.message) || "errore sconosciuto";
-      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Errore: ${testo}` } });
+      dispatch(toastErrore(testoErrore(spec, error)));
       return { ok: false, data: null };
     }
     const { data } = res;
 
     const msg = messaggioSuccesso(spec, args);
-    if (msg) dispatch({ type: "SHOW_TOAST", payload: { type: "success", message: msg } });
+    if (msg) dispatch(toastSuccesso(msg));
     return { ok: true, data };
   }, [dispatch, team, currentUserId]);
 }

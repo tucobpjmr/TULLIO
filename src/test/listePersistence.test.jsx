@@ -70,7 +70,7 @@ const toastDi = (dispatch, tipo) => dispatch.mock.calls
 describe("LISTE_WRITES — forma del registry", () => {
   it("ogni operazione dichiara come si esegue", () => {
     for (const [nome, spec] of Object.entries(LISTE_WRITES)) {
-      expect(spec.run, `${nome} senza run`).toBeTypeOf("function");
+      expect(spec.persist, `${nome} senza persist`).toBeTypeOf("function");
     }
   });
 
@@ -149,7 +149,7 @@ describe("useListeWrite — esecuzione", () => {
     await act(async () => { esito = await esegui("cestinaLista", "l1"); });
 
     expect(esito).toEqual({ ok: false, data: null });
-    expect(toastDi(dispatch, "error")).toEqual(["Errore: row level security"]);
+    expect(toastDi(dispatch, "error")).toEqual(["Salvataggio fallito: row level security"]);
     expect(toastDi(dispatch, "success")).toEqual([]);
   });
 
@@ -172,7 +172,7 @@ describe("useListeWrite — guard di ruolo", () => {
 
     expect(esito).toEqual({ ok: false, data: null });
     expect(ListeAPIMock.resetCompleto).not.toHaveBeenCalled();
-    expect(toastDi(dispatch, "error")).toEqual(["Non hai i permessi per questa operazione"]);
+    expect(toastDi(dispatch, "error")).toEqual(["Salvataggio fallito: non hai i permessi per questa operazione"]);
   });
 
   it("un admin lo esegue, con la conferma testuale esatta che la RPC pretende", async () => {
@@ -208,7 +208,7 @@ describe("useListeWrite — guard di ruolo", () => {
 
     expect(esito).toEqual({ ok: false, data: null });
     expect(ListeAPIMock.importaBackup).not.toHaveBeenCalled();
-    expect(toastDi(dispatch, "error")).toEqual(["Non hai i permessi per questa operazione"]);
+    expect(toastDi(dispatch, "error")).toEqual(["Salvataggio fallito: non hai i permessi per questa operazione"]);
   });
 
   it("un admin può importare un backup", async () => {

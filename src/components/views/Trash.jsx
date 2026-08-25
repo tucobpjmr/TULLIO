@@ -436,7 +436,7 @@ export const Trash = memo(function Trash({ loading = false }) {
                       style={{
                         padding: "6px 12px", borderRadius: 99,
                         border: sel ? "2px solid var(--navy)" : "1px solid var(--border)",
-                        background: sel ? "var(--navy)" : "var(--stiliComuni.card)",
+                        background: sel ? "var(--navy)" : "var(--card)",
                         color: sel ? "#fff" : "var(--text)",
                         fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
                         display: "flex", alignItems: "center", gap: 5,

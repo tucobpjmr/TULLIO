@@ -23,7 +23,7 @@ const txtF13Muted2 = { padding: "40px 0", textAlign: "center", color: "var(--tex
 const txtF12Muted2 = { fontSize: 12, color: "var(--text-muted)", marginTop: 4 };
 const boxF13Bold = {
   marginTop: 10, padding: "6px 14px", borderRadius: 8,
-  border: "1px solid var(--border)", background: "var(--stiliComuni.card)",
+  border: "1px solid var(--border)", background: "var(--card)",
   color: "var(--navy)", cursor: "pointer", fontSize: 13, fontWeight: 600,
   fontFamily: "inherit",
 };
@@ -35,7 +35,7 @@ const boxF13MinW0 = {
   outline: "none", boxSizing: "border-box",
 };
 const boxR12 = {
-  background: "var(--stiliComuni.card)", borderRadius: 12, border: "1px solid var(--border)",
+  background: "var(--card)", borderRadius: 12, border: "1px solid var(--border)",
   padding: "14px 16px", cursor: "pointer",
 };
 const txtF14Bold2 = { fontWeight: 600, color: "var(--heading)", fontSize: 14, marginBottom: 6 };
@@ -47,7 +47,7 @@ const boxF12Bold = {
   fontWeight: 600, fontFamily: "inherit",
 };
 const boxF12Bold2 = {
-  background: "var(--stiliComuni.card)", color: "var(--danger)", border: "1px solid var(--danger)",
+  background: "var(--card)", color: "var(--danger)", border: "1px solid var(--danger)",
   padding: "5px 8px", borderRadius: 6, cursor: "pointer", fontSize: 12,
   fontWeight: 600, fontFamily: "inherit",
 };

@@ -353,7 +353,7 @@ const tabStyle = (active) => ({
   padding: "7px 14px", borderRadius: 8, cursor: "pointer",
   fontSize: 13, fontWeight: 700, fontFamily: "inherit",
   border: `1px solid ${active ? "var(--navy)" : "var(--border)"}`,
-  background: active ? "var(--navy)" : "var(--stiliComuni.card)",
+  background: active ? "var(--navy)" : "var(--card)",
   color: active ? "#fff" : "var(--text)",
   transition: "background 0.15s, color 0.15s",
 });

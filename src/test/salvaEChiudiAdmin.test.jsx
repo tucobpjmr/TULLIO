@@ -163,23 +163,34 @@ describe("BulkInviteModal — batch: freno, finally, smontaggio", () => {
     await act(async () => { risolvi({ data: {}, error: null }); await promessa; });
   });
 
-  it("un'eccezione a metà batch NON lascia la modale impossibile da chiudere", async () => {
-    // Qui il `finally` costa più che altrove: l'overlay è
-    // `onClick={busy ? undefined : onClose}`, quindi con `busy` bloccato a
-    // `true` la modale non si chiudeva più, con gli esiti già ottenuti sotto
-    // gli occhi e nessun modo di leggerli altrove.
+  it("un'eccezione su una riga diventa l'esito di QUELLA riga, non un'uscita", async () => {
+    // `Users.invite` è una `fetch` verso una Edge Function: se la rete cade non
+    // ritorna `{ error }`, SOLLEVA. Il rifiuto usciva da `submit` — che nessuno
+    // attende, essendo chiamata da un `onClick` — e diventava una unhandled
+    // rejection: in console un errore che l'admin non vede, e a schermo un
+    // batch fermo a metà senza dire di essersi fermato. Il ciclo deve
+    // proseguire e la riga deve comparire fra gli errori, come per `{ error }`.
     inviteMock
       .mockResolvedValueOnce({ data: {}, error: null })
-      .mockRejectedValueOnce(new Error("rete caduta"));
+      .mockRejectedValueOnce(new Error("rete caduta"))
+      .mockResolvedValueOnce({ data: {}, error: null });
     const onClose = vi.fn();
     render(withDispatch(<BulkInviteModal onClose={onClose} onInvited={vi.fn()} />, vi.fn()));
-    compilaLista(["anna@agenzia.it", "bruno@agenzia.it"]);
+    compilaLista(["anna@agenzia.it", "bruno@agenzia.it", "carla@agenzia.it"]);
 
     await act(async () => {
       screen.getByRole("button", { name: "Invia inviti" })
         .dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
+    // Tutte e tre tentate: l'eccezione sulla seconda non ferma la terza.
+    await waitFor(() => expect(inviteMock).toHaveBeenCalledTimes(3));
+    // E la riga che è esplosa lo dice, con il messaggio dell'eccezione.
+    await waitFor(() => expect(screen.getByText(/rete caduta/)).toBeInTheDocument());
+
+    // `busy` è tornato falso: l'overlay è `onClick={busy ? undefined : onClose}`,
+    // quindi un `busy` bloccato renderebbe la modale impossibile da chiudere,
+    // con gli esiti già ottenuti sotto gli occhi e nessun modo di leggerli.
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /Invia inviti|Chiudi/ })).not.toBeDisabled());
   });

@@ -1149,9 +1149,21 @@ perché «la cosa da fare non è riprovare, è chiudere». Qui la riuscita parzi
 che il rilievo aveva rinviato insieme al resto senza doverlo fare. Sono scritte
 a mano: freno su un `ref`, `try/finally`, `useIsMounted()`. Il `finally` lì
 costa più che altrove — l'overlay è `onClick={busy ? undefined : onClose}`,
-quindi un'eccezione a metà batch lasciava `busy` a `true` per sempre e la
-modale diventava **impossibile da chiudere**, con gli esiti già ottenuti sotto
-gli occhi e nessun modo di leggerli altrove.
+quindi un `busy` bloccato a `true` rende la modale **impossibile da chiudere**,
+con gli esiti già ottenuti sotto gli occhi e nessun modo di leggerli altrove.
+
+⚠️ **E c'è una quarta cosa, che il `try/finally` da solo non copriva.**
+`Users.invite` è una `fetch` verso una Edge Function: se la rete cade non
+ritorna `{ error }`, **solleva**. Il `finally` riabbassava il freno, ma il
+rifiuto usciva comunque da `submit` — che nessuno attende, essendo chiamata da
+un `onClick` — e diventava una *unhandled rejection*: in console un errore che
+l'admin non vede, e a schermo un batch fermo a metà **senza dire di essersi
+fermato**, indistinguibile da uno finito. L'ha trovato la CI, non i test, che
+passavano tutti: `vitest` conta i rifiuti non gestiti a parte e chiude con 1
+anche a suite verde. Un'eccezione è ora l'esito di QUELLA riga, ridotto alla
+stessa forma di `{ error }` che il resto del ciclo sa già dipingere: il batch
+prosegue, la riga esplosa mostra il messaggio, e non resta nulla di non
+gestito.
 
 ⛔ **`scriveDavvero` resta senza `Users.invite`, e ora per una ragione
 diversa.** Il predicato riconosce l'attesa dell'esito da `useSalvataggio`:

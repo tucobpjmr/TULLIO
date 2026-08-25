@@ -123,12 +123,21 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
     const out = [];
     try {
       for (const p of parsed) {
+        // ⚠️ Un'ECCEZIONE è un esito di riga come gli altri, e non un'uscita.
+        // `Users.invite` è una `fetch` verso una Edge Function: se la rete cade
+        // non ritorna `{ error }`, SOLLEVA. Senza questo `catch` il rifiuto
+        // usciva da `submit` — che nessuno attende, essendo chiamata da un
+        // `onClick` — e diventava una unhandled rejection: in console un errore
+        // che l'admin non vede, e a schermo un batch che si ferma a metà senza
+        // dire di essersi fermato, indistinguibile da uno finito.
+        // Ridotto qui alla stessa forma di `{ error }`, che il resto del ciclo
+        // sa già dipingere.
         const { data, error } = await Users.invite({
           email: p.email,
           name: p.name,
           role: p.role,
           color,
-        });
+        }).catch((e) => ({ data: null, error: e instanceof Error ? e : new Error(String(e)) }));
         // Smontati mentre il batch era in corso: si smette di scrivere lo
         // stato, ma NON si continua a invitare — ogni iterazione successiva
         // manderebbe email che nessuno vedrà arrivare in un elenco.
@@ -146,11 +155,14 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
         setResults([...out]);
       }
     } finally {
-      // In un `finally` e non dopo il ciclo: un'eccezione a metà batch (la rete
-      // che cade) lasciava `busy` a `true` per sempre, e qui costa più che
-      // altrove — l'overlay è `onClick={busy ? undefined : onClose}`, quindi la
-      // modale diventava impossibile da chiudere, con gli esiti già ottenuti
-      // sotto gli occhi e nessun modo di leggerli altrove.
+      // In un `finally` e non dopo il ciclo. Con il `catch` per riga qui sopra
+      // le eccezioni non arrivano più fin qui, ma il `finally` resta ed è la
+      // rete di sicurezza vera: qualunque uscita anticipata da questo ciclo —
+      // un `return` aggiunto domani, un throw da un punto che oggi non ne ha —
+      // deve comunque riabbassare il freno. Il prezzo di sbagliarlo è più alto
+      // che altrove: l'overlay è `onClick={busy ? undefined : onClose}`, quindi
+      // un `busy` bloccato a `true` rende la modale IMPOSSIBILE da chiudere,
+      // con gli esiti già ottenuti sotto gli occhi e nessun modo di leggerli.
       inVoloRif.current = false;
       if (montato()) setBusy(false);
     }

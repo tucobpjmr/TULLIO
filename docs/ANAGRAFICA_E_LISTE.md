@@ -325,11 +325,21 @@ avviene anche sul testo con gli spazi rimossi (è ciò che fa funzionare
 `dellacqua`), quindi un termine può accavallarsi su due parole
 (`rossimaria` trova `ROSSI MARIA`): falso positivo accettato di proposito.
 
-**Non è la chiave d'identità.** `chiaveNome` in `src/lib/clientNotes.js`
-resta separata e continua a NON riordinare le parole: là serve a decidere se
-due schede sono la stessa persona, e scambiare l'ordine fonderebbe le liste
-di due persone diverse. Qui si allarga solo ciò che l'utente riesce a
+**Non è la chiave d'identità.** `chiaveCliente` in
+`src/lib/chiaveCliente.js` continua a NON riordinare le parole: là serve a
+decidere se due schede sono la stessa persona, e scambiare l'ordine fonderebbe
+le liste di due persone diverse. Qui si allarga solo ciò che l'utente riesce a
 trovare.
+
+L'ordine delle parole è però l'**unico** asse su cui le due differiscono, e da
+M-4 (audit del 25 agosto) lo si vede nel codice: `normalizzaTesto` è
+`chiaveCliente` in minuscolo, non una seconda definizione di cosa si ignora.
+Prima erano quattro funzioni scritte a mano (`chiaveNome` in `clientNotes.js`,
+`normName` in `ClientImportModal`, `chiaveCliente` nello script di import,
+`normalizzaTesto` qui) che si dichiaravano gemelle mentre la punteggiatura le
+divideva in due famiglie: lo script considerava `FAM. SCURO TEODORO` e
+`FAM SCURO TEODORO` lo stesso cliente e ne riusava l'id, l'app li teneva
+distinti e la scheda dell'uno non mostrava i task dell'altro.
 
 **Ricerca globale (lente)**: cercava le liste con criteri più stretti del
 modulo — solo titolare, titolo e note interne, **senza i cointestatari**.

@@ -40,7 +40,7 @@ import { noticesReducer } from "./noticesReducer.js";
 import { messageTemplatesReducer } from "./messageTemplatesReducer.js";
 import { INITIAL_CATEGORIES } from "./taskCategories.js";
 import { demoState } from "./demoState.js";
-import { chiaveNome } from "../lib/clientNotes.js";
+import { chiaveCliente } from "../lib/chiaveCliente.js";
 
 // Utente di default in modalità demo (nessun login, dati mock).
 const DEMO_CURRENT_USER = "marco";
@@ -564,11 +564,11 @@ function baseReducer(state, action) {
     // (maiuscole/accenti/spazi doppi), come ovunque si confrontino i nomi.
     case "RENAME_CLIENT_IN_TASKS": {
       const { from, to } = action.payload || {};
-      const k = chiaveNome(from);
-      if (!k || !to || chiaveNome(to) === k) return state;
+      const k = chiaveCliente(from);
+      if (!k || !to || chiaveCliente(to) === k) return state;
       let n = 0;
       const tasks = (state.tasks || []).map(t => {
-        if (chiaveNome(t.client) !== k || !canEditTask(state.team, t, uid)) return t;
+        if (chiaveCliente(t.client) !== k || !canEditTask(state.team, t, uid)) return t;
         n += 1;
         return { ...t, client: to };
       });

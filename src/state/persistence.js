@@ -68,7 +68,7 @@ import {
   canEditClient, canDeleteClient,
 } from "../lib/permissions.js";
 import { toDbRole, toSeniority } from "../lib/taskConstants.js";
-import { chiaveNome } from "../lib/clientNotes.js";
+import { chiaveCliente } from "../lib/chiaveCliente.js";
 
 // Risultato "nessuna operazione": stessa forma di una risposta supabase-js
 // riuscita, così l'orchestratore non ha bisogno di un ramo speciale.
@@ -431,10 +431,10 @@ export const PERSISTENCE = {
   RENAME_CLIENT_IN_TASKS: {
     persist: async (s, a, uid) => {
       const { from, to } = a.payload || {};
-      const k = chiaveNome(from);
-      if (!k || !to || chiaveNome(to) === k) return NOOP;
+      const k = chiaveCliente(from);
+      if (!k || !to || chiaveCliente(to) === k) return NOOP;
       const daAggiornare = (s.tasks || [])
-        .filter(t => chiaveNome(t.client) === k && canEditTask(s.team, t, uid));
+        .filter(t => chiaveCliente(t.client) === k && canEditTask(s.team, t, uid));
       if (!daAggiornare.length) return NOOP;
       const esiti = await Promise.allSettled(
         daAggiornare.map(t => TasksAPI.update(t.id, { client_id: to })));

@@ -6,7 +6,7 @@ import { useRef, useState } from "react";
 import { useSalvataggio } from "../../hooks/useSalvataggio.js";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { validaCampi, obbligatorio, emailValida, primoCampoInvalido } from "../../lib/validators.js";
-import { chiaveNome } from "../../lib/clientNotes.js";
+import { chiaveCliente } from "../../lib/chiaveCliente.js";
 import { EMPTY_FORM, fieldStyle, labelStyle, noticeStyle } from "./clientStyles.js";
 import { Modal } from "../ui/Modal.jsx";
 import * as stiliComuni from "../../styles/common.js";
@@ -64,7 +64,7 @@ export function ClienteModal({ cliente, onSave, onClose, liste = null, tasksColl
   // mostrano come intestazione (join su client_id) e i task ne conservano una
   // copia testuale in `client`. Gli altri campi (email, città, note…) vivono
   // solo qui e si possono correggere senza conseguenze altrove.
-  const nomeCambiato = !!cliente && chiaveNome(form.name) !== chiaveNome(cliente.name);
+  const nomeCambiato = !!cliente && chiaveCliente(form.name) !== chiaveCliente(cliente.name);
   const nListe = liste?.totali || 0;
   const nAttive = liste?.attive || 0;
   const nTask = tasksCollegati.length;

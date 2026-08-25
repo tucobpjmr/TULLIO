@@ -416,6 +416,7 @@ src/
 ├── lib/
 │   ├── api.js               Tasks/Notices/Conversations/Messages/Notifications/Users/Clients APIs (Suppliers/Dossiers RIMOSSI sessione 24)
 │   ├── bulkImport.js        normalizzazione valori CSV/Excel + auto-mappatura colonne (puro)
+│   ├── chiaveCliente.js     LA chiave d'identità cliente + tasksDelCliente (M-4, 25 agosto)
 │   ├── clientId.js          UUID per tab (origin-tagging realtime)
 │   ├── mappers.js           DB ↔ camelCase (fromDbClient/toDbClient, fromDbNotification; Supplier/Dossier RIMOSSI sessione 24)
 │   ├── supabase.js

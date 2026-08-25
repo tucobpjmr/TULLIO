@@ -16,7 +16,7 @@ import { useClientiCompleti } from "../../state/ClientiCompletiContext.jsx";
 // L'anagrafica chiede al modulo Liste un conteggio per cliente, non le sue
 // query: vedi components/liste/listeModuleApi.js.
 import { conteggioListePerCliente } from "../liste/listeModuleApi.js";
-import { tasksDelCliente } from "../../lib/clientNotes.js";
+import { tasksDelCliente } from "../../lib/chiaveCliente.js";
 import { indicizza, matchIndice, terminiRicerca } from "../../lib/searchUtils.js";
 import { useFinestra } from "../../hooks/useFinestra.js";
 import { MostraAltri } from "../ui/MostraAltri.jsx";

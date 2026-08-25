@@ -22,11 +22,14 @@ const ctxTeam = (t) => { appCtx = { ...appCtx, team: t }; };
 const ctxUser = (id) => { appCtx = { ...appCtx, currentUserId: id }; };
 const ctxTasks = (t) => { appCtx = { ...appCtx, tasks: t }; };
 const ctxClients = (c) => { appCtx = { ...appCtx, clients: c }; };
-const render = (ui, options) => {
-  const utils = rtlRender(withAppData(ui, appCtx), options);
+// M-2 (25 agosto): `dispatch` arriva per contesto, quindi il render lo prende
+// fra le opzioni invece che come prop del componente sotto esame.
+const render = (ui, { dispatch, ...options } = {}) => {
+  const ctx = () => ({ ...appCtx, dispatch });
+  const utils = rtlRender(withAppData(ui, ctx()), options);
   // `appCtx` è letto al momento del rerender, non a quello del primo render:
   // un test può cambiare utente con ctxUser() e ri-renderizzare.
-  return { ...utils, rerender: (next) => utils.rerender(withAppData(next, appCtx)) };
+  return { ...utils, rerender: (next) => utils.rerender(withAppData(next, ctx())) };
 };
 
 
@@ -77,7 +80,7 @@ const renderView = () => {
   ctxTasks(s.tasks);
   ctxClients(s.clients);
   const dispatch = vi.fn();
-  render(<ClientiView dispatch={dispatch} />);
+  render(<ClientiView />, { dispatch });
   return dispatch;
 };
 

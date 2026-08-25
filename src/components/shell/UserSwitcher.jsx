@@ -10,6 +10,7 @@ import { LazyPanel } from "../ui/LazyPanel.jsx";
 import { Z } from "../../styles/tokens.js";
 import { roleLabel, toDbRole, toSeniority } from "../../lib/taskConstants.js";
 import * as stiliComuni from "../../styles/common.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -53,7 +54,8 @@ const ProfileEditor = lazy(() =>
 // ST-2: `currentUserId` arriva da AppDataContext e non da una prop `state`.
 // Era l'unico campo che questo componente leggeva dallo state del reducer, e
 // riceverlo intero legava il menù utente a ogni azione dell'app.
-export const UserSwitcher = ({ dispatch }) => {
+export const UserSwitcher = () => {
+  const dispatch = useDispatch();
   const { team, currentUserId, getMember, isJuniorAgent } = useAppData();
   const [open, setOpen] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
@@ -216,7 +218,7 @@ export const UserSwitcher = ({ dispatch }) => {
       {/* Profile Editor Modal */}
       {showProfile && (
         <LazyPanel resetKey="profilo" onReset={() => setShowProfile(false)} overlay>
-          <ProfileEditor member={curr} dispatch={dispatch} onClose={() => setShowProfile(false)} />
+          <ProfileEditor member={curr} onClose={() => setShowProfile(false)} />
         </LazyPanel>
       )}
     </div>

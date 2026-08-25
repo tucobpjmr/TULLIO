@@ -6,6 +6,7 @@ import { cardStyle, btnGhost, btnDanger } from "../adminStyles.js";
 import { downloadFile, escapeCSV } from "../adminExport.js";
 import { useConfirm } from "../../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../../styles/common.js";
+import { useDispatch } from "../../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -23,7 +24,8 @@ const txtFlex1F13 = { flex: 1, fontSize: 13, color: "var(--text)" };
 const txtF11Muted = { fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" };
 
 // ─── ADMIN TAB: LOG ATTIVITÀ ───────────────────────────────────────────────
-export const AdminLogTab = ({ dispatch, activityLog = [] }) => {
+export const AdminLogTab = ({ activityLog = [] }) => {
+  const dispatch = useDispatch();
   const conferma = useConfirm();
   const [filter, setFilter] = useState("all");
 

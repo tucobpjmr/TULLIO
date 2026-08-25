@@ -21,6 +21,7 @@ import { useConfirm } from "../../../state/ConfirmContext.jsx";
 import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
 import { obbligatorio, validaCampi } from "../../../lib/validators.js";
 import * as stiliComuni from "../../../styles/common.js";
+import { useDispatch } from "../../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -36,7 +37,8 @@ const mb24 = { marginBottom: 24 };
 const REGOLE_MEMBRO = { name: obbligatorio("Il nome del membro non può essere vuoto.") };
 
 // ─── ADMIN TAB: TEAM ───────────────────────────────────────────────────────
-export const AdminTeamTab = ({ dispatch }) => {
+export const AdminTeamTab = () => {
+  const dispatch = useDispatch();
   const conferma = useConfirm();
   const { isMobile } = useViewport();
   const { team } = useAppData();
@@ -401,7 +403,7 @@ export const AdminTeamTab = ({ dispatch }) => {
         </div>
       )}
 
-      {showAdd && <AddTeamMemberModal onClose={() => setShowAdd(false)} dispatch={dispatch} existingIds={team.map(m => m.id)} />}
+      {showAdd && <AddTeamMemberModal onClose={() => setShowAdd(false)} existingIds={team.map(m => m.id)} />}
       {showBulk && (
         <BulkInviteModal
           onClose={() => setShowBulk(false)}

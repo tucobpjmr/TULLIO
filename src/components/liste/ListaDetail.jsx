@@ -19,6 +19,7 @@ import { CellEditor } from "./CellEditor.jsx";
 import { NoteInterne } from "./NoteInterne.jsx";
 import { TitoloTestata } from "./TitoloTestata.jsx";
 import * as stiliComuni from "../../styles/common.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -38,7 +39,8 @@ const TABELLE_MOVIMENTO = new Set(["movimenti_lista"]);
 const TABELLE_LISTA = new Set(["liste_viaggio"]);
 
 // ─── Dettaglio ─────────────────────────────────────────────────────────────
-export function ListaDetail({ lista, movimenti, history, usersById, dispatch, onReload, onArchived, clients = [], saldi = {} }) {
+export function ListaDetail({ lista, movimenti, history, usersById, onReload, onArchived, clients = [], saldi = {} }) {
+  const dispatch = useDispatch();
   const [addOpen, setAddOpen] = useState(false);
   const [editCell, setEditCell] = useState(null); // { id, campo }
   const [modal, setModal] = useState(null);       // null | "editLista" | "bulk" | "addBeneficiario" | { mov }
@@ -94,7 +96,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
 
   const err = (message) => dispatch({ type: "SHOW_TOAST", payload: { type: "error", message } });
   const helper = { run: null, onError: err };
-  const esegui = useListeWrite(dispatch);
+  const esegui = useListeWrite();
 
   const toggleStato = async () => {
     if (attiva && Math.abs(saldo) > 0.004) {
@@ -206,7 +208,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
             </button>
           </div>
           <div className="sub">
-            <TitoloTestata lista={lista} dispatch={dispatch} onSaved={() => onReload(TABELLE_LISTA)} />
+            <TitoloTestata lista={lista} onSaved={() => onReload(TABELLE_LISTA)} />
             <span className={`lv-badge ${lista.stato}`}>{lista.stato}</span>
           </div>
         </div>
@@ -234,7 +236,6 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
         {attiva && addOpen && (
           <AddMovBox
             listaId={lista.id}
-            dispatch={dispatch}
             onSaved={() => onReload(TABELLE_MOVIMENTO)}
             onClose={() => setAddOpen(false)}
             onBulk={() => setModal("bulk")}
@@ -260,7 +261,6 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
                         key={m.id}
                         movimento={m}
                         campo={editCell.campo}
-                        dispatch={dispatch}
                         onSaved={async () => { setEditCell(null); await onReload(TABELLE_MOVIMENTO); }}
                         onCancel={() => setEditCell(null)}
                       />
@@ -307,7 +307,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
         )}
       </div>
 
-      <NoteInterne lista={lista} dispatch={dispatch} onSaved={() => onReload(TABELLE_LISTA)} />
+      <NoteInterne lista={lista} onSaved={() => onReload(TABELLE_LISTA)} />
 
       <div className="lv-card" style={mt16}>
         <details>
@@ -400,7 +400,6 @@ export function ListaDetail({ lista, movimenti, history, usersById, dispatch, on
           lista={lista}
           movimenti={movimenti}
           saldo={saldo}
-          dispatch={dispatch}
           onClose={() => setRiepilogoOpen(false)}
         />
       )}

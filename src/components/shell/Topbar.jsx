@@ -14,6 +14,7 @@ import { LazyPanel } from "../ui/LazyPanel.jsx";
 import { UserSwitcher } from "./UserSwitcher.jsx";
 import { Z } from "../../styles/tokens.js";
 import * as stiliComuni from "../../styles/common.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -81,10 +82,11 @@ const NotificationsPanel = lazy(() =>
 // restare leggibile da fuori questo componente. `showNotif`, che nessuno
 // legge fuori da qui, è invece `useState` locale — vedi audit ST-2 parte 2.
 export const Topbar = memo(function Topbar({
-  activeView, searchQuery, onSearchChange, dispatch,
+  activeView, searchQuery, onSearchChange,
   notifications: notificationsProp, onMarkRead, onMarkAllRead,
   onRemoveNotification, onClearAllNotifications, onOpenTask, onOpenChat,
 }) {
+  const dispatch = useDispatch();
   const { isMobile } = useViewport();
   const tasks = useTasks();
   const { currentUserId } = useAppData();
@@ -169,7 +171,6 @@ export const Topbar = memo(function Topbar({
           <LazyPanel resetKey="ricerca" onReset={() => setSearchOpen(false)}>
             <AdvancedSearchPanel
               tasks={tasks}
-              dispatch={dispatch}
               keyword={searchQuery}
               onKeyword={onSearchChange}
               onClose={() => setSearchOpen(false)}
@@ -190,7 +191,6 @@ export const Topbar = memo(function Topbar({
         {showNotif && (
           <LazyPanel resetKey="notifiche" onReset={() => setShowNotif(false)}>
             <NotificationsPanel
-              dispatch={dispatch}
               onClose={() => setShowNotif(false)}
               notifications={notifList}
               isReal={!SHOW_MOCK_NOTIFS}
@@ -207,7 +207,7 @@ export const Topbar = memo(function Topbar({
 
       {/* User switcher (v0.8) — non riceve `state`: l'unico campo che leggeva
           (currentUserId) è già in AppDataContext. */}
-      <UserSwitcher dispatch={dispatch} />
+      <UserSwitcher />
     </div>
   );
 });

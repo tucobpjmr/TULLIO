@@ -36,8 +36,8 @@ const anagrafica = (n) => Array.from({ length: n }, (_, i) => ({
 }));
 
 const monta = (clients) => renderWithAppData(
-  <ClientiView tasks={[]} dispatch={vi.fn()} loading={false} showListe={false} />,
-  { ...DEMO_APP_CTX, clients },
+  <ClientiView tasks={[]} loading={false} showListe={false} />,
+  { dispatch: vi.fn(), ...DEMO_APP_CTX, clients },
 );
 
 // Le card portano il nome del cliente come testo: contarle significa contare i

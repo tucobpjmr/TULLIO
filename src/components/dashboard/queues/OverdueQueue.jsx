@@ -24,10 +24,10 @@ const txtBoldDanger = { color: "var(--danger)", fontWeight: 700 };
 // `loading` (criticità #6): "Tutto in regola!" su zero task caricati è la
 // rassicurazione più pericolosa dell'app — è esattamente la coda che esiste
 // per non far passare inosservato ciò che è già in ritardo.
-export const OverdueQueue = ({ tasks, dispatch, loading = false }) => {
+export const OverdueQueue = ({ tasks, loading = false }) => {
   const { getMember } = useAppData();
   const [filterAssignee, setFilterAssignee] = useState(null);
-  const openTask = useOpenTask(dispatch);
+  const openTask = useOpenTask();
   const caricando = loading && tasks.length === 0;
   const empty = tasks.length === 0 && !caricando;
 
@@ -116,7 +116,7 @@ export const OverdueQueue = ({ tasks, dispatch, loading = false }) => {
           {finestra.visibili.map(t => {
             const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
             return (
-              <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+              <SwipeActions key={t.id} task={t}>
                 <TaskCard
                   task={t}
                   onOpen={openTask}

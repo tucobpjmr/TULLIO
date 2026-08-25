@@ -3,6 +3,7 @@
 // — vedi docs/CLAUDE.md). Nessun cambiamento di comportamento: stesso codice,
 // file diverso, così ToastStack resta l'unico componente esportato da Toast.jsx.
 import { useEffect } from "react";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -20,7 +21,8 @@ const boxF14White = {
   opacity: 0.8, flexShrink: 0,
 };
 
-export const ToastItem = ({ toast, dispatch }) => {
+export const ToastItem = ({ toast }) => {
+  const dispatch = useDispatch();
   useEffect(() => {
     // Un errore resta finché l'utente non lo chiude a mano: un messaggio
     // PostgREST lungo va letto (e magari copiato per segnalarlo), non

@@ -34,20 +34,20 @@ describe("Dashboard — task in attesa scaduta", () => {
   // task compare lì a prescindere. Il conteggio delle occorrenze distingue
   // le due situazioni: 1 (solo il pannello) vs 2 (pannello + coda attiva).
   it("non compare nella coda Scadute", () => {
-    renderWithAppData(<Dashboard dispatch={dispatch} />, ctx);
+    renderWithAppData(<Dashboard />, { ...ctx, dispatch });
     fireEvent.click(screen.getByText("Scadute"));
     expect(screen.getByText(/Nessuna task scaduta/)).toBeTruthy();
     expect(screen.getAllByText("Attesa risposta fornitore voli").length).toBe(1);
   });
 
   it("compare nella coda In Attesa", () => {
-    renderWithAppData(<Dashboard dispatch={dispatch} />, ctx);
+    renderWithAppData(<Dashboard />, { ...ctx, dispatch });
     fireEvent.click(screen.getByText("In Attesa"));
     expect(screen.getAllByText("Attesa risposta fornitore voli").length).toBe(2);
   });
 
   it("il badge della tab Scadute non la conta", () => {
-    renderWithAppData(<Dashboard dispatch={dispatch} />, ctx);
+    renderWithAppData(<Dashboard />, { ...ctx, dispatch });
     const scaduteTab = screen.getByText("Scadute").closest("button");
     expect(scaduteTab.textContent).not.toMatch(/1/);
   });

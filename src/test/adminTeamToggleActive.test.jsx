@@ -43,7 +43,7 @@ const bottoneDi = (nome, titolo) => within(rigaDi(nome)).getByTitle(titolo);
 describe("AdminTeamTab — disattivare chiede conferma, riattivare no", () => {
   it("disattivare un membro attivo apre la conferma e NON dispatcha finché non si conferma", async () => {
     const dispatch = vi.fn();
-    renderWithAppData(<AdminTeamTab dispatch={dispatch} />, CTX);
+    renderWithAppData(<AdminTeamTab />, { ...CTX, dispatch });
 
     fireEvent.click(bottoneDi("Sara Verdi", "Disattiva"));
 
@@ -61,7 +61,7 @@ describe("AdminTeamTab — disattivare chiede conferma, riattivare no", () => {
 
   it("Annulla sulla conferma non dispatcha nulla", async () => {
     const dispatch = vi.fn();
-    renderWithAppData(<AdminTeamTab dispatch={dispatch} />, CTX);
+    renderWithAppData(<AdminTeamTab />, { ...CTX, dispatch });
 
     fireEvent.click(bottoneDi("Sara Verdi", "Disattiva"));
     const d = await dialogo();
@@ -73,7 +73,7 @@ describe("AdminTeamTab — disattivare chiede conferma, riattivare no", () => {
 
   it("riattivare un membro disattivato dispatcha SUBITO, senza conferma", () => {
     const dispatch = vi.fn();
-    renderWithAppData(<AdminTeamTab dispatch={dispatch} />, CTX);
+    renderWithAppData(<AdminTeamTab />, { ...CTX, dispatch });
 
     fireEvent.click(bottoneDi("Luca Neri", "Riattiva"));
 

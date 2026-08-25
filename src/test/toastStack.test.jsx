@@ -6,56 +6,55 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ToastStack } from "../components/ui/Toast.jsx";
+import { withDispatch } from "./helpers/appData.jsx";
 
 describe("ToastStack", () => {
   it("con toasts vuoto il contenitore aria-live esiste comunque, senza toast visibili", () => {
-    const { container } = render(<ToastStack toasts={[]} dispatch={() => {}} />);
+    const { container } = render(withDispatch(<ToastStack toasts={[]} />));
     const live = container.querySelector('[aria-live="assertive"]');
     expect(live).toBeInTheDocument();
     expect(live.children.length).toBe(0);
   });
 
   it("un toast di tipo error ha role=alert e il bottone Chiudi notifica", () => {
-    render(
+    render(withDispatch(
       <ToastStack
         toasts={[{ id: "1", message: "errore grave", type: "error" }]}
-        dispatch={() => {}}
       />,
-    );
+    ));
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Chiudi notifica" })).toBeInTheDocument();
   });
 
   it("un toast di tipo success ha role=status", () => {
-    render(
+    render(withDispatch(
       <ToastStack
         toasts={[{ id: "1", message: "fatto!", type: "success" }]}
-        dispatch={() => {}}
       />,
-    );
+    ));
     expect(screen.getByRole("status")).toBeInTheDocument();
   });
 
   it("il click sul bottone ✕ dispatcha CLEAR_TOAST con l'id del toast", () => {
     const dispatch = vi.fn();
-    render(
+    render(withDispatch(
       <ToastStack
         toasts={[{ id: "abc-123", message: "errore", type: "error" }]}
-        dispatch={dispatch}
       />,
-    );
+      dispatch,
+    ));
     fireEvent.click(screen.getByRole("button", { name: "Chiudi notifica" }));
     expect(dispatch).toHaveBeenCalledWith({ type: "CLEAR_TOAST", payload: "abc-123" });
   });
 
   it("un toast undoable mostra Annulla e il click dispatcha UNDO_LAST_ACTION", () => {
     const dispatch = vi.fn();
-    render(
+    render(withDispatch(
       <ToastStack
         toasts={[{ id: "1", message: "Task eliminato", type: "success", undoable: true }]}
-        dispatch={dispatch}
       />,
-    );
+      dispatch,
+    ));
     const undoBtn = screen.getByRole("button", { name: /Annulla/ });
     fireEvent.click(undoBtn);
     expect(dispatch).toHaveBeenCalledWith({ type: "UNDO_LAST_ACTION" });
@@ -67,24 +66,24 @@ describe("ToastStack", () => {
 
     it("un toast error NON si auto-chiude, nemmeno dopo un tempo lungo", () => {
       const dispatch = vi.fn();
-      render(
+      render(withDispatch(
         <ToastStack
           toasts={[{ id: "err-1", message: "errore RLS", type: "error" }]}
-          dispatch={dispatch}
         />,
-      );
+        dispatch,
+      ));
       vi.advanceTimersByTime(10000);
       expect(dispatch).not.toHaveBeenCalled();
     });
 
     it("un toast success si auto-chiude dopo 3000ms", () => {
       const dispatch = vi.fn();
-      render(
+      render(withDispatch(
         <ToastStack
           toasts={[{ id: "ok-1", message: "fatto!", type: "success" }]}
-          dispatch={dispatch}
         />,
-      );
+        dispatch,
+      ));
       vi.advanceTimersByTime(2999);
       expect(dispatch).not.toHaveBeenCalled();
       vi.advanceTimersByTime(1);
@@ -93,12 +92,12 @@ describe("ToastStack", () => {
 
     it("un toast success undoable si auto-chiude dopo 5000ms (non 3000)", () => {
       const dispatch = vi.fn();
-      render(
+      render(withDispatch(
         <ToastStack
           toasts={[{ id: "ok-2", message: "eliminato", type: "success", undoable: true }]}
-          dispatch={dispatch}
         />,
-      );
+        dispatch,
+      ));
       vi.advanceTimersByTime(3000);
       expect(dispatch).not.toHaveBeenCalled();
       vi.advanceTimersByTime(2000);
@@ -107,16 +106,15 @@ describe("ToastStack", () => {
   });
 
   it("con più toast in coda vengono renderizzati tutti", () => {
-    render(
+    render(withDispatch(
       <ToastStack
         toasts={[
           { id: "1", message: "primo messaggio", type: "success" },
           { id: "2", message: "secondo messaggio", type: "warning" },
           { id: "3", message: "terzo messaggio", type: "error" },
         ]}
-        dispatch={() => {}}
       />,
-    );
+    ));
     expect(screen.getByText("primo messaggio")).toBeInTheDocument();
     expect(screen.getByText("secondo messaggio")).toBeInTheDocument();
     expect(screen.getByText("terzo messaggio")).toBeInTheDocument();
@@ -124,12 +122,11 @@ describe("ToastStack", () => {
 
   it("un messaggio lungo non viene troncato: niente ellipsis, testo completo nel DOM", () => {
     const lungo = "new row violates row-level security policy for table \"prenotazioni\": controllare i permessi dell'utente corrente prima di riprovare l'operazione";
-    render(
+    render(withDispatch(
       <ToastStack
         toasts={[{ id: "1", message: lungo, type: "error" }]}
-        dispatch={() => {}}
       />,
-    );
+    ));
     const el = screen.getByText(lungo);
     expect(el).toBeInTheDocument();
     expect(el.style.textOverflow).not.toBe("ellipsis");

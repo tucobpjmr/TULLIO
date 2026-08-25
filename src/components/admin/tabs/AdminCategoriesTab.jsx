@@ -10,6 +10,7 @@ import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
 import { obbligatorio, validaCampi } from "../../../lib/validators.js";
 import { useConfirm } from "../../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../../styles/common.js";
+import { useDispatch } from "../../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -27,7 +28,8 @@ const rowGap6 = { display: "flex", gap: 6 };
 const REGOLE = { label: obbligatorio("L'etichetta non può essere vuota.") };
 
 // ─── ADMIN TAB: CATEGORIE ──────────────────────────────────────────────────
-export const AdminCategoriesTab = ({ dispatch }) => {
+export const AdminCategoriesTab = () => {
+  const dispatch = useDispatch();
   const conferma = useConfirm();
   const { categories } = useAppData();
   const tasks = useTasks();
@@ -145,7 +147,7 @@ export const AdminCategoriesTab = ({ dispatch }) => {
         })}
       </div>
 
-      {showAdd && <AddCategoryModal onClose={() => setShowAdd(false)} dispatch={dispatch} existingKeys={Object.keys(categories)} />}
+      {showAdd && <AddCategoryModal onClose={() => setShowAdd(false)} existingKeys={Object.keys(categories)} />}
     </div>
   );
 };

@@ -44,6 +44,7 @@ vi.mock("../components/liste/listeApi.js", async (importOriginal) => ({
 
 const { getActiveTasks } = await import("../lib/taskUtils.js");
 const { AppDataProvider } = await import("../state/AppDataContext.jsx");
+const { DispatchProvider } = await import("../state/DispatchContext.jsx");
 const { TasksProvider, useTasks } = await import("../state/TasksContext.jsx");
 const { ClientsProvider, useClients } = await import("../state/ClientsContext.jsx");
 // Criticità #8: la Dashboard monta la bacheca, che chiede conferma prima di
@@ -147,16 +148,18 @@ describe("Viste — un'azione che non le riguarda non le fa ri-renderizzare", ()
     // rosso — ed è esattamente il punto.
     const [dispatch] = useState(() => vi.fn());
     return (
+      <DispatchProvider dispatch={dispatch}>
       <AppDataProvider team={TEAM} categories={CATEGORIE} currentUserId="marco">
         <TasksProvider tasks={tasks}>
           <ClientsProvider clients={NESSUN_CLIENTE}>
             <ConfirmProvider>
               <button onClick={() => setTick((n) => n + 1)}>azione non correlata {tick}</button>
-              <Dashboard dispatch={dispatch} notices={NESSUN_AVVISO} dashboardQueue={null} />
+              <Dashboard notices={NESSUN_AVVISO} dashboardQueue={null} />
             </ConfirmProvider>
           </ClientsProvider>
         </TasksProvider>
       </AppDataProvider>
+      </DispatchProvider>
     );
   };
 

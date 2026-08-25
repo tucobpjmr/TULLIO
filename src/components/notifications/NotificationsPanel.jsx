@@ -12,6 +12,7 @@ import { Z } from "../../styles/tokens.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import { PushToggle } from "./PushToggle.jsx";
 import * as stiliComuni from "../../styles/common.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -56,7 +57,8 @@ const EMPTY_NOTIFICATIONS = [];
 
 // computePresence + PRESENCE_COLORS (usati solo dalla chat) → src/components/chat/ChatPanel.jsx (Step P Phase 2f)
 
-export const NotificationsPanel = ({ dispatch, onClose, notifications, isReal, onMarkRead, onMarkAllRead, onRemoveNotification, onClearAllNotifications, onOpenTask, onOpenChat }) => {
+export const NotificationsPanel = ({ onClose, notifications, isReal, onMarkRead, onMarkAllRead, onRemoveNotification, onClearAllNotifications, onOpenTask, onOpenChat }) => {
+  const dispatch = useDispatch();
   const conferma = useConfirm();
   const { isMobile } = useViewport();
   const [filter, setFilter] = useState("all"); // all | unread | task | mention | chat
@@ -209,7 +211,7 @@ export const NotificationsPanel = ({ dispatch, onClose, notifications, isReal, o
           </div>
         ))}
       </div>
-      {isReal && <PushToggle dispatch={dispatch} />}
+      {isReal && <PushToggle />}
     </div>
   );
 };

@@ -6,6 +6,7 @@ import { cardStyle, cardH } from "../adminStyles.js";
 import { useConfirm } from "../../../state/ConfirmContext.jsx";
 import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
 import { obbligatorio, primoCampoInvalido, validaCampi } from "../../../lib/validators.js";
+import { useDispatch } from "../../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -50,7 +51,8 @@ const boxF12W28 = { background: "var(--card)", border: "1px solid var(--border)"
 const boxF12Danger = { background: "var(--card)", border: "1px solid var(--border)", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 12, color: "var(--danger)" };
 
 // ─── TEMPLATE MESSAGGI CHAT (v2.8) ─────────────────────────────────────────
-export const MessageTemplatesSection = ({ templates = [], dispatch }) => {
+export const MessageTemplatesSection = ({ templates = [] }) => {
+  const dispatch = useDispatch();
   const conferma = useConfirm();
   const [editingId, setEditingId] = useState(null);
   const [draftLabel, setDraftLabel] = useState("");

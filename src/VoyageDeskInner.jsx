@@ -14,7 +14,7 @@ import { registraSinkErrori } from "./lib/errorReporting.js";
 import { getActiveTasks } from "./lib/taskUtils.js";
 import { canAccessAdmin } from "./lib/permissions.js";
 import { reducer, makeInitialState } from "./state/reducer.js";
-// M-3 (audit del 15 agosto): l'annidamento dei cinque provider di dominio ha
+// M-3 (audit del 15 agosto): l'annidamento dei provider di dominio ha
 // un file suo. Qui resta la composizione, non la scaletta di dieci tag.
 import { AppProviders } from "./state/AppProviders.jsx";
 import { demoState } from "./state/demoState.js";
@@ -304,11 +304,11 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // provider da solo non basta).
   const renderView = () => {
     switch (state.activeView) {
-      case "dashboard":  return <Dashboard dispatch={dispatch} onOpenChat={ui.openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={loading.tasks} noticesLoading={loading.notices} />;
-      case "calendar":   return <CalendarPlanner dispatch={dispatch} loading={loading.tasks} />;
-      case "clienti":    return <ClientiView dispatch={dispatch} loading={crmLoading} />;
-      case "archivio":   return <Archive dispatch={dispatch} loading={loading.tasks} />;
-      case "trash":      return <Trash dispatch={dispatch} loading={loading.tasks} />;
+      case "dashboard":  return <Dashboard onOpenChat={ui.openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={loading.tasks} noticesLoading={loading.notices} />;
+      case "calendar":   return <CalendarPlanner loading={loading.tasks} />;
+      case "clienti":    return <ClientiView loading={crmLoading} />;
+      case "archivio":   return <Archive loading={loading.tasks} />;
+      case "trash":      return <Trash loading={loading.tasks} />;
       // Il guard qui è ridondante per costruzione — il reducer rifiuta
       // SET_VIEW → "admin" per i non-admin (reducer.js:95) e riporta la vista
       // a dashboard al cambio utente (reducer.js:145) — ma è la ridondanza che
@@ -318,20 +318,21 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       // dell'app poggia interamente sul fatto che nessuno scriva mai un terzo
       // modo di impostare activeView.
       case "admin":      return canAccessAdmin(state.team, state.currentUserId)
-        ? <AdminView dispatch={dispatch} agencyName={state.agencyName} notices={state.notices}
+        ? <AdminView agencyName={state.agencyName} notices={state.notices}
                      activityLog={state.activityLog} messageTemplates={state.messageTemplates} />
-        : <Dashboard dispatch={dispatch} onOpenChat={ui.openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={loading.tasks} noticesLoading={loading.notices} />;
-      case "liste":      return <ListeViaggio dispatch={dispatch} listeTarget={state.listeTarget} />;
-      default:           return <Dashboard dispatch={dispatch} onOpenChat={ui.openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={loading.tasks} noticesLoading={loading.notices} />;
+        : <Dashboard onOpenChat={ui.openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={loading.tasks} noticesLoading={loading.notices} />;
+      case "liste":      return <ListeViaggio listeTarget={state.listeTarget} />;
+      default:           return <Dashboard onOpenChat={ui.openChatTo} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={loading.tasks} noticesLoading={loading.notices} />;
     }
   };
 
   return (
-    // I cinque provider di dominio sono alimentati dallo STESSO state del
+    // I provider di dominio sono alimentati dallo STESSO state del
     // reducer: non esiste una seconda copia di team/categorie/utente da tenere
     // allineata a mano. L'annidamento (e il perché del suo ordine) vive in
     // state/AppProviders.jsx da M-3 — qui il guscio compone e basta.
     <AppProviders
+      dispatch={dispatch}
       team={state.team}
       categories={state.categories}
       currentUserId={state.currentUserId}
@@ -356,7 +357,6 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           activeView={state.activeView}
           searchQuery={ui.searchQuery}
           onSearchChange={ui.setSearchQuery}
-          dispatch={dispatch}
           notifications={notif.notifications}
           onMarkRead={notif.markRead}
           onMarkAllRead={notif.markAllRead}
@@ -381,11 +381,10 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           <AdminRollbackBanner
             rollbackTo={state.adminRollbackTo}
             switchedAt={state.adminSwitchedAt}
-            dispatch={dispatch}
           />
         )}
         <div style={rowFlex1}>
-          <Sidebar activeView={state.activeView} dispatch={dispatch} onOpenBulk={ui.openBulk} onOpenChat={ui.openChatPanel} unreadChat={chat.unreadChat} />
+          <Sidebar activeView={state.activeView} onOpenBulk={ui.openBulk} onOpenChat={ui.openChatPanel} unreadChat={chat.unreadChat} />
           <main className="vd-main-scroll" style={flex1}>
             {/* Suspense per la vista attiva: Dashboard e ClientiView risolvono
                 sincronicamente (viste d'ingresso, aperte da ogni sessione);
@@ -408,7 +407,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         </div>
 
         {/* Bottom nav mobile/tablet */}
-        <BottomNav activeView={state.activeView} dispatch={dispatch} onOpenBulk={ui.openBulk} onOpenChat={ui.openChatPanel} unreadChat={chat.unreadChat} />
+        <BottomNav activeView={state.activeView} onOpenBulk={ui.openBulk} onOpenChat={ui.openChatPanel} unreadChat={chat.unreadChat} />
 
         {/* Slide-over (lazy, Phase 2g). `LazyPanel` = Suspense + boundary: un
             eventuale errore (chunk 404 dopo un deploy, o crash di render)
@@ -424,7 +423,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
             onReset={() => dispatch({ type: "SET_SELECTED_TASK", payload: null })}
             overlay
           >
-            <TaskSlideOver task={state.selectedTask} dispatch={dispatch} />
+            <TaskSlideOver task={state.selectedTask} />
           </LazyPanel>
         )}
 
@@ -449,7 +448,6 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
               intent={ui.chatIntent}
               tasks={state.tasks}
               currentUserId={state.currentUserId}
-              dispatch={dispatch}
               presenceMap={presenceMap}
               messageTemplates={state.messageTemplates}
               loading={chat.loading}
@@ -481,7 +479,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         )}
 
         {/* Toast */}
-        <ToastStack toasts={state.toasts} dispatch={dispatch} />
+        <ToastStack toasts={state.toasts} />
       </div>
     </AppProviders>
   );

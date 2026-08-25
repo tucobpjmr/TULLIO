@@ -71,7 +71,7 @@ describe("Sidebar — l'auto-collapse a 1280 resta corretto dopo P2-7", () => {
     window.innerWidth = 1400;
     render(
       <ViewportProvider>
-        {withAppData(<Sidebar dispatch={vi.fn()} />, DEMO_APP_CTX)}
+        {withAppData(<Sidebar />, { ...DEMO_APP_CTX, dispatch: vi.fn() })}
       </ViewportProvider>,
     );
     expect(larghezzaSidebar()).toBe("210px");
@@ -84,7 +84,7 @@ describe("Sidebar — l'auto-collapse a 1280 resta corretto dopo P2-7", () => {
     window.innerWidth = 1200;
     render(
       <ViewportProvider>
-        {withAppData(<Sidebar dispatch={vi.fn()} />, DEMO_APP_CTX)}
+        {withAppData(<Sidebar />, { ...DEMO_APP_CTX, dispatch: vi.fn() })}
       </ViewportProvider>,
     );
     expect(larghezzaSidebar()).toBe("60px");
@@ -97,7 +97,7 @@ describe("Sidebar — l'auto-collapse a 1280 resta corretto dopo P2-7", () => {
     window.innerWidth = 1400;
     render(
       <ViewportProvider>
-        {withAppData(<Sidebar dispatch={vi.fn()} />, DEMO_APP_CTX)}
+        {withAppData(<Sidebar />, { ...DEMO_APP_CTX, dispatch: vi.fn() })}
       </ViewportProvider>,
     );
     setWidth(1350); // resta sopra 1280

@@ -11,7 +11,7 @@ import { ToastItem } from "./ToastItem.jsx";
 // in tempo a registrarlo e il primo annuncio va perso. Per questo ToastStack
 // è sempre montato — anche con `toasts` vuoto — e non ritorna mai null: il
 // contenitore c'è già, cambia solo cosa contiene.
-export const ToastStack = ({ toasts = [], dispatch }) => {
+export const ToastStack = ({ toasts = [] }) => {
   const { isDesktop } = useViewport();
   return (
     <div
@@ -30,7 +30,7 @@ export const ToastStack = ({ toasts = [], dispatch }) => {
       }}
     >
       {toasts.map((t) => (
-        <ToastItem key={t.id} toast={t} dispatch={dispatch} />
+        <ToastItem key={t.id} toast={t} />
       ))}
     </div>
   );

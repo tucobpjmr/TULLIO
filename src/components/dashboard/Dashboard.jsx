@@ -25,6 +25,7 @@ import { NoticeBoard } from "./NoticeBoard.jsx";
 import { roleLabel } from "../../lib/taskConstants.js";
 import { giornoLungo } from "../../lib/dates.js";
 import * as stiliComuni from "../../styles/common.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -86,9 +87,10 @@ const TICK_URGENZE_MS = 60 * 1000;
 // identità da preservare, quindi non c'è modo che questa scelta rompa il
 // bail-out del `memo` (vedi src/test/domainProviders.test.jsx).
 export const Dashboard = memo(function Dashboard({
-  dispatch, onOpenChat, notices = [], dashboardQueue = null,
+  onOpenChat, notices = [], dashboardQueue = null,
   tasksLoading = false, noticesLoading = false,
 }) {
+  const dispatch = useDispatch();
   const { isMobile } = useViewport();
   const {
     currentUserId, getMember, getRoleType, getAssignableTeam,
@@ -96,7 +98,7 @@ export const Dashboard = memo(function Dashboard({
   } = useAppData();
   const tasks = useTasks();
   const [activeQueue, setActiveQueue] = useState("personal");
-  const openTask = useOpenTask(dispatch);
+  const openTask = useOpenTask();
   const uid = currentUserId;
   const role = getRoleType(uid);
   // Apertura da notifica: il digest della coda globale chiede la tab "global"
@@ -257,7 +259,7 @@ export const Dashboard = memo(function Dashboard({
       </div>
 
       {/* ─── BACHECA AVVISI ─── */}
-      <NoticeBoard notices={notices} dispatch={dispatch} loading={noticesLoading} />
+      <NoticeBoard notices={notices} loading={noticesLoading} />
 
       {/* ─── TAB CODE ─── */}
       <div style={{
@@ -307,19 +309,19 @@ export const Dashboard = memo(function Dashboard({
 
       {/* ─── SEZIONE CODA FILTRATA ─── */}
       {activeQueue === "personal" && (
-        <PersonalQueue tasks={personalQueue} dispatch={dispatch} me={me} enableDateFilter={role === "driver"} loading={caricando} />
+        <PersonalQueue tasks={personalQueue} me={me} enableDateFilter={role === "driver"} loading={caricando} />
       )}
       {activeQueue === "global" && showGlobalQueue && (
-        <UnassignedQueue tasks={unassigned} dispatch={dispatch} onTake={takeOwnership} uid={uid} loading={caricando} />
+        <UnassignedQueue tasks={unassigned} onTake={takeOwnership} uid={uid} loading={caricando} />
       )}
       {activeQueue === "overdue" && (
-        <OverdueQueue tasks={overdueTasks} dispatch={dispatch} loading={caricando} />
+        <OverdueQueue tasks={overdueTasks} loading={caricando} />
       )}
       {activeQueue === "urgent" && showUrgent && (
-        <UrgentQueue tasks={urgentCandidates} dispatch={dispatch} onOpenChat={onOpenChat} uid={uid} loading={caricando} />
+        <UrgentQueue tasks={urgentCandidates} onOpenChat={onOpenChat} uid={uid} loading={caricando} />
       )}
       {activeQueue === "waiting" && showWaiting && (
-        <WaitingQueue tasks={waitingTasks} dispatch={dispatch} loading={caricando} />
+        <WaitingQueue tasks={waitingTasks} loading={caricando} />
       )}
 
       <div className="vd-grid-2col" style={grid2ColGap20}>
@@ -339,7 +341,7 @@ export const Dashboard = memo(function Dashboard({
           ) : (
           <div style={stiliComuni.colGap10}>
             {next7.map(t => (
-              <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+              <SwipeActions key={t.id} task={t}>
                 <TaskRow
                   task={t}
                   onOpen={openTask}

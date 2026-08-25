@@ -50,6 +50,7 @@ import { isAdmin, canImportBackup } from "../../lib/permissions.js";
 // `if (r?.error)` a mano in un sottosistema nuovo»).
 import { esitoScrittura } from "../../lib/esitoScrittura.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // La conferma testuale che reset_completo() pretende lato database. Vive qui e
 // non nel componente: è metà del contratto della RPC, e un refuso nel
@@ -184,7 +185,7 @@ const messaggioSuccesso = (spec, args) =>
  * della RPC e il messaggio non sono più decisi al call site, che dichiara
  * soltanto QUALE operazione di dominio sta eseguendo.
  *
- *   const esegui = useListeWrite(dispatch);
+ *   const esegui = useListeWrite();
  *   const { ok } = await esegui("cestinaLista", lista.id);
  *
  * Ritorna sempre `{ ok, data }` — stessa forma di prima, così i chiamanti
@@ -196,7 +197,8 @@ const messaggioSuccesso = (spec, args) =>
  * l'errore che questo lavoro sta rimuovendo. Il registry dichiara i permessi
  * che quel gate NON copre, cioè quelli più stretti della soglia del modulo.
  */
-export function useListeWrite(dispatch) {
+export function useListeWrite() {
+  const dispatch = useDispatch();
   const { team, currentUserId } = useAppData();
 
   return useCallback(async (op, ...args) => {

@@ -1,6 +1,7 @@
 // src/components/dashboard/queues/queueShared.js
 // Ordinamenti e hook condivisi dalle cinque code della Dashboard.
 import { useCallback } from "react";
+import { useDispatch } from "../../../state/DispatchContext.jsx";
 
 // M-2 (audit performance/UX del 16 agosto, secondo passaggio) · Quante card
 // disegna una coda alla volta. Dieci come l'elenco liste (`HOME_PAGE_SIZE`):
@@ -22,6 +23,9 @@ export const STATUS_ORDER = { todo: 0, inprogress: 1, awaiting_client: 2, awaiti
 // Apertura del dettaglio task. È `useCallback` perché `TaskCard` è `memo`: una
 // funzione ricreata a ogni render invaliderebbe la memoizzazione di tutte le
 // card della lista. `dispatch` ha identità stabile (useSyncedDispatch), quindi
-// il riferimento non cambia mai davvero.
-export const useOpenTask = (dispatch) =>
-  useCallback((task) => dispatch({ type: "SET_SELECTED_TASK", payload: task }), [dispatch]);
+// il riferimento non cambia mai davvero — ed è la stessa proprietà che permette
+// a DispatchContext di non avere un `useMemo` (M-2, audit del 25 agosto).
+export const useOpenTask = () => {
+  const dispatch = useDispatch();
+  return useCallback((task) => dispatch({ type: "SET_SELECTED_TASK", payload: task }), [dispatch]);
+};

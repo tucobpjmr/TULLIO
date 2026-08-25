@@ -28,10 +28,10 @@ const boxF13Bold = {
 // `loading` (criticità #6): true finché il primo fetch dei task non è tornato.
 // Serve a NON dire "Buon lavoro!" a chi ha una coda piena che non è ancora
 // arrivata — la coda vuota e la coda ignota sono due cose diverse.
-export const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false, loading = false }) => {
+export const PersonalQueue = ({ tasks, me, enableDateFilter = false, loading = false }) => {
   const [dateFilter, setDateFilter] = useState("all"); // "all" | "today" | "tomorrow" | "YYYY-MM-DD"
   const [sortBy, setSortBy] = useState("date"); // "date" | "priority" | "client" | "status"
-  const openTask = useOpenTask(dispatch);
+  const openTask = useOpenTask();
 
   // M-2 · `useMemo` e non un ricalcolo a ogni render: filtro per giornata e
   // ordinamento girano su tutta la coda, e senza memo si rifarebbero a ogni
@@ -147,7 +147,7 @@ export const PersonalQueue = ({ tasks, dispatch, me, enableDateFilter = false, l
             const overdue = isOverdue(t);
             const urgent = isUrgent(t);
             return (
-              <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+              <SwipeActions key={t.id} task={t}>
                 <TaskCard
                   task={t}
                   onOpen={openTask}

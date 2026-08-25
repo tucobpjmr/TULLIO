@@ -28,8 +28,10 @@ import {
   rowGap8Mt6, rowStartBetween, txtF11Bold, txtF11Bold2, txtF12, txtF12Bold,
   txtF13Text, txtF18Bold,
 } from "./taskSlideOverStyles.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
-export const TaskSlideOver = ({ task, dispatch }) => {
+export const TaskSlideOver = ({ task }) => {
+  const dispatch = useDispatch();
   const conferma = useConfirm();
   const { isMobile } = useViewport();
   const {

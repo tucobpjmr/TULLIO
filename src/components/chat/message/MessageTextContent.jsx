@@ -4,6 +4,7 @@
 // deve riconoscere un riferimento task già presente nella bozza.
 import { MentionText } from "../../ui/MentionText.jsx";
 import { useChatContext } from "../chatContext.js";
+import { useDispatch } from "../../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -26,7 +27,8 @@ export function parseTaskLink(text) {
 // Step K: lookup preferito per `taskRef` (UUID) se presente sul messaggio;
 // fallback per titolo (compat messaggi vecchi senza taskRef).
 export const MessageTextContent = ({ text, isMine, taskRef }) => {
-  const { tasks, dispatch } = useChatContext();
+  const { tasks } = useChatContext();
+  const dispatch = useDispatch();
   const link = parseTaskLink(text);
   if (!link) {
     return <div style={txtF135}><MentionText text={text} /></div>;
@@ -37,7 +39,7 @@ export const MessageTextContent = ({ text, isMine, taskRef }) => {
   const handleOpen = (e) => {
     e.stopPropagation();
     if (!t) return;
-    dispatch?.({ type: "SET_SELECTED_TASK", payload: t });
+    dispatch({ type: "SET_SELECTED_TASK", payload: t });
   };
   return (
     <div style={txtF135}>

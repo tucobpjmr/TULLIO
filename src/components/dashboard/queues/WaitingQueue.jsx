@@ -24,10 +24,10 @@ const rowGap8F13 = { padding: "14px 0 4px", color: "var(--text-muted)", fontSize
 const WAITING_STATUSES = ["awaiting_client", "awaiting_supplier"];
 const WAITING_ACCENT = "#8B5CF6";
 
-export const WaitingQueue = ({ tasks, dispatch, loading = false }) => {
+export const WaitingQueue = ({ tasks, loading = false }) => {
   const { getMember } = useAppData();
   const [statusFilter, setStatusFilter] = useState(null);
-  const openTask = useOpenTask(dispatch);
+  const openTask = useOpenTask();
   const caricando = loading && tasks.length === 0;
   const empty = tasks.length === 0 && !caricando;
 
@@ -108,7 +108,7 @@ export const WaitingQueue = ({ tasks, dispatch, loading = false }) => {
             const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
             const overdue = isOverdue(t);
             return (
-              <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+              <SwipeActions key={t.id} task={t}>
                 <TaskCard
                   task={t}
                   onOpen={openTask}

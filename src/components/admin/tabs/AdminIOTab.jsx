@@ -12,6 +12,7 @@ import { loadXLSX } from "../../../lib/xlsx.js";
 import { downloadFile, escapeCSV } from "../adminExport.js";
 import { useConfirm } from "../../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../../styles/common.js";
+import { useDispatch } from "../../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -26,7 +27,8 @@ const txtF11Danger = { fontSize: 11, color: "var(--danger)", marginTop: 10 };
 // `agencyName` e `notices` arrivano come prop perché sono le uniche due fette
 // dello state che il backup usa e che non vivono già in un contesto: team,
 // categorie e utente corrente sono in AppDataContext, i task in TasksContext.
-export const AdminIOTab = ({ dispatch, agencyName, notices = [] }) => {
+export const AdminIOTab = ({ agencyName, notices = [] }) => {
+  const dispatch = useDispatch();
   const conferma = useConfirm();
   const { getMember, team, categories } = useAppData();
   const tasks = useTasks();

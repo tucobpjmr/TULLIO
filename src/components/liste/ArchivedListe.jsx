@@ -15,6 +15,7 @@ import { useListeWrite } from "./listePersistence.js";
 import { PERIOD_OPTIONS, filterByPeriod, thStyle, chipStyle } from "../views/archiveFilters.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../styles/common.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -58,7 +59,8 @@ const SALDO_COLORS = { pos: "var(--success)", neg: "var(--danger)", zero: "var(-
 // ─── Sezione "Liste buoni viaggio" (liste con stato "esaurita", non cestinate) ──
 // Le liste non vivono nello state globale come i task (il modulo Liste le
 // fetcha sempre on-demand da Supabase): stesso pattern qui, con stato locale.
-export const ArchivedListe = ({ dispatch, isMobile }) => {
+export const ArchivedListe = ({ isMobile }) => {
+  const dispatch = useDispatch();
   const conferma = useConfirm();
   const [liste, setListe] = useState([]);
   const [saldi, setSaldi] = useState({});
@@ -66,7 +68,7 @@ export const ArchivedListe = ({ dispatch, isMobile }) => {
   const [loadError, setLoadError] = useState(null);
   const [query, setQuery] = useState("");
   const [period, setPeriod] = useState("all");
-  const esegui = useListeWrite(dispatch);
+  const esegui = useListeWrite();
 
   const load = useCallback(async () => {
     setLoadError(null);

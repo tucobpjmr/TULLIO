@@ -21,6 +21,7 @@ import {
   rowCenterGap14, rowCenterGap8, rowCenterGap82, rowCenterGap8Neutral, rowCenterMiddle, rowCenterMiddle2, rowGap10,
   txtF11Mt2, txtF11Muted2, txtF12Muted, txtF13Text, txtF18Bold,
 } from "./profileEditorStyles.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Criticità #10 — il nome è obbligatorio e l'email, se compilata, dev'essere
 // valida. Prima il primo usciva in silenzio (`if (!name.trim()) return;`) e la
@@ -76,7 +77,8 @@ const ORDINE = ["name", "email"];
 //   • `ui.elim.conferma` — la parola digitata nella zona pericolosa È un campo,
 //     ma uno solo: un oggetto bozza di una chiave non aggiungerebbe nulla, e non
 //     può stare in `draft` perché non si salva, si confronta con "ELIMINA".
-export const ProfileEditor = ({ member, dispatch, onClose }) => {
+export const ProfileEditor = ({ member, onClose }) => {
+  const dispatch = useDispatch();
   const { isMobile } = useViewport();
   const { session, updatePassword, deleteAccount, signOutOvunque } = useAuth();
   const montato = useIsMounted();

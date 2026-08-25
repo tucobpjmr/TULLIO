@@ -61,11 +61,11 @@ const URGENT_WINDOWS = [
 // `loading` (criticità #6): "Nessuna task in scadenza entro 24h" mostrato
 // mentre i dati stanno ancora arrivando è l'esempio da cui è nata questa
 // modifica — una scadenza imminente non vista è una scadenza mancata.
-export const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid, loading = false }) => {
+export const UrgentQueue = ({ tasks, onOpenChat, uid, loading = false }) => {
   const { getMember, canEditTask } = useAppData();
   const [filterAgent, setFilterAgent] = useState(null);
   const [windowH, setWindowH] = useState(24);
-  const openTask = useOpenTask(dispatch);
+  const openTask = useOpenTask();
   const caricando = loading && tasks.length === 0;
 
   // `tasks` arriva già limitato a 72h dal parent: qui restringo alla finestra
@@ -208,7 +208,7 @@ export const UrgentQueue = ({ tasks, dispatch, onOpenChat, uid, loading = false 
           // le task non assegnate (coda globale) restano editabili anche qui.
           const editable = canEditTask(t, uid);
           return (
-            <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+            <SwipeActions key={t.id} task={t}>
               <TaskCard
                 task={t}
                 onOpen={openTask}

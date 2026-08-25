@@ -10,8 +10,8 @@
 //
 // Qui il contesto è esplicito e locale al singolo render:
 //
-//   renderWithAppData(<Trash state={…} dispatch={…} />, {
-//     team: TEAM_FIXTURE, currentUserId: "dario",
+//   renderWithAppData(<Trash />, {
+//     team: TEAM_FIXTURE, currentUserId: "dario", dispatch: vi.fn(),
 //   });
 //
 // `state` accetta direttamente uno state del reducer, così i test che già ne
@@ -20,6 +20,7 @@
 //   renderWithAppData(<Dashboard state={s} … />, s);
 
 import { render } from "@testing-library/react";
+import { DispatchProvider } from "../../state/DispatchContext.jsx";
 import { AppDataProvider } from "../../state/AppDataContext.jsx";
 import { TasksProvider } from "../../state/TasksContext.jsx";
 import { StoricoTaskProvider } from "../../state/StoricoTaskContext.jsx";
@@ -54,35 +55,52 @@ export const DEMO_APP_CTX = {
 export function withAppData(
   ui,
   {
+    dispatch = () => {},
     team = [], categories = {}, currentUserId = null, tasks = [], clients = [],
     richiediStorico = () => {}, storicoInCorso = false,
     richiediClienti = () => {}, clientiInCorso = false,
   } = {},
 ) {
   return (
-    <AppDataProvider team={team} categories={categories} currentUserId={currentUserId}>
-      <TasksProvider tasks={tasks}>
-       <StoricoTaskProvider richiedi={richiediStorico} caricando={storicoInCorso}>
-        <ClientsProvider clients={clients}>
-          {/* M-1 (passo 2): come sopra per lo storico — i clienti passati SONO
-              già tutto ciò che c'è per un test, quindi richiesta no-op e
-              nessuna attesa. Un test che vuole osservare la finestra passa
-              `clientiInCorso: true`; uno che vuole verificare che la vista
-              chieda davvero l'anagrafica passa una spia come
-              `richiediClienti`. */}
-          <ClientiCompletiProvider richiedi={richiediClienti} caricando={clientiInCorso}>
-            {/* Criticità #8: useConfirm() solleva fuori dal provider, come
-                useAppData(). Sta qui e non nei singoli test perché la conferma è
-                infrastruttura dell'app — un test che monta una vista non deve
-                sapere che quella vista, in fondo a un handler, chiede conferma. */}
-            <ConfirmProvider>{ui}</ConfirmProvider>
-          </ClientiCompletiProvider>
-        </ClientsProvider>
-       </StoricoTaskProvider>
-      </TasksProvider>
-    </AppDataProvider>
+    // M-2 (25 agosto): `dispatch` arriva per contesto come team/task/clienti,
+    // quindi i test lo passano QUI e non come prop del componente sotto esame.
+    // Il default è un no-op: un test che non ha un'opinione sulle scritture non
+    // deve dichiararne una, ma uno che le osserva passa la propria spia.
+    <DispatchProvider dispatch={dispatch}>
+      <AppDataProvider team={team} categories={categories} currentUserId={currentUserId}>
+        <TasksProvider tasks={tasks}>
+         <StoricoTaskProvider richiedi={richiediStorico} caricando={storicoInCorso}>
+          <ClientsProvider clients={clients}>
+            {/* M-1 (passo 2): come sopra per lo storico — i clienti passati SONO
+                già tutto ciò che c'è per un test, quindi richiesta no-op e
+                nessuna attesa. Un test che vuole osservare la finestra passa
+                `clientiInCorso: true`; uno che vuole verificare che la vista
+                chieda davvero l'anagrafica passa una spia come
+                `richiediClienti`. */}
+            <ClientiCompletiProvider richiedi={richiediClienti} caricando={clientiInCorso}>
+              {/* Criticità #8: useConfirm() solleva fuori dal provider, come
+                  useAppData(). Sta qui e non nei singoli test perché la conferma è
+                  infrastruttura dell'app — un test che monta una vista non deve
+                  sapere che quella vista, in fondo a un handler, chiede conferma. */}
+              <ConfirmProvider>{ui}</ConfirmProvider>
+            </ClientiCompletiProvider>
+          </ClientsProvider>
+         </StoricoTaskProvider>
+        </TasksProvider>
+      </AppDataProvider>
+    </DispatchProvider>
   );
 }
+
+/**
+ * Solo il DispatchProvider, per i test che montano un componente il quale
+ * consuma `dispatch` ma nessuno degli altri provider di dominio (ToastStack,
+ * ProfileEditor, i modali di admin). Evita di montargli addosso cinque
+ * provider che non gli servono per il gusto di avere un helper solo.
+ */
+export const withDispatch = (ui, dispatch = () => {}) => (
+  <DispatchProvider dispatch={dispatch}>{ui}</DispatchProvider>
+);
 
 export function renderWithAppData(ui, ctx = {}, options) {
   const utils = render(withAppData(ui, ctx), options);

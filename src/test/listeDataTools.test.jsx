@@ -16,11 +16,14 @@ import { withAppData } from "./helpers/appData.jsx";
 let appCtx = { team: [], categories: {}, currentUserId: null };
 const ctxTeam = (t) => { appCtx = { ...appCtx, team: t }; };
 const ctxUser = (id) => { appCtx = { ...appCtx, currentUserId: id }; };
-const render = (ui, options) => {
-  const utils = rtlRender(withAppData(ui, appCtx), options);
+// M-2 (25 agosto): `dispatch` arriva per contesto, quindi il render lo prende
+// fra le opzioni invece che come prop del componente sotto esame.
+const render = (ui, { dispatch, ...options } = {}) => {
+  const ctx = () => ({ ...appCtx, dispatch });
+  const utils = rtlRender(withAppData(ui, ctx()), options);
   // `appCtx` è letto al momento del rerender, non a quello del primo render:
   // un test può cambiare utente con ctxUser() e ri-renderizzare.
-  return { ...utils, rerender: (next) => utils.rerender(withAppData(next, appCtx)) };
+  return { ...utils, rerender: (next) => utils.rerender(withAppData(next, ctx())) };
 };
 
 
@@ -74,7 +77,7 @@ const asUser = (uid) => { ctxTeam(TEAM.map((m) => ({ ...m }))); ctxUser(uid); };
 const renderListe = (uid = "marco") => {
   asUser(uid);
   const dispatch = vi.fn();
-  const utils = render(<ListeViaggio dispatch={dispatch} />);
+  const utils = render(<ListeViaggio />, { dispatch });
   return { dispatch, ...utils };
 };
 
@@ -281,10 +284,10 @@ describe("ListaDetail — Copia agente e Riepilogo cliente", () => {
         movimenti={MOVIMENTI}
         history={[]}
         usersById={{}}
-        dispatch={dispatch}
         onReload={vi.fn()}
         onArchived={vi.fn()}
       />,
+      { dispatch },
     );
     return { dispatch };
   };

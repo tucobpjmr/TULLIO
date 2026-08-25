@@ -6,12 +6,12 @@ import { useListeWrite } from "./listePersistence.js";
 // Quando il titolo manca (caso più frequente: le liste importate non ne hanno
 // uno) mostra comunque un invito esplicito, altrimenti la possibilità di
 // darne uno resterebbe nascosta dentro "Modifica dati".
-export function TitoloTestata({ lista, dispatch, onSaved }) {
+export function TitoloTestata({ lista, onSaved }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(lista.titolo || "");
   const [saving, setSaving] = useState(false);
   const inputRef = useRef(null);
-  const esegui = useListeWrite(dispatch);
+  const esegui = useListeWrite();
 
   useEffect(() => {
     if (!editing) return;

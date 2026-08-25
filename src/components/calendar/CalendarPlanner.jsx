@@ -22,8 +22,10 @@ import {
   rowCenterGap82, rowGap4P3, rowGap6MtNeg8, rowMiddleGap3, txt, txtBoldHeading, txtF10Muted,
   txtF12Bold, txtF12Muted, txtF12WFull, txtF16Bold, txtF16Bold2,
 } from "./calendarPlannerStyles.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
-export const CalendarPlanner = memo(function CalendarPlanner({ dispatch, loading = false }) {
+export const CalendarPlanner = memo(function CalendarPlanner({ loading = false }) {
+  const dispatch = useDispatch();
   const { isMobile } = useViewport();
   const { categories, currentUserId, getAssignableTeam, canViewTask } = useAppData();
   const tasks = useTasks();
@@ -320,7 +322,7 @@ export const CalendarPlanner = memo(function CalendarPlanner({ dispatch, loading
             </div>
             <div style={colGap8}>
               {dayTasks.map(t => (
-                <SwipeActions key={t.id} task={t} dispatch={dispatch}>
+                <SwipeActions key={t.id} task={t}>
                   <TaskRow
                     task={t}
                     onOpen={openTask}

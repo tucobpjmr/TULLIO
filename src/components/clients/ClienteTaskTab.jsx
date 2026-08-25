@@ -7,6 +7,7 @@ import { TaskRow } from "../tasks/TaskRow.jsx";
 import { formatDate, isActiveTask } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import * as stiliComuni from "../../styles/common.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -15,7 +16,8 @@ const txtF12Success = { fontSize: 12, color: "var(--success)" };
 const txtF13Muted = { textAlign: "center", padding: "24px 0", color: "var(--text-muted)", fontSize: 13 };
 const colGap7 = { display: "flex", flexDirection: "column", gap: 7 };
 
-export function ClienteTaskTab({ cliente, tasks, dispatch }) {
+export function ClienteTaskTab({ cliente, tasks }) {
+  const dispatch = useDispatch();
   const { currentUserId: uid, canViewTask } = useAppData();
   // Stabile per la memoizzazione di TaskRow (vedi components/tasks/TaskCard.jsx).
   const openTask = useCallback(

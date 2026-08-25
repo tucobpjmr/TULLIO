@@ -37,6 +37,7 @@ import {
 import { useFinestra } from "../../hooks/useFinestra.js";
 import { ListaRow } from "./ListaRow.jsx";
 import * as stiliComuni from "../../styles/common.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -50,7 +51,8 @@ const HOME_PAGE_SIZE = 10;
 // guarda i task, quindi consuma il solo contesto clienti; `listeTarget` (la
 // lista da aprire, richiesta dal tab della scheda cliente) resta una prop,
 // piccola e con identità stabile.
-export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget = null }) {
+export const ListeViaggio = memo(function ListeViaggio({ listeTarget = null }) {
+  const dispatch = useDispatch();
   const { isMobile } = useViewport();
   const { team, currentUserId, isAdmin, canAccessListe } = useAppData();
   const clientsRaw = useClients();
@@ -75,7 +77,7 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
   // un altro utente.
   const { liste, cestino, saldi, loading, loadError, reload: loadHome } =
     useListeData({ enabled: listeAllowed });
-  const esegui = useListeWrite(dispatch);
+  const esegui = useListeWrite();
 
   const [openId, setOpenId] = useState(null);
   const [detail, setDetail] = useState(null); // { lista, movimenti, history }
@@ -436,7 +438,6 @@ export const ListeViaggio = memo(function ListeViaggio({ dispatch, listeTarget =
               movimenti={detail.movimenti}
               history={detail.history}
               usersById={usersById}
-              dispatch={dispatch}
               onReload={reloadAll}
               onArchived={backToHome}
               clients={clients}

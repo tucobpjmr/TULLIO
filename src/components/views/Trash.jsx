@@ -31,6 +31,7 @@ import {
   rowStartBetween, txtBoldHeading, txtF11Bold2, txtF11Bold3, txtF11Bold4, txtF11Mt2, txtF18Bold,
   txtF28Bold, txtWhite,
 } from "./trashStyles.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // M-2 · Quante righe si disegnano alla volta, come nell'Archivio.
 const PAGINA = 24;
@@ -47,7 +48,8 @@ const REGOLE_RIPRISTINO = { title: obbligatorio("Il titolo è obbligatorio: senz
 // `loading` (criticità #6): un cestino "vuoto" mostrato prima del caricamento
 // è particolarmente insidioso — è la vista in cui si va a cercare qualcosa che
 // si crede eliminato per sbaglio, e la risposta sbagliata chiude la ricerca.
-export const Trash = memo(function Trash({ dispatch, loading = false }) {
+export const Trash = memo(function Trash({ loading = false }) {
+  const dispatch = useDispatch();
   const conferma = useConfirm();
   const { isMobile } = useViewport();
   const { categories, currentUserId, getAssignableTeam, canEditTask, getVisibleTasks } = useAppData();

@@ -116,8 +116,8 @@ describe("Cestino — l'eliminazione definitiva passa dalla conferma dell'app", 
   };
   const monta = () => {
     const dispatch = vi.fn();
-    renderWithAppData(<Trash dispatch={dispatch} />, {
-      team: TEAM, categories: {}, currentUserId: "marco", tasks: [task],
+    renderWithAppData(<Trash />, {
+      dispatch, team: TEAM, categories: {}, currentUserId: "marco", tasks: [task],
     });
     return dispatch;
   };

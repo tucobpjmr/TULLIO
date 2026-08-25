@@ -56,8 +56,8 @@ const TEAM = [
 // Monta l'hook dentro il provider, come fa qualunque componente del modulo.
 const montaEsecutore = (uid = "agent1") => {
   const dispatch = vi.fn();
-  const { result } = renderHook(() => useListeWrite(dispatch), {
-    wrapper: ({ children }) => withAppData(children, { team: TEAM, currentUserId: uid }),
+  const { result } = renderHook(() => useListeWrite(), {
+    wrapper: ({ children }) => withAppData(children, { team: TEAM, currentUserId: uid, dispatch }),
   });
   return { esegui: result.current, dispatch };
 };

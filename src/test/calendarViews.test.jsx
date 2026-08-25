@@ -40,8 +40,8 @@ const task = (over = {}) => ({
 
 function montaCalendario(tasks) {
   return renderWithAppData(
-    <ViewportProvider><CalendarPlanner dispatch={vi.fn()} /></ViewportProvider>,
-    { team: TEAM, categories: CATEGORIE, currentUserId: "marco", tasks },
+    <ViewportProvider><CalendarPlanner /></ViewportProvider>,
+    { dispatch: vi.fn(), team: TEAM, categories: CATEGORIE, currentUserId: "marco", tasks },
   );
 }
 
@@ -96,8 +96,8 @@ describe("CalendarPlanner — le quattro viste montano e mostrano i task", () =>
     // un click che non fa più niente non rompe nessun altro test.
     const dispatch = vi.fn();
     renderWithAppData(
-      <ViewportProvider><CalendarPlanner dispatch={dispatch} /></ViewportProvider>,
-      { team: TEAM, categories: CATEGORIE, currentUserId: "marco", tasks: [task()] },
+      <ViewportProvider><CalendarPlanner /></ViewportProvider>,
+      { dispatch, team: TEAM, categories: CATEGORIE, currentUserId: "marco", tasks: [task()] },
     );
     vaiA(/Giorno/);
     dispatch.mockClear();

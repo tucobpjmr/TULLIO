@@ -113,8 +113,8 @@ describe("useFinestra — il contratto della finestra", () => {
 
 describe("Archivio — la finestra sulle task completate", () => {
   const monta = (n) => renderWithAppData(
-    <Archive dispatch={dispatch} loading={false} />,
-    { ...DEMO_APP_CTX, tasks: taskFinte(n, () => ({ completedAt: new Date().toISOString() })) },
+    <Archive loading={false} />,
+    { dispatch, ...DEMO_APP_CTX, tasks: taskFinte(n, () => ({ completedAt: new Date().toISOString() })) },
   );
 
   it("con più task della pagina ne disegna solo PAGINA, non tutte", () => {
@@ -150,8 +150,8 @@ describe("Archivio — la finestra sulle task completate", () => {
 
 describe("Cestino — la finestra sulle task eliminate", () => {
   const monta = (n) => renderWithAppData(
-    <Trash dispatch={dispatch} loading={false} />,
-    {
+    <Trash loading={false} />,
+    { dispatch,
       ...DEMO_APP_CTX,
       tasks: taskFinte(n, () => ({ status: "todo", deletedAt: new Date().toISOString() })),
     },
@@ -174,7 +174,7 @@ describe("Cestino — la finestra sulle task eliminate", () => {
 describe("code della Dashboard — le due senza tetto naturale", () => {
   it("OverdueQueue ne disegna QUEUE_PAGINA e allarga a richiesta", () => {
     const tasks = taskFinte(25, () => ({ status: "todo" }));
-    renderWithAppData(<OverdueQueue tasks={tasks} dispatch={dispatch} />, DEMO_APP_CTX);
+    renderWithAppData(<OverdueQueue tasks={tasks} />, { ...DEMO_APP_CTX, dispatch });
     expect(titoliVisibili()).toBe(QUEUE_PAGINA);
     fireEvent.click(screen.getByText(`Mostra altre ${QUEUE_PAGINA} di ${25 - QUEUE_PAGINA}`));
     expect(titoliVisibili()).toBe(QUEUE_PAGINA * 2);
@@ -187,8 +187,8 @@ describe("code della Dashboard — le due senza tetto naturale", () => {
       priority: i % 2 === 0 ? "high" : "low",
     }));
     const { container } = renderWithAppData(
-      <UnassignedQueue tasks={tasks} dispatch={dispatch} onTake={dispatch} uid="marco" />,
-      DEMO_APP_CTX,
+      <UnassignedQueue tasks={tasks} onTake={dispatch} uid="marco" />,
+      { ...DEMO_APP_CTX, dispatch },
     );
     expect(titoliVisibili()).toBe(QUEUE_PAGINA);
     fireEvent.click(screen.getByText(/Mostra altre/));

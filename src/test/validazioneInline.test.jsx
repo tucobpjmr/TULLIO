@@ -40,7 +40,7 @@ import { NewConversationView } from "../components/chat/NewConversationView.jsx"
 import { EditListaModal } from "../components/liste/modals/EditListaModal.jsx";
 import { Trash } from "../components/views/Trash.jsx";
 import { TemplateTab } from "../components/tasks/bulk/TemplateTab.jsx";
-import { renderWithAppData, DEMO_APP_CTX } from "./helpers/appData.jsx";
+import { renderWithAppData, withDispatch, DEMO_APP_CTX } from "./helpers/appData.jsx";
 
 // ─── La metà pura ───────────────────────────────────────────────────────────
 describe("validators — validatori componibili", () => {
@@ -212,7 +212,7 @@ describe("NoticeEditorModal — un avviso vuoto lo dice", () => {
 describe("AddCategoryModal — il nome della categoria è obbligatorio e lo dice", () => {
   it("il messaggio è legato al campo e la creazione non parte", async () => {
     const dispatch = vi.fn();
-    render(<AddCategoryModal dispatch={dispatch} onClose={vi.fn()} existingKeys={[]} />);
+    render(withDispatch(<AddCategoryModal onClose={vi.fn()} existingKeys={[]} />, dispatch));
 
     fireEvent.click(screen.getByText("Crea categoria"));
 
@@ -345,7 +345,7 @@ describe("Trash — il ripristino dice che manca il titolo, invece di spegnere i
   };
   const apri = () => {
     const dispatch = vi.fn();
-    renderWithAppData(<Trash dispatch={dispatch} loading={false} />, { ...DEMO_APP_CTX, tasks: [TASK] });
+    renderWithAppData(<Trash loading={false} />, { dispatch, ...DEMO_APP_CTX, tasks: [TASK] });
     fireEvent.click(screen.getByTitle("Ripristina con modifica"));
     return dispatch;
   };
@@ -433,7 +433,7 @@ describe("TemplateTab — le tre condizioni spente insieme, ora dette una per un
 describe("AddTeamMemberModal — nome ed email, ciascuno col proprio messaggio", () => {
   const monta = () => {
     const dispatch = vi.fn();
-    render(<AddTeamMemberModal dispatch={dispatch} onClose={vi.fn()} existingIds={[]} />);
+    render(withDispatch(<AddTeamMemberModal onClose={vi.fn()} existingIds={[]} />, dispatch));
     return dispatch;
   };
   const crea = () => fireEvent.click(screen.getByText(/Crea agente|Invia invito/));

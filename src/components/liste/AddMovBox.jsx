@@ -31,7 +31,7 @@ const ORDINE = ["data", "desc", "imp"];
 // Riquadro "Nuovo movimento": sta in cima al foglio e si apre col tasto ＋
 // della barra. In fondo alla pagina, su liste lunghe, richiedeva di scorrere
 // tutti i movimenti prima di poterne registrare uno nuovo.
-export function AddMovBox({ listaId, dispatch, onSaved, onClose, onBulk }) {
+export function AddMovBox({ listaId, onSaved, onClose, onBulk }) {
   const [data, setData] = useState(todayISO());
   const [desc, setDesc] = useState("");
   const [segno, setSegno] = useState(1);
@@ -45,7 +45,7 @@ export function AddMovBox({ listaId, dispatch, onSaved, onClose, onBulk }) {
   const dataRef = useRef(null);
   const impRef = useRef(null);
   const rifCampo = { data: dataRef, desc: descRef, imp: impRef };
-  const esegui = useListeWrite(dispatch);
+  const esegui = useListeWrite();
 
   useEffect(() => { descRef.current?.focus(); }, []);
 

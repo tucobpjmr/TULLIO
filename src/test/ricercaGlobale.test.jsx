@@ -19,11 +19,13 @@ import { withAppData } from "./helpers/appData.jsx";
 let appCtx = { team: [], categories: {}, currentUserId: null };
 const ctxTeam = (t) => { appCtx = { ...appCtx, team: t }; };
 const ctxUser = (id) => { appCtx = { ...appCtx, currentUserId: id }; };
-const render = (ui, options) => {
-  const utils = rtlRender(withAppData(ui, appCtx), options);
+// M-2 (25 agosto): `dispatch` arriva per contesto, quindi il render lo prende
+// fra le opzioni invece che come prop del componente sotto esame.
+const render = (ui, { dispatch, ...options } = {}) => {
+  const utils = rtlRender(withAppData(ui, { ...appCtx, dispatch }), options);
   // `appCtx` è letto al momento del rerender, non a quello del primo render:
   // un test può cambiare utente con ctxUser() e ri-renderizzare.
-  return { ...utils, rerender: (next) => utils.rerender(withAppData(next, appCtx)) };
+  return { ...utils, rerender: (next) => utils.rerender(withAppData(next, { ...appCtx, dispatch })) };
 };
 
 
@@ -84,7 +86,6 @@ const renderPanel = async (keyword, liste) => {
   render(
     <AdvancedSearchPanel
       tasks={[]}
-      dispatch={vi.fn()}
       onClose={vi.fn()}
       keyword={keyword}
       onKeyword={vi.fn()}
@@ -144,7 +145,6 @@ const renderTask = async (keyword, tasks) => {
   render(
     <AdvancedSearchPanel
       tasks={tasks}
-      dispatch={vi.fn()}
       onClose={vi.fn()}
       keyword={keyword}
       onKeyword={vi.fn()}

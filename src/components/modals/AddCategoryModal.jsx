@@ -10,6 +10,7 @@ import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { obbligatorio, validaCampi } from "../../lib/validators.js";
 import { useSalvataggio } from "../../hooks/useSalvataggio.js";
 import * as stiliComuni from "../../styles/common.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -23,7 +24,8 @@ const txtF11Muted = { fontSize: 11, color: "var(--text-muted)", marginBottom: 6 
 // solo la frase che lo rende vero.
 const REGOLE = { label: obbligatorio("Il nome della categoria è obbligatorio.") };
 
-export const AddCategoryModal = ({ onClose, dispatch, existingKeys }) => {
+export const AddCategoryModal = ({ onClose, existingKeys }) => {
+  const dispatch = useDispatch();
   const [label, setLabel] = useState("");
   const [errori, setErrori] = useState({});
   const labelRef = useRef(null);

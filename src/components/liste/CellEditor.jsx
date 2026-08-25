@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { METODI, parseImporto } from "./listeApi.js";
 import { useListeWrite } from "./listePersistence.js";
+import { useSalvataggioLista } from "./useSalvataggioLista.js";
 import { SegnoSeg } from "./modals/SegnoSeg.jsx";
 import { useDispatch } from "../../state/DispatchContext.jsx";
 
@@ -24,7 +25,6 @@ export function CellEditor({ movimento, campo, onSaved, onCancel }) {
     if (campo === "importo") return Math.abs(Number(movimento.importo)).toFixed(2).replace(".", ",");
     return movimento.metodo || "";
   });
-  const [saving, setSaving] = useState(false);
   const inputRef = useRef(null);
   const esegui = useListeWrite();
 
@@ -37,8 +37,12 @@ export function CellEditor({ movimento, campo, onSaved, onCancel }) {
 
   const err = (message) => dispatch({ type: "SHOW_TOAST", payload: { type: "error", message } });
 
-  const save = async () => {
-    if (saving) return;
+  const { salva, inVolo } = useSalvataggioLista(
+    async (payload) => (await esegui("modificaMovimento", payload)).ok,
+    { alSuccesso: onSaved },
+  );
+
+  const save = () => {
     // Si modifica un campo per volta: gli altri tre restano quelli del record.
     let data = movimento.data_movimento;
     let descrizione = movimento.descrizione;
@@ -59,10 +63,7 @@ export function CellEditor({ movimento, campo, onSaved, onCancel }) {
       metodo = value || null;
     }
 
-    setSaving(true);
-    const { ok } = await esegui("modificaMovimento", { id: movimento.id, data, descrizione, importo, metodo });
-    setSaving(false);
-    if (ok) await onSaved();
+    salva({ id: movimento.id, data, descrizione, importo, metodo });
   };
 
   const onKeyDown = (e) => {
@@ -97,8 +98,8 @@ export function CellEditor({ movimento, campo, onSaved, onCancel }) {
           )}
           <div className="lv-cell-edit-actions">
             <button className="lv-btn sm" onClick={onCancel}>Annulla</button>
-            <button className="lv-btn primary sm" disabled={saving} onClick={save}>
-              {saving ? "Salvo…" : "Salva"}
+            <button className="lv-btn primary sm" disabled={inVolo} onClick={save}>
+              {inVolo ? "Salvo…" : "Salva"}
             </button>
           </div>
         </div>

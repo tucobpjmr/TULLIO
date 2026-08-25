@@ -196,7 +196,13 @@ export function leggiCallSiteSalvataggio(testo) {
  * @returns {string[]} i percorsi che importano l'hook
  */
 export function usiSalvataggio(sorgenti) {
-  const IMPORTA = /import\s*\{[^}]*\buseSalvataggio\b[^}]*\}\s*from/;
+  // A-2 (audit del 26 agosto) · Anche `useSalvataggioLista`, che è il contratto
+  // nel dialetto del modulo Liste. Contare il solo nome nudo avrebbe fatto
+  // scendere questo numero da 25 a 14 il giorno in cui dodici form lo hanno
+  // ADOTTATO — cioè avrebbe raccontato l'opposto di ciò che è successo. Il
+  // numero misura quanti file hanno il contratto, non da quale porta ci sono
+  // entrati.
+  const IMPORTA = /import\s*\{[^}]*\buseSalvataggio(?:Lista)?\b[^}]*\}\s*from/;
   const usi = (sorgenti || []).filter(f => IMPORTA.test(f.testo)).map(f => f.path);
   if (usi.length === 0) {
     throw new LetturaFallita(
@@ -415,8 +421,17 @@ function scriveDavvero(testo, azioni) {
   return CORE.test(testo) || LISTE.test(testo) || LISTE_CONFEZIONATA.test(testo);
 }
 
-/** Le due strade accettate per attendere l'esito: il contratto, o l'attesa a mano. */
-const ATTENDE_ESITO = /\buseSalvataggio\b|await\s+dispatch\s*\(/;
+/**
+ * Le strade accettate per attendere l'esito: il contratto, il suo adattatore
+ * per il modulo Liste (`useSalvataggioLista`, A-2), o l'attesa a mano.
+ *
+ * ⚠️ `\buseSalvataggio\b` NON basta e non è un dettaglio di regex: il `\b`
+ * finale fa fallire il confronto su `useSalvataggioLista`, ed è giusto così —
+ * i due nomi vanno distinti, altrimenti il controllo «call site di
+ * useSalvataggio» conterebbe l'uno per l'altro. Qui servono entrambi perché
+ * qui la domanda non è QUALE hook, è se l'esito viene atteso.
+ */
+const ATTENDE_ESITO = /\buseSalvataggio(?:Lista)?\b|await\s+dispatch\s*\(/;
 
 /**
  * A-1 (audit del 26 agosto), seconda metà · Lo stato di invio scritto a mano.

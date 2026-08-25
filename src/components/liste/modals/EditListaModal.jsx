@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { LvOverlay } from "./LvOverlay.jsx";
 import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
+import { useSalvataggioLista } from "../useSalvataggioLista.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -23,12 +24,12 @@ export function EditListaModal({ lista, onSave, onClose }) {
   const [name, setName] = useState(nomeOriginale);
   const [titolo, setTitolo] = useState(lista.titolo || "");
   const [rinomina, setRinomina] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [errore, setErrore] = useState(null);
   const rifNome = useRef(null);
 
-  const submit = async () => {
-    if (saving) return;
+  const { salva, inVolo } = useSalvataggioLista(onSave.run);
+
+  const submit = () => {
     // B-3 · Il messaggio va DOVE è successo. Era `onSave.onError(...)`, cioè un
     // toast in un angolo dello schermo mentre il campo vuoto restava identico a
     // quelli giusti — e per chi usa uno screen reader nessun legame fra il
@@ -45,13 +46,11 @@ export function EditListaModal({ lista, onSave, onClose }) {
       return;
     }
     setErrore(null);
-    setSaving(true);
-    const ok = await onSave.run({
+    salva({
       id: lista.id,
       titolo: titolo.trim() || null,
       clientName: rinomina ? name.trim() : null,
     });
-    if (!ok) setSaving(false);
   };
 
   return (
@@ -95,8 +94,8 @@ export function EditListaModal({ lista, onSave, onClose }) {
       </p>
       <div className="actions">
         <button className="lv-btn" onClick={onClose}>Annulla</button>
-        <button className="lv-btn primary" disabled={saving} onClick={submit}>
-          {saving ? "Salvo…" : "Salva modifiche"}
+        <button className="lv-btn primary" disabled={inVolo} onClick={submit}>
+          {inVolo ? "Salvo…" : "Salva modifiche"}
         </button>
       </div>
     </LvOverlay>

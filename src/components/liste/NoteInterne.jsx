@@ -1,6 +1,7 @@
 // Note interne della lista, modificabili in linea (estratto da ListaDetail.jsx).
 import { useEffect, useRef, useState } from "react";
 import { useListeWrite } from "./listePersistence.js";
+import { useSalvataggioLista } from "./useSalvataggioLista.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -11,8 +12,9 @@ const mt16 = { marginTop: 16 };
 // leggono solo `movimenti`, mai `lista.note` (vedi listeApi.js/listeModals.jsx).
 export function NoteInterne({ lista, onSaved }) {
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(lista.note || "");
-  const [saving, setSaving] = useState(false);
+  // Vuoto e non `lista.note`: `apri()` riassegna sempre dalla prop — stesso
+  // motivo di TitoloTestata.
+  const [value, setValue] = useState("");
   const inputRef = useRef(null);
   const esegui = useListeWrite();
 
@@ -20,16 +22,15 @@ export function NoteInterne({ lista, onSaved }) {
 
   const open = () => { setValue(lista.note || ""); setEditing(true); };
 
-  const save = async () => {
-    if (saving) return;
+  const { salva, inVolo } = useSalvataggioLista(
+    async (note) => (await esegui("modificaNote", { id: lista.id, note })).ok,
+    { alSuccesso: () => { setEditing(false); onSaved(); } },
+  );
+
+  const save = () => {
     const note = value.trim() || null;
-    if (note === (lista.note || null)) { setEditing(false); return; }
-    setSaving(true);
-    const { ok } = await esegui("modificaNote", { id: lista.id, note });
-    setSaving(false);
-    if (!ok) return;
-    setEditing(false);
-    await onSaved();
+    if (note === (lista.note || null)) return setEditing(false);
+    salva(note);
   };
 
   return (
@@ -51,8 +52,8 @@ export function NoteInterne({ lista, onSaved }) {
           />
           <div className="lv-cell-edit-actions">
             <button className="lv-btn sm" onClick={() => setEditing(false)}>Annulla</button>
-            <button className="lv-btn primary sm" disabled={saving} onClick={save}>
-              {saving ? "Salvo…" : "Salva"}
+            <button className="lv-btn primary sm" disabled={inVolo} onClick={save}>
+              {inVolo ? "Salvo…" : "Salva"}
             </button>
           </div>
         </>

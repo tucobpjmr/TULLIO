@@ -10,10 +10,18 @@ Eseguito su un repository con `lint`, `test` (1691 passati, 11 saltati),
 `build` tutti verdi, e con **zero cicli** nel grafo degli import di `src/`
 (258 moduli, misurati).
 
-⟦stato: 0/11 chiusi⟧
+⟦stato: 2/12 chiusi⟧
 
 > **Sulla numerazione.** `A-` = alta priorità, `M-` = media, `B-` = bassa,
 > come negli audit dal 12 al 16 agosto e in quello del 25.
+
+> **Aggiornamento — A-1 e A-2 chiusi.** In fondo a ciascuno dei due c'è la
+> sezione «Come è stato chiuso», con ciò che è stato fatto e le due cose che si
+> sono scoperte facendolo: il controllo di A-1 non poteva dichiarare un
+> perimetro proprio (il suo stato finale corretto è zero file), e il test del
+> doppio invio scritto con `fireEvent` **passava anche sul codice difettoso**.
+> Il rilievo **M-6** non c'era nella prima stesura: l'ha trovato il controllo
+> corretto, ed è il primo segno che A-1 fa il suo mestiere.
 
 ---
 
@@ -76,13 +84,14 @@ M-2 perché è la stessa domanda («chi sono io?») che non ha una risposta sola
 
 | # | Priorità | Area | Rilievo | Dove |
 |---|---|---|---|---|
-| **A-1** | Alta | Controlli | Il controllo «form che scrivono senza attendere l'esito» **non può vedere** `components/liste/`: verde su un perimetro più piccolo del codice, e non dichiarato | `scripts/verifica-convenzioni/convenzioni.js:342-357` |
-| **A-2** | Alta | Duplicazione / robustezza | 12 form del modulo Liste fuori dal contratto «salva e chiudi»: freno al doppio invio sullo *stato* invece che su un `ref`, nessun `finally`, nessun guard di smontaggio | `components/liste/**` (12 file) |
+| **A-1** ✔ | Alta | Controlli | Il controllo «form che scrivono senza attendere l'esito» **non può vedere** `components/liste/`: verde su un perimetro più piccolo del codice, e non dichiarato | `scripts/verifica-convenzioni/convenzioni.js:342-357` |
+| **A-2** ✔ | Alta | Duplicazione / robustezza | 12 form del modulo Liste fuori dal contratto «salva e chiudi»: freno al doppio invio sullo *stato* invece che su un `ref`, nessun `finally`, nessun guard di smontaggio | `components/liste/**` (12 file) |
 | **M-1** | Media | Duplicazione | `useAppHydration`: sei corpi di idratazione quasi identici e tre `applyRow` gemelli che differiscono per due token | `hooks/useAppHydration.js:201-653` |
 | **M-2** | Media | SoC / API | I permessi hanno tre forme di chiamata per la stessa domanda; `userId` è ridondante in 28 call site su 29; `me` ha due tipi in quattro file | `state/AppDataContext.jsx:60-88` + 29 call site |
 | **M-3** | Media | Accoppiamento | Il modulo con il fan-in più alto dell'app (85) ha nomi meccanici e sei nomi nati da collisione (`rowGap62`, `gridGap102`…) | `styles/common.js` |
 | **M-4** | Media | Convergenza | «Fetch al mount, scarta la risposta tardiva» riscritto 9 volte con 3 nomi di flag, accanto a `useIsMounted` che già lo risolve | 9 file in `components/`, `hooks/` |
 | **M-5** | Media | SoC | `AdvancedSearchPanel`: UI + fetch + reducer + ~110 righe di filtraggio di dominio su due famiglie di entità, in un componente | `components/search/AdvancedSearchPanel.jsx` |
+| **M-6** | Media | Convergenza | Due modali admin scrivono senza passare da un registry (`Users.invite`) e tengono `busy` a mano: stessa forma di A-2, fuori dal perimetro di entrambi i controlli | `admin/AddTeamMemberModal.jsx:62` · `admin/BulkInviteModal.jsx:65` |
 | **B-1** | Bassa | SoC | `listeApi.js` (537 righe) è quattro moduli: data layer, formattazione, costanti di dominio, generazione documenti | `components/liste/listeApi.js` |
 | **B-2** | Bassa | Duplicazione | Tre editor in linea gemelli nella stessa cartella: stesso stato, stesso ciclo, stessa barra azioni copiata | `liste/{TitoloTestata,NoteInterne,CellEditor}.jsx` |
 | **B-3** | Bassa | Navigabilità | 143 file di test piatti in `src/test/` contro 25 cartelle di sorgente; la struttura vive nei prefissi dei nomi | `src/test/` |
@@ -236,6 +245,46 @@ il debito venga pagato, non dopo.
 
 ---
 
+### Come è stato chiuso ✔
+
+`scriveDavvero()` raccoglie i **due** verbi di scrittura dell'app in un posto
+solo — il `dispatch` del registry core, `esegui("nomeOperazione", …)` del
+modulo Liste e la sua forma confezionata `onSave.run()` — con l'avvertenza che
+un terzo registry va aggiunto lì. Il controllo passa da `0` a `1`
+(`liste/AddMovBox.jsx`), che è il numero vero.
+
+**Due controlli e non uno**, perché rispondono a due domande diverse e nessuna
+delle due da sola descrive un file: «form che scrivono senza attendere l'esito»
+(marcatore `validaCampi`: ci sono dati digitati da perdere) e «stato di invio
+scritto a mano» (marcatore `const [saving|busy|inVolo, …]` su una scrittura: le
+tre garanzie del contratto rifatte peggio). Il secondo trova tutte e dodici le
+form del modulo. Fonderli avrebbe fatto perdere metà dei casi a ciascuno: un
+form validato che si chiude subito non ha per forza uno stato di invio, e una
+conferma senza campi digitati non importa `validaCampi` pur avendone uno.
+
+**Una cosa scoperta scrivendolo, e che la prima stesura di questo rilievo aveva
+sbagliato.** L'audit proponeva che *entrambi* i controlli dichiarassero il
+proprio perimetro. Per il secondo è **contraddittorio**: il suo perimetro è
+l'insieme dei file che hanno il difetto, quindi il suo stato finale corretto è
+**zero file** — un `LetturaFallita` sul perimetro vuoto farebbe fallire lo
+script il giorno in cui il debito è pagato. È l'unico controllo di
+`convenzioni.js` che non solleva sul presupposto vuoto, e c'è un test che fissa
+quella scelta invece di lasciarla sembrare una dimenticanza. A proteggerlo dal
+restringersi in silenzio è il perimetro dichiarato del *primo*, che condivide
+`scriveDavvero`: se un verbo smette di essere riconosciuto, quel numero cala e
+il controllo lo dice — per entrambi.
+
+Il perimetro dichiarato è **sette** form (`docs/CLAUDE.md`), e non otto come
+diceva la stesura iniziale: i sei del core più `liste/AddMovBox.jsx`.
+
+**E una scoperta che vale come rilievo nuovo:** il controllo corretto ha
+illuminato due file che nessuno dei due predicati raggiunge —
+`admin/AddTeamMemberModal.jsx` e `admin/BulkInviteModal.jsx`, che scrivono con
+`Users.invite` senza passare da alcun registry. È **M-6**, e il fatto che siano
+emersi facendo A-1 è il primo segno che il controllo fa il suo mestiere.
+
+---
+
 ## A-2 · Dodici form del modulo Liste fuori dal contratto «salva e chiudi»
 
 **Dove.** `components/liste/{AddMovBox,CellEditor,NoteInterne,TitoloTestata}.jsx`
@@ -343,6 +392,53 @@ il file dichiara: verificare insieme che **il pannello non si sia chiuso** e che
 **i valori digitati siano ancora nel DOM**. Con A-1 corretto, il controllo di
 `verifica:convenzioni` torna a 0 da solo e resta un presidio, non una
 fotografia.
+
+---
+
+### Come è stato chiuso ✔
+
+Tutte e dodici le form passano ora dal contratto attraverso
+`components/liste/useSalvataggioLista.js`, l'adattatore che parla il dialetto
+del modulo: la scrittura risponde `true`/`false` (il contratto di `run()` e di
+`{ ok }`) invece che `{ error }`, e **il testo dell'errore non viene
+ri-esposto** perché lo mostra già il registry come toast — renderizzarlo
+accanto darebbe due frasi diverse per lo stesso evento davanti allo stesso
+utente, cioè il difetto chiuso da M-1 del 25 agosto.
+
+I due controlli di A-1 tornano a **0**, e `usiSalvataggio` sale da 13 a **26**
+call site: conta entrambi i nomi di proposito, perché contare il solo nome nudo
+avrebbe fatto *scendere* quel numero il giorno in cui dodici form hanno adottato
+il contratto — cioè avrebbe raccontato l'opposto di quel che è successo.
+
+Chiuso anche un refuso in attesa trovato per strada: `ResetTotaleModal`
+confrontava la frase di conferma con un letterale `"RESET TOTALE"` scritto nel
+componente, mentre `listePersistence.js` esporta `CONFERMA_RESET` **proprio
+perché** quella frase è metà del contratto della RPC e un refuso nel chiamante
+trasformerebbe l'operazione irreversibile in un errore incomprensibile. Ora la
+costante alimenta il confronto, l'etichetta e il placeholder: le tre occorrenze
+non possono più divergere.
+
+**La metà che conta: `src/test/salvaEChiudiListe.test.jsx`**, 40 casi, terzo
+file della famiglia dopo `salvaEChiudi` (il contratto) e `salvaEChiudiSeiForm`
+(i sei del 19 agosto). Stesso metodo: ogni caso guarda **due** cose insieme —
+che il pannello non si sia chiuso *e* che i valori digitati siano ancora nel
+DOM — perché un test che si accontentasse del messaggio d'errore passerebbe
+anche su una modale che si chiude subito dopo averlo mostrato.
+
+**⚠️ Il difetto che il test stesso ha rischiato di avere, e che vale più della
+correzione.** La prima stesura del caso sul doppio invio usava due
+`fireEvent.click` di fila. **Passava anche sul codice difettoso** — verificato
+eseguendola contro i file pre-A-2. La ragione: `fireEvent` avvolge ogni click
+in un `act()` proprio, quindi React ri-renderizza *fra* i due click, al secondo
+il bottone è già `disabled` e il gestore non parte nemmeno. Quel test misurava
+`disabled`, non il freno.
+
+La corsa vera si riproduce con due `dispatchEvent` nativi dentro **un solo**
+`act()`: React batcha, il commit arriva alla fine dello scope, e i due gestori
+girano entrambi con la closure del render precedente — che è esattamente dove
+`if (saving) return` legge `false` due volte. Riscritto così, il test **fallisce
+sul codice pre-A-2 con «expected 1 times, but got 2 times»** e passa su quello
+nuovo. Su `registraMovimento` quei due erano due movimenti su un saldo.
 
 ---
 
@@ -805,6 +901,43 @@ Stessa operazione per `listaResults` → `lib/searchListe.js` (che resta fuori d
 modulo Liste: è la ricerca del *core* sulle liste, e il confine
 `VIETATO_LISTEAPI_DA_FUORI` non viene toccato — si indicizzano oggetti già
 ottenuti da `listeModuleApi.js`).
+
+---
+
+## M-6 · Due scritture che non passano da nessun registry
+
+**Dove.** `admin/AddTeamMemberModal.jsx:62,87-94` · `admin/BulkInviteModal.jsx:65,92-117`.
+
+**Il rilievo, e come è emerso.** Non era nella prima stesura di questo audit:
+l'ha trovato il controllo corretto di A-1. Entrambe le modali hanno dati
+digitati, tengono `busy` a mano e scrivono con `Users.invite` — una Edge
+Function chiamata direttamente, senza passare né dal registry del core né da
+quello del modulo Liste. Hanno quindi le stesse tre debolezze di A-2 (freno sul
+valore di stato invece che su un `ref`, `setBusy(false)` fuori da un `finally`,
+nessun guard di smontaggio), e nessuno dei due predicati le raggiunge.
+
+**Perché NON sono state corrette qui, ed è una scelta e non una dimenticanza.**
+`AddTeamMemberModal` sarebbe la stessa modifica meccanica fatta dodici volte in
+A-2. `BulkInviteModal` no: è un **batch sequenziale con esito per riga** (`out`
+cresce a ogni iterazione, `setResults([...out])` dipinge l'avanzamento live) e
+tre stati per riga — `ok`, `warn`, `err`. `useSalvataggio` ha *un* concetto per
+la riuscita parziale (`avviso`, che blocca i tentativi successivi), ed è pensato
+per «la scrittura è riuscita a metà, la cosa da fare non è riprovare — è
+chiudere»: non è la stessa forma. Deciderla di corsa dentro una correzione
+lunga significherebbe forzare l'una nell'altra.
+
+Per la stessa ragione `scriveDavvero` **non** è stato allargato a
+`Users.invite`: allargare il predicato prima di aver deciso quella forma darebbe
+un rosso senza una correzione da applicare, che è il modo in cui un controllo
+si impara a saltare. L'esclusione è dichiarata in `docs/CLAUDE.md` accanto ai
+due controlli e nel commento di `scriveDavvero` — non è silenziosa, che è
+l'unica proprietà che A-1 chiedeva davvero.
+
+**La correzione**, quando si farà, ha due passi disuguali: `AddTeamMemberModal`
+adotta `useSalvataggio` come le dodici di A-2; `BulkInviteModal` chiede prima
+una risposta a «che forma ha il contratto per un batch con esito per riga?» —
+e quella risposta, se arriva, vale anche per `ImportTab` del BulkTaskCreator,
+che ha lo stesso problema e lo risolve con `avviso`.
 
 ---
 

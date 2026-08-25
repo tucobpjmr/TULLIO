@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { LvOverlay } from "./LvOverlay.jsx";
+import { useSalvataggioLista } from "../useSalvataggioLista.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -14,18 +15,16 @@ const txtF12LvMuted = { fontSize: 12, color: "var(--lv-muted)", marginTop: 4 };
 export function AggiungiBeneficiarioModal({ clients, onCreate, onClose }) {
   const [clientId, setClientId] = useState("");
   const [newName, setNewName] = useState("");
-  const [saving, setSaving] = useState(false);
 
-  const submit = async () => {
-    if (saving) return;
+  const { salva, inVolo } = useSalvataggioLista(onCreate.run);
+
+  const submit = () => {
     if (!clientId) return onCreate.onError("Scegli un cliente");
     if (clientId === "__new__" && !newName.trim()) return onCreate.onError("Inserisci il nome del cliente");
-    setSaving(true);
-    const ok = await onCreate.run({
+    salva({
       clientId: clientId === "__new__" ? null : clientId,
       newClientName: clientId === "__new__" ? newName.trim() : null,
     });
-    if (!ok) setSaving(false);
   };
 
   return (
@@ -51,8 +50,8 @@ export function AggiungiBeneficiarioModal({ clients, onCreate, onClose }) {
       </p>
       <div className="actions">
         <button className="lv-btn" onClick={onClose}>Annulla</button>
-        <button className="lv-btn primary" disabled={saving} onClick={submit}>
-          {saving ? "Aggiungo…" : "Aggiungi"}
+        <button className="lv-btn primary" disabled={inVolo} onClick={submit}>
+          {inVolo ? "Aggiungo…" : "Aggiungi"}
         </button>
       </div>
     </LvOverlay>

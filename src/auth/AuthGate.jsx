@@ -1,7 +1,7 @@
 // Estratto da main.jsx (B-3 dell'audit del 13 agosto: un file, un componente
 // — vedi docs/CLAUDE.md).
 import { lazy, Suspense } from 'react';
-import ErrorBoundary from '../components/ErrorBoundary.jsx';
+import ErrorBoundary from '../components/errors/ErrorBoundary.jsx';
 import { useAuth } from './AuthContext.jsx';
 import LoginScreen from './LoginScreen.jsx';
 import UpdatePasswordScreen from './UpdatePasswordScreen.jsx';

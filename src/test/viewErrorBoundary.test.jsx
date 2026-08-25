@@ -7,7 +7,7 @@
 // d'uscita il reload.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ViewErrorBoundary } from "../components/ViewErrorBoundary.jsx";
+import { ViewErrorBoundary } from "../components/errors/ViewErrorBoundary.jsx";
 
 function Esplode() {
   throw new Error("crash del modulo liste");

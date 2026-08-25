@@ -34,7 +34,7 @@
 // che ha montato il pannello (`showChat`, `showNotif`, `importOpen`…) resta
 // `true` — cioè un "Chiudi" che non chiude.
 import { Suspense } from "react";
-import { OverlayErrorBoundary } from "../OverlayErrorBoundary.jsx";
+import { OverlayErrorBoundary } from "../errors/OverlayErrorBoundary.jsx";
 import { LazyFallback } from "./LazyFallback.jsx";
 
 /**

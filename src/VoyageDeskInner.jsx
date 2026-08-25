@@ -36,7 +36,7 @@ import { useChatData } from "./hooks/useChatData.js";
 import { useShellUi } from "./hooks/useShellUi.js";
 
 // ── Guscio e primitive ─────────────────────────────────────────────────────
-import { ViewErrorBoundary } from "./components/ViewErrorBoundary.jsx";
+import { ViewErrorBoundary } from "./components/errors/ViewErrorBoundary.jsx";
 import { ToastStack } from "./components/ui/Toast.jsx";
 import { LazyFallback } from "./components/ui/LazyFallback.jsx";
 import { LazyPanel } from "./components/ui/LazyPanel.jsx";

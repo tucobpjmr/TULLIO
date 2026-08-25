@@ -434,6 +434,11 @@ src/
 ├── components/              (Phase 2e + 2f — ESTRAZIONE COMPLETA + Fase 1 CRM)
 │   ├── Viewport.jsx         ViewportContext / useViewport / ViewportProvider
 │   ├── SwipeActions.jsx     swipe mobile wrapper
+│   ├── errors/              i tre error boundary + la loro UNICA implementazione (M-3, 25 agosto)
+│   │   ├── creaErrorBoundary.jsx  lifecycle condiviso: codice di segnalazione, log, riarmo su chiave
+│   │   ├── ErrorBoundary.jsx      primo livello (main.jsx/AuthGate) — via d'uscita: ricarica
+│   │   ├── ViewErrorBoundary.jsx  la sola vista attiva — riarmo su `viewKey`, uscita: Dashboard
+│   │   └── OverlayErrorBoundary.jsx  i modali lazy — riarmo su `resetKey`, uscita: chiudi
 │   ├── ui/
 │   │   ├── Avatar.jsx
 │   │   ├── PriorityBadge.jsx

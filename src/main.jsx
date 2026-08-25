@@ -2,7 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { AuthProvider } from './auth/AuthContext.jsx';
 import { AuthGate } from './auth/AuthGate.jsx';
-import ErrorBoundary from './components/ErrorBoundary.jsx';
+import ErrorBoundary from './components/errors/ErrorBoundary.jsx';
 import { installaHandlerGlobali } from './lib/errorReporting.js';
 // Il CSS globale (tema, keyframes, utility, safe-area): importato
 // dall'entry perché Vite lo emetta come <link> nell'HTML iniziale — non

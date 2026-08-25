@@ -2,25 +2,20 @@
 // Estratto dal monolite (Step P Phase 2f).
 import { memo, useState, useCallback, useMemo } from "react";
 import { useViewport } from "../Viewport.jsx";
-import { SwipeActions } from "../SwipeActions.jsx";
-import { Avatar } from "../ui/Avatar.jsx";
-import { PriorityBadge } from "../ui/PriorityBadge.jsx";
-import { StatusBadge } from "../ui/StatusBadge.jsx";
-import { TaskRow } from "../tasks/TaskRow.jsx";
 import { formatTime, isActiveTask } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useTasks } from "../../state/TasksContext.jsx";
 
 import { exportTasksToIcs } from "./calendarIcs.js";
+import { CalendarAgentLoad } from "./CalendarAgentLoad.jsx";
 import { CalendarDayGrid } from "./CalendarDayGrid.jsx";
+import { CalendarMonthGrid } from "./CalendarMonthGrid.jsx";
 import { CalendarWeekGrid } from "./CalendarWeekGrid.jsx";
 import { giornoLungo, giornoMese, giornoMeseAnno, meseAnno } from "../../lib/dates.js";
 import * as stiliComuni from "../../styles/common.js";
 import {
-  boxF11Bold, boxF11Bold2, boxF12Bold, boxF12Bold2, boxF14W34, boxR14, boxW14H14, colGap2MinW0,
-  colGap4, colGap8, grid2, grid3, overflowX2, padding2, rowCenterBetween, rowCenterGap6,
-  rowCenterGap82, rowGap4P3, rowGap6MtNeg8, rowMiddleGap3, txt, txtBoldHeading, txtF10Muted,
-  txtF12Bold, txtF12Muted, txtF12WFull, txtF16Bold, txtF16Bold2,
+  boxF12Bold, boxF12Bold2, boxF14W34, boxW14H14, colGap4, rowCenterBetween,
+  rowCenterGap6, rowCenterGap82, rowGap4P3, rowGap6MtNeg8, txtF12Muted,
 } from "./calendarPlannerStyles.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
 
@@ -64,11 +59,7 @@ export const CalendarPlanner = memo(function CalendarPlanner({ loading = false }
   // ── Month helpers ──
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const today = new Date();
   const monthName = meseAnno(currentMonth);
-  const startOffset = firstDay === 0 ? 6 : firstDay - 1;
 
   // ── Week helpers ──
   const getWeekDays = (offset) => {
@@ -241,107 +232,19 @@ export const CalendarPlanner = memo(function CalendarPlanner({ loading = false }
         </div>
       )}
 
-      {/* ─── VISTA MESE ─── */}
       {viewMode === "month" && (
-        <div style={boxR14}>
-          {/* Day headers */}
-          <div style={grid2}>
-            {dayNames.map(d => (
-              <div key={d} style={txtF12Bold}>{d}</div>
-            ))}
-          </div>
-          {/* Cells — minmax(0,1fr) evita che i titoli dei task (nowrap) allarghino
-              le colonne oltre il contenitore facendo tagliare la domenica */}
-          <div style={grid3}>
-            {Array.from({ length: startOffset }, (_, i) => (
-              <div key={`e${i}`} style={{ minHeight: isMobile ? 52 : 100, minWidth: 0, borderRight: "1px solid var(--border)", borderBottom: "1px solid var(--border)", background: "var(--surface2)" }} />
-            ))}
-            {Array.from({ length: daysInMonth }, (_, i) => {
-              const day = i + 1;
-              const dayTasks = getTasksForCalDay(day);
-              const hasContent = dayTasks.length > 0;
-              const isToday = today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
-              return (
-                <div key={day} onClick={() => setSelectedDay(selectedDay === day ? null : day)} style={{
-                  minHeight: isMobile ? 52 : 100, minWidth: 0, overflow: "hidden",
-                  borderRight: "1px solid var(--border)", borderBottom: "1px solid var(--border)",
-                  padding: isMobile ? "5px 3px" : "8px 6px", cursor: hasContent ? "pointer" : "default",
-                  background: selectedDay === day ? "rgba(212,168,67,0.08)" : "var(--card)",
-                  transition: "background 0.15s", display: "flex", flexDirection: "column", alignItems: isMobile ? "center" : "stretch",
-                }}>
-                  <div style={{
-                    width: isMobile ? 24 : 26, height: isMobile ? 24 : 26, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 13, fontWeight: isToday ? 700 : 400,
-                    background: isToday ? "var(--navy)" : "transparent",
-                    color: isToday ? "#fff" : "var(--text)", marginBottom: 4
-                  }}>{day}</div>
-                  {isMobile ? (
-                    hasContent && (
-                      <div style={rowMiddleGap3}>
-                        {dayTasks.slice(0, 4).map(t => (
-                          <span key={t.id} style={{ width: 6, height: 6, borderRadius: "50%", background: categories[t.category]?.color || "var(--navy)" }} />
-                        ))}
-                      </div>
-                    )
-                  ) : (
-                    <div style={colGap2MinW0}>
-                      {dayTasks.slice(0, 3).map(t => (
-                        <div key={t.id} onClick={e => { e.stopPropagation(); dispatch({ type: "SET_SELECTED_TASK", payload: t }); }} style={{
-                          fontSize: 10, fontWeight: 500, padding: "1px 5px", borderRadius: 3,
-                          background: categories[t.category]?.color + "20",
-                          color: categories[t.category]?.color,
-                          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                          cursor: "pointer",
-                        }}>{categories[t.category]?.icon} {t.title}</div>
-                      ))}
-                      {dayTasks.length > 3 && (
-                        <div style={txtF10Muted}>
-                          +{dayTasks.length - 3} altri
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <CalendarMonthGrid
+          mese={currentMonth}
+          nomiGiorni={dayNames}
+          nomeMese={monthName}
+          selectedDay={selectedDay}
+          onSelectDay={setSelectedDay}
+          tasksDelGiorno={getTasksForCalDay}
+          categories={categories}
+          onOpenTask={openTask}
+          isMobile={isMobile}
+        />
       )}
-
-      {/* ─── Day detail (month view) ─── */}
-      {viewMode === "month" && selectedDay && (() => {
-        const dayTasks = getTasksForCalDay(selectedDay);
-        if (!dayTasks.length) return null;
-        return (
-          <div className="slide-up" style={{
-            background: "var(--card)", borderRadius: 12, padding: isMobile ? "14px 12px" : "18px 20px",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.1)", border: "1px solid var(--border)"
-          }}>
-            <div className="playfair" style={txtF16Bold}>
-              Agenda del {selectedDay} {monthName}
-            </div>
-            <div style={colGap8}>
-              {dayTasks.map(t => (
-                <SwipeActions key={t.id} task={t}>
-                  <TaskRow
-                    task={t}
-                    onOpen={openTask}
-                    background="var(--card)"
-                    iconSize={18}
-                    padding="8px 12px"
-                    gap={12}
-                    subtitle={`${t.client ? `${t.client} • ` : ""}${formatTime(t.dueDate)}`}
-                    trailing={<>
-                      <PriorityBadge priority={t.priority} />
-                      <StatusBadge status={t.status} />
-                    </>}
-                  />
-                </SwipeActions>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
 
       {/* ─── VISTA SETTIMANA ─── */}
       {viewMode === "week" && (
@@ -414,62 +317,14 @@ export const CalendarPlanner = memo(function CalendarPlanner({ loading = false }
       )}
 
       {/* ─── DISTRIBUZIONE AGENTI (sempre visibile) ─── */}
-      <div style={{ background: "var(--card)", borderRadius: 12, padding: isMobile ? "14px 12px" : "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
-        <div className="playfair" style={txtF16Bold2}>Distribuzione Settimanale per Agente</div>
-        <div style={overflowX2}>
-          <table style={txtF12WFull}>
-            <thead>
-              <tr>
-                <th style={boxF11Bold}>Agente</th>
-                {agentWeekDays.map((d, i) => (
-                  <th key={i} style={{
-                    padding: "8px 6px", background: "var(--surface2)", fontSize: 11, fontWeight: 600,
-                    color: d.toDateString() === new Date().toDateString() ? "var(--gold)" : "var(--text-muted)",
-                    textAlign: "center", minWidth: 70
-                  }}>
-                    {dayNames[i]}<br />{d.getDate()}
-                  </th>
-                ))}
-                <th style={boxF11Bold2}>TOT</th>
-              </tr>
-            </thead>
-            <tbody>
-              {getAssignableTeam().map(m => (
-                <tr key={m.id}>
-                  <td style={padding2}>
-                    <div style={stiliComuni.rowCenterGap8}>
-                      <Avatar memberId={m.id} size={24} />
-                      <span style={txt}>{m.name.split(" ")[0]}</span>
-                    </div>
-                  </td>
-                  {agentWeekDays.map((day, i) => {
-                    const count = tasks.filter(t =>
-                      isActiveTask(t) && t.assignees?.includes(m.id) && t.dueDate &&
-                      new Date(t.dueDate).toDateString() === day.toDateString() && matchesCat(t)
-                    ).length;
-                    return (
-                      <td key={i} style={{
-                        padding: "8px 6px", textAlign: "center", borderBottom: "1px solid var(--border)",
-                        background: count > 0 ? m.color + "12" : "transparent",
-                      }}>
-                        {count > 0 ? (
-                          <span style={{ fontWeight: 700, color: m.color, fontSize: 14 }}>{count}</span>
-                        ) : <span style={stiliComuni.txtMuted}>—</span>}
-                      </td>
-                    );
-                  })}
-                  <td style={txtBoldHeading}>
-                    {tasks.filter(t =>
-                      isActiveTask(t) && t.assignees?.includes(m.id) && t.dueDate &&
-                      agentWeekDays.some(d => new Date(t.dueDate).toDateString() === d.toDateString()) && matchesCat(t)
-                    ).length}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <CalendarAgentLoad
+        tasks={tasks}
+        giorni={agentWeekDays}
+        nomiGiorni={dayNames}
+        team={getAssignableTeam()}
+        matchesCat={matchesCat}
+        isMobile={isMobile}
+      />
     </div>
   );
 });

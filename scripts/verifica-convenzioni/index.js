@@ -71,6 +71,11 @@ const AUDIT = [
   // A-5 sono già citati dentro il codice (eslint.config.js, styles/common.js,
   // lib/realtime.js, questo stesso script).
   { file: 'AUDIT_ARCHITETTURA_2026-08-23_ii.md', prefisso: 'A' },
+  // Registrato insieme al documento, come i quattro sopra: e' l'audit con tre
+  // rilievi ANCORA APERTI, cioe' quello il cui marcatore ha piu' occasioni di
+  // scadere. I prefissi sono due — M (media) e B (bassa) — perche' non ha
+  // rilievi critici ne' di alta priorita'.
+  { file: 'AUDIT_ARCHITETTURA_2026-08-25.md', prefisso: ['M', 'B'] },
 ];
 
 // Misura i warning di una regola sul sorgente dell'app.

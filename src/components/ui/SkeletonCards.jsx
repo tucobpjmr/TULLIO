@@ -9,7 +9,7 @@
 // contenuto e non di layout. `compact` toglie il blocco avatar: le card dei
 // task non ne hanno uno, e uno scheletro che promette un cerchio inesistente è
 // esso stesso una piccola bugia.
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "./Viewport.jsx";
 import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,

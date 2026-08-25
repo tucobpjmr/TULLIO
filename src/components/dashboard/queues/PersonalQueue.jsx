@@ -3,7 +3,7 @@
 // enableDateFilter (v22): per il Driver abilita il filtro data/ora — i transfer
 // sono time-sensitive e la coda si filtra per giornata.
 import { useMemo, useState } from "react";
-import { SwipeActions } from "../../SwipeActions.jsx";
+import { SwipeActions } from "../../tasks/SwipeActions.jsx";
 import { StatusBadge } from "../../ui/StatusBadge.jsx";
 import { TaskCard } from "../../tasks/TaskCard.jsx";
 import { PRIORITIES } from "../../../lib/taskConstants.js";

@@ -3,7 +3,7 @@
 // fornitore — quindi non "da fare" per chi le possiede. Restavano mescolate
 // nella coda personale, indistinguibili da ciò che è davvero azionabile ora.
 import { useMemo, useState } from "react";
-import { SwipeActions } from "../../SwipeActions.jsx";
+import { SwipeActions } from "../../tasks/SwipeActions.jsx";
 import { StatusBadge } from "../../ui/StatusBadge.jsx";
 import { TaskCard } from "../../tasks/TaskCard.jsx";
 import { PRIORITIES, STATUS_LABELS, STATUS_COLORS } from "../../../lib/taskConstants.js";

@@ -1,10 +1,10 @@
 // ─── NOTICE BOARD ────────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
 import { useState, useMemo } from "react";
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { canEditNotice } from "../../lib/permissions.js";
-import { NoticeEditorModal } from "../modals/NoticeEditorModal.jsx";
+import { NoticeEditorModal } from "./NoticeEditorModal.jsx";
 import { MentionText } from "../ui/MentionText.jsx";
 import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { Z } from "../../styles/tokens.js";

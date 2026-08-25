@@ -1,7 +1,7 @@
 // src/components/admin/tabs/AdminTeamTab.jsx
 // Gestione del team: invito, approvazione dei pending, ruoli, attivazione.
 import { useState, useEffect } from "react";
-import { useViewport } from "../../Viewport.jsx";
+import { useViewport } from "../../ui/Viewport.jsx";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useTasks } from "../../../state/TasksContext.jsx";
 import { sectionH, fieldStyle, btnPrimary, btnGold, btnGhost, btnDanger, btnWarning } from "../adminStyles.js";
@@ -14,8 +14,8 @@ import {
 } from "../../../lib/presenza.js";
 import { useTickLento } from "../../../hooks/useTickLento.js";
 import { useSalvataggio } from "../../../hooks/useSalvataggio.js";
-import { AddTeamMemberModal } from "../../modals/AddTeamMemberModal.jsx";
-import { BulkInviteModal } from "../../modals/BulkInviteModal.jsx";
+import { AddTeamMemberModal } from "../AddTeamMemberModal.jsx";
+import { BulkInviteModal } from "../BulkInviteModal.jsx";
 import { ContactActions } from "../../ui/ContactActions.jsx";
 import { useConfirm } from "../../../state/ConfirmContext.jsx";
 import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
@@ -414,4 +414,4 @@ export const AdminTeamTab = () => {
   );
 };
 
-// AddTeamMemberModal → src/components/modals/AddTeamMemberModal.jsx (Step P Phase 2f)
+// AddTeamMemberModal → src/components/admin/AddTeamMemberModal.jsx (Step P Phase 2f)

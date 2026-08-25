@@ -23,7 +23,7 @@ vi.mock("../lib/api.js", () => ({
 }));
 
 const { renderWithAppData } = await import("./helpers/appData.jsx");
-const { Trash } = await import("../components/views/Trash.jsx");
+const { Trash } = await import("../components/tasks/Trash.jsx");
 
 const wrapper = ({ children }) => <ConfirmProvider>{children}</ConfirmProvider>;
 const dialogo = () => screen.findByRole("dialog");

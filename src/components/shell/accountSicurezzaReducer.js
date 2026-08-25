@@ -1,4 +1,4 @@
-// src/components/modals/accountSicurezzaReducer.js
+// src/components/shell/accountSicurezzaReducer.js
 // Lo stato locale della sezione "sicurezza dell'account" di `ProfileEditor`:
 // le due fisarmoniche (cambio password, elimina account) e l'esito delle tre
 // operazioni asincrone che vivono lì.

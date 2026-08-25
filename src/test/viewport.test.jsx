@@ -8,7 +8,7 @@
 // prima di questo file.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
-import { ViewportProvider, useViewport } from "../components/Viewport.jsx";
+import { ViewportProvider, useViewport } from "../components/ui/Viewport.jsx";
 import { Sidebar } from "../components/shell/Sidebar.jsx";
 import { withAppData, DEMO_APP_CTX } from "./helpers/appData.jsx";
 

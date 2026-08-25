@@ -7,7 +7,7 @@
 import { useRef, useState } from "react";
 import {
   modalOverlay, modalCard, labelStyle, fieldStyle, btnPrimary, btnGhost,
-} from "../admin/adminStyles.js";
+} from "./adminStyles.js";
 import { ModalPortal } from "../ui/ModalPortal.jsx";
 import { Users } from "../../lib/api.js";
 import { emailValida, obbligatorio, primoCampoInvalido, validaCampi } from "../../lib/validators.js";

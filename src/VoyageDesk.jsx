@@ -1,5 +1,5 @@
 
-import { ViewportProvider } from "./components/Viewport.jsx";
+import { ViewportProvider } from "./components/ui/Viewport.jsx";
 import { VoyageDeskInner } from "./VoyageDeskInner.jsx";
 
 // ─── ROOT APP ──────────────────────────────────────────────────────────────

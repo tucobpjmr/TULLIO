@@ -6,7 +6,7 @@ import { memo, useReducer, useState, useMemo, useEffect, lazy } from "react";
 import { ClienteModal } from "./ClienteModal.jsx";
 import { ClienteCard } from "./ClienteCard.jsx";
 import { ClienteDetailPanel } from "./ClienteDetailPanel.jsx";
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
 import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { LazyPanel } from "../ui/LazyPanel.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";

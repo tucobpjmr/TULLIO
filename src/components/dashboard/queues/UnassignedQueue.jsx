@@ -2,7 +2,7 @@
 // Coda globale: task non assegnati a nessuno, che chi ne ha i permessi può
 // prendere in carico. Il Driver non la vede.
 import { useMemo, useState } from "react";
-import { SwipeActions } from "../../SwipeActions.jsx";
+import { SwipeActions } from "../../tasks/SwipeActions.jsx";
 import { TaskCard } from "../../tasks/TaskCard.jsx";
 import { PRIORITIES } from "../../../lib/taskConstants.js";
 import { formatDate, isOverdue } from "../../../lib/taskUtils.js";

@@ -7,7 +7,7 @@
 // righe di titolo/metadati (es. "Esportazione del : ...") prima della vera
 // intestazione, che romperebbero l'assunzione "riga 0 = header".
 import { useState, useReducer, useRef, useMemo, useEffect } from "react";
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
 import { readFirstSheetRowsAutoHeader, MAX_IMPORT_BYTES } from "../../lib/xlsx.js";
 import { formatFileSize } from "../../lib/fileUtils.js";
 // M-4 (25 agosto): la deduplica dell'import usa LA chiave d'identità cliente,

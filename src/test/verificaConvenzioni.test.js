@@ -179,13 +179,13 @@ describe('usiSalvataggio / leggiCallSiteSalvataggio', () => {
 
   it('elenca i file che importano l\'hook, non quelli che lo nominano', () => {
     const sorgenti = [
-      { path: 'src/components/modals/QuickAddTask.jsx', testo: `${IMPORTA}\nconst { salva } = useSalvataggio(f);` },
+      { path: 'src/components/tasks/QuickAddTask.jsx', testo: `${IMPORTA}\nconst { salva } = useSalvataggio(f);` },
       // Il file dell'hook stesso, e un commento che ne parla: nessuno dei due
       // è un call site.
       { path: 'src/hooks/useSalvataggio.js', testo: 'export function useSalvataggio() {}' },
       { path: 'src/components/liste/AddMovBox.jsx', testo: '// da convertire a useSalvataggio\nexport const AddMovBox = () => null;' },
     ];
-    expect(usiSalvataggio(sorgenti)).toEqual(['src/components/modals/QuickAddTask.jsx']);
+    expect(usiSalvataggio(sorgenti)).toEqual(['src/components/tasks/QuickAddTask.jsx']);
   });
 
   it('SOLLEVA se nessun file lo importa: l\'hook è sparito o la forma è cambiata', () => {
@@ -239,7 +239,7 @@ describe('formSenzaAttesaEsito', () => {
 
   it('segnala il form che scrive e chiude senza attendere', () => {
     const sorgenti = [{
-      path: 'src/components/modals/AddCategoryModal.jsx',
+      path: 'src/components/admin/AddCategoryModal.jsx',
       testo: `${importaValida}
         const submit = () => {
           const trovati = validaCampi({ label }, REGOLE);
@@ -248,12 +248,12 @@ describe('formSenzaAttesaEsito', () => {
         };`,
     }];
     expect(formSenzaAttesaEsito(sorgenti, AZIONI))
-      .toEqual(['src/components/modals/AddCategoryModal.jsx']);
+      .toEqual(['src/components/admin/AddCategoryModal.jsx']);
   });
 
   it('accetta il form che passa da useSalvataggio', () => {
     const sorgenti = [{
-      path: 'src/components/modals/AddCategoryModal.jsx',
+      path: 'src/components/admin/AddCategoryModal.jsx',
       testo: `${importaValida}
         import { useSalvataggio } from "../../hooks/useSalvataggio.js";
         const { salva } = useSalvataggio((p) => dispatch({ type: "ADD_CATEGORY", payload: p }));`,
@@ -263,7 +263,7 @@ describe('formSenzaAttesaEsito', () => {
 
   it('accetta anche chi attende a mano, come ProfileEditor faceva prima dell\'hook', () => {
     const sorgenti = [{
-      path: 'src/components/modals/ProfileEditor.jsx',
+      path: 'src/components/shell/ProfileEditor.jsx',
       testo: `${importaValida}
         const salva = async () => {
           const res = await dispatch({ type: "UPDATE_TEAM_MEMBER", payload: draft });

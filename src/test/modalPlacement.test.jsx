@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render as rtlRender, screen, fireEvent } from "@testing-library/react";
-import { Trash } from "../components/views/Trash.jsx";
+import { Trash } from "../components/tasks/Trash.jsx";
 import { withAppData } from "./helpers/appData.jsx";
 
 // ─── Contesto app per il render ─────────────────────────────────────────────
@@ -34,10 +34,10 @@ vi.mock("../auth/AuthContext.jsx", () => ({
   useAuth: () => ({ session: null, updatePassword: vi.fn(), deleteAccount: vi.fn() }),
 }));
 
-const { AddCategoryModal } = await import("../components/modals/AddCategoryModal.jsx");
-const { AddTeamMemberModal } = await import("../components/modals/AddTeamMemberModal.jsx");
-const { NoticeEditorModal } = await import("../components/modals/NoticeEditorModal.jsx");
-const { ProfileEditor } = await import("../components/modals/ProfileEditor.jsx");
+const { AddCategoryModal } = await import("../components/admin/AddCategoryModal.jsx");
+const { AddTeamMemberModal } = await import("../components/admin/AddTeamMemberModal.jsx");
+const { NoticeEditorModal } = await import("../components/dashboard/NoticeEditorModal.jsx");
+const { ProfileEditor } = await import("../components/shell/ProfileEditor.jsx");
 
 // I modali di Amministrazione e della bacheca sono dichiarati dentro viste che
 // entrano con le classi d'animazione .fade-in/.slide-up: i loro keyframe

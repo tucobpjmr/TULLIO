@@ -4,7 +4,7 @@
 // in file propri (B-3 dell'audit del 13 agosto: un file, un componente —
 // vedi docs/CLAUDE.md, e BottomNav.jsx/navHelpers.js/NavBadge.jsx qui accanto).
 import { useEffect, useRef, useState, memo } from "react";
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { getNavItemsForRole, getNavBadges } from "./navHelpers.js";
 import { NavBadge } from "./NavBadge.jsx";

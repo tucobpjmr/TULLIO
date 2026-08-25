@@ -23,8 +23,8 @@ vi.mock("../lib/api.js", () => ({
   Users: { getAvatarUrl: vi.fn().mockResolvedValue({ url: null, error: null }) },
 }));
 
-const { Archive } = await import("../components/views/Archive.jsx");
-const { Trash } = await import("../components/views/Trash.jsx");
+const { Archive } = await import("../components/tasks/Archive.jsx");
+const { Trash } = await import("../components/tasks/Trash.jsx");
 const { OverdueQueue } = await import("../components/dashboard/queues/OverdueQueue.jsx");
 const { UnassignedQueue } = await import("../components/dashboard/queues/UnassignedQueue.jsx");
 const { useFinestra } = await import("../hooks/useFinestra.js");

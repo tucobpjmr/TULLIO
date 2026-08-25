@@ -2,7 +2,7 @@
 // Estratto dal monolite (Step P Phase 2e). Split in ToastStack/ToastItem per
 // supportare più toast in coda (contratto: state.toasts, array) e per dare
 // agli screen reader un annuncio affidabile di ciascun messaggio.
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "./Viewport.jsx";
 import { Z } from "../../styles/tokens.js";
 import { ToastItem } from "./ToastItem.jsx";
 

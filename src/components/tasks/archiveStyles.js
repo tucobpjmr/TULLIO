@@ -1,4 +1,4 @@
-// src/components/views/archiveStyles.js
+// src/components/tasks/archiveStyles.js
 // Gli stili costanti di Archive.jsx, estratti dal componente (M-1,
 // audit del 12 agosto): oggetti allocati una volta a livello di modulo
 // invece che ricostruiti a ogni render, e altrettante righe di sola

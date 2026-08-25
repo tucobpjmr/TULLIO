@@ -1,6 +1,6 @@
 // ─── FAB ─────────────────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
 import { Z } from "../../styles/tokens.js";
 
 export const FAB = ({ onClick }) => {

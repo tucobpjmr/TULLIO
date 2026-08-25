@@ -5,7 +5,7 @@ import { useSalvataggio } from "../../../hooks/useSalvataggio.js";
 import { fieldStyle, btnPrimary, btnGhost, btnDanger } from "../adminStyles.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useTasks } from "../../../state/TasksContext.jsx";
-import { AddCategoryModal } from "../../modals/AddCategoryModal.jsx";
+import { AddCategoryModal } from "../AddCategoryModal.jsx";
 import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
 import { obbligatorio, validaCampi } from "../../../lib/validators.js";
 import { useConfirm } from "../../../state/ConfirmContext.jsx";
@@ -152,4 +152,4 @@ export const AdminCategoriesTab = () => {
   );
 };
 
-// AddCategoryModal → src/components/modals/AddCategoryModal.jsx (Step P Phase 2f)
+// AddCategoryModal → src/components/admin/AddCategoryModal.jsx (Step P Phase 2f)

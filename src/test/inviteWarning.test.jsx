@@ -12,8 +12,8 @@ vi.mock("../lib/api.js", () => ({
   Users: { invite: (...args) => inviteMock(...args) },
 }));
 
-const { AddTeamMemberModal } = await import("../components/modals/AddTeamMemberModal.jsx");
-const { BulkInviteModal } = await import("../components/modals/BulkInviteModal.jsx");
+const { AddTeamMemberModal } = await import("../components/admin/AddTeamMemberModal.jsx");
+const { BulkInviteModal } = await import("../components/admin/BulkInviteModal.jsx");
 const { withDispatch } = await import("./helpers/appData.jsx");
 
 describe("AddTeamMemberModal — mostra il warning invece del solito successo", () => {

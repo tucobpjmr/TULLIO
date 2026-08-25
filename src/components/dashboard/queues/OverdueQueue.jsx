@@ -1,7 +1,7 @@
 // src/components/dashboard/queues/OverdueQueue.jsx
 // Coda scaduti: tutto ciò che ha superato la scadenza ed è ancora aperto.
 import { useMemo, useState } from "react";
-import { SwipeActions } from "../../SwipeActions.jsx";
+import { SwipeActions } from "../../tasks/SwipeActions.jsx";
 import { StatusBadge } from "../../ui/StatusBadge.jsx";
 import { TaskCard } from "../../tasks/TaskCard.jsx";
 import { PRIORITIES } from "../../../lib/taskConstants.js";

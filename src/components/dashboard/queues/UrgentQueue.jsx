@@ -2,7 +2,7 @@
 // Coda urgenze: tutti i task in scadenza entro la finestra scelta, anche di
 // altri (i non-driver devono poter intervenire su ciò che sta per scadere).
 import { useMemo, useState } from "react";
-import { SwipeActions } from "../../SwipeActions.jsx";
+import { SwipeActions } from "../../tasks/SwipeActions.jsx";
 import { Avatar } from "../../ui/Avatar.jsx";
 import { TaskCard } from "../../tasks/TaskCard.jsx";
 import { PRIORITIES } from "../../../lib/taskConstants.js";

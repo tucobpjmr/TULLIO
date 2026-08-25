@@ -4,11 +4,11 @@
 // non cestinate). Il sistema convoglia qui gli elementi chiusi: spariscono
 // dalle code/home attive e restano consultabili/riapribili in questa sezione.
 import { memo, useState, useCallback, useMemo, lazy } from "react";
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { CategoryChip } from "../ui/CategoryChip.jsx";
-import { TaskCard } from "../tasks/TaskCard.jsx";
+import { TaskCard } from "./TaskCard.jsx";
 import { LazyPanel } from "../ui/LazyPanel.jsx";
 import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { formatDate, getArchivedTasks } from "../../lib/taskUtils.js";

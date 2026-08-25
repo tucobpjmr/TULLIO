@@ -16,7 +16,7 @@
 import { useState } from "react";
 import {
   modalOverlay, modalCard, labelStyle, fieldStyle, btnPrimary, btnGhost,
-} from "../admin/adminStyles.js";
+} from "./adminStyles.js";
 import { ModalPortal } from "../ui/ModalPortal.jsx";
 import { Users } from "../../lib/api.js";
 import { EMAIL_RX } from "../../lib/validators.js";

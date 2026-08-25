@@ -1,4 +1,4 @@
-// src/components/views/trashStyles.js
+// src/components/tasks/trashStyles.js
 // Gli stili costanti di Trash.jsx, estratti dal componente (M-1,
 // audit del 12 agosto): oggetti allocati una volta a livello di modulo
 // invece che ricostruiti a ogni render, e altrettante righe di sola

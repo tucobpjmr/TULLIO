@@ -1,4 +1,4 @@
-// src/components/modals/AccountSicurezza.jsx
+// src/components/shell/AccountSicurezza.jsx
 // La zona "sicurezza dell'account" del profilo personale: cambio password,
 // uscita da tutti i dispositivi, eliminazione dell'account.
 //

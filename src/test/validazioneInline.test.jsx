@@ -33,12 +33,12 @@ vi.mock("../lib/api.js", () => ({
 }));
 
 import { ClienteModal } from "../components/clients/ClienteModal.jsx";
-import { NoticeEditorModal } from "../components/modals/NoticeEditorModal.jsx";
-import { AddCategoryModal } from "../components/modals/AddCategoryModal.jsx";
-import { AddTeamMemberModal } from "../components/modals/AddTeamMemberModal.jsx";
+import { NoticeEditorModal } from "../components/dashboard/NoticeEditorModal.jsx";
+import { AddCategoryModal } from "../components/admin/AddCategoryModal.jsx";
+import { AddTeamMemberModal } from "../components/admin/AddTeamMemberModal.jsx";
 import { NewConversationView } from "../components/chat/NewConversationView.jsx";
 import { EditListaModal } from "../components/liste/modals/EditListaModal.jsx";
-import { Trash } from "../components/views/Trash.jsx";
+import { Trash } from "../components/tasks/Trash.jsx";
 import { TemplateTab } from "../components/tasks/bulk/TemplateTab.jsx";
 import { renderWithAppData, withDispatch, DEMO_APP_CTX } from "./helpers/appData.jsx";
 

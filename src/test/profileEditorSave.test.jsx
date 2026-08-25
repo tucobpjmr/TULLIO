@@ -29,7 +29,7 @@ vi.mock("../auth/AuthContext.jsx", () => ({
   useAuth: () => ({ session: null, updatePassword: vi.fn(), deleteAccount: vi.fn() }),
 }));
 
-const { ProfileEditor } = await import("../components/modals/ProfileEditor.jsx");
+const { ProfileEditor } = await import("../components/shell/ProfileEditor.jsx");
 const { withDispatch } = await import("./helpers/appData.jsx");
 
 const MEMBER = { id: "marco", name: "Marco", role: "manager", color: "#0F2044", avatar: "M" };

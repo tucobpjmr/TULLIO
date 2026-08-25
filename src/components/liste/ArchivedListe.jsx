@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ListeAPI, eur, fmtDate, saldoClass } from "./listeApi.js";
 import { useListeWrite } from "./listePersistence.js";
-import { PERIOD_OPTIONS, filterByPeriod, thStyle, chipStyle } from "../views/archiveFilters.js";
+import { PERIOD_OPTIONS, filterByPeriod, thStyle, chipStyle } from "../tasks/archiveFilters.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../styles/common.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";

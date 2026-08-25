@@ -6,7 +6,7 @@
 // file che si chiama "barra superiore". Ora sono moduli propri e questo file
 // fa solo layout e composizione.
 import { useState, useRef, useEffect, memo, lazy } from "react";
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
 import { demoState } from "../../state/demoState.js";
 import { useTasks } from "../../state/TasksContext.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";

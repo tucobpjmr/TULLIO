@@ -4,8 +4,8 @@
 // Cerca su due domini distinti — task e liste viaggio — perché per l'utente
 // "cerca Bianchi" è una domanda sola, anche se sotto sono due tabelle.
 import { useState, useReducer, useEffect, useMemo } from "react";
-import { useViewport } from "../Viewport.jsx";
-import { SwipeActions } from "../SwipeActions.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
+import { SwipeActions } from "../tasks/SwipeActions.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { PRIORITIES, STATUSES, STATUS_LABELS } from "../../lib/taskConstants.js";
 import { formatDate, isOverdue, startOfLocalDay, endOfLocalDay } from "../../lib/taskUtils.js";

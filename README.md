@@ -72,12 +72,12 @@ src/
 │                         permissions (pure), mappers, utils
 ├── styles/               GlobalStyles (tema), tokens (z-index, bottoni, campi)
 ├── components/
-│   ├── shell/            Topbar, Sidebar/BottomNav, FAB, UserSwitcher
-│   ├── dashboard/        Dashboard + queues/ (4 code) + NoticeBoard
-│   ├── tasks/            TaskCard/Row/SlideOver + bulk/ (creazione in blocco)
-│   ├── clients/ calendar/ views/ admin/ chat/ liste/ search/ notifications/
-│   ├── modals/           i modali NON ancora ricondotti alla loro funzionalità
-│   ├── ui/               ciò che è davvero trasversale (Modal, Avatar, Toast…)
+│   ├── shell/            Topbar, Sidebar/BottomNav, FAB, UserSwitcher, ProfileEditor
+│   ├── dashboard/        Dashboard + queues/ (4 code) + NoticeBoard + editor avvisi
+│   ├── tasks/            TaskCard/Row/SlideOver, QuickAdd, Archivio, Cestino,
+│   │                     bulk/ (creazione in blocco)
+│   ├── clients/ calendar/ admin/ chat/ liste/ search/ notifications/ errors/
+│   ├── ui/               ciò che è davvero trasversale (Modal, Avatar, Toast, Viewport…)
 └── test/                 1687 test (Vitest)
 
 supabase/

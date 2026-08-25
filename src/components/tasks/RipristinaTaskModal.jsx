@@ -1,4 +1,4 @@
-// src/components/views/RipristinaTaskModal.jsx
+// src/components/tasks/RipristinaTaskModal.jsx
 // "Ripristina task": la modale che riporta una task dal cestino, permettendo di
 // correggerne i campi PRIMA di farlo.
 //
@@ -31,7 +31,7 @@
 // l'aspetto della riuscita.
 import { useRef, useState } from "react";
 import { useSalvataggio } from "../../hooks/useSalvataggio.js";
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
 import { PRIORITIES, STATUS_LABELS } from "../../lib/taskConstants.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";

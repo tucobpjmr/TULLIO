@@ -37,12 +37,12 @@ vi.mock("../lib/api.js", () => ({
   subscribeToTable: vi.fn(() => () => {}),
 }));
 
-const { NoticeEditorModal } = await import("../components/modals/NoticeEditorModal.jsx");
-const { AddCategoryModal } = await import("../components/modals/AddCategoryModal.jsx");
+const { NoticeEditorModal } = await import("../components/dashboard/NoticeEditorModal.jsx");
+const { AddCategoryModal } = await import("../components/admin/AddCategoryModal.jsx");
 const { AdminCategoriesTab } = await import("../components/admin/tabs/AdminCategoriesTab.jsx");
 const { AdminTeamTab } = await import("../components/admin/tabs/AdminTeamTab.jsx");
 const { MessageTemplatesSection } = await import("../components/admin/tabs/MessageTemplatesSection.jsx");
-const { Trash } = await import("../components/views/Trash.jsx");
+const { Trash } = await import("../components/tasks/Trash.jsx");
 
 // Il rifiuto tipico: la RLS filtra le righe invece di sollevare, quindi
 // `useSyncedDispatch` traduce in `{ error }` e la promise si risolve — non

@@ -14,7 +14,7 @@
 // è una scelta estetica — a 52px di altezza tre titoli troncati non si leggono,
 // e il pallino risponde all'unica domanda che serve a quella scala («questo
 // giorno è pieno?»).
-import { SwipeActions } from "../SwipeActions.jsx";
+import { SwipeActions } from "../tasks/SwipeActions.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { StatusBadge } from "../ui/StatusBadge.jsx";
 import { TaskRow } from "../tasks/TaskRow.jsx";

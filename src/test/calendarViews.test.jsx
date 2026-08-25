@@ -19,7 +19,7 @@ import { screen, within, fireEvent } from "@testing-library/react";
 vi.mock("../lib/supabase", () => ({ supabase: {}, default: {} }));
 
 const { renderWithAppData } = await import("./helpers/appData.jsx");
-const { ViewportProvider } = await import("../components/Viewport.jsx");
+const { ViewportProvider } = await import("../components/ui/Viewport.jsx");
 const { CalendarPlanner } = await import("../components/calendar/CalendarPlanner.jsx");
 
 const TEAM = [{ id: "marco", name: "Marco Rossi", role: "Admin", active: true, pending: false }];

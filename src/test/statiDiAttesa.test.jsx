@@ -29,8 +29,8 @@ const { UrgentQueue } = await import("../components/dashboard/queues/UrgentQueue
 const { UnassignedQueue } = await import("../components/dashboard/queues/UnassignedQueue.jsx");
 const { OverdueQueue } = await import("../components/dashboard/queues/OverdueQueue.jsx");
 const { NoticeBoard } = await import("../components/dashboard/NoticeBoard.jsx");
-const { Archive } = await import("../components/views/Archive.jsx");
-const { Trash } = await import("../components/views/Trash.jsx");
+const { Archive } = await import("../components/tasks/Archive.jsx");
+const { Trash } = await import("../components/tasks/Trash.jsx");
 
 const render = (ui, ctx = DEMO_APP_CTX) => renderWithAppData(ui, ctx);
 const me = DEMO_APP_CTX.team.find(m => m.id === "marco");

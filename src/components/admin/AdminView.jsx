@@ -16,7 +16,7 @@
 // utente corrente non compaiono perché le tab li leggono da AppDataContext; i
 // task da TasksContext.
 import { memo, useState } from "react";
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
 import { AdminTeamTab } from "./tabs/AdminTeamTab.jsx";
 import { AdminIOTab } from "./tabs/AdminIOTab.jsx";
 import { AdminStatsTab } from "./tabs/AdminStatsTab.jsx";

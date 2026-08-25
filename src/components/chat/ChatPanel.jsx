@@ -19,7 +19,7 @@
 //   NewConversationView creazione conversazione
 //   ForwardPicker       scelta destinatario per l'inoltro
 import { memo, useCallback, useReducer, useEffect, useMemo, useRef, useState } from "react";
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
 import { Messages as MessagesAPI } from "../../lib/api.js";
 import { isUuid, newId } from "../../lib/mappers.js";
 import { formatDate, formatTime } from "../../lib/taskUtils.js";

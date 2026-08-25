@@ -44,12 +44,12 @@ const txtF14Success = { color: "var(--success)", fontSize: 14 };
 // Chunk async: porta con sé CropModal.jsx — 14.2 kB insieme, aperti solo da
 // "Modifica profilo" nel menù utente, non dal primo render della Topbar.
 const ProfileEditor = lazy(() =>
-  import("../modals/ProfileEditor.jsx").then(m => ({ default: m.ProfileEditor }))
+  import("./ProfileEditor.jsx").then(m => ({ default: m.ProfileEditor }))
 );
 
 // ─── USER SWITCHER (v0.8) ──────────────────────────────────────────────────
 // Dropdown nella Topbar per cambiare l'utente loggato (mock multi-utente).
-// ProfileEditor (+ AVATAR_EMOJIS/AVATAR_COLORS) → src/components/modals/ProfileEditor.jsx (Step P Phase 2f)
+// ProfileEditor (+ AVATAR_EMOJIS/AVATAR_COLORS) → src/components/shell/ProfileEditor.jsx (Step P Phase 2f)
 
 // ST-2: `currentUserId` arriva da AppDataContext e non da una prop `state`.
 // Era l'unico campo che questo componente leggeva dallo state del reducer, e

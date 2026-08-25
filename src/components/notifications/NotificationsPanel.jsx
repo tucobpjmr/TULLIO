@@ -6,7 +6,7 @@
 // in lib/notifUtils.js (testate in src/test/notifUtils.test.js): qui resta
 // solo il rendering.
 import { useState, useMemo } from "react";
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
 import { NOTIF_ICONS, NOTIF_CATEGORIES, notifTitle, notifSubtitle, notifTime, notifTarget } from "../../lib/notifUtils.js";
 import { Z } from "../../styles/tokens.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";

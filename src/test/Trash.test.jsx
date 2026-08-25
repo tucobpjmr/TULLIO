@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render as rtlRender, screen, fireEvent } from "@testing-library/react";
-import { Trash } from "../components/views/Trash.jsx";
+import { Trash } from "../components/tasks/Trash.jsx";
 import { withAppData } from "./helpers/appData.jsx";
 
 // Avatar (montato in profondità da questo albero di componenti) importa

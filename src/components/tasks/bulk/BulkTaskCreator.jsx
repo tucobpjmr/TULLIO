@@ -10,7 +10,7 @@
 // è la creazione di TASK in blocco, e «modale» è come si presenta, non cosa
 // fa. Vedi la regola sulle cartelle in docs/CLAUDE.md.
 import { useState } from "react";
-import { useViewport } from "../../Viewport.jsx";
+import { useViewport } from "../../ui/Viewport.jsx";
 import { ManualTab } from "./ManualTab.jsx";
 import { DuplicateTab } from "./DuplicateTab.jsx";
 import { ImportTab } from "./ImportTab.jsx";

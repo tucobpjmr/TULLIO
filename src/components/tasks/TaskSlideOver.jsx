@@ -9,7 +9,7 @@
 // ogni carattere; TaskAttachments.jsx e TaskHistoryPanel.jsx erano già fuori e
 // si caricano da sé i propri dati.
 import { useState, useEffect } from "react";
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { CategoryChip } from "../ui/CategoryChip.jsx";
 import { STATUSES, STATUS_LABELS, PRIORITIES } from "../../lib/taskConstants.js";

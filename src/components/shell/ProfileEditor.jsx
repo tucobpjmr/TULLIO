@@ -1,7 +1,7 @@
 // ─── PROFILE EDITOR ──────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
 import { useState, useRef } from "react";
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { useIsMounted } from "../../hooks/useIsMounted.js";
 import { Users as UsersAPI } from "../../lib/api.js";
@@ -12,7 +12,7 @@ import { Modal } from "../ui/Modal.jsx";
 import { roleLabel } from "../../lib/taskConstants.js";
 
 import { AccountSicurezza } from "./AccountSicurezza.jsx";
-import { CropModal, dataUrlToBlob } from "./CropModal.jsx";
+import { CropModal, dataUrlToBlob } from "../ui/CropModal.jsx";
 import * as stiliComuni from "../../styles/common.js";
 import {
   boxF13Bold, boxF13Bold2, boxF13Bold3, boxF13Bold3InVolo, boxF14Muted, boxW100H100,

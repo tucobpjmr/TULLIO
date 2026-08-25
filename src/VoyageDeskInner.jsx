@@ -55,7 +55,7 @@ import { OfflineBanner } from "./components/shell/OfflineBanner.jsx";
 // su ogni sessione invece di risparmiarlo davvero.
 import { Dashboard } from "./components/dashboard/Dashboard.jsx";
 import { ClientiView } from "./components/clients/ClientiView.jsx";
-import { QuickAddTask } from "./components/modals/QuickAddTask.jsx";
+import { QuickAddTask } from "./components/tasks/QuickAddTask.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -95,10 +95,10 @@ const CalendarPlanner = lazy(() =>
   import("./components/calendar/CalendarPlanner.jsx").then(m => ({ default: m.CalendarPlanner }))
 );
 const Trash = lazy(() =>
-  import("./components/views/Trash.jsx").then(m => ({ default: m.Trash }))
+  import("./components/tasks/Trash.jsx").then(m => ({ default: m.Trash }))
 );
 const Archive = lazy(() =>
-  import("./components/views/Archive.jsx").then(m => ({ default: m.Archive }))
+  import("./components/tasks/Archive.jsx").then(m => ({ default: m.Archive }))
 );
 // Suggerimento strategico #3 (docs/AUDIT_PERFORMANCE_2026-08.md): un
 // React.Profiler attorno alla vista attiva, per rispondere "quanto costa un

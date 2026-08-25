@@ -4,13 +4,13 @@
 // Su desktop è trasparente. Disabilitato anche se l'utente non può editare la task.
 // Estratto dal monolite (Step P Phase 2e).
 import { useState, useEffect, useRef } from "react";
-import { useViewport } from "./Viewport.jsx";
-import { useAppData } from "../state/AppDataContext.jsx";
-import { Avatar } from "./ui/Avatar.jsx";
-import { Z } from "../styles/tokens.js";
-import { roleLabel } from "../lib/taskConstants.js";
-import * as stiliComuni from "../styles/common.js";
-import { useDispatch } from "../state/DispatchContext.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
+import { useAppData } from "../../state/AppDataContext.jsx";
+import { Avatar } from "../ui/Avatar.jsx";
+import { Z } from "../../styles/tokens.js";
+import { roleLabel } from "../../lib/taskConstants.js";
+import * as stiliComuni from "../../styles/common.js";
+import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).

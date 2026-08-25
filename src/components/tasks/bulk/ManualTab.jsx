@@ -1,7 +1,7 @@
 // src/components/tasks/bulk/ManualTab.jsx
 // Inserimento a mano: N righe con impostazioni comuni e override per riga.
 import { useState, useEffect } from "react";
-import { useViewport } from "../../Viewport.jsx";
+import { useViewport } from "../../ui/Viewport.jsx";
 import { useSalvataggio } from "../../../hooks/useSalvataggio.js";
 import { PRIORITIES } from "../../../lib/taskConstants.js";
 import { clientContact } from "../../../lib/taskUtils.js";

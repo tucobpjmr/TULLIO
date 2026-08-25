@@ -35,7 +35,7 @@ vi.mock("../lib/api.js", () => ({
   subscribeToTable: vi.fn(() => () => {}),
 }));
 
-const { QuickAddTask } = await import("../components/modals/QuickAddTask.jsx");
+const { QuickAddTask } = await import("../components/tasks/QuickAddTask.jsx");
 const { ClienteModal } = await import("../components/clients/ClienteModal.jsx");
 const { TaskSlideOver } = await import("../components/tasks/TaskSlideOver.jsx");
 

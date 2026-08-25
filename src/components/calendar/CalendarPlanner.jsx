@@ -1,7 +1,7 @@
 // ─── CALENDAR PLANNER ────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
 import { memo, useState, useCallback, useMemo } from "react";
-import { useViewport } from "../Viewport.jsx";
+import { useViewport } from "../ui/Viewport.jsx";
 import { formatTime, isActiveTask } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useTasks } from "../../state/TasksContext.jsx";

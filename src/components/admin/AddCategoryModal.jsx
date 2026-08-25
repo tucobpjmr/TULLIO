@@ -4,7 +4,7 @@
 import { useRef, useState } from "react";
 import {
   modalOverlay, modalCard, labelStyle, fieldStyle, btnPrimary, btnGhost,
-} from "../admin/adminStyles.js";
+} from "./adminStyles.js";
 import { ModalPortal } from "../ui/ModalPortal.jsx";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { obbligatorio, validaCampi } from "../../lib/validators.js";

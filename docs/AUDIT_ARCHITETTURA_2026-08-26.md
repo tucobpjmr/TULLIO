@@ -80,18 +80,48 @@ M-2 perché è la stessa domanda («chi sono io?») che non ha una risposta sola
 
 ---
 
+## Stato · 8 rilievi su 12 chiusi
+
+A-1 e A-2 il 25 agosto; **M-1…M-6 subito dopo**. Restano aperti i quattro di
+bassa priorità (B-1…B-4).
+
+⚠️ **Due dei sei rilievi di media priorità non sono stati chiusi come li aveva
+scritti questo documento, e le sezioni «Come è stato chiuso» dicono perché.**
+Vale la pena leggerlo qui perché è la stessa lezione due volte: un rilievo
+scritto guardando la FORMA del codice può sbagliare sul CONTENUTO.
+
+- **M-2, punto (a)** — «ogni cambiamento del team invalida l'identità di tutte
+  e diciassette le voci insieme, e `team` cambia per ogni evento realtime su
+  `users`» — **non è vero**, e non lo era già quando è stato scritto:
+  `useAppHydration` scarta gli UPDATE di sola presenza (`filterEvent`) e
+  confronta il payload con `stessaLista` prima di dispatchare `SET_TEAM`
+  (ST-15). Il rilievo aveva letto il `useMemo` senza risalire a chi lo
+  alimenta. Sono stati corretti i punti (b) e (c), che erano reali.
+- **M-4** — «nove call site» erano nove **forme** uguali con sei contenuti
+  diversi. La primitiva ne ha assorbiti **tre**; gli altri sei restano dove
+  sono, ciascuno con il proprio motivo scritto accanto (fra questi `Avatar`,
+  dove passare dalla primitiva introdurrebbe il lampeggio che un test esiste
+  già per impedire).
+
+E una terza divergenza minore, in **M-3**: il presidio proposto era una regola
+ESLint sintattica che avrebbe segnalato anche `rowGap4` e `txtF13`, dove la
+cifra è il valore — e ne avrebbe comunque persa metà. È diventato un controllo
+**relazionale** in `verifica:convenzioni`.
+
+---
+
 ## Tabella delle priorità
 
 | # | Priorità | Area | Rilievo | Dove |
 |---|---|---|---|---|
 | **A-1** ✔ | Alta | Controlli | Il controllo «form che scrivono senza attendere l'esito» **non può vedere** `components/liste/`: verde su un perimetro più piccolo del codice, e non dichiarato | `scripts/verifica-convenzioni/convenzioni.js:342-357` |
 | **A-2** ✔ | Alta | Duplicazione / robustezza | 12 form del modulo Liste fuori dal contratto «salva e chiudi»: freno al doppio invio sullo *stato* invece che su un `ref`, nessun `finally`, nessun guard di smontaggio | `components/liste/**` (12 file) |
-| **M-1** | Media | Duplicazione | `useAppHydration`: sei corpi di idratazione quasi identici e tre `applyRow` gemelli che differiscono per due token | `hooks/useAppHydration.js:201-653` |
-| **M-2** | Media | SoC / API | I permessi hanno tre forme di chiamata per la stessa domanda; `userId` è ridondante in 28 call site su 29; `me` ha due tipi in quattro file | `state/AppDataContext.jsx:60-88` + 29 call site |
-| **M-3** | Media | Accoppiamento | Il modulo con il fan-in più alto dell'app (85) ha nomi meccanici e sei nomi nati da collisione (`rowGap62`, `gridGap102`…) | `styles/common.js` |
-| **M-4** | Media | Convergenza | «Fetch al mount, scarta la risposta tardiva» riscritto 9 volte con 3 nomi di flag, accanto a `useIsMounted` che già lo risolve | 9 file in `components/`, `hooks/` |
-| **M-5** | Media | SoC | `AdvancedSearchPanel`: UI + fetch + reducer + ~110 righe di filtraggio di dominio su due famiglie di entità, in un componente | `components/search/AdvancedSearchPanel.jsx` |
-| **M-6** | Media | Convergenza | Due modali admin scrivono senza passare da un registry (`Users.invite`) e tengono `busy` a mano: stessa forma di A-2, fuori dal perimetro di entrambi i controlli | `admin/AddTeamMemberModal.jsx:62` · `admin/BulkInviteModal.jsx:65` |
+| **M-1** ✔ | Media | Duplicazione | `useAppHydration`: sei corpi di idratazione quasi identici e tre `applyRow` gemelli che differiscono per due token | `hooks/useAppHydration.js:201-653` |
+| **M-2** ✔ | Media | SoC / API | I permessi hanno tre forme di chiamata per la stessa domanda; `userId` è ridondante in 28 call site su 29; `me` ha due tipi in quattro file | `state/AppDataContext.jsx:60-88` + 29 call site |
+| **M-3** ✔ | Media | Accoppiamento | Il modulo con il fan-in più alto dell'app (85) ha nomi meccanici e sei nomi nati da collisione (`rowGap62`, `gridGap102`…) | `styles/common.js` |
+| **M-4** ✔ | Media | Convergenza | «Fetch al mount, scarta la risposta tardiva» riscritto 9 volte con 3 nomi di flag, accanto a `useIsMounted` che già lo risolve | 9 file in `components/`, `hooks/` |
+| **M-5** ✔ | Media | SoC | `AdvancedSearchPanel`: UI + fetch + reducer + ~110 righe di filtraggio di dominio su due famiglie di entità, in un componente | `components/search/AdvancedSearchPanel.jsx` |
+| **M-6** ✔ | Media | Convergenza | Due modali admin scrivono senza passare da un registry (`Users.invite`) e tengono `busy` a mano: stessa forma di A-2, fuori dal perimetro di entrambi i controlli | `admin/AddTeamMemberModal.jsx:62` · `admin/BulkInviteModal.jsx:65` |
 | **B-1** | Bassa | SoC | `listeApi.js` (537 righe) è quattro moduli: data layer, formattazione, costanti di dominio, generazione documenti | `components/liste/listeApi.js` |
 | **B-2** | Bassa | Duplicazione | Tre editor in linea gemelli nella stessa cartella: stesso stato, stesso ciclo, stessa barra azioni copiata | `liste/{TitoloTestata,NoteInterne,CellEditor}.jsx` |
 | **B-3** | Bassa | Navigabilità | 143 file di test piatti in `src/test/` contro 25 cartelle di sorgente; la struttura vive nei prefissi dei nomi | `src/test/` |
@@ -557,6 +587,33 @@ completate e `fondiTask` — è l'unica davvero diversa, e ora si vede.
 
 ---
 
+### Come è stato chiuso ✔
+
+Commit `M-1: le forme ricorrenti dell'idratazione diventano due fabbriche`.
+
+`idratazione()` e `applicaRiga()` vivono a livello di modulo in
+`useAppHydration.js`. Le adottano `notices`, `clients` (con `quandoSaltare` e
+`quandoIgnorare` per `clientiCompleti`) e `message_templates`; `tasks` usa
+`applicaRiga` per la **coda** del suo `applyRow`, quella dopo il ramo
+`comments`.
+
+⚠️ **Cinque su sei era una lettura ottimistica del rilievo, e la correzione lo
+dice.** `categories` costruisce una MAPPA e la confronta con `stessaMappa`
+prima di dispatchare; `users` fa due query in parallelo, reinnesta i contatti
+dell'utente loggato e confronta con `stessaLista`. Non sono varianti della
+stessa forma: sono programmi diversi, e forzarli nella fabbrica avrebbe voluto
+dire riaprire il caso per caso dentro la fabbrica — cioè spostare il problema
+invece di risolverlo. Restano scritte a mano, e il commento della fabbrica
+nomina le tre eccezioni con il loro perché, così la prossima persona non le
+legge come una dimenticanza.
+
+Le 68 asserzioni dei quattro file di test su realtime e idratazione
+(`clientiRealtime`, `realtimeGranularita`, `realtimeRowMerge`,
+`idratazioneLoading`) coprivano già questi percorsi e restano verdi: è un
+refactor a comportamento invariato, e questo è ciò che lo dimostra.
+
+---
+
 ## M-2 · «Chi sono io?» ha tre forme di chiamata e due tipi
 
 **Dove.** `state/AppDataContext.jsx:60-88`, e i 29 call site nei componenti.
@@ -663,6 +720,36 @@ E sul naming, una regola sola da aggiungere a `docs/CLAUDE.md` accanto alla
 
 ---
 
+### Come è stato chiuso ✔
+
+Commit `M-2: i permessi si chiedono con io o con per(id)`.
+
+Il contesto espone `per(id)` e `io = per(currentUserId)` al posto delle
+diciassette voci con la firma `(…, userId)`. Ventisei call site in quindici
+file. Dove l'id arriva da una **prop** — `UnassignedQueue`, `UrgentQueue`,
+`AdvancedSearchPanel` — si è usato `per(id)` e non `io`, anche quando il valore
+è di fatto l'utente corrente: è vero che l'id viene da fuori, e nasconderlo
+dietro `io` direbbe una cosa che il componente non sa.
+
+I tre `const me = currentUserId` sono spariti con il resto. La regola è ora
+scritta accanto alla lingua degli identificatori in `docs/CLAUDE.md`: **`me` è
+la persona, `currentUserId` è il suo id.**
+
+⚠️ **Il punto (a) del rilievo non è stato corretto perché non era vero**, ed è
+la parte di questa chiusura che conta di più. L'audit temeva che `team`
+cambiasse a ogni evento realtime su `users` — presenza e avatar compresi —
+invalidando insieme tutte e diciassette le voci. Non succede, ed era già stato
+risolto due volte: `useAppHydration` scarta con `filterEvent` gli UPDATE che
+toccano solo `status`/`last_seen_at`/`origin_client`, e confronta il payload
+con `stessaLista` prima di dispatchare `SET_TEAM` (ST-15,
+`lib/confrontoIdratazione.js`, che nel proprio preambolo cita esattamente
+questo contesto come la ragione per cui esiste). Il rilievo aveva letto il
+`useMemo` senza risalire a chi lo alimenta. `io` nasce dentro lo stesso
+`useMemo` e ha quindi la stessa identità stabile — c'è un test che lo fissa,
+così la prossima lettura non rifà lo stesso ragionamento.
+
+---
+
 ## M-3 · Il modulo più accoppiato dell'app ha i nomi peggiori
 
 **Dove.** `src/styles/common.js`.
@@ -738,6 +825,42 @@ const VIETATO_SUFFISSO_COLLISIONE = {
 };
 // … in files: ['src/styles/common.js']
 ```
+
+---
+
+### Come è stato chiuso ✔
+
+Commit `M-3: i sei nomi da collisione di common.js prendono il nome del loro ruolo`.
+
+I sei rinominati sul ruolo, 28 call site, tutti raggiunti via
+`stiliComuni.<nome>`: gli omonimi **locali** in altri file (`rowCenterBetween2`
+esiste anche in `DateTimePicker`, `conversationListStyles`, `CalendarDayGrid`,
+con tre valori diversi) non sono stati toccati, ed è ciò che rende il rename
+verificabile riga per riga.
+
+⚠️ **Un nome è diverso da quello proposto**, e la differenza è stata misurata:
+`gridGap102` non è la griglia dei CAMPI di un form ma la griglia di `TaskCard`
+delle quattro code della Dashboard (`repeat(auto-fill, minmax(280px, 1fr))`),
+quindi `grigliaSchede` e non `grigliaCampi`. Rinominare sul ruolo sbagliato
+sarebbe stato il difetto di `rowGap62` rifatto una volta di più.
+
+⛔ **E il presidio NON è la regola ESLint proposta.** Il selettore
+`[A-Za-z]+[A-Za-z]\d$` segnala anche `rowGap4`, `gridGap8` e `rowCenterGap5`,
+dove la cifra è il valore: sarebbe un controllo con una lista di eccezioni,
+cioè uno da imparare a saltare. Peggio, ne perde metà — `rowGap62` ha una
+CIFRA prima dell'ultima, perché il nome con cui era in collisione era già
+`rowGap6`. Il criterio giusto non è sintattico ma **relazionale**, e per
+questo vive in `verifica:convenzioni` e non in ESLint: *il nome senza la sua
+ultima cifra è un altro nome esportato dallo stesso file.* Nessuna eccezione
+da elencare, perché il criterio distingue da sé. Verificato contro
+`common.js` PRIMA del rename: 6 su 6.
+
+⚠️ **Guarda solo `common.js`, ed è dichiarato.** Gli stessi suffissi esistono
+nei moduli di stile locali (`trashStyles.js` ha `txtF11Bold2/3/4`,
+`clientImportModalStyles.js` arriva a `rowCenterBetween5`), ma lì il fan-in è 1
+e il nome si legge accanto alla sua definizione — che è il caso che il
+preambolo di `common.js` descrive come accettabile. Allargare darebbe una
+trentina di rossi con una correzione discutibile.
 
 ---
 
@@ -823,6 +946,39 @@ const { dato: liste } = useCaricamento(
 
 ---
 
+### Come è stato chiuso ✔
+
+Commit `M-4: una primitiva per "carica al mount, scarta il tardivo"`.
+
+`src/hooks/useCaricamento.js`. L'errore non ha un default: o lo si dichiara
+con `suErrore`, o resta in `errore` da disegnare — perché il difetto vero delle
+nove copie non erano i tre nomi di flag ma le tre gestioni dell'errore
+incompatibili, ereditate copiando il vicino.
+
+⛔ **Tre call site su nove, non nove**, ed è la parte del rilievo che non ha
+retto alla lettura ravvicinata. «Un flag booleano in un effetto» è una forma;
+«carica al mount, scarta il tardivo» è un contenuto, e sei dei nove hanno il
+primo senza il secondo:
+
+| Call site | Perché resta dov'è |
+|---|---|
+| `ui/Avatar.jsx` | Per un data URI o una URL pubblica risolve **sincronamente**. `avatar.test.jsx` lo verifica con un `it` non-async e spiega perché: «nessun frame con l'immagine assente, che su decine di avatar per schermata sarebbe un lampeggio visibile». Passare da qui vuol dire un microtask, cioè quel frame |
+| `hooks/useRicercaClienti.js` | È una ricerca **debounced** che riparte a ogni battuta: il `setTimeout` è metà del suo contratto |
+| `chat/message/VoiceRecorder.jsx` | La pulizia non SCARTA la risposta tardiva, la **usa**: deve fermare le tracce del microfono. Scartarla in silenzio lo lascerebbe acceso |
+| `hooks/usePushNavigation.js` | Non produce alcun dato: ripara la sottoscrizione push, e il flag protegge solo un `console.warn` |
+| `hooks/useDebouncedTableSubscription.js` | È il gen-counter di un canale — e una delle **due risposte già esistenti** alla stessa domanda |
+| `hooks/usePresence.js` | Ciclo di vita di un canale, con timer |
+
+Restano `AdminTeamTab`, `AdvancedSearchPanel` e `ClientiView`: tre file, cioè
+esattamente la soglia che questo progetto si è dato per promuovere una forma.
+
+I nove test di `useCaricamento.test.jsx` fissano le due corse insieme, che è il
+punto: quello sul cambio di dipendenza **fallisce** su una guardia di solo
+smontaggio (`expected 'primo' to be 'secondo'`), che è il modo in cui questo
+difetto si presenta davvero.
+
+---
+
 ## M-5 · `AdvancedSearchPanel`: quattro lavori in un componente
 
 **Dove.** `components/search/AdvancedSearchPanel.jsx` (384 righe effettive).
@@ -904,6 +1060,35 @@ ottenuti da `listeModuleApi.js`).
 
 ---
 
+### Come è stato chiuso ✔
+
+Commit `M-5: il filtraggio di dominio esce da AdvancedSearchPanel`.
+
+`lib/searchTask.js` (`indicizzaTask`, `filtraTask`) e `lib/searchListe.js`
+(`indicizzaListe`, `filtraListe`). Nel componente restano i quattro `useMemo`,
+cioè la sola parte che dipende da React; il file passa da 500 a 417 righe.
+
+⚠️ **`searchListe` sta in `lib/` e non conosce il modulo Liste.**
+`indicizzaListe` riceve l'estrattore dei cointestatari come **argomento**
+invece di importare `beneficiariNomi`: così non tocca né `listeApi.js` (che gli
+sarebbe vietato da `VIETATO_LISTEAPI_DA_FUORI`) né la facciata, e resta
+verificabile senza montare nulla del modulo.
+
+I 17 test nuovi coprono le tre promesse delicate del pannello, **tutte e tre
+già andate storte una volta**: cercare dentro il cestino, cercare dentro le
+completate, e trovare una lista dai cointestatari — quest'ultimo è il caso che
+il commento alla riga 238 dell'originale raccontava come «stessa ricerca, due
+esiti diversi».
+
+Nota su una dipendenza: `results` ora dipende da `filtri` intero e non dalle
+sei fette che legge, quindi un filtro delle LISTE fa ricalcolare anche il
+filtro dei task. È un passaggio sull'indice (0,18 ms su 292 task, 1,47 su 2500)
+su un click di dropdown — non su una battuta, che è la corsa che A-2 aveva
+misurato e che resta invariata. Il commento al `useMemo` lo dichiara invece di
+lasciarlo scoprire.
+
+---
+
 ## M-6 · Due scritture che non passano da nessun registry
 
 **Dove.** `admin/AddTeamMemberModal.jsx:62,87-94` · `admin/BulkInviteModal.jsx:65,92-117`.
@@ -938,6 +1123,49 @@ adotta `useSalvataggio` come le dodici di A-2; `BulkInviteModal` chiede prima
 una risposta a «che forma ha il contratto per un batch con esito per riga?» —
 e quella risposta, se arriva, vale anche per `ImportTab` del BulkTaskCreator,
 che ha lo stesso problema e lo risolve con `avviso`.
+
+---
+
+### Come è stato chiuso ✔
+
+Commit `M-6: le tre garanzie anche sulle due scritture senza registry`.
+
+**`AddTeamMemberModal`** adotta `useSalvataggio`, come le dodici form di A-2 —
+e su **entrambi** i rami. Quello locale (senza email) non ha un `await` e
+sembrava al riparo: non lo era, perché `existingIds` non si aggiorna fra due
+click nello stesso turno e il secondo calcolava lo STESSO id del primo, cioè
+due membri con un id solo. Il conteggio dichiarato dei call site di
+`useSalvataggio` passa da 26 a 27, e il controllo che lo misura lo ha
+segnalato da sé.
+
+**`BulkInviteModal`** non lo adotta, ed è la scelta che il rilievo lasciava
+aperta: è un batch sequenziale con esito **per riga** (`ok`/`warn`/`err`) e
+progresso dipinto a ogni iterazione, mentre `useSalvataggio` ha un concetto
+solo per la riuscita parziale — `avviso`, che BLOCCA i tentativi successivi
+perché «la cosa da fare non è riprovare, è chiudere». Qui la riuscita parziale
+è la normalità, non l'eccezione.
+
+⚠️ **Ma le tre garanzie non dipendono da quel contratto**, e questa è la parte
+che il rilievo aveva rinviato insieme al resto senza doverlo fare. Sono scritte
+a mano: freno su un `ref`, `try/finally`, `useIsMounted()`. Il `finally` lì
+costa più che altrove — l'overlay è `onClick={busy ? undefined : onClose}`,
+quindi un'eccezione a metà batch lasciava `busy` a `true` per sempre e la
+modale diventava **impossibile da chiudere**, con gli esiti già ottenuti sotto
+gli occhi e nessun modo di leggerli altrove.
+
+⛔ **`scriveDavvero` resta senza `Users.invite`, e ora per una ragione
+diversa.** Il predicato riconosce l'attesa dell'esito da `useSalvataggio`:
+allargarlo renderebbe rosso `BulkInviteModal`, che quel contratto non lo usa
+per scelta, e l'unica via per spegnerlo sarebbe un'eccezione nominata — cioè la
+lista che cresce che `docs/CLAUDE.md` vieta. A tenere le garanzie di questi due
+form sono i test: `src/test/salvaEChiudiAdmin.test.jsx`, otto casi, **cinque
+dei quali falliscono sul codice precedente** (due inviti invece di uno, due
+membri con lo stesso id, la modale congelata, il batch doppio, la modale
+impossibile da chiudere).
+
+La forma del contratto per un batch con esito per riga resta da decidere, e
+vale anche per `ImportTab` del BulkTaskCreator — è l'unica cosa di M-6 che
+resta aperta, ed è aperta di proposito.
 
 ---
 

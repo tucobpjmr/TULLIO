@@ -1,5 +1,5 @@
 // Select del metodo di pagamento, condivisa dai modali dei movimenti.
-import { METODI } from "../listeApi.js";
+import { METODI } from "../listeFormato.js";
 
 export const MetodoSelect = ({ value, onChange, id }) => (
   <select id={id} value={value || ""} onChange={(e) => onChange(e.target.value || null)}>

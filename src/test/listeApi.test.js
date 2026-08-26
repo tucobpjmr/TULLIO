@@ -1,16 +1,27 @@
-// Helper puri del modulo Liste viaggio: formattazione e ordinamento.
+// Helper puri del modulo Liste viaggio: formattazione, documenti, ordinamento.
 // Sono il punto in cui il porting dalla SPA vanilla può divergere in silenzio,
 // quindi valgono un test anche se sono poche righe.
-import { describe, it, expect, vi } from "vitest";
-
-// listeApi importa il client Supabase condiviso, che senza VITE_SUPABASE_URL
-// non si costruisce. Qui interessano solo gli helper puri: stessa strategia di
-// api.test.js, il client è mockato e mai usato.
-vi.mock("../lib/supabase", () => ({ supabase: {}, default: {} }));
+//
+// ⚠️ NESSUN MOCK DI SUPABASE, e vale la pena dire perché non c'è più. Fino a
+// B-1 (audit del 26 agosto) questi helper vivevano in `listeApi.js` insieme al
+// data layer, quindi importarli tirava dentro il client Supabase — che senza
+// `VITE_SUPABASE_URL` non si costruisce — e il file si apriva con un mock che
+// serviva solo a poter leggere sei funzioni pure. Ora stanno in due moduli che
+// di Supabase non sanno nulla: il mock non serve, ed è la misura concreta di
+// cosa abbia comprato la separazione.
+//
+// ⛔ Gli import restano DINAMICI, come per ogni altro test che tocca l'interno
+// del modulo. `VIETATO_LISTEAPI_DA_FUORI` copre ora tutti e tre i file, e la
+// deroga dei test (eslint.config.js) dice perché la forma conta: un `import`
+// statico di un modulo interno da un test «è il primo passo con cui il
+// percorso torna a circolare fuori dal modulo». Che qui dentro non ci sia più
+// Supabase non cambia di chi sia il file.
+import { describe, it, expect } from "vitest";
 
 const {
-  docHtml, eur, fmtDate, parseImporto, riepilogoTesto, saldoClass, todayISO,
-} = await import("../components/liste/listeApi.js");
+  eur, fmtDate, parseImporto, saldoClass, todayISO,
+} = await import("../components/liste/listeFormato.js");
+const { docHtml, riepilogoTesto } = await import("../components/liste/listeDocumenti.js");
 const { ordinaListe } = await import("../components/liste/listeOrdinamento.js");
 
 describe("listeApi — formattazione", () => {

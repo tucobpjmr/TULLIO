@@ -64,10 +64,15 @@ const downloadBlobMock = vi.fn();
 
 vi.mock("../components/liste/listeApi.js", async (importOriginal) => {
   const actual = await importOriginal();
-  return { ...actual, ListeAPI: { ...actual.ListeAPI, ...ListeAPIMock }, downloadBlob: downloadBlobMock };
+  return { ...actual, ListeAPI: { ...actual.ListeAPI, ...ListeAPIMock } };
 });
+// B-1 (audit del 26 agosto): `downloadBlob` non sta più in `listeApi.js` — è
+// in `listeDocumenti.js` insieme ai due generatori che lo usano, e si mocka lì.
+vi.mock("../components/liste/listeDocumenti.js", async (importOriginal) => ({
+  ...(await importOriginal()), downloadBlob: downloadBlobMock,
+}));
 
-const { beneficiariNomi, intestazioneLista } = await import("../components/liste/listeApi.js");
+const { beneficiariNomi, intestazioneLista } = await import("../components/liste/listeFormato.js");
 const { ListaDetail } = await import("../components/liste/ListaDetail.jsx");
 const { ListeViaggio } = await import("../components/liste/ListeViaggio.jsx");
 const { ClienteListePanel } = await import("../components/liste/ClienteListePanel.jsx");

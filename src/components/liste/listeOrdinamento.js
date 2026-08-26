@@ -5,7 +5,7 @@
 // cinque di margine dal lint — e questa era la parte separabile senza
 // discussione: nessun consumatore oltre a ListeViaggio.jsx e ai test che le
 // esercitano direttamente.
-import { beneficiariNomi } from "./listeApi.js";
+import { beneficiariNomi } from "./listeFormato.js";
 import { indicizza, matchIndice, matchTermini, terminiRicerca } from "../../lib/searchUtils.js";
 
 // Etichette dei quattro insiemi dell'elenco. Servono anche fuori dal menu a

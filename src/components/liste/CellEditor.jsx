@@ -1,6 +1,6 @@
 // Editor di cella del foglio movimenti (estratto da ListaDetail.jsx).
 import { useEffect, useRef, useState } from "react";
-import { METODI, parseImporto } from "./listeApi.js";
+import { METODI, parseImporto } from "./listeFormato.js";
 import { useListeWrite } from "./listePersistence.js";
 import { useSalvataggioLista } from "./useSalvataggioLista.js";
 import { SegnoSeg } from "./modals/SegnoSeg.jsx";

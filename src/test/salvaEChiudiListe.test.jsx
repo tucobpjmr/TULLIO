@@ -285,6 +285,70 @@ describe("A-2 · gli editor in linea del modulo", () => {
     expect(esegui).not.toHaveBeenCalled();
   });
 
+  // ─── B-2 · ciò che i due editor condividono ─────────────────────────────
+  // (audit del 26 agosto)
+  //
+  // Il ciclo apri/tasti/chiudi era scritto due volte alla lettera, con un solo
+  // token di differenza. Ora è `useModificaInLinea`, e queste sono le sue
+  // proprietà: quella su Invio è la sola che DIVERGE fra i due, ed è l'unica
+  // ragione per cui l'hook guarda il tag dell'elemento.
+
+  it("TitoloTestata — Invio conferma, Escape chiude senza scrivere", async () => {
+    esegui.mockResolvedValue(OK);
+    render(<TitoloTestata lista={LISTA} onSaved={vi.fn()} />);
+
+    fireEvent.click(screen.getByTitle("Modifica il titolo"));
+    fireEvent.keyDown(screen.getByLabelText(/Titolo della lista/i), { key: "Escape" });
+    expect(screen.queryByLabelText(/Titolo della lista/i)).toBeNull();
+    expect(esegui).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTitle("Modifica il titolo"));
+    fireEvent.change(screen.getByLabelText(/Titolo della lista/i), { target: { value: "Da tastiera" } });
+    fireEvent.keyDown(screen.getByLabelText(/Titolo della lista/i), { key: "Enter" });
+    await waitFor(() => expect(esegui).toHaveBeenCalledTimes(1));
+  });
+
+  it("NoteInterne — Invio NON conferma: in una nota è un a capo", async () => {
+    // È la differenza che l'hook codifica guardando `e.target.tagName`. Se
+    // confermasse, non si potrebbe scrivere una nota su due righe.
+    render(<NoteInterne lista={{ ...LISTA, note: "vecchia nota" }} onSaved={vi.fn()} />);
+    fireEvent.click(screen.getByText("vecchia nota"));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "prima riga" } });
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
+
+    expect(esegui).not.toHaveBeenCalled();
+    expect(screen.getByRole("textbox").value).toBe("prima riga");
+  });
+
+  it("NoteInterne — Escape chiude e scarta ciò che si è digitato", async () => {
+    render(<NoteInterne lista={{ ...LISTA, note: "vecchia nota" }} onSaved={vi.fn()} />);
+    fireEvent.click(screen.getByText("vecchia nota"));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "ripensamento" } });
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Escape" });
+
+    expect(esegui).not.toHaveBeenCalled();
+    expect(screen.getByText("vecchia nota")).toBeInTheDocument();
+  });
+
+  it("all'apertura il campo prende il fuoco, e SOLO l'input si seleziona", async () => {
+    // `select()` su una `<textarea>` significherebbe che il primo carattere
+    // digitato cancella una nota che si voleva solo ritoccare.
+    render(<TitoloTestata lista={LISTA} onSaved={vi.fn()} />);
+    fireEvent.click(screen.getByTitle("Modifica il titolo"));
+    const input = screen.getByLabelText(/Titolo della lista/i);
+    expect(document.activeElement).toBe(input);
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(LISTA.titolo.length);
+  });
+
+  it("NoteInterne — la nota prende il fuoco ma NON si seleziona", async () => {
+    render(<NoteInterne lista={{ ...LISTA, note: "vecchia nota" }} onSaved={vi.fn()} />);
+    fireEvent.click(screen.getByText("vecchia nota"));
+    const area = screen.getByRole("textbox");
+    expect(document.activeElement).toBe(area);
+    expect(area.selectionStart).toBe(area.selectionEnd);
+  });
+
   it("NoteInterne — rifiuto: l'editor resta aperto col testo digitato", async () => {
     esegui.mockResolvedValue(KO);
     render(<NoteInterne lista={{ ...LISTA, note: "vecchia nota" }} onSaved={vi.fn()} />);

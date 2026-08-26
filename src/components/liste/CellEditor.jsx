@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { METODI, parseImporto } from "./listeFormato.js";
 import { useListeWrite } from "./listePersistence.js";
 import { useSalvataggioLista } from "./useSalvataggioLista.js";
+import { AzioniModifica } from "./AzioniModifica.jsx";
 import { SegnoSeg } from "./modals/SegnoSeg.jsx";
 import { useDispatch } from "../../state/DispatchContext.jsx";
 
@@ -96,12 +97,7 @@ export function CellEditor({ movimento, campo, onSaved, onCancel }) {
               onKeyDown={onKeyDown}
             />
           )}
-          <div className="lv-cell-edit-actions">
-            <button className="lv-btn sm" onClick={onCancel}>Annulla</button>
-            <button className="lv-btn primary sm" disabled={inVolo} onClick={save}>
-              {inVolo ? "Salvo…" : "Salva"}
-            </button>
-          </div>
+          <AzioniModifica onAnnulla={onCancel} onSalva={save} inVolo={inVolo} />
         </div>
       </td>
     </tr>

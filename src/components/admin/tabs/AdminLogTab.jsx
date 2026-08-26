@@ -7,11 +7,12 @@ import { downloadFile, escapeCSV } from "../adminExport.js";
 import { useConfirm } from "../../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../../styles/common.js";
 import { useDispatch } from "../../../state/DispatchContext.jsx";
+import { AuditLogSection } from "./AuditLogSection.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
-const txtF12Muted = { fontSize: 12, color: "var(--text-muted)", marginTop: 0, marginBottom: 12 };
-const txtMutedTxtCenter = { padding: "40px 20px", textAlign: "center", color: "var(--text-muted)" };
+const titoloSezione = { fontSize: 13, fontWeight: 700, letterSpacing: 0.3, marginBottom: 4 };
+const separatore = { height: 1, background: "var(--border)", margin: "28px 0 20px" };
 const txtF32Mb8 = { fontSize: 32, marginBottom: 8 };
 const txtF11Mt6 = { fontSize: 11, marginTop: 6 };
 const gridGap2 = { display: "grid", gap: 2 };
@@ -77,18 +78,28 @@ export const AdminLogTab = ({ activityLog = [] }) => {
 
   return (
     <div>
-      {/* A-1 dell'audit dell'11 agosto: questo log vive nello state React di
-          QUESTA scheda del browser, per QUESTO utente, da quando l'ha aperta.
-          Non è un registro server-side (nessun trigger DB lo scrive), quindi
-          non contiene le azioni di nessun altro utente né quelle precedenti
-          all'apertura della pagina, e si azzera al reload. Chiamarlo "log
-          attività" senza dirlo — con filtri per tipo ed export CSV, come un
-          audit trail vero — è la parte del difetto che costa meno correggere
-          e di più lasciare com'è: un registro che sembra completo ed è solo
-          la propria vista parziale è peggio di nessun registro. */}
-      <p style={txtF12Muted}>
-        Sessione corrente, questo dispositivo · non include le azioni di altri utenti
-        né quelle precedenti all'apertura di questa pagina, e non viene conservato dopo la chiusura.
+      {/* A-2 dell'audit sicurezza del 26 agosto. La tab ha ora DUE metà, ed è
+          la correzione vera: fino a qui esisteva solo la seconda.
+
+          Sopra il registro di controllo — durevole, di tutto il team, scritto
+          dal database. Sotto la cronologia di questa sessione, che resta
+          perché è utile (mostra subito l'effetto di ciò che si è appena fatto,
+          incluse le azioni non privilegiate che nel registro non entrano) ma
+          smette di essere l'unica cosa presente.
+
+          Il rilievo A-1 dell'11 agosto aveva già fatto dire a questa tab la
+          verità sui propri limiti, con il paragrafo qui sotto. Era la
+          correzione giusta e non bastava: un avviso spiega perché il registro
+          che manca non c'è, non lo sostituisce. */}
+      <AuditLogSection />
+
+      <div style={separatore} />
+
+      <div style={titoloSezione}>ATTIVITÀ DI QUESTA SESSIONE</div>
+      <p style={stiliComuni.txtF12MutedMb12}>
+        Solo questo dispositivo, da quando hai aperto la pagina · non include le azioni
+        di altri utenti e non viene conservata alla chiusura. Le operazioni privilegiate
+        stanno nel registro di controllo qui sopra.
       </p>
       <div style={stiliComuni.rowCenterBetween}>
         <div style={stiliComuni.rowGap4}>
@@ -127,10 +138,10 @@ export const AdminLogTab = ({ activityLog = [] }) => {
 
       <div style={cardStyle}>
         {list.length === 0 ? (
-          <div style={txtMutedTxtCenter}>
+          <div style={stiliComuni.statoVuotoCentrato}>
             <div style={txtF32Mb8}>📋</div>
             <div style={stiliComuni.txtF14}>Nessuna attività registrata{filter !== "all" ? " in questo filtro" : " ancora"}</div>
-            <div style={txtF11Mt6}>Le azioni effettuate appariranno qui (ultime 100)</div>
+            <div style={txtF11Mt6}>Le azioni di questa sessione appariranno qui (ultime 100)</div>
           </div>
         ) : (
           <div style={gridGap2}>

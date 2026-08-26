@@ -70,9 +70,9 @@ esterne al team viva in memoria e sparisca a ogni refresh (rilievo **A-2**).
 | # | Priorità | Rilievo | Dove | Sfruttabile da |
 |---|----------|---------|------|----------------|
 | — | **Critici** | *Nessun rilievo critico.* Nessuna falla che consenta a un non autenticato, o a un utente autenticato di ruolo basso, di leggere o scrivere dati fuori dal proprio perimetro. | — | — |
-| A-1 | **Alta** | `xlsx@0.18.5`: prototype pollution (CVE-2023-30533, CVSS 7.8) + ReDoS (CVE-2024-22363, 7.5). Nessun fix su npm. Mitigato in app, non risolto. | `package.json:24`, `src/lib/xlsx.js` | membro del team che importa un file ostile |
-| A-2 | **Alta** | Nessun audit trail durevole. Il "Log attività" è stato React in memoria, tetto 100 voci, azzerato a ogni reload, mai scritto a database. Le operazioni più distruttive (hard-delete utente, ban, cambio ruolo, `reset_completo`, `importa_backup`, delete cliente) non lasciano traccia. | `src/state/reducer.js:735-736,776`, `src/components/admin/tabs/AdminLogTab.jsx` | — (rischio di accountability/GDPR, non di accesso) |
-| A-3 | **Alta** | `public.users` è l'unica tabella sensibile senza il gate RESTRICTIVE `rls_active_only`. Un account **pending** o **appena disattivato** conserva la lettura dell'intera rubrica interna e la scrittura sulla propria riga di profilo. | policy `users_select_all`, `users_update` (live DB) | utente invitato e non ancora approvato; utente disattivato, fino alla scadenza dell'access token |
+| **A-1** ✔ | **Alta** | `xlsx@0.18.5`: prototype pollution (CVE-2023-30533, CVSS 7.8) + ReDoS (CVE-2024-22363, 7.5). Nessun fix su npm. Mitigato in app, non risolto. | `package.json:24`, `src/lib/xlsx.js` | membro del team che importa un file ostile |
+| **A-2** ⚙ | **Alta** | Nessun audit trail durevole. Il "Log attività" è stato React in memoria, tetto 100 voci, azzerato a ogni reload, mai scritto a database. Le operazioni più distruttive (hard-delete utente, ban, cambio ruolo, `reset_completo`, `importa_backup`, delete cliente) non lasciano traccia. | `src/state/reducer.js:735-736,776`, `src/components/admin/tabs/AdminLogTab.jsx` | — (rischio di accountability/GDPR, non di accesso) |
+| **A-3** ⚙ | **Alta** | `public.users` è l'unica tabella sensibile senza il gate RESTRICTIVE `rls_active_only`. Un account **pending** o **appena disattivato** conserva la lettura dell'intera rubrica interna e la scrittura sulla propria riga di profilo. | policy `users_select_all`, `users_update` (live DB) | utente invitato e non ancora approvato; utente disattivato, fino alla scadenza dell'access token |
 | M-1 | **Media** | Il bucket `avatars` è escluso dalla policy RESTRICTIVE `storage_active_only`: `insert`/`update`/`delete` sugli avatar non controllano `is_active_user()`. | policy `storage_active_only` (live DB) | utente pending o disattivato |
 | M-2 | **Media** | `chat_files_delete` contiene una clausola "orfani" che consente a **qualunque** utente attivo di cancellare qualunque oggetto di `chat-files` la cui cartella non corrisponda a una conversazione esistente. | policy `chat_files_delete` (live DB) | qualunque utente attivo |
 | M-3 | **Media** | `messages_update` lascia passare in RLS **ogni partecipante** su **ogni** messaggio; la restrizione per colonna è affidata al solo trigger `messages_blocca_modifiche_altrui`. Punto singolo di rottura, su una tabella da cui un trigger analogo è già stato rimosso in passato (`20260814210100`). | policy `messages_update` + trigger omonimo (live DB) | partecipante alla conversazione, **solo** se il trigger salta |
@@ -82,6 +82,45 @@ esterne al team viva in memoria e sparisca a ogni refresh (rilievo **A-2**).
 | B-2 | **Bassa** | Rubrica interna piatta: `users_select_all USING true` e `user_contacts_select USING true` danno email e telefono di **tutto** il team anche al ruolo `driver`, che è escluso da ogni altro dato commerciale. | live DB | qualunque utente attivo |
 | B-3 | **Bassa** | La stessa allow-list di host vive in **tre** posti indipendenti (`_shared/originConsentite.ts`, la CSP in `vercel.json`, i Redirect URL nella dashboard Supabase). Nessun controllo automatico che le tenga allineate; solo la terza ha una sonda. | `supabase/functions/_shared/originConsentite.ts`, `vercel.json` | — |
 | B-4 | **Bassa** | Anon key ripetuta in chiaro in 3 punti di 2 workflow invece che in una repository variable. Non è un segreto, ma una rotazione diventa una modifica a più file. | `.github/workflows/keep-supabase-warm.yml:28,46`, `verifica-rpc.yml:76,86,100` | — |
+
+> ### Stato dei tre rilievi di alta priorità (aggiornato il 26 agosto)
+>
+> **A-1 ✔ risolto.** SheetJS non gira più nel realm che tiene la sessione:
+> `src/lib/xlsxWorker.js` è l'unico modulo che lo importa, creato e terminato
+> per ogni file. Il presidio è `VIETATO_XLSX_FUORI_DAL_WORKER` in
+> `eslint.config.js`, non una convenzione scritta. Aggiunto un tetto di tempo
+> (30 s) che *termina* il worker: è la prima risposta effettiva alla ReDoS, che
+> prima poteva congelare il thread della UI a tempo indeterminato. Al confine,
+> le chiavi `__proto__`/`constructor`/`prototype` vengono scartate.
+> Nel bundle esiste **una sola** copia della libreria (426 kB nel chunk del
+> worker), e l'export Excel del pannello Admin passa di lì invece di
+> `XLSX.writeFile`. Il fix definitivo — il tarball 0.20.3 dal CDN — resta la
+> cosa giusta da fare e non è più urgente; l'egress è ancora 403.
+>
+> **A-2 ⚙ codice pronto, DA APPLICARE.** Tabella `audit_log` append-only,
+> RPC `registra_audit()` che ricava l'attore da `auth.uid()`, trigger su
+> `users` (privilegi e cancellazioni), trigger di statement su `clients`
+> (import e eliminazioni massive), trigger di TRUNCATE sul modulo Liste, e le
+> tre Edge Function privilegiate che scrivono con la `service_role`. La tab
+> Admin ha ora due metà distinte: il registro durevole di tutto il team, e la
+> cronologia di sessione — che resta, ma smette di essere l'unica cosa
+> presente.
+>
+> **A-3 ⚙ codice pronto, DA APPLICARE.** `public.users` entra nel gate
+> "utente attivo" nella forma che NON rompe `PendingScreen`: la riga propria
+> resta sempre leggibile, la rubrica no. In scrittura il gate si applica pieno.
+>
+> ⛔ **A-2 e A-3 restano APERTI finché le migrazioni non sono applicate e le
+> Edge Function ridistribuite.** È la regola di `docs/MIGRAZIONI_SUPABASE.md`,
+> che su questo progetto è già costata tre incidenti: *committare non è
+> applicare*, e lo stato va letto dal database, non dedotto dal repository.
+> Il marcatore in `INDEX.md` dice perciò `1/12`, non `3/12`.
+>
+> ⚠️ **Conseguenza operativa sul workflow `rls.yml`**: gira su `main` quando
+> cambia `supabase/migrations/**`, contro il progetto di **staging**. I test
+> aggiunti per A-2 e A-3 falliranno finché le due migrazioni non sono
+> applicate **anche allo staging** — che va fatto prima o insieme al merge,
+> non dopo.
 
 ---
 

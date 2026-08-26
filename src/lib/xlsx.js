@@ -1,200 +1,158 @@
-// ─── XLSX LAZY LOADER + HARDENING ──────────────────────────────────────────
-// Carica SheetJS (~430KB) solo alla prima import/export e ne cachea il modulo,
-// così il bundle iniziale resta leggero (caveat #15, Step N). Estratto dal
-// monolite (Step P Phase 2f) per essere condiviso da ImportTab e AdminIOTab.
+// src/lib/xlsx.js
+// ─── PORTA VERSO SHEETJS ────────────────────────────────────────────────────
+// Punto d'ingresso unico per leggere e scrivere fogli. Da A-1 dell'audit
+// sicurezza del 26 agosto la libreria NON gira più qui: questo modulo parla
+// solo con `xlsxWorker.js`, che è l'unico a importarla. Il perché sta scritto
+// per intero in testa a quel file; qui c'è il lato che l'applicazione usa.
 //
-// ⚠️ SICUREZZA — NON riportare a `"xlsx": "^0.18.5"` alla leggera. ─────────────
-// La 0.18.5 è l'ULTIMA versione di SheetJS pubblicata sul registry npm: gli
-// autori hanno smesso di pubblicare lì (motivi di licenza/distribuzione) e
-// rilasciano le versioni successive — con i fix di sicurezza — solo sul loro
-// CDN. `npm audit`/Dependabot segnalano quindi la 0.18.5 come "high, No fix
-// available":
-//   • GHSA-4r6h-8v6p-xvw6  (CVE-2023-30533) Prototype Pollution  — fix in 0.19.3+
-//   • GHSA-5pgg-2g8v-p4x9  (CVE-2024-22363) ReDoS                — fix in 0.20.2+
+// In breve: `xlsx@0.18.5` è l'ultima versione su npm e porta due CVE
+// (GHSA-4r6h-8v6p-xvw6 prototype pollution, GHSA-5pgg-2g8v-p4x9 ReDoS) che
+// non riceveranno mai un fix sul registry. Il parse avviene ora in un realm
+// separato e usa-e-getta, quindi un file ostile inquina un prototipo che
+// muore col worker invece di quello che tiene il token di sessione — e un
+// blocco da ReDoS si chiude con `terminate()` invece di congelare la UI.
 //
-// Fix DEFINITIVO raccomandato (quando la CI ha accesso di rete a cdn.sheetjs.com):
+// ⚠️ Il fix DEFINITIVO resta la migrazione al tarball del CDN, da fare appena
+// l'egress verso `cdn.sheetjs.com` è aperto (403 riverificato il 26 agosto):
 //   npm install --save https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
-// Questo sostituisce la entry semver in package.json con l'URL del tarball CDN
-// (API pubblica invariata: XLSX.read / utils.sheet_to_json / writeFile) e
-// registra l'URL nel lockfile, così `npm ci` continua a funzionare.
-// NON è stato applicato in questo commit perché l'ambiente/CI in uso NON può
-// raggiungere cdn.sheetjs.com (egress policy → 403): senza accesso al CDN non
-// si può né rigenerare il lockfile né verificare build/test, e una entry URL
-// non risolvibile romperebbe `npm ci`. In attesa della migrazione mitighiamo
-// il rischio a livello applicativo (vedi sotto): il parsing è comunque
-// client-side, quindi il blast radius è il browser di chi importa il file.
-//
-// Riverificato tre volte, non dedotto da una sessione passata: analisi
-// sicurezza S-06 (2026-08-06), audit di architettura (2026-08-11) e di nuovo il
-// 2026-08-12 (rilievo B-2) — sempre lo stesso `CONNECT tunnel failed, response
-// 403` dalla policy di rete. Il blocco non è specifico di un ambiente andato:
-// persiste. Chi ha accesso di rete al CDN può applicare il comando sopra ed
-// eseguire `npm test && npm run build` per verificarlo; nel frattempo la
-// mitigazione applicativa qui sotto resta il fix effettivo, non un placeholder:
-// copre entrambi i punti che analizzano file arbitrari (ImportTab,
-// ClientImportModal), più un limite sincrono su file.size prima ancora di
-// leggerli in memoria (vedi i due componenti — MAX_IMPORT_BYTES controllato lì
-// PRIMA di FileReader.readAsArrayBuffer, non solo qui dopo).
-// ────────────────────────────────────────────────────────────────────────────
-let _xlsxPromise = null;
-export const loadXLSX = () => (_xlsxPromise ||= import("xlsx"));
+// Il worker non la sostituisce: la rende non urgente.
+import { withPrototypePollutionGuard } from "./prototypeGuard.js";
 
 // Limite di dimensione per i file importati: riduce la superficie della ReDoS
-// (GHSA-5pgg-2g8v-p4x9), che è amplificata da input molto grandi.
+// (GHSA-5pgg-2g8v-p4x9), che è amplificata da input molto grandi. Resta
+// controllato anche dai due componenti PRIMA di leggere il file in memoria
+// (`file.size`), non solo qui dopo.
 export const MAX_IMPORT_BYTES = 15 * 1024 * 1024; // 15 MB
 
-// Mitigazione della Prototype Pollution (GHSA-4r6h-8v6p-xvw6): un .xlsx malevolo
-// può alterare Object.prototype (o Array.prototype / Function.prototype)
-// DURANTE il parsing, sia AGGIUNGENDO una proprietà nuova sia SOVRASCRIVENDO
-// una esistente (es. toString, valueOf, constructor) — CWE-1321 copre
-// entrambi i casi, quindi la sorveglianza deve farlo anche lei. Facciamo
-// un'impronta dei DESCRITTORI (non solo dei nomi) dei tre prototipi subito
-// prima del parse (sincrono, single-thread: nessuna race) e, subito dopo,
-// confrontiamo — rifiutando il file appena qualcosa è cambiato. Isolato ed
-// esportato per essere testabile.
-/** @type {Array<[string, object]>} */
-const PROTOTIPI_SORVEGLIATI = [
-  ["Object", Object.prototype],
-  ["Array", Array.prototype],
-  ["Function", Function.prototype],
-];
+// Tetto di tempo per una singola operazione. È la METÀ UTILE della difesa
+// contro la ReDoS: il tetto di dimensione riduce la probabilità di incontrarla,
+// questo ne limita l'effetto. 30 s è largo per un file legittimo da 15 MB su un
+// telefono lento, e strettissimo rispetto a "per sempre", che è quanto durava
+// prima un catastrophic backtracking sul thread della UI.
+const TIMEOUT_MS = 30_000;
 
-// Identità del descrittore, non solo presenza del nome: `toString` che passa
-// da una funzione a un'altra è pollution quanto `__proto__` aggiunto. Si
-// confronta `value` per riferimento — è ciò che cambia in una sovrascrittura —
-// insieme a get/set, che sono l'altra forma con cui si inietta un accessor.
-/**
- * @param {object} proto
- * @returns {Map<string, [unknown, unknown, unknown]>}
- */
-const impronta = (proto) => {
-  const m = new Map();
-  for (const k of Object.getOwnPropertyNames(proto)) {
-    const d = Object.getOwnPropertyDescriptor(proto, k);
-    m.set(k, [d?.value, d?.get, d?.set]);
-  }
-  return m;
-};
+// Chiavi che non devono mai diventare proprietà di un oggetto costruito a
+// partire dalle intestazioni di un file altrui. Non è pollution di per sé —
+// `Object.fromEntries` crea proprietà PROPRIE anche per "__proto__", quindi il
+// prototipo non viene toccato — ma è il nome che, passato più avanti a un
+// merge scritto con un assegnamento (`out[k] = v`), la produrrebbe. Si tagliano
+// al confine: qui è l'unico punto in cui i dati di un file estraneo entrano
+// nell'applicazione, e un solo posto da presidiare è il motivo per cui questa
+// porta esiste.
+const CHIAVI_PERICOLOSE = new Set(["__proto__", "constructor", "prototype"]);
 
-export const withPrototypePollutionGuard = (fn) => {
-  const prima = PROTOTIPI_SORVEGLIATI.map(([nome, proto]) => [nome, proto, impronta(proto)]);
-  const result = fn();
-  const alterate = [];
-  for (const [nome, proto, snap] of prima) {
-    const dopo = impronta(proto);
-    for (const [k, v] of dopo) {
-      const p = snap.get(k);
-      const uguale = p && p[0] === v[0] && p[1] === v[1] && p[2] === v[2];
-      if (uguale) continue;
-      alterate.push({ nome, chiave: k, nuova: !snap.has(k), proto });
+const righeSicure = (rows) =>
+  rows.map((r) => {
+    const pulita = {};
+    for (const k of Object.keys(r)) {
+      if (!CHIAVI_PERICOLOSE.has(k)) pulita[k] = r[k];
     }
-  }
-  if (alterate.length) {
-    // Si ripulisce SOLO ciò che è stato aggiunto: ripristinare un descrittore
-    // sovrascritto lascerebbe credere che l'ambiente sia tornato sano, e non
-    // lo è — l'unica risposta onesta è rifiutare il file e dire di ricaricare.
-    for (const a of alterate) {
-      if (a.nuova) { try { delete a.proto[a.chiave]; } catch { /* prototype congelato: già inerte */ } }
-    }
-    const sovrascritte = alterate.some((a) => !a.nuova);
-    throw new Error(
-      "File rifiutato: rilevato tentativo di prototype pollution ("
-      + alterate.map((a) => `${a.nome}.prototype.${a.chiave}`).join(", ") + ")."
-      + (sovrascritte ? " Ricarica la pagina prima di continuare." : "")
-    );
-  }
-  return result;
-};
+    return pulita;
+  });
 
-// Punto d'ingresso unico e "sicuro" per leggere le righe del primo foglio di un
-// file caricato (CSV/XLSX/XLS). Applica limite di dimensione + guard anti
-// prototype-pollution attorno all'intero parse SheetJS. `arrayBuffer` è
-// l'ArrayBuffer restituito da FileReader.readAsArrayBuffer.
+// `withPrototypePollutionGuard` sorveglia questo passaggio, non più il parse.
+// Il parse non ne ha più bisogno (gira altrove e quel realm viene buttato);
+// questo sì: è codice del thread principale che itera nomi di chiave scelti da
+// chi ha preparato il file, ed è l'ultimo punto in cui un errore nostro
+// potrebbe trasformarli in una scrittura sul prototipo.
+const normalizzaRisposta = (data) =>
+  withPrototypePollutionGuard(() => ({
+    ...data,
+    rows: righeSicure(data.rows ?? []),
+  }));
+
+const oltreIlLimite = (byteLength) =>
+  new Error(
+    `File troppo grande (${(byteLength / 1048576).toFixed(1)} MB, ` +
+    `max ${MAX_IMPORT_BYTES / 1048576} MB).`
+  );
+
+// Un worker PER OGNI operazione, terminato in ogni uscita. Non è uno spreco da
+// ottimizzare con un'istanza condivisa: la vita corta del realm È la difesa.
+// Riusare il worker fra due file significherebbe che il primo file ostile
+// lascia il prototipo inquinato al secondo, cioè esattamente la proprietà che
+// questo disegno esiste per garantire.
+function esegui(messaggio) {
+  return new Promise((resolve, reject) => {
+    let worker;
+    try {
+      worker = new Worker(new URL("./xlsxWorker.js", import.meta.url), { type: "module" });
+    } catch (e) {
+      // Nessun ripiego in-process, ed è deliberato: leggere il file qui
+      // significherebbe eseguire SheetJS nel realm della sessione, cioè
+      // rinunciare all'unica proprietà per cui questo modulo è fatto così.
+      // Meglio un import che fallisce con un messaggio chiaro.
+      reject(new Error(`Impossibile avviare la lettura del file: ${e?.message ?? "worker non disponibile"}`));
+      return;
+    }
+
+    let chiuso = false;
+    const chiudi = () => {
+      if (chiuso) return false;
+      chiuso = true;
+      clearTimeout(timer);
+      worker.terminate();
+      return true;
+    };
+    const timer = setTimeout(() => {
+      if (chiudi()) {
+        reject(new Error(
+          "Lettura del file interrotta: sta impiegando troppo tempo. " +
+          "Il file potrebbe essere danneggiato o troppo complesso."
+        ));
+      }
+    }, TIMEOUT_MS);
+
+    worker.onmessage = ({ data }) => {
+      if (!chiudi()) return;
+      if (data.ok) resolve(data);
+      else reject(new Error(data.error));
+    };
+    worker.onerror = (e) => {
+      if (!chiudi()) return;
+      reject(new Error(e?.message || "lettura del file non riuscita"));
+    };
+
+    // Il buffer NON è trasferito: `postMessage` lo copia. Trasferirlo lo
+    // renderebbe inutilizzabile nel chiamante, e i due componenti di import
+    // tengono il proprio `ArrayBuffer` per rileggerlo quando l'utente cambia
+    // la mappatura delle colonne senza ricaricare il file.
+    worker.postMessage(messaggio);
+  });
+}
+
+// Righe del primo foglio, assumendo l'intestazione in riga 0 (CSV/XLSX/XLS
+// "normali"). `arrayBuffer` è quello di `FileReader.readAsArrayBuffer`.
+//
+// Caveat #18: si legge come ArrayBuffer con `type: "array"` (non binary
+// string), così SheetJS decodifica correttamente l'UTF-8 dei CSV e rimuove il
+// BOM iniziale, evitando il mojibake sugli accenti ("città", "è").
 export const readFirstSheetRows = async (
   arrayBuffer,
   { sheetToJsonOpts = { defval: "", raw: false } } = {}
 ) => {
-  if (arrayBuffer.byteLength > MAX_IMPORT_BYTES) {
-    throw new Error(
-      `File troppo grande (${(arrayBuffer.byteLength / 1048576).toFixed(1)} MB, ` +
-      `max ${MAX_IMPORT_BYTES / 1048576} MB).`
-    );
-  }
-  const XLSX = await loadXLSX();
-  // Caveat #18: leggiamo come ArrayBuffer + type "array" (non binary string).
-  // Così SheetJS decodifica correttamente l'UTF-8 dei CSV (e rimuove il BOM
-  // iniziale), evitando il mojibake sui caratteri accentati ("città", "è").
-  const data = new Uint8Array(arrayBuffer);
-  return withPrototypePollutionGuard(() => {
-    const wb = XLSX.read(data, { type: "array", cellDates: true });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    if (!sheet) return [];
-    return XLSX.utils.sheet_to_json(sheet, sheetToJsonOpts);
-  });
+  if (arrayBuffer.byteLength > MAX_IMPORT_BYTES) throw oltreIlLimite(arrayBuffer.byteLength);
+  const data = await esegui({ op: "rows", buffer: arrayBuffer, sheetToJsonOpts });
+  return normalizzaRisposta(data).rows;
 };
 
-// Individua l'indice della riga di intestazione dentro un array-di-array
-// (`sheet_to_json` con header:1). Serve per gli export di gestionali legacy
-// che anteappongono righe di titolo/metadati vuote prima della vera
-// intestazione (es. "Esportazione del : 21/07/2026" + righe vuote prima di
-// "Titolo,RagioneSociale,..."): assumere sempre la riga 0 come header, come
-// fa readFirstSheetRows, romperebbe questi file. Euristica: cerca fra le
-// prime `maxScan` righe quella con più celle che matchano gli `hints` forniti
-// (parole chiave attese nell'intestazione, es. "email", "nome"); richiede
-// almeno 2 match per non scambiare una riga dati per l'intestazione. Se
-// nessuna riga soddisfa la soglia, ripiega sulla riga 0 (file "normali" senza
-// blocco di metadati, dove l'intestazione è già la prima riga).
-export const detectHeaderRowIndex = (rows2d, hints, maxScan = 20) => {
-  const normHints = hints.map((h) => h.toLowerCase().replace(/[^a-z0-9]/g, ""));
-  let bestIdx = 0;
-  let bestScore = -1;
-  const scanLimit = Math.min(rows2d.length, maxScan);
-  for (let i = 0; i < scanLimit; i++) {
-    const row = rows2d[i] || [];
-    const nonEmpty = row.map((c) => String(c ?? "").trim()).filter(Boolean);
-    if (nonEmpty.length < 2) continue;
-    const normCells = nonEmpty.map((c) => c.toLowerCase().replace(/[^a-z0-9]/g, ""));
-    const hits = normCells.filter((c) => normHints.some((h) => c.includes(h))).length;
-    if (hits < 2) continue;
-    const score = hits * 10 + Math.min(nonEmpty.length, 20);
-    if (score > bestScore) { bestScore = score; bestIdx = i; }
-  }
-  return bestIdx;
-};
-
-// Variante di readFirstSheetRows che non assume la riga 0 come intestazione:
-// legge il foglio come griglia grezza, individua la riga header via
-// detectHeaderRowIndex e costruisce gli oggetti riga da lì in poi. Stessa
-// difesa in profondità (limite dimensione + guard anti prototype-pollution)
-// dell'entry point esistente. `hints` sono le parole chiave di dominio da
-// cercare nell'intestazione (per l'anagrafica clienti: nome/email/telefono/…).
+// Variante che non assume la riga 0 come intestazione: legge il foglio come
+// griglia grezza e individua la riga header via `detectHeaderRowIndex`.
+// `hints` sono le parole chiave di dominio attese nell'intestazione.
 export const readFirstSheetRowsAutoHeader = async (arrayBuffer, hints) => {
-  if (arrayBuffer.byteLength > MAX_IMPORT_BYTES) {
-    throw new Error(
-      `File troppo grande (${(arrayBuffer.byteLength / 1048576).toFixed(1)} MB, ` +
-      `max ${MAX_IMPORT_BYTES / 1048576} MB).`
-    );
-  }
-  const XLSX = await loadXLSX();
-  const data = new Uint8Array(arrayBuffer);
-  return withPrototypePollutionGuard(() => {
-    const wb = XLSX.read(data, { type: "array", cellDates: true });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    if (!sheet) return { rows: [], columns: [] };
-    const grid = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false });
-    if (!grid.length) return { rows: [], columns: [] };
-    const headerIdx = detectHeaderRowIndex(grid, hints);
-    const rawHeaders = grid[headerIdx] || [];
-    const seen = new Map();
-    const columns = rawHeaders.map((h, i) => {
-      const base = String(h ?? "").trim() || `Colonna ${i + 1}`;
-      const n = seen.get(base) || 0;
-      seen.set(base, n + 1);
-      return n === 0 ? base : `${base}_${n}`;
-    });
-    const rows = grid.slice(headerIdx + 1)
-      .filter((r) => r.some((c) => String(c ?? "").trim() !== ""))
-      .map((r) => Object.fromEntries(columns.map((c, i) => [c, r[i] ?? ""])));
-    return { rows, columns };
+  if (arrayBuffer.byteLength > MAX_IMPORT_BYTES) throw oltreIlLimite(arrayBuffer.byteLength);
+  const data = await esegui({ op: "autoHeader", buffer: arrayBuffer, hints });
+  const { rows, columns } = normalizzaRisposta(data);
+  return { rows, columns: columns ?? [] };
+};
+
+// Export: costruisce il .xlsx nel worker e restituisce il Blob da scaricare.
+// Sostituisce il vecchio `loadXLSX()` + `XLSX.writeFile()` del pannello Admin,
+// che era il secondo punto in cui la libreria entrava nel thread principale —
+// e, per il bundle, il motivo per cui ne sarebbero esistite due copie.
+export const scriviFoglioXlsx = async (rows, sheetName = "Foglio1") => {
+  const { buffer } = await esegui({ op: "write", rows, sheetName });
+  return new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
 };

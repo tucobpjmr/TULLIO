@@ -11,6 +11,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireActiveAdmin } from "../_shared/requireActiveAdmin.ts";
+import { registraAudit } from "../_shared/audit.ts";
 
 Deno.serve(async (req: Request) => {
   const cors = corsHeaders(req);
@@ -89,6 +90,11 @@ Deno.serve(async (req: Request) => {
       if (lower.includes("not found")) {
         await supabaseAdmin.from("users").delete().eq("id", targetId);
         await rimuoviAvatar(targetId);
+        // Registrata anche qui: per chi consulta il registro «ho eliminato un
+        // utente che in auth non c'era più» è un fatto, non un non-evento —
+        // è il residuo di un invito interrotto a metà.
+        await registraAudit(supabaseAdmin, callerId, "user.hard_delete", { type: "user", id: targetId },
+                            { residuo: true });
         return json({ success: true });
       }
 
@@ -114,6 +120,7 @@ Deno.serve(async (req: Request) => {
     }
 
     await rimuoviAvatar(targetId);
+    await registraAudit(supabaseAdmin, callerId, "user.hard_delete", { type: "user", id: targetId });
     return json({ success: true });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Errore interno";

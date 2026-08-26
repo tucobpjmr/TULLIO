@@ -161,6 +161,96 @@ suite("RLS: la matrice di autorizzazione è applicata dal database, non solo dal
     });
   });
 
+  describe("public.users — il gate 'attivo' vale sulla RUBRICA, non sul profilo", () => {
+    let client, userId;
+    beforeAll(async () => {
+      ({ client, userId } = await accedi(
+        process.env.RLS_TEST_PENDING_EMAIL, process.env.RLS_TEST_PENDING_PASSWORD));
+    });
+
+    // A-3 dell'audit sicurezza del 26 agosto. `public.users` era l'unica
+    // tabella sensibile senza il gate "utente attivo": la sua policy di SELECT
+    // era `using (true)`, quindi un invitato mai approvato — che l'app ferma su
+    // PendingScreen e che ogni ALTRA tabella respinge — leggeva l'intera
+    // rubrica interna con una GET su /rest/v1/users.
+    it("un pending NON legge le righe degli altri membri", async () => {
+      const { data, error } = await client.from("users").select("id").neq("id", userId);
+      // Nessun errore: una policy che non seleziona righe produce un elenco
+      // vuoto, non un 42501. È la differenza che rende questo caso invisibile
+      // a chi cerca solo gli errori.
+      expect(error).toBeNull();
+      expect(data).toEqual([]);
+    });
+
+    // Il contrappeso, e il motivo per cui la correzione NON è una
+    // `rls_active_only` copiata dalle altre quattordici tabelle: con quella,
+    // questa select tornerebbe vuota, `AuthContext.caricaProfilo` non
+    // troverebbe il profilo e AuthGate mostrerebbe ProfileErrorScreen —
+    // «profilo non trovato» — al posto di PendingScreen. Se un domani qualcuno
+    // "uniformasse" la policy alle altre, è questo test a fermarlo.
+    it("ma legge SEMPRE la propria, che è ciò che fa apparire PendingScreen", async () => {
+      const { data, error } = await client.from("users")
+        .select("id, pending").eq("id", userId).single();
+      expect(error).toBeNull();
+      expect(data.id).toBe(userId);
+      expect(data.pending).toBe(true);
+    });
+
+    it("e non può più scrivere nemmeno sulla propria riga", async () => {
+      // Prima di A-3 `users_update` chiedeva solo `id = auth.uid()`: un pending
+      // o un utente appena disattivato poteva aggiornare nome, avatar e foto.
+      // Il trigger fermava l'escalation (role/active/pending), non la scrittura
+      // in sé — sono due porte diverse, e questa era rimasta aperta.
+      const { data, error } = await client.from("users")
+        .update({ name: "sonda rls pending" }).eq("id", userId).select("name");
+      expect(error).toBeNull();
+      // Zero righe aggiornate: la USING non seleziona la riga, quindi la UPDATE
+      // non trova nulla da scrivere — di nuovo un successo vuoto, non un 42501.
+      expect(data).toEqual([]);
+    });
+  });
+
+  describe("audit_log — append-only, e leggibile solo dagli admin", () => {
+    let client, userId;
+    beforeAll(async () => {
+      ({ client, userId } = await accedi(
+        process.env.RLS_TEST_DRIVER_EMAIL, process.env.RLS_TEST_DRIVER_PASSWORD));
+    });
+
+    // A-2 dell'audit sicurezza del 26 agosto. Il registro non ha alcuna policy
+    // di INSERT/UPDATE/DELETE per `authenticated`: con la RLS attiva l'assenza
+    // di policy È il divieto, e questo test è ciò che lo dimostra invece di
+    // affermarlo. Se qualcuno aggiungesse una policy di insert "per comodità",
+    // il registro smetterebbe di essere una prova e questo diventerebbe rosso.
+    it("un utente non admin non lo legge", async () => {
+      const { data, error } = await client.from("audit_log").select("id");
+      expect(error).toBeNull();
+      expect(data).toEqual([]);
+    });
+
+    it("nessuno può inserirci una voce a mano", async () => {
+      const { error } = await client.from("audit_log").insert({
+        actor_id: userId, action: "sonda.falsa", details: {},
+      });
+      expect(error).toBeTruthy();
+      expect(error.code).toBe("42501");
+    });
+
+    it("e nemmeno passando dalla RPC può firmarla per conto d'altri", async () => {
+      // `registra_audit` non ha un parametro "attore": lo ricava da auth.uid().
+      // È l'unica riga che impedisce di scrivere una voce col nome di qualcun
+      // altro, ed è il motivo per cui la RPC esiste invece di un GRANT INSERT.
+      const { data, error } = await client.rpc("registra_audit", {
+        p_action: "sonda.rls", p_target_type: "test", p_target_id: null, p_details: {},
+      });
+      expect(error).toBeNull();
+      expect(data).toBeTruthy();
+      // La voce esiste ma il driver non può rileggerla: la SELECT è solo admin.
+      const { data: righe } = await client.from("audit_log").select("id").eq("id", data);
+      expect(righe).toEqual([]);
+    });
+  });
+
   describe("Escalation di users.role — il trigger BEFORE UPDATE la neutralizza", () => {
     let client, userId;
     beforeAll(async () => {

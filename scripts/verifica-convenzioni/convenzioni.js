@@ -751,6 +751,42 @@ export function formeGiaInComune(costanti, comuni) {
 }
 
 /**
+ * ─── B-3 · UN TEST SCIOLTO IN `src/test/` ─────────────────────────────────
+ * (audit del 26 agosto)
+ *
+ * Il sorgente è stato riorganizzato più volte — B-1 del 25 agosto ha
+ * eliminato `modals/` e `views/` perché erano «cartelle-contenitore senza
+ * semantica» — e i test non avevano mai ricevuto lo stesso trattamento: 146
+ * file allo stesso livello, con la struttura che viveva nei PREFISSI DEI NOMI,
+ * dove nessuno strumento la vede. Non esisteva «i test del modulo Liste»:
+ * `vitest src/test/liste*` era un'ipotesi sui nomi, e infatti mancava
+ * `anagraficaListeCoesistenza.test.jsx`, che è un test delle liste.
+ *
+ * ⚠️ QUESTO CONTROLLO ESISTE PERCHÉ LO SPOSTAMENTO DA SOLO NON TIENE. È già
+ * successo a `components/`, che si era ripopolata di file sciolti dopo la
+ * stessa operazione (B-1 del 25 agosto): il file nuovo si scrive dove si è
+ * aperto il terminale, e la cartella torna piatta un file per volta senza che
+ * nessun momento sia quello in cui è andata storta.
+ *
+ * L'atteso è 0, e non c'è un numero dichiarato da tenere aggiornato: «nessun
+ * test è sciolto» resta vero mentre la suite cresce, «146 file in 16 cartelle»
+ * scadrebbe al prossimo test scritto.
+ *
+ * @param {string[]} voci i nomi dei file direttamente in src/test/
+ * @returns {string[]} i test che non stanno in una cartella
+ */
+export function testSciolti(voci) {
+  if (!voci || voci.length === 0) {
+    throw new LetturaFallita(
+      'src/test/ non contiene alcun file: o la cartella è stata spostata, o ' +
+      'la lettura è rotta. In entrambi i casi questo controllo passerebbe a ' +
+      'vuoto — e «zero test sciolti» e «zero test» sono la stessa cifra e due ' +
+      'affermazioni diverse.');
+  }
+  return voci.filter(n => /\.test\.[jt]sx?$/.test(n));
+}
+
+/**
  * ─── M-3 · IL NOME CHE DICE UNA COSA FALSA ────────────────────────────────
  * (audit del 26 agosto)
  *

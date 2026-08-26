@@ -42,6 +42,8 @@ import {
   suffissoDiCollisione,
   // B-3 (25 agosto): due nomi per un concetto solo dentro lo stesso file.
   doppioNome,
+  // B-3 (26 agosto): i test stanno in cartelle che rispecchiano il sorgente.
+  testSciolti,
 } from './convenzioni.js';
 
 // Gli audit sotto controllo: nome del file, prefisso dei suoi rilievi.
@@ -396,6 +398,21 @@ async function main() {
     nome: 'nomi di stile con suffisso di collisione', dove: 'src/styles/common.js (fan-in 85)',
     dichiarato: 0, misurato: collisioni.length,
     rimedio: `Dai alla forma il nome del suo RUOLO, non un numero progressivo: ${collisioni.join(' | ')}`,
+  });
+
+  // 5-nonies · B-3 (audit del 26 agosto). I 146 file di test erano tutti allo
+  //    stesso livello, e la loro struttura viveva nei prefissi dei nomi — dove
+  //    nessuno strumento la vede. Ora rispecchiano le cartelle del sorgente, e
+  //    questo controllo è ciò che impedisce alla cartella di tornare piatta un
+  //    file per volta: è già successo a `components/` dopo la stessa
+  //    operazione (B-1 del 25 agosto).
+  const sciolti = testSciolti(
+    (await readdir('src/test', { withFileTypes: true }))
+      .filter(v => v.isFile()).map(v => v.name));
+  controlli.push({
+    nome: 'test sciolti in src/test/', dove: 'src/test/ (una cartella per area)',
+    dichiarato: 0, misurato: sciolti.length,
+    rimedio: `Spostali nella cartella dell'area che verificano: ${sciolti.join(', ')}`,
   });
 
   // 5-septies · B-3 (audit del 25 agosto). La lingua degli identificatori è

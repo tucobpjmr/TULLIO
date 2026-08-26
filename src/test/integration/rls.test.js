@@ -270,6 +270,29 @@ suite("RLS: la matrice di autorizzazione è applicata dal database, non solo dal
       expect(error).toBeNull();
       expect(data.role).not.toBe("admin");
     });
+
+    // A-2, secondo passaggio del 26 agosto. Il `expect(error).toBeNull()` qui
+    // sopra è corretto e per mesi ha detto, senza accorgersene, qual era il
+    // difetto: un tentativo di escalation rispondeva 200 e spariva. Ora il
+    // trigger di guardia, prima di annullare il delta, lo scrive in audit_log
+    // come `user.modifica_privilegi_negata`.
+    //
+    // ⚠️ COSA QUESTO TEST NON COPRE, e va detto invece di lasciarlo intendere:
+    // la VOCE non è verificata da qui. `audit_log` è leggibile ai soli admin e
+    // lo staging non ha un utente admin provisionato (il setup in cima al file
+    // ne elenca tre: driver, junior, pending). Quello che si verifica qui è
+    // che la scrittura del registro non rompa il percorso di guardia — se
+    // `private.audit` sollevasse, l'UPDATE fallirebbe invece di rispondere 200
+    // con il ruolo invariato, ed è esattamente ciò che le due righe sopra
+    // misurano. La voce è stata verificata a mano sullo staging il 26 agosto
+    // (una sola riga, delta completo, nessuna per le modifiche non
+    // privilegiate); per inchiodarla serve un quarto utente admin fra i
+    // segreti del workflow.
+    it("il tentativo negato non rompe la UPDATE che lo contiene", async () => {
+      const { error } = await client.from("users")
+        .update({ role: "admin", capacity: 999 }).eq("id", userId);
+      expect(error).toBeNull();
+    });
   });
 
   describe("user_contacts — la rubrica è del team, non solo del proprietario", () => {

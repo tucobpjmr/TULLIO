@@ -106,12 +106,37 @@ esterne al team viva in memoria e sparisca a ogni refresh (rilievo **A-2**).
 > cronologia di sessione — che resta, ma smette di essere l'unica cosa
 > presente.
 >
+> **A-2, secondo passaggio — trovato ESEGUENDO la migrazione, non rileggendola.**
+> Sullo staging, una UPDATE su una colonna privilegiata non produceva alcuna
+> voce. Non era un difetto del trigger nuovo, era l'ordine dei trigger che
+> funzionava come deve: `users_block_privileged_self_update` è BEFORE e
+> riporta i sei campi a OLD, quindi l'AFTER non vede più differenze e non
+> registra — verdetto giusto, non è cambiato niente.
+>
+> Ma il TENTATIVO è l'evento più significativo per la sicurezza che questo
+> sistema possa produrre, e veniva neutralizzato in silenzio assoluto: 200 in
+> risposta, riga corretta, nessuna traccia. Il test di integrazione che copre
+> quel caso lo diceva da mesi senza accorgersene — `expect(error).toBeNull()`.
+> Il delta si può leggere solo da DENTRO la guardia, prima che sovrascriva:
+> dopo, l'informazione non esiste più in nessun punto del sistema. La
+> migrazione `20260826220000` estende quella funzione lasciandone invariato il
+> comportamento di guardia (stessi sei campi, stessi valori, stesso ordine) e
+> aggiungendo `user.modifica_privilegi_negata`.
+>
+> Verificato sullo staging: il tentativo `role → admin, capacity → 999` viene
+> annullato (la riga resta `agent`, capacity 8) e lascia **una** voce con il
+> delta completo; una modifica non privilegiata non ne lascia nessuna.
+>
 > **A-3 ⚙ codice pronto, DA APPLICARE.** `public.users` entra nel gate
 > "utente attivo" nella forma che NON rompe `PendingScreen`: la riga propria
 > resta sempre leggibile, la rubrica no. In scrittura il gate si applica pieno.
 >
-> ⛔ **A-2 e A-3 restano APERTI finché le migrazioni non sono applicate e le
-> Edge Function ridistribuite.** È la regola di `docs/MIGRAZIONI_SUPABASE.md`,
+> ✅ **Applicate allo STAGING** (`tullio-staging`) il 26 agosto e verificate
+> leggendo `pg_policies`/`pg_trigger` e facendo scattare i trigger, non
+> fidandosi del `success: true`.
+>
+> ⛔ **A-2 e A-3 restano APERTI finché le migrazioni non sono applicate ALLA
+> PRODUZIONE e le Edge Function ridistribuite.** È la regola di `docs/MIGRAZIONI_SUPABASE.md`,
 > che su questo progetto è già costata tre incidenti: *committare non è
 > applicare*, e lo stato va letto dal database, non dedotto dal repository.
 > Il marcatore in `INDEX.md` dice perciò `1/12`, non `3/12`.

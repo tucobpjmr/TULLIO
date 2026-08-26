@@ -43,6 +43,14 @@ const titoloSezione = { fontSize: 13, fontWeight: 700, letterSpacing: 0.3, margi
 // un registro che non sa dire cosa è successo deve dirlo, non arrotondare.
 const AZIONI = {
   "user.privilegi":         { icona: "🔑", testo: (v) => `Privilegi modificati per ${v.target_id?.slice(0, 8) ?? "un utente"}` },
+  // Il tentativo NEGATO, non l'operazione riuscita: è l'evento più
+  // significativo che questo registro possa contenere, e prima del secondo
+  // passaggio di A-2 non esisteva da nessuna parte — la richiesta rispondeva
+  // 200 e il trigger di guardia la annullava in silenzio.
+  "user.modifica_privilegi_negata": {
+    icona: "🚨",
+    testo: (v) => `TENTATIVO NEGATO di modifica privilegi (${Object.keys(v.details ?? {}).join(", ") || "—"})`,
+  },
   "user.eliminato":         { icona: "🗑️", testo: (v) => `Utente eliminato: ${v.details?.name ?? v.target_id?.slice(0, 8) ?? "—"}` },
   "user.hard_delete":       { icona: "🗑️", testo: (v) => `Account eliminato definitivamente${v.details?.residuo ? " (residuo di un invito interrotto)" : ""}` },
   "user.bannato":           { icona: "⛔", testo: () => "Accesso revocato: sessione bannata" },

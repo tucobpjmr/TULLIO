@@ -80,15 +80,18 @@ M-2 perché è la stessa domanda («chi sono io?») che non ha una risposta sola
 
 ---
 
-## Stato · 8 rilievi su 12 chiusi
+## Stato · 12 rilievi su 12 chiusi
 
-A-1 e A-2 il 25 agosto; **M-1…M-6 subito dopo**. Restano aperti i quattro di
-bassa priorità (B-1…B-4).
+A-1 e A-2 il 25 agosto; M-1…M-6 e B-1…B-4 il 26. **Nessun rilievo aperto.**
 
-⚠️ **Due dei sei rilievi di media priorità non sono stati chiusi come li aveva
-scritti questo documento, e le sezioni «Come è stato chiuso» dicono perché.**
-Vale la pena leggerlo qui perché è la stessa lezione due volte: un rilievo
-scritto guardando la FORMA del codice può sbagliare sul CONTENUTO.
+Resta aperta **una domanda**, di proposito e non per dimenticanza: che forma
+abbia il contratto «salva e chiudi» per un batch con esito PER RIGA
+(`BulkInviteModal`, e `ImportTab` del BulkTaskCreator). Vedi M-6.
+
+⚠️ **Cinque rilievi non sono stati chiusi come li aveva scritti questo
+documento, e le sezioni «Come è stato chiuso» dicono perché.** Vale la pena
+leggerlo qui, perché è la stessa lezione cinque volte: un rilievo scritto
+guardando la FORMA del codice può sbagliare sul CONTENUTO.
 
 - **M-2, punto (a)** — «ogni cambiamento del team invalida l'identità di tutte
   e diciassette le voci insieme, e `team` cambia per ogni evento realtime su
@@ -103,10 +106,28 @@ scritto guardando la FORMA del codice può sbagliare sul CONTENUTO.
   dove passare dalla primitiva introdurrebbe il lampeggio che un test esiste
   già per impedire).
 
-E una terza divergenza minore, in **M-3**: il presidio proposto era una regola
-ESLint sintattica che avrebbe segnalato anche `rowGap4` e `txtF13`, dove la
-cifra è il valore — e ne avrebbe comunque persa metà. È diventato un controllo
+- **B-4** — la correzione era «una riga», `key={i}` → `key={c.id}`, e sarebbe
+  stata **un peggioramento**: i commenti hanno un id solo se arrivano dal
+  database, e quello OTTIMISTICO — costruito due schermate più su nello stesso
+  file — non ne aveva. Due commenti inviati prima del merge realtime avrebbero
+  condiviso `key={undefined}`. L'id ora si assegna alla riga in volo.
+- **B-2** — il rilievo contava **tre** editor gemelli. Sono due: `CellEditor`
+  viene montato già aperto, legge quattro campi invece di uno e valida per
+  campo. Condivide la barra azioni, e quella infatti la condivide.
+
+E una divergenza minore, in **M-3**: il presidio proposto era una regola ESLint
+sintattica che avrebbe segnalato anche `rowGap4` e `txtF13`, dove la cifra è il
+valore — e ne avrebbe comunque persa metà. È diventato un controllo
 **relazionale** in `verifica:convenzioni`.
+
+Più due punti in cui la correzione è stata **allargata** rispetto alla proposta,
+perché così com'era avrebbe lasciato il difetto aperto da un'altra parte:
+**B-1** ha esteso `VIETATO_LISTEAPI_DA_FUORI` ai due file nuovi (separare un
+modulo privato senza toccare il divieto è aprire due porte che nulla presidia) e
+ha migrato i sedici call site invece di lasciare una passerella «a scadenza»;
+**M-6** ha aggiunto a `BulkInviteModal` una quarta garanzia che il rilievo non
+nominava — l'eccezione di `Users.invite` che usciva da `submit` come *unhandled
+rejection*, trovata dalla CI a suite verde.
 
 ---
 
@@ -122,10 +143,10 @@ cifra è il valore — e ne avrebbe comunque persa metà. È diventato un contro
 | **M-4** ✔ | Media | Convergenza | «Fetch al mount, scarta la risposta tardiva» riscritto 9 volte con 3 nomi di flag, accanto a `useIsMounted` che già lo risolve | 9 file in `components/`, `hooks/` |
 | **M-5** ✔ | Media | SoC | `AdvancedSearchPanel`: UI + fetch + reducer + ~110 righe di filtraggio di dominio su due famiglie di entità, in un componente | `components/search/AdvancedSearchPanel.jsx` |
 | **M-6** ✔ | Media | Convergenza | Due modali admin scrivono senza passare da un registry (`Users.invite`) e tengono `busy` a mano: stessa forma di A-2, fuori dal perimetro di entrambi i controlli | `admin/AddTeamMemberModal.jsx:62` · `admin/BulkInviteModal.jsx:65` |
-| **B-1** | Bassa | SoC | `listeApi.js` (537 righe) è quattro moduli: data layer, formattazione, costanti di dominio, generazione documenti | `components/liste/listeApi.js` |
-| **B-2** | Bassa | Duplicazione | Tre editor in linea gemelli nella stessa cartella: stesso stato, stesso ciclo, stessa barra azioni copiata | `liste/{TitoloTestata,NoteInterne,CellEditor}.jsx` |
-| **B-3** | Bassa | Navigabilità | 143 file di test piatti in `src/test/` contro 25 cartelle di sorgente; la struttura vive nei prefissi dei nomi | `src/test/` |
-| **B-4** | Bassa | Anti-pattern React | `key={i}` su una lista identificata e alimentata dal realtime | `components/tasks/TaskCommenti.jsx:72` |
+| **B-1** ✔ | Bassa | SoC | `listeApi.js` (537 righe) è quattro moduli: data layer, formattazione, costanti di dominio, generazione documenti | `components/liste/listeApi.js` |
+| **B-2** ✔ | Bassa | Duplicazione | Tre editor in linea gemelli nella stessa cartella: stesso stato, stesso ciclo, stessa barra azioni copiata | `liste/{TitoloTestata,NoteInterne,CellEditor}.jsx` |
+| **B-3** ✔ | Bassa | Navigabilità | 143 file di test piatti in `src/test/` contro 25 cartelle di sorgente; la struttura vive nei prefissi dei nomi | `src/test/` |
+| **B-4** ✔ | Bassa | Anti-pattern React | `key={i}` su una lista identificata e alimentata dal realtime | `components/tasks/TaskCommenti.jsx:72` |
 
 ---
 
@@ -1233,6 +1254,44 @@ export { docHtml, riepilogoTesto } from "./listeDocumenti.js";
 
 ---
 
+### Come è stato chiuso ✔
+
+Commit `B-1: listeApi.js si separa in data layer, formattazione e documenti`.
+
+`listeApi.js` (413 righe: query e RPC), `listeFormato.js` (99),
+`listeDocumenti.js` (81).
+
+⚠️ **`beneficiariNomi` e `intestazioneLista` vanno in `listeFormato.js`**, non
+restano nel data layer come proponeva la correzione qui sopra — e la ragione è
+che quella proposta avrebbe creato un **ciclo**: `listeDocumenti` ha bisogno di
+`intestazioneLista` per intestare il documento, quindi avrebbe dovuto
+importarla da `listeApi`, che a sua volta ri-esportava da `listeDocumenti`.
+Zero cicli è una delle dieci righe verdi dell'appendice di sicurezza di questo
+stesso audit. Il guadagno collaterale: `listeOrdinamento.js`, che di query non
+ne fa nessuna, non tocca più il data layer.
+
+⛔ **Niente passerella di ri-esportazioni.** La correzione proponeva di
+lasciare in `listeApi.js` un blocco `export … from` «a scadenza» per non
+toccare sedici call site nello stesso commit. Non è stato fatto: i sedici sono
+migrati qui, perché una passerella a scadenza senza una data è il modo in cui
+una separazione si disfa — il prossimo file importa dal nome vecchio, che
+funziona, e il rilievo torna un nome per volta.
+
+⚠️ **E il divieto è stato spezzato insieme al file**, cosa che il rilievo non
+diceva. `VIETATO_LISTEAPI_DA_FUORI` nomina un PERCORSO: separare un modulo
+privato in tre file senza estendere la regola significa aprire **due porte
+nuove** che nulla presidia, ed è esattamente il ragionamento di A-4 su
+`lib/api/` («ogni modulo diventa una SECONDA porta verso le stesse entità, e
+una che quel divieto non nomina»). Verificato che morda: un
+`import { eur } from "…/liste/listeFormato.js"` da `components/tasks/` è
+respinto.
+
+Misura di ciò che la separazione ha comprato, in una riga: `listeApi.test.js`
+**non mocka più Supabase**. Si apriva con `vi.mock("../lib/supabase", …)` che
+serviva solo a poter leggere sei funzioni pure.
+
+---
+
 ## B-2 · Tre editor in linea gemelli nella stessa cartella
 
 **Dove.** `liste/TitoloTestata.jsx`, `liste/NoteInterne.jsx`, `liste/CellEditor.jsx`.
@@ -1339,6 +1398,43 @@ export function NoteInterne({ lista, onSaved }) {
 
 ---
 
+### Come è stato chiuso ✔
+
+Commit `B-2: il ciclo e la barra azioni degli editor in linea in un posto solo`.
+
+`useModificaInLinea.js` per il ciclo (apri → focus → Invio salva / Esc annulla
+→ chiudi) e `AzioniModifica.jsx` per i due bottoni. `TitoloTestata` scende a 42
+righe, `NoteInterne` a 48.
+
+⛔ **`CellEditor` NON usa l'hook**, e il rilievo lo contava come terzo gemello.
+Non lo è: il genitore lo monta **già aperto** (nessuno stato `editing`, nessun
+`apri`, un `onCancel` che arriva da fuori), legge quattro campi del movimento
+invece di uno, e la sua conferma VALIDA per campo con tre messaggi diversi
+prima di comporre il payload. Di condiviso ha il focus iniziale, i due tasti e
+la barra azioni — e la barra azioni infatti la condivide.
+
+⚠️ **Il contenitore di `AzioniModifica` è un parametro**, e non per comodità:
+la nota del rilievo secondo cui «la barra azioni ha la stessa classe CSS in
+tutti e tre» è vera per due su tre. `TitoloTestata` tiene i bottoni **in linea
+con l'input** dentro `.lv-tit-edit` (flex, gap 6, wrap); avvolgerli anche lì in
+`.lv-cell-edit-actions` aggiungerebbe `justify-content:flex-end` e
+`margin-top:10px`, cioè li staccherebbe su una riga propria. Una modifica
+visiva che questo rilievo non chiede.
+
+⚠️ **I sei test nuovi NON falliscono sul codice precedente, ed è corretto.**
+B-2 è un rilievo di duplicazione, non un difetto: non c'era niente di rotto da
+cogliere. Servono a FISSARE il comportamento condiviso perché l'estrazione non
+possa averlo cambiato in silenzio — in particolare la sola cosa che diverge fra
+i due editor, cioè Invio, che in una `<textarea>` è un a capo e non una
+conferma, e `select()` all'apertura, che su una nota cancellerebbe col primo
+carattere un testo che si voleva solo ritoccare.
+
+Nota: il conteggio dichiarato dei call site di `useSalvataggio` **scende** da
+27 a 26, e il controllo l'ha segnalato da sé. Due call site diventati uno è ciò
+che questo rilievo doveva produrre.
+
+---
+
 ## B-3 · 143 file di test piatti contro 25 cartelle di sorgente
 
 **Dove.** `src/test/`.
@@ -1400,6 +1496,43 @@ già successo a `components/` (B-1 del 25 agosto): un controllo in
 
 ---
 
+### Come è stato chiuso ✔
+
+Commit `B-3: i test rispecchiano le cartelle del sorgente`.
+
+Sedici cartelle, 146 file, un commit di soli spostamenti — che git riconosce
+tutti come rename, perché il contenuto cambia solo nei path relativi, saliti di
+un livello.
+
+⚠️ **Tre cartelle non rispecchiano una cartella del sorgente, ed è
+deliberato.** `realtime/` raccoglie tredici file che stanno a cavallo di
+`hooks/` e `state/` e che si leggono insieme; `edge/` le Edge Function, che
+vivono in `supabase/` e non in `src/`; `contratti/` i quattro `salvaEChiudi*`,
+che sono **un contratto verificato su quattro superfici** — sparpagliarli per
+area avrebbe rifatto esattamente il difetto del rilievo, una famiglia tenuta
+insieme solo dal prefisso del nome.
+
+⛔ **I nomi non sono stati accorciati** togliendo il prefisso ora ridondante
+(`liste/listeApi.test.js`), come la correzione suggeriva. È un secondo
+cambiamento con le sue scelte — quali prefissi sono ridondanti, quali sono il
+soggetto del file — e una convenzione di rinomina applicata a metà è peggio di
+nessuna: vale la dottrina dell'arretrato già scritta in `docs/CLAUDE.md`, un
+file alla volta quando lo si sta già riscrivendo per un'altra ragione.
+
+Una nota su come è stato verificato, perché è la cosa che rende questa
+operazione sicura: **il verificatore è la cosa che si sta spostando.** Quattro
+specificatori non passavano da `from` / `import()` / `vi.mock` — stavano in
+`vi.importActual`, `vi.doUnmock` e due import `?raw` — e li ha trovati la suite,
+in tre file rossi con il messaggio esatto. Un path sbagliato qui non è un
+guasto silenzioso.
+
+E il controllo che lo tiene: `testSciolti` in `verifica:convenzioni`, atteso 0.
+Lo spostamento da solo non basta — è già successo a `components/` di
+ripopolarsi di file sciolti dopo la stessa operazione (B-1 del 25 agosto), un
+file per volta e senza che nessun momento fosse quello in cui è andata storta.
+
+---
+
 ## B-4 · `key={i}` su una lista identificata e in realtime
 
 **Dove.** `components/tasks/TaskCommenti.jsx:72`.
@@ -1429,6 +1562,28 @@ fissa, dove l'indice *è* l'identità.
 {commenti.map((c) => (
   <div key={c.id} style={rowGap10}>
 ```
+
+---
+
+### Come è stato chiuso ✔
+
+Commit `B-4: i commenti si disegnano per id, e l'ottimistico un id ce l'ha`.
+
+⚠️ **La correzione «una riga» proposta qui sopra era sbagliata**, ed è il caso
+in cui questo audit si è fidato di metà della lettura. I commenti hanno un id —
+ma solo quelli che arrivano dal database, dove `fromDbComment` lo mappa. Il
+commento **ottimistico**, che `TaskCommenti` stesso costruisce due schermate
+più su nello stesso file, non ne aveva: `key={c.id}` sarebbe stato `undefined`,
+e due commenti inviati prima che il realtime riportasse il thread avrebbero
+avuto la **stessa chiave** — cioè il difetto peggiorato, non corretto.
+
+L'id è assegnato con `newId()`, come già fa `ChatPanel` per il messaggio
+ottimistico. Non raggiunge mai il server: `Comments.create` costruisce la riga
+da `{ task_id, user_id, text }` e ignora il resto. È l'identità della riga **in
+volo**, cioè proprio di quella che React deve saper distinguere.
+
+Due test, entrambi rossi sul codice precedente
+(`expected undefined to deeply equal Any<String>`).
 
 ---
 

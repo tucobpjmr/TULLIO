@@ -55,7 +55,7 @@ const HOME_PAGE_SIZE = 10;
 export const ListeViaggio = memo(function ListeViaggio({ listeTarget = null }) {
   const dispatch = useDispatch();
   const { isMobile } = useViewport();
-  const { team, currentUserId, isAdmin, canAccessListe } = useAppData();
+  const { team, io } = useAppData();
   const clientsRaw = useClients();
   // M-1 (passo 2) · `clients` alimenta i due selettori di TITOLARE e
   // COINTESTATARIO (NuovaListaModal, ListaDetail). Un titolare che non compare
@@ -63,14 +63,13 @@ export const ListeViaggio = memo(function ListeViaggio({ listeTarget = null }) {
   // che esiste già — il doppione in anagrafica che la sottoscrizione realtime
   // su `clients` esiste per impedire.
   useClientiCompleti();
-  const uid = currentUserId;
   // Chi può usare il modulo: una domanda sola, la stessa del reducer, delle
   // viste del core che ci linkano e di can_liste() sul database. Qui era
   // `getRoleType(uid) === "driver"`, cioè la quinta formulazione della stessa
   // regola — quella che, per un ruolo fuori enum o un utente disattivato,
   // rispondeva diversamente dalle altre quattro.
-  const listeAllowed = canAccessListe(uid);
-  const isAdminUser = isAdmin(uid);
+  const listeAllowed = io.accedeListe();
+  const isAdminUser = io.isAdmin();
 
   // Dati della home + realtime: vedi useListeData. Prima erano cinque useState
   // locali con un `await loadHome()` manuale dopo ogni scrittura — tre query di

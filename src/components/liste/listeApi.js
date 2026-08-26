@@ -39,7 +39,6 @@ import { getClientId } from '../../lib/clientId.js';
 // regola non doveva esistere in due copie per essere applicata in due posti
 // (ST-3 di docs/AUDIT_STRUTTURA_2026-08-10.md).
 import { fetchAllRows, WITH_COUNT } from '../../lib/pagination.js';
-import { dataNumerica } from "../../lib/dates.js";
 
 // Le liste portano sempre con sé il nome del titolare (clients) e degli
 // eventuali cointestatari (lista_beneficiari → clients, es. marito e moglie):
@@ -61,20 +60,6 @@ import { dataNumerica } from "../../lib/dates.js";
 const LISTA_SELECT =
   '*, clients!liste_viaggio_client_id_fkey(name), lista_beneficiari(client_id, clients(name))';
 
-// Nomi dei soli cointestatari (non il titolare). Ordine di arrivo dalla query
-// (nessun ORDER BY dedicato: sono in numero piccolo, non serve).
-export const beneficiariNomi = (lista) =>
-  (lista?.lista_beneficiari || []).map((b) => b.clients?.name).filter(Boolean);
-
-// "Chi è questa lista": titolare + cointestatari, per la UI e per i documenti
-// (riepilogo cliente, copia agente). "MARIO ROSSI" da solo, o
-// "MARIO ROSSI e MARIA BIANCHI" con un cointestatario, "MARIO ROSSI, MARIA
-// BIANCHI e LUCA ROSSI" con più di uno.
-export const intestazioneLista = (lista) => {
-  const nomi = [lista?.clients?.name, ...beneficiariNomi(lista)].filter(Boolean);
-  if (nomi.length <= 1) return nomi[0] || '';
-  return `${nomi.slice(0, -1).join(', ')} e ${nomi[nomi.length - 1]}`;
-};
 
 // Righe per chiamata nel ripristino da backup. Tenuto basso di proposito: a
 // 1000 movimenti la RPC misura ~150ms contro un tetto di 8s, così il margine
@@ -405,133 +390,3 @@ export const ListeAPI = {
 // reset totale — l'unica operazione irreversibile — senza altro controllo di
 // ruolo che un bottone non renderizzato. La firma nuova prende il NOME di
 // un'operazione dichiarata nel registry, che porta con sé messaggio e guard.
-
-// ─── formattazione (identica alla SPA sorgente) ───────────────────────────
-export const eur = (v) =>
-  new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(v || 0);
-
-// Le date dei movimenti sono `date` (YYYY-MM-DD), non timestamp: vanno
-// formattate a mano. new Date("2026-07-28") sarebbe interpretata come UTC e
-// in Italia potrebbe rendere il giorno precedente.
-//
-// Convive di proposito con `formatDate` in lib/taskUtils.js, che rende
-// "08 ago 2026" partendo da un timestamp ISO: input diverso, formato diverso,
-// e il modulo Liste ha una sua identità visiva. Non sono due copie da
-// riconciliare.
-// La forma numerica del modulo Liste ("28/07/2026"). Da ST-8 il formato vive
-// in lib/dates.js insieme agli altri sei: questa resta l'API pubblica del
-// modulo (undici call site) e il caveat che la fa esistere — `data_movimento` è
-// una colonna `date`, non un timestamp, e passarla per `new Date` la
-// interpreterebbe come UTC-mezzanotte — è ora gestito da `aData` in quel
-// modulo, per TUTTI i formati e non solo per questo.
-export const fmtDate = (d) => dataNumerica(d);
-
-export const todayISO = () => {
-  // Data locale, non `toISOString()`: quest'ultima è in UTC e dopo le 22:00
-  // (ora legale italiana) proporrebbe il giorno dopo come data di default.
-  const d = new Date();
-  const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-};
-
-// Soglia di tolleranza sul saldo: gli importi sono numeric(12,2), sotto mezzo
-// centesimo il saldo si considera in pari (evita "-0,00 €" in rosso).
-export const EPS = 0.004;
-
-export const saldoClass = (v) => (v > EPS ? 'pos' : v < -EPS ? 'neg' : 'zero');
-
-export const METODI = ['', 'pos', 'bonifico', 'contanti', 'assegno', 'altro'];
-
-export const ACTION_LABELS = {
-  lista_creata: 'ha creato la lista',
-  lista_modificata: 'ha modificato i dati della lista',
-  lista_chiusa: 'ha segnato la lista ESAURITA',
-  lista_riaperta: 'ha riaperto la lista',
-  lista_archiviata: 'ha spostato la lista nel cestino',
-  lista_ripristinata: 'ha ripristinato la lista dal cestino',
-  movimento_aggiunto: 'ha registrato un movimento',
-  movimento_modificato: 'ha modificato un movimento',
-  movimento_eliminato: 'ha eliminato un movimento',
-  lista_note_modificata: 'ha modificato le note interne',
-  beneficiario_aggiunto: 'ha aggiunto un cointestatario',
-  beneficiario_rimosso: 'ha rimosso un cointestatario',
-  titolare_spostato: 'ha spostato la lista su un altro cliente',
-};
-
-export const actionLabel = (a) => ACTION_LABELS[a] || a;
-
-// Converte l'importo digitato ("12,50" o "12.50") nel numero con segno atteso
-// dalla RPC. Ritorna null se non è un importo valido (zero incluso: la RPC lo
-// rifiuta comunque con check_violation, ma qui evitiamo il round-trip).
-export const parseImporto = (raw, segno = 1) => {
-  const n = parseFloat(String(raw ?? '').replace(',', '.'));
-  if (!n || Number.isNaN(n)) return null;
-  return Math.abs(n) * (segno < 0 ? -1 : 1);
-};
-
-// ─── export "copia agente" (Word) e riepilogo cliente (SPA sorgente) ──────
-// Qui si costruisce HTML come stringa (non JSX): a differenza del rendering
-// React, non c'è escaping automatico, quindi va fatto a mano prima di
-// interpolare testo libero (descrizione, nome cliente...) nel markup.
-const escHtml = (s) => (s ?? '').toString().replace(/[&<>"']/g, (c) => ({
-  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-}[c]));
-
-// Documento a uso interno (Word/.doc via HTML con namespace `w:`): include
-// metodo di pagamento e, se passato lo storico, il registro di chi ha
-// modificato cosa e quando. Il riepilogo per il cliente è un'altra cosa
-// (niente metodi di pagamento, niente storico): vedi riepilogoTesto.
-// `saldoEsatto`, se passato, è il saldo già calcolato dal database
-// (`liste_saldi.saldo`, numeric(12,2) — B-1 dell'audit del 23 agosto): questo
-// documento ESCE dal sistema (copia Word per l'agente), quindi è proprio qui
-// che una cifra ricalcolata in float64 è più difficile da smentire. Il
-// ricalcolo locale resta come fallback per chi non ha ancora il saldo esatto
-// a disposizione (es. i test di questo modulo).
-export const docHtml = (lista, movimenti, storico, usersById = {}, saldoEsatto) => {
-  const rows = movimenti.map((m) => `
-    <tr>
-      <td style="width:90px">${fmtDate(m.data_movimento)}</td>
-      <td>${escHtml(m.descrizione)}</td>
-      <td style="width:110px;text-align:right">${Number(m.importo) < 0 ? '-' : ''}€ ${Math.abs(Number(m.importo)).toLocaleString('it-IT', { minimumFractionDigits: 2 })}</td>
-      <td style="width:80px">${m.metodo ? escHtml(m.metodo.toUpperCase()) : ''}</td>
-    </tr>`).join('');
-  const saldo = saldoEsatto !== undefined ? saldoEsatto : movimenti.reduce((s, m) => s + Number(m.importo), 0);
-  const storicoHtml = storico && storico.length ? `
-    <h2 style="font-size:12pt;margin-top:18pt">Storico modifiche</h2>
-    <table>${storico.map((h) => `
-      <tr>
-        <td style="width:120px;font-size:9pt">${new Date(h.created_at).toLocaleString('it-IT')}</td>
-        <td style="width:110px;font-size:9pt">${escHtml(usersById[h.actor_id] || '—')}</td>
-        <td style="font-size:9pt">${escHtml(actionLabel(h.action))}${h.old_value ? ` — da: ${escHtml(h.old_value)}` : ''}${h.new_value ? ` — a: ${escHtml(h.new_value)}` : ''}</td>
-      </tr>`).join('')}</table>` : '';
-  return `<html xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8">
-    <style>body{font-family:Calibri,Arial,sans-serif;font-size:12pt}table{border-collapse:collapse;width:100%}td{padding:4pt 6pt;border-bottom:0.5pt solid #ccc}h1{font-size:14pt}</style>
-    </head><body>
-    <h1>LISTA ${escHtml(intestazioneLista(lista))}</h1>
-    ${lista.titolo ? `<p><i>${escHtml(lista.titolo)}</i></p>` : ''}
-    <p style="font-size:9pt;color:#B23A2E;letter-spacing:.06em"><b>COPIA AGENTE — USO INTERNO</b></p>
-    <table>${rows}</table>
-    <p style="margin-top:14pt"><b>SALDO: € ${saldo.toLocaleString('it-IT', { minimumFractionDigits: 2 })}</b></p>
-    ${lista.stato === 'esaurita' ? '<p style="color:#C0392B"><b>LISTA ESAURITA</b></p>' : ''}
-    ${storicoHtml}
-    <p style="font-size:9pt;color:#888">Esportato il ${dataNumerica(new Date())} — Gestione Liste Viaggio</p>
-    </body></html>`;
-};
-
-// Testo semplice per il riepilogo cliente (condivisione via navigator.share o
-// clipboard): niente metodi di pagamento, niente storico.
-export const riepilogoTesto = (lista, movimenti, saldoEsatto) => {
-  const righe = movimenti.map((m) => `${fmtDate(m.data_movimento)}  ${m.descrizione}  ${eur(m.importo)}`).join('\n');
-  const saldo = saldoEsatto !== undefined ? saldoEsatto : movimenti.reduce((s, m) => s + Number(m.importo), 0);
-  return `RIEPILOGO BUONO VIAGGIO\n${intestazioneLista(lista)}${lista.titolo ? ' — ' + lista.titolo : ''}\n\n`
-    + (righe || 'Nessun movimento registrato.')
-    + `\n\nSALDO: ${eur(saldo)}`
-    + (lista.stato === 'esaurita' ? '\n\nLISTA ESAURITA' : '');
-};
-
-// Innesca il download lato client di un Blob già pronto (doc Word, JSON di
-// backup...). M-3 dell'audit del 14 agosto (secondo passaggio): era una di
-// TRE copie identiche dello stesso corpo (con adminExport.js e
-// calendar/calendarIcs.js) — l'implementazione unica è `scaricaBlob`. Resta
-// qui come alias di una riga per non toccare i call site di questo modulo.
-export { scaricaBlob as downloadBlob } from "../../lib/fileUtils.js";

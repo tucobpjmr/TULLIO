@@ -13,7 +13,7 @@
 // Niente upload CSV: per gli SMB target del prodotto il copia-incolla da
 // Excel/Notes copre il 95% dei casi; un parser file aggiunge superficie
 // senza valore proporzionato.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   modalOverlay, modalCard, labelStyle, fieldStyle, btnPrimary, btnGhost,
 } from "./adminStyles.js";
@@ -21,6 +21,7 @@ import { ModalPortal } from "../ui/ModalPortal.jsx";
 import { Users } from "../../lib/api.js";
 import { EMAIL_RX } from "../../lib/validators.js";
 import { DB_ROLES, ROLE_LABELS, toDbRole } from "../../lib/taskConstants.js";
+import { useIsMounted } from "../../hooks/useIsMounted.js";
 import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
@@ -63,6 +64,29 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
   const [defaultRole, setDefaultRole] = useState("agent");
   const [color, setColor] = useState("#3B82F6");
   const [busy, setBusy] = useState(false);
+  // ─── M-6 (audit del 26 agosto) · le tre garanzie, a mano ────────────────
+  //
+  // Questo form NON passa da `useSalvataggio`, e non è una dimenticanza: è un
+  // batch SEQUENZIALE con esito PER RIGA (`ok` / `warn` / `err`) e progresso
+  // dipinto a ogni iterazione. `useSalvataggio` ha un concetto solo per la
+  // riuscita parziale — `avviso`, che blocca ogni tentativo successivo perché
+  // «la cosa da fare non è riprovare, è chiudere» — e qui la riuscita parziale
+  // è la normalità, non l'eccezione. Forzare l'una nell'altra vorrebbe dire
+  // decidere di corsa che forma abbia il contratto per un batch, decisione che
+  // vale anche per `ImportTab` del BulkTaskCreator e che non si prende dentro
+  // una correzione altrui.
+  //
+  // Le tre garanzie però non dipendono da quel contratto, e qui mancavano
+  // tutte e tre. Sono queste due righe più il `try/finally` sotto.
+  //
+  // Il freno è un REF e non `busy`: fra due click ravvicinati React può non
+  // aver ancora ri-renderizzato, quindi entrambi i gestori leggerebbero
+  // `busy === false` e partirebbero DUE batch sequenziali sulla stessa lista —
+  // ogni indirizzo invitato due volte, e `results` dipinto da due cicli che si
+  // sovrascrivono. `busy` resta, ma per ciò che serve davvero allo stato:
+  // dipingere l'attesa e tenere chiusa la via d'uscita.
+  const inVoloRif = useRef(false);
+  const montato = useIsMounted();
   // results: per ogni email tentata, { email, status: 'ok'|'err', message?: '...' }
   const [results, setResults] = useState(null);
   // total: numero di righe valide totali → ci serve per mostrare X/Y mentre
@@ -71,6 +95,7 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
   const [parseErrors, setParseErrors] = useState([]);
 
   const submit = async () => {
+    if (inVoloRif.current) return;
     setParseErrors([]);
     setResults(null);
     const lines = text.split(/\r?\n/);
@@ -89,32 +114,58 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
     if (parsed.length === 0) return;
 
     setTotal(parsed.length);
+    inVoloRif.current = true;
     setBusy(true);
     // Sequenziale, non parallelo: l'EF invoca auth.admin.inviteUserByEmail,
     // che ha rate-limit lato Supabase. Una raffica concorrente fa fallire
     // metà delle email senza un beneficio percepibile (decine di inviti
     // restano sotto al secondo a una a una).
     const out = [];
-    for (const p of parsed) {
-      const { data, error } = await Users.invite({
-        email: p.email,
-        name: p.name,
-        role: p.role,
-        color,
-      });
-      // M-2 dell'audit del 14 agosto: l'invito può essere partito (l'email è
-      // uscita) mentre la pre-creazione di profilo o contatto è fallita lato
-      // server. Un terzo stato, distinto da "ok" ed "err": non è un
-      // fallimento dell'invito, ma non è nemmeno un successo pulito.
-      out.push(error
-        ? { email: p.email, status: "err", message: error.message || "Errore" }
-        : data?.warning
-          ? { email: p.email, status: "warn", message: data.warning }
-          : { email: p.email, status: "ok" });
-      // Aggiorno la lista a ogni step così l'admin vede il progresso live.
-      setResults([...out]);
+    try {
+      for (const p of parsed) {
+        // ⚠️ Un'ECCEZIONE è un esito di riga come gli altri, e non un'uscita.
+        // `Users.invite` è una `fetch` verso una Edge Function: se la rete cade
+        // non ritorna `{ error }`, SOLLEVA. Senza questo `catch` il rifiuto
+        // usciva da `submit` — che nessuno attende, essendo chiamata da un
+        // `onClick` — e diventava una unhandled rejection: in console un errore
+        // che l'admin non vede, e a schermo un batch che si ferma a metà senza
+        // dire di essersi fermato, indistinguibile da uno finito.
+        // Ridotto qui alla stessa forma di `{ error }`, che il resto del ciclo
+        // sa già dipingere.
+        const { data, error } = await Users.invite({
+          email: p.email,
+          name: p.name,
+          role: p.role,
+          color,
+        }).catch((e) => ({ data: null, error: e instanceof Error ? e : new Error(String(e)) }));
+        // Smontati mentre il batch era in corso: si smette di scrivere lo
+        // stato, ma NON si continua a invitare — ogni iterazione successiva
+        // manderebbe email che nessuno vedrà arrivare in un elenco.
+        if (!montato()) return;
+        // M-2 dell'audit del 14 agosto: l'invito può essere partito (l'email è
+        // uscita) mentre la pre-creazione di profilo o contatto è fallita lato
+        // server. Un terzo stato, distinto da "ok" ed "err": non è un
+        // fallimento dell'invito, ma non è nemmeno un successo pulito.
+        out.push(error
+          ? { email: p.email, status: "err", message: error.message || "Errore" }
+          : data?.warning
+            ? { email: p.email, status: "warn", message: data.warning }
+            : { email: p.email, status: "ok" });
+        // Aggiorno la lista a ogni step così l'admin vede il progresso live.
+        setResults([...out]);
+      }
+    } finally {
+      // In un `finally` e non dopo il ciclo. Con il `catch` per riga qui sopra
+      // le eccezioni non arrivano più fin qui, ma il `finally` resta ed è la
+      // rete di sicurezza vera: qualunque uscita anticipata da questo ciclo —
+      // un `return` aggiunto domani, un throw da un punto che oggi non ne ha —
+      // deve comunque riabbassare il freno. Il prezzo di sbagliarlo è più alto
+      // che altrove: l'overlay è `onClick={busy ? undefined : onClose}`, quindi
+      // un `busy` bloccato a `true` rende la modale IMPOSSIBILE da chiudere,
+      // con gli esiti già ottenuti sotto gli occhi e nessun modo di leggerli.
+      inVoloRif.current = false;
+      if (montato()) setBusy(false);
     }
-    setBusy(false);
     if (out.some(r => r.status === "ok" || r.status === "warn")) onInvited?.();
   };
 

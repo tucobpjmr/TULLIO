@@ -56,7 +56,7 @@ const ProfileEditor = lazy(() =>
 // riceverlo intero legava il menù utente a ogni azione dell'app.
 export const UserSwitcher = () => {
   const dispatch = useDispatch();
-  const { team, currentUserId, getMember, isJuniorAgent } = useAppData();
+  const { team, currentUserId, getMember, per } = useAppData();
   const [open, setOpen] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -182,7 +182,7 @@ export const UserSwitcher = () => {
                       <div style={stiliComuni.nomeTroncato}>{m.name}</div>
                       <div style={rowCenterGap5}>
                         {roleLabel(m)}
-                        {isJuniorAgent(m.id) && (
+                        {per(m.id).isJuniorAgent() && (
                           <span style={boxF9Bold}>JUNIOR</span>
                         )}
                       </div>

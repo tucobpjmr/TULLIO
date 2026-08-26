@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { parseImporto } from "../listeApi.js";
+import { parseImporto } from "../listeFormato.js";
 import { LvOverlay } from "./LvOverlay.jsx";
 import { MetodoSelect } from "./MetodoSelect.jsx";
 import { SegnoSeg } from "./SegnoSeg.jsx";
+import { useSalvataggioLista } from "../useSalvataggioLista.js";
 
 // ─── Modifica di un movimento già registrato ───────────────────────────────
 // Form completo in modale: i campi in riga (modifica in linea) su schermo
@@ -13,17 +14,15 @@ export function EditMovimentoModal({ movimento, onSave, onClose }) {
   const [segno, setSegno] = useState(Number(movimento.importo) < 0 ? -1 : 1);
   const [imp, setImp] = useState(Math.abs(Number(movimento.importo)).toFixed(2).replace(".", ","));
   const [metodo, setMetodo] = useState(movimento.metodo || null);
-  const [saving, setSaving] = useState(false);
 
-  const submit = async () => {
-    if (saving) return;
+  const { salva, inVolo } = useSalvataggioLista(onSave.run);
+
+  const submit = () => {
     const importo = parseImporto(imp, segno);
     if (!data || !desc.trim() || importo === null) {
       return onSave.onError("Compila data, descrizione e importo");
     }
-    setSaving(true);
-    const ok = await onSave.run({ id: movimento.id, data, descrizione: desc.trim(), importo, metodo });
-    if (!ok) setSaving(false);
+    salva({ id: movimento.id, data, descrizione: desc.trim(), importo, metodo });
   };
 
   return (
@@ -51,8 +50,8 @@ export function EditMovimentoModal({ movimento, onSave, onClose }) {
       </div>
       <div className="actions">
         <button className="lv-btn" onClick={onClose}>Annulla</button>
-        <button className="lv-btn primary" disabled={saving} onClick={submit}>
-          {saving ? "Salvo…" : "Salva modifiche"}
+        <button className="lv-btn primary" disabled={inVolo} onClick={submit}>
+          {inVolo ? "Salvo…" : "Salva modifiche"}
         </button>
       </div>
     </LvOverlay>

@@ -15,7 +15,9 @@
 // riscritto il corpus; esce ciò che i bottoni chiamano. Nessun altro pezzo
 // dello stato del modulo attraversa questo file.
 import { useRef } from "react";
-import { ListeAPI, downloadBlob, todayISO } from "./listeApi.js";
+import { ListeAPI } from "./listeApi.js";
+import { todayISO } from "./listeFormato.js";
+import { downloadBlob } from "./listeDocumenti.js";
 import { useListeWrite } from "./listePersistence.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
 import { toastSuccesso } from "../../state/registroScritture.js";

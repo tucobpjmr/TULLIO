@@ -3,7 +3,7 @@
 // movimenti, stato e saldo. Estratta da ListeViaggio.jsx (A-4, audit del 12
 // agosto): un secondo componente nello stesso file di un modulo già a
 // 495/500 righe, senza dipendere da nessuno stato o hook del genitore.
-import { eur, fmtDate, intestazioneLista, saldoClass } from "./listeApi.js";
+import { eur, fmtDate, intestazioneLista, saldoClass } from "./listeFormato.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).

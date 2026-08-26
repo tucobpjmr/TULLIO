@@ -1,5 +1,5 @@
-import { useState } from "react";
 import { LvOverlay } from "./LvOverlay.jsx";
+import { useSalvataggioLista } from "../useSalvataggioLista.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -11,14 +11,13 @@ const txtF13LvMuted = { fontSize: 13, color: "var(--lv-muted)" };
 // id: non cancella nulla, ma un file sbagliato può comunque aggiungere righe
 // indesiderate, quindi resta una conferma esplicita prima della RPC.
 export function ImportaBackupConfirmModal({ nL, nB = 0, nM, progress = null, onClose, onSave }) {
-  const [saving, setSaving] = useState(false);
 
-  const submit = async () => {
-    if (saving) return;
-    setSaving(true);
-    const ok = await onSave.run();
-    if (!ok) setSaving(false);
-  };
+  // Il carico di un backup e' l'operazione piu' lunga del modulo (molte
+  // chiamate in fila, vedi `progress` qui sotto): e' anche quella su cui un
+  // secondo click mentre la prima e' in volo costa di piu', ed e' il freno su
+  // `ref` del contratto a impedirlo — non lo stato, che fra due click
+  // ravvicinati puo' non essersi ancora ri-renderizzato.
+  const { salva, inVolo } = useSalvataggioLista(onSave.run);
 
   // Il ripristino viaggia a blocchi: su un backup grande sono molte chiamate
   // in fila, e senza avanzamento il bottone fermo su "Carico…" sembrerebbe
@@ -41,8 +40,8 @@ export function ImportaBackupConfirmModal({ nL, nB = 0, nM, progress = null, onC
       )}
       <div className="actions">
         <button className="lv-btn" onClick={onClose}>Annulla</button>
-        <button className="lv-btn primary" disabled={saving} onClick={submit}>
-          {saving ? "Carico…" : "Carica backup"}
+        <button className="lv-btn primary" disabled={inVolo} onClick={() => salva()}>
+          {inVolo ? "Carico…" : "Carica backup"}
         </button>
       </div>
     </LvOverlay>

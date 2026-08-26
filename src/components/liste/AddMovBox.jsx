@@ -3,8 +3,9 @@
 // e i due campi in linea della testata. Ognuno ha stato e salvataggio propri e
 // con gli altri condivide solo il `dispatch`.
 import { useEffect, useRef, useState } from "react";
-import { METODI, parseImporto, todayISO } from "./listeApi.js";
+import { METODI, parseImporto, todayISO } from "./listeFormato.js";
 import { useListeWrite } from "./listePersistence.js";
+import { useSalvataggioLista } from "./useSalvataggioLista.js";
 import { SegnoSeg } from "./modals/SegnoSeg.jsx";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { validaCampi, obbligatorio, interpretabile, primoCampoInvalido } from "../../lib/validators.js";
@@ -37,7 +38,6 @@ export function AddMovBox({ listaId, onSaved, onClose, onBulk }) {
   const [segno, setSegno] = useState(1);
   const [imp, setImp] = useState("");
   const [metodo, setMetodo] = useState("");
-  const [saving, setSaving] = useState(false);
   // Criticità #10: un messaggio PER CAMPO, non un toast che li nomina tutti e
   // tre e sparisce da solo lasciando il form identico a com'era.
   const [errori, setErrori] = useState({});
@@ -57,8 +57,28 @@ export function AddMovBox({ listaId, onSaved, onClose, onBulk }) {
     setErrori((prec) => (prec[campo] ? { ...prec, [campo]: undefined } : prec));
   };
 
-  const submit = async () => {
-    if (saving) return;
+  // A-2 · L'unico file del modulo che il controllo «form che scrivono senza
+  // attendere l'esito» vedeva — e nemmeno lui, finché `scriveDavvero` non ha
+  // imparato il secondo verbo di scrittura dell'app (A-1). Validazione e invio
+  // restano due cose distinte: i messaggi PER CAMPO sono qui sopra, il freno
+  // al doppio invio e il guard di smontaggio vengono dal contratto.
+  const { salva, inVolo } = useSalvataggioLista(
+    async (payload) => (await esegui("registraMovimento", payload)).ok,
+    {
+      // Il riquadro resta aperto e pronto per il movimento successivo:
+      // azzeriamo solo descrizione e importo, data e metodo si ripetono quasi
+      // sempre.
+      alSuccesso: () => {
+        setDesc("");
+        setImp("");
+        setErrori({});
+        onSaved();
+        descRef.current?.focus();
+      },
+    },
+  );
+
+  const submit = () => {
     const valori = { data, desc, imp, segno };
     const trovati = validaCampi(valori, REGOLE);
     const primo = primoCampoInvalido(trovati, ORDINE);
@@ -70,20 +90,10 @@ export function AddMovBox({ listaId, onSaved, onClose, onBulk }) {
       return;
     }
     setErrori({});
-    const importo = parseImporto(imp, segno);
-    setSaving(true);
-    const { ok } = await esegui("registraMovimento", {
-      listaId, data, descrizione: desc.trim(), importo, metodo: metodo || null,
+    salva({
+      listaId, data, descrizione: desc.trim(), importo: parseImporto(imp, segno),
+      metodo: metodo || null,
     });
-    setSaving(false);
-    if (!ok) return;
-    // Il riquadro resta aperto e pronto per il movimento successivo: azzeriamo
-    // solo descrizione e importo, data e metodo si ripetono quasi sempre.
-    setDesc("");
-    setImp("");
-    setErrori({});
-    await onSaved();
-    descRef.current?.focus();
   };
 
   return (
@@ -133,8 +143,8 @@ export function AddMovBox({ listaId, onSaved, onClose, onBulk }) {
           </select>
         </div>
         <div className="lv-field" style={rowEnd}>
-          <button className="lv-btn primary" style={wFull} disabled={saving} onClick={submit}>
-            {saving ? "Registro…" : "Registra"}
+          <button className="lv-btn primary" style={wFull} disabled={inVolo} onClick={submit}>
+            {inVolo ? "Registro…" : "Registra"}
           </button>
         </div>
       </div>

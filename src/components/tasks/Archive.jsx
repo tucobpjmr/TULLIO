@@ -49,17 +49,16 @@ export const Archive = memo(function Archive({ loading = false }) {
   const dispatch = useDispatch();
   const conferma = useConfirm();
   const { isMobile } = useViewport();
-  const { categories, currentUserId, getVisibleTasks, canEditTask, canAccessListe } = useAppData();
+  const { categories, io } = useAppData();
   const tasks = useTasks();
   // A-3: l'archivio SONO le task completate, cioè esattamente la parte che
   // l'idratazione lascia fuori dalla finestra. Chiedendo il corpus intero al
   // mount, «209 task completate» torna a essere il totale e non «quelle degli
   // ultimi sessanta giorni» detto con la stessa faccia.
   const caricandoStorico = useStoricoTaskCompleto();
-  const me = currentUserId;
   // Le liste buoni viaggio seguono l'accesso al modulo Liste Viaggio (stessa
   // RLS): niente tab, niente fetch, per chi non può comunque accedervi.
-  const listeAllowed = canAccessListe(me);
+  const listeAllowed = io.accedeListe();
   const [tab, setTab] = useState("task");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
@@ -75,9 +74,9 @@ export const Archive = memo(function Archive({ loading = false }) {
   // rilievo che P2-4 ha corretto sulla Dashboard, sulla vista che quel
   // perimetro non comprendeva.
   const archived = useMemo(
-    () => getVisibleTasks(getArchivedTasks(tasks), me)
+    () => io.taskVisibili(getArchivedTasks(tasks))
       .sort((a, b) => new Date(b.completedAt || b.dueDate || 0) - new Date(a.completedAt || a.dueDate || 0)),
-    [tasks, me, getVisibleTasks]);
+    [tasks, io]);
 
   // M-3 · L'indice di ricerca delle righe archiviate, ricostruito quando
   // cambiano le task e non a ogni carattere digitato. Va insieme al `useMemo`
@@ -123,7 +122,7 @@ export const Archive = memo(function Archive({ loading = false }) {
     (task) => dispatch({ type: "SET_SELECTED_TASK", payload: task }), [dispatch]);
 
   const handleReopen = (task) => {
-    if (!canEditTask(task, me)) {
+    if (!io.modificaTask(task)) {
       dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "Non puoi riaprire questa task" } });
       return;
     }
@@ -199,7 +198,7 @@ export const Archive = memo(function Archive({ loading = false }) {
 
           {/* Filtro periodo (per data di completamento) — solo se ci sono task */}
           {!caricando && archived.length > 0 && (
-            <div style={stiliComuni.rowCenterGap82}>
+            <div style={stiliComuni.rowFiltri}>
               <span style={stiliComuni.txtF11Bold}>Completate:</span>
               {PERIOD_OPTIONS.map(opt => (
                 <button key={opt.key} type="button" onClick={() => setPeriod(opt.key)} style={chipStyle(period === opt.key)}>
@@ -319,7 +318,7 @@ export const Archive = memo(function Archive({ loading = false }) {
                         {task.completedAt ? formatDate(task.completedAt) : "—"}
                       </td>
                       <td style={stiliComuni.cellaAzioni} onClick={e => e.stopPropagation()}>
-                        <div style={stiliComuni.rowGap62}>
+                        <div style={stiliComuni.rowAzioniInLinea}>
                           <button onClick={() => handleReopen(task)} title="Riapri (rimetti in lavorazione)" style={stiliComuni.btnNavyMini}>↩ Riapri</button>
                           <button onClick={() => handleTrash(task)} title="Sposta nel cestino" style={stiliComuni.btnDangerMini}>🗑️</button>
                         </div>

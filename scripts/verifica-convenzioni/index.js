@@ -26,6 +26,10 @@ import {
   // i call site mancanti invece di CONTARE quelli presenti. Vedi il blocco che
   // li introduce in convenzioni.js.
   azioniRegistry, formSenzaAttesaEsito, ricercheSenzaIndice, iterazioniQuadratiche,
+  // A-1 (26 agosto): il secondo verbo di scrittura dell'app, il controllo
+  // sullo stato di invio a mano, e i due perimetri dichiarati -- senza i quali
+  // un atteso di 0 non distingue "nessun debito" da "non ho guardato".
+  statoInvioScrittoAMano, leggiPerimetroContratto,
   // A-4: il tetto FISICO, accanto a quello di max-lines che salta i commenti.
   fileOltreTettoFisico,
   // M-1 (passo 2): la finestra sull'anagrafica e chi ne chiede il complemento.
@@ -33,8 +37,13 @@ import {
   // A-5 (23 agosto, secondo passaggio): le forme di stile confrontate per
   // VALORE e non per nome. Vedi il blocco che le introduce in convenzioni.js.
   formeDuplicate, formeGiaInComune,
+  // M-3 (26 agosto): i nomi di common.js con un suffisso di collisione,
+  // cioè meccanici come gli altri ma su un valore che non hanno.
+  suffissoDiCollisione,
   // B-3 (25 agosto): due nomi per un concetto solo dentro lo stesso file.
   doppioNome,
+  // B-3 (26 agosto): i test stanno in cartelle che rispecchiano il sorgente.
+  testSciolti,
 } from './convenzioni.js';
 
 // Gli audit sotto controllo: nome del file, prefisso dei suoi rilievi.
@@ -78,6 +87,17 @@ const AUDIT = [
   // scadere. I prefissi sono due — M (media) e B (bassa) — perche' non ha
   // rilievi critici ne' di alta priorita'.
   { file: 'AUDIT_ARCHITETTURA_2026-08-25.md', prefisso: ['M', 'B'] },
+  // Registrato insieme al documento, come i cinque sopra — ed e' l'audit con
+  // TUTTI E UNDICI i rilievi ancora aperti, cioe' quello il cui marcatore
+  // ha piu' occasioni di scadere. I prefissi sono tre: A (alta), M (media),
+  // B (bassa). Nessun rilievo critico, quindi niente C.
+  //
+  // ⚠️ A-1 di quell'audit riguarda QUESTO script: `formSenzaAttesaEsito`
+  // certifica un perimetro piu' piccolo del codice (non vede le dodici form
+  // di components/liste/, che scrivono con `esegui` e non con un dispatch del
+  // registry core). Finche' non e' chiuso, il controllo n. 5-bis qui sotto
+  // stampa uno 0 che vale solo per il core.
+  { file: 'AUDIT_ARCHITETTURA_2026-08-26.md', prefisso: ['A', 'M', 'B'] },
 ];
 
 // Misura i warning di una regola sul sorgente dell'app.
@@ -280,8 +300,39 @@ async function main() {
   const senzaAttesa = formSenzaAttesaEsito(sorgenti, azioni);
   controlli.push({
     nome: 'form che scrivono senza attendere l\'esito', dove: 'docs/CLAUDE.md',
-    dichiarato: 0, misurato: senzaAttesa.length,
-    rimedio: `Passa da \`useSalvataggio\` (o attendi il dispatch a mano, come ProfileEditor): ${senzaAttesa.join(', ')}`,
+    dichiarato: 0, misurato: senzaAttesa.fuori.length,
+    rimedio: `Passa da \`useSalvataggio\` (o attendi il dispatch a mano, come ProfileEditor): ${senzaAttesa.fuori.join(', ')}`,
+  });
+
+  // ─── 5-quinquies · A-1 (audit del 26 agosto) ──────────────────────────────
+  //    Lo stato di invio scritto a mano su una scrittura. Controllo a sé e non
+  //    un allargamento del precedente: quello chiede «i dati digitati
+  //    sopravvivono a un rifiuto?», questo «lo stato di invio viene dal
+  //    contratto?» — vedi il commento di statoInvioScrittoAMano per le tre
+  //    garanzie che una copia a mano non ha.
+  const aMano = statoInvioScrittoAMano(sorgenti, azioni);
+  controlli.push({
+    nome: 'stato di invio scritto a mano', dove: 'docs/CLAUDE.md',
+    dichiarato: 0, misurato: aMano.length,
+    rimedio: `\`const [saving, …]\` su una scrittura: prendilo da \`useSalvataggio\` — ${aMano.join(', ')}`,
+  });
+
+  // ─── 5-sexies · il PERIMETRO, dichiarato ─────────────────────────────────
+  //    A-1 e' nato da un controllo verde su un perimetro piu' piccolo del
+  //    codice. Un atteso di 0 non protegge da questo: protegge dal debito che
+  //    CRESCE, non dal perimetro che si RESTRINGE. Questo numero sta in
+  //    docs/CLAUDE.md e rende visibile il restringimento — se una form nuova
+  //    scrive in un modo che `scriveDavvero` non riconosce, il perimetro cala
+  //    e il controllo lo dice, invece di continuare a stampare uno zero.
+  //
+  //    Vale per DUE controlli e non per uno: `statoInvioScrittoAMano` condivide
+  //    `scriveDavvero` e non puo' dichiarare un perimetro proprio (il suo stato
+  //    finale corretto e' zero file), quindi e' questo numero a proteggere
+  //    anche lui. Vedi il commento di quella funzione.
+  controlli.push({
+    nome: 'form nel perimetro del contratto', dove: 'docs/CLAUDE.md',
+    dichiarato: leggiPerimetroContratto(claudeMd), misurato: senzaAttesa.perimetro.length,
+    rimedio: `Aggiorna la frase «il contratto «salva e chiudi» guarda N form» (misurati: ${senzaAttesa.perimetro.join(', ')}).`,
   });
 
   const senzaIndice = ricercheSenzaIndice(sorgenti);
@@ -333,6 +384,35 @@ async function main() {
     nome: 'forme già in common.js riscritte altrove', dove: 'src/styles/common.js',
     dichiarato: 0, misurato: gia.length,
     rimedio: `Usa quella condivisa invece di ridefinirla: ${gia.join(' | ')}`,
+  });
+
+  // 5-octies · M-3 (audit del 26 agosto). Terzo della famiglia degli stili, e
+  //    l'unico che guarda i NOMI invece dei valori. `rowGap62` non è «gap 62»:
+  //    è «la seconda forma che somigliava a rowGap6», su un modulo che 85 file
+  //    importano. Il predicato è relazionale (il nome senza l'ultima cifra è
+  //    un altro nome esportato) e non sintattico, perché `rowGap4` e `txtF13`
+  //    hanno cifre che significano qualcosa e devono restare — vedi il
+  //    preambolo di `suffissoDiCollisione`.
+  const collisioni = suffissoDiCollisione(inComune);
+  controlli.push({
+    nome: 'nomi di stile con suffisso di collisione', dove: 'src/styles/common.js (fan-in 85)',
+    dichiarato: 0, misurato: collisioni.length,
+    rimedio: `Dai alla forma il nome del suo RUOLO, non un numero progressivo: ${collisioni.join(' | ')}`,
+  });
+
+  // 5-nonies · B-3 (audit del 26 agosto). I 146 file di test erano tutti allo
+  //    stesso livello, e la loro struttura viveva nei prefissi dei nomi — dove
+  //    nessuno strumento la vede. Ora rispecchiano le cartelle del sorgente, e
+  //    questo controllo è ciò che impedisce alla cartella di tornare piatta un
+  //    file per volta: è già successo a `components/` dopo la stessa
+  //    operazione (B-1 del 25 agosto).
+  const sciolti = testSciolti(
+    (await readdir('src/test', { withFileTypes: true }))
+      .filter(v => v.isFile()).map(v => v.name));
+  controlli.push({
+    nome: 'test sciolti in src/test/', dove: 'src/test/ (una cartella per area)',
+    dichiarato: 0, misurato: sciolti.length,
+    rimedio: `Spostali nella cartella dell'area che verificano: ${sciolti.join(', ')}`,
   });
 
   // 5-septies · B-3 (audit del 25 agosto). La lingua degli identificatori è

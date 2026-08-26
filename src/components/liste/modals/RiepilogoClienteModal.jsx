@@ -1,4 +1,5 @@
-import { eur, fmtDate, intestazioneLista, riepilogoTesto, saldoClass } from "../listeApi.js";
+import { eur, fmtDate, intestazioneLista, saldoClass } from "../listeFormato.js";
+import { riepilogoTesto } from "../listeDocumenti.js";
 import { LvOverlay } from "./LvOverlay.jsx";
 import { dataNumerica } from "../../../lib/dates.js";
 import { useDispatch } from "../../../state/DispatchContext.jsx";

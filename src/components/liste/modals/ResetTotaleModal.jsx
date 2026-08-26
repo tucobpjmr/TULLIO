@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { LvOverlay } from "./LvOverlay.jsx";
+import { useSalvataggioLista } from "../useSalvataggioLista.js";
+import { CONFERMA_RESET } from "../listePersistence.js";
 import * as stiliComuni from "../../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
@@ -13,14 +15,17 @@ const txtF14LvMuted = { fontSize: 14, color: "var(--lv-muted)" };
 // stessa barriera anti-click-accidentale della SPA sorgente.
 export function ResetTotaleModal({ onClose, onSave }) {
   const [testo, setTesto] = useState("");
-  const [saving, setSaving] = useState(false);
 
-  const submit = async () => {
-    if (saving) return;
-    if (testo.trim() !== "RESET TOTALE") return onSave.onError("Digita esattamente: RESET TOTALE");
-    setSaving(true);
-    const ok = await onSave.run();
-    if (!ok) setSaving(false);
+  const { salva, inVolo } = useSalvataggioLista(onSave.run);
+
+  // La frase esatta viene da `listePersistence.js` e non da un letterale
+  // scritto qui: e' meta' del contratto della RPC `reset_completo()`, e un
+  // refuso nel chiamante trasformerebbe l'operazione irreversibile in un
+  // errore incomprensibile. La stessa costante alimenta anche l'etichetta e il
+  // placeholder qui sotto, cosi' le tre occorrenze non possono divergere.
+  const submit = () => {
+    if (testo.trim() !== CONFERMA_RESET) return onSave.onError(`Digita esattamente: ${CONFERMA_RESET}`);
+    salva();
   };
 
   return (
@@ -33,20 +38,20 @@ export function ResetTotaleModal({ onClose, onSave }) {
         account restano. Si consiglia di <b>scaricare prima un backup</b>.
       </p>
       <div className="row lv-field" style={stiliComuni.mt12}>
-        <label htmlFor="reset-conf">Per confermare digita esattamente: RESET TOTALE</label>
+        <label htmlFor="reset-conf">Per confermare digita esattamente: {CONFERMA_RESET}</label>
         <input
           id="reset-conf"
           value={testo}
           onChange={(e) => setTesto(e.target.value)}
-          placeholder="RESET TOTALE"
+          placeholder={CONFERMA_RESET}
           autoComplete="off"
           autoCapitalize="characters"
         />
       </div>
       <div className="actions">
         <button className="lv-btn" onClick={onClose}>Annulla</button>
-        <button className="lv-btn danger" disabled={saving} onClick={submit}>
-          {saving ? "Elimino…" : "Elimina tutto"}
+        <button className="lv-btn danger" disabled={inVolo} onClick={submit}>
+          {inVolo ? "Elimino…" : "Elimina tutto"}
         </button>
       </div>
     </LvOverlay>

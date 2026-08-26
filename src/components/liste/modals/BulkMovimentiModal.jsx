@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { eur, parseImporto, todayISO } from "../listeApi.js";
+import { eur, parseImporto, todayISO } from "../listeFormato.js";
 import { LvOverlay } from "./LvOverlay.jsx";
 import { MetodoSelect } from "./MetodoSelect.jsx";
 import { SegnoSeg } from "./SegnoSeg.jsx";
 import * as stiliComuni from "../../../styles/common.js";
+import { useSalvataggioLista } from "../useSalvataggioLista.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -19,7 +20,6 @@ export function BulkMovimentiModal({ onSave, onClose }) {
   const [data, setData] = useState(todayISO());
   const [metodo, setMetodo] = useState(null);
   const [rows, setRows] = useState(() => [emptyBulkRow(), emptyBulkRow(), emptyBulkRow()]);
-  const [saving, setSaving] = useState(false);
 
   const setRow = (key, patch) =>
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
@@ -32,8 +32,9 @@ export function BulkMovimentiModal({ onSave, onClose }) {
   const totale = rows.reduce((s, r) => s + (parseImporto(r.imp, r.segno) || 0), 0);
   const totCls = totale > 0.004 ? "pos" : totale < -0.004 ? "neg" : "";
 
-  const submit = async () => {
-    if (saving) return;
+  const { salva, inVolo } = useSalvataggioLista(onSave.run);
+
+  const submit = () => {
     if (!data) return onSave.onError("Inserisci la data comune");
     const movimenti = [];
     let incomplete = 0;
@@ -47,9 +48,7 @@ export function BulkMovimentiModal({ onSave, onClose }) {
     }
     if (incomplete) return onSave.onError(`${incomplete} righe hanno descrizione o importo mancante`);
     if (!movimenti.length) return onSave.onError("Compila almeno una riga");
-    setSaving(true);
-    const ok = await onSave.run({ data, movimenti, metodo });
-    if (!ok) setSaving(false);
+    salva({ data, movimenti, metodo });
   };
 
   return (
@@ -104,8 +103,8 @@ export function BulkMovimentiModal({ onSave, onClose }) {
       </div>
       <div className="actions">
         <button className="lv-btn" onClick={onClose}>Annulla</button>
-        <button className="lv-btn primary" disabled={saving} onClick={submit}>
-          {saving ? "Registro…" : "Registra tutti"}
+        <button className="lv-btn primary" disabled={inVolo} onClick={submit}>
+          {inVolo ? "Registro…" : "Registra tutti"}
         </button>
       </div>
     </LvOverlay>

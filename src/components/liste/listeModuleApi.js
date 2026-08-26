@@ -28,7 +28,8 @@
 // che si è presentata solo per distrazione, copiando l'import dal vicino — si
 // ferma prima del commit.
 
-import { ListeAPI, beneficiariNomi, intestazioneLista } from "./listeApi.js";
+import { ListeAPI } from "./listeApi.js";
+import { beneficiariNomi, intestazioneLista } from "./listeFormato.js";
 
 // Formattazione dei nomi di una lista (intestatario e beneficiari): pure, ma
 // ri-esportate da qui perché il core abbia UNA sola porta d'ingresso al modulo

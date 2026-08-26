@@ -62,7 +62,7 @@ const URGENT_WINDOWS = [
 // mentre i dati stanno ancora arrivando è l'esempio da cui è nata questa
 // modifica — una scadenza imminente non vista è una scadenza mancata.
 export const UrgentQueue = ({ tasks, onOpenChat, uid, loading = false }) => {
-  const { getMember, canEditTask } = useAppData();
+  const { getMember, per } = useAppData();
   const [filterAgent, setFilterAgent] = useState(null);
   const [oreUrgenza, impostaOreUrgenza] = useState(24);
   const openTask = useOpenTask();
@@ -206,7 +206,7 @@ export const UrgentQueue = ({ tasks, onOpenChat, uid, loading = false }) => {
           const mine = (t.assignees || []).includes(uid);
           // Read-only solo se l'utente non ha davvero i permessi di modifica:
           // le task non assegnate (coda globale) restano editabili anche qui.
-          const editable = canEditTask(t, uid);
+          const editable = per(uid).modificaTask(t);
           return (
             <SwipeActions key={t.id} task={t}>
               <TaskCard

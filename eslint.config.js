@@ -252,10 +252,23 @@ const VIETATO_DISPATCH_PROP = {
     + 'passa a renderWithAppData(ui, { dispatch }) o a withDispatch(ui, dispatch).',
 };
 
+// ⚠️ TRE FILE, NON UNO (B-1, audit del 26 agosto). `listeApi.js` è stato
+// separato in data layer + `listeFormato.js` + `listeDocumenti.js`, e una
+// separazione che nessuno presidia è due porte nuove sullo stesso modulo: il
+// divieto nomina un PERCORSO, quindi i due file nuovi non erano coperti da
+// nulla e un `import { eur } from "…/liste/listeFormato.js"` da una vista del
+// core sarebbe passato senza che niente lo segnalasse. È lo stesso ragionamento
+// di A-4 su `lib/api/`: spezzare un modulo privato moltiplica le sue porte, e
+// il divieto va spezzato insieme a lui.
 const VIETATO_LISTEAPI_DA_FUORI = {
-  group: ['**/liste/listeApi', '**/liste/listeApi.js'],
+  group: [
+    '**/liste/listeApi', '**/liste/listeApi.js',
+    '**/liste/listeFormato', '**/liste/listeFormato.js',
+    '**/liste/listeDocumenti', '**/liste/listeDocumenti.js',
+  ],
   message:
-    'listeApi.js è PRIVATO del modulo Liste: dal core si passa da ' +
+    'I tre moduli interni del modulo Liste (listeApi / listeFormato / '
+    + 'listeDocumenti) sono PRIVATI: dal core si passa da ' +
     'components/liste/listeModuleApi.js, che espone domande e non query. ' +
     'Tre viste del core (Topbar/ricerca, ClientiView, Archive) conoscevano la ' +
     'forma delle tabelle di un modulo altrui prima che quella facciata esistesse.',

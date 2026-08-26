@@ -308,7 +308,7 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
 
           {normalizedPreview.length > 0 && (
             <div>
-              <div style={stiliComuni.txtF10Bold2}>
+              <div style={stiliComuni.etichettaSezione}>
                 ANTEPRIMA TASK — COME VERRANNO CREATI
               </div>
               <div style={boxR8}>
@@ -348,7 +348,7 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
           )}
 
           <div>
-            <div style={stiliComuni.txtF10Bold2}>
+            <div style={stiliComuni.etichettaSezione}>
               FILE SORGENTE (prime 5 righe)
             </div>
             <div style={boxR82}>
@@ -373,7 +373,7 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
         </>
       )}
 
-      <div style={stiliComuni.rowCenterBetween2}>
+      <div style={stiliComuni.piedeSezione}>
         <div style={stiliComuni.txtF12Muted}>
           {validRows.length} task validi {!mapping.title && rows.length > 0 && "(mappa il TITOLO)"}
         </div>

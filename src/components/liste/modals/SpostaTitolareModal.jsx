@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { LvOverlay } from "./LvOverlay.jsx";
+import { useSalvataggioLista } from "../useSalvataggioLista.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -16,14 +17,12 @@ const txtF12LvMuted = { fontSize: 12, color: "var(--lv-muted)", marginTop: 4 };
 // crearne uno nuovo per poi spostarcisi.
 export function SpostaTitolareModal({ clients, cointestatariIds, titolareAttuale, onMove, onClose }) {
   const [clientId, setClientId] = useState("");
-  const [saving, setSaving] = useState(false);
 
-  const submit = async () => {
-    if (saving) return;
+  const { salva, inVolo } = useSalvataggioLista(onMove.run);
+
+  const submit = () => {
     if (!clientId) return onMove.onError("Scegli il cliente di destinazione");
-    setSaving(true);
-    const ok = await onMove.run(clientId);
-    if (!ok) setSaving(false);
+    salva(clientId);
   };
 
   const promuove = cointestatariIds.has(clientId);
@@ -51,8 +50,8 @@ export function SpostaTitolareModal({ clients, cointestatariIds, titolareAttuale
       )}
       <div className="actions">
         <button className="lv-btn" onClick={onClose}>Annulla</button>
-        <button className="lv-btn primary" disabled={saving} onClick={submit}>
-          {saving ? "Sposto…" : "Sposta"}
+        <button className="lv-btn primary" disabled={inVolo} onClick={submit}>
+          {inVolo ? "Sposto…" : "Sposta"}
         </button>
       </div>
     </LvOverlay>

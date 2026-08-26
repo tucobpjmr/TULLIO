@@ -175,7 +175,7 @@ export const DuplicateTab = ({ tasks, onCreate, onClose, onCancel, onDirty }) =>
         })}
       </div>
 
-      <div style={stiliComuni.rowCenterBetween2}>
+      <div style={stiliComuni.piedeSezione}>
         <div style={stiliComuni.colGap2F12}>
           <span>{totalCount} copie da creare</span>
           {error && <span style={stiliComuni.txtBoldDanger}>{error}</span>}

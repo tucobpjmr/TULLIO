@@ -77,7 +77,7 @@ export const AdminStatsTab = ({ messageTemplates = [] }) => {
     <div style={cardStyle}>
       <div style={txtF11Bold}>{label}</div>
       <div style={{ fontSize: 32, fontWeight: 700, color: color || "var(--navy)", marginTop: 4 }}>{value}</div>
-      {sub && <div style={stiliComuni.txtF12Muted2}>{sub}</div>}
+      {sub && <div style={stiliComuni.sottotitolo}>{sub}</div>}
     </div>
   );
 

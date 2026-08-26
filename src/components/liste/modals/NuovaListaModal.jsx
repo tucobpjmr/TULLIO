@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { LvOverlay } from "./LvOverlay.jsx";
+import { useSalvataggioLista } from "../useSalvataggioLista.js";
 
 // ─── Nuova lista ───────────────────────────────────────────────────────────
 // Il cliente si sceglie dall'anagrafica condivisa; "+ Nuovo cliente…" lo crea
@@ -9,19 +10,21 @@ export function NuovaListaModal({ clients, onCreate, onClose, presetClientId = n
   const [clientId, setClientId] = useState(presetClientId || "");
   const [newName, setNewName] = useState("");
   const [titolo, setTitolo] = useState("");
-  const [saving, setSaving] = useState(false);
 
-  const submit = async () => {
-    if (saving) return;
+  // A-2 · Il freno al doppio invio, il `finally` e il guard di smontaggio
+  // vengono dal contratto. Sulla riuscita è `run()` a chiudere l'overlay:
+  // il guard rende quello smontaggio un caso previsto invece di una scrittura
+  // di stato su un componente che non c'è più.
+  const { salva, inVolo } = useSalvataggioLista(onCreate.run);
+
+  const submit = () => {
     if (!clientId) return onCreate.onError("Scegli un cliente");
     if (clientId === "__new__" && !newName.trim()) return onCreate.onError("Inserisci il nome del cliente");
-    setSaving(true);
-    const ok = await onCreate.run({
+    salva({
       clientId: clientId === "__new__" ? null : clientId,
       titolo: titolo.trim() || null,
       newClientName: clientId === "__new__" ? newName.trim() : null,
     });
-    if (!ok) setSaving(false); // consenti un nuovo tentativo
   };
 
   return (
@@ -47,8 +50,8 @@ export function NuovaListaModal({ clients, onCreate, onClose, presetClientId = n
       </div>
       <div className="actions">
         <button className="lv-btn" onClick={onClose}>Annulla</button>
-        <button className="lv-btn primary" disabled={saving} onClick={submit}>
-          {saving ? "Creo…" : "Crea lista"}
+        <button className="lv-btn primary" disabled={inVolo} onClick={submit}>
+          {inVolo ? "Creo…" : "Crea lista"}
         </button>
       </div>
     </LvOverlay>

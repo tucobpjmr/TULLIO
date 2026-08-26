@@ -196,7 +196,13 @@ export function leggiCallSiteSalvataggio(testo) {
  * @returns {string[]} i percorsi che importano l'hook
  */
 export function usiSalvataggio(sorgenti) {
-  const IMPORTA = /import\s*\{[^}]*\buseSalvataggio\b[^}]*\}\s*from/;
+  // A-2 (audit del 26 agosto) · Anche `useSalvataggioLista`, che è il contratto
+  // nel dialetto del modulo Liste. Contare il solo nome nudo avrebbe fatto
+  // scendere questo numero da 25 a 14 il giorno in cui dodici form lo hanno
+  // ADOTTATO — cioè avrebbe raccontato l'opposto di ciò che è successo. Il
+  // numero misura quanti file hanno il contratto, non da quale porta ci sono
+  // entrati.
+  const IMPORTA = /import\s*\{[^}]*\buseSalvataggio(?:Lista)?\b[^}]*\}\s*from/;
   const usi = (sorgenti || []).filter(f => IMPORTA.test(f.testo)).map(f => f.path);
   if (usi.length === 0) {
     throw new LetturaFallita(
@@ -335,15 +341,19 @@ export function azioniRegistry(testo) {
  * il pattern giusto per quel caso. Restringere a chi ha un form è ciò che
  * separa i sei call site del rilievo dai molti che vanno bene così.
  *
+ * ⚠️ A-1 (audit del 26 agosto) · «scrive» non è più solo «dispatcha»: questa
+ * app ha DUE registry di scrittura, e il predicato ne conosceva uno. Vedi
+ * `scriveDavvero` qui sotto, che è dove sta il rilievo. Da qui cambia anche il
+ * VALORE DI RITORNO: non più il solo elenco dei bocciati, ma anche il
+ * perimetro — chi controlla ha bisogno di sapere non solo quanti ne ha
+ * bocciati, ma quanti ne ha guardati.
+ *
  * @param {{path: string, testo: string}[]} sorgenti
- * @param {string[]} azioni i tipi del registry (vedi azioniRegistry)
- * @returns {string[]} i percorsi che scrivono senza attendere
+ * @param {string[]} azioni i tipi del registry core (vedi azioniRegistry)
+ * @returns {{perimetro: string[], fuori: string[]}}
  */
 export function formSenzaAttesaEsito(sorgenti, azioni) {
   const HA_FORM = /import\s*\{[^}]*\bvalidaCampi\b[^}]*\}\s*from/;
-  const ATTENDE = /\buseSalvataggio\b|await\s+dispatch\s*\(/;
-  const SCRIVE = new RegExp(
-    `dispatch\\(\\s*\\{\\s*type:\\s*["'](?:${azioni.join('|')})["']`);
   const conForm = (sorgenti || []).filter(f => HA_FORM.test(f.testo));
   if (conForm.length === 0) {
     throw new LetturaFallita(
@@ -351,10 +361,155 @@ export function formSenzaAttesaEsito(sorgenti, azioni) {
       'stata rimossa, o la forma dell\'import è cambiata. Senza, questo ' +
       'controllo non ha più nessun form da guardare.');
   }
-  return conForm
-    .filter(f => SCRIVE.test(f.testo) && !ATTENDE.test(f.testo))
+  const perimetro = conForm.filter(f => scriveDavvero(f.testo, azioni));
+  if (perimetro.length === 0) {
+    throw new LetturaFallita(
+      'Nessuno dei file che importano `validaCampi` risulta scrivere: i verbi ' +
+      'di scrittura riconosciuti da `scriveDavvero` non descrivono più come ' +
+      'questa app scrive, e il controllo passerebbe a vuoto.');
+  }
+  return {
+    perimetro: perimetro.map(f => f.path),
+    fuori: perimetro.filter(f => !ATTENDE_ESITO.test(f.testo)).map(f => f.path),
+  };
+}
+
+/**
+ * A-1 (audit del 26 agosto) · I DUE verbi di scrittura di questa app.
+ *
+ * PERCHÉ ESISTE, ed è tutto il rilievo. Fino a qui «scrivere» voleva dire una
+ * cosa sola: dispatchare un'azione del registry di `state/persistence.js`. Ma
+ * questa app ha DUE registry di scrittura — la scelta è di dominio, ed è
+ * documentata in M-1 dell'audit del 25 agosto: il core è ottimistico perché è
+ * ciò che l'operatore tocca in continuazione, il modulo Liste conferma prima
+ * perché lì il dato è denaro. Le scritture del secondo passano da
+ * `esegui("nomeOperazione", …)` (`liste/listePersistence.js`), e da `run()`
+ * quando la modale riceve l'operazione già confezionata dal genitore.
+ *
+ * Nessuna delle due forme somiglia a un `dispatch`, quindi nessuno dei dodici
+ * form del modulo Liste poteva far scattare i controlli qui sotto. Non erano
+ * conformi e non erano nemmeno segnalati: `AddMovBox.jsx` importa
+ * `validaCampi`, gestisce `saving` a mano, ed era esente per un motivo solo —
+ * il verbo con cui scrive. Un controllo verde su un perimetro più piccolo del
+ * codice è peggio di un controllo assente: quello assente lascia la domanda
+ * aperta, questo la chiude con la risposta sbagliata.
+ *
+ * ⚠️ Se nasce un TERZO registry, va aggiunto qui. Il segnale che serve è
+ * proprio la ragione per cui i due controlli chiamanti dichiarano il proprio
+ * perimetro in docs/CLAUDE.md invece di limitarsi a pretendere 0: un perimetro
+ * che si restringe si vede, invece di continuare a stampare uno zero su un
+ * insieme sempre più piccolo.
+ *
+ * NON è coperto qui, ed è deliberato: la scrittura che chiama direttamente il
+ * data layer senza passare da un registry (`Users.invite` in
+ * `admin/AddTeamMemberModal.jsx` e `admin/BulkInviteModal.jsx`). È M-6
+ * dell'audit del 26 agosto, con la sua ragione: `BulkInviteModal` è un batch
+ * con esito PER RIGA e progresso live, cioè una forma che il contratto non
+ * copre ancora — e allargare il predicato prima di aver deciso quella forma
+ * produrrebbe un rosso senza una correzione da applicare.
+ *
+ * @param {string} testo
+ * @param {string[]} azioni i tipi del registry core (vedi azioniRegistry)
+ */
+function scriveDavvero(testo, azioni) {
+  // Registry del core: dispatch di un'azione dichiarata in persistence.js.
+  const CORE = new RegExp(
+    `dispatch\\(\\s*\\{\\s*type:\\s*["'](?:${azioni.join('|')})["']`);
+  // Registry del modulo Liste: l'esecutore, e la sua forma confezionata.
+  const LISTE = /\besegui\s*\(\s*["'][a-zA-Z]/;
+  const LISTE_CONFEZIONATA = /\bon[A-Z]\w*\.run\s*\(/;
+  return CORE.test(testo) || LISTE.test(testo) || LISTE_CONFEZIONATA.test(testo);
+}
+
+/**
+ * Le strade accettate per attendere l'esito: il contratto, il suo adattatore
+ * per il modulo Liste (`useSalvataggioLista`, A-2), o l'attesa a mano.
+ *
+ * ⚠️ `\buseSalvataggio\b` NON basta e non è un dettaglio di regex: il `\b`
+ * finale fa fallire il confronto su `useSalvataggioLista`, ed è giusto così —
+ * i due nomi vanno distinti, altrimenti il controllo «call site di
+ * useSalvataggio» conterebbe l'uno per l'altro. Qui servono entrambi perché
+ * qui la domanda non è QUALE hook, è se l'esito viene atteso.
+ */
+const ATTENDE_ESITO = /\buseSalvataggio(?:Lista)?\b|await\s+dispatch\s*\(/;
+
+/**
+ * A-1 (audit del 26 agosto), seconda metà · Lo stato di invio scritto a mano.
+ *
+ * PERCHÉ È UN CONTROLLO A SÉ e non un allargamento di quello sopra. I due
+ * rispondono a due domande diverse, e nessuna delle due da sola descrive un
+ * file:
+ *
+ *  • `formSenzaAttesaEsito` chiede «i dati digitati sopravvivono a un
+ *    rifiuto?». Il suo marcatore è `validaCampi`, cioè "qui c'è qualcosa che
+ *    vale la pena validare, quindi qualcosa da perdere".
+ *  • questo chiede «lo stato di invio viene dal contratto?». Il suo marcatore
+ *    è `const [saving, …]`, e intercetta le tre garanzie che una copia scritta
+ *    a mano non ha, TUTTE argomentate dentro hooks/useSalvataggio.js:
+ *      ① il freno al doppio invio su un `ref` e non sullo stato (fra due click
+ *        ravvicinati React può non aver ri-renderizzato: entrambi i gestori
+ *        leggono `false` e partono due scritture — su `registraMovimento` sono
+ *        due movimenti su un saldo);
+ *      ② `setSaving(false)` dentro un `finally` (senza, un'eccezione lascia
+ *        il bottone spento per sempre: è il difetto che QuickAddTask ha avuto);
+ *      ③ il guard di smontaggio dopo l'`await`.
+ *
+ * Un form validato che si chiude subito non ha per forza uno stato di invio, e
+ * una conferma senza campi digitati non importa `validaCampi` pur avendone
+ * uno. Fonderli avrebbe fatto perdere metà dei casi a ciascuno.
+ *
+ * ⚠️ QUESTO controllo NON solleva sul presupposto vuoto, a differenza di tutti
+ * gli altri di questo file, e la ragione è che qui il presupposto È il difetto.
+ * `validaCampi` è un marcatore: se sparisce, «zero form senza attesa» e «zero
+ * form» diventano la stessa cifra e due affermazioni diverse, quindi lì il
+ * throw serve. Un `const [saving, …]` su una scrittura non è un marcatore: è
+ * la cosa da eliminare, e il suo stato finale corretto è ZERO occorrenze —
+ * sollevare su un perimetro vuoto significherebbe far fallire lo script il
+ * giorno in cui il debito è pagato.
+ *
+ * Chi protegge allora questo controllo dal restringersi in silenzio? Il
+ * perimetro dichiarato di `formSenzaAttesaEsito`, che condivide
+ * `scriveDavvero`: se un verbo di scrittura smette di essere riconosciuto,
+ * quel numero cala e il controllo lo dice — per entrambi.
+ *
+ * @param {{path: string, testo: string}[]} sorgenti
+ * @param {string[]} azioni
+ * @returns {string[]} i percorsi con lo stato di invio scritto a mano
+ */
+export function statoInvioScrittoAMano(sorgenti, azioni) {
+  // Qualunque nome: il progetto ne ha usati tre (`saving` nel modulo Liste,
+  // `busy` nelle modali admin, `inVolo` nel contratto).
+  const STATO_INVIO = /const\s*\[\s*(?:saving|busy|inVolo|salvando|invio)\s*,/;
+  return (sorgenti || [])
+    .filter(f => STATO_INVIO.test(f.testo) && scriveDavvero(f.testo, azioni))
+    .filter(f => !ATTENDE_ESITO.test(f.testo))
     .map(f => f.path);
 }
+
+/**
+ * Il numero di file che i due controlli di A-1 hanno DAVVERO guardato, come
+ * dichiarato in docs/CLAUDE.md.
+ *
+ * PERCHÉ UN NUMERO E NON SOLO LO ZERO. Un controllo che pretende 0 non scade
+ * quando l'app cresce, ed è per questo che i tre controlli «che negano» sono
+ * scritti così (vedi 5-bis/ter/quater in index.js). Ma non protegge da ciò che
+ * ha prodotto A-1: un perimetro che si RESTRINGE. Se domani una form nuova
+ * scrivesse in un modo che `scriveDavvero` non riconosce, il rosso non
+ * arriverebbe — arriverebbe uno zero su un insieme più piccolo, cioè
+ * esattamente la fotografia rassicurante da cui questo rilievo è nato. Il
+ * numero dichiarato è ciò che rende visibile quel restringimento.
+ */
+export function leggiPerimetroContratto(testo) {
+  const m = /il contratto «salva e chiudi» guarda\s+(\d+)\s+form\b/.exec(testo);
+  if (!m) {
+    throw new LetturaFallita(
+      'docs/CLAUDE.md: non trovo la frase «il contratto «salva e chiudi» ' +
+      'guarda N form». Se è stata riscritta, aggiorna QUESTO script insieme ' +
+      'al documento.');
+  }
+  return Number(m[1]);
+}
+
 
 /**
  * A-2 · Le ricerche che normalizzano a ogni battuta.
@@ -593,6 +748,95 @@ export function formeGiaInComune(costanti, comuni) {
   return costanti
     .filter(c => perValore.has(c.valore))
     .map(c => `${c.path}: \`${c.nome}\` ripete stiliComuni.${perValore.get(c.valore)}`);
+}
+
+/**
+ * ─── B-3 · UN TEST SCIOLTO IN `src/test/` ─────────────────────────────────
+ * (audit del 26 agosto)
+ *
+ * Il sorgente è stato riorganizzato più volte — B-1 del 25 agosto ha
+ * eliminato `modals/` e `views/` perché erano «cartelle-contenitore senza
+ * semantica» — e i test non avevano mai ricevuto lo stesso trattamento: 146
+ * file allo stesso livello, con la struttura che viveva nei PREFISSI DEI NOMI,
+ * dove nessuno strumento la vede. Non esisteva «i test del modulo Liste»:
+ * `vitest src/test/liste*` era un'ipotesi sui nomi, e infatti mancava
+ * `anagraficaListeCoesistenza.test.jsx`, che è un test delle liste.
+ *
+ * ⚠️ QUESTO CONTROLLO ESISTE PERCHÉ LO SPOSTAMENTO DA SOLO NON TIENE. È già
+ * successo a `components/`, che si era ripopolata di file sciolti dopo la
+ * stessa operazione (B-1 del 25 agosto): il file nuovo si scrive dove si è
+ * aperto il terminale, e la cartella torna piatta un file per volta senza che
+ * nessun momento sia quello in cui è andata storta.
+ *
+ * L'atteso è 0, e non c'è un numero dichiarato da tenere aggiornato: «nessun
+ * test è sciolto» resta vero mentre la suite cresce, «146 file in 16 cartelle»
+ * scadrebbe al prossimo test scritto.
+ *
+ * @param {string[]} voci i nomi dei file direttamente in src/test/
+ * @returns {string[]} i test che non stanno in una cartella
+ */
+export function testSciolti(voci) {
+  if (!voci || voci.length === 0) {
+    throw new LetturaFallita(
+      'src/test/ non contiene alcun file: o la cartella è stata spostata, o ' +
+      'la lettura è rotta. In entrambi i casi questo controllo passerebbe a ' +
+      'vuoto — e «zero test sciolti» e «zero test» sono la stessa cifra e due ' +
+      'affermazioni diverse.');
+  }
+  return voci.filter(n => /\.test\.[jt]sx?$/.test(n));
+}
+
+/**
+ * ─── M-3 · IL NOME CHE DICE UNA COSA FALSA ────────────────────────────────
+ * (audit del 26 agosto)
+ *
+ * `src/styles/common.js` è il modulo con il fan-in più alto dell'app — 85 file
+ * su 258 lo importano, più del data layer e più dello stato — e dichiara in
+ * cima che un nome MECCANICO (`txtF13Muted` = testo 13px in `--text-muted`) è
+ * un segnale utile: dice che quella forma non ha ancora un significato
+ * nell'app. È vero, e questo controllo non tocca quei nomi.
+ *
+ * Tocca il caso in cui il segnale mente. `rowGap62` NON è «gap 62»: era «la
+ * seconda forma che somigliava a `rowGap6`», e dai tre call site non c'era modo
+ * di saperlo — bisognava aprire il file. Un nome meccanico che smette di
+ * descrivere il valore ha smesso di essere un segnale ed è diventato una
+ * informazione sbagliata, su un modulo che ottantacinque file leggono.
+ *
+ * ⚠️ IL PREDICATO NON È «finisce con una cifra», ed è la ragione per cui
+ * questo controllo non è una regola ESLint. `rowGap4`, `gridGap10` e `txtF13`
+ * finiscono con una cifra che SIGNIFICA qualcosa, e una regola sintattica le
+ * segnalerebbe insieme alle altre — cioè produrrebbe un controllo da imparare
+ * a saltare (⛔ in `docs/CLAUDE.md`). Il predicato è relazionale: **il nome
+ * senza la sua ultima cifra è un altro nome esportato dallo stesso file.**
+ * `rowGap62` → `rowGap6` esiste, quindi il `2` è una collisione; `rowGap4` →
+ * `rowGap` non esiste, quindi il `4` è il valore. Non serve un elenco di
+ * eccezioni perché il criterio distingue da sé.
+ *
+ * ⚠️ GUARDA SOLO `common.js`, ed è dichiarato. Gli stessi suffissi esistono
+ * nei moduli di stile locali (`trashStyles.js` ha `txtF11Bold2/3/4`), ma lì il
+ * fan-in è 1: il nome si legge accanto alla sua definizione, ed è il caso che
+ * il preambolo di common.js descrive come accettabile. Allargare il controllo
+ * a `src/**` darebbe una trentina di rossi con una correzione discutibile,
+ * che è il modo in cui un controllo si impara a saltare.
+ *
+ * @param {{nome: string, valore: string}[]} comuni le costanti esportate da common.js
+ * @returns {string[]} un nome per riga, con il nome di cui è la collisione
+ */
+export function suffissoDiCollisione(comuni) {
+  if (!comuni || comuni.length === 0) {
+    throw new LetturaFallita(
+      'Nessuna costante esportata da src/styles/common.js: senza il registro ' +
+      'non c\'è alcun nome da confrontare, e «zero collisioni» significherebbe ' +
+      '«zero nomi».');
+  }
+  const nomi = new Set(comuni.map(c => c.nome));
+  return comuni
+    // ⚠️ NESSUN prefiltro sintattico davanti a questo, e non è una svista:
+    // `/[A-Za-z]\d$/` sembra ragionevole e ne perde metà — `rowGap62` ha una
+    // CIFRA prima dell'ultima, perché il nome con cui è entrato in
+    // collisione era già `rowGap6`. La relazione è l'unico criterio.
+    .filter(c => /\d$/.test(c.nome) && nomi.has(c.nome.slice(0, -1)))
+    .map(c => `\`${c.nome}\` è «la seconda forma che somigliava a \`${c.nome.slice(0, -1)}\`», non il valore ${c.nome.slice(-1)}`);
 }
 
 /**

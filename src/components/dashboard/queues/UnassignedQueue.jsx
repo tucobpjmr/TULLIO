@@ -48,8 +48,8 @@ const rowCenterMiddle2 = {
 // task caricati è la bugia più cara di questa vista: è la coda su cui si
 // decide se prendere in carico qualcosa.
 export const UnassignedQueue = ({ tasks, onTake, uid, loading = false }) => {
-  const { categories, isJuniorAgent } = useAppData();
-  const isJunior = isJuniorAgent(uid);
+  const { categories, per } = useAppData();
+  const isJunior = per(uid).isJuniorAgent();
   const openTask = useOpenTask();
   const [categoryFilter, setCategoryFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
@@ -140,7 +140,7 @@ export const UnassignedQueue = ({ tasks, onTake, uid, loading = false }) => {
         </div>
       ) : (
         <>
-        <div style={stiliComuni.gridGap102}>
+        <div style={stiliComuni.grigliaSchede}>
           {finestra.visibili.map(t => {
             const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
             const overdue = isOverdue(t);

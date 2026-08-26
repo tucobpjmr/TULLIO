@@ -17,6 +17,7 @@ import {
 } from "../../lib/taskConstants.js";
 import * as stiliComuni from "../../styles/common.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
+import { useSalvataggio } from "../../hooks/useSalvataggio.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -59,16 +60,71 @@ export const AddTeamMemberModal = ({ onClose, existingIds, onInvited }) => {
   const [seniority, setSeniority] = useState("junior");
   const [color, setColor] = useState("#3B82F6");
   const [pending, setPending] = useState(true);
-  const [busy, setBusy] = useState(false);
-  // `err` resta, ma per ciò che è davvero: l'esito del SERVER (l'invito
-  // rifiutato dalla Edge Function). Non è più anche il canale della
-  // validazione, che ora sta sotto i campi.
-  const [err, setErr] = useState(null);
   const [errori, setErrori] = useState({});
   const rifNome = useRef(null);
   const rifEmail = useRef(null);
 
-  const submit = async () => {
+  // ─── M-6 (audit del 26 agosto) · anche questo form è nel contratto ───────
+  //
+  // Scriveva con `Users.invite` — una Edge Function chiamata direttamente,
+  // senza passare né dal registry del core né da quello del modulo Liste — e
+  // aveva quindi le tre debolezze che `useSalvataggio` esiste per chiudere,
+  // nessun controllo di `verifica:convenzioni` essendo in grado di vederlo: il
+  // freno al doppio invio sul valore di `busy` invece che su un `ref`,
+  // `setBusy(false)` fuori da un `finally`, nessun guard di smontaggio.
+  //
+  // ⚠️ ENTRAMBI I RAMI passano di qui, anche quello locale (senza email), che
+  // non ha un `await`: due click nello stesso turno lo eseguivano due volte, e
+  // `existingIds` — non ancora aggiornato — avrebbe prodotto lo STESSO id per
+  // due membri. Il freno è un ref e chiude anche quel caso.
+  //
+  // ⛔ `data.warning` resta un toast e NON diventa un `avviso`, che sarebbe la
+  // lettura più severa (il pannello resterebbe aperto e bloccato a dire dove
+  // recuperare il pezzo mancante). È deliberato: qui è una correzione
+  // meccanica, e cambiare il comportamento di questo avviso per l'admin è una
+  // decisione di prodotto separata da «non partire due volte».
+  const { salva, inVolo, errore } = useSalvataggio(
+    async (emailNorm) => {
+      // Con email → invito reale via Edge Function (account auth + profilo pending).
+      if (emailNorm) {
+        const { data, error } = await Users.invite({
+          email: emailNorm, name: name.trim(), role, color,
+        });
+        if (error) return { error };
+        // M-2 dell'audit del 14 agosto: l'invito è comunque partito, ma la
+        // pre-creazione di profilo o contatto può essere fallita lato server
+        // (nessun trigger di riserva per user_contacts). Un avviso invece del
+        // solito successo, così il vuoto non passa per inosservato.
+        dispatch({
+          type: "SHOW_TOAST",
+          payload: data?.warning
+            ? { type: "warning", message: data.warning }
+            : { type: "success", message: `Invito inviato a ${emailNorm}.` },
+        });
+        onInvited?.();
+        return {};
+      }
+
+      // Senza email → vecchio comportamento: agente locale (no account auth).
+      const parts = name.trim().split(/\s+/);
+      const avatar = ((parts[0]?.[0] || "") + (parts[1]?.[0] || parts[0]?.[1] || "")).toUpperCase();
+      let id = parts[0].toLowerCase().replace(/[^a-z]/g, "");
+      let suffix = 0;
+      while (existingIds.includes(suffix ? `${id}${suffix}` : id)) suffix++;
+      if (suffix) id = `${id}${suffix}`;
+      dispatch({
+        type: "ADD_TEAM_MEMBER",
+        payload: { id, name: name.trim(), role, seniority, avatar, color, capacity: 999, active: !pending, pending },
+      });
+      return {};
+    },
+    {
+      alSuccesso: onClose,
+      messaggioErrore: (e) => e?.message || "Invito non riuscito.",
+    },
+  );
+
+  const submit = () => {
     const trimmedEmail = email.trim().toLowerCase();
     // B-2 · Entrambi i campi valutati INSIEME: chi sbaglia il nome e la mail
     // li vede segnati entrambi, e il focus va sul primo in ordine visivo.
@@ -80,46 +136,7 @@ export const AddTeamMemberModal = ({ onClose, existingIds, onInvited }) => {
       return;
     }
     setErrori({});
-    setErr(null);
-
-    // Con email → invito reale via Edge Function (account auth + profilo pending).
-    if (trimmedEmail) {
-      setBusy(true);
-      const { data, error } = await Users.invite({
-        email: trimmedEmail,
-        name: name.trim(),
-        role,
-        color,
-      });
-      setBusy(false);
-      if (error) { setErr(error.message || "Invito non riuscito."); return; }
-      // M-2 dell'audit del 14 agosto: l'invito è comunque partito, ma la
-      // pre-creazione di profilo o contatto può essere fallita lato server
-      // (nessun trigger di riserva per user_contacts). Un avviso invece del
-      // solito successo, così il vuoto non passa per inosservato.
-      dispatch({
-        type: "SHOW_TOAST",
-        payload: data?.warning
-          ? { type: "warning", message: data.warning }
-          : { type: "success", message: `Invito inviato a ${trimmedEmail}.` },
-      });
-      onInvited?.();
-      onClose();
-      return;
-    }
-
-    // Senza email → vecchio comportamento: agente locale (no account auth).
-    const parts = name.trim().split(/\s+/);
-    const avatar = ((parts[0]?.[0] || "") + (parts[1]?.[0] || parts[0]?.[1] || "")).toUpperCase();
-    let id = parts[0].toLowerCase().replace(/[^a-z]/g, "");
-    let suffix = 0;
-    while (existingIds.includes(suffix ? `${id}${suffix}` : id)) suffix++;
-    if (suffix) id = `${id}${suffix}`;
-    dispatch({
-      type: "ADD_TEAM_MEMBER",
-      payload: { id, name: name.trim(), role, seniority, avatar, color, capacity: 999, active: !pending, pending }
-    });
-    onClose();
+    salva(trimmedEmail);
   };
 
   // Portale: AdminTeamTab vive dentro il wrapper .fade-in di AdminView (transform
@@ -191,16 +208,14 @@ export const AddTeamMemberModal = ({ onClose, existingIds, onInvited }) => {
             {/* L'esito del SERVER (invito rifiutato): `role="alert"` perché
                 compare dopo un'attesa, quando l'utente può aver già distolto
                 lo sguardo dal bottone. */}
-            {err && (
-              <div role="alert" style={boxF125Danger}>
-                {typeof err === "string" ? err : (err?.message || "Errore imprevisto.")}
-              </div>
+            {errore && (
+              <div role="alert" style={boxF125Danger}>{errore}</div>
             )}
           </div>
           <div style={stiliComuni.rowGap8Mt20}>
-            <button onClick={onClose} style={btnGhost} disabled={busy}>Annulla</button>
-            <button onClick={submit} style={btnPrimary} disabled={busy}>
-              {busy ? "Invio…" : (email.trim() ? "Invia invito" : "Crea agente")}
+            <button onClick={onClose} style={btnGhost} disabled={inVolo}>Annulla</button>
+            <button onClick={submit} style={btnPrimary} disabled={inVolo}>
+              {inVolo ? "Invio…" : (email.trim() ? "Invia invito" : "Crea agente")}
             </button>
           </div>
         </div>

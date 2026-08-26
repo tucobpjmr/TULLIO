@@ -61,13 +61,13 @@ const REGOLE = {
 const ORDINE = ["title"];
 
 export const QuickAddTask = ({ onAdd, onClose }) => {
-  const { currentUserId, getAssignableTeam, getAvailableCategories } = useAppData();
+  const { currentUserId, getAssignableTeam, io } = useAppData();
   // ST-11 · L'anagrafica dal contesto, non come prop: sul call site era
   // `clients={state.clients || []}`, cioè un array NUOVO a ogni render quando
   // l'anagrafica è vuota. Il default vive nel provider, in un punto solo.
   const clients = useClients();
   // Categorie filtrate per il ruolo dell'utente loggato (v0.8)
-  const availableCats = getAvailableCategories(currentUserId);
+  const availableCats = io.categorieDisponibili();
   const firstCatKey = Object.keys(availableCats)[0] || "booking";
 
   const [form, setForm] = useState({

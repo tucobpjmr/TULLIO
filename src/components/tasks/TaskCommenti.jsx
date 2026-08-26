@@ -12,6 +12,7 @@
 // ri-renderizzava anche i campi, gli allegati e la cronologia.
 import { useState } from "react";
 import { formatDate } from "../../lib/taskUtils.js";
+import { newId } from "../../lib/mappers.js";
 import { MentionText } from "../ui/MentionText.jsx";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { useSalvataggio } from "../../hooks/useSalvataggio.js";
@@ -26,7 +27,7 @@ import {
 /**
  * @param {object} props
  * @param {string} props.taskId
- * @param {Array}  props.commenti  `task.comments` — { user, text, time }.
+ * @param {Array}  props.commenti  `task.comments` — { id, user, text, time }.
  */
 export function TaskCommenti({ taskId, commenti = [] }) {
   const dispatch = useDispatch();
@@ -41,6 +42,15 @@ export function TaskCommenti({ taskId, commenti = [] }) {
       payload: {
         taskId,
         comment: {
+          // ⚠️ B-4 (audit del 26 agosto) · L'id serve QUI, non solo a chi
+          // arriva dal database. `Comments.create` costruisce la riga da
+          // `{ task_id, user_id, text }` e ignora tutto il resto, quindi
+          // questo valore non raggiunge mai il server: è l'identità della
+          // riga OTTIMISTICA, cioè di quella che React deve saper distinguere
+          // mentre la scrittura è in volo. Senza, `key={c.id}` sarebbe
+          // `undefined` — e due commenti inviati prima che il realtime
+          // riporti il thread avrebbero la STESSA chiave.
+          id: newId(),
           user: getMember(currentUserId)?.name || "Utente",
           text: testo,
           time: new Date().toISOString(),
@@ -68,8 +78,13 @@ export function TaskCommenti({ taskId, commenti = [] }) {
         ATTIVITÀ & COMMENTI ({commenti.length})
       </div>
       <div style={stiliComuni.colGap10}>
-        {commenti.map((c, i) => (
-          <div key={i} style={rowGap10}>
+        {/* B-4 · `key={c.id}` e non l'indice: i commenti arrivano da due
+            strade che possono cambiarne l'ordine sotto React — il dispatch
+            ottimistico `ADD_COMMENT` e il merge realtime `MERGE_TASK_COMMENTS`
+            — e con la chiave posizionale l'inserimento di un commento non in
+            coda ri-renderizza ogni riga sotto invece di spostarle. */}
+        {commenti.map((c) => (
+          <div key={c.id} style={rowGap10}>
             <div style={rowCenterMiddle}>
               {c.user.split(" ").map(w => w[0]).join("").slice(0, 2)}
             </div>

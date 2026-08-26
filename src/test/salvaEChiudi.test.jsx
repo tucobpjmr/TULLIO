@@ -317,4 +317,47 @@ describe("TaskSlideOver — il commento si svuota dopo la conferma", () => {
     await waitFor(() => expect(casella.value).toBe(""));
     expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "ADD_COMMENT" }));
   });
+
+  // ─── B-4 · la chiave dei commenti ──────────────────────────────────────────
+  // (audit del 26 agosto)
+  //
+  // `TaskCommenti` disegnava i commenti con `key={i}`. Hanno un id — ma solo
+  // quelli che arrivano dal database: il commento OTTIMISTICO che il componente
+  // stesso costruisce non ne aveva, quindi la correzione «una riga» proposta
+  // dall'audit (`key={c.id}`) avrebbe dato `key={undefined}`, e a due commenti
+  // inviati prima che il realtime riportasse il thread la STESSA chiave.
+    it("il commento dispatchato ha un id, che il server non vedrà mai", async () => {
+      // `Comments.create` costruisce la riga da `{ task_id, user_id, text }` e
+      // ignora il resto: questo id è l'identità della riga in volo, non un
+      // valore che si pretende di scrivere.
+      const dispatch = vi.fn(() => Promise.resolve({ error: null }));
+      const casella = monta(dispatch);
+      fireEvent.change(casella, { target: { value: "Primo" } });
+      invia();
+
+      await waitFor(() => expect(dispatch).toHaveBeenCalled());
+      const [azione] = dispatch.mock.calls[0];
+      expect(azione.payload.comment.id).toEqual(expect.any(String));
+      expect(azione.payload.comment.id).not.toBe("");
+    });
+
+    it("due commenti consecutivi NON condividono la chiave", async () => {
+      // È il caso che rende `key={c.id}` una correzione e non una regressione:
+      // finché il merge realtime non riporta il thread, entrambi vivono in stato
+      // con il solo id assegnato qui.
+      const dispatch = vi.fn(() => Promise.resolve({ error: null }));
+      const casella = monta(dispatch);
+
+      fireEvent.change(casella, { target: { value: "Primo" } });
+      invia();
+      await waitFor(() => expect(casella.value).toBe(""));
+
+      fireEvent.change(casella, { target: { value: "Secondo" } });
+      invia();
+      await waitFor(() => expect(dispatch).toHaveBeenCalledTimes(2));
+
+      const [primo] = dispatch.mock.calls[0];
+      const [secondo] = dispatch.mock.calls[1];
+      expect(primo.payload.comment.id).not.toBe(secondo.payload.comment.id);
+    });
 });

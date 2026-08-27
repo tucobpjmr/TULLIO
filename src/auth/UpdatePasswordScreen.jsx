@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import { useAuth } from './AuthContext';
 import { PasswordField } from '../components/ui/PasswordField.jsx';
+import { passwordValida } from '../lib/validators.js';
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -24,7 +25,8 @@ export default function UpdatePasswordScreen() {
   async function onSubmit(e) {
     e.preventDefault();
     setErr(null);
-    if (password.length < 8) { setErr('La password deve avere almeno 8 caratteri.'); return; }
+    const errPassword = passwordValida()(password);
+    if (errPassword) { setErr(errPassword); return; }
     if (password !== confirm) { setErr('Le due password non coincidono.'); return; }
     setLoading(true);
     try {

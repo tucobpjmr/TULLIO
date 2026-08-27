@@ -26,6 +26,7 @@ import { useReducer } from "react";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { useIsMounted } from "../../hooks/useIsMounted.js";
 import { PasswordField } from "../ui/PasswordField.jsx";
+import { PASSWORD_MIN, passwordValida } from "../../lib/validators.js";
 import * as stiliComuni from "../../styles/common.js";
 import { ESITO_PRONTO, accountIniziale, accountReducer } from "./accountSicurezzaReducer.js";
 import {
@@ -42,8 +43,9 @@ export function AccountSicurezza() {
   const elimInVolo = stato.elim.esito.fase === "invio";
 
   const cambiaPassword = async () => {
-    if (stato.pwd.bozza.nuova.length < 8) {
-      accountDispatch({ type: "PWD_ESITO", esito: { fase: "errore", testo: "La password deve avere almeno 8 caratteri." } });
+    const errPassword = passwordValida()(stato.pwd.bozza.nuova);
+    if (errPassword) {
+      accountDispatch({ type: "PWD_ESITO", esito: { fase: "errore", testo: errPassword } });
       return;
     }
     if (stato.pwd.bozza.nuova !== stato.pwd.bozza.conferma) {
@@ -102,7 +104,7 @@ export function AccountSicurezza() {
                 <PasswordField
                   inputWFull={inputWFull} autoComplete="new-password"
                   value={stato.pwd.bozza.nuova} onChange={e => accountDispatch({ type: "SET_PWD_CAMPO", campo: "nuova", valore: e.target.value })}
-                  placeholder="Minimo 8 caratteri"
+                  placeholder={`Minimo ${PASSWORD_MIN} caratteri`}
                   show={stato.pwd.rivela} onToggle={() => accountDispatch({ type: "TOGGLE_RIVELA_PWD" })}
                   onFocus={e => e.target.style.borderColor = "var(--gold)"}
                   onBlur={e => e.target.style.borderColor = "var(--border)"}

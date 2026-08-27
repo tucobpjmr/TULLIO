@@ -73,11 +73,11 @@ esterne al team viva in memoria e sparisca a ogni refresh (rilievo **A-2**).
 | **A-1** ✔ | **Alta** | `xlsx@0.18.5`: prototype pollution (CVE-2023-30533, CVSS 7.8) + ReDoS (CVE-2024-22363, 7.5). Nessun fix su npm. Mitigato in app, non risolto. | `package.json:24`, `src/lib/xlsx.js` | membro del team che importa un file ostile |
 | **A-2** ✔ | **Alta** | Nessun audit trail durevole. Il "Log attività" è stato React in memoria, tetto 100 voci, azzerato a ogni reload, mai scritto a database. Le operazioni più distruttive (hard-delete utente, ban, cambio ruolo, `reset_completo`, `importa_backup`, delete cliente) non lasciano traccia. | `src/state/reducer.js:735-736,776`, `src/components/admin/tabs/AdminLogTab.jsx` | — (rischio di accountability/GDPR, non di accesso) |
 | **A-3** ✔ | **Alta** | `public.users` è l'unica tabella sensibile senza il gate RESTRICTIVE `rls_active_only`. Un account **pending** o **appena disattivato** conserva la lettura dell'intera rubrica interna e la scrittura sulla propria riga di profilo. | policy `users_select_all`, `users_update` (live DB) | utente invitato e non ancora approvato; utente disattivato, fino alla scadenza dell'access token |
-| M-1 | **Media** | Il bucket `avatars` è escluso dalla policy RESTRICTIVE `storage_active_only`: `insert`/`update`/`delete` sugli avatar non controllano `is_active_user()`. | policy `storage_active_only` (live DB) | utente pending o disattivato |
-| M-2 | **Media** | `chat_files_delete` contiene una clausola "orfani" che consente a **qualunque** utente attivo di cancellare qualunque oggetto di `chat-files` la cui cartella non corrisponda a una conversazione esistente. | policy `chat_files_delete` (live DB) | qualunque utente attivo |
-| M-3 | **Media** | `messages_update` lascia passare in RLS **ogni partecipante** su **ogni** messaggio; la restrizione per colonna è affidata al solo trigger `messages_blocca_modifiche_altrui`. Punto singolo di rottura, su una tabella da cui un trigger analogo è già stato rimosso in passato (`20260814210100`). | policy `messages_update` + trigger omonimo (live DB) | partecipante alla conversazione, **solo** se il trigger salta |
-| M-4 | **Media** | Politica password minima (8 caratteri) applicata **solo lato client**, e duplicata in due file. GoTrue accetta il proprio minimo su chiamata diretta all'API. | `src/auth/UpdatePasswordScreen.jsx:27`, `src/components/shell/AccountSicurezza.jsx:45` | chi chiama `/auth/v1/user` direttamente |
-| M-5 | **Media** | Deriva documentale in `docs/SICUREZZA.md`: la tabella §1 dichiara `importa_backup` protetta da `private.can_liste()`; il database applica `private.is_admin()` dal 15 agosto. Il documento di riferimento sulla sicurezza descrive una guardia più debole di quella reale. | `docs/SICUREZZA.md:87` | — |
+| **M-1** ✔ | **Media** | Il bucket `avatars` è escluso dalla policy RESTRICTIVE `storage_active_only`: `insert`/`update`/`delete` sugli avatar non controllano `is_active_user()`. | policy `storage_active_only` (live DB) | utente pending o disattivato |
+| **M-2** ✔ | **Media** | `chat_files_delete` contiene una clausola "orfani" che consente a **qualunque** utente attivo di cancellare qualunque oggetto di `chat-files` la cui cartella non corrisponda a una conversazione esistente. | policy `chat_files_delete` (live DB) | qualunque utente attivo |
+| **M-3** ✔ | **Media** | `messages_update` lascia passare in RLS **ogni partecipante** su **ogni** messaggio; la restrizione per colonna è affidata al solo trigger `messages_blocca_modifiche_altrui`. Punto singolo di rottura, su una tabella da cui un trigger analogo è già stato rimosso in passato (`20260814210100`). | policy `messages_update` + trigger omonimo (live DB) | partecipante alla conversazione, **solo** se il trigger salta |
+| **M-4** ✔ | **Media** | Politica password minima (8 caratteri) applicata **solo lato client**, e duplicata in due file. GoTrue accetta il proprio minimo su chiamata diretta all'API. | `src/auth/UpdatePasswordScreen.jsx:27`, `src/components/shell/AccountSicurezza.jsx:45` | chi chiama `/auth/v1/user` direttamente |
+| **M-5** ✔ | **Media** | Deriva documentale in `docs/SICUREZZA.md`: la tabella §1 dichiara `importa_backup` protetta da `private.can_liste()`; il database applica `private.is_admin()` dal 15 agosto. Il documento di riferimento sulla sicurezza descrive una guardia più debole di quella reale. | `docs/SICUREZZA.md:87` | — |
 | B-1 | **Bassa** | `get_migrazioni_applicate()` eseguibile da `anon`: espone a un non autenticato l'elenco completo delle migrazioni, cioè la cronologia dell'evoluzione dello schema. | live DB + `.github/workflows/keep-supabase-warm.yml` | chiunque, senza autenticazione |
 | B-2 | **Bassa** | Rubrica interna piatta: `users_select_all USING true` e `user_contacts_select USING true` danno email e telefono di **tutto** il team anche al ruolo `driver`, che è escluso da ogni altro dato commerciale. | live DB | qualunque utente attivo |
 | B-3 | **Bassa** | La stessa allow-list di host vive in **tre** posti indipendenti (`_shared/originConsentite.ts`, la CSP in `vercel.json`, i Redirect URL nella dashboard Supabase). Nessun controllo automatico che le tenga allineate; solo la terza ha una sonda. | `supabase/functions/_shared/originConsentite.ts`, `vercel.json` | — |
@@ -167,6 +167,109 @@ esterne al team viva in memoria e sparisca a ogni refresh (rilievo **A-2**).
 > `supabase/migrations/**`, contro il progetto di **staging** — dove le tre
 > migrazioni sono già applicate. I sette test aggiunti per A-2 e A-3 hanno
 > quindi lo schema che si aspettano: al merge il job parte allineato.
+
+> ### Stato dei cinque rilievi di media priorità (aggiornato il 27 agosto)
+>
+> **M-1 ✔ risolto e in produzione.** `storage_active_only` non è più una lista
+> di ESCLUSIONI (`bucket_id <> all(['task-files','chat-files'])`) ma una lista
+> di INCLUSIONI che nomina tutti e tre i bucket dell'app. Il cambio di forma è
+> il rimedio vero: prima dimenticare un bucket lo lasciava FUORI dal gate, ora
+> lo lascia DENTRO — l'errore per omissione diventa quello restrittivo.
+> Verificato che il percorso di attivazione non regredisce: l'unico punto che
+> carica un avatar (`ProfileEditor` → `src/lib/api/utenti.js`) vive oltre
+> `AuthGate`, che per `pending = true` mostra `PendingScreen`, e `PendingScreen`
+> non monta nemmeno `Avatar`. Migrazione `20260827075128`.
+>
+> **M-2 ✔ risolto e in produzione, in una forma diversa da quella proposta.**
+> Mettendo la policy accanto al codice che la usa è emerso un secondo difetto,
+> che l'audit non aveva visto: la clausola "orfani" era insieme troppo larga
+> *e* **irraggiungibile**. `MessagesAPI.removeConversationFiles` fa
+> `storage.list(convId)` prima di `remove(paths)`, e la list passa da
+> `chat_files_select`, che richiede una conversazione ESISTENTE — sparita la
+> riga, torna vuota per tutti, admin compresi (là `is_admin()` stava DENTRO
+> l'`exists`). La bonifica che `20260814220000` voleva abilitare non è quindi
+> mai avvenuta.
+>
+> Per questo la correzione proposta — restringere il ramo a
+> `owner_id or is_admin()` — **non è stata applicata così**: i primi due rami
+> già coprono owner e admin, quindi il quarto sarebbe diventato un no-op, il
+> buco si sarebbe chiuso e la pulizia cross-partecipante sarebbe rimasta
+> impossibile per sempre, contro l'intento esplicito di C-1 del 14 agosto
+> (l'inversione dell'ordine di `removeConversation` è ciò che rende gli orfani
+> possibili). La clausola ha ora un SOGGETTO, ricavato dall'unico dato che dopo
+> la cancellazione non esiste più: chi ne era partecipante. Un trigger
+> `after delete` su `conversations` lascia una lapide in
+> `private.conversazioni_eliminate` (id + participants, nessun contenuto,
+> schema non esposto da PostgREST, nessun GRANT per `authenticated`), e le due
+> policy di `chat-files` la consultano via `private.era_partecipante()`. La
+> SELECT sugli orfani si apre agli stessi ex partecipanti, senza la quale il
+> ramo di DELETE resterebbe irraggiungibile. Migrazione `20260827075157`.
+>
+> ⚠️ **Limite dichiarato.** La lapide esiste solo per le conversazioni
+> cancellate **da qui in avanti**: per gli orfani nati prima non c'è alcun
+> record di chi ne fosse partecipante, e restano ripulibili dal solo admin —
+> che ora però può almeno elencarli, perché `is_admin()` è uscito dall'`exists`
+> ed è un ramo suo. In produzione il bucket `chat-files` contiene **0 oggetti**,
+> quindi oggi l'insieme degli orfani pregressi è vuoto.
+>
+> **M-3 ✔ chiuso con cinque test, non con una modifica.** La policy e il
+> trigger restano come sono — in RLS il confronto per colonna non si esprime
+> bene, e il trigger è scritto nella forma giusta (sottrae le colonne
+> collaborative invece di elencare quelle vietate, così una colonna nuova nasce
+> protetta). Quello che mancava era la RUMOROSITÀ della sua eventuale rimozione,
+> su una tabella da cui un trigger di guardia analogo è già stato droppato una
+> volta. `src/test/integration/rls.test.js` ha ora cinque casi: il testo altrui
+> non si riscrive (42501, ed è un'eccezione SOLLEVATA, non una riga filtrata),
+> `sender_id` non si riscrive, la reazione e il pin su un messaggio altrui
+> **devono** continuare a passare, e una colonna non collaborativa qualsiasi
+> (`type`) è protetta quanto il testo — quest'ultimo è ciò che distingue «il
+> trigger c'è» da «il trigger sottrae invece di elencare». Tutti e cinque
+> verificati a mano sullo staging impersonando i due utenti.
+>
+> **M-4 ✔ risolto per la metà che è codice; la metà che conta è una riga
+> aperta.** Il minimo di password ha ora una definizione sola — `PASSWORD_MIN`
+> in `src/lib/validators.js`, con `passwordValida()` — usata dai due punti che
+> la duplicavano (`UpdatePasswordScreen`, `AccountSicurezza`) e anche dai due
+> che ripetevano il numero 8 in una stringa (il placeholder del campo e il
+> messaggio `weak_password` di `LoginScreen`). Ma il client non è il livello che
+> decide: `supabase.auth.updateUser({ password })` è raggiungibile su
+> `/auth/v1/user` col solo token di sessione, e lì vale il minimo di GoTrue.
+> Quel valore **non è leggibile né dal repository né dal database** — sta nella
+> configurazione del progetto Auth — e va impostato a mano in dashboard → Auth →
+> Password. È il punto 5 di `docs/SICUREZZA.md` §6, ⚠️ **aperto**: finché non è
+> fatto, la deduplicazione ha reso la regola più leggibile senza renderla più
+> forte.
+>
+> **M-5 ✔ risolto, e la deriva era più larga del rilievo.** Rileggendo
+> `pg_proc` in produzione, la tabella §1 di `docs/SICUREZZA.md` sbagliava su tre
+> assi, non uno: la guardia di `importa_backup` (`can_liste()` dichiarata,
+> `is_admin()` applicata dal 15 agosto), le FIRME di `importa_backup` e
+> `sposta_titolare_lista` (entrambe hanno un parametro in più), e il CONTEGGIO —
+> le funzioni `SECURITY DEFINER` esposte non sono 8 ma **14**, perché il
+> registro di audit del 26 agosto ne ha aggiunte sei che la tabella non
+> nominava. La tabella è stata riscritta dal `select` su `pg_proc`, che ora è
+> stampato accanto ad essa perché la prossima rilettura non debba inventarselo;
+> è stata aggiunta la nota sull'ampiezza di `can_liste()` per
+> `elimina_lista_definitivamente` (irreversibile, aperta a admin+manager+agent,
+> mitigata solo dal passaggio obbligato dal cestino); e
+> `FUNZIONI_SECURITY_DEFINER_VERIFICATE` in
+> `scripts/verifica-advisor/advisor.js` è stato allineato alle stesse 14 —
+> senza, `npm run verifica:advisor` sarebbe rimasto rosso sulle sei nuove, che
+> è il comportamento voluto di quel controllo e la prova che serviva a
+> qualcosa.
+>
+> ### Stato di applicazione — verificato, non dedotto
+>
+> Le due migrazioni (`20260827075128`, `20260827075157`) sono applicate **allo
+> staging** e **alla produzione**, sotto lo stesso nome e con lo stesso testo.
+> La verifica è stata fatta rileggendo `pg_policies` dopo l'applicazione, e
+> facendo scattare quel che si poteva far scattare: su produzione, i tre rami
+> della nuova `chat_files_select`/`chat_files_delete` valutati impersonando un
+> partecipante, un estraneo e un ex partecipante (lapide sintetica, poi
+> rimossa), più un `delete` su una conversazione di sonda per vedere il trigger
+> scrivere la lapide; su staging, i cinque casi di M-3 con i due utenti veri del
+> workflow `rls.yml`. Tutte le righe di sonda sono state rimosse: entrambe le
+> tabelle tornano a zero.
 
 ---
 

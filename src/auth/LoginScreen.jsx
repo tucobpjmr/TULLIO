@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useAuth } from './AuthContext';
 import { PasswordField } from '../components/ui/PasswordField.jsx';
+import { PASSWORD_MIN } from '../lib/validators.js';
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -34,7 +35,12 @@ function localizeAuthError(error) {
     return 'Esiste già un account con questa email. Prova ad accedere.';
   }
   if (code === 'weak_password' || raw.includes('password should be')) {
-    return 'Password troppo debole: usa almeno 8 caratteri.';
+    // Questo messaggio traduce un rifiuto di GoTrue, cioè del livello che
+    // DECIDE: il numero qui è solo il minimo che il client si aspetta
+    // (lib/validators.js). Se GoTrue ne applicasse uno più alto la frase
+    // sarebbe imprecisa — e sarebbe il sintomo giusto di una divergenza da
+    // riallineare in dashboard, non da nascondere qui (M-4, 26 agosto).
+    return `Password troppo debole: usa almeno ${PASSWORD_MIN} caratteri.`;
   }
   if (raw.includes('network') || raw.includes('failed to fetch')) {
     return 'Errore di rete. Verifica la connessione.';

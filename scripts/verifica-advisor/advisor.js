@@ -72,6 +72,21 @@ const FUNZIONI_SECURITY_DEFINER_VERIFICATE = new Set([
   'send_test_push',
   'get_vapid_public_key',
   'get_migrazioni_applicate',
+  // ─── Registro di audit (A-2 del 26 agosto), esaminate il 27 ──────────────
+  // `registra_audit` non ha un parametro "attore": lo ricava da `auth.uid()`
+  // e senza sessione solleva, quindi non è firmabile per conto d'altri — ed è
+  // il motivo per cui esiste invece di un GRANT INSERT su `audit_log`.
+  'registra_audit',
+  // Le cinque qui sotto sono funzioni TRIGGER (`returns trigger`): la rotta
+  // /rest/v1/rpc/<nome> che l'advisor nomina non è chiamabile, perché una
+  // funzione trigger invocata fuori da un trigger fallisce. Restano
+  // nell'elenco e non fra gli AVVISI_ACCETTATI per nome, perché il punto di
+  // questo Set è che ogni funzione sia stata GUARDATA da qualcuno.
+  'audit_clients_insert',
+  'audit_clients_delete',
+  'audit_liste_truncate',
+  'audit_users_delete',
+  'audit_users_privilegi',
 ]);
 
 // I due soli lint, in AVVISI_ACCETTATI, il cui `name` non basta a giudicare

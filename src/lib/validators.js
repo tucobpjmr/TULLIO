@@ -93,3 +93,28 @@ export function validaCampi(valori, regole) {
 export function primoCampoInvalido(errori, ordine) {
   return ordine.find((campo) => errori[campo]) ?? null;
 }
+
+// ─── PASSWORD ──────────────────────────────────────────────────────────────
+// M-4 dell'audit sicurezza del 26 agosto. La stessa riga
+//
+//     if (password.length < 8) { setErr('La password deve avere almeno 8 caratteri.'); return; }
+//
+// era scritta due volte — in `auth/UpdatePasswordScreen.jsx` e in
+// `components/shell/AccountSicurezza.jsx` — cioè nella forma che
+// `_shared/requireActiveAdmin.ts` descrive come il difetto peggiore delle
+// copie: non divergono, restano uguali e sbagliate insieme.
+//
+// ⚠️ E il difetto vero non è la duplicazione: è che NESSUNA DELLE DUE È IL
+// LIVELLO CHE DECIDE. `supabase.auth.updateUser({ password })` è raggiungibile
+// su `/auth/v1/user` con il solo token di sessione, e lì il minimo effettivo è
+// quello configurato in GoTrue (dashboard → Auth → Password → «Minimum
+// password length»), non questo numero. Vale qui la posizione del progetto —
+// «il client decide cosa mostrare, il database cosa è permesso»: questa
+// costante serve a dare all'utente il messaggio giusto PRIMA del viaggio, non
+// a impedirgli qualcosa. Se i due numeri divergono, quello che vale è GoTrue.
+// Stato della leva lato server e come riallinearla: docs/SICUREZZA.md §6.
+export const PASSWORD_MIN = 8;
+
+export const passwordValida = (
+  messaggio = `La password deve avere almeno ${PASSWORD_MIN} caratteri.`,
+) => (v) => (typeof v === "string" && v.length >= PASSWORD_MIN ? null : messaggio);

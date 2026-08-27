@@ -404,4 +404,125 @@ suite("RLS: la matrice di autorizzazione è applicata dal database, non solo dal
       await junior.client.from("tasks").delete().eq("id", altrui.id);
     });
   });
+  // M-3 dell'audit sicurezza del 26 agosto — reso ESEGUIBILE.
+  //
+  // `messages_update` lascia passare in USING e in CHECK OGNI partecipante su
+  // OGNI messaggio della conversazione, ed è voluto: reazioni, read receipt e
+  // pin sono UPDATE che fa chi non è il mittente. La restrizione vera — «solo
+  // il mittente può cambiare il CONTENUTO» — vive interamente nel trigger
+  // `messages_blocca_modifiche_altrui`, che confronta `to_jsonb(new)` e
+  // `to_jsonb(old)` meno le colonne collaborative.
+  //
+  // Il trigger è scritto bene (la sottrazione di colonne è la forma giusta:
+  // una colonna nuova ricade per difetto nel ramo protetto). Il rilievo è
+  // ARCHITETTURALE: una regola di autorizzazione con UN SOLO punto di
+  // applicazione, su una tabella da cui un trigger di guardia analogo è GIÀ
+  // stato rimosso una volta —
+  // 20260814210100_drop_trigger_messages_guard_participant_update.sql. Se
+  // sparisse di nuovo, la RLS da sola consentirebbe a ogni partecipante di
+  // riscrivere il testo di chiunque, e nulla lo segnalerebbe.
+  //
+  // Questi test sono ciò che rende RUMOROSA quella rimozione. Il secondo e il
+  // terzo contano quanto il primo: senza, una futura stretta della policy che
+  // rompesse reazioni e pin passerebbe verde.
+  describe("messages — solo il mittente riscrive il contenuto, ma tutti reagiscono", () => {
+    let driver, junior, convId, msgId;
+
+    beforeAll(async () => {
+      driver = await accedi(
+        process.env.RLS_TEST_DRIVER_EMAIL, process.env.RLS_TEST_DRIVER_PASSWORD);
+      junior = await accedi(
+        process.env.RLS_TEST_JUNIOR_EMAIL, process.env.RLS_TEST_JUNIOR_PASSWORD);
+
+      const { data: conv, error: errConv } = await driver.client.from("conversations").insert({
+        type: "direct", participants: [driver.userId, junior.userId],
+      }).select().single();
+      if (errConv) throw new Error(`setup conversazione: ${errConv.message}`);
+      convId = conv.id;
+
+      // La colonna del testo è `text`, non `content`: i messaggi portano anche
+      // file, vocali e waveform, e `type` distingue i casi.
+      const { data: msg, error: errMsg } = await driver.client.from("messages").insert({
+        conversation_id: convId, sender_id: driver.userId, type: "text", text: "originale",
+      }).select().single();
+      if (errMsg) throw new Error(`setup messaggio: ${errMsg.message}`);
+      msgId = msg.id;
+    });
+
+    afterAll(async () => {
+      // I messaggi se ne vanno in CASCADE con la conversazione. La notifica di
+      // chat che l'INSERT ha generato (trigger `notify_message_chat`) no: è del
+      // junior, e solo lui può cancellarla — `notifications_delete_own`. Senza
+      // questa riga lo staging accumulerebbe una notifica per ogni esecuzione
+      // del workflow.
+      if (convId) {
+        await junior.client.from("notifications").delete()
+          .eq("payload->>conversation_id", convId);
+        await driver.client.from("conversations").delete().eq("id", convId);
+      }
+    });
+
+    it("un partecipante non mittente non può riscrivere il testo altrui", async () => {
+      const { error } = await junior.client.from("messages")
+        .update({ text: "riscritto dal junior" }).eq("id", msgId);
+      // Qui l'errore c'è davvero, e non è la RLS: il trigger SOLLEVA con
+      // errcode 42501 invece di filtrare la riga. È la differenza fra questo
+      // caso e le UPDATE respinte dalla policy, che rispondono 200 con zero
+      // righe (vedi "urgenti altrui" più sopra) — e sarebbe anche il primo
+      // sintomo visibile se il trigger sparisse: da eccezione a successo muto.
+      expect(error).toBeTruthy();
+      expect(error.code).toBe("42501");
+
+      const { data: dopo } = await driver.client.from("messages")
+        .select("text").eq("id", msgId).single();
+      expect(dopo.text).toBe("originale");
+    });
+
+    it("nemmeno può attribuirsi il messaggio cambiando `sender_id`", async () => {
+      // Primo ramo del trigger, e il più importante: `sender_id` è la colonna
+      // da cui dipende ogni altra guardia. Se si potesse riscrivere, il ramo
+      // «sono io il mittente» diventerebbe una porta invece di un controllo.
+      const { error } = await junior.client.from("messages")
+        .update({ sender_id: junior.userId }).eq("id", msgId);
+      expect(error).toBeTruthy();
+      expect(error.code).toBe("42501");
+    });
+
+    it("ma PUÒ reagire: il ramo collaborativo deve restare aperto", async () => {
+      const { error } = await junior.client.rpc("messages_toggle_reaction", {
+        msg_id: msgId, emoji: "\u{1F44D}",
+      });
+      expect(error).toBeNull();
+
+      const { data: dopo } = await driver.client.from("messages")
+        .select("reactions").eq("id", msgId).single();
+      expect(Object.keys(dopo.reactions)).toContain("\u{1F44D}");
+    });
+
+    it("e PUÒ fissare in bacheca il messaggio di un altro", async () => {
+      // `MessagesAPI.setPinned` è una UPDATE diretta sulle tre colonne del pin,
+      // ed è la scrittura più esposta al rifiuto silenzioso: è l'unica che si
+      // fa sul messaggio ALTRUI. Il verdetto si legge dal CONTEGGIO, non da
+      // `error` — una riga filtrata dalla RLS non solleva.
+      const { count, error } = await junior.client.from("messages")
+        .update({
+          pinned: true, pinned_by: junior.userId, pinned_at: new Date().toISOString(),
+        }, { count: "exact" })
+        .eq("id", msgId);
+      expect(error).toBeNull();
+      expect(count).toBe(1);
+    });
+
+    it("il trigger non è una guardia sul solo `text`: qualunque colonna non collaborativa è protetta", async () => {
+      // La sottrazione di colonne (`to_jsonb(new) - 'reactions' - 'read_by' -
+      // 'pinned' - …`) fa sì che una colonna NUOVA nasca protetta. Questo test
+      // lo verifica su una colonna che non è il testo: se qualcuno riscrivesse
+      // il trigger elencando i campi vietati invece di sottrarre quelli
+      // permessi, il caso qui sotto passerebbe e il primo test resterebbe verde.
+      const { error } = await junior.client.from("messages")
+        .update({ type: "system" }).eq("id", msgId);
+      expect(error).toBeTruthy();
+      expect(error.code).toBe("42501");
+    });
+  });
 });

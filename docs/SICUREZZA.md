@@ -74,30 +74,75 @@ stessa: protetta dal non essere un segreto, non dalla segretezza.
 > l'ARGOMENTO, non la conclusione, ed è il tipo di premessa che va corretta
 > subito: chi la legge la usa per decidere il caso successivo.
 
-### Le 8 funzioni SECURITY DEFINER raggiungibili da `authenticated`: perché il warning non è un buco
+### Le 14 funzioni SECURITY DEFINER raggiungibili da `authenticated` (sei anche da `anon`): perché il warning non è un buco
 
 L'advisor segnala che un utente autenticato può invocarle via
 `/rest/v1/rpc/<nome>`. Non può però guardare *dentro* il corpo della funzione,
-dove sta il controllo di ruolo. Verificato uno per uno (📄):
+dove sta il controllo di ruolo. Verificato uno per uno, **rileggendo
+`pg_get_functiondef` in produzione** e non il contenuto delle migrazioni (✅,
+27 agosto):
 
 | Funzione | Guardia interna | Esito |
 |----------|-----------------|-------|
 | `reset_completo(text)` | `private.is_admin()` + conferma testuale `RESET TOTALE` | ok |
-| `elimina_lista_definitivamente(uuid)` | `private.can_liste()` | ok |
-| `importa_backup(jsonb)` | `private.can_liste()` | ok |
-| `rimuovi_beneficiario_lista(uuid,uuid)` | `private.can_liste()` | ok |
-| `sposta_titolare_lista(uuid,uuid)` | `private.can_liste()` | ok |
+| `elimina_lista_definitivamente(uuid)` | `private.can_liste()` — cioè **admin, manager e agent**; richiede che la lista sia già nel cestino (`deleted_at` non nullo) | ok, ma vedi la nota in coda |
+| `importa_backup(jsonb, uuid)` | `private.is_admin()`, dal 15 agosto (migrazione `20260815231000`) | ok |
+| `rimuovi_beneficiario_lista(uuid, uuid)` | `private.can_liste()` | ok |
+| `sposta_titolare_lista(uuid, uuid, uuid)` | `private.can_liste()` | ok |
 | `send_test_push()` | `private.is_active_user()`, scrive solo sulla propria riga | ok |
+| `registra_audit(text, text, text, jsonb)` | nessun parametro "attore": lo ricava da `auth.uid()`, e senza sessione solleva. È l'unica riga che impedisce di firmare una voce col nome di un altro, ed è il motivo per cui la RPC esiste invece di un `GRANT INSERT` su `audit_log` | ok |
 | `get_vapid_public_key()` | nessuna — **ed è corretto**: restituisce la metà *pubblica* della coppia VAPID, che il browser deve avere per sottoscriversi | ok |
-| `get_migrazioni_applicate()` | nessuna — voluto, vedi sopra: non espone nulla che non sia già nel repo | ok |
+| `get_migrazioni_applicate()` | nessuna — voluto, vedi sopra: non espone nulla che non sia già nel repo. Raggiungibile anche da `anon` | ok |
+| `audit_clients_insert()` · `audit_clients_delete()` · `audit_liste_truncate()` · `audit_users_delete()` · `audit_users_privilegi()` | nessuna, **e non serve**: `RETURNS trigger`. Una funzione trigger invocata fuori da un trigger fallisce, quindi la rotta `/rest/v1/rpc/<nome>` che l'advisor nomina non è chiamabile; l'attore che scrivono lo prendono da `auth.uid()` attraverso `private.audit()` | ok |
 
 > ⚠️ **Non "risolvere" questi warning revocando EXECUTE.** Le RPC sono il modo
 > in cui l'app chiama queste operazioni: revocare romperebbe il modulo Liste,
-> il push e il controllo di scarto delle migrazioni. Il warning è informativo;
-> la difesa è nel corpo della funzione (o, per `get_migrazioni_applicate`,
-> nell'assenza di qualunque dato sensibile da difendere).
+> il push, il registro di audit e il controllo di scarto delle migrazioni. Il
+> warning è informativo; la difesa è nel corpo della funzione (o, per
+> `get_vapid_public_key`/`get_migrazioni_applicate`, nell'assenza di qualunque
+> dato sensibile da difendere).
 > `get_push_secrets()` — quella che espone la chiave *privata* — è già ristretta
 > a `service_role` e infatti non compare nell'elenco.
+
+> **Nota sull'ampiezza di `can_liste()`.** Tre delle funzioni qui sopra sono
+> aperte a `admin + manager + agent`. Per le operazioni di movimento
+> (`rimuovi_beneficiario_lista`, `sposta_titolare_lista`) è corretto: è il
+> lavoro quotidiano del modulo. Per `elimina_lista_definitivamente`, che
+> cancella in modo **irreversibile** una lista con tutti i suoi movimenti, la
+> sua storia e i suoi beneficiari, è una decisione da **riconfermare
+> esplicitamente** e non da ereditare dal predicato più comodo. Il passaggio
+> obbligato dal cestino la attenua — serve un secondo gesto, e in mezzo c'è il
+> tempo di accorgersene — ma non la sostituisce. Finché resta così, resta così
+> per scelta: è questa riga a renderla una scelta.
+
+> ✅ **Come si rilegge dal database, invece di fidarsi di questa tabella**
+> (M-5 dell'audit del 26 agosto: la riga di `importa_backup` dichiarava
+> `private.can_liste()` mentre il database applicava `private.is_admin()` dal
+> 15 agosto, e mancavano del tutto le sei funzioni del registro di audit
+> aggiunte il 26 — la deriva era benigna nel verso, ma era sul documento che
+> il progetto usa come riferimento di sicurezza):
+>
+> ```sql
+> select p.proname,
+>        pg_get_function_identity_arguments(p.oid) as argomenti,
+>        pg_get_function_result(p.oid)             as ritorna,
+>        has_function_privilege('anon',          p.oid, 'execute') as anon,
+>        has_function_privilege('authenticated', p.oid, 'execute') as auth
+>   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+>  where n.nspname = 'public' and p.prosecdef
+>    and (has_function_privilege('anon', p.oid, 'execute')
+>      or has_function_privilege('authenticated', p.oid, 'execute'))
+>  order by 1;
+> ```
+>
+> L'elenco che ne esce va tenuto uguale a due cose: questa tabella e
+> `FUNZIONI_SECURITY_DEFINER_VERIFICATE` in
+> `scripts/verifica-advisor/advisor.js`. Non è un doppione per distrazione: il
+> controllo automatico accetta i due lint `*_security_definer_function_executable`
+> **per funzione** e non per nome del lint, quindi una SECURITY DEFINER nuova e
+> mai esaminata fa fallire `npm run verifica:advisor` finché qualcuno non la
+> guarda e la scrive in entrambi i posti. Il giorno in cui i due elenchi
+> divergono, quello sbagliato è quello che non viene dal `select` qui sopra.
 
 ---
 
@@ -428,6 +473,23 @@ codice applicativo.
 4. ~~**Decidere sul sotto-ruolo Junior**~~ → **fatto**: colonna
    `users.seniority` + predicato RLS `private.can_use_task_category` cablato
    nel `WITH CHECK` di `tasks_insert`/`tasks_update` (§4).
+5. ⚠️ **Impostare `Minimum password length` in GoTrue** (dashboard → Auth →
+   Password) — **aperto, ed è l'unica leva a costo zero su questo asse.**
+   M-4 dell'audit del 26 agosto. Il minimo di 8 caratteri era scritto solo nel
+   client, in due copie: ora è una sola definizione (`PASSWORD_MIN` in
+   `src/lib/validators.js`, usata da `UpdatePasswordScreen`,
+   `AccountSicurezza` e dal messaggio di `weak_password` in `LoginScreen`), ma
+   **il client non è il livello che decide**. `supabase.auth.updateUser({
+   password })` è raggiungibile su `/auth/v1/user` con il solo token di
+   sessione: chi chiama l'API direttamente incontra il minimo di GoTrue, non
+   quello di `validators.js`. Finché i due numeri non sono allineati a mano
+   nella dashboard, l'unica barriera vera sulla robustezza delle password è
+   quella di GoTrue, e questo documento non può dire quale sia — non è
+   leggibile dal repository né dal database, sta nella configurazione del
+   progetto Auth. Il punto 1 qui sopra spiega perché la verifica contro
+   HaveIBeenPwned resta spenta (piano Free); **proprio perché quel controllo
+   manca**, la lunghezza minima è ciò che rimane. Quando è impostata, questa
+   riga va chiusa dicendo su quale valore.
 
 > ✅ **Nota sulla migrazione del punto 2 — riconciliata, non fantasma.** Il
 > file resta `20260804230000_set_updated_at_search_path.sql`, ma la versione

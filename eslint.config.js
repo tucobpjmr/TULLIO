@@ -290,6 +290,39 @@ const VIETATO_LISTEAPI_DA_FUORI = {
 // È lo stesso rischio che ST-12 ha già visto una volta: un refactoring di sola
 // forma (il ri-export di `getUnreadCount` da ChatPanel) che apre in silenzio
 // un percorso chiuso altrove. Qui la contromisura precede il rilievo.
+// A-1 dell'audit sicurezza del 26 agosto · SheetJS gira SOLO nel worker.
+//
+// PERCHÉ ESISTE. `xlsx@0.18.5` è l'ultima versione pubblicata su npm e porta
+// due CVE che non riceveranno mai un fix sul registry (prototype pollution e
+// ReDoS). La difesa non è più rilevarle dopo il fatto: è che la libreria non
+// venga MAI eseguita nel realm che tiene il token di sessione. Quel realm
+// separato è `src/lib/xlsxWorker.js`, creato e terminato per ogni file.
+//
+// Una proprietà così vale finché è vera di TUTTO il progetto, e si perde con
+// un solo `import * as XLSX from "xlsx"` aggiunto per comodità in un
+// componente — che è esattamente come nascono le regressioni di questo tipo:
+// non per una decisione, ma per un import copiato dal vicino (la stessa
+// dinamica che ha motivato VIETATO_APPGLOBALS qui sopra). Nessun test può
+// intercettarlo, perché il codice che lo violasse funzionerebbe benissimo.
+//
+// C'è anche un costo misurabile, non solo di sicurezza: un secondo
+// importatore fa emettere a Vite un SECONDO chunk con dentro la libreria
+// intera (~430 kB), perché il worker non condivide il grafo dei moduli con il
+// thread principale.
+//
+// L'unica eccezione è il worker stesso, dichiarata più sotto insieme ai test
+// che hanno bisogno di costruire un foglio finto.
+const VIETATO_XLSX_FUORI_DAL_WORKER = {
+  group: ['xlsx', 'xlsx/*'],
+  message:
+    'SheetJS si importa SOLO da src/lib/xlsxWorker.js (A-1 dell\'audit '
+    + 'sicurezza del 26 agosto). Ha due CVE senza fix su npm, e la difesa è '
+    + 'che non venga mai eseguito nel realm che tiene la sessione: dal resto '
+    + 'dell\'app si passa da src/lib/xlsx.js (readFirstSheetRows, '
+    + 'readFirstSheetRowsAutoHeader, scriviFoglioXlsx). Un secondo import '
+    + 'annulla l\'isolamento e duplica ~430 kB nel bundle.',
+};
+
 const VIETATI_MODULI_API_INTERNI = {
   group: ['**/lib/api/*'],
   message:
@@ -415,6 +448,7 @@ export default [
         patterns: [
           VIETATO_APPGLOBALS, VIETATI_IMPORT_LISTE_EAGER, VIETATO_MOCKDATA_DIRETTO,
           VIETATO_LISTEAPI_DA_FUORI, VIETATI_MODULI_API_INTERNI,
+          VIETATO_XLSX_FUORI_DAL_WORKER,
         ],
       }],
       'no-restricted-syntax': ['error', STILE_INLINE_COSTANTE, VIETATO_CONTEXT_VALUE_LETTERALE,
@@ -438,6 +472,7 @@ export default [
           VIETATO_APPGLOBALS, VIETATE_ENTITA_DELLO_STATE,
           VIETATI_IMPORT_LISTE_EAGER, VIETATO_MOCKDATA_DIRETTO,
           VIETATO_LISTEAPI_DA_FUORI, VIETATI_MODULI_API_INTERNI,
+          VIETATO_XLSX_FUORI_DAL_WORKER,
         ],
       }],
       'no-restricted-properties': ['error', ...VIETATE_MUTAZIONI_TEAM],
@@ -447,6 +482,28 @@ export default [
   // (staticamente, dietro il proprio guard DEV a ogni chiamata): senza questa
   // eccezione VIETATO_MOCKDATA_DIRETTO, ereditato dal blocco base sopra,
   // vieterebbe l'unico file che deve poter fare quell'import.
+  // L'UNICA eccezione a VIETATO_XLSX_FUORI_DAL_WORKER: il worker stesso.
+  //
+  // È dichiarata qui, su un percorso singolo, e non come `eslint-disable` nel
+  // file — che sarebbe l'altra forma possibile e sarebbe peggiore: una deroga
+  // scritta dentro al file la vede solo chi apre quel file, mentre la domanda
+  // «chi può importare SheetJS?» va risposta dove sta il divieto. Se un giorno
+  // servisse un secondo importatore, la modifica da discutere in review è
+  // questa riga.
+  //
+  // Nota su src/test/: i file di test NON ereditano questa restrizione (il loro
+  // blocco più sotto elenca un insieme di pattern proprio), ed è deliberato —
+  // costruiscono i fogli finti da dare in pasto al worker con `XLSX.write`, e
+  // quel codice non finisce in nessun bundle né in nessuna sessione utente.
+  {
+    files: ['src/lib/xlsxWorker.js'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [VIETATO_APPGLOBALS, VIETATI_IMPORT_LISTE_EAGER, VIETATO_MOCKDATA_DIRETTO,
+          VIETATO_LISTEAPI_DA_FUORI, VIETATI_MODULI_API_INTERNI],
+      }],
+    },
+  },
   {
     files: ['src/state/demoState.js'],
     rules: {
@@ -472,6 +529,7 @@ export default [
         patterns: [
           VIETATO_APPGLOBALS, VIETATE_ENTITA_DELLO_STATE,
           VIETATI_IMPORT_LISTE_EAGER, VIETATO_MOCKDATA_DIRETTO, VIETATI_MODULI_API_INTERNI,
+          VIETATO_XLSX_FUORI_DAL_WORKER,
         ],
       }],
     },

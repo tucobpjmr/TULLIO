@@ -32,6 +32,14 @@ vi.mock("../../lib/api.js", () => ({
     getContacts: vi.fn().mockResolvedValue({ data: null, error: null }),
     invite: vi.fn().mockResolvedValue({ error: null }),
   },
+  // A-2 dell'audit sicurezza del 26 agosto: la tab «Log attività» monta ora
+  // anche AuditLogSection, che legge il registro di controllo dal database.
+  // Elenco vuoto = il caso "nessuna operazione privilegiata registrata": qui
+  // interessa che la tab renda le voci di SESSIONE passate come prop, che è
+  // ciò che questo test verifica.
+  AuditLog: {
+    list: vi.fn().mockResolvedValue({ data: [], error: null }),
+  },
 }));
 
 const { AdminView } = await import("../../components/admin/AdminView.jsx");

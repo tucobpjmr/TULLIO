@@ -1,6 +1,10 @@
 import { describe, it, expect, afterEach } from "vitest";
 import * as XLSX from "xlsx";
-import { withPrototypePollutionGuard, detectHeaderRowIndex, readFirstSheetRowsAutoHeader } from "../../lib/xlsx.js";
+// `Worker` in jsdom arriva da src/test/setup.js (@vitest/web-worker): il parse
+// gira in src/lib/xlsxWorker.js e questi test lo attraversano davvero.
+import { detectHeaderRowIndex } from "../../lib/xlsxHeader.js";
+import { withPrototypePollutionGuard } from "../../lib/prototypeGuard.js";
+import { readFirstSheetRows, readFirstSheetRowsAutoHeader, scriviFoglioXlsx, MAX_IMPORT_BYTES } from "../../lib/xlsx.js";
 
 const CLIENT_HINTS = [
   "nome", "ragionesociale", "ragione sociale", "nominativo", "titolo",
@@ -55,6 +59,105 @@ describe("readFirstSheetRowsAutoHeader", () => {
     expect(rows).toHaveLength(2);
     expect(rows[0].RagioneSociale).toBe("MARIO ROSSI");
     expect(rows[1].RagioneSociale).toBe("ANNA VERDI");
+  });
+});
+
+// ─── IL CONFINE DEL WORKER (A-1) ───────────────────────────────────────────
+// Questi test esercitano la proprietà per cui il worker esiste: i dati di un
+// file estraneo entrano nell'applicazione da UN SOLO punto, e quel punto
+// scarta i nomi di chiave che più avanti diventerebbero una scrittura sul
+// prototipo. Il parse vero gira nel worker, quindi passano anche dal
+// trasporto: se domani qualcuno rimettesse SheetJS nel thread principale
+// "perché era più semplice", questi continuerebbero a passare — è
+// `VIETATO_XLSX_FUORI_DAL_WORKER` in eslint.config.js a presidiare quello,
+// non un test.
+const workbookDaAoA = (aoa) => {
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+  const out = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+  return out.buffer ?? out;
+};
+
+describe("readFirstSheetRows (via worker)", () => {
+  it("legge le righe del primo foglio con l'intestazione in riga 0", async () => {
+    const rows = await readFirstSheetRows(workbookDaAoA([
+      ["Titolo", "Cliente"],
+      ["Prenotazione Roma", "MARIO ROSSI"],
+    ]));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].Titolo).toBe("Prenotazione Roma");
+    expect(rows[0].Cliente).toBe("MARIO ROSSI");
+  });
+
+  it("nessuna chiave pericolosa sopravvive a un'intestazione ostile", async () => {
+    const rows = await readFirstSheetRows(workbookDaAoA([
+      ["Titolo", "__proto__", "constructor", "prototype"],
+      ["Prenotazione", "pwned", "pwned", "pwned"],
+    ]));
+    expect(rows).toHaveLength(1);
+    for (const k of ["__proto__", "constructor", "prototype"]) {
+      expect(Object.keys(rows[0])).not.toContain(k);
+    }
+    // e soprattutto: nessuna traccia sul prototipo di questo realm
+    expect({}.pwned).toBeUndefined();
+    expect(Object.getOwnPropertyNames(Object.prototype)).not.toContain("pwned");
+
+    // ⚠️ Osservato scrivendo questo test, e vale la pena lasciarlo scritto.
+    // Su QUESTO percorso le chiavi pericolose non arrivano mai intatte al
+    // filtro: SheetJS le consegna già storpiate in `__proto___NaN` e
+    // `constructor_NaN`. Il motivo è che la sua deduplica dei nomi di colonna
+    // interroga l'accumulatore con `in`, che trova `__proto__` e `constructor`
+    // su Object.prototype anche quando non sono stati inseriti: li considera
+    // duplicati e vi appende un contatore che è `undefined + 1`. È un accesso
+    // non sicuro al prototipo dentro la libreria — innocuo di per sé, ma è la
+    // stessa disattenzione da cui nasce la CVE, vista da vicino.
+    //
+    // Il filtro non è quindi ridondante: sull'altro percorso (`header: 1`) le
+    // chiavi le costruiamo NOI da `righeDaGriglia`, e lì `__proto__` arriva
+    // letterale — è il test qui sotto a dimostrarlo.
+    expect(Object.keys(rows[0])).toContain("Titolo");
+  });
+
+  it("scarta le stesse chiavi anche sul percorso auto-header", async () => {
+    const { rows, columns } = await readFirstSheetRowsAutoHeader(workbookDaAoA([
+      ["Esportazione del : 01/01/2026"],
+      [],
+      ["Nome", "Email", "__proto__"],
+      ["MARIO ROSSI", "mario@example.com", "pwned"],
+    ]), CLIENT_HINTS);
+    expect(rows).toHaveLength(1);
+    expect(Object.keys(rows[0])).not.toContain("__proto__");
+    expect(rows[0].Nome).toBe("MARIO ROSSI");
+    // `columns` resta la lista GREZZA dell'intestazione: è quella che la UI di
+    // mappatura mostra all'utente, e nascondergli una colonna presente nel file
+    // sarebbe più confondente che mostrarla e non importarla.
+    expect(columns).toContain("__proto__");
+  });
+
+  it("rifiuta un buffer oltre MAX_IMPORT_BYTES senza nemmeno avviare il worker", async () => {
+    const troppoGrande = new ArrayBuffer(MAX_IMPORT_BYTES + 1);
+    await expect(readFirstSheetRows(troppoGrande)).rejects.toThrow(/troppo grande/i);
+  });
+
+  it("un file che non è un foglio torna vuoto, non in errore", async () => {
+    // Contratto controintuitivo ma reale, e i due componenti di import devono
+    // conoscerlo: SheetJS interpreta byte arbitrari come un CSV di una riga,
+    // quindi un PDF rinominato .csv non solleva niente — arriva come ZERO
+    // righe. "Nessuna riga" è perciò il modo NORMALE in cui si presenta un
+    // file sbagliato, e la UI deve dirlo all'utente invece di trattarlo come
+    // un import riuscito su un file vuoto.
+    const spazzatura = new TextEncoder().encode("non e' un foglio di calcolo").buffer;
+    await expect(readFirstSheetRows(spazzatura)).resolves.toEqual([]);
+  });
+});
+
+describe("scriviFoglioXlsx (via worker)", () => {
+  it("produce un Blob .xlsx rileggibile", async () => {
+    const blob = await scriviFoglioXlsx([{ ID: "t-1", Titolo: "Prenotazione" }], "Task");
+    expect(blob.type).toMatch(/spreadsheetml\.sheet/);
+    const riletto = await readFirstSheetRows(await blob.arrayBuffer());
+    expect(riletto).toEqual([{ ID: "t-1", Titolo: "Prenotazione" }]);
   });
 });
 

@@ -8,7 +8,7 @@ import { useTasks } from "../../../state/TasksContext.jsx";
 import { useStoricoTaskCompleto } from "../../../state/StoricoTaskContext.jsx";
 import { cardStyle, cardH, cardP, btnPrimary, btnWarning } from "../adminStyles.js";
 import { validateBackup } from "../../../lib/backupValidation.js";
-import { loadXLSX } from "../../../lib/xlsx.js";
+import { scriviFoglioXlsx } from "../../../lib/xlsx.js";
 import { downloadFile, escapeCSV } from "../adminExport.js";
 import { useConfirm } from "../../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../../styles/common.js";
@@ -57,7 +57,11 @@ export const AdminIOTab = ({ agencyName, notices = [] }) => {
   };
 
   const exportExcel = async () => {
-    const XLSX = await loadXLSX();
+    // A-1 dell'audit sicurezza del 26 agosto: era `loadXLSX()` + `XLSX.writeFile()`,
+    // cioè il secondo punto in cui SheetJS entrava nel thread principale — e,
+    // per il bundle, il motivo per cui ne sarebbero esistite due copie una
+    // volta spostato il parse nel worker. Ora il foglio si costruisce di là e
+    // qui arriva un Blob, che è l'unica cosa per cui serve davvero il DOM.
     const data = tasksToExport().map(t => ({
       ID: t.id, Titolo: t.title, Categoria: t.category, Priorità: t.priority,
       Status: t.status, Cliente: t.client || "",
@@ -66,10 +70,8 @@ export const AdminIOTab = ({ agencyName, notices = [] }) => {
       Descrizione: t.description || "",
       Cestinato: t.deletedAt ? "Sì" : "No",
     }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Task");
-    XLSX.writeFile(wb, `voyagedesk-task-${new Date().toISOString().slice(0,10)}.xlsx`);
+    const blob = await scriviFoglioXlsx(data, "Task");
+    downloadFile(blob, `voyagedesk-task-${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
   const exportBackup = () => {

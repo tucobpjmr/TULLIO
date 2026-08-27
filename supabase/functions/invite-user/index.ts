@@ -10,6 +10,7 @@ import { requireActiveAdmin } from "../_shared/requireActiveAdmin.ts";
 // stessa regola di `_shared/cors.ts`, con lo stesso difetto in entrambe —
 // vedi il preambolo di originConsentite.ts. Ora la regola è una sola.
 import { redirectConsentito } from "../_shared/originConsentite.ts";
+import { registraAudit } from "../_shared/audit.ts";
 
 const VALID_ROLES = new Set(["admin", "manager", "agent", "driver"]);
 
@@ -164,6 +165,14 @@ Deno.serve(async (req: Request) => {
         });
       }
     }
+
+    // Il RUOLO con cui si invita è la decisione privilegiata di questa
+    // funzione: pre-crea una riga con `role` già impostato, e da lì in poi il
+    // trigger su public.users vedrà solo eventuali CAMBI. Senza questa voce il
+    // registro mostrerebbe le promozioni e non le nomine.
+    // Nessuna email nei details: `audit_log.details` non porta PII.
+    await registraAudit(supabaseAdmin, callerId, resend ? "user.invito_reinviato" : "user.invitato",
+                        { type: "user", id: inviteData.user.id }, { role, resend });
 
     return json({ success: true, userId: inviteData.user.id });
   } catch (err: unknown) {

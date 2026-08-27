@@ -7,6 +7,7 @@ import { useConfirm } from "../../../state/ConfirmContext.jsx";
 import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
 import { obbligatorio, primoCampoInvalido, validaCampi } from "../../../lib/validators.js";
 import { useDispatch } from "../../../state/DispatchContext.jsx";
+import * as stiliComuni from "../../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -16,7 +17,6 @@ const boxF12Bold = {
   background: "var(--navy)", color: "#fff", fontSize: 12, fontWeight: 700,
   cursor: "pointer", fontFamily: "inherit",
 };
-const txtF12Muted = { fontSize: 12, color: "var(--text-muted)", marginTop: 0, marginBottom: 12 };
 const colGap8Mb12 = {
   padding: 12, background: "var(--surface2)", borderRadius: 8, marginBottom: 12,
   display: "flex", flexDirection: "column", gap: 8,
@@ -110,7 +110,7 @@ export const MessageTemplatesSection = ({ templates = [] }) => {
           >+ Nuovo</button>
         )}
       </div>
-      <p style={txtF12Muted}>
+      <p style={stiliComuni.txtF12MutedMb12}>
         Frasi ricorrenti riutilizzabili dal composer chat (pulsante 📋). Solo Admin può gestire.
       </p>
 

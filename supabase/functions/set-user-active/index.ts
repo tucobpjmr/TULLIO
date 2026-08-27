@@ -22,6 +22,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireActiveAdmin } from "../_shared/requireActiveAdmin.ts";
+import { registraAudit } from "../_shared/audit.ts";
 
 // Non un ban "per sempre" letterale (a differenza di delete-account, che è
 // irreversibile per scelta): è "fino a quando un admin non lo rimuove
@@ -101,6 +102,15 @@ Deno.serve(async (req: Request) => {
       console.error("[set-user-active] users.active error", dbErr.message);
       return json({ error: "Accesso aggiornato ma il profilo non si è salvato: " + dbErr.message }, 500);
     }
+
+    // Il trigger su public.users registra già il passaggio di `active`. Questa
+    // voce dice l'altra metà, quella che il database non può vedere: che è
+    // stata bannata (o sbloccata) la SESSIONE in GoTrue. Erano proprio le due
+    // cose che 20260628 ha separato — il flag applicativo e la revoca vera —
+    // e un registro che ne mostrasse una sola racconterebbe la disattivazione
+    // come era PRIMA di quella correzione.
+    await registraAudit(supabaseAdmin, callerId, active ? "user.sbloccato" : "user.bannato",
+                        { type: "user", id: targetId }, { ban: !active });
 
     return json({ success: true });
   } catch (err: unknown) {

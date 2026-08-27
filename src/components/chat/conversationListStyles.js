@@ -40,7 +40,10 @@ export const boxF14Muted = {
   fontSize: 14, color: "var(--text-muted)", padding: "6px 4px",
   borderRadius: 6, flexShrink: 0, opacity: 0.65,
 };
-export const txtMutedTxtCenter = { textAlign: "center", padding: "40px 20px", color: "var(--text-muted)" };
+// Era una copia locale di quella che oggi sta in common.js come
+// `statoVuotoCentrato` (promossa lì da A-2 dell'audit sicurezza del 26
+// agosto, quando una terza copia l'ha resa visibile al controllo).
+export const txtMutedTxtCenter = stiliComuni.statoVuotoCentrato;
 export const txtF40Mb8 = { fontSize: 40, marginBottom: 8 };
 export const rowCenterMiddle2 = {
   margin: 14, padding: "10px", background: "var(--navy)", color: "#fff",

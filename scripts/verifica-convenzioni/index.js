@@ -98,6 +98,14 @@ const AUDIT = [
   // registry core). Finche' non e' chiuso, il controllo n. 5-bis qui sotto
   // stampa uno 0 che vale solo per il core.
   { file: 'AUDIT_ARCHITETTURA_2026-08-26.md', prefisso: ['A', 'M', 'B'] },
+  // L'audit di sicurezza del 26 agosto. Entra nel registro il giorno stesso in
+  // cui nasce, e non dopo, per la ragione che questo elenco porta scritta piu'
+  // sopra: un audit fuori dal registro ha un marcatore che nessuno verifica, e
+  // il momento in cui scade e' esattamente quello in cui si comincia a chiudere
+  // i suoi rilievi — cioe' quando nessuno sta piu' guardando questo file.
+  // Nasce con 12 rilievi tutti aperti: e' il caso in cui il marcatore ha il
+  // massimo numero di occasioni di divergere.
+  { file: 'AUDIT_SICUREZZA_2026-08-26.md', prefisso: ['A', 'M', 'B'] },
 ];
 
 // Misura i warning di una regola sul sorgente dell'app.

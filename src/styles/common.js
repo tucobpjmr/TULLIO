@@ -165,6 +165,16 @@ export const txtF36Mb12 = { fontSize: 36, marginBottom: 12, opacity: 0.3 };
 export const txtF40Mb12 = { fontSize: 40, marginBottom: 12 };
 export const txtF48Mb16 = { fontSize: 48, marginBottom: 16, opacity: 0.3 };
 
+// A-2 dell'audit sicurezza del 26 agosto · promosse qui dal controllo
+// relazionale di `verifica:convenzioni`, che le ha viste comparire in un terzo
+// file appena la tab «Log attività» si è divisa in due componenti. Erano
+// entrambe già duplicate in due punti: la terza copia è solo quella che le ha
+// rese visibili.
+// Il paragrafo esplicativo sotto il titolo di una sezione di pannello.
+export const txtF12MutedMb12 = { fontSize: 12, color: "var(--text-muted)", marginTop: 0, marginBottom: 12 };
+// Il corpo centrato di uno stato vuoto dentro una card.
+export const statoVuotoCentrato = { padding: "40px 20px", textAlign: "center", color: "var(--text-muted)" };
+
 // ─── SPAZIATURE ──────────────────────────────────────────────────────────────
 export const mb14 = { marginBottom: 14 };
 export const mt12 = { marginTop: 12 };

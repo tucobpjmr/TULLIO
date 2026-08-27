@@ -71,8 +71,8 @@ esterne al team viva in memoria e sparisca a ogni refresh (rilievo **A-2**).
 |---|----------|---------|------|----------------|
 | — | **Critici** | *Nessun rilievo critico.* Nessuna falla che consenta a un non autenticato, o a un utente autenticato di ruolo basso, di leggere o scrivere dati fuori dal proprio perimetro. | — | — |
 | **A-1** ✔ | **Alta** | `xlsx@0.18.5`: prototype pollution (CVE-2023-30533, CVSS 7.8) + ReDoS (CVE-2024-22363, 7.5). Nessun fix su npm. Mitigato in app, non risolto. | `package.json:24`, `src/lib/xlsx.js` | membro del team che importa un file ostile |
-| **A-2** ⚙ | **Alta** | Nessun audit trail durevole. Il "Log attività" è stato React in memoria, tetto 100 voci, azzerato a ogni reload, mai scritto a database. Le operazioni più distruttive (hard-delete utente, ban, cambio ruolo, `reset_completo`, `importa_backup`, delete cliente) non lasciano traccia. | `src/state/reducer.js:735-736,776`, `src/components/admin/tabs/AdminLogTab.jsx` | — (rischio di accountability/GDPR, non di accesso) |
-| **A-3** ⚙ | **Alta** | `public.users` è l'unica tabella sensibile senza il gate RESTRICTIVE `rls_active_only`. Un account **pending** o **appena disattivato** conserva la lettura dell'intera rubrica interna e la scrittura sulla propria riga di profilo. | policy `users_select_all`, `users_update` (live DB) | utente invitato e non ancora approvato; utente disattivato, fino alla scadenza dell'access token |
+| **A-2** ✔ | **Alta** | Nessun audit trail durevole. Il "Log attività" è stato React in memoria, tetto 100 voci, azzerato a ogni reload, mai scritto a database. Le operazioni più distruttive (hard-delete utente, ban, cambio ruolo, `reset_completo`, `importa_backup`, delete cliente) non lasciano traccia. | `src/state/reducer.js:735-736,776`, `src/components/admin/tabs/AdminLogTab.jsx` | — (rischio di accountability/GDPR, non di accesso) |
+| **A-3** ✔ | **Alta** | `public.users` è l'unica tabella sensibile senza il gate RESTRICTIVE `rls_active_only`. Un account **pending** o **appena disattivato** conserva la lettura dell'intera rubrica interna e la scrittura sulla propria riga di profilo. | policy `users_select_all`, `users_update` (live DB) | utente invitato e non ancora approvato; utente disattivato, fino alla scadenza dell'access token |
 | M-1 | **Media** | Il bucket `avatars` è escluso dalla policy RESTRICTIVE `storage_active_only`: `insert`/`update`/`delete` sugli avatar non controllano `is_active_user()`. | policy `storage_active_only` (live DB) | utente pending o disattivato |
 | M-2 | **Media** | `chat_files_delete` contiene una clausola "orfani" che consente a **qualunque** utente attivo di cancellare qualunque oggetto di `chat-files` la cui cartella non corrisponda a una conversazione esistente. | policy `chat_files_delete` (live DB) | qualunque utente attivo |
 | M-3 | **Media** | `messages_update` lascia passare in RLS **ogni partecipante** su **ogni** messaggio; la restrizione per colonna è affidata al solo trigger `messages_blocca_modifiche_altrui`. Punto singolo di rottura, su una tabella da cui un trigger analogo è già stato rimosso in passato (`20260814210100`). | policy `messages_update` + trigger omonimo (live DB) | partecipante alla conversazione, **solo** se il trigger salta |
@@ -97,7 +97,7 @@ esterne al team viva in memoria e sparisca a ogni refresh (rilievo **A-2**).
 > `XLSX.writeFile`. Il fix definitivo — il tarball 0.20.3 dal CDN — resta la
 > cosa giusta da fare e non è più urgente; l'egress è ancora 403.
 >
-> **A-2 ⚙ codice pronto, DA APPLICARE.** Tabella `audit_log` append-only,
+> **A-2 ✔ risolto e in produzione.** Tabella `audit_log` append-only,
 > RPC `registra_audit()` che ricava l'attore da `auth.uid()`, trigger su
 > `users` (privilegi e cancellazioni), trigger di statement su `clients`
 > (import e eliminazioni massive), trigger di TRUNCATE sul modulo Liste, e le
@@ -127,25 +127,46 @@ esterne al team viva in memoria e sparisca a ogni refresh (rilievo **A-2**).
 > annullato (la riga resta `agent`, capacity 8) e lascia **una** voce con il
 > delta completo; una modifica non privilegiata non ne lascia nessuna.
 >
-> **A-3 ⚙ codice pronto, DA APPLICARE.** `public.users` entra nel gate
+> **A-3 ✔ risolto e in produzione.** `public.users` entra nel gate
 > "utente attivo" nella forma che NON rompe `PendingScreen`: la riga propria
 > resta sempre leggibile, la rubrica no. In scrittura il gate si applica pieno.
 >
-> ✅ **Applicate allo STAGING** (`tullio-staging`) il 26 agosto e verificate
-> leggendo `pg_policies`/`pg_trigger` e facendo scattare i trigger, non
-> fidandosi del `success: true`.
+> ### Stato di applicazione — verificato, non dedotto
 >
-> ⛔ **A-2 e A-3 restano APERTI finché le migrazioni non sono applicate ALLA
-> PRODUZIONE e le Edge Function ridistribuite.** È la regola di `docs/MIGRAZIONI_SUPABASE.md`,
-> che su questo progetto è già costata tre incidenti: *committare non è
-> applicare*, e lo stato va letto dal database, non dedotto dal repository.
-> Il marcatore in `INDEX.md` dice perciò `1/12`, non `3/12`.
+> Le tre migrazioni (`20260826213000`, `20260826214000`, `20260826220000`) sono
+> applicate **allo staging** e **alla produzione**, e le tre Edge Function
+> privilegiate sono ridistribuite: `invite-user` v10, `delete-user` v5,
+> `set-user-active` v2, tutte `ACTIVE` con `verify_jwt: true`. Le altre quattro
+> funzioni del progetto non sono state toccate (stesse versioni, stessi hash).
 >
-> ⚠️ **Conseguenza operativa sul workflow `rls.yml`**: gira su `main` quando
-> cambia `supabase/migrations/**`, contro il progetto di **staging**. I test
-> aggiunti per A-2 e A-3 falliranno finché le due migrazioni non sono
-> applicate **anche allo staging** — che va fatto prima o insieme al merge,
-> non dopo.
+> La verifica è stata fatta **leggendo lo stato**, come impone
+> `docs/MIGRAZIONI_SUPABASE.md` — *committare non è applicare*: `pg_policies`
+> per le due policy di `users`, `pg_class.relacl` per i grant su `audit_log`
+> (`authenticated=r`, sola lettura), `pg_trigger` per i cinque trigger, e
+> `pg_get_functiondef` per confermare che la guardia estesa conserva intatte le
+> sei righe che annullano il delta. Un controllo trasversale conferma inoltre
+> che **non resta alcuna tabella fuori dal gate "utente attivo"**, escluse le
+> quattro `liste_*` che lo hanno dentro `can_liste()`.
+>
+> Sullo staging i trigger sono stati anche **fatti scattare**: il tentativo
+> `role → admin, capacity → 999` viene annullato (la riga resta `agent`,
+> capacity 8) e lascia una sola voce con il delta completo; una modifica non
+> privilegiata non ne lascia nessuna.
+>
+> ⚠️ **Limite dichiarato sul deploy delle Edge Function.** Sono state
+> distribuite via MCP, che richiede di ritrasmettere anche i file `_shared/`
+> non modificati. Per `set-user-active` il contenuto è stato **riletto dal
+> deployato e confrontato** con il repo (predicato admin completo, allow-list
+> dei tre host, ramo `profiloErr`); per le altre due sono state riusate le
+> **identiche stringhe** già verificate, quindi il codice condiviso è lo stesso
+> in tutte e tre. Resta preferibile, alla prima occasione utile, un
+> `supabase functions deploy` dal repository: legge i file dal disco e rende la
+> corrispondenza vera per costruzione invece che per verifica.
+>
+> ✅ **Workflow `rls.yml`**: gira su `main` quando cambia
+> `supabase/migrations/**`, contro il progetto di **staging** — dove le tre
+> migrazioni sono già applicate. I sette test aggiunti per A-2 e A-3 hanno
+> quindi lo schema che si aspettano: al merge il job parte allineato.
 
 ---
 

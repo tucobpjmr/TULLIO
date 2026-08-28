@@ -193,9 +193,14 @@ export function trovaRiapplicate(applicate) {
 // che l'import trascini la risoluzione di percorsi sul filesystem reale.
 export class PermessoNegato extends Error {}
 
-export async function leggiMigrazioniApplicate(base, chiave, fetchImpl) {
+// `bearer` di default vale `chiave` (l'anon key): è il comportamento storico,
+// che da B-1 in poi risponde sempre PermessoNegato. Un chiamante che dispone
+// di credenziali vere (vedi `accediPerVerificaMigrazioni` sotto) passa un JWT
+// `authenticated` come quarto argomento — l'`apikey` resta comunque l'anon
+// key, che PostgREST vuole su ogni richiesta indipendentemente da chi la fa.
+export async function leggiMigrazioniApplicate(base, chiave, fetchImpl, bearer = chiave) {
   const url = `${base.replace(/\/$/, '')}/rest/v1/rpc/get_migrazioni_applicate`;
-  const r = await fetchImpl(url, { headers: { apikey: chiave, Authorization: `Bearer ${chiave}` } });
+  const r = await fetchImpl(url, { headers: { apikey: chiave, Authorization: `Bearer ${bearer}` } });
   if (r.status === 401 || r.status === 403) {
     throw new PermessoNegato(
       `get_migrazioni_applicate ha risposto HTTP ${r.status}: ${await r.text().catch(() => '')}`,
@@ -205,4 +210,28 @@ export async function leggiMigrazioniApplicate(base, chiave, fetchImpl) {
     throw new Error(`get_migrazioni_applicate ha risposto HTTP ${r.status}: ${await r.text().catch(() => '')}`);
   }
   return r.json();
+}
+
+// Login GoTrue (email/password) per ottenere un JWT `authenticated` vero, da
+// passare come `bearer` a leggiMigrazioniApplicate. Qualunque account attivo
+// va bene: get_migrazioni_applicate() non applica alcuna RLS né richiede
+// `is_active_user()` — è un grant di funzione, non una policy — quindi non
+// serve un account dedicato, basta uno già esistente (scelta di chi
+// amministra il progetto: vedi VERIFICA_MIGRAZIONI_EMAIL/PASSWORD in
+// verifica-migrazioni.js).
+export async function accediPerVerificaMigrazioni(base, chiave, email, password, fetchImpl) {
+  const url = `${base.replace(/\/$/, '')}/auth/v1/token?grant_type=password`;
+  const r = await fetchImpl(url, {
+    method: 'POST',
+    headers: { apikey: chiave, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!r.ok) {
+    throw new Error(`login GoTrue per ${email} ha risposto HTTP ${r.status}: ${await r.text().catch(() => '')}`);
+  }
+  const corpo = await r.json();
+  if (!corpo.access_token) {
+    throw new Error(`login GoTrue per ${email}: risposta senza access_token (${JSON.stringify(corpo)}).`);
+  }
+  return corpo.access_token;
 }

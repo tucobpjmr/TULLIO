@@ -14,26 +14,30 @@
 // concessa ad anon (20260828100000_ping_revoca_anon_migrazioni.sql) — restava
 // raggiungibile da chiunque avesse la chiave anon pubblica, cioè da chiunque,
 // e l'elenco dei nomi di migrazione è ricognizione gratuita sulla storia di
-// sicurezza del progetto. Questo script chiamava la RPC con la sola chiave
-// anon (mai stato "autenticato" nel senso di una sessione utente vera), quindi
-// con la revoca la chiamata risponde ora "permission denied": è trattato come
-// INCONCLUSIVO (esce 0 con un avviso), non come uno scarto trovato — stessa
-// scelta di verifica-advisor quando manca il token. Per tornare a verificare
-// per davvero serve un accesso autenticato come `authenticated` (un utente
-// reale, non la chiave anon): finché non c'è, questo controllo è sospeso e
-// lo dice ad ogni esecuzione.
+// sicurezza del progetto. Con la sola chiave anon la RPC risponde "permission
+// denied": è trattato come INCONCLUSIVO (esce 0 con un avviso), non come uno
+// scarto trovato — stessa scelta di verifica-advisor quando manca il token.
+//
+// Per tornare a verificare per davvero servono anche VERIFICA_MIGRAZIONI_EMAIL
+// / VERIFICA_MIGRAZIONI_PASSWORD: le credenziali di un account già esistente
+// (qualunque ruolo va bene — la funzione non applica RLS né richiede
+// `is_active_user()`, è un grant di funzione). Quando sono presenti, questo
+// script fa il login su GoTrue e chiama la RPC con quel JWT come Bearer
+// invece che con la sola chiave anon. Senza, resta sospeso come prima e lo
+// dice ad ogni esecuzione.
 //
 // Uscita: 0 se tutto risolve O se la verifica è inconcludente (manca la
-// configurazione, o get_migrazioni_applicate rifiuta la chiave anon), 1 se
-// almeno un file locale non risulta applicato né in eccezione, 2 su un
-// errore di rete che non è un rifiuto di permesso (non sappiamo dire se sia
-// inconcludente o uno scarto vero).
+// configurazione, o get_migrazioni_applicate rifiuta la chiave anon perché
+// VERIFICA_MIGRAZIONI_EMAIL/PASSWORD non sono configurate), 1 se almeno un
+// file locale non risulta applicato né in eccezione, 2 su un errore di rete,
+// o se le credenziali sono configurate ma il login fallisce (in quel caso NON
+// è inconcludente: qualcuno ha rotto la configurazione, va segnalato rosso).
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   analizzaNomeFile, confrontaMigrazioni, trovaNonVersionate, trovaRiapplicate, ECCEZIONI_STORICHE,
-  PermessoNegato, leggiMigrazioniApplicate,
+  PermessoNegato, leggiMigrazioniApplicate, accediPerVerificaMigrazioni,
 } from './migrazioni.js';
 
 const RADICE = fileURLToPath(new URL('../..', import.meta.url));
@@ -57,23 +61,50 @@ async function main() {
   const locali = leggiMigrazioniLocali();
   console.log(`Confronto ${locali.length} migrazioni locali con quelle applicate su ${base}\n`);
 
+  const email = process.env.VERIFICA_MIGRAZIONI_EMAIL;
+  const password = process.env.VERIFICA_MIGRAZIONI_PASSWORD;
+  const autenticato = Boolean(email && password);
+
+  let bearer = chiave; // fallback storico: la sola chiave anon, che da B-1 in poi rifiuta.
+  if (autenticato) {
+    try {
+      bearer = await accediPerVerificaMigrazioni(base, chiave, email, password, fetch);
+      console.log(`Autenticato come ${email} per la lettura delle migrazioni applicate.\n`);
+    } catch (e) {
+      // Credenziali CONFIGURATE ma il login fallisce: non è il caso previsto
+      // da B-1 (nessuna configurazione), è una configurazione rotta — password
+      // ruotata, account disattivato. Va segnalato rosso, non inconcludente.
+      console.error(`Impossibile autenticarsi come ${email}: ${e.message}`);
+      console.error('VERIFICA_MIGRAZIONI_EMAIL/PASSWORD sono configurate ma il login GoTrue');
+      console.error('fallisce: verifica le credenziali (password ruotata? account disattivato?).');
+      process.exit(2);
+    }
+  }
+
   let applicate;
   try {
-    applicate = await leggiMigrazioniApplicate(base, chiave, fetch);
+    applicate = await leggiMigrazioniApplicate(base, chiave, fetch, bearer);
   } catch (e) {
     if (e instanceof PermessoNegato) {
-      // Atteso da B-1 in poi: get_migrazioni_applicate non è più concessa ad
-      // anon. Esce 0 — un controllo sospeso non deve avere lo stesso aspetto
-      // di uno rotto, ma nemmeno rendere rosso un workflow per un permesso
-      // che è stato tolto di proposito (vedi il commento in cima al file).
+      // Con VERIFICA_MIGRAZIONI_EMAIL/PASSWORD configurate questo non
+      // dovrebbe accadere (la RPC non applica RLS): se accade è una sorpresa
+      // vera, non l'assenza di configurazione prevista da B-1 — resta comunque
+      // inconcludente (0 con avviso), perché il difetto è nell'accesso alla
+      // verifica stessa, non uno scarto di migrazioni trovato.
       console.log(`⚠  ${e.message}`);
-      console.log('   get_migrazioni_applicate() non è più raggiungibile con la sola chiave');
-      console.log('   anon (B-1 dell\'audit del 26 agosto): questo controllo è sospeso finché');
-      console.log('   non riceve un accesso autenticato come `authenticated`. Nessun allarme:');
-      console.log('   non ha trovato uno scarto, non può più cercarlo.');
+      if (autenticato) {
+        console.log(`   Autenticato come ${email}, ma get_migrazioni_applicate() rifiuta comunque.`);
+        console.log('   Non dovrebbe succedere (la funzione non applica RLS): verifica il grant');
+        console.log('   `authenticated` sulla funzione, non solo le credenziali.');
+      } else {
+        console.log('   get_migrazioni_applicate() non è più raggiungibile con la sola chiave');
+        console.log('   anon (B-1 dell\'audit del 26 agosto): questo controllo è sospeso finché');
+        console.log('   non riceve VERIFICA_MIGRAZIONI_EMAIL/PASSWORD. Nessun allarme: non ha');
+        console.log('   trovato uno scarto, non può più cercarlo.');
+      }
       console.log('::warning title=Verifica migrazioni sospesa::get_migrazioni_applicate() ' +
-        'rifiuta la chiave anon (grant revocato, B-1). Serve un accesso autenticato per ' +
-        'ripristinare questo controllo.');
+        'rifiuta l\'accesso corrente. Serve un accesso authenticated valido per ripristinare ' +
+        'questo controllo.');
       process.exit(0);
     }
     console.error(`Impossibile leggere le migrazioni applicate: ${e.message}`);

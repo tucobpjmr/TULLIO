@@ -85,12 +85,18 @@ jobs:
       # B-1 dell'audit del 26 agosto: get_migrazioni_applicate() non è più
       # concessa ad anon (l'elenco dei nomi di migrazione, letto da chiunque
       # senza autenticarsi, era ricognizione gratuita sulla storia di
-      # sicurezza del progetto). Con la sola chiave anon questo passo è ora
-      # strutturalmente inconcludente: vedi il commento in cima a
-      # verifica-migrazioni.js sul perché degrada con un avviso invece di
-      # rompersi, e su cosa serve per tornare a verificare per davvero.
+      # sicurezza del progetto). VERIFICA_MIGRAZIONI_EMAIL/PASSWORD sono le
+      # credenziali di un account già esistente (qualunque ruolo va bene: la
+      # funzione non applica RLS) — *secret*, non variable: a differenza della
+      # anon key qui sopra, una password è un segreto per davvero. Finché non
+      # sono configurati questo passo resta inconcludente: vedi il commento in
+      # cima a verifica-migrazioni.js sul perché degrada con un avviso invece
+      # di rompersi.
       - name: Verifica che le migrazioni del repository siano applicate
         if: always()
+        env:
+          VERIFICA_MIGRAZIONI_EMAIL: ${{ secrets.VERIFICA_MIGRAZIONI_EMAIL }}
+          VERIFICA_MIGRAZIONI_PASSWORD: ${{ secrets.VERIFICA_MIGRAZIONI_PASSWORD }}
         run: npm run verifica:migrazioni
 
       # C-1 dell'audit del 22 agosto. È l'unico controllo che guarda un valore

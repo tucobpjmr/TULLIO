@@ -10,7 +10,7 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   analizzaNomeFile, confrontaMigrazioni, trovaNonVersionate, trovaRiapplicate, ALIAS_APPLICATE,
-  leggiMigrazioniApplicate, PermessoNegato,
+  leggiMigrazioniApplicate, PermessoNegato, accediPerVerificaMigrazioni,
 } from '../../../scripts/verifica-rpc/migrazioni.js';
 
 describe('analizzaNomeFile', () => {
@@ -203,6 +203,45 @@ describe('leggiMigrazioniApplicate — il rifiuto di permesso è un caso distint
     const f = async () => new Response(JSON.stringify(applicate), { status: 200 });
     await expect(leggiMigrazioniApplicate('https://x.supabase.co', 'anon-key', f))
       .resolves.toEqual(applicate);
+  });
+
+  it('usa il bearer esplicito invece della chiave anon quando fornito', async () => {
+    let authHeaderVisto;
+    const f = async (url, init) => {
+      authHeaderVisto = init.headers.Authorization;
+      return new Response('[]', { status: 200 });
+    };
+    await leggiMigrazioniApplicate('https://x.supabase.co', 'anon-key', f, 'un-jwt-authenticated');
+    expect(authHeaderVisto).toBe('Bearer un-jwt-authenticated');
+  });
+});
+
+// Login GoTrue per VERIFICA_MIGRAZIONI_EMAIL/PASSWORD (seguito a B-1: l'utente
+// ha scelto di usare un account già esistente invece di provisionarne uno
+// dedicato — vedi il commento in cima a verifica-migrazioni.js).
+describe('accediPerVerificaMigrazioni', () => {
+  it('ritorna access_token su un login riuscito', async () => {
+    const f = async (url, init) => {
+      expect(String(url)).toBe('https://x.supabase.co/auth/v1/token?grant_type=password');
+      expect(init.method).toBe('POST');
+      expect(init.headers.apikey).toBe('anon-key');
+      expect(JSON.parse(init.body)).toEqual({ email: 'a@b.it', password: 'segreta' });
+      return new Response(JSON.stringify({ access_token: 'jwt-vero' }), { status: 200 });
+    };
+    await expect(accediPerVerificaMigrazioni('https://x.supabase.co', 'anon-key', 'a@b.it', 'segreta', f))
+      .resolves.toBe('jwt-vero');
+  });
+
+  it('solleva se GoTrue rifiuta le credenziali', async () => {
+    const f = async () => new Response('{"error":"invalid_grant"}', { status: 400 });
+    await expect(accediPerVerificaMigrazioni('https://x.supabase.co', 'anon-key', 'a@b.it', 'sbagliata', f))
+      .rejects.toThrow(/HTTP 400/);
+  });
+
+  it('solleva se la risposta è 200 ma senza access_token', async () => {
+    const f = async () => new Response('{}', { status: 200 });
+    await expect(accediPerVerificaMigrazioni('https://x.supabase.co', 'anon-key', 'a@b.it', 'segreta', f))
+      .rejects.toThrow(/senza access_token/);
   });
 });
 

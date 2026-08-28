@@ -889,13 +889,19 @@ keep-alive, concessa ad `anon`; `get_migrazioni_applicate()` ha perso il grant
 `scripts/verifica-rpc/verifica-migrazioni.js` non si autenticava — chiamava la
 RPC con la sola chiave anon, mai una sessione utente vera — quindi la revoca
 LO ROMPE, nel senso che quel controllo non può più leggere le migrazioni
-applicate. Non è stato provvisto un account autenticato dedicato alla CI (è
-una decisione — quale account, quali credenziali, dove custodirle — che
-richiede l'ok di chi amministra il progetto, non presa qui): il controllo
-degrada con garbo invece di rompere la CI, esce 0 con un avviso esplicito a
-ogni esecuzione (`PermessoNegato` in `scripts/verifica-rpc/migrazioni.js`) ed
-è **sospeso**, non chiuso, come verifica di scarto repository↔produzione.
-Riaprirlo per davvero richiede un accesso `authenticated` per la CI.
+applicate senza un accesso `authenticated` vero.
+
+**28 agosto, seguito**: interpellato su come provisionare quell'accesso,
+l'amministratore ha scelto di riusare un proprio account già esistente
+piuttosto che farne creare uno dedicato alla CI (la funzione non applica RLS
+né richiede `is_active_user()`, quindi qualunque account va bene). Lo script
+ora accetta `VERIFICA_MIGRAZIONI_EMAIL`/`VERIFICA_MIGRAZIONI_PASSWORD`: se
+presenti fa il login su GoTrue (`accediPerVerificaMigrazioni` in
+`scripts/verifica-rpc/migrazioni.js`) e chiama la RPC con quel JWT; se assenti
+resta sospeso come prima, con lo stesso avviso. **Restano da fare, fuori dalla
+portata di questa sessione**: creare i due *secret* (non variable: una
+password è un segreto per davvero) in Settings → Secrets and variables →
+Actions → Secrets del repository, con le credenziali scelte dall'amministratore.
 
 **Dove.** Live DB (`acl: anon=X`), advisor `anon_security_definer_function_executable`.
 Chiamata da `.github/workflows/keep-supabase-warm.yml:46`.

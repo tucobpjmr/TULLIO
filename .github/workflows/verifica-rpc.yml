@@ -58,6 +58,19 @@ on:
 jobs:
   verifica:
     runs-on: ubuntu-latest
+    # B-4 dell'audit del 26 agosto: SUPABASE_URL/SUPABASE_ANON_KEY vivevano in
+    # chiaro in ognuno dei tre step sotto (tre copie qui, due in
+    # keep-supabase-warm.yml — cinque in tutto). La chiave resta pubblica per
+    # disegno (protetta da RLS/GRANT, non dalla segretezza: vedi il commento
+    # storico che seguiva ogni copia) e va quindi in una repository VARIABLE,
+    # non in un secret — le variable sono leggibili, ed è corretto che lo
+    # siano. Con questa a livello di job, una rotazione è una modifica sola:
+    #   Settings → Secrets and variables → Actions → Variables → New
+    #     SUPABASE_URL      = https://vmxvnxsqfisucugcpqlc.supabase.co
+    #     SUPABASE_ANON_KEY = (la chiave anon del progetto)
+    env:
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
@@ -65,39 +78,32 @@ jobs:
           node-version: 24
       # Nessun `npm ci`: le sonde usano solo moduli nativi di Node.
 
-      # Chiave anon pubblica: è la stessa spedita nel bundle frontend a ogni
-      # visitatore (protetta dalle policy RLS, non dalla segretezza), quindi
-      # non è un segreto da mettere in un secret di repository — stesso
-      # ragionamento di keep-supabase-warm.yml. La sonda interroga in GET e non
-      # esegue mai nessuna funzione.
+      # La sonda interroga in GET e non esegue mai nessuna funzione.
       - name: Verifica che le RPC chiamate dal codice esistano
-        env:
-          SUPABASE_URL: https://vmxvnxsqfisucugcpqlc.supabase.co
-          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZteHZueHNxZmlzdWN1Z2NwcWxjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjcyNjYsImV4cCI6MjA5NjI0MzI2Nn0.HzrIVB-ykHYbOPeA8IH9x-NO3U8Gzc9OqixAVD4noug
         run: npm run verifica:rpc
 
-      # Stessa chiave: get_migrazioni_applicate() espone solo version/name di
-      # supabase_migrations.schema_migrations, gli stessi nomi dei file già
-      # pubblici nel repository Git (vedi la migrazione che la introduce).
+      # B-1 dell'audit del 26 agosto: get_migrazioni_applicate() non è più
+      # concessa ad anon (l'elenco dei nomi di migrazione, letto da chiunque
+      # senza autenticarsi, era ricognizione gratuita sulla storia di
+      # sicurezza del progetto). Con la sola chiave anon questo passo è ora
+      # strutturalmente inconcludente: vedi il commento in cima a
+      # verifica-migrazioni.js sul perché degrada con un avviso invece di
+      # rompersi, e su cosa serve per tornare a verificare per davvero.
       - name: Verifica che le migrazioni del repository siano applicate
         if: always()
-        env:
-          SUPABASE_URL: https://vmxvnxsqfisucugcpqlc.supabase.co
-          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZteHZueHNxZmlzdWN1Z2NwcWxjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjcyNjYsImV4cCI6MjA5NjI0MzI2Nn0.HzrIVB-ykHYbOPeA8IH9x-NO3U8Gzc9OqixAVD4noug
         run: npm run verifica:migrazioni
 
-      # C-1 dell'audit del 22 agosto. Stessa chiave anon degli altri due passi.
-      # È l'unico controllo che guarda un valore che nel repository NON c'è —
-      # la allow-list dei Redirect URL vive solo nella dashboard Supabase, ed è
-      # per questo che ci è rimasto dentro un `*.vercel.app/**` per due mesi
-      # senza che nulla lo dicesse. La sonda usa un token deliberatamente
-      # invalido: nessuna email parte, nessuna sessione viene emessa, e la
-      # risposta non viene mai seguita.
+      # C-1 dell'audit del 22 agosto. È l'unico controllo che guarda un valore
+      # che nel repository NON c'è del tutto — la allow-list dei Redirect URL
+      # vive solo nella dashboard Supabase, ed è per questo che ci è rimasto
+      # dentro un `*.vercel.app/**` per due mesi senza che nulla lo dicesse.
+      # La sonda usa un token deliberatamente invalido: nessuna email parte,
+      # nessuna sessione viene emessa, e la risposta non viene mai seguita.
+      # Da B-3 dello stesso audit questo comando controlla anche che la CSP di
+      # vercel.json non diverga da ORIGIN_PROPRIE — vedi il commento in cima a
+      # scripts/verifica-redirect/index.js.
       - name: Verifica che la allow-list dei Redirect URL non ammetta domini terzi
         if: always()
-        env:
-          SUPABASE_URL: https://vmxvnxsqfisucugcpqlc.supabase.co
-          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZteHZueHNxZmlzdWN1Z2NwcWxjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjcyNjYsImV4cCI6MjA5NjI0MzI2Nn0.HzrIVB-ykHYbOPeA8IH9x-NO3U8Gzc9OqixAVD4noug
         run: npm run verifica:redirect
 
       # Richiede il secret SUPABASE_ACCESS_TOKEN (token Management API, non la

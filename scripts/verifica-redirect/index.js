@@ -1,13 +1,21 @@
 #!/usr/bin/env node
 // scripts/verifica-redirect/index.js
 //
-// Verifica che la allow-list dei Redirect URL di Supabase Auth NON ammetta
-// domini di terze parti (rilievo C-1 dell'audit del 22 agosto 2026).
+// Due controlli sulla stessa allow-list di host:
+//
+//   1. che la CSP di vercel.json nomini (o copra con 'self') tutti gli host
+//      di ORIGIN_PROPRIE — B-3 dell'audit del 26 agosto, vedi csp.js;
+//   2. che i Redirect URL di Supabase Auth NON ammettano domini di terze
+//      parti — C-1 dell'audit del 22 agosto 2026, il resto di questo file.
 //
 //   npm run verifica:redirect
 //
-// PERCHÉ ESISTE. È l'unico controllo di questo repository che guarda un valore
-// che nel repository non c'è. Tutto il resto della superficie di sicurezza —
+// Il primo non serve rete e gira sempre; il secondo richiede SUPABASE_ANON_KEY
+// e si limita ad avvisare, senza fallire, quando manca (vedi sotto).
+//
+// PERCHÉ ESISTE IL SECONDO. Fino a B-3 era l'unico controllo di questo
+// repository che guarda un valore che nel repository non c'è. Tutto il resto
+// della superficie di sicurezza —
 // RLS, grant, RPC, migrazioni, advisor — vive in `supabase/migrations/` e ha
 // già uno script che lo confronta con la produzione. La allow-list dei
 // Redirect URL vive SOLO nella dashboard Supabase, e infatti è lì che stava il
@@ -40,9 +48,38 @@
 //
 // Usa la sola chiave anon, che è pubblica per costruzione: stesso ragionamento
 // di verifica-rpc.yml e keep-supabase-warm.yml, dove è già scritta in chiaro.
+//
+// B-3 dell'audit del 26 agosto: oltre alla sonda sui Redirect URL (sopra),
+// questo script confronta anche i primi due dei tre posti in cui vive la
+// stessa allow-list — ORIGIN_PROPRIE e la CSP di vercel.json — vedi csp.js.
+// Non serve rete né la chiave anon: gira comunque anche quando la chiave manca.
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { HOST_CANARINO, HOST_PRODUZIONE, valutaSonde } from './redirect.js';
+import { estraiOriginProprie, estraiCsp, hostMancantiDallaCsp } from './csp.js';
 
 const URL_DEFAULT = 'https://vmxvnxsqfisucugcpqlc.supabase.co';
+const RADICE = fileURLToPath(new URL('../..', import.meta.url));
+
+function verificaCspAllineataAOriginProprie() {
+  const sorgenteTs = readFileSync(
+    join(RADICE, 'supabase', 'functions', '_shared', 'originConsentite.ts'), 'utf8',
+  );
+  const vercelJson = JSON.parse(readFileSync(join(RADICE, 'vercel.json'), 'utf8'));
+  const originProprie = estraiOriginProprie(sorgenteTs);
+  const csp = estraiCsp(vercelJson);
+  const mancanti = hostMancantiDallaCsp({ originProprie, csp });
+
+  if (mancanti.length) {
+    console.log(`✗ CSP e ORIGIN_PROPRIE divergono. Host non coperti: ${mancanti.join(', ')}\n`);
+    console.log('::error title=CSP disallineata da ORIGIN_PROPRIE::' +
+      `Host non coperti dalla Content-Security-Policy di vercel.json: ${mancanti.join(', ')}`);
+    return false;
+  }
+  console.log(`✓ CSP allineata a ORIGIN_PROPRIE (${originProprie.length} host).\n`);
+  return true;
+}
 
 // Un token che non può verificare. Il valore non conta: conta che GoTrue
 // arrivi comunque alla fase di redirect, che è quella che si sta misurando.
@@ -69,6 +106,11 @@ async function sonda(base, anonKey, redirectTo) {
 }
 
 async function main() {
+  // Non serve rete né credenziali: gira sempre, anche se SUPABASE_ANON_KEY
+  // manca — è il primo dei due controlli di questo script, l'altro (sotto)
+  // guarda un valore che il repository non ha.
+  const cspOk = verificaCspAllineataAOriginProprie();
+
   const base = process.env.SUPABASE_URL || URL_DEFAULT;
   const anonKey = process.env.SUPABASE_ANON_KEY;
 
@@ -81,7 +123,7 @@ async function main() {
     console.log('⚠  SUPABASE_ANON_KEY non impostata: controllo redirect saltato.');
     console.log('::warning title=Allow-list redirect non verificata::' +
       'SUPABASE_ANON_KEY assente: la allow-list dei Redirect URL non è stata controllata.');
-    process.exit(0);
+    process.exit(cspOk ? 0 : 1);
   }
 
   console.log(`verifica:redirect — allow-list dei Redirect URL su ${base}\n`);
@@ -101,15 +143,16 @@ async function main() {
 
   if (stato === 'ok') {
     console.log(`✓ verifica:redirect: ${messaggio}`);
-    process.exit(0);
+    process.exit(cspOk ? 0 : 1);
   }
 
   if (stato === 'inconcludente') {
     console.log(`⚠ verifica:redirect INCONCLUSIVO: ${messaggio}`);
     console.log('::warning title=Allow-list redirect non verificabile::' + messaggio);
     // Esce 0: un controllo che non sa non deve rendere rosso il workflow, ma
-    // deve dirlo forte. Rosso è riservato al caso in cui il difetto c'è.
-    process.exit(0);
+    // deve dirlo forte. Rosso è riservato al caso in cui il difetto c'è —
+    // qui o nella CSP, verificata sopra indipendentemente dalla rete.
+    process.exit(cspOk ? 0 : 1);
   }
 
   console.log(`✗ verifica:redirect: ${messaggio}\n`);

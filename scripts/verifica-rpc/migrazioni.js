@@ -11,8 +11,9 @@
 // assente — non si accorge di una migrazione che tocca solo RLS, grant o
 // colonne), confronta direttamente i file locali con
 // supabase_migrations.schema_migrations, letta tramite la funzione ponte
-// public.get_migrazioni_applicate() (vedi la migrazione che la introduce per
-// il perché è sicuro esporla ad anon).
+// public.get_migrazioni_applicate() (vedi la migrazione che la introduce, e
+// verifica-migrazioni.js per il perché da B-1 dell'audit del 26 agosto non è
+// più raggiungibile da anon).
 //
 // ── Perché il confronto è per versione O per nome, non solo per versione ──
 // Il timestamp nel nome del file locale e la `version` registrata in
@@ -175,4 +176,33 @@ export function trovaRiapplicate(applicate) {
     versioniPerNome.set(a.name, [...(versioniPerNome.get(a.name) ?? []), a.version]);
   }
   return [...versioniPerNome].filter(([, versioni]) => versioni.length > 1);
+}
+
+// ── La lettura da rete, e il suo verdetto ───────────────────────────────────
+// B-1 dell'audit del 26 agosto: get_migrazioni_applicate() non è più concessa
+// ad anon (20260828100000_ping_revoca_anon_migrazioni.sql) — vedi il commento
+// in cima a verifica-migrazioni.js per il perché. Con la sola chiave anon la
+// RPC ora rifiuta con "permission denied", e questo è l'esito ATTESO, non un
+// guasto di rete generico: PermessoNegato lo rende un caso distinto che
+// verifica-migrazioni.js tratta come inconcludente (esce 0 con un avviso)
+// invece che come errore di configurazione.
+//
+// Vive qui, nel modulo "pure" senza dipendenze da node:fs — la stessa
+// separazione di sonda.js/redirect.js/advisor.js rispetto ai propri index.js
+// — proprio perché deve restare testabile iniettando un fetch finto, senza
+// che l'import trascini la risoluzione di percorsi sul filesystem reale.
+export class PermessoNegato extends Error {}
+
+export async function leggiMigrazioniApplicate(base, chiave, fetchImpl) {
+  const url = `${base.replace(/\/$/, '')}/rest/v1/rpc/get_migrazioni_applicate`;
+  const r = await fetchImpl(url, { headers: { apikey: chiave, Authorization: `Bearer ${chiave}` } });
+  if (r.status === 401 || r.status === 403) {
+    throw new PermessoNegato(
+      `get_migrazioni_applicate ha risposto HTTP ${r.status}: ${await r.text().catch(() => '')}`,
+    );
+  }
+  if (!r.ok) {
+    throw new Error(`get_migrazioni_applicate ha risposto HTTP ${r.status}: ${await r.text().catch(() => '')}`);
+  }
+  return r.json();
 }

@@ -10,7 +10,7 @@ su 147 file), `npm run lint` senza segnalazioni, zero
 `dangerouslySetInnerHTML`/`innerHTML`/`eval` in `src/`, undici audit precedenti
 chiusi.
 
-⟦stato: 3/8 chiusi⟧
+⟦stato: 5/8 chiusi⟧
 
 > **Sulla numerazione.** `A-` = alta priorità, `M-` = media, `B-` = bassa,
 > come negli audit dal 12 agosto in poi.
@@ -74,8 +74,8 @@ affrontate, e i controlli automatici che le tengono chiuse funzionano.
 |---|---|---|---|---|
 | — | **Critici** | — | *Nessuno.* | — |
 | **A-1** | Alta | Race / sync realtime | `applyRow` non invalida i reload in volo: la riga appena applicata viene riportata indietro dalla risposta di un reload partito prima, **e nessun secondo giro la corregge** | `hooks/useDebouncedTableSubscription.js:158-172` |
-| **A-2** | Alta | Race / stato asincrono | Il feed notifiche è l'unico stato realtime **senza protezione delle scritture in volo**: «segna letta» può tornare indietro e restarci | `hooks/useNotifications.js:42-51` |
-| **A-3** | Alta | Race / stato asincrono | `SET_TEAM` è l'unica entità realtime del reducer che **non** passa da `fondiScrittureInVolo`, e nessuna entry del team dichiara `entityId` | `state/reducer.js:392-395`, `state/persistence.js:519,593,613,633,770` |
+| **A-2** ✔ | Alta | Race / stato asincrono | Il feed notifiche è l'unico stato realtime **senza protezione delle scritture in volo**: «segna letta» può tornare indietro e restarci | `hooks/useNotifications.js:42-51` |
+| **A-3** ✔ | Alta | Race / stato asincrono | `SET_TEAM` è l'unica entità realtime del reducer che **non** passa da `fondiScrittureInVolo`, e nessuna entry del team dichiara `entityId` | `state/reducer.js:392-395`, `state/persistence.js:519,593,613,633,770` |
 | **M-1** ✔ | Media | Race / dipendenza | `TaskAttachments`: `useIsMounted()` copre lo smontaggio ma **non il cambio di `taskId`** — e lo slide-over resta montato passando da un task all'altro | `components/tasks/TaskAttachments.jsx:60-70` |
 | **M-2** | Media | Stato di attesa disonesto | `TaskHistoryPanel`: `caricando` non torna a `true` al cambio di `taskId` — la cronologia del task precedente viene mostrata, con il suo conteggio, come se fosse quella del nuovo | `components/tasks/TaskHistoryPanel.jsx:41-63,77` |
 | **M-3** ✔ | Media | Race / gen-counter | `caricaStorico`/`caricaClienti` non condividono alcuna generazione con il reload della sottoscrizione: due risposte concorrenti, vince quella che arriva ultima | `hooks/useAppHydration.js:410-457` |
@@ -321,6 +321,51 @@ const markRead = useCallback((id) => {
 di fuori (via `setNotifications`) e va fatto passare per la stessa marcatura —
 altrimenti resta l'unico ingresso scoperto.
 
+#### Come è stato chiuso — e la copia che non è stata scritta
+
+Fatto, con **una** differenza rispetto alla soluzione proposta qui sopra, ed è
+la parte che conta: la `fondi` locale non è stata scritta. Il registro è una
+`Map<id, contatore>` — la stessa forma di `state.pendingWrites` — e la fusione è
+`fondiScrittureInVolo` di `state/pendingWrites.js`, importata.
+
+Il motivo non è il risparmio di quindici righe: la `fondi` abbozzata sopra
+**è** quella funzione, riscritta a mano, semantica per semantica (per un id in
+volo vince il locale; una riga cancellata in ottimistico non rientra; una riga
+che il server non serve ancora non si perde). Aggiungerla avrebbe reso quattro
+le copie di un'invariante che quel modulo esiste per tenerne **una** — ed è
+letteralmente la frase con cui si apre: «un'invariante scritta tre volte è
+un'invariante che regge fino alla prima distrazione». Che il rilievo proponesse
+una copia è, col senno di poi, il sintomo del rilievo stesso: la fusione era
+già lì, e non si vedeva perché viveva dentro il reducer.
+
+Due scelte da segnalare:
+
+1. **Un contatore, non un booleano.** Su una stessa notifica si sovrappongono
+   due scritture — «segna letta» e poi «elimina» — e un `delete` alla
+   conclusione della prima riaprirebbe la finestra per la seconda a metà
+   strada. È lo stesso `MARK/UNMARK_PENDING_WRITE` del reducer, e il caso è
+   verificato (`uno smarcamento non annulla l'altra scrittura ancora in volo`).
+2. **`markChatNotificationsRead` è rientrato nell'hook** come
+   `markReadForConversation`, invece di ricevere `marca`/`smarca` dall'esterno.
+   Spostarlo non è un riordino: la protezione diventa una proprietà del feed,
+   non qualcosa che ogni chiamante deve ricordarsi. L'identità stabile che
+   `chatMemo.test.jsx` misura è conservata (`useCallback` con sole dipendenze
+   stabili) e ora è verificata anche alla sorgente.
+
+Sette casi nuovi in `src/test/hooks/useNotifications.test.jsx`, **quattro
+verificati contro il codice precedente** (falliscono sulla sostituzione secca) e
+uno contro un registro a booleano.
+
+⚠️ **Cosa resta aperto, trovato scrivendo il presidio e non chiuso.**
+`conversations` è l'ultimo stato in blocco dell'app senza fusione:
+`useChatData` sostituisce l'elenco delle conversazioni a ogni reload
+(`setConversationsRaw((convsRes.data || []).map(fromDbConversation))`) mentre
+`chatCommands` le crea, rinomina e fissa in ottimistico. È la stessa finestra —
+`conversations` è in realtime — ma non è la stessa correzione: il registro dei
+messaggi è indicizzato per conversazione (`messaggiInVolo`) e non serve a
+questo, quindi ne va aggiunto un secondo. È registrato qui e non chiuso di
+straforo dentro un rilievo che parlava del feed notifiche.
+
 ---
 
 ### A-3 · `SET_TEAM` è l'unica entità realtime senza `fondiScrittureInVolo`
@@ -406,6 +451,34 @@ che enumera i `case "SET_*"` del reducer per le entità pubblicate su realtime e
 verifica che ciascuno passi da `fondiScrittureInVolo`. Oggi la regola è vera per
 convenzione e nulla la misura — è la stessa forma del rilievo A-1 dell'audit del
 26 agosto (un controllo verde su un perimetro non dichiarato).
+
+#### Come è stato chiuso
+
+Le due metà, come descritte, più la firma di `entityId` estesa a
+`(action, state, uid)` — la stessa di `normalize`. È l'opzione che il rilievo
+indicava come preferibile, e l'ha richiesta `UPDATE_OWN_PROFILE`: è l'unica
+mutazione dell'app il cui soggetto non sta nel payload, perché la riga scritta è
+sempre quella dell'utente loggato. L'alternativa (aggiungere l'id in
+`normalize`) avrebbe messo nello stato React un campo che esiste solo per farsi
+rileggere dall'orchestratore, e `s` è già in mano al punto di chiamata.
+
+Dieci casi in `src/test/state/pendingWritesTeam.test.js`, sul modello di
+`pendingWritesClientiAvvisi.test.js`: **quattro verificati contro il codice
+precedente** — falliscono sulla sostituzione secca — e uno è la contropartita
+(senza scritture in volo il refetch resta la fonte di verità: una fusione che
+tenesse sempre il locale renderebbe il team un dato che non si aggiorna più).
+Un caso esistente di `syncedDispatch.test.jsx` è stato aggiornato: asseriva la
+sequenza esatta dei dispatch di `TOGGLE_TEAM_MEMBER_ACTIVE`, che ora comprende
+la coppia di marcatura.
+
+⚠️ **Cosa resta aperto, dichiarato dal presidio e non chiuso.** Quattro entry
+mutano in blocco fette protette senza marcare — `EMPTY_TRASH`,
+`UNDO_LAST_ACTION`, `RENAME_CLIENT_IN_TASKS`, `RESTORE_BACKUP` — ed è la
+ragione per cui il controllo **non** pretende che ogni mutazione dichiari
+`entityId`: sono quattro decisioni diverse (quanti id marcare in un'operazione
+che ne tocca centinaia, e per quanto), non una dimenticanza sola. Pretenderlo
+avrebbe aperto subito una lista di eccezioni, e «un controllo con una lista di
+eccezioni che cresce ha smesso di controllare».
 
 ---
 
@@ -820,6 +893,49 @@ del contratto realtime.
 
 **Impatto:** chiude A-2 e A-3 e impedisce alla sesta entità di ripetere il
 difetto.
+
+#### Come è stato chiuso — e perché il controllo non è quello proposto
+
+A-2 e A-3 sono chiusi. Il presidio esiste, ⛔ **ma non enumera le tabelle
+pubblicate su realtime, e non è un ripiego.**
+
+Guardando davvero l'elenco, quell'enumerazione avrebbe avuto bisogno di
+eccezioni entro la prima riga: delle quattordici tabelle in publication, tre
+non hanno alcuno stato in blocco (`task_history` vive nel pannello che la
+mostra), tre sono il modulo Liste che non passa dal reducer, e due —
+`categories`, `message_templates` — hanno sottoscrizioni **`senzaCanale`**,
+cioè nessun evento altrui che faccia ripartire il loro refetch. Un controllo
+che parte dalle tabelle deve dichiararle una per una; e «un controllo con una
+lista di eccezioni che cresce ha smesso di controllare».
+
+Il predicato che regge senza eccezioni è più stretto e più preciso, e sta in
+`scrittureInVoloAMeta` (`verifica:convenzioni`, atteso **0**): **nessuna delle
+due metà può esistere senza l'altra.** Cioè
+  · una fetta che il reducer FONDE deve avere almeno una entry che la MARCA
+    (altrimenti la fusione gira su una mappa sempre vuota: si legge come una
+    protezione e non lo è);
+  · una entry che MARCA deve scrivere una fetta che qualcuno FONDE (altrimenti
+    marca id che nessuno consulta);
+  · e una sottoscrizione con **canale vivo** che dispatcha un `SET_*` deve
+    fondere — dove «canale vivo» è letto dal codice (`senzaCanale`) e non
+    dichiarato a mano, che è ciò che rende il perimetro derivato invece che
+    ricopiato.
+
+È il predicato giusto perché è il modo in cui questa classe si guasta: **ognuna
+delle due metà, da sola, fa sembrare fatta l'altra.** Il team era scoperto da un
+anno con entrambe mancanti — non c'era neanche una metà a fare da indizio.
+
+⛔ Il costo, dichiarato nel preambolo del controllo invece che taciuto: i feed
+FUORI dal reducer (`useNotifications`, `useChatData`) non passano da alcun
+`SET_*` e lì non si vedono; a misurarli sono i loro test di comportamento. È il
+motivo per cui `conversations` — l'ultimo stato in blocco senza fusione — è
+registrato come rilievo aperto sotto A-2 e non come eccezione dentro il
+controllo.
+
+Undici casi in `src/test/scripts/scrittureInVoloAMeta.test.js`, di cui **quattro
+riproducono le forme esatte del codice prima di A-3** e quattro sono i controlli
+positivi di sé stesso (il controllo solleva se perde i soggetti, se un parser
+diventa cieco, o se non distingue più le due classi di sottoscrizione).
 
 ### 3 · Chiudere il buco fra `applyRow` e i reload in volo
 

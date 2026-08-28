@@ -11,6 +11,20 @@
 
 export class LetturaFallita extends Error {}
 
+// Il testo di un sorgente senza i suoi commenti. Non è pedanteria in un
+// progetto in cui i commenti sono più del codice: `TaskHistoryPanel` ne ha uno
+// che dice «non serve una useEffect separata accanto a questa», e le migrazioni
+// discutono per intero le istruzioni che i controlli cercano. Un controllo che
+// si fa ingannare dalla prosa che lo spiega sarebbe rosso proprio sui file
+// scritti meglio.
+//
+// Una definizione e non tre: era ricopiata in due funzioni con due forme
+// diverse (una arrow, una costante locale), che è il modo in cui due copie
+// della stessa lettura cominciano a divergere.
+const senzaCommenti = (testo) => testo
+  .replace(/\/\*[\s\S]*?\*\//g, ' ')
+  .replace(/\/\/[^\n]*/g, ' ');
+
 /**
  * Legge dal testo di un documento il conteggio dei casi `react/no-multi-comp`
  * dichiarato in docs/CLAUDE.md, nella forma «N casi aperti in M file».
@@ -681,15 +695,6 @@ export function iterazioniQuadratiche(sorgenti) {
 export function guardiaDiSoloSmontaggio(sorgenti) {
   const IMPORTA_MONTATO = /import\s*\{[^}]*\buseIsMounted\b[^}]*\}\s*from/;
   const componenti = (sorgenti || []).filter(f => f.path.startsWith('src/components/'));
-  // Senza i commenti, e non è pedanteria in un progetto in cui i commenti sono
-  // più del codice: `TaskHistoryPanel` ne ha uno che dice «non serve una
-  // useEffect separata accanto a questa», e domani qualcuno ne scriverà uno con
-  // le parentesi. Un controllo che si fa ingannare dalla prosa che lo spiega
-  // sarebbe rosso proprio sui file scritti meglio.
-  const senzaCommenti = (testo) => testo
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/\/\/[^\n]*/g, ' ');
-
   const conMontato = componenti.filter(f => IMPORTA_MONTATO.test(f.testo));
   const fuori = conMontato
     .filter(f => /\buseEffect\s*\(/.test(senzaCommenti(f.testo)))
@@ -979,12 +984,9 @@ const NOMI_DELLA_PIATTAFORMA = new Set(['error', 'err', 'errore']);
 // del vocabolario di un componente. Non i riferimenti: un nome che il file
 // IMPORTA da altrove non è una scelta di questo file.
 function nomiDichiarati(testo) {
-  const senzaCommenti = testo
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/\/\/[^\n]*/g, ' ');
   const re = /\b(?:const|let|var|function)\s+(?:\{([^}]*)\}|\[([^\]]*)\]|([A-Za-z_$][\w$]*))/g;
   const out = new Set();
-  for (const m of senzaCommenti.matchAll(re)) {
+  for (const m of senzaCommenti(testo).matchAll(re)) {
     const blocco = m[1] || m[2];
     if (!blocco) { out.add(m[3]); continue; }
     for (const pezzo of blocco.split(',')) {
@@ -1021,4 +1023,256 @@ export function doppioNome(sorgenti) {
     }
   }
   return fuori;
+}
+
+// ─── A-2/A-3 (audit del 28 agosto) · LE DUE METÀ DELLE SCRITTURE IN VOLO ─────
+//
+// L'invariante che il progetto possiede da quattro audit — «per un id con una
+// scrittura in volo vince SEMPRE la riga locale» (src/state/pendingWrites.js) —
+// non sta in una funzione sola: sta in DUE metà che vivono in file diversi.
+//
+//   1. il reducer FONDE: il `SET_*` che rilegge l'entità in blocco passa da
+//      `fondiScrittureInVolo` invece di sostituire l'array;
+//   2. il registry MARCA: le entry che mutano quell'entità dichiarano
+//      `entityId`, che è ciò che riempie la mappa dei pendenti.
+//
+// PERCHÉ UN CONTROLLO E NON UNA CONVENZIONE. Le due metà si guastano in
+// SILENZIO, e ciascuna fa sembrare fatta l'altra. Una fusione senza marcatura
+// gira su una mappa sempre vuota: si legge nel reducer, si cita in review, non
+// protegge nulla. Una marcatura senza fusione riempie una mappa che nessuno
+// consulta. In entrambi i casi non c'è alcun errore, nessun test funzionale
+// diventa rosso e l'app si comporta bene — finché due scritture non si
+// incrociano su una riga, e allora un'azione riuscita si annulla da sola a
+// schermo sopra il toast verde che la dà per riuscita.
+//
+// Il team ci è rimasto un anno: `SET_TEAM` sostituiva secco e nessuna delle
+// cinque entry sul team dichiarava `entityId` — cioè mancavano ENTRAMBE le
+// metà, e aggiungerne una sola non avrebbe cambiato niente. La regola era
+// scritta in `state/persistence.js` («dichiara entityId se e solo se una SET_*
+// rilegge quell'entità in blocco fondendo il registro dei pendenti») e nulla la
+// misurava.
+//
+// ⛔ COSA QUESTO CONTROLLO NON GUARDA, dichiarato perché un atteso di 0 su un
+// perimetro taciuto è un numero che consola e basta:
+//
+//   • i feed FUORI dal reducer. `useNotifications` e `useChatData` tengono il
+//     proprio registro in un ref e fondono dentro l'handler, senza passare da
+//     alcun `SET_*`: qui non si vedono, e a misurarli sono i loro test di
+//     comportamento (src/test/hooks/useNotifications.test.jsx). Il costo è
+//     dichiarato: `conversations` — l'unico stato in blocco rimasto senza
+//     fusione — questo controllo NON lo vede, ed è registrato come rilievo
+//     aperto nell'audit del 28 agosto invece che come eccezione qui dentro.
+//   • «ogni entry che muta una fetta protetta deve marcare». Sarebbe la regola
+//     più forte, e non è vera: `EMPTY_TRASH`, `UNDO_LAST_ACTION`,
+//     `RENAME_CLIENT_IN_TASKS` e `RESTORE_BACKUP` mutano in blocco senza
+//     marcare, per ragioni che vanno decise una per una. Scriverla qui
+//     significherebbe aprire subito una lista di eccezioni, e «un controllo con
+//     una lista di eccezioni che cresce ha smesso di controllare»
+//     (docs/CLAUDE.md). Quel che si verifica è più debole e non ha eccezioni:
+//     che nessuna delle due metà esista SENZA l'altra.
+//
+// Il livello è la FETTA (`state.tasks`, `state.team`…) e non la singola
+// azione, ed è la granularità giusta: la mappa dei pendenti è una sola per
+// tutto lo state, quindi ciò che rende viva o morta una fusione è che qualcuno
+// marchi id di QUELLA fetta, non che lo faccia una particolare azione.
+
+// Il corpo di un oggetto letterale, dalle graffe bilanciate: un `case` del
+// reducer contiene graffe annidate a ogni riga (spread, map, pushToast), e la
+// prima `}` incontrata non è quasi mai quella giusta.
+function corpoGraffe(testo, da) {
+  let profondita = 0;
+  for (let i = da; i < testo.length; i += 1) {
+    if (testo[i] === '{') profondita += 1;
+    else if (testo[i] === '}') {
+      profondita -= 1;
+      if (profondita === 0) return testo.slice(da + 1, i);
+    }
+  }
+  return '';
+}
+
+// Le chiavi di PRIMO livello di un oggetto letterale: `{ ...state, tasks }` e
+// `{ ...state, tasks: … }` valgono uguale, mentre un `{ ...t, comments: … }`
+// annidato dentro una `map` non conta — è una riga, non una fetta dello state.
+function chiaviDiPrimoLivello(corpoOggetto) {
+  const oggetto = `${corpoOggetto},`;   // la virgola finale rende uniforme l'ultima chiave
+  const chiavi = new Set();
+  let profondita = 0;
+  const re = /[{}[\]()]|([a-zA-Z_$][\w$]*)\s*(?=[:,}])/g;
+  let m;
+  while ((m = re.exec(oggetto))) {
+    if ('{[('.includes(m[0])) { profondita += 1; continue; }
+    if (')]}'.includes(m[0])) { profondita -= 1; continue; }
+    if (profondita === 0 && m[1] && m[1] !== 'state') chiavi.add(m[1]);
+  }
+  return chiavi;
+}
+
+// I `case "X":` di un reducer, con il proprio corpo (fino al case successivo).
+function casiDelReducer(testo) {
+  const t = senzaCommenti(testo);
+  const re = /case\s+"([A-Z_]+)"\s*:/g;
+  const punti = [];
+  let m;
+  while ((m = re.exec(t))) punti.push({ tipo: m[1], da: m.index, corpoDa: re.lastIndex });
+  return punti.map((p, i) => ({
+    tipo: p.tipo,
+    corpo: t.slice(p.corpoDa, i + 1 < punti.length ? punti[i + 1].da : t.length),
+  }));
+}
+
+// Le entry di primo livello di un registry: `  NOME: {` a due spazi di rientro.
+function entryDelRegistry(testo) {
+  const t = senzaCommenti(testo);
+  const re = /^ {2}([A-Z_]+):\s*\{/gm;
+  const punti = [];
+  let m;
+  while ((m = re.exec(t))) punti.push({ tipo: m[1], da: m.index });
+  return punti.map((p, i) => ({
+    tipo: p.tipo,
+    corpo: t.slice(p.da, i + 1 < punti.length ? punti[i + 1].da : t.length),
+  }));
+}
+
+// Le chiamate a `useDebouncedTableSubscription(...)`, con il testo dell'intera
+// chiamata: dentro ci sono sia l'handler sia le opzioni, cioè sia i `SET_*`
+// dispatchati sia l'eventuale `senzaCanale`.
+function sottoscrizioni(sorgenti) {
+  const out = [];
+  for (const { path, testo } of sorgenti || []) {
+    const t = senzaCommenti(testo);
+    const re = /useDebouncedTableSubscription\s*\(/g;
+    let m;
+    while ((m = re.exec(t))) {
+      const apertura = t.indexOf('(', m.index);
+      let profondita = 0;
+      let fine = t.length;
+      for (let i = apertura; i < t.length; i += 1) {
+        if (t[i] === '(') profondita += 1;
+        else if (t[i] === ')') { profondita -= 1; if (profondita === 0) { fine = i; break; } }
+      }
+      out.push({ path, testo: t.slice(apertura, fine) });
+    }
+  }
+  return out;
+}
+
+/**
+ * Le metà scoperte del contratto delle scritture in volo. Atteso: zero.
+ *
+ * Ritorna una riga per ogni guasto, già scritta per essere letta da chi non ha
+ * questo file davanti.
+ */
+export function scrittureInVoloAMeta(sorgenti) {
+  const tutti = (sorgenti || []);
+  const reducer = tutti.filter(f => /^src\/state\/[a-zA-Z]*[rR]educer\.js$/.test(f.path));
+  const registry = tutti.find(f => f.path === 'src/state/persistence.js');
+  if (!reducer.length || !registry) {
+    throw new LetturaFallita(
+      'scrittureInVoloAMeta: non trovo il reducer o src/state/persistence.js. '
+      + 'Se sono stati spostati, aggiorna QUESTO controllo insieme a loro: un '
+      + 'presidio che non trova più il proprio soggetto passa su un insieme vuoto.',
+    );
+  }
+
+  // Le azioni del reducer, con le fette dello state che ciascuna scrive.
+  const azioni = new Map();
+  for (const f of reducer) {
+    for (const c of casiDelReducer(f.testo)) {
+      const chiavi = new Set();
+      const re = /\{\s*\.\.\.state\s*,/g;
+      let m;
+      while ((m = re.exec(c.corpo))) {
+        for (const k of chiaviDiPrimoLivello(corpoGraffe(c.corpo, m.index))) chiavi.add(k);
+      }
+      const gia = azioni.get(c.tipo);
+      azioni.set(c.tipo, {
+        corpo: (gia?.corpo || '') + c.corpo,
+        fette: new Set([...(gia?.fette || []), ...chiavi]),
+      });
+    }
+  }
+
+  // Le fette FUSE: quelle che un case passa per una delle fusioni di
+  // state/pendingWrites.js. `applicaRigaRealtime` è di proposito fuori — quella
+  // applica UN evento e non rilegge in blocco, quindi non è la metà di cui si
+  // parla qui.
+  const fuse = new Set();
+  for (const { corpo } of azioni.values()) {
+    for (const m of corpo.matchAll(/fondiScrittureInVolo\(\s*[^,]+,\s*state\.(\w+)/g)) fuse.add(m[1]);
+    for (const m of corpo.matchAll(/fondiThreadCommenti\(\s*state\.(\w+)/g)) fuse.add(m[1]);
+  }
+
+  // Le entry che MARCANO.
+  const marcanti = entryDelRegistry(registry.testo)
+    .filter(e => /\bentityId\s*:/.test(e.corpo))
+    .map(e => e.tipo);
+
+  const vive = sottoscrizioni(tutti).filter(s => !/\bsenzaCanale\s*:\s*true/.test(s.testo));
+  const senzaCanale = sottoscrizioni(tutti).length - vive.length;
+
+  // ── Le tre letture devono aver letto qualcosa, e devono ancora DISTINGUERE.
+  // Un atteso di 0 protegge dal debito che cresce, non dal perimetro che si
+  // restringe: se un cambio di forma rendesse cieco uno dei parser, tutto
+  // quanto sopra passerebbe su insiemi vuoti.
+  if (!azioni.size || !fuse.size || !marcanti.length) {
+    throw new LetturaFallita(
+      `scrittureInVoloAMeta: lettura vuota (case letti: ${azioni.size}, fette fuse: `
+      + `${fuse.size}, entry con entityId: ${marcanti.length}). Uno dei tre parser non `
+      + 'riconosce più la forma che legge — vanno aggiornati qui, non aggirati.',
+    );
+  }
+  if (!vive.length || !senzaCanale) {
+    throw new LetturaFallita(
+      `scrittureInVoloAMeta: sottoscrizioni con canale vivo ${vive.length}, senza canale `
+      + `${senzaCanale}. Il controllo distingue le une dalle altre — la finestra da cui `
+      + 'proteggersi nasce con il refetch causato da un evento ALTRUI — e con una delle '
+      + 'due classi vuota quella distinzione non è più misurata da niente.',
+    );
+  }
+
+  const guasti = [];
+
+  // 1. Marcatura senza fusione: id in volo che nessun SET_* consulta.
+  for (const tipo of marcanti) {
+    const azione = azioni.get(tipo);
+    if (!azione) {
+      guasti.push(`${tipo}: dichiara entityId ma il reducer non ha un case con questo nome`);
+      continue;
+    }
+    if (![...azione.fette].some(f => fuse.has(f))) {
+      guasti.push(
+        `${tipo}: dichiara entityId ma scrive solo fette che nessun SET_* fonde `
+        + `(${[...azione.fette].join(', ') || 'nessuna'}) — marca id che nessuno consulta`,
+      );
+    }
+  }
+
+  // 2. Fusione senza marcatura: la protezione gira su una mappa sempre vuota.
+  for (const fetta of fuse) {
+    if (!marcanti.some(t => azioni.get(t)?.fette.has(fetta))) {
+      guasti.push(
+        `state.${fetta}: il reducer la fonde con le scritture in volo, ma nessuna entry `
+        + 'del registry dichiara entityId per una mutazione che la scrive — la fusione '
+        + 'gira su una mappa sempre vuota',
+      );
+    }
+  }
+
+  // 3. La finestra senza la protezione: una sottoscrizione con canale VIVO —
+  //    cioè che un evento altrui fa ripartire — che rilegge in blocco una fetta
+  //    che il reducer sostituisce secca.
+  for (const s of vive) {
+    for (const m of s.testo.matchAll(/"(SET_[A-Z_]+)"/g)) {
+      const azione = azioni.get(m[1]);
+      if (!azione || ![...azione.fette].some(f => fuse.has(f))) {
+        guasti.push(
+          `${s.path}: la sottoscrizione ha un canale vivo e dispatcha ${m[1]}, che `
+          + 'sostituisce in blocco senza fondere le scritture in volo',
+        );
+      }
+    }
+  }
+
+  return [...new Set(guasti)];
 }

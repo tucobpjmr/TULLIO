@@ -1,5 +1,78 @@
 # CHANGELOG — VoyageDesk
 
+## Audit su stato e flusso dati del 28 agosto — suggerimento strategico n. 2, e con lui A-2 e A-3
+
+> Il secondo intervento chiude i due rilievi di alta priorità che sono lo stesso
+> fatto: l'invariante «per un id con una scrittura in volo vince SEMPRE la riga
+> locale» è scritta bene, è testata, e copre **tre entità su cinque**.
+
+**Perché non se n'era accorto nessuno per un anno.** L'invariante non sta in una
+funzione sola: sta in **due metà** che vivono in file diversi — il reducer che
+FONDE (`fondiScrittureInVolo` nel `SET_*`) e il registry che MARCA (`entityId`
+nelle entry che mutano quell'entità). E le due metà si guastano in silenzio,
+ciascuna facendo *sembrare fatta* l'altra: una fusione senza marcatura gira su
+una mappa sempre vuota — si legge nel reducer, si cita in review, non protegge
+nulla — e una marcatura senza fusione riempie una mappa che nessuno consulta.
+Nessuna delle due produce un errore. Sul team mancavano **entrambe**, e non
+c'era neanche una metà a fare da indizio dell'altra.
+
+**A-3 · il team.** `SET_TEAM` fonde, e le cinque entry (`UPDATE_TEAM_MEMBER`,
+`APPROVE_TEAM_MEMBER`, `REMOVE_TEAM_MEMBER`, `TOGGLE_TEAM_MEMBER_ACTIVE`,
+`UPDATE_OWN_PROFILE`) dichiarano `entityId`. Aggiungerne una sola non avrebbe
+cambiato niente. La posta è più alta che sulle altre tre entità: `state.team` è
+il dato da cui `AppDataContext` costruisce `io`/`per`, quindi una riga riportata
+indietro da un refetch concorrente non è un campo sbagliato a schermo — è una
+disattivazione che si annulla da sola sopra il toast verde che la dà per
+riuscita, o un ruolo appena revocato che torna. La firma di `entityId` è
+cresciuta a `(action, state, uid)`, la stessa di `normalize`: l'ha richiesta
+`UPDATE_OWN_PROFILE`, l'unica mutazione dell'app il cui **soggetto non sta nel
+payload** — la riga scritta è sempre quella dell'utente loggato.
+
+**A-2 · il feed notifiche, e la copia che non è stata scritta.** La campanella
+ha ora il proprio registro delle scritture in volo, e la fusione **non è una
+copia locale**: è `fondiScrittureInVolo` importata da `state/pendingWrites.js`.
+La `fondi` che il rilievo abbozzava *era* quella funzione riscritta a mano,
+semantica per semantica — sarebbe stata la quarta copia di un'invariante che
+quel modulo esiste per tenerne una, che è letteralmente la frase con cui si
+apre. Il registro è un **contatore** e non un booleano («segna letta» e
+«elimina» si sovrappongono sulla stessa riga, e uno smarcamento che azzerasse
+l'altra riaprirebbe la finestra a metà strada), e
+`markChatNotificationsRead` è rientrato nell'hook come
+`markReadForConversation`: scriveva il feed dal di fuori via `setNotifications`,
+quindi era l'unico ingresso che il registro non poteva vedere. Spostarlo non è
+un riordino — rende la protezione una proprietà del feed invece di qualcosa che
+ogni chiamante deve ricordarsi.
+
+**Il presidio, che è la parte che dura — e non è quello proposto.** Il
+suggerimento chiedeva un test che enumerasse le tabelle pubblicate su
+`supabase_realtime`. Guardando l'elenco vero, quell'enumerazione avrebbe avuto
+bisogno di eccezioni entro la prima riga: delle quattordici tabelle, tre non
+hanno alcuno stato in blocco, tre sono il modulo Liste che non passa dal
+reducer, e due — `categories`, `message_templates` — hanno sottoscrizioni
+**`senzaCanale`**, cioè nessun evento altrui che ne faccia ripartire il refetch.
+Il predicato che regge senza eccezioni è più stretto: `scrittureInVoloAMeta`
+(`verifica:convenzioni`, atteso **0**) verifica che **nessuna delle due metà
+esista senza l'altra**, con il perimetro derivato dal codice invece che
+dichiarato a mano. Sesto controllo con atteso 0.
+
+⛔ **Due cose dichiarate invece che taciute.** I feed fuori dal reducer non
+passano da alcun `SET_*` e lì non si vedono: per questo `conversations` —
+l'ultimo stato in blocco dell'app senza fusione, con `chatCommands` che crea,
+rinomina e fissa in ottimistico — è registrato come **rilievo aperto** sotto A-2
+e non chiuso di straforo né iscritto fra le eccezioni. E il controllo non
+pretende che ogni mutazione dichiari `entityId`: quattro entry mutano in blocco
+senza marcare (`EMPTY_TRASH`, `UNDO_LAST_ACTION`, `RENAME_CLIENT_IN_TASKS`,
+`RESTORE_BACKUP`) e sono quattro decisioni diverse — pretenderlo avrebbe aperto
+subito la lista di eccezioni che questo repository vieta.
+
+**Verifica.** 29 casi nuovi (1866 passati, 23 saltati su 151 file), di cui
+**nove verificati contro il codice precedente**: quattro sulla sostituzione
+secca di `SET_TEAM`, quattro sul reload che sostituiva l'elenco delle notifiche,
+uno su un registro a booleano invece che a contatore. `npm run lint`,
+`verifica:tipi` e `verifica:convenzioni` (53 controlli) senza divergenze.
+
+---
+
 ## Audit su stato e flusso dati del 28 agosto — suggerimento strategico n. 1, e con lui M-1, M-3 e B-2
 
 > Il documento nasce con otto rilievi, nessuno critico. Il primo intervento non

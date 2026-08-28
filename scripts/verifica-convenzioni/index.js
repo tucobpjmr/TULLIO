@@ -21,6 +21,10 @@ import { ESLint, Linter } from 'eslint';
 import {
   LetturaFallita, leggiCallSiteSalvataggio, leggiCallSiteStorico, leggiConteggioMultiComp,
   guardiaDiSoloSmontaggio,
+  // A-2/A-3 (28 agosto): le due metà del contratto delle scritture in volo —
+  // il reducer che fonde e il registry che marca — misurate insieme, perché
+  // ciascuna da sola fa sembrare fatta l'altra.
+  scrittureInVoloAMeta,
   leggiStatoAudit, leggiStatoIndex, leggiStiliInline, montaggiLazySenzaRete,
   usiSalvataggio, usiStoricoTask, confronta,
   // Suggerimento strategico n. 3 dell'audit del 19 agosto: controlli che NEGANO
@@ -372,6 +376,23 @@ async function main() {
     nome: 'guardia di solo smontaggio su un caricamento', dove: 'docs/CLAUDE.md',
     dichiarato: 0, misurato: guardieMeta.length,
     rimedio: `L'effetto che carica lo possiede \`useCaricamento\` (copre smontaggio E cambio di dipendenza); \`useIsMounted\` resta per i gestori — ${guardieMeta.join(', ')}`,
+  });
+
+  // ─── 5-octies · suggerimento strategico n. 2 (audit del 28 agosto) ───────
+  //    Le due metà del contratto delle scritture in volo: il reducer che FONDE
+  //    e il registry che MARCA. Atteso 0 metà scoperte.
+  //
+  //    ⚠️ Il difetto che chiude non è «manca la protezione»: è che ciascuna
+  //    delle due metà, da sola, FA SEMBRARE FATTA l'altra — una fusione che
+  //    gira su una mappa sempre vuota si legge nel reducer e non protegge
+  //    nulla. Il team ci è rimasto un anno. Il perimetro e ciò che il controllo
+  //    NON guarda (i feed fuori dal reducer, e perché non si pretende che ogni
+  //    mutazione marchi) stanno nel preambolo di `scrittureInVoloAMeta`.
+  const meta = scrittureInVoloAMeta(sorgenti);
+  controlli.push({
+    nome: 'metà scoperte delle scritture in volo', dove: 'src/state/persistence.js',
+    dichiarato: 0, misurato: meta.length,
+    rimedio: `Servono ENTRAMBE le metà (fondiScrittureInVolo nel SET_*, entityId nelle entry che la mutano): ${meta.join(' · ')}`,
   });
 
   const quadratiche = iterazioniQuadratiche(sorgenti);

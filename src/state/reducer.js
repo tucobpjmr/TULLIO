@@ -389,9 +389,26 @@ function baseReducer(state, action) {
     // Niente toast: la notifica utente non
     // serve (e.g. arrivo di un nuovo signup → la notifica admin esiste già via
     // trigger DB).
+    //
+    // A-3 (audit del 28 agosto) · la quarta entità, e l'unica che era rimasta
+    // senza. Stessa protezione di SET_TASKS/SET_CLIENTS/SET_NOTICES e per la
+    // stessa ragione: il refetch è più recente per tutte le righe TRANNE quelle
+    // che stiamo scrivendo noi, per cui il server può ancora servire il
+    // pre-immagine — e l'eco della nostra scrittura, che sarebbe l'unica
+    // correzione possibile, porta il nostro `origin_client` e viene scartata.
+    //
+    // Qui la posta è più alta che altrove: `state.team` è il dato da cui
+    // AppDataContext costruisce `io`/`per`, cioè le decisioni di autorizzazione
+    // lato client. Una riga riportata indietro non è un campo sbagliato a
+    // schermo, è una disattivazione o una revoca di ruolo che si annulla da
+    // sola sopra il toast verde che la dà per riuscita.
+    //
+    // ⚠️ Questa è UNA delle due metà: senza `entityId` sulle entry del team
+    // (state/persistence.js) `pendingWrites` per gli id del team resterebbe
+    // sempre vuota e questa riga non cambierebbe nulla. Il contratto fra le due
+    // metà è misurato da src/test/realtime/scrittureInVoloContract.test.js.
     case "SET_TEAM": {
-      const team = action.payload || [];
-      return { ...state, team };
+      return { ...state, team: fondiScrittureInVolo(action.payload, state.team, state.pendingWrites) };
     }
     case "ADD_TEAM_MEMBER": {
       const team = [...state.team, action.payload];

@@ -99,7 +99,15 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true } = {}) {
     // hanno forme diverse (payload.id, payload.taskId, payload nudo, un array
     // per il bulk) e riconoscerle qui rimetterebbe in questo file la conoscenza
     // di entità specifiche che il registry esiste per togliergli.
-    const ids = [].concat(spec.entityId?.(toDispatch) ?? []).filter(Boolean);
+    //
+    // A-3 (audit del 28 agosto) · la firma è `(action, state, uid)`, la stessa
+    // di `normalize`, e non più il solo `action`. L'ha richiesta
+    // UPDATE_OWN_PROFILE, che è l'unica mutazione il cui SOGGETTO non sta nel
+    // payload: la riga scritta è sempre quella dell'utente loggato. L'altra
+    // strada era farle aggiungere l'id in `normalize`, cioè mettere nello stato
+    // React un campo che esiste solo per farsi rileggere da qui — e `s` è già
+    // in mano a questo punto di chiamata, quindi non costa nulla.
+    const ids = [].concat(spec.entityId?.(toDispatch, s, uid) ?? []).filter(Boolean);
     if (ids.length) rawDispatch({ type: "MARK_PENDING_WRITE", payload: ids });
 
     // Percorso d'errore condiviso: rollback dello stato ottimistico (se

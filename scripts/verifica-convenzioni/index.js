@@ -106,6 +106,12 @@ const AUDIT = [
   // Nasce con 12 rilievi tutti aperti: e' il caso in cui il marcatore ha il
   // massimo numero di occasioni di divergere.
   { file: 'AUDIT_SICUREZZA_2026-08-26.md', prefisso: ['A', 'M', 'B'] },
+  // L'audit su stato e flusso dati del 28 agosto. Registrato il giorno stesso,
+  // per la ragione scritta piu' sopra: un audit fuori dal registro ha un
+  // marcatore che nessuno verifica, e il momento in cui scade e' esattamente
+  // quello in cui si comincia a chiudere i suoi rilievi. Nasce con otto rilievi
+  // tutti aperti, nessuno critico: i prefissi sono tre.
+  { file: 'AUDIT_STATO_FLUSSO_DATI_2026-08-28.md', prefisso: ['A', 'M', 'B'] },
 ];
 
 // Misura i warning di una regola sul sorgente dell'app.

@@ -10,12 +10,31 @@
 // Legge l'indirizzo e la chiave anon da SUPABASE_URL / SUPABASE_ANON_KEY (in
 // alternativa VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY), come index.js.
 //
-// Uscita: 0 se tutto risolve, 1 se almeno un file locale non risulta
-// applicato né in eccezione, 2 su errore di configurazione o di rete.
+// ⚠️ B-1 dell'audit del 26 agosto: get_migrazioni_applicate() non è più
+// concessa ad anon (20260828100000_ping_revoca_anon_migrazioni.sql) — restava
+// raggiungibile da chiunque avesse la chiave anon pubblica, cioè da chiunque,
+// e l'elenco dei nomi di migrazione è ricognizione gratuita sulla storia di
+// sicurezza del progetto. Questo script chiamava la RPC con la sola chiave
+// anon (mai stato "autenticato" nel senso di una sessione utente vera), quindi
+// con la revoca la chiamata risponde ora "permission denied": è trattato come
+// INCONCLUSIVO (esce 0 con un avviso), non come uno scarto trovato — stessa
+// scelta di verifica-advisor quando manca il token. Per tornare a verificare
+// per davvero serve un accesso autenticato come `authenticated` (un utente
+// reale, non la chiave anon): finché non c'è, questo controllo è sospeso e
+// lo dice ad ogni esecuzione.
+//
+// Uscita: 0 se tutto risolve O se la verifica è inconcludente (manca la
+// configurazione, o get_migrazioni_applicate rifiuta la chiave anon), 1 se
+// almeno un file locale non risulta applicato né in eccezione, 2 su un
+// errore di rete che non è un rifiuto di permesso (non sappiamo dire se sia
+// inconcludente o uno scarto vero).
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { analizzaNomeFile, confrontaMigrazioni, trovaNonVersionate, trovaRiapplicate, ECCEZIONI_STORICHE } from './migrazioni.js';
+import {
+  analizzaNomeFile, confrontaMigrazioni, trovaNonVersionate, trovaRiapplicate, ECCEZIONI_STORICHE,
+  PermessoNegato, leggiMigrazioniApplicate,
+} from './migrazioni.js';
 
 const RADICE = fileURLToPath(new URL('../..', import.meta.url));
 const DIR_MIGRAZIONI = join(RADICE, 'supabase', 'migrations');
@@ -25,15 +44,6 @@ function leggiMigrazioniLocali() {
     .filter((f) => f.endsWith('.sql'))
     .map((f) => analizzaNomeFile(f.slice(0, -4)))
     .filter(Boolean);
-}
-
-async function leggiMigrazioniApplicate(base, chiave, fetchImpl) {
-  const url = `${base.replace(/\/$/, '')}/rest/v1/rpc/get_migrazioni_applicate`;
-  const r = await fetchImpl(url, { headers: { apikey: chiave, Authorization: `Bearer ${chiave}` } });
-  if (!r.ok) {
-    throw new Error(`get_migrazioni_applicate ha risposto HTTP ${r.status}: ${await r.text().catch(() => '')}`);
-  }
-  return r.json();
 }
 
 async function main() {
@@ -51,6 +61,21 @@ async function main() {
   try {
     applicate = await leggiMigrazioniApplicate(base, chiave, fetch);
   } catch (e) {
+    if (e instanceof PermessoNegato) {
+      // Atteso da B-1 in poi: get_migrazioni_applicate non è più concessa ad
+      // anon. Esce 0 — un controllo sospeso non deve avere lo stesso aspetto
+      // di uno rotto, ma nemmeno rendere rosso un workflow per un permesso
+      // che è stato tolto di proposito (vedi il commento in cima al file).
+      console.log(`⚠  ${e.message}`);
+      console.log('   get_migrazioni_applicate() non è più raggiungibile con la sola chiave');
+      console.log('   anon (B-1 dell\'audit del 26 agosto): questo controllo è sospeso finché');
+      console.log('   non riceve un accesso autenticato come `authenticated`. Nessun allarme:');
+      console.log('   non ha trovato uno scarto, non può più cercarlo.');
+      console.log('::warning title=Verifica migrazioni sospesa::get_migrazioni_applicate() ' +
+        'rifiuta la chiave anon (grant revocato, B-1). Serve un accesso autenticato per ' +
+        'ripristinare questo controllo.');
+      process.exit(0);
+    }
     console.error(`Impossibile leggere le migrazioni applicate: ${e.message}`);
     console.error('Nessun allarme: la verifica non può decidere, non ha trovato uno scarto.');
     process.exit(2);

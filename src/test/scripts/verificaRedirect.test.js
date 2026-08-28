@@ -13,9 +13,12 @@
 // esito che non sia esattamente "Location sul Site URL" deve risultare
 // inconcludente, mai passato.
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   valutaSonde, hostDi, HOST_CANARINO, HOST_PRODUZIONE,
 } from '../../../scripts/verifica-redirect/redirect.js';
+import { estraiOriginProprie, estraiCsp, hostMancantiDallaCsp } from '../../../scripts/verifica-redirect/csp.js';
 
 const locProd = `https://${HOST_PRODUZIONE}/#error=invalid_token`;
 
@@ -98,5 +101,77 @@ describe('il canarino copre anche A-4', () => {
 
   it('l\'host canarino non è l\'host di produzione', () => {
     expect(HOST_CANARINO).not.toBe(HOST_PRODUZIONE);
+  });
+});
+
+// B-3 dell'audit del 26 agosto: la CSP di vercel.json e ORIGIN_PROPRIE devono
+// nominare gli stessi host. estraiOriginProprie/estraiCsp leggono i due file
+// come testo (vedi csp.js sul perché), e questo blocco li verifica sia contro
+// i file reali del repository — la proprietà che conta davvero — sia con
+// input sintetici, per provare che il controllo solleva o segnala quando i
+// due divergono invece di passare in silenzio.
+describe('csp.js — ORIGIN_PROPRIE e la CSP devono dire la stessa cosa', () => {
+  const RADICE = join(process.cwd());
+
+  it('estrae gli host reali di ORIGIN_PROPRIE dal sorgente TypeScript', () => {
+    const sorgente = readFileSync(
+      join(RADICE, 'supabase', 'functions', '_shared', 'originConsentite.ts'), 'utf8',
+    );
+    const host = estraiOriginProprie(sorgente);
+    expect(host).toEqual([
+      'tullio-seven.vercel.app',
+      'tullio-tooco-s-projects.vercel.app',
+      'tullio-git-main-tooco-s-projects.vercel.app',
+    ]);
+  });
+
+  it('solleva se il letterale ORIGIN_PROPRIE non c\'è più nel sorgente', () => {
+    expect(() => estraiOriginProprie('export const ALTRO = 1;')).toThrow(/non trovo più/);
+  });
+
+  it('estrae la CSP reale da vercel.json', () => {
+    const vercelJson = JSON.parse(readFileSync(join(RADICE, 'vercel.json'), 'utf8'));
+    const csp = estraiCsp(vercelJson);
+    expect(csp).toContain("connect-src 'self'");
+  });
+
+  it('solleva se vercel.json non ha alcun header Content-Security-Policy', () => {
+    expect(() => estraiCsp({ headers: [{ source: '/(.*)', headers: [] }] })).toThrow(/nessun header/);
+  });
+
+  it('non segnala nulla quando ogni host di ORIGIN_PROPRIE è coperto da \'self\'', () => {
+    const mancanti = hostMancantiDallaCsp({
+      originProprie: ['tullio-seven.vercel.app'],
+      csp: "default-src 'self'; connect-src 'self' https://esempio.supabase.co",
+    });
+    expect(mancanti).toEqual([]);
+  });
+
+  it('non segnala un host nominato esplicitamente, anche senza \'self\'', () => {
+    const mancanti = hostMancantiDallaCsp({
+      originProprie: ['esempio.supabase.co'],
+      csp: 'connect-src https://esempio.supabase.co',
+    });
+    expect(mancanti).toEqual([]);
+  });
+
+  it('segnala un host che la CSP non nomina e che \'self\' non può coprire', () => {
+    const mancanti = hostMancantiDallaCsp({
+      originProprie: ['tullio-seven.vercel.app', 'host-dimenticato.vercel.app'],
+      csp: 'connect-src https://tullio-seven.vercel.app',
+    });
+    expect(mancanti).toEqual(['host-dimenticato.vercel.app']);
+  });
+
+  it('con i file reali del repository: nessun host di ORIGIN_PROPRIE resta scoperto', () => {
+    const sorgente = readFileSync(
+      join(RADICE, 'supabase', 'functions', '_shared', 'originConsentite.ts'), 'utf8',
+    );
+    const vercelJson = JSON.parse(readFileSync(join(RADICE, 'vercel.json'), 'utf8'));
+    const mancanti = hostMancantiDallaCsp({
+      originProprie: estraiOriginProprie(sorgente),
+      csp: estraiCsp(vercelJson),
+    });
+    expect(mancanti).toEqual([]);
   });
 });

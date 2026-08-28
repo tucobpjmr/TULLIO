@@ -14,6 +14,20 @@ on:
 jobs:
   ping:
     runs-on: ubuntu-latest
+    # B-4 dell'audit del 26 agosto: la chiave anon (pubblica per disegno — è
+    # la stessa spedita nel bundle frontend a ogni visitatore, protetta dalle
+    # policy RLS e dai GRANT, non dalla segretezza) e l'URL del progetto
+    # vivono qui in UNA repository variable invece che ripetuti in chiaro in
+    # ogni step: una rotazione (dopo un incidente, o alla scadenza `exp:
+    # 2096`) è così una modifica sola invece di cinque, in due file. Sono
+    # variable e non secret apposta: una variable è leggibile, ed è corretto
+    # che lo sia per un valore che non è un segreto.
+    #   Settings → Secrets and variables → Actions → Variables → New
+    #     SUPABASE_URL      = https://vmxvnxsqfisucugcpqlc.supabase.co
+    #     SUPABASE_ANON_KEY = (la chiave anon del progetto)
+    env:
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
     steps:
       # Il gateway di Supabase vuole l'header apikey su tutte le rotte
       # /auth/v1/*, /health compresa: senza, risponde 401 e `curl -f` esce in
@@ -24,23 +38,19 @@ jobs:
       # il progetto non lo stava toccando affatto.
       - name: Ping Auth (GoTrue)
         run: |
-          curl -sS -f -o /dev/null "https://vmxvnxsqfisucugcpqlc.supabase.co/auth/v1/health" \
-            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZteHZueHNxZmlzdWN1Z2NwcWxjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjcyNjYsImV4cCI6MjA5NjI0MzI2Nn0.HzrIVB-ykHYbOPeA8IH9x-NO3U8Gzc9OqixAVD4noug"
+          curl -sS -f -o /dev/null "$SUPABASE_URL/auth/v1/health" -H "apikey: $SUPABASE_ANON_KEY"
 
-      # Chiave anon pubblica: è la stessa spedita nel bundle frontend a ogni
-      # visitatore (protetta dalle policy RLS, non da segretezza), quindi non
-      # è un segreto da mettere in un secret di repository.
-      #
-      # Perché una RPC e non più `/rest/v1/users?select=id&limit=1`: dalla
-      # migrazione 20260806170000 il ruolo `anon` non ha più alcun GRANT sulle
-      # tabelle di `public` (S-16), quindi quella GET risponderebbe "permission
-      # denied" e `curl -f` uscirebbe in errore — il workflow che deve tenere
-      # sveglio il progetto tornerebbe rosso senza che nessuno lo abbia
-      # toccato, che è esattamente il guasto silenzioso descritto qui sopra per
-      # l'header apikey mancante. get_migrazioni_applicate() è concessa ad anon
-      # apposta, è STABLE (quindi interrogabile in GET, senza eseguire nulla di
-      # volatile) e legge comunque da Postgres, che è lo scopo del ping.
+      # B-1 dell'audit del 26 agosto: prima pingava get_migrazioni_applicate(),
+      # concessa ad anon apposta per questo scopo — ma per un osservatore non
+      # autenticato l'elenco dei nomi di migrazione è una mappa della storia di
+      # sicurezza del progetto (`fix_users_privilege_escalation`,
+      # `revoke_anon_table_grants`...), ricognizione gratuita che non richiede
+      # nemmeno un account. ping() non dice nulla e serve identicamente allo
+      # scopo di questo workflow: toccare PostgREST e Postgres. Resta STABLE
+      # (interrogabile in GET, senza eseguire nulla di volatile) e concessa ad
+      # anon — get_migrazioni_applicate() ora non lo è più (vedi la migrazione
+      # che la revoca, e verifica-migrazioni.js sul perché quel controllo
+      # degrada con garbo invece di rompersi con la revoca).
       - name: Ping REST (PostgREST + Postgres)
         run: |
-          curl -sS -f -o /dev/null "https://vmxvnxsqfisucugcpqlc.supabase.co/rest/v1/rpc/get_migrazioni_applicate" \
-            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZteHZueHNxZmlzdWN1Z2NwcWxjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjcyNjYsImV4cCI6MjA5NjI0MzI2Nn0.HzrIVB-ykHYbOPeA8IH9x-NO3U8Gzc9OqixAVD4noug"
+          curl -sS -f -o /dev/null "$SUPABASE_URL/rest/v1/rpc/ping" -H "apikey: $SUPABASE_ANON_KEY"

@@ -78,10 +78,10 @@ esterne al team viva in memoria e sparisca a ogni refresh (rilievo **A-2**).
 | **M-3** ✔ | **Media** | `messages_update` lascia passare in RLS **ogni partecipante** su **ogni** messaggio; la restrizione per colonna è affidata al solo trigger `messages_blocca_modifiche_altrui`. Punto singolo di rottura, su una tabella da cui un trigger analogo è già stato rimosso in passato (`20260814210100`). | policy `messages_update` + trigger omonimo (live DB) | partecipante alla conversazione, **solo** se il trigger salta |
 | **M-4** ✔ | **Media** | Politica password minima (8 caratteri) applicata **solo lato client**, e duplicata in due file. GoTrue accetta il proprio minimo su chiamata diretta all'API. | `src/auth/UpdatePasswordScreen.jsx:27`, `src/components/shell/AccountSicurezza.jsx:45` | chi chiama `/auth/v1/user` direttamente |
 | **M-5** ✔ | **Media** | Deriva documentale in `docs/SICUREZZA.md`: la tabella §1 dichiara `importa_backup` protetta da `private.can_liste()`; il database applica `private.is_admin()` dal 15 agosto. Il documento di riferimento sulla sicurezza descrive una guardia più debole di quella reale. | `docs/SICUREZZA.md:87` | — |
-| B-1 | **Bassa** | `get_migrazioni_applicate()` eseguibile da `anon`: espone a un non autenticato l'elenco completo delle migrazioni, cioè la cronologia dell'evoluzione dello schema. | live DB + `.github/workflows/keep-supabase-warm.yml` | chiunque, senza autenticazione |
-| B-2 | **Bassa** | Rubrica interna piatta: `users_select_all USING true` e `user_contacts_select USING true` danno email e telefono di **tutto** il team anche al ruolo `driver`, che è escluso da ogni altro dato commerciale. | live DB | qualunque utente attivo |
-| B-3 | **Bassa** | La stessa allow-list di host vive in **tre** posti indipendenti (`_shared/originConsentite.ts`, la CSP in `vercel.json`, i Redirect URL nella dashboard Supabase). Nessun controllo automatico che le tenga allineate; solo la terza ha una sonda. | `supabase/functions/_shared/originConsentite.ts`, `vercel.json` | — |
-| B-4 | **Bassa** | Anon key ripetuta in chiaro in 3 punti di 2 workflow invece che in una repository variable. Non è un segreto, ma una rotazione diventa una modifica a più file. | `.github/workflows/keep-supabase-warm.yml:28,46`, `verifica-rpc.yml:76,86,100` | — |
+| **B-1** ✔ | **Bassa** | `get_migrazioni_applicate()` eseguibile da `anon`: espone a un non autenticato l'elenco completo delle migrazioni, cioè la cronologia dell'evoluzione dello schema. | live DB + `.github/workflows/keep-supabase-warm.yml` | chiunque, senza autenticazione |
+| B-2 | **Bassa** | Rubrica interna piatta: `users_select_all USING true` e `user_contacts_select USING true` danno email e telefono di **tutto** il team anche al ruolo `driver`, che è escluso da ogni altro dato commerciale. **Decisione di prodotto confermata il 28 agosto**: resta com'è, non è un difetto — vedi la nota nella sezione dedicata più sotto. | live DB | qualunque utente attivo |
+| **B-3** ✔ | **Bassa** | La stessa allow-list di host vive in **tre** posti indipendenti (`_shared/originConsentite.ts`, la CSP in `vercel.json`, i Redirect URL nella dashboard Supabase). Nessun controllo automatico che le tenga allineate; solo la terza ha una sonda. | `supabase/functions/_shared/originConsentite.ts`, `vercel.json` | — |
+| **B-4** ✔ | **Bassa** | Anon key ripetuta in chiaro in 3 punti di 2 workflow invece che in una repository variable. Non è un segreto, ma una rotazione diventa una modifica a più file. | `.github/workflows/keep-supabase-warm.yml:28,46`, `verifica-rpc.yml:76,86,100` | — |
 
 > ### Stato dei tre rilievi di alta priorità (aggiornato il 26 agosto)
 >
@@ -880,7 +880,22 @@ E, in coda alla tabella:
 
 ---
 
-### B-1 · `get_migrazioni_applicate()` raggiungibile da `anon`
+### B-1 · `get_migrazioni_applicate()` raggiungibile da `anon` ✔ chiuso il 28 agosto
+
+**Fatto**, con una variazione sul caveat qui sotto. `ping()` (migrazione
+`20260828100000_ping_revoca_anon_migrazioni.sql`) è la nuova funzione di
+keep-alive, concessa ad `anon`; `get_migrazioni_applicate()` ha perso il grant
+`anon` e resta concessa solo ad `authenticated`. Il caveat era fondato:
+`scripts/verifica-rpc/verifica-migrazioni.js` non si autenticava — chiamava la
+RPC con la sola chiave anon, mai una sessione utente vera — quindi la revoca
+LO ROMPE, nel senso che quel controllo non può più leggere le migrazioni
+applicate. Non è stato provvisto un account autenticato dedicato alla CI (è
+una decisione — quale account, quali credenziali, dove custodirle — che
+richiede l'ok di chi amministra il progetto, non presa qui): il controllo
+degrada con garbo invece di rompere la CI, esce 0 con un avviso esplicito a
+ogni esecuzione (`PermessoNegato` in `scripts/verifica-rpc/migrazioni.js`) ed
+è **sospeso**, non chiuso, come verifica di scarto repository↔produzione.
+Riaprirlo per davvero richiede un accesso `authenticated` per la CI.
 
 **Dove.** Live DB (`acl: anon=X`), advisor `anon_security_definer_function_executable`.
 Chiamata da `.github/workflows/keep-supabase-warm.yml:46`.
@@ -921,7 +936,18 @@ autentichi (non usi la sola anon key): altrimenti la revoca lo rompe.
 
 ---
 
-### B-2 · Rubrica interna piatta: il `driver` vede email e telefoni di tutti
+### B-2 · Rubrica interna piatta: il `driver` vede email e telefoni di tutti — decisione confermata il 28 agosto: resta com'è
+
+**Non applicato, di proposito.** Rivisto insieme a chi decide il prodotto il
+28 agosto 2026: la rubrica condivisa resta `using (true)` per tutto il team,
+`driver` incluso. Non è un difetto tecnico dimenticato — è la stessa
+conclusione a cui era già arrivata la migrazione `20260629222802` — quindi
+resta fuori dal conteggio dei rilievi chiusi di questo documento, non dentro.
+Se la decisione dovesse cambiare in futuro, la soluzione proposta più sotto è
+già pronta, ed è accompagnata da un test (`src/test/integration/rls.test.js`,
+descrizione «user_contacts — la rubrica è del team, non solo del
+proprietario») scritto apposta per bloccarsi finché nessuno la applica
+consapevolmente.
 
 **Dove.** `users_select_all USING true`, `user_contacts_select USING true` (live).
 
@@ -955,7 +981,19 @@ che ha bisogno della rubrica. Se si applica, va aggiornata la matrice §4 di
 
 ---
 
-### B-3 · La stessa allow-list di host in tre posti scollegati
+### B-3 · La stessa allow-list di host in tre posti scollegati ✔ chiuso il 28 agosto
+
+**Fatto**, sulla forma proposta sotto ma senza importare `originConsentite.ts`
+com'era scritto: quel file è TypeScript per una Edge Function Deno, non
+eseguibile da uno script Node del repository senza un loader dedicato.
+`scripts/verifica-redirect/csp.js` estrae l'elenco di `ORIGIN_PROPRIE` e la
+direttiva CSP di `vercel.json` come TESTO (stessa scelta di
+`verifica-convenzioni`, che legge il codice invece di eseguirlo) e confronta i
+due; `index.js` lo esegue per primo, senza rete né chiave anon, così gira
+anche quando il resto dello script è saltato. Ancora due posti su tre: i
+Redirect URL della dashboard restano fuori dal repository per definizione, ma
+la sonda esistente li copre già dal 22 agosto (C-1). Test in
+`src/test/scripts/verificaRedirect.test.js`.
 
 **File.** `supabase/functions/_shared/originConsentite.ts:ORIGIN_PROPRIE` ·
 `vercel.json` (direttive `connect-src`/`img-src`/`media-src`, con il ref del
@@ -994,7 +1032,19 @@ e aggiungere `npm run verifica:redirect` al workflow che ha già le credenziali
 
 ---
 
-### B-4 · Anon key ripetuta in chiaro nei workflow
+### B-4 · Anon key ripetuta in chiaro nei workflow ✔ chiuso il 28 agosto
+
+**Fatto**, esattamente sulla forma proposta sotto: `SUPABASE_URL` e
+`SUPABASE_ANON_KEY` sono ora `env:` a livello di JOB in entrambi i workflow
+(letti da `${{ vars.SUPABASE_URL }}`/`${{ vars.SUPABASE_ANON_KEY }}`), non più
+ripetuti a ogni step. ⚠️ Le due repository variable vanno create a mano da chi
+amministra il repository — Settings → Secrets and variables → Actions →
+Variables — questa sessione non ha accesso alle impostazioni di GitHub per
+farlo. Finché non esistono, `vars.SUPABASE_URL`/`vars.SUPABASE_ANON_KEY` sono
+stringhe vuote e i tre controlli di `verifica-rpc.yml` degradano come già
+fanno quando manca la chiave (avviso, non fallimento) — solo il ping di
+`keep-supabase-warm.yml` risulterebbe rosso finché non sono impostate, perché
+lì la chiave era finora indispensabile e non facoltativa.
 
 **File.** `.github/workflows/keep-supabase-warm.yml:28,46` ·
 `.github/workflows/verifica-rpc.yml:76,86,100`

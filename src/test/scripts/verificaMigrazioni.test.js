@@ -10,6 +10,7 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   analizzaNomeFile, confrontaMigrazioni, trovaNonVersionate, trovaRiapplicate, ALIAS_APPLICATE,
+  leggiMigrazioniApplicate, PermessoNegato,
 } from '../../../scripts/verifica-rpc/migrazioni.js';
 
 describe('analizzaNomeFile', () => {
@@ -168,6 +169,40 @@ describe('trovaRiapplicate — nomi applicati più di una volta, invisibili ai d
       'queue_stale_notif_direct_task',
       'chat_files_delete_orfani',
     ]);
+  });
+});
+
+// B-1 dell'audit del 26 agosto: get_migrazioni_applicate() non è più concessa
+// ad anon (era ricognizione gratuita sulla storia di sicurezza del progetto
+// per chiunque avesse la chiave anon pubblica). Con la sola chiave anon
+// questo controllo diventa strutturalmente inconcludente, e main() (non
+// testato qui: chiama process.exit) lo riconosce da questo errore per uscire
+// 0 con un avviso invece di rompersi — vedi il commento in cima al file.
+describe('leggiMigrazioniApplicate — il rifiuto di permesso è un caso distinto', () => {
+  it('solleva PermessoNegato su HTTP 401', async () => {
+    const f = async () => new Response('{"message":"permission denied"}', { status: 401 });
+    await expect(leggiMigrazioniApplicate('https://x.supabase.co', 'anon-key', f))
+      .rejects.toBeInstanceOf(PermessoNegato);
+  });
+
+  it('solleva PermessoNegato su HTTP 403', async () => {
+    const f = async () => new Response('{"message":"permission denied"}', { status: 403 });
+    await expect(leggiMigrazioniApplicate('https://x.supabase.co', 'anon-key', f))
+      .rejects.toBeInstanceOf(PermessoNegato);
+  });
+
+  it('solleva un errore generico (non PermessoNegato) su un altro codice di errore', async () => {
+    const f = async () => new Response('boom', { status: 500 });
+    const promessa = leggiMigrazioniApplicate('https://x.supabase.co', 'anon-key', f);
+    await expect(promessa).rejects.not.toBeInstanceOf(PermessoNegato);
+    await expect(promessa).rejects.toThrow(/HTTP 500/);
+  });
+
+  it('ritorna le migrazioni applicate su una risposta 200', async () => {
+    const applicate = [{ version: '20260806140000', name: 'get_migrazioni_applicate' }];
+    const f = async () => new Response(JSON.stringify(applicate), { status: 200 });
+    await expect(leggiMigrazioniApplicate('https://x.supabase.co', 'anon-key', f))
+      .resolves.toEqual(applicate);
   });
 });
 

@@ -13,15 +13,19 @@
 -- lascia leggere da CI cosa risulta applicato, per confrontarlo con i file nel
 -- repository.
 --
--- PERCHÉ È SICURO ESPORLA AD ANON. `supabase_migrations.schema_migrations`
--- non è raggiungibile da PostgREST (schema non esposto), quindi serve una
--- funzione ponte. version/name sono gli stessi nomi dei file già pubblici nel
--- repository Git — non c'è niente qui che non sia già leggibile da chiunque
--- clona il repo. Non esponiamo la colonna `statements` (il testo SQL
--- applicato): non serve al confronto e non ha motivo di uscire dal progetto
--- Supabase. Stesso ragionamento già applicato alla chiave anon stessa in
--- verifica-rpc.yml e keep-supabase-warm.yml: protetta da RLS/dal fatto di non
--- essere un segreto, non da segretezza.
+-- PERCHÉ ERA SICURO ESPORLA AD ANON, E PERCHÉ NON LO È PIÙ (B-1 dell'audit
+-- del 26 agosto, 20260828100000_ping_revoca_anon_migrazioni.sql). Il
+-- ragionamento qui sotto reggeva finché il repository era pubblico:
+-- `package.json` dichiara `"private": true`, e per chi non clona il
+-- repository l'elenco dei nomi di migrazione è comunque ricognizione gratuita
+-- sulla storia di sicurezza del progetto. Il grant `anon` è stato revocato
+-- dalla migrazione sopra citata; il ping di keep-supabase-warm.yml usa ora
+-- ping(), che non dice nulla. Ragionamento originale, per il record:
+-- `supabase_migrations.schema_migrations` non è raggiungibile da PostgREST
+-- (schema non esposto), quindi serve una funzione ponte. version/name sono
+-- gli stessi nomi dei file già pubblici nel repository Git. Non esponiamo la
+-- colonna `statements` (il testo SQL applicato): non serve al confronto e non
+-- ha motivo di uscire dal progetto Supabase.
 create or replace function public.get_migrazioni_applicate()
 returns table(version text, name text)
 language sql

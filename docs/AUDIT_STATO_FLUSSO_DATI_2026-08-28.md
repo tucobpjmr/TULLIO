@@ -10,7 +10,7 @@ su 147 file), `npm run lint` senza segnalazioni, zero
 `dangerouslySetInnerHTML`/`innerHTML`/`eval` in `src/`, undici audit precedenti
 chiusi.
 
-⟦stato: 0/8 chiusi⟧
+⟦stato: 3/8 chiusi⟧
 
 > **Sulla numerazione.** `A-` = alta priorità, `M-` = media, `B-` = bassa,
 > come negli audit dal 12 agosto in poi.
@@ -76,11 +76,11 @@ affrontate, e i controlli automatici che le tengono chiuse funzionano.
 | **A-1** | Alta | Race / sync realtime | `applyRow` non invalida i reload in volo: la riga appena applicata viene riportata indietro dalla risposta di un reload partito prima, **e nessun secondo giro la corregge** | `hooks/useDebouncedTableSubscription.js:158-172` |
 | **A-2** | Alta | Race / stato asincrono | Il feed notifiche è l'unico stato realtime **senza protezione delle scritture in volo**: «segna letta» può tornare indietro e restarci | `hooks/useNotifications.js:42-51` |
 | **A-3** | Alta | Race / stato asincrono | `SET_TEAM` è l'unica entità realtime del reducer che **non** passa da `fondiScrittureInVolo`, e nessuna entry del team dichiara `entityId` | `state/reducer.js:392-395`, `state/persistence.js:519,593,613,633,770` |
-| **M-1** | Media | Race / dipendenza | `TaskAttachments`: `useIsMounted()` copre lo smontaggio ma **non il cambio di `taskId`** — e lo slide-over resta montato passando da un task all'altro | `components/tasks/TaskAttachments.jsx:60-70` |
+| **M-1** ✔ | Media | Race / dipendenza | `TaskAttachments`: `useIsMounted()` copre lo smontaggio ma **non il cambio di `taskId`** — e lo slide-over resta montato passando da un task all'altro | `components/tasks/TaskAttachments.jsx:60-70` |
 | **M-2** | Media | Stato di attesa disonesto | `TaskHistoryPanel`: `caricando` non torna a `true` al cambio di `taskId` — la cronologia del task precedente viene mostrata, con il suo conteggio, come se fosse quella del nuovo | `components/tasks/TaskHistoryPanel.jsx:41-63,77` |
-| **M-3** | Media | Race / gen-counter | `caricaStorico`/`caricaClienti` non condividono alcuna generazione con il reload della sottoscrizione: due risposte concorrenti, vince quella che arriva ultima | `hooks/useAppHydration.js:410-457` |
+| **M-3** ✔ | Media | Race / gen-counter | `caricaStorico`/`caricaClienti` non condividono alcuna generazione con il reload della sottoscrizione: due risposte concorrenti, vince quella che arriva ultima | `hooks/useAppHydration.js:410-457` |
 | **B-1** | Bassa | Troncamento silenzioso | `Notifications.list({ limit: 100 })`: il badge dei non letti conta solo le 100 più recenti e non lo dice | `lib/api/notifiche.js:17-21`, `components/shell/Topbar.jsx:100` |
-| **B-2** | Bassa | Race / dipendenza | `ClienteListePanel`: stessa classe di M-1, finestra più stretta (il cambio cliente riporta al tab Task) | `components/liste/ClienteListePanel.jsx:42-67` |
+| **B-2** ✔ | Bassa | Race / dipendenza | `ClienteListePanel`: stessa classe di M-1, finestra più stretta (il cambio cliente riporta al tab Task) | `components/liste/ClienteListePanel.jsx:42-67` |
 
 ---
 
@@ -465,6 +465,45 @@ Due strade, e la prima è quella giusta:
   gen-counter a mano — ma allora va replicato **anche** in B-2, e a quel punto è
   la terza copia della stessa regola: vedi il suggerimento strategico n.1.
 
+#### Come è stato chiuso
+
+Strada **(a)**, con una correzione al primitivo che il rilievo non aveva
+previsto: `useCaricamento` non esponeva un setter, ed **era quella mancanza a
+tenere il pannello sulla guardia di solo smontaggio**. Aggiungerne uno
+(`imposta`) è meno invasivo delle due sorgenti di verità che (a) proponeva —
+l'elenco resta uno solo, e gli scostamenti ottimistici (l'allegato caricato che
+va in cima, quello eliminato che esce) scrivono su quello stesso stato. La
+guardia sulle due corse non si indebolisce: vive nell'effetto, e `imposta` non
+la attraversa. Il preambolo dell'hook dichiara il confine, ⛔ compreso: se il
+valore viene dalla rete, viene da `carica`.
+
+Due cose scoperte facendolo:
+
+1. **`{ data: null, error: null }` è un dato valido per l'hook**, e
+   `TaskFiles.listForTask` può rispondere così. Il `setFiles(data || [])` del
+   caricamento a mano non era difensivo: era la normalizzazione, e andava
+   spostata dentro `carica` invece di sparire.
+2. **Il conteggio in testata aveva lo stesso difetto dell'elenco**, un livello
+   più su: `ALLEGATI (3)` restava quello del task precedente mentre il nuovo
+   caricava, contraddicendo il «Caricamento…» che gli stava sotto. È ora dietro
+   `!loading` — la stessa famiglia di M-2, trovata perché la correzione passava
+   di lì.
+
+`src/test/tasks/taskAttachmentsCorse.test.jsx`, due casi, **entrambi verificati
+contro il codice precedente**: falliscono sulla guardia di solo smontaggio, che
+è il modo in cui questo difetto si presenta.
+
+⚠️ **Cosa resta aperto in questo file, trovato correggendo e non chiuso.**
+`handleFiles` ha la stessa corsa sul percorso del GESTORE: fra l'`await` di
+`TaskFiles.upload` e lo scostamento ottimistico, `taskId` può essere cambiato, e
+`montato()` — che è il contratto giusto per un gestore — non lo vede. L'allegato
+appena caricato finirebbe in cima all'elenco della pratica sbagliata. Non è
+stato corretto qui perché non è la stessa correzione: `useCaricamento` non
+c'entra (non c'è nessun effetto), e la risposta è una domanda di progetto —
+se il contratto dei gestori debba conoscere il proprio SOGGETTO oltre al proprio
+montaggio. Va deciso, non aggiunto di straforo dentro un rilievo che parlava
+d'altro.
+
 ---
 
 ### M-2 · `TaskHistoryPanel`: `caricando` non si riapre al cambio di task
@@ -588,6 +627,47 @@ storicoCompleto.current) return;` resta: dice una cosa diversa (*la risposta in
 mano è più STRETTA di ciò che lo stato deve contenere*) e la generazione non la
 copre.
 
+#### Come è stato chiuso
+
+`genTask` e `genClienti`, in AND con `isCurrent()` — più **due** metà che il
+rilievo non aveva viste, e sono loro il contenuto vero della correzione.
+
+**La prima: il turno lo consuma chi SCRIVE, non chi parte.** La forma proposta
+qui sopra (`if (mia !== gen.current) return;` subito dopo l'`await`) è «vince
+chi è partito per ultimo», e sbaglia un caso — scoperto rileggendo il proprio
+diff, non da un test che falliva: una richiesta più recente che **fallisce** non
+porta dati, ma avendo già preso il turno scarterebbe la risposta più vecchia che
+i dati ce li ha. Si butterebbe via un'anagrafica arrivata per intero perché una
+seconda richiesta, partita dopo, ha trovato la rete giù — cioè si trasformerebbe
+un errore transitorio in una perdita di dati, che è peggio della corsa che si
+stava chiudendo. Il contatore ha quindi due metà: `emesse` (le richieste
+partite) e `scritte` (l'ultimo turno che ha davvero scritto), e `vinceIlTurno`
+si chiama **dopo** aver gestito l'errore, sul solo percorso che dispatcha.
+
+**La seconda: chi consegna il corpus chiude l'attesa, chiunque dei due sia.**
+
+Scrivere solo la generazione avrebbe spostato il difetto invece di chiuderlo. Il
+ramo «sono stale» di `caricaStorico` non può chiudere `caricandoStorico`: lo
+chiuderebbe mentre il corpus è ancora in volo, cioè mostrerebbe un Archivio
+incompleto come completo — la classe di guasto peggiore fra quelle che questo
+progetto si vieta. E non può nemmeno non chiuderlo da nessuna parte, o resterebbe
+uno scheletro perpetuo. I due flag hanno quindi smesso di significare «la MIA
+richiesta è in volo» per significare «il corpus non è ancora in stato», e li
+chiude chi consegna, su **ogni** esito — riuscito o fallito.
+
+Per i clienti la fabbrica `idratazione` ha preso due opzioni (`gen`,
+`alTermine`) invece di essere aggirata: sono generiche — «questa entità ha più
+di uno scrittore», «c'è un'attesa da chiudere oltre al flag di entità» — e
+tenere `clients` fuori dalla fabbrica avrebbe riaperto M-1 del 26 agosto.
+
+Cinque casi nuovi (`storicoTask.test.jsx`, `clientiRealtime.test.jsx`): per
+ciascuna delle due entità il verso della corsa che il rilievo descrive e la
+contropartita sul flag, più il caso della richiesta più recente che fallisce.
+**I due casi sulla corsa falliscono senza la generazione, e quello sul
+fallimento fallisce sulla versione ingenua di essa** — cioè su ciò che il
+rilievo proponeva; gli altri due presidiano il modo in cui la correzione stessa
+potrebbe rompersi.
+
 ---
 
 ### B-1 · Il badge dei non letti conta solo le 100 notifiche più recenti
@@ -639,6 +719,20 @@ stretta perché `ClienteDetailPanel` riporta al tab «Task» al cambio cliente
 delle liste in `ClientiView`. Stessa correzione di M-1, e va fatta insieme: sono
 i due call site che restano fuori da `useCaricamento`.
 
+#### Come è stato chiuso
+
+Stessa correzione di M-1, e qui il conto è più netto: il pannello aveva **tre**
+`useState` scritti a mano (dato, flag, errore) più il `useCallback` e il
+`useEffect`, e ne resta una chiamata sola. Le due query viaggiano dentro lo
+stesso `carica` e atterrano in un oggetto solo — `{ liste, saldi }` — così le
+due metà non possono mai essere di due clienti diversi, che era una corsa in
+più di cui il rilievo non parlava.
+
+L'unica cosa che l'hook non dava è il **«Riprova»** del riquadro d'errore.
+Non è diventato una seconda porta d'ingresso (`ricarica()` chiamata da un
+gestore, che dovrebbe rifarsi la guardia per conto proprio): un tentativo nuovo
+**è** un caricamento nuovo, quindi si dichiara come tale, fra le dipendenze.
+
 ---
 
 ## Top 3 suggerimenti strategici
@@ -663,6 +757,49 @@ copiando.
 
 **Impatto:** chiude M-1, M-3 e B-2, e soprattutto chiude la *classe*. Costo: una
 regola e due file.
+
+#### Come è stato chiuso — e cosa si è scoperto facendolo
+
+Fatto: M-1, M-3 e B-2 chiusi, e il confine è ora presidiato. **Ma non da una
+regola ESLint, e non è un ripiego.**
+
+`no-restricted-syntax` valuta un nodo per volta e non ha memoria di ciò che il
+file contiene altrove, mentre il predicato qui è RELAZIONALE — «questo file
+importa `useIsMounted` **e** chiama `useEffect(`». Un selettore sul solo import
+segnalerebbe anche i quattro usi legittimi (`BulkInviteModal`,
+`AccountSicurezza`, `ProfileEditor`, `useSalvataggio`), cioè esattamente il caso
+da permettere. Il presidio vive quindi in `verifica:convenzioni`, con atteso
+**0** — che è dove il progetto mette già i predicati relazionali, per la stessa
+ragione per cui M-3 del 26 agosto non è diventato una regola di lint.
+
+**Il controllo ha trovato subito un caso che il rilievo dava per inesistente**,
+ed è la cosa più utile successa qui: `src/hooks/useSalvataggio.js` importa
+`useIsMounted` per il proprio gestore **e** ha un `useEffect` che tiene fresco un
+ref. Nessun caricamento, nessuna corsa — il predicato era giusto sui consumatori
+e sbagliato sui contratti. La risposta **non** è stata un'eccezione nominata
+(`docs/CLAUDE.md`: «un controllo con una lista di eccezioni che cresce ha smesso
+di controllare») ma un PERIMETRO dichiarato: `src/components/**`, lo stesso
+confine che `eslint.config.js` traccia per le entità dello stato, e per lo stesso
+motivo — `src/hooks/` è il layer in cui gli effetti sono la materia, non un modo
+di caricare.
+
+Il perimetro porta con sé i suoi due controlli positivi, perché *«un atteso di 0
+protegge dal debito che CRESCE, non dal perimetro che si RESTRINGE»*: il
+controllo solleva se nessun componente importa più `useIsMounted` (il perimetro
+si è svuotato) e se nessuno importa `useCaricamento` (la diagnosi resterebbe
+senza rimedio). Non un numero di file dichiarato a mano, che sarebbe rosso a ogni
+gestore legittimo nuovo: la sua **non-vacuità**, che è ciò che davvero può venire
+a mancare.
+
+⛔ Resta dichiarato ciò che segnalerebbe ancora a torto: un componente con un
+`useEffect` che non carica — un focus trap, un listener di tastiera — più un
+`useIsMounted()` per il proprio gestore. Oggi non ne esiste nessuno. Se ne
+nascesse uno, la risposta non è l'eccezione: è che quel file ha due lavori.
+
+Effetto collaterale, misurato: i sette casi nuovi portavano
+`verificaConvenzioni.test.js` da 485 a 563 righe di codice, oltre il tetto
+`max-lines` che dal 23 agosto non ha deroghe. Stanno in
+`src/test/scripts/guardiaDiSoloSmontaggio.test.js`.
 
 ### 2 · Finire di applicare l'invariante delle scritture in volo alle due entità scoperte
 

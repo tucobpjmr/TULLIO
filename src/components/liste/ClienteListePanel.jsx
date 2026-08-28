@@ -6,11 +6,11 @@
 // Deliberatamente in sola lettura: replicare qui il foglio dei movimenti
 // significherebbe due copie della stessa UI da tenere allineate, e la scheda
 // cliente non è il contesto in cui si registra un movimento.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ListeAPI } from "./listeApi.js";
 import { eur, fmtDate, intestazioneLista, saldoClass } from "./listeFormato.js";
 import { useListeWrite } from "./listePersistence.js";
-import { useIsMounted } from "../../hooks/useIsMounted.js";
+import { useCaricamento } from "../../hooks/useCaricamento.js";
 import "./liste.css";
 import { NuovaListaModal } from "./modals/NuovaListaModal.jsx";
 import { useDispatch } from "../../state/DispatchContext.jsx";
@@ -31,37 +31,57 @@ const txtF13Muted3 = { textAlign: "center", padding: "24px 0", color: "var(--tex
 const rowCenterBetween = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 12, flexWrap: "wrap" };
 const txtF13LvMuted = { fontSize: 13, color: "var(--lv-muted)" };
 
+// Il valore iniziale di `useCaricamento`: le due query di questo pannello
+// viaggiano insieme e atterrano in un oggetto solo, così l'elenco e i saldi
+// non possono mai essere di due clienti diversi.
+const VUOTO = { liste: [], saldi: {} };
+
 export function ClienteListePanel({ cliente }) {
   const dispatch = useDispatch();
-  const [liste, setListe] = useState([]);
-  const [saldi, setSaldi] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(null);
   const [nuovaOpen, setNuovaOpen] = useState(false);
   const esegui = useListeWrite();
-  const montato = useIsMounted();
+  // Il «Riprova» del riquadro d'errore. Un tentativo nuovo È un caricamento
+  // nuovo, quindi si dichiara come tale — fra le dipendenze — invece di
+  // chiedere all'hook una seconda porta d'ingresso: così anche il ritentativo
+  // passa dalla stessa guardia sulle due corse, che una `ricarica()` chiamata
+  // da un gestore dovrebbe poi rifarsi per conto proprio.
+  const [tentativo, riprova] = useState(0);
 
-  const load = useCallback(async () => {
-    setLoadError(null);
-    const [rListe, rSaldi] = await Promise.all([
-      ListeAPI.listByClient(cliente.id), ListeAPI.saldiByClient(cliente.id),
-    ]);
-    // Criticità #11: il pannello sta dentro la scheda cliente, che si chiude
-    // mentre le due query sono ancora in volo.
-    if (!montato()) return;
-    const failed = [rListe, rSaldi].find((r) => r.error);
-    if (failed) {
-      console.error("[liste] scheda cliente", failed.error);
-      setLoadError(failed.error.message);
-      setLoading(false);
-      return;
-    }
-    setListe(rListe.data || []);
-    setSaldi(Object.fromEntries((rSaldi.data || []).map((s) => [s.lista_id, s])));
-    setLoading(false);
-  }, [cliente.id, montato]);
-
-  useEffect(() => { setLoading(true); load(); }, [load]);
+  // ─── B-2 (audit del 28 agosto) · le corse sono DUE, anche qui ─────────────
+  //
+  // Il caricamento era un `useCallback` con `useIsMounted()` come sola guardia:
+  // copriva la chiusura della scheda cliente (criticità #11, il pannello si
+  // smonta mentre le due query sono in volo) e NON il cambio di `cliente.id`,
+  // che è l'altra metà — l'ultima risposta ARRIVATA non è per forza l'ultima
+  // richiesta FATTA. La finestra è più stretta che in `TaskAttachments` perché
+  // `ClienteDetailPanel` riporta al tab «Task» al cambio cliente, quindi di
+  // norma il pannello si smonta; non però quando ci si arriva con
+  // `initialTab="liste"`, cioè dal badge delle liste in `ClientiView`.
+  //
+  // Una guardia stretta su un percorso stretto è comunque una guardia
+  // sbagliata, e qui costava anche una riga in più: `useCaricamento` porta con
+  // sé lo stato d'errore e il flag, che erano tre `useState` scritti a mano.
+  const { dato, caricando: loading, errore: loadError } = useCaricamento(
+    async () => {
+      const [rListe, rSaldi] = await Promise.all([
+        ListeAPI.listByClient(cliente.id), ListeAPI.saldiByClient(cliente.id),
+      ]);
+      // La prima delle due che ha fallito è l'errore del caricamento: senza
+      // una delle due metà il pannello non ha niente di onesto da mostrare.
+      const fallita = [rListe, rSaldi].find((r) => r.error);
+      if (fallita) return { data: null, error: fallita.error };
+      return {
+        data: {
+          liste: rListe.data || [],
+          saldi: Object.fromEntries((rSaldi.data || []).map((s) => [s.lista_id, s])),
+        },
+        error: null,
+      };
+    },
+    [cliente.id, tentativo],
+    { iniziale: VUOTO, suErrore: (e) => console.error("[liste] scheda cliente", e) },
+  );
+  const { liste, saldi } = dato || VUOTO;
 
   const totale = useMemo(
     () => liste.reduce((s, l) => s + Number(saldi[l.id]?.saldo || 0), 0),
@@ -80,9 +100,9 @@ export function ClienteListePanel({ cliente }) {
     return (
       <div style={txtF13Muted2}>
         Non riesco a caricare le liste di questo cliente.
-        <div style={txtF12Mt4}>{loadError}</div>
+        <div style={txtF12Mt4}>{loadError.message}</div>
         <button
-          onClick={() => { setLoading(true); load(); }}
+          onClick={() => riprova((n) => n + 1)}
           style={boxF13Bold}
         >Riprova</button>
       </div>

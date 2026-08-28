@@ -1,5 +1,82 @@
 # CHANGELOG — VoyageDesk
 
+## Audit su stato e flusso dati del 28 agosto — suggerimento strategico n. 1, e con lui M-1, M-3 e B-2
+
+> Il documento nasce con otto rilievi, nessuno critico. Il primo intervento non
+> chiude i tre di alta priorità ma il suggerimento strategico n. 1, perché è
+> quello che chiude una **classe** invece di tre file: le tre priorità Medie e
+> Basse erano tutte la stessa cosa vista da tre punti.
+
+**Il fatto che teneva insieme M-1, M-3 e B-2.** Il progetto ha tre risposte alla
+domanda «la risposta è arrivata tardi, la scarto?» — `isCurrent()` per chi
+ricarica su evento, `useIsMounted()` per chi ha un `await` in un gestore,
+`useCaricamento()` per chi carica in un effetto — e solo la terza copre **due**
+corse: lo smontaggio *e* il cambio di dipendenza. Tre punti dell'app coprivano
+metà: `TaskAttachments` su `taskId`, `ClienteListePanel` su `cliente.id`, e in
+`useAppHydration` i due caricamenti su richiesta, che non condividevano alcuna
+generazione con il reload della sottoscrizione.
+
+**M-1 e B-2 · i due pannelli passano da `useCaricamento`.** E la ragione per cui
+non ci erano già passati era il **primitivo, non i due file**: l'hook non
+esponeva un setter, quindi un pannello con mutazioni ottimistiche avrebbe dovuto
+tenere una seconda copia del dato accanto alla sua — due sorgenti di verità per
+la stessa lista, cioè un difetto peggiore di quello da chiudere. Ora c'è
+`imposta`, per gli scostamenti **locali dopo** il caricamento, con il ⛔ scritto
+accanto: se il valore viene dalla rete, viene da `carica`. Due cose trovate
+strada facendo: `{ data: null, error: null }` è un dato valido per l'hook (il
+`data || []` del caricamento a mano non era difensivo, era la normalizzazione, e
+andava spostata dentro `carica`), e il conteggio `ALLEGATI (3)` in testata aveva
+lo stesso difetto dell'elenco un livello più su — restava quello del task
+precedente mentre il nuovo caricava, contraddicendo il «Caricamento…» sotto.
+
+**M-3 · una generazione per FETTA, non per effetto.** `genTask` e `genClienti`,
+in AND con `isCurrent()` — che dice un'altra cosa: quello ordina le richieste
+dello stesso effetto, questa tutte quelle che finiscono nella stessa `action`.
+Le due metà che il rilievo non aveva viste sono però quelle che contano.
+**Il turno lo consuma chi SCRIVE, non chi parte**: «vince chi è partito per
+ultimo» — la forma che il rilievo proponeva — sbaglia il caso della richiesta
+più recente che *fallisce*, che non porta dati e scarterebbe comunque quella più
+vecchia che i dati ce li ha, trasformando un errore transitorio in una perdita.
+Il contatore ha quindi `emesse` e `scritte`, e il turno si consuma dopo aver
+gestito l'errore. E **chi consegna il corpus chiude l'attesa, chiunque dei due
+sia.** Il ramo «sono stale» non può
+chiudere il flag — lo chiuderebbe mentre il corpus è ancora in volo, cioè
+mostrerebbe un Archivio incompleto come completo — né lasciarlo alzato, o
+sarebbe uno scheletro perpetuo. I due flag hanno quindi smesso di significare
+«la MIA richiesta è in volo». La fabbrica `idratazione` ha preso due opzioni
+generiche (`gen`, `alTermine`) invece di essere aggirata, che avrebbe riaperto
+M-1 del 26 agosto.
+
+**Il presidio, e perché NON è una regola ESLint.** Il rilievo lo proponeva in
+`eslint.config.js` e non si può: il predicato è **relazionale** — «il file
+importa `useIsMounted` *e* chiama `useEffect(`» — mentre `no-restricted-syntax`
+valuta un nodo per volta, e un selettore sul solo import segnalerebbe i quattro
+usi legittimi nei gestori, cioè il caso da permettere. È il quinto controllo con
+atteso **0** di `verifica:convenzioni`. ⚠️ **E ha trovato subito un caso che il
+rilievo dava per inesistente**: `useSalvataggio.js` importa `useIsMounted` per il
+proprio gestore e ha un `useEffect` che tiene fresco un ref — nessun
+caricamento, nessuna corsa. La risposta non è stata un'eccezione nominata («un
+controllo con una lista di eccezioni che cresce ha smesso di controllare») ma un
+**perimetro dichiarato**: `src/components/**`, lo stesso confine che
+`eslint.config.js` traccia per le entità dello stato, perché `src/hooks/` è il
+layer in cui gli effetti sono la materia e non un modo di caricare. Il perimetro
+è presidiato dalla propria **non-vacuità** — solleva se nessun componente
+importa più `useIsMounted`, o se nessuno importa `useCaricamento` — e non da un
+numero di file scritto a mano, che sarebbe rosso a ogni gestore legittimo nuovo.
+
+**Quattordici casi nuovi, sei dei quali verificati contro il codice precedente**
+(`taskAttachmentsCorse.test.jsx`, i due versi della corsa in
+`storicoTask.test.jsx` e `clientiRealtime.test.jsx`, e il caso di
+`guardiaDiSoloSmontaggio` che riproduce la forma esatta di `TaskAttachments`
+prima della correzione). Gli altri presidiano il modo in cui la correzione
+stessa potrebbe rompersi — il flag che resta alzato — o accettano la forma
+corretta. I sette casi del presidio stanno in un file proprio: portavano
+`verificaConvenzioni.test.js` da 485 a 563 righe, oltre `max-lines`, che dal 23
+agosto non ha deroghe.
+
+⟦A-1, A-2, A-3, M-2 e B-1 restano aperti.⟧
+
+
 ## Audit di architettura del 15 e 16 agosto — chiusi dodici dei quattordici rilievi rimasti
 
 > Il documento del **16 agosto** passa da 6/12 a **12/12**; quello del **15

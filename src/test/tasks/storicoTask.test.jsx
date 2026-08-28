@@ -238,6 +238,106 @@ describe("useAppHydration — lo storico, una volta chiesto, non si pota più", 
 
     expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: "SET_TASKS" }));
   });
+
+  // ─── M-3 (audit del 28 agosto) · l'altro verso della stessa corsa ─────────
+  //
+  // Il caso qui sopra è protetto da `!completo && storicoCompleto.current`, che
+  // confronta ciò che le due richieste hanno CHIESTO. Non copre il verso
+  // opposto — due richieste che chiedono la STESSA cosa e si scavalcano — dove
+  // l'unica cosa che le ordina è chi è partito per ultimo.
+  it("una risposta dello storico che arriva DOPO un reload più recente non riporta indietro lo stato", async () => {
+    const dispatch = vi.fn();
+    const { result } = monta({ dispatch });
+    await waitFor(() => expect(result.current.caricamento.tasks).toBe(false));
+
+    // La richiesta dello storico parte e resta in volo.
+    const { promise, risolvi } = differita();
+    let chiamate = 0;
+    rispostaTasks = () => {
+      chiamate += 1;
+      return chiamate === 1 ? promise : Promise.resolve(vuoto);
+    };
+    let inVolo;
+    act(() => { inVolo = result.current.storicoTask.richiedi(); });
+    await waitFor(() => expect(result.current.storicoTask.caricando).toBe(true));
+
+    // Un reload di riconnessione parte DOPO e risponde PRIMA. Chiede anche lui
+    // il corpus intero — `storicoCompleto` è già alzato — quindi la guardia
+    // sull'ampiezza non lo distingue da noi: è la generazione a farlo.
+    await riconnetti();
+    await waitFor(() => expect(dispatch)
+      .toHaveBeenCalledWith(expect.objectContaining({ type: "SET_TASKS" })));
+    dispatch.mockClear();
+
+    // E solo ORA risponde lo storico, con dati più vecchi di quelli a schermo.
+    await act(async () => { risolvi(vuoto); await inVolo; });
+
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: "SET_TASKS" }));
+  });
+
+  it("una richiesta più recente che FALLISCE non scarta la risposta più vecchia che i dati li ha", async () => {
+    // Il caso che «vince chi è partito per ultimo» sbaglia da solo, ed è il
+    // motivo per cui il turno lo consuma chi SCRIVE e non chi parte: una
+    // seconda richiesta che trova la rete giù non porta niente, e scartare per
+    // lei un corpus arrivato per intero sarebbe buttare via dati che ci sono.
+    const dispatch = vi.fn();
+    const onError = vi.fn();
+    const { result } = monta({ dispatch, onError });
+    await waitFor(() => expect(result.current.caricamento.tasks).toBe(false));
+
+    const { promise, risolvi } = differita();
+    let chiamate = 0;
+    rispostaTasks = () => {
+      chiamate += 1;
+      return chiamate === 1
+        ? promise
+        : Promise.resolve({ data: null, error: { message: "rete giù" } });
+    };
+    let inVolo;
+    act(() => { inVolo = result.current.storicoTask.richiedi(); });
+    await waitFor(() => expect(result.current.storicoTask.caricando).toBe(true));
+
+    // Il reload di riconnessione parte DOPO e fallisce SUBITO.
+    await riconnetti();
+    await waitFor(() => expect(onError).toHaveBeenCalled());
+    dispatch.mockClear();
+
+    // Lo storico risponde per ultimo, e con i dati: deve arrivare in stato.
+    await act(async () => {
+      risolvi({ data: [{ id: "t-1", title: "c'è" }], error: null });
+      await inVolo;
+    });
+
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "SET_TASKS" }));
+  });
+
+  it("l'attesa dello storico si chiude anche quando a consegnare il corpus è il reload", async () => {
+    // La contropartita del caso qui sopra, e il modo in cui la correzione
+    // potrebbe rompersi: se il ramo «sono stale» chiudesse il flag, lo
+    // chiuderebbe mentre il corpus è ancora in volo; se non lo chiudesse
+    // nessuno, resterebbe uno scheletro perpetuo. Lo chiude chi CONSEGNA.
+    const { result } = monta();
+    await waitFor(() => expect(result.current.caricamento.tasks).toBe(false));
+
+    const { promise, risolvi } = differita();
+    let chiamate = 0;
+    rispostaTasks = () => {
+      chiamate += 1;
+      return chiamate === 1 ? promise : Promise.resolve(vuoto);
+    };
+    let inVolo;
+    act(() => { inVolo = result.current.storicoTask.richiedi(); });
+    await waitFor(() => expect(result.current.storicoTask.caricando).toBe(true));
+
+    await riconnetti();
+
+    // Il corpus è in stato: l'attesa è finita, benché la richiesta che l'aveva
+    // aperta non abbia ancora risposto.
+    await waitFor(() => expect(result.current.storicoTask.caricando).toBe(false));
+
+    await act(async () => { risolvi(vuoto); await inVolo; });
+    expect(result.current.storicoTask.caricando).toBe(false);
+  });
 });
 
 // ─── Lato viste ────────────────────────────────────────────────────────────

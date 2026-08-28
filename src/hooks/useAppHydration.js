@@ -118,6 +118,29 @@ const FINESTRA_COMPLETATE_GG = 60;
 const inizioFinestra = () =>
   new Date(Date.now() - FINESTRA_COMPLETATE_GG * 864e5).toISOString().replace(/\.\d{3}Z$/, "Z");
 
+// ─── M-3 (audit del 28 agosto) · l'ordine delle scritture su UNA fetta ─────
+//
+// Un contatore in due metà, e le due metà sono il punto. `emesse` conta le
+// richieste PARTITE, `scritte` l'ultimo turno che ha davvero scritto lo stato.
+//
+// La prima metà da sola — «vince chi è partito per ultimo» — è la correzione
+// che M-3 chiede, e sbaglia un caso: una richiesta più recente che FALLISCE non
+// porta dati, ma avendo già preso il turno scarterebbe la risposta più vecchia
+// che invece i dati ce li ha. Si butterebbe via un'anagrafica arrivata per
+// intero perché una seconda richiesta, partita dopo, ha trovato la rete giù.
+//
+// Il turno lo consuma quindi CHI SCRIVE, non chi parte: `vinceIlTurno` va
+// chiamata DOPO aver gestito l'errore, sul solo percorso che dispatcha.
+const ordineDiScrittura = () => ({ emesse: 0, scritte: 0 });
+const prendiTurno = (ordine) => ++ordine.emesse;
+const vinceIlTurno = (ordine, turno) => {
+  // `<=` e non `<`: due richieste non possono avere lo stesso turno, e un
+  // turno già scritto è per definizione più vecchio di ciò che c'è a schermo.
+  if (turno <= ordine.scritte) return false;
+  ordine.scritte = turno;
+  return true;
+};
+
 // ─── M-1 (audit del 26 agosto) · le due forme ricorrenti di questo file ────
 //
 // Le sottoscrizioni qui sotto sono sei, ma i loro corpi non sono sei programmi
@@ -151,12 +174,29 @@ const inizioFinestra = () =>
  * diverse e i sei call site le avevano già diverse.
  * `quandoSaltare` è per `clients`, la cui idratazione non parte finché una
  * vista non l'ha chiesta.
+ *
+ * ─── M-3 (audit del 28 agosto) · `gen` e `alTermine` ───────────────────────
+ * Le due opzioni che servono a un'entità con PIÙ DI UNO SCRITTORE, e oggi ce
+ * n'è una sola: `clients`, scritta anche da `caricaClienti`. Sono generiche e
+ * non conoscenza dei clienti travestita da parametro:
+ *
+ *   · `gen` è il ref della generazione condivisa con gli altri scrittori della
+ *     stessa fetta. Si compone in AND con `isCurrent()` — quello ordina le
+ *     richieste dello stesso effetto, questo TUTTE quelle che finiscono nella
+ *     stessa `action`.
+ *   · `alTermine` è l'attesa da chiudere oltre al flag di entità, su OGNI
+ *     esito: con due scrittori, il flag di chi non ha vinto resterebbe alzato
+ *     per sempre. Vedi `chiudiAttesaClienti`.
+ *
+ * Chi non le passa non cambia di una virgola: `gen` assente significa
+ * «scrittore unico», che è il caso di `notices` e `message_templates`.
  */
 const idratazione = ({
   entita, tag, etichetta, list, mapper, action,
-  dispatch, onError, segnaCaricata, quandoSaltare,
+  dispatch, onError, segnaCaricata, quandoSaltare, gen, alTermine,
 }) => async (isCurrent) => {
   if (quandoSaltare?.()) return;
+  const turno = gen ? prendiTurno(gen.current) : 0;
   const { data, error } = await list();
   if (!isCurrent()) return;
   if (error) {
@@ -164,12 +204,19 @@ const idratazione = ({
     onError(`Caricamento ${etichetta} fallito: ${error.message || ""}`);
     // FUORI dal ramo del successo per costruzione: uno scheletro che gira per
     // sempre è disonesto quanto un vuoto dichiarato troppo presto (criticità
-    // #6 nel preambolo).
+    // #6 nel preambolo). Vale per entrambe le attese, ed è il motivo per cui
+    // `alTermine` è chiamata qui e non solo sotto.
     segnaCaricata(entita);
+    alTermine?.();
     return;
   }
+  // Il turno si consuma QUI, sul percorso che scrive: vedi `vinceIlTurno`.
+  // Perderlo significa che una richiesta partita dopo ha già scritto, e ciò
+  // che abbiamo in mano è più vecchio di quello che c'è a schermo.
+  if (gen && !vinceIlTurno(gen.current, turno)) return;
   dispatch({ type: action, payload: (data || []).map(mapper) });
   segnaCaricata(entita);
+  alTermine?.();
 };
 
 /**
@@ -232,6 +279,7 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
   const storicoCompleto = useRef(false);
   const [caricandoStorico, setCaricandoStorico] = useState(false);
 
+
   // M-1 (passo 2) · Lo stesso meccanismo di `storicoCompleto`, per
   // l'anagrafica: un REF e non uno stato perché è il parametro con cui i
   // reload futuri — compreso quello di riconnessione, che parte da dentro
@@ -242,6 +290,41 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
   // guardando.
   const clientiCompleti = useRef(false);
   const [caricandoClienti, setCaricandoClienti] = useState(false);
+
+  // ─── M-3 (audit del 28 agosto) · UNA generazione per FETTA, non per effetto ─
+  //
+  // `state.tasks` e `state.clients` hanno DUE scrittori ciascuno: il reload
+  // della sottoscrizione e il caricamento su richiesta (`caricaStorico`,
+  // `caricaClienti`). `isCurrent()` non li mette in ordine fra loro — è il
+  // gen-counter *dell'effetto* di `useDebouncedTableSubscription`, e queste due
+  // richieste non nascono dallo stesso effetto — quindi fra le loro risposte
+  // vinceva quella che ARRIVAVA per ultima, non quella partita per ultima. Con
+  // due corpus interi la perdita è di freschezza e non di righe, ed è per
+  // questo che il rilievo è Medio; resta il last-write-wins fra due fetch
+  // concorrenti che tutto il resto di questo file esiste per escludere, e la
+  // finestra si allarga proprio quando si aprono Archivio o Cestino su una
+  // connessione lenta.
+  //
+  // La correzione è quella che `useListeData` ha già in piedi, e il suo
+  // commento la dice meglio di così: «incrementando il ref a OGNI reload, da
+  // qualunque origine, l'ordine di ARRIVO delle risposte smette di contare —
+  // conta solo l'ordine di PARTENZA». Le due condizioni si COMPONGONO in AND
+  // con `isCurrent()`, non lo sostituiscono: quella dice «l'effetto che mi ha
+  // lanciata è ancora vivo», questa «sono ancora io l'ultima partita».
+  const genTask = useRef(ordineDiScrittura());
+  const genClienti = useRef(ordineDiScrittura());
+
+  // ⚠️ CHI CONSEGNA IL CORPUS CHIUDE L'ATTESA, chiunque dei due sia.
+  //
+  // `caricandoStorico`/`caricandoClienti` non descrivono «la MIA richiesta è in
+  // volo» ma «il corpus non è ancora in stato»: con due scrittori, il primo
+  // significato lascerebbe uno scheletro acceso per sempre ogni volta che a
+  // vincere è l'altro — cioè esattamente nei casi che la generazione qui sopra
+  // introduce. Ed è il motivo per cui il ramo «sono stale» dei due
+  // `carica*` NON tocca il flag: a chiuderlo sarà chi consegna, su OGNI suo
+  // esito, riuscito o fallito.
+  const chiudiAttesaStorico = useCallback(() => setCaricandoStorico(false), []);
+  const chiudiAttesaClienti = useCallback(() => setCaricandoClienti(false), []);
 
   // Idratazione tasks + notices dal DB al primo mount in modalità Supabase,
   // più subscription realtime: ad ogni evento postgres ricarico la lista
@@ -333,25 +416,40 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     // `storicoCompleto` rende permanente per la sessione proprio perché la
     // riconnessione non deve potare ciò che il Cestino sta mostrando.
     const completo = storicoCompleto.current;
+    // M-3 · La generazione è condivisa con `caricaStorico`: entrambi scrivono
+    // `state.tasks` con un SET_TASKS, e senza questo l'ordine fra le loro
+    // risposte era quello di arrivo.
+    const turno = prendiTurno(genTask.current);
     const { data, error } = await TasksAPI.list({
       withComments: true,
       includeDeleted: completo,
       completeDal: completo ? null : inizioFinestra(),
     });
+    // Le due guardie si compongono e dicono due cose diverse: `isCurrent()` è
+    // «l'effetto che mi ha lanciata è ancora vivo e non l'ha già rifatto»,
+    // `genTask` è «sono ancora io l'ultima partita fra TUTTI gli scrittori di
+    // questa fetta». Nessuna delle due implica l'altra.
     if (!isCurrent()) return;
     // Una vista ha chiesto il corpus intero mentre questa richiesta era in
     // volo: la risposta che abbiamo in mano è più STRETTA di ciò che lo stato
-    // deve contenere. `isCurrent()` non basta a scartarla — è il gen-counter
-    // delle richieste concorrenti dello stesso tipo, e queste due non lo sono.
+    // deve contenere. Non è coperta dalle due guardie qui sopra — quelle
+    // ordinano le richieste, questa confronta ciò che ciascuna ha CHIESTO.
     if (!completo && storicoCompleto.current) return;
     if (error) {
       console.error("[VoyageDesk] Tasks.list", error);
       onError(`Caricamento task fallito: ${error.message || ""}`);
       segnaCaricata("tasks");
+      // Se questa richiesta è quella che ha superato un `caricaStorico`, è
+      // anche l'unica rimasta a poter chiudere la sua attesa — vedi
+      // `chiudiAttesaStorico`. Vale anche sul fallimento: uno scheletro che
+      // gira per sempre è disonesto quanto un vuoto dichiarato troppo presto.
+      if (completo) chiudiAttesaStorico();
       return;
     }
+    if (!vinceIlTurno(genTask.current, turno)) return;
     dispatch({ type: "SET_TASKS", payload: (data || []).map(fromDbTask) });
     segnaCaricata("tasks");
+    if (completo) chiudiAttesaStorico();
   }, {
     enabled, deps: [enabled],
     // Suggerimento strategico n.1 dell'audit del 16 agosto. Un evento sulla
@@ -411,7 +509,14 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     if (!enabled || storicoCompleto.current) return;
     storicoCompleto.current = true;
     setCaricandoStorico(true);
+    const turno = prendiTurno(genTask.current);
     const { data, error } = await TasksAPI.list({ withComments: true, includeDeleted: true });
+    // M-3 · Una richiesta è partita DOPO la nostra: la sua risposta è più
+    // recente, e il corpus lo consegna lei — compresa la chiusura dell'attesa,
+    // che per questo NON si tocca qui (vedi `chiudiAttesaStorico`). Chi è
+    // partito dopo di noi ha letto `storicoCompleto.current` già alzato,
+    // quindi sta chiedendo il corpus intero come noi: non c'è nessun caso in
+    // cui cedergli il passo restringa ciò che finisce in stato.
     if (error) {
       // Non ce l'abbiamo: l'idratazione torna alla finestra e un rimontaggio
       // della vista riprova. Lasciare il ref alzato significherebbe chiedere
@@ -423,6 +528,7 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
       onError(`Caricamento dello storico task fallito: ${error.message || ""}`);
       return;
     }
+    if (!vinceIlTurno(genTask.current, turno)) return;
     dispatch({ type: "SET_TASKS", payload: (data || []).map(fromDbTask) });
     setCaricandoStorico(false);
     segnaCaricata("tasks");
@@ -442,7 +548,12 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     if (!enabled || clientiCompleti.current) return;
     clientiCompleti.current = true;
     setCaricandoClienti(true);
+    const turno = prendiTurno(genClienti.current);
     const { data, error } = await ClientsAPI.list();
+    // M-3 · Gemello del ramo in `caricaStorico`, e per la stessa ragione: a
+    // consegnare l'anagrafica — e a chiudere l'attesa — è chi è partito per
+    // ultimo. Il reload della sottoscrizione che ci ha superati sta chiedendo
+    // esattamente la stessa `ClientsAPI.list()`.
     if (error) {
       clientiCompleti.current = false;
       setCaricandoClienti(false);
@@ -451,6 +562,7 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
       onError(`Caricamento clienti fallito: ${error.message || ""}`);
       return;
     }
+    if (!vinceIlTurno(genClienti.current, turno)) return;
     dispatch({ type: "SET_CLIENTS", payload: (data || []).map(fromDbClient) });
     setCaricandoClienti(false);
     segnaCaricata("clients");
@@ -630,6 +742,9 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     // salto dell'idratazione — è che l'idratazione dei clienti ora la chiede
     // chi la guarda.
     quandoSaltare: () => !clientiCompleti.current,
+    // M-3 · L'anagrafica ha due scrittori: questo reload e `caricaClienti`.
+    gen: genClienti,
+    alTermine: chiudiAttesaClienti,
   }), {
     enabled, deps: [enabled],
     // Suggerimento strategico n.1 dell'audit del 16 agosto. `clients` è

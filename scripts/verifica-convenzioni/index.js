@@ -20,6 +20,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { ESLint, Linter } from 'eslint';
 import {
   LetturaFallita, leggiCallSiteSalvataggio, leggiCallSiteStorico, leggiConteggioMultiComp,
+  guardiaDiSoloSmontaggio,
   leggiStatoAudit, leggiStatoIndex, leggiStiliInline, montaggiLazySenzaRete,
   usiSalvataggio, usiStoricoTask, confronta,
   // Suggerimento strategico n. 3 dell'audit del 19 agosto: controlli che NEGANO
@@ -354,6 +355,23 @@ async function main() {
     nome: 'ricerche che normalizzano a ogni battuta', dove: 'docs/CLAUDE.md',
     dichiarato: 0, misurato: senzaIndice.length,
     rimedio: `Usa \`indicizza\` + \`matchIndice\` invece di \`matchTermini\` dentro il useMemo: ${senzaIndice.join(', ')}`,
+  });
+
+  // ─── 5-septies · suggerimento strategico n. 1 (audit del 28 agosto) ──────
+  //    La guardia che copre METÀ delle corse in un file che carica: un
+  //    `useIsMounted()` (smontaggio soltanto) dove il caricamento vive in un
+  //    `useEffect`, cioè dove serve anche il cambio di dipendenza. Atteso 0 e
+  //    non un numero dichiarato, per la ragione di 5-bis: un controllo che
+  //    conta scade quando l'app cresce, uno che nega no.
+  //
+  //    ⚠️ Perché non è una regola ESLint — il predicato è RELAZIONALE e
+  //    `no-restricted-syntax` guarda un nodo per volta — sta nel preambolo di
+  //    `guardiaDiSoloSmontaggio`, insieme al caso che segnalerebbe a torto.
+  const guardieMeta = guardiaDiSoloSmontaggio(sorgenti);
+  controlli.push({
+    nome: 'guardia di solo smontaggio su un caricamento', dove: 'docs/CLAUDE.md',
+    dichiarato: 0, misurato: guardieMeta.length,
+    rimedio: `L'effetto che carica lo possiede \`useCaricamento\` (copre smontaggio E cambio di dipendenza); \`useIsMounted\` resta per i gestori — ${guardieMeta.join(', ')}`,
   });
 
   const quadratiche = iterazioniQuadratiche(sorgenti);

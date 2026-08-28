@@ -629,6 +629,97 @@ export function iterazioniQuadratiche(sorgenti) {
 }
 
 /**
+ * Suggerimento strategico n. 1 dell'audit del 28 agosto · La guardia che copre
+ * METÀ delle corse, in un file che carica.
+ *
+ * IL DIFETTO CHE NEGA. Il progetto ha tre risposte alla domanda «la risposta è
+ * arrivata tardi, la scarto?», e sono tre perché i casi sono tre:
+ *
+ *   · `isCurrent()`      → chi ricarica su evento (useDebouncedTableSubscription)
+ *   · `useIsMounted()`   → chi ha un `await` dentro un GESTORE
+ *   · `useCaricamento()` → chi carica in un EFFETTO
+ *
+ * Solo la terza copre DUE corse: lo smontaggio **e** il cambio di dipendenza —
+ * «l'ultima risposta ARRIVATA non è per forza l'ultima richiesta FATTA». M-4
+ * (26 agosto) l'ha introdotta contando le copie scritte a mano; M-1 e B-2 (28
+ * agosto) hanno trovato i due file che la guardia ce l'avevano, giusta, e
+ * sbagliata per metà — `TaskAttachments` su `taskId` e `ClienteListePanel` su
+ * `cliente.id`, cioè proprio i due che la dipendenza la cambiano restando
+ * montati.
+ *
+ * ⚠️ PERCHÉ QUI E NON IN `eslint.config.js`. L'audit lo proponeva come regola
+ * di lint, e non si può: la condizione è RELAZIONALE — «questo file importa X
+ * **e** chiama Y» — e `no-restricted-syntax` valuta un nodo per volta, senza
+ * memoria di ciò che il file contiene altrove. Un selettore sul solo import
+ * segnalerebbe anche i quattro usi legittimi (`BulkInviteModal`,
+ * `AccountSicurezza`, `ProfileEditor`, `useSalvataggio`), cioè il caso da
+ * PERMETTERE. È la stessa ragione per cui M-3 del 26 agosto è finito qui invece
+ * che in una regola: quando il predicato giusto è una relazione, il posto è
+ * questo script.
+ *
+ * ⚠️ IL PERIMETRO È `src/components/**`, ED È DICHIARATO QUI. Non è
+ * un'eccezione ritagliata attorno a un file scomodo: è lo stesso confine che
+ * `eslint.config.js` traccia per le entità dello stato («il confine vale per i
+ * COMPONENTI. Non per src/hooks/ …»), e per la stessa ragione. `src/hooks/` è
+ * il layer in cui gli effetti sono la MATERIA, non un modo di caricare: la
+ * prima stesura di questo controllo — senza perimetro — ha segnalato
+ * `useSalvataggio.js`, che importa `useIsMounted` per il proprio gestore e ha
+ * un `useEffect` che tiene fresco un ref. Nessun caricamento, nessuna corsa:
+ * il predicato era giusto sui consumatori e sbagliato sui contratti.
+ *
+ * ⛔ COSA SEGNALEREBBE ANCORA A TORTO, dichiarato invece che scoperto dopo: un
+ * COMPONENTE con un `useEffect` che non carica — un focus trap, un listener di
+ * tastiera — e un `useIsMounted()` per il proprio gestore. Oggi non ne esiste
+ * nessuno. Se ne nascesse uno, la risposta NON è aggiungerlo a una lista di
+ * eccezioni (docs/CLAUDE.md: «un controllo con una lista di eccezioni che
+ * cresce ha smesso di controllare»): è che quel file ha due lavori, e il
+ * secondo — l'effetto — chiede di essere guardato.
+ *
+ * @param {{path: string, testo: string}[]} sorgenti
+ * @returns {string[]} i percorsi in violazione
+ */
+export function guardiaDiSoloSmontaggio(sorgenti) {
+  const IMPORTA_MONTATO = /import\s*\{[^}]*\buseIsMounted\b[^}]*\}\s*from/;
+  const componenti = (sorgenti || []).filter(f => f.path.startsWith('src/components/'));
+  // Senza i commenti, e non è pedanteria in un progetto in cui i commenti sono
+  // più del codice: `TaskHistoryPanel` ne ha uno che dice «non serve una
+  // useEffect separata accanto a questa», e domani qualcuno ne scriverà uno con
+  // le parentesi. Un controllo che si fa ingannare dalla prosa che lo spiega
+  // sarebbe rosso proprio sui file scritti meglio.
+  const senzaCommenti = (testo) => testo
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\/\/[^\n]*/g, ' ');
+
+  const conMontato = componenti.filter(f => IMPORTA_MONTATO.test(f.testo));
+  const fuori = conMontato
+    .filter(f => /\buseEffect\s*\(/.test(senzaCommenti(f.testo)))
+    .map(f => f.path);
+
+  // ─── I DUE CONTROLLI POSITIVI DI SÉ STESSO ────────────────────────────────
+  // Un atteso di 0 protegge dal debito che CRESCE, non dal perimetro che si
+  // RESTRINGE (docs/CLAUDE.md, ed è la seconda metà di A-1 del 26 agosto): uno
+  // zero su un insieme vuoto è indistinguibile da uno zero vero. Qui il
+  // perimetro non è un numero da tenere aggiornato a mano — sarebbe rosso ogni
+  // volta che nasce un gestore legittimo — ma la sua NON-VACUITÀ, che è ciò che
+  // davvero può venire a mancare.
+  if (conMontato.length === 0) {
+    throw new LetturaFallita(
+      'Nessun componente importa `useIsMounted`: o il contratto per i gestori è ' +
+      'stato rimosso, o è cambiato nome. Senza, «zero guardie di solo ' +
+      'smontaggio» significa «zero guardie».');
+  }
+  const conContratto = (sorgenti || []).filter(
+    f => /import\s*\{[^}]*\buseCaricamento\b[^}]*\}\s*from/.test(f.testo));
+  if (conContratto.length === 0) {
+    throw new LetturaFallita(
+      'Nessun file di src/ importa `useCaricamento`: o l\'hook è stato rimosso, o ' +
+      'la forma dell\'import è cambiata. Senza, questo controllo non ha più il ' +
+      'contratto verso cui indirizzare, e la sua diagnosi è priva di rimedio.');
+  }
+  return [...new Set(fuori)];
+}
+
+/**
  * M-1 (passo 2) · Le viste che chiedono l'anagrafica INTERA.
  *
  * Stesso mestiere di `usiStoricoTask`, su un equilibrio che si rompe nelle

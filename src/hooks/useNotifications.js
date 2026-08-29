@@ -11,8 +11,9 @@
 // 28 agosto ne condivide anche l'ALTRA metà, il registro delle scritture in
 // volo: vedi `inVoloRef` più sotto.
 //
-//   const { notifications, setNotifications, markRead, markAllRead, remove,
-//           clearAll, markReadForConversation } = useNotifications({ enabled, onError });
+//   const { notifications, setNotifications, nonLetteOltreFinestra, markRead,
+//           markAllRead, remove, clearAll, markReadForConversation }
+//     = useNotifications({ enabled, onError });
 //
 // ⚠️ `setNotifications` è esportato per l'idratazione dei test e per i mock:
 // NON è la porta da cui scrivere una mutazione. Chi scrive questo feed deve
@@ -29,6 +30,18 @@ import { useDebouncedTableSubscription } from "./useDebouncedTableSubscription.j
 
 export function useNotifications({ enabled, onError }) {
   const [notifications, setNotifications] = useState([]);
+  // ─── B-1 (audit del 28 agosto) · il badge conta OLTRE la finestra ─────────
+  //
+  // `notifications` porta solo le 100 più recenti: un unread oltre quella
+  // soglia non ha MAI una riga qui dentro, quindi filtrare questo array (come
+  // faceva prima la Topbar) sottostima il badge senza dirlo. Il rimedio non è
+  // sostituire il filtro locale con un conteggio server ad ogni render — lo
+  // farebbe perdere la reattività ottimistica (`markRead`/`remove` aggiornano
+  // il badge nello stesso istante del click, prima che qualunque round-trip
+  // torni) — ma AGGIUNGERGLI la sola parte che il filtro locale non può
+  // vedere: quante non lette restano fuori dalla finestra. Il chiamante
+  // somma questo numero al proprio conteggio sull'elenco visibile.
+  const [nonLetteOltreFinestra, setNonLetteOltreFinestra] = useState(0);
 
   // B-1 · lo stato da cui si costruisce la compensazione si legge DA QUI, non
   // da dentro l'updater di setState. Un updater deve essere PURO: React 18 può
@@ -101,7 +114,10 @@ export function useNotifications({ enabled, onError }) {
   // Notifiche reali (Step F): in modalità Supabase idratiamo + realtime.
   // Senza login restiamo sui mock NOTIFICATIONS.
   useDebouncedTableSubscription(["notifications"], async (isCurrent) => {
-    const { data, error } = await NotificationsAPI.list({ limit: 100 });
+    const [{ data, error }, conteggio] = await Promise.all([
+      NotificationsAPI.list({ limit: 100 }),
+      NotificationsAPI.contaNonLette(),
+    ]);
     if (!isCurrent()) return;
     if (error) {
       console.error("[notifications] list", error);
@@ -111,11 +127,25 @@ export function useNotifications({ enabled, onError }) {
     const arrivate = (data || []).map(fromDbNotification);
     // La copia del registro si prende QUI e non dentro l'updater: così
     // l'updater resta una funzione pura del suo `prev` — la stessa disciplina
-    // per cui B-1 ha tolto da lì lo snapshot del rollback. `prev` e non
-    // `vive.current` perché fra questa risoluzione e il render successivo può
-    // esserci una mutazione ottimistica non ancora renderizzata.
+    // per cui B-1 (28 agosto, primo passaggio, sulla campanella) ha tolto da
+    // lì lo snapshot del rollback. `prev` e non `vive.current` perché fra
+    // questa risoluzione e il render successivo può esserci una mutazione
+    // ottimistica non ancora renderizzata.
     const inVolo = new Map(inVoloRef.current);
     setNotifications(prev => fondiScrittureInVolo(arrivate, prev, inVolo));
+    if (conteggio.error) {
+      console.error("[notifications] contaNonLette", conteggio.error);
+    } else {
+      // Le VISIBILI si ricavano con la stessa fusione di sopra (`vive.current`
+      // è la copia più fresca disponibile qui, fuori dall'updater) perché il
+      // conteggio server è una foto del database e non sa nulla delle
+      // scritture in volo: senza, una `markRead` ancora in transito
+      // farebbe apparire per un istante una non letta oltre la finestra che
+      // in realtà è già stata gestita in ottimistico.
+      const fuse = fondiScrittureInVolo(arrivate, vive.current, inVolo);
+      const nonLetteVisibili = fuse.filter(n => !n.read).length;
+      setNonLetteOltreFinestra(Math.max(0, (conteggio.count ?? 0) - nonLetteVisibili));
+    }
   }, { enabled, deps: [enabled] });
 
   const markRead = useCallback((id) => {
@@ -140,6 +170,11 @@ export function useNotifications({ enabled, onError }) {
     const ids = vive.current.map(n => n.id);
     marca(ids);
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    // `markAllRead` sul server è un `.eq('read', false)` senza altra
+    // condizione: segna TUTTE le righe dell'utente, comprese quelle oltre la
+    // finestra dei 100 che questo hook non ha mai visto. L'overflow va a
+    // zero nello stesso istante, non al prossimo reload.
+    setNonLetteOltreFinestra(0);
     NotificationsAPI.markAllRead().then(r => {
       if (r?.error) {
         console.error("[notifications] markAllRead", r.error);
@@ -185,6 +220,10 @@ export function useNotifications({ enabled, onError }) {
     const ids = prima.map(n => n.id);
     marca(ids);
     setNotifications([]);
+    // Stessa ragione di `markAllRead`: `removeAll` cancella ogni riga
+    // dell'utente, non solo le 100 visibili, quindi non resta nessuna non
+    // letta nascosta da recuperare al prossimo reload.
+    setNonLetteOltreFinestra(0);
     NotificationsAPI.removeAll().then(r => {
       if (r?.error) {
         console.error("[notifications] removeAll", r.error);
@@ -246,7 +285,7 @@ export function useNotifications({ enabled, onError }) {
   }, [enabled, marca, smarca]);
 
   return {
-    notifications, setNotifications,
+    notifications, setNotifications, nonLetteOltreFinestra,
     markRead, markAllRead, remove, clearAll, markReadForConversation,
   };
 }

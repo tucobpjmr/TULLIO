@@ -24,6 +24,16 @@ export const Notifications = {
       .eq('read', false)
       .order('created_at', { ascending: false })
       .limit(limit),
+  // B-1 (audit del 28 agosto): il CONTEGGIO dei non letti, indipendente dalla
+  // finestra dell'elenco. Il badge dice «quante ne hai», e prima di questa
+  // funzione lo ricavava contando `list({ limit: 100 })` — quindi un utente
+  // con più di cento notifiche aveva un non letto invisibile e non contato,
+  // senza che nulla lo dicesse. `head: true` non trasferisce righe, è un
+  // Content-Range e basta: costa quanto un conteggio, non quanto un elenco.
+  contaNonLette: () =>
+    supabase.from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('read', false),
   // withOrigin sul patch: l'UPDATE realtime porta origin_client in payload.new,
   // così subscribeToTable scarta l'eco della nostra stessa scrittura (niente
   // refetch che sovrascrive l'update ottimistico → niente flicker "torna non

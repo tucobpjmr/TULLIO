@@ -351,6 +351,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           ricerca={ui.ricerca}
           onSearchChange={ui.impostaRicerca}
           notifications={notif.notifications}
+          nonLetteOltreFinestra={notif.nonLetteOltreFinestra}
           onMarkRead={notif.markRead}
           onMarkAllRead={notif.markAllRead}
           onRemoveNotification={notif.remove}

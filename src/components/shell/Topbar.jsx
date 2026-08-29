@@ -83,7 +83,7 @@ const NotificationsPanel = lazy(() =>
 // legge fuori da qui, è invece `useState` locale — vedi audit ST-2 parte 2.
 export const Topbar = memo(function Topbar({
   activeView, ricerca, onSearchChange,
-  notifications: notificationsProp, onMarkRead, onMarkAllRead,
+  notifications: notificationsProp, nonLetteOltreFinestra = 0, onMarkRead, onMarkAllRead,
   onRemoveNotification, onClearAllNotifications, onOpenTask, onOpenChat,
 }) {
   const dispatch = useDispatch();
@@ -97,7 +97,15 @@ export const Topbar = memo(function Topbar({
   const SHOW_MOCK_NOTIFS = import.meta.env.DEV && import.meta.env.VITE_SHOW_MOCK_NOTIFICATIONS === 'true';
   const realNotifs = Array.isArray(notificationsProp) ? notificationsProp : [];
   const notifList = SHOW_MOCK_NOTIFS ? [...realNotifs, ...demoState().notifications] : realNotifs;
-  const unread = notifList.filter(n => !n.read).length;
+  // B-1 (audit del 28 agosto): `notifList` porta al massimo le 100 più
+  // recenti — filtrarla da sola sottostimava il badge oltre quella soglia,
+  // senza dirlo. `nonLetteOltreFinestra` (da `useNotifications`) è la parte
+  // che manca: le non lette che il server conosce e che questo elenco non ha
+  // mai visto. Le due si sommano invece di sostituirsi a vicenda perché
+  // restano ottimisticamente reattive per motivi diversi: la prima segue
+  // `markRead`/`remove` sull'elenco a schermo, la seconda `markAllRead`/
+  // `clearAll`, che toccano anche ciò che non è mai arrivato qui.
+  const unread = notifList.filter(n => !n.read).length + nonLetteOltreFinestra;
   const [searchOpen, setSearchOpen] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
   const searchWrapRef = useRef(null);

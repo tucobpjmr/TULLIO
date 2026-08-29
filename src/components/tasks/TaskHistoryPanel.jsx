@@ -38,14 +38,17 @@ import {
 
 export function TaskHistoryPanel({ taskId }) {
   const { getMember } = useAppData();
-  const [righe, setRighe] = useState([]);
-  // Criticità #6, applicata a un pannello invece che a un'entità: «nessuna
-  // cronologia» e «cronologia non ancora caricata» sono due frasi diverse, e
-  // qui la prima è quella che si legge male — la cronologia è il posto in cui
-  // si va a vedere CHI ha cambiato cosa, tipicamente quando qualcosa non
-  // torna. Si chiude sul successo e sull'errore, come i flag di
-  // useAppHydration: uno scheletro perpetuo è disonesto quanto un vuoto.
-  const [caricando, setCaricando] = useState(true);
+  // M-2 (audit del 28 agosto): `righe`/`caricando` separati permettevano al
+  // secondo di restare `false` mentre il primo era ancora la cronologia del
+  // task PRECEDENTE — lo slide-over non smonta questo pannello al cambio di
+  // task, quindi «ho già caricato qualcosa» e «ho caricato QUESTO task» non
+  // sono la stessa domanda. Un solo stato, legato al task a cui appartiene:
+  // finché `caricato.taskId` non coincide con `taskId`, ciò che abbiamo in
+  // mano è la cronologia di qualcun altro e va trattato come «non ancora
+  // arrivata», non come «questa» — niente da tenere allineato a mano.
+  const [caricato, setCaricato] = useState({ taskId: null, righe: null });
+  const caricando = caricato.taskId !== taskId;
+  const righe = caricando ? null : caricato.righe;
   const montato = useIsMounted();
 
   const carica = useCallback(async (isCurrent) => {
@@ -58,8 +61,7 @@ export function TaskHistoryPanel({ taskId }) {
     // sarebbe sproporzionato rispetto a ciò che l'utente stava facendo
     // (aprire un task). Lo dice qui sotto, dove lo si stava guardando.
     if (error) console.error("[VoyageDesk] TaskThreads.historyForTask", error);
-    setRighe(error ? null : (data || []).map(fromDbHistory));
-    setCaricando(false);
+    setCaricato({ taskId, righe: error ? null : (data || []).map(fromDbHistory) });
   }, [taskId, montato]);
 
   // Realtime, ma SOLO su questo task e SOLO mentre il pannello è montato.

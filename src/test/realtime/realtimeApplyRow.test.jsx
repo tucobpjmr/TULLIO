@@ -123,6 +123,33 @@ describe("useDebouncedTableSubscription — applyRow", () => {
     expect(reload.mock.calls[1][1]).toBeNull();
   });
 
+  it("A-1: applyRow invalida una reload già in volo, così la sua risposta stale non riporta indietro la riga (audit del 29 agosto)", async () => {
+    // Prima del fix: una reload partita PRIMA dell'evento (idratazione o un
+    // reload precedente ancora in volo) non veniva mai invalidata da un
+    // applyRow successivo — `gen` restava fermo, quindi il suo `isCurrent()`
+    // continuava a dire "sì" anche dopo che applyRow aveva già scritto una
+    // versione più fresca. Alla risoluzione, quella risposta stale sovrascrive
+    // lo state e riporta indietro la riga appena applicata, e nessun secondo
+    // giro se ne accorge perché l'evento non è mai finito in `pending`.
+    const isCurrentFns = [];
+    const reload = vi.fn((isCurrent) => { isCurrentFns.push(isCurrent); });
+    const applyRow = vi.fn(() => true);
+    renderHook(() => useDebouncedTableSubscription(["tasks"], reload, { enabled: true, delay: 5, applyRow }));
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+
+    // La reload di idratazione è "in volo": nel mondo reale la query è già
+    // partita e sta per scrivere lo state quando risolve. Prima che lo faccia,
+    // arriva un evento che applyRow gestisce per riga.
+    act(() => {
+      emetti("tasks", { eventType: "UPDATE", new: { id: "t1" } });
+    });
+    expect(applyRow).toHaveBeenCalledTimes(1);
+
+    // Quando la reload di idratazione controlla se è ancora corrente, deve
+    // dire NO: altrimenti scriverebbe uno state senza la riga appena applicata.
+    expect(isCurrentFns[0]()).toBe(false);
+  });
+
   it("un applyRow che solleva non blocca la sottoscrizione: propaga, come un reload che rigetta", () => {
     // Nessuna garanzia speciale qui: applyRow gira nel corpo sincrono
     // dell'handler realtime, come filterEvent già faceva. Non è testato un

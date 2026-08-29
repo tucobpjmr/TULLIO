@@ -161,7 +161,21 @@ export function useDebouncedTableSubscription(
       // applyRow PRIMA di alimentare il debounce: se ha già gestito l'evento
       // (riga applicata allo state), non c'è nulla da coalescere né da
       // ricaricare — l'evento si ferma qui, non finisce mai in `pending`.
-      if (applyRowRef.current?.(tbl, payload)) return;
+      //
+      // ─── A-1 · una reload in volo non deve riportare indietro la riga ─────
+      // (audit del 29 agosto)
+      // `applyRow` scrive nello state SUBITO, ma una `reload` innescata da un
+      // evento precedente può essere già in volo: la sua risposta riflette lo
+      // stato di PRIMA di questa riga e, se scritta ora, la sovrascriverebbe
+      // — senza che nessun secondo giro se ne accorga, perché questo evento
+      // non alimenta mai `pending`. Incrementare `gen` qui (come fa già
+      // `saltaPrimoCaricamento` più sopra) invalida quella reload: il suo
+      // `isCurrent()` fallirà all'arrivo e la risposta stale verrà scartata
+      // invece di rimpiazzare la riga appena applicata.
+      if (applyRowRef.current?.(tbl, payload)) {
+        gen += 1;
+        return;
+      }
       pending.add(tbl);
       clearTimeout(timer);
       timer = setTimeout(() => {

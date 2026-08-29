@@ -10,7 +10,7 @@ su 147 file), `npm run lint` senza segnalazioni, zero
 `dangerouslySetInnerHTML`/`innerHTML`/`eval` in `src/`, undici audit precedenti
 chiusi.
 
-⟦stato: 5/8 chiusi⟧
+⟦stato: 8/8 chiusi⟧
 
 > **Sulla numerazione.** `A-` = alta priorità, `M-` = media, `B-` = bassa,
 > come negli audit dal 12 agosto in poi.
@@ -73,13 +73,13 @@ affrontate, e i controlli automatici che le tengono chiuse funzionano.
 | # | Priorità | Classe | Rilievo | File |
 |---|---|---|---|---|
 | — | **Critici** | — | *Nessuno.* | — |
-| **A-1** | Alta | Race / sync realtime | `applyRow` non invalida i reload in volo: la riga appena applicata viene riportata indietro dalla risposta di un reload partito prima, **e nessun secondo giro la corregge** | `hooks/useDebouncedTableSubscription.js:158-172` |
+| **A-1** ✔ | Alta | Race / sync realtime | `applyRow` non invalida i reload in volo: la riga appena applicata viene riportata indietro dalla risposta di un reload partito prima, **e nessun secondo giro la corregge** | `hooks/useDebouncedTableSubscription.js:158-172` |
 | **A-2** ✔ | Alta | Race / stato asincrono | Il feed notifiche è l'unico stato realtime **senza protezione delle scritture in volo**: «segna letta» può tornare indietro e restarci | `hooks/useNotifications.js:42-51` |
 | **A-3** ✔ | Alta | Race / stato asincrono | `SET_TEAM` è l'unica entità realtime del reducer che **non** passa da `fondiScrittureInVolo`, e nessuna entry del team dichiara `entityId` | `state/reducer.js:392-395`, `state/persistence.js:519,593,613,633,770` |
 | **M-1** ✔ | Media | Race / dipendenza | `TaskAttachments`: `useIsMounted()` copre lo smontaggio ma **non il cambio di `taskId`** — e lo slide-over resta montato passando da un task all'altro | `components/tasks/TaskAttachments.jsx:60-70` |
-| **M-2** | Media | Stato di attesa disonesto | `TaskHistoryPanel`: `caricando` non torna a `true` al cambio di `taskId` — la cronologia del task precedente viene mostrata, con il suo conteggio, come se fosse quella del nuovo | `components/tasks/TaskHistoryPanel.jsx:41-63,77` |
+| **M-2** ✔ | Media | Stato di attesa disonesto | `TaskHistoryPanel`: `caricando` non torna a `true` al cambio di `taskId` — la cronologia del task precedente viene mostrata, con il suo conteggio, come se fosse quella del nuovo | `components/tasks/TaskHistoryPanel.jsx:41-63,77` |
 | **M-3** ✔ | Media | Race / gen-counter | `caricaStorico`/`caricaClienti` non condividono alcuna generazione con il reload della sottoscrizione: due risposte concorrenti, vince quella che arriva ultima | `hooks/useAppHydration.js:410-457` |
-| **B-1** | Bassa | Troncamento silenzioso | `Notifications.list({ limit: 100 })`: il badge dei non letti conta solo le 100 più recenti e non lo dice | `lib/api/notifiche.js:17-21`, `components/shell/Topbar.jsx:100` |
+| **B-1** ✔ | Bassa | Troncamento silenzioso | `Notifications.list({ limit: 100 })`: il badge dei non letti conta solo le 100 più recenti e non lo dice | `lib/api/notifiche.js:17-21`, `components/shell/Topbar.jsx:100` |
 | **B-2** ✔ | Bassa | Race / dipendenza | `ClienteListePanel`: stessa classe di M-1, finestra più stretta (il cambio cliente riporta al tab Task) | `components/liste/ClienteListePanel.jsx:42-67` |
 
 ---
@@ -201,6 +201,32 @@ useEffect(() => {
 **Test di regressione da aggiungere** (`src/test/realtime/`): un reload
 finto lento, un evento `applyRow` durante la sua attesa, e l'asserzione che lo
 stato finale contenga la riga dell'evento e non quella del reload.
+
+#### Come è stato chiuso
+
+Non con il ramo caro qui sopra (`inVolo` + ri-programmazione del reload), ma
+con la sua metà: `gen += 1` dentro `debounced` quando `applyRowRef.current(…)`
+ritorna `true`. Basta a rompere la sequenza del rilievo — il reload già in
+volo, chiesto prima dell'evento, trova `my !== gen` al proprio `isCurrent()` e
+la sua risposta viene scartata invece di sovrascrivere la riga appena
+applicata — ed è verificato con esattamente il test descritto sopra
+(`src/test/realtime/realtimeApplyRow.test.jsx`, caso A-1: fallisce sul codice
+precedente, `isCurrentFns[0]()` restava `true`).
+
+⚠️ **Cosa resta aperto, e non è la stessa correzione.** La versione qui sopra
+non si limita a scartare: ri-programma il reload, perché se quello scartato
+era il recupero dopo un buco di connessione (`online`/`visibilitychange`),
+buttarlo via senza rifarlo lascia MUTE anche le righe che `applyRow` non ha
+mai visto — quelle di eventi emessi durante il buco stesso, che per
+definizione nessun evento realtime le porterà mai. La correzione chiusa qui
+protegge solo la riga che l'evento arrivato porta con sé; il buco di
+connessione resta scoperto finché un secondo `online`/`visibilitychange` non
+arriva a ritentare. È lo stesso genere di residuo che M-1 dichiara per
+`handleFiles`: non è la stessa correzione, e va deciso a sé — introdurre un
+secondo contatore (`inVolo`) e una promise incatenata su un hook con nove
+sottoscrizioni vive non è un'aggiunta da fare di straforo dentro un rilievo
+che, nel suo report originale, chiedeva solo che la riga non tornasse
+indietro.
 
 ---
 
@@ -636,6 +662,17 @@ const carica = useCallback(async (isCurrent) => {
 Il render sotto già distingue `caricando` da `righe === null` (errore) e da
 `righe.length === 0` (nessuna cronologia): non cambia.
 
+#### Come è stato chiuso
+
+Esattamente la soluzione qui sopra, senza scostamenti. Nuovo caso di
+regressione in `src/test/tasks/cronologiaPerTask.test.jsx`: monta il pannello
+su A, aspetta che la sua cronologia compaia, poi passa a B tenendo la risposta
+di B in sospeso — e verifica che in quella finestra non resti a schermo NIENTE
+di A (né la riga, né il conteggio), solo «Caricamento della cronologia…».
+Verificato contro il codice precedente: fallisce lì (il DOM catturato mostra
+ancora «Marco»/«CRONOLOGIA (1)» durante l'attesa di B), passa con la
+correzione.
+
 ---
 
 ### M-3 · `caricaStorico`/`caricaClienti` senza generazione condivisa
@@ -777,6 +814,31 @@ contaNonLette: () =>
 subordine — se si preferisce non aggiungere una query — basta rendere il
 troncamento visibile nel pannello («mostrate le 100 più recenti»), che è meno
 buono ma smette di affermare il falso.
+
+#### Come è stato chiuso
+
+`contaNonLette` esattamente come sopra. Il nome esposto dall'hook è
+`nonLetteOltreFinestra` e non `nonLetteTotali`, con uno scostamento voluto
+dalla soluzione proposta: sostituire il filtro locale col conteggio server
+avrebbe tolto la reattività ottimistica del badge — `markRead`/`remove`
+aggiornano oggi il conteggio nello stesso istante del click, prima di
+qualunque round-trip, perché filtrano l'elenco già in stato. Un conteggio
+server letto solo a ogni reload l'avrebbe reso vivo solo sugli eventi altrui,
+non sulle proprie azioni. `nonLetteOltreFinestra` porta quindi la sola
+differenza — quante non lette il server conosce OLTRE alle 100 visibili — e la
+Topbar la SOMMA al proprio filtro locale invece di sostituirlo. Il calcolo usa
+la stessa `fondiScrittureInVolo` del reload (non l'elenco grezzo appena
+arrivato), altrimenti una `markRead` ancora in volo verrebbe contata due volte
+— una come "letta" nell'elenco ottimistico, una come "non letta" nel residuo
+oltre la finestra. `markAllRead`/`clearAll` azzerano l'overflow nello stesso
+istante dell'ottimistico, perché sul server toccano OGNI riga dell'utente, non
+solo le 100 visibili — aspettare il prossimo reload le avrebbe lasciate
+sbagliate fra il click e la prossima query.
+
+Cinque casi nuovi in `src/test/hooks/useNotifications.test.jsx`: l'overflow
+all'idratazione, il non-doppio-conteggio con una scrittura in volo,
+l'azzeramento immediato di `markAllRead` e di `clearAll`, un errore sul
+conteggio che non fa esplodere l'elenco.
 
 ---
 
@@ -954,6 +1016,15 @@ sottoscrizione futura, senza toccare un solo consumatore.
 **Impatto:** chiude A-1 su `tasks`, `notices` e `clients` insieme, e mette la
 proprietà «l'ordine di partenza è l'unico che conta» al riparo dall'unico
 percorso che ancora la aggira.
+
+⚠️ **Chiuso solo in parte.** A-1 è chiuso (vedi «Come è stato chiuso» nella sua
+sezione): un evento `applyRow` invalida un reload già in volo, e la sua
+risposta stale non sovrascrive più la riga. Il ramo caro descritto qui sopra —
+`inVolo` più la ri-programmazione del reload scartato — **non** è stato
+applicato: resta la parte che chiude anche il recupero dopo un buco di
+connessione quando cade proprio dentro la finestra di un evento `applyRow`, ed
+è un intervento a sé sull'astrazione condivisa da nove sottoscrizioni, non una
+riga da aggiungere di straforo a un rilievo che ne chiedeva un'altra.
 
 ---
 

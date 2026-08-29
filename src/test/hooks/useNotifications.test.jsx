@@ -20,6 +20,10 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 
 const Notifications = {
   list: vi.fn(async () => ({ data: [], error: null })),
+  // B-1: il conteggio server, letto in parallelo a `list` a ogni reload. Il
+  // default (0) rispecchia `list` vuota nei test che non lo sovrascrivono —
+  // nessuna riga, nessuna nascosta.
+  contaNonLette: vi.fn(async () => ({ count: 0, error: null })),
   markRead: vi.fn(async () => ({ error: null })),
   markAllRead: vi.fn(async () => ({ error: null })),
   remove: vi.fn(async () => ({ error: null })),
@@ -57,6 +61,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   handlers.clear();
   Notifications.list.mockResolvedValue({ data: [], error: null });
+  Notifications.contaNonLette.mockResolvedValue({ count: 0, error: null });
   Notifications.remove.mockResolvedValue({ error: null });
   Notifications.removeAll.mockResolvedValue({ error: null });
 });
@@ -311,5 +316,92 @@ describe("useNotifications — markReadForConversation", () => {
     const prima = result.current.markReadForConversation;
     await act(async () => { result.current.setNotifications(prev => [notifica("z"), ...prev]); });
     expect(result.current.markReadForConversation).toBe(prima);
+  });
+});
+
+// ─── B-1 (audit del 28 agosto) · le non lette oltre la finestra dei 100 ──────
+//
+// `list({ limit: 100 })` è l'unica fonte dell'elenco: chi ha più di cento
+// notifiche ha un non letto che non compare MAI in `notifications`, quindi
+// filtrare quell'array (come faceva la Topbar) sottostimava il badge senza
+// dirlo. `nonLetteOltreFinestra` porta la sola differenza fra il conteggio del
+// server e le non lette visibili — sommata al filtro locale nella Topbar,
+// mai al suo posto, per non perdere la reattività ottimistica sull'elenco.
+describe("useNotifications — B-1, il conteggio oltre la finestra", () => {
+  it("al reload iniziale espone quante non lette restano fuori dall'elenco", async () => {
+    Notifications.list.mockResolvedValueOnce({ data: [{ ...notifica("a") }], error: null });
+    Notifications.contaNonLette.mockResolvedValueOnce({ count: 143, error: null });
+    const onError = vi.fn();
+    const { result } = renderHook(() => useNotifications({ enabled: true, onError }));
+
+    // 143 non lette sul server, 1 sola visibile nell'elenco: 142 sono fuori.
+    await waitFor(() => expect(result.current.nonLetteOltreFinestra).toBe(142));
+  });
+
+  it("non conta due volte una riga visibile già letta in ottimistico", async () => {
+    // Il conteggio server è una foto del database: se la nostra `markRead` è
+    // ancora in volo, la riga È ancora "false" lato server (`list` la
+    // restituisce non letta) mentre localmente è già gestita. Il calcolo deve
+    // guardare la versione FUSA (locale vince), non quella grezza appena
+    // arrivata, altrimenti la stessa riga verrebbe contata sia come visibile
+    // sia come "oltre la finestra".
+    const { result } = await conElenco([notifica("a"), notifica("b")]);
+    let concludi;
+    Notifications.markRead.mockReturnValueOnce(new Promise(r => { concludi = r; }));
+    await act(async () => { result.current.markRead("a"); });
+
+    Notifications.list.mockResolvedValueOnce({
+      data: [{ id: "a", type: "mention", read: false }, { id: "b", type: "mention", read: false }],
+      error: null,
+    });
+    Notifications.contaNonLette.mockResolvedValueOnce({ count: 2, error: null });
+    await eventoAltrui();
+
+    // "a" resta letta in ottimistico (protetta dal registro in volo), "b" è
+    // l'unica visibile davvero non letta: il server dice 2 non lette totali,
+    // 1 è già coperta dall'elenco visibile → 1 sola oltre la finestra, non 2.
+    expect(result.current.nonLetteOltreFinestra).toBe(1);
+    await act(async () => { concludi({ error: null }); });
+  });
+
+  it("markAllRead azzera subito l'overflow, senza aspettare il prossimo reload", async () => {
+    // `markAllRead` sul server è un `.eq('read', false)` senza altra
+    // condizione: segna TUTTE le righe dell'utente, comprese quelle oltre la
+    // finestra. L'azzeramento va sommato all'idratazione, non alla semina
+    // manuale di `conElenco` — quella scrive `notifications` direttamente e
+    // non passa da nessuna delle azioni che aggiornano l'overflow.
+    Notifications.contaNonLette.mockResolvedValueOnce({ count: 50, error: null });
+    const onError = vi.fn();
+    const { result } = renderHook(() => useNotifications({ enabled: true, onError }));
+    await waitFor(() => expect(result.current.nonLetteOltreFinestra).toBe(50));
+
+    await act(async () => { result.current.markAllRead(); });
+
+    expect(result.current.nonLetteOltreFinestra).toBe(0);
+  });
+
+  it("clearAll azzera subito l'overflow", async () => {
+    // Stessa ragione: `removeAll` cancella ogni riga dell'utente, non solo le
+    // 100 visibili.
+    Notifications.contaNonLette.mockResolvedValueOnce({ count: 30, error: null });
+    const onError = vi.fn();
+    const { result } = renderHook(() => useNotifications({ enabled: true, onError }));
+    await waitFor(() => expect(result.current.nonLetteOltreFinestra).toBe(30));
+
+    await act(async () => { result.current.clearAll(); });
+
+    expect(result.current.nonLetteOltreFinestra).toBe(0);
+  });
+
+  it("un errore sul conteggio non tocca l'elenco né lo fa esplodere", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    Notifications.list.mockResolvedValueOnce({ data: [notifica("a")], error: null });
+    Notifications.contaNonLette.mockResolvedValueOnce({ count: null, error: { message: "rete assente" } });
+    const onError = vi.fn();
+    const { result } = renderHook(() => useNotifications({ enabled: true, onError }));
+
+    await waitFor(() => expect(result.current.notifications.map(n => n.id)).toEqual(["a"]));
+    expect(result.current.nonLetteOltreFinestra).toBe(0);
+    errSpy.mockRestore();
   });
 });

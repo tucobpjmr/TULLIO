@@ -86,6 +86,35 @@ describe("TaskHistoryPanel — legge la cronologia del solo task aperto", () => 
     rerender(withAppData(<TaskHistoryPanel taskId="t2" />, DEMO_APP_CTX));
     await waitFor(() => expect(historyForTask).toHaveBeenCalledWith("t2"));
   });
+
+  it("M-2 (audit del 28 agosto): mentre carica B non mostra ancora la cronologia di A", async () => {
+    // Il difetto: `righe`/`caricando` erano due stati separati, e passando da
+    // A a B `righe` restava quella di A mentre `caricando` era già tornato
+    // `false` dal primo caricamento — lo slide-over non smonta questo
+    // pannello al cambio di task, quindi il pannello disegnava "CRONOLOGIA
+    // (1)" e la riga di Marco sotto il titolo di B, finché la query di B non
+    // rispondeva. Qui si tiene la risposta di B in sospeso apposta, per
+    // guardare esattamente quella finestra.
+    const { rerender } = monta("t1");
+    expect(await screen.findByText("Marco")).toBeInTheDocument();
+    expect(screen.getByText(/CRONOLOGIA \(1\)/)).toBeInTheDocument();
+
+    let risolviB;
+    historyForTask.mockImplementationOnce(() => new Promise((r) => { risolviB = r; }));
+    rerender(withAppData(<TaskHistoryPanel taskId="t2" />, DEMO_APP_CTX));
+    await waitFor(() => expect(historyForTask).toHaveBeenCalledWith("t2"));
+
+    // La query di B è ancora in volo: non deve restare a schermo NULLA di A.
+    expect(screen.getByText("Caricamento della cronologia…")).toBeInTheDocument();
+    expect(screen.queryByText("Marco")).toBeNull();
+    expect(screen.queryByText(/CRONOLOGIA \(/)).toBeNull();
+
+    await act(async () => {
+      risolviB({ data: [RIGA({ id: "h-b", task_id: "t2", users: { name: "Sofia" } })], error: null });
+    });
+    expect(await screen.findByText("Sofia")).toBeInTheDocument();
+    expect(screen.getByText(/CRONOLOGIA \(1\)/)).toBeInTheDocument();
+  });
 });
 
 describe("TaskHistoryPanel — il realtime è filtrato sul proprio task", () => {

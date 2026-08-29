@@ -20,6 +20,11 @@ import { readFile, readdir } from 'node:fs/promises';
 import { ESLint, Linter } from 'eslint';
 import {
   LetturaFallita, leggiCallSiteSalvataggio, leggiCallSiteStorico, leggiConteggioMultiComp,
+  guardiaDiSoloSmontaggio,
+  // A-2/A-3 (28 agosto): le due metà del contratto delle scritture in volo —
+  // il reducer che fonde e il registry che marca — misurate insieme, perché
+  // ciascuna da sola fa sembrare fatta l'altra.
+  scrittureInVoloAMeta,
   leggiStatoAudit, leggiStatoIndex, leggiStiliInline, montaggiLazySenzaRete,
   usiSalvataggio, usiStoricoTask, confronta,
   // Suggerimento strategico n. 3 dell'audit del 19 agosto: controlli che NEGANO
@@ -106,6 +111,12 @@ const AUDIT = [
   // Nasce con 12 rilievi tutti aperti: e' il caso in cui il marcatore ha il
   // massimo numero di occasioni di divergere.
   { file: 'AUDIT_SICUREZZA_2026-08-26.md', prefisso: ['A', 'M', 'B'] },
+  // L'audit su stato e flusso dati del 28 agosto. Registrato il giorno stesso,
+  // per la ragione scritta piu' sopra: un audit fuori dal registro ha un
+  // marcatore che nessuno verifica, e il momento in cui scade e' esattamente
+  // quello in cui si comincia a chiudere i suoi rilievi. Nasce con otto rilievi
+  // tutti aperti, nessuno critico: i prefissi sono tre.
+  { file: 'AUDIT_STATO_FLUSSO_DATI_2026-08-28.md', prefisso: ['A', 'M', 'B'] },
 ];
 
 // Misura i warning di una regola sul sorgente dell'app.
@@ -348,6 +359,40 @@ async function main() {
     nome: 'ricerche che normalizzano a ogni battuta', dove: 'docs/CLAUDE.md',
     dichiarato: 0, misurato: senzaIndice.length,
     rimedio: `Usa \`indicizza\` + \`matchIndice\` invece di \`matchTermini\` dentro il useMemo: ${senzaIndice.join(', ')}`,
+  });
+
+  // ─── 5-septies · suggerimento strategico n. 1 (audit del 28 agosto) ──────
+  //    La guardia che copre METÀ delle corse in un file che carica: un
+  //    `useIsMounted()` (smontaggio soltanto) dove il caricamento vive in un
+  //    `useEffect`, cioè dove serve anche il cambio di dipendenza. Atteso 0 e
+  //    non un numero dichiarato, per la ragione di 5-bis: un controllo che
+  //    conta scade quando l'app cresce, uno che nega no.
+  //
+  //    ⚠️ Perché non è una regola ESLint — il predicato è RELAZIONALE e
+  //    `no-restricted-syntax` guarda un nodo per volta — sta nel preambolo di
+  //    `guardiaDiSoloSmontaggio`, insieme al caso che segnalerebbe a torto.
+  const guardieMeta = guardiaDiSoloSmontaggio(sorgenti);
+  controlli.push({
+    nome: 'guardia di solo smontaggio su un caricamento', dove: 'docs/CLAUDE.md',
+    dichiarato: 0, misurato: guardieMeta.length,
+    rimedio: `L'effetto che carica lo possiede \`useCaricamento\` (copre smontaggio E cambio di dipendenza); \`useIsMounted\` resta per i gestori — ${guardieMeta.join(', ')}`,
+  });
+
+  // ─── 5-octies · suggerimento strategico n. 2 (audit del 28 agosto) ───────
+  //    Le due metà del contratto delle scritture in volo: il reducer che FONDE
+  //    e il registry che MARCA. Atteso 0 metà scoperte.
+  //
+  //    ⚠️ Il difetto che chiude non è «manca la protezione»: è che ciascuna
+  //    delle due metà, da sola, FA SEMBRARE FATTA l'altra — una fusione che
+  //    gira su una mappa sempre vuota si legge nel reducer e non protegge
+  //    nulla. Il team ci è rimasto un anno. Il perimetro e ciò che il controllo
+  //    NON guarda (i feed fuori dal reducer, e perché non si pretende che ogni
+  //    mutazione marchi) stanno nel preambolo di `scrittureInVoloAMeta`.
+  const meta = scrittureInVoloAMeta(sorgenti);
+  controlli.push({
+    nome: 'metà scoperte delle scritture in volo', dove: 'src/state/persistence.js',
+    dichiarato: 0, misurato: meta.length,
+    rimedio: `Servono ENTRAMBE le metà (fondiScrittureInVolo nel SET_*, entityId nelle entry che la mutano): ${meta.join(' · ')}`,
   });
 
   const quadratiche = iterazioniQuadratiche(sorgenti);

@@ -20,6 +20,22 @@
 // l'ultima risposta ARRIVATA non è per forza l'ultima richiesta FATTA. Le nove
 // copie coprivano metà per volta a seconda di chi le aveva scritte.
 //
+// ─── M-1 e B-2 (audit del 28 agosto) · la METÀ scritta bene ───────────────
+//
+// M-4 contava le copie scritte A MANO. Restavano fuori due pannelli che il
+// guard ce l'avevano, giusto, e sbagliato per metà: `TaskAttachments` e
+// `ClienteListePanel` chiamavano `useIsMounted()`, che copre lo smontaggio e
+// NON il cambio di dipendenza — e sono precisamente i due che la dipendenza la
+// cambiano sotto i piedi (`taskId`, `cliente.id`) restando montati. Con due
+// risposte in volo insieme vinceva quella che arrivava per ultima: gli allegati
+// del task precedente sotto l'intestazione del nuovo, con `caricando` già
+// chiuso, cioè senza alcun indizio visivo che fossero di un'altra pratica.
+//
+// Il confine è ora presidiato e non ricordato: `verifica:convenzioni` conta i
+// file che importano `useIsMounted` E chiamano `useEffect(`, con atteso ZERO.
+// `useIsMounted` resta il contratto giusto dentro un GESTORE — dove non c'è
+// nessun effetto da scrivere — e l'effetto che carica lo possiede questo hook.
+//
 // ⛔ NON è la primitiva di tutto ciò che ha un flag booleano in un effetto, e
 // dei nove call site che l'audit aveva contato ne assorbe TRE. Gli altri sei
 // hanno la stessa FORMA e un contenuto diverso, e forzarli qui dentro
@@ -51,7 +67,7 @@ import { useEffect, useState } from "react";
  * @param {() => (Promise<T|{data: T, error: unknown}>|T|{data: T, error: unknown})} carica
  * @param {unknown[]} deps le dipendenze che fanno ripartire il caricamento
  * @param {{iniziale?: T, suErrore?: (e: unknown) => void}} [opzioni]
- * @returns {{dato: T, caricando: boolean, errore: unknown}}
+ * @returns {{dato: T, caricando: boolean, errore: unknown, imposta: Function}}
  */
 export function useCaricamento(carica, deps, { iniziale = null, suErrore } = {}) {
   const [dato, setDato] = useState(iniziale);
@@ -89,5 +105,28 @@ export function useCaricamento(carica, deps, { iniziale = null, suErrore } = {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
-  return { dato, caricando, errore };
+  // ─── `imposta` · gli scostamenti LOCALI dopo il caricamento ──────────────
+  // (M-1 dell'audit del 28 agosto, quando `TaskAttachments` è passato di qui)
+  //
+  // Il setter dello stesso stato, per ciò che cambia DOPO che la risposta è
+  // arrivata e senza passare dalla rete: un allegato appena caricato che va in
+  // cima all'elenco, uno appena eliminato che ne esce. Senza, un consumatore
+  // con mutazioni ottimistiche dovrebbe tenersi una SECONDA copia del dato
+  // accanto a questa e riconciliarle a mano — due sorgenti di verità per la
+  // stessa lista, cioè un difetto peggiore di quello che l'hook chiude, e il
+  // motivo per cui la mancanza del setter era l'unica cosa che teneva quel
+  // pannello sulla guardia di solo smontaggio.
+  //
+  // ⚠️ NON rende questo hook uno store e non indebolisce le due corse: la
+  // guardia `corrente` vive nell'effetto e continua a scartare le risposte
+  // tardive, che è l'unica cosa che l'hook promette. Ciò che `imposta` scrive
+  // vale finché non arriva un caricamento NUOVO — cioè finché non cambiano le
+  // `deps` — e a quel punto il dato del nuovo soggetto è la risposta giusta,
+  // non una da preservare.
+  //
+  // ⛔ Non è la porta per scrivere ciò che una fetch dovrebbe portare: se il
+  // valore viene dalla rete, viene da `carica`. Un `imposta(await …)` rimette
+  // esattamente la corsa che questo file esiste per chiudere, e senza la
+  // guardia — perché fuori dall'effetto `corrente` non c'è.
+  return { dato, caricando, errore, imposta: setDato };
 }

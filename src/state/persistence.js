@@ -27,10 +27,13 @@
 //                                    "niente da fare".
 //   rollback(state, action)        → action da dispatchare se persist fallisce.
 //   mapError(err)                  → testo utente al posto del messaggio grezzo.
-//   entityId(action)               → id (o array di id) delle righe che questa
+//   entityId(action, state, uid)   → id (o array di id) delle righe che questa
 //                                    azione sta scrivendo. Serve a marcarle come
 //                                    "scrittura in volo" finché persist non si è
-//                                    conclusa: vedi sotto.
+//                                    conclusa: vedi sotto. `state` è quello
+//                                    PRE-dispatch, come per persist: serve solo
+//                                    a UPDATE_OWN_PROFILE, l'unica mutazione il
+//                                    cui soggetto non sta nel payload.
 //
 // PERCHÉ ESISTE entityId. Fra il dispatch ottimistico e il commit della scrittura
 // passano centinaia di ms, e in quella finestra un evento realtime causato da un
@@ -46,11 +49,21 @@
 //
 // LA REGOLA, che è ciò che serve sapere per scrivere una entry nuova: dichiara
 // `entityId` se e solo se una SET_* rilegge quell'entità IN BLOCCO fondendo il
-// registro dei pendenti (vedi state/pendingWrites.js). Oggi sono task, clienti
-// e avvisi. Su team, categorie e template il campo marcherebbe id che nessuno
-// consulta — e sui clienti sarebbe stato così anche lì finché `clients` non è
+// registro dei pendenti (vedi state/pendingWrites.js). Oggi sono task, clienti,
+// avvisi e — da A-3 dell'audit del 28 agosto — il TEAM. Su categorie e template
+// il campo marcherebbe id che nessuno consulta: le loro sottoscrizioni sono
+// `senzaCanale`, quindi nessun evento altrui fa ripartire il refetch e la
+// finestra non esiste. Sui clienti era così anche lì finché `clients` non è
 // entrata in realtime: la finestra da cui proteggersi nasce con il refetch
 // concorrente, non con la tabella.
+//
+// ⚠️ IL «SE E SOLO SE» È LETTERALE, ed è la ragione per cui il team è rimasto
+// scoperto un anno senza che nulla lo dicesse: le due metà si guastano in
+// silenzio, ciascuna facendo sembrare fatta l'altra. Un `fondiScrittureInVolo`
+// senza `entityId` fonde una mappa sempre vuota — protezione che si legge nel
+// reducer e non esiste; un `entityId` senza fusione marca id che nessuno
+// consulta. Da A-3 la regola non è più solo scritta qui:
+// src/test/realtime/scrittureInVoloContract.test.js la misura sulle due metà.
 //
 // L'orchestratore che le esegue è src/hooks/useSyncedDispatch.js.
 
@@ -574,6 +587,14 @@ export const PERSISTENCE = {
       return prev ? { type: "UPDATE_TEAM_MEMBER", payload: prev } : null;
     },
     mapError: () => "ruolo non aggiornato, la modifica non è stata salvata",
+    // A-3 (audit del 28 agosto). Il team è in realtime (`users`, debounce
+    // 800 ms) e SET_TEAM lo rilegge in blocco: fra questo dispatch ottimistico
+    // e il commit, un evento altrui — un signup, un invito accettato, un ruolo
+    // cambiato da un altro admin — fa ripartire `UsersAPI.listAll()`, che per
+    // QUESTA riga può ancora servire il pre-immagine. Senza questa riga il
+    // ruolo appena revocato torna a schermo da solo, e nulla viene a
+    // correggerlo: l'eco della nostra UPDATE è taggata e viene scartata.
+    entityId: (a) => a.payload?.id,
   },
 
   // M-2 dell'audit del 14 agosto (terzo passaggio). Queste due erano le sole
@@ -605,6 +626,8 @@ export const PERSISTENCE = {
       return prev ? { type: "UPDATE_TEAM_MEMBER", payload: prev } : null;
     },
     mapError: (err) => err?.message || "utente non approvato",
+    // A-3: `payload` è `{ id, role }` — la riga in volo è `payload.id`.
+    entityId: (a) => a.payload?.id,
   },
 
   // Eliminazione definitiva via Edge Function delete-user: rimuove la riga
@@ -622,6 +645,11 @@ export const PERSISTENCE = {
       return prev ? { type: "ADD_TEAM_MEMBER", payload: prev } : null;
     },
     mapError: (err) => err?.message || "utente non eliminato",
+    // A-3: qui la riga in volo è stata TOLTA in ottimistico, e
+    // `fondiScrittureInVolo` copre esattamente questo caso — il server la serve
+    // ancora finché la Edge Function non ha finito, e rimetterla in lista
+    // farebbe riapparire l'utente che l'admin ha appena eliminato.
+    entityId: (a) => a.payload,
   },
 
   // Suggerimento strategico n. 3 dell'audit dell'11 agosto: `UsersAPI.setActive`
@@ -654,6 +682,11 @@ export const PERSISTENCE = {
     // posta più alta, perché il dato che si scosta è chi può ancora accedere.
     rollback: (s, a) => ({ type: "TOGGLE_TEAM_MEMBER_ACTIVE", payload: a.payload }),
     mapError: (err) => err?.message || "stato di attivazione non aggiornato",
+    // A-3, ed è il caso con la posta più alta di tutto il registry: `active` è
+    // ciò da cui dipende chi può ancora accedere, e un refetch concorrente lo
+    // riportava a `true` sopra il toast che dava la disattivazione per
+    // riuscita.
+    entityId: (a) => a.payload,
   },
 
   // ─── ADMIN: RESTORE BACKUP ─────────────────────────────────────────────────
@@ -801,5 +834,11 @@ export const PERSISTENCE = {
       };
     },
     mapError: (err) => err?.message || "profilo non aggiornato",
+    // A-3, e l'unica entry per cui la firma di `entityId` è dovuta crescere:
+    // il soggetto non è nel payload, è l'utente loggato. La riga scritta è la
+    // SUA riga in `public.users`, cioè la stessa che vive in `state.team` — e
+    // senza questa marcatura un refetch concorrente riportava indietro nome,
+    // avatar, email e telefono appena salvati, con la modale già chiusa.
+    entityId: (a, s, uid) => uid,
   },
 };

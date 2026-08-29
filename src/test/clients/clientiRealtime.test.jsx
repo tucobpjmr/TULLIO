@@ -177,6 +177,75 @@ describe("useAppHydration — i clienti sono realtime come le altre entità", ()
     expect(ClientsList).toHaveBeenCalledTimes(1);
   });
 
+  // ─── M-3 (audit del 28 agosto) · l'anagrafica ha DUE scrittori ────────────
+  //
+  // `caricaClienti` e il reload della sottoscrizione dispatchano entrambi
+  // SET_CLIENTS, e `isCurrent()` non li mette in ordine fra loro: è il
+  // gen-counter dell'effetto della sottoscrizione, e la richiesta su domanda
+  // non nasce da quell'effetto. Senza una generazione condivisa vinceva chi
+  // ARRIVAVA per ultimo invece di chi era PARTITO per ultimo.
+  it("una risposta dell'anagrafica che arriva DOPO un reload più recente non riporta indietro lo stato", async () => {
+    const dispatch = vi.fn();
+    const { result } = renderHook(() => useAppHydration({
+      enabled: true, currentUserId: "u1", dispatch, onError: vi.fn(),
+    }));
+    await waitFor(() => expect(result.current.caricamentoClienti).toBe(false));
+
+    // La richiesta su domanda parte e resta in volo.
+    let risolvi;
+    const trattenuta = new Promise((res) => { risolvi = res; });
+    ClientsList.mockImplementationOnce(() => trattenuta);
+    let inVolo;
+    act(() => { inVolo = result.current.clientiCompleti.richiedi(); });
+    await waitFor(() => expect(result.current.caricamentoClienti).toBe(true));
+
+    // Il reload di riconnessione parte DOPO e risponde PRIMA.
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+      await new Promise(r => setTimeout(r, 400)); // oltre il debounce di ripresa (300ms)
+    });
+    await waitFor(() => expect(dispatch)
+      .toHaveBeenCalledWith(expect.objectContaining({ type: "SET_CLIENTS" })));
+    dispatch.mockClear();
+
+    // E solo ORA risponde la richiesta su domanda, con dati più vecchi.
+    await act(async () => {
+      risolvi({ data: [{ id: UUID, name: "Rossi (vecchio)" }], error: null });
+      await inVolo;
+    });
+
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: "SET_CLIENTS" }));
+  });
+
+  it("l'attesa dell'anagrafica si chiude anche quando a consegnarla è il reload", async () => {
+    // La contropartita: il ramo «sono stale» di `caricaClienti` non tocca il
+    // flag — se lo chiudesse, lo chiuderebbe mentre l'anagrafica è ancora in
+    // volo — quindi a chiuderlo dev'essere chi CONSEGNA, o resterebbe alzato
+    // per sempre e `ClientiView` mostrerebbe uno scheletro perpetuo.
+    const dispatch = vi.fn();
+    const { result } = renderHook(() => useAppHydration({
+      enabled: true, currentUserId: "u1", dispatch, onError: vi.fn(),
+    }));
+    await waitFor(() => expect(result.current.caricamentoClienti).toBe(false));
+
+    let risolvi;
+    const trattenuta = new Promise((res) => { risolvi = res; });
+    ClientsList.mockImplementationOnce(() => trattenuta);
+    let inVolo;
+    act(() => { inVolo = result.current.clientiCompleti.richiedi(); });
+    await waitFor(() => expect(result.current.caricamentoClienti).toBe(true));
+
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+      await new Promise(r => setTimeout(r, 400));
+    });
+
+    await waitFor(() => expect(result.current.caricamentoClienti).toBe(false));
+
+    await act(async () => { risolvi({ data: [], error: null }); await inVolo; });
+    expect(result.current.caricamentoClienti).toBe(false);
+  });
+
   it("con enabled=false non interroga nulla e non blocca lo spinner", () => {
     const dispatch = vi.fn();
     const { result } = renderHook(() => useAppHydration({

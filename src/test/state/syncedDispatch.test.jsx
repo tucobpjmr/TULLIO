@@ -337,7 +337,13 @@ describe("useSyncedDispatch — fallimenti di persistenza", () => {
     await act(async () => { await dispatch({ type: "TOGGLE_TEAM_MEMBER_ACTIVE", payload: "junior1" }); });
 
     expect(UsersAPI.setActive).toHaveBeenCalledWith("junior1", false); // junior1 parte attivo
-    expect(azioniDispatchate(rawDispatch).map(a => a.type)).toEqual(["TOGGLE_TEAM_MEMBER_ACTIVE"]);
+    // A-3 (audit del 28 agosto): la coppia di marcatura è entrata qui il giorno
+    // in cui il team ha smesso di essere l'entità realtime senza scritture in
+    // volo. Restano assenti le due che questo caso sorveglia — nessun rollback
+    // e nessun toast d'errore su una scrittura riuscita.
+    expect(azioniDispatchate(rawDispatch).map(a => a.type)).toEqual([
+      "TOGGLE_TEAM_MEMBER_ACTIVE", "MARK_PENDING_WRITE", "UNMARK_PENDING_WRITE",
+    ]);
   });
 
   it("un admin non può disattivare se stesso: il guard blocca PRIMA della rete", async () => {

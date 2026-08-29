@@ -4,9 +4,10 @@
 // solo il taskId. Non passa dal reducer, e non è una dimenticanza: gli allegati
 // vivono nello storage, non nello stato applicativo — per questo `TaskFiles`
 // resta fuori dal confine delle scritture dichiarato in eslint.config.js.
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useRef } from "react";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useIsMounted } from "../../hooks/useIsMounted.js";
+import { useCaricamento } from "../../hooks/useCaricamento.js";
 import { TaskFiles } from "../../lib/api.js";
 import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit, sourceBadge, mediaKind } from "../../lib/fileUtils.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
@@ -42,11 +43,14 @@ const wFull = { width: "100%" };
 const txtF11Light = { fontSize: 11, color: "var(--text-light)", marginTop: 4 };
 const txtF12Danger = { fontSize: 12, color: "var(--danger)", marginTop: 6 };
 
+// Il valore iniziale di `useCaricamento`, allocato una volta: l'hook lo legge
+// al primo render e un letterale nuovo a ogni render non cambierebbe nulla,
+// ma questo file dichiara le sue costanti e questa è una di quelle.
+const NESSUN_ALLEGATO = [];
+
 export function TaskAttachments({ taskId, editable }) {
   const conferma = useConfirm();
   const { currentUserId } = useAppData();
-  const [files, setFiles] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState("");
@@ -55,19 +59,52 @@ export function TaskAttachments({ taskId, editable }) {
   const [previewUrls, setPreviewUrls] = useState({});
   const inputRef = useRef(null);
 
-  // Criticità #11: lo slide-over che ospita questo pannello si chiude con un
-  // tap sull'overlay, e le risposte dello storage arrivano quando arrivano.
+  // ─── M-1 (audit del 28 agosto) · le corse sono DUE ────────────────────────
+  //
+  // Il caricamento era un `useCallback` con `useIsMounted()` come sola guardia.
+  // Copriva la prima corsa — criticità #11, lo slide-over si chiude con un tap
+  // sull'overlay mentre la risposta dello storage è in volo — e non la seconda,
+  // che è proprio quella di questo pannello: `taskId` CAMBIA sotto i piedi
+  // senza smontarlo. Lo slide-over resta montato passando da un task all'altro
+  // (`LazyPanel` gli passa `resetKey`, che riarma il boundary e NON è una `key`
+  // React), ed è il percorso normale aprendo due notifiche di seguito.
+  //
+  // Con due `listForTask` in volo insieme vinceva quella che rispondeva per
+  // ultima: gli allegati del task PRECEDENTE sotto l'intestazione del nuovo, e
+  // `caricando` già chiuso — nessun indizio visivo che fossero di un'altra
+  // pratica. Su un pannello che elenca allegati non è un difetto estetico.
+  //
+  // `useCaricamento` copre entrambe (hooks/useCaricamento.js), e `imposta` è
+  // ciò che permette agli scostamenti ottimistici qui sotto di restare su
+  // QUESTO stato invece di vivere in una seconda copia da riconciliare a mano.
+  //
+  // L'errore di caricamento non aveva alcun canale: `if (!e) setFiles(…)` lo
+  // lasciava cadere in silenzio. `useCaricamento` non ammette un default —
+  // «o lo si dichiara con `suErrore`, o resta in `errore` da disegnare» — e la
+  // scelta qui è il minimo che rende il silenzio una decisione: la console.
+  // Portarlo nella riga d'errore già presente sotto (`error`, che oggi mostra
+  // i soli fallimenti di upload ed eliminazione) sarebbe un cambio di UX, non
+  // di correttezza, e non appartiene a M-1.
+  const {
+    dato: files, caricando: loading, imposta: impostaFiles,
+  } = useCaricamento(
+    // `data || NESSUN_ALLEGATO` QUI e non nei consumatori: il data layer può
+    // rispondere `{ data: null, error: null }`, che per l'hook è un dato valido
+    // (lo dice il suo commento sul riconoscimento della forma) e finirebbe
+    // dritto nello stato. È la normalizzazione che prima stava nel `setFiles(
+    // data || [])` del caricamento a mano, spostata dove ora vive la scrittura.
+    async () => {
+      const { data, error: e } = await TaskFiles.listForTask(taskId);
+      return { data: data || NESSUN_ALLEGATO, error: e };
+    },
+    [taskId],
+    { iniziale: NESSUN_ALLEGATO, suErrore: (e) => console.error("[allegati] listForTask", e) },
+  );
+
+  // Resta per i GESTORI, che è il caso che `useIsMounted` copre davvero: fra
+  // l'`await` dell'upload e la scrittura dello stato l'utente può aver chiuso
+  // il pannello. L'effetto di caricamento non è più qui — lo possiede l'hook.
   const montato = useIsMounted();
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const { data, error: e } = await TaskFiles.listForTask(taskId);
-    if (!montato()) return;
-    if (!e) setFiles(data || []);
-    setLoading(false);
-  }, [taskId, montato]);
-
-  useEffect(() => { load(); }, [load]);
 
   const handleFiles = async (fileList) => {
     // A-1 · Il guard sta nell'AZIONE, non solo nel render.
@@ -100,7 +137,7 @@ export function TaskAttachments({ taskId, editable }) {
       if (!montato()) return;
       setUploading(false);
       if (e) { setError(`Upload di "${f.name}" fallito: ${e.message || "errore"}`); continue; }
-      if (data) setFiles(prev => [data, ...prev]);
+      if (data) impostaFiles(prev => [data, ...prev]);
     }
     if (inputRef.current) inputRef.current.value = "";
   };
@@ -122,7 +159,7 @@ export function TaskAttachments({ taskId, editable }) {
     const { error: e } = await TaskFiles.remove(file.id, file.file_url);
     if (e) setError("Eliminazione fallita");
     else {
-      setFiles(prev => prev.filter(x => x.id !== file.id));
+      impostaFiles(prev => prev.filter(x => x.id !== file.id));
       if (previewId === file.id) setPreviewId(null);
     }
   };
@@ -143,7 +180,12 @@ export function TaskAttachments({ taskId, editable }) {
   return (
     <div>
       <div style={txtF11Bold}>
-        ALLEGATI {files.length > 0 && `(${files.length})`}
+        {/* Il conteggio è dietro `!loading` per la stessa ragione di M-1: fra
+            un task e il successivo l'elenco in mano è ancora quello di prima, e
+            l'elenco sotto lo dice già («Caricamento…»), mentre questo numero lo
+            contraddiceva — «ALLEGATI (3)» sopra un pannello che sta caricando è
+            il conteggio del task precedente presentato come quello di questo. */}
+        ALLEGATI {!loading && files.length > 0 && `(${files.length})`}
       </div>
 
       {/* Lista allegati */}

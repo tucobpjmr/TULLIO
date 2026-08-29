@@ -8,8 +8,6 @@
 import { useReducer, useEffect, useCallback, lazy, Suspense, Profiler } from "react";
 
 // ── Stato ──────────────────────────────────────────────────────────────────
-import { Notifications as NotificationsAPI } from "./lib/api.js";
-import { isUuid } from "./lib/mappers.js";
 import { registraSinkErrori } from "./lib/errorReporting.js";
 import { getActiveTasks } from "./lib/taskUtils.js";
 import { canAccessAdmin } from "./lib/permissions.js";
@@ -204,31 +202,26 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     }
   }, [state.tasks, dispatch]);
 
-  // Spegne la notifica in campanella della conversazione che si sta aprendo:
-  // bookkeeping delle notifiche, non della chat, quindi vive qui.
+  // Spegne la notifica in campanella della conversazione che si sta aprendo.
   //
-  // ⚠️ La dipendenza è `setNotifications`, NON l'oggetto `notif` (A-2
-  // dell'audit del 16 agosto). `useNotifications` ritorna un oggetto letterale,
-  // quindi `notif` è NUOVO a ogni render del guscio — cioè a ogni toast, a ogni
-  // carattere digitato nella ricerca, a ogni tick di presenza. Con `notif`
-  // nelle deps questa callback cambiava identità altrettanto spesso, e siccome
-  // è `onConversationRead` di useChatData, si portava dietro l'intero registro
-  // `commands` della chat: il `useMemo` che lo costruisce non ha MAI potuto
-  // saltare un render, e con lui il `memo` di ChatPanel. Il setter di useState
-  // ha invece identità garantita da React per tutta la vita del componente, ed
-  // è l'unica cosa di `notif` che serve qui.
-  const { setNotifications: setNotifiche } = notif;
-  const markChatNotificationsRead = useCallback((convId) => {
-    setNotifiche(prev => prev.map(n => (
-      n.type === "chat_message" && n.payload?.conversation_id === convId && !n.read
-        ? { ...n, read: true }
-        : n
-    )));
-    if (!useSupabase || !isUuid(convId)) return;
-    NotificationsAPI.markReadForConversation(convId).then(r => {
-      if (r?.error) console.error("[notifications] markReadForConversation", r.error);
-    });
-  }, [useSupabase, setNotifiche]);
+  // Era scritta qui — dispatch ottimistico su `setNotifications` più la
+  // chiamata di rete — finché A-2 dell'audit del 28 agosto non ha dato al feed
+  // un registro delle scritture in volo: da fuori non si poteva marcare nulla,
+  // quindi questa restava l'unica mutazione della campanella che un refetch
+  // concorrente poteva riportare indietro. Ora la possiede `useNotifications`
+  // insieme alle altre quattro, e qui resta solo il collegamento.
+  //
+  // ⚠️ Si estrae PER NOME e non si usa l'oggetto `notif` (A-2 dell'audit del
+  // 16 agosto). `useNotifications` ritorna un oggetto letterale, quindi `notif`
+  // è NUOVO a ogni render del guscio — cioè a ogni toast, a ogni carattere
+  // digitato nella ricerca, a ogni tick di presenza. Passare `notif` di qui
+  // rimetterebbe `onConversationRead` a cambiare identità altrettanto spesso, e
+  // con lui l'intero registro `commands` della chat: il `useMemo` che lo
+  // costruisce non salterebbe MAI un render, e con lui il `memo` di ChatPanel.
+  // `markReadForConversation` è invece un `useCallback` con sole dipendenze
+  // stabili, cioè ha la stessa proprietà del setter che stava qui prima —
+  // misurata da src/test/chat/chatMemo.test.jsx.
+  const { markReadForConversation: markChatNotificationsRead } = notif;
 
   const chat = useChatData({
     enabled: useSupabase,

@@ -17,8 +17,8 @@ import { useClientiCompleti } from "../../state/ClientiCompletiContext.jsx";
 // query: vedi components/liste/listeModuleApi.js.
 import { conteggioListePerCliente } from "../liste/listeModuleApi.js";
 import { tasksDelCliente } from "../../lib/chiaveCliente.js";
-import { indicizza, matchIndice, terminiRicerca } from "../../lib/searchUtils.js";
 import { useFinestra } from "../../hooks/useFinestra.js";
+import { useRicercaAnagrafica } from "../../hooks/useRicercaAnagrafica.js";
 import { MostraAltri } from "../ui/MostraAltri.jsx";
 import { fieldStyle } from "./clientStyles.js";
 import { Modal } from "../ui/Modal.jsx";
@@ -151,21 +151,20 @@ export const ClientiView = memo(function ClientiView({ loading = false }) {
     return { all: clients.length, conListe, soloCrm: clients.length - conListe };
   }, [clients, listeByClient]);
 
-  // M-3 · L'indice di ricerca dell'anagrafica. Si ricostruisce solo quando
-  // cambia l'anagrafica (import, realtime, creazione), NON a ogni battuta: la
-  // normalizzazione dipende dalla riga e non dalla query, e rifarla per 835
-  // righe a ogni carattere digitato costava 6,32 ms contro 0,19 (su un
-  // telefono di fascia media, 3-5×, sono 20-30 ms PRIMA del render React).
-  const indice = useMemo(
-    () => clients.map(c => ({ c, idx: indicizza(c.name, c.email, c.city, c.phone, c.notes) })),
-    [clients]);
+  // A-1 (audit del 30 agosto) · Sopra il corpus scaricato da
+  // useClientiCompleti() il filtro locale era O(N) nel browser a ogni
+  // battuta — vedi supabase/migrations/20260830190000_clienti_ricerca_trgm.sql
+  // per la soglia (5.000-10.000 righe) e la normalizzazione lato server.
+  // A QUERY VUOTA la vista resta quella di sempre: si sfoglia il corpus
+  // locale, che serve comunque ai conteggi (`conteggi`) e all'ordinamento su
+  // TUTTA l'anagrafica. A query non vuota la ricerca passa al server, e il
+  // filtro qui sotto lavora sul risultato — già piccolo — invece che
+  // sull'intero corpus.
+  const ricercaAttiva = search.trim().length > 0;
+  const ricercaServer = useRicercaAnagrafica(search, { enabled: ricercaAttiva });
 
   const filtered = useMemo(() => {
-    // Stessa normalizzazione dell'elenco liste viaggio (lib/searchUtils.js):
-    // le due ricerche lavorano sugli stessi nomi e devono trovare le stesse
-    // cose, altrimenti un cliente visibile qui sembra non avere liste là.
-    const termini = terminiRicerca(search);
-    let base = indice.filter(r => matchIndice(termini, r.idx)).map(r => r.c);
+    let base = ricercaAttiva ? ricercaServer.risultati : clients;
     if (listeByClient && linkFilter !== "all") {
       base = base.filter(c => (linkFilter === "conListe" ? !!listeByClient[c.id] : !listeByClient[c.id]));
     }
@@ -176,7 +175,7 @@ export const ClientiView = memo(function ClientiView({ loading = false }) {
       // date: più recenti prima (createdAt desc)
       return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
     });
-  }, [indice, search, sortBy, linkFilter, listeByClient]);
+  }, [ricercaAttiva, ricercaServer.risultati, clients, sortBy, linkFilter, listeByClient]);
 
   // ST-9 · La finestra visibile. ✅ 818 clienti in anagrafica: senza limite si
   // montavano 818 ClienteCard, ognuna con il proprio useMemo sulle note e il
@@ -304,6 +303,18 @@ export const ClientiView = memo(function ClientiView({ loading = false }) {
       {/* Lista */}
       {loading && clients.length === 0 ? (
         <SkeletonCards />
+      ) : ricercaAttiva && ricercaServer.caricando && filtered.length === 0 ? (
+        // A-1 · Una ricerca in corso non è "nessun cliente trovato": è
+        // un'affermazione diversa (docs/CLAUDE.md, «Stati di attesa
+        // onesti»). Il filtro in memoria non poteva fallire; una query di
+        // rete sì, e senza questo stato uno scatto di rete mostrerebbe per
+        // un istante "Nessun cliente trovato" mentre la risposta è ancora in
+        // volo.
+        <SkeletonCards count={3} label="Ricerca in corso" />
+      ) : ricercaAttiva && ricercaServer.errore ? (
+        <div style={txtMutedTxtCenter} role="alert">
+          Ricerca non riuscita. Controlla la connessione e riprova.
+        </div>
       ) : filtered.length === 0 ? (
         <div style={txtMutedTxtCenter}>
           {search ? "Nessun cliente trovato" : (

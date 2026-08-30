@@ -8,7 +8,7 @@
 // caricamento profilo fuori dal lock con setTimeout(0). Questi test verificano
 // entrambe le proprietà: callback sincrono (niente Promise di ritorno) e app
 // che esce comunque dal caricando con il profilo caricato.
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
 import { AuthProvider, useAuth } from "../../auth/AuthContext.jsx";
 
@@ -19,9 +19,35 @@ vi.mock("../../lib/api.js", () => ({
   Users: { deleteAccount: vi.fn(async () => ({ error: null })) },
 }));
 
+// getSession/onAuthStateChange passano da lib/supabaseAuth.js (B-2 dell'audit
+// del 30 agosto): AuthContext non tocca più il client pieno per l'auth.
+// `state.session` è mutabile (default SESSION quando non impostato) così un
+// test può simulare il percorso anonimo assegnandogli `null` prima del
+// render. NOTA: `SESSION` è letta dentro la closure di `getSession`, non
+// nell'inizializzazione di `state` — la factory di vi.mock è hoisted sopra
+// gli import e girerebbe prima che `const SESSION` qui sotto sia inizializzata
+// (TDZ) se la leggesse a costruzione invece che a chiamata.
+vi.mock("../../lib/supabaseAuth.js", () => {
+  const state = { callback: null, session: undefined };
+  const supabaseAuth = {
+    getSession: () => Promise.resolve({
+      data: { session: state.session !== undefined ? state.session : SESSION },
+    }),
+    onAuthStateChange: (cb) => {
+      state.callback = cb;
+      return { data: { subscription: { unsubscribe: vi.fn() } } };
+    },
+  };
+  return { supabaseAuth, default: supabaseAuth, __authState: state };
+});
+
+// caricaProfilo importa lib/supabase.js DINAMICAMENTE (solo quando una
+// sessione esiste): il mock resta necessario per le query postgrest del
+// profilo, ma non serve più esporre `.auth` qui. `from` è un vi.fn così un
+// test può verificare che NON venga mai chiamato sul percorso anonimo — è la
+// prova che il client pieno resta fuori da quel percorso, non solo un'ipotesi.
 vi.mock("../../lib/supabase", () => {
-  const state = { callback: null };
-  const from = (table) => ({
+  const from = vi.fn((table) => ({
     select: () => ({
       eq: () => ({
         single: () => Promise.resolve({ data: ME, error: null }),
@@ -30,18 +56,9 @@ vi.mock("../../lib/supabase", () => {
       order: () => Promise.resolve({ data: [ME], error: null }),
       _table: table,
     }),
-  });
-  const supabase = {
-    from,
-    auth: {
-      getSession: () => Promise.resolve({ data: { session: SESSION } }),
-      onAuthStateChange: (cb) => {
-        state.callback = cb;
-        return { data: { subscription: { unsubscribe: vi.fn() } } };
-      },
-    },
-  };
-  return { supabase, default: supabase, __authState: state };
+  }));
+  const supabase = { from };
+  return { supabase, default: supabase, getSupabase: () => Promise.resolve(supabase) };
 });
 
 function Probe() {
@@ -52,7 +69,7 @@ function Probe() {
 
 describe("AuthContext — avvio senza deadlock sul lock auth", () => {
   it("il callback di onAuthStateChange è sincrono (non restituisce una Promise)", async () => {
-    const { __authState } = await import("../../lib/supabase");
+    const { __authState } = await import("../../lib/supabaseAuth.js");
     render(
       <AuthProvider>
         <Probe />
@@ -70,7 +87,7 @@ describe("AuthContext — avvio senza deadlock sul lock auth", () => {
   });
 
   it("esce dal caricando e carica il profilo dopo INITIAL_SESSION", async () => {
-    const { __authState } = await import("../../lib/supabase");
+    const { __authState } = await import("../../lib/supabaseAuth.js");
     render(
       <AuthProvider>
         <Probe />
@@ -84,5 +101,48 @@ describe("AuthContext — avvio senza deadlock sul lock auth", () => {
     });
 
     await waitFor(() => expect(screen.getByText("PROBE_READY:Tullio")).toBeInTheDocument());
+  });
+});
+
+describe("AuthContext — B-2, il percorso anonimo non tocca il client pieno", () => {
+  beforeEach(async () => {
+    const { __authState } = await import("../../lib/supabaseAuth.js");
+    __authState.session = SESSION;
+    __authState.callback = null;
+    const { supabase } = await import("../../lib/supabase");
+    supabase.from.mockClear();
+  });
+
+  it("senza sessione, caricaProfilo non importa mai il client pieno (nessuna query postgrest)", async () => {
+    const { __authState } = await import("../../lib/supabaseAuth.js");
+    __authState.session = null; // percorso anonimo: nessuna sessione da getSession()
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>
+    );
+
+    await waitFor(() => expect(screen.getByText("PROBE_READY:nessuno")).toBeInTheDocument());
+
+    // Verifica che caricaProfilo abbia preso il ramo `if (!userId) { … return; }`
+    // — quello che l'import dinamico di lib/supabase.js non raggiunge mai —
+    // invece di limitarsi a controllare lo stato finale, che sarebbe vero
+    // anche se il client pieno venisse scaricato e poi ignorato.
+    const { supabase } = await import("../../lib/supabase");
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it("con una sessione, caricaProfilo interroga il client pieno per il profilo", async () => {
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>
+    );
+
+    await waitFor(() => expect(screen.getByText("PROBE_READY:Tullio")).toBeInTheDocument());
+
+    const { supabase } = await import("../../lib/supabase");
+    expect(supabase.from).toHaveBeenCalledWith("users");
   });
 });

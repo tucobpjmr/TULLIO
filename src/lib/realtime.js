@@ -23,8 +23,20 @@
 // `lib/api.js` con un doppio, e con due moduli da sostituire ognuno di essi
 // potrebbe essere giusto su una metà e sbagliato sull'altra senza che nulla lo
 // segnali. Qui c'è l'implementazione e il perché; là c'è la porta.
-import { supabase } from './supabase';
+import { getSupabase } from './supabase';
 import { getClientId } from './clientId';
+
+// B-2 dell'audit del 30 agosto. `subscribeTo*` hanno un contratto SINCRONO
+// (`useEffect(() => { const stop = subscribeToTable(...); return stop; })`):
+// il chiamante monta e smonta subito, non può `await` dentro un `useEffect`.
+// `getSupabase()` è invece asincrono (il client pieno arriva con un
+// `import()`), quindi ogni funzione qui sotto risolve il client IN BACKGROUND
+// e guarda un flag `smontato` per non agganciare un canale a un componente
+// già smontato prima che il client fosse pronto — stessa forma di guardia che
+// `useAppHydration` usa per le sue richieste in volo. Nella pratica il gap è
+// quasi sempre già chiuso: queste funzioni sono chiamate da dentro
+// VoyageDesk, dopo che l'idratazione (Tasks.list, ecc.) ha già risolto una
+// volta lo stesso singleton in lib/supabase.js.
 
 // Step L: allega l'origin client a ogni payload di mutation sulle tabelle
 // live. I subscriber realtime usano questo tag per scartare gli eventi che
@@ -75,30 +87,34 @@ export const withOrigin = (payload) => ({ ...payload, origin_client: getClientId
 let channelSeq = 0;
 
 export function subscribeToTable(tableName, handler) {
-  // Client non utilizzabile (env var assenti, o mockato nei test): il realtime
-  // è un miglioramento, non un requisito di funzionamento. Degradiamo a "nessun
-  // aggiornamento automatico" invece di sollevare dentro un useEffect, dove
-  // l'eccezione risalirebbe fino all'ErrorBoundary e mostrerebbe una pagina
-  // bianca al posto di una vista che i dati li ha già caricati.
-  if (typeof supabase?.channel !== "function") {
-    return () => {};
-  }
-  const channel = supabase
-    .channel(`realtime:${tableName}:${getClientId()}:${++channelSeq}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: tableName }, (payload) => {
-      // Solo INSERT/UPDATE possono portare un'origine attendibile: sono le sole
-      // che passano da un payload nostro (withOrigin). Sui DELETE l'origine si
-      // ignora — vedi la nota sopra: è quella dell'ultima scrittura, non del
-      // cancellante, e filtrarci sopra nascondeva la cancellazione a chi aveva
-      // toccato la riga per ultimo.
-      if (payload?.eventType !== 'DELETE') {
-        const origin = payload?.new?.origin_client;
-        if (origin && origin === getClientId()) return;
-      }
-      handler(payload);
-    })
-    .subscribe();
-  return () => supabase.removeChannel(channel);
+  let smontato = false;
+  let staccaCanale = () => {};
+  getSupabase().then((supabase) => {
+    if (smontato) return;
+    // Client non utilizzabile (env var assenti, o mockato nei test): il realtime
+    // è un miglioramento, non un requisito di funzionamento. Degradiamo a "nessun
+    // aggiornamento automatico" invece di sollevare dentro un useEffect, dove
+    // l'eccezione risalirebbe fino all'ErrorBoundary e mostrerebbe una pagina
+    // bianca al posto di una vista che i dati li ha già caricati.
+    if (typeof supabase?.channel !== "function") return;
+    const channel = supabase
+      .channel(`realtime:${tableName}:${getClientId()}:${++channelSeq}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: tableName }, (payload) => {
+        // Solo INSERT/UPDATE possono portare un'origine attendibile: sono le sole
+        // che passano da un payload nostro (withOrigin). Sui DELETE l'origine si
+        // ignora — vedi la nota sopra: è quella dell'ultima scrittura, non del
+        // cancellante, e filtrarci sopra nascondeva la cancellazione a chi aveva
+        // toccato la riga per ultimo.
+        if (payload?.eventType !== 'DELETE') {
+          const origin = payload?.new?.origin_client;
+          if (origin && origin === getClientId()) return;
+        }
+        handler(payload);
+      })
+      .subscribe();
+    staccaCanale = () => supabase.removeChannel(channel);
+  });
+  return () => { smontato = true; staccaCanale(); };
 }
 
 // ─── A-3 · LA PRESENZA È STATO DI CANALE, NON UNA RIGA DI TABELLA ──────────
@@ -149,28 +165,40 @@ const CANALE_PRESENZA = 'presenza:agenzia';
  * @returns {{ track: () => void, unsubscribe: () => void }}
  */
 export function subscribeToPresence({ key, payload, onSync }) {
-  // Stessa degradazione di `subscribeToTable`: senza client utilizzabile
-  // (env var assenti, o mockato nei test) la presenza è un miglioramento, non
-  // un requisito — si resta senza pallini invece di sollevare dentro un
-  // useEffect e mostrare una pagina bianca.
-  if (typeof supabase?.channel !== 'function') {
-    return { track: () => {}, unsubscribe: () => {} };
-  }
-  const channel = supabase.channel(CANALE_PRESENZA, {
-    config: { presence: { key } },
-  });
-  channel
-    .on('presence', { event: 'sync' }, () => onSync(channel.presenceState()))
-    .subscribe((stato) => {
-      // La prima pubblicazione va fatta DA QUI e non subito dopo `subscribe()`:
-      // `track()` su un canale non ancora agganciato viene rifiutato, e il
-      // proprio pallino resterebbe spento per tutti gli altri finché il primo
-      // refresh periodico non arriva.
-      if (stato === 'SUBSCRIBED') channel.track(payload());
+  let smontato = false;
+  // `track`/`unsubscribe` possono essere chiamati dal chiamante PRIMA che il
+  // client sia pronto (la prima `payload()` parte anche da un timer, non solo
+  // dal mount): finché `canale` è null restano no-op — la prima pubblicazione
+  // vera arriva comunque da qui sotto, al primo 'SUBSCRIBED'.
+  let canale = null;
+  let staccaCanale = () => {};
+
+  getSupabase().then((supabase) => {
+    if (smontato) return;
+    // Stessa degradazione di `subscribeToTable`: senza client utilizzabile
+    // (env var assenti, o mockato nei test) la presenza è un miglioramento, non
+    // un requisito — si resta senza pallini invece di sollevare dentro un
+    // useEffect e mostrare una pagina bianca.
+    if (typeof supabase?.channel !== 'function') return;
+    const channel = supabase.channel(CANALE_PRESENZA, {
+      config: { presence: { key } },
     });
+    channel
+      .on('presence', { event: 'sync' }, () => onSync(channel.presenceState()))
+      .subscribe((stato) => {
+        // La prima pubblicazione va fatta DA QUI e non subito dopo `subscribe()`:
+        // `track()` su un canale non ancora agganciato viene rifiutato, e il
+        // proprio pallino resterebbe spento per tutti gli altri finché il primo
+        // refresh periodico non arriva.
+        if (stato === 'SUBSCRIBED') channel.track(payload());
+      });
+    canale = channel;
+    staccaCanale = () => supabase.removeChannel(channel);
+  });
+
   return {
-    track: () => channel.track(payload()),
-    unsubscribe: () => supabase.removeChannel(channel),
+    track: () => canale?.track(payload()),
+    unsubscribe: () => { smontato = true; staccaCanale(); },
   };
 }
 
@@ -182,12 +210,25 @@ export function subscribeToPresence({ key, payload, onSync }) {
 //   dei propri eventi, quindi non serve filtrare il proprio userId in ricezione.
 // Ritorna { send, unsubscribe }; send(payload) pubblica un evento 'typing'.
 export function subscribeToTyping(conversationId, onEvent) {
-  const channel = supabase
-    .channel(`typing:${conversationId}`, { config: { broadcast: { self: false } } })
-    .on('broadcast', { event: 'typing' }, ({ payload }) => onEvent(payload))
-    .subscribe();
+  let smontato = false;
+  // Prima che il client sia pronto, `send` è un no-op innocuo: un "sta
+  // scrivendo" perso nella finestra di avvio non va persistito e non lascia
+  // tracce (vedi il preambolo sopra).
+  let canale = null;
+  let staccaCanale = () => {};
+
+  getSupabase().then((supabase) => {
+    if (smontato) return;
+    const channel = supabase
+      .channel(`typing:${conversationId}`, { config: { broadcast: { self: false } } })
+      .on('broadcast', { event: 'typing' }, ({ payload }) => onEvent(payload))
+      .subscribe();
+    canale = channel;
+    staccaCanale = () => supabase.removeChannel(channel);
+  });
+
   const send = (payload) =>
-    channel.send({ type: 'broadcast', event: 'typing', payload });
-  const unsubscribe = () => supabase.removeChannel(channel);
+    canale?.send({ type: 'broadcast', event: 'typing', payload });
+  const unsubscribe = () => { smontato = true; staccaCanale(); };
   return { send, unsubscribe };
 }

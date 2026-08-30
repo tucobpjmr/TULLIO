@@ -1,7 +1,6 @@
 // src/auth/AuthContext.jsx
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { supabase } from '../lib/supabase';
-import { Users as UsersAPI } from '../lib/api.js';
+import { supabaseAuth } from '../lib/supabaseAuth.js';
 import { toDbRole } from '../lib/taskConstants.js';
 
 const AuthContext = createContext(null);
@@ -115,6 +114,19 @@ export function AuthProvider({ children }) {
     const promise = (async () => {
       if (!userId) { setProfile(null); setTeam([]); setAuthError(null); return; }
       try {
+        // Import dinamico e non statico in cima al file (B-2 dell'audit del
+        // 30 agosto): questa è l'UNICA riga di AuthContext.jsx che tocca il
+        // client pieno (postgrest). Fino a qui — getSession, login, sign out
+        // — è passato tutto da lib/supabaseAuth.js, che non porta con sé
+        // @supabase/supabase-js. Chi resta sulla schermata di login non
+        // arriva mai qui, quindi non scarica mai il chunk che contiene
+        // postgrest/realtime/storage. Chi invece HA una sessione lo scarica
+        // ora, in parallelo al chunk di VoyageDesk (anch'esso lazy) che ne ha
+        // comunque bisogno un attimo dopo. `getSupabase()` è a sua volta lazy
+        // (vedi lib/supabase.js): questo import statico del MODULO non porta
+        // ancora con sé @supabase/supabase-js, solo la funzione che lo importa.
+        const { getSupabase } = await import('../lib/supabase.js');
+        const supabase = await getSupabase();
         const { me, all, contacts } = await withRetry(async () => {
           const [{ data: me, error: meError }, { data: all, error: allError }, { data: contacts }] = await withTimeout(
             Promise.all([
@@ -179,7 +191,7 @@ export function AuthProvider({ children }) {
     const initAuth = async () => {
       try {
         const { data } = await withRetry(
-          () => withTimeout(supabase.auth.getSession(), AUTH_TIMEOUT_MS, 'getSession'),
+          () => withTimeout(supabaseAuth.getSession(), AUTH_TIMEOUT_MS, 'getSession'),
           'getSession',
         );
         if (!mounted) return;
@@ -216,7 +228,7 @@ export function AuthProvider({ children }) {
     // pratica solo con un refresh manuale — che a volte vinceva il race sul
     // lock e quindi "funzionava". setTimeout(0) rimanda il lavoro a dopo il
     // ritorno del callback: il lock si libera subito e caricaProfilo procede.
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+    const { data: sub } = supabaseAuth.onAuthStateChange((_event, s) => {
       if (_event === 'PASSWORD_RECOVERY') {
         setRecovery(true);
         setRecoveryKind(prev => prev ?? 'recovery');
@@ -247,7 +259,7 @@ export function AuthProvider({ children }) {
   // in eslint.config.js, suggerimento strategico n.2 dell'audit del 16
   // agosto — nato proprio per impedire che questo file tornasse qui).
   const signIn = useCallback((email, password) =>
-    supabase.auth.signInWithPassword({ email, password }), []);
+    supabaseAuth.signInWithPassword({ email, password }), []);
 
   // La registrazione self-service è stata rimossa (S-13): l'unico modo di
   // entrare nel gestionale è l'invito (Edge Function invite-user). Il trigger
@@ -262,19 +274,19 @@ export function AuthProvider({ children }) {
   // anche le altre schede ancora aperte, che restavano con una sessione "morta"
   // in memoria → la successiva azione privilegiata (es. invito via Edge
   // Function) falliva con "Token non valido" (session_not_found).
-  const signOut = useCallback(() => supabase.auth.signOut({ scope: 'local' }), []);
+  const signOut = useCallback(() => supabaseAuth.signOut({ scope: 'local' }), []);
 
   // Uscita da OGNI dispositivo: revoca i refresh token lato server. È il
   // rimedio per un dispositivo perso, e non ha il difetto che ha portato a
   // 'local' sopra — qui la sessione morta nelle altre schede è ESATTAMENTE
   // ciò che si vuole, quindi il toast "Sessione scaduta" di api.js è la
   // risposta giusta e non un effetto collaterale da nascondere.
-  const signOutOvunque = useCallback(() => supabase.auth.signOut({ scope: 'global' }), []);
+  const signOutOvunque = useCallback(() => supabaseAuth.signOut({ scope: 'global' }), []);
 
   // Invia l'email con il link per reimpostare la password. redirectTo riporta
   // l'utente sull'app, dove detectSessionInUrl genera l'evento PASSWORD_RECOVERY.
   const resetPassword = useCallback((email) =>
-    supabase.auth.resetPasswordForEmail(email, {
+    supabaseAuth.resetPasswordForEmail(email, {
       redirectTo: window.location.origin,
     }), []);
 
@@ -283,7 +295,7 @@ export function AuthProvider({ children }) {
   // emette lo stesso link OTP del signup. Usata dal LoginScreen quando il
   // tentativo di login fallisce con email_not_confirmed.
   const resendConfirmation = useCallback((email) =>
-    supabase.auth.resend({
+    supabaseAuth.resend({
       type: 'signup',
       email,
       options: { emailRedirectTo: window.location.origin },
@@ -292,7 +304,7 @@ export function AuthProvider({ children }) {
   // Aggiorna la password dell'utente nella sessione di recovery, poi esce
   // dalla modalità recovery così l'app monta normalmente.
   const updatePassword = useCallback(async (password) => {
-    const res = await supabase.auth.updateUser({ password });
+    const res = await supabaseAuth.updateUser({ password });
     if (!res.error) { setRecovery(false); setRecoveryKind(null); }
     return res;
   }, []);
@@ -306,9 +318,17 @@ export function AuthProvider({ children }) {
 
   // Self-service account deletion: delegates to delete-account Edge Function,
   // then signs out so the banned user is immediately logged out.
+  //
+  // Import dinamico di lib/api.js per lo stesso motivo di caricaProfilo: è la
+  // "porta" dell'intero data layer applicativo, e importarla in cima al file
+  // riporterebbe nel grafo eager tutto ciò che B-2 sposta fuori. Nella pratica
+  // questa funzione è comunque raggiungibile solo da ProfileEditor, dentro
+  // VoyageDesk già autenticato — qui l'import dinamico costa un `await` in
+  // più, non un secondo download: il chunk è già in cache a quel punto.
   const deleteAccount = useCallback(async () => {
+    const { Users: UsersAPI } = await import('../lib/api.js');
     const result = await UsersAPI.deleteAccount();
-    if (!result.error) await supabase.auth.signOut();
+    if (!result.error) await supabaseAuth.signOut();
     return result;
   }, []);
 

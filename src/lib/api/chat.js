@@ -8,7 +8,7 @@
 // (VIETATE_ENTITA_DELLO_STATE) è dichiarato su quel percorso e un import
 // diretto qui lo aggirerebbe senza che nulla lo segnali.
 
-import { supabase } from '../supabase';
+import { getSupabase } from '../supabase';
 import { getClientId } from '../clientId';
 import { fetchAllRows, fetchRowsUpTo, WITH_COUNT } from '../pagination.js';
 import { withOrigin } from '../realtime.js';
@@ -22,18 +22,24 @@ export const Conversations = {
   // e nessuna si cancella da sola. `.order('id')` chiude l'ordinamento su una
   // colonna unica: `updated_at` cambia a ogni messaggio, quindi due pagine
   // lette a cavallo di un invio potrebbero saltare una conversazione.
-  listMine: () =>
-    fetchAllRows(() => supabase.from('conversations').select('*', WITH_COUNT)
+  listMine: async () => {
+    const supabase = await getSupabase();
+    return fetchAllRows(() => supabase.from('conversations').select('*', WITH_COUNT)
       .order('updated_at', { ascending: false })
-      .order('id')),
-  create: (c) =>
-    supabase.from('conversations').insert(withOrigin(c)).select().single(),
+      .order('id'));
+  },
+  create: async (c) => {
+    const supabase = await getSupabase();
+    return supabase.from('conversations').insert(withOrigin(c)).select().single();
+  },
   // updated_at va impostato qui: il DB non ha trigger moddatetime e listMine
   // ordina per updated_at — senza, pin/rename non riordinano la lista.
-  update: (id, patch) =>
-    supabase.from('conversations')
+  update: async (id, patch) => {
+    const supabase = await getSupabase();
+    return supabase.from('conversations')
       .update(withOrigin({ updated_at: new Date().toISOString(), ...patch }))
-      .eq('id', id).select().single(),
+      .eq('id', id).select().single();
+  },
   // Eliminazione conversazione/gruppo: i messaggi seguono via FK ON DELETE
   // CASCADE; le RLS (20260705) permettono il delete a ogni partecipante.
   //
@@ -43,8 +49,10 @@ export const Conversations = {
   // conteggio non è difesa in profondità ma la CONDIZIONE che decide se
   // ripulire lo storage: chatCommands.removeConversation rimuove gli allegati
   // solo DOPO che questa DELETE ha davvero tolto la riga.
-  remove: (id) =>
-    supabase.from('conversations').delete(CONTA_RIGHE).eq('id', id),
+  remove: async (id) => {
+    const supabase = await getSupabase();
+    return supabase.from('conversations').delete(CONTA_RIGHE).eq('id', id);
+  },
 };
 
 // ----------------- MESSAGES -----------------
@@ -62,11 +70,13 @@ export const Messages = {
   // codice morto: era una lettura degli USI nel repository, senza incrociare
   // gli AUDIT che la citano per nome come preparazione dichiarata. Non
   // toccare senza aver letto ST-4 (parte 2) per intero.
-  listForConversation: (conversation_id, limit = 200) =>
-    supabase.from('messages').select('*')
+  listForConversation: async (conversation_id, limit = 200) => {
+    const supabase = await getSupabase();
+    return supabase.from('messages').select('*')
       .eq('conversation_id', conversation_id)
       .order('created_at', { ascending: true })
-      .limit(limit),
+      .limit(limit);
+  },
   // Carica i messaggi più RECENTI delle conv visibili in un solo round-trip:
   // l'app raggruppa lato client per conversation_id. Le RLS già limitano
   // la visibilità ai soli partecipanti.
@@ -92,6 +102,7 @@ export const Messages = {
   // senza, due messaggi con lo stesso `created_at` (stesso millisecondo, non
   // impossibile con più mittenti) potrebbero ripetersi o saltare fra due pagine.
   listAll: async (limit = 2000) => {
+    const supabase = await getSupabase();
     const { data, error } = await fetchRowsUpTo(
       () => supabase.from('messages').select('*')
         .order('created_at', { ascending: false }).order('id', { ascending: false }),
@@ -99,8 +110,10 @@ export const Messages = {
     );
     return { data: data ? [...data].reverse() : data, error };
   },
-  send: (m) =>
-    supabase.from('messages').insert(withOrigin(m)).select().single(),
+  send: async (m) => {
+    const supabase = await getSupabase();
+    return supabase.from('messages').insert(withOrigin(m)).select().single();
+  },
   // `remove` (cancellazione di un singolo messaggio) è stata tolta con lo
   // stesso criterio di `Comments.remove` — vedi lì: nessun chiamante, nessun
   // comando in chatCommands.js, nessun audit che la dichiari preparata. La
@@ -112,38 +125,47 @@ export const Messages = {
   // stesso messaggio in contemporanea si sovrascrivevano (last-write-wins). La
   // RPC fa read-modify-write sotto lock di riga e usa sempre auth.uid() come
   // reactor (non spoofabile). origin taggato per filtrare l'eco realtime.
-  toggleReaction: (id, emoji) =>
-    supabase.rpc('messages_toggle_reaction', {
+  toggleReaction: async (id, emoji) => {
+    const supabase = await getSupabase();
+    return supabase.rpc('messages_toggle_reaction', {
       msg_id: id,
       emoji,
       origin: getClientId(),
-    }),
+    });
+  },
   // Fase 3 — pin condiviso: tutti i partecipanti vedono lo stesso stato.
   // Le RLS UPDATE su messages permettono già a chi partecipa di toggleare
   // (stesso path di setReactions). `pinnedBy`/`pinnedAt` sono l'audit (chi/
   // quando): valorizzati al pin, azzerati all'unpin.
-  setPinned: (id, pinned, pinnedBy = null) =>
-    supabase.from('messages').update(withOrigin({
+  setPinned: async (id, pinned, pinnedBy = null) => {
+    const supabase = await getSupabase();
+    return supabase.from('messages').update(withOrigin({
       pinned,
       pinned_by: pinned ? pinnedBy : null,
       pinned_at: pinned ? new Date().toISOString() : null,
-    }), CONTA_RIGHE).eq('id', id),
-  markRead: (id, readBy) =>
-    supabase.from('messages').update(withOrigin({ read_by: readBy })).eq('id', id),
+    }), CONTA_RIGHE).eq('id', id);
+  },
+  markRead: async (id, readBy) => {
+    const supabase = await getSupabase();
+    return supabase.from('messages').update(withOrigin({ read_by: readBy })).eq('id', id);
+  },
   // Step Q.4: RPC bulk markRead. Un singolo UPDATE su tutti i messaggi non
   // letti della conversazione → 1 round-trip + 1 evento realtime invece di N.
   // Il lettore è sempre auth.uid() lato server (no reader_id spoofabile dal
   // client). Vedi migration 20260702_messages_mark_read_auth_uid.sql.
-  markReadBulk: (conversationId) =>
-    supabase.rpc('messages_mark_read', {
+  markReadBulk: async (conversationId) => {
+    const supabase = await getSupabase();
+    return supabase.rpc('messages_mark_read', {
       conv_id: conversationId,
       origin: getClientId(),
-    }),
+    });
+  },
   // Step M: upload allegato sul bucket privato 'chat-files'.
   // Path convention <conversation_id>/<uuid>-<nomefile>: le policy RLS del
   // bucket verificano l'appartenenza alla conversazione dal primo segmento.
   // Ritorna { path } da salvare in messages.file_url.
   uploadFile: async (file, conversationId) => {
+    const supabase = await getSupabase();
     const path = `${conversationId}/${crypto.randomUUID()}-${sanitizeFileName(file.name)}`;
     const { data, error } = await supabase.storage
       .from('chat-files')
@@ -157,6 +179,7 @@ export const Messages = {
   // entrambe → la copy passa. Niente download/upload lato client: il blob non
   // transita dal browser. Nuovo UUID nel path così non collide con l'originale.
   copyFile: async (srcPath, destConversationId, fileName) => {
+    const supabase = await getSupabase();
     const destPath = `${destConversationId}/${crypto.randomUUID()}-${sanitizeFileName(fileName || 'file')}`;
     const { data, error } = await supabase.storage
       .from('chat-files')
@@ -168,6 +191,7 @@ export const Messages = {
   // <conversation_id>/<uuid>-voice.<ext> così le RLS (primo segmento = conv)
   // valgono come per gli altri allegati. Ritorna { path } da salvare in file_url.
   uploadVoice: async (blob, conversationId, mimeType = 'audio/webm') => {
+    const supabase = await getSupabase();
     const ext = mimeType.includes('mp4') ? 'm4a' : mimeType.includes('ogg') ? 'ogg' : 'webm';
     const path = `${conversationId}/${crypto.randomUUID()}-voice.${ext}`;
     // MediaRecorder restituisce il tipo COMPLETO di parametri — es.
@@ -186,6 +210,7 @@ export const Messages = {
   // non esiste più (i file diventerebbero orfani permanenti). Best-effort:
   // un errore qui non deve bloccare l'eliminazione della conversazione.
   removeConversationFiles: async (conversationId) => {
+    const supabase = await getSupabase();
     const { data, error } = await supabase.storage
       .from('chat-files')
       .list(conversationId, { limit: 1000 });

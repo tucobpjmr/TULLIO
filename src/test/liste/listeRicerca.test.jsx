@@ -29,7 +29,7 @@ const render = (ui, { dispatch, ...options } = {}) => {
 };
 
 
-vi.mock("../../lib/supabase", () => ({ supabase: {}, default: {} }));
+vi.mock("../../lib/supabase", () => ({ supabase: {}, default: {}, getSupabase: () => Promise.resolve({}) }));
 
 const LISTA_ESAURITA = {
   id: "11111111-1111-4111-8111-111111111111",

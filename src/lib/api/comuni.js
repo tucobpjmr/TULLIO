@@ -9,7 +9,7 @@
 // (VIETATE_ENTITA_DELLO_STATE) è dichiarato su quel percorso e un import
 // diretto qui lo aggirerebbe senza che nulla lo segnali.
 
-import { supabase } from '../supabase';
+import { getSupabase } from '../supabase';
 
 // Normalizza un errore (stringa, oggetto Error, oggetto serializzato) in un
 // testo sempre mostrabile. Evita il bug per cui un Error serializzato via
@@ -38,6 +38,7 @@ export const isExpiredSessionError = (msg) =>
 // con status 2xx: lo trattiamo come errore. Un tempo questo blocco era
 // copia-incollato in invite/deleteAccount/deleteUser.
 export const invokeFn = async (name, body = {}, fallback = 'Operazione non riuscita.') => {
+  const supabase = await getSupabase();
   const { data, error } = await supabase.functions.invoke(name, { body });
   if (error) {
     let msg = errText(error.message, fallback);

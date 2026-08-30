@@ -23,7 +23,7 @@
 // core è e resta ./listeModuleApi.js, che espone domande e non query; ora il
 // confine non è più solo una convenzione, ed è verificato da
 // no-restricted-imports (VIETATO_LISTEAPI_DA_FUORI in eslint.config.js).
-import { supabase } from '../../lib/supabase';
+import { getSupabase } from '../../lib/supabase';
 // Suggerimento strategico n.3 (audit del 16 agosto): tredici delle sedici RPC
 // sotto accettano ora p_origin, aggiunto lato database dalla migrazione
 // 20260816110000 (drop+create, non create or replace: un parametro in più
@@ -81,6 +81,7 @@ const chunk = (rows) => {
 // problema — PostgREST non esprime in una query sola "colonna A in tabella 1
 // oppure colonna B in tabella 2".
 const listaIdsDiCliente = async (clientId) => {
+  const supabase = await getSupabase();
   const { data, error } = await supabase.from('lista_partecipanti')
     .select('lista_id').eq('client_id', clientId).is('deleted_at', null);
   if (error) return { ids: null, error };
@@ -89,18 +90,22 @@ const listaIdsDiCliente = async (clientId) => {
 
 export const ListeAPI = {
   // Liste non archiviate, più recenti in cima (l'ordinamento fine è lato client).
-  list: () =>
-    fetchAllRows(() => supabase.from('liste_viaggio').select(LISTA_SELECT, WITH_COUNT)
+  list: async () => {
+    const supabase = await getSupabase();
+    return fetchAllRows(() => supabase.from('liste_viaggio').select(LISTA_SELECT, WITH_COUNT)
       .is('deleted_at', null)
       .order('updated_at', { ascending: false })
-      .order('id')),
+      .order('id'));
+  },
 
   // Cestino: archiviate (soft delete), più recenti in cima.
-  listTrash: () =>
-    fetchAllRows(() => supabase.from('liste_viaggio').select(LISTA_SELECT, WITH_COUNT)
+  listTrash: async () => {
+    const supabase = await getSupabase();
+    return fetchAllRows(() => supabase.from('liste_viaggio').select(LISTA_SELECT, WITH_COUNT)
       .not('deleted_at', 'is', null)
       .order('deleted_at', { ascending: false })
-      .order('id')),
+      .order('id'));
+  },
 
   // Liste di un singolo cliente: alimenta il tab dentro la scheda cliente.
   // "Di un cliente" = dove compare come titolare O come cointestatario:
@@ -111,22 +116,27 @@ export const ListeAPI = {
     const { ids, error } = await listaIdsDiCliente(clientId);
     if (error) return { data: null, error };
     if (!ids.length) return { data: [], error: null };
+    const supabase = await getSupabase();
     return supabase.from('liste_viaggio').select(LISTA_SELECT)
       .in('id', ids)
       .is('deleted_at', null)
       .order('updated_at', { ascending: false });
   },
 
-  get: (id) =>
-    supabase.from('liste_viaggio').select(LISTA_SELECT).eq('id', id).single(),
+  get: async (id) => {
+    const supabase = await getSupabase();
+    return supabase.from('liste_viaggio').select(LISTA_SELECT).eq('id', id).single();
+  },
 
   // Vista `liste_saldi` (security_invoker): saldo, numero movimenti e data
   // dell'ultimo movimento per ogni lista non archiviata. Una riga per lista,
   // quindi cresce insieme all'elenco: va paginata come `list()`, altrimenti
   // oltre le 1000 liste le righe in fondo mostrerebbero "0 movimenti · 0,00 €"
   // invece del saldo reale.
-  saldi: () =>
-    fetchAllRows(() => supabase.from('liste_saldi').select('*', WITH_COUNT).order('lista_id')),
+  saldi: async () => {
+    const supabase = await getSupabase();
+    return fetchAllRows(() => supabase.from('liste_saldi').select('*', WITH_COUNT).order('lista_id'));
+  },
 
   // Come sopra, per un solo cliente: il tab dentro la scheda cliente mostra
   // le liste di quel cliente (titolare o cointestatario) e non ha motivo di
@@ -138,6 +148,7 @@ export const ListeAPI = {
     const { ids, error } = await listaIdsDiCliente(clientId);
     if (error) return { data: null, error };
     if (!ids.length) return { data: [], error: null };
+    const supabase = await getSupabase();
     return supabase.from('liste_saldi').select('*').in('lista_id', ids);
   },
 
@@ -156,38 +167,48 @@ export const ListeAPI = {
   // senza errore, e le liste sono già oltre 600. Ordinamento su due colonne
   // (nessuna delle due unica da sola: un client può comparire più volte, una
   // lista ha più partecipanti) perché fetchAllRows richiede una chiave stabile.
-  clientiConListe: () =>
-    fetchAllRows(() => supabase.from('lista_partecipanti').select('client_id, deleted_at', WITH_COUNT)
-      .order('lista_id').order('client_id')),
+  clientiConListe: async () => {
+    const supabase = await getSupabase();
+    return fetchAllRows(() => supabase.from('lista_partecipanti').select('client_id, deleted_at', WITH_COUNT)
+      .order('lista_id').order('client_id'));
+  },
 
-  movimenti: (listaId) =>
-    supabase.from('movimenti_lista').select('*')
+  movimenti: async (listaId) => {
+    const supabase = await getSupabase();
+    return supabase.from('movimenti_lista').select('*')
       .eq('lista_id', listaId)
       .is('deleted_at', null)
-      .order('data_movimento').order('created_at'),
+      .order('data_movimento').order('created_at');
+  },
 
-  history: (listaId, limit = 50) =>
-    supabase.from('lista_history').select('*')
+  history: async (listaId, limit = 50) => {
+    const supabase = await getSupabase();
+    return supabase.from('lista_history').select('*')
       .eq('lista_id', listaId)
       .order('created_at', { ascending: false })
-      .limit(limit),
+      .limit(limit);
+  },
 
   // ── RPC (scritture atomiche dato + storico) ──
-  crea: ({ clientId = null, titolo = null, newClientName = null }) =>
-    supabase.rpc('crea_lista', {
+  crea: async ({ clientId = null, titolo = null, newClientName = null }) => {
+    const supabase = await getSupabase();
+    return supabase.rpc('crea_lista', {
       p_client_id: clientId,
       p_titolo: titolo,
       p_new_client_name: newClientName,
       p_origin: getClientId(),
-    }),
+    });
+  },
 
   // p_client_name null → la RPC lascia invariato il nome cliente.
   // Attenzione: il nome cliente è l'anagrafica condivisa, rinominarlo si
   // riflette su tutte le liste di quel cliente.
-  modifica: ({ id, titolo = null, clientName = null }) =>
-    supabase.rpc('modifica_lista', {
+  modifica: async ({ id, titolo = null, clientName = null }) => {
+    const supabase = await getSupabase();
+    return supabase.rpc('modifica_lista', {
       p_id: id, p_titolo: titolo, p_client_name: clientName, p_origin: getClientId(),
-    }),
+    });
+  },
 
   // Sposta il TITOLARE su un cliente diverso, già esistente in anagrafica
   // (client_id cambia; il nome di entrambi i clienti resta intatto). Da non
@@ -196,78 +217,103 @@ export const ListeAPI = {
   // titolare e riguarda solo questa lista. Se il cliente scelto è già
   // cointestatario di questa stessa lista, la RPC lo promuove: lo toglie da
   // cointestatario e lo rende titolare nella stessa transazione.
-  spostaTitolare: (id, nuovoClientId) =>
-    supabase.rpc('sposta_titolare_lista', {
+  spostaTitolare: async (id, nuovoClientId) => {
+    const supabase = await getSupabase();
+    return supabase.rpc('sposta_titolare_lista', {
       p_id: id, p_nuovo_client_id: nuovoClientId, p_origin: getClientId(),
-    }),
+    });
+  },
 
   // ── Cointestazione: cointestatari oltre al titolare (client_id) ──
   // Stesso pattern di crea_lista per il cliente: o uno esistente (clientId)
   // o il nome di uno nuovo (newClientName), mai entrambi. Il titolare non può
   // essere aggiunto come proprio cointestatario, né lo stesso cointestatario
   // due volte: la RPC rifiuta entrambi i casi con check_violation.
-  aggiungiBeneficiario: ({ listaId, clientId = null, newClientName = null }) =>
-    supabase.rpc('aggiungi_beneficiario_lista', {
+  aggiungiBeneficiario: async ({ listaId, clientId = null, newClientName = null }) => {
+    const supabase = await getSupabase();
+    return supabase.rpc('aggiungi_beneficiario_lista', {
       p_lista_id: listaId,
       p_client_id: clientId,
       p_new_client_name: newClientName,
       p_origin: getClientId(),
-    }),
+    });
+  },
 
   // SECURITY DEFINER lato DB (vedi migrazione 20260802214946): niente GRANT
   // DELETE diretto su lista_beneficiari, la rimozione passa solo da qui, così
   // la voce di storico è garantita nella stessa transazione. Niente p_origin:
   // è un DELETE, la RPC non lo accetta (vedi il commento in testa al file).
-  rimuoviBeneficiario: (listaId, clientId) =>
-    supabase.rpc('rimuovi_beneficiario_lista', { p_lista_id: listaId, p_client_id: clientId }),
+  rimuoviBeneficiario: async (listaId, clientId) => {
+    const supabase = await getSupabase();
+    return supabase.rpc('rimuovi_beneficiario_lista', { p_lista_id: listaId, p_client_id: clientId });
+  },
 
-  cambiaStato: (id, stato) =>
-    supabase.rpc('cambia_stato_lista', { p_id: id, p_stato: stato, p_origin: getClientId() }),
+  cambiaStato: async (id, stato) => {
+    const supabase = await getSupabase();
+    return supabase.rpc('cambia_stato_lista', { p_id: id, p_stato: stato, p_origin: getClientId() });
+  },
 
-  archivia: (id) => supabase.rpc('archivia_lista', { p_id: id, p_origin: getClientId() }),
+  archivia: async (id) => {
+    const supabase = await getSupabase();
+    return supabase.rpc('archivia_lista', { p_id: id, p_origin: getClientId() });
+  },
 
-  ripristina: (id) => supabase.rpc('ripristina_lista', { p_id: id, p_origin: getClientId() }),
+  ripristina: async (id) => {
+    const supabase = await getSupabase();
+    return supabase.rpc('ripristina_lista', { p_id: id, p_origin: getClientId() });
+  },
 
-  addMovimento: ({ listaId, data, descrizione, importo, metodo = null }) =>
-    supabase.rpc('registra_movimento_lista', {
+  addMovimento: async ({ listaId, data, descrizione, importo, metodo = null }) => {
+    const supabase = await getSupabase();
+    return supabase.rpc('registra_movimento_lista', {
       p_lista_id: listaId,
       p_data: data,
       p_descrizione: descrizione,
       p_importo: importo,
       p_metodo: metodo,
       p_origin: getClientId(),
-    }),
+    });
+  },
 
   // p_movimenti: array di { descrizione, importo }. Data e metodo sono comuni
   // a tutte le righe; il segno dell'importo è per riga.
-  addMovimenti: ({ listaId, data, movimenti, metodo = null }) =>
-    supabase.rpc('registra_movimenti_lista', {
+  addMovimenti: async ({ listaId, data, movimenti, metodo = null }) => {
+    const supabase = await getSupabase();
+    return supabase.rpc('registra_movimenti_lista', {
       p_lista_id: listaId,
       p_data: data,
       p_movimenti: movimenti,
       p_metodo: metodo,
       p_origin: getClientId(),
-    }),
+    });
+  },
 
-  modificaMovimento: ({ id, data, descrizione, importo, metodo = null }) =>
-    supabase.rpc('modifica_movimento_lista', {
+  modificaMovimento: async ({ id, data, descrizione, importo, metodo = null }) => {
+    const supabase = await getSupabase();
+    return supabase.rpc('modifica_movimento_lista', {
       p_id: id,
       p_data: data,
       p_descrizione: descrizione,
       p_importo: importo,
       p_metodo: metodo,
       p_origin: getClientId(),
-    }),
+    });
+  },
 
   // Note interne: campo libero visibile solo al team, mai incluso nel
   // riepilogo per il cliente (vedi riepilogoTesto/RiepilogoClienteModal, che
   // non leggono `note`). note null/vuoto svuota il campo.
-  modificaNote: ({ id, note }) =>
-    supabase.rpc('modifica_note_lista', { p_id: id, p_note: note || null, p_origin: getClientId() }),
+  modificaNote: async ({ id, note }) => {
+    const supabase = await getSupabase();
+    return supabase.rpc('modifica_note_lista', { p_id: id, p_note: note || null, p_origin: getClientId() });
+  },
 
   // Soft delete del movimento: resta in tabella con deleted_at valorizzato e
   // una voce nello storico.
-  annullaMovimento: (id) => supabase.rpc('annulla_movimento_lista', { p_id: id, p_origin: getClientId() }),
+  annullaMovimento: async (id) => {
+    const supabase = await getSupabase();
+    return supabase.rpc('annulla_movimento_lista', { p_id: id, p_origin: getClientId() });
+  },
 
   // ── Cestino: hard delete e strumenti dati ──
   // Le tre RPC seguenti sono SECURITY DEFINER lato DB (bypassano la RLS di
@@ -279,7 +325,10 @@ export const ListeAPI = {
   // listePersistence.js (guard) e nella UI (StrumentiDatiModal nasconde i
   // due bottoni ai non-admin): il gate che conta resta comunque quello nel
   // database. Niente p_origin: è un DELETE a cascata, la RPC non lo accetta.
-  eliminaDefinitiva: (id) => supabase.rpc('elimina_lista_definitivamente', { p_id: id }),
+  eliminaDefinitiva: async (id) => {
+    const supabase = await getSupabase();
+    return supabase.rpc('elimina_lista_definitivamente', { p_id: id });
+  },
 
   // Ripristino da backup, a blocchi.
   //
@@ -300,6 +349,7 @@ export const ListeAPI = {
   // `onProgress({ done, total })` è opzionale: serve alla UI per non restare
   // muta durante un ripristino lungo.
   importaBackup: async (payload, onProgress = null) => {
+    const supabase = await getSupabase();
     // L'ordine è obbligato dai controlli di integrità dentro la RPC: scarta le
     // liste il cui client_id non esiste ancora, i cointestatari la cui lista
     // (o il cui client_id) non esiste, e i movimenti la cui lista non esiste.
@@ -343,7 +393,10 @@ export const ListeAPI = {
   },
 
   // Niente p_origin: è un TRUNCATE/DELETE totale, la RPC non lo accetta.
-  resetCompleto: (conferma) => supabase.rpc('reset_completo', { p_conferma: conferma }),
+  resetCompleto: async (conferma) => {
+    const supabase = await getSupabase();
+    return supabase.rpc('reset_completo', { p_conferma: conferma });
+  },
 
   // Dati grezzi per il backup JSON scaricabile: le stesse tabelle che
   // esportava la SPA sorgente, più lista_beneficiari (cointestatari) da
@@ -360,6 +413,7 @@ export const ListeAPI = {
   // sua chiave primaria composta) perché è univoco: è quello che rende le
   // pagine stabili.
   backupData: async () => {
+    const supabase = await getSupabase();
     const [rClients, rListe, rBeneficiari, rMovimenti] = await Promise.all([
       fetchAllRows(() => supabase.from('clients').select('*', WITH_COUNT).order('id')),
       fetchAllRows(() => supabase.from('liste_viaggio').select('*', WITH_COUNT).order('id')),

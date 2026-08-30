@@ -8,7 +8,7 @@
 // (VIETATE_ENTITA_DELLO_STATE) è dichiarato su quel percorso e un import
 // diretto qui lo aggirerebbe senza che nulla lo segnali.
 
-import { supabase } from '../supabase';
+import { getSupabase } from '../supabase';
 import { fetchAllRows, WITH_COUNT } from '../pagination.js';
 import { withOrigin } from '../realtime.js';
 import { CONTA_RIGHE } from './comuni.js';
@@ -26,17 +26,27 @@ export const Notices = {
   // (due avvisi fissati nello stesso secondo bastano), e senza una chiave di
   // spareggio due pagine consecutive possono ripetere o saltare una riga —
   // stessa ragione del `.order('name').order('id')` di Clients.list.
-  list: () =>
-    fetchAllRows(() => supabase.from('notices').select('*, users(name, color)', WITH_COUNT)
+  list: async () => {
+    const supabase = await getSupabase();
+    return fetchAllRows(() => supabase.from('notices').select('*, users(name, color)', WITH_COUNT)
       .order('pinned', { ascending: false })
       .order('created_at', { ascending: false })
-      .order('id')),
-  create: (n) =>
-    supabase.from('notices').insert(withOrigin(n)).select().single(),
-  update: (id, patch) =>
-    supabase.from('notices').update(withOrigin(patch)).eq('id', id).select().single(),
-  togglePin: (id, pinned) =>
-    supabase.from('notices').update(withOrigin({ pinned }), CONTA_RIGHE).eq('id', id),
-  remove: (id) =>
-    supabase.from('notices').delete(CONTA_RIGHE).eq('id', id),
+      .order('id'));
+  },
+  create: async (n) => {
+    const supabase = await getSupabase();
+    return supabase.from('notices').insert(withOrigin(n)).select().single();
+  },
+  update: async (id, patch) => {
+    const supabase = await getSupabase();
+    return supabase.from('notices').update(withOrigin(patch)).eq('id', id).select().single();
+  },
+  togglePin: async (id, pinned) => {
+    const supabase = await getSupabase();
+    return supabase.from('notices').update(withOrigin({ pinned }), CONTA_RIGHE).eq('id', id);
+  },
+  remove: async (id) => {
+    const supabase = await getSupabase();
+    return supabase.from('notices').delete(CONTA_RIGHE).eq('id', id);
+  },
 };

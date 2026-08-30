@@ -10,15 +10,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const createSignedUrlMock = vi.fn();
 
-vi.mock("../../lib/supabase", () => ({
-  supabase: {
+vi.mock("../../lib/supabase", () => {
+  const supabase = {
     storage: {
       from: vi.fn((bucket) => ({
         createSignedUrl: (path, ttl) => createSignedUrlMock(bucket, path, ttl),
       })),
     },
-  },
-}));
+  };
+  return { supabase, getSupabase: () => Promise.resolve(supabase) };
+});
 
 const { Users, Messages, TaskFiles } = await import("../../lib/api.js");
 

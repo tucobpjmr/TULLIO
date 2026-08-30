@@ -59,8 +59,21 @@ const MANIFEST = join(DIST, '.vite', 'manifest.json');
 // margine resta quello dichiarato sopra, +6 kB: un import statico di
 // VoyageDesk rimesso per distrazione riporterebbe l'ingresso a ~72 kB, cioè
 // molto oltre.
-const SOGLIA_INGRESSO_KB = 21;
-const SOGLIA_FIRST_LOAD_KB = 121;
+// ─── RIMISURATE DOPO B-2 (audit del 30 agosto, terzo passo) ────────────────
+// Il client Supabase pieno (postgrest/realtime/storage/functions) era nel
+// modulepreload dell'entry per TUTTI, anonimi compresi, perché
+// `manualChunks: { supabase: ['@supabase/supabase-js'] }` in vite.config.js
+// forzava anche @supabase/auth-js — che da questo audit lib/supabaseAuth.js
+// importa direttamente per il client di sola autenticazione, eager per il
+// login — nello stesso chunk del resto. Tolto quel nome forzato, Rollup fa lo
+// split corretto da solo: auth-js resta nell'entry (dove serve davvero),
+// il resto di supabase-js va in un chunk lazy caricato solo da
+// lib/supabase.js. L'ingresso CRESCE (11,46→34,51 kB: ora contiene onestamente
+// auth-js, che prima appariva nel chunk sbagliato) ma il first load anonimo e
+// quello autenticato CROLLANO — rispettivamente 111,73→79,99 e
+// 177,82→146,12 kB. Stesso margine +6 kB delle soglie precedenti.
+const SOGLIA_INGRESSO_KB = 41;
+const SOGLIA_FIRST_LOAD_KB = 86;
 
 // ─── A-1 · IL PERCORSO CHE L'APP PERCORRE DAVVERO ──────────────────────────
 // (audit performance/UX del 19 agosto)
@@ -87,8 +100,12 @@ const SOGLIA_FIRST_LOAD_KB = 121;
 // delle altre due: assorbe la crescita normale del codice, non un chunk lazy
 // intero rientrato in eager — il più piccolo dei nove punti di montaggio ne
 // sposta comunque di più.
-const SOGLIA_APP_KB = 67;
-const SOGLIA_AUTENTICATO_KB = 182;
+// Rimisurate dopo B-2 insieme alle due sopra: il chunk dell'app ora include
+// anche i due frammenti lazy di lib/supabase.js e lib/api.js (prima invisibili
+// perché statici), ma perde il resto di supabase-js — che B-2 sposta nel suo
+// chunk lazy — quindi il totale scende comunque. Stesso margine +6 kB.
+const SOGLIA_APP_KB = 72;
+const SOGLIA_AUTENTICATO_KB = 152;
 
 const kb = (bytes) => bytes / 1000;
 

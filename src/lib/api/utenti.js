@@ -8,25 +8,30 @@
 // (VIETATE_ENTITA_DELLO_STATE) è dichiarato su quel percorso e un import
 // diretto qui lo aggirerebbe senza che nulla lo segnali.
 
-import { supabase } from '../supabase';
+import { getSupabase } from '../supabase';
 import { withOrigin } from '../realtime.js';
 import { SESSION_EXPIRED_MSG, isExpiredSessionError, invokeFn, CONTA_RIGHE } from './comuni.js';
 import { avatarUrlCache, avatarSignedUrl } from './storage.js';
 
 export const Users = {
-  list: () =>
-    supabase.from('users').select('*').eq('active', true).order('name'),
+  list: async () => {
+    const supabase = await getSupabase();
+    return supabase.from('users').select('*').eq('active', true).order('name');
+  },
   // listAll() include pending=true e active=false: serve agli admin per vedere
   // utenti in attesa di approvazione e disabilitati nel pannello Team. Le
   // policy RLS sulla tabella users non filtrano per active, quindi tutti gli
   // utenti autenticati possono leggere l'elenco completo (è un team condiviso).
-  listAll: () =>
-    supabase.from('users').select('*').order('name'),
+  listAll: async () => {
+    const supabase = await getSupabase();
+    return supabase.from('users').select('*').order('name');
+  },
   // Nota: email/phone NON sono più colonne di public.users (migrazione
   // 20260613100833_user_contacts_table). Vivono in public.user_contacts via
   // getContacts/updateContact. updateProfile le scarta difensivamente per
   // evitare l'errore "column does not exist".
-  updateProfile: (id, patch) => {
+  updateProfile: async (id, patch) => {
+    const supabase = await getSupabase();
     const { email, phone, ...rest } = patch || {};
     return supabase.from('users').update(withOrigin(rest)).eq('id', id).select().single();
   },
@@ -39,6 +44,7 @@ export const Users = {
   // salvare in photo_url. Il primo segmento del path = userId → le RLS del
   // bucket (foldername[1] = auth.uid()) autorizzano solo la propria cartella.
   uploadAvatar: async (userId, blob) => {
+    const supabase = await getSupabase();
     const path = `${userId}/avatar.jpg`;
     const { error } = await supabase.storage
       .from('avatars')
@@ -92,8 +98,10 @@ export const Users = {
   // stesso (chiuso lato trigger dalla migrazione
   // 20260815230000_handle_new_auth_user_stop_trusting_role_metadata, ma
   // questo resta il posto giusto per non farlo dipendere solo da quello).
-  approve: (id, role = 'agent') =>
-    supabase.from('users').update(withOrigin({ pending: false, active: true, role }), CONTA_RIGHE).eq('id', id),
+  approve: async (id, role = 'agent') => {
+    const supabase = await getSupabase();
+    return supabase.from('users').update(withOrigin({ pending: false, active: true, role }), CONTA_RIGHE).eq('id', id);
+  },
   // Invito admin di un nuovo utente via email (Block 3). Chiama la Edge
   // Function 'invite-user' (verify_jwt) che usa la Auth Admin API per inviare
   // l'invito e pre-crea il profilo public.users con pending=true. L'admin
@@ -111,6 +119,7 @@ export const Users = {
     // e riprovo una volta; se non recupero, restituisco un messaggio chiaro
     // invece di quello criptico della Edge Function.
     if (res.error && isExpiredSessionError(res.error.message)) {
+      const supabase = await getSupabase();
       const { data: refreshed } = await supabase.auth.refreshSession();
       if (refreshed?.session) res = await run();
       if (res.error && isExpiredSessionError(res.error.message)) {
@@ -120,38 +129,50 @@ export const Users = {
     return res;
   },
   // Step H: presence
-  setPresence: (id, status) =>
-    supabase.from('users').update(withOrigin({
+  setPresence: async (id, status) => {
+    const supabase = await getSupabase();
+    return supabase.from('users').update(withOrigin({
       status, last_seen_at: new Date().toISOString(),
-    })).eq('id', id),
+    })).eq('id', id);
+  },
   // ----------------- CONTATTI PII (user_contacts) -----------------
   // email/phone sono in public.user_contacts. RLS: SELECT consentito a tutti gli
   // utenti autenticati (rubrica interna del team — vedi migrazione
   // 20260629_user_contacts_select_team.sql); INSERT/UPDATE restano own+admin.
   // user_contacts non è in realtime e non ha origin_client → niente withOrigin.
-  getContacts: (id) =>
-    supabase.from('user_contacts').select('email, phone').eq('user_id', id).maybeSingle(),
+  getContacts: async (id) => {
+    const supabase = await getSupabase();
+    return supabase.from('user_contacts').select('email, phone').eq('user_id', id).maybeSingle();
+  },
   // Rubrica completa: tutte le righe contatti (per Team view e pannello Admin).
   // RLS lato server filtra ciò che non è leggibile; con la policy "team" vede tutti.
-  listContacts: () =>
-    supabase.from('user_contacts').select('user_id, email, phone'),
+  listContacts: async () => {
+    const supabase = await getSupabase();
+    return supabase.from('user_contacts').select('user_id, email, phone');
+  },
   /**
    * @param {string} id
    * @param {{email?: string, phone?: string}} [contatti]
    */
-  updateContact: (id, { email, phone } = {}) =>
-    supabase.from('user_contacts')
+  updateContact: async (id, { email, phone } = {}) => {
+    const supabase = await getSupabase();
+    return supabase.from('user_contacts')
       .upsert({ user_id: id, email: email ?? null, phone: phone ?? null }, { onConflict: 'user_id' })
-      .select().single(),
+      .select().single();
+  },
   // ----------------- PREFERENZE APP (user_app_preferences) -----------------
   // Preferenze personali sincronizzate server-side (es. reazioni recenti chat).
   // RLS: solo l'utente stesso. Fuori da realtime, niente origin_client (vedi
   // migration 20260620_user_app_preferences.sql).
-  getPreferences: (id) =>
-    supabase.from('user_app_preferences').select('recent_reactions').eq('user_id', id).maybeSingle(),
-  setRecentReactions: (id, recentReactions) =>
-    supabase.from('user_app_preferences')
-      .upsert({ user_id: id, recent_reactions: recentReactions, updated_at: new Date().toISOString() }, { onConflict: 'user_id' }),
+  getPreferences: async (id) => {
+    const supabase = await getSupabase();
+    return supabase.from('user_app_preferences').select('recent_reactions').eq('user_id', id).maybeSingle();
+  },
+  setRecentReactions: async (id, recentReactions) => {
+    const supabase = await getSupabase();
+    return supabase.from('user_app_preferences')
+      .upsert({ user_id: id, recent_reactions: recentReactions, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+  },
   // Self-service account deletion (Block 4). Calls the delete-account Edge
   // Function (verify_jwt) which bans the user for 10 years + sets active=false.
   // Does NOT hard-delete: preserves comments/messages (FK ON DELETE CASCADE safety).

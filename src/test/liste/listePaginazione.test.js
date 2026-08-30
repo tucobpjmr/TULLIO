@@ -57,7 +57,11 @@ const fakeFrom = (table) => {
   return q;
 };
 
-vi.mock("../../lib/supabase", () => ({ supabase: { from: fakeFrom, rpc: fakeRpc }, default: {} }));
+vi.mock("../../lib/supabase", () => ({
+  supabase: { from: fakeFrom, rpc: fakeRpc },
+  default: {},
+  getSupabase: () => Promise.resolve({ from: fakeFrom, rpc: fakeRpc }),
+}));
 
 const { ListeAPI } = await import("../../components/liste/listeApi.js");
 

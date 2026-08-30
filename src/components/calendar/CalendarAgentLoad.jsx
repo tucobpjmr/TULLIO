@@ -12,8 +12,10 @@
 //
 // Le due griglie orarie erano già uscite per la stessa ragione
 // (CalendarDayGrid, CalendarWeekGrid): qui si completa il criterio.
+import { memo, useMemo } from "react";
 import { Avatar } from "../ui/Avatar.jsx";
 import { isActiveTask } from "../../lib/taskUtils.js";
+import { chiaveGiorno, chiaveGiornoDaISO } from "../../lib/chiaveGiorno.js";
 import * as stiliComuni from "../../styles/common.js";
 import {
   boxF11Bold, boxF11Bold2, overflowX2, padding2, txt, txtBoldHeading, txtF12WFull,
@@ -26,17 +28,32 @@ import {
  * @param {Date[]}   props.giorni        i sette giorni della settimana mostrata.
  * @param {string[]} props.nomiGiorni    le etichette Lun…Dom.
  * @param {Array}    props.team          i membri assegnabili.
- * @param {Function} props.matchesCat    il filtro categoria attivo nel planner.
+ * @param {string?}  props.catFilter     il filtro categoria attivo nel planner.
  * @param {boolean}  props.isMobile
  */
-export function CalendarAgentLoad({ tasks, giorni, nomiGiorni, team, matchesCat, isMobile }) {
-  // Quanti task attivi ha questo agente in questo giorno, col filtro categoria
-  // del planner già applicato. Una definizione sola, letta dalla cella e dal
-  // totale di riga: prima erano due `filter` gemelli che potevano divergere.
-  const carico = (m, giorno) => tasks.filter(t =>
-    isActiveTask(t) && t.assignees?.includes(m.id) && t.dueDate
-    && new Date(t.dueDate).toDateString() === giorno.toDateString() && matchesCat(t)
-  ).length;
+// `catFilter` (stringa o null) al posto di `matchesCat` (funzione): una
+// funzione nuova a ogni render del planner impedirebbe al `memo` di chiudere.
+export const CalendarAgentLoad = memo(function CalendarAgentLoad({ tasks, giorni, nomiGiorni, team, catFilter, isMobile }) {
+  // Un indice (agente, giorno) → conteggio, con UNA passata sui task. Prima
+  // `carico(m, giorno)` rifiltrava l'intero elenco per ogni cella e una
+  // SECONDA volta per il totale di riga: team × 7 × 2 scansioni complete.
+  const carichi = useMemo(() => {
+    const idx = new Map();
+    for (const t of tasks) {
+      if (!isActiveTask(t) || !t.dueDate) continue;
+      if (catFilter && t.category !== catFilter) continue;
+      const k = chiaveGiornoDaISO(t.dueDate);
+      if (k === null) continue;
+      for (const a of t.assignees || []) {
+        const chiave = `${a}|${k}`;
+        idx.set(chiave, (idx.get(chiave) || 0) + 1);
+      }
+    }
+    return idx;
+  }, [tasks, catFilter]);
+
+  const carico = (membroId, giorno) =>
+    carichi.get(`${membroId}|${chiaveGiorno(giorno)}`) || 0;
 
   return (
     <div style={{ background: "var(--card)", borderRadius: 12, padding: isMobile ? "14px 12px" : "20px 22px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", border: "1px solid var(--border)" }}>
@@ -59,17 +76,20 @@ export function CalendarAgentLoad({ tasks, giorni, nomiGiorni, team, matchesCat,
             </tr>
           </thead>
           <tbody>
-            {team.map(m => (
-              <tr key={m.id}>
-                <td style={padding2}>
-                  <div style={stiliComuni.rowCenterGap8}>
-                    <Avatar memberId={m.id} size={24} />
-                    <span style={txt}>{m.name.split(" ")[0]}</span>
-                  </div>
-                </td>
-                {giorni.map((day, i) => {
-                  const count = carico(m, day);
-                  return (
+            {team.map(m => {
+              // I sette valori si calcolano UNA volta: il totale è la loro
+              // somma, non una seconda passata sulle stesse sette celle.
+              const perGiorno = giorni.map(d => carico(m.id, d));
+              const totale = perGiorno.reduce((n, c) => n + c, 0);
+              return (
+                <tr key={m.id}>
+                  <td style={padding2}>
+                    <div style={stiliComuni.rowCenterGap8}>
+                      <Avatar memberId={m.id} size={24} />
+                      <span style={txt}>{m.name.split(" ")[0]}</span>
+                    </div>
+                  </td>
+                  {perGiorno.map((count, i) => (
                     <td key={i} style={{
                       padding: "8px 6px", textAlign: "center", borderBottom: "1px solid var(--border)",
                       background: count > 0 ? m.color + "12" : "transparent",
@@ -78,16 +98,16 @@ export function CalendarAgentLoad({ tasks, giorni, nomiGiorni, team, matchesCat,
                         <span style={{ fontWeight: 700, color: m.color, fontSize: 14 }}>{count}</span>
                       ) : <span style={stiliComuni.txtMuted}>—</span>}
                     </td>
-                  );
-                })}
-                <td style={txtBoldHeading}>
-                  {giorni.reduce((n, d) => n + carico(m, d), 0)}
-                </td>
-              </tr>
-            ))}
+                  ))}
+                  <td style={txtBoldHeading}>
+                    {totale}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
     </div>
   );
-}
+});

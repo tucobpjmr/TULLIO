@@ -10,11 +10,18 @@
 // virtuale al task originale via `originalId`. Senza istanze virtuali il task
 // su cui si clicca è già quello vero, e la griglia non ha più bisogno di
 // conoscere task che non mostra.
+import { memo, useMemo } from "react";
 import { Avatar } from "../ui/Avatar.jsx";
 import { formatTime } from "../../lib/taskUtils.js";
 import { Z } from "../../styles/tokens.js";
 import { layoutColumns } from "./calendarLayout.js";
 import * as stiliComuni from "../../styles/common.js";
+
+// Costanti a livello di modulo, non ricostruite a ogni render — stessa
+// convenzione degli stili qui sotto (M-1 dell'audit del 12 agosto), applicata
+// anche a `HOURS`/`SLOT_H` (P-4 dell'audit del 30 agosto).
+const HOURS = Array.from({ length: 24 }, (_, h) => h);
+const SLOT_H = 44; // px per ora
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -36,14 +43,11 @@ const rowCenterBetween2 = { display: "flex", alignItems: "center", justifyConten
 const rowGap2 = { display: "flex", gap: 2, flexShrink: 0 };
 const txtF9Muted = { fontSize: 9, color: "var(--text-muted)" };
 
-export function CalendarDayGrid({ dayDate, expandedDay, catFilter, categories, onOpenTask }) {
-  const matchesCat = (t) => !catFilter || t.category === catFilter;
-  const dayTasks = expandedDay
-    .filter(t => t.dueDate && new Date(t.dueDate).toDateString() === dayDate.toDateString() && matchesCat(t))
-    .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
-  const laid = layoutColumns(dayTasks);
-  const HOURS = Array.from({ length: 24 }, (_, h) => h);
-  const SLOT_H = 44; // px per ora
+// `dayTasks` arriva già filtrato e ordinato dall'indice `perGiorno` del
+// planner (P-1): niente più filtro/sort qui dentro, e soprattutto niente
+// `.sort()` in place, perché l'array è CONDIVISO fra le celle che lo leggono.
+export const CalendarDayGrid = memo(function CalendarDayGrid({ dayDate, dayTasks, categories, onOpenTask }) {
+  const laid = useMemo(() => layoutColumns(dayTasks), [dayTasks]);
   const isToday = dayDate.toDateString() === new Date().toDateString();
   const nowMinutes = isToday ? new Date().getHours() * 60 + new Date().getMinutes() : null;
   return (
@@ -123,4 +127,4 @@ export function CalendarDayGrid({ dayDate, expandedDay, catFilter, categories, o
       </div>
     </div>
   );
-}
+});

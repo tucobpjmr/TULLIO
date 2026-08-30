@@ -3,20 +3,20 @@
 // vista giorno, vedi CalendarDayGrid.jsx: il blocco "evento posizionato nella
 // griglia" è quasi identico nelle due, differisce solo nelle misure e negli
 // avatar — se un giorno le misure convergono, è il punto da unificare.
-import { formatTime } from "../../lib/taskUtils.js";
-import { layoutColumns } from "./calendarLayout.js";
+import { memo } from "react";
+import { CalendarWeekGridDay } from "./CalendarWeekGridDay.jsx";
 import * as stiliComuni from "../../styles/common.js";
 
-// Stili costanti di questo file: allocati una volta a livello di modulo,
-// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+// Stili e costanti di questo file: allocati una volta a livello di modulo,
+// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto; `HOURS` e
+// `SLOT_H` estese alla stessa convenzione dal P-4 dell'audit del 30 agosto).
 const grid2 = { display: "grid", gridTemplateColumns: `56px repeat(7, minmax(0, 1fr))`, background: "var(--surface2)" };
 const maxHeight2 = { maxHeight: 560, overflowY: "auto" };
 const gridRelative = { display: "grid", gridTemplateColumns: `56px repeat(7, minmax(0, 1fr))`, position: "relative" };
-const txtF9Muted = { fontSize: 9, color: "var(--text-muted)" };
+const HOURS = Array.from({ length: 24 }, (_, h) => h);
+const SLOT_H = 36;
 
-export function CalendarWeekGrid({ weekDays, dayNames, getTasksForDay, categories, onOpenTask }) {
-  const HOURS = Array.from({ length: 24 }, (_, h) => h);
-  const SLOT_H = 36;
+export const CalendarWeekGrid = memo(function CalendarWeekGrid({ weekDays, dayNames, getTasksForDay, categories, onOpenTask }) {
   const today = new Date().toDateString();
   return (
     <div style={stiliComuni.cardElevata}>
@@ -49,50 +49,25 @@ export function CalendarWeekGrid({ weekDays, dayNames, getTasksForDay, categorie
             ))}
           </div>
           {weekDays.map((day, di) => {
-            const dayTasks = getTasksForDay(day).sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
-            const laid = layoutColumns(dayTasks);
+            // NIENTE `.sort()` qui. Era un ordinamento IN PLACE su un array che
+            // oggi arriva dall'indice memoizzato del planner (P-1) ed è
+            // CONDIVISO: ordinarlo qui lo muterebbe sotto gli altri lettori.
+            // L'ordine è già garantito dall'indice.
+            const dayTasks = getTasksForDay(day);
             const isToday = day.toDateString() === today;
             return (
-              <div key={di} style={{
-                position: "relative", borderLeft: "1px solid var(--border)",
-                background: isToday ? "rgba(212,168,67,0.04)" : "transparent",
-              }}>
-                {HOURS.map(h => (
-                  <div key={h} style={{
-                    height: SLOT_H, borderBottom: "1px solid var(--surface2)",
-                  }} />
-                ))}
-                {laid.map(({ task: t, col, totalCols }) => {
-                  const d = new Date(t.dueDate);
-                  const startMin = d.getHours() * 60 + d.getMinutes();
-                  const hours = Math.max(0.25, Number(t.estimatedHours) > 0 ? Number(t.estimatedHours) : 1);
-                  const top = (startMin / 60) * SLOT_H;
-                  const height = Math.max(20, hours * SLOT_H - 2);
-                  const cat = categories[t.category] || {};
-                  const colW = 100 / totalCols;
-                  return (
-                    <div key={t.id} onClick={() => onOpenTask(t)} style={{
-                      position: "absolute", top,
-                      left: `calc(${col * colW}% + 1px)`,
-                      width: `calc(${colW}% - 3px)`,
-                      height,
-                      background: (cat.color || "#94a3b8") + "22",
-                      borderLeft: `2px solid ${cat.color || "#94a3b8"}`,
-                      borderRadius: "0 4px 4px 0", padding: "2px 5px",
-                      cursor: "pointer", overflow: "hidden", fontSize: 10, lineHeight: 1.2,
-                    }}>
-                      <div style={stiliComuni.nomeTroncato}>
-                        {cat.icon} {t.title}
-                      </div>
-                      <div style={txtF9Muted}>{formatTime(t.dueDate)}</div>
-                    </div>
-                  );
-                })}
-              </div>
+              <CalendarWeekGridDay
+                key={di}
+                dayTasks={dayTasks}
+                isToday={isToday}
+                hours={HOURS}
+                categories={categories}
+                onOpenTask={onOpenTask}
+              />
             );
           })}
         </div>
       </div>
     </div>
   );
-}
+});

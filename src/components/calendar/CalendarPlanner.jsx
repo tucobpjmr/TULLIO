@@ -12,12 +12,30 @@ import { CalendarDayGrid } from "./CalendarDayGrid.jsx";
 import { CalendarMonthGrid } from "./CalendarMonthGrid.jsx";
 import { CalendarWeekGrid } from "./CalendarWeekGrid.jsx";
 import { giornoLungo, giornoMese, giornoMeseAnno, meseAnno } from "../../lib/dates.js";
+import { chiaveGiorno, chiaveGiornoDaISO } from "../../lib/chiaveGiorno.js";
 import * as stiliComuni from "../../styles/common.js";
 import {
   boxF12Bold, boxF12Bold2, boxF14W34, boxW14H14, colGap4, rowCenterBetween,
   rowCenterGap6, rowCenterGap82, rowGap4P3, rowGap6MtNeg8, txtF12Muted,
 } from "./calendarPlannerStyles.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
+
+// Identità condivisa per «nessun task quel giorno»: un `[]` nuovo a ogni
+// chiamata sveglierebbe il `memo` dei figli per una cella vuota.
+const VUOTO = Object.freeze([]);
+
+const DAY_NAMES = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
+
+// Fuori dal componente: non dipende da nulla del render, e da qui può stare
+// nelle dipendenze di un useMemo senza farlo ripartire a ogni giro.
+const settimanaDa = (offset) => {
+  const oggi = new Date();
+  const lun = new Date(oggi);
+  lun.setDate(oggi.getDate() - (oggi.getDay() === 0 ? 6 : oggi.getDay() - 1) + offset * 7);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(lun); d.setDate(lun.getDate() + i); return d;
+  });
+};
 
 export const CalendarPlanner = memo(function CalendarPlanner({ loading = false }) {
   const dispatch = useDispatch();
@@ -52,27 +70,14 @@ export const CalendarPlanner = memo(function CalendarPlanner({ loading = false }
     [baseTasks],
   );
 
-  // Filtro base applicato a tutti i getter di task
-  const matchesCat = (t) => !catFilter || t.category === catFilter;
-
   // ── Month helpers ──
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
   const monthName = meseAnno(currentMonth);
 
   // ── Week helpers ──
-  const getWeekDays = (offset) => {
-    const now = new Date();
-    const mon = new Date(now);
-    mon.setDate(now.getDate() - (now.getDay() === 0 ? 6 : now.getDay() - 1) + offset * 7);
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(mon);
-      d.setDate(mon.getDate() + i);
-      return d;
-    });
-  };
-  const weekDays = getWeekDays(weekOffset);
-  const dayNames = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
+  const weekDays = useMemo(() => settimanaDa(weekOffset), [weekOffset]);
+  const dayNames = DAY_NAMES;
 
   // ─── A-3 · QUI C'ERA L'ESPANSIONE DELLE RICORRENZE ────────────────────────
   // `const expanded = useMemo(() => expandRecurring(baseTasks, range[0],
@@ -96,22 +101,52 @@ export const CalendarPlanner = memo(function CalendarPlanner({ loading = false }
   // Le viste ora filtrano direttamente `baseTasks`, che è ciò che
   // `expandRecurring` restituiva.
 
-  const getTasksForCalDay = (day) => {
-    const d = new Date(year, month, day).toDateString();
-    return baseTasks.filter(t => t.dueDate && new Date(t.dueDate).toDateString() === d && matchesCat(t));
-  };
+  // L'INDICE task-per-giorno: UNA passata su baseTasks invece di una `filter`
+  // per cella. `catFilter` sta nelle DIPENDENZE e non applicato a valle di
+  // proposito: così ogni giornata espone un array a IDENTITÀ STABILE finché i
+  // dati non cambiano — che è la condizione perché il `memo` sulle griglie
+  // (P-3) possa davvero saltare un render, invece di confrontare array nuovi.
+  const perGiorno = useMemo(() => {
+    const m = new Map();
+    for (const t of baseTasks) {
+      if (!t.dueDate) continue;
+      if (catFilter && t.category !== catFilter) continue;
+      const k = chiaveGiornoDaISO(t.dueDate);
+      if (k === null) continue;
+      let giornata = m.get(k);
+      if (!giornata) { giornata = []; m.set(k, giornata); }
+      giornata.push(t);
+    }
+    // Ordinato QUI, una volta per giornata. Le griglie orarie lo rifacevano a
+    // ogni render (CalendarWeekGrid) e `layoutColumns` lo rifà ancora una
+    // terza volta sulla stessa giornata: tre ordinamenti per lo stesso array.
+    for (const giornata of m.values()) {
+      giornata.sort((a, b) => Date.parse(a.dueDate) - Date.parse(b.dueDate));
+    }
+    return m;
+  }, [baseTasks, catFilter]);
 
-  const getTasksForDay = (day) =>
-    baseTasks.filter(t => t.dueDate && new Date(t.dueDate).toDateString() === day.toDateString() && matchesCat(t));
+  // Lettura da Map. `useCallback` perché sono prop di figli `memo`.
+  const getTasksForCalDay = useCallback(
+    (day) => perGiorno.get(year * 10000 + month * 100 + day) || VUOTO,
+    [perGiorno, year, month]);
+
+  const getTasksForDay = useCallback(
+    (day) => perGiorno.get(chiaveGiorno(day)) || VUOTO,
+    [perGiorno]);
 
   // ── Distribuzione agenti ──
   // Caveat #8: nelle viste settimanali (week / week-full) le frecce ←/→ guidano
   // weekOffset, quindi la distribuzione deve seguire la settimana navigata
   // (weekDays è già offset-aware). Solo in vista mese/giorno, dove weekOffset
   // non è navigabile, mostriamo la settimana corrente.
-  const agentWeekDays = (viewMode === "week" || viewMode === "week-full")
-    ? weekDays
-    : getWeekDays(0);
+  const agentWeekDays = useMemo(
+    () => (viewMode === "week" || viewMode === "week-full") ? weekDays : settimanaDa(0),
+    [viewMode, weekDays]);
+
+  // `getAssignableTeam()` ritorna un array nuovo a ogni chiamata: come prop di
+  // un figlio `memo` ne annullerebbe l'effetto da sola.
+  const teamAssegnabile = useMemo(() => getAssignableTeam(), [getAssignableTeam]);
 
   // ── Toggle style ──
   const toggleBtn = (mode, label) => (
@@ -297,8 +332,7 @@ export const CalendarPlanner = memo(function CalendarPlanner({ loading = false }
       {viewMode === "day" && (
         <CalendarDayGrid
           dayDate={dayDate}
-          expandedDay={baseTasks}
-          catFilter={catFilter}
+          dayTasks={getTasksForDay(dayDate)}
           categories={categories}
           onOpenTask={openTask}
         />
@@ -320,8 +354,8 @@ export const CalendarPlanner = memo(function CalendarPlanner({ loading = false }
         tasks={tasks}
         giorni={agentWeekDays}
         nomiGiorni={dayNames}
-        team={getAssignableTeam()}
-        matchesCat={matchesCat}
+        team={teamAssegnabile}
+        catFilter={catFilter}
         isMobile={isMobile}
       />
     </div>

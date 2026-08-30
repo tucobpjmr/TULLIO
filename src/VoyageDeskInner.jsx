@@ -47,12 +47,6 @@ import { AdminRollbackBanner } from "./components/shell/AdminRollbackBanner.jsx"
 import { OfflineBanner } from "./components/shell/OfflineBanner.jsx";
 
 // ── Viste ──────────────────────────────────────────────────────────────────
-// Dashboard e ClientiView restano eager: sono le due viste d'ingresso più
-// frequenti (l'app apre su Dashboard, ClientiView è la seconda per uso), e
-// renderle lazy sposterebbe il costo dal caricamento a un flash di fallback
-// su ogni sessione invece di risparmiarlo davvero.
-import { Dashboard } from "./components/dashboard/Dashboard.jsx";
-import { ClientiView } from "./components/clients/ClientiView.jsx";
 import { QuickAddTask } from "./components/tasks/QuickAddTask.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
@@ -62,6 +56,19 @@ const rowFlex1 = { display: "flex", flex: 1, overflow: "hidden" };
 const flex1 = { flex: 1, overflowY: "auto", overflowX: "hidden" };
 
 // Chunk async: viste pesanti o riservate a un ruolo, scaricate on-demand.
+// B-1 (audit del 30 agosto) · Dashboard e ClientiView erano rimaste eager
+// perché sono le due viste d'ingresso più frequenti e renderle lazy avrebbe
+// sostituito il costo con un flash di fallback su ogni sessione. Quella
+// motivazione risale a prima di LazyFallback e degli skeleton per entità
+// (SkeletonCards/SkeletonRows): con quelli in piedi il Suspense qui sotto
+// mostra uno scheletro coerente invece di un flash vuoto, e il margine
+// recuperato sul chunk app conta più del costo residuo del fallback.
+const Dashboard = lazy(() =>
+  import("./components/dashboard/Dashboard.jsx").then(m => ({ default: m.Dashboard }))
+);
+const ClientiView = lazy(() =>
+  import("./components/clients/ClientiView.jsx").then(m => ({ default: m.ClientiView }))
+);
 // ST-12 · La chat era l'ultimo gruppo differibile grande rimasto: ~54 kB
 // (pannello, conversazioni, composer, vocali) nel chunk iniziale di OGNI
 // sessione, benché il pannello chiuso ritorni null. Attenzione al dettaglio
@@ -380,13 +387,13 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         <div style={rowFlex1}>
           <Sidebar activeView={state.activeView} onOpenBulk={ui.apriBulk} onOpenChat={ui.apriChat} unreadChat={chat.unreadChat} />
           <main className="vd-main-scroll" style={flex1}>
-            {/* Suspense per la vista attiva: Dashboard e ClientiView risolvono
-                sincronicamente (viste d'ingresso, aperte da ogni sessione);
-                Admin, Liste viaggio, Calendario, Cestino e Archivio sono lazy.
-                ViewErrorBoundary confina alla vista un eventuale errore di
-                render: senza, l'unico boundary è quello in main.jsx, che
-                sostituisce tutta l'app con una schermata di errore a tutta
-                pagina anche quando la shell è perfettamente integra. */}
+            {/* Suspense per la vista attiva: tutte le viste sono lazy
+                (Dashboard e ClientiView incluse da B-1 dell'audit del 30
+                agosto). ViewErrorBoundary confina alla vista un eventuale
+                errore di render: senza, l'unico boundary è quello in
+                main.jsx, che sostituisce tutta l'app con una schermata di
+                errore a tutta pagina anche quando la shell è perfettamente
+                integra. */}
             <Suspense fallback={<LazyFallback />}>
               <ViewErrorBoundary
                 viewKey={state.activeView}

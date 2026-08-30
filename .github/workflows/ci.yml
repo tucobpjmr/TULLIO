@@ -31,3 +31,9 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run verifica:bundle
+      # S-1 (audit del 30 agosto): senza questo gate `npm audit` resta rosso
+      # in permanenza per le due CVE di xlsx (nessun fix su npm — vedi
+      # scripts/verifica-audit/index.js) e un allarme sempre acceso smette di
+      # essere un allarme. Fallisce su qualunque advisory high/critical NON
+      # nell'allow-list dichiarata lì, xlsx comprese o no.
+      - run: npm run verifica:audit

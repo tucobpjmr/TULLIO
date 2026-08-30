@@ -1,5 +1,47 @@
 # CHANGELOG — VoyageDesk
 
+## Audit del 30 agosto — B-1, B-3 e S-1
+
+> Terzo intervento sull'audit del 30 agosto (dopo B-2, supabase-js fuori dal
+> first load anonimo): chiude il rilievo Alta rimasto — il margine di bundle
+> esaurito — più i due Bassa/Media di igiene rimasti aperti.
+
+**B-1 · Dashboard e ClientiView diventano `lazy()`.** Erano rimaste eager in
+`VoyageDeskInner.jsx` per una scelta motivata — sono le due viste d'ingresso
+più frequenti, e renderle lazy avrebbe sostituito il loro costo con un flash
+di fallback su ogni sessione invece di risparmiarlo davvero. Quella
+motivazione risaliva a prima di `LazyFallback` e degli skeleton per entità
+(`SkeletonCards`/`SkeletonRows`): con quelli in piedi il `Suspense` già
+presente attorno alla vista attiva mostra uno scheletro coerente, non un
+flash vuoto. Misurato: il chunk dell'app scende da 63,22 a 44,87 kB gzip e il
+first load autenticato da 176,26 a 124,86 kB — il margine sul chunk app torna
+da 3,78 a oltre 20 kB. Le soglie di `scripts/verifica-bundle/index.js` sono
+scese di conseguenza (stessa regola delle rimisurazioni precedenti: le soglie
+scendono con la misura, altrimenti smettono di intercettare qualcosa).
+
+**S-1 · `npm audit` non è più rosso in permanenza senza motivo.**
+`xlsx@0.18.5` porta due CVE high senza fix su npm (SheetJS ha lasciato il
+registry): il rischio era già mitigato architetturalmente — parse in un Web
+Worker terminato subito dopo, `prototypeGuard.js` sul passaggio di confine —
+ma `npm audit` restava rosso per chiunque lo lanciasse, ed è esattamente la
+forma in cui un allarme smette di essere un allarme. `npm run verifica:audit`
+(`scripts/verifica-audit/index.js`, ora in CI) confronta ogni advisory
+high/critical con un'allow-list esplicita — le due di xlsx, ciascuna col
+motivo e il file che la mitiga — e fallisce su qualunque altra. Dettagli in
+`docs/SICUREZZA.md` §10.
+
+**B-3 · la zona cieca di un solo livello di import dinamici, resa visibile.**
+`verifica:bundle` guarda solo gli import dinamici dell'entry, di proposito:
+un chunk lazy che ne importasse staticamente un altro oggi lazy si
+fonderebbe senza che nessuna delle quattro soglie se ne accorga. Aggiunta una
+quinta misura informativa, senza soglia: la taglia propria di ogni chunk
+lazy e quella della sua chiusura statica OLTRE la base comune (react,
+VoyageDesk, supabase, api — già gated altrove, e che altrimenti
+dominerebbero ogni riga nella stessa misura nascondendo lo spostamento da
+mostrare). Uno spostamento fra le due cifre di un chunk, o un chunk che
+sparisce dall'elenco perché fuso in un altro, si vede nel diff dell'output
+di CI.
+
 ## Audit su stato e flusso dati del 28 agosto — suggerimento strategico n. 2, e con lui A-2 e A-3
 
 > Il secondo intervento chiude i due rilievi di alta priorità che sono lo stesso

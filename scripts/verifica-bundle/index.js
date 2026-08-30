@@ -104,8 +104,16 @@ const SOGLIA_FIRST_LOAD_KB = 86;
 // anche i due frammenti lazy di lib/supabase.js e lib/api.js (prima invisibili
 // perché statici), ma perde il resto di supabase-js — che B-2 sposta nel suo
 // chunk lazy — quindi il totale scende comunque. Stesso margine +6 kB.
-const SOGLIA_APP_KB = 72;
-const SOGLIA_AUTENTICATO_KB = 152;
+// ─── RIMISURATE DOPO B-1 (audit del 30 agosto, quarto passo) ───────────────
+// Dashboard e ClientiView erano rimaste eager (VoyageDeskInner.jsx) per non
+// sostituire il loro costo con un flash di fallback ad ogni sessione — una
+// scelta motivata finché non esistevano LazyFallback e gli skeleton per
+// entità (SkeletonCards/SkeletonRows). Con quelli in piedi, il flash non è
+// più il rischio che era: rese lazy entrambe, il chunk dell'app scende da
+// 63,22 a 44,87 kB gzip e il totale autenticato da 176,26 a 124,86 kB — il
+// margine sul chunk app torna da 3,78 a oltre 20 kB. Stesso margine +6 kB.
+const SOGLIA_APP_KB = 51;
+const SOGLIA_AUTENTICATO_KB = 131;
 
 const kb = (bytes) => bytes / 1000;
 
@@ -136,6 +144,55 @@ function primoCaricamento(manifest) {
     }
   }
   return { anonimo: [...anonimo], app: [...app] };
+}
+
+// B-3 (audit del 30 agosto) · `primoCaricamento` guarda un solo livello di
+// import dinamici — quelli dell'entry — di proposito: è ciò che il prefetch
+// avvia davvero. Resta però una zona cieca un livello più in basso: se un
+// chunk lazy ne importasse STATICAMENTE un altro oggi lazy, i due si
+// fonderebbero e la fusione non comparirebbe in nessuna delle quattro soglie
+// sopra, perché entrambi vivono già dentro "app" o più sotto. Questa misura
+// non ha soglia — non è un difetto finché resta piccola — ma rende la
+// fusione VISIBILE: ogni chunk che è bersaglio di un `lazy()` in qualche
+// punto del grafo, con la propria taglia e quella della sua chiusura
+// statica OLTRE la base comune (sé stesso + tutto ciò che tira dentro con
+// `import` diretto, transitivamente, ESCLUSO ciò che il first load
+// anonimo/autenticato carica comunque prima che un lazy possa eseguire —
+// react, VoyageDesk, supabase, api — che altrimenti dominerebbe ogni riga
+// nella stessa misura e nasconderebbe proprio lo spostamento che questa
+// misura esiste per mostrare). Uno spostamento fra le due righe di un
+// chunk, o un chunk che sparisce perché fuso in un altro, si vede nel diff
+// dell'output di CI.
+function chunkLazy(manifest) {
+  const lazy = new Map();
+  for (const entry of Object.values(manifest)) {
+    for (const k of entry.dynamicImports || []) {
+      if (manifest[k] && !lazy.has(k)) lazy.set(k, manifest[k]);
+    }
+  }
+  return lazy;
+}
+
+function chiusuraStatica(manifest, chiave, baseFiles, visti = new Set()) {
+  if (visti.has(chiave) || chiave === 'index.html' || !manifest[chiave]) return visti;
+  if (baseFiles.has(manifest[chiave].file)) return visti;
+  visti.add(chiave);
+  for (const i of manifest[chiave].imports || []) chiusuraStatica(manifest, i, baseFiles, visti);
+  return visti;
+}
+
+function stampaChunkLazy(manifest, baseFiles) {
+  const righe = [...chunkLazy(manifest).entries()].map(([chiave, entry]) => {
+    const chiusura = chiusuraStatica(manifest, chiave, baseFiles);
+    const file = new Set([...chiusura].map((c) => manifest[c].file).filter(Boolean));
+    const chiusuraBytes = [...file].reduce((tot, f) => tot + gzipDi(f), 0);
+    return { chiave, proprioBytes: gzipDi(entry.file), chiusuraBytes, moduli: file.size };
+  }).sort((a, b) => b.chiusuraBytes - a.chiusuraBytes);
+
+  console.log('\nverifica:bundle — chunk lazy, taglia propria e chiusura statica oltre la base comune (informativo, nessuna soglia):');
+  for (const r of righe) {
+    console.log(`  ${r.chiave}: ${kb(r.proprioBytes).toFixed(2)} kB gzip propri, ${kb(r.chiusuraBytes).toFixed(2)} kB gzip di chiusura (${r.moduli} moduli)`);
+  }
 }
 
 function estraiEager(html) {
@@ -184,7 +241,7 @@ function main() {
     process.exit(1);
   }
   const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8'));
-  const { app } = primoCaricamento(manifest);
+  const { anonimo, app } = primoCaricamento(manifest);
   const appBytes = app.reduce((tot, f) => tot + gzipDi(f), 0);
   const autenticatoBytes = totaleBytes + appBytes;
 
@@ -195,6 +252,8 @@ function main() {
   }
   console.log(`  chunk dell'app: ${kb(appBytes).toFixed(2)} kB gzip (soglia ${SOGLIA_APP_KB} kB)`);
   console.log(`  totale autenticato: ${kb(autenticatoBytes).toFixed(2)} kB gzip (soglia ${SOGLIA_AUTENTICATO_KB} kB)`);
+
+  stampaChunkLazy(manifest, new Set([...anonimo, ...app]));
 
   let fallito = false;
   if (kb(ingressoBytes) > SOGLIA_INGRESSO_KB) {

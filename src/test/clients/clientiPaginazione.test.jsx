@@ -10,11 +10,27 @@
 // "Rossi" vede i primi 24 di una finestra aperta su un'altra ricerca, e la
 // vista mente su quanti clienti corrispondono.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent, act } from "@testing-library/react";
 import { renderWithAppData, DEMO_APP_CTX } from "../helpers/appData.jsx";
 
+// A-1 (audit del 30 agosto): la ricerca non filtra più il corpus in memoria,
+// interroga `Clients.cercaAnagrafica` (debounce in useRicercaAnagrafica.js).
+// Il mock replica il comportamento della RPC sul dataset di prova corrente —
+// AND fra i termini, sottostringa case-insensitive su `name` — senza le
+// colonne generate lato DB, verificate a parte in clientiCercaAnagrafica.test.js
+// e sul progetto di staging (vedi il preambolo della migrazione).
+let datasetCorrente = [];
+const cercaAnagrafica = vi.fn(async (q) => {
+  const termini = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const data = datasetCorrente.filter(c =>
+    termini.every(t => (c.name || "").toLowerCase().includes(t)));
+  return { data, count: data.length, error: null };
+});
 vi.mock("../../lib/api.js", () => ({
-  Clients: { list: vi.fn(async () => ({ data: [], error: null })) },
+  Clients: {
+    list: vi.fn(async () => ({ data: [], error: null })),
+    cercaAnagrafica: (...a) => cercaAnagrafica(...a),
+  },
   TaskFiles: { upload: vi.fn(async () => ({ error: null })) },
 }));
 // Il pannello liste è un chunk lazy e non è in prova qui.
@@ -35,10 +51,13 @@ const anagrafica = (n) => Array.from({ length: n }, (_, i) => ({
   createdAt: new Date(2026, 0, 1 + i).toISOString(),
 }));
 
-const monta = (clients) => renderWithAppData(
-  <ClientiView tasks={[]} loading={false} showListe={false} />,
-  { dispatch: vi.fn(), ...DEMO_APP_CTX, clients },
-);
+const monta = (clients) => {
+  datasetCorrente = clients;
+  return renderWithAppData(
+    <ClientiView tasks={[]} loading={false} showListe={false} />,
+    { dispatch: vi.fn(), ...DEMO_APP_CTX, clients },
+  );
+};
 
 // Le card portano il nome del cliente come testo: contarle significa contare i
 // nomi presenti, senza dipendere dal markup interno di ClienteCard.
@@ -75,17 +94,20 @@ describe("ClientiView — finestra di paginazione (ST-9)", () => {
     expect(screen.queryByText(/Mostra altri/)).toBeNull();
   });
 
-  it("una ricerca RIAZZERA la finestra invece di ereditarla", () => {
+  it("una ricerca RIAZZERA la finestra invece di ereditarla", async () => {
     // Il caso che il rilievo descrive: la finestra è stata allargata, poi si
     // cerca. Senza riazzeramento si vedrebbero i primi 48 risultati filtrati.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     monta(anagrafica(100));
     fireEvent.click(screen.getByText(/Mostra altri/));
     expect(cardVisibili()).toBe(PAGINA * 2);
 
     fireEvent.change(screen.getByPlaceholderText(/Cerca/i), { target: { value: "Cliente 0" } });
+    await act(async () => { await vi.advanceTimersByTimeAsync(300); });
     // "Cliente 0xx" = 100 nomi su 100 nel dataset di prova, quindi il filtro non
     // riduce: se la finestra non fosse stata riazzerata, resterebbero 48.
     expect(cardVisibili()).toBe(PAGINA);
+    vi.useRealTimers();
   });
 
   it("cambiare ordinamento riazzera la finestra", () => {

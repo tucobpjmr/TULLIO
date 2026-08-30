@@ -1,5 +1,96 @@
 # CHANGELOG — VoyageDesk
 
+## Audit del 30 agosto — A-1 (seguito)
+
+> Quarto intervento sull'audit del 30 agosto: la prima tappa del rilievo Media
+> rimasto — «tabella intera in memoria, filtro nel browser» — quella che
+> l'audit indicava come piccola e indipendente dal resto (un intervento XL da
+> pianificare, non da improvvisare).
+
+**Cosa cambia.** La ricerca di `ClientiView` (l'anagrafica, non la tendina di
+suggerimento cliente) non filtra più in memoria l'intero corpus scaricato da
+`useClientiCompleti()` — O(N) su ricerca, filtro e ordinamento, con una soglia
+realistica di 5.000-10.000 righe. A query non vuota interroga
+`Clients.cercaAnagrafica()` → RPC `cerca_clienti`
+(`supabase/migrations/20260830190000_clienti_ricerca_trgm.sql`), che confronta
+contro colonne generate normalizzate con `pg_trgm`+`unaccent` — la stessa
+normalizzazione di `lib/searchUtils.js` (accenti, apostrofi, punteggiatura,
+cognomi elisi), non quella più permissiva già accettata per la tendina
+(`Clients.cerca()`, solo `name`, senza normalizzazione). A query vuota
+(si sfoglia senza cercare) l'anagrafica resta sul corpus locale: è la parte
+del rilievo che questo intervento non copre, corretta fino alla soglia sopra.
+
+**Perché una RPC e non un filtro PostgREST diretto.** La ricerca è AND fra i
+termini digitati, OR fra due colonne per ciascuno (il testo normalizzato e la
+sua variante senza spazi, per i cognomi elisi). Comporlo con `.or()` di
+postgrest-js avrebbe richiesto interpolare il termine digitato dentro la
+mini-sintassi di quel filtro — un termine con virgole o parentesi lo
+altererebbe. La RPC costruisce il predicato con `format('%L', …)`, verificato
+anche contro un tentativo di iniezione prima di scrivere la migrazione
+definitiva.
+
+**Verificato su un progetto di staging separato prima di scrivere la
+migrazione per `main`**: elisioni (`dellorto` trova `Dell'Orto`), ordine
+libero dei termini, AND fra campi diversi, nessun risultato falso positivo,
+un termine con caratteri speciali non altera il predicato, e con
+`enable_seqscan off` il piano usa l'indice trigram su entrambe le colonne —
+a poche righe Postgres sceglie comunque una scansione sequenziale, che è
+corretto: l'indice serve quando la tabella cresce, non prima. Nessun nuovo
+avviso dell'advisor di sicurezza (né `extension_in_public`, né
+`function_search_path_mutable`): le estensioni vanno nello schema
+`extensions` come già `pg_net`, le funzioni dichiarano `search_path`
+esplicito.
+
+**Cosa NON è cambiato**: i conteggi «Con liste viaggio»/«Solo anagrafica»,
+l'ordinamento e il conteggio totale in testata restano sul corpus locale
+completo — sono statistiche sull'INTERA anagrafica, non sul risultato di una
+ricerca. `Clients.cerca()` (la tendina di suggerimento) resta invariata:
+serve un caso diverso (un suggerimento rapido mentre si digita, non lo
+strumento con cui si cerca davvero una scheda) e la sua limitazione nota
+resta accettata per quello.
+
+## Audit del 30 agosto — B-1, B-3 e S-1
+
+> Terzo intervento sull'audit del 30 agosto (dopo B-2, supabase-js fuori dal
+> first load anonimo): chiude il rilievo Alta rimasto — il margine di bundle
+> esaurito — più i due Bassa/Media di igiene rimasti aperti.
+
+**B-1 · Dashboard e ClientiView diventano `lazy()`.** Erano rimaste eager in
+`VoyageDeskInner.jsx` per una scelta motivata — sono le due viste d'ingresso
+più frequenti, e renderle lazy avrebbe sostituito il loro costo con un flash
+di fallback su ogni sessione invece di risparmiarlo davvero. Quella
+motivazione risaliva a prima di `LazyFallback` e degli skeleton per entità
+(`SkeletonCards`/`SkeletonRows`): con quelli in piedi il `Suspense` già
+presente attorno alla vista attiva mostra uno scheletro coerente, non un
+flash vuoto. Misurato: il chunk dell'app scende da 63,22 a 44,87 kB gzip e il
+first load autenticato da 176,26 a 124,86 kB — il margine sul chunk app torna
+da 3,78 a oltre 20 kB. Le soglie di `scripts/verifica-bundle/index.js` sono
+scese di conseguenza (stessa regola delle rimisurazioni precedenti: le soglie
+scendono con la misura, altrimenti smettono di intercettare qualcosa).
+
+**S-1 · `npm audit` non è più rosso in permanenza senza motivo.**
+`xlsx@0.18.5` porta due CVE high senza fix su npm (SheetJS ha lasciato il
+registry): il rischio era già mitigato architetturalmente — parse in un Web
+Worker terminato subito dopo, `prototypeGuard.js` sul passaggio di confine —
+ma `npm audit` restava rosso per chiunque lo lanciasse, ed è esattamente la
+forma in cui un allarme smette di essere un allarme. `npm run verifica:audit`
+(`scripts/verifica-audit/index.js`, ora in CI) confronta ogni advisory
+high/critical con un'allow-list esplicita — le due di xlsx, ciascuna col
+motivo e il file che la mitiga — e fallisce su qualunque altra. Dettagli in
+`docs/SICUREZZA.md` §10.
+
+**B-3 · la zona cieca di un solo livello di import dinamici, resa visibile.**
+`verifica:bundle` guarda solo gli import dinamici dell'entry, di proposito:
+un chunk lazy che ne importasse staticamente un altro oggi lazy si
+fonderebbe senza che nessuna delle quattro soglie se ne accorga. Aggiunta una
+quinta misura informativa, senza soglia: la taglia propria di ogni chunk
+lazy e quella della sua chiusura statica OLTRE la base comune (react,
+VoyageDesk, supabase, api — già gated altrove, e che altrimenti
+dominerebbero ogni riga nella stessa misura nascondendo lo spostamento da
+mostrare). Uno spostamento fra le due cifre di un chunk, o un chunk che
+sparisce dall'elenco perché fuso in un altro, si vede nel diff dell'output
+di CI.
+
 ## Audit su stato e flusso dati del 28 agosto — suggerimento strategico n. 2, e con lui A-2 e A-3
 
 > Il secondo intervento chiude i due rilievi di alta priorità che sono lo stesso

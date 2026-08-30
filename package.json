@@ -19,6 +19,7 @@
     "verifica:redirect": "node scripts/verifica-redirect/index.js",
     "verifica:convenzioni": "node scripts/verifica-convenzioni/index.js",
     "verifica:bundle": "node scripts/verifica-bundle/index.js",
+    "verifica:audit": "npm audit --omit=dev --json | node scripts/verifica-audit/index.js",
     "verifica:volumi": "node scripts/verifica-volumi/index.js",
     "misura:render": "node scripts/misura-render/index.js"
   },

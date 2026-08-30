@@ -935,3 +935,37 @@ Due cose che questa esecuzione ha stabilito, e che prima erano assunzioni:
    reale — ma rafforza il controllo di controllo descritto sopra, e vale la
    pena saperlo se un domani quelle due righe dovessero coincidere: quello
    sarebbe il segnale che la sonda ha smesso di distinguere i due casi.
+
+---
+
+## 10. Dipendenze: allow-list di `npm audit` (S-1, audit del 30 agosto)
+
+`xlsx@0.18.5` (§«Dipendenza esterna unica» in `docs/CLAUDE.md`) porta due CVE
+**high**: Prototype Pollution (`GHSA-4r6h-8v6p-xvw6`) e ReDoS
+(`GHSA-5pgg-2g8v-p4x9`). `npm audit` non ha **fix disponibile**: SheetJS ha
+lasciato il registry npm, e le versioni corrette (0.19.3, 0.20.2+) esistono
+solo sul CDN del progetto (`cdn.sheetjs.com`), non su npm. `npm audit` è
+quindi rosso **in permanenza** su questa dipendenza, con o senza questa
+sezione.
+
+**Il rischio è mitigato architetturalmente, non ignorato.** Il parse gira in
+un Web Worker terminato subito dopo (`src/lib/xlsxWorker.js`), e
+`src/lib/prototypeGuard.js` sorveglia il passaggio di confine confrontando i
+descrittori di `Object`/`Array`/`Function`. Nessuna delle due CVE ha un
+percorso verso il realm principale.
+
+**Il problema residuo era di processo**: un `npm audit` sempre rosso è un
+allarme che si impara a ignorare, e il giorno in cui comparisse una
+*seconda* CVE — in una dipendenza senza mitigazione — sarebbe indistinguibile
+dal rumore di fondo. `npm run verifica:audit`
+(`scripts/verifica-audit/index.js`, in CI accanto a lint/test/bundle) legge
+`npm audit --json` e confronta ogni advisory high/critical con un'allow-list
+ESPLICITA — le due CVE di xlsx qui sopra, ciascuna col motivo e il file che la
+mitiga — e fallisce su qualunque advisory che non vi compaia, xlsx compresa
+se un giorno ne comparisse una terza senza mitigazione dichiarata. Un audit
+che non può che essere rosso non protegge niente; uno verde finché non arriva
+qualcosa di nuovo protegge esattamente ciò per cui esiste.
+
+⛔ **Aggiungere una CVE all'allow-list senza una mitigazione verificata nel
+codice** annullerebbe questa sezione: l'elenco esiste per dichiarare un
+rischio già chiuso altrove, non per silenziare `npm audit`.

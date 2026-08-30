@@ -12,6 +12,7 @@ import { getSupabase } from '../supabase';
 import { fetchAllRows, WITH_COUNT } from '../pagination.js';
 import { withOrigin } from '../realtime.js';
 import { CONTA_RIGHE } from './comuni.js';
+import { terminiRicerca } from '../searchUtils.js';
 
 // ----------------- CLIENTS -----------------
 // `clients` è in realtime dalla 20260807215625 e ha origin_client dalla
@@ -90,6 +91,34 @@ export const Clients = {
     let query = supabase.from('clients').select('*');
     for (const t of termini) query = query.ilike('name', `%${t}%`);
     return query.order('name').limit(limit);
+  },
+  // ─── A-1 (audit del 30 agosto) · la ricerca dell'ANAGRAFICA si fa sul
+  // SERVER ──────────────────────────────────────────────────────────────
+  //
+  // Non è `cerca()` qui sopra: quella è la tendina di suggerimento (solo
+  // `name`, nessun `count`, tollera la mancata normalizzazione accenti). Qui
+  // si sostituisce il filtro in memoria di `ClientiView` — lo strumento con
+  // cui si CERCA davvero una scheda — quindi la normalizzazione di
+  // `lib/searchUtils.js` (accenti, apostrofi, punteggiatura, cognomi elisi)
+  // deve restare identica: la porta la RPC `cerca_clienti`
+  // (`supabase/migrations/20260830190000_clienti_ricerca_trgm.sql`), non un
+  // filtro composto qui.
+  //
+  // `terminiRicerca` è la STESSA normalizzazione della ricerca client-side:
+  // i termini che arrivano alla RPC sono già minuscoli, senza accenti e
+  // senza punteggiatura, esattamente ciò che le colonne generate
+  // `testo_ricerca`/`testo_ricerca_attaccato` contengono — un doppio
+  // controllo di normalizzazione (qui e nel DB) sarebbe ridondante, uno
+  // solo (qui) sarebbe insufficiente perché i dati già in tabella vanno
+  // normalizzati comunque allo stesso modo per essere confrontabili.
+  cercaAnagrafica: async (q, { limite = 200 } = {}) => {
+    const termini = terminiRicerca(q);
+    if (termini.length === 0) return { data: [], count: 0, error: null };
+    const supabase = await getSupabase();
+    const { data, error } = await supabase.rpc('cerca_clienti', { termini, limite });
+    if (error) return { data: [], count: 0, error };
+    const count = data?.[0]?.totale ?? 0;
+    return { data: (data || []).map(({ totale: _totale, ...c }) => c), count, error: null };
   },
   create: async (client) => {
     const supabase = await getSupabase();

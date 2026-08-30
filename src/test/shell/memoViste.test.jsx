@@ -64,9 +64,13 @@ beforeEach(() => {
 });
 
 describe("digitare nella ricerca non ri-renderizza ciò che non mostra la ricerca", () => {
-  it("la vista attiva e la nav restano ferme, la Topbar aggiorna il campo", () => {
+  it("la vista attiva e la nav restano ferme, la Topbar aggiorna il campo", async () => {
     render(<VoyageDesk />);
-    expect(screen.getByTestId("dash")).toBeTruthy();
+    // B-1 (audit del 30 agosto): Dashboard è ora lazy — il primo render
+    // mostra il fallback di Suspense, il mock si risolve al microtask
+    // successivo. `findByTestId` attende quella risoluzione; `getByTestId`
+    // fallirebbe sul fallback ancora a schermo.
+    expect(await screen.findByTestId("dash")).toBeTruthy();
     const dopoMount = { ...conteggio };
 
     const input = inputRicerca();
@@ -87,11 +91,15 @@ describe("digitare nella ricerca non ri-renderizza ciò che non mostra la ricerc
     expect(conteggio.bottomNav).toBe(dopoMount.bottomNav);
   });
 
-  it("nemmeno dieci caratteri consecutivi le svegliano", () => {
+  it("nemmeno dieci caratteri consecutivi le svegliano", async () => {
     // Un carattere potrebbe non muovere il contatore per caso (batching di
     // React); dieci no. Il numero serve a distinguere "memoizzato" da
     // "fortunato".
     render(<VoyageDesk />);
+    // Come sopra: si attende che il mount lazy della Dashboard sia risolto
+    // prima di fissare `dopoMount`, altrimenti il suo stesso mount (non i
+    // caratteri digitati) rischia di muovere il contatore nella finestra.
+    await screen.findByTestId("dash");
     const dopoMount = { ...conteggio };
     const input = inputRicerca();
     for (const c of "famiglia r") {

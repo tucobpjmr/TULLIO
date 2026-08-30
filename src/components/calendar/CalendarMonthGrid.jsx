@@ -14,6 +14,7 @@
 // è una scelta estetica — a 52px di altezza tre titoli troncati non si leggono,
 // e il pallino risponde all'unica domanda che serve a quella scala («questo
 // giorno è pieno?»).
+import { memo } from "react";
 import { SwipeActions } from "../tasks/SwipeActions.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { StatusBadge } from "../ui/StatusBadge.jsx";
@@ -36,7 +37,7 @@ import {
  * @param {Function} props.onOpenTask
  * @param {boolean}  props.isMobile
  */
-export function CalendarMonthGrid({
+export const CalendarMonthGrid = memo(function CalendarMonthGrid({
   mese, nomiGiorni, nomeMese, selectedDay, onSelectDay,
   tasksDelGiorno, categories, onOpenTask, isMobile,
 }) {
@@ -151,4 +152,4 @@ export function CalendarMonthGrid({
       {selectedDay && dettaglioGiorno()}
     </>
   );
-}
+});

@@ -58,9 +58,10 @@ const builder = (tabella) => {
   return self;
 };
 
-vi.mock("../../lib/supabase", () => ({
-  supabase: { from: vi.fn((tabella) => builder(tabella)) },
-}));
+vi.mock("../../lib/supabase", () => {
+  const supabase = { from: vi.fn((tabella) => builder(tabella)) };
+  return { supabase, getSupabase: () => Promise.resolve(supabase) };
+});
 
 const { Clients, Tasks, TaskThreads, Messages, Notices, Conversations } = await import("../../lib/api.js");
 const { fetchAllRows, fetchRowsUpTo } = await import("../../lib/pagination.js");

@@ -31,7 +31,7 @@ const render = (ui, { dispatch, ...options } = {}) => {
 };
 
 
-vi.mock("../../lib/supabase", () => ({ supabase: {}, default: {} }));
+vi.mock("../../lib/supabase", () => ({ supabase: {}, default: {}, getSupabase: () => Promise.resolve({}) }));
 
 // Lista con un cointestatario, riusata da più describe qui sotto (home,
 // scheda cliente): stesso identikit, contesti diversi.

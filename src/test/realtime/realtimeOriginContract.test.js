@@ -229,8 +229,8 @@ const builderScrittura = (tabella, op) => ({
   _op: op,
 });
 
-vi.mock('../../lib/supabase', () => ({
-  supabase: {
+vi.mock('../../lib/supabase', () => {
+  const supabase = {
     from: (tabella) => ({
       insert: (payload) => {
         scritture.push({ tabella, op: 'insert', payload });
@@ -245,8 +245,9 @@ vi.mock('../../lib/supabase', () => ({
         return { eq: () => Promise.resolve({ data: null, error: null }) };
       },
     }),
-  },
-}));
+  };
+  return { supabase, getSupabase: () => Promise.resolve(supabase) };
+});
 
 const { Clients } = await import('../../lib/api.js');
 const { getClientId } = await import('../../lib/clientId.js');
@@ -266,13 +267,13 @@ describe('ClientsAPI tagga le proprie scritture', () => {
     expect(scritture[0].payload).toEqual({ city: 'Milano', origin_client: getClientId() });
   });
 
-  it('remove non può taggare: .delete() non trasporta un payload', () => {
+  it('remove non può taggare: .delete() non trasporta un payload', async () => {
     // Non è una dimenticanza ed è documentato in api.js: l'unico modo per
     // rendere leggibile un'origine su una DELETE sarebbe REPLICA IDENTITY
     // FULL, che esporrebbe però l'origine dell'ULTIMA SCRITTURA — chi ha
     // modificato la riga per ultimo scarterebbe la cancellazione fatta da un
     // altro e si terrebbe in lista un cliente che non esiste più.
-    Clients.remove('id-1');
+    await Clients.remove('id-1');
     expect(scritture[0]).toEqual({ tabella: 'clients', op: 'delete', payload: null });
   });
 });

@@ -9,7 +9,7 @@
 // (VIETATE_ENTITA_DELLO_STATE) è dichiarato su quel percorso e un import
 // diretto qui lo aggirerebbe senza che nulla lo segnali.
 
-import { supabase } from '../supabase';
+import { getSupabase } from '../supabase';
 
 // Cache delle signed URL degli avatar. Separata da quella degli allegati
 // (signedUrlCache, subito sotto) perché ha una frequenza d'uso diversa: un
@@ -41,6 +41,7 @@ export const creaSignedUrlGetter = (bucket, cache) => async (path) => {
   if (!path) return { url: null, error: null };
   const cached = cache.get(path);
   if (cached && cached.expiresAt > Date.now()) return { url: cached.url, error: null };
+  const supabase = await getSupabase();
   const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, TTL_SIGNED_URL_S);
   const url = data?.signedUrl ?? null;
   if (url) cache.set(path, { url, expiresAt: Date.now() + TTL_SIGNED_URL_S * 1000 - MARGINE_SCADENZA_MS });

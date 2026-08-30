@@ -8,7 +8,7 @@
 // (VIETATE_ENTITA_DELLO_STATE) è dichiarato su quel percorso e un import
 // diretto qui lo aggirerebbe senza che nulla lo segnali.
 
-import { supabase } from '../supabase';
+import { getSupabase } from '../supabase';
 import { fetchAllRows, WITH_COUNT } from '../pagination.js';
 import { withOrigin } from '../realtime.js';
 import { CONTA_RIGHE } from './comuni.js';
@@ -41,9 +41,11 @@ export const Clients = {
   // per cui la correzione era rimasta indietro — è stato misurato: 11 ms, vedi
   // il commento su Tasks.list. Con quelle tre, ogni lettura del data layer che
   // deve arrivare INTERA è paginata.
-  list: () =>
-    fetchAllRows(() => supabase.from('clients')
-      .select('*', WITH_COUNT).order('name').order('id')),
+  list: async () => {
+    const supabase = await getSupabase();
+    return fetchAllRows(() => supabase.from('clients')
+      .select('*', WITH_COUNT).order('name').order('id'));
+  },
   // ─── M-1 (passo 2) · la ricerca cliente si fa sul SERVER ────────────────
   // (audit performance/UX del 19 agosto)
   //
@@ -81,17 +83,22 @@ export const Clients = {
   // `limit` suggerimenti, non un insieme che deve arrivare intero (è la
   // distinzione fra `fetchRowsUpTo` e `fetchAllRows` in lib/pagination.js, e
   // `limit` è ben sotto `db-max-rows`).
-  cerca: (q, { limit = 20 } = {}) => {
+  cerca: async (q, { limit = 20 } = {}) => {
     const termini = String(q ?? '').trim().split(/\s+/).filter(Boolean);
-    if (termini.length === 0) return Promise.resolve({ data: [], error: null });
+    if (termini.length === 0) return { data: [], error: null };
+    const supabase = await getSupabase();
     let query = supabase.from('clients').select('*');
     for (const t of termini) query = query.ilike('name', `%${t}%`);
     return query.order('name').limit(limit);
   },
-  create: (client) =>
-    supabase.from('clients').insert(withOrigin(client)).select().single(),
-  update: (id, patch) =>
-    supabase.from('clients').update(withOrigin(patch)).eq('id', id).select().single(),
+  create: async (client) => {
+    const supabase = await getSupabase();
+    return supabase.from('clients').insert(withOrigin(client)).select().single();
+  },
+  update: async (id, patch) => {
+    const supabase = await getSupabase();
+    return supabase.from('clients').update(withOrigin(patch)).eq('id', id).select().single();
+  },
   // Niente withOrigin qui: .delete() non accetta un payload (stesso limite di
   // Notifications.remove e Categories.remove), quindi l'eco della DELETE non è
   // filtrabile e ogni client ricarica l'elenco. È il comportamento corretto,
@@ -101,8 +108,10 @@ export const Clients = {
   // non di chi la sta cancellando — e farebbe scartare a QUELL'utente la
   // cancellazione altrui, lasciandogli in lista un cliente che non esiste più.
   // Vedi il blocco (a) in fondo alla migrazione 20260808120000.
-  remove: (id) =>
-    supabase.from('clients').delete(CONTA_RIGHE).eq('id', id),
+  remove: async (id) => {
+    const supabase = await getSupabase();
+    return supabase.from('clients').delete(CONTA_RIGHE).eq('id', id);
+  },
   // Import anagrafica (A-2): insert multi-riga a BLOCCHI invece di N
   // `create()` in Promise.all. Ogni blocco è atomico — o entra tutto o
   // niente — quindi un fallimento a metà lascia uno stato NOTO (i blocchi già
@@ -112,6 +121,7 @@ export const Clients = {
   // per lunghezza della richiesta. `scritti` dice al rollback quante righe
   // NON togliere dalla UI.
   createMany: async (clients, { chunk = 200 } = {}) => {
+    const supabase = await getSupabase();
     let scritti = 0;
     for (let i = 0; i < clients.length; i += chunk) {
       const blocco = clients.slice(i, i + chunk).map(withOrigin);

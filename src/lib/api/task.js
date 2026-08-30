@@ -8,7 +8,7 @@
 // (VIETATE_ENTITA_DELLO_STATE) è dichiarato su quel percorso e un import
 // diretto qui lo aggirerebbe senza che nulla lo segnali.
 
-import { supabase } from '../supabase';
+import { getSupabase } from '../supabase';
 import { fetchAllRows, WITH_COUNT } from '../pagination.js';
 import { withOrigin } from '../realtime.js';
 import { CONTA_RIGHE } from './comuni.js';
@@ -40,6 +40,7 @@ const TASK_SELECT_WITH_COMMENTS =
 const purgeTasks = async (ids) => {
   const lista = (ids || []).filter(Boolean);
   if (!lista.length) return { error: null };
+  const supabase = await getSupabase();
   const filesRes = await supabase.from('task_files').select('file_url').in('task_id', lista);
   if (filesRes.error) {
     console.warn('TasksAPI.purge: lettura allegati task_files fallita, procedo comunque', filesRes.error);
@@ -111,7 +112,8 @@ export const Tasks = {
   // (`inizioFinestra` in hooks/useAppHydration.js, dove sta la spiegazione
   // lunga); qui resta scritto perché è un vincolo di QUESTA firma, e il
   // prossimo chiamante non avrà letto quel file.
-  list: ({ includeDeleted = false, withComments = false, completeDal = null } = {}) => {
+  list: async ({ includeDeleted = false, withComments = false, completeDal = null } = {}) => {
+    const supabase = await getSupabase();
     const select = withComments ? TASK_SELECT_WITH_COMMENTS : '*';
     return fetchAllRows(() => {
       let q = supabase.from('tasks').select(select, WITH_COUNT)
@@ -121,21 +123,31 @@ export const Tasks = {
       return q;
     });
   },
-  create: (task) =>
-    supabase.from('tasks').insert(withOrigin(task)).select().single(),
+  create: async (task) => {
+    const supabase = await getSupabase();
+    return supabase.from('tasks').insert(withOrigin(task)).select().single();
+  },
   // Creazione in blocco (BulkTaskCreator): UNA insert multi-riga invece di N
   // chiamate in parallelo. È atomica — o entrano tutte o nessuna — mentre con
   // Promise.all una riga rifiutata (vincolo, RLS, rete) lasciava passare le
   // altre e l'utente si ritrovava metà batch sul server ma tutte le task in
   // lista, scoprendo la differenza solo al reload successivo.
-  createMany: (tasks) =>
-    supabase.from('tasks').insert(tasks.map(withOrigin)).select(),
-  update: (id, patch) =>
-    supabase.from('tasks').update(withOrigin(patch)).eq('id', id).select().single(),
-  softDelete: (id) =>
-    supabase.from('tasks').update(withOrigin({ deleted_at: new Date().toISOString() }), CONTA_RIGHE).eq('id', id),
-  restore: (id) =>
-    supabase.from('tasks').update(withOrigin({ deleted_at: null }), CONTA_RIGHE).eq('id', id),
+  createMany: async (tasks) => {
+    const supabase = await getSupabase();
+    return supabase.from('tasks').insert(tasks.map(withOrigin)).select();
+  },
+  update: async (id, patch) => {
+    const supabase = await getSupabase();
+    return supabase.from('tasks').update(withOrigin(patch)).eq('id', id).select().single();
+  },
+  softDelete: async (id) => {
+    const supabase = await getSupabase();
+    return supabase.from('tasks').update(withOrigin({ deleted_at: new Date().toISOString() }), CONTA_RIGHE).eq('id', id);
+  },
+  restore: async (id) => {
+    const supabase = await getSupabase();
+    return supabase.from('tasks').update(withOrigin({ deleted_at: null }), CONTA_RIGHE).eq('id', id);
+  },
   // Purge definitiva: la FK task_files.task_id ON DELETE CASCADE ripulisce le
   // righe metadati ma NON tocca i file fisici nel bucket privato 'task-files'
   // (path <task_id>/<uuid>-<nomefile>, vedi TaskFiles.upload). Senza questo step
@@ -205,10 +217,12 @@ export const Tasks = {
 // creata», che è quella che si va a cercare. `fetchAllRows` su una singola
 // riga padre costa lo stesso round-trip e non ha un limite da sbagliare.
 export const TaskThreads = {
-  comments: () =>
-    fetchAllRows(() => supabase.from('comments')
+  comments: async () => {
+    const supabase = await getSupabase();
+    return fetchAllRows(() => supabase.from('comments')
       .select('id, task_id, user_id, text, created_at, users(name)', WITH_COUNT)
-      .order('created_at').order('id')),
+      .order('created_at').order('id'));
+  },
   // A-1 dell'audit del 22 agosto. I commenti dei SOLI task toccati da un
   // evento realtime.
   //
@@ -234,16 +248,20 @@ export const TaskThreads = {
   // caso — improbabile ma non impossibile — di un task con più di 1000
   // commenti, e dove il cap morde è proprio qui: sul reload SELETTIVO, dove le
   // righe che cadono sono le più RECENTI (vedi il preambolo di `comments()`).
-  commentsForTasks: (taskIds) =>
-    fetchAllRows(() => supabase.from('comments')
+  commentsForTasks: async (taskIds) => {
+    const supabase = await getSupabase();
+    return fetchAllRows(() => supabase.from('comments')
       .select('id, task_id, user_id, text, created_at, users(name)', WITH_COUNT)
       .in('task_id', taskIds)
-      .order('created_at').order('id')),
-  historyForTask: (taskId) =>
-    fetchAllRows(() => supabase.from('task_history')
+      .order('created_at').order('id'));
+  },
+  historyForTask: async (taskId) => {
+    const supabase = await getSupabase();
+    return fetchAllRows(() => supabase.from('task_history')
       .select('id, task_id, actor_id, action, old_value, new_value, created_at, users(name)', WITH_COUNT)
       .eq('task_id', taskId)
-      .order('created_at').order('id')),
+      .order('created_at').order('id'));
+  },
 };
 
 // ----------------- COMMENTS -----------------
@@ -257,6 +275,8 @@ export const TaskThreads = {
 // vorrà cancellare un commento senza passare dal registry, cioè senza guard,
 // senza rollback e senza tag origin.
 export const Comments = {
-  create: ({ task_id, user_id, text }) =>
-    supabase.from('comments').insert(withOrigin({ task_id, user_id, text })).select().single(),
+  create: async ({ task_id, user_id, text }) => {
+    const supabase = await getSupabase();
+    return supabase.from('comments').insert(withOrigin({ task_id, user_id, text })).select().single();
+  },
 };

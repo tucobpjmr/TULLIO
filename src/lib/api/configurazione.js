@@ -9,22 +9,30 @@
 // (VIETATE_ENTITA_DELLO_STATE) è dichiarato su quel percorso e un import
 // diretto qui lo aggirerebbe senza che nulla lo segnali.
 
-import { supabase } from '../supabase';
+import { getSupabase } from '../supabase';
 import { withOrigin } from '../realtime.js';
 
 // ----------------- CATEGORIES -----------------
 export const Categories = {
-  list: () =>
-    supabase.from('categories').select('*').order('label'),
-  create: (cat) =>
-    supabase.from('categories').insert(withOrigin(cat)).select().single(),
+  list: async () => {
+    const supabase = await getSupabase();
+    return supabase.from('categories').select('*').order('label');
+  },
+  create: async (cat) => {
+    const supabase = await getSupabase();
+    return supabase.from('categories').insert(withOrigin(cat)).select().single();
+  },
   // key è la PK e non si rinomina: il patch tocca solo i campi visuali.
-  update: (key, patch) =>
-    supabase.from('categories')
+  update: async (key, patch) => {
+    const supabase = await getSupabase();
+    return supabase.from('categories')
       .update(withOrigin({ ...patch, updated_at: new Date().toISOString() }))
-      .eq('key', key).select().single(),
-  remove: (key) =>
-    supabase.from('categories').delete().eq('key', key),
+      .eq('key', key).select().single();
+  },
+  remove: async (key) => {
+    const supabase = await getSupabase();
+    return supabase.from('categories').delete().eq('key', key);
+  },
 };
 
 // ----------------- MESSAGE TEMPLATES (chat, Admin → Sistema) -----------------
@@ -32,16 +40,24 @@ export const Categories = {
 // (il composer chat), scritti solo dall'admin (A-1 dell'audit dell'11 agosto —
 // prima vivevano solo in state.messageTemplates, senza tabella).
 export const MessageTemplates = {
-  list: () =>
-    supabase.from('message_templates').select('*').order('created_at'),
-  create: (tpl) =>
-    supabase.from('message_templates').insert(withOrigin(tpl)).select().single(),
-  update: (id, patch) =>
-    supabase.from('message_templates')
+  list: async () => {
+    const supabase = await getSupabase();
+    return supabase.from('message_templates').select('*').order('created_at');
+  },
+  create: async (tpl) => {
+    const supabase = await getSupabase();
+    return supabase.from('message_templates').insert(withOrigin(tpl)).select().single();
+  },
+  update: async (id, patch) => {
+    const supabase = await getSupabase();
+    return supabase.from('message_templates')
       .update(withOrigin({ ...patch, updated_at: new Date().toISOString() }))
-      .eq('id', id).select().single(),
-  remove: (id) =>
-    supabase.from('message_templates').delete().eq('id', id),
+      .eq('id', id).select().single();
+  },
+  remove: async (id) => {
+    const supabase = await getSupabase();
+    return supabase.from('message_templates').delete().eq('id', id);
+  },
 };
 
 // ----------------- AUDIT LOG (Admin → Log attività) -----------------
@@ -60,9 +76,11 @@ export const AuditLog = {
   // vista è una cronologia recente. La RLS concede la SELECT ai soli admin,
   // quindi per chiunque altro questa chiamata torna un elenco vuoto — non un
   // errore, che è ciò che PostgREST fa quando la policy non seleziona righe.
-  list: ({ limit = 200 } = {}) =>
-    supabase.from('audit_log')
+  list: async ({ limit = 200 } = {}) => {
+    const supabase = await getSupabase();
+    return supabase.from('audit_log')
       .select('id, at, actor_id, actor_name, action, target_type, target_id, details')
       .order('at', { ascending: false })
-      .limit(limit),
+      .limit(limit);
+  },
 };

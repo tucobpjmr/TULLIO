@@ -37,8 +37,8 @@ const taskFilesSelectInMock = vi.fn((_col, _ids) => {
   return Promise.resolve(state.taskFilesSelect);
 });
 
-vi.mock("../../lib/supabase", () => ({
-  supabase: {
+vi.mock("../../lib/supabase", () => {
+  const supabase = {
     from: vi.fn((table) => {
       if (table === "task_files") {
         return { select: vi.fn(() => ({ in: taskFilesSelectInMock })) };
@@ -54,8 +54,9 @@ vi.mock("../../lib/supabase", () => ({
         return { remove: storageRemoveMock };
       }),
     },
-  },
-}));
+  };
+  return { supabase, getSupabase: () => Promise.resolve(supabase) };
+});
 
 const { Tasks } = await import("../../lib/api.js");
 

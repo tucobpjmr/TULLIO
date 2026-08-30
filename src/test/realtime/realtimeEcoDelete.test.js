@@ -24,8 +24,8 @@ vi.mock("../../lib/clientId.js", () => ({ getClientId: () => MIO }));
 let handlerRegistrato = null;
 const removeChannel = vi.fn();
 
-vi.mock("../../lib/supabase", () => ({
-  supabase: {
+vi.mock("../../lib/supabase", () => {
+  const supabase = {
     channel: vi.fn(() => {
       const ch = {
         on: vi.fn((_evento, _filtro, cb) => { handlerRegistrato = cb; return ch; }),
@@ -34,18 +34,25 @@ vi.mock("../../lib/supabase", () => ({
       return ch;
     }),
     removeChannel: (...a) => removeChannel(...a),
-  },
-}));
+  };
+  return { supabase, getSupabase: () => Promise.resolve(supabase) };
+});
 
 const { subscribeToTable } = await import("../../lib/api.js");
+
+// Un giro di microtask: subscribeToTable risolve il client (getSupabase(),
+// asincrono anche quando già mockato con Promise.resolve) prima di agganciare
+// davvero il canale — vedi il preambolo di lib/realtime.js.
+const flush = () => new Promise((r) => setTimeout(r, 0));
 
 describe("subscribeToTable — filtro dell'eco della propria scrittura", () => {
   let ricevuti;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     handlerRegistrato = null;
     ricevuti = [];
     subscribeToTable("tasks", (p) => ricevuti.push(p));
+    await flush();
   });
 
   it("scarta l'eco di una INSERT nostra (l'UI è già aggiornata in ottimistico)", () => {
@@ -88,8 +95,9 @@ describe("subscribeToTable — filtro dell'eco della propria scrittura", () => {
     expect(ricevuti).toHaveLength(1);
   });
 
-  it("l'unsubscribe rimuove il canale", () => {
+  it("l'unsubscribe rimuove il canale", async () => {
     const unsub = subscribeToTable("clients", () => {});
+    await flush();
     unsub();
     expect(removeChannel).toHaveBeenCalled();
   });

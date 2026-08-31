@@ -9,6 +9,7 @@
 // diretto qui lo aggirerebbe senza che nulla lo segnali.
 
 import { getSupabase } from '../supabase';
+import { supabaseAuth } from '../supabaseAuth.js';
 import { withOrigin } from '../realtime.js';
 import { SESSION_EXPIRED_MSG, isExpiredSessionError, invokeFn, CONTA_RIGHE } from './comuni.js';
 import { avatarUrlCache, avatarSignedUrl } from './storage.js';
@@ -119,8 +120,13 @@ export const Users = {
     // e riprovo una volta; se non recupero, restituisco un messaggio chiaro
     // invece di quello criptico della Edge Function.
     if (res.error && isExpiredSessionError(res.error.message)) {
-      const supabase = await getSupabase();
-      const { data: refreshed } = await supabase.auth.refreshSession();
+      // `supabaseAuth` e non `supabase.auth`: il client pieno non ha più
+      // un'istanza gotrue propria (lib/supabase.js, opzione `accessToken`) e
+      // accedere a `supabase.auth.*` oggi solleverebbe. Rinfrescare qui è
+      // comunque la cosa giusta: l'unico proprietario della sessione riscrive
+      // lo storage, e la Edge Function riparte con il token nuovo perché il
+      // client pieno chiede il token a ogni richiesta.
+      const { data: refreshed } = await supabaseAuth.refreshSession();
       if (refreshed?.session) res = await run();
       if (res.error && isExpiredSessionError(res.error.message)) {
         return { data: null, error: { message: SESSION_EXPIRED_MSG } };

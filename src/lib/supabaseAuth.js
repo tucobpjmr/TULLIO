@@ -26,21 +26,29 @@
 // STESSE opzioni — stessa storageKey, stessi header, stesso URL — si ottiene
 // un'istanza indistinguibile da `supabase.auth`, non un client "diverso".
 //
-// COESISTENZA COL CLIENT PIENO (lib/supabase.js). GoTrueClient è progettato
-// per avere PIÙ istanze attive sulla stessa storageKey: è lo stesso
-// meccanismo che tiene sincronizzate due schede dello stesso browser — legge/
-// scrive la sessione da `storage`, ascolta gli eventi `storage` per accorgersi
-// di cambi fatti da un'altra istanza, e usa `navigator.locks` (lock nominato
-// sulla storageKey) per serializzare i refresh del token fra istanze
-// concorrenti. Da quando VoyageDesk monta (post-login) questa istanza resta
-// comunque viva finché AuthProvider è montato — cioè per tutta la sessione —
-// accanto al client pieno: due istanze nella stessa scheda, non uno scenario
-// nuovo per gotrue, ma non è la STESSA cosa di due schede reali, e non è
-// stato validato qui con un progetto Supabase live (nessun ambiente di rete
-// reale in questa sessione di sviluppo). Per restare comunque sul lato
-// prudente, questo modulo è l'UNICA istanza che fa refresh proattivo e legge
-// l'hash dell'URL: lib/supabase.js disattiva `autoRefreshToken` e
-// `detectSessionInUrl` sulla propria — vedi il commento lì.
+// COESISTENZA COL CLIENT PIENO (lib/supabase.js). Questa è l'UNICA istanza
+// gotrue dell'app. Il client pieno ne aveva una propria — stessa storageKey,
+// `autoRefreshToken` spento — nella convinzione che due istanze sulla stessa
+// chiave fossero lo scenario, già previsto da gotrue, di due schede dello
+// stesso browser. Il 31 agosto quella convinzione ha presentato il conto: al
+// rientro dopo un'inattività le due istanze hanno rinfrescato lo STESSO
+// refresh token nello stesso istante, il commit guard di auth-js ha scartato
+// i token della seconda (comportamento corretto: la rotazione non si applica
+// due volte) e supabase-js, davanti alla sessione nulla che ne è risultata, è
+// ricaduto in silenzio sulla anon key — che dalla migrazione
+// 20260806170000_revoke_anon_table_grants non ha GRANT su nulla. Undici
+// tabelle e una vista dell'idratazione hanno risposto «permission denied
+// for table …» a un utente regolarmente autenticato. `autoRefreshToken:
+// false` non bastava a evitarlo, perché `getSession()` rinfresca comunque
+// quando il token è scaduto: a rinfrescare erano in due anche con il
+// refresh proattivo spento su una.
+//
+// Ora il client pieno non ha più alcuna istanza gotrue: chiede il token a
+// QUESTA, a ogni richiesta, tramite l'opzione `accessToken` di supabase-js
+// (vedi il preambolo di lib/supabase.js). Restano due istanze solo fra schede
+// diverse, che è il caso per cui gotrue è progettato — e lì il lettore di
+// token del client pieno rilegge la sessione una seconda volta invece di
+// degradare ad anon.
 //
 // Questo file NON deve importare '../lib/supabase.js' né '@supabase/supabase-js':
 // l'intero motivo per cui esiste è restare fuori dal grafo che li porta con
@@ -52,11 +60,12 @@ import { GoTrueClient } from '@supabase/auth-js';
 // Stessa derivazione di authUrl/storageKey che @supabase/supabase-js usa
 // internamente (SupabaseClient.ts: `ensureTrailingSlash` + `new URL('auth/v1',
 // baseUrl)` per l'URL, `sb-<primo-segmento-host>-auth-token` per la chiave di
-// storage). DEVE combaciare byte per byte con quella che produce
-// `createClient()` per lib/supabase.js, altrimenti le due istanze
-// scriverebbero la sessione in due chiavi diverse e smetterebbero di vedersi
-// — vedi src/test/lib/supabaseAuth.test.js, che confronta questa derivazione
-// con quella osservabile del client pieno.
+// storage). DEVE restare byte per byte quella che `createClient()` produce:
+// è la chiave sotto cui vivono le sessioni già persistite nei browser degli
+// utenti (scritte quando il client pieno aveva ancora un'auth propria) e
+// quella che qualsiasi client supabase-js futuro andrebbe a cercare. Cambiarla
+// non darebbe un errore: darebbe un logout silenzioso per tutti — vedi
+// src/test/lib/supabaseAuth.test.js, che pinna la formula.
 //
 // Esportate come funzioni pure (non lette da proprietà interne di
 // GoTrueClient, che non sono API pubbliche e possono cambiare nome a ogni

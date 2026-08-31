@@ -122,6 +122,13 @@ const AUDIT = [
   // È l'audit con il marcatore piu' esposto a scadere in silenzio — il valore
   // di partenza e' 0/12 e ogni rilievo chiuso lo muove.
   { file: 'AUDIT_UX_ERRORI_2026-08-31.md', prefisso: ['A', 'M', 'B'] },
+  // L'audit di codebase completa del 31 agosto: il primo senza un perimetro
+  // tematico. Registrato insieme al documento, per la ragione scritta piu'
+  // sopra — un audit fuori dal registro ha un marcatore che nessuno verifica,
+  // e il momento in cui scade e' esattamente quello in cui si comincia a
+  // chiudere i suoi rilievi. Nasce con quattordici rilievi tutti aperti ed e'
+  // l'unico con un rilievo CRITICO, quindi i prefissi sono quattro.
+  { file: 'AUDIT_CODEBASE_2026-08-31.md', prefisso: ['C', 'A', 'M', 'B'] },
 ];
 
 // Misura i warning di una regola sul sorgente dell'app.

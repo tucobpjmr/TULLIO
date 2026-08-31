@@ -117,6 +117,11 @@ const AUDIT = [
   // quello in cui si comincia a chiudere i suoi rilievi. Nasce con otto rilievi
   // tutti aperti, nessuno critico: i prefissi sono tre.
   { file: 'AUDIT_STATO_FLUSSO_DATI_2026-08-28.md', prefisso: ['A', 'M', 'B'] },
+  // Registrato insieme al documento, come impone B-6 del 16 agosto: nasce con
+  // dodici rilievi tutti aperti e nessun critico, quindi i prefissi sono tre.
+  // È l'audit con il marcatore piu' esposto a scadere in silenzio — il valore
+  // di partenza e' 0/12 e ogni rilievo chiuso lo muove.
+  { file: 'AUDIT_UX_ERRORI_2026-08-31.md', prefisso: ['A', 'M', 'B'] },
 ];
 
 // Misura i warning di una regola sul sorgente dell'app.

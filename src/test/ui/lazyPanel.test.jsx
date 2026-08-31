@@ -26,6 +26,13 @@ const chunkMancante = () =>
   lazy(() => Promise.reject(new Error(
     "Failed to fetch dynamically imported module: /assets/ChatPanel-Jfa-1086.js")));
 
+// Un crash ORDINARIO (non un chunk mancante): da A-4 i due casi producono due
+// pannelli diversi, quindi i test che verificano il CONFINAMENTO dell'errore o
+// il riarmo su `resetKey` — proprietà che non dipendono da quale pannello sia
+// mostrato — usano questo, per non confondersi con il rilievo A-4 qui sotto.
+const crashOrdinario = () =>
+  lazy(() => Promise.reject(new Error("boom")));
+
 // L'antenato che nell'app è l'ErrorBoundary di main.jsx: qui serve solo a
 // rendere OSSERVABILE la differenza fra un errore confinato e uno che sale.
 class Antenato extends React.Component {
@@ -56,7 +63,7 @@ describe("LazyPanel — l'errore di un chunk resta nel pannello", () => {
   });
 
   it("con LazyPanel l'antenato non vede niente e il resto resta a schermo", async () => {
-    const Pannello = chunkMancante();
+    const Pannello = crashOrdinario();
     render(
       <Antenato>
         <div>la dashboard sotto</div>
@@ -71,7 +78,7 @@ describe("LazyPanel — l'errore di un chunk resta nel pannello", () => {
   });
 
   it("il bottone del riquadro chiama onReset: un «Chiudi» deve chiudere", async () => {
-    const Pannello = chunkMancante();
+    const Pannello = crashOrdinario();
     const onReset = vi.fn();
     render(
       <LazyPanel resetKey="chat" onReset={onReset}>
@@ -81,6 +88,24 @@ describe("LazyPanel — l'errore di un chunk resta nel pannello", () => {
     await screen.findByText(/Non è stato possibile aprire questo pannello/);
     fireEvent.click(screen.getByRole("button", { name: /Chiudi/ }));
     expect(onReset).toHaveBeenCalledTimes(1);
+  });
+
+  // A-4 · lo stesso pannello che LazyPanel monta (OverlayErrorBoundary) deve
+  // riconoscere un chunk mancante e mostrare l'annuncio dedicato invece del
+  // riquadro generico — «Chiudi» non ripara un chunk mancante, «Ricarica» sì.
+  it("un chunk mancante mostra 'Tullio è stato aggiornato', non il riquadro generico", async () => {
+    const Pannello = chunkMancante();
+    render(
+      <Antenato>
+        <div>la dashboard sotto</div>
+        <LazyPanel resetKey="chat" onReset={() => {}}>
+          <Pannello />
+        </LazyPanel>
+      </Antenato>
+    );
+    await screen.findByText("Tullio è stato aggiornato");
+    expect(screen.queryByText(/Non è stato possibile aprire questo pannello/)).toBeNull();
+    expect(screen.getByText("la dashboard sotto")).toBeTruthy();
   });
 
   it("finché il chunk è in volo mostra l'attesa annunciata, non il riquadro", async () => {
@@ -97,7 +122,7 @@ describe("LazyPanel — l'errore di un chunk resta nel pannello", () => {
   });
 
   it("si riarma al cambio di resetKey: un crash sul contenuto precedente non resta appeso al nuovo", async () => {
-    const Rotto = chunkMancante();
+    const Rotto = crashOrdinario();
     const Sano = () => <div>il task nuovo</div>;
     const { rerender } = render(
       <LazyPanel resetKey="task-1" onReset={() => {}}><Rotto /></LazyPanel>

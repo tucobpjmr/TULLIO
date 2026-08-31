@@ -119,7 +119,16 @@ const isRumoreBrowser = (e) => /ResizeObserver loop/i.test(superficie(e));
 // Vite/Rollup producono le prime tre (Chrome, Firefox e Safari usano ognuno la
 // propria), `ChunkLoadError` è la forma storica di webpack — che questo
 // progetto non usa oggi, ma che arriva comunque da dipendenze e polyfill.
-const isChunkMancante = (e) =>
+// Esportato (A-4): serve a DUE consumatori con lo stesso bisogno — questo
+// handler, che deve dire la frase giusta, e i tre error boundary
+// (creaErrorBoundary.jsx), che devono offrire il bottone giusto invece del
+// pannello generico. Tenerlo privato ha significato finora che i boundary non
+// lo sapevano: un chunk mancante che fallisce dentro un render (non in un
+// `.then()`/evento globale) non passa da qui, passa da un boundary, e quello
+// applicava comunque il pannello «Questa sezione ha avuto un problema» con
+// «← Torna alla Dashboard» — un rimedio che non ripara nulla e richiude il
+// ciclo (si torna, si riclicca, il chunk manca ancora).
+export const isChunkMancante = (e) =>
   /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed|ChunkLoadError|Loading chunk \S+ failed/i
     .test(superficie(e));
 
@@ -134,11 +143,26 @@ const testoLeggibile = (motivo) => {
   return "errore imprevisto";
 };
 
-const messaggioUtente = (motivo) => (
-  isChunkMancante(motivo)
-    ? "L'app è stata aggiornata: ricarica la pagina per continuare."
-    : `Operazione non riuscita: ${testoLeggibile(motivo)}`
-);
+// B-2 · `ErrorDetails` in produzione NASCONDE il messaggio dell'eccezione
+// (rumore per l'utente + information disclosure), e questo handler faceva il
+// contrario sullo stesso schermo: `Operazione non riuscita: Cannot read
+// properties of undefined (reading 'assignees')` o `…: Failed to fetch`
+// finivano in un toast davanti a un agente di viaggio. Le due politiche vanno
+// allineate, non irrigidite: un errore del DATA LAYER porta informazione
+// azionabile (un vincolo PostgREST dice quale regola ha respinto la
+// scrittura) e resta leggibile; un errore di PROGRAMMAZIONE (TypeError,
+// ReferenceError, RangeError) no, e diventa un codice da dettare — la stessa
+// politica di ErrorDetails, applicata all'altro canale.
+const isErroreDiProgrammazione = (e) =>
+  e instanceof TypeError || e instanceof ReferenceError || e instanceof RangeError;
+
+const messaggioUtente = (motivo, codice) => {
+  if (isChunkMancante(motivo)) return "L'app è stata aggiornata: ricarica la pagina per continuare.";
+  if (import.meta.env.DEV || !isErroreDiProgrammazione(motivo)) {
+    return `Operazione non riuscita: ${testoLeggibile(motivo)}`;
+  }
+  return `Operazione non riuscita. Se si ripete, segnala il codice ${codice}.`;
+};
 
 // ─── ANTI-RAFFICA ──────────────────────────────────────────────────────────
 // Una promise che fallisce dentro un intervallo o una subscription che
@@ -169,16 +193,27 @@ const giaSegnalato = (messaggio) => {
 function segnala(motivo, origine) {
   if (isAbort(motivo) || isRumoreBrowser(motivo)) return;
 
+  // Il codice nasce QUI, non dentro `messaggioUtente`: deve essere lo STESSO
+  // sia nella riga di console sia nel toast, ed è anche ciò che rende
+  // dettabile un errore di programmazione (B-2) — senza, l'utente non avrebbe
+  // nulla da segnalare oltre a "non riuscito".
+  const codice = codiceSegnalazione();
+
   // La console resta il canale della diagnosi e non passa dal dedup: chi apre
   // gli strumenti sviluppatore vuole vedere TUTTE le occorrenze, incluse le
   // ripetizioni che all'utente non diciamo (spesso è la ripetizione stessa,
   // non il singolo errore, a rivelare il problema).
-  console.error(`[VoyageDesk] errore non gestito (${origine}):`, motivo);
+  console.error(`[VoyageDesk] errore non gestito (${origine}) (${codice}):`, motivo);
 
   if (!sink) return;
-  const messaggio = messaggioUtente(motivo);
-  if (giaSegnalato(messaggio)) return;
-  sink(messaggio);
+  // La chiave di dedup non può essere il MESSAGGIO finale: da B-2 quello
+  // porta il codice di segnalazione, che è nuovo a ogni occorrenza per
+  // costruzione — usarlo come chiave farebbe sembrare "nuova" ogni
+  // ripetizione dello stesso errore di programmazione. Si dedup sulla
+  // superficie dell'errore, che è stabile.
+  const chiaveDedup = `${origine}:${superficie(motivo)}`;
+  if (giaSegnalato(chiaveDedup)) return;
+  sink(messaggioUtente(motivo, codice));
 }
 
 /**

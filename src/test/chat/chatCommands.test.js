@@ -322,3 +322,95 @@ describe("chatCommands — sendMessage: registro delle scritture in volo e compe
     expect(onError).toHaveBeenCalledTimes(1);
   });
 });
+
+// A-5 dell'audit UX/errori del 31 agosto. `MessagesAPI.send` non RISOLVE
+// sempre con un errore dentro: può anche RIGETTARE (fetch che fallisce, DNS
+// giù, CORS, rete perduta a metà invio). Prima di questa correzione quel ramo
+// non aveva alcun `.catch()`: il `.then` non girava, la compensazione non
+// girava, e il messaggio fantasma restava a schermo indistinguibile da uno
+// consegnato — la stessa identica lacuna sull'INSERT di creazione conversazione.
+describe("chatCommands — sendMessage: la promise RIGETTATA compensa come quella risolta con errore (A-5)", () => {
+  it("un fetch fallito (promise rigettata) toglie il fantasma, smarca e mostra il toast", async () => {
+    MessagesAPI.send.mockImplementationOnce(() => Promise.reject(new Error("Failed to fetch")));
+    const smarcaInVolo = vi.fn();
+    let msg = {};
+    const onError = vi.fn();
+    const commands = makeChatCommands({
+      setMessages: (u) => { msg = typeof u === "function" ? u(msg) : u; },
+      enabled: true,
+      getCurrentUserId: () => "u1",
+      onError,
+      smarcaInVolo,
+    });
+
+    const normalized = commands.sendMessage(UUID_CONV, { id: "m-provv", sender: "u1", type: "text", text: "ciao" });
+    expect(msg[UUID_CONV]).toHaveLength(1); // ottimistico
+
+    await new Promise(r => setTimeout(r, 0));
+    expect(msg[UUID_CONV]).toHaveLength(0); // compensato: nessun fantasma
+    expect(smarcaInVolo).toHaveBeenCalledWith(normalized.id);
+    expect(onError).toHaveBeenCalledTimes(1);
+  });
+
+  it("il testo torna al composer tramite ascoltaInvioFallito quando l'invio rigetta", async () => {
+    MessagesAPI.send.mockImplementationOnce(() => Promise.reject(new Error("Failed to fetch")));
+    let msg = {};
+    const commands = makeChatCommands({
+      setMessages: (u) => { msg = typeof u === "function" ? u(msg) : u; },
+      enabled: true,
+      getCurrentUserId: () => "u1",
+    });
+
+    const ripristinato = vi.fn();
+    commands.ascoltaInvioFallito(UUID_CONV, ripristinato);
+    const normalized = commands.sendMessage(UUID_CONV, { id: "m-provv", sender: "u1", type: "text", text: "un testo lungo da recuperare" });
+
+    await new Promise(r => setTimeout(r, 0));
+    expect(ripristinato).toHaveBeenCalledWith(expect.objectContaining({ id: normalized.id, text: "un testo lungo da recuperare" }));
+  });
+
+  it("disiscrivendosi non arriva più nulla", async () => {
+    MessagesAPI.send.mockImplementationOnce(async () => ({ error: { message: "boom" } }));
+    let msg = {};
+    const commands = makeChatCommands({
+      setMessages: (u) => { msg = typeof u === "function" ? u(msg) : u; },
+      enabled: true,
+      getCurrentUserId: () => "u1",
+    });
+
+    const ripristinato = vi.fn();
+    const disiscriviti = commands.ascoltaInvioFallito(UUID_CONV, ripristinato);
+    disiscriviti();
+    commands.sendMessage(UUID_CONV, { id: "m-provv", sender: "u1", type: "text", text: "ciao" });
+
+    await new Promise(r => setTimeout(r, 0));
+    expect(ripristinato).not.toHaveBeenCalled();
+  });
+
+  it("anche il rigetto della CREAZIONE della conversazione compensa il primo messaggio", async () => {
+    ConversationsAPI.create.mockImplementationOnce(() => Promise.reject(new Error("Failed to fetch")));
+    const stato = { conv: [], msg: {} };
+    const onError = vi.fn();
+    const smarcaInVolo = vi.fn();
+    const commands = makeChatCommands({
+      setConversations: (u) => { stato.conv = typeof u === "function" ? u(stato.conv) : u; },
+      setMessages: (u) => { stato.msg = typeof u === "function" ? u(stato.msg) : u; },
+      enabled: true,
+      onError,
+      smarcaInVolo,
+    });
+
+    const ripristinato = vi.fn();
+    const conv = commands.createConversation({ id: UUID_CONV, type: "direct", participants: ["a", "b"] });
+    commands.ascoltaInvioFallito(conv.id, ripristinato);
+    commands.sendMessage(conv.id, { id: UUID_MSG, sender: "a", type: "text", text: "primo" });
+
+    await new Promise(r => setTimeout(r, 0));
+    expect(MessagesAPI.send).not.toHaveBeenCalled();
+    expect(stato.msg[conv.id]).toHaveLength(0);
+    expect(smarcaInVolo).toHaveBeenCalledWith(UUID_MSG);
+    expect(ripristinato).toHaveBeenCalledWith(expect.objectContaining({ id: UUID_MSG }));
+    // Il toast della conversazione fallita basta: sendMessage non ne aggiunge un secondo.
+    expect(onError).toHaveBeenCalledTimes(1);
+  });
+});

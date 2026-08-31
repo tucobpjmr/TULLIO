@@ -68,6 +68,29 @@ export function makeChatCommands({
   // che l'utente vede come "il messaggio non arriva").
   const creazioniInVolo = new Map();
 
+  // A-5 · Ascoltatori per conversazione di un invio fallito: il composer di
+  // `ConversationView` si iscrive per QUELLA conversazione e ripopola il
+  // campo di testo col messaggio perso — senza, l'unico segnale di un invio
+  // fallito era il toast generico, che non restituisce nulla di ciò che
+  // l'utente aveva scritto. Vive DENTRO la factory (non a livello di modulo)
+  // per la stessa ragione di `creazioniInVolo`: ogni istanza di comandi ha il
+  // proprio ciclo di vita.
+  const ripristinoAscoltatori = new Map(); // convId → Set<(msg) => void>
+
+  const onInvioFallito = (convId, msg) => {
+    for (const fn of ripristinoAscoltatori.get(convId) || []) fn(msg);
+  };
+
+  const ascoltaInvioFallito = (convId, fn) => {
+    if (!ripristinoAscoltatori.has(convId)) ripristinoAscoltatori.set(convId, new Set());
+    const set = ripristinoAscoltatori.get(convId);
+    set.add(fn);
+    return () => {
+      set.delete(fn);
+      if (set.size === 0) ripristinoAscoltatori.delete(convId);
+    };
+  };
+
   const fallito = (contesto, err, testo) => {
     console.error(`[chat] ${contesto}`, err);
     onError(testo);
@@ -222,14 +245,30 @@ export function makeChatCommands({
       }));
     };
 
+    // A-5 · Un percorso di fallimento SOLO, per i due modi in cui l'invio può
+    // non essere arrivato sul server: `esitoScrittura` legge la promise
+    // RISOLTA con un errore dentro (RLS, vincolo PostgREST — vedi
+    // lib/esitoScrittura.js), il `.catch` qui sotto quella RIGETTATA (`fetch`
+    // che fallisce, DNS giù, CORS, tab che perde la rete a metà invio). Prima
+    // solo il primo caso toglieva il messaggio fantasma: sul secondo `.then`
+    // non girava affatto, `scartaOttimistico` non girava, e restava
+    // esattamente il messaggio fantasma che il commento sopra dichiara di
+    // aver tolto — a schermo, indistinguibile da uno consegnato, destinato a
+    // sparire al prossimo reload, cioè quando l'utente non lo sta più
+    // guardando.
+    const fallimento = (errore) => {
+      scartaOttimistico();
+      // Il testo torna al mittente: toglierlo dallo schermo senza
+      // restituirlo distruggerebbe quello che ha scritto per un errore di
+      // rete — la stessa domanda a cui `formSenzaAttesaEsito` risponde per i
+      // form, posta al sottosistema che scrive più di tutti (A-5).
+      onInvioFallito(convId, normalized);
+      fallito("msg.send", errore, `Chat: invio messaggio fallito: ${errore?.message || ""}`);
+    };
+
     const invia = () => MessagesAPI.send(toDbMessage(normalized, convId))
-      .then(r => {
-        const errore = esitoScrittura(r);
-        if (errore) {
-          scartaOttimistico();
-          fallito("msg.send", errore, `Chat: invio messaggio fallito: ${errore.message || ""}`);
-        }
-      })
+      .then(r => { const errore = esitoScrittura(r); if (errore) fallimento(errore); })
+      .catch(fallimento)
       // finally e non .then(): un errore di rete che lasciasse l'id marcato
       // per sempre bloccherebbe quel messaggio dal realtime per il resto
       // della sessione — stessa ragione del finally in useSyncedDispatch.
@@ -237,18 +276,26 @@ export function makeChatCommands({
 
     // Se la conversazione è appena stata creata e l'INSERT è ancora in volo,
     // aspetta. Se quella creazione è fallita non si tenta l'invio: il toast
-    // d'errore è già stato mostrato per la conversazione, ma il messaggio
-    // fantasma va comunque tolto e smarcato — non lo farà mai nessun altro.
+    // d'errore è già stato mostrato per la conversazione (niente `fallito`
+    // qui, per non duplicarlo), ma il messaggio fantasma e il testo digitato
+    // vanno comunque tolti e restituiti — non lo farà mai nessun altro.
     const attesa = creazioniInVolo.get(convId);
     if (attesa) {
-      attesa.then(r => {
-        if (r?.error) {
-          scartaOttimistico();
-          smarcaInVolo(normalized.id);
-        } else {
-          invia();
-        }
-      });
+      attesa.then(
+        (r) => {
+          if (r?.error) {
+            scartaOttimistico();
+            onInvioFallito(convId, normalized);
+            smarcaInVolo(normalized.id);
+          } else {
+            invia();
+          }
+        },
+        // Anche la CREAZIONE della conversazione può RIGETTARE invece di
+        // risolvere: senza questo ramo il messaggio resta in volo per sempre
+        // e il realtime lo scarta per il resto della sessione (A-5).
+        (err) => { fallimento(err); smarcaInVolo(normalized.id); },
+      );
     } else {
       invia();
     }
@@ -407,5 +454,6 @@ export function makeChatCommands({
     setMessagePinned,
     markConversationRead,
     toggleReaction,
+    ascoltaInvioFallito,
   };
 }

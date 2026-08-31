@@ -17,23 +17,13 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Z } from "../../styles/tokens.js";
+import { apriModale, chiudiModale, inCima } from "./pilaModali.js";
+import { useTrappolaFocus } from "../../hooks/useTrappolaFocus.js";
 
 // Un'unica opacità dell'overlay. Le sette varianti precedenti erano deriva
 // accumulata, non gerarchia: nessuna vista mostra due overlay sovrapposti in
 // cui la differenza di tono comunichi qualcosa.
 const VELO = "rgba(15,32,68,0.5)";
-
-// ─── PILA DEI MODALI APERTI ──────────────────────────────────────────────────
-// Esc deve chiudere UN modale: quello in cima. Il listener è su `window`, quindi
-// senza questa pila ogni Modal montato riceve lo stesso keydown e li chiude
-// TUTTI insieme — con i modali annidati che l'app ha davvero (la CropModal si
-// apre da ProfileEditor, una ConfirmDialog si apre dall'import clienti) un Esc
-// per annullare il ritaglio butterebbe via anche il form del profilo sotto.
-//
-// Un array di token opachi e non un contatore: l'ordine di smontaggio non è
-// garantito essere l'inverso di quello di montaggio (React può smontare un
-// sottoalbero intero), quindi la rimozione avviene per identità.
-const pila = [];
 
 /**
  * @param {boolean}   open
@@ -56,14 +46,14 @@ export function Modal({
   // quello che gli si è aperto sopra.
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  const cardRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
-    const token = {};
-    pila.push(token);
+    const token = apriModale();
     const onKey = (e) => {
       if (e.key !== "Escape") return;
-      if (pila[pila.length - 1] !== token) return;   // non sono io quello in cima
+      if (!inCima(token)) return;   // non sono io quello in cima
       onCloseRef.current?.();
     };
     // Blocco dello scroll di fondo: senza, su mobile lo scroll "attraversa" il
@@ -75,12 +65,15 @@ export function Modal({
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", onKey);
     return () => {
-      const i = pila.indexOf(token);
-      if (i >= 0) pila.splice(i, 1);
+      chiudiModale(token);
       document.body.style.overflow = precedente;
       window.removeEventListener("keydown", onKey);
     };
   }, [open]);
+
+  // M-3 · `aria-modal="true"` senza trappola del focus né restituzione era
+  // una promessa non mantenuta: vedi hooks/useTrappolaFocus.js.
+  useTrappolaFocus(cardRef, open);
 
   if (!open) return null;
 
@@ -97,6 +90,7 @@ export function Modal({
       }}
     >
       <div
+        ref={cardRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}

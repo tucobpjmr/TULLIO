@@ -11,12 +11,17 @@ Dodici rilievi: **nessuno critico, cinque di alta priorità.**
 strategico n. 1: sono la stessa domanda posta in due momenti diversi. Vedi
 «Come sono stati chiusi» in fondo al documento.
 
+✅ **I restanti dieci rilievi (A-2, A-4, A-5, M-1, M-2, M-3, M-4, B-1, B-2,
+B-3) sono stati chiusi anch'essi**, nella stessa sessione in cui è stato
+scritto questo aggiornamento. Vedi «Come sono stati chiusi (A-2…B-3)» in fondo
+al documento. **Dodici rilievi su dodici chiusi.**
+
 Base di partenza misurata su questo commit: `npm ci` pulito, `npm test` verde
 (1895 passati, 23 saltati su 155 file), `npm run lint` senza segnalazioni,
 `npm run verifica:convenzioni` verde (53 controlli, nessuna divergenza),
 tredici audit precedenti chiusi o quasi.
 
-⟦stato: 2/12 chiusi⟧
+⟦stato: 12/12 chiusi⟧
 
 > **Sulla numerazione.** `A-` = alta priorità, `M-` = media, `B-` = bassa,
 > come negli audit dal 12 agosto in poi. Nessun `C-`: vedi l'executive summary.
@@ -107,17 +112,17 @@ che `errorReporting.js` nomina nel proprio preambolo: **«credo di aver salvato�
 | # | Priorità | Rilievo | File |
 |---|---|---|---|
 | **A-1** ✔ | **Alta** | I canali realtime chiamano `.subscribe()` senza callback di stato: `CHANNEL_ERROR`/`TIMED_OUT`/`CLOSED` non li legge nessuno. Con l'HTTP ancora vivo `OfflineBanner` tace, e l'utente lavora su dati fermi senza saperlo. | `src/lib/realtime.js:114,225` |
-| A-2 | **Alta** | Il cap a 3 dei toast espelle in FIFO senza guardare il tipo: un errore che per policy non scade da solo viene tolto da un successo arrivato dopo. L'idratazione può emetterne 6 nella stessa finestra. | `src/state/toastQueue.js:42` |
+| **A-2** ✔ | **Alta** | Il cap a 3 dei toast espelle in FIFO senza guardare il tipo: un errore che per policy non scade da solo viene tolto da un successo arrivato dopo. L'idratazione può emetterne 6 nella stessa finestra. | `src/state/toastQueue.js:42` |
 | **A-3** ✔ | **Alta** | Un caricamento **fallito** chiude il flag e si disegna come **vuoto**: «Nessuna task aperta a tuo nome. Buon lavoro!» su un fetch andato storto. Nessuno stato d'errore per entità, nessun «Riprova». | `src/hooks/useAppHydration.js:202-211` |
-| A-4 | **Alta** | Chunk lazy mancante dopo un deploy: i boundary non lo distinguono da un bug e offrono una via d'uscita che non lo risolve, richiudendo il ciclo. Il riconoscitore esiste già, ma è privato dell'handler globale. | `src/components/errors/creaErrorBoundary.jsx:74-77`, `src/lib/errorReporting.js` |
-| A-5 | **Alta** | `sendMessage` della chat non ha `.catch()`: su **rigetto** di rete la compensazione non gira, il messaggio fantasma resta a schermo indistinguibile da uno consegnato. E sul ramo gestito il testo digitato viene scartato senza possibilità di recupero. | `src/components/chat/chatCommands.js:225-254` |
-| M-1 | Media | Tre modali del modulo Liste ancora sulla validazione a toast (la frase che `validators.js` cita come anti-pattern). E il controllo che dovrebbe vederli ha il perimetro definito dal marcatore della conformità: 7 form su ~25. | `EditMovimentoModal.jsx:22`, `NuovaListaModal.jsx:21`, `AggiungiBeneficiarioModal.jsx:22`, `BulkMovimentiModal.jsx:28,49`, `scripts/verifica-convenzioni/convenzioni.js:370` |
-| M-2 | Media | `LvOverlay` chiude sul click al velo **senza condizioni**. `closeOnOverlay={false}` esiste ed è applicato ai 5 form di `ui/Modal`, non agli 11 modali del modulo denaro. | `src/components/liste/modals/LvOverlay.jsx:59` |
-| M-3 | Media | `role="dialog" aria-modal="true"` dichiarato in entrambi i gusci, ma **nessuna trappola del focus e nessuna restituzione**: il Tab esce nella pagina sotto e alla chiusura il focus torna su `<body>`. | `src/components/ui/Modal.jsx`, `src/components/liste/modals/LvOverlay.jsx` |
-| M-4 | Media | Tre `<form>` in tutta l'app. I ~20 form restanti sono `div` + bottone: **Invio non invia**, incluso `AddMovBox`, il form a frequenza più alta del gestionale. | `src/components/liste/AddMovBox.jsx:99-150` e altri |
-| B-1 | Bassa | `ToastStack` è `aria-live="assertive"`: anche «Task aggiornato!» interrompe lo screen reader a metà frase. La distinzione `alert`/`status` è già sui figli e viene annullata dal contenitore. | `src/components/ui/Toast.jsx:20-24` |
-| B-2 | Bassa | Due politiche per lo stesso dato: i boundary in produzione **nascondono** il dettaglio tecnico, l'handler globale lo **interpola** nel toast (`Operazione non riuscita: Failed to fetch`). | `src/lib/errorReporting.js` (`messaggioUtente`) |
-| B-3 | Bassa | `LvOverlay` non partecipa alla pila dei modali di `ui/Modal`: un Esc con una `ConfirmDialog` aperta sopra ne chiuderebbe due. Latente oggi (nessuna conferma nasce da dentro un `LvOverlay`), non presidiato. | `src/components/liste/modals/LvOverlay.jsx:42-43` |
+| **A-4** ✔ | **Alta** | Chunk lazy mancante dopo un deploy: i boundary non lo distinguono da un bug e offrono una via d'uscita che non lo risolve, richiudendo il ciclo. Il riconoscitore esiste già, ma è privato dell'handler globale. | `src/components/errors/creaErrorBoundary.jsx:74-77`, `src/lib/errorReporting.js` |
+| **A-5** ✔ | **Alta** | `sendMessage` della chat non ha `.catch()`: su **rigetto** di rete la compensazione non gira, il messaggio fantasma resta a schermo indistinguibile da uno consegnato. E sul ramo gestito il testo digitato viene scartato senza possibilità di recupero. | `src/components/chat/chatCommands.js:225-254` |
+| **M-1** ✔ | Media | Tre modali del modulo Liste ancora sulla validazione a toast (la frase che `validators.js` cita come anti-pattern). E il controllo che dovrebbe vederli ha il perimetro definito dal marcatore della conformità: 7 form su ~25. | `EditMovimentoModal.jsx:22`, `NuovaListaModal.jsx:21`, `AggiungiBeneficiarioModal.jsx:22`, `BulkMovimentiModal.jsx:28,49`, `scripts/verifica-convenzioni/convenzioni.js:370` |
+| **M-2** ✔ | Media | `LvOverlay` chiude sul click al velo **senza condizioni**. `closeOnOverlay={false}` esiste ed è applicato ai 5 form di `ui/Modal`, non agli 11 modali del modulo denaro. | `src/components/liste/modals/LvOverlay.jsx:59` |
+| **M-3** ✔ | Media | `role="dialog" aria-modal="true"` dichiarato in entrambi i gusci, ma **nessuna trappola del focus e nessuna restituzione**: il Tab esce nella pagina sotto e alla chiusura il focus torna su `<body>`. | `src/components/ui/Modal.jsx`, `src/components/liste/modals/LvOverlay.jsx` |
+| **M-4** ✔ | Media | Tre `<form>` in tutta l'app. I ~20 form restanti sono `div` + bottone: **Invio non invia**, incluso `AddMovBox`, il form a frequenza più alta del gestionale. | `src/components/liste/AddMovBox.jsx:99-150` e altri |
+| **B-1** ✔ | Bassa | `ToastStack` è `aria-live="assertive"`: anche «Task aggiornato!» interrompe lo screen reader a metà frase. La distinzione `alert`/`status` è già sui figli e viene annullata dal contenitore. | `src/components/ui/Toast.jsx:20-24` |
+| **B-2** ✔ | Bassa | Due politiche per lo stesso dato: i boundary in produzione **nascondono** il dettaglio tecnico, l'handler globale lo **interpola** nel toast (`Operazione non riuscita: Failed to fetch`). | `src/lib/errorReporting.js` (`messaggioUtente`) |
+| **B-3** ✔ | Bassa | `LvOverlay` non partecipa alla pila dei modali di `ui/Modal`: un Esc con una `ConfirmDialog` aperta sopra ne chiuderebbe due. Latente oggi (nessuna conferma nasce da dentro un `LvOverlay`), non presidiato. | `src/components/liste/modals/LvOverlay.jsx:42-43` |
 
 ---
 
@@ -1301,3 +1306,163 @@ registry.
 - `npm test` 1937 passati / 23 saltati su 160 file (erano 1895 su 155);
   `npm run lint` e `npm run verifica:tipi` puliti;
   `npm run verifica:convenzioni` 55 controlli, nessuna divergenza.
+
+## Come sono stati chiusi A-2…B-3
+
+I dieci rilievi restanti, chiusi nella sessione successiva a quella di A-1/A-3.
+
+### A-2 · il cap dei toast non espelle più gli errori non letti
+
+`state/toastQueue.js`: `pushToast` non applica più `slice(-3)` alla coda. Un
+errore (`type: "error"`) non scade da solo per decisione di `ToastItem` e ora
+non viene più buttato via da un successo arrivato dopo: si sfoltiscono solo i
+toast che sarebbero scaduti da sé (successi/warning), dal più vecchio, fino a
+`MAX_A_SCHERMO` (3). Il tetto **visivo** — quanti se ne disegnano — si è
+spostato in `ToastStack` (`components/ui/Toast.jsx`), che mostra gli ultimi
+tre e un contatore `role="status"` («+N altri messaggi in coda») per quelli
+rimasti fuori: un errore non letto che non entra a schermo si CONTA invece di
+sparire in silenzio. Test: sei errori consecutivi restano sei in coda; un
+successo dopo tre errori non ne espelle nessuno; quattro successi consecutivi
+ne lasciano tre; ToastStack mostra tre toast e il contatore per il resto.
+
+### A-4 · il chunk mancante ha un pannello suo, in tutti e tre i boundary
+
+`isChunkMancante` (`lib/errorReporting.js`) è ora **esportato**. In
+`components/errors/creaErrorBoundary.jsx`, `getDerivedStateFromError` calcola
+`obsoleto: isChunkMancante(error)` nello stesso momento in cui genera il
+codice di segnalazione (stessa ragione: è una proprietà dell'errore
+CATTURATO, non deve poter cambiare mentre il pannello è a schermo), e
+`render()` mostra `<PannelloAppAggiornata />` — nuovo componente, un solo
+annuncio («Tullio è stato aggiornato», bottone Ricarica) — al posto del
+`Fallback` di dominio quando `obsoleto` è vero. Vale per tutti e tre i
+boundary (primo livello, vista, overlay) perché il lifecycle è condiviso: il
+rimedio (ricaricare) non dipende da quale dei tre ha catturato l'errore, e le
+due vie d'uscita di dominio («Torna alla Dashboard», «Chiudi») smettono di
+richiudere il ciclo su un chunk 404.
+
+### A-5 · l'invio fallito compensa sempre, e il testo torna al mittente
+
+`components/chat/chatCommands.js`: `sendMessage` ha ora un solo percorso di
+fallimento (`fallimento(errore)`) raggiunto sia dal `.then()` che legge
+`esitoScrittura` (RLS, vincolo PostgREST) sia da un nuovo `.catch(fallimento)`
+sulla promise di `MessagesAPI.send` (fetch fallito, DNS, CORS, rete perduta a
+metà invio) — prima quel secondo caso non aveva alcuna compensazione, e il
+messaggio ottimistico restava a schermo indistinguibile da uno consegnato. Il
+ramo dell'attesa sulla creazione della conversazione in volo ha anch'esso un
+secondo argomento di rigetto. Il testo non è più perso: un piccolo registro di
+ascoltatori per conversazione (`ascoltaInvioFallito`, dentro la stessa
+factory, come `creazioniInVolo`) notifica `ConversationView`, che ripopola il
+composer (azione `RESTORE_FALLITO` in `chatReducers.js`) e mostra l'etichetta
+«Non inviato — riprova» (`MessageComposer.jsx`) finché l'utente non tocca il
+campo o rinvia. Test end-to-end (`chatInvioFallitoUI.test.jsx`): il fantasma
+sparisce, il testo torna nell'input, l'etichetta compare.
+
+### M-1 · i quattro modali migrati al pattern di AddMovBox
+
+`EditMovimentoModal`, `NuovaListaModal`, `AggiungiBeneficiarioModal`,
+`BulkMovimentiModal` sono passati dalla validazione a toast (`onSave.onError`)
+a `validaCampi` + `<FieldError>` per campo, con focus sul primo campo
+sbagliato. Le regole sono condivise e non ricopiate: `regoleMovimento.js`
+(stesse di `AddMovBox`, ora anch'esso importato da lì) per data/descrizione/
+importo, `regoleCliente.js` per il picker cliente-esistente-o-nuovo comune a
+`NuovaListaModal` e `AggiungiBeneficiarioModal` (`newName` obbligatorio solo
+se `clientId === "__new__"`). `BulkMovimentiModal` — il caso peggiore
+dell'audit, «3 righe hanno descrizione o importo mancante» senza dire quali —
+valida ORA per riga: `erroriRighe` è una mappa `chiave riga → {desc?, imp?}`,
+ogni cella ha il proprio `<FieldError>`, e ciò che non ha un campo a cui
+appendersi («Compila almeno una riga», «Serve almeno una riga» sul tentativo
+di togliere l'ultima) è un avviso `role="alert"` non legato a un input, come
+già fa `NewConversationView` per il proprio elenco membri.
+⛔ **Non fatto in questa sessione**: la seconda metà del rilievo, cioè
+allargare il marcatore `HA_FORM` di `scripts/verifica-convenzioni/
+convenzioni.js` da «importa `validaCampi`» a «rende un input/select/textarea
+controllato» (`RACCOGLIE_INPUT`). È un cambiamento strutturale che sposta il
+perimetro del contratto «salva e chiudi» da 7 form dichiarati a ~25 misurati,
+richiede riverificare uno per uno i form che entrerebbero nel perimetro (i
+form del core che già passano da `useSalvataggio` sono presumibilmente a
+posto; quelli che non ci passano affatto diventerebbero rossi sui controlli
+6 e 7 di `verifica:convenzioni` senza che questa sessione li abbia corretti) e
+riscrivere i fixture dei test di `verificaConvenzioni.test.js`, che oggi
+esercitano `HA_FORM` con frammenti di testo senza alcun markup JSX. Il
+rilievo descrive esplicitamente questo come un lavoro in due tempi — «con
+l'atteso portato al numero reale PRIMA della migrazione […] e a 0 DOPO» — e
+resta la parte aperta di M-1, coerente con la dottrina già scritta in
+`docs/CLAUDE.md` sull'arretrato («si converte un file alla volta, quando lo
+si sta già riscrivendo per un'altra ragione», non con un cambio di perimetro
+in blocco).
+
+### M-2 · il click sul velo dei modali Liste non chiude più di default
+
+`LvOverlay.jsx` accetta `chiudiSuVelo` (default `false`, invertito rispetto a
+`ui/Modal`: questi sono i form più lunghi dell'app e sul denaro). Il click è
+gestito con `onMouseDown` + confronto `e.target === e.currentTarget`, come
+`ui/Modal`, per non chiudere su una selezione di testo che termina fuori dal
+form. `RiepilogoClienteModal` e `StrumentiDatiModal` — sola lettura/scelte,
+niente da perdere — passano `chiudiSuVelo`.
+
+### M-3 · trappola del focus e restituzione, in entrambi i gusci
+
+Nuovo `hooks/useTrappolaFocus.js`: cattura `Tab`/`Shift+Tab` dentro il
+contenitore del modale (cicla fra primo e ultimo elemento focalizzabile) e
+restituisce il focus a `document.activeElement` di prima all'apertura, allo
+smontaggio. Adottato con una riga ciascuno in `ui/Modal.jsx` e
+`liste/modals/LvOverlay.jsx`. Il filtro di visibilità NON usa
+`offsetParent !== null` (dipende dal layout, che jsdom non calcola — sarebbe
+stato un hook non testabile): usa `getComputedStyle` su `display`/`visibility`
+e l'attributo `hidden`, verificabile perché jsdom applica davvero la cascata
+CSS dichiarata.
+
+### M-4 · `AddMovBox` è un `<form>`
+
+`components/liste/AddMovBox.jsx` è passato da `<div className="lv-add-box">`
+a `<form onSubmit={...} noValidate>`, con i due bottoni non-submit («✕
+Chiudi», «+ Inserisci più movimenti insieme») marcati `type="button"` nello
+stesso commit (altrimenti ogni bottone in un form senza `type` è un submit).
+`EditMovimentoModal`, `NuovaListaModal` e `AggiungiBeneficiarioModal` sono
+usciti dallo stesso difetto perché riscritti per M-1 nello stesso commit.
+⛔ **Non fatto**: gli altri ~15-20 modali `div`-based dell'app restano fuori,
+per la stessa ragione dichiarata sotto M-1 — un cambio di massa su file non
+altrimenti toccati in questa sessione avrebbe un rapporto rischio/beneficio
+peggiore che convertirli quando si riscrivono per un'altra ragione.
+
+### B-1 · il contenitore dei toast è `aria-live="polite"`
+
+`components/ui/Toast.jsx`: `ToastStack` è passato da `assertive` a `polite`.
+La distinzione fra ciò che interrompe (`role="alert"`, gli errori) e ciò che
+aspetta (`role="status"`, successi/warning) è già sui figli; `assertive` sul
+contenitore la annullava verso l'alto, promuovendo anche «Task aggiornato!» a
+interruzione.
+
+### B-2 · l'handler globale non mostra più il testo grezzo di un errore di programmazione
+
+`lib/errorReporting.js`: `messaggioUtente` distingue ora un errore del DATA
+LAYER (informazione azionabile: un vincolo PostgREST respinto, resta
+leggibile) da un errore di PROGRAMMAZIONE (`TypeError`/`ReferenceError`/
+`RangeError`: in produzione diventa «Operazione non riuscita. Se si ripete,
+segnala il codice VD-…», come i tre error boundary). `segnala()` genera il
+codice UNA volta con `codiceSegnalazione()` e lo scrive sia in console sia nel
+toast; la chiave dell'anti-raffica è passata dal messaggio finale (che ora
+include il codice, diverso a ogni occorrenza) alla superficie dell'errore
+(`origine:nome+messaggio`), altrimenti due `TypeError` identici ripetuti non
+sarebbero più stati deduplicati.
+
+### B-3 · `LvOverlay` condivide la pila dei modali con `ui/Modal`
+
+La pila che decideva «Esc chiude solo il modale in cima» viveva solo dentro
+`ui/Modal.jsx`. Estratta in `components/ui/pilaModali.js`
+(`apriModale`/`chiudiModale`/`inCima`, stessa identità-per-token di prima) e
+usata da entrambi i gusci: un `Esc` con un `ui/Modal` aperto sopra un
+`LvOverlay` chiude solo quello in cima, e chiuso quello torna a raggiungere
+l'altro.
+
+### Verifica (A-2…B-3)
+
+- Test nuovi o estesi in: `test/ui/toastQueue.test.js`, `test/ui/toastStack.
+  test.jsx`, `test/ui/errorBoundaryChunkMancante.test.jsx`, `test/ui/lazyPanel.
+  test.jsx`, `test/lib/errorReporting.test.js`, `test/chat/chatCommands.
+  test.js`, `test/chat/chatInvioFallitoUI.test.jsx`, `test/ui/
+  validazioneInline.test.jsx`, `test/liste/validazioneInlineListe.test.jsx`
+  (nuovo), `test/liste/lvOverlay.test.jsx` (nuovo).
+- `npm test`: 1980 passati / 23 saltati su 164 file; `npm run lint` pulito;
+  `npm run verifica:tipi` pulito; `npm run verifica:convenzioni` 55 controlli,
+  nessuna divergenza.

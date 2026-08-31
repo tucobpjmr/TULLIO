@@ -42,8 +42,9 @@ export function RiepilogoClienteModal({ lista, movimenti, saldo: saldoEsatto, on
     }
   };
 
+  // M-2 · sola lettura (stampa/condividi): niente da perdere con un click a lato.
   return (
-    <LvOverlay onClose={onClose} wide>
+    <LvOverlay onClose={onClose} wide chiudiSuVelo>
       <div className="lv-riepilogo">
         <div className="rp-brand">Liste Viaggio · Gestione buoni</div>
         <h2>Riepilogo buono viaggio</h2>

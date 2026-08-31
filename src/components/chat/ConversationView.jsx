@@ -76,6 +76,20 @@ export const ConversationView = ({ conv, messages, commands, onBack, onDelete, i
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialInput, initialTaskRef]);
 
+  // A-5 · quando l'invio di un messaggio di QUESTA conversazione fallisce
+  // (rigetto di rete o rifiuto silenzioso della RLS), il testo torna nel
+  // composer invece di restare perso: `commands.sendMessage` lo cancellava
+  // dallo stato e nessuno lo restituiva a nessuno. Solo i messaggi di TESTO
+  // hanno un composer da ripopolare — vocali e allegati restano segnalati dal
+  // solo toast, che è già ciò che accade oggi per loro.
+  useEffect(() => {
+    if (!commands.ascoltaInvioFallito) return undefined;
+    return commands.ascoltaInvioFallito(conv.id, (msg) => {
+      if (msg.type !== "text" || !mountedRef.current) return;
+      cvd({ type: "RESTORE_FALLITO", text: msg.text, taskRef: msg.taskRef ?? null });
+    });
+  }, [commands, conv.id]);
+
   // M-2 · `messages[conv.id] || []` costruiva un array NUOVO a ogni render
   // quando la conversazione è vuota, quindi i memo che ne dipendono non
   // avrebbero mai potuto saltare un giro — e `exhaustive-deps`, che questo

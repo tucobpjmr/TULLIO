@@ -38,12 +38,29 @@ describe("reducer — coda dei toast", () => {
     expect(s.toasts[0].id).not.toBe(primoId);
   });
 
-  it("cap a 3: il quarto SHOW_TOAST fa sparire il più vecchio", () => {
+  // A-2 · il cap non è più un FIFO cieco: gli errori non scadono da soli
+  // (decisione di ToastItem), quindi non devono essere buttati via dalla
+  // coda da un messaggio arrivato dopo. Il tetto VISIVO (quanti se ne
+  // disegnano) sta in ToastStack, non qui.
+  it("sei errori consecutivi restano sei in coda", () => {
+    for (const msg of ["Uno", "Due", "Tre", "Quattro", "Cinque", "Sei"]) {
+      s = reducer(s, { type: "SHOW_TOAST", payload: { message: msg, type: "error" } });
+    }
+    expect(s.toasts).toHaveLength(6);
+  });
+
+  it("un successo dopo tre errori non ne espelle nessuno", () => {
     s = reducer(s, { type: "SHOW_TOAST", payload: { message: "Uno", type: "error" } });
     s = reducer(s, { type: "SHOW_TOAST", payload: { message: "Due", type: "error" } });
     s = reducer(s, { type: "SHOW_TOAST", payload: { message: "Tre", type: "error" } });
-    s = reducer(s, { type: "SHOW_TOAST", payload: { message: "Quattro", type: "error" } });
-    expect(s.toasts).toHaveLength(3);
+    s = reducer(s, { type: "SHOW_TOAST", payload: { message: "Fatto!", type: "success" } });
+    expect(s.toasts.map(t => t.message)).toEqual(["Uno", "Due", "Tre", "Fatto!"]);
+  });
+
+  it("quattro successi consecutivi ne lasciano tre: il cap resta sui tipi che scadono da soli", () => {
+    for (const msg of ["Uno", "Due", "Tre", "Quattro"]) {
+      s = reducer(s, { type: "SHOW_TOAST", payload: { message: msg, type: "success" } });
+    }
     expect(s.toasts.map(t => t.message)).toEqual(["Due", "Tre", "Quattro"]);
   });
 

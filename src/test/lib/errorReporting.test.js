@@ -82,6 +82,41 @@ describe("errorReporting", () => {
     });
   });
 
+  // B-2 · in produzione, un errore di PROGRAMMAZIONE non mostra il testo
+  // grezzo (che `ErrorDetails` nasconde nello stesso momento sullo stesso
+  // schermo), un errore del DATA LAYER sì — perché porta informazione
+  // azionabile (un vincolo respinto) che un `TypeError` interno non porta.
+  describe("cosa finisce nel toast, e dove (B-2)", () => {
+    afterEach(() => { vi.unstubAllEnvs(); });
+
+    it("in produzione un TypeError NON mostra il messaggio grezzo, mostra un codice", () => {
+      vi.stubEnv("DEV", false);
+      emettiRejection(new TypeError("Cannot read properties of undefined (reading 'assignees')"));
+      expect(sink).toHaveBeenCalledTimes(1);
+      const msg = sink.mock.calls[0][0];
+      expect(msg).not.toContain("assignees");
+      expect(msg).toMatch(/segnala il codice VD-/);
+    });
+
+    it("in produzione un errore del data layer resta leggibile", () => {
+      vi.stubEnv("DEV", false);
+      emettiRejection(new Error("new row violates row-level security policy"));
+      expect(sink).toHaveBeenCalledWith(expect.stringContaining("row-level security policy"));
+    });
+
+    it("in DEV il TypeError resta leggibile come tutto il resto", () => {
+      vi.stubEnv("DEV", true);
+      emettiRejection(new TypeError("x is not a function"));
+      expect(sink).toHaveBeenCalledWith(expect.stringContaining("x is not a function"));
+    });
+
+    it("due TypeError identici ripetuti restano deduplicati (il codice non rompe l'anti-raffica)", () => {
+      vi.stubEnv("DEV", false);
+      for (let i = 0; i < 5; i++) emettiRejection(new TypeError("stesso errore interno"));
+      expect(sink).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("chunk lazy mancante", () => {
     // Scenario ordinario in produzione: deploy con una scheda aperta, gli hash
     // dei file cambiano, il chunk vecchio risponde 404. Il messaggio generico

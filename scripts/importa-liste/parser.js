@@ -10,6 +10,7 @@
 // è diventata un movimento.
 import { createHash } from 'node:crypto';
 import { chiaveCliente } from '../../src/lib/chiaveCliente.js';
+import { aNumero } from '../../src/lib/importi.js';
 
 // ─── UUID v5 deterministici ────────────────────────────────────────────────
 // Gli id non sono casuali: derivano dal percorso del file (per liste e
@@ -72,18 +73,14 @@ export function estraiData(testo) {
 
 // ─── importo ───────────────────────────────────────────────────────────────
 // "1.250,00" → 1250 ; "1250,5" → 1250.5 ; "1.25" → 1.25 ; "1.250" → 1250.
-// Il punto è separatore di migliaia solo quando raggruppa esattamente 3 cifre,
-// altrimenti (una o due cifre finali) è un decimale scritto all'inglese.
-export function aNumero(grezzo) {
-  let s = String(grezzo).replace(/\s/g, '');
-  if (s.includes(',')) {
-    s = s.replace(/\./g, '').replace(',', '.');
-  } else if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
-    s = s.replace(/\./g, '');
-  }
-  const n = Number(s);
-  return Number.isFinite(n) ? n : null;
-}
+//
+// La regola viveva QUI ed era giusta; la copia che il form dell'operatore
+// usava — `parseImporto` in `components/liste/listeFormato.js` — era sbagliata
+// e leggeva 1,25 al posto di 1.250,00 (C-1 e M-1 dell'audit di codebase del
+// 31 agosto). Ora l'implementazione è una sola, in `src/lib/importi.js`, e
+// questo script la importa come già importa `chiaveCliente` dalla stessa
+// cartella. Il ragionamento sul punto sta là.
+export { aNumero };
 
 const RE_CIFRE = '\\d[\\d. ]*(?:,\\d{1,2})?';
 const RE_PAROLA_VALUTA = /\b(?:EURO|EUR)\b\.?/gi;

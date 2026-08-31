@@ -8,13 +8,19 @@ si toccano.
 
 Quattordici rilievi: **uno critico, quattro di alta priorità.**
 
+✅ **C-1, M-1 e B-1 sono stati chiusi il 31 agosto**, insieme e nello stesso
+commit: sono lo stesso difetto visto da tre distanze — l'interpretazione
+sbagliata (C-1), la sua causa architetturale (M-1) e il suo effetto collaterale
+sul testo non numerico (B-1). Vedi «Come sono stati chiusi (C-1, M-1, B-1)» in
+fondo al documento. **Tre rilievi su quattordici chiusi.**
+
 Base di partenza misurata su questo commit (`4cc2003`): `npm ci` pulito,
 `npm test` verde (**1980 passati, 23 saltati su 164 file**), `npm run lint`
 senza segnalazioni, `npm run build` + `npm run verifica:bundle` verdi
 (80,66 kB gzip anonimo su 86 di soglia, 127,47 kB autenticato su 131),
 dodici audit precedenti chiusi.
 
-⟦stato: 0/14 chiusi⟧
+⟦stato: 3/14 chiusi⟧
 
 > **Sulla numerazione.** `C-` = critico, `A-` = alta priorità, `M-` = media,
 > `B-` = bassa, come negli audit dal 12 agosto in poi.
@@ -78,17 +84,17 @@ scritture in volo ma non per il rollback.
 
 | Rilievo | Gravità | Cosa | Dove |
 |---|---|---|---|
-| C-1 | **Critico** | `parseImporto` mangia il separatore delle migliaia: `1.250,00 € → 1,25 €`, in silenzio, su quattro percorsi di scrittura | `src/components/liste/listeFormato.js:96` |
+| **C-1** ✔ | ~~**Critico**~~ **risolto** | `parseImporto` mangia il separatore delle migliaia: `1.250,00 € → 1,25 €`, in silenzio, su quattro percorsi di scrittura | `src/components/liste/listeFormato.js:96` |
 | A-1 | Alta | Nessun `rollback` per l'intero dominio task: dopo una scrittura fallita la UI resta sul valore mai salvato | `src/state/persistence.js` |
 | A-2 | Alta | Quattordici elementi interattivi non raggiungibili da tastiera (`<div onClick>` senza `role`/`tabIndex`/`onKeyDown`) | `chat/`, `calendar/`, `clients/`, `liste/`, `tasks/bulk/` |
 | A-3 | Alta | 51 `<label>` su 75 senza `htmlFor`: per uno screen reader quei campi non hanno nome | 20 file in `src/components/` |
 | A-4 | Alta | Il codice di segnalazione mostrato all'utente in produzione non arriva a nessuno | `src/lib/errorReporting.js:56` |
-| M-1 | Media | «Come si legge un importo» esiste in due copie divergenti, e quella giusta è nello script | `listeFormato.js:96` vs `scripts/importa-liste/parser.js:80` |
+| **M-1** ✔ | ~~Media~~ **risolto** | «Come si legge un importo» esiste in due copie divergenti, e quella giusta è nello script | `listeFormato.js:96` vs `scripts/importa-liste/parser.js:80` |
 | M-2 | Media | `checkJs` copre 8.169 righe su 36.618 (22%): `hooks/` e `components/` fuori — cioè dove vive C-1 | `jsconfig.json` |
 | M-3 | Media | Nessun rate limiting sulle quattro Edge Function esposte al browser | `supabase/functions/` |
 | M-4 | Media | `delete-user` classifica gli errori per sottostringa del messaggio di GoTrue | `supabase/functions/delete-user/index.ts` |
 | M-5 | Media | `delete-account`: azione irreversibile senza riautenticazione, e l'email resta occupata per sempre | `supabase/functions/delete-account/index.ts` |
-| B-1 | Bassa | `parseImporto` accetta coda non numerica e spazi: `"12abc" → 12`, `"1 250,00" → 1` | `src/components/liste/listeFormato.js:96` |
+| **B-1** ✔ | ~~Bassa~~ **risolto** | `parseImporto` accetta coda non numerica e spazi: `"12abc" → 12`, `"1 250,00" → 1` | `src/components/liste/listeFormato.js:96` |
 | B-2 | Bassa | `Clients.cerca`: `%` e `_` digitati dall'utente sono wildcard SQL | `src/lib/api/clienti.js:92` |
 | B-3 | Bassa | `fetchAllRows` senza tetto su clienti e liste: la finestra esiste solo sui task | `src/lib/pagination.js` |
 | B-4 | Bassa | Le cinque Edge Function non hanno un contratto scritto da nessuna parte | `supabase/functions/` |
@@ -181,8 +187,8 @@ i candidati. Il fix del codice non ripara le righe già scritte.
 
 Stessa funzione. `parseFloat("12abc")` vale `12`: una battitura sbagliata
 diventa un movimento valido invece di un errore in rosso. `"1 250,00"` diventa
-`1`. Chiuso dalla stessa correzione di C-1 (la regex rifiuta invece di
-troncare).
+`1`. Chiuso dalla stessa correzione di C-1: `Number()` al posto di
+`parseFloat()` rifiuta invece di troncare.
 
 ### A-1 · Il dominio task non ha rollback — **Alta**
 
@@ -736,3 +742,161 @@ Per il resto: nessun refactoring architetturale da consigliare. La separazione
 fra registry di scrittura, transport realtime, data layer a porta e viste senza
 `state` regge, ed è verificata da regole di lint scritte apposta. Quello che
 manca non è struttura — è copertura di ciò che la struttura già promette.
+
+---
+
+## Come sono stati chiusi (C-1, M-1, B-1)
+
+Chiusi il 31 agosto 2026, **in un commit solo e di proposito**: sono lo stesso
+difetto visto da tre distanze. C-1 è l'interpretazione sbagliata, M-1 è la
+ragione per cui è potuta restare sbagliata mentre a due cartelle di distanza ce
+n'era una giusta, B-1 è ciò che la stessa riga faceva al testo non numerico.
+Correggere C-1 senza M-1 avrebbe lasciato in piedi la seconda copia, cioè la
+condizione perché ricapiti a rovescio.
+
+### L'implementazione è una sola, e sta dove stanno le regole di dominio
+
+Nasce `src/lib/importi.js` con due funzioni:
+
+- `aNumero(grezzo)` — **l'interpretazione**, senza giudizio: ritorna il numero
+  che la persona ha scritto, o `null` se non ne ha scritto uno.
+- `parseImporto(raw, segno)` — **l'importo di un movimento**: `aNumero` più le
+  due regole che valgono solo qui (il segno lo decide il selettore del form,
+  non la tastiera; zero non è un movimento).
+
+I due call site la raggiungono così:
+
+- `components/liste/listeFormato.js` la **ri-esporta** — i dodici importatori
+  del modulo (`AddMovBox`, `EditMovimentoModal`, `CellEditor`,
+  `BulkMovimentiModal`, `regoleMovimento`…) non cambiano una riga;
+- `scripts/importa-liste/parser.js` la **importa**, come già importava
+  `chiaveCliente` dalla stessa cartella, e cancella la propria `aNumero`.
+
+`src/lib/` non è una scelta di comodo: è una delle due cartelle sotto `checkJs`
+(`jsconfig.json`), cioè quella metà del repository in cui un tipo sbagliato
+viene intercettato — e il refactoring proposto in fondo a questo documento
+chiedeva esattamente questo spostamento.
+
+### La regola sul punto, che è l'unica cosa non ovvia
+
+Il criterio che distingue `1.250,00` (migliaia) da `12.50` (decimale inglese)
+non è il contesto ma **quante cifre il punto raggruppa**:
+
+| Digitato | Regola | Letto |
+|---|---|---|
+| `1.250,00` | c'è la virgola → tutti i punti sono migliaia | 1250 |
+| `12.345,67` | idem | 12345,67 |
+| `1.250` | niente virgola, il punto raggruppa **tre** cifre | 1250 |
+| `12.50` | niente virgola, il punto ne raggruppa **due** | 12,5 |
+| `1 250,00` | gli spazi si tolgono prima di tutto | 1250 |
+
+⚠️ **`1.250` è genuinamente ambiguo** e la regola lo risolve come 1250, non
+come 1,25. È una scelta, non una deduzione — ed è quella che
+`scripts/importa-liste/parser.js` prendeva già: adottarne un'altra avrebbe
+riaperto M-1 nel commit che lo chiude. Chi intende un euro e venticinque
+scrive `1,25`, che si legge senza ambiguità.
+
+**Due cose sono cambiate rispetto alla soluzione proposta più sopra in questo
+documento**, e vanno dette perché il lettore le troverà diverse:
+
+1. **`Number()` al posto di una regex di validazione.** La proposta filtrava le
+   forme ammesse con un'espressione regolare; l'implementazione usa `Number()`,
+   che rifiuta `"12abc"` da sé (`parseFloat` ne leggeva il prefisso: è B-1).
+   Meno codice, stesso esito, e nessuna seconda grammatica da tenere allineata
+   a quella dello script.
+2. **L'arrotondamento ai centesimi è entrato nella funzione.** Non era nella
+   proposta. `movimenti_lista.importo` è `numeric(12,2)`: senza, `1,239`
+   resterebbe `1,239` a schermo e diventerebbe `1,24` a database — la stessa
+   classe di difetto di C-1 in scala ridotta. Lo script arrotondava già
+   (`Number(valore.toFixed(2))`); ora lo fanno entrambi nello stesso punto, e
+   l'arrotondamento avviene **prima** del confronto con zero, così `0,004` è un
+   errore di campo e non un `check_violation` di ritorno dal database.
+
+### I test: per FORMA, non per esito
+
+`src/test/lib/importi.test.js`, 32 casi. Il criterio con cui è scritto è
+la lezione di C-1, e sta scritta in testa al file: le sei asserzioni che
+c'erano — `"12,50"`, `"12.50"`, `"0"`, `""`, `"abc"`, `null` — non erano
+sbagliate, erano **tutte sullo stesso ordine di grandezza**. Nessun valore
+sopra le mille unità, cioè nessuno in cui il separatore delle migliaia possa
+comparire: il difetto viveva esattamente nello spazio che nessuna asserzione
+occupava.
+
+Le tabelle sono perciò organizzate per FORMA in cui la stessa cifra può essere
+scritta — punto come migliaia, punto come decimale, spazi e segno, rifiuti,
+zero e centesimi — e non per «un caso valido e uno non valido». L'ultimo
+`describe` è il messaggio di `regoleMovimento.js` verificato alla lettera:
+
+```js
+// «Importo non valido: usa una cifra come 1.250,00.»
+expect(parseImporto("1.250,00")).toBe(1250);
+expect(parseImporto("1.250,00")).not.toBe(1.25);
+```
+
+Le sei asserzioni originali in `src/test/liste/listeApi.test.js` **restano dove
+sono e passano invariate**: sono il contratto che il modulo Liste vede
+attraverso la ri-esportazione, ed è giusto che continui a essere verificato da
+lì.
+
+### I dati già scritti: `scripts/verifica-importi/sospetti.sql`
+
+Il fix del codice non ripara le righe corrotte prima di oggi, e **il database
+non può dire quali siano**. Un importo corrotto è un numero valido: `1,25` è
+indistinguibile da un movimento legittimo di un euro e venticinque. Non c'è
+nemmeno una testimonianza indipendente di ciò che fu digitato — `lista_history`
+sembrerebbe il posto, ma `mov_snapshot()` costruisce la voce di storico dal
+`p_importo` **già interpretato**, cioè registra lo stesso valore corrotto.
+
+La query produce quindi **candidati**, non un verdetto, incrociando la zona di
+atterraggio (un importo che perde un gruppo di migliaia vale circa un
+millesimo, quindi sotto le 1.000 unità) con due testimoni:
+
+- **descrizione** — la riga contiene un numero col punto delle migliaia
+  (`SALDO PRATICA 1.250,00`): l'operatore ha scritto la cifra due volte e una
+  delle due non è passata dal parser, quindi la riga porta con sé la prova;
+- **scala** — il movimento è due ordini di grandezza sotto la mediana degli
+  **altri** movimenti della stessa lista.
+
+Le righe con entrambi gli indizi vengono per prime. La colonna
+`se_avesse_perso_le_migliaia` mostra `importo × 1000`, cioè la cifra da
+confrontare con quello che il cliente ha versato davvero.
+
+⚠️ **Le correzioni si fanno dall'app, non con una UPDATE.** Passare da
+`modifica_movimento_lista` lascia la traccia in `lista_history` e l'evento
+realtime; una UPDATE diretta salterebbe RLS, storico e `origin_client`, e il
+saldo cambierebbe sotto gli occhi di chi ha la lista aperta senza che niente lo
+dica.
+
+**La query è stata eseguita davvero**, non solo scritta: su un PostgreSQL 16
+locale con lo schema reale di `movimenti_lista`/`liste_viaggio`/`clients` e
+righe costruite per riprodurre la corruzione. È così che sono venuti fuori due
+errori che una rilettura non avrebbe preso:
+
+- `percentile_cont(…) OVER (partition by …)` — **non esiste**: è un'aggregata
+  ordered-set e Postgres risponde «OVER is not supported for ordered-set
+  aggregate». Riscritta con un `LATERAL`, che ha anche il pregio di escludere
+  la riga stessa dalla mediana;
+- `round(double precision, integer)` — **non esiste**: `percentile_cont`
+  restituisce un float anche su una colonna `numeric`. Sostituita con
+  `percentile_disc`, che ritorna uno dei valori osservati e ne conserva il
+  tipo, che su un importo è la cosa giusta a prescindere.
+
+Sui dati di prova il rapporto distingue ciò che deve distinguere: il movimento
+corrotto con la cifra in descrizione esce per primo con due indizi, quello
+corrotto senza cifra esce con il solo indizio di scala, e una lista di piccole
+spese vere (caffè, bolli, fotocopie) **non compare affatto** — che è il caso
+che tiene onesto il rapporto. Verificati anche i due limiti: una lista con un
+solo movimento non rompe il calcolo (`mediana_altri` resta `NULL` e l'indizio
+di scala non scatta, correttamente), e i movimenti cestinati restano fuori.
+
+### Cosa NON è stato fatto, e resta aperto
+
+- **Il `placeholder` del campo importo non dice la regola.** `1.250` ora vale
+  1250, ed è una scelta che l'utente non ha modo di conoscere se non
+  sbagliando. Va scritta accanto alla casella, non lasciata al parser.
+- **M-2 resta aperto.** `src/lib/importi.js` nasce sotto `checkJs`, ma i
+  componenti che la chiamano no: il primo passo proposto (`src/hooks/**`, poi
+  `src/components/liste/`) non è in questo commit.
+- **`aNumero` non toglie il simbolo di valuta.** `"€ 100"` è un rifiuto, come
+  prima. Non è una regressione e non è stato allargato: è una decisione di
+  interfaccia, non di parsing.

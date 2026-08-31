@@ -86,7 +86,30 @@ export const withOrigin = (payload) => ({ ...payload, origin_client: getClientId
 // stesso filtro postgres → entrambi ricevono gli eventi della tabella.
 let channelSeq = 0;
 
-export function subscribeToTable(tableName, handler) {
+/**
+ * @param {string}   tableName
+ * @param {(payload: object) => void} handler
+ * @param {(stato: string) => void} [onStato]  riceve OGNI transizione del
+ *   canale ('SUBSCRIBED' | 'CHANNEL_ERROR' | 'TIMED_OUT' | 'CLOSED').
+ *
+ * ─── A-1 dell'audit UX/errori del 31 agosto · il terzo parametro ───────────
+ * `.subscribe()` era chiamata SENZA argomenti, quindi lo stato del canale non
+ * lo leggeva nessuno: ricerca su tutto `src/`, zero occorrenze di
+ * `CHANNEL_ERROR`, `TIMED_OUT`, `CLOSED`. L'unico segnale di un websocket
+ * morto era l'ASSENZA di eventi — indistinguibile da «nessuno sta scrivendo»,
+ * che è lo stato normale di un pomeriggio tranquillo in agenzia.
+ *
+ * Il costo di non saperlo non è la mancata notifica: è che `OfflineBanner`
+ * tace (`navigator.onLine` resta `true`) e l'operatore continua a lavorare su
+ * numeri fermi credendoli aggiornati. In un gestionale di buoni viaggio è la
+ * stessa classe di difetto che errorReporting.js chiama «credo di aver
+ * salvato», vista dall'altro capo.
+ *
+ * È opzionale perché `subscribeToTyping` non ne ha bisogno — quel canale porta
+ * lo stato effimero "sta scrivendo", che degradare in silenzio è corretto —
+ * non per comodità dei chiamanti su tabella.
+ */
+export function subscribeToTable(tableName, handler, onStato) {
   let smontato = false;
   let staccaCanale = () => {};
   getSupabase().then((supabase) => {
@@ -96,6 +119,12 @@ export function subscribeToTable(tableName, handler) {
     // aggiornamento automatico" invece di sollevare dentro un useEffect, dove
     // l'eccezione risalirebbe fino all'ErrorBoundary e mostrerebbe una pagina
     // bianca al posto di una vista che i dati li ha già caricati.
+    //
+    // ⚠️ E NON si segnala nulla a `onStato`: qui non c'è un canale caduto, non
+    // c'è mai stato un canale. Segnalarlo degradato accenderebbe la striscia
+    // «aggiornamenti automatici interrotti» in ogni test che mocka il client e
+    // in ogni ambiente senza env var — cioè affermerebbe un guasto dove c'è una
+    // configurazione.
     if (typeof supabase?.channel !== "function") return;
     const channel = supabase
       .channel(`realtime:${tableName}:${getClientId()}:${++channelSeq}`)
@@ -111,7 +140,17 @@ export function subscribeToTable(tableName, handler) {
         }
         handler(payload);
       })
-      .subscribe();
+      .subscribe((stato, err) => {
+        // La diagnosi per canale resta, e resta in console: a schermo va il
+        // fatto aggregato (vedi lib/freschezzaRealtime.js), qui il nome della
+        // tabella e l'errore, che sono ciò di cui ha bisogno chi ripara.
+        if (err) console.error(`[VoyageDesk] canale ${tableName} (${stato}):`, err);
+        // Il guard di smontaggio vale anche qui: supabase-js può consegnare un
+        // 'CLOSED' DOPO la nostra `removeChannel`, e registrarlo lascerebbe
+        // acceso un canale rotto che non esiste più.
+        if (smontato) return;
+        onStato?.(stato);
+      });
     staccaCanale = () => supabase.removeChannel(channel);
   });
   return () => { smontato = true; staccaCanale(); };

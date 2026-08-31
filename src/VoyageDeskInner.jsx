@@ -37,6 +37,7 @@ import { useShellUi } from "./hooks/useShellUi.js";
 import { ViewErrorBoundary } from "./components/errors/ViewErrorBoundary.jsx";
 import { ToastStack } from "./components/ui/Toast.jsx";
 import { LazyFallback } from "./components/ui/LazyFallback.jsx";
+import { StatoEntita } from "./components/ui/StatoEntita.jsx";
 import { LazyPanel } from "./components/ui/LazyPanel.jsx";
 import { KeyboardHelpOverlay } from "./components/ui/KeyboardHelpOverlay.jsx";
 import { Topbar } from "./components/shell/Topbar.jsx";
@@ -118,6 +119,27 @@ const onViewRender = (id, phase, actualDuration, baseDuration) => {
   console.log(`[profile] ${id} ${phase}: actual=${actualDuration.toFixed(2)}ms base=${baseDuration.toFixed(2)}ms`);
 };
 
+// ─── A-3 · quali entità idratate alimentano ciascuna vista ─────────────────
+// (audit UX/errori del 31 agosto)
+//
+// Dichiarato QUI perché questo è l'unico file che le conosce tutte, ed è lo
+// stesso punto in cui si decide quale vista montare. Una vista assente da
+// questa mappa non ha un'entità dell'idratazione di cui possa mancare
+// l'elenco: `liste` ha il proprio caricamento (useListeData) e la chat pure.
+//
+// L'etichetta è il complemento oggetto della frase che l'utente legge — «Non è
+// stato possibile caricare ___» — e non il nome tecnico dell'entità: è la
+// stessa distinzione fra `tag` ed `etichetta` che la fabbrica `idratazione`
+// fa già per i toast.
+const ENTITA_PER_VISTA = {
+  dashboard: [["tasks", "le task"], ["notices", "la bacheca avvisi"]],
+  calendar: [["tasks", "le task"]],
+  clienti: [["clients", "l'anagrafica clienti"]],
+  archivio: [["tasks", "l'archivio"]],
+  trash: [["tasks", "il cestino"]],
+  admin: [["team", "il team"], ["categories", "le categorie"]],
+};
+
 // Dove è finito il resto del monolite:
 //   utility pure          → src/lib/{taskUtils,permissions,chatUtils,mappers}.js
 //   reducer + persistenza → src/state/{reducer,persistence}.js
@@ -167,7 +189,12 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // fetch di una di esse non è tornato, le viste che la mostrano devono dire
   // "sto caricando" e non "non c'è niente". `caricamentoClienti` è il flag
   // dell'anagrafica, che ha una storia sua (vedi hooks/useAppHydration.js).
-  const { caricamento, caricamentoClienti, storicoTask, clientiCompleti } = useAppHydration({
+  // A-3 (audit UX/errori del 31 agosto) · `erroriCaricamento` è il TERZO stato,
+  // accanto a "sto caricando" e "ho finito": `entita → { messaggio, riprova }`
+  // per ciò che non si è caricato. Senza, un fetch fallito arrivava alle viste
+  // indistinguibile da un fetch riuscito e vuoto, e loro dicevano «Nessuna task
+  // aperta a tuo nome. Buon lavoro!».
+  const { caricamento, erroriCaricamento, caricamentoClienti, storicoTask, clientiCompleti } = useAppHydration({
     enabled: useSupabase,
     currentUserId: initialCurrentUserId,
     dispatch: rawDispatch,
@@ -294,6 +321,12 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     chiudiPannelli();
   }, [state.currentUserId, chiudiPannelli]);
 
+  // A-3 · le voci di `ENTITA_PER_VISTA` (sopra) risolte contro lo stato
+  // corrente, tenendo solo quelle in errore.
+  const vociStato = (chiavi) => chiavi
+    .map(([chiave, etichetta]) => ({ chiave, etichetta, stato: erroriCaricamento[chiave] }))
+    .filter(v => v.stato);
+
   // Le viste NON ricevono più `state`: leggono task e clienti dai provider e si
   // fanno passare solo le fette piccole che consumano davvero (notices, la tab
   // coda richiesta, la lista da aprire). `state` cambia identità dopo qualunque
@@ -399,9 +432,15 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
                 viewKey={state.activeView}
                 onReset={() => dispatch({ type: "SET_VIEW", payload: "dashboard" })}
               >
-                {PROFILE_VIEWS
-                  ? <Profiler id={state.activeView} onRender={onViewRender}>{renderView()}</Profiler>
-                  : renderView()}
+                {/* A-3 · il riquadro si AGGIUNGE alla vista, non la sostituisce:
+                    ciò che era stato caricato prima dell'errore resta
+                    utilizzabile. Sta dentro il boundary e non fuori perché è
+                    parte della vista, non della shell. */}
+                <StatoEntita voci={vociStato(ENTITA_PER_VISTA[state.activeView] ?? [])}>
+                  {PROFILE_VIEWS
+                    ? <Profiler id={state.activeView} onRender={onViewRender}>{renderView()}</Profiler>
+                    : renderView()}
+                </StatoEntita>
               </ViewErrorBoundary>
             </Suspense>
           </main>

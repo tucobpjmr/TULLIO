@@ -74,6 +74,7 @@ import {
   fromDbComment, fromDbMessageTemplate,
 } from "../lib/mappers.js";
 import { useDebouncedTableSubscription } from "./useDebouncedTableSubscription.js";
+import { useErroriIdratazione, useErroriComposti } from "./useErroriIdratazione.js";
 import { stessaLista, stessaMappa } from "../lib/confrontoIdratazione.js";
 
 // Indicizza per task_id le righe di una tabella figlia dei task, applicando il
@@ -90,6 +91,7 @@ const perTaskId = (righe, mapper) => {
 // cinque `useState`: i consumatori leggono `caricamento.tasks`, e aggiungere
 // un'entità non richiede di ricordarsi di propagare un sesto flag.
 const ENTITA = ["tasks", "notices", "categories", "team", "clients", "messageTemplates"];
+
 
 // A-3 · Ampiezza della finestra, in giorni, sulle task COMPLETATE.
 //
@@ -193,7 +195,7 @@ const vinceIlTurno = (ordine, turno) => {
  */
 const idratazione = ({
   entita, tag, etichetta, list, mapper, action,
-  dispatch, onError, segnaCaricata, quandoSaltare, gen, alTermine,
+  dispatch, onError, segnaCaricata, segnaEsito, quandoSaltare, gen, alTermine,
 }) => async (isCurrent) => {
   if (quandoSaltare?.()) return;
   const turno = gen ? prendiTurno(gen.current) : 0;
@@ -201,7 +203,11 @@ const idratazione = ({
   if (!isCurrent()) return;
   if (error) {
     console.error(tag, error);
-    onError(`Caricamento ${etichetta} fallito: ${error.message || ""}`);
+    const testo = `Caricamento ${etichetta} fallito: ${error.message || ""}`;
+    onError(testo);
+    // A-3 · il toast ANNUNCIA, questo stato DURA. Servono entrambi, e il
+    // perché sta in hooks/useErroriIdratazione.js.
+    segnaEsito?.(entita, testo);
     // FUORI dal ramo del successo per costruzione: uno scheletro che gira per
     // sempre è disonesto quanto un vuoto dichiarato troppo presto (criticità
     // #6 nel preambolo). Vale per entrambe le attese, ed è il motivo per cui
@@ -215,6 +221,11 @@ const idratazione = ({
   // che abbiamo in mano è più vecchio di quello che c'è a schermo.
   if (gen && !vinceIlTurno(gen.current, turno)) return;
   dispatch({ type: action, payload: (data || []).map(mapper) });
+  // A-3 · una richiesta riuscita SPEGNE l'errore precedente, e va fatto sul
+  // percorso che scrive e non dentro il «Riprova»: chi rimedia può essere il
+  // reload di una riconnessione, e un allarme che resta acceso dopo che i dati
+  // sono tornati è la cosa che rende ignorabili tutti gli altri.
+  segnaEsito?.(entita, null);
   segnaCaricata(entita);
   alTermine?.();
 };
@@ -255,6 +266,12 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
   const segnaCaricata = useCallback((entita) => {
     impostaCaricamento(prev => (prev[entita] ? { ...prev, [entita]: false } : prev));
   }, []);
+
+  // A-3 · Il TERZO stato, accanto a `caricamento`: «questa entità NON si è
+  // caricata», che prima si travestiva da elenco vuoto. Il perché e la
+  // politica stanno in hooks/useErroriIdratazione.js — qui resta il solo
+  // punto di chiamata, che è ciò che di A-3 riguarda l'idratazione.
+  const { segnaEsito, componi: componiErrori } = useErroriIdratazione();
 
   // ST-15 · L'ultimo payload consegnato al reducer per team e categorie.
   //
@@ -362,7 +379,7 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     action: "MERGE_TASK_ROW", mapper: fromDbTask, dispatch,
   });
 
-  useDebouncedTableSubscription(["tasks", "comments"], async (isCurrent, tabelle) => {
+  const ricaricaTasks = useDebouncedTableSubscription(["tasks", "comments"], async (isCurrent, tabelle) => {
     // Un commento aggiunto NON cambia i campi del task: cambia solo il thread
     // appeso al task. Finché il reload non sapeva quale tabella avesse generato
     // l'evento era costretto a riscaricare tutto per costruzione, e
@@ -437,7 +454,9 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     if (!completo && storicoCompleto.current) return;
     if (error) {
       console.error("[VoyageDesk] Tasks.list", error);
-      onError(`Caricamento task fallito: ${error.message || ""}`);
+      const testo = `Caricamento task fallito: ${error.message || ""}`;
+      onError(testo);
+      segnaEsito("tasks", testo);
       segnaCaricata("tasks");
       // Se questa richiesta è quella che ha superato un `caricaStorico`, è
       // anche l'unica rimasta a poter chiudere la sua attesa — vedi
@@ -448,6 +467,7 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     }
     if (!vinceIlTurno(genTask.current, turno)) return;
     dispatch({ type: "SET_TASKS", payload: (data || []).map(fromDbTask) });
+    segnaEsito("tasks", null);
     segnaCaricata("tasks");
     if (completo) chiudiAttesaStorico();
   }, {
@@ -568,10 +588,10 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     segnaCaricata("clients");
   }, [enabled, dispatch, onError, segnaCaricata]);
 
-  useDebouncedTableSubscription(["notices"], idratazione({
+  const ricaricaNotices = useDebouncedTableSubscription(["notices"], idratazione({
     entita: "notices", tag: "[VoyageDesk] Notices.list", etichetta: "avvisi",
     list: () => NoticesAPI.list(), mapper: fromDbNotice, action: "SET_NOTICES",
-    dispatch, onError, segnaCaricata,
+    dispatch, onError, segnaCaricata, segnaEsito,
   }), {
     enabled, deps: [enabled],
     // Suggerimento strategico n.1 dell'audit del 16 agosto: `notices` è una
@@ -588,12 +608,14 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
   // sub, ADD_CATEGORY/UPDATE_CATEGORY/REMOVE_CATEGORY toccavano solo lo stato
   // React in memoria: una categoria creata spariva al primo reload perché non
   // veniva mai scritta su Supabase (vedi migration 20260630_categories_table).
-  useDebouncedTableSubscription(["categories"], async (isCurrent) => {
+  const ricaricaCategorie = useDebouncedTableSubscription(["categories"], async (isCurrent) => {
     const { data, error } = await CategoriesAPI.list();
     if (!isCurrent()) return;
     if (error) {
       console.error("[VoyageDesk] Categories.list", error);
-      onError(`Caricamento categorie fallito: ${error.message || ""}`);
+      const testo = `Caricamento categorie fallito: ${error.message || ""}`;
+      onError(testo);
+      segnaEsito("categories", testo);
       segnaCaricata("categories");
       return;
     }
@@ -606,6 +628,7 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
       ultimeCategorie.current = categories;
       dispatch({ type: "SET_CATEGORIES", payload: categories });
     }
+    segnaEsito("categories", null);
     segnaCaricata("categories");
     // B-1 (audit del 19 agosto): niente canale permanente per una tabella da
     // ~10 righe che cambia quando un admin apre il pannello. L'idratazione e
@@ -652,7 +675,7 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     segnaCaricata("team");
   }, [abbiamoGiaIlTeam, teamIniziale, segnaCaricata]);
 
-  useDebouncedTableSubscription(["users"], async (isCurrent) => {
+  const ricaricaTeam = useDebouncedTableSubscription(["users"], async (isCurrent) => {
     // listAll() legge solo public.users → NON contiene email/phone, che vivono
     // in public.user_contacts (RLS own+admin). Senza ri-merge, ad ogni refresh
     // del team (incluso quello iniziale al mount) i contatti dell'utente loggato
@@ -671,6 +694,13 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     if (!isCurrent()) return;
     if (error) {
       console.error("[VoyageDesk] Users.listAll", error);
+      // ⚠️ A-3 · questo ramo era l'unico dei sei a NON chiamare `onError`: un
+      // team che non si carica non produceva alcun segnale, né toast né altro,
+      // e la matrice dei permessi lato client si calcola su `state.team`. Ora
+      // dice entrambe le cose — l'annuncio e la condizione che dura.
+      const testo = `Caricamento team fallito: ${error.message || ""}`;
+      onError(testo);
+      segnaEsito("team", testo);
       segnaCaricata("team");
       return;
     }
@@ -690,6 +720,11 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
       ultimoTeam.current = team;
       dispatch({ type: "SET_TEAM", payload: team });
     }
+    // FUORI dal ramo `stessaLista`, come `segnaCaricata` e per la stessa
+    // ragione: un reload riuscito che rilegge righe identiche ha comunque
+    // rimediato all'errore precedente, e lasciarlo acceso perché «non è
+    // cambiato niente» terrebbe a schermo un allarme falso.
+    segnaEsito("team", null);
     segnaCaricata("team");
   }, {
     enabled,
@@ -734,10 +769,10 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
   // arrivano dal realtime, e resta anche il reload di ripresa — ma entrambi
   // sono subordinati a `clientiCompleti`: ricaricare un'anagrafica che nessuno
   // ha chiesto sarebbe il difetto rimesso al suo posto per un'altra strada.
-  useDebouncedTableSubscription(["clients"], idratazione({
+  const ricaricaClienti = useDebouncedTableSubscription(["clients"], idratazione({
     entita: "clients", tag: "[CRM] hydration", etichetta: "clienti",
     list: () => ClientsAPI.list(), mapper: fromDbClient, action: "SET_CLIENTS",
-    dispatch, onError, segnaCaricata,
+    dispatch, onError, segnaCaricata, segnaEsito,
     // Nessuno ha chiesto l'anagrafica: non c'è niente da ricaricare. Non è un
     // salto dell'idratazione — è che l'idratazione dei clienti ora la chiede
     // chi la guarda.
@@ -775,12 +810,12 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
   // ADD/UPDATE/DELETE_MESSAGE_TEMPLATE scrivevano solo lo state React.
   // B-1: stesso trattamento di `categories` qui sopra, e per la stessa ragione
   // — quattro righe, gestite dall'admin.
-  useDebouncedTableSubscription(["message_templates"], idratazione({
+  const ricaricaTemplate = useDebouncedTableSubscription(["message_templates"], idratazione({
     entita: "messageTemplates", tag: "[VoyageDesk] MessageTemplates.list",
     etichetta: "template messaggio",
     list: () => MessageTemplatesAPI.list(), mapper: fromDbMessageTemplate,
     action: "SET_MESSAGE_TEMPLATES",
-    dispatch, onError, segnaCaricata,
+    dispatch, onError, segnaCaricata, segnaEsito,
   }), { enabled, deps: [enabled], senzaCanale: true });
 
   // `storicoTask` è la coppia che alimenta <StoricoTaskProvider>: la richiesta
@@ -792,8 +827,21 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
   // identificatori è diventata una regola scritta). Vale `caricandoClienti` e
   // non `caricamento.clients`: quest'ultimo descriveva l'idratazione iniziale,
   // che per i clienti non esiste più.
+  // A-3 · le sei entità con l'handle che le ricarica. Le coppie stanno qui —
+  // l'unico punto che conosce sia i nomi passati a `segnaEsito` sia le
+  // sottoscrizioni che li possiedono — e la politica sta nell'hook.
+  const erroriCaricamento = useErroriComposti(componiErrori, [
+    ["tasks", ricaricaTasks],
+    ["notices", ricaricaNotices],
+    ["categories", ricaricaCategorie],
+    ["team", ricaricaTeam],
+    ["clients", ricaricaClienti],
+    ["messageTemplates", ricaricaTemplate],
+  ]);
+
   return {
     caricamento,
+    erroriCaricamento,
     caricamentoClienti: caricandoClienti,
     storicoTask: { richiedi: caricaStorico, caricando: caricandoStorico },
     clientiCompleti: { richiedi: caricaClienti, caricando: caricandoClienti },

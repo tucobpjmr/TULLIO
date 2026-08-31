@@ -57,8 +57,15 @@
 // si perde nulla: la sottoscrizione era viva per tutto il tempo e gli eventi
 // sono arrivati normalmente. `online` resta invece senza soglia — lì la
 // caduta della rete è un fatto, non un'euristica.
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { subscribeToTable } from "../lib/api.js";
+import { segnalaStatoCanale, dimenticaCanale } from "../lib/freschezzaRealtime.js";
+
+// Identificatore univoco di SOTTOSCRIZIONE per il registro della freschezza.
+// Non basta il nome della tabella: `users` è osservata due volte dalla stessa
+// sessione (refresh del team e presenza), e due chiavi uguali farebbero
+// sparire lo stato della prima sotto quello della seconda.
+let seqSottoscrizione = 0;
 
 // Quanto deve essere durata la permanenza in secondo piano perché il ritorno
 // valga come possibile buco di consegna. Trenta secondi: sopra c'è il
@@ -122,6 +129,24 @@ export function useDebouncedTableSubscription(
   const applyRowRef = useRef(applyRow);
   applyRowRef.current = applyRow;
 
+  // ─── A-3 · il «Riprova» passa da QUI e non da una seconda chiamata ────────
+  // (audit UX/errori del 31 agosto)
+  //
+  // Un caricamento fallito ora ha una via d'uscita (vedi `erroriCaricamento`
+  // in useAppHydration), e quella via deve rifare la richiesta CON LO STESSO
+  // ordinamento di tutte le altre. Richiamare a mano la funzione di reload da
+  // fuori la farebbe partire con un `isCurrent` suo, cioè fuori dal
+  // gen-counter di questo effetto: la sua risposta non saprebbe di essere
+  // stale rispetto a un reload realtime partito nel frattempo, e potrebbe
+  // sovrascriverlo. È esattamente la corsa che `run` esiste per ordinare.
+  //
+  // Il ref è riscritto a ogni ri-esecuzione dell'effetto e azzerato nel
+  // cleanup: un «Riprova» premuto su una vista che nel frattempo è stata
+  // smontata non deve far partire una richiesta di cui nessuno leggerà mai la
+  // risposta.
+  const ricaricaRef = useRef(null);
+  const ricarica = useCallback(() => { ricaricaRef.current?.(); }, []);
+
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
@@ -131,6 +156,12 @@ export function useDebouncedTableSubscription(
       const my = ++gen;
       return reloadRef.current(() => !cancelled && my === gen, tabelle);
     };
+
+    // `null` e non un insieme di tabelle: un «Riprova» dopo un errore non sa
+    // quale parte sia mancata — la richiesta è fallita per intero — ed è lo
+    // stesso caso dell'idratazione iniziale e della ripresa dopo un buco di
+    // connessione, che passano da qui con lo stesso argomento.
+    ricaricaRef.current = () => run(null);
 
     // Idratazione iniziale: `null`, non un Set vuoto. I due casi vanno
     // distinguibili — "nessun evento, carica tutto" non è "eventi da un
@@ -209,7 +240,6 @@ export function useDebouncedTableSubscription(
     const list = senzaCanale
       ? []
       : (Array.isArray(tables) ? tables : [tables]);
-    const unsubs = list.map((tbl) => subscribeToTable(tbl, (p) => debounced(tbl, p)));
 
     // `online`/`visibilitychange` possono arrivare quasi insieme (sbloccare lo
     // schermo spesso significa anche riagganciare la rete): un piccolo debounce
@@ -227,6 +257,42 @@ export function useDebouncedTableSubscription(
       reconnectTimer = setTimeout(() => run(null), 300);
     };
     const onOnline = () => onReconnectSignal();
+
+    // ─── A-1 · lo stato del canale, segnalato E recuperato ──────────────────
+    // (audit UX/errori del 31 agosto)
+    //
+    // Le due metà sono inseparabili, ed è la lezione di A-2/A-3 del 28 agosto:
+    // segnalare senza recuperare lascerebbe una striscia che dice «ricarica»
+    // anche dopo che il canale è tornato su da solo (supabase-js riaggancia in
+    // autonomia); recuperare senza segnalare rimetterebbe i dati a posto senza
+    // mai dire all'utente che per un po' non lo erano.
+    //
+    // ⚠️ Il riaggancio riuscito è un caso di `onReconnectSignal` come `online`
+    // e non un evento a sé: Postgres Changes non ha ripresa da offset (vedi
+    // S-2 in testa), quindi nella finestra in cui il canale era giù sono
+    // passati eventi che non vedremo MAI. L'unico modo di sapere cosa si è
+    // perso è non saperlo e ricaricare.
+    const idSottoscrizione = ++seqSottoscrizione;
+    const chiaviCanale = [];
+    // `false` finché non si rompe qualcosa: il PRIMO 'SUBSCRIBED' è
+    // l'aggancio iniziale, non un ritorno, e innescare lì un reload
+    // significherebbe rifare l'idratazione appena fatta a ogni mount.
+    let eraDegradato = false;
+
+    const unsubs = list.map((tbl) => {
+      const chiave = `${tbl}#${idSottoscrizione}`;
+      chiaviCanale.push(chiave);
+      return subscribeToTable(tbl, (p) => debounced(tbl, p), (stato) => {
+        if (cancelled) return;
+        segnalaStatoCanale(chiave, stato);
+        if (stato === "SUBSCRIBED") {
+          if (eraDegradato) onReconnectSignal();
+          eraDegradato = false;
+          return;
+        }
+        eraDegradato = true;
+      });
+    });
 
     // `null` = non siamo (mai stati) in secondo piano da quando l'effetto è
     // partito. Se il montaggio avviene a scheda già nascosta partiamo dal
@@ -253,7 +319,19 @@ export function useDebouncedTableSubscription(
       window.removeEventListener("online", onOnline);
       document.removeEventListener("visibilitychange", onVisibility);
       unsubs.forEach((u) => u?.());
+      // A-1 · togliere i propri canali dal registro fa parte dello staccarli:
+      // uno smontaggio (cambio vista, logout) che lasciasse dietro un canale
+      // marcato rotto terrebbe accesa per sempre una striscia su una
+      // condizione che non è più osservabile da nessuno.
+      chiaviCanale.forEach(dimenticaCanale);
+      ricaricaRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, delay, ...deps]);
+
+  // Identità STABILE fra i render: il chiamante la mette dentro l'oggetto che
+  // passa alle viste memoizzate, e una funzione nuova a ogni render le
+  // sveglierebbe tutte per nulla (stessa ragione del `dispatch` di
+  // useSyncedDispatch).
+  return ricarica;
 }

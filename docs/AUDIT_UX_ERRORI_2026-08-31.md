@@ -7,12 +7,16 @@ validazione dei form, feedback durante il salvataggio, stati asincroni
 
 Dodici rilievi: **nessuno critico, cinque di alta priorità.**
 
+✅ **A-1 e A-3 chiusi il 31 agosto** — insieme, come proponeva il suggerimento
+strategico n. 1: sono la stessa domanda posta in due momenti diversi. Vedi
+«Come sono stati chiusi» in fondo al documento.
+
 Base di partenza misurata su questo commit: `npm ci` pulito, `npm test` verde
 (1895 passati, 23 saltati su 155 file), `npm run lint` senza segnalazioni,
 `npm run verifica:convenzioni` verde (53 controlli, nessuna divergenza),
 tredici audit precedenti chiusi o quasi.
 
-⟦stato: 0/12 chiusi⟧
+⟦stato: 2/12 chiusi⟧
 
 > **Sulla numerazione.** `A-` = alta priorità, `M-` = media, `B-` = bassa,
 > come negli audit dal 12 agosto in poi. Nessun `C-`: vedi l'executive summary.
@@ -102,9 +106,9 @@ che `errorReporting.js` nomina nel proprio preambolo: **«credo di aver salvato�
 
 | # | Priorità | Rilievo | File |
 |---|---|---|---|
-| A-1 | **Alta** | I canali realtime chiamano `.subscribe()` senza callback di stato: `CHANNEL_ERROR`/`TIMED_OUT`/`CLOSED` non li legge nessuno. Con l'HTTP ancora vivo `OfflineBanner` tace, e l'utente lavora su dati fermi senza saperlo. | `src/lib/realtime.js:114,225` |
+| **A-1** ✔ | **Alta** | I canali realtime chiamano `.subscribe()` senza callback di stato: `CHANNEL_ERROR`/`TIMED_OUT`/`CLOSED` non li legge nessuno. Con l'HTTP ancora vivo `OfflineBanner` tace, e l'utente lavora su dati fermi senza saperlo. | `src/lib/realtime.js:114,225` |
 | A-2 | **Alta** | Il cap a 3 dei toast espelle in FIFO senza guardare il tipo: un errore che per policy non scade da solo viene tolto da un successo arrivato dopo. L'idratazione può emetterne 6 nella stessa finestra. | `src/state/toastQueue.js:42` |
-| A-3 | **Alta** | Un caricamento **fallito** chiude il flag e si disegna come **vuoto**: «Nessuna task aperta a tuo nome. Buon lavoro!» su un fetch andato storto. Nessuno stato d'errore per entità, nessun «Riprova». | `src/hooks/useAppHydration.js:202-211` |
+| **A-3** ✔ | **Alta** | Un caricamento **fallito** chiude il flag e si disegna come **vuoto**: «Nessuna task aperta a tuo nome. Buon lavoro!» su un fetch andato storto. Nessuno stato d'errore per entità, nessun «Riprova». | `src/hooks/useAppHydration.js:202-211` |
 | A-4 | **Alta** | Chunk lazy mancante dopo un deploy: i boundary non lo distinguono da un bug e offrono una via d'uscita che non lo risolve, richiudendo il ciclo. Il riconoscitore esiste già, ma è privato dell'handler globale. | `src/components/errors/creaErrorBoundary.jsx:74-77`, `src/lib/errorReporting.js` |
 | A-5 | **Alta** | `sendMessage` della chat non ha `.catch()`: su **rigetto** di rete la compensazione non gira, il messaggio fantasma resta a schermo indistinguibile da uno consegnato. E sul ramo gestito il testo digitato viene scartato senza possibilità di recupero. | `src/components/chat/chatCommands.js:225-254` |
 | M-1 | Media | Tre modali del modulo Liste ancora sulla validazione a toast (la frase che `validators.js` cita come anti-pattern). E il controllo che dovrebbe vederli ha il perimetro definito dal marcatore della conformità: 7 form su ~25. | `EditMovimentoModal.jsx:22`, `NuovaListaModal.jsx:21`, `AggiungiBeneficiarioModal.jsx:22`, `BulkMovimentiModal.jsx:28,49`, `scripts/verifica-convenzioni/convenzioni.js:370` |
@@ -1181,3 +1185,119 @@ fallito), fa tre cose insieme: dà ad A-1/A-3/A-4 un posto dove vivere invece di
 tre soluzioni ad hoc, restituisce al toast il suo ruolo (eventi, dove
 funziona bene), e rende A-2 e B-1 problemi molto più piccoli, perché la coda dei
 toast smette di dover reggere ciò per cui non è fatta.
+
+---
+
+## Come sono stati chiusi A-1 e A-3 (31 agosto)
+
+Chiusi **insieme**, che era il punto del suggerimento strategico n. 1: presi
+singolarmente sembrano due rilievi diversi (realtime, idratazione), ma sono la
+stessa domanda — *l'app sa che ciò che mostra non è aggiornato, e non lo dice* —
+posta in due momenti. A-1 è la versione continua (il canale è morto), A-3 quella
+iniziale (il fetch è fallito). Chiuderli separatamente avrebbe significato
+scrivere due volte lo stesso terzo stato.
+
+### A-1 · lo stato del canale, segnalato E recuperato
+
+Le due metà sono inseparabili, ed è la lezione di A-2/A-3 del 28 agosto:
+segnalare senza recuperare lascerebbe una striscia che dice «ricarica» anche
+dopo che il canale è tornato su da solo (supabase-js riaggancia in autonomia);
+recuperare senza segnalare rimetterebbe i dati a posto senza mai dire
+all'utente che per un po' non lo erano.
+
+- **`lib/realtime.js`** — `subscribeToTable` prende un terzo parametro
+  `onStato` e lo aggancia a `.subscribe()`. È opzionale perché
+  `subscribeToTyping` non ne ha bisogno (stato effimero, degradare in silenzio
+  è corretto), non per comodità dei chiamanti su tabella.
+  ⚠️ Il ramo «client non utilizzabile» (env var assenti, doppio nei test) **non**
+  segnala nulla: lì non c'è un canale caduto, non c'è mai stato un canale, e
+  segnalarlo accenderebbe la striscia in ogni test che mocka il client — cioè
+  affermerebbe un guasto dove c'è una configurazione.
+- **`lib/freschezzaRealtime.js`** (nuovo) — il registro. **Aggregato e non per
+  tabella**: all'utente «gli aggiornamenti automatici sono fermi» è azionabile,
+  «il canale notices è in CHANNEL_ERROR» no; la diagnosi per canale resta, in
+  console. La chiave è per **sottoscrizione** e non per tabella, perché `users`
+  è osservata due volte dalla stessa sessione e due chiavi uguali farebbero
+  sparire lo stato della prima. Notifica solo sulla **transizione** del fatto
+  aggregato: nove canali che riagganciano dopo una sospensione consegnano nove
+  `SUBSCRIBED` e devono produrre un solo risveglio.
+- **`hooks/useDebouncedTableSubscription.js`** — segnala, e sul riaggancio dopo
+  una caduta chiama `onReconnectSignal()`, cioè lo **stesso** percorso di
+  `online` e del ritorno in primo piano: Postgres Changes non ha ripresa da
+  offset, quindi l'unico reload corretto è quello completo. Il primo
+  `SUBSCRIBED` **non** conta come ripresa — è l'aggancio iniziale, e trattarlo
+  come ritorno rifarebbe l'idratazione appena fatta a ogni mount di ognuna
+  delle nove sottoscrizioni. Il cleanup dimentica i propri canali: uno
+  smontaggio che ne lasciasse dietro uno marcato rotto terrebbe accesa per
+  sempre una striscia su una condizione non più osservabile.
+- **`hooks/useFreschezzaRealtime.js`** (nuovo) — `useSyncExternalStore` e non
+  `useState` + effetto: fra il primo render e l'esecuzione di un effetto un
+  canale può essere già caduto, e quella transizione sarebbe stata notificata
+  prima che il listener esistesse. È lo stesso buco che `useOnlineStatus`
+  chiude a mano con il riallineamento al mount.
+- **`components/shell/OfflineBanner.jsx`** — seconda variante, **oro e non
+  rossa**: offline le scritture falliscono, qui passano tutte ed è la lettura
+  automatica a essere ferma. Lo stesso colore per entrambe significherebbe che
+  chi la vede non sa quale delle due sta leggendo, cioè non sa se può
+  continuare a lavorare. La frase dice anche cosa **continua** a funzionare,
+  perché «interrotti» da solo si legge come «non salvare niente». L'offline
+  **vince** quando sono vere insieme: sono vere insieme per costruzione (senza
+  rete i canali cadono per conseguenza) e due strisce direbbero due volte la
+  stessa cosa con due rimedi, di cui uno inapplicabile. `aria-live` è
+  `assertive` per l'offline e `polite` qui: non c'è nulla di urgente da
+  interrompere.
+
+⛔ **Non copre** il caso in cui la rete c'è, il canale è vivo e le **query**
+falliscono: quello è l'altro segnale applicativo che `useOnlineStatus` nomina, e
+per l'idratazione lo copre A-3 qui sotto — per le scritture lo coprono già i due
+registry.
+
+### A-3 · il terzo stato, e la sua via d'uscita
+
+- **`hooks/useErroriIdratazione.js`** (nuovo) — `entita → messaggio | null` più
+  la composizione con l'handle di ricarica. In un file suo per la stessa
+  ragione di `state/toastQueue.js`: il tetto di righe di `useAppHydration` non
+  è un margine da consumare ma una deroga alla sua forma (sei idratazioni che
+  si leggono una accanto all'altra), e la domanda giusta era quale fetta
+  meritasse un file — questa non è idratazione, è la politica di come si
+  ricorda e si compone un fallimento, e non conosce nessuna entità per nome.
+- **`hooks/useDebouncedTableSubscription.js`** — ritorna un handle `ricarica`
+  con **identità stabile**. Il «Riprova» passa da lì e non da una seconda
+  chiamata alla funzione di reload: richiamarla da fuori la farebbe partire con
+  un `isCurrent` suo, cioè fuori dal gen-counter dell'effetto, e la sua
+  risposta non saprebbe di essere stale rispetto a un reload realtime partito
+  nel frattempo. È esattamente la corsa che `run` esiste per ordinare.
+- **`hooks/useAppHydration.js`** — tutti e sei i percorsi segnalano l'esito, e
+  lo **spengono** sul successo: chi rimedia può essere il reload di una
+  riconnessione, non solo il «Riprova», e un allarme che resta acceso dopo che
+  i dati sono tornati è la cosa che rende ignorabili tutti gli altri.
+  ⚠️ **Trovato chiudendo il rilievo**: il ramo d'errore di `Users.listAll` era
+  l'unico dei sei a non chiamare nemmeno `onError` — un team che non si carica
+  non produceva **alcun** segnale, e su `state.team` si calcola la matrice dei
+  permessi lato client. Ora dice entrambe le cose.
+- **`components/ui/StatoEntita.jsx`** (nuovo) + **`VoyageDeskInner.jsx`** — il
+  riquadro è montato **una volta** sopra la vista attiva e non dentro le nove:
+  la regola («un caricamento fallito non si disegna come un vuoto») è una sola,
+  e riscritta nove volte diventa nove varianti — stessa ragione per cui
+  `ErrorDetails` è uno per tre boundary. Il riquadro **si aggiunge** alla
+  vista e non la sostituisce: ciò che era stato caricato prima dell'errore
+  resta utilizzabile, e sostituire tutto sarebbe la reazione sproporzionata che
+  `ViewErrorBoundary` esiste per non avere. `role="status"` e non `alert`:
+  l'annuncio interrompente l'ha già fatto il toast: qui resta la condizione.
+
+### Verifica
+
+- **42 test nuovi** in cinque file (`test/lib/freschezzaRealtime.test.js`,
+  `test/realtime/statoCanale.test.jsx`, `test/realtime/idratazioneErrore.test.jsx`,
+  `test/shell/strisciaFreschezza.test.jsx`, `test/ui/statoEntita.test.jsx`).
+  I casi che contano sono verificati **contro il codice precedente** per
+  mutazione, in entrambe le direzioni: disattivando il recupero fallisce «il
+  riaggancio DOPO una caduta ricarica tutto»; facendo contare il primo
+  `SUBSCRIBED` come ripresa falliscono «il PRIMO 'SUBSCRIBED' non ricarica» e
+  «una caduta senza riaggancio non ricarica nulla»; togliendo
+  `dimenticaCanale` dal cleanup fallisce «lo smontaggio toglie i canali dal
+  registro»; togliendo i due `segnaEsito` falliscono il ciclo del «Riprova» e
+  il ramo del team.
+- `npm test` 1937 passati / 23 saltati su 160 file (erano 1895 su 155);
+  `npm run lint` e `npm run verifica:tipi` puliti;
+  `npm run verifica:convenzioni` 55 controlli, nessuna divergenza.

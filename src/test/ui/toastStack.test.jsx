@@ -11,7 +11,7 @@ import { withDispatch } from "../helpers/appData.jsx";
 describe("ToastStack", () => {
   it("con toasts vuoto il contenitore aria-live esiste comunque, senza toast visibili", () => {
     const { container } = render(withDispatch(<ToastStack toasts={[]} />));
-    const live = container.querySelector('[aria-live="assertive"]');
+    const live = container.querySelector('[aria-live="polite"]');
     expect(live).toBeInTheDocument();
     expect(live.children.length).toBe(0);
   });
@@ -118,6 +118,41 @@ describe("ToastStack", () => {
     expect(screen.getByText("primo messaggio")).toBeInTheDocument();
     expect(screen.getByText("secondo messaggio")).toBeInTheDocument();
     expect(screen.getByText("terzo messaggio")).toBeInTheDocument();
+  });
+
+  // A-2 · il tetto visivo (MAX_A_SCHERMO) vive in ToastStack, non nella coda:
+  // oltre tre toast, i più vecchi restano in coda e si contano invece di
+  // sparire in silenzio.
+  it("con più di tre toast ne mostra solo tre e conta gli altri", () => {
+    render(withDispatch(
+      <ToastStack
+        toasts={[
+          { id: "1", message: "Uno", type: "error" },
+          { id: "2", message: "Due", type: "error" },
+          { id: "3", message: "Tre", type: "error" },
+          { id: "4", message: "Quattro", type: "error" },
+          { id: "5", message: "Cinque", type: "error" },
+        ]}
+      />,
+    ));
+    expect(screen.queryByText("Uno")).not.toBeInTheDocument();
+    expect(screen.queryByText("Due")).not.toBeInTheDocument();
+    expect(screen.getByText("Tre")).toBeInTheDocument();
+    expect(screen.getByText("Quattro")).toBeInTheDocument();
+    expect(screen.getByText("Cinque")).toBeInTheDocument();
+    expect(screen.getByText(/\+2 altri messaggi in coda/)).toBeInTheDocument();
+  });
+
+  it("con tre toast o meno non mostra il contatore", () => {
+    render(withDispatch(
+      <ToastStack
+        toasts={[
+          { id: "1", message: "Uno", type: "success" },
+          { id: "2", message: "Due", type: "success" },
+        ]}
+      />,
+    ));
+    expect(screen.queryByText(/altri messaggi in coda/)).not.toBeInTheDocument();
   });
 
   it("un messaggio lungo non viene troncato: niente ellipsis, testo completo nel DOM", () => {

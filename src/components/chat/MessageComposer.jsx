@@ -23,6 +23,14 @@ const rowCenterGap10 = {
 const boxW3R2 = { width: 3, alignSelf: "stretch", background: "var(--gold)", borderRadius: 2 };
 const txtF11Bold = { fontSize: 11, fontWeight: 600, color: "var(--gold-dark)" };
 const txtF12Muted = { fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+// A-5 · la barra che dice perché il testo è tornato nel composer: senza,
+// ricomparirebbe indistinguibile da una bozza qualsiasi, e l'unico segnale
+// del fallimento sarebbe il toast già scaduto.
+const rowInvioFallito = {
+  display: "flex", alignItems: "center", gap: 6,
+  padding: "6px 14px", background: "var(--danger)", color: "#fff",
+  fontSize: 12, fontWeight: 600,
+};
 const rowCenterRelative = {
   padding: "10px 12px", background: "var(--card)", borderTop: "1px solid var(--border)",
   // safe-area in basso: il composer resta sopra l'home-indicator/toolbar iOS.
@@ -60,7 +68,7 @@ const boxF16Navy = {
 };
 
 export const MessageComposer = ({ cv, cvd, fileInputRef, sendText, sendVoice, sendFile, notifyTyping }) => {
-  const { input, recording, replyingTo, showAttach, showTemplates, uploading } = cv;
+  const { input, recording, replyingTo, showAttach, showTemplates, uploading, invioFallito } = cv;
   const { messageTemplates: templates = [] } = useChatContext();
   const { getMember } = useAppData();
 
@@ -88,6 +96,15 @@ export const MessageComposer = ({ cv, cvd, fileInputRef, sendText, sendVoice, se
           </div>
         </div>
         <button onClick={() => cvd({ type: "REPLYING", v: null })} style={stiliComuni.btnChiudi}>✕</button>
+      </div>
+    )}
+
+    {/* A-5 · il testo è tornato nel composer perché l'invio precedente è
+        fallito: senza questa riga sarebbe indistinguibile da una bozza. */}
+    {invioFallito && (
+      <div role="status" style={rowInvioFallito}>
+        <span aria-hidden="true">⚠</span>
+        <span>Non inviato — riprova</span>
       </div>
     )}
 

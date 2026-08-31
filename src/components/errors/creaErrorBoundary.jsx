@@ -28,7 +28,8 @@
 // (`messaggio`) e il nome della prop che riarma (`chiaveReset`). Cioè le tre
 // cose che DAVVERO distinguono i tre boundary.
 import React from 'react';
-import { codiceSegnalazione } from '../../lib/errorReporting.js';
+import { codiceSegnalazione, isChunkMancante } from '../../lib/errorReporting.js';
+import { PannelloAppAggiornata } from './PannelloAppAggiornata.jsx';
 
 /**
  * @param {object}   spec
@@ -44,7 +45,7 @@ import { codiceSegnalazione } from '../../lib/errorReporting.js';
  */
 export function creaErrorBoundary({ nome, chiaveReset = null, messaggio, Fallback }) {
   const iniziale = (props) => ({
-    error: null, info: null, codice: null,
+    error: null, info: null, codice: null, obsoleto: false,
     reset: chiaveReset ? props[chiaveReset] : null,
   });
 
@@ -56,9 +57,11 @@ export function creaErrorBoundary({ nome, chiaveReset = null, messaggio, Fallbac
 
     // Criticità #9: il codice nasce QUI e non nel render, così resta lo stesso
     // per tutta la vita del pannello — altrimenti l'utente ne detta uno e in
-    // console ce n'è un altro.
+    // console ce n'è un altro. `obsoleto` si decide nello stesso posto e per
+    // la stessa ragione (A-4): è una proprietà dell'errore CATTURATO, non deve
+    // poter cambiare mentre il pannello è a schermo.
     static getDerivedStateFromError(error) {
-      return { error, codice: codiceSegnalazione() };
+      return { error, codice: codiceSegnalazione(), obsoleto: isChunkMancante(error) };
     }
 
     // Cambiando identità il boundary si riarma da solo. Senza, dopo un crash
@@ -80,8 +83,15 @@ export function creaErrorBoundary({ nome, chiaveReset = null, messaggio, Fallbac
     }
 
     render() {
-      const { error, info, codice } = this.state;
+      const { error, info, codice, obsoleto } = this.state;
       if (!error) return this.props.children;
+      // Un chunk mancante NON è un errore di QUESTA vista o di QUESTO modale:
+      // è la scheda che sta girando su un deploy che non esiste più. La via
+      // d'uscita dei tre pannelli (ricarica / torna alla Dashboard / chiudi)
+      // è specifica del dominio di ciascuno ed è giusta — ma nessuna delle
+      // tre ripara QUESTO, e due su tre richiudono il ciclo. Qui il rimedio è
+      // uno solo per tutti e tre (A-4).
+      if (obsoleto) return <PannelloAppAggiornata />;
       return <Fallback error={error} info={info} codice={codice} onReset={this.props.onReset} />;
     }
   }

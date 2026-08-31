@@ -8,26 +8,16 @@ import { useListeWrite } from "./listePersistence.js";
 import { useSalvataggioLista } from "./useSalvataggioLista.js";
 import { SegnoSeg } from "./modals/SegnoSeg.jsx";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
-import { validaCampi, obbligatorio, interpretabile, primoCampoInvalido } from "../../lib/validators.js";
+import { validaCampi, primoCampoInvalido } from "../../lib/validators.js";
+// M-1 · le regole sono condivise con EditMovimentoModal (stesso denaro, stessi
+// campi, sia in registrazione sia in correzione — vedi regoleMovimento.js).
+import { REGOLE_MOVIMENTO, ORDINE_MOVIMENTO } from "./regoleMovimento.js";
 import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
 const rowEnd = { display: "flex", alignItems: "flex-end" };
 const wFull = { width: "100%" };
-
-// Criticità #10 — le regole del riquadro, dichiarate una volta e fuori dal
-// componente perché sono costanti. `importo` si interpreta col SEGNO scelto
-// nel form, ed è il motivo per cui un validatore riceve anche gli altri
-// valori: "1.000,00" è valido o no a seconda del segno solo per il parser.
-const REGOLE = {
-  data: obbligatorio("Indica la data del movimento."),
-  desc: obbligatorio("La descrizione non può essere vuota."),
-  imp: interpretabile((v, f) => parseImporto(v, f.segno), "Importo non valido: usa una cifra come 1.250,00."),
-};
-// Ordine VISIVO dei campi: è quello che decide dove va il focus (vedi
-// primoCampoInvalido), e nel riquadro il tipo sta fra descrizione e importo.
-const ORDINE = ["data", "desc", "imp"];
 
 // Riquadro "Nuovo movimento": sta in cima al foglio e si apre col tasto ＋
 // della barra. In fondo alla pagina, su liste lunghe, richiedeva di scorrere
@@ -80,8 +70,8 @@ export function AddMovBox({ listaId, onSaved, onClose, onBulk }) {
 
   const submit = () => {
     const valori = { data, desc, imp, segno };
-    const trovati = validaCampi(valori, REGOLE);
-    const primo = primoCampoInvalido(trovati, ORDINE);
+    const trovati = validaCampi(valori, REGOLE_MOVIMENTO);
+    const primo = primoCampoInvalido(trovati, ORDINE_MOVIMENTO);
     if (primo) {
       setErrori(trovati);
       // Il focus sul primo campo sbagliato è metà del rimedio: senza, chi usa
@@ -97,10 +87,16 @@ export function AddMovBox({ listaId, onSaved, onClose, onBulk }) {
   };
 
   return (
-    <div className="lv-add-box">
+    // M-4 · `<form>` e non `<div>`: è ciò che dà a Invio il significato che
+    // l'utente si aspetta in un modulo — questo è il form a frequenza più
+    // alta del gestionale, pensato apposta per la ripetizione (vedi
+    // `alSuccesso` sopra). `noValidate` perché la validazione è la nostra (per
+    // campo, con REGOLE): quella nativa del browser mostrerebbe un secondo
+    // popup non tradotto sopra i nostri FieldError.
+    <form className="lv-add-box" noValidate onSubmit={(e) => { e.preventDefault(); submit(); }}>
       <div className="lv-add-head">
         <h3>Nuovo movimento</h3>
-        <button className="lv-icon-btn" title="Chiudi" aria-label="Chiudi il riquadro" onClick={onClose}>✕</button>
+        <button type="button" className="lv-icon-btn" title="Chiudi" aria-label="Chiudi il riquadro" onClick={onClose}>✕</button>
       </div>
       <div className="lv-form-grid">
         <div className="lv-field">
@@ -143,14 +139,17 @@ export function AddMovBox({ listaId, onSaved, onClose, onBulk }) {
           </select>
         </div>
         <div className="lv-field" style={rowEnd}>
-          <button className="lv-btn primary" style={wFull} disabled={inVolo} onClick={submit}>
+          <button type="submit" className="lv-btn primary" style={wFull} disabled={inVolo}>
             {inVolo ? "Registro…" : "Registra"}
           </button>
         </div>
       </div>
-      <button className="lv-btn sm" style={stiliComuni.mt12} onClick={onBulk}>
+      {/* M-4 · `type="button"`: senza, ogni bottone dentro un `<form>` senza
+          `type` esplicito È un submit — questo aprirebbe il pannello bulk
+          registrando anche il movimento corrente. */}
+      <button type="button" className="lv-btn sm" style={stiliComuni.mt12} onClick={onBulk}>
         + Inserisci più movimenti insieme
       </button>
-    </div>
+    </form>
   );
 }

@@ -14,6 +14,11 @@
 // funzioni è una transizione di stato. Sono la POLITICA della coda dei toast —
 // dedup, cap, marcatura, ritiro — che il reducer applica ma non definisce.
 
+// Quanti se ne DISEGNANO: è un vincolo di layout (oltre, la pila di toast
+// copre la bottom-nav su mobile), e per questo vive accanto a chi disegna
+// (ToastStack, in components/ui/Toast.jsx) e non a chi accoda.
+export const MAX_A_SCHERMO = 3;
+
 /**
  * Accoda un toast invece di sovrascrivere quello corrente.
  *
@@ -38,8 +43,23 @@ export function pushToast(toasts, { message, type, undoable }) {
   // lo stesso testo — cinque righe identiche in colonna non informano più di una.
   const senzaDuplicati = (toasts || []).filter(t => t.message !== message);
   const next = [...senzaDuplicati, { id, message, type, undoable: !!undoable }];
-  // Cap a 3: oltre, la pila di toast copre la bottom-nav su mobile.
-  return next.slice(-3);
+
+  // ─── A-2 · Il cap NON è più `slice(-3)` ────────────────────────────────
+  // Quel taglio applicava un vincolo di RENDERING (quanti toast stanno sopra
+  // la bottom-nav) alla RITENZIONE (quanti se ne ricordano): un errore non
+  // scade da solo per decisione esplicita di ToastItem, e veniva comunque
+  // buttato via da un successo arrivato dopo — il caso più comune, perché i
+  // successi sono la maggioranza del traffico della coda.
+  //
+  // Qui si sfoltisce SOLO ciò che sarebbe scaduto da sé — successi e
+  // warning, dal più vecchio — e gli errori restano finché l'utente non li
+  // chiude. Il tetto a schermo lo applica ToastStack, che è il livello che
+  // conosce lo spazio disponibile.
+  const scadenti = next.filter(t => t.type !== "error");
+  const daTogliere = Math.max(0, scadenti.length - MAX_A_SCHERMO);
+  if (daTogliere === 0) return next;
+  const espulsi = new Set(scadenti.slice(0, daTogliere).map(t => t.id));
+  return next.filter(t => !espulsi.has(t.id));
 }
 
 /**

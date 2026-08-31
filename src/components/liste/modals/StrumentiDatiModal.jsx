@@ -14,8 +14,9 @@ const middle = { justifyContent: "center" };
 // fallirebbe sempre per manager/agent. "Scarica backup" resta per tutti: è
 // una lettura, non una scrittura privilegiata.
 export function StrumentiDatiModal({ isAdminUser, onClose, onScaricaBackup, onCaricaBackup, onReset }) {
+  // M-2 · solo scelte/bottoni: niente da perdere con un click a lato.
   return (
-    <LvOverlay onClose={onClose}>
+    <LvOverlay onClose={onClose} chiudiSuVelo>
       <h2>Strumenti dati</h2>
       <div style={stiliComuni.colGap10}>
         <button className="lv-btn" style={middle} onClick={onScaricaBackup}>

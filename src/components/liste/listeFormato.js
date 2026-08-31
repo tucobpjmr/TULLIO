@@ -90,11 +90,15 @@ export const ACTION_LABELS = {
 
 export const actionLabel = (a) => ACTION_LABELS[a] || a;
 
-// Converte l'importo digitato ("12,50" o "12.50") nel numero con segno atteso
-// dalla RPC. Ritorna null se non è un importo valido (zero incluso: la RPC lo
-// rifiuta comunque con check_violation, ma qui evitiamo il round-trip).
-export const parseImporto = (raw, segno = 1) => {
-  const n = parseFloat(String(raw ?? '').replace(',', '.'));
-  if (!n || Number.isNaN(n)) return null;
-  return Math.abs(n) * (segno < 0 ? -1 : 1);
-};
+// L'importo digitato non si interpreta più QUI (C-1 e M-1 dell'audit di
+// codebase del 31 agosto). L'implementazione stava in questo file e leggeva
+// "1.250,00" come 1,25 — mille volte meno — mentre `aNumero` in
+// `scripts/importa-liste/parser.js` leggeva la stessa cifra correttamente:
+// la stessa regola di dominio in due copie, e quella sbagliata era proprio
+// quella su cui digita l'operatore. Ora è una sola, in `src/lib/importi.js`
+// (che è anche sotto `checkJs`), e questa riga la ri-esporta per i dodici
+// importatori del modulo: il ragionamento sta là, non qui.
+//
+// ⛔ Non riscriverla in linea in un componente: vedi il preambolo di
+// `lib/importi.js`.
+export { parseImporto } from "../../lib/importi.js";

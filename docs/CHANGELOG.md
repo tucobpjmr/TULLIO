@@ -1,5 +1,84 @@
 # CHANGELOG — VoyageDesk
 
+## 31 agosto — «permission denied for table …» a sessione valida
+
+> Guasto in produzione, non un rilievo d'audit: al rientro dopo un periodo di
+> inattività l'app mostrava tre toast rossi in fila — «Caricamento template
+> messaggio fallito: permission denied for table message_templates»,
+> «Caricamento avvisi fallito: … for table notices», «Caricamento task
+> fallito: … for table tasks» — a un'utente regolarmente autenticata e con il
+> proprio profilo già a schermo.
+
+**Cosa succedeva davvero.** Non era un problema di GRANT né di RLS: quelle
+richieste sono partite come ruolo `anon`. Nei log Postgres del progetto di
+produzione, alle 09:10:54 UTC del 31 agosto, undici tabelle e una vista
+dell'idratazione (`tasks`, `notices`, `message_templates`, `clients`, `categories`,
+`conversations`, `messages`, `notifications`, `users`, `user_contacts`,
+`liste_viaggio` e `liste_saldi`) rispondono «permission denied»
+nello stesso decimo di secondo, e nei log edge le stesse richieste sono
+401 — mentre 700 ms prima ci sono **due** POST
+`/auth/v1/token?grant_type=refresh_token`, entrambe 200, a 178 ms l'una
+dall'altra.
+
+Le due chiamate sono le due istanze GoTrue che l'app teneva vive sulla stessa
+`storageKey`: quella di `lib/supabaseAuth.js` (introdotta da B-2 dell'audit
+del 30 agosto per tenere `@supabase/supabase-js` fuori dal first load
+anonimo) e quella interna al client pieno di `lib/supabase.js`. La
+coesistenza era stata ragionata — è lo stesso meccanismo con cui gotrue
+tiene allineate due schede — e il client pieno aveva `autoRefreshToken:
+false` proprio per non rinfrescare in proattivo. Non bastava: `getSession()`
+rinfresca comunque quando il token è scaduto, quindi al primo accesso dopo
+l'inattività a chiedere la rotazione dello STESSO refresh token sono in due.
+auth-js se ne accorge (il «commit guard» in `_callRefreshToken`: lo slot di
+storage è cambiato sotto di me, scarto i token appena ruotati) e restituisce
+`{ session: null, error: AuthRefreshDiscardedError }` — corretto come difesa.
+Il chiamante però era `_getAccessToken()` di supabase-js, che davanti a una
+sessione nulla **non fallisce**: ricade su `this.supabaseKey`, la anon key.
+E `anon` dalla migrazione `20260806170000_revoke_anon_table_grants` non ha
+GRANT su nulla. Da qui i messaggi che parlano di privilegi per un guasto che
+era di sessione. Le chiamate con un retry (`caricaProfilo` in
+`auth/AuthContext.jsx`) si riprendevano da sole — la sessione buona era già
+nello storage, scritta dal vincitore del refresh — mentre le query
+dell'idratazione, a colpo singolo, restituivano un toast a testa e lasciavano
+la vista vuota fino a un reload manuale.
+
+**La correzione.** Il client pieno non ha più un'istanza gotrue propria:
+`createClient()` riceve l'opzione `accessToken`, che sostituisce del tutto
+l'auth interna (`supabase.auth` diventa un proxy che solleva, e supabase-js
+non registra il proprio listener di eventi auth). L'unico proprietario della
+sessione resta `lib/supabaseAuth.js`, cioè quello che già faceva refresh
+proattivo e URL detection. postgrest, storage, functions e realtime chiedono
+il token a `creaLettoreToken(supabaseAuth)` a ogni richiesta — realtime anche
+a ogni heartbeat — quindi dopo un refresh viaggiano tutti con il token nuovo
+senza bisogno di essere avvisati.
+
+Il lettore di token fa due cose che il codice sostituito non faceva:
+
+- **rilegge la sessione una seconda volta** se la prima torna nulla. Fra
+  schede diverse le istanze restano due per forza, e lì il commit guard può
+  ancora scattare: ma è esattamente il caso in cui la sessione valida è GIÀ
+  nello storage — il guard scatta perché qualcun altro ce l'ha appena
+  scritta — e la seconda lettura la trova senza alcuna attesa;
+- **non ricade mai sulla anon key.** Senza sessione solleva
+  `Sessione assente: ricarica la pagina per rientrare`, che è ciò che
+  l'utente vede al posto di «permission denied for table tasks».
+
+**Cosa NON è cambiato.** Nessuna modifica al database: GRANT e policy erano e
+restano corretti (`authenticated` ha SELECT/INSERT/UPDATE/DELETE su tutte e
+tre le tabelle dei toast; `anon` non ha nulla, come deve). Nessuna modifica
+alla forma delle query né all'API del data layer: `getSupabase()` resta il
+singleton memoizzato di prima. Il budget del bundle non si muove
+(`verifica:bundle` invariato): `lib/supabaseAuth.js` era già nel chunk
+d'ingresso, e `lib/supabase.js` resta dietro il suo `import()` dinamico.
+`Users.invite()` era l'unico punto che usava `supabase.auth` dal client pieno
+(un `refreshSession()` di recupero) e ora chiama `supabaseAuth`.
+
+**Blindato da** `src/test/lib/supabaseAccessToken.test.js`: il token della
+sessione corrente viene consegnato con una sola lettura, una sessione nulla
+per commit guard viene riletta, e l'assenza di sessione **solleva** invece di
+degradare — compresi token vuoti o mancanti, che erano l'altra porta verso la
+anon key.
+
 ## Audit del 30 agosto — A-1 (seguito)
 
 > Quarto intervento sull'audit del 30 agosto: la prima tappa del rilievo Media

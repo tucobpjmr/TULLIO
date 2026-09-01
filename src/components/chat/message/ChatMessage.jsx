@@ -13,6 +13,7 @@ import { VoicePlayer } from "./VoicePlayer.jsx";
 import { MessageTextContent } from "./MessageTextContent.jsx";
 import { Z } from "../../../styles/tokens.js";
 import * as stiliComuni from "../../../styles/common.js";
+import { attivaConTastiera } from "../../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -88,7 +89,13 @@ export const ChatMessage = memo(function ChatMessage({ msg, prevMsg, conv, allMe
   };
 
   return (
+    // Il div non è lui stesso cliccabile: onMouseEnter/onMouseLeave mostrano
+    // solo la barra di azioni (reagisci/rispondi/inoltra/fissa), che sono
+    // già dei <button> nativi propri. `role="group"` — non "button" — perché
+    // qui non c'è nulla da attivare con Invio/Spazio: è un contenitore, non
+    // un controllo.
     <div
+      role="group"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => { setHovered(false); setShowReactions(false); }}
       style={{
@@ -185,7 +192,10 @@ export const ChatMessage = memo(function ChatMessage({ msg, prevMsg, conv, allMe
 
           {msg.type === "file" && (
             <div
+              role="button"
+              tabIndex={0}
               onClick={openFile}
+              onKeyDown={attivaConTastiera(openFile)}
               title={msg.fileUrl ? "Scarica file" : "File di esempio (nessun contenuto)"}
               style={{
                 display: "flex", alignItems: "center", gap: 10, padding: "6px 4px",

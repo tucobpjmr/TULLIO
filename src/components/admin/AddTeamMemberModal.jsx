@@ -4,7 +4,7 @@
 // Block 3: aggiunto invito reale via email (Edge Function invite-user). Se il
 // campo email è valorizzato, l'utente viene invitato davvero (account auth +
 // profilo pending); altrimenti resta il vecchio comportamento "agente locale".
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import {
   modalOverlay, modalCard, labelStyle, fieldStyle, btnPrimary, btnGhost,
 } from "./adminStyles.js";
@@ -18,6 +18,7 @@ import {
 import * as stiliComuni from "../../styles/common.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
 import { useSalvataggio } from "../../hooks/useSalvataggio.js";
+import { attivaConTastiera } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -63,6 +64,10 @@ export const AddTeamMemberModal = ({ onClose, existingIds, onInvited }) => {
   const [errori, setErrori] = useState({});
   const rifNome = useRef(null);
   const rifEmail = useRef(null);
+  const nomeId = useId();
+  const emailId = useId();
+  const ruoloId = useId();
+  const coloreId = useId();
 
   // ─── M-6 (audit del 26 agosto) · anche questo form è nel contratto ───────
   //
@@ -141,15 +146,34 @@ export const AddTeamMemberModal = ({ onClose, existingIds, onInvited }) => {
 
   // Portale: AdminTeamTab vive dentro il wrapper .fade-in di AdminView (transform
   // → containing block per i fixed). Vedi ui/ModalPortal.jsx.
+  // A-2 dell'audit UX/errori del 1 settembre: il velo chiude solo se il click
+  // parte DAL velo stesso (e.target === e.currentTarget), non se bubbla da un
+  // figlio — lo stesso confronto usato in ui/Modal.jsx, così la card non ha
+  // bisogno di un proprio onClick di stopPropagation. Questo modale non passa
+  // da ui/Modal.jsx e non ha un equivalente da tastiera per Esc, quindi il
+  // velo stesso resta nell'ordine di tabulazione (role/tabIndex/onKeyDown)
+  // invece del disable-comment usato lì.
+  const closeOnOverlay = (e) => {
+    if (e.target === e.currentTarget) onClose();
+  };
+
   return (
     <ModalPortal>
-      <div onClick={onClose} style={modalOverlay}>
-        <div onClick={e => e.stopPropagation()} style={{ ...modalCard, maxWidth: 480 }}>
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label="Esci"
+        onClick={closeOnOverlay}
+        onKeyDown={attivaConTastiera(closeOnOverlay)}
+        style={modalOverlay}
+      >
+        <div style={{ ...modalCard, maxWidth: 480 }}>
           <h3 className="playfair" style={stiliComuni.txtHeadingMb16}>Aggiungi nuovo agente</h3>
           <div style={stiliComuni.gridGap12}>
             <div>
-              <label style={labelStyle}>Nome completo *</label>
+              <label htmlFor={nomeId} style={labelStyle}>Nome completo *</label>
               <input
+                id={nomeId}
                 ref={rifNome}
                 value={name}
                 onChange={e => {
@@ -162,12 +186,13 @@ export const AddTeamMemberModal = ({ onClose, existingIds, onInvited }) => {
               <FieldError id="vd-membro-nome-err">{errori.name}</FieldError>
             </div>
             <div>
-              <label style={labelStyle}>Email (per invitare via email)</label>
+              <label htmlFor={emailId} style={labelStyle}>Email (per invitare via email)</label>
               {/* `type="text" inputMode="email"` e non `type="email"`: la
                   validazione nativa bloccherebbe il submit prima del nostro
                   handler, mostrando la propria bolla non traducibile al posto
                   del messaggio inline (docs/CLAUDE.md). */}
               <input
+                id={emailId}
                 ref={rifEmail}
                 type="text" inputMode="email" autoComplete="email"
                 value={email}
@@ -184,8 +209,8 @@ export const AddTeamMemberModal = ({ onClose, existingIds, onInvited }) => {
               </div>
             </div>
             <div>
-              <label style={labelStyle}>Ruolo</label>
-              <select value={role} onChange={e => setRole(e.target.value)} aria-label="Ruolo" style={fieldStyle}>
+              <label htmlFor={ruoloId} style={labelStyle}>Ruolo</label>
+              <select id={ruoloId} value={role} onChange={e => setRole(e.target.value)} aria-label="Ruolo" style={fieldStyle}>
                 {DB_ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
               </select>
               {role === "agent" && (
@@ -196,8 +221,8 @@ export const AddTeamMemberModal = ({ onClose, existingIds, onInvited }) => {
               )}
             </div>
             <div>
-              <label style={labelStyle}>Colore</label>
-              <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{...fieldStyle, height: 38, padding: 2}} />
+              <label htmlFor={coloreId} style={labelStyle}>Colore</label>
+              <input id={coloreId} type="color" value={color} onChange={e => setColor(e.target.value)} style={{...fieldStyle, height: 38, padding: 2}} />
             </div>
             {!email.trim() && (
               <label style={rowCenterGap8}>

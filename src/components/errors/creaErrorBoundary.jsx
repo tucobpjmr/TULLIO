@@ -28,7 +28,7 @@
 // (`messaggio`) e il nome della prop che riarma (`chiaveReset`). Cioè le tre
 // cose che DAVVERO distinguono i tre boundary.
 import React from 'react';
-import { codiceSegnalazione, isChunkMancante } from '../../lib/errorReporting.js';
+import { codiceSegnalazione, isChunkMancante, registraSegnalazione } from '../../lib/errorReporting.js';
 import { PannelloAppAggiornata } from './PannelloAppAggiornata.jsx';
 
 /**
@@ -79,6 +79,14 @@ export function creaErrorBoundary({ nome, chiaveReset = null, messaggio, Fallbac
         `[VoyageDesk] ${messaggio(this.props)} (${this.state.codice}):`,
         error, info,
       );
+      // A-4 (audit UX/errori del 1 settembre): un crash di render è l'ALTRO
+      // percorso d'errore, quello che lib/errorReporting.js NON vede — passa
+      // da qui, non da un handler globale. Senza questa riga il pannello
+      // diceva "segnala il codice" per un codice che non esisteva da nessuna
+      // parte tranne la console di chi l'ha avuto. `info.componentStack` (lo
+      // stack dei COMPONENTI, non delle funzioni) è spesso più utile di
+      // `error.stack` per capire DOVE nell'albero è esploso.
+      registraSegnalazione(this.state.codice, nome, error, info?.componentStack);
       this.setState({ info });
     }
 

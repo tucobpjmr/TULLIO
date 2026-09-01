@@ -83,6 +83,11 @@ export function LvOverlay({ children, onClose, wide = false, labelledBy, chiudiS
 
   return createPortal(
     <div className="lv-root">
+      {/* A-2 dell'audit UX/errori del 1 settembre: stesso velo di ui/Modal.jsx,
+          stessa ragione per il disable — l'equivalente da tastiera è Esc
+          (sopra) e il focus trap, non questo div: dargli tabIndex lo
+          metterebbe nell'ordine di tabulazione senza nome né scopo. */}
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
       <div
         className="lv-overlay"
         // M-2 · `onMouseDown` e non `onClick`, con il confronto sul target:
@@ -96,6 +101,12 @@ export function LvOverlay({ children, onClose, wide = false, labelledBy, chiudiS
             sono div in mezzo alla pagina, non finestre che catturano il
             contesto (ST-5). Lo stile resta quello del modulo: qui cambia solo
             ciò che l'accessibility tree legge. */}
+        {/* onClick qui è solo un argine alla propagazione verso il velo
+            (chiudiSuVelo sopra confronta il target, ma un click su un figlio
+            che poi bubbla non deve comunque contarsi come "sul velo") — non
+            un'azione da rendere raggiungibile da tastiera: il dialogo la sua
+            semantica da tastiera ce l'ha già (role="dialog", focus trap). */}
+        {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events */}
         <div
           ref={boxRef}
           role="dialog"

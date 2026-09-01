@@ -11,6 +11,7 @@ import { Z } from "../../styles/tokens.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import { dataBreve } from "../../lib/dates.js";
 import * as stiliComuni from "../../styles/common.js";
+import { attivaConTastiera } from "../../lib/a11y.js";
 import {
   boxF11Bold, boxF16R4, gridGap16, marginLeft2, padding2, rowAbsoluteGap2, rowCenterBetween,
   rowCenterGap5, rowCenterGap6, rowCenterGap62, rowCenterMiddle, rowGap4Mt8, txtAbsoluteF18,
@@ -166,8 +167,13 @@ export const NoticeBoard = ({ notices, loading = false }) => {
             const modificabile = canEditNotice(team, n, currentUserId);
             const rotation = ((n.id.charCodeAt(n.id.length - 1) % 5) - 2) * 0.7; // -1.4 a +1.4 deg
             return (
+              // `role="group"`: onMouseEnter/onMouseLeave qui sono solo l'effetto
+              // "sollevamento" al passaggio del mouse — il post-it non fa nulla
+              // se ci clicchi sopra. Le azioni vere sono i <button> dentro
+              // (reagisci/pin/modifica/elimina), già nativamente da tastiera.
               <div
                 key={n.id}
+                role="group"
                 style={{
                   background: n.color,
                   padding: "14px 14px 12px",
@@ -299,7 +305,10 @@ export const NoticeBoard = ({ notices, loading = false }) => {
                     {n.tags.map(t => (
                       <span
                         key={t}
+                        role="button"
+                        tabIndex={0}
                         onClick={(e) => { e.stopPropagation(); toggleTag(t); }}
+                        onKeyDown={attivaConTastiera((e) => { e.stopPropagation(); toggleTag(t); })}
                         style={{
                           fontSize: 10, fontWeight: 600,
                           color: activeTags.has(t) ? "#fff" : "#5d4920",

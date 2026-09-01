@@ -1,7 +1,7 @@
 // ─── ADD CATEGORY MODAL ──────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
 // Stili condivisi importati da admin/adminStyles.js (consolidati in Phase 2f).
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import {
   modalOverlay, modalCard, labelStyle, fieldStyle, btnPrimary, btnGhost,
 } from "./adminStyles.js";
@@ -11,6 +11,7 @@ import { obbligatorio, validaCampi } from "../../lib/validators.js";
 import { useSalvataggio } from "../../hooks/useSalvataggio.js";
 import * as stiliComuni from "../../styles/common.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
+import { attivaConTastiera } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -32,6 +33,10 @@ export const AddCategoryModal = ({ onClose, existingKeys }) => {
   const [icon, setIcon] = useState("🏷️");
   const [color, setColor] = useState("#3B82F6");
   const [bg, setBg] = useState("#EFF6FF");
+  const labelId = useId();
+  const iconId = useId();
+  const colorId = useId();
+  const bgId = useId();
 
   // A-4 · L'esito prima della chiusura (audit del 19 agosto). Era
   // `dispatch(...)` senza `await` seguito da `onClose()` nello stesso turno: su
@@ -65,15 +70,35 @@ export const AddCategoryModal = ({ onClose, existingKeys }) => {
   // Portale: AdminCategoriesTab è dentro il wrapper .fade-in di AdminView, che
   // ha un transform → senza il portale l'overlay si centra sull'altezza del
   // tab (scrollabile) invece che sullo schermo. Vedi ui/ModalPortal.jsx.
+  //
+  // A-2 dell'audit UX/errori del 1 settembre: il velo chiude solo se il click
+  // parte DAL velo stesso (e.target === e.currentTarget), non se bubbla da un
+  // figlio — lo stesso confronto usato in ui/Modal.jsx, così la card non ha
+  // bisogno di un proprio onClick di stopPropagation. Questo modale non passa
+  // da ui/Modal.jsx e non ha un equivalente da tastiera per Esc, quindi il
+  // velo stesso resta nell'ordine di tabulazione (role/tabIndex/onKeyDown)
+  // invece del disable-comment usato lì.
+  const closeOnOverlay = (e) => {
+    if (e.target === e.currentTarget) onClose();
+  };
+
   return (
     <ModalPortal>
-      <div onClick={onClose} style={modalOverlay}>
-        <div onClick={e => e.stopPropagation()} style={{ ...modalCard, maxWidth: 480 }}>
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label="Esci"
+        onClick={closeOnOverlay}
+        onKeyDown={attivaConTastiera(closeOnOverlay)}
+        style={modalOverlay}
+      >
+        <div style={{ ...modalCard, maxWidth: 480 }}>
           <h3 className="playfair" style={stiliComuni.txtHeadingMb16}>Aggiungi nuova categoria</h3>
           <div style={stiliComuni.gridGap12}>
             <div>
-              <label style={labelStyle}>Nome *</label>
+              <label htmlFor={labelId} style={labelStyle}>Nome *</label>
               <input
+                id={labelId}
                 ref={labelRef}
                 value={label}
                 onChange={e => {
@@ -89,16 +114,16 @@ export const AddCategoryModal = ({ onClose, existingKeys }) => {
             </div>
             <div className="vd-grid-3col" style={gridGap122}>
               <div>
-                <label style={labelStyle}>Icona (emoji)</label>
-                <input value={icon} onChange={e => setIcon(e.target.value)} maxLength={2} style={{ ...fieldStyle, textAlign: "center", fontSize: 18 }} />
+                <label htmlFor={iconId} style={labelStyle}>Icona (emoji)</label>
+                <input id={iconId} value={icon} onChange={e => setIcon(e.target.value)} maxLength={2} style={{ ...fieldStyle, textAlign: "center", fontSize: 18 }} />
               </div>
               <div>
-                <label style={labelStyle}>Colore</label>
-                <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{ ...fieldStyle, height: 38, padding: 2 }} />
+                <label htmlFor={colorId} style={labelStyle}>Colore</label>
+                <input id={colorId} type="color" value={color} onChange={e => setColor(e.target.value)} style={{ ...fieldStyle, height: 38, padding: 2 }} />
               </div>
               <div>
-                <label style={labelStyle}>Sfondo</label>
-                <input type="color" value={bg} onChange={e => setBg(e.target.value)} style={{ ...fieldStyle, height: 38, padding: 2 }} />
+                <label htmlFor={bgId} style={labelStyle}>Sfondo</label>
+                <input id={bgId} type="color" value={bg} onChange={e => setBg(e.target.value)} style={{ ...fieldStyle, height: 38, padding: 2 }} />
               </div>
             </div>
             {/* Preview */}

@@ -5,6 +5,7 @@ import { ContactActions } from "../ui/ContactActions.jsx";
 import { notesPreview, parseClientNotes } from "../../lib/clientNotes.js";
 import { ListeChip } from "./ListeChip.jsx";
 import * as stiliComuni from "../../styles/common.js";
+import { attivaConTastiera } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -37,7 +38,13 @@ export function ClienteCard({ cliente, onEdit, onDelete, onSelect, selected, lis
   // stanno nelle note ma non sono note: in elenco si contano soltanto, per
   // esteso si leggono nel pannello del cliente.
   const { fields, text } = useMemo(() => parseClientNotes(cliente.notes), [cliente.notes]);
+  const apriScheda = () => onSelect(cliente);
   return (
+    // Questo div non è un affordance cliccabile: gestisce solo l'hover
+    // (bordo/ombra) dell'intera card. L'apertura della scheda vive sul div
+    // figlio subito sotto, con il proprio role/tabIndex/onKeyDown — qui non
+    // c'è un'azione da rendere raggiungibile da tastiera.
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
     <div
       style={{
         background: "var(--card)", borderRadius: 12, padding: "16px 18px",
@@ -49,7 +56,11 @@ export function ClienteCard({ cliente, onEdit, onDelete, onSelect, selected, lis
       onMouseLeave={() => setHovered(false)}
     >
       <div style={rowStartBetween}>
-        <div style={flex1MinW0} onClick={() => onSelect(cliente)}>
+        <div
+          style={flex1MinW0}
+          role="button" tabIndex={0}
+          onClick={apriScheda} onKeyDown={attivaConTastiera(apriScheda)}
+        >
           <div style={rowCenterGap8}>
             <div style={{
               width: 34, height: 34, borderRadius: "50%",

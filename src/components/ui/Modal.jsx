@@ -78,6 +78,15 @@ export function Modal({
   if (!open) return null;
 
   return createPortal(
+    // A-2 dell'audit UX/errori del 1 settembre: jsx-a11y chiede un
+    // role/tabIndex/onKeyDown su questo div perché ha un handler di mouse, ma
+    // qui la richiesta non si applica — è il velo pieno-schermo che chiude al
+    // click FUORI dalla card, non un controllo. Il suo equivalente da
+    // tastiera esiste già (Esc, poche righe sopra) e vive sul focus trap
+    // (useTrappolaFocus), non su questo elemento: dargli tabIndex lo
+    // metterebbe nell'ordine di tabulazione come una tappa vuota e senza
+    // nome, PEGGIO dell'assenza di ruolo che la regola segnala.
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
     <div
       // mousedown e non click: se l'utente inizia a selezionare testo DENTRO la
       // card e rilascia fuori, un handler su click chiuderebbe il modale

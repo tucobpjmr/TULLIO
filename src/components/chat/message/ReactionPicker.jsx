@@ -45,7 +45,18 @@ export const ReactionPicker = ({ onPick, onClose }) => {
   const hoverOff = ev => ev.currentTarget.style.background = "transparent";
 
   return (
-    <div onClick={e => e.stopPropagation()} style={{
+    // `role="group"`: il div non è lui stesso un controllo — l'onClick esiste
+    // solo per fermare la propagazione (non richiude il picker quando si
+    // clicca dentro) — le azioni vere sono i <button> di emoji qui sotto, già
+    // nativamente raggiungibili da tastiera. L'onKeyDown rispecchia lo stesso
+    // scopo dell'onClick (fermare la propagazione, non "attivare" nulla): non
+    // è un caso per `attivaConTastiera`, che serve ad attivare un'azione.
+    <div
+      role="group"
+      aria-label="Scegli una reazione"
+      onClick={e => e.stopPropagation()}
+      onKeyDown={e => e.stopPropagation()}
+      style={{
       position: "absolute", bottom: "calc(100% + 4px)", left: 0,
       background: "var(--card)", borderRadius: expanded ? 12 : 20,
       padding: expanded ? "8px 10px" : "6px 8px",

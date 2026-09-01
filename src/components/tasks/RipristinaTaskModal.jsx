@@ -29,7 +29,7 @@
 // database e il toast dice che qualcosa è fallito; a schermo resta una task
 // ripristinata che sembra a posto, che è peggio da diagnosticare perché ha
 // l'aspetto della riuscita.
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useSalvataggio } from "../../hooks/useSalvataggio.js";
 import { useViewport } from "../ui/Viewport.jsx";
 import { PRIORITIES, STATUS_LABELS } from "../../lib/taskConstants.js";
@@ -62,6 +62,14 @@ export function RipristinaTaskModal({ task, onClose }) {
   const [bozza, setBozza] = useState(() => ({ ...task }));
   const [errori, setErrori] = useState({});
   const rifTitolo = useRef(null);
+
+  // A-3 · un `useId()` per campo, per associare ogni `<label>` al proprio
+  // controllo.
+  const idCategoria = useId();
+  const idPriorita = useId();
+  const idStato = useId();
+  const idCliente = useId();
+  const idDescrizione = useId();
 
   const scrivi = (field, value) => setBozza(prec => ({ ...prec, [field]: value }));
 
@@ -147,8 +155,9 @@ export function RipristinaTaskModal({ task, onClose }) {
           {/* Categoria + Priorità */}
           <div style={stiliComuni.grid2ColGap12}>
             <div>
-              <label className="vd-field-label">CATEGORIA</label>
+              <label className="vd-field-label" htmlFor={idCategoria}>CATEGORIA</label>
               <select
+                id={idCategoria}
                 value={bozza.category}
                 onChange={e => scrivi("category", e.target.value)}
                 style={boxF13WFull}
@@ -159,8 +168,9 @@ export function RipristinaTaskModal({ task, onClose }) {
               </select>
             </div>
             <div>
-              <label className="vd-field-label">PRIORITÀ</label>
+              <label className="vd-field-label" htmlFor={idPriorita}>PRIORITÀ</label>
               <select
+                id={idPriorita}
                 value={bozza.priority}
                 onChange={e => scrivi("priority", e.target.value)}
                 style={boxF13WFull}
@@ -175,8 +185,9 @@ export function RipristinaTaskModal({ task, onClose }) {
           {/* Stato + Scadenza */}
           <div style={stiliComuni.grid2ColGap12}>
             <div>
-              <label className="vd-field-label">STATO</label>
+              <label className="vd-field-label" htmlFor={idStato}>STATO</label>
               <select
+                id={idStato}
                 value={bozza.status}
                 onChange={e => scrivi("status", e.target.value)}
                 style={boxF13WFull}
@@ -187,19 +198,26 @@ export function RipristinaTaskModal({ task, onClose }) {
               </select>
             </div>
             <div>
-              <label className="vd-field-label">SCADENZA</label>
+              {/* A-3 · non `<label>`: DateTimePicker espone un solo
+                  `<button>` il cui testo visibile è la data scelta, non il
+                  nome del campo — non c'è un `id` da agganciare con
+                  `htmlFor`. Il nome del campo arriva allo screen reader via
+                  `ariaLabel` sotto (vedi anche tasks/QuickAddTask.jsx). */}
+              <div className="vd-field-label">SCADENZA</div>
               <DateTimePicker
                 value={bozza.dueDate || null}
                 onChange={iso => scrivi("dueDate", iso)}
                 align="right"
+                ariaLabel="Scadenza"
               />
             </div>
           </div>
 
           {/* Cliente */}
           <div>
-            <label className="vd-field-label">CLIENTE</label>
+            <label className="vd-field-label" htmlFor={idCliente}>CLIENTE</label>
             <input
+              id={idCliente}
               value={bozza.client || ""}
               onChange={e => scrivi("client", e.target.value)}
               style={boxF14WFull}
@@ -211,8 +229,12 @@ export function RipristinaTaskModal({ task, onClose }) {
 
           {/* Assegnatari */}
           <div>
-            <label className="vd-field-label">ASSEGNATARI</label>
-            <div style={rowGap6}>
+            {/* A-3 · non `<label>`: qui sotto non c'è UN controllo ma un
+                gruppo di bottoni-toggle (uno per membro del team), quindi
+                l'associazione corretta è `role="group"` + `aria-label`, non
+                `htmlFor`. */}
+            <div className="vd-field-label">ASSEGNATARI</div>
+            <div style={rowGap6} role="group" aria-label="Assegnatari">
               {getAssignableTeam().map(m => {
                 const sel = bozza.assignees?.includes(m.id);
                 return (
@@ -246,8 +268,9 @@ export function RipristinaTaskModal({ task, onClose }) {
 
           {/* Descrizione */}
           <div>
-            <label className="vd-field-label">DESCRIZIONE</label>
+            <label className="vd-field-label" htmlFor={idDescrizione}>DESCRIZIONE</label>
             <textarea
+              id={idDescrizione}
               value={bozza.description || ""}
               onChange={e => scrivi("description", e.target.value)}
               rows={3}

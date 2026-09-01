@@ -1,6 +1,6 @@
 // ─── PROFILE EDITOR ──────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
-import { useState, useRef } from "react";
+import { useState, useRef, useId } from "react";
 import { useViewport } from "../ui/Viewport.jsx";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { useIsMounted } from "../../hooks/useIsMounted.js";
@@ -94,6 +94,9 @@ export const ProfileEditor = ({ member, onClose }) => {
   const nameRef = useRef(null);
   const emailRef = useRef(null);
   const rifCampo = { name: nameRef, email: emailRef };
+  const nomeId = useId();
+  const emailId = useId();
+  const telefonoId = useId();
   // Il riduttore di campo della bozza: un solo punto di scrittura per tutti i
   // campi del profilo. L'errore di un campo si spegne appena lo si tocca
   // (vedi AddMovBox).
@@ -268,8 +271,9 @@ export const ProfileEditor = ({ member, onClose }) => {
 
           {/* ── Nome ── */}
           <div>
-            <label className="vd-field-label">NOME VISUALIZZATO</label>
+            <label className="vd-field-label" htmlFor={nomeId}>NOME VISUALIZZATO</label>
             <input
+              id={nomeId}
               ref={nameRef}
               value={draft.name} onChange={e => scrivi("name", e.target.value)}
               style={inputWFull} placeholder="Il tuo nome"
@@ -283,8 +287,9 @@ export const ProfileEditor = ({ member, onClose }) => {
           {/* ── Email + Telefono ── */}
           <div style={stiliComuni.grid2ColGap12}>
             <div>
-              <label className="vd-field-label">EMAIL</label>
+              <label className="vd-field-label" htmlFor={emailId}>EMAIL</label>
               <input
+                id={emailId}
                 ref={emailRef}
                 value={draft.email} onChange={e => scrivi("email", e.target.value)}
                 type="email" style={inputWFull} placeholder="nome@agenzia.it"
@@ -295,8 +300,9 @@ export const ProfileEditor = ({ member, onClose }) => {
               <FieldError id="prof-email-err">{errori.email}</FieldError>
             </div>
             <div>
-              <label className="vd-field-label">TELEFONO</label>
+              <label className="vd-field-label" htmlFor={telefonoId}>TELEFONO</label>
               <input
+                id={telefonoId}
                 value={draft.phone} onChange={e => scrivi("phone", e.target.value)}
                 type="tel" style={inputWFull} placeholder="+39 333 123 4567"
                 onFocus={e => e.target.style.borderColor = "var(--gold)"}
@@ -307,7 +313,10 @@ export const ProfileEditor = ({ member, onClose }) => {
 
           {/* ── Ruolo (read-only) ── */}
           <div>
-            <label className="vd-field-label">RUOLO (non modificabile)</label>
+            {/* Non è un `<label>`: non c'è nessun controllo qui sotto da
+                associare, solo un valore in sola lettura — un `<label>`
+                senza `htmlFor` promette un'associazione che non esiste. */}
+            <div className="vd-field-label">RUOLO (non modificabile)</div>
             <div style={boxF14Muted}>{roleLabel(member)}</div>
           </div>
 

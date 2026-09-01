@@ -2,7 +2,7 @@
 // Creazione e modifica di un cliente. In modifica mostra anche cosa è collegato
 // (task e liste viaggio): serve PRIMA di salvare o eliminare, non dopo — è la
 // differenza fra sapere cosa si sta toccando e scoprirlo da un errore di FK.
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useSalvataggio } from "../../hooks/useSalvataggio.js";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { validaCampi, obbligatorio, emailValida, primoCampoInvalido } from "../../lib/validators.js";
@@ -53,6 +53,10 @@ export function ClienteModal({ cliente, onSave, onClose, liste = null, tasksColl
   const nameRef = useRef(null);
   const emailRef = useRef(null);
   const rifCampo = { name: nameRef, email: emailRef };
+  const telefonoId = useId();
+  const indirizzoId = useId();
+  const cittaId = useId();
+  const noteId = useId();
 
   // L'errore di un campo si spegne appena lo si tocca (vedi AddMovBox).
   const set = (k, v) => {
@@ -158,20 +162,20 @@ export function ClienteModal({ cliente, onSave, onClose, liste = null, tasksColl
             <FieldError id="cli-email-err">{errori.email}</FieldError>
           </div>
           <div>
-            <label style={labelStyle}>Telefono</label>
-            <input style={fieldStyle} value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="+39 000 000 0000" />
+            <label style={labelStyle} htmlFor={telefonoId}>Telefono</label>
+            <input id={telefonoId} style={fieldStyle} value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="+39 000 000 0000" />
           </div>
           <div>
-            <label style={labelStyle}>Indirizzo</label>
-            <input style={fieldStyle} value={form.address} onChange={e => set("address", e.target.value)} placeholder="Via, numero civico" />
+            <label style={labelStyle} htmlFor={indirizzoId}>Indirizzo</label>
+            <input id={indirizzoId} style={fieldStyle} value={form.address} onChange={e => set("address", e.target.value)} placeholder="Via, numero civico" />
           </div>
           <div>
-            <label style={labelStyle}>Città</label>
-            <input style={fieldStyle} value={form.city} onChange={e => set("city", e.target.value)} placeholder="Città" />
+            <label style={labelStyle} htmlFor={cittaId}>Città</label>
+            <input id={cittaId} style={fieldStyle} value={form.city} onChange={e => set("city", e.target.value)} placeholder="Città" />
           </div>
           <div style={gridColumn2}>
-            <label style={labelStyle}>Note</label>
-            <textarea style={{ ...fieldStyle, minHeight: 72, resize: "vertical" }} value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Preferenze, note speciali..." />
+            <label style={labelStyle} htmlFor={noteId}>Note</label>
+            <textarea id={noteId} style={{ ...fieldStyle, minHeight: 72, resize: "vertical" }} value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Preferenze, note speciali..." />
           </div>
         </div>
         {/* L'esito della scrittura, accanto al bottone che l'ha avviata. Il

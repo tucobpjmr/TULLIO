@@ -219,6 +219,11 @@ export const SwipeActions = ({ task, children, disabled = false }) => {
 
       {/* Forward menu (lista agenti) */}
       {showForward && (
+        /* Non è un controllo: ferma solo la propagazione del click verso la
+           card sottostante (aperta al click, vedi TaskCard/TaskRow), così
+           toccare il menu non apre anche la task. I bottoni al suo interno
+           sono nativi e già accessibili da tastiera. */
+        // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events
         <div
           onClick={e => e.stopPropagation()}
           style={{

@@ -43,6 +43,12 @@ export function ContactActions({ phone, label, style }) {
   const choose = e => { e.stopPropagation(); setOpen(false); };
 
   return (
+    // Non è un controllo: ferma solo la propagazione del click verso una card
+    // che spesso lo ospita (vedi commento in cima al file), così toccare il
+    // telefono non seleziona/apre anche la card. Bottone e voci del menu sono
+    // nativi (button/a) e già accessibili da tastiera; la chiusura con Esc è
+    // già gestita nell'useEffect qui sopra.
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events
     <span ref={rootRef} onClick={e => e.stopPropagation()} style={{ position: "relative", display: "inline-flex", ...style }}>
       <button
         type="button"

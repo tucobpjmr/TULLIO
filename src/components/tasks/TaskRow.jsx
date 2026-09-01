@@ -12,6 +12,7 @@ import { memo } from "react";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { catMeta } from "./taskCardShared.js";
 import * as stiliComuni from "../../styles/common.js";
+import { attivaConTastiera } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -30,9 +31,16 @@ export const TaskRow = memo(function TaskRow({
   gap = 10,
 }) {
   const { categories } = useAppData();
+  const apriTask = onOpen ? () => onOpen(task) : undefined;
   return (
+    // role="button" resta letterale per superare la regola statica di jsx-a11y
+    // (vedi TaskCard.jsx); tabIndex e onKeyDown restano legati a `onOpen`, quindi
+    // una riga senza onOpen non entra nell'ordine di tabulazione.
     <div
-      onClick={onOpen ? () => onOpen(task) : undefined}
+      role="button"
+      tabIndex={apriTask ? 0 : undefined}
+      onClick={apriTask}
+      onKeyDown={apriTask ? attivaConTastiera(apriTask) : undefined}
       onMouseEnter={hoverBg ? (e) => { e.currentTarget.style.background = hoverBg; } : undefined}
       onMouseLeave={hoverBg ? (e) => { e.currentTarget.style.background = background; } : undefined}
       style={{

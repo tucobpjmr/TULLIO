@@ -13,7 +13,7 @@
 // Niente upload CSV: per gli SMB target del prodotto il copia-incolla da
 // Excel/Notes copre il 95% dei casi; un parser file aggiunge superficie
 // senza valore proporzionato.
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import {
   modalOverlay, modalCard, labelStyle, fieldStyle, btnPrimary, btnGhost,
 } from "./adminStyles.js";
@@ -23,6 +23,7 @@ import { EMAIL_RX } from "../../lib/validators.js";
 import { DB_ROLES, ROLE_LABELS, toDbRole } from "../../lib/taskConstants.js";
 import { useIsMounted } from "../../hooks/useIsMounted.js";
 import * as stiliComuni from "../../styles/common.js";
+import { attivaConTastiera } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -93,6 +94,9 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
   // results cresce in modo incrementale durante il loop sequenziale.
   const [total, setTotal] = useState(0);
   const [parseErrors, setParseErrors] = useState([]);
+  const invitiId = useId();
+  const ruoloId = useId();
+  const coloreId = useId();
 
   const submit = async () => {
     if (inVoloRif.current) return;
@@ -174,12 +178,34 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
   const errCount = (results || []).filter(r => r.status === "err").length;
   const allDone = results && !busy && results.length > 0;
 
+  // A-2 dell'audit UX/errori del 1 settembre: il velo chiude solo se il click
+  // parte DAL velo stesso (e.target === e.currentTarget), non se bubbla da un
+  // figlio — lo stesso confronto usato in ui/Modal.jsx, così la card non ha
+  // bisogno di un proprio onClick di stopPropagation. Questo modale non passa
+  // da ui/Modal.jsx e non ha un equivalente da tastiera per Esc, quindi il
+  // velo stesso resta nell'ordine di tabulazione (role/tabIndex/onKeyDown)
+  // invece del disable-comment usato lì. Il freno `busy` (vedi sopra: la
+  // modale non deve essere chiudibile a batch in corso) resta identico,
+  // spostato dentro il gestore invece che sulla prop.
+  const closeOnOverlay = (e) => {
+    if (busy) return;
+    if (e.target === e.currentTarget) onClose();
+  };
+
   // Portale: AdminTeamTab vive dentro il wrapper .fade-in di AdminView (transform
   // → containing block per i fixed). Vedi ui/ModalPortal.jsx.
   return (
     <ModalPortal>
-      <div onClick={busy ? undefined : onClose} style={modalOverlay}>
-        <div onClick={e => e.stopPropagation()} style={{ ...modalCard, maxWidth: 560 }}>
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label="Esci"
+        aria-disabled={busy}
+        onClick={closeOnOverlay}
+        onKeyDown={attivaConTastiera(closeOnOverlay)}
+        style={modalOverlay}
+      >
+        <div style={{ ...modalCard, maxWidth: 560 }}>
           <h3 className="playfair" style={txtHeadingMb8}>
             Invito multiplo
           </h3>
@@ -192,8 +218,9 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
 
           <div style={stiliComuni.gridGap12}>
             <div>
-              <label style={labelStyle}>Inviti</label>
+              <label htmlFor={invitiId} style={labelStyle}>Inviti</label>
               <textarea
+                id={invitiId}
                 value={text}
                 onChange={e => setText(e.target.value)}
                 disabled={busy}
@@ -206,14 +233,14 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
 
             <div style={gridGap10}>
               <div>
-                <label style={labelStyle}>Ruolo default</label>
-                <select value={defaultRole} onChange={e => setDefaultRole(e.target.value)} disabled={busy} style={fieldStyle}>
+                <label htmlFor={ruoloId} style={labelStyle}>Ruolo default</label>
+                <select id={ruoloId} value={defaultRole} onChange={e => setDefaultRole(e.target.value)} disabled={busy} style={fieldStyle}>
                   {DB_ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                 </select>
               </div>
               <div>
-                <label style={labelStyle}>Colore</label>
-                <input type="color" value={color} disabled={busy} onChange={e => setColor(e.target.value)}
+                <label htmlFor={coloreId} style={labelStyle}>Colore</label>
+                <input id={coloreId} type="color" value={color} disabled={busy} onChange={e => setColor(e.target.value)}
                   style={{ ...fieldStyle, height: 38, padding: 2 }} />
               </div>
             </div>

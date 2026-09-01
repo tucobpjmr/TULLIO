@@ -1166,7 +1166,20 @@ function sottoscrizioni(sorgenti) {
 export function scrittureInVoloAMeta(sorgenti) {
   const tutti = (sorgenti || []);
   const reducer = tutti.filter(f => /^src\/state\/[a-zA-Z]*[rR]educer\.js$/.test(f.path));
-  const registry = tutti.find(f => f.path === 'src/state/persistence.js');
+  // A-1 (audit del 1 settembre): il registry è ora spezzato in due file —
+  // persistence.js ha superato la soglia fisica di fileOltreTettoFisico, e
+  // TEAM/RESTORE_BACKUP/PROFILO sono finiti in persistenceAdmin.js. Le entry
+  // che marcano `entityId` possono vivere nell'UNO o nell'ALTRO, quindi si
+  // combina il testo prima di cercarle — altrimenti quelle spostate
+  // spariscono da questo controllo pur esistendo davvero, che è l'esatto
+  // guasto silenzioso che questo presidio esiste per impedire. La seconda
+  // metà è opzionale (i fixture di test ne fanno a meno) e si aggiunge solo
+  // se presente.
+  const registryFile = tutti.find(f => f.path === 'src/state/persistence.js');
+  const registryAdmin = tutti.find(f => f.path === 'src/state/persistenceAdmin.js');
+  const registry = registryFile
+    ? { path: registryFile.path, testo: registryFile.testo + (registryAdmin ? `\n${registryAdmin.testo}` : '') }
+    : null;
   if (!reducer.length || !registry) {
     throw new LetturaFallita(
       'scrittureInVoloAMeta: non trovo il reducer o src/state/persistence.js. '

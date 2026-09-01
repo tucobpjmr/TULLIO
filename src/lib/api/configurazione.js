@@ -84,3 +84,37 @@ export const AuditLog = {
       .limit(limit);
   },
 };
+
+// ----------------- ERROR REPORTS (A-4 dell'audit UX/errori del 1 settembre) -----------------
+// Il codice che l'utente detta al telefono finiva SOLO in console.error, nel
+// SUO browser: chi riceve la segnalazione non aveva dove cercarla. Stessa
+// disciplina di AuditLog qui sopra — append-only, scrittura via funzione
+// SECURITY DEFINER (`segnala_errore_client`, tollerante alla sessione
+// assente), lettura ai soli admin — applicata a un errore imprevisto invece
+// che a un'azione privilegiata. Il chiamante è lib/errorReporting.js, che
+// importa questo modulo con `import()` DINAMICO apposta per non tirarsi
+// dietro l'intero data layer nel chunk d'ingresso (installaHandlerGlobali
+// gira da main.jsx, prima ancora del login — vedi la nota lì).
+export const ErrorReports = {
+  create: async ({ code, origin, message, stack, url, userAgent }) => {
+    const supabase = await getSupabase();
+    return supabase.rpc('segnala_errore_client', {
+      p_code: code,
+      p_origin: origin,
+      p_message: message,
+      p_stack: stack ?? null,
+      p_url: url ?? null,
+      p_user_agent: userAgent ?? null,
+    });
+  },
+  // Non ancora letta da nessuna vista: la tab «Log attività» esiste già per
+  // audit_log (AdminActivityTab) e questo elenco può affiancarla allo stesso
+  // modo, quando servirà una UI invece della sola query su Supabase.
+  list: async ({ limit = 200 } = {}) => {
+    const supabase = await getSupabase();
+    return supabase.from('error_reports')
+      .select('id, code, at, user_id, user_name, origin, message, stack, url, user_agent')
+      .order('at', { ascending: false })
+      .limit(limit);
+  },
+};

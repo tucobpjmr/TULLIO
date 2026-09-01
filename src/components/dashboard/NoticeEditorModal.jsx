@@ -8,6 +8,7 @@ import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { obbligatorio, validaCampi } from "../../lib/validators.js";
 import { useSalvataggio } from "../../hooks/useSalvataggio.js";
 import * as stiliComuni from "../../styles/common.js";
+import { attivaConTastiera } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -172,7 +173,12 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
           {NOTICE_COLORS.map(c => (
             <div
               key={c}
+              role="button"
+              tabIndex={0}
+              aria-pressed={color === c}
+              aria-label={`Colore post-it ${c}`}
               onClick={() => setColor(c)}
+              onKeyDown={attivaConTastiera(() => setColor(c))}
               style={{
                 width: 34, height: 34, borderRadius: 6, background: c,
                 cursor: "pointer", border: color === c ? "2px solid var(--navy)" : "2px solid transparent",

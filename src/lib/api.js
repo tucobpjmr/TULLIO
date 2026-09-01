@@ -36,7 +36,7 @@ export { Conversations, Messages } from './api/chat.js';
 export { TaskFiles } from './api/allegati.js';
 export { Notifications, Push } from './api/notifiche.js';
 export { Clients } from './api/clienti.js';
-export { Categories, MessageTemplates, AuditLog } from './api/configurazione.js';
+export { Categories, MessageTemplates, AuditLog, ErrorReports } from './api/configurazione.js';
 
 // ----------------- REALTIME -----------------
 // L'implementazione — e il perché di ogni scelta: nomi di canale, filtro

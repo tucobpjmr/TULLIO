@@ -38,6 +38,7 @@ import { Z } from "../../styles/tokens.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../styles/common.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
+import { attivaConTastiera } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -327,9 +328,19 @@ export const ChatPanel = memo(function ChatPanel({ open, onClose, conversations:
   return (
     <ChatContext.Provider value={ctxValue}>
     <>
-      <div onClick={onClose} style={{
-        position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: Z.chatBackdrop,
-      }} />
+      {/* A-2 dell'audit UX/errori del 1 settembre: a differenza dei veli dei
+          modali (vedi ui/Modal.jsx) questo pannello non ha un onKey per Esc,
+          quindi l'equivalente da tastiera del click sul velo è il velo
+          stesso — role/tabIndex/onKeyDown, non una disable-line. */}
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label="Chiudi pannello messaggi"
+        onClick={onClose}
+        onKeyDown={attivaConTastiera(onClose)}
+        style={{
+          position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: Z.chatBackdrop,
+        }} />
       <div className="slide-right vd-sheet-full" style={{
         position: "fixed", top: 0, right: 0, width: isMobile ? "100vw" : 420,
         background: "var(--card)", zIndex: Z.chat, boxShadow: "-20px 0 60px rgba(0,0,0,0.2)",

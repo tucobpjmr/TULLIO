@@ -19,6 +19,7 @@ import {
   rowCenterGap6, rowCenterGap82, rowGap4P3, rowGap6MtNeg8, txtF12Muted,
 } from "./calendarPlannerStyles.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
+import { attivaConTastiera } from "../../lib/a11y.js";
 
 // Identità condivisa per «nessun task quel giorno»: un `[]` nuovo a ogni
 // chiamata sveglierebbe il `memo` dei figli per una cella vuota.
@@ -308,16 +309,22 @@ export const CalendarPlanner = memo(function CalendarPlanner({ loading = false }
                     {dayTasks.length === 0 ? (
                       <div style={{ fontSize: 10, color: isToday ? "rgba(255,255,255,0.4)" : "var(--text-muted)", textAlign: "center", marginTop: 20 }}>Nessun task</div>
                     ) : dayTasks.slice(0, 6).map(t => (
-                      <div key={t.id} onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: t })} style={{
-                        background: isToday ? "rgba(255,255,255,0.12)" : categories[t.category]?.color + "18",
-                        borderLeft: `3px solid ${categories[t.category]?.color}`,
-                        borderRadius: "0 4px 4px 0", padding: "4px 6px", cursor: "pointer",
-                        fontSize: 10, fontWeight: 500, lineHeight: 1.3,
-                        color: isToday ? "#fff" : "var(--text)",
-                      }}>
-                        {categories[t.category]?.icon} {t.title.slice(0, 30)}{t.title.length > 30 ? "…" : ""}
-                        <div style={{ fontSize: 9, color: isToday ? "rgba(255,255,255,0.5)" : "var(--text-muted)", marginTop: 1 }}>{formatTime(t.dueDate)}</div>
-                      </div>
+                        <div
+                          key={t.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => openTask(t)}
+                          onKeyDown={attivaConTastiera(() => openTask(t))}
+                          style={{
+                            background: isToday ? "rgba(255,255,255,0.12)" : categories[t.category]?.color + "18",
+                            borderLeft: `3px solid ${categories[t.category]?.color}`,
+                            borderRadius: "0 4px 4px 0", padding: "4px 6px", cursor: "pointer",
+                            fontSize: 10, fontWeight: 500, lineHeight: 1.3,
+                            color: isToday ? "#fff" : "var(--text)",
+                          }}>
+                          {categories[t.category]?.icon} {t.title.slice(0, 30)}{t.title.length > 30 ? "…" : ""}
+                          <div style={{ fontSize: 9, color: isToday ? "rgba(255,255,255,0.5)" : "var(--text-muted)", marginTop: 1 }}>{formatTime(t.dueDate)}</div>
+                        </div>
                     ))}
                     {dayTasks.length > 6 && <div style={{ fontSize: 10, color: isToday ? "rgba(255,255,255,0.4)" : "var(--text-muted)", textAlign: "center" }}>+{dayTasks.length - 6} altri</div>}
                   </div>

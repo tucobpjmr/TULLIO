@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { parseImporto } from "../listeFormato.js";
 import { LvOverlay } from "./LvOverlay.jsx";
 import { MetodoSelect } from "./MetodoSelect.jsx";
@@ -7,6 +7,11 @@ import { useSalvataggioLista } from "../useSalvataggioLista.js";
 import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
 import { validaCampi, primoCampoInvalido } from "../../../lib/validators.js";
 import { REGOLE_MOVIMENTO, ORDINE_MOVIMENTO } from "../regoleMovimento.js";
+
+// A-3 · replica inline di `.lv-field label` (liste.css): come in AddMovBox,
+// il segmento Versamento/Utilizzo non è un controllo singolo a cui agganciare
+// un `<label htmlFor>`, quindi "Tipo" resta un `<div>` con lo stesso stile.
+const lblTipo = { display: "block", fontSize: 12, fontWeight: 600, color: "var(--lv-muted)", marginBottom: 4 };
 
 // ─── Modifica di un movimento già registrato ───────────────────────────────
 // Form completo in modale: i campi in riga (modifica in linea) su schermo
@@ -30,6 +35,7 @@ export function EditMovimentoModal({ movimento, onSave, onClose }) {
   const descRef = useRef(null);
   const impRef = useRef(null);
   const rifCampo = { data: dataRef, desc: descRef, imp: impRef };
+  const idTipo = useId();
 
   const { salva, inVolo } = useSalvataggioLista(onSave.run);
 
@@ -79,8 +85,13 @@ export function EditMovimentoModal({ movimento, onSave, onClose }) {
           <FieldError id="ed-desc-err">{errori.desc}</FieldError>
         </div>
         <div className="row lv-field">
-          <label>Tipo</label>
-          <SegnoSeg segno={segno} onChange={setSegno} />
+          {/* A-3 · non `<label>`: stesso caso di AddMovBox.jsx — SegnoSeg è
+              due bottoni, ciascuno già con il proprio testo come nome
+              accessibile, associati qui con `role="group"` + `aria-labelledby`. */}
+          <div id={idTipo} style={lblTipo}>Tipo</div>
+          <div role="group" aria-labelledby={idTipo}>
+            <SegnoSeg segno={segno} onChange={setSegno} />
+          </div>
         </div>
         <div className="row lv-field">
           <label htmlFor="ed-imp">Importo €</label>

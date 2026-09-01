@@ -19,6 +19,7 @@ import { NoteInterne } from "./NoteInterne.jsx";
 import { TitoloTestata } from "./TitoloTestata.jsx";
 import * as stiliComuni from "../../styles/common.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
+import { attivaConTastiera } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -254,8 +255,12 @@ export function ListaDetail({ lista, movimenti, history, usersById, onReload, on
                   </tr>
                 </thead>
                 <tbody>
-                  {movimenti.map((m) => (
-                    editCell?.id === m.id ? (
+                  {movimenti.map((m) => {
+                    // A-2 · azione propria (apre l'editor del metodo), distinta
+                    // da quella della cella che la contiene — una sola istanza
+                    // dell'handler, condivisa da onClick e attivaConTastiera.
+                    const handleEditMetodo = (e) => { e.stopPropagation(); setEditCell({ id: m.id, campo: "metodo" }); };
+                    return editCell?.id === m.id ? (
                       <CellEditor
                         key={m.id}
                         movimento={m}
@@ -272,7 +277,10 @@ export function ListaDetail({ lista, movimenti, history, usersById, onReload, on
                               raggiungibile come pillola sotto la descrizione. */}
                           <span
                             className="lv-met-inline"
-                            onClick={(e) => { e.stopPropagation(); setEditCell({ id: m.id, campo: "metodo" }); }}
+                            role="button"
+                            tabIndex={0}
+                            onClick={handleEditMetodo}
+                            onKeyDown={attivaConTastiera(handleEditMetodo)}
                           >
                             {m.metodo ? m.metodo.toUpperCase() : "+ metodo"}
                           </span>
@@ -284,8 +292,8 @@ export function ListaDetail({ lista, movimenti, history, usersById, onReload, on
                           <button className="lv-icon-btn" title="Elimina" aria-label="Elimina movimento" onClick={() => eliminaMov(m)}>✕</button>
                         </td>
                       </tr>
-                    )
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

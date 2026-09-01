@@ -1,5 +1,5 @@
 // src/auth/LoginScreen.jsx
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { useAuth } from './AuthContext';
 import { PasswordField } from '../components/ui/PasswordField.jsx';
 import { PASSWORD_MIN } from '../lib/validators.js';
@@ -68,6 +68,8 @@ export default function LoginScreen() {
   // mostra la CTA "Reinvia conferma" sotto al messaggio d'errore.
   const [showResend, setShowResend] = useState(false);
   const [resending, setResending] = useState(false);
+  const emailId = useId();
+  const passwordId = useId();
 
   function switchMode(next) {
     setMode(next);
@@ -135,8 +137,9 @@ export default function LoginScreen() {
         <h1 style={titleStyle}>VoyageDesk</h1>
         <p style={txtF13Op07}>{subtitle}</p>
 
-        <label style={labelStyle}>Email</label>
+        <label htmlFor={emailId} style={labelStyle}>Email</label>
         <input
+          id={emailId}
           type="email" autoComplete="email" required
           value={email} onChange={e => setEmail(e.target.value)}
           style={inputStyle}
@@ -144,8 +147,9 @@ export default function LoginScreen() {
 
         {mode !== 'forgot' && (
           <>
-            <label style={{ ...labelStyle, margin: '14px 0 6px' }}>Password</label>
+            <label htmlFor={passwordId} style={{ ...labelStyle, margin: '14px 0 6px' }}>Password</label>
             <PasswordField
+              id={passwordId}
               inputStyle={inputStyle}
               autoComplete="current-password"
               required

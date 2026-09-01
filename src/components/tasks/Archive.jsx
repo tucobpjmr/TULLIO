@@ -265,6 +265,13 @@ export const Archive = memo(function Archive({ loading = false }) {
                           </div>
                         )}
                       </div>
+                      {/* Non è un controllo: ferma solo la propagazione del click verso la
+                          riga (che si apre al click, vedi TaskCard/onOpen), così toccare
+                          "Riapri"/"Cestina" non apre anche la task. I due pulsanti sono
+                          nativi e già accessibili da tastiera; Invio/Spazio su di loro
+                          generano comunque un click nativo, che stopPropagation intercetta
+                          allo stesso modo del mouse. */}
+                      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events */}
                       <div style={stiliComuni.rowGap6} onClick={e => e.stopPropagation()}>
                         <button onClick={() => handleReopen(task)} style={boxF12Bold}>↩ Riapri</button>
                         <button onClick={() => handleTrash(task)} style={boxF12Bold2}>🗑️</button>

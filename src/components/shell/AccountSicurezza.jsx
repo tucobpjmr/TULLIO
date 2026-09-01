@@ -22,7 +22,7 @@
 // sola: lì lo smontaggio è l'esito NORMALE. Per `signOutOvunque()` invece il
 // guard serve davvero su QUESTA scheda, perché la modale non sparisce finché
 // `onAuthStateChange` non aggiorna `session`.
-import { useReducer } from "react";
+import { useId, useReducer } from "react";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { useIsMounted } from "../../hooks/useIsMounted.js";
 import { PasswordField } from "../ui/PasswordField.jsx";
@@ -38,6 +38,9 @@ export function AccountSicurezza() {
   const { session, updatePassword, deleteAccount, signOutOvunque } = useAuth();
   const montato = useIsMounted();
   const [stato, accountDispatch] = useReducer(accountReducer, accountIniziale);
+  const nuovaPwdId = useId();
+  const confermaPwdId = useId();
+  const confermaElimId = useId();
 
   const pwdInVolo = stato.pwd.esito.fase === "invio";
   const elimInVolo = stato.elim.esito.fase === "invio";
@@ -100,8 +103,9 @@ export function AccountSicurezza() {
           {stato.pwd.aperta && (
             <div style={colGap10Mt10}>
               <div>
-                <label className="vd-field-label">NUOVA PASSWORD</label>
+                <label className="vd-field-label" htmlFor={nuovaPwdId}>NUOVA PASSWORD</label>
                 <PasswordField
+                  id={nuovaPwdId}
                   inputWFull={inputWFull} autoComplete="new-password"
                   value={stato.pwd.bozza.nuova} onChange={e => accountDispatch({ type: "SET_PWD_CAMPO", campo: "nuova", valore: e.target.value })}
                   placeholder={`Minimo ${PASSWORD_MIN} caratteri`}
@@ -111,8 +115,9 @@ export function AccountSicurezza() {
                 />
               </div>
               <div>
-                <label className="vd-field-label">CONFERMA PASSWORD</label>
+                <label className="vd-field-label" htmlFor={confermaPwdId}>CONFERMA PASSWORD</label>
                 <PasswordField
+                  id={confermaPwdId}
                   inputWFull={inputWFull} autoComplete="new-password"
                   value={stato.pwd.bozza.conferma} onChange={e => accountDispatch({ type: "SET_PWD_CAMPO", campo: "conferma", valore: e.target.value })}
                   placeholder="Ripeti la password"
@@ -188,8 +193,9 @@ export function AccountSicurezza() {
                 I tuoi messaggi e commenti vengono conservati. L'operazione è irreversibile.
               </p>
               <div>
-                <label className="vd-field-label">DIGITA &quot;ELIMINA&quot; PER CONFERMARE</label>
+                <label className="vd-field-label" htmlFor={confermaElimId}>DIGITA &quot;ELIMINA&quot; PER CONFERMARE</label>
                 <input
+                  id={confermaElimId}
                   value={stato.elim.conferma} onChange={e => accountDispatch({ type: "SET_CONFERMA_ELIM", valore: e.target.value })}
                   placeholder="ELIMINA" style={{ ...inputWFull, borderColor: "rgba(192,57,43,0.4)" }}
                   onFocus={e => e.target.style.borderColor = "var(--danger)"}

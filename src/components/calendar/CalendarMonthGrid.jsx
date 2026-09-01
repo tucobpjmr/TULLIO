@@ -24,6 +24,7 @@ import {
   boxR14, colGap2MinW0, colGap8, grid2, grid3, rowMiddleGap3, txtF10Muted,
   txtF12Bold, txtF16Bold,
 } from "./calendarPlannerStyles.js";
+import { attivaConTastiera } from "../../lib/a11y.js";
 
 /**
  * @param {object}   props
@@ -104,8 +105,15 @@ export const CalendarMonthGrid = memo(function CalendarMonthGrid({
             const dayTasks = tasksDelGiorno(day);
             const hasContent = dayTasks.length > 0;
             const isToday = today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
+            const selezionaGiorno = () => onSelectDay(selectedDay === day ? null : day);
             return (
-              <div key={day} onClick={() => onSelectDay(selectedDay === day ? null : day)} style={{
+              <div
+                key={day}
+                role="button"
+                tabIndex={0}
+                onClick={selezionaGiorno}
+                onKeyDown={attivaConTastiera(selezionaGiorno)}
+                style={{
                 minHeight: isMobile ? 52 : 100, minWidth: 0, overflow: "hidden",
                 borderRight: "1px solid var(--border)", borderBottom: "1px solid var(--border)",
                 padding: isMobile ? "5px 3px" : "8px 6px", cursor: hasContent ? "pointer" : "default",
@@ -128,15 +136,24 @@ export const CalendarMonthGrid = memo(function CalendarMonthGrid({
                   )
                 ) : (
                   <div style={colGap2MinW0}>
-                    {dayTasks.slice(0, 3).map(t => (
-                      <div key={t.id} onClick={e => { e.stopPropagation(); onOpenTask(t); }} style={{
-                        fontSize: 10, fontWeight: 500, padding: "1px 5px", borderRadius: 3,
-                        background: categories[t.category]?.color + "20",
-                        color: categories[t.category]?.color,
-                        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                        cursor: "pointer",
-                      }}>{categories[t.category]?.icon} {t.title}</div>
-                    ))}
+                    {dayTasks.slice(0, 3).map(t => {
+                      const apriTask = e => { e.stopPropagation(); onOpenTask(t); };
+                      return (
+                        <div
+                          key={t.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={apriTask}
+                          onKeyDown={attivaConTastiera(apriTask)}
+                          style={{
+                            fontSize: 10, fontWeight: 500, padding: "1px 5px", borderRadius: 3,
+                            background: categories[t.category]?.color + "20",
+                            color: categories[t.category]?.color,
+                            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                            cursor: "pointer",
+                          }}>{categories[t.category]?.icon} {t.title}</div>
+                      );
+                    })}
                     {dayTasks.length > 3 && (
                       <div style={txtF10Muted}>
                         +{dayTasks.length - 3} altri

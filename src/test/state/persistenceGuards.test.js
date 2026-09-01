@@ -453,6 +453,66 @@ describe("persistence — rollback dichiarati", () => {
       .toEqual({ type: "ROLLBACK_TASKS_BULK", payload: [uuid(1), uuid(2)] });
   });
 
+  // A-1 dell'audit del 1 settembre: prima dei task avevano un rollback su
+  // otto entry (ADD_TASKS_BULK), a differenza di clienti e team, entrambi
+  // coperti al 100%. Il sintomo peggiore era MOVE_TASK: una task spostata di
+  // colonna che il server rifiutava restava nella colonna sbagliata per
+  // sempre, perché nessuna scrittura fallita emette un evento realtime che
+  // possa correggerla.
+  describe("i task hanno un rollback per ogni mutazione, come clienti e team", () => {
+    it("ADD_TASK toglie la riga che il server non ha mai scritto", () => {
+      const state = statoCon([], "admin1");
+      const action = { type: "ADD_TASK", payload: task({ id: uuid(1) }) };
+      expect(PERSISTENCE.ADD_TASK.rollback(state, action))
+        .toEqual({ type: "ROLLBACK_TASKS_BULK", payload: [uuid(1)] });
+    });
+
+    it("UPDATE_TASK riporta indietro la riga INTERA pre-dispatch", () => {
+      const originale = task({ id: uuid(1), title: "Volo Roma" });
+      const state = statoCon([originale], "admin1");
+      const action = { type: "UPDATE_TASK", payload: { id: uuid(1), title: "Volo Milano" } };
+      expect(PERSISTENCE.UPDATE_TASK.rollback(state, action))
+        .toEqual({ type: "UPDATE_TASK", payload: originale });
+    });
+
+    it("MOVE_TASK torna alla colonna di partenza — il sintomo che l'audit segnalava", () => {
+      const originale = task({ id: uuid(1), status: "todo" });
+      const state = statoCon([originale], "admin1");
+      const action = { type: "MOVE_TASK", payload: { taskId: uuid(1), newStatus: "done" } };
+      expect(PERSISTENCE.MOVE_TASK.rollback(state, action))
+        .toEqual({ type: "MOVE_TASK", payload: { taskId: uuid(1), newStatus: "todo" } });
+    });
+
+    it("DELETE_TASK e RESTORE_TASK sono l'una l'inversa dell'altra", () => {
+      const state = statoCon([task({ id: uuid(1) })], "admin1");
+      expect(PERSISTENCE.DELETE_TASK.rollback(state, { type: "DELETE_TASK", payload: uuid(1) }))
+        .toEqual({ type: "RESTORE_TASK", payload: uuid(1) });
+      expect(PERSISTENCE.RESTORE_TASK.rollback(state, { type: "RESTORE_TASK", payload: uuid(1) }))
+        .toEqual({ type: "DELETE_TASK", payload: uuid(1) });
+    });
+
+    it("PURGE_TASK rimette in lista l'oggetto INTERO, come ROLLBACK_EMPTY_TRASH", () => {
+      const originale = task({ id: uuid(1) });
+      const state = statoCon([originale], "admin1");
+      const action = { type: "PURGE_TASK", payload: uuid(1) };
+      expect(PERSISTENCE.PURGE_TASK.rollback(state, action))
+        .toEqual({ type: "ROLLBACK_EMPTY_TRASH", payload: [originale] });
+    });
+
+    it("il rollback di MOVE_TASK è applicabile davvero dal reducer", () => {
+      const originale = task({ id: uuid(1), status: "todo" });
+      const state = statoCon([originale], "admin1");
+      const spostata = reducer(state, { type: "MOVE_TASK", payload: { taskId: uuid(1), newStatus: "done" } });
+      expect(spostata.tasks[0].status).toBe("done");
+
+      const undo = PERSISTENCE.MOVE_TASK.rollback(state, { type: "MOVE_TASK", payload: { taskId: uuid(1), newStatus: "done" } });
+      const ripristinata = reducer(spostata, { ...undo, meta: { compensazione: true } });
+      expect(ripristinata.tasks[0].status).toBe("todo");
+      // `meta.compensazione` riporta indietro anche i toast.
+      expect(ripristinata.toasts).toBe(spostata.toasts);
+    });
+  });
+
   it("DELETE_CLIENT ripristina il cliente rimosso in ottimistico", () => {
     const cliente = { id: "c1", name: "Rossi" };
     const state = { ...statoCon([], "admin1"), clients: [cliente] };

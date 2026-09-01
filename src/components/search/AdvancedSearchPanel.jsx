@@ -3,7 +3,7 @@
 // (props keyword / onKeyword), i filtri avanzati restano locali al pannello.
 // Cerca su due domini distinti — task e liste viaggio — perché per l'utente
 // "cerca Bianchi" è una domanda sola, anche se sotto sono due tabelle.
-import { useReducer, useEffect, useMemo } from "react";
+import { useReducer, useEffect, useId, useMemo } from "react";
 import { useViewport } from "../ui/Viewport.jsx";
 import { SwipeActions } from "../tasks/SwipeActions.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
@@ -26,6 +26,7 @@ import {
 } from "./advancedSearchPanelStyles.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
 import { useCaricamento } from "../../hooks/useCaricamento.js";
+import { attivaConTastiera } from "../../lib/a11y.js";
 
 // Esportato per i test: la ricerca globale è l'unico punto che cerca insieme
 // task e liste viaggio, ed è quello dove le due ricerche devono coincidere.
@@ -78,6 +79,8 @@ export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, c
   // decide di ricreare una task che esiste già.
   const caricandoStorico = useStoricoTaskCompleto();
   const [filtri, filtriDispatch] = useReducer(filtriReducer, FILTRI_VUOTI);
+  const idDateFrom = useId();
+  const idDateTo = useId();
   const { dateFrom, dateTo, cats, stats, agents, includeTrashed, listeStati, listeClienti } = filtri;
   const imposta = (campo, valore) => filtriDispatch({ type: "IMPOSTA", campo, valore });
   const alterna = (campo, valore) => filtriDispatch({ type: "ALTERNA", campo, valore });
@@ -216,12 +219,12 @@ export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, c
           <div style={sectionTitle}>Scadenza</div>
           <div style={rowCenterGap10}>
             <div style={stiliComuni.flex1}>
-              <label style={txtF11Muted}>Da</label>
-              <input type="date" value={dateFrom} onChange={e => imposta("dateFrom", e.target.value)} style={boxF12WFull} />
+              <label style={txtF11Muted} htmlFor={idDateFrom}>Da</label>
+              <input id={idDateFrom} type="date" value={dateFrom} onChange={e => imposta("dateFrom", e.target.value)} style={boxF12WFull} />
             </div>
             <div style={stiliComuni.flex1}>
-              <label style={txtF11Muted}>A</label>
-              <input type="date" value={dateTo} onChange={e => imposta("dateTo", e.target.value)} style={boxF12WFull} />
+              <label style={txtF11Muted} htmlFor={idDateTo}>A</label>
+              <input id={idDateTo} type="date" value={dateTo} onChange={e => imposta("dateTo", e.target.value)} style={boxF12WFull} />
             </div>
           </div>
         </div>
@@ -317,10 +320,14 @@ export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, c
               const cat = categories[t.category] || { icon: "📋", color: "#6B7280", bg: "#F9FAFB", label: t.category };
               const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
               const overdue = isOverdue(t);
+              const handleOpenTask = () => openTask(t);
               return (
                 <SwipeActions key={t.id} task={t} disabled={!!t.deletedAt}>
                 <div
-                  onClick={() => openTask(t)}
+                  role="button"
+                  tabIndex={0}
+                  onClick={handleOpenTask}
+                  onKeyDown={attivaConTastiera(handleOpenTask)}
                   style={{
                     padding: "10px 18px", borderBottom: "1px solid var(--border)",
                     cursor: "pointer", display: "flex", alignItems: "center", gap: 12,
@@ -377,10 +384,15 @@ export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, c
             <div style={boxStickyF11}>
               {listaResults.length} {listaResults.length === 1 ? "lista" : "liste"} viaggio ✈️
             </div>
-            {listaResults.map(l => (
+            {listaResults.map(l => {
+              const handleOpenLista = () => openLista(l);
+              return (
               <div
                 key={l.id}
-                onClick={() => openLista(l)}
+                role="link"
+                tabIndex={0}
+                onClick={handleOpenLista}
+                onKeyDown={attivaConTastiera(handleOpenLista)}
                 style={{
                   padding: "10px 18px", borderBottom: "1px solid var(--border)",
                   cursor: "pointer", display: "flex", alignItems: "center", gap: 12,
@@ -413,7 +425,8 @@ export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, c
                   }}>{l.stato}</div>
                 )}
               </div>
-            ))}
+              );
+            })}
           </>
         )}
       </div>

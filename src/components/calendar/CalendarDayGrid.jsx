@@ -16,6 +16,7 @@ import { formatTime } from "../../lib/taskUtils.js";
 import { Z } from "../../styles/tokens.js";
 import { layoutColumns } from "./calendarLayout.js";
 import * as stiliComuni from "../../styles/common.js";
+import { attivaConTastiera } from "../../lib/a11y.js";
 
 // Costanti a livello di modulo, non ricostruite a ogni render — stessa
 // convenzione degli stili qui sotto (M-1 dell'audit del 12 agosto), applicata
@@ -92,8 +93,15 @@ export const CalendarDayGrid = memo(function CalendarDayGrid({ dayDate, dayTasks
             const height = Math.max(28, hours * SLOT_H - 2);
             const cat = categories[t.category] || {};
             const colW = 100 / totalCols;
+            const apri = () => onOpenTask(t);
             return (
-              <div key={t.id} onClick={() => onOpenTask(t)} style={{
+              <div
+                key={t.id}
+                role="button"
+                tabIndex={0}
+                onClick={apri}
+                onKeyDown={attivaConTastiera(apri)}
+                style={{
                 position: "absolute", top,
                 left: `calc(${col * colW}% + 3px)`,
                 width: `calc(${colW}% - 6px)`,

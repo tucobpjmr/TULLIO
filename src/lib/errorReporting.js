@@ -188,6 +188,43 @@ const giaSegnalato = (messaggio) => {
   return false;
 };
 
+// ─── A-4 (audit UX/errori del 1 settembre) · LA SEGNALAZIONE HA UN POSTO ───
+// DOVE ESSERE CERCATA. Il codice nasce per essere dettato al telefono, ma
+// finché finiva solo in `console.error` esisteva solo nel browser di chi
+// aveva avuto l'errore: chi RICEVE la segnalazione (un admin, chi sviluppa)
+// non aveva nessun posto in cui cercarla. Ora la stessa coppia
+// codice+dettaglio finisce anche in una tabella che gli admin possono
+// leggere (`error_reports`, migrazione 20260901120000).
+//
+// `import()` DINAMICO e non uno statico in testa al file: questo modulo lo
+// installa main.jsx PRIMA del mount (vedi installaHandlerGlobali più sotto),
+// e `lib/api.js` è la porta dell'intero data layer — un import statico lo
+// riporterebbe nel chunk d'ingresso, esattamente ciò che B-1 dell'audit
+// performance del 16 agosto ha tolto da AuthGate.jsx. Qui il costo si paga
+// solo quando succede DAVVERO un errore, e quel chunk è quasi sempre già in
+// volo per altre ragioni (l'app è montata).
+//
+// Fire-and-forget per costruzione: siamo già dentro il percorso che gestisce
+// un errore non gestito. Se anche l'invio fallisce (rete, RLS), non deve MAI
+// produrre un secondo errore non gestito — richiuderebbe il cerchio su se
+// stesso — né bloccare l'utente, che ha già il suo toast.
+//
+// Esportata: `segnala()` qui sotto la usa per i due handler globali, e
+// creaErrorBoundary.jsx per i crash di render — che non passano da qui, sono
+// l'ALTRO percorso d'errore descritto in cima a questo file. Stesso codice
+// mostrato a schermo dai due lati (criticità #9): duplicarlo qui sarebbe
+// stato il difetto opposto a quello che questo fix chiude.
+export function registraSegnalazione(codice, origine, motivo, dettaglioAggiuntivo) {
+  import('./api.js').then(({ ErrorReports }) => ErrorReports.create({
+    code: codice,
+    origin: origine,
+    message: testoLeggibile(motivo),
+    stack: motivo?.stack || dettaglioAggiuntivo || null,
+    url: typeof window !== "undefined" ? window.location?.href : null,
+    userAgent: typeof navigator !== "undefined" ? navigator.userAgent : null,
+  })).catch(() => {});
+}
+
 // ─── INSTALLAZIONE ─────────────────────────────────────────────────────────
 
 function segnala(motivo, origine) {
@@ -204,6 +241,11 @@ function segnala(motivo, origine) {
   // ripetizioni che all'utente non diciamo (spesso è la ripetizione stessa,
   // non il singolo errore, a rivelare il problema).
   console.error(`[VoyageDesk] errore non gestito (${origine}) (${codice}):`, motivo);
+  // A-4: la segnalazione, a differenza del toast qui sotto, NON passa dal
+  // dedup — un `error_reports` con meno righe di quante ne servano a capire
+  // "succede in continuazione" sarebbe un difetto peggiore di qualche riga
+  // ripetuta in più.
+  registraSegnalazione(codice, origine, motivo);
 
   if (!sink) return;
   // La chiave di dedup non può essere il MESSAGGIO finale: da B-2 quello

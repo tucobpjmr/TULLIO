@@ -150,7 +150,7 @@ function useIsMobile() {
 // all'ultimo frame: nel BulkTaskCreator, dove si passa da un campo all'altro
 // senza toccare "OK", le task nascevano senza scadenza ("la data inserita
 // non persiste"). "Cancella" resta l'unico modo per azzerare una data.
-export function DateTimePicker({ value, onChange, hasError, style, placeholder = "gg/mm/aaaa --:--", align = "left", withTime = true }) {
+export function DateTimePicker({ value, onChange, hasError, style, placeholder = "gg/mm/aaaa --:--", align = "left", withTime = true, ariaLabel }) {
   const [open, setOpen] = useState(false);
   const [viewDate, setViewDate] = useState(() => (value ? new Date(value) : new Date()));
   const [draftDay, setDraftDay] = useState(() => (value ? new Date(value) : null));
@@ -344,6 +344,13 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
       <button
         type="button"
         onClick={() => (open ? dismiss() : setOpen(true))}
+        // A-3 dell'audit UX/errori del 1 settembre: il testo visibile è il
+        // VALORE ("12 set 2026") o il placeholder, non il nome del campo — un
+        // `<label>` esterno non può agganciarsi qui (questo bottone non
+        // inoltra un `id`), e senza `aria-label` uno screen reader sentirebbe
+        // solo la data, non che si tratta della Scadenza. `ariaLabel` è
+        // opzionale: i chiamanti che non lo passano restano com'erano.
+        aria-label={ariaLabel}
         style={{
           width: "100%", textAlign: "left", border: `1px solid ${hasError ? "var(--danger)" : "var(--border)"}`,
           borderRadius: 8, padding: "7px 10px", fontSize: 13, fontFamily: "inherit",
@@ -360,6 +367,12 @@ export function DateTimePicker({ value, onChange, hasError, style, placeholder =
       {open && (isMobile ? (
         // Mobile: card centrata a schermo con backdrop — sempre dentro i
         // margini, niente scroll orizzontale.
+        //
+        // A-2 dell'audit UX/errori del 1 settembre: stesso velo di
+        // ui/Modal.jsx — l'equivalente da tastiera è Esc (riga 203 di questo
+        // file), non questo div: dargli tabIndex lo metterebbe nell'ordine di
+        // tabulazione senza nome né scopo.
+        // eslint-disable-next-line jsx-a11y/no-static-element-interactions
         <div
           onMouseDown={e => { if (e.target === e.currentTarget) dismiss(); }}
           style={{

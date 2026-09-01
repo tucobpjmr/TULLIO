@@ -17,6 +17,7 @@ import { PERIOD_OPTIONS, filterByPeriod, thStyle, chipStyle } from "../tasks/arc
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../styles/common.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
+import { attivaConTastiera } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -189,10 +190,14 @@ export const ArchivedListe = ({ isMobile }) => {
         <div style={stiliComuni.colGap10}>
           {visible.map(l => {
             const s = saldi[l.id] || { saldo: 0 };
+            const handleApri = () => apri(l);
             return (
               <div
                 key={l.id}
-                onClick={() => apri(l)}
+                role="link"
+                tabIndex={0}
+                onClick={handleApri}
+                onKeyDown={attivaConTastiera(handleApri)}
                 style={boxR12}
               >
                 <div style={txtF14Bold2}>
@@ -206,9 +211,14 @@ export const ArchivedListe = ({ isMobile }) => {
                   <span style={stiliComuni.txtF12Muted}>
                     {l.closed_at ? `chiusa ${fmtDate(l.closed_at.slice(0, 10))}` : "—"}
                   </span>
-                  <div style={stiliComuni.rowGap6} onClick={e => e.stopPropagation()}>
-                    <button onClick={() => handleReopen(l)} style={boxF12Bold}>↩ Riapri</button>
-                    <button onClick={() => handleTrash(l)} style={boxF12Bold2}>🗑️</button>
+                  {/* I due bottoni fermano la propagazione da soli (invece di
+                      un wrapper con onClick di solo stopPropagation, che
+                      sarebbe un altro elemento statico "cliccabile" senza
+                      azione propria): A-2 chiede semantica reale, non un
+                      contenitore vuoto da rendere accessibile. */}
+                  <div style={stiliComuni.rowGap6}>
+                    <button onClick={e => { e.stopPropagation(); handleReopen(l); }} style={boxF12Bold}>↩ Riapri</button>
+                    <button onClick={e => { e.stopPropagation(); handleTrash(l); }} style={boxF12Bold2}>🗑️</button>
                   </div>
                 </div>
               </div>

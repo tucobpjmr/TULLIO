@@ -203,6 +203,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
               value={common.dueDate || null}
               onChange={iso => setCommon({ ...common, dueDate: iso || "" })}
               align={isMobile ? "left" : "right"}
+              ariaLabel="Scadenza (comune a tutte le righe)"
             />
           </div>
         </div>
@@ -253,6 +254,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
                   onChange={iso => updateRow(r.key, "dueDate", iso || "")}
                   align="right"
                   placeholder={commonDueLabel ? `${commonDueLabel} (comune)` : undefined}
+                  ariaLabel={`Scadenza riga ${idx + 1}`}
                 />
               </div>
               <textarea
@@ -293,6 +295,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
                 onChange={iso => updateRow(r.key, "dueDate", iso || "")}
                 align="right"
                 placeholder={commonDueLabel || undefined}
+                ariaLabel={`Scadenza riga ${idx + 1}`}
               />
               <button onClick={() => removeRow(r.key)} disabled={rows.length === 1} style={{
                 background: "transparent", border: "none", cursor: rows.length === 1 ? "not-allowed" : "pointer",

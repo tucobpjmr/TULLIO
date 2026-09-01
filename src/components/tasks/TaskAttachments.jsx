@@ -12,6 +12,7 @@ import { TaskFiles } from "../../lib/api.js";
 import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit, sourceBadge, mediaKind } from "../../lib/fileUtils.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../styles/common.js";
+import { attivaConTastiera } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -142,6 +143,8 @@ export function TaskAttachments({ taskId, editable }) {
     if (inputRef.current) inputRef.current.value = "";
   };
 
+  const apriSelezioneFile = () => { if (!uploading) inputRef.current?.click(); };
+
   const handleDownload = async (file) => {
     const { url, error: e } = await TaskFiles.getFileUrl(file.file_url);
     if (url) window.open(url, "_blank", "noopener");
@@ -258,7 +261,9 @@ export function TaskAttachments({ taskId, editable }) {
             onChange={e => handleFiles(e.target.files)}
           />
           <div
-            onClick={() => !uploading && inputRef.current?.click()}
+            role="button" tabIndex={0}
+            onClick={apriSelezioneFile}
+            onKeyDown={attivaConTastiera(apriSelezioneFile)}
             onDragOver={e => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}

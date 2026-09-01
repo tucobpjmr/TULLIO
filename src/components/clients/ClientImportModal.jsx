@@ -15,6 +15,7 @@ import { formatFileSize } from "../../lib/fileUtils.js";
 import { chiaveCliente } from "../../lib/chiaveCliente.js";
 import { Modal } from "../ui/Modal.jsx";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
+import { attivaConTastiera } from "../../lib/a11y.js";
 import * as stiliComuni from "../../styles/common.js";
 import {
   boxF125Warning, boxF13Danger, boxF14White, boxF95Bold, boxR8, boxTxtCenterR12, boxW8H8,
@@ -254,6 +255,8 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
     );
   }, [candidates, search]);
 
+  const apriSelezioneFile = () => fileInputRef.current?.click();
+
   const toggle = (key) => impDispatch({ type: "SELEZIONE", selected: { ...selected, [key]: !selected[key] } });
   const selectAll = () => impDispatch({ type: "SELEZIONE", selected: Object.fromEntries(candidates.map(c => [c.key, true])) });
   const selectNone = () => impDispatch({ type: "SELEZIONE", selected: {} });
@@ -317,7 +320,10 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
 
         <div style={colFlex1Gap14}>
           {!rows.length && (
-            <div onClick={() => fileInputRef.current?.click()} style={boxTxtCenterR12}
+            <div
+              role="button" tabIndex={0}
+              onClick={apriSelezioneFile} onKeyDown={attivaConTastiera(apriSelezioneFile)}
+              style={boxTxtCenterR12}
               onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--gold)"; e.currentTarget.style.background = "rgba(212,168,67,0.04)"; }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--surface)"; }}
             >
@@ -417,8 +423,13 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
                   <div style={boxR8}>
                     {filtered.length === 0 ? (
                       <div style={txtF125Muted}>Nessun risultato</div>
-                    ) : filtered.map(c => (
-                      <div key={c.key} onClick={() => toggle(c.key)} style={{
+                    ) : filtered.map(c => {
+                      const toggleQuesto = () => toggle(c.key);
+                      return (
+                      <div key={c.key}
+                        role="button" tabIndex={0}
+                        onClick={toggleQuesto} onKeyDown={attivaConTastiera(toggleQuesto)}
+                        style={{
                         display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
                         borderBottom: "1px solid var(--border)", cursor: "pointer",
                         background: selected[c.key] ? "rgba(212,168,67,0.06)" : "transparent",
@@ -436,7 +447,8 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
                           </div>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}

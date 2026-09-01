@@ -1,6 +1,6 @@
 // ─── QUICK ADD TASK ──────────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
-import { useState, useRef } from "react";
+import { useState, useRef, useId } from "react";
 import { PRIORITIES } from "../../lib/taskConstants.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { clientContact } from "../../lib/taskUtils.js";
@@ -88,6 +88,18 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
   const fileInputRef = useRef(null);
   const titleRef = useRef(null);
   const rifCampo = { title: titleRef };
+
+  // A-3 · un `useId()` per campo, per associare ogni `<label>` al proprio
+  // controllo — vedi src/lib/a11y.js per l'equivalente da tastiera dei
+  // click (A-2), qui è la stessa correzione ma per gli screen reader.
+  const idCategoria = useId();
+  const idPriorita = useId();
+  const idAssegna = useId();
+  const idCliente = useId();
+  const idPratica = useId();
+  const idContatti = useId();
+  const idDescrizione = useId();
+  const idAllegati = useId();
 
   // Autocomplete cliente: mostra la tendina dei clienti in anagrafica mentre si
   // digita. Il campo resta testo libero (task.client è una stringa), così si può
@@ -214,13 +226,14 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
 
           <div style={stiliComuni.grid2ColGap12}>
             <div>
-              <label className="vd-field-label-lg">
+              <label className="vd-field-label-lg" htmlFor={idCategoria}>
                 CATEGORIA
                 {suggested && (
                   <span style={boxF10Bold}>💡 auto</span>
                 )}
               </label>
               <select
+                id={idCategoria}
                 value={form.category}
                 onChange={e => { setCatManual(true); setForm(p => ({ ...p, category: e.target.value })); }}
                 style={{ ...inp("category").style, cursor: "pointer",
@@ -240,8 +253,8 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
               )}
             </div>
             <div>
-              <label className="vd-field-label-lg">PRIORITÀ</label>
-              <select {...inp("priority")} style={{ ...inp("priority").style, cursor: "pointer" }}>
+              <label className="vd-field-label-lg" htmlFor={idPriorita}>PRIORITÀ</label>
+              <select id={idPriorita} {...inp("priority")} style={{ ...inp("priority").style, cursor: "pointer" }}>
                 {Object.entries(PRIORITIES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
             </div>
@@ -249,8 +262,9 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
 
           <div style={stiliComuni.grid2ColGap12}>
             <div>
-              <label className="vd-field-label-lg">ASSEGNA A</label>
+              <label className="vd-field-label-lg" htmlFor={idAssegna}>ASSEGNA A</label>
               <select
+                id={idAssegna}
                 value={form.assignees[0] || ""}
                 onChange={e => setForm(p => ({ ...p, assignees: e.target.value ? [e.target.value] : [] }))}
                 style={{ ...inp("category").style, cursor: "pointer" }}>
@@ -259,17 +273,25 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
               </select>
             </div>
             <div>
-              <label className="vd-field-label-lg">SCADENZA</label>
+              {/* A-3 · non `<label>`: DateTimePicker espone un solo
+                  `<button>` il cui testo visibile è la data scelta, non il
+                  nome del campo — non c'è un `id` da agganciare con
+                  `htmlFor`. Il nome del campo arriva allo screen reader via
+                  `ariaLabel` sotto (stesso pattern già in uso per questo
+                  controllo in ManualTab/TemplateTab/TaskSlideOver). */}
+              <div className="vd-field-label-lg">SCADENZA</div>
               <DateTimePicker
                 value={form.dueDate || null}
                 onChange={iso => setForm(p => ({ ...p, dueDate: iso || "" }))}
+                ariaLabel="Scadenza"
               />
             </div>
           </div>
 
           <div style={stiliComuni.relative}>
-            <label className="vd-field-label-lg">CLIENTE</label>
+            <label className="vd-field-label-lg" htmlFor={idCliente}>CLIENTE</label>
             <input
+              id={idCliente}
               {...inp("client")}
               placeholder={clients.length ? "Cerca in anagrafica o scrivi un nome…" : "Es. Famiglia Rossi…"}
               {...cli.inputProps}
@@ -279,23 +301,23 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
 
           <div style={stiliComuni.grid2ColGap12}>
             <div>
-              <label className="vd-field-label-lg">N° PRATICA</label>
-              <input {...inp("praticaRef")} placeholder="es. PR-2026-001" />
+              <label className="vd-field-label-lg" htmlFor={idPratica}>N° PRATICA</label>
+              <input id={idPratica} {...inp("praticaRef")} placeholder="es. PR-2026-001" />
             </div>
             <div>
-              <label className="vd-field-label-lg">CONTATTI</label>
-              <input {...inp("contact")} placeholder="Telefono, email…" />
+              <label className="vd-field-label-lg" htmlFor={idContatti}>CONTATTI</label>
+              <input id={idContatti} {...inp("contact")} placeholder="Telefono, email…" />
             </div>
           </div>
 
           <div>
-            <label className="vd-field-label-lg">DESCRIZIONE</label>
-            <textarea {...inp("description")} rows={3} placeholder="Dettagli del task..." style={{ ...inp("description").style, resize: "vertical" }} />
+            <label className="vd-field-label-lg" htmlFor={idDescrizione}>DESCRIZIONE</label>
+            <textarea id={idDescrizione} {...inp("description")} rows={3} placeholder="Dettagli del task..." style={{ ...inp("description").style, resize: "vertical" }} />
           </div>
 
           {/* Allegati (immagini, video, audio, documenti) */}
           <div>
-            <label className="vd-field-label-lg">ALLEGATI</label>
+            <label className="vd-field-label-lg" htmlFor={idAllegati}>ALLEGATI</label>
             {pendingFiles.length > 0 && (
               <div style={colGap6Mb8}>
                 {pendingFiles.map((f, i) => (
@@ -313,6 +335,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
               </div>
             )}
             <input
+              id={idAllegati}
               ref={fileInputRef}
               type="file"
               multiple

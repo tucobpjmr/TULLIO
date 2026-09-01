@@ -14,6 +14,7 @@ import {
   rowCenterBetween2, rowCenterFlex1, rowCenterGap1, rowCenterMiddle, rowCenterMiddle2,
   rowGap6Mt10, txtAbsoluteF13, txtF10Gold, txtF10Muted, txtF40Mb8, txtMutedTxtCenter,
 } from "./conversationListStyles.js";
+import { attivaConTastiera } from "../../lib/a11y.js";
 
 // ─── CHAT: LIST OF CONVERSATIONS ───────────────────────────────────────────
 export const ConversationList = ({ conversations, messages, onSelect, onNew, onDelete }) => {
@@ -108,8 +109,15 @@ export const ConversationList = ({ conversations, messages, onSelect, onNew, onD
           const lastSender = last ? getMember(last.sender) : null;
           const otherUser = c.type === "direct" ? c.participants.find(p => p !== me) : null;
 
+          const apriConversazione = () => onSelect(c);
           return (
-            <div key={c.id} onClick={() => onSelect(c)} style={{
+            <div
+              key={c.id}
+              role="button"
+              tabIndex={0}
+              onClick={apriConversazione}
+              onKeyDown={attivaConTastiera(apriConversazione)}
+              style={{
               padding: "10px 14px", display: "flex", gap: 10, alignItems: "center",
               borderBottom: "1px solid var(--border)", cursor: "pointer",
               transition: "background 0.15s",

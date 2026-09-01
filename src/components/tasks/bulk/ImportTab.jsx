@@ -17,6 +17,7 @@ import {
 } from "../../../lib/bulkImport.js";
 import { bulkInputStyle, bulkBtnPrimary, bulkBtnGhost } from "./bulkStyles.js";
 import * as stiliComuni from "../../../styles/common.js";
+import { attivaConTastiera } from "../../../lib/a11y.js";
 import {
   boxF12Bold, boxF12Warning, boxF13Danger, boxR8, boxR82, boxStickyBold, boxTxtCenterR12,
   boxW8H8, gridGap8, maxW180, mt4Op085, rowCenterBetween, rowCenterBetween3, rowCenterGap5,
@@ -209,6 +210,8 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
   // fasi l'abbia acceso.
   const reset = () => { setRows([]); setColumns([]); setMapping({}); setAutoDetected({}); setFileName(""); impostaErroreFile(null); azzeraErroreImport(); };
 
+  const apriSelezioneFile = () => fileInputRef.current?.click();
+
   const fields = [
     { key: "title", label: "Titolo *" }, { key: "category", label: "Categoria" },
     { key: "priority", label: "Priorità" }, { key: "status", label: "Stato" },
@@ -227,7 +230,10 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
   return (
     <div style={stiliComuni.colGap14}>
       {!rows.length && (
-        <div onClick={() => fileInputRef.current?.click()} style={boxTxtCenterR12}
+        <div
+          role="button" tabIndex={0}
+          onClick={apriSelezioneFile} onKeyDown={attivaConTastiera(apriSelezioneFile)}
+          style={boxTxtCenterR12}
           onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--gold)"; e.currentTarget.style.background = "rgba(212,168,67,0.04)"; }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--surface)"; }}
         >

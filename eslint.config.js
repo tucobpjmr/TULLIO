@@ -6,6 +6,7 @@ import js from '@eslint/js';
 import globals from 'globals';
 import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
+import jsxA11y from 'eslint-plugin-jsx-a11y';
 
 // ─── CONFINE DELLE SCRITTURE ─────────────────────────────────────────────────
 // Le due regole qui sotto dicono la stessa cosa a due livelli diversi: una
@@ -379,8 +380,21 @@ export default [
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
     settings: { react: { version: 'detect' } },
-    plugins: { react, 'react-hooks': reactHooks },
+    plugins: { react, 'react-hooks': reactHooks, 'jsx-a11y': jsxA11y },
     rules: {
+      // A-2/A-3 dell'audit UX/errori del 1 settembre: eslint-plugin-jsx-a11y
+      // non era installato, quindi né i 14 `<div onClick>` senza
+      // role/tabIndex/onKeyDown (una conversazione, una scheda cliente, una
+      // task dal calendario non si aprivano da tastiera) né i 51 `<label>`
+      // su 75 senza `htmlFor` (un campo senza nome per uno screen reader)
+      // facevano fallire il lint: la stessa regressione poteva ripresentarsi
+      // in ogni componente nuovo senza che nulla lo dicesse. Solo le due
+      // regole che intercettano ESATTAMENTE quei due rilievi, non l'intero
+      // preset `recommended` del plugin — che aggiungerebbe una superficie di
+      // regole non ancora misurata su questa codebase.
+      'jsx-a11y/click-events-have-key-events': 'error',
+      'jsx-a11y/no-static-element-interactions': 'error',
+      'jsx-a11y/label-has-associated-control': 'error',
       // Marca come "usati" i componenti referenziati in JSX (altrimenti
       // verrebbero segnalati come import inutilizzati).
       'react/jsx-uses-vars': 'error',

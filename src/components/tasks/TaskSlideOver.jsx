@@ -32,6 +32,7 @@ import {
   rowGap8Mb8, rowStartBetween, txtF18Bold,
 } from "./taskSlideOverStyles.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
+import { attivaConTastiera } from "../../lib/a11y.js";
 
 export const TaskSlideOver = ({ task }) => {
   const dispatch = useDispatch();
@@ -132,9 +133,18 @@ export const TaskSlideOver = ({ task }) => {
     width: "100%", border: "1px solid var(--border)", borderRadius: 8,
     padding: "7px 10px", fontSize: 13, fontFamily: "inherit", background: "var(--card)",
   };
+  const chiudiPannello = () => dispatch({ type: "SET_SELECTED_TASK", payload: null });
+
   return (
     <>
-      <div onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: null })}
+      {/* A differenza del velo di ui/Modal.jsx, questo pannello non ha (ancora)
+          un equivalente da tastiera per la chiusura (nessun listener su Escape
+          in questo file): niente escape hatch, il velo diventa un vero
+          controllo raggiungibile con Tab e attivabile con Invio/Spazio. */}
+      <div
+        role="button" tabIndex={0}
+        onClick={chiudiPannello} onKeyDown={attivaConTastiera(chiudiPannello)}
+        aria-label="Chiudi pannello task"
         style={{ position: "fixed", inset: 0, background: "rgba(15,32,68,0.4)", zIndex: Z.slideOverBackdrop }} />
       <div className="slide-right vd-sheet-full" style={{
         position: "fixed", top: 0, right: 0, width: isMobile ? "100vw" : 480,
@@ -202,6 +212,7 @@ export const TaskSlideOver = ({ task }) => {
                   value={task.dueDate}
                   onChange={iso => updateField("dueDate", iso)}
                   hasError={isOverdue(task)}
+                  ariaLabel="Scadenza"
                 />
               ) : (
                 <div style={{ fontSize: 13, padding: "4px 8px", background: "var(--surface2)", borderRadius: 8, display: "inline-block", color: isOverdue(task) ? "var(--danger)" : "var(--text)" }}>

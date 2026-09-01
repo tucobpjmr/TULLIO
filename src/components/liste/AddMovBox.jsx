@@ -2,7 +2,7 @@
 // ListaDetail.jsx ne conteneva quattro, di componenti: questo, l'editor di cella
 // e i due campi in linea della testata. Ognuno ha stato e salvataggio propri e
 // con gli altri condivide solo il `dispatch`.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { METODI, parseImporto, todayISO } from "./listeFormato.js";
 import { useListeWrite } from "./listePersistence.js";
 import { useSalvataggioLista } from "./useSalvataggioLista.js";
@@ -18,6 +18,12 @@ import * as stiliComuni from "../../styles/common.js";
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
 const rowEnd = { display: "flex", alignItems: "flex-end" };
 const wFull = { width: "100%" };
+// A-3 · replica inline di `.lv-field label` (liste.css): il segmento
+// Versamento/Utilizzo non è UN controllo a cui agganciare un `<label>` con
+// `htmlFor` (sono due bottoni, ciascuno già con il proprio testo come nome
+// accessibile), quindi la didascalia "Tipo" resta un `<div>` — la regola CSS
+// esistente seleziona `.lv-field label`, e cambiando tag va portata qui.
+const lblTipo = { display: "block", fontSize: 12, fontWeight: 600, color: "var(--lv-muted)", marginBottom: 4 };
 
 // Riquadro "Nuovo movimento": sta in cima al foglio e si apre col tasto ＋
 // della barra. In fondo alla pagina, su liste lunghe, richiedeva di scorrere
@@ -36,6 +42,7 @@ export function AddMovBox({ listaId, onSaved, onClose, onBulk }) {
   const impRef = useRef(null);
   const rifCampo = { data: dataRef, desc: descRef, imp: impRef };
   const esegui = useListeWrite();
+  const idTipo = useId();
 
   useEffect(() => { descRef.current?.focus(); }, []);
 
@@ -119,8 +126,14 @@ export function AddMovBox({ listaId, onSaved, onClose, onBulk }) {
           <FieldError id="mv-desc-err">{errori.desc}</FieldError>
         </div>
         <div className="lv-field">
-          <label>Tipo</label>
-          <SegnoSeg segno={segno} onChange={setSegno} />
+          {/* A-3 · non `<label>`: SegnoSeg è due bottoni (Versamento/Utilizzo),
+              ognuno già con il proprio testo come nome accessibile, non un
+              controllo singolo a cui agganciare un `id` — l'associazione
+              corretta è `role="group"` + `aria-labelledby`. */}
+          <div id={idTipo} style={lblTipo}>Tipo</div>
+          <div role="group" aria-labelledby={idTipo}>
+            <SegnoSeg segno={segno} onChange={setSegno} />
+          </div>
         </div>
         <div className="lv-field">
           <label htmlFor="mv-imp">Importo €</label>

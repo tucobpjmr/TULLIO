@@ -14,6 +14,7 @@ import { dataMedia } from "../../../lib/dates.js";
 import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
 import { obbligatorio, primoCampoInvalido, validaCampi } from "../../../lib/validators.js";
 import * as stiliComuni from "../../../styles/common.js";
+import { attivaConTastiera } from "../../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -129,8 +130,13 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
         <div ref={rifTemplate} tabIndex={-1}>
           <FieldError id="vd-tpl-scelta-err">{errori.selectedId}</FieldError>
           <div style={stiliComuni.grid2ColGap12}>
-          {TASK_TEMPLATES.map(t => (
-            <div key={t.id} onClick={() => { setSelectedId(t.id); setErrori({}); }} className="hover-lift" style={boxR12}>
+          {TASK_TEMPLATES.map(t => {
+            const scegli = () => { setSelectedId(t.id); setErrori({}); };
+            return (
+            <div key={t.id}
+              role="button" tabIndex={0}
+              onClick={scegli} onKeyDown={attivaConTastiera(scegli)}
+              className="hover-lift" style={boxR12}>
               <div style={rowCenterGap102}>
                 <div style={txtF28}>{t.icon}</div>
                 <div>
@@ -140,7 +146,8 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
               </div>
               <div style={txtF12Muted}>{t.description}</div>
             </div>
-          ))}
+            );
+          })}
           </div>
         </div>
       ) : (
@@ -177,6 +184,7 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
                 onChange={iso => { setEventDate(iso || ""); setErrori({}); }}
                 withTime={false}
                 placeholder="gg/mm/aaaa"
+                ariaLabel="Data evento"
               />
               <FieldError id="vd-tpl-data-err">{errori.eventDate}</FieldError>
             </div>

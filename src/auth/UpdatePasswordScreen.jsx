@@ -1,7 +1,7 @@
 // src/auth/UpdatePasswordScreen.jsx
 // Mostrata quando l'utente arriva da un link "reimposta password"
 // (evento PASSWORD_RECOVERY). Imposta la nuova password e rientra nell'app.
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { useAuth } from './AuthContext';
 import { PasswordField } from '../components/ui/PasswordField.jsx';
 import { passwordValida } from '../lib/validators.js';
@@ -21,6 +21,8 @@ export default function UpdatePasswordScreen() {
   // Mostra/nascondi password: unico toggle per entrambi i campi (devono
   // coincidere, quindi mostrarli insieme è il comportamento atteso).
   const [show, setShow] = useState(false);
+  const passwordId = useId();
+  const confirmId = useId();
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -64,15 +66,17 @@ export default function UpdatePasswordScreen() {
           </>
         ) : (
           <>
-            <label style={labelStyle}>{isInvite ? 'Password' : 'Nuova password'}</label>
+            <label htmlFor={passwordId} style={labelStyle}>{isInvite ? 'Password' : 'Nuova password'}</label>
             <PasswordField
+              id={passwordId}
               inputStyle={inputStyle} autoComplete="new-password" required
               value={password} onChange={e => setPassword(e.target.value)}
               show={show} onToggle={() => setShow(s => !s)}
             />
 
-            <label style={{ ...labelStyle, marginTop: 14 }}>Conferma password</label>
+            <label htmlFor={confirmId} style={{ ...labelStyle, marginTop: 14 }}>Conferma password</label>
             <PasswordField
+              id={confirmId}
               inputStyle={inputStyle} autoComplete="new-password" required
               value={confirm} onChange={e => setConfirm(e.target.value)}
               show={show} onToggle={() => setShow(s => !s)}

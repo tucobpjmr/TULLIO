@@ -13,6 +13,7 @@ import { memo, useMemo } from "react";
 import { formatTime } from "../../lib/taskUtils.js";
 import { layoutColumns } from "./calendarLayout.js";
 import * as stiliComuni from "../../styles/common.js";
+import { attivaConTastiera } from "../../lib/a11y.js";
 
 const SLOT_H = 36;
 const txtF9Muted = { fontSize: 9, color: "var(--text-muted)" };
@@ -37,8 +38,15 @@ export const CalendarWeekGridDay = memo(function CalendarWeekGridDay({ dayTasks,
         const height = Math.max(20, durH * SLOT_H - 2);
         const cat = categories[t.category] || {};
         const colW = 100 / totalCols;
+        const apri = () => onOpenTask(t);
         return (
-          <div key={t.id} onClick={() => onOpenTask(t)} style={{
+          <div
+            key={t.id}
+            role="button"
+            tabIndex={0}
+            onClick={apri}
+            onKeyDown={attivaConTastiera(apri)}
+            style={{
             position: "absolute", top,
             left: `calc(${col * colW}% + 1px)`,
             width: `calc(${colW}% - 3px)`,

@@ -7,6 +7,7 @@ import { roleLabel } from "../../lib/taskConstants.js";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { obbligatorio, primoCampoInvalido, validaCampi } from "../../lib/validators.js";
 import * as stiliComuni from "../../styles/common.js";
+import { attivaConTastiera } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -123,7 +124,13 @@ export const NewConversationView = ({ onCreate, onCancel, existing }) => {
               MEMBRI DEL TEAM
             </div>
             {available.map(m => (
-              <div key={m.id} onClick={() => createDirect(m.id)} style={rowCenterGap103}
+              <div
+                key={m.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => createDirect(m.id)}
+                onKeyDown={attivaConTastiera(() => createDirect(m.id))}
+                style={rowCenterGap103}
                 onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
                 onMouseLeave={e => e.currentTarget.style.background = "transparent"}
               >
@@ -175,8 +182,16 @@ export const NewConversationView = ({ onCreate, onCancel, existing }) => {
             )}
             {available.map(m => {
               const isSel = selected.includes(m.id);
+              const toggleQuesto = () => toggle(m.id);
               return (
-                <div key={m.id} onClick={() => toggle(m.id)} style={{
+                <div
+                  key={m.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={isSel}
+                  onClick={toggleQuesto}
+                  onKeyDown={attivaConTastiera(toggleQuesto)}
+                  style={{
                   padding: "10px 14px", display: "flex", gap: 10, alignItems: "center",
                   cursor: "pointer", background: isSel ? "rgba(212,168,67,0.08)" : "transparent",
                   transition: "background 0.15s",

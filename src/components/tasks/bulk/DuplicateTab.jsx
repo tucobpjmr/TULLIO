@@ -7,6 +7,7 @@ import { nuovoTask } from "../../../lib/tasks/nuovoTask.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { bulkInputStyle, bulkBtnPrimary, bulkBtnGhost, bulkIconBtnSmall } from "./bulkStyles.js";
 import * as stiliComuni from "../../../styles/common.js";
+import { attivaConTastiera } from "../../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -143,13 +144,17 @@ export const DuplicateTab = ({ tasks, onCreate, onClose, onCancel, onDirty }) =>
         ) : filtered.map(t => {
           const count = selected[t.id] || 0;
           const isSel = count > 0;
+          const toggleQuesta = () => toggle(t.id);
           return (
-            <div key={t.id} style={{
+            <div key={t.id}
+              role="button" tabIndex={0}
+              onClick={toggleQuesta} onKeyDown={attivaConTastiera(toggleQuesta)}
+              style={{
               display: "flex", alignItems: "center", gap: 10, padding: "10px 14px",
               borderBottom: "1px solid var(--border)",
               background: isSel ? "rgba(212,168,67,0.08)" : "transparent",
               cursor: "pointer",
-            }} onClick={() => toggle(t.id)}>
+            }}>
               <input type="checkbox" checked={isSel} readOnly style={cursor2} />
               <span style={stiliComuni.txtF14}>{categories[t.category]?.icon}</span>
               <div className="vd-flex-1-min0">
@@ -164,6 +169,11 @@ export const DuplicateTab = ({ tasks, onCreate, onClose, onCancel, onDirty }) =>
                 )}
               </div>
               {isSel && (
+                // Non è un controllo: ferma solo la propagazione del click verso la
+                // riga (che alterna la selezione al click), così i due pulsanti
+                // +/− non deselezionano anche la task. Sono nativi e già
+                // accessibili da tastiera.
+                // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events
                 <div style={rowCenterGap4} onClick={e => e.stopPropagation()}>
                   <button onClick={() => setCount(t.id, count - 1)} disabled={count <= 1} style={{ ...bulkIconBtnSmall, opacity: count <= 1 ? 0.4 : 1 }}>−</button>
                   <span style={txtF13Bold2}>{count}</span>

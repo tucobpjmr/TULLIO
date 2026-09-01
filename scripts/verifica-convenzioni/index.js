@@ -326,7 +326,16 @@ async function main() {
   //    nega no. Stessa forma di `lazy() senza boundary` qui sopra, e stessa
   //    onestà: ognuno SOLLEVA se non trova il proprio presupposto, invece di
   //    passare a vuoto.
-  const azioni = azioniRegistry(await readFile('src/state/persistence.js', 'utf8'));
+  // A-1 (audit del 1 settembre): il registry non vive più in un file solo —
+  // state/persistenceAdmin.js porta TEAM/RESTORE_BACKUP/PROFILO da quando
+  // persistence.js ha superato la soglia fisica (fileOltreTettoFisico qui
+  // sotto). Le due metà si leggono insieme, o le entry spostate spariscono da
+  // ogni controllo che dipende da questo elenco — è la stessa nota che lascia
+  // scrittureInVoloAMeta in convenzioni.js.
+  const azioni = azioniRegistry(
+    (await readFile('src/state/persistence.js', 'utf8'))
+    + '\n' + (await readFile('src/state/persistenceAdmin.js', 'utf8')),
+  );
 
   const senzaAttesa = formSenzaAttesaEsito(sorgenti, azioni);
   controlli.push({

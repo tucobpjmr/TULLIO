@@ -32,6 +32,7 @@
 
 import { memo } from "react";
 import { CategoryPill } from "./CategoryPill.jsx";
+import { attivaConTastiera } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -85,9 +86,17 @@ export const TaskCard = memo(function TaskCard({
   const hasMeta = (showClient && task.client) || meta;
 
   return (
+    // A-2: `role="button"` è letterale perché deve esserlo per superare la
+    // regola statica di jsx-a11y (non legge un'espressione condizionale) — ma
+    // tabIndex e onKeyDown restano legati a `openAll`, quindi quando la card
+    // non è cliccabile (nessun onOpen, o clickTitleOnly) non entra comunque
+    // nell'ordine di tabulazione né risponde a Invio/Spazio.
     <div
+      role="button"
+      tabIndex={openAll ? 0 : undefined}
       title={tooltip}
       onClick={openAll}
+      onKeyDown={openAll ? attivaConTastiera(openAll) : undefined}
       onMouseEnter={hoverLift ? lift(true) : undefined}
       onMouseLeave={hoverLift ? lift(false) : undefined}
       style={{
@@ -108,7 +117,10 @@ export const TaskCard = memo(function TaskCard({
       )}
 
       <div
+        role="button"
+        tabIndex={openTitle ? 0 : undefined}
         onClick={openTitle}
+        onKeyDown={openTitle ? attivaConTastiera(openTitle) : undefined}
         style={{
           fontSize: 14, fontWeight: 600, color: titleColor, lineHeight: 1.35,
           ...(openTitle ? { cursor: "pointer" } : null),

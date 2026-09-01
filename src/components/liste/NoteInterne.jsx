@@ -3,6 +3,7 @@
 // sono condivisi con TitoloTestata — vedi useModificaInLinea.js.
 import { useModificaInLinea } from "./useModificaInLinea.js";
 import { AzioniModifica } from "./AzioniModifica.jsx";
+import { attivaConTastiera } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -39,7 +40,14 @@ export function NoteInterne({ lista, onSaved }) {
           <AzioniModifica onAnnulla={m.chiudi} onSalva={m.conferma} inVolo={m.inVolo} />
         </>
       ) : lista.note ? (
-        <p className="lv-note-body" onClick={m.apri} title="Tocca per modificare">{lista.note}</p>
+        <p
+          className="lv-note-body"
+          role="button"
+          tabIndex={0}
+          onClick={m.apri}
+          onKeyDown={attivaConTastiera(m.apri)}
+          title="Tocca per modificare"
+        >{lista.note}</p>
       ) : (
         <button className="lv-btn sm" onClick={m.apri}>+ Aggiungi nota interna</button>
       )}

@@ -71,6 +71,21 @@ export const CropModal = ({ src, onConfirm, onCancel }) => {
   };
   const endDrag = () => { drag.current = null; };
 
+  // A-2 dell'audit UX/errori del 1 settembre: il trascinamento con cui si
+  // centra l'immagine non aveva equivalente da tastiera — lo slider dello
+  // zoom ce l'ha già di suo (è un <input type="range">), il pan no. Le
+  // frecce spostano l'immagine di un passo fisso, con lo stesso `clamp` che
+  // già impedisce di trascinarla oltre il bordo con il mouse.
+  const STEP_TASTIERA = 10;
+  const nudge = (dx, dy) => setOffset(prev => clamp({ x: prev.x + dx, y: prev.y + dy }, totalScale));
+  const onKeyDownAnteprima = (e) => {
+    const passi = { ArrowLeft: [-STEP_TASTIERA, 0], ArrowRight: [STEP_TASTIERA, 0], ArrowUp: [0, -STEP_TASTIERA], ArrowDown: [0, STEP_TASTIERA] };
+    const passo = passi[e.key];
+    if (!passo) return;
+    e.preventDefault();
+    nudge(...passo);
+  };
+
   const handleConfirm = () => {
     const canvas = canvasRef.current;
     const img = imgRef.current;
@@ -111,6 +126,10 @@ export const CropModal = ({ src, onConfirm, onCancel }) => {
 
       {/* Circular crop preview */}
       <div
+        role="group"
+        aria-label="Posizione dell'immagine: trascina o usa le frecce per centrarla"
+        tabIndex={0}
+        onKeyDown={onKeyDownAnteprima}
         onMouseDown={e => { e.preventDefault(); startDrag(e.clientX, e.clientY); }}
         onMouseMove={e => moveDrag(e.clientX, e.clientY)}
         onMouseUp={endDrag}
@@ -161,7 +180,7 @@ export const CropModal = ({ src, onConfirm, onCancel }) => {
         </div>
       </div>
 
-      <div style={stiliComuni.txtF11Muted}>Trascina per centrare • usa lo slider per zoomare</div>
+      <div style={stiliComuni.txtF11Muted}>Trascina (o usa le frecce) per centrare • usa lo slider per zoomare</div>
 
       <canvas ref={canvasRef} style={stiliComuni.hidden} />
 

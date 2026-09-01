@@ -13,6 +13,7 @@ import { useConfirm } from "../../state/ConfirmContext.jsx";
 import { PushToggle } from "./PushToggle.jsx";
 import * as stiliComuni from "../../styles/common.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
+import { attivaConTastiera } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -176,7 +177,10 @@ export const NotificationsPanel = ({ onClose, notifications, isReal, onMarkRead,
         {filteredList.map(n => (
           <div
             key={n.id}
+            role="button"
+            tabIndex={0}
             onClick={() => handleClick(n)}
+            onKeyDown={attivaConTastiera(() => handleClick(n))}
             style={{
               padding: "12px 16px", display: "flex", gap: 10, alignItems: "flex-start",
               background: n.read ? "transparent" : "rgba(212,168,67,0.07)",

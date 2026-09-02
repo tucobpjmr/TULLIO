@@ -129,6 +129,22 @@ const AUDIT = [
   // chiudere i suoi rilievi. Nasce con quattordici rilievi tutti aperti ed e'
   // l'unico con un rilievo CRITICO, quindi i prefissi sono quattro.
   { file: 'AUDIT_CODEBASE_2026-08-31.md', prefisso: ['C', 'A', 'M', 'B'] },
+  // L'audit di architettura e sicurezza del 2 settembre. Registrato insieme al
+  // documento, per la ragione scritta piu' sopra — un audit fuori dal registro
+  // ha un marcatore che nessuno verifica, e il momento in cui scade e'
+  // esattamente quello in cui si comincia a chiudere i suoi rilievi.
+  //
+  // ⚠️ M-3 di quell'audit riguarda QUESTO controllo: confronta la tabella delle
+  // priorita' di un documento con il marcatore in INDEX.md, cioe' due PROSE
+  // scritte dalla stessa mano nello stesso commit — che per costruzione non
+  // possono smentirsi. E' il motivo per cui A-1 e A-4 del 31 agosto sono stati
+  // corretti nel codice il giorno dopo e sono rimasti dichiarati aperti con la
+  // verifica verde. Finche' non e' chiuso, un ⟦stato⟧ verde qui significa
+  // «documento e indice concordano», non «il documento descrive il codice».
+  //
+  // Nasce con undici rilievi tutti aperti ed e' l'unico dei due in registro con
+  // un rilievo CRITICO ancora da chiudere, quindi i prefissi sono quattro.
+  { file: 'AUDIT_ARCHITETTURA_SICUREZZA_2026-09-02.md', prefisso: ['C', 'A', 'M', 'B'] },
 ];
 
 // Misura i warning di una regola sul sorgente dell'app.

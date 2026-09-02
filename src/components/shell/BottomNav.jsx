@@ -7,11 +7,16 @@ import { memo } from "react";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { getNavItemsForRole, getNavBadges } from "./navHelpers.js";
 import { NavBadge } from "./NavBadge.jsx";
+import { Icona } from "../ui/Icona.jsx";
 import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
-const txtRelativeF19 = { fontSize: 19, lineHeight: 1, position: "relative" };
+// Ancora del badge: NavBadge si posiziona in assoluto rispetto a questo
+// contenitore, che ora avvolge un <svg> e non più un carattere emoji —
+// da cui `display: flex` al posto di `fontSize`, così la sua altezza è
+// esattamente quella dell'icona e il badge resta dove stava.
+const iconaConBadge = { position: "relative", display: "flex" };
 const colCenterMiddle = {
   flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
   justifyContent: "center", gap: 3, padding: "6px 2px",
@@ -27,7 +32,6 @@ const colCenterMiddle2 = {
   color: "var(--navy)", borderTop: "2px solid transparent",
   transition: "color 0.2s", position: "relative",
 };
-const txtF19 = { fontSize: 19, lineHeight: 1 };
 const txtF9Bold = { fontSize: 9, fontWeight: 600, whiteSpace: "nowrap" };
 
 export const BottomNav = memo(function BottomNav({ activeView, onOpenBulk, onOpenChat, unreadChat = 0 }) {
@@ -55,8 +59,8 @@ export const BottomNav = memo(function BottomNav({ activeView, onOpenBulk, onOpe
               transition: "color 0.2s", position: "relative",
             }}
           >
-            <span style={txtRelativeF19}>
-              {item.icon}
+            <span style={iconaConBadge}>
+              <Icona nome={item.icon} dimensione={19} />
               <NavBadge count={badge} mobile />
             </span>
             <span style={{ fontSize: 9, fontWeight: active ? 700 : 500, whiteSpace: "nowrap" }}>
@@ -72,8 +76,8 @@ export const BottomNav = memo(function BottomNav({ activeView, onOpenBulk, onOpe
         aria-label="Messaggi team"
         style={colCenterMiddle}
       >
-        <span style={txtRelativeF19}>
-          💬
+        <span style={iconaConBadge}>
+          <Icona nome="chat" dimensione={19} />
           <NavBadge count={unreadChat} mobile />
         </span>
         <span style={txtF9}>Chat</span>
@@ -85,7 +89,7 @@ export const BottomNav = memo(function BottomNav({ activeView, onOpenBulk, onOpe
         aria-label="Crea più task"
         style={colCenterMiddle2}
       >
-        <span style={txtF19}>📑</span>
+        <Icona nome="piuTask" dimensione={19} />
         <span style={txtF9Bold}>Più task</span>
       </button>
     </nav>

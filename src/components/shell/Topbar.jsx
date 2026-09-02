@@ -14,6 +14,7 @@ import { LazyPanel } from "../ui/LazyPanel.jsx";
 import { UserSwitcher } from "./UserSwitcher.jsx";
 import { Z } from "../../styles/tokens.js";
 import * as stiliComuni from "../../styles/common.js";
+import { Icona } from "../ui/Icona.jsx";
 import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
@@ -29,7 +30,7 @@ const boxP0 = { background: "none", border: "none", padding: 0, cursor: "pointer
 const txtF15Bold = { color: "var(--navy)", fontSize: 15, fontWeight: 700, lineHeight: 1 };
 const txtF10 = { color: "rgba(15,32,68,0.75)", fontSize: 10, letterSpacing: 1.5 };
 const relativeFlex1MaxW520 = { flex: 1, maxWidth: 520, position: "stiliComuni.relative" };
-const txtAbsoluteF14 = { position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(15,32,68,0.7)", fontSize: 14 };
+const iconaRicerca = { position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(15,32,68,0.7)", display: "flex" };
 const boxF13Navy = {
   width: "100%", background: "#fff", border: "1px solid rgba(15,32,68,0.15)",
   borderRadius: 8, padding: "7px 12px 7px 36px", color: "var(--navy)", fontSize: 13,
@@ -164,7 +165,7 @@ export const Topbar = memo(function Topbar({
       {/* Ricerca unificata (testuale + filtri avanzati) */}
       <div ref={searchWrapRef} style={relativeFlex1MaxW520}>
         <div style={stiliComuni.relative}>
-          <div style={txtAbsoluteF14}>🔍</div>
+          <div style={iconaRicerca}><Icona nome="ricerca" dimensione={15} /></div>
           <input
             value={ricerca}
             onChange={e => { onSearchChange(e.target.value); setSearchOpen(true); }}
@@ -192,8 +193,14 @@ export const Topbar = memo(function Topbar({
 
       {/* Notifications */}
       <div style={stiliComuni.relative}>
-        <button onClick={() => setShowNotif(v => !v)} style={rowCenterMiddle2}>
-          🔔
+        <button
+          onClick={() => setShowNotif(v => !v)}
+          title="Notifiche"
+          aria-label={unread > 0 ? `Notifiche, ${unread} da leggere` : "Notifiche"}
+          aria-expanded={showNotif}
+          style={rowCenterMiddle2}
+        >
+          <Icona nome="notifiche" dimensione={18} />
           {unread > 0 && <span style={rowCenterMiddle3}>{unread}</span>}
         </button>
         {showNotif && (

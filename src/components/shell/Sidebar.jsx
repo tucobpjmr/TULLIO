@@ -8,7 +8,7 @@ import { useViewport } from "../ui/Viewport.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { getNavItemsForRole, getNavBadges } from "./navHelpers.js";
 import { NavBadge } from "./NavBadge.jsx";
-import * as stiliComuni from "../../styles/common.js";
+import { Icona } from "../ui/Icona.jsx";
 import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
@@ -77,7 +77,13 @@ export const Sidebar = memo(function Sidebar({ activeView, onOpenBulk, onOpenCha
         {navItems.map(item => {
           const active = activeView === item.id;
           return (
-            <button key={item.id} onClick={() => dispatch({ type: "SET_VIEW", payload: item.id })} style={{
+            <button
+              key={item.id}
+              onClick={() => dispatch({ type: "SET_VIEW", payload: item.id })}
+              title={item.label}
+              aria-label={item.label}
+              aria-current={active ? "page" : undefined}
+              style={{
               display: "flex", alignItems: "center", gap: 10,
               padding: col ? "10px 8px" : "10px 12px",
               borderRadius: 8, cursor: "pointer", border: "none",
@@ -88,7 +94,7 @@ export const Sidebar = memo(function Sidebar({ activeView, onOpenBulk, onOpenCha
               borderLeft: active ? "2px solid var(--gold)" : "2px solid transparent",
               position: "relative",
             }}>
-              <span style={stiliComuni.txtF16}>{item.icon}</span>
+              <Icona nome={item.icon} dimensione={17} />
               {!col && <span style={whiteSpace2}>{item.label}</span>}
               <NavBadge count={badges[item.id] || 0} collapsed={col} />
             </button>
@@ -110,7 +116,7 @@ export const Sidebar = memo(function Sidebar({ activeView, onOpenBulk, onOpenCha
             justifyContent: col ? "center" : "flex-start",
           }}
         >
-          <span style={stiliComuni.txtF16}>💬</span>
+          <Icona nome="chat" dimensione={17} />
           {!col && <span style={whiteSpace2}>Chat</span>}
           <NavBadge count={unreadChat} collapsed={col} />
         </button>
@@ -133,7 +139,7 @@ export const Sidebar = memo(function Sidebar({ activeView, onOpenBulk, onOpenCha
           onMouseEnter={e => { e.currentTarget.style.background = "rgba(212,168,67,0.22)"; }}
           onMouseLeave={e => { e.currentTarget.style.background = "rgba(212,168,67,0.12)"; }}
         >
-          <span style={stiliComuni.txtF16}>📑</span>
+          <Icona nome="piuTask" dimensione={17} />
           {!col && <span style={whiteSpace2}>Più task</span>}
         </button>
       </div>

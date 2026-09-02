@@ -4,12 +4,17 @@
 
 // La Dashboard è raggiungibile dal logo aeroplano nella Topbar (la voce
 // dedicata in sidebar/bottom-nav è stata rimossa per alleggerire la nav).
+// `icon` non è più il carattere emoji da stampare ma il NOME di un tracciato
+// di `ui/Icona.jsx`: Sidebar e BottomNav lo passano a <Icona nome={item.icon}>.
+// Il campo resta `icon` perché è la stessa cosa di prima — l'icona della voce —
+// e rinominarlo avrebbe toccato i due consumatori senza dire nulla di nuovo a
+// chi legge.
 export const NAV_ITEMS = [
-  { id: "calendar",   icon: "📅", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
-  { id: "clienti",    icon: "👤", label: "Clienti",    roles: ["admin", "manager", "agent"] },
-  { id: "archivio",   icon: "📦", label: "Archivio",   roles: ["admin", "manager", "agent", "driver"] },
-  { id: "trash",      icon: "🗑️", label: "Cestino",    roles: ["admin", "manager", "agent", "driver"] },
-  { id: "admin",      icon: "⚙️", label: "Admin",      roles: ["admin"] },
+  { id: "calendar",   icon: "calendario", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
+  { id: "clienti",    icon: "clienti",    label: "Clienti",    roles: ["admin", "manager", "agent"] },
+  { id: "archivio",   icon: "archivio",   label: "Archivio",   roles: ["admin", "manager", "agent", "driver"] },
+  { id: "trash",      icon: "cestino",    label: "Cestino",    roles: ["admin", "manager", "agent", "driver"] },
+  { id: "admin",      icon: "admin",      label: "Admin",      roles: ["admin"] },
 ];
 
 // Filtra NAV_ITEMS in base al ruolo dell'utente loggato. Riceve il RUOLO già

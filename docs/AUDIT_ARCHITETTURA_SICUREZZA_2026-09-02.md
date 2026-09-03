@@ -4,7 +4,12 @@ Perimetro: i cinque assi richiesti — architettura e struttura del codice,
 sicurezza e gestione dei dati, stato e flusso dati, performance e scalabilità,
 UX/UI e gestione errori.
 
-Undici rilievi: **uno critico, tre di alta priorità.**
+Dodici rilievi: **uno critico, quattro di alta priorità.**
+
+⚠️ Il dodicesimo (`A-4`) non nasce dall'analisi ma dalla CORREZIONE: è stato
+trovato il 3 settembre applicando la migrazione di `C-1`, ed è il più grave
+dei quattro di alta priorità — il controllo che avrebbe dovuto vedere lo
+scarto fra repository e database non stava girando.
 
 ✅ **C-1 e A-3 sono stati chiusi il 3 settembre**, insieme e nello stesso
 commit: non è un accorpamento di comodo, è ciò che il rilievo A-3 dichiarava
@@ -21,7 +26,7 @@ senza segnalazioni, `npm run verifica:tipi` senza errori, `npm run build` +
 129,12 kB autenticato su 131), `npm run verifica:convenzioni` verde
 (57 controlli), tredici audit precedenti a registro.
 
-⟦stato: 2/11 chiusi⟧
+⟦stato: 2/12 chiusi⟧
 
 > **Sulla numerazione.** `C-` = critico, `A-` = alta priorità, `M-` = media,
 > `B-` = bassa, come negli audit dal 12 agosto in poi.
@@ -120,6 +125,7 @@ d'azione qui sotto è, nell'ordine: chiudere `C-1` (una migrazione), poi `A-1`,
 | M-4 | Media | 21 `<label>` su 85 ancora senza `htmlFor` — prosegue `A-3` del 31 agosto (era 51 su 75), su un insieme diverso da quello descritto lì | 15 file in `src/components/` |
 | B-1 | Bassa | `Clients.cerca`: `%` e `_` digitati dall'utente sono wildcard — `B-2` del 31 agosto, ancora aperto | `src/lib/api/clienti.js:92` |
 | B-2 | Bassa | Nessun rate limiting sulle quattro Edge Function esposte al browser — `M-3` del 31 agosto, ancora aperto | `supabase/functions/` |
+| A-4 | Alta | `verifica:rpc` e `verifica:migrazioni` escono con codice 2 per due secret vuoti: il rilevatore di scarto fra repo e database non gira, e il suo workflow è rosso a ogni esecuzione dal 27 agosto | `.github/workflows/verifica-rpc.yml` |
 | B-3 | Bassa | Categorie e template messaggi: cinque mutazioni senza `rollback` né `mapError` | `src/state/persistence.js:507` |
 
 ---
@@ -718,6 +724,93 @@ const ANCORE = [
 
 ---
 
+### A-4 · Il rilevatore di scarto fra repository e database non gira — **Alta**
+
+*(Trovato il 3 settembre applicando la correzione di `C-1`, non durante
+l'analisi. È il rilievo che spiega gli altri di questa famiglia.)*
+
+**Dove.** `.github/workflows/verifica-rpc.yml`, e i secret del repository.
+
+`verifica:rpc` esiste per una ragione precisa, scritta in
+`docs/MIGRAZIONI_SUPABASE.md`: «lo scarto non era dentro il repository, ma fra
+repository e database». È il terzo episodio di quella famiglia ad averlo fatto
+nascere. Il 1 settembre è arrivato il quarto — `20260901120000` in `main` e mai
+applicata — e il controllo non ha detto niente.
+
+**Non perché abbia mancato lo scarto: perché non è mai arrivato a cercarlo.**
+
+```
+> node scripts/verifica-rpc/index.js
+Mancano SUPABASE_URL e/o SUPABASE_ANON_KEY (o le equivalenti VITE_).
+##[error]Process completed with exit code 2.
+```
+
+I due secret sono vuoti nell'ambiente del workflow. `verifica:rpc` e
+`verifica:migrazioni` escono con codice 2 prima della prima richiesta;
+`verifica:redirect` salta il proprio controllo con un `⚠`. Restano in piedi i
+soli due che usano `SUPABASE_ACCESS_TOKEN`, che invece è configurato:
+`verifica:advisor` e `verifica:volumi`.
+
+⚠️ **Lo script non ha colpa, ed è importante dirlo**: si dichiara
+INCONCLUDENTE invece di stampare un verde falso — è esattamente la regola che
+il suo stesso preambolo enuncia («un controllo che non può fallire non protegge
+da nulla, ma sembra di sì»). Il difetto è che nessuno legge la differenza fra
+«inconcludente» e «passato», perché entrambe arrivano dentro un workflow che è
+rosso comunque.
+
+**E questa è la seconda metà, quella che ha reso il difetto invisibile.** Il
+workflow fallisce **a ogni esecuzione dal 27 agosto**: ultimo successo il 27
+alle 17:43, poi ventuno run consecutive fallite in sette giorni, fra push e
+schedulazione giornaliera. Un allarme sempre acceso smette di essere un
+allarme — che è, parola per parola, il ragionamento con cui
+`scripts/verifica-audit/index.js` motiva la propria allow-list:
+
+> *«un allarme sempre acceso smette di essere un allarme: chiunque lo lanci
+> impara a ignorarlo, e il giorno in cui comparirà una SECONDA vulnerabilità
+> sarà indistinguibile dal rumore di fondo.»*
+
+Il progetto ha applicato quel ragionamento a `npm audit` e ha lasciato rosso
+per una settimana il workflow che avrebbe dovuto trovare questo. È `M-3` allo
+stadio successivo: là il registro non sapeva del codice, qui la CI non sapeva
+del database — e lo diceva a un pubblico che aveva smesso di ascoltare.
+
+**Soluzione.** Il rimedio principale non è nel repository: sono due secret da
+configurare, `SUPABASE_URL` e `SUPABASE_ANON_KEY`, entrambi **pubblici** (la
+chiave anon sta già nel bundle di produzione, quindi non c'è nulla da
+proteggere e nessuna ragione per cui manchino).
+
+Nel repository va chiuso il modo in cui l'assenza è passata inosservata: un
+`exit 2` per credenziali mancanti non deve assomigliare a un fallimento di
+verifica. Va nominato come errore di CONFIGURAZIONE e detto dove si guarda,
+cioè nel sommario del run e non in un log che nessuno apre.
+
+```yaml
+# .github/workflows/verifica-rpc.yml — primo step del job
+      - name: Secret presenti
+        run: |
+          if [ -z "${{ secrets.SUPABASE_URL }}" ] || [ -z "${{ secrets.SUPABASE_ANON_KEY }}" ]; then
+            {
+              echo "### CONFIGURAZIONE MANCANTE — verifica:rpc non ha potuto girare"
+              echo
+              echo "Mancano i secret SUPABASE_URL e/o SUPABASE_ANON_KEY."
+              echo "Sono entrambi PUBBLICI (l'anon key sta nel bundle di produzione)."
+              echo
+              echo "Finche' mancano, NULLA verifica che le migrazioni committate"
+              echo "siano state applicate: e' il difetto che questo workflow esiste"
+              echo "per trovare. Vedi docs/MIGRAZIONI_SUPABASE.md, quarto episodio."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+```
+
+⚠️ **Configurare i secret non chiude il rilievo da solo.** Il controllo copre
+le FUNZIONI, non le tabelle, le colonne o le policy — lo dice già
+`MIGRAZIONI_SUPABASE.md`. `20260901120000` creava una tabella *e* una funzione,
+quindi sarebbe stata vista; una migrazione che aggiunge solo una policy no. Il
+passo 4 a mano resta, ed è la sola copertura per quel caso.
+
+---
+
 ## 4. UX/UI e gestione errori
 
 ### A-2 · La regola che certifica la tastiera non vede le tabelle — **Alta**
@@ -1092,16 +1185,101 @@ Ora è in entrambi, con la sua guardia descritta per quello che è — non un ga
 di ruolo, ma i limiti nel corpo. Le funzioni dichiarate passano da 14 a **15**,
 e `docs/CLAUDE.md` porta il numero nuovo.
 
-### ⛔ Quello che resta da fare, e che questo commit NON fa
+### ✅ Applicata — 3 settembre, 11:25-11:26 UTC
 
-**La migrazione non è applicata.** `docs/MIGRAZIONI_SUPABASE.md` è esplicito, e
-lo è perché è già costato: «il codice corretto in repo non è una garanzia —
-conta solo ciò che è applicato», e le due migrazioni di hardening del modulo
-Liste rimasero in `main` senza arrivare al database, lasciando `reset_completo`
-senza controlli di ruolo per giorni.
+Su `tullio-staging` prima, su `vmxvnxsqfisucugcpqlc` poi, con le due
+migrazioni **di fila** a ventun secondi di distanza: la finestra in cui la
+funzione è esistita senza limiti è quella, e non è mai stata raggiungibile da
+un client (nessun deploy in mezzo).
 
-Finché `20260903094500` non è applicata al progetto `vmxvnxsqfisucugcpqlc`,
-**`C-1` è chiuso nel repository e aperto in produzione**. La procedura è quella
-del §2 di quel documento (dashboard o `apply_migration`, ⛔ mai `db push`), poi
-la registrazione in `schema_migrations` (§3) e `npm run verifica:rpc` (§4) —
-che qui serve davvero, perché la firma della RPC non cambia ma la funzione sì.
+Registrate come `20260903112544 error_reports` e
+`20260903112605 segnala_errore_client_limiti`, più le versioni con cui i due
+file vivono nel repository (`20260901120000`, `20260903094500`) inserite a mano
+in `schema_migrations`, così non ingrossano lo scarto di §1 di
+`MIGRAZIONI_SUPABASE.md`.
+
+**Verificato sul database, non dedotto.** Su staging il difetto è stato prima
+RIPRODOTTO — 30 chiamate consecutive, tutte accettate, `stack` da 200.000
+caratteri conservato intatto — e poi richiuso sugli stessi input:
+
+| | Prima | Dopo |
+|---|---|---|
+| Chiamate anonime accettate su 30 | **30** | **10** (tetto 10/min) |
+| Chiamate autenticate accettate su 70 | — | **60** (tetto 60/min) |
+| `stack` | 200.000 caratteri | 4.000 |
+| `message` / `url` / `user_agent` | 5.000 / 3.000 / 3.000 | 500 / 500 / 300 |
+| INSERT diretta come `authenticated` | — | negata (nessuna policy) |
+| Potatura con tetto righe | — | 50 righe → 16 con tetto 15 |
+
+Le stesse prove su produzione: 10 accettate su 15, tutti i campi troncati ai
+loro tetti, RLS attiva, `SELECT` alla sola `authenticated`, indice
+`error_reports_user_at` presente. Righe di prova rimosse da entrambi i
+database. Advisor di sicurezza rieseguito: `segnala_errore_client` compare nei
+due lint `SECURITY DEFINER` — atteso, ed è la ragione per cui è stata aggiunta
+all'allow-list — e **nessuna classe di avviso nuova**.
+
+⚠️ **Il tetto sulle righe ha un'inesattezza da conoscere**, emersa provandolo:
+il confronto è `at < soglia`, quindi righe che condividono ESATTAMENTE quel
+timestamp restano tutte. Nel test 50 righe con tetto 15 ne hanno lasciate 16.
+È un eccesso di una riga, dalla parte giusta, e si presenta solo quando più
+segnalazioni cadono nello stesso microsecondo — cioè praticamente mai fuori da
+un `generate_series`.
+
+---
+
+## ⚠️ Correzione a `C-1`: la falla non era in produzione
+
+Questo va scritto in cima a qualunque rilettura del rilievo, perché il rilievo
+originale afferma il contrario.
+
+**`segnala_errore_client` non esisteva sul database.** Nemmeno la tabella
+`error_reports`. La migrazione `20260901120000` era in `main` dal 1 settembre e
+non era **mai stata applicata**: l'ultima versione registrata prima di oggi era
+`20260830214841`. Il controllo l'ha fatto il tentativo di applicare la
+correzione, che è fallito perché `create index … on public.error_reports`
+non aveva una tabella su cui posarsi.
+
+Quindi: nelle ventiquattro ore in cui questo audit ha descritto una porta di
+scrittura aperta a chiunque avesse la chiave pubblica, quella porta **non era
+raggiungibile**. `C-1` era esatto sul codice e sbagliato sull'esposizione, e la
+differenza non è di lana caprina: «chiunque può riempire il vostro database
+adesso» e «chiunque potrà, dal primo deploy che applica questa migrazione» si
+leggono in modo molto diverso.
+
+Resta un rilievo, e resta critico, per una ragione che non cambia: la
+migrazione era in `main`, cioè in ciò che il progetto considera pronto. Sarebbe
+diventata vera nel momento esatto in cui qualcuno avesse fatto quello che io ho
+fatto oggi — applicarla — e chi l'avesse applicata non avrebbe avuto modo di
+sapere che stava aprendo qualcosa.
+
+### E `A-4` del 31 agosto non era chiuso, in nessun senso
+
+`M-3` dice che il registro degli audit è disallineato dal **codice**. La verità
+è peggiore di così, e l'ha detta il database: `A-4` («il codice di segnalazione
+mostrato all'utente non arriva a nessuno») era dichiarato aperto nel documento,
+implementato nel repository e **non funzionante in produzione**. Ogni chiamata
+di `registraSegnalazione` finiva in `PGRST202` — funzione inesistente —
+ingoiata dal `.catch(() => {})` che quella funzione ha per non produrre un
+secondo errore.
+
+Il codice `VD-…` che un utente detta al telefono non ha raggiunto nessuno per
+tutto il tempo in cui `A-4` risultava risolto nel codice. Sono **tre stati
+diversi** della stessa correzione — aperta nel registro, chiusa nel repository,
+assente in produzione — e i controlli del progetto ne confrontano solo due.
+
+⚠️ Verificato che sia l'unico caso: delle 22 RPC chiamate dal frontend,
+`segnala_errore_client` era **la sola** assente dal database. È il controllo che
+`npm run verifica:rpc` esiste per fare, e che non ha potuto fare — gira su
+`main` e sulla schedulazione giornaliera, e questa migrazione non è mai
+arrivata in `main`.
+
+### Cosa cambia per `M-3`
+
+Il rilievo resta aperto e si allarga: il presidio proposto — ancorare i rilievi
+a un predicato eseguibile sul sorgente — non avrebbe intercettato **niente** di
+tutto questo, perché il sorgente era giusto. Serve che l'ancora di un rilievo
+che tocca il database sia interrogata **sul database**, come fa già
+`verifica:rpc` per le funzioni. La versione minima è gratis: `verifica:rpc`
+gira già ogni giorno, e oggi avrebbe dovuto stampare `segnala_errore_client`
+fra le assenti — non l'ha fatto perché il ramo `main` non contiene la
+chiamata, che vive solo su questo branch.

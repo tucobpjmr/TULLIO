@@ -25,7 +25,13 @@ il codice `VD-…` finisce in `public.error_reports`
 (`supabase/migrations/20260901120000_error_reports.sql`,
 `src/lib/errorReporting.js:217`) — e dal 2 settembre ha anche un lettore
 (`M-1` dell'audit del 2 settembre, `admin/tabs/ErrorReportsSection.jsx`).
-**Cinque rilievi su quattordici chiusi.**
+
+✅ **M-3 e B-2 sono stati chiusi il 3 settembre**, come `B-1`/`B-2` dell'audit
+del 2 settembre (che li riprendeva senza riscriverli): `M-3` con
+`public.rate_limit` + `rate_limit_incrementa()`, cablati nelle quattro Edge
+Function; `B-2` con l'escape di `%`/`_` in `Clients.cerca`. Dettaglio in
+«Come sono stati chiusi (B-1, B-2 e B-3)» nell'audit del 2 settembre.
+**Sette rilievi su quattordici chiusi.**
 
 Base di partenza misurata su questo commit (`4cc2003`): `npm ci` pulito,
 `npm test` verde (**1980 passati, 23 saltati su 164 file**), `npm run lint`
@@ -33,7 +39,7 @@ senza segnalazioni, `npm run build` + `npm run verifica:bundle` verdi
 (80,66 kB gzip anonimo su 86 di soglia, 127,47 kB autenticato su 131),
 dodici audit precedenti chiusi.
 
-⟦stato: 5/14 chiusi⟧
+⟦stato: 7/14 chiusi⟧
 
 > **Sulla numerazione.** `C-` = critico, `A-` = alta priorità, `M-` = media,
 > `B-` = bassa, come negli audit dal 12 agosto in poi.
@@ -104,11 +110,11 @@ scritture in volo ma non per il rollback.
 | **A-4** ✔ | ~~Alta~~ **risolto** | Il codice di segnalazione mostrato all'utente in produzione non arriva a nessuno | `src/lib/errorReporting.js:56` |
 | **M-1** ✔ | ~~Media~~ **risolto** | «Come si legge un importo» esiste in due copie divergenti, e quella giusta è nello script | `listeFormato.js:96` vs `scripts/importa-liste/parser.js:80` |
 | M-2 | Media | `checkJs` copre 8.169 righe su 36.618 (22%): `hooks/` e `components/` fuori — cioè dove vive C-1 | `jsconfig.json` |
-| M-3 | Media | Nessun rate limiting sulle quattro Edge Function esposte al browser | `supabase/functions/` |
+| **M-3** ✔ | ~~Media~~ **risolto** | Nessun rate limiting sulle quattro Edge Function esposte al browser | `supabase/functions/` |
 | M-4 | Media | `delete-user` classifica gli errori per sottostringa del messaggio di GoTrue | `supabase/functions/delete-user/index.ts` |
 | M-5 | Media | `delete-account`: azione irreversibile senza riautenticazione, e l'email resta occupata per sempre | `supabase/functions/delete-account/index.ts` |
 | **B-1** ✔ | ~~Bassa~~ **risolto** | `parseImporto` accetta coda non numerica e spazi: `"12abc" → 12`, `"1 250,00" → 1` | `src/components/liste/listeFormato.js:96` |
-| B-2 | Bassa | `Clients.cerca`: `%` e `_` digitati dall'utente sono wildcard SQL | `src/lib/api/clienti.js:92` |
+| **B-2** ✔ | ~~Bassa~~ **risolto** | `Clients.cerca`: `%` e `_` digitati dall'utente sono wildcard SQL | `src/lib/api/clienti.js:92` |
 | B-3 | Bassa | `fetchAllRows` senza tetto su clienti e liste: la finestra esiste solo sui task | `src/lib/pagination.js` |
 | B-4 | Bassa | Le cinque Edge Function non hanno un contratto scritto da nessuna parte | `supabase/functions/` |
 
@@ -304,7 +310,10 @@ manifestarsi come un successo falso.
 **Priorità.** Media. È l'endpoint più distruttivo del sistema, e questo è
 l'unico punto in cui non è scritto con lo stesso rigore del resto.
 
-### B-2 · `%` e `_` digitati sono wildcard — **Bassa**
+### B-2 · `%` e `_` digitati sono wildcard — ~~**Bassa**~~ ✔ **risolto**
+
+✅ **Chiuso il 3 settembre** (`B-1` dell'audit del 2 settembre). `escapeIlike()`
+in `src/lib/api/clienti.js` sfugge `\`, `%` e `_` prima di comporre il pattern.
 
 `src/lib/api/clienti.js:92` — `query.ilike('name', '%${t}%')`. Non è
 injection (postgrest-js codifica il valore), ma chi cerca `50%` cerca in realtà
@@ -327,7 +336,10 @@ dà 403 e non un via libera; il segreto di `send-push` si confronta a tempo
 costante; le chiavi vengono solo da `import.meta.env` / `Deno.env`, zero
 credenziali in chiaro in `src/`, `scripts/`, `.github/`.
 
-### M-3 · Nessun rate limiting sulle Edge Function — **Media**
+### M-3 · Nessun rate limiting sulle Edge Function — ~~**Media**~~ ✔ **risolto**
+
+✅ **Chiuso il 3 settembre** (`B-2` dell'audit del 2 settembre), con la
+soluzione qui sotto: `public.rate_limit` + `rate_limit_incrementa()`.
 
 Le quattro funzioni esposte al browser (`invite-user`, `delete-user`,
 `set-user-active`, `delete-account`) verificano **chi** chiama e non **quanto**.

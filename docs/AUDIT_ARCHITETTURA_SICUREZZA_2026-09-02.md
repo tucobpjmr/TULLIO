@@ -17,7 +17,9 @@ già di essere — «la soluzione è interamente contenuta nella migrazione di C
 Sono lo stesso difetto visto da due distanze: la porta aperta a chiunque (C-1) e
 la crescita che non ha un limite superiore nemmeno senza un attaccante (A-3).
 Vedi «Come sono stati chiusi (C-1 e A-3)» in fondo al documento.
-**Otto rilievi su undici chiusi.**
+✅ **B-1, B-2 e B-3 sono stati chiusi il 3 settembre.** Vedi «Come sono stati
+chiusi (B-1, B-2 e B-3)» in fondo al documento.
+**Undici rilievi su dodici chiusi.**
 
 Base di partenza misurata su questo commit (`f173aa4`): `npm ci` pulito,
 `npm test` verde (**2028 passati, 23 saltati su 167 file**), `npm run lint`
@@ -26,7 +28,7 @@ senza segnalazioni, `npm run verifica:tipi` senza errori, `npm run build` +
 129,12 kB autenticato su 131), `npm run verifica:convenzioni` verde
 (57 controlli), tredici audit precedenti a registro.
 
-⟦stato: 8/12 chiusi⟧
+⟦stato: 11/12 chiusi⟧
 
 > **Sulla numerazione.** `C-` = critico, `A-` = alta priorità, `M-` = media,
 > `B-` = bassa, come negli audit dal 12 agosto in poi.
@@ -123,10 +125,10 @@ d'azione qui sotto è, nell'ordine: chiudere `C-1` (una migrazione), poi `A-1`,
 | **M-2** ✔ | ~~Media~~ **risolto** | Il `message` salvato può contenere PII di clienti (vincolo Postgres che cita il valore), contro il contratto scritto sulla tabella stessa | `src/lib/errorReporting.js:221` |
 | **M-3** ✔ | ~~Media~~ **risolto** | Il registro degli audit è disallineato dal codice (`A-1` e `A-4` del 31 agosto risolti, dichiarati aperti) e `verifica:convenzioni` non può accorgersene | `docs/INDEX.md:52`, `scripts/verifica-convenzioni/index.js:131` |
 | **M-4** ✔ | ~~Media~~ **risolto** | 21 `<label>` su 85 ancora senza `htmlFor` — prosegue `A-3` del 31 agosto (era 51 su 75), su un insieme diverso da quello descritto lì | 15 file in `src/components/` |
-| B-1 | Bassa | `Clients.cerca`: `%` e `_` digitati dall'utente sono wildcard — `B-2` del 31 agosto, ancora aperto | `src/lib/api/clienti.js:92` |
-| B-2 | Bassa | Nessun rate limiting sulle quattro Edge Function esposte al browser — `M-3` del 31 agosto, ancora aperto | `supabase/functions/` |
+| **B-1** ✔ | ~~Bassa~~ **risolto** | `Clients.cerca`: `%` e `_` digitati dall'utente sono wildcard — `B-2` del 31 agosto | `src/lib/api/clienti.js:92` |
+| **B-2** ✔ | ~~Bassa~~ **risolto** | Nessun rate limiting sulle Edge Function esposte al browser — `M-3` del 31 agosto | `supabase/functions/` |
 | A-4 | Alta | `verifica:rpc` e `verifica:migrazioni` escono con codice 2 per due secret vuoti: il rilevatore di scarto fra repo e database non gira, e il suo workflow è rosso a ogni esecuzione dal 27 agosto | `.github/workflows/verifica-rpc.yml` |
-| B-3 | Bassa | Categorie e template messaggi: cinque mutazioni senza `rollback` né `mapError` | `src/state/persistence.js:507` |
+| **B-3** ✔ | ~~Bassa~~ **risolto** | Categorie e template messaggi: cinque mutazioni senza `rollback` né `mapError` | `src/state/persistence.js:507` |
 
 ---
 
@@ -438,16 +440,31 @@ attraversa alcun confine di autorizzazione.
 
 ---
 
-### B-2 · Nessun rate limiting sulle Edge Function — **Bassa** *(prosegue `M-3` del 31 agosto)*
+### B-2 · Nessun rate limiting sulle Edge Function — ~~**Bassa**~~ ✔ **risolto** *(prosegue `M-3` del 31 agosto)*
 
-Verificato ancora aperto su tutte e cinque le funzioni: `invite-user`,
-`delete-user`, `set-user-active` e `delete-account` non contano nulla, e
-`send-push` è protetta da `x-push-secret` ma anch'essa senza limite di
-frequenza. Il rilievo resta a bassa priorità per la ragione già scritta lì —
-tre delle quattro richiedono `requireActiveAdmin` — con una nota che `C-1`
-rende attuale: `delete-account` è raggiungibile da qualunque utente autenticato,
-e `invite-user` può far partire email a raffica verso indirizzi arbitrari, che
-è il modo in cui si brucia la reputazione di un mittente SMTP.
+✅ **Chiuso il 3 settembre.** `public.rate_limit` + la RPC
+`rate_limit_incrementa()` (migrazione `20260904000000_rate_limit_edge_functions.sql`,
+stessa forma proposta da `M-3`) contano per `(chiave, finestra)`, con la
+chiave che porta l'id di CHI chiama — `invite-user:<uid>`,
+`delete-user:<uid>`, `set-user-active:<uid>`, `delete-account:<uid>` — così un
+secchio pieno per un admin non tocca gli altri. `_shared/rateLimit.ts` è
+fail-open: un errore della RPC lascia passare la richiesta invece di bloccare
+un'operazione legittima, con lo stesso principio di `segnala_errore_client`
+(`C-1`). `send-push` resta fuori: non è raggiungibile dal browser (la chiama
+solo il trigger DB), e il suo `user_id` è il destinatario della notifica, non
+CHI chiama — un tetto lì sarebbe una feature diversa. Verificato con
+`src/test/edge/rateLimit.test.js`, che controlla sia il comportamento
+dell'helper sia il cablaggio nelle quattro funzioni.
+
+Verificato ancora aperto su tutte e cinque le funzioni prima della correzione:
+`invite-user`, `delete-user`, `set-user-active` e `delete-account` non
+contavano nulla, e `send-push` è protetta da `x-push-secret` ma anch'essa
+senza limite di frequenza. Il rilievo restava a bassa priorità per la ragione
+già scritta lì — tre delle quattro richiedono `requireActiveAdmin` — con una
+nota che `C-1` rende attuale: `delete-account` è raggiungibile da qualunque
+utente autenticato, e `invite-user` può far partire email a raffica verso
+indirizzi arbitrari, che è il modo in cui si brucia la reputazione di un
+mittente SMTP.
 
 ---
 
@@ -622,7 +639,12 @@ it("ogni entry che scrive ha una compensazione, o è dichiarata fra le eccezioni
 
 ---
 
-### B-3 · Categorie e template messaggi senza compensazione — **Bassa**
+### B-3 · Categorie e template messaggi senza compensazione — ~~**Bassa**~~ ✔ **risolto**
+
+✅ **Chiuso il 3 settembre**, con la soluzione consigliata qui sotto:
+l'eccezione è dichiarata in `SENZA_COMPENSAZIONE`
+(`src/test/state/rollbackContract.test.js`, nato per `A-1`), non le cinque
+compensazioni.
 
 **Dove.** `src/state/persistence.js:507-537`.
 
@@ -1310,6 +1332,56 @@ non arriva: un `<tr>`/`<td>`/`<th>`/`<li>` con `onClick` e senza `onKeyDown` è
 un errore di lint, non più un lint verde su un gesto irraggiungibile.
 `src/test/lib/a11y.test.js` copre `cellaAzionabile` con gli stessi casi già
 in piedi per `attivaConTastiera`.
+
+---
+
+## Come sono stati chiusi (B-1, B-2 e B-3) — 3 settembre
+
+I tre bassi rimasti: uno di igiene della query, uno di superficie
+amministrativa, uno di scelta esplicita invece che di svista.
+
+### `B-1` · L'escape dei caratteri jolly
+
+`src/lib/api/clienti.js`: `escapeIlike()` sfugge `\`, `%` e `_` — il
+backslash per primo, così non intercetta l'escape degli altri due — prima di
+comporre `%${termine}%`. La correzione tocca solo la tendina di suggerimento
+(`Clients.cerca`): `cercaAnagrafica()` passa dalla RPC `cerca_clienti` (`A-1`
+del 30 agosto) e non compone `ilike` lato client, quindi non ne aveva
+bisogno. `src/test/lib/clientiCerca.test.js` verifica il pattern passato a
+`ilike` con il client Supabase mockato.
+
+### `B-2` · Il rate limiting
+
+Una tabella e una funzione, come proposto da `M-3` del 31 agosto: `public.rate_limit`
+(`chiave`, `finestra`, `conteggio`) e `rate_limit_incrementa()` — insert +
+`on conflict do update set conteggio = conteggio + 1 returning conteggio` in
+un solo giro di rete, con la stessa potatura opportunistica di
+`segnala_errore_client` (`C-1`). L'helper condiviso `_shared/rateLimit.ts`
+(`entroLimite()`) lo chiama dalle quattro Edge Function: `invite-user`
+(20/ora per admin — il valore che `M-3` aveva già scritto), `delete-user` e
+`set-user-active` (30/ora per admin), `delete-account` (5/ora per l'utente
+che chiama, self-service). La chiave è sempre `"<funzione>:<id chiamante>"`,
+non solo il nome della funzione: un secchio condiviso fra tutti i chiamanti
+limiterebbe l'agenzia intera al primo admin che invita, che è il difetto
+opposto. `send-push` resta fuori — non è raggiungibile dal browser, e il suo
+`user_id` è il destinatario della notifica e non chi chiama.
+
+⚠️ **`entroLimite` è fail-open**: un errore della RPC (rete, un database non
+ancora migrato) lascia passare la richiesta invece di bloccarla — un rate
+limit che si guasta e blocca tutta l'amministrazione sarebbe un rilievo
+peggiore di quello che chiude. `src/test/edge/rateLimit.test.js` verifica sia
+questo comportamento sia il cablaggio: che le quattro funzioni importino e
+chiamino davvero `entroLimite` (non solo che l'helper esista) e che un
+verdetto negativo produca un 429.
+
+### `B-3` · Categorie e template: la scelta dichiarata
+
+Nessuna delle cinque compensazioni aggiunta: `SENZA_COMPENSAZIONE` in
+`src/test/state/rollbackContract.test.js` (nato per `A-1` di questo stesso
+audit) nomina le sei entry — categorie e template messaggi — con il motivo
+scritto accanto, esattamente la soluzione che il rilievo consigliava. Non è
+un rilievo aperto lasciato cadere: è "non ci abbiamo pensato" diventato
+"abbiamo deciso di no, ed è scritto dove qualcuno lo legge".
 
 ---
 

@@ -11,6 +11,7 @@ import { requireActiveAdmin } from "../_shared/requireActiveAdmin.ts";
 // vedi il preambolo di originConsentite.ts. Ora la regola è una sola.
 import { redirectConsentito } from "../_shared/originConsentite.ts";
 import { registraAudit } from "../_shared/audit.ts";
+import { entroLimite } from "../_shared/rateLimit.ts";
 
 const VALID_ROLES = new Set(["admin", "manager", "agent", "driver"]);
 
@@ -49,6 +50,14 @@ Deno.serve(async (req: Request) => {
     const esito = await requireActiveAdmin(supabaseAdmin, supabaseUser);
     if (!esito.ok) return json({ error: esito.error }, esito.status);
     const callerId = esito.userId;
+
+    // B-2 dell'audit del 2 settembre. È il moltiplicatore di danno più alto
+    // dei quattro: un token admin compromesso può bruciare la quota SMTP e
+    // la reputazione del mittente invitando a raffica verso indirizzi
+    // arbitrari. Venti l'ora per admin non disturbano nessun uso reale.
+    if (!(await entroLimite(supabaseAdmin, `invite-user:${callerId}`, 60, 20))) {
+      return json({ error: "Troppi inviti in poco tempo: riprova più tardi" }, 429);
+    }
 
     const body = await req.json();
     const email: string = (body.email ?? "").trim().toLowerCase();

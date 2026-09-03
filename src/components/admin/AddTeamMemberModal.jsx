@@ -68,6 +68,8 @@ export const AddTeamMemberModal = ({ onClose, existingIds, onInvited }) => {
   const emailId = useId();
   const ruoloId = useId();
   const coloreId = useId();
+  // M-4 dell'audit del 2 settembre: come gli altri campi qui sopra.
+  const pendingId = useId();
 
   // ─── M-6 (audit del 26 agosto) · anche questo form è nel contratto ───────
   //
@@ -225,8 +227,8 @@ export const AddTeamMemberModal = ({ onClose, existingIds, onInvited }) => {
               <input id={coloreId} type="color" value={color} onChange={e => setColor(e.target.value)} style={{...fieldStyle, height: 38, padding: 2}} />
             </div>
             {!email.trim() && (
-              <label style={rowCenterGap8}>
-                <input type="checkbox" checked={pending} onChange={e => setPending(e.target.checked)} />
+              <label style={rowCenterGap8} htmlFor={pendingId}>
+                <input id={pendingId} type="checkbox" checked={pending} onChange={e => setPending(e.target.checked)} />
                 Crea come "in attesa di approvazione" (simula iscrizione)
               </label>
             )}

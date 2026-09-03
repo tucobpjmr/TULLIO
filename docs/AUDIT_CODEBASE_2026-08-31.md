@@ -12,7 +12,20 @@ Quattordici rilievi: **uno critico, quattro di alta priorità.**
 commit: sono lo stesso difetto visto da tre distanze — l'interpretazione
 sbagliata (C-1), la sua causa architetturale (M-1) e il suo effetto collaterale
 sul testo non numerico (B-1). Vedi «Come sono stati chiusi (C-1, M-1, B-1)» in
-fondo al documento. **Tre rilievi su quattordici chiusi.**
+fondo al documento.
+
+✅ **A-1 e A-4 sono stati corretti nel codice il 1 settembre**, ma dichiarati
+aperti qui e in `docs/INDEX.md` fino al 3 settembre: è precisamente il difetto
+che `M-3` dell'audit del 2 settembre descrive — il registro che verifica la
+propria coerenza interna (`verifica:convenzioni`) confrontava questo documento
+con `INDEX.md`, due prose scritte dalla stessa mano, mai il documento con il
+codice. `A-1`: le otto entry task del registry hanno oggi tutte `rollback`
+(`src/state/persistence.js`, commento «A-1 dell'audit del 1 settembre»). `A-4`:
+il codice `VD-…` finisce in `public.error_reports`
+(`supabase/migrations/20260901120000_error_reports.sql`,
+`src/lib/errorReporting.js:217`) — e dal 2 settembre ha anche un lettore
+(`M-1` dell'audit del 2 settembre, `admin/tabs/ErrorReportsSection.jsx`).
+**Cinque rilievi su quattordici chiusi.**
 
 Base di partenza misurata su questo commit (`4cc2003`): `npm ci` pulito,
 `npm test` verde (**1980 passati, 23 saltati su 164 file**), `npm run lint`
@@ -20,7 +33,7 @@ senza segnalazioni, `npm run build` + `npm run verifica:bundle` verdi
 (80,66 kB gzip anonimo su 86 di soglia, 127,47 kB autenticato su 131),
 dodici audit precedenti chiusi.
 
-⟦stato: 3/14 chiusi⟧
+⟦stato: 5/14 chiusi⟧
 
 > **Sulla numerazione.** `C-` = critico, `A-` = alta priorità, `M-` = media,
 > `B-` = bassa, come negli audit dal 12 agosto in poi.
@@ -85,10 +98,10 @@ scritture in volo ma non per il rollback.
 | Rilievo | Gravità | Cosa | Dove |
 |---|---|---|---|
 | **C-1** ✔ | ~~**Critico**~~ **risolto** | `parseImporto` mangia il separatore delle migliaia: `1.250,00 € → 1,25 €`, in silenzio, su quattro percorsi di scrittura | `src/components/liste/listeFormato.js:96` |
-| A-1 | Alta | Nessun `rollback` per l'intero dominio task: dopo una scrittura fallita la UI resta sul valore mai salvato | `src/state/persistence.js` |
+| **A-1** ✔ | ~~Alta~~ **risolto** | Nessun `rollback` per l'intero dominio task: dopo una scrittura fallita la UI resta sul valore mai salvato | `src/state/persistence.js` |
 | A-2 | Alta | Quattordici elementi interattivi non raggiungibili da tastiera (`<div onClick>` senza `role`/`tabIndex`/`onKeyDown`) | `chat/`, `calendar/`, `clients/`, `liste/`, `tasks/bulk/` |
 | A-3 | Alta | 51 `<label>` su 75 senza `htmlFor`: per uno screen reader quei campi non hanno nome | 20 file in `src/components/` |
-| A-4 | Alta | Il codice di segnalazione mostrato all'utente in produzione non arriva a nessuno | `src/lib/errorReporting.js:56` |
+| **A-4** ✔ | ~~Alta~~ **risolto** | Il codice di segnalazione mostrato all'utente in produzione non arriva a nessuno | `src/lib/errorReporting.js:56` |
 | **M-1** ✔ | ~~Media~~ **risolto** | «Come si legge un importo» esiste in due copie divergenti, e quella giusta è nello script | `listeFormato.js:96` vs `scripts/importa-liste/parser.js:80` |
 | M-2 | Media | `checkJs` copre 8.169 righe su 36.618 (22%): `hooks/` e `components/` fuori — cioè dove vive C-1 | `jsconfig.json` |
 | M-3 | Media | Nessun rate limiting sulle quattro Edge Function esposte al browser | `supabase/functions/` |
@@ -190,7 +203,11 @@ diventa un movimento valido invece di un errore in rosso. `"1 250,00"` diventa
 `1`. Chiuso dalla stessa correzione di C-1: `Number()` al posto di
 `parseFloat()` rifiuta invece di troncare.
 
-### A-1 · Il dominio task non ha rollback — **Alta**
+### A-1 · Il dominio task non ha rollback — ~~**Alta**~~ ✔ **risolto**
+
+✅ **Chiuso il 1 settembre**, dichiarato aperto qui fino al 3 (`M-3`
+dell'audit del 2 settembre). Le otto entry sotto hanno oggi tutte
+`rollback`, con lo stesso pattern proposto in questa sezione.
 
 **Dove.** `src/state/persistence.js`, ventotto entry.
 
@@ -616,7 +633,14 @@ Supabase. Nessuna variabile hardcodata, `.env` fuori dal repo, e le variabili
 GitHub sono `variables` e non `secrets` proprio dove il valore non è segreto —
 con la motivazione scritta accanto.
 
-### A-4 · Il codice di segnalazione non arriva a nessuno — **Alta**
+### A-4 · Il codice di segnalazione non arriva a nessuno — ~~**Alta**~~ ✔ **risolto**
+
+✅ **Chiuso il 1 settembre** (`error_reports`, migrazione
+`20260901120000_error_reports.sql`), dichiarato aperto qui fino al 3 (`M-3`
+dell'audit del 2 settembre) — e per due giorni, dal 1 al 3, non funzionante
+in produzione: la migrazione non era mai stata applicata, vedi la correzione
+a `C-1` nell'audit del 2 settembre. Dal 2 settembre (`M-1` dello stesso
+audit) la segnalazione ha anche un lettore: `admin/tabs/ErrorReportsSection.jsx`.
 
 **Dove.** `src/lib/errorReporting.js:56`, `components/ui/ErrorDetails.jsx`
 

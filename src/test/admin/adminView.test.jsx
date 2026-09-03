@@ -40,6 +40,12 @@ vi.mock("../../lib/api.js", () => ({
   AuditLog: {
     list: vi.fn().mockResolvedValue({ data: [], error: null }),
   },
+  // M-1 dell'audit del 2 settembre: la stessa tab monta ora anche
+  // ErrorReportsSection, gemella di AuditLogSection per le segnalazioni
+  // d'errore — stessa ragione per il mock.
+  ErrorReports: {
+    list: vi.fn().mockResolvedValue({ data: [], error: null }),
+  },
 }));
 
 const { AdminView } = await import("../../components/admin/AdminView.jsx");

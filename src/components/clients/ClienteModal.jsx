@@ -57,6 +57,8 @@ export function ClienteModal({ cliente, onSave, onClose, liste = null, tasksColl
   const indirizzoId = useId();
   const cittaId = useId();
   const noteId = useId();
+  // M-4 dell'audit del 2 settembre: come gli altri campi qui sopra.
+  const renameTasksId = useId();
 
   // L'errore di un campo si spegne appena lo si tocca (vedi AddMovBox).
   const set = (k, v) => {
@@ -127,8 +129,8 @@ export function ClienteModal({ cliente, onSave, onClose, liste = null, tasksColl
               </div>
             )}
             {nomeCambiato && nTask > 0 && (
-              <label style={rowStartGap7}>
-                <input type="checkbox" checked={renameTasks} onChange={e => setRenameTasks(e.target.checked)} style={mt2} />
+              <label style={rowStartGap7} htmlFor={renameTasksId}>
+                <input id={renameTasksId} type="checkbox" checked={renameTasks} onChange={e => setRenameTasks(e.target.checked)} style={mt2} />
                 <span>Aggiorna anche {nTask === 1 ? "il task collegato" : `i ${nTask} task collegati`}</span>
               </label>
             )}

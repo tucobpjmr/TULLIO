@@ -24,18 +24,16 @@ import * as stiliComuni from "../../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo, non
 // ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
-const txtF32Mb8 = { fontSize: 32, marginBottom: 8 };
-const txtF11Mt6 = { fontSize: 11, marginTop: 6 };
-const gridGap2 = { display: "grid", gap: 2 };
+// ⚠️ titoloSezione/txtF32Mb8/txtF11Mt6/gridGap2/txtFlex1F13/txtF11MutedNowrap
+// sono ora in styles/common.js (M-1 dell'audit del 2 settembre): ricorrevano
+// già identiche in AdminLogTab.jsx, ed ErrorReportsSection.jsx è stata la
+// terza copia che ha reso la duplicazione misurabile.
 const rowCenterGap12 = {
   display: "flex", alignItems: "center", gap: 12,
   padding: "8px 4px", borderBottom: "1px solid var(--surface2)",
 };
 const txtF16TxtCenter = { fontSize: 16, width: 24, textAlign: "center" };
-const txtFlex1F13 = { flex: 1, fontSize: 13, color: "var(--text)" };
-const txtF11Muted = { fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" };
 const txtF12Attore = { fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" };
-const titoloSezione = { fontSize: 13, fontWeight: 700, letterSpacing: 0.3, marginBottom: 4 };
 
 // Il vocabolario delle azioni, in un posto solo. Le chiavi sono quelle scritte
 // dai trigger e dalle Edge Function (migrazione 20260826214000): se ne compare
@@ -101,7 +99,7 @@ export const AuditLogSection = () => {
 
   return (
     <div>
-      <div style={titoloSezione}>REGISTRO DI CONTROLLO</div>
+      <div style={stiliComuni.titoloSezione}>REGISTRO DI CONTROLLO</div>
       <p style={stiliComuni.txtF12MutedMb12}>
         Operazioni privilegiate di tutto il team, scritte dal database e conservate.
         Non si può modificare né svuotare: è append-only. Ultime 200 voci.
@@ -130,26 +128,26 @@ export const AuditLogSection = () => {
           // voci: «vuoto» e «non lo so» sono due risposte diverse, e su questa
           // tabella confonderle è il difetto peggiore possibile.
           <div style={stiliComuni.statoVuotoCentrato}>
-            <div style={txtF32Mb8}>⚠️</div>
+            <div style={stiliComuni.txtF32Mb8}>⚠️</div>
             <div style={stiliComuni.txtF14}>Registro non disponibile</div>
-            <div style={txtF11Mt6}>Non è stato possibile leggerlo: riprova con «Aggiorna».</div>
+            <div style={stiliComuni.txtF11Mt6}>Non è stato possibile leggerlo: riprova con «Aggiorna».</div>
           </div>
         ) : voci.length === 0 ? (
           <div style={stiliComuni.statoVuotoCentrato}>
-            <div style={txtF32Mb8}>🛡️</div>
+            <div style={stiliComuni.txtF32Mb8}>🛡️</div>
             <div style={stiliComuni.txtF14}>Nessuna operazione privilegiata registrata</div>
-            <div style={txtF11Mt6}>
+            <div style={stiliComuni.txtF11Mt6}>
               Compaiono qui inviti, cambi di ruolo, revoche d'accesso, eliminazioni e import.
             </div>
           </div>
         ) : (
-          <div style={gridGap2}>
+          <div style={stiliComuni.gridGap2}>
             {voci.map((v) => (
               <div key={v.id} style={rowCenterGap12}>
                 <div style={txtF16TxtCenter}>{iconaDi(v)}</div>
-                <div style={txtFlex1F13}>{descrivi(v)}</div>
+                <div style={stiliComuni.txtFlex1F13}>{descrivi(v)}</div>
                 <div style={txtF12Attore}>{v.actor_name ?? "—"}</div>
-                <div style={txtF11Muted}>{formatoAssoluto(v.at)}</div>
+                <div style={stiliComuni.txtF11MutedNowrap}>{formatoAssoluto(v.at)}</div>
               </div>
             ))}
           </div>

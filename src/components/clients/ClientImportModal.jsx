@@ -6,7 +6,7 @@
 // ma con auto-detect della riga di intestazione: questi export spesso hanno
 // righe di titolo/metadati (es. "Esportazione del : ...") prima della vera
 // intestazione, che romperebbero l'assunzione "riga 0 = header".
-import { useState, useReducer, useRef, useMemo, useEffect } from "react";
+import { useState, useReducer, useRef, useMemo, useEffect, useId } from "react";
 import { useViewport } from "../ui/Viewport.jsx";
 import { readFirstSheetRowsAutoHeader, MAX_IMPORT_BYTES } from "../../lib/xlsx.js";
 import { formatFileSize } from "../../lib/fileUtils.js";
@@ -144,6 +144,9 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
   const [imp, impDispatch] = useReducer(importReducer, IMPORT_INIZIALE);
   const { fileName, rows, columns, mapping, autoDetected, error, search, selected } = imp;
   const [foldExtras, setFoldExtras] = useState(true);
+  // M-4 dell'audit del 2 settembre: `htmlFor` esplicito invece della forma
+  // annidata, che si rompe in silenzio alla prima ristrutturazione del markup.
+  const idFoldExtras = useId();
   const fileInputRef = useRef(null);
 
   const existingNames = useMemo(
@@ -384,8 +387,8 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
               </div>
 
               {extraColumns.length > 0 && (
-                <label style={rowStartGap8}>
-                  <input type="checkbox" checked={foldExtras} onChange={e => setFoldExtras(e.target.checked)} style={mt2} />
+                <label style={rowStartGap8} htmlFor={idFoldExtras}>
+                  <input id={idFoldExtras} type="checkbox" checked={foldExtras} onChange={e => setFoldExtras(e.target.checked)} style={mt2} />
                   <span>
                     <strong style={txtText}>Aggiungi alle Note le altre {extraColumns.length} colonne riconosciute</strong> (codice fiscale, data di nascita, documenti, CAP/provincia…): {extraColumns.slice(0, 6).map(prettifyHeader).join(", ")}{extraColumns.length > 6 ? "…" : ""}
                   </span>

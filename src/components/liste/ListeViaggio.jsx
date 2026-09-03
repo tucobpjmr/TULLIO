@@ -10,7 +10,7 @@
 // Il CONTENUTO mantiene di proposito lo stile originale (blu #0F4C81, font
 // Inter, impaginazione "foglio cartaceo"); solo la chrome di navigazione —
 // breadcrumb e testata — segue lo stile Tullio (navy/oro, Playfair).
-import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useId, useMemo, useReducer, useRef, useState } from "react";
 import { useViewport } from "../ui/Viewport.jsx";
 import { useListeData } from "./useListeData.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
@@ -89,6 +89,9 @@ export const ListeViaggio = memo(function ListeViaggio({ listeTarget = null }) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("attive");
   const [sort, setSort] = useState("recenti");
+  // M-4 dell'audit del 2 settembre: `htmlFor` esplicito invece della forma
+  // annidata, che si rompe in silenzio alla prima ristrutturazione del markup.
+  const idOrdina = useId();
 
   // Gli overlay del modulo — nuova lista, strumenti dati, reset totale,
   // conferma del ripristino da backup — in UNA macchina a stati: erano quattro
@@ -371,9 +374,9 @@ export const ListeViaggio = memo(function ListeViaggio({ listeTarget = null }) {
                   <option value="tutte">Tutte ({conteggi.tutte})</option>
                   <option value="cestino">Cestino{conteggi.cestino ? ` (${conteggi.cestino})` : ""}</option>
                 </select>
-                <label className="lv-sel-lbl">
+                <label className="lv-sel-lbl" htmlFor={idOrdina}>
                   Ordina
-                  <select value={sort} onChange={(e) => setSort(e.target.value)}>
+                  <select id={idOrdina} value={sort} onChange={(e) => setSort(e.target.value)}>
                     {Object.entries(ORDINAMENTI).map(([k, label]) => (
                       <option key={k} value={k}>{label}</option>
                     ))}

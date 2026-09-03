@@ -209,17 +209,41 @@ const giaSegnalato = (messaggio) => {
 // produrre un secondo errore non gestito — richiuderebbe il cerchio su se
 // stesso — né bloccare l'utente, che ha già il suo toast.
 //
+// ─── M-2 (audit del 2 settembre) · IL CONTRATTO DELLA TABELLA VALE ANCHE ───
+// PER CHI CI SCRIVE. `public.error_reports` dichiara di non contenere PII
+// oltre a quella già in `users`, esattamente come `audit_log.details`. Ma
+// `message` arriva dal messaggio dell'eccezione così com'è, e un rifiuto di
+// Postgres CITA il valore che l'ha causato: «Key (email)=(mario.rossi@
+// example.it) already exists» è l'indirizzo di un cliente in una tabella la
+// cui lettura (`private.is_admin()`) è più larga di quella dell'anagrafica.
+// Si redige QUI, dove il testo si compone, e non a valle: a valle sarebbe
+// una seconda regola da ricordare.
+//
+// Le due forme coperte sono quelle che i vincoli del database citano
+// davvero (email e telefono). Non è un filtro esaustivo, ed è meglio dirlo
+// che lasciarlo credere: è la rimozione delle forme NOTE, non una garanzia.
+const redigiPii = (testo) =>
+  String(testo ?? "")
+    .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "«email»")
+    .replace(/(?<!\d)(?:\+\d{1,3}[ .-]?)?(?:\d[ .-]?){8,14}\d(?!\d)/g, "«telefono»");
+
 // Esportata: `segnala()` qui sotto la usa per i due handler globali, e
 // creaErrorBoundary.jsx per i crash di render — che non passano da qui, sono
 // l'ALTRO percorso d'errore descritto in cima a questo file. Stesso codice
 // mostrato a schermo dai due lati (criticità #9): duplicarlo qui sarebbe
 // stato il difetto opposto a quello che questo fix chiude.
+//
+// ⚠️ La redazione va solo qui, sulla scrittura in tabella: `console.error` in
+// `segnala()` continua a stampare il messaggio intero, perché quel canale
+// vive nel browser di chi ha avuto l'errore e non attraversa alcun confine
+// di autorizzazione.
 export function registraSegnalazione(codice, origine, motivo, dettaglioAggiuntivo) {
+  const stackGrezzo = motivo?.stack || dettaglioAggiuntivo || null;
   import('./api.js').then(({ ErrorReports }) => ErrorReports.create({
     code: codice,
     origin: origine,
-    message: testoLeggibile(motivo),
-    stack: motivo?.stack || dettaglioAggiuntivo || null,
+    message: redigiPii(testoLeggibile(motivo)),
+    stack: stackGrezzo ? redigiPii(stackGrezzo) : null,
     url: typeof window !== "undefined" ? window.location?.href : null,
     userAgent: typeof navigator !== "undefined" ? navigator.userAgent : null,
   })).catch(() => {});

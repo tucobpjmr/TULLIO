@@ -17,7 +17,7 @@ già di essere — «la soluzione è interamente contenuta nella migrazione di C
 Sono lo stesso difetto visto da due distanze: la porta aperta a chiunque (C-1) e
 la crescita che non ha un limite superiore nemmeno senza un attaccante (A-3).
 Vedi «Come sono stati chiusi (C-1 e A-3)» in fondo al documento.
-**Quattro rilievi su undici chiusi.**
+**Otto rilievi su undici chiusi.**
 
 Base di partenza misurata su questo commit (`f173aa4`): `npm ci` pulito,
 `npm test` verde (**2028 passati, 23 saltati su 167 file**), `npm run lint`
@@ -26,7 +26,7 @@ senza segnalazioni, `npm run verifica:tipi` senza errori, `npm run build` +
 129,12 kB autenticato su 131), `npm run verifica:convenzioni` verde
 (57 controlli), tredici audit precedenti a registro.
 
-⟦stato: 4/12 chiusi⟧
+⟦stato: 8/12 chiusi⟧
 
 > **Sulla numerazione.** `C-` = critico, `A-` = alta priorità, `M-` = media,
 > `B-` = bassa, come negli audit dal 12 agosto in poi.
@@ -119,10 +119,10 @@ d'azione qui sotto è, nell'ordine: chiudere `C-1` (una migrazione), poi `A-1`,
 | **A-1** ✔ | ~~Alta~~ **risolto** | `ADD_NOTICE` e `ADD_COMMENT` sono le due sole mutazioni ottimistiche rimaste senza `rollback`: avviso e commento fantasma restano a schermo dopo una scrittura fallita | `src/state/persistence.js:298`, `:281` |
 | **A-2** ✔ | ~~Alta~~ **risolto** | La regola di lint che certifica la tastiera non vede `<tr>`/`<td>` cliccabili: quattro gesti restano irraggiungibili, fra cui **modificare un movimento contabile**, e il controllo riporta zero | `eslint.config.js:395`, `liste/ListaDetail.jsx:174` |
 | **A-3** ✔ | ~~Alta~~ **risolto** | `public.error_reports` cresce senza retention e senza tetto sui campi: anche il solo traffico legittimo non ha un limite superiore | `supabase/migrations/20260901120000_error_reports.sql` |
-| M-1 | Media | `error_reports` non ha ancora un lettore: la segnalazione ha un posto dove essere scritta, non uno dove essere cercata | `src/lib/api/configurazione.js:110` |
-| M-2 | Media | Il `message` salvato può contenere PII di clienti (vincolo Postgres che cita il valore), contro il contratto scritto sulla tabella stessa | `src/lib/errorReporting.js:221` |
-| M-3 | Media | Il registro degli audit è disallineato dal codice (`A-1` e `A-4` del 31 agosto risolti, dichiarati aperti) e `verifica:convenzioni` non può accorgersene | `docs/INDEX.md:52`, `scripts/verifica-convenzioni/index.js:131` |
-| M-4 | Media | 21 `<label>` su 85 ancora senza `htmlFor` — prosegue `A-3` del 31 agosto (era 51 su 75), su un insieme diverso da quello descritto lì | 15 file in `src/components/` |
+| **M-1** ✔ | ~~Media~~ **risolto** | `error_reports` non ha ancora un lettore: la segnalazione ha un posto dove essere scritta, non uno dove essere cercata | `src/lib/api/configurazione.js:110` |
+| **M-2** ✔ | ~~Media~~ **risolto** | Il `message` salvato può contenere PII di clienti (vincolo Postgres che cita il valore), contro il contratto scritto sulla tabella stessa | `src/lib/errorReporting.js:221` |
+| **M-3** ✔ | ~~Media~~ **risolto** | Il registro degli audit è disallineato dal codice (`A-1` e `A-4` del 31 agosto risolti, dichiarati aperti) e `verifica:convenzioni` non può accorgersene | `docs/INDEX.md:52`, `scripts/verifica-convenzioni/index.js:131` |
+| **M-4** ✔ | ~~Media~~ **risolto** | 21 `<label>` su 85 ancora senza `htmlFor` — prosegue `A-3` del 31 agosto (era 51 su 75), su un insieme diverso da quello descritto lì | 15 file in `src/components/` |
 | B-1 | Bassa | `Clients.cerca`: `%` e `_` digitati dall'utente sono wildcard — `B-2` del 31 agosto, ancora aperto | `src/lib/api/clienti.js:92` |
 | B-2 | Bassa | Nessun rate limiting sulle quattro Edge Function esposte al browser — `M-3` del 31 agosto, ancora aperto | `supabase/functions/` |
 | A-4 | Alta | `verifica:rpc` e `verifica:migrazioni` escono con codice 2 per due secret vuoti: il rilevatore di scarto fra repo e database non gira, e il suo workflow è rosso a ogni esecuzione dal 27 agosto | `.github/workflows/verifica-rpc.yml` |
@@ -356,7 +356,12 @@ diversa: `C-1` va chiuso perché qualcuno *potrebbe*, `A-3` perché prima o poi
 
 ---
 
-### M-2 · Il `message` salvato può contenere PII di clienti — **Media**
+### M-2 · Il `message` salvato può contenere PII di clienti — ~~**Media**~~ ✔ **risolto**
+
+✅ **Chiuso il 3 settembre.** `redigiPii()` in `src/lib/errorReporting.js` sostituisce
+email e telefono nel `message` e nello `stack` prima della scrittura, con lo
+stesso codice proposto in questo rilievo — solo sulla scrittura in tabella, non
+in console. Cinque test in `src/test/lib/errorReportingPii.test.js`.
 
 **Dove.** `src/lib/errorReporting.js:221`, letto contro il commento della
 tabella in `20260901120000_error_reports.sql`.
@@ -643,7 +648,18 @@ no, ed è scritto dove qualcuno lo legge».
 
 ## 3. Architettura e struttura del codice
 
-### M-3 · Il registro degli audit è disallineato dal codice — **Media**
+### M-3 · Il registro degli audit è disallineato dal codice — ~~**Media**~~ ✔ **risolto**
+
+✅ **Chiuso il 3 settembre, in due passi come proposto.** `A-1` e `A-4`
+dell'audit del 31 agosto sono ora marcati `✔ risolto` nella loro tabella delle
+priorità, con `INDEX.md` allineato a `⟦stato: 5/14 chiusi⟧`. E il secondo
+passo — l'ancora — è in piedi: `verificaAncore()` in
+`scripts/verifica-convenzioni/ancore.js`, con due ancore che legano proprio
+`A-1` e `A-4` del 31 agosto a una condizione sul sorgente (ogni entry task/
+commento nominata dal rilievo ha `rollback`; la migrazione di `error_reports`
+esiste nel repo). Il controllo n. 7 esistente resta — confronta ancora due
+prose fra loro — ma ora accanto ha due controlli che confrontano una prosa
+con il codice, che è la metà che mancava.
 
 **Dove.** `docs/INDEX.md:52`, `docs/AUDIT_CODEBASE_2026-08-31.md:88` e `:91`,
 `scripts/verifica-convenzioni/convenzioni.js:109`.
@@ -939,7 +955,16 @@ coprirà mai questo caso, quindi la regola va scritta qui — e il posto giusto 
 
 ---
 
-### M-4 · 21 `<label>` senza `htmlFor` — **Media** *(prosegue `A-3` del 31 agosto)*
+### M-4 · 21 `<label>` senza `htmlFor` — ~~**Media**~~ ✔ **risolto** *(prosegue `A-3` del 31 agosto)*
+
+✅ **Chiuso il 3 settembre.** Misurato di nuovo sul commit corrente: i 21
+erano scesi a 9 (in 8 file, non più 15) nel tempo fra l'audit e questa
+chiusura — la stessa correzione incrementale, «un file alla volta quando lo
+si tocca», descritta in `docs/CLAUDE.md`. I nove residui erano tutti
+checkbox/select con la forma annidata: ognuno ha ora un `useId()` (o un id
+statico, dove il file già usava quella forma) e `htmlFor`/`id` espliciti.
+**0 `<label>` su 82 senza `htmlFor`** in `src/components/`, misurato con lo
+stesso metodo (non un campione).
 
 Misurato sul commit corrente: **21 su 85** (era 51 su 75). Il rilievo prosegue
 ma su un insieme diverso, e i venti file dell'audit precedente non sono più i
@@ -960,7 +985,12 @@ di oggi, è la sua fragilità.
 
 ---
 
-### M-1 · La segnalazione ha un posto dove essere scritta, non uno dove essere cercata — **Media**
+### M-1 · La segnalazione ha un posto dove essere scritta, non uno dove essere cercata — ~~**Media**~~ ✔ **risolto**
+
+✅ **Chiuso il 3 settembre**, dopo `C-1`/`A-3` come questo rilievo stesso
+prescriveva. `admin/tabs/ErrorReportsSection.jsx` affianca `AuditLogSection.jsx`
+dentro la tab «Log attività» — stesso `useCaricamento`, stesso export CSV,
+stesso trattamento dei tre stati (caricamento/vuoto/errore).
 
 **Dove.** `src/lib/api/configurazione.js:110`.
 
@@ -1069,15 +1099,16 @@ cinquanta righe. Il guadagno vero non era chiudere i due rilievi: è che il
 al documento.
 
 **3 · Legare i rilievi degli audit a condizioni verificabili sul codice
-(`M-3`).** Questo repository ha tredici audit a registro, e la disciplina con
-cui li tiene è la cosa che lo distingue davvero. Ma il registro oggi verifica la
-coerenza fra due prose, e la prima volta che è divergiato dal codice — `A-1` e
-`A-4` corretti il 1 settembre, dichiarati aperti il 2 — la verifica è rimasta
-verde. Ancorare anche solo i rilievi di alta priorità a un predicato eseguibile
-(«esiste una entry task senza rollback», «esiste la migrazione X») fa sì che a
-scadere sia il *controllo*, non la *fiducia*. È lo stesso principio del
-`SOGLIA_MESSAGGI_CORPUS`, applicato al documento invece che al dato: una
-decisione che scade in modo rumoroso vale più di una scritta bene.
+(`M-3`).** ✔ **Fatto il 3 settembre.** Questo repository ha tredici audit a
+registro, e la disciplina con cui li tiene è la cosa che lo distingue davvero.
+Ma il registro verificava solo la coerenza fra due prose, e la prima volta che
+è divergiato dal codice — `A-1` e `A-4` corretti il 1 settembre, dichiarati
+aperti il 2 — la verifica è rimasta verde. Due ancore in
+`scripts/verifica-convenzioni/ancore.js` legano ora proprio quei due rilievi a
+un predicato eseguibile («ogni entry task/commento nominata dal rilievo ha
+`rollback`», «esiste la migrazione di `error_reports`»), così a scadere è il
+*controllo*, non la *fiducia* — lo stesso principio del
+`SOGLIA_MESSAGGI_CORPUS`, applicato al documento invece che al dato.
 
 ---
 

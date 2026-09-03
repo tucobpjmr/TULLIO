@@ -74,8 +74,9 @@ export function EditListaModal({ lista, onSave, onClose }) {
         />
         <FieldError id="el-client-err">{errore}</FieldError>
       </div>
-      <label style={rowStartGap8}>
+      <label style={rowStartGap8} htmlFor="el-rinomina">
         <input
+          id="el-rinomina"
           type="checkbox"
           checked={rinomina}
           onChange={(e) => {

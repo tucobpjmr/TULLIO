@@ -98,6 +98,57 @@ davvero sul database. Gira via `.github/workflows/verifica-rpc.yml`:
   aver applicato la migrazione che ha fatto scattare l'allarme: applicarla non
   tocca il repository, quindi nulla farebbe ripartire il controllo da solo.
 
+> ⚠️ **Quarto episodio, 3 settembre 2026 — e il controllo non stava girando.**
+> `20260901120000_error_reports.sql` era in `main` dal 1 settembre e non era
+> mai stata applicata: né la tabella `error_reports` né la funzione
+> `segnala_errore_client` esistevano sul database. Se n'è accorto il tentativo
+> di applicare la migrazione SUCCESSIVA (`20260903094500`, i limiti di C-1
+> dell'audit del 2 settembre), fallito perché
+> `create index … on public.error_reports` non aveva una tabella su cui posarsi.
+>
+> Le conseguenze erano due, e nessuna delle due si vedeva:
+>
+> - **`A-4` dell'audit del 31 agosto non era chiuso.** Ogni chiamata di
+>   `registraSegnalazione` finiva in `PGRST202` (funzione inesistente),
+>   ingoiata dal `.catch(() => {})` che quella funzione ha per non produrre un
+>   secondo errore. Il codice `VD-…` che un utente detta al telefono non ha
+>   raggiunto nessuno per tutto il tempo in cui il rilievo risultava risolto
+>   nel repository.
+> - **`C-1` dell'audit del 2 settembre descriveva una falla non raggiungibile.**
+>   La porta di scrittura aperta ad `anon` era nel repository, non in
+>   produzione. Restava un rilievo critico — sarebbe diventata vera al primo
+>   deploy che l'avesse applicata — ma «adesso» e «al prossimo deploy» sono due
+>   affermazioni diverse, e l'audit aveva scritto la prima.
+>
+> ⛔ **PERCHÉ `verifica:rpc` NON L'HA INTERCETTATA, ed è la parte che conta:
+> non stava girando.** Non ha mancato lo scarto — non è mai arrivata a
+> cercarlo. Dal log del workflow:
+>
+> ```
+> > node scripts/verifica-rpc/index.js
+> Mancano SUPABASE_URL e/o SUPABASE_ANON_KEY (o le equivalenti VITE_).
+> ##[error]Process completed with exit code 2.
+> ```
+>
+> I due secret sono **vuoti** nell'ambiente del workflow, quindi `verifica:rpc`
+> e `verifica:migrazioni` escono con codice 2 prima di interrogare alcunché, e
+> `verifica:redirect` salta il proprio controllo con un `⚠`. Lo script è
+> scritto bene — si dichiara inconcludente invece di stampare un verde falso,
+> che è esattamente la regola del suo preambolo — ma un controllo
+> inconcludente non è un controllo.
+>
+> E c'è la seconda metà, che è quella che ha reso il difetto invisibile: il
+> workflow **è rosso a ogni esecuzione dal 27 agosto** (ultimo successo il 27
+> alle 17:43, poi ventuno run consecutive fallite in sette giorni). Un allarme
+> sempre acceso smette di essere un allarme — è lo stesso ragionamento con cui
+> `scripts/verifica-audit/index.js` motiva la propria allow-list, applicato
+> qui al workflow che avrebbe dovuto trovare questo.
+>
+> Il rimedio non è nel repository: sono due secret da configurare
+> (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, entrambi pubblici — l'anon key sta già
+> nel bundle di produzione). Finché mancano, ⛔ il passo 4 di questa procedura
+> va fatto **a mano**, e non c'è nulla che avvisi quando non lo si fa.
+
 Nasce dal terzo episodio della stessa famiglia: la migrazione `20260729200000`
 (note interne delle liste) era in `main` da giorni ma non era mai arrivata al
 database. Il codice era corretto, lint e test passavano, e salvare una nota

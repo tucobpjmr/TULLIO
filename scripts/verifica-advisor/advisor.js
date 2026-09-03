@@ -87,6 +87,20 @@ const FUNZIONI_SECURITY_DEFINER_VERIFICATE = new Set([
   'audit_liste_truncate',
   'audit_users_delete',
   'audit_users_privilegi',
+  // ─── Segnalazione errori client (C-1 dell'audit del 2 settembre) ─────────
+  // Nata il 1 settembre (20260901120000) e rimasta fuori da questo elenco per
+  // due giorni: era la sola SECURITY DEFINER esposta che nessuno avesse
+  // dichiarato di aver guardato — cioè il difetto che questo Set esiste per
+  // rendere impossibile, sull'unica funzione a cui serviva davvero.
+  //
+  // È l'UNICA voce qui dentro raggiungibile anche da `anon`, insieme a
+  // `get_migrazioni_applicate` — con la differenza che questa SCRIVE. Il grant
+  // è voluto (un crash può avvenire prima del login) e la difesa non è
+  // l'assenza di dati da proteggere ma i limiti nel corpo: tetti di lunghezza
+  // sui campi, 60 righe/minuto per utente autenticato e 10/minuto per tutti
+  // gli anonimi insieme, potatura a 90 giorni con tetto di 5.000 righe
+  // (migrazione 20260903094500).
+  'segnala_errore_client',
 ]);
 
 // I due soli lint, in AVVISI_ACCETTATI, il cui `name` non basta a giudicare

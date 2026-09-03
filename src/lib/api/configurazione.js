@@ -95,16 +95,36 @@ export const AuditLog = {
 // importa questo modulo con `import()` DINAMICO apposta per non tirarsi
 // dietro l'intero data layer nel chunk d'ingresso (installaHandlerGlobali
 // gira da main.jsx, prima ancora del login — vedi la nota lì).
+// ⚠️ C-1 dell'audit del 2 settembre · I TETTI SONO DUE, E NON SONO UNO DI
+// TROPPO. Quello che CONTA sta nel database (`left()` dentro
+// `segnala_errore_client`, migrazione 20260903094500): è l'unico che valga
+// anche per chi chiama la RPC senza passare da qui — e chiunque può, con la
+// chiave anon che sta nel bundle. Questo qui evita di TRASFERIRE ciò che il
+// database scarterebbe comunque: un `stack` da mezzo megabyte partirebbe dal
+// dispositivo dell'utente, spesso in mobilità e spesso proprio mentre qualcosa
+// non funziona, per essere troncato all'arrivo.
+//
+// I valori rispecchiano quelli della migrazione. Se un giorno divergono, è il
+// database ad avere ragione: qui si perde qualche carattere in più del
+// necessario, che è il verso giusto in cui sbagliare.
+const TETTI = { code: 64, origin: 64, message: 500, stack: 4000, url: 500, userAgent: 300 };
+
+// `null` e non stringa vuota per i campi assenti: la colonna è nullable e
+// `stack`/`url`/`user_agent` mancanti sono un fatto («questo errore non aveva
+// uno stack»), non una stringa di lunghezza zero da distinguere a valle.
+const tronca = (valore, tetto) =>
+  (typeof valore === 'string' && valore ? valore.slice(0, tetto) : null);
+
 export const ErrorReports = {
   create: async ({ code, origin, message, stack, url, userAgent }) => {
     const supabase = await getSupabase();
     return supabase.rpc('segnala_errore_client', {
-      p_code: code,
-      p_origin: origin,
-      p_message: message,
-      p_stack: stack ?? null,
-      p_url: url ?? null,
-      p_user_agent: userAgent ?? null,
+      p_code: tronca(code, TETTI.code),
+      p_origin: tronca(origin, TETTI.origin),
+      p_message: tronca(message, TETTI.message),
+      p_stack: tronca(stack, TETTI.stack),
+      p_url: tronca(url, TETTI.url),
+      p_user_agent: tronca(userAgent, TETTI.userAgent),
     });
   },
   // Non ancora letta da nessuna vista: la tab «Log attività» esiste già per

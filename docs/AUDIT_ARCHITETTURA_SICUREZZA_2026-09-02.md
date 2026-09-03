@@ -6,6 +6,14 @@ UX/UI e gestione errori.
 
 Undici rilievi: **uno critico, tre di alta priorità.**
 
+✅ **C-1 e A-3 sono stati chiusi il 3 settembre**, insieme e nello stesso
+commit: non è un accorpamento di comodo, è ciò che il rilievo A-3 dichiarava
+già di essere — «la soluzione è interamente contenuta nella migrazione di C-1».
+Sono lo stesso difetto visto da due distanze: la porta aperta a chiunque (C-1) e
+la crescita che non ha un limite superiore nemmeno senza un attaccante (A-3).
+Vedi «Come sono stati chiusi (C-1 e A-3)» in fondo al documento.
+**Due rilievi su undici chiusi.**
+
 Base di partenza misurata su questo commit (`f173aa4`): `npm ci` pulito,
 `npm test` verde (**2028 passati, 23 saltati su 167 file**), `npm run lint`
 senza segnalazioni, `npm run verifica:tipi` senza errori, `npm run build` +
@@ -13,7 +21,7 @@ senza segnalazioni, `npm run verifica:tipi` senza errori, `npm run build` +
 129,12 kB autenticato su 131), `npm run verifica:convenzioni` verde
 (57 controlli), tredici audit precedenti a registro.
 
-⟦stato: 0/11 chiusi⟧
+⟦stato: 2/11 chiusi⟧
 
 > **Sulla numerazione.** `C-` = critico, `A-` = alta priorità, `M-` = media,
 > `B-` = bassa, come negli audit dal 12 agosto in poi.
@@ -102,10 +110,10 @@ d'azione qui sotto è, nell'ordine: chiudere `C-1` (una migrazione), poi `A-1`,
 
 | Rilievo | Gravità | Cosa | Dove |
 |---|---|---|---|
-| C-1 | **Critico** | `segnala_errore_client()` è una porta di scrittura concessa ad `anon`, senza tetto di lunghezza né limite di frequenza: chiunque abbia la chiave pubblica può riempire il database | `supabase/migrations/20260901120000_error_reports.sql:99` |
+| **C-1** ✔ | ~~**Critico**~~ **risolto** | `segnala_errore_client()` è una porta di scrittura concessa ad `anon`, senza tetto di lunghezza né limite di frequenza: chiunque abbia la chiave pubblica può riempire il database | `supabase/migrations/20260901120000_error_reports.sql:99` |
 | A-1 | Alta | `ADD_NOTICE` e `ADD_COMMENT` sono le due sole mutazioni ottimistiche rimaste senza `rollback`: avviso e commento fantasma restano a schermo dopo una scrittura fallita | `src/state/persistence.js:298`, `:281` |
 | A-2 | Alta | La regola di lint che certifica la tastiera non vede `<tr>`/`<td>` cliccabili: quattro gesti restano irraggiungibili, fra cui **modificare un movimento contabile**, e il controllo riporta zero | `eslint.config.js:395`, `liste/ListaDetail.jsx:174` |
-| A-3 | Alta | `public.error_reports` cresce senza retention e senza tetto sui campi: anche il solo traffico legittimo non ha un limite superiore | `supabase/migrations/20260901120000_error_reports.sql` |
+| **A-3** ✔ | ~~Alta~~ **risolto** | `public.error_reports` cresce senza retention e senza tetto sui campi: anche il solo traffico legittimo non ha un limite superiore | `supabase/migrations/20260901120000_error_reports.sql` |
 | M-1 | Media | `error_reports` non ha ancora un lettore: la segnalazione ha un posto dove essere scritta, non uno dove essere cercata | `src/lib/api/configurazione.js:110` |
 | M-2 | Media | Il `message` salvato può contenere PII di clienti (vincolo Postgres che cita il valore), contro il contratto scritto sulla tabella stessa | `src/lib/errorReporting.js:221` |
 | M-3 | Media | Il registro degli audit è disallineato dal codice (`A-1` e `A-4` del 31 agosto risolti, dichiarati aperti) e `verifica:convenzioni` non può accorgersene | `docs/INDEX.md:52`, `scripts/verifica-convenzioni/index.js:131` |
@@ -118,7 +126,7 @@ d'azione qui sotto è, nell'ordine: chiudere `C-1` (una migrazione), poi `A-1`,
 
 ## 1. Sicurezza e gestione dei dati
 
-### C-1 · Una porta di scrittura aperta a chiunque abbia la chiave pubblica — **Critico**
+### C-1 · Una porta di scrittura aperta a chiunque abbia la chiave pubblica — ~~**Critico**~~ ✔ **risolto**
 
 **Dove.** `supabase/migrations/20260901120000_error_reports.sql:99`, con il
 chiamante in `src/lib/api/configurazione.js:98`.
@@ -306,7 +314,7 @@ export const ErrorReports = {
 
 ---
 
-### A-3 · `error_reports` cresce senza retention e senza tetto — **Alta**
+### A-3 · `error_reports` cresce senza retention e senza tetto — ~~**Alta**~~ ✔ **risolto**
 
 **Dove.** `supabase/migrations/20260901120000_error_reports.sql`, tutta.
 
@@ -946,14 +954,14 @@ Scritto perché la prossima lettura non riapra domande già chiuse.
 
 ## Top 3 suggerimenti strategici
 
-**1 · Chiudere `C-1` oggi, con la migrazione già scritta qui sopra.** È l'unico
-rilievo di questo audit che può fermare l'agenzia da fuori e senza credenziali,
-ed è a una migrazione di distanza. Il ragionamento che manca alla
-`20260901120000` non è complicato — è la stessa domanda che il progetto si è già
-posto il 28 agosto su `get_migrazioni_applicate()` — e vale la pena scriverla
-per esteso nel file, perché la prossima funzione concessa ad `anon` la trovi
-già fatta: *una porta di scrittura pubblica va dimensionata sul volume, non solo
-sul contenuto.*
+**1 · Chiudere `C-1` oggi, con la migrazione già scritta qui sopra.** ✔ **Fatto
+il 3 settembre** (`20260903094500`, insieme ad `A-3`). Il ragionamento che
+mancava alla `20260901120000` non era complicato — è la stessa domanda che il
+progetto si era già posto il 28 agosto su `get_migrazioni_applicate()` — ed è
+scritto per esteso nel file, perché la prossima funzione concessa ad `anon` lo
+trovi già fatto: *una porta di scrittura pubblica va dimensionata sul volume,
+non solo sul contenuto.* Vedi «Come sono stati chiusi» qui sotto, e in
+particolare la difesa che il rilievo **non** aveva.
 
 **2 · Trasformare «rollback» e «tastiera» da abitudini in invarianti misurate.**
 `A-1` e `A-2` sono lo stesso difetto a due strati diversi: una regola che il
@@ -975,3 +983,125 @@ verde. Ancorare anche solo i rilievi di alta priorità a un predicato eseguibile
 scadere sia il *controllo*, non la *fiducia*. È lo stesso principio del
 `SOGLIA_MESSAGGI_CORPUS`, applicato al documento invece che al dato: una
 decisione che scade in modo rumoroso vale più di una scritta bene.
+
+---
+
+## Come sono stati chiusi (C-1 e A-3) — 3 settembre
+
+Insieme, e non per comodità: `A-3` dichiarava già che «la soluzione è
+interamente contenuta nella migrazione di `C-1`». Sono lo stesso difetto a due
+distanze — la porta aperta a chiunque, e la crescita che non ha un limite
+superiore nemmeno senza un attaccante — e chiuderne uno solo avrebbe lasciato
+l'altro dichiarato aperto con la sua correzione già in produzione, cioè `M-3`
+rifatto sul documento che `M-3` lo segnala.
+
+### Il file
+
+`supabase/migrations/20260903094500_segnala_errore_client_limiti.sql`.
+
+### Le tre difese, e perché il piano d'azione ne aveva due
+
+Il rilievo proponeva tetti di lunghezza, limite di frequenza e potatura a 90
+giorni. **Non bastavano**, e la verifica è aritmetica: con i tetti di lunghezza
+una riga pesa al massimo ~5,5 kB, e un limite di dieci righe al minuto lascia
+passare ~14.400 righe al giorno, cioè **~80 MB al giorno**. Il piano Free è
+saturo in meno di una settimana, e una potatura a 90 giorni non taglia nulla di
+ciò che è stato scritto oggi. Il rilievo aveva dimensionato il ritmo e la
+riga, non la **tabella**.
+
+La terza difesa è quindi un **tetto sul numero di righe** (5.000), applicato
+nella stessa potatura opportunistica:
+
+```sql
+select at into v_soglia
+  from public.error_reports
+ order by at desc
+ offset c_max_righe limit 1;
+if v_soglia is not null then
+  delete from public.error_reports where at < v_soglia;
+end if;
+```
+
+La sottoquery sfrutta `error_reports_at_desc`; con meno di 5.000 righe torna
+`NULL` e `at < null` non seleziona nulla, che è il comportamento voluto senza
+un ramo esplicito. Il caso peggiore diventa **calcolabile**: 5.000 × ~5,5 kB
+≈ 28 MB, e il numero non dipende da quanto a lungo qualcuno insiste.
+
+⚠️ Le altre due restano necessarie, e vale la pena dirlo perché il tetto sulle
+righe da solo sembra sufficiente: senza i tetti di lunghezza 5.000 righe non
+sono 28 MB ma qualunque cosa; senza il limite di frequenza il tetto verrebbe
+raggiunto in pochi secondi e la tabella conserverebbe solo il rumore
+dell'ultimo minuto — il registro resterebbe inutilizzabile pur restando
+piccolo, che è il modo in cui il secondo effetto di `C-1` (l'avvelenamento)
+sopravviverebbe alla correzione del primo.
+
+### Le tre scelte da non rimangiarsi
+
+**Il grant ad `anon` resta.** La ragione della `20260901120000` è vera: un
+crash può avvenire prima del login, ed è la finestra che l'`ErrorBoundary` di
+`main.jsx` copre da solo. Si è delimitato ciò che quel grant permette, non lo
+si è tolto.
+
+**I due secchi di frequenza non sono simmetrici**, ed è il punto: 60/minuto
+**per utente** autenticato, 10/minuto per **tutti gli anonimi insieme**. Un
+utente autenticato è identificabile e risponde del proprio traffico; un anonimo
+non lo è, quindi non può avere un secchio proprio — e il suo è il più stretto
+dei due perché il traffico legittimo lì è di qualche riga al giorno, non al
+minuto.
+
+⚠️ Il 60/minuto per utente è alto **di proposito**, e contraddirlo sarebbe
+rimangiarsi `A-4` del 31 agosto: `registraSegnalazione` non passa dal dedup dei
+toast perché «un `error_reports` con meno righe di quante ne servano a capire
+*succede in continuazione* sarebbe un difetto peggiore di qualche riga ripetuta
+in più». Un errore al secondo racconta ampiamente la ripetizione.
+
+**Oltre il limite si esce in silenzio** (`return`, non `raise`). Siamo dentro
+il percorso che gestisce un errore non gestito: un rifiuto rumoroso genererebbe
+il secondo errore che `lib/errorReporting.js` esiste per non produrre,
+richiudendo il cerchio su sé stesso. Il chiamante è fire-and-forget per
+costruzione e non guarda l'esito.
+
+### I tetti sono due, e il secondo non è di troppo
+
+Quello che **conta** sta nel database: è l'unico che valga per chi chiama la
+RPC senza passare dal data layer, e chiunque può — la chiave anon sta nel
+bundle. Quello in `src/lib/api/configurazione.js` evita di **trasferire** ciò
+che il database scarterebbe comunque: uno `stack` da mezzo megabyte partirebbe
+dal dispositivo dell'utente, spesso in mobilità e spesso proprio mentre
+qualcosa non funziona.
+
+`src/test/lib/errorReportsLimiti.test.js` copre sei casi, verificati per
+mutazione (togliendo la `slice` il caso dei tetti fallisce). Uno merita di
+essere nominato: **il troncamento è dall'inizio**, e non è un dettaglio di
+implementazione — lo stack porta in cima il punto in cui l'errore è nato, il
+messaggio porta in cima ciò che l'utente ha letto a schermo. Troncare dalla
+coda perderebbe esattamente la parte con cui si cerca il codice dettato al
+telefono.
+
+### ⚠️ Trovato chiudendo il rilievo
+
+`segnala_errore_client` non era in **nessuno** dei due registri delle
+`SECURITY DEFINER` esposte: né `FUNZIONI_SECURITY_DEFINER_VERIFICATE`
+(`scripts/verifica-advisor/advisor.js`) né la tabella §1 di `SICUREZZA.md`. Il
+commento di quel `Set` dice che «il punto è che ogni funzione sia stata
+GUARDATA da qualcuno» — e per due giorni l'unica che nessuno avesse dichiarato
+di aver guardato è stata proprio quella a cui serviva. È lo stesso `M-3` visto
+da un terzo lato: la correzione è arrivata prima della registrazione.
+
+Ora è in entrambi, con la sua guardia descritta per quello che è — non un gate
+di ruolo, ma i limiti nel corpo. Le funzioni dichiarate passano da 14 a **15**,
+e `docs/CLAUDE.md` porta il numero nuovo.
+
+### ⛔ Quello che resta da fare, e che questo commit NON fa
+
+**La migrazione non è applicata.** `docs/MIGRAZIONI_SUPABASE.md` è esplicito, e
+lo è perché è già costato: «il codice corretto in repo non è una garanzia —
+conta solo ciò che è applicato», e le due migrazioni di hardening del modulo
+Liste rimasero in `main` senza arrivare al database, lasciando `reset_completo`
+senza controlli di ruolo per giorni.
+
+Finché `20260903094500` non è applicata al progetto `vmxvnxsqfisucugcpqlc`,
+**`C-1` è chiuso nel repository e aperto in produzione**. La procedura è quella
+del §2 di quel documento (dashboard o `apply_migration`, ⛔ mai `db push`), poi
+la registrazione in `schema_migrations` (§3) e `npm run verifica:rpc` (§4) —
+che qui serve davvero, perché la firma della RPC non cambia ma la funzione sì.

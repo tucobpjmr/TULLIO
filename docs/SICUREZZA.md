@@ -94,6 +94,7 @@ dove sta il controllo di ruolo. Verificato uno per uno, **rileggendo
 | `get_vapid_public_key()` | nessuna — **ed è corretto**: restituisce la metà *pubblica* della coppia VAPID, che il browser deve avere per sottoscriversi | ok |
 | `get_migrazioni_applicate()` | nessuna — voluto, vedi sopra: non espone nulla che non sia già nel repo. Raggiungibile anche da `anon` | ok |
 | `audit_clients_insert()` · `audit_clients_delete()` · `audit_liste_truncate()` · `audit_users_delete()` · `audit_users_privilegi()` | nessuna, **e non serve**: `RETURNS trigger`. Una funzione trigger invocata fuori da un trigger fallisce, quindi la rotta `/rest/v1/rpc/<nome>` che l'advisor nomina non è chiamabile; l'attore che scrivono lo prendono da `auth.uid()` attraverso `private.audit()` | ok |
+| `segnala_errore_client(text, text, text, text, text, text)` | **limiti nel corpo**, non un gate di ruolo: è raggiungibile da `anon` di proposito (un crash può avvenire prima del login, e un errore che non riesce a segnalare sé stesso perché richiederebbe una sessione sarebbe un controsenso). Tetti di lunghezza su ogni campo, 60 righe/minuto per utente autenticato e 10/minuto per **tutti gli anonimi insieme**, potatura opportunistica a 90 giorni con tetto di 5.000 righe (migrazione `20260903094500`) | ok, dal 3 settembre |
 
 > ⚠️ **Non "risolvere" questi warning revocando EXECUTE.** Le RPC sono il modo
 > in cui l'app chiama queste operazioni: revocare romperebbe il modulo Liste,

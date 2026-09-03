@@ -41,3 +41,29 @@ export const attivaConTastiera = (onActivate) => (e) => {
   e.preventDefault();
   onActivate(e);
 };
+
+/**
+ * Le props che rendono una RIGA o CELLA di tabella azionabile da tastiera
+ * senza sovrascriverne il ruolo implicito.
+ *
+ * A-2 dell'audit del 2 settembre: `jsx-a11y/no-static-element-interactions`
+ * esamina i soli elementi STATICI, e `<tr>`/`<td>` portano i ruoli impliciti
+ * `row`/`cell` — quindi per la regola non sono statici e non li guarda.
+ * Mettere `role="button"` risolverebbe il buco della regola ma distruggerebbe
+ * la semantica della griglia per uno screen reader: si tiene il ruolo
+ * implicito e si aggiunge solo la tastiera.
+ *
+ * Riusa `attivaConTastiera`, quindi eredita lo stesso guard
+ * (`e.target !== e.currentTarget`): una riga che contiene già un bottone
+ * nativo (es. "Riapri"/"Cestina") non si attiva una seconda volta quando
+ * quel bottone riceve Invio o Spazio.
+ *
+ * @param {function} onAziona riceve l'evento click o keydown.
+ * @param {string} etichetta aria-label per chi naviga a schermo.
+ */
+export const cellaAzionabile = (onAziona, etichetta) => ({
+  tabIndex: 0,
+  "aria-label": etichetta,
+  onClick: onAziona,
+  onKeyDown: attivaConTastiera(onAziona),
+});

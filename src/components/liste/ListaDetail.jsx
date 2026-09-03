@@ -19,7 +19,7 @@ import { NoteInterne } from "./NoteInterne.jsx";
 import { TitoloTestata } from "./TitoloTestata.jsx";
 import * as stiliComuni from "../../styles/common.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
-import { attivaConTastiera } from "../../lib/a11y.js";
+import { attivaConTastiera, cellaAzionabile } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -171,11 +171,16 @@ export function ListaDetail({ lista, movimenti, history, usersById, onReload, on
     if (ok) await onReload(TABELLE_MOVIMENTO);
   };
 
+  // A-2 dell'audit del 2 settembre: modificare un movimento del registro
+  // contabile dei buoni viaggio era raggiungibile solo con un puntatore —
+  // `no-static-element-interactions` non guarda `<td>` (ruolo implicito
+  // `cell`), quindi il lint restava verde. `cellaAzionabile` tiene il ruolo
+  // implicito e aggiunge solo la tastiera.
   const cell = (m, campo, className, content) => (
     <td
       className={`${className} editable`}
-      onClick={() => setEditCell({ id: m.id, campo })}
       title="Tocca per modificare"
+      {...cellaAzionabile(() => setEditCell({ id: m.id, campo }), `Modifica ${campo}`)}
     >
       {content}
     </td>
@@ -271,7 +276,10 @@ export function ListaDetail({ lista, movimenti, history, usersById, onReload, on
                     ) : (
                       <tr key={m.id}>
                         {cell(m, "data", "dt lv-num", fmtDate(m.data_movimento))}
-                        <td className="desc editable" onClick={() => setEditCell({ id: m.id, campo: "descrizione" })}>
+                        <td
+                          className="desc editable"
+                          {...cellaAzionabile(() => setEditCell({ id: m.id, campo: "descrizione" }), "Modifica descrizione")}
+                        >
                           {m.descrizione}
                           {/* Sotto i 560px la colonna Metodo sparisce: qui resta
                               raggiungibile come pillola sotto la descrizione. */}

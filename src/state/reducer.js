@@ -327,6 +327,22 @@ function baseReducer(state, action) {
       );
       return { ...state, tasks };
     }
+    // Compensazione di ADD_COMMENT (A-1 dell'audit del 2 settembre). Toglie
+    // dal thread il commento ottimistico la cui INSERT non è arrivata,
+    // identificandolo per l'id LOCALE — vedi la nota sul rollback in
+    // state/persistence.js. Nessun toast: quello d'errore lo mostra già
+    // fail() in useSyncedDispatch, come ROLLBACK_TASKS_BULK.
+    case "ROLLBACK_COMMENT": {
+      const { taskId, commentId } = action.payload || {};
+      if (!taskId || !commentId) return state;
+      return {
+        ...state,
+        tasks: state.tasks.map(t =>
+          t.id === taskId
+            ? { ...t, comments: (t.comments || []).filter(c => c.id !== commentId) }
+            : t),
+      };
+    }
     case "DELETE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload);
       if (!prev) return state;

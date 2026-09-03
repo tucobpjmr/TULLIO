@@ -17,7 +17,7 @@ già di essere — «la soluzione è interamente contenuta nella migrazione di C
 Sono lo stesso difetto visto da due distanze: la porta aperta a chiunque (C-1) e
 la crescita che non ha un limite superiore nemmeno senza un attaccante (A-3).
 Vedi «Come sono stati chiusi (C-1 e A-3)» in fondo al documento.
-**Due rilievi su undici chiusi.**
+**Quattro rilievi su undici chiusi.**
 
 Base di partenza misurata su questo commit (`f173aa4`): `npm ci` pulito,
 `npm test` verde (**2028 passati, 23 saltati su 167 file**), `npm run lint`
@@ -26,7 +26,7 @@ senza segnalazioni, `npm run verifica:tipi` senza errori, `npm run build` +
 129,12 kB autenticato su 131), `npm run verifica:convenzioni` verde
 (57 controlli), tredici audit precedenti a registro.
 
-⟦stato: 2/12 chiusi⟧
+⟦stato: 4/12 chiusi⟧
 
 > **Sulla numerazione.** `C-` = critico, `A-` = alta priorità, `M-` = media,
 > `B-` = bassa, come negli audit dal 12 agosto in poi.
@@ -116,8 +116,8 @@ d'azione qui sotto è, nell'ordine: chiudere `C-1` (una migrazione), poi `A-1`,
 | Rilievo | Gravità | Cosa | Dove |
 |---|---|---|---|
 | **C-1** ✔ | ~~**Critico**~~ **risolto** | `segnala_errore_client()` è una porta di scrittura concessa ad `anon`, senza tetto di lunghezza né limite di frequenza: chiunque abbia la chiave pubblica può riempire il database | `supabase/migrations/20260901120000_error_reports.sql:99` |
-| A-1 | Alta | `ADD_NOTICE` e `ADD_COMMENT` sono le due sole mutazioni ottimistiche rimaste senza `rollback`: avviso e commento fantasma restano a schermo dopo una scrittura fallita | `src/state/persistence.js:298`, `:281` |
-| A-2 | Alta | La regola di lint che certifica la tastiera non vede `<tr>`/`<td>` cliccabili: quattro gesti restano irraggiungibili, fra cui **modificare un movimento contabile**, e il controllo riporta zero | `eslint.config.js:395`, `liste/ListaDetail.jsx:174` |
+| **A-1** ✔ | ~~Alta~~ **risolto** | `ADD_NOTICE` e `ADD_COMMENT` sono le due sole mutazioni ottimistiche rimaste senza `rollback`: avviso e commento fantasma restano a schermo dopo una scrittura fallita | `src/state/persistence.js:298`, `:281` |
+| **A-2** ✔ | ~~Alta~~ **risolto** | La regola di lint che certifica la tastiera non vede `<tr>`/`<td>` cliccabili: quattro gesti restano irraggiungibili, fra cui **modificare un movimento contabile**, e il controllo riporta zero | `eslint.config.js:395`, `liste/ListaDetail.jsx:174` |
 | **A-3** ✔ | ~~Alta~~ **risolto** | `public.error_reports` cresce senza retention e senza tetto sui campi: anche il solo traffico legittimo non ha un limite superiore | `supabase/migrations/20260901120000_error_reports.sql` |
 | M-1 | Media | `error_reports` non ha ancora un lettore: la segnalazione ha un posto dove essere scritta, non uno dove essere cercata | `src/lib/api/configurazione.js:110` |
 | M-2 | Media | Il `message` salvato può contenere PII di clienti (vincolo Postgres che cita il valore), contro il contratto scritto sulla tabella stessa | `src/lib/errorReporting.js:221` |
@@ -448,7 +448,7 @@ e `invite-user` può far partire email a raffica verso indirizzi arbitrari, che
 
 ## 2. Stato e flusso dati
 
-### A-1 · Due mutazioni ottimistiche senza compensazione — **Alta**
+### A-1 · Due mutazioni ottimistiche senza compensazione — ~~**Alta**~~ ✔ **risolto**
 
 **Dove.** `src/state/persistence.js:298` (`ADD_NOTICE`) e `:281`
 (`ADD_COMMENT`).
@@ -813,7 +813,7 @@ passo 4 a mano resta, ed è la sola copertura per quel caso.
 
 ## 4. UX/UI e gestione errori
 
-### A-2 · La regola che certifica la tastiera non vede le tabelle — **Alta**
+### A-2 · La regola che certifica la tastiera non vede le tabelle — ~~**Alta**~~ ✔ **risolto**
 
 **Dove.** `eslint.config.js:395-397`, con i quattro gesti scoperti in
 `src/components/liste/ListaDetail.jsx:174` e `:274`,
@@ -1057,14 +1057,16 @@ non solo sul contenuto.* Vedi «Come sono stati chiusi» qui sotto, e in
 particolare la difesa che il rilievo **non** aveva.
 
 **2 · Trasformare «rollback» e «tastiera» da abitudini in invarianti misurate.**
-`A-1` e `A-2` sono lo stesso difetto a due strati diversi: una regola che il
-progetto conosce, applica quasi ovunque, e che rientra dalla finestra nei punti
-che nessun controllo automatico guarda. Il progetto sa già come si chiude — è
-ciò che `scrittureInVoloContract.test.js` fa per `entityId` e ciò che
-`verifica:convenzioni` fa per i marcatori — e i due controlli proposti
-(`rollbackContract.test.js` e il selettore `no-restricted-syntax` su
-`tr`/`td`/`th`/`li`) costano insieme meno di cinquanta righe. Il guadagno vero
-non è chiudere i due rilievi: è che il **quinto** non si riapra.
+✔ **Fatto il 3 settembre.** `A-1` e `A-2` erano lo stesso difetto a due strati
+diversi: una regola che il progetto conosce, applica quasi ovunque, e che
+rientrava dalla finestra nei punti che nessun controllo automatico guardava.
+I due controlli proposti sono entrambi in piedi — `rollbackContract.test.js`
+(la stessa forma di `scrittureInVoloContract.test.js`, applicata al rollback
+invece che a `entityId`) e il selettore `no-restricted-syntax` su
+`tr`/`td`/`th`/`li` in `eslint.config.js` — e costano insieme meno di
+cinquanta righe. Il guadagno vero non era chiudere i due rilievi: è che il
+**quinto** non si riapra. Vedi «Come sono stati chiusi (A-1 e A-2)» in fondo
+al documento.
 
 **3 · Legare i rilievi degli audit a condizioni verificabili sul codice
 (`M-3`).** Questo repository ha tredici audit a registro, e la disciplina con
@@ -1224,6 +1226,59 @@ timestamp restano tutte. Nel test 50 righe con tetto 15 ne hanno lasciate 16.
 È un eccesso di una riga, dalla parte giusta, e si presenta solo quando più
 segnalazioni cadono nello stesso microsecondo — cioè praticamente mai fuori da
 un `generate_series`.
+
+---
+
+## Come sono stati chiusi (A-1 e A-2) — 3 settembre
+
+Insieme, come `C-1`/`A-3` qui sopra: sono lo stesso difetto — una regola che il
+progetto conosce e applica quasi ovunque, rientrata dalla finestra nei punti
+che nessun controllo automatico guarda — visto da due strati diversi (stato
+ottimistico, tastiera).
+
+### `A-1` · Le due compensazioni mancanti
+
+`state/persistence.js`: `ADD_NOTICE` riusa `DELETE_NOTICE` come rollback
+(`canEditNotice` passa sempre: `normalize` ha appena messo `author = uid`),
+esattamente come proposto. `ADD_COMMENT` ha un case nuovo, `ROLLBACK_COMMENT`
+in `state/reducer.js`, che toglie dal thread il commento ottimistico
+identificato per **id locale** — `CommentsAPI.create` non lo manda al server,
+quindi quel valore è per definizione l'identità di ciò che sul database non
+esiste (la stessa proprietà per cui `B-4` del 26 agosto lo aveva introdotto
+come `key` di React). Entrambe passano da `meta.compensazione`, applicato
+dall'orchestratore e non dalle entry: nessun toast di successo accanto a un
+rollback, nessuna voce nel log attività.
+
+⚠️ **Il test che tiene chiusa la regola.** `src/test/state/rollbackContract.test.js`
+misura l'invariante direttamente sul registry — ogni entry con `persist` ha un
+`rollback`, o è nell'elenco esplicito e motivato delle eccezioni (le sei entry
+di categorie/template, `B-3` di questo stesso audit) — invece di lasciarla
+affidata a chi rilegge il file per intero. `src/test/state/persistenceGuards.test.js`
+dichiara `ROLLBACK_COMMENT` fra le compensazioni note al registro di
+completezza esistente.
+
+### `A-2` · La tastiera sulle tabelle
+
+`src/lib/a11y.js` ha ora `cellaAzionabile(onAziona, etichetta)`, che riusa
+`attivaConTastiera` (stesso guard `e.target !== e.currentTarget`, quindi un
+bottone nativo dentro la riga — "Riapri"/"Cestina" — non fa scattare anche
+l'azione della riga quando riceve Invio) e non mette `role="button"`: `<tr>` e
+`<td>` restano `row`/`cell` per chi naviga con uno screen reader. Applicata ai
+quattro gesti: `liste/ListaDetail.jsx` (`cell()` e la cella descrizione — il
+caso che alzava il rilievo ad Alta, modificare un movimento del registro
+contabile), `liste/ArchivedListe.jsx` e `tasks/Archive.jsx` (le righe della
+vista desktop). I due `<td onClick={stopPropagation}>` che ospitano i bottoni
+di azione non sono un gesto da rendere raggiungibile — fermano solo la
+propagazione, gli stessi bottoni sono nativi — e portano un
+`eslint-disable-next-line` con il perché accanto, come già in `Archive.jsx`
+per il caso gemello mobile.
+
+Il selettore `no-restricted-syntax` (`CELLA_TABELLA_CLICCABILE_SENZA_TASTIERA`
+in `eslint.config.js`) guarda dove `jsx-a11y/no-static-element-interactions`
+non arriva: un `<tr>`/`<td>`/`<th>`/`<li>` con `onClick` e senza `onKeyDown` è
+un errore di lint, non più un lint verde su un gesto irraggiungibile.
+`src/test/lib/a11y.test.js` copre `cellaAzionabile` con gli stessi casi già
+in piedi per `attivaConTastiera`.
 
 ---
 

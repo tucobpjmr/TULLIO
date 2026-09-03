@@ -83,6 +83,26 @@ const VIETATO_CONTEXT_VALUE_LETTERALE = {
     + 'docs/AUDIT_ARCHITETTURA_2026-08-16.md.',
 };
 
+// A-2 dell'audit del 2 settembre. `jsx-a11y/no-static-element-interactions`
+// esamina i soli elementi STATICI: `<tr>`/`<td>`/`<th>`/`<li>` portano i ruoli
+// ARIA impliciti `row`/`cell`/`columnheader`/`listitem`, quindi per la regola
+// non sono statici e non vengono guardati. Il risultato misurato: quattro
+// gesti irraggiungibili da tastiera con il lint verde, fra cui modificare un
+// movimento del registro contabile dei buoni viaggio (liste/ListaDetail.jsx).
+// Questa regola guarda dove `jsx-a11y` non arriva; `cellaAzionabile()` in
+// lib/a11y.js è la forma che la soddisfa senza sovrascrivere il ruolo
+// implicito con `role="button"`.
+const CELLA_TABELLA_CLICCABILE_SENZA_TASTIERA = {
+  selector: 'JSXOpeningElement[name.name=/^(tr|td|th|li)$/]'
+    + ':has(JSXAttribute[name.name="onClick"])'
+    + ':not(:has(JSXAttribute[name.name="onKeyDown"]))',
+  message:
+    'Riga o cella di tabella cliccabile senza gestione tastiera. Usa '
+    + 'cellaAzionabile() da lib/a11y.js (spread sulle props), oppure metti un '
+    + '<button> dentro la cella. Se onClick è solo uno stopPropagation, '
+    + 'disattiva la regola con il perché accanto, come in Archive.jsx.',
+};
+
 const VIETATO_APPGLOBALS = {
   group: ['**/state/appGlobals', '**/state/appGlobals.js'],
   message:
@@ -466,7 +486,7 @@ export default [
         ],
       }],
       'no-restricted-syntax': ['error', STILE_INLINE_COSTANTE, VIETATO_CONTEXT_VALUE_LETTERALE,
-        VIETATO_COMMON_NOMINATO, VIETATO_DISPATCH_PROP],
+        VIETATO_COMMON_NOMINATO, VIETATO_DISPATCH_PROP, CELLA_TABELLA_CLICCABILE_SENZA_TASTIERA],
     },
   },
   // Il confine vale per i COMPONENTI. Non per src/hooks/ (è lì che i dati

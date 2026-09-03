@@ -17,7 +17,7 @@ import { PERIOD_OPTIONS, filterByPeriod, thStyle, chipStyle } from "../tasks/arc
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../styles/common.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
-import { attivaConTastiera } from "../../lib/a11y.js";
+import { attivaConTastiera, cellaAzionabile } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -243,9 +243,9 @@ export const ArchivedListe = ({ isMobile }) => {
                 const s = saldi[l.id] || { saldo: 0 };
                 return (
                   <tr key={l.id} style={borderBottom2}
-                    onClick={() => apri(l)}
                     onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
                     onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                    {...cellaAzionabile(() => apri(l), `Apri lista ${l.clients?.name || ""}`)}
                   >
                     <td style={txtBoldHeading}>{l.clients?.name || "—"}</td>
                     <td style={stiliComuni.cella}>
@@ -257,6 +257,11 @@ export const ArchivedListe = ({ isMobile }) => {
                     <td style={stiliComuni.cellaMuted}>
                       {l.closed_at ? fmtDate(l.closed_at.slice(0, 10)) : "—"}
                     </td>
+                    {/* Non è un controllo: ferma solo la propagazione del click verso la
+                        riga (che ora si apre anche da tastiera, vedi cellaAzionabile sopra),
+                        così toccare "Riapri"/"Cestina" non apre anche la lista. I due
+                        pulsanti sono nativi e già accessibili da tastiera. */}
+                    {/* eslint-disable-next-line no-restricted-syntax -- vedi commento sopra */}
                     <td style={stiliComuni.cellaAzioni} onClick={e => e.stopPropagation()}>
                       <div style={stiliComuni.rowAzioniInLinea}>
                         <button onClick={() => handleReopen(l)} title="Riapri (rimetti attiva)" style={stiliComuni.btnNavyMini}>↩ Riapri</button>

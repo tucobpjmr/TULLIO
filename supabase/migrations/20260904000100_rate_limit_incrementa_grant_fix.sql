@@ -1,0 +1,22 @@
+-- Correzione a B-2 (audit del 2 settembre), trovata applicando la
+-- migrazione precedente (20260904000000) a staging.
+--
+-- `revoke execute … from public` toglie solo il grant al PSEUDO-ruolo
+-- PUBLIC. Su questo progetto `anon` e `authenticated` hanno EXECUTE su ogni
+-- funzione nuova dello schema `public` per PRIVILEGI DI DEFAULT (lo stesso
+-- meccanismo per cui `20260828100000_ping_revoca_anon_migrazioni.sql` ha
+-- dovuto revocare `anon` esplicitamente da `get_migrazioni_applicate()`, non
+-- bastando la revoca da PUBLIC): un grant per-ruolo dato dal default non è
+-- toccato dalla revoca al pseudo-ruolo. Verificato su staging dopo
+-- l'applicazione: `anon`, `authenticated` e `postgres` avevano tutti EXECUTE
+-- accanto a `service_role`, cioè esattamente i due ruoli che la migrazione
+-- doveva escludere.
+--
+-- Non è la stessa classe di rischio di `segnala_errore_client` (C-1): qui
+-- non si scrivono dati arbitrari, solo un contatore per una chiave a
+-- piacere — ma un chiamante con la chiave anon potrebbe comunque leggere
+-- l'esito di `rate_limit_incrementa` per una chiave che non gli appartiene
+-- (es. sondare se un admin ha esaurito la propria soglia), ed è comunque
+-- codice raggiungibile che l'intero rilievo B-2 voleva riservare alle sole
+-- Edge Function con service_role.
+revoke execute on function public.rate_limit_incrementa(text, int, int) from anon, authenticated;

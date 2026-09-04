@@ -4,7 +4,12 @@ Perimetro: i cinque assi richiesti — architettura e struttura del codice,
 sicurezza e gestione dei dati, stato e flusso dati, performance e scalabilità,
 UX/UI e gestione errori.
 
-Diciannove rilievi: **nessuno critico, quattro di alta priorità.**
+Diciannove rilievi: **nessuno critico, tre di alta priorità** (erano quattro:
+`A-3` è stato ridimensionato a media il 4 settembre — vedi la correzione nel suo
+paragrafo, e leggila prima del rilievo).
+
+✅ **`A-2` è stato chiuso il 4 settembre.** Vedi «Come è stato chiuso (A-2)» in
+fondo al documento.
 
 ⚠️ Questo è il primo audit del progetto condotto anche **contro il database di
 produzione** (`vmxvnxsqfisucugcpqlc`) e non solo contro il repository: `pg_proc`,
@@ -21,7 +26,7 @@ verdi (81,09 kB gzip anonimo su 86 di soglia, 129,56 kB autenticato su 131),
 `npm run verifica:convenzioni` verde (61 controlli), quattordici audit
 precedenti a registro.
 
-⟦stato: 0/19 chiusi⟧
+⟦stato: 1/19 chiusi⟧
 
 > **Sulla numerazione.** `A-` = alta priorità, `M-` = media, `B-` = bassa, come
 > negli audit dal 12 agosto in poi. Non ci sono `C-`: nessun rilievo critico.
@@ -93,8 +98,8 @@ un controllo esiste, funziona, e **guarda un livello solo**.
 | ID | Priorità | Rilievo | File / punto |
 |---|---|---|---|
 | **A-1** | 🔴 Alta | Un'azione **negata dai permessi** ritorna `{ error: null }`: `useSalvataggio` la legge come successo e chiama `alSuccesso()` — la modale si chiude e i dati vengono buttati, con solo un toast rosso a dirlo | `src/hooks/useSyncedDispatch.js:20-24` |
-| **A-2** | 🔴 Alta | `public.registra_audit()` è eseguibile da **ogni utente autenticato**, senza gate di ruolo né di attività, senza tetti né limite di frequenza — e **nessun percorso dell'app la chiama** | DB (`proacl`), `supabase/migrations/20260826214000_audit_log.sql` |
-| **A-3** | 🔴 Alta | **Leaked password protection disattivata** su Supabase Auth, con una policy password che chiede solo 8 caratteri | advisor prod + `src/lib/validators.js:44` |
+| **A-2** ✔ | ~~🔴 Alta~~ **chiuso il 4 settembre** | `public.registra_audit()` è eseguibile da **ogni utente autenticato**, senza gate di ruolo né di attività, senza tetti né limite di frequenza — e **nessun percorso dell'app la chiama**. Revocata: migrazione `20260904143756` | DB (`proacl`), `supabase/migrations/20260826214000_audit_log.sql` |
+| **A-3** | 🟡 Media ⚠️ *ridimensionato* | Policy password a soli 8 caratteri, senza requisiti di composizione. La metà «leaked password protection» **non è un rilievo**: è una funzione del piano Supabase **Pro** e una scelta di costo già presa e documentata — vedi la correzione qui sotto | `src/lib/validators.js:44` |
 | **A-4** | 🔴 Alta | `xlsx@0.18.5`: due CVE (`CVE-2023-30533`, `CVE-2024-22363`) **ancora aperte**, mitigate ma non risolte, con il fix fermo da un mese | `package.json:14`, `src/lib/xlsxWorker.js` |
 | **M-1** | 🟡 Media | 21 `outline: "none"` e **nessuna regola `:focus-visible` globale**: fuori dal modulo Liste il focus da tastiera non ha un indicatore proprio | `src/styles/global.css`, 18 file |
 | **M-2** | 🟡 Media | 40 `onMouseEnter` contro 15 `onFocus`: le affordance costruite sull'hover non hanno la controparte da tastiera | `src/components/**` (20 file) |
@@ -215,7 +220,13 @@ lì», con un utente a cui il guard nega.
 
 ---
 
-### A-2 · `registra_audit()` aperta a chiunque sia autenticato
+### A-2 · `registra_audit()` aperta a chiunque sia autenticato ✔ *chiuso il 4 settembre*
+
+> ✅ Chiuso dalla migrazione `20260904143756`. Il «come» — incluse le due
+> verifiche fatte **prima** di scrivere la revoca, e la prova su staging e in
+> produzione — sta in «Come è stato chiuso (A-2)» in fondo al documento. Il
+> rilievo resta scritto qui com'era: serve a spiegare la migrazione, e una
+> revoca senza il suo perché è la prima che qualcuno rimangia.
 
 **Dove.** Database di produzione, `pg_proc.proacl`:
 
@@ -267,7 +278,7 @@ motivo che l'aveva fatta rimangiare: lì un admin doveva poter chiamare la RPC
 dall'app, qui nessuno la chiama.
 
 ```sql
--- supabase/migrations/20260905090000_revoke_registra_audit_authenticated.sql
+-- supabase/migrations/20260904143756_revoke_registra_audit_authenticated.sql
 --
 -- `public.registra_audit()` è concessa a `authenticated` dalla 20260826214000 e
 -- NON è chiamata da nessun percorso dell'applicazione: l'unica occorrenza in
@@ -292,7 +303,7 @@ grant  execute on function public.registra_audit(text, text, text, jsonb) to ser
 
 comment on function public.registra_audit(text, text, text, jsonb) is
   'Scrittura sul registro di controllo per i percorsi che hanno una sessione '
-  'utente. Riservata a service_role dalla 20260905090000: nessun percorso '
+  'utente. Riservata a service_role dalla 20260904143756: nessun percorso '
   'client la usa, e il GRANT ad authenticated era una porta di contraffazione '
   'del registro senza un chiamante legittimo. Se un domani servisse dal client, '
   'va riaperta CON il gate (private.is_active_user()), i tetti di lunghezza e '
@@ -320,14 +331,34 @@ il gate + i tre limiti già scritti per la porta gemella:
 
 ---
 
-### A-3 · Leaked password protection spenta
+### A-3 · Policy password debole
 
-**Dove.** Advisor di sicurezza del progetto di produzione:
+> ⚠️ **CORREZIONE DEL 4 SETTEMBRE, e va letta prima del rilievo.** Questo
+> rilievo nasceva **ad Alta priorità** e teneva insieme due cose che vanno
+> separate:
+>
+> 1. **La leaked password protection (HaveIBeenPwned) spenta.** Non è un
+>    rilievo: è una funzione del piano Supabase **Pro**, e il progetto resta
+>    sul piano Free per scelta. Soprattutto, **era già una decisione presa e
+>    scritta**: `auth_leaked_password_protection` è in `AVVISI_ACCETTATI` di
+>    `scripts/verifica-advisor/advisor.js` da ST-14, con accanto il ragionamento
+>    per esteso — «non è "da attivare quando qualcuno se ne ricorda": è un costo
+>    ricorrente non approvato, non un interruttore dimenticato». L'audit ha
+>    letto l'advisor di produzione e non quell'elenco, e ha riportato come
+>    lacuna una scelta già motivata. È lo stesso errore di metodo, al contrario,
+>    che il resto del documento evita: interrogare un livello solo.
+>    ⛔ **Il presidio che il rilievo proponeva — «far fallire `verifica:advisor`
+>    su questo lint» — sarebbe stato un peggioramento**: renderebbe rosso a ogni
+>    esecuzione un allarme su una decisione già presa, cioè esattamente il
+>    rumore che quell'elenco esiste per evitare.
+> 2. **La policy password: 8 caratteri, nessun requisito di composizione.**
+>    Questa resta, ed è la parte azionabile — «Minimum password length» e
+>    «Password requirements» **sono disponibili sul piano Free**, a differenza
+>    del punto 1. Il rilievo prosegue qui sotto con questo solo perimetro,
+>    a **media** priorità.
 
-> `auth_leaked_password_protection` — WARN — *Leaked password protection is
-> currently disabled.*
 
-E lato client, `src/lib/validators.js:44`:
+**Dove.** `src/lib/validators.js:44`:
 
 ```js
 export const PASSWORD_MIN = 8;
@@ -335,17 +366,18 @@ export const passwordValida = (messaggio = `…almeno ${PASSWORD_MIN} caratteri.
   (v) => (typeof v === 'string' && v.length >= PASSWORD_MIN ? null : messaggio);
 ```
 
-**Perché è grave.** Otto caratteri senza nessun altro requisito e senza
-controllo contro HaveIBeenPwned significa che `password` e `12345678` passano.
-È l'unico fattore di autenticazione dell'app — non c'è MFA — e protegge la PII
-di persone esterne al team (`clients`) e il registro contabile dei buoni
-viaggio. Tutto il lavoro fatto su RLS, gate admin e allow-list di origini
-presuppone che la sessione appartenga a chi dice di essere.
+**Perché conta.** Otto caratteri senza nessun requisito di composizione
+significa che `password` e `12345678` passano. È l'unico fattore di
+autenticazione dell'app — non c'è MFA — e protegge la PII di persone esterne al
+team (`clients`) e il registro contabile dei buoni viaggio. Tutto il lavoro
+fatto su RLS, gate admin e allow-list di origini presuppone che la sessione
+appartenga a chi dice di essere.
 
-È anche l'unico rilievo di questo audit che **nessun file del repository può
-chiudere**: sta nelle impostazioni del progetto Supabase, cioè nel livello che
-gli script di verifica non guardano. Per questo è alta priorità nonostante il
-rimedio sia una spunta.
+**Perché media e non alta.** Senza il controllo contro le password già trapelate
+— che il piano Free non offre — un tetto di lunghezza e qualche requisito di
+composizione alzano il costo di un attacco a forza bruta ma non fermano il
+riuso di una credenziale già compromessa altrove, che è lo scenario più
+probabile. È un miglioramento reale e parziale, non la chiusura di un buco.
 
 **Soluzione, in tre passi.**
 
@@ -384,9 +416,12 @@ I due call site (`auth/UpdatePasswordScreen.jsx:30`,
 `components/shell/AccountSicurezza.jsx:49`) non cambiano: chiamano già
 `passwordValida()`.
 
-3. **Presidio** — aggiungere l'advisor `auth_leaked_password_protection`
-   all'elenco che `npm run verifica:advisor` fa fallire, così la spunta non può
-   tornare giù in silenzio. È il livello che oggi manca a `scripts/verifica-advisor/`.
+3. **Nessun presidio nuovo** — vedi la correzione in testa al rilievo: il
+   lint `auth_leaked_password_protection` è già in `AVVISI_ACCETTATI` con la
+   sua motivazione, e farlo fallire sarebbe un allarme permanente su una scelta
+   già presa. Se un domani il progetto passasse al piano Pro, il passo è
+   toglierlo da lì e riattivare la protezione dalla dashboard — ed è già
+   scritto nel commento accanto alla voce.
 
 ---
 
@@ -963,8 +998,8 @@ realtime, bundle, stili, errori, push, liste, import, CI).
 
 | # | Rilievo | Costo | Effetto |
 |---|---|---|---|
-| 1 | **A-3** (password) | 10 min | Chiude l'unico rilievo che nessun file del repo può chiudere |
-| 2 | **A-2** (`registra_audit`) | 30 min | Una migrazione, nessun impatto sull'app |
+| ~~1~~ | **A-3** (password) | — | ⚠️ **Saltato per decisione del 4 settembre**: la metà che contava (HaveIBeenPwned) richiede il piano Pro. Resta la metà gratuita — lunghezza minima e requisiti di composizione — ridimensionata a media |
+| ~~2~~ | **A-2** (`registra_audit`) ✔ | — | **Fatto il 4 settembre**: migrazione `20260904143756`, applicata su staging e in produzione |
 | 3 | **A-1** (`{error:null}`) | 2 h | Tocca due hook e va coperto da due test di contratto |
 | 4 | **M-3**, **M-4**, **B-3**, **B-6** | 3 h | Quattro rimedi piccoli e indipendenti |
 | 5 | **M-1** (`:focus-visible`) | 1 h | Quattro righe di CSS, effetto su tutta l'app |
@@ -973,8 +1008,117 @@ realtime, bundle, stili, errori, push, liste, import, CI).
 | 8 | **M-5**, **M-6**, **M-7**, **B-1**, **B-2**, **B-4**, **B-5**, **B-7** | — | Un rilievo per sessione, nell'ordine che conviene |
 | 9 | **M-8** (stili) | — | Solo se arriva il tema scuro o un restyle |
 
-Chiusi 1–6 la valutazione è **9,5**. Il mezzo punto restante è `M-8`, ed è il
+Chiusi 1–6 la valutazione è **9,5** (con `A-2` fatto e `A-3` ridotto alla sua metà gratuita, restano 3, 4, 5 e 6). Il mezzo punto restante è `M-8`, ed è il
 solo rilievo che chiederei di **non** affrontare finché non c'è una ragione di
 prodotto: il sistema di stili attuale è brutto da leggere e corretto da
 eseguire, e riscriverlo senza una richiesta è il tipo di lavoro che introduce
 regressioni per guadagnare eleganza.
+
+---
+
+## Come è stato chiuso (A-2)
+
+**4 settembre 2026 — migrazione `20260904143756_revoke_registra_audit_authenticated.sql`.**
+
+### Le due verifiche fatte prima di scrivere la revoca
+
+Una revoca è facile da scrivere e facile da sbagliare: toglie un privilegio, e
+se qualcuno lo stava usando il guasto arriva più tardi, altrove, senza dire da
+dove viene. Le due domande a cui rispondere prima erano quindi «chi la chiama
+dal client?» e «chi la chiama dal database?», e vanno poste a due fonti
+diverse:
+
+1. **Nel repository** — `grep -rn "registra_audit"` su `src/`, `supabase/` e
+   `scripts/`: una sola chiamata, in `src/test/integration/rls.test.js`, cioè
+   una sonda. Nessun componente, nessun hook, nessun modulo di `lib/api/`.
+2. **Nel database** — e questa è quella che il repository non poteva dare,
+   perché una funzione può essere chiamata dal corpo di un'altra funzione che
+   nel repo non compare più nella forma con cui vive in produzione:
+
+   ```sql
+   select n.nspname, p.proname from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname in ('public','private') and p.prokind = 'f'
+      and p.proname <> 'registra_audit'
+      and p.prosrc ilike '%registra_audit%';
+   -- → 0 righe
+   ```
+
+   Zero. Nessun trigger, nessuna RPC, nessun helper la usa. Le scritture vere
+   su `audit_log` arrivano dai trigger di riga (che girano come proprietario
+   della tabella, quindi non toccano questo GRANT) e da `_shared/audit.ts`, che
+   inserisce direttamente con la service_role.
+
+Da qui la scelta fra le due opzioni che il rilievo proponeva: non un gate più i
+tre limiti, ma la revoca. **Codice di sicurezza che non va mantenuto è meglio
+di codice di sicurezza in più da mantenere**, quando la porta non serve a
+nessuno.
+
+### Cosa è cambiato
+
+| File | Cosa |
+|---|---|
+| `supabase/migrations/20260904143756_…sql` | `revoke execute … from authenticated, anon, public` + `grant … to service_role` + `comment on function` che dice cosa serve per riaprirla |
+| `src/test/integration/rls.test.js` | il caso «e nemmeno passando dalla RPC può firmarla per conto d'altri» ora misura la proprietà **più forte**: la RPC non è chiamabile affatto (`42501`) |
+| `scripts/verifica-advisor/advisor.js` | `registra_audit` **tolta** da `FUNZIONI_SECURITY_DEFINER_VERIFICATE` |
+| `docs/SICUREZZA.md` §1 | la riga della funzione, con il perché la vecchia motivazione era vera e non bastava |
+
+⚠️ **Il test cambiato merita una riga.** Il caso di prima chiamava la RPC da un
+driver e si aspettava che **riuscisse**: verificava che l'attore fosse quello
+giusto, il che era vero, ma nel farlo *certificava* che un utente qualunque
+potesse scrivere nel registro di controllo. Un test che misura la metà giusta
+di una proprietà sbagliata è più difficile da notare di un test assente, perché
+è verde. Ora misura che la porta non c'è — che comprende la vecchia proprietà:
+una funzione che non si può chiamare non si può nemmeno firmare male.
+
+⚠️ **E la riga tolta dall'advisor non è pulizia.** `registra_audit` non compare
+più fra le `SECURITY DEFINER` esposte, quindi lasciarla nel Set sarebbe stato
+inerte — ma toglierla è ciò che rende `verifica:advisor` **rosso** se qualcuno
+rifacesse il GRANT: il warning tornerebbe con un nome che non è più fra i
+verificati. Il presidio è la sua assenza.
+
+### Prova, su entrambi i database
+
+Applicata su **staging** (`itanvnroxgjdxrplngam`) e poi in **produzione**
+(`vmxvnxsqfisucugcpqlc`), verificando la stessa cosa sulle due:
+
+```
+prima  {postgres=X/postgres, authenticated=X/postgres, service_role=X/postgres}
+dopo   {postgres=X/postgres,                           service_role=X/postgres}
+
+has_function_privilege('authenticated', …, 'EXECUTE') → false
+has_function_privilege('anon',          …, 'EXECUTE') → false
+has_function_privilege('service_role',  …, 'EXECUTE') → true
+```
+
+Controlli di non-regressione in produzione:
+
+* i **cinque trigger di audit** (`trg_audit_users_privilegi`,
+  `trg_audit_users_delete`, `trg_audit_clients_insert`,
+  `trg_audit_clients_delete`, `trg_audit_liste_truncate`) sono tutti ancora
+  abilitati (`tgenabled = 'O'`);
+* l'**advisor di sicurezza rieseguito** dopo la migrazione non nomina più
+  `registra_audit` in nessuno dei due lint per-funzione, e non ha prodotto
+  nessuna classe di avviso nuova.
+
+### Una nota sul nome del file
+
+Il file era nato `20260905090000_…`, un timestamp scelto a mano. Lo strumento
+che ha applicato la migrazione ne genera però uno PROPRIO al momento
+dell'esecuzione, e nel ledger (`supabase_migrations.schema_migrations`) è
+finita la versione **`20260904143756`**. Il file è stato rinominato di
+conseguenza, e ogni riferimento nel repository con lui.
+
+`verifica:migrazioni` non se ne sarebbe accorto — confronta per versione **O**
+per nome, e lo slug combaciava — ed è proprio per questo che vale rinominare:
+lo scarto sarebbe stato invisibile al controllo e visibile solo a chi, fra sei
+mesi, cercasse nel ledger la migrazione che il repository chiama in un altro
+modo. È la stessa famiglia di difetti di `A-4` del 2 settembre, alla scala più
+piccola in cui si presenta.
+
+### Cosa resta aperto e non va confuso con questo
+
+`M-3` — le cinque funzioni trigger con `EXECUTE` a `PUBLIC` — è un rilievo
+diverso e resta aperto. Si somigliano (sono entrambi `EXECUTE` di troppo su
+funzioni del registro di audit) ma non sono la stessa cosa: quelle cinque
+`RETURNS trigger` non sono chiamabili, `registra_audit` lo era.

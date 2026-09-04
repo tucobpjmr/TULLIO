@@ -28,7 +28,7 @@ verdi (81,09 kB gzip anonimo su 86 di soglia, 129,56 kB autenticato su 131),
 `npm run verifica:convenzioni` verde (61 controlli), quattordici audit
 precedenti a registro.
 
-⟦stato: 6/19 chiusi⟧
+⟦stato: 7/19 chiusi⟧
 
 > **Sulla numerazione.** `A-` = alta priorità, `M-` = media, `B-` = bassa, come
 > negli audit dal 12 agosto in poi. Non ci sono `C-`: nessun rilievo critico.
@@ -103,7 +103,7 @@ un controllo esiste, funziona, e **guarda un livello solo**.
 | **A-2** ✔ | ~~🔴 Alta~~ **chiuso il 4 settembre** | `public.registra_audit()` è eseguibile da **ogni utente autenticato**, senza gate di ruolo né di attività, senza tetti né limite di frequenza — e **nessun percorso dell'app la chiama**. Revocata: migrazione `20260904143756` | DB (`proacl`), `supabase/migrations/20260826214000_audit_log.sql` |
 | **A-3** | 🟡 Media ⚠️ *ridimensionato* | Policy password a soli 8 caratteri, senza requisiti di composizione. La metà «leaked password protection» **non è un rilievo**: è una funzione del piano Supabase **Pro** e una scelta di costo già presa e documentata — vedi la correzione qui sotto | `src/lib/validators.js:44` |
 | **A-4** | 🔴 Alta | `xlsx@0.18.5`: due CVE (`CVE-2023-30533`, `CVE-2024-22363`) **ancora aperte**, mitigate ma non risolte, con il fix fermo da un mese | `package.json:14`, `src/lib/xlsxWorker.js` |
-| **M-1** | 🟡 Media | 21 `outline: "none"` e **nessuna regola `:focus-visible` globale**: fuori dal modulo Liste il focus da tastiera non ha un indicatore proprio | `src/styles/global.css`, 18 file |
+| **M-1** ✔ | ~~🟡 Media~~ **chiuso il 4 settembre** | 21 `outline: "none"` e **nessuna regola `:focus-visible` globale**: fuori dal modulo Liste il focus da tastiera non ha un indicatore proprio | `src/styles/global.css`, 18 file |
 | **M-2** | 🟡 Media | 40 `onMouseEnter` contro 15 `onFocus`: le affordance costruite sull'hover non hanno la controparte da tastiera | `src/components/**` (20 file) |
 | **M-3** ✔ | ~~🟡 Media~~ **chiuso il 4 settembre** | Cinque funzioni trigger (`audit_clients_*`, `audit_users_*`, `audit_liste_truncate`) hanno `EXECUTE` a **`PUBLIC`, `anon` e `authenticated`** — le uniche del progetto rimaste così | DB (`proacl`) |
 | **M-4** ✔ | ~~🟡 Media~~ **chiuso il 4 settembre** | Le Edge Function restituiscono al client il **messaggio d'errore interno grezzo** (`err.message`, `banErr.message`, `authErr.message`) nel ramo `catch` e su tre 500 | 4 × `supabase/functions/*/index.ts` |
@@ -490,6 +490,26 @@ perché il contenimento vale comunque».
 ---
 
 ### M-1 e M-2 · Focus da tastiera e affordance solo-hover
+
+> ⚠️ **CORREZIONE DEL 4 SETTEMBRE, alla chiusura di M-1 — va letta prima
+> della soluzione qui sotto.** Il CSS proposto in questo rilievo aveva due
+> errori verificati con Chromium via Playwright, non solo ipotizzati:
+> 1. **`:focus-visible` senza `!important` non fa nulla sui 21 punti che
+>    hanno motivato il rilievo.** Un inline `style={{outline:"none"}}` vince
+>    SEMPRE sulla cascata per la stessa proprietà, qualunque sia la
+>    specificità della regola esterna — non è, come scritto qui sotto, una
+>    questione di *quando* la regola si applica.
+> 2. **Il colore era invertito.** `var(--gold)` è stato scelto pensando a un
+>    problema di contrasto sui fondi scuri; misurato (WCAG, sRGB), l'oro ha
+>    7,24:1 su `--navy` (ottimo) ma 2,12–2,21:1 su `--surface`/`--card`
+>    (sotto il minimo 3:1) — cioè il problema era sui fondi CHIARI, che sono
+>    lo sfondo di default dell'app, non su quelli scuri.
+>
+> La soluzione effettivamente applicata — `outline` navy + `box-shadow`
+> bianco, con `!important` su entrambi — è in «Come è stato chiuso (M-1)» in
+> fondo al documento. Il testo originale resta qui sotto perché è quello che
+> ha posto la domanda giusta (serve un indicatore ovunque); solo la risposta
+> tecnica era da correggere.
 
 **Dove.** 21 `outline: "none"` in 18 file; una sola regola `:focus-visible` in
 tutto il progetto, e sta in `src/components/liste/liste.css:54`, scoped a
@@ -1010,13 +1030,13 @@ realtime, bundle, stili, errori, push, liste, import, CI).
 | ~~2~~ | **A-2** (`registra_audit`) ✔ | — | **Fatto il 4 settembre**: migrazione `20260904143756`, applicata su staging e in produzione |
 | ~~3~~ | **A-1** (`{error:null}`) ✔ | — | **Fatto il 4 settembre**: due hook, un contratto nuovo in `lib/esitoScrittura.js`, tre gruppi di test (38 casi) |
 | ~~4~~ | **M-3**, **M-4**, **B-3**, **B-6** ✔ | — | **Fatto il 4 settembre**: migrazione `20260904160804` (M-3), `_shared/erroreInterno.ts` deployato su staging e produzione (M-4), `redigiPii`+`famigliaBrowser` (B-3), `EMAIL_RX` in `invite-user` (B-6) |
-| 5 | **M-1** (`:focus-visible`) | 1 h | Quattro righe di CSS, effetto su tutta l'app |
+| ~~5~~ | **M-1** (`:focus-visible`) ✔ | — | **Fatto il 4 settembre**: la regola proposta non bastava da sola — vedi «Come è stato chiuso (M-1)» in fondo al documento |
 | 6 | **A-4** (xlsx) | 1 h | Da fare **fuori** da un ambiente con egress filtrato |
 | 7 | **M-2** (hover/focus) | 4 h | 25 punti + la regola di lint come `warn` |
 | 8 | **M-5**, **M-6**, **M-7**, **B-1**, **B-2**, **B-4**, **B-5**, **B-7** | — | Un rilievo per sessione, nell'ordine che conviene |
 | 9 | **M-8** (stili) | — | Solo se arriva il tema scuro o un restyle |
 
-Chiusi 1–6 la valutazione è **9,5**. Con `A-1`, `A-2` e il punto 4 (`M-3`/`M-4`/`B-3`/`B-6`) fatti e `A-3` ridotto alla sua metà gratuita, restano i punti 5 (`M-1`) e 6 (`A-4`). Il mezzo punto restante è `M-8`, ed è il
+Chiusi 1–6 la valutazione è **9,5**. Con `A-1`, `A-2`, il punto 4 (`M-3`/`M-4`/`B-3`/`B-6`) e il punto 5 (`M-1`) fatti e `A-3` ridotto alla sua metà gratuita, resta il punto 6 (`A-4`). Il mezzo punto restante è `M-8`, ed è il
 solo rilievo che chiederei di **non** affrontare finché non c'è una ragione di
 prodotto: il sistema di stili attuale è brutto da leggere e corretto da
 eseguire, e riscriverlo senza una richiesta è il tipo di lavoro che introduce
@@ -1383,3 +1403,102 @@ Edge Function su **staging e produzione**, non solo scritte nel repository —
 la stessa disciplina di A-1/A-2, e la ragione è la stessa scritta in
 `docs/MIGRAZIONI_SUPABASE.md`: «committare una migrazione non significa
 averla applicata».
+
+---
+
+## Come è stato chiuso (M-1)
+
+**4 settembre 2026.** Chiuso da solo, dopo il blocco M-3/M-4/B-3/B-6: non era
+indipendente da loro nel senso dell'action plan («quattro rimedi piccoli»),
+ma un quinto punto a sé nell'ordine di esecuzione — ed è quello che ha
+richiesto la verifica più approfondita dei sette chiusi finora, perché la
+soluzione scritta nel rilievo non era quella corretta.
+
+### Le due verifiche fatte prima di scrivere la regola, non dopo
+
+**1. L'inline batte l'esterno, a prescindere da `:focus-visible`.** Prima di
+scrivere una riga di CSS: un caso minimo in Chromium via Playwright — un
+`<button style="outline:none">` più una regola esterna
+`:focus-visible { outline: 2px solid gold }` — per verificare se la
+pseudo-classe bastasse. Non basta:
+
+```
+button #a (inline outline:none):  outlineStyle: "none"   ← la regola esterna non si applica
+button #b (nessun inline):        outlineStyle: "solid"  ← qui sì
+```
+
+`el.matches(':focus-visible')` risultava `true` in ENTRAMBI i casi: la
+pseudo-classe si applicava correttamente, il problema non era lì. Era nella
+cascata — un inline non-`!important` batte qualunque selettore esterno
+non-`!important`, indipendentemente da quando o come quel selettore
+"scatta". Aggiungere `!important` a `outline`/`outline-offset` risolve
+entrambi i casi (riverificato con lo stesso script).
+
+**2. Il colore proposto (`--gold`) andava misurato contro le superfici REALI
+dell'app, non ipotizzato.** Formula WCAG (luminanza relativa sRGB), sui
+colori effettivi di `docs/CLAUDE.md`:
+
+| Coppia | Contrasto | Soglia 3:1 |
+|---|---|---|
+| `--gold` su `--navy` | 7.24 | ok |
+| `--gold` su `--surface` | 2.12 | **fallisce** |
+| `--gold` su `--card` (bianco) | 2.21 | **fallisce** |
+| `--gold` su `--sky` | 1.82 | **fallisce** |
+| `--navy` su `--surface` | 15.33 | ok |
+| bianco su `--navy` | 16.03 | ok |
+
+Il rilievo aveva la diagnosi giusta e la prescrizione invertita: temeva per
+i fondi scuri («l'oro non stacca sul navy») quando è l'opposto — l'oro
+stacca benissimo sul navy, e fallisce sui fondi CHIARI che sono lo sfondo di
+default dell'app (`color-scheme: light`). Un secondo controllo, perché la
+prima intuizione («usare `--navy` invece dell'oro») rischiava lo stesso
+errore all'incontrario: `grep` per `background: var(--navy)` trova **oltre
+25 punti reali** — intestazioni di modali/pannelli e bottoni primari
+(`tokens.js` → stile `primary`) — non i «testate navy, toast, ErrorBoundary»
+generici che il rilievo nominava a mano. Un `outline` fisso, di qualunque
+tinta, non può avere ≥3:1 sia sul chiaro (dominante) sia sullo scuro
+(minoritario ma reale e diffuso): sono luminanze quasi opposte.
+
+### La soluzione: due toni, non due regole
+
+Invece di una classe `.vd-su-scuro` da applicare a mano sugli oltre 25 punti
+con sfondo navy (rischio concreto di dimenticarne uno, e comunque non
+sarebbe stata "quattro righe di CSS"), l'anello ha due componenti che si
+completano a vicenda senza bisogno di sapere su quale sfondo si trovano:
+
+```css
+:where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid var(--navy) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 4px #fff !important;
+}
+```
+
+`outline` navy risponde del caso comune (15,33:1 sui fondi chiari); il
+`box-shadow` bianco resta invisibile lì (si confonde con lo sfondo) e
+diventa l'indicatore visibile sui fondi navy (16,03:1). Nessun elenco di
+eccezioni da scrivere né da tenere aggiornato.
+
+### Verifica, non solo in isolamento
+
+Oltre al caso minimo, la regola è stata verificata:
+* **su un file HTML di controllo** con due bottoni (`outline:none` inline
+  su sfondo chiaro e su sfondo navy) — screenshot alla mano, l'anello navy è
+  visibile sul primo, l'alone bianco sul secondo, esattamente come previsto
+  dai numeri;
+* **nell'app vera**, avviando `npm run dev` e navigando con Playwright fino
+  alla `LoginScreen` (che gira senza `VITE_SUPABASE_URL`/`ANON_KEY`, non
+  serviva altro): sei `Tab` consecutivi, ogni elemento attivo — due `input`,
+  due `button` — mostra `outlineColor: rgb(15, 32, 68)` (navy) e
+  `boxShadow: rgb(255, 255, 255) 0px 0px 0px 4px`, cioè la regola vince
+  sull'inline anche sui componenti reali e non solo sul caso minimo.
+  Screenshot: sull'email input della login (sfondo scuro dell'app di
+  autenticazione) l'alone bianco è nitido, coerente con la tabella di
+  contrasto.
+
+### Cosa NON è stato fatto
+
+`M-2` (le 25 affordance solo-hover, `evidenziaConTastiera()` + la regola di
+lint come `warn`) resta aperto: è un rilievo distinto nell'ordine di
+esecuzione (punto 7, 4h), non incluso in «M-1». Il correttivo qui sopra
+riguarda solo l'anello di `:focus-visible` globale.

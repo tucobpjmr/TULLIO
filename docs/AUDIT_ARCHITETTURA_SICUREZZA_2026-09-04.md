@@ -28,7 +28,7 @@ verdi (81,09 kB gzip anonimo su 86 di soglia, 129,56 kB autenticato su 131),
 `npm run verifica:convenzioni` verde (61 controlli), quattordici audit
 precedenti a registro.
 
-⟦stato: 2/19 chiusi⟧
+⟦stato: 7/19 chiusi⟧
 
 > **Sulla numerazione.** `A-` = alta priorità, `M-` = media, `B-` = bassa, come
 > negli audit dal 12 agosto in poi. Non ci sono `C-`: nessun rilievo critico.
@@ -103,20 +103,20 @@ un controllo esiste, funziona, e **guarda un livello solo**.
 | **A-2** ✔ | ~~🔴 Alta~~ **chiuso il 4 settembre** | `public.registra_audit()` è eseguibile da **ogni utente autenticato**, senza gate di ruolo né di attività, senza tetti né limite di frequenza — e **nessun percorso dell'app la chiama**. Revocata: migrazione `20260904143756` | DB (`proacl`), `supabase/migrations/20260826214000_audit_log.sql` |
 | **A-3** | 🟡 Media ⚠️ *ridimensionato* | Policy password a soli 8 caratteri, senza requisiti di composizione. La metà «leaked password protection» **non è un rilievo**: è una funzione del piano Supabase **Pro** e una scelta di costo già presa e documentata — vedi la correzione qui sotto | `src/lib/validators.js:44` |
 | **A-4** | 🔴 Alta | `xlsx@0.18.5`: due CVE (`CVE-2023-30533`, `CVE-2024-22363`) **ancora aperte**, mitigate ma non risolte, con il fix fermo da un mese | `package.json:14`, `src/lib/xlsxWorker.js` |
-| **M-1** | 🟡 Media | 21 `outline: "none"` e **nessuna regola `:focus-visible` globale**: fuori dal modulo Liste il focus da tastiera non ha un indicatore proprio | `src/styles/global.css`, 18 file |
+| **M-1** ✔ | ~~🟡 Media~~ **chiuso il 4 settembre** | 21 `outline: "none"` e **nessuna regola `:focus-visible` globale**: fuori dal modulo Liste il focus da tastiera non ha un indicatore proprio | `src/styles/global.css`, 18 file |
 | **M-2** | 🟡 Media | 40 `onMouseEnter` contro 15 `onFocus`: le affordance costruite sull'hover non hanno la controparte da tastiera | `src/components/**` (20 file) |
-| **M-3** | 🟡 Media | Cinque funzioni trigger (`audit_clients_*`, `audit_users_*`, `audit_liste_truncate`) hanno `EXECUTE` a **`PUBLIC`, `anon` e `authenticated`** — le uniche del progetto rimaste così | DB (`proacl`) |
-| **M-4** | 🟡 Media | Le Edge Function restituiscono al client il **messaggio d'errore interno grezzo** (`err.message`, `banErr.message`, `authErr.message`) nel ramo `catch` e su tre 500 | 4 × `supabase/functions/*/index.ts` |
+| **M-3** ✔ | ~~🟡 Media~~ **chiuso il 4 settembre** | Cinque funzioni trigger (`audit_clients_*`, `audit_users_*`, `audit_liste_truncate`) hanno `EXECUTE` a **`PUBLIC`, `anon` e `authenticated`** — le uniche del progetto rimaste così | DB (`proacl`) |
+| **M-4** ✔ | ~~🟡 Media~~ **chiuso il 4 settembre** | Le Edge Function restituiscono al client il **messaggio d'errore interno grezzo** (`err.message`, `banErr.message`, `authErr.message`) nel ramo `catch` e su tre 500 | 4 × `supabase/functions/*/index.ts` |
 | **M-5** | 🟡 Media | `checkJs` copre `src/lib` + `src/state` (≈40% del codice non-test) e `strict` è `false`: `src/components` e `src/hooks` — 174 file — non sono controllati | `jsconfig.json:47-50` |
 | **M-6** | 🟡 Media | La CSP non ha `report-to`/`report-uri`: «0 violazioni CSP» è una misura fatta a mano una volta, non un presidio continuo | `vercel.json:16` |
 | **M-7** | 🟡 Media | `user_contacts_select` è `using (true)`: **anche un driver** legge email e telefono di tutto il team, benché il ruolo sia escluso per disegno da ogni altro dato | DB, `supabase/migrations/20260629222802_user_contacts_select_team.sql` |
 | **M-8** | 🟡 Media | 344 costanti di stile a nomi meccanici (`boxF125Warning`, `rowCenterBetween4`) + 335 stili inline dinamici, nessun design system, nessun tema scuro | `src/styles/`, 15 × `*Styles.js` |
 | **B-1** | 🟢 Bassa | Le quattro policy di `clients` ripetono `users.role = ANY(ARRAY[...])` in linea invece di usare un helper `private.can_clienti()`, contro il principio che il progetto applica ovunque | DB (`pg_policies`) |
 | **B-2** | 🟢 Bassa | `useEffect(..., [enabled, delay, ...deps])`: uno spread in un array di dipendenze — React solleva se la lunghezza cambia, e nessun lint può verificarlo | `src/hooks/useDebouncedTableSubscription.js:97` |
-| **B-3** | 🟢 Bassa | `redigiPii()` redige `message` e `stack` ma **non** `url` e `user_agent`, che finiscono grezzi in `error_reports` | `src/lib/errorReporting.js:55-59` |
+| **B-3** ✔ | ~~🟢 Bassa~~ **chiuso il 4 settembre** | `redigiPii()` redige `message` e `stack` ma **non** `url` e `user_agent`, che finiscono grezzi in `error_reports` | `src/lib/errorReporting.js:55-59` |
 | **B-4** | 🟢 Bassa | `task_history.actor_id` è una FK senza indice di copertura; sette indici non sono mai stati usati | advisor prod |
 | **B-5** | 🟢 Bassa | `delete-account` banna l'utente (irreversibile) e poi ripulisce la PII in `allSettled`: se la pulizia fallisce, l'utente è bloccato fuori e i suoi dati restano | `supabase/functions/delete-account/index.ts` |
-| **B-6** | 🟢 Bassa | `invite-user` non valida il formato dell'email prima di passarla a GoTrue, mentre valida ruolo, capacity e colore | `supabase/functions/invite-user/index.ts` |
+| **B-6** ✔ | ~~🟢 Bassa~~ **chiuso il 4 settembre** | `invite-user` non valida il formato dell'email prima di passarla a GoTrue, mentre valida ruolo, capacity e colore | `supabase/functions/invite-user/index.ts` |
 | **B-7** | 🟢 Bassa | `docs/` ha 40 handoff + 21 audit: l'indice distingue vigente da storico, ma la ricerca di «qual è la regola oggi» costa | `docs/` |
 
 ---
@@ -490,6 +490,26 @@ perché il contenimento vale comunque».
 ---
 
 ### M-1 e M-2 · Focus da tastiera e affordance solo-hover
+
+> ⚠️ **CORREZIONE DEL 4 SETTEMBRE, alla chiusura di M-1 — va letta prima
+> della soluzione qui sotto.** Il CSS proposto in questo rilievo aveva due
+> errori verificati con Chromium via Playwright, non solo ipotizzati:
+> 1. **`:focus-visible` senza `!important` non fa nulla sui 21 punti che
+>    hanno motivato il rilievo.** Un inline `style={{outline:"none"}}` vince
+>    SEMPRE sulla cascata per la stessa proprietà, qualunque sia la
+>    specificità della regola esterna — non è, come scritto qui sotto, una
+>    questione di *quando* la regola si applica.
+> 2. **Il colore era invertito.** `var(--gold)` è stato scelto pensando a un
+>    problema di contrasto sui fondi scuri; misurato (WCAG, sRGB), l'oro ha
+>    7,24:1 su `--navy` (ottimo) ma 2,12–2,21:1 su `--surface`/`--card`
+>    (sotto il minimo 3:1) — cioè il problema era sui fondi CHIARI, che sono
+>    lo sfondo di default dell'app, non su quelli scuri.
+>
+> La soluzione effettivamente applicata — `outline` navy + `box-shadow`
+> bianco, con `!important` su entrambi — è in «Come è stato chiuso (M-1)» in
+> fondo al documento. Il testo originale resta qui sotto perché è quello che
+> ha posto la domanda giusta (serve un indicatore ovunque); solo la risposta
+> tecnica era da correggere.
 
 **Dove.** 21 `outline: "none"` in 18 file; una sola regola `:focus-visible` in
 tutto il progetto, e sta in `src/components/liste/liste.css:54`, scoped a
@@ -1009,14 +1029,14 @@ realtime, bundle, stili, errori, push, liste, import, CI).
 | ~~1~~ | **A-3** (password) | — | ⚠️ **Saltato per decisione del 4 settembre**: la metà che contava (HaveIBeenPwned) richiede il piano Pro. Resta la metà gratuita — lunghezza minima e requisiti di composizione — ridimensionata a media |
 | ~~2~~ | **A-2** (`registra_audit`) ✔ | — | **Fatto il 4 settembre**: migrazione `20260904143756`, applicata su staging e in produzione |
 | ~~3~~ | **A-1** (`{error:null}`) ✔ | — | **Fatto il 4 settembre**: due hook, un contratto nuovo in `lib/esitoScrittura.js`, tre gruppi di test (38 casi) |
-| 4 | **M-3**, **M-4**, **B-3**, **B-6** | 3 h | Quattro rimedi piccoli e indipendenti |
-| 5 | **M-1** (`:focus-visible`) | 1 h | Quattro righe di CSS, effetto su tutta l'app |
+| ~~4~~ | **M-3**, **M-4**, **B-3**, **B-6** ✔ | — | **Fatto il 4 settembre**: migrazione `20260904160804` (M-3), `_shared/erroreInterno.ts` deployato su staging e produzione (M-4), `redigiPii`+`famigliaBrowser` (B-3), `EMAIL_RX` in `invite-user` (B-6) |
+| ~~5~~ | **M-1** (`:focus-visible`) ✔ | — | **Fatto il 4 settembre**: la regola proposta non bastava da sola — vedi «Come è stato chiuso (M-1)» in fondo al documento |
 | 6 | **A-4** (xlsx) | 1 h | Da fare **fuori** da un ambiente con egress filtrato |
 | 7 | **M-2** (hover/focus) | 4 h | 25 punti + la regola di lint come `warn` |
 | 8 | **M-5**, **M-6**, **M-7**, **B-1**, **B-2**, **B-4**, **B-5**, **B-7** | — | Un rilievo per sessione, nell'ordine che conviene |
 | 9 | **M-8** (stili) | — | Solo se arriva il tema scuro o un restyle |
 
-Chiusi 1–6 la valutazione è **9,5**. Con `A-1` e `A-2` fatti e `A-3` ridotto alla sua metà gratuita, restano i punti 4, 5 e 6. Il mezzo punto restante è `M-8`, ed è il
+Chiusi 1–6 la valutazione è **9,5**. Con `A-1`, `A-2`, il punto 4 (`M-3`/`M-4`/`B-3`/`B-6`) e il punto 5 (`M-1`) fatti e `A-3` ridotto alla sua metà gratuita, resta il punto 6 (`A-4`). Il mezzo punto restante è `M-8`, ed è il
 solo rilievo che chiederei di **non** affrontare finché non c'è una ragione di
 prodotto: il sistema di stili attuale è brutto da leggere e corretto da
 eseguire, e riscriverlo senza una richiesta è il tipo di lavoro che introduce
@@ -1228,9 +1248,257 @@ mesi, cercasse nel ledger la migrazione che il repository chiama in un altro
 modo. È la stessa famiglia di difetti di `A-4` del 2 settembre, alla scala più
 piccola in cui si presenta.
 
-### Cosa resta aperto e non va confuso con questo
+### Un rilievo diverso, chiuso lo stesso giorno
 
-`M-3` — le cinque funzioni trigger con `EXECUTE` a `PUBLIC` — è un rilievo
-diverso e resta aperto. Si somigliano (sono entrambi `EXECUTE` di troppo su
-funzioni del registro di audit) ma non sono la stessa cosa: quelle cinque
-`RETURNS trigger` non sono chiamabili, `registra_audit` lo era.
+`M-3` — le cinque funzioni trigger con `EXECUTE` a `PUBLIC` — era un rilievo
+diverso e allora restava aperto. Si somigliano (sono entrambi `EXECUTE` di
+troppo su funzioni del registro di audit) ma non erano la stessa cosa: quelle
+cinque `RETURNS trigger` non sono chiamabili, `registra_audit` lo era. Anche
+`M-3` è stato chiuso il 4 settembre, più tardi nella stessa sessione — vedi
+«Come è stato chiuso (M-3, M-4, B-3, B-6)» qui sotto.
+
+---
+
+## Come è stato chiuso (M-3, M-4, B-3, B-6)
+
+**4 settembre 2026.** Il blocco che l'action plan raggruppava come «quattro
+rimedi piccoli e indipendenti» (punto 4 dell'ordine di esecuzione), chiuso
+insieme perché nessuno dei quattro tocca gli altri tre.
+
+### M-3 · Revoca applicata e verificata, non solo scritta
+
+La migrazione proposta nel rilievo è stata applicata pressoché testuale
+(`revoke execute … from public, anon, authenticated`, sulle cinque funzioni),
+con una differenza dal testo bozza: `revoke execute` invece di `revoke all`,
+per coerenza con `20260904143756` (A-2) — le funzioni hanno solo `EXECUTE` come
+privilegio ACL rilevante, quindi sono equivalenti nell'effetto, ma il progetto
+ha ormai una convenzione ed è quella che vale.
+
+**Il timestamp del file non era quello scelto a mano.** Come già per A-2:
+applicata su staging (`itanvnroxgjdxrplngam`) prima e produzione
+(`vmxvnxsqfisucugcpqlc`) dopo, lo strumento ha registrato versioni proprie
+(`20260904160651` su staging, `20260904160804` su produzione) diverse da
+quella scritta nel nome del file bozza. Il file è stato rinominato sulla
+versione di **produzione** — la stessa scelta di A-2 — e ogni riferimento
+interno (i cinque `comment on function`, che si autocitano) aggiornato di
+conseguenza.
+
+**Verifica, non assunzione.** L'audit stesso nota che l'esecutore di una
+trigger function è il proprietario della tabella, non il chiamante — ma
+«dovrebbe funzionare» non è lo standard di questo progetto. Prima e dopo la
+revoca:
+
+```
+prima  {=X/postgres, postgres=X, anon=X, authenticated=X, service_role=X}
+dopo   {postgres=X/postgres, service_role=X/postgres}
+
+has_function_privilege('authenticated', …, 'EXECUTE') → false (era true)
+has_function_privilege('anon',          …, 'EXECUTE') → false (era true)
+```
+
+E poi il test che conta — non i privilegi dichiarati, ma il comportamento
+reale — in una transazione su staging, **annullata alla fine** (nessun dato
+persiste):
+
+```sql
+begin;
+insert into public.clients (name) values ('__verifica_m3_trigger_1__'), ('__verifica_m3_trigger_2__');
+-- due righe insieme: fa scattare il ramo "import" di audit_clients_insert,
+-- che una riga sola non fa scattare (vedi 20260826214000)
+delete from public.clients where name like '__verifica_m3_trigger_%';
+rollback;
+```
+
+Risultato: `audit_log` ha ricevuto la voce `clienti.eliminati` con
+`{"righe": 2}` — il trigger `DELETE`, `SECURITY DEFINER` di proprietà
+`postgres`, ha scritto normalmente nonostante `authenticated` non avesse più
+`EXECUTE` sulla funzione. Dopo il `rollback`: zero righe residue in `clients`,
+zero voci residue in `audit_log`. La stessa cosa è stata verificata
+sull'advisor di produzione: le cinque funzioni non compaiono più fra i WARN
+`anon_security_definer_function_executable` /
+`authenticated_security_definer_function_executable` (riverificato dopo la
+migrazione).
+
+**Coerenza con la propria disciplina.** `FUNZIONI_SECURITY_DEFINER_VERIFICATE`
+in `scripts/verifica-advisor/advisor.js` e la tabella §1 di `docs/SICUREZZA.md`
+sono state aggiornate nello stesso commit — non per pulizia, ma per la stessa
+ragione scritta accanto a `registra_audit` in quell'elenco: lasciarcele
+sarebbe stato inerte oggi e un buco domani, perché un `GRANT` rifatto per
+errore su una di queste cinque non farebbe fallire `verifica:advisor` finché
+il nome resta in quell'elenco.
+
+### M-4 · Un helper, quattro funzioni, sette punti di ritorno
+
+`supabase/functions/_shared/erroreInterno.ts` è stato scritto pressoché come
+proposto — stessa firma, stesso formato di codice (`VD-<timestamp base36>`),
+stesso messaggio. Applicato ai quattro `catch` finali (`delete-account`,
+`delete-user`, `invite-user`, `set-user-active`) e ai tre 500 espliciti che
+concatenavano un messaggio esterno (`delete-account` sul `banErr`,
+`set-user-active` su `authErr` e su `dbErr`).
+
+**Cosa non è stato toccato, e perché.** Il ramo generico di `delete-user` per
+un `deleteUser` fallito («Impossibile eliminare l'utente. L'errore è stato
+registrato…») aveva già la forma giusta — il messaggio era già opaco, solo
+senza il codice di correlazione — e non compare fra i «tre 500 espliciti»
+del rilievo: cambiarlo sarebbe stato oltre lo scope di M-4. Il ramo `404 not
+found` e quello `409 foreign key` di `delete-user`, e i `409`/`429`/`502` delle
+altre tre funzioni, restano scritti a mano: sono i 4xx azionabili che il
+rilievo stesso escludeva esplicitamente («⚠️ Non toccare i 4xx»).
+
+**Un dettaglio emerso solo applicandolo**: `set-user-active` aveva DUE 500
+distinti — uno se il ban/sblocco su GoTrue falliva, uno se falliva solo la
+scrittura su `public.users` DOPO che il ban era già passato (uno stato
+parzialmente applicato: sessione già cambiata, flag applicativo no). Il testo
+originale distingueva i due casi («Accesso aggiornato ma il profilo non si è
+salvato»); ora entrambi rispondono con lo stesso messaggio generico. Non è una
+perdita di sicurezza — il messaggio generico dice comunque «riprova», e
+riprovare è l'azione corretta: il ban è idempotente (bannare un utente già
+bannato, o sbloccarne uno già sbloccato, non cambia nulla) e la seconda
+chiamata scriverebbe `users.active` di nuovo. La distinzione resta nel log,
+via `tag` (`set-user-active/ban` contro `set-user-active/db`).
+
+**Deploy, non solo commit.** Le quattro funzioni sono state distribuite via
+`deploy_edge_function` su staging e poi su produzione, con lo stesso set di
+file (`index.ts` + le dipendenze di `_shared/` che ciascuna importa
+transitivamente — fino a sei file per `invite-user`/`delete-user`/
+`set-user-active`, che passano da `requireActiveAdmin.ts` →
+`adminPredicate.ts`). Non c'era un ambiente di test con credenziali admin
+disponibile in questo ambiente per un'invocazione HTTP end-to-end (le
+`RLS_TEST_*` di `rls.test.js` sono secret di CI, non presenti qui): la
+verifica si è fermata al deploy riuscito senza errori di bundling/risoluzione
+import — che per quattro funzioni con un albero di dipendenze condivise non
+banale (`cors.ts` → `originConsentite.ts`, `requireActiveAdmin.ts` →
+`adminPredicate.ts`) è comunque un segnale, non una controprova.
+
+### B-3 · Redazione dell'URL, e una famiglia sola per lo user agent
+
+`redigiPii()` non è cambiata: passa ora anche su `url`, che prima ne era
+escluso. `userAgent` non passa da `redigiPii` (non ha forma di email o
+telefono da cercare) ma da una nuova `famigliaBrowser()`, che riconosce
+Edge/Opera/Firefox/Chrome/Safari e ricade su `"altro"`. L'ordine dei
+confronti non è arbitrario ed è coperto da test: le UA di Edge e Opera
+contengono anche `Chrome/`, e quelle di Chrome contengono anche `Safari/` —
+controllare Chrome o Safari per primi le avrebbe classificate male. Sei nuovi
+casi in `src/test/lib/errorReportingPii.test.js` fissano l'ordine (Edge non
+scambiato per Chrome, Opera non scambiato per Chrome, un'UA sconosciuta
+ricade su `"altro"` invece di passare grezza).
+
+### B-6 · La stessa regex, con il perché di una seconda copia
+
+`EMAIL_RX` è stata copiata da `src/lib/validators.js` in
+`invite-user/index.ts` con un commento che dice da dove viene e perché è una
+copia (le Edge Function Deno non importano da `src/`, che è codice del
+bundle Vite). Il controllo si inserisce dopo la validazione esistente di
+ruolo/capacity/colore e prima della chiamata a GoTrue, rispondendo `400 Email
+non valida` invece di lasciare che sia GoTrue a respingerla con un messaggio
+suo.
+
+### Verifica complessiva
+
+`npm ci` pulito, `npm test` verde (**2109 passati, 23 skip su 174 file** — la
+crescita rispetto ai 2064/172 della base di partenza è delle sette prove
+nuove di B-3 e dei file toccati), `npm run lint` e `npm run verifica:tipi`
+senza segnalazioni. Le quattro correzioni sono state applicate a database ed
+Edge Function su **staging e produzione**, non solo scritte nel repository —
+la stessa disciplina di A-1/A-2, e la ragione è la stessa scritta in
+`docs/MIGRAZIONI_SUPABASE.md`: «committare una migrazione non significa
+averla applicata».
+
+---
+
+## Come è stato chiuso (M-1)
+
+**4 settembre 2026.** Chiuso da solo, dopo il blocco M-3/M-4/B-3/B-6: non era
+indipendente da loro nel senso dell'action plan («quattro rimedi piccoli»),
+ma un quinto punto a sé nell'ordine di esecuzione — ed è quello che ha
+richiesto la verifica più approfondita dei sette chiusi finora, perché la
+soluzione scritta nel rilievo non era quella corretta.
+
+### Le due verifiche fatte prima di scrivere la regola, non dopo
+
+**1. L'inline batte l'esterno, a prescindere da `:focus-visible`.** Prima di
+scrivere una riga di CSS: un caso minimo in Chromium via Playwright — un
+`<button style="outline:none">` più una regola esterna
+`:focus-visible { outline: 2px solid gold }` — per verificare se la
+pseudo-classe bastasse. Non basta:
+
+```
+button #a (inline outline:none):  outlineStyle: "none"   ← la regola esterna non si applica
+button #b (nessun inline):        outlineStyle: "solid"  ← qui sì
+```
+
+`el.matches(':focus-visible')` risultava `true` in ENTRAMBI i casi: la
+pseudo-classe si applicava correttamente, il problema non era lì. Era nella
+cascata — un inline non-`!important` batte qualunque selettore esterno
+non-`!important`, indipendentemente da quando o come quel selettore
+"scatta". Aggiungere `!important` a `outline`/`outline-offset` risolve
+entrambi i casi (riverificato con lo stesso script).
+
+**2. Il colore proposto (`--gold`) andava misurato contro le superfici REALI
+dell'app, non ipotizzato.** Formula WCAG (luminanza relativa sRGB), sui
+colori effettivi di `docs/CLAUDE.md`:
+
+| Coppia | Contrasto | Soglia 3:1 |
+|---|---|---|
+| `--gold` su `--navy` | 7.24 | ok |
+| `--gold` su `--surface` | 2.12 | **fallisce** |
+| `--gold` su `--card` (bianco) | 2.21 | **fallisce** |
+| `--gold` su `--sky` | 1.82 | **fallisce** |
+| `--navy` su `--surface` | 15.33 | ok |
+| bianco su `--navy` | 16.03 | ok |
+
+Il rilievo aveva la diagnosi giusta e la prescrizione invertita: temeva per
+i fondi scuri («l'oro non stacca sul navy») quando è l'opposto — l'oro
+stacca benissimo sul navy, e fallisce sui fondi CHIARI che sono lo sfondo di
+default dell'app (`color-scheme: light`). Un secondo controllo, perché la
+prima intuizione («usare `--navy` invece dell'oro») rischiava lo stesso
+errore all'incontrario: `grep` per `background: var(--navy)` trova **oltre
+25 punti reali** — intestazioni di modali/pannelli e bottoni primari
+(`tokens.js` → stile `primary`) — non i «testate navy, toast, ErrorBoundary»
+generici che il rilievo nominava a mano. Un `outline` fisso, di qualunque
+tinta, non può avere ≥3:1 sia sul chiaro (dominante) sia sullo scuro
+(minoritario ma reale e diffuso): sono luminanze quasi opposte.
+
+### La soluzione: due toni, non due regole
+
+Invece di una classe `.vd-su-scuro` da applicare a mano sugli oltre 25 punti
+con sfondo navy (rischio concreto di dimenticarne uno, e comunque non
+sarebbe stata "quattro righe di CSS"), l'anello ha due componenti che si
+completano a vicenda senza bisogno di sapere su quale sfondo si trovano:
+
+```css
+:where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid var(--navy) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 4px #fff !important;
+}
+```
+
+`outline` navy risponde del caso comune (15,33:1 sui fondi chiari); il
+`box-shadow` bianco resta invisibile lì (si confonde con lo sfondo) e
+diventa l'indicatore visibile sui fondi navy (16,03:1). Nessun elenco di
+eccezioni da scrivere né da tenere aggiornato.
+
+### Verifica, non solo in isolamento
+
+Oltre al caso minimo, la regola è stata verificata:
+* **su un file HTML di controllo** con due bottoni (`outline:none` inline
+  su sfondo chiaro e su sfondo navy) — screenshot alla mano, l'anello navy è
+  visibile sul primo, l'alone bianco sul secondo, esattamente come previsto
+  dai numeri;
+* **nell'app vera**, avviando `npm run dev` e navigando con Playwright fino
+  alla `LoginScreen` (che gira senza `VITE_SUPABASE_URL`/`ANON_KEY`, non
+  serviva altro): sei `Tab` consecutivi, ogni elemento attivo — due `input`,
+  due `button` — mostra `outlineColor: rgb(15, 32, 68)` (navy) e
+  `boxShadow: rgb(255, 255, 255) 0px 0px 0px 4px`, cioè la regola vince
+  sull'inline anche sui componenti reali e non solo sul caso minimo.
+  Screenshot: sull'email input della login (sfondo scuro dell'app di
+  autenticazione) l'alone bianco è nitido, coerente con la tabella di
+  contrasto.
+
+### Cosa NON è stato fatto
+
+`M-2` (le 25 affordance solo-hover, `evidenziaConTastiera()` + la regola di
+lint come `warn`) resta aperto: è un rilievo distinto nell'ordine di
+esecuzione (punto 7, 4h), non incluso in «M-1». Il correttivo qui sopra
+riguarda solo l'anello di `:focus-visible` globale.

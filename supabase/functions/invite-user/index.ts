@@ -12,8 +12,17 @@ import { requireActiveAdmin } from "../_shared/requireActiveAdmin.ts";
 import { redirectConsentito } from "../_shared/originConsentite.ts";
 import { registraAudit } from "../_shared/audit.ts";
 import { entroLimite } from "../_shared/rateLimit.ts";
+import { erroreInterno } from "../_shared/erroreInterno.ts";
 
 const VALID_ROLES = new Set(["admin", "manager", "agent", "driver"]);
+
+// B-6 dell'audit del 4 settembre. Copiata da EMAIL_RX in src/lib/validators.js
+// — le Edge Function non importano da src/, quindi vive qui in una seconda
+// copia deliberata invece che condivisa. Ruolo, capacity e colore erano già
+// validati qui sotto; l'email no, e passava grezza a GoTrue: non un buco (la
+// respinge comunque), ma un giro di rete e un messaggio di GoTrue al posto di
+// uno del progetto per un controllo che si può fare prima di spedirla.
+const EMAIL_RX = /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/;
 
 Deno.serve(async (req: Request) => {
   const cors = corsHeaders(req);
@@ -91,6 +100,9 @@ Deno.serve(async (req: Request) => {
 
     if (!email || (!resend && !name)) {
       return json({ error: "Email e nome sono obbligatori" }, 400);
+    }
+    if (!EMAIL_RX.test(email)) {
+      return json({ error: "Email non valida" }, 400);
     }
 
     // Genera avatar dalle iniziali (non serve per resend ma non fa male)
@@ -185,8 +197,6 @@ Deno.serve(async (req: Request) => {
 
     return json({ success: true, userId: inviteData.user.id });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Errore interno";
-    console.error("[invite-user]", msg);
-    return json({ error: msg }, 500);
+    return json(erroreInterno("invite-user", err), 500);
   }
 });

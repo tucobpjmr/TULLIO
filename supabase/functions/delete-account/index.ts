@@ -20,6 +20,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { entroLimite } from "../_shared/rateLimit.ts";
+import { erroreInterno } from "../_shared/erroreInterno.ts";
 
 Deno.serve(async (req: Request) => {
   const cors = corsHeaders(req);
@@ -66,10 +67,7 @@ Deno.serve(async (req: Request) => {
     const { error: banErr } = await adminClient.auth.admin.updateUserById(user.id, {
       ban_duration: "87600h",
     });
-    if (banErr) {
-      console.error("[delete-account] ban error", banErr.message);
-      return json({ error: "Impossibile completare l'eliminazione: " + banErr.message }, 500);
-    }
+    if (banErr) return json(erroreInterno("delete-account/ban", banErr), 500);
 
     // Solo dopo il ban riuscito: disabilita e anonimizza in public.users, e
     // rimuove i dati personali nelle tabelle satellite. Best-effort e in
@@ -103,8 +101,6 @@ Deno.serve(async (req: Request) => {
 
     return json({ success: true });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Errore interno";
-    console.error("[delete-account]", msg);
-    return json({ error: msg }, 500);
+    return json(erroreInterno("delete-account", err), 500);
   }
 });

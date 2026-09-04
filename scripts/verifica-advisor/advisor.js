@@ -92,16 +92,28 @@ const FUNZIONI_SECURITY_DEFINER_VERIFICATE = new Set([
   // avere. Rimetterla qui senza rimettere il gate e i limiti riaprirebbe A-2
   // in silenzio.
   //
-  // Le cinque qui sotto sono funzioni TRIGGER (`returns trigger`): la rotta
-  // /rest/v1/rpc/<nome> che l'advisor nomina non è chiamabile, perché una
-  // funzione trigger invocata fuori da un trigger fallisce. Restano
-  // nell'elenco e non fra gli AVVISI_ACCETTATI per nome, perché il punto di
-  // questo Set è che ogni funzione sia stata GUARDATA da qualcuno.
-  'audit_clients_insert',
-  'audit_clients_delete',
-  'audit_liste_truncate',
-  'audit_users_delete',
-  'audit_users_privilegi',
+  // ─── Le cinque funzioni TRIGGER · ERANO QUI, TOLTE il 4 settembre (M-3) ──
+  // ⛔ `audit_clients_insert`, `audit_clients_delete`, `audit_liste_truncate`,
+  // `audit_users_delete`, `audit_users_privilegi` ERANO QUI e sono state
+  // TOLTE — M-3 dell'audit del 4 settembre, migrazione `20260904160804`.
+  //
+  // La riga diceva il vero e non bastava: «la rotta /rest/v1/rpc/<nome> non è
+  // chiamabile, perché una funzione trigger invocata fuori da un trigger
+  // fallisce» — sfruttabilità bassa, non nulla da revocare. Erano però le
+  // uniche cinque funzioni SECURITY DEFINER del progetto rimaste senza una
+  // revoca esplicita di EXECUTE a `public`/`anon`/`authenticated`: la stessa
+  // falla di disciplina che `registra_audit` aveva (voce sopra), qui senza
+  // nemmeno un chiamante teorico da proteggere, perché l'esecutore di una
+  // trigger function è il proprietario della tabella e non chi ha innescato
+  // l'evento.
+  //
+  // Dopo la revoca l'advisor non riporta più queste cinque fra le SECURITY
+  // DEFINER esposte (riverificato il 4 settembre su produzione). Toglierle da
+  // questo elenco NON è pulizia: è ciò che rende `verifica:advisor` ROSSO se
+  // qualcuno rifacesse anche solo uno dei cinque GRANT — il warning
+  // tornerebbe con un nome che non è più fra i verificati. Rimetterle qui
+  // senza rimettere anche la revoca riaprirebbe M-3 in silenzio.
+  //
   // ─── Segnalazione errori client (C-1 dell'audit del 2 settembre) ─────────
   // Nata il 1 settembre (20260901120000) e rimasta fuori da questo elenco per
   // due giorni: era la sola SECURITY DEFINER esposta che nessuno avesse

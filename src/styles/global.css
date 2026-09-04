@@ -120,6 +120,50 @@ body { font-family: 'DM Sans', sans-serif; background: var(--surface); color: va
 .vd-field-label { font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 4px; display: block; }
 .vd-field-label-lg { font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 5px; }
 
+/* ─── FOCUS DA TASTIERA (M-1 dell'audit del 4 settembre) ───
+   Ventuno-più `outline: "none"` sparsi negli stili inline dei componenti
+   avevano tolto l'anello di focus del browser, e solo quindici `onFocus` che
+   cambiano `borderColor` l'avevano rimpiazzato — su altrettanti input, non su
+   tutti. `:focus-visible` è la pseudo-classe giusta e non `:focus`: si applica
+   quando il browser giudica utile un indicatore (Tab, frecce, tastiera
+   virtuale), non dopo un click — che è il motivo per cui gli `outline: none`
+   erano stati scritti.
+
+   ⚠️ NON basta `:focus-visible` da solo. Verificato con un caso minimo
+   (Chromium via Playwright): uno `style={{ outline: "none" }}` inline vince
+   SEMPRE sulla cascata per la stessa proprietà, qualunque sia la specificità
+   della regola esterna — non è una questione di "quando" la regola si
+   applica, come il rilievo originale ipotizzava, ma di origine della
+   dichiarazione (inline batte qualunque selettore non-`!important`). Senza
+   `!important` qui sotto, questa regola sarebbe un no-op su ognuno dei punti
+   che l'hanno motivata, e continuerebbe a funzionare SOLO sugli elementi che
+   l'outline non l'avevano mai tolto — cioè risolverebbe un problema diverso
+   da quello misurato.
+
+   ⚠️ Il colore NON è l'oro. Il rilievo originale proponeva `var(--gold)`
+   assumendo un problema di contrasto sui fondi SCURI ("l'oro non stacca sul
+   navy"). Misurato (formula WCAG, sRGB relative luminance): oro su navy è
+   7.24:1 — ottimo. Oro sui fondi CHIARI che sono lo sfondo di default
+   dell'app (`--surface` 2.12:1, `--card` 2.21:1, `--sky` 1.82:1) è sotto la
+   soglia minima di 3:1 per un indicatore non testuale (WCAG 2.4.11/1.4.11) —
+   cioè il problema era sui fondi chiari, la maggioranza dell'app, non su
+   quelli scuri. `--navy` sui fondi chiari è invece 14–15:1: la scelta
+   corretta per il caso comune.
+
+   Per il caso minoritario ma reale — intestazioni e bottoni primari su
+   `var(--navy)`, ~30 punti del codice — un `outline` navy sparirebbe. Invece
+   di marcarli uno per uno con una classe nuova (rischio di dimenticarne uno,
+   e non sarebbe comunque "quattro righe di CSS"), l'anello ha DUE toni: un
+   `outline` navy per il caso comune più un `box-shadow` bianco appena più
+   largo, che resta invisibile su fondo chiaro (si confonde con lo sfondo) e
+   diventa l'indicatore visibile su fondo navy — nessun elenco di eccezioni da
+   mantenere, perché la doppia tinta copre entrambi i casi da sé. */
+:where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid var(--navy) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 4px #fff !important;
+}
+
 /* ─── RESPONSIVE ─── */
 /* Griglie adattive: collassano su tablet/mobile via media query.
    Gli stili inline restano il default desktop; queste regole hanno la priorità grazie a !important. */

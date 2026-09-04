@@ -63,3 +63,60 @@ export const esitoScrittura = (r) => {
   if (typeof r?.count === "number" && r.count === 0) return RIFIUTO_RLS;
   return null;
 };
+
+// ─── IL RIFIUTO CHE ARRIVA PRIMA DEL DATABASE (A-1 dell'audit del 4 settembre)
+//
+// `RIFIUTO_RLS` qui sopra è «il database ha detto di no». Questo è il suo
+// gemello a monte: «il client ha detto di no, senza nemmeno chiedere» — il
+// guard di una entry del registry, o ADMIN_ONLY_ACTIONS, che respingono
+// l'azione in hooks/useSyncedDispatch.js prima di toccare la rete.
+//
+// PERCHÉ SERVIVA UN ERRORE E NON BASTAVA IL TOAST. Su quel percorso
+// `useSyncedDispatch` ritornava `{ error: null }`, cioè la stessa risposta di
+// una scrittura RIUSCITA. Il reducer alzava (e alza) il toast di rifiuto, ma
+// chi ATTENDE l'esito legge `error` — e `useSalvataggio`, che è il modo in cui
+// quindici form dell'app decidono se chiudersi, davanti a `null` chiamava
+// `alSuccesso()`. Il risultato, verificato su ClientiView → ClienteModal: un
+// agente disattivato mentre la scheda è aperta compila il form, preme Salva, e
+// **la modale si chiude buttando via quanto ha scritto** — con un toast rosso
+// a dirlo e nessun modo di recuperare i dati.
+//
+// L'altro registry dell'app lo faceva già giusto: `useListeWrite` in
+// components/liste/listePersistence.js, davanti a un guard che nega, ritorna
+// `{ ok: false, data: null }`. Non è una novità di disegno, è la stessa
+// risposta data due volte in modo diverso — e A-1 è il posto in cui la
+// versione sbagliata ha vinto.
+//
+// PERCHÉ È DISTINGUIBILE (`name`) E NON UN ERRORE QUALUNQUE. Un rifiuto di
+// permesso e un guasto di scrittura chiedono al form la stessa cosa (non
+// chiuderti) ma non lo stesso messaggio: «riprova» è un consiglio giusto per
+// il secondo e sbagliato per il primo, dove riprovare fallirà identico. Il
+// `name` è ciò che permette a `useSalvataggio` di tacere e lasciar parlare il
+// toast del reducer, invece di aggiungere un secondo messaggio che contraddice
+// il primo — la stessa distinzione che `meta.compensazione` fa nel reducer per
+// i toast di una compensazione.
+export const NOME_PERMESSO_NEGATO = "PermessoNegato";
+
+/**
+ * L'errore da restituire a chi attende l'esito di un'azione respinta dai
+ * permessi lato client.
+ *
+ * @param {string} [messaggio] il motivo, se il chiamante ne ha uno più preciso.
+ * @returns {Error}
+ */
+export const erroreDiPermesso = (messaggio = "non hai i permessi per questa azione") => {
+  const e = new Error(messaggio);
+  e.name = NOME_PERMESSO_NEGATO;
+  return e;
+};
+
+/**
+ * Riconosce l'errore qui sopra. Deliberatamente tollerante sul tipo: `error`
+ * non è sempre un `Error` — `useSalvataggioLista` ci mette `true`, e il data
+ * layer un oggetto di PostgREST — quindi la domanda va posta in modo che un
+ * valore qualunque risponda «no» invece di sollevare.
+ *
+ * @param {unknown} err
+ */
+export const isPermessoNegato = (err) =>
+  typeof err === "object" && err !== null && /** @type {{name?: unknown}} */ (err).name === NOME_PERMESSO_NEGATO;

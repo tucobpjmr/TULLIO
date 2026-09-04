@@ -108,6 +108,36 @@ describe("useSyncedDispatch — difesa in profondità sui permessi", () => {
     expect(rawDispatch).toHaveBeenCalledTimes(1);
   });
 
+  it("un'azione negata ritorna un ERRORE, non un successo", async () => {
+    // A-1 dell'audit del 4 settembre, ed è la lacuna che questo blocco aveva.
+    // I casi qui attorno verificano tutti che nessuna chiamata parta verso il
+    // server — vero, e insufficiente: nessuno guardava il valore RESTITUITO,
+    // che era `{ error: null }`, cioè la risposta di una scrittura riuscita.
+    // Chi attende quell'esito è `useSalvataggio`, il modo in cui quindici form
+    // decidono se chiudersi: davanti a un successo chiudeva la modale buttando
+    // via quanto l'utente aveva scritto.
+    const { dispatch } = setup({ uid: "junior1" });
+    let esito;
+    await act(async () => { esito = await dispatch({ type: "ADD_TASK", payload: task({ category: "payment" }) }); });
+
+    expect(esito.error).toBeTruthy();
+    // Il `name` e non solo la presenza: è ciò che permette a useSalvataggio di
+    // distinguere «non ti è permesso» da «la scrittura è fallita» e di non
+    // aggiungere un «riprova» che qui sarebbe un consiglio sbagliato.
+    expect(esito.error.name).toBe("PermessoNegato");
+  });
+
+  it("anche un'azione ADMIN-ONLY negata ritorna un errore", async () => {
+    // L'altro dei due rami di `denied`: qui a negare non è il guard di una
+    // entry ma ADMIN_ONLY_ACTIONS, e il valore di ritorno deve essere lo
+    // stesso — per il chiamante le due negazioni sono la stessa cosa.
+    const { dispatch } = setup({ uid: "junior1" });
+    let esito;
+    await act(async () => { esito = await dispatch({ type: "REMOVE_CATEGORY", payload: "booking" }); });
+
+    expect(esito.error?.name).toBe("PermessoNegato");
+  });
+
   it("quando l'azione è negata si dispatcha l'originale, non quella normalizzata", async () => {
     const { dispatch, rawDispatch } = setup({ uid: "junior1" });
     const originale = { type: "ADD_TASK", payload: task({ id: "temp-1", category: "admin" }) };

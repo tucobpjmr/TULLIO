@@ -236,18 +236,29 @@ suite("RLS: la matrice di autorizzazione è applicata dal database, non solo dal
       expect(error.code).toBe("42501");
     });
 
-    it("e nemmeno passando dalla RPC può firmarla per conto d'altri", async () => {
-      // `registra_audit` non ha un parametro "attore": lo ricava da auth.uid().
-      // È l'unica riga che impedisce di scrivere una voce col nome di qualcun
-      // altro, ed è il motivo per cui la RPC esiste invece di un GRANT INSERT.
-      const { data, error } = await client.rpc("registra_audit", {
+    it("e nemmeno passando dalla RPC, che non è più chiamabile dal client", async () => {
+      // A-2 dell'audit del 4 settembre (migrazione 20260905090000).
+      //
+      // COSA MISURAVA PRIMA QUESTO CASO, E PERCHÉ NON BASTAVA. Chiamava
+      // `registra_audit` da un driver, si aspettava che RIUSCISSE, e
+      // verificava che la voce portasse l'attore giusto — perché la RPC
+      // l'attore non lo prende per parametro, lo ricava da `auth.uid()`. La
+      // proprietà era vera e resta vera; il caso però certificava, senza
+      // accorgersene, che un utente qualunque POTESSE scrivere nel registro
+      // di controllo. Non poteva firmare per conto d'altri, ma poteva
+      // inventare `action`, `target_*` e `details`, e — non avendo la
+      // funzione né tetti né limite di frequenza — poteva scriverne quante
+      // ne voleva, sommergendo le voci vere.
+      //
+      // COSA MISURA ORA. Che la porta non c'è più: `authenticated` non ha
+      // l'EXECUTE, quindi PostgREST risponde 42501 senza entrare nel corpo.
+      // È la proprietà più forte delle due, e comprende la vecchia — una
+      // funzione che non si può chiamare non si può nemmeno firmare male.
+      const { error } = await client.rpc("registra_audit", {
         p_action: "sonda.rls", p_target_type: "test", p_target_id: null, p_details: {},
       });
-      expect(error).toBeNull();
-      expect(data).toBeTruthy();
-      // La voce esiste ma il driver non può rileggerla: la SELECT è solo admin.
-      const { data: righe } = await client.from("audit_log").select("id").eq("id", data);
-      expect(righe).toEqual([]);
+      expect(error).toBeTruthy();
+      expect(error.code).toBe("42501");
     });
   });
 

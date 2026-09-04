@@ -49,6 +49,7 @@
 // per sempre — modale congelata, bottone spento, nessun messaggio.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useIsMounted } from "./useIsMounted.js";
+import { isPermessoNegato } from "../lib/esitoScrittura.js";
 
 const MESSAGGIO_PREDEFINITO = "Salvataggio non riuscito. I dati sono ancora qui, riprova.";
 
@@ -118,8 +119,23 @@ export function useSalvataggio(esegui, { alSuccesso, messaggioErrore = MESSAGGIO
     setInVolo(false);
 
     if (esito?.error) {
-      const m = rif.current.messaggioErrore;
-      setErrore(typeof m === "function" ? m(esito.error) : m);
+      // A-1 dell'audit del 4 settembre. Entrambi i rami NON chiamano
+      // `alSuccesso`: il pannello resta aperto con i dati dentro, che è la
+      // cosa che conta e che prima non succedeva su un rifiuto di permesso
+      // (vedi il preambolo di lib/esitoScrittura.js).
+      //
+      // Differiscono solo sul TESTO. Un rifiuto di permesso ha già il suo
+      // messaggio — il toast che il reducer alza in `_denied()`, garantito su
+      // ogni azione con `guard` da permessoNegatoContract.test.js — e il testo
+      // inline predefinito dice «riprova»: un consiglio giusto per una
+      // scrittura fallita e sbagliato qui, dove riprovare fallirà identico.
+      // Due messaggi che si contraddicono sullo stesso gesto sono il difetto
+      // che «Compensazione» (M-1) ha già chiuso una volta nel reducer; qui si
+      // evita di riaprirlo, lasciando parlare il toast.
+      if (!isPermessoNegato(esito.error)) {
+        const m = rif.current.messaggioErrore;
+        setErrore(typeof m === "function" ? m(esito.error) : m);
+      }
       return esito;
     }
     if (esito?.avviso) {

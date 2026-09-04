@@ -73,10 +73,25 @@ const FUNZIONI_SECURITY_DEFINER_VERIFICATE = new Set([
   'get_vapid_public_key',
   'get_migrazioni_applicate',
   // ─── Registro di audit (A-2 del 26 agosto), esaminate il 27 ──────────────
-  // `registra_audit` non ha un parametro "attore": lo ricava da `auth.uid()`
-  // e senza sessione solleva, quindi non è firmabile per conto d'altri — ed è
-  // il motivo per cui esiste invece di un GRANT INSERT su `audit_log`.
-  'registra_audit',
+  // ⛔ `registra_audit` ERA QUI ed è stata TOLTA — A-2 dell'audit del 4
+  // settembre, migrazione 20260904143756.
+  //
+  // La riga diceva il vero e non bastava: «non ha un parametro attore, lo
+  // ricava da auth.uid(), quindi non è firmabile per conto d'altri». Ciò che
+  // non diceva è che `action`, `target_type`, `target_id` e `details` li
+  // sceglie il chiamante, che la funzione non ha né tetti né limite di
+  // frequenza, e che il GRANT ad `authenticated` non aveva un chiamante
+  // legittimo: nessun percorso dell'app la usa. Non poter firmare per conto
+  // d'altri è poco, su un registro che chiunque può riempire.
+  //
+  // Ora la RPC è riservata a `service_role`, quindi l'advisor non la riporta
+  // più fra le SECURITY DEFINER esposte. Toglierla da questo elenco NON è
+  // pulizia: è ciò che rende `verifica:advisor` ROSSO se qualcuno rifacesse
+  // il GRANT — il warning tornerebbe con un nome che non è più fra i
+  // verificati, ed è esattamente il comportamento che questo Set esiste per
+  // avere. Rimetterla qui senza rimettere il gate e i limiti riaprirebbe A-2
+  // in silenzio.
+  //
   // Le cinque qui sotto sono funzioni TRIGGER (`returns trigger`): la rotta
   // /rest/v1/rpc/<nome> che l'advisor nomina non è chiamabile, perché una
   // funzione trigger invocata fuori da un trigger fallisce. Restano

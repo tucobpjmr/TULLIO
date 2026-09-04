@@ -181,6 +181,19 @@ const AUDIT = [
   // Nasce con undici rilievi tutti aperti ed e' l'unico dei due in registro con
   // un rilievo CRITICO ancora da chiudere, quindi i prefissi sono quattro.
   { file: 'AUDIT_ARCHITETTURA_SICUREZZA_2026-09-02.md', prefisso: ['C', 'A', 'M', 'B'] },
+  // L'audit di architettura e sicurezza del 4 settembre. Registrato insieme al
+  // documento, per la ragione scritta piu' sopra.
+  //
+  // E' il primo audit condotto anche CONTRO IL DATABASE di produzione (pg_proc,
+  // pg_policies, pg_trigger, advisor) e non solo contro il repository: tre dei
+  // suoi quattro rilievi di alta priorita' non sono visibili leggendo le
+  // migrazioni. Vale la pena notarlo QUI, nel file che M-3 del 2 settembre
+  // accusa di confrontare due prose: l'audit del 4 settembre ha usato per
+  // l'analisi il metodo che quel rilievo chiede per la verifica.
+  //
+  // Nasce con diciannove rilievi tutti aperti e NESSUN critico, quindi i
+  // prefissi sono tre: A (alta), M (media), B (bassa).
+  { file: 'AUDIT_ARCHITETTURA_SICUREZZA_2026-09-04.md', prefisso: ['A', 'M', 'B'] },
 ];
 
 // Misura i warning di una regola sul sorgente dell'app.

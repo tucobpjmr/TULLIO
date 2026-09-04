@@ -227,6 +227,28 @@ const redigiPii = (testo) =>
     .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "«email»")
     .replace(/(?<!\d)(?:\+\d{1,3}[ .-]?)?(?:\d[ .-]?){8,14}\d(?!\d)/g, "«telefono»");
 
+// B-3 dell'audit del 4 settembre. `redigiPii` sopra copriva `message` e
+// `stack`, non `url` e `userAgent`, che finivano grezzi in `error_reports`.
+// Con i `rewrites` di vercel.json che fanno atterrare tutto su `/`, l'URL
+// oggi non porta PII — ma è un'assunzione sul ROUTING, non un fatto
+// strutturale come per `message`/`stack`, e non è scritta da nessuna parte:
+// passa comunque da `redigiPii`, che su un URL senza email/telefono è un
+// no-op. `userAgent` per intero è più fingerprint di quanto la diagnosi
+// richieda — versione esatta di sistema operativo e build del browser — e la
+// sola FAMIGLIA (Chrome/Firefox/Safari/Edge/…) basta a distinguere un bug
+// specifico di un motore da uno generico. L'ordine dei confronti conta: le
+// UA di Edge e Opera contengono anche "Chrome/", e quelle di Chrome anche
+// "Safari/".
+const famigliaBrowser = (userAgent) => {
+  const ua = String(userAgent ?? "");
+  if (/Edg\//.test(ua)) return "Edge";
+  if (/OPR\//.test(ua)) return "Opera";
+  if (/Firefox\//.test(ua)) return "Firefox";
+  if (/Chrome\//.test(ua)) return "Chrome";
+  if (/Safari\//.test(ua)) return "Safari";
+  return "altro";
+};
+
 // Esportata: `segnala()` qui sotto la usa per i due handler globali, e
 // creaErrorBoundary.jsx per i crash di render — che non passano da qui, sono
 // l'ALTRO percorso d'errore descritto in cima a questo file. Stesso codice
@@ -244,8 +266,8 @@ export function registraSegnalazione(codice, origine, motivo, dettaglioAggiuntiv
     origin: origine,
     message: redigiPii(testoLeggibile(motivo)),
     stack: stackGrezzo ? redigiPii(stackGrezzo) : null,
-    url: typeof window !== "undefined" ? window.location?.href : null,
-    userAgent: typeof navigator !== "undefined" ? navigator.userAgent : null,
+    url: typeof window !== "undefined" ? redigiPii(window.location?.href) : null,
+    userAgent: typeof navigator !== "undefined" ? famigliaBrowser(navigator.userAgent) : null,
   })).catch(() => {});
 }
 

@@ -13,6 +13,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { requireActiveAdmin } from "../_shared/requireActiveAdmin.ts";
 import { registraAudit } from "../_shared/audit.ts";
 import { entroLimite } from "../_shared/rateLimit.ts";
+import { erroreInterno } from "../_shared/erroreInterno.ts";
 
 Deno.serve(async (req: Request) => {
   const cors = corsHeaders(req);
@@ -132,8 +133,6 @@ Deno.serve(async (req: Request) => {
     await registraAudit(supabaseAdmin, callerId, "user.hard_delete", { type: "user", id: targetId });
     return json({ success: true });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Errore interno";
-    console.error("[delete-user]", msg);
-    return json({ error: msg }, 500);
+    return json(erroreInterno("delete-user", err), 500);
   }
 });

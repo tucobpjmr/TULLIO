@@ -24,6 +24,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { requireActiveAdmin } from "../_shared/requireActiveAdmin.ts";
 import { registraAudit } from "../_shared/audit.ts";
 import { entroLimite } from "../_shared/rateLimit.ts";
+import { erroreInterno } from "../_shared/erroreInterno.ts";
 
 // Non un ban "per sempre" letterale (a differenza di delete-account, che è
 // irreversibile per scelta): è "fino a quando un admin non lo rimuove
@@ -100,16 +101,10 @@ Deno.serve(async (req: Request) => {
     const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(targetId, {
       ban_duration: active ? "none" : BAN_INDEFINITO,
     });
-    if (authErr) {
-      console.error("[set-user-active] ban/unban error", authErr.message);
-      return json({ error: "Impossibile aggiornare l'accesso: " + authErr.message }, 500);
-    }
+    if (authErr) return json(erroreInterno("set-user-active/ban", authErr), 500);
 
     const { error: dbErr } = await supabaseAdmin.from("users").update({ active }).eq("id", targetId);
-    if (dbErr) {
-      console.error("[set-user-active] users.active error", dbErr.message);
-      return json({ error: "Accesso aggiornato ma il profilo non si è salvato: " + dbErr.message }, 500);
-    }
+    if (dbErr) return json(erroreInterno("set-user-active/db", dbErr), 500);
 
     // Il trigger su public.users registra già il passaggio di `active`. Questa
     // voce dice l'altra metà, quella che il database non può vedere: che è
@@ -122,8 +117,6 @@ Deno.serve(async (req: Request) => {
 
     return json({ success: true });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Errore interno";
-    console.error("[set-user-active]", msg);
-    return json({ error: msg }, 500);
+    return json(erroreInterno("set-user-active", err), 500);
   }
 });
